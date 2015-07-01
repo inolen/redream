@@ -1,0 +1,13 @@
+# REGISTER_IN r0 16384
+
+  .text
+  .global start
+start:
+# FSCA FPUL,DRn
+  lds r0, fpul
+  fsca fpul, dr2
+  rts
+  nop
+
+# REGISTER_OUT fr2 0x3f800000
+# REGISTER_OUT fr3 0xb33bbd2e
