@@ -95,27 +95,27 @@ TEST_F(MemoryTest, Mounts) {
   // resolve P0 A0 physical address
   memory_.Resolve(0xff, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[0]);
-  CHECK_EQ(offset, 0xff);
+  CHECK_EQ(offset, (uint32_t)0xff);
 
   // resolve P0 A1 physical address
   memory_.Resolve(0x040000ff, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[1]);
-  CHECK_EQ(offset, 0xff);
+  CHECK_EQ(offset, (uint32_t)0xff);
 
   // resolve back edge of P0 A6
   memory_.Resolve(0x1bffffff, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[6]);
-  CHECK_EQ(offset, 0x03ffffff);
+  CHECK_EQ(offset, (uint32_t)0x03ffffff);
 
   // resolve front edge of P0 A7
   memory_.Resolve(0x1c000000, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[7]);
-  CHECK_EQ(offset, 0);
+  CHECK_EQ(offset, (uint32_t)0x0);
 
   // resolve back edge of P0 A7
   memory_.Resolve(0x1fffffff, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[7]);
-  CHECK_EQ(offset, 0x03ffffff);
+  CHECK_EQ(offset, (uint32_t)0x03ffffff);
 }
 
 TEST_F(MemoryTest, Mirror) {
@@ -125,7 +125,7 @@ TEST_F(MemoryTest, Mirror) {
   // resolve P1 A0 mirror to P0 A0 physical address
   memory_.Resolve(0x200000ff, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[0]);
-  CHECK_EQ(offset, 0xff);
+  CHECK_EQ(offset, (uint32_t)0xff);
 
   // resolve P1 A1 mirror to P0 A1 physical address
   memory_.Resolve(0x240000ff, &bank, &offset);
@@ -135,22 +135,22 @@ TEST_F(MemoryTest, Mirror) {
   // resolve P2 A0 address to P0 A0 physical address
   memory_.Resolve(0xa00000ff, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[0]);
-  CHECK_EQ(offset, 0xff);
+  CHECK_EQ(offset, (uint32_t)0xff);
 
   // resolve back edge of P1 A6 to P0 A6
   memory_.Resolve(0x3bffffff, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[6]);
-  CHECK_EQ(offset, 0x03ffffff);
+  CHECK_EQ(offset, (uint32_t)0x03ffffff);
 
   // resolve front edge of P1 A7 to P0 A7
   memory_.Resolve(0x3c000000, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[7]);
-  CHECK_EQ(offset, 0);
+  CHECK_EQ(offset, (uint32_t)0x0);
 
   // resolve back edge of P1 A7 to P0 A7
   memory_.Resolve(0x3fffffff, &bank, &offset);
   CHECK_EQ(bank->physical_addr, areas_[7]);
-  CHECK_EQ(offset, 0x03ffffff);
+  CHECK_EQ(offset, (uint32_t)0x03ffffff);
 }
 
 TEST_F(MemoryTest, Handlers) {
@@ -161,7 +161,7 @@ TEST_F(MemoryTest, Handlers) {
   memory_.Resolve(0xc00000ff, &bank, &offset);
   CHECK_EQ((intptr_t)bank->physical_addr, 0);
   CHECK_EQ(bank->logical_addr, 0xc0000000);
-  CHECK_EQ(offset, 0xff);
+  CHECK_EQ(offset, (uint32_t)0xff);
 }
 
 TEST_F(MemoryTest, Read) {

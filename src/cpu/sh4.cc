@@ -161,7 +161,7 @@ void SH4::UnrequestInterrupt(Interrupt intr) {
 template <typename T>
 T SH4::ReadCache(void *ctx, uint32_t addr) {
   SH4 *sh4 = (SH4 *)ctx;
-  CHECK_EQ(sh4->CCR.ORA, 1);
+  CHECK_EQ(sh4->CCR.ORA, 1u);
   uint32_t offset = CACHE_OFFSET(addr, sh4->CCR.OIX);
   return *reinterpret_cast<T *>(&sh4->cache_[offset]);
 }
@@ -169,7 +169,7 @@ T SH4::ReadCache(void *ctx, uint32_t addr) {
 template <typename T>
 void SH4::WriteCache(void *ctx, uint32_t addr, T value) {
   SH4 *sh4 = (SH4 *)ctx;
-  CHECK_EQ(sh4->CCR.ORA, 1);
+  CHECK_EQ(sh4->CCR.ORA, 1u);
   uint32_t offset = CACHE_OFFSET(addr, sh4->CCR.OIX);
   *reinterpret_cast<T *>(&sh4->cache_[offset]) = value;
 }

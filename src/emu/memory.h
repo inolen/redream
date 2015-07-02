@@ -73,8 +73,8 @@ class PageTable {
  private:
   void MapRange(uint32_t start, uint32_t end, TableHandle handle) {
     // ensure start and end are page aligned
-    CHECK_EQ(start & (OFFSET_BITS - 1), 0);
-    CHECK_EQ((end + 1) & (OFFSET_BITS - 1), 0);
+    CHECK_EQ(start & (OFFSET_BITS - 1), 0u);
+    CHECK_EQ((end + 1) & (OFFSET_BITS - 1), 0u);
     CHECK_LT(start, end);
 
     int l1_start = start >> OFFSET_BITS;

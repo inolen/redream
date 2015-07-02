@@ -1,4 +1,7 @@
 #include "core/core.h"
+#include "cpu/backend/interpreter/interpreter_backend.h"
+#include "cpu/backend/x64/x64_backend.h"
+#include "cpu/frontend/sh4/sh4_frontend.h"
 #include "emu/emulator.h"
 #include "emu/profiler.h"
 #include "holly/maple_controller.h"
@@ -8,6 +11,7 @@ using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::cpu::backend::interpreter;
+using namespace dreavm::cpu::backend::x64;
 using namespace dreavm::cpu::frontend::sh4;
 using namespace dreavm::emu;
 using namespace dreavm::holly;
@@ -18,8 +22,9 @@ Emulator::Emulator(System &sys)
     : sys_(sys),
       scheduler_(new Scheduler()),
       memory_(new Memory()),
-      sh4_frontend_(new SH4Frontend(*memory_)),
-      int_backend_(new InterpreterBackend(*memory_)),
+      rt_frontend_(new SH4Frontend(*memory_)),
+      rt_backend_(new InterpreterBackend(*memory_)),
+      // rt_backend_(new X64Backend(*memory_)),
       runtime_(new Runtime(*memory_)),
       processor_(new SH4(*scheduler_, *memory_)),
       holly_(new Holly(*scheduler_, *memory_, *processor_)) {
@@ -32,8 +37,8 @@ Emulator::~Emulator() {
   delete holly_;
   delete processor_;
   delete runtime_;
-  delete int_backend_;
-  delete sh4_frontend_;
+  delete rt_backend_;
+  delete rt_frontend_;
   delete memory_;
   delete scheduler_;
 }
@@ -59,7 +64,7 @@ bool Emulator::Init() {
     return false;
   }
 
-  if (!runtime_->Init(sh4_frontend_, int_backend_)) {
+  if (!runtime_->Init(rt_frontend_, rt_backend_)) {
     return false;
   }
 

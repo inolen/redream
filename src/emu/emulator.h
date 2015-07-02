@@ -2,8 +2,8 @@
 #define EMULATOR_H
 
 #include "cpu/sh4.h"
-#include "cpu/backend/interpreter/interpreter_backend.h"
-#include "cpu/frontend/sh4/sh4_frontend.h"
+#include "cpu/backend/backend.h"
+#include "cpu/frontend/frontend.h"
 #include "holly/holly.h"
 #include "holly/maple_controller.h"
 #include "renderer/backend.h"
@@ -33,8 +33,8 @@ class Emulator {
   system::System &sys_;
   emu::Scheduler *scheduler_;
   emu::Memory *memory_;
-  cpu::frontend::sh4::SH4Frontend *sh4_frontend_;
-  cpu::backend::interpreter::InterpreterBackend *int_backend_;
+  cpu::frontend::Frontend *rt_frontend_;
+  cpu::backend::Backend *rt_backend_;
   cpu::Runtime *runtime_;
   cpu::SH4 *processor_;
   holly::Holly *holly_;

@@ -2,6 +2,7 @@
 #define RING_BUFFER_H
 
 #include <atomic>
+#include <glog/logging.h>
 
 namespace dreavm {
 namespace core {
@@ -21,12 +22,12 @@ class RingBuffer {
   T &front() { return buffer[tail % MAX]; }
 
   const T &back() const {
-    assert(head);
+    DCHECK(head);
     return buffer[(head - 1) % MAX];
   }
 
   T &back() {
-    assert(head);
+    DCHECK(head);
     return buffer[(head - 1) % MAX];
   }
 
@@ -36,7 +37,7 @@ class RingBuffer {
   }
 
   void pop_front() {
-    assert(tail < head);
+    DCHECK(tail < head);
     ++tail;
   }
 
