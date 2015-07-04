@@ -19,7 +19,7 @@ class InterpreterBlock : public RuntimeBlock {
                    int num_registers);
   ~InterpreterBlock();
 
-  uint32_t Call(RuntimeContext &runtime_ctx);
+  uint32_t Call(emu::Memory *memory, void *guest_ctx);
 
  private:
   Instr *instrs_;

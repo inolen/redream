@@ -20,7 +20,6 @@ namespace cpu {
 void RunSH4Test(const SH4Test &test) {
   Scheduler scheduler;
   Memory memory;
-  SH4 sh4(scheduler, memory);
 
   // initialize runtime
   frontend::sh4::SH4Frontend sh4_frontend(memory);
@@ -29,6 +28,7 @@ void RunSH4Test(const SH4Test &test) {
   ASSERT_TRUE(runtime.Init(&sh4_frontend, &int_backend));
 
   // initialize device
+  SH4 sh4(scheduler, memory);
   ASSERT_TRUE(sh4.Init(&runtime));
 
   // mount the test binary and a small stack

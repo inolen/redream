@@ -10,4 +10,6 @@ X64Block::X64Block(int guest_cycles) : RuntimeBlock(guest_cycles) {}
 
 X64Block::~X64Block() {}
 
-uint32_t X64Block::Call(RuntimeContext &runtime_ctx) { return 0xdeadbeef; }
+uint32_t X64Block::Call(emu::Memory *memory, void *guest_ctx) {
+  return 0xdeadbeef;
+}

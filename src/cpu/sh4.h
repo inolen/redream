@@ -1,6 +1,7 @@
 #ifndef SH4_H
 #define SH4_H
 
+#include "cpu/sh4_context.h"
 #include "emu/device.h"
 #include "emu/memory.h"
 #include "emu/scheduler.h"
@@ -11,8 +12,6 @@ namespace dreavm {
 namespace cpu {
 
 class Runtime;
-
-enum { MAX_FRAMES = 4096 };
 
 // registers
 enum {
@@ -44,40 +43,6 @@ union CCR_T {
     uint32_t IIX : 1;
     uint32_t reserved4 : 15;
     uint32_t EMODE : 1;
-  };
-  uint32_t full;
-};
-
-union SR_T {
-  struct {
-    uint32_t T : 1;
-    uint32_t S : 1;
-    uint32_t reserved : 2;
-    uint32_t IMASK : 4;
-    uint32_t Q : 1;
-    uint32_t M : 1;
-    uint32_t reserved1 : 5;
-    uint32_t FD : 1;
-    uint32_t reserved2 : 12;
-    uint32_t BL : 1;
-    uint32_t RB : 1;
-    uint32_t MD : 1;
-    uint32_t reserved3 : 1;
-  };
-  uint32_t full;
-};
-
-union FPSCR_T {
-  struct {
-    uint32_t RM : 2;
-    uint32_t flag : 5;
-    uint32_t enable : 5;
-    uint32_t cause : 6;
-    uint32_t DN : 1;
-    uint32_t PR : 1;
-    uint32_t SZ : 1;
-    uint32_t FR : 1;
-    uint32_t reserved : 10;
   };
   uint32_t full;
 };
@@ -140,40 +105,8 @@ enum DDTRW {  //
   DDT_W
 };
 
-// SH4 state is split into the SH4Context class for the JIT to easily access
-class SH4;
-
-class SH4Context {
- public:
-  void SetRegisterBank(int bank);
-  void SwapFPRegisters();
-  void SwapFPCouples();
-
-  void SRUpdated();
-  void FPSCRUpdated();
-
-  SH4 *sh4;
-  uint32_t pc, spc;
-  uint32_t pr;
-  uint32_t gbr, vbr;
-  uint32_t mach, macl;
-  uint32_t r[16], rbnk[2][8], sgr;
-  uint32_t fr[16], xf[16];
-  uint32_t fpul;
-  uint32_t dbr;
-  uint32_t m[0x4000];
-  uint32_t sq[2][8];
-  uint8_t sleep_mode;
-
-  uint32_t ea;
-  int64_t icount, nextcheck;
-
-  SR_T sr, ssr, old_sr;
-  FPSCR_T fpscr, old_fpscr;
-};
-
 class SH4 : public emu::Device {
-  friend class SH4Context;
+  friend void SRUpdated(SH4Context *ctx);
   friend void RunSH4Test(const SH4Test &);
 
  public:
@@ -205,10 +138,10 @@ class SH4 : public emu::Device {
   void InitMemory();
   void InitContext();
 
-  SH4Context ctx_;
   emu::Scheduler &scheduler_;
   emu::Memory &memory_;
   Runtime *runtime_;
+  SH4Context ctx_;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   type &name{reinterpret_cast<type &>(ctx_.m[name##_OFFSET])};
 #include "cpu/sh4_regs.inc"

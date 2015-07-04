@@ -31,25 +31,6 @@ static inline uint32_t BlockOffset(uint32_t addr) {
 class Runtime;
 class RuntimeBlock;
 
-struct RuntimeContext {
-  RuntimeContext() : runtime(nullptr), guest_ctx(nullptr) {}
-
-  Runtime *runtime;
-  void *guest_ctx;
-  uint8_t (*R8)(RuntimeContext *, uint32_t);
-  uint16_t (*R16)(RuntimeContext *, uint32_t);
-  uint32_t (*R32)(RuntimeContext *, uint32_t);
-  uint64_t (*R64)(RuntimeContext *, uint32_t);
-  float (*RF32)(RuntimeContext *, uint32_t);
-  double (*RF64)(RuntimeContext *, uint32_t);
-  void (*W8)(RuntimeContext *, uint32_t, uint8_t);
-  void (*W16)(RuntimeContext *, uint32_t, uint16_t);
-  void (*W32)(RuntimeContext *, uint32_t, uint32_t);
-  void (*W64)(RuntimeContext *, uint32_t, uint64_t);
-  void (*WF32)(RuntimeContext *, uint32_t, float);
-  void (*WF64)(RuntimeContext *, uint32_t, double);
-};
-
 class RuntimeBlock {
  public:
   RuntimeBlock(int guest_cycles) : guest_cycles_(guest_cycles) {}
@@ -57,7 +38,7 @@ class RuntimeBlock {
 
   int guest_cycles() { return guest_cycles_; }
 
-  virtual uint32_t Call(RuntimeContext &runtime_ctx) = 0;
+  virtual uint32_t Call(emu::Memory *memory, void *guest_ctx) = 0;
 
  private:
   int guest_cycles_;
@@ -69,7 +50,6 @@ class Runtime {
   ~Runtime();
 
   emu::Memory &memory() { return memory_; }
-  RuntimeContext &ctx() { return runtime_ctx_; }
 
   bool Init(frontend::Frontend *frontend, backend::Backend *backend);
   RuntimeBlock *ResolveBlock(uint32_t addr);
@@ -82,7 +62,6 @@ class Runtime {
   emu::Memory &memory_;
   frontend::Frontend *frontend_;
   backend::Backend *backend_;
-  RuntimeContext runtime_ctx_;
   ir::PassRunner pass_runner_;
   // FIXME 64 mb, could cut down to 8 mb if indices were stored instead of
   // pointers

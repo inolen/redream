@@ -13,74 +13,12 @@ using namespace dreavm::cpu;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
-static uint8_t R8(RuntimeContext *ctx, uint32_t addr) {
-  return ctx->runtime->memory().R8(addr);
-}
-
-static uint16_t R16(RuntimeContext *ctx, uint32_t addr) {
-  return ctx->runtime->memory().R16(addr);
-}
-
-static uint32_t R32(RuntimeContext *ctx, uint32_t addr) {
-  return ctx->runtime->memory().R32(addr);
-}
-
-static uint64_t R64(RuntimeContext *ctx, uint32_t addr) {
-  return ctx->runtime->memory().R64(addr);
-}
-
-static float RF32(RuntimeContext *ctx, uint32_t addr) {
-  return ctx->runtime->memory().RF32(addr);
-}
-
-static double RF64(RuntimeContext *ctx, uint32_t addr) {
-  return ctx->runtime->memory().RF64(addr);
-}
-
-static void W8(RuntimeContext *ctx, uint32_t addr, uint8_t value) {
-  ctx->runtime->memory().W8(addr, value);
-}
-
-static void W16(RuntimeContext *ctx, uint32_t addr, uint16_t value) {
-  ctx->runtime->memory().W16(addr, value);
-}
-
-static void W32(RuntimeContext *ctx, uint32_t addr, uint32_t value) {
-  ctx->runtime->memory().W32(addr, value);
-}
-
-static void W64(RuntimeContext *ctx, uint32_t addr, uint64_t value) {
-  ctx->runtime->memory().W64(addr, value);
-}
-
-static void WF32(RuntimeContext *ctx, uint32_t addr, float value) {
-  ctx->runtime->memory().WF32(addr, value);
-}
-
-static void WF64(RuntimeContext *ctx, uint32_t addr, double value) {
-  ctx->runtime->memory().WF64(addr, value);
-}
-
 Runtime::Runtime(Memory &memory)
     : memory_(memory),
       frontend_(nullptr),
       backend_(nullptr),
       pending_reset_(false) {
   blocks_ = new std::unique_ptr<RuntimeBlock>[MAX_BLOCKS];
-
-  runtime_ctx_.runtime = this;
-  runtime_ctx_.R8 = &::R8;
-  runtime_ctx_.R16 = &::R16;
-  runtime_ctx_.R32 = &::R32;
-  runtime_ctx_.R64 = &::R64;
-  runtime_ctx_.RF32 = &::RF32;
-  runtime_ctx_.RF64 = &::RF64;
-  runtime_ctx_.W8 = &::W8;
-  runtime_ctx_.W16 = &::W16;
-  runtime_ctx_.W32 = &::W32;
-  runtime_ctx_.W64 = &::W64;
-  runtime_ctx_.WF32 = &::WF32;
-  runtime_ctx_.WF64 = &::WF64;
 
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateBlockPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));

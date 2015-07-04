@@ -14,63 +14,6 @@ InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-void SH4Context::SetRegisterBank(int bank) {
-  if (bank == 0) {
-    for (int s = 0; s < 8; s++) {
-      rbnk[1][s] = r[s];
-      r[s] = rbnk[0][s];
-    }
-  } else {
-    for (int s = 0; s < 8; s++) {
-      rbnk[0][s] = r[s];
-      r[s] = rbnk[1][s];
-    }
-  }
-}
-
-void SH4Context::SwapFPRegisters() {
-  unsigned s;
-  uint32_t z;
-
-  for (s = 0; s <= 15; s++) {
-    z = fr[s];
-    fr[s] = xf[s];
-    xf[s] = z;
-  }
-}
-
-void SH4Context::SwapFPCouples() {
-  int s;
-  uint32_t z;
-
-  for (s = 0; s <= 15; s = s + 2) {
-    z = fr[s];
-    fr[s] = fr[s + 1];
-    fr[s + 1] = z;
-    z = xf[s];
-    xf[s] = xf[s + 1];
-    xf[s + 1] = z;
-  }
-}
-
-void SH4Context::SRUpdated() {
-  if (sr.RB != old_sr.RB) {
-    SetRegisterBank(sr.RB ? 1 : 0);
-  }
-  old_sr = sr;
-  sh4->UpdatePendingInterrupts();
-}
-
-void SH4Context::FPSCRUpdated() {
-  if (fpscr.FR != old_fpscr.FR) {
-    SwapFPRegisters();
-  }
-  if (fpscr.PR != old_fpscr.PR) {
-    SwapFPCouples();
-  }
-  old_fpscr = fpscr;
-}
-
 SH4::SH4(emu::Scheduler &scheduler, Memory &memory)
     : scheduler_(scheduler), memory_(memory) {}
 
@@ -78,9 +21,6 @@ SH4::~SH4() {}
 
 bool SH4::Init(Runtime *runtime) {
   runtime_ = runtime;
-  if (runtime_) {
-    runtime_->ctx().guest_ctx = &ctx_;
-  }
 
   scheduler_.AddDevice(this);
 
@@ -108,7 +48,7 @@ int64_t SH4::Execute(int64_t cycles) {
     RuntimeBlock *block = runtime_->ResolveBlock(ctx_.pc);
     CHECK(block);
 
-    uint32_t nextpc = block->Call(runtime_->ctx());
+    uint32_t nextpc = block->Call(&memory_, &ctx_);
     remaining -= block->guest_cycles();
     ctx_.pc = nextpc;
 
@@ -316,8 +256,8 @@ void SH4::InitMemory() {
 void SH4::InitContext() {
   memset(&ctx_, 0, sizeof(ctx_));
   ctx_.sh4 = this;
-  // ctx_.pc = 0xa0000000;
-  ctx_.pc = 0x0c010000;
+  ctx_.pc = 0xa0000000;
+  // ctx_.pc = 0x0c010000;
   ctx_.pr = 0xdeadbeef;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   if (default != HELD) {                                                 \
@@ -399,10 +339,7 @@ void SH4::CheckPendingInterrupts() {
   ctx_.sr.BL = 1;
   ctx_.sr.MD = 1;
   ctx_.sr.RB = 1;
-  if (ctx_.old_sr.RB != ctx_.sr.RB) {
-    ctx_.SetRegisterBank(1);
-  }
-  ctx_.old_sr = ctx_.sr;
+  SRUpdated(&ctx_);
   ctx_.pc = ctx_.vbr + 0x600;
   if (ctx_.sleep_mode == 1) {
     ctx_.sleep_mode = 2;

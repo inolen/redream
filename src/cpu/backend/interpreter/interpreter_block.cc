@@ -15,7 +15,7 @@ InterpreterBlock::InterpreterBlock(int guest_cycles, Instr *instrs,
 
 InterpreterBlock::~InterpreterBlock() { free(instrs_); }
 
-uint32_t InterpreterBlock::Call(RuntimeContext &runtime_ctx) {
+uint32_t InterpreterBlock::Call(emu::Memory *memory, void *guest_ctx) {
   Register *registers =
       reinterpret_cast<Register *>(alloca(sizeof(Register) * num_registers_));
 
@@ -33,7 +33,7 @@ uint32_t InterpreterBlock::Call(RuntimeContext &runtime_ctx) {
     // 3. branch is a far, direct branch, absolute i32 address is returned
     // cases 2 or 3 will always occur as the last instruction of the block,
     // so the return can be assumed to be an i32 address then
-    i = instr->fn(&runtime_ctx, registers, instr, i);
+    i = instr->fn(memory, guest_ctx, registers, instr, i);
   }
 
   return i;

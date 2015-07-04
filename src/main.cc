@@ -45,11 +45,10 @@ int main(int argc, char **argv) {
     LOG(FATAL) << "Failed to load bin.";
   }
 
-  // if (!emu.LaunchGDI(
-  //         "../dreamcast/Crazy Taxi 2 v1.004 (2001)(Sega)(NTSC)(US)[!]/Crazy "
-  //         "Taxi 2 v1.004 (2001)(Sega)(NTSC)(US)[!].gdi")) {
-  //   LOG(FATAL) << "Failed to load GDI.";
-  // }
+  if (!emu.LaunchGDI(
+          "../dreamcast/Crazy Taxi 2 v1.004 (2001)(Sega)(NTSC)(US)[!]/Crazy Taxi 2 v1.004 (2001)(Sega)(NTSC)(US)[!].gdi")) {
+    LOG(FATAL) << "Failed to load GDI.";
+  }
 
   while (1) {
     sys.Tick();

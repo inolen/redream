@@ -4,6 +4,7 @@
 #include "cpu/sh4.h"
 #include "cpu/backend/backend.h"
 #include "cpu/frontend/frontend.h"
+#include "cpu/runtime.h"
 #include "holly/holly.h"
 #include "holly/maple_controller.h"
 #include "renderer/backend.h"
@@ -31,13 +32,13 @@ class Emulator {
   void RenderFrame();
 
   system::System &sys_;
-  emu::Scheduler *scheduler_;
-  emu::Memory *memory_;
+  emu::Scheduler scheduler_;
+  emu::Memory memory_;
+  cpu::Runtime runtime_;
+  cpu::SH4 processor_;
+  holly::Holly holly_;
   cpu::frontend::Frontend *rt_frontend_;
   cpu::backend::Backend *rt_backend_;
-  cpu::Runtime *runtime_;
-  cpu::SH4 *processor_;
-  holly::Holly *holly_;
   renderer::Backend *rb_;
 };
 }

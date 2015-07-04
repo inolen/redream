@@ -12,8 +12,8 @@ namespace interpreter {
 
 class InterpreterContext;
 
-typedef uint32_t (*InstrFn)(RuntimeContext *runtime, Register *registers,
-                            Instr *instr, uint32_t idx);
+typedef uint32_t (*InstrFn)(emu::Memory *memory, void *guest_ctx,
+                            Register *registers, Instr *instr, uint32_t idx);
 
 union Register {
   int8_t i8;

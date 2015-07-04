@@ -20,27 +20,20 @@ using namespace dreavm::system;
 
 Emulator::Emulator(System &sys)
     : sys_(sys),
-      scheduler_(new Scheduler()),
-      memory_(new Memory()),
-      rt_frontend_(new SH4Frontend(*memory_)),
-      rt_backend_(new InterpreterBackend(*memory_)),
-      // rt_backend_(new X64Backend(*memory_)),
-      runtime_(new Runtime(*memory_)),
-      processor_(new SH4(*scheduler_, *memory_)),
-      holly_(new Holly(*scheduler_, *memory_, *processor_)) {
+      runtime_(memory_),
+      processor_(scheduler_, memory_),
+      holly_(scheduler_, memory_, processor_) {
+  rt_frontend_ = new SH4Frontend(memory_);
+  rt_backend_ = new InterpreterBackend(memory_);
+  // rt_backend_ = new X64Backend(*memory_);
   rb_ = new GLBackend(sys);
 }
 
 Emulator::~Emulator() {
   Profiler::Shutdown();
   delete rb_;
-  delete holly_;
-  delete processor_;
-  delete runtime_;
   delete rt_backend_;
   delete rt_frontend_;
-  delete memory_;
-  delete scheduler_;
 }
 
 bool Emulator::Init() {
@@ -64,17 +57,17 @@ bool Emulator::Init() {
     return false;
   }
 
-  if (!runtime_->Init(rt_frontend_, rt_backend_)) {
+  if (!runtime_.Init(rt_frontend_, rt_backend_)) {
     return false;
   }
 
   // order here is important, sh4 memory handlers need to override
   // some of the broader holly handlers
-  if (!holly_->Init(rb_)) {
+  if (!holly_.Init(rb_)) {
     return false;
   }
 
-  if (!processor_->Init(runtime_)) {
+  if (!processor_.Init(&runtime_)) {
     return false;
   }
 
@@ -102,7 +95,7 @@ bool Emulator::LaunchBIN(const char *path) {
 
   // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is normally
   // loaded to
-  memory_->Memcpy(0x0c010000, data, size);
+  memory_.Memcpy(0x0c010000, data, size);
   free(data);
   return true;
 }
@@ -114,7 +107,7 @@ bool Emulator::LaunchGDI(const char *path) {
     return false;
   }
 
-  holly_->gdrom().SetDisc(std::move(gdi));
+  holly_.gdrom().SetDisc(std::move(gdi));
 
   return true;
 }
@@ -122,14 +115,14 @@ bool Emulator::LaunchGDI(const char *path) {
 void Emulator::Tick() {
   PumpEvents();
 
-  scheduler_->Tick();
+  scheduler_.Tick();
 
   RenderFrame();
 }
 
 // for memory mapping notes, see 2.1 System Mapping in the hardware manual
 bool Emulator::MountRam() {
-  memory_->Alloc(0x0, 0x1fffffff, 0xe0000000);
+  memory_.Alloc(0x0, 0x1fffffff, 0xe0000000);
   return true;
 }
 
@@ -164,7 +157,7 @@ bool Emulator::LoadBios(const char *path) {
     return false;
   }
 
-  memory_->Memcpy(BIOS_START, data, size);
+  memory_.Memcpy(BIOS_START, data, size);
   free(data);
   return true;
 }
@@ -200,7 +193,7 @@ bool Emulator::LoadFlash(const char *path) {
     return false;
   }
 
-  memory_->Memcpy(FLASH_START, data, size);
+  memory_.Memcpy(FLASH_START, data, size);
   free(data);
   return true;
 }
@@ -212,7 +205,7 @@ void Emulator::PumpEvents() {
       // let the profiler take a stab at the input first
       if (!Profiler::HandleInput(ev.key.code, ev.key.value)) {
         // else, forward to holly
-        holly_->HandleInput(0, ev.key.code, ev.key.value);
+        holly_.HandleInput(0, ev.key.code, ev.key.value);
       }
     } else if (ev.type == SE_MOUSEMOVE) {
       Profiler::HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
@@ -231,7 +224,7 @@ void Emulator::RenderFrame() {
   // render stats
   char stats[512];
   snprintf(stats, sizeof(stats), "%.2f%%, %.2f fps, %.2f vbps",
-           scheduler_->perf(), holly_->fps(), holly_->vbps());
+           scheduler_.perf(), holly_.fps(), holly_.vbps());
   LOG_EVERY_N(INFO, 10) << stats;
   rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
 

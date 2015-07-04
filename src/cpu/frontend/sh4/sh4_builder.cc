@@ -9,10 +9,6 @@ using namespace dreavm::cpu::frontend::sh4;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
-void SRUpdated(SH4Context *ctx) { ctx->SRUpdated(); }
-
-void FPSCRUpdated(SH4Context *ctx) { ctx->FPSCRUpdated(); }
-
 SH4Builder::SH4Builder(Memory &memory)
     : memory_(memory), has_delay_instr_(false), last_instr_(nullptr) {}
 

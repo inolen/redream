@@ -15,7 +15,7 @@ class X64Block : public RuntimeBlock {
   X64Block(int guest_cycles);
   ~X64Block();
 
-  uint32_t Call(RuntimeContext &runtime_ctx);
+  uint32_t Call(emu::Memory *memory, void *guest_ctx);
 
  private:
 };

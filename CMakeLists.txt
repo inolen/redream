@@ -63,6 +63,7 @@ set(DREAVM_SOURCES
 	src/cpu/ir/pass_runner.cc
 	src/cpu/ir/validate_block_pass.cc
 	src/cpu/sh4.cc
+	src/cpu/sh4_context.cc
 	src/cpu/runtime.cc
 	src/emu/disc.cc
 	src/emu/emulator.cc
@@ -270,6 +271,7 @@ set(DREAVM_TEST_SOURCES
 	src/cpu/ir/pass_runner.cc
 	src/cpu/ir/validate_block_pass.cc
 	src/cpu/sh4.cc
+	src/cpu/sh4_context.cc
 	src/cpu/runtime.cc
 	src/emu/profiler.cc
 	src/emu/scheduler.cc

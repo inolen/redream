@@ -177,10 +177,10 @@ struct helper<T, ARG, IMM_MASK,
   }
 };
 
-#define CALLBACK(name)                                                 \
-  template <typename R = void, typename A0 = void, typename A1 = void, \
-            int IMM_MASK = 0>                                          \
-  static uint32_t name(RuntimeContext *ctx, Register *r, Instr *i,     \
+#define CALLBACK(name)                                                         \
+  template <typename R = void, typename A0 = void, typename A1 = void,         \
+            int IMM_MASK = 0>                                                  \
+  static uint32_t name(Memory *memory, void *guest_ctx, Register *r, Instr *i, \
                        uint32_t idx)
 #define LOAD_ARG0() helper<A0, 0, IMM_MASK>::LoadArg(r, i)
 #define LOAD_ARG1() helper<A1, 1, IMM_MASK>::LoadArg(r, i)
@@ -203,8 +203,7 @@ CALLBACK(PRINTF) {
 
 CALLBACK(LOAD_CONTEXT) {
   A0 offset = LOAD_ARG0();
-  R v = *reinterpret_cast<R *>(reinterpret_cast<uint8_t *>(ctx->guest_ctx) +
-                               offset);
+  R v = *reinterpret_cast<R *>(reinterpret_cast<uint8_t *>(guest_ctx) + offset);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
@@ -212,49 +211,48 @@ CALLBACK(LOAD_CONTEXT) {
 CALLBACK(STORE_CONTEXT) {
   A0 offset = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  *reinterpret_cast<A1 *>(reinterpret_cast<uint8_t *>(ctx->guest_ctx) +
-                          offset) = v;
+  *reinterpret_cast<A1 *>(reinterpret_cast<uint8_t *>(guest_ctx) + offset) = v;
   return NEXT_INSTR;
 }
 
 CALLBACK(LOAD_I8) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
-  R v = ctx->R8(ctx, addr);
+  R v = memory->R8(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 
 CALLBACK(LOAD_I16) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
-  R v = ctx->R16(ctx, addr);
+  R v = memory->R16(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 
 CALLBACK(LOAD_I32) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
-  R v = ctx->R32(ctx, addr);
+  R v = memory->R32(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 
 CALLBACK(LOAD_I64) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
-  R v = ctx->R64(ctx, addr);
+  R v = memory->R64(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 
 CALLBACK(LOAD_F32) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
-  R v = ctx->RF32(ctx, addr);
+  R v = memory->RF32(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 
 CALLBACK(LOAD_F64) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
-  R v = ctx->RF64(ctx, addr);
+  R v = memory->RF64(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
@@ -348,42 +346,42 @@ CALLBACK(LOAD_DYN_F64) {
 CALLBACK(STORE_I8) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  ctx->W8(ctx, addr, v);
+  memory->W8(addr, v);
   return NEXT_INSTR;
 }
 
 CALLBACK(STORE_I16) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  ctx->W16(ctx, addr, v);
+  memory->W16(addr, v);
   return NEXT_INSTR;
 }
 
 CALLBACK(STORE_I32) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  ctx->W32(ctx, addr, v);
+  memory->W32(addr, v);
   return NEXT_INSTR;
 }
 
 CALLBACK(STORE_I64) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  ctx->W64(ctx, addr, v);
+  memory->W64(addr, v);
   return NEXT_INSTR;
 }
 
 CALLBACK(STORE_F32) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  ctx->WF32(ctx, addr, v);
+  memory->WF32(addr, v);
   return NEXT_INSTR;
 }
 
 CALLBACK(STORE_F64) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  ctx->WF64(ctx, addr, v);
+  memory->WF64(addr, v);
   return NEXT_INSTR;
 }
 
@@ -757,7 +755,7 @@ CALLBACK(BRANCH_INDIRECT) {
 CALLBACK(CALL_EXTERNAL) {
   A0 addr = LOAD_ARG0();
   void (*func)(void *) = (void (*)(void *))(intptr_t)addr;
-  func(ctx->guest_ctx);
+  func(guest_ctx);
   return NEXT_INSTR;
 }
 
