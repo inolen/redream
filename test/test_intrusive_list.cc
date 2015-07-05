@@ -10,6 +10,13 @@ struct Person : public IntrusiveListNode<Person> {
   const char *name;
 };
 
+struct PersonComparator {
+  bool operator()(const Person *a, const Person *b) const {
+    // sort is descending order
+    return strcmp(b->name, a->name) < 0;
+  }
+};
+
 class IntrusiveTestEmptySet : public ::testing::Test {
  public:
   IntrusiveTestEmptySet() : arena(1024) {}
@@ -190,4 +197,19 @@ TEST_F(IntrusiveTestABCSet, ValidOnRemove) {
 
   people.Remove(aaa);
   ASSERT_EQ(bbb, *it);
+}
+
+// sort tests
+TEST_F(IntrusiveTestEmptySet, EmptySort) {
+  people.Sort(PersonComparator());
+  ASSERT_EQ(NULL, people.head());
+  ASSERT_EQ(NULL, people.tail());
+}
+
+TEST_F(IntrusiveTestABCSet, Sort) {
+  people.Sort(PersonComparator());
+  auto it = people.begin();
+  ASSERT_STREQ("ccc", (it++)->name);
+  ASSERT_STREQ("bbb", (it++)->name);
+  ASSERT_STREQ("aaa", (it++)->name);
 }

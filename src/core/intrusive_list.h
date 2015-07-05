@@ -35,11 +35,7 @@ template <typename T>
 class IntrusiveList {
  public:
   // For the iterator, remember that a C++ iterator's range is [begin, end),
-  // meaning the end iterator will be wrapping an invalid node. To support this,
-  // one option would be to maintain an instance of T who's prev is always equal
-  // to tail and next is always nullptr. However, that would require T to have
-  // a default constructor. Instead, we're using a sentinel node address and
-  // some conditional logic inside of the decrement and increment operators.
+  // meaning the end iterator will be wrapping an invalid node.
   template <bool is_const_iterator, bool is_reverse_iterator>
   class shared_iterator
       : public std::iterator<std::bidirectional_iterator_tag, T> {
@@ -184,6 +180,86 @@ class IntrusiveList {
   }
 
   void Clear() { head_ = tail_ = nullptr; }
+
+  // Implements the mergesort for linked lists as described at
+  // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
+  template <class Compare>
+  void Sort(Compare comp) {
+    T *head = head_;
+    T *tail = nullptr;
+    int k = 1;
+
+    while (true) {
+      int merges = 0;
+      T *p = head;
+
+      head = nullptr;
+      tail = nullptr;
+
+      while (p) {
+        // track the number of lists merged this pass
+        merges++;
+
+        // step q forward k places, tracking the size of p
+        int psize = 0;
+        int qsize = k;
+        T *q = p;
+        while (psize < k && q) {
+          psize++;
+          q = q->next_;
+        }
+
+        // merge the list starting at p of length psize with the list starting
+        // at q of at most, length qsize
+        while (psize || (qsize && q)) {
+          T *next;
+
+          if (!psize) {
+            next = q;
+            q = q->next_;
+            qsize--;
+          } else if (!qsize || !q) {
+            next = p;
+            p = p->next_;
+            psize--;
+          } else if (comp(q, p)) {
+            next = q;
+            q = q->next_;
+            qsize--;
+          } else {
+            next = p;
+            p = p->next_;
+            psize--;
+          }
+
+          // move merged node to tail
+          if (!tail) {
+            head = tail = next;
+          } else {
+            tail->next_ = next;
+            tail = tail->next_;
+          }
+        }
+
+        p = q;
+      }
+
+      if (tail) {
+        tail->next_ = nullptr;
+      }
+
+      // if only 1 pair of lists was merged, this is the end
+      if (merges <= 1) {
+        break;
+      }
+
+      k *= 2;
+    }
+
+    // update internal head and tail with sorted head and tail
+    head_ = head;
+    tail_ = tail;
+  }
 
  private:
   T *head_;
