@@ -304,7 +304,6 @@ class IRBuilder {
   Instr *AllocInstr(Opcode op, InstrFlag flags = IF_NONE);
 
   // debug
-  void DebugBreak();
   void Printf(Value *v);
 
   // context operations

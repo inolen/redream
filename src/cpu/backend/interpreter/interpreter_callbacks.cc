@@ -192,11 +192,6 @@ struct helper<T, ARG, IMM_MASK,
 //
 // interpreter callbacks
 //
-CALLBACK(DEBUG_BREAK) {
-  debug_break();
-  return NEXT_INSTR;
-}
-
 CALLBACK(PRINTF) {
   std::cout << LOAD_ARG0() << std::endl;
   return NEXT_INSTR;

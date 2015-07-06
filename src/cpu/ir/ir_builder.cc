@@ -235,8 +235,6 @@ Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
   return instr;
 }
 
-void IRBuilder::DebugBreak() { AppendInstr(OP_DEBUG_BREAK); }
-
 void IRBuilder::Printf(Value *v) {
   Instr *instr = AppendInstr(OP_PRINTF);
   instr->set_arg0(v);
