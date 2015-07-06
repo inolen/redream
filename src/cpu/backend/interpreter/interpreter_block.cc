@@ -6,7 +6,7 @@ using namespace dreavm::cpu;
 using namespace dreavm::cpu::backend::interpreter;
 using namespace dreavm::cpu::ir;
 
-InterpreterBlock::InterpreterBlock(int guest_cycles, Instr *instrs,
+InterpreterBlock::InterpreterBlock(int guest_cycles, IntInstr *instrs,
                                    int num_instrs, int num_registers)
     : RuntimeBlock(guest_cycles),
       instrs_(instrs),
@@ -16,10 +16,10 @@ InterpreterBlock::InterpreterBlock(int guest_cycles, Instr *instrs,
 InterpreterBlock::~InterpreterBlock() { free(instrs_); }
 
 uint32_t InterpreterBlock::Call(emu::Memory *memory, void *guest_ctx) {
-  Register *registers =
-      reinterpret_cast<Register *>(alloca(sizeof(Register) * num_registers_));
+  IntReg *registers =
+      reinterpret_cast<IntReg *>(alloca(sizeof(IntReg) * num_registers_));
 
-  Instr *instr = nullptr;
+  IntInstr *instr = nullptr;
   uint32_t i = 0;
   bool done = false;
 

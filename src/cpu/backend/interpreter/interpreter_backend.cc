@@ -3,12 +3,14 @@
 
 using namespace dreavm::cpu;
 using namespace dreavm::cpu::backend::interpreter;
+using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
 AssembleContext::AssembleContext()
     : max_instrs(4),
       num_instrs(0),
-      instrs(reinterpret_cast<Instr *>(malloc(max_instrs * sizeof(Instr)))),
+      instrs(
+          reinterpret_cast<IntInstr *>(malloc(max_instrs * sizeof(IntInstr)))),
       max_block_refs(4),
       num_block_refs(0),
       block_refs(reinterpret_cast<BlockRef *>(
@@ -17,13 +19,13 @@ AssembleContext::AssembleContext()
 
 AssembleContext::~AssembleContext() { free(instrs); }
 
-Instr *AssembleContext::AllocInstr() {
+IntInstr *AssembleContext::AllocInstr() {
   if (num_instrs >= max_instrs) {
     max_instrs *= 2;
-    instrs =
-        reinterpret_cast<Instr *>(realloc(instrs, max_instrs * sizeof(Instr)));
+    instrs = reinterpret_cast<IntInstr *>(
+        realloc(instrs, max_instrs * sizeof(IntInstr)));
   }
-  Instr *i = &instrs[num_instrs++];
+  IntInstr *i = &instrs[num_instrs++];
   memset(i, 0, sizeof(*i));
   return i;
 }
@@ -41,12 +43,12 @@ BlockRef *AssembleContext::AllocBlockRef() {
 
 int AssembleContext::AllocRegister() { return num_registers++; }
 
-Instr *AssembleContext::TranslateInstr(ir::Instr &ir_i, InstrFn fn) {
+IntInstr *AssembleContext::TranslateInstr(Instr &ir_i, IntFn fn) {
   // tag source instruction with the offset to help in resolving block
   // references to instruction offsets
   ir_i.set_tag(num_instrs);
 
-  Instr *i = AllocInstr();
+  IntInstr *i = AllocInstr();
   i->fn = fn;
   TranslateValue(ir_i.arg0(), &i->arg[0]);
   TranslateValue(ir_i.arg1(), &i->arg[1]);
@@ -63,7 +65,7 @@ Instr *AssembleContext::TranslateInstr(ir::Instr &ir_i, InstrFn fn) {
   return i;
 }
 
-void AssembleContext::TranslateValue(ir::Value *ir_v, Register *r) {
+void AssembleContext::TranslateValue(Value *ir_v, IntReg *r) {
   if (!ir_v) {
     r->i32 = 0;
     return;
@@ -81,30 +83,30 @@ void AssembleContext::TranslateValue(ir::Value *ir_v, Register *r) {
   }
 
   switch (ir_v->type()) {
-    case ir::VALUE_I8:
+    case VALUE_I8:
       r->i8 = ir_v->value<int8_t>();
       break;
-    case ir::VALUE_I16:
+    case VALUE_I16:
       r->i16 = ir_v->value<int16_t>();
       break;
-    case ir::VALUE_I32:
+    case VALUE_I32:
       r->i32 = ir_v->value<int32_t>();
       break;
-    case ir::VALUE_I64:
+    case VALUE_I64:
       r->i64 = ir_v->value<int64_t>();
       break;
-    case ir::VALUE_F32:
+    case VALUE_F32:
       r->f32 = ir_v->value<float>();
       break;
-    case ir::VALUE_F64:
+    case VALUE_F64:
       r->f64 = ir_v->value<double>();
       break;
-    case ir::VALUE_BLOCK:
+    case VALUE_BLOCK:
       // this argument references a block which is part of this IRBuilder.
       // generate a register which will be backpatched with an actual value
       // later on.
       BlockRef *ref = AllocBlockRef();
-      ref->block = ir_v->value<ir::Block *>();
+      ref->block = ir_v->value<Block *>();
       // store register address as offset since instrs is constantly realloced
       ref->offset =
           reinterpret_cast<uint8_t *>(r) - reinterpret_cast<uint8_t *>(instrs);
@@ -122,7 +124,7 @@ InterpreterBackend::~InterpreterBackend() {}
 bool InterpreterBackend::Init() { return true; }
 
 std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
-    ir::IRBuilder &builder) {
+    IRBuilder &builder) {
   AssembleContext ctx;
 
   for (auto block : builder.blocks()) {
@@ -134,18 +136,18 @@ std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
   // backpatch register values containing local block addresses
   for (int i = 0; i < ctx.num_block_refs; i++) {
     BlockRef *ref = &ctx.block_refs[i];
-    Register *r = reinterpret_cast<Register *>(
+    IntReg *r = reinterpret_cast<IntReg *>(
         reinterpret_cast<uint8_t *>(ctx.instrs) + ref->offset);
     r->i32 = (int32_t)ref->block->instrs().head()->tag();
   }
 
   // get number of guest cycles for the blocks
-  const ir::Value *md_guest_cycles = builder.GetMetadata(ir::MD_GUEST_CYCLES);
+  const Value *md_guest_cycles = builder.GetMetadata(MD_GUEST_CYCLES);
   CHECK(md_guest_cycles);
   int guest_cycles = md_guest_cycles->value<int32_t>();
 
   // take ownership of ctx pointers
-  Instr *instrs = ctx.instrs;
+  IntInstr *instrs = ctx.instrs;
   int num_instrs = ctx.num_instrs;
   ctx.instrs = nullptr;
 

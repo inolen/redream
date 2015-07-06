@@ -5,6 +5,7 @@
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::cpu::backend::interpreter;
+using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
 //
@@ -57,17 +58,17 @@ struct SigType<SIG_F64> {
 };
 
 #define MAX_CALLBACKS_PER_OP (SIG_NUM * SIG_NUM * SIG_NUM * IMM_MAX)
-#define MAX_CALLBACKS (MAX_CALLBACKS_PER_OP * ir::NUM_OPCODES)
+#define MAX_CALLBACKS (MAX_CALLBACKS_PER_OP * NUM_OPCODES)
 
-static InstrFn instr_cbs[MAX_CALLBACKS];
+static IntFn int_cbs[MAX_CALLBACKS];
 
-inline int TRANSLATE_TYPE(const ir::Value *v) {
+inline int TRANSLATE_TYPE(const Value *v) {
   if (!v) {
     return SIG_V;
-  } else if (v->type() == ir::VALUE_BLOCK) {
+  } else if (v->type() == VALUE_BLOCK) {
     return SIG_I32;
   } else {
-    // ir::ValueTy dosn't have a null type, but one is needed for argument
+    // ValueTy dosn't have a null type, but one is needed for argument
     // types, offset by 1 leaving 0 for SIG_V
     return v->type() + 1;
   }
@@ -75,12 +76,12 @@ inline int TRANSLATE_TYPE(const ir::Value *v) {
 
 // each argument's data type, as well as if it's encoded as an immediate or
 // not is used when indexing into the callback table
-inline int CALLBACK_IDX(ir::Opcode op, int r, int a0, int a1, int imm_mask) {
+inline int CALLBACK_IDX(Opcode op, int r, int a0, int a1, int imm_mask) {
   return MAX_CALLBACKS_PER_OP * op +
          (((r * SIG_NUM * SIG_NUM) + (a0 * SIG_NUM) + a1) * IMM_MAX) + imm_mask;
 }
 
-InstrFn dreavm::cpu::backend::interpreter::GetCallback(const ir::Instr *instr) {
+IntFn dreavm::cpu::backend::interpreter::GetCallback(const Instr *instr) {
   int imm_mask = 0;
   if (instr->arg0() && instr->arg0()->constant()) {
     imm_mask |= IMM_ARG0;
@@ -91,9 +92,9 @@ InstrFn dreavm::cpu::backend::interpreter::GetCallback(const ir::Instr *instr) {
   if (instr->arg2() && instr->arg2()->constant()) {
     imm_mask |= IMM_ARG2;
   }
-  InstrFn fn = instr_cbs[CALLBACK_IDX(
-      instr->op(), TRANSLATE_TYPE(instr->result()),
-      TRANSLATE_TYPE(instr->arg0()), TRANSLATE_TYPE(instr->arg1()), imm_mask)];
+  IntFn fn = int_cbs[CALLBACK_IDX(instr->op(), TRANSLATE_TYPE(instr->result()),
+                                  TRANSLATE_TYPE(instr->arg0()),
+                                  TRANSLATE_TYPE(instr->arg1()), imm_mask)];
   CHECK_NOTNULL(fn);
   return fn;
 }
@@ -102,56 +103,56 @@ InstrFn dreavm::cpu::backend::interpreter::GetCallback(const ir::Instr *instr) {
 // callback helpers
 //
 template <typename T>
-static inline T GetRegister(const Register &r);
+static inline T GetRegister(const IntReg &r);
 template <>
-inline int8_t GetRegister(const Register &r) {
+inline int8_t GetRegister(const IntReg &r) {
   return r.i8;
 }
 template <>
-inline int16_t GetRegister(const Register &r) {
+inline int16_t GetRegister(const IntReg &r) {
   return r.i16;
 }
 template <>
-inline int32_t GetRegister(const Register &r) {
+inline int32_t GetRegister(const IntReg &r) {
   return r.i32;
 }
 template <>
-inline int64_t GetRegister(const Register &r) {
+inline int64_t GetRegister(const IntReg &r) {
   return r.i64;
 }
 template <>
-inline float GetRegister(const Register &r) {
+inline float GetRegister(const IntReg &r) {
   return r.f32;
 }
 template <>
-inline double GetRegister(const Register &r) {
+inline double GetRegister(const IntReg &r) {
   return r.f64;
 }
 
 template <typename T>
-static inline void SetRegister(Register &r, T v);
+static inline void SetRegister(IntReg &r, T v);
 template <>
-inline void SetRegister(Register &r, int8_t v) {
+inline void SetRegister(IntReg &r, int8_t v) {
   r.i8 = v;
 }
 template <>
-inline void SetRegister(Register &r, int16_t v) {
+inline void SetRegister(IntReg &r, int16_t v) {
   r.i16 = v;
 }
 template <>
-inline void SetRegister(Register &r, int32_t v) {
+inline void SetRegister(IntReg &r, int32_t v) {
   r.i32 = v;
 }
 template <>
-inline void SetRegister(Register &r, int64_t v) {
+inline void SetRegister(IntReg &r, int64_t v) {
   r.i64 = v;
 }
 template <>
-inline void SetRegister(Register &r, float v) {
+inline void SetRegister(IntReg &r, float v) {
   r.f32 = v;
 }
 template <>
-inline void SetRegister(Register &r, double v) {
+inline void SetRegister(IntReg &r, double v) {
   r.f64 = v;
 }
 
@@ -160,28 +161,28 @@ inline void SetRegister(Register &r, double v) {
 // load it from a register
 template <typename T, int IDX, int IMM_MASK, class ENABLE = void>
 struct helper {
-  static inline T LoadArg(Register *r, Instr *i);
+  static inline T LoadArg(IntReg *r, IntInstr *i);
 };
 template <typename T, int ARG, int IMM_MASK>
 struct helper<T, ARG, IMM_MASK,
               typename std::enable_if<(IMM_MASK & (1 << ARG)) == 0>::type> {
-  static inline T LoadArg(Register *r, Instr *i) {
+  static inline T LoadArg(IntReg *r, IntInstr *i) {
     return GetRegister<T>(r[i->arg[ARG].i32]);
   }
 };
 template <typename T, int ARG, int IMM_MASK>
 struct helper<T, ARG, IMM_MASK,
               typename std::enable_if<(IMM_MASK & (1 << ARG)) != 0>::type> {
-  static inline T LoadArg(Register *r, Instr *i) {
+  static inline T LoadArg(IntReg *r, IntInstr *i) {
     return GetRegister<T>(i->arg[ARG]);
   }
 };
 
-#define CALLBACK(name)                                                         \
-  template <typename R = void, typename A0 = void, typename A1 = void,         \
-            int IMM_MASK = 0>                                                  \
-  static uint32_t name(Memory *memory, void *guest_ctx, Register *r, Instr *i, \
-                       uint32_t idx)
+#define CALLBACK(name)                                                 \
+  template <typename R = void, typename A0 = void, typename A1 = void, \
+            int IMM_MASK = 0>                                          \
+  static uint32_t name(Memory *memory, void *guest_ctx, IntReg *r,     \
+                       IntInstr *i, uint32_t idx)
 #define LOAD_ARG0() helper<A0, 0, IMM_MASK>::LoadArg(r, i)
 #define LOAD_ARG1() helper<A1, 1, IMM_MASK>::LoadArg(r, i)
 #define LOAD_ARG2() helper<A1, 2, IMM_MASK>::LoadArg(r, i)
@@ -764,9 +765,9 @@ CALLBACK(CALL_EXTERNAL) {
 // inside of each LoadArg call. Ideally, once the x64 backend is functional
 // I believe the build will just not include the interpreter by default.
 static void InitCallbacks() {
-#define INT_CALLBACK_C(op, func, r, a0, a1, c)                      \
-  instr_cbs[CALLBACK_IDX(ir::op, SIG_##r, SIG_##a0, SIG_##a1, c)] = \
-      &func<SigType<SIG_##r>::type, SigType<SIG_##a0>::type,        \
+#define INT_CALLBACK_C(op, func, r, a0, a1, c)                \
+  int_cbs[CALLBACK_IDX(op, SIG_##r, SIG_##a0, SIG_##a1, c)] = \
+      &func<SigType<SIG_##r>::type, SigType<SIG_##a0>::type,  \
             SigType<SIG_##a1>::type, c>;
 #define INT_CALLBACK(op, func, r, a0, a1) \
   INT_CALLBACK_C(op, func, r, a0, a1, 0)  \

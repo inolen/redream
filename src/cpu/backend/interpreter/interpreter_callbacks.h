@@ -9,7 +9,7 @@ namespace cpu {
 namespace backend {
 namespace interpreter {
 
-InstrFn GetCallback(const ir::Instr *instr);
+IntFn GetCallback(const ir::Instr *instr);
 }
 }
 }

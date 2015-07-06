@@ -10,12 +10,12 @@ namespace cpu {
 namespace backend {
 namespace interpreter {
 
-class InterpreterContext;
+union IntReg;
 
-typedef uint32_t (*InstrFn)(emu::Memory *memory, void *guest_ctx,
-                            Register *registers, Instr *instr, uint32_t idx);
+typedef uint32_t (*IntFn)(emu::Memory *memory, void *guest_ctx,
+                          IntReg *registers, IntInstr *instr, uint32_t idx);
 
-union Register {
+union IntReg {
   int8_t i8;
   int16_t i16;
   int32_t i32;
@@ -24,9 +24,9 @@ union Register {
   double f64;
 };
 
-struct Instr {
-  InstrFn fn;
-  Register arg[3];
+struct IntInstr {
+  IntFn fn;
+  IntReg arg[3];
   int result;
   intptr_t guest_addr;
   intptr_t guest_op;
@@ -42,15 +42,15 @@ class AssembleContext {
   AssembleContext();
   ~AssembleContext();
 
-  Instr *AllocInstr();
+  IntInstr *AllocInstr();
   BlockRef *AllocBlockRef();
   int AllocRegister();
 
-  Instr *TranslateInstr(ir::Instr &ir_i, InstrFn fn);
-  void TranslateValue(ir::Value *ir_v, Register *r);
+  IntInstr *TranslateInstr(ir::Instr &ir_i, IntFn fn);
+  void TranslateValue(ir::Value *ir_v, IntReg *r);
 
   int max_instrs, num_instrs;
-  Instr *instrs;
+  IntInstr *instrs;
   int max_block_refs, num_block_refs;
   BlockRef *block_refs;
   int num_registers;
