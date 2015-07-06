@@ -56,7 +56,6 @@ class Runtime {
   void ResetBlocks();
 
  private:
-  uint32_t ResolveAddress(uint32_t addr);
   RuntimeBlock *CompileBlock(uint32_t addr);
 
   emu::Memory &memory_;

@@ -2,16 +2,80 @@
 #include "cpu/backend/interpreter/interpreter_callbacks.h"
 
 using namespace dreavm::cpu;
+using namespace dreavm::cpu::backend;
 using namespace dreavm::cpu::backend::interpreter;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
+
+// fake registers for testing register allocation
+static Register int_registers[NUM_INT_REGS] = {{"a", VALUE_ALL_MASK},
+                                               {"b", VALUE_ALL_MASK},
+                                               {"c", VALUE_ALL_MASK},
+                                               {"d", VALUE_ALL_MASK}};
+
+static IntSig GetSignature(Instr &ir_i) {
+  IntSig sig = 0;
+
+  auto set_sig = [&](int arg) {
+    static const int types[] = {
+        SIG_I8,   // VALUE_I8
+        SIG_I16,  // VALUE_I16
+        SIG_I32,  // VALUE_I32
+        SIG_I64,  // VALUE_I64
+        SIG_F32,  // VALUE_F32
+        SIG_F64,  // VALUE_F64
+        SIG_I32,  // VALUE_BLOCK
+    };
+
+    Value *ir_v = ir_i.arg(arg);
+    if (!ir_v) {
+      return;
+    }
+
+    SetArgSignature(arg, types[ir_v->type()], &sig);
+  };
+
+  set_sig(0);
+  set_sig(1);
+  set_sig(2);
+  set_sig(3);
+
+  return sig;
+}
+
+static IntAccessMask GetAccessMask(Instr &ir_i) {
+  IntAccessMask access_mask = 0;
+
+  auto set_access = [&](int arg) {
+    Value *ir_v = ir_i.arg(arg);
+    if (!ir_v) {
+      return;
+    }
+    if (ir_v->constant()) {
+      SetArgAccess(arg, ACC_IMM, &access_mask);
+    } else if (ir_v->reg() != NO_REGISTER) {
+      SetArgAccess(arg, ACC_REG, &access_mask);
+    } else if (ir_v->local() != NO_SLOT) {
+      SetArgAccess(arg, ACC_LCL, &access_mask);
+    } else {
+      CHECK(false && "Unexpected value type");
+    }
+  };
+
+  set_access(0);
+  set_access(1);
+  set_access(2);
+  set_access(3);
+
+  return access_mask;
+}
 
 AssembleContext::AssembleContext()
     : max_instrs(4),
       num_instrs(0),
       instrs(
-          reinterpret_cast<IntInstr *>(malloc(max_instrs * sizeof(IntInstr)))),
-      num_registers(1) {}
+          reinterpret_cast<IntInstr *>(malloc(max_instrs * sizeof(IntInstr)))) {
+}
 
 AssembleContext::~AssembleContext() { free(instrs); }
 
@@ -26,22 +90,15 @@ IntInstr *AssembleContext::AllocInstr() {
   return i;
 }
 
-int AssembleContext::AllocRegister() { return num_registers++; }
-
 IntInstr *AssembleContext::TranslateInstr(Instr &ir_i) {
   IntInstr *i = AllocInstr();
 
-  uint32_t imm_mask = 0;
-  TranslateArg(ir_i, i, 0, &imm_mask);
-  TranslateArg(ir_i, i, 1, &imm_mask);
-  TranslateArg(ir_i, i, 2, &imm_mask);
-  if (ir_i.result()) {
-    int r = AllocRegister();
-    ir_i.result()->set_tag((intptr_t)r);
-    i->result = r;
-  }
+  TranslateArg(ir_i, i, 0);
+  TranslateArg(ir_i, i, 1);
+  TranslateArg(ir_i, i, 2);
+  TranslateArg(ir_i, i, 3);
 
-  i->fn = GetCallback(ir_i.op(), GetSignature(ir_i), imm_mask);
+  i->fn = GetCallback(ir_i.op(), GetSignature(ir_i), GetAccessMask(ir_i));
 
   i->guest_addr = ir_i.guest_addr;
   i->guest_op = ir_i.guest_op;
@@ -49,88 +106,57 @@ IntInstr *AssembleContext::TranslateInstr(Instr &ir_i) {
   return i;
 }
 
-IntSig AssembleContext::GetSignature(Instr &ir_i) {
-  static const int types[] = {
-      SIG_I8,   // VALUE_I8
-      SIG_I16,  // VALUE_I16
-      SIG_I32,  // VALUE_I32
-      SIG_I64,  // VALUE_I64
-      SIG_F32,  // VALUE_F32
-      SIG_F64,  // VALUE_F64
-      SIG_I32,  // VALUE_BLOCK
-  };
-
-  IntSig sig;
-
-  sig.full = 0;
-
-  if (ir_i.result()) {
-    sig.result = types[ir_i.result()->type()];
-  }
-  if (ir_i.arg0()) {
-    sig.arg0 = types[ir_i.arg0()->type()];
-  }
-  if (ir_i.arg1()) {
-    sig.arg1 = types[ir_i.arg1()->type()];
-  }
-  if (ir_i.arg2()) {
-    sig.arg2 = types[ir_i.arg2()->type()];
-  }
-
-  return sig;
-}
-
-void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg,
-                                   uint32_t *imm_mask) {
+void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg) {
   Value *ir_v = ir_i.arg(arg);
 
   if (!ir_v) {
     return;
   }
 
-  IntReg *r = &i->arg[arg];
+  IntValue *v = &i->arg[arg];
 
-  if (!ir_v->constant()) {
-    // for non-constant values, generate a shared register that will be stored
-    // at runtime
-    if (!ir_v->tag()) {
-      ir_v->set_tag((intptr_t)AllocRegister());
-      // CHECK(ir_v->tag);
+  if (ir_v->constant()) {
+    switch (ir_v->type()) {
+      case VALUE_I8:
+        v->i8 = ir_v->value<int8_t>();
+        break;
+      case VALUE_I16:
+        v->i16 = ir_v->value<int16_t>();
+        break;
+      case VALUE_I32:
+        v->i32 = ir_v->value<int32_t>();
+        break;
+      case VALUE_I64:
+        v->i64 = ir_v->value<int64_t>();
+        break;
+      case VALUE_F32:
+        v->f32 = ir_v->value<float>();
+        break;
+      case VALUE_F64:
+        v->f64 = ir_v->value<double>();
+        break;
+      case VALUE_BLOCK:
+        v->i32 = (int32_t)ir_v->value<Block *>()->instrs().head()->tag();
+        break;
     }
-    r->i32 = (int)(intptr_t)ir_v->tag();
-    return;
-  }
-
-  *imm_mask |= (1 << arg);
-
-  switch (ir_v->type()) {
-    case VALUE_I8:
-      r->i8 = ir_v->value<int8_t>();
-      break;
-    case VALUE_I16:
-      r->i16 = ir_v->value<int16_t>();
-      break;
-    case VALUE_I32:
-      r->i32 = ir_v->value<int32_t>();
-      break;
-    case VALUE_I64:
-      r->i64 = ir_v->value<int64_t>();
-      break;
-    case VALUE_F32:
-      r->f32 = ir_v->value<float>();
-      break;
-    case VALUE_F64:
-      r->f64 = ir_v->value<double>();
-      break;
-    case VALUE_BLOCK:
-      r->i32 = (int32_t)ir_v->value<Block *>()->instrs().head()->tag();
-      break;
+  } else if (ir_v->reg() != NO_REGISTER) {
+    v->i32 = ir_v->reg();
+  } else if (ir_v->local() != NO_SLOT) {
+    v->i32 = ir_v->local();
+  } else {
+    CHECK(false && "Unexpected value type");
   }
 }
 
 InterpreterBackend::InterpreterBackend(emu::Memory &memory) : Backend(memory) {}
 
 InterpreterBackend::~InterpreterBackend() {}
+
+const Register *InterpreterBackend::registers() const { return int_registers; }
+
+int InterpreterBackend::num_registers() const {
+  return sizeof(int_registers) / sizeof(Register);
+}
 
 bool InterpreterBackend::Init() { return true; }
 
@@ -165,5 +191,5 @@ std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
   ctx.instrs = nullptr;
 
   return std::unique_ptr<RuntimeBlock>(new InterpreterBlock(
-      guest_cycles, instrs, num_instrs, ctx.num_registers));
+      guest_cycles, instrs, num_instrs, builder.locals_size()));
 }

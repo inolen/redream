@@ -9,163 +9,190 @@ using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
 //
-// callback lookup table generation
-//
-// callback functions are pregenerated for each instruction, for each possible
-// permutation of arguments. each argument has a type, as well as if it's an
-// immediate encoded in the instruction or not.
-//
-// this avoids several ext / truncation operations at runtime as well as
-// branches to deal with either pulling the argument from a register or decoding
-// it from the instruction itself.
-//
-// NOTE: OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
-// arg2's type always matches arg1's. because of this, and in order to save
-// some memory, arg2 isn't considering when generating the lookup table.
-//
-template <int T>
-struct SigType;
-template <>
-struct SigType<0> {
-  typedef void type;
-};
-template <>
-struct SigType<SIG_I8> {
-  typedef int8_t type;
-};
-template <>
-struct SigType<SIG_I16> {
-  typedef int16_t type;
-};
-template <>
-struct SigType<SIG_I32> {
-  typedef int32_t type;
-};
-template <>
-struct SigType<SIG_I64> {
-  typedef int64_t type;
-};
-template <>
-struct SigType<SIG_F32> {
-  typedef float type;
-};
-template <>
-struct SigType<SIG_F64> {
-  typedef double type;
-};
-
-#define MAX_CALLBACKS_PER_OP (SIG_NUM * SIG_NUM * SIG_NUM * IMM_MAX)
-#define MAX_CALLBACKS (MAX_CALLBACKS_PER_OP * NUM_OPCODES)
-
-static IntFn int_cbs[MAX_CALLBACKS];
-
-// each argument's data type, as well as if it's encoded as an immediate or
-// not is used when indexing into the callback table
-inline int CALLBACK_IDX(Opcode op, int result_sig, int arg0_sig, int arg1_sig,
-                        int imm_mask) {
-  return MAX_CALLBACKS_PER_OP * op +
-         (((result_sig * SIG_NUM * SIG_NUM) + (arg0_sig * SIG_NUM) + arg1_sig) *
-          IMM_MAX) +
-         imm_mask;
-}
-
-IntFn dreavm::cpu::backend::interpreter::GetCallback(Opcode op,
-                                                     const IntSig &sig,
-                                                     uint32_t imm_mask) {
-  IntFn fn =
-      int_cbs[CALLBACK_IDX(op, sig.result, sig.arg0, sig.arg1, imm_mask)];
-  CHECK_NOTNULL(fn);
-  return fn;
-}
-
-//
-// callback helpers
+// helpers for loading / storing arguments
 //
 template <typename T>
-static inline T GetRegister(const IntReg &r);
+static inline T GetValue(const IntValue &v);
 template <>
-inline int8_t GetRegister(const IntReg &r) {
-  return r.i8;
+inline int8_t GetValue(const IntValue &v) {
+  return v.i8;
 }
 template <>
-inline int16_t GetRegister(const IntReg &r) {
-  return r.i16;
+inline int16_t GetValue(const IntValue &v) {
+  return v.i16;
 }
 template <>
-inline int32_t GetRegister(const IntReg &r) {
-  return r.i32;
+inline int32_t GetValue(const IntValue &v) {
+  return v.i32;
 }
 template <>
-inline int64_t GetRegister(const IntReg &r) {
-  return r.i64;
+inline int64_t GetValue(const IntValue &v) {
+  return v.i64;
 }
 template <>
-inline float GetRegister(const IntReg &r) {
-  return r.f32;
+inline float GetValue(const IntValue &v) {
+  return v.f32;
 }
 template <>
-inline double GetRegister(const IntReg &r) {
-  return r.f64;
+inline double GetValue(const IntValue &v) {
+  return v.f64;
 }
 
 template <typename T>
-static inline void SetRegister(IntReg &r, T v);
+static inline void SetValue(IntValue &v, T n);
 template <>
-inline void SetRegister(IntReg &r, int8_t v) {
-  r.i8 = v;
+inline void SetValue(IntValue &v, int8_t n) {
+  v.i8 = n;
 }
 template <>
-inline void SetRegister(IntReg &r, int16_t v) {
-  r.i16 = v;
+inline void SetValue(IntValue &v, int16_t n) {
+  v.i16 = n;
 }
 template <>
-inline void SetRegister(IntReg &r, int32_t v) {
-  r.i32 = v;
+inline void SetValue(IntValue &v, int32_t n) {
+  v.i32 = n;
 }
 template <>
-inline void SetRegister(IntReg &r, int64_t v) {
-  r.i64 = v;
+inline void SetValue(IntValue &v, int64_t n) {
+  v.i64 = n;
 }
 template <>
-inline void SetRegister(IntReg &r, float v) {
-  r.f32 = v;
+inline void SetValue(IntValue &v, float n) {
+  v.f32 = n;
 }
 template <>
-inline void SetRegister(IntReg &r, double v) {
-  r.f64 = v;
+inline void SetValue(IntValue &v, double n) {
+  v.f64 = n;
 }
 
-// LoadArg is specialized not only to load the correct argument based on its
-// data type, but also to choose to either decode it from the instruction or
-// load it from a register
-template <typename T, int IDX, int IMM_MASK, class ENABLE = void>
+template <typename T>
+static inline T GetLocal(const uint8_t *locals, int offset);
+template <>
+inline int8_t GetLocal(const uint8_t *locals, int offset) {
+  return *reinterpret_cast<const int8_t *>(&locals[offset]);
+}
+template <>
+inline int16_t GetLocal(const uint8_t *locals, int offset) {
+  return *reinterpret_cast<const int16_t *>(&locals[offset]);
+}
+template <>
+inline int32_t GetLocal(const uint8_t *locals, int offset) {
+  return *reinterpret_cast<const int32_t *>(&locals[offset]);
+}
+template <>
+inline int64_t GetLocal(const uint8_t *locals, int offset) {
+  return *reinterpret_cast<const int64_t *>(&locals[offset]);
+}
+template <>
+inline float GetLocal(const uint8_t *locals, int offset) {
+  return *reinterpret_cast<const float *>(&locals[offset]);
+}
+template <>
+inline double GetLocal(const uint8_t *locals, int offset) {
+  return *reinterpret_cast<const double *>(&locals[offset]);
+}
+
+template <typename T>
+static inline void SetLocal(uint8_t *locals, int offset, T v);
+template <>
+inline void SetLocal(uint8_t *locals, int offset, int8_t v) {
+  *reinterpret_cast<int8_t *>(&locals[offset]) = v;
+}
+template <>
+inline void SetLocal(uint8_t *locals, int offset, int16_t v) {
+  *reinterpret_cast<int16_t *>(&locals[offset]) = v;
+}
+template <>
+inline void SetLocal(uint8_t *locals, int offset, int32_t v) {
+  *reinterpret_cast<int32_t *>(&locals[offset]) = v;
+}
+template <>
+inline void SetLocal(uint8_t *locals, int offset, int64_t v) {
+  *reinterpret_cast<int64_t *>(&locals[offset]) = v;
+}
+template <>
+inline void SetLocal(uint8_t *locals, int offset, float v) {
+  *reinterpret_cast<float *>(&locals[offset]) = v;
+}
+template <>
+inline void SetLocal(uint8_t *locals, int offset, double v) {
+  *reinterpret_cast<double *>(&locals[offset]) = v;
+}
+
+template <typename T, int ARG, IntAccessMask ACCESS_MASK, class ENABLE = void>
 struct helper {
-  static inline T LoadArg(IntReg *r, IntInstr *i);
+  static inline T LoadArg(const IntInstr *i, const IntValue *r,
+                          const uint8_t *l);
+  static inline void StoreArg(const IntInstr *i, const IntValue *r,
+                              const uint8_t *l, T v);
 };
-template <typename T, int ARG, int IMM_MASK>
-struct helper<T, ARG, IMM_MASK,
-              typename std::enable_if<(IMM_MASK & (1 << ARG)) == 0>::type> {
-  static inline T LoadArg(IntReg *r, IntInstr *i) {
-    return GetRegister<T>(r[i->arg[ARG].i32]);
+
+//
+// ACC_REG
+//
+// argument is located in a virtual register, arg->i32 specifies the register
+//
+template <typename T, int ARG, IntAccessMask ACCESS_MASK>
+struct helper<
+    T, ARG, ACCESS_MASK,
+    typename std::enable_if<GetArgAccess(ACCESS_MASK, ARG) == ACC_REG>::type> {
+  static inline T LoadArg(const IntInstr *i, const IntValue *r,
+                          const uint8_t *l) {
+    return GetValue<T>(r[i->arg[ARG].i32]);
   }
-};
-template <typename T, int ARG, int IMM_MASK>
-struct helper<T, ARG, IMM_MASK,
-              typename std::enable_if<(IMM_MASK & (1 << ARG)) != 0>::type> {
-  static inline T LoadArg(IntReg *r, IntInstr *i) {
-    return GetRegister<T>(i->arg[ARG]);
+
+  static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
+    SetValue<T>(r[i->arg[3].i32], v);
   }
 };
 
-#define CALLBACK(name)                                                 \
-  template <typename R = void, typename A0 = void, typename A1 = void, \
-            int IMM_MASK = 0>                                          \
-  static uint32_t name(Memory *memory, void *guest_ctx, IntReg *r,     \
-                       IntInstr *i, uint32_t idx)
-#define LOAD_ARG0() helper<A0, 0, IMM_MASK>::LoadArg(r, i)
-#define LOAD_ARG1() helper<A1, 1, IMM_MASK>::LoadArg(r, i)
-#define LOAD_ARG2() helper<A1, 2, IMM_MASK>::LoadArg(r, i)
-#define STORE_RESULT(v) SetRegister<R>(r[i->result], v);
+//
+// ACC_LCL
+//
+// argument is located on the stack, arg->i32 specifies the stack offset
+//
+template <typename T, int ARG, IntAccessMask ACCESS_MASK>
+struct helper<
+    T, ARG, ACCESS_MASK,
+    typename std::enable_if<GetArgAccess(ACCESS_MASK, ARG) == ACC_LCL>::type> {
+  static inline T LoadArg(const IntInstr *i, const IntValue *r,
+                          const uint8_t *l) {
+    return GetLocal<T>(l, i->arg[ARG].i32);
+  }
+
+  static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
+    SetLocal<T>(l, i->arg[3].i32, v);
+  }
+};
+
+//
+// ACC_IMM
+//
+// argument is encoded directly on the instruction
+//
+template <typename T, int ARG, IntAccessMask ACCESS_MASK>
+struct helper<
+    T, ARG, ACCESS_MASK,
+    typename std::enable_if<GetArgAccess(ACCESS_MASK, ARG) == ACC_IMM>::type> {
+  static inline T LoadArg(const IntInstr *i, const IntValue *r,
+                          const uint8_t *l) {
+    return GetValue<T>(i->arg[ARG]);
+  }
+
+  static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
+    CHECK(false);
+  }
+};
+
+#define CALLBACK(name)                                                  \
+  template <typename R = void, typename A0 = void, typename A1 = void,  \
+            int IMM_MASK = 0>                                           \
+  static uint32_t name(const IntInstr *i, uint32_t idx, Memory *memory, \
+                       IntValue *r, uint8_t *locals, void *guest_ctx)
+#define LOAD_ARG0() helper<A0, 0, IMM_MASK>::LoadArg(i, r, locals)
+#define LOAD_ARG1() helper<A1, 1, IMM_MASK>::LoadArg(i, r, locals)
+#define LOAD_ARG2() helper<A1, 2, IMM_MASK>::LoadArg(i, r, locals)
+#define STORE_RESULT(v) helper<R, 3, IMM_MASK>::StoreArg(i, r, locals, v)
 #define NEXT_INSTR (idx + 1)
 
 //
@@ -550,24 +577,131 @@ CALLBACK(CALL_EXTERNAL) {
   return NEXT_INSTR;
 }
 
-// This is terribly slow to compile (takes about ~1 minute on my MBP), but it
-// does boost interpreter speed by 5-10% over having immediate conditionals
-// inside of each LoadArg call. Ideally, once the x64 backend is functional
-// I believe the build will just not include the interpreter by default.
+//
+// callback lookup table generation
+//
+// callback functions are generated for each instruction, for each possible
+// permutation of arguments. each argument has a data type, as well as its
+// access type.
+//
+// NOTE: OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
+// arg2's type always matches arg1's. because of this, and in order to save
+// some memory, arg2 isn't considering when generating the lookup table.
+//
+template <int T>
+struct SigType;
+template <>
+struct SigType<0> {
+  typedef void type;
+};
+template <>
+struct SigType<SIG_I8> {
+  typedef int8_t type;
+};
+template <>
+struct SigType<SIG_I16> {
+  typedef int16_t type;
+};
+template <>
+struct SigType<SIG_I32> {
+  typedef int32_t type;
+};
+template <>
+struct SigType<SIG_I64> {
+  typedef int64_t type;
+};
+template <>
+struct SigType<SIG_F32> {
+  typedef float type;
+};
+template <>
+struct SigType<SIG_F64> {
+  typedef double type;
+};
+
+#define MAX_CALLBACKS_PER_OP \
+  (SIG_NUM * SIG_NUM * SIG_NUM * NUM_ACC_COMBINATIONS)
+#define MAX_CALLBACKS (MAX_CALLBACKS_PER_OP * NUM_OPCODES)
+#define CALLBACK_IDX(op, result_sig, arg0_sig, arg1_sig, access_mask)      \
+  (MAX_CALLBACKS_PER_OP * op +                                             \
+   (((result_sig * SIG_NUM * SIG_NUM) + (arg0_sig * SIG_NUM) + arg1_sig) * \
+    NUM_ACC_COMBINATIONS) +                                                \
+   access_mask)
+
+static IntFn int_cbs[MAX_CALLBACKS];
+
+IntFn dreavm::cpu::backend::interpreter::GetCallback(
+    Opcode op, const IntSig &sig, IntAccessMask access_mask) {
+  IntFn fn =
+      int_cbs[CALLBACK_IDX(op, GetArgSignature(sig, 3), GetArgSignature(sig, 0),
+                           GetArgSignature(sig, 1), access_mask)];
+  CHECK_NOTNULL(fn);
+  return fn;
+}
+
 static void InitCallbacks() {
+// Generate NUM_ACC_COMBINATIONS callbacks for each op, excluding access masks
+// where (mask & 0x3), (mask >> 2) & 0x3, or (mask >> 4) & 0x3 are equal to 3,
+// as they're invalid.
 #define INT_CALLBACK_C(op, func, r, a0, a1, c)                \
   int_cbs[CALLBACK_IDX(op, SIG_##r, SIG_##a0, SIG_##a1, c)] = \
       &func<SigType<SIG_##r>::type, SigType<SIG_##a0>::type,  \
             SigType<SIG_##a1>::type, c>;
-#define INT_CALLBACK(op, func, r, a0, a1) \
-  INT_CALLBACK_C(op, func, r, a0, a1, 0)  \
-  INT_CALLBACK_C(op, func, r, a0, a1, 1)  \
-  INT_CALLBACK_C(op, func, r, a0, a1, 2)  \
-  INT_CALLBACK_C(op, func, r, a0, a1, 3)  \
-  INT_CALLBACK_C(op, func, r, a0, a1, 4)  \
-  INT_CALLBACK_C(op, func, r, a0, a1, 5)  \
-  INT_CALLBACK_C(op, func, r, a0, a1, 6)  \
-  INT_CALLBACK_C(op, func, r, a0, a1, 7)  // IMM_MAX
+#define INT_CALLBACK(op, func, r, a0, a1)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 0)   \
+  INT_CALLBACK_C(op, func, r, a0, a1, 1)   \
+  INT_CALLBACK_C(op, func, r, a0, a1, 2)   \
+  INT_CALLBACK_C(op, func, r, a0, a1, 4)   \
+  INT_CALLBACK_C(op, func, r, a0, a1, 5)   \
+  INT_CALLBACK_C(op, func, r, a0, a1, 6)   \
+  INT_CALLBACK_C(op, func, r, a0, a1, 8)   \
+  INT_CALLBACK_C(op, func, r, a0, a1, 9)   \
+  INT_CALLBACK_C(op, func, r, a0, a1, 10)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 16)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 17)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 18)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 20)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 21)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 22)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 24)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 25)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 26)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 32)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 33)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 34)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 36)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 37)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 38)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 40)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 41)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 42)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 64)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 65)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 66)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 68)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 69)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 70)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 72)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 73)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 74)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 80)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 81)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 82)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 84)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 85)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 86)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 88)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 89)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 90)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 96)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 97)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 98)  \
+  INT_CALLBACK_C(op, func, r, a0, a1, 100) \
+  INT_CALLBACK_C(op, func, r, a0, a1, 101) \
+  INT_CALLBACK_C(op, func, r, a0, a1, 102) \
+  INT_CALLBACK_C(op, func, r, a0, a1, 104) \
+  INT_CALLBACK_C(op, func, r, a0, a1, 105) \
+  INT_CALLBACK_C(op, func, r, a0, a1, 106)
 #include "cpu/backend/interpreter/interpreter_callbacks.inc"
 #undef INT_CALLBACK
 }

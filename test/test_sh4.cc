@@ -4,6 +4,7 @@
 #include "core/core.h"
 #include "cpu/frontend/sh4/sh4_frontend.h"
 #include "cpu/backend/interpreter/interpreter_backend.h"
+#include "cpu/backend/x64/x64_backend.h"
 #include "cpu/sh4.h"
 #include "emu/memory.h"
 #include "emu/scheduler.h"
@@ -22,10 +23,11 @@ void RunSH4Test(const SH4Test &test) {
   Memory memory;
 
   // initialize runtime
-  frontend::sh4::SH4Frontend sh4_frontend(memory);
-  backend::interpreter::InterpreterBackend int_backend(memory);
+  frontend::sh4::SH4Frontend rt_frontend(memory);
+  // backend::x64::X64Backend rt_backend(memory);
+  backend::interpreter::InterpreterBackend rt_backend(memory);
   Runtime runtime(memory);
-  ASSERT_TRUE(runtime.Init(&sh4_frontend, &int_backend));
+  ASSERT_TRUE(runtime.Init(&rt_frontend, &rt_backend));
 
   // initialize device
   SH4 sh4(scheduler, memory);

@@ -10,12 +10,11 @@ namespace backend {
 namespace interpreter {
 
 struct IntInstr;
-union Register;
 
 class InterpreterBlock : public RuntimeBlock {
  public:
   InterpreterBlock(int guest_cycles, IntInstr *instrs, int num_instrs,
-                   int num_registers);
+                   int locals_size);
   ~InterpreterBlock();
 
   uint32_t Call(emu::Memory *memory, void *guest_ctx);
@@ -23,7 +22,7 @@ class InterpreterBlock : public RuntimeBlock {
  private:
   IntInstr *instrs_;
   int num_instrs_;
-  int num_registers_;
+  int locals_size_;
 };
 }
 }

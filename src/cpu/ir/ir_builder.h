@@ -29,7 +29,6 @@ enum ValueTy {
   VALUE_F64,
   VALUE_BLOCK
 };
-enum { VALUE_NUM = VALUE_BLOCK + 1 };
 enum {
   VALUE_I8_MASK = 1 << VALUE_I8,
   VALUE_I16_MASK = 1 << VALUE_I16,
@@ -45,6 +44,7 @@ enum {
                    VALUE_I64_MASK | VALUE_F32_MASK | VALUE_F64_MASK |
                    VALUE_BLOCK_MASK,
 };
+enum { NO_REGISTER = -1, NO_SLOT = -1 };
 
 class Block;
 class Instr;
@@ -68,6 +68,15 @@ class Value {
   template <typename T>
   T value() const;
 
+  const core::IntrusiveList<ValueRef> &refs() const { return refs_; }
+  core::IntrusiveList<ValueRef> &refs() { return refs_; }
+
+  int reg() const { return reg_; }
+  void set_reg(int reg) { reg_ = reg; }
+
+  int local() const { return local_; }
+  void set_local(int local) { local_ = local; }
+
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
@@ -90,6 +99,8 @@ class Value {
     Block *block_;
   };
   core::IntrusiveList<ValueRef> refs_;
+  int reg_;
+  int local_;
   intptr_t tag_;
 };
 
@@ -141,7 +152,11 @@ inline Block *Value::value() const {
 // during optimization to replace all references to a value with a new value.
 class ValueRef : public core::IntrusiveListNode<ValueRef> {
  public:
-  ValueRef();
+  ValueRef(Instr *instr);
+  ~ValueRef();
+
+  const Instr *instr() const { return instr_; }
+  Instr *instr() { return instr_; }
 
   const Value *value() const { return value_; }
   Value *value() { return value_; }
@@ -154,6 +169,7 @@ class ValueRef : public core::IntrusiveListNode<ValueRef> {
   }
 
  private:
+  Instr *instr_;
   Value *value_;
 };
 
@@ -167,6 +183,7 @@ class Instr : public core::IntrusiveListNode<Instr> {
 
  public:
   Instr(Opcode op, InstrFlag flags);
+  ~Instr();
 
   Block *block() { return block_; }
 
@@ -196,9 +213,6 @@ class Instr : public core::IntrusiveListNode<Instr> {
 
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
-
-  void ReplaceWith(Instr *other);
-  void Remove();
 
   // temp debug variables
   intptr_t guest_addr;
@@ -234,36 +248,36 @@ class Block : public core::IntrusiveListNode<Block> {
 
  public:
   Block();
-
-  int id() const { return id_; }
+  ~Block();
 
   const core::IntrusiveList<Instr> &instrs() const { return instrs_; }
   core::IntrusiveList<Instr> &instrs() { return instrs_; }
 
-  const core::IntrusiveList<Edge> &outgoing_edges() const {
-    return outgoing_edges_;
-  }
-  core::IntrusiveList<Edge> &outgoing_edges() { return outgoing_edges_; }
+  const core::IntrusiveList<Edge> &outgoing() const { return outgoing_; }
+  core::IntrusiveList<Edge> &outgoing() { return outgoing_; }
 
-  const core::IntrusiveList<Edge> &incoming_edges() const {
-    return incoming_edges_;
-  }
-  core::IntrusiveList<Edge> &incoming_edges() { return incoming_edges_; }
+  const core::IntrusiveList<Edge> &incoming() const { return incoming_; }
+  core::IntrusiveList<Edge> &incoming() { return incoming_; }
+
+  // filled in by the ControlFlowAnalysis pass, provides reverse postorder
+  // iteration of blocks
+  const Block *rpo_next() const { return rpo_next_; }
+  Block *rpo_next() { return rpo_next_; }
+  void set_rpo_next(Block *rpo_next) { rpo_next_ = rpo_next; }
 
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
   void AppendInstr(Instr *instr);
   void InsertInstr(Instr *after, Instr *instr);
+  void ReplaceInstr(Instr *replace, Instr *with);
   void RemoveInstr(Instr *instr);
 
  private:
-  void set_id(int id) { id_ = id; }
-
-  int id_;
   core::IntrusiveList<Instr> instrs_;
-  core::IntrusiveList<Edge> outgoing_edges_;
-  core::IntrusiveList<Edge> incoming_edges_;
+  core::IntrusiveList<Edge> outgoing_;
+  core::IntrusiveList<Edge> incoming_;
+  Block *rpo_next_;
   intptr_t tag_;
 };
 
@@ -274,7 +288,9 @@ typedef void (*ExternalFn)(void *);
 
 enum MetadataTy { MD_GUEST_CYCLES, MD_NUM };
 
-// Cache duplicate constant values
+// Cache duplicate constant values. Constants aren't cached for memory purposes,
+// they're cached to aid optimization passes. For example, duruing GVN constants
+// will all share the same value number.
 struct ConstantKey {
   ValueTy type;
   int64_t value;
@@ -299,6 +315,8 @@ class IRBuilder {
 
   const core::IntrusiveList<Block> &blocks() const { return blocks_; }
   core::IntrusiveList<Block> &blocks() { return blocks_; }
+
+  int locals_size() const { return locals_size_; }
 
   static bool IsTerminator(const Instr *i);
 
@@ -385,7 +403,6 @@ class IRBuilder {
   void CallExternal(ExternalFn func);
 
   // values
-  Value *AllocDynamic(ValueTy type);
   Value *AllocConstant(uint8_t c);
   Value *AllocConstant(uint16_t c);
   Value *AllocConstant(uint32_t c);
@@ -397,6 +414,8 @@ class IRBuilder {
   Value *AllocConstant(float c);
   Value *AllocConstant(double c);
   Value *AllocConstant(Block *c);
+  Value *AllocDynamic(ValueTy type);
+  int AllocLocal(ValueTy type);
 
  protected:
   Instr *AppendInstr(Opcode op, InstrFlag flags = IF_NONE);
@@ -405,6 +424,7 @@ class IRBuilder {
   core::IntrusiveList<Block> blocks_;
   Block *current_block_;
   ConstantMap constants_;
+  int locals_size_;
   Value *metadata_[MD_NUM];
 };
 }

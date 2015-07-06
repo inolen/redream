@@ -4,6 +4,7 @@
 #include "cpu/ir/context_promotion_pass.h"
 #include "cpu/ir/control_flow_analysis_pass.h"
 #include "cpu/ir/ir_builder.h"
+#include "cpu/ir/register_allocation_pass.h"
 #include "cpu/ir/validate_block_pass.h"
 #include "cpu/runtime.h"
 #include "emu/profiler.h"
@@ -19,12 +20,6 @@ Runtime::Runtime(Memory &memory)
       backend_(nullptr),
       pending_reset_(false) {
   blocks_ = new std::unique_ptr<RuntimeBlock>[MAX_BLOCKS];
-
-  pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateBlockPass()));
-  pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
-  pass_runner_.AddPass(std::unique_ptr<Pass>(new ContextPromotionPass()));
-  // pass_runner_.AddPass(
-  //     std::unique_ptr<Pass>(new ConstantPropagationPass(memory_)));
 }
 
 Runtime::~Runtime() { delete[] blocks_; }
@@ -41,6 +36,14 @@ bool Runtime::Init(frontend::Frontend *frontend, backend::Backend *backend) {
     return false;
   }
 
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateBlockPass()));
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new ContextPromotionPass()));
+  // pass_runner_.AddPass(
+  //     std::unique_ptr<Pass>(new ConstantPropagationPass(memory_)));
+  pass_runner_.AddPass(
+      std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
+
   return true;
 }
 
@@ -54,7 +57,7 @@ RuntimeBlock *Runtime::ResolveBlock(uint32_t addr) {
     pending_reset_ = false;
   }
 
-  addr = ResolveAddress(addr);
+  addr &= 0x1fffffff;
   uint32_t offset = BlockOffset(addr);
   if (offset >= MAX_BLOCKS) {
     LOG(FATAL) << "Block requested at 0x" << std::hex << addr
@@ -70,18 +73,6 @@ RuntimeBlock *Runtime::ResolveBlock(uint32_t addr) {
 }
 
 void Runtime::ResetBlocks() { pending_reset_ = true; }
-
-uint32_t Runtime::ResolveAddress(uint32_t addr) {
-  // MICROPROFILE_SCOPEI("cpu", "ResolveAddress", 0x0000ff);
-
-  // MemoryBank *bank;
-  // uint32_t offset;
-
-  // memory_.Resolve(addr, &bank, &offset);
-
-  // return bank->logical_addr + offset;
-  return addr & 0x1fffffff;
-}
 
 RuntimeBlock *Runtime::CompileBlock(uint32_t addr) {
   PROFILER_SCOPE_F("runtime");

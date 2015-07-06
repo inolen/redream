@@ -23,8 +23,7 @@ void ContextPromotionPass::ProcessBlock(Block *block) {
 
       if (instr->flags() & IF_INVALIDATE_CONTEXT) {
         // if the instruction explicitly invalidates the context, clear
-        // available
-        // values
+        // available values
         ClearAvailable();
       } else if (instr->op() == OP_LOAD_CONTEXT) {
         // if there is already a value available for this offset, reuse it and
@@ -34,7 +33,7 @@ void ContextPromotionPass::ProcessBlock(Block *block) {
 
         if (available && available->type() == instr->result()->type()) {
           instr->result()->ReplaceRefsWith(available);
-          instr->Remove();
+          block->RemoveInstr(instr);
         }
 
         SetAvailable(offset, instr->result());
@@ -69,7 +68,7 @@ void ContextPromotionPass::ProcessBlock(Block *block) {
         int offset = instr->arg0()->value<int32_t>();
         Value *available = GetAvailable(offset);
         if (available && available->type() >= instr->arg1()->type()) {
-          instr->Remove();
+          block->RemoveInstr(instr);
         }
         SetAvailable(offset, instr->arg1());
       }

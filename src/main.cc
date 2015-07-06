@@ -46,7 +46,8 @@ int main(int argc, char **argv) {
   }
 
   if (!emu.LaunchGDI(
-          "../dreamcast/Crazy Taxi 2 v1.004 (2001)(Sega)(NTSC)(US)[!]/Crazy Taxi 2 v1.004 (2001)(Sega)(NTSC)(US)[!].gdi")) {
+          "../dreamcast/Crazy Taxi 2 v1.004 (2001)(Sega)(NTSC)(US)[!]/Crazy "
+          "Taxi 2 v1.004 (2001)(Sega)(NTSC)(US)[!].gdi")) {
     LOG(FATAL) << "Failed to load GDI.";
   }
 

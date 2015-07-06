@@ -2,11 +2,6 @@
 
 default: relwithdebinfo
 
-ifndef JOBS
-JOBS = 1
-endif
-override JOBS := -j $(JOBS)
-
 build/debug/Makefile:
 	cmake -H. -Bbuild/debug -DCMAKE_BUILD_TYPE=DEBUG
 
@@ -17,13 +12,13 @@ build/relwithdebinfo/Makefile:
 	cmake -H. -Bbuild/relwithdebinfo -DCMAKE_BUILD_TYPE=RELWITHDEBINFO
 
 debug: build/debug/Makefile
-	make -C build/debug $(JOBS)
+	make -C build/debug
 
 release: build/release/Makefile
-	make -C build/release $(JOBS)
+	make -C build/release
 
 relwithdebinfo: build/relwithdebinfo/Makefile
-	make -C build/relwithdebinfo $(JOBS)
+	make -C build/relwithdebinfo
 
 format: build/relwithdebinfo/Makefile
 	make -C build/relwithdebinfo format

@@ -11,24 +11,89 @@ const char *dreavm::cpu::ir::Opnames[NUM_OPCODES] = {
 #include "cpu/ir/ir_ops.inc"
 };
 
-inline bool IsFloatType(ValueTy type) {
+static inline bool IsFloatType(ValueTy type) {
   return type == VALUE_F32 || type == VALUE_F64;
 }
 
-inline bool IsIntType(ValueTy type) { return !IsFloatType(type); }
+static inline bool IsIntType(ValueTy type) { return !IsFloatType(type); }
+
+static inline int SizeForType(ValueTy type) {
+  switch (type) {
+    case VALUE_I8:
+      return 1;
+    case VALUE_I16:
+      return 2;
+    case VALUE_I32:
+      return 4;
+    case VALUE_I64:
+      return 8;
+    case VALUE_F32:
+      return 4;
+    case VALUE_F64:
+      return 8;
+    case VALUE_BLOCK:
+      return 4;
+  }
+}
 
 //
 // Value
 //
-Value::Value(ValueTy ty) : type_(ty), constant_(false), tag_(0) {}
-Value::Value(int8_t v) : type_(VALUE_I8), constant_(true), i8_(v), tag_(0) {}
-Value::Value(int16_t v) : type_(VALUE_I16), constant_(true), i16_(v), tag_(0) {}
-Value::Value(int32_t v) : type_(VALUE_I32), constant_(true), i32_(v), tag_(0) {}
-Value::Value(int64_t v) : type_(VALUE_I64), constant_(true), i64_(v), tag_(0) {}
-Value::Value(float v) : type_(VALUE_F32), constant_(true), f32_(v), tag_(0) {}
-Value::Value(double v) : type_(VALUE_F64), constant_(true), f64_(v), tag_(0) {}
+Value::Value(ValueTy ty)
+    : type_(ty),
+      constant_(false),
+      reg_(NO_REGISTER),
+      local_(NO_SLOT),
+      tag_(0) {}
+Value::Value(int8_t v)
+    : type_(VALUE_I8),
+      constant_(true),
+      i8_(v),
+      reg_(NO_REGISTER),
+      local_(NO_SLOT),
+      tag_(0) {}
+Value::Value(int16_t v)
+    : type_(VALUE_I16),
+      constant_(true),
+      i16_(v),
+      reg_(NO_REGISTER),
+      local_(NO_SLOT),
+      tag_(0) {}
+Value::Value(int32_t v)
+    : type_(VALUE_I32),
+      constant_(true),
+      i32_(v),
+      reg_(NO_REGISTER),
+      local_(NO_SLOT),
+      tag_(0) {}
+Value::Value(int64_t v)
+    : type_(VALUE_I64),
+      constant_(true),
+      i64_(v),
+      reg_(NO_REGISTER),
+      local_(NO_SLOT),
+      tag_(0) {}
+Value::Value(float v)
+    : type_(VALUE_F32),
+      constant_(true),
+      f32_(v),
+      reg_(NO_REGISTER),
+      local_(NO_SLOT),
+      tag_(0) {}
+Value::Value(double v)
+    : type_(VALUE_F64),
+      constant_(true),
+      f64_(v),
+      reg_(NO_REGISTER),
+      local_(NO_SLOT),
+      tag_(0) {}
 Value::Value(Block *v)
-    : type_(VALUE_BLOCK), constant_(true), block_(v), tag_(0) {}
+    : type_(VALUE_BLOCK),
+      constant_(true),
+      block_(v),
+      reg_(NO_REGISTER),
+      local_(NO_SLOT),
+      tag_(0) {}
 
 uint64_t Value::GetZExtValue() const {
   switch (type_) {
@@ -64,36 +129,37 @@ void Value::ReplaceRefsWith(Value *other) {
   }
 }
 
-ValueRef::ValueRef() : value_(nullptr) {}
+ValueRef::ValueRef(Instr *instr) : instr_(instr), value_(nullptr) {}
+
+ValueRef::~ValueRef() {
+  if (value_) {
+    value_->RemoveRef(this);
+  }
+}
 
 //
 // Instr
 //
 Instr::Instr(Opcode op, InstrFlag flags)
-    : block_(nullptr), op_(op), flags_(flags), args_(), tag_(0) {}
+    : block_(nullptr),
+      op_(op),
+      flags_(flags),
+      args_{{this}, {this}, {this}, {this}},
+      tag_(0) {}
 
-void Instr::ReplaceWith(Instr *other) {
-  // append the new instruction
-  block_->InsertInstr(this, other);
-
-  // replace references to our result with their result
-  if (result()) {
-    CHECK_NOTNULL(other->result());
-    result()->ReplaceRefsWith(other->result());
-  }
-
-  // remove ourself
-  block_->RemoveInstr(this);
-}
-
-void Instr::Remove() { block_->RemoveInstr(this); }
+Instr::~Instr() {}
 
 //
 // Block
 //
 Edge::Edge(Block *src, Block *dst) : src_(src), dst_(dst) {}
 
-Block::Block() : id_(0) {}
+Block::Block() : rpo_next_(nullptr) {}
+Block::~Block() {
+  while (instrs_.tail()) {
+    RemoveInstr(instrs_.tail());
+  }
+}
 
 void Block::AppendInstr(Instr *instr) {
   instr->set_block(this);
@@ -105,32 +171,56 @@ void Block::InsertInstr(Instr *after, Instr *instr) {
   instrs_.Insert(after, instr);
 }
 
+void Block::ReplaceInstr(Instr *replace, Instr *with) {
+  // insert the new instruction
+  InsertInstr(replace, with);
+
+  // replace references to our result with other result
+  if (replace->result()) {
+    CHECK_NOTNULL(with->result());
+    replace->result()->ReplaceRefsWith(with->result());
+  }
+
+  // remove old instruction
+  RemoveInstr(replace);
+}
+
 void Block::RemoveInstr(Instr *instr) {
   instr->set_block(nullptr);
   instrs_.Remove(instr);
+
+  // call destructor manually
+  instr->~Instr();
 }
 
 //
 // IRBuilder
 //
-IRBuilder::IRBuilder() : arena_(1024), current_block_(nullptr), metadata_() {}
+IRBuilder::IRBuilder()
+    : arena_(1024), current_block_(nullptr), locals_size_(0), metadata_() {}
 
 bool IRBuilder::IsTerminator(const Instr *i) {
   return i->op() == OP_BRANCH || i->op() == OP_BRANCH_COND ||
          i->op() == OP_BRANCH_INDIRECT;
 }
 
+// TODO clean and speed up?
 void IRBuilder::Dump() const {
-  std::unordered_map<intptr_t, std::string> temps;
+  std::unordered_map<intptr_t, std::string> block_vars;
+  std::unordered_map<intptr_t, std::string> value_vars;
   int next_temp_id = 0;
+  auto DumpBlock = [&](std::stringstream &ss, const Block *b) {
+    auto it = block_vars.find((intptr_t)b);
+    ss << it->second;
+  };
   auto DumpVariable = [&](std::stringstream &ss, const Value *v) {
     if (!v) {
       return;
     }
-    auto it = temps.find((intptr_t)v);
-    if (it == temps.end()) {
+    auto it = value_vars.find((intptr_t)v);
+    if (it == value_vars.end()) {
       std::string name = "%" + std::to_string(next_temp_id++);
-      auto res = temps.insert(std::make_pair((intptr_t)v, name));
+      auto res = value_vars.insert(std::make_pair((intptr_t)v, name));
       it = res.first;
     }
     ss << it->second;
@@ -161,15 +251,24 @@ void IRBuilder::Dump() const {
           ss << v->value<double>();
           break;
         case VALUE_BLOCK:
-          ss << "blk" << v->value<Block *>()->id();
+          DumpBlock(ss, v->value<Block *>());
           break;
       }
     }
-    ss << "(0x" << std::hex << v << ") ";
+    ss << " ";
   };
+  int bc = 0;
   int ic = 0;
   for (auto block : blocks_) {
-    LOG(INFO) << "blk" << block->id() << ":" << std::endl;
+    block_vars.insert(
+        std::make_pair((intptr_t)block, "blk" + std::to_string(bc++)));
+  }
+  for (auto block : blocks_) {
+    std::stringstream header;
+    DumpBlock(header, block);
+    header << ":" << std::endl;
+    LOG(INFO) << header.str();
+
     for (auto instr : block->instrs()) {
       std::stringstream ss;
       ss << ic++ << ". " << Opnames[instr->op()] << " ";
@@ -197,16 +296,9 @@ Block *IRBuilder::InsertBlock(Block *after) {
 
   // insert at beginning if no after specified
   if (!after) {
-    block->set_id(0);
     blocks_.Insert(nullptr, block);
   } else {
-    block->set_id(after->id() + 1);
     blocks_.Insert(after, block);
-  }
-
-  // shift all ids after new block by 1
-  for (Block *next = block->next(); next; next = next->next()) {
-    next->set_id(next->id() + 1);
   }
 
   return block;
@@ -220,13 +312,25 @@ void IRBuilder::RemoveBlock(Block *block) {
   }
 
   blocks_.Remove(block);
+
+  // call destructor manually
+  block->~Block();
 }
 
 void IRBuilder::AddEdge(Block *src, Block *dst) {
-  Edge *edge = arena_.Alloc<Edge>();
-  new (edge) Edge(src, dst);
-  src->outgoing_edges().Append(edge);
-  dst->incoming_edges().Append(edge);
+  CHECK_NE(src, dst);
+
+  // linked list data is intrusive, need to allocate two edge objects
+  {
+    Edge *edge = arena_.Alloc<Edge>();
+    new (edge) Edge(src, dst);
+    src->outgoing().Append(edge);
+  }
+  {
+    Edge *edge = arena_.Alloc<Edge>();
+    new (edge) Edge(src, dst);
+    dst->incoming().Append(edge);
+  }
 }
 
 Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
@@ -706,12 +810,6 @@ void IRBuilder::CallExternal(ExternalFn func) {
   instr->set_arg0(AllocConstant((uint64_t)(intptr_t)func));
 }
 
-Value *IRBuilder::AllocDynamic(ValueTy type) {
-  Value *v = arena_.Alloc<Value>();
-  new (v) Value(type);
-  return v;
-}
-
 Value *IRBuilder::AllocConstant(uint8_t c) { return AllocConstant((int8_t)c); }
 
 Value *IRBuilder::AllocConstant(uint16_t c) {
@@ -831,6 +929,18 @@ Value *IRBuilder::AllocConstant(Block *c) {
   constants_.insert(std::make_pair(key, v));
 
   return v;
+}
+
+Value *IRBuilder::AllocDynamic(ValueTy type) {
+  Value *v = arena_.Alloc<Value>();
+  new (v) Value(type);
+  return v;
+}
+
+int IRBuilder::AllocLocal(ValueTy type) {
+  int offset = locals_size_;
+  locals_size_ += SizeForType(type);
+  return offset;
 }
 
 Instr *IRBuilder::AppendInstr(Opcode op, InstrFlag flags) {
