@@ -11,10 +11,7 @@ AssembleContext::AssembleContext()
       num_instrs(0),
       instrs(
           reinterpret_cast<IntInstr *>(malloc(max_instrs * sizeof(IntInstr)))),
-      max_block_refs(4),
-      num_block_refs(0),
-      block_refs(reinterpret_cast<BlockRef *>(
-          malloc(max_block_refs * sizeof(BlockRef)))),
+      ,
       num_registers(1) {}
 
 AssembleContext::~AssembleContext() { free(instrs); }
@@ -30,24 +27,9 @@ IntInstr *AssembleContext::AllocInstr() {
   return i;
 }
 
-BlockRef *AssembleContext::AllocBlockRef() {
-  if (num_block_refs >= max_block_refs) {
-    max_block_refs *= 2;
-    block_refs = reinterpret_cast<BlockRef *>(
-        realloc(block_refs, max_block_refs * sizeof(BlockRef)));
-  }
-  BlockRef *ref = &block_refs[num_block_refs++];
-  memset(ref, 0, sizeof(*ref));
-  return ref;
-}
-
 int AssembleContext::AllocRegister() { return num_registers++; }
 
 IntInstr *AssembleContext::TranslateInstr(Instr &ir_i, IntFn fn) {
-  // tag source instruction with the offset to help in resolving block
-  // references to instruction offsets
-  ir_i.set_tag(num_instrs);
-
   IntInstr *i = AllocInstr();
   i->fn = fn;
   TranslateValue(ir_i.arg0(), &i->arg[0]);
@@ -102,15 +84,7 @@ void AssembleContext::TranslateValue(Value *ir_v, IntReg *r) {
       r->f64 = ir_v->value<double>();
       break;
     case VALUE_BLOCK:
-      // this argument references a block which is part of this IRBuilder.
-      // generate a register which will be backpatched with an actual value
-      // later on.
-      BlockRef *ref = AllocBlockRef();
-      ref->block = ir_v->value<Block *>();
-      // store register address as offset since instrs is constantly realloced
-      ref->offset =
-          reinterpret_cast<uint8_t *>(r) - reinterpret_cast<uint8_t *>(instrs);
-      r->i32 = 0;
+      r->i32 = (int32_t)ir_v->value<Block *>()->instrs().head()->tag();
       break;
   }
 
@@ -127,18 +101,20 @@ std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
     IRBuilder &builder) {
   AssembleContext ctx;
 
+  // do an initial pass assigning ordinals to instructions so local branches
+  // can be resolved
+  int32_t ordinal = 0;
+  for (auto block : builder.blocks()) {
+    for (auto instr : block->instrs()) {
+      instr->set_tag((intptr_t)ordinal++);
+    }
+  }
+
+  // translate each instruction
   for (auto block : builder.blocks()) {
     for (auto instr : block->instrs()) {
       ctx.TranslateInstr(*instr, GetCallback(instr));
     }
-  }
-
-  // backpatch register values containing local block addresses
-  for (int i = 0; i < ctx.num_block_refs; i++) {
-    BlockRef *ref = &ctx.block_refs[i];
-    IntReg *r = reinterpret_cast<IntReg *>(
-        reinterpret_cast<uint8_t *>(ctx.instrs) + ref->offset);
-    r->i32 = (int32_t)ref->block->instrs().head()->tag();
   }
 
   // get number of guest cycles for the blocks

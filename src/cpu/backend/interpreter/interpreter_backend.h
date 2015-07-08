@@ -32,18 +32,12 @@ struct IntInstr {
   intptr_t guest_op;
 };
 
-struct BlockRef {
-  ir::Block *block;
-  ptrdiff_t offset;
-};
-
 class AssembleContext {
  public:
   AssembleContext();
   ~AssembleContext();
 
   IntInstr *AllocInstr();
-  BlockRef *AllocBlockRef();
   int AllocRegister();
 
   IntInstr *TranslateInstr(ir::Instr &ir_i, IntFn fn);
@@ -51,8 +45,6 @@ class AssembleContext {
 
   int max_instrs, num_instrs;
   IntInstr *instrs;
-  int max_block_refs, num_block_refs;
-  BlockRef *block_refs;
   int num_registers;
 };
 
