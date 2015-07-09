@@ -30,6 +30,21 @@ enum ValueTy {
   VALUE_BLOCK
 };
 enum { VALUE_NUM = VALUE_BLOCK + 1 };
+enum {
+  VALUE_I8_MASK = 1 << VALUE_I8,
+  VALUE_I16_MASK = 1 << VALUE_I16,
+  VALUE_I32_MASK = 1 << VALUE_I32,
+  VALUE_I64_MASK = 1 << VALUE_I64,
+  VALUE_F32_MASK = 1 << VALUE_F32,
+  VALUE_F64_MASK = 1 << VALUE_F64,
+  VALUE_BLOCK_MASK = 1 << VALUE_BLOCK,
+  VALUE_INT_MASK = VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK |
+                   VALUE_I64_MASK | VALUE_BLOCK_MASK,
+  VALUE_FLOAT_MASK = VALUE_F32_MASK | VALUE_F64_MASK,
+  VALUE_ALL_MASK = VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK |
+                   VALUE_I64_MASK | VALUE_F32_MASK | VALUE_F64_MASK |
+                   VALUE_BLOCK_MASK,
+};
 
 class Block;
 class Instr;
@@ -175,6 +190,10 @@ class Instr : public core::IntrusiveListNode<Instr> {
   Value *result() { return arg(3); }
   void set_result(Value *v) { set_arg(3, v); }
 
+  const Value *arg(int i) const { return args_[i].value(); }
+  Value *arg(int i) { return args_[i].value(); }
+  void set_arg(int i, Value *v) { args_[i].set_value(v); }
+
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
@@ -187,10 +206,6 @@ class Instr : public core::IntrusiveListNode<Instr> {
 
  private:
   Block *set_block(Block *block) { return block_ = block; }
-
-  const Value *arg(int i) const { return args_[i].value(); }
-  Value *arg(int i) { return args_[i].value(); }
-  void set_arg(int i, Value *v) { args_[i].set_value(v); }
 
   Block *block_;
   Opcode op_;

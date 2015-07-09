@@ -32,9 +32,9 @@ int AssembleContext::AllocRegister() { return num_registers++; }
 IntInstr *AssembleContext::TranslateInstr(Instr &ir_i, IntFn fn) {
   IntInstr *i = AllocInstr();
   i->fn = fn;
-  TranslateValue(ir_i.arg0(), &i->arg[0]);
-  TranslateValue(ir_i.arg1(), &i->arg[1]);
-  TranslateValue(ir_i.arg2(), &i->arg[2]);
+  TranslateArg(ir_i, i, 0);
+  TranslateArg(ir_i, i, 1);
+  TranslateArg(ir_i, i, 2);
   if (ir_i.result()) {
     int r = AllocRegister();
     ir_i.result()->set_tag((intptr_t)r);
@@ -47,7 +47,10 @@ IntInstr *AssembleContext::TranslateInstr(Instr &ir_i, IntFn fn) {
   return i;
 }
 
-void AssembleContext::TranslateValue(Value *ir_v, IntReg *r) {
+void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg) {
+  Value *ir_v = ir_i.arg(arg);
+  IntReg *r = &i->arg[arg];
+
   if (!ir_v) {
     r->i32 = 0;
     return;

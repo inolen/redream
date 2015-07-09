@@ -41,7 +41,7 @@ class AssembleContext {
   int AllocRegister();
 
   IntInstr *TranslateInstr(ir::Instr &ir_i, IntFn fn);
-  void TranslateValue(ir::Value *ir_v, IntReg *r);
+  void TranslateArg(ir::Instr &ir_i, IntInstr *i, int arg);
 
   int max_instrs, num_instrs;
   IntInstr *instrs;
