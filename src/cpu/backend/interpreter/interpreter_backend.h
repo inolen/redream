@@ -10,6 +10,9 @@ namespace cpu {
 namespace backend {
 namespace interpreter {
 
+enum { SIG_V, SIG_I8, SIG_I16, SIG_I32, SIG_I64, SIG_F32, SIG_F64, SIG_NUM };
+enum { IMM_ARG0 = 0x1, IMM_ARG1 = 0x2, IMM_ARG2 = 0x4, IMM_MAX = 0x8 };
+
 union IntReg;
 
 typedef uint32_t (*IntFn)(emu::Memory *memory, void *guest_ctx,
@@ -22,6 +25,16 @@ union IntReg {
   int64_t i64;
   float f32;
   double f64;
+};
+
+union IntSig {
+  struct {
+    int result : 8;
+    int arg0 : 8;
+    int arg1 : 8;
+    int arg2 : 8;
+  };
+  uint32_t full;
 };
 
 struct IntInstr {
@@ -40,8 +53,9 @@ class AssembleContext {
   IntInstr *AllocInstr();
   int AllocRegister();
 
-  IntInstr *TranslateInstr(ir::Instr &ir_i, IntFn fn);
-  void TranslateArg(ir::Instr &ir_i, IntInstr *i, int arg);
+  IntInstr *TranslateInstr(ir::Instr &ir_i);
+  IntSig GetSignature(ir::Instr &ir_i);
+  void TranslateArg(ir::Instr &ir_i, IntInstr *i, int arg, uint32_t *imm_mask);
 
   int max_instrs, num_instrs;
   IntInstr *instrs;

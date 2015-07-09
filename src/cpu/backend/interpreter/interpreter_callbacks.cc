@@ -23,9 +23,6 @@ using namespace dreavm::emu;
 // arg2's type always matches arg1's. because of this, and in order to save
 // some memory, arg2 isn't considering when generating the lookup table.
 //
-enum { SIG_V, SIG_I8, SIG_I16, SIG_I32, SIG_I64, SIG_F32, SIG_F64, SIG_NUM };
-enum { IMM_ARG0 = 1, IMM_ARG1 = 2, IMM_ARG2 = 4, IMM_MAX = 8 };
-
 template <int T>
 struct SigType;
 template <>
@@ -62,39 +59,21 @@ struct SigType<SIG_F64> {
 
 static IntFn int_cbs[MAX_CALLBACKS];
 
-inline int TRANSLATE_TYPE(const Value *v) {
-  if (!v) {
-    return SIG_V;
-  } else if (v->type() == VALUE_BLOCK) {
-    return SIG_I32;
-  } else {
-    // ValueTy dosn't have a null type, but one is needed for argument
-    // types, offset by 1 leaving 0 for SIG_V
-    return v->type() + 1;
-  }
-}
-
 // each argument's data type, as well as if it's encoded as an immediate or
 // not is used when indexing into the callback table
-inline int CALLBACK_IDX(Opcode op, int r, int a0, int a1, int imm_mask) {
+inline int CALLBACK_IDX(Opcode op, int result_sig, int arg0_sig, int arg1_sig,
+                        int imm_mask) {
   return MAX_CALLBACKS_PER_OP * op +
-         (((r * SIG_NUM * SIG_NUM) + (a0 * SIG_NUM) + a1) * IMM_MAX) + imm_mask;
+         (((result_sig * SIG_NUM * SIG_NUM) + (arg0_sig * SIG_NUM) + arg1_sig) *
+          IMM_MAX) +
+         imm_mask;
 }
 
-IntFn dreavm::cpu::backend::interpreter::GetCallback(const Instr *instr) {
-  int imm_mask = 0;
-  if (instr->arg0() && instr->arg0()->constant()) {
-    imm_mask |= IMM_ARG0;
-  }
-  if (instr->arg1() && instr->arg1()->constant()) {
-    imm_mask |= IMM_ARG1;
-  }
-  if (instr->arg2() && instr->arg2()->constant()) {
-    imm_mask |= IMM_ARG2;
-  }
-  IntFn fn = int_cbs[CALLBACK_IDX(instr->op(), TRANSLATE_TYPE(instr->result()),
-                                  TRANSLATE_TYPE(instr->arg0()),
-                                  TRANSLATE_TYPE(instr->arg1()), imm_mask)];
+IntFn dreavm::cpu::backend::interpreter::GetCallback(Opcode op,
+                                                     const IntSig &sig,
+                                                     uint32_t imm_mask) {
+  IntFn fn =
+      int_cbs[CALLBACK_IDX(op, sig.result, sig.arg0, sig.arg1, imm_mask)];
   CHECK_NOTNULL(fn);
   return fn;
 }

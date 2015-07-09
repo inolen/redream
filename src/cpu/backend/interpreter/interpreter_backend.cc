@@ -11,7 +11,6 @@ AssembleContext::AssembleContext()
       num_instrs(0),
       instrs(
           reinterpret_cast<IntInstr *>(malloc(max_instrs * sizeof(IntInstr)))),
-      ,
       num_registers(1) {}
 
 AssembleContext::~AssembleContext() { free(instrs); }
@@ -29,17 +28,20 @@ IntInstr *AssembleContext::AllocInstr() {
 
 int AssembleContext::AllocRegister() { return num_registers++; }
 
-IntInstr *AssembleContext::TranslateInstr(Instr &ir_i, IntFn fn) {
+IntInstr *AssembleContext::TranslateInstr(Instr &ir_i) {
   IntInstr *i = AllocInstr();
-  i->fn = fn;
-  TranslateArg(ir_i, i, 0);
-  TranslateArg(ir_i, i, 1);
-  TranslateArg(ir_i, i, 2);
+
+  uint32_t imm_mask = 0;
+  TranslateArg(ir_i, i, 0, &imm_mask);
+  TranslateArg(ir_i, i, 1, &imm_mask);
+  TranslateArg(ir_i, i, 2, &imm_mask);
   if (ir_i.result()) {
     int r = AllocRegister();
     ir_i.result()->set_tag((intptr_t)r);
     i->result = r;
   }
+
+  i->fn = GetCallback(ir_i.op(), GetSignature(ir_i), imm_mask);
 
   i->guest_addr = ir_i.guest_addr;
   i->guest_op = ir_i.guest_op;
@@ -47,14 +49,46 @@ IntInstr *AssembleContext::TranslateInstr(Instr &ir_i, IntFn fn) {
   return i;
 }
 
-void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg) {
+IntSig AssembleContext::GetSignature(Instr &ir_i) {
+  static const int types[] = {
+      SIG_I8,   // VALUE_I8
+      SIG_I16,  // VALUE_I16
+      SIG_I32,  // VALUE_I32
+      SIG_I64,  // VALUE_I64
+      SIG_F32,  // VALUE_F32
+      SIG_F64,  // VALUE_F64
+      SIG_I32,  // VALUE_BLOCK
+  };
+
+  IntSig sig;
+
+  sig.full = 0;
+
+  if (ir_i.result()) {
+    sig.result = types[ir_i.result()->type()];
+  }
+  if (ir_i.arg0()) {
+    sig.arg0 = types[ir_i.arg0()->type()];
+  }
+  if (ir_i.arg1()) {
+    sig.arg1 = types[ir_i.arg1()->type()];
+  }
+  if (ir_i.arg2()) {
+    sig.arg2 = types[ir_i.arg2()->type()];
+  }
+
+  return sig;
+}
+
+void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg,
+                                   uint32_t *imm_mask) {
   Value *ir_v = ir_i.arg(arg);
-  IntReg *r = &i->arg[arg];
 
   if (!ir_v) {
-    r->i32 = 0;
     return;
   }
+
+  IntReg *r = &i->arg[arg];
 
   if (!ir_v->constant()) {
     // for non-constant values, generate a shared register that will be stored
@@ -66,6 +100,8 @@ void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg) {
     r->i32 = (int)(intptr_t)ir_v->tag();
     return;
   }
+
+  *imm_mask |= (1 << arg);
 
   switch (ir_v->type()) {
     case VALUE_I8:
@@ -90,8 +126,6 @@ void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg) {
       r->i32 = (int32_t)ir_v->value<Block *>()->instrs().head()->tag();
       break;
   }
-
-  return;
 }
 
 InterpreterBackend::InterpreterBackend(emu::Memory &memory) : Backend(memory) {}
@@ -116,7 +150,7 @@ std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
   // translate each instruction
   for (auto block : builder.blocks()) {
     for (auto instr : block->instrs()) {
-      ctx.TranslateInstr(*instr, GetCallback(instr));
+      ctx.TranslateInstr(*instr);
     }
   }
 

@@ -9,7 +9,7 @@ namespace cpu {
 namespace backend {
 namespace interpreter {
 
-IntFn GetCallback(const ir::Instr *instr);
+IntFn GetCallback(ir::Opcode op, const IntSig &sig, uint32_t imm_mask);
 }
 }
 }
