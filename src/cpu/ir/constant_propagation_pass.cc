@@ -28,54 +28,6 @@ void ConstantPropagationPass::Run(IRBuilder &builder) {
       Instr *instr = *(it++);
 
       switch (instr->op()) {
-        case OP_LOAD: {
-          if (instr->arg0()->constant()) {
-            MemoryBank *page;
-            uint32_t offset;
-            memory_.Resolve(instr->arg0()->value<int32_t>(), &page, &offset);
-
-            if (page->physical_addr) {
-              Instr *load_raw = builder.AllocInstr(OP_LOAD_RAW);
-              load_raw->set_arg0(builder.AllocConstant(
-                  (uint64_t)(page->physical_addr + offset)));
-              load_raw->set_result(
-                  builder.AllocDynamic(instr->result()->type()));
-              instr->ReplaceWith(load_raw);
-            } else {
-              Instr *load_dyn = builder.AllocInstr(OP_LOAD_DYN);
-              load_dyn->set_arg0(builder.AllocConstant((uint64_t)page));
-              load_dyn->set_arg1(builder.AllocConstant((uint64_t)offset));
-              load_dyn->set_result(
-                  builder.AllocDynamic(instr->result()->type()));
-              instr->ReplaceWith(load_dyn);
-            }
-          }
-        } break;
-
-        case OP_STORE: {
-          if (instr->arg0()->constant()) {
-            MemoryBank *page;
-            uint32_t offset;
-            memory_.Resolve(instr->arg0()->value<int32_t>(), &page, &offset);
-
-            Value *v = instr->arg1();
-
-            if (page->physical_addr) {
-              Instr *store_raw = builder.AllocInstr(OP_STORE_RAW);
-              store_raw->set_arg0(v);
-              store_raw->set_arg1(builder.AllocConstant(
-                  (uint64_t)(page->physical_addr + offset)));
-              instr->ReplaceWith(store_raw);
-            } else {
-              Instr *store_dyn = builder.AllocInstr(OP_STORE_DYN);
-              store_dyn->set_arg0(v);
-              store_dyn->set_arg1(builder.AllocConstant((uint64_t)page));
-              store_dyn->set_arg2(builder.AllocConstant((uint64_t)offset));
-              instr->ReplaceWith(store_dyn);
-            }
-          }
-        } break;
-
         // case OP_CAST:
         //   if (instr->result()->type() == instr->arg0()->type()) {
         //     instr->result()->ReplaceRefsWith(instr->arg0());
