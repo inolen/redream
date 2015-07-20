@@ -287,7 +287,7 @@ add_executable(dreavm_gtest ${DREAVM_TEST_SOURCES})
 target_include_directories(dreavm_gtest PUBLIC deps/gtest-1.7.0/include src/ test/ ${DREAVM_INCLUDE_DIRS})
 target_link_libraries(dreavm_gtest gtest gtest_main ${DREAVM_LIBS})
 if(NOT MSVC)
-	target_compile_options(dreavm_gtest PRIVATE -std=c++11 -ffast-math -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-local-typedef -Wno-unused-parameter -Wno-unused-private-field -Wno-missing-field-initializers -Wno-strict-aliasing)
+	target_compile_options(dreavm_gtest PRIVATE -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-local-typedef -Wno-unused-parameter -Wno-unused-private-field -Wno-missing-field-initializers -Wno-strict-aliasing)
 else()
 	target_compile_options(dreavm_gtest PRIVATE -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX)
 endif()
@@ -304,7 +304,7 @@ add_custom_target(all_test
 set(DREAVM_DEFS EIGEN_DEFAULT_TO_ROW_MAJOR)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-	set(DREAVM_COMPILE_FLAGS -std=c++11 -ffast-math -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-local-typedef -Wno-unused-parameter -Wno-unused-private-field -Wno-missing-field-initializers -Wno-strict-aliasing)
+	set(DREAVM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-local-typedef -Wno-unused-parameter -Wno-unused-private-field -Wno-missing-field-initializers -Wno-strict-aliasing)
 
 	string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 	if(BUILD_TYPE STREQUAL "debug")

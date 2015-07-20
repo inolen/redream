@@ -256,8 +256,8 @@ void SH4::InitMemory() {
 void SH4::InitContext() {
   memset(&ctx_, 0, sizeof(ctx_));
   ctx_.sh4 = this;
-  // ctx_.pc = 0xa0000000;
-  ctx_.pc = 0x0c010000;
+  ctx_.pc = 0xa0000000;
+  // ctx_.pc = 0x0c010000;
   ctx_.pr = 0xdeadbeef;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   if (default != HELD) {                                                 \
