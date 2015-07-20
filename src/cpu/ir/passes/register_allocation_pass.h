@@ -3,11 +3,12 @@
 
 #include <set>
 #include "cpu/backend/backend.h"
-#include "cpu/ir/pass_runner.h"
+#include "cpu/ir/passes/pass_runner.h"
 
 namespace dreavm {
 namespace cpu {
 namespace ir {
+namespace passes {
 
 static inline int GetOrdinal(Instr *i) { return (int)i->tag(); }
 
@@ -55,6 +56,7 @@ class RegisterAllocationPass : public Pass {
   int AllocBlockedRegister(IRBuilder &builder, Value *value, Instr *start,
                            Instr *end);
 };
+}
 }
 }
 }

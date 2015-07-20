@@ -8,6 +8,7 @@
 namespace dreavm {
 namespace cpu {
 namespace ir {
+namespace passes {
 
 class Pass {
  public:
@@ -25,6 +26,7 @@ class PassRunner {
  private:
   std::vector<std::unique_ptr<Pass>> passes_;
 };
+}
 }
 }
 }

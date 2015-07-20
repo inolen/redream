@@ -200,19 +200,17 @@ inline CullFace TranslateCull(uint32_t cull_mode) {
 
 inline BlendFunc TranslateSrcBlendFunc(uint32_t blend_func) {
   static BlendFunc src_blend_funcs[] = {
-      BLEND_ZERO,      BLEND_ONE,
-      BLEND_SRC_COLOR, BLEND_ONE_MINUS_SRC_COLOR,
-      BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA,
-      BLEND_DST_ALPHA, BLEND_ONE_MINUS_DST_ALPHA};
+      BLEND_ZERO, BLEND_ONE, BLEND_SRC_COLOR, BLEND_ONE_MINUS_SRC_COLOR,
+      BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA, BLEND_DST_ALPHA,
+      BLEND_ONE_MINUS_DST_ALPHA};
   return src_blend_funcs[blend_func];
 }
 
 inline BlendFunc TranslateDstBlendFunc(uint32_t blend_func) {
   static BlendFunc dst_blend_funcs[] = {
-      BLEND_ZERO,      BLEND_ONE,
-      BLEND_DST_COLOR, BLEND_ONE_MINUS_DST_COLOR,
-      BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA,
-      BLEND_DST_ALPHA, BLEND_ONE_MINUS_DST_ALPHA};
+      BLEND_ZERO, BLEND_ONE, BLEND_DST_COLOR, BLEND_ONE_MINUS_DST_COLOR,
+      BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA, BLEND_DST_ALPHA,
+      BLEND_ONE_MINUS_DST_ALPHA};
   return dst_blend_funcs[blend_func];
 }
 
@@ -515,37 +513,37 @@ void TileAccelerator::ParseOffsetColor(TAContext *tactx, float intensity,
 }
 
 void TileAccelerator::ParseBackground(TAContext *tactx) {
-  auto ParseBackgroundVertex = [&](const ISP_TSP &isp, uint32_t vertex_addr,
-                                   Vertex *v) {
-    v->xyz[0] = memory_.RF32(vertex_addr);
-    v->xyz[1] = memory_.RF32(vertex_addr + 4);
-    v->xyz[2] = *(float *)&pvr_.ISP_BACKGND_D;
-    vertex_addr += 12;
+  auto ParseBackgroundVertex =
+      [&](const ISP_TSP &isp, uint32_t vertex_addr, Vertex *v) {
+        v->xyz[0] = memory_.RF32(vertex_addr);
+        v->xyz[1] = memory_.RF32(vertex_addr + 4);
+        v->xyz[2] = *(float *)&pvr_.ISP_BACKGND_D;
+        vertex_addr += 12;
 
-    if (isp.texture) {
-      v->uv[0] = memory_.RF32(vertex_addr);
-      v->uv[1] = memory_.RF32(vertex_addr + 4);
-      vertex_addr += 8;
-      debug_break();
-    }
+        if (isp.texture) {
+          v->uv[0] = memory_.RF32(vertex_addr);
+          v->uv[1] = memory_.RF32(vertex_addr + 4);
+          vertex_addr += 8;
+          debug_break();
+        }
 
-    uint32_t base_color = memory_.R32(vertex_addr);
-    v->color[0] = ((base_color >> 16) & 0xff) / 255.0f;
-    v->color[1] = ((base_color >> 8) & 0xff) / 255.0f;
-    v->color[2] = (base_color & 0xff) / 255.0f;
-    v->color[3] = ((base_color >> 24) & 0xff) / 255.0f;
-    vertex_addr += 4;
+        uint32_t base_color = memory_.R32(vertex_addr);
+        v->color[0] = ((base_color >> 16) & 0xff) / 255.0f;
+        v->color[1] = ((base_color >> 8) & 0xff) / 255.0f;
+        v->color[2] = (base_color & 0xff) / 255.0f;
+        v->color[3] = ((base_color >> 24) & 0xff) / 255.0f;
+        vertex_addr += 4;
 
-    if (isp.offset) {
-      uint32_t offset_color = memory_.R32(vertex_addr);
-      v->offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
-      v->offset_color[1] = ((offset_color >> 16) & 0xff) / 255.0f;
-      v->offset_color[2] = ((offset_color >> 16) & 0xff) / 255.0f;
-      v->offset_color[3] = 0.0f;
-      vertex_addr += 4;
-      debug_break();
-    }
-  };
+        if (isp.offset) {
+          uint32_t offset_color = memory_.R32(vertex_addr);
+          v->offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
+          v->offset_color[1] = ((offset_color >> 16) & 0xff) / 255.0f;
+          v->offset_color[2] = ((offset_color >> 16) & 0xff) / 255.0f;
+          v->offset_color[3] = 0.0f;
+          vertex_addr += 4;
+          debug_break();
+        }
+      };
 
   // according to the hardware docs, this is the correct calculation of the
   // background ISP address. however, in practice, the second TA buffer's ISP

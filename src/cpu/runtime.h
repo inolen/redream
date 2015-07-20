@@ -2,7 +2,7 @@
 #define RUNTIME_H
 
 #include <memory>
-#include "cpu/ir/pass_runner.h"
+#include "cpu/ir/passes/pass_runner.h"
 #include "emu/memory.h"
 
 namespace dreavm {
@@ -61,7 +61,7 @@ class Runtime {
   emu::Memory &memory_;
   frontend::Frontend *frontend_;
   backend::Backend *backend_;
-  ir::PassRunner pass_runner_;
+  ir::passes::PassRunner pass_runner_;
   // FIXME 64 mb, could cut down to 8 mb if indices were stored instead of
   // pointers
   std::unique_ptr<RuntimeBlock> *blocks_;

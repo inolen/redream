@@ -1,9 +1,10 @@
 #include "core/core.h"
 #include "cpu/ir/ir_builder.h"
-#include "cpu/ir/pass_runner.h"
+#include "cpu/ir/passes/pass_runner.h"
 
 using namespace dreavm;
 using namespace dreavm::cpu::ir;
+using namespace dreavm::cpu::ir::passes;
 
 PassRunner::PassRunner() {}
 

@@ -44,17 +44,10 @@ static GLenum cull_face[] = {
     GL_BACK    // CULL_BACK
 };
 
-static GLenum blendFuncs[] = {GL_NONE,
-                              GL_ZERO,
-                              GL_ONE,
-                              GL_SRC_COLOR,
-                              GL_ONE_MINUS_SRC_COLOR,
-                              GL_SRC_ALPHA,
-                              GL_ONE_MINUS_SRC_ALPHA,
-                              GL_DST_ALPHA,
-                              GL_ONE_MINUS_DST_ALPHA,
-                              GL_DST_COLOR,
-                              GL_ONE_MINUS_DST_COLOR};
+static GLenum blendFuncs[] = {
+    GL_NONE, GL_ZERO, GL_ONE, GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR,
+    GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA,
+    GL_DST_COLOR, GL_ONE_MINUS_DST_COLOR};
 
 GLBackend::GLBackend(GLContext &ctx)
     : ctx_(ctx), textures_{0}, fb_ta_(0), num_verts2d_(0), num_surfs2d_(0) {}

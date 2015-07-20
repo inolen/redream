@@ -56,13 +56,14 @@ set(DREAVM_SOURCES
 	src/cpu/frontend/sh4/sh4_emit.cc
 	src/cpu/frontend/sh4/sh4_frontend.cc
 	src/cpu/frontend/sh4/sh4_instr.cc
-	src/cpu/ir/constant_propagation_pass.cc
-	src/cpu/ir/context_promotion_pass.cc
-	src/cpu/ir/control_flow_analysis_pass.cc
 	src/cpu/ir/ir_builder.cc
-	src/cpu/ir/pass_runner.cc
-	src/cpu/ir/register_allocation_pass.cc
-	src/cpu/ir/validate_block_pass.cc
+	src/cpu/ir/passes/constant_propagation_pass.cc
+	src/cpu/ir/passes/context_promotion_pass.cc
+	src/cpu/ir/passes/control_flow_analysis_pass.cc
+	src/cpu/ir/passes/pass_runner.cc
+	src/cpu/ir/passes/register_allocation_pass.cc
+	src/cpu/ir/passes/validate_block_pass.cc
+	src/cpu/ir/passes/validate_instruction_pass.cc
 	src/cpu/sh4.cc
 	src/cpu/sh4_context.cc
 	src/cpu/runtime.cc
@@ -265,13 +266,14 @@ set(DREAVM_TEST_SOURCES
 	src/cpu/frontend/sh4/sh4_emit.cc
 	src/cpu/frontend/sh4/sh4_frontend.cc
 	src/cpu/frontend/sh4/sh4_instr.cc
-	src/cpu/ir/constant_propagation_pass.cc
-	src/cpu/ir/context_promotion_pass.cc
-	src/cpu/ir/control_flow_analysis_pass.cc
 	src/cpu/ir/ir_builder.cc
-	src/cpu/ir/pass_runner.cc
-	src/cpu/ir/register_allocation_pass.cc
-	src/cpu/ir/validate_block_pass.cc
+	src/cpu/ir/passes/constant_propagation_pass.cc
+	src/cpu/ir/passes/context_promotion_pass.cc
+	src/cpu/ir/passes/control_flow_analysis_pass.cc
+	src/cpu/ir/passes/pass_runner.cc
+	src/cpu/ir/passes/register_allocation_pass.cc
+	src/cpu/ir/passes/validate_block_pass.cc
+	src/cpu/ir/passes/validate_instruction_pass.cc
 	src/cpu/sh4.cc
 	src/cpu/sh4_context.cc
 	src/cpu/runtime.cc

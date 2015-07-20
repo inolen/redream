@@ -1,17 +1,19 @@
 #include "cpu/backend/backend.h"
 #include "cpu/frontend/frontend.h"
-#include "cpu/ir/constant_propagation_pass.h"
-#include "cpu/ir/context_promotion_pass.h"
-#include "cpu/ir/control_flow_analysis_pass.h"
 #include "cpu/ir/ir_builder.h"
-#include "cpu/ir/register_allocation_pass.h"
-#include "cpu/ir/validate_block_pass.h"
+#include "cpu/ir/passes/constant_propagation_pass.h"
+#include "cpu/ir/passes/context_promotion_pass.h"
+#include "cpu/ir/passes/control_flow_analysis_pass.h"
+#include "cpu/ir/passes/register_allocation_pass.h"
+#include "cpu/ir/passes/validate_block_pass.h"
+#include "cpu/ir/passes/validate_instruction_pass.h"
 #include "cpu/runtime.h"
 #include "emu/profiler.h"
 
 using namespace dreavm;
 using namespace dreavm::cpu;
 using namespace dreavm::cpu::ir;
+using namespace dreavm::cpu::ir::passes;
 using namespace dreavm::emu;
 
 Runtime::Runtime(Memory &memory)
@@ -43,6 +45,7 @@ bool Runtime::Init(frontend::Frontend *frontend, backend::Backend *backend) {
   //     std::unique_ptr<Pass>(new ConstantPropagationPass(memory_)));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
+  // pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateInstructionPass()));
 
   return true;
 }

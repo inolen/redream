@@ -1,8 +1,9 @@
 #include "core/core.h"
-#include "cpu/ir/context_promotion_pass.h"
+#include "cpu/ir/passes/context_promotion_pass.h"
 
 using namespace dreavm;
 using namespace dreavm::cpu::ir;
+using namespace dreavm::cpu::ir::passes;
 
 void ContextPromotionPass::Run(IRBuilder &builder) {
   for (auto block : builder.blocks()) {

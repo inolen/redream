@@ -1,12 +1,13 @@
 #ifndef CONSTANT_PROPAGATION_PASS_H
 #define CONSTANT_PROPAGATION_PASS_H
 
-#include "cpu/ir/pass_runner.h"
+#include "cpu/ir/passes/pass_runner.h"
 #include "emu/memory.h"
 
 namespace dreavm {
 namespace cpu {
 namespace ir {
+namespace passes {
 
 class ConstantPropagationPass : public Pass {
  public:
@@ -17,6 +18,7 @@ class ConstantPropagationPass : public Pass {
  private:
   emu::Memory &memory_;
 };
+}
 }
 }
 }

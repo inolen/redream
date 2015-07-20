@@ -1,8 +1,9 @@
 #include "core/core.h"
-#include "cpu/ir/control_flow_analysis_pass.h"
+#include "cpu/ir/passes/control_flow_analysis_pass.h"
 
 using namespace dreavm;
 using namespace dreavm::cpu::ir;
+using namespace dreavm::cpu::ir::passes;
 
 void ControlFlowAnalysisPass::Run(IRBuilder &builder) {
   // add directed edges between blocks

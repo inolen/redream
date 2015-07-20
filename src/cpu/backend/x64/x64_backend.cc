@@ -7,19 +7,30 @@ using namespace dreavm::cpu::backend::x64;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
-static Register x64_registers[] = {
-    {"rax", VALUE_INT_MASK},   {"rbx", VALUE_INT_MASK},
-    {"rcx", VALUE_INT_MASK},   {"rdx", VALUE_INT_MASK},
-    {"rsi", VALUE_INT_MASK},   {"rdi", VALUE_INT_MASK},
-    {"rbp", VALUE_INT_MASK},   {"rsp", VALUE_INT_MASK},
-    {"r8", VALUE_INT_MASK},    {"r9", VALUE_INT_MASK},
-    {"r10", VALUE_INT_MASK},   {"r11", VALUE_INT_MASK},
-    {"r12", VALUE_INT_MASK},   {"r13", VALUE_INT_MASK},
-    {"r14", VALUE_INT_MASK},   {"r15", VALUE_INT_MASK},
-    {"mm0", VALUE_FLOAT_MASK}, {"mm1", VALUE_FLOAT_MASK},
-    {"mm2", VALUE_FLOAT_MASK}, {"mm3", VALUE_FLOAT_MASK},
-    {"mm4", VALUE_FLOAT_MASK}, {"mm5", VALUE_FLOAT_MASK},
-    {"mm6", VALUE_FLOAT_MASK}, {"mm7", VALUE_FLOAT_MASK}};
+static Register x64_registers[] = {{"rax", VALUE_INT_MASK},
+                                   {"rbx", VALUE_INT_MASK},
+                                   {"rcx", VALUE_INT_MASK},
+                                   {"rdx", VALUE_INT_MASK},
+                                   {"rsi", VALUE_INT_MASK},
+                                   {"rdi", VALUE_INT_MASK},
+                                   {"rbp", VALUE_INT_MASK},
+                                   {"rsp", VALUE_INT_MASK},
+                                   {"r8", VALUE_INT_MASK},
+                                   {"r9", VALUE_INT_MASK},
+                                   {"r10", VALUE_INT_MASK},
+                                   {"r11", VALUE_INT_MASK},
+                                   {"r12", VALUE_INT_MASK},
+                                   {"r13", VALUE_INT_MASK},
+                                   {"r14", VALUE_INT_MASK},
+                                   {"r15", VALUE_INT_MASK},
+                                   {"mm0", VALUE_FLOAT_MASK},
+                                   {"mm1", VALUE_FLOAT_MASK},
+                                   {"mm2", VALUE_FLOAT_MASK},
+                                   {"mm3", VALUE_FLOAT_MASK},
+                                   {"mm4", VALUE_FLOAT_MASK},
+                                   {"mm5", VALUE_FLOAT_MASK},
+                                   {"mm6", VALUE_FLOAT_MASK},
+                                   {"mm7", VALUE_FLOAT_MASK}};
 
 static const Xbyak::Reg *reg_map[] = {
     &Xbyak::util::rax, &Xbyak::util::rbx, &Xbyak::util::rcx, &Xbyak::util::rdx,

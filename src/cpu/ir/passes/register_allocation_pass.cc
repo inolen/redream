@@ -1,8 +1,9 @@
 #include "core/core.h"
-#include "cpu/ir/register_allocation_pass.h"
+#include "cpu/ir/passes/register_allocation_pass.h"
 
 using namespace dreavm;
 using namespace dreavm::cpu::ir;
+using namespace dreavm::cpu::ir::passes;
 
 RegisterAllocationPass::RegisterAllocationPass(
     const backend::Backend &backend) {
