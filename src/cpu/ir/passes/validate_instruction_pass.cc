@@ -16,22 +16,10 @@ void ValidateInstructionPass::Run(IRBuilder &builder) {
 void ValidateInstructionPass::ValidateInstr(Instr *instr) {
   // after constant propagation, there shouldn't be more than a single constant
   // argument for most instructions
-  Opcode op = instr->op();
-  if (op != OP_STORE_CONTEXT && op != OP_BRANCH_COND && op != OP_SELECT) {
-    int num_constants = 0;
-    if (instr->arg0() && instr->arg0()->constant()) {
-      num_constants++;
-    }
-    if (instr->arg1() && instr->arg1()->constant()) {
-      num_constants++;
-    }
-    if (instr->arg2() && instr->arg2()->constant()) {
-      num_constants++;
-    }
-    if (num_constants > 1) {
-      LOG(FATAL) << "More than one constant argument detected for "
-                 << Opnames[op] << " instruction";
-    }
+  if (instr->op() != OP_STORE_CONTEXT && instr->arg0() &&
+      instr->arg0()->constant() && instr->arg1() && instr->arg1()->constant()) {
+    LOG(FATAL) << "More than one constant argument detected for "
+               << Opnames[instr->op()] << " instruction";
   }
 
   // result (reg or local) should be equal to one of the incoming arguments
