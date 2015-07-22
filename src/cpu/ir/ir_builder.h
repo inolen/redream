@@ -136,9 +136,9 @@ class Value {
     Block *block_;
   };
   core::IntrusiveList<ValueRef> refs_;
-  int reg_;
-  int local_;
-  intptr_t tag_;
+  int reg_{NO_REGISTER};
+  int local_{NO_SLOT};
+  intptr_t tag_{0};
 };
 
 template <>

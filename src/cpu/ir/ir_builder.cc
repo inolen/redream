@@ -39,61 +39,14 @@ static inline int SizeForType(ValueTy type) {
 //
 // Value
 //
-Value::Value(ValueTy ty)
-    : type_(ty),
-      constant_(false),
-      reg_(NO_REGISTER),
-      local_(NO_SLOT),
-      tag_(0) {}
-Value::Value(int8_t v)
-    : type_(VALUE_I8),
-      constant_(true),
-      i8_(v),
-      reg_(NO_REGISTER),
-      local_(NO_SLOT),
-      tag_(0) {}
-Value::Value(int16_t v)
-    : type_(VALUE_I16),
-      constant_(true),
-      i16_(v),
-      reg_(NO_REGISTER),
-      local_(NO_SLOT),
-      tag_(0) {}
-Value::Value(int32_t v)
-    : type_(VALUE_I32),
-      constant_(true),
-      i32_(v),
-      reg_(NO_REGISTER),
-      local_(NO_SLOT),
-      tag_(0) {}
-Value::Value(int64_t v)
-    : type_(VALUE_I64),
-      constant_(true),
-      i64_(v),
-      reg_(NO_REGISTER),
-      local_(NO_SLOT),
-      tag_(0) {}
-Value::Value(float v)
-    : type_(VALUE_F32),
-      constant_(true),
-      f32_(v),
-      reg_(NO_REGISTER),
-      local_(NO_SLOT),
-      tag_(0) {}
-Value::Value(double v)
-    : type_(VALUE_F64),
-      constant_(true),
-      f64_(v),
-      reg_(NO_REGISTER),
-      local_(NO_SLOT),
-      tag_(0) {}
-Value::Value(Block *v)
-    : type_(VALUE_BLOCK),
-      constant_(true),
-      block_(v),
-      reg_(NO_REGISTER),
-      local_(NO_SLOT),
-      tag_(0) {}
+Value::Value(ValueTy ty) : type_(ty), constant_(false) {}
+Value::Value(int8_t v) : type_(VALUE_I8), constant_(true), i8_(v) {}
+Value::Value(int16_t v) : type_(VALUE_I16), constant_(true), i16_(v) {}
+Value::Value(int32_t v) : type_(VALUE_I32), constant_(true), i32_(v) {}
+Value::Value(int64_t v) : type_(VALUE_I64), constant_(true), i64_(v) {}
+Value::Value(float v) : type_(VALUE_F32), constant_(true), f32_(v) {}
+Value::Value(double v) : type_(VALUE_F64), constant_(true), f64_(v) {}
+Value::Value(Block *v) : type_(VALUE_BLOCK), constant_(true), block_(v) {}
 
 uint64_t Value::GetZExtValue() const {
   switch (type_) {
