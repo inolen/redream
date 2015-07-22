@@ -320,8 +320,8 @@ void TileAccelerator::StartRender(uint32_t addr) {
 
   NormalizeZ(tactx);
 
-  LOG(INFO) << "StartRender " << tactx->num_surfs << " surfs, "
-            << tactx->num_verts << " verts, " << tactx->size << " bytes";
+  // LOG(INFO) << "StartRender " << tactx->num_surfs << " surfs, "
+  //           << tactx->num_verts << " verts, " << tactx->size << " bytes";
 
   rb_->BindFramebuffer(FB_TILE_ACELLERATOR);
   rb_->Clear(0.1f, 0.39f, 0.88f, 1.0f);

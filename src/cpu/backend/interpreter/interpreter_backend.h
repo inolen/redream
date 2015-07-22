@@ -21,8 +21,6 @@ typedef uint32_t (*IntFn)(const IntInstr *instr, uint32_t idx,
 // signatures represent the data types for an instruction's arguments.
 typedef unsigned IntSig;
 
-enum { SIG_V, SIG_I8, SIG_I16, SIG_I32, SIG_I64, SIG_F32, SIG_F64, SIG_NUM };
-
 static inline int GetArgSignature(IntSig sig, int arg) {
   return (sig >> (arg * 8)) & 0xf;
 }

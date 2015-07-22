@@ -17,22 +17,19 @@ static IntSig GetSignature(Instr &ir_i) {
   IntSig sig = 0;
 
   auto set_sig = [&](int arg) {
-    static const int types[] = {
-        SIG_I8,   // VALUE_I8
-        SIG_I16,  // VALUE_I16
-        SIG_I32,  // VALUE_I32
-        SIG_I64,  // VALUE_I64
-        SIG_F32,  // VALUE_F32
-        SIG_F64,  // VALUE_F64
-        SIG_I32,  // VALUE_BLOCK
-    };
-
     Value *ir_v = ir_i.arg(arg);
     if (!ir_v) {
       return;
     }
 
-    SetArgSignature(arg, types[ir_v->type()], &sig);
+    ValueTy type = ir_v->type();
+
+    // blocks are translated to int32 offsets
+    if (type == VALUE_BLOCK) {
+      type = VALUE_I32;
+    }
+
+    SetArgSignature(arg, type, &sig);
   };
 
   set_sig(0);

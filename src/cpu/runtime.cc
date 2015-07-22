@@ -41,11 +41,10 @@ bool Runtime::Init(frontend::Frontend *frontend, backend::Backend *backend) {
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateBlockPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ContextPromotionPass()));
-  // pass_runner_.AddPass(
-  //     std::unique_ptr<Pass>(new ConstantPropagationPass(memory_)));
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
-  // pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateInstructionPass()));
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateInstructionPass()));
 
   return true;
 }
@@ -80,7 +79,7 @@ void Runtime::ResetBlocks() { pending_reset_ = true; }
 RuntimeBlock *Runtime::CompileBlock(uint32_t addr) {
   PROFILER_SCOPE_F("runtime");
 
-  LOG(INFO) << "Compiling block 0x" << std::hex << addr;
+  // LOG(INFO) << "Compiling block 0x" << std::hex << addr;
 
   std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr);
   if (!builder) {

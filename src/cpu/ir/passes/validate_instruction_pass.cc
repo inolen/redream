@@ -17,7 +17,7 @@ void ValidateInstructionPass::ValidateInstr(Instr *instr) {
   // after constant propagation, there shouldn't be more than a single constant
   // argument for most instructions
   Opcode op = instr->op();
-  if (op != OP_STORE_CONTEXT && op != OP_BRANCH_COND) {
+  if (op != OP_STORE_CONTEXT && op != OP_BRANCH_COND && op != OP_SELECT) {
     int num_constants = 0;
     if (instr->arg0() && instr->arg0()->constant()) {
       num_constants++;

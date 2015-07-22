@@ -21,7 +21,7 @@ extern const char *Opnames[NUM_OPCODES];
 // values
 //
 enum ValueTy {
-  VALUE_I8,
+  VALUE_I8 = 1,
   VALUE_I16,
   VALUE_I32,
   VALUE_I64,
@@ -29,6 +29,12 @@ enum ValueTy {
   VALUE_F64,
   VALUE_BLOCK
 };
+enum {
+  // not used by IRBuilder directly, but useful when generating lookup tables
+  VALUE_V = 0,
+  VALUE_NUM = VALUE_BLOCK + 1
+};
+
 enum {
   VALUE_I8_MASK = 1 << VALUE_I8,
   VALUE_I16_MASK = 1 << VALUE_I16,
@@ -45,6 +51,37 @@ enum {
                    VALUE_BLOCK_MASK,
 };
 enum { NO_REGISTER = -1, NO_SLOT = -1 };
+
+template <int T>
+struct ValueType;
+template <>
+struct ValueType<VALUE_V> {
+  typedef void type;
+};
+template <>
+struct ValueType<VALUE_I8> {
+  typedef int8_t type;
+};
+template <>
+struct ValueType<VALUE_I16> {
+  typedef int16_t type;
+};
+template <>
+struct ValueType<VALUE_I32> {
+  typedef int32_t type;
+};
+template <>
+struct ValueType<VALUE_I64> {
+  typedef int64_t type;
+};
+template <>
+struct ValueType<VALUE_F32> {
+  typedef float type;
+};
+template <>
+struct ValueType<VALUE_F64> {
+  typedef double type;
+};
 
 class Block;
 class Instr;

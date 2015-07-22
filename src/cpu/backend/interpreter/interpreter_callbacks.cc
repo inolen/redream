@@ -142,7 +142,7 @@ struct helper<
   }
 
   static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
-    SetValue<T>(r[i->arg[3].i32], v);
+    SetValue<T>(r[i->arg[ARG].i32], v);
   }
 };
 
@@ -161,7 +161,7 @@ struct helper<
   }
 
   static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
-    SetLocal<T>(l, i->arg[3].i32, v);
+    SetLocal<T>(l, i->arg[ARG].i32, v);
   }
 };
 
@@ -186,13 +186,13 @@ struct helper<
 
 #define CALLBACK(name)                                                  \
   template <typename R = void, typename A0 = void, typename A1 = void,  \
-            int IMM_MASK = 0>                                           \
+            int ACCESS_MASK = 0>                                        \
   static uint32_t name(const IntInstr *i, uint32_t idx, Memory *memory, \
                        IntValue *r, uint8_t *locals, void *guest_ctx)
-#define LOAD_ARG0() helper<A0, 0, IMM_MASK>::LoadArg(i, r, locals)
-#define LOAD_ARG1() helper<A1, 1, IMM_MASK>::LoadArg(i, r, locals)
-#define LOAD_ARG2() helper<A1, 2, IMM_MASK>::LoadArg(i, r, locals)
-#define STORE_RESULT(v) helper<R, 3, IMM_MASK>::StoreArg(i, r, locals, v)
+#define LOAD_ARG0() helper<A0, 0, ACCESS_MASK>::LoadArg(i, r, locals)
+#define LOAD_ARG1() helper<A1, 1, ACCESS_MASK>::LoadArg(i, r, locals)
+#define LOAD_ARG2() helper<A1, 2, ACCESS_MASK>::LoadArg(i, r, locals)
+#define STORE_RESULT(v) helper<R, 3, ACCESS_MASK>::StoreArg(i, r, locals, v)
 #define NEXT_INSTR (idx + 1)
 
 //
@@ -588,44 +588,13 @@ CALLBACK(CALL_EXTERNAL) {
 // arg2's type always matches arg1's. because of this, and in order to save
 // some memory, arg2 isn't considering when generating the lookup table.
 //
-template <int T>
-struct SigType;
-template <>
-struct SigType<0> {
-  typedef void type;
-};
-template <>
-struct SigType<SIG_I8> {
-  typedef int8_t type;
-};
-template <>
-struct SigType<SIG_I16> {
-  typedef int16_t type;
-};
-template <>
-struct SigType<SIG_I32> {
-  typedef int32_t type;
-};
-template <>
-struct SigType<SIG_I64> {
-  typedef int64_t type;
-};
-template <>
-struct SigType<SIG_F32> {
-  typedef float type;
-};
-template <>
-struct SigType<SIG_F64> {
-  typedef double type;
-};
-
 #define MAX_CALLBACKS_PER_OP \
-  (SIG_NUM * SIG_NUM * SIG_NUM * NUM_ACC_COMBINATIONS)
+  (VALUE_NUM * VALUE_NUM * VALUE_NUM * NUM_ACC_COMBINATIONS)
 #define MAX_CALLBACKS (MAX_CALLBACKS_PER_OP * NUM_OPCODES)
-#define CALLBACK_IDX(op, result_sig, arg0_sig, arg1_sig, access_mask)      \
-  (MAX_CALLBACKS_PER_OP * op +                                             \
-   (((result_sig * SIG_NUM * SIG_NUM) + (arg0_sig * SIG_NUM) + arg1_sig) * \
-    NUM_ACC_COMBINATIONS) +                                                \
+#define CALLBACK_IDX(op, result_sig, arg0_sig, arg1_sig, access_mask)   \
+  (MAX_CALLBACKS_PER_OP * op + (((result_sig * VALUE_NUM * VALUE_NUM) + \
+                                 (arg0_sig * VALUE_NUM) + arg1_sig) *   \
+                                NUM_ACC_COMBINATIONS) +                 \
    access_mask)
 
 static IntFn int_cbs[MAX_CALLBACKS];
@@ -643,10 +612,10 @@ static void InitCallbacks() {
 // Generate NUM_ACC_COMBINATIONS callbacks for each op, excluding access masks
 // where (mask & 0x3), (mask >> 2) & 0x3, or (mask >> 4) & 0x3 are equal to 3,
 // as they're invalid.
-#define INT_CALLBACK_C(op, func, r, a0, a1, c)                \
-  int_cbs[CALLBACK_IDX(op, SIG_##r, SIG_##a0, SIG_##a1, c)] = \
-      &func<SigType<SIG_##r>::type, SigType<SIG_##a0>::type,  \
-            SigType<SIG_##a1>::type, c>;
+#define INT_CALLBACK_C(op, func, r, a0, a1, c)                       \
+  int_cbs[CALLBACK_IDX(op, VALUE_##r, VALUE_##a0, VALUE_##a1, c)] =  \
+      &func<ValueType<VALUE_##r>::type, ValueType<VALUE_##a0>::type, \
+            ValueType<VALUE_##a1>::type, c>;
 #define INT_CALLBACK(op, func, r, a0, a1)  \
   INT_CALLBACK_C(op, func, r, a0, a1, 0)   \
   INT_CALLBACK_C(op, func, r, a0, a1, 1)   \
