@@ -19,8 +19,9 @@ int fold_masks[NUM_OPCODES];
 // OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
 // arg2's type always matches arg1's. because of this, arg2 isn't considered
 // when generating the lookup table.
-#define CALLBACK_IDX(op, a0, a1) \
-  ((op)*VALUE_NUM * VALUE_NUM) + ((a0)*VALUE_NUM) + (a1)
+#define CALLBACK_IDX(op, r, a0, a1)                                        \
+  ((op)*VALUE_NUM * VALUE_NUM * VALUE_NUM) + ((r)*VALUE_NUM * VALUE_NUM) + \
+      ((a0)*VALUE_NUM) + (a1)
 
 // declare a templated callback for an IR operation. note, declaring a
 // callback does not actually register it. callbacks must be registered
@@ -36,7 +37,7 @@ int fold_masks[NUM_OPCODES];
 #define REGISTER_FOLD(op, r, a0, a1)                                           \
   static struct _cpp_##op##_##r##_##a0##_##a1##_init {                         \
     _cpp_##op##_##r##_##a0##_##a1##_init() {                                   \
-      fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##a0, VALUE_##a1)] =                \
+      fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1)] =     \
           &Handle##op<ValueType<VALUE_##r>::type, ValueType<VALUE_##a0>::type, \
                       ValueType<VALUE_##a1>::type>;                            \
     }                                                                          \
@@ -51,9 +52,10 @@ int fold_masks[NUM_OPCODES];
   block->RemoveInstr(instr)
 
 static FoldFn GetFoldFn(Instr *instr) {
-  auto it = fold_cbs.find(
-      CALLBACK_IDX(instr->op(), instr->arg0() ? instr->arg0()->type() : VALUE_V,
-                   instr->arg1() ? instr->arg1()->type() : VALUE_V));
+  auto it = fold_cbs.find(CALLBACK_IDX(
+      instr->op(), instr->result() ? instr->result()->type() : VALUE_V,
+      instr->arg0() ? instr->arg0()->type() : VALUE_V,
+      instr->arg1() ? instr->arg1()->type() : VALUE_V));
   if (it == fold_cbs.end()) {
     return nullptr;
   }
@@ -88,14 +90,14 @@ void ConstantPropagationPass::Run(IRBuilder &builder) {
     while (it != end) {
       Instr *instr = *(it++);
 
-      FoldFn fold = GetFoldFn(instr);
-      if (!fold) {
+      int fold_mask = GetFoldMask(instr);
+      int cnst_sig = GetConstantSig(instr);
+      if (!fold_mask || (cnst_sig & fold_mask) != fold_mask) {
         continue;
       }
 
-      int fold_mask = GetFoldMask(instr);
-      int cnst_sig = GetConstantSig(instr);
-      if ((cnst_sig & fold_mask) != fold_mask) {
+      FoldFn fold = GetFoldFn(instr);
+      if (!fold) {
         continue;
       }
 
@@ -137,6 +139,36 @@ REGISTER_FOLD(SGE, I8, I64, I64);
 REGISTER_FOLD(SGE, I8, F32, F32);
 REGISTER_FOLD(SGE, I8, F64, F64);
 
+FOLD(SGT, ARG0_CNST | ARG1_CNST) { RESULT(ARG0() > ARG1()); }
+REGISTER_FOLD(SGT, I8, I8, I8);
+REGISTER_FOLD(SGT, I8, I16, I16);
+REGISTER_FOLD(SGT, I8, I32, I32);
+REGISTER_FOLD(SGT, I8, I64, I64);
+REGISTER_FOLD(SGT, I8, F32, F32);
+REGISTER_FOLD(SGT, I8, F64, F64);
+
+// IR_OP(UGE)
+// IR_OP(UGT)
+
+FOLD(SLE, ARG0_CNST | ARG1_CNST) { RESULT(ARG0() <= ARG1()); }
+REGISTER_FOLD(SLE, I8, I8, I8);
+REGISTER_FOLD(SLE, I8, I16, I16);
+REGISTER_FOLD(SLE, I8, I32, I32);
+REGISTER_FOLD(SLE, I8, I64, I64);
+REGISTER_FOLD(SLE, I8, F32, F32);
+REGISTER_FOLD(SLE, I8, F64, F64);
+
+FOLD(SLT, ARG0_CNST | ARG1_CNST) { RESULT(ARG0() < ARG1()); }
+REGISTER_FOLD(SLT, I8, I8, I8);
+REGISTER_FOLD(SLT, I8, I16, I16);
+REGISTER_FOLD(SLT, I8, I32, I32);
+REGISTER_FOLD(SLT, I8, I64, I64);
+REGISTER_FOLD(SLT, I8, F32, F32);
+REGISTER_FOLD(SLT, I8, F64, F64);
+
+// IR_OP(ULE)
+// IR_OP(ULT)
+
 FOLD(ADD, ARG0_CNST | ARG1_CNST) { RESULT(ARG0() + ARG1()); }
 REGISTER_FOLD(ADD, I8, I8, I8);
 REGISTER_FOLD(ADD, I16, I16, I16);
@@ -152,6 +184,15 @@ REGISTER_FOLD(SUB, I32, I32, I32);
 REGISTER_FOLD(SUB, I64, I64, I64);
 REGISTER_FOLD(SUB, F32, F32, F32);
 REGISTER_FOLD(SUB, F64, F64, F64);
+
+// IR_OP(SMUL)
+// IR_OP(UMUL)
+// IR_OP(DIV)
+// IR_OP(NEG)
+// IR_OP(SQRT)
+// IR_OP(ABS)
+// IR_OP(SIN)
+// IR_OP(COS)
 
 FOLD(AND, ARG0_CNST | ARG1_CNST) { RESULT(ARG0() & ARG1()); }
 REGISTER_FOLD(AND, I8, I8, I8);
@@ -171,11 +212,19 @@ REGISTER_FOLD(XOR, I16, I16, I16);
 REGISTER_FOLD(XOR, I32, I32, I32);
 REGISTER_FOLD(XOR, I64, I64, I64);
 
+FOLD(NOT, ARG0_CNST) { RESULT(~ARG0()); }
+REGISTER_FOLD(NOT, I8, I8, V);
+REGISTER_FOLD(NOT, I16, I16, V);
+REGISTER_FOLD(NOT, I32, I32, V);
+REGISTER_FOLD(NOT, I64, I64, V);
+
 FOLD(SHL, ARG0_CNST | ARG1_CNST) { RESULT(ARG0() << ARG1()); }
 REGISTER_FOLD(SHL, I8, I8, I32);
 REGISTER_FOLD(SHL, I16, I16, I32);
 REGISTER_FOLD(SHL, I32, I32, I32);
 REGISTER_FOLD(SHL, I64, I64, I32);
+
+// IR_OP(ASHR)
 
 FOLD(LSHR, ARG0_CNST | ARG1_CNST) {
   using U0 = typename std::make_unsigned<A0>::type;
@@ -185,3 +234,8 @@ REGISTER_FOLD(LSHR, I8, I8, I32);
 REGISTER_FOLD(LSHR, I16, I16, I32);
 REGISTER_FOLD(LSHR, I32, I32, I32);
 REGISTER_FOLD(LSHR, I64, I64, I32);
+
+// IR_OP(BRANCH)
+// IR_OP(BRANCH_COND)
+// IR_OP(BRANCH_INDIRECT)
+// IR_OP(CALL_EXTERNAL)
