@@ -1,4 +1,5 @@
 #include <type_traits>
+#include <unordered_map>
 #include "core/core.h"
 #include "cpu/ir/passes/constant_propagation_pass.h"
 
@@ -12,7 +13,7 @@ typedef void (*FoldFn)(IRBuilder &, Block *, Instr *i);
 enum { ARG0_CNST = 0x1, ARG1_CNST = 0x2, ARG2_CNST = 0x4 };
 
 // fold callbacks for each operaton
-FoldFn fold_cbs[NUM_OPCODES * VALUE_NUM * VALUE_NUM];
+std::unordered_map<int, FoldFn> fold_cbs;
 int fold_masks[NUM_OPCODES];
 
 // OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
@@ -50,9 +51,13 @@ int fold_masks[NUM_OPCODES];
   block->RemoveInstr(instr)
 
 static FoldFn GetFoldFn(Instr *instr) {
-  return fold_cbs[CALLBACK_IDX(
-      instr->op(), instr->arg0() ? instr->arg0()->type() : VALUE_V,
-      instr->arg1() ? instr->arg1()->type() : VALUE_V)];
+  auto it = fold_cbs.find(
+      CALLBACK_IDX(instr->op(), instr->arg0() ? instr->arg0()->type() : VALUE_V,
+                   instr->arg1() ? instr->arg1()->type() : VALUE_V));
+  if (it == fold_cbs.end()) {
+    return nullptr;
+  }
+  return it->second;
 }
 
 static int GetFoldMask(Instr *instr) { return fold_masks[instr->op()]; }

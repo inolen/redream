@@ -373,9 +373,6 @@ class IRBuilder {
   // instructions
   Instr *AllocInstr(Opcode op, InstrFlag flags = IF_NONE);
 
-  // debug
-  void Printf(Value *v);
-
   // context operations
   Value *LoadContext(size_t offset, ValueTy type);
   void StoreContext(size_t offset, Value *v, InstrFlag flags = IF_NONE);

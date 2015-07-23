@@ -292,11 +292,6 @@ Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
   return instr;
 }
 
-void IRBuilder::Printf(Value *v) {
-  Instr *instr = AppendInstr(OP_PRINTF);
-  instr->set_arg0(v);
-}
-
 Value *IRBuilder::LoadContext(size_t offset, ValueTy type) {
   Instr *instr = AppendInstr(OP_LOAD_CONTEXT);
   Value *result = AllocDynamic(type);

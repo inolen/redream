@@ -1,4 +1,4 @@
-#include <iostream>
+#include <unordered_map>
 #include "cpu/backend/interpreter/interpreter_backend.h"
 #include "cpu/backend/interpreter/interpreter_callbacks.h"
 
@@ -10,15 +10,14 @@ using namespace dreavm::emu;
 
 // callbacks for each IR operation. callback functions are generated per
 // operation, per signature, per access mask.
-#define MAX_CALLBACKS_PER_OP \
-  (VALUE_NUM * VALUE_NUM * VALUE_NUM * NUM_ACC_COMBINATIONS)
-#define MAX_CALLBACKS (MAX_CALLBACKS_PER_OP * NUM_OPCODES)
-
-static IntFn int_cbs[MAX_CALLBACKS];
+static std::unordered_map<int, IntFn> int_cbs;
 
 // OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
 // arg2's type always matches arg1's. because of this, arg2 isn't considered
 // when generating the lookup table.
+#define MAX_CALLBACKS_PER_OP \
+  (VALUE_NUM * VALUE_NUM * VALUE_NUM * NUM_ACC_COMBINATIONS)
+
 #define CALLBACK_IDX(op, result_sig, arg0_sig, arg1_sig, access_mask)   \
   (MAX_CALLBACKS_PER_OP * op + (((result_sig * VALUE_NUM * VALUE_NUM) + \
                                  (arg0_sig * VALUE_NUM) + arg1_sig) *   \
@@ -106,11 +105,11 @@ static IntFn int_cbs[MAX_CALLBACKS];
 
 IntFn dreavm::cpu::backend::interpreter::GetCallback(
     Opcode op, const IntSig &sig, IntAccessMask access_mask) {
-  IntFn fn =
-      int_cbs[CALLBACK_IDX(op, GetArgSignature(sig, 3), GetArgSignature(sig, 0),
-                           GetArgSignature(sig, 1), access_mask)];
-  CHECK_NOTNULL(fn);
-  return fn;
+  auto it = int_cbs.find(CALLBACK_IDX(op, GetArgSignature(sig, 3),
+                                      GetArgSignature(sig, 0),
+                                      GetArgSignature(sig, 1), access_mask));
+  CHECK(it != int_cbs.end()) << "Failed to lookup callback for " << Opnames[op];
+  return it->second;
 }
 
 //
@@ -289,17 +288,6 @@ struct helper<
 //
 // interpreter callbacks
 //
-CALLBACK(PRINTF) {
-  std::cout << LOAD_ARG0() << std::endl;
-  return NEXT_INSTR;
-}
-REGISTER_CALLBACK(PRINTF, PRINTF, V, I8, V);
-REGISTER_CALLBACK(PRINTF, PRINTF, V, I16, V);
-REGISTER_CALLBACK(PRINTF, PRINTF, V, I32, V);
-REGISTER_CALLBACK(PRINTF, PRINTF, V, I64, V);
-REGISTER_CALLBACK(PRINTF, PRINTF, V, F32, V);
-REGISTER_CALLBACK(PRINTF, PRINTF, V, F64, V);
-
 CALLBACK(LOAD_CONTEXT) {
   A0 offset = LOAD_ARG0();
   R v = *reinterpret_cast<R *>(reinterpret_cast<uint8_t *>(guest_ctx) + offset);
