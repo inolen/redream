@@ -52,6 +52,7 @@ set(DREAVM_SOURCES
 	src/cpu/backend/interpreter/interpreter_callbacks.cc
 	src/cpu/backend/x64/x64_backend.cc
 	src/cpu/backend/x64/x64_block.cc
+	src/cpu/backend/x64/x64_emitter.cc
 	src/cpu/frontend/sh4/sh4_builder.cc
 	src/cpu/frontend/sh4/sh4_emit.cc
 	src/cpu/frontend/sh4/sh4_frontend.cc
@@ -268,6 +269,7 @@ set(DREAVM_TEST_SOURCES
 	src/cpu/backend/interpreter/interpreter_callbacks.cc
 	src/cpu/backend/x64/x64_backend.cc
 	src/cpu/backend/x64/x64_block.cc
+	src/cpu/backend/x64/x64_emitter.cc
 	src/cpu/frontend/sh4/sh4_builder.cc
 	src/cpu/frontend/sh4/sh4_emit.cc
 	src/cpu/frontend/sh4/sh4_frontend.cc

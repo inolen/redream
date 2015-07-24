@@ -79,7 +79,7 @@ void Runtime::ResetBlocks() { pending_reset_ = true; }
 RuntimeBlock *Runtime::CompileBlock(uint32_t addr) {
   PROFILER_SCOPE_F("runtime");
 
-  // LOG(INFO) << "Compiling block 0x" << std::hex << addr;
+  LOG(INFO) << "Compiling block 0x" << std::hex << addr;
 
   std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr);
   if (!builder) {

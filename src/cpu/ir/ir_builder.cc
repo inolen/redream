@@ -11,31 +11,6 @@ const char *dreavm::cpu::ir::Opnames[NUM_OPCODES] = {
 #include "cpu/ir/ir_ops.inc"
 };
 
-static inline bool IsFloatType(ValueTy type) {
-  return type == VALUE_F32 || type == VALUE_F64;
-}
-
-static inline bool IsIntType(ValueTy type) { return !IsFloatType(type); }
-
-static inline int SizeForType(ValueTy type) {
-  switch (type) {
-    case VALUE_I8:
-      return 1;
-    case VALUE_I16:
-      return 2;
-    case VALUE_I32:
-      return 4;
-    case VALUE_I64:
-      return 8;
-    case VALUE_F32:
-      return 4;
-    case VALUE_F64:
-      return 8;
-    case VALUE_BLOCK:
-      return 4;
-  }
-}
-
 //
 // Value
 //
@@ -175,7 +150,7 @@ void IRBuilder::Dump() const {
       auto res = value_vars.insert(std::make_pair((intptr_t)v, name));
       it = res.first;
     }
-    ss << it->second;
+    ss << it->second << " (" << v->reg() << ")";
   };
   auto DumpValue = [&](std::stringstream &ss, const Value *v) {
     if (!v) {
@@ -324,6 +299,9 @@ void IRBuilder::Store(Value *addr, Value *v) {
 }
 
 Value *IRBuilder::Cast(Value *v, ValueTy dest_type) {
+  CHECK((IsIntType(v->type()) && IsFloatType(dest_type)) ||
+        (IsFloatType(v->type()) && IsIntType(dest_type)));
+
   Instr *instr = AppendInstr(OP_CAST);
   Value *result = AllocDynamic(dest_type);
   instr->set_arg0(v);

@@ -2,6 +2,7 @@
 #include "cpu/ir/passes/register_allocation_pass.h"
 
 using namespace dreavm;
+using namespace dreavm::cpu::backend;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 
@@ -33,7 +34,7 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
       Value *result = instr->result();
 
       // only allocate registers for results, assume constants can always be
-      // encoded by immediates or that the backend has registers reserved
+      // encoded as immediates or that the backend has registers reserved
       // for storing the constants
       if (!result) {
         continue;
@@ -47,36 +48,16 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
       // expire any old intervals, freeing up the registers they claimed
       ExpireOldIntervals(start);
 
-      // if the last argument isn't used after this instruction, its register
-      // can be reused to take advantage of many architectures supporting
-      // operations where the destination is the last source argument
-      // FIXME could reorder arguments and do this with any source arguments
-      // meeting the criteria
-      Value *last_arg = instr->arg2()
-                            ? instr->arg2()
-                            : (instr->arg1() ? instr->arg1() : instr->arg0());
-      if (last_arg && !last_arg->constant()) {
-        // get the current interval for this register
-        int last_reg = last_arg->reg();
-
-        if (last_reg != NO_REGISTER) {
-          const std::multiset<Interval>::iterator &it = live_[last_reg];
-
-          // if the argument isn't used after this instruction, reuse its
-          // register for the result
-          if (GetOrdinal(it->end) <= GetOrdinal(start)) {
-            UpdateInterval(it, result, start, end);
-            result->set_reg(last_reg);
-            continue;
-          }
-        }
-      }
-
-      // else, allocate a new register
-      int reg = AllocFreeRegister(result, start, end);
+      // first, try and reuse the register of one of the incoming arguments
+      int reg = ReuuseArgRegister(instr, start, end);
       if (reg == NO_REGISTER) {
-        reg = AllocBlockedRegister(builder, result, start, end);
-        CHECK_NE(reg, NO_REGISTER);
+        // else, allocate a new register for the result
+        reg = AllocFreeRegister(result, start, end);
+        if (reg == NO_REGISTER) {
+          // if a register couldn't be allocated, spill a register and try again
+          reg = AllocBlockedRegister(builder, result, start, end);
+          CHECK_NE(reg, NO_REGISTER);
+        }
       }
 
       result->set_reg(reg);
@@ -143,9 +124,6 @@ void RegisterAllocationPass::UpdateInterval(
     Instr *end) {
   int reg = it->reg;
 
-  // printf("UpdateRegister %d (%p) -> %d (%p) : (%p)\n", GetOrdinal(start),
-  // start, GetOrdinal(end), end, value);
-
   // remove the old interval
   intervals_.erase(it);
 
@@ -160,19 +138,60 @@ void RegisterAllocationPass::UpdateInterval(
   live_[reg] = intervals_.insert(interval);
 }
 
-int RegisterAllocationPass::AllocFreeRegister(Value *value, Instr *start,
+// If the first argument isn't used after this instruction, its register
+// can be reused to take advantage of many architectures supporting
+// operations where the destination is the first argument.
+// TODO could reorder arguments for communicative binary ops and do this
+// with the second argument as well
+int RegisterAllocationPass::ReuuseArgRegister(Instr *instr, Instr *start,
                                               Instr *end) {
-  if (!num_free_) {
-    // LOG(WARNING) << "AllocFreeRegister failed for " << GetOrdinal(start);
+  if (!instr->arg0() || instr->arg0()->constant()) {
     return NO_REGISTER;
   }
 
-  // printf("AllocFreeRegister %d (%p) -> %d (%p) : (%p)\n", GetOrdinal(start),
-  // start, GetOrdinal(end), end, value);
+  int last_reg = instr->arg0()->reg();
+  if (last_reg == NO_REGISTER) {
+    return NO_REGISTER;
+  }
+
+  // make sure the register can hold the result type
+  const Register &r = registers_[last_reg];
+  if (!(r.value_types & 1 << (instr->result()->type()))) {
+    return NO_REGISTER;
+  }
+
+  // if the argument's register is used after this instruction, it can't be
+  // reused
+  const std::multiset<Interval>::iterator &it = live_[last_reg];
+  if (GetOrdinal(it->end) > GetOrdinal(start)) {
+    return NO_REGISTER;
+  }
+
+  // the argument's register isn't used afterwards, update its interval and
+  // reuse
+  UpdateInterval(it, instr->result(), start, end);
+
+  return last_reg;
+}
+
+int RegisterAllocationPass::AllocFreeRegister(Value *value, Instr *start,
+                                              Instr *end) {
+  // find the first free register that can store this value type
+  // TODO split up free queue into int / float to avoid this scan
+  int i;
+  for (i = 0; i < num_free_; i++) {
+    const Register &r = registers_[free_[i]];
+    if (r.value_types & 1 << (value->type())) {
+      break;
+    }
+  }
+  if (i == num_free_) {
+    return NO_REGISTER;
+  }
 
   // remove register from free queue
-  int reg = free_[0];
-  free_[0] = free_[--num_free_];
+  int reg = free_[i];
+  free_[i] = free_[--num_free_];
 
   // add interval
   Interval interval;
@@ -191,24 +210,31 @@ int RegisterAllocationPass::AllocFreeRegister(Value *value, Instr *start,
 int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
                                                  Value *value, Instr *start,
                                                  Instr *end) {
-  CHECK_EQ(num_free_, 0);
-  CHECK_EQ(num_registers_, (int)intervals_.size());
+  // TODO no longer valid due to type masks
+  // CHECK_EQ(num_free_, 0);
+  // CHECK_EQ(num_registers_, (int)intervals_.size());
 
-  // spill the register that ends furthest away, or possibly this register
-  // itself
-  auto it = --intervals_.end();
+  // spill the register that ends furthest away that can store this type
+  auto it = intervals_.rbegin();
+  auto e = intervals_.rend();
+  for (; it != e; ++it) {
+    const Register &r = registers_[it->reg];
+
+    if (r.value_types & 1 << (value->type())) {
+      break;
+    }
+  }
+  CHECK(it != e);
+
   const Interval &to_spill = *it;
 
   // point spilled value to use stack
   to_spill.value->set_reg(NO_REGISTER);
   to_spill.value->set_local(builder.AllocLocal(to_spill.value->type()));
 
-  // printf("Spilling %d (%p) -> %d (%p) : (%p)\n", GetOrdinal(to_spill.start),
-  // to_spill.start, GetOrdinal(to_spill.end), to_spill.end, to_spill.value);
-
   // remove interval
   free_[num_free_++] = to_spill.reg;
-  intervals_.erase(it);
+  intervals_.erase(--it.base());
 
   return AllocFreeRegister(value, start, end);
 }

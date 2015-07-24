@@ -4,13 +4,14 @@
 #include <memory>
 #include "cpu/ir/ir_builder.h"
 #include "cpu/runtime.h"
+#include "emu/memory.h"
 
 namespace dreavm {
 namespace cpu {
 namespace backend {
 namespace x64 {
 
-typedef void (*X64Fn)(void *guest_ctx);
+typedef uint32_t (*X64Fn)(void *guest_ctx, emu::Memory *memory);
 
 class X64Block : public RuntimeBlock {
  public:
@@ -18,6 +19,7 @@ class X64Block : public RuntimeBlock {
   ~X64Block();
 
   uint32_t Call(emu::Memory *memory, void *guest_ctx);
+  void Dump();
 
  private:
   X64Fn fn_;

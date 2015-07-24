@@ -52,6 +52,7 @@ class RegisterAllocationPass : public Pass {
   void ExpireOldIntervals(Instr *start);
   void UpdateInterval(const std::multiset<Interval>::iterator &it, Value *value,
                       Instr *start, Instr *end);
+  int ReuuseArgRegister(Instr *instr, Instr *start, Instr *end);
   int AllocFreeRegister(Value *value, Instr *start, Instr *end);
   int AllocBlockedRegister(IRBuilder &builder, Value *value, Instr *start,
                            Instr *end);

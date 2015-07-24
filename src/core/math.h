@@ -8,7 +8,6 @@ template <typename T>
 T align(T v, T alignment) {
   return (v + alignment - 1) & -alignment;
 }
-
 }
 }
 

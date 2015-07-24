@@ -3,6 +3,7 @@
 
 #include <xbyak/xbyak.h>
 #include "cpu/backend/backend.h"
+#include "cpu/backend/x64/x64_emitter.h"
 #include "cpu/runtime.h"
 
 namespace dreavm {
@@ -22,7 +23,8 @@ class X64Backend : public Backend {
   std::unique_ptr<RuntimeBlock> AssembleBlock(ir::IRBuilder &builder);
 
  private:
-  Xbyak::CodeGenerator gen_;
+  Xbyak::CodeGenerator codegen_;
+  X64Emitter emitter_;
 };
 }
 }

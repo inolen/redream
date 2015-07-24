@@ -87,6 +87,31 @@ class Block;
 class Instr;
 class ValueRef;
 
+static inline bool IsFloatType(ValueTy type) {
+  return type == VALUE_F32 || type == VALUE_F64;
+}
+
+static inline bool IsIntType(ValueTy type) { return !IsFloatType(type); }
+
+static inline int SizeForType(ValueTy type) {
+  switch (type) {
+    case VALUE_I8:
+      return 1;
+    case VALUE_I16:
+      return 2;
+    case VALUE_I32:
+      return 4;
+    case VALUE_I64:
+      return 8;
+    case VALUE_F32:
+      return 4;
+    case VALUE_F64:
+      return 8;
+    case VALUE_BLOCK:
+      return 4;
+  }
+}
+
 class Value {
  public:
   Value(ValueTy ty);

@@ -24,8 +24,8 @@ void RunSH4Test(const SH4Test &test) {
 
   // initialize runtime
   frontend::sh4::SH4Frontend rt_frontend(memory);
-  // backend::x64::X64Backend rt_backend(memory);
-  backend::interpreter::InterpreterBackend rt_backend(memory);
+  backend::x64::X64Backend rt_backend(memory);
+  // backend::interpreter::InterpreterBackend rt_backend(memory);
   Runtime runtime(memory);
   ASSERT_TRUE(runtime.Init(&rt_frontend, &rt_backend));
 
