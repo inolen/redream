@@ -1029,7 +1029,7 @@ EMITTER(BRAF) {
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
   Value *dest_addr = b.Add(b.AllocConstant(i.addr + 4), rn);
   b.EmitDelayInstr();
-  b.BranchIndirect(dest_addr);
+  b.Branch(dest_addr);
 }
 
 // code                 cycles  t-bit

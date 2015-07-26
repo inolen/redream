@@ -431,7 +431,6 @@ class IRBuilder {
   void BranchFalse(Value *cond, Block *dest);
   void BranchTrue(Value *cond, Value *dest);
   void BranchTrue(Value *cond, Block *dest);
-  void BranchIndirect(Value *addr);
 
   // calls
   void CallExternal(ExternalFn func);

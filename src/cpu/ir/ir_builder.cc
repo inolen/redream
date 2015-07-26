@@ -153,8 +153,7 @@ IRBuilder::IRBuilder()
     : arena_(1024), current_block_(nullptr), locals_size_(0), metadata_() {}
 
 bool IRBuilder::IsTerminator(const Instr *i) {
-  return i->op() == OP_BRANCH || i->op() == OP_BRANCH_COND ||
-         i->op() == OP_BRANCH_INDIRECT;
+  return i->op() == OP_BRANCH || i->op() == OP_BRANCH_COND;
 }
 
 // TODO clean and speed up?
@@ -746,11 +745,6 @@ void IRBuilder::BranchTrue(Value *cond, Block *true_block) {
   instr->set_arg2(AllocConstant(false_block));
 
   SetCurrentBlock(false_block);
-}
-
-void IRBuilder::BranchIndirect(Value *addr) {
-  Instr *instr = AppendInstr(OP_BRANCH_INDIRECT);
-  instr->set_arg0(addr);
 }
 
 void IRBuilder::CallExternal(ExternalFn func) {
