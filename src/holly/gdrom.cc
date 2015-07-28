@@ -302,7 +302,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
 
   switch (cmd) {
     case ATA_NOP:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       // Setting "abort" in the error register
       // Setting "error" in the status register
       // Clearing BUSY in the status register
@@ -316,7 +316,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
       break;
 
     case ATA_EXEC_DIAG:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
 
     case ATA_PACKET:
@@ -324,7 +324,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
       break;
 
     case ATA_IDENTIFY_DEV:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
 
     case ATA_SET_FEATURES:
@@ -334,7 +334,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
       break;
 
     default:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
   }
 }
@@ -352,7 +352,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     // Packet Command Flow For PIO DATA To Host
     //
     case SPI_REQ_STAT:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
 
     case SPI_REQ_MODE: {
@@ -362,7 +362,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     } break;
 
     case SPI_REQ_ERROR:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
 
     case SPI_GET_TOC: {
@@ -420,12 +420,12 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
                             dma_buffer_);
         dma_size_ = r;
       } else {
-        debug_break();
+        LOG(FATAL) << "Unhandled";
       }
     } break;
 
     case SPI_CD_READ2:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
 
     //
@@ -448,7 +448,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     case SPI_CD_PLAY:
     case SPI_CD_SEEK:
     case SPI_CD_SCAN:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       TriggerEvent(EV_SPI_CMD_DONE);
       break;
 
@@ -461,7 +461,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
       break;
 
     default:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
   }
 }

@@ -311,7 +311,7 @@ void TileAccelerator::StartRender(uint32_t addr) {
         break;
 
       default:
-        debug_break();
+        LOG(FATAL) << "Unhandled";
         break;
     }
 
@@ -524,7 +524,7 @@ void TileAccelerator::ParseBackground(TAContext *tactx) {
           v->uv[0] = memory_.RF32(vertex_addr);
           v->uv[1] = memory_.RF32(vertex_addr + 4);
           vertex_addr += 8;
-          debug_break();
+          LOG(FATAL) << "Unhandled";
         }
 
         uint32_t base_color = memory_.R32(vertex_addr);
@@ -541,7 +541,7 @@ void TileAccelerator::ParseBackground(TAContext *tactx) {
           v->offset_color[2] = ((offset_color >> 16) & 0xff) / 255.0f;
           v->offset_color[3] = 0.0f;
           vertex_addr += 4;
-          debug_break();
+          LOG(FATAL) << "Unhandled";
         }
       };
 
@@ -693,7 +693,7 @@ void TileAccelerator::ParsePolyParam(TAContext *tactx, const PolyParam *param) {
     } break;
 
     default:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
   }
 }
@@ -836,7 +836,7 @@ void TileAccelerator::ParseVertexParam(TAContext *tactx,
     } break;
 
     case 15:
-      debug_break();
+      LOG(FATAL) << "Unhandled";
       break;
 
     case 16: {

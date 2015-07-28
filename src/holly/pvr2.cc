@@ -168,12 +168,12 @@ TextureHandle PVR2::GetTexture(TSP tsp, TCW tcw) {
       switch (PAL_RAM_CTRL.pixel_format) {
         case TA_PAL_ARGB1555:
           pixel_fmt = PXL_RGBA5551;
-          debug_break();
+          LOG(FATAL) << "Unhandled";
           break;
 
         case TA_PAL_RGB565:
           pixel_fmt = PXL_RGB565;
-          debug_break();
+          LOG(FATAL) << "Unhandled";
           break;
 
         case TA_PAL_ARGB4444:
@@ -187,7 +187,7 @@ TextureHandle PVR2::GetTexture(TSP tsp, TCW tcw) {
         case TA_PAL_ARGB8888:
           CHECK_EQ(true, twiddled);
           pixel_fmt = PXL_RGBA8888;
-          debug_break();
+          LOG(FATAL) << "Unhandled";
           break;
       }
       break;
@@ -197,12 +197,12 @@ TextureHandle PVR2::GetTexture(TSP tsp, TCW tcw) {
       switch (PAL_RAM_CTRL.pixel_format) {
         case TA_PAL_ARGB1555:
           pixel_fmt = PXL_RGBA5551;
-          debug_break();
+          LOG(FATAL) << "Unhandled";
           break;
 
         case TA_PAL_RGB565:
           pixel_fmt = PXL_RGB565;
-          debug_break();
+          LOG(FATAL) << "Unhandled";
           break;
 
         case TA_PAL_ARGB4444:
