@@ -251,10 +251,10 @@ const Xbyak::Xmm &X64Emitter::GetXMMRegister(const Value *v,
 // TODO when copying XMM registers during SIN / COS a movdqa isn't actually
 // necessary (could pass in size info to perform movss / movsd). bummer that
 // there isn't xmm0d, etc.
-void X64Emitter::CopyOperand(const Xbyak::Operand &from,
-                             const Xbyak::Operand &to) {
+const Xbyak::Operand &X64Emitter::CopyOperand(const Xbyak::Operand &from,
+                                              const Xbyak::Operand &to) {
   if (from == to) {
-    return;
+    return to;
   }
 
   if (to.isXMM()) {
@@ -282,10 +282,13 @@ void X64Emitter::CopyOperand(const Xbyak::Operand &from,
   } else {
     c_.mov(to, from);
   }
+
+  return to;
 }
 
 // Copy the value to the supplied operand.
-void X64Emitter::CopyOperand(const Value *v, const Xbyak::Operand &to) {
+const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
+                                              const Xbyak::Operand &to) {
   if (v->constant()) {
     if (to.isXMM()) {
       if (v->type() == VALUE_F32) {
@@ -305,6 +308,8 @@ void X64Emitter::CopyOperand(const Value *v, const Xbyak::Operand &to) {
 
     CopyOperand(from, to);
   }
+
+  return to;
 }
 
 bool X64Emitter::CanEncodeAsImmediate(const Value *v) {
@@ -329,14 +334,21 @@ EMITTER(LOAD_CONTEXT) {
       c.movsd(result_xmm, c.qword[c.rdi + offset]);
     }
   } else {
+    // dst must be a register, mov doesn't support mem -> mem
+    const Xbyak::Reg &tmp = e.GetRegister(instr->result(), c.rax);
+
     if (result_sz == 1) {
-      c.mov(result, c.byte[c.rdi + offset]);
+      c.mov(tmp, c.byte[c.rdi + offset]);
     } else if (result_sz == 2) {
-      c.mov(result, c.word[c.rdi + offset]);
+      c.mov(tmp, c.word[c.rdi + offset]);
     } else if (result_sz == 4) {
-      c.mov(result, c.dword[c.rdi + offset]);
+      c.mov(tmp, c.dword[c.rdi + offset]);
     } else if (result_sz == 8) {
-      c.mov(result, c.qword[c.rdi + offset]);
+      c.mov(tmp, c.qword[c.rdi + offset]);
+    }
+
+    if (tmp != result) {
+      c.mov(result, tmp);
     }
   }
 }
@@ -367,14 +379,18 @@ EMITTER(STORE_CONTEXT) {
         c.movsd(c.qword[c.rdi + offset], src_xmm);
       }
     } else {
+      // src must come from a register mov doesn't support mem -> mem
+      const Xbyak::Reg &src_reg = reinterpret_cast<const Xbyak::Reg &>(
+          src.isREG() ? src : e.CopyOperand(src, c.rax));
+
       if (data_sz == 1) {
-        c.mov(c.byte[c.rdi + offset], src);
+        c.mov(c.byte[c.rdi + offset], src_reg);
       } else if (data_sz == 2) {
-        c.mov(c.word[c.rdi + offset], src);
+        c.mov(c.word[c.rdi + offset], src_reg);
       } else if (data_sz == 4) {
-        c.mov(c.dword[c.rdi + offset], src);
+        c.mov(c.dword[c.rdi + offset], src_reg);
       } else if (data_sz == 8) {
-        c.mov(c.qword[c.rdi + offset], src);
+        c.mov(c.qword[c.rdi + offset], src_reg);
       }
     }
   }

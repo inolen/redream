@@ -35,7 +35,7 @@ void X64Block::Dump() {
 
     LOG(INFO) << std::setw(2) << std::hex << std::setfill('0')
               << (int)dsm.VirtualAddr << " " << dsm.CompleteInstr;
-    
+
     if (dsm.Instruction.BranchType == RetType) {
       break;
     }

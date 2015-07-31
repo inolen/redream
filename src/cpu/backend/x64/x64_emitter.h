@@ -33,8 +33,10 @@ class X64Emitter {
   const Xbyak::Xmm &GetXMMRegister(const ir::Value *v,
                                    const Xbyak::Operand &prefered,
                                    const Xbyak::Xmm &tmp);
-  void CopyOperand(const Xbyak::Operand &from, const Xbyak::Operand &to);
-  void CopyOperand(const ir::Value *v, const Xbyak::Operand &to);
+  const Xbyak::Operand &CopyOperand(const Xbyak::Operand &from,
+                                    const Xbyak::Operand &to);
+  const Xbyak::Operand &CopyOperand(const ir::Value *v,
+                                    const Xbyak::Operand &to);
   bool CanEncodeAsImmediate(const ir::Value *v);
 
  private:

@@ -1396,14 +1396,14 @@ EMITTER(STCRBANK) {
   b.BranchTrue(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1);
 
   // rb0 block
-  b.StoreRegister(i.Rn,
-                  b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
+  b.StoreRegister(
+      i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
   b.Branch(end_block);
 
   // rb1 block
   b.SetCurrentBlock(rb1);
-  b.StoreRegister(i.Rn,
-                  b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
+  b.StoreRegister(
+      i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
   b.Branch(end_block);
 
   b.SetCurrentBlock(end_block);
