@@ -1,3 +1,4 @@
+#include <memory>
 #include "core/core.h"
 #include "renderer/gl_backend.h"
 

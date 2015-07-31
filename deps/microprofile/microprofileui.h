@@ -140,6 +140,8 @@ MICROPROFILEUI_API void MicroProfileDumpTimers();
 #ifdef _WIN32
 #define snprintf _snprintf
 #endif
+#include <inttypes.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <math.h>
 #include <algorithm>
@@ -647,7 +649,7 @@ void MicroProfileDebugDumpRange()
 
 			const char* pBegin = type == MP_LOG_LEAVE ? "END" : 
 				(type == MP_LOG_ENTER ? "BEGIN" : "META");
-			snprintf(buffer, 255, "DUMP 0x%p: %s :: %llx: %s\n", pStart, pBegin,  nTick, pTimerName);
+			snprintf(buffer, 255, "DUMP 0x%p: %s :: %" PRIx64 ": %s\n", pStart, pBegin,  nTick, pTimerName);
 #ifdef _WIN32
 			OutputDebugString(buffer);
 #else
@@ -896,7 +898,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			int64_t nBaseTicks = bGpu ? nBaseTicksGpu : nBaseTicksCpu;
 			char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
 			uint64_t nThreadId = pLog->nThreadId;
-			snprintf(ThreadName, sizeof(ThreadName)-1, "%04llx: %s", nThreadId, &pLog->ThreadName[0] );
+			snprintf(ThreadName, sizeof(ThreadName)-1, "%04" PRIx64 ": %s", nThreadId, &pLog->ThreadName[0] );
 			nY += 3;
 			uint32_t nThreadColor = -1;
 			if(pLog->nThreadId == nContextSwitchHoverThreadAfter || pLog->nThreadId == nContextSwitchHoverThreadBefore)
@@ -1088,7 +1090,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 				char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
 				const char* cLocal = MicroProfileIsLocalThread(nThreadId) ? "*": " ";
 
-				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04llx:%s%s", nThreadId, cLocal, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : MICROPROFILE_THREAD_NAME_FROM_ID(nThreadId) );
+				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04" PRIx64 ":%s%s", nThreadId, cLocal, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : MICROPROFILE_THREAD_NAME_FROM_ID(nThreadId) );
 				uint32_t nThreadColor = -1;
 				if(nThreadId == nContextSwitchHoverThreadAfter || nThreadId == nContextSwitchHoverThreadBefore)
 					nThreadColor = UI.nHoverColorShared|0x906060;
@@ -1447,7 +1449,7 @@ uint32_t MicroProfileDrawBarMetaCount(int32_t nX, int32_t nY, uint64_t* pCounter
 	MicroProfileLoopActiveGroupsDraw(nX, nY, pName, 
 		[=](uint32_t nTimer, uint32_t nIdx, uint64_t nGroupMask, uint32_t nX, uint32_t nY){
 			char sBuffer[SBUF_MAX];
-			int nLen = snprintf(sBuffer, SBUF_MAX-1, "%5llu", pCounters[nTimer]);
+			int nLen = snprintf(sBuffer, SBUF_MAX-1, "%5" PRIu64, pCounters[nTimer]);
 			MicroProfileDrawText(nX + nTextWidth - nLen * (MICROPROFILE_TEXT_WIDTH+1), nY, (uint32_t)-1, sBuffer, nLen);
 		});
 	MicroProfileDrawHeader(nX, 5 + nTextWidth, pName);
@@ -1780,7 +1782,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 
 	uint32_t nX = 0;
 	uint32_t nY = 0;
-	bool bMouseOver = UI.nMouseY < MICROPROFILE_TEXT_HEIGHT + 1;
+	// bool bMouseOver = UI.nMouseY < MICROPROFILE_TEXT_HEIGHT + 1;
 #define SBUF_SIZE 256
 	char buffer[256];
 	MicroProfileDrawBox(nX, nY, nX + nWidth, nY + (MICROPROFILE_TEXT_HEIGHT+1)+1, 0xff000000|g_nMicroProfileBackColors[1]);
@@ -2271,7 +2273,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			const char* pString = CB(i, bSelected);
 			if(UI.nMouseY >= nY && UI.nMouseY < nY + MICROPROFILE_TEXT_HEIGHT + 1)
 			{
-				bMouseOver = true;
+				// bMouseOver = true;
 				if(UI.nMouseLeft || UI.nMouseRight)
 				{
 					CBClick[nMenu](i);

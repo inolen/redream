@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <gflags/gflags.h>
 #include "system/system.h"
 #include "emu/emulator.h"
 

@@ -1141,12 +1141,12 @@ EMITTER(LDCRBANK) {
   b.BranchTrue(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1);
 
   // rb0 block
-  b.StoreContext(offsetof(SH4Context, rbnk[1][reg]), rm);
+  b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg, rm);
   b.Branch(end_block);
 
   // rb1 block
   b.SetCurrentBlock(rb1);
-  b.StoreContext(offsetof(SH4Context, rbnk[0][reg]), rm);
+  b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg, rm);
   b.Branch(end_block);
 
   b.SetCurrentBlock(end_block);
@@ -1213,12 +1213,12 @@ EMITTER(LDCMRBANK) {
   b.BranchTrue(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1);
 
   // rb0 block
-  b.StoreContext(offsetof(SH4Context, rbnk[1][reg]), v);
+  b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg, v);
   b.Branch(end_block);
 
   // rb1 block
   b.SetCurrentBlock(rb1);
-  b.StoreContext(offsetof(SH4Context, rbnk[0][reg]), v);
+  b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg, v);
   b.Branch(end_block);
 
   b.SetCurrentBlock(end_block);
@@ -1397,13 +1397,13 @@ EMITTER(STCRBANK) {
 
   // rb0 block
   b.StoreRegister(i.Rn,
-                  b.LoadContext(offsetof(SH4Context, rbnk[1][reg]), VALUE_I32));
+                  b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
   b.Branch(end_block);
 
   // rb1 block
   b.SetCurrentBlock(rb1);
   b.StoreRegister(i.Rn,
-                  b.LoadContext(offsetof(SH4Context, rbnk[0][reg]), VALUE_I32));
+                  b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
   b.Branch(end_block);
 
   b.SetCurrentBlock(end_block);
@@ -1477,12 +1477,12 @@ EMITTER(STCMRBANK) {
   b.BranchTrue(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1);
 
   // rb0 block
-  b.Store(addr, b.LoadContext(offsetof(SH4Context, rbnk[1][reg]), VALUE_I32));
+  b.Store(addr, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
   b.Branch(end_block);
 
   // rb1 block
   b.SetCurrentBlock(rb1);
-  b.Store(addr, b.LoadContext(offsetof(SH4Context, rbnk[0][reg]), VALUE_I32));
+  b.Store(addr, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
   b.Branch(end_block);
 
   b.SetCurrentBlock(end_block);

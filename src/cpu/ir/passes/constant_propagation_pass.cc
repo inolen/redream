@@ -53,9 +53,9 @@ int fold_masks[NUM_OPCODES];
 
 static FoldFn GetFoldFn(Instr *instr) {
   auto it = fold_cbs.find(CALLBACK_IDX(
-      instr->op(), instr->result() ? instr->result()->type() : VALUE_V,
-      instr->arg0() ? instr->arg0()->type() : VALUE_V,
-      instr->arg1() ? instr->arg1()->type() : VALUE_V));
+      instr->op(), instr->result() ? (int)instr->result()->type() : VALUE_V,
+      instr->arg0() ? (int)instr->arg0()->type() : VALUE_V,
+      instr->arg1() ? (int)instr->arg1()->type() : VALUE_V));
   if (it == fold_cbs.end()) {
     return nullptr;
   }

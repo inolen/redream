@@ -110,6 +110,7 @@ static inline int SizeForType(ValueTy type) {
     case VALUE_BLOCK:
       return 4;
   }
+  return 0;
 }
 
 class Value {

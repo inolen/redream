@@ -71,7 +71,7 @@ class IntrusiveList {
     self_type &operator--() {
       // if we're at the sentinel node, the previous node is the list's tail
       if (node_ == reinterpret_cast<T *>(sentinel_end)) {
-        node_ = node_ = is_reverse_iterator ? list_->head() : list_->tail();
+        node_ = is_reverse_iterator ? list_->head() : list_->tail();
       } else {
         node_ = is_reverse_iterator ? node_->next() : node_->prev();
       }

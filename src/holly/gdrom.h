@@ -1,6 +1,7 @@
 #ifndef GDROM_H
 #define GDROM_H
 
+#include <memory>
 #include "emu/disc.h"
 #include "emu/memory.h"
 

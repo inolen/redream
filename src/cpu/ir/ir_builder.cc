@@ -40,6 +40,7 @@ uint64_t Value::GetZExtValue() const {
     case VALUE_BLOCK:
       return reinterpret_cast<intptr_t>(block_);
   }
+  return 0;
 }
 
 void Value::AddRef(ValueRef *ref) { refs_.Append(ref); }

@@ -1,7 +1,7 @@
 #ifndef SH4_TEST_H
 #define SH4_TEST_H
 
-#include <unordered_map>
+#include <map>
 
 enum {
 #define SH4CTX(name, member, type) SH4CTX_##name,
@@ -21,8 +21,8 @@ extern SH4CTXReg sh4ctx_reg[NUM_SH4CTX_REGS];
 struct SH4Test {
   uint8_t *buffer;
   size_t buffer_size;
-  std::unordered_map<int, uint64_t> r_in;
-  std::unordered_map<int, uint64_t> r_out;
+  std::map<int, uint64_t> r_in;
+  std::map<int, uint64_t> r_out;
 };
 
 #endif

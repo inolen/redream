@@ -1,6 +1,7 @@
 #ifndef DREAVM_CORE_H
 #define DREAVM_CORE_H
 
+#include <gflags/gflags.h>
 #include <glog/logging.h>
 #include "core/arena.h"
 #include "core/hash.h"
