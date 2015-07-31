@@ -31,6 +31,12 @@ bool SH4::Init(Runtime *runtime) {
   return true;
 }
 
+void SH4::Reset(uint32_t pc) {
+  InitContext();
+
+  ctx_.pc = pc;
+}
+
 int64_t SH4::Execute(int64_t cycles) {
   // LOG(INFO) << "Executing " << cycles << " cycles @ 0x" << std::hex <<
   // ctx_.pc;
@@ -257,7 +263,6 @@ void SH4::InitContext() {
   memset(&ctx_, 0, sizeof(ctx_));
   ctx_.sh4 = this;
   ctx_.pc = 0xa0000000;
-  // ctx_.pc = 0x0c010000;
   ctx_.pr = 0xdeadbeef;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   if (default != HELD) {                                                 \

@@ -41,7 +41,7 @@ bool GDI::Load(const char *filename) {
 
   // get gdi dirname to help resolve track paths
   char dirname[PATH_MAX];
-  get_dirname(filename, dirname, sizeof(dirname));
+  core::dirname(filename, dirname, sizeof(dirname));
 
   for (int i = 0; i < num_tracks; i++) {
     int num, lba, ctrl, sector_size, file_offset;

@@ -18,6 +18,9 @@ using namespace dreavm::holly;
 using namespace dreavm::renderer;
 using namespace dreavm::system;
 
+DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
+DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
+
 Emulator::Emulator(System &sys)
     : sys_(sys),
       runtime_(memory_),
@@ -49,11 +52,11 @@ bool Emulator::Init() {
     return false;
   }
 
-  if (!LoadBios("../dreamcast/dc_bios.bin")) {
+  if (!LoadBios(FLAGS_bios.c_str())) {
     return false;
   }
 
-  if (!LoadFlash("../dreamcast/dc_flash.bin")) {
+  if (!LoadFlash(FLAGS_flash.c_str())) {
     return false;
   }
 
@@ -72,6 +75,18 @@ bool Emulator::Init() {
   }
 
   return true;
+}
+
+bool Emulator::Launch(const char *path) {
+  LOG(INFO) << "Launching " << path;
+
+  if (strstr(path, ".bin")) {
+    return LaunchBIN(path);
+  } else if (strstr(path, ".gdi")) {
+    return LaunchGDI(path);
+  }
+
+  return false;
 }
 
 bool Emulator::LaunchBIN(const char *path) {
@@ -97,6 +112,10 @@ bool Emulator::LaunchBIN(const char *path) {
   // loaded to
   memory_.Memcpy(0x0c010000, data, size);
   free(data);
+
+  // restart to where the bin was loaded
+  processor_.Reset(0x0c010000);
+
   return true;
 }
 
@@ -108,6 +127,9 @@ bool Emulator::LaunchGDI(const char *path) {
   }
 
   holly_.gdrom().SetDisc(std::move(gdi));
+
+  // restart to bios
+  processor_.Reset(0xa0000000);
 
   return true;
 }

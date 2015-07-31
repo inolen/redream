@@ -19,15 +19,15 @@ class Emulator {
   ~Emulator();
 
   bool Init();
-
-  bool LaunchBIN(const char *path);
-  bool LaunchGDI(const char *path);
+  bool Launch(const char *path);
   void Tick();
 
  private:
   bool MountRam();
   bool LoadBios(const char *path);
   bool LoadFlash(const char *path);
+  bool LaunchBIN(const char *path);
+  bool LaunchGDI(const char *path);
   void PumpEvents();
   void RenderFrame();
 

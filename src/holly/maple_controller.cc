@@ -9,7 +9,7 @@ using namespace dreavm::holly;
 using namespace dreavm::system;
 using namespace json11;
 
-DEFINE_string(controller_profile, "", "Controller profile");
+DEFINE_string(profile, "", "Controller profile");
 
 // Controller profile contains button mappings and other misc. configurable
 // settings for the controller.
@@ -98,7 +98,7 @@ MapleController::MapleController() {
   state_.joyy = state_.joyx = state_.joyx2 = state_.joyy2 = 0x80;
 
   // load profile
-  profile_.Load(FLAGS_controller_profile.c_str());
+  profile_.Load(FLAGS_profile.c_str());
 }
 
 bool MapleController::HandleInput(Keycode key, int16_t value) {

@@ -1,6 +1,54 @@
-#include "core/core.h"
+#include <algorithm>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#ifdef PLATFORM_WINDOWS
+#include <userenv.h>
+#else
+#include <pwd.h>
+#endif
 
-void get_dirname(const char *path, char *dir, size_t size) {
+#include "core/platform.h"
+
+namespace dreavm {
+namespace core {
+
+bool getuserdir(char *userdir, size_t size) {
+#ifdef PLATFORM_WINDOWS
+  HANDLE accessToken = NULL;
+  HANDLE processHandle = GetCurrentProcess();
+  if (!OpenProcessToken(processHandle, TOKEN_QUERY, &accessToken)) {
+    return false;
+  }
+
+  if (!GetUserProfileDirectory(accessToken, (LPSTR)userdir, (LPDWORD)&size)) {
+    CloseHandle(accessToken);
+    return false;
+  }
+
+  CloseHandle(accessToken);
+  return true;
+#else
+  const char *home = getenv("HOME");
+
+  if (home) {
+    strncpy(userdir, home, size);
+    return true;
+  }
+
+  struct passwd *pw = getpwuid(getuid());
+  if (pw->pw_dir) {
+    strncpy(userdir, pw->pw_dir, size);
+    return true;
+  }
+
+  return false;
+#endif
+}
+
+void dirname(const char *path, char *dir, size_t size) {
   if (!path || !*path) {
     strncpy(dir, ".", size);
     return;
@@ -26,7 +74,7 @@ void get_dirname(const char *path, char *dir, size_t size) {
   dir[n] = 0;
 }
 
-void get_basename(const char *path, char *base, size_t size) {
+void basename(const char *path, char *base, size_t size) {
   if (!path || !*path) {
     strncpy(base, ".", size);
     return;
@@ -39,4 +87,25 @@ void get_basename(const char *path, char *base, size_t size) {
   size_t n = std::min(len - i, size - 1);
   strncpy(base, path + i, n);
   base[n] = 0;
+}
+
+bool exists(const char *path) {
+#ifdef PLATFORM_WINDOWS
+  struct _stat buffer;
+  return _stat(path, &buffer) == 0;
+#else
+  struct stat buffer;
+  return stat(path, &buffer) == 0;
+#endif
+}
+
+bool mkdir(const char *path) {
+#ifdef PLATFORM_WINDOWS
+  int res = ::_mkdir(path);
+#else
+  int res = ::mkdir(path, 0755);
+#endif
+  return res == 0 || errno == EEXIST;
+}
+}
 }

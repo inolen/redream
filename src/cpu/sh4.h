@@ -116,6 +116,7 @@ class SH4 : public emu::Device {
   int64_t GetClockFrequency() { return 200000000; }
 
   bool Init(Runtime *runtime);
+  void Reset(uint32_t pc);
   int64_t Execute(int64_t cycles);
 
   // DMAC

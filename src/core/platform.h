@@ -1,8 +1,6 @@
 #ifndef DREAVM_PLATFORM_H
 #define DREAVM_PLATFORM_H
 
-#include <stdio.h>
-
 #if defined(__linux)
 #define PLATFORM_LINUX
 #elif defined(__APPLE__)
@@ -11,29 +9,32 @@
 #define PLATFORM_WINDOWS
 #endif
 
-#ifdef _MSC_VER
+#ifdef PLATFORM_WINDOWS
 
 #include <direct.h>
-
-#define getcwd _getcwd
-#define snprintf _snprintf
 
 #define PATH_SEPARATOR "\\"
 #define PATH_MAX MAX_PATH
 
 #else
 
-#include <unistd.h>
 #include <limits.h>
 
 #define PATH_SEPARATOR "/"
 
 #endif
 
-#include <stddef.h>
-#include <stdint.h>
+namespace dreavm {
+namespace core {
 
-void get_dirname(const char *path, char *dir, size_t size);
-void get_basename(const char *path, char *base, size_t size);
+bool getuserdir(char *userdir, size_t size);
+
+void dirname(const char *path, char *dir, size_t size);
+void basename(const char *path, char *base, size_t size);
+
+bool exists(const char *path);
+bool mkdir(const char *path);
+}
+}
 
 #endif
