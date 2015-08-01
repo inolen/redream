@@ -1,5 +1,5 @@
-#ifndef HASH_H
-#define HASH_H
+#ifndef DREAVM_HASH_H
+#define DREAVM_HASH_H
 
 #include <stddef.h>
 #include <functional>

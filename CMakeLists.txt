@@ -51,7 +51,7 @@ else()
 endif()
 
 set(DREAVM_SOURCES
-  src/core/platform.cc
+  src/core/filesystem.cc
   src/cpu/backend/interpreter/interpreter_backend.cc
   src/cpu/backend/interpreter/interpreter_block.cc
   src/cpu/backend/interpreter/interpreter_callbacks.cc
@@ -268,7 +268,7 @@ add_custom_command(OUTPUT ${asm_inc}
 
 # build gtest binary
 set(DREAVM_TEST_SOURCES
-  src/core/platform.cc
+  src/core/filesystem.cc
   src/cpu/backend/interpreter/interpreter_backend.cc
   src/cpu/backend/interpreter/interpreter_block.cc
   src/cpu/backend/interpreter/interpreter_callbacks.cc

@@ -7,7 +7,7 @@
 #include "core/hash.h"
 #include "core/intrusive_list.h"
 #include "core/math.h"
+#include "core/filesystem.h"
 #include "core/platform.h"
-#include "core/types.h"
 
 #endif

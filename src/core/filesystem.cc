@@ -9,13 +9,12 @@
 #else
 #include <pwd.h>
 #endif
-
-#include "core/platform.h"
+#include "core/core.h"
 
 namespace dreavm {
 namespace core {
 
-bool getuserdir(char *userdir, size_t size) {
+static bool GetUserDir(char *userdir, size_t size) {
 #ifdef PLATFORM_WINDOWS
   HANDLE accessToken = NULL;
   HANDLE processHandle = GetCurrentProcess();
@@ -48,7 +47,34 @@ bool getuserdir(char *userdir, size_t size) {
 #endif
 }
 
-void dirname(const char *path, char *dir, size_t size) {
+const char *GetAppDir() {
+  static char appdir[PATH_MAX] = {};
+
+  if (appdir[0]) {
+    return appdir;
+  }
+
+  // get the user's home directory
+  char userdir[PATH_MAX];
+  if (!GetUserDir(userdir, sizeof(userdir))) {
+    LOG(FATAL) << "Failed to locate user directory";
+  }
+
+  // setup our own subdirectory inside of it
+  snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR ".dreavm", userdir);
+
+  return appdir;
+}
+
+void EnsureAppDirExists() {
+  const char *appdir = GetAppDir();
+
+  if (!CreateDir(appdir)) {
+    LOG(FATAL) << "Failed to create app directory " << appdir;
+  }
+}
+
+void DirName(const char *path, char *dir, size_t size) {
   if (!path || !*path) {
     strncpy(dir, ".", size);
     return;
@@ -74,7 +100,7 @@ void dirname(const char *path, char *dir, size_t size) {
   dir[n] = 0;
 }
 
-void basename(const char *path, char *base, size_t size) {
+void BaseName(const char *path, char *base, size_t size) {
   if (!path || !*path) {
     strncpy(base, ".", size);
     return;
@@ -89,7 +115,7 @@ void basename(const char *path, char *base, size_t size) {
   base[n] = 0;
 }
 
-bool exists(const char *path) {
+bool Exists(const char *path) {
 #ifdef PLATFORM_WINDOWS
   struct _stat buffer;
   return _stat(path, &buffer) == 0;
@@ -99,11 +125,11 @@ bool exists(const char *path) {
 #endif
 }
 
-bool mkdir(const char *path) {
+bool CreateDir(const char *path) {
 #ifdef PLATFORM_WINDOWS
-  int res = ::_mkdir(path);
+  int res = _mkdir(path);
 #else
-  int res = ::mkdir(path, 0755);
+  int res = mkdir(path, 0755);
 #endif
   return res == 0 || errno == EEXIST;
 }

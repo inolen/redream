@@ -7,58 +7,23 @@ using namespace dreavm::core;
 using namespace dreavm::emu;
 using namespace dreavm::system;
 
-const char *GetAppDir() {
-  static char appdir[PATH_MAX] = {};
-
-  if (appdir[0]) {
-    return appdir;
-  }
-
-  // get the user's home directory
-  char userdir[PATH_MAX];
-  if (!getuserdir(userdir, sizeof(userdir))) {
-    return nullptr;
-  }
-
-  // setup our own subdirectory inside of it
-  char tmp[PATH_MAX];
-  snprintf(tmp, sizeof(tmp), "%s" PATH_SEPARATOR ".dreavm", userdir);
-
-  // ensure the subdirectory actually exists
-  if (!mkdir(tmp)) {
-    return nullptr;
-  }
-
-  strncpy(appdir, tmp, sizeof(appdir));
-
-  return appdir;
-}
-
 void InitFlags(int *argc, char ***argv) {
-  // get the flag file path
-  char flagfile[PATH_MAX] = {};
-
   const char *appdir = GetAppDir();
-  if (appdir) {
-    snprintf(flagfile, sizeof(flagfile), "%s" PATH_SEPARATOR "flags", appdir);
-  }
+
+  char flagfile[PATH_MAX] = {};
+  snprintf(flagfile, sizeof(flagfile), "%s" PATH_SEPARATOR "flags", appdir);
 
   // read any saved flags
-  if (flagfile[0]) {
-    if (exists(flagfile)) {
-      google::ReadFromFlagsFile(flagfile, nullptr, false);
-    }
+  if (Exists(flagfile)) {
+    google::ReadFromFlagsFile(flagfile, nullptr, false);
   }
 
   // parse new flags from the command line
   google::ParseCommandLineFlags(argc, argv, true);
 
   // update saved flags
-  if (flagfile[0]) {
-    remove(flagfile);
-
-    google::AppendFlagsIntoFile(flagfile, nullptr);
-  }
+  remove(flagfile);
+  google::AppendFlagsIntoFile(flagfile, nullptr);
 }
 
 void ShutdownFlags() { google::ShutDownCommandLineFlags(); }
@@ -89,6 +54,8 @@ int main(int argc, char **argv) {
   // log to stderr by default
   FLAGS_logtostderr = true;
   google::InitGoogleLogging(argv[0]);
+
+  EnsureAppDirExists();
 
   InitFlags(&argc, &argv);
 

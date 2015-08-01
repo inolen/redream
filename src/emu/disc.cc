@@ -4,6 +4,7 @@
 #define PREGAP_SIZE 150
 
 using namespace dreavm;
+using namespace dreavm::core;
 using namespace dreavm::emu;
 
 //
@@ -41,7 +42,7 @@ bool GDI::Load(const char *filename) {
 
   // get gdi dirname to help resolve track paths
   char dirname[PATH_MAX];
-  core::dirname(filename, dirname, sizeof(dirname));
+  DirName(filename, dirname, sizeof(dirname));
 
   for (int i = 0; i < num_tracks; i++) {
     int num, lba, ctrl, sector_size, file_offset;
