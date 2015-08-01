@@ -2,7 +2,9 @@
 
 dreavm is a work in progress emulator for the SEGA Dreamcast.
 
-![Main menu](http://i.imgur.com/gkbNJnE.png)
+<p align="center">
+<a href="http://www.youtube.com/watch?v=si7OgWwEQYA"><img src="http://share.gifyoutube.com/vMZXGb.gif" /></a>
+</p>
 
 ## Building
 
