@@ -9,12 +9,13 @@ using namespace dreavm::emu;
 using namespace dreavm::holly;
 using namespace dreavm::renderer;
 
-PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly)
+PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly,
+           TileAccelerator &ta)
     : scheduler_(scheduler),
       memory_(memory),
       holly_(holly),
+      ta_(ta),
       rb_(nullptr),
-      ta_(memory_, holly, *this),
       line_timer_(INVALID_HANDLE),
       current_scanline_(0),
       fps_(0),
@@ -26,27 +27,6 @@ bool PVR2::Init(Backend *rb) {
   InitMemory();
   ReconfigureVideoOutput();
   ReconfigureSPG();
-
-  if (!ta_.Init(rb)) {
-    return false;
-  }
-
-  // scheduler_.AddTimer(HZ_TO_NANO(60), [&]() {
-  //   rb_->BeginFrame();
-
-  //   uint32_t framebuffer_start = VRAM_START;
-  //   int pos = 0;
-
-  //   for (int i = 0; i < 480; i++) {
-  //     for (int j = 0; j < 640; j++) {
-  //       uint16_t rgba = memory_.R16(framebuffer_start + pos);
-  //       rb_->BitBlt(j, i, rgba);
-  //       pos += 2;
-  //     }
-  //   }
-
-  //   rb_->EndFrame();
-  // });
 
   return true;
 }

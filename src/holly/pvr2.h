@@ -216,7 +216,8 @@ class PVR2 {
   friend class TileAccelerator;
 
  public:
-  PVR2(emu::Scheduler &scheduler, emu::Memory &memory, Holly &holly);
+  PVR2(emu::Scheduler &scheduler, emu::Memory &memory, Holly &holly,
+       TileAccelerator &ta);
 
   float fps() { return fps_; }
   float vbps() { return vbps_; }
@@ -240,9 +241,9 @@ class PVR2 {
   emu::Scheduler &scheduler_;
   emu::Memory &memory_;
   Holly &holly_;
+  TileAccelerator &ta_;
   renderer::Backend *rb_;
 
-  TileAccelerator ta_;
   std::unordered_map<uint32_t, renderer::TextureHandle> textures_;
 
   emu::TimerHandle line_timer_;

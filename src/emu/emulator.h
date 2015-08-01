@@ -37,6 +37,10 @@ class Emulator {
   cpu::Runtime runtime_;
   cpu::SH4 processor_;
   holly::Holly holly_;
+  holly::PVR2 pvr_;
+  holly::TileAccelerator ta_;
+  holly::GDROM gdrom_;
+  holly::Maple maple_;
   cpu::frontend::Frontend *rt_frontend_;
   cpu::backend::Backend *rt_backend_;
   renderer::Backend *rb_;

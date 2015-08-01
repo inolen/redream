@@ -10,33 +10,14 @@ using namespace dreavm::holly;
 using namespace dreavm::renderer;
 using namespace dreavm::system;
 
-Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4)
-    : memory_(memory),
-      sh4_(sh4),
-      pvr_(scheduler, memory, *this),
-      gdrom_(memory, *this),
-      maple_(memory, sh4, *this) {}
+Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4, PVR2 &pvr,
+             GDROM &gdrom, Maple &maple)
+    : memory_(memory), sh4_(sh4), pvr_(pvr), gdrom_(gdrom), maple_(maple) {}
 
-bool Holly::Init(Backend *rb) {
+bool Holly::Init() {
   InitMemory();
 
-  if (!pvr_.Init(rb)) {
-    return false;
-  }
-
-  if (!gdrom_.Init()) {
-    return false;
-  }
-
-  if (!maple_.Init()) {
-    return false;
-  }
-
   return true;
-}
-
-bool Holly::HandleInput(int port, Keycode key, int16_t value) {
-  return maple_.HandleInput(port, key, value);
 }
 
 void Holly::RequestInterrupt(Interrupt intr) {

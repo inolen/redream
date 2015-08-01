@@ -25,7 +25,11 @@ Emulator::Emulator(System &sys)
     : sys_(sys),
       runtime_(memory_),
       processor_(scheduler_, memory_),
-      holly_(scheduler_, memory_, processor_) {
+      holly_(scheduler_, memory_, processor_, pvr_, gdrom_, maple_),
+      pvr_(scheduler_, memory_, holly_, ta_),
+      ta_(memory_, holly_, pvr_),
+      gdrom_(memory_, holly_),
+      maple_(memory_, processor_, holly_) {
   rt_frontend_ = new SH4Frontend(memory_);
   // rt_backend_ = new InterpreterBackend(memory_);
   rt_backend_ = new X64Backend(memory_);
@@ -64,9 +68,23 @@ bool Emulator::Init() {
     return false;
   }
 
-  // order here is important, sh4 memory handlers need to override
-  // some of the broader holly handlers
-  if (!holly_.Init(rb_)) {
+  if (!holly_.Init()) {
+    return false;
+  }
+
+  if (!pvr_.Init(rb_)) {
+    return false;
+  }
+
+  if (!ta_.Init(rb_)) {
+    return false;
+  }
+
+  if (!gdrom_.Init()) {
+    return false;
+  }
+
+  if (!maple_.Init()) {
     return false;
   }
 
@@ -126,7 +144,7 @@ bool Emulator::LaunchGDI(const char *path) {
     return false;
   }
 
-  holly_.gdrom().SetDisc(std::move(gdi));
+  gdrom_.SetDisc(std::move(gdi));
 
   // restart to bios
   processor_.Reset(0xa0000000);
@@ -227,7 +245,7 @@ void Emulator::PumpEvents() {
       // let the profiler take a stab at the input first
       if (!Profiler::HandleInput(ev.key.code, ev.key.value)) {
         // else, forward to holly
-        holly_.HandleInput(0, ev.key.code, ev.key.value);
+        maple_.HandleInput(0, ev.key.code, ev.key.value);
       }
     } else if (ev.type == SE_MOUSEMOVE) {
       Profiler::HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
@@ -246,7 +264,7 @@ void Emulator::RenderFrame() {
   // render stats
   char stats[512];
   snprintf(stats, sizeof(stats), "%.2f%%, %.2f fps, %.2f vbps",
-           scheduler_.perf(), holly_.fps(), holly_.vbps());
+           scheduler_.perf(), pvr_.fps(), pvr_.vbps());
   LOG_EVERY_N(INFO, 10) << stats;
   rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
 
