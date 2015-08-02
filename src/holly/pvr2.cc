@@ -19,7 +19,15 @@ PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly,
       line_timer_(INVALID_HANDLE),
       current_scanline_(0),
       fps_(0),
-      vbps_(0) {}
+      vbps_(0) {
+  vram_ = reinterpret_cast<uint8_t *>(calloc(VRAM_SIZE, 1));
+  pram_ = reinterpret_cast<uint8_t *>(calloc(PVR_PAL_SIZE, 1));
+}
+
+PVR2::~PVR2() {
+  free(vram_);
+  free(pram_);
+}
 
 bool PVR2::Init(Backend *rb) {
   rb_ = rb;
@@ -32,13 +40,13 @@ bool PVR2::Init(Backend *rb) {
 }
 
 TextureHandle PVR2::GetTexture(TSP tsp, TCW tcw) {
-  static uint8_t texture[1024 * 1024 * 4];
-  static uint8_t palette[0x1000];
   static uint8_t converted[1024 * 1024 * 4];
-  static uint8_t *buffer = texture;
+  uint8_t *texture = nullptr;
+  uint8_t *palette = nullptr;
+  uint8_t *buffer = texture;
 
   // TCW texture_addr field is in 64-bit units
-  uint32_t texture_addr = TEXRAM_START + (tcw.texture_addr << 3);
+  uint32_t texture_addr = tcw.texture_addr << 3;
 
   // see if we already have an entry
   auto it = textures_.find(texture_addr);
@@ -68,13 +76,7 @@ TextureHandle PVR2::GetTexture(TSP tsp, TCW tcw) {
   // }
 
   // read texture
-  int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
-                              ? 8
-                              : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
-  int texture_size = (width * height * element_size_bits) >> 3;
-  for (int i = 0; i < texture_size; i++) {
-    texture[i] = memory_.R8(texture_addr + i);
-  }
+  texture = &vram_[texture_addr];
 
   // read palette
   if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
@@ -85,9 +87,7 @@ TextureHandle PVR2::GetTexture(TSP tsp, TCW tcw) {
       // in 8BPP palette mode, only the upper two bits are valid
       palette_addr |= ((tcw.p.palette_selector & 0x30) << 4);
     }
-    for (int i = 0; i < 0x1000; i++) {
-      palette[i] = memory_.R8(palette_addr + i);
-    }
+    palette = &pram_[palette_addr];
   }
 
   // we need to read the image data
@@ -241,21 +241,23 @@ TextureHandle PVR2::GetTexture(TSP tsp, TCW tcw) {
 // 0x0500000c = 0x0400018
 // 0x0540000c = 0x040001c
 static uint32_t MAP64(uint32_t addr) {
-  return 0x05000000 | (((addr & 0x003ffffc) << 1) +
-                       ((addr & 0x00400000) >> 20) + (addr & 0x3));
+  return (((addr & 0x003ffffc) << 1) + ((addr & 0x00400000) >> 20) +
+          (addr & 0x3));
 }
 
-// template <typename T>
-// T PVR2::ReadInterleaved(void *ctx, uint32_t addr) {
-//   PVR2 *pvr = reinterpret_cast<PVR2 *>(ctx);
-//   return pvr->vram_[MAP64(addr)]);
-// }
+template <typename T>
+T PVR2::ReadInterleaved(void *ctx, uint32_t addr) {
+  PVR2 *pvr = reinterpret_cast<PVR2 *>(ctx);
+  addr = MAP64(addr);
+  return *reinterpret_cast<T *>(&pvr->vram_[addr]);
+}
 
-// template <typename T>
-// void PVR2::WriteInterleaved(void *ctx, uint32_t addr, T value) {
-//   PVR2 *pvr = reinterpret_cast<PVR2 *>(ctx);
-//   *reinterpret_cast<T *>(&pvr->vram_[MAP64(addr)]) = value;
-// }
+template <typename T>
+void PVR2::WriteInterleaved(void *ctx, uint32_t addr, T value) {
+  PVR2 *pvr = reinterpret_cast<PVR2 *>(ctx);
+  addr = MAP64(addr);
+  *reinterpret_cast<T *>(&pvr->vram_[addr]) = value;
+}
 
 uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
   PVR2 *pvr = (PVR2 *)ctx;
@@ -305,12 +307,16 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
 }
 
 void PVR2::InitMemory() {
-  // memory_.Handle(VRAM64_BASE, VRAM64_BASE + VRAM_SIZE - 1, 0xe0000000, this,
-  //               &PVR2::ReadInterleaved<uint8_t>,
-  //               &PVR2::ReadInterleaved<uint16_t>,
-  //               &PVR2::ReadInterleaved<uint32_t>, nullptr, nullptr,
-  //               &PVR2::WriteInterleaved<uint16_t>,
-  //               &PVR2::WriteInterleaved<uint32_t>, nullptr);
+  memory_.Mount(VRAM32_BASE, VRAM32_BASE + VRAM_SIZE - 1, 0xe0000000, vram_);
+  memory_.Handle(VRAM64_BASE, VRAM64_BASE + VRAM_SIZE - 1, 0xe0000000, this,
+                 &PVR2::ReadInterleaved<uint8_t>,
+                 &PVR2::ReadInterleaved<uint16_t>,
+                 &PVR2::ReadInterleaved<uint32_t>, nullptr, nullptr,
+                 &PVR2::WriteInterleaved<uint16_t>,
+                 &PVR2::WriteInterleaved<uint32_t>, nullptr);
+  memory_.Mount(PVR_PAL_BASE, PVR_PAL_BASE + PVR_PAL_SIZE - 1, 0xe0000000,
+                pram_);
+
   memory_.Handle(PVR_REG_BASE, PVR_REG_BASE + PVR_REG_SIZE - 1, 0xe0000000,
                  this, &PVR2::ReadRegister, &PVR2::WriteRegister);
 

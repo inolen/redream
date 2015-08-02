@@ -384,7 +384,7 @@ void TileAccelerator::WriteCmdInput(void *ctx, uint32_t addr, uint32_t value) {
 
 void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
   TileAccelerator *ta = (TileAccelerator *)ctx;
-  uint32_t dest_addr = TEXRAM_START + (addr & 0xeeffffff);
+  uint32_t dest_addr = VRAM32_BASE + (addr & 0xeeffffff);
 
   // FIXME this is slow
   // FIXME this really shouldn't be here
@@ -402,7 +402,7 @@ bool TileAccelerator::AutoSortEnabled() {
   if (!pvr_.FPU_PARAM_CFG.region_header_type) {
     return !pvr_.ISP_FEED_CFG.presort;
   }
-  uint32_t region_data = memory_.R32(VRAM_START + pvr_.REGION_BASE);
+  uint32_t region_data = memory_.R32(VRAM64_BASE + pvr_.REGION_BASE);
   return !(region_data & 0x20000000);
 }
 
@@ -554,7 +554,7 @@ void TileAccelerator::ParseBackground(TAContext *tactx) {
   // ever available at 0x0 when booting the bios, so masking this seems to
   // be the correct solution
   uint32_t vram_offset =
-      VRAM_START +
+      VRAM64_BASE +
       ((tactx->addr + pvr_.ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
 
   // get surface parameters

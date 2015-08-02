@@ -22,8 +22,6 @@ enum {
   PVR_REG_SIZE = 0x2000,
   PVR_PAL_BASE = 0x005f9000,
   PVR_PAL_SIZE = 0x1000,
-  TEXRAM_START = 0x04000000,
-  VRAM_START = 0x05000000,
   PIXEL_CLOCK = 27000000,  // 27mhz
 #define PVR_REG(addr, name, flags, default_value, type) \
   name##_OFFSET = addr - PVR_REG_BASE,
@@ -218,6 +216,7 @@ class PVR2 {
  public:
   PVR2(emu::Scheduler &scheduler, emu::Memory &memory, Holly &holly,
        TileAccelerator &ta);
+  ~PVR2();
 
   float fps() { return fps_; }
   float vbps() { return vbps_; }
@@ -251,6 +250,9 @@ class PVR2 {
 
   std::chrono::high_resolution_clock::time_point last_frame_, last_vblank_;
   float fps_, vbps_;
+
+  uint8_t *vram_;
+  uint8_t *pram_;
 
   Register regs_[PVR_REG_SIZE >> 2];
 
