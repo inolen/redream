@@ -86,10 +86,10 @@ bool GLBackend::Init() {
 
 TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
                                          int width, int height,
-                                         uint8_t *buffer) {
+                                         const uint8_t *buffer) {
   // FIXME worth speeding up?
   TextureHandle handle;
-  for (handle = 0; handle < MAX_TEXTURES; handle++) {
+  for (handle = 1; handle < MAX_TEXTURES; handle++) {
     if (!textures_[handle]) {
       break;
     }
@@ -448,7 +448,7 @@ void GLBackend::InitTextures() {
 void GLBackend::DestroyTextures() {
   glDeleteTextures(1, &white_tex_);
 
-  for (int i = 0; i < MAX_TEXTURES; i++) {
+  for (int i = 1; i < MAX_TEXTURES; i++) {
     if (!textures_[i]) {
       continue;
     }

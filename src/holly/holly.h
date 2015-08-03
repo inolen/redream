@@ -7,11 +7,12 @@
 #include "holly/maple.h"
 #include "holly/pvr2.h"
 #include "holly/register.h"
+#include "renderer/backend.h"
 #include "system/keys.h"
 
 namespace dreavm {
 
-namespace sh4 {
+namespace cpu {
 class SH4;
 }
 
@@ -169,10 +170,13 @@ class Holly {
   friend class Maple;
 
  public:
-  Holly(emu::Scheduler &scheduler, emu::Memory &memory, cpu::SH4 &sh4,
-        PVR2 &pvr, GDROM &gdrom, Maple &maple);
+  Holly(emu::Scheduler &scheduler, emu::Memory &memory, cpu::SH4 &sh4);
 
-  bool Init();
+  PVR2 &pvr() { return pvr_; }
+  GDROM &gdrom() { return gdrom_; }
+  Maple &maple() { return maple_; }
+
+  bool Init(renderer::Backend *rb);
   void RequestInterrupt(Interrupt intr);
   void UnrequestInterrupt(Interrupt intr);
 
@@ -189,9 +193,9 @@ class Holly {
 
   emu::Memory &memory_;
   cpu::SH4 &sh4_;
-  PVR2 &pvr_;
-  GDROM &gdrom_;
-  Maple &maple_;
+  PVR2 pvr_;
+  GDROM gdrom_;
+  Maple maple_;
   Register regs_[SB_REG_SIZE >> 2];
 
 #define HOLLY_REG(offset, name, flags, default, type) \

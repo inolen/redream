@@ -1,8 +1,9 @@
-#ifndef TA_H
-#define TA_H
+#ifndef TILE_ACCELERATOR_H
+#define TILE_ACCELERATOR_H
 
 #include <unordered_map>
 #include "emu/memory.h"
+#include "holly/tile_renderer.h"
 #include "renderer/backend.h"
 
 namespace dreavm {
@@ -10,11 +11,6 @@ namespace holly {
 
 class Holly;
 class PVR2;
-
-enum {  //
-  MAX_SURFACES = 0x10000,
-  MAX_VERTICES = 0x10000
-};
 
 enum {
   // control params
@@ -439,13 +435,24 @@ union VertexParam {
   } sprite1;
 };
 
-struct TAContext {
-  TAContext()
-      : addr(0), cursor(0), size(0), last_poly(nullptr), last_vertex(nullptr) {}
+enum {
+  // worst case background vertex size, see ISP_BACKGND_T field
+  BG_VERTEX_SIZE = (0b111 * 2 + 3) * 4 * 3
+};
 
+struct TileContext {
   uint32_t addr;
 
-  // incoming commands
+  // pvr state
+  bool autosort;
+  int stride;
+  int pal_pxl_format;
+  ISP_TSP bg_isp;
+  TSP bg_tsp;
+  TCW bg_tcw;
+  uint8_t bg_vertices[BG_VERTEX_SIZE];
+
+  // command buffer
   uint8_t data[0x100000];
   int cursor;
   int size;
@@ -455,57 +462,53 @@ struct TAContext {
   const VertexParam *last_vertex;
   int list_type;
   int vertex_type;
-  float face_color[4];
-  float face_offset_color[4];
+};
 
-  // current render state
-  renderer::Surface surfs[MAX_SURFACES];
-  renderer::Vertex verts[MAX_VERTICES];
-  int num_surfs;
-  int num_verts;
-  int sorted_surfs[MAX_SURFACES];
-  int last_sorted_surf;
+class TileTextureCache : public TextureCache {
+ public:
+  TileTextureCache(PVR2 &pvr);
+
+  renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
+                                     RegisterTextureCallback register_cb);
+  void InvalidateTexture(uint32_t addr);
+
+ private:
+  PVR2 &pvr_;
+  std::unordered_map<uint32_t, renderer::TextureHandle> textures_;
 };
 
 class TileAccelerator {
+  friend class TileTextureCache;
+
  public:
+  static size_t GetParamSize(const PCW &pcw, int vertex_type);
+  static int GetPolyType(const PCW &pcw);
+  static int GetVertexType(const PCW &pcw);
+
   TileAccelerator(emu::Memory &memory, Holly &holly, PVR2 &pvr);
   ~TileAccelerator();
 
   bool Init(renderer::Backend *rb);
-
   void SoftReset();
   void InitContext(uint32_t addr);
-  void StartRender(uint32_t addr);
+  void WriteContext(uint32_t addr, uint32_t value);
+  void RenderContext(uint32_t addr);
 
  private:
-  static void WriteCmdInput(void *ctx, uint32_t addr, uint32_t value);
+  static void WriteCommand(void *ctx, uint32_t addr, uint32_t value);
   static void WriteTexture(void *ctx, uint32_t addr, uint32_t value);
 
-  bool AutoSortEnabled();
-
-  TAContext *GetContext(uint32_t addr);
-  renderer::Surface *AllocSurf(TAContext *tactx);
-  renderer::Vertex *AllocVert(TAContext *tactx);
-  void ParseColor(TAContext *tactx, uint32_t base_color, float *color);
-  void ParseColor(TAContext *tactx, float r, float g, float b, float a,
-                  float *color);
-  void ParseColor(TAContext *tactx, float intensity, float *color);
-  void ParseOffsetColor(TAContext *tactx, uint32_t offset_color, float *color);
-  void ParseOffsetColor(TAContext *tactx, float r, float g, float b, float a,
-                        float *color);
-  void ParseOffsetColor(TAContext *tactx, float intensity, float *color);
-  void ParseBackground(TAContext *tactx);
-  void ParsePolyParam(TAContext *tactx, const PolyParam *param);
-  void ParseVertexParam(TAContext *tactx, const VertexParam *param);
-  void ParseEndOfList(TAContext *tactx);
-  void NormalizeZ(TAContext *tactx);
+  TileContext *GetContext(uint32_t addr);
+  void WritePVRState(TileContext *tactx);
+  void WriteBackgroundState(TileContext *tactx);
 
   emu::Memory &memory_;
   Holly &holly_;
   PVR2 &pvr_;
   renderer::Backend *rb_;
-  std::unordered_map<uint32_t, TAContext *> contexts_;
+  TileTextureCache texcache_;
+  TileRenderer renderer_;
+  std::unordered_map<uint32_t, TileContext *> contexts_;
 };
 }
 }

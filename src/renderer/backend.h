@@ -111,7 +111,7 @@ class Backend {
 
   virtual TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
                                         int width, int height,
-                                        uint8_t *buffer) = 0;
+                                        const uint8_t *buffer) = 0;
   virtual void FreeTexture(TextureHandle handle) = 0;
 
   virtual void ResizeFramebuffer(Framebuffer fb, int width, int height) = 0;

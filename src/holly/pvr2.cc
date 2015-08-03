@@ -1,5 +1,4 @@
 #include "holly/holly.h"
-#include "holly/pixel_convert.h"
 #include "holly/pvr2.h"
 
 using namespace dreavm;
@@ -9,12 +8,11 @@ using namespace dreavm::emu;
 using namespace dreavm::holly;
 using namespace dreavm::renderer;
 
-PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly,
-           TileAccelerator &ta)
+PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly)
     : scheduler_(scheduler),
       memory_(memory),
       holly_(holly),
-      ta_(ta),
+      ta_(memory, holly, *this),
       rb_(nullptr),
       line_timer_(INVALID_HANDLE),
       current_scanline_(0),
@@ -32,196 +30,15 @@ PVR2::~PVR2() {
 bool PVR2::Init(Backend *rb) {
   rb_ = rb;
 
+  if (!ta_.Init(rb_)) {
+    return false;
+  }
+
   InitMemory();
   ReconfigureVideoOutput();
   ReconfigureSPG();
 
   return true;
-}
-
-TextureHandle PVR2::GetTexture(TSP tsp, TCW tcw) {
-  static uint8_t converted[1024 * 1024 * 4];
-  uint8_t *texture = nullptr;
-  uint8_t *palette = nullptr;
-  uint8_t *buffer = texture;
-
-  // TCW texture_addr field is in 64-bit units
-  uint32_t texture_addr = tcw.texture_addr << 3;
-
-  // see if we already have an entry
-  auto it = textures_.find(texture_addr);
-  if (it != textures_.end()) {
-    return it->second;
-  }
-
-  // textures are either twiddled and vq compressed, twiddled and uncompressed
-  // or planar
-  bool twiddled = !tcw.scan_order;
-  bool compressed = tcw.vq_compressed;
-
-  // get texture dimensions
-  int width = 8 << tsp.texture_u_size;
-  int height = 8 << tsp.texture_v_size;
-  if (!twiddled && tcw.mip_mapped) {
-    height = width;
-  }
-  int stride = width;
-  if (!twiddled && tcw.stride_select) {
-    stride = TEXT_CONTROL.stride * 32;
-  }
-
-  // FIXME used for texcoords, not width / height of texture
-  // if (planar && tcw.stride_select) {
-  //   width = TEXT_CONTROL.stride << 5;
-  // }
-
-  // read texture
-  texture = &vram_[texture_addr];
-
-  // read palette
-  if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
-    intptr_t palette_addr = 0x005f9000;
-    if (tcw.pixel_format == TA_PIXEL_4BPP) {
-      palette_addr |= (tcw.p.palette_selector << 4);
-    } else {
-      // in 8BPP palette mode, only the upper two bits are valid
-      palette_addr |= ((tcw.p.palette_selector & 0x30) << 4);
-    }
-    palette = &pram_[palette_addr];
-  }
-
-  // we need to read the image data
-  // we need to possibly look up the final rgba data indirectly if it's a
-  // paletted or vq texture
-  // we need to either straight convert, detwizzle or uncompress the rgba values
-  // then we need to write it out as the appropriate format
-
-  PixelFormat pixel_fmt;
-  switch (tcw.pixel_format) {
-    case TA_PIXEL_1555:
-      buffer = converted;
-      pixel_fmt = PXL_RGBA5551;
-      if (compressed) {
-        PixelConvert::ConvertVQ<ARGB1555, RGBA5551>(
-            texture, (uint16_t *)converted, width, height);
-      } else if (twiddled) {
-        PixelConvert::ConvertTwiddled<ARGB1555, RGBA5551>(
-            (uint16_t *)texture, (uint16_t *)converted, width, height);
-      } else {
-        PixelConvert::Convert<ARGB1555, RGBA5551>(
-            (uint16_t *)texture, (uint16_t *)converted, stride, height);
-      }
-      break;
-
-    case TA_PIXEL_565:
-      buffer = converted;
-      pixel_fmt = PXL_RGB565;
-      if (compressed) {
-        PixelConvert::ConvertVQ<RGB565, RGB565>(texture, (uint16_t *)converted,
-                                                width, height);
-      } else if (twiddled) {
-        PixelConvert::ConvertTwiddled<RGB565, RGB565>(
-            (uint16_t *)texture, (uint16_t *)converted, width, height);
-      } else {
-        PixelConvert::Convert<RGB565, RGB565>(
-            (uint16_t *)texture, (uint16_t *)converted, stride, height);
-      }
-      break;
-
-    case TA_PIXEL_4444:
-      buffer = converted;
-      pixel_fmt = PXL_RGBA4444;
-      if (compressed) {
-        PixelConvert::ConvertVQ<ARGB4444, RGBA4444>(
-            texture, (uint16_t *)converted, width, height);
-      } else if (twiddled) {
-        PixelConvert::ConvertTwiddled<ARGB4444, RGBA4444>(
-            (uint16_t *)texture, (uint16_t *)converted, width, height);
-      } else {
-        PixelConvert::Convert<ARGB4444, RGBA4444>(
-            (uint16_t *)texture, (uint16_t *)converted, stride, height);
-      }
-      break;
-
-    case TA_PIXEL_4BPP:
-      buffer = converted;
-      switch (PAL_RAM_CTRL.pixel_format) {
-        case TA_PAL_ARGB1555:
-          pixel_fmt = PXL_RGBA5551;
-          LOG(FATAL) << "Unhandled";
-          break;
-
-        case TA_PAL_RGB565:
-          pixel_fmt = PXL_RGB565;
-          LOG(FATAL) << "Unhandled";
-          break;
-
-        case TA_PAL_ARGB4444:
-          CHECK_EQ(false, twiddled);
-          pixel_fmt = PXL_RGBA4444;
-          PixelConvert::ConvertPal4<ARGB4444, RGBA4444>(
-              texture, (uint16_t *)converted, (uint32_t *)palette, width,
-              height);
-          break;
-
-        case TA_PAL_ARGB8888:
-          CHECK_EQ(true, twiddled);
-          pixel_fmt = PXL_RGBA8888;
-          LOG(FATAL) << "Unhandled";
-          break;
-      }
-      break;
-
-    case TA_PIXEL_8BPP:
-      buffer = converted;
-      switch (PAL_RAM_CTRL.pixel_format) {
-        case TA_PAL_ARGB1555:
-          pixel_fmt = PXL_RGBA5551;
-          LOG(FATAL) << "Unhandled";
-          break;
-
-        case TA_PAL_RGB565:
-          pixel_fmt = PXL_RGB565;
-          LOG(FATAL) << "Unhandled";
-          break;
-
-        case TA_PAL_ARGB4444:
-          CHECK_EQ(true, twiddled);
-          pixel_fmt = PXL_RGBA4444;
-          PixelConvert::ConvertPal8<ARGB4444, RGBA4444>(
-              texture, (uint16_t *)converted, (uint32_t *)palette, width,
-              height);
-          break;
-
-        case TA_PAL_ARGB8888:
-          CHECK_EQ(true, twiddled);
-          pixel_fmt = PXL_RGBA8888;
-          PixelConvert::ConvertPal8<ARGB8888, RGBA8888>(
-              texture, (uint32_t *)converted, (uint32_t *)palette, width,
-              height);
-          break;
-      }
-      break;
-
-    default:
-      LOG(FATAL) << "Unsupported tcw pixel format " << tcw.pixel_format;
-      break;
-  }
-
-  // ignore trilinear filtering for now
-  FilterMode filter = tsp.filter_mode == 0 ? FILTER_NEAREST : FILTER_BILINEAR;
-
-  TextureHandle handle =
-      rb_->RegisterTexture(pixel_fmt, filter, width, height, buffer);
-  if (!handle) {
-    LOG(WARNING) << "Failed to register texture at 0x" << std::hex
-                 << texture_addr << " (tcw 0x" << tcw.full << ")";
-    return 0;
-  }
-
-  // insert into the cache
-  auto result = textures_.insert(std::make_pair(texture_addr, handle));
-  return result.first->second;
 }
 
 // the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
@@ -296,7 +113,7 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
       pvr->fps_ = 1000000000.0f / delta.count();
     }
 
-    pvr->ta_.StartRender(pvr->PARAM_BASE.base_address);
+    pvr->ta_.RenderContext(pvr->PARAM_BASE.base_address);
   } else if (reg.offset == SPG_CONTROL_OFFSET) {
     pvr->ReconfigureVideoOutput();
   } else if (reg.offset == SPG_LOAD_OFFSET || reg.offset == FB_R_CTRL_OFFSET) {
@@ -314,11 +131,12 @@ void PVR2::InitMemory() {
                  &PVR2::ReadInterleaved<uint32_t>, nullptr, nullptr,
                  &PVR2::WriteInterleaved<uint16_t>,
                  &PVR2::WriteInterleaved<uint32_t>, nullptr);
-  memory_.Mount(PVR_PAL_BASE, PVR_PAL_BASE + PVR_PAL_SIZE - 1, 0xe0000000,
-                pram_);
 
   memory_.Handle(PVR_REG_BASE, PVR_REG_BASE + PVR_REG_SIZE - 1, 0xe0000000,
                  this, &PVR2::ReadRegister, &PVR2::WriteRegister);
+
+  memory_.Mount(PVR_PAL_BASE, PVR_PAL_BASE + PVR_PAL_SIZE - 1, 0xe0000000,
+                pram_);
 
 // initialize registers
 #define PVR_REG(addr, name, flags, default, type) \

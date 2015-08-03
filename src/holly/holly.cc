@@ -1,21 +1,38 @@
 #include "core/core.h"
 #include "cpu/sh4.h"
+#include "holly/gdrom.h"
 #include "holly/holly.h"
+#include "holly/maple.h"
+#include "holly/pvr2.h"
 
 using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::emu;
 using namespace dreavm::holly;
-using namespace dreavm::renderer;
 using namespace dreavm::system;
 
-Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4, PVR2 &pvr,
-             GDROM &gdrom, Maple &maple)
-    : memory_(memory), sh4_(sh4), pvr_(pvr), gdrom_(gdrom), maple_(maple) {}
+Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4)
+    : memory_(memory),
+      sh4_(sh4),
+      pvr_(scheduler, memory, *this),
+      gdrom_(memory, *this),
+      maple_(memory, sh4, *this) {}
 
-bool Holly::Init() {
+bool Holly::Init(renderer::Backend *rb) {
   InitMemory();
+
+  if (!pvr_.Init(rb)) {
+    return false;
+  }
+
+  if (!gdrom_.Init()) {
+    return false;
+  }
+
+  if (!maple_.Init()) {
+    return false;
+  }
 
   return true;
 }

@@ -6,7 +6,7 @@
 #include "emu/memory.h"
 #include "emu/scheduler.h"
 #include "holly/register.h"
-#include "holly/ta.h"
+#include "holly/tile_accelerator.h"
 #include "renderer/backend.h"
 
 namespace dreavm {
@@ -19,7 +19,7 @@ enum {
   VRAM64_BASE = 0x05000000,
   VRAM_SIZE = 0x800000,
   PVR_REG_BASE = 0x005f8000,
-  PVR_REG_SIZE = 0x2000,
+  PVR_REG_SIZE = 0x1000,
   PVR_PAL_BASE = 0x005f9000,
   PVR_PAL_SIZE = 0x1000,
   PIXEL_CLOCK = 27000000,  // 27mhz
@@ -212,17 +212,16 @@ union TA_ISP_BASE_T {
 
 class PVR2 {
   friend class TileAccelerator;
+  friend class TileTextureCache;
 
  public:
-  PVR2(emu::Scheduler &scheduler, emu::Memory &memory, Holly &holly,
-       TileAccelerator &ta);
+  PVR2(emu::Scheduler &scheduler, emu::Memory &memory, Holly &holly);
   ~PVR2();
 
   float fps() { return fps_; }
   float vbps() { return vbps_; }
 
   bool Init(renderer::Backend *rb);
-  renderer::TextureHandle GetTexture(TSP tsp, TCW tcw);
 
  private:
   template <typename T>
@@ -240,10 +239,8 @@ class PVR2 {
   emu::Scheduler &scheduler_;
   emu::Memory &memory_;
   Holly &holly_;
-  TileAccelerator &ta_;
+  TileAccelerator ta_;
   renderer::Backend *rb_;
-
-  std::unordered_map<uint32_t, renderer::TextureHandle> textures_;
 
   emu::TimerHandle line_timer_;
   int current_scanline_;

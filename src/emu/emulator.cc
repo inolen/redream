@@ -25,11 +25,7 @@ Emulator::Emulator(System &sys)
     : sys_(sys),
       runtime_(memory_),
       processor_(scheduler_, memory_),
-      holly_(scheduler_, memory_, processor_, pvr_, gdrom_, maple_),
-      pvr_(scheduler_, memory_, holly_, ta_),
-      ta_(memory_, holly_, pvr_),
-      gdrom_(memory_, holly_),
-      maple_(memory_, processor_, holly_) {
+      holly_(scheduler_, memory_, processor_) {
   rt_frontend_ = new SH4Frontend(memory_);
   // rt_backend_ = new InterpreterBackend(memory_);
   rt_backend_ = new X64Backend(memory_);
@@ -68,23 +64,7 @@ bool Emulator::Init() {
     return false;
   }
 
-  if (!holly_.Init()) {
-    return false;
-  }
-
-  if (!pvr_.Init(rb_)) {
-    return false;
-  }
-
-  if (!ta_.Init(rb_)) {
-    return false;
-  }
-
-  if (!gdrom_.Init()) {
-    return false;
-  }
-
-  if (!maple_.Init()) {
+  if (!holly_.Init(rb_)) {
     return false;
   }
 
@@ -144,7 +124,7 @@ bool Emulator::LaunchGDI(const char *path) {
     return false;
   }
 
-  gdrom_.SetDisc(std::move(gdi));
+  holly_.gdrom().SetDisc(std::move(gdi));
 
   // restart to bios
   processor_.Reset(0xa0000000);
@@ -245,7 +225,7 @@ void Emulator::PumpEvents() {
       // let the profiler take a stab at the input first
       if (!Profiler::HandleInput(ev.key.code, ev.key.value)) {
         // else, forward to holly
-        maple_.HandleInput(0, ev.key.code, ev.key.value);
+        holly_.maple().HandleInput(0, ev.key.code, ev.key.value);
       }
     } else if (ev.type == SE_MOUSEMOVE) {
       Profiler::HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
@@ -264,7 +244,7 @@ void Emulator::RenderFrame() {
   // render stats
   char stats[512];
   snprintf(stats, sizeof(stats), "%.2f%%, %.2f fps, %.2f vbps",
-           scheduler_.perf(), pvr_.fps(), pvr_.vbps());
+           scheduler_.perf(), holly_.pvr().fps(), holly_.pvr().vbps());
   LOG_EVERY_N(INFO, 10) << stats;
   rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
 

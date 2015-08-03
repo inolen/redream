@@ -82,7 +82,8 @@ set(DREAVM_SOURCES
   src/holly/maple.cc
   src/holly/maple_controller.cc
   src/holly/pvr2.cc
-  src/holly/ta.cc
+  src/holly/tile_accelerator.cc
+  src/holly/tile_renderer.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
   src/system/keys.cc

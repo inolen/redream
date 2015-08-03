@@ -73,7 +73,7 @@ class GLBackend : public Backend {
   bool Init();
 
   TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
-                                int width, int height, uint8_t *buffer);
+                                int width, int height, const uint8_t *buffer);
   void FreeTexture(TextureHandle handle);
 
   void ResizeFramebuffer(Framebuffer fb, int width, int height);

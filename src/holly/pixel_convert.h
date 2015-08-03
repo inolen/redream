@@ -150,7 +150,7 @@ class RGBA8888 {
 class PixelConvert {
  public:
   template <typename FROM, typename TO>
-  static void Convert(typename FROM::data_type *src,
+  static void Convert(const typename FROM::data_type *src,
                       typename TO::data_type *dst, int width, int height) {
     uint8_t r, g, b, a;
 
@@ -163,7 +163,7 @@ class PixelConvert {
   }
 
   template <typename FROM, typename TO>
-  static void ConvertTwiddled(typename FROM::data_type *src,
+  static void ConvertTwiddled(const typename FROM::data_type *src,
                               typename TO::data_type *dst, int width,
                               int height) {
     int min = std::min(width, height);
@@ -179,7 +179,7 @@ class PixelConvert {
   }
 
   template <typename FROM, typename TO>
-  static void ConvertPal4(uint8_t *src, typename TO::data_type *dst,
+  static void ConvertPal4(const uint8_t *src, typename TO::data_type *dst,
                           uint32_t *palette, int width, int height) {
     // int min = std::min(width, height);
     uint8_t r, g, b, a;
@@ -194,8 +194,8 @@ class PixelConvert {
         } else {
           palette_idx &= 0xf;
         }
-        auto entry =
-            reinterpret_cast<typename FROM::data_type *>(&palette[palette_idx]);
+        auto entry = reinterpret_cast<const typename FROM::data_type *>(
+            &palette[palette_idx]);
         FROM::Read(*entry, &r, &g, &b, &a);
         TO::Write(dst++, r, g, b, a);
       }
@@ -203,7 +203,7 @@ class PixelConvert {
   }
 
   template <typename FROM, typename TO>
-  static void ConvertPal8(uint8_t *src, typename TO::data_type *dst,
+  static void ConvertPal8(const uint8_t *src, typename TO::data_type *dst,
                           uint32_t *palette, int width, int height) {
     int min = std::min(width, height);
     uint8_t r, g, b, a;
@@ -211,8 +211,8 @@ class PixelConvert {
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
         int tidx = TWIDIDX(x, y, min);
-        auto entry =
-            reinterpret_cast<typename FROM::data_type *>(&palette[src[tidx]]);
+        auto entry = reinterpret_cast<const typename FROM::data_type *>(
+            &palette[src[tidx]]);
         FROM::Read(*entry, &r, &g, &b, &a);
         TO::Write(dst++, r, g, b, a);
       }
@@ -220,17 +220,17 @@ class PixelConvert {
   }
 
   template <typename FROM, typename TO>
-  static void ConvertVQ(uint8_t *src, typename TO::data_type *dst, int width,
-                        int height) {
+  static void ConvertVQ(const uint8_t *src, typename TO::data_type *dst,
+                        int width, int height) {
     int min = std::min(width, height);
-    uint8_t *codebook = src;
-    uint8_t *index = src + 256 * 8;
+    const uint8_t *codebook = src;
+    const uint8_t *index = src + 256 * 8;
     uint8_t r, g, b, a;
 
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
         int tidx = TWIDIDX(x, y, min);
-        auto code = reinterpret_cast<typename FROM::data_type *>(
+        auto code = reinterpret_cast<const typename FROM::data_type *>(
             &codebook[index[tidx / 4] * 8 + ((tidx % 4) * 2)]);
         FROM::Read(*code, &r, &g, &b, &a);
         TO::Write(dst++, r, g, b, a);
