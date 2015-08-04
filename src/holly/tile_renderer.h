@@ -15,15 +15,17 @@ struct TileContext;
 
 // The TextureCache interface provides an abstraction so the TileAccelerator /
 // TraceViewer can provide raw texture and palette data on demand to the
-// TileRenderer. Each implementation is expected to cache handles internally,
-// which enables them to have their own invalidation stategies.
+// TileRenderer. While a static GetTextureKey is provided, each implementation
+// is expected to manage their own cache internally.
 typedef std::function<renderer::TextureHandle(const uint8_t *, const uint8_t *)>
     RegisterTextureCallback;
 
 class TextureCache {
  public:
+  static uint32_t GetTextureKey(const TSP &tsp, const TCW &tcw);
+
   virtual renderer::TextureHandle GetTexture(
-      const TSP &tsp, const TCW &tcw, RegisterTextureCallback register) = 0;
+      const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) = 0;
 };
 
 // The TileRenderer class is responsible for taking a particular TileContext,

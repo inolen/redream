@@ -1,8 +1,6 @@
 #include "holly/holly.h"
 #include "holly/pvr2.h"
 
-using namespace dreavm;
-using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::emu;
 using namespace dreavm::holly;
@@ -40,6 +38,8 @@ bool PVR2::Init(Backend *rb) {
 
   return true;
 }
+
+void PVR2::ToggleTracing() { ta_.ToggleTracing(); }
 
 // the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
 // accessing it:
@@ -159,7 +159,7 @@ void PVR2::ReconfigureVideoOutput() {
             << render_height << ", interlace " << SPG_CONTROL.interlace
             << ", NTSC " << SPG_CONTROL.NTSC << ", PAL " << SPG_CONTROL.PAL;
 
-  rb_->ResizeFramebuffer(FB_TILE_ACELLERATOR, render_width, render_height);
+  ta_.ResizeVideo(render_width, render_height);
 }
 
 void PVR2::ReconfigureSPG() {

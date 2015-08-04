@@ -2,7 +2,6 @@
 #define PVR_CLX2_H
 
 #include <chrono>
-#include <unordered_map>
 #include "emu/memory.h"
 #include "emu/scheduler.h"
 #include "holly/register.h"
@@ -222,6 +221,7 @@ class PVR2 {
   float vbps() { return vbps_; }
 
   bool Init(renderer::Backend *rb);
+  void ToggleTracing();
 
  private:
   template <typename T>

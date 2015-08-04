@@ -13,7 +13,7 @@ enum FilterMode {  //
 
 enum Framebuffer {  //
   FB_DEFAULT,
-  FB_TILE_ACELLERATOR
+  FB_TILE_ACCELERATOR
 };
 
 enum PixelFormat {
@@ -114,7 +114,9 @@ class Backend {
                                         const uint8_t *buffer) = 0;
   virtual void FreeTexture(TextureHandle handle) = 0;
 
-  virtual void ResizeFramebuffer(Framebuffer fb, int width, int height) = 0;
+  virtual void SetFramebufferSize(Framebuffer fb, int width, int height) = 0;
+  virtual void GetFramebufferSize(Framebuffer fb, int *width, int *height) = 0;
+
   virtual void BeginFrame() = 0;
   virtual void BindFramebuffer(Framebuffer fb) = 0;
   virtual void Clear(float r, float g, float b, float a) = 0;

@@ -76,7 +76,9 @@ class GLBackend : public Backend {
                                 int width, int height, const uint8_t *buffer);
   void FreeTexture(TextureHandle handle);
 
-  void ResizeFramebuffer(Framebuffer fb, int width, int height);
+  void SetFramebufferSize(Framebuffer fb, int width, int height);
+  void GetFramebufferSize(Framebuffer fb, int *width, int *height);
+
   void BeginFrame();
   void BindFramebuffer(Framebuffer fb);
   void Clear(float r, float g, float b, float a);

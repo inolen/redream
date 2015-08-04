@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include "system/system.h"
 #include "emu/emulator.h"
+#include "trace/trace_viewer.h"
 
-using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::emu;
 using namespace dreavm::system;
+using namespace dreavm::trace;
 
 void InitFlags(int *argc, char ***argv) {
   const char *appdir = GetAppDir();
@@ -50,6 +51,28 @@ void RunEmulator(const char *launch) {
   }
 }
 
+void RunTraceViewer(const char *trace) {
+  System sys;
+  TraceViewer tracer(sys);
+
+  if (!sys.Init()) {
+    LOG(FATAL) << "Failed to initialize window.";
+  }
+
+  if (!tracer.Init()) {
+    LOG(FATAL) << "Failed to initialize tracer.";
+  }
+
+  if (!tracer.Load(trace)) {
+    LOG(FATAL) << "Failed to load " << trace;
+  }
+
+  while (1) {
+    sys.Tick();
+    tracer.Tick();
+  }
+}
+
 int main(int argc, char **argv) {
   // log to stderr by default
   FLAGS_logtostderr = true;
@@ -59,7 +82,12 @@ int main(int argc, char **argv) {
 
   InitFlags(&argc, &argv);
 
-  RunEmulator(argc > 1 ? argv[1] : nullptr);
+  const char *load = argc > 1 ? argv[1] : nullptr;
+  if (load && strstr(load, ".trace")) {
+    RunTraceViewer(load);
+  } else {
+    RunEmulator(load);
+  }
 
   ShutdownFlags();
 

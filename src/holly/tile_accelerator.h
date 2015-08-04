@@ -1,12 +1,17 @@
 #ifndef TILE_ACCELERATOR_H
 #define TILE_ACCELERATOR_H
 
+#include <memory>
 #include <unordered_map>
 #include "emu/memory.h"
 #include "holly/tile_renderer.h"
 #include "renderer/backend.h"
 
 namespace dreavm {
+namespace trace {
+class TraceWriter;
+}
+
 namespace holly {
 
 class Holly;
@@ -464,16 +469,19 @@ struct TileContext {
   int vertex_type;
 };
 
+class TileAccelerator;
+
 class TileTextureCache : public TextureCache {
  public:
-  TileTextureCache(PVR2 &pvr);
+  TileTextureCache(TileAccelerator &ta);
 
+  void Clear();
+  void RemoveTexture(uint32_t addr);
   renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
                                      RegisterTextureCallback register_cb);
-  void InvalidateTexture(uint32_t addr);
 
  private:
-  PVR2 &pvr_;
+  TileAccelerator &ta_;
   std::unordered_map<uint32_t, renderer::TextureHandle> textures_;
 };
 
@@ -489,10 +497,15 @@ class TileAccelerator {
   ~TileAccelerator();
 
   bool Init(renderer::Backend *rb);
+
+  void ResizeVideo(int width, int height);
+
   void SoftReset();
   void InitContext(uint32_t addr);
   void WriteContext(uint32_t addr, uint32_t value);
   void RenderContext(uint32_t addr);
+
+  void ToggleTracing();
 
  private:
   static void WriteCommand(void *ctx, uint32_t addr, uint32_t value);
@@ -506,9 +519,12 @@ class TileAccelerator {
   Holly &holly_;
   PVR2 &pvr_;
   renderer::Backend *rb_;
+
   TileTextureCache texcache_;
   TileRenderer renderer_;
   std::unordered_map<uint32_t, TileContext *> contexts_;
+
+  std::unique_ptr<trace::TraceWriter> trace_writer_;
 };
 }
 }

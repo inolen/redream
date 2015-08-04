@@ -15,14 +15,6 @@ set(DREAVM_VERSION_MINOR 1)
 set(DREAVM_VERSION_PATCH 0)
 set(DREAVM_VERSION ${DREAVM_VERSION_MAJOR}.${DREAVM_VERSION_MINOR}.${DREAVM_VERSION_PATCH})
 
-if(NOT DREAVM_TARGET_ARCH)
-  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(DREAVM_TARGET_ARCH "x86_64")
-  else()
-    set(DREAVM_TARGET_ARCH "x86")
-  endif()
-endif()
-
 if(WIN32)
   if(CMAKE_CL_64)
     set(DREAVM_BUILD_32_BIT OFF)
@@ -88,6 +80,8 @@ set(DREAVM_SOURCES
   src/renderer/gl_shader.cc
   src/system/keys.cc
   src/system/system.cc
+  src/trace/trace.cc
+  src/trace/trace_viewer.cc
   src/main.cc)
 
 #--------------------------------------------------

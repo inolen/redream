@@ -1,15 +1,20 @@
+#include "core/core.h"
 #include "holly/holly.h"
 #include "holly/pixel_convert.h"
 #include "holly/pvr2.h"
 #include "holly/tile_accelerator.h"
+#include "trace/trace.h"
 
+using namespace dreavm::core;
 using namespace dreavm::emu;
 using namespace dreavm::holly;
 using namespace dreavm::renderer;
+using namespace dreavm::trace;
 
-size_t GetParamSize_raw(const PCW &pcw, int vertex_type);
-int GetPolyType_raw(const PCW &pcw);
-int GetVertexType_raw(const PCW &pcw);
+static void BuildLookupTables();
+static size_t GetParamSize_raw(const PCW &pcw, int vertex_type);
+static int GetPolyType_raw(const PCW &pcw);
+static int GetVertexType_raw(const PCW &pcw);
 
 static Interrupt list_interrupts[] = {
     HOLLY_INTC_TAEOINT,   // TA_LIST_OPAQUE
@@ -18,17 +23,16 @@ static Interrupt list_interrupts[] = {
     HOLLY_INTC_TAETMINT,  // TA_LIST_TRANSLUCENT_MODVOL
     HOLLY_INTC_TAEPTIN    // TA_LIST_PUNCH_THROUGH
 };
+
 static size_t param_size_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
 static int poly_type_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 static int vertex_type_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
-static bool lookups_initialized;
 
-void BuildLookupTables() {
-  if (lookups_initialized) {
-    return;
-  }
-  lookups_initialized = true;
+static struct _ta_lookup_tables_init {
+  _ta_lookup_tables_init() { BuildLookupTables(); }
+} ta_lookup_tables_init;
 
+static void BuildLookupTables() {
   for (int i = 0; i < 0x100; i++) {
     PCW pcw = *(PCW *)&i;
 
@@ -63,7 +67,7 @@ void BuildLookupTables() {
 // Parameter size can be determined by only the PCW for every parameter other
 // than vertex parameters. For vertex parameters, the vertex type derived from
 // the last poly or modifier volume parameter is needed.
-size_t GetParamSize_raw(const PCW &pcw, int vertex_type) {
+static size_t GetParamSize_raw(const PCW &pcw, int vertex_type) {
   switch (pcw.para_type) {
     case TA_PARAM_END_OF_LIST:
       return 32;
@@ -120,7 +124,7 @@ int GetPolyType_raw(const PCW &pcw) {
 }
 
 // See "57.1.1.2 Parameter Combinations" for information on the vertex types.
-int GetVertexType_raw(const PCW &pcw) {
+static int GetVertexType_raw(const PCW &pcw) {
   if (pcw.list_type == TA_LIST_OPAQUE_MODVOL ||
       pcw.list_type == TA_LIST_TRANSLUCENT_MODVOL) {
     return 17;
@@ -163,21 +167,55 @@ int GetVertexType_raw(const PCW &pcw) {
   return 0;
 }
 
-TileTextureCache::TileTextureCache(PVR2 &pvr) : pvr_(pvr) {}
+TileTextureCache::TileTextureCache(TileAccelerator &ta) : ta_(ta) {}
+
+void TileTextureCache::Clear() {
+  for (auto it : textures_) {
+    if (!it.second) {
+      continue;
+    }
+
+    ta_.rb_->FreeTexture(it.second);
+  }
+
+  textures_.clear();
+}
+
+void TileTextureCache::RemoveTexture(uint32_t addr) {
+  auto it = textures_.find(addr);
+  if (it == textures_.end()) {
+    return;
+  }
+
+  TextureHandle handle = it->second;
+  ta_.rb_->FreeTexture(handle);
+  textures_.erase(it);
+}
 
 TextureHandle TileTextureCache::GetTexture(
     const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) {
-  // TCW texture_addr field is in 64-bit units
-  uint32_t texture_addr = tcw.texture_addr << 3;
+  uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
 
   // see if we already have an entry
-  auto it = textures_.find(texture_addr);
+  auto it = textures_.find(texture_key);
   if (it != textures_.end()) {
     return it->second;
   }
 
-  // get the texture / palette data
-  const uint8_t *texture = &pvr_.vram_[texture_addr];
+  // TCW texture_addr field is in 64-bit units
+  uint32_t texture_addr = tcw.texture_addr << 3;
+
+  // get the texture data
+  int width = 8 << tsp.texture_u_size;
+  int height = 8 << tsp.texture_v_size;
+  int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
+                              ? 8
+                              : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
+  int texture_size = (width * height * element_size_bits) >> 3;
+  const uint8_t *texture = &ta_.pvr_.vram_[texture_addr];
+
+  // get the palette data
+  int palette_size = 0;
   const uint8_t *palette = nullptr;
 
   if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
@@ -190,25 +228,22 @@ TextureHandle TileTextureCache::GetTexture(
       palette_addr = ((tcw.p.palette_selector & 0x30) << 4);
     }
 
-    palette = &pvr_.pram_[palette_addr];
+    palette_size = 0x1000;
+    palette = &ta_.pvr_.pram_[palette_addr];
   }
 
   // register and insert into the cache
   TextureHandle handle = register_cb(texture, palette);
+  auto result = textures_.insert(std::make_pair(texture_key, handle));
+  CHECK(result.second) << "Texture already in the map?";
 
-  auto result = textures_.insert(std::make_pair(texture_addr, handle));
-  return result.first->second;
-}
-
-void TileTextureCache::InvalidateTexture(uint32_t addr) {
-  auto it = textures_.find(addr);
-  if (it == textures_.end()) {
-    return;
+  // add insert to trace
+  if (ta_.trace_writer_) {
+    ta_.trace_writer_->WriteInsertTexture(tsp, tcw, texture, texture_size,
+                                          palette, palette_size);
   }
 
-  TextureHandle handle = it->second;
-  pvr_.rb_->FreeTexture(handle);
-  textures_.erase(it);
+  return result.first->second;
 }
 
 size_t TileAccelerator::GetParamSize(const PCW &pcw, int vertex_type) {
@@ -233,10 +268,8 @@ TileAccelerator::TileAccelerator(Memory &memory, Holly &holly, PVR2 &pvr)
     : memory_(memory),
       holly_(holly),
       pvr_(pvr),
-      texcache_(pvr),
-      renderer_(texcache_) {
-  BuildLookupTables();
-}
+      texcache_(*this),
+      renderer_(texcache_) {}
 
 TileAccelerator::~TileAccelerator() {
   while (contexts_.size()) {
@@ -259,6 +292,14 @@ bool TileAccelerator::Init(Backend *rb) {
                  &TileAccelerator::WriteTexture);
 
   return true;
+}
+
+void TileAccelerator::ResizeVideo(int width, int height) {
+  rb_->SetFramebufferSize(FB_TILE_ACCELERATOR, width, height);
+
+  if (trace_writer_) {
+    trace_writer_->WriteResizeVideo(width, height);
+  }
 }
 
 void TileAccelerator::SoftReset() {
@@ -324,18 +365,53 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
 }
 
 void TileAccelerator::RenderContext(uint32_t addr) {
+  // get context and update with PVR state
   TileContext *tactx = GetContext(addr);
 
   WritePVRState(tactx);
   WriteBackgroundState(tactx);
 
-  // actually render the context
+  // do the actual rendering
   renderer_.RenderContext(tactx, rb_);
 
   // let holly know the rendering is complete
   holly_.RequestInterrupt(HOLLY_INTC_PCEOVINT);
   holly_.RequestInterrupt(HOLLY_INTC_PCEOIINT);
   holly_.RequestInterrupt(HOLLY_INTC_PCEOTINT);
+
+  // add render to trace
+  if (trace_writer_) {
+    trace_writer_->WriteRenderContext(tactx);
+  }
+}
+
+void TileAccelerator::ToggleTracing() {
+  if (!trace_writer_) {
+    char filename[PATH_MAX];
+    GetNextTraceFilename(filename, sizeof(filename));
+
+    trace_writer_ = std::unique_ptr<TraceWriter>(new TraceWriter());
+    if (!trace_writer_->Open(filename)) {
+      LOG(INFO) << "Failed to start tracing";
+      trace_writer_ = nullptr;
+      return;
+    }
+
+    LOG(INFO) << "Begin tracing to " << filename;
+
+    // write out the initial framebuffer size
+    int width, height;
+    rb_->GetFramebufferSize(FB_TILE_ACCELERATOR, &width, &height);
+    trace_writer_->WriteResizeVideo(width, height);
+
+    // clear the texture cache, so the next render will write out insert
+    // texture commands for any textures in use
+    texcache_.Clear();
+  } else {
+    trace_writer_ = nullptr;
+
+    LOG(INFO) << "End tracing";
+  }
 }
 
 void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, uint32_t value) {
@@ -350,7 +426,7 @@ void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
 
   // FIXME this is terrible
-  ta->texcache_.InvalidateTexture(addr);
+  ta->texcache_.RemoveTexture(addr);
 
   *reinterpret_cast<uint32_t *>(&ta->pvr_.vram_[addr]) = value;
 }

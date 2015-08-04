@@ -138,18 +138,32 @@ void GLBackend::FreeTexture(TextureHandle handle) {
   gltex = 0;
 }
 
-void GLBackend::ResizeFramebuffer(Framebuffer fb, int width, int height) {
+void GLBackend::SetFramebufferSize(Framebuffer fb, int width, int height) {
   switch (fb) {
     case FB_DEFAULT:
       state_.video_width = width;
       state_.video_height = height;
       break;
 
-    case FB_TILE_ACELLERATOR:
+    case FB_TILE_ACCELERATOR:
       state_.ta_width = width;
       state_.ta_height = height;
       DestroyFramebuffers();
       InitFramebuffers();
+      break;
+  }
+}
+
+void GLBackend::GetFramebufferSize(Framebuffer fb, int *width, int *height) {
+  switch (fb) {
+    case FB_DEFAULT:
+      *width = state_.video_width;
+      *height = state_.video_height;
+      break;
+
+    case FB_TILE_ACCELERATOR:
+      *width = state_.ta_width;
+      *height = state_.ta_height;
       break;
   }
 }
@@ -174,8 +188,8 @@ void GLBackend::BindFramebuffer(Framebuffer fb) {
       height = state_.video_height;
       break;
 
-    case FB_TILE_ACELLERATOR:
-      // ensure ta was initialized through ResizeFramebuffer
+    case FB_TILE_ACCELERATOR:
+      // ensure ta was initialized through SetFramebufferSize
       CHECK_GT(fb_ta_, 0);
       buffer = fb_ta_;
       width = state_.ta_width;

@@ -220,17 +220,26 @@ bool Emulator::LoadFlash(const char *path) {
 
 void Emulator::PumpEvents() {
   SystemEvent ev;
+
   while (sys_.PollEvent(&ev)) {
     if (ev.type == SE_KEY) {
       // let the profiler take a stab at the input first
       if (!Profiler::HandleInput(ev.key.code, ev.key.value)) {
-        // else, forward to holly
-        holly_.maple().HandleInput(0, ev.key.code, ev.key.value);
+        // debug tracing
+        if (ev.key.code == K_F2) {
+          if (ev.key.value) {
+            holly_.pvr().ToggleTracing();
+          }
+        }
+        // else, forward to maple
+        else {
+          holly_.maple().HandleInput(0, ev.key.code, ev.key.value);
+        }
       }
     } else if (ev.type == SE_MOUSEMOVE) {
       Profiler::HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
     } else if (ev.type == SE_RESIZE) {
-      rb_->ResizeFramebuffer(FB_DEFAULT, ev.resize.width, ev.resize.height);
+      rb_->SetFramebufferSize(FB_DEFAULT, ev.resize.width, ev.resize.height);
     }
   }
 }

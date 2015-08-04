@@ -41,6 +41,11 @@ inline ShadeMode TranslateShadeMode(uint32_t shade_mode) {
   return shade_modes[shade_mode];
 }
 
+uint32_t TextureCache::GetTextureKey(const TSP &tsp, const TCW &tcw) {
+  // cache textures based on their address for now
+  return tcw.texture_addr << 3;
+}
+
 TileRenderer::TileRenderer(TextureCache &texcache) : texcache_(texcache) {}
 
 void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
@@ -102,7 +107,7 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
   // LOG(INFO) << "StartRender " << num_surfs_ << " surfs, "
   //           << num_verts << " verts, " << tactx->size << " bytes";
 
-  rb->BindFramebuffer(FB_TILE_ACELLERATOR);
+  rb->BindFramebuffer(FB_TILE_ACCELERATOR);
   rb->Clear(0.1f, 0.39f, 0.88f, 1.0f);
   rb->RenderSurfaces(surfs_, num_surfs_, verts_, num_verts_, sorted_surfs_);
 }
