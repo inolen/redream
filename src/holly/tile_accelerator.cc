@@ -462,8 +462,6 @@ void TileAccelerator::WritePVRState(TileContext *tactx) {
 }
 
 void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
-  float bg_depth = *reinterpret_cast<float *>(&pvr_.ISP_BACKGND_D);
-
   // according to the hardware docs, this is the correct calculation of the
   // background ISP address. however, in practice, the second TA buffer's ISP
   // address comes out to be 0x800000 when booting the the bios when the vram
@@ -479,6 +477,9 @@ void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
   tactx->bg_tsp.full = memory_.R32(vram_offset + 4);
   tactx->bg_tcw.full = memory_.R32(vram_offset + 8);
   vram_offset += 12;
+
+  // get the background depth
+  tactx->bg_depth = *reinterpret_cast<float *>(&pvr_.ISP_BACKGND_D);
 
   // get the byte size for each vertex. normally, the byte size is
   // ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in
@@ -498,9 +499,6 @@ void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
     CHECK_LE(bg_offset + vertex_size, sizeof(tactx->bg_vertices));
 
     memory_.Memcpy(&tactx->bg_vertices[bg_offset], vram_offset, vertex_size);
-
-    // patch the z coordinate
-    *reinterpret_cast<float *>(&tactx->bg_vertices[bg_offset + 8]) = bg_depth;
 
     bg_offset += vertex_size;
     vram_offset += vertex_size;

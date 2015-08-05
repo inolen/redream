@@ -51,7 +51,7 @@ class TileRenderer {
   void ParseOffsetColor(uint32_t offset_color, float *color);
   void ParseOffsetColor(float r, float g, float b, float a, float *color);
   void ParseOffsetColor(float intensity, float *color);
-  void ParseBackground(const TileContext *tactx);
+  void ParseBackground(const TileContext *tactx, renderer::Backend *rb);
   void ParsePolyParam(const TileContext *tactx, renderer::Backend *rb,
                       const PolyParam *param);
   void ParseVertexParam(const TileContext *tactx, renderer::Backend *rb,

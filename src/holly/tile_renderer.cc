@@ -54,7 +54,7 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
 
   ResetState();
 
-  ParseBackground(tactx);
+  ParseBackground(tactx, rb);
 
   while (data < end) {
     PCW pcw = *(PCW *)data;
@@ -215,7 +215,7 @@ void TileRenderer::ParseOffsetColor(float intensity, float *color) {
   }
 }
 
-void TileRenderer::ParseBackground(const TileContext *tactx) {
+void TileRenderer::ParseBackground(const TileContext *tactx, renderer::Backend *rb) {
   // translate the surface
   Surface *surf = AllocSurf();
   surf->texture = 0;
@@ -267,17 +267,31 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
     }
   }
 
+  // override the xyz values supplied by ISP_BACKGND_T. while the hardware docs
+  // act like the should be correct, they're most definitely not in most cases
+  int width, height;
+  rb->GetFramebufferSize(FB_TILE_ACCELERATOR, &width, &height);
+  verts[0]->xyz[0] = 0.0f;
+  verts[0]->xyz[1] = (float)height;
+  verts[0]->xyz[2] = tactx->bg_depth;
+  verts[1]->xyz[0] = 0.0f;
+  verts[1]->xyz[1] = 0.0f;
+  verts[1]->xyz[2] = tactx->bg_depth;
+  verts[2]->xyz[0] = (float)width;
+  verts[2]->xyz[1] = (float)height;
+  verts[2]->xyz[2] = tactx->bg_depth;
+
   // 4th vertex isn't supplied, fill it out automatically
   verts[3] = AllocVert();
-  verts[3]->xyz[0] = verts[1]->xyz[0];
-  verts[3]->xyz[1] = verts[2]->xyz[1];
-  verts[3]->xyz[2] = verts[0]->xyz[2];
+  verts[3]->xyz[0] = verts[2]->xyz[0];
+  verts[3]->xyz[1] = verts[1]->xyz[1];
+  verts[3]->xyz[2] = tactx->bg_depth;
   verts[3]->color[0] = verts[0]->color[0];
   verts[3]->color[1] = verts[0]->color[1];
   verts[3]->color[2] = verts[0]->color[2];
   verts[3]->color[3] = verts[0]->color[3];
-  verts[3]->uv[0] = verts[1]->uv[0];
-  verts[3]->uv[1] = verts[2]->uv[1];
+  verts[3]->uv[0] = verts[2]->uv[0];
+  verts[3]->uv[1] = verts[1]->uv[1];
 }
 
 // NOTE this offset color implementation is not correct at all

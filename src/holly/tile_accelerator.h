@@ -95,7 +95,7 @@ union ISP_TSP {
     uint32_t reserved : 20;
     uint32_t dcalc_ctrl : 1;
     uint32_t cache_bypass : 1;
-    uint32_t sixteen_bit_uv : 1;
+    uint32_t uv_16bit : 1;
     uint32_t gouraud_shading : 1;
     uint32_t offset : 1;
     uint32_t texture : 1;
@@ -455,6 +455,7 @@ struct TileContext {
   ISP_TSP bg_isp;
   TSP bg_tsp;
   TCW bg_tcw;
+  float bg_depth;
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
   // command buffer
