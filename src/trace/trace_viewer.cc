@@ -15,9 +15,8 @@ void TraceTextureCache::AddTexture(const holly::TSP &tsp, holly::TCW &tcw,
                                    const uint8_t *texture,
                                    const uint8_t *palette) {
   uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
-  auto res = textures_.insert(
-      std::make_pair(texture_key, TextureInst(tsp, tcw, texture, palette)));
-  CHECK(res.second) << "Texture already in map";
+  textures_[texture_key] =
+      TextureInst{tsp, tcw, texture, palette, (TextureHandle)0};
 }
 
 void TraceTextureCache::RemoveTexture(const holly::TSP &tsp, holly::TCW &tcw) {
@@ -30,10 +29,7 @@ TextureHandle TraceTextureCache::GetTexture(
   uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
 
   auto it = textures_.find(texture_key);
-  // CHECK(it != textures_.end()) << "Texture wasn't available in cache";
-  if (it == textures_.end()) {
-    return (TextureHandle)0;
-  }
+  CHECK(it != textures_.end()) << "Texture wasn't available in cache";
 
   TextureInst &texture = it->second;
 
@@ -71,7 +67,7 @@ bool TraceViewer::Load(const char *path) {
     return false;
   }
 
-  current_frame_ = -1;
+  current_frame_ = 0;
   current_cmd_ = nullptr;
   NextContext();
 
@@ -107,7 +103,7 @@ void TraceViewer::RenderFrame() {
 
   // render stats
   char stats[512];
-  snprintf(stats, sizeof(stats), "frame %d / %d", current_frame_ + 1,
+  snprintf(stats, sizeof(stats), "frame %d / %d", current_frame_,
            num_frames_);
   rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
 
@@ -147,13 +143,15 @@ void TraceViewer::CopyCommandToContext(const TraceCommand *cmd,
 }
 
 void TraceViewer::PrevContext() {
-  int prev_frame = std::max(0, current_frame_ - 1);
+  int prev_frame = std::max(1, current_frame_ - 1);
   if (prev_frame == current_frame_) {
     return;
   }
 
   current_cmd_ = current_cmd_->prev;
 
+  // scrub through commands until the previous context is reached. for each
+  // command we move backwards through, re-apply the value it overrode
   while (current_cmd_) {
     TraceCommand *override = current_cmd_->override;
 
@@ -192,7 +190,7 @@ void TraceViewer::PrevContext() {
 }
 
 void TraceViewer::NextContext() {
-  int next_frame = std::min(num_frames_ - 1, current_frame_ + 1);
+  int next_frame = std::min(num_frames_, current_frame_ + 1);
   if (next_frame == current_frame_) {
     return;
   }
@@ -205,8 +203,6 @@ void TraceViewer::NextContext() {
                               current_cmd_->resize_video.width,
                               current_cmd_->resize_video.height);
     } else if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
-      texcache_.RemoveTexture(current_cmd_->insert_texture.tsp,
-                              current_cmd_->insert_texture.tcw);
       texcache_.AddTexture(current_cmd_->insert_texture.tsp,
                            current_cmd_->insert_texture.tcw,
                            current_cmd_->insert_texture.texture,

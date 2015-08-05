@@ -22,9 +22,7 @@ void dreavm::trace::GetNextTraceFilename(char *filename, size_t size) {
 
 TraceReader::TraceReader() : trace_size_(0), trace_(nullptr) {}
 
-TraceReader::~TraceReader() {
-  Reset();
-}
+TraceReader::~TraceReader() { Reset(); }
 
 bool TraceReader::Parse(const char *filename) {
   Reset();
@@ -154,9 +152,7 @@ bool TraceReader::PatchOverrides() {
 
 TraceWriter::TraceWriter() : file_(nullptr) {}
 
-TraceWriter::~TraceWriter() {
-  Close();
-}
+TraceWriter::~TraceWriter() { Close(); }
 
 bool TraceWriter::Open(const char *filename) {
   Close();

@@ -11,10 +11,6 @@ namespace dreavm {
 namespace trace {
 
 struct TextureInst {
-  TextureInst(const holly::TSP &tsp, holly::TCW &tcw, const uint8_t *texture,
-              const uint8_t *palette)
-      : tsp(tsp), tcw(tcw), texture(texture), palette(palette), handle(0) {}
-
   holly::TSP tsp;
   holly::TCW tcw;
   const uint8_t *texture;

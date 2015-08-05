@@ -37,7 +37,7 @@ struct BackendState {
         ta_width(0),
         ta_height(0),
         depth_mask(true),
-        depth_func(DEPTH_LESS),
+        depth_func(DEPTH_NONE),
         cull_face(CULL_BACK),
         src_blend(BLEND_NONE),
         dst_blend(BLEND_NONE),
