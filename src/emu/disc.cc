@@ -3,7 +3,6 @@
 
 #define PREGAP_SIZE 150
 
-using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::emu;
 

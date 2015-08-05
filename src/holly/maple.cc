@@ -3,7 +3,6 @@
 #include "holly/maple.h"
 #include "holly/maple_controller.h"
 
-using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::emu;

@@ -5,7 +5,6 @@
 #include "holly/maple.h"
 #include "holly/pvr2.h"
 
-using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::emu;

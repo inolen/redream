@@ -10,7 +10,6 @@
 #include "cpu/runtime.h"
 #include "emu/profiler.h"
 
-using namespace dreavm;
 using namespace dreavm::cpu;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;

@@ -7,7 +7,6 @@
 #include "holly/maple_controller.h"
 #include "renderer/gl_backend.h"
 
-using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::cpu::backend::interpreter;

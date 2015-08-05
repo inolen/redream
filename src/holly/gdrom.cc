@@ -3,7 +3,6 @@
 #include "holly/gdrom.h"
 #include "holly/gdrom_replies.inc"
 
-using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::emu;

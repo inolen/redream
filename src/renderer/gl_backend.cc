@@ -5,7 +5,6 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 
-using namespace dreavm;
 using namespace dreavm::core;
 using namespace dreavm::renderer;
 

@@ -1,7 +1,6 @@
 #include "core/core.h"
 #include "cpu/ir/passes/context_promotion_pass.h"
 
-using namespace dreavm;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 

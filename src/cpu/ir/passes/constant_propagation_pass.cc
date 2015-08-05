@@ -3,7 +3,6 @@
 #include "core/core.h"
 #include "cpu/ir/passes/constant_propagation_pass.h"
 
-using namespace dreavm;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 

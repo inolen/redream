@@ -3,7 +3,6 @@
 #include <sstream>
 #include "holly/maple_controller.h"
 
-using namespace dreavm;
 using namespace dreavm::holly;
 using namespace dreavm::system;
 using namespace json11;
