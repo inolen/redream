@@ -164,6 +164,10 @@ void TileRenderer::ParseColor(uint32_t base_color, float *color) {
   color[1] = ((base_color >> 8) & 0xff) / 255.0f;
   color[2] = (base_color & 0xff) / 255.0f;
   color[3] = ((base_color >> 24) & 0xff) / 255.0f;
+
+  // if (!last_poly_->type0.tsp.use_alpha) {
+  //   color[3] = 1.0f;
+  // }
 }
 
 void TileRenderer::ParseColor(float r, float g, float b, float a,
@@ -172,6 +176,10 @@ void TileRenderer::ParseColor(float r, float g, float b, float a,
   color[1] = g;
   color[2] = b;
   color[3] = a;
+
+  // if (!last_poly_->type0.tsp.use_alpha) {
+  //   color[3] = 1.0f;
+  // }
 }
 
 void TileRenderer::ParseColor(float intensity, float *color) {
@@ -179,6 +187,10 @@ void TileRenderer::ParseColor(float intensity, float *color) {
   color[1] = face_color_[1] * intensity;
   color[2] = face_color_[2] * intensity;
   color[3] = face_color_[3];
+
+  // if (!last_poly_->type0.tsp.use_alpha) {
+  //   color[3] = 1.0f;
+  // }
 }
 
 void TileRenderer::ParseOffsetColor(uint32_t offset_color, float *color) {
@@ -304,9 +316,6 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx,
   last_vertex_ = nullptr;
   list_type_ = param->type0.pcw.list_type;
   vertex_type_ = TileAccelerator::GetVertexType(param->type0.pcw);
-  face_color_[0] = face_color_[1] = face_color_[2] = face_color_[3] = 0.0f;
-  face_offset_color_[0] = face_offset_color_[1] = face_offset_color_[2] =
-      face_offset_color_[3] = 0.0f;
 
   // setup the new surface
   Surface *surf = AllocSurf();
