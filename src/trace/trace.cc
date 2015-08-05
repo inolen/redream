@@ -23,23 +23,21 @@ void dreavm::trace::GetNextTraceFilename(char *filename, size_t size) {
 TraceReader::TraceReader() : trace_size_(0), trace_(nullptr) {}
 
 TraceReader::~TraceReader() {
-  if (trace_) {
-    delete[] trace_;
-  }
+  Reset();
 }
 
 bool TraceReader::Parse(const char *filename) {
+  Reset();
+
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
     return false;
   }
 
-  // get the file size
   fseek(fp, 0, SEEK_END);
   trace_size_ = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  // read the file
   trace_ = new uint8_t[trace_size_];
   CHECK_EQ(fread(trace_, trace_size_, 1, fp), 1);
   fclose(fp);
@@ -53,6 +51,12 @@ bool TraceReader::Parse(const char *filename) {
   }
 
   return true;
+}
+
+void TraceReader::Reset() {
+  if (trace_) {
+    delete[] trace_;
+  }
 }
 
 // Commands are written out with null list pointers, and pointers to data
@@ -151,19 +155,21 @@ bool TraceReader::PatchOverrides() {
 TraceWriter::TraceWriter() : file_(nullptr) {}
 
 TraceWriter::~TraceWriter() {
-  if (file_) {
-    fclose(file_);
-  }
+  Close();
 }
 
 bool TraceWriter::Open(const char *filename) {
+  Close();
+
   file_ = fopen(filename, "wb");
 
-  if (!file_) {
-    return false;
-  }
+  return !!file_;
+}
 
-  return true;
+void TraceWriter::Close() {
+  if (file_) {
+    fclose(file_);
+  }
 }
 
 void TraceWriter::WriteResizeVideo(int width, int height) {

@@ -68,6 +68,7 @@ class TraceReader {
   bool Parse(const char *filename);
 
  private:
+  void Reset();
   bool PatchPointers();
   bool PatchOverrides();
 
@@ -81,6 +82,7 @@ class TraceWriter {
   ~TraceWriter();
 
   bool Open(const char *filename);
+  void Close();
 
   void WriteResizeVideo(int width, int height);
   void WriteInsertTexture(const holly::TSP &tsp, const holly::TCW &tcw,

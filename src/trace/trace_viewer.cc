@@ -66,7 +66,10 @@ bool TraceViewer::Load(const char *path) {
     return false;
   }
 
-  ParseNumFrames();
+  num_frames_ = GetNumFrames();
+  if (!num_frames_) {
+    return false;
+  }
 
   current_frame_ = -1;
   current_cmd_ = nullptr;
@@ -111,18 +114,20 @@ void TraceViewer::RenderFrame() {
   rb_->EndFrame();
 }
 
-void TraceViewer::ParseNumFrames() {
-  TraceCommand *cmd = reader_.cmd_head();
+int TraceViewer::GetNumFrames() {
+  int num_frames = 0;
 
-  num_frames_ = 0;
+  TraceCommand *cmd = reader_.cmd_head();
 
   while (cmd) {
     if (cmd->type == TRACE_RENDER_CONTEXT) {
-      num_frames_++;
+      num_frames++;
     }
 
     cmd = cmd->next;
   }
+
+  return num_frames;
 }
 
 void TraceViewer::CopyCommandToContext(const TraceCommand *cmd,

@@ -49,7 +49,7 @@ class TraceViewer {
   void PumpEvents();
   void RenderFrame();
 
-  void ParseNumFrames();
+  int GetNumFrames();
   void CopyCommandToContext(const TraceCommand *cmd, holly::TileContext *ctx);
   void PrevContext();
   void NextContext();
