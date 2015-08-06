@@ -54,7 +54,9 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
 
   ResetState();
 
-  ParseBackground(tactx, rb);
+  rb->GetFramebufferSize(FB_TILE_ACCELERATOR, &width_, &height_);
+
+  ParseBackground(tactx);
 
   while (data < end) {
     PCW pcw = *(PCW *)data;
@@ -102,14 +104,14 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
     data += TileAccelerator::GetParamSize(pcw, vertex_type_);
   }
 
-  NormalizeZ();
-
   // LOG(INFO) << "StartRender " << num_surfs_ << " surfs, "
   //           << num_verts << " verts, " << tactx->size << " bytes";
 
+  const Eigen::Matrix4f &projection = GetProjectionMatrix();
   rb->BindFramebuffer(FB_TILE_ACCELERATOR);
   rb->Clear(0.1f, 0.39f, 0.88f, 1.0f);
-  rb->RenderSurfaces(surfs_, num_surfs_, verts_, num_verts_, sorted_surfs_);
+  rb->RenderSurfaces(projection, surfs_, num_surfs_, verts_, num_verts_,
+                     sorted_surfs_);
 }
 
 void TileRenderer::ResetState() {
@@ -227,7 +229,7 @@ void TileRenderer::ParseOffsetColor(float intensity, float *color) {
   }
 }
 
-void TileRenderer::ParseBackground(const TileContext *tactx, renderer::Backend *rb) {
+void TileRenderer::ParseBackground(const TileContext *tactx) {
   // translate the surface
   Surface *surf = AllocSurf();
   surf->texture = 0;
@@ -281,16 +283,14 @@ void TileRenderer::ParseBackground(const TileContext *tactx, renderer::Backend *
 
   // override the xyz values supplied by ISP_BACKGND_T. while the hardware docs
   // act like the should be correct, they're most definitely not in most cases
-  int width, height;
-  rb->GetFramebufferSize(FB_TILE_ACCELERATOR, &width, &height);
   verts[0]->xyz[0] = 0.0f;
-  verts[0]->xyz[1] = (float)height;
+  verts[0]->xyz[1] = (float)height_;
   verts[0]->xyz[2] = tactx->bg_depth;
   verts[1]->xyz[0] = 0.0f;
   verts[1]->xyz[1] = 0.0f;
   verts[1]->xyz[2] = tactx->bg_depth;
-  verts[2]->xyz[0] = (float)width;
-  verts[2]->xyz[1] = (float)height;
+  verts[2]->xyz[0] = (float)width_;
+  verts[2]->xyz[1] = (float)height_;
   verts[2]->xyz[2] = tactx->bg_depth;
 
   // 4th vertex isn't supplied, fill it out automatically
@@ -326,6 +326,7 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx,
   surf->src_blend = TranslateSrcBlendFunc(param->type0.tsp.src_alpha_instr);
   surf->dst_blend = TranslateDstBlendFunc(param->type0.tsp.dst_alpha_instr);
   surf->shade = TranslateShadeMode(param->type0.tsp.texture_shading_instr);
+  surf->ignore_tex_alpha = param->type0.tsp.ignore_tex_alpha;
 
   // override a few surface parameters based on the list type
   if (list_type_ != TA_LIST_TRANSLUCENT &&
@@ -618,15 +619,17 @@ void TileRenderer::ParseEndOfList(const TileContext *tactx) {
   last_sorted_surf_ = num_surfs_;
 }
 
-// Vertices coming into the TA are already in window space. However, the Z
-// component of these vertices isn't normalized to a particular range, but
-// they do sort correctly. In order to render the vertices correctly, the
-// Z components need to be normalized between 0.0 and 1.0.
-void TileRenderer::NormalizeZ() {
+// Vertices coming into the TA are in window space, with the Z component being
+// 1/W. These coordinates need to be converted back to clip space in order to
+// be rendered with OpenGL, etc. While we want to perform an orthographic
+// projection on the vertices as they're already perspective correct, the
+// renderer backend will have to deal with setting the W component of each
+// in order to perspective correct the texture mapping.
+Eigen::Matrix4f TileRenderer::GetProjectionMatrix() {
   float znear = std::numeric_limits<float>::min();
   float zfar = std::numeric_limits<float>::max();
 
-  // get the bounds of the Z components
+  // Z component is 1/W, so +Z is into the screen
   for (int i = 0; i < num_verts_; i++) {
     Vertex *v = &verts_[i];
     if (v->xyz[2] > znear) {
@@ -637,16 +640,23 @@ void TileRenderer::NormalizeZ() {
     }
   }
 
-  // normalize each Z component between 0.0 and 1.0, fudging a bit to deal
-  // with depth buffer precision
-  float zdelta = znear - zfar;
-  if (zdelta <= 0.0f) {
-    zdelta = 1.0f;
+  float zdepth = znear - zfar;
+
+  // fix case where a single polygon being renderered
+  if (zdepth <= 0.0f) {
+    zdepth = 1.0f;
   }
-  for (int i = 0; i < num_verts_; i++) {
-    Vertex *v = &verts_[i];
-    v->xyz[2] = 0.99f - ((v->xyz[2] - zfar) / zdelta) * 0.99f;
-  }
+
+  // convert from window space coordinates into clip space
+  Eigen::Matrix4f p = Eigen::Matrix4f::Identity();
+  p(0, 0) = 2.0f / (float)width_;
+  p(1, 1) = -2.0f / (float)height_;
+  p(0, 3) = -1.0f;
+  p(1, 3) = 1.0f;
+  p(2, 2) = (-znear - zfar) / zdepth;
+  p(2, 3) = (2.0f * zfar * znear) / zdepth;
+
+  return p;
 }
 
 TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,

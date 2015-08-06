@@ -208,6 +208,7 @@ void TraceWriter::WriteRenderContext(TileContext *tactx) {
   cmd.render_context.bg_isp = tactx->bg_isp;
   cmd.render_context.bg_tsp = tactx->bg_tsp;
   cmd.render_context.bg_tcw = tactx->bg_tcw;
+  cmd.render_context.bg_depth = tactx->bg_depth;
   cmd.render_context.bg_vertices_size = sizeof(tactx->bg_vertices);
   cmd.render_context.bg_vertices =
       reinterpret_cast<const uint8_t *>(sizeof(cmd));

@@ -1,5 +1,5 @@
 static const char *ta_vp = R"END(
-uniform vec2 u_xy_scale;
+uniform mat4 u_mvp;
 
 layout(location = 0) in vec3 attr_xyz;
 layout(location = 1) in vec4 attr_color;
@@ -14,10 +14,16 @@ void main() {
 	var_color = attr_color;
 	var_offset_color = attr_offset_color;
 	var_diffuse_texcoord = attr_texcoord;
-	gl_Position.x = (attr_xyz.x * u_xy_scale.x - 1.0);
-	gl_Position.y = (1.0 - attr_xyz.y * u_xy_scale.y);
-	gl_Position.z = attr_xyz.z;
-	gl_Position.w = 1.0;
+
+	gl_Position = u_mvp * vec4(attr_xyz, 1.0);
+
+	// specify w so OpenGL applies perspective corrected texture mapping, but
+	// cancel the perspective divide on the xyz, they're already perspective
+	// correct
+	// TODO #ifdef this
+	float w = 1.0 / attr_xyz.z;
+	gl_Position.xyz *= w;
+	gl_Position.w = w;
 }
 )END";
 

@@ -4,7 +4,6 @@
 #define GL_GLEXT_PROTOTYPES
 #include <SDL_opengl.h>
 #include <stb_truetype.h>
-#include <Eigen/Dense>
 #include <unordered_map>
 #include "renderer/backend.h"
 #include "renderer/gl_context.h"
@@ -82,14 +81,16 @@ class GLBackend : public Backend {
   void BeginFrame();
   void BindFramebuffer(Framebuffer fb);
   void Clear(float r, float g, float b, float a);
-  void RenderTA();
+  void RenderFramebuffer(Framebuffer fb);
   void RenderText2D(float x, float y, int point_size, uint32_t color,
                     const char *text);
   void RenderBox2D(int x0, int y0, int x1, int y1, uint32_t color,
                    BoxType type);
   void RenderLine2D(float *verts, int num_verts, uint32_t color);
-  void RenderSurfaces(const Surface *surfs, int num_surfs, const Vertex *verts,
-                      int num_verts, const int *sorted_surfs);
+  void RenderSurfaces(const Eigen::Matrix4f &projection, const Surface *surfs,
+                      int num_surfs, const Vertex *verts, int num_verts,
+                      const int *sorted_surfs);
+
   void EndFrame();
 
  private:

@@ -48,6 +48,7 @@ struct TraceCommand {
       holly::ISP_TSP bg_isp;
       holly::TSP bg_tsp;
       holly::TCW bg_tcw;
+      float bg_depth;
       uint32_t bg_vertices_size;
       const uint8_t *bg_vertices;
       uint32_t data_size;

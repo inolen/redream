@@ -2,6 +2,7 @@
 #define TILE_RENDERER_H
 
 #include <functional>
+#include <Eigen/Dense>
 #include "renderer/backend.h"
 
 namespace dreavm {
@@ -51,13 +52,13 @@ class TileRenderer {
   void ParseOffsetColor(uint32_t offset_color, float *color);
   void ParseOffsetColor(float r, float g, float b, float a, float *color);
   void ParseOffsetColor(float intensity, float *color);
-  void ParseBackground(const TileContext *tactx, renderer::Backend *rb);
+  void ParseBackground(const TileContext *tactx);
   void ParsePolyParam(const TileContext *tactx, renderer::Backend *rb,
                       const PolyParam *param);
   void ParseVertexParam(const TileContext *tactx, renderer::Backend *rb,
                         const VertexParam *param);
   void ParseEndOfList(const TileContext *tactx);
-  void NormalizeZ();
+  Eigen::Matrix4f GetProjectionMatrix();
 
   renderer::TextureHandle RegisterTexture(const TileContext *tactx,
                                           renderer::Backend *rb, const TSP &tsp,
@@ -81,6 +82,7 @@ class TileRenderer {
   // current render state
   renderer::Surface surfs_[MAX_SURFACES];
   renderer::Vertex verts_[MAX_VERTICES];
+  int width_, height_;
   int num_surfs_;
   int num_verts_;
   int sorted_surfs_[MAX_SURFACES];

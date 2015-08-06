@@ -1,6 +1,8 @@
 #ifndef RENDERER_BACKEND_H
 #define RENDERER_BACKEND_H
 
+#include <Eigen/Dense>
+
 namespace dreavm {
 namespace renderer {
 
@@ -81,6 +83,7 @@ struct Surface {
   BlendFunc src_blend;
   BlendFunc dst_blend;
   ShadeMode shade;
+  bool ignore_tex_alpha;
   int first_vert;
   int num_verts;
 };
@@ -96,7 +99,6 @@ struct Surface2D {
   int texture;
   BlendFunc src_blend;
   BlendFunc dst_blend;
-  bool drop_shadow;
   int num_verts;
 };
 
@@ -120,13 +122,14 @@ class Backend {
   virtual void BeginFrame() = 0;
   virtual void BindFramebuffer(Framebuffer fb) = 0;
   virtual void Clear(float r, float g, float b, float a) = 0;
-  virtual void RenderTA() = 0;
+  virtual void RenderFramebuffer(Framebuffer fb) = 0;
   virtual void RenderText2D(float x, float y, int point_size, uint32_t color,
                             const char *text) = 0;
   virtual void RenderBox2D(int x0, int y0, int x1, int y1, uint32_t color,
                            BoxType type) = 0;
   virtual void RenderLine2D(float *verts, int num_verts, uint32_t color) = 0;
-  virtual void RenderSurfaces(const Surface *surfs, int num_surfs,
+  virtual void RenderSurfaces(const Eigen::Matrix4f &projection,
+                              const Surface *surfs, int num_surfs,
                               const Vertex *verts, int num_verts,
                               const int *sorted_surfs) = 0;
   virtual void EndFrame() = 0;

@@ -7,8 +7,7 @@ namespace renderer {
 #define GLSL_VERSION 330
 
 // must match order of UniformAttr enum
-static const char *uniform_names[] = {"u_mvp",       //
-                                      "u_xy_scale",  //
+static const char *uniform_names[] = {"u_mvp",  //
                                       "u_diffuse_map"};
 
 static bool CompileShader(const char *source, GLenum shaderType,

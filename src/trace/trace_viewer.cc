@@ -99,12 +99,11 @@ void TraceViewer::PumpEvents() {
 void TraceViewer::RenderFrame() {
   rb_->BeginFrame();
 
-  rb_->RenderTA();
+  rb_->RenderFramebuffer(FB_TILE_ACCELERATOR);
 
   // render stats
   char stats[512];
-  snprintf(stats, sizeof(stats), "frame %d / %d", current_frame_,
-           num_frames_);
+  snprintf(stats, sizeof(stats), "frame %d / %d", current_frame_, num_frames_);
   rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
 
   rb_->EndFrame();
@@ -136,6 +135,7 @@ void TraceViewer::CopyCommandToContext(const TraceCommand *cmd,
   ctx->bg_isp = cmd->render_context.bg_isp;
   ctx->bg_tsp = cmd->render_context.bg_tsp;
   ctx->bg_tcw = cmd->render_context.bg_tcw;
+  ctx->bg_depth = cmd->render_context.bg_depth;
   memcpy(ctx->bg_vertices, cmd->render_context.bg_vertices,
          cmd->render_context.bg_vertices_size);
   memcpy(ctx->data, cmd->render_context.data, cmd->render_context.data_size);

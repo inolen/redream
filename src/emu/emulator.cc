@@ -247,7 +247,7 @@ void Emulator::RenderFrame() {
   rb_->BeginFrame();
 
   // render latest TA output
-  rb_->RenderTA();
+  rb_->RenderFramebuffer(FB_TILE_ACCELERATOR);
 
   // render stats
   char stats[512];

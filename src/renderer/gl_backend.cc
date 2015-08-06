@@ -208,33 +208,41 @@ void GLBackend::Clear(float r, float g, float b, float a) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void GLBackend::RenderTA() {
-  Vertex2D *vert = AllocVertices2D(
-      {GL_TRIANGLES, (int)fb_ta_color_, BLEND_NONE, BLEND_NONE}, 6);
+void GLBackend::RenderFramebuffer(Framebuffer fb) {
+  switch (fb) {
+    case FB_DEFAULT:
+      LOG(FATAL) << "Unsupported";
+      break;
 
-  Q0(vert, x, 0.0f);
-  Q0(vert, y, 0.0f);
-  Q0(vert, color, 0xffffffff);
-  Q0(vert, u, 0.0f);
-  Q0(vert, v, 1.0f);
+    case FB_TILE_ACCELERATOR:
+      Vertex2D *vert = AllocVertices2D(
+          {GL_TRIANGLES, (int)fb_ta_color_, BLEND_NONE, BLEND_NONE}, 6);
 
-  Q1(vert, x, state_.video_width);
-  Q1(vert, y, 0.0f);
-  Q1(vert, color, 0xffffffff);
-  Q1(vert, u, 1.0f);
-  Q1(vert, v, 1.0f);
+      Q0(vert, x, 0.0f);
+      Q0(vert, y, 0.0f);
+      Q0(vert, color, 0xffffffff);
+      Q0(vert, u, 0.0f);
+      Q0(vert, v, 1.0f);
 
-  Q2(vert, x, state_.video_width);
-  Q2(vert, y, state_.video_height);
-  Q2(vert, color, 0xffffffff);
-  Q2(vert, u, 1.0f);
-  Q2(vert, v, 0.0f);
+      Q1(vert, x, state_.video_width);
+      Q1(vert, y, 0.0f);
+      Q1(vert, color, 0xffffffff);
+      Q1(vert, u, 1.0f);
+      Q1(vert, v, 1.0f);
 
-  Q3(vert, x, 0.0f);
-  Q3(vert, y, state_.video_height);
-  Q3(vert, color, 0xffffffff);
-  Q3(vert, u, 0.0f);
-  Q3(vert, v, 0.0f);
+      Q2(vert, x, state_.video_width);
+      Q2(vert, y, state_.video_height);
+      Q2(vert, color, 0xffffffff);
+      Q2(vert, u, 1.0f);
+      Q2(vert, v, 0.0f);
+
+      Q3(vert, x, 0.0f);
+      Q3(vert, y, state_.video_height);
+      Q3(vert, color, 0xffffffff);
+      Q3(vert, u, 0.0f);
+      Q3(vert, v, 0.0f);
+      break;
+  }
 }
 
 void GLBackend::RenderText2D(float x, float y, int point_size, uint32_t color,
@@ -373,9 +381,13 @@ void GLBackend::RenderLine2D(float *verts, int num_verts, uint32_t color) {
   }
 }
 
-void GLBackend::RenderSurfaces(const Surface *surfs, int num_surfs,
+void GLBackend::RenderSurfaces(const Eigen::Matrix4f &projection,
+                               const Surface *surfs, int num_surfs,
                                const Vertex *verts, int num_verts,
                                const int *sorted_surfs) {
+  // transpose to column-major for OpenGL
+  Eigen::Matrix4f transposed = projection.transpose();
+
   glBindBuffer(GL_ARRAY_BUFFER, ta_vbo_);
   glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * num_verts, verts,
                GL_STATIC_DRAW);
@@ -393,9 +405,9 @@ void GLBackend::RenderSurfaces(const Surface *surfs, int num_surfs,
     // TODO use surf->shade to select correct shader
 
     BindProgram(&ta_program_);
+    glUniformMatrix4fv(GetUniform(UNIFORM_MODELVIEWPROJECTIONMATRIX), 1,
+                       GL_FALSE, transposed.data());
     glUniform1i(GetUniform(UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
-    glUniform2f(GetUniform(UNIFORM_XY_SCALE), 1.0f / (state_.ta_width / 2.0f),
-                1.0f / (state_.ta_height / 2.0f));
 
     BindTexture(MAP_DIFFUSE,
                 surf->texture ? textures_[surf->texture] : white_tex_);
