@@ -14,13 +14,16 @@ class ContextPromotionPass : public Pass {
   void Run(IRBuilder &builder);
 
  private:
+  void ResetState();
   void ProcessBlock(Block *block);
-
   void ClearAvailable();
+  void ReserveAvailable(int offset);
   Value *GetAvailable(int offset);
   void SetAvailable(int offset, Value *v);
 
-  std::vector<Value *> available_;
+  uint64_t available_marker_;
+  std::vector<uint64_t> available_;
+  std::vector<Value *> available_values_;
 };
 }
 }

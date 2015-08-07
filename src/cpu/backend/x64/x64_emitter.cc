@@ -385,8 +385,10 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Xbyak::Operand &from,
       LOG(FATAL) << "Unsupported copy";
     }
   } else if (to.isMEM() && from.isMEM()) {
-    c_.mov(c_.r8, from);
-    c_.mov(to, c_.r8);
+    const Xbyak::Reg &tmp = GetTmpRegister(nullptr, from.getBit() >> 3);
+    c_.mov(tmp, from);
+    c_.mov(to, tmp);
+    // FIXME could release tmp register now
   } else {
     c_.mov(to, from);
   }

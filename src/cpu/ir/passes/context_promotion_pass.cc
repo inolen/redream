@@ -8,9 +8,15 @@ using namespace dreavm::cpu::ir::passes;
 void ContextPromotionPass::Run(IRBuilder &builder) {
   PROFILER_SCOPE("runtime", "ContextPromotionPass::Run");
 
+  ResetState();
+
   for (auto block : builder.blocks()) {
     ProcessBlock(block);
   }
+}
+
+void ContextPromotionPass::ResetState() {
+  ClearAvailable();
 }
 
 void ContextPromotionPass::ProcessBlock(Block *block) {
@@ -79,14 +85,30 @@ void ContextPromotionPass::ProcessBlock(Block *block) {
   }
 }
 
-void ContextPromotionPass::ClearAvailable() { available_.clear(); }
+void ContextPromotionPass::ClearAvailable() {
+  available_marker_++;
+}
+
+void ContextPromotionPass::ReserveAvailable(int offset) {
+  if (offset >= (int)available_.size()) {
+    available_.resize(offset + 1);
+    available_values_.resize(offset + 1);
+  }
+}
 
 Value *ContextPromotionPass::GetAvailable(int offset) {
-  available_.resize(offset + 1);
-  return available_.at(offset);
+  ReserveAvailable(offset);
+
+  if (available_[offset] < available_marker_) {
+    return nullptr;
+  }
+
+  return available_values_[offset];
 }
 
 void ContextPromotionPass::SetAvailable(int offset, Value *v) {
-  available_.resize(offset + 1);
-  available_.at(offset) = v;
+  ReserveAvailable(offset);
+
+  available_[offset] = available_marker_;
+  available_values_[offset] = v;
 }
