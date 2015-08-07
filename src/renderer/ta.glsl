@@ -17,10 +17,13 @@ void main() {
 
 	gl_Position = u_mvp * vec4(attr_xyz, 1.0);
 
+	// z is in the range of -znear to +zfar, since the actual perspective divide
+	// won't occur, do it manually
+	gl_Position.z /= attr_xyz.z;
+
 	// specify w so OpenGL applies perspective corrected texture mapping, but
 	// cancel the perspective divide on the xyz, they're already perspective
 	// correct
-	// TODO #ifdef this
 	float w = 1.0 / attr_xyz.z;
 	gl_Position.xyz *= w;
 	gl_Position.w = w;

@@ -684,7 +684,8 @@ Eigen::Matrix4f TileRenderer::GetProjectionMatrix() {
     }
   }
 
-  float zdepth = znear - zfar;
+  // fudge so Z isn't being mapped to exactly 0.0 and 1.0
+  float zdepth = (znear - zfar) * 1.1f;
 
   // fix case where a single polygon being renderered
   if (zdepth <= 0.0f) {
