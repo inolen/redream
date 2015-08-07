@@ -22,9 +22,13 @@ class X64Emitter {
  public:
   X64Emitter(Xbyak::CodeGenerator &codegen);
 
+  Xbyak::Label &epilog_label() { return *epilog_label_; }
+
   X64Fn Emit(ir::IRBuilder &builder);
 
   // helpers for the emitter callbacks
+  Xbyak::Label *AllocLabel();
+  Xbyak::Address *AllocAddress(const Xbyak::Address &addr);
   const Xbyak::Operand &GetOperand(const ir::Value *v, int size = -1);
   const Xbyak::Operand &GetOperand(const ir::Value *v,
                                    const Xbyak::Operand &tmp);
@@ -41,7 +45,8 @@ class X64Emitter {
 
  private:
   Xbyak::CodeGenerator &c_;
-  core::Arena operand_arena_;
+  core::Arena arena_;
+  Xbyak::Label *epilog_label_;
 };
 }
 }

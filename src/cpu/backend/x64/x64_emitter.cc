@@ -60,16 +60,23 @@ static X64Emit x64_emitters[NUM_OPCODES];
   } x64_##op##_init;                                                   \
   void op(X64Emitter &e, Xbyak::CodeGenerator &c, const Instr *instr)
 
+// get and set Xbyak::Labels in the IR block's tag
+#define GET_LABEL(blk) (*reinterpret_cast<Xbyak::Label *>(blk->tag()))
+#define SET_LABEL(blk, lbl) (blk->set_tag(reinterpret_cast<intptr_t>(lbl)))
+
 X64Emitter::X64Emitter(Xbyak::CodeGenerator &codegen)
-    : c_(codegen), operand_arena_(1024) {}
+    : c_(codegen), arena_(1024) {}
 
 X64Fn X64Emitter::Emit(IRBuilder &builder) {
   // getCurr returns the current spot in the codegen buffer which the function
   // is about to emitted to
   X64Fn fn = c_.getCurr<X64Fn>();
 
-  // reset arena holding temporary operands used during emitting
-  operand_arena_.Reset();
+  // reset arena holding temporaries used while emitting
+  arena_.Reset();
+
+  // allocate the epilog label
+  epilog_label_ = AllocLabel();
 
   // stack must be 16 byte aligned
   // TODO align each local
@@ -77,8 +84,6 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
   // add 8 for function return value which will be pushed when this is called
   stack_size = align(stack_size, 16) + 8;
   assert((stack_size + 8) % 16 == 0);
-
-  c_.inLocalLabel();
 
   // emit prolog
   // FIXME only push registers that're used
@@ -95,15 +100,15 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
          Xbyak::util::rdi);
   c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], Xbyak::util::rsi);
 
-  // assign ordinals for each block
-  int ordinal = 0;
+  // generate labels for each block
   for (auto block : builder.blocks()) {
-    block->set_tag(ordinal++);
+    Xbyak::Label *lbl = AllocLabel();
+    SET_LABEL(block, lbl);
   }
 
   for (auto block : builder.blocks()) {
     // generate label for this ordinal
-    c_.L("." + std::to_string((int)block->tag()));
+    c_.L(GET_LABEL(block));
 
     for (auto instr : block->instrs()) {
       X64Emit emit = x64_emitters[instr->op()];
@@ -113,7 +118,7 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
   }
 
   // emit prolog
-  c_.L(".epilog");
+  c_.L(epilog_label());
 
   // reset stack
   c_.add(Xbyak::util::rsp, stack_size);
@@ -128,7 +133,6 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
 
   c_.ret();
 
-  c_.outLocalLabel();
   c_.align(16);
 
   // patch up relocations
@@ -136,6 +140,18 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
 
   // return the start of the buffer
   return fn;
+}
+
+Xbyak::Label *X64Emitter::AllocLabel() {
+  Xbyak::Label *label = arena_.Alloc<Xbyak::Label>();
+  new (label) Xbyak::Label();
+  return label;
+}
+
+Xbyak::Address *X64Emitter::AllocAddress(const Xbyak::Address &from) {
+  Xbyak::Address *addr = arena_.Alloc<Xbyak::Address>();
+  new (addr) Xbyak::Address(from);
+  return addr;
 }
 
 // Get the register / local allocated for the supplied value. The size argument
@@ -167,22 +183,22 @@ const Xbyak::Operand &X64Emitter::GetOperand(const Value *v, int size) {
 
     return *reg;
   } else if (v->local() != NO_SLOT) {
-    Xbyak::Address *addr = operand_arena_.Alloc<Xbyak::Address>();
+    Xbyak::Address *addr = nullptr;
 
     int offset = STACK_OFFSET_LOCALS + v->local();
 
     switch (size) {
       case 8:
-        *addr = c_.qword[Xbyak::util::rsp + offset];
+        addr = AllocAddress(c_.qword[Xbyak::util::rsp + offset]);
         break;
       case 4:
-        *addr = c_.dword[Xbyak::util::rsp + offset];
+        addr = AllocAddress(c_.dword[Xbyak::util::rsp + offset]);
         break;
       case 2:
-        *addr = c_.word[Xbyak::util::rsp + offset];
+        addr = AllocAddress(c_.word[Xbyak::util::rsp + offset]);
         break;
       case 1:
-        *addr = c_.byte[Xbyak::util::rsp + offset];
+        addr = AllocAddress(c_.byte[Xbyak::util::rsp + offset]);
         break;
     }
 
@@ -1206,13 +1222,12 @@ EMITTER(BRANCH) {
     // jump to local block
     // TODO T_NEAR necessary?
     Block *dst = instr->arg0()->value<Block *>();
-    int ordinal = dst->tag();
-    c.jmp("." + std::to_string(ordinal), Xbyak::CodeGenerator::T_NEAR);
+    c.jmp(GET_LABEL(dst), Xbyak::CodeGenerator::T_NEAR);
   } else {
     // return if we need to branch to a far block
     e.CopyOperand(instr->arg0(), c.rax);
 
-    c.jmp(".epilog");
+    c.jmp(e.epilog_label());
   }
 }
 
@@ -1232,10 +1247,8 @@ EMITTER(BRANCH_COND) {
     Block *block_false = instr->arg2()->value<Block *>();
 
     // TODO T_NEAR?
-    c.jnz("." + std::to_string((int)block_true->tag()),
-          Xbyak::CodeGenerator::T_NEAR);
-    c.je("." + std::to_string((int)block_false->tag()),
-         Xbyak::CodeGenerator::T_NEAR);
+    c.jnz(GET_LABEL(block_true), Xbyak::CodeGenerator::T_NEAR);
+    c.je(GET_LABEL(block_false), Xbyak::CodeGenerator::T_NEAR);
   }
   // if both blocks are a far block this is easy
   else if (instr->arg1()->type() != VALUE_BLOCK &&
@@ -1246,7 +1259,7 @@ EMITTER(BRANCH_COND) {
 
     c.cmovnz(c.eax, op_true);
     c.cmovz(c.eax, op_false);
-    c.jmp(".epilog");
+    c.jmp(e.epilog_label());
   }
   // if they are mixed, do local block test first, far block second
   else {
