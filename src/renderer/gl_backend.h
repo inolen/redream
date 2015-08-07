@@ -72,7 +72,8 @@ class GLBackend : public Backend {
   bool Init();
 
   TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
-                                int width, int height, const uint8_t *buffer);
+                                bool gen_mipmaps, int width, int height,
+                                const uint8_t *buffer);
   void FreeTexture(TextureHandle handle);
 
   void SetFramebufferSize(Framebuffer fb, int width, int height);

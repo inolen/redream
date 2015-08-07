@@ -5,6 +5,50 @@
 using namespace dreavm::holly;
 using namespace dreavm::renderer;
 
+static int compressed_mipmap_offsets[] = {
+    0x00006,  // 8 x 8
+    0x00016,  // 16 x 16
+    0x00056,  // 32 x 32
+    0x00156,  // 64 x 64
+    0x00556,  // 128 x 128
+    0x01556,  // 256 x 256
+    0x05556,  // 512 x 512
+    0x15556,  // 1024 x 1024
+};
+
+static int paletted_4bpp_mipmap_offsets[] = {
+    0x0000c,  // 8 x 8
+    0x0002c,  // 16 x 16
+    0x000ac,  // 32 x 32
+    0x002ac,  // 64 x 64
+    0x00aac,  // 128 x 128
+    0x02aac,  // 256 x 256
+    0x0aaac,  // 512 x 512
+    0x2aaac,  // 1024 x 1024
+};
+
+static int paletted_8bpp_mipmap_offsets[] = {
+    0x00018,  // 8 x 8
+    0x00058,  // 16 x 16
+    0x00158,  // 32 x 32
+    0x00558,  // 64 x 64
+    0x01558,  // 128 x 128
+    0x05558,  // 256 x 256
+    0x15558,  // 512 x 512
+    0x55558,  // 1024 x 1024
+};
+
+static int nonpaletted_mipmap_offsets[] = {
+    0x00030,  // 8 x 8
+    0x000b0,  // 16 x 16
+    0x002b0,  // 32 x 32
+    0x00ab0,  // 64 x 64
+    0x02ab0,  // 128 x 128
+    0x0aab0,  // 256 x 256
+    0x2aab0,  // 512 x 512
+    0xaaab0,  // 1024 x 1024
+};
+
 inline DepthFunc TranslateDepthFunc(uint32_t depth_func) {
   static DepthFunc depth_funcs[] = {DEPTH_NEVER,  DEPTH_GREATER, DEPTH_EQUAL,
                                     DEPTH_GEQUAL, DEPTH_LESS,    DEPTH_NEQUAL,
@@ -665,19 +709,18 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
                                             const uint8_t *texture,
                                             const uint8_t *palette) {
   static uint8_t converted[1024 * 1024 * 4];
-  const uint8_t *buffer = texture;
+  const uint8_t *input = texture;
+  const uint8_t *output = texture;
 
   // textures are either twiddled and vq compressed, twiddled and uncompressed
   // or planar
   bool twiddled = !tcw.scan_order;
   bool compressed = tcw.vq_compressed;
+  bool mip_mapped = !tcw.scan_order && tcw.mip_mapped;
 
   // get texture dimensions
   int width = 8 << tsp.texture_u_size;
-  int height = 8 << tsp.texture_v_size;
-  if (!twiddled && tcw.mip_mapped) {
-    height = width;
-  }
+  int height = mip_mapped ? width : 8 << tsp.texture_v_size;
   int stride = width;
   if (!twiddled && tcw.stride_select) {
     stride = tactx->stride;
@@ -688,55 +731,76 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
   //   width = tactx->stride << 5;
   // }
 
+  // mipmap textures contain data for 1 x 1 up to width x height. skip to the
+  // highest res texture and let the renderer backend generate its own mipmaps
+  if (mip_mapped) {
+    if (compressed) {
+      // for vq compressed textures the offset is only for the index data, the
+      // codebook is the same for all levels
+      input += compressed_mipmap_offsets[tsp.texture_u_size];
+    } else if (tcw.pixel_format == TA_PIXEL_4BPP) {
+      input += paletted_4bpp_mipmap_offsets[tsp.texture_u_size];
+    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
+      input += paletted_8bpp_mipmap_offsets[tsp.texture_u_size];
+    } else {
+      input += nonpaletted_mipmap_offsets[tsp.texture_u_size];
+    }
+  }
+
+  // used by vq compressed textures
+  static const int codebook_size = 256 * 8;
+  const uint8_t *codebook = texture;
+  const uint8_t *index = input + codebook_size;
+
   PixelFormat pixel_fmt;
   switch (tcw.pixel_format) {
     case TA_PIXEL_1555:
-      buffer = converted;
+      output = converted;
       pixel_fmt = PXL_RGBA5551;
       if (compressed) {
         PixelConvert::ConvertVQ<ARGB1555, RGBA5551>(
-            texture, (uint16_t *)converted, width, height);
+            codebook, index, (uint16_t *)converted, width, height);
       } else if (twiddled) {
         PixelConvert::ConvertTwiddled<ARGB1555, RGBA5551>(
-            (uint16_t *)texture, (uint16_t *)converted, width, height);
+            (uint16_t *)input, (uint16_t *)converted, width, height);
       } else {
         PixelConvert::Convert<ARGB1555, RGBA5551>(
-            (uint16_t *)texture, (uint16_t *)converted, stride, height);
+            (uint16_t *)input, (uint16_t *)converted, stride, height);
       }
       break;
 
     case TA_PIXEL_565:
-      buffer = converted;
+      output = converted;
       pixel_fmt = PXL_RGB565;
       if (compressed) {
-        PixelConvert::ConvertVQ<RGB565, RGB565>(texture, (uint16_t *)converted,
-                                                width, height);
+        PixelConvert::ConvertVQ<RGB565, RGB565>(
+            codebook, index, (uint16_t *)converted, width, height);
       } else if (twiddled) {
         PixelConvert::ConvertTwiddled<RGB565, RGB565>(
-            (uint16_t *)texture, (uint16_t *)converted, width, height);
+            (uint16_t *)input, (uint16_t *)converted, width, height);
       } else {
         PixelConvert::Convert<RGB565, RGB565>(
-            (uint16_t *)texture, (uint16_t *)converted, stride, height);
+            (uint16_t *)input, (uint16_t *)converted, stride, height);
       }
       break;
 
     case TA_PIXEL_4444:
-      buffer = converted;
+      output = converted;
       pixel_fmt = PXL_RGBA4444;
       if (compressed) {
         PixelConvert::ConvertVQ<ARGB4444, RGBA4444>(
-            texture, (uint16_t *)converted, width, height);
+            codebook, index, (uint16_t *)converted, width, height);
       } else if (twiddled) {
         PixelConvert::ConvertTwiddled<ARGB4444, RGBA4444>(
-            (uint16_t *)texture, (uint16_t *)converted, width, height);
+            (uint16_t *)input, (uint16_t *)converted, width, height);
       } else {
         PixelConvert::Convert<ARGB4444, RGBA4444>(
-            (uint16_t *)texture, (uint16_t *)converted, stride, height);
+            (uint16_t *)input, (uint16_t *)converted, stride, height);
       }
       break;
 
     case TA_PIXEL_4BPP:
-      buffer = converted;
+      output = converted;
       switch (tactx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
           pixel_fmt = PXL_RGBA5551;
@@ -752,8 +816,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
           CHECK_EQ(false, twiddled);
           pixel_fmt = PXL_RGBA4444;
           PixelConvert::ConvertPal4<ARGB4444, RGBA4444>(
-              texture, (uint16_t *)converted, (uint32_t *)palette, width,
-              height);
+              input, (uint16_t *)converted, (uint32_t *)palette, width, height);
           break;
 
         case TA_PAL_ARGB8888:
@@ -765,7 +828,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       break;
 
     case TA_PIXEL_8BPP:
-      buffer = converted;
+      output = converted;
       switch (tactx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
           pixel_fmt = PXL_RGBA5551;
@@ -781,16 +844,14 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
           CHECK_EQ(true, twiddled);
           pixel_fmt = PXL_RGBA4444;
           PixelConvert::ConvertPal8<ARGB4444, RGBA4444>(
-              texture, (uint16_t *)converted, (uint32_t *)palette, width,
-              height);
+              input, (uint16_t *)converted, (uint32_t *)palette, width, height);
           break;
 
         case TA_PAL_ARGB8888:
           CHECK_EQ(true, twiddled);
           pixel_fmt = PXL_RGBA8888;
           PixelConvert::ConvertPal8<ARGB8888, RGBA8888>(
-              texture, (uint32_t *)converted, (uint32_t *)palette, width,
-              height);
+              input, (uint32_t *)converted, (uint32_t *)palette, width, height);
           break;
       }
       break;
@@ -804,7 +865,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
   FilterMode filter = tsp.filter_mode == 0 ? FILTER_NEAREST : FILTER_BILINEAR;
 
   TextureHandle handle =
-      rb->RegisterTexture(pixel_fmt, filter, width, height, buffer);
+      rb->RegisterTexture(pixel_fmt, filter, mip_mapped, width, height, output);
   if (!handle) {
     LOG(WARNING) << "Failed to register texture";
     return 0;

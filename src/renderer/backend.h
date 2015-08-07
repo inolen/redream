@@ -112,7 +112,7 @@ class Backend {
   virtual bool Init() = 0;
 
   virtual TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
-                                        int width, int height,
+                                        bool gen_mipmaps, int width, int height,
                                         const uint8_t *buffer) = 0;
   virtual void FreeTexture(TextureHandle handle) = 0;
 

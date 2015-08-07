@@ -21,9 +21,11 @@ using namespace dreavm::renderer;
   d[2].member = v;       \
   d[5].member = v
 
-static GLenum filterFuncs[] = {
-    GL_NEAREST,  // FILTER_NEAREST
-    GL_LINEAR    // FILTER_BILINEAR
+static GLenum filter_funcs[] = {
+    GL_NEAREST,                // FILTER_NEAREST
+    GL_LINEAR,                 // FILTER_BILINEAR
+    GL_NEAREST_MIPMAP_LINEAR,  // FILTER_NEAREST + gen_mipmaps
+    GL_LINEAR_MIPMAP_LINEAR    // FILTER_BILINEAR + gen_mipmaps
 };
 
 static GLenum depth_funcs[] = {
@@ -44,17 +46,17 @@ static GLenum cull_face[] = {
     GL_BACK    // CULL_BACK
 };
 
-static GLenum blendFuncs[] = {GL_NONE,
-                              GL_ZERO,
-                              GL_ONE,
-                              GL_SRC_COLOR,
-                              GL_ONE_MINUS_SRC_COLOR,
-                              GL_SRC_ALPHA,
-                              GL_ONE_MINUS_SRC_ALPHA,
-                              GL_DST_ALPHA,
-                              GL_ONE_MINUS_DST_ALPHA,
-                              GL_DST_COLOR,
-                              GL_ONE_MINUS_DST_COLOR};
+static GLenum blend_funcs[] = {GL_NONE,
+                               GL_ZERO,
+                               GL_ONE,
+                               GL_SRC_COLOR,
+                               GL_ONE_MINUS_SRC_COLOR,
+                               GL_SRC_ALPHA,
+                               GL_ONE_MINUS_SRC_ALPHA,
+                               GL_DST_ALPHA,
+                               GL_ONE_MINUS_DST_ALPHA,
+                               GL_DST_COLOR,
+                               GL_ONE_MINUS_DST_COLOR};
 
 GLBackend::GLBackend(GLContext &ctx)
     : ctx_(ctx), textures_{0}, fb_ta_(0), num_verts2d_(0), num_surfs2d_(0) {}
@@ -84,8 +86,8 @@ bool GLBackend::Init() {
 }
 
 TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
-                                         int width, int height,
-                                         const uint8_t *buffer) {
+                                         bool gen_mipmaps, int width,
+                                         int height, const uint8_t *buffer) {
   // FIXME worth speeding up?
   TextureHandle handle;
   for (handle = 1; handle < MAX_TEXTURES; handle++) {
@@ -119,13 +121,21 @@ TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
       break;
   }
 
+  GLenum min_filter = filter_funcs[filter * gen_mipmaps];
+  GLenum mag_filter = filter_funcs[filter];
+
   GLuint &gltex = textures_[handle];
   glGenTextures(1, &gltex);
   glBindTexture(GL_TEXTURE_2D, gltex);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterFuncs[filter]);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterFuncs[filter]);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter);
   glTexImage2D(GL_TEXTURE_2D, 0, internal_fmt, width, height, 0, internal_fmt,
                pixel_fmt, buffer);
+
+  if (gen_mipmaps) {
+    glGenerateMipmap(GL_TEXTURE_2D);
+  }
+
   glBindTexture(GL_TEXTURE_2D, 0);
 
   return handle;
@@ -631,7 +641,7 @@ void GLBackend::SetBlendFunc(BlendFunc src_fn, BlendFunc dst_fn) {
     glDisable(GL_BLEND);
   } else {
     glEnable(GL_BLEND);
-    glBlendFunc(blendFuncs[src_fn], blendFuncs[dst_fn]);
+    glBlendFunc(blend_funcs[src_fn], blend_funcs[dst_fn]);
   }
 }
 

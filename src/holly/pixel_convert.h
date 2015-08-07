@@ -220,11 +220,9 @@ class PixelConvert {
   }
 
   template <typename FROM, typename TO>
-  static void ConvertVQ(const uint8_t *src, typename TO::data_type *dst,
-                        int width, int height) {
+  static void ConvertVQ(const uint8_t *codebook, const uint8_t *index,
+                        typename TO::data_type *dst, int width, int height) {
     int min = std::min(width, height);
-    const uint8_t *codebook = src;
-    const uint8_t *index = src + 256 * 8;
     uint8_t r, g, b, a;
 
     for (int y = 0; y < height; ++y) {
