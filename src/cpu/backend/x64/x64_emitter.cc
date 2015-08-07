@@ -1,5 +1,6 @@
 #include "cpu/backend/x64/x64_emitter.h"
 #include "emu/memory.h"
+#include "emu/profiler.h"
 
 using namespace dreavm::core;
 using namespace dreavm::cpu::backend::x64;
@@ -68,6 +69,8 @@ X64Emitter::X64Emitter(Xbyak::CodeGenerator &codegen)
     : c_(codegen), arena_(1024) {}
 
 X64Fn X64Emitter::Emit(IRBuilder &builder) {
+  PROFILER_SCOPE("runtime", "X64Emitter::Emit");
+
   // getCurr returns the current spot in the codegen buffer which the function
   // is about to emitted to
   X64Fn fn = c_.getCurr<X64Fn>();

@@ -6,7 +6,6 @@
 #include "cpu/ir/passes/control_flow_analysis_pass.h"
 #include "cpu/ir/passes/register_allocation_pass.h"
 #include "cpu/ir/passes/validate_block_pass.h"
-#include "cpu/ir/passes/validate_instruction_pass.h"
 #include "cpu/runtime.h"
 #include "emu/profiler.h"
 
@@ -37,20 +36,17 @@ bool Runtime::Init(frontend::Frontend *frontend, backend::Backend *backend) {
     return false;
   }
 
-  pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateBlockPass()));
+  // pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateBlockPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ContextPromotionPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
-  pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateInstructionPass()));
 
   return true;
 }
 
 RuntimeBlock *Runtime::ResolveBlock(uint32_t addr) {
-  PROFILER_SCOPE_F("runtime");
-
   if (pending_reset_) {
     for (int i = 0; i < MAX_BLOCKS; i++) {
       blocks_[i] = nullptr;

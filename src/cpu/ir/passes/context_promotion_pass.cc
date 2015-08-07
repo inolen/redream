@@ -1,10 +1,13 @@
 #include "core/core.h"
 #include "cpu/ir/passes/context_promotion_pass.h"
+#include "emu/profiler.h"
 
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 
 void ContextPromotionPass::Run(IRBuilder &builder) {
+  PROFILER_SCOPE("runtime", "ContextPromotionPass::Run");
+
   for (auto block : builder.blocks()) {
     ProcessBlock(block);
   }

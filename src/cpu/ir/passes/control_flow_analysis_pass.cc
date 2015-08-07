@@ -1,10 +1,13 @@
 #include "core/core.h"
 #include "cpu/ir/passes/control_flow_analysis_pass.h"
+#include "emu/profiler.h"
 
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 
 void ControlFlowAnalysisPass::Run(IRBuilder &builder) {
+  PROFILER_SCOPE("runtime", "ControlFlowAnalysisPass::Run");
+
   // add directed edges between blocks
   for (auto block : builder.blocks()) {
     for (auto instr : block->instrs()) {

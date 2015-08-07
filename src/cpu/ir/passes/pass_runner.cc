@@ -1,6 +1,7 @@
 #include "core/core.h"
 #include "cpu/ir/ir_builder.h"
 #include "cpu/ir/passes/pass_runner.h"
+#include "emu/profiler.h"
 
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
@@ -12,6 +13,8 @@ void PassRunner::AddPass(std::unique_ptr<Pass> pass) {
 }
 
 void PassRunner::Run(IRBuilder &builder) {
+  PROFILER_SCOPE("runtime", "PassRunner::Run");
+
   for (auto &pass : passes_) {
     pass->Run(builder);
   }

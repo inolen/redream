@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include "core/core.h"
 #include "cpu/ir/passes/constant_propagation_pass.h"
+#include "emu/profiler.h"
 
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
@@ -82,6 +83,8 @@ static int GetConstantSig(Instr *instr) {
 }
 
 void ConstantPropagationPass::Run(IRBuilder &builder) {
+  PROFILER_SCOPE("runtime", "ConstantPropagationPass::Run");
+
   for (auto block : builder.blocks()) {
     auto it = block->instrs().begin();
     auto end = block->instrs().end();

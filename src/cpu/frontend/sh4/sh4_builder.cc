@@ -2,6 +2,7 @@
 #include "cpu/frontend/sh4/sh4_frontend.h"
 #include "cpu/frontend/sh4/sh4_instr.h"
 #include "cpu/runtime.h"
+#include "emu/profiler.h"
 
 using namespace dreavm::cpu;
 using namespace dreavm::cpu::frontend;
@@ -15,6 +16,8 @@ SH4Builder::SH4Builder(Memory &memory)
 SH4Builder::~SH4Builder() {}
 
 void SH4Builder::Emit(uint32_t start_addr) {
+  PROFILER_SCOPE("runtime", "SH4Builder::Emit");
+
   uint32_t addr = start_addr;
   int guest_cycles = 0;
 

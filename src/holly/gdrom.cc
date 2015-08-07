@@ -294,8 +294,6 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
 }
 
 void GDROM::ProcessATACommand(ATACommand cmd) {
-  printf("ProcessATACommand 0x%x\n", cmd);
-
   status_.DRDY = 0;
   status_.BSY = 1;
 
@@ -340,8 +338,6 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
 
 void GDROM::ProcessSPICommand(uint8_t *data) {
   SPICommand cmd = (SPICommand)data[0];
-
-  printf("ProcessSPICommand 0x%x\n", cmd);
 
   status_.DRQ = 0;
   status_.BSY = 1;

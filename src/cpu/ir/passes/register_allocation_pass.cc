@@ -1,5 +1,6 @@
 #include "core/core.h"
 #include "cpu/ir/passes/register_allocation_pass.h"
+#include "emu/profiler.h"
 
 using namespace dreavm::cpu::backend;
 using namespace dreavm::cpu::ir;
@@ -20,6 +21,8 @@ RegisterAllocationPass::~RegisterAllocationPass() {
 }
 
 void RegisterAllocationPass::Run(IRBuilder &builder) {
+  PROFILER_SCOPE("runtime", "RegisterAllocationPass::Run");
+
   Reset();
 
   // iterate instructions in reverse postorder, assigning each an ordinal
