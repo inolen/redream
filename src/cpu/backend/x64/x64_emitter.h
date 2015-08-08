@@ -27,26 +27,35 @@ class X64Emitter {
   X64Fn Emit(ir::IRBuilder &builder);
 
   // helpers for the emitter callbacks
-  Xbyak::Label *AllocLabel();
-  Xbyak::Address *AllocAddress(const Xbyak::Address &addr);
   const Xbyak::Operand &GetOperand(const ir::Value *v, int size = -1);
-  const Xbyak::Operand &GetOperand(const ir::Value *v,
-                                   const Xbyak::Operand &tmp);
-  const Xbyak::Reg &GetRegister(const ir::Value *v, const Xbyak::Reg &tmp);
-  const Xbyak::Xmm &GetXMMRegister(const ir::Value *v, const Xbyak::Xmm &tmp);
+  const Xbyak::Reg &GetRegister(const ir::Value *v);
+  const Xbyak::Reg &GetRegister(const ir::Value *v,
+                                const Xbyak::Operand &prefered);
+  const Xbyak::Reg &GetTmpRegister(const ir::Value *v = nullptr, int size = -1);
+
+  const Xbyak::Operand &GetXMMOperand(const ir::Value *v);
+  const Xbyak::Xmm &GetXMMRegister(const ir::Value *v);
   const Xbyak::Xmm &GetXMMRegister(const ir::Value *v,
-                                   const Xbyak::Operand &prefered,
-                                   const Xbyak::Xmm &tmp);
+                                   const Xbyak::Operand &prefered);
+  const Xbyak::Xmm &GetTmpXMMRegister(const ir::Value *v = nullptr);
+
   const Xbyak::Operand &CopyOperand(const Xbyak::Operand &from,
                                     const Xbyak::Operand &to);
   const Xbyak::Operand &CopyOperand(const ir::Value *v,
                                     const Xbyak::Operand &to);
-  bool CanEncodeAsImmediate(const ir::Value *v);
+  bool CanEncodeAsImmediate(const ir::Value *v) const;
 
  private:
+  Xbyak::Label *AllocLabel();
+  Xbyak::Address *AllocAddress(const Xbyak::Address &addr);
+
+  void ResetTmpRegisters();
+
   Xbyak::CodeGenerator &c_;
   core::Arena arena_;
   Xbyak::Label *epilog_label_;
+  int tmp_reg_;
+  int tmp_xmm_reg_;
 };
 }
 }
