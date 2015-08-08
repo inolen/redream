@@ -39,3 +39,7 @@ uint32_t InterpreterBlock::Call(emu::Memory *memory, void *guest_ctx) {
 
   return i;
 }
+
+void InterpreterBlock::Dump() {
+  LOG(INFO) << "Unimplemented";
+}

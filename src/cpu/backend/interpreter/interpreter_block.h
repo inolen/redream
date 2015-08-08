@@ -18,6 +18,7 @@ class InterpreterBlock : public RuntimeBlock {
   ~InterpreterBlock();
 
   uint32_t Call(emu::Memory *memory, void *guest_ctx);
+  void Dump();
 
  private:
   IntInstr *instrs_;

@@ -39,6 +39,7 @@ class RuntimeBlock {
   int guest_cycles() { return guest_cycles_; }
 
   virtual uint32_t Call(emu::Memory *memory, void *guest_ctx) = 0;
+  virtual void Dump() = 0;
 
  private:
   int guest_cycles_;
