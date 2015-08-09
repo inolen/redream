@@ -340,19 +340,25 @@ const Xbyak::Xmm &X64Emitter::GetTmpXMMRegister(const Value *v) {
   return *reg;
 }
 
-// Copy the value from src to dst if they're not the same operand.
-// TODO when copying XMM registers during SIN / COS a movdqa isn't actually
-// necessary (could pass in size info to perform movss / movsd). bummer that
-// there isn't xmm0d, etc.
+// Copy the value from src to dst if they're not the same operand. Note, this
+// isn't fully generalized, it's just hackily handling the cases that've been
+// needed so far.
 const Xbyak::Operand &X64Emitter::CopyOperand(const Xbyak::Operand &from,
                                               const Xbyak::Operand &to) {
-  if (from == to) {
+  if (from == to &&
+      // Xbyak::Operand's equality operator currently returns true even if two
+      // addresses are not the same, this needs to be fixed. For now, work
+      // around the issue by making sure if we're comparing two addresses that
+      // their displacement is the same.
+      (!from.isMEM() || !to.isMEM() ||
+       reinterpret_cast<const Xbyak::Address &>(from).getDisp() ==
+           reinterpret_cast<const Xbyak::Address &>(to).getDisp())) {
     return to;
   }
 
-  CHECK_EQ(from.isREG() && to.isREG() && from.getIdx() == to.getIdx() &&
-               from.getKind() == to.getKind(),
-           false)
+  // shouldn't ever be doing this
+  CHECK(!from.isREG() || !to.isREG() || from.getIdx() != to.getIdx() ||
+        from.getKind() != to.getKind())
       << "Unexpected copy operation between the same register of different "
          "sizes";
 
@@ -378,6 +384,9 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Xbyak::Operand &from,
     } else {
       LOG(FATAL) << "Unsupported copy";
     }
+  } else if (to.isMEM() && from.isMEM()) {
+    c_.mov(c_.r8, from);
+    c_.mov(to, c_.r8);
   } else {
     c_.mov(to, from);
   }
