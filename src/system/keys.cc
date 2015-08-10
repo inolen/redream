@@ -351,6 +351,8 @@ Keycode dreavm::system::GetKeycodeByName(const char *keyname) {
 }
 
 const char *dreavm::system::GetNameByKeycode(Keycode keycode) {
+  static const char *unknown = "unknown";
+
   for (size_t i = 0, l = sizeof(keys) / sizeof(Key); i < l; i++) {
     const Key &key = keys[i];
 
@@ -359,5 +361,5 @@ const char *dreavm::system::GetNameByKeycode(Keycode keycode) {
     }
   }
 
-  return nullptr;
+  return unknown;
 }
