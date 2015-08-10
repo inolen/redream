@@ -72,7 +72,7 @@ RuntimeBlock *Runtime::ResolveBlock(uint32_t addr) {
 void Runtime::ResetBlocks() { pending_reset_ = true; }
 
 RuntimeBlock *Runtime::CompileBlock(uint32_t addr) {
-  PROFILER_SCOPE_F("runtime");
+  PROFILER_RUNTIME("Runtime::CompileBlock");
 
   // LOG(INFO) << "Compiling block 0x" << std::hex << addr;
 

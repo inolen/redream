@@ -1,6 +1,7 @@
 #include "core/core.h"
 #include "cpu/runtime.h"
 #include "cpu/sh4.h"
+#include "emu/profiler.h"
 
 using namespace dreavm::core;
 using namespace dreavm::cpu;
@@ -38,6 +39,8 @@ void SH4::Reset(uint32_t pc) {
 }
 
 int64_t SH4::Execute(int64_t cycles) {
+  PROFILER_RUNTIME("SH4::Execute");
+
   // LOG(INFO) << "Executing " << cycles << " cycles @ 0x" << std::hex <<
   // ctx_.pc;
 
