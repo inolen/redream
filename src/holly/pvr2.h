@@ -14,16 +14,8 @@ namespace holly {
 class Holly;
 
 enum {
-  VRAM32_BASE = 0x04000000,
-  VRAM64_BASE = 0x05000000,
-  VRAM_SIZE = 0x800000,
-  PVR_REG_BASE = 0x005f8000,
-  PVR_REG_SIZE = 0x1000,
-  PVR_PAL_BASE = 0x005f9000,
-  PVR_PAL_SIZE = 0x1000,
-  PIXEL_CLOCK = 27000000,  // 27mhz
 #define PVR_REG(addr, name, flags, default_value, type) \
-  name##_OFFSET = addr - PVR_REG_BASE,
+  name##_OFFSET = addr - emu::PVR_REG_START,
 #include "holly/pvr2_regs.inc"
 #undef PVR_REG
 };
@@ -232,6 +224,7 @@ class PVR2 {
   static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
 
   void InitMemory();
+  void ResetState();
   void ReconfigureVideoOutput();
   void ReconfigureSPG();
   void LineClockUpdate();
@@ -251,7 +244,7 @@ class PVR2 {
   uint8_t *vram_;
   uint8_t *pram_;
 
-  Register regs_[PVR_REG_SIZE >> 2];
+  Register regs_[emu::PVR_REG_SIZE >> 2];
 
 #define PVR_REG(offset, name, flags, default, type) \
   type &name{reinterpret_cast<type &>(regs_[name##_OFFSET >> 2].value)};

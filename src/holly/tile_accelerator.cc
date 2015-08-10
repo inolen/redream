@@ -286,9 +286,9 @@ bool TileAccelerator::Init(Backend *rb) {
   rb_ = rb;
 
   // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
-  memory_.Handle(0x10000000, 0x107fffff, 0x0, this, nullptr,
+  memory_.Handle(TA_CMD_START, TA_CMD_END, 0x0, this, nullptr,
                  &TileAccelerator::WriteCommand);
-  memory_.Handle(0x11000000, 0x11ffffff, 0x0, this, nullptr,
+  memory_.Handle(TA_TEXTURE_START, TA_TEXTURE_END, 0x0, this, nullptr,
                  &TileAccelerator::WriteTexture);
 
   return true;
@@ -450,7 +450,7 @@ void TileAccelerator::WritePVRState(TileContext *tactx) {
   if (!pvr_.FPU_PARAM_CFG.region_header_type) {
     tactx->autosort = !pvr_.ISP_FEED_CFG.presort;
   } else {
-    uint32_t region_data = memory_.R32(VRAM64_BASE + pvr_.REGION_BASE);
+    uint32_t region_data = memory_.R32(PVR_VRAM64_START + pvr_.REGION_BASE);
     tactx->autosort = !(region_data & 0x20000000);
   }
 
@@ -469,7 +469,7 @@ void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
   // ever available at 0x0 when booting the bios, so masking this seems to
   // be the correct solution
   uint32_t vram_offset =
-      VRAM64_BASE +
+      PVR_VRAM64_START +
       ((tactx->addr + pvr_.ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
 
   // get surface parameters

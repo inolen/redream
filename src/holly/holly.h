@@ -20,10 +20,8 @@ namespace holly {
 
 // registers
 enum {
-  SB_REG_BASE = 0x005f6000,
-  SB_REG_SIZE = 0x2000,
 #define HOLLY_REG(addr, name, flags, default, type) \
-  name##_OFFSET = addr - SB_REG_BASE,
+  name##_OFFSET = addr - emu::HOLLY_REG_START,
 #include "holly/holly_regs.inc"
 #undef HOLLY_REG
 };
@@ -171,6 +169,7 @@ class Holly {
 
  public:
   Holly(emu::Scheduler &scheduler, emu::Memory &memory, cpu::SH4 &sh4);
+  ~Holly();
 
   PVR2 &pvr() { return pvr_; }
   GDROM &gdrom() { return gdrom_; }
@@ -187,6 +186,8 @@ class Holly {
   static void WriteRTC(void *ctx, uint32_t addr, uint32_t value);
 
   void InitMemory();
+
+  void ResetState();
   void CH2DMATransfer();
   void SortDMATransfer();
   void ForwardRequestInterrupts();
@@ -196,7 +197,11 @@ class Holly {
   PVR2 pvr_;
   GDROM gdrom_;
   Maple maple_;
-  Register regs_[SB_REG_SIZE >> 2];
+  Register regs_[emu::HOLLY_REG_SIZE >> 2];
+  uint8_t *modem_mem_;
+  uint8_t *aica_mem_;
+  uint8_t *audio_mem_;
+  uint8_t *expdev_mem_;
 
 #define HOLLY_REG(offset, name, flags, default, type) \
   type &name{reinterpret_cast<type &>(regs_[name##_OFFSET >> 2].value)};

@@ -16,7 +16,19 @@ Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4)
       sh4_(sh4),
       pvr_(scheduler, memory, *this),
       gdrom_(memory, *this),
-      maple_(memory, sh4, *this) {}
+      maple_(memory, sh4, *this) {
+  modem_mem_ = new uint8_t [MODEM_REG_SIZE];
+  aica_mem_ = new uint8_t [AICA_REG_SIZE];
+  audio_mem_ = new uint8_t [AUDIO_RAM_SIZE];
+  expdev_mem_ = new uint8_t [EXPDEV_SIZE];
+}
+
+Holly::~Holly() {
+  delete[] modem_mem_;
+  delete[] aica_mem_;
+  delete[] audio_mem_;
+  delete[] expdev_mem_;
+}
 
 bool Holly::Init(renderer::Backend *rb) {
   InitMemory();
@@ -32,6 +44,8 @@ bool Holly::Init(renderer::Backend *rb) {
   if (!maple_.Init()) {
     return false;
   }
+
+  ResetState();
 
   return true;
 }
@@ -197,11 +211,22 @@ void Holly::WriteRTC(void *ctx, uint32_t addr, uint32_t value) {
 }
 
 void Holly::InitMemory() {
-  memory_.Handle(SB_REG_BASE, SB_REG_BASE + SB_REG_SIZE - 1, 0xe0000000, this,
+  memory_.Handle(HOLLY_REG_START, HOLLY_REG_END, MIRROR_MASK, this,
                  &Holly::ReadRegister, &Holly::WriteRegister);
+  memory_.Mount(MODEM_REG_START, MODEM_REG_END, MIRROR_MASK, modem_mem_);
+  memory_.Mount(AICA_REG_START, AICA_REG_END, MIRROR_MASK, aica_mem_);
+  // TODO support RTC
+  // memory_.Handle(0x00710000, 0x0071000b, MIRROR_MASK, this, &Holly::ReadRTC,
+  //                &Holly::WriteRTC);
+  memory_.Mount(AUDIO_RAM_START, AUDIO_RAM_END, MIRROR_MASK, audio_mem_);
+  memory_.Mount(EXPDEV_START, EXPDEV_END, MIRROR_MASK, expdev_mem_);
+}
 
-  memory_.Handle(0x00710000, 0x00710fff, 0xe0000000, this, &Holly::ReadRTC,
-                 &Holly::WriteRTC);
+void Holly::ResetState() {
+  memset(modem_mem_, 0, MODEM_REG_SIZE);
+  memset(aica_mem_, 0, AICA_REG_SIZE);
+  memset(audio_mem_, 0, AUDIO_RAM_SIZE);
+  memset(expdev_mem_, 0, EXPDEV_SIZE);
 
 // initialize registers
 #define HOLLY_REG(addr, name, flags, default, type) \

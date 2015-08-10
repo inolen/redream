@@ -16,23 +16,25 @@ PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly)
       current_scanline_(0),
       fps_(0),
       vbps_(0) {
-  vram_ = reinterpret_cast<uint8_t *>(calloc(VRAM_SIZE, 1));
-  pram_ = reinterpret_cast<uint8_t *>(calloc(PVR_PAL_SIZE, 1));
+  vram_ = new uint8_t [PVR_VRAM32_SIZE];
+  pram_ = new uint8_t [PVR_PALETTE_SIZE];
 }
 
 PVR2::~PVR2() {
-  free(vram_);
-  free(pram_);
+  delete[] vram_;
+  delete[] pram_;
 }
 
 bool PVR2::Init(Backend *rb) {
   rb_ = rb;
 
+  InitMemory();
+
   if (!ta_.Init(rb_)) {
     return false;
   }
 
-  InitMemory();
+  ResetState();
   ReconfigureVideoOutput();
   ReconfigureSPG();
 
@@ -124,19 +126,23 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
 }
 
 void PVR2::InitMemory() {
-  memory_.Mount(VRAM32_BASE, VRAM32_BASE + VRAM_SIZE - 1, 0xe0000000, vram_);
-  memory_.Handle(VRAM64_BASE, VRAM64_BASE + VRAM_SIZE - 1, 0xe0000000, this,
+  memory_.Mount(PVR_VRAM32_START, PVR_VRAM32_END, MIRROR_MASK, vram_);
+  memory_.Handle(PVR_VRAM64_START, PVR_VRAM64_END, MIRROR_MASK, this,
                  &PVR2::ReadInterleaved<uint8_t>,
                  &PVR2::ReadInterleaved<uint16_t>,
                  &PVR2::ReadInterleaved<uint32_t>, nullptr, nullptr,
                  &PVR2::WriteInterleaved<uint16_t>,
                  &PVR2::WriteInterleaved<uint32_t>, nullptr);
 
-  memory_.Handle(PVR_REG_BASE, PVR_REG_BASE + PVR_REG_SIZE - 1, 0xe0000000,
-                 this, &PVR2::ReadRegister, &PVR2::WriteRegister);
+  memory_.Handle(PVR_REG_START, PVR_REG_END, MIRROR_MASK, this,
+                 &PVR2::ReadRegister, &PVR2::WriteRegister);
 
-  memory_.Mount(PVR_PAL_BASE, PVR_PAL_BASE + PVR_PAL_SIZE - 1, 0xe0000000,
-                pram_);
+  memory_.Mount(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK, pram_);
+}
+
+void PVR2::ResetState() {
+  memset(vram_, 0, PVR_VRAM32_SIZE);
+  memset(pram_, 0, PVR_PALETTE_SIZE);
 
 // initialize registers
 #define PVR_REG(addr, name, flags, default, type) \

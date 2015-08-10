@@ -11,15 +11,43 @@
 namespace dreavm {
 namespace emu {
 
-typedef uint8_t (*R8Handler)(void *, uint32_t);
-typedef uint16_t (*R16Handler)(void *, uint32_t);
-typedef uint32_t (*R32Handler)(void *, uint32_t);
-typedef uint64_t (*R64Handler)(void *, uint32_t);
-typedef void (*W8Handler)(void *, uint32_t, uint8_t);
-typedef void (*W16Handler)(void *, uint32_t, uint16_t);
-typedef void (*W32Handler)(void *, uint32_t, uint32_t);
-typedef void (*W64Handler)(void *, uint32_t, uint64_t);
+//
+// memory map. the dreamcast uses 32-bit logical addresses, but the physical
+// address range is only 29-bits
+//
+#define MEMORY_REGION(name, start, end) \
+  name##_START = start, name##_END = end, name##_SIZE = end - start + 1
 
+enum {
+  // ignore all modifier bits
+  MIRROR_MASK = 0xe0000000,
+
+  // the Memory class doesn't actually mount these regions, but it's nice
+  // having them listed in a single place to visualize
+  MEMORY_REGION(BIOS, 0x00000000, 0x001fffff),
+  MEMORY_REGION(FLASH, 0x00200000, 0x0021ffff),
+  MEMORY_REGION(HOLLY_REG, 0x005f6000, 0x005f7fff),
+  MEMORY_REGION(PVR_REG, 0x005f8000, 0x005f8fff),
+  MEMORY_REGION(PVR_PALETTE, 0x005f9000, 0x005f9fff),
+  MEMORY_REGION(MODEM_REG, 0x00600000, 0x0067ffff),
+  MEMORY_REGION(AICA_REG, 0x00700000, 0x00710fff),
+  MEMORY_REGION(AUDIO_RAM, 0x00800000, 0x009fffff),
+  MEMORY_REGION(EXPDEV, 0x01000000, 0x01ffffff),
+  MEMORY_REGION(PVR_VRAM32, 0x04000000, 0x047fffff),
+  MEMORY_REGION(PVR_VRAM64, 0x05000000, 0x057fffff),
+  MEMORY_REGION(MAIN_RAM_M0, 0x0c000000, 0x0cffffff),
+  MEMORY_REGION(MAIN_RAM_M1, 0x0d000000, 0x0dffffff),
+  MEMORY_REGION(MAIN_RAM_M2, 0x0e000000, 0x0effffff),
+  MEMORY_REGION(MAIN_RAM_M3, 0x0f000000, 0x0fffffff),
+  MEMORY_REGION(TA_CMD, 0x10000000, 0x107fffff),
+  MEMORY_REGION(TA_TEXTURE, 0x11000000, 0x11ffffff),
+  MEMORY_REGION(UNASSIGNED, 0x14000000, 0x1bffffff),
+  MEMORY_REGION(SH4_REG, 0x1c000000, 0x1fffffff)
+};
+
+//
+// single level page table implementation
+//
 typedef uint8_t TableHandle;
 
 enum {
@@ -87,6 +115,18 @@ class PageTable {
 
   TableHandle table_[MAX_ENTRIES];
 };
+
+//
+// physical memory emulation
+//
+typedef uint8_t (*R8Handler)(void *, uint32_t);
+typedef uint16_t (*R16Handler)(void *, uint32_t);
+typedef uint32_t (*R32Handler)(void *, uint32_t);
+typedef uint64_t (*R64Handler)(void *, uint32_t);
+typedef void (*W8Handler)(void *, uint32_t, uint8_t);
+typedef void (*W16Handler)(void *, uint32_t, uint16_t);
+typedef void (*W32Handler)(void *, uint32_t, uint32_t);
+typedef void (*W64Handler)(void *, uint32_t, uint64_t);
 
 struct MemoryBank {
   MemoryBank()
@@ -274,10 +314,6 @@ class Memory {
   int num_banks_;
   MemoryBank banks_[MAX_HANDLES];
   std::list<uint8_t *> blocks_;
-  // int64_t physical_reads { 0 };
-  // int64_t virtual_reads { 0 };
-  // int64_t physical_writes { 0 };
-  // int64_t virtual_writes { 0 };
 
   MemoryBank &AllocBank() {
     CHECK_LT(num_banks_, MAX_HANDLES);
@@ -288,9 +324,6 @@ class Memory {
 
   template <typename INT, INT (*MemoryBank::*HANDLER)(void *, uint32_t)>
   inline INT ReadBytes(uint32_t addr) {
-    // LOG_EVERY_N(INFO, 1000000) << "physical reads " << physical_reads << ",
-    // virtual reads " << virtual_reads;
-
     // FIXME temp hack for unsupported audio regs hanging in Crazy Taxi
     if ((addr & 0x1fffffff) == 0x0080005c) {
       return static_cast<INT>(0x54494e49);
@@ -300,13 +333,10 @@ class Memory {
     MemoryBank &bank = banks_[handle];
     uint32_t offset = (addr - bank.logical_addr) & bank.mirror_mask;
     if (bank.physical_addr) {
-      // physical_reads++;
       return *(INT *)(bank.physical_addr + offset);
     } else if (bank.force32) {
-      // virtual_reads++;
       return (INT)bank.r32(bank.ctx, offset);
     } else if (bank.*HANDLER) {
-      // virtual_reads++;
       return (bank.*HANDLER)(bank.ctx, offset);
     } else {
       LOG(FATAL) << "Attempting to read from unmapped address 0x" << std::hex
@@ -318,20 +348,14 @@ class Memory {
 
   template <typename INT, void (*MemoryBank::*HANDLER)(void *, uint32_t, INT)>
   inline void WriteBytes(uint32_t addr, INT value) {
-    // LOG_EVERY_N(INFO, 1000000) << "physical writes " << physical_writes << ",
-    // virtual writes " << virtual_writes;
-
     TableHandle handle = table_.Lookup(addr);
     MemoryBank &bank = banks_[handle];
     uint32_t offset = (addr - bank.logical_addr) & bank.mirror_mask;
     if (bank.physical_addr) {
-      // physical_writes++;
       *(INT *)(bank.physical_addr + offset) = value;
     } else if (bank.force32) {
-      // virtual_writes++;
       bank.w32(bank.ctx, offset, value);
     } else if (bank.*HANDLER) {
-      // virtual_writes++;
       (bank.*HANDLER)(bank.ctx, offset, value);
     } else {
       LOG(FATAL) << "Attempting to write to unmapped address 0x" << std::hex

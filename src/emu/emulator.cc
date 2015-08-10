@@ -25,6 +25,11 @@ Emulator::Emulator(System &sys)
       runtime_(memory_),
       processor_(scheduler_, memory_),
       holly_(scheduler_, memory_, processor_) {
+  bios_ = new uint8_t[BIOS_SIZE];
+  flash_ = new uint8_t[FLASH_SIZE];
+  ram_ = new uint8_t[MAIN_RAM_M0_SIZE];
+  unassigned_ = new uint8_t[UNASSIGNED_SIZE];
+
   rt_frontend_ = new SH4Frontend(memory_);
   // rt_backend_ = new InterpreterBackend(memory_);
   rt_backend_ = new X64Backend(memory_);
@@ -33,21 +38,25 @@ Emulator::Emulator(System &sys)
 
 Emulator::~Emulator() {
   Profiler::Shutdown();
-  delete rb_;
-  delete rt_backend_;
+
+  delete[] bios_;
+  delete[] flash_;
+  delete[] ram_;
+  delete[] unassigned_;
+
   delete rt_frontend_;
+  delete rt_backend_;
+  delete rb_;
 }
 
 bool Emulator::Init() {
+  InitMemory();
+
   if (!rb_->Init()) {
     return false;
   }
 
   if (!Profiler::Init()) {
-    return false;
-  }
-
-  if (!MountRam()) {
     return false;
   }
 
@@ -71,6 +80,8 @@ bool Emulator::Init() {
     return false;
   }
 
+  ResetState();
+
   return true;
 }
 
@@ -84,6 +95,87 @@ bool Emulator::Launch(const char *path) {
   }
 
   return false;
+}
+
+void Emulator::Tick() {
+  PumpEvents();
+
+  scheduler_.Tick();
+
+  RenderFrame();
+}
+
+void Emulator::InitMemory() {
+  memory_.Mount(BIOS_START, BIOS_END, MIRROR_MASK, bios_);
+  memory_.Mount(FLASH_START, FLASH_END, MIRROR_MASK, flash_);
+  memory_.Mount(MAIN_RAM_M0_START, MAIN_RAM_M0_END, MIRROR_MASK, ram_);
+  memory_.Mount(MAIN_RAM_M1_START, MAIN_RAM_M1_END, MIRROR_MASK, ram_);
+  memory_.Mount(MAIN_RAM_M2_START, MAIN_RAM_M2_END, MIRROR_MASK, ram_);
+  memory_.Mount(MAIN_RAM_M3_START, MAIN_RAM_M3_END, MIRROR_MASK, ram_);
+  memory_.Mount(UNASSIGNED_START, UNASSIGNED_END, MIRROR_MASK, unassigned_);
+}
+
+bool Emulator::LoadBios(const char *path) {
+  FILE *fp = fopen(path, "rb");
+  if (!fp) {
+    LOG(WARNING) << "Failed to open bios at \"" << path << "\"";
+    return false;
+  }
+
+  fseek(fp, 0, SEEK_END);
+  int size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  if (size != BIOS_SIZE) {
+    LOG(WARNING) << "Bios size mismatch, is " << size << ", expected "
+                 << BIOS_SIZE;
+    fclose(fp);
+    return false;
+  }
+
+  int n = fread(bios_, sizeof(uint8_t), size, fp);
+  fclose(fp);
+
+  if (n != size) {
+    LOG(WARNING) << "Bios read failed";
+    return false;
+  }
+
+  return true;
+}
+
+bool Emulator::LoadFlash(const char *path) {
+  FILE *fp = fopen(path, "rb");
+  if (!fp) {
+    LOG(WARNING) << "Failed to open flash at \"" << path << "\"";
+    return false;
+  }
+
+  fseek(fp, 0, SEEK_END);
+  int size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  if (size != FLASH_SIZE) {
+    LOG(WARNING) << "Flash size mismatch, is " << size << ", expected "
+                 << FLASH_SIZE;
+    fclose(fp);
+    return false;
+  }
+
+  int n = fread(flash_, sizeof(uint8_t), size, fp);
+  fclose(fp);
+
+  if (n != size) {
+    LOG(WARNING) << "Flash read failed";
+    return false;
+  }
+
+  return true;
+}
+
+void Emulator::ResetState() {
+  memset(ram_, 0, MAIN_RAM_M0_SIZE);
+  memset(unassigned_, 0, UNASSIGNED_SIZE);
 }
 
 bool Emulator::LaunchBIN(const char *path) {
@@ -128,92 +220,6 @@ bool Emulator::LaunchGDI(const char *path) {
   // restart to bios
   processor_.Reset(0xa0000000);
 
-  return true;
-}
-
-void Emulator::Tick() {
-  PumpEvents();
-
-  scheduler_.Tick();
-
-  RenderFrame();
-}
-
-// for memory mapping notes, see 2.1 System Mapping in the hardware manual
-bool Emulator::MountRam() {
-  memory_.Alloc(0x0, 0x1fffffff, 0xe0000000);
-  return true;
-}
-
-bool Emulator::LoadBios(const char *path) {
-  static const int BIOS_START = 0x00000000;
-  static const int BIOS_SIZE = 0x200000;
-
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    LOG(WARNING) << "Failed to open bios at \"" << path << "\"";
-    return false;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  if (size != BIOS_SIZE) {
-    LOG(WARNING) << "Bios size mismatch, is " << size << ", expected "
-                 << BIOS_SIZE;
-    fclose(fp);
-    return false;
-  }
-
-  uint8_t *data = (uint8_t *)malloc(size);
-  int n = fread(data, sizeof(uint8_t), size, fp);
-  fclose(fp);
-
-  if (n != size) {
-    LOG(WARNING) << "Bios read failed";
-    free(data);
-    return false;
-  }
-
-  memory_.Memcpy(BIOS_START, data, size);
-  free(data);
-  return true;
-}
-
-bool Emulator::LoadFlash(const char *path) {
-  static const int FLASH_START = 0x00200000;
-  static const int FLASH_SIZE = 0x20000;
-
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    LOG(WARNING) << "Failed to open flash at \"" << path << "\"";
-    return false;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  if (size != FLASH_SIZE) {
-    LOG(WARNING) << "Flash size mismatch, is " << size << ", expected "
-                 << FLASH_SIZE;
-    fclose(fp);
-    return false;
-  }
-
-  uint8_t *data = (uint8_t *)malloc(size);
-  int n = fread(data, sizeof(uint8_t), size, fp);
-  fclose(fp);
-
-  if (n != size) {
-    LOG(WARNING) << "Flash read failed";
-    free(data);
-    return false;
-  }
-
-  memory_.Memcpy(FLASH_START, data, size);
-  free(data);
   return true;
 }
 

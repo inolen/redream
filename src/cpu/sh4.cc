@@ -229,6 +229,12 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
   sh4->ctx_.m[addr] = value;
 
   switch (addr) {
+    case MMUCR_OFFSET:
+      if (value) {
+        LOG(FATAL) << "MMU not currently supported";
+      }
+      break;
+
     case CCR_OFFSET:
       if (sh4->CCR.ICI) {
         sh4->ResetInstructionCache();
@@ -246,6 +252,10 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
 }
 
 void SH4::InitMemory() {
+  // mount internal cpu register area
+  memory_.Handle(SH4_REG_START, SH4_REG_END, MIRROR_MASK, this, &SH4::ReadArea7,
+                 &SH4::WriteArea7);
+
   // map cache
   memory_.Handle(0x7c000000, 0x7fffffff, 0x0, this, &SH4::ReadCache<uint8_t>,
                  &SH4::ReadCache<uint16_t>, &SH4::ReadCache<uint32_t>,
@@ -256,10 +266,6 @@ void SH4::InitMemory() {
   // map store queues
   memory_.Handle(0xe0000000, 0xe3ffffff, 0x0, this, &SH4::ReadSQ,
                  &SH4::WriteSQ);
-
-  // mount internal cpu register area
-  memory_.Handle(0xfc000000, 0xffffffff, 0x0, this, &SH4::ReadArea7,
-                 &SH4::WriteArea7);
 }
 
 void SH4::InitContext() {

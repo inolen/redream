@@ -22,9 +22,11 @@ class Emulator {
   void Tick();
 
  private:
-  bool MountRam();
+  void InitMemory();
   bool LoadBios(const char *path);
   bool LoadFlash(const char *path);
+
+  void ResetState();
   bool LaunchBIN(const char *path);
   bool LaunchGDI(const char *path);
   void PumpEvents();
@@ -39,6 +41,10 @@ class Emulator {
   cpu::frontend::Frontend *rt_frontend_;
   cpu::backend::Backend *rt_backend_;
   renderer::Backend *rb_;
+  uint8_t *bios_;
+  uint8_t *flash_;
+  uint8_t *ram_;
+  uint8_t *unassigned_;
 };
 }
 }
