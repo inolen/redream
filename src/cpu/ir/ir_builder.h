@@ -352,27 +352,6 @@ typedef void (*ExternalFn)(void *);
 
 enum MetadataTy { MD_GUEST_CYCLES, MD_NUM };
 
-// Cache duplicate constant values. Constants aren't cached for memory purposes,
-// they're cached to aid optimization passes. For example, duruing GVN constants
-// will all share the same value number.
-struct ConstantKey {
-  ValueTy type;
-  int64_t value;
-
-  bool operator==(const ConstantKey &other) const {
-    return type == other.type && value == other.value;
-  }
-};
-
-class ConstantKeyHasher {
- public:
-  size_t operator()(const ConstantKey &key) const {
-    return std::hash<int64_t>()(key.value);
-  }
-};
-
-typedef std::unordered_map<ConstantKey, Value *, ConstantKeyHasher> ConstantMap;
-
 class IRBuilder {
  public:
   IRBuilder();
@@ -483,7 +462,6 @@ class IRBuilder {
   core::Arena arena_;
   core::IntrusiveList<Block> blocks_;
   Block *current_block_;
-  ConstantMap constants_;
   int locals_size_;
   Value *metadata_[MD_NUM];
 };

@@ -746,109 +746,44 @@ Value *IRBuilder::AllocConstant(uint64_t c) {
 }
 
 Value *IRBuilder::AllocConstant(int8_t c) {
-  ConstantKey key{VALUE_I8, c};
-
-  auto it = constants_.find(key);
-  if (it != constants_.end()) {
-    return it->second;
-  }
-
   Value *v = arena_.Alloc<Value>();
   new (v) Value(c);
-  constants_.insert(std::make_pair(key, v));
-
   return v;
 }
 
 Value *IRBuilder::AllocConstant(int16_t c) {
-  ConstantKey key{VALUE_I16, c};
-
-  auto it = constants_.find(key);
-  if (it != constants_.end()) {
-    return it->second;
-  }
-
   Value *v = arena_.Alloc<Value>();
   new (v) Value(c);
-  constants_.insert(std::make_pair(key, v));
-
   return v;
 }
 
 Value *IRBuilder::AllocConstant(int32_t c) {
-  ConstantKey key{VALUE_I32, c};
-
-  auto it = constants_.find(key);
-  if (it != constants_.end()) {
-    return it->second;
-  }
-
   Value *v = arena_.Alloc<Value>();
   new (v) Value(c);
-  constants_.insert(std::make_pair(key, v));
-
   return v;
 }
 
 Value *IRBuilder::AllocConstant(int64_t c) {
-  ConstantKey key{VALUE_I64, c};
-
-  auto it = constants_.find(key);
-  if (it != constants_.end()) {
-    return it->second;
-  }
-
   Value *v = arena_.Alloc<Value>();
   new (v) Value(c);
-  constants_.insert(std::make_pair(key, v));
-
   return v;
 }
 
 Value *IRBuilder::AllocConstant(float c) {
-  ConstantKey key{VALUE_F32,
-                  static_cast<int64_t>(*reinterpret_cast<uint32_t *>(&c))};
-
-  auto it = constants_.find(key);
-  if (it != constants_.end()) {
-    return it->second;
-  }
-
   Value *v = arena_.Alloc<Value>();
   new (v) Value(c);
-  constants_.insert(std::make_pair(key, v));
-
   return v;
 }
 
 Value *IRBuilder::AllocConstant(double c) {
-  ConstantKey key{VALUE_F64,
-                  static_cast<int64_t>(*reinterpret_cast<uint64_t *>(&c))};
-
-  auto it = constants_.find(key);
-  if (it != constants_.end()) {
-    return it->second;
-  }
-
   Value *v = arena_.Alloc<Value>();
   new (v) Value(c);
-  constants_.insert(std::make_pair(key, v));
-
   return v;
 }
 
 Value *IRBuilder::AllocConstant(Block *c) {
-  ConstantKey key{VALUE_BLOCK, reinterpret_cast<intptr_t>(c)};
-
-  auto it = constants_.find(key);
-  if (it != constants_.end()) {
-    return it->second;
-  }
-
   Value *v = arena_.Alloc<Value>();
   new (v) Value(c);
-  constants_.insert(std::make_pair(key, v));
-
   return v;
 }
 
