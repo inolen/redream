@@ -54,7 +54,9 @@ RuntimeBlock *Runtime::ResolveBlock(uint32_t addr) {
     pending_reset_ = false;
   }
 
-  addr &= 0x1fffffff;
+  // translate to 29-bit physical space
+  addr &= ~MIRROR_MASK;
+
   uint32_t offset = BlockOffset(addr);
   if (offset >= MAX_BLOCKS) {
     LOG(FATAL) << "Block requested at 0x" << std::hex << addr

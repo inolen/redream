@@ -40,10 +40,7 @@ union FPSCR_T {
   uint32_t full;
 };
 
-class SH4;
-
 struct SH4Context {
-  SH4 *sh4;
   uint32_t pc, spc;
   uint32_t pr;
   uint32_t gbr, vbr;
@@ -54,7 +51,6 @@ struct SH4Context {
   uint32_t dbr;
   uint32_t m[0x4000];
   uint32_t sq[2][8];
-  uint8_t sleep_mode;
   SR_T sr, ssr, old_sr;
   FPSCR_T fpscr, old_fpscr;
 };

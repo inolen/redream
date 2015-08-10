@@ -139,16 +139,6 @@ class SH4 : public emu::Device {
   void InitMemory();
   void InitContext();
 
-  emu::Scheduler &scheduler_;
-  emu::Memory &memory_;
-  Runtime *runtime_;
-  SH4Context ctx_;
-#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
-  type &name{reinterpret_cast<type &>(ctx_.m[name##_OFFSET])};
-#include "cpu/sh4_regs.inc"
-#undef SH4_REG
-  uint8_t cache_[0x2000];  // 8kb cache
-
   // CCN
   void ResetInstructionCache();
 
@@ -166,6 +156,17 @@ class SH4 : public emu::Device {
   // TMU
   bool TimerEnabled(int n);
   void RunTimer(int n, int64_t cycles);
+
+  emu::Scheduler &scheduler_;
+  emu::Memory &memory_;
+  Runtime *runtime_;
+  SH4Context ctx_;
+  SR_T old_sr_;
+#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
+  type &name{reinterpret_cast<type &>(ctx_.m[name##_OFFSET])};
+#include "cpu/sh4_regs.inc"
+#undef SH4_REG
+  uint8_t cache_[0x2000];  // 8kb cache
 };
 }
 }
