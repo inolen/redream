@@ -239,14 +239,24 @@ const Xbyak::Reg &X64Emitter::GetRegister(const Value *v) {
 
 // If the prefered operand a register, copy the value to it and return, else do
 // the regular GetRegister lookup.
-const Xbyak::Reg &X64Emitter::GetRegister(const Value *v,
-                                          const Xbyak::Operand &prefered) {
+const Xbyak::Reg &X64Emitter::GetPreferedRegister(
+    const Value *v, const Xbyak::Operand &prefered) {
   if (prefered.isREG()) {
     CopyOperand(v, prefered);
     return reinterpret_cast<const Xbyak::Reg &>(prefered);
   }
 
   return GetRegister(v);
+}
+
+// If the value doesn't have a register allocated for it, return a temporary
+// register without copying the value.
+const Xbyak::Reg &X64Emitter::GetResultRegister(const Value *v) {
+  if (v->reg() == NO_REGISTER) {
+    return GetTmpRegister(nullptr, SizeForType(v->type()));
+  }
+
+  return reinterpret_cast<const Xbyak::Reg &>(GetOperand(v));
 }
 
 // Get a temporary register and copy value to it.
@@ -288,8 +298,7 @@ const Xbyak::Reg &X64Emitter::GetTmpRegister(const Value *v, int size) {
 }
 
 // Get the XMM register / local allocated for the supplied value. If the value
-// is
-// a constant, copy it to a temporary XMM register.
+// is a constant, copy it to a temporary XMM register.
 const Xbyak::Operand &X64Emitter::GetXMMOperand(const Value *v) {
   if (v->reg() == NO_REGISTER && v->local() == NO_SLOT) {
     // copy constant to tmp
@@ -315,8 +324,8 @@ const Xbyak::Xmm &X64Emitter::GetXMMRegister(const Value *v) {
 
 // If the prefered operand is an XMM register, copy the value to it and return,
 // else do the regular GetXMMRegister lookup.
-const Xbyak::Xmm &X64Emitter::GetXMMRegister(const Value *v,
-                                             const Xbyak::Operand &prefered) {
+const Xbyak::Xmm &X64Emitter::GetPreferedXMMRegister(
+    const Value *v, const Xbyak::Operand &prefered) {
   if (prefered.isXMM()) {
     CopyOperand(v, prefered);
     return reinterpret_cast<const Xbyak::Xmm &>(prefered);
@@ -394,18 +403,20 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
                                               const Xbyak::Operand &to) {
   if (v->constant()) {
     if (to.isXMM()) {
+      CHECK(IsFloatType(v->type()));
+
       if (v->type() == VALUE_F32) {
         float val = v->value<float>();
         c_.mov(c_.r8d, *reinterpret_cast<int32_t *>(&val));
         c_.movd(reinterpret_cast<const Xbyak::Xmm &>(to), c_.r8d);
-      } else if (v->type() == VALUE_F64) {
+      } else {
         double val = v->value<double>();
         c_.mov(c_.r8, *reinterpret_cast<int64_t *>(&val));
         c_.movq(reinterpret_cast<const Xbyak::Xmm &>(to), c_.r8);
-      } else {
-        LOG(FATAL) << "Unsupported copy";
       }
     } else {
+      CHECK(IsIntType(v->type()));
+
       c_.mov(to, v->GetZExtValue());
     }
   } else {
@@ -423,6 +434,12 @@ bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
   }
 
   return v->type() <= VALUE_I32;
+}
+
+void X64Emitter::RestoreParameters() {
+  c_.mov(Xbyak::util::rdi,
+         c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
+  c_.mov(Xbyak::util::rsi, c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
 }
 
 void X64Emitter::ResetTmpRegisters() {
@@ -445,7 +462,7 @@ EMITTER(LOAD_CONTEXT) {
     }
   } else {
     // dst must be a register, mov doesn't support mem -> mem
-    const Xbyak::Reg &tmp = e.GetRegister(instr->result());
+    const Xbyak::Reg &tmp = e.GetResultRegister(instr->result());
 
     if (result_sz == 1) {
       c.mov(tmp, c.byte[c.rdi + offset]);
@@ -457,9 +474,7 @@ EMITTER(LOAD_CONTEXT) {
       c.mov(tmp, c.qword[c.rdi + offset]);
     }
 
-    if (tmp != result) {
-      c.mov(result, tmp);
-    }
+    e.CopyOperand(tmp, result);
   }
 }
 
@@ -490,9 +505,7 @@ EMITTER(STORE_CONTEXT) {
       }
     } else {
       // src must come from a register, mov doesn't support mem -> mem
-      const Xbyak::Reg &src_reg =
-          src.isREG() ? reinterpret_cast<const Xbyak::Reg &>(src)
-                      : e.GetTmpRegister(instr->arg1());
+      const Xbyak::Reg &src_reg = e.GetRegister(instr->arg1());
 
       if (data_sz == 1) {
         c.mov(c.byte[c.rdi + offset], src_reg);
@@ -544,10 +557,7 @@ EMITTER(LOAD) {
   // copy off result
   c.mov(result, c.rax);
 
-  // restore rdi / rsi
-  c.mov(Xbyak::util::rdi,
-        c.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
-  c.mov(Xbyak::util::rsi, c.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
+  e.RestoreParameters();
 }
 
 void W8(Memory *memory, uint32_t addr, uint8_t v) { memory->W8(addr, v); }
@@ -583,10 +593,7 @@ EMITTER(STORE) {
   c.mov(c.rax, (uintptr_t)fn);
   c.call(c.rax);
 
-  // restore rdi / rsi
-  c.mov(Xbyak::util::rdi,
-        c.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
-  c.mov(Xbyak::util::rsi, c.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
+  e.RestoreParameters();
 }
 
 EMITTER(CAST) {
@@ -625,7 +632,7 @@ EMITTER(SEXT) {
     return;
   }
 
-  const Xbyak::Reg &tmp = e.GetRegister(instr->result());
+  const Xbyak::Reg &tmp = e.GetResultRegister(instr->result());
 
   if (result.isBit(64) && a.isBit(32)) {
     c.movsxd(tmp.cvt64(), a);
@@ -633,9 +640,7 @@ EMITTER(SEXT) {
     c.movsx(tmp, a);
   }
 
-  if (tmp != result) {
-    c.mov(result, tmp);
-  }
+  e.CopyOperand(tmp, result);
 }
 
 EMITTER(ZEXT) {
@@ -647,7 +652,7 @@ EMITTER(ZEXT) {
     return;
   }
 
-  const Xbyak::Reg &tmp = e.GetRegister(instr->result());
+  const Xbyak::Reg &tmp = e.GetResultRegister(instr->result());
 
   if (result.isBit(64)) {
     // mov will automatically zero fill the upper 32-bits
@@ -656,9 +661,7 @@ EMITTER(ZEXT) {
     c.movzx(tmp, a);
   }
 
-  if (tmp != result) {
-    c.mov(result, tmp);
-  }
+  e.CopyOperand(tmp, result);
 }
 
 EMITTER(TRUNCATE) {
@@ -670,22 +673,18 @@ EMITTER(TRUNCATE) {
     return;
   }
 
+  const Xbyak::Reg &tmp = e.GetResultRegister(instr->result());
   const Xbyak::Operand &truncated =
       e.GetOperand(instr->arg0(), result.getBit() >> 3);
 
-  // TODO fixme tmp should be size appropriate, c.mov is unnecesary, only need
-  // movzx once tmp is correct
   if (truncated.isBit(32)) {
-    c.mov(result, truncated);
+    // mov will automatically zero fill the upper 32-bits
+    c.mov(tmp, truncated);
   } else {
-    const Xbyak::Reg &tmp = e.GetRegister(instr->result(), result);
-
     c.movzx(tmp.cvt32(), truncated);
-
-    if (tmp != result) {
-      c.mov(result, tmp);
-    }
   }
+
+  e.CopyOperand(tmp, result);
 }
 
 EMITTER(SELECT) {
@@ -695,14 +694,12 @@ EMITTER(SELECT) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
   const Xbyak::Operand &a = e.GetOperand(instr->arg1());
   const Xbyak::Operand &b = e.GetOperand(instr->arg2());
-  const Xbyak::Reg &tmp = e.GetRegister(instr->result());
+  const Xbyak::Reg &tmp = e.GetResultRegister(instr->result());
 
   c.cmovnz(tmp.cvt32(), a);
   c.cmovz(tmp.cvt32(), b);
 
-  if (tmp != result) {
-    c.mov(result, tmp);
-  }
+  e.CopyOperand(tmp, result);
 }
 
 EMITTER(EQ) {
@@ -929,7 +926,7 @@ EMITTER(ADD) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0(), result);
+    const Xbyak::Xmm &a = e.GetPreferedXMMRegister(instr->arg0(), result);
     const Xbyak::Operand &b = e.GetXMMOperand(instr->arg1());
 
     if (instr->result()->type() == VALUE_F32) {
@@ -955,7 +952,7 @@ EMITTER(SUB) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0(), result);
+    const Xbyak::Xmm &a = e.GetPreferedXMMRegister(instr->arg0(), result);
     const Xbyak::Operand &b = e.GetXMMOperand(instr->arg1());
 
     if (instr->result()->type() == VALUE_F32) {
@@ -981,7 +978,7 @@ EMITTER(SMUL) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0(), result);
+    const Xbyak::Xmm &a = e.GetPreferedXMMRegister(instr->arg0(), result);
     const Xbyak::Operand &b = e.GetXMMOperand(instr->arg1());
 
     if (instr->result()->type() == VALUE_F32) {
@@ -992,14 +989,12 @@ EMITTER(SMUL) {
 
     e.CopyOperand(a, result);
   } else {
-    const Xbyak::Reg &a = e.GetRegister(instr->arg0(), result);
+    const Xbyak::Reg &a = e.GetPreferedRegister(instr->arg0(), result);
     const Xbyak::Operand &b = e.GetOperand(instr->arg1());
 
     c.imul(a, b);
 
-    if (a != result) {
-      c.mov(result, a);
-    }
+    e.CopyOperand(a, result);
   }
 }
 
@@ -1007,42 +1002,35 @@ EMITTER(UMUL) {
   CHECK(IsIntType(instr->result()->type()));
 
   const Xbyak::Operand &result = e.GetOperand(instr->result());
-  const Xbyak::Reg &a = e.GetRegister(instr->arg0(), result);
+  const Xbyak::Reg &a = e.GetPreferedRegister(instr->arg0(), result);
   const Xbyak::Operand &b = e.GetOperand(instr->arg1());
 
   c.imul(a, b);
 
-  if (a != result) {
-    c.mov(result, a);
-  }
+  e.CopyOperand(a, result);
 }
 
-// TODO could optimize by having a sdiv / udiv. no need to sign extend the
-// accumulation register for udiv.
 EMITTER(DIV) {
+  CHECK(IsFloatType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
+  const Xbyak::Xmm &a = e.GetPreferedXMMRegister(instr->arg0(), result);
+  const Xbyak::Operand &b = e.GetXMMOperand(instr->arg1());
 
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0(), result);
-    const Xbyak::Operand &b = e.GetXMMOperand(instr->arg1());
-
-    if (instr->result()->type() == VALUE_F32) {
-      c.divss(a, b);
-    } else {
-      c.divsd(a, b);
-    }
-
-    e.CopyOperand(a, result);
+  if (instr->result()->type() == VALUE_F32) {
+    c.divss(a, b);
   } else {
-    LOG(FATAL) << "Unsupported";
+    c.divsd(a, b);
   }
+
+  e.CopyOperand(a, result);
 }
 
 EMITTER(NEG) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0(), result);
+    const Xbyak::Xmm &a = e.GetPreferedXMMRegister(instr->arg0(), result);
 
     if (instr->result()->type() == VALUE_F32) {
       // TODO use xorps
@@ -1073,6 +1061,8 @@ EMITTER(NEG) {
 }
 
 EMITTER(SQRT) {
+  CHECK(IsFloatType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
   const Xbyak::Operand &a = e.GetXMMOperand(instr->arg0());
   const Xbyak::Xmm &tmp = result.isXMM()
@@ -1092,7 +1082,7 @@ EMITTER(ABS) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0(), result);
+    const Xbyak::Xmm &a = e.GetPreferedXMMRegister(instr->arg0(), result);
 
     if (instr->result()->type() == VALUE_F32) {
       // TODO use andps
@@ -1124,6 +1114,8 @@ EMITTER(ABS) {
 }
 
 EMITTER(SIN) {
+  CHECK(IsFloatType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   if (instr->result()->type() == VALUE_F32) {
@@ -1146,13 +1138,12 @@ EMITTER(SIN) {
     }
   }
 
-  // restore rdi / rsi
-  c.mov(Xbyak::util::rdi,
-        c.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
-  c.mov(Xbyak::util::rsi, c.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
+  e.RestoreParameters();
 }
 
 EMITTER(COS) {
+  CHECK(IsFloatType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   if (instr->result()->type() == VALUE_F32) {
@@ -1175,13 +1166,12 @@ EMITTER(COS) {
     }
   }
 
-  // restore rdi / rsi
-  c.mov(Xbyak::util::rdi,
-        c.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
-  c.mov(Xbyak::util::rsi, c.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
+  e.RestoreParameters();
 }
 
 EMITTER(AND) {
+  CHECK(IsIntType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   e.CopyOperand(instr->arg0(), result);
@@ -1195,6 +1185,8 @@ EMITTER(AND) {
 }
 
 EMITTER(OR) {
+  CHECK(IsIntType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   e.CopyOperand(instr->arg0(), result);
@@ -1208,6 +1200,8 @@ EMITTER(OR) {
 }
 
 EMITTER(XOR) {
+  CHECK(IsIntType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   e.CopyOperand(instr->arg0(), result);
@@ -1221,6 +1215,8 @@ EMITTER(XOR) {
 }
 
 EMITTER(NOT) {
+  CHECK(IsIntType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   e.CopyOperand(instr->arg0(), result);
@@ -1229,6 +1225,8 @@ EMITTER(NOT) {
 }
 
 EMITTER(SHL) {
+  CHECK(IsIntType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   e.CopyOperand(instr->arg0(), result);
@@ -1236,12 +1234,17 @@ EMITTER(SHL) {
   if (e.CanEncodeAsImmediate(instr->arg1())) {
     c.shl(result, (int)instr->arg1()->GetZExtValue());
   } else {
+    // // cl is a tmp reg, this could blow up otherwise
+    // CHECK_EQ(tmp_reg_, 0);
+
     e.CopyOperand(instr->arg1(), c.cl);
     c.shl(result, c.cl);
   }
 }
 
 EMITTER(ASHR) {
+  CHECK(IsIntType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   e.CopyOperand(instr->arg0(), result);
@@ -1249,12 +1252,17 @@ EMITTER(ASHR) {
   if (e.CanEncodeAsImmediate(instr->arg1())) {
     c.sar(result, (int)instr->arg1()->GetZExtValue());
   } else {
+    // // cl is a tmp reg, this could blow up otherwise
+    // CHECK_EQ(tmp_reg_, 0);
+
     e.CopyOperand(instr->arg1(), c.cl);
     c.sar(result, c.cl);
   }
 }
 
 EMITTER(LSHR) {
+  CHECK(IsIntType(instr->result()->type()));
+
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   e.CopyOperand(instr->arg0(), result);
@@ -1262,6 +1270,9 @@ EMITTER(LSHR) {
   if (e.CanEncodeAsImmediate(instr->arg1())) {
     c.shr(result, (int)instr->arg1()->GetZExtValue());
   } else {
+    // // cl is a tmp reg, this could blow up otherwise
+    // CHECK_EQ(tmp_reg_, 0);
+
     e.CopyOperand(instr->arg1(), c.cl);
     c.shr(result, c.cl);
   }
@@ -1275,7 +1286,6 @@ EMITTER(BRANCH) {
   } else {
     // return if we need to branch to a far block
     e.CopyOperand(instr->arg0(), c.rax);
-
     c.jmp(e.epilog_label());
   }
 }
@@ -1285,18 +1295,21 @@ EMITTER(BRANCH_COND) {
 
   c.test(cond, cond);
 
-  // TODO in most cases, arg0 or arg1 are going to be "next block", fall through
-  // instead of having an explicit jump
-
   // if both blocks are a local block this is easy
   if (instr->arg1()->type() == VALUE_BLOCK &&
       instr->arg2()->type() == VALUE_BLOCK) {
     // jump to local block
+    const Block *next_block = instr->block()->next();
     Block *block_true = instr->arg1()->value<Block *>();
     Block *block_false = instr->arg2()->value<Block *>();
 
-    c.jnz(GET_LABEL(block_true), Xbyak::CodeGenerator::T_NEAR);
-    c.je(GET_LABEL(block_false), Xbyak::CodeGenerator::T_NEAR);
+    // don't emit a jump if the block is next
+    if (next_block != block_true) {
+      c.jnz(GET_LABEL(block_true), Xbyak::CodeGenerator::T_NEAR);
+    }
+    if (next_block != block_false) {
+      c.je(GET_LABEL(block_false), Xbyak::CodeGenerator::T_NEAR);
+    }
   }
   // if both blocks are a far block this is easy
   else if (instr->arg1()->type() != VALUE_BLOCK &&
@@ -1323,8 +1336,5 @@ EMITTER(CALL_EXTERNAL) {
   c.mov(c.rax, addr);
   c.call(c.rax);
 
-  // restore rdi / rsi
-  c.mov(Xbyak::util::rdi,
-        c.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
-  c.mov(Xbyak::util::rsi, c.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
+  e.RestoreParameters();
 }

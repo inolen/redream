@@ -248,6 +248,7 @@ class Instr : public core::IntrusiveListNode<Instr> {
   Instr(Opcode op, InstrFlag flags);
   ~Instr();
 
+  const Block *block() const { return block_; }
   Block *block() { return block_; }
 
   Opcode op() const { return op_; }
