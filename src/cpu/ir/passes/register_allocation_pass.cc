@@ -21,7 +21,7 @@ RegisterAllocationPass::~RegisterAllocationPass() {
 }
 
 void RegisterAllocationPass::Run(IRBuilder &builder) {
-  PROFILER_SCOPE("runtime", "RegisterAllocationPass::Run");
+  PROFILER_RUNTIME("RegisterAllocationPass::Run");
 
   Reset();
 

@@ -6,7 +6,7 @@ using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 
 void ControlFlowAnalysisPass::Run(IRBuilder &builder) {
-  PROFILER_SCOPE("runtime", "ControlFlowAnalysisPass::Run");
+  PROFILER_RUNTIME("ControlFlowAnalysisPass::Run");
 
   // add directed edges between blocks
   for (auto block : builder.blocks()) {

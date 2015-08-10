@@ -13,7 +13,7 @@ void PassRunner::AddPass(std::unique_ptr<Pass> pass) {
 }
 
 void PassRunner::Run(IRBuilder &builder) {
-  PROFILER_SCOPE("runtime", "PassRunner::Run");
+  PROFILER_RUNTIME("PassRunner::Run");
 
   for (auto &pass : passes_) {
     pass->Run(builder);

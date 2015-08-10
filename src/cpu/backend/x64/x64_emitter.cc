@@ -79,7 +79,7 @@ X64Emitter::X64Emitter(Xbyak::CodeGenerator &codegen)
     : c_(codegen), arena_(1024) {}
 
 X64Fn X64Emitter::Emit(IRBuilder &builder) {
-  PROFILER_SCOPE("runtime", "X64Emitter::Emit");
+  PROFILER_RUNTIME("X64Emitter::Emit");
 
   // getCurr returns the current spot in the codegen buffer which the function
   // is about to emitted to

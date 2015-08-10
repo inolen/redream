@@ -6,7 +6,7 @@ using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 
 void ContextPromotionPass::Run(IRBuilder &builder) {
-  PROFILER_SCOPE("runtime", "ContextPromotionPass::Run");
+  PROFILER_RUNTIME("ContextPromotionPass::Run");
 
   ResetState();
 
@@ -15,9 +15,7 @@ void ContextPromotionPass::Run(IRBuilder &builder) {
   }
 }
 
-void ContextPromotionPass::ResetState() {
-  ClearAvailable();
-}
+void ContextPromotionPass::ResetState() { ClearAvailable(); }
 
 void ContextPromotionPass::ProcessBlock(Block *block) {
   // eliminate redundant loads
@@ -85,9 +83,7 @@ void ContextPromotionPass::ProcessBlock(Block *block) {
   }
 }
 
-void ContextPromotionPass::ClearAvailable() {
-  available_marker_++;
-}
+void ContextPromotionPass::ClearAvailable() { available_marker_++; }
 
 void ContextPromotionPass::ReserveAvailable(int offset) {
   if (offset >= (int)available_.size()) {

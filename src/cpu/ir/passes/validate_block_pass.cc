@@ -6,7 +6,7 @@ using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 
 void ValidateBlockPass::Run(IRBuilder &builder) {
-  PROFILER_SCOPE("runtime", "ValidateBlockPass::Run");
+  PROFILER_RUNTIME("ValidateBlockPass::Run");
 
   for (auto block : builder.blocks()) {
     Instr *tail = block->instrs().tail();

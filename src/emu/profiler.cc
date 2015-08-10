@@ -26,6 +26,15 @@ uint32_t Profiler::ScopeColor(const char *name) {
 
 bool Profiler::Init() {
   MicroProfileOnThreadCreate("main");
+
+  // register and enable runtime group by default
+  uint16_t runtime_group =
+      MicroProfileGetGroup("runtime", MicroProfileTokenTypeCpu);
+  g_MicroProfile.nActiveGroupWanted |= 1ll << runtime_group;
+
+  // render time / average time bars by default
+  g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE;
+
   return true;
 }
 

@@ -83,7 +83,7 @@ static int GetConstantSig(Instr *instr) {
 }
 
 void ConstantPropagationPass::Run(IRBuilder &builder) {
-  PROFILER_SCOPE("runtime", "ConstantPropagationPass::Run");
+  PROFILER_RUNTIME("ConstantPropagationPass::Run");
 
   for (auto block : builder.blocks()) {
     auto it = block->instrs().begin();

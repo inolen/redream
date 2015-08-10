@@ -16,7 +16,7 @@ SH4Builder::SH4Builder(Memory &memory)
 SH4Builder::~SH4Builder() {}
 
 void SH4Builder::Emit(uint32_t start_addr) {
-  PROFILER_SCOPE("runtime", "SH4Builder::Emit");
+  PROFILER_RUNTIME("SH4Builder::Emit");
 
   uint32_t addr = start_addr;
   int guest_cycles = 0;
