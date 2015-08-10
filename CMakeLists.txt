@@ -154,7 +154,7 @@ list(APPEND DREAVM_INCLUDE_DIRS deps/microprofile)
 list(APPEND DREAVM_INCLUDE_DIRS deps/stb_truetype-1.0.5)
 
 # xbyak
-list(APPEND DREAVM_INCLUDE_DIRS deps/xbyak-4.83)
+list(APPEND DREAVM_INCLUDE_DIRS deps/xbyak-4.85)
 
 #--------------------------------------------------
 # format

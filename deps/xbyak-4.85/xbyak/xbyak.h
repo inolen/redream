@@ -82,6 +82,10 @@
 	#endif
 #endif
 
+#if (__cplusplus >= 201103) || (_MSC_VER >= 1800)
+	#define XBYAK_VARIADIC_TEMPLATE
+#endif
+
 #ifdef _MSC_VER
 	#pragma warning(push)
 	#pragma warning(disable : 4514) /* remove inline function */
@@ -96,7 +100,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x4830 /* 0xABCD = A.BC(D) */
+	VERSION = 0x4850 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -407,7 +411,8 @@ public:
 		}
 		throw Error(ERR_INTERNAL);
 	}
-	bool operator==(const Operand& rhs) const { return idx_ == rhs.idx_ && kind_ == rhs.kind_ && bit_ == rhs.bit_; }
+	bool isSameNotInherited(const Operand& rhs) const { return idx_ == rhs.idx_ && kind_ == rhs.kind_ && bit_ == rhs.bit_; }
+	bool operator==(const Operand& rhs) const;
 	bool operator!=(const Operand& rhs) const { return !operator==(rhs); }
 };
 
@@ -821,7 +826,7 @@ class Address : public Operand {
 	mutable uint8 top_[6]; // 6 = 1(ModRM) + 1(SIB) + 4(disp)
 	uint8 size_;
 	uint8 rex_;
-	uint64 disp_;
+	size_t disp_;
 	const Label* label_;
 	bool isOnlyDisp_;
 	bool is64bitDisp_;
@@ -830,7 +835,7 @@ class Address : public Operand {
 	bool isYMM_;
 	void verify() const { if (isVsib_) throw Error(ERR_BAD_VSIB_ADDRESSING); }
 public:
-	Address(uint32 sizeBit, bool isOnlyDisp, uint64 disp, bool is32bit, bool is64bitDisp = false, bool isVsib = false, bool isYMM = false)
+	Address(uint32 sizeBit, bool isOnlyDisp, size_t disp, bool is32bit, bool is64bitDisp = false, bool isVsib = false, bool isYMM = false)
 		: Operand(0, MEM, sizeBit)
 		, size_(0)
 		, rex_(0)
@@ -860,13 +865,25 @@ public:
 	bool isYMM() const { return isYMM_; }
 	bool is32bit() const { verify(); return is32bit_; }
 	bool isOnlyDisp() const { verify(); return isOnlyDisp_; } // for mov eax
-	uint64 getDisp() const { verify(); return disp_; }
+	size_t getDisp() const { verify(); return disp_; }
 	uint8 getRex() const { verify(); return rex_; }
 	bool is64bitDisp() const { verify(); return is64bitDisp_; } // for moffset
 	void setRex(uint8 rex) { rex_ = rex; }
 	void setLabel(const Label* label) { label_ = label; }
 	const Label* getLabel() const { return label_; }
+	bool operator==(const Address& rhs) const
+	{
+		return getBit() == rhs.getBit() && size_ == rhs.size_ && rex_ == rhs.rex_ && disp_ == rhs.disp_ && label_ == rhs.label_ && isOnlyDisp_ == rhs.isOnlyDisp_
+			&& is64bitDisp_ == rhs.is64bitDisp_ && is32bit_ == rhs.is32bit_ && isVsib_ == rhs.isVsib_ && isYMM_ == rhs.isYMM_;
+	}
+	bool operator!=(const Address& rhs) const { return !operator==(rhs); }
 };
+
+inline bool Operand::operator==(const Operand& rhs) const
+{
+	if (isMEM() && rhs.isMEM()) return static_cast<const Address&>(*this) == static_cast<const Address&>(rhs);
+	return isSameNotInherited(rhs);
+}
 
 class AddressFrame {
 private:
@@ -956,8 +973,8 @@ struct JmpLabel {
 	size_t endOfJmp; /* offset from top to the end address of jmp */
 	int jmpSize;
 	inner::LabelMode mode;
-	uint64 disp; // disp for [rip + disp]
-	explicit JmpLabel(size_t endOfJmp = 0, int jmpSize = 0, inner::LabelMode mode = inner::LasIs, uint64 disp = 0)
+	size_t disp; // disp for [rip + disp]
+	explicit JmpLabel(size_t endOfJmp = 0, int jmpSize = 0, inner::LabelMode mode = inner::LasIs, size_t disp = 0)
 		: endOfJmp(endOfJmp), jmpSize(jmpSize), mode(mode), disp(disp)
 	{
 	}
@@ -1819,7 +1836,7 @@ private:
 		return bit / 8;
 	}
 	template<class T>
-	void putL_inner(T& label, bool relative = false, uint64 disp = 0)
+	void putL_inner(T& label, bool relative = false, size_t disp = 0)
 	{
 		const int jmpSize = relative ? 4 : (int)sizeof(size_t);
 		if (isAutoGrow() && size_ + 16 >= maxSize_) growMemory();
@@ -1912,6 +1929,10 @@ public:
 	void call(const char *label) { call(std::string(label)); }
 	void call(const Label& label) { opJmp(label, T_NEAR, 0, B11101000, 0); }
 	// call(function pointer)
+#ifdef XBYAK_VARIADIC_TEMPLATE
+	template<class Ret, class... Params>
+	void call(Ret(*func)(Params...)) { call(CastTo<const void*>(func)); }
+#endif
 	void call(const void *addr) { opJmpAbs(addr, T_NEAR, 0, B11101000); }
 	// special case
 	void movd(const Address& addr, const Mmx& mmx)

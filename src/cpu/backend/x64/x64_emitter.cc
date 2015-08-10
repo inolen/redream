@@ -345,14 +345,7 @@ const Xbyak::Xmm &X64Emitter::GetTmpXMMRegister(const Value *v) {
 // needed so far.
 const Xbyak::Operand &X64Emitter::CopyOperand(const Xbyak::Operand &from,
                                               const Xbyak::Operand &to) {
-  if (from == to &&
-      // Xbyak::Operand's equality operator currently returns true even if two
-      // addresses are not the same, this needs to be fixed. For now, work
-      // around the issue by making sure if we're comparing two addresses that
-      // their displacement is the same.
-      (!from.isMEM() || !to.isMEM() ||
-       reinterpret_cast<const Xbyak::Address &>(from).getDisp() ==
-           reinterpret_cast<const Xbyak::Address &>(to).getDisp())) {
+  if (from == to) {
     return to;
   }
 
@@ -405,10 +398,12 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
         float val = v->value<float>();
         c_.mov(c_.r8d, *reinterpret_cast<int32_t *>(&val));
         c_.movd(reinterpret_cast<const Xbyak::Xmm &>(to), c_.r8d);
-      } else {
+      } else if (v->type() == VALUE_F64) {
         double val = v->value<double>();
         c_.mov(c_.r8, *reinterpret_cast<int64_t *>(&val));
         c_.movq(reinterpret_cast<const Xbyak::Xmm &>(to), c_.r8);
+      } else {
+        LOG(FATAL) << "Unsupported copy";
       }
     } else {
       c_.mov(to, v->GetZExtValue());
