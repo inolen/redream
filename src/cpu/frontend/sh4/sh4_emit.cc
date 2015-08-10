@@ -1298,12 +1298,9 @@ EMITTER(PREF) {
   b.BranchTrue(b.EQ(sq, b.AllocConstant(1)), sq1_block);
 
   // sq0_block
-  Value *sq0_dest = b.Or(
-      b.And(addr, b.AllocConstant(0x03ffffe0)),
-      b.Shl(
-          b.And(b.LoadContext(offsetof(SH4Context, m[QACR0_OFFSET]), VALUE_I32),
-                b.AllocConstant(0x1c)),
-          24));
+  Value *sq0_dest =
+      b.Or(b.And(addr, b.AllocConstant(0x03ffffe0)),
+           b.LoadContext(offsetof(SH4Context, sq_ext_addr[0]), VALUE_I32));
   for (int i = 0; i < 8; i++) {
     b.Store(sq0_dest,
             b.LoadContext(offsetof(SH4Context, sq[0]) + i * 4, VALUE_I32));
@@ -1313,12 +1310,9 @@ EMITTER(PREF) {
 
   // sq1_block
   b.SetCurrentBlock(sq1_block);
-  Value *sq1_dest = b.Or(
-      b.And(addr, b.AllocConstant(0x03ffffe0)),
-      b.Shl(
-          b.And(b.LoadContext(offsetof(SH4Context, m[QACR1_OFFSET]), VALUE_I32),
-                b.AllocConstant(0x1c)),
-          24));
+  Value *sq1_dest =
+      b.Or(b.And(addr, b.AllocConstant(0x03ffffe0)),
+           b.LoadContext(offsetof(SH4Context, sq_ext_addr[1]), VALUE_I32));
   for (int i = 0; i < 8; i++) {
     b.Store(sq1_dest,
             b.LoadContext(offsetof(SH4Context, sq[1]) + i * 4, VALUE_I32));

@@ -49,8 +49,8 @@ struct SH4Context {
   uint32_t fr[16], xf[16];
   uint32_t fpul;
   uint32_t dbr;
-  uint32_t m[0x4000];
   uint32_t sq[2][8];
+  uint32_t sq_ext_addr[2];
   SR_T sr, ssr, old_sr;
   FPSCR_T fpscr, old_fpscr;
 };

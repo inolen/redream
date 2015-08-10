@@ -16,8 +16,8 @@ PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly)
       current_scanline_(0),
       fps_(0),
       vbps_(0) {
-  vram_ = new uint8_t [PVR_VRAM32_SIZE];
-  pram_ = new uint8_t [PVR_PALETTE_SIZE];
+  vram_ = new uint8_t[PVR_VRAM32_SIZE];
+  pram_ = new uint8_t[PVR_PALETTE_SIZE];
 }
 
 PVR2::~PVR2() {

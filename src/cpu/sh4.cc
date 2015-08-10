@@ -26,14 +26,14 @@ bool SH4::Init(Runtime *runtime) {
   scheduler_.AddDevice(this);
 
   InitMemory();
-  InitContext();
+  ResetState();
   ReprioritizeInterrupts();
 
   return true;
 }
 
 void SH4::Reset(uint32_t pc) {
-  InitContext();
+  ResetState();
 
   ctx_.pc = pc;
 }
@@ -144,10 +144,6 @@ uint32_t SH4::ReadArea7(void *ctx, uint32_t addr) {
   addr = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2);
 
   switch (addr) {
-    case MMUCR_OFFSET:
-      // LOG(FATAL) << "MMU not supported currently.";
-      break;
-
     case PDTRA_OFFSET: {
       // magic values to get past 0x8c00b948 in the boot rom:
       // void _8c00b92c(int arg1) {
@@ -217,7 +213,7 @@ uint32_t SH4::ReadArea7(void *ctx, uint32_t addr) {
     }
   }
 
-  return sh4->ctx_.m[addr];
+  return sh4->area7_[addr];
 }
 
 void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
@@ -226,7 +222,7 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
   // translate from 64mb space to our 16kb space
   addr = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2);
 
-  sh4->ctx_.m[addr] = value;
+  sh4->area7_[addr] = value;
 
   switch (addr) {
     case MMUCR_OFFSET:
@@ -235,10 +231,21 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
       }
       break;
 
+    // it seems the only aspect of the cache control register that needs to be
+    // emulated is the instruction cache invalidation
     case CCR_OFFSET:
       if (sh4->CCR.ICI) {
         sh4->ResetInstructionCache();
       }
+      break;
+
+    // when a PREF instruction is encountered, the high order bits of the
+    // address are filled in from the queue address control register
+    case QACR0_OFFSET:
+      sh4->ctx_.sq_ext_addr[0] = (value & 0x1c) << 24;
+      break;
+    case QACR1_OFFSET:
+      sh4->ctx_.sq_ext_addr[1] = (value & 0x1c) << 24;
       break;
 
     case IPRA_OFFSET:
@@ -268,20 +275,22 @@ void SH4::InitMemory() {
                  &SH4::WriteSQ);
 }
 
-void SH4::InitContext() {
+void SH4::ResetState() {
   memset(&ctx_, 0, sizeof(ctx_));
+  memset(area7_, 0, sizeof(area7_));
+  memset(cache_, 0, sizeof(cache_));
+
   ctx_.pc = 0xa0000000;
   ctx_.pr = 0xdeadbeef;
-#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
-  if (default != HELD) {                                                 \
-    *(uint32_t *)&ctx_.m[name##_OFFSET] = default;                       \
-  }
-#include "cpu/sh4_regs.inc"
-#undef SH4_REG
   ctx_.sr.full = ctx_.old_sr.full = 0x700000f0;
   ctx_.fpscr.full = ctx_.old_fpscr.full = 0x00040001;
 
-  memset(cache_, 0, sizeof(cache_));
+#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
+  if (default != HELD) {                                                 \
+    *(uint32_t *)&area7_[name##_OFFSET] = default;                       \
+  }
+#include "cpu/sh4_regs.inc"
+#undef SH4_REG
 }
 
 void SH4::ResetInstructionCache() { runtime_->ResetBlocks(); }
@@ -301,7 +310,7 @@ void SH4::ReprioritizeInterrupts() {
       // get current priority for interrupt
       int priority = int_info.default_priority;
       if (int_info.ipr) {
-        uint16_t v = *reinterpret_cast<uint16_t *>(&ctx_.m[int_info.ipr]);
+        uint16_t v = *reinterpret_cast<uint16_t *>(&area7_[int_info.ipr]);
         priority = (v >> int_info.ipr_shift) & 0xf;
       }
 

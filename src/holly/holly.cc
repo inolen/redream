@@ -17,10 +17,10 @@ Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4)
       pvr_(scheduler, memory, *this),
       gdrom_(memory, *this),
       maple_(memory, sh4, *this) {
-  modem_mem_ = new uint8_t [MODEM_REG_SIZE];
-  aica_mem_ = new uint8_t [AICA_REG_SIZE];
-  audio_mem_ = new uint8_t [AUDIO_RAM_SIZE];
-  expdev_mem_ = new uint8_t [EXPDEV_SIZE];
+  modem_mem_ = new uint8_t[MODEM_REG_SIZE];
+  aica_mem_ = new uint8_t[AICA_REG_SIZE];
+  audio_mem_ = new uint8_t[AUDIO_RAM_SIZE];
+  expdev_mem_ = new uint8_t[EXPDEV_SIZE];
 }
 
 Holly::~Holly() {

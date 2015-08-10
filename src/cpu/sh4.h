@@ -137,7 +137,7 @@ class SH4 : public emu::Device {
   static void WriteArea7(void *ctx, uint32_t addr, uint32_t value);
 
   void InitMemory();
-  void InitContext();
+  void ResetState();
 
   // CCN
   void ResetInstructionCache();
@@ -163,10 +163,12 @@ class SH4 : public emu::Device {
   SH4Context ctx_;
   SR_T old_sr_;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
-  type &name{reinterpret_cast<type &>(ctx_.m[name##_OFFSET])};
+  type &name{reinterpret_cast<type &>(area7_[name##_OFFSET])};
 #include "cpu/sh4_regs.inc"
 #undef SH4_REG
-  uint8_t cache_[0x2000];  // 8kb cache
+
+  uint32_t area7_[0x4000];  // consolidated, 16kb area 7 memory
+  uint8_t cache_[0x2000];   // 8kb cache
 };
 }
 }
