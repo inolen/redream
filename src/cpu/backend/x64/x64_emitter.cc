@@ -1,5 +1,4 @@
 #include "cpu/backend/x64/x64_emitter.h"
-#include "emu/memory.h"
 #include "emu/profiler.h"
 
 using namespace dreavm::core;
@@ -64,19 +63,22 @@ static const Xbyak::Xmm *tmp_regs_xmm[] = {&Xbyak::util::xmm0,
 #define SET_LABEL(blk, lbl) (blk->set_tag(reinterpret_cast<intptr_t>(lbl)))
 
 // callbacks for emitting each IR op
-typedef void (*X64Emit)(X64Emitter &, Xbyak::CodeGenerator &, const Instr *);
+typedef void (*X64Emit)(X64Emitter &, Memory &, Xbyak::CodeGenerator &,
+                        const Instr *);
 
 static X64Emit x64_emitters[NUM_OPCODES];
 
-#define EMITTER(op)                                                    \
-  void op(X64Emitter &e, Xbyak::CodeGenerator &c, const Instr *instr); \
-  static struct _x64_##op##_init {                                     \
-    _x64_##op##_init() { x64_emitters[OP_##op] = &op; }                \
-  } x64_##op##_init;                                                   \
-  void op(X64Emitter &e, Xbyak::CodeGenerator &c, const Instr *instr)
+#define EMITTER(op)                                               \
+  void op(X64Emitter &e, Memory &memory, Xbyak::CodeGenerator &c, \
+          const Instr *instr);                                    \
+  static struct _x64_##op##_init {                                \
+    _x64_##op##_init() { x64_emitters[OP_##op] = &op; }           \
+  } x64_##op##_init;                                              \
+  void op(X64Emitter &e, Memory &memory, Xbyak::CodeGenerator &c, \
+          const Instr *instr)
 
-X64Emitter::X64Emitter(Xbyak::CodeGenerator &codegen)
-    : c_(codegen), arena_(1024) {}
+X64Emitter::X64Emitter(Memory &memory, Xbyak::CodeGenerator &codegen)
+    : memory_(memory), c_(codegen), arena_(1024) {}
 
 X64Fn X64Emitter::Emit(IRBuilder &builder) {
   PROFILER_RUNTIME("X64Emitter::Emit");
@@ -127,7 +129,7 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
 
       X64Emit emit = x64_emitters[instr->op()];
       CHECK(emit) << "Failed to find emitter for " << Opnames[instr->op()];
-      emit(*this, c_, instr);
+      emit(*this, memory_, c_, instr);
     }
   }
 
@@ -523,6 +525,49 @@ EMITTER(STORE_CONTEXT) {
 EMITTER(LOAD) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
+  if (instr->arg0()->constant()) {
+    // try to resolve the address to a physical page
+    int32_t addr = instr->arg0()->value<int32_t>();
+    MemoryBank *bank = nullptr;
+    uint32_t offset = 0;
+
+    memory.Resolve(addr, &bank, &offset);
+
+    // if the address maps to a physical page, not a dynamic handler, let's
+    // make it fast
+    if (bank->physical_addr) {
+      const Xbyak::Reg &tmp = e.GetResultRegister(instr->result());
+
+      // FIXME it'd be nice if xbyak had a mov operation which would convert
+      // the displacement to a RIP-relative address when finalizing code so
+      // we didn't have to store the absolute address in the scratch register
+      void *physical_addr = bank->physical_addr + offset;
+      c.mov(c.r8, (size_t)physical_addr);
+
+      switch (instr->result()->type()) {
+        case VALUE_I8:
+          c.mov(tmp, c.byte[c.r8]);
+          break;
+        case VALUE_I16:
+          c.mov(tmp, c.word[c.r8]);
+          break;
+        case VALUE_I32:
+          c.mov(tmp, c.dword[c.r8]);
+          break;
+        case VALUE_I64:
+          c.mov(tmp, c.qword[c.r8]);
+          break;
+        default:
+          LOG(FATAL) << "Unsupported load result type";
+          break;
+      }
+
+      e.CopyOperand(tmp, result);
+
+      return;
+    }
+  }
+
   void *fn = nullptr;
   switch (instr->result()->type()) {
     case VALUE_I8:
@@ -542,7 +587,7 @@ EMITTER(LOAD) {
           static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
       break;
     default:
-      CHECK(false);
+      LOG(FATAL) << "Unsupported load result type";
       break;
   }
 
@@ -561,6 +606,47 @@ EMITTER(LOAD) {
 }
 
 EMITTER(STORE) {
+  if (instr->arg0()->constant()) {
+    // try to resolve the address to a physical page
+    int32_t addr = instr->arg0()->value<int32_t>();
+    MemoryBank *bank = nullptr;
+    uint32_t offset = 0;
+
+    memory.Resolve(addr, &bank, &offset);
+
+    // if the address maps to a physical page, not a dynamic handler, let's
+    // make it fast
+    if (bank->physical_addr) {
+      const Xbyak::Reg &b = e.GetRegister(instr->arg1());
+
+      // FIXME it'd be nice if xbyak had a mov operation which would convert
+      // the displacement to a RIP-relative address when finalizing code so
+      // we didn't have to store the absolute address in the scratch register
+      void *physical_addr = bank->physical_addr + offset;
+      c.mov(c.r8, (size_t)physical_addr);
+
+      switch (instr->arg1()->type()) {
+        case VALUE_I8:
+          c.mov(c.byte[c.r8], b);
+          break;
+        case VALUE_I16:
+          c.mov(c.word[c.r8], b);
+          break;
+        case VALUE_I32:
+          c.mov(c.dword[c.r8], b);
+          break;
+        case VALUE_I64:
+          c.mov(c.qword[c.r8], b);
+          break;
+        default:
+          LOG(FATAL) << "Unsupported store value type";
+          break;
+      }
+
+      return;
+    }
+  }
+
   void *fn = nullptr;
   switch (instr->arg1()->type()) {
     case VALUE_I8:
@@ -580,7 +666,7 @@ EMITTER(STORE) {
           static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
       break;
     default:
-      CHECK(false);
+      LOG(FATAL) << "Unsupported store value type";
       break;
   }
 

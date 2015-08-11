@@ -22,7 +22,7 @@ X64Backend::X64Backend(emu::Memory &memory)
       // TODO allocate a 32mb buffer for code for now, this needs to be managed
       // soon. Freed from when blocks are freed, etc.
       codegen_(1024 * 1024 * 32),
-      emitter_(codegen_) {}
+      emitter_(memory, codegen_) {}
 
 X64Backend::~X64Backend() {}
 

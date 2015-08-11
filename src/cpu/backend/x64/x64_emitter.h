@@ -6,6 +6,7 @@
 #include "core/arena.h"
 #include "cpu/backend/x64/x64_block.h"
 #include "cpu/runtime.h"
+#include "emu/memory.h"
 
 namespace dreavm {
 namespace cpu {
@@ -20,7 +21,7 @@ enum {
 
 class X64Emitter {
  public:
-  X64Emitter(Xbyak::CodeGenerator &codegen);
+  X64Emitter(emu::Memory &memory, Xbyak::CodeGenerator &codegen);
 
   Xbyak::Label &epilog_label() { return *epilog_label_; }
 
@@ -54,6 +55,7 @@ class X64Emitter {
 
   void ResetTmpRegisters();
 
+  emu::Memory &memory_;
   Xbyak::CodeGenerator &c_;
   core::Arena arena_;
   Xbyak::Label *epilog_label_;
