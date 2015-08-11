@@ -24,29 +24,36 @@ void RunSH4Test(const SH4Test &test) {
 
   // initialize runtime
   frontend::sh4::SH4Frontend rt_frontend(memory);
-  backend::x64::X64Backend rt_backend(memory);
-  // backend::interpreter::InterpreterBackend rt_backend(memory);
+  // backend::x64::X64Backend rt_backend(memory);
+  backend::interpreter::InterpreterBackend rt_backend(memory);
   Runtime runtime(memory);
   ASSERT_TRUE(runtime.Init(&rt_frontend, &rt_backend));
 
   // initialize device
   SH4 sh4(scheduler, memory);
   ASSERT_TRUE(sh4.Init(&runtime));
+  sh4.ctx_.pc = 0x8c010000;
 
   // mount the test binary and a small stack
-  sh4.ctx_.pc = 0x8c010000;
-  memory.Alloc(0x0, 0x1fffffff, 0xe0000000);
-  memory.Memcpy(sh4.ctx_.pc, test.buffer, test.buffer_size);
+  uint8_t stack[PAGE_SIZE];
+
+  size_t binary_size = core::align(test.buffer_size, (size_t)PAGE_SIZE);
+  uint8_t *binary = new uint8_t [binary_size];
+  memcpy(binary, test.buffer, test.buffer_size);
+
+  memory.Mount(0x0, sizeof(stack) - 1, MIRROR_MASK, stack);
+  memory.Mount(sh4.ctx_.pc, sh4.ctx_.pc + binary_size - 1, MIRROR_MASK, binary);
 
   // setup in registers
-  // TODO we kind of need to actually use WriteMem, not write directly to the
-  // context
   for (auto it : test.r_in) {
     SH4CTXReg &reg = sh4ctx_reg[it.first];
     memcpy((uint8_t *)&sh4.ctx_ + reg.offset, &it.second, reg.size);
   }
 
   sh4.Execute(INT64_MAX);
+
+  // cleanup binary
+  delete[] binary;
 
   // validate out registers
   for (auto it : test.r_out) {

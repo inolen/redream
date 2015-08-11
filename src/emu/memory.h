@@ -54,6 +54,7 @@ enum {
   UNMAPPED = (TableHandle)0,
   PAGE_BITS = 20,
   OFFSET_BITS = 32 - PAGE_BITS,
+  PAGE_SIZE = 1 << OFFSET_BITS,
   MAX_ENTRIES = 1 << PAGE_BITS,
   MAX_HANDLES = (1 << (sizeof(TableHandle) * 8)) - 1
 };
@@ -181,18 +182,6 @@ class Memory {
 
     *page = &banks_[handle];
     *offset = (logical_addr - (*page)->logical_addr) & (*page)->mirror_mask;
-  }
-
-  void Alloc(uint32_t logical_start, uint32_t logical_end,
-             uint32_t mirror_mask) {
-    uint8_t *block = (uint8_t *)calloc((logical_end - logical_start) + 1, 1);
-    blocks_.push_back(block);
-
-    MemoryBank &bank = AllocBank();
-    bank.mirror_mask = ~mirror_mask;
-    bank.logical_addr = logical_start;
-    bank.physical_addr = block;
-    table_.MapRange(logical_start, logical_end, mirror_mask, bank.handle);
   }
 
   void Mount(uint32_t logical_start, uint32_t logical_end, uint32_t mirror_mask,
