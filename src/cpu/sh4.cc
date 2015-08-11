@@ -123,6 +123,12 @@ void SH4::WriteCache(void *ctx, uint32_t addr, T value) {
   *reinterpret_cast<T *>(&sh4->cache_[offset]) = value;
 }
 
+template <typename T>
+T SH4::ReadSQ(void *ctx, uint32_t addr) {
+  return static_cast<T>(ReadSQ<uint32_t>(ctx, addr));
+}
+
+template <>
 uint32_t SH4::ReadSQ(void *ctx, uint32_t addr) {
   SH4 *sh4 = (SH4 *)ctx;
   uint32_t sqi = (addr & 0x20) >> 5;
@@ -130,6 +136,12 @@ uint32_t SH4::ReadSQ(void *ctx, uint32_t addr) {
   return sh4->ctx_.sq[sqi][idx];
 }
 
+template <typename T>
+void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
+  WriteSQ<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
+}
+
+template <>
 void SH4::WriteSQ(void *ctx, uint32_t addr, uint32_t value) {
   SH4 *sh4 = (SH4 *)ctx;
   uint32_t sqi = (addr & 0x20) >> 5;
@@ -137,6 +149,12 @@ void SH4::WriteSQ(void *ctx, uint32_t addr, uint32_t value) {
   sh4->ctx_.sq[sqi][idx] = value;
 }
 
+template <typename T>
+T SH4::ReadArea7(void *ctx, uint32_t addr) {
+  return static_cast<T>(ReadArea7<uint32_t>(ctx, addr));
+}
+
+template <>
 uint32_t SH4::ReadArea7(void *ctx, uint32_t addr) {
   SH4 *sh4 = (SH4 *)ctx;
 
@@ -216,6 +234,12 @@ uint32_t SH4::ReadArea7(void *ctx, uint32_t addr) {
   return sh4->area7_[addr];
 }
 
+template <typename T>
+void SH4::WriteArea7(void *ctx, uint32_t addr, T value) {
+  WriteArea7<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
+}
+
+template <>
 void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
   SH4 *sh4 = (SH4 *)ctx;
 
@@ -260,8 +284,11 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
 
 void SH4::InitMemory() {
   // mount internal cpu register area
-  memory_.Handle(SH4_REG_START, SH4_REG_END, MIRROR_MASK, this, &SH4::ReadArea7,
-                 &SH4::WriteArea7);
+  memory_.Handle(SH4_REG_START, SH4_REG_END, MIRROR_MASK, this,
+                 &SH4::ReadArea7<uint8_t>, &SH4::ReadArea7<uint16_t>,
+                 &SH4::ReadArea7<uint32_t>, nullptr, &SH4::WriteArea7<uint8_t>,
+                 &SH4::WriteArea7<uint16_t>, &SH4::WriteArea7<uint32_t>,
+                 nullptr);
 
   // map cache
   memory_.Handle(0x7c000000, 0x7fffffff, 0x0, this, &SH4::ReadCache<uint8_t>,
@@ -271,8 +298,10 @@ void SH4::InitMemory() {
                  &SH4::WriteCache<uint64_t>);
 
   // map store queues
-  memory_.Handle(0xe0000000, 0xe3ffffff, 0x0, this, &SH4::ReadSQ,
-                 &SH4::WriteSQ);
+  memory_.Handle(0xe0000000, 0xe3ffffff, 0x0, this, &SH4::ReadSQ<uint8_t>,
+                 &SH4::ReadSQ<uint16_t>, &SH4::ReadSQ<uint32_t>, nullptr,
+                 &SH4::WriteSQ<uint8_t>, &SH4::WriteSQ<uint16_t>,
+                 &SH4::WriteSQ<uint32_t>, nullptr);
 }
 
 void SH4::ResetState() {

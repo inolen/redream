@@ -509,9 +509,12 @@ class TileAccelerator {
   void ToggleTracing();
 
  private:
-  static void WriteCommand(void *ctx, uint32_t addr, uint32_t value);
-  static void WriteTexture(void *ctx, uint32_t addr, uint32_t value);
+  template <typename T>
+  static void WriteCommand(void *ctx, uint32_t addr, T value);
+  template <typename T>
+  static void WriteTexture(void *ctx, uint32_t addr, T value);
 
+  void InitMemory();
   TileContext *GetContext(uint32_t addr);
   void WritePVRState(TileContext *tactx);
   void WriteBackgroundState(TileContext *tactx);

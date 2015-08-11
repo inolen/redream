@@ -96,6 +96,12 @@ void Holly::UnrequestInterrupt(Interrupt intr) {
   ForwardRequestInterrupts();
 }
 
+template <typename T>
+T Holly::ReadRegister(void *ctx, uint32_t addr) {
+  return static_cast<T>(ReadRegister<uint32_t>(ctx, addr));
+}
+
+template <>
 uint32_t Holly::ReadRegister(void *ctx, uint32_t addr) {
   Holly *holly = (Holly *)ctx;
   Register &reg = holly->regs_[addr >> 2];
@@ -129,6 +135,12 @@ uint32_t Holly::ReadRegister(void *ctx, uint32_t addr) {
   return reg.value;
 }
 
+template <typename T>
+void Holly::WriteRegister(void *ctx, uint32_t addr, T value) {
+  WriteRegister<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
+}
+
+template <>
 void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   Holly *holly = (Holly *)ctx;
   Register &reg = holly->regs_[addr >> 2];
@@ -201,23 +213,15 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   }
 }
 
-uint32_t Holly::ReadRTC(void *ctx, uint32_t addr) {
-  // printf("Holly::ReadRTC 0x%x\n", addr);
-  return 0;
-}
-
-void Holly::WriteRTC(void *ctx, uint32_t addr, uint32_t value) {
-  // printf("Holly::WriteRTC 0x%x\n", addr);
-}
-
 void Holly::InitMemory() {
   memory_.Handle(HOLLY_REG_START, HOLLY_REG_END, MIRROR_MASK, this,
-                 &Holly::ReadRegister, &Holly::WriteRegister);
+                 &Holly::ReadRegister<uint8_t>, &Holly::ReadRegister<uint16_t>,
+                 &Holly::ReadRegister<uint32_t>, nullptr,
+                 &Holly::WriteRegister<uint8_t>,
+                 &Holly::WriteRegister<uint16_t>,
+                 &Holly::WriteRegister<uint32_t>, nullptr);
   memory_.Mount(MODEM_REG_START, MODEM_REG_END, MIRROR_MASK, modem_mem_);
   memory_.Mount(AICA_REG_START, AICA_REG_END, MIRROR_MASK, aica_mem_);
-  // TODO support RTC
-  // memory_.Handle(0x00710000, 0x0071000b, MIRROR_MASK, this, &Holly::ReadRTC,
-  //                &Holly::WriteRTC);
   memory_.Mount(AUDIO_RAM_START, AUDIO_RAM_END, MIRROR_MASK, audio_mem_);
   memory_.Mount(EXPDEV_START, EXPDEV_END, MIRROR_MASK, expdev_mem_);
 }

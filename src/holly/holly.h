@@ -180,10 +180,10 @@ class Holly {
   void UnrequestInterrupt(Interrupt intr);
 
  private:
-  static uint32_t ReadRegister(void *ctx, uint32_t addr);
-  static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
-  static uint32_t ReadRTC(void *ctx, uint32_t addr);
-  static void WriteRTC(void *ctx, uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadRegister(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteRegister(void *ctx, uint32_t addr, T value);
 
   void InitMemory();
 

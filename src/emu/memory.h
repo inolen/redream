@@ -135,7 +135,6 @@ struct MemoryBank {
         logical_addr(0),
         physical_addr(nullptr),
         ctx(nullptr),
-        force32(false),
         r8(nullptr),
         r16(nullptr),
         r32(nullptr),
@@ -150,7 +149,6 @@ struct MemoryBank {
   uint32_t logical_addr;
   uint8_t *physical_addr;
   void *ctx;
-  bool force32;
   R8Handler r8;
   R16Handler r16;
   R32Handler r32;
@@ -222,18 +220,6 @@ class Memory {
     bank.w16 = w16;
     bank.w32 = w32;
     bank.w64 = w64;
-    table_.MapRange(logical_start, logical_end, mirror_mask, bank.handle);
-  }
-
-  void Handle(uint32_t logical_start, uint32_t logical_end,
-              uint32_t mirror_mask, void *ctx, R32Handler r32, W32Handler w32) {
-    MemoryBank &bank = AllocBank();
-    bank.mirror_mask = ~mirror_mask;
-    bank.logical_addr = logical_start;
-    bank.ctx = ctx;
-    bank.force32 = true;
-    bank.r32 = r32;
-    bank.w32 = w32;
     table_.MapRange(logical_start, logical_end, mirror_mask, bank.handle);
   }
 
@@ -333,8 +319,6 @@ class Memory {
     uint32_t offset = (addr - bank.logical_addr) & bank.mirror_mask;
     if (bank.physical_addr) {
       return *(INT *)(bank.physical_addr + offset);
-    } else if (bank.force32) {
-      return (INT)bank.r32(bank.ctx, offset);
     } else if (bank.*HANDLER) {
       return (bank.*HANDLER)(bank.ctx, offset);
     } else {
@@ -352,8 +336,6 @@ class Memory {
     uint32_t offset = (addr - bank.logical_addr) & bank.mirror_mask;
     if (bank.physical_addr) {
       *(INT *)(bank.physical_addr + offset) = value;
-    } else if (bank.force32) {
-      bank.w32(bank.ctx, offset, value);
     } else if (bank.*HANDLER) {
       (bank.*HANDLER)(bank.ctx, offset, value);
     } else {

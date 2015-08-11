@@ -78,6 +78,12 @@ void PVR2::WriteInterleaved(void *ctx, uint32_t addr, T value) {
   *reinterpret_cast<T *>(&pvr->vram_[addr]) = value;
 }
 
+template <typename T>
+T PVR2::ReadRegister(void *ctx, uint32_t addr) {
+  return static_cast<T>(ReadRegister<uint32_t>(ctx, addr));
+}
+
+template <>
 uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
   PVR2 *pvr = (PVR2 *)ctx;
   Register &reg = pvr->regs_[addr >> 2];
@@ -90,6 +96,12 @@ uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
   return reg.value;
 }
 
+template <typename T>
+void PVR2::WriteRegister(void *ctx, uint32_t addr, T value) {
+  WriteRegister<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
+}
+
+template <>
 void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   PVR2 *pvr = (PVR2 *)ctx;
   Register &reg = pvr->regs_[addr >> 2];
@@ -133,10 +145,11 @@ void PVR2::InitMemory() {
                  &PVR2::ReadInterleaved<uint32_t>, nullptr, nullptr,
                  &PVR2::WriteInterleaved<uint16_t>,
                  &PVR2::WriteInterleaved<uint32_t>, nullptr);
-
   memory_.Handle(PVR_REG_START, PVR_REG_END, MIRROR_MASK, this,
-                 &PVR2::ReadRegister, &PVR2::WriteRegister);
-
+                 &PVR2::ReadRegister<uint8_t>, &PVR2::ReadRegister<uint16_t>,
+                 &PVR2::ReadRegister<uint32_t>, nullptr,
+                 &PVR2::WriteRegister<uint8_t>, &PVR2::WriteRegister<uint16_t>,
+                 &PVR2::WriteRegister<uint32_t>, nullptr);
   memory_.Mount(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK, pram_);
 }
 

@@ -131,10 +131,14 @@ class SH4 : public emu::Device {
   static T ReadCache(void *ctx, uint32_t addr);
   template <typename T>
   static void WriteCache(void *ctx, uint32_t addr, T value);
-  static uint32_t ReadSQ(void *ctx, uint32_t addr);
-  static void WriteSQ(void *ctx, uint32_t addr, uint32_t value);
-  static uint32_t ReadArea7(void *ctx, uint32_t addr);
-  static void WriteArea7(void *ctx, uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadSQ(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteSQ(void *ctx, uint32_t addr, T value);
+  template <typename T>
+  static T ReadArea7(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteArea7(void *ctx, uint32_t addr, T value);
 
   void InitMemory();
   void ResetState();

@@ -285,11 +285,7 @@ TileAccelerator::~TileAccelerator() {
 bool TileAccelerator::Init(Backend *rb) {
   rb_ = rb;
 
-  // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
-  memory_.Handle(TA_CMD_START, TA_CMD_END, 0x0, this, nullptr,
-                 &TileAccelerator::WriteCommand);
-  memory_.Handle(TA_TEXTURE_START, TA_TEXTURE_END, 0x0, this, nullptr,
-                 &TileAccelerator::WriteTexture);
+  InitMemory();
 
   return true;
 }
@@ -414,12 +410,24 @@ void TileAccelerator::ToggleTracing() {
   }
 }
 
+template <typename T>
+void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, T value) {
+  WriteCommand<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
+}
+
+template <>
 void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, uint32_t value) {
   TileAccelerator *ta = (TileAccelerator *)ctx;
 
   ta->WriteContext(ta->pvr_.TA_ISP_BASE.base_address, value);
 }
 
+template <typename T>
+void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, T value) {
+  WriteTexture<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
+}
+
+template <>
 void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
   TileAccelerator *ta = (TileAccelerator *)ctx;
 
@@ -429,6 +437,18 @@ void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
   ta->texcache_.RemoveTexture(addr);
 
   *reinterpret_cast<uint32_t *>(&ta->pvr_.vram_[addr]) = value;
+}
+
+void TileAccelerator::InitMemory() {
+  // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
+  memory_.Handle(TA_CMD_START, TA_CMD_END, 0x0, this, nullptr, nullptr, nullptr,
+                 nullptr, &TileAccelerator::WriteCommand<uint8_t>,
+                 &TileAccelerator::WriteCommand<uint16_t>,
+                 &TileAccelerator::WriteCommand<uint32_t>, nullptr);
+  memory_.Handle(TA_TEXTURE_START, TA_TEXTURE_END, 0x0, this, nullptr, nullptr,
+                 nullptr, nullptr, &TileAccelerator::WriteTexture<uint8_t>,
+                 &TileAccelerator::WriteTexture<uint16_t>,
+                 &TileAccelerator::WriteTexture<uint32_t>, nullptr);
 }
 
 TileContext *TileAccelerator::GetContext(uint32_t addr) {
