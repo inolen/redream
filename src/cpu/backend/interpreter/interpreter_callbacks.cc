@@ -340,14 +340,14 @@ CALLBACK(LOAD_I64) {
 }
 CALLBACK(LOAD_F32) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
-  R v = memory->RF32(addr);
-  STORE_RESULT(v);
+  uint32_t v = memory->R32(addr);
+  STORE_RESULT(*reinterpret_cast<float *>(&v));
   return NEXT_INSTR;
 }
 CALLBACK(LOAD_F64) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
-  R v = memory->RF64(addr);
-  STORE_RESULT(v);
+  uint64_t v = memory->R64(addr);
+  STORE_RESULT(*reinterpret_cast<double *>(&v));
   return NEXT_INSTR;
 }
 REGISTER_CALLBACK(LOAD, LOAD_I8, I8, I32, V);
@@ -384,13 +384,13 @@ CALLBACK(STORE_I64) {
 CALLBACK(STORE_F32) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  memory->WF32(addr, v);
+  memory->W32(addr, *reinterpret_cast<uint32_t *>(&v));
   return NEXT_INSTR;
 }
 CALLBACK(STORE_F64) {
   uint32_t addr = (uint32_t)LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  memory->WF64(addr, v);
+  memory->W64(addr, *reinterpret_cast<uint64_t *>(&v));
   return NEXT_INSTR;
 }
 REGISTER_CALLBACK(STORE, STORE_I8, V, I32, I8);

@@ -520,26 +520,26 @@ EMITTER(STORE_CONTEXT) {
   }
 }
 
-uint8_t R8(Memory *memory, uint32_t addr) { return memory->R8(addr); }
-uint16_t R16(Memory *memory, uint32_t addr) { return memory->R16(addr); }
-uint32_t R32(Memory *memory, uint32_t addr) { return memory->R32(addr); }
-uint64_t R64(Memory *memory, uint32_t addr) { return memory->R64(addr); }
 EMITTER(LOAD) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
   void *fn = nullptr;
   switch (instr->result()->type()) {
     case VALUE_I8:
-      fn = reinterpret_cast<void *>(&R8);
+      fn = reinterpret_cast<void *>(
+          static_cast<uint8_t (*)(Memory *, uint32_t)>(&Memory::R8));
       break;
     case VALUE_I16:
-      fn = reinterpret_cast<void *>(&R16);
+      fn = reinterpret_cast<void *>(
+          static_cast<uint16_t (*)(Memory *, uint32_t)>(&Memory::R16));
       break;
     case VALUE_I32:
-      fn = reinterpret_cast<void *>(&R32);
+      fn = reinterpret_cast<void *>(
+          static_cast<uint32_t (*)(Memory *, uint32_t)>(&Memory::R32));
       break;
     case VALUE_I64:
-      fn = reinterpret_cast<void *>(&R64);
+      fn = reinterpret_cast<void *>(
+          static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
       break;
     default:
       CHECK(false);
@@ -560,24 +560,24 @@ EMITTER(LOAD) {
   e.RestoreParameters();
 }
 
-void W8(Memory *memory, uint32_t addr, uint8_t v) { memory->W8(addr, v); }
-void W16(Memory *memory, uint32_t addr, uint16_t v) { memory->W16(addr, v); }
-void W32(Memory *memory, uint32_t addr, uint32_t v) { memory->W32(addr, v); }
-void W64(Memory *memory, uint32_t addr, uint64_t v) { memory->W64(addr, v); }
 EMITTER(STORE) {
   void *fn = nullptr;
   switch (instr->arg1()->type()) {
     case VALUE_I8:
-      fn = reinterpret_cast<void *>(&W8);
+      fn = reinterpret_cast<void *>(
+          static_cast<void (*)(Memory *, uint32_t, uint8_t)>(&Memory::W8));
       break;
     case VALUE_I16:
-      fn = reinterpret_cast<void *>(&W16);
+      fn = reinterpret_cast<void *>(
+          static_cast<void (*)(Memory *, uint32_t, uint16_t)>(&Memory::W16));
       break;
     case VALUE_I32:
-      fn = reinterpret_cast<void *>(&W32);
+      fn = reinterpret_cast<void *>(
+          static_cast<void (*)(Memory *, uint32_t, uint32_t)>(&Memory::W32));
       break;
     case VALUE_I64:
-      fn = reinterpret_cast<void *>(&W64);
+      fn = reinterpret_cast<void *>(
+          static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
       break;
     default:
       CHECK(false);

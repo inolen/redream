@@ -167,7 +167,7 @@ class Memory {
       : num_banks_(1)  // 0 is UNMAPPED
   {}
 
-  virtual ~Memory() {
+  ~Memory() {
     for (auto block : blocks_) {
       free(block);
     }
@@ -257,56 +257,55 @@ class Memory {
     }
   }
 
+  // static versions of the functions for ease of calling from assembly
+  static uint8_t R8(Memory *memory, uint32_t addr) {
+    return memory->ReadBytes<uint8_t, &MemoryBank::r8>(addr);
+  }
+  static uint16_t R16(Memory *memory, uint32_t addr) {
+    return memory->ReadBytes<uint16_t, &MemoryBank::r16>(addr);
+  }
+  static uint32_t R32(Memory *memory, uint32_t addr) {
+    return memory->ReadBytes<uint32_t, &MemoryBank::r32>(addr);
+  }
+  static uint64_t R64(Memory *memory, uint32_t addr) {
+    return memory->ReadBytes<uint64_t, &MemoryBank::r64>(addr);
+  }
+  static void W8(Memory *memory, uint32_t addr, uint8_t value) {
+    memory->WriteBytes<uint8_t, &MemoryBank::w8>(addr, value);
+  }
+  static void W16(Memory *memory, uint32_t addr, uint16_t value) {
+    memory->WriteBytes<uint16_t, &MemoryBank::w16>(addr, value);
+  }
+  static void W32(Memory *memory, uint32_t addr, uint32_t value) {
+    memory->WriteBytes<uint32_t, &MemoryBank::w32>(addr, value);
+  }
+  static void W64(Memory *memory, uint32_t addr, uint64_t value) {
+    memory->WriteBytes<uint64_t, &MemoryBank::w64>(addr, value);
+  }
+
   uint8_t R8(uint32_t addr) {
     return ReadBytes<uint8_t, &MemoryBank::r8>(addr);
   }
-
   uint16_t R16(uint32_t addr) {
     return ReadBytes<uint16_t, &MemoryBank::r16>(addr);
   }
-
   uint32_t R32(uint32_t addr) {
     return ReadBytes<uint32_t, &MemoryBank::r32>(addr);
   }
-
   uint64_t R64(uint32_t addr) {
     return ReadBytes<uint64_t, &MemoryBank::r64>(addr);
   }
-
-  float RF32(uint32_t addr) {
-    uint32_t v = R32(addr);
-    return *(float *)&v;
-  }
-
-  double RF64(uint32_t addr) {
-    uint64_t v = R64(addr);
-    return *(double *)&v;
-  }
-
   void W8(uint32_t addr, uint8_t value) {
     WriteBytes<uint8_t, &MemoryBank::w8>(addr, value);
   }
-
   void W16(uint32_t addr, uint16_t value) {
     WriteBytes<uint16_t, &MemoryBank::w16>(addr, value);
   }
-
   void W32(uint32_t addr, uint32_t value) {
     WriteBytes<uint32_t, &MemoryBank::w32>(addr, value);
   }
-
   void W64(uint32_t addr, uint64_t value) {
     WriteBytes<uint64_t, &MemoryBank::w64>(addr, value);
-  }
-
-  void WF32(uint32_t addr, float value) {
-    uint32_t v = *(uint32_t *)&value;
-    W32(addr, v);
-  }
-
-  void WF64(uint32_t addr, double value) {
-    uint64_t v = *(uint64_t *)&value;
-    W64(addr, v);
   }
 
  private:
