@@ -38,7 +38,7 @@ class SH4Builder : public ir::IRBuilder {
   SH4Builder(emu::Memory &memory);
   ~SH4Builder();
 
-  void Emit(uint32_t start_addr, const SH4Context &ctx);
+  void Emit(uint32_t start_addr);
 
   ir::Value *LoadRegister(int n, ir::ValueTy type);
   void StoreRegister(int n, ir::Value *v);

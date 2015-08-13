@@ -40,7 +40,7 @@ void SH4Builder::Emit(uint32_t start_addr) {
     }
 
     // emit the current instruction
-    (emit_callbacks[instr.type->op])(*this, fpu_state_, instr);
+    (emit_callbacks[instr.type->op])(*this, instr);
 
     // delayed instructions will be emitted already by the instructions handler
     addr += delayed ? 4 : 2;
@@ -187,7 +187,7 @@ void SH4Builder::EmitDelayInstr() {
   CHECK_EQ(has_delay_instr_, true) << "No delay instruction available";
   has_delay_instr_ = false;
 
-  (emit_callbacks[delay_instr_.type->op])(*this, fpu_state_, delay_instr_);
+  (emit_callbacks[delay_instr_.type->op])(*this, delay_instr_);
 }
 
 // When emitting an instruction in the delay slot, it's possible that it will

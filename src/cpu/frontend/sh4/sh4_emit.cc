@@ -1243,14 +1243,14 @@ EMITTER(LDCRBANK) {
   {
     b.SetCurrentBlock(rb1);
     Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg, rm);
+    b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg * 4, rm);
     b.Branch(end_block);
   }
 
   {
     b.SetCurrentBlock(rb0);
     Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg, rm);
+    b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg * 4, rm);
     b.Branch(end_block);
   }
 
@@ -1322,7 +1322,7 @@ EMITTER(LDCMRBANK) {
     Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
     b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
     Value *v = b.Load(addr, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg, v);
+    b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg * 4, v);
     b.Branch(end_block);
   }
 
@@ -1331,7 +1331,7 @@ EMITTER(LDCMRBANK) {
     Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
     b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
     Value *v = b.Load(addr, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg, v);
+    b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg * 4, v);
     b.Branch(end_block);
   }
 
@@ -1521,14 +1521,14 @@ EMITTER(STCRBANK) {
   {
     b.SetCurrentBlock(rb1);
     b.StoreRegister(
-        i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
+        i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg * 4, VALUE_I32));
     b.Branch(end_block);
   }
 
   {
     b.SetCurrentBlock(rb0);
     b.StoreRegister(
-        i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
+        i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg * 4, VALUE_I32));
     b.Branch(end_block);
   }
 
@@ -1606,7 +1606,7 @@ EMITTER(STCMRBANK) {
     Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
     b.StoreRegister(i.Rn, addr);
     b.Store(addr,
-            b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
+            b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg * 4, VALUE_I32));
     b.Branch(end_block);
   }
 
@@ -1615,7 +1615,7 @@ EMITTER(STCMRBANK) {
     Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
     b.StoreRegister(i.Rn, addr);
     b.Store(addr,
-            b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
+            b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg * 4, VALUE_I32));
     b.Branch(end_block);
   }
 
