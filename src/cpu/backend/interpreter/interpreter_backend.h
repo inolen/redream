@@ -65,8 +65,6 @@ union IntValue {
 struct IntInstr {
   IntFn fn;
   IntValue arg[4];
-  intptr_t guest_addr;
-  intptr_t guest_op;
 };
 
 class AssembleContext {

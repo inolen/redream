@@ -1069,9 +1069,11 @@ EMITTER(BF) {
 // 1000 1111 dddd dddd  3/1     -
 // BFS     disp
 EMITTER(BFS) {
-  uint32_t dest_addr = i.addr + 4 + (int8_t)i.disp * 2;
-  Value *cond = b.LoadT();
+  b.PreserveT();
   b.EmitDelayInstr();
+  Value *cond = b.LoadPreserved();
+
+  uint32_t dest_addr = i.addr + 4 + (int8_t)i.disp * 2;
   b.BranchFalse(cond, b.AllocConstant(dest_addr));
 }
 
@@ -1088,9 +1090,11 @@ EMITTER(BT) {
 // 1000 1101 dddd dddd  2/1     -
 // BTS     disp
 EMITTER(BTS) {
-  uint32_t dest_addr = i.addr + 4 + (int8_t)i.disp * 2;
-  Value *cond = b.LoadT();
+  b.PreserveT();
   b.EmitDelayInstr();
+  Value *cond = b.LoadPreserved();
+
+  uint32_t dest_addr = i.addr + 4 + (int8_t)i.disp * 2;
   b.BranchTrue(cond, b.AllocConstant(dest_addr));
 }
 
@@ -1098,10 +1102,11 @@ EMITTER(BTS) {
 // 1010 dddd dddd dddd  2       -
 // BRA     disp
 EMITTER(BRA) {
+  b.EmitDelayInstr();
+
   int32_t disp = ((i.disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
   uint32_t dest_addr = i.addr + 4 + disp * 2;
-  b.EmitDelayInstr();
   b.Branch(b.AllocConstant(dest_addr));
 }
 
@@ -1109,9 +1114,11 @@ EMITTER(BRA) {
 // 0000 mmmm 0010 0011  2       -
 // BRAF    Rn
 EMITTER(BRAF) {
-  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  Value *dest_addr = b.Add(b.AllocConstant(i.addr + 4), rn);
+  b.PreserveRegister(i.Rn);
   b.EmitDelayInstr();
+  Value *rn = b.LoadPreserved();
+
+  Value *dest_addr = b.Add(b.AllocConstant(i.addr + 4), rn);
   b.Branch(dest_addr);
 }
 
@@ -1119,12 +1126,13 @@ EMITTER(BRAF) {
 // 1011 dddd dddd dddd  2       -
 // BSR     disp
 EMITTER(BSR) {
+  b.EmitDelayInstr();
+
   int32_t disp = ((i.disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
   uint32_t ret_addr = i.addr + 4;
   uint32_t dest_addr = ret_addr + disp * 2;
-  b.EmitDelayInstr();
-  b.StoreContext(offsetof(SH4Context, pr), b.AllocConstant(ret_addr));
+  b.StorePR(b.AllocConstant(ret_addr));
   b.Branch(b.AllocConstant(dest_addr));
 }
 
@@ -1132,34 +1140,42 @@ EMITTER(BSR) {
 // 0000 mmmm 0000 0011  2       -
 // BSRF    Rn
 EMITTER(BSRF) {
-  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
+  b.PreserveRegister(i.Rn);
+  b.EmitDelayInstr();
+  Value *rn = b.LoadPreserved();
+
   Value *ret_addr = b.AllocConstant(i.addr + 4);
   Value *dest_addr = b.Add(rn, ret_addr);
-  b.EmitDelayInstr();
-  b.StoreContext(offsetof(SH4Context, pr), ret_addr);
+  b.StorePR(ret_addr);
   b.Branch(dest_addr);
 }
 
 // JMP     @Rm
 EMITTER(JMP) {
-  Value *dest_addr = b.LoadRegister(i.Rn, VALUE_I32);
+  b.PreserveRegister(i.Rn);
   b.EmitDelayInstr();
+  Value *dest_addr = b.LoadPreserved();
+
   b.Branch(dest_addr);
 }
 
 // JSR     @Rn
 EMITTER(JSR) {
-  Value *ret_addr = b.AllocConstant(i.addr + 4);
-  Value *dest_addr = b.LoadRegister(i.Rn, VALUE_I32);
+  b.PreserveRegister(i.Rn);
   b.EmitDelayInstr();
-  b.StoreContext(offsetof(SH4Context, pr), ret_addr);
+  Value *dest_addr = b.LoadPreserved();
+
+  Value *ret_addr = b.AllocConstant(i.addr + 4);
+  b.StorePR(ret_addr);
   b.Branch(dest_addr);
 }
 
 // RTS
 EMITTER(RTS) {
+  b.PreservePR();
   b.EmitDelayInstr();
-  Value *dest_addr = b.LoadContext(offsetof(SH4Context, pr), VALUE_I32);
+  Value *dest_addr = b.LoadPreserved();
+
   b.Branch(dest_addr);
 }
 
@@ -1337,7 +1353,7 @@ EMITTER(LDSMACL) {
 // LDS     Rm,PR
 EMITTER(LDSPR) {
   Value *v = b.LoadRegister(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, pr), v);
+  b.StorePR(v);
 }
 
 // LDS.L   @Rm+,MACH
@@ -1360,7 +1376,7 @@ EMITTER(LDSMMACL) {
 EMITTER(LDSMPR) {
   Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
   Value *v = b.Load(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, pr), v);
+  b.StorePR(v);
   b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
 }
 
@@ -1620,7 +1636,7 @@ EMITTER(STSMACL) {
 
 // STS     PR,Rn
 EMITTER(STSPR) {
-  Value *v = b.LoadContext(offsetof(SH4Context, pr), VALUE_I32);
+  Value *v = b.LoadPR();
   b.StoreRegister(i.Rn, v);
 }
 
@@ -1647,7 +1663,7 @@ EMITTER(STSMPR) {
   Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreRegister(i.Rn, addr);
 
-  Value *pr = b.LoadContext(offsetof(SH4Context, pr), VALUE_I32);
+  Value *pr = b.LoadPR();
   b.Store(addr, pr);
 }
 

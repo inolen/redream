@@ -278,10 +278,6 @@ class Instr : public core::IntrusiveListNode<Instr> {
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
-  // temp debug variables
-  intptr_t guest_addr;
-  intptr_t guest_op;
-
  private:
   Block *set_block(Block *block) { return block_ = block; }
 

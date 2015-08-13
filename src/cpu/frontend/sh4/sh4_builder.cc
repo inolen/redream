@@ -11,7 +11,11 @@ using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
 SH4Builder::SH4Builder(Memory &memory)
-    : memory_(memory), has_delay_instr_(false), last_instr_(nullptr) {}
+    : memory_(memory),
+      has_delay_instr_(false),
+      preserve_offset_(-1),
+      preserve_mask_(0),
+      offset_preserved_(false) {}
 
 SH4Builder::~SH4Builder() {}
 
@@ -36,15 +40,7 @@ void SH4Builder::Emit(uint32_t start_addr) {
     }
 
     // emit the current instruction
-    printf("SH4::Emit %s\n", instr.type->name);
-    (emit_callbacks[instr.type->op])(*this, instr);
-
-    // find the first ir instruction emitted for this op
-    ir::Instr *emitted = GetFirstEmittedInstr();
-    if (emitted) {
-      emitted->guest_addr = addr;
-      emitted->guest_op = instr.type->op;
-    }
+    (emit_callbacks[instr.type->op])(*this, fpu_state_, instr);
 
     // delayed instructions will be emitted already by the instructions handler
     addr += delayed ? 4 : 2;
@@ -81,48 +77,13 @@ void SH4Builder::Emit(uint32_t start_addr) {
   SetMetadata(MD_GUEST_CYCLES, AllocConstant(guest_cycles));
 }
 
-void SH4Builder::DumpToFile(uint32_t start_addr) {
-  char filename[PATH_MAX];
-  snprintf(filename, sizeof(filename), "../dreamcast/0x%x.bin", start_addr);
-
-  printf("DUMPING 0x%x to %s\n", start_addr, filename);
-
-  FILE *fp = fopen(filename, "wb");
-  if (!fp) {
-    printf("FAILED TO OPEN FILE HANDLE\n");
-    return;
-  }
-
-  uint32_t addr = start_addr;
-  while (true) {
-    uint16_t opcode = memory_.R16(addr);
-    Instr instr(addr, opcode);
-    bool delayed = instr.type->flags & OP_FLAG_DELAYED;
-
-    fwrite(&opcode, 2, 1, fp);
-
-    if (delayed) {
-      uint16_t delay_opcode = memory_.R16(addr + 2);
-      fwrite(&delay_opcode, 2, 1, fp);
-    }
-
-    if (instr.type->flags & OP_FLAG_BRANCH) {
-      break;
-    }
-
-    addr += delayed ? 4 : 2;
-  }
-
-  fclose(fp);
-}
-
 Value *SH4Builder::LoadRegister(int n, ValueTy type) {
   return LoadContext(offsetof(SH4Context, r[n]), type);
 }
 
 void SH4Builder::StoreRegister(int n, Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
-  return StoreContext(offsetof(SH4Context, r[n]), v);
+  return StoreAndPreserveContext(offsetof(SH4Context, r[n]), v);
 }
 
 Value *SH4Builder::LoadRegisterF(int n, ValueTy type) {
@@ -130,7 +91,7 @@ Value *SH4Builder::LoadRegisterF(int n, ValueTy type) {
 }
 
 void SH4Builder::StoreRegisterF(int n, Value *v) {
-  return StoreContext(offsetof(SH4Context, fr[n]), v);
+  return StoreAndPreserveContext(offsetof(SH4Context, fr[n]), v);
 }
 
 Value *SH4Builder::LoadRegisterXF(int n, ValueTy type) {
@@ -138,7 +99,7 @@ Value *SH4Builder::LoadRegisterXF(int n, ValueTy type) {
 }
 
 void SH4Builder::StoreRegisterXF(int n, Value *v) {
-  return StoreContext(offsetof(SH4Context, xf[n]), v);
+  return StoreAndPreserveContext(offsetof(SH4Context, xf[n]), v);
 }
 
 Value *SH4Builder::LoadSR() {
@@ -147,7 +108,7 @@ Value *SH4Builder::LoadSR() {
 
 void SH4Builder::StoreSR(Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
-  StoreContext(offsetof(SH4Context, sr), v, IF_INVALIDATE_CONTEXT);
+  StoreAndPreserveContext(offsetof(SH4Context, sr), v, IF_INVALIDATE_CONTEXT);
   CallExternal((ExternalFn)&SRUpdated);
 }
 
@@ -163,7 +124,7 @@ Value *SH4Builder::LoadGBR() {
 }
 
 void SH4Builder::StoreGBR(Value *v) {
-  StoreContext(offsetof(SH4Context, gbr), v);
+  StoreAndPreserveContext(offsetof(SH4Context, gbr), v);
 }
 
 ir::Value *SH4Builder::LoadFPSCR() {
@@ -175,55 +136,75 @@ ir::Value *SH4Builder::LoadFPSCR() {
 void SH4Builder::StoreFPSCR(ir::Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
   v = And(v, AllocConstant(0x003fffff));
-  StoreContext(offsetof(SH4Context, fpscr), v);
+  StoreAndPreserveContext(offsetof(SH4Context, fpscr), v);
   CallExternal((ExternalFn)&FPSCRUpdated);
+}
+
+ir::Value *SH4Builder::LoadPR() {
+  return LoadContext(offsetof(SH4Context, pr), VALUE_I32);
+}
+
+void SH4Builder::StorePR(ir::Value *v) {
+  CHECK_EQ(v->type(), VALUE_I32);
+  StoreAndPreserveContext(offsetof(SH4Context, pr), v);
+}
+
+void SH4Builder::PreserveT() {
+  preserve_offset_ = offsetof(SH4Context, sr);
+  preserve_mask_ = T;
+}
+
+void SH4Builder::PreservePR() {
+  preserve_offset_ = offsetof(SH4Context, pr);
+  preserve_mask_ = 0;
+}
+
+void SH4Builder::PreserveRegister(int n) {
+  preserve_offset_ = offsetof(SH4Context, r[n]);
+  preserve_mask_ = 0;
+}
+
+Value *SH4Builder::LoadPreserved() {
+  Value *v = offset_preserved_
+                 // if the offset had to be preserved, load it up
+                 ? LoadContext(offsetof(SH4Context, preserve), VALUE_I32)
+                 // else, load from its original location
+                 : LoadContext(preserve_offset_, VALUE_I32);
+
+  if (preserve_mask_) {
+    v = And(v, AllocConstant(preserve_mask_));
+  }
+
+  // reset preserve state
+  preserve_offset_ = -1;
+  preserve_mask_ = 0;
+  offset_preserved_ = false;
+
+  return v;
 }
 
 void SH4Builder::EmitDelayInstr() {
   CHECK_EQ(has_delay_instr_, true) << "No delay instruction available";
   has_delay_instr_ = false;
 
-  printf("SH4::Emit %s\n", delay_instr_.type->name);
-  (emit_callbacks[delay_instr_.type->op])(*this, delay_instr_);
-
-  ir::Instr *emitted = GetFirstEmittedInstr();
-  if (emitted) {
-    emitted->guest_addr = delay_instr_.addr;
-    emitted->guest_op = delay_instr_.type->op;
-  }
+  (emit_callbacks[delay_instr_.type->op])(*this, fpu_state_, delay_instr_);
 }
 
-// FIXME simplify this
-ir::Instr *SH4Builder::GetFirstEmittedInstr() {
-  ir::Instr *first = last_instr_;
-
-  // find the first instruction since the tail of the last batch
-  if (!first && current_block_ && current_block_->instrs().head()) {
-    first = current_block_->instrs().head();
-  } else if (first && first->next()) {
-    first = first->next();
-  } else if (first && first->block()->next() &&
-             first->block()->next()->instrs().head()) {
-    first = first->block()->next()->instrs().head();
+// When emitting an instruction in the delay slot, it's possible that it will
+// overwrite a register needed by the original branch instruction. The branch
+// emitter can request that a register be preserved with PreserveT, etc. before
+// the delay slot, and if it is overwritten, the register is cached off. After
+// emitting the delay slot, the branch emitter can call LoadPreserved to load
+// either the original value, or if that was overwritten, the cached value.
+void SH4Builder::StoreAndPreserveContext(size_t offset, Value *v,
+                                         InstrFlag flags) {
+  // if a register that needs to be preserved is overwritten, cache it
+  if (offset == preserve_offset_) {
+    CHECK(!offset_preserved_) << "Can only preserve a single value";
+    StoreContext(offsetof(SH4Context, preserve),
+                 LoadContext(offset, VALUE_I32));
+    offset_preserved_ = true;
   }
 
-  // nothing new emitted
-  if (first == last_instr_) {
-    return nullptr;
-  }
-
-  // move to end of this batch of emitted instructions
-  last_instr_ = first;
-  if (last_instr_) {
-    while (last_instr_->block()->next() &&
-           last_instr_->block()->next()->instrs().head()) {
-      last_instr_ = last_instr_->block()->next()->instrs().head();
-    }
-    while (last_instr_->next()) {
-      last_instr_ = last_instr_->next();
-    }
-  }
-  CHECK_NOTNULL(last_instr_);
-
-  return first;
+  StoreContext(offset, v, flags);
 }

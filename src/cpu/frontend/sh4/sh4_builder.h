@@ -38,8 +38,7 @@ class SH4Builder : public ir::IRBuilder {
   SH4Builder(emu::Memory &memory);
   ~SH4Builder();
 
-  void Emit(uint32_t start_addr);
-  void DumpToFile(uint32_t start_addr);
+  void Emit(uint32_t start_addr, const SH4Context &ctx);
 
   ir::Value *LoadRegister(int n, ir::ValueTy type);
   void StoreRegister(int n, ir::Value *v);
@@ -55,16 +54,26 @@ class SH4Builder : public ir::IRBuilder {
   void StoreGBR(ir::Value *v);
   ir::Value *LoadFPSCR();
   void StoreFPSCR(ir::Value *v);
+  ir::Value *LoadPR();
+  void StorePR(ir::Value *v);
+
+  void PreserveT();
+  void PreservePR();
+  void PreserveRegister(int n);
+  ir::Value *LoadPreserved();
 
   void EmitDelayInstr();
 
  private:
-  ir::Instr *GetFirstEmittedInstr();
+  void StoreAndPreserveContext(size_t offset, ir::Value *v,
+                               ir::InstrFlag flags = ir::IF_NONE);
 
   emu::Memory &memory_;
   Instr delay_instr_;
   bool has_delay_instr_;
-  ir::Instr *last_instr_;
+  size_t preserve_offset_;
+  uint32_t preserve_mask_;
+  bool offset_preserved_;
 };
 }
 }

@@ -97,9 +97,6 @@ IntInstr *AssembleContext::TranslateInstr(Instr &ir_i) {
 
   i->fn = GetCallback(ir_i.op(), GetSignature(ir_i), GetAccessMask(ir_i));
 
-  i->guest_addr = ir_i.guest_addr;
-  i->guest_op = ir_i.guest_op;
-
   return i;
 }
 
