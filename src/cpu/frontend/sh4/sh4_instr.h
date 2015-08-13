@@ -19,7 +19,8 @@ enum OpcodeFlag {
   OP_FLAG_BRANCH = 0x1,
   OP_FLAG_CONDITIONAL = 0x2,
   OP_FLAG_DELAYED = 0x4,
-  OP_FLAG_SETT = 0x8
+  OP_FLAG_SET_T = 0x8,
+  OP_FLAG_SET_FPSCR = 0x10
 };
 
 struct InstrType {

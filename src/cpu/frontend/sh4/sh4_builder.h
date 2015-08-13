@@ -7,6 +7,9 @@
 
 namespace dreavm {
 namespace cpu {
+
+struct SH4Context;
+
 namespace frontend {
 namespace sh4 {
 
@@ -33,12 +36,17 @@ enum {
   FR = 0x00200000
 };
 
+struct FPUState {
+  bool double_precision;
+  bool single_precision_pair;
+};
+
 class SH4Builder : public ir::IRBuilder {
  public:
   SH4Builder(emu::Memory &memory);
   ~SH4Builder();
 
-  void Emit(uint32_t start_addr);
+  void Emit(uint32_t start_addr, const SH4Context &ctx);
 
   ir::Value *LoadRegister(int n, ir::ValueTy type);
   void StoreRegister(int n, ir::Value *v);
@@ -69,6 +77,7 @@ class SH4Builder : public ir::IRBuilder {
                                ir::InstrFlag flags = ir::IF_NONE);
 
   emu::Memory &memory_;
+  FPUState fpu_state_;
   Instr delay_instr_;
   bool has_delay_instr_;
   size_t preserve_offset_;

@@ -15,7 +15,8 @@ class Frontend {
   virtual ~Frontend() {}
 
   virtual bool Init() = 0;
-  virtual std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr) = 0;
+  virtual std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr,
+                                                    const void *guest_ctx) = 0;
 
  protected:
   emu::Memory &memory_;

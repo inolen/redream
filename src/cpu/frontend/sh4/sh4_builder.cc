@@ -19,11 +19,16 @@ SH4Builder::SH4Builder(Memory &memory)
 
 SH4Builder::~SH4Builder() {}
 
-void SH4Builder::Emit(uint32_t start_addr) {
+void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
   uint32_t addr = start_addr;
   int guest_cycles = 0;
+
+  // use fpu state when generating code. we could emit branches that check this
+  // state in the actual IR, but that's extremely slow
+  fpu_state_.double_precision = ctx.fpscr.PR;
+  fpu_state_.single_precision_pair = ctx.fpscr.SZ;
 
   while (true) {
     Instr instr(addr, memory_.R16(addr));
@@ -40,10 +45,16 @@ void SH4Builder::Emit(uint32_t start_addr) {
     }
 
     // emit the current instruction
-    (emit_callbacks[instr.type->op])(*this, instr);
+    (emit_callbacks[instr.type->op])(*this, fpu_state_, instr);
 
     // delayed instructions will be emitted already by the instructions handler
     addr += delayed ? 4 : 2;
+
+    // if fpscr is changed, stop emitting since the fpu state is invalidated
+    if (instr.type->flags & OP_FLAG_SET_FPSCR) {
+      Branch(AllocConstant(addr));
+      break;
+    }
 
     // end block once a branch is hit
     if (instr.type->flags & OP_FLAG_BRANCH) {
@@ -64,10 +75,10 @@ void SH4Builder::Emit(uint32_t start_addr) {
 
     if (tail_instr->arg1()->type() == VALUE_BLOCK &&
         tail_instr->arg1()->value<Block *>() == last_block) {
-      tail_instr->set_arg1(AllocConstant(static_cast<int32_t>(addr)));
+      tail_instr->set_arg1(AllocConstant(addr));
     } else if (tail_instr->arg2()->type() == VALUE_BLOCK &&
                tail_instr->arg2()->value<Block *>() == last_block) {
-      tail_instr->set_arg2(AllocConstant(static_cast<int32_t>(addr)));
+      tail_instr->set_arg2(AllocConstant(addr));
     }
 
     RemoveBlock(last_block);
@@ -187,7 +198,7 @@ void SH4Builder::EmitDelayInstr() {
   CHECK_EQ(has_delay_instr_, true) << "No delay instruction available";
   has_delay_instr_ = false;
 
-  (emit_callbacks[delay_instr_.type->op])(*this, delay_instr_);
+  (emit_callbacks[delay_instr_.type->op])(*this, fpu_state_, delay_instr_);
 }
 
 // When emitting an instruction in the delay slot, it's possible that it will

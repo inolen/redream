@@ -53,11 +53,11 @@ class Runtime {
   emu::Memory &memory() { return memory_; }
 
   bool Init(frontend::Frontend *frontend, backend::Backend *backend);
-  RuntimeBlock *ResolveBlock(uint32_t addr);
+  RuntimeBlock *ResolveBlock(uint32_t addr, const void *guest_ctx);
   void ResetBlocks();
 
  private:
-  RuntimeBlock *CompileBlock(uint32_t addr);
+  RuntimeBlock *CompileBlock(uint32_t addr, const void *guest_ctx);
 
   emu::Memory &memory_;
   frontend::Frontend *frontend_;

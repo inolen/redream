@@ -46,16 +46,15 @@ bool Runtime::Init(frontend::Frontend *frontend, backend::Backend *backend) {
   return true;
 }
 
-RuntimeBlock *Runtime::ResolveBlock(uint32_t addr) {
+// TODO should the block caching be part of the frontend?
+// this way, the SH4Frontend can cache based on FPU state
+RuntimeBlock *Runtime::ResolveBlock(uint32_t addr, const void *guest_ctx) {
   if (pending_reset_) {
     for (int i = 0; i < MAX_BLOCKS; i++) {
       blocks_[i] = nullptr;
     }
     pending_reset_ = false;
   }
-
-  // translate to 29-bit physical space
-  addr &= ~MIRROR_MASK;
 
   uint32_t offset = BlockOffset(addr);
   if (offset >= MAX_BLOCKS) {
@@ -68,17 +67,17 @@ RuntimeBlock *Runtime::ResolveBlock(uint32_t addr) {
     return existing_block;
   }
 
-  return CompileBlock(addr);
+  return CompileBlock(addr, guest_ctx);
 }
 
 void Runtime::ResetBlocks() { pending_reset_ = true; }
 
-RuntimeBlock *Runtime::CompileBlock(uint32_t addr) {
+RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
   PROFILER_RUNTIME("Runtime::CompileBlock");
 
   LOG(INFO) << "Compiling block 0x" << std::hex << addr;
 
-  std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr);
+  std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr, guest_ctx);
   if (!builder) {
     return nullptr;
   }
@@ -98,8 +97,6 @@ RuntimeBlock *Runtime::CompileBlock(uint32_t addr) {
   }
 
   uint32_t offset = BlockOffset(addr);
-
   blocks_[offset] = std::move(block);
-
   return blocks_[offset].get();
 }

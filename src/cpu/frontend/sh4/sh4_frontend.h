@@ -16,7 +16,8 @@ class SH4Frontend : public Frontend {
   SH4Frontend(emu::Memory &memory);
 
   bool Init();
-  std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr);
+  std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr,
+                                            const void *guest_ctx);
 };
 }
 }

@@ -54,7 +54,9 @@ int64_t SH4::Execute(int64_t cycles) {
 
   // run cpu
   while (ctx_.pc != 0xdeadbeef && remaining > 0) {
-    RuntimeBlock *block = runtime_->ResolveBlock(ctx_.pc);
+    // translate PC to 29-bit physical space
+    uint32_t pc = ctx_.pc & ~MIRROR_MASK;
+    RuntimeBlock *block = runtime_->ResolveBlock(pc, &ctx_);
     CHECK(block);
 
     uint32_t nextpc = block->Call(&memory_, &ctx_);
