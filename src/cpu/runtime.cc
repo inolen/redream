@@ -5,7 +5,7 @@
 #include "cpu/ir/passes/context_promotion_pass.h"
 #include "cpu/ir/passes/control_flow_analysis_pass.h"
 #include "cpu/ir/passes/register_allocation_pass.h"
-#include "cpu/ir/passes/validate_block_pass.h"
+#include "cpu/ir/passes/validate_pass.h"
 #include "cpu/runtime.h"
 #include "emu/profiler.h"
 
@@ -36,7 +36,7 @@ bool Runtime::Init(frontend::Frontend *frontend, backend::Backend *backend) {
     return false;
   }
 
-  // pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidateBlockPass()));
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ContextPromotionPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
@@ -76,7 +76,7 @@ void Runtime::ResetBlocks() { pending_reset_ = true; }
 RuntimeBlock *Runtime::CompileBlock(uint32_t addr) {
   PROFILER_RUNTIME("Runtime::CompileBlock");
 
-  // LOG(INFO) << "Compiling block 0x" << std::hex << addr;
+  LOG(INFO) << "Compiling block 0x" << std::hex << addr;
 
   std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr);
   if (!builder) {

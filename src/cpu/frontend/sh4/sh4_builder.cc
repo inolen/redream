@@ -36,6 +36,7 @@ void SH4Builder::Emit(uint32_t start_addr) {
     }
 
     // emit the current instruction
+    printf("SH4::Emit %s\n", instr.type->name);
     (emit_callbacks[instr.type->op])(*this, instr);
 
     // find the first ir instruction emitted for this op
@@ -182,6 +183,7 @@ void SH4Builder::EmitDelayInstr() {
   CHECK_EQ(has_delay_instr_, true) << "No delay instruction available";
   has_delay_instr_ = false;
 
+  printf("SH4::Emit %s\n", delay_instr_.type->name);
   (emit_callbacks[delay_instr_.type->op])(*this, delay_instr_);
 
   ir::Instr *emitted = GetFirstEmittedInstr();

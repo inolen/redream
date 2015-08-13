@@ -509,64 +509,109 @@ EMITTER(DIV0U) {  //
 // 0011 nnnn mmmm 0100  1       calculation result
 // DIV1 Rm,Rn
 EMITTER(DIV1) {
-  Value *sr = b.LoadSR();
-  Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
-  Value *dividend = b.LoadRegister(i.Rn, VALUE_I32);
-  Value *dividend_is_neg = b.And(sr, b.AllocConstant(M));
-  Value *new_dividend = nullptr;
-
-  // save off q, and update it based on Rn
-  Value *old_q = b.And(sr, b.AllocConstant(Q));
-  Value *new_q = b.And(dividend, b.AllocConstant(0x80000000));
-  sr = b.Select(b.NE(new_q, b.AllocConstant(0)), b.Or(sr, b.AllocConstant(Q)),
-                b.And(sr, b.AllocConstant(~Q)));
-  b.StoreSR(sr);
-
-  // rotate dividend left, moving T to the LSB
-  dividend = b.Or(b.Shl(dividend, 1), b.LoadT());
-  b.StoreRegister(i.Rn, dividend);
-
+  Block *noq_block = b.AppendBlock();
   Block *noq_negative_block = b.AppendBlock();
+  Block *noq_nonnegative_block = b.AppendBlock();
   Block *q_block = b.AppendBlock();
   Block *q_negative_block = b.AppendBlock();
+  Block *q_nonnegative_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
 
-  b.BranchTrue(old_q, q_block);
-  b.BranchTrue(dividend_is_neg, noq_negative_block);
+  // save off q, and update it based on Rn
+  Value *sr = b.LoadSR();
+  Value *dividend = b.LoadRegister(i.Rn, VALUE_I32);
+  Value *old_q = b.And(sr, b.AllocConstant(Q));
+  Value *new_q = b.And(dividend, b.AllocConstant(0x80000000));
+  b.StoreSR(b.Select(new_q, b.Or(sr, b.AllocConstant(Q)),
+                     b.And(sr, b.AllocConstant(~Q))));
 
-  // noq_block
-  new_dividend = b.Sub(dividend, divisor);
-  b.StoreRegister(i.Rn, new_dividend);
-  b.BranchTrue(b.ULE(new_dividend, dividend), end_block);
-  b.StoreSR(b.Xor(sr, b.AllocConstant(Q)));
-  b.Branch(end_block);
+  b.BranchCond(old_q, q_block, noq_block);
 
-  b.SetCurrentBlock(noq_negative_block);
-  new_dividend = b.Add(dividend, divisor);
-  b.StoreRegister(i.Rn, new_dividend);
-  b.BranchTrue(b.ULT(new_dividend, dividend), end_block);
-  b.StoreSR(b.Xor(sr, b.AllocConstant(Q)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(q_block);
+    Value *dividend_is_neg = b.And(b.LoadSR(), b.AllocConstant(M));
+    b.BranchCond(dividend_is_neg, q_negative_block, q_nonnegative_block);
 
-  b.SetCurrentBlock(q_block);
-  b.BranchTrue(dividend_is_neg, q_negative_block);
-  new_dividend = b.Add(dividend, divisor);
-  b.StoreRegister(i.Rn, new_dividend);
-  b.BranchTrue(b.UGE(new_dividend, dividend), end_block);
-  b.StoreSR(b.Xor(sr, b.AllocConstant(Q)));
-  b.Branch(end_block);
+    {
+      // M is set, Q is set
+      b.SetCurrentBlock(q_negative_block);
+      // rotate dividend left, moving T to the LSB
+      Value *dividend =
+          b.Or(b.Shl(b.LoadRegister(i.Rn, VALUE_I32), 1), b.LoadT());
+      Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
+      Value *new_dividend = b.Sub(dividend, divisor);
+      b.StoreRegister(i.Rn, new_dividend);
+      b.BranchTrue(b.UGT(new_dividend, dividend),
+                   end_block);  // M is set, Q is set
+      b.StoreSR(
+          b.Xor(b.LoadSR(), b.AllocConstant(Q)));  // M is set, Q is not set
+      b.Branch(end_block);
+    }
 
-  b.SetCurrentBlock(q_negative_block);
-  new_dividend = b.Sub(dividend, divisor);
-  b.StoreRegister(i.Rn, new_dividend);
-  b.BranchTrue(b.UGT(new_dividend, dividend), end_block);
-  b.StoreSR(b.Xor(sr, b.AllocConstant(Q)));
-  b.Branch(end_block);
+    {
+      // M is not set, Q is set
+      b.SetCurrentBlock(q_nonnegative_block);
+      // rotate dividend left, moving T to the LSB
+      Value *dividend =
+          b.Or(b.Shl(b.LoadRegister(i.Rn, VALUE_I32), 1), b.LoadT());
+      Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
+      Value *new_dividend = b.Add(dividend, divisor);
+      b.StoreRegister(i.Rn, new_dividend);
+      b.BranchTrue(b.UGE(new_dividend, dividend),
+                   end_block);  // M is not set, Q is set
+      b.StoreSR(
+          b.Xor(b.LoadSR(), b.AllocConstant(Q)));  // M is not set, Q is not set
+      b.Branch(end_block);
+    }
+  }
 
-  b.SetCurrentBlock(end_block);
-  new_q = b.And(b.LoadSR(), b.AllocConstant(Q));
-  b.StoreT(b.EQ(b.EQ(dividend_is_neg, b.AllocConstant(0)),
-                b.EQ(new_q, b.AllocConstant(0))));
+  {
+    b.SetCurrentBlock(noq_block);
+    Value *dividend_is_neg = b.And(b.LoadSR(), b.AllocConstant(M));
+    b.BranchCond(dividend_is_neg, noq_negative_block, noq_nonnegative_block);
+
+    {
+      // M is set, Q is not set
+      b.SetCurrentBlock(noq_negative_block);
+      // rotate dividend left, moving T to the LSB
+      Value *dividend =
+          b.Or(b.Shl(b.LoadRegister(i.Rn, VALUE_I32), 1), b.LoadT());
+      Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
+      Value *new_dividend = b.Add(dividend, divisor);
+      b.StoreRegister(i.Rn, new_dividend);
+      b.BranchTrue(b.ULT(new_dividend, dividend),
+                   end_block);  // M is set, Q is not set
+      b.StoreSR(b.Xor(b.LoadSR(), b.AllocConstant(Q)));  // M is set, Q is set
+      b.Branch(end_block);
+    }
+
+    {
+      // M is not set, Q is not set
+      b.SetCurrentBlock(noq_nonnegative_block);
+      // rotate dividend left, moving T to the LSB
+      Value *dividend =
+          b.Or(b.Shl(b.LoadRegister(i.Rn, VALUE_I32), 1), b.LoadT());
+      Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
+      Value *new_dividend = b.Sub(dividend, divisor);
+      b.StoreRegister(i.Rn, new_dividend);
+      b.BranchTrue(b.ULE(new_dividend, dividend),
+                   end_block);  // M is not set, Q is not set
+      b.StoreSR(
+          b.Xor(b.LoadSR(), b.AllocConstant(Q)));  // M is not set, Q is set
+      b.Branch(end_block);
+    }
+  }
+
+  {
+    b.SetCurrentBlock(end_block);
+    Value *sr = b.LoadSR();
+    Value *dividend_is_neg = b.And(sr, b.AllocConstant(M));
+    Value *new_q = b.And(sr, b.AllocConstant(Q));
+    b.StoreT(b.EQ(b.EQ(dividend_is_neg, b.AllocConstant(0)),
+                  b.EQ(new_q, b.AllocConstant(0))));
+  }
+
+  // b.SetCurrentBlock(end_block);
 }
 
 // DMULS.L Rm,Rn
@@ -846,33 +891,53 @@ EMITTER(ROTCR) {
 
 // SHAD    Rm,Rn
 EMITTER(SHAD) {
-  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-
   // when Rm >= 0, Rn << Rm
   // when Rm < 0, Rn >> Rm
   // when shifting right > 32, Rn = (Rn >= 0 ? 0 : -1)
   Block *shl_block = b.AppendBlock();
-  Block *overflow_block = b.AppendBlock();
+  Block *shr_block = b.AppendBlock();
+  Block *shr_nooverflow_block = b.AppendBlock();
+  Block *shr_overflow_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.SGE(rm, b.AllocConstant(0)), shl_block);
-  b.BranchTrue(b.EQ(b.And(rm, b.AllocConstant(0x1f)), b.AllocConstant(0)),
-               overflow_block);
-  b.StoreRegister(i.Rn,
-                  b.AShr(rn, b.Add(b.And(b.Not(rm), b.AllocConstant(0x1f)),
-                                   b.AllocConstant(1))));
-  b.Branch(end_block);
 
-  b.SetCurrentBlock(shl_block);
-  b.StoreRegister(i.Rn, b.Shl(rn, b.And(rm, b.AllocConstant(0x1f))));
-  b.Branch(end_block);
+  Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+  b.BranchCond(b.SGE(rm, b.AllocConstant(0)), shl_block, shr_block);
 
-  b.SetCurrentBlock(overflow_block);
-  b.StoreRegister(i.Rn, b.Select(b.SGE(rn, b.AllocConstant(0)),
-                                 b.AllocConstant(0), b.AllocConstant(-1)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(shl_block);
+    Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
+    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+    b.StoreRegister(i.Rn, b.Shl(rn, b.And(rm, b.AllocConstant(0x1f))));
+    b.Branch(end_block);
+  }
 
-  b.SetCurrentBlock(end_block);
+  {
+    b.SetCurrentBlock(shr_block);
+
+    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+    b.BranchCond(b.And(rm, b.AllocConstant(0x1f)), shr_nooverflow_block,
+                 shr_overflow_block);
+
+    {
+      b.SetCurrentBlock(shr_nooverflow_block);
+      Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
+      Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+      b.StoreRegister(i.Rn,
+                      b.AShr(rn, b.Add(b.And(b.Not(rm), b.AllocConstant(0x1f)),
+                                       b.AllocConstant(1))));
+      b.Branch(end_block);
+    }
+
+    {
+      b.SetCurrentBlock(shr_overflow_block);
+      Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
+      b.StoreRegister(i.Rn, b.Select(b.SGE(rn, b.AllocConstant(0)),
+                                     b.AllocConstant(0), b.AllocConstant(-1)));
+      b.Branch(end_block);
+    }
+
+    b.SetCurrentBlock(end_block);
+  }
 }
 
 // SHAL    Rn      (same as SHLL)
@@ -893,30 +958,48 @@ EMITTER(SHAR) {
 
 // SHLD    Rm,Rn
 EMITTER(SHLD) {
-  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-
   // when Rm >= 0, Rn << Rm
   // when Rm < 0, Rn >> Rm
   // when shifting right > 32, Rn = 0
   Block *shl_block = b.AppendBlock();
-  Block *overflow_block = b.AppendBlock();
+  Block *shr_block = b.AppendBlock();
+  Block *shr_nooverflow_block = b.AppendBlock();
+  Block *shr_overflow_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.SGE(rm, b.AllocConstant(0)), shl_block);
-  b.BranchTrue(b.EQ(b.And(rm, b.AllocConstant(0x1f)), b.AllocConstant(0)),
-               overflow_block);
-  b.StoreRegister(i.Rn,
-                  b.LShr(rn, b.Add(b.And(b.Not(rm), b.AllocConstant(0x1f)),
-                                   b.AllocConstant(1))));
-  b.Branch(end_block);
 
-  b.SetCurrentBlock(shl_block);
-  b.StoreRegister(i.Rn, b.Shl(rn, b.And(rm, b.AllocConstant(0x1f))));
-  b.Branch(end_block);
+  Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+  b.BranchCond(b.SGE(rm, b.AllocConstant(0)), shl_block, shr_block);
 
-  b.SetCurrentBlock(overflow_block);
-  b.StoreRegister(i.Rn, b.AllocConstant(0));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(shl_block);
+    Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
+    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+    b.StoreRegister(i.Rn, b.Shl(rn, b.And(rm, b.AllocConstant(0x1f))));
+    b.Branch(end_block);
+  }
+
+  {
+    b.SetCurrentBlock(shr_block);
+    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+    b.BranchCond(b.And(rm, b.AllocConstant(0x1f)), shr_nooverflow_block,
+                 shr_overflow_block);
+
+    {
+      b.SetCurrentBlock(shr_nooverflow_block);
+      Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
+      Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+      b.StoreRegister(i.Rn,
+                      b.LShr(rn, b.Add(b.And(b.Not(rm), b.AllocConstant(0x1f)),
+                                       b.AllocConstant(1))));
+      b.Branch(end_block);
+    }
+
+    {
+      b.SetCurrentBlock(shr_overflow_block);
+      b.StoreRegister(i.Rn, b.AllocConstant(0));
+      b.Branch(end_block);
+    }
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1133,21 +1216,27 @@ EMITTER(LDCDBR) {
 
 // LDCRBANK   Rm,Rn_BANK
 EMITTER(LDCRBANK) {
-  Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+  Block *rb1 = b.AppendBlock();
+  Block *rb0 = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   int reg = i.Rn & 0x7;
 
-  Block *rb1 = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1);
+  b.BranchCond(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1, rb0);
 
-  // rb0 block
-  b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg, rm);
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(rb1);
+    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+    b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg, rm);
+    b.Branch(end_block);
+  }
 
-  // rb1 block
-  b.SetCurrentBlock(rb1);
-  b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg, rm);
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(rb0);
+    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+    b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg, rm);
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1204,25 +1293,33 @@ EMITTER(LDCMDBR) {
 
 // LDC.L   @Rm+,Rn_BANK
 EMITTER(LDCMRBANK) {
-  Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
-  Value *v = b.Load(addr, VALUE_I32);
+  Block *rb1 = b.AppendBlock();
+  Block *rb0 = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   int reg = i.Rn & 0x7;
 
-  Block *rb1 = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1);
+  b.BranchCond(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1, rb0);
 
-  // rb0 block
-  b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg, v);
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(rb0);
+    Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
+    Value *v = b.Load(addr, VALUE_I32);
+    b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg, v);
+    b.Branch(end_block);
+  }
 
-  // rb1 block
-  b.SetCurrentBlock(rb1);
-  b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg, v);
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(rb1);
+    Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
+    Value *v = b.Load(addr, VALUE_I32);
+    b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg, v);
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
-  b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
 }
 
 // LDS     Rm,MACH
@@ -1283,42 +1380,56 @@ EMITTER(OCBP) {}
 EMITTER(OCBWB) {}
 
 // PREF     @Rn
+// FIXME this is painfully bad
 EMITTER(PREF) {
-  Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
-
+  Block *sq_block = b.AppendBlock();
   Block *sq1_block = b.AppendBlock();
+  Block *sq0_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
 
-  // can't do anything with a legit prefetch call
-  b.BranchTrue(b.ULT(addr, b.AllocConstant(0xe0000000)), end_block);
-  b.BranchTrue(b.UGT(addr, b.AllocConstant(0xe3fffffc)), end_block);
-
-  // TODO support MMU
-  Value *sq = b.LShr(b.And(addr, b.AllocConstant(0x20)), 5);
-  b.BranchTrue(b.EQ(sq, b.AllocConstant(1)), sq1_block);
-
-  // sq0_block
-  Value *sq0_dest =
-      b.Or(b.And(addr, b.AllocConstant(0x03ffffe0)),
-           b.LoadContext(offsetof(SH4Context, sq_ext_addr[0]), VALUE_I32));
-  for (int i = 0; i < 8; i++) {
-    b.Store(sq0_dest,
-            b.LoadContext(offsetof(SH4Context, sq[0]) + i * 4, VALUE_I32));
-    sq0_dest = b.Add(sq0_dest, b.AllocConstant(4));
+  {
+    Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
+    Value *is_sq_call = b.And(b.UGE(addr, b.AllocConstant(0xe0000000)),
+                              b.ULE(addr, b.AllocConstant(0xe3fffffc)));
+    b.BranchCond(is_sq_call, sq_block, end_block);
   }
-  b.Branch(end_block);
 
-  // sq1_block
-  b.SetCurrentBlock(sq1_block);
-  Value *sq1_dest =
-      b.Or(b.And(addr, b.AllocConstant(0x03ffffe0)),
-           b.LoadContext(offsetof(SH4Context, sq_ext_addr[1]), VALUE_I32));
-  for (int i = 0; i < 8; i++) {
-    b.Store(sq1_dest,
-            b.LoadContext(offsetof(SH4Context, sq[1]) + i * 4, VALUE_I32));
-    sq1_dest = b.Add(sq1_dest, b.AllocConstant(4));
+  {
+    {
+      b.SetCurrentBlock(sq_block);
+      Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
+      Value *sq = b.And(addr, b.AllocConstant(0x20));
+      b.BranchCond(sq, sq1_block, sq0_block);
+    }
+
+    {
+      b.SetCurrentBlock(sq1_block);
+      Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
+      Value *sq1_dest =
+          b.Or(b.And(addr, b.AllocConstant(0x03ffffe0)),
+               b.LoadContext(offsetof(SH4Context, sq_ext_addr[1]), VALUE_I32));
+      for (int i = 0; i < 8; i++) {
+        b.Store(sq1_dest,
+                b.LoadContext(offsetof(SH4Context, sq[1]) + i * 4, VALUE_I32));
+        sq1_dest = b.Add(sq1_dest, b.AllocConstant(4));
+      }
+      b.Branch(end_block);
+    }
+
+    {
+      b.SetCurrentBlock(sq0_block);
+      Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
+      Value *sq0_dest =
+          b.Or(b.And(addr, b.AllocConstant(0x03ffffe0)),
+               b.LoadContext(offsetof(SH4Context, sq_ext_addr[0]), VALUE_I32));
+      for (int i = 0; i < 8; i++) {
+        b.Store(sq0_dest,
+                b.LoadContext(offsetof(SH4Context, sq[0]) + i * 4, VALUE_I32));
+        sq0_dest = b.Add(sq0_dest, b.AllocConstant(4));
+      }
+      b.Branch(end_block);
+    }
   }
-  b.Branch(end_block);
 
   b.SetCurrentBlock(end_block);
 }
@@ -1383,22 +1494,27 @@ EMITTER(STCDBR) {
 
 // STC     Rm_BANK,Rn
 EMITTER(STCRBANK) {
+  Block *rb1 = b.AppendBlock();
+  Block *rb0 = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   int reg = i.Rm & 0x7;
 
-  Block *rb1 = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1);
+  b.BranchCond(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1, rb0);
 
-  // rb0 block
-  b.StoreRegister(
-      i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(rb1);
+    b.StoreRegister(
+        i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
+    b.Branch(end_block);
+  }
 
-  // rb1 block
-  b.SetCurrentBlock(rb1);
-  b.StoreRegister(
-      i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(rb0);
+    b.StoreRegister(
+        i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1461,23 +1577,31 @@ EMITTER(STCMDBR) {
 
 // STC.L   Rm_BANK,@-Rn
 EMITTER(STCMRBANK) {
+  Block *rb1 = b.AppendBlock();
+  Block *rb0 = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   int reg = i.Rm & 0x7;
 
-  Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
-  b.StoreRegister(i.Rn, addr);
+  b.BranchCond(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1, rb0);
 
-  Block *rb1 = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1);
+  {
+    b.SetCurrentBlock(rb1);
+    Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
+    b.StoreRegister(i.Rn, addr);
+    b.Store(addr,
+            b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
+    b.Branch(end_block);
+  }
 
-  // rb0 block
-  b.Store(addr, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
-  b.Branch(end_block);
-
-  // rb1 block
-  b.SetCurrentBlock(rb1);
-  b.Store(addr, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg, VALUE_I32));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(rb0);
+    Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
+    b.StoreRegister(i.Rn, addr);
+    b.Store(addr,
+            b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg, VALUE_I32));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1542,39 +1666,42 @@ EMITTER(FLDI1) { b.StoreRegisterF(i.Rn, b.AllocConstant(0x3F800000)); }
 // FMOV    DRm,XDn PR=1      DRm -> XDn 1111nnn1mmm01100
 // FMOV    XDm,XDn PR=1      XDm -> XDn 1111nnn1mmm11100
 EMITTER(FMOV) {
+  Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   Value *fpscr = b.LoadFPSCR();
   Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
   Value *fpscr_sz = b.And(fpscr, b.AllocConstant(SZ));
+  b.BranchCond(b.Or(fpscr_pr, fpscr_sz), double_block, single_block);
 
-  Block *double_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(b.Or(fpscr_pr, fpscr_sz), b.AllocConstant(0)),
-               double_block);
-
-  // single_block
-  b.StoreRegisterF(i.Rn, b.LoadRegisterF(i.Rm, VALUE_I32));
-  b.Branch(end_block);
-
-  // double_block
-  b.SetCurrentBlock(double_block);
-  if (i.Rm & 1) {
-    if (i.Rn & 1) {
-      b.StoreRegisterXF(i.Rn & 0xe, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-      b.StoreRegisterXF(i.Rn | 0x1, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+  {
+    b.SetCurrentBlock(double_block);
+    if (i.Rm & 1) {
+      if (i.Rn & 1) {
+        b.StoreRegisterXF(i.Rn & 0xe, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+        b.StoreRegisterXF(i.Rn | 0x1, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+      } else {
+        b.StoreRegisterF(i.Rn & 0xe, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+        b.StoreRegisterF(i.Rn | 0x1, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+      }
     } else {
-      b.StoreRegisterF(i.Rn & 0xe, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-      b.StoreRegisterF(i.Rn | 0x1, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+      if (i.Rn & 1) {
+        b.StoreRegisterXF(i.Rn & 0xe, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
+        b.StoreRegisterXF(i.Rn | 0x1, b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+      } else {
+        b.StoreRegisterF(i.Rn & 0xe, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
+        b.StoreRegisterF(i.Rn | 0x1, b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+      }
     }
-  } else {
-    if (i.Rn & 1) {
-      b.StoreRegisterXF(i.Rn & 0xe, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
-      b.StoreRegisterXF(i.Rn | 0x1, b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
-    } else {
-      b.StoreRegisterF(i.Rn & 0xe, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
-      b.StoreRegisterF(i.Rn | 0x1, b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
-    }
+    b.Branch(end_block);
   }
-  b.Branch(end_block);
+
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreRegisterF(i.Rn, b.LoadRegisterF(i.Rm, VALUE_I32));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1585,47 +1712,57 @@ EMITTER(FMOV) {
 // FMOV    @Rm,XDn PR=1      1111nnn1mmmm1000
 // FMOV    @Rm,DRn PR=1      1111nnn0mmmm1000
 EMITTER(FMOVLD) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-  Value *fpscr_sz = b.And(fpscr, b.AllocConstant(SZ));
-  Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
-
   Block *double_block = b.AppendBlock();
+  Block *notdouble_block = b.AppendBlock();
   Block *pair_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
-  b.BranchTrue(b.NE(fpscr_sz, b.AllocConstant(0)), pair_block);
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Load(addr, VALUE_I32));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, notdouble_block);
 
-  // double_block
-  // FMOV with PR=1 assumes the values are word-swapped in memory
-  b.SetCurrentBlock(double_block);
-  if (i.Rn & 1) {
-    b.StoreRegisterXF(i.Rn | 0x1, b.Load(addr, VALUE_I32));
-    b.StoreRegisterXF(i.Rn & 0xe,
-                      b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-  } else {
-    b.StoreRegisterF(i.Rn | 0x1, b.Load(addr, VALUE_I32));
-    b.StoreRegisterF(i.Rn & 0xe,
-                     b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+  {
+    b.SetCurrentBlock(double_block);
+    Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+    if (i.Rn & 1) {
+      b.StoreRegisterXF(i.Rn | 0x1, b.Load(addr, VALUE_I32));
+      b.StoreRegisterXF(i.Rn & 0xe,
+                        b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+    } else {
+      b.StoreRegisterF(i.Rn | 0x1, b.Load(addr, VALUE_I32));
+      b.StoreRegisterF(i.Rn & 0xe,
+                       b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+    }
+    b.Branch(end_block);
   }
-  b.Branch(end_block);
 
-  // pair_block
-  b.SetCurrentBlock(pair_block);
-  if (i.Rn & 1) {
-    b.StoreRegisterXF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
-    b.StoreRegisterXF(i.Rn | 0x1,
-                      b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-  } else {
-    b.StoreRegisterF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
-    b.StoreRegisterF(i.Rn | 0x1,
-                     b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+  {
+    b.SetCurrentBlock(notdouble_block);
+    Value *fpscr_sz = b.And(b.LoadFPSCR(), b.AllocConstant(SZ));
+    b.BranchCond(fpscr_sz, pair_block, single_block);
+
+    {
+      b.SetCurrentBlock(pair_block);
+      Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+      if (i.Rn & 1) {
+        b.StoreRegisterXF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
+        b.StoreRegisterXF(i.Rn | 0x1,
+                          b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+      } else {
+        b.StoreRegisterF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
+        b.StoreRegisterF(i.Rn | 0x1,
+                         b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+      }
+      b.Branch(end_block);
+    }
+
+    {
+      b.SetCurrentBlock(single_block);
+      Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+      b.StoreRegisterF(i.Rn, b.Load(addr, VALUE_I32));
+      b.Branch(end_block);
+    }
   }
-  b.Branch(end_block);
 
   b.SetCurrentBlock(end_block);
 }
@@ -1635,42 +1772,55 @@ EMITTER(FMOVLD) {
 // FMOV    @(R0,Rm),XDn PR=0 SZ=1 1111nnn1mmmm0110
 // FMOV    @(R0,Rm),XDn PR=1      1111nnn1mmmm0110
 EMITTER(FMOVILD) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-  Value *fpscr_sz = b.And(fpscr, b.AllocConstant(SZ));
-  Value *addr =
-      b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rm, VALUE_I32));
-
   Block *double_block = b.AppendBlock();
+  Block *notdouble_block = b.AppendBlock();
   Block *pair_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
-  b.BranchTrue(b.NE(fpscr_sz, b.AllocConstant(0)), pair_block);
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Load(addr, VALUE_I32));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, notdouble_block);
 
-  // double_block
   // FMOV with PR=1 assumes the values are word-swapped in memory
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterXF(i.Rn | 0x1, b.Load(addr, VALUE_I32));
-  b.StoreRegisterXF(i.Rn & 0xe,
-                    b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-  b.Branch(end_block);
-
-  // pair_block
-  b.SetCurrentBlock(pair_block);
-  if (i.Rn & 1) {
-    b.StoreRegisterXF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
-    b.StoreRegisterXF(i.Rn | 0x1,
+  {
+    b.SetCurrentBlock(double_block);
+    Value *addr =
+        b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rm, VALUE_I32));
+    b.StoreRegisterXF(i.Rn | 0x1, b.Load(addr, VALUE_I32));
+    b.StoreRegisterXF(i.Rn & 0xe,
                       b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-  } else {
-    b.StoreRegisterF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
-    b.StoreRegisterF(i.Rn | 0x1,
-                     b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+    b.Branch(end_block);
   }
-  b.Branch(end_block);
+
+  {
+    b.SetCurrentBlock(notdouble_block);
+    Value *fpscr_sz = b.And(b.LoadFPSCR(), b.AllocConstant(SZ));
+    b.BranchCond(fpscr_sz, pair_block, single_block);
+
+    {
+      b.SetCurrentBlock(pair_block);
+      Value *addr =
+          b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rm, VALUE_I32));
+      if (i.Rn & 1) {
+        b.StoreRegisterXF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
+        b.StoreRegisterXF(i.Rn | 0x1,
+                          b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+      } else {
+        b.StoreRegisterF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
+        b.StoreRegisterF(i.Rn | 0x1,
+                         b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+      }
+      b.Branch(end_block);
+    }
+
+    {
+      b.SetCurrentBlock(single_block);
+      Value *addr =
+          b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rm, VALUE_I32));
+      b.StoreRegisterF(i.Rn, b.Load(addr, VALUE_I32));
+      b.Branch(end_block);
+    }
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1680,44 +1830,55 @@ EMITTER(FMOVILD) {
 // FMOV    @Rm+,XDn PR=0 SZ=1 1111nnn1mmmm1001
 // FMOV    @Rm+,XDn PR=1      1111nnn1mmmm1001
 EMITTER(FMOVRS) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-  Value *fpscr_sz = b.And(fpscr, b.AllocConstant(SZ));
-  Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
-
   Block *double_block = b.AppendBlock();
+  Block *notdouble_block = b.AppendBlock();
   Block *pair_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
-  b.BranchTrue(b.NE(fpscr_sz, b.AllocConstant(0)), pair_block);
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Load(addr, VALUE_I32));
-  b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, notdouble_block);
 
-  // double_block
   // FMOV with PR=1 assumes the values are word-swapped in memory
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterXF(i.Rn | 0x1, b.Load(addr, VALUE_I32));
-  b.StoreRegisterXF(i.Rn & 0xe,
-                    b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-  b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(8)));
-  b.Branch(end_block);
-
-  // pair_block
-  b.SetCurrentBlock(pair_block);
-  if (i.Rn & 1) {
-    b.StoreRegisterXF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
-    b.StoreRegisterXF(i.Rn | 0x1,
+  {
+    b.SetCurrentBlock(double_block);
+    Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+    b.StoreRegisterXF(i.Rn | 0x1, b.Load(addr, VALUE_I32));
+    b.StoreRegisterXF(i.Rn & 0xe,
                       b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-  } else {
-    b.StoreRegisterF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
-    b.StoreRegisterF(i.Rn | 0x1,
-                     b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(8)));
+    b.Branch(end_block);
   }
-  b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(8)));
-  b.Branch(end_block);
+
+  {
+    b.SetCurrentBlock(notdouble_block);
+    Value *fpscr_sz = b.And(b.LoadFPSCR(), b.AllocConstant(SZ));
+    b.BranchCond(fpscr_sz, pair_block, single_block);
+
+    {
+      b.SetCurrentBlock(pair_block);
+      Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+      if (i.Rn & 1) {
+        b.StoreRegisterXF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
+        b.StoreRegisterXF(i.Rn | 0x1,
+                          b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+      } else {
+        b.StoreRegisterF(i.Rn & 0xe, b.Load(addr, VALUE_I32));
+        b.StoreRegisterF(i.Rn | 0x1,
+                         b.Load(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+      }
+      b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(8)));
+      b.Branch(end_block);
+    }
+
+    {
+      b.SetCurrentBlock(single_block);
+      Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+      b.StoreRegisterF(i.Rn, b.Load(addr, VALUE_I32));
+      b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
+      b.Branch(end_block);
+    }
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1727,40 +1888,51 @@ EMITTER(FMOVRS) {
 // FMOV    XDm,@Rn PR=0 SZ=1 1111nnnnmmm11010
 // FMOV    XDm,@Rn PR=1      1111nnnnmmm11010
 EMITTER(FMOVST) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-  Value *fpscr_sz = b.And(fpscr, b.AllocConstant(SZ));
-  Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
-
   Block *double_block = b.AppendBlock();
+  Block *notdouble_block = b.AppendBlock();
   Block *pair_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
-  b.BranchTrue(b.NE(fpscr_sz, b.AllocConstant(0)), pair_block);
 
-  // single_block
-  b.Store(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, notdouble_block);
 
-  // double_block
-  b.SetCurrentBlock(double_block);
-  b.Store(addr, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
-  b.Store(b.Add(addr, b.AllocConstant(4)),
-          b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-  b.Branch(end_block);
-
-  // pair_block
-  b.SetCurrentBlock(pair_block);
-  if (i.Rm & 1) {
-    b.Store(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+  {
+    b.SetCurrentBlock(double_block);
+    Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
+    b.Store(addr, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
     b.Store(b.Add(addr, b.AllocConstant(4)),
-            b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
-  } else {
-    b.Store(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
-    b.Store(b.Add(addr, b.AllocConstant(4)),
-            b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+            b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+    b.Branch(end_block);
   }
-  b.Branch(end_block);
+
+  {
+    b.SetCurrentBlock(notdouble_block);
+    Value *fpscr_sz = b.And(b.LoadFPSCR(), b.AllocConstant(SZ));
+    b.BranchCond(fpscr_sz, pair_block, single_block);
+
+    {
+      b.SetCurrentBlock(pair_block);
+      Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
+      if (i.Rm & 1) {
+        b.Store(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+        b.Store(b.Add(addr, b.AllocConstant(4)),
+                b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+      } else {
+        b.Store(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
+        b.Store(b.Add(addr, b.AllocConstant(4)),
+                b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+      }
+      b.Branch(end_block);
+    }
+
+    {
+      b.SetCurrentBlock(single_block);
+      Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
+      b.Store(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
+      b.Branch(end_block);
+    }
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1770,25 +1942,15 @@ EMITTER(FMOVST) {
 // FMOV    XDm,@-Rn PR=0 SZ=1 1111nnnnmmm11011
 // FMOV    XDm,@-Rn PR=1      1111nnnnmmm11011
 EMITTER(FMOVSV) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-  Value *fpscr_sz = b.And(fpscr, b.AllocConstant(SZ));
-
   Block *double_block = b.AppendBlock();
+  Block *notdouble_block = b.AppendBlock();
   Block *pair_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
-  b.BranchTrue(b.NE(fpscr_sz, b.AllocConstant(0)), pair_block);
 
-  // single_block
-  {
-    Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
-    b.StoreRegister(i.Rn, addr);
-    b.Store(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
-    b.Branch(end_block);
-  }
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, notdouble_block);
 
-  // double_block
   {
     b.SetCurrentBlock(double_block);
     Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(8));
@@ -1799,21 +1961,34 @@ EMITTER(FMOVSV) {
     b.Branch(end_block);
   }
 
-  // pair_block
   {
-    b.SetCurrentBlock(pair_block);
-    Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(8));
-    b.StoreRegister(i.Rn, addr);
-    if (i.Rm & 1) {
-      b.Store(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-      b.Store(b.Add(addr, b.AllocConstant(4)),
-              b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
-    } else {
-      b.Store(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
-      b.Store(b.Add(addr, b.AllocConstant(4)),
-              b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+    b.SetCurrentBlock(notdouble_block);
+    Value *fpscr_sz = b.And(b.LoadFPSCR(), b.AllocConstant(SZ));
+    b.BranchCond(fpscr_sz, pair_block, single_block);
+
+    {
+      b.SetCurrentBlock(pair_block);
+      Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(8));
+      b.StoreRegister(i.Rn, addr);
+      if (i.Rm & 1) {
+        b.Store(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+        b.Store(b.Add(addr, b.AllocConstant(4)),
+                b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+      } else {
+        b.Store(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
+        b.Store(b.Add(addr, b.AllocConstant(4)),
+                b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+      }
+      b.Branch(end_block);
     }
-    b.Branch(end_block);
+
+    {
+      b.SetCurrentBlock(single_block);
+      Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
+      b.StoreRegister(i.Rn, addr);
+      b.Store(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
+      b.Branch(end_block);
+    }
   }
 
   b.SetCurrentBlock(end_block);
@@ -1824,41 +1999,54 @@ EMITTER(FMOVSV) {
 // FMOV    XDm,@(R0,Rn) PR=0 SZ=1 1111nnnnmmm10111
 // FMOV    XDm,@(R0,Rn) PR=1      1111nnnnmmm10111
 EMITTER(FMOVIST) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-  Value *fpscr_sz = b.And(fpscr, b.AllocConstant(SZ));
-  Value *addr =
-      b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rn, VALUE_I32));
-
   Block *double_block = b.AppendBlock();
+  Block *notdouble_block = b.AppendBlock();
   Block *pair_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
-  b.BranchTrue(b.NE(fpscr_sz, b.AllocConstant(0)), pair_block);
 
-  // single_block
-  b.Store(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, notdouble_block);
 
-  // double_block
-  b.SetCurrentBlock(double_block);
-  b.Store(addr, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
-  b.Store(b.Add(addr, b.AllocConstant(4)),
-          b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-  b.Branch(end_block);
-
-  // pair_block
-  b.SetCurrentBlock(pair_block);
-  if (i.Rm & 1) {
-    b.Store(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+  {
+    b.SetCurrentBlock(double_block);
+    Value *addr =
+        b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rn, VALUE_I32));
+    b.Store(addr, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
     b.Store(b.Add(addr, b.AllocConstant(4)),
-            b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
-  } else {
-    b.Store(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
-    b.Store(b.Add(addr, b.AllocConstant(4)),
-            b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+            b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+    b.Branch(end_block);
   }
-  b.Branch(end_block);
+
+  {
+    b.SetCurrentBlock(notdouble_block);
+    Value *fpscr_sz = b.And(b.LoadFPSCR(), b.AllocConstant(SZ));
+    b.BranchCond(fpscr_sz, pair_block, single_block);
+
+    {
+      b.SetCurrentBlock(pair_block);
+      Value *addr =
+          b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rn, VALUE_I32));
+      if (i.Rm & 1) {
+        b.Store(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+        b.Store(b.Add(addr, b.AllocConstant(4)),
+                b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+      } else {
+        b.Store(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
+        b.Store(b.Add(addr, b.AllocConstant(4)),
+                b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+      }
+      b.Branch(end_block);
+    }
+
+    {
+      b.SetCurrentBlock(single_block);
+      Value *addr =
+          b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rn, VALUE_I32));
+      b.Store(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
+      b.Branch(end_block);
+    }
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1878,58 +2066,60 @@ EMITTER(FSTS) {
 // FABS FRn PR=0 1111nnnn01011101
 // FABS DRn PR=1 1111nnn001011101
 EMITTER(FABS) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-
   Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Abs(b.LoadRegisterF(i.Rn, VALUE_F32)));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  // double_block
-  int n = i.Rn & 0xe;
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterF(n, b.Abs(b.LoadRegisterF(n, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(double_block);
+    int n = i.Rn & 0xe;
+    b.StoreRegisterF(n, b.Abs(b.LoadRegisterF(n, VALUE_F64)));
+    b.Branch(end_block);
+  }
+
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreRegisterF(i.Rn, b.Abs(b.LoadRegisterF(i.Rn, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
 
 // FSRRA FRn PR=0 1111nnnn01111101
 EMITTER(FSRRA) {
-  Block *end_block = b.AppendBlock();
   Value *frn = b.LoadRegisterF(i.Rn, VALUE_F32);
-  b.BranchTrue(b.SLT(frn, b.AllocConstant(0.0f)), end_block);
   b.StoreRegisterF(i.Rn, b.Div(b.AllocConstant(1.0f), b.Sqrt(frn)));
-  b.Branch(end_block);
-  b.SetCurrentBlock(end_block);
 }
 
 // FADD FRm,FRn PR=0 1111nnnnmmmm0000
 // FADD DRm,DRn PR=1 1111nnn0mmm00000
 EMITTER(FADD) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-
   Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Add(b.LoadRegisterF(i.Rn, VALUE_F32),
-                               b.LoadRegisterF(i.Rm, VALUE_F32)));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  // double_block
-  int n = i.Rn & 0xe;
-  int m = i.Rm & 0xe;
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterF(
-      n, b.Add(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(double_block);
+    int n = i.Rn & 0xe;
+    int m = i.Rm & 0xe;
+    b.StoreRegisterF(
+        n, b.Add(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
+    b.Branch(end_block);
+  }
+
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreRegisterF(i.Rn, b.Add(b.LoadRegisterF(i.Rn, VALUE_F32),
+                                 b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1937,23 +2127,26 @@ EMITTER(FADD) {
 // FCMP/EQ FRm,FRn PR=0 1111nnnnmmmm0100
 // FCMP/EQ DRm,DRn PR=1 1111nnn0mmm00100
 EMITTER(FCMPEQ) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-
   Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
 
-  // single_block
-  b.StoreT(
-      b.EQ(b.LoadRegisterF(i.Rn, VALUE_F32), b.LoadRegisterF(i.Rm, VALUE_F32)));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  // double_block
-  b.SetCurrentBlock(double_block);
-  b.StoreT(b.EQ(b.LoadRegisterF(i.Rn & 0xe, VALUE_F64),
-                b.LoadRegisterF(i.Rm & 0xe, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(double_block);
+    b.StoreT(b.EQ(b.LoadRegisterF(i.Rn & 0xe, VALUE_F64),
+                  b.LoadRegisterF(i.Rm & 0xe, VALUE_F64)));
+    b.Branch(end_block);
+  }
+
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreT(b.EQ(b.LoadRegisterF(i.Rn, VALUE_F32),
+                  b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1961,23 +2154,26 @@ EMITTER(FCMPEQ) {
 // FCMP/GT FRm,FRn PR=0 1111nnnnmmmm0101
 // FCMP/GT DRm,DRn PR=1 1111nnn0mmm00101
 EMITTER(FCMPGT) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-
   Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
 
-  // single_block
-  b.StoreT(b.SGT(b.LoadRegisterF(i.Rn, VALUE_F32),
-                 b.LoadRegisterF(i.Rm, VALUE_F32)));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  // double_block
-  b.SetCurrentBlock(double_block);
-  b.StoreT(b.SGT(b.LoadRegisterF(i.Rn & 0xe, VALUE_F64),
-                 b.LoadRegisterF(i.Rm & 0xe, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(double_block);
+    b.StoreT(b.SGT(b.LoadRegisterF(i.Rn & 0xe, VALUE_F64),
+                   b.LoadRegisterF(i.Rm & 0xe, VALUE_F64)));
+    b.Branch(end_block);
+  }
+
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreT(b.SGT(b.LoadRegisterF(i.Rn, VALUE_F32),
+                   b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -1985,25 +2181,28 @@ EMITTER(FCMPGT) {
 // FDIV FRm,FRn PR=0 1111nnnnmmmm0011
 // FDIV DRm,DRn PR=1 1111nnn0mmm00011
 EMITTER(FDIV) {
-  Value *fpscr = b.LoadFPSCR();
-  Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-
   Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
   Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Div(b.LoadRegisterF(i.Rn, VALUE_F32),
-                               b.LoadRegisterF(i.Rm, VALUE_F32)));
-  b.Branch(end_block);
+  Value *fpscr_pr = b.And(b.LoadFPSCR(), b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  // double_block
-  int n = i.Rn & 0xe;
-  int m = i.Rm & 0xe;
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterF(
-      n, b.Div(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(double_block);
+    int n = i.Rn & 0xe;
+    int m = i.Rm & 0xe;
+    b.StoreRegisterF(
+        n, b.Div(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
+    b.Branch(end_block);
+  }
+
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreRegisterF(i.Rn, b.Div(b.LoadRegisterF(i.Rn, VALUE_F32),
+                                 b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -2011,37 +2210,47 @@ EMITTER(FDIV) {
 // FLOAT FPUL,FRn PR=0 1111nnnn00101101
 // FLOAT FPUL,DRn PR=1 1111nnn000101101
 EMITTER(FLOAT) {
+  Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   Value *fpscr = b.LoadFPSCR();
   Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
-  Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  Block *double_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
+  {
+    b.SetCurrentBlock(double_block);
+    Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
+    b.StoreRegisterF(i.Rn & 0xe, b.Cast(b.SExt(fpul, VALUE_I64), VALUE_F64));
+    b.Branch(end_block);
+  }
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Cast(fpul, VALUE_F32));
-  b.Branch(end_block);
-
-  // double_block
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterF(i.Rn & 0xe, b.Cast(b.SExt(fpul, VALUE_I64), VALUE_F64));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(single_block);
+    Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
+    b.StoreRegisterF(i.Rn, b.Cast(fpul, VALUE_F32));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
 
 // FMAC FR0,FRm,FRn PR=0 1111nnnnmmmm1110
 EMITTER(FMAC) {
+  Block *single_block = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   Value *fpscr = b.LoadFPSCR();
   Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, end_block, single_block);
 
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), end_block);
-  b.StoreRegisterF(i.Rn, b.Add(b.SMul(b.LoadRegisterF(0, VALUE_F32),
-                                      b.LoadRegisterF(i.Rm, VALUE_F32)),
-                               b.LoadRegisterF(i.Rn, VALUE_F32)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(single_block);
+    Value *rm = b.LoadRegisterF(i.Rm, VALUE_F32);
+    b.StoreRegisterF(i.Rn, b.Add(b.SMul(b.LoadRegisterF(0, VALUE_F32), rm),
+                                 b.LoadRegisterF(i.Rn, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -2049,25 +2258,30 @@ EMITTER(FMAC) {
 // FMUL FRm,FRn PR=0 1111nnnnmmmm0010
 // FMUL DRm,DRn PR=1 1111nnn0mmm00010
 EMITTER(FMUL) {
+  Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   Value *fpscr = b.LoadFPSCR();
   Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  Block *double_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
+  {
+    b.SetCurrentBlock(double_block);
+    int n = i.Rn & 0xe;
+    int m = i.Rm & 0xe;
+    b.SetCurrentBlock(double_block);
+    b.StoreRegisterF(n, b.SMul(b.LoadRegisterF(n, VALUE_F64),
+                               b.LoadRegisterF(m, VALUE_F64)));
+    b.Branch(end_block);
+  }
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.SMul(b.LoadRegisterF(i.Rn, VALUE_F32),
-                                b.LoadRegisterF(i.Rm, VALUE_F32)));
-  b.Branch(end_block);
-
-  // double_block
-  int n = i.Rn & 0xe;
-  int m = i.Rm & 0xe;
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterF(
-      n, b.SMul(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreRegisterF(i.Rn, b.SMul(b.LoadRegisterF(i.Rn, VALUE_F32),
+                                  b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -2075,22 +2289,26 @@ EMITTER(FMUL) {
 // FNEG FRn PR=0 1111nnnn01001101
 // FNEG DRn PR=1 1111nnn001001101
 EMITTER(FNEG) {
+  Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   Value *fpscr = b.LoadFPSCR();
   Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  Block *double_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
+  {
+    b.SetCurrentBlock(double_block);
+    int n = i.Rn & 0xe;
+    b.StoreRegisterF(n, b.Neg(b.LoadRegisterF(n, VALUE_F64)));
+    b.Branch(end_block);
+  }
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Neg(b.LoadRegisterF(i.Rn, VALUE_F32)));
-  b.Branch(end_block);
-
-  // double_block
-  int n = i.Rn & 0xe;
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterF(n, b.Neg(b.LoadRegisterF(n, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreRegisterF(i.Rn, b.Neg(b.LoadRegisterF(i.Rn, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -2098,26 +2316,26 @@ EMITTER(FNEG) {
 // FSQRT FRn PR=0 1111nnnn01101101
 // FSQRT DRn PR=1 1111nnnn01101101
 EMITTER(FSQRT) {
+  Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   Value *fpscr = b.LoadFPSCR();
   Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  Block *double_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
+  {
+    b.SetCurrentBlock(double_block);
+    int n = i.Rn & 0xe;
+    b.StoreRegisterF(n, b.Sqrt(b.LoadRegisterF(n, VALUE_F64)));
+    b.Branch(end_block);
+  }
 
-  // single_block
-  b.BranchTrue(b.SLT(b.LoadRegisterF(i.Rn, VALUE_F32), b.AllocConstant(0.0f)),
-               end_block);
-  b.StoreRegisterF(i.Rn, b.Sqrt(b.LoadRegisterF(i.Rn, VALUE_F32)));
-  b.Branch(end_block);
-
-  // double_block
-  int n = i.Rn & 0xe;
-  b.SetCurrentBlock(double_block);
-  b.BranchTrue(b.SLT(b.LoadRegisterF(n, VALUE_F64), b.AllocConstant(0.0)),
-               end_block);
-  b.StoreRegisterF(n, b.Sqrt(b.LoadRegisterF(n, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreRegisterF(i.Rn, b.Sqrt(b.LoadRegisterF(i.Rn, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -2125,25 +2343,29 @@ EMITTER(FSQRT) {
 // FSUB FRm,FRn PR=0 1111nnnnmmmm0001
 // FSUB DRm,DRn PR=1 1111nnn0mmm00001
 EMITTER(FSUB) {
+  Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   Value *fpscr = b.LoadFPSCR();
   Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  Block *double_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
+  {
+    b.SetCurrentBlock(double_block);
+    int n = i.Rn & 0xe;
+    int m = i.Rm & 0xe;
+    b.StoreRegisterF(
+        n, b.Sub(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
+    b.Branch(end_block);
+  }
 
-  // single_block
-  b.StoreRegisterF(i.Rn, b.Sub(b.LoadRegisterF(i.Rn, VALUE_F32),
-                               b.LoadRegisterF(i.Rm, VALUE_F32)));
-  b.Branch(end_block);
-
-  // double_block
-  int n = i.Rn & 0xe;
-  int m = i.Rm & 0xe;
-  b.SetCurrentBlock(double_block);
-  b.StoreRegisterF(
-      n, b.Sub(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(single_block);
+    b.StoreRegisterF(i.Rn, b.Sub(b.LoadRegisterF(i.Rn, VALUE_F32),
+                                 b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }
@@ -2151,25 +2373,29 @@ EMITTER(FSUB) {
 // FTRC FRm,FPUL PR=0 1111mmmm00111101
 // FTRC DRm,FPUL PR=1 1111mmm000111101
 EMITTER(FTRC) {
+  Block *double_block = b.AppendBlock();
+  Block *single_block = b.AppendBlock();
+  Block *end_block = b.AppendBlock();
+
   Value *fpscr = b.LoadFPSCR();
   Value *fpscr_pr = b.And(fpscr, b.AllocConstant(PR));
+  b.BranchCond(fpscr_pr, double_block, single_block);
 
-  Block *double_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-  b.BranchTrue(b.NE(fpscr_pr, b.AllocConstant(0)), double_block);
+  {
+    // FIXME is this truncate correct?
+    b.SetCurrentBlock(double_block);
+    Value *dpv = b.Truncate(b.Cast(b.LoadRegisterF(i.Rm, VALUE_F64), VALUE_I64),
+                            VALUE_I32);
+    b.StoreContext(offsetof(SH4Context, fpul), dpv);
+    b.Branch(end_block);
+  }
 
-  // single_block
-  Value *spv = b.Cast(b.LoadRegisterF(i.Rm, VALUE_F32), VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, fpul), spv);
-  b.Branch(end_block);
-
-  // double_block
-  // FIXME is this correct?
-  b.SetCurrentBlock(double_block);
-  Value *dpv = b.Truncate(b.Cast(b.LoadRegisterF(i.Rm, VALUE_F64), VALUE_I64),
-                          VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, fpul), dpv);
-  b.Branch(end_block);
+  {
+    b.SetCurrentBlock(single_block);
+    Value *spv = b.Cast(b.LoadRegisterF(i.Rm, VALUE_F32), VALUE_I32);
+    b.StoreContext(offsetof(SH4Context, fpul), spv);
+    b.Branch(end_block);
+  }
 
   b.SetCurrentBlock(end_block);
 }

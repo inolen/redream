@@ -38,7 +38,7 @@ void RunSH4Test(const SH4Test &test) {
   uint8_t stack[PAGE_SIZE];
 
   size_t binary_size = core::align(test.buffer_size, (size_t)PAGE_SIZE);
-  uint8_t *binary = new uint8_t [binary_size];
+  uint8_t *binary = new uint8_t[binary_size];
   memcpy(binary, test.buffer, test.buffer_size);
 
   memory.Mount(0x0, sizeof(stack) - 1, MIRROR_MASK, stack);

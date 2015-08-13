@@ -726,6 +726,19 @@ void IRBuilder::BranchTrue(Value *cond, Block *true_block) {
   SetCurrentBlock(false_block);
 }
 
+void IRBuilder::BranchCond(Value *cond, Block *true_block, Block *false_block) {
+  if (cond->type() != VALUE_I8) {
+    cond = NE(cond, AllocConstant(0));
+  }
+
+  Instr *instr = AppendInstr(OP_BRANCH_COND);
+  instr->set_arg0(cond);
+  instr->set_arg1(AllocConstant(true_block));
+  instr->set_arg2(AllocConstant(false_block));
+
+  SetCurrentBlock(false_block);
+}
+
 void IRBuilder::CallExternal(ExternalFn func) {
   Instr *instr = AppendInstr(OP_CALL_EXTERNAL, IF_INVALIDATE_CONTEXT);
   instr->set_arg0(AllocConstant((uint64_t)(intptr_t)func));

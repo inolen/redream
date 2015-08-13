@@ -212,7 +212,7 @@ set(DREAVM_TEST_SOURCES
   src/cpu/ir/passes/control_flow_analysis_pass.cc
   src/cpu/ir/passes/pass_runner.cc
   src/cpu/ir/passes/register_allocation_pass.cc
-  src/cpu/ir/passes/validate_block_pass.cc
+  src/cpu/ir/passes/validate_pass.cc
   src/cpu/sh4.cc
   src/cpu/sh4_context.cc
   src/cpu/runtime.cc
@@ -256,7 +256,7 @@ set(DREAVM_SOURCES
   src/cpu/ir/passes/control_flow_analysis_pass.cc
   src/cpu/ir/passes/pass_runner.cc
   src/cpu/ir/passes/register_allocation_pass.cc
-  src/cpu/ir/passes/validate_block_pass.cc
+  src/cpu/ir/passes/validate_pass.cc
   src/cpu/sh4.cc
   src/cpu/sh4_context.cc
   src/cpu/runtime.cc
