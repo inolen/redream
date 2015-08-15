@@ -33,11 +33,7 @@ static std::unordered_map<int, IntFn> int_cbs;
   static uint32_t name(const IntInstr *i, uint32_t idx, Memory *memory, \
                        IntValue *r, uint8_t *locals, void *guest_ctx)
 
-// generate NUM_ACC_COMBINATIONS callbacks for each operation, excluding access
-// masks where (mask & 0x3), (mask >> 2) & 0x3, or (mask >> 4) & 0x3 are equal
-// to 3, as they're not valid access masks
-// FIXME if ConstantPropagationPass is working 100%, more of these combinations
-// can be removed
+// generate NUM_ACC_COMBINATIONS callbacks for each operation
 #define REGISTER_CALLBACK_C(op, fn, r, a0, a1, c)                        \
   int_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1, c)] = \
       &fn<ValueType<VALUE_##r>::type, ValueType<VALUE_##a0>::type,       \
@@ -49,57 +45,11 @@ static std::unordered_map<int, IntFn> int_cbs;
       REGISTER_CALLBACK_C(op, fn, r, a0, a1, 0)        \
       REGISTER_CALLBACK_C(op, fn, r, a0, a1, 1)        \
       REGISTER_CALLBACK_C(op, fn, r, a0, a1, 2)        \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 3)        \
       REGISTER_CALLBACK_C(op, fn, r, a0, a1, 4)        \
       REGISTER_CALLBACK_C(op, fn, r, a0, a1, 5)        \
       REGISTER_CALLBACK_C(op, fn, r, a0, a1, 6)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 8)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 9)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 10)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 16)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 17)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 18)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 20)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 21)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 22)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 24)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 25)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 26)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 32)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 33)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 34)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 36)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 37)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 38)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 40)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 41)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 42)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 64)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 65)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 66)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 68)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 69)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 70)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 72)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 73)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 74)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 80)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 81)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 82)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 84)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 85)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 86)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 88)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 89)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 90)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 96)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 97)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 98)       \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 100)      \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 101)      \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 102)      \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 104)      \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 105)      \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 106)      \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 7)        \
     }                                                  \
   } int_##op##_##r##_##a0##_##a1##_init
 
@@ -250,22 +200,6 @@ struct helper<
 
   static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
     SetValue<T>(r[i->arg[ARG].i32], v);
-  }
-};
-
-// ACC_LCL
-// argument is located on the stack, arg->i32 specifies the stack offset
-template <typename T, int ARG, IntAccessMask ACCESS_MASK>
-struct helper<
-    T, ARG, ACCESS_MASK,
-    typename std::enable_if<GetArgAccess(ACCESS_MASK, ARG) == ACC_LCL>::type> {
-  static inline T LoadArg(const IntInstr *i, const IntValue *r,
-                          const uint8_t *l) {
-    return GetLocal<T>(l, i->arg[ARG].i32);
-  }
-
-  static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
-    SetLocal<T>(l, i->arg[ARG].i32, v);
   }
 };
 

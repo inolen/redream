@@ -96,6 +96,8 @@ RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
     return nullptr;
   }
 
+  // block->Dump();
+
   uint32_t offset = BlockOffset(addr);
   blocks_[offset] = std::move(block);
   return blocks_[offset].get();

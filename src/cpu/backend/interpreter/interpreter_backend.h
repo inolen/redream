@@ -10,7 +10,7 @@ namespace cpu {
 namespace backend {
 namespace interpreter {
 
-enum { NUM_INT_REGS = 4 };
+enum { NUM_INT_REGS = 8 };
 
 union IntValue;
 
@@ -36,21 +36,19 @@ typedef unsigned IntAccessMask;
 enum {
   // argument is located in a virtual register
   ACC_REG = 0x0,
-  // argument is available as a local on the stack
-  ACC_LCL = 0x1,
   // argument is encoded as an immediate in the instruction itself
-  ACC_IMM = 0x2,
-  // 7-bits, 2 for each argument and 1 for result
-  NUM_ACC_COMBINATIONS = 1 << 7
+  ACC_IMM = 0x1,
+  // 3-bits, 1 for each argument and 1 for result
+  NUM_ACC_COMBINATIONS = 1 << 3
 };
 
 static inline constexpr int GetArgAccess(IntAccessMask mask, int arg) {
-  return ((mask >> (arg * 2)) & 0x3);
+  return (mask >> arg) & 0x1;
 }
 
 static inline void SetArgAccess(int arg, int a, IntAccessMask *mask) {
-  *mask &= ~(0x3 << (arg * 2));
-  *mask |= a << (arg * 2);
+  *mask &= ~(0x1 << arg);
+  *mask |= a << arg;
 }
 
 union IntValue {

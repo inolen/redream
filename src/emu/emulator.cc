@@ -31,8 +31,8 @@ Emulator::Emulator(System &sys)
   unassigned_ = new uint8_t[UNASSIGNED_SIZE];
 
   rt_frontend_ = new SH4Frontend(memory_);
-  rt_backend_ = new InterpreterBackend(memory_);
-  // rt_backend_ = new X64Backend(memory_);
+  // rt_backend_ = new InterpreterBackend(memory_);
+  rt_backend_ = new X64Backend(memory_);
   rb_ = new GLBackend(sys);
 }
 

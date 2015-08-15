@@ -8,10 +8,10 @@ using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
 // fake registers for testing register allocation
-static Register int_registers[NUM_INT_REGS] = {{"a", VALUE_ALL_MASK},
-                                               {"b", VALUE_ALL_MASK},
-                                               {"c", VALUE_ALL_MASK},
-                                               {"d", VALUE_ALL_MASK}};
+static Register int_registers[NUM_INT_REGS] = {
+    {"a", VALUE_INT_MASK},   {"b", VALUE_INT_MASK},   {"c", VALUE_INT_MASK},
+    {"d", VALUE_INT_MASK},   {"e", VALUE_FLOAT_MASK}, {"f", VALUE_FLOAT_MASK},
+    {"g", VALUE_FLOAT_MASK}, {"h", VALUE_FLOAT_MASK}};
 
 static IntSig GetSignature(Instr &ir_i) {
   IntSig sig = 0;
@@ -52,10 +52,8 @@ static IntAccessMask GetAccessMask(Instr &ir_i) {
       SetArgAccess(arg, ACC_IMM, &access_mask);
     } else if (ir_v->reg() != NO_REGISTER) {
       SetArgAccess(arg, ACC_REG, &access_mask);
-    } else if (ir_v->local() != NO_SLOT) {
-      SetArgAccess(arg, ACC_LCL, &access_mask);
     } else {
-      CHECK(false && "Unexpected value type");
+      LOG(FATAL) << "Unexpected value type";
     }
   };
 
@@ -135,10 +133,8 @@ void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg) {
     }
   } else if (ir_v->reg() != NO_REGISTER) {
     v->i32 = ir_v->reg();
-  } else if (ir_v->local() != NO_SLOT) {
-    v->i32 = ir_v->local();
   } else {
-    CHECK(false && "Unexpected value type");
+    LOG(FATAL) << "Unexpected value type";
   }
 }
 

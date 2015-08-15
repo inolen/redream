@@ -1521,15 +1521,15 @@ EMITTER(STCRBANK) {
 
   {
     b.SetCurrentBlock(rb1);
-    b.StoreRegister(
-        i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg * 4, VALUE_I32));
+    b.StoreRegister(i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg * 4,
+                                        VALUE_I32));
     b.Branch(end_block);
   }
 
   {
     b.SetCurrentBlock(rb0);
-    b.StoreRegister(
-        i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg * 4, VALUE_I32));
+    b.StoreRegister(i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg * 4,
+                                        VALUE_I32));
     b.Branch(end_block);
   }
 

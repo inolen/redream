@@ -30,19 +30,11 @@ class X64Emitter {
   // helpers for the emitter callbacks
   const Xbyak::Operand &GetOperand(const ir::Value *v, int size = -1);
   const Xbyak::Reg &GetRegister(const ir::Value *v);
-  const Xbyak::Reg &GetPreferedRegister(const ir::Value *v,
-                                        const Xbyak::Operand &prefered);
-  const Xbyak::Reg &GetResultRegister(const ir::Value *v);
   const Xbyak::Reg &GetTmpRegister(const ir::Value *v = nullptr, int size = -1);
 
-  const Xbyak::Operand &GetXMMOperand(const ir::Value *v);
   const Xbyak::Xmm &GetXMMRegister(const ir::Value *v);
-  const Xbyak::Xmm &GetPreferedXMMRegister(const ir::Value *v,
-                                           const Xbyak::Operand &prefered);
   const Xbyak::Xmm &GetTmpXMMRegister(const ir::Value *v = nullptr);
 
-  const Xbyak::Operand &CopyOperand(const Xbyak::Operand &from,
-                                    const Xbyak::Operand &to);
   const Xbyak::Operand &CopyOperand(const ir::Value *v,
                                     const Xbyak::Operand &to);
 
@@ -53,14 +45,10 @@ class X64Emitter {
   Xbyak::Label *AllocLabel();
   Xbyak::Address *AllocAddress(const Xbyak::Address &addr);
 
-  void ResetTmpRegisters();
-
   emu::Memory &memory_;
   Xbyak::CodeGenerator &c_;
   core::Arena arena_;
   Xbyak::Label *epilog_label_;
-  int tmp_reg_;
-  int tmp_xmm_reg_;
 };
 }
 }

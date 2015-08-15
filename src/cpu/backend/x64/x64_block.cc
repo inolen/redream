@@ -18,10 +18,11 @@ uint32_t X64Block::Call(emu::Memory *memory, void *guest_ctx) {
 }
 
 void X64Block::Dump() {
-  DISASM dsm;
+  DISASM dsm = {};
   dsm.Archi = 64;
   dsm.EIP = (uintptr_t)fn_;
   dsm.SecurityBlock = 0;
+  dsm.Options = NasmSyntax;
 
   while (true) {
     int len = Disasm(&dsm);

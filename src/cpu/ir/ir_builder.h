@@ -50,7 +50,7 @@ enum {
                    VALUE_I64_MASK | VALUE_F32_MASK | VALUE_F64_MASK |
                    VALUE_BLOCK_MASK,
 };
-enum { NO_REGISTER = -1, NO_SLOT = -1 };
+enum { NO_REGISTER = -1 };
 
 template <int T>
 struct ValueType;
@@ -137,9 +137,6 @@ class Value {
   int reg() const { return reg_; }
   void set_reg(int reg) { reg_ = reg; }
 
-  int local() const { return local_; }
-  void set_local(int local) { local_ = local; }
-
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
@@ -163,7 +160,6 @@ class Value {
   };
   core::IntrusiveList<ValueRef> refs_;
   int reg_{NO_REGISTER};
-  int local_{NO_SLOT};
   intptr_t tag_{0};
 };
 
