@@ -78,6 +78,11 @@ Instr::Instr(Opcode op, InstrFlag flags)
 
 Instr::~Instr() {}
 
+void Instr::MoveAfter(Instr *other) {
+  block_->UnlinkInstr(this);
+  other->block_->InsertInstr(other, this);
+}
+
 //
 // Block
 //
@@ -120,6 +125,11 @@ void Block::RemoveInstr(Instr *instr) {
 
   // call destructor manually
   instr->~Instr();
+}
+
+void Block::UnlinkInstr(Instr *instr) {
+  instr->set_block(nullptr);
+  instrs_.Remove(instr);
 }
 
 //
@@ -216,6 +226,7 @@ const Value *IRBuilder::GetMetadata(MetadataTy type) const {
   return metadata_[type];
 }
 
+Block *IRBuilder::GetCurrentBlock() { return current_block_; }
 void IRBuilder::SetCurrentBlock(Block *block) { current_block_ = block; }
 
 Block *IRBuilder::InsertBlock(Block *after) {
@@ -261,12 +272,6 @@ void IRBuilder::AddEdge(Block *src, Block *dst) {
   }
 }
 
-Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
-  Instr *instr = arena_.Alloc<Instr>();
-  new (instr) Instr(op, flags);
-  return instr;
-}
-
 Value *IRBuilder::LoadContext(size_t offset, ValueTy type) {
   Instr *instr = AppendInstr(OP_LOAD_CONTEXT);
   Value *result = AllocDynamic(type);
@@ -277,6 +282,20 @@ Value *IRBuilder::LoadContext(size_t offset, ValueTy type) {
 
 void IRBuilder::StoreContext(size_t offset, Value *v, InstrFlag flags) {
   Instr *instr = AppendInstr(OP_STORE_CONTEXT, flags);
+  instr->set_arg0(AllocConstant((int32_t)offset));
+  instr->set_arg1(v);
+}
+
+Value *IRBuilder::LoadLocal(size_t offset, ValueTy type) {
+  Instr *instr = AppendInstr(OP_LOAD_LOCAL);
+  Value *result = AllocDynamic(type);
+  instr->set_arg0(AllocConstant((int32_t)offset));
+  instr->set_result(result);
+  return result;
+}
+
+void IRBuilder::StoreLocal(size_t offset, Value *v) {
+  Instr *instr = AppendInstr(OP_STORE_LOCAL);
   instr->set_arg0(AllocConstant((int32_t)offset));
   instr->set_arg1(v);
 }
@@ -810,6 +829,12 @@ int IRBuilder::AllocLocal(ValueTy type) {
   int offset = locals_size_;
   locals_size_ += SizeForType(type);
   return offset;
+}
+
+Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
+  Instr *instr = arena_.Alloc<Instr>();
+  new (instr) Instr(op, flags);
+  return instr;
 }
 
 Instr *IRBuilder::AppendInstr(Opcode op, InstrFlag flags) {

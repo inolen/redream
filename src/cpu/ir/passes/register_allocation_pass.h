@@ -1,7 +1,7 @@
 #ifndef REGISTER_ALLOCATION_PASS_H
 #define REGISTER_ALLOCATION_PASS_H
 
-#include <set>
+#include <list>
 #include "cpu/backend/backend.h"
 #include "cpu/ir/passes/pass_runner.h"
 
@@ -10,20 +10,41 @@ namespace cpu {
 namespace ir {
 namespace passes {
 
-static inline int GetOrdinal(Instr *i) { return (int)i->tag(); }
-
-static inline void SetOrdinal(Instr *i, int ordinal) {
-  i->set_tag((intptr_t)ordinal);
-}
-
 struct Interval {
   Value *value;
-  Instr *start, *end;
+  ValueRef *start;
+  ValueRef *next;
+  ValueRef *end;
   int reg;
+};
 
-  bool operator<(const Interval &rhs) const {
-    return GetOrdinal(end) < GetOrdinal(rhs.end);
-  }
+class RegisterSet {
+ public:
+  RegisterSet(int max_registers);
+  ~RegisterSet();
+
+  void Clear();
+
+  int PopRegister();
+  void PushRegister(int reg);
+
+  Interval *HeadInterval();
+  void PopHeadInterval();
+  Interval *TailInterval();
+  void PopTailInterval();
+  void InsertInterval(Interval *interval);
+
+ private:
+  int max_registers_;
+
+  // free register queues
+  int *free;
+  int num_free;
+
+  // intervals used by this register set, sorted in order of next use
+  Interval **live_;
+  int live_head_;
+  int num_live_;
 };
 
 class RegisterAllocationPass : public Pass {
@@ -37,25 +58,21 @@ class RegisterAllocationPass : public Pass {
   const backend::Register *registers_;
   int num_registers_;
 
-  // free register queue
-  int *free_, num_free_;
+  RegisterSet int_registers_;
+  RegisterSet float_registers_;
 
-  // interval map, keyed by register
-  std::multiset<Interval>::iterator *live_;
+  // intervals, keyed by register
+  Interval *intervals_;
 
-  // intervals, sorted in order of increasing end point
-  std::multiset<Interval> intervals_;
+  RegisterSet &GetRegisterSet(ValueTy type);
 
-  void Reset();
-  void AssignOrdinals(IRBuilder &builder);
-  void GetLiveRange(Value *v, Instr **start, Instr **end);
+  void ResetState();
+  void AssignOrdinals(ir::Block *block);
   void ExpireOldIntervals(Instr *start);
-  void UpdateInterval(const std::multiset<Interval>::iterator &it, Value *value,
-                      Instr *start, Instr *end);
-  int ReuuseArgRegister(Instr *instr, Instr *start, Instr *end);
-  int AllocFreeRegister(Value *value, Instr *start, Instr *end);
-  int AllocBlockedRegister(IRBuilder &builder, Value *value, Instr *start,
-                           Instr *end);
+  int ReuuseArgRegister(Instr *instr, ValueRef *start, ValueRef *end);
+  int AllocFreeRegister(Value *value, ValueRef *start, ValueRef *end);
+  int AllocBlockedRegister(IRBuilder &builder, Value *value, ValueRef *start,
+                           ValueRef *end);
 };
 }
 }

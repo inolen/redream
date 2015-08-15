@@ -6,32 +6,113 @@ using namespace dreavm::cpu::backend;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 
-RegisterAllocationPass::RegisterAllocationPass(
-    const backend::Backend &backend) {
+static inline int GetOrdinal(const Instr *i) { return (int)i->tag(); }
+
+static inline void SetOrdinal(Instr *i, int ordinal) {
+  i->set_tag((intptr_t)ordinal);
+}
+
+static inline bool RegisterCanStore(const Register &r, ValueTy type) {
+  return r.value_types & (1 << type);
+}
+
+RegisterSet::RegisterSet(int max_registers) : max_registers_(max_registers) {
+  free = new int[max_registers];
+  live_ = new Interval *[max_registers];
+}
+
+RegisterSet::~RegisterSet() {
+  delete[] free;
+  delete[] live_;
+}
+
+void RegisterSet::Clear() {
+  num_free = 0;
+  live_head_ = 0;
+  num_live_ = 0;
+}
+
+int RegisterSet::PopRegister() {
+  if (!num_free) {
+    return NO_REGISTER;
+  }
+  int reg = free[0];
+  free[0] = free[--num_free];
+  return reg;
+}
+
+void RegisterSet::PushRegister(int reg) { free[num_free++] = reg; }
+
+Interval *RegisterSet::HeadInterval() {
+  if (!num_live_) {
+    return nullptr;
+  }
+
+  return live_[live_head_ % max_registers_];
+}
+
+void RegisterSet::PopHeadInterval() {
+  num_live_--;
+  live_head_++;
+}
+
+Interval *RegisterSet::TailInterval() {
+  return live_[(live_head_ + num_live_ - 1) % max_registers_];
+}
+
+void RegisterSet::PopTailInterval() { num_live_--; }
+
+void RegisterSet::InsertInterval(Interval *interval) {
+  // find the lower bound for interval->next's ordinal in the ring buffer.
+  // TODO convert live_ to a proper ring buffer with a random access iterator
+  // and instead use std::lower_bound
+  int value = GetOrdinal(interval->next->instr());
+
+  int pos = live_head_;
+  int count = num_live_;
+  int end = pos + count;
+
+  while (count > 0) {
+    int step = count / 2;
+    int it = pos + step;
+    if (GetOrdinal(live_[it % max_registers_]->next->instr()) < value) {
+      pos = ++it;
+      count -= step + 1;
+    } else {
+      count = step;
+    }
+  }
+
+  // shift live intervals over by 1
+  while (end > pos) {
+    live_[end % max_registers_] = live_[(end - 1) % max_registers_];
+    end--;
+  }
+
+  // add the new interval
+  live_[end % max_registers_] = interval;
+  num_live_++;
+}
+
+RegisterAllocationPass::RegisterAllocationPass(const backend::Backend &backend)
+    : int_registers_(backend.num_registers()),
+      float_registers_(backend.num_registers()) {
   registers_ = backend.registers();
   num_registers_ = backend.num_registers();
 
-  free_ = new int[num_registers_];
-  live_ = new std::multiset<Interval>::iterator[num_registers_];
+  intervals_ = new Interval[num_registers_];
 }
 
-RegisterAllocationPass::~RegisterAllocationPass() {
-  delete[] live_;
-  delete[] free_;
-}
+RegisterAllocationPass::~RegisterAllocationPass() { delete[] intervals_; }
 
 void RegisterAllocationPass::Run(IRBuilder &builder) {
   PROFILER_RUNTIME("RegisterAllocationPass::Run");
 
-  Reset();
+  for (auto block : builder.blocks()) {
+    ResetState();
 
-  // iterate instructions in reverse postorder, assigning each an ordinal
-  AssignOrdinals(builder);
+    AssignOrdinals(block);
 
-  // iterate blocks in reverse postorder
-  Block *block = builder.blocks().head();
-
-  while (block) {
     for (auto instr : block->instrs()) {
       Value *result = instr->result();
 
@@ -42,13 +123,17 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
         continue;
       }
 
+      // sort the value's ref list
+      result->refs().Sort([](const ValueRef *a, const ValueRef *b) {
+        return GetOrdinal(a->instr()) < GetOrdinal(b->instr());
+      });
+
       // get the live range of the value
-      Instr *start = nullptr;
-      Instr *end = nullptr;
-      GetLiveRange(result, &start, &end);
+      ValueRef *start = result->refs().head();
+      ValueRef *end = result->refs().tail();
 
       // expire any old intervals, freeing up the registers they claimed
-      ExpireOldIntervals(start);
+      ExpireOldIntervals(start->instr());
 
       // first, try and reuse the register of one of the incoming arguments
       int reg = ReuuseArgRegister(instr, start, end);
@@ -58,86 +143,90 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
         if (reg == NO_REGISTER) {
           // if a register couldn't be allocated, spill a register and try again
           reg = AllocBlockedRegister(builder, result, start, end);
-          CHECK_NE(reg, NO_REGISTER);
+          CHECK_NE(reg, NO_REGISTER) << "Failed to allocate register";
         }
       }
 
       result->set_reg(reg);
     }
-
-    block = block->rpo_next();
   }
 }
 
-void RegisterAllocationPass::Reset() {
-  for (num_free_ = 0; num_free_ < num_registers_; num_free_++) {
-    free_[num_free_] = num_free_;
+RegisterSet &RegisterAllocationPass::GetRegisterSet(ValueTy type) {
+  if (IsIntType(type)) {
+    return int_registers_;
+  } else if (IsFloatType(type)) {
+    return float_registers_;
+  } else {
+    LOG(FATAL) << "Unexpected value type";
   }
-
-  intervals_.clear();
 }
 
-void RegisterAllocationPass::AssignOrdinals(IRBuilder &builder) {
+void RegisterAllocationPass::ResetState() {
+  int_registers_.Clear();
+  float_registers_.Clear();
+
+  for (int i = 0; i < num_registers_; i++) {
+    const Register &r = registers_[i];
+
+    if (r.value_types == VALUE_INT_MASK) {
+      int_registers_.PushRegister(i);
+    } else if (r.value_types == VALUE_FLOAT_MASK) {
+      float_registers_.PushRegister(i);
+    } else {
+      LOG(FATAL) << "Unsupported register value mask, expected VALUE_INT_MASK "
+                    "or VALUE_FLOAT_MASK";
+    }
+  }
+}
+
+void RegisterAllocationPass::AssignOrdinals(Block *block) {
+  // assign each instruction an ordinal. these ordinals are used to describe
+  // the live range of a particular value
   int ordinal = 0;
-  Block *block = builder.blocks().head();
+  for (auto instr : block->instrs()) {
+    SetOrdinal(instr, ordinal);
 
-  while (block) {
-    for (auto instr : block->instrs()) {
-      SetOrdinal(instr, ordinal++);
-    }
-
-    block = block->rpo_next();
-  }
-}
-
-void RegisterAllocationPass::GetLiveRange(Value *v, Instr **start,
-                                          Instr **end) {
-  *start = *end = v->refs().head()->instr();
-
-  for (auto ref : v->refs()) {
-    Instr *i = ref->instr();
-    if (GetOrdinal(i) < GetOrdinal(*start)) {
-      *start = i;
-    }
-    if (GetOrdinal(i) > GetOrdinal(*end)) {
-      *end = i;
-    }
+    // space out ordinals to leave available values for instructions inserted
+    // by AllocBlockedRegister. there should never be an ir op with more than
+    // 10 arguments to spill registers for
+    ordinal += 10;
   }
 }
 
 void RegisterAllocationPass::ExpireOldIntervals(Instr *start) {
-  while (intervals_.size()) {
-    auto it = intervals_.begin();
+  auto expire_set = [&](RegisterSet &set) {
+    while (true) {
+      Interval *interval = set.HeadInterval();
+      if (!interval) {
+        break;
+      }
 
-    if (GetOrdinal(it->end) >= GetOrdinal(start)) {
-      break;
+      // intervals are sorted by their next use, once one fails to expire or
+      // advance, they all will
+      if (GetOrdinal(interval->next->instr()) >= GetOrdinal(start)) {
+        break;
+      }
+
+      // remove interval from the sorted set
+      set.PopHeadInterval();
+
+      // if there are no other uses, free the register assigned to this
+      // interval
+      if (!interval->next->next()) {
+        set.PushRegister(interval->reg);
+      }
+      // if there are more uses, advance the next use and reinsert the interval
+      // into the correct position
+      else {
+        interval->next = interval->next->next();
+        set.InsertInterval(interval);
+      }
     }
+  };
 
-    // move register to free queue
-    free_[num_free_++] = it->reg;
-
-    // remove interval
-    intervals_.erase(it);
-  }
-}
-
-void RegisterAllocationPass::UpdateInterval(
-    const std::multiset<Interval>::iterator &it, Value *value, Instr *start,
-    Instr *end) {
-  int reg = it->reg;
-
-  // remove the old interval
-  intervals_.erase(it);
-
-  // add the new interval, reusing the previous register
-  Interval interval;
-  interval.value = value;
-  interval.start = start;
-  interval.end = end;
-  interval.reg = reg;
-
-  // update map with new iterator
-  live_[reg] = intervals_.insert(interval);
+  expire_set(int_registers_);
+  expire_set(float_registers_);
 }
 
 // If the first argument isn't used after this instruction, its register
@@ -145,98 +234,136 @@ void RegisterAllocationPass::UpdateInterval(
 // operations where the destination is the first argument.
 // TODO could reorder arguments for communicative binary ops and do this
 // with the second argument as well
-int RegisterAllocationPass::ReuuseArgRegister(Instr *instr, Instr *start,
-                                              Instr *end) {
+int RegisterAllocationPass::ReuuseArgRegister(Instr *instr, ValueRef *start,
+                                              ValueRef *end) {
   if (!instr->arg0() || instr->arg0()->constant()) {
     return NO_REGISTER;
   }
 
-  int last_reg = instr->arg0()->reg();
-  if (last_reg == NO_REGISTER) {
+  int prefered = instr->arg0()->reg();
+  if (prefered == NO_REGISTER) {
     return NO_REGISTER;
   }
 
   // make sure the register can hold the result type
-  const Register &r = registers_[last_reg];
-  if (!(r.value_types & 1 << (instr->result()->type()))) {
+  const Register &r = registers_[prefered];
+  if (!RegisterCanStore(r, instr->result()->type())) {
     return NO_REGISTER;
   }
 
-  // if the argument's register is used after this instruction, it can't be
-  // reused
-  const std::multiset<Interval>::iterator &it = live_[last_reg];
-  if (GetOrdinal(it->end) > GetOrdinal(start)) {
+  // if the argument's register is used after this instruction, it's not
+  // trivial to reuse
+  Interval *interval = &intervals_[prefered];
+  if (interval->next->next()) {
     return NO_REGISTER;
   }
 
-  // the argument's register isn't used afterwards, update its interval and
-  // reuse
-  UpdateInterval(it, instr->result(), start, end);
+  // the argument's register is not used after the current instruction, so the
+  // register can be reused for the result. since the interval's current next
+  // use (arg0 of this instruction) and the next use of the new interval  (the
+  // result of this instruction) share the same ordinal, the interval can be
+  // hijacked and overwritten without having to reinsert it into the register
+  // set's sorted interval list
+  CHECK_EQ(GetOrdinal(interval->next->instr()), GetOrdinal(start->instr()));
+  interval->start = start;
+  interval->next = start;
+  interval->value = instr->result();
+  interval->end = end;
 
-  return last_reg;
+  return prefered;
 }
 
-int RegisterAllocationPass::AllocFreeRegister(Value *value, Instr *start,
-                                              Instr *end) {
-  // find the first free register that can store this value type
-  // TODO split up free queue into int / float to avoid this scan
-  int i;
-  for (i = 0; i < num_free_; i++) {
-    const Register &r = registers_[free_[i]];
-    if (r.value_types & 1 << (value->type())) {
-      break;
-    }
-  }
-  if (i == num_free_) {
+int RegisterAllocationPass::AllocFreeRegister(Value *value, ValueRef *start,
+                                              ValueRef *end) {
+  RegisterSet &set = GetRegisterSet(value->type());
+
+  // get the first free register for this value type
+  int reg = set.PopRegister();
+  if (reg == NO_REGISTER) {
     return NO_REGISTER;
   }
 
-  // remove register from free queue
-  int reg = free_[i];
-  free_[i] = free_[--num_free_];
-
   // add interval
-  Interval interval;
-  interval.value = value;
-  interval.start = start;
-  interval.end = end;
-  interval.reg = reg;
-  auto it = intervals_.insert(interval);
-
-  // add iterator to map so it can be lookedup in the case
-  live_[reg] = it;
+  Interval *interval = &intervals_[reg];
+  interval->value = value;
+  interval->start = start;
+  interval->end = end;
+  interval->next = start;
+  interval->reg = reg;
+  set.InsertInterval(interval);
 
   return reg;
 }
 
 int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
-                                                 Value *value, Instr *start,
-                                                 Instr *end) {
-  // TODO no longer valid due to type masks
-  // CHECK_EQ(num_free_, 0);
-  // CHECK_EQ(num_registers_, (int)intervals_.size());
+                                                 Value *value, ValueRef *start,
+                                                 ValueRef *end) {
+  RegisterSet &set = GetRegisterSet(value->type());
 
-  // spill the register that ends furthest away that can store this type
-  auto it = intervals_.rbegin();
-  auto e = intervals_.rend();
-  for (; it != e; ++it) {
-    const Register &r = registers_[it->reg];
+  // spill the register who's next use is furthest away from start
+  Interval *interval = set.TailInterval();
+  set.PopTailInterval();
 
-    if (r.value_types & 1 << (value->type())) {
-      break;
-    }
+  // find the next and prev use of the register. the interval's value needs
+  // to be spilled to the stack after the previous use, and filled back from
+  // from the stack before it's next use
+  ValueRef *next_ref = interval->next;
+  ValueRef *prev_ref = next_ref->prev();
+  CHECK(next_ref)
+      << "Register being spilled has no next use, why wasn't it expired?";
+  CHECK(prev_ref)
+      << "Register being spilled has no prev use, why is it already live?";
+
+  // allocate a place on the stack to spill the value
+  int local = builder.AllocLocal(interval->value->type());
+
+  // insert load before next use
+  Value *load_local = builder.LoadLocal(local, interval->value->type());
+  Instr *load_instr = builder.GetCurrentBlock()->instrs().tail();
+  load_instr->MoveAfter(next_ref->instr()->prev());
+
+  // assign the load a valid ordinal
+  int load_ordinal = GetOrdinal(load_instr->prev()) + 1;
+  CHECK_LT(load_ordinal, GetOrdinal(load_instr->next()));
+  SetOrdinal(load_instr, load_ordinal);
+
+  // update references to interval->value after the next use to use the new
+  // value filled from the stack. this code asssumes that the refs were
+  // previously sorted inside of Run().
+  while (next_ref) {
+    // cache off next next since calling set_value will modify the linked list
+    // pointers
+    ValueRef *next_next_ref = next_ref->next();
+    next_ref->set_value(load_local);
+    next_ref = next_next_ref;
   }
-  CHECK(it != e);
 
-  const Interval &to_spill = *it;
+  // with all references >= next_ref using the new value, prev_ref->next
+  // should now be null
+  CHECK(!prev_ref->next()) << "All future references should have been replaced";
 
-  // point spilled value to use stack
-  to_spill.value->set_reg(NO_REGISTER);
-  to_spill.value->set_local(builder.AllocLocal(to_spill.value->type()));
+  // insert spill after prev use, note that order here is extremely important.
+  // interval->value's ref list has already been sorted, and when the save
+  // instruction is created and added as a reference, the sorted order will be
+  // invalidated. because of this, the save instruction needs to be added after
+  // the load instruction has updated the sorted references.
+  builder.StoreLocal(local, interval->value);
+  Instr *save_instr = builder.GetCurrentBlock()->instrs().tail();
+  save_instr->MoveAfter(prev_ref->instr());
 
-  // remove interval
-  free_[num_free_++] = to_spill.reg;
-  intervals_.erase(--it.base());
+  // since the interval that this save belongs to has now expired, there's no
+  // need to assign an ordinal to it
 
-  return AllocFreeRegister(value, start, end);
+  // the new store should now be the final reference
+  CHECK(prev_ref->next() && prev_ref->next()->instr() == save_instr)
+      << "Spill should be the final reference for the interval value";
+
+  // overwrite the old interval
+  interval->value = value;
+  interval->start = start;
+  interval->next = start;
+  interval->end = end;
+  set.InsertInterval(interval);
+
+  return interval->reg;
 }

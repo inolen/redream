@@ -278,6 +278,8 @@ class Instr : public core::IntrusiveListNode<Instr> {
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
+  void MoveAfter(Instr *other);
+
  private:
   Block *set_block(Block *block) { return block_ = block; }
 
@@ -332,6 +334,7 @@ class Block : public core::IntrusiveListNode<Block> {
   void InsertInstr(Instr *after, Instr *instr);
   void ReplaceInstr(Instr *replace, Instr *with);
   void RemoveInstr(Instr *instr);
+  void UnlinkInstr(Instr *instr);
 
  private:
   core::IntrusiveList<Instr> instrs_;
@@ -366,18 +369,20 @@ class IRBuilder {
   const Value *GetMetadata(MetadataTy type) const;
 
   // blocks
+  Block *GetCurrentBlock();
   void SetCurrentBlock(Block *block);
   Block *InsertBlock(Block *after);
   Block *AppendBlock();
   void RemoveBlock(Block *block);
   void AddEdge(Block *src, Block *dst);
 
-  // instructions
-  Instr *AllocInstr(Opcode op, InstrFlag flags = IF_NONE);
-
   // context operations
   Value *LoadContext(size_t offset, ValueTy type);
   void StoreContext(size_t offset, Value *v, InstrFlag flags = IF_NONE);
+
+  // local operations
+  Value *LoadLocal(size_t offset, ValueTy type);
+  void StoreLocal(size_t offset, Value *v);
 
   // memory operations
   Value *Load(Value *addr, ValueTy type);
@@ -454,6 +459,7 @@ class IRBuilder {
   int AllocLocal(ValueTy type);
 
  protected:
+  Instr *AllocInstr(Opcode op, InstrFlag flags = IF_NONE);
   Instr *AppendInstr(Opcode op, InstrFlag flags = IF_NONE);
 
   core::Arena arena_;

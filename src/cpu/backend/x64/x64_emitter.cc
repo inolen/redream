@@ -522,6 +522,88 @@ EMITTER(STORE_CONTEXT) {
   }
 }
 
+EMITTER(LOAD_LOCAL) {
+  int offset = STACK_OFFSET_LOCALS + instr->arg0()->value<int32_t>();
+
+  if (IsFloatType(instr->result()->type())) {
+    const Xbyak::Xmm &result = e.GetXMMRegister(instr->result());
+
+    switch (instr->result()->type()) {
+      case VALUE_F32:
+        c.movss(result, c.dword[c.rsp + offset]);
+        break;
+      case VALUE_F64:
+        c.movsd(result, c.qword[c.rsp + offset]);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected result type";
+        break;
+    }
+  } else {
+    const Xbyak::Reg &result = e.GetRegister(instr->result());
+
+    switch (instr->result()->type()) {
+      case VALUE_I8:
+        c.mov(result, c.byte[c.rsp + offset]);
+        break;
+      case VALUE_I16:
+        c.mov(result, c.word[c.rsp + offset]);
+        break;
+      case VALUE_I32:
+        c.mov(result, c.dword[c.rsp + offset]);
+        break;
+      case VALUE_I64:
+        c.mov(result, c.qword[c.rsp + offset]);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected result type";
+        break;
+    }
+  }
+}
+
+EMITTER(STORE_LOCAL) {
+  int offset = STACK_OFFSET_LOCALS + instr->arg0()->value<int32_t>();
+
+  CHECK(!instr->arg1()->constant());
+
+  if (IsFloatType(instr->arg1()->type())) {
+    const Xbyak::Xmm &src = e.GetXMMRegister(instr->arg1());
+
+    switch (instr->arg1()->type()) {
+      case VALUE_F32:
+        c.movss(c.dword[c.rsp + offset], src);
+        break;
+      case VALUE_F64:
+        c.movsd(c.qword[c.rsp + offset], src);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected value type";
+        break;
+    }
+  } else {
+    const Xbyak::Reg &src = e.GetRegister(instr->arg1());
+
+    switch (instr->arg1()->type()) {
+      case VALUE_I8:
+        c.mov(c.byte[c.rsp + offset], src);
+        break;
+      case VALUE_I16:
+        c.mov(c.word[c.rsp + offset], src);
+        break;
+      case VALUE_I32:
+        c.mov(c.dword[c.rsp + offset], src);
+        break;
+      case VALUE_I64:
+        c.mov(c.qword[c.rsp + offset], src);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected value type";
+        break;
+    }
+  }
+}
+
 EMITTER(LOAD) {
   const Xbyak::Operand &result = e.GetOperand(instr->result());
 
