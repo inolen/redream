@@ -1,7 +1,7 @@
 #ifndef REGISTER_ALLOCATION_PASS_H
 #define REGISTER_ALLOCATION_PASS_H
 
-#include <list>
+#include "core/ring_buffer.h"
 #include "cpu/backend/backend.h"
 #include "cpu/ir/passes/pass_runner.h"
 
@@ -29,22 +29,19 @@ class RegisterSet {
   void PushRegister(int reg);
 
   Interval *HeadInterval();
-  void PopHeadInterval();
   Interval *TailInterval();
+  void PopHeadInterval();
   void PopTailInterval();
   void InsertInterval(Interval *interval);
 
  private:
   int max_registers_;
 
-  // free register queues
-  int *free;
-  int num_free;
+  // free register vector
+  int *free_, num_free_;
 
   // intervals used by this register set, sorted in order of next use
-  Interval **live_;
-  int live_head_;
-  int num_live_;
+  core::RingBuffer<Interval *> live_;
 };
 
 class RegisterAllocationPass : public Pass {

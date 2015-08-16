@@ -33,7 +33,6 @@ class IntrusiveListNode {
 
 template <typename T>
 class IntrusiveList {
- public:
   // For the iterator, remember that a C++ iterator's range is [begin, end),
   // meaning the end iterator will be wrapping an invalid node.
   template <bool is_const_iterator, bool is_reverse_iterator>
@@ -61,8 +60,8 @@ class IntrusiveList {
       }
       return *this;
     }
+
     self_type operator++(int) {
-      // reuse pre-increment overload
       self_type old = *this;
       ++(*this);
       return old;
@@ -77,17 +76,22 @@ class IntrusiveList {
       }
       return *this;
     }
+
     self_type operator--(int) {
-      // reuse pre-decrement overload
       self_type old = *this;
       --(*this);
       return old;
     }
 
     pointer operator*() { return node_; }
+
     pointer operator->() { return node_; }
-    bool operator==(const self_type &rhs) const { return node_ == rhs.node_; }
-    bool operator!=(const self_type &rhs) const { return node_ != rhs.node_; }
+
+    bool operator==(const self_type &other) const {
+      return node_ == other.node_;
+    }
+
+    bool operator!=(const self_type &other) const { return !(other == *this); }
 
    private:
     shared_iterator(list_pointer list, pointer node)

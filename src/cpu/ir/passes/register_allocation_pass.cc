@@ -16,82 +16,55 @@ static inline bool RegisterCanStore(const Register &r, ValueTy type) {
   return r.value_types & (1 << type);
 }
 
-RegisterSet::RegisterSet(int max_registers) : max_registers_(max_registers) {
-  free = new int[max_registers];
-  live_ = new Interval *[max_registers];
+RegisterSet::RegisterSet(int max_registers)
+    : max_registers_(max_registers), live_(max_registers) {
+  free_ = new int[max_registers];
 }
 
-RegisterSet::~RegisterSet() {
-  delete[] free;
-  delete[] live_;
-}
+RegisterSet::~RegisterSet() { delete[] free_; }
 
 void RegisterSet::Clear() {
-  num_free = 0;
-  live_head_ = 0;
-  num_live_ = 0;
+  num_free_ = 0;
+  live_.Clear();
 }
 
 int RegisterSet::PopRegister() {
-  if (!num_free) {
+  if (!num_free_) {
     return NO_REGISTER;
   }
-  int reg = free[0];
-  free[0] = free[--num_free];
-  return reg;
+  return free_[--num_free_];
 }
 
-void RegisterSet::PushRegister(int reg) { free[num_free++] = reg; }
+void RegisterSet::PushRegister(int reg) { free_[num_free_++] = reg; }
 
 Interval *RegisterSet::HeadInterval() {
-  if (!num_live_) {
+  if (live_.Empty()) {
     return nullptr;
   }
 
-  return live_[live_head_ % max_registers_];
-}
-
-void RegisterSet::PopHeadInterval() {
-  num_live_--;
-  live_head_++;
+  return live_.front();
 }
 
 Interval *RegisterSet::TailInterval() {
-  return live_[(live_head_ + num_live_ - 1) % max_registers_];
+  if (live_.Empty()) {
+    return nullptr;
+  }
+
+  return live_.back();
 }
 
-void RegisterSet::PopTailInterval() { num_live_--; }
+void RegisterSet::PopHeadInterval() { live_.PopFront(); }
+
+void RegisterSet::PopTailInterval() { live_.PopBack(); }
 
 void RegisterSet::InsertInterval(Interval *interval) {
-  // find the lower bound for interval->next's ordinal in the ring buffer.
-  // TODO convert live_ to a proper ring buffer with a random access iterator
-  // and instead use std::lower_bound
-  int value = GetOrdinal(interval->next->instr());
+  auto it = std::lower_bound(live_.begin(), live_.end(),
+                             GetOrdinal(interval->next->instr()),
+                             [](const Interval *lhs, int rhs) {
+                               return GetOrdinal(lhs->next->instr()) < rhs;
+                             });
 
-  int pos = live_head_;
-  int count = num_live_;
-  int end = pos + count;
-
-  while (count > 0) {
-    int step = count / 2;
-    int it = pos + step;
-    if (GetOrdinal(live_[it % max_registers_]->next->instr()) < value) {
-      pos = ++it;
-      count -= step + 1;
-    } else {
-      count = step;
-    }
-  }
-
-  // shift live intervals over by 1
-  while (end > pos) {
-    live_[end % max_registers_] = live_[(end - 1) % max_registers_];
-    end--;
-  }
-
-  // add the new interval
-  live_[end % max_registers_] = interval;
-  num_live_++;
+  live_.Insert(it, interval);
 }
 
 RegisterAllocationPass::RegisterAllocationPass(const backend::Backend &backend)

@@ -38,7 +38,8 @@ System::System()
       video_height_(DEFAULT_VIDEO_HEIGHT),
       window_(nullptr),
       glcontext_(nullptr),
-      joystick_(nullptr) {}
+      joystick_(nullptr),
+      events_(MAX_EVENTS) {}
 
 System::~System() {
   DestroyInput();
@@ -70,21 +71,21 @@ bool System::Init() {
 void System::Tick() { PumpEvents(); }
 
 void System::QueueEvent(const SystemEvent &ev) {
-  if (events_.full()) {
+  if (events_.Full()) {
     LOG(WARNING) << "System event overflow";
     return;
   }
 
-  events_.push_back(ev);
+  events_.PushBack(ev);
 }
 
 bool System::PollEvent(SystemEvent *ev) {
-  if (events_.empty()) {
+  if (events_.Empty()) {
     return false;
   }
 
   *ev = events_.front();
-  events_.pop_front();
+  events_.PopFront();
 
   return true;
 }

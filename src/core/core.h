@@ -9,5 +9,6 @@
 #include "core/math.h"
 #include "core/filesystem.h"
 #include "core/platform.h"
+#include "core/ring_buffer.h"
 
 #endif

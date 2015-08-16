@@ -1,56 +1,150 @@
 #ifndef RING_BUFFER_H
 #define RING_BUFFER_H
 
-#include <atomic>
 #include <glog/logging.h>
 
 namespace dreavm {
 namespace core {
 
-template <typename T, unsigned MAX>
+template <typename T>
 class RingBuffer {
+  template <bool is_const_iterator>
+  class shared_iterator
+      : public std::iterator<std::random_access_iterator_tag, T> {
+    friend class RingBuffer;
+
+   public:
+    typedef RingBuffer<T> *parent_type;
+    typedef shared_iterator<is_const_iterator> self_type;
+    typedef int difference_type;
+    typedef typename std::conditional<is_const_iterator, T const, T>::type
+        reference;
+    typedef typename std::conditional<is_const_iterator, T const *, T *>::type
+        pointer;
+
+    self_type &operator++() {
+      index_++;
+      return *this;
+    }
+
+    self_type operator++(int) {
+      self_type old(*this);
+      ++(*this);
+      return old;
+    }
+
+    self_type &operator--() {
+      index_--;
+      return *this;
+    }
+
+    self_type operator--(int) {
+      self_type old(*this);
+      --(*this);
+      return old;
+    }
+
+    // support std::distance
+    difference_type operator-(const self_type &other) {
+      return index_ - other.index_;
+    }
+
+    // support std::advance
+    void operator+=(difference_type diff) { index_ += diff; }
+
+    reference operator*() { return (*parent_)[index_]; }
+
+    pointer operator->() { return &(*parent_)[index_]; }
+
+    bool operator==(const self_type &other) const {
+      return parent_ == other.parent_ && index_ == other.index_;
+    }
+
+    bool operator!=(const self_type &other) const { return !(other == *this); }
+
+   private:
+    shared_iterator(parent_type parent, size_t index)
+        : parent_(parent), index_(index) {}
+
+    parent_type parent_;
+    size_t index_;
+  };
+
  public:
-  RingBuffer() : head(0), tail(0) {}
+  typedef shared_iterator<false> iterator;
+  typedef shared_iterator<true> const_iterator;
 
-  RingBuffer(const RingBuffer &other)
-      : buffer(other.buffer), head(other.head), tail(other.tail) {}
+  const_iterator begin() const { return const_iterator(this, 0); }
+  const_iterator end() const { return const_iterator(this, Size()); }
+  iterator begin() { return iterator(this, 0); }
+  iterator end() { return iterator(this, Size()); }
 
-  RingBuffer &operator=(const RingBuffer &other) { return *this; }
+  RingBuffer(size_t max) : max_(max), front_(0), back_(0) {
+    buffer_ = new T[max_];
+  }
+  ~RingBuffer() { delete[] buffer_; }
 
-  const T &front() const { return buffer[tail % MAX]; }
+  const T &operator[](size_t index) const {
+    return buffer_[(front_ + index) % max_];
+  }
+  T &operator[](size_t index) { return buffer_[(front_ + index) % max_]; }
 
-  T &front() { return buffer[tail % MAX]; }
+  const T &front() const { return buffer_[front_ % max_]; }
+  T &front() { return buffer_[front_ % max_]; }
 
-  const T &back() const {
-    DCHECK(head);
-    return buffer[(head - 1) % MAX];
+  const T &back() const { return buffer_[(back_ - 1) % max_]; }
+  T &back() { return buffer_[(back_ - 1) % max_]; }
+
+  size_t Size() const { return back_ - front_; }
+
+  bool Empty() const { return !Size(); }
+
+  bool Full() const { return Size() >= max_; }
+
+  void Clear() { back_ = front_ = 0; }
+
+  void PushBack(const T &el) {
+    // if the buffer is wrapping, advance front_
+    if (back_ - front_ >= max_) {
+      front_++;
+    }
+
+    buffer_[back_++ % max_] = el;
   }
 
-  T &back() {
-    DCHECK(head);
-    return buffer[(head - 1) % MAX];
+  void PopBack() {
+    DCHECK(back_ > front_);
+    back_--;
   }
 
-  void push_back(const T &el) {
-    buffer[head % MAX] = el;
-    ++head;
+  void PopFront() {
+    DCHECK(front_ < back_);
+    front_++;
   }
 
-  void pop_front() {
-    DCHECK(tail < head);
-    ++tail;
+  void Insert(const iterator &it, const T &el) {
+    size_t end = front_ + max_ - 1;
+
+    // if the buffer isn't full, increase its size
+    if (back_ < end) {
+      end = back_++;
+    }
+
+    // shift old elements over by one
+    while ((end - front_) != it.index_) {
+      buffer_[end % max_] = buffer_[(end - 1) % max_];
+      end--;
+    }
+
+    // add new element
+    buffer_[end % max_] = el;
   }
-
-  size_t size() const { return head - tail; }
-
-  bool empty() const { return !size(); }
-
-  bool full() const { return size() >= MAX; }
 
  private:
-  T buffer[MAX];
-  std::atomic<unsigned> head;
-  std::atomic<unsigned> tail;
+  T *buffer_;
+  const size_t max_;
+  size_t front_;
+  size_t back_;
 };
 }
 }
