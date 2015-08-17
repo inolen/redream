@@ -107,9 +107,7 @@ TEST_F(RingTest, Clear) {
 }
 
 // iterator tests
-TEST_F(RingTest, EmptyIterate) {
-  ASSERT_EQ(items.begin(), items.end());
-}
+TEST_F(RingTest, EmptyIterate) { ASSERT_EQ(items.begin(), items.end()); }
 
 TEST_F(RingTest, ForwardIterator) {
   items.PushBack(7);

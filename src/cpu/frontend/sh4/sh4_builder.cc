@@ -23,7 +23,6 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
   uint32_t addr = start_addr;
-  int guest_cycles = 0;
 
   // use fpu state when generating code. we could emit branches that check this
   // state in the actual IR, but that's extremely slow
@@ -34,14 +33,14 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
     Instr instr(addr, memory_.R16(addr));
     bool delayed = instr.type->flags & OP_FLAG_DELAYED;
 
-    guest_cycles += instr.type->cycles;
+    guest_cycles_ += instr.type->cycles;
 
     // save off the delay instruction if we need to
     if (delayed) {
       delay_instr_ = Instr(addr + 2, memory_.R16(addr + 2));
       has_delay_instr_ = true;
 
-      guest_cycles += delay_instr_.type->cycles;
+      guest_cycles_ += delay_instr_.type->cycles;
     }
 
     // emit the current instruction
@@ -83,9 +82,6 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
 
     RemoveBlock(last_block);
   }
-
-  // store off guest cycles approximation for this block
-  SetMetadata(MD_GUEST_CYCLES, AllocConstant(guest_cycles));
 }
 
 Value *SH4Builder::LoadRegister(int n, ValueTy type) {

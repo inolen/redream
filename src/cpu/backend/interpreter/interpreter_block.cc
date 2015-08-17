@@ -1,32 +1,28 @@
-#include "cpu/backend/interpreter/interpreter_backend.h"
 #include "cpu/backend/interpreter/interpreter_block.h"
-#include "emu/profiler.h"
 
-using namespace dreavm::cpu;
-using namespace dreavm::cpu::backend::interpreter;
-using namespace dreavm::cpu::ir;
+using namespace dreavm::emu;
 
-InterpreterBlock::InterpreterBlock(int guest_cycles, IntInstr *instrs,
-                                   int num_instrs, int locals_size)
-    : RuntimeBlock(guest_cycles),
-      instrs_(instrs),
-      num_instrs_(num_instrs),
-      locals_size_(locals_size) {}
+namespace dreavm {
+namespace cpu {
+namespace backend {
+namespace interpreter {
 
-InterpreterBlock::~InterpreterBlock() { free(instrs_); }
+uint32_t CallBlock(RuntimeBlock *block, Memory *memory, void *guest_ctx) {
+  IntBlock *int_block = reinterpret_cast<IntBlock *>(block->priv);
 
-uint32_t InterpreterBlock::Call(emu::Memory *memory, void *guest_ctx) {
-  IntValue registers[NUM_INT_REGS];
-  uint8_t *locals = reinterpret_cast<uint8_t *>(alloca(locals_size_));
-  memset(locals, 0, locals_size_);
+  static const int NUM_REGS = sizeof(int_registers) / sizeof(Register);
+  IntValue registers[NUM_REGS];
+
+  uint8_t *locals = reinterpret_cast<uint8_t *>(alloca(int_block->locals_size));
+  memset(locals, 0, int_block->locals_size);
 
   IntInstr *instr = nullptr;
   uint32_t i = 0;
   bool done = false;
 
   while (!done) {
-    instr = &instrs_[i];
-    done = i == (uint32_t)num_instrs_ - 1;
+    instr = &int_block->instrs[i];
+    done = i == (uint32_t)int_block->num_instrs - 1;
     // there are a few possible return values from the callbacks:
     // 1. branch isn't a branch, next instruction index is returned
     // 1. branch is a local branch, next instruction index is returned
@@ -40,4 +36,8 @@ uint32_t InterpreterBlock::Call(emu::Memory *memory, void *guest_ctx) {
   return i;
 }
 
-void InterpreterBlock::Dump() { LOG(INFO) << "Unimplemented"; }
+void DumpBlock(RuntimeBlock *block) { LOG(INFO) << "Unimplemented"; }
+}
+}
+}
+}

@@ -345,8 +345,6 @@ class Block : public core::IntrusiveListNode<Block> {
 //
 typedef void (*ExternalFn)(void *);
 
-enum MetadataTy { MD_GUEST_CYCLES, MD_NUM };
-
 class IRBuilder {
  public:
   IRBuilder();
@@ -356,13 +354,11 @@ class IRBuilder {
 
   int locals_size() const { return locals_size_; }
 
+  int guest_cycles() const { return guest_cycles_; }
+
   static bool IsTerminator(const Instr *i);
 
   void Dump() const;
-
-  // meta data
-  void SetMetadata(MetadataTy type, Value *v);
-  const Value *GetMetadata(MetadataTy type) const;
 
   // blocks
   Block *GetCurrentBlock();
@@ -462,7 +458,7 @@ class IRBuilder {
   core::IntrusiveList<Block> blocks_;
   Block *current_block_;
   int locals_size_;
-  Value *metadata_[MD_NUM];
+  int guest_cycles_;
 };
 }
 }

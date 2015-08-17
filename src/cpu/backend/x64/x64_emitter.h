@@ -4,7 +4,6 @@
 #include <memory>
 #include <xbyak/xbyak.h>
 #include "core/arena.h"
-#include "cpu/backend/x64/x64_block.h"
 #include "cpu/runtime.h"
 #include "emu/memory.h"
 
@@ -18,6 +17,8 @@ enum {
   STACK_OFFSET_MEMORY = 8,
   STACK_OFFSET_LOCALS = 16
 };
+
+typedef uint32_t (*X64Fn)(void *guest_ctx, emu::Memory *memory);
 
 class X64Emitter {
  public:

@@ -1,4 +1,5 @@
 #include "cpu/backend/interpreter/interpreter_backend.h"
+#include "cpu/backend/interpreter/interpreter_block.h"
 #include "cpu/backend/interpreter/interpreter_callbacks.h"
 
 using namespace dreavm::cpu;
@@ -6,12 +7,6 @@ using namespace dreavm::cpu::backend;
 using namespace dreavm::cpu::backend::interpreter;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
-
-// fake registers for testing register allocation
-static Register int_registers[NUM_INT_REGS] = {
-    {"a", VALUE_INT_MASK},   {"b", VALUE_INT_MASK},   {"c", VALUE_INT_MASK},
-    {"d", VALUE_INT_MASK},   {"e", VALUE_FLOAT_MASK}, {"f", VALUE_FLOAT_MASK},
-    {"g", VALUE_FLOAT_MASK}, {"h", VALUE_FLOAT_MASK}};
 
 static IntSig GetSignature(Instr &ir_i) {
   IntSig sig = 0;
@@ -65,47 +60,110 @@ static IntAccessMask GetAccessMask(Instr &ir_i) {
   return access_mask;
 }
 
-AssembleContext::AssembleContext()
-    : max_instrs(4),
-      num_instrs(0),
-      instrs(
-          reinterpret_cast<IntInstr *>(malloc(max_instrs * sizeof(IntInstr)))) {
+InterpreterBackend::InterpreterBackend(Memory &memory) : Backend(memory) {
+  static const int codegen_size = 1024 * 1024 * 8;
+  codegen_begin_ = new uint8_t[codegen_size];
+  codegen_end_ = codegen_begin_ + codegen_size;
+  codegen_ = codegen_begin_;
 }
 
-AssembleContext::~AssembleContext() { free(instrs); }
+InterpreterBackend::~InterpreterBackend() { delete[] codegen_begin_; }
 
-IntInstr *AssembleContext::AllocInstr() {
-  if (num_instrs >= max_instrs) {
-    max_instrs *= 2;
-    instrs = reinterpret_cast<IntInstr *>(
-        realloc(instrs, max_instrs * sizeof(IntInstr)));
+const Register *InterpreterBackend::registers() const { return int_registers; }
+
+int InterpreterBackend::num_registers() const {
+  return sizeof(int_registers) / sizeof(Register);
+}
+
+bool InterpreterBackend::Init() { return true; }
+
+void InterpreterBackend::Reset() { codegen_ = codegen_begin_; }
+
+bool InterpreterBackend::AssembleBlock(IRBuilder &builder,
+                                       RuntimeBlock *block) {
+  IntBlock *int_block = AllocBlock();
+  if (!block) {
+    return false;
   }
-  IntInstr *i = &instrs[num_instrs++];
-  memset(i, 0, sizeof(*i));
-  return i;
+
+  // do an initial pass assigning ordinals to instructions so local branches
+  // can be resolved
+  int32_t ordinal = 0;
+  for (auto ir_block : builder.blocks()) {
+    for (auto ir_instr : ir_block->instrs()) {
+      ir_instr->set_tag((intptr_t)ordinal++);
+    }
+  }
+
+  // translate each instruction
+  IntInstr *instr_begin = reinterpret_cast<IntInstr *>(codegen_);
+
+  for (auto ir_block : builder.blocks()) {
+    for (auto ir_instr : ir_block->instrs()) {
+      IntInstr *instr = AllocInstr();
+      if (!instr) {
+        return false;
+      }
+
+      TranslateInstr(*ir_instr, instr);
+    }
+  }
+
+  IntInstr *instr_end = reinterpret_cast<IntInstr *>(codegen_);
+
+  int_block->instrs = instr_begin;
+  int_block->num_instrs = instr_end - instr_begin;
+  int_block->locals_size = builder.locals_size();
+
+  block->call = &CallBlock;
+  block->dump = &DumpBlock;
+  block->guest_cycles = builder.guest_cycles();
+  block->priv = int_block;
+
+  return true;
 }
 
-IntInstr *AssembleContext::TranslateInstr(Instr &ir_i) {
-  IntInstr *i = AllocInstr();
-
-  TranslateArg(ir_i, i, 0);
-  TranslateArg(ir_i, i, 1);
-  TranslateArg(ir_i, i, 2);
-  TranslateArg(ir_i, i, 3);
-
-  i->fn = GetCallback(ir_i.op(), GetSignature(ir_i), GetAccessMask(ir_i));
-
-  return i;
+uint8_t *InterpreterBackend::Alloc(size_t size) {
+  uint8_t *ptr = codegen_;
+  codegen_ += size;
+  if (codegen_ > codegen_end_) {
+    return nullptr;
+  }
+  return ptr;
 }
 
-void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg) {
+IntBlock *InterpreterBackend::AllocBlock() {
+  IntBlock *block = reinterpret_cast<IntBlock *>(Alloc(sizeof(IntBlock)));
+  if (block) {
+    memset(block, 0, sizeof(*block));
+  }
+  return block;
+}
+
+IntInstr *InterpreterBackend::AllocInstr() {
+  IntInstr *instr = reinterpret_cast<IntInstr *>(Alloc(sizeof(IntInstr)));
+  if (instr) {
+    memset(instr, 0, sizeof(*instr));
+  }
+  return instr;
+}
+
+void InterpreterBackend::TranslateInstr(Instr &ir_i, IntInstr *instr) {
+  TranslateArg(ir_i, instr, 0);
+  TranslateArg(ir_i, instr, 1);
+  TranslateArg(ir_i, instr, 2);
+  TranslateArg(ir_i, instr, 3);
+  instr->fn = GetCallback(ir_i.op(), GetSignature(ir_i), GetAccessMask(ir_i));
+}
+
+void InterpreterBackend::TranslateArg(Instr &ir_i, IntInstr *instr, int arg) {
   Value *ir_v = ir_i.arg(arg);
 
   if (!ir_v) {
     return;
   }
 
-  IntValue *v = &i->arg[arg];
+  IntValue *v = &instr->arg[arg];
 
   if (ir_v->constant()) {
     switch (ir_v->type()) {
@@ -136,50 +194,4 @@ void AssembleContext::TranslateArg(Instr &ir_i, IntInstr *i, int arg) {
   } else {
     LOG(FATAL) << "Unexpected value type";
   }
-}
-
-InterpreterBackend::InterpreterBackend(emu::Memory &memory) : Backend(memory) {}
-
-InterpreterBackend::~InterpreterBackend() {}
-
-const Register *InterpreterBackend::registers() const { return int_registers; }
-
-int InterpreterBackend::num_registers() const {
-  return sizeof(int_registers) / sizeof(Register);
-}
-
-bool InterpreterBackend::Init() { return true; }
-
-std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
-    IRBuilder &builder) {
-  AssembleContext ctx;
-
-  // do an initial pass assigning ordinals to instructions so local branches
-  // can be resolved
-  int32_t ordinal = 0;
-  for (auto block : builder.blocks()) {
-    for (auto instr : block->instrs()) {
-      instr->set_tag((intptr_t)ordinal++);
-    }
-  }
-
-  // translate each instruction
-  for (auto block : builder.blocks()) {
-    for (auto instr : block->instrs()) {
-      ctx.TranslateInstr(*instr);
-    }
-  }
-
-  // get number of guest cycles for the blocks
-  const Value *md_guest_cycles = builder.GetMetadata(MD_GUEST_CYCLES);
-  CHECK(md_guest_cycles);
-  int guest_cycles = md_guest_cycles->value<int32_t>();
-
-  // take ownership of ctx pointers
-  IntInstr *instrs = ctx.instrs;
-  int num_instrs = ctx.num_instrs;
-  ctx.instrs = nullptr;
-
-  return std::unique_ptr<RuntimeBlock>(new InterpreterBlock(
-      guest_cycles, instrs, num_instrs, builder.locals_size()));
 }

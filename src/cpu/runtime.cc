@@ -10,16 +10,29 @@
 #include "emu/profiler.h"
 
 using namespace dreavm::cpu;
+using namespace dreavm::cpu::backend;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::cpu::ir::passes;
 using namespace dreavm::emu;
+
+// executable code sits between 0x0c000000 and 0x0d000000 (16mb). each instr
+// is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
+enum {
+  BLOCK_ADDR_SHIFT = 1,
+  BLOCK_ADDR_MASK = ~0xfc000000,
+  MAX_BLOCKS = 0x1000000 >> BLOCK_ADDR_SHIFT,
+};
+
+static inline uint32_t BlockOffset(uint32_t addr) {
+  return (addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT;
+}
 
 Runtime::Runtime(Memory &memory)
     : memory_(memory),
       frontend_(nullptr),
       backend_(nullptr),
       pending_reset_(false) {
-  blocks_ = new std::unique_ptr<RuntimeBlock>[MAX_BLOCKS];
+  blocks_ = new RuntimeBlock[MAX_BLOCKS];
 }
 
 Runtime::~Runtime() { delete[] blocks_; }
@@ -48,11 +61,9 @@ bool Runtime::Init(frontend::Frontend *frontend, backend::Backend *backend) {
 
 // TODO should the block caching be part of the frontend?
 // this way, the SH4Frontend can cache based on FPU state
-RuntimeBlock *Runtime::ResolveBlock(uint32_t addr, const void *guest_ctx) {
+RuntimeBlock *Runtime::GetBlock(uint32_t addr, const void *guest_ctx) {
   if (pending_reset_) {
-    for (int i = 0; i < MAX_BLOCKS; i++) {
-      blocks_[i] = nullptr;
-    }
+    ResetBlocks();
     pending_reset_ = false;
   }
 
@@ -62,43 +73,42 @@ RuntimeBlock *Runtime::ResolveBlock(uint32_t addr, const void *guest_ctx) {
                << " is outside of the executable space";
   }
 
-  RuntimeBlock *existing_block = blocks_[offset].get();
-  if (existing_block) {
-    return existing_block;
+  RuntimeBlock *block = &blocks_[offset];
+
+  if (!block->call) {
+    CompileBlock(addr, guest_ctx, block);
+    CHECK(block->call);
   }
 
-  return CompileBlock(addr, guest_ctx);
+  return block;
 }
 
-void Runtime::ResetBlocks() { pending_reset_ = true; }
+void Runtime::QueueResetBlocks() { pending_reset_ = true; }
 
-RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
+void Runtime::ResetBlocks() {
+  backend_->Reset();
+
+  memset(blocks_, 0, sizeof(RuntimeBlock) * MAX_BLOCKS);
+}
+
+void Runtime::CompileBlock(uint32_t addr, const void *guest_ctx,
+                           RuntimeBlock *block) {
   PROFILER_RUNTIME("Runtime::CompileBlock");
 
-  LOG(INFO) << "Compiling block 0x" << std::hex << addr;
-
   std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr, guest_ctx);
-  if (!builder) {
-    return nullptr;
-  }
-
-  // printf("BEFORE:\n");
-  // builder->Dump();
 
   // run optimization passes
   pass_runner_.Run(*builder);
 
-  // printf("AFTER:\n");
-  // builder->Dump();
+  if (!backend_->AssembleBlock(*builder, block)) {
+    LOG(INFO) << "Assembler overflow, resetting block cache";
 
-  std::unique_ptr<RuntimeBlock> block = backend_->AssembleBlock(*builder);
-  if (!block) {
-    return nullptr;
+    // the backend overflowed, reset the block cache
+    ResetBlocks();
+
+    // if the backend fails to assemble on an empty cache, there's nothing to be
+    // done
+    CHECK(backend_->AssembleBlock(*builder, block))
+        << "Backend assembler buffer overflow";
   }
-
-  // block->Dump();
-
-  uint32_t offset = BlockOffset(addr);
-  blocks_[offset] = std::move(block);
-  return blocks_[offset].get();
 }

@@ -136,7 +136,10 @@ void Block::UnlinkInstr(Instr *instr) {
 // IRBuilder
 //
 IRBuilder::IRBuilder()
-    : arena_(1024), current_block_(nullptr), locals_size_(0), metadata_() {}
+    : arena_(1024),
+      current_block_(nullptr),
+      locals_size_(0),
+      guest_cycles_(0) {}
 
 bool IRBuilder::IsTerminator(const Instr *i) {
   return i->op() == OP_BRANCH || i->op() == OP_BRANCH_COND;
@@ -218,12 +221,6 @@ void IRBuilder::Dump() const {
     }
     LOG(INFO) << std::endl;
   }
-}
-
-void IRBuilder::SetMetadata(MetadataTy type, Value *v) { metadata_[type] = v; }
-
-const Value *IRBuilder::GetMetadata(MetadataTy type) const {
-  return metadata_[type];
 }
 
 Block *IRBuilder::GetCurrentBlock() { return current_block_; }

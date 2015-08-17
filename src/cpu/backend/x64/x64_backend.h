@@ -11,6 +11,14 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
+constexpr Register x64_registers[] = {
+    {"rbx", ir::VALUE_INT_MASK},    {"rbp", ir::VALUE_INT_MASK},
+    {"r12", ir::VALUE_INT_MASK},    {"r13", ir::VALUE_INT_MASK},
+    {"r14", ir::VALUE_INT_MASK},    {"r15", ir::VALUE_INT_MASK},
+    {"xmm2", ir::VALUE_FLOAT_MASK}, {"xmm3", ir::VALUE_FLOAT_MASK},
+    {"xmm4", ir::VALUE_FLOAT_MASK}, {"xmm5", ir::VALUE_FLOAT_MASK},
+    {"xmm6", ir::VALUE_FLOAT_MASK}, {"xmm7", ir::VALUE_FLOAT_MASK}};
+
 class X64Backend : public Backend {
  public:
   X64Backend(emu::Memory &memory);
@@ -20,7 +28,8 @@ class X64Backend : public Backend {
   int num_registers() const;
 
   bool Init();
-  std::unique_ptr<RuntimeBlock> AssembleBlock(ir::IRBuilder &builder);
+  void Reset();
+  bool AssembleBlock(ir::IRBuilder &builder, RuntimeBlock *block);
 
  private:
   Xbyak::CodeGenerator codegen_;

@@ -56,11 +56,10 @@ int64_t SH4::Execute(int64_t cycles) {
   while (ctx_.pc != 0xdeadbeef && remaining > 0) {
     // translate PC to 29-bit physical space
     uint32_t pc = ctx_.pc & ~MIRROR_MASK;
-    RuntimeBlock *block = runtime_->ResolveBlock(pc, &ctx_);
-    CHECK(block);
+    RuntimeBlock *block = runtime_->GetBlock(pc, &ctx_);
 
-    uint32_t nextpc = block->Call(&memory_, &ctx_);
-    remaining -= block->guest_cycles();
+    uint32_t nextpc = block->call(block, &memory_, &ctx_);
+    remaining -= block->guest_cycles;
     ctx_.pc = nextpc;
 
     CheckPendingInterrupts();
@@ -324,7 +323,7 @@ void SH4::ResetState() {
 #undef SH4_REG
 }
 
-void SH4::ResetInstructionCache() { runtime_->ResetBlocks(); }
+void SH4::ResetInstructionCache() { runtime_->QueueResetBlocks(); }
 
 // Generate a sorted set of interrupts based on their priority. These sorted
 // ids are used to represent all of the currently requested interrupts as a
