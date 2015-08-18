@@ -1,4 +1,5 @@
 #include <iomanip>
+#include <sstream>
 #include <beaengine/BeaEngine.h>
 #include "cpu/backend/x64/x64_block.h"
 
@@ -22,7 +23,7 @@ void DumpBlock(RuntimeBlock *block) {
   dsm.Archi = 64;
   dsm.EIP = (uintptr_t)fn;
   dsm.SecurityBlock = 0;
-  dsm.Options = NasmSyntax;
+  dsm.Options = NasmSyntax | PrefixedNumeral;
 
   while (true) {
     int len = Disasm(&dsm);
@@ -34,8 +35,17 @@ void DumpBlock(RuntimeBlock *block) {
       break;
     }
 
-    LOG(INFO) << std::setw(2) << std::hex << std::setfill('0')
-              << (int)dsm.VirtualAddr << " " << dsm.CompleteInstr;
+    // format instruction binary
+    static const int MAX_INSTR_LENGTH = 15;
+    std::stringstream instr;
+    for (int i = 0; i < MAX_INSTR_LENGTH; i++) {
+      uint32_t v =
+          i < len ? (uint32_t) * reinterpret_cast<uint8_t *>(dsm.EIP + i) : 0;
+      instr << std::hex << std::setw(2) << std::setfill('0') << v;
+    }
+
+    // print out binary / mnemonic
+    LOG(INFO) << instr.str() << " " << dsm.CompleteInstr;
 
     if (dsm.Instruction.BranchType == RetType) {
       break;
