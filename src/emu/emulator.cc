@@ -80,7 +80,7 @@ bool Emulator::Init() {
     return false;
   }
 
-  ResetState();
+  Reset();
 
   return true;
 }
@@ -173,7 +173,7 @@ bool Emulator::LoadFlash(const char *path) {
   return true;
 }
 
-void Emulator::ResetState() {
+void Emulator::Reset() {
   memset(ram_, 0, MAIN_RAM_M0_SIZE);
   memset(unassigned_, 0, UNASSIGNED_SIZE);
 }

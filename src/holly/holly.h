@@ -187,7 +187,7 @@ class Holly {
 
   void InitMemory();
 
-  void ResetState();
+  void Reset();
   void CH2DMATransfer();
   void SortDMATransfer();
   void ForwardRequestInterrupts();

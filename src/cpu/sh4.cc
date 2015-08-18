@@ -26,14 +26,14 @@ bool SH4::Init(Runtime *runtime) {
   scheduler_.AddDevice(this);
 
   InitMemory();
-  ResetState();
+  Reset();
   ReprioritizeInterrupts();
 
   return true;
 }
 
 void SH4::Reset(uint32_t pc) {
-  ResetState();
+  Reset();
 
   ctx_.pc = pc;
 }
@@ -305,7 +305,7 @@ void SH4::InitMemory() {
                  &SH4::WriteSQ<uint32_t>, nullptr);
 }
 
-void SH4::ResetState() {
+void SH4::Reset() {
   memset(&ctx_, 0, sizeof(ctx_));
   memset(area7_, 0, sizeof(area7_));
   memset(cache_, 0, sizeof(cache_));

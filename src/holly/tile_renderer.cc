@@ -96,7 +96,7 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
   const uint8_t *data = tactx->data;
   const uint8_t *end = tactx->data + tactx->size;
 
-  ResetState();
+  Reset();
 
   rb->GetFramebufferSize(FB_TILE_ACCELERATOR, &width_, &height_);
 
@@ -158,7 +158,7 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
                      sorted_surfs_);
 }
 
-void TileRenderer::ResetState() {
+void TileRenderer::Reset() {
   // reset global state
   last_poly_ = nullptr;
   last_vertex_ = nullptr;

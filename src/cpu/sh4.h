@@ -141,7 +141,7 @@ class SH4 : public emu::Device {
   static void WriteArea7(void *ctx, uint32_t addr, T value);
 
   void InitMemory();
-  void ResetState();
+  void Reset();
 
   // CCN
   void ResetInstructionCache();

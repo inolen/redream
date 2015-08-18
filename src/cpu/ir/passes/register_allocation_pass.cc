@@ -82,7 +82,7 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
   PROFILER_RUNTIME("RegisterAllocationPass::Run");
 
   for (auto block : builder.blocks()) {
-    ResetState();
+    Reset();
 
     AssignOrdinals(block);
 
@@ -135,7 +135,7 @@ RegisterSet &RegisterAllocationPass::GetRegisterSet(ValueTy type) {
   }
 }
 
-void RegisterAllocationPass::ResetState() {
+void RegisterAllocationPass::Reset() {
   int_registers_.Clear();
   float_registers_.Clear();
 

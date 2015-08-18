@@ -42,7 +42,7 @@ class TileRenderer {
   void RenderContext(const TileContext *tactx, renderer::Backend *rb);
 
  private:
-  void ResetState();
+  void Reset();
 
   renderer::Surface *AllocSurf();
   renderer::Vertex *AllocVert();

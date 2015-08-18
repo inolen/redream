@@ -226,7 +226,7 @@ class PVR2 {
   static void WriteRegister(void *ctx, uint32_t addr, T value);
 
   void InitMemory();
-  void ResetState();
+  void Reset();
   void ReconfigureVideoOutput();
   void ReconfigureSPG();
   void LineClockUpdate();

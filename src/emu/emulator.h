@@ -26,7 +26,7 @@ class Emulator {
   bool LoadBios(const char *path);
   bool LoadFlash(const char *path);
 
-  void ResetState();
+  void Reset();
   bool LaunchBIN(const char *path);
   bool LaunchGDI(const char *path);
   void PumpEvents();

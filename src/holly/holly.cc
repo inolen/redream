@@ -45,7 +45,7 @@ bool Holly::Init(renderer::Backend *rb) {
     return false;
   }
 
-  ResetState();
+  Reset();
 
   return true;
 }
@@ -226,7 +226,7 @@ void Holly::InitMemory() {
   memory_.Mount(EXPDEV_START, EXPDEV_END, MIRROR_MASK, expdev_mem_);
 }
 
-void Holly::ResetState() {
+void Holly::Reset() {
   memset(modem_mem_, 0, MODEM_REG_SIZE);
   memset(aica_mem_, 0, AICA_REG_SIZE);
   memset(audio_mem_, 0, AUDIO_RAM_SIZE);

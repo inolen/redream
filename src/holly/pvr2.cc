@@ -34,7 +34,7 @@ bool PVR2::Init(Backend *rb) {
     return false;
   }
 
-  ResetState();
+  Reset();
   ReconfigureVideoOutput();
   ReconfigureSPG();
 
@@ -153,7 +153,7 @@ void PVR2::InitMemory() {
   memory_.Mount(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK, pram_);
 }
 
-void PVR2::ResetState() {
+void PVR2::Reset() {
   memset(vram_, 0, PVR_VRAM32_SIZE);
   memset(pram_, 0, PVR_PALETTE_SIZE);
 

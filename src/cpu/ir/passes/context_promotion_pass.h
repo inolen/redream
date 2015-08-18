@@ -14,7 +14,7 @@ class ContextPromotionPass : public Pass {
   void Run(IRBuilder &builder);
 
  private:
-  void ResetState();
+  void Reset();
   void ProcessBlock(Block *block);
   void ClearAvailable();
   void ReserveAvailable(int offset);

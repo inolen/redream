@@ -8,14 +8,14 @@ using namespace dreavm::cpu::ir::passes;
 void ContextPromotionPass::Run(IRBuilder &builder) {
   PROFILER_RUNTIME("ContextPromotionPass::Run");
 
-  ResetState();
+  Reset();
 
   for (auto block : builder.blocks()) {
     ProcessBlock(block);
   }
 }
 
-void ContextPromotionPass::ResetState() { ClearAvailable(); }
+void ContextPromotionPass::Reset() { ClearAvailable(); }
 
 void ContextPromotionPass::ProcessBlock(Block *block) {
   // eliminate redundant loads
