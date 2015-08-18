@@ -184,6 +184,10 @@ class Holly {
   static T ReadRegister(void *ctx, uint32_t addr);
   template <typename T>
   static void WriteRegister(void *ctx, uint32_t addr, T value);
+  template <typename T>
+  static T ReadAudio(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteAudio(void *ctx, uint32_t addr, T value);
 
   void InitMemory();
 
@@ -200,7 +204,7 @@ class Holly {
   Register regs_[emu::HOLLY_REG_SIZE >> 2];
   uint8_t *modem_mem_;
   uint8_t *aica_mem_;
-  uint8_t *audio_mem_;
+  uint8_t *audio_ram_;
   uint8_t *expdev_mem_;
 
 #define HOLLY_REG(offset, name, flags, default, type) \

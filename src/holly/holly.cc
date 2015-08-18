@@ -19,14 +19,14 @@ Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4)
       maple_(memory, sh4, *this) {
   modem_mem_ = new uint8_t[MODEM_REG_SIZE];
   aica_mem_ = new uint8_t[AICA_REG_SIZE];
-  audio_mem_ = new uint8_t[AUDIO_RAM_SIZE];
+  audio_ram_ = new uint8_t[AUDIO_RAM_SIZE];
   expdev_mem_ = new uint8_t[EXPDEV_SIZE];
 }
 
 Holly::~Holly() {
   delete[] modem_mem_;
   delete[] aica_mem_;
-  delete[] audio_mem_;
+  delete[] audio_ram_;
   delete[] expdev_mem_;
 }
 
@@ -216,6 +216,30 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   }
 }
 
+template <typename T>
+T Holly::ReadAudio(void *ctx, uint32_t addr) {
+  Holly *holly = (Holly *)ctx;
+  return *reinterpret_cast<T *>(holly->audio_ram_[addr]);
+}
+
+template <>
+uint32_t Holly::ReadAudio(void *ctx, uint32_t addr) {
+  Holly *holly = (Holly *)ctx;
+
+  // FIXME temp hack for unsupported audio regs hanging in Crazy Taxi 2
+  if (addr == 0x5c) {
+    return 0x54494e49;
+  }
+
+  return *reinterpret_cast<uint32_t *>(&holly->audio_ram_[addr]);
+}
+
+template <typename T>
+void Holly::WriteAudio(void *ctx, uint32_t addr, T value) {
+  Holly *holly = (Holly *)ctx;
+  *reinterpret_cast<T *>(&holly->audio_ram_[addr]) = value;
+}
+
 }
 }
 
@@ -228,15 +252,22 @@ void Holly::InitMemory() {
                  &Holly::WriteRegister<uint32_t>, nullptr);
   memory_.Mount(MODEM_REG_START, MODEM_REG_END, MIRROR_MASK, modem_mem_);
   memory_.Mount(AICA_REG_START, AICA_REG_END, MIRROR_MASK, aica_mem_);
-  memory_.Mount(AUDIO_RAM_START, AUDIO_RAM_END, MIRROR_MASK, audio_mem_);
+  memory_.Handle(AUDIO_RAM_START, AUDIO_RAM_END, MIRROR_MASK, this,
+                 &Holly::ReadAudio<uint8_t>, &Holly::ReadAudio<uint16_t>,
+                 &Holly::ReadAudio<uint32_t>, nullptr,
+                 &Holly::WriteAudio<uint8_t>, &Holly::WriteAudio<uint16_t>,
+                 &Holly::WriteAudio<uint32_t>, nullptr);
   memory_.Mount(EXPDEV_START, EXPDEV_END, MIRROR_MASK, expdev_mem_);
 }
 
 void Holly::Reset() {
   memset(modem_mem_, 0, MODEM_REG_SIZE);
   memset(aica_mem_, 0, AICA_REG_SIZE);
-  memset(audio_mem_, 0, AUDIO_RAM_SIZE);
+  memset(audio_ram_, 0, AUDIO_RAM_SIZE);
   memset(expdev_mem_, 0, EXPDEV_SIZE);
+
+  // FIXME temp hack for unsupported audio regs hanging in Crazy Taxi
+  *reinterpret_cast<uint32_t *>(&audio_ram_[0x5c]) = 0x54494e49;
 
 // initialize registers
 #define HOLLY_REG(addr, name, flags, default, type) \

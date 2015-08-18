@@ -298,11 +298,6 @@ class Memory {
 
   template <typename INT, INT (*MemoryBank::*HANDLER)(void *, uint32_t)>
   inline INT ReadBytes(uint32_t addr) {
-    // FIXME temp hack for unsupported audio regs hanging in Crazy Taxi
-    if ((addr & 0x1fffffff) == 0x0080005c) {
-      return static_cast<INT>(0x54494e49);
-    }
-
     TableHandle handle = table_.Lookup(addr);
     MemoryBank &bank = banks_[handle];
     uint32_t offset = (addr - bank.logical_addr) & bank.mirror_mask;
