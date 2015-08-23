@@ -465,8 +465,13 @@ GLAPI void APIENTRY glBlendEquation (GLenum mode);
 #ifndef GL_VERSION_1_5
 #define GL_VERSION_1_5 1
 #include <stddef.h>
+#ifdef __MACOSX__
+typedef long GLsizeiptr;
+typedef long GLintptr;
+#else
 typedef ptrdiff_t GLsizeiptr;
 typedef ptrdiff_t GLintptr;
+#endif
 #define GL_BUFFER_SIZE                    0x8764
 #define GL_BUFFER_USAGE                   0x8765
 #define GL_QUERY_COUNTER_BITS             0x8864
@@ -2982,6 +2987,11 @@ GLAPI GLboolean APIENTRY glIsProgramARB (GLuint program);
 #ifndef GL_ARB_framebuffer_sRGB
 #define GL_ARB_framebuffer_sRGB 1
 #endif /* GL_ARB_framebuffer_sRGB */
+
+#ifndef GL_KHR_context_flush_control
+#define GL_CONTEXT_RELEASE_BEHAVIOR       0x82FB
+#define GL_CONTEXT_RELEASE_BEHAVIOR_FLUSH 0x82FC
+#endif /* GL_KHR_context_flush_control */
 
 #ifndef GL_ARB_geometry_shader4
 #define GL_ARB_geometry_shader4 1

@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -22,14 +22,15 @@
 
 #include "SDL_error.h"
 #include "SDL_haptic.h"
+#include "../SDL_syshaptic.h"
+
+#if SDL_HAPTIC_DINPUT
+
+#include "SDL_stdinc.h"
 #include "SDL_timer.h"
 #include "SDL_windowshaptic_c.h"
 #include "SDL_dinputhaptic_c.h"
-#include "../SDL_syshaptic.h"
 #include "../../joystick/windows/SDL_windowsjoystick_c.h"
-
-
-#if SDL_HAPTIC_DINPUT
 
 /*
  * External stuff.
@@ -602,7 +603,10 @@ SDL_SYS_SetDirection(DIEFFECT * effect, SDL_HapticDirection * dir, int naxes)
     }
 }
 
-#define CONVERT(x)   (((x) > 0x7FFF) ? 10000 : ((x)*10000) / 0x7FFF)
+/* Clamps and converts. */
+#define CCONVERT(x)   (((x) > 0x7FFF) ? 10000 : ((x)*10000) / 0x7FFF)
+/* Just converts. */
+#define CONVERT(x)    (((x)*10000) / 0x7FFF)
 /*
  * Creates the DIEFFECT from a SDL_HapticEffect.
  */
@@ -689,9 +693,9 @@ SDL_SYS_ToDIEFFECT(SDL_Haptic * haptic, DIEFFECT * dest,
             SDL_free(dest->lpEnvelope);
             dest->lpEnvelope = NULL;
         } else {
-            envelope->dwAttackLevel = CONVERT(hap_constant->attack_level);
+            envelope->dwAttackLevel = CCONVERT(hap_constant->attack_level);
             envelope->dwAttackTime = hap_constant->attack_length * 1000;
-            envelope->dwFadeLevel = CONVERT(hap_constant->fade_level);
+            envelope->dwFadeLevel = CCONVERT(hap_constant->fade_level);
             envelope->dwFadeTime = hap_constant->fade_length * 1000;
         }
 
@@ -711,9 +715,10 @@ SDL_SYS_ToDIEFFECT(SDL_Haptic * haptic, DIEFFECT * dest,
         SDL_memset(periodic, 0, sizeof(DIPERIODIC));
 
         /* Specifics */
-        periodic->dwMagnitude = CONVERT(hap_periodic->magnitude);
+        periodic->dwMagnitude = CONVERT(SDL_abs(hap_periodic->magnitude));
         periodic->lOffset = CONVERT(hap_periodic->offset);
-        periodic->dwPhase = hap_periodic->phase;
+        periodic->dwPhase = 
+                (hap_periodic->phase + (hap_periodic->magnitude < 0 ? 18000 : 0)) % 36000;
         periodic->dwPeriod = hap_periodic->period * 1000;
         dest->cbTypeSpecificParams = sizeof(DIPERIODIC);
         dest->lpvTypeSpecificParams = periodic;
@@ -736,9 +741,9 @@ SDL_SYS_ToDIEFFECT(SDL_Haptic * haptic, DIEFFECT * dest,
             SDL_free(dest->lpEnvelope);
             dest->lpEnvelope = NULL;
         } else {
-            envelope->dwAttackLevel = CONVERT(hap_periodic->attack_level);
+            envelope->dwAttackLevel = CCONVERT(hap_periodic->attack_level);
             envelope->dwAttackTime = hap_periodic->attack_length * 1000;
-            envelope->dwFadeLevel = CONVERT(hap_periodic->fade_level);
+            envelope->dwFadeLevel = CCONVERT(hap_periodic->fade_level);
             envelope->dwFadeTime = hap_periodic->fade_length * 1000;
         }
 
@@ -763,10 +768,10 @@ SDL_SYS_ToDIEFFECT(SDL_Haptic * haptic, DIEFFECT * dest,
             condition[i].lNegativeCoefficient =
                 CONVERT(hap_condition->left_coeff[i]);
             condition[i].dwPositiveSaturation =
-                CONVERT(hap_condition->right_sat[i]);
+                CCONVERT(hap_condition->right_sat[i] / 2);
             condition[i].dwNegativeSaturation =
-                CONVERT(hap_condition->left_sat[i]);
-            condition[i].lDeadBand = CONVERT(hap_condition->deadband[i]);
+                CCONVERT(hap_condition->left_sat[i] / 2);
+            condition[i].lDeadBand = CCONVERT(hap_condition->deadband[i] / 2);
         }
         dest->cbTypeSpecificParams = sizeof(DICONDITION) * dest->cAxes;
         dest->lpvTypeSpecificParams = condition;
@@ -819,9 +824,9 @@ SDL_SYS_ToDIEFFECT(SDL_Haptic * haptic, DIEFFECT * dest,
             SDL_free(dest->lpEnvelope);
             dest->lpEnvelope = NULL;
         } else {
-            envelope->dwAttackLevel = CONVERT(hap_ramp->attack_level);
+            envelope->dwAttackLevel = CCONVERT(hap_ramp->attack_level);
             envelope->dwAttackTime = hap_ramp->attack_length * 1000;
-            envelope->dwFadeLevel = CONVERT(hap_ramp->fade_level);
+            envelope->dwFadeLevel = CCONVERT(hap_ramp->fade_level);
             envelope->dwFadeTime = hap_ramp->fade_length * 1000;
         }
 
@@ -842,7 +847,7 @@ SDL_SYS_ToDIEFFECT(SDL_Haptic * haptic, DIEFFECT * dest,
         custom->rglForceData =
             SDL_malloc(sizeof(LONG) * custom->cSamples * custom->cChannels);
         for (i = 0; i < hap_custom->samples * hap_custom->channels; i++) {      /* Copy data. */
-            custom->rglForceData[i] = CONVERT(hap_custom->data[i]);
+            custom->rglForceData[i] = CCONVERT(hap_custom->data[i]);
         }
         dest->cbTypeSpecificParams = sizeof(DICUSTOMFORCE);
         dest->lpvTypeSpecificParams = custom;
@@ -864,9 +869,9 @@ SDL_SYS_ToDIEFFECT(SDL_Haptic * haptic, DIEFFECT * dest,
             SDL_free(dest->lpEnvelope);
             dest->lpEnvelope = NULL;
         } else {
-            envelope->dwAttackLevel = CONVERT(hap_custom->attack_level);
+            envelope->dwAttackLevel = CCONVERT(hap_custom->attack_level);
             envelope->dwAttackTime = hap_custom->attack_length * 1000;
-            envelope->dwFadeLevel = CONVERT(hap_custom->fade_level);
+            envelope->dwFadeLevel = CCONVERT(hap_custom->fade_level);
             envelope->dwFadeTime = hap_custom->fade_length * 1000;
         }
 
@@ -1176,6 +1181,8 @@ SDL_DINPUT_HapticStopAll(SDL_Haptic * haptic)
 
 #else /* !SDL_HAPTIC_DINPUT */
 
+typedef struct DIDEVICEINSTANCE DIDEVICEINSTANCE;
+typedef struct SDL_hapticlist_item SDL_hapticlist_item;
 
 int
 SDL_DINPUT_HapticInit(void)

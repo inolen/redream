@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2012 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -173,10 +173,8 @@ typedef unsigned int uintptr_t;
 #define SDL_VIDEO_DRIVER_DUMMY  1
 
 /* Enable OpenGL ES 2.0 (via a modified ANGLE library) */
-#if WINAPI_FAMILY != WINAPI_FAMILY_PHONE_APP    /* TODO, WinRT: try adding OpenGL ES 2 support for Windows Phone 8 */
 #define SDL_VIDEO_OPENGL_ES2 1
 #define SDL_VIDEO_OPENGL_EGL 1
-#endif
 
 /* Enable appropriate renderer(s) */
 #define SDL_VIDEO_RENDER_D3D11  1

@@ -12,7 +12,7 @@ Simple DirectMedia Layer is a cross-platform development library designed
 to provide low level access to audio, keyboard, mouse, joystick, and graphics
 hardware via OpenGL and Direct3D. It is used by video playback software,
 emulators, and popular games including Valve's award winning catalog
-and many Humble Bundle games. 42
+and many Humble Bundle games.
 
 SDL officially supports Windows, Mac OS X, Linux, iOS, and Android.
 Support for other platforms may be found in the source code.
@@ -33,6 +33,7 @@ More documentation and FAQs are available online at [the wiki](http://wiki.libsd
 - [CMake](README-cmake.md)
 - [DirectFB](README-directfb.md)
 - [DynAPI](README-dynapi.md)
+- [Emscripten](README-emscripten.md)
 - [Gesture](README-gesture.md)
 - [Mercurial](README-hg.md)
 - [iOS](README-ios.md)

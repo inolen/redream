@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -126,7 +126,7 @@ create_buffer_from_shm(Wayland_CursorData *d,
                        MAP_SHARED,
                        shm_fd,
                        0);
-    if (data == MAP_FAILED) {
+    if (d->shm_data == MAP_FAILED) {
         d->shm_data = NULL;
         fprintf (stderr, "mmap () failed\n");
         close (shm_fd);
@@ -347,17 +347,16 @@ Wayland_WarpMouse(SDL_Window *window, int x, int y)
     SDL_Unsupported();
 }
 
-static void
+static int
 Wayland_WarpMouseGlobal(int x, int y)
 {
-    SDL_Unsupported();
+    return SDL_Unsupported();
 }
 
 static int
 Wayland_SetRelativeMouseMode(SDL_bool enabled)
 {
-    SDL_Unsupported();
-    return -1;
+    return SDL_Unsupported();
 }
 
 void

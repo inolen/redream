@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -66,8 +66,8 @@
 
 static SDL_Cursor *
 Cocoa_CreateDefaultCursor()
+{ @autoreleasepool
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     NSCursor *nscursor;
     SDL_Cursor *cursor = NULL;
 
@@ -81,15 +81,13 @@ Cocoa_CreateDefaultCursor()
         }
     }
 
-    [pool release];
-
     return cursor;
-}
+}}
 
 static SDL_Cursor *
 Cocoa_CreateCursor(SDL_Surface * surface, int hot_x, int hot_y)
+{ @autoreleasepool
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     NSImage *nsimage;
     NSCursor *nscursor = NULL;
     SDL_Cursor *cursor = NULL;
@@ -108,15 +106,13 @@ Cocoa_CreateCursor(SDL_Surface * surface, int hot_x, int hot_y)
         }
     }
 
-    [pool release];
-
     return cursor;
-}
+}}
 
 static SDL_Cursor *
 Cocoa_CreateSystemCursor(SDL_SystemCursor id)
+{ @autoreleasepool
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     NSCursor *nscursor = NULL;
     SDL_Cursor *cursor = NULL;
 
@@ -169,28 +165,23 @@ Cocoa_CreateSystemCursor(SDL_SystemCursor id)
         }
     }
 
-    [pool release];
-
     return cursor;
-}
+}}
 
 static void
 Cocoa_FreeCursor(SDL_Cursor * cursor)
+{ @autoreleasepool
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     NSCursor *nscursor = (NSCursor *)cursor->driverdata;
 
     [nscursor release];
     SDL_free(cursor);
-
-    [pool release];
-}
+}}
 
 static int
 Cocoa_ShowCursor(SDL_Cursor * cursor)
+{ @autoreleasepool
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-
     SDL_VideoDevice *device = SDL_GetVideoDevice();
     SDL_Window *window = (device ? device->windows : NULL);
     for (; window != NULL; window = window->next) {
@@ -201,8 +192,59 @@ Cocoa_ShowCursor(SDL_Cursor * cursor)
                                                 waitUntilDone:NO];
         }
     }
+    return 0;
+}}
 
-    [pool release];
+static SDL_Window *
+SDL_FindWindowAtPoint(const int x, const int y)
+{
+    const SDL_Point pt = { x, y };
+    SDL_Window *i;
+    for (i = SDL_GetVideoDevice()->windows; i; i = i->next) {
+        const SDL_Rect r = { i->x, i->y, i->w, i->h };
+        if (SDL_PointInRect(&pt, &r)) {
+            return i;
+        }
+    }
+
+    return NULL;
+}
+
+static int
+Cocoa_WarpMouseGlobal(int x, int y)
+{
+    SDL_Mouse *mouse = SDL_GetMouse();
+    if (mouse->focus) {
+        SDL_WindowData *data = (SDL_WindowData *) mouse->focus->driverdata;
+        if ([data->listener isMoving]) {
+            DLog("Postponing warp, window being moved.");
+            [data->listener setPendingMoveX:x Y:y];
+            return 0;
+        }
+    }
+    const CGPoint point = CGPointMake((float)x, (float)y);
+
+    Cocoa_HandleMouseWarp(point.x, point.y);
+
+    /* According to the docs, this was deprecated in 10.6, but it's still
+     * around. The substitute requires a CGEventSource, but I'm not entirely
+     * sure how we'd procure the right one for this event.
+     */
+    CGSetLocalEventsSuppressionInterval(0.0);
+    CGWarpMouseCursorPosition(point);
+    CGSetLocalEventsSuppressionInterval(0.25);
+
+    /* CGWarpMouseCursorPosition doesn't generate a window event, unlike our
+     * other implementations' APIs. Send what's appropriate.
+     */
+    if (!mouse->relative_mode) {
+        SDL_Window *win = SDL_FindWindowAtPoint(x, y);
+        SDL_SetMouseFocus(win);
+        if (win) {
+            SDL_assert(win == mouse->focus);
+            SDL_SendMouseMotion(win, mouse->mouseID, 0, x - win->x, y - win->y);
+        }
+    }
 
     return 0;
 }
@@ -210,57 +252,7 @@ Cocoa_ShowCursor(SDL_Cursor * cursor)
 static void
 Cocoa_WarpMouse(SDL_Window * window, int x, int y)
 {
-    SDL_WindowData *data = (SDL_WindowData *) window->driverdata;
-    if ([data->listener isMoving]) {
-        DLog("Postponing warp, window being moved.");
-        [data->listener setPendingMoveX:x
-                                      Y:y];
-        return;
-    }
-
-    SDL_Mouse *mouse = SDL_GetMouse();
-    CGPoint point = CGPointMake(x + (float)window->x, y + (float)window->y);
-
-    Cocoa_HandleMouseWarp(point.x, point.y);
-
-    /* According to the docs, this was deprecated in 10.6, but it's still
-     * around. The substitute requires a CGEventSource, but I'm not entirely
-     * sure how we'd procure the right one for this event.
-     */
-    CGSetLocalEventsSuppressionInterval(0.0);
-    CGWarpMouseCursorPosition(point);
-    CGSetLocalEventsSuppressionInterval(0.25);
-
-    if (!mouse->relative_mode) {
-        /* CGWarpMouseCursorPosition doesn't generate a window event, unlike our
-         * other implementations' APIs.
-         */
-        SDL_SendMouseMotion(mouse->focus, mouse->mouseID, 0, x, y);
-    }
-}
-
-static void
-Cocoa_WarpMouseGlobal(int x, int y)
-{
-    SDL_Mouse *mouse = SDL_GetMouse();
-    CGPoint point = CGPointMake((float)x, (float)y);
-
-    Cocoa_HandleMouseWarp(point.x, point.y);
-
-    /* According to the docs, this was deprecated in 10.6, but it's still
-     * around. The substitute requires a CGEventSource, but I'm not entirely
-     * sure how we'd procure the right one for this event.
-     */
-    CGSetLocalEventsSuppressionInterval(0.0);
-    CGWarpMouseCursorPosition(point);
-    CGSetLocalEventsSuppressionInterval(0.25);
-
-    if (!mouse->relative_mode && mouse->focus) {
-        /* CGWarpMouseCursorPosition doesn't generate a window event, unlike our
-         * other implementations' APIs.
-         */
-        SDL_SendMouseMotion(mouse->focus, mouse->mouseID, 0, x - mouse->focus->x, y - mouse->focus->y);
-    }
+    Cocoa_WarpMouseGlobal(x + window->x, y + window->y);
 }
 
 static int
@@ -429,6 +421,13 @@ Cocoa_HandleMouseWheel(SDL_Window *window, NSEvent *event)
 
     float x = -[event deltaX];
     float y = [event deltaY];
+    SDL_MouseWheelDirection direction = SDL_MOUSEWHEEL_NORMAL;
+
+    if ([event respondsToSelector:@selector(isDirectionInvertedFromDevice)]) {
+        if ([event isDirectionInvertedFromDevice] == YES) {
+            direction = SDL_MOUSEWHEEL_FLIPPED;
+        }
+    }
 
     if (x > 0) {
         x += 0.9f;
@@ -440,7 +439,7 @@ Cocoa_HandleMouseWheel(SDL_Window *window, NSEvent *event)
     } else if (y < 0) {
         y -= 0.9f;
     }
-    SDL_SendMouseWheel(window, mouse->mouseID, (int)x, (int)y);
+    SDL_SendMouseWheel(window, mouse->mouseID, (int)x, (int)y, direction);
 }
 
 void

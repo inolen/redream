@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -33,6 +33,7 @@
  Also, note the bundle layouts are different for iPhone and Mac.
 */
 FILE* SDL_OpenFPFromBundleOrFallback(const char *file, const char *mode)
+{ @autoreleasepool
 {
     FILE* fp = NULL;
 
@@ -40,9 +41,6 @@ FILE* SDL_OpenFPFromBundleOrFallback(const char *file, const char *mode)
     if(strcmp("r", mode) && strcmp("rb", mode)) {
         return fopen(file, mode);
     }
-
-    NSAutoreleasePool* autorelease_pool = [[NSAutoreleasePool alloc] init];
-
 
     NSFileManager* file_manager = [NSFileManager defaultManager];
     NSString* resource_path = [[NSBundle mainBundle] resourcePath];
@@ -52,16 +50,13 @@ FILE* SDL_OpenFPFromBundleOrFallback(const char *file, const char *mode)
     NSString* full_path_with_file_to_try = [resource_path stringByAppendingPathComponent:ns_string_file_component];
     if([file_manager fileExistsAtPath:full_path_with_file_to_try]) {
         fp = fopen([full_path_with_file_to_try fileSystemRepresentation], mode);
-    }
-    else {
+    } else {
         fp = fopen(file, mode);
     }
 
-    [autorelease_pool drain];
-
     return fp;
-}
+}}
 
-#endif /* __MACOSX__ */
+#endif /* __APPLE__ */
 
 /* vi: set ts=4 sw=4 expandtab: */

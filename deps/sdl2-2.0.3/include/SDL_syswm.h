@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -98,6 +98,7 @@ typedef struct _NSWindow NSWindow;
 typedef struct _UIWindow UIWindow;
 typedef struct _UIViewController UIViewController;
 #endif
+typedef Uint32 GLuint;
 #endif
 
 #if defined(SDL_VIDEO_DRIVER_ANDROID)
@@ -152,12 +153,17 @@ struct SDL_SysWMmsg
 #if defined(SDL_VIDEO_DRIVER_COCOA)
         struct
         {
+            /* Latest version of Xcode clang complains about empty structs in C v. C++:
+                 error: empty struct has size 0 in C, size 1 in C++
+             */
+            int dummy;
             /* No Cocoa window events yet */
         } cocoa;
 #endif
 #if defined(SDL_VIDEO_DRIVER_UIKIT)
         struct
         {
+            int dummy;
             /* No UIKit window events yet */
         } uikit;
 #endif
@@ -182,6 +188,7 @@ struct SDL_SysWMinfo
         struct
         {
             HWND window;                /**< The window handle */
+            HDC hdc;                    /**< The window device context */
         } win;
 #endif
 #if defined(SDL_VIDEO_DRIVER_WINRT)
@@ -208,7 +215,7 @@ struct SDL_SysWMinfo
 #if defined(SDL_VIDEO_DRIVER_COCOA)
         struct
         {
-#if defined(__OBJC__) && __has_feature(objc_arc)
+#if defined(__OBJC__) && defined(__has_feature) && __has_feature(objc_arc)
             NSWindow __unsafe_unretained *window; /* The Cocoa window */
 #else
             NSWindow *window;                     /* The Cocoa window */
@@ -218,11 +225,14 @@ struct SDL_SysWMinfo
 #if defined(SDL_VIDEO_DRIVER_UIKIT)
         struct
         {
-#if defined(__OBJC__) && __has_feature(objc_arc)
+#if defined(__OBJC__) && defined(__has_feature) && __has_feature(objc_arc)
             UIWindow __unsafe_unretained *window; /* The UIKit window */
 #else
             UIWindow *window;                     /* The UIKit window */
 #endif
+            GLuint framebuffer; /* The GL view's Framebuffer Object. It must be bound when rendering to the screen using GL. */
+            GLuint colorbuffer; /* The GL view's color Renderbuffer Object. It must be bound when SDL_GL_SwapWindow is called. */
+            GLuint resolveFramebuffer; /* The Framebuffer Object which holds the resolve color Renderbuffer, when MSAA is used. */
         } uikit;
 #endif
 #if defined(SDL_VIDEO_DRIVER_WAYLAND)

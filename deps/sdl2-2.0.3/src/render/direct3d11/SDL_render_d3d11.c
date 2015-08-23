@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -829,9 +829,24 @@ D3D11_CreateRenderer(SDL_Window * window, Uint32 flags)
     renderer->info.flags = (SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
     renderer->driverdata = data;
 
+#if WINAPI_FAMILY == WINAPI_FAMILY_PHONE_APP
+    /* VSync is required in Windows Phone, at least for Win Phone 8.0 and 8.1.
+     * Failure to use it seems to either result in:
+     *
+     *  - with the D3D11 debug runtime turned OFF, vsync seemingly gets turned
+     *    off (framerate doesn't get capped), but nothing appears on-screen
+     *
+     *  - with the D3D11 debug runtime turned ON, vsync gets automatically
+     *    turned back on, and the following gets output to the debug console:
+     *    
+     *    DXGI ERROR: IDXGISwapChain::Present: Interval 0 is not supported, changed to Interval 1. [ UNKNOWN ERROR #1024: ] 
+     */
+    renderer->info.flags |= SDL_RENDERER_PRESENTVSYNC;
+#else
     if ((flags & SDL_RENDERER_PRESENTVSYNC)) {
         renderer->info.flags |= SDL_RENDERER_PRESENTVSYNC;
     }
+#endif
 
     /* HACK: make sure the SDL_Renderer references the SDL_Window data now, in
      * order to give init functions access to the underlying window handle:
@@ -1330,15 +1345,33 @@ D3D11_IsDisplayRotated90Degrees(DXGI_MODE_ROTATION rotation)
 }
 
 static int
-D3D11_GetViewportAlignedD3DRect(SDL_Renderer * renderer, const SDL_Rect * sdlRect, D3D11_RECT * outRect)
+D3D11_GetRotationForCurrentRenderTarget(SDL_Renderer * renderer)
+{
+    D3D11_RenderData *data = (D3D11_RenderData *)renderer->driverdata;
+    if (data->currentOffscreenRenderTargetView) {
+        return DXGI_MODE_ROTATION_IDENTITY;
+    } else {
+        return data->rotation;
+    }
+}
+
+static int
+D3D11_GetViewportAlignedD3DRect(SDL_Renderer * renderer, const SDL_Rect * sdlRect, D3D11_RECT * outRect, BOOL includeViewportOffset)
 {
     D3D11_RenderData *data = (D3D11_RenderData *) renderer->driverdata;
-    switch (data->rotation) {
+    const int rotation = D3D11_GetRotationForCurrentRenderTarget(renderer);
+    switch (rotation) {
         case DXGI_MODE_ROTATION_IDENTITY:
             outRect->left = sdlRect->x;
             outRect->right = sdlRect->x + sdlRect->w;
             outRect->top = sdlRect->y;
             outRect->bottom = sdlRect->y + sdlRect->h;
+            if (includeViewportOffset) {
+                outRect->left += renderer->viewport.x;
+                outRect->right += renderer->viewport.x;
+                outRect->top += renderer->viewport.y;
+                outRect->bottom += renderer->viewport.y;
+            }
             break;
         case DXGI_MODE_ROTATION_ROTATE270:
             outRect->left = sdlRect->y;
@@ -2151,6 +2184,7 @@ D3D11_UpdateViewport(SDL_Renderer * renderer)
     SDL_FRect orientationAlignedViewport;
     BOOL swapDimensions;
     D3D11_VIEWPORT viewport;
+    const int rotation = D3D11_GetRotationForCurrentRenderTarget(renderer);
 
     if (renderer->viewport.w == 0 || renderer->viewport.h == 0) {
         /* If the viewport is empty, assume that it is because
@@ -2166,7 +2200,7 @@ D3D11_UpdateViewport(SDL_Renderer * renderer)
      * default coordinate system) so rotations will be done in the opposite
      * direction of the DXGI_MODE_ROTATION enumeration.
      */
-    switch (data->rotation) {
+    switch (rotation) {
         case DXGI_MODE_ROTATION_IDENTITY:
             projection = MatrixIdentity();
             break;
@@ -2217,7 +2251,7 @@ D3D11_UpdateViewport(SDL_Renderer * renderer)
      * a landscape mode, for all Windows 8/RT devices, or a portrait mode,
      * for Windows Phone devices.
      */
-    swapDimensions = D3D11_IsDisplayRotated90Degrees(data->rotation);
+    swapDimensions = D3D11_IsDisplayRotated90Degrees(rotation);
     if (swapDimensions) {
         orientationAlignedViewport.x = (float) renderer->viewport.y;
         orientationAlignedViewport.y = (float) renderer->viewport.x;
@@ -2252,7 +2286,7 @@ D3D11_UpdateClipRect(SDL_Renderer * renderer)
         ID3D11DeviceContext_RSSetScissorRects(data->d3dContext, 0, NULL);
     } else {
         D3D11_RECT scissorRect;
-        if (D3D11_GetViewportAlignedD3DRect(renderer, &renderer->clip_rect, &scissorRect) != 0) {
+        if (D3D11_GetViewportAlignedD3DRect(renderer, &renderer->clip_rect, &scissorRect, TRUE) != 0) {
             /* D3D11_GetViewportAlignedD3DRect will have set the SDL error */
             return -1;
         }
@@ -2841,7 +2875,7 @@ D3D11_RenderReadPixels(SDL_Renderer * renderer, const SDL_Rect * rect,
     }
 
     /* Copy the desired portion of the back buffer to the staging texture: */
-    if (D3D11_GetViewportAlignedD3DRect(renderer, rect, &srcRect) != 0) {
+    if (D3D11_GetViewportAlignedD3DRect(renderer, rect, &srcRect, FALSE) != 0) {
         /* D3D11_GetViewportAlignedD3DRect will have set the SDL error */
         goto done;
     }
@@ -2888,7 +2922,7 @@ D3D11_RenderReadPixels(SDL_Renderer * renderer, const SDL_Rect * rect,
          */
         char errorMessage[1024];
         SDL_snprintf(errorMessage, sizeof(errorMessage), __FUNCTION__ ", Convert Pixels failed: %s", SDL_GetError());
-        SDL_SetError(errorMessage);
+        SDL_SetError("%s", errorMessage);
         goto done;
     }
 

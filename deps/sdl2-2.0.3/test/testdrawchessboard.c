@@ -1,5 +1,5 @@
 /*
-   Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+   Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
    This software is provided 'as-is', without any express or implied
    warranty.  In no event will the authors be held liable for any damages
@@ -17,22 +17,30 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 #include "SDL.h"
+
+SDL_Window *window;
+SDL_Renderer *renderer;
+int done;
 
 void
 DrawChessBoard(SDL_Renderer * renderer)
 {
-	int row = 0,coloum = 0,x = 0;
+	int row = 0,column = 0,x = 0;
 	SDL_Rect rect, darea;
 
 	/* Get the Size of drawing surface */
 	SDL_RenderGetViewport(renderer, &darea);
 
-	for(row; row < 8; row++)
+	for( ; row < 8; row++)
 	{
-		coloum = row%2;
-		x = x + coloum;
-		for(coloum; coloum < 4+(row%2); coloum++)
+		column = row%2;
+		x = column;
+		for( ; column < 4+(row%2); column++)
 		{
 			SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
 
@@ -43,16 +51,42 @@ DrawChessBoard(SDL_Renderer * renderer)
 			x = x + 2;
 			SDL_RenderFillRect(renderer, &rect);
 		}
-		x=0;
 	}
+}
+
+void
+loop()
+{
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+		if (e.type == SDL_QUIT) {
+			done = 1;
+#ifdef __EMSCRIPTEN__
+			emscripten_cancel_main_loop();
+#endif
+			return;
+		}
+
+		if ((e.type == SDL_KEYDOWN) && (e.key.keysym.sym == SDLK_ESCAPE)) {
+			done = 1;
+#ifdef __EMSCRIPTEN__
+			emscripten_cancel_main_loop();
+#endif
+			return;
+		}
+	}
+	
+	DrawChessBoard(renderer);
+	
+	/* Got everything on rendering surface,
+	   now Update the drawing image on window screen */
+	SDL_UpdateWindowSurface(window);
 }
 
 int
 main(int argc, char *argv[])
 {
-	SDL_Window *window;
 	SDL_Surface *surface;
-	SDL_Renderer *renderer;
 
     /* Enable standard application logging */
     SDL_LogSetPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO);
@@ -86,25 +120,16 @@ main(int argc, char *argv[])
 
 
 	/* Draw the Image on rendering surface */
-	while(1)
-	{
-		SDL_Event e;
-		if (SDL_PollEvent(&e)) {
-			if (e.type == SDL_QUIT) 
-				break;
-
-			if(e.key.keysym.sym == SDLK_ESCAPE)
-				break;
-		}
-		
-		DrawChessBoard(renderer);
-		
-		/* Got everything on rendering surface,
- 		   now Update the drawing image on window screen */
-		SDL_UpdateWindowSurface(window);
-
+	done = 0;
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop(loop, 0, 1);
+#else
+    while (!done) {
+        loop();
 	}
+#endif
 
+    SDL_Quit();
 	return 0;
 }
 

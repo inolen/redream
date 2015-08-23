@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -113,7 +113,7 @@
 #define SDL_AUDIO_DRIVER_DUMMY  1
 
 /* Enable the stub haptic driver (src/haptic/dummy/\*.c) */
-#define SDL_HAPTIC_DISABLED 1
+#define SDL_HAPTIC_DUMMY 1
 
 /* Enable Unix style SO loading */
 /* Technically this works, but it violates the iPhone developer agreement */
@@ -144,6 +144,9 @@
 
 /* enable iPhone keyboard support */
 #define SDL_IPHONE_KEYBOARD 1
+
+/* enable iOS extended launch screen */
+#define SDL_IPHONE_LAUNCHSCREEN 1
 
 /* enable joystick subsystem */
 #define SDL_JOYSTICK_DISABLED 0

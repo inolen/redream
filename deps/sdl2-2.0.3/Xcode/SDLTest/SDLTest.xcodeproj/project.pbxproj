@@ -555,6 +555,65 @@
 		DB89957918A19ABA0092407C /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002A873910730675007319AE /* Carbon.framework */; };
 		DB89957A18A19ABA0092407C /* libSDL2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 003FA645093FFD41000C53B3 /* libSDL2.a */; };
 		DB89958418A19B130092407C /* testhotplug.c in Sources */ = {isa = PBXBuildFile; fileRef = DB89958318A19B130092407C /* testhotplug.c */; };
+		DBEC54DD1A1A81C3005B1EAB /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		DBEC54DE1A1A81C3005B1EAB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002F33A709CA188600EBEB88 /* Cocoa.framework */; };
+		DBEC54DF1A1A81C3005B1EAB /* libSDL2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 003FA645093FFD41000C53B3 /* libSDL2.a */; };
+		DBEC54E01A1A81C3005B1EAB /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002A863B10730545007319AE /* CoreAudio.framework */; };
+		DBEC54E11A1A81C3005B1EAB /* ForceFeedback.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002A863C10730545007319AE /* ForceFeedback.framework */; };
+		DBEC54E21A1A81C3005B1EAB /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002A863D10730545007319AE /* IOKit.framework */; };
+		DBEC54E31A1A81C3005B1EAB /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002A869F10730593007319AE /* AudioToolbox.framework */; };
+		DBEC54E41A1A81C3005B1EAB /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002A86A010730593007319AE /* CoreFoundation.framework */; };
+		DBEC54E51A1A81C3005B1EAB /* AudioUnit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002A871410730623007319AE /* AudioUnit.framework */; };
+		DBEC54E61A1A81C3005B1EAB /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002A873910730675007319AE /* Carbon.framework */; };
+		DBEC54EB1A1A8205005B1EAB /* controllermap.c in Sources */ = {isa = PBXBuildFile; fileRef = DBEC54D11A1A811D005B1EAB /* controllermap.c */; };
+		DBEC54ED1A1A828A005B1EAB /* axis.bmp in CopyFiles */ = {isa = PBXBuildFile; fileRef = DBEC54D61A1A8145005B1EAB /* axis.bmp */; };
+		DBEC54EE1A1A828D005B1EAB /* button.bmp in CopyFiles */ = {isa = PBXBuildFile; fileRef = DBEC54D71A1A8145005B1EAB /* button.bmp */; };
+		DBEC54EF1A1A828F005B1EAB /* controllermap.bmp in CopyFiles */ = {isa = PBXBuildFile; fileRef = DBEC54D81A1A8145005B1EAB /* controllermap.bmp */; };
+		FA73672319A54A90004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73672819A54AB6004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73672919A54AB9004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73672A19A54AC0004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73672B19A54AC2004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73672C19A54AC5004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73672D19A54AC7004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73672E19A54ACA004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73672F19A54ACC004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673019A54AD0004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673119A54AD3004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673219A54AD5004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673319A54AD8004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673419A54ADB004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673519A54ADE004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673619A54AE1004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673719A54AE3004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673819A54AE6004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673919A54AE8004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673A19A54AEB004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673B19A54AED004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673C19A54AF0004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673D19A54AF3004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673E19A54AF6004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73673F19A54AF8004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674019A54AFB004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674119A54AFE004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674219A54B01004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674319A54B04004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674419A54B06004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674519A54B09004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674619A54B0B004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674719A54B0F004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674819A54B13004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674919A54B16004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674A19A54B19004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674B19A54B1B004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674C19A54B1F004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674D19A54B22004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674E19A54B25004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73674F19A54B28004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73675019A54B2B004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73675119A54B2F004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73675219A54B32004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
+		FA73675319A54B35004122E4 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA73672219A54A90004122E4 /* CoreVideo.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1011,6 +1070,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DBEC54EC1A1A827C005B1EAB /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 16;
+			files = (
+				DBEC54ED1A1A828A005B1EAB /* axis.bmp in CopyFiles */,
+				DBEC54EE1A1A828D005B1EAB /* button.bmp in CopyFiles */,
+				DBEC54EF1A1A828F005B1EAB /* controllermap.bmp in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -1141,6 +1212,12 @@
 		DB89957E18A19ABA0092407C /* testhotplug */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = testhotplug; sourceTree = BUILT_PRODUCTS_DIR; };
 		DB89958318A19B130092407C /* testhotplug.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = testhotplug.c; path = ../../test/testhotplug.c; sourceTree = "<group>"; };
 		DBBC552C182831D700F3CA8D /* TestDropFile-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "TestDropFile-Info.plist"; sourceTree = "<group>"; };
+		DBEC54D11A1A811D005B1EAB /* controllermap.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = controllermap.c; path = ../../test/controllermap.c; sourceTree = "<group>"; };
+		DBEC54D61A1A8145005B1EAB /* axis.bmp */ = {isa = PBXFileReference; lastKnownFileType = image.bmp; name = axis.bmp; path = ../../test/axis.bmp; sourceTree = "<group>"; };
+		DBEC54D71A1A8145005B1EAB /* button.bmp */ = {isa = PBXFileReference; lastKnownFileType = image.bmp; name = button.bmp; path = ../../test/button.bmp; sourceTree = "<group>"; };
+		DBEC54D81A1A8145005B1EAB /* controllermap.bmp */ = {isa = PBXFileReference; lastKnownFileType = image.bmp; name = controllermap.bmp; path = ../../test/controllermap.bmp; sourceTree = "<group>"; };
+		DBEC54EA1A1A81C3005B1EAB /* controllermap */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = controllermap; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA73672219A54A90004122E4 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = /System/Library/Frameworks/CoreVideo.framework; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1148,6 +1225,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672919A54AB9004122E4 /* CoreVideo.framework in Frameworks */,
 				0017957C10741F7900F5D044 /* Cocoa.framework in Frameworks */,
 				0017957D10741F7900F5D044 /* CoreAudio.framework in Frameworks */,
 				0017957E10741F7900F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1164,6 +1242,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672A19A54AC0004122E4 /* CoreVideo.framework in Frameworks */,
 				0017959D107421BF00F5D044 /* Cocoa.framework in Frameworks */,
 				0017959E107421BF00F5D044 /* CoreAudio.framework in Frameworks */,
 				0017959F107421BF00F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1180,6 +1259,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673319A54AD8004122E4 /* CoreVideo.framework in Frameworks */,
 				0017971110742F3200F5D044 /* Cocoa.framework in Frameworks */,
 				0017971210742F3200F5D044 /* CoreAudio.framework in Frameworks */,
 				0017971310742F3200F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1197,6 +1277,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673419A54ADB004122E4 /* CoreVideo.framework in Frameworks */,
 				00179738107430D600F5D044 /* Cocoa.framework in Frameworks */,
 				00179739107430D600F5D044 /* CoreAudio.framework in Frameworks */,
 				0017973A107430D600F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1213,6 +1294,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672B19A54AC2004122E4 /* CoreVideo.framework in Frameworks */,
 				0017975E107431B300F5D044 /* Cocoa.framework in Frameworks */,
 				0017975F107431B300F5D044 /* CoreAudio.framework in Frameworks */,
 				00179760107431B300F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1230,6 +1312,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673719A54AE3004122E4 /* CoreVideo.framework in Frameworks */,
 				0017977E107432AE00F5D044 /* Cocoa.framework in Frameworks */,
 				0017977F107432AE00F5D044 /* CoreAudio.framework in Frameworks */,
 				00179780107432AE00F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1247,6 +1330,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673819A54AE6004122E4 /* CoreVideo.framework in Frameworks */,
 				0017979E1074334C00F5D044 /* Cocoa.framework in Frameworks */,
 				0017979F1074334C00F5D044 /* CoreAudio.framework in Frameworks */,
 				001797A01074334C00F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1264,6 +1348,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673B19A54AED004122E4 /* CoreVideo.framework in Frameworks */,
 				001797C0107433C600F5D044 /* Cocoa.framework in Frameworks */,
 				001797C1107433C600F5D044 /* CoreAudio.framework in Frameworks */,
 				001797C2107433C600F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1280,6 +1365,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673E19A54AF6004122E4 /* CoreVideo.framework in Frameworks */,
 				001798021074355200F5D044 /* Cocoa.framework in Frameworks */,
 				001798031074355200F5D044 /* CoreAudio.framework in Frameworks */,
 				001798041074355200F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1296,6 +1382,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673F19A54AF8004122E4 /* CoreVideo.framework in Frameworks */,
 				001798841074392D00F5D044 /* Cocoa.framework in Frameworks */,
 				001798851074392D00F5D044 /* CoreAudio.framework in Frameworks */,
 				001798861074392D00F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1312,6 +1399,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674219A54B01004122E4 /* CoreVideo.framework in Frameworks */,
 				001798A5107439DF00F5D044 /* Cocoa.framework in Frameworks */,
 				001798A6107439DF00F5D044 /* CoreAudio.framework in Frameworks */,
 				001798A7107439DF00F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1328,6 +1416,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674619A54B0B004122E4 /* CoreVideo.framework in Frameworks */,
 				001798E210743BEC00F5D044 /* Cocoa.framework in Frameworks */,
 				001798E310743BEC00F5D044 /* CoreAudio.framework in Frameworks */,
 				001798E410743BEC00F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1344,6 +1433,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674C19A54B1F004122E4 /* CoreVideo.framework in Frameworks */,
 				0017990610743F1000F5D044 /* Cocoa.framework in Frameworks */,
 				0017990710743F1000F5D044 /* CoreAudio.framework in Frameworks */,
 				0017990810743F1000F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1361,6 +1451,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73675219A54B32004122E4 /* CoreVideo.framework in Frameworks */,
 				0017992810743FB700F5D044 /* Cocoa.framework in Frameworks */,
 				0017992910743FB700F5D044 /* CoreAudio.framework in Frameworks */,
 				0017992A10743FB700F5D044 /* ForceFeedback.framework in Frameworks */,
@@ -1378,6 +1469,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672F19A54ACC004122E4 /* CoreVideo.framework in Frameworks */,
 				002F340B09CA1BFF00EBEB88 /* Cocoa.framework in Frameworks */,
 				002A866B10730548007319AE /* CoreAudio.framework in Frameworks */,
 				002A866C10730548007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1394,6 +1486,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673619A54AE1004122E4 /* CoreVideo.framework in Frameworks */,
 				002F342A09CA1F0300EBEB88 /* Cocoa.framework in Frameworks */,
 				002A866210730547007319AE /* CoreAudio.framework in Frameworks */,
 				002A866310730547007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1410,6 +1503,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674019A54AFB004122E4 /* CoreVideo.framework in Frameworks */,
 				002F344609CA1FB300EBEB88 /* Cocoa.framework in Frameworks */,
 				002A868010730549007319AE /* CoreAudio.framework in Frameworks */,
 				002A868110730549007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1426,6 +1520,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674119A54AFE004122E4 /* CoreVideo.framework in Frameworks */,
 				002F346309CA204F00EBEB88 /* Cocoa.framework in Frameworks */,
 				002A868610730549007319AE /* CoreAudio.framework in Frameworks */,
 				002A868710730549007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1442,6 +1537,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674B19A54B1B004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166D7116A1CFB200A1396C /* AudioToolbox.framework in Frameworks */,
 				DB166D7216A1CFB200A1396C /* AudioUnit.framework in Frameworks */,
 				DB166D7316A1CFB200A1396C /* Carbon.framework in Frameworks */,
@@ -1459,6 +1555,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673119A54AD3004122E4 /* CoreVideo.framework in Frameworks */,
 				BBFC08C0164C6862003E6A99 /* Cocoa.framework in Frameworks */,
 				BBFC08C1164C6862003E6A99 /* CoreAudio.framework in Frameworks */,
 				BBFC08C2164C6862003E6A99 /* ForceFeedback.framework in Frameworks */,
@@ -1475,6 +1572,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672319A54A90004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33C109CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A863010730405007319AE /* libSDL2.a in Frameworks */,
 				002A864D10730546007319AE /* CoreAudio.framework in Frameworks */,
@@ -1491,6 +1589,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672819A54AB6004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33BF09CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A865310730547007319AE /* CoreAudio.framework in Frameworks */,
 				002A865410730547007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1507,6 +1606,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672E19A54ACA004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33BC09CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A866E10730548007319AE /* CoreAudio.framework in Frameworks */,
 				002A866F10730548007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1523,6 +1623,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674F19A54B28004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33B809CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A868F1073054A007319AE /* CoreAudio.framework in Frameworks */,
 				002A86901073054A007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1539,6 +1640,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673919A54AE8004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33B709CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A867410730548007319AE /* CoreAudio.framework in Frameworks */,
 				002A867510730548007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1555,6 +1657,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673A19A54AEB004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33B509CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A867710730548007319AE /* CoreAudio.framework in Frameworks */,
 				002A867810730548007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1571,6 +1674,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673C19A54AF0004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33B609CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A867A10730549007319AE /* CoreAudio.framework in Frameworks */,
 				002A867B10730549007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1587,6 +1691,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674919A54B16004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33B209CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A868910730549007319AE /* CoreAudio.framework in Frameworks */,
 				002A868A10730549007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1603,6 +1708,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73675019A54B2B004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33B009CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A86981073054A007319AE /* CoreAudio.framework in Frameworks */,
 				002A86991073054A007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1619,6 +1725,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73675119A54B2F004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33AF09CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A86951073054A007319AE /* CoreAudio.framework in Frameworks */,
 				002A86961073054A007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1635,6 +1742,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73675319A54B35004122E4 /* CoreVideo.framework in Frameworks */,
 				002F33AA09CA188600EBEB88 /* Cocoa.framework in Frameworks */,
 				002A864110730546007319AE /* CoreAudio.framework in Frameworks */,
 				002A864210730546007319AE /* ForceFeedback.framework in Frameworks */,
@@ -1651,6 +1759,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672C19A54AC5004122E4 /* CoreVideo.framework in Frameworks */,
 				DB0F48DD17CA51E5008798C5 /* Cocoa.framework in Frameworks */,
 				DB0F48DE17CA51E5008798C5 /* CoreAudio.framework in Frameworks */,
 				DB0F48DF17CA51E5008798C5 /* ForceFeedback.framework in Frameworks */,
@@ -1667,6 +1776,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673019A54AD0004122E4 /* CoreVideo.framework in Frameworks */,
 				DB0F48F317CA5212008798C5 /* Cocoa.framework in Frameworks */,
 				DB0F48F417CA5212008798C5 /* CoreAudio.framework in Frameworks */,
 				DB0F48F517CA5212008798C5 /* ForceFeedback.framework in Frameworks */,
@@ -1690,6 +1800,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673219A54AD5004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166DB116A1D2F600A1396C /* Cocoa.framework in Frameworks */,
 				DB166DB216A1D2F600A1396C /* CoreAudio.framework in Frameworks */,
 				DB166DB316A1D2F600A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1706,6 +1817,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673D19A54AF3004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166DC816A1D36A00A1396C /* Cocoa.framework in Frameworks */,
 				DB166DC916A1D36A00A1396C /* CoreAudio.framework in Frameworks */,
 				DB166DCA16A1D36A00A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1722,6 +1834,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674319A54B04004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166DE016A1D50C00A1396C /* Cocoa.framework in Frameworks */,
 				DB166DE116A1D50C00A1396C /* CoreAudio.framework in Frameworks */,
 				DB166DE216A1D50C00A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1739,6 +1852,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674419A54B06004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166DF716A1D57C00A1396C /* Cocoa.framework in Frameworks */,
 				DB166DF816A1D57C00A1396C /* CoreAudio.framework in Frameworks */,
 				DB166DF916A1D57C00A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1756,6 +1870,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674519A54B09004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166E0E16A1D5AD00A1396C /* Cocoa.framework in Frameworks */,
 				DB166E0F16A1D5AD00A1396C /* CoreAudio.framework in Frameworks */,
 				DB166E1016A1D5AD00A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1773,6 +1888,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674719A54B0F004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166E2B16A1D64D00A1396C /* Cocoa.framework in Frameworks */,
 				DB166E2C16A1D64D00A1396C /* CoreAudio.framework in Frameworks */,
 				DB166E2D16A1D64D00A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1789,6 +1905,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674819A54B13004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166E4116A1D69000A1396C /* Cocoa.framework in Frameworks */,
 				DB166E4216A1D69000A1396C /* CoreAudio.framework in Frameworks */,
 				DB166E4316A1D69000A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1806,6 +1923,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674A19A54B19004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166E5B16A1D6F300A1396C /* Cocoa.framework in Frameworks */,
 				DB166E5C16A1D6F300A1396C /* CoreAudio.framework in Frameworks */,
 				DB166E5D16A1D6F300A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1822,6 +1940,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674D19A54B22004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166E7116A1D78400A1396C /* Cocoa.framework in Frameworks */,
 				DB166E7216A1D78400A1396C /* CoreAudio.framework in Frameworks */,
 				DB166E7316A1D78400A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1838,6 +1957,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73674E19A54B25004122E4 /* CoreVideo.framework in Frameworks */,
 				DB166E8416A1D78C00A1396C /* Cocoa.framework in Frameworks */,
 				DB166E8516A1D78C00A1396C /* CoreAudio.framework in Frameworks */,
 				DB166E8616A1D78C00A1396C /* ForceFeedback.framework in Frameworks */,
@@ -1854,6 +1974,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73672D19A54AC7004122E4 /* CoreVideo.framework in Frameworks */,
 				DB445EEA18184B7000B306B0 /* Cocoa.framework in Frameworks */,
 				DB445EEB18184B7000B306B0 /* CoreAudio.framework in Frameworks */,
 				DB445EEC18184B7000B306B0 /* ForceFeedback.framework in Frameworks */,
@@ -1871,6 +1992,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA73673519A54ADE004122E4 /* CoreVideo.framework in Frameworks */,
 				DB89957118A19ABA0092407C /* Cocoa.framework in Frameworks */,
 				DB89957218A19ABA0092407C /* CoreAudio.framework in Frameworks */,
 				DB89957318A19ABA0092407C /* ForceFeedback.framework in Frameworks */,
@@ -1883,12 +2005,30 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DBEC54DC1A1A81C3005B1EAB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DBEC54DD1A1A81C3005B1EAB /* CoreVideo.framework in Frameworks */,
+				DBEC54DE1A1A81C3005B1EAB /* Cocoa.framework in Frameworks */,
+				DBEC54DF1A1A81C3005B1EAB /* libSDL2.a in Frameworks */,
+				DBEC54E01A1A81C3005B1EAB /* CoreAudio.framework in Frameworks */,
+				DBEC54E11A1A81C3005B1EAB /* ForceFeedback.framework in Frameworks */,
+				DBEC54E21A1A81C3005B1EAB /* IOKit.framework in Frameworks */,
+				DBEC54E31A1A81C3005B1EAB /* AudioToolbox.framework in Frameworks */,
+				DBEC54E41A1A81C3005B1EAB /* CoreFoundation.framework in Frameworks */,
+				DBEC54E51A1A81C3005B1EAB /* AudioUnit.framework in Frameworks */,
+				DBEC54E61A1A81C3005B1EAB /* Carbon.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		002F33A209CA183B00EBEB88 /* Linked Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				FA73672219A54A90004122E4 /* CoreVideo.framework */,
 				002A869F10730593007319AE /* AudioToolbox.framework */,
 				002A871410730623007319AE /* AudioUnit.framework */,
 				002A873910730675007319AE /* Carbon.framework */,
@@ -1915,13 +2055,16 @@
 		00794E4609D207B4003FC8A1 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				DBBC552C182831D700F3CA8D /* TestDropFile-Info.plist */,
-				DB166ECF16A1D87000A1396C /* shapes */,
+				DBEC54D61A1A8145005B1EAB /* axis.bmp */,
+				DBEC54D71A1A8145005B1EAB /* button.bmp */,
+				DBEC54D81A1A8145005B1EAB /* controllermap.bmp */,
 				00794E5D09D20839003FC8A1 /* icon.bmp */,
 				00794E5E09D20839003FC8A1 /* moose.dat */,
 				00794E5F09D20839003FC8A1 /* picture.xbm */,
 				00794E6109D20839003FC8A1 /* sample.bmp */,
 				00794E6209D20839003FC8A1 /* sample.wav */,
+				DB166ECF16A1D87000A1396C /* shapes */,
+				DBBC552C182831D700F3CA8D /* TestDropFile-Info.plist */,
 				00794E6309D20839003FC8A1 /* utf8.txt */,
 			);
 			name = Resources;
@@ -1945,6 +2088,7 @@
 			isa = PBXGroup;
 			children = (
 				092D6D10FFB30A2C7F000001 /* checkkeys.c */,
+				DBEC54D11A1A811D005B1EAB /* controllermap.c */,
 				083E4872006D84C97F000001 /* loopwave.c */,
 				0017958F1074216E00F5D044 /* testatomic.c */,
 				001795B01074222D00F5D044 /* testaudioinfo.c */,
@@ -2046,6 +2190,7 @@
 				DB0F490117CA5212008798C5 /* testfilesystem */,
 				DB89957E18A19ABA0092407C /* testhotplug */,
 				DB445EF818184B7000B306B0 /* testdropfile.app */,
+				DBEC54EA1A1A81C3005B1EAB /* controllermap */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -2834,6 +2979,23 @@
 			productReference = DB89957E18A19ABA0092407C /* testhotplug */;
 			productType = "com.apple.product-type.tool";
 		};
+		DBEC54D91A1A81C3005B1EAB /* controllermap */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DBEC54E71A1A81C3005B1EAB /* Build configuration list for PBXNativeTarget "controllermap" */;
+			buildPhases = (
+				DBEC54DA1A1A81C3005B1EAB /* Sources */,
+				DBEC54DC1A1A81C3005B1EAB /* Frameworks */,
+				DBEC54EC1A1A827C005B1EAB /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = controllermap;
+			productName = checkkeys;
+			productReference = DBEC54EA1A1A81C3005B1EAB /* controllermap */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -2866,6 +3028,7 @@
 				BEC566920761D90300A33029 /* All */,
 				DB166D7E16A1D12400A1396C /* SDL_test */,
 				BEC566AB0761D90300A33029 /* checkkeys */,
+				DBEC54D91A1A81C3005B1EAB /* controllermap */,
 				BEC566C50761D90300A33029 /* loopwave */,
 				0017957410741F7900F5D044 /* testatomic */,
 				00179595107421BF00F5D044 /* testaudioinfo */,
@@ -3327,6 +3490,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				DB89958418A19B130092407C /* testhotplug.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DBEC54DA1A1A81C3005B1EAB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DBEC54EB1A1A8205005B1EAB /* controllermap.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4247,6 +4418,20 @@
 			};
 			name = Release;
 		};
+		DBEC54E81A1A81C3005B1EAB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = controllermap;
+			};
+			name = Debug;
+		};
+		DBEC54E91A1A81C3005B1EAB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = controllermap;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -4678,6 +4863,15 @@
 			buildConfigurations = (
 				DB89957C18A19ABA0092407C /* Debug */,
 				DB89957D18A19ABA0092407C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DBEC54E71A1A81C3005B1EAB /* Build configuration list for PBXNativeTarget "controllermap" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DBEC54E81A1A81C3005B1EAB /* Debug */,
+				DBEC54E91A1A81C3005B1EAB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

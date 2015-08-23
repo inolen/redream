@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -371,14 +371,8 @@ void
 WIN_SetWindowTitle(_THIS, SDL_Window * window)
 {
     HWND hwnd = ((SDL_WindowData *) window->driverdata)->hwnd;
-    LPTSTR title;
-
-    if (window->title) {
-        title = WIN_UTF8ToString(window->title);
-    } else {
-        title = NULL;
-    }
-    SetWindowText(hwnd, title ? title : TEXT(""));
+    LPTSTR title = WIN_UTF8ToString(window->title);
+    SetWindowText(hwnd, title);
     SDL_free(title);
 }
 
@@ -621,6 +615,7 @@ WIN_DestroyWindow(_THIS, SDL_Window * window)
 
     if (data) {
         ReleaseDC(data->hwnd, data->hdc);
+        RemoveProp(data->hwnd, TEXT("SDL_WindowData"));
         if (data->created) {
             DestroyWindow(data->hwnd);
         } else {
@@ -643,10 +638,11 @@ WIN_DestroyWindow(_THIS, SDL_Window * window)
 SDL_bool
 WIN_GetWindowWMInfo(_THIS, SDL_Window * window, SDL_SysWMinfo * info)
 {
-    HWND hwnd = ((SDL_WindowData *) window->driverdata)->hwnd;
+    const SDL_WindowData *data = (const SDL_WindowData *) window->driverdata;
     if (info->version.major <= SDL_MAJOR_VERSION) {
         info->subsystem = SDL_SYSWM_WINDOWS;
-        info->info.win.window = hwnd;
+        info->info.win.window = data->hwnd;
+        info->info.win.hdc = data->hdc;
         return SDL_TRUE;
     } else {
         SDL_SetError("Application not compiled with SDL %d.%d\n",

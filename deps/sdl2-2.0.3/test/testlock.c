@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -19,8 +19,6 @@
 #include <stdlib.h> /* for atexit() */
 
 #include "SDL.h"
-#include "SDL_mutex.h"
-#include "SDL_thread.h"
 
 static SDL_mutex *mutex = NULL;
 static SDL_threadID mainthread;

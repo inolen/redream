@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -17,7 +17,6 @@
 #include <string.h>
 
 #include "SDL.h"
-#include "SDL_haptic.h"
 
 #if !defined SDL_JOYSTICK_DISABLED && !defined SDL_HAPTIC_DISABLED
 

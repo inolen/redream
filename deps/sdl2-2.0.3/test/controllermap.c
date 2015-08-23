@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -191,7 +191,6 @@ WatchJoystick(SDL_Joystick * joystick)
         step->button = -1;
         step->hat = -1;
         step->hat_value = -1;
-        SDL_SetClipboardText("TESTING TESTING 123");
         
         switch(step->marker) {
             case MARKER_AXIS:

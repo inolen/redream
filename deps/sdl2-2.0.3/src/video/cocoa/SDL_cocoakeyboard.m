@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2015 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -479,9 +479,9 @@ Cocoa_InitKeyboard(_THIS)
 
 void
 Cocoa_StartTextInput(_THIS)
+{ @autoreleasepool
 {
     SDL_VideoData *data = (SDL_VideoData *) _this->driverdata;
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     SDL_Window *window = SDL_GetKeyboardFocus();
     NSWindow *nswindow = nil;
     if (window) {
@@ -506,23 +506,20 @@ Cocoa_StartTextInput(_THIS)
         [parentView addSubview: data->fieldEdit];
         [nswindow makeFirstResponder: data->fieldEdit];
     }
-
-    [pool release];
-}
+}}
 
 void
 Cocoa_StopTextInput(_THIS)
+{ @autoreleasepool
 {
     SDL_VideoData *data = (SDL_VideoData *) _this->driverdata;
 
     if (data && data->fieldEdit) {
-        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
         [data->fieldEdit removeFromSuperview];
         [data->fieldEdit release];
         data->fieldEdit = nil;
-        [pool release];
     }
-}
+}}
 
 void
 Cocoa_SetTextInputRect(_THIS, SDL_Rect *rect)

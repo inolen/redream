@@ -34,7 +34,7 @@ LOCAL_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/src/loadso/dlopen/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/power/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/power/android/*.c) \
-	$(wildcard $(LOCAL_PATH)/src/filesystem/dummy/*.c) \
+	$(wildcard $(LOCAL_PATH)/src/filesystem/android/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/render/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/render/*/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/stdlib/*.c) \
@@ -44,7 +44,7 @@ LOCAL_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/src/timer/unix/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/video/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/video/android/*.c) \
-    $(wildcard $(LOCAL_PATH)/src/test/*.c))
+	$(wildcard $(LOCAL_PATH)/src/test/*.c))
 
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES
 LOCAL_LDLIBS := -ldl -lGLESv1_CM -lGLESv2 -llog -landroid
