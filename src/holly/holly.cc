@@ -96,6 +96,9 @@ void Holly::UnrequestInterrupt(Interrupt intr) {
   ForwardRequestInterrupts();
 }
 
+namespace dreavm {
+namespace holly {
+
 template <typename T>
 T Holly::ReadRegister(void *ctx, uint32_t addr) {
   return static_cast<T>(ReadRegister<uint32_t>(ctx, addr));
@@ -211,6 +214,9 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
     default:
       break;
   }
+}
+
+}
 }
 
 void Holly::InitMemory() {

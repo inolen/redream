@@ -753,7 +753,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
   const uint8_t *codebook = texture;
   const uint8_t *index = input + codebook_size;
 
-  PixelFormat pixel_fmt;
+  PixelFormat pixel_fmt = PXL_INVALID;
   switch (tcw.pixel_format) {
     case TA_PIXEL_1555:
       output = converted;

@@ -410,6 +410,9 @@ void TileAccelerator::ToggleTracing() {
   }
 }
 
+namespace dreavm {
+namespace holly {
+
 template <typename T>
 void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, T value) {
   WriteCommand<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
@@ -437,6 +440,9 @@ void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
   ta->texcache_.RemoveTexture(addr);
 
   *reinterpret_cast<uint32_t *>(&ta->pvr_.vram_[addr]) = value;
+}
+
+}
 }
 
 void TileAccelerator::InitMemory() {

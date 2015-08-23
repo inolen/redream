@@ -104,6 +104,9 @@ void SH4::UnrequestInterrupt(Interrupt intr) {
   UpdatePendingInterrupts();
 }
 
+namespace dreavm {
+namespace cpu {
+
 // with OIX, bit 25, rather than bit 13, determines which 4kb bank to use
 #define CACHE_OFFSET(addr, OIX) \
   ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
@@ -281,6 +284,9 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
 
       // TODO UnrequestInterrupt on TCR write
   }
+}
+
+}
 }
 
 void SH4::InitMemory() {

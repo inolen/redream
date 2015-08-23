@@ -43,6 +43,9 @@ bool PVR2::Init(Backend *rb) {
 
 void PVR2::ToggleTracing() { ta_.ToggleTracing(); }
 
+namespace dreavm {
+namespace holly {
+
 // the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
 // accessing it:
 // 0x04000000 -> 0x047fffff, 32-bit sequential access
@@ -135,6 +138,9 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   } else if (reg.offset == TA_LIST_INIT_OFFSET) {
     pvr->ta_.InitContext(pvr->TA_ISP_BASE.base_address);
   }
+}
+
+}
 }
 
 void PVR2::InitMemory() {

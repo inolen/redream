@@ -19,7 +19,8 @@ enum Framebuffer {  //
 };
 
 enum PixelFormat {
-  PXL_RGBA5551,  //
+  PXL_INVALID,
+  PXL_RGBA5551,
   PXL_RGB565,
   PXL_RGBA4444,
   PXL_RGBA8888
