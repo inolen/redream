@@ -60,14 +60,14 @@ list(APPEND DREAVM_INCLUDE_DIRS deps/eigen-3.2.1)
 
 # gflags / glog
 set(GFLAGS_NAMESPACE "google" CACHE STRING "")
-add_subdirectory(deps/gflags-2.1.1 EXCLUDE_FROM_ALL)
-list(APPEND DREAVM_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/deps/gflags-2.1.1/include)
+add_subdirectory(deps/gflags-2.1.2 EXCLUDE_FROM_ALL)
+list(APPEND DREAVM_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/deps/gflags-2.1.2/include)
 
 ExternalProject_Add(glog-external
   DEPENDS gflags
   SOURCE_DIR ${CMAKE_SOURCE_DIR}/deps/glog-0.3.3
   BINARY_DIR ${CMAKE_BINARY_DIR}/deps/glog-0.3.3
-  CONFIGURE_COMMAND ${CMAKE_SOURCE_DIR}/deps/glog-0.3.3/configure CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} --disable-shared --with-gflags=${CMAKE_BINARY_DIR}/deps/gflags-2.1.1
+  CONFIGURE_COMMAND ${CMAKE_SOURCE_DIR}/deps/glog-0.3.3/configure CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} --disable-shared --with-gflags=${CMAKE_BINARY_DIR}/deps/gflags-2.1.2
   BUILD_COMMAND ${MAKE}
   INSTALL_COMMAND "")
 add_library(glog UNKNOWN IMPORTED)

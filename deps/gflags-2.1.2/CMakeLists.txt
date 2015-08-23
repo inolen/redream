@@ -1,4 +1,8 @@
-cmake_minimum_required (VERSION 2.8.4 FATAL_ERROR)
+cmake_minimum_required (VERSION 2.8.12 FATAL_ERROR)
+
+if (POLICY CMP0042)
+  cmake_policy (SET CMP0042 NEW)
+endif ()
 
 # ----------------------------------------------------------------------------
 # includes
@@ -8,12 +12,20 @@ include (utils)
 # ----------------------------------------------------------------------------
 # package information
 set (PACKAGE_NAME      "gflags")
-set (PACKAGE_VERSION   "2.1.1")
+set (PACKAGE_VERSION   "2.2.0")
 set (PACKAGE_STRING    "${PACKAGE_NAME} ${PACKAGE_VERSION}")
 set (PACKAGE_TARNAME   "${PACKAGE_NAME}-${PACKAGE_VERSION}")
-set (PACKAGE_BUGREPORT "https://code.google.com/p/gflags/issues/")
+set (PACKAGE_BUGREPORT "https://github.com/schuhschuh/gflags/issues")
 
 project (${PACKAGE_NAME} CXX)
+if (CMAKE_VERSION VERSION_LESS 100)
+  # C language still needed because the following required CMake modules
+  # (or their dependencies, respectively) are not correctly handling
+  # the case where only CXX is enabled.
+  # - CheckTypeSize.cmake (fixed in CMake 3.1, cf. http://www.cmake.org/Bug/view.php?id=14056)
+  # - FindThreads.cmake (--> CheckIncludeFiles.cmake <--)
+  enable_language (C)
+endif ()
 
 version_numbers (
   ${PACKAGE_VERSION}
@@ -22,17 +34,28 @@ version_numbers (
     PACKAGE_VERSION_PATCH
 )
 
+set (PACKAGE_SOVERSION "${PACKAGE_VERSION_MAJOR}")
+
 # ----------------------------------------------------------------------------
 # options
-set (GFLAGS_NAMESPACE   "${PACKAGE_NAME}" CACHE STRING "C++ namespace identifier of gflags library.")
-set (GFLAGS_INCLUDE_DIR "${PACKAGE_NAME}" CACHE STRING "Include subdirectory of gflags header files.")
-
-if (IS_ABSOLUTE GFLAGS_INCLUDE_DIR)
-  message (FATAL_ERROR "GFLAGS_INCLUDE_DIR must be a path relative to CMAKE_INSTALL_PREFIX/include")
+if (NOT GFLAGS_NAMESPACE)
+  # maintain binary backwards compatibility with gflags library version <= 2.0,
+  # but at the same time enable the use of the preferred new "gflags" namespace
+  set (GFLAGS_NAMESPACE "google;${PACKAGE_NAME}" CACHE STRING "Name(s) of library namespace (separate multiple options by semicolon)")
+  mark_as_advanced (GFLAGS_NAMESPACE)
 endif ()
-if (GFLAGS_INCLUDE_DIR MATCHES "^\\.\\.[/\\]")
-  message (FATAL_ERROR "GFLAGS_INCLUDE_DIR must not start with parent directory reference (../)")
+set (GFLAGS_NAMESPACE_SECONDARY "${GFLAGS_NAMESPACE}")
+list (REMOVE_DUPLICATES GFLAGS_NAMESPACE_SECONDARY)
+if (NOT GFLAGS_NAMESPACE_SECONDARY)
+  message (FATAL_ERROR "GFLAGS_NAMESPACE must be set to one (or more) valid C++ namespace identifier(s separated by semicolon \";\").")
 endif ()
+foreach (ns IN LISTS GFLAGS_NAMESPACE_SECONDARY)
+  if (NOT ns MATCHES "^[a-zA-Z][a-zA-Z0-9_]*$")
+    message (FATAL_ERROR "GFLAGS_NAMESPACE contains invalid namespace identifier: ${ns}")
+  endif ()
+endforeach ()
+list (GET       GFLAGS_NAMESPACE_SECONDARY 0 GFLAGS_NAMESPACE)
+list (REMOVE_AT GFLAGS_NAMESPACE_SECONDARY 0)
 
 option (BUILD_SHARED_LIBS          "Request build of shared libraries."                                       OFF)
 option (BUILD_STATIC_LIBS          "Request build of static libraries (default if BUILD_SHARED_LIBS is OFF)." OFF)
@@ -40,15 +63,11 @@ option (BUILD_gflags_LIB           "Request build of the multi-threaded gflags l
 option (BUILD_gflags_nothreads_LIB "Request build of the single-threaded gflags library."                     ON)
 option (BUILD_PACKAGING            "Enable build of distribution packages using CPack."                       OFF)
 option (BUILD_TESTING              "Enable build of the unit tests and their execution using CTest."          OFF)
-option (BUILD_NC_TESTS             "Request addition of negative compilation tests."                          OFF)
 option (INSTALL_HEADERS            "Request packaging of headers and other development files."                ON)
 
 mark_as_advanced (CLEAR CMAKE_INSTALL_PREFIX)
 mark_as_advanced (CMAKE_CONFIGURATION_TYPES
-                  GFLAGS_NAMESPACE
-                  GFLAGS_INCLUDE_DIR
                   BUILD_STATIC_LIBS
-                  BUILD_NC_TESTS
                   INSTALL_HEADERS)
 if (APPLE)
   mark_as_advanced(CMAKE_OSX_ARCHITECTURES
@@ -65,6 +84,18 @@ endif ()
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CXX_FLAGS)
   set_property (CACHE CMAKE_BUILD_TYPE PROPERTY VALUE Release)
+endif ()
+
+if (NOT GFLAGS_INCLUDE_DIR)
+  set (GFLAGS_INCLUDE_DIR "${PACKAGE_NAME}" CACHE STRING "Name of include directory of installed header files")
+  mark_as_advanced (GFLAGS_INCLUDE_DIR)
+else ()
+  if (IS_ABSOLUTE GFLAGS_INCLUDE_DIR)
+    message (FATAL_ERROR "GFLAGS_INCLUDE_DIR must be a path relative to CMAKE_INSTALL_PREFIX/include")
+  endif ()
+  if (GFLAGS_INCLUDE_DIR MATCHES "^\\.\\.[/\\]")
+    message (FATAL_ERROR "GFLAGS_INCLUDE_DIR must not start with parent directory reference (../)")
+  endif ()
 endif ()
 
 # ----------------------------------------------------------------------------
@@ -154,7 +185,7 @@ else ()
 endif ()
 
 set (CMAKE_THREAD_PREFER_PTHREAD TRUE)
-find_package (ThreadsCXX)
+find_package (Threads)
 if (Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)
   set (HAVE_PTHREAD 1)
   check_type_size (pthread_rwlock_t RWLOCK LANGUAGE CXX)
@@ -180,6 +211,19 @@ set (PUBLIC_HDRS
   "gflags_declare.h"
   "gflags_completions.h"
 )
+
+if (GFLAGS_NAMESPACE_SECONDARY)
+  set (INCLUDE_GFLAGS_NS_H "// Import gflags library symbols into alternative/deprecated namespace(s)")
+  foreach (ns IN LISTS GFLAGS_NAMESPACE_SECONDARY)
+    string (TOUPPER "${ns}" NS)
+    set (gflags_ns_h "${PROJECT_BINARY_DIR}/include/${GFLAGS_INCLUDE_DIR}/gflags_${ns}.h")
+    configure_file ("${PROJECT_SOURCE_DIR}/src/gflags_ns.h.in" "${gflags_ns_h}" @ONLY)
+    list (APPEND PUBLIC_HDRS "${gflags_ns_h}")
+    set (INCLUDE_GFLAGS_NS_H "${INCLUDE_GFLAGS_NS_H}\n#include \"gflags_${ns}.h\"")
+  endforeach ()
+else ()
+  set (INCLUDE_GFLAGS_NS_H)
+endif ()
 
 set (PRIVATE_HDRS
   "config.h"
@@ -219,15 +263,34 @@ configure_headers (PUBLIC_HDRS  ${PUBLIC_HDRS})
 configure_sources (PRIVATE_HDRS ${PRIVATE_HDRS})
 configure_sources (GFLAGS_SRCS  ${GFLAGS_SRCS})
 
-include_directories ("${PROJECT_SOURCE_DIR}/src")
-include_directories ("${PROJECT_BINARY_DIR}/include")
-include_directories ("${PROJECT_BINARY_DIR}/include/${GFLAGS_INCLUDE_DIR}")
-
 # ----------------------------------------------------------------------------
 # output directories
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "bin")
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "lib")
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY "lib")
+
+# ----------------------------------------------------------------------------
+# installation directories
+if (OS_WINDOWS)
+  set (RUNTIME_INSTALL_DIR Bin)
+  set (LIBRARY_INSTALL_DIR Lib)
+  set (INCLUDE_INSTALL_DIR Include)
+  set (CONFIG_INSTALL_DIR  CMake)
+else ()
+  set (RUNTIME_INSTALL_DIR bin)
+  # The LIB_INSTALL_DIR and LIB_SUFFIX variables are used by the Fedora
+  # package maintainers. Also package maintainers of other distribution
+  # packages need to be able to specify the name of the library directory.
+  if (NOT LIB_INSTALL_DIR)
+    set (LIB_INSTALL_DIR "lib${LIB_SUFFIX}")
+  endif ()
+  set (LIBRARY_INSTALL_DIR "${LIB_INSTALL_DIR}"
+    CACHE PATH "Directory of installed libraries, e.g., \"lib64\""
+  )
+  mark_as_advanced (LIBRARY_INSTALL_DIR)
+  set (INCLUDE_INSTALL_DIR include)
+  set (CONFIG_INSTALL_DIR  ${LIBRARY_INSTALL_DIR}/cmake/${PACKAGE_NAME})
+endif ()
 
 # ----------------------------------------------------------------------------
 # add library targets
@@ -246,6 +309,14 @@ foreach (TYPE IN ITEMS STATIC SHARED)
     foreach (opts IN ITEMS "" _nothreads)
       if (BUILD_gflags${opts}_LIB)
         add_library (gflags${opts}-${type} ${TYPE} ${GFLAGS_SRCS} ${PRIVATE_HDRS} ${PUBLIC_HDRS})
+        set (include_dirs "$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>")
+        if (INSTALL_HEADERS)
+          list (APPEND include_dirs "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>")
+        endif ()
+        target_include_directories (gflags${opts}-${type}
+          PUBLIC  "${include_dirs}"
+          PRIVATE "${PROJECT_SOURCE_DIR}/src;${PROJECT_BINARY_DIR}/include/${GFLAGS_INCLUDE_DIR}"
+        )
         if (opts MATCHES "nothreads")
           set (defines "GFLAGS_IS_A_DLL=${GFLAGS_IS_A_DLL};NOTHREADS")
         else ()
@@ -256,7 +327,9 @@ foreach (TYPE IN ITEMS STATIC SHARED)
         endif ()
         set_target_properties (
           gflags${opts}-${type} PROPERTIES COMPILE_DEFINITIONS "${defines}"
-                                           OUTPUT_NAME "gflags${opts}"
+                                           OUTPUT_NAME         "gflags${opts}"
+                                           VERSION             "${PACKAGE_VERSION}"
+                                           SOVERSION           "${PACKAGE_SOVERSION}"
         )
         if (HAVE_SHLWAPI_H)
           target_link_libraries (gflags${opts}-${type} shlwapi.lib)
@@ -272,19 +345,7 @@ foreach (TYPE IN ITEMS STATIC SHARED)
 endforeach ()
 
 # ----------------------------------------------------------------------------
-# installation
-if (OS_WINDOWS)
-  set (RUNTIME_INSTALL_DIR Bin)
-  set (LIBRARY_INSTALL_DIR Lib)
-  set (INCLUDE_INSTALL_DIR Include)
-  set (CONFIG_INSTALL_DIR  CMake)
-else ()
-  set (RUNTIME_INSTALL_DIR bin)
-  set (LIBRARY_INSTALL_DIR lib)
-  set (INCLUDE_INSTALL_DIR include)
-  set (CONFIG_INSTALL_DIR  lib/cmake/${PACKAGE_NAME})
-endif ()
-
+# installation rules
 file (RELATIVE_PATH INSTALL_PREFIX_REL2CONFIG_DIR "${CMAKE_INSTALL_PREFIX}/${CONFIG_INSTALL_DIR}" "${CMAKE_INSTALL_PREFIX}")
 configure_file (cmake/config.cmake.in  "${PROJECT_BINARY_DIR}/${PACKAGE_NAME}-config-install.cmake" @ONLY)
 configure_file (cmake/version.cmake.in "${PROJECT_BINARY_DIR}/${PACKAGE_NAME}-config-version.cmake" @ONLY)
@@ -355,6 +416,9 @@ if (BUILD_PACKAGING)
   set (CPACK_SOURCE_GENERATOR "${PACKAGE_SOURCE_GENERATOR}" CACHE STRING "List of source package generators (CPack).")
   mark_as_advanced (CPACK_GENERATOR CPACK_SOURCE_GENERATOR)
 
+  # some package generators (e.g., PackageMaker) do not allow .md extension
+  configure_file ("${CMAKE_CURRENT_LIST_DIR}/README.md" "${CMAKE_CURRENT_BINARY_DIR}/README.txt" COPYONLY)
+
   # common package information
   set (CPACK_PACKAGE_VENDOR              "Andreas Schuh")
   set (CPACK_PACKAGE_CONTACT             "google-gflags@googlegroups.com")
@@ -364,9 +428,9 @@ if (BUILD_PACKAGING)
   set (CPACK_PACKAGE_VERSION_MINOR       "${PACKAGE_VERSION_MINOR}")
   set (CPACK_PACKAGE_VERSION_PATCH       "${PACKAGE_VERSION_PATCH}")
   set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "A commandline flags library that allows for distributed flags.")
-  set (CPACK_RESOURCE_FILE_WELCOME       "${CMAKE_CURRENT_LIST_DIR}/README.txt")
+  set (CPACK_RESOURCE_FILE_WELCOME       "${CMAKE_CURRENT_BINARY_DIR}/README.txt")
   set (CPACK_RESOURCE_FILE_LICENSE       "${CMAKE_CURRENT_LIST_DIR}/COPYING.txt")
-  set (CPACK_PACKAGE_DESCRIPTION_FILE    "${CMAKE_CURRENT_LIST_DIR}/README.txt")
+  set (CPACK_PACKAGE_DESCRIPTION_FILE    "${CMAKE_CURRENT_BINARY_DIR}/README.txt")
   set (CPACK_INSTALL_PREFIX              "${CMAKE_INSTALL_PREFIX}")
   set (CPACK_OUTPUT_FILE_PREFIX          packages)
   set (CPACK_PACKAGE_RELOCATABLE         TRUE)
@@ -375,11 +439,11 @@ if (BUILD_PACKAGING)
   # RPM package information -- used in cmake/package.cmake.in also for DEB
   set (CPACK_RPM_PACKAGE_GROUP   "Development/Libraries")
   set (CPACK_RPM_PACKAGE_LICENSE "BSD")
-  set (CPACK_RPM_PACKAGE_URL     "http://code.google.com/p/gflags")
+  set (CPACK_RPM_PACKAGE_URL     "http://schuhschuh.github.com/gflags")
   set (CPACK_RPM_CHANGELOG_FILE  "${CMAKE_CURRENT_LIST_DIR}/ChangeLog.txt")
 
   if (INSTALL_HEADERS)
-    set (CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_LIST_DIR}/doc/gflags.html")
+    set (CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_LIST_DIR}/doc/index.html")
   else ()
     set (CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_LIST_DIR}/cmake/README_runtime.txt")
   endif ()
