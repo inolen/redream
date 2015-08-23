@@ -35,15 +35,12 @@
 #  error You should only be including windows/port.cc in a windows environment!
 #endif
 
-#include <string.h>    // for strlen(), memset(), memcmp()
 #include <assert.h>
-#include <stdarg.h>    // for va_list, va_start, va_end
-#include <windows.h>
 
 #include "windows_port.h"
 
 // These call the windows _vsnprintf, but always NUL-terminate.
-#if !defined(__MINGW32__) && !defined(__MINGW64__)  /* mingw already defines */
+#if _MSC_VER < 1900 && !defined(__MINGW32__) && !defined(__MINGW64__)  /* mingw already defines */
 
 #ifdef _MSC_VER
 #  pragma warning(push)
@@ -59,8 +56,6 @@ int safe_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 #  pragma warning(pop)
 #endif
 
-#if _MSC_VER < 1900  // msvs 2015 finally includes snprintf
-
 int snprintf(char *str, size_t size, const char *format, ...) {
   int r;
   va_list ap;
@@ -70,6 +65,4 @@ int snprintf(char *str, size_t size, const char *format, ...) {
   return r;
 }
 
-#endif
-
-#endif  /* #if !defined(__MINGW32__) && !defined(__MINGW64__) */
+#endif  /* #if _MSC_VER < 1900 && !defined(__MINGW32__) && !defined(__MINGW64__) */

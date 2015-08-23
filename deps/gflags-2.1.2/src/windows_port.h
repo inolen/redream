@@ -51,6 +51,11 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #  define WIN32_LEAN_AND_MEAN
 #endif
+// Hack to remove OS_WINDOWS macro redefinition, shlwapi.h also defines it
+#ifdef OS_WINDOWS
+#undef OS_WINDOWS
+#endif
+
 #include <windows.h>
 #include <direct.h>          /* for mkdir */
 #include <stdlib.h>          /* for _putenv, getenv */
@@ -58,18 +63,22 @@
 #include <stdarg.h>          /* util.h uses va_copy */
 #include <string.h>          /* for _stricmp and _strdup */
 
+#ifndef OS_WINDOWS
+#define OS_WINDOWS
+#endif
+
 /* We can't just use _vsnprintf and _snprintf as drop-in-replacements,
  * because they don't always NUL-terminate. :-(  We also can't use the
  * name vsnprintf, since windows defines that (but not snprintf (!)).
  */
-#if !defined(__MINGW32__) && !defined(__MINGW64__)  /* mingw already defines */
+#if _MSC_VER < 1900 && !defined(__MINGW32__) && !defined(__MINGW64__)  /* vs2015 and mingw already defines */
 extern GFLAGS_DLL_DECL int snprintf(char *str, size_t size,
                                        const char *format, ...);
 extern int GFLAGS_DLL_DECL safe_vsnprintf(char *str, size_t size,
                                              const char *format, va_list ap);
 #define vsnprintf(str, size, format, ap)  safe_vsnprintf(str, size, format, ap)
 #define va_copy(dst, src)  (dst) = (src)
-#endif  /* #if !defined(__MINGW32__) && !defined(__MINGW64__) */
+#endif  /* #if _MSC_VER < 1900 && !defined(__MINGW32__) && !defined(__MINGW64__) */
 
 #ifdef _MSC_VER
 #  pragma warning(push)
