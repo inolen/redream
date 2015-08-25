@@ -116,7 +116,7 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
         if (reg == NO_REGISTER) {
           // if a register couldn't be allocated, spill a register and try again
           reg = AllocBlockedRegister(builder, result, start, end);
-          CHECK_NE(reg, NO_REGISTER) << "Failed to allocate register";
+          CHECK_NE(reg, NO_REGISTER, "Failed to allocate register");
         }
       }
 
@@ -131,7 +131,7 @@ RegisterSet &RegisterAllocationPass::GetRegisterSet(ValueTy type) {
   } else if (IsFloatType(type)) {
     return float_registers_;
   } else {
-    LOG(FATAL) << "Unexpected value type";
+    LOG_FATAL("Unexpected value type");
   }
 }
 
@@ -147,8 +147,9 @@ void RegisterAllocationPass::Reset() {
     } else if (r.value_types == VALUE_FLOAT_MASK) {
       float_registers_.PushRegister(i);
     } else {
-      LOG(FATAL) << "Unsupported register value mask, expected VALUE_INT_MASK "
-                    "or VALUE_FLOAT_MASK";
+      LOG_FATAL(
+          "Unsupported register value mask, expected VALUE_INT_MASK or "
+          "VALUE_FLOAT_MASK");
     }
   }
 }
@@ -282,10 +283,10 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   // from the stack before it's next use
   ValueRef *next_ref = interval->next;
   ValueRef *prev_ref = next_ref->prev();
-  CHECK(next_ref)
-      << "Register being spilled has no next use, why wasn't it expired?";
-  CHECK(prev_ref)
-      << "Register being spilled has no prev use, why is it already live?";
+  CHECK(next_ref,
+        "Register being spilled has no next use, why wasn't it expired?");
+  CHECK(prev_ref,
+        "Register being spilled has no prev use, why is it already live?");
 
   // allocate a place on the stack to spill the value
   int local = builder.AllocLocal(interval->value->type());
@@ -313,7 +314,7 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
 
   // with all references >= next_ref using the new value, prev_ref->next
   // should now be null
-  CHECK(!prev_ref->next()) << "All future references should have been replaced";
+  CHECK(!prev_ref->next(), "All future references should have been replaced");
 
   // insert spill after prev use, note that order here is extremely important.
   // interval->value's ref list has already been sorted, and when the save
@@ -328,8 +329,8 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   // need to assign an ordinal to it
 
   // the new store should now be the final reference
-  CHECK(prev_ref->next() && prev_ref->next()->instr() == save_instr)
-      << "Spill should be the final reference for the interval value";
+  CHECK(prev_ref->next() && prev_ref->next()->instr() == save_instr,
+        "Spill should be the final reference for the interval value");
 
   // overwrite the old interval
   interval->value = value;

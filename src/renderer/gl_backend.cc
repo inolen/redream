@@ -46,17 +46,10 @@ static GLenum cull_face[] = {
     GL_BACK    // CULL_BACK
 };
 
-static GLenum blend_funcs[] = {GL_NONE,
-                               GL_ZERO,
-                               GL_ONE,
-                               GL_SRC_COLOR,
-                               GL_ONE_MINUS_SRC_COLOR,
-                               GL_SRC_ALPHA,
-                               GL_ONE_MINUS_SRC_ALPHA,
-                               GL_DST_ALPHA,
-                               GL_ONE_MINUS_DST_ALPHA,
-                               GL_DST_COLOR,
-                               GL_ONE_MINUS_DST_COLOR};
+static GLenum blend_funcs[] = {
+    GL_NONE, GL_ZERO, GL_ONE, GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR,
+    GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA,
+    GL_DST_COLOR, GL_ONE_MINUS_DST_COLOR};
 
 GLBackend::GLBackend(GLContext &ctx)
     : ctx_(ctx), textures_{0}, fb_ta_(0), num_verts2d_(0), num_surfs2d_(0) {}
@@ -117,7 +110,7 @@ TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
       pixel_fmt = GL_UNSIGNED_INT_8_8_8_8;
       break;
     default:
-      LOG(FATAL) << "Unexpected pixel format " << format << ".";
+      LOG_FATAL("Unexpected pixel format %d", format);
       break;
   }
 
@@ -221,7 +214,7 @@ void GLBackend::Clear(float r, float g, float b, float a) {
 void GLBackend::RenderFramebuffer(Framebuffer fb) {
   switch (fb) {
     case FB_DEFAULT:
-      LOG(FATAL) << "Unsupported";
+      LOG_FATAL("Unsupported");
       break;
 
     case FB_TILE_ACCELERATOR:
@@ -457,7 +450,7 @@ void GLBackend::InitFramebuffers() {
   glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                             GL_RENDERBUFFER, fb_ta_depth_);
   GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-  CHECK_EQ(GL_FRAMEBUFFER_COMPLETE, status);
+  CHECK_EQ(status, GL_FRAMEBUFFER_COMPLETE);
   Clear(0.0f, 0.0f, 0.0f, 1.0f);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -493,11 +486,11 @@ void GLBackend::DestroyTextures() {
 
 void GLBackend::InitShaders() {
   if (!CompileProgram(&ta_program_, nullptr, ta_vp, ta_fp)) {
-    LOG(FATAL) << "Failed to compile ta shader.";
+    LOG_FATAL("Failed to compile ta shader.");
   }
 
   if (!CompileProgram(&ui_program_, nullptr, ui_vp, ui_fp)) {
-    LOG(FATAL) << "Failed to compile ui shader.";
+    LOG_FATAL("Failed to compile ui shader.");
   }
 }
 
@@ -686,7 +679,7 @@ const BakedFont *GLBackend::GetFont(int point_size) {
   // load the font ourself in order to get the ascent info
   stbtt_fontinfo f;
   if (!stbtt_InitFont(&f, ttf_data, 0)) {
-    LOG(WARNING) << "Failed to initialize font";
+    LOG_WARNING("Failed to initialize font");
     return nullptr;
   }
   stbtt_GetFontVMetrics(&f, &font->ascent, nullptr, nullptr);
@@ -700,7 +693,7 @@ const BakedFont *GLBackend::GetFont(int point_size) {
   stbtt_PackSetOversampling(&pc, 2, 2);
   if (!stbtt_PackFontRange(&pc, ttf_data, 0, point_size, 32, 127,
                            font->chars + 32)) {
-    LOG(WARNING) << "Failed to pack font";
+    LOG_WARNING("Failed to pack font");
     return nullptr;
   }
   stbtt_PackEnd(&pc);

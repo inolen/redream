@@ -36,7 +36,7 @@ bool X64Backend::AssembleBlock(IRBuilder &builder, RuntimeBlock *block) {
       return false;
     }
 
-    LOG(FATAL) << "X64 codegen failure, " << e.what();
+    LOG_FATAL("X64 codegen failure, %s", e.what());
   }
 
   block->call = &CallBlock;

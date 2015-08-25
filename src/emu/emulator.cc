@@ -86,7 +86,7 @@ bool Emulator::Init() {
 }
 
 bool Emulator::Launch(const char *path) {
-  LOG(INFO) << "Launching " << path;
+  LOG_INFO("Launching %s", path);
 
   if (strstr(path, ".bin")) {
     return LaunchBIN(path);
@@ -118,7 +118,7 @@ void Emulator::InitMemory() {
 bool Emulator::LoadBios(const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
-    LOG(WARNING) << "Failed to open bios at \"" << path << "\"";
+    LOG_WARNING("Failed to open bios at \"%s\"", path);
     return false;
   }
 
@@ -127,8 +127,7 @@ bool Emulator::LoadBios(const char *path) {
   fseek(fp, 0, SEEK_SET);
 
   if (size != BIOS_SIZE) {
-    LOG(WARNING) << "Bios size mismatch, is " << size << ", expected "
-                 << BIOS_SIZE;
+    LOG_WARNING("Bios size mismatch, is %d, expected %d", size, BIOS_SIZE);
     fclose(fp);
     return false;
   }
@@ -137,7 +136,7 @@ bool Emulator::LoadBios(const char *path) {
   fclose(fp);
 
   if (n != size) {
-    LOG(WARNING) << "Bios read failed";
+    LOG_WARNING("Bios read failed");
     return false;
   }
 
@@ -147,7 +146,7 @@ bool Emulator::LoadBios(const char *path) {
 bool Emulator::LoadFlash(const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
-    LOG(WARNING) << "Failed to open flash at \"" << path << "\"";
+    LOG_WARNING("Failed to open flash at \"%s\"", path);
     return false;
   }
 
@@ -156,8 +155,7 @@ bool Emulator::LoadFlash(const char *path) {
   fseek(fp, 0, SEEK_SET);
 
   if (size != FLASH_SIZE) {
-    LOG(WARNING) << "Flash size mismatch, is " << size << ", expected "
-                 << FLASH_SIZE;
+    LOG_WARNING("Flash size mismatch, is %d, expected %d", size, FLASH_SIZE);
     fclose(fp);
     return false;
   }
@@ -166,7 +164,7 @@ bool Emulator::LoadFlash(const char *path) {
   fclose(fp);
 
   if (n != size) {
-    LOG(WARNING) << "Flash read failed";
+    LOG_WARNING("Flash read failed");
     return false;
   }
 
@@ -259,7 +257,7 @@ void Emulator::RenderFrame() {
   char stats[512];
   snprintf(stats, sizeof(stats), "%.2f%%, %.2f fps, %.2f vbps",
            scheduler_.perf(), holly_.pvr().fps(), holly_.pvr().vbps());
-  LOG_EVERY_N(INFO, 10) << stats;
+  // LOG_EVERY_N(INFO, 10) << stats;
   rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
 
   // render profiler

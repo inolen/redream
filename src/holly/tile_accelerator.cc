@@ -235,7 +235,7 @@ TextureHandle TileTextureCache::GetTexture(
   // register and insert into the cache
   TextureHandle handle = register_cb(texture, palette);
   auto result = textures_.insert(std::make_pair(texture_key, handle));
-  CHECK(result.second) << "Texture already in the map?";
+  CHECK(result.second, "Texture already in the map?");
 
   // add insert to trace
   if (ta_.trace_writer_) {
@@ -316,7 +316,7 @@ void TileAccelerator::InitContext(uint32_t addr) {
 void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
   TileContext *tactx = GetContext(addr);
 
-  CHECK_LT(tactx->size + 4, sizeof(tactx->data));
+  CHECK_LT(tactx->size + 4, (int)sizeof(tactx->data));
   *(uint32_t *)&tactx->data[tactx->size] = value;
   tactx->size += 4;
 
@@ -343,7 +343,7 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
       tactx->list_type = 0;
       tactx->vertex_type = 0;
     } else if (pcw.para_type == TA_PARAM_OBJ_LIST_SET) {
-      LOG(FATAL) << "TA_PARAM_OBJ_LIST_SET unsupported";
+      LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
     } else if (pcw.para_type == TA_PARAM_POLY_OR_VOL) {
       tactx->last_poly = reinterpret_cast<PolyParam *>(data);
       tactx->last_vertex = nullptr;
@@ -388,12 +388,12 @@ void TileAccelerator::ToggleTracing() {
 
     trace_writer_ = std::unique_ptr<TraceWriter>(new TraceWriter());
     if (!trace_writer_->Open(filename)) {
-      LOG(INFO) << "Failed to start tracing";
+      LOG_INFO("Failed to start tracing");
       trace_writer_ = nullptr;
       return;
     }
 
-    LOG(INFO) << "Begin tracing to " << filename;
+    LOG_INFO("Begin tracing to %s", filename);
 
     // write out the initial framebuffer size
     int width, height;
@@ -406,7 +406,7 @@ void TileAccelerator::ToggleTracing() {
   } else {
     trace_writer_ = nullptr;
 
-    LOG(INFO) << "End tracing";
+    LOG_INFO("End tracing");
   }
 }
 
@@ -441,7 +441,6 @@ void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
 
   *reinterpret_cast<uint32_t *>(&ta->pvr_.vram_[addr]) = value;
 }
-
 }
 }
 
@@ -522,7 +521,7 @@ void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
 
   // copy vertex data to context
   for (int i = 0, bg_offset = 0; i < 3; i++) {
-    CHECK_LE(bg_offset + vertex_size, sizeof(tactx->bg_vertices));
+    CHECK_LE(bg_offset + vertex_size, (int)sizeof(tactx->bg_vertices));
 
     memory_.Memcpy(&tactx->bg_vertices[bg_offset], vram_offset, vertex_size);
 

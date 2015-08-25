@@ -63,19 +63,17 @@ inline CullFace TranslateCull(uint32_t cull_mode) {
 
 inline BlendFunc TranslateSrcBlendFunc(uint32_t blend_func) {
   static BlendFunc src_blend_funcs[] = {
-      BLEND_ZERO,      BLEND_ONE,
-      BLEND_SRC_COLOR, BLEND_ONE_MINUS_SRC_COLOR,
-      BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA,
-      BLEND_DST_ALPHA, BLEND_ONE_MINUS_DST_ALPHA};
+      BLEND_ZERO, BLEND_ONE, BLEND_SRC_COLOR, BLEND_ONE_MINUS_SRC_COLOR,
+      BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA, BLEND_DST_ALPHA,
+      BLEND_ONE_MINUS_DST_ALPHA};
   return src_blend_funcs[blend_func];
 }
 
 inline BlendFunc TranslateDstBlendFunc(uint32_t blend_func) {
   static BlendFunc dst_blend_funcs[] = {
-      BLEND_ZERO,      BLEND_ONE,
-      BLEND_DST_COLOR, BLEND_ONE_MINUS_DST_COLOR,
-      BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA,
-      BLEND_DST_ALPHA, BLEND_ONE_MINUS_DST_ALPHA};
+      BLEND_ZERO, BLEND_ONE, BLEND_DST_COLOR, BLEND_ONE_MINUS_DST_COLOR,
+      BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA, BLEND_DST_ALPHA,
+      BLEND_ONE_MINUS_DST_ALPHA};
   return dst_blend_funcs[blend_func];
 }
 
@@ -122,7 +120,7 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
         break;
 
       case TA_PARAM_OBJ_LIST_SET:
-        LOG(FATAL) << "TA_PARAM_OBJ_LIST_SET unsupported";
+        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
         break;
 
       // global params
@@ -141,15 +139,15 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
         break;
 
       default:
-        LOG(FATAL) << "Unhandled";
+        LOG_FATAL("Unhandled");
         break;
     }
 
     data += TileAccelerator::GetParamSize(pcw, vertex_type_);
   }
 
-  // LOG(INFO) << "StartRender " << num_surfs_ << " surfs, "
-  //           << num_verts << " verts, " << tactx->size << " bytes";
+  // LOG_INFO("StartRender %d surfs, %d verts, %d bytes", num_surfs_, num_verts,
+  // tactx->size);
 
   const Eigen::Matrix4f &projection = GetProjectionMatrix();
   rb->BindFramebuffer(FB_TILE_ACCELERATOR);
@@ -297,7 +295,7 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
     offset += 12;
 
     if (tactx->bg_isp.texture) {
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       // v->uv[0] = *reinterpret_cast<const float
       // *>(&tactx->bg_vertices[offset]);
       // v->uv[1] = *reinterpret_cast<const float *>(&tactx->bg_vertices[offset
@@ -314,7 +312,7 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
     offset += 4;
 
     if (tactx->bg_isp.offset) {
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       // uint32_t offset_color = *reinterpret_cast<const uint32_t
       // *>(&tactx->bg_vertices[offset]);
       // v->offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
@@ -434,7 +432,7 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx,
     } break;
 
     default:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
   }
 }
@@ -576,7 +574,7 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx,
     } break;
 
     case 15:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
 
     case 16: {
@@ -612,7 +610,7 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx,
     } break;
 
     default:
-      LOG(FATAL) << "Unsupported vertex type " << vertex_type_;
+      LOG_FATAL("Unsupported vertex type %d", vertex_type_);
       break;
   }
 
@@ -805,12 +803,12 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       switch (tactx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
           pixel_fmt = PXL_RGBA5551;
-          LOG(FATAL) << "Unhandled";
+          LOG_FATAL("Unhandled");
           break;
 
         case TA_PAL_RGB565:
           pixel_fmt = PXL_RGB565;
-          LOG(FATAL) << "Unhandled";
+          LOG_FATAL("Unhandled");
           break;
 
         case TA_PAL_ARGB4444:
@@ -823,7 +821,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
         case TA_PAL_ARGB8888:
           CHECK_EQ(true, twiddled);
           pixel_fmt = PXL_RGBA8888;
-          LOG(FATAL) << "Unhandled";
+          LOG_FATAL("Unhandled");
           break;
       }
       break;
@@ -833,12 +831,12 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       switch (tactx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
           pixel_fmt = PXL_RGBA5551;
-          LOG(FATAL) << "Unhandled";
+          LOG_FATAL("Unhandled");
           break;
 
         case TA_PAL_RGB565:
           pixel_fmt = PXL_RGB565;
-          LOG(FATAL) << "Unhandled";
+          LOG_FATAL("Unhandled");
           break;
 
         case TA_PAL_ARGB4444:
@@ -858,7 +856,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       break;
 
     default:
-      LOG(FATAL) << "Unsupported tcw pixel format " << tcw.pixel_format;
+      LOG_FATAL("Unsupported tcw pixel format %d", tcw.pixel_format);
       break;
   }
 
@@ -868,7 +866,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
   TextureHandle handle =
       rb->RegisterTexture(pixel_fmt, filter, mip_mapped, width, height, output);
   if (!handle) {
-    LOG(WARNING) << "Failed to register texture";
+    LOG_WARNING("Failed to register texture");
     return 0;
   }
 

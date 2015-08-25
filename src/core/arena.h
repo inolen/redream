@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <glog/logging.h>
+#include "core/assert.h"
 
 namespace dreavm {
 namespace core {
@@ -39,9 +39,9 @@ class Arena {
   }
 
   void *Alloc(size_t bytes) {
-    CHECK_LE(bytes, chunk_size_) << "Arena chunk size (" << chunk_size_
-                                 << ") is less than requested size (" << bytes
-                                 << ")";
+    CHECK_LE(bytes, chunk_size_,
+             "Allocation of %zu bytes is greater than chunk size of %zu bytes",
+             bytes, chunk_size_);
 
     // alloc the next chunk if we're out of capacity
     if ((current_chunk_->capacity - current_chunk_->head) < bytes) {

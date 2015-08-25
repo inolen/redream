@@ -28,10 +28,10 @@ void DumpBlock(RuntimeBlock *block) {
   while (true) {
     int len = Disasm(&dsm);
     if (len == OUT_OF_BLOCK) {
-      LOG(INFO) << "Disasm engine is not allowed to read more memory";
+      LOG_INFO("Disasm engine is not allowed to read more memory");
       break;
     } else if (len == UNKNOWN_OPCODE) {
-      LOG(INFO) << "Unknown opcode";
+      LOG_INFO("Unknown opcode");
       break;
     }
 
@@ -45,7 +45,7 @@ void DumpBlock(RuntimeBlock *block) {
     }
 
     // print out binary / mnemonic
-    LOG(INFO) << instr.str() << " " << dsm.CompleteInstr;
+    LOG_INFO("%s %s", instr.str().c_str(), dsm.CompleteInstr);
 
     if (dsm.Instruction.BranchType == RetType) {
       break;

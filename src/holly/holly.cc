@@ -110,7 +110,7 @@ uint32_t Holly::ReadRegister(void *ctx, uint32_t addr) {
   Register &reg = holly->regs_[addr >> 2];
 
   if (!(reg.flags & R)) {
-    LOG(FATAL) << "Invalid read access at 0x" << std::hex << addr;
+    LOG_FATAL("Invalid read access at 0x%x", addr);
   }
 
   if (addr >= SB_MDSTAR_OFFSET && addr <= SB_MRXDBD_OFFSET) {
@@ -149,7 +149,7 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   Register &reg = holly->regs_[addr >> 2];
 
   if (!(reg.flags & W)) {
-    LOG(FATAL) << "Invalid write access at 0x" << std::hex << addr;
+    LOG_FATAL("Invalid write access at 0x%x", addr);
   }
 
   if (addr >= SB_MDSTAR_OFFSET && addr <= SB_MRXDBD_OFFSET) {
@@ -207,7 +207,7 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
     case SB_PDEN_OFFSET:
     case SB_PDST_OFFSET:
       if (value) {
-        LOG(INFO) << "AICA DMA request ignored";
+        LOG_INFO("AICA DMA request ignored");
       }
       break;
 
@@ -239,7 +239,6 @@ void Holly::WriteAudio(void *ctx, uint32_t addr, T value) {
   Holly *holly = (Holly *)ctx;
   *reinterpret_cast<T *>(&holly->audio_ram_[addr]) = value;
 }
-
 }
 }
 

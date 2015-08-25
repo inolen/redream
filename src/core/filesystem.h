@@ -5,6 +5,7 @@
 
 #ifdef PLATFORM_WINDOWS
 
+#include <windows.h>
 #include <direct.h>
 
 #define PATH_SEPARATOR "\\"

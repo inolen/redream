@@ -41,8 +41,7 @@ void SH4::Reset(uint32_t pc) {
 int64_t SH4::Execute(int64_t cycles) {
   PROFILER_RUNTIME("SH4::Execute");
 
-  // LOG(INFO) << "Executing " << cycles << " cycles @ 0x" << std::hex <<
-  // ctx_.pc;
+  // LOG_INFO("Executing %d cycles at 0x%x", cycles, ctx_.pc);
 
   int64_t remaining = cycles;
 
@@ -255,7 +254,7 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
   switch (addr) {
     case MMUCR_OFFSET:
       if (value) {
-        LOG(FATAL) << "MMU not currently supported";
+        LOG_FATAL("MMU not currently supported");
       }
       break;
 
@@ -285,7 +284,6 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
       // TODO UnrequestInterrupt on TCR write
   }
 }
-
 }
 }
 

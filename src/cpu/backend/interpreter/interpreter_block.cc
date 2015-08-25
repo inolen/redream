@@ -36,7 +36,7 @@ uint32_t CallBlock(RuntimeBlock *block, Memory *memory, void *guest_ctx) {
   return i;
 }
 
-void DumpBlock(RuntimeBlock *block) { LOG(INFO) << "Unimplemented"; }
+void DumpBlock(RuntimeBlock *block) { LOG_INFO("Unimplemented"); }
 }
 }
 }

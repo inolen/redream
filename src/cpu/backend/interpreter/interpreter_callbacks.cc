@@ -58,7 +58,7 @@ IntFn dreavm::cpu::backend::interpreter::GetCallback(
   auto it = int_cbs.find(CALLBACK_IDX(op, GetArgSignature(sig, 3),
                                       GetArgSignature(sig, 0),
                                       GetArgSignature(sig, 1), access_mask));
-  CHECK(it != int_cbs.end()) << "Failed to lookup callback for " << Opnames[op];
+  CHECK_NE(it, int_cbs.end(), "Failed to lookup callback for %s", Opnames[op]);
   return it->second;
 }
 

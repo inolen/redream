@@ -58,25 +58,11 @@ target_include_directories(beaengine PUBLIC deps/beaengine-4.1/include)
 list(APPEND DREAVM_DEFS EIGEN_DEFAULT_TO_ROW_MAJOR)
 list(APPEND DREAVM_INCLUDE_DIRS deps/eigen-3.2.1)
 
-# gflags / glog
+# gflags
 set(GFLAGS_NAMESPACE "google" CACHE STRING "")
 add_subdirectory(deps/gflags-2.1.2 EXCLUDE_FROM_ALL)
 list(APPEND DREAVM_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/deps/gflags-2.1.2/include)
-
-ExternalProject_Add(glog-external
-  DEPENDS gflags
-  SOURCE_DIR ${CMAKE_SOURCE_DIR}/deps/glog-0.3.3
-  BINARY_DIR ${CMAKE_BINARY_DIR}/deps/glog-0.3.3
-  CONFIGURE_COMMAND ${CMAKE_SOURCE_DIR}/deps/glog-0.3.3/configure CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} --disable-shared --with-gflags=${CMAKE_BINARY_DIR}/deps/gflags-2.1.2
-  BUILD_COMMAND ${MAKE}
-  INSTALL_COMMAND "")
-add_library(glog UNKNOWN IMPORTED)
-set_property(TARGET glog PROPERTY IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/deps/glog-0.3.3/.libs/libglog.a)
-add_dependencies(glog glog-external)
-list(APPEND DREAVM_INCLUDE_DIRS deps/glog-0.3.3/src ${CMAKE_BINARY_DIR}/deps/glog-0.3.3/src)
-
-# glog depends on gflags, it must be linked first
-list(APPEND DREAVM_LIBS glog gflags_nothreads-static)
+list(APPEND DREAVM_LIBS gflags_nothreads-static)
 
 # json11
 add_library(json11 STATIC deps/json11/json11.cpp)
@@ -198,7 +184,9 @@ add_custom_command(OUTPUT ${asm_inc}
 
 # build gtest binary
 set(DREAVM_TEST_SOURCES
+  src/core/assert.cc
   src/core/filesystem.cc
+  src/core/log.cc
   src/cpu/backend/interpreter/interpreter_backend.cc
   src/cpu/backend/interpreter/interpreter_block.cc
   src/cpu/backend/interpreter/interpreter_callbacks.cc
@@ -243,7 +231,9 @@ endif()
 #--------------------------------------------------
 
 set(DREAVM_SOURCES
+  src/core/assert.cc
   src/core/filesystem.cc
+  src/core/log.cc
   src/cpu/backend/interpreter/interpreter_backend.cc
   src/cpu/backend/interpreter/interpreter_block.cc
   src/cpu/backend/interpreter/interpreter_callbacks.cc

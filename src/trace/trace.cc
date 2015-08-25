@@ -17,7 +17,7 @@ void dreavm::trace::GetNextTraceFilename(char *filename, size_t size) {
     }
   }
 
-  LOG(FATAL) << "Unable to find available trace filename";
+  LOG_FATAL("Unable to find available trace filename");
 }
 
 TraceReader::TraceReader() : trace_size_(0), trace_(nullptr) {}
@@ -97,7 +97,7 @@ bool TraceReader::PatchPointers() {
       } break;
 
       default:
-        LOG(INFO) << "Unexpected trace command type " << curr_cmd->type;
+        LOG_INFO("Unexpected trace command type %d", curr_cmd->type);
         return false;
     }
   }
@@ -140,7 +140,7 @@ bool TraceReader::PatchOverrides() {
       } break;
 
       default:
-        LOG(INFO) << "Unexpected trace command type " << cmd->type;
+        LOG_INFO("Unexpected trace command type %d", cmd->type);
         return false;
     }
 

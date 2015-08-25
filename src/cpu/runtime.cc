@@ -69,8 +69,8 @@ RuntimeBlock *Runtime::GetBlock(uint32_t addr, const void *guest_ctx) {
 
   uint32_t offset = BlockOffset(addr);
   if (offset >= MAX_BLOCKS) {
-    LOG(FATAL) << "Block requested at 0x" << std::hex << addr
-               << " is outside of the executable space";
+    LOG_FATAL("Block requested at 0x%x is outside of the executable space",
+              addr);
   }
 
   RuntimeBlock *block = &blocks_[offset];
@@ -101,14 +101,14 @@ void Runtime::CompileBlock(uint32_t addr, const void *guest_ctx,
   pass_runner_.Run(*builder);
 
   if (!backend_->AssembleBlock(*builder, block)) {
-    LOG(INFO) << "Assembler overflow, resetting block cache";
+    LOG_INFO("Assembler overflow, resetting block cache");
 
     // the backend overflowed, reset the block cache
     ResetBlocks();
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
-    CHECK(backend_->AssembleBlock(*builder, block))
-        << "Backend assembler buffer overflow";
+    CHECK(backend_->AssembleBlock(*builder, block),
+          "Backend assembler buffer overflow");
   }
 }

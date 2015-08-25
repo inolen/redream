@@ -8,7 +8,6 @@ using namespace dreavm::cpu;
 using namespace dreavm::emu;
 using namespace dreavm::holly;
 
-#define SB_REG(name) holly_.SB_##name
 #define SWAP_24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
@@ -66,7 +65,7 @@ uint32_t GDROM::ReadRegister(Register &reg, uint32_t addr) {
     }
 
     case GD_ERROR_FEATURES_OFFSET:
-      // LOG(INFO) << "GD_ERROR";
+      // LOG_INFO("GD_ERROR");
       return 0;
 
     case GD_INTREASON_SECTCNT_OFFSET:
@@ -82,7 +81,7 @@ uint32_t GDROM::ReadRegister(Register &reg, uint32_t addr) {
       return byte_count_.hi;
 
     case GD_DRVSEL_OFFSET:
-      // LOG(INFO) << "GD_DRVSEL";
+      // LOG_INFO("GD_DRVSEL");
       return 0;
 
     case GD_STATUS_COMMAND_OFFSET:
@@ -103,7 +102,7 @@ void GDROM::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
   switch (addr) {
     // gdrom regs
     case GD_ALTSTAT_DEVCTRL_OFFSET:
-      // LOG(INFO) << "GD_DEVCTRL 0x" << std::hex << (uint32_t)value;
+      // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
       break;
 
     case GD_DATA_OFFSET: {
@@ -120,7 +119,7 @@ void GDROM::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
       break;
 
     case GD_INTREASON_SECTCNT_OFFSET:
-      // LOG(INFO) << "GD_SECTCNT 0x" << std::hex << (uint32_t)value;
+      // LOG_INFO("GD_SECTCNT 0x%x", (uint32_t)value);
       break;
 
     case GD_SECTNUM_OFFSET:
@@ -136,7 +135,7 @@ void GDROM::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
       break;
 
     case GD_DRVSEL_OFFSET:
-      // LOG(INFO) << "GD_DRVSEL 0x" << std::hex << (uint32_t)value;
+      // LOG_INFO("GD_DRVSEL 0x%x", (uint32_t)value);
       break;
 
     case GD_STATUS_COMMAND_OFFSET:
@@ -160,12 +159,12 @@ void GDROM::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
         // SB_GDSTAR, SB_GDLEN, or SB_GDDIR register is overwritten while a DMA
         // operation is in progress, the new setting has no effect on the
         // current DMA operation.
-        CHECK_EQ(SB_REG(GDEN), 1);   // dma enabled
-        CHECK_EQ(SB_REG(GDDIR), 1);  // gd-rom -> system memory
-        CHECK_EQ(SB_REG(GDLEN), dma_size_);
+        CHECK_EQ(holly_.SB_GDEN, 1);   // dma enabled
+        CHECK_EQ(holly_.SB_GDDIR, 1);  // gd-rom -> system memory
+        CHECK_EQ(holly_.SB_GDLEN, (uint32_t)dma_size_);
 
-        int transfer_size = SB_REG(GDLEN);
-        uint32_t start = SB_REG(GDSTAR);
+        int transfer_size = holly_.SB_GDLEN;
+        uint32_t start = holly_.SB_GDSTAR;
 
         printf("GD DMA START 0x%x -> 0x%x, 0x%x bytes\n", start,
                start + transfer_size, transfer_size);
@@ -173,9 +172,9 @@ void GDROM::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
         memory_.Memcpy(start, dma_buffer_, transfer_size);
 
         // done
-        SB_REG(GDSTARD) = start + transfer_size;
-        SB_REG(GDLEND) = transfer_size;
-        SB_REG(GDST) = 0;
+        holly_.SB_GDSTARD = start + transfer_size;
+        holly_.SB_GDLEND = transfer_size;
+        holly_.SB_GDST = 0;
         holly_.RequestInterrupt(HOLLY_INTC_G1DEINT);
 
         // finish off CD_READ command
@@ -299,7 +298,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
 
   switch (cmd) {
     case ATA_NOP:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       // Setting "abort" in the error register
       // Setting "error" in the status register
       // Clearing BUSY in the status register
@@ -313,7 +312,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
       break;
 
     case ATA_EXEC_DIAG:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
 
     case ATA_PACKET:
@@ -321,7 +320,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
       break;
 
     case ATA_IDENTIFY_DEV:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
 
     case ATA_SET_FEATURES:
@@ -331,7 +330,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
       break;
 
     default:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
   }
 }
@@ -347,7 +346,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     // Packet Command Flow For PIO DATA To Host
     //
     case SPI_REQ_STAT:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
 
     case SPI_REQ_MODE: {
@@ -357,7 +356,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     } break;
 
     case SPI_REQ_ERROR:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
 
     case SPI_GET_TOC: {
@@ -415,12 +414,12 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
                             dma_buffer_);
         dma_size_ = r;
       } else {
-        LOG(FATAL) << "Unhandled";
+        LOG_FATAL("Unhandled");
       }
     } break;
 
     case SPI_CD_READ2:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
 
     //
@@ -443,7 +442,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     case SPI_CD_PLAY:
     case SPI_CD_SEEK:
     case SPI_CD_SCAN:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       TriggerEvent(EV_SPI_CMD_DONE);
       break;
 
@@ -456,7 +455,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
       break;
 
     default:
-      LOG(FATAL) << "Unhandled";
+      LOG_FATAL("Unhandled");
       break;
   }
 }
@@ -529,7 +528,7 @@ void GDROM::GetSubcode(int format, uint8_t *data) {
   memset(data, 0, SUBCODE_SIZE);
   data[1] = AUDIO_NOSTATUS;
 
-  LOG(INFO) << "GetSubcode not fully implemented";
+  LOG_INFO("GetSubcode not fully implemented");
 }
 
 int GDROM::ReadSectors(int fad, SectorFormat format, DataMask mask,
@@ -539,7 +538,7 @@ int GDROM::ReadSectors(int fad, SectorFormat format, DataMask mask,
   int total = 0;
   char data[SECTOR_SIZE];
 
-  LOG(INFO) << "ReadSectors " << fad << " -> " << fad + num_sectors;
+  LOG_INFO("ReadSectors %d -> %d", fad, fad + num_sectors);
 
   for (int i = 0; i < num_sectors; i++) {
     int r = current_disc_->ReadSector(fad, data);

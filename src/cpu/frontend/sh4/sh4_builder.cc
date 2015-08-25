@@ -191,7 +191,8 @@ Value *SH4Builder::LoadPreserved() {
 }
 
 void SH4Builder::EmitDelayInstr() {
-  CHECK_EQ(has_delay_instr_, true) << "No delay instruction available";
+  CHECK_EQ(has_delay_instr_, true, "No delay instruction available");
+
   has_delay_instr_ = false;
 
   (emit_callbacks[delay_instr_.type->op])(*this, fpu_state_, delay_instr_);
@@ -207,7 +208,7 @@ void SH4Builder::StoreAndPreserveContext(size_t offset, Value *v,
                                          InstrFlag flags) {
   // if a register that needs to be preserved is overwritten, cache it
   if (offset == preserve_offset_) {
-    CHECK(!offset_preserved_) << "Can only preserve a single value";
+    CHECK(!offset_preserved_, "Can only preserve a single value");
     StoreContext(offsetof(SH4Context, preserve),
                  LoadContext(offset, VALUE_I32));
     offset_preserved_ = true;

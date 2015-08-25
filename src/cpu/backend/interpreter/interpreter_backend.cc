@@ -48,7 +48,7 @@ static IntAccessMask GetAccessMask(Instr &ir_i) {
     } else if (ir_v->reg() != NO_REGISTER) {
       SetArgAccess(arg, ACC_REG, &access_mask);
     } else {
-      LOG(FATAL) << "Unexpected value type";
+      LOG_FATAL("Unexpected value type");
     }
   };
 
@@ -192,6 +192,6 @@ void InterpreterBackend::TranslateArg(Instr &ir_i, IntInstr *instr, int arg) {
   } else if (ir_v->reg() != NO_REGISTER) {
     v->i32 = ir_v->reg();
   } else {
-    LOG(FATAL) << "Unexpected value type";
+    LOG_FATAL("Unexpected value type");
   }
 }

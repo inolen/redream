@@ -92,7 +92,7 @@ uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
   Register &reg = pvr->regs_[addr >> 2];
 
   if (!(reg.flags & R)) {
-    LOG(WARNING) << "Invalid read access at 0x" << std::hex << addr;
+    LOG_WARNING("Invalid read access at 0x%x", addr);
     return 0;
   }
 
@@ -110,7 +110,7 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   Register &reg = pvr->regs_[addr >> 2];
 
   if (!(reg.flags & W)) {
-    LOG(WARNING) << "Invalid write access at 0x" << std::hex << addr;
+    LOG_WARNING("Invalid write access at 0x%x", addr);
     return;
   }
 
@@ -139,7 +139,6 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
     pvr->ta_.InitContext(pvr->TA_ISP_BASE.base_address);
   }
 }
-
 }
 }
 
@@ -180,9 +179,11 @@ void PVR2::ReconfigureVideoOutput() {
     render_height = 480;
   }
 
-  LOG(INFO) << "ReconfigureVideoOutput width " << render_width << ", height "
-            << render_height << ", interlace " << SPG_CONTROL.interlace
-            << ", NTSC " << SPG_CONTROL.NTSC << ", PAL " << SPG_CONTROL.PAL;
+  LOG_INFO(
+      "ReconfigureVideoOutput width %d, height %d, interlace %d, NTSC %d, PAL "
+      "%d",
+      render_width, render_height, SPG_CONTROL.interlace, SPG_CONTROL.NTSC,
+      SPG_CONTROL.PAL);
 
   ta_.ResizeVideo(render_width, render_height);
 }
@@ -204,11 +205,11 @@ void PVR2::ReconfigureSPG() {
     line_clock *= 2;
   }
 
-  LOG(INFO) << "ReconfigureSPG: pixel_clock " << pixel_clock << ", line_clock "
-            << line_clock << ", vcount " << SPG_LOAD.vcount << ", hcount "
-            << SPG_LOAD.hcount << ", interlace " << SPG_CONTROL.interlace
-            << ", vbstart " << SPG_VBLANK.vbstart << ", vbend "
-            << SPG_VBLANK.vbend;
+  LOG_INFO(
+      "ReconfigureSPG: pixel_clock %d, line_clock %d, vcount %d, hcount %d, "
+      "interlace %d, vbstart %d, vbend %d",
+      pixel_clock, line_clock, SPG_LOAD.vcount, SPG_LOAD.hcount,
+      SPG_CONTROL.interlace, SPG_VBLANK.vbstart, SPG_VBLANK.vbend);
 
   if (line_timer_ != INVALID_HANDLE) {
     scheduler_.RemoveTimer(line_timer_);

@@ -102,8 +102,8 @@ class PageTable {
  private:
   void MapRange(uint32_t start, uint32_t end, TableHandle handle) {
     // ensure start and end are page aligned
-    CHECK_EQ(start & (OFFSET_BITS - 1), 0u);
-    CHECK_EQ((end + 1) & (OFFSET_BITS - 1), 0u);
+    CHECK_EQ(start & (OFFSET_BITS - 1), 0);
+    CHECK_EQ((end + 1) & (OFFSET_BITS - 1), 0);
     CHECK_LT(start, end);
 
     int l1_start = start >> OFFSET_BITS;
@@ -175,8 +175,7 @@ class Memory {
   void Resolve(uint32_t logical_addr, MemoryBank **page, uint32_t *offset) {
     TableHandle handle = table_.Lookup(logical_addr);
     if (handle == UNMAPPED) {
-      LOG(FATAL) << "Attempting to resolve unmapped address 0x" << std::hex
-                 << logical_addr;
+      LOG_FATAL("Attempting to resolve unmapped address 0x%x", logical_addr);
       return;
     }
 
@@ -306,8 +305,7 @@ class Memory {
     } else if (bank.*HANDLER) {
       return (bank.*HANDLER)(bank.ctx, offset);
     } else {
-      LOG(FATAL) << "Attempting to read from unmapped address 0x" << std::hex
-                 << addr;
+      LOG_FATAL("Attempting to read from unmapped address 0x%x", addr);
     }
 
     return 0;
@@ -323,8 +321,7 @@ class Memory {
     } else if (bank.*HANDLER) {
       (bank.*HANDLER)(bank.ctx, offset, value);
     } else {
-      LOG(FATAL) << "Attempting to write to unmapped address 0x" << std::hex
-                 << addr;
+      LOG_FATAL("Attempting to write to unmapped address 0x%x", addr);
     }
   }
 };

@@ -1,7 +1,8 @@
 #ifndef RING_BUFFER_H
 #define RING_BUFFER_H
 
-#include <glog/logging.h>
+#include <iterator>
+#include "core/assert.h"
 
 namespace dreavm {
 namespace core {

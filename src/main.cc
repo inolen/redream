@@ -34,15 +34,15 @@ void RunEmulator(const char *launch) {
   Emulator emu(sys);
 
   if (!sys.Init()) {
-    LOG(FATAL) << "Failed to initialize window.";
+    LOG_FATAL("Failed to initialize window.");
   }
 
   if (!emu.Init()) {
-    LOG(FATAL) << "Failed to initialize emulator.";
+    LOG_FATAL("Failed to initialize emulator.");
   }
 
   if (launch && !emu.Launch(launch)) {
-    LOG(FATAL) << "Failed to load " << launch;
+    LOG_FATAL("Failed to load %s", launch);
   }
 
   while (1) {
@@ -56,15 +56,15 @@ void RunTraceViewer(const char *trace) {
   TraceViewer tracer(sys);
 
   if (!sys.Init()) {
-    LOG(FATAL) << "Failed to initialize window.";
+    LOG_FATAL("Failed to initialize window.");
   }
 
   if (!tracer.Init()) {
-    LOG(FATAL) << "Failed to initialize tracer.";
+    LOG_FATAL("Failed to initialize tracer.");
   }
 
   if (!tracer.Load(trace)) {
-    LOG(FATAL) << "Failed to load " << trace;
+    LOG_FATAL("Failed to load %s", trace);
   }
 
   while (1) {
@@ -74,10 +74,6 @@ void RunTraceViewer(const char *trace) {
 }
 
 int main(int argc, char **argv) {
-  // log to stderr by default
-  FLAGS_logtostderr = true;
-  google::InitGoogleLogging(argv[0]);
-
   EnsureAppDirExists();
 
   InitFlags(&argc, &argv);
@@ -90,8 +86,6 @@ int main(int argc, char **argv) {
   }
 
   ShutdownFlags();
-
-  google::ShutdownGoogleLogging();
 
   return EXIT_SUCCESS;
 }

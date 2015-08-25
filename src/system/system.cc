@@ -72,7 +72,7 @@ void System::Tick() { PumpEvents(); }
 
 void System::QueueEvent(const SystemEvent &ev) {
   if (events_.Full()) {
-    LOG(WARNING) << "System event overflow";
+    LOG_WARNING("System event overflow");
     return;
   }
 
@@ -98,7 +98,7 @@ bool System::GLInit(int *width, int *height) {
   glcontext_ = SDL_GL_CreateContext(window_);
 
   if (!glcontext_) {
-    LOG(WARNING) << "OpenGL context creation failed: " << SDL_GetError();
+    LOG_WARNING("OpenGL context creation failed: %s");
     return false;
   }
 
@@ -114,7 +114,7 @@ void System::GLSwapBuffers() { SDL_GL_SwapWindow(window_); }
 
 bool System::InitSDL() {
   if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO) < 0) {
-    LOG(WARNING) << "SDL initialization failed: " << SDL_GetError();
+    LOG_WARNING("SDL initialization failed: %s", SDL_GetError());
     return false;
   }
 
@@ -130,7 +130,7 @@ bool System::InitWindow() {
                              SDL_WINDOWPOS_UNDEFINED, video_width_,
                              video_height_, window_flags);
   if (!window_) {
-    LOG(WARNING) << "Window creation failed: " << SDL_GetError();
+    LOG_WARNING("Window creation failed: %s", SDL_GetError());
     return false;
   }
 
@@ -144,7 +144,7 @@ void System::DestroyWindow() {
 
 bool System::InitInput() {
   if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) < 0) {
-    LOG(WARNING) << "Input initialization failed: " << SDL_GetError();
+    LOG_WARNING("Input initialization failed: %s", SDL_GetError());
     return false;
   }
 
@@ -165,8 +165,7 @@ void System::InitJoystick() {
     joystick_ = SDL_JoystickOpen(i);
 
     if (joystick_) {
-      LOG(INFO) << "Opened joystick " << SDL_JoystickName(joystick_) << " ("
-                << i << ")";
+      LOG_INFO("Opened joystick %s (%d)", SDL_JoystickName(joystick_), i);
       break;
     }
   }

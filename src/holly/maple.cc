@@ -9,8 +9,6 @@ using namespace dreavm::emu;
 using namespace dreavm::holly;
 using namespace dreavm::system;
 
-#define SB_REG(name) holly_.SB_##name
-
 Maple::Maple(Memory &memory, SH4 &sh4, Holly &holly)
     : memory_(memory), /*sh4_(sh4),*/ holly_(holly), devices_() {
   // default controller device
@@ -32,8 +30,8 @@ bool Maple::HandleInput(int port, Keycode key, int16_t value) {
 // in synchronization with the V-BLANK signal. These methods are selected
 // through the trigger selection register (SB_MDTSEL).
 void Maple::VBlank() {
-  uint32_t enabled = SB_REG(MDEN);
-  uint32_t vblank_initiate = SB_REG(MDTSEL);
+  uint32_t enabled = holly_.SB_MDEN;
+  uint32_t vblank_initiate = holly_.SB_MDTSEL;
 
   if (enabled && vblank_initiate) {
     StartDMA();
@@ -49,7 +47,7 @@ void Maple::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
   reg.value = value;
 
   if (addr == SB_MDST_OFFSET) {
-    uint32_t enabled = SB_REG(MDEN);
+    uint32_t enabled = holly_.SB_MDEN;
     if (enabled) {
       if (value) {
         StartDMA();
@@ -61,7 +59,7 @@ void Maple::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
 }
 
 void Maple::StartDMA() {
-  uint32_t start_addr = SB_REG(MDSTAR);
+  uint32_t start_addr = holly_.SB_MDSTAR;
   MapleTransferDesc desc;
   MapleFrame frame, res;
 
@@ -79,7 +77,6 @@ void Maple::StartDMA() {
     }
 
     // handle frame and write response
-    CHECK_LT(desc.port, MAX_PORTS);
     std::unique_ptr<MapleDevice> &dev = devices_[desc.port];
 
     if (dev && dev->HandleFrame(frame, res)) {
@@ -95,6 +92,6 @@ void Maple::StartDMA() {
     }
   } while (!desc.last);
 
-  SB_REG(MDST) = 0;
+  holly_.SB_MDST = 0;
   holly_.RequestInterrupt(HOLLY_INTC_MDEINT);
 }

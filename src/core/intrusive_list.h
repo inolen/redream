@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <iterator>
 #include <type_traits>
-#include <glog/logging.h>
+#include "core/assert.h"
 
 namespace dreavm {
 namespace core {

@@ -208,7 +208,7 @@ void IRBuilder::Dump() const {
     std::stringstream header;
     DumpBlock(header, block);
     header << ":" << std::endl;
-    LOG(INFO) << header.str();
+    LOG_INFO(header.str().c_str());
 
     for (auto instr : block->instrs()) {
       std::stringstream ss;
@@ -217,9 +217,9 @@ void IRBuilder::Dump() const {
       DumpValue(ss, instr->arg1());
       DumpValue(ss, instr->arg2());
       DumpValue(ss, instr->result());
-      LOG(INFO) << ss.str();
+      LOG_INFO(ss.str().c_str());
     }
-    LOG(INFO) << std::endl;
+    LOG_INFO("");
   }
 }
 

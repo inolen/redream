@@ -29,7 +29,7 @@ TextureHandle TraceTextureCache::GetTexture(
   uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
 
   auto it = textures_.find(texture_key);
-  CHECK(it != textures_.end()) << "Texture wasn't available in cache";
+  CHECK_NE(it, textures_.end(), "Texture wasn't available in cache");
 
   TextureInst &texture = it->second;
 
@@ -58,7 +58,7 @@ bool TraceViewer::Init() {
 
 bool TraceViewer::Load(const char *path) {
   if (!reader_.Parse(path)) {
-    LOG(INFO) << "Failed to parse " << path;
+    LOG_INFO("Failed to parse %s", path);
     return false;
   }
 

@@ -7,34 +7,14 @@ using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
 // maps register ids coming from IR values
-static const Xbyak::Reg *reg_map_8[] = {&Xbyak::util::bl,
-                                        &Xbyak::util::bpl,
-                                        &Xbyak::util::r12b,
-                                        &Xbyak::util::r13b,
-                                        &Xbyak::util::r14b,
-                                        &Xbyak::util::r15b,
-                                        nullptr,
-                                        nullptr,
-                                        nullptr,
-                                        nullptr,
-                                        nullptr,
-                                        nullptr,
-                                        nullptr,
-                                        nullptr};
-static const Xbyak::Reg *reg_map_16[] = {&Xbyak::util::bx,
-                                         &Xbyak::util::bp,
-                                         &Xbyak::util::r12w,
-                                         &Xbyak::util::r13w,
-                                         &Xbyak::util::r14w,
-                                         &Xbyak::util::r15w,
-                                         nullptr,
-                                         nullptr,
-                                         nullptr,
-                                         nullptr,
-                                         nullptr,
-                                         nullptr,
-                                         nullptr,
-                                         nullptr};
+static const Xbyak::Reg *reg_map_8[] = {
+    &Xbyak::util::bl, &Xbyak::util::bpl, &Xbyak::util::r12b, &Xbyak::util::r13b,
+    &Xbyak::util::r14b, &Xbyak::util::r15b, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr};
+static const Xbyak::Reg *reg_map_16[] = {
+    &Xbyak::util::bx, &Xbyak::util::bp, &Xbyak::util::r12w, &Xbyak::util::r13w,
+    &Xbyak::util::r14w, &Xbyak::util::r15w, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr};
 static const Xbyak::Reg *reg_map_32[] = {
     &Xbyak::util::ebx,  &Xbyak::util::ebp,   &Xbyak::util::r12d,
     &Xbyak::util::r13d, &Xbyak::util::r14d,  &Xbyak::util::r15d,
@@ -114,7 +94,7 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
 
     for (auto instr : block->instrs()) {
       X64Emit emit = x64_emitters[instr->op()];
-      CHECK(emit) << "Failed to find emitter for " << Opnames[instr->op()];
+      CHECK(emit, "Failed to find emitter for %s", Opnames[instr->op()]);
       emit(*this, memory_, c_, instr);
     }
   }
@@ -187,7 +167,7 @@ const Xbyak::Operand &X64Emitter::GetOperand(const Value *v, int size) {
     return *reg;
   }
 
-  LOG(FATAL) << "Unexpected operand type";
+  LOG_FATAL("Unexpected operand type");
 }
 
 // If the value is a local or constant, copy it to a tempory register, else
@@ -287,9 +267,9 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
 
     // shouldn't ever be doing this
     CHECK(!from.isREG() || !to.isREG() || from.getIdx() != to.getIdx() ||
-          from.getKind() != to.getKind())
-        << "Unexpected copy operation between the same register of different "
-           "sizes";
+              from.getKind() != to.getKind(),
+          "Unexpected copy operation between the same register of different "
+          "sizes");
 
     if (to.isXMM()) {
       if (from.isXMM()) {
@@ -299,10 +279,10 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
       } else if (from.isBit(64)) {
         c_.movsd(reinterpret_cast<const Xbyak::Xmm &>(to), from);
       } else {
-        LOG(FATAL) << "Unexpected copy";
+        LOG_FATAL("Unexpected copy");
       }
     } else if (from.isXMM()) {
-      CHECK(to.isMEM()) << "Expected destination to be a memory address";
+      CHECK(to.isMEM(), "Expected destination to be a memory address");
 
       if (to.isBit(32)) {
         c_.movss(reinterpret_cast<const Xbyak::Address &>(to),
@@ -311,7 +291,7 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
         c_.movsd(reinterpret_cast<const Xbyak::Address &>(to),
                  reinterpret_cast<const Xbyak::Xmm &>(from));
       } else {
-        LOG(FATAL) << "Unexpected copy";
+        LOG_FATAL("Unexpected copy");
       }
     } else {
       c_.mov(to, from);
@@ -349,7 +329,7 @@ EMITTER(LOAD_CONTEXT) {
         c.movsd(result, c.qword[c.rdi + offset]);
         break;
       default:
-        LOG(FATAL) << "Unexpected result type";
+        LOG_FATAL("Unexpected result type");
         break;
     }
   } else {
@@ -369,7 +349,7 @@ EMITTER(LOAD_CONTEXT) {
         c.mov(result, c.qword[c.rdi + offset]);
         break;
       default:
-        LOG(FATAL) << "Unexpected result type";
+        LOG_FATAL("Unexpected result type");
         break;
     }
   }
@@ -395,7 +375,7 @@ EMITTER(STORE_CONTEXT) {
         c.mov(c.qword[c.rdi + offset], instr->arg1()->value<int64_t>());
         break;
       default:
-        LOG(FATAL) << "Unexpected value type";
+        LOG_FATAL("Unexpected value type");
         break;
     }
   } else {
@@ -410,7 +390,7 @@ EMITTER(STORE_CONTEXT) {
           c.movsd(c.qword[c.rdi + offset], src);
           break;
         default:
-          LOG(FATAL) << "Unexpected value type";
+          LOG_FATAL("Unexpected value type");
           break;
       }
     } else {
@@ -430,7 +410,7 @@ EMITTER(STORE_CONTEXT) {
           c.mov(c.qword[c.rdi + offset], src);
           break;
         default:
-          LOG(FATAL) << "Unexpected value type";
+          LOG_FATAL("Unexpected value type");
           break;
       }
     }
@@ -451,7 +431,7 @@ EMITTER(LOAD_LOCAL) {
         c.movsd(result, c.qword[c.rsp + offset]);
         break;
       default:
-        LOG(FATAL) << "Unexpected result type";
+        LOG_FATAL("Unexpected result type");
         break;
     }
   } else {
@@ -471,7 +451,7 @@ EMITTER(LOAD_LOCAL) {
         c.mov(result, c.qword[c.rsp + offset]);
         break;
       default:
-        LOG(FATAL) << "Unexpected result type";
+        LOG_FATAL("Unexpected result type");
         break;
     }
   }
@@ -493,7 +473,7 @@ EMITTER(STORE_LOCAL) {
         c.movsd(c.qword[c.rsp + offset], src);
         break;
       default:
-        LOG(FATAL) << "Unexpected value type";
+        LOG_FATAL("Unexpected value type");
         break;
     }
   } else {
@@ -513,7 +493,7 @@ EMITTER(STORE_LOCAL) {
         c.mov(c.qword[c.rsp + offset], src);
         break;
       default:
-        LOG(FATAL) << "Unexpected value type";
+        LOG_FATAL("Unexpected value type");
         break;
     }
   }
@@ -553,7 +533,7 @@ EMITTER(LOAD) {
           c.mov(result, c.qword[c.r8]);
           break;
         default:
-          LOG(FATAL) << "Unexpected load result type";
+          LOG_FATAL("Unexpected load result type");
           break;
       }
 
@@ -580,7 +560,7 @@ EMITTER(LOAD) {
           static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
       break;
     default:
-      LOG(FATAL) << "Unexpected load result type";
+      LOG_FATAL("Unexpected load result type");
       break;
   }
 
@@ -634,7 +614,7 @@ EMITTER(STORE) {
           c.mov(c.qword[c.r8], b);
           break;
         default:
-          LOG(FATAL) << "Unexpected store value type";
+          LOG_FATAL("Unexpected store value type");
           break;
       }
 
@@ -661,7 +641,7 @@ EMITTER(STORE) {
           static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
       break;
     default:
-      LOG(FATAL) << "Unexpected store value type";
+      LOG_FATAL("Unexpected store value type");
       break;
   }
 
@@ -695,7 +675,7 @@ EMITTER(CAST) {
         c.cvtsi2sd(result, a);
         break;
       default:
-        LOG(FATAL) << "Unexpected result type";
+        LOG_FATAL("Unexpected result type");
         break;
     }
   } else {
@@ -712,7 +692,7 @@ EMITTER(CAST) {
         c.cvttsd2si(result, a);
         break;
       default:
-        LOG(FATAL) << "Unexpected result type";
+        LOG_FATAL("Unexpected result type");
         break;
     }
   }
@@ -772,7 +752,7 @@ EMITTER(TRUNCATE) {
       truncated = a.cvt32();
       break;
     default:
-      LOG(FATAL) << "Unexpected truncation result size";
+      LOG_FATAL("Unexpected truncation result size");
   }
 
   if (truncated.isBit(32)) {
@@ -1216,7 +1196,7 @@ EMITTER(ABS) {
       c.movq(result, c.rax);
     }
   } else {
-    LOG(FATAL) << "Unexpected abs result type";
+    LOG_FATAL("Unexpected abs result type");
     // c.mov(c.rax, *result);
     // c.neg(c.rax);
     // c.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), c.rax);
@@ -1445,7 +1425,7 @@ EMITTER(BRANCH_COND) {
   }
   // if they are mixed, do local block test first, far block second
   else {
-    LOG(FATAL) << "Unexpected mixed mode conditional branch";
+    LOG_FATAL("Unexpected mixed mode conditional branch");
   }
 }
 

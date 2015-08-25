@@ -2,14 +2,14 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/stat.h>
+#include "core/core.h"
 #ifdef PLATFORM_WINDOWS
 #include <userenv.h>
 #else
 #include <pwd.h>
+#include <unistd.h>
 #endif
-#include "core/core.h"
 
 namespace dreavm {
 namespace core {
@@ -57,7 +57,7 @@ const char *GetAppDir() {
   // get the user's home directory
   char userdir[PATH_MAX];
   if (!GetUserDir(userdir, sizeof(userdir))) {
-    LOG(FATAL) << "Failed to locate user directory";
+    LOG_FATAL("Failed to locate user directory");
   }
 
   // setup our own subdirectory inside of it
@@ -70,7 +70,7 @@ void EnsureAppDirExists() {
   const char *appdir = GetAppDir();
 
   if (!CreateDir(appdir)) {
-    LOG(FATAL) << "Failed to create app directory " << appdir;
+    LOG_FATAL("Failed to create app directory %s", appdir);
   }
 }
 

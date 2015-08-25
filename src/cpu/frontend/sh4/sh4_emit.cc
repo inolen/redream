@@ -674,10 +674,10 @@ EMITTER(EXTUW) {
 }
 
 // MAC.L   @Rm+,@Rn+
-EMITTER(MACL) { LOG(FATAL) << "MACL not implemented"; }
+EMITTER(MACL) { LOG_FATAL("MACL not implemented"); }
 
 // MAC.W   @Rm+,@Rn+
-EMITTER(MACW) { LOG(FATAL) << "MACW not implemented"; }
+EMITTER(MACW) { LOG_FATAL("MACW not implemented"); }
 
 // MUL.L   Rm,Rn
 EMITTER(MULL) {
@@ -1382,7 +1382,7 @@ EMITTER(LDSMPR) {
 }
 
 // MOVCA.L     R0,@Rn
-EMITTER(MOVCAL) { LOG(FATAL) << "MOVCAL not implemented"; }
+EMITTER(MOVCAL) { LOG_FATAL("MOVCAL not implemented"); }
 
 // NOP
 EMITTER(NOP) {}
@@ -1465,7 +1465,7 @@ EMITTER(SETS) { b.StoreSR(b.Or(b.LoadSR(), b.AllocConstant(S))); }
 EMITTER(SETT) { b.StoreT(b.AllocConstant(1)); }
 
 // SLEEP
-EMITTER(SLEEP) { LOG(FATAL) << "SLEEP not implemented"; }
+EMITTER(SLEEP) { LOG_FATAL("SLEEP not implemented"); }
 
 // STC     SR,Rn
 EMITTER(STCSR) {
@@ -1669,7 +1669,7 @@ EMITTER(STSMPR) {
 }
 
 // TRAPA   #imm
-EMITTER(TRAPA) { LOG(FATAL) << "TRAPA not implemented"; }
+EMITTER(TRAPA) { LOG_FATAL("TRAPA not implemented"); }
 
 // FLDI0  FRn 1111nnnn10001101
 EMITTER(FLDI0) { b.StoreRegisterF(i.Rn, b.AllocConstant(0)); }
@@ -2048,10 +2048,10 @@ EMITTER(FTRC) {
 }
 
 // FCNVDS DRm,FPUL PR=1 1111mmm010111101
-EMITTER(FCNVDS) { LOG(FATAL) << "FCNVDS not implemented"; }
+EMITTER(FCNVDS) { LOG_FATAL("FCNVDS not implemented"); }
 
 // FCNVSD FPUL, DRn PR=1 1111nnn010101101
-EMITTER(FCNVSD) { LOG(FATAL) << "FCNVSD not implemented"; }
+EMITTER(FCNVSD) { LOG_FATAL("FCNVSD not implemented"); }
 
 // LDS     Rm,FPSCR
 EMITTER(LDSFPSCR) { b.StoreFPSCR(b.LoadRegister(i.Rm, VALUE_I32)); }

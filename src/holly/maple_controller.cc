@@ -11,12 +11,19 @@ DEFINE_string(profile, "", "Controller profile");
 
 // Controller profile contains button mappings and other misc. configurable
 // settings for the controller.
-static Json default_profile =
-    Json::object{{"joyx", ""},       {"joyy", ""},       {"ltrig", ""},
-                 {"rtrig", ""},      {"start", "space"}, {"a", "k"},
-                 {"b", "l"},         {"x", "j"},         {"y", "i"},
-                 {"dpad_up", "w"},   {"dpad_down", "s"}, {"dpad_left", "a"},
-                 {"dpad_right", "d"}};
+static Json default_profile = Json::object{{"joyx", ""},
+                                           {"joyy", ""},
+                                           {"ltrig", ""},
+                                           {"rtrig", ""},
+                                           {"start", "space"},
+                                           {"a", "k"},
+                                           {"b", "l"},
+                                           {"x", "j"},
+                                           {"y", "i"},
+                                           {"dpad_up", "w"},
+                                           {"dpad_down", "s"},
+                                           {"dpad_left", "a"},
+                                           {"dpad_right", "d"}};
 
 MapleControllerProfile::MapleControllerProfile() : button_map_() {}
 
@@ -25,12 +32,12 @@ void MapleControllerProfile::Load(const char *path) {
 
   // load up the specified controller profile if set
   if (*path) {
-    LOG(INFO) << "Loading controller profile " << path;
+    LOG_INFO("Loading controller profile %s", path);
 
     std::ifstream file(path);
 
     if (!file.is_open()) {
-      LOG(WARNING) << "Failed to open " << path;
+      LOG_WARNING("Failed to open %s", path);
     } else {
       std::stringstream stream;
       stream << file.rdbuf();
@@ -39,7 +46,7 @@ void MapleControllerProfile::Load(const char *path) {
       Json override = Json::parse(stream.str(), err);
 
       if (override.is_null()) {
-        LOG(WARNING) << err;
+        LOG_WARNING(err.c_str());
       } else {
         profile = override;
       }
@@ -100,8 +107,7 @@ bool MapleController::HandleInput(Keycode key, int16_t value) {
   uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
 
   if (!button) {
-    LOG(WARNING) << "Ignored key " << GetNameByKeycode(key)
-                 << ", no mapping found";
+    LOG_WARNING("Ignored key %s, no mapping found", GetNameByKeycode(key));
     return false;
   }
 
