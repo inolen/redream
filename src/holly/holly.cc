@@ -9,6 +9,7 @@ using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::emu;
 using namespace dreavm::holly;
+using namespace dreavm::renderer;
 using namespace dreavm::system;
 
 Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4)
@@ -30,7 +31,7 @@ Holly::~Holly() {
   delete[] expdev_mem_;
 }
 
-bool Holly::Init(renderer::Backend *rb) {
+bool Holly::Init(Backend *rb) {
   InitMemory();
 
   if (!pvr_.Init(rb)) {
@@ -50,8 +51,8 @@ bool Holly::Init(renderer::Backend *rb) {
   return true;
 }
 
-void Holly::RequestInterrupt(Interrupt intr) {
-  InterruptType type = (InterruptType)(intr & HOLLY_INTC_MASK);
+void Holly::RequestInterrupt(HollyInterrupt intr) {
+  HollyInterruptType type = (HollyInterruptType)(intr & HOLLY_INTC_MASK);
   uint32_t irq = intr & ~HOLLY_INTC_MASK;
 
   if (intr == HOLLY_INTC_PCVOINT) {
@@ -75,8 +76,8 @@ void Holly::RequestInterrupt(Interrupt intr) {
   ForwardRequestInterrupts();
 }
 
-void Holly::UnrequestInterrupt(Interrupt intr) {
-  InterruptType type = (InterruptType)(intr & HOLLY_INTC_MASK);
+void Holly::UnrequestInterrupt(HollyInterrupt intr) {
+  HollyInterruptType type = (HollyInterruptType)(intr & HOLLY_INTC_MASK);
   uint32_t irq = intr & ~HOLLY_INTC_MASK;
 
   switch (type) {

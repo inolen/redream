@@ -27,17 +27,15 @@ enum {
 };
 
 // interrupts
-enum {
-  HOLLY_INTC_MASK = 0xf00000000,
-};
+#define HOLLY_INTC_MASK 0xf00000000
 
-enum InterruptType {
+enum HollyInterruptType : uint64_t {
   HOLLY_INTC_NRM = 0x100000000,
   HOLLY_INTC_EXT = 0x200000000,
   HOLLY_INTC_ERR = 0x300000000
 };
 
-enum Interrupt {
+enum HollyInterrupt : uint64_t {
   //
   // HOLLY_INTC_NRM
   //
@@ -176,8 +174,8 @@ class Holly {
   Maple &maple() { return maple_; }
 
   bool Init(renderer::Backend *rb);
-  void RequestInterrupt(Interrupt intr);
-  void UnrequestInterrupt(Interrupt intr);
+  void RequestInterrupt(HollyInterrupt intr);
+  void UnrequestInterrupt(HollyInterrupt intr);
 
  private:
   template <typename T>

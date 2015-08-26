@@ -62,9 +62,15 @@ enum {
 class PageTable {
  public:
   PageTable() {
+    table_ = new TableHandle[MAX_ENTRIES];
+
     for (size_t i = 0; i < MAX_ENTRIES; i++) {
       table_[i] = UNMAPPED;
     }
+  }
+
+  ~PageTable() {
+    delete[] table_;
   }
 
   inline TableHandle Lookup(uint32_t addr) {
@@ -114,7 +120,7 @@ class PageTable {
     }
   }
 
-  TableHandle table_[MAX_ENTRIES];
+  TableHandle *table_;
 };
 
 //

@@ -124,7 +124,7 @@ class Backend {
   virtual void BindFramebuffer(Framebuffer fb) = 0;
   virtual void Clear(float r, float g, float b, float a) = 0;
   virtual void RenderFramebuffer(Framebuffer fb) = 0;
-  virtual void RenderText2D(float x, float y, int point_size, uint32_t color,
+  virtual void RenderText2D(int x, int y, float point_size, uint32_t color,
                             const char *text) = 0;
   virtual void RenderBox2D(int x0, int y0, int x1, int y1, uint32_t color,
                            BoxType type) = 0;

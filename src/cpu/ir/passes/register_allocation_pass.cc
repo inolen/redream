@@ -67,7 +67,7 @@ void RegisterSet::InsertInterval(Interval *interval) {
   live_.Insert(it, interval);
 }
 
-RegisterAllocationPass::RegisterAllocationPass(const backend::Backend &backend)
+RegisterAllocationPass::RegisterAllocationPass(const Backend &backend)
     : int_registers_(backend.num_registers()),
       float_registers_(backend.num_registers()) {
   registers_ = backend.registers();

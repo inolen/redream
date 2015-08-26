@@ -7,6 +7,7 @@
 
 #include <windows.h>
 #include <direct.h>
+#include <windows.h>
 
 #define PATH_SEPARATOR "\\"
 #define PATH_MAX MAX_PATH

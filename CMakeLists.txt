@@ -97,6 +97,75 @@ add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -style=Google -i ${CLANG_FOR
 
 
 #--------------------------------------------------
+# emulator
+#--------------------------------------------------
+
+set(DREAVM_SOURCES
+  src/core/assert.cc
+  src/core/filesystem.cc
+  src/core/log.cc
+  src/cpu/backend/interpreter/interpreter_backend.cc
+  src/cpu/backend/interpreter/interpreter_block.cc
+  src/cpu/backend/interpreter/interpreter_callbacks.cc
+  src/cpu/backend/x64/x64_backend.cc
+  src/cpu/backend/x64/x64_block.cc
+  src/cpu/backend/x64/x64_emitter.cc
+  src/cpu/frontend/sh4/sh4_builder.cc
+  src/cpu/frontend/sh4/sh4_emit.cc
+  src/cpu/frontend/sh4/sh4_frontend.cc
+  src/cpu/frontend/sh4/sh4_instr.cc
+  src/cpu/ir/ir_builder.cc
+  src/cpu/ir/passes/constant_propagation_pass.cc
+  src/cpu/ir/passes/context_promotion_pass.cc
+  src/cpu/ir/passes/control_flow_analysis_pass.cc
+  src/cpu/ir/passes/pass_runner.cc
+  src/cpu/ir/passes/register_allocation_pass.cc
+  src/cpu/ir/passes/validate_pass.cc
+  src/cpu/sh4.cc
+  src/cpu/sh4_context.cc
+  src/cpu/runtime.cc
+  src/emu/disc.cc
+  src/emu/emulator.cc
+  src/emu/profiler.cc
+  src/emu/scheduler.cc
+  src/holly/gdrom.cc
+  src/holly/holly.cc
+  src/holly/maple.cc
+  src/holly/maple_controller.cc
+  src/holly/pvr2.cc
+  src/holly/tile_accelerator.cc
+  src/holly/tile_renderer.cc
+  src/renderer/gl_backend.cc
+  src/renderer/gl_shader.cc
+  src/system/keys.cc
+  src/system/system.cc
+  src/trace/trace.cc
+  src/trace/trace_viewer.cc
+  src/main.cc)
+
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+  set(DREAVM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-local-typedef -Wno-unused-parameter -Wno-unused-private-field -Wno-missing-field-initializers -Wno-strict-aliasing)
+
+  string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
+
+  if(BUILD_TYPE STREQUAL "debug")
+    set(DREAVM_COMPILE_FLAGS ${DREAVM_COMPILE_FLAGS} -fno-omit-frame-pointer)
+  endif()
+else()
+  set(DREAVM_COMPILE_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /W2 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+
+  list(APPEND DREAVM_LIBS userenv)
+endif()
+
+add_executable(dreavm ${DREAVM_SOURCES})
+target_include_directories(dreavm SYSTEM PUBLIC ${DREAVM_INCLUDE_DIRS})
+target_include_directories(dreavm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(dreavm ${DREAVM_LIBS})
+target_compile_definitions(dreavm PRIVATE ${DREAVM_DEFS})
+target_compile_options(dreavm PRIVATE ${DREAVM_COMPILE_FLAGS})
+
+
+#--------------------------------------------------
 # tests
 #--------------------------------------------------
 
@@ -226,75 +295,5 @@ set(DREAVM_TEST_SOURCES
 add_executable(dreavm_gtest ${DREAVM_TEST_SOURCES})
 target_include_directories(dreavm_gtest PUBLIC deps/gtest-1.7.0/include src/ test/ ${DREAVM_INCLUDE_DIRS})
 target_link_libraries(dreavm_gtest gtest gtest_main ${DREAVM_LIBS})
-if(NOT MSVC)
-  target_compile_options(dreavm_gtest PRIVATE -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-local-typedef -Wno-unused-parameter -Wno-unused-private-field -Wno-missing-field-initializers -Wno-strict-aliasing)
-else()
-  target_compile_options(dreavm_gtest PRIVATE -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX)
-endif()
-
-
-#--------------------------------------------------
-# emulator
-#--------------------------------------------------
-
-set(DREAVM_SOURCES
-  src/core/assert.cc
-  src/core/filesystem.cc
-  src/core/log.cc
-  src/cpu/backend/interpreter/interpreter_backend.cc
-  src/cpu/backend/interpreter/interpreter_block.cc
-  src/cpu/backend/interpreter/interpreter_callbacks.cc
-  src/cpu/backend/x64/x64_backend.cc
-  src/cpu/backend/x64/x64_block.cc
-  src/cpu/backend/x64/x64_emitter.cc
-  src/cpu/frontend/sh4/sh4_builder.cc
-  src/cpu/frontend/sh4/sh4_emit.cc
-  src/cpu/frontend/sh4/sh4_frontend.cc
-  src/cpu/frontend/sh4/sh4_instr.cc
-  src/cpu/ir/ir_builder.cc
-  src/cpu/ir/passes/constant_propagation_pass.cc
-  src/cpu/ir/passes/context_promotion_pass.cc
-  src/cpu/ir/passes/control_flow_analysis_pass.cc
-  src/cpu/ir/passes/pass_runner.cc
-  src/cpu/ir/passes/register_allocation_pass.cc
-  src/cpu/ir/passes/validate_pass.cc
-  src/cpu/sh4.cc
-  src/cpu/sh4_context.cc
-  src/cpu/runtime.cc
-  src/emu/disc.cc
-  src/emu/emulator.cc
-  src/emu/profiler.cc
-  src/emu/scheduler.cc
-  src/holly/gdrom.cc
-  src/holly/holly.cc
-  src/holly/maple.cc
-  src/holly/maple_controller.cc
-  src/holly/pvr2.cc
-  src/holly/tile_accelerator.cc
-  src/holly/tile_renderer.cc
-  src/renderer/gl_backend.cc
-  src/renderer/gl_shader.cc
-  src/system/keys.cc
-  src/system/system.cc
-  src/trace/trace.cc
-  src/trace/trace_viewer.cc
-  src/main.cc)
-
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(DREAVM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-local-typedef -Wno-unused-parameter -Wno-unused-private-field -Wno-missing-field-initializers -Wno-strict-aliasing)
-
-  string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
-
-  if(BUILD_TYPE STREQUAL "debug")
-    set(DREAVM_COMPILE_FLAGS ${DREAVM_COMPILE_FLAGS} -fno-omit-frame-pointer)
-  endif()
-else()
-  set(DREAVM_COMPILE_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /W2 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351 )
-endif()
-
-add_executable(dreavm ${DREAVM_SOURCES})
-target_include_directories(dreavm SYSTEM PUBLIC ${DREAVM_INCLUDE_DIRS})
-target_include_directories(dreavm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(dreavm ${DREAVM_LIBS})
-target_compile_definitions(dreavm PRIVATE ${DREAVM_DEFS})
-target_compile_options(dreavm PRIVATE ${DREAVM_COMPILE_FLAGS})
+target_compile_definitions(dreavm_gtest PRIVATE ${DREAVM_DEFS})
+target_compile_options(dreavm_gtest PRIVATE ${DREAVM_COMPILE_FLAGS})

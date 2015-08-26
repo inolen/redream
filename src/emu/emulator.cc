@@ -32,8 +32,8 @@ Emulator::Emulator(System &sys) : sys_(sys) {
   processor_ = new SH4(*scheduler_, *memory_);
   holly_ = new Holly(*scheduler_, *memory_, *processor_);
   rt_frontend_ = new SH4Frontend(*memory_);
-  // rt_backend_ = new InterpreterBackend(*memory_);
-  rt_backend_ = new X64Backend(*memory_);
+  rt_backend_ = new InterpreterBackend(*memory_);
+  // rt_backend_ = new X64Backend(*memory_);
   rb_ = new GLBackend(sys);
 }
 
@@ -264,7 +264,7 @@ void Emulator::RenderFrame() {
   snprintf(stats, sizeof(stats), "%.2f%%, %.2f fps, %.2f vbps",
            scheduler_->perf(), holly_->pvr().fps(), holly_->pvr().vbps());
   // LOG_EVERY_N(INFO, 10) << stats;
-  rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
+  rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
   // render profiler
   Profiler::Render(rb_);

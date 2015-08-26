@@ -6,6 +6,7 @@
 #define MICROPROFILE_IMPL 1
 #define MICROPROFILEUI_IMPL 1
 #define MICROPROFILE_PER_THREAD_BUFFER_SIZE (1024 * 1024 * 20)
+#define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
 #include <microprofile.h>
 #include <microprofileui.h>
 
@@ -72,7 +73,7 @@ void MicroProfileDrawText(int x, int y, uint32_t color, const char *text,
                           uint32_t len) {
   // microprofile provides 24-bit rgb values for text color
   color = 0xff000000 | color;
-  g_backend->RenderText2D(x, y, 12, color, text);
+  g_backend->RenderText2D(x, y, 12.0f, color, text);
 }
 
 void MicroProfileDrawBox(int x0, int y0, int x1, int y1, uint32_t color,

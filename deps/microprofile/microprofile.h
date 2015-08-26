@@ -511,6 +511,7 @@ typedef int MpSocket;
 #if defined(__APPLE__) || defined(__linux__)
 typedef pthread_t MicroProfileThread;
 #elif defined(_WIN32)
+#include <windows.h>
 typedef HANDLE MicroProfileThread;
 #else
 typedef std::thread* MicroProfileThread;
@@ -916,7 +917,6 @@ int64_t MicroProfileGetTick()
 typedef void* (*MicroProfileThreadFunc)(void*);
 
 #if defined(__APPLE__) || defined(__linux__)
-typedef pthread_t MicroProfileThread;
 void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {	
 	pthread_attr_t Attr;
@@ -930,7 +930,6 @@ void MicroProfileThreadJoin(MicroProfileThread* pThread)
 	MP_ASSERT(r == 0);
 }
 #elif defined(_WIN32)
-typedef HANDLE MicroProfileThread;
 DWORD _stdcall ThreadTrampoline(void* pFunc)
 {
 	MicroProfileThreadFunc F = (MicroProfileThreadFunc)pFunc;

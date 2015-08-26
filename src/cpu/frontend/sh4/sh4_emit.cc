@@ -1,3 +1,5 @@
+#define _USE_MATH_DEFINES
+#include <math.h>
 #include "cpu/frontend/sh4/sh4_emit.h"
 #include "cpu/frontend/sh4/sh4_frontend.h"
 

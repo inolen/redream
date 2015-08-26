@@ -8,16 +8,12 @@ namespace core {
 
 template <typename T>
 T align(T v, T alignment) {
-  return (v + alignment - 1) & -alignment;
+  return (v + alignment - 1) & ~(alignment - 1);
 }
 
 #if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
-inline int clz(uint32_t v) {
-  return __builtin_clz(v);
-}
-inline int clz(uint64_t v) {
-  return __builtin_clzll(v);
-}
+inline int clz(uint32_t v) { return __builtin_clz(v); }
+inline int clz(uint64_t v) { return __builtin_clzll(v); }
 #else
 inline int clz(uint32_t v) {
   unsigned long r = 0;
@@ -30,7 +26,6 @@ inline int clz(uint64_t v) {
   return 63 - r;
 }
 #endif
-
 }
 }
 

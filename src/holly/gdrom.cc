@@ -11,7 +11,7 @@ using namespace dreavm::holly;
 #define SWAP_24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
-GDROM::GDROM(emu::Memory &memory, Holly &holly)
+GDROM::GDROM(Memory &memory, Holly &holly)
     : memory_(memory),
       holly_(holly),
       current_disc_(nullptr),

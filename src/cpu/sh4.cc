@@ -15,7 +15,7 @@ InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-SH4::SH4(emu::Scheduler &scheduler, Memory &memory)
+SH4::SH4(Scheduler &scheduler, Memory &memory)
     : scheduler_(scheduler), memory_(memory) {}
 
 SH4::~SH4() {}

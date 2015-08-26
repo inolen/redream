@@ -1213,7 +1213,7 @@ EMITTER(SIN) {
     c.movss(c.xmm8, c.xmm2);
 
     c.movss(c.xmm0, a);
-    c.mov(c.rax, (uint64_t)&sinf);
+    c.mov(c.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&sinf));
     c.call(c.rax);
     c.movss(result, c.xmm0);
 
@@ -1222,7 +1222,7 @@ EMITTER(SIN) {
     c.movsd(c.xmm8, c.xmm2);
 
     c.movsd(c.xmm0, a);
-    c.mov(c.rax, (uint64_t)&sin);
+    c.mov(c.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&sin));
     c.call(c.rax);
     c.movsd(result, c.xmm0);
 
@@ -1240,12 +1240,12 @@ EMITTER(COS) {
 
   if (instr->result()->type() == VALUE_F32) {
     c.movss(c.xmm0, a);
-    c.mov(c.rax, (uint64_t)&cosf);
+    c.mov(c.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&cosf));
     c.call(c.rax);
     c.movss(result, c.xmm0);
   } else {
     c.movsd(c.xmm0, a);
-    c.mov(c.rax, (uint64_t)&cos);
+    c.mov(c.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&cos));
     c.call(c.rax);
     c.movsd(result, c.xmm0);
   }

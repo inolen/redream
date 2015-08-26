@@ -16,7 +16,7 @@ static size_t GetParamSize_raw(const PCW &pcw, int vertex_type);
 static int GetPolyType_raw(const PCW &pcw);
 static int GetVertexType_raw(const PCW &pcw);
 
-static Interrupt list_interrupts[] = {
+static HollyInterrupt list_interrupts[] = {
     HOLLY_INTC_TAEOINT,   // TA_LIST_OPAQUE
     HOLLY_INTC_TAEOMINT,  // TA_LIST_OPAQUE_MODVOL
     HOLLY_INTC_TAETINT,   // TA_LIST_TRANSLUCENT

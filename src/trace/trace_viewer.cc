@@ -11,7 +11,7 @@ using namespace dreavm::renderer;
 using namespace dreavm::system;
 using namespace dreavm::trace;
 
-void TraceTextureCache::AddTexture(const holly::TSP &tsp, holly::TCW &tcw,
+void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
                                    const uint8_t *texture,
                                    const uint8_t *palette) {
   uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
@@ -19,7 +19,7 @@ void TraceTextureCache::AddTexture(const holly::TSP &tsp, holly::TCW &tcw,
       TextureInst{tsp, tcw, texture, palette, (TextureHandle)0};
 }
 
-void TraceTextureCache::RemoveTexture(const holly::TSP &tsp, holly::TCW &tcw) {
+void TraceTextureCache::RemoveTexture(const TSP &tsp, TCW &tcw) {
   uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
   textures_.erase(texture_key);
 }
@@ -104,7 +104,7 @@ void TraceViewer::RenderFrame() {
   // render stats
   char stats[512];
   snprintf(stats, sizeof(stats), "frame %d / %d", current_frame_, num_frames_);
-  rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
+  rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
   rb_->EndFrame();
 }

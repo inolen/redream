@@ -24,7 +24,7 @@ enum TextureMap {  //
 
 struct BakedFont {
   int tw, th;
-  int ascent;
+  float ascent;
   stbtt_packedchar chars[0xff];
   intptr_t texture;
 };
@@ -83,7 +83,7 @@ class GLBackend : public Backend {
   void BindFramebuffer(Framebuffer fb);
   void Clear(float r, float g, float b, float a);
   void RenderFramebuffer(Framebuffer fb);
-  void RenderText2D(float x, float y, int point_size, uint32_t color,
+  void RenderText2D(int x, int y, float point_size, uint32_t color,
                     const char *text);
   void RenderBox2D(int x0, int y0, int x1, int y1, uint32_t color,
                    BoxType type);
@@ -114,7 +114,7 @@ class GLBackend : public Backend {
   void BindProgram(ShaderProgram *program);
   void BindTexture(TextureMap map, GLuint tex);
   GLint GetUniform(UniformAttr attr);
-  const BakedFont *GetFont(int point_size);
+  const BakedFont *GetFont(float point_size);
 
   Eigen::Matrix4f Ortho2D();
   Vertex2D *AllocVertices2D(const Surface2D &desc, int count);
@@ -138,7 +138,7 @@ class GLBackend : public Backend {
   Surface2D surfs2d_[MAX_2D_SURFACES];
   int num_surfs2d_;
 
-  std::unordered_map<int, BakedFont *> fonts_;
+  std::unordered_map<float, BakedFont *> fonts_;
 };
 }
 }

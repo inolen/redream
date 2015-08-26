@@ -351,8 +351,7 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
 // NOTE this offset color implementation is not correct at all
 //      see the Texture/Shading Instruction in the TSP instruction word
 // ALSO check out 16bit uv flag
-void TileRenderer::ParsePolyParam(const TileContext *tactx,
-                                  renderer::Backend *rb,
+void TileRenderer::ParsePolyParam(const TileContext *tactx, Backend *rb,
                                   const PolyParam *param) {
   last_poly_ = param;
   last_vertex_ = nullptr;
@@ -437,8 +436,7 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx,
   }
 }
 
-void TileRenderer::ParseVertexParam(const TileContext *tactx,
-                                    renderer::Backend *rb,
+void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
                                     const VertexParam *param) {
   // If there is no need to change the Global Parameters, a Vertex Parameter for
   // the next polygon may be input immediately after inputting a Vertex

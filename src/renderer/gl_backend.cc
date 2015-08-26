@@ -227,20 +227,20 @@ void GLBackend::RenderFramebuffer(Framebuffer fb) {
       Q0(vert, u, 0.0f);
       Q0(vert, v, 1.0f);
 
-      Q1(vert, x, state_.video_width);
+      Q1(vert, x, (float)state_.video_width);
       Q1(vert, y, 0.0f);
       Q1(vert, color, 0xffffffff);
       Q1(vert, u, 1.0f);
       Q1(vert, v, 1.0f);
 
-      Q2(vert, x, state_.video_width);
-      Q2(vert, y, state_.video_height);
+      Q2(vert, x, (float)state_.video_width);
+      Q2(vert, y, (float)state_.video_height);
       Q2(vert, color, 0xffffffff);
       Q2(vert, u, 1.0f);
       Q2(vert, v, 0.0f);
 
       Q3(vert, x, 0.0f);
-      Q3(vert, y, state_.video_height);
+      Q3(vert, y, (float)state_.video_height);
       Q3(vert, color, 0xffffffff);
       Q3(vert, u, 0.0f);
       Q3(vert, v, 0.0f);
@@ -248,8 +248,10 @@ void GLBackend::RenderFramebuffer(Framebuffer fb) {
   }
 }
 
-void GLBackend::RenderText2D(float x, float y, int point_size, uint32_t color,
+void GLBackend::RenderText2D(int x, int y, float point_size, uint32_t color,
                              const char *text) {
+  float fx = (float)x;
+  float fy = (float)y;
   const BakedFont *font = GetFont(point_size);
 
   int len = strlen(text);
@@ -264,12 +266,12 @@ void GLBackend::RenderText2D(float x, float y, int point_size, uint32_t color,
   // stbtt_GetPackedQuad treats the y parameter as the character's baseline.
   // however, the incoming y represents the top of the text. offset it by the
   // font's ascent (distance from top -> baseline) to compensate
-  y += font->ascent;
+  fy += font->ascent;
 
   while (*text) {
     if (*text >= 32 /* && *text < 128*/) {
       stbtt_aligned_quad q;
-      stbtt_GetPackedQuad(&font->chars[0], font->tw, font->th, *text, &x, &y,
+      stbtt_GetPackedQuad(&font->chars[0], font->tw, font->th, *text, &fx, &fy,
                           &q, 0);
 
       Q0(vert, x, q.x0);
@@ -663,7 +665,7 @@ GLint GLBackend::GetUniform(UniformAttr attr) {
   return state_.current_program->uniforms[attr];
 }
 
-const BakedFont *GLBackend::GetFont(int point_size) {
+const BakedFont *GLBackend::GetFont(float point_size) {
   static const int FONT_TEXTURE_SIZE = 512;
   static const unsigned char *ttf_data = inconsolata_ttf;
 
@@ -682,8 +684,9 @@ const BakedFont *GLBackend::GetFont(int point_size) {
     LOG_WARNING("Failed to initialize font");
     return nullptr;
   }
-  stbtt_GetFontVMetrics(&f, &font->ascent, nullptr, nullptr);
-  font->ascent *= stbtt_ScaleForPixelHeight(&f, point_size);
+  int ascent;
+  stbtt_GetFontVMetrics(&f, &ascent, nullptr, nullptr);
+  font->ascent = (float)ascent * stbtt_ScaleForPixelHeight(&f, point_size);
 
   // bake the font into the bitmap
   unsigned char bitmap[FONT_TEXTURE_SIZE * FONT_TEXTURE_SIZE];

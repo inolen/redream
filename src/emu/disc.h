@@ -2,6 +2,7 @@
 #define DISC_H
 
 #include <vector>
+#include "core/filesystem.h"
 
 namespace dreavm {
 namespace emu {
