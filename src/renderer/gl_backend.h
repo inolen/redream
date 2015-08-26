@@ -1,7 +1,7 @@
 #ifndef GL_BACKEND_H
 #define GL_BACKEND_H
 
-#define GL_GLEXT_PROTOTYPES
+#include <GL/glew.h>
 #include <SDL_opengl.h>
 #include <stb_truetype.h>
 #include <unordered_map>

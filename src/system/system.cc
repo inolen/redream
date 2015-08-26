@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <GL/glew.h>
 #include <SDL_opengl.h>
 #include "core/core.h"
 #include "system/system.h"
@@ -96,9 +97,15 @@ bool System::GLInit(int *width, int *height) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
   glcontext_ = SDL_GL_CreateContext(window_);
-
   if (!glcontext_) {
     LOG_WARNING("OpenGL context creation failed: %s");
+    return false;
+  }
+
+  glewExperimental = GL_TRUE;
+  GLenum err = glewInit();
+  if (err != GLEW_OK) {
+    LOG_WARNING("GLEW initialization failed: %s", glewGetErrorString(err));
     return false;
   }
 

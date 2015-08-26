@@ -65,6 +65,12 @@ add_subdirectory(deps/gflags-2.1.2 EXCLUDE_FROM_ALL)
 list(APPEND DREAVM_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/deps/gflags-2.1.2/include)
 list(APPEND DREAVM_LIBS gflags_nothreads-static)
 
+# glew
+set(BUILD_UTILS OFF CACHE BOOL "")
+add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
+list(APPEND DREAVM_INCLUDE_DIRS deps/glew-1.13.0/include)
+list(APPEND DREAVM_LIBS glew_s)
+
 # json11
 add_library(json11 STATIC deps/json11/json11.cpp)
 list(APPEND DREAVM_INCLUDE_DIRS deps/json11)
