@@ -390,7 +390,7 @@ void SH4::CheckPendingInterrupts() {
   }
 
   // process the highest priority in the pending vector
-  int n = 63 - __builtin_clzll(pending_interrupts_);
+  int n = 63 - core::clz(pending_interrupts_);
   Interrupt intr = sorted_interrupts_[n];
   InterruptInfo &int_info = interrupts[intr];
 

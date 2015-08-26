@@ -65,7 +65,7 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
   // TODO align each local
   int stack_size = 16 + builder.locals_size();
   // add 8 for function return value which will be pushed when this is called
-  stack_size = align(stack_size, 16) + 8;
+  stack_size = core::align(stack_size, 16) + 8;
   assert((stack_size + 8) % 16 == 0);
 
   // emit prolog
