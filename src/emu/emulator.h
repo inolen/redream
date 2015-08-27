@@ -33,11 +33,11 @@ class Emulator {
   void RenderFrame();
 
   system::System &sys_;
-  emu::Scheduler scheduler_;
-  emu::Memory memory_;
-  cpu::Runtime runtime_;
-  cpu::SH4 processor_;
-  holly::Holly holly_;
+  emu::Scheduler *scheduler_;
+  emu::Memory *memory_;
+  cpu::Runtime *runtime_;
+  cpu::SH4 *processor_;
+  holly::Holly *holly_;
   cpu::frontend::Frontend *rt_frontend_;
   cpu::backend::Backend *rt_backend_;
   renderer::Backend *rb_;

@@ -20,19 +20,20 @@ using namespace dreavm::system;
 DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
-Emulator::Emulator(System &sys)
-    : sys_(sys),
-      runtime_(memory_),
-      processor_(scheduler_, memory_),
-      holly_(scheduler_, memory_, processor_) {
+Emulator::Emulator(System &sys) : sys_(sys) {
   bios_ = new uint8_t[BIOS_SIZE];
   flash_ = new uint8_t[FLASH_SIZE];
   ram_ = new uint8_t[MAIN_RAM_M0_SIZE];
   unassigned_ = new uint8_t[UNASSIGNED_SIZE];
 
-  rt_frontend_ = new SH4Frontend(memory_);
-  // rt_backend_ = new InterpreterBackend(memory_);
-  rt_backend_ = new X64Backend(memory_);
+  scheduler_ = new Scheduler();
+  memory_ = new Memory();
+  runtime_ = new Runtime(*memory_);
+  processor_ = new SH4(*scheduler_, *memory_);
+  holly_ = new Holly(*scheduler_, *memory_, *processor_);
+  rt_frontend_ = new SH4Frontend(*memory_);
+  // rt_backend_ = new InterpreterBackend(*memory_);
+  rt_backend_ = new X64Backend(*memory_);
   rb_ = new GLBackend(sys);
 }
 
@@ -44,6 +45,11 @@ Emulator::~Emulator() {
   delete[] ram_;
   delete[] unassigned_;
 
+  delete scheduler_;
+  delete memory_;
+  delete runtime_;
+  delete processor_;
+  delete holly_;
   delete rt_frontend_;
   delete rt_backend_;
   delete rb_;
@@ -68,15 +74,15 @@ bool Emulator::Init() {
     return false;
   }
 
-  if (!runtime_.Init(rt_frontend_, rt_backend_)) {
+  if (!runtime_->Init(rt_frontend_, rt_backend_)) {
     return false;
   }
 
-  if (!holly_.Init(rb_)) {
+  if (!holly_->Init(rb_)) {
     return false;
   }
 
-  if (!processor_.Init(&runtime_)) {
+  if (!processor_->Init(runtime_)) {
     return false;
   }
 
@@ -100,19 +106,19 @@ bool Emulator::Launch(const char *path) {
 void Emulator::Tick() {
   PumpEvents();
 
-  scheduler_.Tick();
+  scheduler_->Tick();
 
   RenderFrame();
 }
 
 void Emulator::InitMemory() {
-  memory_.Mount(BIOS_START, BIOS_END, MIRROR_MASK, bios_);
-  memory_.Mount(FLASH_START, FLASH_END, MIRROR_MASK, flash_);
-  memory_.Mount(MAIN_RAM_M0_START, MAIN_RAM_M0_END, MIRROR_MASK, ram_);
-  memory_.Mount(MAIN_RAM_M1_START, MAIN_RAM_M1_END, MIRROR_MASK, ram_);
-  memory_.Mount(MAIN_RAM_M2_START, MAIN_RAM_M2_END, MIRROR_MASK, ram_);
-  memory_.Mount(MAIN_RAM_M3_START, MAIN_RAM_M3_END, MIRROR_MASK, ram_);
-  memory_.Mount(UNASSIGNED_START, UNASSIGNED_END, MIRROR_MASK, unassigned_);
+  memory_->Mount(BIOS_START, BIOS_END, MIRROR_MASK, bios_);
+  memory_->Mount(FLASH_START, FLASH_END, MIRROR_MASK, flash_);
+  memory_->Mount(MAIN_RAM_M0_START, MAIN_RAM_M0_END, MIRROR_MASK, ram_);
+  memory_->Mount(MAIN_RAM_M1_START, MAIN_RAM_M1_END, MIRROR_MASK, ram_);
+  memory_->Mount(MAIN_RAM_M2_START, MAIN_RAM_M2_END, MIRROR_MASK, ram_);
+  memory_->Mount(MAIN_RAM_M3_START, MAIN_RAM_M3_END, MIRROR_MASK, ram_);
+  memory_->Mount(UNASSIGNED_START, UNASSIGNED_END, MIRROR_MASK, unassigned_);
 }
 
 bool Emulator::LoadBios(const char *path) {
@@ -197,11 +203,11 @@ bool Emulator::LaunchBIN(const char *path) {
 
   // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is normally
   // loaded to
-  memory_.Memcpy(0x0c010000, data, size);
+  memory_->Memcpy(0x0c010000, data, size);
   free(data);
 
   // restart to where the bin was loaded
-  processor_.Reset(0x0c010000);
+  processor_->Reset(0x0c010000);
 
   return true;
 }
@@ -213,10 +219,10 @@ bool Emulator::LaunchGDI(const char *path) {
     return false;
   }
 
-  holly_.gdrom().SetDisc(std::move(gdi));
+  holly_->gdrom().SetDisc(std::move(gdi));
 
   // restart to bios
-  processor_.Reset(0xa0000000);
+  processor_->Reset(0xa0000000);
 
   return true;
 }
@@ -231,12 +237,12 @@ void Emulator::PumpEvents() {
         // debug tracing
         if (ev.key.code == K_F2) {
           if (ev.key.value) {
-            holly_.pvr().ToggleTracing();
+            holly_->pvr().ToggleTracing();
           }
         }
         // else, forward to maple
         else {
-          holly_.maple().HandleInput(0, ev.key.code, ev.key.value);
+          holly_->maple().HandleInput(0, ev.key.code, ev.key.value);
         }
       }
     } else if (ev.type == SE_MOUSEMOVE) {
@@ -256,7 +262,7 @@ void Emulator::RenderFrame() {
   // render stats
   char stats[512];
   snprintf(stats, sizeof(stats), "%.2f%%, %.2f fps, %.2f vbps",
-           scheduler_.perf(), holly_.pvr().fps(), holly_.pvr().vbps());
+           scheduler_->perf(), holly_->pvr().fps(), holly_->pvr().vbps());
   // LOG_EVERY_N(INFO, 10) << stats;
   rb_->RenderText2D(0.0f, 0.0f, 12, 0xffffffff, stats);
 
