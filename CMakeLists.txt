@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 2.8.12)
 
-include(ExternalProject)
-
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+include(ExternalProject)
+include(SourceGroupByDir)
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Release")
@@ -86,6 +87,7 @@ list(APPEND DREAVM_INCLUDE_DIRS deps/stb_truetype-1.0.5)
 # xbyak
 list(APPEND DREAVM_INCLUDE_DIRS deps/xbyak-4.85)
 
+
 #--------------------------------------------------
 # format
 #--------------------------------------------------
@@ -142,6 +144,9 @@ set(DREAVM_SOURCES
   src/trace/trace.cc
   src/trace/trace_viewer.cc
   src/main.cc)
+
+# assign source groups for visual studio projects
+source_group_by_dir(DREAVM_SOURCES)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
   set(DREAVM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-parameter -Wno-strict-aliasing)
@@ -251,6 +256,8 @@ set(TEST_ASM
   test/asm/xor.s
   )
 set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/asm/sh4_test.inc)
+
+# FIXME only do this is the build tools are available I think
 add_custom_command(OUTPUT ${asm_inc}
   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py -o ${asm_inc} ${TEST_ASM}
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py ${TEST_ASM}
@@ -291,6 +298,9 @@ set(DREAVM_TEST_SOURCES
   test/test_ring_buffer.cc
   test/test_sh4.cc
   ${asm_inc})
+
+# assign source groups for visual studio projects
+source_group_by_dir(DREAVM_TEST_SOURCES)
 
 add_executable(dreavm_gtest ${DREAVM_TEST_SOURCES})
 target_include_directories(dreavm_gtest PUBLIC deps/gtest-1.7.0/include src/ test/ ${DREAVM_INCLUDE_DIRS})
