@@ -32,8 +32,8 @@ Emulator::Emulator(System &sys) : sys_(sys) {
   processor_ = new SH4(*scheduler_, *memory_);
   holly_ = new Holly(*scheduler_, *memory_, *processor_);
   rt_frontend_ = new SH4Frontend(*memory_);
-  rt_backend_ = new InterpreterBackend(*memory_);
-  // rt_backend_ = new X64Backend(*memory_);
+  // rt_backend_ = new InterpreterBackend(*memory_);
+  rt_backend_ = new X64Backend(*memory_);
   rb_ = new GLBackend(sys);
 }
 

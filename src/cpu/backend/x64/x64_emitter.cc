@@ -1,3 +1,4 @@
+#include "core/core.h"
 #include "cpu/backend/x64/x64_emitter.h"
 #include "emu/profiler.h"
 
@@ -6,7 +7,41 @@ using namespace dreavm::cpu::backend::x64;
 using namespace dreavm::cpu::ir;
 using namespace dreavm::emu;
 
-// maps register ids coming from IR values
+//
+// x64 register layout
+//
+
+// %rax %eax %ax %al      <-- temporary
+// %rcx %ecx %cx %cl      <-- argument
+// %rdx %edx %dx %dl      <-- argument
+// %rbx %ebx %bx %bl      <-- available, callee saved
+// %rsi %esi %si %sil     <-- argument
+// %rdi %edi %di %dil     <-- argument
+// %rsp %esp %sp %spl     <-- reserved
+// %rbp %ebp %bp %bpl     <-- available, callee saved
+// %r8 %r8d %r8w %r8b     <-- argument
+// %r9 %r9d %r9w %r9b     <-- argument
+// %r10 %r10d %r10w %r10b <-- available, not callee saved
+// %r11 %r11d %r11w %r11b <-- available, not callee saved
+// %r12 %r12d %r12w %r12b <-- available, callee saved
+// %r13 %r13d %r13w %r13b <-- available, callee saved
+// %r14 %r14d %r14w %r14b <-- available, callee saved
+// %r15 %r15d %r15w %r15b <-- available, callee saved
+
+// msvc calling convention uses rcx, rdx, r8 and r9 for arguments
+// amd64 calling convention uses rdi, rsi, rdx, rcx, r8 and r9 for arguments
+// both use the same xmm registers for floating point arguments
+// our largest function call uses only 3 arguments, leaving rdi, rsi and r9
+// available on msvc and rcx, r8 and r8 available on amd64
+
+// rax is used as a scratch register, while r9 and xmm1 are used for storing
+// a constant in case the constant propagation pass didn't eliminate it
+
+// rdi, rsi are left unused on msvc and rcx, r8 is left unused on amd64
+
+// map register ids coming from IR values, must be in sync with x64_backend.h
+// note, only callee saved registers are used here to avoid having to reload
+// registers when calling non-JIT'd functions
 static const Xbyak::Reg *reg_map_8[] = {
     &Xbyak::util::bl, &Xbyak::util::bpl, &Xbyak::util::r12b, &Xbyak::util::r13b,
     &Xbyak::util::r14b, &Xbyak::util::r15b, nullptr, nullptr, nullptr, nullptr,
@@ -26,9 +61,19 @@ static const Xbyak::Reg *reg_map_64[] = {
     &Xbyak::util::xmm6, &Xbyak::util::xmm7,  &Xbyak::util::xmm8,
     &Xbyak::util::xmm9, &Xbyak::util::xmm10, &Xbyak::util::xmm11};
 
+#ifdef PLATFORM_WINDOWS
+static const Xbyak::Reg &int_arg0 = Xbyak::util::rcx;
+static const Xbyak::Reg &int_arg1 = Xbyak::util::rdx;
+static const Xbyak::Reg &int_arg2 = Xbyak::util::r8;
+#else
+static const Xbyak::Reg &int_arg0 = Xbyak::util::rdi;
+static const Xbyak::Reg &int_arg1 = Xbyak::util::rsi;
+static const Xbyak::Reg &int_arg2 = Xbyak::util::rdx;
+#endif
+
 // get and set Xbyak::Labels in the IR block's tag
-#define GET_LABEL(blk) (*reinterpret_cast<Xbyak::Label *>(blk->tag()))
-#define SET_LABEL(blk, lbl) (blk->set_tag(reinterpret_cast<intptr_t>(lbl)))
+#define GetLabel(blk) (*reinterpret_cast<Xbyak::Label *>(blk->tag()))
+#define SetLabel(blk, lbl) (blk->set_tag(reinterpret_cast<intptr_t>(lbl)))
 
 // callbacks for emitting each IR op
 typedef void (*X64Emit)(X64Emitter &, Memory &, Xbyak::CodeGenerator &,
@@ -63,13 +108,18 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
 
   // stack must be 16 byte aligned
   // TODO align each local
-  int stack_size = 16 + builder.locals_size();
-  // add 8 for function return value which will be pushed when this is called
-  stack_size = core::align(stack_size, 16) + 8;
-  assert((stack_size + 8) % 16 == 0);
+  int stack_size = STACK_SIZE + builder.locals_size();
+  stack_size = core::align(stack_size, 16);
 
-  // emit prolog
-  // FIXME only push registers that're used
+  // add 8 for return address which will be pushed when this is called
+  stack_size += 8;
+
+// emit prolog
+// FIXME only push registers that're used
+#ifdef PLATFORM_WINDOWS
+  c_.push(Xbyak::util::rdi);
+  c_.push(Xbyak::util::rsi);
+#endif
   c_.push(Xbyak::util::rbx);
   c_.push(Xbyak::util::rbp);
   c_.push(Xbyak::util::r12);
@@ -79,18 +129,17 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
 
   // reserve stack space for rdi copy
   c_.sub(Xbyak::util::rsp, stack_size);
-  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT],
-         Xbyak::util::rdi);
-  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], Xbyak::util::rsi);
+  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT], int_arg0);
+  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], int_arg1);
 
   // generate labels for each block
   for (auto block : builder.blocks()) {
     Xbyak::Label *lbl = AllocLabel();
-    SET_LABEL(block, lbl);
+    SetLabel(block, lbl);
   }
 
   for (auto block : builder.blocks()) {
-    c_.L(GET_LABEL(block));
+    c_.L(GetLabel(block));
 
     for (auto instr : block->instrs()) {
       X64Emit emit = x64_emitters[instr->op()];
@@ -112,6 +161,10 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
   c_.pop(Xbyak::util::r12);
   c_.pop(Xbyak::util::rbp);
   c_.pop(Xbyak::util::rbx);
+#ifdef PLATFORM_WINDOWS
+  c_.pop(Xbyak::util::rsi);
+  c_.pop(Xbyak::util::rdi);
+#endif
 
   c_.ret();
 
@@ -174,7 +227,30 @@ const Xbyak::Operand &X64Emitter::GetOperand(const Value *v, int size) {
 // return the register allocated for it.
 const Xbyak::Reg &X64Emitter::GetRegister(const Value *v) {
   if (v->constant()) {
-    return GetTmpRegister(v);
+    const Xbyak::Reg *tmp = nullptr;
+
+    switch (v->type()) {
+      case VALUE_I8:
+        tmp = &c_.r9b;
+        break;
+      case VALUE_I16:
+        tmp = &c_.r9w;
+        break;
+      case VALUE_I32:
+        tmp = &c_.r9d;
+        break;
+      case VALUE_I64:
+        tmp = &c_.r9;
+        break;
+      default:
+        LOG_FATAL("Unexpected value type");
+        break;
+    }
+
+    // copy value to the temporary register
+    CopyOperand(v, *tmp);
+
+    return *tmp;
   }
 
   const Xbyak::Operand &op = GetOperand(v);
@@ -182,59 +258,17 @@ const Xbyak::Reg &X64Emitter::GetRegister(const Value *v) {
   return reinterpret_cast<const Xbyak::Reg &>(op);
 }
 
-// Get a temporary register and copy value to it.
-const Xbyak::Reg &X64Emitter::GetTmpRegister(const Value *v, int size) {
-  if (size == -1) {
-    size = SizeForType(v->type());
-  }
-
-  const Xbyak::Reg *reg = nullptr;
-  switch (size) {
-    case 8:
-      reg = &c_.rax;
-      break;
-    case 4:
-      reg = &c_.eax;
-      break;
-    case 2:
-      reg = &c_.ax;
-      break;
-    case 1:
-      reg = &c_.al;
-      break;
-  }
-  CHECK_NOTNULL(reg);
-
-  // copy value to the temporary register
-  if (v) {
-    CopyOperand(v, *reg);
-  }
-
-  return *reg;
-}
-
 // If the value isn't allocated a XMM register copy it to a temporary XMM,
 // register, else return the XMM register allocated for it.
 const Xbyak::Xmm &X64Emitter::GetXMMRegister(const Value *v) {
   if (v->constant()) {
-    return GetTmpXMMRegister(v);
+    CopyOperand(v, c_.xmm1);
+    return c_.xmm1;
   }
 
   const Xbyak::Operand &op = GetOperand(v);
   CHECK(op.isXMM());
   return reinterpret_cast<const Xbyak::Xmm &>(op);
-}
-
-// Get a temporary XMM register and copy value to it.
-const Xbyak::Xmm &X64Emitter::GetTmpXMMRegister(const Value *v) {
-  const Xbyak::Xmm *reg = &c_.xmm0;
-
-  // copy value to the temporary register
-  if (v) {
-    CopyOperand(v, *reg);
-  }
-
-  return *reg;
 }
 
 // Copy the value to the supplied operand.
@@ -246,12 +280,12 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
 
       if (v->type() == VALUE_F32) {
         float val = v->value<float>();
-        c_.mov(c_.r8d, *reinterpret_cast<int32_t *>(&val));
-        c_.movd(reinterpret_cast<const Xbyak::Xmm &>(to), c_.r8d);
+        c_.mov(c_.eax, *reinterpret_cast<int32_t *>(&val));
+        c_.movd(reinterpret_cast<const Xbyak::Xmm &>(to), c_.eax);
       } else {
         double val = v->value<double>();
-        c_.mov(c_.r8, *reinterpret_cast<int64_t *>(&val));
-        c_.movq(reinterpret_cast<const Xbyak::Xmm &>(to), c_.r8);
+        c_.mov(c_.rax, *reinterpret_cast<int64_t *>(&val));
+        c_.movq(reinterpret_cast<const Xbyak::Xmm &>(to), c_.rax);
       }
     } else {
       CHECK(IsIntType(v->type()));
@@ -309,10 +343,17 @@ bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
   return v->type() <= VALUE_I32;
 }
 
-void X64Emitter::RestoreParameters() {
-  c_.mov(Xbyak::util::rdi,
-         c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
-  c_.mov(Xbyak::util::rsi, c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
+void X64Emitter::RestoreArg0() {
+  c_.mov(int_arg0, c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
+}
+
+void X64Emitter::RestoreArg1() {
+  c_.mov(int_arg1, c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
+}
+
+void X64Emitter::RestoreArgs() {
+  RestoreArg0();
+  RestoreArg1();
 }
 
 EMITTER(LOAD_CONTEXT) {
@@ -323,10 +364,10 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->result()->type()) {
       case VALUE_F32:
-        c.movss(result, c.dword[c.rdi + offset]);
+        c.movss(result, c.dword[int_arg0 + offset]);
         break;
       case VALUE_F64:
-        c.movsd(result, c.qword[c.rdi + offset]);
+        c.movsd(result, c.qword[int_arg0 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -337,16 +378,16 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->result()->type()) {
       case VALUE_I8:
-        c.mov(result, c.byte[c.rdi + offset]);
+        c.mov(result, c.byte[int_arg0 + offset]);
         break;
       case VALUE_I16:
-        c.mov(result, c.word[c.rdi + offset]);
+        c.mov(result, c.word[int_arg0 + offset]);
         break;
       case VALUE_I32:
-        c.mov(result, c.dword[c.rdi + offset]);
+        c.mov(result, c.dword[int_arg0 + offset]);
         break;
       case VALUE_I64:
-        c.mov(result, c.qword[c.rdi + offset]);
+        c.mov(result, c.qword[int_arg0 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -361,18 +402,18 @@ EMITTER(STORE_CONTEXT) {
   if (instr->arg1()->constant()) {
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        c.mov(c.byte[c.rdi + offset], instr->arg1()->value<int8_t>());
+        c.mov(c.byte[int_arg0 + offset], instr->arg1()->value<int8_t>());
         break;
       case VALUE_I16:
-        c.mov(c.word[c.rdi + offset], instr->arg1()->value<int16_t>());
+        c.mov(c.word[int_arg0 + offset], instr->arg1()->value<int16_t>());
         break;
       case VALUE_I32:
       case VALUE_F32:
-        c.mov(c.dword[c.rdi + offset], instr->arg1()->value<int32_t>());
+        c.mov(c.dword[int_arg0 + offset], instr->arg1()->value<int32_t>());
         break;
       case VALUE_I64:
       case VALUE_F64:
-        c.mov(c.qword[c.rdi + offset], instr->arg1()->value<int64_t>());
+        c.mov(c.qword[int_arg0 + offset], instr->arg1()->value<int64_t>());
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -384,10 +425,10 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_F32:
-          c.movss(c.dword[c.rdi + offset], src);
+          c.movss(c.dword[int_arg0 + offset], src);
           break;
         case VALUE_F64:
-          c.movsd(c.qword[c.rdi + offset], src);
+          c.movsd(c.qword[int_arg0 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -398,16 +439,16 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
-          c.mov(c.byte[c.rdi + offset], src);
+          c.mov(c.byte[int_arg0 + offset], src);
           break;
         case VALUE_I16:
-          c.mov(c.word[c.rdi + offset], src);
+          c.mov(c.word[int_arg0 + offset], src);
           break;
         case VALUE_I32:
-          c.mov(c.dword[c.rdi + offset], src);
+          c.mov(c.dword[int_arg0 + offset], src);
           break;
         case VALUE_I64:
-          c.mov(c.qword[c.rdi + offset], src);
+          c.mov(c.qword[int_arg0 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -517,20 +558,20 @@ EMITTER(LOAD) {
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
       void *physical_addr = bank->physical_addr + offset;
-      c.mov(c.r8, (size_t)physical_addr);
+      c.mov(c.rax, (size_t)physical_addr);
 
       switch (instr->result()->type()) {
         case VALUE_I8:
-          c.mov(result, c.byte[c.r8]);
+          c.mov(result, c.byte[c.rax]);
           break;
         case VALUE_I16:
-          c.mov(result, c.word[c.r8]);
+          c.mov(result, c.word[c.rax]);
           break;
         case VALUE_I32:
-          c.mov(result, c.dword[c.r8]);
+          c.mov(result, c.dword[c.rax]);
           break;
         case VALUE_I64:
-          c.mov(result, c.qword[c.r8]);
+          c.mov(result, c.qword[c.rax]);
           break;
         default:
           LOG_FATAL("Unexpected load result type");
@@ -567,8 +608,8 @@ EMITTER(LOAD) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   // setup arguments
-  c.mov(c.rdi, c.rsi);
-  c.mov(c.rsi, a);
+  c.mov(int_arg0, int_arg1);
+  c.mov(int_arg1, a);
 
   // call func
   c.mov(c.rax, (uintptr_t)fn);
@@ -577,7 +618,7 @@ EMITTER(LOAD) {
   // copy off result
   c.mov(result, c.rax);
 
-  e.RestoreParameters();
+  e.RestoreArgs();
 }
 
 EMITTER(STORE) {
@@ -598,20 +639,20 @@ EMITTER(STORE) {
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
       void *physical_addr = bank->physical_addr + offset;
-      c.mov(c.r8, (size_t)physical_addr);
+      c.mov(c.rax, (size_t)physical_addr);
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
-          c.mov(c.byte[c.r8], b);
+          c.mov(c.byte[c.rax], b);
           break;
         case VALUE_I16:
-          c.mov(c.word[c.r8], b);
+          c.mov(c.word[c.rax], b);
           break;
         case VALUE_I32:
-          c.mov(c.dword[c.r8], b);
+          c.mov(c.dword[c.rax], b);
           break;
         case VALUE_I64:
-          c.mov(c.qword[c.r8], b);
+          c.mov(c.qword[c.rax], b);
           break;
         default:
           LOG_FATAL("Unexpected store value type");
@@ -649,15 +690,15 @@ EMITTER(STORE) {
   const Xbyak::Reg &b = e.GetRegister(instr->arg1());
 
   // setup arguments
-  c.mov(c.rdi, c.rsi);
-  c.mov(c.rsi, a);
-  c.mov(c.rdx, b);
+  c.mov(int_arg0, int_arg1);
+  c.mov(int_arg1, a);
+  c.mov(int_arg2, b);
 
   // call func
   c.mov(c.rax, (uintptr_t)fn);
   c.call(c.rax);
 
-  e.RestoreParameters();
+  e.RestoreArgs();
 }
 
 EMITTER(CAST) {
@@ -1142,14 +1183,13 @@ EMITTER(NEG) {
     if (instr->result()->type() == VALUE_F32) {
       // TODO use xorps
       c.movd(c.eax, a);
-      c.mov(c.ecx, (uint32_t)0x80000000);
-      c.xor (c.eax, c.ecx);
+      c.xor (c.eax, (uint32_t)0x80000000);
       c.movd(result, c.eax);
     } else {
       // TODO use xorpd
       c.movq(c.rax, a);
-      c.mov(c.rcx, (uint64_t)0x8000000000000000);
-      c.xor (c.rax, c.rcx);
+      c.mov(c.r9, (uint64_t)0x8000000000000000);
+      c.xor (c.rax, c.r9);
       c.movq(result, c.rax);
     }
   } else {
@@ -1185,14 +1225,13 @@ EMITTER(ABS) {
     if (instr->result()->type() == VALUE_F32) {
       // TODO use andps
       c.movd(c.eax, a);
-      c.mov(c.ecx, (uint32_t)0x7fffffff);
-      c.and (c.eax, c.ecx);
+      c.and (c.eax, (uint32_t)0x7fffffff);
       c.movd(result, c.eax);
     } else {
       // TODO use andpd
       c.movq(c.rax, a);
-      c.mov(c.rcx, (uint64_t)0x7fffffffffffffff);
-      c.and (c.rax, c.rcx);
+      c.mov(c.r9, (uint64_t)0x7fffffffffffffff);
+      c.and (c.rax, c.r9);
       c.movq(result, c.rax);
     }
   } else {
@@ -1209,27 +1248,21 @@ EMITTER(SIN) {
   const Xbyak::Xmm &result = e.GetXMMRegister(instr->result());
   const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0());
 
+  // FIXME xmm registers aren't callee saved, this would probably break if we
+  // used the lower indexed xmm registers
   if (instr->result()->type() == VALUE_F32) {
-    c.movss(c.xmm8, c.xmm2);
-
     c.movss(c.xmm0, a);
     c.mov(c.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&sinf));
     c.call(c.rax);
     c.movss(result, c.xmm0);
-
-    c.movss(c.xmm2, c.xmm8);
   } else {
-    c.movsd(c.xmm8, c.xmm2);
-
     c.movsd(c.xmm0, a);
     c.mov(c.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&sin));
     c.call(c.rax);
     c.movsd(result, c.xmm0);
-
-    c.movsd(c.xmm2, c.xmm8);
   }
 
-  e.RestoreParameters();
+  e.RestoreArgs();
 }
 
 EMITTER(COS) {
@@ -1238,6 +1271,8 @@ EMITTER(COS) {
   const Xbyak::Xmm &result = e.GetXMMRegister(instr->result());
   const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0());
 
+  // FIXME xmm registers aren't callee saved, this would probably break if we
+  // used the lower indexed xmm registers
   if (instr->result()->type() == VALUE_F32) {
     c.movss(c.xmm0, a);
     c.mov(c.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&cosf));
@@ -1250,7 +1285,7 @@ EMITTER(COS) {
     c.movsd(result, c.xmm0);
   }
 
-  e.RestoreParameters();
+  e.RestoreArgs();
 }
 
 EMITTER(AND) {
@@ -1336,6 +1371,11 @@ EMITTER(SHL) {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
     c.mov(c.cl, b);
     c.shl(result, c.cl);
+
+#ifdef PLATFORM_WINDOWS
+    // arg0 was in rcx, needs to be restored
+    e.RestoreArg0();
+#endif
   }
 }
 
@@ -1355,6 +1395,11 @@ EMITTER(ASHR) {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
     c.mov(c.cl, b);
     c.sar(result, c.cl);
+
+#ifdef PLATFORM_WINDOWS
+    // arg0 was in rcx, need to be restored
+    e.RestoreArg0();
+#endif
   }
 }
 
@@ -1374,6 +1419,11 @@ EMITTER(LSHR) {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
     c.mov(c.cl, b);
     c.shr(result, c.cl);
+
+#ifdef PLATFORM_WINDOWS
+    // arg0 was in rcx, need to be restored
+    e.RestoreArg0();
+#endif
   }
 }
 
@@ -1381,7 +1431,7 @@ EMITTER(BRANCH) {
   if (instr->arg0()->type() == VALUE_BLOCK) {
     // jump to local block
     Block *dst = instr->arg0()->value<Block *>();
-    c.jmp(GET_LABEL(dst), Xbyak::CodeGenerator::T_NEAR);
+    c.jmp(GetLabel(dst), Xbyak::CodeGenerator::T_NEAR);
   } else {
     // return if we need to branch to a far block
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
@@ -1405,10 +1455,10 @@ EMITTER(BRANCH_COND) {
 
     // don't emit a jump if the block is next
     if (next_block != block_true) {
-      c.jnz(GET_LABEL(block_true), Xbyak::CodeGenerator::T_NEAR);
+      c.jnz(GetLabel(block_true), Xbyak::CodeGenerator::T_NEAR);
     }
     if (next_block != block_false) {
-      c.je(GET_LABEL(block_false), Xbyak::CodeGenerator::T_NEAR);
+      c.je(GetLabel(block_false), Xbyak::CodeGenerator::T_NEAR);
     }
   }
   // if both blocks are a far block this is easy
@@ -1435,5 +1485,5 @@ EMITTER(CALL_EXTERNAL) {
   c.mov(c.rax, addr);
   c.call(c.rax);
 
-  e.RestoreParameters();
+  e.RestoreArgs();
 }
