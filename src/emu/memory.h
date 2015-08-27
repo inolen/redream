@@ -69,9 +69,7 @@ class PageTable {
     }
   }
 
-  ~PageTable() {
-    delete[] table_;
-  }
+  ~PageTable() { delete[] table_; }
 
   inline TableHandle Lookup(uint32_t addr) {
     return table_[addr >> OFFSET_BITS];

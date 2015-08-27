@@ -35,8 +35,6 @@ class RegisterSet {
   void InsertInterval(Interval *interval);
 
  private:
-  int max_registers_;
-
   // free register vector
   int *free_, num_free_;
 

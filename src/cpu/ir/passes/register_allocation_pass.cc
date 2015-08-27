@@ -16,8 +16,7 @@ static inline bool RegisterCanStore(const Register &r, ValueTy type) {
   return r.value_types & (1 << type);
 }
 
-RegisterSet::RegisterSet(int max_registers)
-    : max_registers_(max_registers), live_(max_registers) {
+RegisterSet::RegisterSet(int max_registers) : live_(max_registers) {
   free_ = new int[max_registers];
 }
 

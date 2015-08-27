@@ -219,7 +219,7 @@ void GLBackend::RenderFramebuffer(Framebuffer fb) {
 
     case FB_TILE_ACCELERATOR:
       Vertex2D *vert = AllocVertices2D(
-          {GL_TRIANGLES, (int)fb_ta_color_, BLEND_NONE, BLEND_NONE}, 6);
+          {GL_TRIANGLES, (int)fb_ta_color_, BLEND_NONE, BLEND_NONE, 0}, 6);
 
       Q0(vert, x, 0.0f);
       Q0(vert, y, 0.0f);
@@ -255,9 +255,10 @@ void GLBackend::RenderText2D(int x, int y, float point_size, uint32_t color,
   const BakedFont *font = GetFont(point_size);
 
   int len = strlen(text);
-  Vertex2D *vert = AllocVertices2D({GL_TRIANGLES, (int)font->texture,
-                                    BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA},
-                                   6 * len);
+  Vertex2D *vert =
+      AllocVertices2D({GL_TRIANGLES, (int)font->texture, BLEND_SRC_ALPHA,
+                       BLEND_ONE_MINUS_SRC_ALPHA, 0},
+                      6 * len);
 
   // convert color from argb -> abgr
   color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |
@@ -308,7 +309,7 @@ void GLBackend::RenderText2D(int x, int y, float point_size, uint32_t color,
 void GLBackend::RenderBox2D(int x0, int y0, int x1, int y1, uint32_t color,
                             BoxType type) {
   Vertex2D *vertex = AllocVertices2D(
-      {GL_TRIANGLES, 0, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA}, 6);
+      {GL_TRIANGLES, 0, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA, 0}, 6);
 
   if (type == BOX_FLAT) {
     CHECK(x0 <= x1);
@@ -367,9 +368,9 @@ void GLBackend::RenderLine2D(float *verts, int num_verts, uint32_t color) {
     return;
   }
 
-  Vertex2D *vertex =
-      AllocVertices2D({GL_LINES, 0, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA},
-                      2 * (num_verts - 1));
+  Vertex2D *vertex = AllocVertices2D(
+      {GL_LINES, 0, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA, 0},
+      2 * (num_verts - 1));
 
   // convert color from argb -> abgr
   color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |

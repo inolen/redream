@@ -144,7 +144,7 @@ set(DREAVM_SOURCES
   src/main.cc)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(DREAVM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-local-typedef -Wno-unused-parameter -Wno-unused-private-field -Wno-missing-field-initializers -Wno-strict-aliasing)
+  set(DREAVM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-parameter -Wno-strict-aliasing)
 
   string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 
