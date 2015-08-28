@@ -19,7 +19,8 @@ uint32_t CallBlock(RuntimeBlock *block, Memory *memory, void *guest_ctx) {
 void DumpBlock(RuntimeBlock *block) {
   X64Fn fn = reinterpret_cast<X64Fn>(block->priv);
 
-  DISASM dsm = {};
+  DISASM dsm;
+  memset(&dsm, 0, sizeof(dsm));
   dsm.Archi = 64;
   dsm.EIP = (uintptr_t)fn;
   dsm.SecurityBlock = 0;
