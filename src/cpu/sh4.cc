@@ -27,7 +27,6 @@ bool SH4::Init(Runtime *runtime) {
 
   InitMemory();
   Reset();
-  ReprioritizeInterrupts();
 
   return true;
 }
@@ -310,10 +309,8 @@ void SH4::InitMemory() {
 }
 
 void SH4::Reset() {
+  // reset context
   memset(&ctx_, 0, sizeof(ctx_));
-  memset(area7_, 0, sizeof(area7_));
-  memset(cache_, 0, sizeof(cache_));
-
   ctx_.pc = 0xa0000000;
   ctx_.pr = 0xdeadbeef;
   ctx_.sr.full = ctx_.old_sr.full = 0x700000f0;
@@ -325,6 +322,14 @@ void SH4::Reset() {
   }
 #include "cpu/sh4_regs.inc"
 #undef SH4_REG
+
+  // reset interrupts
+  requested_interrupts_ = 0;
+  ReprioritizeInterrupts();
+
+  // reset memory
+  memset(area7_, 0, sizeof(area7_));
+  memset(cache_, 0, sizeof(cache_));
 }
 
 void SH4::ResetInstructionCache() { runtime_->QueueResetBlocks(); }
@@ -439,6 +444,9 @@ void SH4::RunTimer(int n, int64_t cycles) {
       tcnt = &TCNT2;
       tcr = &TCR2;
       exception = SH4_INTC_TUNI2;
+      break;
+    default:
+      LOG_FATAL("Unexpected timer index %d", n);
       break;
   }
 

@@ -182,8 +182,8 @@ Surface *TileRenderer::AllocSurf() {
 
   // reset the surface
   Surface *surf = &surfs_[id];
+  new (surf) Surface();
   surf->first_vert = num_verts_;
-  surf->num_verts = 0;
 
   // default sort the surface
   sorted_surfs_[id] = id;
@@ -195,7 +195,9 @@ Vertex *TileRenderer::AllocVert() {
   CHECK_LT(num_verts_, MAX_VERTICES);
   Surface *surf = &surfs_[num_surfs_ - 1];
   surf->num_verts++;
-  return &verts_[num_verts_++];
+  Vertex *v = &verts_[num_verts_++];
+  new (v) Vertex();
+  return v;
 }
 
 // FIXME we could offload a lot of this to the GPU, generating shaders
@@ -274,6 +276,7 @@ void TileRenderer::ParseOffsetColor(float intensity, float *color) {
 void TileRenderer::ParseBackground(const TileContext *tactx) {
   // translate the surface
   Surface *surf = AllocSurf();
+
   surf->texture = 0;
   surf->depth_write = !tactx->bg_isp.z_write_disable;
   surf->depth_func = TranslateDepthFunc(tactx->bg_isp.depth_compare_mode);
@@ -348,9 +351,8 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
   verts[3]->uv[1] = verts[1]->uv[1];
 }
 
-// NOTE this offset color implementation is not correct at all
-//      see the Texture/Shading Instruction in the TSP instruction word
-// ALSO check out 16bit uv flag
+// NOTE this offset color implementation is not correct at all, see the
+// Texture/Shading Instruction in the TSP instruction word
 void TileRenderer::ParsePolyParam(const TileContext *tactx, Backend *rb,
                                   const PolyParam *param) {
   last_poly_ = param;
@@ -374,8 +376,8 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx, Backend *rb,
       list_type_ != TA_LIST_TRANSLUCENT_MODVOL) {
     surf->src_blend = BLEND_NONE;
     surf->dst_blend = BLEND_NONE;
-  } else if (list_type_ == TA_LIST_TRANSLUCENT &&
-             list_type_ == TA_LIST_TRANSLUCENT_MODVOL && tactx->autosort) {
+  } else if ((list_type_ == TA_LIST_TRANSLUCENT ||
+              list_type_ == TA_LIST_TRANSLUCENT_MODVOL) && tactx->autosort) {
     surf->depth_func = DEPTH_LEQUAL;
   } else if (list_type_ == TA_LIST_PUNCH_THROUGH) {
     surf->depth_func = DEPTH_GEQUAL;
