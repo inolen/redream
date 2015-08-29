@@ -75,8 +75,6 @@ struct Vertex {
 };
 
 struct Surface {
-  Surface() : texture(0), num_verts(0) {}
-
   TextureHandle texture;
   bool depth_write;
   DepthFunc depth_func;
