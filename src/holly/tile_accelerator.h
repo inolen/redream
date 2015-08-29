@@ -490,7 +490,7 @@ class TileAccelerator {
   friend class TileTextureCache;
 
  public:
-  static size_t GetParamSize(const PCW &pcw, int vertex_type);
+  static int GetParamSize(const PCW &pcw, int vertex_type);
   static int GetPolyType(const PCW &pcw);
   static int GetVertexType(const PCW &pcw);
 

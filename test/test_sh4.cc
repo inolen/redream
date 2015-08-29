@@ -37,7 +37,8 @@ void RunSH4Test(const SH4Test &test) {
   // mount the test binary and a small stack
   uint8_t stack[PAGE_SIZE];
 
-  size_t binary_size = core::align(test.buffer_size, (size_t)PAGE_SIZE);
+  uint32_t binary_size = core::align(static_cast<uint32_t>(test.buffer_size),
+                                     static_cast<uint32_t>(PAGE_SIZE));
   uint8_t *binary = new uint8_t[binary_size];
   memcpy(binary, test.buffer, test.buffer_size);
 
@@ -50,7 +51,7 @@ void RunSH4Test(const SH4Test &test) {
     memcpy((uint8_t *)&sh4.ctx_ + reg.offset, &it.second, reg.size);
   }
 
-  sh4.Execute(INT64_MAX);
+  sh4.Execute(UINT32_MAX);
 
   // cleanup binary
   delete[] binary;

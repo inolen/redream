@@ -71,7 +71,7 @@ void Maple::StartDMA() {
     frame.header.full = memory_.R32(start_addr);
     start_addr += 4;
 
-    for (int i = 0; i < frame.header.num_words; i++) {
+    for (uint32_t i = 0; i < frame.header.num_words; i++) {
       frame.params[i] = memory_.R32(start_addr);
       start_addr += 4;
     }
@@ -83,7 +83,7 @@ void Maple::StartDMA() {
       memory_.W32(desc.result_addr, res.header.full);
       desc.result_addr += 4;
 
-      for (int i = 0; i < res.header.num_words; i++) {
+      for (uint32_t i = 0; i < res.header.num_words; i++) {
         memory_.W32(desc.result_addr, res.params[i]);
         desc.result_addr += 4;
       }

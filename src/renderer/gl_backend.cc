@@ -254,7 +254,7 @@ void GLBackend::RenderText2D(int x, int y, float point_size, uint32_t color,
   float fy = (float)y;
   const BakedFont *font = GetFont(point_size);
 
-  int len = strlen(text);
+  int len = (int)strlen(text);
   Vertex2D *vert =
       AllocVertices2D({GL_TRIANGLES, (int)font->texture, BLEND_SRC_ALPHA,
                        BLEND_ONE_MINUS_SRC_ALPHA, 0},

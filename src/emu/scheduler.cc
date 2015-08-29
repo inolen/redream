@@ -15,7 +15,7 @@ Scheduler::Scheduler()
 
 DeviceHandle Scheduler::AddDevice(Device *device) {
   devices_.push_back(DeviceInfo(device));
-  return devices_.size() - 1;
+  return static_cast<DeviceHandle>(devices_.size() - 1);
 }
 
 TimerHandle Scheduler::AddTimer(std::chrono::nanoseconds period,
@@ -83,12 +83,14 @@ void Scheduler::Tick() {
     for (auto &info : devices_) {
       auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
           target_time - info.current_time);
-      int64_t cycles_per_second = info.device->GetClockFrequency();
-      int64_t cycles_to_run = (delta.count() * cycles_per_second) / NS_PER_SEC;
-      int64_t ran = info.device->Execute(cycles_to_run);
+      uint32_t cycles_per_second = info.device->GetClockFrequency();
+      uint32_t cycles_to_run = static_cast<uint32_t>(
+          (delta.count() * static_cast<uint64_t>(cycles_per_second)) /
+          NS_PER_SEC);
+      uint32_t ran = info.device->Execute(cycles_to_run);
 
-      info.current_time +=
-          std::chrono::nanoseconds((ran * NS_PER_SEC) / cycles_per_second);
+      info.current_time += std::chrono::nanoseconds(
+          (ran * static_cast<uint64_t>(NS_PER_SEC)) / cycles_per_second);
     }
 
     base_time_ = target_time;

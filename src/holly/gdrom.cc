@@ -215,8 +215,8 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
     case EV_SPI_READ_START: {
       CHECK_EQ(state_, STATE_SPI_READ_CMD);
 
-      int offset = arg0;
-      int size = arg1;
+      int offset = static_cast<int>(arg0);
+      int size = static_cast<int>(arg1);
       CHECK_NE(size, 0);
 
       pio_idx_ = 0;
@@ -251,7 +251,7 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
       CHECK_EQ(state_, STATE_SPI_READ_CMD);
 
       uint8_t *data = reinterpret_cast<uint8_t *>(arg0);
-      int size = arg1;
+      int size = static_cast<int>(arg1);
       CHECK_NE(size, 0);
 
       memcpy(pio_buffer_, data, size);

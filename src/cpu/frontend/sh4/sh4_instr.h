@@ -29,10 +29,10 @@ struct InstrType {
     size_t len = strlen(instr_code);
     if (mask) *mask = 0;
     if (shift) *shift = 0;
-    for (unsigned i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {
       if ((!c && instr_code[i] == '1') || (c && instr_code[i] == c)) {
         if (mask) *mask |= (1 << (len - i - 1));
-        if (shift) *shift = len - i - 1;
+        if (shift) *shift = static_cast<uint16_t>(len - i - 1);
       }
     }
   }

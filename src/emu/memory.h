@@ -64,7 +64,7 @@ class PageTable {
   PageTable() {
     table_ = new TableHandle[MAX_ENTRIES];
 
-    for (size_t i = 0; i < MAX_ENTRIES; i++) {
+    for (int i = 0; i < MAX_ENTRIES; i++) {
       table_[i] = UNMAPPED;
     }
   }
@@ -215,7 +215,7 @@ class Memory {
     table_.MapRange(logical_start, logical_end, mirror_mask, bank.handle);
   }
 
-  void Memcpy(uint32_t logical_dest, void *ptr, size_t size) {
+  void Memcpy(uint32_t logical_dest, void *ptr, uint32_t size) {
     uint8_t *src = (uint8_t *)ptr;
     uint32_t end = logical_dest + size;
     while (logical_dest < end) {
@@ -225,7 +225,7 @@ class Memory {
     }
   }
 
-  void Memcpy(void *ptr, uint32_t logical_src, size_t size) {
+  void Memcpy(void *ptr, uint32_t logical_src, uint32_t size) {
     uint8_t *dest = (uint8_t *)ptr;
     uint8_t *end = dest + size;
     while (dest < end) {

@@ -37,28 +37,34 @@ void SH4::Reset(uint32_t pc) {
   ctx_.pc = pc;
 }
 
-int64_t SH4::Execute(int64_t cycles) {
+uint32_t SH4::Execute(uint32_t cycles) {
   PROFILER_RUNTIME("SH4::Execute");
 
   // LOG_INFO("Executing %d cycles at 0x%x", cycles, ctx_.pc);
 
-  int64_t remaining = cycles;
+  uint32_t remaining = cycles;
 
   // update timers
   for (int i = 0; i < 3; i++) {
-    // TMU runs on the peripheral clock which is 50mhz
+    // TMU runs on the peripheral clock which is 50mhz vs our 200mhz
     RunTimer(i, cycles >> 2);
   }
 
-  // run cpu
-  while (ctx_.pc != 0xdeadbeef && remaining > 0) {
+  while (ctx_.pc != 0xdeadbeef) {
     // translate PC to 29-bit physical space
     uint32_t pc = ctx_.pc & ~MIRROR_MASK;
     RuntimeBlock *block = runtime_->GetBlock(pc, &ctx_);
 
-    uint32_t nextpc = block->call(block, &memory_, &ctx_);
-    remaining -= block->guest_cycles;
-    ctx_.pc = nextpc;
+    // be careful not to wrap around
+    uint32_t next_remaining = remaining - block->guest_cycles;
+    if (next_remaining > remaining) {
+      break;
+    }
+
+    // run the block
+    uint32_t next_pc = block->call(block, &memory_, &ctx_);
+    remaining = next_remaining;
+    ctx_.pc = next_pc;
 
     CheckPendingInterrupts();
   }
@@ -415,7 +421,7 @@ bool SH4::TimerEnabled(int n) {  //
   return TSTR & (1 << n);
 }
 
-void SH4::RunTimer(int n, int64_t cycles) {
+void SH4::RunTimer(int n, uint32_t cycles) {
   static const int tcr_shift[] = {2, 4, 6, 8, 10, 0, 0, 0};
 
   if (!TimerEnabled(n)) {
@@ -455,7 +461,7 @@ void SH4::RunTimer(int n, int64_t cycles) {
 
   // decrement timer
   bool underflowed = false;
-  if ((uint32_t)(*tcnt - cycles) > *tcnt) {
+  if ((*tcnt - cycles) > *tcnt) {
     cycles -= *tcnt;
     *tcnt = *tcor;
     underflowed = true;

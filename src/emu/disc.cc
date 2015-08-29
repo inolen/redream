@@ -72,7 +72,7 @@ bool GDI::Load(const char *filename) {
 int GDI::ReadSector(int fad, void *dst) {
   // find the track to read from
   Track *trk = nullptr;
-  for (int i = 0, l = tracks_.size(); i < l; i++) {
+  for (int i = 0, l = static_cast<int>(tracks_.size()); i < l; i++) {
     Track *curr_track = &tracks_[i];
     Track *next_track = i < l - 1 ? &tracks_[i + 1] : nullptr;
 
@@ -95,7 +95,7 @@ int GDI::ReadSector(int fad, void *dst) {
   int res = fseek(fp, trk->file_offset + fad * SECTOR_SIZE, SEEK_SET);
   CHECK_EQ(res, 0);
 
-  res = fread(dst, SECTOR_SIZE, 1, fp);
+  res = static_cast<int>(fread(dst, SECTOR_SIZE, 1, fp));
   CHECK_EQ(res, 1);
 
   return 1;

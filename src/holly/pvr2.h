@@ -238,7 +238,7 @@ class PVR2 {
   renderer::Backend *rb_;
 
   emu::TimerHandle line_timer_;
-  int current_scanline_;
+  uint32_t current_scanline_;
 
   std::chrono::high_resolution_clock::time_point last_frame_, last_vblank_;
   float fps_, vbps_;

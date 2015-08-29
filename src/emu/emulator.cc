@@ -138,7 +138,7 @@ bool Emulator::LoadBios(const char *path) {
     return false;
   }
 
-  int n = fread(bios_, sizeof(uint8_t), size, fp);
+  int n = static_cast<int>(fread(bios_, sizeof(uint8_t), size, fp));
   fclose(fp);
 
   if (n != size) {
@@ -166,7 +166,7 @@ bool Emulator::LoadFlash(const char *path) {
     return false;
   }
 
-  int n = fread(flash_, sizeof(uint8_t), size, fp);
+  int n = static_cast<int>(fread(flash_, sizeof(uint8_t), size, fp));
   fclose(fp);
 
   if (n != size) {
@@ -192,8 +192,8 @@ bool Emulator::LaunchBIN(const char *path) {
   int size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  uint8_t *data = (uint8_t *)malloc(size);
-  int n = fread(data, sizeof(uint8_t), size, fp);
+  uint8_t *data = reinterpret_cast<uint8_t *>(malloc(size));
+  int n = static_cast<int>(fread(data, sizeof(uint8_t), size, fp));
   fclose(fp);
 
   if (n != size) {

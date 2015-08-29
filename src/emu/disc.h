@@ -42,7 +42,7 @@ class GDI : public Disc {
  public:
   ~GDI();
 
-  int num_tracks() const { return tracks_.size(); }
+  int num_tracks() const { return static_cast<int>(tracks_.size()); }
   const Track &track(int i) const { return tracks_[i]; }
 
   bool Load(const char *filename);

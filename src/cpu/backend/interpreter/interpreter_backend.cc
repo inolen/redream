@@ -112,7 +112,7 @@ bool InterpreterBackend::AssembleBlock(IRBuilder &builder,
   IntInstr *instr_end = reinterpret_cast<IntInstr *>(codegen_);
 
   int_block->instrs = instr_begin;
-  int_block->num_instrs = instr_end - instr_begin;
+  int_block->num_instrs = static_cast<int>(instr_end - instr_begin);
   int_block->locals_size = builder.locals_size();
 
   block->call = &CallBlock;

@@ -52,8 +52,9 @@ bool Holly::Init(Backend *rb) {
 }
 
 void Holly::RequestInterrupt(HollyInterrupt intr) {
-  HollyInterruptType type = (HollyInterruptType)(intr & HOLLY_INTC_MASK);
-  uint32_t irq = intr & ~HOLLY_INTC_MASK;
+  HollyInterruptType type =
+      static_cast<HollyInterruptType>(intr & HOLLY_INTC_MASK);
+  uint32_t irq = static_cast<uint32_t>(intr & ~HOLLY_INTC_MASK);
 
   if (intr == HOLLY_INTC_PCVOINT) {
     maple_.VBlank();
@@ -77,8 +78,9 @@ void Holly::RequestInterrupt(HollyInterrupt intr) {
 }
 
 void Holly::UnrequestInterrupt(HollyInterrupt intr) {
-  HollyInterruptType type = (HollyInterruptType)(intr & HOLLY_INTC_MASK);
-  uint32_t irq = intr & ~HOLLY_INTC_MASK;
+  HollyInterruptType type =
+      static_cast<HollyInterruptType>(intr & HOLLY_INTC_MASK);
+  uint32_t irq = static_cast<uint32_t>(intr & ~HOLLY_INTC_MASK);
 
   switch (type) {
     case HOLLY_INTC_NRM:

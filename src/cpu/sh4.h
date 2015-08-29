@@ -113,11 +113,11 @@ class SH4 : public emu::Device {
   SH4(emu::Scheduler &scheduler, emu::Memory &memory);
   virtual ~SH4();
 
-  int64_t GetClockFrequency() { return 200000000; }
+  uint32_t GetClockFrequency() { return 200000000; }
 
   bool Init(Runtime *runtime);
   void Reset(uint32_t pc);
-  int64_t Execute(int64_t cycles);
+  uint32_t Execute(uint32_t cycles);
 
   // DMAC
   void DDT(int channel, DDTRW rw, uint32_t addr);
@@ -153,7 +153,7 @@ class SH4 : public emu::Device {
 
   // TMU
   bool TimerEnabled(int n);
-  void RunTimer(int n, int64_t cycles);
+  void RunTimer(int n, uint32_t cycles);
 
   emu::Scheduler &scheduler_;
   emu::Memory &memory_;

@@ -221,7 +221,7 @@ void PVR2::ReconfigureSPG() {
 }
 
 void PVR2::LineClockUpdate() {
-  int num_scanlines = SPG_LOAD.vcount + 1;
+  uint32_t num_scanlines = SPG_LOAD.vcount + 1;
   if (current_scanline_ > num_scanlines) {
     current_scanline_ = 0;
   }

@@ -47,7 +47,7 @@ class RingBuffer {
 
     // support std::distance
     difference_type operator-(const self_type &other) {
-      return index_ - other.index_;
+      return static_cast<difference_type>(index_ - other.index_);
     }
 
     // support std::advance

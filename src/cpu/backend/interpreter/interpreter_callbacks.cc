@@ -362,7 +362,7 @@ REGISTER_INT_CALLBACK(STORE, STORE_F64, V, I32, F64);
 
 INT_CALLBACK(CAST) {
   A0 v = LOAD_ARG0();
-  STORE_RESULT((R)v);
+  STORE_RESULT(static_cast<R>(v));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(CAST, CAST, F32, I32, V);
@@ -373,7 +373,7 @@ REGISTER_INT_CALLBACK(CAST, CAST, I64, F64, V);
 
 INT_CALLBACK(SEXT) {
   A0 v = LOAD_ARG0();
-  STORE_RESULT((R)v);
+  STORE_RESULT(static_cast<R>(v));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SEXT, SEXT, I16, I8, V);
@@ -386,7 +386,7 @@ REGISTER_INT_CALLBACK(SEXT, SEXT, I64, I32, V);
 INT_CALLBACK(ZEXT) {
   using U0 = typename std::make_unsigned<A0>::type;
   A0 v = LOAD_ARG0();
-  STORE_RESULT((R)(U0)v);
+  STORE_RESULT(static_cast<R>(static_cast<U0>(v)));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ZEXT, ZEXT, I16, I8, V);
@@ -399,7 +399,7 @@ REGISTER_INT_CALLBACK(ZEXT, ZEXT, I64, I32, V);
 INT_CALLBACK(TRUNCATE) {
   using U0 = typename std::make_unsigned<A0>::type;
   A0 v = LOAD_ARG0();
-  STORE_RESULT((R)(U0)v);
+  STORE_RESULT(static_cast<R>(static_cast<U0>(v)));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(TRUNCATE, TRUNCATE, I8, I16, V);
@@ -424,7 +424,7 @@ REGISTER_INT_CALLBACK(SELECT, SELECT, I64, I8, I64);
 INT_CALLBACK(EQ) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs == rhs));
+  STORE_RESULT(static_cast<int8_t>(lhs == rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(EQ, EQ, I8, I8, I8);
@@ -437,7 +437,7 @@ REGISTER_INT_CALLBACK(EQ, EQ, I8, F64, F64);
 INT_CALLBACK(NE) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs != rhs));
+  STORE_RESULT(static_cast<int8_t>(lhs != rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(NE, NE, I8, I8, I8);
@@ -450,7 +450,7 @@ REGISTER_INT_CALLBACK(NE, NE, I8, F64, F64);
 INT_CALLBACK(SGE) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs >= rhs));
+  STORE_RESULT(static_cast<int8_t>(lhs >= rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SGE, SGE, I8, I8, I8);
@@ -463,7 +463,7 @@ REGISTER_INT_CALLBACK(SGE, SGE, I8, F64, F64);
 INT_CALLBACK(SGT) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs > rhs));
+  STORE_RESULT(static_cast<int8_t>(lhs > rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SGT, SGT, I8, I8, I8);
@@ -476,9 +476,9 @@ REGISTER_INT_CALLBACK(SGT, SGT, I8, F64, F64);
 INT_CALLBACK(UGE) {
   using U0 = typename std::make_unsigned<A0>::type;
   using U1 = typename std::make_unsigned<A1>::type;
-  U0 lhs = (U0)LOAD_ARG0();
-  U1 rhs = (U1)LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs >= rhs));
+  U0 lhs = static_cast<U0>(LOAD_ARG0());
+  U1 rhs = static_cast<U1>(LOAD_ARG1());
+  STORE_RESULT(static_cast<int8_t>(lhs >= rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(UGE, UGE, I8, I8, I8);
@@ -489,9 +489,9 @@ REGISTER_INT_CALLBACK(UGE, UGE, I8, I64, I64);
 INT_CALLBACK(UGT) {
   using U0 = typename std::make_unsigned<A0>::type;
   using U1 = typename std::make_unsigned<A1>::type;
-  U0 lhs = (U0)LOAD_ARG0();
-  U1 rhs = (U1)LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs > rhs));
+  U0 lhs = static_cast<U0>(LOAD_ARG0());
+  U1 rhs = static_cast<U1>(LOAD_ARG1());
+  STORE_RESULT(static_cast<int8_t>(lhs > rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(UGT, UGT, I8, I8, I8);
@@ -502,7 +502,7 @@ REGISTER_INT_CALLBACK(UGT, UGT, I8, I64, I64);
 INT_CALLBACK(SLE) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs <= rhs));
+  STORE_RESULT(static_cast<int8_t>(lhs <= rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SLE, SLE, I8, I8, I8);
@@ -515,7 +515,7 @@ REGISTER_INT_CALLBACK(SLE, SLE, I8, F64, F64);
 INT_CALLBACK(SLT) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs < rhs));
+  STORE_RESULT(static_cast<int8_t>(lhs < rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SLT, SLT, I8, I8, I8);
@@ -528,9 +528,9 @@ REGISTER_INT_CALLBACK(SLT, SLT, I8, F64, F64);
 INT_CALLBACK(ULE) {
   using U0 = typename std::make_unsigned<A0>::type;
   using U1 = typename std::make_unsigned<A1>::type;
-  U0 lhs = (U0)LOAD_ARG0();
-  U1 rhs = (U1)LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs <= rhs));
+  U0 lhs = static_cast<U0>(LOAD_ARG0());
+  U1 rhs = static_cast<U1>(LOAD_ARG1());
+  STORE_RESULT(static_cast<int8_t>(lhs <= rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ULE, ULE, I8, I8, I8);
@@ -541,9 +541,9 @@ REGISTER_INT_CALLBACK(ULE, ULE, I8, I64, I64);
 INT_CALLBACK(ULT) {
   using U0 = typename std::make_unsigned<A0>::type;
   using U1 = typename std::make_unsigned<A1>::type;
-  U0 lhs = (U0)LOAD_ARG0();
-  U1 rhs = (U1)LOAD_ARG1();
-  STORE_RESULT((int8_t)(lhs < rhs));
+  U0 lhs = static_cast<U0>(LOAD_ARG0());
+  U1 rhs = static_cast<U1>(LOAD_ARG1());
+  STORE_RESULT(static_cast<int8_t>(lhs < rhs));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ULT, ULT, I8, I8, I8);
@@ -593,8 +593,8 @@ REGISTER_INT_CALLBACK(SMUL, SMUL, F64, F64, F64);
 INT_CALLBACK(UMUL) {
   using U0 = typename std::make_unsigned<A0>::type;
   using U1 = typename std::make_unsigned<A1>::type;
-  U0 lhs = (U0)LOAD_ARG0();
-  U1 rhs = (U1)LOAD_ARG1();
+  U0 lhs = static_cast<U0>(LOAD_ARG0());
+  U1 rhs = static_cast<U1>(LOAD_ARG1());
   STORE_RESULT((A0)(lhs * rhs));
   return NEXT_INSTR;
 }
@@ -744,7 +744,7 @@ INT_CALLBACK(LSHR) {
   using U0 = typename std::make_unsigned<A0>::type;
   A0 v = LOAD_ARG0();
   A1 n = LOAD_ARG1();
-  STORE_RESULT((A0)((U0)v >> n));
+  STORE_RESULT(static_cast<A0>(static_cast<U0>(v) >> n));
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(LSHR, LSHR, I8, I8, I32);
@@ -754,33 +754,31 @@ REGISTER_INT_CALLBACK(LSHR, LSHR, I64, I64, I32);
 
 INT_CALLBACK(BRANCH) {
   using U0 = typename std::make_unsigned<A0>::type;
-  U0 addr = (U0)LOAD_ARG0();
+  U0 addr = static_cast<U0>(LOAD_ARG0());
   return addr;
 }
 REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I8, V);
 REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I16, V);
 REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I32, V);
-REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I64, V);
 
 INT_CALLBACK(BRANCH_COND) {
   using U1 = typename std::make_unsigned<A1>::type;
   A0 cond = LOAD_ARG0();
   if (cond) {
-    U1 addr = (U1)LOAD_ARG1();
+    U1 addr = static_cast<U1>(LOAD_ARG1());
     return addr;
   } else {
-    U1 addr = (U1)LOAD_ARG2();
+    U1 addr = static_cast<U1>(LOAD_ARG2());
     return addr;
   }
 }
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I8);
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I16);
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I32);
-REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I64);
 
 INT_CALLBACK(CALL_EXTERNAL) {
   A0 addr = LOAD_ARG0();
-  void (*func)(void *) = (void (*)(void *))(intptr_t)addr;
+  void (*func)(void *) = reinterpret_cast<void (*)(void *)>(addr);
   func(guest_ctx);
   return NEXT_INSTR;
 }

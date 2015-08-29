@@ -12,7 +12,7 @@ using namespace dreavm::renderer;
 using namespace dreavm::trace;
 
 static void BuildLookupTables();
-static size_t GetParamSize_raw(const PCW &pcw, int vertex_type);
+static int GetParamSize_raw(const PCW &pcw, int vertex_type);
 static int GetPolyType_raw(const PCW &pcw);
 static int GetVertexType_raw(const PCW &pcw);
 
@@ -24,7 +24,7 @@ static HollyInterrupt list_interrupts[] = {
     HOLLY_INTC_TAEPTIN    // TA_LIST_PUNCH_THROUGH
 };
 
-static size_t param_size_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
+static int param_size_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
 static int poly_type_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 static int vertex_type_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 
@@ -67,7 +67,7 @@ static void BuildLookupTables() {
 // Parameter size can be determined by only the PCW for every parameter other
 // than vertex parameters. For vertex parameters, the vertex type derived from
 // the last poly or modifier volume parameter is needed.
-static size_t GetParamSize_raw(const PCW &pcw, int vertex_type) {
+static int GetParamSize_raw(const PCW &pcw, int vertex_type) {
   switch (pcw.para_type) {
     case TA_PARAM_END_OF_LIST:
       return 32;
@@ -246,8 +246,8 @@ TextureHandle TileTextureCache::GetTexture(
   return result.first->second;
 }
 
-size_t TileAccelerator::GetParamSize(const PCW &pcw, int vertex_type) {
-  size_t size =
+int TileAccelerator::GetParamSize(const PCW &pcw, int vertex_type) {
+  int size =
       param_size_lookup[pcw.obj_control * TA_NUM_PARAMS * TA_NUM_VERT_TYPES +
                         pcw.para_type * TA_NUM_VERT_TYPES + vertex_type];
   CHECK_NE(size, 0);
@@ -327,8 +327,8 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
     void *data = &tactx->data[tactx->cursor];
     PCW pcw = *reinterpret_cast<PCW *>(data);
 
-    size_t size = GetParamSize(pcw, tactx->vertex_type);
-    size_t recv = tactx->size - tactx->cursor;
+    int size = GetParamSize(pcw, tactx->vertex_type);
+    int recv = tactx->size - tactx->cursor;
 
     if (recv < size) {
       // wait for the entire command

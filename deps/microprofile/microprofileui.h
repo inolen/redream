@@ -1682,7 +1682,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 				{
 					if(nMetaIndex < MICROPROFILE_META_MAX && S.MetaCounters[nMetaIndex].pName)
 					{
-						uint32_t nStrWidth = strlen(S.MetaCounters[nMetaIndex].pName);
+						uint32_t nStrWidth = (uint32_t)strlen(S.MetaCounters[nMetaIndex].pName);
 						if(S.nBars & MP_DRAW_TIMERS)
 							nWidth += 6 + (1+MICROPROFILE_TEXT_WIDTH) * (nStrWidth);
 						if(S.nBars & MP_DRAW_AVERAGE)
@@ -1736,7 +1736,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	{
 		if(0 != (S.nBars & (MP_DRAW_META_FIRST<<i)) && S.MetaCounters[i].pName)
 		{
-			uint32_t nBufferSize = strlen(S.MetaCounters[i].pName) + 32;
+			uint32_t nBufferSize = (uint32_t)strlen(S.MetaCounters[i].pName) + 32;
 			char* buffer = (char*)alloca(nBufferSize);
 			if(S.nBars & MP_DRAW_TIMERS)
 				nX += MicroProfileDrawBarMetaCount(nX, nY, &S.MetaCounters[i].nCounters[0], S.MetaCounters[i].pName, nTotalHeight) + 1; 
@@ -1758,7 +1758,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	{
 		uint32_t nY0 = nY + i * (nHeight + 1);
 		bool bInside = (UI.nActiveMenu == (uint32_t)-1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
-		MicroProfileDrawBox(nX, nY0, nTimerWidth, nY0 + (nHeight+1)+1, 0xff0000000 | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
+		MicroProfileDrawBox(nX, nY0, nTimerWidth, nY0 + (nHeight +1)+1, 0xff000000 | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
 	}
 	nX += MicroProfileDrawBarLegend(nX, nY, nTotalHeight, nTimerWidth-5) + 1;
 
@@ -2517,7 +2517,7 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 			{
 				if(UI.nHoverToken != MICROPROFILE_INVALID_TOKEN)
 				{
-					MicroProfileDrawFloatTooltip(UI.nMouseX, UI.nMouseY, UI.nHoverToken, UI.nHoverTime);
+					MicroProfileDrawFloatTooltip(UI.nMouseX, UI.nMouseY, (uint32_t)UI.nHoverToken, UI.nHoverTime);
 				}
 				else if(S.nContextSwitchHoverThreadAfter != (uint32_t)-1 && S.nContextSwitchHoverThreadBefore != (uint32_t)-1)
 				{
