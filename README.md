@@ -47,5 +47,5 @@ Command line flags are loaded from and saved to `$HOME/.dreavm/flags` each run. 
 
 ## Running tests
 ```shell
-dreavm_gtest
+dreavm_test
 ```
