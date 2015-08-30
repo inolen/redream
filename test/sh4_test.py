@@ -10,16 +10,19 @@ import tempfile
 
 parser = argparse.ArgumentParser(description='Process an assembly source file and output it as an ASMTest constructor invocation.')
 parser.add_argument('input', nargs='+', help='Specifies the input file(s).')
-parser.add_argument('-o', '--output', help='Specifies the output file.', required=True)
+parser.add_argument('-as', help='sh-elf-as path.', required=True)
+parser.add_argument('-ld', help='sh-elf-ld path.', required=True)
+parser.add_argument('-objcopy', help='sh-elf-objcopy path.', required=True)
+parser.add_argument('-o', help='Specifies the output file.', required=True)
 args = parser.parse_args()
 
 def asm_to_bin(input_path):
   obj = tempfile.mktemp(suffix='.obj')
   srec = tempfile.mktemp(suffix='.srec')
   bin = tempfile.mktemp(suffix='.bin')
-  subprocess.call(['sh-elf-as', '-little', '-o', obj, input_path])
-  subprocess.call(['sh-elf-ld', '--oformat', 'srec', '-Ttext', '0x8c010000', '-o', srec, obj])
-  subprocess.call(['sh-elf-objcopy', '-I', 'srec', '-O', 'binary', '-R', '.sec1', srec, bin])
+  subprocess.call([vars(args)['as'], '-little', '-o', obj, input_path])
+  subprocess.call([vars(args)['ld'], '--oformat', 'srec', '-Ttext', '0x8c010000', '-o', srec, obj])
+  subprocess.call([vars(args)['objcopy'], '-I', 'srec', '-O', 'binary', '-R', '.sec1', srec, bin])
   with open(bin, 'r') as f:
     return f.read()
 
@@ -60,4 +63,4 @@ def list_to_inc(inputs, output_path):
       f.write('SH4_TEST(' + test_name + ', ' + test + ')\n')
 
 if __name__ == '__main__':
-  list_to_inc(args.input, args.output)
+  list_to_inc(args.input, args.o)

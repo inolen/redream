@@ -257,15 +257,29 @@ set(TEST_ASM
   )
 set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/asm/sh4_test.inc)
 
-# FIXME only do this is the build tools are available I think
-add_custom_command(OUTPUT ${asm_inc}
-  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py -o ${asm_inc} ${TEST_ASM}
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py ${TEST_ASM}
-  COMMENT "Assembling ${asm_inc} for ${TEST_ASM}"
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  VERBATIM)
+# compile tests into include file if the sh4 toolchain is available
+find_package(PythonInterp)
+find_program(SH_AS NAMES sh-elf-as)
+find_program(SH_LD NAMES sh-elf-ld)
+find_program(SH_OBJCOPY NAMES sh-elf-objcopy)
+if(NOT PYTHONINTERP_FOUND)
+  message(WARNING "Could not find python interpreter, won't be able to update tests")
+elseif(NOT SH_AS)
+  message(WARNING "Could not find sh-elf-as, won't be able to update tests")
+elseif(NOT SH_LD)
+  message(WARNING "Could not find sh-elf-ld, won't be able to update tests")
+elseif(NOT SH_OBJCOPY)
+  message(WARNING "Could not find sh-elf-objcopy, won't be able to update tests")
+else()
+  add_custom_command(OUTPUT ${asm_inc}
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py -as ${SH_AS} -ld ${SH_LD} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py ${TEST_ASM}
+    COMMENT "Assembling ${asm_inc} for ${TEST_ASM}"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    VERBATIM)
+endif()
 
-# build gtest binary
+# build test binary
 set(DREAVM_TEST_SOURCES
   src/core/assert.cc
   src/core/filesystem.cc
