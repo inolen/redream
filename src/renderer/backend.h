@@ -69,8 +69,8 @@ enum BoxType { BOX_BAR, BOX_FLAT };
 
 struct Vertex {
   float xyz[3];
-  float color[4];
-  float offset_color[4];
+  uint32_t color;
+  uint32_t offset_color;
   float uv[2];
 };
 

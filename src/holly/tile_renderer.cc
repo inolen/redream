@@ -1,3 +1,4 @@
+#include "emu/profiler.h"
 #include "holly/pixel_convert.h"
 #include "holly/tile_accelerator.h"
 #include "holly/tile_renderer.h"
@@ -83,6 +84,20 @@ inline ShadeMode TranslateShadeMode(uint32_t shade_mode) {
   return shade_modes[shade_mode];
 }
 
+static inline uint32_t argb_to_abgr(uint32_t v) {
+  return (v & 0xff000000) | ((v & 0xff) << 16) | (v & 0xff00) |
+         ((v & 0xff0000) >> 16);
+}
+
+static inline uint8_t float_to_u8(float x) {
+  return std::min(std::max((uint32_t)(x * 255.0f), 0u), 255u);
+}
+
+static inline uint32_t float_to_abgr(float r, float g, float b, float a) {
+  return (float_to_u8(a) << 24) | (float_to_u8(b) << 16) |
+         (float_to_u8(g) << 8) | float_to_u8(r);
+}
+
 uint32_t TextureCache::GetTextureKey(const TSP &tsp, const TCW &tcw) {
   // cache textures based on their address for now
   return tcw.texture_addr << 3;
@@ -91,6 +106,8 @@ uint32_t TextureCache::GetTextureKey(const TSP &tsp, const TCW &tcw) {
 TileRenderer::TileRenderer(TextureCache &texcache) : texcache_(texcache) {}
 
 void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
+  PROFILER_GPU("TileRenderer::RenderContext");
+
   const uint8_t *data = tactx->data;
   const uint8_t *end = tactx->data + tactx->size;
 
@@ -205,11 +222,8 @@ Vertex *TileRenderer::AllocVert() {
 // ironed out
 // FIXME honor use alpha
 // FIXME honor ignore tex alpha
-void TileRenderer::ParseColor(uint32_t base_color, float *color) {
-  color[0] = ((base_color >> 16) & 0xff) / 255.0f;
-  color[1] = ((base_color >> 8) & 0xff) / 255.0f;
-  color[2] = (base_color & 0xff) / 255.0f;
-  color[3] = ((base_color >> 24) & 0xff) / 255.0f;
+void TileRenderer::ParseColor(uint32_t base_color, uint32_t *color) {
+  *color = argb_to_abgr(base_color);
 
   // if (!last_poly_->type0.tsp.use_alpha) {
   //   color[3] = 1.0f;
@@ -217,59 +231,47 @@ void TileRenderer::ParseColor(uint32_t base_color, float *color) {
 }
 
 void TileRenderer::ParseColor(float r, float g, float b, float a,
-                              float *color) {
-  color[0] = r;
-  color[1] = g;
-  color[2] = b;
-  color[3] = a;
+                              uint32_t *color) {
+  *color = float_to_abgr(r, g, b, a);
 
   // if (!last_poly_->type0.tsp.use_alpha) {
   //   color[3] = 1.0f;
   // }
 }
 
-void TileRenderer::ParseColor(float intensity, float *color) {
-  color[0] = face_color_[0] * intensity;
-  color[1] = face_color_[1] * intensity;
-  color[2] = face_color_[2] * intensity;
-  color[3] = face_color_[3];
+void TileRenderer::ParseColor(float intensity, uint32_t *color) {
+  *color = float_to_abgr(face_color_[0] * intensity, face_color_[1] * intensity,
+                         face_color_[2] * intensity, face_color_[3]);
 
   // if (!last_poly_->type0.tsp.use_alpha) {
   //   color[3] = 1.0f;
   // }
 }
 
-void TileRenderer::ParseOffsetColor(uint32_t offset_color, float *color) {
+void TileRenderer::ParseOffsetColor(uint32_t offset_color, uint32_t *color) {
   if (!last_poly_->type0.isp_tsp.offset) {
-    memset(color, 0, sizeof(float) * 4);
+    *color = 0;
   } else {
-    color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
-    color[1] = ((offset_color >> 8) & 0xff) / 255.0f;
-    color[2] = (offset_color & 0xff) / 255.0f;
-    color[3] = ((offset_color >> 24) & 0xff) / 255.0f;
+    *color = argb_to_abgr(offset_color);
   }
 }
 
 void TileRenderer::ParseOffsetColor(float r, float g, float b, float a,
-                                    float *color) {
+                                    uint32_t *color) {
   if (!last_poly_->type0.isp_tsp.offset) {
-    memset(color, 0, sizeof(float) * 4);
+    *color = 0;
   } else {
-    color[0] = r;
-    color[1] = g;
-    color[2] = b;
-    color[3] = a;
+    *color = float_to_abgr(r, g, b, a);
   }
 }
 
-void TileRenderer::ParseOffsetColor(float intensity, float *color) {
+void TileRenderer::ParseOffsetColor(float intensity, uint32_t *color) {
   if (!last_poly_->type0.isp_tsp.offset) {
-    memset(color, 0, sizeof(float) * 4);
+    *color = 0;
   } else {
-    color[0] = face_offset_color_[0] * intensity;
-    color[1] = face_offset_color_[1] * intensity;
-    color[2] = face_offset_color_[2] * intensity;
-    color[3] = face_offset_color_[3];
+    *color = float_to_abgr(
+        face_offset_color_[0] * intensity, face_offset_color_[1] * intensity,
+        face_offset_color_[2] * intensity, face_offset_color_[3]);
   }
 }
 
@@ -308,10 +310,7 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
 
     uint32_t base_color =
         *reinterpret_cast<const uint32_t *>(&tactx->bg_vertices[offset]);
-    v->color[0] = ((base_color >> 16) & 0xff) / 255.0f;
-    v->color[1] = ((base_color >> 8) & 0xff) / 255.0f;
-    v->color[2] = (base_color & 0xff) / 255.0f;
-    v->color[3] = ((base_color >> 24) & 0xff) / 255.0f;
+    v->color = argb_to_abgr(base_color);
     offset += 4;
 
     if (tactx->bg_isp.offset) {
@@ -343,10 +342,8 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
   verts[3]->xyz[0] = verts[2]->xyz[0];
   verts[3]->xyz[1] = verts[1]->xyz[1];
   verts[3]->xyz[2] = tactx->bg_depth;
-  verts[3]->color[0] = verts[0]->color[0];
-  verts[3]->color[1] = verts[0]->color[1];
-  verts[3]->color[2] = verts[0]->color[2];
-  verts[3]->color[3] = verts[0]->color[3];
+  verts[3]->color = verts[0]->color;
+  verts[3]->offset_color = verts[0]->offset_color;
   verts[3]->uv[0] = verts[2]->uv[0];
   verts[3]->uv[1] = verts[1]->uv[1];
 }
@@ -377,7 +374,8 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx, Backend *rb,
     surf->src_blend = BLEND_NONE;
     surf->dst_blend = BLEND_NONE;
   } else if ((list_type_ == TA_LIST_TRANSLUCENT ||
-              list_type_ == TA_LIST_TRANSLUCENT_MODVOL) && tactx->autosort) {
+              list_type_ == TA_LIST_TRANSLUCENT_MODVOL) &&
+             tactx->autosort) {
     surf->depth_func = DEPTH_LEQUAL;
   } else if (list_type_ == TA_LIST_PUNCH_THROUGH) {
     surf->depth_func = DEPTH_GEQUAL;
@@ -455,10 +453,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[0] = param->type0.xyz[0];
       vert->xyz[1] = param->type0.xyz[1];
       vert->xyz[2] = param->type0.xyz[2];
-      ParseColor(param->type0.base_color, vert->color);
-      vert->offset_color[1] = 0.0f;
-      vert->offset_color[2] = 0.0f;
-      vert->offset_color[3] = 0.0f;
+      ParseColor(param->type0.base_color, &vert->color);
+      vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
     } break;
@@ -470,11 +466,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[2] = param->type1.xyz[2];
       ParseColor(param->type1.base_color_r, param->type1.base_color_g,
                  param->type1.base_color_b, param->type1.base_color_a,
-                 vert->color);
-      vert->offset_color[0] = 0.0f;
-      vert->offset_color[1] = 0.0f;
-      vert->offset_color[2] = 0.0f;
-      vert->offset_color[3] = 0.0f;
+                 &vert->color);
+      vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
     } break;
@@ -484,11 +477,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[0] = param->type2.xyz[0];
       vert->xyz[1] = param->type2.xyz[1];
       vert->xyz[2] = param->type2.xyz[2];
-      ParseColor(param->type2.base_intensity, vert->color);
-      vert->offset_color[0] = 0.0f;
-      vert->offset_color[1] = 0.0f;
-      vert->offset_color[2] = 0.0f;
-      vert->offset_color[3] = 0.0f;
+      ParseColor(param->type2.base_intensity, &vert->color);
+      vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
     } break;
@@ -498,8 +488,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[0] = param->type3.xyz[0];
       vert->xyz[1] = param->type3.xyz[1];
       vert->xyz[2] = param->type3.xyz[2];
-      ParseColor(param->type3.base_color, vert->color);
-      ParseOffsetColor(param->type3.offset_color, vert->offset_color);
+      ParseColor(param->type3.base_color, &vert->color);
+      ParseOffsetColor(param->type3.offset_color, &vert->offset_color);
       vert->uv[0] = param->type3.uv[0];
       vert->uv[1] = param->type3.uv[1];
     } break;
@@ -509,8 +499,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[0] = param->type4.xyz[0];
       vert->xyz[1] = param->type4.xyz[1];
       vert->xyz[2] = param->type4.xyz[2];
-      ParseColor(param->type4.base_color, vert->color);
-      ParseOffsetColor(param->type4.offset_color, vert->offset_color);
+      ParseColor(param->type4.base_color, &vert->color);
+      ParseOffsetColor(param->type4.offset_color, &vert->offset_color);
       uint32_t u = param->type4.uv[0] << 16;
       uint32_t v = param->type4.uv[0] << 16;
       vert->uv[0] = *reinterpret_cast<float *>(&u);
@@ -524,10 +514,10 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[2] = param->type5.xyz[2];
       ParseColor(param->type5.base_color_r, param->type5.base_color_g,
                  param->type5.base_color_b, param->type5.base_color_a,
-                 vert->color);
+                 &vert->color);
       ParseOffsetColor(param->type5.offset_color_r, param->type5.offset_color_g,
                        param->type5.offset_color_b, param->type5.offset_color_a,
-                       vert->offset_color);
+                       &vert->offset_color);
       vert->uv[0] = param->type5.uv[0];
       vert->uv[1] = param->type5.uv[1];
     } break;
@@ -539,10 +529,10 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[2] = param->type6.xyz[2];
       ParseColor(param->type6.base_color_r, param->type6.base_color_g,
                  param->type6.base_color_b, param->type6.base_color_a,
-                 vert->color);
+                 &vert->color);
       ParseOffsetColor(param->type6.offset_color_r, param->type6.offset_color_g,
                        param->type6.offset_color_b, param->type6.offset_color_a,
-                       vert->offset_color);
+                       &vert->offset_color);
       uint32_t u = param->type6.uv[0] << 16;
       uint32_t v = param->type6.uv[0] << 16;
       vert->uv[0] = *reinterpret_cast<float *>(&u);
@@ -554,8 +544,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[0] = param->type7.xyz[0];
       vert->xyz[1] = param->type7.xyz[1];
       vert->xyz[2] = param->type7.xyz[2];
-      ParseColor(param->type7.base_intensity, vert->color);
-      ParseOffsetColor(param->type7.offset_intensity, vert->offset_color);
+      ParseColor(param->type7.base_intensity, &vert->color);
+      ParseOffsetColor(param->type7.offset_intensity, &vert->offset_color);
       vert->uv[0] = param->type7.uv[0];
       vert->uv[1] = param->type7.uv[1];
     } break;
@@ -565,8 +555,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       vert->xyz[0] = param->type8.xyz[0];
       vert->xyz[1] = param->type8.xyz[1];
       vert->xyz[2] = param->type8.xyz[2];
-      ParseColor(param->type8.base_intensity, vert->color);
-      ParseOffsetColor(param->type8.offset_intensity, vert->offset_color);
+      ParseColor(param->type8.base_intensity, &vert->color);
+      ParseOffsetColor(param->type8.offset_intensity, &vert->offset_color);
       uint32_t u = param->type8.uv[0] << 16;
       uint32_t v = param->type8.uv[0] << 16;
       vert->uv[0] = *reinterpret_cast<float *>(&u);
@@ -586,8 +576,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
         // FIXME this is assuming all sprites are billboards
         // z isn't specified for i == 3
         vert->xyz[2] = param->sprite1.xyz[0][2];
-        ParseColor(1.0f, 1.0f, 1.0f, 1.0f, vert->color);
-        ParseOffsetColor(1.0f, 1.0f, 1.0f, 1.0f, vert->offset_color);
+        ParseColor(1.0f, 1.0f, 1.0f, 1.0f, &vert->color);
+        ParseOffsetColor(1.0f, 1.0f, 1.0f, 1.0f, &vert->offset_color);
         uint32_t u, v;
         if (i == 3) {
           u = (param->sprite1.uv[0] & 0xffff0000);

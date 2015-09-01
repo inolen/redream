@@ -54,7 +54,7 @@ enum {
   UNMAPPED = (TableHandle)0,
   PAGE_BITS = 20,
   OFFSET_BITS = 32 - PAGE_BITS,
-  PAGE_SIZE = 1 << OFFSET_BITS,
+  MAX_PAGE_SIZE = 1 << OFFSET_BITS,
   MAX_ENTRIES = 1 << PAGE_BITS,
   MAX_HANDLES = (1 << (sizeof(TableHandle) * 8)) - 1
 };

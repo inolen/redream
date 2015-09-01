@@ -1,5 +1,6 @@
 #include <memory>
 #include "core/core.h"
+#include "emu/profiler.h"
 #include "renderer/gl_backend.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -391,14 +392,20 @@ void GLBackend::RenderSurfaces(const Eigen::Matrix4f &projection,
                                const Surface *surfs, int num_surfs,
                                const Vertex *verts, int num_verts,
                                const int *sorted_surfs) {
+  PROFILER_GPU("GLBackend::RenderSurfaces");
+
   // transpose to column-major for OpenGL
   Eigen::Matrix4f transposed = projection.transpose();
 
   glBindBuffer(GL_ARRAY_BUFFER, ta_vbo_);
   glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * num_verts, verts,
-               GL_STATIC_DRAW);
+               GL_DYNAMIC_DRAW);
 
   BindVAO(ta_vao_);
+  BindProgram(&ta_program_);
+  glUniformMatrix4fv(GetUniform(UNIFORM_MODELVIEWPROJECTIONMATRIX), 1, GL_FALSE,
+                     transposed.data());
+  glUniform1i(GetUniform(UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 
   for (int i = 0; i < num_surfs; i++) {
     const Surface *surf = &surfs[sorted_surfs[i]];
@@ -409,11 +416,6 @@ void GLBackend::RenderSurfaces(const Eigen::Matrix4f &projection,
     SetBlendFunc(surf->src_blend, surf->dst_blend);
 
     // TODO use surf->shade to select correct shader
-
-    BindProgram(&ta_program_);
-    glUniformMatrix4fv(GetUniform(UNIFORM_MODELVIEWPROJECTIONMATRIX), 1,
-                       GL_FALSE, transposed.data());
-    glUniform1i(GetUniform(UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 
     BindTexture(MAP_DIFFUSE,
                 surf->texture ? textures_[surf->texture] : white_tex_);
@@ -514,7 +516,7 @@ void GLBackend::InitVertexBuffers() {
 
   // xy
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, 0, sizeof(Vertex2D),
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex2D),
                         (void *)offsetof(Vertex2D, x));
 
   // color
@@ -524,7 +526,7 @@ void GLBackend::InitVertexBuffers() {
 
   // texcoord
   glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 2, GL_FLOAT, 0, sizeof(Vertex2D),
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex2D),
                         (void *)offsetof(Vertex2D, u));
 
   glBindVertexArray(0);
@@ -539,27 +541,24 @@ void GLBackend::InitVertexBuffers() {
   glGenBuffers(1, &ta_vbo_);
   glBindBuffer(GL_ARRAY_BUFFER, ta_vbo_);
 
-  glGenBuffers(1, &ta_ibo_);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ta_ibo_);
-
   // xyz
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 3, GL_FLOAT, 0, sizeof(Vertex),
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, xyz));
 
   // color
   glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 4, GL_FLOAT, 0, sizeof(Vertex),
+  glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex),
                         (void *)offsetof(Vertex, color));
 
   // offset color
   glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 4, GL_FLOAT, 0, sizeof(Vertex),
+  glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex),
                         (void *)offsetof(Vertex, offset_color));
 
   // texcoord
   glEnableVertexAttribArray(3);
-  glVertexAttribPointer(3, 2, GL_FLOAT, 0, sizeof(Vertex),
+  glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, uv));
 
   glBindVertexArray(0);
@@ -571,7 +570,6 @@ void GLBackend::DestroyVertexBuffers() {
   glDeleteBuffers(1, &ui_vbo_);
   glDeleteVertexArrays(1, &ui_vao_);
 
-  glDeleteBuffers(1, &ta_ibo_);
   glDeleteBuffers(1, &ta_vbo_);
   glDeleteVertexArrays(1, &ta_vao_);
 }
@@ -775,7 +773,7 @@ void GLBackend::Flush2D() {
 
   glBindBuffer(GL_ARRAY_BUFFER, ui_vbo_);
   glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex2D) * num_verts2d_, verts2d_,
-               GL_STATIC_DRAW);
+               GL_DYNAMIC_DRAW);
 
   SetDepthMask(false);
   SetDepthFunc(DEPTH_NONE);

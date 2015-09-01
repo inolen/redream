@@ -28,13 +28,16 @@ uint32_t Profiler::ScopeColor(const char *name) {
 bool Profiler::Init() {
   MicroProfileOnThreadCreate("main");
 
-  // register and enable runtime group by default
+  // register and enable gpu and runtime group by default
+  uint16_t gpu_group = MicroProfileGetGroup("gpu", MicroProfileTokenTypeCpu);
+  g_MicroProfile.nActiveGroupWanted |= 1ll << gpu_group;
+
   uint16_t runtime_group =
       MicroProfileGetGroup("runtime", MicroProfileTokenTypeCpu);
   g_MicroProfile.nActiveGroupWanted |= 1ll << runtime_group;
 
   // render time / average time bars by default
-  g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE;
+  g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
 
   return true;
 }
@@ -42,8 +45,10 @@ bool Profiler::Init() {
 void Profiler::Shutdown() {}
 
 bool Profiler::HandleInput(Keycode key, int16_t value) {
-  if (key == K_F1 && value) {
-    MicroProfileToggleDisplayMode();
+  if (key == K_F1) {
+    if (value) {
+      MicroProfileToggleDisplayMode();
+    }
     return true;
   } else if (key == K_MOUSE1) {
     MicroProfileMouseButton(value, 0);

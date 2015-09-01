@@ -128,7 +128,7 @@ class GLBackend : public Backend {
   ShaderProgram ta_program_;
   ShaderProgram ui_program_;
   GLuint ui_vao_, ui_vbo_;
-  GLuint ta_vao_, ta_vbo_, ta_ibo_;
+  GLuint ta_vao_, ta_vbo_;
 
   GLuint fb_ta_, fb_ta_color_, fb_ta_depth_;
 

@@ -8,12 +8,11 @@
 #define PROFILER_SCOPE(group, name) \
   MICROPROFILE_SCOPEI(group, name, dreavm::emu::Profiler::ScopeColor(name))
 
-#define PROFILER_SCOPE_F(group) PROFILER_SCOPE(group, __FUNCTION__)
+#define PROFILER_GPU(name) \
+  MICROPROFILE_SCOPEI("gpu", name, dreavm::emu::Profiler::ScopeColor(name))
 
 #define PROFILER_RUNTIME(name) \
   MICROPROFILE_SCOPEI("runtime", name, dreavm::emu::Profiler::ScopeColor(name))
-
-#define PROFILER_RUNTIME_F() PROFILER_RUNTIME(__FUNCTION)
 
 namespace dreavm {
 namespace emu {

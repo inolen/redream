@@ -35,10 +35,10 @@ void RunSH4Test(const SH4Test &test) {
   sh4.ctx_.pc = 0x8c010000;
 
   // mount the test binary and a small stack
-  uint8_t stack[PAGE_SIZE];
+  uint8_t stack[MAX_PAGE_SIZE];
 
   uint32_t binary_size = core::align(static_cast<uint32_t>(test.buffer_size),
-                                     static_cast<uint32_t>(PAGE_SIZE));
+                                     static_cast<uint32_t>(MAX_PAGE_SIZE));
   uint8_t *binary = new uint8_t[binary_size];
   memcpy(binary, test.buffer, test.buffer_size);
 

@@ -102,6 +102,7 @@ bool System::GLInit(int *width, int *height) {
     return false;
   }
 
+  // link in gl functions at runtime
   glewExperimental = GL_TRUE;
   GLenum err = glewInit();
   if (err != GLEW_OK) {
@@ -109,7 +110,8 @@ bool System::GLInit(int *width, int *height) {
     return false;
   }
 
-  SDL_GL_SetSwapInterval(1);
+  // disable vsync
+  SDL_GL_SetSwapInterval(0);
 
   *width = video_width_;
   *height = video_height_;

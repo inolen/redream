@@ -46,12 +46,12 @@ class TileRenderer {
 
   renderer::Surface *AllocSurf();
   renderer::Vertex *AllocVert();
-  void ParseColor(uint32_t base_color, float *color);
-  void ParseColor(float r, float g, float b, float a, float *color);
-  void ParseColor(float intensity, float *color);
-  void ParseOffsetColor(uint32_t offset_color, float *color);
-  void ParseOffsetColor(float r, float g, float b, float a, float *color);
-  void ParseOffsetColor(float intensity, float *color);
+  void ParseColor(uint32_t base_color, uint32_t *color);
+  void ParseColor(float r, float g, float b, float a, uint32_t *color);
+  void ParseColor(float intensity, uint32_t *color);
+  void ParseOffsetColor(uint32_t offset_color, uint32_t *color);
+  void ParseOffsetColor(float r, float g, float b, float a, uint32_t *color);
+  void ParseOffsetColor(float intensity, uint32_t *color);
   void ParseBackground(const TileContext *tactx);
   void ParsePolyParam(const TileContext *tactx, renderer::Backend *rb,
                       const PolyParam *param);
