@@ -78,10 +78,6 @@ bool TraceReader::PatchPointers() {
 
     // patch relative data pointers
     switch (curr_cmd->type) {
-      case TRACE_RESIZE_VIDEO: {
-        ptr += sizeof(*curr_cmd);
-      } break;
-
       case TRACE_INSERT_TEXTURE: {
         curr_cmd->insert_texture.texture += reinterpret_cast<intptr_t>(ptr);
         curr_cmd->insert_texture.palette += reinterpret_cast<intptr_t>(ptr);
@@ -111,18 +107,10 @@ bool TraceReader::PatchPointers() {
 bool TraceReader::PatchOverrides() {
   TraceCommand *cmd = cmd_head();
 
-  TraceCommand *last_resize = nullptr;
   std::unordered_map<uint32_t, TraceCommand *> last_inserts;
 
   while (cmd) {
     switch (cmd->type) {
-      case TRACE_RESIZE_VIDEO: {
-        if (last_resize) {
-          cmd->override = last_resize;
-        }
-        last_resize = cmd;
-      } break;
-
       case TRACE_INSERT_TEXTURE: {
         uint32_t texture_key = TextureCache::GetTextureKey(
             cmd->insert_texture.tsp, cmd->insert_texture.tcw);
@@ -168,15 +156,6 @@ void TraceWriter::Close() {
   }
 }
 
-void TraceWriter::WriteResizeVideo(int width, int height) {
-  TraceCommand cmd;
-  cmd.type = TRACE_RESIZE_VIDEO;
-  cmd.resize_video.width = width;
-  cmd.resize_video.height = height;
-
-  CHECK_EQ(fwrite(&cmd, sizeof(cmd), 1, file_), 1);
-}
-
 void TraceWriter::WriteInsertTexture(const TSP &tsp, const TCW &tcw,
                                      const uint8_t *texture, int texture_size,
                                      const uint8_t *palette, int palette_size) {
@@ -205,6 +184,8 @@ void TraceWriter::WriteRenderContext(TileContext *tactx) {
   cmd.render_context.autosort = tactx->autosort;
   cmd.render_context.stride = tactx->stride;
   cmd.render_context.pal_pxl_format = tactx->pal_pxl_format;
+  cmd.render_context.video_width = tactx->video_width;
+  cmd.render_context.video_height = tactx->video_height;
   cmd.render_context.bg_isp = tactx->bg_isp;
   cmd.render_context.bg_tsp = tactx->bg_tsp;
   cmd.render_context.bg_tcw = tactx->bg_tcw;

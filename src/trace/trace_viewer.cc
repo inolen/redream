@@ -42,13 +42,34 @@ TextureHandle TraceTextureCache::GetTexture(
   return texture.handle;
 }
 
-TraceViewer::TraceViewer(System &sys) : sys_(sys), renderer_(texcache_) {
-  rb_ = new GLBackend(sys);
+TraceViewer::TraceViewer() : tile_renderer_(texcache_) {
+  rb_ = new GLBackend(sys_);
 }
 
 TraceViewer::~TraceViewer() { delete rb_; }
 
+void TraceViewer::Run(const char *path) {
+  if (!Init()) {
+    LOG_WARNING("Failed to initialize trace viewer");
+    return;
+  }
+
+  if (!Parse(path)) {
+    return;
+  }
+
+  while (true) {
+    PumpEvents();
+
+    RenderFrame();
+  }
+}
+
 bool TraceViewer::Init() {
+  if (!sys_.Init()) {
+    return false;
+  }
+
   if (!rb_->Init()) {
     return false;
   }
@@ -56,14 +77,15 @@ bool TraceViewer::Init() {
   return true;
 }
 
-bool TraceViewer::Load(const char *path) {
+bool TraceViewer::Parse(const char *path) {
   if (!reader_.Parse(path)) {
-    LOG_INFO("Failed to parse %s", path);
+    LOG_WARNING("Failed to parse %s", path);
     return false;
   }
 
   num_frames_ = GetNumFrames();
   if (!num_frames_) {
+    LOG_WARNING("No frames in %s", path);
     return false;
   }
 
@@ -74,24 +96,23 @@ bool TraceViewer::Load(const char *path) {
   return true;
 }
 
-void TraceViewer::Tick() {
-  PumpEvents();
-
-  RenderFrame();
-}
-
 void TraceViewer::PumpEvents() {
   SystemEvent ev;
 
+  sys_.PumpEvents();
+
   while (sys_.PollEvent(&ev)) {
-    if (ev.type == SE_KEY) {
-      if (ev.key.code == K_LEFT && ev.key.value) {
-        PrevContext();
-      } else if (ev.key.code == K_RIGHT && ev.key.value) {
-        NextContext();
-      }
-    } else if (ev.type == SE_RESIZE) {
-      rb_->SetFramebufferSize(FB_DEFAULT, ev.resize.width, ev.resize.height);
+    switch (ev.type) {
+      case SE_KEY: {
+        if (ev.key.code == K_LEFT && ev.key.value) {
+          PrevContext();
+        } else if (ev.key.code == K_RIGHT && ev.key.value) {
+          NextContext();
+        }
+      } break;
+
+      default:
+        break;
     }
   }
 }
@@ -99,7 +120,7 @@ void TraceViewer::PumpEvents() {
 void TraceViewer::RenderFrame() {
   rb_->BeginFrame();
 
-  rb_->RenderFramebuffer(FB_TILE_ACCELERATOR);
+  tile_renderer_.RenderContext(&current_ctx_, rb_);
 
   // render stats
   char stats[512];
@@ -136,6 +157,8 @@ void TraceViewer::CopyCommandToContext(const TraceCommand *cmd,
   ctx->bg_tsp = cmd->render_context.bg_tsp;
   ctx->bg_tcw = cmd->render_context.bg_tcw;
   ctx->bg_depth = cmd->render_context.bg_depth;
+  ctx->video_width = cmd->render_context.video_width;
+  ctx->video_height = cmd->render_context.video_height;
   memcpy(ctx->bg_vertices, cmd->render_context.bg_vertices,
          cmd->render_context.bg_vertices_size);
   memcpy(ctx->data, cmd->render_context.data, cmd->render_context.data_size);
@@ -155,14 +178,7 @@ void TraceViewer::PrevContext() {
   while (current_cmd_) {
     TraceCommand *override = current_cmd_->override;
 
-    if (current_cmd_->type == TRACE_RESIZE_VIDEO) {
-      if (override) {
-        CHECK_EQ(override->type, TRACE_RESIZE_VIDEO);
-        rb_->SetFramebufferSize(FB_TILE_ACCELERATOR,
-                                override->resize_video.width,
-                                override->resize_video.height);
-      }
-    } else if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
+    if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
       texcache_.RemoveTexture(current_cmd_->insert_texture.tsp,
                               current_cmd_->insert_texture.tcw);
 
@@ -183,10 +199,7 @@ void TraceViewer::PrevContext() {
 
   CHECK_NOTNULL(current_cmd_);
 
-  // render the context
-  TileContext ctx;
-  CopyCommandToContext(current_cmd_, &ctx);
-  renderer_.RenderContext(&ctx, rb_);
+  CopyCommandToContext(current_cmd_, &current_ctx_);
 }
 
 void TraceViewer::NextContext() {
@@ -198,11 +211,7 @@ void TraceViewer::NextContext() {
   current_cmd_ = current_cmd_ ? current_cmd_->next : reader_.cmd_head();
 
   while (current_cmd_) {
-    if (current_cmd_->type == TRACE_RESIZE_VIDEO) {
-      rb_->SetFramebufferSize(FB_TILE_ACCELERATOR,
-                              current_cmd_->resize_video.width,
-                              current_cmd_->resize_video.height);
-    } else if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
+    if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
       texcache_.AddTexture(current_cmd_->insert_texture.tsp,
                            current_cmd_->insert_texture.tcw,
                            current_cmd_->insert_texture.texture,
@@ -219,7 +228,5 @@ void TraceViewer::NextContext() {
   CHECK_NOTNULL(current_cmd_);
 
   // render the context
-  TileContext ctx;
-  CopyCommandToContext(current_cmd_, &ctx);
-  renderer_.RenderContext(&ctx, rb_);
+  CopyCommandToContext(current_cmd_, &current_ctx_);
 }

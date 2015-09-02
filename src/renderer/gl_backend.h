@@ -71,18 +71,14 @@ class GLBackend : public Backend {
 
   bool Init();
 
+  void ResizeVideo(int width, int height);
+
   TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
                                 bool gen_mipmaps, int width, int height,
                                 const uint8_t *buffer);
   void FreeTexture(TextureHandle handle);
 
-  void SetFramebufferSize(Framebuffer fb, int width, int height);
-  void GetFramebufferSize(Framebuffer fb, int *width, int *height);
-
   void BeginFrame();
-  void BindFramebuffer(Framebuffer fb);
-  void Clear(float r, float g, float b, float a);
-  void RenderFramebuffer(Framebuffer fb);
   void RenderText2D(int x, int y, float point_size, uint32_t color,
                     const char *text);
   void RenderBox2D(int x0, int y0, int x1, int y1, uint32_t color,
@@ -95,8 +91,6 @@ class GLBackend : public Backend {
   void EndFrame();
 
  private:
-  void InitFramebuffers();
-  void DestroyFramebuffers();
   void InitTextures();
   void DestroyTextures();
   void InitShaders();
@@ -129,8 +123,6 @@ class GLBackend : public Backend {
   ShaderProgram ui_program_;
   GLuint ui_vao_, ui_vbo_;
   GLuint ta_vao_, ta_vbo_;
-
-  GLuint fb_ta_, fb_ta_color_, fb_ta_depth_;
 
   Vertex2D verts2d_[MAX_2D_VERTICES];
   int num_verts2d_;

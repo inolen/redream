@@ -269,7 +269,8 @@ TileAccelerator::TileAccelerator(Memory &memory, Holly &holly, PVR2 &pvr)
       holly_(holly),
       pvr_(pvr),
       texcache_(*this),
-      renderer_(texcache_) {}
+      tile_renderer_(texcache_),
+      last_context_(&scratch_context_) {}
 
 TileAccelerator::~TileAccelerator() {
   while (contexts_.size()) {
@@ -288,14 +289,6 @@ bool TileAccelerator::Init(Backend *rb) {
   InitMemory();
 
   return true;
-}
-
-void TileAccelerator::ResizeVideo(int width, int height) {
-  rb_->SetFramebufferSize(FB_TILE_ACCELERATOR, width, height);
-
-  if (trace_writer_) {
-    trace_writer_->WriteResizeVideo(width, height);
-  }
 }
 
 void TileAccelerator::SoftReset() {
@@ -360,24 +353,29 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
   }
 }
 
-void TileAccelerator::RenderContext(uint32_t addr) {
-  // get context and update with PVR state
-  TileContext *tactx = GetContext(addr);
+void TileAccelerator::SaveLastContext(uint32_t addr) {
+  // swap context with last context to be delayed rendered
+  auto it = FindContext(addr);
+  TileContext *tmp = last_context_;
+  last_context_ = it->second;
+  it->second = tmp;
 
-  WritePVRState(tactx);
-  WriteBackgroundState(tactx);
+  // save PVR state to context
+  WritePVRState(last_context_);
+  WriteBackgroundState(last_context_);
 
-  // do the actual rendering
-  renderer_.RenderContext(tactx, rb_);
-
-  // let holly know the rendering is complete
+  // tell holly that rendering is complete
   holly_.RequestInterrupt(HOLLY_INTC_PCEOVINT);
   holly_.RequestInterrupt(HOLLY_INTC_PCEOIINT);
   holly_.RequestInterrupt(HOLLY_INTC_PCEOTINT);
+}
+
+void TileAccelerator::RenderLastContext() {
+  tile_renderer_.RenderContext(last_context_, rb_);
 
   // add render to trace
   if (trace_writer_) {
-    trace_writer_->WriteRenderContext(tactx);
+    trace_writer_->WriteRenderContext(last_context_);
   }
 }
 
@@ -394,11 +392,6 @@ void TileAccelerator::ToggleTracing() {
     }
 
     LOG_INFO("Begin tracing to %s", filename);
-
-    // write out the initial framebuffer size
-    int width, height;
-    rb_->GetFramebufferSize(FB_TILE_ACCELERATOR, &width, &height);
-    trace_writer_->WriteResizeVideo(width, height);
 
     // clear the texture cache, so the next render will write out insert
     // texture commands for any textures in use
@@ -456,18 +449,25 @@ void TileAccelerator::InitMemory() {
                  &TileAccelerator::WriteTexture<uint32_t>, nullptr);
 }
 
-TileContext *TileAccelerator::GetContext(uint32_t addr) {
-  auto it = contexts_.find(addr);
+TileContextIterator TileAccelerator::FindContext(uint32_t addr) {
+  TileContextIterator it = contexts_.find(addr);
 
-  if (it != contexts_.end()) {
-    return it->second;
+  // add context if it doesn't exist
+  if (it == contexts_.end()) {
+    TileContext *ctx = new TileContext();
+    auto result = contexts_.insert(std::make_pair(addr, ctx));
+    it = result.first;
   }
 
-  TileContext *ctx = new TileContext();
-  ctx->addr = addr;
+  // set context address
+  it->second->addr = addr;
 
-  auto result = contexts_.insert(std::make_pair(addr, ctx));
-  return result.first->second;
+  return it;
+}
+
+TileContext *TileAccelerator::GetContext(uint32_t addr) {
+  TileContextIterator it = FindContext(addr);
+  return it->second;
 }
 
 void TileAccelerator::WritePVRState(TileContext *tactx) {
@@ -484,6 +484,18 @@ void TileAccelerator::WritePVRState(TileContext *tactx) {
 
   // texture palette pixel format
   tactx->pal_pxl_format = pvr_.PAL_RAM_CTRL.pixel_format;
+
+  // write out video width to help with unprojecting the screen space
+  // coordinates
+  if (pvr_.SPG_CONTROL.interlace ||
+      (!pvr_.SPG_CONTROL.NTSC && !pvr_.SPG_CONTROL.PAL)) {
+    // interlaced and VGA mode both render at full resolution
+    tactx->video_width = 640;
+    tactx->video_height = 480;
+  } else {
+    tactx->video_width = 320;
+    tactx->video_height = 240;
+  }
 }
 
 void TileAccelerator::WriteBackgroundState(TileContext *tactx) {

@@ -6,11 +6,7 @@
 namespace dreavm {
 namespace trace {
 
-enum TraceCommandType {
-  TRACE_RESIZE_VIDEO,
-  TRACE_INSERT_TEXTURE,
-  TRACE_RENDER_CONTEXT
-};
+enum TraceCommandType { TRACE_INSERT_TEXTURE, TRACE_RENDER_CONTEXT };
 
 struct TraceCommand {
   TraceCommand() : prev(nullptr), next(nullptr), override(nullptr) {}
@@ -26,11 +22,6 @@ struct TraceCommand {
   // and patched to absolute pointers on read
   union {
     struct {
-      uint32_t width;
-      uint32_t height;
-    } resize_video;
-
-    struct {
       holly::TSP tsp;
       holly::TCW tcw;
       uint32_t texture_size;
@@ -45,6 +36,8 @@ struct TraceCommand {
       int8_t autosort;
       uint32_t stride;
       uint32_t pal_pxl_format;
+      uint32_t video_width;
+      uint32_t video_height;
       holly::ISP_TSP bg_isp;
       holly::TSP bg_tsp;
       holly::TCW bg_tcw;
@@ -85,7 +78,6 @@ class TraceWriter {
   bool Open(const char *filename);
   void Close();
 
-  void WriteResizeVideo(int width, int height);
   void WriteInsertTexture(const holly::TSP &tsp, const holly::TCW &tcw,
                           const uint8_t *texture, int texture_size,
                           const uint8_t *palette, int palette_size);

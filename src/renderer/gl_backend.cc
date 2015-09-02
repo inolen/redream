@@ -53,23 +53,20 @@ static GLenum blend_funcs[] = {
     GL_DST_COLOR, GL_ONE_MINUS_DST_COLOR};
 
 GLBackend::GLBackend(GLContext &ctx)
-    : ctx_(ctx), textures_{0}, fb_ta_(0), num_verts2d_(0), num_surfs2d_(0) {}
+    : ctx_(ctx), textures_{0}, num_verts2d_(0), num_surfs2d_(0) {}
 
 GLBackend::~GLBackend() {
   DestroyFonts();
   DestroyVertexBuffers();
   DestroyShaders();
   DestroyTextures();
-  DestroyFramebuffers();
 }
 
 bool GLBackend::Init() {
-  if (!ctx_.GLInit(&state_.video_width, &state_.video_height)) {
+  if (!ctx_.GLInitContext(&state_.video_width, &state_.video_height)) {
     return false;
   }
 
-  // can't initialize framebuffers here, must wait for first resize
-  // InitFramebuffers();
   InitTextures();
   InitShaders();
   InitVertexBuffers();
@@ -77,6 +74,11 @@ bool GLBackend::Init() {
   SetupDefaultState();
 
   return true;
+}
+
+void GLBackend::ResizeVideo(int width, int height) {
+  state_.video_width = width;
+  state_.video_height = height;
 }
 
 TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
@@ -141,112 +143,14 @@ void GLBackend::FreeTexture(TextureHandle handle) {
   gltex = 0;
 }
 
-void GLBackend::SetFramebufferSize(Framebuffer fb, int width, int height) {
-  switch (fb) {
-    case FB_DEFAULT:
-      state_.video_width = width;
-      state_.video_height = height;
-      break;
-
-    case FB_TILE_ACCELERATOR:
-      state_.ta_width = width;
-      state_.ta_height = height;
-      DestroyFramebuffers();
-      InitFramebuffers();
-      break;
-  }
-}
-
-void GLBackend::GetFramebufferSize(Framebuffer fb, int *width, int *height) {
-  switch (fb) {
-    case FB_DEFAULT:
-      *width = state_.video_width;
-      *height = state_.video_height;
-      break;
-
-    case FB_TILE_ACCELERATOR:
-      *width = state_.ta_width;
-      *height = state_.ta_height;
-      break;
-  }
-}
-
 void GLBackend::BeginFrame() {
-  BindFramebuffer(FB_DEFAULT);
-
-  Clear(0.0f, 0.0f, 0.0f, 1.0f);
-}
-
-void GLBackend::BindFramebuffer(Framebuffer fb) {
-  Flush2D();
-
-  GLuint buffer = 0;
-  int width = 0;
-  int height = 0;
-
-  switch (fb) {
-    case FB_DEFAULT:
-      buffer = 0;
-      width = state_.video_width;
-      height = state_.video_height;
-      break;
-
-    case FB_TILE_ACCELERATOR:
-      // ensure ta was initialized through SetFramebufferSize
-      CHECK_GT(fb_ta_, 0);
-      buffer = fb_ta_;
-      width = state_.ta_width;
-      height = state_.ta_height;
-      break;
-  }
-
-  glBindFramebuffer(GL_FRAMEBUFFER, buffer);
-  glViewport(0, 0, width, height);
-  glScissor(0, 0, width, height);
-}
-
-void GLBackend::Clear(float r, float g, float b, float a) {
   SetDepthMask(true);
 
-  glClearColor(r, g, b, a);
+  glViewport(0, 0, state_.video_width, state_.video_height);
+  glScissor(0, 0, state_.video_width, state_.video_height);
+
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
-void GLBackend::RenderFramebuffer(Framebuffer fb) {
-  switch (fb) {
-    case FB_DEFAULT:
-      LOG_FATAL("Unsupported");
-      break;
-
-    case FB_TILE_ACCELERATOR:
-      Vertex2D *vert = AllocVertices2D(
-          {GL_TRIANGLES, (int)fb_ta_color_, BLEND_NONE, BLEND_NONE, 0}, 6);
-
-      Q0(vert, x, 0.0f);
-      Q0(vert, y, 0.0f);
-      Q0(vert, color, 0xffffffff);
-      Q0(vert, u, 0.0f);
-      Q0(vert, v, 1.0f);
-
-      Q1(vert, x, (float)state_.video_width);
-      Q1(vert, y, 0.0f);
-      Q1(vert, color, 0xffffffff);
-      Q1(vert, u, 1.0f);
-      Q1(vert, v, 1.0f);
-
-      Q2(vert, x, (float)state_.video_width);
-      Q2(vert, y, (float)state_.video_height);
-      Q2(vert, color, 0xffffffff);
-      Q2(vert, u, 1.0f);
-      Q2(vert, v, 0.0f);
-
-      Q3(vert, x, 0.0f);
-      Q3(vert, y, (float)state_.video_height);
-      Q3(vert, color, 0xffffffff);
-      Q3(vert, u, 0.0f);
-      Q3(vert, v, 0.0f);
-      break;
-  }
 }
 
 void GLBackend::RenderText2D(int x, int y, float point_size, uint32_t color,
@@ -429,43 +333,6 @@ void GLBackend::EndFrame() {
   ctx_.GLSwapBuffers();
 }
 
-void GLBackend::InitFramebuffers() {
-  CHECK_GT(state_.ta_width, 0);
-  CHECK_GT(state_.ta_height, 0);
-
-  glGenFramebuffers(1, &fb_ta_);
-  glGenTextures(1, &fb_ta_color_);
-  glGenRenderbuffers(1, &fb_ta_depth_);
-
-  glBindTexture(GL_TEXTURE_2D, fb_ta_color_);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, state_.ta_width, state_.ta_height, 0,
-               GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  glBindRenderbuffer(GL_RENDERBUFFER, fb_ta_depth_);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, state_.ta_width,
-                        state_.ta_height);
-  glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-  glBindFramebuffer(GL_FRAMEBUFFER, fb_ta_);
-  glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                         GL_TEXTURE_2D, fb_ta_color_, 0);
-  glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                            GL_RENDERBUFFER, fb_ta_depth_);
-  GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-  CHECK_EQ(status, GL_FRAMEBUFFER_COMPLETE);
-  Clear(0.0f, 0.0f, 0.0f, 1.0f);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-void GLBackend::DestroyFramebuffers() {
-  glDeleteFramebuffers(1, &fb_ta_);
-  glDeleteTextures(1, &fb_ta_color_);
-  glDeleteRenderbuffers(1, &fb_ta_depth_);
-}
-
 void GLBackend::InitTextures() {
   uint8_t pixels[64 * 64 * 4];
   memset(pixels, 0xff, sizeof(pixels));
@@ -580,12 +447,7 @@ void GLBackend::DestroyFonts() {
   }
 }
 
-void GLBackend::SetupDefaultState() {
-  glEnable(GL_SCISSOR_TEST);
-  glDrawBuffer(GL_FRONT_AND_BACK);
-  Clear(0.0f, 0.0f, 0.0f, 1.0f);
-  glDrawBuffer(GL_BACK);
-}
+void GLBackend::SetupDefaultState() { glEnable(GL_SCISSOR_TEST); }
 
 void GLBackend::SetDepthMask(bool enabled) {
   if (state_.depth_mask == enabled) {

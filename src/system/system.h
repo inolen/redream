@@ -14,7 +14,7 @@ enum {
   NUM_JOYSTICK_AXES = (K_AXIS15 - K_AXIS0) + 1,
   NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1
 };
-enum SystemEventType { SE_NONE, SE_KEY, SE_MOUSEMOVE, SE_RESIZE };
+enum SystemEventType { SE_KEY, SE_MOUSEMOVE, SE_RESIZE };
 
 struct SystemEvent {
   SystemEventType type;
@@ -41,10 +41,12 @@ class System : public renderer::GLContext {
   ~System();
 
   bool Init();
-  void Tick();
+
+  void PumpEvents();
   bool PollEvent(SystemEvent *ev);
 
-  bool GLInit(int *width, int *height);
+  bool GLInitContext(int *width, int *height);
+  void GLDestroyContext();
   void GLSwapBuffers();
 
  private:
@@ -61,7 +63,6 @@ class System : public renderer::GLContext {
 
   Keycode TranslateSDLKey(SDL_Keysym keysym);
   void PumpSDLEvents();
-  void PumpEvents();
 
   int video_width_;
   int video_height_;

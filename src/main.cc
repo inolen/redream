@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include "system/system.h"
 #include "emu/emulator.h"
 #include "trace/trace_viewer.h"
 
@@ -29,60 +28,19 @@ void InitFlags(int *argc, char ***argv) {
 
 void ShutdownFlags() { google::ShutDownCommandLineFlags(); }
 
-void RunEmulator(const char *launch) {
-  System sys;
-  Emulator emu(sys);
-
-  if (!sys.Init()) {
-    LOG_FATAL("Failed to initialize window.");
-  }
-
-  if (!emu.Init()) {
-    LOG_FATAL("Failed to initialize emulator.");
-  }
-
-  if (launch && !emu.Launch(launch)) {
-    LOG_FATAL("Failed to load %s", launch);
-  }
-
-  while (1) {
-    sys.Tick();
-    emu.Tick();
-  }
-}
-
-void RunTraceViewer(const char *trace) {
-  System sys;
-  TraceViewer tracer(sys);
-
-  if (!sys.Init()) {
-    LOG_FATAL("Failed to initialize window.");
-  }
-
-  if (!tracer.Init()) {
-    LOG_FATAL("Failed to initialize tracer.");
-  }
-
-  if (!tracer.Load(trace)) {
-    LOG_FATAL("Failed to load %s", trace);
-  }
-
-  while (1) {
-    sys.Tick();
-    tracer.Tick();
-  }
-}
-
 int main(int argc, char **argv) {
   EnsureAppDirExists();
 
   InitFlags(&argc, &argv);
 
   const char *load = argc > 1 ? argv[1] : nullptr;
+
   if (load && strstr(load, ".trace")) {
-    RunTraceViewer(load);
+    TraceViewer tracer;
+    tracer.Run(load);
   } else {
-    RunEmulator(load);
+    Emulator emu;
+    emu.Run(load);
   }
 
   ShutdownFlags();

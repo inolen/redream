@@ -13,11 +13,6 @@ enum FilterMode {  //
   FILTER_BILINEAR
 };
 
-enum Framebuffer {  //
-  FB_DEFAULT,
-  FB_TILE_ACCELERATOR
-};
-
 enum PixelFormat {
   PXL_INVALID,
   PXL_RGBA5551,
@@ -110,18 +105,14 @@ class Backend {
 
   virtual bool Init() = 0;
 
+  virtual void ResizeVideo(int width, int height) = 0;
+
   virtual TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
                                         bool gen_mipmaps, int width, int height,
                                         const uint8_t *buffer) = 0;
   virtual void FreeTexture(TextureHandle handle) = 0;
 
-  virtual void SetFramebufferSize(Framebuffer fb, int width, int height) = 0;
-  virtual void GetFramebufferSize(Framebuffer fb, int *width, int *height) = 0;
-
   virtual void BeginFrame() = 0;
-  virtual void BindFramebuffer(Framebuffer fb) = 0;
-  virtual void Clear(float r, float g, float b, float a) = 0;
-  virtual void RenderFramebuffer(Framebuffer fb) = 0;
   virtual void RenderText2D(int x, int y, float point_size, uint32_t color,
                             const char *text) = 0;
   virtual void RenderBox2D(int x0, int y0, int x1, int y1, uint32_t color,

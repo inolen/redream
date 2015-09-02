@@ -58,7 +58,7 @@ class TileRenderer {
   void ParseVertexParam(const TileContext *tactx, renderer::Backend *rb,
                         const VertexParam *param);
   void ParseEndOfList(const TileContext *tactx);
-  Eigen::Matrix4f GetProjectionMatrix();
+  Eigen::Matrix4f GetProjectionMatrix(const TileContext *tactx);
 
   renderer::TextureHandle RegisterTexture(const TileContext *tactx,
                                           renderer::Backend *rb, const TSP &tsp,
@@ -82,7 +82,6 @@ class TileRenderer {
   // current render state
   renderer::Surface surfs_[MAX_SURFACES];
   renderer::Vertex verts_[MAX_VERTICES];
-  int width_, height_;
   int num_surfs_;
   int num_verts_;
   int sorted_surfs_[MAX_SURFACES];

@@ -34,14 +34,15 @@ class TraceTextureCache : public holly::TextureCache {
 
 class TraceViewer {
  public:
-  TraceViewer(system::System &sys);
+  TraceViewer();
   ~TraceViewer();
 
-  bool Init();
-  bool Load(const char *path);
-  void Tick();
+  void Run(const char *path);
 
  private:
+  bool Init();
+  bool Parse(const char *path);
+
   void PumpEvents();
   void RenderFrame();
 
@@ -50,15 +51,16 @@ class TraceViewer {
   void PrevContext();
   void NextContext();
 
-  system::System &sys_;
+  system::System sys_;
   TraceTextureCache texcache_;
-  holly::TileRenderer renderer_;
+  holly::TileRenderer tile_renderer_;
   renderer::Backend *rb_;
 
   TraceReader reader_;
   TraceCommand *current_cmd_;
   int num_frames_;
   int current_frame_;
+  holly::TileContext current_ctx_;
 };
 }
 }

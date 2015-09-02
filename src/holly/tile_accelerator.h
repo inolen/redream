@@ -452,6 +452,8 @@ struct TileContext {
   bool autosort;
   int stride;
   int pal_pxl_format;
+  int video_width;
+  int video_height;
   ISP_TSP bg_isp;
   TSP bg_tsp;
   TCW bg_tcw;
@@ -486,6 +488,9 @@ class TileTextureCache : public TextureCache {
   std::unordered_map<uint32_t, renderer::TextureHandle> textures_;
 };
 
+typedef std::unordered_map<uint32_t, TileContext *> TileContextMap;
+typedef TileContextMap::iterator TileContextIterator;
+
 class TileAccelerator {
   friend class TileTextureCache;
 
@@ -499,12 +504,11 @@ class TileAccelerator {
 
   bool Init(renderer::Backend *rb);
 
-  void ResizeVideo(int width, int height);
-
   void SoftReset();
   void InitContext(uint32_t addr);
   void WriteContext(uint32_t addr, uint32_t value);
-  void RenderContext(uint32_t addr);
+  void SaveLastContext(uint32_t addr);
+  void RenderLastContext();
 
   void ToggleTracing();
 
@@ -515,6 +519,7 @@ class TileAccelerator {
   static void WriteTexture(void *ctx, uint32_t addr, T value);
 
   void InitMemory();
+  TileContextIterator FindContext(uint32_t addr);
   TileContext *GetContext(uint32_t addr);
   void WritePVRState(TileContext *tactx);
   void WriteBackgroundState(TileContext *tactx);
@@ -525,8 +530,10 @@ class TileAccelerator {
   renderer::Backend *rb_;
 
   TileTextureCache texcache_;
-  TileRenderer renderer_;
-  std::unordered_map<uint32_t, TileContext *> contexts_;
+  TileRenderer tile_renderer_;
+  TileContextMap contexts_;
+  TileContext scratch_context_;
+  TileContext *last_context_;
 
   std::unique_ptr<trace::TraceWriter> trace_writer_;
 };

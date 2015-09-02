@@ -12,7 +12,7 @@ namespace emu {
 
 typedef std::function<void()> TimerCallback;
 
-enum { INVALID_HANDLE = -1, NS_PER_SEC = 1000000000, NUM_TICK_DELTAS = 10 };
+enum { INVALID_HANDLE = -1, NS_PER_SEC = 1000000000, NS_PER_MS = 1000000 };
 
 static inline std::chrono::nanoseconds HZ_TO_NANO(int64_t hz) {
   return std::chrono::nanoseconds(NS_PER_SEC / hz);
@@ -51,29 +51,19 @@ class Scheduler {
  public:
   Scheduler();
 
-  float perf() const { return perf_; }
-
   DeviceHandle AddDevice(Device *device);
-  TimerHandle AddTimer(std::chrono::nanoseconds period, TimerCallback callback);
-  void AdjustTimer(TimerHandle handle, std::chrono::nanoseconds period);
+  TimerHandle AddTimer(const std::chrono::nanoseconds &period,
+                       TimerCallback callback);
+  void AdjustTimer(TimerHandle handle, const std::chrono::nanoseconds &period);
   void RemoveTimer(TimerHandle handle);
-  void Tick();
+  void Tick(const std::chrono::nanoseconds &delta);
 
  private:
-  void UpdatePerf();
-
   std::vector<DeviceInfo> devices_;
   std::set<Timer> timers_;
 
   TimerHandle next_timer_handle_;
-  std::chrono::nanoseconds timeslice_;
   std::chrono::high_resolution_clock::time_point base_time_;
-  std::chrono::high_resolution_clock::time_point next_time_;
-
-  int64_t tick_deltas_[NUM_TICK_DELTAS];
-  int tick_idx_;
-  std::chrono::high_resolution_clock::time_point last_tick_;
-  float perf_;
 };
 }
 }

@@ -20,7 +20,7 @@ using namespace dreavm::system;
 DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
-Emulator::Emulator(System &sys) : sys_(sys) {
+Emulator::Emulator() {
   bios_ = new uint8_t[BIOS_SIZE];
   flash_ = new uint8_t[FLASH_SIZE];
   ram_ = new uint8_t[MAIN_RAM_M0_SIZE];
@@ -34,7 +34,7 @@ Emulator::Emulator(System &sys) : sys_(sys) {
   rt_frontend_ = new SH4Frontend(*memory_);
   // rt_backend_ = new InterpreterBackend(*memory_);
   rt_backend_ = new X64Backend(*memory_);
-  rb_ = new GLBackend(sys);
+  rb_ = new GLBackend(sys_);
 }
 
 Emulator::~Emulator() {
@@ -55,8 +55,52 @@ Emulator::~Emulator() {
   delete rb_;
 }
 
+void Emulator::Run(const char *path) {
+  if (!Init()) {
+    LOG_WARNING("Failed to initialize emulator");
+    return;
+  }
+
+  if (path) {
+    LOG_INFO("Launching %s", path);
+
+    if ((strstr(path, ".bin") && !LaunchBIN(path)) ||
+        (strstr(path, ".gdi") && !LaunchGDI(path))) {
+      LOG_WARNING("Failed to launch %s", path);
+      return;
+    }
+  }
+
+  static const std::chrono::nanoseconds step = HZ_TO_NANO(60);
+  std::chrono::nanoseconds time_remaining = std::chrono::nanoseconds(0);
+  auto current_time = std::chrono::high_resolution_clock::now();
+  auto last_time = current_time;
+
+  while (true) {
+    current_time = std::chrono::high_resolution_clock::now();
+    time_remaining += current_time - last_time;
+    last_time = current_time;
+
+    if (time_remaining < step) {
+      continue;
+    }
+
+    time_remaining -= step;
+
+    PumpEvents();
+
+    scheduler_->Tick(step);
+
+    RenderFrame();
+  }
+}
+
 bool Emulator::Init() {
   InitMemory();
+
+  if (!sys_.Init()) {
+    return false;
+  }
 
   if (!rb_->Init()) {
     return false;
@@ -89,26 +133,6 @@ bool Emulator::Init() {
   Reset();
 
   return true;
-}
-
-bool Emulator::Launch(const char *path) {
-  LOG_INFO("Launching %s", path);
-
-  if (strstr(path, ".bin")) {
-    return LaunchBIN(path);
-  } else if (strstr(path, ".gdi")) {
-    return LaunchGDI(path);
-  }
-
-  return false;
-}
-
-void Emulator::Tick() {
-  PumpEvents();
-
-  scheduler_->Tick();
-
-  RenderFrame();
 }
 
 void Emulator::InitMemory() {
@@ -230,25 +254,33 @@ bool Emulator::LaunchGDI(const char *path) {
 void Emulator::PumpEvents() {
   SystemEvent ev;
 
+  sys_.PumpEvents();
+
   while (sys_.PollEvent(&ev)) {
-    if (ev.type == SE_KEY) {
-      // let the profiler take a stab at the input first
-      if (!Profiler::HandleInput(ev.key.code, ev.key.value)) {
-        // debug tracing
-        if (ev.key.code == K_F2) {
-          if (ev.key.value) {
-            holly_->pvr().ToggleTracing();
+    switch (ev.type) {
+      case SE_KEY: {
+        // let the profiler take a stab at the input first
+        if (!Profiler::HandleInput(ev.key.code, ev.key.value)) {
+          // debug tracing
+          if (ev.key.code == K_F2) {
+            if (ev.key.value) {
+              holly_->pvr().ToggleTracing();
+            }
+          }
+          // else, forward to maple
+          else {
+            holly_->maple().HandleInput(0, ev.key.code, ev.key.value);
           }
         }
-        // else, forward to maple
-        else {
-          holly_->maple().HandleInput(0, ev.key.code, ev.key.value);
-        }
-      }
-    } else if (ev.type == SE_MOUSEMOVE) {
-      Profiler::HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
-    } else if (ev.type == SE_RESIZE) {
-      rb_->SetFramebufferSize(FB_DEFAULT, ev.resize.width, ev.resize.height);
+      } break;
+
+      case SE_MOUSEMOVE: {
+        Profiler::HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
+      } break;
+
+      case SE_RESIZE: {
+        rb_->ResizeVideo(ev.resize.width, ev.resize.height);
+      } break;
     }
   }
 }
@@ -256,14 +288,12 @@ void Emulator::PumpEvents() {
 void Emulator::RenderFrame() {
   rb_->BeginFrame();
 
-  // render latest TA output
-  rb_->RenderFramebuffer(FB_TILE_ACCELERATOR);
+  holly_->pvr().RenderLastFrame();
 
   // render stats
   char stats[512];
-  snprintf(stats, sizeof(stats), "%.2f%%, %.2f fps, %.2f vbps",
-           scheduler_->perf(), holly_->pvr().fps(), holly_->pvr().vbps());
-  // LOG_EVERY_N(INFO, 10) << stats;
+  snprintf(stats, sizeof(stats), "%.2f fps, %.2f vbps", holly_->pvr().fps(),
+           holly_->pvr().vbps());
   rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
   // render profiler

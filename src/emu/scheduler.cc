@@ -4,21 +4,14 @@
 
 using namespace dreavm::emu;
 
-Scheduler::Scheduler()
-    : next_timer_handle_(0),
-      timeslice_(HZ_TO_NANO(60)),
-      base_time_(),
-      next_time_(base_time_ + timeslice_),
-      tick_deltas_(),
-      tick_idx_(0),
-      perf_(0.0f) {}
+Scheduler::Scheduler() : next_timer_handle_(0), base_time_() {}
 
 DeviceHandle Scheduler::AddDevice(Device *device) {
   devices_.push_back(DeviceInfo(device));
   return static_cast<DeviceHandle>(devices_.size() - 1);
 }
 
-TimerHandle Scheduler::AddTimer(std::chrono::nanoseconds period,
+TimerHandle Scheduler::AddTimer(const std::chrono::nanoseconds &period,
                                 TimerCallback callback) {
   TimerHandle handle = next_timer_handle_++;
 
@@ -28,7 +21,7 @@ TimerHandle Scheduler::AddTimer(std::chrono::nanoseconds period,
 }
 
 void Scheduler::AdjustTimer(TimerHandle handle,
-                            std::chrono::nanoseconds period) {
+                            const std::chrono::nanoseconds &period) {
   std::set<Timer>::iterator it;
 
   for (it = timers_.begin(); it != timers_.end(); ++it) {
@@ -69,14 +62,14 @@ void Scheduler::RemoveTimer(TimerHandle handle) {
   timers_.erase(it);
 }
 
-void Scheduler::Tick() {
-  UpdatePerf();
+void Scheduler::Tick(const std::chrono::nanoseconds &delta) {
+  auto next_time = base_time_ + delta;
 
-  while (base_time_ < next_time_) {
-    std::chrono::high_resolution_clock::time_point target_time = next_time_;
+  while (base_time_ < next_time) {
+    std::chrono::high_resolution_clock::time_point target_time = next_time;
 
     // run devices up until the next timer expiration
-    if (timers_.size() && timers_.begin()->expire < next_time_) {
+    if (timers_.size() && timers_.begin()->expire < next_time) {
       target_time = timers_.begin()->expire;
     }
 
@@ -112,21 +105,4 @@ void Scheduler::Tick() {
       timers_.insert(t);
     }
   }
-
-  next_time_ = base_time_ + timeslice_;
-}
-
-void Scheduler::UpdatePerf() {
-  auto now = std::chrono::high_resolution_clock::now();
-  auto delta =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_tick_);
-  tick_deltas_[tick_idx_] = delta.count();
-  tick_idx_ = (tick_idx_ + 1) % NUM_TICK_DELTAS;
-  last_tick_ = now;
-
-  int64_t total = 0;
-  for (int i = 0; i < NUM_TICK_DELTAS; i++) {
-    total += tick_deltas_[i];
-  }
-  perf_ = ((timeslice_.count() * NUM_TICK_DELTAS) / (float)total) * 100.0f;
 }

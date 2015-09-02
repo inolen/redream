@@ -14,14 +14,13 @@ namespace emu {
 
 class Emulator {
  public:
-  Emulator(system::System &sys);
+  Emulator();
   ~Emulator();
 
-  bool Init();
-  bool Launch(const char *path);
-  void Tick();
+  void Run(const char *path);
 
  private:
+  bool Init();
   void InitMemory();
   bool LoadBios(const char *path);
   bool LoadFlash(const char *path);
@@ -32,7 +31,7 @@ class Emulator {
   void PumpEvents();
   void RenderFrame();
 
-  system::System &sys_;
+  system::System sys_;
   emu::Scheduler *scheduler_;
   emu::Memory *memory_;
   cpu::Runtime *runtime_;

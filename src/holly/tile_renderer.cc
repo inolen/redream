@@ -113,8 +113,6 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
 
   Reset();
 
-  rb->GetFramebufferSize(FB_TILE_ACCELERATOR, &width_, &height_);
-
   ParseBackground(tactx);
 
   while (data < end) {
@@ -163,12 +161,10 @@ void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
     data += TileAccelerator::GetParamSize(pcw, vertex_type_);
   }
 
-  // LOG_INFO("StartRender %d surfs, %d verts, %d bytes", num_surfs_, num_verts,
-  // tactx->size);
+  // LOG_INFO("StartRender %d surfs, %d verts, %d bytes", num_surfs_,
+  // num_verts_, tactx->size);
 
-  const Eigen::Matrix4f &projection = GetProjectionMatrix();
-  rb->BindFramebuffer(FB_TILE_ACCELERATOR);
-  rb->Clear(0.1f, 0.39f, 0.88f, 1.0f);
+  const Eigen::Matrix4f &projection = GetProjectionMatrix(tactx);
   rb->RenderSurfaces(projection, surfs_, num_surfs_, verts_, num_verts_,
                      sorted_surfs_);
 }
@@ -328,13 +324,13 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
   // override the xyz values supplied by ISP_BACKGND_T. while the hardware docs
   // act like the should be correct, they're most definitely not in most cases
   verts[0]->xyz[0] = 0.0f;
-  verts[0]->xyz[1] = (float)height_;
+  verts[0]->xyz[1] = (float)tactx->video_height;
   verts[0]->xyz[2] = tactx->bg_depth;
   verts[1]->xyz[0] = 0.0f;
   verts[1]->xyz[1] = 0.0f;
   verts[1]->xyz[2] = tactx->bg_depth;
-  verts[2]->xyz[0] = (float)width_;
-  verts[2]->xyz[1] = (float)height_;
+  verts[2]->xyz[0] = (float)tactx->video_width;
+  verts[2]->xyz[1] = (float)tactx->video_height;
   verts[2]->xyz[2] = tactx->bg_depth;
 
   // 4th vertex isn't supplied, fill it out automatically
@@ -657,7 +653,7 @@ void TileRenderer::ParseEndOfList(const TileContext *tactx) {
 // projection on the vertices as they're already perspective correct, the
 // renderer backend will have to deal with setting the W component of each
 // in order to perspective correct the texture mapping.
-Eigen::Matrix4f TileRenderer::GetProjectionMatrix() {
+Eigen::Matrix4f TileRenderer::GetProjectionMatrix(const TileContext *tactx) {
   float znear = std::numeric_limits<float>::min();
   float zfar = std::numeric_limits<float>::max();
 
@@ -682,8 +678,8 @@ Eigen::Matrix4f TileRenderer::GetProjectionMatrix() {
 
   // convert from window space coordinates into clip space
   Eigen::Matrix4f p = Eigen::Matrix4f::Identity();
-  p(0, 0) = 2.0f / (float)width_;
-  p(1, 1) = -2.0f / (float)height_;
+  p(0, 0) = 2.0f / (float)tactx->video_width;
+  p(1, 1) = -2.0f / (float)tactx->video_height;
   p(0, 3) = -1.0f;
   p(1, 3) = 1.0f;
   p(2, 2) = (-znear - zfar) / zdepth;

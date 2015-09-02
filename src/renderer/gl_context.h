@@ -6,7 +6,8 @@ namespace renderer {
 
 class GLContext {
  public:
-  virtual bool GLInit(int *width, int *height) = 0;
+  virtual bool GLInitContext(int *width, int *height) = 0;
+  virtual void GLDestroyContext() = 0;
   virtual void GLSwapBuffers() = 0;
 };
 }

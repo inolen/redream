@@ -11,7 +11,6 @@ PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly)
       memory_(memory),
       holly_(holly),
       ta_(memory, holly, *this),
-      rb_(nullptr),
       line_timer_(INVALID_HANDLE),
       current_scanline_(0),
       fps_(0),
@@ -26,20 +25,19 @@ PVR2::~PVR2() {
 }
 
 bool PVR2::Init(Backend *rb) {
-  rb_ = rb;
-
   InitMemory();
 
-  if (!ta_.Init(rb_)) {
+  if (!ta_.Init(rb)) {
     return false;
   }
 
   Reset();
-  ReconfigureVideoOutput();
   ReconfigureSPG();
 
   return true;
 }
+
+void PVR2::RenderLastFrame() { ta_.RenderLastContext(); }
 
 void PVR2::ToggleTracing() { ta_.ToggleTracing(); }
 
@@ -121,6 +119,8 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
     if (reset_ta) {
       pvr->ta_.SoftReset();
     }
+  } else if (reg.offset == TA_LIST_INIT_OFFSET) {
+    pvr->ta_.InitContext(pvr->TA_ISP_BASE.base_address);
   } else if (reg.offset == STARTRENDER_OFFSET) {
     {
       auto now = std::chrono::high_resolution_clock::now();
@@ -130,13 +130,9 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
       pvr->fps_ = 1000000000.0f / delta.count();
     }
 
-    pvr->ta_.RenderContext(pvr->PARAM_BASE.base_address);
-  } else if (reg.offset == SPG_CONTROL_OFFSET) {
-    pvr->ReconfigureVideoOutput();
+    pvr->ta_.SaveLastContext(pvr->PARAM_BASE.base_address);
   } else if (reg.offset == SPG_LOAD_OFFSET || reg.offset == FB_R_CTRL_OFFSET) {
     pvr->ReconfigureSPG();
-  } else if (reg.offset == TA_LIST_INIT_OFFSET) {
-    pvr->ta_.InitContext(pvr->TA_ISP_BASE.base_address);
   }
 }
 }
@@ -167,25 +163,6 @@ void PVR2::Reset() {
   regs_[name##_OFFSET >> 2] = {name##_OFFSET, flags, default};
 #include "holly/pvr2_regs.inc"
 #undef PVR_REG
-}
-
-void PVR2::ReconfigureVideoOutput() {
-  int render_width = 320;
-  int render_height = 240;
-
-  // interlaced and VGA mode both render at full resolution
-  if (SPG_CONTROL.interlace || (!SPG_CONTROL.NTSC && !SPG_CONTROL.PAL)) {
-    render_width = 640;
-    render_height = 480;
-  }
-
-  LOG_INFO(
-      "ReconfigureVideoOutput width %d, height %d, interlace %d, NTSC %d, PAL "
-      "%d",
-      render_width, render_height, SPG_CONTROL.interlace, SPG_CONTROL.NTSC,
-      SPG_CONTROL.PAL);
-
-  ta_.ResizeVideo(render_width, render_height);
 }
 
 void PVR2::ReconfigureSPG() {

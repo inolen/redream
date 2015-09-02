@@ -213,6 +213,7 @@ class PVR2 {
   float vbps() { return vbps_; }
 
   bool Init(renderer::Backend *rb);
+  void RenderLastFrame();
   void ToggleTracing();
 
  private:
@@ -227,7 +228,6 @@ class PVR2 {
 
   void InitMemory();
   void Reset();
-  void ReconfigureVideoOutput();
   void ReconfigureSPG();
   void LineClockUpdate();
 
@@ -235,7 +235,6 @@ class PVR2 {
   emu::Memory &memory_;
   Holly &holly_;
   TileAccelerator ta_;
-  renderer::Backend *rb_;
 
   emu::TimerHandle line_timer_;
   uint32_t current_scanline_;

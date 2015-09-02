@@ -4,8 +4,8 @@
 #include "core/core.h"
 #include "system/system.h"
 
-#define DEFAULT_VIDEO_WIDTH 800
-#define DEFAULT_VIDEO_HEIGHT 600
+#define DEFAULT_VIDEO_WIDTH 640
+#define DEFAULT_VIDEO_HEIGHT 480
 
 using namespace dreavm::core;
 using namespace dreavm::system;
@@ -43,14 +43,10 @@ System::System()
       events_(MAX_EVENTS) {}
 
 System::~System() {
+  GLDestroyContext();
   DestroyInput();
   DestroyWindow();
   DestroySDL();
-
-  if (glcontext_) {
-    SDL_GL_DeleteContext(glcontext_);
-    glcontext_ = nullptr;
-  }
 }
 
 bool System::Init() {
@@ -69,16 +65,7 @@ bool System::Init() {
   return true;
 }
 
-void System::Tick() { PumpEvents(); }
-
-void System::QueueEvent(const SystemEvent &ev) {
-  if (events_.Full()) {
-    LOG_WARNING("System event overflow");
-    return;
-  }
-
-  events_.PushBack(ev);
-}
+void System::PumpEvents() { PumpSDLEvents(); }
 
 bool System::PollEvent(SystemEvent *ev) {
   if (events_.Empty()) {
@@ -91,10 +78,15 @@ bool System::PollEvent(SystemEvent *ev) {
   return true;
 }
 
-bool System::GLInit(int *width, int *height) {
+bool System::GLInitContext(int *width, int *height) {
+  // need at least a 3.3 core context for our shaders
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+  // request a 24-bit depth buffer. 16-bits isn't enough precision when
+  // unprojecting dreamcast coordinates, see TileRenderer::GetProjectionMatrix
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
   glcontext_ = SDL_GL_CreateContext(window_);
   if (!glcontext_) {
@@ -119,10 +111,17 @@ bool System::GLInit(int *width, int *height) {
   return true;
 }
 
+void System::GLDestroyContext() {
+  if (glcontext_) {
+    SDL_GL_DeleteContext(glcontext_);
+    glcontext_ = nullptr;
+  }
+}
+
 void System::GLSwapBuffers() { SDL_GL_SwapWindow(window_); }
 
 bool System::InitSDL() {
-  if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO) < 0) {
+  if (SDL_Init(0) < 0) {
     LOG_WARNING("SDL initialization failed: %s", SDL_GetError());
     return false;
   }
@@ -133,11 +132,14 @@ bool System::InitSDL() {
 void System::DestroySDL() { SDL_Quit(); }
 
 bool System::InitWindow() {
-  unsigned window_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
+  if (SDL_InitSubSystem(SDL_INIT_VIDEO) < 0) {
+    LOG_WARNING("Video initialization failed: %s", SDL_GetError());
+    return false;
+  }
 
   window_ = SDL_CreateWindow("dreavm", SDL_WINDOWPOS_UNDEFINED,
                              SDL_WINDOWPOS_UNDEFINED, video_width_,
-                             video_height_, window_flags);
+                             video_height_, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   if (!window_) {
     LOG_WARNING("Window creation failed: %s", SDL_GetError());
     return false;
@@ -147,8 +149,10 @@ bool System::InitWindow() {
 }
 
 void System::DestroyWindow() {
-  SDL_DestroyWindow(window_);
-  window_ = nullptr;
+  if (window_) {
+    SDL_DestroyWindow(window_);
+    window_ = nullptr;
+  }
 }
 
 bool System::InitInput() {
@@ -185,6 +189,15 @@ void System::DestroyJoystick() {
     SDL_JoystickClose(joystick_);
     joystick_ = nullptr;
   }
+}
+
+void System::QueueEvent(const SystemEvent &ev) {
+  if (events_.Full()) {
+    LOG_WARNING("System event overflow");
+    return;
+  }
+
+  events_.PushBack(ev);
 }
 
 Keycode System::TranslateSDLKey(SDL_Keysym keysym) {
@@ -818,5 +831,3 @@ void System::PumpSDLEvents() {
     }
   }
 }
-
-void System::PumpEvents() { PumpSDLEvents(); }
