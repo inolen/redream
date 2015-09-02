@@ -74,6 +74,7 @@ class GLBackend : public Backend {
   void ResizeVideo(int width, int height);
 
   TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
+                                WrapMode wrap_u, WrapMode wrap_v,
                                 bool gen_mipmaps, int width, int height,
                                 const uint8_t *buffer);
   void FreeTexture(TextureHandle handle);

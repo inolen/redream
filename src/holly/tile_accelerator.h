@@ -115,8 +115,10 @@ union TSP {
     uint32_t mipmap_d_adjust : 4;
     uint32_t super_sample_texture : 1;
     uint32_t filter_mode : 2;
-    uint32_t clamp_uv : 2;
-    uint32_t flip_uv : 2;
+    uint32_t clamp_v : 1;
+    uint32_t clamp_u : 1;
+    uint32_t flip_v : 1;
+    uint32_t flip_u : 1;
     uint32_t ignore_tex_alpha : 1;
     uint32_t use_alpha : 1;
     uint32_t color_clamp : 1;

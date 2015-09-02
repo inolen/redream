@@ -8,17 +8,23 @@ namespace renderer {
 
 typedef int TextureHandle;
 
-enum FilterMode {  //
-  FILTER_NEAREST,
-  FILTER_BILINEAR
-};
-
 enum PixelFormat {
   PXL_INVALID,
   PXL_RGBA5551,
   PXL_RGB565,
   PXL_RGBA4444,
   PXL_RGBA8888
+};
+
+enum FilterMode {  //
+  FILTER_NEAREST,
+  FILTER_BILINEAR
+};
+
+enum WrapMode {  //
+  WRAP_REPEAT,
+  WRAP_CLAMP_TO_EDGE,
+  WRAP_MIRRORED_REPEAT
 };
 
 enum DepthFunc {
@@ -108,6 +114,7 @@ class Backend {
   virtual void ResizeVideo(int width, int height) = 0;
 
   virtual TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
+                                        WrapMode wrap_u, WrapMode wrap_v,
                                         bool gen_mipmaps, int width, int height,
                                         const uint8_t *buffer) = 0;
   virtual void FreeTexture(TextureHandle handle) = 0;

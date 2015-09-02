@@ -848,9 +848,15 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
 
   // ignore trilinear filtering for now
   FilterMode filter = tsp.filter_mode == 0 ? FILTER_NEAREST : FILTER_BILINEAR;
+  WrapMode wrap_u = tsp.clamp_u
+                        ? WRAP_CLAMP_TO_EDGE
+                        : (tsp.flip_u ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
+  WrapMode wrap_v = tsp.clamp_v
+                        ? WRAP_CLAMP_TO_EDGE
+                        : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
-  TextureHandle handle =
-      rb->RegisterTexture(pixel_fmt, filter, mip_mapped, width, height, output);
+  TextureHandle handle = rb->RegisterTexture(pixel_fmt, filter, wrap_u, wrap_v,
+                                             mip_mapped, width, height, output);
   if (!handle) {
     LOG_WARNING("Failed to register texture");
     return 0;

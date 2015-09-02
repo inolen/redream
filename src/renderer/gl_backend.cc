@@ -29,6 +29,12 @@ static GLenum filter_funcs[] = {
     GL_LINEAR_MIPMAP_LINEAR    // FILTER_BILINEAR + gen_mipmaps
 };
 
+static GLenum wrap_modes[] = {
+    GL_REPEAT,          // WRAP_REPEAT
+    GL_CLAMP_TO_EDGE,   // WRAP_CLAMP_TO_EDGE
+    GL_MIRRORED_REPEAT  // WRAP_MIRRORED_REPEAT
+};
+
 static GLenum depth_funcs[] = {
     GL_NONE,      // DEPTH_NONE
     GL_NEVER,     // DEPTH_NEVER
@@ -82,6 +88,7 @@ void GLBackend::ResizeVideo(int width, int height) {
 }
 
 TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
+                                         WrapMode wrap_u, WrapMode wrap_v,
                                          bool gen_mipmaps, int width,
                                          int height, const uint8_t *buffer) {
   // FIXME worth speeding up?
@@ -117,14 +124,14 @@ TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
       break;
   }
 
-  GLenum min_filter = filter_funcs[filter * gen_mipmaps];
-  GLenum mag_filter = filter_funcs[filter];
-
   GLuint &gltex = textures_[handle];
   glGenTextures(1, &gltex);
   glBindTexture(GL_TEXTURE_2D, gltex);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  filter_funcs[filter * gen_mipmaps]);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_funcs[filter]);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_modes[wrap_u]);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_modes[wrap_v]);
   glTexImage2D(GL_TEXTURE_2D, 0, internal_fmt, width, height, 0, internal_fmt,
                pixel_fmt, buffer);
 
