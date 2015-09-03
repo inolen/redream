@@ -4,7 +4,6 @@
 #include "cpu/sh4_context.h"
 #include "emu/device.h"
 #include "emu/memory.h"
-#include "emu/scheduler.h"
 
 struct SH4Test;
 
@@ -110,7 +109,7 @@ class SH4 : public emu::Device {
   friend void RunSH4Test(const SH4Test &);
 
  public:
-  SH4(emu::Scheduler &scheduler, emu::Memory &memory);
+  SH4(emu::Memory &memory);
   virtual ~SH4();
 
   uint32_t GetClockFrequency() { return 200000000; }
@@ -155,7 +154,6 @@ class SH4 : public emu::Device {
   bool TimerEnabled(int n);
   void RunTimer(int n, uint32_t cycles);
 
-  emu::Scheduler &scheduler_;
   emu::Memory &memory_;
   Runtime *runtime_;
 

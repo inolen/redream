@@ -15,15 +15,12 @@ InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-SH4::SH4(Scheduler &scheduler, Memory &memory)
-    : scheduler_(scheduler), memory_(memory) {}
+SH4::SH4(Memory &memory) : memory_(memory) {}
 
 SH4::~SH4() {}
 
 bool SH4::Init(Runtime *runtime) {
   runtime_ = runtime;
-
-  scheduler_.AddDevice(this);
 
   InitMemory();
   Reset();

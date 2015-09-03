@@ -137,9 +137,9 @@ bool System::InitWindow() {
     return false;
   }
 
-  window_ = SDL_CreateWindow("dreavm", SDL_WINDOWPOS_UNDEFINED,
-                             SDL_WINDOWPOS_UNDEFINED, video_width_,
-                             video_height_, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+  window_ = SDL_CreateWindow(
+      "dreavm", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, video_width_,
+      video_height_, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   if (!window_) {
     LOG_WARNING("Window creation failed: %s", SDL_GetError());
     return false;

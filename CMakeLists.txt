@@ -305,7 +305,6 @@ set(DREAVM_TEST_SOURCES
   src/cpu/sh4_context.cc
   src/cpu/runtime.cc
   src/emu/profiler.cc
-  src/emu/scheduler.cc
   test/sh4_test.cc
   test/test_intrusive_list.cc
   test/test_memory.cc

@@ -29,7 +29,7 @@ Emulator::Emulator() {
   scheduler_ = new Scheduler();
   memory_ = new Memory();
   runtime_ = new Runtime(*memory_);
-  processor_ = new SH4(*scheduler_, *memory_);
+  processor_ = new SH4(*memory_);
   holly_ = new Holly(*scheduler_, *memory_, *processor_);
   rt_frontend_ = new SH4Frontend(*memory_);
   // rt_backend_ = new InterpreterBackend(*memory_);
@@ -129,6 +129,8 @@ bool Emulator::Init() {
   if (!processor_->Init(runtime_)) {
     return false;
   }
+
+  scheduler_->AddDevice(processor_);
 
   Reset();
 

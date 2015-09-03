@@ -12,7 +12,7 @@ namespace emu {
 
 typedef std::function<void()> TimerCallback;
 
-enum { INVALID_HANDLE = -1, NS_PER_SEC = 1000000000, NS_PER_MS = 1000000 };
+enum { INVALID_HANDLE = -1, NS_PER_SEC = 1000000000 };
 
 static inline std::chrono::nanoseconds HZ_TO_NANO(int64_t hz) {
   return std::chrono::nanoseconds(NS_PER_SEC / hz);

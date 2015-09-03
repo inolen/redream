@@ -7,7 +7,6 @@
 #include "cpu/backend/x64/x64_backend.h"
 #include "cpu/sh4.h"
 #include "emu/memory.h"
-#include "emu/scheduler.h"
 #include "sh4_test.h"
 
 using namespace dreavm;
@@ -19,7 +18,6 @@ namespace dreavm {
 namespace cpu {
 
 void RunSH4Test(const SH4Test &test) {
-  Scheduler scheduler;
   Memory memory;
 
   // initialize runtime
@@ -30,7 +28,7 @@ void RunSH4Test(const SH4Test &test) {
   ASSERT_TRUE(runtime.Init(&rt_frontend, &rt_backend));
 
   // initialize device
-  SH4 sh4(scheduler, memory);
+  SH4 sh4(memory);
   ASSERT_TRUE(sh4.Init(&runtime));
   sh4.ctx_.pc = 0x8c010000;
 
