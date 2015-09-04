@@ -1,48 +1,81 @@
-#include "holly/holly.h"
-#include "holly/pvr2.h"
+#include "core/core.h"
+#include "emu/dreamcast.h"
 
 using namespace dreavm::cpu;
 using namespace dreavm::emu;
 using namespace dreavm::holly;
 using namespace dreavm::renderer;
 
-PVR2::PVR2(Scheduler &scheduler, Memory &memory, Holly &holly)
-    : scheduler_(scheduler),
-      memory_(memory),
-      holly_(holly),
-      ta_(memory, holly, *this),
+PVR2::PVR2(Dreamcast *dc)
+    : dc_(dc),
       line_timer_(INVALID_HANDLE),
       current_scanline_(0),
       fps_(0),
-      vbps_(0) {
-  vram_ = new uint8_t[PVR_VRAM32_SIZE];
-  pram_ = new uint8_t[PVR_PALETTE_SIZE];
+      vbps_(0) {}
+
+void PVR2::Init() {
+  scheduler_ = dc_->scheduler();
+  holly_ = dc_->holly();
+  ta_ = dc_->ta();
+  pvr_regs_ = dc_->pvr_regs();
+  video_ram_ = dc_->video_ram();
+
+  ReconfigureSPG();
 }
 
-PVR2::~PVR2() {
-  delete[] vram_;
-  delete[] pram_;
-}
+uint32_t PVR2::ReadRegister32(uint32_t addr) {
+  uint32_t offset = addr >> 2;
+  Register &reg = pvr_regs_[offset];
 
-bool PVR2::Init(Backend *rb) {
-  InitMemory();
-
-  if (!ta_.Init(rb)) {
-    return false;
+  if (!(reg.flags & R)) {
+    LOG_WARNING("Invalid read access at 0x%x", addr);
+    return 0;
   }
 
-  Reset();
-  ReconfigureSPG();
-
-  return true;
+  return reg.value;
 }
 
-void PVR2::RenderLastFrame() { ta_.RenderLastContext(); }
+void PVR2::WriteRegister32(uint32_t addr, uint32_t value) {
+  uint32_t offset = addr >> 2;
+  Register &reg = pvr_regs_[offset];
 
-void PVR2::ToggleTracing() { ta_.ToggleTracing(); }
+  if (!(reg.flags & W)) {
+    LOG_WARNING("Invalid write access at 0x%x", addr);
+    return;
+  }
 
-namespace dreavm {
-namespace holly {
+  reg.value = value;
+
+  switch (offset) {
+    case SOFTRESET_OFFSET: {
+      bool reset_ta = value & 0x1;
+      if (reset_ta) {
+        ta_->SoftReset();
+      }
+    } break;
+
+    case TA_LIST_INIT_OFFSET: {
+      ta_->InitContext(dc_->TA_ISP_BASE.base_address);
+    } break;
+
+    case STARTRENDER_OFFSET: {
+      {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            now - last_frame_);
+        last_frame_ = now;
+        fps_ = 1000000000.0f / delta.count();
+      }
+
+      ta_->SaveLastContext(dc_->PARAM_BASE.base_address);
+    } break;
+
+    case SPG_LOAD_OFFSET:
+    case FB_R_CTRL_OFFSET: {
+      ReconfigureSPG();
+    } break;
+  }
+}
 
 // the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
 // accessing it:
@@ -65,104 +98,29 @@ static uint32_t MAP64(uint32_t addr) {
           (addr & 0x3));
 }
 
-template <typename T>
-T PVR2::ReadInterleaved(void *ctx, uint32_t addr) {
-  PVR2 *pvr = reinterpret_cast<PVR2 *>(ctx);
+uint8_t PVR2::ReadInterleaved8(uint32_t addr) {
   addr = MAP64(addr);
-  return *reinterpret_cast<T *>(&pvr->vram_[addr]);
+  return *reinterpret_cast<uint8_t *>(&video_ram_[addr]);
 }
 
-template <typename T>
-void PVR2::WriteInterleaved(void *ctx, uint32_t addr, T value) {
-  PVR2 *pvr = reinterpret_cast<PVR2 *>(ctx);
+uint16_t PVR2::ReadInterleaved16(uint32_t addr) {
   addr = MAP64(addr);
-  *reinterpret_cast<T *>(&pvr->vram_[addr]) = value;
+  return *reinterpret_cast<uint16_t *>(&video_ram_[addr]);
 }
 
-template <typename T>
-T PVR2::ReadRegister(void *ctx, uint32_t addr) {
-  return static_cast<T>(ReadRegister<uint32_t>(ctx, addr));
+uint32_t PVR2::ReadInterleaved32(uint32_t addr) {
+  addr = MAP64(addr);
+  return *reinterpret_cast<uint32_t *>(&video_ram_[addr]);
 }
 
-template <>
-uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
-  PVR2 *pvr = (PVR2 *)ctx;
-  Register &reg = pvr->regs_[addr >> 2];
-
-  if (!(reg.flags & R)) {
-    LOG_WARNING("Invalid read access at 0x%x", addr);
-    return 0;
-  }
-
-  return reg.value;
+void PVR2::WriteInterleaved16(uint32_t addr, uint16_t value) {
+  addr = MAP64(addr);
+  *reinterpret_cast<uint16_t *>(&video_ram_[addr]) = value;
 }
 
-template <typename T>
-void PVR2::WriteRegister(void *ctx, uint32_t addr, T value) {
-  WriteRegister<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
-}
-
-template <>
-void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
-  PVR2 *pvr = (PVR2 *)ctx;
-  Register &reg = pvr->regs_[addr >> 2];
-
-  if (!(reg.flags & W)) {
-    LOG_WARNING("Invalid write access at 0x%x", addr);
-    return;
-  }
-
-  reg.value = value;
-
-  if (reg.offset == SOFTRESET_OFFSET) {
-    bool reset_ta = value & 0x1;
-    if (reset_ta) {
-      pvr->ta_.SoftReset();
-    }
-  } else if (reg.offset == TA_LIST_INIT_OFFSET) {
-    pvr->ta_.InitContext(pvr->TA_ISP_BASE.base_address);
-  } else if (reg.offset == STARTRENDER_OFFSET) {
-    {
-      auto now = std::chrono::high_resolution_clock::now();
-      auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-          now - pvr->last_frame_);
-      pvr->last_frame_ = now;
-      pvr->fps_ = 1000000000.0f / delta.count();
-    }
-
-    pvr->ta_.SaveLastContext(pvr->PARAM_BASE.base_address);
-  } else if (reg.offset == SPG_LOAD_OFFSET || reg.offset == FB_R_CTRL_OFFSET) {
-    pvr->ReconfigureSPG();
-  }
-}
-}
-}
-
-void PVR2::InitMemory() {
-  memory_.Mount(PVR_VRAM32_START, PVR_VRAM32_END, MIRROR_MASK, vram_);
-  memory_.Handle(PVR_VRAM64_START, PVR_VRAM64_END, MIRROR_MASK, this,
-                 &PVR2::ReadInterleaved<uint8_t>,
-                 &PVR2::ReadInterleaved<uint16_t>,
-                 &PVR2::ReadInterleaved<uint32_t>, nullptr, nullptr,
-                 &PVR2::WriteInterleaved<uint16_t>,
-                 &PVR2::WriteInterleaved<uint32_t>, nullptr);
-  memory_.Handle(PVR_REG_START, PVR_REG_END, MIRROR_MASK, this,
-                 &PVR2::ReadRegister<uint8_t>, &PVR2::ReadRegister<uint16_t>,
-                 &PVR2::ReadRegister<uint32_t>, nullptr,
-                 &PVR2::WriteRegister<uint8_t>, &PVR2::WriteRegister<uint16_t>,
-                 &PVR2::WriteRegister<uint32_t>, nullptr);
-  memory_.Mount(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK, pram_);
-}
-
-void PVR2::Reset() {
-  memset(vram_, 0, PVR_VRAM32_SIZE);
-  memset(pram_, 0, PVR_PALETTE_SIZE);
-
-// initialize registers
-#define PVR_REG(addr, name, flags, default, type) \
-  regs_[name##_OFFSET >> 2] = {name##_OFFSET, flags, default};
-#include "holly/pvr2_regs.inc"
-#undef PVR_REG
+void PVR2::WriteInterleaved32(uint32_t addr, uint32_t value) {
+  addr = MAP64(addr);
+  *reinterpret_cast<uint32_t *>(&video_ram_[addr]) = value;
 }
 
 void PVR2::ReconfigureSPG() {
@@ -174,57 +132,58 @@ void PVR2::ReconfigureSPG() {
   // specify "number of lines per field/2 - 1." (default = 0x106)
   // PAL interlaced = vcount 624, vbstart 620, vbend 44. why isn't vcount ~200?
   // VGA non-interlaced = vcount 524, vbstart 520, vbend 40
-  int pixel_clock = FB_R_CTRL.vclk_div ? PIXEL_CLOCK : (PIXEL_CLOCK / 2);
-  int line_clock = pixel_clock / (SPG_LOAD.hcount + 1);
+  int pixel_clock = dc_->FB_R_CTRL.vclk_div ? PIXEL_CLOCK : (PIXEL_CLOCK / 2);
+  int line_clock = pixel_clock / (dc_->SPG_LOAD.hcount + 1);
 
   // HACK seems to get interlaced mode to vsync reasonably
-  if (SPG_CONTROL.interlace) {
+  if (dc_->SPG_CONTROL.interlace) {
     line_clock *= 2;
   }
 
   LOG_INFO(
       "ReconfigureSPG: pixel_clock %d, line_clock %d, vcount %d, hcount %d, "
       "interlace %d, vbstart %d, vbend %d",
-      pixel_clock, line_clock, SPG_LOAD.vcount, SPG_LOAD.hcount,
-      SPG_CONTROL.interlace, SPG_VBLANK.vbstart, SPG_VBLANK.vbend);
+      pixel_clock, line_clock, dc_->SPG_LOAD.vcount, dc_->SPG_LOAD.hcount,
+      dc_->SPG_CONTROL.interlace, dc_->SPG_VBLANK.vbstart,
+      dc_->SPG_VBLANK.vbend);
 
   if (line_timer_ != INVALID_HANDLE) {
-    scheduler_.RemoveTimer(line_timer_);
+    scheduler_->RemoveTimer(line_timer_);
     line_timer_ = INVALID_HANDLE;
   }
 
-  line_timer_ = scheduler_.AddTimer(HZ_TO_NANO(line_clock),
-                                    std::bind(&PVR2::LineClockUpdate, this));
+  line_timer_ = scheduler_->AddTimer(HZ_TO_NANO(line_clock),
+                                     std::bind(&PVR2::LineClockUpdate, this));
 }
 
 void PVR2::LineClockUpdate() {
-  uint32_t num_scanlines = SPG_LOAD.vcount + 1;
+  uint32_t num_scanlines = dc_->SPG_LOAD.vcount + 1;
   if (current_scanline_ > num_scanlines) {
     current_scanline_ = 0;
   }
 
   // vblank in
-  if (current_scanline_ == SPG_VBLANK_INT.vblank_in_line_number) {
-    holly_.RequestInterrupt(HOLLY_INTC_PCVIINT);
+  if (current_scanline_ == dc_->SPG_VBLANK_INT.vblank_in_line_number) {
+    holly_->RequestInterrupt(HOLLY_INTC_PCVIINT);
   }
 
   // vblank out
-  if (current_scanline_ == SPG_VBLANK_INT.vblank_out_line_number) {
-    holly_.RequestInterrupt(HOLLY_INTC_PCVOINT);
+  if (current_scanline_ == dc_->SPG_VBLANK_INT.vblank_out_line_number) {
+    holly_->RequestInterrupt(HOLLY_INTC_PCVOINT);
   }
 
   // hblank in
-  holly_.RequestInterrupt(HOLLY_INTC_PCHIINT);
+  holly_->RequestInterrupt(HOLLY_INTC_PCHIINT);
 
-  bool was_vsync = SPG_STATUS.vsync;
-  SPG_STATUS.vsync = SPG_VBLANK.vbstart < SPG_VBLANK.vbend
-                         ? (current_scanline_ >= SPG_VBLANK.vbstart &&
-                            current_scanline_ < SPG_VBLANK.vbend)
-                         : (current_scanline_ >= SPG_VBLANK.vbstart ||
-                            current_scanline_ < SPG_VBLANK.vbend);
-  SPG_STATUS.scanline = current_scanline_++;
+  bool was_vsync = dc_->SPG_STATUS.vsync;
+  dc_->SPG_STATUS.vsync = dc_->SPG_VBLANK.vbstart < dc_->SPG_VBLANK.vbend
+                              ? (current_scanline_ >= dc_->SPG_VBLANK.vbstart &&
+                                 current_scanline_ < dc_->SPG_VBLANK.vbend)
+                              : (current_scanline_ >= dc_->SPG_VBLANK.vbstart ||
+                                 current_scanline_ < dc_->SPG_VBLANK.vbend);
+  dc_->SPG_STATUS.scanline = current_scanline_++;
 
-  if (!was_vsync && SPG_STATUS.vsync) {
+  if (!was_vsync && dc_->SPG_STATUS.vsync) {
     // track vblank stats
     auto now = std::chrono::high_resolution_clock::now();
     auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(

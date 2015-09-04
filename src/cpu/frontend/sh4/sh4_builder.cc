@@ -116,7 +116,7 @@ Value *SH4Builder::LoadSR() {
 void SH4Builder::StoreSR(Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
   StoreAndPreserveContext(offsetof(SH4Context, sr), v, IF_INVALIDATE_CONTEXT);
-  CallExternal((ExternalFn)&SRUpdated);
+  CallExternal((ExternalFn)&SH4Context::SRUpdated);
 }
 
 ir::Value *SH4Builder::LoadT() { return And(LoadSR(), AllocConstant(T)); }
@@ -144,7 +144,7 @@ void SH4Builder::StoreFPSCR(ir::Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
   v = And(v, AllocConstant(0x003fffff));
   StoreAndPreserveContext(offsetof(SH4Context, fpscr), v);
-  CallExternal((ExternalFn)&FPSCRUpdated);
+  CallExternal((ExternalFn)&SH4Context::FPSCRUpdated);
 }
 
 ir::Value *SH4Builder::LoadPR() {

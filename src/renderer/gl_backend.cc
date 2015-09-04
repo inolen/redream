@@ -76,7 +76,6 @@ bool GLBackend::Init() {
   InitTextures();
   InitShaders();
   InitVertexBuffers();
-
   SetupDefaultState();
 
   return true;

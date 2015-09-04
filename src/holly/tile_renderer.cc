@@ -1,3 +1,4 @@
+#include "core/core.h"
 #include "emu/profiler.h"
 #include "holly/pixel_convert.h"
 #include "holly/tile_accelerator.h"

@@ -1,9 +1,5 @@
 #include "core/core.h"
-#include "cpu/sh4.h"
-#include "holly/gdrom.h"
-#include "holly/holly.h"
-#include "holly/maple.h"
-#include "holly/pvr2.h"
+#include "emu/dreamcast.h"
 
 using namespace dreavm::core;
 using namespace dreavm::cpu;
@@ -12,43 +8,12 @@ using namespace dreavm::holly;
 using namespace dreavm::renderer;
 using namespace dreavm::system;
 
-Holly::Holly(Scheduler &scheduler, Memory &memory, SH4 &sh4)
-    : memory_(memory),
-      sh4_(sh4),
-      pvr_(scheduler, memory, *this),
-      gdrom_(memory, *this),
-      maple_(memory, sh4, *this) {
-  modem_mem_ = new uint8_t[MODEM_REG_SIZE];
-  aica_mem_ = new uint8_t[AICA_REG_SIZE];
-  audio_ram_ = new uint8_t[AUDIO_RAM_SIZE];
-  expdev_mem_ = new uint8_t[EXPDEV_SIZE];
-}
+Holly::Holly(Dreamcast *dc) : dc_(dc) {}
 
-Holly::~Holly() {
-  delete[] modem_mem_;
-  delete[] aica_mem_;
-  delete[] audio_ram_;
-  delete[] expdev_mem_;
-}
-
-bool Holly::Init(Backend *rb) {
-  InitMemory();
-
-  if (!pvr_.Init(rb)) {
-    return false;
-  }
-
-  if (!gdrom_.Init()) {
-    return false;
-  }
-
-  if (!maple_.Init()) {
-    return false;
-  }
-
-  Reset();
-
-  return true;
+void Holly::Init() {
+  cpu_ = dc_->cpu();
+  holly_regs_ = dc_->holly_regs();
+  audio_ram_ = dc_->audio_ram();
 }
 
 void Holly::RequestInterrupt(HollyInterrupt intr) {
@@ -57,20 +22,20 @@ void Holly::RequestInterrupt(HollyInterrupt intr) {
   uint32_t irq = static_cast<uint32_t>(intr & ~HOLLY_INTC_MASK);
 
   if (intr == HOLLY_INTC_PCVOINT) {
-    maple_.VBlank();
+    dc_->maple()->VBlank();
   }
 
   switch (type) {
     case HOLLY_INTC_NRM:
-      SB_ISTNRM |= irq;
+      dc_->SB_ISTNRM |= irq;
       break;
 
     case HOLLY_INTC_EXT:
-      SB_ISTEXT |= irq;
+      dc_->SB_ISTEXT |= irq;
       break;
 
     case HOLLY_INTC_ERR:
-      SB_ISTERR |= irq;
+      dc_->SB_ISTERR |= irq;
       break;
   }
 
@@ -84,54 +49,40 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
 
   switch (type) {
     case HOLLY_INTC_NRM:
-      SB_ISTNRM &= ~irq;
+      dc_->SB_ISTNRM &= ~irq;
       break;
 
     case HOLLY_INTC_EXT:
-      SB_ISTEXT &= ~irq;
+      dc_->SB_ISTEXT &= ~irq;
       break;
 
     case HOLLY_INTC_ERR:
-      SB_ISTERR &= ~irq;
+      dc_->SB_ISTERR &= ~irq;
       break;
   }
 
   ForwardRequestInterrupts();
 }
 
-namespace dreavm {
-namespace holly {
-
-template <typename T>
-T Holly::ReadRegister(void *ctx, uint32_t addr) {
-  return static_cast<T>(ReadRegister<uint32_t>(ctx, addr));
-}
-
-template <>
-uint32_t Holly::ReadRegister(void *ctx, uint32_t addr) {
-  Holly *holly = (Holly *)ctx;
-  Register &reg = holly->regs_[addr >> 2];
+uint32_t Holly::ReadRegister32(uint32_t addr) {
+  uint32_t offset = addr >> 2;
+  Register &reg = holly_regs_[offset];
 
   if (!(reg.flags & R)) {
-    LOG_FATAL("Invalid read access at 0x%x", addr);
+    LOG_WARNING("Invalid read access at 0x%x", addr);
+    return 0;
   }
 
-  if (addr >= SB_MDSTAR_OFFSET && addr <= SB_MRXDBD_OFFSET) {
-    return holly->maple_.ReadRegister(reg, addr);
-  } else if (addr >= GD_ALTSTAT_DEVCTRL_OFFSET && addr <= SB_GDLEND_OFFSET) {
-    return holly->gdrom_.ReadRegister(reg, addr);
-  }
-
-  switch (reg.offset) {
+  switch (offset) {
     case SB_ISTNRM_OFFSET: {
       // Note that the two highest bits indicate the OR'ed result of all of the
       // bits in SB_ISTEXT and SB_ISTERR, respectively, and writes to these two
       // bits are ignored.
       uint32_t v = reg.value & 0x3fffffff;
-      if (holly->SB_ISTEXT) {
+      if (dc_->SB_ISTEXT) {
         v |= 0x40000000;
       }
-      if (holly->SB_ISTERR) {
+      if (dc_->SB_ISTERR) {
         v |= 0x80000000;
       }
       return v;
@@ -141,38 +92,25 @@ uint32_t Holly::ReadRegister(void *ctx, uint32_t addr) {
   return reg.value;
 }
 
-template <typename T>
-void Holly::WriteRegister(void *ctx, uint32_t addr, T value) {
-  WriteRegister<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
-}
-
-template <>
-void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
-  Holly *holly = (Holly *)ctx;
-  Register &reg = holly->regs_[addr >> 2];
+void Holly::WriteRegister32(uint32_t addr, uint32_t value) {
+  uint32_t offset = addr >> 2;
+  Register &reg = holly_regs_[offset];
 
   if (!(reg.flags & W)) {
-    LOG_FATAL("Invalid write access at 0x%x", addr);
-  }
-
-  if (addr >= SB_MDSTAR_OFFSET && addr <= SB_MRXDBD_OFFSET) {
-    holly->maple_.WriteRegister(reg, addr, value);
-    return;
-  } else if (addr >= GD_ALTSTAT_DEVCTRL_OFFSET && addr <= SB_GDLEND_OFFSET) {
-    holly->gdrom_.WriteRegister(reg, addr, value);
+    LOG_WARNING("Invalid write access at 0x%x", addr);
     return;
   }
 
   uint32_t old = reg.value;
   reg.value = value;
 
-  switch (reg.offset) {
+  switch (offset) {
     case SB_ISTNRM_OFFSET:
     case SB_ISTEXT_OFFSET:
     case SB_ISTERR_OFFSET: {
       // writing a 1 clears the interrupt
       reg.value = old & ~value;
-      holly->ForwardRequestInterrupts();
+      ForwardRequestInterrupts();
     } break;
 
     case SB_IML2NRM_OFFSET:
@@ -184,18 +122,18 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
     case SB_IML6NRM_OFFSET:
     case SB_IML6EXT_OFFSET:
     case SB_IML6ERR_OFFSET:
-      holly->ForwardRequestInterrupts();
+      ForwardRequestInterrupts();
       break;
 
     case SB_C2DST_OFFSET:
       if (value) {
-        holly->CH2DMATransfer();
+        CH2DMATransfer();
       }
       break;
 
     case SB_SDST_OFFSET:
       if (value) {
-        holly->SortDMATransfer();
+        SortDMATransfer();
       }
       break;
 
@@ -219,76 +157,30 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   }
 }
 
-template <typename T>
-T Holly::ReadAudio(void *ctx, uint32_t addr) {
-  Holly *holly = (Holly *)ctx;
-  return *reinterpret_cast<T *>(holly->audio_ram_[addr]);
-}
-
-template <>
-uint32_t Holly::ReadAudio(void *ctx, uint32_t addr) {
-  Holly *holly = (Holly *)ctx;
-
+uint32_t Holly::ReadAudio32(uint32_t addr) {
   // FIXME temp hack for unsupported audio regs hanging in Crazy Taxi 2
   if (addr == 0x5c) {
     return 0x54494e49;
   }
 
-  return *reinterpret_cast<uint32_t *>(&holly->audio_ram_[addr]);
+  return *reinterpret_cast<uint32_t *>(&audio_ram_[addr]);
 }
 
-template <typename T>
-void Holly::WriteAudio(void *ctx, uint32_t addr, T value) {
-  Holly *holly = (Holly *)ctx;
-  *reinterpret_cast<T *>(&holly->audio_ram_[addr]) = value;
-}
-}
-}
-
-void Holly::InitMemory() {
-  memory_.Handle(HOLLY_REG_START, HOLLY_REG_END, MIRROR_MASK, this,
-                 &Holly::ReadRegister<uint8_t>, &Holly::ReadRegister<uint16_t>,
-                 &Holly::ReadRegister<uint32_t>, nullptr,
-                 &Holly::WriteRegister<uint8_t>,
-                 &Holly::WriteRegister<uint16_t>,
-                 &Holly::WriteRegister<uint32_t>, nullptr);
-  memory_.Mount(MODEM_REG_START, MODEM_REG_END, MIRROR_MASK, modem_mem_);
-  memory_.Mount(AICA_REG_START, AICA_REG_END, MIRROR_MASK, aica_mem_);
-  memory_.Handle(AUDIO_RAM_START, AUDIO_RAM_END, MIRROR_MASK, this,
-                 &Holly::ReadAudio<uint8_t>, &Holly::ReadAudio<uint16_t>,
-                 &Holly::ReadAudio<uint32_t>, nullptr,
-                 &Holly::WriteAudio<uint8_t>, &Holly::WriteAudio<uint16_t>,
-                 &Holly::WriteAudio<uint32_t>, nullptr);
-  memory_.Mount(EXPDEV_START, EXPDEV_END, MIRROR_MASK, expdev_mem_);
-}
-
-void Holly::Reset() {
-  memset(modem_mem_, 0, MODEM_REG_SIZE);
-  memset(aica_mem_, 0, AICA_REG_SIZE);
-  memset(audio_ram_, 0, AUDIO_RAM_SIZE);
-  memset(expdev_mem_, 0, EXPDEV_SIZE);
-
-  // FIXME temp hack for unsupported audio regs hanging in Crazy Taxi
-  *reinterpret_cast<uint32_t *>(&audio_ram_[0x5c]) = 0x54494e49;
-
-// initialize registers
-#define HOLLY_REG(addr, name, flags, default, type) \
-  regs_[name##_OFFSET >> 2] = {name##_OFFSET, flags, default};
-#include "holly/holly_regs.inc"
-#undef HOLLY_REG
+void Holly::WriteAudio32(uint32_t addr, uint32_t value) {
+  *reinterpret_cast<uint32_t *>(&audio_ram_[addr]) = value;
 }
 
 // FIXME what are SB_LMMODE0 / SB_LMMODE1
 void Holly::CH2DMATransfer() {
-  sh4_.DDT(2, DDT_W, SB_C2DSTAT);
+  cpu_->DDT(2, DDT_W, dc_->SB_C2DSTAT);
 
-  SB_C2DLEN = 0;
-  SB_C2DST = 0;
+  dc_->SB_C2DLEN = 0;
+  dc_->SB_C2DST = 0;
   RequestInterrupt(HOLLY_INTC_DTDE2INT);
 }
 
 void Holly::SortDMATransfer() {
-  SB_SDST = 0;
+  dc_->SB_SDST = 0;
   RequestInterrupt(HOLLY_INTC_DTDESINT);
 }
 
@@ -296,29 +188,32 @@ void Holly::ForwardRequestInterrupts() {
   // trigger the respective level-encoded interrupt on the sh4 interrupt
   // controller
   {
-    if ((SB_ISTNRM & SB_IML6NRM) || (SB_ISTERR & SB_IML6ERR) ||
-        (SB_ISTEXT & SB_IML6EXT)) {
-      sh4_.RequestInterrupt(SH4_INTC_IRL_9);
+    if ((dc_->SB_ISTNRM & dc_->SB_IML6NRM) ||
+        (dc_->SB_ISTERR & dc_->SB_IML6ERR) ||
+        (dc_->SB_ISTEXT & dc_->SB_IML6EXT)) {
+      cpu_->RequestInterrupt(SH4_INTC_IRL_9);
     } else {
-      sh4_.UnrequestInterrupt(SH4_INTC_IRL_9);
+      cpu_->UnrequestInterrupt(SH4_INTC_IRL_9);
     }
   }
 
   {
-    if ((SB_ISTNRM & SB_IML4NRM) || (SB_ISTERR & SB_IML4ERR) ||
-        (SB_ISTEXT & SB_IML4EXT)) {
-      sh4_.RequestInterrupt(SH4_INTC_IRL_11);
+    if ((dc_->SB_ISTNRM & dc_->SB_IML4NRM) ||
+        (dc_->SB_ISTERR & dc_->SB_IML4ERR) ||
+        (dc_->SB_ISTEXT & dc_->SB_IML4EXT)) {
+      cpu_->RequestInterrupt(SH4_INTC_IRL_11);
     } else {
-      sh4_.UnrequestInterrupt(SH4_INTC_IRL_11);
+      cpu_->UnrequestInterrupt(SH4_INTC_IRL_11);
     }
   }
 
   {
-    if ((SB_ISTNRM & SB_IML2NRM) || (SB_ISTERR & SB_IML2ERR) ||
-        (SB_ISTEXT & SB_IML2EXT)) {
-      sh4_.RequestInterrupt(SH4_INTC_IRL_13);
+    if ((dc_->SB_ISTNRM & dc_->SB_IML2NRM) ||
+        (dc_->SB_ISTERR & dc_->SB_IML2ERR) ||
+        (dc_->SB_ISTEXT & dc_->SB_IML2EXT)) {
+      cpu_->RequestInterrupt(SH4_INTC_IRL_13);
     } else {
-      sh4_.UnrequestInterrupt(SH4_INTC_IRL_13);
+      cpu_->UnrequestInterrupt(SH4_INTC_IRL_13);
     }
   }
 }

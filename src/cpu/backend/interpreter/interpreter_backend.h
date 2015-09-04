@@ -87,7 +87,6 @@ class InterpreterBackend : public Backend {
   const Register *registers() const;
   int num_registers() const;
 
-  bool Init();
   void Reset();
   bool AssembleBlock(ir::IRBuilder &builder, RuntimeBlock *block);
 

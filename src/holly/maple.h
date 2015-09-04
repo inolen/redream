@@ -1,20 +1,18 @@
 #ifndef MAPLE_H
 #define MAPLE_H
 
-#include "emu/memory.h"
-#include "holly/register.h"
 #include "system/keys.h"
 
 namespace dreavm {
-
-namespace cpu {
-class SH4;
+namespace emu {
+class Dreamcast;
+class Memory;
+struct Register;
 }
 
 namespace holly {
 
 class Holly;
-struct Register;
 
 enum { MAX_PORTS = 4 };
 
@@ -101,22 +99,25 @@ class MapleDevice {
 
 class Maple {
  public:
-  Maple(emu::Memory &memory, cpu::SH4 &sh4, Holly &holly);
+  Maple(emu::Dreamcast *dc);
 
-  bool Init();
+  void Init();
+
   bool HandleInput(int port, system::Keycode key, int16_t value);
   void VBlank();
 
-  uint32_t ReadRegister(Register &reg, uint32_t addr);
-  void WriteRegister(Register &reg, uint32_t addr, uint32_t value);
+  uint32_t ReadRegister32(uint32_t addr);
+  void WriteRegister32(uint32_t addr, uint32_t value);
 
  private:
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
   void StartDMA();
 
-  emu::Memory &memory_;
-  // cpu::SH4 &sh4_;
-  Holly &holly_;
+  emu::Dreamcast *dc_;
+  emu::Memory *memory_;
+  holly::Holly *holly_;
+  emu::Register *holly_regs_;
+
   std::unique_ptr<MapleDevice> devices_[MAX_PORTS];
 };
 }

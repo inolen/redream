@@ -1,9 +1,6 @@
 #include "core/core.h"
-#include "holly/holly.h"
+#include "emu/dreamcast.h"
 #include "holly/pixel_convert.h"
-#include "holly/pvr2.h"
-#include "holly/tile_accelerator.h"
-#include "trace/trace.h"
 
 using namespace dreavm::core;
 using namespace dreavm::emu;
@@ -167,7 +164,8 @@ static int GetVertexType_raw(const PCW &pcw) {
   return 0;
 }
 
-TileTextureCache::TileTextureCache(TileAccelerator &ta) : ta_(ta) {}
+TileTextureCache::TileTextureCache(Dreamcast *dc)
+    : dc_(dc), trace_writer_(nullptr) {}
 
 void TileTextureCache::Clear() {
   for (auto it : textures_) {
@@ -175,7 +173,7 @@ void TileTextureCache::Clear() {
       continue;
     }
 
-    ta_.rb_->FreeTexture(it.second);
+    dc_->rb()->FreeTexture(it.second);
   }
 
   textures_.clear();
@@ -188,13 +186,19 @@ void TileTextureCache::RemoveTexture(uint32_t addr) {
   }
 
   TextureHandle handle = it->second;
-  ta_.rb_->FreeTexture(handle);
+  dc_->rb()->FreeTexture(handle);
   textures_.erase(it);
 }
 
 TextureHandle TileTextureCache::GetTexture(
     const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) {
   uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
+
+  // if the trace writer has changed, clear the cache to force insert events
+  if (dc_->trace_writer() != trace_writer_) {
+    Clear();
+    trace_writer_ = dc_->trace_writer();
+  }
 
   // see if we already have an entry
   auto it = textures_.find(texture_key);
@@ -212,7 +216,7 @@ TextureHandle TileTextureCache::GetTexture(
                               ? 8
                               : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
   int texture_size = (width * height * element_size_bits) >> 3;
-  const uint8_t *texture = &ta_.pvr_.vram_[texture_addr];
+  const uint8_t *texture = &dc_->video_ram()[texture_addr];
 
   // get the palette data
   int palette_size = 0;
@@ -229,7 +233,7 @@ TextureHandle TileTextureCache::GetTexture(
     }
 
     palette_size = 0x1000;
-    palette = &ta_.pvr_.pram_[palette_addr];
+    palette = &dc_->palette_ram()[palette_addr];
   }
 
   // register and insert into the cache
@@ -238,9 +242,9 @@ TextureHandle TileTextureCache::GetTexture(
   CHECK(result.second, "Texture already in the map?");
 
   // add insert to trace
-  if (ta_.trace_writer_) {
-    ta_.trace_writer_->WriteInsertTexture(tsp, tcw, texture, texture_size,
-                                          palette, palette_size);
+  if (trace_writer_) {
+    trace_writer_->WriteInsertTexture(tsp, tcw, texture, texture_size, palette,
+                                      palette_size);
   }
 
   return result.first->second;
@@ -264,11 +268,9 @@ int TileAccelerator::GetVertexType(const PCW &pcw) {
                             pcw.para_type * TA_NUM_LISTS + pcw.list_type];
 }
 
-TileAccelerator::TileAccelerator(Memory &memory, Holly &holly, PVR2 &pvr)
-    : memory_(memory),
-      holly_(holly),
-      pvr_(pvr),
-      texcache_(*this),
+TileAccelerator::TileAccelerator(Dreamcast *dc)
+    : dc_(dc),
+      texcache_(dc_),
       tile_renderer_(texcache_),
       last_context_(&scratch_context_) {}
 
@@ -283,12 +285,10 @@ TileAccelerator::~TileAccelerator() {
   }
 }
 
-bool TileAccelerator::Init(Backend *rb) {
-  rb_ = rb;
-
-  InitMemory();
-
-  return true;
+void TileAccelerator::Init() {
+  memory_ = dc_->memory();
+  holly_ = dc_->holly();
+  video_ram_ = dc_->video_ram();
 }
 
 void TileAccelerator::SoftReset() {
@@ -329,7 +329,7 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
     }
 
     if (pcw.para_type == TA_PARAM_END_OF_LIST) {
-      holly_.RequestInterrupt(list_interrupts[tactx->list_type]);
+      holly_->RequestInterrupt(list_interrupts[tactx->list_type]);
 
       tactx->last_poly = nullptr;
       tactx->last_vertex = nullptr;
@@ -365,88 +365,31 @@ void TileAccelerator::SaveLastContext(uint32_t addr) {
   WriteBackgroundState(last_context_);
 
   // tell holly that rendering is complete
-  holly_.RequestInterrupt(HOLLY_INTC_PCEOVINT);
-  holly_.RequestInterrupt(HOLLY_INTC_PCEOIINT);
-  holly_.RequestInterrupt(HOLLY_INTC_PCEOTINT);
+  holly_->RequestInterrupt(HOLLY_INTC_PCEOVINT);
+  holly_->RequestInterrupt(HOLLY_INTC_PCEOIINT);
+  holly_->RequestInterrupt(HOLLY_INTC_PCEOTINT);
 }
 
 void TileAccelerator::RenderLastContext() {
-  tile_renderer_.RenderContext(last_context_, rb_);
+  tile_renderer_.RenderContext(last_context_, dc_->rb());
 
   // add render to trace
-  if (trace_writer_) {
-    trace_writer_->WriteRenderContext(last_context_);
+  if (dc_->trace_writer()) {
+    dc_->trace_writer()->WriteRenderContext(last_context_);
   }
 }
 
-void TileAccelerator::ToggleTracing() {
-  if (!trace_writer_) {
-    char filename[PATH_MAX];
-    GetNextTraceFilename(filename, sizeof(filename));
-
-    trace_writer_ = std::unique_ptr<TraceWriter>(new TraceWriter());
-    if (!trace_writer_->Open(filename)) {
-      LOG_INFO("Failed to start tracing");
-      trace_writer_ = nullptr;
-      return;
-    }
-
-    LOG_INFO("Begin tracing to %s", filename);
-
-    // clear the texture cache, so the next render will write out insert
-    // texture commands for any textures in use
-    texcache_.Clear();
-  } else {
-    trace_writer_ = nullptr;
-
-    LOG_INFO("End tracing");
-  }
+void TileAccelerator::WriteCommand32(uint32_t addr, uint32_t value) {
+  WriteContext(dc_->TA_ISP_BASE.base_address, value);
 }
 
-namespace dreavm {
-namespace holly {
-
-template <typename T>
-void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, T value) {
-  WriteCommand<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
-}
-
-template <>
-void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, uint32_t value) {
-  TileAccelerator *ta = (TileAccelerator *)ctx;
-
-  ta->WriteContext(ta->pvr_.TA_ISP_BASE.base_address, value);
-}
-
-template <typename T>
-void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, T value) {
-  WriteTexture<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
-}
-
-template <>
-void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
-  TileAccelerator *ta = (TileAccelerator *)ctx;
-
+void TileAccelerator::WriteTexture32(uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
 
   // FIXME this is terrible
-  ta->texcache_.RemoveTexture(addr);
+  texcache_.RemoveTexture(addr);
 
-  *reinterpret_cast<uint32_t *>(&ta->pvr_.vram_[addr]) = value;
-}
-}
-}
-
-void TileAccelerator::InitMemory() {
-  // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
-  memory_.Handle(TA_CMD_START, TA_CMD_END, 0x0, this, nullptr, nullptr, nullptr,
-                 nullptr, &TileAccelerator::WriteCommand<uint8_t>,
-                 &TileAccelerator::WriteCommand<uint16_t>,
-                 &TileAccelerator::WriteCommand<uint32_t>, nullptr);
-  memory_.Handle(TA_TEXTURE_START, TA_TEXTURE_END, 0x0, this, nullptr, nullptr,
-                 nullptr, nullptr, &TileAccelerator::WriteTexture<uint8_t>,
-                 &TileAccelerator::WriteTexture<uint16_t>,
-                 &TileAccelerator::WriteTexture<uint32_t>, nullptr);
+  *reinterpret_cast<uint32_t *>(&video_ram_[addr]) = value;
 }
 
 TileContextIterator TileAccelerator::FindContext(uint32_t addr) {
@@ -472,23 +415,23 @@ TileContext *TileAccelerator::GetContext(uint32_t addr) {
 
 void TileAccelerator::WritePVRState(TileContext *tactx) {
   // autosort
-  if (!pvr_.FPU_PARAM_CFG.region_header_type) {
-    tactx->autosort = !pvr_.ISP_FEED_CFG.presort;
+  if (!dc_->FPU_PARAM_CFG.region_header_type) {
+    tactx->autosort = !dc_->ISP_FEED_CFG.presort;
   } else {
-    uint32_t region_data = memory_.R32(PVR_VRAM64_START + pvr_.REGION_BASE);
+    uint32_t region_data = memory_->R32(PVR_VRAM64_START + dc_->REGION_BASE);
     tactx->autosort = !(region_data & 0x20000000);
   }
 
   // texture stride
-  tactx->stride = pvr_.TEXT_CONTROL.stride * 32;
+  tactx->stride = dc_->TEXT_CONTROL.stride * 32;
 
   // texture palette pixel format
-  tactx->pal_pxl_format = pvr_.PAL_RAM_CTRL.pixel_format;
+  tactx->pal_pxl_format = dc_->PAL_RAM_CTRL.pixel_format;
 
   // write out video width to help with unprojecting the screen space
   // coordinates
-  if (pvr_.SPG_CONTROL.interlace ||
-      (!pvr_.SPG_CONTROL.NTSC && !pvr_.SPG_CONTROL.PAL)) {
+  if (dc_->SPG_CONTROL.interlace ||
+      (!dc_->SPG_CONTROL.NTSC && !dc_->SPG_CONTROL.PAL)) {
     // interlaced and VGA mode both render at full resolution
     tactx->video_width = 640;
     tactx->video_height = 480;
@@ -507,35 +450,35 @@ void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
   // be the correct solution
   uint32_t vram_offset =
       PVR_VRAM64_START +
-      ((tactx->addr + pvr_.ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
+      ((tactx->addr + dc_->ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
 
   // get surface parameters
-  tactx->bg_isp.full = memory_.R32(vram_offset);
-  tactx->bg_tsp.full = memory_.R32(vram_offset + 4);
-  tactx->bg_tcw.full = memory_.R32(vram_offset + 8);
+  tactx->bg_isp.full = memory_->R32(vram_offset);
+  tactx->bg_tsp.full = memory_->R32(vram_offset + 4);
+  tactx->bg_tcw.full = memory_->R32(vram_offset + 8);
   vram_offset += 12;
 
   // get the background depth
-  tactx->bg_depth = *reinterpret_cast<float *>(&pvr_.ISP_BACKGND_D);
+  tactx->bg_depth = *reinterpret_cast<float *>(&dc_->ISP_BACKGND_D);
 
   // get the byte size for each vertex. normally, the byte size is
   // ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in
   // effect and the shadow bit is 1, then the byte size is
   // ISP_BACKGND_T.skip * 2 + 3
-  int vertex_size = pvr_.ISP_BACKGND_T.skip;
-  if (!pvr_.FPU_SHAD_SCALE.intensity_volume_mode && pvr_.ISP_BACKGND_T.shadow) {
+  int vertex_size = dc_->ISP_BACKGND_T.skip;
+  if (!dc_->FPU_SHAD_SCALE.intensity_volume_mode && dc_->ISP_BACKGND_T.shadow) {
     vertex_size *= 2;
   }
   vertex_size = (vertex_size + 3) * 4;
 
   // skip to the first vertex
-  vram_offset += pvr_.ISP_BACKGND_T.tag_offset * vertex_size;
+  vram_offset += dc_->ISP_BACKGND_T.tag_offset * vertex_size;
 
   // copy vertex data to context
   for (int i = 0, bg_offset = 0; i < 3; i++) {
     CHECK_LE(bg_offset + vertex_size, (int)sizeof(tactx->bg_vertices));
 
-    memory_.Memcpy(&tactx->bg_vertices[bg_offset], vram_offset, vertex_size);
+    memory_->Memcpy(&tactx->bg_vertices[bg_offset], vram_offset, vertex_size);
 
     bg_offset += vertex_size;
     vram_offset += vertex_size;

@@ -75,8 +75,6 @@ int InterpreterBackend::num_registers() const {
   return sizeof(int_registers) / sizeof(Register);
 }
 
-bool InterpreterBackend::Init() { return true; }
-
 void InterpreterBackend::Reset() { codegen_ = codegen_begin_; }
 
 bool InterpreterBackend::AssembleBlock(IRBuilder &builder,

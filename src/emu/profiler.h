@@ -21,8 +21,8 @@ class Profiler {
  public:
   static uint32_t ScopeColor(const char *name);
 
-  static bool Init();
-  static void Shutdown();
+  static void Init();
+
   static bool HandleInput(system::Keycode key, int16_t value);
   static bool HandleMouseMove(int x, int y);
   static void Render(renderer::Backend *backend);

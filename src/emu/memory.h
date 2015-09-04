@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <array>
+#include <functional>
 #include <list>
 #include <sstream>
 #include "core/core.h"
@@ -12,47 +13,13 @@ namespace dreavm {
 namespace emu {
 
 //
-// memory map. the dreamcast uses 32-bit logical addresses, but the physical
-// address range is only 29-bits
-//
-#define MEMORY_REGION(name, start, end) \
-  name##_START = start, name##_END = end, name##_SIZE = end - start + 1
-
-enum {
-  // ignore all modifier bits
-  MIRROR_MASK = 0xe0000000,
-
-  // the Memory class doesn't actually mount these regions, but it's nice
-  // having them listed in a single place to visualize
-  MEMORY_REGION(BIOS, 0x00000000, 0x001fffff),
-  MEMORY_REGION(FLASH, 0x00200000, 0x0021ffff),
-  MEMORY_REGION(HOLLY_REG, 0x005f6000, 0x005f7fff),
-  MEMORY_REGION(PVR_REG, 0x005f8000, 0x005f8fff),
-  MEMORY_REGION(PVR_PALETTE, 0x005f9000, 0x005f9fff),
-  MEMORY_REGION(MODEM_REG, 0x00600000, 0x0067ffff),
-  MEMORY_REGION(AICA_REG, 0x00700000, 0x00710fff),
-  MEMORY_REGION(AUDIO_RAM, 0x00800000, 0x009fffff),
-  MEMORY_REGION(EXPDEV, 0x01000000, 0x01ffffff),
-  MEMORY_REGION(PVR_VRAM32, 0x04000000, 0x047fffff),
-  MEMORY_REGION(PVR_VRAM64, 0x05000000, 0x057fffff),
-  MEMORY_REGION(MAIN_RAM_M0, 0x0c000000, 0x0cffffff),
-  MEMORY_REGION(MAIN_RAM_M1, 0x0d000000, 0x0dffffff),
-  MEMORY_REGION(MAIN_RAM_M2, 0x0e000000, 0x0effffff),
-  MEMORY_REGION(MAIN_RAM_M3, 0x0f000000, 0x0fffffff),
-  MEMORY_REGION(TA_CMD, 0x10000000, 0x107fffff),
-  MEMORY_REGION(TA_TEXTURE, 0x11000000, 0x11ffffff),
-  MEMORY_REGION(UNASSIGNED, 0x14000000, 0x1bffffff),
-  MEMORY_REGION(SH4_REG, 0x1c000000, 0x1fffffff)
-};
-
-//
 // single level page table implementation
 //
 typedef uint8_t TableHandle;
 
 enum {
   UNMAPPED = (TableHandle)0,
-  PAGE_BITS = 20,
+  PAGE_BITS = 22,
   OFFSET_BITS = 32 - PAGE_BITS,
   MAX_PAGE_SIZE = 1 << OFFSET_BITS,
   MAX_ENTRIES = 1 << PAGE_BITS,
@@ -124,14 +91,14 @@ class PageTable {
 //
 // physical memory emulation
 //
-typedef uint8_t (*R8Handler)(void *, uint32_t);
-typedef uint16_t (*R16Handler)(void *, uint32_t);
-typedef uint32_t (*R32Handler)(void *, uint32_t);
-typedef uint64_t (*R64Handler)(void *, uint32_t);
-typedef void (*W8Handler)(void *, uint32_t, uint8_t);
-typedef void (*W16Handler)(void *, uint32_t, uint16_t);
-typedef void (*W32Handler)(void *, uint32_t, uint32_t);
-typedef void (*W64Handler)(void *, uint32_t, uint64_t);
+typedef std::function<uint8_t(uint32_t)> R8Handler;
+typedef std::function<uint16_t(uint32_t)> R16Handler;
+typedef std::function<uint32_t(uint32_t)> R32Handler;
+typedef std::function<uint64_t(uint32_t)> R64Handler;
+typedef std::function<void(uint32_t, uint8_t)> W8Handler;
+typedef std::function<void(uint32_t, uint16_t)> W16Handler;
+typedef std::function<void(uint32_t, uint32_t)> W32Handler;
+typedef std::function<void(uint32_t, uint64_t)> W64Handler;
 
 struct MemoryBank {
   MemoryBank()
@@ -139,7 +106,6 @@ struct MemoryBank {
         mirror_mask(0),
         logical_addr(0),
         physical_addr(nullptr),
-        ctx(nullptr),
         r8(nullptr),
         r16(nullptr),
         r32(nullptr),
@@ -153,7 +119,6 @@ struct MemoryBank {
   uint32_t mirror_mask;
   uint32_t logical_addr;
   uint8_t *physical_addr;
-  void *ctx;
   R8Handler r8;
   R16Handler r16;
   R32Handler r32;
@@ -197,13 +162,12 @@ class Memory {
   }
 
   void Handle(uint32_t logical_start, uint32_t logical_end,
-              uint32_t mirror_mask, void *ctx, R8Handler r8, R16Handler r16,
+              uint32_t mirror_mask, R8Handler r8, R16Handler r16,
               R32Handler r32, R64Handler r64, W8Handler w8, W16Handler w16,
               W32Handler w32, W64Handler w64) {
     MemoryBank &bank = AllocBank();
     bank.mirror_mask = ~mirror_mask;
     bank.logical_addr = logical_start;
-    bank.ctx = ctx;
     bank.r8 = r8;
     bank.r16 = r16;
     bank.r32 = r32;
@@ -299,7 +263,7 @@ class Memory {
     return bank;
   }
 
-  template <typename INT, INT (*MemoryBank::*HANDLER)(void *, uint32_t)>
+  template <typename INT, std::function<INT(uint32_t)> MemoryBank::*HANDLER>
   inline INT ReadBytes(uint32_t addr) {
     TableHandle handle = table_.Lookup(addr);
     MemoryBank &bank = banks_[handle];
@@ -307,7 +271,7 @@ class Memory {
     if (bank.physical_addr) {
       return *(INT *)(bank.physical_addr + offset);
     } else if (bank.*HANDLER) {
-      return (bank.*HANDLER)(bank.ctx, offset);
+      return (bank.*HANDLER)(offset);
     } else {
       LOG_FATAL("Attempting to read from unmapped address 0x%x", addr);
     }
@@ -315,7 +279,8 @@ class Memory {
     return 0;
   }
 
-  template <typename INT, void (*MemoryBank::*HANDLER)(void *, uint32_t, INT)>
+  template <typename INT,
+            std::function<void(uint32_t, INT)> MemoryBank::*HANDLER>
   inline void WriteBytes(uint32_t addr, INT value) {
     TableHandle handle = table_.Lookup(addr);
     MemoryBank &bank = banks_[handle];
@@ -323,7 +288,7 @@ class Memory {
     if (bank.physical_addr) {
       *(INT *)(bank.physical_addr + offset) = value;
     } else if (bank.*HANDLER) {
-      (bank.*HANDLER)(bank.ctx, offset, value);
+      (bank.*HANDLER)(offset, value);
     } else {
       LOG_FATAL("Attempting to write to unmapped address 0x%x", addr);
     }

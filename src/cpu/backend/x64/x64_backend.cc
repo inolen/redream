@@ -20,8 +20,6 @@ int X64Backend::num_registers() const {
   return sizeof(x64_registers) / sizeof(Register);
 }
 
-bool X64Backend::Init() { return true; }
-
 void X64Backend::Reset() { codegen_.reset(); }
 
 bool X64Backend::AssembleBlock(IRBuilder &builder, RuntimeBlock *block) {

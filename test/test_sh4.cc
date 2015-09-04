@@ -18,30 +18,29 @@ namespace dreavm {
 namespace cpu {
 
 void RunSH4Test(const SH4Test &test) {
-  Memory memory;
+  static uint32_t pc = 0x8c010000;
 
-  // initialize runtime
+  Memory memory;
   frontend::sh4::SH4Frontend rt_frontend(memory);
   backend::x64::X64Backend rt_backend(memory);
-  // backend::interpreter::InterpreterBackend rt_backend(memory);
-  Runtime runtime(memory);
-  ASSERT_TRUE(runtime.Init(&rt_frontend, &rt_backend));
+  Runtime runtime(memory, rt_frontend, rt_backend);
 
   // initialize device
-  SH4 sh4(memory);
-  ASSERT_TRUE(sh4.Init(&runtime));
-  sh4.ctx_.pc = 0x8c010000;
+  SH4 sh4(memory, runtime);
+  sh4.Init();
+  sh4.SetPC(pc);
 
-  // mount the test binary and a small stack
+  // mount a small stack (stack grows down)
   uint8_t stack[MAX_PAGE_SIZE];
+  sh4.ctx_.r[15] = sizeof(stack);
+  memory.Mount(0x0, sizeof(stack) - 1, ~ADDR_MASK, stack);
 
+  // mount the test binary
   uint32_t binary_size = core::align(static_cast<uint32_t>(test.buffer_size),
                                      static_cast<uint32_t>(MAX_PAGE_SIZE));
   uint8_t *binary = new uint8_t[binary_size];
   memcpy(binary, test.buffer, test.buffer_size);
-
-  memory.Mount(0x0, sizeof(stack) - 1, MIRROR_MASK, stack);
-  memory.Mount(sh4.ctx_.pc, sh4.ctx_.pc + binary_size - 1, MIRROR_MASK, binary);
+  memory.Mount(pc, pc + binary_size - 1, ~ADDR_MASK, binary);
 
   // setup in registers
   for (auto it : test.r_in) {

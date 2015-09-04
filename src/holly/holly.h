@@ -1,30 +1,16 @@
 #ifndef HOLLY_H
 #define HOLLY_H
 
-#include "emu/memory.h"
-#include "emu/scheduler.h"
-#include "holly/gdrom.h"
-#include "holly/maple.h"
-#include "holly/pvr2.h"
-#include "holly/register.h"
-#include "renderer/backend.h"
-#include "system/keys.h"
-
 namespace dreavm {
-
 namespace cpu {
 class SH4;
 }
+namespace emu {
+class Dreamcast;
+struct Register;
+}
 
 namespace holly {
-
-// registers
-enum {
-#define HOLLY_REG(addr, name, flags, default, type) \
-  name##_OFFSET = addr - emu::HOLLY_REG_START,
-#include "holly/holly_regs.inc"
-#undef HOLLY_REG
-};
 
 // interrupts
 #define HOLLY_INTC_MASK 0xf00000000
@@ -162,53 +148,29 @@ enum HollyInterrupt : uint64_t {
 };
 
 class Holly {
-  friend class GDROM;
-  friend class Maple;
-
  public:
-  Holly(emu::Scheduler &scheduler, emu::Memory &memory, cpu::SH4 &sh4);
-  ~Holly();
+  Holly(emu::Dreamcast *dc);
 
-  PVR2 &pvr() { return pvr_; }
-  GDROM &gdrom() { return gdrom_; }
-  Maple &maple() { return maple_; }
+  void Init();
 
-  bool Init(renderer::Backend *rb);
   void RequestInterrupt(HollyInterrupt intr);
   void UnrequestInterrupt(HollyInterrupt intr);
 
+  uint32_t ReadRegister32(uint32_t addr);
+  void WriteRegister32(uint32_t addr, uint32_t value);
+
+  uint32_t ReadAudio32(uint32_t addr);
+  void WriteAudio32(uint32_t addr, uint32_t value);
+
  private:
-  template <typename T>
-  static T ReadRegister(void *ctx, uint32_t addr);
-  template <typename T>
-  static void WriteRegister(void *ctx, uint32_t addr, T value);
-  template <typename T>
-  static T ReadAudio(void *ctx, uint32_t addr);
-  template <typename T>
-  static void WriteAudio(void *ctx, uint32_t addr, T value);
-
-  void InitMemory();
-
-  void Reset();
   void CH2DMATransfer();
   void SortDMATransfer();
   void ForwardRequestInterrupts();
 
-  emu::Memory &memory_;
-  cpu::SH4 &sh4_;
-  PVR2 pvr_;
-  GDROM gdrom_;
-  Maple maple_;
-  Register regs_[emu::HOLLY_REG_SIZE >> 2];
-  uint8_t *modem_mem_;
-  uint8_t *aica_mem_;
+  emu::Dreamcast *dc_;
+  cpu::SH4 *cpu_;
+  emu::Register *holly_regs_;
   uint8_t *audio_ram_;
-  uint8_t *expdev_mem_;
-
-#define HOLLY_REG(offset, name, flags, default, type) \
-  type &name{reinterpret_cast<type &>(regs_[name##_OFFSET >> 2].value)};
-#include "holly/holly_regs.inc"
-#undef HOLLY_REG
 };
 }
 }

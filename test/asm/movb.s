@@ -7,8 +7,8 @@ start:
   mov.l .L2, r0
   mov.b @r0, r2
   add r2, r2
-  mov.b r2, @r15
-  mov.b @r15, r2
+  mov.b r2, @r0
+  mov.b @r0, r2
 # MOV.B   Rm,@-Rn
 # MOV.B   @Rm+,Rn
   mov.l .L2, r0

@@ -10,8 +10,8 @@ start:
   add #4, r0
   mov.l @r0, r3
   add r3, r3
-  mov.l r3, @r15
-  mov.l @r15, r3
+  mov.l r3, @r0
+  mov.l @r0, r3
 # MOV.L   Rm,@-Rn
 # MOV.L   @Rm+,Rn
   mov.l .L2, r0

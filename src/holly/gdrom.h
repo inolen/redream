@@ -3,10 +3,17 @@
 
 #include <memory>
 #include "emu/disc.h"
-#include "emu/memory.h"
 
 namespace dreavm {
+namespace emu {
+class Dreamcast;
+class Memory;
+struct Register;
+}
+
 namespace holly {
+
+class Holly;
 
 enum GDState {  //
   STATE_STANDBY,
@@ -73,12 +80,12 @@ enum AudioStatus {
 };
 
 union TOCEntry {
+  uint32_t full;
   struct {
     uint32_t adr : 4;
     uint32_t ctrl : 4;
     uint32_t fad : 24;
   };
-  uint32_t full;
 };
 
 struct TOC {
@@ -121,34 +128,34 @@ enum DiscType {
 };
 
 union GD_FEATURES_T {
+  uint32_t full;
   struct {
     uint32_t dma : 1;
     uint32_t reserved : 31;
   };
-
-  uint32_t full;
 };
 
 union GD_INTREASON_T {
+  uint32_t full;
   struct {
     uint32_t CoD : 1;  // "0" indicates data and "1" indicates a command.
     uint32_t IO : 1;   // "1" indicates transfer from device to host, and "0"
                        // from host to device.
     uint32_t reserved : 30;
   };
-  uint32_t full;
 };
 
 union GD_SECTNUM_T {
+  uint32_t full;
   struct {
     uint32_t status : 4;
     uint32_t format : 4;
     uint32_t reserved : 24;
   };
-  uint32_t full;
 };
 
 union GD_STATUS_T {
+  uint32_t full;
   struct {
     uint32_t CHECK : 1;  // Becomes "1" when an error has occurred during
                          // execution of the command the previous time.
@@ -166,16 +173,15 @@ union GD_STATUS_T {
                         // command block.
     uint32_t reserved : 24;
   };
-  uint32_t full;
 };
 
 union GD_BYTECT_T {
+  uint32_t full;
   struct {
     uint32_t lo : 8;
     uint32_t hi : 8;
     uint32_t reserved : 16;
   };
-  uint32_t full;
 };
 
 enum SectorFormat {
@@ -195,27 +201,24 @@ enum DataMask {
   MASK_OTHER = 0x1
 };
 
-class Holly;
-struct Register;
-
 class GDROM {
  public:
-  GDROM(emu::Memory &memory, Holly &holly);
+  GDROM(emu::Dreamcast *dc);
   ~GDROM();
 
-  bool Init();
+  void Init();
+
   void SetDisc(std::unique_ptr<emu::Disc> disc);
 
-  uint32_t ReadRegister(Register &reg, uint32_t addr);
-  void WriteRegister(Register &reg, uint32_t addr, uint32_t value);
+  uint8_t ReadRegister8(uint32_t addr);
+  uint16_t ReadRegister16(uint32_t addr);
+  uint32_t ReadRegister32(uint32_t addr);
+
+  void WriteRegister8(uint32_t addr, uint8_t value);
+  void WriteRegister16(uint32_t addr, uint16_t value);
+  void WriteRegister32(uint32_t addr, uint32_t value);
 
  private:
-  GD_FEATURES_T features_;
-  GD_INTREASON_T intreason_;
-  GD_SECTNUM_T sectnum_;
-  GD_BYTECT_T byte_count_;
-  GD_STATUS_T status_;
-
   void TriggerEvent(GDEvent ev);
   void TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1);
   void ProcessATACommand(ATACommand cmd);
@@ -227,18 +230,26 @@ class GDROM {
   int ReadSectors(int fad, SectorFormat format, DataMask mask, int num_sectors,
                   uint8_t *dst);
 
-  emu::Memory &memory_;
-  Holly &holly_;
-  std::unique_ptr<emu::Disc> current_disc_;
+  emu::Dreamcast *dc_;
+  emu::Memory *memory_;
+  holly::Holly *holly_;
+  emu::Register *holly_regs_;
+
+  GD_FEATURES_T features_;
+  GD_INTREASON_T intreason_;
+  GD_SECTNUM_T sectnum_;
+  GD_BYTECT_T byte_count_;
+  GD_STATUS_T status_;
 
   uint8_t pio_buffer_[0xfa00];
   int pio_idx_;
   int pio_size_;
   uint8_t *dma_buffer_;
   int dma_size_;
-
   GDState state_;
   int spi_read_offset_;
+
+  std::unique_ptr<emu::Disc> current_disc_;
 };
 }
 }

@@ -27,12 +27,12 @@ struct RuntimeBlock {
 
 class Runtime {
  public:
-  Runtime(emu::Memory &memory);
+  Runtime(emu::Memory &memory, frontend::Frontend &frontend,
+          backend::Backend &backend);
   ~Runtime();
 
   emu::Memory &memory() { return memory_; }
 
-  bool Init(frontend::Frontend *frontend, backend::Backend *backend);
   RuntimeBlock *GetBlock(uint32_t addr, const void *guest_ctx);
   void QueueResetBlocks();
 
@@ -41,8 +41,8 @@ class Runtime {
   void CompileBlock(uint32_t addr, const void *guest_ctx, RuntimeBlock *block);
 
   emu::Memory &memory_;
-  frontend::Frontend *frontend_;
-  backend::Backend *backend_;
+  frontend::Frontend &frontend_;
+  backend::Backend &backend_;
   ir::passes::PassRunner pass_runner_;
   RuntimeBlock *blocks_;
   bool pending_reset_;

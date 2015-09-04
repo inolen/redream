@@ -1,5 +1,7 @@
+#include <memory>
 #include <stdio.h>
-#include "emu/emulator.h"
+#include "core/core.h"
+#include "emu/dreamcast.h"
 #include "trace/trace_viewer.h"
 
 using namespace dreavm::core;
@@ -34,13 +36,12 @@ int main(int argc, char **argv) {
   InitFlags(&argc, &argv);
 
   const char *load = argc > 1 ? argv[1] : nullptr;
-
   if (load && strstr(load, ".trace")) {
-    TraceViewer tracer;
-    tracer.Run(load);
+    std::unique_ptr<TraceViewer> tracer(new TraceViewer());
+    tracer->Run(load);
   } else {
-    Emulator emu;
-    emu.Run(load);
+    std::unique_ptr<Dreamcast> emu(new Dreamcast());
+    emu->Run(load);
   }
 
   ShutdownFlags();

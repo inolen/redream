@@ -25,7 +25,6 @@ class Backend {
   virtual const Register *registers() const = 0;
   virtual int num_registers() const = 0;
 
-  virtual bool Init() = 0;
   virtual void Reset() = 0;
   virtual bool AssembleBlock(ir::IRBuilder &builder, RuntimeBlock *block) = 0;
 

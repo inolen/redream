@@ -1,6 +1,5 @@
 #include "core/core.h"
-#include "holly/holly.h"
-#include "holly/gdrom.h"
+#include "emu/dreamcast.h"
 #include "holly/gdrom_replies.inc"
 
 using namespace dreavm::core;
@@ -11,29 +10,29 @@ using namespace dreavm::holly;
 #define SWAP_24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
-GDROM::GDROM(Memory &memory, Holly &holly)
-    : memory_(memory),
-      holly_(holly),
-      current_disc_(nullptr),
+GDROM::GDROM(Dreamcast *dc)
+    : dc_(dc),
+      features_{0},
+      intreason_{0},
+      sectnum_{0},
+      byte_count_{0},
+      status_{0},
       pio_idx_(0),
       pio_size_(0),
       dma_size_(0),
-      state_(STATE_STANDBY) {
-  dma_buffer_ = reinterpret_cast<uint8_t *>(malloc(0x1000000));
+      state_(STATE_STANDBY),
+      current_disc_(nullptr) {
+  dma_buffer_ = new uint8_t[0x1000000];
 }
 
-GDROM::~GDROM() { free(dma_buffer_); }
+GDROM::~GDROM() { delete[] dma_buffer_; }
 
-bool GDROM::Init() {
-  features_.full = 0;
-  intreason_.full = 0;
-  sectnum_.full = 0;
-  byte_count_.full = 0;
-  status_.full = 0;
+void GDROM::Init() {
+  memory_ = dc_->memory();
+  holly_ = dc_->holly();
+  holly_regs_ = dc_->holly_regs();
 
   SetDisc(nullptr);
-
-  return true;
 }
 
 void GDROM::SetDisc(std::unique_ptr<Disc> disc) {
@@ -47,8 +46,24 @@ void GDROM::SetDisc(std::unique_ptr<Disc> disc) {
   status_.BSY = 0;
 }
 
-uint32_t GDROM::ReadRegister(Register &reg, uint32_t addr) {
-  switch (addr) {
+uint8_t GDROM::ReadRegister8(uint32_t addr) {
+  return static_cast<uint8_t>(ReadRegister32(addr));
+}
+
+uint16_t GDROM::ReadRegister16(uint32_t addr) {
+  return static_cast<uint16_t>(ReadRegister32(addr));
+}
+
+uint32_t GDROM::ReadRegister32(uint32_t addr) {
+  uint32_t offset = (0x1000 + addr) >> 2;
+  Register &reg = holly_regs_[offset];
+
+  if (!(reg.flags & R)) {
+    LOG_WARNING("Invalid read access at 0x%x", addr);
+    return 0;
+  }
+
+  switch (offset) {
     // gdrom regs
     case GD_ALTSTAT_DEVCTRL_OFFSET:
       // this register is the same as the status register, but it does not
@@ -85,7 +100,7 @@ uint32_t GDROM::ReadRegister(Register &reg, uint32_t addr) {
       return 0;
 
     case GD_STATUS_COMMAND_OFFSET:
-      holly_.UnrequestInterrupt(HOLLY_INTC_G1GDINT);
+      holly_->UnrequestInterrupt(HOLLY_INTC_G1GDINT);
       return status_.full;
 
       // g1 bus regs
@@ -94,12 +109,27 @@ uint32_t GDROM::ReadRegister(Register &reg, uint32_t addr) {
   return reg.value;
 }
 
-void GDROM::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
-  uint32_t old_value = reg.value;
+void GDROM::WriteRegister8(uint32_t addr, uint8_t value) {
+  WriteRegister32(addr, static_cast<uint32_t>(value));
+}
 
+void GDROM::WriteRegister16(uint32_t addr, uint16_t value) {
+  WriteRegister32(addr, static_cast<uint32_t>(value));
+}
+
+void GDROM::WriteRegister32(uint32_t addr, uint32_t value) {
+  uint32_t offset = (0x1000 + addr) >> 2;
+  Register &reg = holly_regs_[offset];
+
+  if (!(reg.flags & W)) {
+    LOG_WARNING("Invalid write access at 0x%x", addr);
+    return;
+  }
+
+  uint32_t old_value = reg.value;
   reg.value = value;
 
-  switch (addr) {
+  switch (offset) {
     // gdrom regs
     case GD_ALTSTAT_DEVCTRL_OFFSET:
       // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
@@ -159,23 +189,23 @@ void GDROM::WriteRegister(Register &reg, uint32_t addr, uint32_t value) {
         // SB_GDSTAR, SB_GDLEN, or SB_GDDIR register is overwritten while a DMA
         // operation is in progress, the new setting has no effect on the
         // current DMA operation.
-        CHECK_EQ(holly_.SB_GDEN, 1);   // dma enabled
-        CHECK_EQ(holly_.SB_GDDIR, 1);  // gd-rom -> system memory
-        CHECK_EQ(holly_.SB_GDLEN, (uint32_t)dma_size_);
+        CHECK_EQ(dc_->SB_GDEN, 1);   // dma enabled
+        CHECK_EQ(dc_->SB_GDDIR, 1);  // gd-rom -> system memory
+        CHECK_EQ(dc_->SB_GDLEN, (uint32_t)dma_size_);
 
-        int transfer_size = holly_.SB_GDLEN;
-        uint32_t start = holly_.SB_GDSTAR;
+        int transfer_size = dc_->SB_GDLEN;
+        uint32_t start = dc_->SB_GDSTAR;
 
         printf("GD DMA START 0x%x -> 0x%x, 0x%x bytes\n", start,
                start + transfer_size, transfer_size);
 
-        memory_.Memcpy(start, dma_buffer_, transfer_size);
+        memory_->Memcpy(start, dma_buffer_, transfer_size);
 
         // done
-        holly_.SB_GDSTARD = start + transfer_size;
-        holly_.SB_GDLEND = transfer_size;
-        holly_.SB_GDST = 0;
-        holly_.RequestInterrupt(HOLLY_INTC_G1DEINT);
+        dc_->SB_GDSTARD = start + transfer_size;
+        dc_->SB_GDLEND = transfer_size;
+        dc_->SB_GDST = 0;
+        holly_->RequestInterrupt(HOLLY_INTC_G1DEINT);
 
         // finish off CD_READ command
         TriggerEvent(EV_SPI_CMD_DONE);
@@ -194,7 +224,7 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
       status_.DRDY = 1;
       status_.BSY = 0;
 
-      holly_.RequestInterrupt(HOLLY_INTC_G1GDINT);
+      holly_->RequestInterrupt(HOLLY_INTC_G1GDINT);
 
       state_ = STATE_STANDBY;
     } break;
@@ -229,7 +259,7 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
       status_.DRQ = 1;
       status_.BSY = 0;
 
-      holly_.RequestInterrupt(HOLLY_INTC_G1GDINT);
+      holly_->RequestInterrupt(HOLLY_INTC_G1GDINT);
 
       state_ = STATE_SPI_READ_DATA;
     } break;
@@ -264,7 +294,7 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
       status_.DRQ = 1;
       status_.BSY = 0;
 
-      holly_.RequestInterrupt(HOLLY_INTC_G1GDINT);
+      holly_->RequestInterrupt(HOLLY_INTC_G1GDINT);
 
       state_ = STATE_SPI_WRITE_DATA;
     } break;
@@ -285,7 +315,7 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
       status_.BSY = 0;
       status_.DRQ = 0;
 
-      holly_.RequestInterrupt(HOLLY_INTC_G1GDINT);
+      holly_->RequestInterrupt(HOLLY_INTC_G1GDINT);
 
       state_ = STATE_STANDBY;
     } break;

@@ -60,8 +60,6 @@ struct BackendState {
 };
 
 class GLBackend : public Backend {
-  friend class GLProfilerBackend;
-
  public:
   GLBackend(GLContext &ctx);
   ~GLBackend();

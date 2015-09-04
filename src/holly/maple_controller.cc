@@ -1,6 +1,7 @@
 #include <json11.hpp>
 #include <fstream>
 #include <sstream>
+#include "core/core.h"
 #include "holly/maple_controller.h"
 
 using namespace dreavm::holly;

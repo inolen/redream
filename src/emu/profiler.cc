@@ -25,7 +25,7 @@ uint32_t Profiler::ScopeColor(const char *name) {
   return hash(std::string(name)) & 0xffffff;
 }
 
-bool Profiler::Init() {
+void Profiler::Init() {
   MicroProfileOnThreadCreate("main");
 
   // register and enable gpu and runtime group by default
@@ -38,11 +38,7 @@ bool Profiler::Init() {
 
   // render time / average time bars by default
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
-
-  return true;
 }
-
-void Profiler::Shutdown() {}
 
 bool Profiler::HandleInput(Keycode key, int16_t value) {
   if (key == K_F1) {

@@ -3,11 +3,15 @@
 
 #include <memory>
 #include <unordered_map>
-#include "emu/memory.h"
 #include "holly/tile_renderer.h"
 #include "renderer/backend.h"
 
 namespace dreavm {
+namespace emu {
+class Dreamcast;
+class Memory;
+}
+
 namespace trace {
 class TraceWriter;
 }
@@ -15,7 +19,6 @@ class TraceWriter;
 namespace holly {
 
 class Holly;
-class PVR2;
 
 enum {
   // control params
@@ -474,11 +477,9 @@ struct TileContext {
   int vertex_type;
 };
 
-class TileAccelerator;
-
 class TileTextureCache : public TextureCache {
  public:
-  TileTextureCache(TileAccelerator &ta);
+  TileTextureCache(emu::Dreamcast *dc);
 
   void Clear();
   void RemoveTexture(uint32_t addr);
@@ -486,7 +487,9 @@ class TileTextureCache : public TextureCache {
                                      RegisterTextureCallback register_cb);
 
  private:
-  TileAccelerator &ta_;
+  emu::Dreamcast *dc_;
+
+  trace::TraceWriter *trace_writer_;
   std::unordered_map<uint32_t, renderer::TextureHandle> textures_;
 };
 
@@ -494,17 +497,15 @@ typedef std::unordered_map<uint32_t, TileContext *> TileContextMap;
 typedef TileContextMap::iterator TileContextIterator;
 
 class TileAccelerator {
-  friend class TileTextureCache;
-
  public:
   static int GetParamSize(const PCW &pcw, int vertex_type);
   static int GetPolyType(const PCW &pcw);
   static int GetVertexType(const PCW &pcw);
 
-  TileAccelerator(emu::Memory &memory, Holly &holly, PVR2 &pvr);
+  TileAccelerator(emu::Dreamcast *dc);
   ~TileAccelerator();
 
-  bool Init(renderer::Backend *rb);
+  void Init();
 
   void SoftReset();
   void InitContext(uint32_t addr);
@@ -512,32 +513,25 @@ class TileAccelerator {
   void SaveLastContext(uint32_t addr);
   void RenderLastContext();
 
-  void ToggleTracing();
+  void WriteCommand32(uint32_t addr, uint32_t value);
+  void WriteTexture32(uint32_t addr, uint32_t value);
 
  private:
-  template <typename T>
-  static void WriteCommand(void *ctx, uint32_t addr, T value);
-  template <typename T>
-  static void WriteTexture(void *ctx, uint32_t addr, T value);
-
-  void InitMemory();
   TileContextIterator FindContext(uint32_t addr);
   TileContext *GetContext(uint32_t addr);
   void WritePVRState(TileContext *tactx);
   void WriteBackgroundState(TileContext *tactx);
 
-  emu::Memory &memory_;
-  Holly &holly_;
-  PVR2 &pvr_;
-  renderer::Backend *rb_;
+  emu::Dreamcast *dc_;
+  emu::Memory *memory_;
+  holly::Holly *holly_;
+  uint8_t *video_ram_;
 
   TileTextureCache texcache_;
   TileRenderer tile_renderer_;
   TileContextMap contexts_;
   TileContext scratch_context_;
   TileContext *last_context_;
-
-  std::unique_ptr<trace::TraceWriter> trace_writer_;
 };
 }
 }

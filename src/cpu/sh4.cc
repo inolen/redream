@@ -1,6 +1,7 @@
 #include "core/core.h"
 #include "cpu/runtime.h"
 #include "cpu/sh4.h"
+#include "emu/memory.h"
 #include "emu/profiler.h"
 
 using namespace dreavm::core;
@@ -15,24 +16,91 @@ InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-SH4::SH4(Memory &memory) : memory_(memory) {}
-
-SH4::~SH4() {}
-
-bool SH4::Init(Runtime *runtime) {
-  runtime_ = runtime;
-
-  InitMemory();
-  Reset();
-
-  return true;
+static void SetRegisterBank(SH4Context *ctx, int bank) {
+  if (bank == 0) {
+    for (int s = 0; s < 8; s++) {
+      ctx->rbnk[1][s] = ctx->r[s];
+      ctx->r[s] = ctx->rbnk[0][s];
+    }
+  } else {
+    for (int s = 0; s < 8; s++) {
+      ctx->rbnk[0][s] = ctx->r[s];
+      ctx->r[s] = ctx->rbnk[1][s];
+    }
+  }
 }
 
-void SH4::Reset(uint32_t pc) {
-  Reset();
+static void SwapFPRegisters(SH4Context *ctx) {
+  uint32_t z;
 
-  ctx_.pc = pc;
+  for (int s = 0; s <= 15; s++) {
+    z = ctx->fr[s];
+    ctx->fr[s] = ctx->xf[s];
+    ctx->xf[s] = z;
+  }
 }
+
+static void SwapFPCouples(SH4Context *ctx) {
+  uint32_t z;
+
+  for (int s = 0; s <= 15; s = s + 2) {
+    z = ctx->fr[s];
+    ctx->fr[s] = ctx->fr[s + 1];
+    ctx->fr[s + 1] = z;
+
+    z = ctx->xf[s];
+    ctx->xf[s] = ctx->xf[s + 1];
+    ctx->xf[s + 1] = z;
+  }
+}
+
+void SH4Context::SRUpdated(SH4Context *ctx) {
+  if (ctx->sr.RB != ctx->old_sr.RB) {
+    SetRegisterBank(ctx, ctx->sr.RB ? 1 : 0);
+  }
+
+  ctx->old_sr = ctx->sr;
+}
+
+void SH4Context::FPSCRUpdated(SH4Context *ctx) {
+  if (ctx->fpscr.FR != ctx->old_fpscr.FR) {
+    SwapFPRegisters(ctx);
+  }
+
+  if (ctx->fpscr.PR != ctx->old_fpscr.PR) {
+    SwapFPCouples(ctx);
+  }
+
+  ctx->old_fpscr = ctx->fpscr;
+}
+
+SH4::SH4(Memory &memory, Runtime &runtime)
+    : memory_(memory),
+      runtime_(runtime),
+      requested_interrupts_(0),
+      pending_interrupts_(0) {}
+
+void SH4::Init() {
+  memset(&ctx_, 0, sizeof(ctx_));
+  ctx_.pc = 0xa0000000;
+  ctx_.pr = 0xdeadbeef;
+  ctx_.sr.full = ctx_.old_sr.full = 0x700000f0;
+  ctx_.fpscr.full = ctx_.old_fpscr.full = 0x00040001;
+
+  memset(area7_, 0, sizeof(area7_));
+#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
+  if (default != HELD) {                                                 \
+    *(uint32_t *)&area7_[name##_OFFSET] = default;                       \
+  }
+#include "cpu/sh4_regs.inc"
+#undef SH4_REG
+
+  memset(cache_, 0, sizeof(cache_));
+
+  ReprioritizeInterrupts();
+}
+
+void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }
 
 uint32_t SH4::Execute(uint32_t cycles) {
   PROFILER_RUNTIME("SH4::Execute");
@@ -48,9 +116,8 @@ uint32_t SH4::Execute(uint32_t cycles) {
   }
 
   while (ctx_.pc != 0xdeadbeef) {
-    // translate PC to 29-bit physical space
-    uint32_t pc = ctx_.pc & ~MIRROR_MASK;
-    RuntimeBlock *block = runtime_->GetBlock(pc, &ctx_);
+    uint32_t pc = ctx_.pc & ADDR_MASK;
+    RuntimeBlock *block = runtime_.GetBlock(pc, &ctx_);
 
     // be careful not to wrap around
     uint32_t next_remaining = remaining - block->guest_cycles;
@@ -105,64 +172,15 @@ void SH4::UnrequestInterrupt(Interrupt intr) {
   UpdatePendingInterrupts();
 }
 
-namespace dreavm {
-namespace cpu {
-
-// with OIX, bit 25, rather than bit 13, determines which 4kb bank to use
-#define CACHE_OFFSET(addr, OIX) \
-  ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
-
-template <typename T>
-T SH4::ReadCache(void *ctx, uint32_t addr) {
-  SH4 *sh4 = (SH4 *)ctx;
-  CHECK_EQ(sh4->CCR.ORA, 1u);
-  uint32_t offset = CACHE_OFFSET(addr, sh4->CCR.OIX);
-  return *reinterpret_cast<T *>(&sh4->cache_[offset]);
+uint8_t SH4::ReadRegister8(uint32_t addr) {
+  return static_cast<uint8_t>(ReadRegister32(addr));
 }
 
-template <typename T>
-void SH4::WriteCache(void *ctx, uint32_t addr, T value) {
-  SH4 *sh4 = (SH4 *)ctx;
-  CHECK_EQ(sh4->CCR.ORA, 1u);
-  uint32_t offset = CACHE_OFFSET(addr, sh4->CCR.OIX);
-  *reinterpret_cast<T *>(&sh4->cache_[offset]) = value;
+uint16_t SH4::ReadRegister16(uint32_t addr) {
+  return static_cast<uint16_t>(ReadRegister32(addr));
 }
 
-template <typename T>
-T SH4::ReadSQ(void *ctx, uint32_t addr) {
-  return static_cast<T>(ReadSQ<uint32_t>(ctx, addr));
-}
-
-template <>
-uint32_t SH4::ReadSQ(void *ctx, uint32_t addr) {
-  SH4 *sh4 = (SH4 *)ctx;
-  uint32_t sqi = (addr & 0x20) >> 5;
-  unsigned idx = (addr & 0x1c) >> 2;
-  return sh4->ctx_.sq[sqi][idx];
-}
-
-template <typename T>
-void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
-  WriteSQ<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
-}
-
-template <>
-void SH4::WriteSQ(void *ctx, uint32_t addr, uint32_t value) {
-  SH4 *sh4 = (SH4 *)ctx;
-  uint32_t sqi = (addr & 0x20) >> 5;
-  unsigned idx = (addr & 0x1c) >> 2;
-  sh4->ctx_.sq[sqi][idx] = value;
-}
-
-template <typename T>
-T SH4::ReadArea7(void *ctx, uint32_t addr) {
-  return static_cast<T>(ReadArea7<uint32_t>(ctx, addr));
-}
-
-template <>
-uint32_t SH4::ReadArea7(void *ctx, uint32_t addr) {
-  SH4 *sh4 = (SH4 *)ctx;
-
+uint32_t SH4::ReadRegister32(uint32_t addr) {
   // translate from 64mb space to our 16kb space
   addr = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2);
 
@@ -195,8 +213,8 @@ uint32_t SH4::ReadArea7(void *ctx, uint32_t addr) {
       // reg[PDTRA] = reg[PDTRA] & 0xfffd;
       // _8c00b92c(0);
       // reg[PCTRA] = old_PCTRA;
-      uint32_t pctra = sh4->PCTRA;
-      uint32_t pdtra = sh4->PDTRA;
+      uint32_t pctra = PCTRA;
+      uint32_t pdtra = PDTRA;
       uint32_t v = 0;
       if ((pctra & 0xf) == 0x8 ||
           ((pctra & 0xf) == 0xb && (pdtra & 0xf) != 0x2) ||
@@ -236,22 +254,22 @@ uint32_t SH4::ReadArea7(void *ctx, uint32_t addr) {
     }
   }
 
-  return sh4->area7_[addr];
+  return area7_[addr];
 }
 
-template <typename T>
-void SH4::WriteArea7(void *ctx, uint32_t addr, T value) {
-  WriteArea7<uint32_t>(ctx, addr, static_cast<uint32_t>(value));
+void SH4::WriteRegister8(uint32_t addr, uint8_t value) {
+  WriteRegister32(addr, static_cast<uint32_t>(value));
 }
 
-template <>
-void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
-  SH4 *sh4 = (SH4 *)ctx;
+void SH4::WriteRegister16(uint32_t addr, uint16_t value) {
+  WriteRegister32(addr, static_cast<uint32_t>(value));
+}
 
+void SH4::WriteRegister32(uint32_t addr, uint32_t value) {
   // translate from 64mb space to our 16kb space
   addr = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2);
 
-  sh4->area7_[addr] = value;
+  area7_[addr] = value;
 
   switch (addr) {
     case MMUCR_OFFSET:
@@ -263,79 +281,111 @@ void SH4::WriteArea7(void *ctx, uint32_t addr, uint32_t value) {
     // it seems the only aspect of the cache control register that needs to be
     // emulated is the instruction cache invalidation
     case CCR_OFFSET:
-      if (sh4->CCR.ICI) {
-        sh4->ResetInstructionCache();
+      if (CCR.ICI) {
+        ResetInstructionCache();
       }
       break;
 
     // when a PREF instruction is encountered, the high order bits of the
     // address are filled in from the queue address control register
     case QACR0_OFFSET:
-      sh4->ctx_.sq_ext_addr[0] = (value & 0x1c) << 24;
+      ctx_.sq_ext_addr[0] = (value & 0x1c) << 24;
       break;
     case QACR1_OFFSET:
-      sh4->ctx_.sq_ext_addr[1] = (value & 0x1c) << 24;
+      ctx_.sq_ext_addr[1] = (value & 0x1c) << 24;
       break;
 
     case IPRA_OFFSET:
     case IPRB_OFFSET:
     case IPRC_OFFSET:
-      sh4->ReprioritizeInterrupts();
+      ReprioritizeInterrupts();
       break;
 
       // TODO UnrequestInterrupt on TCR write
   }
 }
-}
-}
 
-void SH4::InitMemory() {
-  // mount internal cpu register area
-  memory_.Handle(SH4_REG_START, SH4_REG_END, MIRROR_MASK, this,
-                 &SH4::ReadArea7<uint8_t>, &SH4::ReadArea7<uint16_t>,
-                 &SH4::ReadArea7<uint32_t>, nullptr, &SH4::WriteArea7<uint8_t>,
-                 &SH4::WriteArea7<uint16_t>, &SH4::WriteArea7<uint32_t>,
-                 nullptr);
+// with OIX, bit 25, rather than bit 13, determines which 4kb bank to use
+#define CACHE_OFFSET(addr, OIX) \
+  ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
 
-  // map cache
-  memory_.Handle(0x7c000000, 0x7fffffff, 0x0, this, &SH4::ReadCache<uint8_t>,
-                 &SH4::ReadCache<uint16_t>, &SH4::ReadCache<uint32_t>,
-                 &SH4::ReadCache<uint64_t>, &SH4::WriteCache<uint8_t>,
-                 &SH4::WriteCache<uint16_t>, &SH4::WriteCache<uint32_t>,
-                 &SH4::WriteCache<uint64_t>);
-
-  // map store queues
-  memory_.Handle(0xe0000000, 0xe3ffffff, 0x0, this, &SH4::ReadSQ<uint8_t>,
-                 &SH4::ReadSQ<uint16_t>, &SH4::ReadSQ<uint32_t>, nullptr,
-                 &SH4::WriteSQ<uint8_t>, &SH4::WriteSQ<uint16_t>,
-                 &SH4::WriteSQ<uint32_t>, nullptr);
+uint8_t SH4::ReadCache8(uint32_t addr) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  return *reinterpret_cast<uint8_t *>(&cache_[addr]);
 }
 
-void SH4::Reset() {
-  // reset context
-  memset(&ctx_, 0, sizeof(ctx_));
-  ctx_.pc = 0xa0000000;
-  ctx_.pr = 0xdeadbeef;
-  ctx_.sr.full = ctx_.old_sr.full = 0x700000f0;
-  ctx_.fpscr.full = ctx_.old_fpscr.full = 0x00040001;
-
-#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
-  if (default != HELD) {                                                 \
-    *(uint32_t *)&area7_[name##_OFFSET] = default;                       \
-  }
-#include "cpu/sh4_regs.inc"
-#undef SH4_REG
-
-  // reset interrupts
-  requested_interrupts_ = 0;
-  ReprioritizeInterrupts();
-
-  // reset memory
-  memset(area7_, 0, sizeof(area7_));
-  memset(cache_, 0, sizeof(cache_));
+uint16_t SH4::ReadCache16(uint32_t addr) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  return *reinterpret_cast<uint16_t *>(&cache_[addr]);
 }
 
-void SH4::ResetInstructionCache() { runtime_->QueueResetBlocks(); }
+uint32_t SH4::ReadCache32(uint32_t addr) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  return *reinterpret_cast<uint32_t *>(&cache_[addr]);
+}
+
+uint64_t SH4::ReadCache64(uint32_t addr) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  return *reinterpret_cast<uint64_t *>(&cache_[addr]);
+}
+
+void SH4::WriteCache8(uint32_t addr, uint8_t value) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  *reinterpret_cast<uint8_t *>(&cache_[addr]) = value;
+}
+
+void SH4::WriteCache16(uint32_t addr, uint16_t value) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  *reinterpret_cast<uint16_t *>(&cache_[addr]) = value;
+}
+
+void SH4::WriteCache32(uint32_t addr, uint32_t value) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  *reinterpret_cast<uint32_t *>(&cache_[addr]) = value;
+}
+
+void SH4::WriteCache64(uint32_t addr, uint64_t value) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  *reinterpret_cast<uint64_t *>(&cache_[addr]) = value;
+}
+
+uint8_t SH4::ReadSQ8(uint32_t addr) {
+  return static_cast<uint8_t>(ReadSQ32(addr));
+}
+
+uint16_t SH4::ReadSQ16(uint32_t addr) {
+  return static_cast<uint16_t>(ReadSQ32(addr));
+}
+
+uint32_t SH4::ReadSQ32(uint32_t addr) {
+  uint32_t sqi = (addr & 0x20) >> 5;
+  unsigned idx = (addr & 0x1c) >> 2;
+  return ctx_.sq[sqi][idx];
+}
+
+void SH4::WriteSQ8(uint32_t addr, uint8_t value) {
+  WriteSQ32(addr, static_cast<uint32_t>(value));
+}
+
+void SH4::WriteSQ16(uint32_t addr, uint16_t value) {
+  WriteSQ32(addr, static_cast<uint32_t>(value));
+}
+
+void SH4::WriteSQ32(uint32_t addr, uint32_t value) {
+  uint32_t sqi = (addr & 0x20) >> 5;
+  unsigned idx = (addr & 0x1c) >> 2;
+  ctx_.sq[sqi][idx] = value;
+}
+
+void SH4::ResetInstructionCache() { runtime_.QueueResetBlocks(); }
 
 // Generate a sorted set of interrupts based on their priority. These sorted
 // ids are used to represent all of the currently requested interrupts as a
@@ -411,7 +461,7 @@ void SH4::CheckPendingInterrupts() {
   ctx_.sr.RB = 1;
   ctx_.pc = ctx_.vbr + 0x600;
 
-  SRUpdated(&ctx_);
+  SH4Context::SRUpdated(&ctx_);
 }
 
 bool SH4::TimerEnabled(int n) {  //

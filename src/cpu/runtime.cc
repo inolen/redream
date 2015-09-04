@@ -27,37 +27,23 @@ static inline uint32_t BlockOffset(uint32_t addr) {
   return (addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT;
 }
 
-Runtime::Runtime(Memory &memory)
+Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
+                 backend::Backend &backend)
     : memory_(memory),
-      frontend_(nullptr),
-      backend_(nullptr),
+      frontend_(frontend),
+      backend_(backend),
       pending_reset_(false) {
   blocks_ = new RuntimeBlock[MAX_BLOCKS];
-}
-
-Runtime::~Runtime() { delete[] blocks_; }
-
-bool Runtime::Init(frontend::Frontend *frontend, backend::Backend *backend) {
-  frontend_ = frontend;
-  backend_ = backend;
-
-  if (!frontend_->Init()) {
-    return false;
-  }
-
-  if (!backend_->Init()) {
-    return false;
-  }
 
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ContextPromotionPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
   pass_runner_.AddPass(
-      std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
-
-  return true;
+      std::unique_ptr<Pass>(new RegisterAllocationPass(backend_)));
 }
+
+Runtime::~Runtime() { delete[] blocks_; }
 
 // TODO should the block caching be part of the frontend?
 // this way, the SH4Frontend can cache based on FPU state
@@ -86,7 +72,7 @@ RuntimeBlock *Runtime::GetBlock(uint32_t addr, const void *guest_ctx) {
 void Runtime::QueueResetBlocks() { pending_reset_ = true; }
 
 void Runtime::ResetBlocks() {
-  backend_->Reset();
+  backend_.Reset();
 
   memset(blocks_, 0, sizeof(RuntimeBlock) * MAX_BLOCKS);
 }
@@ -95,12 +81,12 @@ void Runtime::CompileBlock(uint32_t addr, const void *guest_ctx,
                            RuntimeBlock *block) {
   PROFILER_RUNTIME("Runtime::CompileBlock");
 
-  std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr, guest_ctx);
+  std::unique_ptr<IRBuilder> builder = frontend_.BuildBlock(addr, guest_ctx);
 
   // run optimization passes
   pass_runner_.Run(*builder);
 
-  if (!backend_->AssembleBlock(*builder, block)) {
+  if (!backend_.AssembleBlock(*builder, block)) {
     LOG_INFO("Assembler overflow, resetting block cache");
 
     // the backend overflowed, reset the block cache
@@ -108,7 +94,7 @@ void Runtime::CompileBlock(uint32_t addr, const void *guest_ctx,
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
-    CHECK(backend_->AssembleBlock(*builder, block),
+    CHECK(backend_.AssembleBlock(*builder, block),
           "Backend assembler buffer overflow");
   }
 }

@@ -124,10 +124,9 @@ set(DREAVM_SOURCES
   src/cpu/ir/passes/register_allocation_pass.cc
   src/cpu/ir/passes/validate_pass.cc
   src/cpu/sh4.cc
-  src/cpu/sh4_context.cc
   src/cpu/runtime.cc
   src/emu/disc.cc
-  src/emu/emulator.cc
+  src/emu/dreamcast.cc
   src/emu/profiler.cc
   src/emu/scheduler.cc
   src/holly/gdrom.cc
@@ -281,36 +280,14 @@ endif()
 
 # build test binary
 set(DREAVM_TEST_SOURCES
-  src/core/assert.cc
-  src/core/filesystem.cc
-  src/core/log.cc
-  src/cpu/backend/interpreter/interpreter_backend.cc
-  src/cpu/backend/interpreter/interpreter_block.cc
-  src/cpu/backend/interpreter/interpreter_callbacks.cc
-  src/cpu/backend/x64/x64_backend.cc
-  src/cpu/backend/x64/x64_block.cc
-  src/cpu/backend/x64/x64_emitter.cc
-  src/cpu/frontend/sh4/sh4_builder.cc
-  src/cpu/frontend/sh4/sh4_emit.cc
-  src/cpu/frontend/sh4/sh4_frontend.cc
-  src/cpu/frontend/sh4/sh4_instr.cc
-  src/cpu/ir/ir_builder.cc
-  src/cpu/ir/passes/constant_propagation_pass.cc
-  src/cpu/ir/passes/context_promotion_pass.cc
-  src/cpu/ir/passes/control_flow_analysis_pass.cc
-  src/cpu/ir/passes/pass_runner.cc
-  src/cpu/ir/passes/register_allocation_pass.cc
-  src/cpu/ir/passes/validate_pass.cc
-  src/cpu/sh4.cc
-  src/cpu/sh4_context.cc
-  src/cpu/runtime.cc
-  src/emu/profiler.cc
+  ${DREAVM_SOURCES}
   test/sh4_test.cc
   test/test_intrusive_list.cc
-  test/test_memory.cc
+  #test/test_memory.cc
   test/test_ring_buffer.cc
   test/test_sh4.cc
   ${asm_inc})
+list(REMOVE_ITEM DREAVM_TEST_SOURCES src/main.cc)
 
 # assign source groups for visual studio projects
 source_group_by_dir(DREAVM_TEST_SOURCES)
