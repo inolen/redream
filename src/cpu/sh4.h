@@ -163,7 +163,7 @@ struct SH4Context {
 };
 
 class SH4 : public emu::Device {
-  friend void SRUpdated(SH4Context *ctx);
+  template <typename BACKEND>
   friend void RunSH4Test(const SH4Test &);
 
  public:

@@ -11,21 +11,25 @@
 
 using namespace dreavm;
 using namespace dreavm::cpu;
+using namespace dreavm::cpu::backend::interpreter;
+using namespace dreavm::cpu::backend::x64;
+using namespace dreavm::cpu::frontend::sh4;
 using namespace dreavm::core;
 using namespace dreavm::emu;
 
 namespace dreavm {
 namespace cpu {
 
+template <typename BACKEND>
 void RunSH4Test(const SH4Test &test) {
   static uint32_t pc = 0x8c010000;
 
   Memory memory;
-  frontend::sh4::SH4Frontend rt_frontend(memory);
-  backend::x64::X64Backend rt_backend(memory);
+  SH4Frontend rt_frontend(memory);
+  BACKEND rt_backend(memory);
   Runtime runtime(memory, rt_frontend, rt_backend);
 
-  // initialize device
+  // initialize cpu
   SH4 sh4(memory, runtime);
   sh4.Init();
   sh4.SetPC(pc);
@@ -67,10 +71,14 @@ void RunSH4Test(const SH4Test &test) {
 }
 }
 
-#define SH4_TEST(name, ...)     \
-  TEST(SH4, name) {             \
-    SH4Test test = __VA_ARGS__; \
-    RunSH4Test(test);           \
+#define SH4_TEST(name, ...)               \
+  TEST(SH4_interpreter, name) {           \
+    SH4Test test = __VA_ARGS__;           \
+    RunSH4Test<InterpreterBackend>(test); \
+  }                                       \
+  TEST(SH4_x64, name) {                   \
+    SH4Test test = __VA_ARGS__;           \
+    RunSH4Test<X64Backend>(test);         \
   }
 #include "asm/sh4_test.inc"
 #undef SH4_TEST
