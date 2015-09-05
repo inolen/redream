@@ -283,7 +283,6 @@ set(DREAVM_TEST_SOURCES
   ${DREAVM_SOURCES}
   test/sh4_test.cc
   test/test_intrusive_list.cc
-  #test/test_memory.cc
   test/test_ring_buffer.cc
   test/test_sh4.cc
   ${asm_inc})
