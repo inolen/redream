@@ -1430,7 +1430,7 @@ EMITTER(LSHR) {
 EMITTER(BRANCH) {
   if (instr->arg0()->type() == VALUE_BLOCK) {
     // jump to local block
-    Block *dst = instr->arg0()->value<Block *>();
+    const Block *dst = instr->arg0()->value<const Block *>();
     c.jmp(GetLabel(dst), Xbyak::CodeGenerator::T_NEAR);
   } else {
     // return if we need to branch to a far block
@@ -1450,8 +1450,8 @@ EMITTER(BRANCH_COND) {
       instr->arg2()->type() == VALUE_BLOCK) {
     // jump to local block
     const Block *next_block = instr->block()->next();
-    Block *block_true = instr->arg1()->value<Block *>();
-    Block *block_false = instr->arg2()->value<Block *>();
+    const Block *block_true = instr->arg1()->value<const Block *>();
+    const Block *block_false = instr->arg2()->value<const Block *>();
 
     // don't emit a jump if the block is next
     if (next_block != block_true) {

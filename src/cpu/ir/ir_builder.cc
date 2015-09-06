@@ -192,7 +192,7 @@ void IRBuilder::Dump() const {
           ss << v->value<double>();
           break;
         case VALUE_BLOCK:
-          DumpBlock(ss, v->value<Block *>());
+          DumpBlock(ss, v->value<const Block *>());
           break;
       }
     }

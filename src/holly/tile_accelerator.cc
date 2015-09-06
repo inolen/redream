@@ -444,10 +444,10 @@ void TileAccelerator::WritePVRState(TileContext *tactx) {
 void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
   // according to the hardware docs, this is the correct calculation of the
   // background ISP address. however, in practice, the second TA buffer's ISP
-  // address comes out to be 0x800000 when booting the the bios when the vram
-  // is only 8mb total. by examining a raw memory dump, the ISP data is only
-  // ever available at 0x0 when booting the bios, so masking this seems to
-  // be the correct solution
+  // address comes out to be 0x800000 when booting the bios and the vram is
+  // only 8mb total. by examining a raw memory dump, the ISP data is only ever
+  // available at 0x0 when booting the bios, so masking this seems to be the
+  // correct solution
   uint32_t vram_offset =
       PVR_VRAM64_START +
       ((tactx->addr + dc_->ISP_BACKGND_T.tag_address * 4) & 0x7fffff);

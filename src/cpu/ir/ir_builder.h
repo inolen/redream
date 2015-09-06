@@ -128,8 +128,8 @@ class Value {
 
   bool constant() const { return constant_; }
 
-  template <typename T>
-  T value() const;
+  template <typename T> T value() const;
+  template <typename T> T value();
 
   const core::IntrusiveList<ValueRef> &refs() const { return refs_; }
   core::IntrusiveList<ValueRef> &refs() { return refs_; }
@@ -165,44 +165,72 @@ class Value {
 
 template <>
 inline int8_t Value::value() const {
-  DCHECK_EQ(type_, VALUE_I8);
-  DCHECK_EQ(constant_, true);
+  DCHECK(constant_ && type_ == VALUE_I8);
+  return i8_;
+}
+template <>
+inline int8_t Value::value() {
+  DCHECK(constant_ && type_ == VALUE_I8);
   return i8_;
 }
 template <>
 inline int16_t Value::value() const {
-  DCHECK_EQ(type_, VALUE_I16);
-  DCHECK_EQ(constant_, true);
+  DCHECK(constant_ && type_ == VALUE_I16);
+  return i16_;
+}
+template <>
+inline int16_t Value::value() {
+  DCHECK(constant_ && type_ == VALUE_I16);
   return i16_;
 }
 template <>
 inline int32_t Value::value() const {
-  DCHECK_EQ(type_, VALUE_I32);
-  DCHECK_EQ(constant_, true);
+  DCHECK(constant_ && type_ == VALUE_I32);
+  return i32_;
+}
+template <>
+inline int32_t Value::value() {
+  DCHECK(constant_ && type_ == VALUE_I32);
   return i32_;
 }
 template <>
 inline int64_t Value::value() const {
-  DCHECK_EQ(type_, VALUE_I64);
-  DCHECK_EQ(constant_, true);
+  DCHECK(constant_ && type_ == VALUE_I64);
+  return i64_;
+}
+template <>
+inline int64_t Value::value() {
+  DCHECK(constant_ && type_ == VALUE_I64);
   return i64_;
 }
 template <>
 inline float Value::value() const {
-  DCHECK_EQ(type_, VALUE_F32);
-  DCHECK_EQ(constant_, true);
+  DCHECK(constant_ && type_ == VALUE_F32);
+  return f32_;
+}
+template <>
+inline float Value::value() {
+  DCHECK(constant_ && type_ == VALUE_F32);
   return f32_;
 }
 template <>
 inline double Value::value() const {
-  DCHECK_EQ(type_, VALUE_F64);
-  DCHECK_EQ(constant_, true);
+  DCHECK(constant_ && type_ == VALUE_F64);
   return f64_;
 }
 template <>
-inline Block *Value::value() const {
-  DCHECK_EQ(type_, VALUE_BLOCK);
-  DCHECK_EQ(constant_, true);
+inline double Value::value() {
+  DCHECK(constant_ && type_ == VALUE_F64);
+  return f64_;
+}
+template <>
+inline const Block *Value::value() const {
+  DCHECK(constant_ && type_ == VALUE_BLOCK);
+  return block_;
+}
+template <>
+inline Block *Value::value() {
+  DCHECK(constant_ && type_ == VALUE_BLOCK);
   return block_;
 }
 
