@@ -88,7 +88,7 @@ void Instr::MoveAfter(Instr *other) {
 //
 Edge::Edge(Block *src, Block *dst) : src_(src), dst_(dst) {}
 
-Block::Block() : rpo_next_(nullptr) {}
+Block::Block() : tag_(0) {}
 Block::~Block() {
   while (instrs_.tail()) {
     RemoveInstr(instrs_.tail());

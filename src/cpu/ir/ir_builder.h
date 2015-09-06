@@ -159,6 +159,7 @@ class Value {
     Block *block_;
   };
   core::IntrusiveList<ValueRef> refs_;
+  // initializing here so each constructor variation doesn't have to
   int reg_{NO_REGISTER};
   intptr_t tag_{0};
 };
@@ -345,12 +346,6 @@ class Block : public core::IntrusiveListNode<Block> {
   const core::IntrusiveList<Edge> &incoming() const { return incoming_; }
   core::IntrusiveList<Edge> &incoming() { return incoming_; }
 
-  // filled in by the ControlFlowAnalysis pass, provides reverse postorder
-  // iteration of blocks
-  const Block *rpo_next() const { return rpo_next_; }
-  Block *rpo_next() { return rpo_next_; }
-  void set_rpo_next(Block *rpo_next) { rpo_next_ = rpo_next; }
-
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
@@ -364,7 +359,6 @@ class Block : public core::IntrusiveListNode<Block> {
   core::IntrusiveList<Instr> instrs_;
   core::IntrusiveList<Edge> outgoing_;
   core::IntrusiveList<Edge> incoming_;
-  Block *rpo_next_;
   intptr_t tag_;
 };
 

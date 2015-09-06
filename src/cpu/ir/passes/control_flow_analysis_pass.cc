@@ -25,30 +25,4 @@ void ControlFlowAnalysisPass::Run(IRBuilder &builder) {
       }
     }
   }
-
-  // do a postorder depth-first search of blocks starting at the head,
-  // generating a reverse postorder linked list in the process
-  Block *next = nullptr;
-  Block *tail = nullptr;
-
-  std::function<void(Block *)> DFS = [&](Block *block) {
-    // avoid cycles. tail block has a null next, so check for it explicitly
-    if (block == tail || block->rpo_next()) {
-      return;
-    }
-
-    for (auto edge : block->outgoing()) {
-      DFS(edge->dst());
-    }
-
-    CHECK_NE(block, next);
-    block->set_rpo_next(next);
-    next = block;
-
-    if (!tail) {
-      tail = block;
-    }
-  };
-
-  DFS(builder.blocks().head());
 }
