@@ -19,6 +19,7 @@ struct SH4CTXReg {
 extern SH4CTXReg sh4ctx_reg[NUM_SH4CTX_REGS];
 
 struct SH4Test {
+  uint32_t offset;
   uint8_t *buffer;
   size_t buffer_size;
   std::map<int, uint64_t> r_in;

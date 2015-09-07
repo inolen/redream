@@ -192,42 +192,30 @@ set(TEST_ASM
   test/asm/div0.s
   test/asm/div1s.s
   test/asm/div1u.s
-  test/asm/dmuls.s
-  test/asm/dmulu.s
+  test/asm/dmul.s
   test/asm/dt.s
   test/asm/ext.s
-  test/asm/fabsd.s
-  test/asm/fabsf.s
-  test/asm/faddd.s
-  test/asm/faddf.s
-  test/asm/fcmpeqd.s
-  test/asm/fcmpeqf.s
-  test/asm/fcmpgtd.s
-  test/asm/fcmpgtf.s
-  test/asm/fdivd.s
-  test/asm/fdivf.s
+  test/asm/fabs.s
+  test/asm/fadd.s
+  test/asm/fcmpeq.s
+  test/asm/fcmpgt.s
+  test/asm/fdiv.s
   test/asm/fipr.s
   test/asm/fld.s
-  test/asm/floatd.s
-  test/asm/floatf.s
+  test/asm/float.s
   test/asm/fmac.s
   test/asm/fmovd.s
   test/asm/fmovf.s
   test/asm/fmovsz.s
-  test/asm/fmuld.s
-  test/asm/fmulf.s
-  test/asm/fnegd.s
-  test/asm/fnegf.s
+  test/asm/fmul.s
+  test/asm/fneg.s
   test/asm/frchg.s
   test/asm/fsca.s
   test/asm/fschg.s
   test/asm/fsrra.s
-  test/asm/fsqrtd.s
-  test/asm/fsqrtf.s
-  test/asm/fsubd.s
-  test/asm/fsubf.s
-  test/asm/ftrcd.s
-  test/asm/ftrcf.s
+  test/asm/fsqrt.s
+  test/asm/fsub.s
+  test/asm/ftrc.s
   test/asm/ftrv.s
   test/asm/jmp.s
   test/asm/jsr.s
@@ -242,6 +230,7 @@ set(TEST_ASM
   test/asm/movw.s
   test/asm/mul.s
   test/asm/neg.s
+  test/asm/negc.s
   test/asm/not.s
   test/asm/or.s
   test/asm/rot.s
@@ -260,18 +249,21 @@ set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/asm/sh4_test.inc)
 find_package(PythonInterp)
 find_program(SH_AS NAMES sh-elf-as)
 find_program(SH_LD NAMES sh-elf-ld)
+find_program(SH_NM NAMES sh-elf-nm)
 find_program(SH_OBJCOPY NAMES sh-elf-objcopy)
 if(NOT PYTHONINTERP_FOUND)
-  message(WARNING "Could not find python interpreter, won't be able to update tests")
+  message(WARNING "Could not find python interpreter, won't be able to generate tests")
 elseif(NOT SH_AS)
-  message(WARNING "Could not find sh-elf-as, won't be able to update tests")
+  message(WARNING "Could not find sh-elf-as, won't be able to generate tests")
 elseif(NOT SH_LD)
-  message(WARNING "Could not find sh-elf-ld, won't be able to update tests")
+  message(WARNING "Could not find sh-elf-ld, won't be able to generate tests")
+elseif(NOT SH_NM)
+  message(WARNING "Could not find sh-elf-nm, won't be able to generate tests")
 elseif(NOT SH_OBJCOPY)
-  message(WARNING "Could not find sh-elf-objcopy, won't be able to update tests")
+  message(WARNING "Could not find sh-elf-objcopy, won't be able to generate tests")
 else()
   add_custom_command(OUTPUT ${asm_inc}
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py -as ${SH_AS} -ld ${SH_LD} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py -as ${SH_AS} -ld ${SH_LD} -nm ${SH_NM} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py ${TEST_ASM}
     COMMENT "Assembling ${asm_inc} for ${TEST_ASM}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}

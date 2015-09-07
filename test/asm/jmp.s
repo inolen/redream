@@ -1,20 +1,15 @@
-# REGISTER_IN r1 0
-
-  .little
-  .text
-  .global start
-start:
-  mov.l .L3, r0
+test_jmp:
+  # REGISTER_IN r1 0
+  mov.l .L1, r0
   jmp @r0
   nop
-  mov #1, r1
-  .align 1
-  .global _foobar
+  rts
+  nop
 _foobar:
   rts
-  add #13, r1
-.L3:
-  .align 2
-  .long _foobar
+  mov #13, r1
+  # REGISTER_OUT r1 13
 
-# REGISTER_OUT r1 13
+.align 4
+.L1:
+  .long _foobar

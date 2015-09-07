@@ -963,7 +963,7 @@ EMITTER(SHAR) {
 EMITTER(SHLD) {
   // when Rm >= 0, Rn << Rm
   // when Rm < 0, Rn >> Rm
-  // when shifting right > 32, Rn = 0
+  // when shifting right >= 32, Rn = 0
   Block *shl_block = b.AppendBlock();
   Block *shr_block = b.AppendBlock();
   Block *shr_nooverflow_block = b.AppendBlock();

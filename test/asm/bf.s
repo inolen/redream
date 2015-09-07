@@ -1,26 +1,26 @@
-# REGISTER_IN r0 7
-# REGISTER_IN r1 0
-
-  .little
-  .text
-  .global start
-start:
-# BF      disp
-  cmp/eq #8, r0
+test_bf:
+  # REGISTER_IN r0 8
+  # REGISTER_IN r1 0
+  cmp/eq #7, r0
   bf .L1
-  bra .L4
-  nop
-.L1:
-# BFS     disp
-  cmp/eq #9, r0
-  bf/s .L3
-  add #6, r1
-  bra .L4
-  nop
-.L3:
-  add #7, r1
-.L4:
   rts
   nop
+.L1:
+  mov #3, r1
+  rts
+  nop
+  # REGISTER_OUT r1 3
 
-# REGISTER_OUT r1 13
+test_bfs:
+  # REGISTER_IN r0 8
+  # REGISTER_IN r1 0
+  cmp/eq #7, r0
+  bf/s .L2
+  add #6, r1
+  rts
+  nop
+.L2:
+  add #7, r1
+  rts
+  nop
+  # REGISTER_OUT r1 13

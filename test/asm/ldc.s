@@ -1,81 +1,93 @@
-  .text
-  .global start
-start:
-# LDC     Rm,SR
-# STC     SR,Rn
+test_ldc_stc_sr:
   # write control value before swap
-  mov #1, r2
+  mov #13, r2
   # swap banks
   mov.l .ALT_SR, r0
   ldc r0, sr
   # overwrite control value to test swap
   mov #99, r2
   # write sr to mem
-  stc sr, r2
+  stc sr, r1
   mov.l .DATA_ADDR, r0
-  mov.l r2, @r0
+  mov.l r1, @r0
   # swap back again
   mov.l .DEFAULT_SR, r0
   ldc r0, sr
   # read sr from mem
   mov.l .DATA_ADDR, r0
   mov.l @r0, r3
-# LDCRBANK   Rm,Rn_BANK
-# STCRBANK   Rm_BANK,Rn
-  mov #1, r0
-  ldc r0, r4_bank
-  mov #99, r4
-  stc r4_bank, r4
-# LDC     Rm,GBR
-# STC     GBR,Rn
-  mov #2, r0
+  rts
+  nop
+  # REGISTER_OUT r2 13
+  # REGISTER_OUT r3 0x500000f0
+
+test_ldc_stc_rbank:
+  # REGISTER_IN r0 13
+  ldc r0, r1_bank
+  mov #99, r1
+  stc r1_bank, r1
+  rts
+  nop
+  # REGISTER_OUT r1 13
+
+test_ldc_stc_gbr:
+  # REGISTER_IN r0 13
   ldc r0, gbr
-  stc gbr, r5
-# LDC     Rm,VBR
-# STC     VBR,Rn
-  mov #3, r0
+  stc gbr, r1
+  rts
+  nop
+  # REGISTER_OUT r1 13
+
+test_ldc_stc_vbr:
+  # REGISTER_IN r0 13
   ldc r0, vbr
-  stc vbr, r6
-# LDC     Rm,SSR
-# STC     SSR,Rn
-  mov #4, r0
+  stc vbr, r1
+  rts
+  nop
+  # REGISTER_OUT r1 13
+
+test_ldc_stc_ssr:
+  # REGISTER_IN r0 13
   ldc r0, ssr
-  stc ssr, r7
-# LDC     Rm,SPC
-# STC     SPC,Rn
-  mov #5, r0
+  stc ssr, r1
+  rts
+  nop
+  # REGISTER_OUT r1 13
+
+test_ldc_stc_spc:
+  # REGISTER_IN r0 13
   ldc r0, spc
-  stc spc, r8
-# STC     SGR,Rn
+  stc spc, r1
+  rts
+  nop
+  # REGISTER_OUT r1 13
+
 # TODO
+# STC     SGR,Rn
 #  mov r0, r15
 #  trapa
 #  stc sgr, r9
-# LDC     Rm,DBR
-# STC     DBR,Rn
-  mov #7, r0
+
+test_ldc_stc_dbr:
+  # REGISTER_IN r0 13
   ldc r0, dbr
-  stc dbr, r10
-  rts 
+  stc dbr, r1
+  rts
   nop
-  .align 4
+  # REGISTER_OUT r1 13
+
+.align 4
 .DATA:
   .long 0x0
-  .align 4
+
+.align 4
 .DATA_ADDR:
   .long .DATA
-  .align 4
+
+.align 4
 .ALT_SR:
   .long 0x500000f0
-  .align 4
+
+.align 4
 .DEFAULT_SR:
   .long 0x700000f0
-
-# REGISTER_OUT r2 1
-# REGISTER_OUT r3 0x500000f0
-# REGISTER_OUT r4 1
-# REGISTER_OUT r5 2
-# REGISTER_OUT r6 3
-# REGISTER_OUT r7 4
-# REGISTER_OUT r8 5
-# REGISTER_OUT r10 7

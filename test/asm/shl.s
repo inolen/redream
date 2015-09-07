@@ -1,45 +1,92 @@
-  .text
-  .global start
-start:
-  # SHLD    Rm,Rn (-2145910784 >> 20) == -2047
-  mov.l .CONST, r1
-  mov.l .CONST+8, r2
-  shld r1, r2
-  # SHLD    Rm,Rn (-2145910784 >> 32)
-  mov.l .CONST+4, r1
-  mov.l .CONST+8, r3
-  shld r1, r3
-  # SHLD    Rm,Rn (-2047 << 20) == -2145910784
-  mov.l .CONST+12, r1
-  mov.l .CONST+16, r4
-  shld r1, r4
-  # SHLL    Rn
-  mov.l .CONST+20, r5
-  shll r5
-  stc SR, r0
-  and #0x1, r0
-  mov r0, r6
-  # SHLR    Rn
-  mov.l .CONST+20, r7
-  shlr r7
-  stc SR, r0
-  and #0x1, r0
-  mov r0, r8
+test_shld_left:
+  # REGISTER_IN r0 0x00008018
+  # REGISTER_IN r1 16
+  shld r1, r0
+  rts
+  nop
+  # REGISTER_OUT r0 0x80180000
+
+test_shld_right:
+  # REGISTER_IN r0 0x80180000
+  # REGISTER_IN r1 -16
+  shld r1, r0
+  rts
+  nop
+  # REGISTER_OUT r0 0x00008018
+
+test_shld_right_overflow:
+  # REGISTER_IN r0 0x80180000
+  # REGISTER_IN r1 -32
+  shld r1, r0
+  rts
+  nop
+  # REGISTER_OUT r0 0x0
+
+test_shal:
+  # REGISTER_IN r0 0x80000001
+  shal r0
+  movt r1
+  rts
+  nop
+  # REGISTER_OUT r0 0x2
+  # REGISTER_OUT r1 1
+
+test_shll:
+  # REGISTER_IN r0 0x80000001
+  shll r0
+  movt r1
+  rts
+  nop
+  # REGISTER_OUT r0 0x2
+  # REGISTER_OUT r1 1
+
+test_shlr:
+  # REGISTER_IN r0 0x80000001
+  shlr r0
+  movt r1
   rts 
   nop
-  .align 4
-.CONST:
-  .long 0xffffffec /* -20 */
-  .long 0xffffffe0 /* -32 */
-  .long 0x80180000 /* -2145910784 */
-  .long 0x00000014 /* 20 */
-  .long 0xfffff801 /* -2047 */
-  .long 0x80000001 /* -2147483647 */
+  # REGISTER_OUT r0 0x40000000
+  # REGISTER_OUT r1 1
 
-# REGISTER_OUT r2 0x00000801
-# REGISTER_OUT r3 0x0
-# REGISTER_OUT r4 0x80100000
-# REGISTER_OUT r5 0x00000002
-# REGISTER_OUT r6 1
-# REGISTER_OUT r7 0x40000000
-# REGISTER_OUT r8 1
+test_shll2:
+  # REGISTER_IN r0 0x1
+  shll2 r0
+  rts
+  nop
+  # REGISTER_OUT 0x4
+
+test_shlr2:
+  # REGISTER_IN r0 0x4
+  shlr2 r0
+  rts
+  nop
+  # REGISTER_OUT 0x1
+
+test_shll8:
+  # REGISTER_IN r0 0x1
+  shll8 r0
+  rts
+  nop
+  # REGISTER_OUT 0x100
+
+test_shlr8:
+  # REGISTER_IN r0 0x100
+  shlr8 r0
+  rts
+  nop
+  # REGISTER_OUT 0x1
+
+test_shll16:
+  # REGISTER_IN r0 0x1
+  shll16 r0
+  rts
+  nop
+  # REGISTER_OUT 0x10000
+
+test_shlr16:
+  # REGISTER_IN r0 0x10000
+  shlr16 r0
+  rts
+  nop
+  # REGISTER_OUT 0x1

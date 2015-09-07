@@ -83,7 +83,7 @@ SH4::SH4(Memory &memory, Runtime &runtime)
 void SH4::Init() {
   memset(&ctx_, 0, sizeof(ctx_));
   ctx_.pc = 0xa0000000;
-  ctx_.pr = 0xdeadbeef;
+  ctx_.pr = 0x0;
   ctx_.sr.full = ctx_.old_sr.full = 0x700000f0;
   ctx_.fpscr.full = ctx_.old_fpscr.full = 0x00040001;
 
@@ -115,7 +115,7 @@ uint32_t SH4::Execute(uint32_t cycles) {
     RunTimer(i, cycles >> 2);
   }
 
-  while (ctx_.pc != 0xdeadbeef) {
+  while (ctx_.pc) {
     uint32_t pc = ctx_.pc & ADDR_MASK;
     RuntimeBlock *block = runtime_.GetBlock(pc, &ctx_);
 

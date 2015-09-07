@@ -1,37 +1,42 @@
-# REGISTER_IN r0 13
-# REGISTER_IN r1 0xffd40001
-
-  .text
-  .global start
-start:
-# LDS     Rm,MACH
-# STS     MACH,Rn
+test_lds_sts_mach:
+  # REGISTER_IN r0 13
   lds r0, mach
-  sts mach, r2
-# LDS     Rm,MACL
-# STS     MACL,Rn
+  sts mach, r1
+  rts
+  nop
+  # REGISTER_OUT r1 13
+
+test_lds_sts_macl:
+  # REGISTER_IN r0 13
   lds r0, macl
-  sts macl, r3
-# LDS     Rm,PR
-# STS     PR,Rn
-  sts pr, r5
+  sts macl, r1
+  rts
+  nop
+  # REGISTER_OUT r1 13
+
+test_lds_sts_pr:
+  # REGISTER_IN r0 13
+  sts pr, r2
   lds r0, pr
-  sts pr, r4
+  sts pr, r1
   # restore
-  lds r5, pr
-# LDS     Rm,FPSCR
-# STS     FPSCR,Rn
-  lds r1, fpscr
-  sts fpscr, r5
-# LDS     Rm,FPUL
-# STS     FPUL,Rn
+  lds r2, pr
+  rts
+  nop
+  # REGISTER_OUT r1 13
+
+test_lds_sts_fpscr:
+  # REGISTER_IN r0 0xffd40001
+  lds r0, fpscr
+  sts fpscr, r1
+  rts
+  nop
+  # REGISTER_OUT r1 0x00140001
+
+test_lds_sts_fpul:
+  # REGISTER_IN r0 13
   lds r0, fpul
-  sts fpul, r6
+  sts fpul, r1
   rts 
   nop
-
-# REGISTER_OUT r2 13
-# REGISTER_OUT r3 13
-# REGISTER_OUT r4 13
-# REGISTER_OUT r5 0x00140001
-# REGISTER_OUT r6 13
+  # REGISTER_OUT r1 13

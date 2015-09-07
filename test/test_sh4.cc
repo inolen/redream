@@ -22,7 +22,7 @@ namespace cpu {
 
 template <typename BACKEND>
 void RunSH4Test(const SH4Test &test) {
-  static uint32_t pc = 0x8c010000;
+  static const uint32_t load_address = 0x8c010000;
 
   Memory memory;
   SH4Frontend rt_frontend(memory);
@@ -32,7 +32,6 @@ void RunSH4Test(const SH4Test &test) {
   // initialize cpu
   SH4 sh4(memory, runtime);
   sh4.Init();
-  sh4.SetPC(pc);
 
   // mount a small stack (stack grows down)
   uint8_t stack[MAX_PAGE_SIZE];
@@ -44,7 +43,10 @@ void RunSH4Test(const SH4Test &test) {
                                      static_cast<uint32_t>(MAX_PAGE_SIZE));
   uint8_t *binary = new uint8_t[binary_size];
   memcpy(binary, test.buffer, test.buffer_size);
-  memory.Mount(pc, pc + binary_size - 1, ~ADDR_MASK, binary);
+  memory.Mount(load_address, load_address + binary_size - 1, ~ADDR_MASK, binary);
+
+  // skip to the test's offset
+  sh4.SetPC(load_address + test.offset);
 
   // setup in registers
   for (auto it : test.r_in) {
@@ -72,11 +74,11 @@ void RunSH4Test(const SH4Test &test) {
 }
 
 #define SH4_TEST(name, ...)               \
-  TEST(SH4_interpreter, name) {           \
+  TEST(sh4_interpreter, name) {           \
     SH4Test test = __VA_ARGS__;           \
     RunSH4Test<InterpreterBackend>(test); \
   }                                       \
-  TEST(SH4_x64, name) {                   \
+  TEST(sh4_x64, name) {                   \
     SH4Test test = __VA_ARGS__;           \
     RunSH4Test<X64Backend>(test);         \
   }

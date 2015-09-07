@@ -1,10 +1,5 @@
-# REGISTER_IN r0 14
-
-  .little
-  .text
-  .global start
-start:
-# BSRF     Rn
+test_bsrf:
+  # REGISTER_IN r0 8
   sts.l pr, @-r15
   bsrf r0
   add #1, r1
@@ -12,13 +7,8 @@ start:
   lds.l @r15+, pr
   rts
   nop
-_dontgohere:
-  add #2, r1
-  rts
-  nop
 _addnine:
   add #9, r1
   rts
   nop
-
-# REGISTER_OUT r1 13
+  # REGISTER_OUT r1 13

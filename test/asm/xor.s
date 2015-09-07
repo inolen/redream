@@ -1,16 +1,14 @@
-# REGISTER_IN r0 0x00ffffff
-# REGISTER_IN r1 0xffffff00
-# REGISTER_IN r2 0x000000fc
+test_xor:
+  # REGISTER_IN r0 0x00ffffff
+  # REGISTER_IN r1 0xffffff00
+  xor r1, r0
+  # REGISTER_OUT r0 0xff0000ff
+  rts
+  nop
 
-  .text
-  .global start
-start:
-# XOR     Rm,Rn
-  xor r0, r1
-# XOR     #imm,R0
+test_xor_imm:
+  # REGISTER_IN r0 0x00ffffff
   xor #0xff, r0
   rts 
   nop
-
-# REGISTER_OUT r0 0x00ffff00
-# REGISTER_OUT r1 0xff0000ff
+  # REGISTER_OUT r0 0x00ffff00
