@@ -13,7 +13,6 @@ Holly::Holly(Dreamcast *dc) : dc_(dc) {}
 void Holly::Init() {
   cpu_ = dc_->cpu();
   holly_regs_ = dc_->holly_regs();
-  audio_ram_ = dc_->audio_ram();
 }
 
 void Holly::RequestInterrupt(HollyInterrupt intr) {
@@ -148,26 +147,13 @@ void Holly::WriteRegister32(uint32_t addr, uint32_t value) {
     case SB_PDEN_OFFSET:
     case SB_PDST_OFFSET:
       if (value) {
-        LOG_INFO("AICA DMA request ignored");
+        LOG_FATAL("AICA DMA request");
       }
       break;
 
     default:
       break;
   }
-}
-
-uint32_t Holly::ReadAudio32(uint32_t addr) {
-  // FIXME temp hack for unsupported audio regs hanging in Crazy Taxi 2
-  if (addr == 0x5c) {
-    return 0x54494e49;
-  }
-
-  return *reinterpret_cast<uint32_t *>(&audio_ram_[addr]);
-}
-
-void Holly::WriteAudio32(uint32_t addr, uint32_t value) {
-  *reinterpret_cast<uint32_t *>(&audio_ram_[addr]) = value;
 }
 
 // FIXME what are SB_LMMODE0 / SB_LMMODE1

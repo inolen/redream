@@ -1,6 +1,8 @@
 #ifndef HOLLY_H
 #define HOLLY_H
 
+#include <stdint.h>
+
 namespace dreavm {
 namespace cpu {
 class SH4;
@@ -159,9 +161,6 @@ class Holly {
   uint32_t ReadRegister32(uint32_t addr);
   void WriteRegister32(uint32_t addr, uint32_t value);
 
-  uint32_t ReadAudio32(uint32_t addr);
-  void WriteAudio32(uint32_t addr, uint32_t value);
-
  private:
   void CH2DMATransfer();
   void SortDMATransfer();
@@ -170,7 +169,6 @@ class Holly {
   emu::Dreamcast *dc_;
   cpu::SH4 *cpu_;
   emu::Register *holly_regs_;
-  uint8_t *audio_ram_;
 };
 }
 }

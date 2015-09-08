@@ -103,6 +103,7 @@ add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -style=Google -i ${CLANG_FOR
 #--------------------------------------------------
 
 set(DREAVM_SOURCES
+  src/aica/aica.cc
   src/core/assert.cc
   src/core/filesystem.cc
   src/core/log.cc

@@ -2,6 +2,7 @@
 #define DREAMCAST_H
 
 #include <memory>
+#include "aica/aica.h"
 #include "cpu/backend/backend.h"
 #include "cpu/frontend/frontend.h"
 #include "cpu/runtime.h"
@@ -46,7 +47,7 @@ enum {
   MEMORY_REGION(PVR_PALETTE, 0x005f9000, 0x005f9fff),
   MEMORY_REGION(MODEM_REG, 0x00600000, 0x0067ffff),
   MEMORY_REGION(AICA_REG, 0x00700000, 0x00710fff),
-  MEMORY_REGION(AUDIO_RAM, 0x00800000, 0x009fffff),
+  MEMORY_REGION(WAVE_RAM, 0x00800000, 0x009fffff),
   MEMORY_REGION(EXPDEV, 0x01000000, 0x01ffffff),
   MEMORY_REGION(PVR_VRAM32, 0x04000000, 0x047fffff),
   MEMORY_REGION(PVR_VRAM64, 0x05000000, 0x057fffff),
@@ -78,6 +79,11 @@ struct Register {
 };
 
 enum {
+#define AICA_REG(addr, name, flags, default, type) \
+  name##_OFFSET = addr - emu::AICA_REG_START,
+#include "aica/aica_regs.inc"
+#undef AICA_REG
+
 #define HOLLY_REG(addr, name, flags, default, type) \
   name##_OFFSET = (addr - emu::HOLLY_REG_START) >> 2,
 #include "holly/holly_regs.inc"
@@ -96,6 +102,7 @@ class Dreamcast {
   renderer::Backend *rb() { return rb_.get(); }
   cpu::Runtime *runtime() { return runtime_.get(); }
   cpu::SH4 *cpu() { return cpu_.get(); }
+  aica::AICA *aica() { return aica_.get(); }
   holly::Holly *holly() { return holly_.get(); }
   holly::PVR2 *pvr() { return pvr_.get(); }
   holly::TileAccelerator *ta() { return ta_.get(); }
@@ -103,10 +110,11 @@ class Dreamcast {
   holly::Maple *maple() { return maple_.get(); }
   trace::TraceWriter *trace_writer() { return trace_writer_.get(); }
 
+  uint8_t *aica_regs() { return aica_regs_; }
   Register *holly_regs() { return holly_regs_; }
   Register *pvr_regs() { return pvr_regs_; }
 
-  uint8_t *audio_ram() { return audio_ram_; }
+  uint8_t *wave_ram() { return wave_ram_; }
   uint8_t *palette_ram() { return palette_ram_; }
   uint8_t *video_ram() { return video_ram_; }
 
@@ -146,6 +154,7 @@ class Dreamcast {
   std::unique_ptr<cpu::backend::Backend> rt_backend_;
   std::unique_ptr<cpu::Runtime> runtime_;
   std::unique_ptr<cpu::SH4> cpu_;
+  std::unique_ptr<aica::AICA> aica_;
   std::unique_ptr<holly::Holly> holly_;
   std::unique_ptr<holly::PVR2> pvr_;
   std::unique_ptr<holly::TileAccelerator> ta_;
@@ -161,8 +170,8 @@ class Dreamcast {
   uint8_t ram_[MAIN_RAM_SIZE];
   uint8_t unassigned_[UNASSIGNED_SIZE];
   uint8_t modem_mem_[MODEM_REG_SIZE];
-  uint8_t aica_mem_[AICA_REG_SIZE];
-  uint8_t audio_ram_[AUDIO_RAM_SIZE];
+  uint8_t aica_regs_[AICA_REG_SIZE];
+  uint8_t wave_ram_[WAVE_RAM_SIZE];
   uint8_t expdev_mem_[EXPDEV_SIZE];
   uint8_t video_ram_[PVR_VRAM32_SIZE];
   uint8_t palette_ram_[PVR_PALETTE_SIZE];

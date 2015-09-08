@@ -7,6 +7,7 @@
 #include "holly/maple_controller.h"
 #include "renderer/gl_backend.h"
 
+using namespace dreavm::aica;
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::cpu::backend::interpreter;
@@ -32,6 +33,7 @@ Dreamcast::Dreamcast() {
   runtime_ = std::unique_ptr<Runtime>(
       new Runtime(*memory(), *rt_frontend_.get(), *rt_backend_.get()));
   cpu_ = std::unique_ptr<SH4>(new SH4(*memory(), *runtime()));
+  aica_ = std::unique_ptr<AICA>(new AICA(this));
   holly_ = std::unique_ptr<Holly>(new Holly(this));
   pvr_ = std::unique_ptr<PVR2>(new PVR2(this));
   ta_ = std::unique_ptr<TileAccelerator>(new TileAccelerator(this));
@@ -102,6 +104,7 @@ bool Dreamcast::Init() {
   InitRegisters();
 
   cpu_->Init();
+  aica_->Init();
   holly_->Init();
   pvr_->Init();
   ta_->Init();
@@ -109,6 +112,7 @@ bool Dreamcast::Init() {
   maple_->Init();
 
   scheduler_->AddDevice(cpu());
+  scheduler_->AddDevice(aica());
 
   return true;
 }
@@ -119,8 +123,8 @@ void Dreamcast::InitMemory() {
   memset(ram_, 0, sizeof(ram_));
   memset(unassigned_, 0, sizeof(unassigned_));
   memset(modem_mem_, 0, sizeof(modem_mem_));
-  memset(aica_mem_, 0, sizeof(aica_mem_));
-  memset(audio_ram_, 0, sizeof(audio_ram_));
+  memset(aica_regs_, 0, sizeof(aica_regs_));
+  memset(wave_ram_, 0, sizeof(wave_ram_));
   memset(expdev_mem_, 0, sizeof(expdev_mem_));
   memset(video_ram_, 0, sizeof(video_ram_));
   memset(palette_ram_, 0, sizeof(palette_ram_));
@@ -130,6 +134,26 @@ void Dreamcast::InitMemory() {
   memory_->Mount(FLASH_START, FLASH_END, MIRROR_MASK, flash_);
   memory_->Mount(MAIN_RAM_START, MAIN_RAM_END, MAIN_RAM_MIRROR_MASK, ram_);
   memory_->Mount(UNASSIGNED_START, UNASSIGNED_END, MIRROR_MASK, unassigned_);
+
+  // aica
+  memory_->Handle(AICA_REG_START, AICA_REG_END, MIRROR_MASK,
+                  nullptr,                                            //
+                  nullptr,                                            //
+                  std::bind(&AICA::ReadRegister32, aica(), _1),       //
+                  nullptr,                                            //
+                  nullptr,                                            //
+                  nullptr,                                            //
+                  std::bind(&AICA::WriteRegister32, aica(), _1, _2),  //
+                  nullptr);
+  memory_->Handle(WAVE_RAM_START, WAVE_RAM_END, MIRROR_MASK,
+                  nullptr,                                         //
+                  nullptr,                                         //
+                  std::bind(&AICA::ReadWave32, aica(), _1),       //
+                  nullptr,                                         //
+                  nullptr,                                         //
+                  nullptr,                                         //
+                  std::bind(&AICA::WriteWave32, aica(), _1, _2),  //
+                  nullptr);
 
   // holly
   memory_->Handle(HOLLY_REG_START, HOLLY_REG_END, MIRROR_MASK,
@@ -142,16 +166,6 @@ void Dreamcast::InitMemory() {
                   std::bind(&Holly::WriteRegister32, holly(), _1, _2),  //
                   nullptr);
   memory_->Mount(MODEM_REG_START, MODEM_REG_END, MIRROR_MASK, modem_mem_);
-  memory_->Mount(AICA_REG_START, AICA_REG_END, MIRROR_MASK, aica_mem_);
-  memory_->Handle(AUDIO_RAM_START, AUDIO_RAM_END, MIRROR_MASK,
-                  nullptr,                                           //
-                  nullptr,                                           //
-                  std::bind(&Holly::ReadAudio32, holly(), _1),       //
-                  nullptr,                                           //
-                  nullptr,                                           //
-                  nullptr,                                           //
-                  std::bind(&Holly::WriteAudio32, holly(), _1, _2),  //
-                  nullptr);
   memory_->Mount(EXPDEV_START, EXPDEV_END, MIRROR_MASK, expdev_mem_);
 
   // gdrom
