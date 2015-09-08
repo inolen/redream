@@ -9,32 +9,7 @@ namespace cpu {
 namespace backend {
 namespace interpreter {
 
-union IntValue;
 struct IntInstr;
-
-typedef uint32_t (*IntFn)(const IntInstr *instr, uint32_t idx,
-                          emu::Memory *memory, IntValue *registers,
-                          uint8_t *locals, void *guest_ctx);
-
-union IntValue {
-  int8_t i8;
-  int16_t i16;
-  int32_t i32;
-  int64_t i64;
-  float f32;
-  double f64;
-};
-
-struct IntInstr {
-  IntFn fn;
-  IntValue arg[4];
-};
-
-struct IntBlock {
-  IntInstr *instrs;
-  int num_instrs;
-  int locals_size;
-};
 
 // signatures represent the data types for an instruction's arguments.
 typedef unsigned IntSig;
@@ -88,7 +63,7 @@ class InterpreterBackend : public Backend {
   int num_registers() const;
 
   void Reset();
-  bool AssembleBlock(ir::IRBuilder &builder, RuntimeBlock *block);
+  std::unique_ptr<RuntimeBlock> AssembleBlock(ir::IRBuilder &builder);
 
  private:
   uint8_t *codegen_begin_;
@@ -96,7 +71,6 @@ class InterpreterBackend : public Backend {
   uint8_t *codegen_;
 
   uint8_t *Alloc(size_t size);
-  IntBlock *AllocBlock();
   IntInstr *AllocInstr();
   void TranslateInstr(ir::Instr &ir_i, IntInstr *i);
   void TranslateArg(ir::Instr &ir_i, IntInstr *i, int arg);

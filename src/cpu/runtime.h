@@ -15,14 +15,17 @@ namespace frontend {
 class Frontend;
 }
 
-struct RuntimeBlock {
-  RuntimeBlock()
-      : call(nullptr), dump(nullptr), guest_cycles(0), priv(nullptr) {}
+class RuntimeBlock {
+ public:
+  RuntimeBlock(int guest_cycles) : guest_cycles_(guest_cycles) {}
+  virtual ~RuntimeBlock() {}
 
-  uint32_t (*call)(RuntimeBlock *block, emu::Memory *memory, void *guest_ctx);
-  void (*dump)(RuntimeBlock *block);
-  int guest_cycles;
-  void *priv;
+  int guest_cycles() { return guest_cycles_; }
+  virtual uint32_t Call(emu::Memory *memory, void *guest_ctx) = 0;
+  virtual void Dump() = 0;
+
+ private:
+  int guest_cycles_;
 };
 
 class Runtime {
@@ -34,18 +37,16 @@ class Runtime {
   emu::Memory &memory() { return memory_; }
 
   RuntimeBlock *GetBlock(uint32_t addr, const void *guest_ctx);
-  void QueueResetBlocks();
+  void ResetBlocks();
 
  private:
-  void ResetBlocks();
-  void CompileBlock(uint32_t addr, const void *guest_ctx, RuntimeBlock *block);
+  RuntimeBlock *CompileBlock(uint32_t addr, const void *guest_ctx);
 
   emu::Memory &memory_;
   frontend::Frontend &frontend_;
   backend::Backend &backend_;
   ir::passes::PassRunner pass_runner_;
-  RuntimeBlock *blocks_;
-  bool pending_reset_;
+  std::unique_ptr<RuntimeBlock> *blocks_;
 };
 }
 }

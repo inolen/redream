@@ -29,11 +29,8 @@ static inline uint32_t BlockOffset(uint32_t addr) {
 
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
                  backend::Backend &backend)
-    : memory_(memory),
-      frontend_(frontend),
-      backend_(backend),
-      pending_reset_(false) {
-  blocks_ = new RuntimeBlock[MAX_BLOCKS];
+    : memory_(memory), frontend_(frontend), backend_(backend) {
+  blocks_ = new std::unique_ptr<RuntimeBlock>[MAX_BLOCKS];
 
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
@@ -48,37 +45,34 @@ Runtime::~Runtime() { delete[] blocks_; }
 // TODO should the block caching be part of the frontend?
 // this way, the SH4Frontend can cache based on FPU state
 RuntimeBlock *Runtime::GetBlock(uint32_t addr, const void *guest_ctx) {
-  if (pending_reset_) {
-    ResetBlocks();
-    pending_reset_ = false;
-  }
-
   uint32_t offset = BlockOffset(addr);
   if (offset >= MAX_BLOCKS) {
     LOG_FATAL("Block requested at 0x%x is outside of the executable space",
               addr);
   }
 
-  RuntimeBlock *block = &blocks_[offset];
+  RuntimeBlock *block = blocks_[offset].get();
 
-  if (!block->call) {
-    CompileBlock(addr, guest_ctx, block);
-    CHECK(block->call);
+  if (block) {
+    return block;
   }
 
-  return block;
+  return CompileBlock(addr, guest_ctx);
 }
-
-void Runtime::QueueResetBlocks() { pending_reset_ = true; }
 
 void Runtime::ResetBlocks() {
-  backend_.Reset();
+  // reset our local block cache
+  for (int i = 0; i < MAX_BLOCKS; i++) {
+    if (blocks_[i]) {
+      blocks_[i] = nullptr;
+    }
+  }
 
-  memset(blocks_, 0, sizeof(RuntimeBlock) * MAX_BLOCKS);
+  // have the backend reset any data the blocks may have relied on
+  backend_.Reset();
 }
 
-void Runtime::CompileBlock(uint32_t addr, const void *guest_ctx,
-                           RuntimeBlock *block) {
+RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
   PROFILER_RUNTIME("Runtime::CompileBlock");
 
   std::unique_ptr<IRBuilder> builder = frontend_.BuildBlock(addr, guest_ctx);
@@ -86,7 +80,10 @@ void Runtime::CompileBlock(uint32_t addr, const void *guest_ctx,
   // run optimization passes
   pass_runner_.Run(*builder);
 
-  if (!backend_.AssembleBlock(*builder, block)) {
+  // try to assemble the block
+  std::unique_ptr<RuntimeBlock> block = backend_.AssembleBlock(*builder);
+
+  if (!block) {
     LOG_INFO("Assembler overflow, resetting block cache");
 
     // the backend overflowed, reset the block cache
@@ -94,7 +91,12 @@ void Runtime::CompileBlock(uint32_t addr, const void *guest_ctx,
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
-    CHECK(backend_.AssembleBlock(*builder, block),
-          "Backend assembler buffer overflow");
+    block = backend_.AssembleBlock(*builder);
+
+    CHECK(block, "Backend assembler buffer overflow");
   }
+
+  uint32_t offset = BlockOffset(addr);
+  blocks_[offset] = std::move(block);
+  return blocks_[offset].get();
 }

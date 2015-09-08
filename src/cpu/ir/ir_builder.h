@@ -128,8 +128,10 @@ class Value {
 
   bool constant() const { return constant_; }
 
-  template <typename T> T value() const;
-  template <typename T> T value();
+  template <typename T>
+  T value() const;
+  template <typename T>
+  T value();
 
   const core::IntrusiveList<ValueRef> &refs() const { return refs_; }
   core::IntrusiveList<ValueRef> &refs() { return refs_; }

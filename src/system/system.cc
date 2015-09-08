@@ -4,8 +4,8 @@
 #include "core/core.h"
 #include "system/system.h"
 
-#define DEFAULT_VIDEO_WIDTH 640
-#define DEFAULT_VIDEO_HEIGHT 480
+#define DEFAULT_VIDEO_WIDTH 800
+#define DEFAULT_VIDEO_HEIGHT 600
 
 using namespace dreavm::core;
 using namespace dreavm::system;

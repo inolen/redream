@@ -77,6 +77,7 @@ void SH4Context::FPSCRUpdated(SH4Context *ctx) {
 SH4::SH4(Memory &memory, Runtime &runtime)
     : memory_(memory),
       runtime_(runtime),
+      pending_cache_reset_(false),
       requested_interrupts_(0),
       pending_interrupts_(0) {}
 
@@ -120,16 +121,17 @@ uint32_t SH4::Execute(uint32_t cycles) {
     RuntimeBlock *block = runtime_.GetBlock(pc, &ctx_);
 
     // be careful not to wrap around
-    uint32_t next_remaining = remaining - block->guest_cycles;
+    uint32_t next_remaining = remaining - block->guest_cycles();
     if (next_remaining > remaining) {
       break;
     }
 
     // run the block
-    uint32_t next_pc = block->call(block, &memory_, &ctx_);
+    uint32_t next_pc = block->Call(&memory_, &ctx_);
     remaining = next_remaining;
     ctx_.pc = next_pc;
 
+    CheckPendingCacheReset();
     CheckPendingInterrupts();
   }
 
@@ -282,7 +284,7 @@ void SH4::WriteRegister32(uint32_t addr, uint32_t value) {
     // emulated is the instruction cache invalidation
     case CCR_OFFSET:
       if (CCR.ICI) {
-        ResetInstructionCache();
+        ResetCache();
       }
       break;
 
@@ -385,7 +387,24 @@ void SH4::WriteSQ32(uint32_t addr, uint32_t value) {
   ctx_.sq[sqi][idx] = value;
 }
 
-void SH4::ResetInstructionCache() { runtime_.QueueResetBlocks(); }
+// FIXME this isn't right. When the IC is reset a pending flag is set and the
+// cache is actually reset at the end of the current block. However, the docs
+// for the SH4 IC state "After CCR is updated, an instruction that performs data
+// access to the P0, P1, P3, or U0 area should be located at least four
+// instructions after the CCR update instruction. Also, a branch instruction to
+// the P0, P1, P3, or U0 area should be located at least eight instructions
+// after the CCR update instruction."
+void SH4::ResetCache() { pending_cache_reset_ = true; }
+
+void SH4::CheckPendingCacheReset() {
+  if (!pending_cache_reset_) {
+    return;
+  }
+
+  runtime_.ResetBlocks();
+
+  pending_cache_reset_ = false;
+}
 
 // Generate a sorted set of interrupts based on their priority. These sorted
 // ids are used to represent all of the currently requested interrupts as a

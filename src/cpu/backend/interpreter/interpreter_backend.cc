@@ -77,13 +77,8 @@ int InterpreterBackend::num_registers() const {
 
 void InterpreterBackend::Reset() { codegen_ = codegen_begin_; }
 
-bool InterpreterBackend::AssembleBlock(IRBuilder &builder,
-                                       RuntimeBlock *block) {
-  IntBlock *int_block = AllocBlock();
-  if (!block) {
-    return false;
-  }
-
+std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
+    ir::IRBuilder &builder) {
   // do an initial pass assigning ordinals to instructions so local branches
   // can be resolved
   int32_t ordinal = 0;
@@ -100,7 +95,7 @@ bool InterpreterBackend::AssembleBlock(IRBuilder &builder,
     for (auto ir_instr : ir_block->instrs()) {
       IntInstr *instr = AllocInstr();
       if (!instr) {
-        return false;
+        return nullptr;
       }
 
       TranslateInstr(*ir_instr, instr);
@@ -108,17 +103,12 @@ bool InterpreterBackend::AssembleBlock(IRBuilder &builder,
   }
 
   IntInstr *instr_end = reinterpret_cast<IntInstr *>(codegen_);
+  int num_instr = static_cast<int>(instr_end - instr_begin);
+  int guest_cycles = builder.guest_cycles();
+  int locals_size = builder.locals_size();
 
-  int_block->instrs = instr_begin;
-  int_block->num_instrs = static_cast<int>(instr_end - instr_begin);
-  int_block->locals_size = builder.locals_size();
-
-  block->call = &CallBlock;
-  block->dump = &DumpBlock;
-  block->guest_cycles = builder.guest_cycles();
-  block->priv = int_block;
-
-  return true;
+  return std::unique_ptr<RuntimeBlock>(
+      new InterpreterBlock(guest_cycles, instr_begin, num_instr, locals_size));
 }
 
 uint8_t *InterpreterBackend::Alloc(size_t size) {
@@ -128,14 +118,6 @@ uint8_t *InterpreterBackend::Alloc(size_t size) {
     return nullptr;
   }
   return ptr;
-}
-
-IntBlock *InterpreterBackend::AllocBlock() {
-  IntBlock *block = reinterpret_cast<IntBlock *>(Alloc(sizeof(IntBlock)));
-  if (block) {
-    memset(block, 0, sizeof(*block));
-  }
-  return block;
 }
 
 IntInstr *InterpreterBackend::AllocInstr() {

@@ -3,26 +3,22 @@
 #include <beaengine/BeaEngine.h>
 #include "cpu/backend/x64/x64_block.h"
 
+using namespace dreavm::cpu;
 using namespace dreavm::emu;
+using namespace dreavm::cpu::backend::x64;
 
-namespace dreavm {
-namespace cpu {
-namespace backend {
-namespace x64 {
+X64Block::X64Block(int guest_cycles, X64Fn fn)
+    : RuntimeBlock(guest_cycles), fn_(fn) {}
 
-uint32_t CallBlock(RuntimeBlock *block, Memory *memory, void *guest_ctx) {
-  X64Fn fn = reinterpret_cast<X64Fn>(block->priv);
-
-  return fn(guest_ctx, memory);
+uint32_t X64Block::Call(Memory *memory, void *guest_ctx) {
+  return fn_(guest_ctx, memory);
 }
 
-void DumpBlock(RuntimeBlock *block) {
-  X64Fn fn = reinterpret_cast<X64Fn>(block->priv);
-
+void X64Block::Dump() {
   DISASM dsm;
   memset(&dsm, 0, sizeof(dsm));
   dsm.Archi = 64;
-  dsm.EIP = (uintptr_t)fn;
+  dsm.EIP = (uintptr_t)fn_;
   dsm.SecurityBlock = 0;
   dsm.Options = NasmSyntax | PrefixedNumeral;
 
@@ -54,8 +50,4 @@ void DumpBlock(RuntimeBlock *block) {
 
     dsm.EIP = dsm.EIP + len;
   }
-}
-}
-}
-}
 }

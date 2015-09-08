@@ -8,7 +8,7 @@
 namespace dreavm {
 namespace cpu {
 
-struct RuntimeBlock;
+class RuntimeBlock;
 
 namespace backend {
 
@@ -26,7 +26,8 @@ class Backend {
   virtual int num_registers() const = 0;
 
   virtual void Reset() = 0;
-  virtual bool AssembleBlock(ir::IRBuilder &builder, RuntimeBlock *block) = 0;
+  virtual std::unique_ptr<RuntimeBlock> AssembleBlock(
+      ir::IRBuilder &builder) = 0;
 
  protected:
   emu::Memory &memory_;

@@ -1,5 +1,6 @@
 #include <unordered_map>
 #include "cpu/backend/interpreter/interpreter_backend.h"
+#include "cpu/backend/interpreter/interpreter_block.h"
 #include "cpu/backend/interpreter/interpreter_callbacks.h"
 
 using namespace dreavm::core;

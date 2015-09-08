@@ -33,7 +33,7 @@ class X64Backend : public Backend {
   int num_registers() const;
 
   void Reset();
-  bool AssembleBlock(ir::IRBuilder &builder, RuntimeBlock *block);
+  std::unique_ptr<RuntimeBlock> AssembleBlock(ir::IRBuilder &builder);
 
  private:
   Xbyak::CodeGenerator codegen_;

@@ -43,7 +43,8 @@ void RunSH4Test(const SH4Test &test) {
                                      static_cast<uint32_t>(MAX_PAGE_SIZE));
   uint8_t *binary = new uint8_t[binary_size];
   memcpy(binary, test.buffer, test.buffer_size);
-  memory.Mount(load_address, load_address + binary_size - 1, ~ADDR_MASK, binary);
+  memory.Mount(load_address, load_address + binary_size - 1, ~ADDR_MASK,
+               binary);
 
   // skip to the test's offset
   sh4.SetPC(load_address + test.offset);

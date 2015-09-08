@@ -22,7 +22,8 @@ int X64Backend::num_registers() const {
 
 void X64Backend::Reset() { codegen_.reset(); }
 
-bool X64Backend::AssembleBlock(IRBuilder &builder, RuntimeBlock *block) {
+std::unique_ptr<RuntimeBlock> X64Backend::AssembleBlock(
+    ir::IRBuilder &builder) {
   X64Fn fn = nullptr;
 
   // try to generate the x64 code. if the codegen buffer overflows let the
@@ -31,16 +32,12 @@ bool X64Backend::AssembleBlock(IRBuilder &builder, RuntimeBlock *block) {
     fn = emitter_.Emit(builder);
   } catch (const Xbyak::Error &e) {
     if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
-      return false;
+      return nullptr;
     }
 
     LOG_FATAL("X64 codegen failure, %s", e.what());
   }
 
-  block->call = &CallBlock;
-  block->dump = &DumpBlock;
-  block->guest_cycles = builder.guest_cycles();
-  block->priv = reinterpret_cast<void *>(fn);
-
-  return true;
+  return std::unique_ptr<RuntimeBlock>(
+      new X64Block(builder.guest_cycles(), fn));
 }
