@@ -35,8 +35,12 @@ void AICA::WriteRegister32(uint32_t addr, uint32_t value) {
 }
 
 uint32_t AICA::ReadWave32(uint32_t addr) {
-  // FIXME temp hack for unsupported audio regs hanging in Crazy Taxi 2
-  if (addr == 0x5c) {
+  // FIXME temp hacks to get Crazy Taxi 1 booting
+  if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
+    return 0x54494e49;
+  }
+  // FIXME temp hacks to get Crazy Taxi 2 booting
+  else if (addr == 0x5c) {
     return 0x54494e49;
   }
 
