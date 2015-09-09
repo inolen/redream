@@ -12,11 +12,11 @@ using namespace dreavm::system;
 using namespace dreavm::trace;
 
 void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
-                                   const uint8_t *texture,
-                                   const uint8_t *palette) {
+                                   const uint8_t *palette,
+                                   const uint8_t *texture) {
   uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
   textures_[texture_key] =
-      TextureInst{tsp, tcw, texture, palette, (TextureHandle)0};
+      TextureInst{tsp, tcw, palette, texture, (TextureHandle)0};
 }
 
 void TraceTextureCache::RemoveTexture(const TSP &tsp, TCW &tcw) {
@@ -36,7 +36,7 @@ TextureHandle TraceTextureCache::GetTexture(
   // register the texture if it hasn't already been
   if (!texture.handle) {
     // TODO compare tex_it->tsp and tex_it->tcw with incoming?
-    texture.handle = register_cb(texture.texture, texture.palette);
+    texture.handle = register_cb(texture.palette, texture.texture);
   }
 
   return texture.handle;
@@ -186,7 +186,7 @@ void TraceViewer::PrevContext() {
         CHECK_EQ(override->type, TRACE_INSERT_TEXTURE);
         texcache_.AddTexture(
             override->insert_texture.tsp, override->insert_texture.tcw,
-            override->insert_texture.texture, override->insert_texture.palette);
+            override->insert_texture.palette, override->insert_texture.texture);
       }
     } else if (current_cmd_->type == TRACE_RENDER_CONTEXT) {
       if (--current_frame_ == prev_frame) {
@@ -214,8 +214,8 @@ void TraceViewer::NextContext() {
     if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
       texcache_.AddTexture(current_cmd_->insert_texture.tsp,
                            current_cmd_->insert_texture.tcw,
-                           current_cmd_->insert_texture.texture,
-                           current_cmd_->insert_texture.palette);
+                           current_cmd_->insert_texture.palette,
+                           current_cmd_->insert_texture.texture);
     } else if (current_cmd_->type == TRACE_RENDER_CONTEXT) {
       if (++current_frame_ == next_frame) {
         break;

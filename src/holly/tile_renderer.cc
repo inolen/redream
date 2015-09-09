@@ -85,7 +85,7 @@ inline ShadeMode TranslateShadeMode(uint32_t shade_mode) {
   return shade_modes[shade_mode];
 }
 
-static inline uint32_t argb_to_abgr(uint32_t v) {
+static inline uint32_t abgr_to_rgba(uint32_t v) {
   return (v & 0xff000000) | ((v & 0xff) << 16) | (v & 0xff00) |
          ((v & 0xff0000) >> 16);
 }
@@ -94,7 +94,7 @@ static inline uint8_t float_to_u8(float x) {
   return std::min(std::max((uint32_t)(x * 255.0f), 0u), 255u);
 }
 
-static inline uint32_t float_to_abgr(float r, float g, float b, float a) {
+static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
   return (float_to_u8(a) << 24) | (float_to_u8(b) << 16) |
          (float_to_u8(g) << 8) | float_to_u8(r);
 }
@@ -220,7 +220,7 @@ Vertex *TileRenderer::AllocVert() {
 // FIXME honor use alpha
 // FIXME honor ignore tex alpha
 void TileRenderer::ParseColor(uint32_t base_color, uint32_t *color) {
-  *color = argb_to_abgr(base_color);
+  *color = abgr_to_rgba(base_color);
 
   // if (!last_poly_->type0.tsp.use_alpha) {
   //   color[3] = 1.0f;
@@ -229,7 +229,7 @@ void TileRenderer::ParseColor(uint32_t base_color, uint32_t *color) {
 
 void TileRenderer::ParseColor(float r, float g, float b, float a,
                               uint32_t *color) {
-  *color = float_to_abgr(r, g, b, a);
+  *color = float_to_rgba(r, g, b, a);
 
   // if (!last_poly_->type0.tsp.use_alpha) {
   //   color[3] = 1.0f;
@@ -237,7 +237,7 @@ void TileRenderer::ParseColor(float r, float g, float b, float a,
 }
 
 void TileRenderer::ParseColor(float intensity, uint32_t *color) {
-  *color = float_to_abgr(face_color_[0] * intensity, face_color_[1] * intensity,
+  *color = float_to_rgba(face_color_[0] * intensity, face_color_[1] * intensity,
                          face_color_[2] * intensity, face_color_[3]);
 
   // if (!last_poly_->type0.tsp.use_alpha) {
@@ -249,7 +249,7 @@ void TileRenderer::ParseOffsetColor(uint32_t offset_color, uint32_t *color) {
   if (!last_poly_->type0.isp_tsp.offset) {
     *color = 0;
   } else {
-    *color = argb_to_abgr(offset_color);
+    *color = abgr_to_rgba(offset_color);
   }
 }
 
@@ -258,7 +258,7 @@ void TileRenderer::ParseOffsetColor(float r, float g, float b, float a,
   if (!last_poly_->type0.isp_tsp.offset) {
     *color = 0;
   } else {
-    *color = float_to_abgr(r, g, b, a);
+    *color = float_to_rgba(r, g, b, a);
   }
 }
 
@@ -266,7 +266,7 @@ void TileRenderer::ParseOffsetColor(float intensity, uint32_t *color) {
   if (!last_poly_->type0.isp_tsp.offset) {
     *color = 0;
   } else {
-    *color = float_to_abgr(
+    *color = float_to_rgba(
         face_offset_color_[0] * intensity, face_offset_color_[1] * intensity,
         face_offset_color_[2] * intensity, face_offset_color_[3]);
   }
@@ -307,7 +307,7 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
 
     uint32_t base_color =
         *reinterpret_cast<const uint32_t *>(&tactx->bg_vertices[offset]);
-    v->color = argb_to_abgr(base_color);
+    v->color = abgr_to_rgba(base_color);
     offset += 4;
 
     if (tactx->bg_isp.offset) {
@@ -692,8 +692,8 @@ Eigen::Matrix4f TileRenderer::GetProjectionMatrix(const TileContext *tactx) {
 TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
                                             Backend *rb, const TSP &tsp,
                                             const TCW &tcw,
-                                            const uint8_t *texture,
-                                            const uint8_t *palette) {
+                                            const uint8_t *palette,
+                                            const uint8_t *texture) {
   static uint8_t converted[1024 * 1024 * 4];
   const uint8_t *input = texture;
   const uint8_t *output = texture;
@@ -745,13 +745,16 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       pixel_fmt = PXL_RGBA5551;
       if (compressed) {
         PixelConvert::ConvertVQ<ARGB1555, RGBA5551>(
-            codebook, index, (uint16_t *)converted, width, height);
+            codebook, index, reinterpret_cast<uint16_t *>(converted), width,
+            height);
       } else if (twiddled) {
         PixelConvert::ConvertTwiddled<ARGB1555, RGBA5551>(
-            (uint16_t *)input, (uint16_t *)converted, width, height);
+            reinterpret_cast<const uint16_t *>(input),
+            reinterpret_cast<uint16_t *>(converted), width, height);
       } else {
         PixelConvert::Convert<ARGB1555, RGBA5551>(
-            (uint16_t *)input, (uint16_t *)converted, stride, height);
+            reinterpret_cast<const uint16_t *>(input),
+            reinterpret_cast<uint16_t *>(converted), stride, height);
       }
       break;
 
@@ -760,13 +763,16 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       pixel_fmt = PXL_RGB565;
       if (compressed) {
         PixelConvert::ConvertVQ<RGB565, RGB565>(
-            codebook, index, (uint16_t *)converted, width, height);
+            codebook, index, reinterpret_cast<uint16_t *>(converted), width,
+            height);
       } else if (twiddled) {
         PixelConvert::ConvertTwiddled<RGB565, RGB565>(
-            (uint16_t *)input, (uint16_t *)converted, width, height);
+            reinterpret_cast<const uint16_t *>(input),
+            reinterpret_cast<uint16_t *>(converted), width, height);
       } else {
         PixelConvert::Convert<RGB565, RGB565>(
-            (uint16_t *)input, (uint16_t *)converted, stride, height);
+            reinterpret_cast<const uint16_t *>(input),
+            reinterpret_cast<uint16_t *>(converted), stride, height);
       }
       break;
 
@@ -775,17 +781,21 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       pixel_fmt = PXL_RGBA4444;
       if (compressed) {
         PixelConvert::ConvertVQ<ARGB4444, RGBA4444>(
-            codebook, index, (uint16_t *)converted, width, height);
+            codebook, index, reinterpret_cast<uint16_t *>(converted), width,
+            height);
       } else if (twiddled) {
         PixelConvert::ConvertTwiddled<ARGB4444, RGBA4444>(
-            (uint16_t *)input, (uint16_t *)converted, width, height);
+            reinterpret_cast<const uint16_t *>(input),
+            reinterpret_cast<uint16_t *>(converted), width, height);
       } else {
         PixelConvert::Convert<ARGB4444, RGBA4444>(
-            (uint16_t *)input, (uint16_t *)converted, stride, height);
+            reinterpret_cast<const uint16_t *>(input),
+            reinterpret_cast<uint16_t *>(converted), stride, height);
       }
       break;
 
     case TA_PIXEL_4BPP:
+      CHECK(!compressed);
       output = converted;
       switch (tactx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
@@ -799,14 +809,13 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
           break;
 
         case TA_PAL_ARGB4444:
-          CHECK_EQ(false, twiddled);
           pixel_fmt = PXL_RGBA4444;
           PixelConvert::ConvertPal4<ARGB4444, RGBA4444>(
-              input, (uint16_t *)converted, (uint32_t *)palette, width, height);
+              input, reinterpret_cast<uint16_t *>(converted),
+              reinterpret_cast<const uint32_t *>(palette), width, height);
           break;
 
         case TA_PAL_ARGB8888:
-          CHECK_EQ(true, twiddled);
           pixel_fmt = PXL_RGBA8888;
           LOG_FATAL("Unhandled");
           break;
@@ -814,6 +823,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       break;
 
     case TA_PIXEL_8BPP:
+      CHECK(!compressed);
       output = converted;
       switch (tactx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
@@ -827,17 +837,17 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
           break;
 
         case TA_PAL_ARGB4444:
-          CHECK_EQ(true, twiddled);
           pixel_fmt = PXL_RGBA4444;
           PixelConvert::ConvertPal8<ARGB4444, RGBA4444>(
-              input, (uint16_t *)converted, (uint32_t *)palette, width, height);
+              input, reinterpret_cast<uint16_t *>(converted),
+              reinterpret_cast<const uint32_t *>(palette), width, height);
           break;
 
         case TA_PAL_ARGB8888:
-          CHECK_EQ(true, twiddled);
           pixel_fmt = PXL_RGBA8888;
           PixelConvert::ConvertPal8<ARGB8888, RGBA8888>(
-              input, (uint32_t *)converted, (uint32_t *)palette, width, height);
+              input, reinterpret_cast<uint32_t *>(converted),
+              reinterpret_cast<const uint32_t *>(palette), width, height);
           break;
       }
       break;
@@ -858,6 +868,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
 
   TextureHandle handle = rb->RegisterTexture(pixel_fmt, filter, wrap_u, wrap_v,
                                              mip_mapped, width, height, output);
+
   if (!handle) {
     LOG_WARNING("Failed to register texture");
     return 0;
@@ -869,7 +880,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
 TextureHandle TileRenderer::GetTexture(const TileContext *tactx, Backend *rb,
                                        const TSP &tsp, const TCW &tcw) {
   return texcache_.GetTexture(
-      tsp, tcw, [&](const uint8_t *texture, const uint8_t *palette) {
-        return RegisterTexture(tactx, rb, tsp, tcw, texture, palette);
+      tsp, tcw, [&](const uint8_t *palette, const uint8_t *texture) {
+        return RegisterTexture(tactx, rb, tsp, tcw, palette, texture);
       });
 }

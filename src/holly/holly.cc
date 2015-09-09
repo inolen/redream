@@ -144,10 +144,15 @@ void Holly::WriteRegister32(uint32_t addr, uint32_t value) {
     case SB_E2ST_OFFSET:
     case SB_DDEN_OFFSET:
     case SB_DDST_OFFSET:
+      if (value) {
+        LOG_WARNING("Ignored AICA DMA request");
+      }
+      break;
+
     case SB_PDEN_OFFSET:
     case SB_PDST_OFFSET:
       if (value) {
-        LOG_FATAL("AICA DMA request");
+        LOG_WARNING("Ignored palette DMA request");
       }
       break;
 

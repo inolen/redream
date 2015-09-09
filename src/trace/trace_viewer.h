@@ -13,15 +13,15 @@ namespace trace {
 struct TextureInst {
   holly::TSP tsp;
   holly::TCW tcw;
-  const uint8_t *texture;
   const uint8_t *palette;
+  const uint8_t *texture;
   renderer::TextureHandle handle;
 };
 
 class TraceTextureCache : public holly::TextureCache {
  public:
   void AddTexture(const holly::TSP &tsp, holly::TCW &tcw,
-                  const uint8_t *texture, const uint8_t *palette);
+                  const uint8_t *palette, const uint8_t *texture);
   void RemoveTexture(const holly::TSP &tsp, holly::TCW &tcw);
 
   renderer::TextureHandle GetTexture(

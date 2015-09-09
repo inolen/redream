@@ -146,12 +146,12 @@ void Dreamcast::InitMemory() {
                   std::bind(&AICA::WriteRegister32, aica(), _1, _2),  //
                   nullptr);
   memory_->Handle(WAVE_RAM_START, WAVE_RAM_END, MIRROR_MASK,
-                  nullptr,                                         //
-                  nullptr,                                         //
+                  nullptr,                                        //
+                  nullptr,                                        //
                   std::bind(&AICA::ReadWave32, aica(), _1),       //
-                  nullptr,                                         //
-                  nullptr,                                         //
-                  nullptr,                                         //
+                  nullptr,                                        //
+                  nullptr,                                        //
+                  nullptr,                                        //
                   std::bind(&AICA::WriteWave32, aica(), _1, _2),  //
                   nullptr);
 

@@ -156,8 +156,8 @@ class PixelConvert {
 
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
-        FROM::Read(src[y * width + x], &r, &g, &b, &a);
-        TO::Write(&dst[y * width + x], r, g, b, a);
+        FROM::Read(*(src++), &r, &g, &b, &a);
+        TO::Write(dst++, r, g, b, a);
       }
     }
   }
@@ -180,23 +180,24 @@ class PixelConvert {
 
   template <typename FROM, typename TO>
   static void ConvertPal4(const uint8_t *src, typename TO::data_type *dst,
-                          uint32_t *palette, int width, int height) {
-    // int min = std::min(width, height);
+                          const uint32_t *palette, int width, int height) {
+    int min = std::min(width, height);
     uint8_t r, g, b, a;
 
+    // always twiddled
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
-        // int tidx = TWIDIDX(x, y, min);
-        int tidx = y * width + x;
+        int tidx = TWIDIDX(x, y, min);
         int palette_idx = src[tidx >> 1];
         if (tidx & 1) {
           palette_idx >>= 4;
         } else {
           palette_idx &= 0xf;
         }
-        auto entry = reinterpret_cast<const typename FROM::data_type *>(
-            &palette[palette_idx]);
-        FROM::Read(*entry, &r, &g, &b, &a);
+        typename FROM::data_type entry =
+            *(reinterpret_cast<const typename FROM::data_type *>(
+                &palette[palette_idx]));
+        FROM::Read(entry, &r, &g, &b, &a);
         TO::Write(dst++, r, g, b, a);
       }
     }
@@ -204,16 +205,18 @@ class PixelConvert {
 
   template <typename FROM, typename TO>
   static void ConvertPal8(const uint8_t *src, typename TO::data_type *dst,
-                          uint32_t *palette, int width, int height) {
+                          const uint32_t *palette, int width, int height) {
     int min = std::min(width, height);
     uint8_t r, g, b, a;
 
+    // always twiddled
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
-        int tidx = TWIDIDX(x, y, min);
-        auto entry = reinterpret_cast<const typename FROM::data_type *>(
-            &palette[src[tidx]]);
-        FROM::Read(*entry, &r, &g, &b, &a);
+        int palette_idx = src[TWIDIDX(x, y, min)];
+        typename FROM::data_type entry =
+            *reinterpret_cast<const typename FROM::data_type *>(
+                &palette[palette_idx]);
+        FROM::Read(entry, &r, &g, &b, &a);
         TO::Write(dst++, r, g, b, a);
       }
     }
@@ -225,6 +228,7 @@ class PixelConvert {
     int min = std::min(width, height);
     uint8_t r, g, b, a;
 
+    // always twiddled
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
         int tidx = TWIDIDX(x, y, min);

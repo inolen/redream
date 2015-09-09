@@ -63,8 +63,8 @@ class TileRenderer {
   renderer::TextureHandle RegisterTexture(const TileContext *tactx,
                                           renderer::Backend *rb, const TSP &tsp,
                                           const TCW &tcw,
-                                          const uint8_t *texture,
-                                          const uint8_t *palette);
+                                          const uint8_t *palette,
+                                          const uint8_t *texture);
   renderer::TextureHandle GetTexture(const TileContext *tactx,
                                      renderer::Backend *rb, const TSP &tsp,
                                      const TCW &tcw);

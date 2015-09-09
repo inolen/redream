@@ -79,10 +79,10 @@ bool TraceReader::PatchPointers() {
     // patch relative data pointers
     switch (curr_cmd->type) {
       case TRACE_INSERT_TEXTURE: {
-        curr_cmd->insert_texture.texture += reinterpret_cast<intptr_t>(ptr);
         curr_cmd->insert_texture.palette += reinterpret_cast<intptr_t>(ptr);
-        ptr += sizeof(*curr_cmd) + curr_cmd->insert_texture.texture_size +
-               curr_cmd->insert_texture.palette_size;
+        curr_cmd->insert_texture.texture += reinterpret_cast<intptr_t>(ptr);
+        ptr += sizeof(*curr_cmd) + curr_cmd->insert_texture.palette_size +
+               curr_cmd->insert_texture.texture_size;
       } break;
 
       case TRACE_RENDER_CONTEXT: {
@@ -157,24 +157,24 @@ void TraceWriter::Close() {
 }
 
 void TraceWriter::WriteInsertTexture(const TSP &tsp, const TCW &tcw,
-                                     const uint8_t *texture, int texture_size,
-                                     const uint8_t *palette, int palette_size) {
+                                     const uint8_t *palette, int palette_size,
+                                     const uint8_t *texture, int texture_size) {
   TraceCommand cmd;
   cmd.type = TRACE_INSERT_TEXTURE;
   cmd.insert_texture.tsp = tsp;
   cmd.insert_texture.tcw = tcw;
-  cmd.insert_texture.texture_size = texture_size;
-  cmd.insert_texture.texture = reinterpret_cast<const uint8_t *>(sizeof(cmd));
   cmd.insert_texture.palette_size = palette_size;
-  cmd.insert_texture.palette =
-      reinterpret_cast<const uint8_t *>(sizeof(cmd) + texture_size);
+  cmd.insert_texture.palette = reinterpret_cast<const uint8_t *>(sizeof(cmd));
+  cmd.insert_texture.texture_size = texture_size;
+  cmd.insert_texture.texture =
+      reinterpret_cast<const uint8_t *>(sizeof(cmd) + palette_size);
 
   CHECK_EQ(fwrite(&cmd, sizeof(cmd), 1, file_), 1);
-  if (texture_size) {
-    CHECK_EQ(fwrite(texture, texture_size, 1, file_), 1);
-  }
   if (palette_size) {
     CHECK_EQ(fwrite(palette, palette_size, 1, file_), 1);
+  }
+  if (texture_size) {
+    CHECK_EQ(fwrite(texture, texture_size, 1, file_), 1);
   }
 }
 

@@ -24,10 +24,10 @@ struct TraceCommand {
     struct {
       holly::TSP tsp;
       holly::TCW tcw;
-      uint32_t texture_size;
-      const uint8_t *texture;
       uint32_t palette_size;
       const uint8_t *palette;
+      uint32_t texture_size;
+      const uint8_t *texture;
     } insert_texture;
 
     // slimmed down version of the TileContext structure, will need to be in
@@ -79,8 +79,8 @@ class TraceWriter {
   void Close();
 
   void WriteInsertTexture(const holly::TSP &tsp, const holly::TCW &tcw,
-                          const uint8_t *texture, int texture_size,
-                          const uint8_t *palette, int palette_size);
+                          const uint8_t *palette, int palette_size,
+                          const uint8_t *texture, int texture_size);
   void WriteRenderContext(holly::TileContext *tactx);
 
  private:

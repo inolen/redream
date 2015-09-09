@@ -210,41 +210,44 @@ TextureHandle TileTextureCache::GetTexture(
   uint32_t texture_addr = tcw.texture_addr << 3;
 
   // get the texture data
+  const uint8_t *video_ram = dc_->video_ram();
+  const uint8_t *texture = &video_ram[texture_addr];
   int width = 8 << tsp.texture_u_size;
   int height = 8 << tsp.texture_v_size;
   int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
                               ? 8
                               : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
   int texture_size = (width * height * element_size_bits) >> 3;
-  const uint8_t *texture = &dc_->video_ram()[texture_addr];
 
   // get the palette data
+  const uint8_t *palette = dc_->palette_ram();
   int palette_size = 0;
-  const uint8_t *palette = nullptr;
 
   if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
-    uint32_t palette_addr = 0;
-
+    // palette ram is 4096 bytes, with each palette entry being 4 bytes each,
+    // resulting in 1 << 10 indexes
     if (tcw.pixel_format == TA_PIXEL_4BPP) {
-      palette_addr = (tcw.p.palette_selector << 4);
-    } else {
-      // in 8BPP palette mode, only the upper two bits are valid
-      palette_addr = ((tcw.p.palette_selector & 0x30) << 4);
+      // in 4bpp mode, the palette selector represents the upper 6 bits of the
+      // palette index, with the remaining 4 bits being filled in by the texture
+      palette += (tcw.p.palette_selector << 4) * 4;
+      palette_size = (1 << 4) * 4;
+    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
+      // in 4bpp mode, the palette selector represents the upper 2 bits of the
+      // palette index, with the remaining 8 bits being filled in by the texture
+      palette += ((tcw.p.palette_selector & 0x30) << 4) * 4;
+      palette_size = (1 << 8) * 4;
     }
-
-    palette_size = 0x1000;
-    palette = &dc_->palette_ram()[palette_addr];
   }
 
   // register and insert into the cache
-  TextureHandle handle = register_cb(texture, palette);
+  TextureHandle handle = register_cb(palette, texture);
   auto result = textures_.insert(std::make_pair(texture_key, handle));
   CHECK(result.second, "Texture already in the map?");
 
   // add insert to trace
   if (trace_writer_) {
-    trace_writer_->WriteInsertTexture(tsp, tcw, texture, texture_size, palette,
-                                      palette_size);
+    trace_writer_->WriteInsertTexture(tsp, tcw, palette, palette_size, texture,
+                                      texture_size);
   }
 
   return result.first->second;
