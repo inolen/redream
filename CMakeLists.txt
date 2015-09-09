@@ -129,7 +129,7 @@ set(DREAVM_SOURCES
   src/emu/dreamcast.cc
   src/emu/profiler.cc
   src/emu/scheduler.cc
-  src/holly/gdrom.cc
+  src/gdrom/gdrom.cc
   src/holly/holly.cc
   src/holly/maple.cc
   src/holly/maple_controller.cc

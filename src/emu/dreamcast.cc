@@ -13,6 +13,7 @@ using namespace dreavm::cpu::backend::interpreter;
 using namespace dreavm::cpu::backend::x64;
 using namespace dreavm::cpu::frontend::sh4;
 using namespace dreavm::emu;
+using namespace dreavm::gdrom;
 using namespace dreavm::holly;
 using namespace dreavm::renderer;
 using namespace dreavm::system;

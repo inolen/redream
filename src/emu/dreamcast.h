@@ -8,7 +8,7 @@
 #include "cpu/sh4.h"
 #include "emu/memory.h"
 #include "emu/scheduler.h"
-#include "holly/gdrom.h"
+#include "gdrom/gdrom.h"
 #include "holly/holly.h"
 #include "holly/maple.h"
 #include "holly/pvr2.h"
@@ -99,7 +99,7 @@ class Dreamcast {
   holly::Holly *holly() { return holly_.get(); }
   holly::PVR2 *pvr() { return pvr_.get(); }
   holly::TileAccelerator *ta() { return ta_.get(); }
-  holly::GDROM *gdrom() { return gdrom_.get(); }
+  gdrom::GDROM *gdrom() { return gdrom_.get(); }
   holly::Maple *maple() { return maple_.get(); }
   trace::TraceWriter *trace_writer() { return trace_writer_.get(); }
 
@@ -149,7 +149,7 @@ class Dreamcast {
   std::unique_ptr<holly::Holly> holly_;
   std::unique_ptr<holly::PVR2> pvr_;
   std::unique_ptr<holly::TileAccelerator> ta_;
-  std::unique_ptr<holly::GDROM> gdrom_;
+  std::unique_ptr<gdrom::GDROM> gdrom_;
   std::unique_ptr<holly::Maple> maple_;
   std::unique_ptr<trace::TraceWriter> trace_writer_;
 

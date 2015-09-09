@@ -12,8 +12,10 @@ struct Register;
 }
 
 namespace holly {
-
 class Holly;
+}
+
+namespace gdrom {
 
 enum GDState {  //
   STATE_STANDBY,

@@ -1,10 +1,11 @@
 #include "core/core.h"
 #include "emu/dreamcast.h"
-#include "holly/gdrom_replies.inc"
+#include "gdrom/gdrom_replies.inc"
 
 using namespace dreavm::core;
 using namespace dreavm::cpu;
 using namespace dreavm::emu;
+using namespace dreavm::gdrom;
 using namespace dreavm::holly;
 
 #define SWAP_24(fad) \
