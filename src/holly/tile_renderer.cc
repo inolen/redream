@@ -568,13 +568,16 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       CHECK_EQ(param->sprite1.pcw.end_of_strip, 1);
 
       auto ParseSpriteVert = [&](int i, Vertex *vert) {
-        vert->xyz[0] = param->sprite1.xyz[i][0];
-        vert->xyz[1] = param->sprite1.xyz[i][1];
         // FIXME this is assuming all sprites are billboards
         // z isn't specified for i == 3
+        vert->xyz[0] = param->sprite1.xyz[i][0];
+        vert->xyz[1] = param->sprite1.xyz[i][1];
         vert->xyz[2] = param->sprite1.xyz[0][2];
-        ParseColor(1.0f, 1.0f, 1.0f, 1.0f, &vert->color);
-        ParseOffsetColor(1.0f, 1.0f, 1.0f, 1.0f, &vert->offset_color);
+        ParseColor(face_color_[0], face_color_[1], face_color_[2],
+                   face_color_[3], &vert->color);
+        ParseOffsetColor(face_offset_color_[0], face_offset_color_[1],
+                         face_offset_color_[2], face_offset_color_[3],
+                         &vert->offset_color);
         uint32_t u, v;
         if (i == 3) {
           u = (param->sprite1.uv[0] & 0xffff0000);
