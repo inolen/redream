@@ -2,23 +2,25 @@
 #include <unordered_map>
 #include "gtest/gtest.h"
 #include "core/core.h"
-#include "cpu/frontend/sh4/sh4_frontend.h"
-#include "cpu/backend/interpreter/interpreter_backend.h"
-#include "cpu/backend/x64/x64_backend.h"
-#include "cpu/sh4.h"
-#include "emu/memory.h"
+#include "hw/sh4/sh4.h"
+#include "hw/memory.h"
+#include "jit/frontend/sh4/sh4_frontend.h"
+#include "jit/backend/interpreter/interpreter_backend.h"
+#include "jit/backend/x64/x64_backend.h"
 #include "sh4_test.h"
 
 using namespace dreavm;
-using namespace dreavm::cpu;
-using namespace dreavm::cpu::backend::interpreter;
-using namespace dreavm::cpu::backend::x64;
-using namespace dreavm::cpu::frontend::sh4;
 using namespace dreavm::core;
-using namespace dreavm::emu;
+using namespace dreavm::hw;
+using namespace dreavm::hw::sh4;
+using namespace dreavm::jit;
+using namespace dreavm::jit::backend::interpreter;
+using namespace dreavm::jit::backend::x64;
+using namespace dreavm::jit::frontend::sh4;
 
 namespace dreavm {
-namespace cpu {
+namespace hw {
+namespace sh4 {
 
 template <typename BACKEND>
 void RunSH4Test(const SH4Test &test) {
@@ -70,6 +72,7 @@ void RunSH4Test(const SH4Test &test) {
     ASSERT_EQ(expected, actual) << reg.name << " expected: 0x" << std::hex
                                 << expected << ", actual 0x" << actual;
   }
+}
 }
 }
 }

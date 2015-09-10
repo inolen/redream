@@ -1,21 +1,24 @@
 #include "core/core.h"
-#include "cpu/backend/interpreter/interpreter_backend.h"
-#include "cpu/backend/x64/x64_backend.h"
-#include "cpu/frontend/sh4/sh4_frontend.h"
+#include "jit/backend/interpreter/interpreter_backend.h"
+#include "jit/backend/x64/x64_backend.h"
+#include "jit/frontend/sh4/sh4_frontend.h"
 #include "emu/dreamcast.h"
 #include "emu/profiler.h"
-#include "holly/maple_controller.h"
+#include "hw/maple/maple_controller.h"
 #include "renderer/gl_backend.h"
 
-using namespace dreavm::aica;
 using namespace dreavm::core;
-using namespace dreavm::cpu;
-using namespace dreavm::cpu::backend::interpreter;
-using namespace dreavm::cpu::backend::x64;
-using namespace dreavm::cpu::frontend::sh4;
 using namespace dreavm::emu;
-using namespace dreavm::gdrom;
-using namespace dreavm::holly;
+using namespace dreavm::hw;
+using namespace dreavm::hw::aica;
+using namespace dreavm::hw::gdrom;
+using namespace dreavm::hw::holly;
+using namespace dreavm::hw::maple;
+using namespace dreavm::hw::sh4;
+using namespace dreavm::jit;
+using namespace dreavm::jit::backend::interpreter;
+using namespace dreavm::jit::backend::x64;
+using namespace dreavm::jit::frontend::sh4;
 using namespace dreavm::renderer;
 using namespace dreavm::system;
 using namespace dreavm::trace;
@@ -32,7 +35,7 @@ Dreamcast::Dreamcast() {
   rt_backend_ = std::unique_ptr<backend::Backend>(new X64Backend(*memory()));
   runtime_ = std::unique_ptr<Runtime>(
       new Runtime(*memory(), *rt_frontend_.get(), *rt_backend_.get()));
-  cpu_ = std::unique_ptr<SH4>(new SH4(*memory(), *runtime()));
+  sh4_ = std::unique_ptr<SH4>(new SH4(*memory(), *runtime()));
   aica_ = std::unique_ptr<AICA>(new AICA(this));
   holly_ = std::unique_ptr<Holly>(new Holly(this));
   pvr_ = std::unique_ptr<PVR2>(new PVR2(this));
@@ -103,7 +106,7 @@ bool Dreamcast::Init() {
   InitMemory();
   InitRegisters();
 
-  cpu_->Init();
+  sh4_->Init();
   aica_->Init();
   holly_->Init();
   pvr_->Init();
@@ -111,7 +114,7 @@ bool Dreamcast::Init() {
   gdrom_->Init();
   maple_->Init();
 
-  scheduler_->AddDevice(cpu());
+  scheduler_->AddDevice(sh4());
   scheduler_->AddDevice(aica());
 
   return true;
@@ -235,43 +238,43 @@ void Dreamcast::InitMemory() {
 
   // cpu
   memory_->Handle(SH4_REG_START, SH4_REG_END, MIRROR_MASK,
-                  std::bind(&SH4::ReadRegister8, cpu(), _1),        //
-                  std::bind(&SH4::ReadRegister16, cpu(), _1),       //
-                  std::bind(&SH4::ReadRegister32, cpu(), _1),       //
+                  std::bind(&SH4::ReadRegister8, sh4(), _1),        //
+                  std::bind(&SH4::ReadRegister16, sh4(), _1),       //
+                  std::bind(&SH4::ReadRegister32, sh4(), _1),       //
                   nullptr,                                          //
-                  std::bind(&SH4::WriteRegister8, cpu(), _1, _2),   //
-                  std::bind(&SH4::WriteRegister16, cpu(), _1, _2),  //
-                  std::bind(&SH4::WriteRegister32, cpu(), _1, _2),  //
+                  std::bind(&SH4::WriteRegister8, sh4(), _1, _2),   //
+                  std::bind(&SH4::WriteRegister16, sh4(), _1, _2),  //
+                  std::bind(&SH4::WriteRegister32, sh4(), _1, _2),  //
                   nullptr);
   memory_->Handle(SH4_CACHE_START, SH4_CACHE_END, 0x0,
-                  std::bind(&SH4::ReadCache8, cpu(), _1),        //
-                  std::bind(&SH4::ReadCache16, cpu(), _1),       //
-                  std::bind(&SH4::ReadCache32, cpu(), _1),       //
-                  std::bind(&SH4::ReadCache64, cpu(), _1),       //
-                  std::bind(&SH4::WriteCache8, cpu(), _1, _2),   //
-                  std::bind(&SH4::WriteCache16, cpu(), _1, _2),  //
-                  std::bind(&SH4::WriteCache32, cpu(), _1, _2),  //
-                  std::bind(&SH4::WriteCache64, cpu(), _1, _2));
+                  std::bind(&SH4::ReadCache8, sh4(), _1),        //
+                  std::bind(&SH4::ReadCache16, sh4(), _1),       //
+                  std::bind(&SH4::ReadCache32, sh4(), _1),       //
+                  std::bind(&SH4::ReadCache64, sh4(), _1),       //
+                  std::bind(&SH4::WriteCache8, sh4(), _1, _2),   //
+                  std::bind(&SH4::WriteCache16, sh4(), _1, _2),  //
+                  std::bind(&SH4::WriteCache32, sh4(), _1, _2),  //
+                  std::bind(&SH4::WriteCache64, sh4(), _1, _2));
   memory_->Handle(SH4_SQ_START, SH4_SQ_END, 0x0,
-                  std::bind(&SH4::ReadSQ8, cpu(), _1),        //
-                  std::bind(&SH4::ReadSQ16, cpu(), _1),       //
-                  std::bind(&SH4::ReadSQ32, cpu(), _1),       //
+                  std::bind(&SH4::ReadSQ8, sh4(), _1),        //
+                  std::bind(&SH4::ReadSQ16, sh4(), _1),       //
+                  std::bind(&SH4::ReadSQ32, sh4(), _1),       //
                   nullptr,                                    //
-                  std::bind(&SH4::WriteSQ8, cpu(), _1, _2),   //
-                  std::bind(&SH4::WriteSQ16, cpu(), _1, _2),  //
-                  std::bind(&SH4::WriteSQ32, cpu(), _1, _2),  //
+                  std::bind(&SH4::WriteSQ8, sh4(), _1, _2),   //
+                  std::bind(&SH4::WriteSQ16, sh4(), _1, _2),  //
+                  std::bind(&SH4::WriteSQ32, sh4(), _1, _2),  //
                   nullptr);
 }
 
 void Dreamcast::InitRegisters() {
 #define HOLLY_REG(addr, name, flags, default, type) \
   holly_regs_[name##_OFFSET] = {flags, default};
-#include "holly/holly_regs.inc"
+#include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
 
 #define PVR_REG(addr, name, flags, default, type) \
   pvr_regs_[name##_OFFSET] = {flags, default};
-#include "holly/pvr2_regs.inc"
+#include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 }
 
@@ -355,7 +358,7 @@ bool Dreamcast::LaunchBIN(const char *path) {
   memory_->Memcpy(0x0c010000, data, size);
   free(data);
 
-  cpu_->SetPC(0x0c010000);
+  sh4_->SetPC(0x0c010000);
 
   return true;
 }
@@ -368,7 +371,7 @@ bool Dreamcast::LaunchGDI(const char *path) {
   }
 
   gdrom_->SetDisc(std::move(gdi));
-  cpu_->SetPC(0xa0000000);
+  sh4_->SetPC(0xa0000000);
 
   return true;
 }

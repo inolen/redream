@@ -3,7 +3,7 @@
 #include "trace/trace.h"
 
 using namespace dreavm::core;
-using namespace dreavm::holly;
+using namespace dreavm::hw::holly;
 using namespace dreavm::trace;
 
 void dreavm::trace::GetNextTraceFilename(char *filename, size_t size) {

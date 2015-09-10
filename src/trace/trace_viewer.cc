@@ -1,12 +1,12 @@
 #include <algorithm>
 #include "core/core.h"
-#include "holly/tile_accelerator.h"
+#include "hw/holly/tile_accelerator.h"
 #include "renderer/gl_backend.h"
 #include "trace/trace.h"
 #include "trace/trace_viewer.h"
 
 using namespace dreavm::core;
-using namespace dreavm::holly;
+using namespace dreavm::hw::holly;
 using namespace dreavm::renderer;
 using namespace dreavm::system;
 using namespace dreavm::trace;

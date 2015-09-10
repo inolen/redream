@@ -2,18 +2,18 @@
 #define DREAMCAST_H
 
 #include <memory>
-#include "aica/aica.h"
-#include "cpu/backend/backend.h"
-#include "cpu/frontend/frontend.h"
-#include "cpu/runtime.h"
-#include "cpu/sh4.h"
-#include "emu/memory.h"
-#include "emu/scheduler.h"
-#include "gdrom/gdrom.h"
-#include "holly/holly.h"
-#include "holly/maple.h"
-#include "holly/pvr2.h"
-#include "holly/tile_accelerator.h"
+#include "hw/aica/aica.h"
+#include "hw/sh4/sh4.h"
+#include "hw/gdrom/gdrom.h"
+#include "hw/holly/holly.h"
+#include "hw/holly/pvr2.h"
+#include "hw/holly/tile_accelerator.h"
+#include "hw/maple/maple.h"
+#include "hw/memory.h"
+#include "hw/scheduler.h"
+#include "jit/backend/backend.h"
+#include "jit/frontend/frontend.h"
+#include "jit/runtime.h"
 #include "renderer/backend.h"
 #include "system/system.h"
 #include "trace/trace.h"
@@ -29,7 +29,7 @@ namespace emu {
 
 enum {
   // ignore all access modifier bits
-  MIRROR_MASK = ~cpu::ADDR_MASK,
+  MIRROR_MASK = ~hw::sh4::ADDR_MASK,
 
   // main ram is mirrored an additional four times:
   // 0x0c000000 - 0x0cffffff
@@ -81,33 +81,33 @@ struct Register {
 enum {
 #define AICA_REG(addr, name, flags, default, type) \
   name##_OFFSET = addr - emu::AICA_REG_START,
-#include "aica/aica_regs.inc"
+#include "hw/aica/aica_regs.inc"
 #undef AICA_REG
 
 #define HOLLY_REG(addr, name, flags, default, type) \
   name##_OFFSET = (addr - emu::HOLLY_REG_START) >> 2,
-#include "holly/holly_regs.inc"
+#include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
 
 #define PVR_REG(addr, name, flags, default_value, type) \
   name##_OFFSET = (addr - emu::PVR_REG_START) >> 2,
-#include "holly/pvr2_regs.inc"
+#include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 };
 
 class Dreamcast {
  public:
-  emu::Scheduler *scheduler() { return scheduler_.get(); }
-  emu::Memory *memory() { return memory_.get(); }
+  hw::Memory *memory() { return memory_.get(); }
+  hw::Scheduler *scheduler() { return scheduler_.get(); }
   renderer::Backend *rb() { return rb_.get(); }
-  cpu::Runtime *runtime() { return runtime_.get(); }
-  cpu::SH4 *cpu() { return cpu_.get(); }
-  aica::AICA *aica() { return aica_.get(); }
-  holly::Holly *holly() { return holly_.get(); }
-  holly::PVR2 *pvr() { return pvr_.get(); }
-  holly::TileAccelerator *ta() { return ta_.get(); }
-  gdrom::GDROM *gdrom() { return gdrom_.get(); }
-  holly::Maple *maple() { return maple_.get(); }
+  jit::Runtime *runtime() { return runtime_.get(); }
+  hw::aica::AICA *aica() { return aica_.get(); }
+  hw::gdrom::GDROM *gdrom() { return gdrom_.get(); }
+  hw::holly::Holly *holly() { return holly_.get(); }
+  hw::holly::PVR2 *pvr() { return pvr_.get(); }
+  hw::holly::TileAccelerator *ta() { return ta_.get(); }
+  hw::maple::Maple *maple() { return maple_.get(); }
+  hw::sh4::SH4 *sh4() { return sh4_.get(); }
   trace::TraceWriter *trace_writer() { return trace_writer_.get(); }
 
   uint8_t *aica_regs() { return aica_regs_; }
@@ -124,12 +124,12 @@ class Dreamcast {
 
 #define HOLLY_REG(offset, name, flags, default, type) \
   type &name{reinterpret_cast<type &>(holly_regs_[name##_OFFSET].value)};
-#include "holly/holly_regs.inc"
+#include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
 
 #define PVR_REG(offset, name, flags, default, type) \
   type &name{reinterpret_cast<type &>(pvr_regs_[name##_OFFSET].value)};
-#include "holly/pvr2_regs.inc"
+#include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 
  private:
@@ -147,19 +147,19 @@ class Dreamcast {
   void RenderFrame();
 
   system::System sys_;
-  std::unique_ptr<emu::Scheduler> scheduler_;
-  std::unique_ptr<emu::Memory> memory_;
+  std::unique_ptr<hw::Memory> memory_;
+  std::unique_ptr<hw::Scheduler> scheduler_;
   std::unique_ptr<renderer::Backend> rb_;
-  std::unique_ptr<cpu::frontend::Frontend> rt_frontend_;
-  std::unique_ptr<cpu::backend::Backend> rt_backend_;
-  std::unique_ptr<cpu::Runtime> runtime_;
-  std::unique_ptr<cpu::SH4> cpu_;
-  std::unique_ptr<aica::AICA> aica_;
-  std::unique_ptr<holly::Holly> holly_;
-  std::unique_ptr<holly::PVR2> pvr_;
-  std::unique_ptr<holly::TileAccelerator> ta_;
-  std::unique_ptr<gdrom::GDROM> gdrom_;
-  std::unique_ptr<holly::Maple> maple_;
+  std::unique_ptr<jit::frontend::Frontend> rt_frontend_;
+  std::unique_ptr<jit::backend::Backend> rt_backend_;
+  std::unique_ptr<jit::Runtime> runtime_;
+  std::unique_ptr<hw::aica::AICA> aica_;
+  std::unique_ptr<hw::gdrom::GDROM> gdrom_;
+  std::unique_ptr<hw::holly::Holly> holly_;
+  std::unique_ptr<hw::holly::PVR2> pvr_;
+  std::unique_ptr<hw::holly::TileAccelerator> ta_;
+  std::unique_ptr<hw::maple::Maple> maple_;
+  std::unique_ptr<hw::sh4::SH4> sh4_;
   std::unique_ptr<trace::TraceWriter> trace_writer_;
 
   Register holly_regs_[HOLLY_REG_SIZE >> 2];

@@ -103,40 +103,41 @@ add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -style=Google -i ${CLANG_FOR
 #--------------------------------------------------
 
 set(DREAVM_SOURCES
-  src/aica/aica.cc
   src/core/assert.cc
   src/core/filesystem.cc
   src/core/log.cc
-  src/cpu/backend/interpreter/interpreter_backend.cc
-  src/cpu/backend/interpreter/interpreter_block.cc
-  src/cpu/backend/interpreter/interpreter_callbacks.cc
-  src/cpu/backend/x64/x64_backend.cc
-  src/cpu/backend/x64/x64_block.cc
-  src/cpu/backend/x64/x64_emitter.cc
-  src/cpu/frontend/sh4/sh4_builder.cc
-  src/cpu/frontend/sh4/sh4_emit.cc
-  src/cpu/frontend/sh4/sh4_frontend.cc
-  src/cpu/frontend/sh4/sh4_instr.cc
-  src/cpu/ir/ir_builder.cc
-  src/cpu/ir/passes/constant_propagation_pass.cc
-  src/cpu/ir/passes/context_promotion_pass.cc
-  src/cpu/ir/passes/control_flow_analysis_pass.cc
-  src/cpu/ir/passes/pass_runner.cc
-  src/cpu/ir/passes/register_allocation_pass.cc
-  src/cpu/ir/passes/validate_pass.cc
-  src/cpu/sh4.cc
-  src/cpu/runtime.cc
-  src/emu/disc.cc
   src/emu/dreamcast.cc
   src/emu/profiler.cc
-  src/emu/scheduler.cc
-  src/gdrom/gdrom.cc
-  src/holly/holly.cc
-  src/holly/maple.cc
-  src/holly/maple_controller.cc
-  src/holly/pvr2.cc
-  src/holly/tile_accelerator.cc
-  src/holly/tile_renderer.cc
+  src/hw/aica/aica.cc
+  src/hw/gdrom/disc.cc
+  src/hw/gdrom/gdrom.cc
+  src/hw/holly/holly.cc
+  src/hw/holly/pvr2.cc
+  src/hw/holly/tile_accelerator.cc
+  src/hw/holly/tile_renderer.cc
+  src/hw/maple/maple.cc
+  src/hw/maple/maple_controller.cc
+  src/hw/sh4/sh4.cc
+  src/hw/scheduler.cc
+  src/jit/backend/interpreter/interpreter_backend.cc
+  src/jit/backend/interpreter/interpreter_block.cc
+  src/jit/backend/interpreter/interpreter_callbacks.cc
+  src/jit/backend/x64/x64_backend.cc
+  src/jit/backend/x64/x64_block.cc
+  src/jit/backend/x64/x64_emitter.cc
+  src/jit/frontend/sh4/sh4_builder.cc
+  src/jit/frontend/sh4/sh4_context.cc
+  src/jit/frontend/sh4/sh4_emit.cc
+  src/jit/frontend/sh4/sh4_frontend.cc
+  src/jit/frontend/sh4/sh4_instr.cc
+  src/jit/ir/ir_builder.cc
+  src/jit/ir/passes/constant_propagation_pass.cc
+  src/jit/ir/passes/context_promotion_pass.cc
+  src/jit/ir/passes/control_flow_analysis_pass.cc
+  src/jit/ir/passes/pass_runner.cc
+  src/jit/ir/passes/register_allocation_pass.cc
+  src/jit/ir/passes/validate_pass.cc
+  src/jit/runtime.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
   src/system/keys.cc

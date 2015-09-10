@@ -11,14 +11,4 @@
 #error "Unsupported platform"
 #endif
 
-#if defined(__GNUC__)
-#define COMPILER_GCC
-#elif defined(__clang__)
-#define COMPILER_CLANG
-#elif defined(_MSC_VER)
-#define COMPILER_MSVC
-#else
-#error "Unsupported compiler"
-#endif
-
 #endif

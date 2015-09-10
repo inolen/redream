@@ -1,8 +1,8 @@
 #include "sh4_test.h"
-#include "cpu/sh4.h"
+#include "jit/frontend/sh4/sh4_context.h"
 
 using namespace dreavm;
-using namespace dreavm::cpu;
+using namespace dreavm::jit::frontend::sh4;
 
 SH4CTXReg sh4ctx_reg[] = {
 #define SH4CTX(name, member, type)                      \
