@@ -107,12 +107,12 @@ bool TraceReader::PatchPointers() {
 bool TraceReader::PatchOverrides() {
   TraceCommand *cmd = cmd_head();
 
-  std::unordered_map<uint32_t, TraceCommand *> last_inserts;
+  std::unordered_map<TextureKey, TraceCommand *> last_inserts;
 
   while (cmd) {
     switch (cmd->type) {
       case TRACE_INSERT_TEXTURE: {
-        uint32_t texture_key = TextureCache::GetTextureKey(
+        TextureKey texture_key = TextureCache::GetTextureKey(
             cmd->insert_texture.tsp, cmd->insert_texture.tcw);
         auto last_insert = last_inserts.find(texture_key);
 

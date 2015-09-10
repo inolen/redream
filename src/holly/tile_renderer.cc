@@ -99,9 +99,8 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
          (float_to_u8(g) << 8) | float_to_u8(r);
 }
 
-uint32_t TextureCache::GetTextureKey(const TSP &tsp, const TCW &tcw) {
-  // cache textures based on their address for now
-  return tcw.texture_addr << 3;
+TextureKey TextureCache::GetTextureKey(const TSP &tsp, const TCW &tcw) {
+  return ((uint64_t)tsp.full << 32) | tcw.full;
 }
 
 TileRenderer::TileRenderer(TextureCache &texcache) : texcache_(texcache) {}

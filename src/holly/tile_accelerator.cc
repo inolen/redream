@@ -179,20 +179,20 @@ void TileTextureCache::Clear() {
   textures_.clear();
 }
 
-void TileTextureCache::RemoveTexture(uint32_t addr) {
-  auto it = textures_.find(addr);
-  if (it == textures_.end()) {
-    return;
-  }
+// void TileTextureCache::RemoveTexture(uint32_t addr) {
+//   auto it = textures_.find(addr);
+//   if (it == textures_.end()) {
+//     return;
+//   }
 
-  TextureHandle handle = it->second;
-  dc_->rb()->FreeTexture(handle);
-  textures_.erase(it);
-}
+//   TextureHandle handle = it->second;
+//   dc_->rb()->FreeTexture(handle);
+//   textures_.erase(it);
+// }
 
 TextureHandle TileTextureCache::GetTexture(
     const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) {
-  uint32_t texture_key = TextureCache::GetTextureKey(tsp, tcw);
+  TextureKey texture_key = TextureCache::GetTextureKey(tsp, tcw);
 
   // if the trace writer has changed, clear the cache to force insert events
   if (dc_->trace_writer() != trace_writer_) {
@@ -389,8 +389,8 @@ void TileAccelerator::WriteCommand32(uint32_t addr, uint32_t value) {
 void TileAccelerator::WriteTexture32(uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
 
-  // FIXME this is terrible
-  texcache_.RemoveTexture(addr);
+  // // FIXME this is terrible
+  // texcache_.RemoveTexture(addr);
 
   *reinterpret_cast<uint32_t *>(&video_ram_[addr]) = value;
 }

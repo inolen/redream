@@ -21,9 +21,11 @@ struct TileContext;
 typedef std::function<renderer::TextureHandle(const uint8_t *, const uint8_t *)>
     RegisterTextureCallback;
 
+typedef uint64_t TextureKey;
+
 class TextureCache {
  public:
-  static uint32_t GetTextureKey(const TSP &tsp, const TCW &tcw);
+  static TextureKey GetTextureKey(const TSP &tsp, const TCW &tcw);
 
   virtual renderer::TextureHandle GetTexture(
       const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) = 0;

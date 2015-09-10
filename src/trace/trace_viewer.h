@@ -29,7 +29,7 @@ class TraceTextureCache : public holly::TextureCache {
       holly::RegisterTextureCallback register_cb);
 
  private:
-  std::unordered_map<uint32_t, TextureInst> textures_;
+  std::unordered_map<holly::TextureKey, TextureInst> textures_;
 };
 
 class TraceViewer {

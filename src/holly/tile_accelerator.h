@@ -480,7 +480,7 @@ class TileTextureCache : public TextureCache {
   TileTextureCache(emu::Dreamcast *dc);
 
   void Clear();
-  void RemoveTexture(uint32_t addr);
+  // void RemoveTexture(uint32_t addr);
   renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
                                      RegisterTextureCallback register_cb);
 
@@ -488,10 +488,10 @@ class TileTextureCache : public TextureCache {
   emu::Dreamcast *dc_;
 
   trace::TraceWriter *trace_writer_;
-  std::unordered_map<uint32_t, renderer::TextureHandle> textures_;
+  std::unordered_map<TextureKey, renderer::TextureHandle> textures_;
 };
 
-typedef std::unordered_map<uint32_t, TileContext *> TileContextMap;
+typedef std::unordered_map<TextureKey, TileContext *> TileContextMap;
 typedef TileContextMap::iterator TileContextIterator;
 
 class TileAccelerator {
