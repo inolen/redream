@@ -5,17 +5,14 @@
 #include "hw/gdrom/disc.h"
 
 namespace dreavm {
-namespace emu {
-class Dreamcast;
-struct Register;
-}
-
 namespace hw {
 namespace holly {
 class Holly;
 }
 
+class Dreamcast;
 class Memory;
+struct Register;
 
 namespace gdrom {
 
@@ -207,10 +204,10 @@ enum DataMask {
 
 class GDROM {
  public:
-  GDROM(emu::Dreamcast *dc);
+  GDROM(hw::Dreamcast *dc);
   ~GDROM();
 
-  void Init();
+  bool Init();
 
   void SetDisc(std::unique_ptr<Disc> disc);
 
@@ -234,10 +231,10 @@ class GDROM {
   int ReadSectors(int fad, SectorFormat format, DataMask mask, int num_sectors,
                   uint8_t *dst);
 
-  emu::Dreamcast *dc_;
+  hw::Dreamcast *dc_;
   hw::Memory *memory_;
   hw::holly::Holly *holly_;
-  emu::Register *holly_regs_;
+  hw::Register *holly_regs_;
 
   GD_FEATURES_T features_;
   GD_INTREASON_T intreason_;

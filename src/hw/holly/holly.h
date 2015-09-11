@@ -4,15 +4,13 @@
 #include <stdint.h>
 
 namespace dreavm {
-namespace emu {
-class Dreamcast;
-struct Register;
-}
-
 namespace hw {
 namespace sh4 {
 class SH4;
 }
+
+class Dreamcast;
+struct Register;
 
 namespace holly {
 
@@ -153,9 +151,9 @@ enum HollyInterrupt : uint64_t {
 
 class Holly {
  public:
-  Holly(emu::Dreamcast *dc);
+  Holly(hw::Dreamcast *dc);
 
-  void Init();
+  bool Init();
 
   void RequestInterrupt(HollyInterrupt intr);
   void UnrequestInterrupt(HollyInterrupt intr);
@@ -168,8 +166,8 @@ class Holly {
   void SortDMATransfer();
   void ForwardRequestInterrupts();
 
-  emu::Dreamcast *dc_;
-  emu::Register *holly_regs_;
+  hw::Dreamcast *dc_;
+  hw::Register *holly_regs_;
   hw::sh4::SH4 *sh4_;
 };
 }

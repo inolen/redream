@@ -1,9 +1,9 @@
 #include "core/core.h"
-#include "emu/dreamcast.h"
 #include "hw/holly/pixel_convert.h"
+#include "hw/dreamcast.h"
 
 using namespace dreavm::core;
-using namespace dreavm::emu;
+using namespace dreavm::hw;
 using namespace dreavm::hw::holly;
 using namespace dreavm::renderer;
 using namespace dreavm::trace;
@@ -288,10 +288,12 @@ TileAccelerator::~TileAccelerator() {
   }
 }
 
-void TileAccelerator::Init() {
+bool TileAccelerator::Init() {
   memory_ = dc_->memory();
   holly_ = dc_->holly();
   video_ram_ = dc_->video_ram();
+
+  return true;
 }
 
 void TileAccelerator::SoftReset() {

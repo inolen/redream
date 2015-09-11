@@ -1,15 +1,17 @@
-#include "emu/dreamcast.h"
 #include "hw/aica/aica.h"
+#include "hw/dreamcast.h"
 
-using namespace dreavm::emu;
+using namespace dreavm::hw;
 using namespace dreavm::hw::aica;
 using namespace dreavm::hw::holly;
 
 AICA::AICA(Dreamcast *dc) : dc_(dc) {}
 
-void AICA::Init() {
+bool AICA::Init() {
   aica_regs_ = dc_->aica_regs();
   wave_ram_ = dc_->wave_ram();
+
+  return true;
 }
 
 uint32_t AICA::Execute(uint32_t cycles) {

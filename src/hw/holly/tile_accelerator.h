@@ -7,15 +7,12 @@
 #include "renderer/backend.h"
 
 namespace dreavm {
-namespace emu {
-class Dreamcast;
-}
-
 namespace trace {
 class TraceWriter;
 }
 
 namespace hw {
+class Dreamcast;
 class Memory;
 
 namespace holly {
@@ -479,7 +476,7 @@ struct TileContext {
 
 class TileTextureCache : public TextureCache {
  public:
-  TileTextureCache(emu::Dreamcast *dc);
+  TileTextureCache(hw::Dreamcast *dc);
 
   void Clear();
   // void RemoveTexture(uint32_t addr);
@@ -487,7 +484,7 @@ class TileTextureCache : public TextureCache {
                                      RegisterTextureCallback register_cb);
 
  private:
-  emu::Dreamcast *dc_;
+  hw::Dreamcast *dc_;
 
   trace::TraceWriter *trace_writer_;
   std::unordered_map<TextureKey, renderer::TextureHandle> textures_;
@@ -502,10 +499,10 @@ class TileAccelerator {
   static int GetPolyType(const PCW &pcw);
   static int GetVertexType(const PCW &pcw);
 
-  TileAccelerator(emu::Dreamcast *dc);
+  TileAccelerator(hw::Dreamcast *dc);
   ~TileAccelerator();
 
-  void Init();
+  bool Init();
 
   void SoftReset();
   void InitContext(uint32_t addr);
@@ -522,7 +519,7 @@ class TileAccelerator {
   void WritePVRState(TileContext *tactx);
   void WriteBackgroundState(TileContext *tactx);
 
-  emu::Dreamcast *dc_;
+  hw::Dreamcast *dc_;
   hw::Memory *memory_;
   hw::holly::Holly *holly_;
   uint8_t *video_ram_;

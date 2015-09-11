@@ -106,7 +106,7 @@ set(DREAVM_SOURCES
   src/core/assert.cc
   src/core/filesystem.cc
   src/core/log.cc
-  src/emu/dreamcast.cc
+  src/emu/emulator.cc
   src/emu/profiler.cc
   src/hw/aica/aica.cc
   src/hw/gdrom/disc.cc
@@ -118,6 +118,7 @@ set(DREAVM_SOURCES
   src/hw/maple/maple.cc
   src/hw/maple/maple_controller.cc
   src/hw/sh4/sh4.cc
+  src/hw/dreamcast.cc
   src/hw/scheduler.cc
   src/jit/backend/interpreter/interpreter_backend.cc
   src/jit/backend/interpreter/interpreter_block.cc

@@ -1,9 +1,9 @@
 #include "core/core.h"
-#include "emu/dreamcast.h"
 #include "hw/maple/maple_controller.h"
+#include "hw/dreamcast.h"
 
 using namespace dreavm::core;
-using namespace dreavm::emu;
+using namespace dreavm::hw;
 using namespace dreavm::hw::holly;
 using namespace dreavm::hw::maple;
 using namespace dreavm::hw::sh4;
@@ -14,10 +14,12 @@ Maple::Maple(Dreamcast *dc) : dc_(dc), devices_() {
   devices_[0] = std::unique_ptr<MapleController>(new MapleController());
 }
 
-void Maple::Init() {
+bool Maple::Init() {
   memory_ = dc_->memory();
   holly_ = dc_->holly();
   holly_regs_ = dc_->holly_regs();
+
+  return true;
 }
 
 bool Maple::HandleInput(int port, Keycode key, int16_t value) {

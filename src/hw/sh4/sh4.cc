@@ -25,7 +25,7 @@ SH4::SH4(Memory &memory, Runtime &runtime)
       requested_interrupts_(0),
       pending_interrupts_(0) {}
 
-void SH4::Init() {
+bool SH4::Init() {
   memset(&ctx_, 0, sizeof(ctx_));
   ctx_.pc = 0xa0000000;
   ctx_.pr = 0x0;
@@ -43,6 +43,8 @@ void SH4::Init() {
   memset(cache_, 0, sizeof(cache_));
 
   ReprioritizeInterrupts();
+
+  return true;
 }
 
 void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }

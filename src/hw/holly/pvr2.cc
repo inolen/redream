@@ -1,7 +1,7 @@
 #include "core/core.h"
-#include "emu/dreamcast.h"
+#include "hw/dreamcast.h"
 
-using namespace dreavm::emu;
+using namespace dreavm::hw;
 using namespace dreavm::hw::holly;
 using namespace dreavm::hw::sh4;
 using namespace dreavm::renderer;
@@ -13,7 +13,7 @@ PVR2::PVR2(Dreamcast *dc)
       fps_(0),
       vbps_(0) {}
 
-void PVR2::Init() {
+bool PVR2::Init() {
   scheduler_ = dc_->scheduler();
   holly_ = dc_->holly();
   ta_ = dc_->ta();
@@ -21,6 +21,8 @@ void PVR2::Init() {
   video_ram_ = dc_->video_ram();
 
   ReconfigureSPG();
+
+  return true;
 }
 
 uint32_t PVR2::ReadRegister32(uint32_t addr) {

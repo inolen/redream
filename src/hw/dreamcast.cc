@@ -1,14 +1,10 @@
 #include "core/core.h"
+#include "hw/dreamcast.h"
 #include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
-#include "emu/dreamcast.h"
-#include "emu/profiler.h"
-#include "hw/maple/maple_controller.h"
-#include "renderer/gl_backend.h"
 
 using namespace dreavm::core;
-using namespace dreavm::emu;
 using namespace dreavm::hw;
 using namespace dreavm::hw::aica;
 using namespace dreavm::hw::gdrom;
@@ -20,117 +16,126 @@ using namespace dreavm::jit::backend::interpreter;
 using namespace dreavm::jit::backend::x64;
 using namespace dreavm::jit::frontend::sh4;
 using namespace dreavm::renderer;
-using namespace dreavm::system;
 using namespace dreavm::trace;
 
-DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
-DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
+Dreamcast::Dreamcast()
+    :  // allocate registers and initialize references
+      holly_regs_(new Register[HOLLY_REG_SIZE >> 2]),
+#define HOLLY_REG(offset, name, flags, default, type) \
+  name{reinterpret_cast<type &>(holly_regs_[name##_OFFSET].value)},
+#include "hw/holly/holly_regs.inc"
+#undef HOLLY_REG
+      pvr_regs_(new Register[PVR_REG_SIZE >> 2]),
+#define PVR_REG(offset, name, flags, default, type) \
+  name{reinterpret_cast<type &>(pvr_regs_[name##_OFFSET].value)},
+#include "hw/holly/pvr2_regs.inc"
+#undef PVR_REG
+      rb_(nullptr),
+      trace_writer_(nullptr) {
+// initialize register values
+#define HOLLY_REG(addr, name, flags, default, type) \
+  holly_regs_[name##_OFFSET] = {flags, default};
+#include "hw/holly/holly_regs.inc"
+#undef HOLLY_REG
 
-Dreamcast::Dreamcast() {
-  scheduler_ = std::unique_ptr<Scheduler>(new Scheduler());
-  memory_ = std::unique_ptr<Memory>(new Memory());
-  rb_ = std::unique_ptr<renderer::Backend>(new GLBackend(sys_));
-  rt_frontend_ =
-      std::unique_ptr<frontend::Frontend>(new SH4Frontend(*memory()));
-  rt_backend_ = std::unique_ptr<backend::Backend>(new X64Backend(*memory()));
-  runtime_ = std::unique_ptr<Runtime>(
-      new Runtime(*memory(), *rt_frontend_.get(), *rt_backend_.get()));
-  sh4_ = std::unique_ptr<SH4>(new SH4(*memory(), *runtime()));
-  aica_ = std::unique_ptr<AICA>(new AICA(this));
-  holly_ = std::unique_ptr<Holly>(new Holly(this));
-  pvr_ = std::unique_ptr<PVR2>(new PVR2(this));
-  ta_ = std::unique_ptr<TileAccelerator>(new TileAccelerator(this));
-  gdrom_ = std::unique_ptr<GDROM>(new GDROM(this));
-  maple_ = std::unique_ptr<Maple>(new Maple(this));
+#define PVR_REG(addr, name, flags, default, type) \
+  pvr_regs_[name##_OFFSET] = {flags, default};
+#include "hw/holly/pvr2_regs.inc"
+#undef PVR_REG
+
+  bios_ = new uint8_t[BIOS_SIZE]();
+  flash_ = new uint8_t[FLASH_SIZE]();
+  ram_ = new uint8_t[MAIN_RAM_SIZE]();
+  unassigned_ = new uint8_t[UNASSIGNED_SIZE]();
+  modem_mem_ = new uint8_t[MODEM_REG_SIZE]();
+  aica_regs_ = new uint8_t[AICA_REG_SIZE]();
+  wave_ram_ = new uint8_t[WAVE_RAM_SIZE]();
+  expdev_mem_ = new uint8_t[EXPDEV_SIZE]();
+  video_ram_ = new uint8_t[PVR_VRAM32_SIZE]();
+  palette_ram_ = new uint8_t[PVR_PALETTE_SIZE]();
+
+  scheduler_ = new Scheduler();
+  memory_ = new Memory();
+  rt_frontend_ = new SH4Frontend(*memory_);
+  rt_backend_ = new X64Backend(*memory_);
+  runtime_ = new Runtime(*memory_, *rt_frontend_, *rt_backend_);
+  aica_ = new AICA(this);
+  gdrom_ = new GDROM(this);
+  holly_ = new Holly(this);
+  maple_ = new Maple(this);
+  pvr_ = new PVR2(this);
+  sh4_ = new SH4(*memory_, *runtime_);
+  ta_ = new TileAccelerator(this);
 }
 
-void Dreamcast::Run(const char *path) {
-  if (!Init()) {
-    LOG_WARNING("Failed to initialize emulator");
-    return;
-  }
+Dreamcast::~Dreamcast() {
+  delete[] holly_regs_;
+  delete[] pvr_regs_;
 
-  if (!LoadBios(FLAGS_bios.c_str())) {
-    return;
-  }
+  delete bios_;
+  delete flash_;
+  delete ram_;
+  delete unassigned_;
+  delete modem_mem_;
+  delete aica_regs_;
+  delete wave_ram_;
+  delete expdev_mem_;
+  delete video_ram_;
+  delete palette_ram_;
 
-  if (!LoadFlash(FLAGS_flash.c_str())) {
-    return;
-  }
-
-  if (path) {
-    LOG_INFO("Launching %s", path);
-
-    if ((strstr(path, ".bin") && !LaunchBIN(path)) ||
-        (strstr(path, ".gdi") && !LaunchGDI(path))) {
-      LOG_WARNING("Failed to launch %s", path);
-      return;
-    }
-  }
-
-  static const std::chrono::nanoseconds step = HZ_TO_NANO(60);
-  std::chrono::nanoseconds time_remaining = std::chrono::nanoseconds(0);
-  auto current_time = std::chrono::high_resolution_clock::now();
-  auto last_time = current_time;
-
-  while (true) {
-    current_time = std::chrono::high_resolution_clock::now();
-    time_remaining += current_time - last_time;
-    last_time = current_time;
-
-    if (time_remaining < step) {
-      continue;
-    }
-
-    time_remaining -= step;
-
-    PumpEvents();
-
-    scheduler_->Tick(step);
-
-    RenderFrame();
-  }
+  delete scheduler_;
+  delete memory_;
+  delete rt_frontend_;
+  delete rt_backend_;
+  delete runtime_;
+  delete aica_;
+  delete gdrom_;
+  delete holly_;
+  delete maple_;
+  delete pvr_;
+  delete sh4_;
+  delete ta_;
 }
 
 bool Dreamcast::Init() {
-  if (!sys_.Init()) {
+  MapMemory();
+
+  if (!aica_->Init()) {
     return false;
   }
 
-  if (!rb_->Init()) {
+  if (!gdrom_->Init()) {
     return false;
   }
 
-  Profiler::Init();
+  if (!holly_->Init()) {
+    return false;
+  }
 
-  InitMemory();
-  InitRegisters();
+  if (!maple_->Init()) {
+    return false;
+  }
 
-  sh4_->Init();
-  aica_->Init();
-  holly_->Init();
-  pvr_->Init();
-  ta_->Init();
-  gdrom_->Init();
-  maple_->Init();
+  if (!pvr_->Init()) {
+    return false;
+  }
 
-  scheduler_->AddDevice(sh4());
-  scheduler_->AddDevice(aica());
+  if (!sh4_->Init()) {
+    return false;
+  }
+
+  if (!ta_->Init()) {
+    return false;
+  }
+
+  scheduler_->AddDevice(aica_);
+  scheduler_->AddDevice(sh4_);
 
   return true;
 }
 
-void Dreamcast::InitMemory() {
+void Dreamcast::MapMemory() {
   using namespace std::placeholders;
-
-  memset(ram_, 0, sizeof(ram_));
-  memset(unassigned_, 0, sizeof(unassigned_));
-  memset(modem_mem_, 0, sizeof(modem_mem_));
-  memset(aica_regs_, 0, sizeof(aica_regs_));
-  memset(wave_ram_, 0, sizeof(wave_ram_));
-  memset(expdev_mem_, 0, sizeof(expdev_mem_));
-  memset(video_ram_, 0, sizeof(video_ram_));
-  memset(palette_ram_, 0, sizeof(palette_ram_));
 
   // main ram
   memory_->Mount(BIOS_START, BIOS_END, MIRROR_MASK, bios_);
@@ -264,188 +269,4 @@ void Dreamcast::InitMemory() {
                   std::bind(&SH4::WriteSQ16, sh4(), _1, _2),  //
                   std::bind(&SH4::WriteSQ32, sh4(), _1, _2),  //
                   nullptr);
-}
-
-void Dreamcast::InitRegisters() {
-#define HOLLY_REG(addr, name, flags, default, type) \
-  holly_regs_[name##_OFFSET] = {flags, default};
-#include "hw/holly/holly_regs.inc"
-#undef HOLLY_REG
-
-#define PVR_REG(addr, name, flags, default, type) \
-  pvr_regs_[name##_OFFSET] = {flags, default};
-#include "hw/holly/pvr2_regs.inc"
-#undef PVR_REG
-}
-
-bool Dreamcast::LoadBios(const char *path) {
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    LOG_WARNING("Failed to open bios at \"%s\"", path);
-    return false;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  if (size != BIOS_SIZE) {
-    LOG_WARNING("Bios size mismatch, is %d, expected %d", size, BIOS_SIZE);
-    fclose(fp);
-    return false;
-  }
-
-  int n = static_cast<int>(fread(bios_, sizeof(uint8_t), size, fp));
-  fclose(fp);
-
-  if (n != size) {
-    LOG_WARNING("Bios read failed");
-    return false;
-  }
-
-  return true;
-}
-
-bool Dreamcast::LoadFlash(const char *path) {
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    LOG_WARNING("Failed to open flash at \"%s\"", path);
-    return false;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  if (size != FLASH_SIZE) {
-    LOG_WARNING("Flash size mismatch, is %d, expected %d", size, FLASH_SIZE);
-    fclose(fp);
-    return false;
-  }
-
-  int n = static_cast<int>(fread(flash_, sizeof(uint8_t), size, fp));
-  fclose(fp);
-
-  if (n != size) {
-    LOG_WARNING("Flash read failed");
-    return false;
-  }
-
-  return true;
-}
-
-bool Dreamcast::LaunchBIN(const char *path) {
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    return false;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  uint8_t *data = reinterpret_cast<uint8_t *>(malloc(size));
-  int n = static_cast<int>(fread(data, sizeof(uint8_t), size, fp));
-  fclose(fp);
-
-  if (n != size) {
-    free(data);
-    return false;
-  }
-
-  // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is normally
-  // loaded to
-  memory_->Memcpy(0x0c010000, data, size);
-  free(data);
-
-  sh4_->SetPC(0x0c010000);
-
-  return true;
-}
-
-bool Dreamcast::LaunchGDI(const char *path) {
-  std::unique_ptr<GDI> gdi(new GDI());
-
-  if (!gdi->Load(path)) {
-    return false;
-  }
-
-  gdrom_->SetDisc(std::move(gdi));
-  sh4_->SetPC(0xa0000000);
-
-  return true;
-}
-
-void Dreamcast::PumpEvents() {
-  SystemEvent ev;
-
-  sys_.PumpEvents();
-
-  while (sys_.PollEvent(&ev)) {
-    switch (ev.type) {
-      case SE_KEY: {
-        // let the profiler take a stab at the input first
-        if (!Profiler::HandleInput(ev.key.code, ev.key.value)) {
-          // debug tracing
-          if (ev.key.code == K_F2) {
-            if (ev.key.value) {
-              ToggleTracing();
-            }
-          }
-          // else, forward to maple
-          else {
-            maple_->HandleInput(0, ev.key.code, ev.key.value);
-          }
-        }
-      } break;
-
-      case SE_MOUSEMOVE: {
-        Profiler::HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
-      } break;
-
-      case SE_RESIZE: {
-        rb_->ResizeVideo(ev.resize.width, ev.resize.height);
-      } break;
-    }
-  }
-}
-
-void Dreamcast::ToggleTracing() {
-  if (!trace_writer_) {
-    char filename[PATH_MAX];
-    GetNextTraceFilename(filename, sizeof(filename));
-
-    trace_writer_ = std::unique_ptr<TraceWriter>(new TraceWriter());
-
-    if (!trace_writer_->Open(filename)) {
-      trace_writer_ = nullptr;
-
-      LOG_INFO("Failed to start tracing");
-
-      return;
-    }
-
-    LOG_INFO("Begin tracing to %s", filename);
-  } else {
-    trace_writer_ = nullptr;
-
-    LOG_INFO("End tracing");
-  }
-}
-
-void Dreamcast::RenderFrame() {
-  rb_->BeginFrame();
-
-  ta_->RenderLastContext();
-
-  // render stats
-  char stats[512];
-  snprintf(stats, sizeof(stats), "%.2f fps, %.2f vbps", pvr_->fps(),
-           pvr_->vbps());
-  rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
-
-  // render profiler
-  Profiler::Render(rb());
-
-  rb_->EndFrame();
 }

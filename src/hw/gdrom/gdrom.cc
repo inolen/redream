@@ -1,9 +1,9 @@
 #include "core/core.h"
-#include "emu/dreamcast.h"
 #include "hw/gdrom/gdrom_replies.inc"
+#include "hw/dreamcast.h"
 
 using namespace dreavm::core;
-using namespace dreavm::emu;
+using namespace dreavm::hw;
 using namespace dreavm::hw::gdrom;
 using namespace dreavm::hw::holly;
 using namespace dreavm::hw::sh4;
@@ -28,12 +28,14 @@ GDROM::GDROM(Dreamcast *dc)
 
 GDROM::~GDROM() { delete[] dma_buffer_; }
 
-void GDROM::Init() {
+bool GDROM::Init() {
   memory_ = dc_->memory();
   holly_ = dc_->holly();
   holly_regs_ = dc_->holly_regs();
 
   SetDisc(nullptr);
+
+  return true;
 }
 
 void GDROM::SetDisc(std::unique_ptr<Disc> disc) {

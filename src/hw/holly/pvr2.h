@@ -5,11 +5,9 @@
 #include "hw/scheduler.h"
 
 namespace dreavm {
-namespace emu {
-class Dreamcast;
-}
-
 namespace hw {
+class Dreamcast;
+
 namespace holly {
 
 class Holly;
@@ -198,12 +196,12 @@ union TA_ISP_BASE_T {
 
 class PVR2 {
  public:
-  PVR2(emu::Dreamcast *dc);
+  PVR2(hw::Dreamcast *dc);
 
   float fps() { return fps_; }
   float vbps() { return vbps_; }
 
-  void Init();
+  bool Init();
 
   uint32_t ReadRegister32(uint32_t addr);
   void WriteRegister32(uint32_t addr, uint32_t value);
@@ -218,11 +216,11 @@ class PVR2 {
   void ReconfigureSPG();
   void LineClockUpdate();
 
-  emu::Dreamcast *dc_;
+  hw::Dreamcast *dc_;
   hw::Scheduler *scheduler_;
   hw::holly::Holly *holly_;
   hw::holly::TileAccelerator *ta_;
-  emu::Register *pvr_regs_;
+  hw::Register *pvr_regs_;
   uint8_t *video_ram_;
 
   hw::TimerHandle line_timer_;

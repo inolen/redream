@@ -4,17 +4,14 @@
 #include "system/keys.h"
 
 namespace dreavm {
-namespace emu {
-class Dreamcast;
-struct Register;
-}
-
 namespace hw {
 namespace holly {
 class Holly;
 }
 
+class Dreamcast;
 class Memory;
+struct Register;
 
 namespace maple {
 
@@ -103,9 +100,9 @@ class MapleDevice {
 
 class Maple {
  public:
-  Maple(emu::Dreamcast *dc);
+  Maple(hw::Dreamcast *dc);
 
-  void Init();
+  bool Init();
 
   bool HandleInput(int port, system::Keycode key, int16_t value);
   void VBlank();
@@ -117,10 +114,10 @@ class Maple {
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
   void StartDMA();
 
-  emu::Dreamcast *dc_;
+  hw::Dreamcast *dc_;
   hw::Memory *memory_;
   hw::holly::Holly *holly_;
-  emu::Register *holly_regs_;
+  hw::Register *holly_regs_;
 
   std::unique_ptr<MapleDevice> devices_[MAX_PORTS];
 };

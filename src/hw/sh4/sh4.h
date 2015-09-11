@@ -120,7 +120,7 @@ class SH4 : public hw::Device {
 
   uint32_t GetClockFrequency() { return 200000000; }
 
-  void Init();
+  bool Init();
   void SetPC(uint32_t pc);
   uint32_t Execute(uint32_t cycles);
 

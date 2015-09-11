@@ -1,8 +1,8 @@
 #include "core/core.h"
-#include "emu/dreamcast.h"
+#include "hw/dreamcast.h"
 
 using namespace dreavm::core;
-using namespace dreavm::emu;
+using namespace dreavm::hw;
 using namespace dreavm::hw::holly;
 using namespace dreavm::hw::sh4;
 using namespace dreavm::renderer;
@@ -10,9 +10,11 @@ using namespace dreavm::system;
 
 Holly::Holly(Dreamcast *dc) : dc_(dc) {}
 
-void Holly::Init() {
+bool Holly::Init() {
   sh4_ = dc_->sh4();
   holly_regs_ = dc_->holly_regs();
+
+  return true;
 }
 
 void Holly::RequestInterrupt(HollyInterrupt intr) {
