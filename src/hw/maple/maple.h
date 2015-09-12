@@ -1,6 +1,7 @@
 #ifndef MAPLE_H
 #define MAPLE_H
 
+#include <memory>
 #include "system/keys.h"
 
 namespace dreavm {

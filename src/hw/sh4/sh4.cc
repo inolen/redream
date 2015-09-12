@@ -6,6 +6,7 @@
 
 using namespace dreavm::core;
 using namespace dreavm::emu;
+using namespace dreavm::hw;
 using namespace dreavm::hw::sh4;
 using namespace dreavm::jit;
 using namespace dreavm::jit::frontend::sh4;

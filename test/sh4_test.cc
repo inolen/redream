@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include "sh4_test.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
