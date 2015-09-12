@@ -275,7 +275,7 @@ TileAccelerator::TileAccelerator(Dreamcast *dc)
     : dc_(dc),
       texcache_(dc_),
       tile_renderer_(texcache_),
-      last_context_(&scratch_context_) {}
+      last_context_(nullptr) {}
 
 TileAccelerator::~TileAccelerator() {
   while (contexts_.size()) {
@@ -359,6 +359,10 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
 }
 
 void TileAccelerator::SaveLastContext(uint32_t addr) {
+  if (!last_context_) {
+    last_context_ = &scratch_context_;
+  }
+
   // swap context with last context to be delayed rendered
   auto it = FindContext(addr);
   TileContext *tmp = last_context_;
@@ -376,6 +380,10 @@ void TileAccelerator::SaveLastContext(uint32_t addr) {
 }
 
 void TileAccelerator::RenderLastContext() {
+  if (!last_context_) {
+    return;
+  }
+
   tile_renderer_.RenderContext(last_context_, dc_->rb());
 
   // add render to trace
