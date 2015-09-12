@@ -4,6 +4,7 @@
 #include <memory>
 #include <unordered_map>
 #include "hw/holly/tile_renderer.h"
+#include "hw/holly/tile_texture_cache.h"
 #include "renderer/backend.h"
 
 namespace dreavm {
@@ -472,22 +473,6 @@ struct TileContext {
   const VertexParam *last_vertex;
   int list_type;
   int vertex_type;
-};
-
-class TileTextureCache : public TextureCache {
- public:
-  TileTextureCache(hw::Dreamcast *dc);
-
-  void Clear();
-  // void RemoveTexture(uint32_t addr);
-  renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
-                                     RegisterTextureCallback register_cb);
-
- private:
-  hw::Dreamcast *dc_;
-
-  trace::TraceWriter *trace_writer_;
-  std::unordered_map<TextureKey, renderer::TextureHandle> textures_;
 };
 
 typedef std::unordered_map<TextureKey, TileContext *> TileContextMap;

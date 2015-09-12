@@ -16,6 +16,7 @@ using namespace dreavm::jit::backend::interpreter;
 using namespace dreavm::jit::backend::x64;
 using namespace dreavm::jit::frontend::sh4;
 using namespace dreavm::renderer;
+using namespace dreavm::sigsegv;
 using namespace dreavm::trace;
 
 Dreamcast::Dreamcast()
@@ -43,16 +44,16 @@ Dreamcast::Dreamcast()
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 
+  aica_regs_ = new uint8_t[AICA_REG_SIZE]();
   bios_ = new uint8_t[BIOS_SIZE]();
+  expdev_mem_ = new uint8_t[EXPDEV_SIZE]();
   flash_ = new uint8_t[FLASH_SIZE]();
+  modem_mem_ = new uint8_t[MODEM_REG_SIZE]();
+  palette_ram_ = new uint8_t[PVR_PALETTE_SIZE]();
   ram_ = new uint8_t[MAIN_RAM_SIZE]();
   unassigned_ = new uint8_t[UNASSIGNED_SIZE]();
-  modem_mem_ = new uint8_t[MODEM_REG_SIZE]();
-  aica_regs_ = new uint8_t[AICA_REG_SIZE]();
-  wave_ram_ = new uint8_t[WAVE_RAM_SIZE]();
-  expdev_mem_ = new uint8_t[EXPDEV_SIZE]();
   video_ram_ = new uint8_t[PVR_VRAM32_SIZE]();
-  palette_ram_ = new uint8_t[PVR_PALETTE_SIZE]();
+  wave_ram_ = new uint8_t[WAVE_RAM_SIZE]();
 
   scheduler_ = new Scheduler();
   memory_ = new Memory();
@@ -98,6 +99,10 @@ Dreamcast::~Dreamcast() {
 }
 
 bool Dreamcast::Init() {
+  if (!(sigsegv_ = SIGSEGVHandler::Install())) {
+    return false;
+  }
+
   MapMemory();
 
   if (!aica_->Init()) {

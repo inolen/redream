@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include "core/core.h"
+#include "core/intrusive_list.h"
 
 namespace dreavm {
 namespace jit {

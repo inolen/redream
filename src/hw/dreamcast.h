@@ -14,6 +14,7 @@
 #include "jit/frontend/frontend.h"
 #include "jit/runtime.h"
 #include "renderer/backend.h"
+#include "sigsegv/sigsegv_handler.h"
 #include "trace/trace.h"
 
 namespace dreavm {
@@ -116,6 +117,8 @@ class Dreamcast {
   hw::sh4::SH4 *sh4() { return sh4_; }
   hw::holly::TileAccelerator *ta() { return ta_; }
 
+  sigsegv::SIGSEGVHandler *sigsegv() { return sigsegv_; }
+
   renderer::Backend *rb() { return rb_; }
   void set_rb(renderer::Backend *rb) { rb_ = rb; }
 
@@ -148,16 +151,16 @@ class Dreamcast {
  private:
   void MapMemory();
 
+  uint8_t *aica_regs_;
   uint8_t *bios_;
+  uint8_t *expdev_mem_;
   uint8_t *flash_;
+  uint8_t *modem_mem_;
+  uint8_t *palette_ram_;
   uint8_t *ram_;
   uint8_t *unassigned_;
-  uint8_t *modem_mem_;
-  uint8_t *aica_regs_;
-  uint8_t *wave_ram_;
-  uint8_t *expdev_mem_;
   uint8_t *video_ram_;
-  uint8_t *palette_ram_;
+  uint8_t *wave_ram_;
 
   hw::Memory *memory_;
   hw::Scheduler *scheduler_;
@@ -173,6 +176,7 @@ class Dreamcast {
   hw::holly::TileAccelerator *ta_;
 
   // not owned by us
+  sigsegv::SIGSEGVHandler *sigsegv_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;
 };

@@ -115,6 +115,7 @@ set(DREAVM_SOURCES
   src/hw/holly/pvr2.cc
   src/hw/holly/tile_accelerator.cc
   src/hw/holly/tile_renderer.cc
+  src/hw/holly/tile_texture_cache.cc
   src/hw/maple/maple.cc
   src/hw/maple/maple_controller.cc
   src/hw/sh4/sh4.cc
@@ -141,11 +142,21 @@ set(DREAVM_SOURCES
   src/jit/runtime.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
+  src/sigsegv/sigsegv_handler.cc
   src/system/keys.cc
   src/system/system.cc
   src/trace/trace.cc
   src/trace/trace_viewer.cc
   src/main.cc)
+
+if(WIN32)
+  list(APPEND DREAVM_SOURCES src/sigsegv/sigsegv_handler_win.cc)
+elseif(APPLE)
+  list(APPEND DREAVM_SOURCES src/sigsegv/sigsegv_handler_mac.cc)
+else()
+  list(APPEND DREAVM_SOURCES src/sigsegv/sigsegv_handler_linux.cc)
+endif()
+
 
 # assign source groups for visual studio projects
 source_group_by_dir(DREAVM_SOURCES)
@@ -277,6 +288,7 @@ endif()
 set(DREAVM_TEST_SOURCES
   ${DREAVM_SOURCES}
   test/sh4_test.cc
+  test/test_interval_tree.cc
   test/test_intrusive_list.cc
   test/test_ring_buffer.cc
   test/test_sh4.cc

@@ -1,5 +1,6 @@
 #include "gtest/gtest.h"
 #include "core/core.h"
+#include "core/ring_buffer.h"
 
 using namespace dreavm;
 
