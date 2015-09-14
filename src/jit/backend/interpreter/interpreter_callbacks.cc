@@ -3,7 +3,7 @@
 #include "jit/backend/interpreter/interpreter_block.h"
 #include "jit/backend/interpreter/interpreter_callbacks.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::jit;
 using namespace dreavm::jit::backend::interpreter;

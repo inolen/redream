@@ -2,7 +2,7 @@
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_block.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::jit;
 using namespace dreavm::jit::backend;

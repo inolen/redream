@@ -7,7 +7,6 @@
 #include "core/assert.h"
 
 namespace dreavm {
-namespace core {
 
 // Objects are directly stored in the instrusive container, not copies. Due to
 // this, the lifetime of the object is not bound to the container. It's up to
@@ -269,7 +268,6 @@ class IntrusiveList {
   T *head_;
   T *tail_;
 };
-}
 }
 
 #endif

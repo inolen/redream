@@ -133,8 +133,8 @@ class Value {
   template <typename T>
   T value();
 
-  const core::IntrusiveList<ValueRef> &refs() const { return refs_; }
-  core::IntrusiveList<ValueRef> &refs() { return refs_; }
+  const IntrusiveList<ValueRef> &refs() const { return refs_; }
+  IntrusiveList<ValueRef> &refs() { return refs_; }
 
   int reg() const { return reg_; }
   void set_reg(int reg) { reg_ = reg; }
@@ -160,7 +160,7 @@ class Value {
     double f64_;
     Block *block_;
   };
-  core::IntrusiveList<ValueRef> refs_;
+  IntrusiveList<ValueRef> refs_;
   // initializing here so each constructor variation doesn't have to
   int reg_{NO_REGISTER};
   intptr_t tag_{0};
@@ -240,7 +240,7 @@ inline Block *Value::value() {
 // ValueRef is a layer of indirection between an instruction and a values it
 // uses. Values maintain a list of all of their references, making it possible
 // during optimization to replace all references to a value with a new value.
-class ValueRef : public core::IntrusiveListNode<ValueRef> {
+class ValueRef : public IntrusiveListNode<ValueRef> {
  public:
   ValueRef(Instr *instr);
   ~ValueRef();
@@ -268,7 +268,7 @@ class ValueRef : public core::IntrusiveListNode<ValueRef> {
 //
 enum InstrFlag { IF_NONE = 0x0, IF_INVALIDATE_CONTEXT = 0x1 };
 
-class Instr : public core::IntrusiveListNode<Instr> {
+class Instr : public IntrusiveListNode<Instr> {
   friend class Block;
 
  public:
@@ -320,7 +320,7 @@ class Instr : public core::IntrusiveListNode<Instr> {
 //
 // blocks
 //
-class Edge : public core::IntrusiveListNode<Edge> {
+class Edge : public IntrusiveListNode<Edge> {
  public:
   Edge(Block *src, Block *dst);
 
@@ -332,21 +332,21 @@ class Edge : public core::IntrusiveListNode<Edge> {
   Block *dst_;
 };
 
-class Block : public core::IntrusiveListNode<Block> {
+class Block : public IntrusiveListNode<Block> {
   friend class IRBuilder;
 
  public:
   Block();
   ~Block();
 
-  const core::IntrusiveList<Instr> &instrs() const { return instrs_; }
-  core::IntrusiveList<Instr> &instrs() { return instrs_; }
+  const IntrusiveList<Instr> &instrs() const { return instrs_; }
+  IntrusiveList<Instr> &instrs() { return instrs_; }
 
-  const core::IntrusiveList<Edge> &outgoing() const { return outgoing_; }
-  core::IntrusiveList<Edge> &outgoing() { return outgoing_; }
+  const IntrusiveList<Edge> &outgoing() const { return outgoing_; }
+  IntrusiveList<Edge> &outgoing() { return outgoing_; }
 
-  const core::IntrusiveList<Edge> &incoming() const { return incoming_; }
-  core::IntrusiveList<Edge> &incoming() { return incoming_; }
+  const IntrusiveList<Edge> &incoming() const { return incoming_; }
+  IntrusiveList<Edge> &incoming() { return incoming_; }
 
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
@@ -358,9 +358,9 @@ class Block : public core::IntrusiveListNode<Block> {
   void UnlinkInstr(Instr *instr);
 
  private:
-  core::IntrusiveList<Instr> instrs_;
-  core::IntrusiveList<Edge> outgoing_;
-  core::IntrusiveList<Edge> incoming_;
+  IntrusiveList<Instr> instrs_;
+  IntrusiveList<Edge> outgoing_;
+  IntrusiveList<Edge> incoming_;
   intptr_t tag_;
 };
 
@@ -373,8 +373,8 @@ class IRBuilder {
  public:
   IRBuilder();
 
-  const core::IntrusiveList<Block> &blocks() const { return blocks_; }
-  core::IntrusiveList<Block> &blocks() { return blocks_; }
+  const IntrusiveList<Block> &blocks() const { return blocks_; }
+  IntrusiveList<Block> &blocks() { return blocks_; }
 
   int locals_size() const { return locals_size_; }
 
@@ -478,8 +478,8 @@ class IRBuilder {
   Instr *AllocInstr(Opcode op, InstrFlag flags = IF_NONE);
   Instr *AppendInstr(Opcode op, InstrFlag flags = IF_NONE);
 
-  core::Arena arena_;
-  core::IntrusiveList<Block> blocks_;
+  Arena arena_;
+  IntrusiveList<Block> blocks_;
   Block *current_block_;
   int locals_size_;
   int guest_cycles_;

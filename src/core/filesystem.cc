@@ -12,7 +12,6 @@
 #endif
 
 namespace dreavm {
-namespace core {
 
 static bool GetUserDir(char *userdir, size_t size) {
 #ifdef PLATFORM_WINDOWS
@@ -132,6 +131,5 @@ bool CreateDir(const char *path) {
   int res = mkdir(path, 0755);
 #endif
   return res == 0 || errno == EEXIST;
-}
 }
 }

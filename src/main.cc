@@ -3,7 +3,7 @@
 #include "emu/emulator.h"
 #include "trace/trace_viewer.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::emu;
 using namespace dreavm::system;
 using namespace dreavm::trace;

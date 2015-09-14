@@ -69,7 +69,7 @@ class System : public renderer::GLContext {
   SDL_Window *window_;
   SDL_GLContext glcontext_;
   SDL_Joystick *joystick_;
-  core::RingBuffer<SystemEvent> events_;
+  RingBuffer<SystemEvent> events_;
 };
 }
 }

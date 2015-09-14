@@ -10,7 +10,6 @@
 #include "sh4_test.h"
 
 using namespace dreavm;
-using namespace dreavm::core;
 using namespace dreavm::hw;
 using namespace dreavm::hw::sh4;
 using namespace dreavm::jit;
@@ -41,8 +40,8 @@ void RunSH4Test(const SH4Test &test) {
   memory.Mount(0x0, sizeof(stack) - 1, ~ADDR_MASK, stack);
 
   // mount the test binary
-  uint32_t binary_size = core::align(static_cast<uint32_t>(test.buffer_size),
-                                     static_cast<uint32_t>(MAX_PAGE_SIZE));
+  uint32_t binary_size = dreavm::align(static_cast<uint32_t>(test.buffer_size),
+                                       static_cast<uint32_t>(MAX_PAGE_SIZE));
   uint8_t *binary = new uint8_t[binary_size];
   memcpy(binary, test.buffer, test.buffer_size);
   memory.Mount(load_address, load_address + binary_size - 1, ~ADDR_MASK,

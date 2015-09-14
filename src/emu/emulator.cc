@@ -3,7 +3,7 @@
 #include "emu/profiler.h"
 #include "renderer/gl_backend.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::emu;
 using namespace dreavm::hw;
 using namespace dreavm::hw::gdrom;

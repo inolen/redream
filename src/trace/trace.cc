@@ -2,7 +2,7 @@
 #include "core/core.h"
 #include "trace/trace.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::hw::holly;
 using namespace dreavm::trace;
 

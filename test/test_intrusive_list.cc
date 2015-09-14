@@ -2,7 +2,6 @@
 #include "core/core.h"
 
 using namespace dreavm;
-using namespace dreavm::core;
 
 struct Person : public IntrusiveListNode<Person> {
   Person(const char *name) : name(name) {}

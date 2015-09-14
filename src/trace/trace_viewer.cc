@@ -5,7 +5,7 @@
 #include "trace/trace.h"
 #include "trace/trace_viewer.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::hw::holly;
 using namespace dreavm::renderer;
 using namespace dreavm::system;

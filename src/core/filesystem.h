@@ -21,7 +21,6 @@
 #endif
 
 namespace dreavm {
-namespace core {
 
 const char *GetAppDir();
 void EnsureAppDirExists();
@@ -31,7 +30,6 @@ void BaseName(const char *path, char *base, size_t size);
 
 bool Exists(const char *path);
 bool CreateDir(const char *path);
-}
 }
 
 #endif

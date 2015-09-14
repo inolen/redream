@@ -6,7 +6,6 @@
 #include "core/assert.h"
 
 namespace dreavm {
-namespace core {
 
 class Arena {
   struct Chunk {
@@ -72,7 +71,6 @@ class Arena {
   size_t chunk_size_;
   Chunk *root_chunk_, *current_chunk_;
 };
-}
 }
 
 #endif

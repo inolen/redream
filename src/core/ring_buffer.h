@@ -5,7 +5,6 @@
 #include "core/assert.h"
 
 namespace dreavm {
-namespace core {
 
 template <typename T>
 class RingBuffer {
@@ -147,7 +146,6 @@ class RingBuffer {
   size_t front_;
   size_t back_;
 };
-}
 }
 
 #endif

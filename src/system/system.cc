@@ -7,7 +7,7 @@
 #define DEFAULT_VIDEO_WIDTH 800
 #define DEFAULT_VIDEO_HEIGHT 600
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::system;
 
 static inline SystemEvent MakeKeyEvent(Keycode code, int16_t value) {

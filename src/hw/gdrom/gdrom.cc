@@ -2,7 +2,7 @@
 #include "hw/gdrom/gdrom_replies.inc"
 #include "hw/dreamcast.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::hw::gdrom;
 using namespace dreavm::hw::holly;

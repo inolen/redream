@@ -53,7 +53,7 @@ class X64Emitter {
 
   hw::Memory &memory_;
   Xbyak::CodeGenerator &c_;
-  core::Arena arena_;
+  Arena arena_;
   Xbyak::Label *epilog_label_;
 };
 }

@@ -2,7 +2,7 @@
 #include "emu/profiler.h"
 #include "jit/backend/x64/x64_emitter.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::jit::backend::x64;
 using namespace dreavm::jit::ir;
@@ -109,7 +109,7 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
   // stack must be 16 byte aligned
   // TODO align each local
   int stack_size = STACK_SIZE + builder.locals_size();
-  stack_size = core::align(stack_size, 16);
+  stack_size = dreavm::align(stack_size, 16);
 
   // add 8 for return address which will be pushed when this is called
   stack_size += 8;

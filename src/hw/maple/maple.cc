@@ -2,7 +2,7 @@
 #include "hw/maple/maple_controller.h"
 #include "hw/dreamcast.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::hw::holly;
 using namespace dreavm::hw::maple;

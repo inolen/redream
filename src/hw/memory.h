@@ -58,7 +58,7 @@ class PageTable {
       return;
     }
 
-    int n = 31 - core::clz(mirror_mask);
+    int n = 31 - dreavm::clz(mirror_mask);
     uint32_t next_mask = mirror_mask & ~(1 << n);
 
     start |= mirror_mask;

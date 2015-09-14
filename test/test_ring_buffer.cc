@@ -2,7 +2,6 @@
 #include "core/core.h"
 
 using namespace dreavm;
-using namespace dreavm::core;
 
 class RingTest : public ::testing::Test {
  public:

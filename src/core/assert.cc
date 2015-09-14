@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include "core/assert.h"
 
+namespace dreavm {
+
 const char *FormatCheckError(const char *filename, int linenum,
                              const char *expr, const char *format, ...) {
   static const int MAX_ERROR_SIZE = 1024;
@@ -27,4 +29,5 @@ const char *FormatCheckError(const char *filename, int linenum,
 const char *FormatCheckError(const char *filename, int linenum,
                              const char *expr) {
   return FormatCheckError(filename, linenum, expr, nullptr);
+}
 }

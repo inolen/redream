@@ -39,7 +39,7 @@ class RegisterSet {
   int *free_, num_free_;
 
   // intervals used by this register set, sorted in order of next use
-  core::RingBuffer<Interval *> live_;
+  RingBuffer<Interval *> live_;
 };
 
 class RegisterAllocationPass : public Pass {

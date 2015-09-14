@@ -4,7 +4,7 @@
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 
-using namespace dreavm::core;
+using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::hw::aica;
 using namespace dreavm::hw::gdrom;

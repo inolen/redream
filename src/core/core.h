@@ -5,7 +5,6 @@
 #include <gflags/gflags.h>
 #include "core/arena.h"
 #include "core/assert.h"
-#include "core/hash.h"
 #include "core/intrusive_list.h"
 #include "core/log.h"
 #include "core/math.h"

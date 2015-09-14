@@ -4,6 +4,8 @@
 #include "core/log.h"
 #include "core/platform.h"
 
+namespace dreavm {
+
 // CHECK_* macros are usually true, hint this to the compiler if possible
 #if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
 #define CHECK_EXPECT_TRUE(expr) (__builtin_expect(!!(expr), 1))
@@ -68,5 +70,6 @@ const char *FormatCheckError(const char *filename, int linenum,
 #define DCHECK_NOTNULL(val, ...)
 #define DCHECK(condition, ...)
 #endif
+}
 
 #endif
