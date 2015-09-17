@@ -1,6 +1,7 @@
 #define MICROPROFILE_TEXT_WIDTH 6
 #define MICROPROFILE_TEXT_HEIGHT 12
 #define MICROPROFILE_WEBSERVER 0
+#define MICROPROFILE_GPU_TIMERS 0
 #define MICROPROFILE_ENABLED 1
 #define MICROPROFILEUI_ENABLED 1
 #define MICROPROFILE_IMPL 1
@@ -90,9 +91,3 @@ void MicroProfileDrawLine2D(uint32_t num_vertices, float *vertices,
   color = 0xff000000 | color;
   g_backend->RenderLine2D(vertices, num_vertices, color);
 }
-
-uint32_t MicroProfileGpuInsertTimeStamp() { return 0; }
-
-uint64_t MicroProfileGpuGetTimeStamp(uint32_t key) { return 0; }
-
-uint64_t MicroProfileTicksPerSecondGpu() { return 0; }
