@@ -2,13 +2,13 @@
 #include <GL/glew.h>
 #include <SDL_opengl.h>
 #include "core/core.h"
-#include "system/system.h"
+#include "sys/system.h"
 
 #define DEFAULT_VIDEO_WIDTH 800
 #define DEFAULT_VIDEO_HEIGHT 600
 
 using namespace dreavm;
-using namespace dreavm::system;
+using namespace dreavm::sys;
 
 static inline SystemEvent MakeKeyEvent(Keycode code, int16_t value) {
   SystemEvent ev;

@@ -141,20 +141,20 @@ set(DREAVM_SOURCES
   src/jit/runtime.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
-  src/system/files.cc
-  src/system/keys.cc
-  src/system/sigsegv_handler.cc
-  src/system/system.cc
+  src/sys/files.cc
+  src/sys/keys.cc
+  src/sys/sigsegv_handler.cc
+  src/sys/system.cc
   src/trace/trace.cc
   src/trace/trace_viewer.cc
   src/main.cc)
 
 if(WIN32)
-  list(APPEND DREAVM_SOURCES src/system/sigsegv_handler_win.cc)
+  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_win.cc)
 elseif(APPLE)
-  list(APPEND DREAVM_SOURCES src/system/sigsegv_handler_mac.cc)
+  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_mac.cc)
 else()
-  list(APPEND DREAVM_SOURCES src/system/sigsegv_handler_linux.cc)
+  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_linux.cc)
 endif()
 
 

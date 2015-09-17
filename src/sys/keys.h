@@ -2,7 +2,7 @@
 #define KEYS_H
 
 namespace dreavm {
-namespace system {
+namespace sys {
 
 enum Keycode {
   K_UNKNOWN,

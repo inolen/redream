@@ -3,7 +3,7 @@
 
 #include "hw/dreamcast.h"
 #include "renderer/backend.h"
-#include "system/system.h"
+#include "sys/system.h"
 
 namespace dreavm {
 namespace emu {
@@ -25,7 +25,7 @@ class Emulator {
   void ToggleTracing();
   void RenderFrame();
 
-  system::System sys_;
+  sys::System sys_;
   hw::Dreamcast dc_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;

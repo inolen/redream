@@ -7,7 +7,7 @@ using namespace dreavm::hw;
 using namespace dreavm::hw::holly;
 using namespace dreavm::hw::maple;
 using namespace dreavm::hw::sh4;
-using namespace dreavm::system;
+using namespace dreavm::sys;
 
 Maple::Maple(Dreamcast *dc) : dc_(dc), devices_() {
   // default controller device

@@ -14,7 +14,7 @@
 #include "jit/frontend/frontend.h"
 #include "jit/runtime.h"
 #include "renderer/backend.h"
-#include "system/sigsegv_handler.h"
+#include "sys/sigsegv_handler.h"
 #include "trace/trace.h"
 
 namespace dreavm {
@@ -117,7 +117,7 @@ class Dreamcast {
   hw::sh4::SH4 *sh4() { return sh4_; }
   hw::holly::TileAccelerator *ta() { return ta_; }
 
-  system::SIGSEGVHandler *sigsegv() { return sigsegv_; }
+  sys::SIGSEGVHandler *sigsegv() { return sigsegv_; }
 
   renderer::Backend *rb() { return rb_; }
   void set_rb(renderer::Backend *rb) { rb_ = rb; }
@@ -176,7 +176,7 @@ class Dreamcast {
   hw::holly::TileAccelerator *ta_;
 
   // not owned by us
-  system::SIGSEGVHandler *sigsegv_;
+  sys::SIGSEGVHandler *sigsegv_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;
 };

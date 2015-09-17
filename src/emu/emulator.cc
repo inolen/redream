@@ -8,7 +8,7 @@ using namespace dreavm::emu;
 using namespace dreavm::hw;
 using namespace dreavm::hw::gdrom;
 using namespace dreavm::renderer;
-using namespace dreavm::system;
+using namespace dreavm::sys;
 using namespace dreavm::trace;
 
 DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");

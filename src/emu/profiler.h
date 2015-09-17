@@ -3,7 +3,7 @@
 
 #include <microprofile.h>
 #include "renderer/backend.h"
-#include "system/keys.h"
+#include "sys/keys.h"
 
 #define PROFILER_SCOPE(group, name) \
   MICROPROFILE_SCOPEI(group, name, dreavm::emu::Profiler::ScopeColor(name))
@@ -23,7 +23,7 @@ class Profiler {
 
   static void Init();
 
-  static bool HandleInput(system::Keycode key, int16_t value);
+  static bool HandleInput(sys::Keycode key, int16_t value);
   static bool HandleMouseMove(int x, int y);
   static void Render(renderer::Backend *backend);
 };

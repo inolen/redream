@@ -5,7 +5,7 @@
 #include "hw/maple/maple_controller.h"
 
 using namespace dreavm::hw::maple;
-using namespace dreavm::system;
+using namespace dreavm::sys;
 using namespace json11;
 
 DEFINE_string(profile, "", "Controller profile");

@@ -2,7 +2,7 @@
 #define DISC_H
 
 #include <vector>
-#include "system/files.h"
+#include "sys/files.h"
 
 namespace dreavm {
 namespace hw {

@@ -1,10 +1,10 @@
 #include <windows.h>
 #include "core/core.h"
-#include "system/sigsegv_handler_win.h"
+#include "sys/sigsegv_handler_win.h"
 
-using namespace dreavm::system;
+using namespace dreavm::sys;
 
-SIGSEGVHandler *dreavm::system::CreateSIGSEGVHandler() {
+SIGSEGVHandler *dreavm::sys::CreateSIGSEGVHandler() {
   return new SIGSEGVHandlerWin();
 }
 

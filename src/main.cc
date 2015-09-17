@@ -5,7 +5,7 @@
 
 using namespace dreavm;
 using namespace dreavm::emu;
-using namespace dreavm::system;
+using namespace dreavm::sys;
 using namespace dreavm::trace;
 
 void InitFlags(int *argc, char ***argv) {

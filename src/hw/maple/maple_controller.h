@@ -48,19 +48,19 @@ class MapleControllerProfile {
 
   void Load(const char *path);
 
-  int LookupButton(system::Keycode code) { return button_map_[code]; }
+  int LookupButton(sys::Keycode code) { return button_map_[code]; }
 
  private:
   void MapKey(const char *name, int button);
 
-  int button_map_[system::K_NUM_KEYS];
+  int button_map_[sys::K_NUM_KEYS];
 };
 
 class MapleController : public MapleDevice {
  public:
   MapleController();
 
-  bool HandleInput(system::Keycode key, int16_t value);
+  bool HandleInput(sys::Keycode key, int16_t value);
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
 
  private:

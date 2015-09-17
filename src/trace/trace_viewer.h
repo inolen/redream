@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <vector>
 #include "hw/holly/tile_renderer.h"
-#include "system/system.h"
+#include "sys/system.h"
 #include "trace/trace.h"
 
 namespace dreavm {
@@ -52,7 +52,7 @@ class TraceViewer {
   void PrevContext();
   void NextContext();
 
-  system::System sys_;
+  sys::System sys_;
   TraceTextureCache texcache_;
   hw::holly::TileRenderer tile_renderer_;
   renderer::Backend *rb_;

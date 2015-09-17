@@ -4,10 +4,10 @@
 #include <SDL.h>
 #include "core/ring_buffer.h"
 #include "renderer/gl_context.h"
-#include "system/keys.h"
+#include "sys/keys.h"
 
 namespace dreavm {
-namespace system {
+namespace sys {
 
 enum {
   MAX_EVENTS = 1024,

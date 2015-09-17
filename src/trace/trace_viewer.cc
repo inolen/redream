@@ -8,7 +8,7 @@
 using namespace dreavm;
 using namespace dreavm::hw::holly;
 using namespace dreavm::renderer;
-using namespace dreavm::system;
+using namespace dreavm::sys;
 using namespace dreavm::trace;
 
 void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,

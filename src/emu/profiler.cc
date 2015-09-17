@@ -16,7 +16,7 @@
 
 using namespace dreavm::emu;
 using namespace dreavm::renderer;
-using namespace dreavm::system;
+using namespace dreavm::sys;
 
 Backend *g_backend = nullptr;
 

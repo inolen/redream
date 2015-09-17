@@ -21,7 +21,7 @@
 #endif
 
 namespace dreavm {
-namespace system {
+namespace sys {
 
 const char *GetAppDir();
 void EnsureAppDirExists();

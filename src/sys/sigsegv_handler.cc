@@ -1,10 +1,10 @@
 #include "core/core.h"
 #include "core/interval_tree.h"
-#include "system/sigsegv_handler.h"
+#include "sys/sigsegv_handler.h"
 
-using namespace dreavm::system;
+using namespace dreavm::sys;
 
-SIGSEGVHandler *dreavm::system::SIGSEGVHandler::global_handler_ = nullptr;
+SIGSEGVHandler *dreavm::sys::SIGSEGVHandler::global_handler_ = nullptr;
 
 SIGSEGVHandler *SIGSEGVHandler::Install() {
   if (global_handler_) {

@@ -6,7 +6,7 @@ using namespace dreavm::hw;
 using namespace dreavm::hw::holly;
 using namespace dreavm::hw::sh4;
 using namespace dreavm::renderer;
-using namespace dreavm::system;
+using namespace dreavm::sys;
 
 Holly::Holly(Dreamcast *dc) : dc_(dc) {}
 

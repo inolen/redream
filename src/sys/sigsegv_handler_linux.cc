@@ -2,11 +2,11 @@
 #include <signal.h>
 #include <unistd.h>
 #include "core/core.h"
-#include "system/sigsegv_handler_linux.h"
+#include "sys/sigsegv_handler_linux.h"
 
-using namespace dreavm::system;
+using namespace dreavm::sys;
 
-SIGSEGVHandler *dreavm::system::CreateSIGSEGVHandler() {
+SIGSEGVHandler *dreavm::sys::CreateSIGSEGVHandler() {
   return new SIGSEGVHandlerLinux();
 }
 

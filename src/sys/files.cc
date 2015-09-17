@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "core/core.h"
-#include "system/files.h"
+#include "sys/files.h"
 #ifdef PLATFORM_WINDOWS
 #include <userenv.h>
 #else
@@ -13,7 +13,7 @@
 #endif
 
 namespace dreavm {
-namespace system {
+namespace sys {
 
 static bool GetUserDir(char *userdir, size_t size) {
 #ifdef PLATFORM_WINDOWS

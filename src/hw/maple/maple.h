@@ -2,7 +2,7 @@
 #define MAPLE_H
 
 #include <memory>
-#include "system/keys.h"
+#include "sys/keys.h"
 
 namespace dreavm {
 namespace hw {
@@ -95,7 +95,7 @@ class MapleDevice {
  public:
   virtual ~MapleDevice() {}
 
-  virtual bool HandleInput(system::Keycode key, int16_t value) = 0;
+  virtual bool HandleInput(sys::Keycode key, int16_t value) = 0;
   virtual bool HandleFrame(const MapleFrame &frame, MapleFrame &res) = 0;
 };
 
@@ -105,7 +105,7 @@ class Maple {
 
   bool Init();
 
-  bool HandleInput(int port, system::Keycode key, int16_t value);
+  bool HandleInput(int port, sys::Keycode key, int16_t value);
   void VBlank();
 
   uint32_t ReadRegister32(uint32_t addr);
