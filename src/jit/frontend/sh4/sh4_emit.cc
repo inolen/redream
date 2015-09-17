@@ -1,5 +1,6 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <stddef.h>
 #include "jit/frontend/sh4/sh4_emit.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 
