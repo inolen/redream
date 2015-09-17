@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "core/core.h"
+#include "system/files.h"
 #ifdef PLATFORM_WINDOWS
 #include <userenv.h>
 #else
@@ -12,6 +13,7 @@
 #endif
 
 namespace dreavm {
+namespace system {
 
 static bool GetUserDir(char *userdir, size_t size) {
 #ifdef PLATFORM_WINDOWS
@@ -131,5 +133,6 @@ bool CreateDir(const char *path) {
   int res = mkdir(path, 0755);
 #endif
   return res == 0 || errno == EEXIST;
+}
 }
 }

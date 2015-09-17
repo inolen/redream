@@ -2,11 +2,11 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include "core/core.h"
-#include "sigsegv/sigsegv_handler_mac.h"
+#include "system/sigsegv_handler_mac.h"
 
-using namespace dreavm::sigsegv;
+using namespace dreavm::system;
 
-SIGSEGVHandler *dreavm::sigsegv::CreateSIGSEGVHandler() {
+SIGSEGVHandler *dreavm::system::CreateSIGSEGVHandler() {
   return new SIGSEGVHandlerMac();
 }
 

@@ -16,7 +16,7 @@ using namespace dreavm::jit::backend::interpreter;
 using namespace dreavm::jit::backend::x64;
 using namespace dreavm::jit::frontend::sh4;
 using namespace dreavm::renderer;
-using namespace dreavm::sigsegv;
+using namespace dreavm::system;
 using namespace dreavm::trace;
 
 Dreamcast::Dreamcast()

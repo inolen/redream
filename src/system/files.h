@@ -1,5 +1,5 @@
-#ifndef FILESYSTEM_H
-#define FILESYSTEM_H
+#ifndef FILES_H
+#define FILES_H
 
 #include "core/platform.h"
 
@@ -21,6 +21,7 @@
 #endif
 
 namespace dreavm {
+namespace system {
 
 const char *GetAppDir();
 void EnsureAppDirExists();
@@ -30,6 +31,7 @@ void BaseName(const char *path, char *base, size_t size);
 
 bool Exists(const char *path);
 bool CreateDir(const char *path);
+}
 }
 
 #endif

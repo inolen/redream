@@ -2,10 +2,10 @@
 #define SIGSEGV_HANDLER_MAC
 
 #include <thread>
-#include "sigsegv/sigsegv_handler.h"
+#include "system/sigsegv_handler.h"
 
 namespace dreavm {
-namespace sigsegv {
+namespace system {
 
 class SIGSEGVHandlerMac : public SIGSEGVHandler {
  public:

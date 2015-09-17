@@ -5,6 +5,7 @@
 
 using namespace dreavm;
 using namespace dreavm::hw::gdrom;
+using namespace dreavm::system;
 
 //
 // GDI format

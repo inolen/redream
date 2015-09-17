@@ -1,9 +1,11 @@
 #include <unordered_map>
 #include "core/core.h"
+#include "system/files.h"
 #include "trace/trace.h"
 
 using namespace dreavm;
 using namespace dreavm::hw::holly;
+using namespace dreavm::system;
 using namespace dreavm::trace;
 
 void dreavm::trace::GetNextTraceFilename(char *filename, size_t size) {

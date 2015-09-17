@@ -2,10 +2,10 @@
 #define SIGSEGV_HANDLER_LINUX
 
 #include <thread>
-#include "sigsegv/sigsegv_handler.h"
+#include "system/sigsegv_handler.h"
 
 namespace dreavm {
-namespace sigsegv {
+namespace system {
 
 class SIGSEGVHandlerLinux : public SIGSEGVHandler {
  public:

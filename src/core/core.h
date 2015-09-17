@@ -7,7 +7,6 @@
 #include "core/assert.h"
 #include "core/log.h"
 #include "core/math.h"
-#include "core/filesystem.h"
 #include "core/platform.h"
 
 #endif

@@ -6,7 +6,7 @@
 #include "core/interval_tree.h"
 
 namespace dreavm {
-namespace sigsegv {
+namespace system {
 
 // implemented in the platform specific souce file
 class SIGSEGVHandler;
