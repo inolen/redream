@@ -14,6 +14,9 @@
 #define PROFILER_RUNTIME(name) \
   MICROPROFILE_SCOPEI("runtime", name, dreavm::emu::Profiler::ScopeColor(name))
 
+#define PROFILER_COUNT(name, count) \
+  MICROPROFILE_COUNTER_SET(name, count)
+
 namespace dreavm {
 namespace emu {
 
