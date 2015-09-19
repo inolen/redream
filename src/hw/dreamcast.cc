@@ -67,6 +67,8 @@ Dreamcast::Dreamcast()
   pvr_ = new PVR2(this);
   sh4_ = new SH4(*memory_, *runtime_);
   ta_ = new TileAccelerator(this);
+  texcache_ = new TextureCache(this);
+  tile_renderer_ = new TileRenderer(*texcache_);
 }
 
 Dreamcast::~Dreamcast() {
@@ -96,13 +98,11 @@ Dreamcast::~Dreamcast() {
   delete pvr_;
   delete sh4_;
   delete ta_;
+  delete texcache_;
+  delete tile_renderer_;
 }
 
 bool Dreamcast::Init() {
-  if (!(sigsegv_ = SIGSEGVHandler::Install())) {
-    return false;
-  }
-
   MapMemory();
 
   if (!aica_->Init()) {
@@ -130,6 +130,10 @@ bool Dreamcast::Init() {
   }
 
   if (!ta_->Init()) {
+    return false;
+  }
+
+  if (!texcache_->Init()) {
     return false;
   }
 
@@ -223,7 +227,15 @@ void Dreamcast::MapMemory() {
                   nullptr,                                           //
                   std::bind(&PVR2::WriteRegister32, pvr(), _1, _2),  //
                   nullptr);
-  memory_->Mount(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK, palette_ram_);
+  memory_->Handle(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK,
+                  nullptr,                                          //
+                  nullptr,                                          //
+                  nullptr,                                          //
+                  nullptr,                                          //
+                  nullptr,                                          //
+                  nullptr,                                          //
+                  std::bind(&PVR2::WritePalette32, pvr(), _1, _2),  //
+                  nullptr);
 
   // ta
   // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0

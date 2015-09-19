@@ -17,7 +17,9 @@ bool PVR2::Init() {
   scheduler_ = dc_->scheduler();
   holly_ = dc_->holly();
   ta_ = dc_->ta();
+  texcache_ = dc_->texcache();
   pvr_regs_ = dc_->pvr_regs();
+  palette_ram_ = dc_->palette_ram();
   video_ram_ = dc_->video_ram();
 
   ReconfigureSPG();
@@ -69,7 +71,7 @@ void PVR2::WriteRegister32(uint32_t addr, uint32_t value) {
         fps_ = 1000000000.0f / delta.count();
       }
 
-      ta_->SaveLastContext(dc_->PARAM_BASE.base_address);
+      ta_->SwapContext(dc_->PARAM_BASE.base_address);
     } break;
 
     case SPG_LOAD_OFFSET:
@@ -77,6 +79,12 @@ void PVR2::WriteRegister32(uint32_t addr, uint32_t value) {
       ReconfigureSPG();
     } break;
   }
+}
+
+void PVR2::WritePalette32(uint32_t addr, uint32_t value) {
+  *reinterpret_cast<uint32_t *>(&palette_ram_[addr]) = value;
+
+  texcache_->CheckPaletteWrite(addr);
 }
 
 // the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
@@ -102,27 +110,36 @@ static uint32_t MAP64(uint32_t addr) {
 
 uint8_t PVR2::ReadInterleaved8(uint32_t addr) {
   addr = MAP64(addr);
+
   return *reinterpret_cast<uint8_t *>(&video_ram_[addr]);
 }
 
 uint16_t PVR2::ReadInterleaved16(uint32_t addr) {
   addr = MAP64(addr);
+
   return *reinterpret_cast<uint16_t *>(&video_ram_[addr]);
 }
 
 uint32_t PVR2::ReadInterleaved32(uint32_t addr) {
   addr = MAP64(addr);
+
   return *reinterpret_cast<uint32_t *>(&video_ram_[addr]);
 }
 
 void PVR2::WriteInterleaved16(uint32_t addr, uint16_t value) {
   addr = MAP64(addr);
+
   *reinterpret_cast<uint16_t *>(&video_ram_[addr]) = value;
+
+  texcache_->CheckTextureWrite(addr);
 }
 
 void PVR2::WriteInterleaved32(uint32_t addr, uint32_t value) {
   addr = MAP64(addr);
+
   *reinterpret_cast<uint32_t *>(&video_ram_[addr]) = value;
+
+  texcache_->CheckTextureWrite(addr);
 }
 
 void PVR2::ReconfigureSPG() {

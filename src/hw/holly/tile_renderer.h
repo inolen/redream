@@ -24,9 +24,11 @@ typedef std::function<renderer::TextureHandle(const uint8_t *, const uint8_t *)>
 
 typedef uint64_t TextureKey;
 
-class TextureCache {
+class TextureProvider {
  public:
   static TextureKey GetTextureKey(const TSP &tsp, const TCW &tcw);
+
+  virtual ~TextureProvider() {}
 
   virtual renderer::TextureHandle GetTexture(
       const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) = 0;
@@ -40,7 +42,7 @@ enum { MAX_SURFACES = 0x10000, MAX_VERTICES = 0x10000 };
 
 class TileRenderer {
  public:
-  TileRenderer(TextureCache &texcache_);
+  TileRenderer(TextureProvider &texture_provider);
 
   void RenderContext(const TileContext *tactx, renderer::Backend *rb);
 
@@ -72,7 +74,7 @@ class TileRenderer {
                                      renderer::Backend *rb, const TSP &tsp,
                                      const TCW &tcw);
 
-  TextureCache &texcache_;
+  TextureProvider &texture_provider_;
 
   // current global state
   const PolyParam *last_poly_;

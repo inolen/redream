@@ -112,9 +112,9 @@ set(DREAVM_SOURCES
   src/hw/gdrom/gdrom.cc
   src/hw/holly/holly.cc
   src/hw/holly/pvr2.cc
+  src/hw/holly/texture_cache.cc
   src/hw/holly/tile_accelerator.cc
   src/hw/holly/tile_renderer.cc
-  src/hw/holly/tile_texture_cache.cc
   src/hw/maple/maple.cc
   src/hw/maple/maple_controller.cc
   src/hw/sh4/sh4.cc
@@ -143,19 +143,10 @@ set(DREAVM_SOURCES
   src/renderer/gl_shader.cc
   src/sys/files.cc
   src/sys/keys.cc
-  src/sys/sigsegv_handler.cc
   src/sys/system.cc
   src/trace/trace.cc
   src/trace/trace_viewer.cc
   src/main.cc)
-
-if(WIN32)
-  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_win.cc)
-elseif(APPLE)
-  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_mac.cc)
-else()
-  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_linux.cc)
-endif()
 
 
 # assign source groups for visual studio projects

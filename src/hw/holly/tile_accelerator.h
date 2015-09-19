@@ -4,7 +4,6 @@
 #include <memory>
 #include <unordered_map>
 #include "hw/holly/tile_renderer.h"
-#include "hw/holly/tile_texture_cache.h"
 #include "renderer/backend.h"
 
 namespace dreavm {
@@ -19,6 +18,7 @@ class Memory;
 namespace holly {
 
 class Holly;
+class TextureCache;
 
 enum {
   // control params
@@ -492,8 +492,8 @@ class TileAccelerator {
   void SoftReset();
   void InitContext(uint32_t addr);
   void WriteContext(uint32_t addr, uint32_t value);
-  void SaveLastContext(uint32_t addr);
-  void RenderLastContext();
+  void SwapContext(uint32_t addr);
+  TileContext *GetLastContext();
 
   void WriteCommand32(uint32_t addr, uint32_t value);
   void WriteTexture32(uint32_t addr, uint32_t value);
@@ -507,10 +507,9 @@ class TileAccelerator {
   hw::Dreamcast *dc_;
   hw::Memory *memory_;
   hw::holly::Holly *holly_;
+  hw::holly::TextureCache *texcache_;
   uint8_t *video_ram_;
 
-  TileTextureCache texcache_;
-  TileRenderer tile_renderer_;
   TileContextMap contexts_;
   TileContext scratch_context_;
   TileContext *last_context_;

@@ -11,6 +11,7 @@ class Dreamcast;
 namespace holly {
 
 class Holly;
+class TextureCache;
 class TileAccelerator;
 
 union PARAM_BASE_T {
@@ -206,6 +207,8 @@ class PVR2 {
   uint32_t ReadRegister32(uint32_t addr);
   void WriteRegister32(uint32_t addr, uint32_t value);
 
+  void WritePalette32(uint32_t addr, uint32_t value);
+
   uint8_t ReadInterleaved8(uint32_t addr);
   uint16_t ReadInterleaved16(uint32_t addr);
   uint32_t ReadInterleaved32(uint32_t addr);
@@ -220,7 +223,9 @@ class PVR2 {
   hw::Scheduler *scheduler_;
   hw::holly::Holly *holly_;
   hw::holly::TileAccelerator *ta_;
+  hw::holly::TextureCache *texcache_;
   hw::Register *pvr_regs_;
+  uint8_t *palette_ram_;
   uint8_t *video_ram_;
 
   hw::TimerHandle line_timer_;

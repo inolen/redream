@@ -14,19 +14,19 @@ using namespace dreavm::trace;
 void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
                                    const uint8_t *palette,
                                    const uint8_t *texture) {
-  TextureKey texture_key = TextureCache::GetTextureKey(tsp, tcw);
+  TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
   textures_[texture_key] =
       TextureInst{tsp, tcw, palette, texture, (TextureHandle)0};
 }
 
 void TraceTextureCache::RemoveTexture(const TSP &tsp, TCW &tcw) {
-  TextureKey texture_key = TextureCache::GetTextureKey(tsp, tcw);
+  TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
   textures_.erase(texture_key);
 }
 
 TextureHandle TraceTextureCache::GetTexture(
     const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) {
-  TextureKey texture_key = TextureCache::GetTextureKey(tsp, tcw);
+  TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
 
   auto it = textures_.find(texture_key);
   CHECK_NE(it, textures_.end(), "Texture wasn't available in cache");

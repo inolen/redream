@@ -154,7 +154,8 @@ void Holly::WriteRegister32(uint32_t addr, uint32_t value) {
     case SB_PDEN_OFFSET:
     case SB_PDST_OFFSET:
       if (value) {
-        LOG_WARNING("Ignored palette DMA request");
+        // NOTE PVR DMA can invalidate texture cache
+        LOG_WARNING("Ignored PVR DMA request");
       }
       break;
 

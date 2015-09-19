@@ -18,7 +18,7 @@ struct TextureInst {
   renderer::TextureHandle handle;
 };
 
-class TraceTextureCache : public hw::holly::TextureCache {
+class TraceTextureCache : public hw::holly::TextureProvider {
  public:
   void AddTexture(const hw::holly::TSP &tsp, hw::holly::TCW &tcw,
                   const uint8_t *palette, const uint8_t *texture);

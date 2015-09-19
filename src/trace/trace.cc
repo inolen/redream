@@ -114,7 +114,7 @@ bool TraceReader::PatchOverrides() {
   while (cmd) {
     switch (cmd->type) {
       case TRACE_INSERT_TEXTURE: {
-        TextureKey texture_key = TextureCache::GetTextureKey(
+        TextureKey texture_key = TextureProvider::GetTextureKey(
             cmd->insert_texture.tsp, cmd->insert_texture.tcw);
         auto last_insert = last_inserts.find(texture_key);
 

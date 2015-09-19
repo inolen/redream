@@ -5,7 +5,9 @@
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr2.h"
+#include "hw/holly/texture_cache.h"
 #include "hw/holly/tile_accelerator.h"
+#include "hw/holly/tile_renderer.h"
 #include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
 #include "hw/memory.h"
@@ -14,7 +16,6 @@
 #include "jit/frontend/frontend.h"
 #include "jit/runtime.h"
 #include "renderer/backend.h"
-#include "sys/sigsegv_handler.h"
 #include "trace/trace.h"
 
 namespace dreavm {
@@ -116,8 +117,8 @@ class Dreamcast {
   hw::holly::PVR2 *pvr() { return pvr_; }
   hw::sh4::SH4 *sh4() { return sh4_; }
   hw::holly::TileAccelerator *ta() { return ta_; }
-
-  sys::SIGSEGVHandler *sigsegv() { return sigsegv_; }
+  hw::holly::TextureCache *texcache() { return texcache_; }
+  hw::holly::TileRenderer *tile_renderer() { return tile_renderer_; }
 
   renderer::Backend *rb() { return rb_; }
   void set_rb(renderer::Backend *rb) { rb_ = rb; }
@@ -174,9 +175,10 @@ class Dreamcast {
   hw::holly::PVR2 *pvr_;
   hw::sh4::SH4 *sh4_;
   hw::holly::TileAccelerator *ta_;
+  hw::holly::TextureCache *texcache_;
+  hw::holly::TileRenderer *tile_renderer_;
 
   // not owned by us
-  sys::SIGSEGVHandler *sigsegv_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;
 };

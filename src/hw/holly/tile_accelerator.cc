@@ -183,10 +183,7 @@ int TileAccelerator::GetVertexType(const PCW &pcw) {
 }
 
 TileAccelerator::TileAccelerator(Dreamcast *dc)
-    : dc_(dc),
-      texcache_(dc_),
-      tile_renderer_(texcache_),
-      last_context_(nullptr) {}
+    : dc_(dc), last_context_(nullptr) {}
 
 TileAccelerator::~TileAccelerator() {
   while (contexts_.size()) {
@@ -202,6 +199,7 @@ TileAccelerator::~TileAccelerator() {
 bool TileAccelerator::Init() {
   memory_ = dc_->memory();
   holly_ = dc_->holly();
+  texcache_ = dc_->texcache();
   video_ram_ = dc_->video_ram();
 
   return true;
@@ -269,7 +267,7 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
   }
 }
 
-void TileAccelerator::SaveLastContext(uint32_t addr) {
+void TileAccelerator::SwapContext(uint32_t addr) {
   if (!last_context_) {
     last_context_ = &scratch_context_;
   }
@@ -284,24 +282,18 @@ void TileAccelerator::SaveLastContext(uint32_t addr) {
   WritePVRState(last_context_);
   WriteBackgroundState(last_context_);
 
+  // add context to trace
+  if (dc_->trace_writer()) {
+    dc_->trace_writer()->WriteRenderContext(last_context_);
+  }
+
   // tell holly that rendering is complete
   holly_->RequestInterrupt(HOLLY_INTC_PCEOVINT);
   holly_->RequestInterrupt(HOLLY_INTC_PCEOIINT);
   holly_->RequestInterrupt(HOLLY_INTC_PCEOTINT);
 }
 
-void TileAccelerator::RenderLastContext() {
-  if (!last_context_) {
-    return;
-  }
-
-  tile_renderer_.RenderContext(last_context_, dc_->rb());
-
-  // add render to trace
-  if (dc_->trace_writer()) {
-    dc_->trace_writer()->WriteRenderContext(last_context_);
-  }
-}
+TileContext *TileAccelerator::GetLastContext() { return last_context_; }
 
 void TileAccelerator::WriteCommand32(uint32_t addr, uint32_t value) {
   WriteContext(dc_->TA_ISP_BASE.base_address, value);
@@ -311,6 +303,8 @@ void TileAccelerator::WriteTexture32(uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
 
   *reinterpret_cast<uint32_t *>(&video_ram_[addr]) = value;
+
+  texcache_->CheckTextureWrite(addr);
 }
 
 TileContextIterator TileAccelerator::FindContext(uint32_t addr) {

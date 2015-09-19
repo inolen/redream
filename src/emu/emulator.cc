@@ -7,6 +7,7 @@ using namespace dreavm;
 using namespace dreavm::emu;
 using namespace dreavm::hw;
 using namespace dreavm::hw::gdrom;
+using namespace dreavm::hw::holly;
 using namespace dreavm::renderer;
 using namespace dreavm::sys;
 using namespace dreavm::trace;
@@ -243,7 +244,12 @@ void Emulator::ToggleTracing() {
 void Emulator::RenderFrame() {
   rb_->BeginFrame();
 
-  dc_.ta()->RenderLastContext();
+  // render the last tile context
+  TileContext *last_context = dc_.ta()->GetLastContext();
+
+  if (last_context) {
+    dc_.tile_renderer()->RenderContext(last_context, rb_);
+  }
 
   // render stats
   char stats[512];
