@@ -1,5 +1,5 @@
-#ifndef CONTEXT_PROMOTION_PASS_H
-#define CONTEXT_PROMOTION_PASS_H
+#ifndef LOAD_STORE_ELIMINATION_PASS_H
+#define LOAD_STORE_ELIMINATION_PASS_H
 
 #include <vector>
 #include "jit/ir/passes/pass_runner.h"
@@ -9,7 +9,7 @@ namespace jit {
 namespace ir {
 namespace passes {
 
-class ContextPromotionPass : public Pass {
+class LoadStoreEliminationPass : public Pass {
  public:
   void Run(IRBuilder &builder);
 

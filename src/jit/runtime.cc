@@ -3,7 +3,7 @@
 #include "jit/frontend/frontend.h"
 #include "jit/ir/ir_builder.h"
 #include "jit/ir/passes/constant_propagation_pass.h"
-#include "jit/ir/passes/context_promotion_pass.h"
+#include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/control_flow_analysis_pass.h"
 #include "jit/ir/passes/register_allocation_pass.h"
 #include "jit/ir/passes/validate_pass.h"
@@ -34,7 +34,7 @@ Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
 
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
-  pass_runner_.AddPass(std::unique_ptr<Pass>(new ContextPromotionPass()));
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new LoadStoreEliminationPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(backend_)));

@@ -1,12 +1,12 @@
 #include "core/core.h"
 #include "emu/profiler.h"
-#include "jit/ir/passes/context_promotion_pass.h"
+#include "jit/ir/passes/load_store_elimination_pass.h"
 
 using namespace dreavm::jit::ir;
 using namespace dreavm::jit::ir::passes;
 
-void ContextPromotionPass::Run(IRBuilder &builder) {
-  PROFILER_RUNTIME("ContextPromotionPass::Run");
+void LoadStoreEliminationPass::Run(IRBuilder &builder) {
+  PROFILER_RUNTIME("LoadStoreEliminationPass::Run");
 
   Reset();
 
@@ -15,9 +15,9 @@ void ContextPromotionPass::Run(IRBuilder &builder) {
   }
 }
 
-void ContextPromotionPass::Reset() { ClearAvailable(); }
+void LoadStoreEliminationPass::Reset() { ClearAvailable(); }
 
-void ContextPromotionPass::ProcessBlock(Block *block) {
+void LoadStoreEliminationPass::ProcessBlock(Block *block) {
   // eliminate redundant loads
   {
     auto it = block->instrs().begin();
@@ -83,16 +83,16 @@ void ContextPromotionPass::ProcessBlock(Block *block) {
   }
 }
 
-void ContextPromotionPass::ClearAvailable() { available_marker_++; }
+void LoadStoreEliminationPass::ClearAvailable() { available_marker_++; }
 
-void ContextPromotionPass::ReserveAvailable(int offset) {
+void LoadStoreEliminationPass::ReserveAvailable(int offset) {
   if (offset >= (int)available_.size()) {
     available_.resize(offset + 1);
     available_values_.resize(offset + 1);
   }
 }
 
-Value *ContextPromotionPass::GetAvailable(int offset) {
+Value *LoadStoreEliminationPass::GetAvailable(int offset) {
   ReserveAvailable(offset);
 
   if (available_[offset] < available_marker_) {
@@ -102,7 +102,7 @@ Value *ContextPromotionPass::GetAvailable(int offset) {
   return available_values_[offset];
 }
 
-void ContextPromotionPass::SetAvailable(int offset, Value *v) {
+void LoadStoreEliminationPass::SetAvailable(int offset, Value *v) {
   ReserveAvailable(offset);
 
   available_[offset] = available_marker_;
