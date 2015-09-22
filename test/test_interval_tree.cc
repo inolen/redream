@@ -2,11 +2,13 @@
 #include <set>
 #include "gtest/gtest.h"
 #include "core/core.h"
+#define VERIFY_INTRUSIVE_TREE
 #include "core/interval_tree.h"
 
 using namespace dreavm;
 
-typedef IntervalTree<uint32_t, void *> TestTree;
+typedef IntervalTree<void *> TestTree;
+typedef TestTree::node_type TestNode;
 
 class IntervalTreeTest : public ::testing::Test {
  public:
@@ -18,7 +20,7 @@ class IntervalTreeTest : public ::testing::Test {
 
   void SetUp() {
     // insert dummy intervals
-    for (int i = 0; i < 0x10000; i++) {
+    for (int i = 0; i < 0x1000; i++) {
       uint32_t low = 0;
       uint32_t high = 0;
 
@@ -27,13 +29,13 @@ class IntervalTreeTest : public ::testing::Test {
         high = low + INTERVAL;
       }
 
-      TestTree::Node *n = intervals.Insert(low, high, nullptr);
+      TestNode *n = intervals.Insert(low, high, nullptr);
       nodes.insert(n);
     }
   }
 
   TestTree intervals;
-  std::set<TestTree::Node *> nodes;
+  std::set<TestNode *> nodes;
 };
 
 TEST_F(IntervalTreeTest, ValidateRelations) {
@@ -53,10 +55,9 @@ TEST_F(IntervalTreeTest, Size) {
 }
 
 TEST_F(IntervalTreeTest, Height) {
-  // make sure height is within expected range of ~2*log2(n)
   int height = intervals.Height();
   int size = intervals.Size();
-  ASSERT_TRUE(height >= log2(size) && height < (3 * log2(size)));
+  ASSERT_TRUE(height <= 2 * log2(size + 1));
 }
 
 TEST_F(IntervalTreeTest, Remove) {
@@ -82,7 +83,7 @@ TEST_F(IntervalTreeTest, Clear) {
 TEST_F(IntervalTreeTest, Find) {
   for (uint32_t i = 0; i < HIGH; i += 0x1000) {
     // manually generate a list of results
-    std::set<TestTree::Node *> expected;
+    std::set<TestNode *> expected;
 
     for (auto n : nodes) {
       if (i < n->low || i > n->high) {
@@ -94,7 +95,7 @@ TEST_F(IntervalTreeTest, Find) {
 
     // query the tree for nodes and compare with the expected results
     int found = 0;
-    TestTree::Node *n = intervals.Find(i, i);
+    TestNode *n = intervals.Find(i, i);
 
     while (n) {
       // validate that it's in the expected set
@@ -102,7 +103,7 @@ TEST_F(IntervalTreeTest, Find) {
       ASSERT_NE(it, expected.end());
       found++;
 
-      // remove from nodes so the node isn't expected by the next loop iteration
+      // remove from nodes so the node isn't expected by the next loop
       auto it2 = nodes.find(n);
       ASSERT_NE(it2, nodes.end());
       nodes.erase(it2);
@@ -122,7 +123,7 @@ TEST_F(IntervalTreeTest, Find) {
 TEST_F(IntervalTreeTest, Iterate) {
   for (uint32_t i = 0; i < HIGH; i += 0x1000) {
     // manually generate a list of expected nodes
-    std::set<TestTree::Node *> expected;
+    std::set<TestNode *> expected;
 
     for (auto n : nodes) {
       if (i < n->low || i > n->high) {
@@ -133,9 +134,9 @@ TEST_F(IntervalTreeTest, Iterate) {
     }
 
     // query the tree for nodes
-    std::set<TestTree::Node *> results;
+    std::set<TestNode *> results;
 
-    intervals.Iterate(i, i, [&](const TestTree &tree, TestTree::Node *node) {
+    intervals.Iterate(i, i, [&](const TestTree &tree, TestNode *node) {
       results.insert(node);
     });
 

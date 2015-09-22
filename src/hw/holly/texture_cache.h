@@ -18,15 +18,15 @@ namespace holly {
 
 struct TextureEntry;
 typedef std::unordered_map<TextureKey, TextureEntry> TextureCacheMap;
-typedef IntervalTree<uint32_t, TextureKey> TextureWatchTree;
+typedef IntervalTree<TextureKey> TextureWatchTree;
 
 struct TextureEntry {
   TextureEntry(renderer::TextureHandle handle)
       : handle(handle), texture_watch(nullptr), palette_watch(nullptr) {}
 
   renderer::TextureHandle handle;
-  TextureWatchTree::Node *texture_watch;
-  TextureWatchTree::Node *palette_watch;
+  TextureWatchTree::node_type *texture_watch;
+  TextureWatchTree::node_type *palette_watch;
 };
 
 class TextureCache : public TextureProvider {

@@ -106,12 +106,14 @@ void TextureCache::Clear() {
   for (auto it = textures_.begin(), e = textures_.end(); it != e; ++it) {
     Invalidate(it);
   }
+
+  watches_.Clear();
 }
 
 void TextureCache::CheckWrite(uint32_t addr) {
   PROFILER_GPU("TextureCache::CheckWrite");
 
-  TextureWatchTree::Node *node = watches_.Find(addr, addr);
+  TextureWatchTree::node_type *node = watches_.Find(addr, addr);
 
   bool handled = node != nullptr;
 

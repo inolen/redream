@@ -3,102 +3,87 @@
 
 #include <algorithm>
 #include <functional>
-#include <set>
-#include <string>
-#include <assert.h>
 #include <stdlib.h>
 #include "core/assert.h"
+#include "core/intrusive_tree.h"
 
 namespace dreavm {
 
-// Interval tree implemented using a randomized bst. Based on implementation at
-// http://algs4.cs.princeton.edu/93intersection/IntervalST.java
-//
-// Parent pointers have been added in order to make removal by node (as opposed
-// to key) possible.
+typedef int64_t interval_type;
 
-template <typename IT, typename VT>
-class IntervalTree {
+template <typename T>
+struct IntervalNode : public IntrusiveTreeNode<IntervalNode<T>> {
+  IntervalNode(const interval_type &low, const interval_type &high,
+               const T &value)
+      : low(low), high(high), max(high), value(value), num(1), height(1) {}
+
+  bool operator<(const IntervalNode<T> &rhs) const {
+    return low < rhs.low || (low == rhs.low && high < rhs.high);
+  }
+
+  interval_type low, high, max;
+  T value;
+  int num, height;
+};
+
+template <typename T>
+class IntervalTree : public IntrusiveTree<IntervalNode<T>> {
  public:
-  struct Node;
-
-  typedef IT interval_type;
-  typedef VT value_type;
-  typedef IntervalTree<interval_type, value_type> self_type;
-  typedef std::function<void(const self_type &, Node *)> iterate_cb;
-
-  struct Node {
-    Node(const interval_type &low, const interval_type &high,
-         const value_type &value)
-        : parent(nullptr),
-          left(nullptr),
-          right(nullptr),
-          low(low),
-          high(high),
-          max(high),
-          value(value),
-          num(1) {}
-
-    bool operator<(const Node &rhs) const {
-      return low < rhs.low || (low == rhs.low && high < rhs.high);
-    }
-
-    Node *parent, *left, *right;
-    interval_type low, high, max;
-    value_type value;
-    int num;
-  };
-
-  IntervalTree() : root_(nullptr) {}
+  typedef IntervalTree<T> self_type;
+  typedef IntervalNode<T> node_type;
+  typedef std::function<void(const self_type &, node_type *)> iterate_cb;
 
   ~IntervalTree() { Clear(); }
 
-  int Size() { return Size(root_); }
+  int Size() { return Size(this->root_); }
 
-  int Height() { return Height(root_); }
+  int Height() { return Height(this->root_); }
 
-  Node *Insert(const interval_type &low, const interval_type &high,
-               const value_type &value) {
-    Node *n = new Node(low, high, value);
+  node_type *Insert(const interval_type &low, const interval_type &high,
+                    const T &value) {
+    node_type *n = new node_type(low, high, value);
 
-    SetRoot(RandomizedInsert(root_, n));
+    // add new node into the correct location in the tree, then link it in
+    // to recolor the tree
+    node_type *parent = this->root_;
+    while (parent) {
+      if (*n < *parent) {
+        if (!parent->left) {
+          parent->left = n;
+          break;
+        }
+
+        parent = parent->left;
+      } else {
+        if (!parent->right) {
+          parent->right = n;
+          break;
+        }
+
+        parent = parent->right;
+      }
+    }
+    n->parent = parent;
+
+    this->Link(n);
 
     return n;
   }
 
-  void Remove(Node *n) {
-    // join left and right subtrees, assign new joined subtree to parent
-    Node *joined = Join(n->left, n->right);
+  void Remove(node_type *n) {
+    this->Unlink(n);
 
-    if (!n->parent) {
-      // removed node had no parent, must have been root
-      CHECK_EQ(root_, n);
-      SetRoot(joined);
-    } else if (n->parent->left == n) {
-      SetLeft(n->parent, joined);
-    } else {
-      SetRight(n->parent, joined);
-    }
-
-    // fix up each node in the parent chain
-    Node *parent = n->parent;
-    while (parent) {
-      FixCounts(parent);
-      parent = parent->parent;
-    }
-
-    // remove the node
     delete n;
   }
 
   void Clear() {
-    Clear(root_);
+    Clear(this->root_);
 
-    SetRoot(nullptr);
+    this->root_ = nullptr;
   }
 
-  Node *Find(interval_type low, interval_type high) {
-    Node *n = root_;
+  node_type *Find(interval_type low, interval_type high) {
+    node_type *n = this->root_;
 
     while (n) {
       if (high >= n->low && n->high >= low) {
@@ -114,58 +99,39 @@ class IntervalTree {
   }
 
   void Iterate(interval_type low, interval_type high, iterate_cb cb) {
-    Iterate(root_, low, high, cb);
+    Iterate(this->root_, low, high, cb);
+  }
+
+ protected:
+  void AugmentPropagate(node_type *n) {
+    while (n) {
+      FixCounts(n);
+      n = n->parent;
+    }
+  }
+
+  void AugmentRotate(node_type *oldn, node_type *newn) {
+    FixCounts(oldn);
+    FixCounts(newn);
+    FixCounts(newn->parent);
   }
 
  private:
-  int Size(Node *n) { return n ? n->num : 0; }
+  int Size(node_type *n) { return n ? n->num : 0; }
+  int Height(node_type *n) { return n ? n->height : 0; }
+  interval_type Max(node_type *n) { return n ? n->max : 0; }
 
-  int Height(Node *n) {
-    return n ? 1 + std::max(Height(n->left), Height(n->right)) : 0;
+  void FixCounts(node_type *n) {
+    if (!n) {
+      return;
+    }
+
+    n->num = 1 + Size(n->left) + Size(n->right);
+    n->height = 1 + std::max(Height(n->left), Height(n->right));
+    n->max = std::max(std::max(n->high, Max(n->left)), Max(n->right));
   }
 
-  //
-  // insertion
-  //
-  Node *RootInsert(Node *root, Node *n) {
-    if (!root) {
-      return n;
-    }
-
-    if (*n < *root) {
-      SetLeft(root, RootInsert(root->left, n));
-      root = RotateRight(root);
-    } else {
-      SetRight(root, RootInsert(root->right, n));
-      root = RotateLeft(root);
-    }
-
-    return root;
-  }
-
-  Node *RandomizedInsert(Node *root, Node *n) {
-    if (!root) {
-      return n;
-    }
-
-    // make new node the root with uniform probability
-    if (rand() % (Size(root) + 1) == 0) {
-      return RootInsert(root, n);
-    }
-
-    if (*n < *root) {
-      SetLeft(root, RandomizedInsert(root->left, n));
-    } else {
-      SetRight(root, RandomizedInsert(root->right, n));
-    }
-
-    return root;
-  }
-
-  //
-  // removal
-  //
-  void Clear(Node *n) {
+  void Clear(node_type *n) {
     if (!n) {
       return;
     }
@@ -176,10 +142,8 @@ class IntervalTree {
     delete n;
   }
 
-  //
-  // iteration
-  //
-  bool Iterate(Node *n, interval_type low, interval_type high, iterate_cb cb) {
+  bool Iterate(node_type *n, interval_type low, interval_type high,
+               iterate_cb cb) {
     if (!n) {
       return false;
     }
@@ -203,106 +167,6 @@ class IntervalTree {
 
     return found1 || found2 || found3;
   }
-
-  //
-  // helper methods
-  //
-  void SetRoot(Node *n) {
-    root_ = n;
-
-    if (root_) {
-      root_->parent = nullptr;
-    }
-  }
-
-  void SetLeft(Node *parent, Node *n) {
-    parent->left = n;
-
-    if (parent->left) {
-      parent->left->parent = parent;
-    }
-
-    FixCounts(parent);
-  }
-
-  void SetRight(Node *parent, Node *n) {
-    parent->right = n;
-
-    if (parent->right) {
-      parent->right->parent = parent;
-    }
-
-    FixCounts(parent);
-  }
-
-  void FixCounts(Node *n) {
-    if (!n) {
-      return;
-    }
-
-    n->num = 1 + Size(n->left) + Size(n->right);
-    n->max = n->high;
-    if (n->left) {
-      n->max = std::max(n->max, n->left->max);
-    }
-    if (n->right) {
-      n->max = std::max(n->max, n->right->max);
-    }
-  }
-
-  Node *RotateRight(Node *root) {
-    Node *parent = root->parent;
-    Node *n = root->left;
-
-    SetLeft(root, n->right);
-    SetRight(n, root);
-
-    if (parent) {
-      if (parent->left == root) {
-        SetLeft(parent, n);
-      } else {
-        SetRight(parent, n);
-      }
-    }
-
-    return n;
-  }
-
-  Node *RotateLeft(Node *root) {
-    Node *parent = root->parent;
-    Node *n = root->right;
-
-    SetRight(root, n->left);
-    SetLeft(n, root);
-
-    if (parent) {
-      if (parent->left == root) {
-        SetLeft(parent, n);
-      } else {
-        SetRight(parent, n);
-      }
-    }
-
-    return n;
-  }
-
-  Node *Join(Node *a, Node *b) {
-    if (!a) {
-      return b;
-    } else if (!b) {
-      return a;
-    }
-
-    if ((rand() % (Size(a) + Size(b))) < Size(a)) {
-      SetRight(a, Join(a->right, b));
-      return a;
-    } else {
-      SetLeft(b, Join(a, b->left));
-      return b;
-    }
-  }
-
-  Node *root_;
 };
 }
 
