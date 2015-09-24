@@ -21,9 +21,42 @@ using namespace dreavm::sys;
 
 Backend *g_backend = nullptr;
 
+static float HueToRGB(float p, float q, float t) {
+  if (t < 0.0f) t += 1.0f;
+  if (t > 1.0f) t -= 1.0f;
+  if (t < 1.0f / 6.0f) return p + (q - p) * 6.0f * t;
+  if (t < 1.0f / 2.0f) return q;
+  if (t < 2.0f / 3.0f) return p + (q - p) * (2.0f / 3.0f - t) * 6.0f;
+  return p;
+}
+
+static void HSLToRGB(float h, float s, float l, uint8_t *r, uint8_t *g, uint8_t *b) {
+  float fr, fg, fb;
+
+  if (s == 0.0f) {
+    fr = fg = fb = l;
+  } else {
+    float q = l < 0.5f ? l * (1.0f + s) : l + s - l * s;
+    float p = 2.0f * l - q;
+    fr = HueToRGB(p, q, h + 1.0f / 3.0f);
+    fg = HueToRGB(p, q, h);
+    fb = HueToRGB(p, q, h - 1.0f / 3.0f);
+  }
+
+  *r = fr * 255.0f;
+  *g = fg * 255.0f;
+  *b = fb * 255.0f;
+}
+
 uint32_t Profiler::ScopeColor(const char *name) {
   auto hash = std::hash<std::string>();
-  return hash(std::string(name)) & 0xffffff;
+  size_t name_hash = hash(std::string(name));
+  float h = (name_hash % 360) / 360.0f;
+  float s = 0.7f;
+  float l = 0.6f;
+  uint8_t r, g, b;
+  HSLToRGB(h, s, l, &r, &g, &b);
+  return (r << 16) | (g << 8) | b;
 }
 
 void Profiler::Init() {
