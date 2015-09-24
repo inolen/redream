@@ -30,7 +30,8 @@ static float HueToRGB(float p, float q, float t) {
   return p;
 }
 
-static void HSLToRGB(float h, float s, float l, uint8_t *r, uint8_t *g, uint8_t *b) {
+static void HSLToRGB(float h, float s, float l, uint8_t *r, uint8_t *g,
+                     uint8_t *b) {
   float fr, fg, fb;
 
   if (s == 0.0f) {

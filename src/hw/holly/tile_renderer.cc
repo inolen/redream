@@ -107,63 +107,7 @@ TileRenderer::TileRenderer(TextureProvider &texture_provider)
     : texture_provider_(texture_provider) {}
 
 void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
-  PROFILER_GPU("TileRenderer::RenderContext");
-
-  const uint8_t *data = tactx->data;
-  const uint8_t *end = tactx->data + tactx->size;
-
-  Reset();
-
-  ParseBackground(tactx);
-
-  while (data < end) {
-    PCW pcw = *(PCW *)data;
-
-    // FIXME
-    // If Vertex Parameters with the "End of Strip" specification were not
-    // input, but parameters other than the Vertex Parameters were input, the
-    // polygon data in question is ignored and an interrupt signal is output.
-
-    switch (pcw.para_type) {
-      // control params
-      case TA_PARAM_END_OF_LIST:
-        ParseEndOfList(tactx);
-        break;
-
-      case TA_PARAM_USER_TILE_CLIP:
-        last_poly_ = nullptr;
-        last_vertex_ = nullptr;
-        break;
-
-      case TA_PARAM_OBJ_LIST_SET:
-        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
-        break;
-
-      // global params
-      case TA_PARAM_POLY_OR_VOL:
-        ParsePolyParam(tactx, rb, reinterpret_cast<const PolyParam *>(data));
-        break;
-
-      case TA_PARAM_SPRITE:
-        ParsePolyParam(tactx, rb, reinterpret_cast<const PolyParam *>(data));
-        break;
-
-      // vertex params
-      case TA_PARAM_VERTEX:
-        ParseVertexParam(tactx, rb,
-                         reinterpret_cast<const VertexParam *>(data));
-        break;
-
-      default:
-        LOG_FATAL("Unhandled");
-        break;
-    }
-
-    data += TileAccelerator::GetParamSize(pcw, vertex_type_);
-  }
-
-  // LOG_INFO("StartRender %d surfs, %d verts, %d bytes", num_surfs_,
-  // num_verts_, tactx->size);
+  ParseContext(tactx, rb);
 
   const Eigen::Matrix4f &projection = GetProjectionMatrix(tactx);
   rb->RenderSurfaces(projection, surfs_, num_surfs_, verts_, num_verts_,
@@ -183,21 +127,28 @@ void TileRenderer::Reset() {
   last_sorted_surf_ = 0;
 }
 
-Surface *TileRenderer::AllocSurf() {
+Surface *TileRenderer::AllocSurf(bool copy_from_prev) {
   CHECK_LT(num_surfs_, MAX_SURFACES);
 
   // reuse previous surface if it wasn't completed, else, allocate a new one
   int id;
   if (last_vertex_ && !last_vertex_->type0.pcw.end_of_strip) {
+    CHECK(!copy_from_prev);
     id = num_surfs_ - 1;
   } else {
     id = num_surfs_++;
   }
 
-  // reset the surface
+  // either reset the surface state, or copy the state from the previous surface
   Surface *surf = &surfs_[id];
-  new (surf) Surface();
+  if (copy_from_prev) {
+    CHECK_GT(id, 0);
+    *surf = surfs_[id - 1];
+  } else {
+    new (surf) Surface();
+  }
   surf->first_vert = num_verts_;
+  surf->num_verts = 0;
 
   // default sort the surface
   sorted_surfs_[id] = id;
@@ -274,7 +225,7 @@ void TileRenderer::ParseOffsetColor(float intensity, uint32_t *color) {
 
 void TileRenderer::ParseBackground(const TileContext *tactx) {
   // translate the surface
-  Surface *surf = AllocSurf();
+  Surface *surf = AllocSurf(false);
 
   surf->texture = 0;
   surf->depth_write = !tactx->bg_isp.z_write_disable;
@@ -355,7 +306,7 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx, Backend *rb,
   vertex_type_ = TileAccelerator::GetVertexType(param->type0.pcw);
 
   // setup the new surface
-  Surface *surf = AllocSurf();
+  Surface *surf = AllocSurf(false);
   surf->depth_write = !param->type0.isp_tsp.z_write_disable;
   surf->depth_func =
       TranslateDepthFunc(param->type0.isp_tsp.depth_compare_mode);
@@ -439,8 +390,7 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
   // the next polygon may be input immediately after inputting a Vertex
   // Parameter for which "End of Strip" was specified.
   if (last_vertex_ && last_vertex_->type0.pcw.end_of_strip) {
-    // start a new surface
-    ParsePolyParam(tactx, rb, last_poly_);
+    AllocSurf(true);
   }
   last_vertex_ = param;
 
@@ -649,6 +599,63 @@ void TileRenderer::ParseEndOfList(const TileContext *tactx) {
   last_poly_ = nullptr;
   last_vertex_ = nullptr;
   last_sorted_surf_ = num_surfs_;
+}
+
+void TileRenderer::ParseContext(const TileContext *tactx, Backend *rb) {
+  PROFILER_GPU("TileRenderer::ParseContext");
+
+  const uint8_t *data = tactx->data;
+  const uint8_t *end = tactx->data + tactx->size;
+
+  Reset();
+
+  ParseBackground(tactx);
+
+  while (data < end) {
+    PCW pcw = *(PCW *)data;
+
+    // FIXME
+    // If Vertex Parameters with the "End of Strip" specification were not
+    // input, but parameters other than the Vertex Parameters were input, the
+    // polygon data in question is ignored and an interrupt signal is output.
+
+    switch (pcw.para_type) {
+      // control params
+      case TA_PARAM_END_OF_LIST:
+        ParseEndOfList(tactx);
+        break;
+
+      case TA_PARAM_USER_TILE_CLIP:
+        last_poly_ = nullptr;
+        last_vertex_ = nullptr;
+        break;
+
+      case TA_PARAM_OBJ_LIST_SET:
+        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
+        break;
+
+      // global params
+      case TA_PARAM_POLY_OR_VOL:
+        ParsePolyParam(tactx, rb, reinterpret_cast<const PolyParam *>(data));
+        break;
+
+      case TA_PARAM_SPRITE:
+        ParsePolyParam(tactx, rb, reinterpret_cast<const PolyParam *>(data));
+        break;
+
+      // vertex params
+      case TA_PARAM_VERTEX:
+        ParseVertexParam(tactx, rb,
+                         reinterpret_cast<const VertexParam *>(data));
+        break;
+
+      default:
+        LOG_FATAL("Unhandled");
+        break;
+    }
+
+    data += TileAccelerator::GetParamSize(pcw, vertex_type_);
+  }
 }
 
 // Vertices coming into the TA are in window space, with the Z component being

@@ -49,7 +49,7 @@ class TileRenderer {
  private:
   void Reset();
 
-  renderer::Surface *AllocSurf();
+  renderer::Surface *AllocSurf(bool copy_from_prev);
   renderer::Vertex *AllocVert();
   void ParseColor(uint32_t base_color, uint32_t *color);
   void ParseColor(float r, float g, float b, float a, uint32_t *color);
@@ -63,6 +63,7 @@ class TileRenderer {
   void ParseVertexParam(const TileContext *tactx, renderer::Backend *rb,
                         const VertexParam *param);
   void ParseEndOfList(const TileContext *tactx);
+  void ParseContext(const TileContext *tactx, renderer::Backend *rb);
   Eigen::Matrix4f GetProjectionMatrix(const TileContext *tactx);
 
   renderer::TextureHandle RegisterTexture(const TileContext *tactx,
