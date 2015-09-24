@@ -288,10 +288,10 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
         "Register being spilled has no prev use, why is it already live?");
 
   // allocate a place on the stack to spill the value
-  int local = builder.AllocLocal(interval->value->type());
+  Local *local = builder.AllocLocal(interval->value->type());
 
   // insert load before next use
-  Value *load_local = builder.LoadLocal(local, interval->value->type());
+  Value *load_local = builder.LoadLocal(local);
   Instr *load_instr = builder.GetCurrentBlock()->instrs().tail();
   load_instr->MoveAfter(next_ref->instr()->prev());
 

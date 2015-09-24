@@ -66,6 +66,8 @@ ValueRef::~ValueRef() {
   }
 }
 
+Local::Local(ValueTy ty, Value *offset) : type_(ty), offset_(offset) {}
+
 //
 // Instr
 //
@@ -136,10 +138,7 @@ void Block::UnlinkInstr(Instr *instr) {
 // IRBuilder
 //
 IRBuilder::IRBuilder()
-    : arena_(1024),
-      current_block_(nullptr),
-      locals_size_(0),
-      guest_cycles_(0) {}
+    : arena_(1024), current_block_(nullptr), guest_cycles_(0) {}
 
 bool IRBuilder::IsTerminator(const Instr *i) {
   return i->op() == OP_BRANCH || i->op() == OP_BRANCH_COND;
@@ -283,17 +282,17 @@ void IRBuilder::StoreContext(size_t offset, Value *v, InstrFlag flags) {
   instr->set_arg1(v);
 }
 
-Value *IRBuilder::LoadLocal(size_t offset, ValueTy type) {
+Value *IRBuilder::LoadLocal(Local *local) {
   Instr *instr = AppendInstr(OP_LOAD_LOCAL);
-  Value *result = AllocDynamic(type);
-  instr->set_arg0(AllocConstant((int32_t)offset));
+  Value *result = AllocDynamic(local->type());
+  instr->set_arg0(local->offset());
   instr->set_result(result);
   return result;
 }
 
-void IRBuilder::StoreLocal(size_t offset, Value *v) {
+void IRBuilder::StoreLocal(Local *local, Value *v) {
   Instr *instr = AppendInstr(OP_STORE_LOCAL);
-  instr->set_arg0(AllocConstant((int32_t)offset));
+  instr->set_arg0(local->offset());
   instr->set_arg1(v);
 }
 
@@ -822,10 +821,11 @@ Value *IRBuilder::AllocDynamic(ValueTy type) {
   return v;
 }
 
-int IRBuilder::AllocLocal(ValueTy type) {
-  int offset = locals_size_;
-  locals_size_ += SizeForType(type);
-  return offset;
+Local *IRBuilder::AllocLocal(ValueTy type) {
+  Local *l = arena_.Alloc<Local>();
+  new (l) Local(type, AllocConstant(0));
+  locals_.Append(l);
+  return l;
 }
 
 Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {

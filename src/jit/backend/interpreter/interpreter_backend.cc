@@ -8,6 +8,25 @@ using namespace dreavm::jit::backend;
 using namespace dreavm::jit::backend::interpreter;
 using namespace dreavm::jit::ir;
 
+namespace dreavm {
+namespace jit {
+namespace backend {
+namespace interpreter {
+const Register int_registers[] = {{"a", ir::VALUE_INT_MASK},
+                                  {"b", ir::VALUE_INT_MASK},
+                                  {"c", ir::VALUE_INT_MASK},
+                                  {"d", ir::VALUE_INT_MASK},
+                                  {"e", ir::VALUE_FLOAT_MASK},
+                                  {"f", ir::VALUE_FLOAT_MASK},
+                                  {"g", ir::VALUE_FLOAT_MASK},
+                                  {"h", ir::VALUE_FLOAT_MASK}};
+
+const int int_num_registers = sizeof(int_registers) / sizeof(Register);
+}
+}
+}
+}
+
 static IntSig GetSignature(Instr &ir_i) {
   IntSig sig = 0;
 
@@ -71,9 +90,7 @@ InterpreterBackend::~InterpreterBackend() { delete[] codegen_begin_; }
 
 const Register *InterpreterBackend::registers() const { return int_registers; }
 
-int InterpreterBackend::num_registers() const {
-  return sizeof(int_registers) / sizeof(Register);
-}
+int InterpreterBackend::num_registers() const { return int_num_registers; }
 
 void InterpreterBackend::Reset() { codegen_ = codegen_begin_; }
 
@@ -86,6 +103,14 @@ std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
     for (auto ir_instr : ir_block->instrs()) {
       ir_instr->set_tag((intptr_t)ordinal++);
     }
+  }
+
+  // assign local offsets
+  int locals_size = 0;
+  for (auto local : builder.locals()) {
+    int type_size = SizeForType(local->type());
+    local->set_offset(builder.AllocConstant(locals_size));
+    locals_size += type_size;
   }
 
   // translate each instruction
@@ -105,7 +130,6 @@ std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
   IntInstr *instr_end = reinterpret_cast<IntInstr *>(codegen_);
   int num_instr = static_cast<int>(instr_end - instr_begin);
   int guest_cycles = builder.guest_cycles();
-  int locals_size = builder.locals_size();
 
   return std::unique_ptr<RuntimeBlock>(
       new InterpreterBlock(guest_cycles, instr_begin, num_instr, locals_size));

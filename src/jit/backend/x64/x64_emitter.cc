@@ -106,9 +106,16 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
   // allocate the epilog label
   epilog_label_ = AllocLabel();
 
+  // assign local offsets
+  int stack_size = STACK_SIZE;
+  for (auto local : builder.locals()) {
+    int type_size = SizeForType(local->type());
+    stack_size = dreavm::align(stack_size, type_size);
+    local->set_offset(builder.AllocConstant(stack_size));
+    stack_size += type_size;
+  }
+
   // stack must be 16 byte aligned
-  // TODO align each local
-  int stack_size = STACK_SIZE + builder.locals_size();
   stack_size = dreavm::align(stack_size, 16);
 
   // add 8 for return address which will be pushed when this is called
@@ -459,7 +466,7 @@ EMITTER(STORE_CONTEXT) {
 }
 
 EMITTER(LOAD_LOCAL) {
-  int offset = STACK_OFFSET_LOCALS + instr->arg0()->value<int32_t>();
+  int offset = instr->arg0()->value<int32_t>();
 
   if (IsFloatType(instr->result()->type())) {
     const Xbyak::Xmm &result = e.GetXMMRegister(instr->result());
@@ -499,7 +506,7 @@ EMITTER(LOAD_LOCAL) {
 }
 
 EMITTER(STORE_LOCAL) {
-  int offset = STACK_OFFSET_LOCALS + instr->arg0()->value<int32_t>();
+  int offset = instr->arg0()->value<int32_t>();
 
   CHECK(!instr->arg1()->constant());
 

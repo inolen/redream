@@ -264,6 +264,29 @@ class ValueRef : public IntrusiveListNode<ValueRef> {
   Value *value_;
 };
 
+// Locals are allocated for values that need to be spilled to the stack during
+// register allocation. When allocated, a default offset of 0 is assigned,
+// each backend is expected to update the offset to an appropriate value
+// before emitting.
+class Local : public IntrusiveListNode<Local> {
+ public:
+  Local(ValueTy ty, Value *offset);
+
+  ValueTy type() const { return type_; }
+  ValueTy type() { return type_; }
+
+  Value *offset() const { return offset_; }
+  Value *offset() { return offset_; }
+  void set_offset(Value *offset) {
+    offset_->ReplaceRefsWith(offset);
+    offset_ = offset;
+  }
+
+ private:
+  ValueTy type_;
+  Value *offset_;
+};
+
 //
 // instructions
 //
@@ -377,7 +400,8 @@ class IRBuilder {
   const IntrusiveList<Block> &blocks() const { return blocks_; }
   IntrusiveList<Block> &blocks() { return blocks_; }
 
-  int locals_size() const { return locals_size_; }
+  const IntrusiveList<Local> &locals() const { return locals_; }
+  IntrusiveList<Local> &locals() { return locals_; }
 
   int guest_cycles() const { return guest_cycles_; }
 
@@ -398,8 +422,8 @@ class IRBuilder {
   void StoreContext(size_t offset, Value *v, InstrFlag flags = IF_NONE);
 
   // local operations
-  Value *LoadLocal(size_t offset, ValueTy type);
-  void StoreLocal(size_t offset, Value *v);
+  Value *LoadLocal(Local *local);
+  void StoreLocal(Local *local, Value *v);
 
   // memory operations
   Value *Load(Value *addr, ValueTy type);
@@ -473,7 +497,7 @@ class IRBuilder {
   Value *AllocConstant(double c);
   Value *AllocConstant(Block *c);
   Value *AllocDynamic(ValueTy type);
-  int AllocLocal(ValueTy type);
+  Local *AllocLocal(ValueTy type);
 
  protected:
   Instr *AllocInstr(Opcode op, InstrFlag flags = IF_NONE);
@@ -481,8 +505,8 @@ class IRBuilder {
 
   Arena arena_;
   IntrusiveList<Block> blocks_;
+  IntrusiveList<Local> locals_;
   Block *current_block_;
-  int locals_size_;
   int guest_cycles_;
 };
 }

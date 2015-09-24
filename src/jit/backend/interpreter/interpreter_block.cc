@@ -12,8 +12,7 @@ InterpreterBlock::InterpreterBlock(int guest_cycles, IntInstr *instrs,
       locals_size_(locals_size) {}
 
 uint32_t InterpreterBlock::Call(Memory *memory, void *guest_ctx) {
-  static const int NUM_REGS = sizeof(int_registers) / sizeof(Register);
-  IntValue registers[NUM_REGS];
+  IntValue registers[int_num_registers];
 
   uint8_t *locals = reinterpret_cast<uint8_t *>(alloca(locals_size_));
   memset(locals, 0, locals_size_);

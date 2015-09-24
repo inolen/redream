@@ -45,14 +45,8 @@ static inline void SetArgAccess(int arg, int a, IntAccessMask *mask) {
 }
 
 // fake registers for testing register allocation
-constexpr Register int_registers[] = {{"a", ir::VALUE_INT_MASK},
-                                      {"b", ir::VALUE_INT_MASK},
-                                      {"c", ir::VALUE_INT_MASK},
-                                      {"d", ir::VALUE_INT_MASK},
-                                      {"e", ir::VALUE_FLOAT_MASK},
-                                      {"f", ir::VALUE_FLOAT_MASK},
-                                      {"g", ir::VALUE_FLOAT_MASK},
-                                      {"h", ir::VALUE_FLOAT_MASK}};
+extern const Register int_registers[];
+extern const int int_num_registers;
 
 class InterpreterBackend : public Backend {
  public:
