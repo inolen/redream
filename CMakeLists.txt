@@ -128,7 +128,6 @@ set(DREAVM_SOURCES
   src/jit/backend/x64/x64_emitter.cc
   src/jit/frontend/sh4/sh4_builder.cc
   src/jit/frontend/sh4/sh4_context.cc
-  src/jit/frontend/sh4/sh4_emit.cc
   src/jit/frontend/sh4/sh4_frontend.cc
   src/jit/frontend/sh4/sh4_instr.cc
   src/jit/ir/ir_builder.cc

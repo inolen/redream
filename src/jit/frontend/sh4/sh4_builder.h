@@ -42,7 +42,6 @@ struct FPUState {
 class SH4Builder : public ir::IRBuilder {
  public:
   SH4Builder(hw::Memory &memory);
-  ~SH4Builder();
 
   void Emit(uint32_t start_addr, const SH4Context &ctx);
 
