@@ -11,14 +11,13 @@ using namespace dreavm::jit::frontend;
 using namespace dreavm::jit::frontend::sh4;
 using namespace dreavm::jit::ir;
 
-typedef void (*EmitCallback)(SH4Builder &b, const FPUState &, const sh4::Instr &i);
+typedef void (*EmitCallback)(SH4Builder &b, const FPUState &,
+                             const sh4::Instr &i);
 
-#define EMITTER(name)                                          \
-  void Emit_OP_##name(SH4Builder &b, const FPUState &fpu, \
-                           const sh4::Instr &i)
+#define EMITTER(name) \
+  void Emit_OP_##name(SH4Builder &b, const FPUState &fpu, const sh4::Instr &i)
 
-#define SH4_INSTR(name, instr_code, cycles, flags) \
-static EMITTER(name);
+#define SH4_INSTR(name, instr_code, cycles, flags) static EMITTER(name);
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 
@@ -2402,4 +2401,3 @@ EMITTER(FRCHG) { b.StoreFPSCR(b.Xor(b.LoadFPSCR(), b.AllocConstant(FR))); }
 EMITTER(FSCHG) {  //
   b.StoreFPSCR(b.Xor(b.LoadFPSCR(), b.AllocConstant(SZ)));
 }
-

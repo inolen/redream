@@ -29,11 +29,13 @@ typedef uint32_t (*X64Fn)(void *guest_ctx, hw::Memory *memory);
 
 class X64Emitter {
  public:
-  X64Emitter(hw::Memory &memory, Xbyak::CodeGenerator &codegen);
+  X64Emitter(hw::Memory &memory);
 
   Xbyak::Label &epilog_label() { return *epilog_label_; }
 
-  X64Fn Emit(ir::IRBuilder &builder);
+  void Reset();
+
+  bool Emit(ir::IRBuilder &builder, X64Fn *fn);
 
   // helpers for the emitter callbacks
   const Xbyak::Operand &GetOperand(const ir::Value *v, int size = -1);
@@ -52,7 +54,7 @@ class X64Emitter {
   Xbyak::Address *AllocAddress(const Xbyak::Address &addr);
 
   hw::Memory &memory_;
-  Xbyak::CodeGenerator &c_;
+  Xbyak::CodeGenerator c_;
   Arena arena_;
   Xbyak::Label *epilog_label_;
 };

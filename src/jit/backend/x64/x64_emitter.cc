@@ -90,15 +90,17 @@ static X64Emit x64_emitters[NUM_OPCODES];
   void op(X64Emitter &e, Memory &memory, Xbyak::CodeGenerator &c, \
           const Instr *instr)
 
-X64Emitter::X64Emitter(Memory &memory, Xbyak::CodeGenerator &codegen)
-    : memory_(memory), c_(codegen), arena_(1024) {}
+X64Emitter::X64Emitter(Memory &memory)
+    : memory_(memory), c_(1024 * 1024 * 8), arena_(1024) {}
 
-X64Fn X64Emitter::Emit(IRBuilder &builder) {
+void X64Emitter::Reset() { c_.reset(); }
+
+bool X64Emitter::Emit(IRBuilder &builder, X64Fn *fn) {
   PROFILER_RUNTIME("X64Emitter::Emit");
 
   // getCurr returns the current spot in the codegen buffer which the function
   // is about to emitted to
-  X64Fn fn = c_.getCurr<X64Fn>();
+  *fn = c_.getCurr<X64Fn>();
 
   // reset arena holding temporaries used while emitting
   arena_.Reset();
@@ -145,13 +147,25 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
     SetLabel(block, lbl);
   }
 
+  // emit each instruction
   for (auto block : builder.blocks()) {
     c_.L(GetLabel(block));
 
     for (auto instr : block->instrs()) {
       X64Emit emit = x64_emitters[instr->op()];
       CHECK(emit, "Failed to find emitter for %s", Opnames[instr->op()]);
-      emit(*this, memory_, c_, instr);
+
+      // try to generate the x64 code. if the codegen buffer overflows let the
+      // backend know so it can reset the cache and try again
+      try {
+        emit(*this, memory_, c_, instr);
+      } catch (const Xbyak::Error &e) {
+        if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
+          return false;
+        }
+
+        LOG_FATAL("X64 codegen failure, %s", e.what());
+      }
     }
   }
 
@@ -172,16 +186,12 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
   c_.pop(Xbyak::util::rsi);
   c_.pop(Xbyak::util::rdi);
 #endif
-
   c_.ret();
-
-  c_.align(16);
 
   // patch up relocations
   c_.ready();
 
-  // return the start of the buffer
-  return fn;
+  return true;
 }
 
 Xbyak::Label *X64Emitter::AllocLabel() {

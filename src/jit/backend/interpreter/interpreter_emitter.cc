@@ -1,7 +1,7 @@
 #include <unordered_map>
 #include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/interpreter/interpreter_block.h"
-#include "jit/backend/interpreter/interpreter_callbacks.h"
+#include "jit/backend/interpreter/interpreter_emitter.h"
 
 using namespace dreavm;
 using namespace dreavm::hw;
@@ -9,67 +9,186 @@ using namespace dreavm::jit;
 using namespace dreavm::jit::backend::interpreter;
 using namespace dreavm::jit::ir;
 
+static IntFn GetCallback(Instr &ir_i);
+
+InterpreterEmitter::InterpreterEmitter() {
+  static const int codegen_size = 1024 * 1024 * 8;
+  codegen_begin_ = new uint8_t[codegen_size];
+  codegen_end_ = codegen_begin_ + codegen_size;
+  codegen_ = codegen_begin_;
+}
+
+InterpreterEmitter::~InterpreterEmitter() { delete[] codegen_begin_; }
+
+void InterpreterEmitter::Reset() { codegen_ = codegen_begin_; }
+
+bool InterpreterEmitter::Emit(ir::IRBuilder &builder, IntInstr **instr,
+                              int *num_instr, int *locals_size) {
+  // do an initial pass assigning ordinals to instructions so local branches
+  // can be resolved
+  int32_t ordinal = 0;
+  for (auto ir_block : builder.blocks()) {
+    for (auto ir_instr : ir_block->instrs()) {
+      ir_instr->set_tag((intptr_t)ordinal++);
+    }
+  }
+
+  // assign local offsets
+  *locals_size = 0;
+  for (auto local : builder.locals()) {
+    int type_size = SizeForType(local->type());
+    local->set_offset(builder.AllocConstant(*locals_size));
+    *locals_size += type_size;
+  }
+
+  // translate each instruction
+  *instr = reinterpret_cast<IntInstr *>(codegen_);
+
+  for (auto ir_block : builder.blocks()) {
+    for (auto ir_instr : ir_block->instrs()) {
+      IntInstr *instr = AllocInstr();
+      if (!instr) {
+        return false;
+      }
+
+      TranslateInstr(*ir_instr, instr);
+    }
+  }
+
+  IntInstr *instr_end = reinterpret_cast<IntInstr *>(codegen_);
+  *num_instr = static_cast<int>(instr_end - *instr);
+
+  return true;
+}
+
+uint8_t *InterpreterEmitter::Alloc(size_t size) {
+  uint8_t *ptr = codegen_;
+  codegen_ += size;
+  if (codegen_ > codegen_end_) {
+    return nullptr;
+  }
+  return ptr;
+}
+
+IntInstr *InterpreterEmitter::AllocInstr() {
+  IntInstr *instr = reinterpret_cast<IntInstr *>(Alloc(sizeof(IntInstr)));
+  if (instr) {
+    memset(instr, 0, sizeof(*instr));
+  }
+  return instr;
+}
+
+void InterpreterEmitter::TranslateInstr(Instr &ir_i, IntInstr *instr) {
+  TranslateArg(ir_i, instr, 0);
+  TranslateArg(ir_i, instr, 1);
+  TranslateArg(ir_i, instr, 2);
+  TranslateArg(ir_i, instr, 3);
+  instr->fn = GetCallback(ir_i);
+}
+
+void InterpreterEmitter::TranslateArg(Instr &ir_i, IntInstr *instr, int arg) {
+  Value *ir_v = ir_i.arg(arg);
+
+  if (!ir_v) {
+    return;
+  }
+
+  IntValue *v = &instr->arg[arg];
+
+  if (ir_v->constant()) {
+    switch (ir_v->type()) {
+      case VALUE_I8:
+        v->i8 = ir_v->value<int8_t>();
+        break;
+      case VALUE_I16:
+        v->i16 = ir_v->value<int16_t>();
+        break;
+      case VALUE_I32:
+        v->i32 = ir_v->value<int32_t>();
+        break;
+      case VALUE_I64:
+        v->i64 = ir_v->value<int64_t>();
+        break;
+      case VALUE_F32:
+        v->f32 = ir_v->value<float>();
+        break;
+      case VALUE_F64:
+        v->f64 = ir_v->value<double>();
+        break;
+      case VALUE_BLOCK:
+        v->i32 = (int32_t)ir_v->value<Block *>()->instrs().head()->tag();
+        break;
+    }
+  } else if (ir_v->reg() != NO_REGISTER) {
+    v->i32 = ir_v->reg();
+  } else {
+    LOG_FATAL("Unexpected value type");
+  }
+}
+
 // callbacks for each IR operation. callback functions are generated per
-// operation, per signature, per access mask.
+// operation, per argument type, per argument access
 static std::unordered_map<int, IntFn> int_cbs;
+
+// location in memory of an instruction's argument
+enum {
+  // argument is located in a virtual register
+  ACC_REG = 0x0,
+  // argument is encoded as an immediate in the instruction itself
+  ACC_IMM = 0x1,
+  // 3-bits, 1 for each argument
+  NUM_ACC_COMBINATIONS = 1 << 3
+};
 
 // OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
 // arg2's type always matches arg1's. because of this, arg2 isn't considered
-// when generating the lookup table.
+// when generating the lookup table
 #define MAX_CALLBACKS_PER_OP \
   (VALUE_NUM * VALUE_NUM * VALUE_NUM * NUM_ACC_COMBINATIONS)
 
-#define CALLBACK_IDX(op, result_sig, arg0_sig, arg1_sig, access_mask)   \
-  (MAX_CALLBACKS_PER_OP * op + (((result_sig * VALUE_NUM * VALUE_NUM) + \
-                                 (arg0_sig * VALUE_NUM) + arg1_sig) *   \
-                                NUM_ACC_COMBINATIONS) +                 \
-   access_mask)
+#define CALLBACK_IDX(op, r, a0, a1, acc0, acc1, acc2)       \
+  (MAX_CALLBACKS_PER_OP * op +                              \
+   (((r * VALUE_NUM * VALUE_NUM) + (a0 * VALUE_NUM) + a1) * \
+    NUM_ACC_COMBINATIONS) +                                 \
+   ((acc2 << 2) | (acc1 << 1) | (acc0 << 0)))
 
 // declare a templated callback for an IR operation. note, declaring a
 // callback does not actually register it. callbacks must be registered
 // for a particular signature with REGISTER_CALLBACK.
 #define INT_CALLBACK(name)                                              \
   template <typename R = void, typename A0 = void, typename A1 = void,  \
-            int ACCESS_MASK = 0>                                        \
+            int ACC0, int ACC1, int ACC2>                               \
   static uint32_t name(const IntInstr *i, uint32_t idx, Memory *memory, \
                        IntValue *r, uint8_t *locals, void *guest_ctx)
 
 // generate NUM_ACC_COMBINATIONS callbacks for each operation
-#define REGISTER_CALLBACK_C(op, fn, r, a0, a1, c)                        \
-  int_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1, c)] = \
-      &fn<ValueType<VALUE_##r>::type, ValueType<VALUE_##a0>::type,       \
-          ValueType<VALUE_##a1>::type, c>;
+#define REGISTER_CALLBACK_C(op, fn, r, a0, a1, acc0, acc1, acc2)               \
+  int_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1, acc0, acc1, \
+                       acc2)] =                                                \
+      &fn<ValueType<VALUE_##r>::type, ValueType<VALUE_##a0>::type,             \
+          ValueType<VALUE_##a1>::type, acc0, acc1, acc2>;
 
 #define REGISTER_INT_CALLBACK(op, fn, r, a0, a1)       \
   static struct _int_##op##_##r##_##a0##_##a1##_init { \
     _int_##op##_##r##_##a0##_##a1##_init() {           \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 0)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 1)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 2)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 3)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 4)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 5)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 6)        \
-      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 7)        \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 0, 0, 0)  \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 0, 0, 1)  \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 0, 1, 0)  \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 0, 1, 1)  \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 1, 0, 0)  \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 1, 0, 1)  \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 1, 1, 0)  \
+      REGISTER_CALLBACK_C(op, fn, r, a0, a1, 1, 1, 1)  \
     }                                                  \
   } int_##op##_##r##_##a0##_##a1##_init
-
-IntFn dreavm::jit::backend::interpreter::GetCallback(
-    Opcode op, const IntSig &sig, IntAccessMask access_mask) {
-  auto it = int_cbs.find(CALLBACK_IDX(op, GetArgSignature(sig, 3),
-                                      GetArgSignature(sig, 0),
-                                      GetArgSignature(sig, 1), access_mask));
-  CHECK_NE(it, int_cbs.end(), "Failed to lookup callback for %s", Opnames[op]);
-  return it->second;
-}
 
 //
 // helpers for loading / storing arguments
 //
-#define LOAD_ARG0() helper<A0, 0, ACCESS_MASK>::LoadArg(i, r, locals)
-#define LOAD_ARG1() helper<A1, 1, ACCESS_MASK>::LoadArg(i, r, locals)
-#define LOAD_ARG2() helper<A1, 2, ACCESS_MASK>::LoadArg(i, r, locals)
-#define STORE_RESULT(v) helper<R, 3, ACCESS_MASK>::StoreArg(i, r, locals, v)
+#define LOAD_ARG0() helper<A0, 0, ACC0>::LoadArg(i, r, locals)
+#define LOAD_ARG1() helper<A1, 1, ACC1>::LoadArg(i, r, locals)
+#define LOAD_ARG2() helper<A1, 2, ACC2>::LoadArg(i, r, locals)
+#define STORE_RESULT(v) helper<R, 3, 0>::StoreArg(i, r, locals, v)
 #define NEXT_INSTR (idx + 1)
 
 template <typename T>
@@ -180,7 +299,7 @@ inline void SetLocal(uint8_t *locals, int offset, double v) {
   *reinterpret_cast<double *>(&locals[offset]) = v;
 }
 
-template <typename T, int ARG, IntAccessMask ACCESS_MASK, class ENABLE = void>
+template <typename T, int ARG, int ACC>
 struct helper {
   static inline T LoadArg(const IntInstr *i, const IntValue *r,
                           const uint8_t *l);
@@ -190,10 +309,8 @@ struct helper {
 
 // ACC_REG
 // argument is located in a virtual register, arg->i32 specifies the register
-template <typename T, int ARG, IntAccessMask ACCESS_MASK>
-struct helper<
-    T, ARG, ACCESS_MASK,
-    typename std::enable_if<GetArgAccess(ACCESS_MASK, ARG) == ACC_REG>::type> {
+template <typename T, int ARG>
+struct helper<T, ARG, ACC_REG> {
   static inline T LoadArg(const IntInstr *i, const IntValue *r,
                           const uint8_t *l) {
     return GetValue<T>(r[i->arg[ARG].i32]);
@@ -206,10 +323,8 @@ struct helper<
 
 // ACC_IMM
 // argument is encoded directly on the instruction
-template <typename T, int ARG, IntAccessMask ACCESS_MASK>
-struct helper<
-    T, ARG, ACCESS_MASK,
-    typename std::enable_if<GetArgAccess(ACCESS_MASK, ARG) == ACC_IMM>::type> {
+template <typename T, int ARG>
+struct helper<T, ARG, ACC_IMM> {
   static inline T LoadArg(const IntInstr *i, const IntValue *r,
                           const uint8_t *l) {
     return GetValue<T>(i->arg[ARG]);
@@ -276,37 +391,37 @@ REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, F32);
 REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, F64);
 
 INT_CALLBACK(LOAD_I8) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   R v = memory->R8(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_I16) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   R v = memory->R16(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_I32) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   R v = memory->R32(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_I64) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   R v = memory->R64(addr);
   STORE_RESULT(v);
   return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_F32) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   uint32_t v = memory->R32(addr);
   STORE_RESULT(*reinterpret_cast<float *>(&v));
   return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_F64) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   uint64_t v = memory->R64(addr);
   STORE_RESULT(*reinterpret_cast<double *>(&v));
   return NEXT_INSTR;
@@ -319,37 +434,37 @@ REGISTER_INT_CALLBACK(LOAD, LOAD_F32, F32, I32, V);
 REGISTER_INT_CALLBACK(LOAD, LOAD_F64, F64, I32, V);
 
 INT_CALLBACK(STORE_I8) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
   memory->W8(addr, v);
   return NEXT_INSTR;
 }
 INT_CALLBACK(STORE_I16) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
   memory->W16(addr, v);
   return NEXT_INSTR;
 }
 INT_CALLBACK(STORE_I32) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
   memory->W32(addr, v);
   return NEXT_INSTR;
 }
 INT_CALLBACK(STORE_I64) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
   memory->W64(addr, v);
   return NEXT_INSTR;
 }
 INT_CALLBACK(STORE_F32) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
   memory->W32(addr, *reinterpret_cast<uint32_t *>(&v));
   return NEXT_INSTR;
 }
 INT_CALLBACK(STORE_F64) {
-  uint32_t addr = (uint32_t)LOAD_ARG0();
+  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
   memory->W64(addr, *reinterpret_cast<uint64_t *>(&v));
   return NEXT_INSTR;
@@ -784,3 +899,42 @@ INT_CALLBACK(CALL_EXTERNAL) {
   return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(CALL_EXTERNAL, CALL_EXTERNAL, V, I64, V);
+
+//
+// lookup callback for ir instruction
+//
+static int GetArgType(Instr &ir_i, int arg) {
+  Value *ir_v = ir_i.arg(arg);
+  if (!ir_v) {
+    return 0;
+  }
+
+  // blocks are translated to int32 offsets
+  int type = ir_v->type();
+  if (type == VALUE_BLOCK) {
+    type = VALUE_I32;
+  }
+  return type;
+}
+
+static int GetArgAccess(Instr &ir_i, int arg) {
+  Value *ir_v = ir_i.arg(arg);
+  if (!ir_v) {
+    return 0;
+  }
+
+  int access = ACC_REG;
+  if (ir_v->constant()) {
+    access = ACC_IMM;
+  }
+  return access;
+}
+
+static IntFn GetCallback(Instr &ir_i) {
+  Opcode op = ir_i.op();
+  auto it = int_cbs.find(CALLBACK_IDX(
+      op, GetArgType(ir_i, 3), GetArgType(ir_i, 0), GetArgType(ir_i, 1),
+      GetArgAccess(ir_i, 0), GetArgAccess(ir_i, 1), GetArgAccess(ir_i, 2)));
+  CHECK_NE(it, int_cbs.end(), "Failed to lookup callback for %s", Opnames[op]);
+  return it->second;
+}

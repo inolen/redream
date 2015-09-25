@@ -122,7 +122,7 @@ set(DREAVM_SOURCES
   src/hw/scheduler.cc
   src/jit/backend/interpreter/interpreter_backend.cc
   src/jit/backend/interpreter/interpreter_block.cc
-  src/jit/backend/interpreter/interpreter_callbacks.cc
+  src/jit/backend/interpreter/interpreter_emitter.cc
   src/jit/backend/x64/x64_backend.cc
   src/jit/backend/x64/x64_block.cc
   src/jit/backend/x64/x64_emitter.cc

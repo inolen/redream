@@ -1,3 +1,4 @@
+#include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/interpreter/interpreter_block.h"
 
 using namespace dreavm::hw;

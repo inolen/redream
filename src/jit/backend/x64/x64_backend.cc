@@ -22,8 +22,7 @@ static const Register x64_registers[] = {{"rbx", ir::VALUE_INT_MASK},
                                          {"xmm10", ir::VALUE_FLOAT_MASK},
                                          {"xmm11", ir::VALUE_FLOAT_MASK}};
 
-X64Backend::X64Backend(Memory &memory)
-    : Backend(memory), codegen_(1024 * 1024 * 8), emitter_(memory, codegen_) {}
+X64Backend::X64Backend(Memory &memory) : Backend(memory), emitter_(memory) {}
 
 X64Backend::~X64Backend() {}
 
@@ -33,22 +32,14 @@ int X64Backend::num_registers() const {
   return sizeof(x64_registers) / sizeof(Register);
 }
 
-void X64Backend::Reset() { codegen_.reset(); }
+void X64Backend::Reset() { emitter_.Reset(); }
 
 std::unique_ptr<RuntimeBlock> X64Backend::AssembleBlock(
     ir::IRBuilder &builder) {
-  X64Fn fn = nullptr;
+  X64Fn fn;
 
-  // try to generate the x64 code. if the codegen buffer overflows let the
-  // runtime know so it can reset the cache and try again
-  try {
-    fn = emitter_.Emit(builder);
-  } catch (const Xbyak::Error &e) {
-    if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
-      return nullptr;
-    }
-
-    LOG_FATAL("X64 codegen failure, %s", e.what());
+  if (!emitter_.Emit(builder, &fn)) {
+    return nullptr;
   }
 
   return std::unique_ptr<RuntimeBlock>(
