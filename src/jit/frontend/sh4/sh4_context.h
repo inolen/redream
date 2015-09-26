@@ -55,6 +55,7 @@ struct SH4Context {
   uint32_t sq_ext_addr[2];
   uint32_t preserve;
   SR_T sr, ssr, old_sr;
+  uint32_t sr_qm;
   FPSCR_T fpscr, old_fpscr;
 };
 

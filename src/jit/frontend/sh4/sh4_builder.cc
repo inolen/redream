@@ -689,137 +689,55 @@ EMITTER(CMPSTR) {
 // 0010 nnnn mmmm 0111  1       calculation result
 // DIV0S   Rm,Rn
 EMITTER(DIV0S) {
-  Value *sr = b.LoadSR();
-  Value *rm_msb =
-      b.And(b.LoadRegister(i.Rm, VALUE_I32), b.AllocConstant(0x80000000));
-  Value *rn_msb =
-      b.And(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(0x80000000));
-  // MSB of Rn -> Q
-  sr = b.Select(b.NE(rn_msb, b.AllocConstant(0)), b.Or(sr, b.AllocConstant(Q)),
-                b.And(sr, b.AllocConstant(~Q)));
-  // MSB of Rm -> M
-  sr = b.Select(b.NE(rm_msb, b.AllocConstant(0)), b.Or(sr, b.AllocConstant(M)),
-                b.And(sr, b.AllocConstant(~M)));
-  // M ^ Q -> T
-  sr = b.Select(b.NE(b.Xor(rm_msb, rn_msb), b.AllocConstant(0)),
-                b.Or(sr, b.AllocConstant(T)), b.And(sr, b.AllocConstant(~T)));
-  b.StoreSR(sr);
+  Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
+  Value *qm = b.Xor(rn, rm);
+
+  // update Q == M flag
+  b.StoreContext(offsetof(SH4Context, sr_qm), b.Not(qm));
+
+  // msb of Q ^ M -> T
+  b.StoreT(b.LShr(qm, 31));
 }
 
 // code                 cycles  t-bit
 // 0000 0000 0001 1001  1       0
 // DIV0U
 EMITTER(DIV0U) {  //
-  b.StoreSR(b.And(b.LoadSR(), b.AllocConstant(~(Q | M | T))));
+  b.StoreContext(offsetof(SH4Context, sr_qm), b.AllocConstant(0x80000000));
+
+  b.StoreSR(b.And(b.LoadSR(), b.AllocConstant(~T)));
 }
 
 // code                 cycles  t-bit
 // 0011 nnnn mmmm 0100  1       calculation result
 // DIV1 Rm,Rn
 EMITTER(DIV1) {
-  Block *noq_block = b.AppendBlock();
-  Block *noq_negative_block = b.AppendBlock();
-  Block *noq_nonnegative_block = b.AppendBlock();
-  Block *q_block = b.AppendBlock();
-  Block *q_negative_block = b.AppendBlock();
-  Block *q_nonnegative_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
+  Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
 
-  // save off q, and update it based on Rn
-  Value *sr = b.LoadSR();
-  Value *dividend = b.LoadRegister(i.Rn, VALUE_I32);
-  Value *old_q = b.And(sr, b.AllocConstant(Q));
-  Value *new_q = b.And(dividend, b.AllocConstant(0x80000000));
-  b.StoreSR(b.Select(new_q, b.Or(sr, b.AllocConstant(Q)),
-                     b.And(sr, b.AllocConstant(~Q))));
+  // if Q == M, r0 = ~Rm and C = 1; else, r0 = Rm and C = 0
+  Value *qm = b.AShr(b.LoadContext(offsetof(SH4Context, sr_qm), VALUE_I32), 31);
+  Value *r0 = b.Xor(rm, qm);
+  Value *carry = b.LShr(qm, 31);
 
-  b.BranchCond(old_q, q_block, noq_block);
+  // initialize output bit as (Q == M) ^ Rn
+  qm = b.Xor(qm, rn);
 
-  {
-    b.SetCurrentBlock(q_block);
-    Value *dividend_is_neg = b.And(b.LoadSR(), b.AllocConstant(M));
-    b.BranchCond(dividend_is_neg, q_negative_block, q_nonnegative_block);
+  // shift Rn left by 1 and add T
+  rn = b.Or(b.Shl(rn, 1), b.LoadT());
 
-    {
-      // M is set, Q is set
-      b.SetCurrentBlock(q_negative_block);
-      // rotate dividend left, moving T to the LSB
-      Value *dividend =
-          b.Or(b.Shl(b.LoadRegister(i.Rn, VALUE_I32), 1), b.LoadT());
-      Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
-      Value *new_dividend = b.Sub(dividend, divisor);
-      b.StoreRegister(i.Rn, new_dividend);
-      b.BranchTrue(b.UGT(new_dividend, dividend),
-                   end_block);  // M is set, Q is set
-      b.StoreSR(
-          b.Xor(b.LoadSR(), b.AllocConstant(Q)));  // M is set, Q is not set
-      b.Branch(end_block);
-    }
+  // add or subtract Rm based on r0 and C
+  Value *rd = b.Add(b.Add(rn, r0), carry);
+  b.StoreRegister(i.Rn, rd);
 
-    {
-      // M is not set, Q is set
-      b.SetCurrentBlock(q_nonnegative_block);
-      // rotate dividend left, moving T to the LSB
-      Value *dividend =
-          b.Or(b.Shl(b.LoadRegister(i.Rn, VALUE_I32), 1), b.LoadT());
-      Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
-      Value *new_dividend = b.Add(dividend, divisor);
-      b.StoreRegister(i.Rn, new_dividend);
-      b.BranchTrue(b.UGE(new_dividend, dividend),
-                   end_block);  // M is not set, Q is set
-      b.StoreSR(
-          b.Xor(b.LoadSR(), b.AllocConstant(Q)));  // M is not set, Q is not set
-      b.Branch(end_block);
-    }
-  }
+  // if C is cleared, invert output bit
+  carry = b.LShr(b.Or(b.And(rn, r0), b.And(b.Or(rn, r0), b.Not(rd))), 31);
+  qm = b.Select(carry, qm, b.Not(qm));
+  b.StoreContext(offsetof(SH4Context, sr_qm), qm);
 
-  {
-    b.SetCurrentBlock(noq_block);
-    Value *dividend_is_neg = b.And(b.LoadSR(), b.AllocConstant(M));
-    b.BranchCond(dividend_is_neg, noq_negative_block, noq_nonnegative_block);
-
-    {
-      // M is set, Q is not set
-      b.SetCurrentBlock(noq_negative_block);
-      // rotate dividend left, moving T to the LSB
-      Value *dividend =
-          b.Or(b.Shl(b.LoadRegister(i.Rn, VALUE_I32), 1), b.LoadT());
-      Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
-      Value *new_dividend = b.Add(dividend, divisor);
-      b.StoreRegister(i.Rn, new_dividend);
-      b.BranchTrue(b.ULT(new_dividend, dividend),
-                   end_block);  // M is set, Q is not set
-      b.StoreSR(b.Xor(b.LoadSR(), b.AllocConstant(Q)));  // M is set, Q is set
-      b.Branch(end_block);
-    }
-
-    {
-      // M is not set, Q is not set
-      b.SetCurrentBlock(noq_nonnegative_block);
-      // rotate dividend left, moving T to the LSB
-      Value *dividend =
-          b.Or(b.Shl(b.LoadRegister(i.Rn, VALUE_I32), 1), b.LoadT());
-      Value *divisor = b.LoadRegister(i.Rm, VALUE_I32);
-      Value *new_dividend = b.Sub(dividend, divisor);
-      b.StoreRegister(i.Rn, new_dividend);
-      b.BranchTrue(b.ULE(new_dividend, dividend),
-                   end_block);  // M is not set, Q is not set
-      b.StoreSR(
-          b.Xor(b.LoadSR(), b.AllocConstant(Q)));  // M is not set, Q is set
-      b.Branch(end_block);
-    }
-  }
-
-  {
-    b.SetCurrentBlock(end_block);
-    Value *sr = b.LoadSR();
-    Value *dividend_is_neg = b.And(sr, b.AllocConstant(M));
-    Value *new_q = b.And(sr, b.AllocConstant(Q));
-    b.StoreT(b.EQ(b.EQ(dividend_is_neg, b.AllocConstant(0)),
-                  b.EQ(new_q, b.AllocConstant(0))));
-  }
-
-  // b.SetCurrentBlock(end_block);
+  // set T to output bit (which happens to be Q == M)
+  b.StoreT(b.LShr(qm, 31));
 }
 
 // DMULS.L Rm,Rn

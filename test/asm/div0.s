@@ -2,11 +2,10 @@ test_div0u:
   # REGISTER_IN r0 0x700000f0
   ldc r0, sr
   div0u
-  stc sr, r1
-  and r0, r1
+  movt r1
   rts
   nop
-  # REGISTER_OUT r1 0x700000f0
+  # REGISTER_OUT r1 0x0
 
 test_div0s_ndividend_ndivisor:
   # REGISTER_IN r0 0x700000f0
@@ -14,10 +13,10 @@ test_div0s_ndividend_ndivisor:
   # REGISTER_IN r2 0x4
   ldc r0, sr
   div0s r1, r2
-  stc sr, r3
+  movt r3
   rts
   nop
-  # REGISTER_OUT r3 0x700000f0
+  # REGISTER_OUT r3 0x0
 
 test_div0s_pdividend_pdivisor:
   # REGISTER_IN r0 0x700000f0
@@ -25,10 +24,10 @@ test_div0s_pdividend_pdivisor:
   # REGISTER_IN r2 0xfffffffc
   ldc r0, sr
   div0s r1, r2
-  stc sr, r3
+  movt r3
   rts
   nop
-  # REGISTER_OUT r3 0x700003f0
+  # REGISTER_OUT r3 0x0
 
 test_div0s_ndividend_pdivisor:
   # REGISTER_IN r0 0x700000f0
@@ -36,10 +35,10 @@ test_div0s_ndividend_pdivisor:
   # REGISTER_IN r2 0xfffffffc
   ldc r0, sr
   div0s r1, r2
-  stc sr, r3
+  movt r3
   rts
   nop
-  # REGISTER_OUT r3 0x700001f1
+  # REGISTER_OUT r3 0x1
 
 test_div0s_pdividend_ndivisor:
   # REGISTER_IN r0 0x700000f0
@@ -47,7 +46,7 @@ test_div0s_pdividend_ndivisor:
   # REGISTER_IN r2 0x4
   ldc r0, sr
   div0s r1, r2
-  stc sr, r3
+  movt r3
   rts
   nop
-  # REGISTER_OUT r3 0x700002f1
+  # REGISTER_OUT r3 0x1
