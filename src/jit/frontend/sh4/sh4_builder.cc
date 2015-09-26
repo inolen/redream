@@ -574,15 +574,11 @@ EMITTER(ADDI) {
 EMITTER(ADDC) {
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  Value *v1 = b.Add(rn, rm);
-  Value *v2 = b.Add(v1, b.LoadT());
-  b.StoreRegister(i.Rn, v2);
+  Value *v = b.Add(b.Add(rn, rm), b.LoadT());
+  b.StoreRegister(i.Rn, v);
 
-  // if the available bits were overflowed, set the carry flag
-  Value *rnrm_overflow = b.UGT(rn, v1);
-  Value *rnrmt_overflow = b.UGT(v1, v2);
-  Value *overflow = b.Or(rnrm_overflow, rnrmt_overflow);
-  b.StoreT(overflow);
+  // compute carry flag, taken from Hacker's Delight
+  b.StoreT(b.Or(b.And(rn, rm), b.And(b.Or(rn, rm), b.Not(v))));
 }
 
 // code                 cycles  t-bit
@@ -594,12 +590,8 @@ EMITTER(ADDV) {
   Value *v = b.Add(rn, rm);
   b.StoreRegister(i.Rn, v);
 
-  // if Rm and Rn are the same sign, but value is different, overflowed
-  Value *rm_ge_0 = b.SGE(rm, b.AllocConstant(0));
-  Value *rn_ge_0 = b.SGE(rn, b.AllocConstant(0));
-  Value *v_ge_0 = b.SGE(v, b.AllocConstant(0));
-  Value *overflow = b.And(b.EQ(rn_ge_0, rm_ge_0), b.NE(rm_ge_0, v_ge_0));
-  b.StoreT(overflow);
+  // compute overflow flag, taken from Hacker's Delight
+  b.StoreT(b.LShr(b.And(b.Xor(v, rn), b.Xor(v, rm)), 31));
 }
 
 // code                 cycles  t-bit
@@ -941,15 +933,11 @@ EMITTER(SUB) {
 EMITTER(SUBC) {
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  Value *v1 = b.Sub(rn, rm);
-  Value *v2 = b.Sub(v1, b.LoadT());
-  b.StoreRegister(i.Rn, v2);
+  Value *v = b.Sub(b.Sub(rn, rm), b.LoadT());
+  b.StoreRegister(i.Rn, v);
 
-  // if the available bits were overflowed, set the carry flag
-  Value *rnrm_overflow = b.UGT(v1, rn);
-  Value *rnrmt_overflow = b.UGT(v2, v1);
-  Value *overflow = b.Or(rnrm_overflow, rnrmt_overflow);
-  b.StoreT(overflow);
+  // compute carry flag, taken from Hacker's Delight
+  b.StoreT(b.Or(b.And(b.Not(rn), rm), b.And(b.Or(b.Not(rn), rm), v)));
 }
 
 // SUBV    Rm,Rn
@@ -959,14 +947,8 @@ EMITTER(SUBV) {
   Value *v = b.Sub(rn, rm);
   b.StoreRegister(i.Rn, v);
 
-  // if both Rm and Rn are the "same" sign (keeping in mind, subtracting a
-  // negative is the same as adding a positive), but value is different,
-  // overflowed
-  Value *rm_ge_0 = b.SGE(rm, b.AllocConstant(0));
-  Value *rn_ge_0 = b.SGE(rn, b.AllocConstant(0));
-  Value *v_ge_0 = b.SGE(v, b.AllocConstant(0));
-  Value *overflow = b.And(b.NE(rn_ge_0, rm_ge_0), b.EQ(rm_ge_0, v_ge_0));
-  b.StoreT(overflow);
+  // compute overflow flag, taken from Hacker's Delight
+  b.StoreT(b.LShr(b.And(b.Xor(rn, rm), b.Xor(v, rn)), 31));
 }
 
 // code                 cycles  t-bit
