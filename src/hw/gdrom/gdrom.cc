@@ -78,7 +78,7 @@ T GDROM::ReadRegister(void *ctx, uint32_t addr) {
       if (self->pio_idx_ == self->pio_size_) {
         self->TriggerEvent(EV_SPI_WRITE_END);
       }
-      return v;
+      return static_cast<T>(v);
     }
 
     case GD_ERROR_FEATURES_OFFSET:

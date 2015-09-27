@@ -44,9 +44,9 @@ static void HSLToRGB(float h, float s, float l, uint8_t *r, uint8_t *g,
     fb = HueToRGB(p, q, h - 1.0f / 3.0f);
   }
 
-  *r = fr * 255.0f;
-  *g = fg * 255.0f;
-  *b = fb * 255.0f;
+  *r = static_cast<uint8_t>(fr * 255);
+  *g = static_cast<uint8_t>(fg * 255);
+  *b = static_cast<uint8_t>(fb * 255);
 }
 
 uint32_t Profiler::ScopeColor(const char *name) {
