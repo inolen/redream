@@ -158,8 +158,8 @@ class Holly {
   void RequestInterrupt(HollyInterrupt intr);
   void UnrequestInterrupt(HollyInterrupt intr);
 
-  uint32_t ReadRegister32(uint32_t addr);
-  void WriteRegister32(uint32_t addr, uint32_t value);
+  static uint32_t ReadRegister(void *ctx, uint32_t addr);
+  static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
 
  private:
   void CH2DMATransfer();

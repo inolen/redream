@@ -49,17 +49,15 @@ void GDROM::SetDisc(std::unique_ptr<Disc> disc) {
   status_.BSY = 0;
 }
 
-uint8_t GDROM::ReadRegister8(uint32_t addr) {
-  return static_cast<uint8_t>(ReadRegister32(addr));
-}
+template uint8_t GDROM::ReadRegister(void *ctx, uint32_t addr);
+template uint16_t GDROM::ReadRegister(void *ctx, uint32_t addr);
+template uint32_t GDROM::ReadRegister(void *ctx, uint32_t addr);
+template <typename T>
+T GDROM::ReadRegister(void *ctx, uint32_t addr) {
+  GDROM *self = reinterpret_cast<GDROM *>(ctx);
 
-uint16_t GDROM::ReadRegister16(uint32_t addr) {
-  return static_cast<uint16_t>(ReadRegister32(addr));
-}
-
-uint32_t GDROM::ReadRegister32(uint32_t addr) {
   uint32_t offset = (0x1000 + addr) >> 2;
-  Register &reg = holly_regs_[offset];
+  Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
@@ -71,13 +69,14 @@ uint32_t GDROM::ReadRegister32(uint32_t addr) {
     case GD_ALTSTAT_DEVCTRL_OFFSET:
       // this register is the same as the status register, but it does not
       // clear DMA status information when it is accessed
-      return status_.full;
+      return self->status_.full;
 
     case GD_DATA_OFFSET: {
-      uint16_t v = *(uint16_t *)&pio_buffer_[pio_idx_];
-      pio_idx_ += 2;
-      if (pio_idx_ == pio_size_) {
-        TriggerEvent(EV_SPI_WRITE_END);
+      // TODO add ReadData function
+      uint16_t v = *(uint16_t *)&self->pio_buffer_[self->pio_idx_];
+      self->pio_idx_ += 2;
+      if (self->pio_idx_ == self->pio_size_) {
+        self->TriggerEvent(EV_SPI_WRITE_END);
       }
       return v;
     }
@@ -87,24 +86,24 @@ uint32_t GDROM::ReadRegister32(uint32_t addr) {
       return 0;
 
     case GD_INTREASON_SECTCNT_OFFSET:
-      return intreason_.full;
+      return self->intreason_.full;
 
     case GD_SECTNUM_OFFSET:
-      return sectnum_.full;
+      return self->sectnum_.full;
 
     case GD_BYCTLLO_OFFSET:
-      return byte_count_.lo;
+      return self->byte_count_.lo;
 
     case GD_BYCTLHI_OFFSET:
-      return byte_count_.hi;
+      return self->byte_count_.hi;
 
     case GD_DRVSEL_OFFSET:
       // LOG_INFO("GD_DRVSEL");
       return 0;
 
     case GD_STATUS_COMMAND_OFFSET:
-      holly_->UnrequestInterrupt(HOLLY_INTC_G1GDINT);
-      return status_.full;
+      self->holly_->UnrequestInterrupt(HOLLY_INTC_G1GDINT);
+      return self->status_.full;
 
       // g1 bus regs
   }
@@ -112,17 +111,15 @@ uint32_t GDROM::ReadRegister32(uint32_t addr) {
   return reg.value;
 }
 
-void GDROM::WriteRegister8(uint32_t addr, uint8_t value) {
-  WriteRegister32(addr, static_cast<uint32_t>(value));
-}
+template void GDROM::WriteRegister(void *ctx, uint32_t addr, uint8_t value);
+template void GDROM::WriteRegister(void *ctx, uint32_t addr, uint16_t value);
+template void GDROM::WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+template <typename T>
+void GDROM::WriteRegister(void *ctx, uint32_t addr, T value) {
+  GDROM *self = reinterpret_cast<GDROM *>(ctx);
 
-void GDROM::WriteRegister16(uint32_t addr, uint16_t value) {
-  WriteRegister32(addr, static_cast<uint32_t>(value));
-}
-
-void GDROM::WriteRegister32(uint32_t addr, uint32_t value) {
   uint32_t offset = (0x1000 + addr) >> 2;
-  Register &reg = holly_regs_[offset];
+  Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);
@@ -130,7 +127,7 @@ void GDROM::WriteRegister32(uint32_t addr, uint32_t value) {
   }
 
   uint32_t old_value = reg.value;
-  reg.value = value;
+  reg.value = static_cast<uint32_t>(value);
 
   switch (offset) {
     // gdrom regs
@@ -139,40 +136,42 @@ void GDROM::WriteRegister32(uint32_t addr, uint32_t value) {
       break;
 
     case GD_DATA_OFFSET: {
-      *(uint16_t *)(&pio_buffer_[pio_idx_]) = value & 0xffff;
-      pio_idx_ += 2;
-      if ((state_ == STATE_SPI_READ_CMD && pio_idx_ == 12) ||
-          (state_ == STATE_SPI_READ_DATA && pio_idx_ == pio_size_)) {
-        TriggerEvent(EV_SPI_READ_END);
+      // TODO add WriteData function
+      *(uint16_t *)(&self->pio_buffer_[self->pio_idx_]) = reg.value & 0xffff;
+      self->pio_idx_ += 2;
+      if ((self->state_ == STATE_SPI_READ_CMD && self->pio_idx_ == 12) ||
+          (self->state_ == STATE_SPI_READ_DATA &&
+           self->pio_idx_ == self->pio_size_)) {
+        self->TriggerEvent(EV_SPI_READ_END);
       }
     } break;
 
     case GD_ERROR_FEATURES_OFFSET:
-      features_.full = value;
+      self->features_.full = reg.value;
       break;
 
     case GD_INTREASON_SECTCNT_OFFSET:
-      // LOG_INFO("GD_SECTCNT 0x%x", (uint32_t)value);
+      // LOG_INFO("GD_SECTCNT 0x%x", reg.value);
       break;
 
     case GD_SECTNUM_OFFSET:
-      sectnum_.full = value;
+      self->sectnum_.full = reg.value;
       break;
 
     case GD_BYCTLLO_OFFSET:
-      byte_count_.lo = value;
+      self->byte_count_.lo = reg.value;
       break;
 
     case GD_BYCTLHI_OFFSET:
-      byte_count_.hi = value;
+      self->byte_count_.hi = reg.value;
       break;
 
     case GD_DRVSEL_OFFSET:
-      // LOG_INFO("GD_DRVSEL 0x%x", (uint32_t)value);
+      // LOG_INFO("GD_DRVSEL 0x%x", (uint32_t)reg.value);
       break;
 
     case GD_STATUS_COMMAND_OFFSET:
-      ProcessATACommand((ATACommand)value);
+      self->ProcessATACommand((ATACommand)reg.value);
       break;
 
     // g1 bus regs
@@ -184,34 +183,36 @@ void GDROM::WriteRegister32(uint32_t addr, uint32_t value) {
 
     case SB_GDST_OFFSET:
       // if a "0" is written to this register, it is ignored
-      reg.value = old_value | value;
+      reg.value |= old_value;
 
       if (reg.value) {
+        // TODO add DMAStart function
+
         // NOTE for when this is made asynchronous
         // Cautions during DMA operations: If the SB_GDAPRO, SB_G1GDRC,
         // SB_GDSTAR, SB_GDLEN, or SB_GDDIR register is overwritten while a DMA
         // operation is in progress, the new setting has no effect on the
         // current DMA operation.
-        CHECK_EQ(dc_->SB_GDEN, 1);   // dma enabled
-        CHECK_EQ(dc_->SB_GDDIR, 1);  // gd-rom -> system memory
-        CHECK_EQ(dc_->SB_GDLEN, (uint32_t)dma_size_);
+        CHECK_EQ(self->dc_->SB_GDEN, 1);   // dma enabled
+        CHECK_EQ(self->dc_->SB_GDDIR, 1);  // gd-rom -> system memory
+        CHECK_EQ(self->dc_->SB_GDLEN, (uint32_t)self->dma_size_);
 
-        int transfer_size = dc_->SB_GDLEN;
-        uint32_t start = dc_->SB_GDSTAR;
+        int transfer_size = self->dc_->SB_GDLEN;
+        uint32_t start = self->dc_->SB_GDSTAR;
 
         printf("GD DMA START 0x%x -> 0x%x, 0x%x bytes\n", start,
                start + transfer_size, transfer_size);
 
-        memory_->Memcpy(start, dma_buffer_, transfer_size);
+        self->memory_->Memcpy(start, self->dma_buffer_, transfer_size);
 
         // done
-        dc_->SB_GDSTARD = start + transfer_size;
-        dc_->SB_GDLEND = transfer_size;
-        dc_->SB_GDST = 0;
-        holly_->RequestInterrupt(HOLLY_INTC_G1DEINT);
+        self->dc_->SB_GDSTARD = start + transfer_size;
+        self->dc_->SB_GDLEND = transfer_size;
+        self->dc_->SB_GDST = 0;
+        self->holly_->RequestInterrupt(HOLLY_INTC_G1DEINT);
 
         // finish off CD_READ command
-        TriggerEvent(EV_SPI_CMD_DONE);
+        self->TriggerEvent(EV_SPI_CMD_DONE);
       }
       break;
   }

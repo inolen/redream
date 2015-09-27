@@ -295,16 +295,20 @@ void TileAccelerator::SwapContext(uint32_t addr) {
 
 TileContext *TileAccelerator::GetLastContext() { return last_context_; }
 
-void TileAccelerator::WriteCommand32(uint32_t addr, uint32_t value) {
-  WriteContext(dc_->TA_ISP_BASE.base_address, value);
+void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, uint32_t value) {
+  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
+
+  self->WriteContext(self->dc_->TA_ISP_BASE.base_address, value);
 }
 
-void TileAccelerator::WriteTexture32(uint32_t addr, uint32_t value) {
+void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
+  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
+
   addr &= 0xeeffffff;
 
-  *reinterpret_cast<uint32_t *>(&video_ram_[addr]) = value;
+  *reinterpret_cast<uint32_t *>(&self->video_ram_[addr]) = value;
 
-  texcache_->CheckTextureWrite(addr);
+  self->texcache_->CheckTextureWrite(addr);
 }
 
 TileContextIterator TileAccelerator::FindContext(uint32_t addr) {

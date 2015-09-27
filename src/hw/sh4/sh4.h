@@ -131,29 +131,20 @@ class SH4 : public hw::Device {
   void RequestInterrupt(Interrupt intr);
   void UnrequestInterrupt(Interrupt intr);
 
-  uint8_t ReadRegister8(uint32_t addr);
-  uint16_t ReadRegister16(uint32_t addr);
-  uint32_t ReadRegister32(uint32_t addr);
-  void WriteRegister8(uint32_t addr, uint8_t value);
-  void WriteRegister16(uint32_t addr, uint16_t value);
-  void WriteRegister32(uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadRegister(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteRegister(void *ctx, uint32_t addr, T value);
 
-  uint8_t ReadCache8(uint32_t addr);
-  uint16_t ReadCache16(uint32_t addr);
-  uint32_t ReadCache32(uint32_t addr);
-  uint64_t ReadCache64(uint32_t addr);
-  void WriteCache8(uint32_t addr, uint8_t value);
-  void WriteCache16(uint32_t addr, uint16_t value);
-  void WriteCache32(uint32_t addr, uint32_t value);
-  void WriteCache64(uint32_t addr, uint64_t value);
+  template <typename T>
+  static T ReadCache(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteCache(void *ctx, uint32_t addr, T value);
 
-  uint8_t ReadSQ8(uint32_t addr);
-  uint16_t ReadSQ16(uint32_t addr);
-  uint32_t ReadSQ32(uint32_t addr);
-
-  void WriteSQ8(uint32_t addr, uint8_t value);
-  void WriteSQ16(uint32_t addr, uint16_t value);
-  void WriteSQ32(uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadSQ(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteSQ(void *ctx, uint32_t addr, T value);
 
  protected:
   // CCN

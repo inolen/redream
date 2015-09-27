@@ -204,16 +204,20 @@ class PVR2 {
 
   bool Init();
 
-  uint32_t ReadRegister32(uint32_t addr);
-  void WriteRegister32(uint32_t addr, uint32_t value);
+  static uint32_t ReadRegister(void *ctx, uint32_t addr);
+  static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
 
-  void WritePalette32(uint32_t addr, uint32_t value);
+  static void WritePalette(void *ctx, uint32_t addr, uint32_t value);
 
-  uint8_t ReadInterleaved8(uint32_t addr);
-  uint16_t ReadInterleaved16(uint32_t addr);
-  uint32_t ReadInterleaved32(uint32_t addr);
-  void WriteInterleaved16(uint32_t addr, uint16_t value);
-  void WriteInterleaved32(uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadVRam(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteVRam(void *ctx, uint32_t addr, T value);
+
+  template <typename T>
+  static T ReadVRamInterleaved(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteVRamInterleaved(void *ctx, uint32_t addr, T value);
 
  private:
   void ReconfigureSPG();

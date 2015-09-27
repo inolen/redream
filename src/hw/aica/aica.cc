@@ -26,17 +26,21 @@ uint32_t AICA::Execute(uint32_t cycles) {
   return cycles;
 }
 
-uint32_t AICA::ReadRegister32(uint32_t addr) {
+uint32_t AICA::ReadRegister(void *ctx, uint32_t addr) {
+  AICA *self = reinterpret_cast<AICA *>(ctx);
   // LOG_INFO("AICA::ReadRegister32 0x%x", addr);
-  return *reinterpret_cast<uint32_t *>(&aica_regs_[addr]);
+  return *reinterpret_cast<uint32_t *>(&self->aica_regs_[addr]);
 }
 
-void AICA::WriteRegister32(uint32_t addr, uint32_t value) {
+void AICA::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
+  AICA *self = reinterpret_cast<AICA *>(ctx);
   // LOG_INFO("AICA::WriteRegister32 0x%x", addr);
-  *reinterpret_cast<uint32_t *>(&aica_regs_[addr]) = value;
+  *reinterpret_cast<uint32_t *>(&self->aica_regs_[addr]) = value;
 }
 
-uint32_t AICA::ReadWave32(uint32_t addr) {
+uint32_t AICA::ReadWave(void *ctx, uint32_t addr) {
+  AICA *self = reinterpret_cast<AICA *>(ctx);
+
   // FIXME temp hacks to get Crazy Taxi 1 booting
   if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
     return 0x54494e49;
@@ -46,9 +50,10 @@ uint32_t AICA::ReadWave32(uint32_t addr) {
     return 0x54494e49;
   }
 
-  return *reinterpret_cast<uint32_t *>(&wave_ram_[addr]);
+  return *reinterpret_cast<uint32_t *>(&self->wave_ram_[addr]);
 }
 
-void AICA::WriteWave32(uint32_t addr, uint32_t value) {
-  *reinterpret_cast<uint32_t *>(&wave_ram_[addr]) = value;
+void AICA::WriteWave(void *ctx, uint32_t addr, uint32_t value) {
+  AICA *self = reinterpret_cast<AICA *>(ctx);
+  *reinterpret_cast<uint32_t *>(&self->wave_ram_[addr]) = value;
 }

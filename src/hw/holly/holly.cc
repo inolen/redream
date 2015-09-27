@@ -65,9 +65,11 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
   ForwardRequestInterrupts();
 }
 
-uint32_t Holly::ReadRegister32(uint32_t addr) {
+uint32_t Holly::ReadRegister(void *ctx, uint32_t addr) {
+  Holly *self = reinterpret_cast<Holly *>(ctx);
+
   uint32_t offset = addr >> 2;
-  Register &reg = holly_regs_[offset];
+  Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
@@ -80,10 +82,10 @@ uint32_t Holly::ReadRegister32(uint32_t addr) {
       // bits in SB_ISTEXT and SB_ISTERR, respectively, and writes to these two
       // bits are ignored.
       uint32_t v = reg.value & 0x3fffffff;
-      if (dc_->SB_ISTEXT) {
+      if (self->dc_->SB_ISTEXT) {
         v |= 0x40000000;
       }
-      if (dc_->SB_ISTERR) {
+      if (self->dc_->SB_ISTERR) {
         v |= 0x80000000;
       }
       return v;
@@ -93,9 +95,11 @@ uint32_t Holly::ReadRegister32(uint32_t addr) {
   return reg.value;
 }
 
-void Holly::WriteRegister32(uint32_t addr, uint32_t value) {
+void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
+  Holly *self = reinterpret_cast<Holly *>(ctx);
+
   uint32_t offset = addr >> 2;
-  Register &reg = holly_regs_[offset];
+  Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);
@@ -111,7 +115,7 @@ void Holly::WriteRegister32(uint32_t addr, uint32_t value) {
     case SB_ISTERR_OFFSET: {
       // writing a 1 clears the interrupt
       reg.value = old & ~value;
-      ForwardRequestInterrupts();
+      self->ForwardRequestInterrupts();
     } break;
 
     case SB_IML2NRM_OFFSET:
@@ -123,18 +127,18 @@ void Holly::WriteRegister32(uint32_t addr, uint32_t value) {
     case SB_IML6NRM_OFFSET:
     case SB_IML6EXT_OFFSET:
     case SB_IML6ERR_OFFSET:
-      ForwardRequestInterrupts();
+      self->ForwardRequestInterrupts();
       break;
 
     case SB_C2DST_OFFSET:
       if (value) {
-        CH2DMATransfer();
+        self->CH2DMATransfer();
       }
       break;
 
     case SB_SDST_OFFSET:
       if (value) {
-        SortDMATransfer();
+        self->SortDMATransfer();
       }
       break;
 

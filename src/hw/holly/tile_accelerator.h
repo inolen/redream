@@ -495,8 +495,8 @@ class TileAccelerator {
   void SwapContext(uint32_t addr);
   TileContext *GetLastContext();
 
-  void WriteCommand32(uint32_t addr, uint32_t value);
-  void WriteTexture32(uint32_t addr, uint32_t value);
+  static void WriteCommand(void *ctx, uint32_t addr, uint32_t value);
+  static void WriteTexture(void *ctx, uint32_t addr, uint32_t value);
 
  private:
   TileContextIterator FindContext(uint32_t addr);

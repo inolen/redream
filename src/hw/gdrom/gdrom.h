@@ -211,13 +211,10 @@ class GDROM {
 
   void SetDisc(std::unique_ptr<Disc> disc);
 
-  uint8_t ReadRegister8(uint32_t addr);
-  uint16_t ReadRegister16(uint32_t addr);
-  uint32_t ReadRegister32(uint32_t addr);
-
-  void WriteRegister8(uint32_t addr, uint8_t value);
-  void WriteRegister16(uint32_t addr, uint16_t value);
-  void WriteRegister32(uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadRegister(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteRegister(void *ctx, uint32_t addr, T value);
 
  private:
   void TriggerEvent(GDEvent ev);

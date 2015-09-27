@@ -19,11 +19,11 @@ class AICA : public hw::Device {
   bool Init();
   uint32_t Execute(uint32_t cycles);
 
-  uint32_t ReadRegister32(uint32_t addr);
-  void WriteRegister32(uint32_t addr, uint32_t value);
+  static uint32_t ReadRegister(void *ctx, uint32_t addr);
+  static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
 
-  uint32_t ReadWave32(uint32_t addr);
-  void WriteWave32(uint32_t addr, uint32_t value);
+  static uint32_t ReadWave(void *ctx, uint32_t addr);
+  static void WriteWave(void *ctx, uint32_t addr, uint32_t value);
 
  private:
   hw::Dreamcast *dc_;

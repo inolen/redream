@@ -153,137 +153,145 @@ void Dreamcast::MapMemory() {
   memory_->Mount(UNASSIGNED_START, UNASSIGNED_END, MIRROR_MASK, unassigned_);
 
   // aica
-  memory_->Handle(AICA_REG_START, AICA_REG_END, MIRROR_MASK,
-                  nullptr,                                            //
-                  nullptr,                                            //
-                  std::bind(&AICA::ReadRegister32, aica(), _1),       //
-                  nullptr,                                            //
-                  nullptr,                                            //
-                  nullptr,                                            //
-                  std::bind(&AICA::WriteRegister32, aica(), _1, _2),  //
+  memory_->Handle(AICA_REG_START, AICA_REG_END, MIRROR_MASK, aica(),
+                  nullptr,               //
+                  nullptr,               //
+                  &AICA::ReadRegister,   //
+                  nullptr,               //
+                  nullptr,               //
+                  nullptr,               //
+                  &AICA::WriteRegister,  //
                   nullptr);
-  memory_->Handle(WAVE_RAM_START, WAVE_RAM_END, MIRROR_MASK,
-                  nullptr,                                        //
-                  nullptr,                                        //
-                  std::bind(&AICA::ReadWave32, aica(), _1),       //
-                  nullptr,                                        //
-                  nullptr,                                        //
-                  nullptr,                                        //
-                  std::bind(&AICA::WriteWave32, aica(), _1, _2),  //
+  memory_->Handle(WAVE_RAM_START, WAVE_RAM_END, MIRROR_MASK, aica(),
+                  nullptr,           //
+                  nullptr,           //
+                  &AICA::ReadWave,   //
+                  nullptr,           //
+                  nullptr,           //
+                  nullptr,           //
+                  &AICA::WriteWave,  //
                   nullptr);
 
   // holly
-  memory_->Handle(HOLLY_REG_START, HOLLY_REG_END, MIRROR_MASK,
-                  nullptr,                                              //
-                  nullptr,                                              //
-                  std::bind(&Holly::ReadRegister32, holly(), _1),       //
-                  nullptr,                                              //
-                  nullptr,                                              //
-                  nullptr,                                              //
-                  std::bind(&Holly::WriteRegister32, holly(), _1, _2),  //
+  memory_->Handle(HOLLY_REG_START, HOLLY_REG_END, MIRROR_MASK, holly(),
+                  nullptr,                //
+                  nullptr,                //
+                  &Holly::ReadRegister,   //
+                  nullptr,                //
+                  nullptr,                //
+                  nullptr,                //
+                  &Holly::WriteRegister,  //
                   nullptr);
   memory_->Mount(MODEM_REG_START, MODEM_REG_END, MIRROR_MASK, modem_mem_);
   memory_->Mount(EXPDEV_START, EXPDEV_END, MIRROR_MASK, expdev_mem_);
 
   // gdrom
-  memory_->Handle(GDROM_REG_START, GDROM_REG_END, MIRROR_MASK,
-                  std::bind(&GDROM::ReadRegister8, gdrom(), _1),        //
-                  std::bind(&GDROM::ReadRegister16, gdrom(), _1),       //
-                  std::bind(&GDROM::ReadRegister32, gdrom(), _1),       //
-                  nullptr,                                              //
-                  std::bind(&GDROM::WriteRegister8, gdrom(), _1, _2),   //
-                  std::bind(&GDROM::WriteRegister16, gdrom(), _1, _2),  //
-                  std::bind(&GDROM::WriteRegister32, gdrom(), _1, _2),  //
+  memory_->Handle(GDROM_REG_START, GDROM_REG_END, MIRROR_MASK, gdrom(),
+                  &GDROM::ReadRegister<uint8_t>,    //
+                  &GDROM::ReadRegister<uint16_t>,   //
+                  &GDROM::ReadRegister<uint32_t>,   //
+                  nullptr,                          //
+                  &GDROM::WriteRegister<uint8_t>,   //
+                  &GDROM::WriteRegister<uint16_t>,  //
+                  &GDROM::WriteRegister<uint32_t>,  //
                   nullptr);
 
   // maple
-  memory_->Handle(MAPLE_REG_START, MAPLE_REG_END, MIRROR_MASK,
-                  nullptr,                                              //
-                  nullptr,                                              //
-                  std::bind(&Maple::ReadRegister32, maple(), _1),       //
-                  nullptr,                                              //
-                  nullptr,                                              //
-                  nullptr,                                              //
-                  std::bind(&Maple::WriteRegister32, maple(), _1, _2),  //
+  memory_->Handle(MAPLE_REG_START, MAPLE_REG_END, MIRROR_MASK, maple(),
+                  nullptr,                //
+                  nullptr,                //
+                  &Maple::ReadRegister,   //
+                  nullptr,                //
+                  nullptr,                //
+                  nullptr,                //
+                  &Maple::WriteRegister,  //
                   nullptr);
 
   // pvr2
-  memory_->Mount(PVR_VRAM32_START, PVR_VRAM32_END, MIRROR_MASK, video_ram_);
-  memory_->Handle(PVR_VRAM64_START, PVR_VRAM64_END, MIRROR_MASK,
-                  std::bind(&PVR2::ReadInterleaved8, pvr(), _1),        //
-                  std::bind(&PVR2::ReadInterleaved16, pvr(), _1),       //
-                  std::bind(&PVR2::ReadInterleaved32, pvr(), _1),       //
-                  nullptr,                                              //
-                  nullptr,                                              //
-                  std::bind(&PVR2::WriteInterleaved16, pvr(), _1, _2),  //
-                  std::bind(&PVR2::WriteInterleaved32, pvr(), _1, _2),  //
+  memory_->Handle(PVR_VRAM32_START, PVR_VRAM32_END, MIRROR_MASK, pvr(),
+                  &PVR2::ReadVRam<uint8_t>,    //
+                  &PVR2::ReadVRam<uint16_t>,   //
+                  &PVR2::ReadVRam<uint32_t>,   //
+                  nullptr,                     //
+                  nullptr,                     //
+                  &PVR2::WriteVRam<uint16_t>,  //
+                  &PVR2::WriteVRam<uint32_t>,  //
                   nullptr);
-  memory_->Handle(PVR_REG_START, PVR_REG_END, MIRROR_MASK,
-                  nullptr,                                           //
-                  nullptr,                                           //
-                  std::bind(&PVR2::ReadRegister32, pvr(), _1),       //
-                  nullptr,                                           //
-                  nullptr,                                           //
-                  nullptr,                                           //
-                  std::bind(&PVR2::WriteRegister32, pvr(), _1, _2),  //
+  memory_->Handle(PVR_VRAM64_START, PVR_VRAM64_END, MIRROR_MASK, pvr(),
+                  &PVR2::ReadVRamInterleaved<uint8_t>,    //
+                  &PVR2::ReadVRamInterleaved<uint16_t>,   //
+                  &PVR2::ReadVRamInterleaved<uint32_t>,   //
+                  nullptr,                                //
+                  nullptr,                                //
+                  &PVR2::WriteVRamInterleaved<uint16_t>,  //
+                  &PVR2::WriteVRamInterleaved<uint32_t>,  //
                   nullptr);
-  memory_->Handle(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK,
-                  nullptr,                                          //
-                  nullptr,                                          //
-                  nullptr,                                          //
-                  nullptr,                                          //
-                  nullptr,                                          //
-                  nullptr,                                          //
-                  std::bind(&PVR2::WritePalette32, pvr(), _1, _2),  //
+  memory_->Handle(PVR_REG_START, PVR_REG_END, MIRROR_MASK, pvr(),
+                  nullptr,               //
+                  nullptr,               //
+                  &PVR2::ReadRegister,   //
+                  nullptr,               //
+                  nullptr,               //
+                  nullptr,               //
+                  &PVR2::WriteRegister,  //
+                  nullptr);
+  memory_->Handle(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK, pvr(),
+                  nullptr,              //
+                  nullptr,              //
+                  nullptr,              //
+                  nullptr,              //
+                  nullptr,              //
+                  nullptr,              //
+                  &PVR2::WritePalette,  //
                   nullptr);
 
   // ta
   // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
-  memory_->Handle(TA_CMD_START, TA_CMD_END, 0x0,
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  std::bind(&TileAccelerator::WriteCommand32, ta(), _1, _2),  //
+  memory_->Handle(TA_CMD_START, TA_CMD_END, 0x0, ta(),
+                  nullptr,                         //
+                  nullptr,                         //
+                  nullptr,                         //
+                  nullptr,                         //
+                  nullptr,                         //
+                  nullptr,                         //
+                  &TileAccelerator::WriteCommand,  //
                   nullptr);
-  memory_->Handle(TA_TEXTURE_START, TA_TEXTURE_END, 0x0,
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  nullptr,                                                    //
-                  std::bind(&TileAccelerator::WriteTexture32, ta(), _1, _2),  //
+  memory_->Handle(TA_TEXTURE_START, TA_TEXTURE_END, 0x0, ta(),
+                  nullptr,                         //
+                  nullptr,                         //
+                  nullptr,                         //
+                  nullptr,                         //
+                  nullptr,                         //
+                  nullptr,                         //
+                  &TileAccelerator::WriteTexture,  //
                   nullptr);
 
   // cpu
-  memory_->Handle(SH4_REG_START, SH4_REG_END, MIRROR_MASK,
-                  std::bind(&SH4::ReadRegister8, sh4(), _1),        //
-                  std::bind(&SH4::ReadRegister16, sh4(), _1),       //
-                  std::bind(&SH4::ReadRegister32, sh4(), _1),       //
-                  nullptr,                                          //
-                  std::bind(&SH4::WriteRegister8, sh4(), _1, _2),   //
-                  std::bind(&SH4::WriteRegister16, sh4(), _1, _2),  //
-                  std::bind(&SH4::WriteRegister32, sh4(), _1, _2),  //
+  memory_->Handle(SH4_REG_START, SH4_REG_END, MIRROR_MASK, sh4(),
+                  &SH4::ReadRegister<uint8_t>,
+                  &SH4::ReadRegister<uint16_t>,   //
+                  &SH4::ReadRegister<uint32_t>,   //
+                  nullptr,                        //
+                  &SH4::WriteRegister<uint8_t>,   //
+                  &SH4::WriteRegister<uint16_t>,  //
+                  &SH4::WriteRegister<uint32_t>,  //
                   nullptr);
-  memory_->Handle(SH4_CACHE_START, SH4_CACHE_END, 0x0,
-                  std::bind(&SH4::ReadCache8, sh4(), _1),        //
-                  std::bind(&SH4::ReadCache16, sh4(), _1),       //
-                  std::bind(&SH4::ReadCache32, sh4(), _1),       //
-                  std::bind(&SH4::ReadCache64, sh4(), _1),       //
-                  std::bind(&SH4::WriteCache8, sh4(), _1, _2),   //
-                  std::bind(&SH4::WriteCache16, sh4(), _1, _2),  //
-                  std::bind(&SH4::WriteCache32, sh4(), _1, _2),  //
-                  std::bind(&SH4::WriteCache64, sh4(), _1, _2));
-  memory_->Handle(SH4_SQ_START, SH4_SQ_END, 0x0,
-                  std::bind(&SH4::ReadSQ8, sh4(), _1),        //
-                  std::bind(&SH4::ReadSQ16, sh4(), _1),       //
-                  std::bind(&SH4::ReadSQ32, sh4(), _1),       //
-                  nullptr,                                    //
-                  std::bind(&SH4::WriteSQ8, sh4(), _1, _2),   //
-                  std::bind(&SH4::WriteSQ16, sh4(), _1, _2),  //
-                  std::bind(&SH4::WriteSQ32, sh4(), _1, _2),  //
+  memory_->Handle(SH4_CACHE_START, SH4_CACHE_END, 0x0, sh4(),
+                  &SH4::ReadCache<uint8_t>,    //
+                  &SH4::ReadCache<uint16_t>,   //
+                  &SH4::ReadCache<uint32_t>,   //
+                  &SH4::ReadCache<uint64_t>,   //
+                  &SH4::WriteCache<uint8_t>,   //
+                  &SH4::WriteCache<uint16_t>,  //
+                  &SH4::WriteCache<uint32_t>,  //
+                  &SH4::WriteCache<uint64_t>);
+  memory_->Handle(SH4_SQ_START, SH4_SQ_END, 0x0, sh4(),
+                  &SH4::ReadSQ<uint8_t>,    //
+                  &SH4::ReadSQ<uint16_t>,   //
+                  &SH4::ReadSQ<uint32_t>,   //
+                  nullptr,                  //
+                  &SH4::WriteSQ<uint8_t>,   //
+                  &SH4::WriteSQ<uint16_t>,  //
+                  &SH4::WriteSQ<uint32_t>,  //
                   nullptr);
 }

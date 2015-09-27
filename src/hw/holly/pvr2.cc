@@ -27,9 +27,11 @@ bool PVR2::Init() {
   return true;
 }
 
-uint32_t PVR2::ReadRegister32(uint32_t addr) {
+uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
+  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
+
   uint32_t offset = addr >> 2;
-  Register &reg = pvr_regs_[offset];
+  Register &reg = self->pvr_regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
@@ -39,9 +41,11 @@ uint32_t PVR2::ReadRegister32(uint32_t addr) {
   return reg.value;
 }
 
-void PVR2::WriteRegister32(uint32_t addr, uint32_t value) {
+void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
+  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
+
   uint32_t offset = addr >> 2;
-  Register &reg = pvr_regs_[offset];
+  Register &reg = self->pvr_regs_[offset];
 
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);
@@ -54,37 +58,39 @@ void PVR2::WriteRegister32(uint32_t addr, uint32_t value) {
     case SOFTRESET_OFFSET: {
       bool reset_ta = value & 0x1;
       if (reset_ta) {
-        ta_->SoftReset();
+        self->ta_->SoftReset();
       }
     } break;
 
     case TA_LIST_INIT_OFFSET: {
-      ta_->InitContext(dc_->TA_ISP_BASE.base_address);
+      self->ta_->InitContext(self->dc_->TA_ISP_BASE.base_address);
     } break;
 
     case STARTRENDER_OFFSET: {
       {
         auto now = std::chrono::high_resolution_clock::now();
         auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now - last_frame_);
-        last_frame_ = now;
-        fps_ = 1000000000.0f / delta.count();
+            now - self->last_frame_);
+        self->last_frame_ = now;
+        self->fps_ = 1000000000.0f / delta.count();
       }
 
-      ta_->SwapContext(dc_->PARAM_BASE.base_address);
+      self->ta_->SwapContext(self->dc_->PARAM_BASE.base_address);
     } break;
 
     case SPG_LOAD_OFFSET:
     case FB_R_CTRL_OFFSET: {
-      ReconfigureSPG();
+      self->ReconfigureSPG();
     } break;
   }
 }
 
-void PVR2::WritePalette32(uint32_t addr, uint32_t value) {
-  *reinterpret_cast<uint32_t *>(&palette_ram_[addr]) = value;
+void PVR2::WritePalette(void *ctx, uint32_t addr, uint32_t value) {
+  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
 
-  texcache_->CheckPaletteWrite(addr);
+  *reinterpret_cast<uint32_t *>(&self->palette_ram_[addr]) = value;
+
+  self->texcache_->CheckPaletteWrite(addr);
 }
 
 // the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
@@ -108,38 +114,52 @@ static uint32_t MAP64(uint32_t addr) {
           (addr & 0x3));
 }
 
-uint8_t PVR2::ReadInterleaved8(uint32_t addr) {
-  addr = MAP64(addr);
+template uint8_t PVR2::ReadVRam(void *ctx, uint32_t addr);
+template uint16_t PVR2::ReadVRam(void *ctx, uint32_t addr);
+template uint32_t PVR2::ReadVRam(void *ctx, uint32_t addr);
+template <typename T>
+T PVR2::ReadVRam(void *ctx, uint32_t addr) {
+  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
 
-  return *reinterpret_cast<uint8_t *>(&video_ram_[addr]);
+  return *reinterpret_cast<T *>(&self->video_ram_[addr]);
 }
 
-uint16_t PVR2::ReadInterleaved16(uint32_t addr) {
-  addr = MAP64(addr);
+template void PVR2::WriteVRam(void *ctx, uint32_t addr, uint16_t value);
+template void PVR2::WriteVRam(void *ctx, uint32_t addr, uint32_t value);
+template <typename T>
+void PVR2::WriteVRam(void *ctx, uint32_t addr, T value) {
+  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
 
-  return *reinterpret_cast<uint16_t *>(&video_ram_[addr]);
+  *reinterpret_cast<T *>(&self->video_ram_[addr]) = value;
+
+  self->texcache_->CheckTextureWrite(addr);
 }
 
-uint32_t PVR2::ReadInterleaved32(uint32_t addr) {
+template uint8_t PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr);
+template uint16_t PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr);
+template uint32_t PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr);
+template <typename T>
+T PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr) {
+  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
+
   addr = MAP64(addr);
 
-  return *reinterpret_cast<uint32_t *>(&video_ram_[addr]);
+  return *reinterpret_cast<T *>(&self->video_ram_[addr]);
 }
 
-void PVR2::WriteInterleaved16(uint32_t addr, uint16_t value) {
+template void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr,
+                                         uint16_t value);
+template void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr,
+                                         uint32_t value);
+template <typename T>
+void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr, T value) {
+  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
+
   addr = MAP64(addr);
 
-  *reinterpret_cast<uint16_t *>(&video_ram_[addr]) = value;
+  *reinterpret_cast<T *>(&self->video_ram_[addr]) = value;
 
-  texcache_->CheckTextureWrite(addr);
-}
-
-void PVR2::WriteInterleaved32(uint32_t addr, uint32_t value) {
-  addr = MAP64(addr);
-
-  *reinterpret_cast<uint32_t *>(&video_ram_[addr]) = value;
-
-  texcache_->CheckTextureWrite(addr);
+  self->texcache_->CheckTextureWrite(addr);
 }
 
 void PVR2::ReconfigureSPG() {

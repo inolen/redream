@@ -45,9 +45,11 @@ void Maple::VBlank() {
   // TODO maple vblank interrupt?
 }
 
-uint32_t Maple::ReadRegister32(uint32_t addr) {
+uint32_t Maple::ReadRegister(void *ctx, uint32_t addr) {
+  Maple *self = reinterpret_cast<Maple *>(ctx);
+
   uint32_t offset = (0xc00 + addr) >> 2;
-  Register &reg = holly_regs_[offset];
+  Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
@@ -57,9 +59,11 @@ uint32_t Maple::ReadRegister32(uint32_t addr) {
   return reg.value;
 }
 
-void Maple::WriteRegister32(uint32_t addr, uint32_t value) {
+void Maple::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
+  Maple *self = reinterpret_cast<Maple *>(ctx);
+
   uint32_t offset = (0xc00 + addr) >> 2;
-  Register &reg = holly_regs_[offset];
+  Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);
@@ -71,10 +75,10 @@ void Maple::WriteRegister32(uint32_t addr, uint32_t value) {
 
   switch (offset) {
     case SB_MDST_OFFSET: {
-      uint32_t enabled = dc_->SB_MDEN;
+      uint32_t enabled = self->dc_->SB_MDEN;
       if (enabled) {
         if (value) {
-          StartDMA();
+          self->StartDMA();
         }
       } else {
         reg.value = 0;
