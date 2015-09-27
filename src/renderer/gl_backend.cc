@@ -59,9 +59,13 @@ static GLenum blend_funcs[] = {
     GL_DST_COLOR, GL_ONE_MINUS_DST_COLOR};
 
 GLBackend::GLBackend(GLContext &ctx)
-    : ctx_(ctx), textures_{0}, num_verts2d_(0), num_surfs2d_(0) {}
+    : ctx_(ctx), initialized_(false), textures_{0}, num_verts2d_(0), num_surfs2d_(0) {}
 
 GLBackend::~GLBackend() {
+  if (!initialized_) {
+    return;
+  }
+
   DestroyFonts();
   DestroyVertexBuffers();
   DestroyShaders();
@@ -72,6 +76,8 @@ bool GLBackend::Init() {
   if (!ctx_.GLInitContext(&state_.video_width, &state_.video_height)) {
     return false;
   }
+
+  initialized_ = true;
 
   InitTextures();
   InitShaders();

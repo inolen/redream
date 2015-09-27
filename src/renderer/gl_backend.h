@@ -33,8 +33,6 @@ struct BackendState {
   BackendState()
       : video_width(0),
         video_height(0),
-        ta_width(0),
-        ta_height(0),
         depth_mask(true),
         depth_func(DEPTH_NONE),
         cull_face(CULL_BACK),
@@ -43,12 +41,8 @@ struct BackendState {
         current_vao(0),
         current_program(nullptr) {}
 
-  // gl context dimensions
   int video_width;
   int video_height;
-  // ta output dimensions
-  int ta_width;
-  int ta_height;
   bool depth_mask;
   DepthFunc depth_func;
   CullFace cull_face;
@@ -114,6 +108,7 @@ class GLBackend : public Backend {
   void Flush2D();
 
   GLContext &ctx_;
+  bool initialized_;
   BackendState state_;
   GLuint textures_[MAX_TEXTURES];
   GLuint white_tex_;
