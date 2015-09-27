@@ -35,8 +35,7 @@ int InterpreterBackend::num_registers() const { return int_num_registers; }
 
 void InterpreterBackend::Reset() { emitter_.Reset(); }
 
-std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
-    ir::IRBuilder &builder) {
+RuntimeBlock *InterpreterBackend::AssembleBlock(ir::IRBuilder &builder) {
   IntInstr *instr;
   int num_instr;
   int locals_size;
@@ -45,6 +44,9 @@ std::unique_ptr<RuntimeBlock> InterpreterBackend::AssembleBlock(
     return nullptr;
   }
 
-  return std::unique_ptr<RuntimeBlock>(new InterpreterBlock(
-      builder.guest_cycles(), instr, num_instr, locals_size));
+  return new InterpreterBlock(builder.guest_cycles(), instr, num_instr, locals_size);
+}
+
+void InterpreterBackend::FreeBlock(RuntimeBlock *block) {
+  delete block;
 }

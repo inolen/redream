@@ -30,7 +30,7 @@ static inline uint32_t BlockOffset(uint32_t addr) {
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
                  backend::Backend &backend)
     : memory_(memory), frontend_(frontend), backend_(backend) {
-  blocks_ = new std::unique_ptr<RuntimeBlock>[MAX_BLOCKS];
+  blocks_ = new RuntimeBlock* [MAX_BLOCKS]();
 
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
@@ -40,7 +40,10 @@ Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
       std::unique_ptr<Pass>(new RegisterAllocationPass(backend_)));
 }
 
-Runtime::~Runtime() { delete[] blocks_; }
+Runtime::~Runtime() {
+  ResetBlocks();
+  delete[] blocks_;
+}
 
 // TODO should the block caching be part of the frontend?
 // this way, the SH4Frontend can cache based on FPU state
@@ -51,19 +54,19 @@ RuntimeBlock *Runtime::GetBlock(uint32_t addr, const void *guest_ctx) {
               addr);
   }
 
-  RuntimeBlock *block = blocks_[offset].get();
-
+  RuntimeBlock *block = blocks_[offset];
   if (block) {
     return block;
   }
 
-  return CompileBlock(addr, guest_ctx);
+  return (blocks_[offset] = CompileBlock(addr, guest_ctx));
 }
 
 void Runtime::ResetBlocks() {
   // reset our local block cache
   for (int i = 0; i < MAX_BLOCKS; i++) {
     if (blocks_[i]) {
+      backend_.FreeBlock(blocks_[i]);
       blocks_[i] = nullptr;
     }
   }
@@ -81,7 +84,7 @@ RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
   pass_runner_.Run(*builder);
 
   // try to assemble the block
-  std::unique_ptr<RuntimeBlock> block = backend_.AssembleBlock(*builder);
+  RuntimeBlock *block = backend_.AssembleBlock(*builder);
 
   if (!block) {
     LOG_INFO("Assembler overflow, resetting block cache");
@@ -96,7 +99,5 @@ RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
     CHECK(block, "Backend assembler buffer overflow");
   }
 
-  uint32_t offset = BlockOffset(addr);
-  blocks_[offset] = std::move(block);
-  return blocks_[offset].get();
+  return block;
 }

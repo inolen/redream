@@ -46,7 +46,7 @@ class Runtime {
   frontend::Frontend &frontend_;
   backend::Backend &backend_;
   ir::passes::PassRunner pass_runner_;
-  std::unique_ptr<RuntimeBlock> *blocks_;
+  RuntimeBlock **blocks_;
 };
 }
 }

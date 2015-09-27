@@ -26,8 +26,9 @@ class Backend {
   virtual int num_registers() const = 0;
 
   virtual void Reset() = 0;
-  virtual std::unique_ptr<RuntimeBlock> AssembleBlock(
-      ir::IRBuilder &builder) = 0;
+
+  virtual RuntimeBlock *AssembleBlock(ir::IRBuilder &builder) = 0;
+  virtual void FreeBlock(RuntimeBlock *block) = 0;
 
  protected:
   hw::Memory &memory_;

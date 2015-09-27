@@ -19,7 +19,8 @@ class X64Backend : public Backend {
   int num_registers() const;
 
   void Reset();
-  std::unique_ptr<RuntimeBlock> AssembleBlock(ir::IRBuilder &builder);
+  RuntimeBlock *AssembleBlock(ir::IRBuilder &builder);
+  void FreeBlock(RuntimeBlock *block);
 
  private:
   X64Emitter emitter_;

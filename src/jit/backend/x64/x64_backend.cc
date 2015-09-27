@@ -34,14 +34,16 @@ int X64Backend::num_registers() const {
 
 void X64Backend::Reset() { emitter_.Reset(); }
 
-std::unique_ptr<RuntimeBlock> X64Backend::AssembleBlock(
-    ir::IRBuilder &builder) {
+RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder) {
   X64Fn fn;
 
   if (!emitter_.Emit(builder, &fn)) {
     return nullptr;
   }
 
-  return std::unique_ptr<RuntimeBlock>(
-      new X64Block(builder.guest_cycles(), fn));
+  return new X64Block(builder.guest_cycles(), fn);
+}
+
+void X64Backend::FreeBlock(RuntimeBlock *block) {
+  delete block;
 }
