@@ -103,6 +103,10 @@ Dreamcast::~Dreamcast() {
 }
 
 bool Dreamcast::Init() {
+  if (!(sigsegv_ = SIGSEGVHandler::Install())) {
+    return false;
+  }
+
   MapMemory();
 
   if (!aica_->Init()) {

@@ -16,6 +16,7 @@
 #include "jit/frontend/frontend.h"
 #include "jit/runtime.h"
 #include "renderer/backend.h"
+#include "sys/sigsegv_handler.h"
 #include "trace/trace.h"
 
 namespace dreavm {
@@ -120,6 +121,8 @@ class Dreamcast {
   hw::holly::TextureCache *texcache() { return texcache_; }
   hw::holly::TileRenderer *tile_renderer() { return tile_renderer_; }
 
+  sys::SIGSEGVHandler *sigsegv() { return sigsegv_; }
+
   renderer::Backend *rb() { return rb_; }
   void set_rb(renderer::Backend *rb) { rb_ = rb; }
 
@@ -179,6 +182,7 @@ class Dreamcast {
   hw::holly::TileRenderer *tile_renderer_;
 
   // not owned by us
+  sys::SIGSEGVHandler *sigsegv_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;
 };
