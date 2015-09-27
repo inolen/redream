@@ -309,7 +309,7 @@ void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
 // after the CCR update instruction."
 void SH4::ResetCache() { pending_cache_reset_ = true; }
 
-void SH4::CheckPendingCacheReset() {
+inline void SH4::CheckPendingCacheReset() {
   if (!pending_cache_reset_) {
     return;
   }
@@ -368,7 +368,7 @@ void SH4::UpdatePendingInterrupts() {
   pending_interrupts_ = requested_interrupts_ & priority_mask;
 }
 
-void SH4::CheckPendingInterrupts() {
+inline void SH4::CheckPendingInterrupts() {
   // update pending interrupts if the status register has changed
   if (ctx_.sr.full != old_sr_.full) {
     UpdatePendingInterrupts();
