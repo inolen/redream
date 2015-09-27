@@ -44,9 +44,13 @@ TextureHandle TraceTextureCache::GetTexture(
 
 TraceViewer::TraceViewer() : tile_renderer_(texcache_) {
   rb_ = new GLBackend(sys_);
+  current_ctx_ = new TileContext();
 }
 
-TraceViewer::~TraceViewer() { delete rb_; }
+TraceViewer::~TraceViewer() {
+  delete current_ctx_;
+  delete rb_;
+}
 
 void TraceViewer::Run(const char *path) {
   if (!Init()) {
@@ -120,7 +124,7 @@ void TraceViewer::PumpEvents() {
 void TraceViewer::RenderFrame() {
   rb_->BeginFrame();
 
-  tile_renderer_.RenderContext(&current_ctx_, rb_);
+  tile_renderer_.RenderContext(current_ctx_, rb_);
 
   // render stats
   char stats[512];
@@ -199,7 +203,7 @@ void TraceViewer::PrevContext() {
 
   CHECK_NOTNULL(current_cmd_);
 
-  CopyCommandToContext(current_cmd_, &current_ctx_);
+  CopyCommandToContext(current_cmd_, current_ctx_);
 }
 
 void TraceViewer::NextContext() {
@@ -228,5 +232,5 @@ void TraceViewer::NextContext() {
   CHECK_NOTNULL(current_cmd_);
 
   // render the context
-  CopyCommandToContext(current_cmd_, &current_ctx_);
+  CopyCommandToContext(current_cmd_, current_ctx_);
 }

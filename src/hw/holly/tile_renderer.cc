@@ -104,7 +104,17 @@ TextureKey TextureProvider::GetTextureKey(const TSP &tsp, const TCW &tcw) {
 }
 
 TileRenderer::TileRenderer(TextureProvider &texture_provider)
-    : texture_provider_(texture_provider) {}
+    : texture_provider_(texture_provider) {
+  surfs_ = new Surface[MAX_SURFACES];
+  verts_ = new Vertex[MAX_VERTICES];
+  sorted_surfs_ = new int[MAX_SURFACES];
+}
+
+TileRenderer::~TileRenderer() {
+  delete[] surfs_;
+  delete[] verts_;
+  delete[] sorted_surfs_;
+}
 
 void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
   ParseContext(tactx, rb);

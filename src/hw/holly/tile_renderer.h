@@ -43,6 +43,7 @@ enum { MAX_SURFACES = 0x10000, MAX_VERTICES = 0x10000 };
 class TileRenderer {
  public:
   TileRenderer(TextureProvider &texture_provider);
+  ~TileRenderer();
 
   void RenderContext(const TileContext *tactx, renderer::Backend *rb);
 
@@ -86,11 +87,11 @@ class TileRenderer {
   float face_offset_color_[4];
 
   // current render state
-  renderer::Surface surfs_[MAX_SURFACES];
-  renderer::Vertex verts_[MAX_VERTICES];
+  renderer::Surface *surfs_;
+  renderer::Vertex *verts_;
   int num_surfs_;
   int num_verts_;
-  int sorted_surfs_[MAX_SURFACES];
+  int *sorted_surfs_;
   int last_sorted_surf_;
 };
 }

@@ -61,7 +61,7 @@ class TraceViewer {
   TraceCommand *current_cmd_;
   int num_frames_;
   int current_frame_;
-  hw::holly::TileContext current_ctx_;
+  hw::holly::TileContext *current_ctx_;
 };
 }
 }
