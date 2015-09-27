@@ -119,6 +119,7 @@ set(DREAVM_SOURCES
   src/hw/maple/maple_controller.cc
   src/hw/sh4/sh4.cc
   src/hw/dreamcast.cc
+  src/hw/memory.cc
   src/hw/scheduler.cc
   src/jit/backend/interpreter/interpreter_backend.cc
   src/jit/backend/interpreter/interpreter_block.cc
@@ -147,10 +148,13 @@ set(DREAVM_SOURCES
   src/main.cc)
 
 if(WIN32)
+  list(APPEND DREAVM_SOURCES src/sys/memory_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_win.cc)
 elseif(APPLE)
+  list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_mac.cc)
 else()
+  list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_linux.cc)
 endif()
 
@@ -167,7 +171,7 @@ if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL 
     set(DREAVM_COMPILE_FLAGS ${DREAVM_COMPILE_FLAGS} -fno-omit-frame-pointer)
   endif()
 else()
-  set(DREAVM_COMPILE_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /Ox /Ob2 /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+  set(DREAVM_COMPILE_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 
   list(APPEND DREAVM_LIBS userenv)
 endif()

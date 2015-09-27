@@ -12,48 +12,51 @@ namespace sys {
 class SIGSEGVHandler;
 extern SIGSEGVHandler *CreateSIGSEGVHandler();
 
-enum PageAccess { ACC_READONLY, ACC_READWRITE };
+typedef std::function<bool(void *, void *, uintptr_t, uintptr_t)> WatchHandler;
 
-typedef std::function<void(void *, void *)> WriteWatchHandler;
+enum WatchType { WATCH_DEFAULT, WATCH_SINGLE_WRITE };
 
-struct WriteWatch {
-  WriteWatch(WriteWatchHandler handler, void *ctx, void *data,
-             uintptr_t physical_start, uintptr_t physical_end)
-      : handler(handler),
+struct Watch {
+  Watch(WatchType type, WatchHandler handler, void *ctx, void *data, void *ptr,
+        size_t size)
+      : type(type),
+        handler(handler),
         ctx(ctx),
         data(data),
-        physical_start(physical_start),
-        physical_end(physical_end) {}
+        ptr(ptr),
+        size(size) {}
 
-  WriteWatchHandler handler;
+  WatchType type;
+  WatchHandler handler;
   void *ctx;
   void *data;
-  uintptr_t physical_start;
-  uintptr_t physical_end;
+  void *ptr;
+  size_t size;
 };
 
-typedef IntervalTree<WriteWatch> WatchTree;
+typedef IntervalTree<Watch> WatchTree;
 
 class SIGSEGVHandler {
  public:
-  static SIGSEGVHandler *global_handler() { return global_handler_; }
-
-  static SIGSEGVHandler *Install();
+  static SIGSEGVHandler *instance();
 
   virtual ~SIGSEGVHandler();
 
-  void AddWriteWatch(void *ptr, int size, WriteWatchHandler handler, void *ctx,
-                     void *data);
+  void AddWatch(void *ptr, size_t size, WatchHandler handler, void *ctx,
+                void *data);
+  // void AddSingleReadWatch(void *ptr, size_t size, WatchHandler handler,
+  //                         void *ctx, void *data);
+  void AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
+                           void *ctx, void *data);
   bool HandleAccessFault(uintptr_t rip, uintptr_t fault_addr);
 
  protected:
-  static SIGSEGVHandler *global_handler_;
+  static SIGSEGVHandler *instance_;
 
   virtual bool Init() = 0;
-  virtual int GetPageSize() = 0;
-  virtual bool Protect(void *ptr, int size, PageAccess access) = 0;
+  void UpdateStats();
 
-  WatchTree write_watches_;
+  WatchTree watches_;
 };
 }
 }

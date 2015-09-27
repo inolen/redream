@@ -26,26 +26,26 @@ void RunSH4Test(const SH4Test &test) {
   static const uint32_t load_address = 0x8c010000;
 
   Memory memory;
-  SH4Frontend rt_frontend(memory);
-  BACKEND rt_backend(memory);
-  Runtime runtime(memory, rt_frontend, rt_backend);
+  CHECK(memory.Init());
 
   // initialize cpu
+  SH4Frontend frontend(memory);
+  BACKEND backend(memory);
+  Runtime runtime(memory, frontend, backend);
   SH4 sh4(memory, runtime);
-  sh4.Init();
+  CHECK(sh4.Init());
 
   // mount a small stack (stack grows down)
-  uint8_t stack[MAX_PAGE_SIZE];
-  sh4.ctx_.r[15] = sizeof(stack);
-  memory.Mount(0x0, sizeof(stack) - 1, ~ADDR_MASK, stack);
+  memory.Alloc(0x0, MAX_PAGE_SIZE, ~ADDR_MASK);
+  sh4.ctx_.r[15] = MAX_PAGE_SIZE;
 
   // mount the test binary
   uint32_t binary_size = dreavm::align(static_cast<uint32_t>(test.buffer_size),
                                        static_cast<uint32_t>(MAX_PAGE_SIZE));
   uint8_t *binary = new uint8_t[binary_size];
   memcpy(binary, test.buffer, test.buffer_size);
-  memory.Mount(load_address, load_address + binary_size - 1, ~ADDR_MASK,
-               binary);
+  memory.Alloc(load_address, binary_size, ~ADDR_MASK);
+  memory.Memcpy(load_address, binary, binary_size);
 
   // skip to the test's offset
   sh4.SetPC(load_address + test.offset);

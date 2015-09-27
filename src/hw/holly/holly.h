@@ -5,6 +5,12 @@
 
 namespace dreavm {
 namespace hw {
+namespace gdrom {
+class GDROM;
+}
+namespace maple {
+class Maple;
+}
 namespace sh4 {
 class SH4;
 }
@@ -158,8 +164,10 @@ class Holly {
   void RequestInterrupt(HollyInterrupt intr);
   void UnrequestInterrupt(HollyInterrupt intr);
 
-  static uint32_t ReadRegister(void *ctx, uint32_t addr);
-  static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadRegister(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteRegister(void *ctx, uint32_t addr, T value);
 
  private:
   void CH2DMATransfer();
@@ -168,6 +176,8 @@ class Holly {
 
   hw::Dreamcast *dc_;
   hw::Register *holly_regs_;
+  hw::gdrom::GDROM *gdrom_;
+  hw::maple::Maple *maple_;
   hw::sh4::SH4 *sh4_;
 };
 }

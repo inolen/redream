@@ -108,8 +108,10 @@ class Maple {
   bool HandleInput(int port, sys::Keycode key, int16_t value);
   void VBlank();
 
-  static uint32_t ReadRegister(void *ctx, uint32_t addr);
-  static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadRegister(void *ctx, uint32_t addr);
+  template <typename T>
+  static void WriteRegister(void *ctx, uint32_t addr, T value);
 
  private:
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);

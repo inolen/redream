@@ -6,6 +6,12 @@
 
 namespace dreavm {
 namespace jit {
+class Runtime;
+}
+}
+
+namespace dreavm {
+namespace jit {
 
 namespace backend {
 class Backend;
@@ -72,10 +78,12 @@ class Runtime {
   void ResetBlocks();
 
  private:
-  RuntimeBlock *CompileBlock(uint32_t addr, const void *guest_ctx);
+  static bool HandleAccessFault(void *ctx, uintptr_t rip, uintptr_t fault_addr);
   static uint32_t LazyCompile(hw::Memory *memory, void *guest_ctx,
                               Runtime *runtime, RuntimeBlock *block,
                               uint32_t addr);
+
+  RuntimeBlock *CompileBlock(uint32_t addr, const void *guest_ctx);
 
   hw::Memory &memory_;
   frontend::Frontend &frontend_;

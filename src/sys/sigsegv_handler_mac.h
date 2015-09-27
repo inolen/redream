@@ -13,8 +13,6 @@ class SIGSEGVHandlerMac : public SIGSEGVHandler {
 
  protected:
   bool Init();
-  int GetPageSize();
-  bool Protect(void *ptr, int size, PageAccess access);
 
  private:
   void ThreadEntry();

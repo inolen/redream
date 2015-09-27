@@ -1,7 +1,9 @@
 #include <iomanip>
 #include <sstream>
 #include <beaengine/BeaEngine.h>
+#include <xbyak/xbyak.h>
 #include "core/core.h"
+#include "emu/profiler.h"
 #include "jit/backend/x64/x64_backend.h"
 
 using namespace dreavm;
@@ -114,5 +116,27 @@ void X64Backend::DumpBlock(RuntimeBlock *block) {
   }
 }
 
-void X64Backend::FreeBlock(RuntimeBlock *block) { /*delete block;*/
+void X64Backend::FreeBlock(RuntimeBlock *block) {
+  // delete block;
+}
+
+bool X64Backend::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
+  size_t original_size = emitter_.getSize();
+  size_t offset = rip - reinterpret_cast<uint64_t>(emitter_.getCode());
+  emitter_.setSize(offset);
+
+  // nop out the mov
+  uint8_t *ptr = reinterpret_cast<uint8_t *>(rip);
+  while (*ptr != 0xeb) {
+    emitter_.nop();
+    ptr++;
+  }
+
+  // nop out the near jmp
+  emitter_.nop();
+  emitter_.nop();
+
+  emitter_.setSize(original_size);
+
+  return true;
 }

@@ -53,3 +53,8 @@ void InterpreterBackend::DumpBlock(RuntimeBlock *block) {
 }
 
 void InterpreterBackend::FreeBlock(RuntimeBlock *block) { delete block; }
+
+bool InterpreterBackend::HandleAccessFault(uintptr_t rip,
+                                           uintptr_t fault_addr) {
+  CHECK(false);
+}

@@ -1,10 +1,13 @@
 #include <mach/mach.h>
-#include <sys/mman.h>
-#include <unistd.h>
 #include "core/core.h"
 #include "sys/sigsegv_handler_mac.h"
 
 using namespace dreavm::sys;
+
+// POSIX signal handlers, for whatever reason, don't seem to be invoked for
+// segmentation faults on OSX when running the application under lldb / gdb.
+// Handling the original Mach exception seems to be the only way to capture
+// them.
 
 SIGSEGVHandler *dreavm::sys::CreateSIGSEGVHandler() {
   return new SIGSEGVHandlerMac();
@@ -39,8 +42,7 @@ extern "C" kern_return_t catch_exception_raise(
 
   uintptr_t rip = thread_state.__rip;
   uintptr_t fault_addr = exc_state.__faultvaddr;
-  bool handled =
-      SIGSEGVHandler::global_handler()->HandleAccessFault(rip, fault_addr);
+  bool handled = SIGSEGVHandler::instance()->HandleAccessFault(rip, fault_addr);
   if (!handled) {
     return KERN_FAILURE;
   }
@@ -87,22 +89,6 @@ bool SIGSEGVHandlerMac::Init() {
   thread_.detach();
 
   return true;
-}
-
-int SIGSEGVHandlerMac::GetPageSize() { return getpagesize(); }
-
-bool SIGSEGVHandlerMac::Protect(void *ptr, int size, PageAccess access) {
-  int prot = PROT_NONE;
-  switch (access) {
-    case ACC_READONLY:
-      prot = PROT_READ;
-      break;
-    case ACC_READWRITE:
-      prot = PROT_READ | PROT_WRITE;
-      break;
-  }
-
-  return mprotect(ptr, size, prot) == 0;
 }
 
 void SIGSEGVHandlerMac::ThreadEntry() {

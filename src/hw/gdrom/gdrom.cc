@@ -56,7 +56,7 @@ template <typename T>
 T GDROM::ReadRegister(void *ctx, uint32_t addr) {
   GDROM *self = reinterpret_cast<GDROM *>(ctx);
 
-  uint32_t offset = (0x1000 + addr) >> 2;
+  uint32_t offset = addr >> 2;
   Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & R)) {
@@ -118,7 +118,7 @@ template <typename T>
 void GDROM::WriteRegister(void *ctx, uint32_t addr, T value) {
   GDROM *self = reinterpret_cast<GDROM *>(ctx);
 
-  uint32_t offset = (0x1000 + addr) >> 2;
+  uint32_t offset = addr >> 2;
   Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & W)) {

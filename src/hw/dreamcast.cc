@@ -44,17 +44,6 @@ Dreamcast::Dreamcast()
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 
-  aica_regs_ = new uint8_t[AICA_REG_SIZE]();
-  bios_ = new uint8_t[BIOS_SIZE]();
-  expdev_mem_ = new uint8_t[EXPDEV_SIZE]();
-  flash_ = new uint8_t[FLASH_SIZE]();
-  modem_mem_ = new uint8_t[MODEM_REG_SIZE]();
-  palette_ram_ = new uint8_t[PVR_PALETTE_SIZE]();
-  ram_ = new uint8_t[MAIN_RAM_SIZE]();
-  unassigned_ = new uint8_t[UNASSIGNED_SIZE]();
-  video_ram_ = new uint8_t[PVR_VRAM32_SIZE]();
-  wave_ram_ = new uint8_t[WAVE_RAM_SIZE]();
-
   scheduler_ = new Scheduler();
   memory_ = new Memory();
   rt_frontend_ = new SH4Frontend(*memory_);
@@ -75,17 +64,6 @@ Dreamcast::~Dreamcast() {
   delete[] holly_regs_;
   delete[] pvr_regs_;
 
-  delete bios_;
-  delete flash_;
-  delete ram_;
-  delete unassigned_;
-  delete modem_mem_;
-  delete aica_regs_;
-  delete wave_ram_;
-  delete expdev_mem_;
-  delete video_ram_;
-  delete palette_ram_;
-
   delete scheduler_;
   delete memory_;
   delete rt_frontend_;
@@ -103,11 +81,9 @@ Dreamcast::~Dreamcast() {
 }
 
 bool Dreamcast::Init() {
-  if (!(sigsegv_ = SIGSEGVHandler::Install())) {
+  if (!MapMemory()) {
     return false;
   }
-
-  MapMemory();
 
   if (!aica_->Init()) {
     return false;
@@ -147,99 +123,37 @@ bool Dreamcast::Init() {
   return true;
 }
 
-void Dreamcast::MapMemory() {
-  using namespace std::placeholders;
+bool Dreamcast::MapMemory() {
+  if (!memory_->Init()) {
+    return false;
+  }
 
-  // main ram
-  memory_->Mount(BIOS_START, BIOS_END, MIRROR_MASK, bios_);
-  memory_->Mount(FLASH_START, FLASH_END, MIRROR_MASK, flash_);
-  memory_->Mount(MAIN_RAM_START, MAIN_RAM_END, MAIN_RAM_MIRROR_MASK, ram_);
-  memory_->Mount(UNASSIGNED_START, UNASSIGNED_END, MIRROR_MASK, unassigned_);
+  // note, try to allocate as large of a chunk as possible (e.g. an entire area)
+  // even if it's allocating some unneeded space. reason being, Windows has a
+  // granularity of around 0x10000 for its file mapping APIs, which is much
+  // smaller than some of the individual regions we're concerned with
 
-  // aica
-  memory_->Handle(AICA_REG_START, AICA_REG_END, MIRROR_MASK, aica(),
-                  nullptr,               //
-                  nullptr,               //
-                  &AICA::ReadRegister,   //
-                  nullptr,               //
-                  nullptr,               //
-                  nullptr,               //
-                  &AICA::WriteRegister,  //
-                  nullptr);
-  memory_->Handle(WAVE_RAM_START, WAVE_RAM_END, MIRROR_MASK, aica(),
-                  nullptr,           //
-                  nullptr,           //
-                  &AICA::ReadWave,   //
-                  nullptr,           //
-                  nullptr,           //
-                  nullptr,           //
-                  &AICA::WriteWave,  //
-                  nullptr);
+  // area 0, 0x00000000 - 0x03ffffff
+  memory_->Alloc(BIOS_START, (SH4_SQ_END & ADDR_MASK) - BIOS_START + 1,
+                 MIRROR_MASK);
 
-  // holly
-  memory_->Handle(HOLLY_REG_START, HOLLY_REG_END, MIRROR_MASK, holly(),
-                  nullptr,                //
-                  nullptr,                //
-                  &Holly::ReadRegister,   //
-                  nullptr,                //
-                  nullptr,                //
-                  nullptr,                //
-                  &Holly::WriteRegister,  //
-                  nullptr);
-  memory_->Mount(MODEM_REG_START, MODEM_REG_END, MIRROR_MASK, modem_mem_);
-  memory_->Mount(EXPDEV_START, EXPDEV_END, MIRROR_MASK, expdev_mem_);
+  bios_ = memory_->physical_base() + BIOS_START;
+  flash_ = memory_->physical_base() + FLASH_START;
+  palette_ram_ = memory_->physical_base() + PVR_PALETTE_START;
+  aica_regs_ = memory_->physical_base() + AICA_REG_START;
+  wave_ram_ = memory_->physical_base() + WAVE_RAM_START;
 
-  // gdrom
-  memory_->Handle(GDROM_REG_START, GDROM_REG_END, MIRROR_MASK, gdrom(),
-                  &GDROM::ReadRegister<uint8_t>,    //
-                  &GDROM::ReadRegister<uint16_t>,   //
-                  &GDROM::ReadRegister<uint32_t>,   //
+  memory_->Handle(HOLLY_REG_START, HOLLY_REG_SIZE, MIRROR_MASK, holly(),
+                  &Holly::ReadRegister<uint8_t>,    //
+                  &Holly::ReadRegister<uint16_t>,   //
+                  &Holly::ReadRegister<uint32_t>,   //
                   nullptr,                          //
-                  &GDROM::WriteRegister<uint8_t>,   //
-                  &GDROM::WriteRegister<uint16_t>,  //
-                  &GDROM::WriteRegister<uint32_t>,  //
+                  &Holly::WriteRegister<uint8_t>,   //
+                  &Holly::WriteRegister<uint16_t>,  //
+                  &Holly::WriteRegister<uint32_t>,  //
                   nullptr);
 
-  // maple
-  memory_->Handle(MAPLE_REG_START, MAPLE_REG_END, MIRROR_MASK, maple(),
-                  nullptr,                //
-                  nullptr,                //
-                  &Maple::ReadRegister,   //
-                  nullptr,                //
-                  nullptr,                //
-                  nullptr,                //
-                  &Maple::WriteRegister,  //
-                  nullptr);
-
-  // pvr2
-  memory_->Handle(PVR_VRAM32_START, PVR_VRAM32_END, MIRROR_MASK, pvr(),
-                  &PVR2::ReadVRam<uint8_t>,    //
-                  &PVR2::ReadVRam<uint16_t>,   //
-                  &PVR2::ReadVRam<uint32_t>,   //
-                  nullptr,                     //
-                  nullptr,                     //
-                  &PVR2::WriteVRam<uint16_t>,  //
-                  &PVR2::WriteVRam<uint32_t>,  //
-                  nullptr);
-  memory_->Handle(PVR_VRAM64_START, PVR_VRAM64_END, MIRROR_MASK, pvr(),
-                  &PVR2::ReadVRamInterleaved<uint8_t>,    //
-                  &PVR2::ReadVRamInterleaved<uint16_t>,   //
-                  &PVR2::ReadVRamInterleaved<uint32_t>,   //
-                  nullptr,                                //
-                  nullptr,                                //
-                  &PVR2::WriteVRamInterleaved<uint16_t>,  //
-                  &PVR2::WriteVRamInterleaved<uint32_t>,  //
-                  nullptr);
-  memory_->Handle(PVR_REG_START, PVR_REG_END, MIRROR_MASK, pvr(),
-                  nullptr,               //
-                  nullptr,               //
-                  &PVR2::ReadRegister,   //
-                  nullptr,               //
-                  nullptr,               //
-                  nullptr,               //
-                  &PVR2::WriteRegister,  //
-                  nullptr);
-  memory_->Handle(PVR_PALETTE_START, PVR_PALETTE_END, MIRROR_MASK, pvr(),
+  memory_->Handle(PVR_PALETTE_START, PVR_PALETTE_SIZE, MIRROR_MASK, pvr(),
                   nullptr,              //
                   nullptr,              //
                   nullptr,              //
@@ -249,9 +163,75 @@ void Dreamcast::MapMemory() {
                   &PVR2::WritePalette,  //
                   nullptr);
 
-  // ta
+  memory_->Handle(PVR_REG_START, PVR_REG_SIZE, MIRROR_MASK, pvr(),
+                  nullptr,               //
+                  nullptr,               //
+                  &PVR2::ReadRegister,   //
+                  nullptr,               //
+                  nullptr,               //
+                  nullptr,               //
+                  &PVR2::WriteRegister,  //
+                  nullptr);
+
+  memory_->Handle(AICA_REG_START, AICA_REG_SIZE, MIRROR_MASK, aica(),
+                  nullptr,               //
+                  nullptr,               //
+                  &AICA::ReadRegister,   //
+                  nullptr,               //
+                  nullptr,               //
+                  nullptr,               //
+                  &AICA::WriteRegister,  //
+                  nullptr);
+
+  memory_->Handle(WAVE_RAM_START, WAVE_RAM_SIZE, MIRROR_MASK, aica(),
+                  nullptr,           //
+                  nullptr,           //
+                  &AICA::ReadWave,   //
+                  nullptr,           //
+                  nullptr,           //
+                  nullptr,           //
+                  &AICA::WriteWave,  //
+                  nullptr);
+
+  // area 1, 0x04000000 - 0x07ffffff
+  memory_->Alloc(PVR_VRAM32_START, PVR_VRAM64_END - PVR_VRAM32_START + 1,
+                 MIRROR_MASK);
+
+  video_ram_ = memory_->physical_base() + PVR_VRAM32_START;
+
+  memory_->Handle(PVR_VRAM32_START, PVR_VRAM32_SIZE, MIRROR_MASK, pvr(),
+                  &PVR2::ReadVRam<uint8_t>,    //
+                  &PVR2::ReadVRam<uint16_t>,   //
+                  &PVR2::ReadVRam<uint32_t>,   //
+                  nullptr,                     //
+                  nullptr,                     //
+                  &PVR2::WriteVRam<uint16_t>,  //
+                  &PVR2::WriteVRam<uint32_t>,  //
+                  nullptr);
+
+  memory_->Handle(PVR_VRAM64_START, PVR_VRAM64_SIZE, MIRROR_MASK, pvr(),
+                  &PVR2::ReadVRamInterleaved<uint8_t>,    //
+                  &PVR2::ReadVRamInterleaved<uint16_t>,   //
+                  &PVR2::ReadVRamInterleaved<uint32_t>,   //
+                  nullptr,                                //
+                  nullptr,                                //
+                  &PVR2::WriteVRamInterleaved<uint16_t>,  //
+                  &PVR2::WriteVRamInterleaved<uint32_t>,  //
+                  nullptr);
+
+  // area 2, 0x08000000 - 0x0Bffffff
+
+  // area 3, 0x0c000000 - 0x0fffffff
+  memory_->Alloc(MAIN_RAM_START, MAIN_RAM_END - MAIN_RAM_START + 1,
+                 MAIN_RAM_MIRROR_MASK);
+  ram_ = memory_->physical_base() + MAIN_RAM_START;
+
+  // area 4, 0x10000000 - 0x13ffffff
+  memory_->Alloc(TA_CMD_START, TA_TEXTURE_END - TA_CMD_START + 1, MIRROR_MASK);
+
   // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
-  memory_->Handle(TA_CMD_START, TA_CMD_END, 0x0, ta(),
+
+  memory_->Handle(TA_CMD_START, TA_CMD_SIZE, 0x0, ta(),
                   nullptr,                         //
                   nullptr,                         //
                   nullptr,                         //
@@ -260,7 +240,8 @@ void Dreamcast::MapMemory() {
                   nullptr,                         //
                   &TileAccelerator::WriteCommand,  //
                   nullptr);
-  memory_->Handle(TA_TEXTURE_START, TA_TEXTURE_END, 0x0, ta(),
+
+  memory_->Handle(TA_TEXTURE_START, TA_TEXTURE_SIZE, 0x0, ta(),
                   nullptr,                         //
                   nullptr,                         //
                   nullptr,                         //
@@ -270,8 +251,17 @@ void Dreamcast::MapMemory() {
                   &TileAccelerator::WriteTexture,  //
                   nullptr);
 
-  // cpu
-  memory_->Handle(SH4_REG_START, SH4_REG_END, MIRROR_MASK, sh4(),
+  // area 5, 0x14000000 - 0x17ffffff
+  memory_->Alloc(MODEM_START, MODEM_END - MODEM_START + 1, MIRROR_MASK);
+
+  // area 6, 0x18000000 - 0x1bffffff
+  memory_->Alloc(UNASSIGNED_START, UNASSIGNED_END - UNASSIGNED_START + 1,
+                 MIRROR_MASK);
+
+  // area 7, 0x1c000000 - 0x1fffffff
+  memory_->Alloc(SH4_REG_START, SH4_REG_END - SH4_REG_START + 1, MIRROR_MASK);
+
+  memory_->Handle(SH4_REG_START, SH4_REG_SIZE, MIRROR_MASK, sh4(),
                   &SH4::ReadRegister<uint8_t>,
                   &SH4::ReadRegister<uint16_t>,   //
                   &SH4::ReadRegister<uint32_t>,   //
@@ -280,7 +270,8 @@ void Dreamcast::MapMemory() {
                   &SH4::WriteRegister<uint16_t>,  //
                   &SH4::WriteRegister<uint32_t>,  //
                   nullptr);
-  memory_->Handle(SH4_CACHE_START, SH4_CACHE_END, 0x0, sh4(),
+
+  memory_->Handle(SH4_CACHE_START, SH4_CACHE_SIZE, 0x0, sh4(),
                   &SH4::ReadCache<uint8_t>,    //
                   &SH4::ReadCache<uint16_t>,   //
                   &SH4::ReadCache<uint32_t>,   //
@@ -289,7 +280,8 @@ void Dreamcast::MapMemory() {
                   &SH4::WriteCache<uint16_t>,  //
                   &SH4::WriteCache<uint32_t>,  //
                   &SH4::WriteCache<uint64_t>);
-  memory_->Handle(SH4_SQ_START, SH4_SQ_END, 0x0, sh4(),
+
+  memory_->Handle(SH4_SQ_START, SH4_SQ_SIZE, 0x0, sh4(),
                   &SH4::ReadSQ<uint8_t>,    //
                   &SH4::ReadSQ<uint16_t>,   //
                   &SH4::ReadSQ<uint32_t>,   //
@@ -298,4 +290,6 @@ void Dreamcast::MapMemory() {
                   &SH4::WriteSQ<uint16_t>,  //
                   &SH4::WriteSQ<uint32_t>,  //
                   nullptr);
+
+  return true;
 }

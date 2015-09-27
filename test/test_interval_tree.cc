@@ -134,18 +134,16 @@ TEST_F(IntervalTreeTest, Iterate) {
     }
 
     // query the tree for nodes
-    std::set<TestNode *> results;
-
-    intervals.Iterate(i, i, [&](const TestTree &tree, TestNode *node) {
-      results.insert(node);
-    });
+    auto range_it = intervals.intersect(i, i);
 
     // compare the results
-    ASSERT_EQ(expected.size(), results.size());
-
-    for (auto n : results) {
-      auto it = expected.find(n);
-      ASSERT_NE(it, expected.end());
+    size_t size = 0;
+    for (auto it = range_it.first; it != range_it.second; ++it) {
+      auto it2 = expected.find(*it);
+      ASSERT_NE(it2, expected.end());
+      size++;
     }
+
+    ASSERT_EQ(expected.size(), size);
   }
 }

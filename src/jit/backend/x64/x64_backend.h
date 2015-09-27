@@ -26,6 +26,8 @@ class X64Backend : public Backend {
   void DumpBlock(RuntimeBlock *block);
   void FreeBlock(RuntimeBlock *block);
 
+  bool HandleAccessFault(uintptr_t rip, uintptr_t fault_addr);
+
  private:
   X64Emitter emitter_;
 };

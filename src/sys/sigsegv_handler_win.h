@@ -13,10 +13,6 @@ class SIGSEGVHandlerWin : public SIGSEGVHandler {
 
  protected:
   bool Init();
-  int GetPageSize();
-  bool Protect(void *ptr, int size, PageAccess access);
-
- private:
 };
 }
 }

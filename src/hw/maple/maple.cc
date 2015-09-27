@@ -45,10 +45,14 @@ void Maple::VBlank() {
   // TODO maple vblank interrupt?
 }
 
-uint32_t Maple::ReadRegister(void *ctx, uint32_t addr) {
+template uint8_t Maple::ReadRegister(void *ctx, uint32_t addr);
+template uint16_t Maple::ReadRegister(void *ctx, uint32_t addr);
+template uint32_t Maple::ReadRegister(void *ctx, uint32_t addr);
+template <typename T>
+T Maple::ReadRegister(void *ctx, uint32_t addr) {
   Maple *self = reinterpret_cast<Maple *>(ctx);
 
-  uint32_t offset = (0xc00 + addr) >> 2;
+  uint32_t offset = addr >> 2;
   Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & R)) {
@@ -56,13 +60,17 @@ uint32_t Maple::ReadRegister(void *ctx, uint32_t addr) {
     return 0;
   }
 
-  return reg.value;
+  return static_cast<T>(reg.value);
 }
 
-void Maple::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
+template void Maple::WriteRegister(void *ctx, uint32_t addr, uint8_t value);
+template void Maple::WriteRegister(void *ctx, uint32_t addr, uint16_t value);
+template void Maple::WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+template <typename T>
+void Maple::WriteRegister(void *ctx, uint32_t addr, T value) {
   Maple *self = reinterpret_cast<Maple *>(ctx);
 
-  uint32_t offset = (0xc00 + addr) >> 2;
+  uint32_t offset = addr >> 2;
   Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & W)) {
@@ -71,7 +79,7 @@ void Maple::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   }
 
   // uint32_t old = reg.value;
-  reg.value = value;
+  reg.value = static_cast<uint32_t>(value);
 
   switch (offset) {
     case SB_MDST_OFFSET: {

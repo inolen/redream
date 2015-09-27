@@ -20,6 +20,8 @@ inline void hash_combine(size_t &seed, const T &v) {
 #if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
 inline int clz(uint32_t v) { return __builtin_clz(v); }
 inline int clz(uint64_t v) { return __builtin_clzll(v); }
+inline int ctz(uint32_t v) { return __builtin_ctz(v); }
+inline int ctz(uint64_t v) { return __builtin_ctzll(v); }
 #else
 inline int clz(uint32_t v) {
   unsigned long r = 0;
@@ -30,6 +32,16 @@ inline int clz(uint64_t v) {
   unsigned long r = 0;
   _BitScanReverse64(&r, v);
   return 63 - r;
+}
+inline int ctz(uint32_t v) {
+  unsigned long r = 0;
+  _BitScanForward(&r, v);
+  return r;
+}
+inline int ctz(uint64_t v) {
+  unsigned long r = 0;
+  _BitScanForward64(&r, v);
+  return r;
 }
 #endif
 }

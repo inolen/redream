@@ -10,16 +10,17 @@
 #define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
 #include <microprofile.h>
 #include <microprofileui.h>
-
-#include <functional>
 #include <string>
+#include "core/core.h"
 #include "emu/profiler.h"
 
 using namespace dreavm::emu;
 using namespace dreavm::renderer;
 using namespace dreavm::sys;
 
-Backend *g_backend = nullptr;
+static Backend *g_backend = nullptr;
+
+Profiler *dreavm::emu::Profiler::instance_ = nullptr;
 
 static float HueToRGB(float p, float q, float t) {
   if (t < 0.0f) t += 1.0f;
@@ -49,6 +50,23 @@ static void HSLToRGB(float h, float s, float l, uint8_t *r, uint8_t *g,
   *b = static_cast<uint8_t>(fb * 255);
 }
 
+Profiler *Profiler::instance() {
+  if (instance_) {
+    return instance_;
+  }
+
+  instance_ = new Profiler();
+
+  if (!instance_->Init()) {
+    LOG_WARNING("Failed to initialized profiler");
+
+    delete instance_;
+    instance_ = nullptr;
+  }
+
+  return instance_;
+}
+
 uint32_t Profiler::ScopeColor(const char *name) {
   auto hash = std::hash<std::string>();
   size_t name_hash = hash(std::string(name));
@@ -60,7 +78,7 @@ uint32_t Profiler::ScopeColor(const char *name) {
   return (r << 16) | (g << 8) | b;
 }
 
-void Profiler::Init() {
+bool Profiler::Init() {
   MicroProfileOnThreadCreate("main");
 
   // register and enable gpu and runtime group by default
@@ -73,6 +91,8 @@ void Profiler::Init() {
 
   // render time / average time bars by default
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
+
+  return true;
 }
 
 bool Profiler::HandleInput(Keycode key, int16_t value) {

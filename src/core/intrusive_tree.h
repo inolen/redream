@@ -55,7 +55,7 @@ class IntrusiveTree {
     // subtree), and then delete the original node which now has only one
     // non-leaf child
     if (n->left && n->right) {
-      T *pred = MaximumNode(n->left);
+      T *pred = MaxNode(n->left);
       SwapNode(n, pred);
     }
 
@@ -249,12 +249,32 @@ class IntrusiveTree {
     b->color = tmp.color;
   }
 
-  T *MaximumNode(T *n) {
-    while (n->right) {
+  // T *MinNode(T *n) {
+  //   while (n && n->left) {
+  //     n = n->left;
+  //   }
+  //   return n;
+  // }
+
+  T *MaxNode(T *n) {
+    while (n && n->right) {
       n = n->right;
     }
     return n;
   }
+
+  // T *NextNode(T *n) {
+  //   if (n->right) {
+  //     return MinNode(n->right);
+  //   }
+
+  //   T *p = n->parent;
+  //   while (p && p->right == n) {
+  //     n = p;
+  //     p = p->parent;
+  //   }
+  //   return p;
+  // }
 
   // In this case, the new node is now the root node of the tree. Since the root
   // node must be black, and changing its color adds the same number of black

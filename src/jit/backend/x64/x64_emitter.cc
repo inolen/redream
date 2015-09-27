@@ -33,7 +33,7 @@ using namespace dreavm::jit::ir;
 // amd64 calling convention uses rdi, rsi, rdx, rcx, r8 and r9 for arguments
 // both use the same xmm registers for floating point arguments
 // our largest function call uses only 3 arguments, leaving rdi, rsi and r9
-// available on msvc and rcx, r8 and r8 available on amd64
+// available on msvc and rcx, r8 and r9 available on amd64
 
 // rax is used as a scratch register, while r9 and xmm1 are used for storing
 // a constant in case the constant propagation pass didn't eliminate it
@@ -71,13 +71,13 @@ static const Xbyak::Reg *callee_save_map[] = {
     nullptr,           nullptr};
 
 #ifdef PLATFORM_WINDOWS
-static const Xbyak::Reg &int_arg0 = Xbyak::util::rcx;
-static const Xbyak::Reg &int_arg1 = Xbyak::util::rdx;
-static const Xbyak::Reg &int_arg2 = Xbyak::util::r8;
+const Xbyak::Reg &int_arg0 = Xbyak::util::rcx;
+const Xbyak::Reg &int_arg1 = Xbyak::util::rdx;
+const Xbyak::Reg &int_arg2 = Xbyak::util::r8;
 #else
-static const Xbyak::Reg &int_arg0 = Xbyak::util::rdi;
-static const Xbyak::Reg &int_arg1 = Xbyak::util::rsi;
-static const Xbyak::Reg &int_arg2 = Xbyak::util::rdx;
+const Xbyak::Reg &int_arg0 = Xbyak::util::rdi;
+const Xbyak::Reg &int_arg1 = Xbyak::util::rsi;
+const Xbyak::Reg &int_arg2 = Xbyak::util::rdx;
 #endif
 
 // get and set Xbyak::Labels in the IR block's tag
@@ -209,6 +209,7 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   // save off arguments to stack in case they need to be restored
   mov(qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], int_arg0);
   mov(qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT], int_arg1);
+  mov(r8, reinterpret_cast<uintptr_t>(memory_.virtual_base()));
 
   *out_stack_size = stack_size;
 }
@@ -416,6 +417,7 @@ void X64Emitter::RestoreArg1() {
 }
 
 void X64Emitter::RestoreArgs() {
+  mov(r8, reinterpret_cast<uintptr_t>(memory_.virtual_base()));
   RestoreArg0();
   RestoreArg1();
 }
@@ -609,19 +611,17 @@ EMITTER(LOAD) {
 
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
-    int32_t addr = instr->arg0()->value<int32_t>();
+    uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
     MemoryBank *bank = nullptr;
     uint32_t offset = 0;
 
-    memory.Resolve(addr, &bank, &offset);
-
     // if the address maps to a physical page, not a dynamic handler, let's
     // make it fast
-    if (bank->physical_addr) {
+    if (!memory.Resolve(addr, &bank, &offset)) {
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
-      void *physical_addr = bank->physical_addr + offset;
+      void *physical_addr = memory.virtual_base() + addr;
       e.mov(e.rax, (size_t)physical_addr);
 
       switch (instr->result()->type()) {
@@ -646,6 +646,35 @@ EMITTER(LOAD) {
     }
   }
 
+  Xbyak::Label *end_label = e.AllocLabel();
+  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
+
+  //
+  // fast path, will be nop'd out if a dynamic handler needs to be called
+  //
+  switch (instr->result()->type()) {
+    case VALUE_I8:
+      e.mov(result, e.byte[a.cvt64() + e.r8]);
+      break;
+    case VALUE_I16:
+      e.mov(result, e.word[a.cvt64() + e.r8]);
+      break;
+    case VALUE_I32:
+      e.mov(result, e.dword[a.cvt64() + e.r8]);
+      break;
+    case VALUE_I64:
+      e.mov(result, e.qword[a.cvt64() + e.r8]);
+      break;
+    default:
+      LOG_FATAL("Unexpected load result type");
+      break;
+  }
+
+  e.jmp(*end_label);
+
+  //
+  // slow path
+  //
   void *fn = nullptr;
   switch (instr->result()->type()) {
     case VALUE_I8:
@@ -669,8 +698,6 @@ EMITTER(LOAD) {
       break;
   }
 
-  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
-
   // memory is already in arg0
   e.mov(int_arg1, a);
   e.mov(e.rax, (uintptr_t)fn);
@@ -678,26 +705,24 @@ EMITTER(LOAD) {
   e.mov(result, e.rax);
 
   e.RestoreArgs();
+
+  e.L(*end_label);
 }
 
 EMITTER(STORE) {
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
-    int32_t addr = instr->arg0()->value<int32_t>();
+    uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
     MemoryBank *bank = nullptr;
     uint32_t offset = 0;
 
-    memory.Resolve(addr, &bank, &offset);
-
-    // if the address maps to a physical page, not a dynamic handler, let's
-    // make it fast
-    if (bank->physical_addr) {
+    if (!memory.Resolve(addr, &bank, &offset)) {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
 
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
-      void *physical_addr = bank->physical_addr + offset;
+      void *physical_addr = memory.virtual_base() + addr;
       e.mov(e.rax, (size_t)physical_addr);
 
       switch (instr->arg1()->type()) {
@@ -722,6 +747,36 @@ EMITTER(STORE) {
     }
   }
 
+  Xbyak::Label *end_label = e.AllocLabel();
+  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
+  const Xbyak::Reg &b = e.GetRegister(instr->arg1());
+
+  //
+  // fast path, will be nop'd out if a dynamic handler needs to be called
+  //
+  switch (instr->arg1()->type()) {
+    case VALUE_I8:
+      e.mov(e.byte[a.cvt64() + e.r8], b);
+      break;
+    case VALUE_I16:
+      e.mov(e.word[a.cvt64() + e.r8], b);
+      break;
+    case VALUE_I32:
+      e.mov(e.dword[a.cvt64() + e.r8], b);
+      break;
+    case VALUE_I64:
+      e.mov(e.qword[a.cvt64() + e.r8], b);
+      break;
+    default:
+      LOG_FATAL("Unexpected store value type");
+      break;
+  }
+
+  e.jmp(*end_label);
+
+  //
+  // slow path
+  //
   void *fn = nullptr;
   switch (instr->arg1()->type()) {
     case VALUE_I8:
@@ -745,9 +800,6 @@ EMITTER(STORE) {
       break;
   }
 
-  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
-  const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-
   // memory is already in arg0
   e.mov(int_arg1, a);
   e.mov(int_arg2, b);
@@ -755,6 +807,8 @@ EMITTER(STORE) {
   e.call(e.rax);
 
   e.RestoreArgs();
+
+  e.L(*end_label);
 }
 
 EMITTER(CAST) {

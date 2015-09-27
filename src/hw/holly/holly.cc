@@ -3,7 +3,9 @@
 
 using namespace dreavm;
 using namespace dreavm::hw;
+using namespace dreavm::hw::gdrom;
 using namespace dreavm::hw::holly;
+using namespace dreavm::hw::maple;
 using namespace dreavm::hw::sh4;
 using namespace dreavm::renderer;
 using namespace dreavm::sys;
@@ -11,8 +13,10 @@ using namespace dreavm::sys;
 Holly::Holly(Dreamcast *dc) : dc_(dc) {}
 
 bool Holly::Init() {
-  sh4_ = dc_->sh4();
   holly_regs_ = dc_->holly_regs();
+  gdrom_ = dc_->gdrom();
+  maple_ = dc_->maple();
+  sh4_ = dc_->sh4();
 
   return true;
 }
@@ -65,10 +69,22 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
   ForwardRequestInterrupts();
 }
 
-uint32_t Holly::ReadRegister(void *ctx, uint32_t addr) {
+template uint8_t Holly::ReadRegister(void *ctx, uint32_t addr);
+template uint16_t Holly::ReadRegister(void *ctx, uint32_t addr);
+template uint32_t Holly::ReadRegister(void *ctx, uint32_t addr);
+template <typename T>
+T Holly::ReadRegister(void *ctx, uint32_t addr) {
   Holly *self = reinterpret_cast<Holly *>(ctx);
 
+  // service all devices connected through the system bus
   uint32_t offset = addr >> 2;
+  if (offset >= SB_MDSTAR_OFFSET && offset <= SB_MRXDBD_OFFSET) {
+    return Maple::ReadRegister<T>(self->maple_, addr);
+  } else if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET &&
+             offset <= SB_GDLEND_OFFSET) {
+    return GDROM::ReadRegister<T>(self->gdrom_, addr);
+  }
+
   Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & R)) {
@@ -88,17 +104,31 @@ uint32_t Holly::ReadRegister(void *ctx, uint32_t addr) {
       if (self->dc_->SB_ISTERR) {
         v |= 0x80000000;
       }
-      return v;
+      return static_cast<T>(v);
     } break;
   }
 
-  return reg.value;
+  return static_cast<T>(reg.value);
 }
 
-void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
+template void Holly::WriteRegister(void *ctx, uint32_t addr, uint8_t value);
+template void Holly::WriteRegister(void *ctx, uint32_t addr, uint16_t value);
+template void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+template <typename T>
+void Holly::WriteRegister(void *ctx, uint32_t addr, T value) {
   Holly *self = reinterpret_cast<Holly *>(ctx);
 
+  // service all devices connected through the system bus
   uint32_t offset = addr >> 2;
+  if (offset >= SB_MDSTAR_OFFSET && offset <= SB_MRXDBD_OFFSET) {
+    Maple::WriteRegister<T>(self->maple_, addr, value);
+    return;
+  } else if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET &&
+             offset <= SB_GDLEND_OFFSET) {
+    GDROM::WriteRegister<T>(self->gdrom_, addr, value);
+    return;
+  }
+
   Register &reg = self->holly_regs_[offset];
 
   if (!(reg.flags & W)) {
@@ -107,7 +137,7 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   }
 
   uint32_t old = reg.value;
-  reg.value = value;
+  reg.value = static_cast<uint32_t>(value);
 
   switch (offset) {
     case SB_ISTNRM_OFFSET:

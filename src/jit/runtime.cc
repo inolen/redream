@@ -21,6 +21,9 @@ Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
       frontend_(frontend),
       backend_(backend),
       lazy_block_(&Runtime::LazyCompile, 0) {
+  // set access handler for virtual address space
+  memory_.set_virtual_handler(&Runtime::HandleAccessFault, this);
+
   // setup optimization passes
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
@@ -59,6 +62,19 @@ void Runtime::ResetBlocks() {
   backend_.Reset();
 }
 
+bool Runtime::HandleAccessFault(void *ctx, uintptr_t rip,
+                                uintptr_t fault_addr) {
+  Runtime *runtime = reinterpret_cast<Runtime *>(ctx);
+  return runtime->backend_.HandleAccessFault(rip, fault_addr);
+}
+
+uint32_t Runtime::LazyCompile(Memory *memory, void *guest_ctx, Runtime *runtime,
+                              RuntimeBlock *block, uint32_t addr) {
+  RuntimeBlock *new_block = runtime->CompileBlock(addr, guest_ctx);
+  runtime->blocks_[BLOCK_OFFSET(addr)] = new_block;
+  return new_block->call(memory, guest_ctx, runtime, new_block, addr);
+}
+
 RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
   PROFILER_RUNTIME("Runtime::CompileBlock");
 
@@ -84,11 +100,4 @@ RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
   }
 
   return block;
-}
-
-uint32_t Runtime::LazyCompile(Memory *memory, void *guest_ctx, Runtime *runtime,
-                              RuntimeBlock *block, uint32_t addr) {
-  RuntimeBlock *new_block = runtime->CompileBlock(addr, guest_ctx);
-  runtime->blocks_[BLOCK_OFFSET(addr)] = new_block;
-  return new_block->call(memory, guest_ctx, runtime, new_block, addr);
 }

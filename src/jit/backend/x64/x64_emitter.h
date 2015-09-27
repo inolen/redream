@@ -8,6 +8,10 @@
 #include "hw/memory.h"
 #include "jit/runtime.h"
 
+extern const Xbyak::Reg &int_arg0;
+extern const Xbyak::Reg &int_arg1;
+extern const Xbyak::Reg &int_arg2;
+
 namespace dreavm {
 namespace jit {
 namespace backend {
@@ -50,7 +54,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void RestoreArg1();
   void RestoreArgs();
 
- private:
+  // private:
   Xbyak::Label *AllocLabel();
   Xbyak::Address *AllocAddress(const Xbyak::Address &addr);
 

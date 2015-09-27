@@ -1,6 +1,7 @@
 #include "core/core.h"
 #include "emu/emulator.h"
 #include "emu/profiler.h"
+#include "hw/dreamcast.h"
 #include "renderer/gl_backend.h"
 
 using namespace dreavm;
@@ -26,8 +27,6 @@ Emulator::~Emulator() {
 }
 
 void Emulator::Run(const char *path) {
-  Profiler::Init();
-
   if (!sys_.Init()) {
     return;
   }
@@ -189,7 +188,7 @@ void Emulator::PumpEvents() {
     switch (ev.type) {
       case SE_KEY: {
         // let the profiler take a stab at the input first
-        if (!Profiler::HandleInput(ev.key.code, ev.key.value)) {
+        if (!Profiler::instance()->HandleInput(ev.key.code, ev.key.value)) {
           // debug tracing
           if (ev.key.code == K_F2) {
             if (ev.key.value) {
@@ -204,7 +203,7 @@ void Emulator::PumpEvents() {
       } break;
 
       case SE_MOUSEMOVE: {
-        Profiler::HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
+        Profiler::instance()->HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
       } break;
 
       case SE_RESIZE: {
@@ -258,7 +257,7 @@ void Emulator::RenderFrame() {
   rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
   // render profiler
-  Profiler::Render(rb_);
+  Profiler::instance()->Render(rb_);
 
   rb_->EndFrame();
 }

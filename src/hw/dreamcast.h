@@ -16,7 +16,6 @@
 #include "jit/frontend/frontend.h"
 #include "jit/runtime.h"
 #include "renderer/backend.h"
-#include "sys/sigsegv_handler.h"
 #include "trace/trace.h"
 
 namespace dreavm {
@@ -39,23 +38,30 @@ enum {
   // 0x0f000000 - 0x0fffffff
   MAIN_RAM_MIRROR_MASK = MIRROR_MASK | 0x03000000,
 
+  // area 0, 0x00000000 - 0x03ffffff
   MEMORY_REGION(BIOS, 0x00000000, 0x001fffff),
   MEMORY_REGION(FLASH, 0x00200000, 0x0021ffff),
   MEMORY_REGION(HOLLY_REG, 0x005f6000, 0x005f7fff),
-  MEMORY_REGION(MAPLE_REG, 0x005f6c00, 0x005f6fff),
-  MEMORY_REGION(GDROM_REG, 0x005f7000, 0x005f77ff),
   MEMORY_REGION(PVR_REG, 0x005f8000, 0x005f8fff),
   MEMORY_REGION(PVR_PALETTE, 0x005f9000, 0x005f9fff),
   MEMORY_REGION(MODEM_REG, 0x00600000, 0x0067ffff),
   MEMORY_REGION(AICA_REG, 0x00700000, 0x00710fff),
   MEMORY_REGION(WAVE_RAM, 0x00800000, 0x009fffff),
   MEMORY_REGION(EXPDEV, 0x01000000, 0x01ffffff),
+  // area 1, 0x04000000 - 0x07ffffff
   MEMORY_REGION(PVR_VRAM32, 0x04000000, 0x047fffff),
   MEMORY_REGION(PVR_VRAM64, 0x05000000, 0x057fffff),
+  // area 2, 0x08000000 - 0x0Bffffff
+  // area 3, 0x0c000000 - 0x0fffffff
   MEMORY_REGION(MAIN_RAM, 0x0c000000, 0x0cffffff),
+  // area 4, 0x10000000 - 0x13ffffff
   MEMORY_REGION(TA_CMD, 0x10000000, 0x107fffff),
   MEMORY_REGION(TA_TEXTURE, 0x11000000, 0x11ffffff),
-  MEMORY_REGION(UNASSIGNED, 0x14000000, 0x1bffffff),
+  // area 5, 0x14000000 - 0x17ffffff
+  MEMORY_REGION(MODEM, 0x14000000, 0x17ffffff),
+  // area 6, 0x18000000 - 0x1bffffff
+  MEMORY_REGION(UNASSIGNED, 0x18000000, 0x1bffffff),
+  // area 7, 0x1c000000 - 0x1fffffff
   MEMORY_REGION(SH4_REG, 0x1c000000, 0x1fffffff),
   MEMORY_REGION(SH4_CACHE, 0x7c000000, 0x7fffffff),
   MEMORY_REGION(SH4_SQ, 0xe0000000, 0xe3ffffff)
@@ -121,8 +127,6 @@ class Dreamcast {
   hw::holly::TextureCache *texcache() { return texcache_; }
   hw::holly::TileRenderer *tile_renderer() { return tile_renderer_; }
 
-  sys::SIGSEGVHandler *sigsegv() { return sigsegv_; }
-
   renderer::Backend *rb() { return rb_; }
   void set_rb(renderer::Backend *rb) { rb_ = rb; }
 
@@ -153,16 +157,13 @@ class Dreamcast {
 #undef PVR_REG
 
  private:
-  void MapMemory();
+  bool MapMemory();
 
   uint8_t *aica_regs_;
   uint8_t *bios_;
-  uint8_t *expdev_mem_;
   uint8_t *flash_;
-  uint8_t *modem_mem_;
   uint8_t *palette_ram_;
   uint8_t *ram_;
-  uint8_t *unassigned_;
   uint8_t *video_ram_;
   uint8_t *wave_ram_;
 
@@ -182,7 +183,6 @@ class Dreamcast {
   hw::holly::TileRenderer *tile_renderer_;
 
   // not owned by us
-  sys::SIGSEGVHandler *sigsegv_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;
 };
