@@ -53,10 +53,10 @@ bool SH4::Init() {
 
 void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }
 
-uint32_t SH4::Execute(uint32_t cycles) {
+int SH4::Execute(int cycles) {
   PROFILER_RUNTIME("SH4::Execute");
 
-  uint32_t remaining = cycles;
+  int remaining = cycles;
 
   // update timers
   for (int i = 0; i < 3; i++) {
@@ -64,18 +64,11 @@ uint32_t SH4::Execute(uint32_t cycles) {
     RunTimer(i, cycles >> 2);
   }
 
-  while (ctx_.pc) {
+  while (ctx_.pc && remaining > 0) {
     RuntimeBlock *block = runtime_.GetBlock(ctx_.pc, &ctx_);
 
-    // be careful not to wrap around
-    uint32_t next_remaining = remaining - block->guest_cycles();
-    if (next_remaining > remaining) {
-      break;
-    }
-
-    // run the block
     ctx_.pc = block->call()(&memory_, &ctx_, block);
-    remaining = next_remaining;
+    remaining -= block->guest_cycles();
 
     CheckPendingCacheReset();
     CheckPendingInterrupts();
@@ -459,7 +452,7 @@ bool SH4::TimerEnabled(int n) {  //
   return TSTR & (1 << n);
 }
 
-void SH4::RunTimer(int n, uint32_t cycles) {
+void SH4::RunTimer(int n, int cycles) {
   static const int tcr_shift[] = {2, 4, 6, 8, 10, 0, 0, 0};
 
   if (!TimerEnabled(n)) {

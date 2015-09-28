@@ -18,7 +18,8 @@ class InterpreterBlock : public RuntimeBlock {
   void Dump();
 
  private:
-  static uint32_t Call(hw::Memory *memory, void *guest_ctx, RuntimeBlock *block);
+  static uint32_t Call(hw::Memory *memory, void *guest_ctx,
+                       RuntimeBlock *block);
 
   IntInstr *instrs_;
   int num_instrs_;

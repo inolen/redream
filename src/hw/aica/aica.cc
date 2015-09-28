@@ -14,7 +14,7 @@ bool AICA::Init() {
   return true;
 }
 
-uint32_t AICA::Execute(uint32_t cycles) {
+int AICA::Execute(int cycles) {
   // uint16_t MCIEB = *reinterpret_cast<uint16_t *>(&aica_regs_[MCIEB_OFFSET]);
   // uint16_t MCIPD = *reinterpret_cast<uint16_t *>(&aica_regs_[MCIPD_OFFSET]);
 

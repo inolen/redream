@@ -23,8 +23,7 @@ enum {
   MAX_BLOCKS = 0x1000000 >> BLOCK_ADDR_SHIFT,
 };
 
-#define BLOCK_OFFSET(addr) \
-  ((addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT)
+#define BLOCK_OFFSET(addr) ((addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT)
 
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
                  backend::Backend &backend)

@@ -16,11 +16,12 @@ class Frontend;
 }
 
 class RuntimeBlock;
-typedef uint32_t(*RuntimeCall)(hw::Memory *, void *, RuntimeBlock *);
+typedef uint32_t (*RuntimeCall)(hw::Memory *, void *, RuntimeBlock *);
 
 class RuntimeBlock {
  public:
-  RuntimeBlock(int guest_cycles, RuntimeCall call) : guest_cycles_(guest_cycles), call_(call) {}
+  RuntimeBlock(int guest_cycles, RuntimeCall call)
+      : guest_cycles_(guest_cycles), call_(call) {}
   virtual ~RuntimeBlock() {}
 
   int guest_cycles() { return guest_cycles_; }

@@ -118,11 +118,11 @@ class SH4 : public hw::Device {
  public:
   SH4(hw::Memory &memory, jit::Runtime &runtime);
 
-  uint32_t GetClockFrequency() { return 200000000; }
+  int GetClockFrequency() { return 200000000; }
 
   bool Init();
   void SetPC(uint32_t pc);
-  uint32_t Execute(uint32_t cycles);
+  int Execute(int cycles);
 
   // DMAC
   void DDT(int channel, DDTRW rw, uint32_t addr);
@@ -165,7 +165,7 @@ class SH4 : public hw::Device {
 
   // TMU
   bool TimerEnabled(int n);
-  void RunTimer(int n, uint32_t cycles);
+  void RunTimer(int n, int cycles);
 
   hw::Memory &memory_;
   jit::Runtime &runtime_;

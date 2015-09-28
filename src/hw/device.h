@@ -10,8 +10,8 @@ class Device {
  public:
   virtual ~Device(){};
 
-  virtual uint32_t GetClockFrequency() = 0;
-  virtual uint32_t Execute(uint32_t cycles) = 0;
+  virtual int GetClockFrequency() = 0;
+  virtual int Execute(int cycles) = 0;
 };
 }
 }

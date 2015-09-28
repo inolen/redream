@@ -76,14 +76,14 @@ void Scheduler::Tick(const std::chrono::nanoseconds &delta) {
     for (auto &info : devices_) {
       auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
           target_time - info.current_time);
-      uint32_t cycles_per_second = info.device->GetClockFrequency();
-      uint32_t cycles_to_run = static_cast<uint32_t>(
-          (delta.count() * static_cast<uint64_t>(cycles_per_second)) /
+      int cycles_per_second = info.device->GetClockFrequency();
+      int cycles_to_run = static_cast<int>(
+          (delta.count() * static_cast<int64_t>(cycles_per_second)) /
           NS_PER_SEC);
-      uint32_t ran = info.device->Execute(cycles_to_run);
+      int ran = info.device->Execute(cycles_to_run);
 
       info.current_time += std::chrono::nanoseconds(
-          (ran * static_cast<uint64_t>(NS_PER_SEC)) / cycles_per_second);
+          (ran * static_cast<int64_t>(NS_PER_SEC)) / cycles_per_second);
     }
 
     base_time_ = target_time;

@@ -14,7 +14,8 @@ InterpreterBlock::InterpreterBlock(int guest_cycles, IntInstr *instrs,
 
 void InterpreterBlock::Dump() { LOG_INFO("Unimplemented"); }
 
-uint32_t InterpreterBlock::Call(Memory *memory, void *guest_ctx, RuntimeBlock *block) {
+uint32_t InterpreterBlock::Call(Memory *memory, void *guest_ctx,
+                                RuntimeBlock *block) {
   InterpreterBlock *self = reinterpret_cast<InterpreterBlock *>(block);
   IntValue *registers = reinterpret_cast<IntValue *>(
       alloca(int_num_registers * sizeof(IntValue)));
