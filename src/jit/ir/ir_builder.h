@@ -483,6 +483,7 @@ class IRBuilder {
 
   // calls
   void CallExternal(ExternalFn func);
+  void CallExternal(Value *addr);
 
   // values
   Value *AllocConstant(uint8_t c);

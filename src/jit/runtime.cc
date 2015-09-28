@@ -30,7 +30,7 @@ static inline uint32_t BlockOffset(uint32_t addr) {
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
                  backend::Backend &backend)
     : memory_(memory), frontend_(frontend), backend_(backend) {
-  blocks_ = new RuntimeBlock* [MAX_BLOCKS]();
+  blocks_ = new RuntimeBlock *[MAX_BLOCKS]();
 
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));

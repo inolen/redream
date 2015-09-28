@@ -28,6 +28,9 @@ SH4::SH4(Memory &memory, Runtime &runtime)
 
 bool SH4::Init() {
   memset(&ctx_, 0, sizeof(ctx_));
+  ctx_.priv = this;
+  ctx_.SRUpdated = &SH4::SRUpdated;
+  ctx_.FPSCRUpdated = &SH4::FPSCRUpdated;
   ctx_.pc = 0xa0000000;
   ctx_.pr = 0x0;
   ctx_.sr.full = ctx_.old_sr.full = 0x700000f0;
@@ -300,6 +303,70 @@ void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
   self->ctx_.sq[sqi][idx] = static_cast<uint32_t>(value);
 }
 
+void SH4::SRUpdated(SH4Context *ctx) {
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->priv);
+
+  if (ctx->sr.RB != ctx->old_sr.RB) {
+    self->SetRegisterBank(ctx->sr.RB ? 1 : 0);
+  }
+
+  self->UpdatePendingInterrupts();
+
+  ctx->old_sr = ctx->sr;
+}
+
+void SH4::FPSCRUpdated(SH4Context *ctx) {
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->priv);
+
+  if (ctx->fpscr.FR != ctx->old_fpscr.FR) {
+    self->SwapFPRegisters();
+  }
+
+  if (ctx->fpscr.PR != ctx->old_fpscr.PR) {
+    self->SwapFPCouples();
+  }
+
+  ctx->old_fpscr = ctx->fpscr;
+}
+
+void SH4::SetRegisterBank(int bank) {
+  if (bank == 0) {
+    for (int s = 0; s < 8; s++) {
+      ctx_.rbnk[1][s] = ctx_.r[s];
+      ctx_.r[s] = ctx_.rbnk[0][s];
+    }
+  } else {
+    for (int s = 0; s < 8; s++) {
+      ctx_.rbnk[0][s] = ctx_.r[s];
+      ctx_.r[s] = ctx_.rbnk[1][s];
+    }
+  }
+}
+
+void SH4::SwapFPRegisters() {
+  uint32_t z;
+
+  for (int s = 0; s <= 15; s++) {
+    z = ctx_.fr[s];
+    ctx_.fr[s] = ctx_.xf[s];
+    ctx_.xf[s] = z;
+  }
+}
+
+void SH4::SwapFPCouples() {
+  uint32_t z;
+
+  for (int s = 0; s <= 15; s = s + 2) {
+    z = ctx_.fr[s];
+    ctx_.fr[s] = ctx_.fr[s + 1];
+    ctx_.fr[s + 1] = z;
+
+    z = ctx_.xf[s];
+    ctx_.xf[s] = ctx_.xf[s + 1];
+    ctx_.xf[s + 1] = z;
+  }
+}
+
 // FIXME this isn't right. When the IC is reset a pending flag is set and the
 // cache is actually reset at the end of the current block. However, the docs
 // for the SH4 IC state "After CCR is updated, an instruction that performs data
@@ -369,12 +436,6 @@ void SH4::UpdatePendingInterrupts() {
 }
 
 inline void SH4::CheckPendingInterrupts() {
-  // update pending interrupts if the status register has changed
-  if (ctx_.sr.full != old_sr_.full) {
-    UpdatePendingInterrupts();
-    old_sr_.full = ctx_.sr.full;
-  }
-
   if (!pending_interrupts_) {
     return;
   }

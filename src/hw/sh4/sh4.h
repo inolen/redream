@@ -146,7 +146,14 @@ class SH4 : public hw::Device {
   template <typename T>
   static void WriteSQ(void *ctx, uint32_t addr, T value);
 
- protected:
+ private:
+  static void SRUpdated(jit::frontend::sh4::SH4Context *ctx);
+  static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx);
+
+  void SetRegisterBank(int bank);
+  void SwapFPRegisters();
+  void SwapFPCouples();
+
   // CCN
   void ResetCache();
   void CheckPendingCacheReset();
@@ -164,7 +171,6 @@ class SH4 : public hw::Device {
   jit::Runtime &runtime_;
 
   jit::frontend::sh4::SH4Context ctx_;
-  jit::frontend::sh4::SR_T old_sr_;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   type &name{reinterpret_cast<type &>(area7_[name##_OFFSET])};
 #include "hw/sh4/sh4_regs.inc"

@@ -43,6 +43,10 @@ union FPSCR_T {
 };
 
 struct SH4Context {
+  void *priv;
+  void (*SRUpdated)(SH4Context *);
+  void (*FPSCRUpdated)(SH4Context *);
+
   uint32_t pc, spc;
   uint32_t pr;
   uint32_t gbr, vbr;
@@ -54,13 +58,10 @@ struct SH4Context {
   uint32_t sq[2][8];
   uint32_t sq_ext_addr[2];
   uint32_t preserve;
-  SR_T sr, ssr, old_sr;
   uint32_t sr_qm;
+  SR_T sr, ssr, old_sr;
   FPSCR_T fpscr, old_fpscr;
 };
-
-void SRUpdated(SH4Context *ctx);
-void FPSCRUpdated(SH4Context *ctx);
 }
 }
 }

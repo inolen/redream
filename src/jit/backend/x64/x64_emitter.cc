@@ -1498,8 +1498,7 @@ EMITTER(BRANCH_COND) {
 
 EMITTER(CALL_EXTERNAL) {
   // rdi is already pointing to guest_ctx
-  uint64_t addr = instr->arg0()->GetZExtValue();
-  c.mov(c.rax, addr);
+  e.CopyOperand(instr->arg0(), c.rax);
   c.call(c.rax);
 
   e.RestoreArgs();

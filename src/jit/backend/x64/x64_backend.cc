@@ -44,6 +44,4 @@ RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder) {
   return new X64Block(builder.guest_cycles(), fn);
 }
 
-void X64Backend::FreeBlock(RuntimeBlock *block) {
-  delete block;
-}
+void X64Backend::FreeBlock(RuntimeBlock *block) { delete block; }
