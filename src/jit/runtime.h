@@ -15,17 +15,22 @@ namespace frontend {
 class Frontend;
 }
 
+class RuntimeBlock;
+typedef uint32_t(*RuntimeCall)(hw::Memory *, void *, RuntimeBlock *);
+
 class RuntimeBlock {
  public:
-  RuntimeBlock(int guest_cycles) : guest_cycles_(guest_cycles) {}
+  RuntimeBlock(int guest_cycles, RuntimeCall call) : guest_cycles_(guest_cycles), call_(call) {}
   virtual ~RuntimeBlock() {}
 
   int guest_cycles() { return guest_cycles_; }
-  virtual uint32_t Call(hw::Memory *memory, void *guest_ctx) = 0;
+  RuntimeCall call() { return call_; }
+
   virtual void Dump() = 0;
 
- private:
+ protected:
   int guest_cycles_;
+  RuntimeCall call_;
 };
 
 class Runtime {

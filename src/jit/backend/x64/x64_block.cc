@@ -8,17 +8,13 @@ using namespace dreavm::jit;
 using namespace dreavm::jit::backend::x64;
 
 X64Block::X64Block(int guest_cycles, X64Fn fn)
-    : RuntimeBlock(guest_cycles), fn_(fn) {}
-
-uint32_t X64Block::Call(Memory *memory, void *guest_ctx) {
-  return fn_(memory, guest_ctx);
-}
+    : RuntimeBlock(guest_cycles, fn) {}
 
 void X64Block::Dump() {
   DISASM dsm;
   memset(&dsm, 0, sizeof(dsm));
   dsm.Archi = 64;
-  dsm.EIP = (uintptr_t)fn_;
+  dsm.EIP = (uintptr_t)call_;
   dsm.SecurityBlock = 0;
   dsm.Options = NasmSyntax | PrefixedNumeral;
 

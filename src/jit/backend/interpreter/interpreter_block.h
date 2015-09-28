@@ -15,10 +15,11 @@ class InterpreterBlock : public RuntimeBlock {
   InterpreterBlock(int guest_cycles, IntInstr *instrs, int num_instrs,
                    int locals_size);
 
-  uint32_t Call(hw::Memory *memory, void *guest_ctx);
   void Dump();
 
  private:
+  static uint32_t Call(hw::Memory *memory, void *guest_ctx, RuntimeBlock *block);
+
   IntInstr *instrs_;
   int num_instrs_;
   int locals_size_;

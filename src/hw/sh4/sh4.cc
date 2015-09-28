@@ -56,8 +56,6 @@ void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }
 uint32_t SH4::Execute(uint32_t cycles) {
   PROFILER_RUNTIME("SH4::Execute");
 
-  // LOG_INFO("Executing %d cycles at 0x%x", cycles, ctx_.pc);
-
   uint32_t remaining = cycles;
 
   // update timers
@@ -67,8 +65,7 @@ uint32_t SH4::Execute(uint32_t cycles) {
   }
 
   while (ctx_.pc) {
-    uint32_t pc = ctx_.pc & ADDR_MASK;
-    RuntimeBlock *block = runtime_.GetBlock(pc, &ctx_);
+    RuntimeBlock *block = runtime_.GetBlock(ctx_.pc, &ctx_);
 
     // be careful not to wrap around
     uint32_t next_remaining = remaining - block->guest_cycles();
@@ -77,9 +74,8 @@ uint32_t SH4::Execute(uint32_t cycles) {
     }
 
     // run the block
-    uint32_t next_pc = block->Call(&memory_, &ctx_);
+    ctx_.pc = block->call()(&memory_, &ctx_, block);
     remaining = next_remaining;
-    ctx_.pc = next_pc;
 
     CheckPendingCacheReset();
     CheckPendingInterrupts();

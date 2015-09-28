@@ -7,25 +7,28 @@ using namespace dreavm::jit::backend::interpreter;
 
 InterpreterBlock::InterpreterBlock(int guest_cycles, IntInstr *instrs,
                                    int num_instrs, int locals_size)
-    : RuntimeBlock(guest_cycles),
+    : RuntimeBlock(guest_cycles, &InterpreterBlock::Call),
       instrs_(instrs),
       num_instrs_(num_instrs),
       locals_size_(locals_size) {}
 
-uint32_t InterpreterBlock::Call(Memory *memory, void *guest_ctx) {
+void InterpreterBlock::Dump() { LOG_INFO("Unimplemented"); }
+
+uint32_t InterpreterBlock::Call(Memory *memory, void *guest_ctx, RuntimeBlock *block) {
+  InterpreterBlock *self = reinterpret_cast<InterpreterBlock *>(block);
   IntValue *registers = reinterpret_cast<IntValue *>(
       alloca(int_num_registers * sizeof(IntValue)));
 
-  uint8_t *locals = reinterpret_cast<uint8_t *>(alloca(locals_size_));
-  memset(locals, 0, locals_size_);
+  uint8_t *locals = reinterpret_cast<uint8_t *>(alloca(self->locals_size_));
+  memset(locals, 0, self->locals_size_);
 
   IntInstr *instr = nullptr;
   uint32_t i = 0;
   bool done = false;
 
   while (!done) {
-    instr = &instrs_[i];
-    done = i == (uint32_t)num_instrs_ - 1;
+    instr = &self->instrs_[i];
+    done = i == (uint32_t)self->num_instrs_ - 1;
     // there are a few possible return values from the callbacks:
     // 1. branch isn't a branch, next instruction index is returned
     // 1. branch is a local branch, next instruction index is returned
@@ -38,5 +41,3 @@ uint32_t InterpreterBlock::Call(Memory *memory, void *guest_ctx) {
 
   return i;
 }
-
-void InterpreterBlock::Dump() { LOG_INFO("Unimplemented"); }

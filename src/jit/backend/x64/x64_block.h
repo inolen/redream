@@ -14,11 +14,7 @@ class X64Block : public RuntimeBlock {
  public:
   X64Block(int guest_cycles, X64Fn fn);
 
-  uint32_t Call(hw::Memory *memory, void *guest_ctx);
   void Dump();
-
- private:
-  X64Fn fn_;
 };
 }
 }

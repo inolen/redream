@@ -25,7 +25,7 @@ enum {
   STACK_SIZE = STACK_OFFSET_LOCALS
 };
 
-typedef uint32_t (*X64Fn)(hw::Memory *memory, void *guest_ctx);
+typedef uint32_t (*X64Fn)(hw::Memory *, void *, RuntimeBlock *);
 
 class X64Emitter : public Xbyak::CodeGenerator {
  public:
