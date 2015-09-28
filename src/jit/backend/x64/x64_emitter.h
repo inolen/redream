@@ -30,6 +30,7 @@ typedef uint32_t (*X64Fn)(void *guest_ctx, hw::Memory *memory);
 class X64Emitter {
  public:
   X64Emitter(hw::Memory &memory);
+  ~X64Emitter();
 
   Xbyak::Label &epilog_label() { return *epilog_label_; }
 
@@ -53,10 +54,20 @@ class X64Emitter {
   Xbyak::Label *AllocLabel();
   Xbyak::Address *AllocAddress(const Xbyak::Address &addr);
 
+  void EmitProlog(ir::IRBuilder &builder, int *stack_size);
+  void EmitBody(ir::IRBuilder &builder);
+  void EmitEpilog(ir::IRBuilder &builder, int stack_size);
+
+  int AlignLocals(ir::IRBuilder &builder);
+  int PushModifiedRegisters(ir::IRBuilder &builder);
+  void PopModifiedRegisters();
+
   hw::Memory &memory_;
   Xbyak::CodeGenerator c_;
   Arena arena_;
   Xbyak::Label *epilog_label_;
+  int modified_marker_;
+  int *modified_;
 };
 }
 }

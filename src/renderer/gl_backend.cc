@@ -154,9 +154,9 @@ TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
 }
 
 void GLBackend::FreeTexture(TextureHandle handle) {
-  GLuint &gltex = textures_[handle];
-  glDeleteTextures(1, &gltex);
-  gltex = 0;
+  GLuint *gltex = &textures_[handle];
+  glDeleteTextures(1, gltex);
+  *gltex = 0;
 }
 
 void GLBackend::BeginFrame() {

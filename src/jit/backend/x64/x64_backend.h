@@ -10,6 +10,9 @@ namespace jit {
 namespace backend {
 namespace x64 {
 
+extern const Register x64_registers[];
+extern const int x64_num_registers;
+
 class X64Backend : public Backend {
  public:
   X64Backend(hw::Memory &memory);

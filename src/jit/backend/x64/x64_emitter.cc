@@ -1,5 +1,6 @@
 #include "core/core.h"
 #include "emu/profiler.h"
+#include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_emitter.h"
 
 using namespace dreavm;
@@ -61,6 +62,14 @@ static const Xbyak::Reg *reg_map_64[] = {
     &Xbyak::util::xmm6, &Xbyak::util::xmm7,  &Xbyak::util::xmm8,
     &Xbyak::util::xmm9, &Xbyak::util::xmm10, &Xbyak::util::xmm11};
 
+// map register ids coming from IR values for callee saved registers. use
+// nullptr to specify that the register isn't saved
+static const Xbyak::Reg *callee_save_map[] = {
+    &Xbyak::util::rbx, &Xbyak::util::rbp, &Xbyak::util::r12, &Xbyak::util::r13,
+    &Xbyak::util::r14, &Xbyak::util::r15, nullptr,           nullptr,
+    nullptr,           nullptr,           nullptr,           nullptr,
+    nullptr,           nullptr};
+
 #ifdef PLATFORM_WINDOWS
 static const Xbyak::Reg &int_arg0 = Xbyak::util::rcx;
 static const Xbyak::Reg &int_arg1 = Xbyak::util::rdx;
@@ -91,9 +100,21 @@ static X64Emit x64_emitters[NUM_OPCODES];
           const Instr *instr)
 
 X64Emitter::X64Emitter(Memory &memory)
-    : memory_(memory), c_(1024 * 1024 * 8), arena_(1024) {}
+    : memory_(memory), c_(1024 * 1024 * 8), arena_(1024) {
+  modified_marker_ = 0;
+  modified_ = new int[x64_num_registers];
 
-void X64Emitter::Reset() { c_.reset(); }
+  Reset();
+}
+
+X64Emitter::~X64Emitter() { delete[] modified_; }
+
+void X64Emitter::Reset() {
+  c_.reset();
+
+  modified_marker_ = 0;
+  memset(modified_, modified_marker_, sizeof(int) * x64_num_registers);
+}
 
 bool X64Emitter::Emit(IRBuilder &builder, X64Fn *fn) {
   PROFILER_RUNTIME("X64Emitter::Emit");
@@ -102,94 +123,25 @@ bool X64Emitter::Emit(IRBuilder &builder, X64Fn *fn) {
   // is about to emitted to
   *fn = c_.getCurr<X64Fn>();
 
-  // reset arena holding temporaries used while emitting
+  // reset emit state
   arena_.Reset();
-
-  // allocate the epilog label
   epilog_label_ = AllocLabel();
 
-  // assign local offsets
-  int stack_size = STACK_SIZE;
-  for (auto local : builder.locals()) {
-    int type_size = SizeForType(local->type());
-    stack_size = dreavm::align(stack_size, type_size);
-    local->set_offset(builder.AllocConstant(stack_size));
-    stack_size += type_size;
-  }
-
-  // stack must be 16 byte aligned
-  stack_size = dreavm::align(stack_size, 16);
-
-  // add 8 for return address which will be pushed when this is called
-  stack_size += 8;
-
-// emit prolog
-// FIXME only push registers that're used
-#ifdef PLATFORM_WINDOWS
-  c_.push(Xbyak::util::rdi);
-  c_.push(Xbyak::util::rsi);
-#endif
-  c_.push(Xbyak::util::rbx);
-  c_.push(Xbyak::util::rbp);
-  c_.push(Xbyak::util::r12);
-  c_.push(Xbyak::util::r13);
-  c_.push(Xbyak::util::r14);
-  c_.push(Xbyak::util::r15);
-
-  // reserve stack space for rdi copy
-  c_.sub(Xbyak::util::rsp, stack_size);
-  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT], int_arg0);
-  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], int_arg1);
-
-  // generate labels for each block
-  for (auto block : builder.blocks()) {
-    Xbyak::Label *lbl = AllocLabel();
-    SetLabel(block, lbl);
-  }
-
-  // emit each instruction
-  for (auto block : builder.blocks()) {
-    c_.L(GetLabel(block));
-
-    for (auto instr : block->instrs()) {
-      X64Emit emit = x64_emitters[instr->op()];
-      CHECK(emit, "Failed to find emitter for %s", Opnames[instr->op()]);
-
-      // try to generate the x64 code. if the codegen buffer overflows let the
-      // backend know so it can reset the cache and try again
-      try {
-        emit(*this, memory_, c_, instr);
-      } catch (const Xbyak::Error &e) {
-        if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
-          return false;
-        }
-
-        LOG_FATAL("X64 codegen failure, %s", e.what());
-      }
+  // try to generate the x64 code. if the codegen buffer overflows let the
+  // backend know so it can reset the cache and try again
+  try {
+    int stack_size = 0;
+    EmitProlog(builder, &stack_size);
+    EmitBody(builder);
+    EmitEpilog(builder, stack_size);
+    c_.ready();
+  } catch (const Xbyak::Error &e) {
+    if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
+      return false;
     }
+
+    LOG_FATAL("X64 codegen failure, %s", e.what());
   }
-
-  // emit prolog
-  c_.L(epilog_label());
-
-  // reset stack
-  c_.add(Xbyak::util::rsp, stack_size);
-
-  // TODO only pop registers that're used
-  c_.pop(Xbyak::util::r15);
-  c_.pop(Xbyak::util::r14);
-  c_.pop(Xbyak::util::r13);
-  c_.pop(Xbyak::util::r12);
-  c_.pop(Xbyak::util::rbp);
-  c_.pop(Xbyak::util::rbx);
-#ifdef PLATFORM_WINDOWS
-  c_.pop(Xbyak::util::rsi);
-  c_.pop(Xbyak::util::rdi);
-#endif
-  c_.ret();
-
-  // patch up relocations
-  c_.ready();
 
   return true;
 }
@@ -204,6 +156,114 @@ Xbyak::Address *X64Emitter::AllocAddress(const Xbyak::Address &from) {
   Xbyak::Address *addr = arena_.Alloc<Xbyak::Address>();
   new (addr) Xbyak::Address(from);
   return addr;
+}
+
+void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
+  int stack_size = STACK_SIZE;
+
+  // align locals
+  for (auto local : builder.locals()) {
+    int type_size = SizeForType(local->type());
+    stack_size = dreavm::align(stack_size, type_size);
+    local->set_offset(builder.AllocConstant(stack_size));
+    stack_size += type_size;
+  }
+
+  // stack must be 16 byte aligned
+  stack_size = dreavm::align(stack_size, 16);
+
+  // add 8 for return address which will be pushed when this is called
+  stack_size += 8;
+  CHECK_EQ((stack_size + 8) % 16, 0);
+
+  // mark which registers have been modified
+  modified_marker_++;
+
+  for (auto block : builder.blocks()) {
+    for (auto instr : block->instrs()) {
+      Value *result = instr->result();
+      if (!result) {
+        continue;
+      }
+
+      int i = result->reg();
+      if (i == NO_REGISTER) {
+        continue;
+      }
+
+      modified_[i] = modified_marker_;
+    }
+  }
+
+  // push the callee-saved registers which have been modified
+  int pushed = 0;
+
+  for (int i = 0; i < x64_num_registers; i++) {
+    const Xbyak::Reg *reg = callee_save_map[i];
+    if (!reg) {
+      continue;
+    }
+
+    if (modified_[i] == modified_marker_) {
+      c_.push(*reg);
+      pushed++;
+    }
+  }
+
+  // if an odd amount of push instructions are emitted stack_size needs to be
+  // adjusted to keep the stack aligned
+  if ((pushed % 2) == 1) {
+    stack_size += 8;
+  }
+
+  // adjust stack pointer
+  c_.sub(Xbyak::util::rsp, stack_size);
+
+  // save off arguments to stack in case they need to be restored
+  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT], int_arg0);
+  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], int_arg1);
+
+  *out_stack_size = stack_size;
+}
+
+void X64Emitter::EmitBody(IRBuilder &builder) {
+  // generate labels for each block
+  for (auto block : builder.blocks()) {
+    Xbyak::Label *lbl = AllocLabel();
+    SetLabel(block, lbl);
+  }
+
+  // emit each instruction
+  for (auto block : builder.blocks()) {
+    c_.L(GetLabel(block));
+
+    for (auto instr : block->instrs()) {
+      X64Emit emit = x64_emitters[instr->op()];
+      CHECK(emit, "Failed to find emitter for %s", Opnames[instr->op()]);
+      emit(*this, memory_, c_, instr);
+    }
+  }
+}
+
+void X64Emitter::EmitEpilog(IRBuilder &builder, int stack_size) {
+  c_.L(epilog_label());
+
+  // adjust stack pointer
+  c_.add(Xbyak::util::rsp, stack_size);
+
+  // pop callee-saved registers which have been modified
+  for (int i = x64_num_registers - 1; i >= 0; i--) {
+    const Xbyak::Reg *reg = callee_save_map[i];
+    if (!reg) {
+      continue;
+    }
+
+    if (modified_[i] == modified_marker_) {
+      c_.pop(*reg);
+    }
+  }
+
+  c_.ret();
 }
 
 // Get the register / local allocated for the supplied value. If the value is
