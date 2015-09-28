@@ -85,22 +85,19 @@ static const Xbyak::Reg &int_arg2 = Xbyak::util::rdx;
 #define SetLabel(blk, lbl) (blk->set_tag(reinterpret_cast<intptr_t>(lbl)))
 
 // callbacks for emitting each IR op
-typedef void (*X64Emit)(X64Emitter &, Memory &, Xbyak::CodeGenerator &,
-                        const Instr *);
+typedef void (*X64Emit)(X64Emitter &, Memory &, const Instr *);
 
 static X64Emit x64_emitters[NUM_OPCODES];
 
-#define EMITTER(op)                                               \
-  void op(X64Emitter &e, Memory &memory, Xbyak::CodeGenerator &c, \
-          const Instr *instr);                                    \
-  static struct _x64_##op##_init {                                \
-    _x64_##op##_init() { x64_emitters[OP_##op] = &op; }           \
-  } x64_##op##_init;                                              \
-  void op(X64Emitter &e, Memory &memory, Xbyak::CodeGenerator &c, \
-          const Instr *instr)
+#define EMITTER(op)                                           \
+  void op(X64Emitter &e, Memory &memory, const Instr *instr); \
+  static struct _x64_##op##_init {                            \
+    _x64_##op##_init() { x64_emitters[OP_##op] = &op; }       \
+  } x64_##op##_init;                                          \
+  void op(X64Emitter &e, Memory &memory, const Instr *instr)
 
-X64Emitter::X64Emitter(Memory &memory)
-    : memory_(memory), c_(1024 * 1024 * 8), arena_(1024) {
+X64Emitter::X64Emitter(Memory &memory, size_t max_size)
+    : CodeGenerator(max_size), memory_(memory), arena_(1024) {
   modified_marker_ = 0;
   modified_ = new int[x64_num_registers];
 
@@ -110,40 +107,30 @@ X64Emitter::X64Emitter(Memory &memory)
 X64Emitter::~X64Emitter() { delete[] modified_; }
 
 void X64Emitter::Reset() {
-  c_.reset();
+  reset();
 
   modified_marker_ = 0;
   memset(modified_, modified_marker_, sizeof(int) * x64_num_registers);
 }
 
-bool X64Emitter::Emit(IRBuilder &builder, X64Fn *fn) {
+X64Fn X64Emitter::Emit(IRBuilder &builder) {
   PROFILER_RUNTIME("X64Emitter::Emit");
 
   // getCurr returns the current spot in the codegen buffer which the function
   // is about to emitted to
-  *fn = c_.getCurr<X64Fn>();
+  X64Fn fn = getCurr<X64Fn>();
 
   // reset emit state
   arena_.Reset();
   epilog_label_ = AllocLabel();
 
-  // try to generate the x64 code. if the codegen buffer overflows let the
-  // backend know so it can reset the cache and try again
-  try {
-    int stack_size = 0;
-    EmitProlog(builder, &stack_size);
-    EmitBody(builder);
-    EmitEpilog(builder, stack_size);
-    c_.ready();
-  } catch (const Xbyak::Error &e) {
-    if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
-      return false;
-    }
+  int stack_size = 0;
+  EmitProlog(builder, &stack_size);
+  EmitBody(builder);
+  EmitEpilog(builder, stack_size);
+  ready();
 
-    LOG_FATAL("X64 codegen failure, %s", e.what());
-  }
-
-  return true;
+  return fn;
 }
 
 Xbyak::Label *X64Emitter::AllocLabel() {
@@ -205,7 +192,7 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
     }
 
     if (modified_[i] == modified_marker_) {
-      c_.push(*reg);
+      push(*reg);
       pushed++;
     }
   }
@@ -217,11 +204,11 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   }
 
   // adjust stack pointer
-  c_.sub(Xbyak::util::rsp, stack_size);
+  sub(Xbyak::util::rsp, stack_size);
 
   // save off arguments to stack in case they need to be restored
-  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT], int_arg0);
-  c_.mov(c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], int_arg1);
+  mov(qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT], int_arg0);
+  mov(qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], int_arg1);
 
   *out_stack_size = stack_size;
 }
@@ -235,21 +222,21 @@ void X64Emitter::EmitBody(IRBuilder &builder) {
 
   // emit each instruction
   for (auto block : builder.blocks()) {
-    c_.L(GetLabel(block));
+    L(GetLabel(block));
 
     for (auto instr : block->instrs()) {
       X64Emit emit = x64_emitters[instr->op()];
       CHECK(emit, "Failed to find emitter for %s", Opnames[instr->op()]);
-      emit(*this, memory_, c_, instr);
+      emit(*this, memory_, instr);
     }
   }
 }
 
 void X64Emitter::EmitEpilog(IRBuilder &builder, int stack_size) {
-  c_.L(epilog_label());
+  L(epilog_label());
 
   // adjust stack pointer
-  c_.add(Xbyak::util::rsp, stack_size);
+  add(Xbyak::util::rsp, stack_size);
 
   // pop callee-saved registers which have been modified
   for (int i = x64_num_registers - 1; i >= 0; i--) {
@@ -259,11 +246,11 @@ void X64Emitter::EmitEpilog(IRBuilder &builder, int stack_size) {
     }
 
     if (modified_[i] == modified_marker_) {
-      c_.pop(*reg);
+      pop(*reg);
     }
   }
 
-  c_.ret();
+  ret();
 }
 
 // Get the register / local allocated for the supplied value. If the value is
@@ -308,16 +295,16 @@ const Xbyak::Reg &X64Emitter::GetRegister(const Value *v) {
 
     switch (v->type()) {
       case VALUE_I8:
-        tmp = &c_.r9b;
+        tmp = &r9b;
         break;
       case VALUE_I16:
-        tmp = &c_.r9w;
+        tmp = &r9w;
         break;
       case VALUE_I32:
-        tmp = &c_.r9d;
+        tmp = &r9d;
         break;
       case VALUE_I64:
-        tmp = &c_.r9;
+        tmp = &r9;
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -339,8 +326,8 @@ const Xbyak::Reg &X64Emitter::GetRegister(const Value *v) {
 // register, else return the XMM register allocated for it.
 const Xbyak::Xmm &X64Emitter::GetXMMRegister(const Value *v) {
   if (v->constant()) {
-    CopyOperand(v, c_.xmm1);
-    return c_.xmm1;
+    CopyOperand(v, xmm1);
+    return xmm1;
   }
 
   const Xbyak::Operand &op = GetOperand(v);
@@ -357,17 +344,17 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
 
       if (v->type() == VALUE_F32) {
         float val = v->value<float>();
-        c_.mov(c_.eax, *reinterpret_cast<int32_t *>(&val));
-        c_.movd(reinterpret_cast<const Xbyak::Xmm &>(to), c_.eax);
+        mov(eax, *reinterpret_cast<int32_t *>(&val));
+        movd(reinterpret_cast<const Xbyak::Xmm &>(to), eax);
       } else {
         double val = v->value<double>();
-        c_.mov(c_.rax, *reinterpret_cast<int64_t *>(&val));
-        c_.movq(reinterpret_cast<const Xbyak::Xmm &>(to), c_.rax);
+        mov(rax, *reinterpret_cast<int64_t *>(&val));
+        movq(reinterpret_cast<const Xbyak::Xmm &>(to), rax);
       }
     } else {
       CHECK(IsIntType(v->type()));
 
-      c_.mov(to, v->GetZExtValue());
+      mov(to, v->GetZExtValue());
     }
   } else {
     const Xbyak::Operand &from = GetOperand(v);
@@ -384,11 +371,11 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
 
     if (to.isXMM()) {
       if (from.isXMM()) {
-        c_.movdqa(reinterpret_cast<const Xbyak::Xmm &>(to), from);
+        movdqa(reinterpret_cast<const Xbyak::Xmm &>(to), from);
       } else if (from.isBit(32)) {
-        c_.movss(reinterpret_cast<const Xbyak::Xmm &>(to), from);
+        movss(reinterpret_cast<const Xbyak::Xmm &>(to), from);
       } else if (from.isBit(64)) {
-        c_.movsd(reinterpret_cast<const Xbyak::Xmm &>(to), from);
+        movsd(reinterpret_cast<const Xbyak::Xmm &>(to), from);
       } else {
         LOG_FATAL("Unexpected copy");
       }
@@ -396,16 +383,16 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
       CHECK(to.isMEM(), "Expected destination to be a memory address");
 
       if (to.isBit(32)) {
-        c_.movss(reinterpret_cast<const Xbyak::Address &>(to),
-                 reinterpret_cast<const Xbyak::Xmm &>(from));
+        movss(reinterpret_cast<const Xbyak::Address &>(to),
+              reinterpret_cast<const Xbyak::Xmm &>(from));
       } else if (to.isBit(64)) {
-        c_.movsd(reinterpret_cast<const Xbyak::Address &>(to),
-                 reinterpret_cast<const Xbyak::Xmm &>(from));
+        movsd(reinterpret_cast<const Xbyak::Address &>(to),
+              reinterpret_cast<const Xbyak::Xmm &>(from));
       } else {
         LOG_FATAL("Unexpected copy");
       }
     } else {
-      c_.mov(to, from);
+      mov(to, from);
     }
   }
 
@@ -421,11 +408,11 @@ bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
 }
 
 void X64Emitter::RestoreArg0() {
-  c_.mov(int_arg0, c_.qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
+  mov(int_arg0, qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
 }
 
 void X64Emitter::RestoreArg1() {
-  c_.mov(int_arg1, c_.qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
+  mov(int_arg1, qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
 }
 
 void X64Emitter::RestoreArgs() {
@@ -441,10 +428,10 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->result()->type()) {
       case VALUE_F32:
-        c.movss(result, c.dword[int_arg0 + offset]);
+        e.movss(result, e.dword[int_arg0 + offset]);
         break;
       case VALUE_F64:
-        c.movsd(result, c.qword[int_arg0 + offset]);
+        e.movsd(result, e.qword[int_arg0 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -455,16 +442,16 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->result()->type()) {
       case VALUE_I8:
-        c.mov(result, c.byte[int_arg0 + offset]);
+        e.mov(result, e.byte[int_arg0 + offset]);
         break;
       case VALUE_I16:
-        c.mov(result, c.word[int_arg0 + offset]);
+        e.mov(result, e.word[int_arg0 + offset]);
         break;
       case VALUE_I32:
-        c.mov(result, c.dword[int_arg0 + offset]);
+        e.mov(result, e.dword[int_arg0 + offset]);
         break;
       case VALUE_I64:
-        c.mov(result, c.qword[int_arg0 + offset]);
+        e.mov(result, e.qword[int_arg0 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -479,18 +466,18 @@ EMITTER(STORE_CONTEXT) {
   if (instr->arg1()->constant()) {
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        c.mov(c.byte[int_arg0 + offset], instr->arg1()->value<int8_t>());
+        e.mov(e.byte[int_arg0 + offset], instr->arg1()->value<int8_t>());
         break;
       case VALUE_I16:
-        c.mov(c.word[int_arg0 + offset], instr->arg1()->value<int16_t>());
+        e.mov(e.word[int_arg0 + offset], instr->arg1()->value<int16_t>());
         break;
       case VALUE_I32:
       case VALUE_F32:
-        c.mov(c.dword[int_arg0 + offset], instr->arg1()->value<int32_t>());
+        e.mov(e.dword[int_arg0 + offset], instr->arg1()->value<int32_t>());
         break;
       case VALUE_I64:
       case VALUE_F64:
-        c.mov(c.qword[int_arg0 + offset], instr->arg1()->value<int64_t>());
+        e.mov(e.qword[int_arg0 + offset], instr->arg1()->value<int64_t>());
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -502,10 +489,10 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_F32:
-          c.movss(c.dword[int_arg0 + offset], src);
+          e.movss(e.dword[int_arg0 + offset], src);
           break;
         case VALUE_F64:
-          c.movsd(c.qword[int_arg0 + offset], src);
+          e.movsd(e.qword[int_arg0 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -516,16 +503,16 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
-          c.mov(c.byte[int_arg0 + offset], src);
+          e.mov(e.byte[int_arg0 + offset], src);
           break;
         case VALUE_I16:
-          c.mov(c.word[int_arg0 + offset], src);
+          e.mov(e.word[int_arg0 + offset], src);
           break;
         case VALUE_I32:
-          c.mov(c.dword[int_arg0 + offset], src);
+          e.mov(e.dword[int_arg0 + offset], src);
           break;
         case VALUE_I64:
-          c.mov(c.qword[int_arg0 + offset], src);
+          e.mov(e.qword[int_arg0 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -543,10 +530,10 @@ EMITTER(LOAD_LOCAL) {
 
     switch (instr->result()->type()) {
       case VALUE_F32:
-        c.movss(result, c.dword[c.rsp + offset]);
+        e.movss(result, e.dword[e.rsp + offset]);
         break;
       case VALUE_F64:
-        c.movsd(result, c.qword[c.rsp + offset]);
+        e.movsd(result, e.qword[e.rsp + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -557,16 +544,16 @@ EMITTER(LOAD_LOCAL) {
 
     switch (instr->result()->type()) {
       case VALUE_I8:
-        c.mov(result, c.byte[c.rsp + offset]);
+        e.mov(result, e.byte[e.rsp + offset]);
         break;
       case VALUE_I16:
-        c.mov(result, c.word[c.rsp + offset]);
+        e.mov(result, e.word[e.rsp + offset]);
         break;
       case VALUE_I32:
-        c.mov(result, c.dword[c.rsp + offset]);
+        e.mov(result, e.dword[e.rsp + offset]);
         break;
       case VALUE_I64:
-        c.mov(result, c.qword[c.rsp + offset]);
+        e.mov(result, e.qword[e.rsp + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -585,10 +572,10 @@ EMITTER(STORE_LOCAL) {
 
     switch (instr->arg1()->type()) {
       case VALUE_F32:
-        c.movss(c.dword[c.rsp + offset], src);
+        e.movss(e.dword[e.rsp + offset], src);
         break;
       case VALUE_F64:
-        c.movsd(c.qword[c.rsp + offset], src);
+        e.movsd(e.qword[e.rsp + offset], src);
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -599,16 +586,16 @@ EMITTER(STORE_LOCAL) {
 
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        c.mov(c.byte[c.rsp + offset], src);
+        e.mov(e.byte[e.rsp + offset], src);
         break;
       case VALUE_I16:
-        c.mov(c.word[c.rsp + offset], src);
+        e.mov(e.word[e.rsp + offset], src);
         break;
       case VALUE_I32:
-        c.mov(c.dword[c.rsp + offset], src);
+        e.mov(e.dword[e.rsp + offset], src);
         break;
       case VALUE_I64:
-        c.mov(c.qword[c.rsp + offset], src);
+        e.mov(e.qword[e.rsp + offset], src);
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -635,20 +622,20 @@ EMITTER(LOAD) {
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
       void *physical_addr = bank->physical_addr + offset;
-      c.mov(c.rax, (size_t)physical_addr);
+      e.mov(e.rax, (size_t)physical_addr);
 
       switch (instr->result()->type()) {
         case VALUE_I8:
-          c.mov(result, c.byte[c.rax]);
+          e.mov(result, e.byte[e.rax]);
           break;
         case VALUE_I16:
-          c.mov(result, c.word[c.rax]);
+          e.mov(result, e.word[e.rax]);
           break;
         case VALUE_I32:
-          c.mov(result, c.dword[c.rax]);
+          e.mov(result, e.dword[e.rax]);
           break;
         case VALUE_I64:
-          c.mov(result, c.qword[c.rax]);
+          e.mov(result, e.qword[e.rax]);
           break;
         default:
           LOG_FATAL("Unexpected load result type");
@@ -685,15 +672,15 @@ EMITTER(LOAD) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   // setup arguments
-  c.mov(int_arg0, int_arg1);
-  c.mov(int_arg1, a);
+  e.mov(int_arg0, int_arg1);
+  e.mov(int_arg1, a);
 
   // call func
-  c.mov(c.rax, (uintptr_t)fn);
-  c.call(c.rax);
+  e.mov(e.rax, (uintptr_t)fn);
+  e.call(e.rax);
 
   // copy off result
-  c.mov(result, c.rax);
+  e.mov(result, e.rax);
 
   e.RestoreArgs();
 }
@@ -716,20 +703,20 @@ EMITTER(STORE) {
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
       void *physical_addr = bank->physical_addr + offset;
-      c.mov(c.rax, (size_t)physical_addr);
+      e.mov(e.rax, (size_t)physical_addr);
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
-          c.mov(c.byte[c.rax], b);
+          e.mov(e.byte[e.rax], b);
           break;
         case VALUE_I16:
-          c.mov(c.word[c.rax], b);
+          e.mov(e.word[e.rax], b);
           break;
         case VALUE_I32:
-          c.mov(c.dword[c.rax], b);
+          e.mov(e.dword[e.rax], b);
           break;
         case VALUE_I64:
-          c.mov(c.qword[c.rax], b);
+          e.mov(e.qword[e.rax], b);
           break;
         default:
           LOG_FATAL("Unexpected store value type");
@@ -767,13 +754,13 @@ EMITTER(STORE) {
   const Xbyak::Reg &b = e.GetRegister(instr->arg1());
 
   // setup arguments
-  c.mov(int_arg0, int_arg1);
-  c.mov(int_arg1, a);
-  c.mov(int_arg2, b);
+  e.mov(int_arg0, int_arg1);
+  e.mov(int_arg1, a);
+  e.mov(int_arg2, b);
 
   // call func
-  c.mov(c.rax, (uintptr_t)fn);
-  c.call(c.rax);
+  e.mov(e.rax, (uintptr_t)fn);
+  e.call(e.rax);
 
   e.RestoreArgs();
 }
@@ -786,11 +773,11 @@ EMITTER(CAST) {
     switch (instr->result()->type()) {
       case VALUE_F32:
         CHECK_EQ(instr->arg0()->type(), VALUE_I32);
-        c.cvtsi2ss(result, a);
+        e.cvtsi2ss(result, a);
         break;
       case VALUE_F64:
         CHECK_EQ(instr->arg0()->type(), VALUE_I64);
-        c.cvtsi2sd(result, a);
+        e.cvtsi2sd(result, a);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -803,11 +790,11 @@ EMITTER(CAST) {
     switch (instr->result()->type()) {
       case VALUE_I32:
         CHECK_EQ(instr->arg0()->type(), VALUE_F32);
-        c.cvttss2si(result, a);
+        e.cvttss2si(result, a);
         break;
       case VALUE_I64:
         CHECK_EQ(instr->arg0()->type(), VALUE_F64);
-        c.cvttsd2si(result, a);
+        e.cvttsd2si(result, a);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -826,9 +813,9 @@ EMITTER(SEXT) {
   }
 
   if (result.isBit(64) && a.isBit(32)) {
-    c.movsxd(result.cvt64(), a);
+    e.movsxd(result.cvt64(), a);
   } else {
-    c.movsx(result, a);
+    e.movsx(result, a);
   }
 }
 
@@ -843,9 +830,9 @@ EMITTER(ZEXT) {
 
   if (result.isBit(64)) {
     // mov will automatically zero fill the upper 32-bits
-    c.mov(result.cvt32(), a);
+    e.mov(result.cvt32(), a);
   } else {
-    c.movzx(result, a);
+    e.movzx(result, a);
   }
 }
 
@@ -875,9 +862,9 @@ EMITTER(TRUNCATE) {
 
   if (truncated.isBit(32)) {
     // mov will automatically zero fill the upper 32-bits
-    c.mov(result, truncated);
+    e.mov(result, truncated);
   } else {
-    c.movzx(result.cvt32(), truncated);
+    e.movzx(result.cvt32(), truncated);
   }
 }
 
@@ -887,9 +874,9 @@ EMITTER(SELECT) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg1());
   const Xbyak::Reg &b = e.GetRegister(instr->arg2());
 
-  c.test(cond, cond);
-  c.cmovnz(result.cvt32(), a);
-  c.cmovz(result.cvt32(), b);
+  e.test(cond, cond);
+  e.cmovnz(result.cvt32(), a);
+  e.cmovz(result.cvt32(), b);
 }
 
 EMITTER(EQ) {
@@ -900,22 +887,22 @@ EMITTER(EQ) {
     const Xbyak::Xmm &b = e.GetXMMRegister(instr->arg1());
 
     if (instr->arg0()->type() == VALUE_F32) {
-      c.comiss(a, b);
+      e.comiss(a, b);
     } else {
-      c.comisd(a, b);
+      e.comisd(a, b);
     }
   } else {
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (e.CanEncodeAsImmediate(instr->arg1())) {
-      c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
     } else {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-      c.cmp(a, b);
+      e.cmp(a, b);
     }
   }
 
-  c.sete(result);
+  e.sete(result);
 }
 
 EMITTER(NE) {
@@ -926,22 +913,22 @@ EMITTER(NE) {
     const Xbyak::Xmm &b = e.GetXMMRegister(instr->arg1());
 
     if (instr->arg0()->type() == VALUE_F32) {
-      c.comiss(a, b);
+      e.comiss(a, b);
     } else {
-      c.comisd(a, b);
+      e.comisd(a, b);
     }
   } else {
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (e.CanEncodeAsImmediate(instr->arg1())) {
-      c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
     } else {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-      c.cmp(a, b);
+      e.cmp(a, b);
     }
   }
 
-  c.setne(result);
+  e.setne(result);
 }
 
 EMITTER(SGE) {
@@ -952,23 +939,23 @@ EMITTER(SGE) {
     const Xbyak::Xmm &b = e.GetXMMRegister(instr->arg1());
 
     if (instr->arg0()->type() == VALUE_F32) {
-      c.comiss(a, b);
+      e.comiss(a, b);
     } else {
-      c.comisd(a, b);
+      e.comisd(a, b);
     }
 
-    c.setae(result);
+    e.setae(result);
   } else {
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (e.CanEncodeAsImmediate(instr->arg1())) {
-      c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
     } else {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-      c.cmp(a, b);
+      e.cmp(a, b);
     }
 
-    c.setge(result);
+    e.setge(result);
   }
 }
 
@@ -980,23 +967,23 @@ EMITTER(SGT) {
     const Xbyak::Xmm &b = e.GetXMMRegister(instr->arg1());
 
     if (instr->arg0()->type() == VALUE_F32) {
-      c.comiss(a, b);
+      e.comiss(a, b);
     } else {
-      c.comisd(a, b);
+      e.comisd(a, b);
     }
 
-    c.seta(result);
+    e.seta(result);
   } else {
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (e.CanEncodeAsImmediate(instr->arg1())) {
-      c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
     } else {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-      c.cmp(a, b);
+      e.cmp(a, b);
     }
 
-    c.setg(result);
+    e.setg(result);
   }
 }
 
@@ -1005,13 +992,13 @@ EMITTER(UGE) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+    e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.cmp(a, b);
+    e.cmp(a, b);
   }
 
-  c.setae(result);
+  e.setae(result);
 }
 
 EMITTER(UGT) {
@@ -1019,13 +1006,13 @@ EMITTER(UGT) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+    e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.cmp(a, b);
+    e.cmp(a, b);
   }
 
-  c.seta(result);
+  e.seta(result);
 }
 
 EMITTER(SLE) {
@@ -1036,23 +1023,23 @@ EMITTER(SLE) {
     const Xbyak::Xmm &b = e.GetXMMRegister(instr->arg1());
 
     if (instr->arg0()->type() == VALUE_F32) {
-      c.comiss(a, b);
+      e.comiss(a, b);
     } else {
-      c.comisd(a, b);
+      e.comisd(a, b);
     }
 
-    c.setbe(result);
+    e.setbe(result);
   } else {
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (e.CanEncodeAsImmediate(instr->arg1())) {
-      c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
     } else {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-      c.cmp(a, b);
+      e.cmp(a, b);
     }
 
-    c.setle(result);
+    e.setle(result);
   }
 }
 
@@ -1064,23 +1051,23 @@ EMITTER(SLT) {
     const Xbyak::Xmm &b = e.GetXMMRegister(instr->arg1());
 
     if (instr->arg0()->type() == VALUE_F32) {
-      c.comiss(a, b);
+      e.comiss(a, b);
     } else {
-      c.comisd(a, b);
+      e.comisd(a, b);
     }
 
-    c.setb(result);
+    e.setb(result);
   } else {
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (e.CanEncodeAsImmediate(instr->arg1())) {
-      c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
     } else {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-      c.cmp(a, b);
+      e.cmp(a, b);
     }
 
-    c.setl(result);
+    e.setl(result);
   }
 }
 
@@ -1089,13 +1076,13 @@ EMITTER(ULE) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+    e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.cmp(a, b);
+    e.cmp(a, b);
   }
 
-  c.setbe(result);
+  e.setbe(result);
 }
 
 EMITTER(ULT) {
@@ -1103,13 +1090,13 @@ EMITTER(ULT) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+    e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.cmp(a, b);
+    e.cmp(a, b);
   }
 
-  c.setb(result);
+  e.setb(result);
 }
 
 EMITTER(ADD) {
@@ -1120,30 +1107,30 @@ EMITTER(ADD) {
 
     if (instr->result()->type() == VALUE_F32) {
       if (result != a) {
-        c.movss(result, a);
+        e.movss(result, a);
       }
 
-      c.addss(result, b);
+      e.addss(result, b);
     } else {
       if (result != a) {
-        c.movsd(result, a);
+        e.movsd(result, a);
       }
 
-      c.addsd(result, b);
+      e.addsd(result, b);
     }
   } else {
     const Xbyak::Reg &result = e.GetRegister(instr->result());
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (result != a) {
-      c.mov(result, a);
+      e.mov(result, a);
     }
 
     if (e.CanEncodeAsImmediate(instr->arg1())) {
-      c.add(result, (uint32_t)instr->arg1()->GetZExtValue());
+      e.add(result, (uint32_t)instr->arg1()->GetZExtValue());
     } else {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-      c.add(result, b);
+      e.add(result, b);
     }
   }
 }
@@ -1156,30 +1143,30 @@ EMITTER(SUB) {
 
     if (instr->result()->type() == VALUE_F32) {
       if (result != a) {
-        c.movss(result, a);
+        e.movss(result, a);
       }
 
-      c.subss(result, b);
+      e.subss(result, b);
     } else {
       if (result != a) {
-        c.movsd(result, a);
+        e.movsd(result, a);
       }
 
-      c.subsd(result, b);
+      e.subsd(result, b);
     }
   } else {
     const Xbyak::Reg &result = e.GetRegister(instr->result());
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (result != a) {
-      c.mov(result, a);
+      e.mov(result, a);
     }
 
     if (e.CanEncodeAsImmediate(instr->arg1())) {
-      c.sub(result, (uint32_t)instr->arg1()->GetZExtValue());
+      e.sub(result, (uint32_t)instr->arg1()->GetZExtValue());
     } else {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-      c.sub(result, b);
+      e.sub(result, b);
     }
   }
 }
@@ -1192,16 +1179,16 @@ EMITTER(SMUL) {
 
     if (instr->result()->type() == VALUE_F32) {
       if (result != a) {
-        c.movss(result, a);
+        e.movss(result, a);
       }
 
-      c.mulss(result, b);
+      e.mulss(result, b);
     } else {
       if (result != a) {
-        c.movsd(result, a);
+        e.movsd(result, a);
       }
 
-      c.mulsd(result, b);
+      e.mulsd(result, b);
     }
   } else {
     const Xbyak::Reg &result = e.GetRegister(instr->result());
@@ -1209,10 +1196,10 @@ EMITTER(SMUL) {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
 
     if (result != a) {
-      c.mov(result, a);
+      e.mov(result, a);
     }
 
-    c.imul(result, b);
+    e.imul(result, b);
   }
 }
 
@@ -1224,10 +1211,10 @@ EMITTER(UMUL) {
   const Xbyak::Reg &b = e.GetRegister(instr->arg1());
 
   if (result != a) {
-    c.mov(result, a);
+    e.mov(result, a);
   }
 
-  c.imul(result, b);
+  e.imul(result, b);
 }
 
 EMITTER(DIV) {
@@ -1239,16 +1226,16 @@ EMITTER(DIV) {
 
   if (instr->result()->type() == VALUE_F32) {
     if (result != a) {
-      c.movss(result, a);
+      e.movss(result, a);
     }
 
-    c.divss(result, b);
+    e.divss(result, b);
   } else {
     if (result != a) {
-      c.movsd(result, a);
+      e.movsd(result, a);
     }
 
-    c.divsd(result, b);
+    e.divsd(result, b);
   }
 }
 
@@ -1259,25 +1246,25 @@ EMITTER(NEG) {
 
     if (instr->result()->type() == VALUE_F32) {
       // TODO use xorps
-      c.movd(c.eax, a);
-      c.xor (c.eax, (uint32_t)0x80000000);
-      c.movd(result, c.eax);
+      e.movd(e.eax, a);
+      e.xor (e.eax, (uint32_t)0x80000000);
+      e.movd(result, e.eax);
     } else {
       // TODO use xorpd
-      c.movq(c.rax, a);
-      c.mov(c.r9, (uint64_t)0x8000000000000000);
-      c.xor (c.rax, c.r9);
-      c.movq(result, c.rax);
+      e.movq(e.rax, a);
+      e.mov(e.r9, (uint64_t)0x8000000000000000);
+      e.xor (e.rax, e.r9);
+      e.movq(result, e.rax);
     }
   } else {
     const Xbyak::Reg &result = e.GetRegister(instr->result());
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
     if (result != a) {
-      c.mov(result, a);
+      e.mov(result, a);
     }
 
-    c.neg(result);
+    e.neg(result);
   }
 }
 
@@ -1288,9 +1275,9 @@ EMITTER(SQRT) {
   const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0());
 
   if (instr->result()->type() == VALUE_F32) {
-    c.sqrtss(result, a);
+    e.sqrtss(result, a);
   } else {
-    c.sqrtsd(result, a);
+    e.sqrtsd(result, a);
   }
 }
 
@@ -1301,21 +1288,21 @@ EMITTER(ABS) {
 
     if (instr->result()->type() == VALUE_F32) {
       // TODO use andps
-      c.movd(c.eax, a);
-      c.and (c.eax, (uint32_t)0x7fffffff);
-      c.movd(result, c.eax);
+      e.movd(e.eax, a);
+      e.and (e.eax, (uint32_t)0x7fffffff);
+      e.movd(result, e.eax);
     } else {
       // TODO use andpd
-      c.movq(c.rax, a);
-      c.mov(c.r9, (uint64_t)0x7fffffffffffffff);
-      c.and (c.rax, c.r9);
-      c.movq(result, c.rax);
+      e.movq(e.rax, a);
+      e.mov(e.r9, (uint64_t)0x7fffffffffffffff);
+      e.and (e.rax, e.r9);
+      e.movq(result, e.rax);
     }
   } else {
     LOG_FATAL("Unexpected abs result type");
-    // c.mov(c.rax, *result);
-    // c.neg(c.rax);
-    // c.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), c.rax);
+    // e.mov(e.rax, *result);
+    // e.neg(e.rax);
+    // e.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), e.rax);
   }
 }
 
@@ -1328,15 +1315,15 @@ EMITTER(SIN) {
   // FIXME xmm registers aren't callee saved, this would probably break if we
   // used the lower indexed xmm registers
   if (instr->result()->type() == VALUE_F32) {
-    c.movss(c.xmm0, a);
-    c.mov(c.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&sinf));
-    c.call(c.rax);
-    c.movss(result, c.xmm0);
+    e.movss(e.xmm0, a);
+    e.mov(e.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&sinf));
+    e.call(e.rax);
+    e.movss(result, e.xmm0);
   } else {
-    c.movsd(c.xmm0, a);
-    c.mov(c.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&sin));
-    c.call(c.rax);
-    c.movsd(result, c.xmm0);
+    e.movsd(e.xmm0, a);
+    e.mov(e.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&sin));
+    e.call(e.rax);
+    e.movsd(result, e.xmm0);
   }
 
   e.RestoreArgs();
@@ -1351,15 +1338,15 @@ EMITTER(COS) {
   // FIXME xmm registers aren't callee saved, this would probably break if we
   // used the lower indexed xmm registers
   if (instr->result()->type() == VALUE_F32) {
-    c.movss(c.xmm0, a);
-    c.mov(c.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&cosf));
-    c.call(c.rax);
-    c.movss(result, c.xmm0);
+    e.movss(e.xmm0, a);
+    e.mov(e.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&cosf));
+    e.call(e.rax);
+    e.movss(result, e.xmm0);
   } else {
-    c.movsd(c.xmm0, a);
-    c.mov(c.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&cos));
-    c.call(c.rax);
-    c.movsd(result, c.xmm0);
+    e.movsd(e.xmm0, a);
+    e.mov(e.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&cos));
+    e.call(e.rax);
+    e.movsd(result, e.xmm0);
   }
 
   e.RestoreArgs();
@@ -1372,14 +1359,14 @@ EMITTER(AND) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (result != a) {
-    c.mov(result, a);
+    e.mov(result, a);
   }
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.and (result, (uint32_t)instr->arg1()->GetZExtValue());
+    e.and (result, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.and (result, b);
+    e.and (result, b);
   }
 }
 
@@ -1390,14 +1377,14 @@ EMITTER(OR) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (result != a) {
-    c.mov(result, a);
+    e.mov(result, a);
   }
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.or (result, (uint32_t)instr->arg1()->GetZExtValue());
+    e.or (result, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.or (result, b);
+    e.or (result, b);
   }
 }
 
@@ -1408,14 +1395,14 @@ EMITTER(XOR) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (result != a) {
-    c.mov(result, a);
+    e.mov(result, a);
   }
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.xor (result, (uint32_t)instr->arg1()->GetZExtValue());
+    e.xor (result, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.xor (result, b);
+    e.xor (result, b);
   }
 }
 
@@ -1426,10 +1413,10 @@ EMITTER(NOT) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (result != a) {
-    c.mov(result, a);
+    e.mov(result, a);
   }
 
-  c.not(result);
+  e.not(result);
 }
 
 EMITTER(SHL) {
@@ -1439,15 +1426,15 @@ EMITTER(SHL) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (result != a) {
-    c.mov(result, a);
+    e.mov(result, a);
   }
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.shl(result, (int)instr->arg1()->GetZExtValue());
+    e.shl(result, (int)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.mov(c.cl, b);
-    c.shl(result, c.cl);
+    e.mov(e.cl, b);
+    e.shl(result, e.cl);
 
 #ifdef PLATFORM_WINDOWS
     // arg0 was in rcx, needs to be restored
@@ -1463,15 +1450,15 @@ EMITTER(ASHR) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (result != a) {
-    c.mov(result, a);
+    e.mov(result, a);
   }
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.sar(result, (int)instr->arg1()->GetZExtValue());
+    e.sar(result, (int)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.mov(c.cl, b);
-    c.sar(result, c.cl);
+    e.mov(e.cl, b);
+    e.sar(result, e.cl);
 
 #ifdef PLATFORM_WINDOWS
     // arg0 was in rcx, need to be restored
@@ -1487,15 +1474,15 @@ EMITTER(LSHR) {
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
   if (result != a) {
-    c.mov(result, a);
+    e.mov(result, a);
   }
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    c.shr(result, (int)instr->arg1()->GetZExtValue());
+    e.shr(result, (int)instr->arg1()->GetZExtValue());
   } else {
     const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-    c.mov(c.cl, b);
-    c.shr(result, c.cl);
+    e.mov(e.cl, b);
+    e.shr(result, e.cl);
 
 #ifdef PLATFORM_WINDOWS
     // arg0 was in rcx, need to be restored
@@ -1508,19 +1495,19 @@ EMITTER(BRANCH) {
   if (instr->arg0()->type() == VALUE_BLOCK) {
     // jump to local block
     const Block *dst = instr->arg0()->value<const Block *>();
-    c.jmp(GetLabel(dst), Xbyak::CodeGenerator::T_NEAR);
+    e.jmp(GetLabel(dst), Xbyak::CodeGenerator::T_NEAR);
   } else {
     // return if we need to branch to a far block
     const Xbyak::Reg &a = e.GetRegister(instr->arg0());
-    c.mov(c.rax, a);
-    c.jmp(e.epilog_label());
+    e.mov(e.rax, a);
+    e.jmp(e.epilog_label());
   }
 }
 
 EMITTER(BRANCH_COND) {
   const Xbyak::Reg &cond = e.GetRegister(instr->arg0());
 
-  c.test(cond, cond);
+  e.test(cond, cond);
 
   // if both blocks are a local block this is easy
   if (instr->arg1()->type() == VALUE_BLOCK &&
@@ -1532,10 +1519,10 @@ EMITTER(BRANCH_COND) {
 
     // don't emit a jump if the block is next
     if (next_block != block_true) {
-      c.jnz(GetLabel(block_true), Xbyak::CodeGenerator::T_NEAR);
+      e.jnz(GetLabel(block_true), Xbyak::CodeGenerator::T_NEAR);
     }
     if (next_block != block_false) {
-      c.je(GetLabel(block_false), Xbyak::CodeGenerator::T_NEAR);
+      e.je(GetLabel(block_false), Xbyak::CodeGenerator::T_NEAR);
     }
   }
   // if both blocks are a far block this is easy
@@ -1543,12 +1530,12 @@ EMITTER(BRANCH_COND) {
            instr->arg2()->type() != VALUE_BLOCK) {
     // return if we need to branch to a far block
     const Xbyak::Reg &op_true = e.GetRegister(instr->arg1());
-    c.mov(c.eax, op_true);
-    c.jnz(e.epilog_label());
+    e.mov(e.eax, op_true);
+    e.jnz(e.epilog_label());
 
     const Xbyak::Reg &op_false = e.GetRegister(instr->arg2());
-    c.mov(c.eax, op_false);
-    c.je(e.epilog_label());
+    e.mov(e.eax, op_false);
+    e.je(e.epilog_label());
   }
   // if they are mixed, do local block test first, far block second
   else {
@@ -1558,8 +1545,8 @@ EMITTER(BRANCH_COND) {
 
 EMITTER(CALL_EXTERNAL) {
   // rdi is already pointing to guest_ctx
-  e.CopyOperand(instr->arg0(), c.rax);
-  c.call(c.rax);
+  e.CopyOperand(instr->arg0(), e.rax);
+  e.call(e.rax);
 
   e.RestoreArgs();
 }

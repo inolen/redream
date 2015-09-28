@@ -27,16 +27,16 @@ enum {
 
 typedef uint32_t (*X64Fn)(void *guest_ctx, hw::Memory *memory);
 
-class X64Emitter {
+class X64Emitter : public Xbyak::CodeGenerator {
  public:
-  X64Emitter(hw::Memory &memory);
+  X64Emitter(hw::Memory &memory, size_t max_size);
   ~X64Emitter();
 
   Xbyak::Label &epilog_label() { return *epilog_label_; }
 
   void Reset();
 
-  bool Emit(ir::IRBuilder &builder, X64Fn *fn);
+  X64Fn Emit(ir::IRBuilder &builder);
 
   // helpers for the emitter callbacks
   const Xbyak::Operand &GetOperand(const ir::Value *v, int size = -1);
@@ -58,12 +58,7 @@ class X64Emitter {
   void EmitBody(ir::IRBuilder &builder);
   void EmitEpilog(ir::IRBuilder &builder, int stack_size);
 
-  int AlignLocals(ir::IRBuilder &builder);
-  int PushModifiedRegisters(ir::IRBuilder &builder);
-  void PopModifiedRegisters();
-
   hw::Memory &memory_;
-  Xbyak::CodeGenerator c_;
   Arena arena_;
   Xbyak::Label *epilog_label_;
   int modified_marker_;

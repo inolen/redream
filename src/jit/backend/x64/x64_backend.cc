@@ -32,7 +32,8 @@ const int x64_num_registers = sizeof(x64_registers) / sizeof(Register);
 }
 }
 
-X64Backend::X64Backend(Memory &memory) : Backend(memory), emitter_(memory) {}
+X64Backend::X64Backend(Memory &memory)
+    : Backend(memory), emitter_(memory, 1024 * 1024 * 8) {}
 
 X64Backend::~X64Backend() {}
 
@@ -45,13 +46,32 @@ int X64Backend::num_registers() const {
 void X64Backend::Reset() { emitter_.Reset(); }
 
 RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder) {
-  X64Fn fn;
-
-  if (!emitter_.Emit(builder, &fn)) {
+  // allocate block structure at start of code buffer, making for nice data
+  // locality
+  X64Block *block = emitter_.getCurr<X64Block *>();
+  try {
+    emitter_.setSize(emitter_.getSize() + sizeof(X64Block));
+  } catch (const Xbyak::Error &) {
     return nullptr;
   }
 
-  return new X64Block(builder.guest_cycles(), fn);
+  // try to generate the x64 code. if the code buffer overflows let the backend
+  // know so it can reset the cache and try again
+  X64Fn fn;
+  try {
+    fn = emitter_.Emit(builder);
+  } catch (const Xbyak::Error &e) {
+    if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
+      return nullptr;
+    }
+    LOG_FATAL("X64 codegen failure, %s", e.what());
+  }
+
+  // initialize block structure
+  new (block) X64Block(builder.guest_cycles(), fn);
+
+  return block;
 }
 
-void X64Backend::FreeBlock(RuntimeBlock *block) { delete block; }
+void X64Backend::FreeBlock(RuntimeBlock *block) { /*delete block;*/
+}
