@@ -23,9 +23,8 @@ enum {
   MAX_BLOCKS = 0x1000000 >> BLOCK_ADDR_SHIFT,
 };
 
-static inline uint32_t BlockOffset(uint32_t addr) {
-  return (addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT;
-}
+#define BLOCK_OFFSET(addr) \
+  ((addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT)
 
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
                  backend::Backend &backend)
@@ -48,7 +47,7 @@ Runtime::~Runtime() {
 // TODO should the block caching be part of the frontend?
 // this way, the SH4Frontend can cache based on FPU state
 RuntimeBlock *Runtime::GetBlock(uint32_t addr, const void *guest_ctx) {
-  uint32_t offset = BlockOffset(addr);
+  uint32_t offset = BLOCK_OFFSET(addr);
   if (offset >= MAX_BLOCKS) {
     LOG_FATAL("Block requested at 0x%x is outside of the executable space",
               addr);

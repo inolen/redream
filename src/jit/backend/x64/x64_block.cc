@@ -11,7 +11,7 @@ X64Block::X64Block(int guest_cycles, X64Fn fn)
     : RuntimeBlock(guest_cycles), fn_(fn) {}
 
 uint32_t X64Block::Call(Memory *memory, void *guest_ctx) {
-  return fn_(guest_ctx, memory);
+  return fn_(memory, guest_ctx);
 }
 
 void X64Block::Dump() {

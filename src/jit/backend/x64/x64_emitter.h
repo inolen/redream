@@ -19,13 +19,13 @@ enum {
 #else
   STACK_SHADOW_SPACE = 0,
 #endif
-  STACK_OFFSET_GUEST_CONTEXT = STACK_SHADOW_SPACE,
-  STACK_OFFSET_MEMORY = STACK_SHADOW_SPACE + 8,
+  STACK_OFFSET_MEMORY = STACK_SHADOW_SPACE,
+  STACK_OFFSET_GUEST_CONTEXT = STACK_SHADOW_SPACE + 8,
   STACK_OFFSET_LOCALS = STACK_SHADOW_SPACE + 16,
   STACK_SIZE = STACK_OFFSET_LOCALS
 };
 
-typedef uint32_t (*X64Fn)(void *guest_ctx, hw::Memory *memory);
+typedef uint32_t (*X64Fn)(hw::Memory *memory, void *guest_ctx);
 
 class X64Emitter : public Xbyak::CodeGenerator {
  public:

@@ -310,7 +310,9 @@ void SH4::SRUpdated(SH4Context *ctx) {
     self->SetRegisterBank(ctx->sr.RB ? 1 : 0);
   }
 
-  self->UpdatePendingInterrupts();
+  if (ctx->sr.IMASK != ctx->old_sr.IMASK || ctx->sr.BL != ctx->old_sr.BL) {
+    self->UpdatePendingInterrupts();
+  }
 
   ctx->old_sr = ctx->sr;
 }
