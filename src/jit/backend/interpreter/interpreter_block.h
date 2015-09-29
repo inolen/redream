@@ -10,16 +10,12 @@ namespace jit {
 namespace backend {
 namespace interpreter {
 
-class InterpreterBlock : public RuntimeBlock {
- public:
+struct InterpreterBlock : public RuntimeBlock {
   InterpreterBlock(int guest_cycles, IntInstr *instrs, int num_instrs,
                    int locals_size);
 
-  void Dump();
-
- private:
-  static uint32_t Call(hw::Memory *memory, void *guest_ctx,
-                       RuntimeBlock *block);
+  static uint32_t Call(hw::Memory *memory, void *guest_ctx, Runtime *runtime,
+                       RuntimeBlock *block, uint32_t addr);
 
   IntInstr *instrs_;
   int num_instrs_;

@@ -48,4 +48,8 @@ RuntimeBlock *InterpreterBackend::AssembleBlock(ir::IRBuilder &builder) {
                               locals_size);
 }
 
+void InterpreterBackend::DumpBlock(RuntimeBlock *block) {
+  LOG_WARNING("Not implemented");
+}
+
 void InterpreterBackend::FreeBlock(RuntimeBlock *block) { delete block; }

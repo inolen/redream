@@ -15,61 +15,47 @@ using namespace dreavm::jit::backend;
 using namespace dreavm::jit::ir;
 using namespace dreavm::jit::ir::passes;
 
-// executable code sits between 0x0c000000 and 0x0d000000 (16mb). each instr
-// is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
-enum {
-  BLOCK_ADDR_SHIFT = 1,
-  BLOCK_ADDR_MASK = ~0xfc000000,
-  MAX_BLOCKS = 0x1000000 >> BLOCK_ADDR_SHIFT,
-};
-
-#define BLOCK_OFFSET(addr) ((addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT)
-
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
                  backend::Backend &backend)
-    : memory_(memory), frontend_(frontend), backend_(backend) {
-  blocks_ = new RuntimeBlock *[MAX_BLOCKS]();
-
+    : memory_(memory),
+      frontend_(frontend),
+      backend_(backend),
+      lazy_block_(&Runtime::LazyCompile, 0) {
+  // setup optimization passes
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ControlFlowAnalysisPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new LoadStoreEliminationPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(backend_)));
+
+  // initialize all entries in block cache to reference the lazy block
+  blocks_ = new RuntimeBlock *[MAX_BLOCKS];
+  std::fill_n(blocks_, MAX_BLOCKS, &lazy_block_);
 }
 
 Runtime::~Runtime() {
-  ResetBlocks();
+  for (int i = 0; i < MAX_BLOCKS; i++) {
+    if (blocks_[i] == &lazy_block_) {
+      continue;
+    }
+    backend_.FreeBlock(blocks_[i]);
+  }
+
   delete[] blocks_;
 }
 
-// TODO should the block caching be part of the frontend?
-// this way, the SH4Frontend can cache based on FPU state
-RuntimeBlock *Runtime::GetBlock(uint32_t addr, const void *guest_ctx) {
-  uint32_t offset = BLOCK_OFFSET(addr);
-  if (offset >= MAX_BLOCKS) {
-    LOG_FATAL("Block requested at 0x%x is outside of the executable space",
-              addr);
-  }
-
-  RuntimeBlock *block = blocks_[offset];
-  if (block) {
-    return block;
-  }
-
-  return (blocks_[offset] = CompileBlock(addr, guest_ctx));
-}
-
 void Runtime::ResetBlocks() {
-  // reset our local block cache
+  // reset block cache
   for (int i = 0; i < MAX_BLOCKS; i++) {
-    if (blocks_[i]) {
-      backend_.FreeBlock(blocks_[i]);
-      blocks_[i] = nullptr;
+    if (blocks_[i] == &lazy_block_) {
+      continue;
     }
+    backend_.FreeBlock(blocks_[i]);
+    blocks_[i] = &lazy_block_;
   }
 
-  // have the backend reset any data the blocks may have relied on
+  // have the backend reset any underlying data the blocks may have relied on
   backend_.Reset();
 }
 
@@ -98,4 +84,11 @@ RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
   }
 
   return block;
+}
+
+uint32_t Runtime::LazyCompile(Memory *memory, void *guest_ctx, Runtime *runtime,
+                              RuntimeBlock *block, uint32_t addr) {
+  RuntimeBlock *new_block = runtime->CompileBlock(addr, guest_ctx);
+  runtime->blocks_[BLOCK_OFFSET(addr)] = new_block;
+  return new_block->call(memory, guest_ctx, runtime, new_block, addr);
 }

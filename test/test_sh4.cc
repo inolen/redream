@@ -56,7 +56,7 @@ void RunSH4Test(const SH4Test &test) {
     memcpy((uint8_t *)&sh4.ctx_ + reg.offset, &it.second, reg.size);
   }
 
-  sh4.Execute(UINT32_MAX);
+  sh4.Execute(INT_MAX);
 
   // cleanup binary
   delete[] binary;

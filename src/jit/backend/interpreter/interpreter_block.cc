@@ -7,15 +7,14 @@ using namespace dreavm::jit::backend::interpreter;
 
 InterpreterBlock::InterpreterBlock(int guest_cycles, IntInstr *instrs,
                                    int num_instrs, int locals_size)
-    : RuntimeBlock(guest_cycles, &InterpreterBlock::Call),
+    : RuntimeBlock(&InterpreterBlock::Call, guest_cycles),
       instrs_(instrs),
       num_instrs_(num_instrs),
       locals_size_(locals_size) {}
 
-void InterpreterBlock::Dump() { LOG_INFO("Unimplemented"); }
-
 uint32_t InterpreterBlock::Call(Memory *memory, void *guest_ctx,
-                                RuntimeBlock *block) {
+                                Runtime *runtime, RuntimeBlock *block,
+                                uint32_t addr) {
   InterpreterBlock *self = reinterpret_cast<InterpreterBlock *>(block);
   IntValue *registers = reinterpret_cast<IntValue *>(
       alloca(int_num_registers * sizeof(IntValue)));

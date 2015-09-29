@@ -8,7 +8,7 @@
 namespace dreavm {
 namespace jit {
 
-class RuntimeBlock;
+struct RuntimeBlock;
 
 namespace backend {
 
@@ -28,6 +28,7 @@ class Backend {
   virtual void Reset() = 0;
 
   virtual RuntimeBlock *AssembleBlock(ir::IRBuilder &builder) = 0;
+  virtual void DumpBlock(RuntimeBlock *block) = 0;
   virtual void FreeBlock(RuntimeBlock *block) = 0;
 
  protected:

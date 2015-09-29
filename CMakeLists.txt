@@ -124,7 +124,6 @@ set(DREAVM_SOURCES
   src/jit/backend/interpreter/interpreter_block.cc
   src/jit/backend/interpreter/interpreter_emitter.cc
   src/jit/backend/x64/x64_backend.cc
-  src/jit/backend/x64/x64_block.cc
   src/jit/backend/x64/x64_emitter.cc
   src/jit/frontend/sh4/sh4_builder.cc
   src/jit/frontend/sh4/sh4_frontend.cc

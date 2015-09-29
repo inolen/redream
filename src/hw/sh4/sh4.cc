@@ -65,10 +65,10 @@ int SH4::Execute(int cycles) {
   }
 
   while (ctx_.pc && remaining > 0) {
-    RuntimeBlock *block = runtime_.GetBlock(ctx_.pc, &ctx_);
+    RuntimeBlock *block = runtime_.GetBlock(ctx_.pc);
 
-    ctx_.pc = block->call()(&memory_, &ctx_, block);
-    remaining -= block->guest_cycles();
+    ctx_.pc = block->call(&memory_, &ctx_, &runtime_, block, ctx_.pc);
+    remaining -= block->guest_cycles;
 
     CheckPendingCacheReset();
     CheckPendingInterrupts();

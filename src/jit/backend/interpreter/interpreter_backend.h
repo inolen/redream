@@ -22,6 +22,7 @@ class InterpreterBackend : public Backend {
 
   void Reset();
   RuntimeBlock *AssembleBlock(ir::IRBuilder &builder);
+  void DumpBlock(RuntimeBlock *block);
   void FreeBlock(RuntimeBlock *block);
 
  private:

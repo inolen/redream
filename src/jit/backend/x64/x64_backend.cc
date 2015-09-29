@@ -1,6 +1,8 @@
+#include <iomanip>
+#include <sstream>
+#include <beaengine/BeaEngine.h>
 #include "core/core.h"
 #include "jit/backend/x64/x64_backend.h"
-#include "jit/backend/x64/x64_block.h"
 
 using namespace dreavm;
 using namespace dreavm::hw;
@@ -48,9 +50,9 @@ void X64Backend::Reset() { emitter_.Reset(); }
 RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder) {
   // allocate block structure at start of code buffer, making for nice data
   // locality
-  X64Block *block = emitter_.getCurr<X64Block *>();
+  RuntimeBlock *block = emitter_.getCurr<RuntimeBlock *>();
   try {
-    emitter_.setSize(emitter_.getSize() + sizeof(X64Block));
+    emitter_.setSize(emitter_.getSize() + sizeof(RuntimeBlock));
   } catch (const Xbyak::Error &) {
     return nullptr;
   }
@@ -68,9 +70,48 @@ RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder) {
   }
 
   // initialize block structure
-  new (block) X64Block(builder.guest_cycles(), fn);
+  new (block) RuntimeBlock(reinterpret_cast<RuntimeBlockCall>(fn),
+                           builder.guest_cycles());
 
   return block;
+}
+
+void X64Backend::DumpBlock(RuntimeBlock *block) {
+  DISASM dsm;
+  memset(&dsm, 0, sizeof(dsm));
+  dsm.Archi = 64;
+  dsm.EIP = (uintptr_t)block->call;
+  dsm.SecurityBlock = 0;
+  dsm.Options = NasmSyntax | PrefixedNumeral;
+
+  while (true) {
+    int len = Disasm(&dsm);
+    if (len == OUT_OF_BLOCK) {
+      LOG_INFO("Disasm engine is not allowed to read more memory");
+      break;
+    } else if (len == UNKNOWN_OPCODE) {
+      LOG_INFO("Unknown opcode");
+      break;
+    }
+
+    // format instruction binary
+    static const int MAX_INSTR_LENGTH = 15;
+    std::stringstream instr;
+    for (int i = 0; i < MAX_INSTR_LENGTH; i++) {
+      uint32_t v =
+          i < len ? (uint32_t) * reinterpret_cast<uint8_t *>(dsm.EIP + i) : 0;
+      instr << std::hex << std::setw(2) << std::setfill('0') << v;
+    }
+
+    // print out binary / mnemonic
+    LOG_INFO("%s %s", instr.str().c_str(), dsm.CompleteInstr);
+
+    if (dsm.Instruction.BranchType == RetType) {
+      break;
+    }
+
+    dsm.EIP = dsm.EIP + len;
+  }
 }
 
 void X64Backend::FreeBlock(RuntimeBlock *block) { /*delete block;*/
