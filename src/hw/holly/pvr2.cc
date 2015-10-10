@@ -7,11 +7,7 @@ using namespace dreavm::hw::sh4;
 using namespace dreavm::renderer;
 
 PVR2::PVR2(Dreamcast *dc)
-    : dc_(dc),
-      line_timer_(INVALID_HANDLE),
-      current_scanline_(0),
-      fps_(0),
-      vbps_(0) {}
+    : dc_(dc), line_cycles_(0), current_scanline_(0), rps_(0.0f) {}
 
 bool PVR2::Init() {
   scheduler_ = dc_->scheduler();
@@ -25,6 +21,15 @@ bool PVR2::Init() {
   ReconfigureSPG();
 
   return true;
+}
+
+int PVR2::Run(int cycles) {
+  int remaining = cycles;
+  while (remaining >= line_cycles_) {
+    NextScanline();
+    remaining -= line_cycles_;
+  }
+  return cycles - remaining;
 }
 
 uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
@@ -67,12 +72,13 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
     } break;
 
     case STARTRENDER_OFFSET: {
+      // track render stats
       {
         auto now = std::chrono::high_resolution_clock::now();
         auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now - self->last_frame_);
-        self->last_frame_ = now;
-        self->fps_ = 1000000000.0f / delta.count();
+            now - self->last_render_);
+        self->last_render_ = now;
+        self->rps_ = 1000000000.0f / delta.count();
       }
 
       self->ta_->SwapContext(self->dc_->PARAM_BASE.base_address);
@@ -132,39 +138,30 @@ void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr, T value) {
 }
 
 void PVR2::ReconfigureSPG() {
-  static const int PIXEL_CLOCK = 27000000;  // 27mhz
-
-  // FIXME I don't understand vcount here
-  // vcount
-  // Specify "number of lines per field - 1" for the CRT; in interlace mode,
-  // specify "number of lines per field/2 - 1." (default = 0x106)
-  // PAL interlaced = vcount 624, vbstart 620, vbend 44. why isn't vcount ~200?
-  // VGA non-interlaced = vcount 524, vbstart 520, vbend 40
-  int pixel_clock = dc_->FB_R_CTRL.vclk_div ? PIXEL_CLOCK : (PIXEL_CLOCK / 2);
-  int line_clock = pixel_clock / (dc_->SPG_LOAD.hcount + 1);
-
-  // HACK seems to get interlaced mode to vsync reasonably
-  if (dc_->SPG_CONTROL.interlace) {
-    line_clock *= 2;
+  // get and scale pixel clock frequency
+  int pixel_clock = 13500000;
+  if (dc_->FB_R_CTRL.vclk_div) {
+    pixel_clock *= 2;
   }
+
+  // hcount is number of pixel clock cycles per line - 1
+  line_cycles_ = dc_->SPG_LOAD.hcount + 1;
+  if (dc_->SPG_CONTROL.interlace) {
+    line_cycles_ /= 2;
+  }
+
+  // scale line cycles by pvr clock frequency for Run()
+  line_cycles_ *= GetClockFrequency() / pixel_clock;
 
   LOG_INFO(
-      "ReconfigureSPG: pixel_clock %d, line_clock %d, vcount %d, hcount %d, "
+      "ReconfigureSPG: pixel_clock %d, line_cycles %d, vcount %d, hcount %d, "
       "interlace %d, vbstart %d, vbend %d",
-      pixel_clock, line_clock, dc_->SPG_LOAD.vcount, dc_->SPG_LOAD.hcount,
+      pixel_clock, line_cycles_, dc_->SPG_LOAD.vcount, dc_->SPG_LOAD.hcount,
       dc_->SPG_CONTROL.interlace, dc_->SPG_VBLANK.vbstart,
       dc_->SPG_VBLANK.vbend);
-
-  if (line_timer_ != INVALID_HANDLE) {
-    scheduler_->RemoveTimer(line_timer_);
-    line_timer_ = INVALID_HANDLE;
-  }
-
-  line_timer_ = scheduler_->AddTimer(HZ_TO_NANO(line_clock),
-                                     std::bind(&PVR2::LineClockUpdate, this));
 }
 
-void PVR2::LineClockUpdate() {
+void PVR2::NextScanline() {
   uint32_t num_scanlines = dc_->SPG_LOAD.vcount + 1;
   if (current_scanline_ > num_scanlines) {
     current_scanline_ = 0;
@@ -183,7 +180,7 @@ void PVR2::LineClockUpdate() {
   // hblank in
   holly_->RequestInterrupt(HOLLY_INTC_PCHIINT);
 
-  bool was_vsync = dc_->SPG_STATUS.vsync;
+  // bool was_vsync = dc_->SPG_STATUS.vsync;
   dc_->SPG_STATUS.vsync = dc_->SPG_VBLANK.vbstart < dc_->SPG_VBLANK.vbend
                               ? (current_scanline_ >= dc_->SPG_VBLANK.vbstart &&
                                  current_scanline_ < dc_->SPG_VBLANK.vbend)
@@ -191,14 +188,7 @@ void PVR2::LineClockUpdate() {
                                  current_scanline_ < dc_->SPG_VBLANK.vbend);
   dc_->SPG_STATUS.scanline = current_scanline_++;
 
-  if (!was_vsync && dc_->SPG_STATUS.vsync) {
-    // track vblank stats
-    auto now = std::chrono::high_resolution_clock::now();
-    auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        now - last_vblank_);
-    last_vblank_ = now;
-    vbps_ = 1000000000.0f / delta.count();
-
-    // FIXME toggle SPG_STATUS.fieldnum on vblank?
-  }
+  // FIXME toggle SPG_STATUS.fieldnum on vblank?
+  // if (!was_vsync && dc_->SPG_STATUS.vsync) {
+  // }
 }

@@ -53,14 +53,13 @@ bool SH4::Init() {
 
 void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }
 
-int SH4::Execute(int cycles) {
+int SH4::Run(int cycles) {
   PROFILER_RUNTIME("SH4::Execute");
 
   int remaining = cycles;
 
-  // update timers
+  // TMU runs on the peripheral clock which is 50mhz vs our 200mhz
   for (int i = 0; i < 3; i++) {
-    // TMU runs on the peripheral clock which is 50mhz vs our 200mhz
     RunTimer(i, cycles >> 2);
   }
 

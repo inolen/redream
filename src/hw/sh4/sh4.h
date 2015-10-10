@@ -1,7 +1,7 @@
 #ifndef SH4_H
 #define SH4_H
 
-#include "hw/device.h"
+#include "hw/scheduler.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
 struct SH4Test;
@@ -122,7 +122,7 @@ class SH4 : public hw::Device {
 
   bool Init();
   void SetPC(uint32_t pc);
-  int Execute(int cycles);
+  int Run(int cycles);
 
   // DMAC
   void DDT(int channel, DDTRW rw, uint32_t addr);

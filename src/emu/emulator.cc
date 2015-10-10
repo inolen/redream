@@ -13,10 +13,17 @@ using namespace dreavm::renderer;
 using namespace dreavm::sys;
 using namespace dreavm::trace;
 
+// scheduler is ticked at 1000hz, this is fairly arbitrary, but seems to be a
+// good balance of executing cycles / handling interrupts
+static const std::chrono::nanoseconds SCHEDULER_STEP = HZ_TO_NANO(1000);
+
+// process input and render frames at 60hz
+static const std::chrono::nanoseconds FRAME_STEP = HZ_TO_NANO(60);
+
 DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
-Emulator::Emulator() : trace_writer_(nullptr) {
+Emulator::Emulator() : trace_writer_(nullptr), deltas_(), delta_seq_(0) {
   rb_ = new GLBackend(sys_);
   dc_.set_rb(rb_);
 }
@@ -57,27 +64,37 @@ void Emulator::Run(const char *path) {
     }
   }
 
-  static const std::chrono::nanoseconds step = HZ_TO_NANO(60);
-  std::chrono::nanoseconds time_remaining = std::chrono::nanoseconds(0);
   auto current_time = std::chrono::high_resolution_clock::now();
   auto last_time = current_time;
+  auto delta_time = std::chrono::nanoseconds(0);
+
+  auto scheduler_remaining = std::chrono::nanoseconds(0);
+  auto frame_remaining = std::chrono::nanoseconds(0);
 
   while (true) {
     current_time = std::chrono::high_resolution_clock::now();
-    time_remaining += current_time - last_time;
+    delta_time = current_time - last_time;
     last_time = current_time;
 
-    if (time_remaining < step) {
-      continue;
+    scheduler_remaining += delta_time;
+    if (scheduler_remaining >= SCHEDULER_STEP) {
+      scheduler_remaining -= SCHEDULER_STEP;
+
+      auto start = current_time;
+      dc_.scheduler()->Tick(SCHEDULER_STEP);
+      auto end = std::chrono::high_resolution_clock::now();
+
+      // save off delta for speed stats
+      deltas_[delta_seq_++ % MAX_SCHEDULER_DELTAS] = end - start;
     }
 
-    time_remaining -= step;
+    frame_remaining += delta_time;
+    if (frame_remaining >= FRAME_STEP) {
+      frame_remaining -= FRAME_STEP;
 
-    PumpEvents();
-
-    dc_.scheduler()->Tick(step);
-
-    RenderFrame();
+      PumpEvents();
+      RenderFrame();
+    }
   }
 }
 
@@ -250,10 +267,18 @@ void Emulator::RenderFrame() {
     dc_.tile_renderer()->RenderContext(last_context, rb_);
   }
 
+  // calculate scheduler speed
+  auto total_delta = std::chrono::nanoseconds(0);
+  for (unsigned i = 0; i < MAX_SCHEDULER_DELTAS; i++) {
+    total_delta += deltas_[(delta_seq_ + i) % MAX_SCHEDULER_DELTAS];
+  }
+  float speed = ((SCHEDULER_STEP.count() * MAX_SCHEDULER_DELTAS) /
+                 (float)total_delta.count()) *
+                100.0f;
+
   // render stats
   char stats[512];
-  snprintf(stats, sizeof(stats), "%.2f fps, %.2f vbps", dc_.pvr()->fps(),
-           dc_.pvr()->vbps());
+  snprintf(stats, sizeof(stats), "%.2f%%, %.2f rps", speed, dc_.pvr()->rps());
   rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
   // render profiler

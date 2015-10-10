@@ -2,7 +2,7 @@
 #define AICA_H
 
 #include <stdint.h>
-#include "hw/device.h"
+#include "hw/scheduler.h"
 
 namespace dreavm {
 namespace hw {
@@ -17,7 +17,7 @@ class AICA : public hw::Device {
   int GetClockFrequency() { return 22579200; }
 
   bool Init();
-  int Execute(int cycles);
+  int Run(int cycles);
 
   static uint32_t ReadRegister(void *ctx, uint32_t addr);
   static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);

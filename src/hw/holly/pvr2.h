@@ -195,14 +195,16 @@ union TA_ISP_BASE_T {
   };
 };
 
-class PVR2 {
+class PVR2 : public hw::Device {
  public:
   PVR2(hw::Dreamcast *dc);
 
-  float fps() { return fps_; }
-  float vbps() { return vbps_; }
+  float rps() { return rps_; }
+
+  int GetClockFrequency() { return 54000000; }
 
   bool Init();
+  int Run(int cycles);
 
   static uint32_t ReadRegister(void *ctx, uint32_t addr);
   static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
@@ -214,7 +216,7 @@ class PVR2 {
 
  private:
   void ReconfigureSPG();
-  void LineClockUpdate();
+  void NextScanline();
 
   hw::Dreamcast *dc_;
   hw::Scheduler *scheduler_;
@@ -225,12 +227,11 @@ class PVR2 {
   uint8_t *palette_ram_;
   uint8_t *video_ram_;
 
-  hw::TimerHandle line_timer_;
+  int line_cycles_;
   uint32_t current_scanline_;
-  std::chrono::high_resolution_clock::time_point last_frame_;
-  float fps_;
-  std::chrono::high_resolution_clock::time_point last_vblank_;
-  float vbps_;
+
+  std::chrono::high_resolution_clock::time_point last_render_;
+  float rps_;
 };
 }
 }

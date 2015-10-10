@@ -8,6 +8,11 @@
 namespace dreavm {
 namespace emu {
 
+enum {
+  // number of deltas to use for speed stats
+  MAX_SCHEDULER_DELTAS = 1000
+};
+
 class Emulator {
  public:
   Emulator();
@@ -29,6 +34,8 @@ class Emulator {
   hw::Dreamcast dc_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;
+  std::chrono::nanoseconds deltas_[MAX_SCHEDULER_DELTAS];
+  unsigned delta_seq_;
 };
 }
 }

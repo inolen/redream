@@ -118,6 +118,7 @@ bool Dreamcast::Init() {
   }
 
   scheduler_->AddDevice(aica_);
+  scheduler_->AddDevice(pvr_);
   scheduler_->AddDevice(sh4_);
 
   return true;
