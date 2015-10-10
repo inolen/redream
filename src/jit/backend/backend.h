@@ -31,7 +31,7 @@ class Backend {
   virtual void DumpBlock(RuntimeBlock *block) = 0;
   virtual void FreeBlock(RuntimeBlock *block) = 0;
 
-  virtual bool HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) = 0;
+  virtual void HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) = 0;
 
  protected:
   hw::Memory &memory_;

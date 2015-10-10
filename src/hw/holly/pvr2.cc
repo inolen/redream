@@ -85,14 +85,6 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
   }
 }
 
-void PVR2::WritePalette(void *ctx, uint32_t addr, uint32_t value) {
-  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
-
-  *reinterpret_cast<uint32_t *>(&self->palette_ram_[addr]) = value;
-
-  self->texcache_->CheckPaletteWrite(addr);
-}
-
 // the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
 // accessing it:
 // 0x04000000 -> 0x047fffff, 32-bit sequential access
@@ -112,27 +104,6 @@ void PVR2::WritePalette(void *ctx, uint32_t addr, uint32_t value) {
 static uint32_t MAP64(uint32_t addr) {
   return (((addr & 0x003ffffc) << 1) + ((addr & 0x00400000) >> 20) +
           (addr & 0x3));
-}
-
-template uint8_t PVR2::ReadVRam(void *ctx, uint32_t addr);
-template uint16_t PVR2::ReadVRam(void *ctx, uint32_t addr);
-template uint32_t PVR2::ReadVRam(void *ctx, uint32_t addr);
-template <typename T>
-T PVR2::ReadVRam(void *ctx, uint32_t addr) {
-  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
-
-  return *reinterpret_cast<T *>(&self->video_ram_[addr]);
-}
-
-template void PVR2::WriteVRam(void *ctx, uint32_t addr, uint16_t value);
-template void PVR2::WriteVRam(void *ctx, uint32_t addr, uint32_t value);
-template <typename T>
-void PVR2::WriteVRam(void *ctx, uint32_t addr, T value) {
-  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
-
-  *reinterpret_cast<T *>(&self->video_ram_[addr]) = value;
-
-  self->texcache_->CheckTextureWrite(addr);
 }
 
 template uint8_t PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr);
@@ -158,8 +129,6 @@ void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr, T value) {
   addr = MAP64(addr);
 
   *reinterpret_cast<T *>(&self->video_ram_[addr]) = value;
-
-  self->texcache_->CheckTextureWrite(addr);
 }
 
 void PVR2::ReconfigureSPG() {

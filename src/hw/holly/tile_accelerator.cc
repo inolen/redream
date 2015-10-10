@@ -307,8 +307,6 @@ void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
 
   *reinterpret_cast<uint32_t *>(&self->video_ram_[addr]) = value;
-
-  self->texcache_->CheckTextureWrite(addr);
 }
 
 TileContextIterator TileAccelerator::FindContext(uint32_t addr) {

@@ -153,16 +153,6 @@ bool Dreamcast::MapMemory() {
                   &Holly::WriteRegister<uint32_t>,  //
                   nullptr);
 
-  memory_->Handle(PVR_PALETTE_START, PVR_PALETTE_SIZE, MIRROR_MASK, pvr(),
-                  nullptr,              //
-                  nullptr,              //
-                  nullptr,              //
-                  nullptr,              //
-                  nullptr,              //
-                  nullptr,              //
-                  &PVR2::WritePalette,  //
-                  nullptr);
-
   memory_->Handle(PVR_REG_START, PVR_REG_SIZE, MIRROR_MASK, pvr(),
                   nullptr,               //
                   nullptr,               //
@@ -198,16 +188,6 @@ bool Dreamcast::MapMemory() {
                  MIRROR_MASK);
 
   video_ram_ = memory_->physical_base() + PVR_VRAM32_START;
-
-  memory_->Handle(PVR_VRAM32_START, PVR_VRAM32_SIZE, MIRROR_MASK, pvr(),
-                  &PVR2::ReadVRam<uint8_t>,    //
-                  &PVR2::ReadVRam<uint16_t>,   //
-                  &PVR2::ReadVRam<uint32_t>,   //
-                  nullptr,                     //
-                  nullptr,                     //
-                  &PVR2::WriteVRam<uint16_t>,  //
-                  &PVR2::WriteVRam<uint32_t>,  //
-                  nullptr);
 
   memory_->Handle(PVR_VRAM64_START, PVR_VRAM64_SIZE, MIRROR_MASK, pvr(),
                   &PVR2::ReadVRamInterleaved<uint8_t>,    //

@@ -8,7 +8,7 @@ namespace dreavm {
 namespace hw {
 
 typedef uint8_t TableHandle;
-typedef bool (*VirtualHandler)(void *, uintptr_t, uintptr_t);
+typedef void (*VirtualHandler)(void *, uintptr_t, uintptr_t);
 typedef uint8_t (*R8Handler)(void *, uint32_t);
 typedef uint16_t (*R16Handler)(void *, uint32_t);
 typedef uint32_t (*R32Handler)(void *, uint32_t);
@@ -108,7 +108,7 @@ class Memory {
   int num_banks_;
   MemoryBank banks_[MAX_HANDLES];
 
-  static bool HandleAccessFault(void *ctx, void *data, uintptr_t rip,
+  static void HandleAccessFault(void *ctx, void *data, uintptr_t rip,
                                 uintptr_t fault_addr);
 
   bool CreateAddressSpace();

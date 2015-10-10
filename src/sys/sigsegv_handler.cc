@@ -28,8 +28,9 @@ SIGSEGVHandler *SIGSEGVHandler::instance() {
 
 SIGSEGVHandler::~SIGSEGVHandler() { instance_ = nullptr; }
 
-void SIGSEGVHandler::AddWatch(void *ptr, size_t size, WatchHandler handler,
-                              void *ctx, void *data) {
+WatchHandle SIGSEGVHandler::AddAccessFaultWatch(void *ptr, size_t size,
+                                                WatchHandler handler, void *ctx,
+                                                void *data) {
   // page align the range to be watched
   size_t page_size = GetPageSize();
   ptr = reinterpret_cast<void *>(dreavm::align(
@@ -38,30 +39,38 @@ void SIGSEGVHandler::AddWatch(void *ptr, size_t size, WatchHandler handler,
 
   uintptr_t start = reinterpret_cast<uintptr_t>(ptr);
   uintptr_t end = start + size - 1;
-  watches_.Insert(start, end,
-                  Watch(WATCH_DEFAULT, handler, ctx, data, ptr, size));
+  WatchHandle handle = watches_.Insert(
+      start, end, Watch(WATCH_ACCESS_FAULT, handler, ctx, data, ptr, size));
 
   UpdateStats();
+
+  return handle;
 }
 
-void SIGSEGVHandler::AddSingleWriteWatch(void *ptr, size_t size,
-                                         WatchHandler handler, void *ctx,
-                                         void *data) {
+WatchHandle SIGSEGVHandler::AddSingleWriteWatch(void *ptr, size_t size,
+                                                WatchHandler handler, void *ctx,
+                                                void *data) {
   // page align the range to be watched
   size_t page_size = GetPageSize();
   ptr = reinterpret_cast<void *>(dreavm::align(
       reinterpret_cast<uintptr_t>(ptr), static_cast<uintptr_t>(page_size)));
   size = dreavm::align(size, page_size);
 
-  // write protect the pages
+  // disable writing to the pages
   CHECK(ProtectPages(ptr, size, ACC_READONLY));
 
   uintptr_t start = reinterpret_cast<uintptr_t>(ptr);
   uintptr_t end = start + size - 1;
-  watches_.Insert(start, end,
-                  Watch(WATCH_SINGLE_WRITE, handler, ctx, data, ptr, size));
+  WatchHandle handle = watches_.Insert(
+      start, end, Watch(WATCH_SINGLE_WRITE, handler, ctx, data, ptr, size));
 
   UpdateStats();
+
+  return handle;
+}
+
+void SIGSEGVHandler::RemoveWatch(WatchHandle handle) {
+  watches_.Remove(handle);
 }
 
 bool SIGSEGVHandler::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
@@ -75,9 +84,10 @@ bool SIGSEGVHandler::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
 
     watch.handler(watch.ctx, watch.data, rip, fault_addr);
 
-    // remove single instance watches
     if (watch.type == WATCH_SINGLE_WRITE) {
+      // restore page permissions
       CHECK(ProtectPages(watch.ptr, watch.size, ACC_READWRITE));
+
       watches_.Remove(node);
     }
   }

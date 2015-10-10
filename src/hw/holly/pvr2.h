@@ -207,13 +207,6 @@ class PVR2 {
   static uint32_t ReadRegister(void *ctx, uint32_t addr);
   static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
 
-  static void WritePalette(void *ctx, uint32_t addr, uint32_t value);
-
-  template <typename T>
-  static T ReadVRam(void *ctx, uint32_t addr);
-  template <typename T>
-  static void WriteVRam(void *ctx, uint32_t addr, T value);
-
   template <typename T>
   static T ReadVRamInterleaved(void *ctx, uint32_t addr);
   template <typename T>

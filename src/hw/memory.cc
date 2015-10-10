@@ -134,9 +134,9 @@ bool Memory::Init() {
     return false;
   }
 
-  SIGSEGVHandler::instance()->AddWatch(virtual_base_, ADDRESS_SPACE_SIZE,
-                                       &Memory::HandleAccessFault, this,
-                                       nullptr);
+  SIGSEGVHandler::instance()->AddAccessFaultWatch(
+      virtual_base_, ADDRESS_SPACE_SIZE, &Memory::HandleAccessFault, this,
+      nullptr);
 
   return true;
 }
@@ -253,15 +253,14 @@ void Memory::W64(uint32_t addr, uint64_t value) {
   WriteBytes<uint64_t, &MemoryBank::w64>(addr, value);
 }
 
-bool Memory::HandleAccessFault(void *ctx, void *data, uintptr_t rip,
+void Memory::HandleAccessFault(void *ctx, void *data, uintptr_t rip,
                                uintptr_t fault_addr) {
   Memory *memory = reinterpret_cast<Memory *>(ctx);
 
   CHECK_NOTNULL(memory->virtual_handler_);
   CHECK_NOTNULL(memory->virtual_handler_ctx_);
 
-  return memory->virtual_handler_(memory->virtual_handler_ctx_, rip,
-                                  fault_addr);
+  memory->virtual_handler_(memory->virtual_handler_ctx_, rip, fault_addr);
 }
 
 bool Memory::CreateAddressSpace() {

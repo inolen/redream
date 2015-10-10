@@ -78,7 +78,7 @@ class Runtime {
   void ResetBlocks();
 
  private:
-  static bool HandleAccessFault(void *ctx, uintptr_t rip, uintptr_t fault_addr);
+  static void HandleAccessFault(void *ctx, uintptr_t rip, uintptr_t fault_addr);
   static uint32_t LazyCompile(hw::Memory *memory, void *guest_ctx,
                               Runtime *runtime, RuntimeBlock *block,
                               uint32_t addr);

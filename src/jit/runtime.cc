@@ -62,10 +62,10 @@ void Runtime::ResetBlocks() {
   backend_.Reset();
 }
 
-bool Runtime::HandleAccessFault(void *ctx, uintptr_t rip,
+void Runtime::HandleAccessFault(void *ctx, uintptr_t rip,
                                 uintptr_t fault_addr) {
   Runtime *runtime = reinterpret_cast<Runtime *>(ctx);
-  return runtime->backend_.HandleAccessFault(rip, fault_addr);
+  runtime->backend_.HandleAccessFault(rip, fault_addr);
 }
 
 uint32_t Runtime::LazyCompile(Memory *memory, void *guest_ctx, Runtime *runtime,

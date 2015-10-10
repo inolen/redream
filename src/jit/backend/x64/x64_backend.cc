@@ -120,7 +120,7 @@ void X64Backend::FreeBlock(RuntimeBlock *block) {
   // delete block;
 }
 
-bool X64Backend::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
+void X64Backend::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
   size_t original_size = emitter_.getSize();
   size_t offset = rip - reinterpret_cast<uint64_t>(emitter_.getCode());
   emitter_.setSize(offset);
@@ -137,6 +137,4 @@ bool X64Backend::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
   emitter_.nop();
 
   emitter_.setSize(original_size);
-
-  return true;
 }

@@ -12,9 +12,9 @@ namespace sys {
 class SIGSEGVHandler;
 extern SIGSEGVHandler *CreateSIGSEGVHandler();
 
-typedef std::function<bool(void *, void *, uintptr_t, uintptr_t)> WatchHandler;
+enum WatchType { WATCH_ACCESS_FAULT, WATCH_SINGLE_WRITE };
 
-enum WatchType { WATCH_DEFAULT, WATCH_SINGLE_WRITE };
+typedef std::function<void(void *, void *, uintptr_t, uintptr_t)> WatchHandler;
 
 struct Watch {
   Watch(WatchType type, WatchHandler handler, void *ctx, void *data, void *ptr,
@@ -35,6 +35,7 @@ struct Watch {
 };
 
 typedef IntervalTree<Watch> WatchTree;
+typedef WatchTree::node_type *WatchHandle;
 
 class SIGSEGVHandler {
  public:
@@ -42,12 +43,14 @@ class SIGSEGVHandler {
 
   virtual ~SIGSEGVHandler();
 
-  void AddWatch(void *ptr, size_t size, WatchHandler handler, void *ctx,
-                void *data);
-  // void AddSingleReadWatch(void *ptr, size_t size, WatchHandler handler,
+  WatchHandle AddAccessFaultWatch(void *ptr, size_t size, WatchHandler handler,
+                                  void *ctx, void *data);
+  // void AddReadWatch(void *ptr, size_t size, WatchHandler handler,
   //                         void *ctx, void *data);
-  void AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
-                           void *ctx, void *data);
+  WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
+                                  void *ctx, void *data);
+  void RemoveWatch(WatchHandle handle);
+
   bool HandleAccessFault(uintptr_t rip, uintptr_t fault_addr);
 
  protected:

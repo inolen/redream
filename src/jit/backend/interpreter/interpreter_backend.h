@@ -25,7 +25,7 @@ class InterpreterBackend : public Backend {
   void DumpBlock(RuntimeBlock *block);
   void FreeBlock(RuntimeBlock *block);
 
-  bool HandleAccessFault(uintptr_t rip, uintptr_t fault_addr);
+  void HandleAccessFault(uintptr_t rip, uintptr_t fault_addr);
 
  private:
   InterpreterEmitter emitter_;
