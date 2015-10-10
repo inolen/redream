@@ -44,7 +44,7 @@ set(SDL_SHARED OFF CACHE BOOL "")
 set(SDL_STATIC ON CACHE BOOL "")
 if(APPLE)
   set(SDL_FRAMEWORK_CARBON 1)
-endif(APPLE)
+endif()
 add_subdirectory(deps/sdl2-2.0.3 EXCLUDE_FROM_ALL)
 list(APPEND DREAVM_INCLUDE_DIRS deps/sdl2-2.0.3/include)
 list(APPEND DREAVM_LIBS SDL2main SDL2-static)
@@ -169,6 +169,11 @@ if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL 
 
   if(BUILD_TYPE STREQUAL "debug")
     set(DREAVM_COMPILE_FLAGS ${DREAVM_COMPILE_FLAGS} -fno-omit-frame-pointer)
+  endif()
+
+  # used by shm_open / shm_unlink on linux
+  if(NOT WIN32 AND NOT APPLE)
+    list(APPEND DREAVM_LIBS rt)
   endif()
 else()
   set(DREAVM_COMPILE_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)

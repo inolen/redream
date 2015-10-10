@@ -1,3 +1,4 @@
+#include <math.h>
 #include <unordered_map>
 #include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/interpreter/interpreter_block.h"

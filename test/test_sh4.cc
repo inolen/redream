@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <memory>
 #include <unordered_map>
 #include "gtest/gtest.h"

@@ -13,34 +13,34 @@ std::unordered_map<int, std::string> g_shared_handles;
 
 static mode_t AccessToModeFlags(PageAccess access) {
   switch (access) {
-    case ACC_NONE:
-      return 0;
     case ACC_READONLY:
       return S_IREAD;
     case ACC_READWRITE:
       return S_IREAD | S_IWRITE;
+    default:
+      return 0;
   }
 }
 
 static int AccessToOpenFlags(PageAccess access) {
   switch (access) {
-    case ACC_NONE:
-      return 0;
     case ACC_READONLY:
       return O_RDONLY;
     case ACC_READWRITE:
       return O_RDWR;
+    default:
+      return 0;
   }
 }
 
 static int AccessToProtectionFlags(PageAccess access) {
   switch (access) {
-    case ACC_NONE:
-      return PROT_NONE;
     case ACC_READONLY:
       return PROT_READ;
     case ACC_READWRITE:
       return PROT_READ | PROT_WRITE;
+    default:
+      return PROT_NONE;
   }
 }
 

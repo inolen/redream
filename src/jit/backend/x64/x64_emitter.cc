@@ -1,3 +1,4 @@
+#include <math.h>
 #include "core/core.h"
 #include "emu/profiler.h"
 #include "jit/backend/x64/x64_backend.h"
