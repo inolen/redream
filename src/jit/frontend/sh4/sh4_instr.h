@@ -9,7 +9,7 @@ namespace frontend {
 namespace sh4 {
 
 enum Opcode {
-#define SH4_INSTR(name, instr_code, cycles, flags) OP_##name,
+#define SH4_INSTR(name, desc, instr_code, cycles, flags) OP_##name,
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
   NUM_OPCODES
@@ -37,9 +37,9 @@ struct InstrType {
     }
   }
 
-  InstrType(const char *name, Opcode op, const char *instr_code, int cycles,
-            unsigned flags)
-      : name(name), op(op), cycles(cycles), flags(flags) {
+  InstrType(Opcode op, const char *name, const char *desc,
+            const char *instr_code, int cycles, unsigned flags)
+      : op(op), name(name), desc(desc), cycles(cycles), flags(flags) {
     GetParamMask(instr_code, 0, &opcode_mask, nullptr);
     GetParamMask(instr_code, 'i', &imm_mask, &imm_shift);
     GetParamMask(instr_code, 'd', &disp_mask, &disp_shift);
@@ -48,8 +48,9 @@ struct InstrType {
     param_mask = imm_mask | disp_mask | Rm_mask | Rn_mask;
   }
 
-  const char *name;
   Opcode op;
+  const char *name;
+  const char *desc;
   uint16_t opcode_mask;
   uint16_t imm_mask, imm_shift;
   uint16_t disp_mask, disp_shift;
@@ -60,29 +61,21 @@ struct InstrType {
   unsigned flags;
 };
 
-extern InstrType instrs[NUM_OPCODES];
-extern InstrType *instr_lookup[UINT16_MAX];
-
 struct Instr {
-  static inline InstrType *GetType(uint16_t code) { return instr_lookup[code]; }
-
-  Instr() {}
-  Instr(uint32_t addr, uint16_t code) : addr(addr), code(code) {
-    type = GetType(code);
-    Rm = (code & type->Rm_mask) >> type->Rm_shift;
-    Rn = (code & type->Rn_mask) >> type->Rn_shift;
-    disp = (code & type->disp_mask) >> type->disp_shift;
-    imm = (code & type->imm_mask) >> type->imm_shift;
-  }
-
-  InstrType *type;
   uint32_t addr;
-  uint16_t code;
+  uint16_t opcode;
+  InstrType *type;
   uint16_t Rm;
   uint16_t Rn;
   uint16_t disp;
   uint16_t imm;
 };
+
+extern InstrType instrs[NUM_OPCODES];
+extern InstrType *instr_lookup[UINT16_MAX];
+
+bool Disasm(Instr *i);
+void Dump(Instr *i);
 }
 }
 }

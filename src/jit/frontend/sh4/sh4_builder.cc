@@ -17,12 +17,12 @@ typedef void (*EmitCallback)(SH4Builder &b, const FPUState &,
 #define EMITTER(name) \
   void Emit_OP_##name(SH4Builder &b, const FPUState &fpu, const sh4::Instr &i)
 
-#define SH4_INSTR(name, instr_code, cycles, flags) static EMITTER(name);
+#define SH4_INSTR(name, desc, instr_code, cycles, flags) static EMITTER(name);
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 
 EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
-#define SH4_INSTR(name, instr_code, cycles, flags) &Emit_OP_##name,
+#define SH4_INSTR(name, desc, instr_code, cycles, flags) &Emit_OP_##name,
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
@@ -38,6 +38,7 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
   uint32_t addr = start_addr;
+  Instr instr;
 
   // use fpu state when generating code. we could emit branches that check this
   // state in the actual IR, but that's extremely slow
@@ -45,14 +46,20 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   fpu_state_.single_precision_pair = ctx.fpscr.SZ;
 
   while (true) {
-    Instr instr(addr, memory_.R16(addr));
+    instr.addr = addr;
+    instr.opcode = memory_.R16(instr.addr);
+    CHECK(Disasm(&instr));
+
     bool delayed = instr.type->flags & OP_FLAG_DELAYED;
 
     guest_cycles_ += instr.type->cycles;
 
     // save off the delay instruction if we need to
     if (delayed) {
-      delay_instr_ = Instr(addr + 2, memory_.R16(addr + 2));
+      delay_instr_.addr = addr + 2;
+      delay_instr_.opcode = memory_.R16(delay_instr_.addr);
+      CHECK(Disasm(&delay_instr_));
+
       has_delay_instr_ = true;
 
       guest_cycles_ += delay_instr_.type->cycles;
@@ -517,10 +524,10 @@ EMITTER(MOVLLG0) {
   b.StoreRegister(0, v);
 }
 
-// MOVA    @(disp,PC),R0
+// MOVA    (disp,PC),R0
 EMITTER(MOVA) {
-  Value *addr = b.AllocConstant((uint32_t)((i.disp * 4) + (i.addr & ~3) + 4));
-  b.StoreRegister(0, addr);
+  uint32_t addr = (i.disp * 4) + (i.addr & ~3) + 4;
+  b.StoreRegister(0, b.AllocConstant(addr));
 }
 
 // MOVT    Rn
@@ -1181,7 +1188,7 @@ EMITTER(SHLR16) {
 // 1000 1011 dddd dddd  3/1     -
 // BF      disp
 EMITTER(BF) {
-  uint32_t dest_addr = i.addr + 4 + (int8_t)i.disp * 2;
+  uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   Value *cond = b.LoadT();
   b.BranchFalse(cond, b.AllocConstant(dest_addr));
 }
@@ -1194,7 +1201,7 @@ EMITTER(BFS) {
   b.EmitDelayInstr();
   Value *cond = b.LoadPreserved();
 
-  uint32_t dest_addr = i.addr + 4 + (int8_t)i.disp * 2;
+  uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   b.BranchFalse(cond, b.AllocConstant(dest_addr));
 }
 
@@ -1202,7 +1209,7 @@ EMITTER(BFS) {
 // 1000 1001 dddd dddd  3/1     -
 // BT      disp
 EMITTER(BT) {
-  uint32_t dest_addr = i.addr + 4 + (int8_t)i.disp * 2;
+  uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   Value *cond = b.LoadT();
   b.BranchTrue(cond, b.AllocConstant(dest_addr));
 }
@@ -1215,7 +1222,7 @@ EMITTER(BTS) {
   b.EmitDelayInstr();
   Value *cond = b.LoadPreserved();
 
-  uint32_t dest_addr = i.addr + 4 + (int8_t)i.disp * 2;
+  uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   b.BranchTrue(cond, b.AllocConstant(dest_addr));
 }
 
@@ -1227,7 +1234,7 @@ EMITTER(BRA) {
 
   int32_t disp = ((i.disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
-  uint32_t dest_addr = i.addr + 4 + disp * 2;
+  uint32_t dest_addr = (disp * 2) + i.addr + 4;
   b.Branch(b.AllocConstant(dest_addr));
 }
 
@@ -1351,7 +1358,7 @@ EMITTER(LDCDBR) {
   b.StoreContext(offsetof(SH4Context, dbr), v);
 }
 
-// LDCRBANK   Rm,Rn_BANK
+// LDC.L   Rm,Rn_BANK
 EMITTER(LDCRBANK) {
   Block *rb1 = b.AppendBlock();
   Block *rb0 = b.AppendBlock();
@@ -1579,6 +1586,7 @@ EMITTER(RTE) {
   b.Branch(spc);
 }
 
+// SETS
 EMITTER(SETS) { b.StoreSR(b.Or(b.LoadSR(), b.AllocConstant(S))); }
 
 // SETT
@@ -1802,7 +1810,7 @@ EMITTER(FLDI1) { b.StoreRegisterF(i.Rn, b.AllocConstant(0x3F800000)); }
 // FMOV    XDm,DRn PR=1      XDm -> DRn 1111nnn0mmm11100
 // FMOV    DRm,XDn PR=1      DRm -> XDn 1111nnn1mmm01100
 // FMOV    XDm,XDn PR=1      XDm -> XDn 1111nnn1mmm11100
-EMITTER(FMOV) {
+EMITTER(FMOV0) {
   if (fpu.double_precision || fpu.single_precision_pair) {
     if (i.Rm & 1) {
       if (i.Rn & 1) {
@@ -1831,7 +1839,7 @@ EMITTER(FMOV) {
 // FMOV    @Rm,XDn PR=0 SZ=1 1111nnn1mmmm1000
 // FMOV    @Rm,XDn PR=1      1111nnn1mmmm1000
 // FMOV    @Rm,DRn PR=1      1111nnn0mmmm1000
-EMITTER(FMOVLD) {
+EMITTER(FMOV1) {
   Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
 
   if (fpu.double_precision) {
@@ -1863,7 +1871,7 @@ EMITTER(FMOVLD) {
 // FMOV    @(R0,Rm),DRn PR=0 SZ=1 1111nnn0mmmm0110
 // FMOV    @(R0,Rm),XDn PR=0 SZ=1 1111nnn1mmmm0110
 // FMOV    @(R0,Rm),XDn PR=1      1111nnn1mmmm0110
-EMITTER(FMOVILD) {
+EMITTER(FMOV2) {
   Value *addr =
       b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rm, VALUE_I32));
 
@@ -1891,7 +1899,7 @@ EMITTER(FMOVILD) {
 // FMOV    @Rm+,DRn PR=0 SZ=1 1111nnn0mmmm1001
 // FMOV    @Rm+,XDn PR=0 SZ=1 1111nnn1mmmm1001
 // FMOV    @Rm+,XDn PR=1      1111nnn1mmmm1001
-EMITTER(FMOVRS) {
+EMITTER(FMOV3) {
   Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
 
   // FMOV with PR=1 assumes the values are word-swapped in memory
@@ -1921,7 +1929,7 @@ EMITTER(FMOVRS) {
 // FMOV    DRm,@Rn PR=0 SZ=1 1111nnnnmmm01010
 // FMOV    XDm,@Rn PR=0 SZ=1 1111nnnnmmm11010
 // FMOV    XDm,@Rn PR=1      1111nnnnmmm11010
-EMITTER(FMOVST) {
+EMITTER(FMOV4) {
   Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
 
   if (fpu.double_precision) {
@@ -1947,7 +1955,7 @@ EMITTER(FMOVST) {
 // FMOV    DRm,@-Rn PR=0 SZ=1 1111nnnnmmm01011
 // FMOV    XDm,@-Rn PR=0 SZ=1 1111nnnnmmm11011
 // FMOV    XDm,@-Rn PR=1      1111nnnnmmm11011
-EMITTER(FMOVSV) {
+EMITTER(FMOV5) {
   if (fpu.double_precision) {
     Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(8));
     b.StoreRegister(i.Rn, addr);
@@ -1977,7 +1985,7 @@ EMITTER(FMOVSV) {
 // FMOV    DRm,@(R0,Rn) PR=0 SZ=1 1111nnnnmmm00111
 // FMOV    XDm,@(R0,Rn) PR=0 SZ=1 1111nnnnmmm10111
 // FMOV    XDm,@(R0,Rn) PR=1      1111nnnnmmm10111
-EMITTER(FMOVIST) {
+EMITTER(FMOV6) {
   Value *addr =
       b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rn, VALUE_I32));
 
