@@ -32,7 +32,11 @@ struct IntervalNode : public IntrusiveTreeNode<IntervalNode<T>> {
 };
 
 template <typename T>
-class IntervalTree : public IntrusiveTree<IntervalNode<T>> {
+class IntervalTree : public IntrusiveTree<IntervalTree<T>, IntervalNode<T>> {
+  // let base tree access augment callbacks
+  friend class IntrusiveTree<IntervalTree<T>, IntervalNode<T>>;
+
+  // iterate over intervals within [low, high]
   template <bool is_const_iterator>
   class shared_range_iterator
       : public std::iterator<std::forward_iterator_tag, T> {
@@ -166,20 +170,6 @@ class IntervalTree : public IntrusiveTree<IntervalNode<T>> {
     return nullptr;
   }
 
- protected:
-  void AugmentPropagate(node_type *n) {
-    while (n) {
-      FixCounts(n);
-      n = n->parent;
-    }
-  }
-
-  void AugmentRotate(node_type *oldn, node_type *newn) {
-    FixCounts(oldn);
-    FixCounts(newn);
-    FixCounts(newn->parent);
-  }
-
  private:
   int Size(node_type *n) { return n ? n->num : 0; }
   int Height(node_type *n) { return n ? n->height : 0; }
@@ -193,6 +183,19 @@ class IntervalTree : public IntrusiveTree<IntervalNode<T>> {
     n->num = 1 + Size(n->left) + Size(n->right);
     n->height = 1 + std::max(Height(n->left), Height(n->right));
     n->max = std::max(std::max(n->high, Max(n->left)), Max(n->right));
+  }
+
+  void AugmentPropagate(node_type *n) {
+    while (n) {
+      FixCounts(n);
+      n = n->parent;
+    }
+  }
+
+  void AugmentRotate(node_type *oldn, node_type *newn) {
+    FixCounts(oldn);
+    FixCounts(newn);
+    FixCounts(newn->parent);
   }
 
   void Clear(node_type *n) {

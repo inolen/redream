@@ -14,18 +14,35 @@ struct IntrusiveTreeNode {
   IntrusiveTreeNode()
       : parent(nullptr), left(nullptr), right(nullptr), color(RED) {}
 
+  T *grandparent() {
+    CHECK_NOTNULL(parent);          // not the root node
+    CHECK_NOTNULL(parent->parent);  // not child of root
+    return parent->parent;
+  }
+
+  T *sibling() {
+    CHECK_NOTNULL(parent);  // root node has no sibling
+    if (this == parent->left) {
+      return parent->right;
+    } else {
+      return parent->left;
+    }
+  }
+
+  T *uncle() {
+    CHECK_NOTNULL(parent);          // root node has no uncle
+    CHECK_NOTNULL(parent->parent);  // children of root have no uncle
+    return parent->sibling();
+  }
+
   T *parent, *left, *right;
   Color color;
 };
 
-template <typename T>
+template <typename DerivedTree, typename T>
 class IntrusiveTree {
  protected:
   IntrusiveTree() : root_(nullptr) {}
-  virtual ~IntrusiveTree() {}
-
-  virtual void AugmentPropagate(T *n) = 0;
-  virtual void AugmentRotate(T *oldn, T *newn) = 0;
 
   T *Link(T *n) {
     // set initial root
@@ -40,7 +57,7 @@ class IntrusiveTree {
     // force root to black
     root_->color = BLACK;
 
-    AugmentPropagate(n->parent);
+    derived().AugmentPropagate(n->parent);
 
 #ifdef VERIFY_INTRUSIVE_TREE
     VerifyProperties();
@@ -74,7 +91,7 @@ class IntrusiveTree {
     }
 
     // fix up each node in the parent chain
-    AugmentPropagate(n->parent);
+    derived().AugmentPropagate(n->parent);
 
 #ifdef VERIFY_INTRUSIVE_TREE
     VerifyProperties();
@@ -84,27 +101,6 @@ class IntrusiveTree {
   T *root_;
 
  private:
-  static inline T *grandparent(T *n) {
-    CHECK_NOTNULL(n);
-    CHECK_NOTNULL(n->parent);          // not the root node
-    CHECK_NOTNULL(n->parent->parent);  // not child of root
-    return n->parent->parent;
-  }
-  static inline T *sibling(T *n) {
-    CHECK_NOTNULL(n);
-    CHECK_NOTNULL(n->parent);  // root node has no sibling
-    if (n == n->parent->left) {
-      return n->parent->right;
-    } else {
-      return n->parent->left;
-    }
-  }
-  static inline T *uncle(T *n) {
-    CHECK_NOTNULL(n);
-    CHECK_NOTNULL(n->parent);          // root node has no uncle
-    CHECK_NOTNULL(n->parent->parent);  // children of root have no uncle
-    return sibling(n->parent);
-  }
   static inline Color color(T *n) { return n ? n->color : BLACK; }
 
   static void VerifyProperty1(T *root) { CHECK_EQ(color(root), BLACK); }
@@ -150,6 +146,8 @@ class IntrusiveTree {
     return path_black_count;
   }
 
+  DerivedTree &derived() { return *static_cast<DerivedTree *>(this); }
+
   void VerifyProperties() {
     VerifyProperty1(root_);
     VerifyProperty2(root_);
@@ -169,7 +167,7 @@ class IntrusiveTree {
     r->left = n;
     r->left->parent = r;
 
-    AugmentRotate(n, r);
+    derived().AugmentRotate(n, r);
   }
 
   //   n         l
@@ -186,7 +184,7 @@ class IntrusiveTree {
     l->right = n;
     l->right->parent = l;
 
-    AugmentRotate(n, l);
+    derived().AugmentRotate(n, l);
   }
 
   void ReplaceNode(T *oldn, T *newn) {
@@ -303,11 +301,11 @@ class IntrusiveTree {
   // the red-black tree properties; we recursively invoke this procedure on it
   // from case 1 to deal with this.
   void LinkCase3(T *n) {
-    if (color(uncle(n)) == RED) {
+    if (color(n->uncle()) == RED) {
       n->parent->color = BLACK;
-      uncle(n)->color = BLACK;
-      grandparent(n)->color = RED;
-      LinkCase1(grandparent(n));
+      n->uncle()->color = BLACK;
+      n->grandparent()->color = RED;
+      LinkCase1(n->grandparent());
       return;
     }
 
@@ -322,10 +320,10 @@ class IntrusiveTree {
   // Neither of these fixes the properties, but they put the tree in the correct
   // form to apply case 5.
   void LinkCase4(T *n) {
-    if (n == n->parent->right && n->parent == grandparent(n)->left) {
+    if (n == n->parent->right && n->parent == n->grandparent()->left) {
       RotateLeft(n->parent);
       n = n->left;
-    } else if (n == n->parent->left && n->parent == grandparent(n)->right) {
+    } else if (n == n->parent->left && n->parent == n->grandparent()->right) {
       RotateRight(n->parent);
       n = n->right;
     }
@@ -344,12 +342,12 @@ class IntrusiveTree {
   // Now the properties are satisfied and all cases have been covered.
   void LinkCase5(T *n) {
     n->parent->color = BLACK;
-    grandparent(n)->color = RED;
-    if (n == n->parent->left && n->parent == grandparent(n)->left) {
-      RotateRight(grandparent(n));
+    n->grandparent()->color = RED;
+    if (n == n->parent->left && n->parent == n->grandparent()->left) {
+      RotateRight(n->grandparent());
     } else {
-      CHECK(n == n->parent->right && n->parent == grandparent(n)->right);
-      RotateLeft(grandparent(n));
+      CHECK(n == n->parent->right && n->parent == n->grandparent()->right);
+      RotateLeft(n->grandparent());
     }
   }
 
@@ -368,9 +366,9 @@ class IntrusiveTree {
   // parent of its former parent. This does not restore the tree properties, but
   // reduces the problem to one of the remaining cases.
   void UnlinkCase2(T *n) {
-    if (color(sibling(n)) == RED) {
+    if (color(n->sibling()) == RED) {
       n->parent->color = RED;
-      sibling(n)->color = BLACK;
+      n->sibling()->color = BLACK;
       if (n == n->parent->left) {
         RotateLeft(n->parent);
       } else {
@@ -386,9 +384,10 @@ class IntrusiveTree {
   // have one less black node than before the deletion, so we must recursively
   // run this procedure from case 1 on N's parent.
   void UnlinkCase3(T *n) {
-    if (color(n->parent) == BLACK && color(sibling(n)) == BLACK &&
-        color(sibling(n)->left) == BLACK && color(sibling(n)->right) == BLACK) {
-      sibling(n)->color = RED;
+    if (color(n->parent) == BLACK && color(n->sibling()) == BLACK &&
+        color(n->sibling()->left) == BLACK &&
+        color(n->sibling()->right) == BLACK) {
+      n->sibling()->color = RED;
       UnlinkCase1(n->parent);
       return;
     }
@@ -400,9 +399,10 @@ class IntrusiveTree {
   // exchange the colors of the sibling and parent; this restores the tree
   // properties.
   void UnlinkCase4(T *n) {
-    if (color(n->parent) == RED && color(sibling(n)) == BLACK &&
-        color(sibling(n)->left) == BLACK && color(sibling(n)->right) == BLACK) {
-      sibling(n)->color = RED;
+    if (color(n->parent) == RED && color(n->sibling()) == BLACK &&
+        color(n->sibling()->left) == BLACK &&
+        color(n->sibling()->right) == BLACK) {
+      n->sibling()->color = RED;
       n->parent->color = BLACK;
       return;
     }
@@ -419,17 +419,18 @@ class IntrusiveTree {
   // right sibling and rotate left at S.
   // Both of these function to reduce us to the situation described in case 6.
   void UnlinkCase5(T *n) {
-    if (n == n->parent->left && color(sibling(n)) == BLACK &&
-        color(sibling(n)->left) == RED && color(sibling(n)->right) == BLACK) {
-      sibling(n)->color = RED;
-      sibling(n)->left->color = BLACK;
-      RotateRight(sibling(n));
-    } else if (n == n->parent->right && color(sibling(n)) == BLACK &&
-               color(sibling(n)->right) == RED &&
-               color(sibling(n)->left) == BLACK) {
-      sibling(n)->color = RED;
-      sibling(n)->right->color = BLACK;
-      RotateLeft(sibling(n));
+    if (n == n->parent->left && color(n->sibling()) == BLACK &&
+        color(n->sibling()->left) == RED &&
+        color(n->sibling()->right) == BLACK) {
+      n->sibling()->color = RED;
+      n->sibling()->left->color = BLACK;
+      RotateRight(n->sibling());
+    } else if (n == n->parent->right && color(n->sibling()) == BLACK &&
+               color(n->sibling()->right) == RED &&
+               color(n->sibling()->left) == BLACK) {
+      n->sibling()->color = RED;
+      n->sibling()->right->color = BLACK;
+      RotateLeft(n->sibling());
     }
 
     UnlinkCase6(n);
@@ -454,15 +455,15 @@ class IntrusiveTree {
   // S's left child has become a child of N's parent during the rotation and so
   // is unaffected.
   void UnlinkCase6(T *n) {
-    sibling(n)->color = color(n->parent);
+    n->sibling()->color = color(n->parent);
     n->parent->color = BLACK;
     if (n == n->parent->left) {
-      CHECK_EQ(color(sibling(n)->right), RED);
-      sibling(n)->right->color = BLACK;
+      CHECK_EQ(color(n->sibling()->right), RED);
+      n->sibling()->right->color = BLACK;
       RotateLeft(n->parent);
     } else {
-      CHECK_EQ(color(sibling(n)->left), RED);
-      sibling(n)->left->color = BLACK;
+      CHECK_EQ(color(n->sibling()->left), RED);
+      n->sibling()->left->color = BLACK;
       RotateRight(n->parent);
     }
   }
