@@ -2,51 +2,11 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include "core/core.h"
-#include "sys/files.h"
-#ifdef PLATFORM_WINDOWS
-#include <userenv.h>
-#else
-#include <pwd.h>
-#include <unistd.h>
-#endif
+#include "sys/filesystem.h"
 
 namespace dreavm {
 namespace sys {
-
-static bool GetUserDir(char *userdir, size_t size) {
-#ifdef PLATFORM_WINDOWS
-  HANDLE accessToken = NULL;
-  HANDLE processHandle = GetCurrentProcess();
-  if (!OpenProcessToken(processHandle, TOKEN_QUERY, &accessToken)) {
-    return false;
-  }
-
-  if (!GetUserProfileDirectory(accessToken, (LPSTR)userdir, (LPDWORD)&size)) {
-    CloseHandle(accessToken);
-    return false;
-  }
-
-  CloseHandle(accessToken);
-  return true;
-#else
-  const char *home = getenv("HOME");
-
-  if (home) {
-    strncpy(userdir, home, size);
-    return true;
-  }
-
-  struct passwd *pw = getpwuid(getuid());
-  if (pw->pw_dir) {
-    strncpy(userdir, pw->pw_dir, size);
-    return true;
-  }
-
-  return false;
-#endif
-}
 
 const char *GetAppDir() {
   static char appdir[PATH_MAX] = {};
@@ -114,25 +74,6 @@ void BaseName(const char *path, char *base, size_t size) {
   size_t n = std::min(len - i, size - 1);
   strncpy(base, path + i, n);
   base[n] = 0;
-}
-
-bool Exists(const char *path) {
-#ifdef PLATFORM_WINDOWS
-  struct _stat buffer;
-  return _stat(path, &buffer) == 0;
-#else
-  struct stat buffer;
-  return stat(path, &buffer) == 0;
-#endif
-}
-
-bool CreateDir(const char *path) {
-#ifdef PLATFORM_WINDOWS
-  int res = _mkdir(path);
-#else
-  int res = mkdir(path, 0755);
-#endif
-  return res == 0 || errno == EEXIST;
 }
 }
 }

@@ -1,6 +1,6 @@
 #include <unordered_map>
 #include "core/core.h"
-#include "sys/files.h"
+#include "sys/filesystem.h"
 #include "trace/trace.h"
 
 using namespace dreavm;

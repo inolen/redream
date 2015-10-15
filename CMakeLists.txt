@@ -139,7 +139,7 @@ set(DREAVM_SOURCES
   src/jit/runtime.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
-  src/sys/files.cc
+  src/sys/filesystem.cc
   src/sys/keys.cc
   src/sys/sigsegv_handler.cc
   src/sys/system.cc
@@ -148,12 +148,15 @@ set(DREAVM_SOURCES
   src/main.cc)
 
 if(WIN32)
+  list(APPEND DREAVM_SOURCES src/sys/filesystem_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_win.cc)
 elseif(APPLE)
+  list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_mac.cc)
 else()
+  list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_linux.cc)
 endif()

@@ -23,6 +23,7 @@
 namespace dreavm {
 namespace sys {
 
+bool GetUserDir(char *userdir, size_t size);
 const char *GetAppDir();
 void EnsureAppDirExists();
 

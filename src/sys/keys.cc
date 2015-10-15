@@ -1,7 +1,8 @@
 #include "core/core.h"
 #include "sys/keys.h"
 
-using namespace dreavm::sys;
+namespace dreavm {
+namespace sys {
 
 struct Key {
   Keycode code;
@@ -330,7 +331,7 @@ static Key keys[] = {{K_UNKNOWN, "unknown"},
                      {K_AXIS14, "axis14"},
                      {K_AXIS15, "axis15"}};
 
-Keycode dreavm::sys::GetKeycodeByName(const char *keyname) {
+Keycode GetKeycodeByName(const char *keyname) {
   char buffer[256] = {0};
   int len = 0;
 
@@ -350,7 +351,7 @@ Keycode dreavm::sys::GetKeycodeByName(const char *keyname) {
   return K_UNKNOWN;
 }
 
-const char *dreavm::sys::GetNameByKeycode(Keycode keycode) {
+const char *GetNameByKeycode(Keycode keycode) {
   static const char *unknown = "unknown";
 
   for (size_t i = 0, l = sizeof(keys) / sizeof(Key); i < l; i++) {
@@ -362,4 +363,6 @@ const char *dreavm::sys::GetNameByKeycode(Keycode keycode) {
   }
 
   return unknown;
+}
+}
 }

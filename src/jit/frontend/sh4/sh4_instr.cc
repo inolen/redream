@@ -114,42 +114,35 @@ void Dump(Instr *i) {
 
   // (disp:4,rn)
   value_len = snprintf(value, sizeof(value), "(0x%x,rn)", i->disp * movsize);
-  CHECK_EQ(strnrep(buffer, sizeof(buffer), "(disp:4,rn)", 11, value,
-  value_len),
+  CHECK_EQ(strnrep(buffer, sizeof(buffer), "(disp:4,rn)", 11, value, value_len),
            0);
 
   // (disp:4,rm)
   value_len = snprintf(value, sizeof(value), "(0x%x,rm)", i->disp * movsize);
-  CHECK_EQ(strnrep(buffer, sizeof(buffer), "(disp:4,rm)", 11, value,
-  value_len),
+  CHECK_EQ(strnrep(buffer, sizeof(buffer), "(disp:4,rm)", 11, value, value_len),
            0);
 
   // (disp:8,gbr)
-  value_len = snprintf(value, sizeof(value), "(0x%x,gbr)", i->disp *
-  movsize);
+  value_len = snprintf(value, sizeof(value), "(0x%x,gbr)", i->disp * movsize);
   CHECK_EQ(
-      strnrep(buffer, sizeof(buffer), "(disp:8,gbr)", 12, value, value_len),
-      0);
+      strnrep(buffer, sizeof(buffer), "(disp:8,gbr)", 12, value, value_len), 0);
 
   // (disp:8,pc)
   value_len = snprintf(value, sizeof(value), "(0x%08x)",
                        (i->disp * movsize) + (i->addr & pcmask) + 4);
-  CHECK_EQ(strnrep(buffer, sizeof(buffer), "(disp:8,pc)", 11, value,
-  value_len),
+  CHECK_EQ(strnrep(buffer, sizeof(buffer), "(disp:8,pc)", 11, value, value_len),
            0);
 
   // disp:8
   value_len = snprintf(value, sizeof(value), "0x%08x",
                        ((int8_t)i->disp * 2) + i->addr + 4);
-  CHECK_EQ(strnrep(buffer, sizeof(buffer), "disp:8", 6, value, value_len),
-  0);
+  CHECK_EQ(strnrep(buffer, sizeof(buffer), "disp:8", 6, value, value_len), 0);
 
   // disp:12
   value_len =
       snprintf(value, sizeof(value), "0x%08x",
                (((int32_t)(i->disp & 0xfff) << 20) >> 20) + i->addr + 4);
-  CHECK_EQ(strnrep(buffer, sizeof(buffer), "disp:12", 7, value, value_len),
-  0);
+  CHECK_EQ(strnrep(buffer, sizeof(buffer), "disp:12", 7, value, value_len), 0);
 
   // drm
   value_len = snprintf(value, sizeof(value), "dr%d", i->Rm);
