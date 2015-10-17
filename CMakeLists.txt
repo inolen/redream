@@ -142,7 +142,7 @@ set(DREAVM_SOURCES
   src/sys/filesystem.cc
   src/sys/keycode.cc
   src/sys/segfault_handler.cc
-  src/sys/system.cc
+  src/sys/window.cc
   src/trace/trace.cc
   src/trace/trace_viewer.cc
   src/main.cc)

@@ -2,7 +2,7 @@
 #include <GL/glew.h>
 #include <SDL_opengl.h>
 #include "core/core.h"
-#include "sys/system.h"
+#include "sys/window.h"
 
 #define DEFAULT_VIDEO_WIDTH 800
 #define DEFAULT_VIDEO_HEIGHT 600
@@ -10,31 +10,31 @@
 using namespace dreavm;
 using namespace dreavm::sys;
 
-static inline SystemEvent MakeKeyEvent(Keycode code, int16_t value) {
-  SystemEvent ev;
-  ev.type = SE_KEY;
+static inline WindowEvent MakeKeyEvent(Keycode code, int16_t value) {
+  WindowEvent ev;
+  ev.type = WE_KEY;
   ev.key.code = code;
   ev.key.value = value;
   return ev;
 }
 
-static inline SystemEvent MakeMouseMoveEvent(int x, int y) {
-  SystemEvent ev;
-  ev.type = SE_MOUSEMOVE;
+static inline WindowEvent MakeMouseMoveEvent(int x, int y) {
+  WindowEvent ev;
+  ev.type = WE_MOUSEMOVE;
   ev.mousemove.x = x;
   ev.mousemove.y = y;
   return ev;
 }
 
-static inline SystemEvent MakeResizeEvent(int width, int height) {
-  SystemEvent ev;
-  ev.type = SE_RESIZE;
+static inline WindowEvent MakeResizeEvent(int width, int height) {
+  WindowEvent ev;
+  ev.type = WE_RESIZE;
   ev.resize.width = width;
   ev.resize.height = height;
   return ev;
 }
 
-System::System()
+Window::Window()
     : video_width_(DEFAULT_VIDEO_WIDTH),
       video_height_(DEFAULT_VIDEO_HEIGHT),
       window_(nullptr),
@@ -42,14 +42,14 @@ System::System()
       joystick_(nullptr),
       events_(MAX_EVENTS) {}
 
-System::~System() {
+Window::~Window() {
   GLDestroyContext();
   DestroyInput();
   DestroyWindow();
   DestroySDL();
 }
 
-bool System::Init() {
+bool Window::Init() {
   if (!InitSDL()) {
     return false;
   }
@@ -65,9 +65,9 @@ bool System::Init() {
   return true;
 }
 
-void System::PumpEvents() { PumpSDLEvents(); }
+void Window::PumpEvents() { PumpSDLEvents(); }
 
-bool System::PollEvent(SystemEvent *ev) {
+bool Window::PollEvent(WindowEvent *ev) {
   if (events_.Empty()) {
     return false;
   }
@@ -78,7 +78,7 @@ bool System::PollEvent(SystemEvent *ev) {
   return true;
 }
 
-bool System::GLInitContext(int *width, int *height) {
+bool Window::GLInitContext(int *width, int *height) {
   // need at least a 3.3 core context for our shaders
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -111,16 +111,16 @@ bool System::GLInitContext(int *width, int *height) {
   return true;
 }
 
-void System::GLDestroyContext() {
+void Window::GLDestroyContext() {
   if (glcontext_) {
     SDL_GL_DeleteContext(glcontext_);
     glcontext_ = nullptr;
   }
 }
 
-void System::GLSwapBuffers() { SDL_GL_SwapWindow(window_); }
+void Window::GLSwapBuffers() { SDL_GL_SwapWindow(window_); }
 
-bool System::InitSDL() {
+bool Window::InitSDL() {
   if (SDL_Init(0) < 0) {
     LOG_WARNING("SDL initialization failed: %s", SDL_GetError());
     return false;
@@ -129,9 +129,9 @@ bool System::InitSDL() {
   return true;
 }
 
-void System::DestroySDL() { SDL_Quit(); }
+void Window::DestroySDL() { SDL_Quit(); }
 
-bool System::InitWindow() {
+bool Window::InitWindow() {
   if (SDL_InitSubSystem(SDL_INIT_VIDEO) < 0) {
     LOG_WARNING("Video initialization failed: %s", SDL_GetError());
     return false;
@@ -148,14 +148,14 @@ bool System::InitWindow() {
   return true;
 }
 
-void System::DestroyWindow() {
+void Window::DestroyWindow() {
   if (window_) {
     SDL_DestroyWindow(window_);
     window_ = nullptr;
   }
 }
 
-bool System::InitInput() {
+bool Window::InitInput() {
   if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) < 0) {
     LOG_WARNING("Input initialization failed: %s", SDL_GetError());
     return false;
@@ -164,13 +164,13 @@ bool System::InitInput() {
   return true;
 }
 
-void System::DestroyInput() {
+void Window::DestroyInput() {
   DestroyJoystick();
 
   SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
 }
 
-void System::InitJoystick() {
+void Window::InitJoystick() {
   DestroyJoystick();
 
   // open the first connected joystick
@@ -184,14 +184,14 @@ void System::InitJoystick() {
   }
 }
 
-void System::DestroyJoystick() {
+void Window::DestroyJoystick() {
   if (joystick_) {
     SDL_JoystickClose(joystick_);
     joystick_ = nullptr;
   }
 }
 
-void System::QueueEvent(const SystemEvent &ev) {
+void Window::QueueEvent(const WindowEvent &ev) {
   if (events_.Full()) {
     LOG_WARNING("System event overflow");
     return;
@@ -200,7 +200,7 @@ void System::QueueEvent(const SystemEvent &ev) {
   events_.PushBack(ev);
 }
 
-Keycode System::TranslateSDLKey(SDL_Keysym keysym) {
+Keycode Window::TranslateSDLKey(SDL_Keysym keysym) {
   Keycode out = K_UNKNOWN;
 
   if (keysym.sym >= SDLK_SPACE && keysym.sym <= SDLK_z) {
@@ -728,7 +728,7 @@ Keycode System::TranslateSDLKey(SDL_Keysym keysym) {
   return out;
 }
 
-void System::PumpSDLEvents() {
+void Window::PumpSDLEvents() {
   SDL_Event ev;
 
   while (SDL_PollEvent(&ev)) {

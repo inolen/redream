@@ -14,10 +14,10 @@ enum {
   NUM_JOYSTICK_AXES = (K_AXIS15 - K_AXIS0) + 1,
   NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1
 };
-enum SystemEventType { SE_KEY, SE_MOUSEMOVE, SE_RESIZE };
+enum WindowEventType { WE_KEY, WE_MOUSEMOVE, WE_RESIZE };
 
-struct SystemEvent {
-  SystemEventType type;
+struct WindowEvent {
+  WindowEventType type;
   union {
     struct {
       Keycode code;
@@ -35,15 +35,15 @@ struct SystemEvent {
   };
 };
 
-class System : public renderer::GLContext {
+class Window : public renderer::GLContext {
  public:
-  System();
-  ~System();
+  Window();
+  ~Window();
 
   bool Init();
 
   void PumpEvents();
-  bool PollEvent(SystemEvent *ev);
+  bool PollEvent(WindowEvent *ev);
 
   bool GLInitContext(int *width, int *height);
   void GLDestroyContext();
@@ -59,7 +59,7 @@ class System : public renderer::GLContext {
   void InitJoystick();
   void DestroyJoystick();
 
-  void QueueEvent(const SystemEvent &ev);
+  void QueueEvent(const WindowEvent &ev);
 
   Keycode TranslateSDLKey(SDL_Keysym keysym);
   void PumpSDLEvents();
@@ -69,7 +69,7 @@ class System : public renderer::GLContext {
   SDL_Window *window_;
   SDL_GLContext glcontext_;
   SDL_Joystick *joystick_;
-  RingBuffer<SystemEvent> events_;
+  RingBuffer<WindowEvent> events_;
 };
 }
 }

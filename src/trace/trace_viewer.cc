@@ -43,7 +43,7 @@ TextureHandle TraceTextureCache::GetTexture(
 }
 
 TraceViewer::TraceViewer() : tile_renderer_(texcache_) {
-  rb_ = new GLBackend(sys_);
+  rb_ = new GLBackend(wnd_);
   current_ctx_ = new TileContext();
 }
 
@@ -70,7 +70,7 @@ void TraceViewer::Run(const char *path) {
 }
 
 bool TraceViewer::Init() {
-  if (!sys_.Init()) {
+  if (!wnd_.Init()) {
     return false;
   }
 
@@ -101,13 +101,13 @@ bool TraceViewer::Parse(const char *path) {
 }
 
 void TraceViewer::PumpEvents() {
-  SystemEvent ev;
+  WindowEvent ev;
 
-  sys_.PumpEvents();
+  wnd_.PumpEvents();
 
-  while (sys_.PollEvent(&ev)) {
+  while (wnd_.PollEvent(&ev)) {
     switch (ev.type) {
-      case SE_KEY: {
+      case WE_KEY: {
         if (ev.key.code == K_LEFT && ev.key.value) {
           PrevContext();
         } else if (ev.key.code == K_RIGHT && ev.key.value) {

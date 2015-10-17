@@ -24,7 +24,7 @@ DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
 Emulator::Emulator() : trace_writer_(nullptr), deltas_(), delta_seq_(0) {
-  rb_ = new GLBackend(sys_);
+  rb_ = new GLBackend(wnd_);
   dc_.set_rb(rb_);
 }
 
@@ -34,7 +34,7 @@ Emulator::~Emulator() {
 }
 
 void Emulator::Run(const char *path) {
-  if (!sys_.Init()) {
+  if (!wnd_.Init()) {
     return;
   }
 
@@ -197,13 +197,13 @@ bool Emulator::LaunchGDI(const char *path) {
 }
 
 void Emulator::PumpEvents() {
-  SystemEvent ev;
+  WindowEvent ev;
 
-  sys_.PumpEvents();
+  wnd_.PumpEvents();
 
-  while (sys_.PollEvent(&ev)) {
+  while (wnd_.PollEvent(&ev)) {
     switch (ev.type) {
-      case SE_KEY: {
+      case WE_KEY: {
         // let the profiler take a stab at the input first
         if (!Profiler::instance()->HandleInput(ev.key.code, ev.key.value)) {
           // debug tracing
@@ -219,11 +219,11 @@ void Emulator::PumpEvents() {
         }
       } break;
 
-      case SE_MOUSEMOVE: {
+      case WE_MOUSEMOVE: {
         Profiler::instance()->HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
       } break;
 
-      case SE_RESIZE: {
+      case WE_RESIZE: {
         rb_->ResizeVideo(ev.resize.width, ev.resize.height);
       } break;
     }
