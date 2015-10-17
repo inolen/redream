@@ -6,8 +6,8 @@
 #include <stb_truetype.h>
 #include <unordered_map>
 #include "renderer/backend.h"
-#include "renderer/gl_context.h"
 #include "renderer/gl_shader.h"
+#include "sys/window.h"
 
 namespace dreavm {
 namespace renderer {
@@ -55,7 +55,7 @@ struct BackendState {
 
 class GLBackend : public Backend {
  public:
-  GLBackend(GLContext &ctx);
+  GLBackend(sys::Window &window);
   ~GLBackend();
 
   int video_width() { return state_.video_width; }
@@ -84,11 +84,14 @@ class GLBackend : public Backend {
   void EndFrame();
 
  private:
-  void InitTextures();
+  bool InitContext();
+  void DestroyContext();
+
+  void CreateTextures();
   void DestroyTextures();
-  void InitShaders();
+  void CreateShaders();
   void DestroyShaders();
-  void InitVertexBuffers();
+  void CreateVertexBuffers();
   void DestroyVertexBuffers();
   void DestroyFonts();
 
@@ -107,8 +110,8 @@ class GLBackend : public Backend {
   Vertex2D *AllocVertices2D(const Surface2D &desc, int count);
   void Flush2D();
 
-  GLContext &ctx_;
-  bool initialized_;
+  sys::Window &window_;
+  SDL_GLContext ctx_;
   BackendState state_;
   GLuint textures_[MAX_TEXTURES];
   GLuint white_tex_;

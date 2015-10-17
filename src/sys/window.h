@@ -3,7 +3,6 @@
 
 #include <SDL.h>
 #include "core/ring_buffer.h"
-#include "renderer/gl_context.h"
 #include "sys/keycode.h"
 
 namespace dreavm {
@@ -14,6 +13,7 @@ enum {
   NUM_JOYSTICK_AXES = (K_AXIS15 - K_AXIS0) + 1,
   NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1
 };
+
 enum WindowEventType { WE_KEY, WE_MOUSEMOVE, WE_RESIZE };
 
 struct WindowEvent {
@@ -35,27 +35,20 @@ struct WindowEvent {
   };
 };
 
-class Window : public renderer::GLContext {
+class Window {
  public:
+  SDL_Window *handle() { return window_; }
+  int width() { return width_; }
+  int height() { return height_; }
+
   Window();
   ~Window();
 
   bool Init();
-
   void PumpEvents();
   bool PollEvent(WindowEvent *ev);
 
-  bool GLInitContext(int *width, int *height);
-  void GLDestroyContext();
-  void GLSwapBuffers();
-
  private:
-  bool InitSDL();
-  void DestroySDL();
-  bool InitWindow();
-  void DestroyWindow();
-  bool InitInput();
-  void DestroyInput();
   void InitJoystick();
   void DestroyJoystick();
 
@@ -64,10 +57,9 @@ class Window : public renderer::GLContext {
   Keycode TranslateSDLKey(SDL_Keysym keysym);
   void PumpSDLEvents();
 
-  int video_width_;
-  int video_height_;
   SDL_Window *window_;
-  SDL_GLContext glcontext_;
+  int width_;
+  int height_;
   SDL_Joystick *joystick_;
   RingBuffer<WindowEvent> events_;
 };

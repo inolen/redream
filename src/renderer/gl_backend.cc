@@ -8,6 +8,7 @@
 
 using namespace dreavm;
 using namespace dreavm::renderer;
+using namespace dreavm::sys;
 
 #include "inconsolata_ttf.inc"
 #include "renderer/ta.glsl"
@@ -58,34 +59,29 @@ static GLenum blend_funcs[] = {
     GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA,
     GL_DST_COLOR, GL_ONE_MINUS_DST_COLOR};
 
-GLBackend::GLBackend(GLContext &ctx)
-    : ctx_(ctx),
-      initialized_(false),
+GLBackend::GLBackend(Window &window)
+    : window_(window),
+      ctx_(nullptr),
       textures_{0},
       num_verts2d_(0),
       num_surfs2d_(0) {}
 
 GLBackend::~GLBackend() {
-  if (!initialized_) {
-    return;
-  }
-
   DestroyFonts();
   DestroyVertexBuffers();
   DestroyShaders();
   DestroyTextures();
+  DestroyContext();
 }
 
 bool GLBackend::Init() {
-  if (!ctx_.GLInitContext(&state_.video_width, &state_.video_height)) {
+  if (!InitContext()) {
     return false;
   }
 
-  initialized_ = true;
-
-  InitTextures();
-  InitShaders();
-  InitVertexBuffers();
+  CreateTextures();
+  CreateShaders();
+  CreateVertexBuffers();
   SetupDefaultState();
 
   return true;
@@ -346,10 +342,53 @@ void GLBackend::RenderSurfaces(const Eigen::Matrix4f &projection,
 void GLBackend::EndFrame() {
   Flush2D();
 
-  ctx_.GLSwapBuffers();
+  SDL_GL_SwapWindow(window_.handle());
 }
 
-void GLBackend::InitTextures() {
+bool GLBackend::InitContext() {
+  // need at least a 3.3 core context for our shaders
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+  // request a 24-bit depth buffer. 16-bits isn't enough precision when
+  // unprojecting dreamcast coordinates, see TileRenderer::GetProjectionMatrix
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+  ctx_ = SDL_GL_CreateContext(window_.handle());
+  if (!ctx_) {
+    LOG_WARNING("OpenGL context creation failed: %s", SDL_GetError());
+    return false;
+  }
+
+  // link in gl functions at runtime
+  glewExperimental = GL_TRUE;
+  GLenum err = glewInit();
+  if (err != GLEW_OK) {
+    LOG_WARNING("GLEW initialization failed: %s", glewGetErrorString(err));
+    return false;
+  }
+
+  // disable vsync
+  SDL_GL_SetSwapInterval(0);
+
+  // set default width / height
+  state_.video_width = window_.width();
+  state_.video_height = window_.height();
+
+  return true;
+}
+
+void GLBackend::DestroyContext() {
+  if (!ctx_) {
+    return;
+  }
+
+  SDL_GL_DeleteContext(ctx_);
+  ctx_ = nullptr;
+}
+
+void GLBackend::CreateTextures() {
   uint8_t pixels[64 * 64 * 4];
   memset(pixels, 0xff, sizeof(pixels));
   glGenTextures(1, &white_tex_);
@@ -362,6 +401,10 @@ void GLBackend::InitTextures() {
 }
 
 void GLBackend::DestroyTextures() {
+  if (!ctx_) {
+    return;
+  }
+
   glDeleteTextures(1, &white_tex_);
 
   for (int i = 1; i < MAX_TEXTURES; i++) {
@@ -372,7 +415,7 @@ void GLBackend::DestroyTextures() {
   }
 }
 
-void GLBackend::InitShaders() {
+void GLBackend::CreateShaders() {
   if (!CompileProgram(&ta_program_, nullptr, ta_vp, ta_fp)) {
     LOG_FATAL("Failed to compile ta shader.");
   }
@@ -383,11 +426,15 @@ void GLBackend::InitShaders() {
 }
 
 void GLBackend::DestroyShaders() {
+  if (!ctx_) {
+    return;
+  }
+
   DestroyProgram(&ta_program_);
   DestroyProgram(&ui_program_);
 }
 
-void GLBackend::InitVertexBuffers() {
+void GLBackend::CreateVertexBuffers() {
   //
   // UI vao
   //
@@ -450,6 +497,10 @@ void GLBackend::InitVertexBuffers() {
 }
 
 void GLBackend::DestroyVertexBuffers() {
+  if (!ctx_) {
+    return;
+  }
+
   glDeleteBuffers(1, &ui_vbo_);
   glDeleteVertexArrays(1, &ui_vao_);
 
@@ -458,6 +509,10 @@ void GLBackend::DestroyVertexBuffers() {
 }
 
 void GLBackend::DestroyFonts() {
+  if (!ctx_) {
+    return;
+  }
+
   for (auto it : fonts_) {
     delete it.second;
   }

@@ -1,11 +1,9 @@
 #include <stdlib.h>
-#include <GL/glew.h>
-#include <SDL_opengl.h>
 #include "core/core.h"
 #include "sys/window.h"
 
-#define DEFAULT_VIDEO_WIDTH 800
-#define DEFAULT_VIDEO_HEIGHT 600
+#define DEFAULT_WIDTH 800
+#define DEFAULT_HEIGHT 600
 
 using namespace dreavm;
 using namespace dreavm::sys;
@@ -35,30 +33,34 @@ static inline WindowEvent MakeResizeEvent(int width, int height) {
 }
 
 Window::Window()
-    : video_width_(DEFAULT_VIDEO_WIDTH),
-      video_height_(DEFAULT_VIDEO_HEIGHT),
-      window_(nullptr),
-      glcontext_(nullptr),
+    : window_(nullptr),
+      width_(DEFAULT_WIDTH),
+      height_(DEFAULT_HEIGHT),
       joystick_(nullptr),
       events_(MAX_EVENTS) {}
 
 Window::~Window() {
-  GLDestroyContext();
-  DestroyInput();
-  DestroyWindow();
-  DestroySDL();
+  DestroyJoystick();
+
+  if (window_) {
+    SDL_DestroyWindow(window_);
+    window_ = nullptr;
+  }
+
+  SDL_Quit();
 }
 
 bool Window::Init() {
-  if (!InitSDL()) {
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {
+    LOG_WARNING("SDL initialization failed: %s", SDL_GetError());
     return false;
   }
 
-  if (!InitWindow()) {
-    return false;
-  }
-
-  if (!InitInput()) {
+  window_ = SDL_CreateWindow("dreavm", SDL_WINDOWPOS_UNDEFINED,
+                             SDL_WINDOWPOS_UNDEFINED, width_, height_,
+                             SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+  if (!window_) {
+    LOG_WARNING("Window creation failed: %s", SDL_GetError());
     return false;
   }
 
@@ -76,98 +78,6 @@ bool Window::PollEvent(WindowEvent *ev) {
   events_.PopFront();
 
   return true;
-}
-
-bool Window::GLInitContext(int *width, int *height) {
-  // need at least a 3.3 core context for our shaders
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
-  // request a 24-bit depth buffer. 16-bits isn't enough precision when
-  // unprojecting dreamcast coordinates, see TileRenderer::GetProjectionMatrix
-  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-
-  glcontext_ = SDL_GL_CreateContext(window_);
-  if (!glcontext_) {
-    LOG_WARNING("OpenGL context creation failed: %s");
-    return false;
-  }
-
-  // link in gl functions at runtime
-  glewExperimental = GL_TRUE;
-  GLenum err = glewInit();
-  if (err != GLEW_OK) {
-    LOG_WARNING("GLEW initialization failed: %s", glewGetErrorString(err));
-    return false;
-  }
-
-  // disable vsync
-  SDL_GL_SetSwapInterval(0);
-
-  *width = video_width_;
-  *height = video_height_;
-
-  return true;
-}
-
-void Window::GLDestroyContext() {
-  if (glcontext_) {
-    SDL_GL_DeleteContext(glcontext_);
-    glcontext_ = nullptr;
-  }
-}
-
-void Window::GLSwapBuffers() { SDL_GL_SwapWindow(window_); }
-
-bool Window::InitSDL() {
-  if (SDL_Init(0) < 0) {
-    LOG_WARNING("SDL initialization failed: %s", SDL_GetError());
-    return false;
-  }
-
-  return true;
-}
-
-void Window::DestroySDL() { SDL_Quit(); }
-
-bool Window::InitWindow() {
-  if (SDL_InitSubSystem(SDL_INIT_VIDEO) < 0) {
-    LOG_WARNING("Video initialization failed: %s", SDL_GetError());
-    return false;
-  }
-
-  window_ = SDL_CreateWindow(
-      "dreavm", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, video_width_,
-      video_height_, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
-  if (!window_) {
-    LOG_WARNING("Window creation failed: %s", SDL_GetError());
-    return false;
-  }
-
-  return true;
-}
-
-void Window::DestroyWindow() {
-  if (window_) {
-    SDL_DestroyWindow(window_);
-    window_ = nullptr;
-  }
-}
-
-bool Window::InitInput() {
-  if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) < 0) {
-    LOG_WARNING("Input initialization failed: %s", SDL_GetError());
-    return false;
-  }
-
-  return true;
-}
-
-void Window::DestroyInput() {
-  DestroyJoystick();
-
-  SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
 }
 
 void Window::InitJoystick() {
@@ -817,10 +727,10 @@ void Window::PumpSDLEvents() {
       case SDL_WINDOWEVENT:
         switch (ev.window.event) {
           case SDL_WINDOWEVENT_RESIZED: {
-            video_width_ = ev.window.data1;
-            video_height_ = ev.window.data2;
+            width_ = ev.window.data1;
+            height_ = ev.window.data2;
 
-            QueueEvent(MakeResizeEvent(video_width_, video_height_));
+            QueueEvent(MakeResizeEvent(width_, height_));
           } break;
         }
         break;
