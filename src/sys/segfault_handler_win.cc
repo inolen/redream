@@ -1,11 +1,11 @@
 #include <windows.h>
 #include "core/core.h"
-#include "sys/sigsegv_handler_win.h"
+#include "sys/segfault_handler_win.h"
 
 using namespace dreavm::sys;
 
-SIGSEGVHandler *dreavm::sys::CreateSIGSEGVHandler() {
-  return new SIGSEGVHandlerWin();
+SegfaultHandler *dreavm::sys::CreateSegfaultHandler() {
+  return new SegfaultHandlerWin();
 }
 
 static LONG CALLBACK ExceptionHandler(PEXCEPTION_POINTERS ex_info) {
@@ -16,7 +16,8 @@ static LONG CALLBACK ExceptionHandler(PEXCEPTION_POINTERS ex_info) {
 
   uintptr_t rip = ex_info->ContextRecord->Rip;
   uintptr_t fault_addr = ex_info->ExceptionRecord->ExceptionInformation[1];
-  bool handled = SIGSEGVHandler::instance()->HandleAccessFault(rip, fault_addr);
+  bool handled =
+      SegfaultHandler::instance()->HandleAccessFault(rip, fault_addr);
 
   if (!handled) {
     return EXCEPTION_CONTINUE_SEARCH;
@@ -25,10 +26,10 @@ static LONG CALLBACK ExceptionHandler(PEXCEPTION_POINTERS ex_info) {
   return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-SIGSEGVHandlerWin::~SIGSEGVHandlerWin() {
+SegfaultHandlerWin::~SegfaultHandlerWin() {
   RemoveVectoredExceptionHandler(ExceptionHandler);
 }
 
-bool SIGSEGVHandlerWin::Init() {
+bool SegfaultHandlerWin::Init() {
   return AddVectoredExceptionHandler(1, ExceptionHandler) != nullptr;
 }

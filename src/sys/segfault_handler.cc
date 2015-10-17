@@ -3,18 +3,18 @@
 #include "emu/profiler.h"
 #include "jit/runtime.h"
 #include "sys/memory.h"
-#include "sys/sigsegv_handler.h"
+#include "sys/segfault_handler.h"
 
 using namespace dreavm::sys;
 
-SIGSEGVHandler *dreavm::sys::SIGSEGVHandler::instance_ = nullptr;
+SegfaultHandler *dreavm::sys::SegfaultHandler::instance_ = nullptr;
 
-SIGSEGVHandler *SIGSEGVHandler::instance() {
+SegfaultHandler *SegfaultHandler::instance() {
   if (instance_) {
     return instance_;
   }
 
-  instance_ = CreateSIGSEGVHandler();
+  instance_ = CreateSegfaultHandler();
 
   if (!instance_->Init()) {
     LOG_WARNING("Failed to initialize SIGSEGV handler");
@@ -26,11 +26,11 @@ SIGSEGVHandler *SIGSEGVHandler::instance() {
   return instance_;
 }
 
-SIGSEGVHandler::~SIGSEGVHandler() { instance_ = nullptr; }
+SegfaultHandler::~SegfaultHandler() { instance_ = nullptr; }
 
-WatchHandle SIGSEGVHandler::AddAccessFaultWatch(void *ptr, size_t size,
-                                                WatchHandler handler, void *ctx,
-                                                void *data) {
+WatchHandle SegfaultHandler::AddAccessFaultWatch(void *ptr, size_t size,
+                                                 WatchHandler handler,
+                                                 void *ctx, void *data) {
   // page align the range to be watched
   size_t page_size = GetPageSize();
   ptr = reinterpret_cast<void *>(dreavm::align(
@@ -47,9 +47,9 @@ WatchHandle SIGSEGVHandler::AddAccessFaultWatch(void *ptr, size_t size,
   return handle;
 }
 
-WatchHandle SIGSEGVHandler::AddSingleWriteWatch(void *ptr, size_t size,
-                                                WatchHandler handler, void *ctx,
-                                                void *data) {
+WatchHandle SegfaultHandler::AddSingleWriteWatch(void *ptr, size_t size,
+                                                 WatchHandler handler,
+                                                 void *ctx, void *data) {
   // page align the range to be watched
   size_t page_size = GetPageSize();
   ptr = reinterpret_cast<void *>(dreavm::align(
@@ -69,11 +69,11 @@ WatchHandle SIGSEGVHandler::AddSingleWriteWatch(void *ptr, size_t size,
   return handle;
 }
 
-void SIGSEGVHandler::RemoveWatch(WatchHandle handle) {
+void SegfaultHandler::RemoveWatch(WatchHandle handle) {
   watches_.Remove(handle);
 }
 
-bool SIGSEGVHandler::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
+bool SegfaultHandler::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
   auto range_it = watches_.intersect(fault_addr, fault_addr);
   auto it = range_it.first;
   auto end = range_it.second;
@@ -97,6 +97,6 @@ bool SIGSEGVHandler::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
   return range_it.first != range_it.second;
 }
 
-void SIGSEGVHandler::UpdateStats() {
+void SegfaultHandler::UpdateStats() {
   PROFILER_COUNT("Watches", watches_.Size());
 }

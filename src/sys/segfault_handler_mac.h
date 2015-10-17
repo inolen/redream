@@ -1,15 +1,15 @@
-#ifndef SIGSEGV_HANDLER_MAC
-#define SIGSEGV_HANDLER_MAC
+#ifndef SEGFAULT_HANDLER_MAC
+#define SEGFAULT_HANDLER_MAC
 
 #include <thread>
-#include "sys/sigsegv_handler.h"
+#include "sys/segfault_handler.h"
 
 namespace dreavm {
 namespace sys {
 
-class SIGSEGVHandlerMac : public SIGSEGVHandler {
+class SegfaultHandlerMac : public SegfaultHandler {
  public:
-  ~SIGSEGVHandlerMac();
+  ~SegfaultHandlerMac();
 
  protected:
   bool Init();

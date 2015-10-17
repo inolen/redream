@@ -1,6 +1,6 @@
 #include <mach/mach.h>
 #include "core/core.h"
-#include "sys/sigsegv_handler_mac.h"
+#include "sys/segfault_handler_mac.h"
 
 using namespace dreavm::sys;
 
@@ -9,8 +9,8 @@ using namespace dreavm::sys;
 // Handling the original Mach exception seems to be the only way to capture
 // them.
 
-SIGSEGVHandler *dreavm::sys::CreateSIGSEGVHandler() {
-  return new SIGSEGVHandlerMac();
+SegfaultHandler *dreavm::sys::CreateSegfaultHandler() {
+  return new SegfaultHandlerMac();
 }
 
 // http://web.mit.edu/darwin/src/modules/xnu/osfmk/man/exc_server.html
@@ -42,7 +42,8 @@ extern "C" kern_return_t catch_exception_raise(
 
   uintptr_t rip = thread_state.__rip;
   uintptr_t fault_addr = exc_state.__faultvaddr;
-  bool handled = SIGSEGVHandler::instance()->HandleAccessFault(rip, fault_addr);
+  bool handled =
+      SegfaultHandler::instance()->HandleAccessFault(rip, fault_addr);
   if (!handled) {
     return KERN_FAILURE;
   }
@@ -57,13 +58,13 @@ extern "C" kern_return_t catch_exception_raise(
   return KERN_SUCCESS;
 }
 
-SIGSEGVHandlerMac::~SIGSEGVHandlerMac() {
+SegfaultHandlerMac::~SegfaultHandlerMac() {
   task_set_exception_ports(mach_task_self(), EXC_MASK_BAD_ACCESS, 0,
                            EXCEPTION_DEFAULT, 0);
   mach_port_deallocate(mach_task_self(), listen_port_);
 }
 
-bool SIGSEGVHandlerMac::Init() {
+bool SegfaultHandlerMac::Init() {
   // allocate port to listen for exceptions
   if (mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE,
                          &listen_port_) != KERN_SUCCESS) {
@@ -91,7 +92,7 @@ bool SIGSEGVHandlerMac::Init() {
   return true;
 }
 
-void SIGSEGVHandlerMac::ThreadEntry() {
+void SegfaultHandlerMac::ThreadEntry() {
   while (true) {
     struct {
       mach_msg_header_t head;

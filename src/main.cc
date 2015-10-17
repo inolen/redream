@@ -2,7 +2,7 @@
 #include "core/core.h"
 #include "emu/emulator.h"
 #include "trace/trace_viewer.h"
-#include "sys/sigsegv_handler.h"
+#include "sys/segfault_handler.h"
 
 using namespace dreavm;
 using namespace dreavm::emu;

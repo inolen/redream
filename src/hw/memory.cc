@@ -1,6 +1,6 @@
 #include "core/core.h"
 #include "hw/memory.h"
-#include "sys/sigsegv_handler.h"
+#include "sys/segfault_handler.h"
 
 using namespace dreavm::hw;
 using namespace dreavm::sys;
@@ -134,7 +134,7 @@ bool Memory::Init() {
     return false;
   }
 
-  SIGSEGVHandler::instance()->AddAccessFaultWatch(
+  SegfaultHandler::instance()->AddAccessFaultWatch(
       virtual_base_, ADDRESS_SPACE_SIZE, &Memory::HandleAccessFault, this,
       nullptr);
 

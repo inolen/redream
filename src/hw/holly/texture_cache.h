@@ -6,7 +6,7 @@
 #include "core/interval_tree.h"
 #include "hw/holly/tile_renderer.h"
 #include "renderer/backend.h"
-#include "sys/sigsegv_handler.h"
+#include "sys/segfault_handler.h"
 
 namespace dreavm {
 namespace trace {

@@ -1,5 +1,5 @@
-#ifndef SIGSEGV_HANDLER_H
-#define SIGSEGV_HANDLER_H
+#ifndef SEGFAULT_HANDLER_H
+#define SEGFAULT_HANDLER_H
 
 #include <functional>
 #include <memory>
@@ -9,8 +9,8 @@ namespace dreavm {
 namespace sys {
 
 // implemented in the platform specific souce file
-class SIGSEGVHandler;
-extern SIGSEGVHandler *CreateSIGSEGVHandler();
+class SegfaultHandler;
+extern SegfaultHandler *CreateSegfaultHandler();
 
 enum WatchType { WATCH_ACCESS_FAULT, WATCH_SINGLE_WRITE };
 
@@ -37,11 +37,11 @@ struct Watch {
 typedef IntervalTree<Watch> WatchTree;
 typedef WatchTree::node_type *WatchHandle;
 
-class SIGSEGVHandler {
+class SegfaultHandler {
  public:
-  static SIGSEGVHandler *instance();
+  static SegfaultHandler *instance();
 
-  virtual ~SIGSEGVHandler();
+  virtual ~SegfaultHandler();
 
   WatchHandle AddAccessFaultWatch(void *ptr, size_t size, WatchHandler handler,
                                   void *ctx, void *data);
@@ -54,7 +54,7 @@ class SIGSEGVHandler {
   bool HandleAccessFault(uintptr_t rip, uintptr_t fault_addr);
 
  protected:
-  static SIGSEGVHandler *instance_;
+  static SegfaultHandler *instance_;
 
   virtual bool Init() = 0;
   void UpdateStats();

@@ -141,7 +141,7 @@ set(DREAVM_SOURCES
   src/renderer/gl_shader.cc
   src/sys/filesystem.cc
   src/sys/keys.cc
-  src/sys/sigsegv_handler.cc
+  src/sys/segfault_handler.cc
   src/sys/system.cc
   src/trace/trace.cc
   src/trace/trace_viewer.cc
@@ -150,15 +150,15 @@ set(DREAVM_SOURCES
 if(WIN32)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_win.cc)
-  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_win.cc)
+  list(APPEND DREAVM_SOURCES src/sys/segfault_handler_win.cc)
 elseif(APPLE)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
-  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_mac.cc)
+  list(APPEND DREAVM_SOURCES src/sys/segfault_handler_mac.cc)
 else()
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
-  list(APPEND DREAVM_SOURCES src/sys/sigsegv_handler_linux.cc)
+  list(APPEND DREAVM_SOURCES src/sys/segfault_handler_linux.cc)
 endif()
 
 
