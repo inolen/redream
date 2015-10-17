@@ -1,5 +1,5 @@
 #include "core/core.h"
-#include "sys/keys.h"
+#include "sys/keycode.h"
 
 namespace dreavm {
 namespace sys {

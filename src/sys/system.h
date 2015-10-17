@@ -4,7 +4,7 @@
 #include <SDL.h>
 #include "core/ring_buffer.h"
 #include "renderer/gl_context.h"
-#include "sys/keys.h"
+#include "sys/keycode.h"
 
 namespace dreavm {
 namespace sys {

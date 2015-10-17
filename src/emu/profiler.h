@@ -3,7 +3,7 @@
 
 #include <microprofile.h>
 #include "renderer/backend.h"
-#include "sys/keys.h"
+#include "sys/keycode.h"
 
 #define PROFILER_SCOPE(group, name) \
   MICROPROFILE_SCOPEI(group, name, dreavm::emu::Profiler::ScopeColor(name))

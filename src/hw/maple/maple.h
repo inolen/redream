@@ -2,7 +2,7 @@
 #define MAPLE_H
 
 #include <memory>
-#include "sys/keys.h"
+#include "sys/keycode.h"
 
 namespace dreavm {
 namespace hw {

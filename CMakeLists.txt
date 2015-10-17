@@ -140,7 +140,7 @@ set(DREAVM_SOURCES
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
   src/sys/filesystem.cc
-  src/sys/keys.cc
+  src/sys/keycode.cc
   src/sys/segfault_handler.cc
   src/sys/system.cc
   src/trace/trace.cc
