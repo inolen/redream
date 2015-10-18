@@ -35,6 +35,11 @@ int main(int argc, char **argv) {
 
   InitFlags(&argc, &argv);
 
+  if (!SegfaultHandler::instance().Init()) {
+    LOG_WARNING("Failed to initialize segfault handler");
+    return EXIT_FAILURE;
+  }
+
   const char *load = argc > 1 ? argv[1] : nullptr;
   if (load && strstr(load, ".trace")) {
     TraceViewer tracer;

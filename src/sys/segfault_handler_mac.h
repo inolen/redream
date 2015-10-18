@@ -11,7 +11,6 @@ class SegfaultHandlerMac : public SegfaultHandler {
  public:
   ~SegfaultHandlerMac();
 
- protected:
   bool Init();
 
  private:

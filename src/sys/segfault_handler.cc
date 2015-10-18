@@ -7,27 +7,6 @@
 
 using namespace dreavm::sys;
 
-SegfaultHandler *dreavm::sys::SegfaultHandler::instance_ = nullptr;
-
-SegfaultHandler *SegfaultHandler::instance() {
-  if (instance_) {
-    return instance_;
-  }
-
-  instance_ = CreateSegfaultHandler();
-
-  if (!instance_->Init()) {
-    LOG_WARNING("Failed to initialize SIGSEGV handler");
-
-    delete instance_;
-    instance_ = nullptr;
-  }
-
-  return instance_;
-}
-
-SegfaultHandler::~SegfaultHandler() { instance_ = nullptr; }
-
 WatchHandle SegfaultHandler::AddAccessFaultWatch(void *ptr, size_t size,
                                                  WatchHandler handler,
                                                  void *ctx, void *data) {

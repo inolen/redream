@@ -82,11 +82,11 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   TextureEntry &entry = result.first->second;
   TextureCacheMap::value_type *map_entry = &(*result.first);
 
-  entry.texture_watch = SegfaultHandler::instance()->AddSingleWriteWatch(
+  entry.texture_watch = SegfaultHandler::instance().AddSingleWriteWatch(
       texture, texture_size, &HandleTextureWrite, this, map_entry);
 
   if (palette) {
-    entry.palette_watch = SegfaultHandler::instance()->AddSingleWriteWatch(
+    entry.palette_watch = SegfaultHandler::instance().AddSingleWriteWatch(
         palette, palette_size, &HandlePaletteWrite, this, map_entry);
   }
 
@@ -165,11 +165,11 @@ void TextureCache::Invalidate(TextureCacheMap::iterator it) {
   TextureEntry &entry = it->second;
 
   if (entry.texture_watch) {
-    SegfaultHandler::instance()->RemoveWatch(entry.texture_watch);
+    SegfaultHandler::instance().RemoveWatch(entry.texture_watch);
   }
 
   if (entry.palette_watch) {
-    SegfaultHandler::instance()->RemoveWatch(entry.palette_watch);
+    SegfaultHandler::instance().RemoveWatch(entry.palette_watch);
   }
 
   dc_->rb()->FreeTexture(entry.handle);

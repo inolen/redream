@@ -11,10 +11,7 @@ class SegfaultHandlerLinux : public SegfaultHandler {
  public:
   ~SegfaultHandlerLinux();
 
- protected:
   bool Init();
-
- private:
 };
 }
 }

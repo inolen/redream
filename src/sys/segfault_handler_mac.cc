@@ -9,10 +9,6 @@ using namespace dreavm::sys;
 // Handling the original Mach exception seems to be the only way to capture
 // them.
 
-SegfaultHandler *dreavm::sys::CreateSegfaultHandler() {
-  return new SegfaultHandlerMac();
-}
-
 // http://web.mit.edu/darwin/src/modules/xnu/osfmk/man/exc_server.html
 extern "C" boolean_t exc_server(mach_msg_header_t *request_msg,
                                 mach_msg_header_t *reply_msg);
@@ -42,8 +38,7 @@ extern "C" kern_return_t catch_exception_raise(
 
   uintptr_t rip = thread_state.__rip;
   uintptr_t fault_addr = exc_state.__faultvaddr;
-  bool handled =
-      SegfaultHandler::instance()->HandleAccessFault(rip, fault_addr);
+  bool handled = SegfaultHandler::instance().HandleAccessFault(rip, fault_addr);
   if (!handled) {
     return KERN_FAILURE;
   }
@@ -56,6 +51,11 @@ extern "C" kern_return_t catch_exception_raise(
   }
 
   return KERN_SUCCESS;
+}
+
+SegfaultHandler &SegfaultHandler::instance() {
+  static SegfaultHandlerMac instance;
+  return instance;
 }
 
 SegfaultHandlerMac::~SegfaultHandlerMac() {

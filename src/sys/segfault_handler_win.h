@@ -11,7 +11,6 @@ class SegfaultHandlerWin : public SegfaultHandler {
  public:
   ~SegfaultHandlerWin();
 
- protected:
   bool Init();
 };
 }

@@ -134,7 +134,7 @@ bool Memory::Init() {
     return false;
   }
 
-  SegfaultHandler::instance()->AddAccessFaultWatch(
+  SegfaultHandler::instance().AddAccessFaultWatch(
       virtual_base_, ADDRESS_SPACE_SIZE, &Memory::HandleAccessFault, this,
       nullptr);
 
