@@ -142,6 +142,7 @@ set(DREAVM_SOURCES
   src/sys/filesystem.cc
   src/sys/keycode.cc
   src/sys/segfault_handler.cc
+  src/sys/tty.cc
   src/sys/window.cc
   src/trace/trace.cc
   src/trace/trace_viewer.cc
@@ -151,14 +152,17 @@ if(WIN32)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/segfault_handler_win.cc)
+  list(APPEND DREAVM_SOURCES src/sys/tty_win.cc)
 elseif(APPLE)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/segfault_handler_mac.cc)
+  list(APPEND DREAVM_SOURCES src/sys/tty_posix.cc)
 else()
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/segfault_handler_linux.cc)
+  list(APPEND DREAVM_SOURCES src/sys/tty_posix.cc)
 endif()
 
 

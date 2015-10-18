@@ -3,6 +3,7 @@
 #include "emu/emulator.h"
 #include "trace/trace_viewer.h"
 #include "sys/segfault_handler.h"
+#include "sys/tty.h"
 
 using namespace dreavm;
 using namespace dreavm::emu;
@@ -34,6 +35,11 @@ int main(int argc, char **argv) {
   EnsureAppDirExists();
 
   InitFlags(&argc, &argv);
+
+  if (!TTY::instance().Init()) {
+    LOG_WARNING("Failed to initialize segfault handler");
+    return EXIT_FAILURE;
+  }
 
   if (!SegfaultHandler::instance().Init()) {
     LOG_WARNING("Failed to initialize segfault handler");

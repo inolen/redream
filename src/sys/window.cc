@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "core/core.h"
+#include "sys/tty.h"
 #include "sys/window.h"
 
 #define DEFAULT_WIDTH 800
@@ -29,6 +30,13 @@ static inline WindowEvent MakeResizeEvent(int width, int height) {
   ev.type = WE_RESIZE;
   ev.resize.width = width;
   ev.resize.height = height;
+  return ev;
+}
+
+static inline WindowEvent MakeTTYEvent(const char *buffer) {
+  WindowEvent ev;
+  ev.type = WE_TTY;
+  ev.tty.buffer = buffer;
   return ev;
 }
 
@@ -67,7 +75,10 @@ bool Window::Init() {
   return true;
 }
 
-void Window::PumpEvents() { PumpSDLEvents(); }
+void Window::PumpEvents() {
+  PumpSDLEvents();
+  PumpTTYEvents();
+}
 
 bool Window::PollEvent(WindowEvent *ev) {
   if (events_.Empty()) {
@@ -740,4 +751,14 @@ void Window::PumpSDLEvents() {
         break;
     }
   }
+}
+
+void Window::PumpTTYEvents() {
+  const char *input = TTY::instance().Input();
+
+  if (!input) {
+    return;
+  }
+
+  QueueEvent(MakeTTYEvent(input));
 }
