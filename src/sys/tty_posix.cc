@@ -140,6 +140,6 @@ void TTYPosix::ShowPrompt() {
   write(STDOUT_FILENO, tty_prompt, strlen(tty_prompt));
 
   for (int i = 0; i < cursor_; i++) {
-     write(STDOUT_FILENO, &buffer_[front_][i], 1);
+    write(STDOUT_FILENO, &buffer_[front_][i], 1);
   }
 }

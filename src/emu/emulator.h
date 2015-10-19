@@ -30,7 +30,7 @@ class Emulator {
   void ToggleTracing();
   void RenderFrame();
 
-  sys::Window wnd_;
+  sys::Window window_;
   hw::Dreamcast dc_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;

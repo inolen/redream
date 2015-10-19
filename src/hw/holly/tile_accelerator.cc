@@ -1,6 +1,9 @@
 #include "core/core.h"
 #include "hw/holly/pixel_convert.h"
+#include "hw/holly/tile_accelerator.h"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
+#include "trace/trace.h"
 
 using namespace dreavm;
 using namespace dreavm::hw;

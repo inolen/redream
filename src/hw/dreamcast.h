@@ -1,25 +1,57 @@
 #ifndef DREAMCAST_H
 #define DREAMCAST_H
 
-#include "hw/aica/aica.h"
-#include "hw/gdrom/gdrom.h"
+// needed for register types
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr2.h"
-#include "hw/holly/texture_cache.h"
-#include "hw/holly/tile_accelerator.h"
-#include "hw/holly/tile_renderer.h"
-#include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
-#include "hw/memory.h"
-#include "hw/scheduler.h"
-#include "jit/backend/backend.h"
-#include "jit/frontend/frontend.h"
-#include "jit/runtime.h"
-#include "renderer/backend.h"
-#include "trace/trace.h"
 
 namespace dreavm {
+namespace jit {
+namespace backend {
+class Backend;
+}
+namespace frontend {
+class Frontend;
+}
+class Runtime;
+}
+
+namespace renderer {
+class Backend;
+}
+
+namespace trace {
+class TraceWriter;
+}
+
 namespace hw {
+
+namespace aica {
+class AICA;
+}
+
+namespace gdrom {
+class GDROM;
+}
+
+namespace holly {
+class Holly;
+class PVR2;
+class TextureCache;
+class TileAccelerator;
+class TileRenderer;
+}
+
+namespace maple {
+class Maple;
+}
+
+namespace sh4 {
+class SH4;
+}
+
+class Memory;
 
 //
 // memory layout

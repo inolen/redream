@@ -1,6 +1,9 @@
 #include "core/core.h"
 #include "emu/profiler.h"
+#include "hw/holly/texture_cache.h"
+#include "hw/holly/tile_accelerator.h"
 #include "hw/dreamcast.h"
+#include "trace/trace.h"
 
 using namespace dreavm::hw;
 using namespace dreavm::hw::holly;

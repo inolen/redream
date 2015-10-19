@@ -1,8 +1,13 @@
 #include "core/core.h"
 #include "emu/emulator.h"
 #include "emu/profiler.h"
+#include "hw/gdrom/gdrom.h"
+#include "hw/holly/tile_renderer.h"
+#include "hw/maple/maple.h"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
 #include "renderer/gl_backend.h"
+#include "trace/trace.h"
 
 using namespace dreavm;
 using namespace dreavm::emu;
@@ -24,7 +29,7 @@ DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
 Emulator::Emulator() : trace_writer_(nullptr), deltas_(), delta_seq_(0) {
-  rb_ = new GLBackend(wnd_);
+  rb_ = new GLBackend(window_);
   dc_.set_rb(rb_);
 }
 
@@ -34,7 +39,7 @@ Emulator::~Emulator() {
 }
 
 void Emulator::Run(const char *path) {
-  if (!wnd_.Init()) {
+  if (!window_.Init()) {
     return;
   }
 
@@ -199,9 +204,9 @@ bool Emulator::LaunchGDI(const char *path) {
 void Emulator::PumpEvents() {
   WindowEvent ev;
 
-  wnd_.PumpEvents();
+  window_.PumpEvents();
 
-  while (wnd_.PollEvent(&ev)) {
+  while (window_.PollEvent(&ev)) {
     switch (ev.type) {
       case WE_KEY: {
         // let the profiler take a stab at the input first

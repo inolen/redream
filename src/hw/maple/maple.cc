@@ -1,6 +1,8 @@
 #include "core/core.h"
+#include "hw/maple/maple.h"
 #include "hw/maple/maple_controller.h"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
 
 using namespace dreavm;
 using namespace dreavm::hw;

@@ -1,4 +1,7 @@
 #include "core/core.h"
+#include "hw/gdrom/gdrom.h"
+#include "hw/holly/holly.h"
+#include "hw/maple/maple.h"
 #include "hw/dreamcast.h"
 
 using namespace dreavm;

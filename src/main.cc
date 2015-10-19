@@ -2,6 +2,7 @@
 #include "core/core.h"
 #include "emu/emulator.h"
 #include "trace/trace_viewer.h"
+#include "sys/filesystem.h"
 #include "sys/segfault_handler.h"
 #include "sys/tty.h"
 

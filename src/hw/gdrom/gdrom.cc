@@ -1,6 +1,8 @@
 #include "core/core.h"
+#include "hw/gdrom/gdrom.h"
 #include "hw/gdrom/gdrom_replies.inc"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
 
 using namespace dreavm;
 using namespace dreavm::hw;

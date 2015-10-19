@@ -7,6 +7,7 @@
 namespace dreavm {
 namespace hw {
 class Dreamcast;
+struct Register;
 
 namespace holly {
 

@@ -1,8 +1,21 @@
 #include "core/core.h"
+#include "hw/aica/aica.h"
+#include "hw/gdrom/gdrom.h"
+#include "hw/holly/holly.h"
+#include "hw/holly/pvr2.h"
+#include "hw/holly/texture_cache.h"
+#include "hw/holly/tile_accelerator.h"
+#include "hw/holly/tile_renderer.h"
+#include "hw/maple/maple.h"
+#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
+#include "hw/scheduler.h"
 #include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
+#include "renderer/backend.h"
+#include "trace/trace.h"
 
 using namespace dreavm;
 using namespace dreavm::hw;

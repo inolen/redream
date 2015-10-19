@@ -6,14 +6,8 @@ TTY &TTY::instance() {
   return instance;
 }
 
-bool TTYPosix::Init() {
-  return true;
-}
+bool TTYPosix::Init() { return true; }
 
-const char *TTYPosix::Input() {
-  return nullptr;
-}
+const char *TTYPosix::Input() { return nullptr; }
 
-void TTYPosix::Print(const char *buffer) {
-  puts(buffer);
-}
+void TTYPosix::Print(const char *buffer) { puts(buffer); }

@@ -7,9 +7,7 @@
 namespace dreavm {
 namespace sys {
 
-enum {
-  TTY_BUFFER_SIZE = 1024
-};
+enum { TTY_BUFFER_SIZE = 1024 };
 
 class TTYPosix : public TTY {
  public:
