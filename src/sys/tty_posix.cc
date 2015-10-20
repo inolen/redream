@@ -103,7 +103,7 @@ const char *TTYPosix::Input() {
     buffer_[front_][cursor_] = 0;
 
     // write out new character
-    write(STDOUT_FILENO, &key, 1);
+    CHECK_EQ(write(STDOUT_FILENO, &key, 1), 1);
   }
 
   return nullptr;
@@ -119,11 +119,11 @@ void TTYPosix::Back() {
   // backspace will just move the cursor left, output backspace-space-backspace
   // to visually erase it
   char key = '\b';
-  write(STDOUT_FILENO, &key, 1);
+  CHECK_EQ(write(STDOUT_FILENO, &key, 1), 1);
   key = ' ';
-  write(STDOUT_FILENO, &key, 1);
+  CHECK_EQ(write(STDOUT_FILENO, &key, 1), 1);
   key = '\b';
-  write(STDOUT_FILENO, &key, 1);
+  CHECK_EQ(write(STDOUT_FILENO, &key, 1), 1);
 }
 
 void TTYPosix::HidePrompt() {
@@ -137,9 +137,10 @@ void TTYPosix::HidePrompt() {
 }
 
 void TTYPosix::ShowPrompt() {
-  write(STDOUT_FILENO, tty_prompt, strlen(tty_prompt));
+  const int tty_prompt_len = (int)strlen(tty_prompt);
+  CHECK_EQ(write(STDOUT_FILENO, tty_prompt, tty_prompt_len), tty_prompt_len);
 
   for (int i = 0; i < cursor_; i++) {
-    write(STDOUT_FILENO, &buffer_[front_][i], 1);
+    CHECK_EQ(write(STDOUT_FILENO, &buffer_[front_][i], 1), 1);
   }
 }

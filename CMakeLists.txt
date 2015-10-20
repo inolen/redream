@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8.12)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+include(CheckFunctionExists)
 include(ExternalProject)
 include(SourceGroupByDir)
 
@@ -16,6 +17,12 @@ set(DREAVM_VERSION_MINOR 1)
 set(DREAVM_VERSION_PATCH 0)
 set(DREAVM_VERSION ${DREAVM_VERSION_MAJOR}.${DREAVM_VERSION_MINOR}.${DREAVM_VERSION_PATCH})
 
+
+#--------------------------------------------------
+# dynamic libs
+#--------------------------------------------------
+
+check_function_exists(strnstr HAVE_STRNSTR)
 
 #--------------------------------------------------
 # dynamic libs
@@ -105,6 +112,7 @@ add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -style=Google -i ${CLANG_FOR
 set(DREAVM_SOURCES
   src/core/assert.cc
   src/core/log.cc
+  src/core/string.cc
   src/emu/emulator.cc
   src/emu/profiler.cc
   src/hw/aica/aica.cc

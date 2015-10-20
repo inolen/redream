@@ -8,5 +8,6 @@
 #include "core/log.h"
 #include "core/math.h"
 #include "core/platform.h"
+#include "core/string.h"
 
 #endif

@@ -1,6 +1,8 @@
 #include "core/core.h"
 #include "jit/frontend/sh4/sh4_instr.h"
 
+using namespace dreavm;
+
 namespace dreavm {
 namespace jit {
 namespace frontend {
@@ -49,29 +51,6 @@ static void InitInstrTables() {
 static struct _sh4_instr_init {
   _sh4_instr_init() { InitInstrTables(); }
 } sh4_instr_init;
-
-static int strnrep(char *dst, size_t dst_size, const char *token,
-                   size_t token_len, const char *value, size_t value_len) {
-  char *end = dst + dst_size;
-
-  while (char *ptr = strnstr(dst, token, dst_size)) {
-    // move substring starting at the end of the token to the end of where the
-    // new value will be)
-    size_t dst_len = strnlen(dst, dst_size);
-    size_t move_size = (dst_len + 1) - ((ptr - dst) + token_len);
-
-    if (ptr + value_len + move_size > end) {
-      return -1;
-    }
-
-    memmove(ptr + value_len, ptr + token_len, move_size);
-
-    // copy new value into token position
-    memmove(ptr, value, value_len);
-  }
-
-  return 0;
-}
 
 bool Disasm(Instr *i) {
   InstrType *type = instr_lookup[i->opcode];
