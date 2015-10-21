@@ -1,12 +1,14 @@
 #include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/interpreter/interpreter_block.h"
 #include "jit/backend/interpreter/interpreter_emitter.h"
+#include "sys/exception_handler.h"
 
 using namespace dreavm::hw;
 using namespace dreavm::jit;
 using namespace dreavm::jit::backend;
 using namespace dreavm::jit::backend::interpreter;
 using namespace dreavm::jit::ir;
+using namespace dreavm::sys;
 
 namespace dreavm {
 namespace jit {
@@ -54,7 +56,4 @@ void InterpreterBackend::DumpBlock(RuntimeBlock *block) {
 
 void InterpreterBackend::FreeBlock(RuntimeBlock *block) { delete block; }
 
-void InterpreterBackend::HandleAccessFault(uintptr_t rip,
-                                           uintptr_t fault_addr) {
-  CHECK(false);
-}
+bool InterpreterBackend::HandleException(Exception &ex) { return false; }

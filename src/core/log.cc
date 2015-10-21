@@ -22,21 +22,21 @@ void Log(LogLevel level, const char *format, ...) {
   vsnprintf(buffer, sizeof(buffer), format, args);
   va_end(args);
 
-  // #if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
-  //   switch (level) {
-  //     case LOG_LEVEL_INFO:
-  //       printf("%s\n", buffer);
-  //       break;
-  //     case LOG_LEVEL_WARNING:
-  //       printf(ANSI_COLOR_YELLOW "%s" ANSI_COLOR_RESET "\n", buffer);
-  //       break;
-  //     case LOG_LEVEL_FATAL:
-  //       printf(ANSI_COLOR_RED "%s" ANSI_COLOR_RESET "\n", buffer);
-  //       break;
-  //   }
-  // #else
-  //   printf("%s\n", buffer);
-  // #endif
+#if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
+  switch (level) {
+    case LOG_LEVEL_INFO:
+      printf("%s\n", buffer);
+      break;
+    case LOG_LEVEL_WARNING:
+      printf(ANSI_COLOR_YELLOW "%s" ANSI_COLOR_RESET "\n", buffer);
+      break;
+    case LOG_LEVEL_FATAL:
+      printf(ANSI_COLOR_RED "%s" ANSI_COLOR_RESET "\n", buffer);
+      break;
+  }
+#else
+  printf("%s\n", buffer);
+#endif
 
-  TTY::instance().Print(buffer);
+  // TTY::instance().Print(buffer);
 }

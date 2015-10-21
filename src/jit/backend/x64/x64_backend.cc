@@ -5,6 +5,7 @@
 #include "core/core.h"
 #include "emu/profiler.h"
 #include "jit/backend/x64/x64_backend.h"
+#include "sys/exception_handler.h"
 
 using namespace dreavm;
 using namespace dreavm::hw;
@@ -12,6 +13,7 @@ using namespace dreavm::jit;
 using namespace dreavm::jit::backend;
 using namespace dreavm::jit::backend::x64;
 using namespace dreavm::jit::ir;
+using namespace dreavm::sys;
 
 namespace dreavm {
 namespace jit {
@@ -120,13 +122,14 @@ void X64Backend::FreeBlock(RuntimeBlock *block) {
   // delete block;
 }
 
-void X64Backend::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
+bool X64Backend::HandleException(Exception &ex) {
   size_t original_size = emitter_.getSize();
-  size_t offset = rip - reinterpret_cast<uint64_t>(emitter_.getCode());
+  size_t offset =
+      ex.thread_state.rip - reinterpret_cast<uint64_t>(emitter_.getCode());
   emitter_.setSize(offset);
 
   // nop out the mov
-  uint8_t *ptr = reinterpret_cast<uint8_t *>(rip);
+  uint8_t *ptr = reinterpret_cast<uint8_t *>(ex.thread_state.rip);
   while (*ptr != 0xeb) {
     emitter_.nop();
     ptr++;
@@ -137,4 +140,6 @@ void X64Backend::HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) {
   emitter_.nop();
 
   emitter_.setSize(original_size);
+
+  return true;
 }

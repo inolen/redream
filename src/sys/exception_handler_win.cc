@@ -1,0 +1,84 @@
+#include <windows.h>
+#include "core/core.h"
+#include "sys/exception_handler_win.h"
+
+using namespace dreavm::sys;
+
+static void CopyStateTo(PCONTEXT src, ThreadState *dst) {
+  dst->rax = src->Rax;
+  dst->rbx = src->Rbx;
+  dst->rcx = src->Rcx;
+  dst->rdx = src->Rdx;
+  dst->rdi = src->Rdi;
+  dst->rsi = src->Rsi;
+  dst->rbp = src->Rbp;
+  dst->rsp = src->Rsp;
+  dst->r8 = src->R8;
+  dst->r9 = src->R9;
+  dst->r10 = src->R10;
+  dst->r11 = src->R11;
+  dst->r12 = src->R12;
+  dst->r13 = src->R13;
+  dst->r14 = src->R14;
+  dst->r15 = src->R15;
+  dst->rip = src->Rip;
+}
+
+static void CopyStateFrom(ThreadState *src, PCONTEXT dst) {
+  dst->Rax = src->rax;
+  dst->Rbx = src->rbx;
+  dst->Rcx = src->rcx;
+  dst->Rdx = src->rdx;
+  dst->Rdi = src->rdi;
+  dst->Rsi = src->rsi;
+  dst->Rbp = src->rbp;
+  dst->Rsp = src->rsp;
+  dst->R8 = src->r8;
+  dst->R9 = src->r9;
+  dst->R10 = src->r10;
+  dst->R11 = src->r11;
+  dst->R12 = src->r12;
+  dst->R13 = src->r13;
+  dst->R14 = src->r14;
+  dst->R15 = src->r15;
+  dst->Rip = src->rip;
+}
+
+static LONG CALLBACK WinExceptionHandler(PEXCEPTION_POINTERS ex_info) {
+  auto code = ex_info->ExceptionRecord->ExceptionCode;
+  if (code != STATUS_ACCESS_VIOLATION && code != STATUS_ILLEGAL_INSTRUCTION) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+
+  // convert signal to internal exception
+  Exception ex;
+  ex.type = code == STATUS_ACCESS_VIOLATION ? EX_ACCESS_VIOLATION
+                                            : EX_INVALID_INSTRUCTION;
+  ex.fault_addr = ex_info->ExceptionRecord->ExceptionInformation[1];
+  CopyStateTo(ex_info->ContextRecord, &ex.thread_state);
+
+  // call exception handler, letting it potentially update the thread state
+  bool handled = ExceptionHandler::instance().HandleException(ex);
+
+  if (!handled) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+
+  // copy internal thread state back to mach thread state and restore
+  CopyStateFrom(&ex.thread_state, ex_info->ContextRecord);
+
+  return EXCEPTION_CONTINUE_EXECUTION;
+}
+
+ExceptionHandler &ExceptionHandler::instance() {
+  static ExceptionHandlerWin instance;
+  return instance;
+}
+
+ExceptionHandlerWin::~ExceptionHandlerWin() {
+  RemoveVectoredExceptionHandler(WinExceptionHandler);
+}
+
+bool ExceptionHandlerWin::Init() {
+  return AddVectoredExceptionHandler(1, WinExceptionHandler) != nullptr;
+}

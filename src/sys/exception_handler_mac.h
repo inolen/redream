@@ -1,15 +1,15 @@
-#ifndef SEGFAULT_HANDLER_MAC
-#define SEGFAULT_HANDLER_MAC
+#ifndef EXCEPTION_HANDLER_MAC
+#define EXCEPTION_HANDLER_MAC
 
 #include <thread>
-#include "sys/segfault_handler.h"
+#include "sys/exception_handler.h"
 
 namespace dreavm {
 namespace sys {
 
-class SegfaultHandlerMac : public SegfaultHandler {
+class ExceptionHandlerMac : public ExceptionHandler {
  public:
-  ~SegfaultHandlerMac();
+  ~ExceptionHandlerMac();
 
   bool Init();
 

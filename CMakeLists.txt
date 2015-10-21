@@ -8,7 +8,7 @@ include(SourceGroupByDir)
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Release")
-  set(CMAKE_BUILD_TYPE "Release")
+  set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
 project(dreavm)
@@ -147,9 +147,9 @@ set(DREAVM_SOURCES
   src/jit/runtime.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
+  src/sys/exception_handler.cc
   src/sys/filesystem.cc
   src/sys/keycode.cc
-  src/sys/segfault_handler.cc
   src/sys/tty.cc
   src/sys/window.cc
   src/trace/trace.cc
@@ -157,19 +157,19 @@ set(DREAVM_SOURCES
   src/main.cc)
 
 if(WIN32)
+  list(APPEND DREAVM_SOURCES src/sys/exception_handler_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_win.cc)
-  list(APPEND DREAVM_SOURCES src/sys/segfault_handler_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/tty_win.cc)
 elseif(APPLE)
+  list(APPEND DREAVM_SOURCES src/sys/exception_handler_mac.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
-  list(APPEND DREAVM_SOURCES src/sys/segfault_handler_mac.cc)
   list(APPEND DREAVM_SOURCES src/sys/tty_posix.cc)
 else()
+  list(APPEND DREAVM_SOURCES src/sys/exception_handler_linux.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
-  list(APPEND DREAVM_SOURCES src/sys/segfault_handler_linux.cc)
   list(APPEND DREAVM_SOURCES src/sys/tty_posix.cc)
 endif()
 

@@ -86,8 +86,6 @@ class IntervalTree : public IntrusiveTree<IntervalTree<T>, IntervalNode<T>> {
  public:
   typedef IntervalTree<T> self_type;
   typedef IntervalNode<T> node_type;
-  typedef std::function<void(const self_type &, node_type *)> iterate_cb;
-
   typedef shared_range_iterator<false> range_iterator;
   typedef shared_range_iterator<true> const_range_iterator;
 

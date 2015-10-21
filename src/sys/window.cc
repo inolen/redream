@@ -33,12 +33,12 @@ static inline WindowEvent MakeResizeEvent(int width, int height) {
   return ev;
 }
 
-static inline WindowEvent MakeTTYEvent(const char *buffer) {
-  WindowEvent ev;
-  ev.type = WE_TTY;
-  ev.tty.buffer = buffer;
-  return ev;
-}
+// static inline WindowEvent MakeTTYEvent(const char *buffer) {
+//   WindowEvent ev;
+//   ev.type = WE_TTY;
+//   ev.tty.buffer = buffer;
+//   return ev;
+// }
 
 Window::Window()
     : window_(nullptr),
@@ -754,11 +754,11 @@ void Window::PumpSDLEvents() {
 }
 
 void Window::PumpTTYEvents() {
-  const char *input = TTY::instance().Input();
+  // const char *input = TTY::instance().Input();
 
-  if (!input) {
-    return;
-  }
+  // if (!input) {
+  //   return;
+  // }
 
-  QueueEvent(MakeTTYEvent(input));
+  // QueueEvent(MakeTTYEvent(input));
 }

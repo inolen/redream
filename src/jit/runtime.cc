@@ -14,6 +14,7 @@ using namespace dreavm::jit;
 using namespace dreavm::jit::backend;
 using namespace dreavm::jit::ir;
 using namespace dreavm::jit::ir::passes;
+using namespace dreavm::sys;
 
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
                  backend::Backend &backend)
@@ -21,8 +22,8 @@ Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
       frontend_(frontend),
       backend_(backend),
       lazy_block_(&Runtime::LazyCompile, 0) {
-  // set access handler for virtual address space
-  memory_.set_virtual_handler(&Runtime::HandleAccessFault, this);
+  eh_handle_ =
+      ExceptionHandler::instance().AddHandler(this, &Runtime::HandleException);
 
   // setup optimization passes
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
@@ -46,6 +47,8 @@ Runtime::~Runtime() {
   }
 
   delete[] blocks_;
+
+  ExceptionHandler::instance().RemoveHandler(eh_handle_);
 }
 
 void Runtime::ResetBlocks() {
@@ -62,10 +65,17 @@ void Runtime::ResetBlocks() {
   backend_.Reset();
 }
 
-void Runtime::HandleAccessFault(void *ctx, uintptr_t rip,
-                                uintptr_t fault_addr) {
+bool Runtime::HandleException(void *ctx, Exception &ex) {
   Runtime *runtime = reinterpret_cast<Runtime *>(ctx);
-  runtime->backend_.HandleAccessFault(rip, fault_addr);
+  const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex.fault_addr);
+  const uint8_t *virtual_start = runtime->memory_.virtual_base();
+  const uint8_t *virtual_end = virtual_start + runtime->memory_.total_size();
+
+  if (fault_addr < virtual_start || fault_addr >= virtual_end) {
+    return false;
+  }
+
+  return runtime->backend_.HandleException(ex);
 }
 
 uint32_t Runtime::LazyCompile(Memory *memory, void *guest_ctx, Runtime *runtime,

@@ -85,11 +85,11 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   TextureEntry &entry = result.first->second;
   TextureCacheMap::value_type *map_entry = &(*result.first);
 
-  entry.texture_watch = SegfaultHandler::instance().AddSingleWriteWatch(
+  entry.texture_watch = dc_->memory()->AddSingleWriteWatch(
       texture, texture_size, &HandleTextureWrite, this, map_entry);
 
   if (palette) {
-    entry.palette_watch = SegfaultHandler::instance().AddSingleWriteWatch(
+    entry.palette_watch = dc_->memory()->AddSingleWriteWatch(
         palette, palette_size, &HandlePaletteWrite, this, map_entry);
   }
 
@@ -102,9 +102,9 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   return handle;
 }
 
-void TextureCache::HandleTextureWrite(void *ctx, void *data, uintptr_t rip,
-                                      uintptr_t fault_addr) {
-  TextureCache *texcache = reinterpret_cast<TextureCache *>(ctx);
+void TextureCache::HandleTextureWrite(void *ctx, const Exception &ex,
+                                      void *data) {
+  TextureCache *self = reinterpret_cast<TextureCache *>(ctx);
   TextureCacheMap::value_type *map_entry =
       reinterpret_cast<TextureCacheMap::value_type *>(data);
 
@@ -115,12 +115,12 @@ void TextureCache::HandleTextureWrite(void *ctx, void *data, uintptr_t rip,
   // add to pending invalidation list (can't remove inside of signal
   // handler)
   TextureKey texture_key = map_entry->first;
-  texcache->pending_invalidations_.insert(texture_key);
+  self->pending_invalidations_.insert(texture_key);
 }
 
-void TextureCache::HandlePaletteWrite(void *ctx, void *data, uintptr_t rip,
-                                      uintptr_t fault_addr) {
-  TextureCache *texcache = reinterpret_cast<TextureCache *>(ctx);
+void TextureCache::HandlePaletteWrite(void *ctx, const Exception &ex,
+                                      void *data) {
+  TextureCache *self = reinterpret_cast<TextureCache *>(ctx);
   TextureCacheMap::value_type *map_entry =
       reinterpret_cast<TextureCacheMap::value_type *>(data);
 
@@ -131,7 +131,7 @@ void TextureCache::HandlePaletteWrite(void *ctx, void *data, uintptr_t rip,
   // add to pending invalidation list (can't remove inside of signal
   // handler)
   TextureKey texture_key = map_entry->first;
-  texcache->pending_invalidations_.insert(texture_key);
+  self->pending_invalidations_.insert(texture_key);
 }
 
 void TextureCache::Clear() {
@@ -168,11 +168,11 @@ void TextureCache::Invalidate(TextureCacheMap::iterator it) {
   TextureEntry &entry = it->second;
 
   if (entry.texture_watch) {
-    SegfaultHandler::instance().RemoveWatch(entry.texture_watch);
+    dc_->memory()->RemoveWatch(entry.texture_watch);
   }
 
   if (entry.palette_watch) {
-    SegfaultHandler::instance().RemoveWatch(entry.palette_watch);
+    dc_->memory()->RemoveWatch(entry.palette_watch);
   }
 
   dc_->rb()->FreeTexture(entry.handle);

@@ -78,13 +78,14 @@ class Runtime {
   void ResetBlocks();
 
  private:
-  static void HandleAccessFault(void *ctx, uintptr_t rip, uintptr_t fault_addr);
+  static bool HandleException(void *ctx, sys::Exception &ex);
   static uint32_t LazyCompile(hw::Memory *memory, void *guest_ctx,
                               Runtime *runtime, RuntimeBlock *block,
                               uint32_t addr);
 
   RuntimeBlock *CompileBlock(uint32_t addr, const void *guest_ctx);
 
+  sys::ExceptionHandlerHandle eh_handle_;
   hw::Memory &memory_;
   frontend::Frontend &frontend_;
   backend::Backend &backend_;

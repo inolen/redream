@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "sys/tty_win.h"
 using namespace dreavm::sys;
 
@@ -6,8 +7,8 @@ TTY &TTY::instance() {
   return instance;
 }
 
-bool TTYPosix::Init() { return true; }
+bool TTYWin::Init() { return true; }
 
-const char *TTYPosix::Input() { return nullptr; }
+const char *TTYWin::Input() { return nullptr; }
 
-void TTYPosix::Print(const char *buffer) { puts(buffer); }
+void TTYWin::Print(const char *buffer) { puts(buffer); }

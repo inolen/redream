@@ -1,6 +1,6 @@
 #include <mach/mach.h>
 #include "core/core.h"
-#include "sys/segfault_handler_mac.h"
+#include "sys/exception_handler_mac.h"
 
 using namespace dreavm::sys;
 
@@ -8,6 +8,47 @@ using namespace dreavm::sys;
 // segmentation faults on OSX when running the application under lldb / gdb.
 // Handling the original Mach exception seems to be the only way to capture
 // them.
+// https://llvm.org/bugs/show_bug.cgi?id=22868
+
+static void CopyStateTo(x86_thread_state64_t *src, ThreadState *dst) {
+  dst->rax = src->__rax;
+  dst->rbx = src->__rbx;
+  dst->rcx = src->__rcx;
+  dst->rdx = src->__rdx;
+  dst->rdi = src->__rdi;
+  dst->rsi = src->__rsi;
+  dst->rbp = src->__rbp;
+  dst->rsp = src->__rsp;
+  dst->r8 = src->__r8;
+  dst->r9 = src->__r9;
+  dst->r10 = src->__r10;
+  dst->r11 = src->__r11;
+  dst->r12 = src->__r12;
+  dst->r13 = src->__r13;
+  dst->r14 = src->__r14;
+  dst->r15 = src->__r15;
+  dst->rip = src->__rip;
+}
+
+static void CopyStateFrom(ThreadState *src, x86_thread_state64_t *dst) {
+  dst->__rax = src->rax;
+  dst->__rbx = src->rbx;
+  dst->__rcx = src->rcx;
+  dst->__rdx = src->rdx;
+  dst->__rdi = src->rdi;
+  dst->__rsi = src->rsi;
+  dst->__rbp = src->rbp;
+  dst->__rsp = src->rsp;
+  dst->__r8 = src->r8;
+  dst->__r9 = src->r9;
+  dst->__r10 = src->r10;
+  dst->__r11 = src->r11;
+  dst->__r12 = src->r12;
+  dst->__r13 = src->r13;
+  dst->__r14 = src->r14;
+  dst->__r15 = src->r15;
+  dst->__rip = src->rip;
+}
 
 // http://web.mit.edu/darwin/src/modules/xnu/osfmk/man/exc_server.html
 extern "C" boolean_t exc_server(mach_msg_header_t *request_msg,
@@ -36,14 +77,22 @@ extern "C" kern_return_t catch_exception_raise(
     return KERN_FAILURE;
   }
 
-  uintptr_t rip = thread_state.__rip;
-  uintptr_t fault_addr = exc_state.__faultvaddr;
-  bool handled = SegfaultHandler::instance().HandleAccessFault(rip, fault_addr);
+  // convert mach exception to internal exception
+  Exception ex;
+  ex.type = exception & EXC_MASK_BAD_ACCESS ? EX_ACCESS_VIOLATION
+                                            : EX_INVALID_INSTRUCTION;
+  ex.fault_addr = exc_state.__faultvaddr;
+  CopyStateTo(&thread_state, &ex.thread_state);
+
+  // call exception handler, letting it potentially update the thread state
+  bool handled = ExceptionHandler::instance().HandleException(ex);
   if (!handled) {
     return KERN_FAILURE;
   }
 
-  // reset thread state
+  // copy internal thread state back to mach thread state and restore
+  CopyStateFrom(&ex.thread_state, &thread_state);
+
   if (thread_set_state(thread, x86_THREAD_STATE64,
                        reinterpret_cast<thread_state_t>(&thread_state),
                        state_count) != KERN_SUCCESS) {
@@ -53,18 +102,19 @@ extern "C" kern_return_t catch_exception_raise(
   return KERN_SUCCESS;
 }
 
-SegfaultHandler &SegfaultHandler::instance() {
-  static SegfaultHandlerMac instance;
+ExceptionHandler &ExceptionHandler::instance() {
+  static ExceptionHandlerMac instance;
   return instance;
 }
 
-SegfaultHandlerMac::~SegfaultHandlerMac() {
-  task_set_exception_ports(mach_task_self(), EXC_MASK_BAD_ACCESS, 0,
+ExceptionHandlerMac::~ExceptionHandlerMac() {
+  task_set_exception_ports(mach_task_self(),
+                           EXC_MASK_BAD_ACCESS | EXC_MASK_BAD_INSTRUCTION, 0,
                            EXCEPTION_DEFAULT, 0);
   mach_port_deallocate(mach_task_self(), listen_port_);
 }
 
-bool SegfaultHandlerMac::Init() {
+bool ExceptionHandlerMac::Init() {
   // allocate port to listen for exceptions
   if (mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE,
                          &listen_port_) != KERN_SUCCESS) {
@@ -92,7 +142,7 @@ bool SegfaultHandlerMac::Init() {
   return true;
 }
 
-void SegfaultHandlerMac::ThreadEntry() {
+void ExceptionHandlerMac::ThreadEntry() {
   while (true) {
     struct {
       mach_msg_header_t head;

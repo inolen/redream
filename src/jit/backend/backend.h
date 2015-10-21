@@ -6,6 +6,10 @@
 #include "jit/ir/ir_builder.h"
 
 namespace dreavm {
+namespace sys {
+struct Exception;
+}
+
 namespace jit {
 
 struct RuntimeBlock;
@@ -31,7 +35,7 @@ class Backend {
   virtual void DumpBlock(RuntimeBlock *block) = 0;
   virtual void FreeBlock(RuntimeBlock *block) = 0;
 
-  virtual void HandleAccessFault(uintptr_t rip, uintptr_t fault_addr) = 0;
+  virtual bool HandleException(sys::Exception &ex) = 0;
 
  protected:
   hw::Memory &memory_;

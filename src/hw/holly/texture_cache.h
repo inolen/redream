@@ -5,8 +5,8 @@
 #include <unordered_map>
 #include "core/interval_tree.h"
 #include "hw/holly/tile_renderer.h"
+#include "hw/memory.h"
 #include "renderer/backend.h"
-#include "sys/segfault_handler.h"
 
 namespace dreavm {
 namespace trace {
@@ -27,8 +27,8 @@ struct TextureEntry {
       : handle(handle), texture_watch(nullptr), palette_watch(nullptr) {}
 
   renderer::TextureHandle handle;
-  sys::WatchHandle texture_watch;
-  sys::WatchHandle palette_watch;
+  WatchHandle texture_watch;
+  WatchHandle palette_watch;
 };
 
 class TextureCache : public TextureProvider {
@@ -40,10 +40,10 @@ class TextureCache : public TextureProvider {
                                      RegisterTextureCallback register_cb);
 
  private:
-  static void HandleTextureWrite(void *ctx, void *data, uintptr_t rip,
-                                 uintptr_t fault_addr);
-  static void HandlePaletteWrite(void *ctx, void *data, uintptr_t rip,
-                                 uintptr_t fault_addr);
+  static void HandleTextureWrite(void *ctx, const sys::Exception &ex,
+                                 void *data);
+  static void HandlePaletteWrite(void *ctx, const sys::Exception &ex,
+                                 void *data);
 
   void Clear();
   void ClearPending();
