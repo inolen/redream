@@ -12,11 +12,9 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 project(dreavm)
-set(DREAVM_VERSION_MAJOR 0)
-set(DREAVM_VERSION_MINOR 1)
-set(DREAVM_VERSION_PATCH 0)
-set(DREAVM_VERSION ${DREAVM_VERSION_MAJOR}.${DREAVM_VERSION_MINOR}.${DREAVM_VERSION_PATCH})
 
+# export compile_commands.json for clang-tidy
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 #--------------------------------------------------
 # dynamic libs
@@ -103,6 +101,16 @@ find_package(ClangFormat REQUIRED)
 file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.cc" "src/*.h" "test/*.cc" "test/*.h")
 
 add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -style=Google -i ${CLANG_FORMAT_ARGS})
+
+
+#--------------------------------------------------
+# tidy
+#--------------------------------------------------
+find_package(ClangTidy REQUIRED)
+
+file(GLOB_RECURSE CLANG_TIDY_ARGS "src/*.cc" "test/*.cc")
+
+add_custom_target(tidy ${CLANG_TIDY_EXECUTABLE} -p=${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json -checks=-*,readability-* ${CLANG_TIDY_ARGS})
 
 
 #--------------------------------------------------

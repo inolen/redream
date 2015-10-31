@@ -821,12 +821,12 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       output = converted;
       switch (tactx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
-          pixel_fmt = PXL_RGBA5551;
+          // pixel_fmt = PXL_RGBA5551;
           LOG_FATAL("Unhandled");
           break;
 
         case TA_PAL_RGB565:
-          pixel_fmt = PXL_RGB565;
+          // pixel_fmt = PXL_RGB565;
           LOG_FATAL("Unhandled");
           break;
 
@@ -838,7 +838,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
           break;
 
         case TA_PAL_ARGB8888:
-          pixel_fmt = PXL_RGBA8888;
+          // pixel_fmt = PXL_RGBA8888;
           LOG_FATAL("Unhandled");
           break;
       }
@@ -849,12 +849,12 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       output = converted;
       switch (tactx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
-          pixel_fmt = PXL_RGBA5551;
+          // pixel_fmt = PXL_RGBA5551;
           LOG_FATAL("Unhandled");
           break;
 
         case TA_PAL_RGB565:
-          pixel_fmt = PXL_RGB565;
+          // pixel_fmt = PXL_RGB565;
           LOG_FATAL("Unhandled");
           break;
 

@@ -68,6 +68,7 @@ class RGB565 {
     *r = (px >> 11) & 0x1f;
     *g = (px >> 5) & 0x3f;
     *b = px & 0x1f;
+    *a = 0xff;
   }
 
   static inline void Write(data_type *dst, uint8_t r, uint8_t g, uint8_t b,
