@@ -19,18 +19,13 @@ namespace dreavm {
 namespace jit {
 namespace backend {
 namespace x64 {
-const Register x64_registers[] = {{"rbx", ir::VALUE_INT_MASK},
-                                  {"rbp", ir::VALUE_INT_MASK},
-                                  {"r12", ir::VALUE_INT_MASK},
-                                  {"r13", ir::VALUE_INT_MASK},
-                                  {"r14", ir::VALUE_INT_MASK},
-                                  {"r15", ir::VALUE_INT_MASK},
-                                  {"xmm6", ir::VALUE_FLOAT_MASK},
-                                  {"xmm7", ir::VALUE_FLOAT_MASK},
-                                  {"xmm8", ir::VALUE_FLOAT_MASK},
-                                  {"xmm9", ir::VALUE_FLOAT_MASK},
-                                  {"xmm10", ir::VALUE_FLOAT_MASK},
-                                  {"xmm11", ir::VALUE_FLOAT_MASK}};
+const Register x64_registers[] = {
+    {"rbx", ir::VALUE_INT_MASK},     {"rbp", ir::VALUE_INT_MASK},
+    {"r12", ir::VALUE_INT_MASK},     {"r13", ir::VALUE_INT_MASK},
+    {"r14", ir::VALUE_INT_MASK},     {"r15", ir::VALUE_INT_MASK},
+    {"xmm6", ir::VALUE_FLOAT_MASK},  {"xmm7", ir::VALUE_FLOAT_MASK},
+    {"xmm8", ir::VALUE_FLOAT_MASK},  {"xmm9", ir::VALUE_FLOAT_MASK},
+    {"xmm10", ir::VALUE_FLOAT_MASK}, {"xmm11", ir::VALUE_FLOAT_MASK}};
 
 const int x64_num_registers = sizeof(x64_registers) / sizeof(Register);
 }

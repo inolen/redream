@@ -44,14 +44,34 @@ using namespace dreavm::jit::ir;
 // map register ids coming from IR values, must be in sync with x64_backend.h
 // note, only callee saved registers are used here to avoid having to reload
 // registers when calling non-JIT'd functions
-static const Xbyak::Reg *reg_map_8[] = {
-    &Xbyak::util::bl, &Xbyak::util::bpl, &Xbyak::util::r12b, &Xbyak::util::r13b,
-    &Xbyak::util::r14b, &Xbyak::util::r15b, nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr};
-static const Xbyak::Reg *reg_map_16[] = {
-    &Xbyak::util::bx, &Xbyak::util::bp, &Xbyak::util::r12w, &Xbyak::util::r13w,
-    &Xbyak::util::r14w, &Xbyak::util::r15w, nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr};
+static const Xbyak::Reg *reg_map_8[] = {&Xbyak::util::bl,
+                                        &Xbyak::util::bpl,
+                                        &Xbyak::util::r12b,
+                                        &Xbyak::util::r13b,
+                                        &Xbyak::util::r14b,
+                                        &Xbyak::util::r15b,
+                                        nullptr,
+                                        nullptr,
+                                        nullptr,
+                                        nullptr,
+                                        nullptr,
+                                        nullptr,
+                                        nullptr,
+                                        nullptr};
+static const Xbyak::Reg *reg_map_16[] = {&Xbyak::util::bx,
+                                         &Xbyak::util::bp,
+                                         &Xbyak::util::r12w,
+                                         &Xbyak::util::r13w,
+                                         &Xbyak::util::r14w,
+                                         &Xbyak::util::r15w,
+                                         nullptr,
+                                         nullptr,
+                                         nullptr,
+                                         nullptr,
+                                         nullptr,
+                                         nullptr,
+                                         nullptr,
+                                         nullptr};
 static const Xbyak::Reg *reg_map_32[] = {
     &Xbyak::util::ebx,  &Xbyak::util::ebp,   &Xbyak::util::r12d,
     &Xbyak::util::r13d, &Xbyak::util::r14d,  &Xbyak::util::r15d,
@@ -66,9 +86,12 @@ static const Xbyak::Reg *reg_map_64[] = {
 // map register ids coming from IR values for callee saved registers. use
 // nullptr to specify that the register isn't saved
 static const Xbyak::Reg *callee_save_map[] = {
-    &Xbyak::util::rbx, &Xbyak::util::rbp, &Xbyak::util::r12, &Xbyak::util::r13,
-    &Xbyak::util::r14, &Xbyak::util::r15, nullptr,           nullptr,
-    nullptr,           nullptr,           nullptr,           nullptr,
+    &Xbyak::util::rbx, &Xbyak::util::rbp,
+    &Xbyak::util::r12, &Xbyak::util::r13,
+    &Xbyak::util::r14, &Xbyak::util::r15,
+    nullptr,           nullptr,
+    nullptr,           nullptr,
+    nullptr,           nullptr,
     nullptr,           nullptr};
 
 #ifdef PLATFORM_WINDOWS

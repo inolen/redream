@@ -12,19 +12,12 @@ DEFINE_string(profile, "", "Controller profile");
 
 // Controller profile contains button mappings and other misc. configurable
 // settings for the controller.
-static Json default_profile = Json::object{{"joyx", ""},
-                                           {"joyy", ""},
-                                           {"ltrig", ""},
-                                           {"rtrig", ""},
-                                           {"start", "space"},
-                                           {"a", "k"},
-                                           {"b", "l"},
-                                           {"x", "j"},
-                                           {"y", "i"},
-                                           {"dpad_up", "w"},
-                                           {"dpad_down", "s"},
-                                           {"dpad_left", "a"},
-                                           {"dpad_right", "d"}};
+static Json default_profile =
+    Json::object{{"joyx", ""},       {"joyy", ""},       {"ltrig", ""},
+                 {"rtrig", ""},      {"start", "space"}, {"a", "k"},
+                 {"b", "l"},         {"x", "j"},         {"y", "i"},
+                 {"dpad_up", "w"},   {"dpad_down", "s"}, {"dpad_left", "a"},
+                 {"dpad_right", "d"}};
 
 MapleControllerProfile::MapleControllerProfile() : button_map_() {}
 

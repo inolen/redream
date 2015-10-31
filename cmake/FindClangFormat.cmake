@@ -1,4 +1,4 @@
-find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format clang-format-3.6)
+find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format clang-format-3.6 clang-format-3.7)
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(cppcheck
   DEFAULT_MSG
