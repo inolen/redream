@@ -23,11 +23,21 @@ static Backend *g_backend = nullptr;
 Profiler *dreavm::emu::Profiler::instance_ = nullptr;
 
 static float HueToRGB(float p, float q, float t) {
-  if (t < 0.0f) t += 1.0f;
-  if (t > 1.0f) t -= 1.0f;
-  if (t < 1.0f / 6.0f) return p + (q - p) * 6.0f * t;
-  if (t < 1.0f / 2.0f) return q;
-  if (t < 2.0f / 3.0f) return p + (q - p) * (2.0f / 3.0f - t) * 6.0f;
+  if (t < 0.0f) {
+    t += 1.0f;
+  }
+  if (t > 1.0f) {
+    t -= 1.0f;
+  }
+  if (t < 1.0f / 6.0f) {
+    return p + (q - p) * 6.0f * t;
+  }
+  if (t < 1.0f / 2.0f) {
+    return q;
+  }
+  if (t < 2.0f / 3.0f) {
+    return p + (q - p) * (2.0f / 3.0f - t) * 6.0f;
+  }
   return p;
 }
 
@@ -101,13 +111,18 @@ bool Profiler::HandleInput(Keycode key, int16_t value) {
       MicroProfileToggleDisplayMode();
     }
     return true;
-  } else if (key == K_MOUSE1) {
+  }
+
+  if (key == K_MOUSE1) {
     MicroProfileMouseButton(value, 0);
     return true;
-  } else if (key == K_MOUSE2) {
+  }
+
+  if (key == K_MOUSE2) {
     MicroProfileMouseButton(0, value);
     return true;
   }
+
   return false;
 }
 

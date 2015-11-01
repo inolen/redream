@@ -881,13 +881,14 @@ REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I32, V);
 INT_CALLBACK(BRANCH_COND) {
   using U1 = typename std::make_unsigned<A1>::type;
   A0 cond = LOAD_ARG0();
+
   if (cond) {
     U1 addr = static_cast<U1>(LOAD_ARG1());
     return addr;
-  } else {
-    U1 addr = static_cast<U1>(LOAD_ARG2());
-    return addr;
   }
+
+  U1 addr = static_cast<U1>(LOAD_ARG2());
+  return addr;
 }
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I8);
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I16);

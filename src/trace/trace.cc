@@ -73,7 +73,9 @@ bool TraceReader::PatchPointers() {
     curr_cmd = reinterpret_cast<TraceCommand *>(ptr);
 
     // set prev / next pointers
-    if (prev_cmd) prev_cmd->next = curr_cmd;
+    if (prev_cmd) {
+      prev_cmd->next = curr_cmd;
+    }
     curr_cmd->prev = prev_cmd;
     curr_cmd->next = nullptr;
     curr_cmd->override = nullptr;

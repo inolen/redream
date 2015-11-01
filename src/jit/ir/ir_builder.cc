@@ -168,7 +168,9 @@ void IRBuilder::Dump() const {
   auto DumpValue = [&](std::stringstream &ss, const Value *v) {
     if (!v) {
       return;
-    } else if (!v->constant()) {
+    }
+
+    if (!v->constant()) {
       DumpVariable(ss, v);
     } else {
       switch (v->type()) {

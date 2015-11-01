@@ -127,11 +127,13 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
 RegisterSet &RegisterAllocationPass::GetRegisterSet(ValueTy type) {
   if (IsIntType(type)) {
     return int_registers_;
-  } else if (IsFloatType(type)) {
-    return float_registers_;
-  } else {
-    LOG_FATAL("Unexpected value type");
   }
+
+  if (IsFloatType(type)) {
+    return float_registers_;
+  }
+
+  LOG_FATAL("Unexpected value type");
 }
 
 void RegisterAllocationPass::Reset() {

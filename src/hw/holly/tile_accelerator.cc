@@ -98,26 +98,35 @@ int GetPolyType_raw(const PCW &pcw) {
   if (pcw.list_type == TA_LIST_OPAQUE_MODVOL ||
       pcw.list_type == TA_LIST_TRANSLUCENT_MODVOL) {
     return 6;
-  } else if (pcw.para_type == TA_PARAM_SPRITE) {
+  }
+
+  if (pcw.para_type == TA_PARAM_SPRITE) {
     return 5;
-  } else if (pcw.volume) {
+  }
+
+  if (pcw.volume) {
     if (pcw.col_type == 0) {
       return 3;
-    } else if (pcw.col_type == 2) {
+    }
+    if (pcw.col_type == 2) {
       return 4;
-    } else if (pcw.col_type == 3) {
+    }
+    if (pcw.col_type == 3) {
       return 3;
     }
-  } else {
-    if (pcw.col_type == 0 || pcw.col_type == 1 || pcw.col_type == 3) {
-      return 0;
-    } else if (pcw.col_type == 2 && pcw.texture && !pcw.offset) {
-      return 1;
-    } else if (pcw.col_type == 2 && pcw.texture && pcw.offset) {
-      return 2;
-    } else if (pcw.col_type == 2 && !pcw.texture) {
-      return 1;
-    }
+  }
+
+  if (pcw.col_type == 0 || pcw.col_type == 1 || pcw.col_type == 3) {
+    return 0;
+  }
+  if (pcw.col_type == 2 && pcw.texture && !pcw.offset) {
+    return 1;
+  }
+  if (pcw.col_type == 2 && pcw.texture && pcw.offset) {
+    return 2;
+  }
+  if (pcw.col_type == 2 && !pcw.texture) {
+    return 1;
   }
 
   return 0;
@@ -128,40 +137,50 @@ static int GetVertexType_raw(const PCW &pcw) {
   if (pcw.list_type == TA_LIST_OPAQUE_MODVOL ||
       pcw.list_type == TA_LIST_TRANSLUCENT_MODVOL) {
     return 17;
-  } else if (pcw.para_type == TA_PARAM_SPRITE) {
+  }
+
+  if (pcw.para_type == TA_PARAM_SPRITE) {
     return pcw.texture ? 16 : 15;
-  } else if (pcw.volume) {
+  }
+
+  if (pcw.volume) {
     if (pcw.texture) {
       if (pcw.col_type == 0) {
         return pcw.uv_16bit ? 12 : 11;
-      } else if (pcw.col_type == 2 || pcw.col_type == 3) {
+      }
+      if (pcw.col_type == 2 || pcw.col_type == 3) {
         return pcw.uv_16bit ? 14 : 13;
       }
-    } else {
-      if (pcw.col_type == 0) {
-        return 9;
-      } else if (pcw.col_type == 2 || pcw.col_type == 3) {
-        return 10;
-      }
     }
-  } else {
-    if (pcw.texture) {
-      if (pcw.col_type == 0) {
-        return pcw.uv_16bit ? 4 : 3;
-      } else if (pcw.col_type == 1) {
-        return pcw.uv_16bit ? 6 : 5;
-      } else if (pcw.col_type == 2 || pcw.col_type == 3) {
-        return pcw.uv_16bit ? 8 : 7;
-      }
-    } else {
-      if (pcw.col_type == 0) {
-        return 0;
-      } else if (pcw.col_type == 1) {
-        return 1;
-      } else if (pcw.col_type == 2 || pcw.col_type == 3) {
-        return 2;
-      }
+
+    if (pcw.col_type == 0) {
+      return 9;
     }
+    if (pcw.col_type == 2 || pcw.col_type == 3) {
+      return 10;
+    }
+  }
+
+  if (pcw.texture) {
+    if (pcw.col_type == 0) {
+      return pcw.uv_16bit ? 4 : 3;
+    }
+    if (pcw.col_type == 1) {
+      return pcw.uv_16bit ? 6 : 5;
+    }
+    if (pcw.col_type == 2 || pcw.col_type == 3) {
+      return pcw.uv_16bit ? 8 : 7;
+    }
+  }
+
+  if (pcw.col_type == 0) {
+    return 0;
+  }
+  if (pcw.col_type == 1) {
+    return 1;
+  }
+  if (pcw.col_type == 2 || pcw.col_type == 3) {
+    return 2;
   }
 
   return 0;

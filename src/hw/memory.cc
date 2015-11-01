@@ -134,11 +134,7 @@ Memory::~Memory() {
 }
 
 bool Memory::Init() {
-  if (!CreateAddressSpace()) {
-    return false;
-  }
-
-  return true;
+  return CreateAddressSpace();
 }
 
 bool Memory::Resolve(uint32_t logical_addr, MemoryBank **out_bank,

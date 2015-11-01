@@ -46,7 +46,7 @@ uint32_t AICA::ReadWave(void *ctx, uint32_t addr) {
     return 0x54494e49;
   }
   // FIXME temp hacks to get Crazy Taxi 2 booting
-  else if (addr == 0x5c) {
+  if (addr == 0x5c) {
     return 0x54494e49;
   }
 
