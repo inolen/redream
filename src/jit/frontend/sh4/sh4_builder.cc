@@ -1360,29 +1360,9 @@ EMITTER(LDCDBR) {
 
 // LDC.L   Rm,Rn_BANK
 EMITTER(LDCRBANK) {
-  Block *rb1 = b.AppendBlock();
-  Block *rb0 = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-
   int reg = i.Rn & 0x7;
-
-  b.BranchCond(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1, rb0);
-
-  {
-    b.SetCurrentBlock(rb1);
-    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg * 4, rm);
-    b.Branch(end_block);
-  }
-
-  {
-    b.SetCurrentBlock(rb0);
-    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg * 4, rm);
-    b.Branch(end_block);
-  }
-
-  b.SetCurrentBlock(end_block);
+  Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
+  b.StoreContext(offsetof(SH4Context, ralt) + reg * 4, rm);
 }
 
 // LDC.L   @Rm+,SR
@@ -1437,33 +1417,11 @@ EMITTER(LDCMDBR) {
 
 // LDC.L   @Rm+,Rn_BANK
 EMITTER(LDCMRBANK) {
-  Block *rb1 = b.AppendBlock();
-  Block *rb0 = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-
   int reg = i.Rn & 0x7;
-
-  b.BranchCond(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1, rb0);
-
-  {
-    b.SetCurrentBlock(rb0);
-    Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
-    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
-    Value *v = b.Load(addr, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, rbnk[1]) + reg * 4, v);
-    b.Branch(end_block);
-  }
-
-  {
-    b.SetCurrentBlock(rb1);
-    Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
-    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
-    Value *v = b.Load(addr, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, rbnk[0]) + reg * 4, v);
-    b.Branch(end_block);
-  }
-
-  b.SetCurrentBlock(end_block);
+  Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
+  b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
+  Value *v = b.Load(addr, VALUE_I32);
+  b.StoreContext(offsetof(SH4Context, ralt) + reg * 4, v);
 }
 
 // LDS     Rm,MACH
@@ -1639,29 +1597,9 @@ EMITTER(STCDBR) {
 
 // STC     Rm_BANK,Rn
 EMITTER(STCRBANK) {
-  Block *rb1 = b.AppendBlock();
-  Block *rb0 = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-
   int reg = i.Rm & 0x7;
-
-  b.BranchCond(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1, rb0);
-
-  {
-    b.SetCurrentBlock(rb1);
-    b.StoreRegister(i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg * 4,
-                                        VALUE_I32));
-    b.Branch(end_block);
-  }
-
-  {
-    b.SetCurrentBlock(rb0);
-    b.StoreRegister(i.Rn, b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg * 4,
-                                        VALUE_I32));
-    b.Branch(end_block);
-  }
-
-  b.SetCurrentBlock(end_block);
+  b.StoreRegister(
+      i.Rn, b.LoadContext(offsetof(SH4Context, ralt) + reg * 4, VALUE_I32));
 }
 
 // STC.L   SR,@-Rn
@@ -1722,33 +1660,10 @@ EMITTER(STCMDBR) {
 
 // STC.L   Rm_BANK,@-Rn
 EMITTER(STCMRBANK) {
-  Block *rb1 = b.AppendBlock();
-  Block *rb0 = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-
   int reg = i.Rm & 0x7;
-
-  b.BranchCond(b.And(b.LoadSR(), b.AllocConstant(RB)), rb1, rb0);
-
-  {
-    b.SetCurrentBlock(rb1);
-    Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
-    b.StoreRegister(i.Rn, addr);
-    b.Store(addr,
-            b.LoadContext(offsetof(SH4Context, rbnk[0]) + reg * 4, VALUE_I32));
-    b.Branch(end_block);
-  }
-
-  {
-    b.SetCurrentBlock(rb0);
-    Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
-    b.StoreRegister(i.Rn, addr);
-    b.Store(addr,
-            b.LoadContext(offsetof(SH4Context, rbnk[1]) + reg * 4, VALUE_I32));
-    b.Branch(end_block);
-  }
-
-  b.SetCurrentBlock(end_block);
+  Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(4));
+  b.StoreRegister(i.Rn, addr);
+  b.Store(addr, b.LoadContext(offsetof(SH4Context, ralt) + reg * 4, VALUE_I32));
 }
 
 // STS     MACH,Rn

@@ -322,13 +322,15 @@ void SH4::FPSCRUpdated(SH4Context *ctx) {
 void SH4::SetRegisterBank(int bank) {
   if (bank == 0) {
     for (int s = 0; s < 8; s++) {
-      ctx_.rbnk[1][s] = ctx_.r[s];
-      ctx_.r[s] = ctx_.rbnk[0][s];
+      uint32_t tmp = ctx_.r[s];
+      ctx_.r[s] = ctx_.ralt[s];
+      ctx_.ralt[s] = tmp;
     }
-  } else {
+  } else if (bank == 1) {
     for (int s = 0; s < 8; s++) {
-      ctx_.rbnk[0][s] = ctx_.r[s];
-      ctx_.r[s] = ctx_.rbnk[1][s];
+      uint32_t tmp = ctx_.r[s];
+      ctx_.r[s] = ctx_.ralt[s];
+      ctx_.ralt[s] = tmp;
     }
   }
 }

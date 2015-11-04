@@ -51,7 +51,7 @@ struct SH4Context {
   uint32_t pr;
   uint32_t gbr, vbr;
   uint32_t mach, macl;
-  uint32_t r[16], rbnk[2][8], sgr;
+  uint32_t r[16], ralt[8], sgr;
   uint32_t fr[16], xf[16];
   uint32_t fpul;
   uint32_t dbr;
