@@ -27,8 +27,10 @@ SH4::SH4(Memory &memory, Runtime &runtime)
       pending_interrupts_(0) {}
 
 bool SH4::Init() {
+  // initialize context
   memset(&ctx_, 0, sizeof(ctx_));
-  ctx_.priv = this;
+  ctx_.sh4 = this;
+  ctx_.Pref = &SH4::Pref;
   ctx_.SRUpdated = &SH4::SRUpdated;
   ctx_.FPSCRUpdated = &SH4::FPSCRUpdated;
   ctx_.pc = 0xa0000000;
@@ -36,6 +38,7 @@ bool SH4::Init() {
   ctx_.sr.full = ctx_.old_sr.full = 0x700000f0;
   ctx_.fpscr.full = ctx_.old_fpscr.full = 0x00040001;
 
+  // initialize registers
   memset(area7_, 0, sizeof(area7_));
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   if (default != HELD) {                                                 \
@@ -44,8 +47,10 @@ bool SH4::Init() {
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
 
+  // clear cache
   memset(cache_, 0, sizeof(cache_));
 
+  // reset interrupts
   ReprioritizeInterrupts();
 
   return true;
@@ -222,15 +227,6 @@ void SH4::WriteRegister(void *ctx, uint32_t addr, T value) {
       }
       break;
 
-    // when a PREF instruction is encountered, the high order bits of the
-    // address are filled in from the queue address control register
-    case QACR0_OFFSET:
-      self->ctx_.sq_ext_addr[0] = (value & 0x1c) << 24;
-      break;
-    case QACR1_OFFSET:
-      self->ctx_.sq_ext_addr[1] = (value & 0x1c) << 24;
-      break;
-
     case IPRA_OFFSET:
     case IPRB_OFFSET:
     case IPRC_OFFSET:
@@ -287,12 +283,38 @@ template <typename T>
 void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx);
   uint32_t sqi = (addr & 0x20) >> 5;
-  unsigned idx = (addr & 0x1c) >> 2;
+  uint32_t idx = (addr & 0x1c) >> 2;
   self->ctx_.sq[sqi][idx] = static_cast<uint32_t>(value);
 }
 
+void SH4::Pref(SH4Context *ctx, uint64_t arg0) {
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+  uint32_t addr = static_cast<uint32_t>(arg0);
+
+  // only concerned about SQ related prefetches
+  if (addr < 0xe0000000 || addr > 0xe3ffffff) {
+    return;
+  }
+
+  // figure out the source and destination
+  uint32_t dest = addr & 0x03ffffe0;
+  uint32_t sqi = (addr & 0x20) >> 5;
+  if (sqi) {
+    dest |= (self->QACR1 & 0x1c) << 24;
+  } else {
+    dest |= (self->QACR0 & 0x1c) << 24;
+  }
+
+  // perform the "burst" 32-byte copy
+  Memory &memory = self->memory_;
+  for (int i = 0; i < 8; i++) {
+    memory.W32(dest, ctx->sq[sqi][i]);
+    dest += 4;
+  }
+}
+
 void SH4::SRUpdated(SH4Context *ctx) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->priv);
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
 
   if (ctx->sr.RB != ctx->old_sr.RB) {
     self->SetRegisterBank(ctx->sr.RB ? 1 : 0);
@@ -306,7 +328,7 @@ void SH4::SRUpdated(SH4Context *ctx) {
 }
 
 void SH4::FPSCRUpdated(SH4Context *ctx) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->priv);
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
 
   if (ctx->fpscr.FR != ctx->old_fpscr.FR) {
     self->SwapFPRegisters();

@@ -482,8 +482,8 @@ class IRBuilder {
   void BranchCond(Value *cond, Block *true_block, Block *false_block);
 
   // calls
-  void CallExternal(ExternalFn func);
-  void CallExternal(Value *addr);
+  void CallExternal1(Value *addr);
+  void CallExternal2(Value *addr, Value *arg0);
 
   // values
   Value *AllocConstant(uint8_t c);

@@ -140,7 +140,7 @@ void SH4Builder::StoreSR(Value *v) {
   StoreAndPreserveContext(offsetof(SH4Context, sr), v, IF_INVALIDATE_CONTEXT);
 
   Value *sr_updated = LoadContext(offsetof(SH4Context, SRUpdated), VALUE_I64);
-  CallExternal(sr_updated);
+  CallExternal1(sr_updated);
 }
 
 ir::Value *SH4Builder::LoadT() { return And(LoadSR(), AllocConstant(T)); }
@@ -171,7 +171,7 @@ void SH4Builder::StoreFPSCR(ir::Value *v) {
 
   Value *fpscr_updated =
       LoadContext(offsetof(SH4Context, FPSCRUpdated), VALUE_I64);
-  CallExternal(fpscr_updated);
+  CallExternal1(fpscr_updated);
 }
 
 ir::Value *SH4Builder::LoadPR() {
@@ -1482,58 +1482,10 @@ EMITTER(OCBP) {}
 EMITTER(OCBWB) {}
 
 // PREF     @Rn
-// FIXME this is painfully bad
 EMITTER(PREF) {
-  Block *sq_block = b.AppendBlock();
-  Block *sq1_block = b.AppendBlock();
-  Block *sq0_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-
-  {
-    Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
-    Value *is_sq_call = b.And(b.UGE(addr, b.AllocConstant(0xe0000000)),
-                              b.ULE(addr, b.AllocConstant(0xe3fffffc)));
-    b.BranchCond(is_sq_call, sq_block, end_block);
-  }
-
-  {
-    {
-      b.SetCurrentBlock(sq_block);
-      Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
-      Value *sq = b.And(addr, b.AllocConstant(0x20));
-      b.BranchCond(sq, sq1_block, sq0_block);
-    }
-
-    {
-      b.SetCurrentBlock(sq1_block);
-      Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
-      Value *sq1_dest =
-          b.Or(b.And(addr, b.AllocConstant(0x03ffffe0)),
-               b.LoadContext(offsetof(SH4Context, sq_ext_addr[1]), VALUE_I32));
-      for (int i = 0; i < 8; i++) {
-        b.Store(sq1_dest,
-                b.LoadContext(offsetof(SH4Context, sq[1]) + i * 4, VALUE_I32));
-        sq1_dest = b.Add(sq1_dest, b.AllocConstant(4));
-      }
-      b.Branch(end_block);
-    }
-
-    {
-      b.SetCurrentBlock(sq0_block);
-      Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
-      Value *sq0_dest =
-          b.Or(b.And(addr, b.AllocConstant(0x03ffffe0)),
-               b.LoadContext(offsetof(SH4Context, sq_ext_addr[0]), VALUE_I32));
-      for (int i = 0; i < 8; i++) {
-        b.Store(sq0_dest,
-                b.LoadContext(offsetof(SH4Context, sq[0]) + i * 4, VALUE_I32));
-        sq0_dest = b.Add(sq0_dest, b.AllocConstant(4));
-      }
-      b.Branch(end_block);
-    }
-  }
-
-  b.SetCurrentBlock(end_block);
+  Value *pref = b.LoadContext(offsetof(SH4Context, Pref), VALUE_I64);
+  Value *addr = b.ZExt(b.LoadRegister(i.Rn, VALUE_I32), VALUE_I64);
+  b.CallExternal2(pref, addr);
 }
 
 // RTE

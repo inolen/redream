@@ -1614,8 +1614,16 @@ EMITTER(BRANCH_COND) {
 }
 
 EMITTER(CALL_EXTERNAL) {
-  // copy guest context into arg0
+  // copy guest context into the register for arg0
   e.mov(int_arg0, int_arg1);
+
+  // if an additional argument is specified, copy it into the register for arg1
+  if (instr->arg1()) {
+    const Xbyak::Reg &arg = e.GetRegister(instr->arg1());
+    e.mov(int_arg1, arg);
+  }
+
+  // call the external function
   e.CopyOperand(instr->arg0(), e.rax);
   e.call(e.rax);
 

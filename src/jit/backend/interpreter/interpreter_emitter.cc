@@ -894,13 +894,21 @@ REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I8);
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I16);
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I32);
 
-INT_CALLBACK(CALL_EXTERNAL) {
+INT_CALLBACK(CALL_EXTERNAL1) {
   A0 addr = LOAD_ARG0();
   void (*func)(void *) = reinterpret_cast<void (*)(void *)>(addr);
   func(guest_ctx);
   return NEXT_INSTR;
 }
-REGISTER_INT_CALLBACK(CALL_EXTERNAL, CALL_EXTERNAL, V, I64, V);
+INT_CALLBACK(CALL_EXTERNAL2) {
+  A0 addr = LOAD_ARG0();
+  A1 arg = LOAD_ARG1();
+  void (*func)(void *, uint64_t) = reinterpret_cast<void (*)(void *, uint64_t)>(addr);
+  func(guest_ctx, arg);
+  return NEXT_INSTR;
+}
+REGISTER_INT_CALLBACK(CALL_EXTERNAL, CALL_EXTERNAL1, V, I64, V);
+REGISTER_INT_CALLBACK(CALL_EXTERNAL, CALL_EXTERNAL2, V, I64, I64);
 
 //
 // lookup callback for ir instruction

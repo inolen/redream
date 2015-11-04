@@ -147,6 +147,7 @@ class SH4 : public hw::Device {
   static void WriteSQ(void *ctx, uint32_t addr, T value);
 
  private:
+  static void Pref(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
   static void SRUpdated(jit::frontend::sh4::SH4Context *ctx);
   static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx);
 

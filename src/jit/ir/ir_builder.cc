@@ -756,15 +756,20 @@ void IRBuilder::BranchCond(Value *cond, Block *true_block, Block *false_block) {
   SetCurrentBlock(false_block);
 }
 
-void IRBuilder::CallExternal(Value *addr) {
+void IRBuilder::CallExternal1(Value *addr) {
   CHECK_EQ(addr->type(), VALUE_I64);
 
   Instr *instr = AppendInstr(OP_CALL_EXTERNAL, IF_INVALIDATE_CONTEXT);
   instr->set_arg0(addr);
 }
 
-void IRBuilder::CallExternal(ExternalFn func) {
-  CallExternal(AllocConstant((uint64_t)(intptr_t)func));
+void IRBuilder::CallExternal2(Value *addr, Value *arg0) {
+  CHECK_EQ(addr->type(), VALUE_I64);
+  CHECK_EQ(arg0->type(), VALUE_I64);
+
+  Instr *instr = AppendInstr(OP_CALL_EXTERNAL, IF_INVALIDATE_CONTEXT);
+  instr->set_arg0(addr);
+  instr->set_arg1(arg0);
 }
 
 Value *IRBuilder::AllocConstant(uint8_t c) { return AllocConstant((int8_t)c); }
