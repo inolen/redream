@@ -140,7 +140,7 @@ void Block::UnlinkInstr(Instr *instr) {
 IRBuilder::IRBuilder()
     : arena_(1024), current_block_(nullptr), guest_cycles_(0) {}
 
-bool IRBuilder::IsTerminator(const Instr *i) {
+bool IRBuilder::IsBranch(const Instr *i) {
   return i->op() == OP_BRANCH || i->op() == OP_BRANCH_COND;
 }
 
@@ -699,8 +699,9 @@ void IRBuilder::Branch(Value *dest) {
 }
 
 void IRBuilder::Branch(Block *dest) {
-  Instr *instr = AppendInstr(OP_BRANCH);
-  instr->set_arg0(AllocConstant(dest));
+  // Instr *instr = AppendInstr(OP_BRANCH);
+  // instr->set_arg0(AllocConstant(dest));
+  LOG_FATAL("Unsupported");
 }
 
 void IRBuilder::BranchFalse(Value *cond, Value *false_addr) {
@@ -720,19 +721,20 @@ void IRBuilder::BranchFalse(Value *cond, Value *false_addr) {
 }
 
 void IRBuilder::BranchFalse(Value *cond, Block *false_block) {
-  if (cond->type() != VALUE_I8) {
-    cond = NE(cond, AllocConstant(0));
-  }
+  // if (cond->type() != VALUE_I8) {
+  //   cond = NE(cond, AllocConstant(0));
+  // }
 
-  // create fallthrough block automatically
-  Block *true_block = InsertBlock(current_block_);
+  // // create fallthrough block automatically
+  // Block *true_block = InsertBlock(current_block_);
 
-  Instr *instr = AppendInstr(OP_BRANCH_COND);
-  instr->set_arg0(cond);
-  instr->set_arg1(AllocConstant(true_block));
-  instr->set_arg2(AllocConstant(false_block));
+  // Instr *instr = AppendInstr(OP_BRANCH_COND);
+  // instr->set_arg0(cond);
+  // instr->set_arg1(AllocConstant(true_block));
+  // instr->set_arg2(AllocConstant(false_block));
 
-  SetCurrentBlock(true_block);
+  // SetCurrentBlock(true_block);
+  LOG_FATAL("Unsupported");
 }
 
 void IRBuilder::BranchTrue(Value *cond, Value *true_addr) {
@@ -752,32 +754,34 @@ void IRBuilder::BranchTrue(Value *cond, Value *true_addr) {
 }
 
 void IRBuilder::BranchTrue(Value *cond, Block *true_block) {
-  if (cond->type() != VALUE_I8) {
-    cond = NE(cond, AllocConstant(0));
-  }
+  // if (cond->type() != VALUE_I8) {
+  //   cond = NE(cond, AllocConstant(0));
+  // }
 
-  // create fallthrough block automatically
-  Block *false_block = InsertBlock(current_block_);
+  // // create fallthrough block automatically
+  // Block *false_block = InsertBlock(current_block_);
 
-  Instr *instr = AppendInstr(OP_BRANCH_COND);
-  instr->set_arg0(cond);
-  instr->set_arg1(AllocConstant(true_block));
-  instr->set_arg2(AllocConstant(false_block));
+  // Instr *instr = AppendInstr(OP_BRANCH_COND);
+  // instr->set_arg0(cond);
+  // instr->set_arg1(AllocConstant(true_block));
+  // instr->set_arg2(AllocConstant(false_block));
 
-  SetCurrentBlock(false_block);
+  // SetCurrentBlock(false_block);
+  LOG_FATAL("Unsupported");
 }
 
 void IRBuilder::BranchCond(Value *cond, Block *true_block, Block *false_block) {
-  if (cond->type() != VALUE_I8) {
-    cond = NE(cond, AllocConstant(0));
-  }
+  // if (cond->type() != VALUE_I8) {
+  //   cond = NE(cond, AllocConstant(0));
+  // }
 
-  Instr *instr = AppendInstr(OP_BRANCH_COND);
-  instr->set_arg0(cond);
-  instr->set_arg1(AllocConstant(true_block));
-  instr->set_arg2(AllocConstant(false_block));
+  // Instr *instr = AppendInstr(OP_BRANCH_COND);
+  // instr->set_arg0(cond);
+  // instr->set_arg1(AllocConstant(true_block));
+  // instr->set_arg2(AllocConstant(false_block));
 
-  SetCurrentBlock(false_block);
+  // SetCurrentBlock(false_block);
+  LOG_FATAL("Unsupported");
 }
 
 void IRBuilder::CallExternal1(Value *addr) {
@@ -873,7 +877,7 @@ Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
 
 Instr *IRBuilder::AppendInstr(Opcode op, InstrFlag flags) {
   if (!current_block_ || (current_block_->instrs().tail() &&
-                          IsTerminator(current_block_->instrs().tail()))) {
+                          IsBranch(current_block_->instrs().tail()))) {
     current_block_ = InsertBlock(current_block_);
   }
 

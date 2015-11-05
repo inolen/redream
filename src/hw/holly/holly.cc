@@ -84,8 +84,7 @@ T Holly::ReadRegister(void *ctx, uint32_t addr) {
   if (offset >= SB_MDSTAR_OFFSET && offset <= SB_MRXDBD_OFFSET) {
     return Maple::ReadRegister<T>(self->maple_, addr);
   }
-  if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET &&
-             offset <= SB_GDLEND_OFFSET) {
+  if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET && offset <= SB_GDLEND_OFFSET) {
     return GDROM::ReadRegister<T>(self->gdrom_, addr);
   }
 
@@ -128,8 +127,7 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, T value) {
     Maple::WriteRegister<T>(self->maple_, addr, value);
     return;
   }
-  if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET &&
-             offset <= SB_GDLEND_OFFSET) {
+  if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET && offset <= SB_GDLEND_OFFSET) {
     GDROM::WriteRegister<T>(self->gdrom_, addr, value);
     return;
   }

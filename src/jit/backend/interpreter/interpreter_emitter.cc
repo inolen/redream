@@ -937,7 +937,8 @@ INT_CALLBACK(CALL_EXTERNAL1) {
 INT_CALLBACK(CALL_EXTERNAL2) {
   A0 addr = LOAD_ARG0();
   A1 arg = LOAD_ARG1();
-  void (*func)(void *, uint64_t) = reinterpret_cast<void (*)(void *, uint64_t)>(addr);
+  void (*func)(void *, uint64_t) =
+      reinterpret_cast<void (*)(void *, uint64_t)>(addr);
   func(guest_ctx, arg);
   return NEXT_INSTR;
 }

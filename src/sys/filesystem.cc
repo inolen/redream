@@ -74,7 +74,8 @@ void BaseName(const char *path, char *base, size_t size) {
   for (; i && path[i] == PATH_SEPARATOR[0]; i--) {
     len = i;
   }
-  for (; i && path[i - 1] != PATH_SEPARATOR[0]; i--) {}
+  for (; i && path[i - 1] != PATH_SEPARATOR[0]; i--) {
+  }
   size_t n = std::min(len - i, size - 1);
   strncpy(base, path + i, n);
   base[n] = 0;

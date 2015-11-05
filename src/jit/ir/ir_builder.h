@@ -405,7 +405,7 @@ class IRBuilder {
 
   int guest_cycles() const { return guest_cycles_; }
 
-  static bool IsTerminator(const Instr *i);
+  static bool IsBranch(const Instr *i);
 
   void Dump() const;
 

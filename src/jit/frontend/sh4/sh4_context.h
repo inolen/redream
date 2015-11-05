@@ -57,7 +57,6 @@ struct SH4Context {
   uint32_t fpul;
   uint32_t dbr;
   uint32_t sq[2][8];
-  uint32_t preserve;
   uint32_t sr_qm;
   SR_T sr, ssr, old_sr;
   FPSCR_T fpscr, old_fpscr;

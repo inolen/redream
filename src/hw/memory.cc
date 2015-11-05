@@ -133,9 +133,7 @@ Memory::~Memory() {
   ExceptionHandler::instance().RemoveHandler(eh_handle_);
 }
 
-bool Memory::Init() {
-  return CreateAddressSpace();
-}
+bool Memory::Init() { return CreateAddressSpace(); }
 
 bool Memory::Resolve(uint32_t logical_addr, MemoryBank **out_bank,
                      uint32_t *out_offset) {

@@ -28,11 +28,7 @@ EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
 };
 
 SH4Builder::SH4Builder(Memory &memory)
-    : memory_(memory),
-      has_delay_instr_(false),
-      preserve_offset_(-1),
-      preserve_mask_(0),
-      offset_preserved_(false) {}
+    : memory_(memory), has_delay_instr_(false) {}
 
 void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   PROFILER_RUNTIME("SH4Builder::Emit");
@@ -112,7 +108,7 @@ Value *SH4Builder::LoadRegister(int n, ValueTy type) {
 
 void SH4Builder::StoreRegister(int n, Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
-  return StoreAndPreserveContext(offsetof(SH4Context, r[n]), v);
+  return StoreContext(offsetof(SH4Context, r[n]), v);
 }
 
 Value *SH4Builder::LoadRegisterF(int n, ValueTy type) {
@@ -120,7 +116,7 @@ Value *SH4Builder::LoadRegisterF(int n, ValueTy type) {
 }
 
 void SH4Builder::StoreRegisterF(int n, Value *v) {
-  return StoreAndPreserveContext(offsetof(SH4Context, fr[n]), v);
+  return StoreContext(offsetof(SH4Context, fr[n]), v);
 }
 
 Value *SH4Builder::LoadRegisterXF(int n, ValueTy type) {
@@ -128,7 +124,7 @@ Value *SH4Builder::LoadRegisterXF(int n, ValueTy type) {
 }
 
 void SH4Builder::StoreRegisterXF(int n, Value *v) {
-  return StoreAndPreserveContext(offsetof(SH4Context, xf[n]), v);
+  return StoreContext(offsetof(SH4Context, xf[n]), v);
 }
 
 Value *SH4Builder::LoadSR() {
@@ -137,7 +133,7 @@ Value *SH4Builder::LoadSR() {
 
 void SH4Builder::StoreSR(Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
-  StoreAndPreserveContext(offsetof(SH4Context, sr), v, IF_INVALIDATE_CONTEXT);
+  StoreContext(offsetof(SH4Context, sr), v, IF_INVALIDATE_CONTEXT);
 
   Value *sr_updated = LoadContext(offsetof(SH4Context, SRUpdated), VALUE_I64);
   CallExternal1(sr_updated);
@@ -155,7 +151,7 @@ Value *SH4Builder::LoadGBR() {
 }
 
 void SH4Builder::StoreGBR(Value *v) {
-  StoreAndPreserveContext(offsetof(SH4Context, gbr), v);
+  StoreContext(offsetof(SH4Context, gbr), v);
 }
 
 ir::Value *SH4Builder::LoadFPSCR() {
@@ -167,7 +163,7 @@ ir::Value *SH4Builder::LoadFPSCR() {
 void SH4Builder::StoreFPSCR(ir::Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
   v = And(v, AllocConstant(0x003fffff));
-  StoreAndPreserveContext(offsetof(SH4Context, fpscr), v);
+  StoreContext(offsetof(SH4Context, fpscr), v);
 
   Value *fpscr_updated =
       LoadContext(offsetof(SH4Context, FPSCRUpdated), VALUE_I64);
@@ -180,41 +176,7 @@ ir::Value *SH4Builder::LoadPR() {
 
 void SH4Builder::StorePR(ir::Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
-  StoreAndPreserveContext(offsetof(SH4Context, pr), v);
-}
-
-void SH4Builder::PreserveT() {
-  preserve_offset_ = offsetof(SH4Context, sr);
-  preserve_mask_ = T;
-}
-
-void SH4Builder::PreservePR() {
-  preserve_offset_ = offsetof(SH4Context, pr);
-  preserve_mask_ = 0;
-}
-
-void SH4Builder::PreserveRegister(int n) {
-  preserve_offset_ = offsetof(SH4Context, r[n]);
-  preserve_mask_ = 0;
-}
-
-Value *SH4Builder::LoadPreserved() {
-  Value *v = offset_preserved_
-                 // if the offset had to be preserved, load it up
-                 ? LoadContext(offsetof(SH4Context, preserve), VALUE_I32)
-                 // else, load from its original location
-                 : LoadContext(preserve_offset_, VALUE_I32);
-
-  if (preserve_mask_) {
-    v = And(v, AllocConstant(preserve_mask_));
-  }
-
-  // reset preserve state
-  preserve_offset_ = -1;
-  preserve_mask_ = 0;
-  offset_preserved_ = false;
-
-  return v;
+  StoreContext(offsetof(SH4Context, pr), v);
 }
 
 void SH4Builder::EmitDelayInstr() {
@@ -223,25 +185,6 @@ void SH4Builder::EmitDelayInstr() {
   has_delay_instr_ = false;
 
   (emit_callbacks[delay_instr_.type->op])(*this, fpu_state_, delay_instr_);
-}
-
-// When emitting an instruction in the delay slot, it's possible that it will
-// overwrite a register needed by the original branch instruction. The branch
-// emitter can request that a register be preserved with PreserveT, etc. before
-// the delay slot, and if it is overwritten, the register is cached off. After
-// emitting the delay slot, the branch emitter can call LoadPreserved to load
-// either the original value, or if that was overwritten, the cached value.
-void SH4Builder::StoreAndPreserveContext(size_t offset, Value *v,
-                                         InstrFlag flags) {
-  // if a register that needs to be preserved is overwritten, cache it
-  if (offset == preserve_offset_) {
-    CHECK(!offset_preserved_, "Can only preserve a single value");
-    StoreContext(offsetof(SH4Context, preserve),
-                 LoadContext(offset, VALUE_I32));
-    offset_preserved_ = true;
-  }
-
-  StoreContext(offset, v, flags);
 }
 
 // MOV     #imm,Rn
@@ -1118,10 +1061,8 @@ EMITTER(BF) {
 // 1000 1111 dddd dddd  3/1     -
 // BFS     disp
 EMITTER(BFS) {
-  b.PreserveT();
+  Value *cond = b.LoadT();
   b.EmitDelayInstr();
-  Value *cond = b.LoadPreserved();
-
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   b.BranchFalse(cond, b.AllocConstant(dest_addr));
 }
@@ -1139,10 +1080,8 @@ EMITTER(BT) {
 // 1000 1101 dddd dddd  2/1     -
 // BTS     disp
 EMITTER(BTS) {
-  b.PreserveT();
+  Value *cond = b.LoadT();
   b.EmitDelayInstr();
-  Value *cond = b.LoadPreserved();
-
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   b.BranchTrue(cond, b.AllocConstant(dest_addr));
 }
@@ -1163,10 +1102,8 @@ EMITTER(BRA) {
 // 0000 mmmm 0010 0011  2       -
 // BRAF    Rn
 EMITTER(BRAF) {
-  b.PreserveRegister(i.Rn);
+  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
   b.EmitDelayInstr();
-  Value *rn = b.LoadPreserved();
-
   Value *dest_addr = b.Add(b.AllocConstant(i.addr + 4), rn);
   b.Branch(dest_addr);
 }
@@ -1176,7 +1113,6 @@ EMITTER(BRAF) {
 // BSR     disp
 EMITTER(BSR) {
   b.EmitDelayInstr();
-
   int32_t disp = ((i.disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
   uint32_t ret_addr = i.addr + 4;
@@ -1189,10 +1125,8 @@ EMITTER(BSR) {
 // 0000 mmmm 0000 0011  2       -
 // BSRF    Rn
 EMITTER(BSRF) {
-  b.PreserveRegister(i.Rn);
+  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
   b.EmitDelayInstr();
-  Value *rn = b.LoadPreserved();
-
   Value *ret_addr = b.AllocConstant(i.addr + 4);
   Value *dest_addr = b.Add(rn, ret_addr);
   b.StorePR(ret_addr);
@@ -1201,19 +1135,15 @@ EMITTER(BSRF) {
 
 // JMP     @Rm
 EMITTER(JMP) {
-  b.PreserveRegister(i.Rn);
+  Value *dest_addr = b.LoadRegister(i.Rn, VALUE_I32);
   b.EmitDelayInstr();
-  Value *dest_addr = b.LoadPreserved();
-
   b.Branch(dest_addr);
 }
 
 // JSR     @Rn
 EMITTER(JSR) {
-  b.PreserveRegister(i.Rn);
+  Value *dest_addr = b.LoadRegister(i.Rn, VALUE_I32);
   b.EmitDelayInstr();
-  Value *dest_addr = b.LoadPreserved();
-
   Value *ret_addr = b.AllocConstant(i.addr + 4);
   b.StorePR(ret_addr);
   b.Branch(dest_addr);
@@ -1221,10 +1151,8 @@ EMITTER(JSR) {
 
 // RTS
 EMITTER(RTS) {
-  b.PreservePR();
+  Value *dest_addr = b.LoadPR();
   b.EmitDelayInstr();
-  Value *dest_addr = b.LoadPreserved();
-
   b.Branch(dest_addr);
 }
 
