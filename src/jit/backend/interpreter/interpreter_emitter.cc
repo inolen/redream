@@ -869,6 +869,40 @@ REGISTER_INT_CALLBACK(LSHR, LSHR, I16, I16, I32);
 REGISTER_INT_CALLBACK(LSHR, LSHR, I32, I32, I32);
 REGISTER_INT_CALLBACK(LSHR, LSHR, I64, I64, I32);
 
+INT_CALLBACK(ASHD) {
+  int32_t v = LOAD_ARG0();
+  int32_t n = LOAD_ARG1();
+  if (n & 0x80000000) {
+    if (n & 0x1f) {
+      v = v >> -(n & 0x1f);
+    } else {
+      v = v >> 31;
+    }
+  } else {
+    v = v << (n & 0x1f);
+  }
+  STORE_RESULT(v);
+  return NEXT_INSTR;
+}
+REGISTER_INT_CALLBACK(ASHD, ASHD, I32, I32, I32);
+
+INT_CALLBACK(LSHD) {
+  uint32_t v = static_cast<uint32_t>(LOAD_ARG0());
+  int32_t n = LOAD_ARG1();
+  if (n & 0x80000000) {
+    if (n & 0x1f) {
+      v = v >> -(n & 0x1f);
+    } else {
+      v = 0;
+    }
+  } else {
+    v = v << (n & 0x1f);
+  }
+  STORE_RESULT(v);
+  return NEXT_INSTR;
+}
+REGISTER_INT_CALLBACK(LSHD, LSHD, I32, I32, I32);
+
 INT_CALLBACK(BRANCH) {
   using U0 = typename std::make_unsigned<A0>::type;
   U0 addr = static_cast<U0>(LOAD_ARG0());

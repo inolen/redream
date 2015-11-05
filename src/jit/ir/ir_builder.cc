@@ -669,6 +669,30 @@ Value *IRBuilder::LShr(Value *a, int n) {
   return LShr(a, AllocConstant((int32_t)n));
 }
 
+Value *IRBuilder::AShd(Value *a, Value *n) {
+  CHECK_EQ(VALUE_I32, a->type());
+  CHECK_EQ(VALUE_I32, n->type());
+
+  Instr *instr = AppendInstr(OP_ASHD);
+  Value *result = AllocDynamic(a->type());
+  instr->set_arg0(a);
+  instr->set_arg1(n);
+  instr->set_result(result);
+  return result;
+}
+
+Value *IRBuilder::LShd(Value *a, Value *n) {
+  CHECK_EQ(VALUE_I32, a->type());
+  CHECK_EQ(VALUE_I32, n->type());
+
+  Instr *instr = AppendInstr(OP_LSHD);
+  Value *result = AllocDynamic(a->type());
+  instr->set_arg0(a);
+  instr->set_arg1(n);
+  instr->set_result(result);
+  return result;
+}
+
 void IRBuilder::Branch(Value *dest) {
   Instr *instr = AppendInstr(OP_BRANCH);
   instr->set_arg0(dest);

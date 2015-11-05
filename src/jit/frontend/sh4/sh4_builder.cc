@@ -1022,50 +1022,9 @@ EMITTER(SHAD) {
   // when Rm >= 0, Rn << Rm
   // when Rm < 0, Rn >> Rm
   // when shifting right > 32, Rn = (Rn >= 0 ? 0 : -1)
-  Block *shl_block = b.AppendBlock();
-  Block *shr_block = b.AppendBlock();
-  Block *shr_nooverflow_block = b.AppendBlock();
-  Block *shr_overflow_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-
+  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-  b.BranchCond(b.SGE(rm, b.AllocConstant(0)), shl_block, shr_block);
-
-  {
-    b.SetCurrentBlock(shl_block);
-    Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-    b.StoreRegister(i.Rn, b.Shl(rn, b.And(rm, b.AllocConstant(0x1f))));
-    b.Branch(end_block);
-  }
-
-  {
-    b.SetCurrentBlock(shr_block);
-
-    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-    b.BranchCond(b.And(rm, b.AllocConstant(0x1f)), shr_nooverflow_block,
-                 shr_overflow_block);
-
-    {
-      b.SetCurrentBlock(shr_nooverflow_block);
-      Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-      Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-      b.StoreRegister(i.Rn,
-                      b.AShr(rn, b.Add(b.And(b.Not(rm), b.AllocConstant(0x1f)),
-                                       b.AllocConstant(1))));
-      b.Branch(end_block);
-    }
-
-    {
-      b.SetCurrentBlock(shr_overflow_block);
-      Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-      b.StoreRegister(i.Rn, b.Select(b.SGE(rn, b.AllocConstant(0)),
-                                     b.AllocConstant(0), b.AllocConstant(-1)));
-      b.Branch(end_block);
-    }
-
-    b.SetCurrentBlock(end_block);
-  }
+  b.StoreRegister(i.Rn, b.AShd(rn, rm));
 }
 
 // SHAL    Rn      (same as SHLL)
@@ -1089,47 +1048,9 @@ EMITTER(SHLD) {
   // when Rm >= 0, Rn << Rm
   // when Rm < 0, Rn >> Rm
   // when shifting right >= 32, Rn = 0
-  Block *shl_block = b.AppendBlock();
-  Block *shr_block = b.AppendBlock();
-  Block *shr_nooverflow_block = b.AppendBlock();
-  Block *shr_overflow_block = b.AppendBlock();
-  Block *end_block = b.AppendBlock();
-
+  Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-  b.BranchCond(b.SGE(rm, b.AllocConstant(0)), shl_block, shr_block);
-
-  {
-    b.SetCurrentBlock(shl_block);
-    Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-    b.StoreRegister(i.Rn, b.Shl(rn, b.And(rm, b.AllocConstant(0x1f))));
-    b.Branch(end_block);
-  }
-
-  {
-    b.SetCurrentBlock(shr_block);
-    Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-    b.BranchCond(b.And(rm, b.AllocConstant(0x1f)), shr_nooverflow_block,
-                 shr_overflow_block);
-
-    {
-      b.SetCurrentBlock(shr_nooverflow_block);
-      Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-      Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-      b.StoreRegister(i.Rn,
-                      b.LShr(rn, b.Add(b.And(b.Not(rm), b.AllocConstant(0x1f)),
-                                       b.AllocConstant(1))));
-      b.Branch(end_block);
-    }
-
-    {
-      b.SetCurrentBlock(shr_overflow_block);
-      b.StoreRegister(i.Rn, b.AllocConstant(0));
-      b.Branch(end_block);
-    }
-  }
-
-  b.SetCurrentBlock(end_block);
+  b.StoreRegister(i.Rn, b.LShd(rn, rm));
 }
 
 // SHLL    Rn      (same as SHAL)

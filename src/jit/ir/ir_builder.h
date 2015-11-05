@@ -471,6 +471,8 @@ class IRBuilder {
   Value *AShr(Value *a, int n);
   Value *LShr(Value *a, Value *n);
   Value *LShr(Value *a, int n);
+  Value *AShd(Value *a, Value *n);
+  Value *LShd(Value *a, Value *n);
 
   // branches
   void Branch(Value *dest);

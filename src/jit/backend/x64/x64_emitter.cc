@@ -1561,6 +1561,96 @@ EMITTER(LSHR) {
   }
 }
 
+EMITTER(ASHD) {
+  CHECK_EQ(instr->result()->type(), VALUE_I32);
+
+  const Xbyak::Reg &result = e.GetRegister(instr->result());
+  const Xbyak::Reg &v = e.GetRegister(instr->arg0());
+  const Xbyak::Reg &n = e.GetRegister(instr->arg1());
+
+  Xbyak::Label *shr_label = e.AllocLabel();
+  Xbyak::Label *shr_overflow_label = e.AllocLabel();
+  Xbyak::Label *end_label = e.AllocLabel();
+
+  if (result != v) {
+    e.mov(result, v);
+  }
+
+  // check if we're shifting left or right
+  e.test(n, 0x80000000);
+  e.jnz(*shr_label);
+
+  // perform shift left
+  e.mov(e.cl, n);
+  e.sal(result, e.cl);
+  e.jmp(*end_label);
+
+  // perform right shift
+  e.L(*shr_label);
+  e.test(n, 0x1f);
+  e.jz(*shr_overflow_label);
+  e.mov(e.cl, n);
+  e.neg(e.cl);
+  e.sar(result, e.cl);
+  e.jmp(*end_label);
+
+  // right shift overflowed
+  e.L(*shr_overflow_label);
+  e.sar(result, 31);
+
+  // shift is done
+  e.L(*end_label);
+#ifdef PLATFORM_WINDOWS
+  // arg0 was in rcx, needs to be restored
+  e.RestoreArg0();
+#endif
+}
+
+EMITTER(LSHD) {
+  CHECK_EQ(instr->result()->type(), VALUE_I32);
+
+  const Xbyak::Reg &result = e.GetRegister(instr->result());
+  const Xbyak::Reg &v = e.GetRegister(instr->arg0());
+  const Xbyak::Reg &n = e.GetRegister(instr->arg1());
+
+  Xbyak::Label *shr_label = e.AllocLabel();
+  Xbyak::Label *shr_overflow_label = e.AllocLabel();
+  Xbyak::Label *end_label = e.AllocLabel();
+
+  if (result != v) {
+    e.mov(result, v);
+  }
+
+  // check if we're shifting left or right
+  e.test(n, 0x80000000);
+  e.jnz(*shr_label);
+
+  // perform shift left
+  e.mov(e.cl, n);
+  e.shl(result, e.cl);
+  e.jmp(*end_label);
+
+  // perform right shift
+  e.L(*shr_label);
+  e.test(n, 0x1f);
+  e.jz(*shr_overflow_label);
+  e.mov(e.cl, n);
+  e.neg(e.cl);
+  e.shr(result, e.cl);
+  e.jmp(*end_label);
+
+  // right shift overflowed
+  e.L(*shr_overflow_label);
+  e.mov(result, 0x0);
+
+  // shift is done
+  e.L(*end_label);
+#ifdef PLATFORM_WINDOWS
+  // arg0 was in rcx, needs to be restored
+  e.RestoreArg0();
+#endif
+}
+
 EMITTER(BRANCH) {
   if (instr->arg0()->type() == VALUE_BLOCK) {
     // jump to local block
