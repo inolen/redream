@@ -173,7 +173,7 @@ enum {
 #define INT_CALLBACK(name)                                             \
   template <typename R = void, typename A0 = void, typename A1 = void, \
             int ACC0, int ACC1, int ACC2>                              \
-  static void name(const IntInstr *i, IntValue *r, uint8_t *locals)
+  static void name(const IntInstr *i)
 
 // generate NUM_ACC_COMBINATIONS callbacks for each operation
 #define REGISTER_CALLBACK_C(op, fn, r, a0, a1, acc0, acc1, acc2)               \
@@ -199,10 +199,10 @@ enum {
 //
 // helpers for loading / storing arguments
 //
-#define LOAD_ARG0() helper<A0, 0, ACC0>::LoadArg(i, r, locals)
-#define LOAD_ARG1() helper<A1, 1, ACC1>::LoadArg(i, r, locals)
-#define LOAD_ARG2() helper<A1, 2, ACC2>::LoadArg(i, r, locals)
-#define STORE_RESULT(v) helper<R, 3, 0>::StoreArg(i, r, locals, v)
+#define LOAD_ARG0() helper<A0, 0, ACC0>::LoadArg(i)
+#define LOAD_ARG1() helper<A1, 1, ACC1>::LoadArg(i)
+#define LOAD_ARG2() helper<A1, 2, ACC2>::LoadArg(i)
+#define STORE_RESULT(v) helper<R, 3, 0>::StoreArg(i, v)
 
 template <typename T>
 static inline T GetValue(const IntValue &v);
@@ -259,78 +259,81 @@ inline void SetValue(IntValue &v, double n) {
 }
 
 template <typename T>
-static inline T GetLocal(const uint8_t *locals, int offset);
+static inline T GetLocal(int offset);
 template <>
-inline int8_t GetLocal(const uint8_t *locals, int offset) {
-  return *reinterpret_cast<const int8_t *>(&locals[offset]);
+inline int8_t GetLocal(int offset) {
+  return *reinterpret_cast<const int8_t *>(
+      &int_state.stack[int_state.sp + offset]);
 }
 template <>
-inline int16_t GetLocal(const uint8_t *locals, int offset) {
-  return *reinterpret_cast<const int16_t *>(&locals[offset]);
+inline int16_t GetLocal(int offset) {
+  return *reinterpret_cast<const int16_t *>(
+      &int_state.stack[int_state.sp + offset]);
 }
 template <>
-inline int32_t GetLocal(const uint8_t *locals, int offset) {
-  return *reinterpret_cast<const int32_t *>(&locals[offset]);
+inline int32_t GetLocal(int offset) {
+  return *reinterpret_cast<const int32_t *>(
+      &int_state.stack[int_state.sp + offset]);
 }
 template <>
-inline int64_t GetLocal(const uint8_t *locals, int offset) {
-  return *reinterpret_cast<const int64_t *>(&locals[offset]);
+inline int64_t GetLocal(int offset) {
+  return *reinterpret_cast<const int64_t *>(
+      &int_state.stack[int_state.sp + offset]);
 }
 template <>
-inline float GetLocal(const uint8_t *locals, int offset) {
-  return *reinterpret_cast<const float *>(&locals[offset]);
+inline float GetLocal(int offset) {
+  return *reinterpret_cast<const float *>(
+      &int_state.stack[int_state.sp + offset]);
 }
 template <>
-inline double GetLocal(const uint8_t *locals, int offset) {
-  return *reinterpret_cast<const double *>(&locals[offset]);
+inline double GetLocal(int offset) {
+  return *reinterpret_cast<const double *>(
+      &int_state.stack[int_state.sp + offset]);
 }
 
 template <typename T>
-static inline void SetLocal(uint8_t *locals, int offset, T v);
+static inline void SetLocal(int offset, T v);
 template <>
-inline void SetLocal(uint8_t *locals, int offset, int8_t v) {
-  *reinterpret_cast<int8_t *>(&locals[offset]) = v;
+inline void SetLocal(int offset, int8_t v) {
+  *reinterpret_cast<int8_t *>(&int_state.stack[int_state.sp + offset]) = v;
 }
 template <>
-inline void SetLocal(uint8_t *locals, int offset, int16_t v) {
-  *reinterpret_cast<int16_t *>(&locals[offset]) = v;
+inline void SetLocal(int offset, int16_t v) {
+  *reinterpret_cast<int16_t *>(&int_state.stack[int_state.sp + offset]) = v;
 }
 template <>
-inline void SetLocal(uint8_t *locals, int offset, int32_t v) {
-  *reinterpret_cast<int32_t *>(&locals[offset]) = v;
+inline void SetLocal(int offset, int32_t v) {
+  *reinterpret_cast<int32_t *>(&int_state.stack[int_state.sp + offset]) = v;
 }
 template <>
-inline void SetLocal(uint8_t *locals, int offset, int64_t v) {
-  *reinterpret_cast<int64_t *>(&locals[offset]) = v;
+inline void SetLocal(int offset, int64_t v) {
+  *reinterpret_cast<int64_t *>(&int_state.stack[int_state.sp + offset]) = v;
 }
 template <>
-inline void SetLocal(uint8_t *locals, int offset, float v) {
-  *reinterpret_cast<float *>(&locals[offset]) = v;
+inline void SetLocal(int offset, float v) {
+  *reinterpret_cast<float *>(&int_state.stack[int_state.sp + offset]) = v;
 }
 template <>
-inline void SetLocal(uint8_t *locals, int offset, double v) {
-  *reinterpret_cast<double *>(&locals[offset]) = v;
+inline void SetLocal(int offset, double v) {
+  *reinterpret_cast<double *>(&int_state.stack[int_state.sp + offset]) = v;
 }
 
 template <typename T, int ARG, int ACC>
 struct helper {
-  static inline T LoadArg(const IntInstr *i, const IntValue *r,
-                          const uint8_t *l);
-  static inline void StoreArg(const IntInstr *i, const IntValue *r,
-                              const uint8_t *l, T v);
+  static inline T LoadArg(const IntInstr *i);
+  static inline void StoreArg(const IntInstr *i, T v);
 };
 
 // ACC_REG
 // argument is located in a virtual register, arg->i32 specifies the register
 template <typename T, int ARG>
 struct helper<T, ARG, ACC_REG> {
-  static inline T LoadArg(const IntInstr *i, const IntValue *r,
-                          const uint8_t *l) {
-    return GetValue<T>(r[i->arg[ARG].i32]);
+  static inline T LoadArg(const IntInstr *i) {
+    return GetValue<T>(int_state.r[i->arg[ARG].i32]);
   }
 
-  static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
-    SetValue<T>(r[i->arg[ARG].i32], v);
+  static inline void StoreArg(const IntInstr *i, T v) {
+    SetValue<T>(int_state.r[i->arg[ARG].i32], v);
   }
 };
 
@@ -338,14 +341,11 @@ struct helper<T, ARG, ACC_REG> {
 // argument is encoded directly on the instruction
 template <typename T, int ARG>
 struct helper<T, ARG, ACC_IMM> {
-  static inline T LoadArg(const IntInstr *i, const IntValue *r,
-                          const uint8_t *l) {
+  static inline T LoadArg(const IntInstr *i) {
     return GetValue<T>(i->arg[ARG]);
   }
 
-  static inline void StoreArg(const IntInstr *i, IntValue *r, uint8_t *l, T v) {
-    CHECK(false);
-  }
+  static inline void StoreArg(const IntInstr *i, T v) { CHECK(false); }
 };
 
 //
@@ -377,7 +377,7 @@ REGISTER_INT_CALLBACK(STORE_CONTEXT, STORE_CONTEXT, V, I32, F64);
 
 INT_CALLBACK(LOAD_LOCAL) {
   A0 offset = LOAD_ARG0();
-  R v = GetLocal<R>(locals, offset);
+  R v = GetLocal<R>(offset);
   STORE_RESULT(v);
 }
 REGISTER_INT_CALLBACK(LOAD_LOCAL, LOAD_LOCAL, I8, I32, V);
@@ -390,7 +390,7 @@ REGISTER_INT_CALLBACK(LOAD_LOCAL, LOAD_LOCAL, F64, I32, V);
 INT_CALLBACK(STORE_LOCAL) {
   A0 offset = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  SetLocal(locals, offset, v);
+  SetLocal(offset, v);
 }
 REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, I16);
@@ -867,7 +867,7 @@ REGISTER_INT_CALLBACK(LSHD, LSHD, I32, I32, I32);
 INT_CALLBACK(BRANCH) {
   using U0 = typename std::make_unsigned<A0>::type;
   U0 addr = static_cast<U0>(LOAD_ARG0());
-  int_nextpc = addr;
+  int_state.pc = addr;
 }
 REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I8, V);
 REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I16, V);
@@ -876,15 +876,9 @@ REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I32, V);
 INT_CALLBACK(BRANCH_COND) {
   using U1 = typename std::make_unsigned<A1>::type;
   A0 cond = LOAD_ARG0();
-
-  if (cond) {
-    U1 addr = static_cast<U1>(LOAD_ARG1());
-    int_nextpc = addr;
-    return;
-  }
-
-  U1 addr = static_cast<U1>(LOAD_ARG2());
-  int_nextpc = addr;
+  U1 addr_true = static_cast<U1>(LOAD_ARG1());
+  U1 addr_false = static_cast<U1>(LOAD_ARG2());
+  int_state.pc = cond ? addr_true : addr_false;
 }
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I8);
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I16);

@@ -10,9 +10,19 @@ namespace jit {
 namespace backend {
 namespace interpreter {
 
+enum { NUM_INT_REGISTERS = 8, MAX_INT_STACK = 4096 };
+
+// fake set of virtual registers used by the interpreter
 extern const Register int_registers[];
 extern const int int_num_registers;
-extern uint32_t int_nextpc;
+
+// global interpreter state
+struct InterpreterState {
+  IntValue r[NUM_INT_REGISTERS];
+  uint8_t stack[MAX_INT_STACK];
+  uint32_t pc, sp;
+};
+extern InterpreterState int_state;
 
 class InterpreterBackend : public Backend {
  public:

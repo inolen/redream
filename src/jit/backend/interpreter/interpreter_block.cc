@@ -14,17 +14,18 @@ InterpreterBlock::InterpreterBlock(int guest_cycles, IntInstr *instrs,
 
 uint32_t InterpreterBlock::Call(RuntimeBlock *block) {
   InterpreterBlock *self = reinterpret_cast<InterpreterBlock *>(block);
-  IntValue *registers = reinterpret_cast<IntValue *>(
-      alloca(int_num_registers * sizeof(IntValue)));
-  uint8_t *locals = reinterpret_cast<uint8_t *>(alloca(self->locals_size_));
 
   IntInstr *instr = self->instrs_;
-  IntInstr *end = self->instrs_ + self->num_instrs_;
+  int n = self->num_instrs_;
 
-  while (instr < end) {
-    instr->fn(instr, registers, locals);
-    instr++;
+  int_state.sp += self->locals_size_;
+  CHECK_LT(int_state.sp, MAX_INT_STACK);
+
+  for (int i = 0; i < n; i++) {
+    instr[i].fn(&instr[i]);
   }
 
-  return int_nextpc;
+  int_state.sp -= self->locals_size_;
+
+  return int_state.pc;
 }

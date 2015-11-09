@@ -14,7 +14,7 @@ namespace dreavm {
 namespace jit {
 namespace backend {
 namespace interpreter {
-const Register int_registers[] = {
+const Register int_registers[NUM_INT_REGISTERS] = {
     {"a", ir::VALUE_INT_MASK},   {"b", ir::VALUE_INT_MASK},
     {"c", ir::VALUE_INT_MASK},   {"d", ir::VALUE_INT_MASK},
     {"e", ir::VALUE_FLOAT_MASK}, {"f", ir::VALUE_FLOAT_MASK},
@@ -22,7 +22,7 @@ const Register int_registers[] = {
 
 const int int_num_registers = sizeof(int_registers) / sizeof(Register);
 
-uint32_t int_nextpc = 0;
+InterpreterState int_state;
 }
 }
 }

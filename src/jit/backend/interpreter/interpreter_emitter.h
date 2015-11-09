@@ -11,8 +11,7 @@ namespace interpreter {
 union IntValue;
 struct IntInstr;
 
-typedef void (*IntFn)(const IntInstr *instr, IntValue *registers,
-                      uint8_t *locals);
+typedef void (*IntFn)(const IntInstr *instr);
 
 union IntValue {
   int8_t i8;
