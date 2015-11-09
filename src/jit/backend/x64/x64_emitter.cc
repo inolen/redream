@@ -137,7 +137,7 @@ void X64Emitter::Reset() {
   memset(modified_, modified_marker_, sizeof(int) * x64_num_registers);
 }
 
-X64Fn X64Emitter::Emit(IRBuilder &builder) {
+X64Fn X64Emitter::Emit(IRBuilder &builder, void *guest_ctx) {
   PROFILER_RUNTIME("X64Emitter::Emit");
 
   // getCurr returns the current spot in the codegen buffer which the function
@@ -147,6 +147,9 @@ X64Fn X64Emitter::Emit(IRBuilder &builder) {
   // reset emit state
   arena_.Reset();
   epilog_label_ = AllocLabel();
+
+  // save guest context
+  guest_ctx_ = guest_ctx;
 
   int stack_size = 0;
   EmitProlog(builder, &stack_size);
@@ -230,10 +233,9 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   // adjust stack pointer
   sub(Xbyak::util::rsp, stack_size);
 
-  // save off arguments to stack in case they need to be restored
-  mov(qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY], int_arg0);
-  mov(qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT], int_arg1);
-  mov(r8, reinterpret_cast<uintptr_t>(memory_.virtual_base()));
+  // copy guest context and memory base to argument registers
+  mov(int_arg0, reinterpret_cast<uintptr_t>(guest_ctx_));
+  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_.virtual_base()));
 
   *out_stack_size = stack_size;
 }
@@ -432,18 +434,10 @@ bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
   return v->type() <= VALUE_I32;
 }
 
-void X64Emitter::RestoreArg0() {
-  mov(int_arg0, qword[Xbyak::util::rsp + STACK_OFFSET_MEMORY]);
-}
-
-void X64Emitter::RestoreArg1() {
-  mov(int_arg1, qword[Xbyak::util::rsp + STACK_OFFSET_GUEST_CONTEXT]);
-}
-
 void X64Emitter::RestoreArgs() {
-  mov(r8, reinterpret_cast<uintptr_t>(memory_.virtual_base()));
-  RestoreArg0();
-  RestoreArg1();
+  // restore registers that are not callee-saved
+  mov(int_arg0, reinterpret_cast<uintptr_t>(guest_ctx_));
+  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_.virtual_base()));
 }
 
 EMITTER(LOAD_CONTEXT) {
@@ -454,10 +448,10 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->result()->type()) {
       case VALUE_F32:
-        e.movss(result, e.dword[int_arg1 + offset]);
+        e.movss(result, e.dword[int_arg0 + offset]);
         break;
       case VALUE_F64:
-        e.movsd(result, e.qword[int_arg1 + offset]);
+        e.movsd(result, e.qword[int_arg0 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -468,16 +462,16 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->result()->type()) {
       case VALUE_I8:
-        e.mov(result, e.byte[int_arg1 + offset]);
+        e.mov(result, e.byte[int_arg0 + offset]);
         break;
       case VALUE_I16:
-        e.mov(result, e.word[int_arg1 + offset]);
+        e.mov(result, e.word[int_arg0 + offset]);
         break;
       case VALUE_I32:
-        e.mov(result, e.dword[int_arg1 + offset]);
+        e.mov(result, e.dword[int_arg0 + offset]);
         break;
       case VALUE_I64:
-        e.mov(result, e.qword[int_arg1 + offset]);
+        e.mov(result, e.qword[int_arg0 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -492,18 +486,18 @@ EMITTER(STORE_CONTEXT) {
   if (instr->arg1()->constant()) {
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        e.mov(e.byte[int_arg1 + offset], instr->arg1()->value<int8_t>());
+        e.mov(e.byte[int_arg0 + offset], instr->arg1()->value<int8_t>());
         break;
       case VALUE_I16:
-        e.mov(e.word[int_arg1 + offset], instr->arg1()->value<int16_t>());
+        e.mov(e.word[int_arg0 + offset], instr->arg1()->value<int16_t>());
         break;
       case VALUE_I32:
       case VALUE_F32:
-        e.mov(e.dword[int_arg1 + offset], instr->arg1()->value<int32_t>());
+        e.mov(e.dword[int_arg0 + offset], instr->arg1()->value<int32_t>());
         break;
       case VALUE_I64:
       case VALUE_F64:
-        e.mov(e.qword[int_arg1 + offset], instr->arg1()->value<int64_t>());
+        e.mov(e.qword[int_arg0 + offset], instr->arg1()->value<int64_t>());
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -515,10 +509,10 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_F32:
-          e.movss(e.dword[int_arg1 + offset], src);
+          e.movss(e.dword[int_arg0 + offset], src);
           break;
         case VALUE_F64:
-          e.movsd(e.qword[int_arg1 + offset], src);
+          e.movsd(e.qword[int_arg0 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -529,16 +523,16 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
-          e.mov(e.byte[int_arg1 + offset], src);
+          e.mov(e.byte[int_arg0 + offset], src);
           break;
         case VALUE_I16:
-          e.mov(e.word[int_arg1 + offset], src);
+          e.mov(e.word[int_arg0 + offset], src);
           break;
         case VALUE_I32:
-          e.mov(e.dword[int_arg1 + offset], src);
+          e.mov(e.dword[int_arg0 + offset], src);
           break;
         case VALUE_I64:
-          e.mov(e.qword[int_arg1 + offset], src);
+          e.mov(e.qword[int_arg0 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -678,16 +672,16 @@ EMITTER(LOAD) {
   //
   switch (instr->result()->type()) {
     case VALUE_I8:
-      e.mov(result, e.byte[a.cvt64() + e.r8]);
+      e.mov(result, e.byte[a.cvt64() + int_arg1]);
       break;
     case VALUE_I16:
-      e.mov(result, e.word[a.cvt64() + e.r8]);
+      e.mov(result, e.word[a.cvt64() + int_arg1]);
       break;
     case VALUE_I32:
-      e.mov(result, e.dword[a.cvt64() + e.r8]);
+      e.mov(result, e.dword[a.cvt64() + int_arg1]);
       break;
     case VALUE_I64:
-      e.mov(result, e.qword[a.cvt64() + e.r8]);
+      e.mov(result, e.qword[a.cvt64() + int_arg1]);
       break;
     default:
       LOG_FATAL("Unexpected load result type");
@@ -722,12 +716,11 @@ EMITTER(LOAD) {
       break;
   }
 
-  // memory is already in arg0
+  e.mov(int_arg0, reinterpret_cast<uintptr_t>(&memory));
   e.mov(int_arg1, a);
-  e.mov(e.rax, (uintptr_t)fn);
+  e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
   e.call(e.rax);
   e.mov(result, e.rax);
-
   e.RestoreArgs();
 
   e.L(*end_label);
@@ -780,16 +773,16 @@ EMITTER(STORE) {
   //
   switch (instr->arg1()->type()) {
     case VALUE_I8:
-      e.mov(e.byte[a.cvt64() + e.r8], b);
+      e.mov(e.byte[a.cvt64() + int_arg1], b);
       break;
     case VALUE_I16:
-      e.mov(e.word[a.cvt64() + e.r8], b);
+      e.mov(e.word[a.cvt64() + int_arg1], b);
       break;
     case VALUE_I32:
-      e.mov(e.dword[a.cvt64() + e.r8], b);
+      e.mov(e.dword[a.cvt64() + int_arg1], b);
       break;
     case VALUE_I64:
-      e.mov(e.qword[a.cvt64() + e.r8], b);
+      e.mov(e.qword[a.cvt64() + int_arg1], b);
       break;
     default:
       LOG_FATAL("Unexpected store value type");
@@ -824,12 +817,11 @@ EMITTER(STORE) {
       break;
   }
 
-  // memory is already in arg0
+  e.mov(int_arg0, reinterpret_cast<uintptr_t>(&memory));
   e.mov(int_arg1, a);
   e.mov(int_arg2, b);
-  e.mov(e.rax, (uintptr_t)fn);
+  e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
   e.call(e.rax);
-
   e.RestoreArgs();
 
   e.L(*end_label);
@@ -1508,7 +1500,7 @@ EMITTER(SHL) {
 
 #ifdef PLATFORM_WINDOWS
     // arg0 was in rcx, needs to be restored
-    e.RestoreArg0();
+    e.RestoreArgs();
 #endif
   }
 }
@@ -1532,7 +1524,7 @@ EMITTER(ASHR) {
 
 #ifdef PLATFORM_WINDOWS
     // arg0 was in rcx, need to be restored
-    e.RestoreArg0();
+    e.RestoreArgs();
 #endif
   }
 }
@@ -1556,7 +1548,7 @@ EMITTER(LSHR) {
 
 #ifdef PLATFORM_WINDOWS
     // arg0 was in rcx, need to be restored
-    e.RestoreArg0();
+    e.RestoreArgs();
 #endif
   }
 }
@@ -1602,7 +1594,7 @@ EMITTER(ASHD) {
   e.L(*end_label);
 #ifdef PLATFORM_WINDOWS
   // arg0 was in rcx, needs to be restored
-  e.RestoreArg0();
+  e.RestoreArgs();
 #endif
 }
 
@@ -1647,7 +1639,7 @@ EMITTER(LSHD) {
   e.L(*end_label);
 #ifdef PLATFORM_WINDOWS
   // arg0 was in rcx, needs to be restored
-  e.RestoreArg0();
+  e.RestoreArgs();
 #endif
 }
 
@@ -1704,9 +1696,6 @@ EMITTER(BRANCH_COND) {
 }
 
 EMITTER(CALL_EXTERNAL) {
-  // copy guest context into the register for arg0
-  e.mov(int_arg0, int_arg1);
-
   // if an additional argument is specified, copy it into the register for arg1
   if (instr->arg1()) {
     const Xbyak::Reg &arg = e.GetRegister(instr->arg1());
@@ -1716,6 +1705,5 @@ EMITTER(CALL_EXTERNAL) {
   // call the external function
   e.CopyOperand(instr->arg0(), e.rax);
   e.call(e.rax);
-
   e.RestoreArgs();
 }

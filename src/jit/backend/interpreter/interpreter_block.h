@@ -14,8 +14,7 @@ struct InterpreterBlock : public RuntimeBlock {
   InterpreterBlock(int guest_cycles, IntInstr *instrs, int num_instrs,
                    int locals_size);
 
-  static uint32_t Call(hw::Memory *memory, void *guest_ctx, Runtime *runtime,
-                       RuntimeBlock *block, uint32_t addr);
+  static uint32_t Call(RuntimeBlock *block);
 
   IntInstr *instrs_;
   int num_instrs_;

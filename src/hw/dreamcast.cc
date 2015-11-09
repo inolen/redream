@@ -60,7 +60,8 @@ Dreamcast::Dreamcast()
   scheduler_ = new Scheduler();
   memory_ = new Memory();
   rt_frontend_ = new SH4Frontend(*memory_);
-  rt_backend_ = new X64Backend(*memory_);
+  // rt_backend_ = new X64Backend(*memory_);
+  rt_backend_ = new InterpreterBackend(*memory_);
   runtime_ = new Runtime(*memory_, *rt_frontend_, *rt_backend_);
   aica_ = new AICA(this);
   gdrom_ = new GDROM(this);

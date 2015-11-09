@@ -46,7 +46,8 @@ int X64Backend::num_registers() const {
 
 void X64Backend::Reset() { emitter_.Reset(); }
 
-RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder) {
+RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder,
+                                        void *guest_ctx) {
   // allocate block structure at start of code buffer, making for nice data
   // locality
   RuntimeBlock *block = emitter_.getCurr<RuntimeBlock *>();
@@ -60,7 +61,7 @@ RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder) {
   // know so it can reset the cache and try again
   X64Fn fn;
   try {
-    fn = emitter_.Emit(builder);
+    fn = emitter_.Emit(builder, guest_ctx);
   } catch (const Xbyak::Error &e) {
     if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
       return nullptr;

@@ -21,12 +21,15 @@ const Register int_registers[] = {
     {"g", ir::VALUE_FLOAT_MASK}, {"h", ir::VALUE_FLOAT_MASK}};
 
 const int int_num_registers = sizeof(int_registers) / sizeof(Register);
+
+uint32_t int_nextpc = 0;
 }
 }
 }
 }
 
-InterpreterBackend::InterpreterBackend(Memory &memory) : Backend(memory) {}
+InterpreterBackend::InterpreterBackend(Memory &memory)
+    : Backend(memory), emitter_(memory) {}
 
 const Register *InterpreterBackend::registers() const { return int_registers; }
 
@@ -34,12 +37,13 @@ int InterpreterBackend::num_registers() const { return int_num_registers; }
 
 void InterpreterBackend::Reset() { emitter_.Reset(); }
 
-RuntimeBlock *InterpreterBackend::AssembleBlock(ir::IRBuilder &builder) {
+RuntimeBlock *InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
+                                                void *guest_ctx) {
   IntInstr *instr;
   int num_instr;
   int locals_size;
 
-  if (!emitter_.Emit(builder, &instr, &num_instr, &locals_size)) {
+  if (!emitter_.Emit(builder, guest_ctx, &instr, &num_instr, &locals_size)) {
     return nullptr;
   }
 

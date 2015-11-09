@@ -23,9 +23,8 @@ enum {
 #else
   STACK_SHADOW_SPACE = 0,
 #endif
-  STACK_OFFSET_MEMORY = STACK_SHADOW_SPACE,
-  STACK_OFFSET_GUEST_CONTEXT = STACK_SHADOW_SPACE + 8,
-  STACK_OFFSET_LOCALS = STACK_SHADOW_SPACE + 16,
+  STACK_OFFSET_GUEST_CONTEXT = STACK_SHADOW_SPACE,
+  STACK_OFFSET_LOCALS = STACK_SHADOW_SPACE + 8,
   STACK_SIZE = STACK_OFFSET_LOCALS
 };
 
@@ -40,7 +39,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   void Reset();
 
-  X64Fn Emit(ir::IRBuilder &builder);
+  X64Fn Emit(ir::IRBuilder &builder, void *guest_ctx);
 
   // helpers for the emitter callbacks
   const Xbyak::Operand &GetOperand(const ir::Value *v, int size = -1);
@@ -50,8 +49,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
                                     const Xbyak::Operand &to);
 
   bool CanEncodeAsImmediate(const ir::Value *v) const;
-  void RestoreArg0();
-  void RestoreArg1();
   void RestoreArgs();
 
   // private:
@@ -65,6 +62,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   hw::Memory &memory_;
   Arena arena_;
   Xbyak::Label *epilog_label_;
+  void *guest_ctx_;
   int modified_marker_;
   int *modified_;
 };

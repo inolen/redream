@@ -19,6 +19,9 @@ InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
+// used by lazy block compilation
+static SH4 *g_running_sh4 = nullptr;
+
 SH4::SH4(Memory &memory, Runtime &runtime)
     : memory_(memory),
       runtime_(runtime),
@@ -53,6 +56,9 @@ bool SH4::Init() {
   // reset interrupts
   ReprioritizeInterrupts();
 
+  // setup handler for lazy block compilation
+  runtime_.set_compile_handler(&SH4::CompileBlock);
+
   return true;
 }
 
@@ -68,15 +74,19 @@ int SH4::Run(int cycles) {
     RunTimer(i, cycles >> 2);
   }
 
+  // bind current sh4 for lazy block compilation handler
+  g_running_sh4 = this;
+
   while (ctx_.pc && remaining > 0) {
     RuntimeBlock *block = runtime_.GetBlock(ctx_.pc);
-
-    ctx_.pc = block->call(&memory_, &ctx_, &runtime_, block, ctx_.pc);
+    ctx_.pc = block->call(block);
     remaining -= block->guest_cycles;
 
     CheckPendingCacheReset();
     CheckPendingInterrupts();
   }
+
+  g_running_sh4 = nullptr;
 
   return cycles - remaining;
 }
@@ -285,6 +295,15 @@ void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
   uint32_t sqi = (addr & 0x20) >> 5;
   uint32_t idx = (addr & 0x1c) >> 2;
   self->ctx_.sq[sqi][idx] = static_cast<uint32_t>(value);
+}
+
+uint32_t SH4::CompileBlock(RuntimeBlock *block) {
+  // compile the block at the current pc and place it into the cache
+  Runtime &runtime = g_running_sh4->runtime_;
+  SH4Context &ctx = g_running_sh4->ctx_;
+  RuntimeBlock *new_block = runtime.CompileBlock(ctx.pc, &ctx);
+  // call into the new block
+  return new_block->call(new_block);
 }
 
 void SH4::Pref(SH4Context *ctx, uint64_t arg0) {

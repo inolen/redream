@@ -12,7 +12,8 @@ using namespace dreavm::jit::ir;
 
 static IntFn GetCallback(Instr &ir_i);
 
-InterpreterEmitter::InterpreterEmitter() {
+InterpreterEmitter::InterpreterEmitter(Memory &memory)
+    : memory_(memory), guest_ctx_(nullptr) {
   static const int codegen_size = 1024 * 1024 * 8;
   codegen_begin_ = new uint8_t[codegen_size];
   codegen_end_ = codegen_begin_ + codegen_size;
@@ -23,8 +24,11 @@ InterpreterEmitter::~InterpreterEmitter() { delete[] codegen_begin_; }
 
 void InterpreterEmitter::Reset() { codegen_ = codegen_begin_; }
 
-bool InterpreterEmitter::Emit(ir::IRBuilder &builder, IntInstr **instr,
-                              int *num_instr, int *locals_size) {
+bool InterpreterEmitter::Emit(ir::IRBuilder &builder, void *guest_ctx,
+                              IntInstr **instr, int *num_instr,
+                              int *locals_size) {
+  guest_ctx_ = guest_ctx;
+
   // do an initial pass assigning ordinals to instructions so local branches
   // can be resolved
   int32_t ordinal = 0;
@@ -80,6 +84,16 @@ IntInstr *InterpreterEmitter::AllocInstr() {
 }
 
 void InterpreterEmitter::TranslateInstr(Instr &ir_i, IntInstr *instr) {
+  // HACK instead of writing out ctx and an array of IntValues, it'd be nice
+  // to encode exactly what's needed for each instruction into the codegen
+  // buffer
+  if (ir_i.op() == OP_LOAD || ir_i.op() == OP_STORE) {
+    instr->ctx = &memory_;
+  } else if (ir_i.op() == OP_LOAD_CONTEXT || ir_i.op() == OP_STORE_CONTEXT ||
+             ir_i.op() == OP_CALL_EXTERNAL) {
+    instr->ctx = guest_ctx_;
+  }
+
   TranslateArg(ir_i, instr, 0);
   TranslateArg(ir_i, instr, 1);
   TranslateArg(ir_i, instr, 2);
@@ -156,11 +170,10 @@ enum {
 // declare a templated callback for an IR operation. note, declaring a
 // callback does not actually register it. callbacks must be registered
 // for a particular signature with REGISTER_CALLBACK.
-#define INT_CALLBACK(name)                                              \
-  template <typename R = void, typename A0 = void, typename A1 = void,  \
-            int ACC0, int ACC1, int ACC2>                               \
-  static uint32_t name(const IntInstr *i, uint32_t idx, Memory *memory, \
-                       IntValue *r, uint8_t *locals, void *guest_ctx)
+#define INT_CALLBACK(name)                                             \
+  template <typename R = void, typename A0 = void, typename A1 = void, \
+            int ACC0, int ACC1, int ACC2>                              \
+  static void name(const IntInstr *i, IntValue *r, uint8_t *locals)
 
 // generate NUM_ACC_COMBINATIONS callbacks for each operation
 #define REGISTER_CALLBACK_C(op, fn, r, a0, a1, acc0, acc1, acc2)               \
@@ -190,7 +203,6 @@ enum {
 #define LOAD_ARG1() helper<A1, 1, ACC1>::LoadArg(i, r, locals)
 #define LOAD_ARG2() helper<A1, 2, ACC2>::LoadArg(i, r, locals)
 #define STORE_RESULT(v) helper<R, 3, 0>::StoreArg(i, r, locals, v)
-#define NEXT_INSTR (idx + 1)
 
 template <typename T>
 static inline T GetValue(const IntValue &v);
@@ -341,9 +353,8 @@ struct helper<T, ARG, ACC_IMM> {
 //
 INT_CALLBACK(LOAD_CONTEXT) {
   A0 offset = LOAD_ARG0();
-  R v = *reinterpret_cast<R *>(reinterpret_cast<uint8_t *>(guest_ctx) + offset);
+  R v = *reinterpret_cast<R *>(reinterpret_cast<uint8_t *>(i->ctx) + offset);
   STORE_RESULT(v);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(LOAD_CONTEXT, LOAD_CONTEXT, I8, I32, V);
 REGISTER_INT_CALLBACK(LOAD_CONTEXT, LOAD_CONTEXT, I16, I32, V);
@@ -355,8 +366,7 @@ REGISTER_INT_CALLBACK(LOAD_CONTEXT, LOAD_CONTEXT, F64, I32, V);
 INT_CALLBACK(STORE_CONTEXT) {
   A0 offset = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  *reinterpret_cast<A1 *>(reinterpret_cast<uint8_t *>(guest_ctx) + offset) = v;
-  return NEXT_INSTR;
+  *reinterpret_cast<A1 *>(reinterpret_cast<uint8_t *>(i->ctx) + offset) = v;
 }
 REGISTER_INT_CALLBACK(STORE_CONTEXT, STORE_CONTEXT, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE_CONTEXT, STORE_CONTEXT, V, I32, I16);
@@ -369,7 +379,6 @@ INT_CALLBACK(LOAD_LOCAL) {
   A0 offset = LOAD_ARG0();
   R v = GetLocal<R>(locals, offset);
   STORE_RESULT(v);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(LOAD_LOCAL, LOAD_LOCAL, I8, I32, V);
 REGISTER_INT_CALLBACK(LOAD_LOCAL, LOAD_LOCAL, I16, I32, V);
@@ -382,7 +391,6 @@ INT_CALLBACK(STORE_LOCAL) {
   A0 offset = LOAD_ARG0();
   A1 v = LOAD_ARG1();
   SetLocal(locals, offset, v);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, I16);
@@ -393,39 +401,33 @@ REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, F64);
 
 INT_CALLBACK(LOAD_I8) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = memory->R8(addr);
+  R v = Memory::R8(reinterpret_cast<Memory *>(i->ctx), addr);
   STORE_RESULT(v);
-  return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_I16) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = memory->R16(addr);
+  R v = Memory::R16(reinterpret_cast<Memory *>(i->ctx), addr);
   STORE_RESULT(v);
-  return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_I32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = memory->R32(addr);
+  R v = Memory::R32(reinterpret_cast<Memory *>(i->ctx), addr);
   STORE_RESULT(v);
-  return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_I64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = memory->R64(addr);
+  R v = Memory::R64(reinterpret_cast<Memory *>(i->ctx), addr);
   STORE_RESULT(v);
-  return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_F32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  uint32_t v = memory->R32(addr);
+  uint32_t v = Memory::R32(reinterpret_cast<Memory *>(i->ctx), addr);
   STORE_RESULT(*reinterpret_cast<float *>(&v));
-  return NEXT_INSTR;
 }
 INT_CALLBACK(LOAD_F64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  uint64_t v = memory->R64(addr);
+  uint64_t v = Memory::R64(reinterpret_cast<Memory *>(i->ctx), addr);
   STORE_RESULT(*reinterpret_cast<double *>(&v));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(LOAD, LOAD_I8, I8, I32, V);
 REGISTER_INT_CALLBACK(LOAD, LOAD_I16, I16, I32, V);
@@ -437,38 +439,34 @@ REGISTER_INT_CALLBACK(LOAD, LOAD_F64, F64, I32, V);
 INT_CALLBACK(STORE_I8) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  memory->W8(addr, v);
-  return NEXT_INSTR;
+  Memory::W8(reinterpret_cast<Memory *>(i->ctx), addr, v);
 }
 INT_CALLBACK(STORE_I16) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  memory->W16(addr, v);
-  return NEXT_INSTR;
+  Memory::W16(reinterpret_cast<Memory *>(i->ctx), addr, v);
 }
 INT_CALLBACK(STORE_I32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  memory->W32(addr, v);
-  return NEXT_INSTR;
+  Memory::W32(reinterpret_cast<Memory *>(i->ctx), addr, v);
 }
 INT_CALLBACK(STORE_I64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  memory->W64(addr, v);
-  return NEXT_INSTR;
+  Memory::W64(reinterpret_cast<Memory *>(i->ctx), addr, v);
 }
 INT_CALLBACK(STORE_F32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  memory->W32(addr, *reinterpret_cast<uint32_t *>(&v));
-  return NEXT_INSTR;
+  Memory::W32(reinterpret_cast<Memory *>(i->ctx), addr,
+              *reinterpret_cast<uint32_t *>(&v));
 }
 INT_CALLBACK(STORE_F64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  memory->W64(addr, *reinterpret_cast<uint64_t *>(&v));
-  return NEXT_INSTR;
+  Memory::W64(reinterpret_cast<Memory *>(i->ctx), addr,
+              *reinterpret_cast<uint64_t *>(&v));
 }
 REGISTER_INT_CALLBACK(STORE, STORE_I8, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE, STORE_I16, V, I32, I16);
@@ -480,7 +478,6 @@ REGISTER_INT_CALLBACK(STORE, STORE_F64, V, I32, F64);
 INT_CALLBACK(CAST) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(static_cast<R>(v));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(CAST, CAST, F32, I32, V);
 REGISTER_INT_CALLBACK(CAST, CAST, F64, I32, V);
@@ -491,7 +488,6 @@ REGISTER_INT_CALLBACK(CAST, CAST, I64, F64, V);
 INT_CALLBACK(SEXT) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(static_cast<R>(v));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SEXT, SEXT, I16, I8, V);
 REGISTER_INT_CALLBACK(SEXT, SEXT, I32, I8, V);
@@ -504,7 +500,6 @@ INT_CALLBACK(ZEXT) {
   using U0 = typename std::make_unsigned<A0>::type;
   A0 v = LOAD_ARG0();
   STORE_RESULT(static_cast<R>(static_cast<U0>(v)));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ZEXT, ZEXT, I16, I8, V);
 REGISTER_INT_CALLBACK(ZEXT, ZEXT, I32, I8, V);
@@ -517,7 +512,6 @@ INT_CALLBACK(TRUNCATE) {
   using U0 = typename std::make_unsigned<A0>::type;
   A0 v = LOAD_ARG0();
   STORE_RESULT(static_cast<R>(static_cast<U0>(v)));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(TRUNCATE, TRUNCATE, I8, I16, V);
 REGISTER_INT_CALLBACK(TRUNCATE, TRUNCATE, I8, I32, V);
@@ -531,7 +525,6 @@ INT_CALLBACK(SELECT) {
   A1 t = LOAD_ARG1();
   A1 f = LOAD_ARG2();
   STORE_RESULT(cond ? t : f);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SELECT, SELECT, I8, I8, I8);
 REGISTER_INT_CALLBACK(SELECT, SELECT, I16, I8, I16);
@@ -542,7 +535,6 @@ INT_CALLBACK(EQ) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(static_cast<int8_t>(lhs == rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(EQ, EQ, I8, I8, I8);
 REGISTER_INT_CALLBACK(EQ, EQ, I8, I16, I16);
@@ -555,7 +547,6 @@ INT_CALLBACK(NE) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(static_cast<int8_t>(lhs != rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(NE, NE, I8, I8, I8);
 REGISTER_INT_CALLBACK(NE, NE, I8, I16, I16);
@@ -568,7 +559,6 @@ INT_CALLBACK(SGE) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(static_cast<int8_t>(lhs >= rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SGE, SGE, I8, I8, I8);
 REGISTER_INT_CALLBACK(SGE, SGE, I8, I16, I16);
@@ -581,7 +571,6 @@ INT_CALLBACK(SGT) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(static_cast<int8_t>(lhs > rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SGT, SGT, I8, I8, I8);
 REGISTER_INT_CALLBACK(SGT, SGT, I8, I16, I16);
@@ -596,7 +585,6 @@ INT_CALLBACK(UGE) {
   U0 lhs = static_cast<U0>(LOAD_ARG0());
   U1 rhs = static_cast<U1>(LOAD_ARG1());
   STORE_RESULT(static_cast<int8_t>(lhs >= rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(UGE, UGE, I8, I8, I8);
 REGISTER_INT_CALLBACK(UGE, UGE, I8, I16, I16);
@@ -609,7 +597,6 @@ INT_CALLBACK(UGT) {
   U0 lhs = static_cast<U0>(LOAD_ARG0());
   U1 rhs = static_cast<U1>(LOAD_ARG1());
   STORE_RESULT(static_cast<int8_t>(lhs > rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(UGT, UGT, I8, I8, I8);
 REGISTER_INT_CALLBACK(UGT, UGT, I8, I16, I16);
@@ -620,7 +607,6 @@ INT_CALLBACK(SLE) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(static_cast<int8_t>(lhs <= rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SLE, SLE, I8, I8, I8);
 REGISTER_INT_CALLBACK(SLE, SLE, I8, I16, I16);
@@ -633,7 +619,6 @@ INT_CALLBACK(SLT) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(static_cast<int8_t>(lhs < rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SLT, SLT, I8, I8, I8);
 REGISTER_INT_CALLBACK(SLT, SLT, I8, I16, I16);
@@ -648,7 +633,6 @@ INT_CALLBACK(ULE) {
   U0 lhs = static_cast<U0>(LOAD_ARG0());
   U1 rhs = static_cast<U1>(LOAD_ARG1());
   STORE_RESULT(static_cast<int8_t>(lhs <= rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ULE, ULE, I8, I8, I8);
 REGISTER_INT_CALLBACK(ULE, ULE, I8, I16, I16);
@@ -661,7 +645,6 @@ INT_CALLBACK(ULT) {
   U0 lhs = static_cast<U0>(LOAD_ARG0());
   U1 rhs = static_cast<U1>(LOAD_ARG1());
   STORE_RESULT(static_cast<int8_t>(lhs < rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ULT, ULT, I8, I8, I8);
 REGISTER_INT_CALLBACK(ULT, ULT, I8, I16, I16);
@@ -672,7 +655,6 @@ INT_CALLBACK(ADD) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(lhs + rhs);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ADD, ADD, I8, I8, I8);
 REGISTER_INT_CALLBACK(ADD, ADD, I16, I16, I16);
@@ -685,7 +667,6 @@ INT_CALLBACK(SUB) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(lhs - rhs);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SUB, SUB, I8, I8, I8);
 REGISTER_INT_CALLBACK(SUB, SUB, I16, I16, I16);
@@ -698,7 +679,6 @@ INT_CALLBACK(SMUL) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(lhs * rhs);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SMUL, SMUL, I8, I8, I8);
 REGISTER_INT_CALLBACK(SMUL, SMUL, I16, I16, I16);
@@ -713,7 +693,6 @@ INT_CALLBACK(UMUL) {
   U0 lhs = static_cast<U0>(LOAD_ARG0());
   U1 rhs = static_cast<U1>(LOAD_ARG1());
   STORE_RESULT((A0)(lhs * rhs));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(UMUL, UMUL, I8, I8, I8);
 REGISTER_INT_CALLBACK(UMUL, UMUL, I16, I16, I16);
@@ -724,7 +703,6 @@ INT_CALLBACK(DIV) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(lhs / rhs);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(DIV, DIV, I8, I8, I8);
 REGISTER_INT_CALLBACK(DIV, DIV, I16, I16, I16);
@@ -736,7 +714,6 @@ REGISTER_INT_CALLBACK(DIV, DIV, F64, F64, F64);
 INT_CALLBACK(NEG) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(-v);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(NEG, NEG, I8, I8, V);
 REGISTER_INT_CALLBACK(NEG, NEG, I16, I16, V);
@@ -748,12 +725,10 @@ REGISTER_INT_CALLBACK(NEG, NEG, F64, F64, V);
 INT_CALLBACK(SQRTF) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(sqrtf(v));
-  return NEXT_INSTR;
 }
 INT_CALLBACK(SQRT) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(sqrt(v));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SQRT, SQRTF, F32, F32, V);
 REGISTER_INT_CALLBACK(SQRT, SQRT, F64, F64, V);
@@ -761,7 +736,6 @@ REGISTER_INT_CALLBACK(SQRT, SQRT, F64, F64, V);
 INT_CALLBACK(ABSF) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(fabs(v));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ABS, ABSF, F32, F32, V);
 REGISTER_INT_CALLBACK(ABS, ABSF, F64, F64, V);
@@ -769,12 +743,10 @@ REGISTER_INT_CALLBACK(ABS, ABSF, F64, F64, V);
 INT_CALLBACK(SINF) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(sinf(v));
-  return NEXT_INSTR;
 }
 INT_CALLBACK(SIN) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(sin(v));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SIN, SINF, F32, F32, V);
 REGISTER_INT_CALLBACK(SIN, SIN, F64, F64, V);
@@ -782,12 +754,10 @@ REGISTER_INT_CALLBACK(SIN, SIN, F64, F64, V);
 INT_CALLBACK(COSF) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(cosf(v));
-  return NEXT_INSTR;
 }
 INT_CALLBACK(COS) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(cos(v));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(COS, COSF, F32, F32, V);
 REGISTER_INT_CALLBACK(COS, COS, F64, F64, V);
@@ -796,7 +766,6 @@ INT_CALLBACK(AND) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(lhs & rhs);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(AND, AND, I8, I8, I8);
 REGISTER_INT_CALLBACK(AND, AND, I16, I16, I16);
@@ -807,7 +776,6 @@ INT_CALLBACK(OR) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(lhs | rhs);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(OR, OR, I8, I8, I8);
 REGISTER_INT_CALLBACK(OR, OR, I16, I16, I16);
@@ -818,7 +786,6 @@ INT_CALLBACK(XOR) {
   A0 lhs = LOAD_ARG0();
   A1 rhs = LOAD_ARG1();
   STORE_RESULT(lhs ^ rhs);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(XOR, XOR, I8, I8, I8);
 REGISTER_INT_CALLBACK(XOR, XOR, I16, I16, I16);
@@ -828,7 +795,6 @@ REGISTER_INT_CALLBACK(XOR, XOR, I64, I64, I64);
 INT_CALLBACK(NOT) {
   A0 v = LOAD_ARG0();
   STORE_RESULT(~v);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(NOT, NOT, I8, I8, V);
 REGISTER_INT_CALLBACK(NOT, NOT, I16, I16, V);
@@ -839,7 +805,6 @@ INT_CALLBACK(SHL) {
   A0 v = LOAD_ARG0();
   A1 n = LOAD_ARG1();
   STORE_RESULT(v << n);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(SHL, SHL, I8, I8, I32);
 REGISTER_INT_CALLBACK(SHL, SHL, I16, I16, I32);
@@ -850,7 +815,6 @@ INT_CALLBACK(ASHR) {
   A0 v = LOAD_ARG0();
   A1 n = LOAD_ARG1();
   STORE_RESULT(v >> n);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ASHR, ASHR, I8, I8, I32);
 REGISTER_INT_CALLBACK(ASHR, ASHR, I16, I16, I32);
@@ -862,7 +826,6 @@ INT_CALLBACK(LSHR) {
   A0 v = LOAD_ARG0();
   A1 n = LOAD_ARG1();
   STORE_RESULT(static_cast<A0>(static_cast<U0>(v) >> n));
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(LSHR, LSHR, I8, I8, I32);
 REGISTER_INT_CALLBACK(LSHR, LSHR, I16, I16, I32);
@@ -882,7 +845,6 @@ INT_CALLBACK(ASHD) {
     v = v << (n & 0x1f);
   }
   STORE_RESULT(v);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(ASHD, ASHD, I32, I32, I32);
 
@@ -899,14 +861,13 @@ INT_CALLBACK(LSHD) {
     v = v << (n & 0x1f);
   }
   STORE_RESULT(v);
-  return NEXT_INSTR;
 }
 REGISTER_INT_CALLBACK(LSHD, LSHD, I32, I32, I32);
 
 INT_CALLBACK(BRANCH) {
   using U0 = typename std::make_unsigned<A0>::type;
   U0 addr = static_cast<U0>(LOAD_ARG0());
-  return addr;
+  int_nextpc = addr;
 }
 REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I8, V);
 REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I16, V);
@@ -918,11 +879,12 @@ INT_CALLBACK(BRANCH_COND) {
 
   if (cond) {
     U1 addr = static_cast<U1>(LOAD_ARG1());
-    return addr;
+    int_nextpc = addr;
+    return;
   }
 
   U1 addr = static_cast<U1>(LOAD_ARG2());
-  return addr;
+  int_nextpc = addr;
 }
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I8);
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I16);
@@ -931,16 +893,14 @@ REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I32);
 INT_CALLBACK(CALL_EXTERNAL1) {
   A0 addr = LOAD_ARG0();
   void (*func)(void *) = reinterpret_cast<void (*)(void *)>(addr);
-  func(guest_ctx);
-  return NEXT_INSTR;
+  func(i->ctx);
 }
 INT_CALLBACK(CALL_EXTERNAL2) {
   A0 addr = LOAD_ARG0();
   A1 arg = LOAD_ARG1();
   void (*func)(void *, uint64_t) =
       reinterpret_cast<void (*)(void *, uint64_t)>(addr);
-  func(guest_ctx, arg);
-  return NEXT_INSTR;
+  func(i->ctx, arg);
 }
 REGISTER_INT_CALLBACK(CALL_EXTERNAL, CALL_EXTERNAL1, V, I64, V);
 REGISTER_INT_CALLBACK(CALL_EXTERNAL, CALL_EXTERNAL2, V, I64, I64);

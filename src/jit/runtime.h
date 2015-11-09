@@ -32,8 +32,7 @@ class Frontend;
 // somewhat bloated due to how blocks are lazily compiled as outlined below
 class Runtime;
 struct RuntimeBlock;
-typedef uint32_t (*RuntimeBlockCall)(hw::Memory *, void *, Runtime *,
-                                     RuntimeBlock *, uint32_t);
+typedef uint32_t (*RuntimeBlockCall)(RuntimeBlock *);
 
 struct RuntimeBlock {
   RuntimeBlock(RuntimeBlockCall call, int guest_cycles)
@@ -52,6 +51,10 @@ class Runtime {
 
   hw::Memory &memory() { return memory_; }
 
+  void set_compile_handler(RuntimeBlockCall handler) {
+    compile_block_.call = handler;
+  }
+
   //
   // originally, GetBlock looked something like this:
   //
@@ -67,7 +70,8 @@ class Runtime {
   //
   // to work around this, GetBlock has been changed to always return a valid
   // block, and the cache is initialized with all entries pointing to a special
-  // lazy block. this lazy block, when called, will compile the actual block
+  // compile block. this compile block, when called, will compile the actual
+  // block
   // update the cache to point to it.
   //
   RuntimeBlock *GetBlock(uint32_t addr) {
@@ -75,15 +79,11 @@ class Runtime {
     CHECK_LT(offset, MAX_BLOCKS);
     return blocks_[offset];
   }
+  RuntimeBlock *CompileBlock(uint32_t addr, void *guest_ctx);
   void ResetBlocks();
 
  private:
   static bool HandleException(void *ctx, sys::Exception &ex);
-  static uint32_t LazyCompile(hw::Memory *memory, void *guest_ctx,
-                              Runtime *runtime, RuntimeBlock *block,
-                              uint32_t addr);
-
-  RuntimeBlock *CompileBlock(uint32_t addr, const void *guest_ctx);
 
   sys::ExceptionHandlerHandle eh_handle_;
   hw::Memory &memory_;
@@ -91,7 +91,7 @@ class Runtime {
   backend::Backend &backend_;
   ir::passes::PassRunner pass_runner_;
   RuntimeBlock **blocks_;
-  RuntimeBlock lazy_block_;
+  RuntimeBlock compile_block_;
 };
 }
 }

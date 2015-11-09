@@ -21,7 +21,7 @@ Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
     : memory_(memory),
       frontend_(frontend),
       backend_(backend),
-      lazy_block_(&Runtime::LazyCompile, 0) {
+      compile_block_(nullptr, 0) {
   eh_handle_ =
       ExceptionHandler::instance().AddHandler(this, &Runtime::HandleException);
 
@@ -33,14 +33,14 @@ Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(backend_)));
 
-  // initialize all entries in block cache to reference the lazy block
+  // initialize all entries in block cache to reference the compile block
   blocks_ = new RuntimeBlock *[MAX_BLOCKS];
-  std::fill_n(blocks_, MAX_BLOCKS, &lazy_block_);
+  std::fill_n(blocks_, MAX_BLOCKS, &compile_block_);
 }
 
 Runtime::~Runtime() {
   for (int i = 0; i < MAX_BLOCKS; i++) {
-    if (blocks_[i] == &lazy_block_) {
+    if (blocks_[i] == &compile_block_) {
       continue;
     }
     backend_.FreeBlock(blocks_[i]);
@@ -51,14 +51,44 @@ Runtime::~Runtime() {
   ExceptionHandler::instance().RemoveHandler(eh_handle_);
 }
 
+RuntimeBlock *Runtime::CompileBlock(uint32_t addr, void *guest_ctx) {
+  PROFILER_RUNTIME("Runtime::CompileBlock");
+
+  std::unique_ptr<IRBuilder> builder = frontend_.BuildBlock(addr, guest_ctx);
+
+  // run optimization passes
+  pass_runner_.Run(*builder);
+
+  // try to assemble the block
+  RuntimeBlock *block = backend_.AssembleBlock(*builder, guest_ctx);
+
+  if (!block) {
+    LOG_INFO("Assembler overflow, resetting block cache");
+
+    // the backend overflowed, reset the block cache
+    ResetBlocks();
+
+    // if the backend fails to assemble on an empty cache, there's nothing to be
+    // done
+    block = backend_.AssembleBlock(*builder, guest_ctx);
+
+    CHECK(block, "Backend assembler buffer overflow");
+  }
+
+  // add the block to the cache
+  blocks_[BLOCK_OFFSET(addr)] = block;
+
+  return block;
+}
+
 void Runtime::ResetBlocks() {
   // reset block cache
   for (int i = 0; i < MAX_BLOCKS; i++) {
-    if (blocks_[i] == &lazy_block_) {
+    if (blocks_[i] == &compile_block_) {
       continue;
     }
     backend_.FreeBlock(blocks_[i]);
-    blocks_[i] = &lazy_block_;
+    blocks_[i] = &compile_block_;
   }
 
   // have the backend reset any underlying data the blocks may have relied on
@@ -76,38 +106,4 @@ bool Runtime::HandleException(void *ctx, Exception &ex) {
   }
 
   return runtime->backend_.HandleException(ex);
-}
-
-uint32_t Runtime::LazyCompile(Memory *memory, void *guest_ctx, Runtime *runtime,
-                              RuntimeBlock *block, uint32_t addr) {
-  RuntimeBlock *new_block = runtime->CompileBlock(addr, guest_ctx);
-  runtime->blocks_[BLOCK_OFFSET(addr)] = new_block;
-  return new_block->call(memory, guest_ctx, runtime, new_block, addr);
-}
-
-RuntimeBlock *Runtime::CompileBlock(uint32_t addr, const void *guest_ctx) {
-  PROFILER_RUNTIME("Runtime::CompileBlock");
-
-  std::unique_ptr<IRBuilder> builder = frontend_.BuildBlock(addr, guest_ctx);
-
-  // run optimization passes
-  pass_runner_.Run(*builder);
-
-  // try to assemble the block
-  RuntimeBlock *block = backend_.AssembleBlock(*builder);
-
-  if (!block) {
-    LOG_INFO("Assembler overflow, resetting block cache");
-
-    // the backend overflowed, reset the block cache
-    ResetBlocks();
-
-    // if the backend fails to assemble on an empty cache, there's nothing to be
-    // done
-    block = backend_.AssembleBlock(*builder);
-
-    CHECK(block, "Backend assembler buffer overflow");
-  }
-
-  return block;
 }

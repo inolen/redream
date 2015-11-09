@@ -11,9 +11,8 @@ namespace interpreter {
 union IntValue;
 struct IntInstr;
 
-typedef uint32_t (*IntFn)(const IntInstr *instr, uint32_t idx,
-                          hw::Memory *memory, IntValue *registers,
-                          uint8_t *locals, void *guest_ctx);
+typedef void (*IntFn)(const IntInstr *instr, IntValue *registers,
+                      uint8_t *locals);
 
 union IntValue {
   int8_t i8;
@@ -26,20 +25,23 @@ union IntValue {
 
 struct IntInstr {
   IntFn fn;
+  void *ctx;
   IntValue arg[4];
 };
 
 class InterpreterEmitter {
  public:
-  InterpreterEmitter();
+  InterpreterEmitter(hw::Memory &memory);
   ~InterpreterEmitter();
 
   void Reset();
 
-  bool Emit(ir::IRBuilder &builder, IntInstr **instr, int *num_instr,
-            int *locals_size);
+  bool Emit(ir::IRBuilder &builder, void *guest_ctx, IntInstr **instr,
+            int *num_instr, int *locals_size);
 
  private:
+  hw::Memory &memory_;
+  void *guest_ctx_;
   uint8_t *codegen_begin_;
   uint8_t *codegen_end_;
   uint8_t *codegen_;
