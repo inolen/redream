@@ -66,8 +66,8 @@ bool ReleasePages(void *ptr, size_t size) {
 
 SharedMemoryHandle CreateSharedMemory(const char *filename, size_t size,
                                       PageAccess access) {
-  DWORD prot = AccessToProtectionFlags(access);
-  return CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, prot | SEC_RESERVE,
+  DWORD protect = AccessToProtectionFlags(access);
+  return CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, protect | SEC_COMMIT,
                            static_cast<DWORD>(size >> 32),
                            static_cast<DWORD>(size), filename);
 }
@@ -80,16 +80,7 @@ bool MapSharedMemory(SharedMemoryHandle handle, void *start, size_t offset,
   void *ptr =
       MapViewOfFileEx(handle, file_flags, static_cast<DWORD>(offset >> 32),
                       static_cast<DWORD>(offset), size, start);
-  if (ptr != start) {
-    return false;
-  }
-
-  ptr = VirtualAlloc(start, size, MEM_COMMIT, PAGE_READWRITE);
-  if (ptr != start) {
-    return false;
-  }
-
-  return true;
+  return ptr == start;
 }
 
 bool UnmapSharedMemory(SharedMemoryHandle handle, void *start, size_t size) {
