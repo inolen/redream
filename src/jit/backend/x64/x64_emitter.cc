@@ -633,9 +633,11 @@ EMITTER(LOAD) {
     MemoryBank *bank = nullptr;
     uint32_t offset = 0;
 
-    // if the address maps to a physical page, not a dynamic handler, let's
-    // make it fast
-    if (!memory.Resolve(addr, &bank, &offset)) {
+    memory.Resolve(addr, &bank, &offset);
+
+    // if the address maps to a physical page, not a dynamic handler, make it
+    // fast
+    if (!bank->dynamic) {
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
@@ -733,7 +735,9 @@ EMITTER(STORE) {
     MemoryBank *bank = nullptr;
     uint32_t offset = 0;
 
-    if (!memory.Resolve(addr, &bank, &offset)) {
+    memory.Resolve(addr, &bank, &offset);
+
+    if (!bank->dynamic) {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
 
       // FIXME it'd be nice if xbyak had a mov operation which would convert

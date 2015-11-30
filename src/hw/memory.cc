@@ -135,27 +135,30 @@ Memory::~Memory() {
 
 bool Memory::Init() { return CreateAddressSpace(); }
 
-bool Memory::Resolve(uint32_t logical_addr, MemoryBank **out_bank,
+void Memory::Resolve(uint32_t logical_addr, MemoryBank **out_bank,
                      uint32_t *out_offset) {
   TableHandle handle = table_.Lookup(logical_addr);
+  CHECK_NE(handle, UNMAPPED);
+
   MemoryBank &bank = banks_[handle];
   *out_bank = &bank;
   *out_offset = (logical_addr - bank.logical_addr) & bank.addr_mask;
-  return handle != UNMAPPED;
 }
 
 uint8_t *Memory::Alloc(uint32_t logical_addr, uint32_t size,
                        uint32_t mirror_mask) {
-  // allocate bank for the range. this isn't mapped in the page table, but used
-  // for cleaning up shared memory mappings
+  // allocate bank for the range
   MemoryBank &bank = AllocBank();
   bank.addr_mask = ~mirror_mask;
   bank.logical_addr = logical_addr;
   bank.size = size;
+  bank.dynamic = false;
 
   // map shared memory for each mirrored range
   MirrorIterator it(logical_addr, mirror_mask);
   while (NextMirror(&it)) {
+    table_.MapRange(it.addr, size, bank.handle);
+
     CHECK(MapSharedMemory(shmem_handle_, physical_base_ + it.addr, logical_addr,
                           size, ACC_READWRITE));
 
@@ -175,6 +178,8 @@ void Memory::Handle(uint32_t logical_addr, uint32_t size, uint32_t mirror_mask,
   bank.addr_mask = ~mirror_mask;
   bank.logical_addr = logical_addr;
   bank.size = size;
+  bank.dynamic = true;
+
   bank.ctx = ctx;
   bank.r8 = r8;
   bank.r16 = r16;
@@ -375,12 +380,13 @@ MemoryBank &Memory::AllocBank() {
 template <typename INT, INT (*MemoryBank::*HANDLER)(void *, uint32_t)>
 inline INT Memory::ReadBytes(uint32_t addr) {
   TableHandle handle = table_.Lookup(addr);
+  CHECK_NE(handle, UNMAPPED);
 
-  if (handle == UNMAPPED) {
+  MemoryBank &bank = banks_[handle];
+  if (!bank.dynamic) {
     return *(INT *)(physical_base_ + addr);
   }
 
-  MemoryBank &bank = banks_[handle];
   uint32_t offset = (addr - bank.logical_addr) & bank.addr_mask;
   return (bank.*HANDLER)(bank.ctx, offset);
 }
@@ -388,13 +394,14 @@ inline INT Memory::ReadBytes(uint32_t addr) {
 template <typename INT, void (*MemoryBank::*HANDLER)(void *, uint32_t, INT)>
 inline void Memory::WriteBytes(uint32_t addr, INT value) {
   TableHandle handle = table_.Lookup(addr);
+  CHECK_NE(handle, UNMAPPED);
 
-  if (handle == UNMAPPED) {
+  MemoryBank &bank = banks_[handle];
+  if (!bank.dynamic) {
     *(INT *)(physical_base_ + addr) = value;
     return;
   }
 
-  MemoryBank &bank = banks_[handle];
   uint32_t offset = (addr - bank.logical_addr) & bank.addr_mask;
   (bank.*HANDLER)(bank.ctx, offset, value);
 }

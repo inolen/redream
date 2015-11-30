@@ -36,6 +36,9 @@ struct MemoryBank {
   uint32_t addr_mask;
   uint32_t logical_addr;
   uint32_t size;
+  bool dynamic;
+
+  // dynamic banks
   void *ctx;
   R8Handler r8;
   R16Handler r16;
@@ -104,7 +107,7 @@ class Memory {
   size_t total_size() { return ADDRESS_SPACE_SIZE; }
 
   bool Init();
-  bool Resolve(uint32_t logical_addr, MemoryBank **out_bank,
+  void Resolve(uint32_t logical_addr, MemoryBank **out_bank,
                uint32_t *out_offset);
   uint8_t *Alloc(uint32_t logical_addr, uint32_t size, uint32_t mirror_mask);
   void Handle(uint32_t logical_addr, uint32_t size, uint32_t mirror_mask,

@@ -60,8 +60,8 @@ Dreamcast::Dreamcast()
   scheduler_ = new Scheduler();
   memory_ = new Memory();
   rt_frontend_ = new SH4Frontend(*memory_);
-  // rt_backend_ = new X64Backend(*memory_);
-  rt_backend_ = new InterpreterBackend(*memory_);
+  rt_backend_ = new X64Backend(*memory_);
+  // rt_backend_ = new InterpreterBackend(*memory_);
   runtime_ = new Runtime(*memory_, *rt_frontend_, *rt_backend_);
   aica_ = new AICA(this);
   gdrom_ = new GDROM(this);
@@ -148,15 +148,47 @@ bool Dreamcast::MapMemory() {
   // granularity of around 0x10000 for its file mapping APIs, which is much
   // smaller than some of the individual regions we're concerned with
 
+  //
+  // static memory
+  //
+
   // area 0, 0x00000000 - 0x03ffffff
   memory_->Alloc(BIOS_START, (SH4_SQ_END & ADDR_MASK) - BIOS_START + 1,
                  MIRROR_MASK);
 
+  // area 1, 0x04000000 - 0x07ffffff
+  memory_->Alloc(PVR_VRAM32_START, PVR_VRAM64_END - PVR_VRAM32_START + 1,
+                 MIRROR_MASK);
+
+  // area 2, 0x08000000 - 0x0Bffffff
+
+  // area 3, 0x0c000000 - 0x0fffffff
+  memory_->Alloc(MAIN_RAM_START, MAIN_RAM_END - MAIN_RAM_START + 1,
+                 MAIN_RAM_MIRROR_MASK);
+  // area 4, 0x10000000 - 0x13ffffff
+  memory_->Alloc(TA_CMD_START, TA_TEXTURE_END - TA_CMD_START + 1, MIRROR_MASK);
+
+  // area 5, 0x14000000 - 0x17ffffff
+  memory_->Alloc(MODEM_START, MODEM_END - MODEM_START + 1, MIRROR_MASK);
+
+  // area 6, 0x18000000 - 0x1bffffff
+  memory_->Alloc(UNASSIGNED_START, UNASSIGNED_END - UNASSIGNED_START + 1,
+                 MIRROR_MASK);
+
+  // area 7, 0x1c000000 - 0x1fffffff
+  memory_->Alloc(SH4_REG_START, SH4_REG_END - SH4_REG_START + 1, MIRROR_MASK);
+
   bios_ = memory_->physical_base() + BIOS_START;
   flash_ = memory_->physical_base() + FLASH_START;
-  palette_ram_ = memory_->physical_base() + PVR_PALETTE_START;
-  aica_regs_ = memory_->physical_base() + AICA_REG_START;
   wave_ram_ = memory_->physical_base() + WAVE_RAM_START;
+  palette_ram_ = memory_->physical_base() + PVR_PALETTE_START;
+  video_ram_ = memory_->physical_base() + PVR_VRAM32_START;
+  aica_regs_ = memory_->physical_base() + AICA_REG_START;
+  ram_ = memory_->physical_base() + MAIN_RAM_START;
+
+  //
+  // dynamic memory
+  //
 
   memory_->Handle(HOLLY_REG_START, HOLLY_REG_SIZE, MIRROR_MASK, holly(),
                   &Holly::ReadRegister<uint8_t>,    //
@@ -198,12 +230,6 @@ bool Dreamcast::MapMemory() {
                   &AICA::WriteWave,  //
                   nullptr);
 
-  // area 1, 0x04000000 - 0x07ffffff
-  memory_->Alloc(PVR_VRAM32_START, PVR_VRAM64_END - PVR_VRAM32_START + 1,
-                 MIRROR_MASK);
-
-  video_ram_ = memory_->physical_base() + PVR_VRAM32_START;
-
   memory_->Handle(PVR_VRAM64_START, PVR_VRAM64_SIZE, MIRROR_MASK, pvr(),
                   &PVR2::ReadVRamInterleaved<uint8_t>,    //
                   &PVR2::ReadVRamInterleaved<uint16_t>,   //
@@ -213,16 +239,6 @@ bool Dreamcast::MapMemory() {
                   &PVR2::WriteVRamInterleaved<uint16_t>,  //
                   &PVR2::WriteVRamInterleaved<uint32_t>,  //
                   nullptr);
-
-  // area 2, 0x08000000 - 0x0Bffffff
-
-  // area 3, 0x0c000000 - 0x0fffffff
-  memory_->Alloc(MAIN_RAM_START, MAIN_RAM_END - MAIN_RAM_START + 1,
-                 MAIN_RAM_MIRROR_MASK);
-  ram_ = memory_->physical_base() + MAIN_RAM_START;
-
-  // area 4, 0x10000000 - 0x13ffffff
-  memory_->Alloc(TA_CMD_START, TA_TEXTURE_END - TA_CMD_START + 1, MIRROR_MASK);
 
   // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
 
@@ -245,16 +261,6 @@ bool Dreamcast::MapMemory() {
                   nullptr,                         //
                   &TileAccelerator::WriteTexture,  //
                   nullptr);
-
-  // area 5, 0x14000000 - 0x17ffffff
-  memory_->Alloc(MODEM_START, MODEM_END - MODEM_START + 1, MIRROR_MASK);
-
-  // area 6, 0x18000000 - 0x1bffffff
-  memory_->Alloc(UNASSIGNED_START, UNASSIGNED_END - UNASSIGNED_START + 1,
-                 MIRROR_MASK);
-
-  // area 7, 0x1c000000 - 0x1fffffff
-  memory_->Alloc(SH4_REG_START, SH4_REG_END - SH4_REG_START + 1, MIRROR_MASK);
 
   memory_->Handle(SH4_REG_START, SH4_REG_SIZE, MIRROR_MASK, sh4(),
                   &SH4::ReadRegister<uint8_t>,
