@@ -630,10 +630,10 @@ EMITTER(LOAD) {
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
     uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
-    MemoryBank *bank = nullptr;
+    MemoryRegion *bank = nullptr;
     uint32_t offset = 0;
 
-    memory.Resolve(addr, &bank, &offset);
+    memory.Lookup(addr, &bank, &offset);
 
     // if the address maps to a physical page, not a dynamic handler, make it
     // fast
@@ -641,7 +641,7 @@ EMITTER(LOAD) {
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
-      void *physical_addr = memory.virtual_base() + addr;
+      void *physical_addr = bank->data + offset;
       e.mov(e.rax, (size_t)physical_addr);
 
       switch (instr->result()->type()) {
@@ -732,10 +732,10 @@ EMITTER(STORE) {
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
     uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
-    MemoryBank *bank = nullptr;
+    MemoryRegion *bank = nullptr;
     uint32_t offset = 0;
 
-    memory.Resolve(addr, &bank, &offset);
+    memory.Lookup(addr, &bank, &offset);
 
     if (!bank->dynamic) {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
@@ -743,7 +743,7 @@ EMITTER(STORE) {
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
-      void *physical_addr = memory.virtual_base() + addr;
+      void *physical_addr = bank->data + offset;
       e.mov(e.rax, (size_t)physical_addr);
 
       switch (instr->arg1()->type()) {

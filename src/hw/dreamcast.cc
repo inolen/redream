@@ -139,44 +139,136 @@ bool Dreamcast::Init() {
 }
 
 bool Dreamcast::MapMemory() {
-  if (!memory_->Init()) {
-    return false;
-  }
-
-  // note, try to allocate as large of a chunk as possible (e.g. an entire area)
-  // even if it's allocating some unneeded space. reason being, Windows has a
-  // granularity of around 0x10000 for its file mapping APIs, which is much
-  // smaller than some of the individual regions we're concerned with
-
-  //
-  // static memory
-  //
+  MemoryMap memmap;
 
   // area 0, 0x00000000 - 0x03ffffff
-  memory_->Alloc(BIOS_START, (SH4_SQ_END & ADDR_MASK) - BIOS_START + 1,
-                 MIRROR_MASK);
+  memmap.Mirror(BIOS_START, 0x04000000, MIRROR_MASK);
 
   // area 1, 0x04000000 - 0x07ffffff
-  memory_->Alloc(PVR_VRAM32_START, PVR_VRAM64_END - PVR_VRAM32_START + 1,
-                 MIRROR_MASK);
+  memmap.Mirror(PVR_VRAM32_START, 0x01800000, MIRROR_MASK);
 
   // area 2, 0x08000000 - 0x0Bffffff
 
   // area 3, 0x0c000000 - 0x0fffffff
-  memory_->Alloc(MAIN_RAM_START, MAIN_RAM_END - MAIN_RAM_START + 1,
-                 MAIN_RAM_MIRROR_MASK);
+  memmap.Mirror(MAIN_RAM_START, 0x01000000, MAIN_RAM_MIRROR_MASK);
+
   // area 4, 0x10000000 - 0x13ffffff
-  memory_->Alloc(TA_CMD_START, TA_TEXTURE_END - TA_CMD_START + 1, MIRROR_MASK);
+  memmap.Mirror(TA_CMD_START, 0x02000000, MIRROR_MASK);
 
   // area 5, 0x14000000 - 0x17ffffff
-  memory_->Alloc(MODEM_START, MODEM_END - MODEM_START + 1, MIRROR_MASK);
+  memmap.Mirror(MODEM_START, 0x04000000, MIRROR_MASK);
 
   // area 6, 0x18000000 - 0x1bffffff
-  memory_->Alloc(UNASSIGNED_START, UNASSIGNED_END - UNASSIGNED_START + 1,
-                 MIRROR_MASK);
+  memmap.Mirror(UNASSIGNED_START, 0x04000000, MIRROR_MASK);
 
   // area 7, 0x1c000000 - 0x1fffffff
-  memory_->Alloc(SH4_REG_START, SH4_REG_END - SH4_REG_START + 1, MIRROR_MASK);
+  memmap.Mirror(SH4_REG_START, 0x04000000, MIRROR_MASK);
+
+  memmap.Handle(HOLLY_REG_START, HOLLY_REG_SIZE, MIRROR_MASK, holly(),
+                &Holly::ReadRegister<uint8_t>,    //
+                &Holly::ReadRegister<uint16_t>,   //
+                &Holly::ReadRegister<uint32_t>,   //
+                nullptr,                          //
+                &Holly::WriteRegister<uint8_t>,   //
+                &Holly::WriteRegister<uint16_t>,  //
+                &Holly::WriteRegister<uint32_t>,  //
+                nullptr);
+
+  memmap.Handle(PVR_REG_START, PVR_REG_SIZE, MIRROR_MASK, pvr(),
+                nullptr,               //
+                nullptr,               //
+                &PVR2::ReadRegister,   //
+                nullptr,               //
+                nullptr,               //
+                nullptr,               //
+                &PVR2::WriteRegister,  //
+                nullptr);
+
+  memmap.Handle(AICA_REG_START, AICA_REG_SIZE, MIRROR_MASK, aica(),
+                nullptr,               //
+                nullptr,               //
+                &AICA::ReadRegister,   //
+                nullptr,               //
+                nullptr,               //
+                nullptr,               //
+                &AICA::WriteRegister,  //
+                nullptr);
+
+  memmap.Handle(WAVE_RAM_START, WAVE_RAM_SIZE, MIRROR_MASK, aica(),
+                nullptr,           //
+                nullptr,           //
+                &AICA::ReadWave,   //
+                nullptr,           //
+                nullptr,           //
+                nullptr,           //
+                &AICA::WriteWave,  //
+                nullptr);
+
+  memmap.Handle(PVR_VRAM64_START, PVR_VRAM64_SIZE, MIRROR_MASK, pvr(),
+                &PVR2::ReadVRamInterleaved<uint8_t>,    //
+                &PVR2::ReadVRamInterleaved<uint16_t>,   //
+                &PVR2::ReadVRamInterleaved<uint32_t>,   //
+                nullptr,                                //
+                nullptr,                                //
+                &PVR2::WriteVRamInterleaved<uint16_t>,  //
+                &PVR2::WriteVRamInterleaved<uint32_t>,  //
+                nullptr);
+
+  // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
+
+  memmap.Handle(TA_CMD_START, TA_CMD_SIZE, 0x0, ta(),
+                nullptr,                         //
+                nullptr,                         //
+                nullptr,                         //
+                nullptr,                         //
+                nullptr,                         //
+                nullptr,                         //
+                &TileAccelerator::WriteCommand,  //
+                nullptr);
+
+  memmap.Handle(TA_TEXTURE_START, TA_TEXTURE_SIZE, 0x0, ta(),
+                nullptr,                         //
+                nullptr,                         //
+                nullptr,                         //
+                nullptr,                         //
+                nullptr,                         //
+                nullptr,                         //
+                &TileAccelerator::WriteTexture,  //
+                nullptr);
+
+  memmap.Handle(SH4_REG_START, SH4_REG_SIZE, MIRROR_MASK, sh4(),
+                &SH4::ReadRegister<uint8_t>,
+                &SH4::ReadRegister<uint16_t>,   //
+                &SH4::ReadRegister<uint32_t>,   //
+                nullptr,                        //
+                &SH4::WriteRegister<uint8_t>,   //
+                &SH4::WriteRegister<uint16_t>,  //
+                &SH4::WriteRegister<uint32_t>,  //
+                nullptr);
+
+  memmap.Handle(SH4_CACHE_START, SH4_CACHE_SIZE, 0x0, sh4(),
+                &SH4::ReadCache<uint8_t>,    //
+                &SH4::ReadCache<uint16_t>,   //
+                &SH4::ReadCache<uint32_t>,   //
+                &SH4::ReadCache<uint64_t>,   //
+                &SH4::WriteCache<uint8_t>,   //
+                &SH4::WriteCache<uint16_t>,  //
+                &SH4::WriteCache<uint32_t>,  //
+                &SH4::WriteCache<uint64_t>);
+
+  memmap.Handle(SH4_SQ_START, SH4_SQ_SIZE, 0x0, sh4(),
+                &SH4::ReadSQ<uint8_t>,    //
+                &SH4::ReadSQ<uint16_t>,   //
+                &SH4::ReadSQ<uint32_t>,   //
+                nullptr,                  //
+                &SH4::WriteSQ<uint8_t>,   //
+                &SH4::WriteSQ<uint16_t>,  //
+                &SH4::WriteSQ<uint32_t>,  //
+                nullptr);
+
+  if (!memory_->Init(memmap)) {
+    return false;
+  }
 
   bios_ = memory_->physical_base() + BIOS_START;
   flash_ = memory_->physical_base() + FLASH_START;
@@ -185,112 +277,6 @@ bool Dreamcast::MapMemory() {
   video_ram_ = memory_->physical_base() + PVR_VRAM32_START;
   aica_regs_ = memory_->physical_base() + AICA_REG_START;
   ram_ = memory_->physical_base() + MAIN_RAM_START;
-
-  //
-  // dynamic memory
-  //
-
-  memory_->Handle(HOLLY_REG_START, HOLLY_REG_SIZE, MIRROR_MASK, holly(),
-                  &Holly::ReadRegister<uint8_t>,    //
-                  &Holly::ReadRegister<uint16_t>,   //
-                  &Holly::ReadRegister<uint32_t>,   //
-                  nullptr,                          //
-                  &Holly::WriteRegister<uint8_t>,   //
-                  &Holly::WriteRegister<uint16_t>,  //
-                  &Holly::WriteRegister<uint32_t>,  //
-                  nullptr);
-
-  memory_->Handle(PVR_REG_START, PVR_REG_SIZE, MIRROR_MASK, pvr(),
-                  nullptr,               //
-                  nullptr,               //
-                  &PVR2::ReadRegister,   //
-                  nullptr,               //
-                  nullptr,               //
-                  nullptr,               //
-                  &PVR2::WriteRegister,  //
-                  nullptr);
-
-  memory_->Handle(AICA_REG_START, AICA_REG_SIZE, MIRROR_MASK, aica(),
-                  nullptr,               //
-                  nullptr,               //
-                  &AICA::ReadRegister,   //
-                  nullptr,               //
-                  nullptr,               //
-                  nullptr,               //
-                  &AICA::WriteRegister,  //
-                  nullptr);
-
-  memory_->Handle(WAVE_RAM_START, WAVE_RAM_SIZE, MIRROR_MASK, aica(),
-                  nullptr,           //
-                  nullptr,           //
-                  &AICA::ReadWave,   //
-                  nullptr,           //
-                  nullptr,           //
-                  nullptr,           //
-                  &AICA::WriteWave,  //
-                  nullptr);
-
-  memory_->Handle(PVR_VRAM64_START, PVR_VRAM64_SIZE, MIRROR_MASK, pvr(),
-                  &PVR2::ReadVRamInterleaved<uint8_t>,    //
-                  &PVR2::ReadVRamInterleaved<uint16_t>,   //
-                  &PVR2::ReadVRamInterleaved<uint32_t>,   //
-                  nullptr,                                //
-                  nullptr,                                //
-                  &PVR2::WriteVRamInterleaved<uint16_t>,  //
-                  &PVR2::WriteVRamInterleaved<uint32_t>,  //
-                  nullptr);
-
-  // TODO handle YUV transfers from 0x10800000 - 0x10ffffe0
-
-  memory_->Handle(TA_CMD_START, TA_CMD_SIZE, 0x0, ta(),
-                  nullptr,                         //
-                  nullptr,                         //
-                  nullptr,                         //
-                  nullptr,                         //
-                  nullptr,                         //
-                  nullptr,                         //
-                  &TileAccelerator::WriteCommand,  //
-                  nullptr);
-
-  memory_->Handle(TA_TEXTURE_START, TA_TEXTURE_SIZE, 0x0, ta(),
-                  nullptr,                         //
-                  nullptr,                         //
-                  nullptr,                         //
-                  nullptr,                         //
-                  nullptr,                         //
-                  nullptr,                         //
-                  &TileAccelerator::WriteTexture,  //
-                  nullptr);
-
-  memory_->Handle(SH4_REG_START, SH4_REG_SIZE, MIRROR_MASK, sh4(),
-                  &SH4::ReadRegister<uint8_t>,
-                  &SH4::ReadRegister<uint16_t>,   //
-                  &SH4::ReadRegister<uint32_t>,   //
-                  nullptr,                        //
-                  &SH4::WriteRegister<uint8_t>,   //
-                  &SH4::WriteRegister<uint16_t>,  //
-                  &SH4::WriteRegister<uint32_t>,  //
-                  nullptr);
-
-  memory_->Handle(SH4_CACHE_START, SH4_CACHE_SIZE, 0x0, sh4(),
-                  &SH4::ReadCache<uint8_t>,    //
-                  &SH4::ReadCache<uint16_t>,   //
-                  &SH4::ReadCache<uint32_t>,   //
-                  &SH4::ReadCache<uint64_t>,   //
-                  &SH4::WriteCache<uint8_t>,   //
-                  &SH4::WriteCache<uint16_t>,  //
-                  &SH4::WriteCache<uint32_t>,  //
-                  &SH4::WriteCache<uint64_t>);
-
-  memory_->Handle(SH4_SQ_START, SH4_SQ_SIZE, 0x0, sh4(),
-                  &SH4::ReadSQ<uint8_t>,    //
-                  &SH4::ReadSQ<uint16_t>,   //
-                  &SH4::ReadSQ<uint32_t>,   //
-                  nullptr,                  //
-                  &SH4::WriteSQ<uint8_t>,   //
-                  &SH4::WriteSQ<uint16_t>,  //
-                  &SH4::WriteSQ<uint32_t>,  //
-                  nullptr);
 
   return true;
 }

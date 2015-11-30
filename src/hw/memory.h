@@ -9,10 +9,7 @@
 namespace dreavm {
 namespace hw {
 
-#define ADDRESS_SPACE_SIZE 0x100000000
-
-// virtual memory page table
-typedef uint8_t TableHandle;
+typedef uint8_t RegionHandle;
 typedef uint8_t (*R8Handler)(void *, uint32_t);
 typedef uint16_t (*R16Handler)(void *, uint32_t);
 typedef uint32_t (*R32Handler)(void *, uint32_t);
@@ -23,22 +20,26 @@ typedef void (*W32Handler)(void *, uint32_t, uint32_t);
 typedef void (*W64Handler)(void *, uint32_t, uint64_t);
 
 enum {
-  UNMAPPED = (TableHandle)0,
+  ADDRESS_SPACE_SIZE = (1ull << 32),
+  UNMAPPED = (RegionHandle)0,
   PAGE_BITS = 20,
   OFFSET_BITS = 32 - PAGE_BITS,
   MAX_PAGE_SIZE = 1 << OFFSET_BITS,
-  MAX_ENTRIES = 1 << PAGE_BITS,
-  MAX_HANDLES = (1 << (sizeof(TableHandle) * 8)) - 1
+  MAX_PAGES = 1 << PAGE_BITS,
+  MAX_REGIONS = (1 << (sizeof(RegionHandle) * 8)) - 1,
 };
 
-struct MemoryBank {
-  TableHandle handle;
+struct MemoryRegion {
   uint32_t addr_mask;
   uint32_t logical_addr;
   uint32_t size;
   bool dynamic;
+  bool mapped;
 
-  // dynamic banks
+  // physical range
+  uint8_t *data;
+
+  // dynamic range
   void *ctx;
   R8Handler r8;
   R16Handler r16;
@@ -50,33 +51,39 @@ struct MemoryBank {
   W64Handler w64;
 };
 
-class PageTable {
+class MemoryMap {
  public:
-  PageTable();
-  ~PageTable();
+  MemoryMap();
 
-  TableHandle Lookup(uint32_t addr);
-  void MapRange(uint32_t addr, uint32_t size, TableHandle handle);
+  MemoryRegion *page(int i) { return &regions_[pages_[i]]; }
+  int num_pages() { return MAX_PAGES; }
+
+  inline void Lookup(uint32_t logical_addr, MemoryRegion **out_range,
+                     uint32_t *out_offset);
+
+  void Mirror(uint32_t logical_addr, uint32_t size, uint32_t mirror_mask);
+  void Handle(uint32_t logical_addr, uint32_t size, uint32_t mirror_mask,
+              void *ctx, R8Handler r8, R16Handler r16, R32Handler r32,
+              R64Handler r64, W8Handler w8, W16Handler w16, W32Handler w32,
+              W64Handler w64);
 
  private:
-  TableHandle *table_;
+  MemoryRegion *AllocRegion();
+  void MapRegion(uint32_t addr, uint32_t size, MemoryRegion *range);
+
+  RegionHandle pages_[MAX_PAGES];
+  MemoryRegion regions_[MAX_REGIONS];
+  int num_regions_;
 };
 
-// access watches
-enum WatchType { WATCH_ACCESS_FAULT, WATCH_SINGLE_WRITE };
+enum WatchType {
+  WATCH_ACCESS_FAULT,
+  WATCH_SINGLE_WRITE,
+};
 
 typedef void (*WatchHandler)(void *, const sys::Exception &, void *);
 
 struct Watch {
-  Watch(WatchType type, WatchHandler handler, void *ctx, void *data, void *ptr,
-        size_t size)
-      : type(type),
-        handler(handler),
-        ctx(ctx),
-        data(data),
-        ptr(ptr),
-        size(size) {}
-
   WatchType type;
   WatchHandler handler;
   void *ctx;
@@ -106,17 +113,13 @@ class Memory {
   uint8_t *virtual_base() { return virtual_base_; }
   size_t total_size() { return ADDRESS_SPACE_SIZE; }
 
-  bool Init();
-  void Resolve(uint32_t logical_addr, MemoryBank **out_bank,
-               uint32_t *out_offset);
-  uint8_t *Alloc(uint32_t logical_addr, uint32_t size, uint32_t mirror_mask);
-  void Handle(uint32_t logical_addr, uint32_t size, uint32_t mirror_mask,
-              void *ctx, R8Handler r8, R16Handler r16, R32Handler r32,
-              R64Handler r64, W8Handler w8, W16Handler w16, W32Handler w32,
-              W64Handler w64);
+  bool Init(const MemoryMap &map);
+  void Lookup(uint32_t logical_addr, MemoryRegion **out_bank,
+              uint32_t *out_offset);
   void Memcpy(uint32_t logical_dest, void *ptr, uint32_t size);
   void Memcpy(void *ptr, uint32_t logical_src, uint32_t size);
 
+  // TODO move to sys/memory.cc
   WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
                                   void *ctx, void *data);
   void RemoveWatch(WatchHandle handle);
@@ -131,10 +134,11 @@ class Memory {
   void W64(uint32_t addr, uint64_t value);
 
  private:
-  sys::ExceptionHandlerHandle eh_handle_;
+  // exception handler for protected page watches
+  sys::ExceptionHandlerHandle exc_handler_;
 
-  // shared memory object where the allocated memory is committed to
-  sys::SharedMemoryHandle shmem_handle_;
+  // shared memory object where all physical data is written to
+  sys::SharedMemoryHandle shmem_;
 
   // base address of the 32-bit address space. the first is for direct access
   // to the shared memory, the second will trigger interrupts and call into
@@ -142,10 +146,9 @@ class Memory {
   uint8_t *physical_base_;
   uint8_t *virtual_base_;
 
-  // table of virtual memory banks that've been mapped
-  PageTable table_;
-  MemoryBank banks_[MAX_HANDLES];
-  int num_banks_;
+  // mapping of all logical addresses to their respective physical address or
+  // dynamic handler
+  MemoryMap map_;
 
   // interval tree of address ranges being watched
   WatchTree watches_;
@@ -155,11 +158,12 @@ class Memory {
   bool CreateAddressSpace();
   void DestroyAddressSpace();
 
-  MemoryBank &AllocBank();
+  bool MapAddressSpace();
+  void UnmapAddressSpace();
 
-  template <typename INT, INT (*MemoryBank::*HANDLER)(void *, uint32_t)>
+  template <typename INT, INT (*MemoryRegion::*HANDLER)(void *, uint32_t)>
   INT ReadBytes(uint32_t addr);
-  template <typename INT, void (*MemoryBank::*HANDLER)(void *, uint32_t, INT)>
+  template <typename INT, void (*MemoryRegion::*HANDLER)(void *, uint32_t, INT)>
   void WriteBytes(uint32_t addr, INT value);
 };
 }
