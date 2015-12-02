@@ -158,6 +158,7 @@ set(DREAVM_SOURCES
   src/sys/exception_handler.cc
   src/sys/filesystem.cc
   src/sys/keycode.cc
+  src/sys/memory.cc
   src/sys/window.cc
   src/trace/trace.cc
   src/trace/trace_viewer.cc

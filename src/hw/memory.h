@@ -76,25 +76,6 @@ class MemoryMap {
   int num_regions_;
 };
 
-enum WatchType {
-  WATCH_ACCESS_FAULT,
-  WATCH_SINGLE_WRITE,
-};
-
-typedef void (*WatchHandler)(void *, const sys::Exception &, void *);
-
-struct Watch {
-  WatchType type;
-  WatchHandler handler;
-  void *ctx;
-  void *data;
-  void *ptr;
-  size_t size;
-};
-
-typedef IntervalTree<Watch> WatchTree;
-typedef WatchTree::node_type *WatchHandle;
-
 class Memory {
  public:
   static uint8_t R8(Memory *memory, uint32_t addr);
@@ -119,11 +100,6 @@ class Memory {
   void Memcpy(uint32_t logical_dest, void *ptr, uint32_t size);
   void Memcpy(void *ptr, uint32_t logical_src, uint32_t size);
 
-  // TODO move to sys/memory.cc
-  WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
-                                  void *ctx, void *data);
-  void RemoveWatch(WatchHandle handle);
-
   uint8_t R8(uint32_t addr);
   uint16_t R16(uint32_t addr);
   uint32_t R32(uint32_t addr);
@@ -134,9 +110,6 @@ class Memory {
   void W64(uint32_t addr, uint64_t value);
 
  private:
-  // exception handler for protected page watches
-  sys::ExceptionHandlerHandle exc_handler_;
-
   // shared memory object where all physical data is written to
   sys::SharedMemoryHandle shmem_;
 
@@ -149,11 +122,6 @@ class Memory {
   // mapping of all logical addresses to their respective physical address or
   // dynamic handler
   MemoryMap map_;
-
-  // interval tree of address ranges being watched
-  WatchTree watches_;
-
-  static bool HandleException(void *ctx, sys::Exception &ex);
 
   bool CreateAddressSpace();
   void DestroyAddressSpace();

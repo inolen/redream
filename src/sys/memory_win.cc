@@ -7,28 +7,24 @@ namespace sys {
 
 static DWORD AccessToFileFlags(PageAccess access) {
   switch (access) {
-    case ACC_NONE:
-      return 0;
     case ACC_READONLY:
       return FILE_MAP_READ;
     case ACC_READWRITE:
       return FILE_MAP_READ | FILE_MAP_WRITE;
+    default:
+      return 0;
   }
-
-  return 0;
 }
 
 static DWORD AccessToProtectionFlags(PageAccess access) {
   switch (access) {
-    case ACC_NONE:
-      return PAGE_NOACCESS;
     case ACC_READONLY:
       return PAGE_READONLY;
     case ACC_READWRITE:
       return PAGE_READWRITE;
+    default:
+      return PAGE_NOACCESS;
   }
-
-  return PAGE_NOACCESS;
 }
 
 static void CheckPageAligned(void *ptr, size_t size) {

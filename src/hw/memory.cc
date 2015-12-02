@@ -170,26 +170,17 @@ void Memory::W64(Memory *memory, uint32_t addr, uint64_t value) {
   memory->WriteBytes<uint64_t, &MemoryRegion::w64>(addr, value);
 }
 
-Memory::Memory() : physical_base_(nullptr), virtual_base_(nullptr) {
-  exc_handler_ =
-      ExceptionHandler::instance().AddHandler(this, &Memory::HandleException);
-}
+Memory::Memory() : physical_base_(nullptr), virtual_base_(nullptr) {}
 
 Memory::~Memory() {
   UnmapAddressSpace();
   DestroyAddressSpace();
-
-  ExceptionHandler::instance().RemoveHandler(exc_handler_);
 }
 
 bool Memory::Init(const MemoryMap &map) {
   map_ = map;
 
-  if (!CreateAddressSpace()) {
-    return false;
-  }
-
-  return true;
+  return CreateAddressSpace();
 }
 
 void Memory::Lookup(uint32_t logical_addr, MemoryRegion **region,
@@ -216,28 +207,6 @@ void Memory::Memcpy(void *ptr, uint32_t logical_src, uint32_t size) {
     dest++;
   }
 }
-
-WatchHandle Memory::AddSingleWriteWatch(void *ptr, size_t size,
-                                        WatchHandler handler, void *ctx,
-                                        void *data) {
-  // page align the range to be watched
-  size_t page_size = GetPageSize();
-  ptr = reinterpret_cast<void *>(dreavm::align(
-      reinterpret_cast<uintptr_t>(ptr), static_cast<uintptr_t>(page_size)));
-  size = dreavm::align(size, page_size);
-
-  // disable writing to the pages
-  CHECK(ProtectPages(ptr, size, ACC_READONLY));
-
-  uintptr_t start = reinterpret_cast<uintptr_t>(ptr);
-  uintptr_t end = start + size - 1;
-  WatchHandle handle = watches_.Insert(
-      start, end, Watch{WATCH_SINGLE_WRITE, handler, ctx, data, ptr, size});
-
-  return handle;
-}
-
-void Memory::RemoveWatch(WatchHandle handle) { watches_.Remove(handle); }
 
 uint8_t Memory::R8(uint32_t addr) {
   return ReadBytes<uint8_t, &MemoryRegion::r8>(addr);
@@ -269,30 +238,6 @@ void Memory::W32(uint32_t addr, uint32_t value) {
 
 void Memory::W64(uint32_t addr, uint64_t value) {
   WriteBytes<uint64_t, &MemoryRegion::w64>(addr, value);
-}
-
-bool Memory::HandleException(void *ctx, Exception &ex) {
-  Memory *self = reinterpret_cast<Memory *>(ctx);
-
-  auto range_it = self->watches_.intersect(ex.fault_addr, ex.fault_addr);
-  auto it = range_it.first;
-  auto end = range_it.second;
-
-  while (it != end) {
-    WatchTree::node_type *node = *(it++);
-    Watch &watch = node->value;
-
-    watch.handler(watch.ctx, ex, watch.data);
-
-    if (watch.type == WATCH_SINGLE_WRITE) {
-      // restore page permissions
-      CHECK(ProtectPages(watch.ptr, watch.size, ACC_READWRITE));
-
-      self->watches_.Remove(node);
-    }
-  }
-
-  return range_it.first != range_it.second;
 }
 
 bool Memory::CreateAddressSpace() {
@@ -329,6 +274,7 @@ bool Memory::CreateAddressSpace() {
     ReleasePages(physical_base_, ADDRESS_SPACE_SIZE);
     ReleasePages(virtual_base_, ADDRESS_SPACE_SIZE);
 
+    // TODO simplify this and just assume this works, asserting otherwise?
     if (!MapAddressSpace()) {
       UnmapAddressSpace();
       physical_base_ = nullptr;

@@ -27,8 +27,8 @@ struct TextureEntry {
       : handle(handle), texture_watch(nullptr), palette_watch(nullptr) {}
 
   renderer::TextureHandle handle;
-  WatchHandle texture_watch;
-  WatchHandle palette_watch;
+  sys::WatchHandle texture_watch;
+  sys::WatchHandle palette_watch;
 };
 
 class TextureCache : public TextureProvider {
