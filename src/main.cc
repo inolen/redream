@@ -4,7 +4,6 @@
 #include "trace/trace_viewer.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
-// #include "sys/tty.h"
 
 using namespace dreavm;
 using namespace dreavm::emu;

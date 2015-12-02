@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include "core/core.h"
-#include "sys/tty.h"
 #include "sys/window.h"
 
 #define DEFAULT_WIDTH 800
