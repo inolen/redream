@@ -11,29 +11,6 @@ namespace jit {
 namespace frontend {
 namespace sh4 {
 
-// SR bits
-enum {
-  T = 0x00000001,   // true / false condition or carry/borrow bit
-  S = 0x00000002,   // specifies a saturation operation for a MAC instruction
-  I = 0x000000f0,   // interrupt mask level
-  Q = 0x00000100,   // used by the DIV0S, DIV0U, and DIV1 instructions
-  M = 0x00000200,   // used by the DIV0S, DIV0U, and DIV1 instructions
-  FD = 0x00008000,  // an FPU instr causes a general FPU disable exception
-  BL = 0x10000000,  // interrupt requests are masked
-  RB = 0x20000000,  // general register bank specifier in privileged mode (set
-                    // to 1 by a reset, exception, or interrupt)
-  MD = 0x40000000   // processor mode (0 is user mode, 1 is privileged mode)
-};
-
-// FPSCR bits
-enum {
-  RM = 0x00000003,
-  DN = 0x00040000,
-  PR = 0x00080000,
-  SZ = 0x00100000,
-  FR = 0x00200000
-};
-
 struct FPUState {
   bool double_precision;
   bool single_precision_pair;

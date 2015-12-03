@@ -38,8 +38,8 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
 
   // use fpu state when generating code. we could emit branches that check this
   // state in the actual IR, but that's extremely slow
-  fpu_state_.double_precision = ctx.fpscr.PR;
-  fpu_state_.single_precision_pair = ctx.fpscr.SZ;
+  fpu_state_.double_precision = ctx.fpscr & PR;
+  fpu_state_.single_precision_pair = ctx.fpscr & SZ;
 
   while (true) {
     instr.addr = addr;

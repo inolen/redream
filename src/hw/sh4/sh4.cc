@@ -38,8 +38,8 @@ bool SH4::Init() {
   ctx_.FPSCRUpdated = &SH4::FPSCRUpdated;
   ctx_.pc = 0xa0000000;
   ctx_.pr = 0x0;
-  ctx_.sr.full = 0x700000f0;
-  ctx_.fpscr.full = 0x00040001;
+  ctx_.sr = 0x700000f0;
+  ctx_.fpscr = 0x00040001;
 
   // initialize registers
   memset(area7_, 0, sizeof(area7_));
@@ -332,26 +332,26 @@ void SH4::Pref(SH4Context *ctx, uint64_t arg0) {
   }
 }
 
-void SH4::SRUpdated(SH4Context *ctx, SR_T old_sr) {
+void SH4::SRUpdated(SH4Context *ctx, uint64_t old_sr) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
 
-  if (ctx->sr.RB != old_sr.RB) {
-    self->SetRegisterBank(ctx->sr.RB ? 1 : 0);
+  if ((ctx->sr & RB) != (old_sr & RB)) {
+    self->SetRegisterBank(ctx->sr & RB);
   }
 
-  if (ctx->sr.IMASK != old_sr.IMASK || ctx->sr.BL != old_sr.BL) {
+  if ((ctx->sr & I) != (old_sr & I) || (ctx->sr & BL) != (old_sr & BL)) {
     self->UpdatePendingInterrupts();
   }
 }
 
-void SH4::FPSCRUpdated(SH4Context *ctx, FPSCR_T old_fpscr) {
+void SH4::FPSCRUpdated(SH4Context *ctx, uint64_t old_fpscr) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
 
-  if (ctx->fpscr.FR != old_fpscr.FR) {
+  if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
     self->SwapFPRegisters();
   }
 
-  if (ctx->fpscr.PR != old_fpscr.PR) {
+  if ((ctx->fpscr & PR) != (old_fpscr & PR)) {
     self->SwapFPCouples();
   }
 }
@@ -363,7 +363,7 @@ void SH4::SetRegisterBank(int bank) {
       ctx_.r[s] = ctx_.ralt[s];
       ctx_.ralt[s] = tmp;
     }
-  } else if (bank == 1) {
+  } else {
     for (int s = 0; s < 8; s++) {
       uint32_t tmp = ctx_.r[s];
       ctx_.r[s] = ctx_.ralt[s];
@@ -450,8 +450,7 @@ void SH4::ReprioritizeInterrupts() {
       }
     }
 
-    // generate a mask for all interrupts up to the current priority. used to
-    // support SR.IMASK
+    // generate a mask for all interrupts up to the current priority
     priority_mask_[i] = ((uint64_t)1 << n) - 1;
   }
 
@@ -459,8 +458,8 @@ void SH4::ReprioritizeInterrupts() {
 }
 
 void SH4::UpdatePendingInterrupts() {
-  int min_priority = ctx_.sr.IMASK;
-  uint64_t priority_mask = ctx_.sr.BL ? 0 : ~priority_mask_[min_priority];
+  int min_priority = (ctx_.sr & I) >> 4;
+  uint64_t priority_mask = (ctx_.sr & BL) ? 0 : ~priority_mask_[min_priority];
   pending_interrupts_ = requested_interrupts_ & priority_mask;
 }
 
@@ -478,9 +477,7 @@ inline void SH4::CheckPendingInterrupts() {
   ctx_.ssr = ctx_.sr;
   ctx_.spc = ctx_.pc;
   ctx_.sgr = ctx_.r[15];
-  ctx_.sr.BL = 1;
-  ctx_.sr.MD = 1;
-  ctx_.sr.RB = 1;
+  ctx_.sr |= (BL | MD | RB);
   ctx_.pc = ctx_.vbr + 0x600;
 
   SRUpdated(&ctx_, ctx_.ssr);
