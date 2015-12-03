@@ -45,8 +45,8 @@ union FPSCR_T {
 struct SH4Context {
   void *sh4;
   void (*Pref)(SH4Context *, uint64_t addr);
-  void (*SRUpdated)(SH4Context *);
-  void (*FPSCRUpdated)(SH4Context *);
+  void (*SRUpdated)(SH4Context *, SR_T old_sr);
+  void (*FPSCRUpdated)(SH4Context *, FPSCR_T old_fpscr);
 
   uint32_t pc, spc;
   uint32_t pr;
@@ -58,8 +58,8 @@ struct SH4Context {
   uint32_t dbr;
   uint32_t sq[2][8];
   uint32_t sr_qm;
-  SR_T sr, ssr, old_sr;
-  FPSCR_T fpscr, old_fpscr;
+  SR_T sr, ssr;
+  FPSCR_T fpscr;
 };
 }
 }

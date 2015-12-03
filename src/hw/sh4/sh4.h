@@ -150,8 +150,10 @@ class SH4 : public hw::Device {
  private:
   static uint32_t CompileBlock(jit::RuntimeBlock *block);
   static void Pref(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
-  static void SRUpdated(jit::frontend::sh4::SH4Context *ctx);
-  static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx);
+  static void SRUpdated(jit::frontend::sh4::SH4Context *ctx,
+                        jit::frontend::sh4::SR_T old_sr);
+  static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,
+                           jit::frontend::sh4::FPSCR_T old_fpscr);
 
   void SetRegisterBank(int bank);
   void SwapFPRegisters();

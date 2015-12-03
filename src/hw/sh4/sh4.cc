@@ -38,8 +38,8 @@ bool SH4::Init() {
   ctx_.FPSCRUpdated = &SH4::FPSCRUpdated;
   ctx_.pc = 0xa0000000;
   ctx_.pr = 0x0;
-  ctx_.sr.full = ctx_.old_sr.full = 0x700000f0;
-  ctx_.fpscr.full = ctx_.old_fpscr.full = 0x00040001;
+  ctx_.sr.full = 0x700000f0;
+  ctx_.fpscr.full = 0x00040001;
 
   // initialize registers
   memset(area7_, 0, sizeof(area7_));
@@ -332,32 +332,28 @@ void SH4::Pref(SH4Context *ctx, uint64_t arg0) {
   }
 }
 
-void SH4::SRUpdated(SH4Context *ctx) {
+void SH4::SRUpdated(SH4Context *ctx, SR_T old_sr) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
 
-  if (ctx->sr.RB != ctx->old_sr.RB) {
+  if (ctx->sr.RB != old_sr.RB) {
     self->SetRegisterBank(ctx->sr.RB ? 1 : 0);
   }
 
-  if (ctx->sr.IMASK != ctx->old_sr.IMASK || ctx->sr.BL != ctx->old_sr.BL) {
+  if (ctx->sr.IMASK != old_sr.IMASK || ctx->sr.BL != old_sr.BL) {
     self->UpdatePendingInterrupts();
   }
-
-  ctx->old_sr = ctx->sr;
 }
 
-void SH4::FPSCRUpdated(SH4Context *ctx) {
+void SH4::FPSCRUpdated(SH4Context *ctx, FPSCR_T old_fpscr) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
 
-  if (ctx->fpscr.FR != ctx->old_fpscr.FR) {
+  if (ctx->fpscr.FR != old_fpscr.FR) {
     self->SwapFPRegisters();
   }
 
-  if (ctx->fpscr.PR != ctx->old_fpscr.PR) {
+  if (ctx->fpscr.PR != old_fpscr.PR) {
     self->SwapFPCouples();
   }
-
-  ctx->old_fpscr = ctx->fpscr;
 }
 
 void SH4::SetRegisterBank(int bank) {
@@ -487,7 +483,7 @@ inline void SH4::CheckPendingInterrupts() {
   ctx_.sr.RB = 1;
   ctx_.pc = ctx_.vbr + 0x600;
 
-  SRUpdated(&ctx_);
+  SRUpdated(&ctx_, ctx_.ssr);
 }
 
 bool SH4::TimerEnabled(int n) {  //
