@@ -283,7 +283,7 @@ set(TEST_ASM
   test/asm/tst.s
   test/asm/xor.s
   )
-set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/asm/sh4_test.inc)
+set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.inc)
 
 # compile tests into include file if the sh4 toolchain is available
 find_package(PythonInterp)
@@ -303,8 +303,8 @@ elseif(NOT SH_OBJCOPY)
   message(WARNING "Could not find sh-elf-objcopy, won't be able to generate tests")
 else()
   add_custom_command(OUTPUT ${asm_inc}
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py -as ${SH_AS} -ld ${SH_LD} -nm ${SH_NM} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/sh4_test.py ${TEST_ASM}
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py -as ${SH_AS} -ld ${SH_LD} -nm ${SH_NM} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py ${TEST_ASM}
     COMMENT "Assembling ${asm_inc} for ${TEST_ASM}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     VERBATIM)
@@ -313,7 +313,6 @@ endif()
 # build test binary
 set(DREAVM_TEST_SOURCES
   ${DREAVM_SOURCES}
-  test/sh4_test.cc
   test/test_interval_tree.cc
   test/test_intrusive_list.cc
   test/test_ring_buffer.cc

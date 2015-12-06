@@ -18,7 +18,9 @@ class Memory;
 namespace sh4 {
 
 // translate address to 29-bit physical space, ignoring all modifier bits
-enum { ADDR_MASK = 0x1fffffff };
+enum {
+  ADDR_MASK = 0x1fffffff,
+};
 
 // registers
 enum {

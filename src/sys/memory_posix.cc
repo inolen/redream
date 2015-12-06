@@ -114,6 +114,10 @@ bool UnmapSharedMemory(SharedMemoryHandle handle, void *start, size_t size) {
 }
 
 bool DestroySharedMemory(SharedMemoryHandle handle) {
+  if (handle == SHMEM_INVALID) {
+    return false;
+  }
+
   auto it = g_shared_handles.find(handle);
   CHECK_NE(it, g_shared_handles.end());
 

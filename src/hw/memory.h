@@ -55,8 +55,11 @@ class MemoryMap {
  public:
   MemoryMap();
 
-  MemoryRegion *page(int i) { return &regions_[pages_[i]]; }
+  RegionHandle page(int i) { return pages_[i]; }
   int num_pages() { return MAX_PAGES; }
+
+  MemoryRegion *region(int i) { return &regions_[i]; }
+  int num_regions() { return num_regions_; }
 
   inline void Lookup(uint32_t logical_addr, MemoryRegion **out_range,
                      uint32_t *out_offset);
@@ -97,7 +100,7 @@ class Memory {
   bool Init(const MemoryMap &map);
   void Lookup(uint32_t logical_addr, MemoryRegion **out_bank,
               uint32_t *out_offset);
-  void Memcpy(uint32_t logical_dest, void *ptr, uint32_t size);
+  void Memcpy(uint32_t logical_dest, const void *ptr, uint32_t size);
   void Memcpy(void *ptr, uint32_t logical_src, uint32_t size);
 
   uint8_t R8(uint32_t addr);
@@ -126,7 +129,7 @@ class Memory {
   bool CreateAddressSpace();
   void DestroyAddressSpace();
 
-  bool MapAddressSpace();
+  void MapAddressSpace();
   void UnmapAddressSpace();
 
   template <typename INT, INT (*MemoryRegion::*HANDLER)(void *, uint32_t)>

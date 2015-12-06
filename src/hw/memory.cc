@@ -170,7 +170,8 @@ void Memory::W64(Memory *memory, uint32_t addr, uint64_t value) {
   memory->WriteBytes<uint64_t, &MemoryRegion::w64>(addr, value);
 }
 
-Memory::Memory() : physical_base_(nullptr), virtual_base_(nullptr) {}
+Memory::Memory()
+    : shmem_(SHMEM_INVALID), physical_base_(nullptr), virtual_base_(nullptr) {}
 
 Memory::~Memory() {
   UnmapAddressSpace();
@@ -188,7 +189,7 @@ void Memory::Lookup(uint32_t logical_addr, MemoryRegion **region,
   map_.Lookup(logical_addr, region, offset);
 }
 
-void Memory::Memcpy(uint32_t logical_dest, void *ptr, uint32_t size) {
+void Memory::Memcpy(uint32_t logical_dest, const void *ptr, uint32_t size) {
   uint8_t *src = (uint8_t *)ptr;
   uint32_t end = logical_dest + size;
   while (logical_dest < end) {
@@ -274,13 +275,10 @@ bool Memory::CreateAddressSpace() {
     ReleasePages(physical_base_, ADDRESS_SPACE_SIZE);
     ReleasePages(virtual_base_, ADDRESS_SPACE_SIZE);
 
-    // TODO simplify this and just assume this works, asserting otherwise?
-    if (!MapAddressSpace()) {
-      UnmapAddressSpace();
-      physical_base_ = nullptr;
-      virtual_base_ = nullptr;
-      continue;
-    }
+    // assume we will be able to map into physical_base_ and virtual_base_ now
+    // NOTE: there is the tiny possibility that something, somehow could
+    // allocate into these ranges between releasing and mapping
+    MapAddressSpace();
 
     // success
     break;
@@ -294,109 +292,51 @@ bool Memory::CreateAddressSpace() {
   return true;
 }
 
-void Memory::DestroyAddressSpace() { CHECK(DestroySharedMemory(shmem_)); }
+void Memory::DestroyAddressSpace() { DestroySharedMemory(shmem_); }
 
-bool Memory::MapAddressSpace() {
-  int i = 0;
-  int j = 0;
-  int n = map_.num_pages();
+void Memory::MapAddressSpace() {
+  for (int i = 0, n = map_.num_pages(); i < n; i++) {
+    RegionHandle handle = map_.page(i);
+    MemoryRegion *region = map_.region(handle);
 
-  for (; i < n;) {
-    MemoryRegion *region = map_.page(i);
-
-    // ignore empty pages
-    if (!region) {
-      i++;
+    // ignore empty pages or regions that've already been mapped
+    if (handle == UNMAPPED || region->mapped) {
       continue;
     }
 
-    // work with adjacent regions at the same time, mmap is fairly slow
-    for (j = i + 1; j < n; j++) {
-      MemoryRegion *next = map_.page(j);
-
-      if (next != region) {
-        break;
-      }
-    }
-
-    uint32_t base = i * MAX_PAGE_SIZE;
-    uint32_t size = (j - i) * MAX_PAGE_SIZE;
-
-    // set the region's physical location in memory
-    region->data = physical_base_ + region->logical_addr;
-
     // mmap the shared memory object to the physical and virtual regions
-    if (!MapSharedMemory(shmem_, physical_base_ + base, region->logical_addr,
-                         size, ACC_READWRITE)) {
-      return false;
-    }
-
-    if (!MapSharedMemory(shmem_, virtual_base_ + base, region->logical_addr,
-                         size, ACC_READWRITE)) {
-      return false;
-    }
+    CHECK(MapSharedMemory(shmem_, physical_base_ + region->logical_addr, region->logical_addr,
+                          region->size, ACC_READWRITE));
 
     // if this address represents a dynamic handler, mprotect the pages so
     // accesses to them will raise a segfault that can be handled to recompile
     // the block accessing them
-    if (region->dynamic &&
-        !ProtectPages(virtual_base_ + base, size, ACC_NONE)) {
-      return false;
-    }
+    CHECK(MapSharedMemory(shmem_, virtual_base_ + region->logical_addr, region->logical_addr,
+                          region->size, region->dynamic ? ACC_NONE : ACC_READWRITE));
 
-    // update mapped status for all pages
-    for (int k = i; k < j; k++) {
-      MemoryRegion *next = map_.page(k);
-      next->mapped = true;
-    }
+    // set the region's physical location in memory
+    region->data = physical_base_ + region->logical_addr;
 
-    i = j;
+    // avoid double mapping
+    region->mapped = true;
   }
-
-  return true;
 }
 
 void Memory::UnmapAddressSpace() {
-  int i = 0;
-  int j = 0;
-  int n = map_.num_pages();
+  for (int i = 0, n = map_.num_pages(); i < n; i++) {
+    RegionHandle handle = map_.page(i);
+    MemoryRegion *region = map_.region(handle);
 
-  for (; i < n;) {
-    MemoryRegion *region = map_.page(i);
-
-    if (!region || !region->mapped) {
-      i++;
+    if (handle == UNMAPPED || !region->mapped) {
       continue;
     }
 
-    // work with adjacent regions at the same time, mmap is fairly slow
-    for (j = i + 1; j < n; j++) {
-      const MemoryRegion *next = map_.page(j);
-
-      if (next != region) {
-        break;
-      }
-    }
-
-    uint32_t base = i * MAX_PAGE_SIZE;
-    uint32_t size = (j - i) * MAX_PAGE_SIZE;
-
-    // restore permissions on pages for dynamic handlers
-    if (region->dynamic) {
-      CHECK(ProtectPages(virtual_base_ + base, size, ACC_READWRITE));
-    }
-
     // unmap the shared memory from both regions
-    CHECK(UnmapSharedMemory(shmem_, physical_base_ + base, size));
-    CHECK(UnmapSharedMemory(shmem_, virtual_base_ + base, size));
+    CHECK(UnmapSharedMemory(shmem_, physical_base_ + region->logical_addr, region->size));
+    CHECK(UnmapSharedMemory(shmem_, virtual_base_ + region->logical_addr, region->size));
 
-    // update mapped status for all pages
-    for (int k = i; k < j; k++) {
-      MemoryRegion *next = map_.page(k);
-      next->mapped = false;
-    }
-
-    i = j;
+    // can be mapped again
+    region->mapped = false;
   }
 }
 
