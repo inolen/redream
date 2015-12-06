@@ -401,32 +401,32 @@ REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, F64);
 
 INT_CALLBACK(LOAD_I8) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = Memory::R8(reinterpret_cast<Memory *>(i->ctx), addr);
+  R v = reinterpret_cast<Memory *>(i->ctx)->R8(addr);
   STORE_RESULT(v);
 }
 INT_CALLBACK(LOAD_I16) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = Memory::R16(reinterpret_cast<Memory *>(i->ctx), addr);
+  R v = reinterpret_cast<Memory *>(i->ctx)->R16(addr);
   STORE_RESULT(v);
 }
 INT_CALLBACK(LOAD_I32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = Memory::R32(reinterpret_cast<Memory *>(i->ctx), addr);
+  R v = reinterpret_cast<Memory *>(i->ctx)->R32(addr);
   STORE_RESULT(v);
 }
 INT_CALLBACK(LOAD_I64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = Memory::R64(reinterpret_cast<Memory *>(i->ctx), addr);
+  R v = reinterpret_cast<Memory *>(i->ctx)->R64(addr);
   STORE_RESULT(v);
 }
 INT_CALLBACK(LOAD_F32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  uint32_t v = Memory::R32(reinterpret_cast<Memory *>(i->ctx), addr);
+  uint32_t v = reinterpret_cast<Memory *>(i->ctx)->R32(addr);
   STORE_RESULT(*reinterpret_cast<float *>(&v));
 }
 INT_CALLBACK(LOAD_F64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  uint64_t v = Memory::R64(reinterpret_cast<Memory *>(i->ctx), addr);
+  uint64_t v = reinterpret_cast<Memory *>(i->ctx)->R64(addr);
   STORE_RESULT(*reinterpret_cast<double *>(&v));
 }
 REGISTER_INT_CALLBACK(LOAD, LOAD_I8, I8, I32, V);
@@ -439,34 +439,34 @@ REGISTER_INT_CALLBACK(LOAD, LOAD_F64, F64, I32, V);
 INT_CALLBACK(STORE_I8) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  Memory::W8(reinterpret_cast<Memory *>(i->ctx), addr, v);
+  reinterpret_cast<Memory *>(i->ctx)->W8(addr, v);
 }
 INT_CALLBACK(STORE_I16) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  Memory::W16(reinterpret_cast<Memory *>(i->ctx), addr, v);
+  reinterpret_cast<Memory *>(i->ctx)->W16(addr, v);
 }
 INT_CALLBACK(STORE_I32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  Memory::W32(reinterpret_cast<Memory *>(i->ctx), addr, v);
+  reinterpret_cast<Memory *>(i->ctx)->W32(addr, v);
 }
 INT_CALLBACK(STORE_I64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  Memory::W64(reinterpret_cast<Memory *>(i->ctx), addr, v);
+  reinterpret_cast<Memory *>(i->ctx)->W64(addr, v);
 }
 INT_CALLBACK(STORE_F32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  Memory::W32(reinterpret_cast<Memory *>(i->ctx), addr,
-              *reinterpret_cast<uint32_t *>(&v));
+  reinterpret_cast<Memory *>(i->ctx)
+      ->W32(addr, *reinterpret_cast<uint32_t *>(&v));
 }
 INT_CALLBACK(STORE_F64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  Memory::W64(reinterpret_cast<Memory *>(i->ctx), addr,
-              *reinterpret_cast<uint64_t *>(&v));
+  reinterpret_cast<Memory *>(i->ctx)
+      ->W64(addr, *reinterpret_cast<uint64_t *>(&v));
 }
 REGISTER_INT_CALLBACK(STORE, STORE_I8, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE, STORE_I16, V, I32, I16);

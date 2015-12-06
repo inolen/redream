@@ -98,10 +98,11 @@ void Runtime::ResetBlocks() {
 bool Runtime::HandleException(void *ctx, Exception &ex) {
   Runtime *runtime = reinterpret_cast<Runtime *>(ctx);
   const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex.fault_addr);
-  const uint8_t *virtual_start = runtime->memory_.virtual_base();
-  const uint8_t *virtual_end = virtual_start + runtime->memory_.total_size();
+  const uint8_t *protected_start = runtime->memory_.protected_base();
+  const uint8_t *protected_end =
+      protected_start + runtime->memory_.total_size();
 
-  if (fault_addr < virtual_start || fault_addr >= virtual_end) {
+  if (fault_addr < protected_start || fault_addr >= protected_end) {
     return false;
   }
 

@@ -62,7 +62,7 @@ TEST_F(IntervalTreeTest, Height) {
 
 TEST_F(IntervalTreeTest, Remove) {
   // remove all results and ensure size is updated in the process
-  int size = nodes.size();
+  int size = static_cast<int>(nodes.size());
 
   for (auto n : nodes) {
     intervals.Remove(n);

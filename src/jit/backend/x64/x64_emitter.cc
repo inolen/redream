@@ -128,6 +128,31 @@ X64Emitter::X64Emitter(Memory &memory, size_t max_size)
   Reset();
 }
 
+// helpers for accessing memory
+uint8_t R8(Memory *memory, uint32_t addr) { return memory->R8(addr); }
+
+uint16_t R16(Memory *memory, uint32_t addr) { return memory->R16(addr); }
+
+uint32_t R32(Memory *memory, uint32_t addr) { return memory->R32(addr); }
+
+uint64_t R64(Memory *memory, uint32_t addr) { return memory->R64(addr); }
+
+void W8(Memory *memory, uint32_t addr, uint8_t value) {
+  memory->W8(addr, value);
+}
+
+void W16(Memory *memory, uint32_t addr, uint16_t value) {
+  memory->W16(addr, value);
+}
+
+void W32(Memory *memory, uint32_t addr, uint32_t value) {
+  memory->W32(addr, value);
+}
+
+void W64(Memory *memory, uint32_t addr, uint64_t value) {
+  memory->W64(addr, value);
+}
+
 X64Emitter::~X64Emitter() { delete[] modified_; }
 
 void X64Emitter::Reset() {
@@ -235,7 +260,7 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
 
   // copy guest context and memory base to argument registers
   mov(int_arg0, reinterpret_cast<uintptr_t>(guest_ctx_));
-  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_.virtual_base()));
+  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_.protected_base()));
 
   *out_stack_size = stack_size;
 }
@@ -437,7 +462,7 @@ bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
 void X64Emitter::RestoreArgs() {
   // restore registers that are not callee-saved
   mov(int_arg0, reinterpret_cast<uintptr_t>(guest_ctx_));
-  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_.virtual_base()));
+  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_.protected_base()));
 }
 
 EMITTER(LOAD_CONTEXT) {
@@ -630,19 +655,19 @@ EMITTER(LOAD) {
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
     uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
-    MemoryRegion *bank = nullptr;
+    uint8_t *host_addr = nullptr;
+    MemoryRegion *region = nullptr;
     uint32_t offset = 0;
 
-    memory.Lookup(addr, &bank, &offset);
+    memory.Lookup(addr, &host_addr, &region, &offset);
 
     // if the address maps to a physical page, not a dynamic handler, make it
     // fast
-    if (!bank->dynamic) {
+    if (host_addr) {
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
-      void *physical_addr = bank->data + offset;
-      e.mov(e.rax, (size_t)physical_addr);
+      e.mov(e.rax, reinterpret_cast<uintptr_t>(host_addr));
 
       switch (instr->result()->type()) {
         case VALUE_I8:
@@ -698,20 +723,16 @@ EMITTER(LOAD) {
   void *fn = nullptr;
   switch (instr->result()->type()) {
     case VALUE_I8:
-      fn = reinterpret_cast<void *>(
-          static_cast<uint8_t (*)(Memory *, uint32_t)>(&Memory::R8));
+      fn = reinterpret_cast<void *>(&R8);
       break;
     case VALUE_I16:
-      fn = reinterpret_cast<void *>(
-          static_cast<uint16_t (*)(Memory *, uint32_t)>(&Memory::R16));
+      fn = reinterpret_cast<void *>(&R16);
       break;
     case VALUE_I32:
-      fn = reinterpret_cast<void *>(
-          static_cast<uint32_t (*)(Memory *, uint32_t)>(&Memory::R32));
+      fn = reinterpret_cast<void *>(&R32);
       break;
     case VALUE_I64:
-      fn = reinterpret_cast<void *>(
-          static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
+      fn = reinterpret_cast<void *>(&R64);
       break;
     default:
       LOG_FATAL("Unexpected load result type");
@@ -732,19 +753,19 @@ EMITTER(STORE) {
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
     uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
+    uint8_t *host_addr = nullptr;
     MemoryRegion *bank = nullptr;
     uint32_t offset = 0;
 
-    memory.Lookup(addr, &bank, &offset);
+    memory.Lookup(addr, &host_addr, &bank, &offset);
 
-    if (!bank->dynamic) {
+    if (host_addr) {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
 
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
-      void *physical_addr = bank->data + offset;
-      e.mov(e.rax, (size_t)physical_addr);
+      e.mov(e.rax, reinterpret_cast<uintptr_t>(host_addr));
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
@@ -801,20 +822,16 @@ EMITTER(STORE) {
   void *fn = nullptr;
   switch (instr->arg1()->type()) {
     case VALUE_I8:
-      fn = reinterpret_cast<void *>(
-          static_cast<void (*)(Memory *, uint32_t, uint8_t)>(&Memory::W8));
+      fn = reinterpret_cast<void *>(&W8);
       break;
     case VALUE_I16:
-      fn = reinterpret_cast<void *>(
-          static_cast<void (*)(Memory *, uint32_t, uint16_t)>(&Memory::W16));
+      fn = reinterpret_cast<void *>(&W16);
       break;
     case VALUE_I32:
-      fn = reinterpret_cast<void *>(
-          static_cast<void (*)(Memory *, uint32_t, uint32_t)>(&Memory::W32));
+      fn = reinterpret_cast<void *>(&W32);
       break;
     case VALUE_I64:
-      fn = reinterpret_cast<void *>(
-          static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
+      fn = reinterpret_cast<void *>(&W64);
       break;
     default:
       LOG_FATAL("Unexpected store value type");

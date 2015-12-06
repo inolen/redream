@@ -44,34 +44,40 @@ static int AccessToProtectionFlags(PageAccess access) {
   }
 }
 
-static void CheckPageAligned(void *ptr, size_t size) {
-  size_t page_size = GetPageSize();
-  CHECK_EQ(reinterpret_cast<uintptr_t>(ptr) % page_size, 0);
-  CHECK_EQ((reinterpret_cast<uintptr_t>(ptr) + size) % page_size, 0);
-}
-
 size_t GetPageSize() { return getpagesize(); }
 
-bool ProtectPages(void *ptr, size_t size, PageAccess access) {
-  CheckPageAligned(ptr, size);
+size_t GetAllocationGranularity() { return GetPageSize(); }
 
+bool ProtectPages(void *ptr, size_t size, PageAccess access) {
   int prot = AccessToProtectionFlags(access);
   return mprotect(ptr, size, prot) == 0;
 }
 
 bool ReservePages(void *ptr, size_t size) {
-  CheckPageAligned(ptr, size);
+  // NOTE mmap with MAP_FIXED will overwrite existing mappings, making it hard
+  // to detect that a section of memory has already been mmap'd. however, mmap
+  // without MAP_FIXED will obey the address parameter only if an existing
+  // mapping does not already exist, else it will map it to a new address.
+  // knowing this, an existing mapping can be detected by not using MAP_FIXED,
+  // and comparing the returned mapped address with the requested address
+  void *res =
+      mmap(ptr, size, PROT_NONE, MAP_ANON | MAP_NORESERVE | MAP_PRIVATE, -1, 0);
 
-  void *res = mmap(ptr, size, PROT_NONE,
-                   MAP_ANON | MAP_NORESERVE | MAP_PRIVATE | MAP_FIXED, -1, 0);
-  return res != MAP_FAILED;
+  if (res == MAP_FAILED) {
+    return false;
+  }
+
+  if (res != ptr) {
+    // mapping was successful. however, it was made at a different address
+    // than requested, meaning the requested address has already been mapped
+    munmap(res, size);
+    return false;
+  }
+
+  return true;
 }
 
-bool ReleasePages(void *ptr, size_t size) {
-  CheckPageAligned(ptr, size);
-
-  return munmap(ptr, size) == 0;
-}
+bool ReleasePages(void *ptr, size_t size) { return munmap(ptr, size) == 0; }
 
 SharedMemoryHandle CreateSharedMemory(const char *filename, size_t size,
                                       PageAccess access) {
@@ -98,28 +104,22 @@ SharedMemoryHandle CreateSharedMemory(const char *filename, size_t size,
   return handle;
 }
 
-bool MapSharedMemory(SharedMemoryHandle handle, void *start, size_t offset,
+bool MapSharedMemory(SharedMemoryHandle handle, size_t offset, void *start,
                      size_t size, PageAccess access) {
-  CheckPageAligned(start, size);
-
   int prot = AccessToProtectionFlags(access);
   void *ptr = mmap(start, size, prot, MAP_SHARED | MAP_FIXED, handle, offset);
   return ptr != MAP_FAILED;
 }
 
 bool UnmapSharedMemory(SharedMemoryHandle handle, void *start, size_t size) {
-  CheckPageAligned(start, size);
-
   return munmap(start, size) == 0;
 }
 
 bool DestroySharedMemory(SharedMemoryHandle handle) {
-  if (handle == SHMEM_INVALID) {
+  auto it = g_shared_handles.find(handle);
+  if (it == g_shared_handles.end()) {
     return false;
   }
-
-  auto it = g_shared_handles.find(handle);
-  CHECK_NE(it, g_shared_handles.end());
 
   // close the file handle
   int res1 = close(handle);

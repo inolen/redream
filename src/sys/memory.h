@@ -18,6 +18,7 @@ enum PageAccess {
 };
 
 size_t GetPageSize();
+size_t GetAllocationGranularity();
 bool ProtectPages(void *ptr, size_t size, PageAccess access);
 bool ReservePages(void *ptr, size_t size);
 bool ReleasePages(void *ptr, size_t size);
@@ -35,7 +36,7 @@ typedef int SharedMemoryHandle;
 
 SharedMemoryHandle CreateSharedMemory(const char *filename, size_t size,
                                       PageAccess access);
-bool MapSharedMemory(SharedMemoryHandle handle, void *start, size_t offset,
+bool MapSharedMemory(SharedMemoryHandle handle, size_t offset, void *start,
                      size_t size, PageAccess access);
 bool UnmapSharedMemory(SharedMemoryHandle handle, void *start, size_t size);
 bool DestroySharedMemory(SharedMemoryHandle handle);

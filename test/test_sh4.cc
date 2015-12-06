@@ -27,15 +27,15 @@ enum {
 struct SH4Test {
   const char *name;
   const uint8_t *buffer;
-  int buffer_size;
-  int buffer_offset;
+  uint32_t buffer_size;
+  uint32_t buffer_offset;
   SH4Context in;
   SH4Context out;
 };
 
 struct SH4TestRegister {
   const char *name;
-  int offset;
+  size_t offset;
   int size;
 };
 
@@ -90,7 +90,8 @@ static SH4TestRegister sh4_test_regs[] = {
     {"xf14", offsetof(SH4Context, xf[14]), 4},
     {"xf15", offsetof(SH4Context, xf[15]), 4},
 };
-int sh4_num_test_regs = sizeof(sh4_test_regs) / sizeof(sh4_test_regs[0]);
+int sh4_num_test_regs =
+    static_cast<int>(sizeof(sh4_test_regs) / sizeof(sh4_test_regs[0]));
 
 // clang-format off
 #define INIT_CONTEXT(fpscr, r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, \
@@ -149,18 +150,22 @@ namespace sh4 {
 
 template <typename BACKEND>
 void RunSH4Test(const SH4Test &test) {
-  static const uint32_t load_address = 0x8c010000;
-  const uint32_t executable_size =
-      dreavm::align(static_cast<uint32_t>(test.buffer_size),
-                    static_cast<uint32_t>(MAX_PAGE_SIZE));
+  static const uint32_t stack_address = 0x0;
+  static const uint32_t stack_size = PAGE_BLKSIZE;
+  static const uint32_t code_address = 0x8c010000;
+  const uint32_t code_size =
+      dreavm::align(test.buffer_size, static_cast<uint32_t>(PAGE_BLKSIZE));
 
   // setup stack and executable space in memory map
-  MemoryMap memmap;
-  memmap.Mirror(0x0, MAX_PAGE_SIZE, ~ADDR_MASK);
-  memmap.Mirror(load_address, executable_size, ~ADDR_MASK);
-
   Memory memory;
-  CHECK(memory.Init(memmap));
+  CHECK(memory.Init());
+  RegionHandle stack_handle = memory.AllocRegion(stack_address, stack_size);
+  RegionHandle code_handle = memory.AllocRegion(code_address, code_size);
+
+  MemoryMap memmap;
+  memmap.Mount(stack_handle, stack_size, stack_address);
+  memmap.Mount(code_handle, code_size, code_address);
+  CHECK(memory.Map(memmap));
 
   // initialize cpu
   SH4Frontend frontend(memory);
@@ -185,13 +190,13 @@ void RunSH4Test(const SH4Test &test) {
   }
 
   // setup initial stack pointer
-  sh4.ctx_.r[15] = MAX_PAGE_SIZE;
+  sh4.ctx_.r[15] = stack_size;
 
   // load binary
-  memory.Memcpy(load_address, test.buffer, test.buffer_size);
+  memory.Memcpy(code_address, test.buffer, test.buffer_size);
 
   // skip to the test's offset
-  sh4.SetPC(load_address + test.buffer_offset);
+  sh4.SetPC(code_address + test.buffer_offset);
 
   sh4.Run(INT_MAX);
 

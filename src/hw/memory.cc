@@ -1,212 +1,108 @@
 #include "core/core.h"
 #include "hw/memory.h"
 
+using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::sys;
 
-// from a hardware perspective, the mirror mask parameter describes the
-// address bits which are ignored for the specified range.
-//
-// from our perspective however, each permutation of these bits describes
-// a mirror of the address range.
-//
-// for example, on the dreamcast bits 29-31 are ignored for each address.
-// this means that 0x00040000 is also available at 0x20040000, 0x40040000,
-// 0x60040000, 0x80040000, 0xa0040000, 0xc0040000 and 0xe0040000.
-struct MirrorIterator {
-  MirrorIterator(uint32_t addr, uint32_t mask)
-      : base(addr & ~mask),
-        mask(mask),
-        step(1 << dreavm::ctz(mask)),
-        i(0),
-        addr(base),
-        first(true) {}
+static inline bool PageAligned(uint32_t start, uint32_t size) {
+  return (start & (PAGE_OFFSET_BITS - 1)) == 0 &&
+         ((start + size) & (PAGE_OFFSET_BITS - 1)) == 0;
+}
 
-  uint32_t base, mask, step;
-  uint32_t i, addr;
-  bool first;
-};
+// map virtual addresses to pages
+static inline int PageIndex(uint32_t virtual_addr) {
+  return virtual_addr >> PAGE_OFFSET_BITS;
+}
 
-static bool NextMirror(MirrorIterator *it) {
-  // first iteration just returns base
-  if (it->first) {
-    it->first = false;
-    return true;
+static inline uint32_t PageOffset(uint32_t virtual_addr) {
+  return virtual_addr & PAGE_OFFSET_MASK;
+}
+
+// pack and unpack page entry bitstrings
+static inline PageEntry PackEntry(const uint8_t *base,
+                                  const MemoryRegion *region,
+                                  uint32_t region_offset) {
+  if (region->dynamic) {
+    return region_offset | region->handle;
   }
 
-  // stop once mask is completely set
-  if ((it->addr & it->mask) == it->mask) {
-    return false;
-  }
-
-  // step to the next permutation
-  it->i += it->step;
-
-  // if the new value carries over into a masked off bit, skip it
-  uint32_t carry;
-  do {
-    carry = it->i & ~it->mask;
-    it->i += carry;
-  } while (carry);
-
-  // merge with the base
-  it->addr = it->base | it->i;
-
-  return true;
+  return reinterpret_cast<uintptr_t>(base) | region->physical_addr |
+         region_offset;
 }
 
-MemoryMap::MemoryMap()
-    : pages_(),
-      regions_(),
-      num_regions_(1)  // 0 is UNMAPPED
-{}
-
-void MemoryMap::Lookup(uint32_t logical_addr, MemoryRegion **region,
-                       uint32_t *offset) {
-  RegionHandle handle = pages_[logical_addr >> OFFSET_BITS];
-  CHECK_NE(handle, UNMAPPED);
-  *region = &regions_[handle];
-  *offset = (logical_addr - (*region)->logical_addr) & (*region)->addr_mask;
+static inline int IsStaticRegion(const PageEntry &page) {
+  return !(page & PAGE_REGION_MASK);
 }
 
-void MemoryMap::Mirror(uint32_t logical_addr, uint32_t size,
-                       uint32_t mirror_mask) {
-  // allocate region
-  MemoryRegion *region = AllocRegion();
-  region->addr_mask = ~mirror_mask;
-  region->logical_addr = logical_addr;
-  region->size = size;
-  region->dynamic = false;
-
-  // map the region into the page table
-  MirrorIterator it(logical_addr, mirror_mask);
-  while (NextMirror(&it)) {
-    MapRegion(it.addr, size, region);
-  }
+static inline uint8_t *RegionPointer(const PageEntry &page) {
+  return reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(page));
 }
 
-void MemoryMap::Handle(uint32_t logical_addr, uint32_t size,
-                       uint32_t mirror_mask, void *ctx, R8Handler r8,
-                       R16Handler r16, R32Handler r32, R64Handler r64,
-                       W8Handler w8, W16Handler w16, W32Handler w32,
-                       W64Handler w64) {
-  // allocate region
-  MemoryRegion *region = AllocRegion();
-  region->addr_mask = ~mirror_mask;
-  region->logical_addr = logical_addr;
-  region->size = size;
-  region->dynamic = true;
-  region->ctx = ctx;
-  region->r8 = r8;
-  region->r16 = r16;
-  region->r32 = r32;
-  region->r64 = r64;
-  region->w8 = w8;
-  region->w16 = w16;
-  region->w32 = w32;
-  region->w64 = w64;
-
-  // map the region into the page table
-  MirrorIterator it(logical_addr, mirror_mask);
-  while (NextMirror(&it)) {
-    MapRegion(it.addr, size, region);
-  }
+static inline uint32_t RegionOffset(const PageEntry &page) {
+  return page & PAGE_REGION_OFFSET_MASK;
 }
 
-MemoryRegion *MemoryMap::AllocRegion() {
-  CHECK_LT(num_regions_, MAX_REGIONS);
-  MemoryRegion *region = &regions_[num_regions_++];
-  new (region) MemoryRegion();
-  return region;
+static inline int RegionIndex(const PageEntry &page) {
+  return page & PAGE_REGION_MASK;
 }
 
-void MemoryMap::MapRegion(uint32_t addr, uint32_t size, MemoryRegion *region) {
-  uint32_t start = addr;
-  uint32_t end = start + size - 1;
-  RegionHandle handle = static_cast<RegionHandle>(region - regions_);
+MemoryMap::MemoryMap() : entries_(), num_entries_(0) {}
 
-  // ensure start and end are page aligned
-  CHECK_EQ(start & (OFFSET_BITS - 1), 0u);
-  CHECK_EQ((end + 1) & (OFFSET_BITS - 1), 0u);
-  CHECK_LT(start, end);
-
-  int l1_start = start >> OFFSET_BITS;
-  int l1_end = end >> OFFSET_BITS;
-
-  for (int i = l1_start; i <= l1_end; i++) {
-    pages_[i] = handle;
-  }
+MapEntryHandle MemoryMap::Mount(RegionHandle handle, uint32_t size,
+                                uint32_t virtual_addr) {
+  MapEntry *entry = AllocEntry();
+  entry->type = MAP_ENTRY_MOUNT;
+  entry->mount.handle = handle;
+  entry->mount.size = size;
+  entry->mount.virtual_addr = virtual_addr;
+  return entry->handle;
 }
 
-uint8_t Memory::R8(Memory *memory, uint32_t addr) {
-  return memory->ReadBytes<uint8_t, &MemoryRegion::r8>(addr);
+MapEntryHandle MemoryMap::Mirror(uint32_t physical_addr, uint32_t size,
+                                 uint32_t virtual_addr) {
+  MapEntry *entry = AllocEntry();
+  entry->type = MAP_ENTRY_MIRROR;
+  entry->mirror.physical_addr = physical_addr;
+  entry->mirror.size = size;
+  entry->mirror.virtual_addr = virtual_addr;
+  return entry->handle;
 }
 
-uint16_t Memory::R16(Memory *memory, uint32_t addr) {
-  return memory->ReadBytes<uint16_t, &MemoryRegion::r16>(addr);
-}
-
-uint32_t Memory::R32(Memory *memory, uint32_t addr) {
-  return memory->ReadBytes<uint32_t, &MemoryRegion::r32>(addr);
-}
-
-uint64_t Memory::R64(Memory *memory, uint32_t addr) {
-  return memory->ReadBytes<uint64_t, &MemoryRegion::r64>(addr);
-}
-
-void Memory::W8(Memory *memory, uint32_t addr, uint8_t value) {
-  memory->WriteBytes<uint8_t, &MemoryRegion::w8>(addr, value);
-}
-
-void Memory::W16(Memory *memory, uint32_t addr, uint16_t value) {
-  memory->WriteBytes<uint16_t, &MemoryRegion::w16>(addr, value);
-}
-
-void Memory::W32(Memory *memory, uint32_t addr, uint32_t value) {
-  memory->WriteBytes<uint32_t, &MemoryRegion::w32>(addr, value);
-}
-
-void Memory::W64(Memory *memory, uint32_t addr, uint64_t value) {
-  memory->WriteBytes<uint64_t, &MemoryRegion::w64>(addr, value);
+MapEntry *MemoryMap::AllocEntry() {
+  CHECK_LT(num_entries_, MAX_REGIONS);
+  MapEntry *entry = &entries_[num_entries_];
+  new (entry) MapEntry();
+  entry->handle = num_entries_++;
+  return entry;
 }
 
 Memory::Memory()
-    : shmem_(SHMEM_INVALID), physical_base_(nullptr), virtual_base_(nullptr) {}
+    : shmem_(SHMEM_INVALID),
+      physical_base_(nullptr),
+      virtual_base_(nullptr),
+      protected_base_(nullptr) {
+  regions_ = new MemoryRegion[MAX_REGIONS]();
+  num_regions_ = 1;  // 0 page is reserved
+
+  pages_ = new PageEntry[NUM_PAGES]();
+}
 
 Memory::~Memory() {
-  UnmapAddressSpace();
-  DestroyAddressSpace();
+  delete[] regions_;
+  delete[] pages_;
+
+  Unmap();
+
+  DestroySharedMemory();
 }
 
-bool Memory::Init(const MemoryMap &map) {
-  map_ = map;
-
-  return CreateAddressSpace();
-}
-
-void Memory::Lookup(uint32_t logical_addr, MemoryRegion **region,
-                    uint32_t *offset) {
-  map_.Lookup(logical_addr, region, offset);
-}
-
-void Memory::Memcpy(uint32_t logical_dest, const void *ptr, uint32_t size) {
-  uint8_t *src = (uint8_t *)ptr;
-  uint32_t end = logical_dest + size;
-  while (logical_dest < end) {
-    W8(logical_dest, *src);
-    logical_dest++;
-    src++;
+bool Memory::Init() {
+  if (!CreateSharedMemory()) {
+    return false;
   }
-}
 
-void Memory::Memcpy(void *ptr, uint32_t logical_src, uint32_t size) {
-  uint8_t *dest = (uint8_t *)ptr;
-  uint8_t *end = dest + size;
-  while (dest < end) {
-    *dest = R32(logical_src);
-    logical_src++;
-    dest++;
-  }
+  return true;
 }
 
 uint8_t Memory::R8(uint32_t addr) {
@@ -241,128 +137,408 @@ void Memory::W64(uint32_t addr, uint64_t value) {
   WriteBytes<uint64_t, &MemoryRegion::w64>(addr, value);
 }
 
-bool Memory::CreateAddressSpace() {
+void Memory::Memcpy(uint32_t virtual_dest, const void *ptr, uint32_t size) {
+  uint8_t *src = (uint8_t *)ptr;
+  uint32_t end = virtual_dest + size;
+  while (virtual_dest < end) {
+    W8(virtual_dest, *src);
+    virtual_dest++;
+    src++;
+  }
+}
+
+void Memory::Memcpy(void *ptr, uint32_t virtual_src, uint32_t size) {
+  uint8_t *dest = (uint8_t *)ptr;
+  uint8_t *end = dest + size;
+  while (dest < end) {
+    *dest = R32(virtual_src);
+    virtual_src++;
+    dest++;
+  }
+}
+
+void Memory::Lookup(uint32_t virtual_addr, uint8_t **ptr, MemoryRegion **region,
+                    uint32_t *offset) {
+  PageEntry page = pages_[PageIndex(virtual_addr)];
+  uint32_t page_offset = PageOffset(virtual_addr);
+
+  if (IsStaticRegion(page)) {
+    *ptr = RegionPointer(page) + page_offset;
+    *region = nullptr;
+    *offset = 0;
+  } else {
+    *ptr = nullptr;
+    *region = &regions_[RegionIndex(page)];
+    *offset = RegionOffset(page) + page_offset;
+  }
+}
+
+bool Memory::CreateSharedMemory() {
   // create the shared memory object to back the address space
-  shmem_ = CreateSharedMemory("/dreavm", ADDRESS_SPACE_SIZE, ACC_READWRITE);
+  shmem_ = ::CreateSharedMemory("/dreavm", ADDRESS_SPACE_SIZE, ACC_READWRITE);
 
   if (shmem_ == SHMEM_INVALID) {
     LOG_WARNING("Failed to create shared memory object");
     return false;
   }
 
-  // two 32-bit address spaces are needed - one for direct access and one that
-  // will trigger interrupts for virtual handlers
-  for (int i = 62; i >= 32; i--) {
-    uint8_t *base = reinterpret_cast<uint8_t *>(1ull << i);
+  return true;
+}
 
-    // try and reserve both spaces
-    physical_base_ = base;
-    if (!ReservePages(physical_base_, ADDRESS_SPACE_SIZE)) {
-      physical_base_ = nullptr;
+void Memory::DestroySharedMemory() { ::DestroySharedMemory(shmem_); }
+
+bool Memory::ReserveAddressSpace(uint8_t **base) {
+  for (int i = 63; i >= 32; i--) {
+    *base = reinterpret_cast<uint8_t *>(1ull << i);
+
+    if (!ReservePages(*base, ADDRESS_SPACE_SIZE)) {
       continue;
     }
 
-    virtual_base_ = base + ADDRESS_SPACE_SIZE;
-    if (!ReservePages(virtual_base_, ADDRESS_SPACE_SIZE)) {
-      ReleasePages(physical_base_, ADDRESS_SPACE_SIZE);
-      physical_base_ = nullptr;
-      virtual_base_ = nullptr;
-      continue;
-    }
+    // reservation was a success, release and expect subsequent mappings to
+    // succeed
+    ReleasePages(*base, ADDRESS_SPACE_SIZE);
 
-    // successfully reserved both spaces, release the reservations and try to
-    // map the shared memory object in this space
-    ReleasePages(physical_base_, ADDRESS_SPACE_SIZE);
-    ReleasePages(virtual_base_, ADDRESS_SPACE_SIZE);
-
-    // assume we will be able to map into physical_base_ and virtual_base_ now
-    // NOTE: there is the tiny possibility that something, somehow could
-    // allocate into these ranges between releasing and mapping
-    MapAddressSpace();
-
-    // success
-    break;
+    return true;
   }
 
-  if (!physical_base_ || !virtual_base_) {
-    LOG_WARNING("Failed to reserve address space");
+  LOG_WARNING("Failed to reserve address space");
+  return false;
+}
+
+MemoryRegion *Memory::AllocRegion() {
+  CHECK_LT(num_regions_, MAX_REGIONS);
+  MemoryRegion *region = &regions_[num_regions_];
+  new (region) MemoryRegion();
+  region->handle = num_regions_++;
+  return region;
+}
+
+RegionHandle Memory::AllocRegion(uint32_t physical_addr, uint32_t size) {
+  MemoryRegion *region = AllocRegion();
+  region->dynamic = false;
+  region->physical_addr = physical_addr;
+  region->size = size;
+  return region->handle;
+}
+
+RegionHandle Memory::AllocRegion(uint32_t physical_addr, uint32_t size,
+                                 void *ctx, R8Handler r8, R16Handler r16,
+                                 R32Handler r32, R64Handler r64, W8Handler w8,
+                                 W16Handler w16, W32Handler w32,
+                                 W64Handler w64) {
+  MemoryRegion *region = AllocRegion();
+  region->dynamic = true;
+  region->physical_addr = physical_addr;
+  region->size = size;
+  region->ctx = ctx;
+  region->r8 = r8;
+  region->r16 = r16;
+  region->r32 = r32;
+  region->r64 = r64;
+  region->w8 = w8;
+  region->w16 = w16;
+  region->w32 = w32;
+  region->w64 = w64;
+  return region->handle;
+}
+
+bool Memory::Map(const MemoryMap &map) {
+  // map regions into the physical space
+  if (!MapPhysicalSpace()) {
+    return false;
+  }
+
+  // flatten out the memory map into a page table
+  if (!CreatePageTable(map)) {
+    return false;
+  }
+
+  // map page table to the virtual / protected address spaces
+  if (!MapVirtualSpace()) {
     return false;
   }
 
   return true;
 }
 
-void Memory::DestroyAddressSpace() { DestroySharedMemory(shmem_); }
+void Memory::Unmap() {
+  UnmapPhysicalSpace();
+  UnmapVirtualSpace();
+}
 
-void Memory::MapAddressSpace() {
-  for (int i = 0, n = map_.num_pages(); i < n; i++) {
-    RegionHandle handle = map_.page(i);
-    MemoryRegion *region = map_.region(handle);
+bool Memory::GetNextContiguousRegion(uint32_t *physical_start,
+                                     uint32_t *physical_end) {
+  // find the next lowest region
+  MemoryRegion *lowest = nullptr;
 
-    // ignore empty pages or regions that've already been mapped
-    if (handle == UNMAPPED || region->mapped) {
-      continue;
+  for (int i = 0; i < num_regions_; i++) {
+    MemoryRegion *region = &regions_[i];
+
+    if (region->physical_addr >= *physical_end &&
+        (!lowest || region->physical_addr <= lowest->physical_addr)) {
+      lowest = region;
     }
+  }
 
-    // mmap the shared memory object to the physical and virtual regions
-    CHECK(MapSharedMemory(shmem_, physical_base_ + region->logical_addr, region->logical_addr,
-                          region->size, ACC_READWRITE));
+  // no more regions
+  if (!lowest) {
+    return false;
+  }
 
-    // if this address represents a dynamic handler, mprotect the pages so
-    // accesses to them will raise a segfault that can be handled to recompile
-    // the block accessing them
-    CHECK(MapSharedMemory(shmem_, virtual_base_ + region->logical_addr, region->logical_addr,
-                          region->size, region->dynamic ? ACC_NONE : ACC_READWRITE));
+  // find the extent of the contiguous region starting at lowest
+  MemoryRegion *highest = lowest;
 
-    // set the region's physical location in memory
-    region->data = physical_base_ + region->logical_addr;
+  for (int i = 0; i < num_regions_; i++) {
+    MemoryRegion *region = &regions_[i];
 
-    // avoid double mapping
-    region->mapped = true;
+    uint32_t highest_end = highest->physical_addr + highest->size;
+    uint32_t region_end = region->physical_addr + region->size;
+
+    if (region->physical_addr <= highest_end && region_end >= highest_end) {
+      highest = region;
+    }
+  }
+
+  *physical_start = lowest->physical_addr;
+  *physical_end = highest->physical_addr + highest->size;
+
+  return true;
+}
+
+bool Memory::MapPhysicalSpace() {
+  UnmapPhysicalSpace();
+
+  ReserveAddressSpace(&physical_base_);
+
+  // map flattened physical regions into physical address space. it's important
+  // to flatten them for two reasons:
+  // 1.) to have as large of mappings as possible. Windows won't allow you to
+  //     map < 64k chunks
+  // 2.) shared memory mappings can't overlap on Windows
+  uint32_t physical_start = 0;
+  uint32_t physical_end = 0;
+
+  while (GetNextContiguousRegion(&physical_start, &physical_end)) {
+    uint32_t physical_size = physical_end - physical_start;
+
+    if (!MapSharedMemory(shmem_, physical_start,
+                         physical_base_ + physical_start, physical_size,
+                         ACC_READWRITE)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void Memory::UnmapPhysicalSpace() {
+  if (!physical_base_) {
+    return;
+  }
+
+  uint32_t physical_start = 0;
+  uint32_t physical_end = 0;
+
+  while (GetNextContiguousRegion(&physical_start, &physical_end)) {
+    uint32_t physical_size = physical_end - physical_start;
+
+    UnmapSharedMemory(shmem_, physical_base_ + physical_start, physical_size);
   }
 }
 
-void Memory::UnmapAddressSpace() {
-  for (int i = 0, n = map_.num_pages(); i < n; i++) {
-    RegionHandle handle = map_.page(i);
-    MemoryRegion *region = map_.region(handle);
+int Memory::GetNumAdjacentPhysicalPages(int first_page_index) {
+  int i;
 
-    if (handle == UNMAPPED || !region->mapped) {
+  for (i = first_page_index; i < NUM_PAGES - 1; i++) {
+    PageEntry page = pages_[i];
+    PageEntry next_page = pages_[i + 1];
+
+    uint32_t physical_addr = GetPhysicalAddress(page);
+    uint32_t next_physical_addr = GetPhysicalAddress(next_page);
+
+    if ((next_physical_addr - physical_addr) != PAGE_BLKSIZE) {
+      break;
+    }
+  }
+
+  return (i + 1) - first_page_index;
+}
+
+uint32_t Memory::GetPhysicalAddress(const PageEntry &page) {
+  if (IsStaticRegion(page)) {
+    return static_cast<uint32_t>(RegionPointer(page) - physical_base_);
+  }
+
+  MemoryRegion &region = regions_[RegionIndex(page)];
+  return region.physical_addr + RegionOffset(page);
+}
+
+// Iterate regions in the supplied memory map in the other added, flattening
+// them out into a virtual page table.
+bool Memory::CreatePageTable(const MemoryMap &map) {
+  for (int i = 0, n = map.num_entries(); i < n; i++) {
+    const MapEntry *entry = map.entry(i);
+
+    switch (entry->type) {
+      case MAP_ENTRY_MOUNT: {
+        if (!PageAligned(entry->mount.virtual_addr,
+                         entry->mount.virtual_addr + entry->mount.size)) {
+          return false;
+        }
+
+        MemoryRegion *region = &regions_[entry->mount.handle];
+        int first_virtual_page = PageIndex(entry->mount.virtual_addr);
+        int num_pages = entry->mount.size >> PAGE_OFFSET_BITS;
+
+        // create an entry in the page table for each page the region occupies
+        for (int i = 0; i < num_pages; i++) {
+          uint32_t region_offset = i * PAGE_BLKSIZE;
+
+          pages_[first_virtual_page + i] =
+              PackEntry(physical_base_, region, region_offset);
+        }
+      } break;
+
+      case MAP_ENTRY_MIRROR: {
+        if (!PageAligned(entry->mirror.virtual_addr,
+                         entry->mirror.virtual_addr + entry->mirror.size) ||
+            !PageAligned(entry->mirror.physical_addr,
+                         entry->mirror.physical_addr + entry->mirror.size)) {
+          return false;
+        }
+
+        int first_virtual_page = PageIndex(entry->mirror.virtual_addr);
+        int first_physical_page = PageIndex(entry->mirror.physical_addr);
+        int num_pages = entry->mirror.size >> PAGE_OFFSET_BITS;
+
+        // copy the page entries for the requested physical range into the new
+        // virtual address range
+        for (int i = 0; i < num_pages; i++) {
+          pages_[first_virtual_page + i] = pages_[first_physical_page + i];
+        }
+      } break;
+    }
+  }
+
+  return true;
+}
+
+bool Memory::MapVirtualSpace() {
+  UnmapVirtualSpace();
+
+  // map page table to virtual and protected address spaces
+  auto map_virtual = [&](uint8_t **base) {
+    ReserveAddressSpace(base);
+
+    for (int page_index = 0; page_index < NUM_PAGES;) {
+      PageEntry page = pages_[page_index];
+
+      if (!page) {
+        page_index++;
+        continue;
+      }
+
+      // batch map virtual pages which map to adjacent physical pages, mmap is
+      // fairly slow
+      int num_pages = GetNumAdjacentPhysicalPages(page_index);
+      uint32_t size = num_pages * PAGE_BLKSIZE;
+
+      // mmap the range in the physical address space to the shared memory
+      // object
+      uint32_t virtual_addr = page_index * PAGE_BLKSIZE;
+      uint32_t physical_addr = GetPhysicalAddress(page);
+
+      if (!MapSharedMemory(shmem_, physical_addr, *base + virtual_addr, size,
+                           ACC_READWRITE)) {
+        return false;
+      }
+
+      page_index += num_pages;
+    }
+
+    return true;
+  };
+
+  if (!map_virtual(&virtual_base_)) {
+    return false;
+  }
+
+  if (!map_virtual(&protected_base_)) {
+    return false;
+  }
+
+  // protect dynamic regions in protected address space
+  for (int page_index = 0; page_index < NUM_PAGES; page_index++) {
+    PageEntry page = pages_[page_index];
+
+    if (!page || IsStaticRegion(page)) {
       continue;
     }
 
-    // unmap the shared memory from both regions
-    CHECK(UnmapSharedMemory(shmem_, physical_base_ + region->logical_addr, region->size));
-    CHECK(UnmapSharedMemory(shmem_, virtual_base_ + region->logical_addr, region->size));
-
-    // can be mapped again
-    region->mapped = false;
+    uint32_t virtual_addr = page_index * PAGE_BLKSIZE;
+    ProtectPages(protected_base_ + virtual_addr, PAGE_BLKSIZE, ACC_NONE);
   }
+
+  return true;
+}
+
+void Memory::UnmapVirtualSpace() {
+  auto unmap_virtual = [&](uint8_t *base) {
+    if (!base) {
+      return;
+    }
+
+    for (int page_index = 0; page_index < NUM_PAGES;) {
+      PageEntry page = pages_[page_index];
+
+      if (!page) {
+        page_index++;
+        continue;
+      }
+
+      uint32_t virtual_addr = page_index * PAGE_BLKSIZE;
+
+      int num_pages = GetNumAdjacentPhysicalPages(page_index);
+      uint32_t size = num_pages * PAGE_BLKSIZE;
+
+      CHECK(UnmapSharedMemory(shmem_, base + virtual_addr, size));
+
+      page_index += num_pages;
+    }
+  };
+
+  unmap_virtual(virtual_base_);
+  unmap_virtual(protected_base_);
 }
 
 template <typename INT, INT (*MemoryRegion::*HANDLER)(void *, uint32_t)>
 inline INT Memory::ReadBytes(uint32_t addr) {
-  MemoryRegion *region = nullptr;
-  uint32_t offset = 0;
-  map_.Lookup(addr, &region, &offset);
+  PageEntry page = pages_[PageIndex(addr)];
+  uint32_t page_offset = PageOffset(addr);
+  DCHECK(page);
 
-  if (!region->dynamic) {
-    return *(INT *)(region->data + offset);
+  if (IsStaticRegion(page)) {
+    return *reinterpret_cast<INT *>(page + page_offset);
   }
 
-  return (region->*HANDLER)(region->ctx, offset);
+  MemoryRegion &region = regions_[RegionIndex(page)];
+  uint32_t region_offset = RegionOffset(page);
+  return (region.*HANDLER)(region.ctx, region_offset + page_offset);
 }
 
 template <typename INT, void (*MemoryRegion::*HANDLER)(void *, uint32_t, INT)>
 inline void Memory::WriteBytes(uint32_t addr, INT value) {
-  MemoryRegion *region = nullptr;
-  uint32_t offset = 0;
-  map_.Lookup(addr, &region, &offset);
+  PageEntry page = pages_[PageIndex(addr)];
+  uint32_t page_offset = PageOffset(addr);
+  DCHECK(page);
 
-  if (!region->dynamic) {
-    *(INT *)(region->data + offset) = value;
+  if (IsStaticRegion(page)) {
+    *reinterpret_cast<INT *>(page + page_offset) = value;
     return;
   }
 
-  (region->*HANDLER)(region->ctx, offset, value);
+  MemoryRegion &region = regions_[RegionIndex(page)];
+  uint32_t region_offset = RegionOffset(page);
+  (region.*HANDLER)(region.ctx, region_offset + page_offset, value);
 }

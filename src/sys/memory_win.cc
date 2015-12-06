@@ -27,36 +27,30 @@ static DWORD AccessToProtectionFlags(PageAccess access) {
   }
 }
 
-static void CheckPageAligned(void *ptr, size_t size) {
-  size_t page_size = GetPageSize();
-  CHECK_EQ(reinterpret_cast<uintptr_t>(ptr) % page_size, 0);
-  CHECK_EQ((reinterpret_cast<uintptr_t>(ptr) + size) % page_size, 0);
+size_t GetPageSize() {
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+  return si.dwPageSize;
 }
 
-size_t GetPageSize() {
-  SYSTEM_INFO system_info;
-  GetSystemInfo(&system_info);
-  return system_info.dwPageSize;
+size_t GetAllocationGranularity() {
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+  return si.dwAllocationGranularity;
 }
 
 bool ProtectPages(void *ptr, size_t size, PageAccess access) {
-  CheckPageAligned(ptr, size);
-
   DWORD new_protect = AccessToProtectionFlags(access);
   DWORD old_protect;
   return VirtualProtect(ptr, size, new_protect, &old_protect) != 0;
 }
 
 bool ReservePages(void *ptr, size_t size) {
-  CheckPageAligned(ptr, size);
-
   void *res = VirtualAlloc(ptr, size, MEM_RESERVE, PAGE_NOACCESS);
   return res && res == ptr;
 }
 
 bool ReleasePages(void *ptr, size_t size) {
-  CheckPageAligned(ptr, size);
-
   return VirtualFree(ptr, 0, MEM_RELEASE) != 0;
 }
 
@@ -68,20 +62,17 @@ SharedMemoryHandle CreateSharedMemory(const char *filename, size_t size,
                            static_cast<DWORD>(size), filename);
 }
 
-bool MapSharedMemory(SharedMemoryHandle handle, void *start, size_t offset,
+bool MapSharedMemory(SharedMemoryHandle handle, size_t offset, void *start,
                      size_t size, PageAccess access) {
-  CheckPageAligned(start, size);
-
   DWORD file_flags = AccessToFileFlags(access);
   void *ptr =
       MapViewOfFileEx(handle, file_flags, static_cast<DWORD>(offset >> 32),
                       static_cast<DWORD>(offset), size, start);
+
   return ptr == start;
 }
 
 bool UnmapSharedMemory(SharedMemoryHandle handle, void *start, size_t size) {
-  CheckPageAligned(start, size);
-
   return UnmapViewOfFile(start) != 0;
 }
 
