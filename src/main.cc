@@ -4,6 +4,7 @@
 #include "trace/trace_viewer.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
+#include "sys/network.h"
 
 using namespace dreavm;
 using namespace dreavm::emu;
@@ -36,10 +37,10 @@ int main(int argc, char **argv) {
 
   InitFlags(&argc, &argv);
 
-  // if (!TTY::instance().Init()) {
-  //   LOG_WARNING("Failed to initialize segfault handler");
-  //   return EXIT_FAILURE;
-  // }
+  if (!Network::Init()) {
+    LOG_WARNING("Failed to initialize networking");
+    return EXIT_FAILURE;
+  }
 
   if (!ExceptionHandler::instance().Init()) {
     LOG_WARNING("Failed to initialize exception handler");
@@ -54,6 +55,8 @@ int main(int argc, char **argv) {
     Emulator emu;
     emu.Run(load);
   }
+
+  Network::Shutdown();
 
   ShutdownFlags();
 
