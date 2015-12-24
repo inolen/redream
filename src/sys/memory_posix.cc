@@ -9,7 +9,7 @@
 namespace dreavm {
 namespace sys {
 
-std::unordered_map<int, std::string> g_shared_handles;
+static std::unordered_map<int, std::string> shared_handles;
 
 static mode_t AccessToModeFlags(PageAccess access) {
   switch (access) {
@@ -99,7 +99,7 @@ SharedMemoryHandle CreateSharedMemory(const char *filename, size_t size,
     return -1;
   }
 
-  g_shared_handles.insert(std::make_pair(handle, filename));
+  shared_handles.insert(std::make_pair(handle, filename));
 
   return handle;
 }
@@ -116,8 +116,8 @@ bool UnmapSharedMemory(SharedMemoryHandle handle, void *start, size_t size) {
 }
 
 bool DestroySharedMemory(SharedMemoryHandle handle) {
-  auto it = g_shared_handles.find(handle);
-  if (it == g_shared_handles.end()) {
+  auto it = shared_handles.find(handle);
+  if (it == shared_handles.end()) {
     return false;
   }
 
@@ -128,7 +128,7 @@ bool DestroySharedMemory(SharedMemoryHandle handle) {
   const char *filename = it->second.c_str();
   int res2 = shm_unlink(filename);
 
-  g_shared_handles.erase(it);
+  shared_handles.erase(it);
 
   return res1 == 0 && res2 == 0;
 }

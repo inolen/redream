@@ -170,7 +170,7 @@ void RunSH4Test(const SH4Test &test) {
   // initialize cpu
   SH4Frontend frontend(memory);
   BACKEND backend(memory);
-  Runtime runtime(memory, frontend, backend);
+  Runtime runtime(memory, frontend, backend, &SH4::CompilePC);
   SH4 sh4(memory, runtime);
   CHECK(sh4.Init());
 

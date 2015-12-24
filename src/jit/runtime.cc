@@ -17,11 +17,11 @@ using namespace dreavm::jit::ir::passes;
 using namespace dreavm::sys;
 
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
-                 backend::Backend &backend)
+                 backend::Backend &backend, RuntimeBlockCall default_handler)
     : memory_(memory),
       frontend_(frontend),
       backend_(backend),
-      compile_block_(nullptr, 0) {
+      compile_block_(default_handler, 0) {
   eh_handle_ =
       ExceptionHandler::instance().AddHandler(this, &Runtime::HandleException);
 

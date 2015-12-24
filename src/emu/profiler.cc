@@ -18,9 +18,7 @@ using namespace dreavm::emu;
 using namespace dreavm::renderer;
 using namespace dreavm::sys;
 
-static Backend *g_backend = nullptr;
-
-Profiler *dreavm::emu::Profiler::instance_ = nullptr;
+static Backend *current_backend = nullptr;
 
 static float HueToRGB(float p, float q, float t) {
   if (t < 0.0f) {
@@ -60,21 +58,9 @@ static void HSLToRGB(float h, float s, float l, uint8_t *r, uint8_t *g,
   *b = static_cast<uint8_t>(fb * 255);
 }
 
-Profiler *Profiler::instance() {
-  if (instance_) {
-    return instance_;
-  }
-
-  instance_ = new Profiler();
-
-  if (!instance_->Init()) {
-    LOG_WARNING("Failed to initialized profiler");
-
-    delete instance_;
-    instance_ = nullptr;
-  }
-
-  return instance_;
+Profiler &Profiler::instance() {
+  static Profiler instance;
+  return instance;
 }
 
 uint32_t Profiler::ScopeColor(const char *name) {
@@ -88,7 +74,7 @@ uint32_t Profiler::ScopeColor(const char *name) {
   return (r << 16) | (g << 8) | b;
 }
 
-bool Profiler::Init() {
+Profiler::Profiler() {
   MicroProfileOnThreadCreate("main");
 
   // register and enable gpu and runtime group by default
@@ -101,8 +87,6 @@ bool Profiler::Init() {
 
   // render time / average time bars by default
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
-
-  return true;
 }
 
 bool Profiler::HandleInput(Keycode key, int16_t value) {
@@ -132,9 +116,9 @@ bool Profiler::HandleMouseMove(int x, int y) {
 }
 
 void Profiler::Render(Backend *backend) {
-  g_backend = backend;
+  current_backend = backend;
   MicroProfileFlip();
-  MicroProfileDraw(g_backend->video_width(), g_backend->video_height());
+  MicroProfileDraw(current_backend->video_width(), current_backend->video_height());
 }
 
 //
@@ -144,19 +128,19 @@ void MicroProfileDrawText(int x, int y, uint32_t color, const char *text,
                           uint32_t len) {
   // microprofile provides 24-bit rgb values for text color
   color = 0xff000000 | color;
-  g_backend->RenderText2D(x, y, 12.0f, color, text);
+  current_backend->RenderText2D(x, y, 12.0f, color, text);
 }
 
 void MicroProfileDrawBox(int x0, int y0, int x1, int y1, uint32_t color,
                          MicroProfileBoxType type) {
   // microprofile provides 32-bit argb values for box color, forward straight
   // through
-  g_backend->RenderBox2D(x0, y0, x1, y1, color, (BoxType)type);
+  current_backend->RenderBox2D(x0, y0, x1, y1, color, (BoxType)type);
 }
 
 void MicroProfileDrawLine2D(uint32_t num_vertices, float *vertices,
                             uint32_t color) {
   // microprofile provides 24-bit rgb values for line color
   color = 0xff000000 | color;
-  g_backend->RenderLine2D(vertices, num_vertices, color);
+  current_backend->RenderLine2D(vertices, num_vertices, color);
 }

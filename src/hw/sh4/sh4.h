@@ -119,6 +119,8 @@ class SH4 : public hw::Device {
   friend void RunSH4Test(const SH4Test &);
 
  public:
+  static uint32_t CompilePC(jit::RuntimeBlock *block);
+
   SH4(hw::Memory &memory, jit::Runtime &runtime);
 
   int GetClockFrequency() { return 200000000; }
@@ -150,7 +152,6 @@ class SH4 : public hw::Device {
   static void WriteSQ(void *ctx, uint32_t addr, T value);
 
  private:
-  static uint32_t CompileBlock(jit::RuntimeBlock *block);
   static void Pref(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
   static void SRUpdated(jit::frontend::sh4::SH4Context *ctx, uint64_t old_sr);
   static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,

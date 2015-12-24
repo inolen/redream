@@ -21,18 +21,14 @@ namespace emu {
 
 class Profiler {
  public:
-  static Profiler *instance();
-
+  static Profiler &instance();
   static uint32_t ScopeColor(const char *name);
 
-  bool Init();
+  Profiler();
 
   bool HandleInput(sys::Keycode key, int16_t value);
   bool HandleMouseMove(int x, int y);
   void Render(renderer::Backend *backend);
-
- private:
-  static Profiler *instance_;
 };
 }
 }

@@ -210,7 +210,7 @@ void Emulator::PumpEvents() {
     switch (ev.type) {
       case WE_KEY: {
         // let the profiler take a stab at the input first
-        if (!Profiler::instance()->HandleInput(ev.key.code, ev.key.value)) {
+        if (!Profiler::instance().HandleInput(ev.key.code, ev.key.value)) {
           // debug tracing
           if (ev.key.code == K_F2) {
             if (ev.key.value) {
@@ -225,7 +225,7 @@ void Emulator::PumpEvents() {
       } break;
 
       case WE_MOUSEMOVE: {
-        Profiler::instance()->HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
+        Profiler::instance().HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
       } break;
 
       case WE_RESIZE: {
@@ -291,7 +291,7 @@ void Emulator::RenderFrame() {
   rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
   // render profiler
-  Profiler::instance()->Render(rb_);
+  Profiler::instance().Render(rb_);
 
   rb_->EndFrame();
 }
