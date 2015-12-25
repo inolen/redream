@@ -27,13 +27,12 @@ enum ValueTy {
   VALUE_I32,
   VALUE_I64,
   VALUE_F32,
-  VALUE_F64,
-  VALUE_BLOCK
+  VALUE_F64
 };
 enum {
   // not used by IRBuilder directly, but useful when generating lookup tables
   VALUE_V = 0,
-  VALUE_NUM = VALUE_BLOCK + 1
+  VALUE_NUM = VALUE_F64 + 1
 };
 
 enum {
@@ -43,13 +42,11 @@ enum {
   VALUE_I64_MASK = 1 << VALUE_I64,
   VALUE_F32_MASK = 1 << VALUE_F32,
   VALUE_F64_MASK = 1 << VALUE_F64,
-  VALUE_BLOCK_MASK = 1 << VALUE_BLOCK,
-  VALUE_INT_MASK = VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK |
-                   VALUE_I64_MASK | VALUE_BLOCK_MASK,
+  VALUE_INT_MASK =
+      VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK | VALUE_I64_MASK,
   VALUE_FLOAT_MASK = VALUE_F32_MASK | VALUE_F64_MASK,
   VALUE_ALL_MASK = VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK |
-                   VALUE_I64_MASK | VALUE_F32_MASK | VALUE_F64_MASK |
-                   VALUE_BLOCK_MASK,
+                   VALUE_I64_MASK | VALUE_F32_MASK | VALUE_F64_MASK,
 };
 enum { NO_REGISTER = -1 };
 
@@ -108,8 +105,6 @@ static inline int SizeForType(ValueTy type) {
       return 4;
     case VALUE_F64:
       return 8;
-    case VALUE_BLOCK:
-      return 4;
   }
   return 0;
 }
@@ -123,7 +118,6 @@ class Value {
   Value(int64_t v);
   Value(float v);
   Value(double v);
-  Value(Block *v);
 
   ValueTy type() const { return type_; }
 
@@ -159,7 +153,6 @@ class Value {
     int64_t i64_;
     float f32_;
     double f64_;
-    Block *block_;
   };
   IntrusiveList<ValueRef> refs_;
   // initializing here so each constructor variation doesn't have to
@@ -226,16 +219,6 @@ template <>
 inline double Value::value() {
   DCHECK(constant_ && type_ == VALUE_F64);
   return f64_;
-}
-template <>
-inline const Block *Value::value() const {
-  DCHECK(constant_ && type_ == VALUE_BLOCK);
-  return block_;
-}
-template <>
-inline Block *Value::value() {
-  DCHECK(constant_ && type_ == VALUE_BLOCK);
-  return block_;
 }
 
 // ValueRef is a layer of indirection between an instruction and a values it
@@ -344,18 +327,6 @@ class Instr : public IntrusiveListNode<Instr> {
 //
 // blocks
 //
-class Edge : public IntrusiveListNode<Edge> {
- public:
-  Edge(Block *src, Block *dst);
-
-  Block *src() { return src_; }
-  Block *dst() { return dst_; }
-
- private:
-  Block *src_;
-  Block *dst_;
-};
-
 class Block : public IntrusiveListNode<Block> {
   friend class IRBuilder;
 
@@ -365,12 +336,6 @@ class Block : public IntrusiveListNode<Block> {
 
   const IntrusiveList<Instr> &instrs() const { return instrs_; }
   IntrusiveList<Instr> &instrs() { return instrs_; }
-
-  const IntrusiveList<Edge> &outgoing() const { return outgoing_; }
-  IntrusiveList<Edge> &outgoing() { return outgoing_; }
-
-  const IntrusiveList<Edge> &incoming() const { return incoming_; }
-  IntrusiveList<Edge> &incoming() { return incoming_; }
 
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
@@ -383,8 +348,6 @@ class Block : public IntrusiveListNode<Block> {
 
  private:
   IntrusiveList<Instr> instrs_;
-  IntrusiveList<Edge> outgoing_;
-  IntrusiveList<Edge> incoming_;
   intptr_t tag_;
 };
 
@@ -405,8 +368,6 @@ class IRBuilder {
 
   int guest_cycles() const { return guest_cycles_; }
 
-  static bool IsBranch(const Instr *i);
-
   void Dump() const;
 
   // blocks
@@ -415,7 +376,6 @@ class IRBuilder {
   Block *InsertBlock(Block *after);
   Block *AppendBlock();
   void RemoveBlock(Block *block);
-  void AddEdge(Block *src, Block *dst);
 
   // context operations
   Value *LoadContext(size_t offset, ValueTy type);
@@ -476,12 +436,7 @@ class IRBuilder {
 
   // branches
   void Branch(Value *dest);
-  void Branch(Block *dest);
-  void BranchFalse(Value *cond, Value *dest);
-  void BranchFalse(Value *cond, Block *dest);
-  void BranchTrue(Value *cond, Value *dest);
-  void BranchTrue(Value *cond, Block *dest);
-  void BranchCond(Value *cond, Block *true_block, Block *false_block);
+  void BranchCond(Value *cond, Value *true_addr, Value *false_addr);
 
   // calls
   void CallExternal1(Value *addr);
@@ -498,7 +453,6 @@ class IRBuilder {
   Value *AllocConstant(int64_t c);
   Value *AllocConstant(float c);
   Value *AllocConstant(double c);
-  Value *AllocConstant(Block *c);
   Value *AllocDynamic(ValueTy type);
   Local *AllocLocal(ValueTy type);
 

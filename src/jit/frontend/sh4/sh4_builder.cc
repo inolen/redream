@@ -78,28 +78,6 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
       break;
     }
   }
-
-  // if the final block is empty, emitting stopped on a conditional branch
-  // probably. if that's the case, update it's destination to be an address
-  // and remove this empty block
-  // FIXME this feels pretty wrong
-  auto it = blocks_.end();
-  ir::Block *last_block = *(--it);
-  ir::Block *second_to_last_block = *(--it);
-  if (!last_block->instrs().head()) {
-    ir::Instr *tail_instr = second_to_last_block->instrs().tail();
-    CHECK_EQ(tail_instr->op(), OP_BRANCH_COND);
-
-    if (tail_instr->arg1()->type() == VALUE_BLOCK &&
-        tail_instr->arg1()->value<Block *>() == last_block) {
-      tail_instr->set_arg1(AllocConstant(addr));
-    } else if (tail_instr->arg2()->type() == VALUE_BLOCK &&
-               tail_instr->arg2()->value<Block *>() == last_block) {
-      tail_instr->set_arg2(AllocConstant(addr));
-    }
-
-    RemoveBlock(last_block);
-  }
 }
 
 Value *SH4Builder::LoadRegister(int n, ValueTy type) {
@@ -1056,7 +1034,7 @@ EMITTER(SHLR16) {
 EMITTER(BF) {
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   Value *cond = b.LoadT();
-  b.BranchFalse(cond, b.AllocConstant(dest_addr));
+  b.BranchCond(cond, b.AllocConstant(i.addr + 2), b.AllocConstant(dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1066,7 +1044,7 @@ EMITTER(BFS) {
   Value *cond = b.LoadT();
   b.EmitDelayInstr();
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
-  b.BranchFalse(cond, b.AllocConstant(dest_addr));
+  b.BranchCond(cond, b.AllocConstant(i.addr + 4), b.AllocConstant(dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1075,7 +1053,7 @@ EMITTER(BFS) {
 EMITTER(BT) {
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   Value *cond = b.LoadT();
-  b.BranchTrue(cond, b.AllocConstant(dest_addr));
+  b.BranchCond(cond, b.AllocConstant(dest_addr), b.AllocConstant(i.addr + 2));
 }
 
 // code                 cycles  t-bit
@@ -1085,7 +1063,7 @@ EMITTER(BTS) {
   Value *cond = b.LoadT();
   b.EmitDelayInstr();
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
-  b.BranchTrue(cond, b.AllocConstant(dest_addr));
+  b.BranchCond(cond, b.AllocConstant(dest_addr), b.AllocConstant(i.addr + 4));
 }
 
 // code                 cycles  t-bit

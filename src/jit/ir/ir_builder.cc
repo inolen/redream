@@ -21,7 +21,6 @@ Value::Value(int32_t v) : type_(VALUE_I32), constant_(true), i32_(v) {}
 Value::Value(int64_t v) : type_(VALUE_I64), constant_(true), i64_(v) {}
 Value::Value(float v) : type_(VALUE_F32), constant_(true), f32_(v) {}
 Value::Value(double v) : type_(VALUE_F64), constant_(true), f64_(v) {}
-Value::Value(Block *v) : type_(VALUE_BLOCK), constant_(true), block_(v) {}
 
 uint64_t Value::GetZExtValue() const {
   switch (type_) {
@@ -37,8 +36,6 @@ uint64_t Value::GetZExtValue() const {
       return *reinterpret_cast<const uint32_t *>(&f32_);
     case VALUE_F64:
       return *reinterpret_cast<const uint64_t *>(&f64_);
-    case VALUE_BLOCK:
-      return reinterpret_cast<intptr_t>(block_);
   }
   return 0;
 }
@@ -88,8 +85,6 @@ void Instr::MoveAfter(Instr *other) {
 //
 // Block
 //
-Edge::Edge(Block *src, Block *dst) : src_(src), dst_(dst) {}
-
 Block::Block() : tag_(0) {}
 Block::~Block() {
   while (instrs_.tail()) {
@@ -140,10 +135,6 @@ void Block::UnlinkInstr(Instr *instr) {
 IRBuilder::IRBuilder()
     : arena_(1024), current_block_(nullptr), guest_cycles_(0) {}
 
-bool IRBuilder::IsBranch(const Instr *i) {
-  return i->op() == OP_BRANCH || i->op() == OP_BRANCH_COND;
-}
-
 // TODO clean and speed up?
 void IRBuilder::Dump() const {
   std::unordered_map<intptr_t, std::string> block_vars;
@@ -191,9 +182,6 @@ void IRBuilder::Dump() const {
           break;
         case VALUE_F64:
           ss << v->value<double>();
-          break;
-        case VALUE_BLOCK:
-          DumpBlock(ss, v->value<const Block *>());
           break;
       }
     }
@@ -252,22 +240,6 @@ void IRBuilder::RemoveBlock(Block *block) {
 
   // call destructor manually
   block->~Block();
-}
-
-void IRBuilder::AddEdge(Block *src, Block *dst) {
-  CHECK_NE(src, dst);
-
-  // linked list data is intrusive, need to allocate two edge objects
-  {
-    Edge *edge = arena_.Alloc<Edge>();
-    new (edge) Edge(src, dst);
-    src->outgoing().Append(edge);
-  }
-  {
-    Edge *edge = arena_.Alloc<Edge>();
-    new (edge) Edge(src, dst);
-    dst->incoming().Append(edge);
-  }
 }
 
 Value *IRBuilder::LoadContext(size_t offset, ValueTy type) {
@@ -698,90 +670,15 @@ void IRBuilder::Branch(Value *dest) {
   instr->set_arg0(dest);
 }
 
-void IRBuilder::Branch(Block *dest) {
-  // Instr *instr = AppendInstr(OP_BRANCH);
-  // instr->set_arg0(AllocConstant(dest));
-  LOG_FATAL("Unsupported");
-}
-
-void IRBuilder::BranchFalse(Value *cond, Value *false_addr) {
+void IRBuilder::BranchCond(Value *cond, Value *true_addr, Value *false_addr) {
   if (cond->type() != VALUE_I8) {
     cond = NE(cond, AllocConstant(0));
   }
-
-  // create fallthrough block automatically
-  Block *true_block = InsertBlock(current_block_);
-
-  Instr *instr = AppendInstr(OP_BRANCH_COND);
-  instr->set_arg0(cond);
-  instr->set_arg1(AllocConstant(true_block));
-  instr->set_arg2(false_addr);
-
-  SetCurrentBlock(true_block);
-}
-
-void IRBuilder::BranchFalse(Value *cond, Block *false_block) {
-  // if (cond->type() != VALUE_I8) {
-  //   cond = NE(cond, AllocConstant(0));
-  // }
-
-  // // create fallthrough block automatically
-  // Block *true_block = InsertBlock(current_block_);
-
-  // Instr *instr = AppendInstr(OP_BRANCH_COND);
-  // instr->set_arg0(cond);
-  // instr->set_arg1(AllocConstant(true_block));
-  // instr->set_arg2(AllocConstant(false_block));
-
-  // SetCurrentBlock(true_block);
-  LOG_FATAL("Unsupported");
-}
-
-void IRBuilder::BranchTrue(Value *cond, Value *true_addr) {
-  if (cond->type() != VALUE_I8) {
-    cond = NE(cond, AllocConstant(0));
-  }
-
-  // create fallthrough block automatically
-  Block *false_block = InsertBlock(current_block_);
 
   Instr *instr = AppendInstr(OP_BRANCH_COND);
   instr->set_arg0(cond);
   instr->set_arg1(true_addr);
-  instr->set_arg2(AllocConstant(false_block));
-
-  SetCurrentBlock(false_block);
-}
-
-void IRBuilder::BranchTrue(Value *cond, Block *true_block) {
-  // if (cond->type() != VALUE_I8) {
-  //   cond = NE(cond, AllocConstant(0));
-  // }
-
-  // // create fallthrough block automatically
-  // Block *false_block = InsertBlock(current_block_);
-
-  // Instr *instr = AppendInstr(OP_BRANCH_COND);
-  // instr->set_arg0(cond);
-  // instr->set_arg1(AllocConstant(true_block));
-  // instr->set_arg2(AllocConstant(false_block));
-
-  // SetCurrentBlock(false_block);
-  LOG_FATAL("Unsupported");
-}
-
-void IRBuilder::BranchCond(Value *cond, Block *true_block, Block *false_block) {
-  // if (cond->type() != VALUE_I8) {
-  //   cond = NE(cond, AllocConstant(0));
-  // }
-
-  // Instr *instr = AppendInstr(OP_BRANCH_COND);
-  // instr->set_arg0(cond);
-  // instr->set_arg1(AllocConstant(true_block));
-  // instr->set_arg2(AllocConstant(false_block));
-
-  // SetCurrentBlock(false_block);
-  LOG_FATAL("Unsupported");
+  instr->set_arg2(false_addr);
 }
 
 void IRBuilder::CallExternal1(Value *addr) {
@@ -850,12 +747,6 @@ Value *IRBuilder::AllocConstant(double c) {
   return v;
 }
 
-Value *IRBuilder::AllocConstant(Block *c) {
-  Value *v = arena_.Alloc<Value>();
-  new (v) Value(c);
-  return v;
-}
-
 Value *IRBuilder::AllocDynamic(ValueTy type) {
   Value *v = arena_.Alloc<Value>();
   new (v) Value(type);
@@ -876,8 +767,7 @@ Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
 }
 
 Instr *IRBuilder::AppendInstr(Opcode op, InstrFlag flags) {
-  if (!current_block_ || (current_block_->instrs().tail() &&
-                          IsBranch(current_block_->instrs().tail()))) {
+  if (!current_block_) {
     current_block_ = InsertBlock(current_block_);
   }
 

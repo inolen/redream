@@ -118,7 +118,8 @@ bool Profiler::HandleMouseMove(int x, int y) {
 void Profiler::Render(Backend *backend) {
   current_backend = backend;
   MicroProfileFlip();
-  MicroProfileDraw(current_backend->video_width(), current_backend->video_height());
+  MicroProfileDraw(current_backend->video_width(),
+                   current_backend->video_height());
 }
 
 //

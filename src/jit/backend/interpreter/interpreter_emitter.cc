@@ -130,9 +130,6 @@ void InterpreterEmitter::TranslateArg(Instr &ir_i, IntInstr *instr, int arg) {
       case VALUE_F64:
         v->f64 = ir_v->value<double>();
         break;
-      case VALUE_BLOCK:
-        v->i32 = (int32_t)ir_v->value<Block *>()->instrs().head()->tag();
-        break;
     }
   } else if (ir_v->reg() != NO_REGISTER) {
     v->i32 = ir_v->reg();
@@ -876,9 +873,9 @@ REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I32, V);
 INT_CALLBACK(BRANCH_COND) {
   using U1 = typename std::make_unsigned<A1>::type;
   A0 cond = LOAD_ARG0();
-  U1 addr_true = static_cast<U1>(LOAD_ARG1());
-  U1 addr_false = static_cast<U1>(LOAD_ARG2());
-  int_state.pc = cond ? addr_true : addr_false;
+  U1 true_addr = static_cast<U1>(LOAD_ARG1());
+  U1 false_addr = static_cast<U1>(LOAD_ARG2());
+  int_state.pc = cond ? true_addr : false_addr;
 }
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I8);
 REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I16);
@@ -908,12 +905,7 @@ static int GetArgType(Instr &ir_i, int arg) {
     return 0;
   }
 
-  // blocks are translated to int32 offsets
-  int type = ir_v->type();
-  if (type == VALUE_BLOCK) {
-    type = VALUE_I32;
-  }
-  return type;
+  return ir_v->type();
 }
 
 static int GetArgAccess(Instr &ir_i, int arg) {

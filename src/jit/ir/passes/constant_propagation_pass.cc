@@ -18,14 +18,14 @@ int fold_masks[NUM_OPCODES];
 
 // OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
 // arg2's type always matches arg1's. because of this, arg2 isn't considered
-// when generating the lookup table.
+// when generating the lookup table
 #define CALLBACK_IDX(op, r, a0, a1)                                        \
   ((op)*VALUE_NUM * VALUE_NUM * VALUE_NUM) + ((r)*VALUE_NUM * VALUE_NUM) + \
       ((a0)*VALUE_NUM) + (a1)
 
 // declare a templated callback for an IR operation. note, declaring a
 // callback does not actually register it. callbacks must be registered
-// for a particular signature with REGISTER_FOLD.
+// for a particular signature with REGISTER_FOLD
 #define FOLD(op, mask)                                                 \
   static struct _##op##_init {                                         \
     _##op##_init() { fold_masks[OP_##op] = mask; }                     \

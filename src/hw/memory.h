@@ -178,11 +178,11 @@ class Memory {
   sys::SharedMemoryHandle shmem_;
 
   // physical regions of memory
-  MemoryRegion regions_[MAX_REGIONS];
+  MemoryRegion *regions_;
   int num_regions_;
 
   // map virtual addresses -> physical addresses
-  PageEntry pages_[NUM_PAGES];
+  PageEntry *pages_;
 
   // base addresses for the 32-bit address space. physical base is where
   // the physical regions are mapped, virtual base is where the page table

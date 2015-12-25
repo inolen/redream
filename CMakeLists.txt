@@ -147,7 +147,6 @@ set(DREAVM_SOURCES
   src/jit/frontend/sh4/sh4_instr.cc
   src/jit/ir/ir_builder.cc
   src/jit/ir/passes/constant_propagation_pass.cc
-  src/jit/ir/passes/control_flow_analysis_pass.cc
   src/jit/ir/passes/load_store_elimination_pass.cc
   src/jit/ir/passes/pass_runner.cc
   src/jit/ir/passes/register_allocation_pass.cc

@@ -16,11 +16,12 @@ void ValidatePass::Run(IRBuilder &builder) {
 void ValidatePass::ValidateBlock(IRBuilder &builder, Block *block) {
   Instr *tail = block->instrs().tail();
 
-  CHECK(tail && IRBuilder::IsBranch(tail),
+  CHECK(tail && (tail->op() == OP_BRANCH || tail->op() == OP_BRANCH_COND),
         "Block ends in a non-branch instruction");
 
   for (auto instr : block->instrs()) {
-    CHECK(!IRBuilder::IsBranch(instr) || instr == tail,
+    CHECK((instr->op() != OP_BRANCH && instr->op() != OP_BRANCH_COND) ||
+              instr == tail,
           "Block contains a branch instruction before its end");
 
     ValidateInstr(builder, block, instr);

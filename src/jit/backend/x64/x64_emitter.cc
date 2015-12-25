@@ -1665,55 +1665,23 @@ EMITTER(LSHD) {
 }
 
 EMITTER(BRANCH) {
-  if (instr->arg0()->type() == VALUE_BLOCK) {
-    // jump to local block
-    const Block *dst = instr->arg0()->value<const Block *>();
-    e.jmp(GetLabel(dst), Xbyak::CodeGenerator::T_NEAR);
-  } else {
-    // return if we need to branch to a far block
-    const Xbyak::Reg &a = e.GetRegister(instr->arg0());
-    e.mov(e.rax, a);
-    e.jmp(e.epilog_label());
-  }
+  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
+  e.mov(e.rax, a);
 }
 
 EMITTER(BRANCH_COND) {
   const Xbyak::Reg &cond = e.GetRegister(instr->arg0());
-
   e.test(cond, cond);
 
-  // if both blocks are a local block this is easy
-  if (instr->arg1()->type() == VALUE_BLOCK &&
-      instr->arg2()->type() == VALUE_BLOCK) {
-    // jump to local block
-    const Block *next_block = instr->block()->next();
-    const Block *block_true = instr->arg1()->value<const Block *>();
-    const Block *block_false = instr->arg2()->value<const Block *>();
+  // TODO use cmovnz / cmove and avoid the jump once we can support
+  // two temporaries
 
-    // don't emit a jump if the block is next
-    if (next_block != block_true) {
-      e.jnz(GetLabel(block_true), Xbyak::CodeGenerator::T_NEAR);
-    }
-    if (next_block != block_false) {
-      e.je(GetLabel(block_false), Xbyak::CodeGenerator::T_NEAR);
-    }
-  }
-  // if both blocks are a far block this is easy
-  else if (instr->arg1()->type() != VALUE_BLOCK &&
-           instr->arg2()->type() != VALUE_BLOCK) {
-    // return if we need to branch to a far block
-    const Xbyak::Reg &op_true = e.GetRegister(instr->arg1());
-    e.mov(e.eax, op_true);
-    e.jnz(e.epilog_label());
+  const Xbyak::Reg &true_addr = e.GetRegister(instr->arg1());
+  e.mov(e.eax, true_addr);
+  e.jnz(e.epilog_label());
 
-    const Xbyak::Reg &op_false = e.GetRegister(instr->arg2());
-    e.mov(e.eax, op_false);
-    e.je(e.epilog_label());
-  }
-  // if they are mixed, do local block test first, far block second
-  else {
-    LOG_FATAL("Unexpected mixed mode conditional branch");
-  }
+  const Xbyak::Reg &false_addr = e.GetRegister(instr->arg2());
+  e.cmove(e.eax, false_addr);
 }
 
 EMITTER(CALL_EXTERNAL) {
