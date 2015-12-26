@@ -77,11 +77,6 @@ Instr::Instr(Opcode op, InstrFlag flags)
 
 Instr::~Instr() {}
 
-void Instr::MoveAfter(Instr *other) {
-  block_->UnlinkInstr(this);
-  other->block_->InsertInstr(other, this);
-}
-
 //
 // Block
 //
@@ -90,11 +85,6 @@ Block::~Block() {
   while (instrs_.tail()) {
     RemoveInstr(instrs_.tail());
   }
-}
-
-void Block::AppendInstr(Instr *instr) {
-  instr->set_block(this);
-  instrs_.Append(instr);
 }
 
 void Block::InsertInstr(Instr *after, Instr *instr) {
@@ -132,8 +122,7 @@ void Block::UnlinkInstr(Instr *instr) {
 //
 // IRBuilder
 //
-IRBuilder::IRBuilder()
-    : arena_(1024), current_block_(nullptr), guest_cycles_(0) {}
+IRBuilder::IRBuilder() : arena_(1024), current_block_(nullptr), current_instr_(nullptr) {}
 
 // TODO clean and speed up?
 void IRBuilder::Dump() const {
@@ -212,8 +201,14 @@ void IRBuilder::Dump() const {
   }
 }
 
-Block *IRBuilder::GetCurrentBlock() { return current_block_; }
-void IRBuilder::SetCurrentBlock(Block *block) { current_block_ = block; }
+InsertPoint IRBuilder::GetInsertPoint() {
+  return { current_block_, current_instr_ };
+}
+
+void IRBuilder::SetInsertPoint(const InsertPoint &point) {
+  current_block_ = point.block;
+  current_instr_ = point.instr;
+}
 
 Block *IRBuilder::InsertBlock(Block *after) {
   Block *block = arena_.Alloc<Block>();
@@ -234,6 +229,7 @@ Block *IRBuilder::AppendBlock() { return InsertBlock(blocks_.tail()); }
 void IRBuilder::RemoveBlock(Block *block) {
   if (current_block_ == block) {
     current_block_ = block->next() ? block->next() : block->prev();
+    current_instr_ = current_block_->instrs().tail();
   }
 
   blocks_.Remove(block);
@@ -769,9 +765,11 @@ Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
 Instr *IRBuilder::AppendInstr(Opcode op, InstrFlag flags) {
   if (!current_block_) {
     current_block_ = InsertBlock(current_block_);
+    current_instr_ = nullptr;
   }
 
   Instr *instr = AllocInstr(op, flags);
-  current_block_->AppendInstr(instr);
+  current_block_->InsertInstr(current_instr_, instr);
+  current_instr_ = instr;
   return instr;
 }

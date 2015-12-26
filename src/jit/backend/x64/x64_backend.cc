@@ -70,8 +70,7 @@ RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder,
   }
 
   // initialize block structure
-  new (block) RuntimeBlock(reinterpret_cast<RuntimeBlockCall>(fn),
-                           builder.guest_cycles());
+  new (block) RuntimeBlock(reinterpret_cast<RuntimeBlockCall>(fn));
 
   return block;
 }

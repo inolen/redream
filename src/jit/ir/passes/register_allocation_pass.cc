@@ -273,6 +273,7 @@ int RegisterAllocationPass::AllocFreeRegister(Value *value, ValueRef *start,
 int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
                                                  Value *value, ValueRef *start,
                                                  ValueRef *end) {
+  InsertPoint insert_point = builder.GetInsertPoint();
   RegisterSet &set = GetRegisterSet(value->type());
 
   // spill the register who's next use is furthest away from start
@@ -293,9 +294,9 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   Local *local = builder.AllocLocal(interval->value->type());
 
   // insert load before next use
+  builder.SetInsertPoint({ insert_point.block, next_ref->instr()->prev() });
   Value *load_local = builder.LoadLocal(local);
-  Instr *load_instr = builder.GetCurrentBlock()->instrs().tail();
-  load_instr->MoveAfter(next_ref->instr()->prev());
+  Instr *load_instr = builder.GetInsertPoint().instr;
 
   // assign the load a valid ordinal
   int load_ordinal = GetOrdinal(load_instr->prev()) + 1;
@@ -322,15 +323,15 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   // instruction is created and added as a reference, the sorted order will be
   // invalidated. because of this, the save instruction needs to be added after
   // the load instruction has updated the sorted references.
+  builder.SetInsertPoint({ insert_point.block, prev_ref->instr() });
   builder.StoreLocal(local, interval->value);
-  Instr *save_instr = builder.GetCurrentBlock()->instrs().tail();
-  save_instr->MoveAfter(prev_ref->instr());
+  Instr *store_instr = builder.GetInsertPoint().instr;
 
   // since the interval that this save belongs to has now expired, there's no
   // need to assign an ordinal to it
 
   // the new store should now be the final reference
-  CHECK(prev_ref->next() && prev_ref->next()->instr() == save_instr,
+  CHECK(prev_ref->next() && prev_ref->next()->instr() == store_instr,
         "Spill should be the final reference for the interval value");
 
   // overwrite the old interval
@@ -339,6 +340,9 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   interval->next = start;
   interval->end = end;
   set.InsertInterval(interval);
+
+  // reset insert point
+  builder.SetInsertPoint(insert_point);
 
   return interval->reg;
 }

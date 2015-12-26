@@ -74,8 +74,6 @@ void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }
 int SH4::Run(int cycles) {
   PROFILER_RUNTIME("SH4::Execute");
 
-  int remaining = cycles;
-
   // TMU runs on the peripheral clock which is 50mhz vs our 200mhz
   for (int i = 0; i < 3; i++) {
     RunTimer(i, cycles >> 2);
@@ -84,10 +82,13 @@ int SH4::Run(int cycles) {
   // bind current sh4 for lazy block compilation handler
   current_cpu = this;
 
-  while (ctx_.pc && remaining > 0) {
+  // set the number of cycles to execute. each block's epilog will decrement
+  // this as they run
+  ctx_.cycles = cycles;
+
+  while (ctx_.pc && ctx_.cycles > 0) {
     RuntimeBlock *block = runtime_.GetBlock(ctx_.pc);
     ctx_.pc = block->call(block);
-    remaining -= block->guest_cycles;
 
     CheckPendingCacheReset();
     CheckPendingInterrupts();
@@ -95,7 +96,7 @@ int SH4::Run(int cycles) {
 
   current_cpu = nullptr;
 
-  return cycles - remaining;
+  return cycles - ctx_.cycles;
 }
 
 void SH4::DDT(int channel, DDTRW rw, uint32_t addr) {

@@ -312,8 +312,6 @@ class Instr : public IntrusiveListNode<Instr> {
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
-  void MoveAfter(Instr *other);
-
  private:
   Block *set_block(Block *block) { return block_ = block; }
 
@@ -340,7 +338,6 @@ class Block : public IntrusiveListNode<Block> {
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
-  void AppendInstr(Instr *instr);
   void InsertInstr(Instr *after, Instr *instr);
   void ReplaceInstr(Instr *replace, Instr *with);
   void RemoveInstr(Instr *instr);
@@ -356,6 +353,11 @@ class Block : public IntrusiveListNode<Block> {
 //
 typedef void (*ExternalFn)(void *);
 
+struct InsertPoint {
+  Block *block;
+  Instr *instr;
+};
+
 class IRBuilder {
  public:
   IRBuilder();
@@ -366,13 +368,12 @@ class IRBuilder {
   const IntrusiveList<Local> &locals() const { return locals_; }
   IntrusiveList<Local> &locals() { return locals_; }
 
-  int guest_cycles() const { return guest_cycles_; }
-
   void Dump() const;
 
+  InsertPoint GetInsertPoint();
+  void SetInsertPoint(const InsertPoint &point);
+
   // blocks
-  Block *GetCurrentBlock();
-  void SetCurrentBlock(Block *block);
   Block *InsertBlock(Block *after);
   Block *AppendBlock();
   void RemoveBlock(Block *block);
@@ -464,7 +465,7 @@ class IRBuilder {
   IntrusiveList<Block> blocks_;
   IntrusiveList<Local> locals_;
   Block *current_block_;
-  int guest_cycles_;
+  Instr *current_instr_;
 };
 }
 }

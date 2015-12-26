@@ -47,8 +47,7 @@ RuntimeBlock *InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
     return nullptr;
   }
 
-  return new InterpreterBlock(builder.guest_cycles(), instr, num_instr,
-                              locals_size);
+  return new InterpreterBlock(instr, num_instr, locals_size);
 }
 
 void InterpreterBackend::DumpBlock(RuntimeBlock *block) {

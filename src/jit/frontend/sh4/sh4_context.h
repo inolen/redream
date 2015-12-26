@@ -38,6 +38,8 @@ struct SH4Context {
   void (*SRUpdated)(SH4Context *, uint64_t old_sr);
   void (*FPSCRUpdated)(SH4Context *, uint64_t old_fpscr);
 
+  int cycles;
+
   uint32_t pc, spc;
   uint32_t pr;
   uint32_t gbr, vbr;

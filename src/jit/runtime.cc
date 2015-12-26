@@ -20,7 +20,7 @@ Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
     : memory_(memory),
       frontend_(frontend),
       backend_(backend),
-      compile_block_(default_handler, 0) {
+      compile_block_(default_handler) {
   eh_handle_ =
       ExceptionHandler::instance().AddHandler(this, &Runtime::HandleException);
 

@@ -101,7 +101,7 @@ int sh4_num_test_regs =
                      xf12, xf13, xf14, xf15)                                  \
   SH4Context {                                                                \
     nullptr, nullptr, nullptr, nullptr,                                       \
-    0, 0, 0, 0, 0, 0, 0,                                                      \
+    0, 0, 0, 0, 0, 0, 0, 0,                                                   \
     {r0, r1, r2,  r3,  r4,  r5,  r6,  r7,                                     \
      r8, r9, r10, r11, r12, r13, r14, r15},                                   \
     {0, 0, 0, 0, 0, 0, 0, 0}, 0,                                              \

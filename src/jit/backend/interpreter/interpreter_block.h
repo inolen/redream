@@ -11,8 +11,7 @@ namespace backend {
 namespace interpreter {
 
 struct InterpreterBlock : public RuntimeBlock {
-  InterpreterBlock(int guest_cycles, IntInstr *instrs, int num_instrs,
-                   int locals_size);
+  InterpreterBlock(IntInstr *instrs, int num_instrs, int locals_size);
 
   static uint32_t Call(RuntimeBlock *block);
 

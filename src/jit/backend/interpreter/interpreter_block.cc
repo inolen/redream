@@ -5,9 +5,9 @@ using namespace dreavm::hw;
 using namespace dreavm::jit;
 using namespace dreavm::jit::backend::interpreter;
 
-InterpreterBlock::InterpreterBlock(int guest_cycles, IntInstr *instrs,
-                                   int num_instrs, int locals_size)
-    : RuntimeBlock(&InterpreterBlock::Call, guest_cycles),
+InterpreterBlock::InterpreterBlock(IntInstr *instrs, int num_instrs,
+                                   int locals_size)
+    : RuntimeBlock(&InterpreterBlock::Call),
       instrs_(instrs),
       num_instrs_(num_instrs),
       locals_size_(locals_size) {}

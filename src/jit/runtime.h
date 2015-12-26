@@ -34,12 +34,10 @@ struct RuntimeBlock;
 typedef uint32_t (*RuntimeBlockCall)(RuntimeBlock *);
 
 struct RuntimeBlock {
-  RuntimeBlock(RuntimeBlockCall call, int guest_cycles)
-      : call(call), guest_cycles(guest_cycles) {}
+  RuntimeBlock(RuntimeBlockCall call) : call(call) {}
   virtual ~RuntimeBlock() {}
 
   RuntimeBlockCall call;
-  int guest_cycles;
 };
 
 class Runtime {

@@ -33,6 +33,7 @@ SH4Builder::SH4Builder(Memory &memory)
 void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
+  int guest_cycles = 0;
   uint32_t addr = start_addr;
   Instr instr;
 
@@ -48,7 +49,7 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
 
     bool delayed = instr.type->flags & OP_FLAG_DELAYED;
 
-    guest_cycles_ += instr.type->cycles;
+    guest_cycles += instr.type->cycles;
 
     // save off the delay instruction if we need to
     if (delayed) {
@@ -58,7 +59,7 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
 
       has_delay_instr_ = true;
 
-      guest_cycles_ += delay_instr_.type->cycles;
+      guest_cycles += delay_instr_.type->cycles;
     }
 
     // emit the current instruction
@@ -78,6 +79,17 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
       break;
     }
   }
+
+  // emit block epilog
+  ir::Block *tail_block = blocks_.tail();
+  ir::Instr *tail_instr = tail_block->instrs().tail();
+
+  current_block_ = tail_block;
+  current_instr_ = tail_instr->prev();
+
+  Value *cycles = LoadContext(offsetof(SH4Context, cycles), VALUE_I32);
+  cycles = Sub(cycles, AllocConstant(guest_cycles));
+  StoreContext(offsetof(SH4Context, cycles), cycles);
 }
 
 Value *SH4Builder::LoadRegister(int n, ValueTy type) {
