@@ -131,7 +131,7 @@ void InterpreterEmitter::TranslateArg(Instr &ir_i, IntInstr *instr, int arg) {
         break;
     }
   } else if (ir_v->reg() != NO_REGISTER) {
-    v->i32 = ir_v->reg();
+    v->reg = &int_state.r[ir_v->reg()];
   } else {
     LOG_FATAL("Unexpected value type");
   }
@@ -325,11 +325,11 @@ struct helper {
 template <typename T, int ARG>
 struct helper<T, ARG, ACC_REG> {
   static inline T LoadArg(const IntInstr *i) {
-    return GetValue<T>(int_state.r[i->arg[ARG].i32]);
+    return GetValue<T>(*i->arg[ARG].reg);
   }
 
   static inline void StoreArg(const IntInstr *i, T v) {
-    SetValue<T>(int_state.r[i->arg[ARG].i32], v);
+    SetValue<T>(*i->arg[ARG].reg, v);
   }
 };
 

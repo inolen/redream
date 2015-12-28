@@ -20,6 +20,7 @@ union IntValue {
   int64_t i64;
   float f32;
   double f64;
+  IntValue *reg;
 };
 
 struct IntInstr {
