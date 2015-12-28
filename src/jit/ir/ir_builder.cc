@@ -122,7 +122,8 @@ void Block::UnlinkInstr(Instr *instr) {
 //
 // IRBuilder
 //
-IRBuilder::IRBuilder() : arena_(1024), current_block_(nullptr), current_instr_(nullptr) {}
+IRBuilder::IRBuilder()
+    : arena_(1024), current_block_(nullptr), current_instr_(nullptr) {}
 
 // TODO clean and speed up?
 void IRBuilder::Dump() const {
@@ -202,7 +203,7 @@ void IRBuilder::Dump() const {
 }
 
 InsertPoint IRBuilder::GetInsertPoint() {
-  return { current_block_, current_instr_ };
+  return {current_block_, current_instr_};
 }
 
 void IRBuilder::SetInsertPoint(const InsertPoint &point) {

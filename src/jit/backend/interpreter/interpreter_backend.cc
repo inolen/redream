@@ -3,6 +3,7 @@
 #include "jit/backend/interpreter/interpreter_emitter.h"
 #include "sys/exception_handler.h"
 
+using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::jit;
 using namespace dreavm::jit::backend;
@@ -15,10 +16,22 @@ namespace jit {
 namespace backend {
 namespace interpreter {
 const Register int_registers[NUM_INT_REGISTERS] = {
-    {"a", ir::VALUE_INT_MASK},   {"b", ir::VALUE_INT_MASK},
-    {"c", ir::VALUE_INT_MASK},   {"d", ir::VALUE_INT_MASK},
-    {"e", ir::VALUE_FLOAT_MASK}, {"f", ir::VALUE_FLOAT_MASK},
-    {"g", ir::VALUE_FLOAT_MASK}, {"h", ir::VALUE_FLOAT_MASK}};
+    {"ia", ir::VALUE_INT_MASK},   {"ib", ir::VALUE_INT_MASK},
+    {"ic", ir::VALUE_INT_MASK},   {"id", ir::VALUE_INT_MASK},
+    {"ie", ir::VALUE_INT_MASK},   {"if", ir::VALUE_INT_MASK},
+    {"ig", ir::VALUE_INT_MASK},   {"ih", ir::VALUE_INT_MASK},
+    {"ii", ir::VALUE_INT_MASK},   {"ij", ir::VALUE_INT_MASK},
+    {"ik", ir::VALUE_INT_MASK},   {"il", ir::VALUE_INT_MASK},
+    {"im", ir::VALUE_INT_MASK},   {"in", ir::VALUE_INT_MASK},
+    {"io", ir::VALUE_INT_MASK},   {"ip", ir::VALUE_INT_MASK},
+    {"fa", ir::VALUE_FLOAT_MASK}, {"fb", ir::VALUE_FLOAT_MASK},
+    {"fc", ir::VALUE_FLOAT_MASK}, {"fd", ir::VALUE_FLOAT_MASK},
+    {"fe", ir::VALUE_FLOAT_MASK}, {"ff", ir::VALUE_FLOAT_MASK},
+    {"fg", ir::VALUE_FLOAT_MASK}, {"fh", ir::VALUE_FLOAT_MASK},
+    {"fi", ir::VALUE_FLOAT_MASK}, {"fj", ir::VALUE_FLOAT_MASK},
+    {"fk", ir::VALUE_FLOAT_MASK}, {"fl", ir::VALUE_FLOAT_MASK},
+    {"fm", ir::VALUE_FLOAT_MASK}, {"fn", ir::VALUE_FLOAT_MASK},
+    {"fo", ir::VALUE_FLOAT_MASK}, {"fp", ir::VALUE_FLOAT_MASK}};
 
 const int int_num_registers = sizeof(int_registers) / sizeof(Register);
 
@@ -35,25 +48,29 @@ const Register *InterpreterBackend::registers() const { return int_registers; }
 
 int InterpreterBackend::num_registers() const { return int_num_registers; }
 
-void InterpreterBackend::Reset() { emitter_.Reset(); }
+void InterpreterBackend::Reset() {
+  int_num_blocks = 0;
+  emitter_.Reset();
+}
 
-RuntimeBlock *InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
-                                                void *guest_ctx) {
-  IntInstr *instr;
-  int num_instr;
-  int locals_size;
-
-  if (!emitter_.Emit(builder, guest_ctx, &instr, &num_instr, &locals_size)) {
+BlockRunner InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
+                                              void *guest_ctx) {
+  int idx = int_num_blocks++;
+  if (idx >= MAX_INT_BLOCKS) {
     return nullptr;
   }
 
-  return new InterpreterBlock(instr, num_instr, locals_size);
+  InterpreterBlock *block = &int_blocks[idx];
+  if (!emitter_.Emit(builder, guest_ctx, &block->instrs, &block->num_instrs,
+                     &block->locals_size)) {
+    return nullptr;
+  }
+
+  return int_runners[idx];
 }
 
-void InterpreterBackend::DumpBlock(RuntimeBlock *block) {
+void InterpreterBackend::DumpBlock(BlockRunner block) {
   LOG_WARNING("Not implemented");
 }
-
-void InterpreterBackend::FreeBlock(RuntimeBlock *block) { delete block; }
 
 bool InterpreterBackend::HandleException(Exception &ex) { return false; }

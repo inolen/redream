@@ -16,7 +16,7 @@ using namespace dreavm::jit::ir::passes;
 using namespace dreavm::sys;
 
 Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
-                 backend::Backend &backend, RuntimeBlockCall default_handler)
+                 backend::Backend &backend, BlockRunner default_handler)
     : memory_(memory),
       frontend_(frontend),
       backend_(backend),
@@ -32,24 +32,17 @@ Runtime::Runtime(Memory &memory, frontend::Frontend &frontend,
       std::unique_ptr<Pass>(new RegisterAllocationPass(backend_)));
 
   // initialize all entries in block cache to reference the compile block
-  blocks_ = new RuntimeBlock *[MAX_BLOCKS];
-  std::fill_n(blocks_, MAX_BLOCKS, &compile_block_);
+  blocks_ = new BlockRunner[MAX_BLOCKS];
+  std::fill_n(blocks_, MAX_BLOCKS, compile_block_);
 }
 
 Runtime::~Runtime() {
-  for (int i = 0; i < MAX_BLOCKS; i++) {
-    if (blocks_[i] == &compile_block_) {
-      continue;
-    }
-    backend_.FreeBlock(blocks_[i]);
-  }
-
   delete[] blocks_;
 
   ExceptionHandler::instance().RemoveHandler(eh_handle_);
 }
 
-RuntimeBlock *Runtime::CompileBlock(uint32_t addr, void *guest_ctx) {
+BlockRunner Runtime::CompileBlock(uint32_t addr, void *guest_ctx) {
   PROFILER_RUNTIME("Runtime::CompileBlock");
 
   std::unique_ptr<IRBuilder> builder = frontend_.BuildBlock(addr, guest_ctx);
@@ -58,7 +51,7 @@ RuntimeBlock *Runtime::CompileBlock(uint32_t addr, void *guest_ctx) {
   pass_runner_.Run(*builder);
 
   // try to assemble the block
-  RuntimeBlock *block = backend_.AssembleBlock(*builder, guest_ctx);
+  BlockRunner block = backend_.AssembleBlock(*builder, guest_ctx);
 
   if (!block) {
     LOG_INFO("Assembler overflow, resetting block cache");
@@ -81,13 +74,7 @@ RuntimeBlock *Runtime::CompileBlock(uint32_t addr, void *guest_ctx) {
 
 void Runtime::ResetBlocks() {
   // reset block cache
-  for (int i = 0; i < MAX_BLOCKS; i++) {
-    if (blocks_[i] == &compile_block_) {
-      continue;
-    }
-    backend_.FreeBlock(blocks_[i]);
-    blocks_[i] = &compile_block_;
-  }
+  std::fill_n(blocks_, MAX_BLOCKS, compile_block_);
 
   // have the backend reset any underlying data the blocks may have relied on
   backend_.Reset();

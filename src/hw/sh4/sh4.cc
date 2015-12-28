@@ -24,12 +24,11 @@ InterruptInfo interrupts[NUM_INTERRUPTS] = {
 // is at the current PC.
 static SH4 *current_cpu = nullptr;
 
-uint32_t SH4::CompilePC(RuntimeBlock *block) {
+uint32_t SH4::CompilePC() {
   Runtime &runtime = current_cpu->runtime_;
   SH4Context &ctx = current_cpu->ctx_;
-  RuntimeBlock *new_block = runtime.CompileBlock(ctx.pc, &ctx);
-  // call into the new block
-  return new_block->call(new_block);
+  BlockRunner run = runtime.CompileBlock(ctx.pc, &ctx);
+  return run();
 }
 
 SH4::SH4(Memory &memory, Runtime &runtime)
@@ -87,8 +86,8 @@ int SH4::Run(int cycles) {
   ctx_.cycles = cycles;
 
   while (ctx_.pc && ctx_.cycles > 0) {
-    RuntimeBlock *block = runtime_.GetBlock(ctx_.pc);
-    ctx_.pc = block->call(block);
+    BlockRunner run = runtime_.GetBlock(ctx_.pc);
+    ctx_.pc = run();
 
     CheckPendingCacheReset();
     CheckPendingInterrupts();

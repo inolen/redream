@@ -12,7 +12,7 @@ struct Exception;
 
 namespace jit {
 
-struct RuntimeBlock;
+typedef uint32_t (*BlockRunner)();
 
 namespace backend {
 
@@ -31,10 +31,9 @@ class Backend {
 
   virtual void Reset() = 0;
 
-  virtual RuntimeBlock *AssembleBlock(ir::IRBuilder &builder,
-                                      void *guest_ctx) = 0;
-  virtual void DumpBlock(RuntimeBlock *block) = 0;
-  virtual void FreeBlock(RuntimeBlock *block) = 0;
+  virtual BlockRunner AssembleBlock(ir::IRBuilder &builder,
+                                    void *guest_ctx) = 0;
+  virtual void DumpBlock(BlockRunner block) = 0;
 
   virtual bool HandleException(sys::Exception &ex) = 0;
 

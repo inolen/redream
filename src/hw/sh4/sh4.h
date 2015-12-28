@@ -119,7 +119,7 @@ class SH4 : public hw::Device {
   friend void RunSH4Test(const SH4Test &);
 
  public:
-  static uint32_t CompilePC(jit::RuntimeBlock *block);
+  static uint32_t CompilePC();
 
   SH4(hw::Memory &memory, jit::Runtime &runtime);
 

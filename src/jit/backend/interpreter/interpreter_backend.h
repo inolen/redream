@@ -10,7 +10,10 @@ namespace jit {
 namespace backend {
 namespace interpreter {
 
-enum { NUM_INT_REGISTERS = 8, MAX_INT_STACK = 4096 };
+enum {
+  NUM_INT_REGISTERS = 32,
+  MAX_INT_STACK = 4096,
+};
 
 // fake set of virtual registers used by the interpreter
 extern const Register int_registers[];
@@ -22,6 +25,7 @@ struct InterpreterState {
   uint8_t stack[MAX_INT_STACK];
   uint32_t pc, sp;
 };
+
 extern InterpreterState int_state;
 
 class InterpreterBackend : public Backend {
@@ -32,9 +36,8 @@ class InterpreterBackend : public Backend {
   int num_registers() const;
 
   void Reset();
-  RuntimeBlock *AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
-  void DumpBlock(RuntimeBlock *block);
-  void FreeBlock(RuntimeBlock *block);
+  BlockRunner AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
+  void DumpBlock(BlockRunner block);
 
   bool HandleException(sys::Exception &ex);
 

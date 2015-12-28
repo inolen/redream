@@ -294,7 +294,7 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   Local *local = builder.AllocLocal(interval->value->type());
 
   // insert load before next use
-  builder.SetInsertPoint({ insert_point.block, next_ref->instr()->prev() });
+  builder.SetInsertPoint({insert_point.block, next_ref->instr()->prev()});
   Value *load_local = builder.LoadLocal(local);
   Instr *load_instr = builder.GetInsertPoint().instr;
 
@@ -323,7 +323,7 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   // instruction is created and added as a reference, the sorted order will be
   // invalidated. because of this, the save instruction needs to be added after
   // the load instruction has updated the sorted references.
-  builder.SetInsertPoint({ insert_point.block, prev_ref->instr() });
+  builder.SetInsertPoint({insert_point.block, prev_ref->instr()});
   builder.StoreLocal(local, interval->value);
   Instr *store_instr = builder.GetInsertPoint().instr;
 

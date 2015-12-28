@@ -46,17 +46,7 @@ int X64Backend::num_registers() const {
 
 void X64Backend::Reset() { emitter_.Reset(); }
 
-RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder,
-                                        void *guest_ctx) {
-  // allocate block structure at start of code buffer, making for nice data
-  // locality
-  RuntimeBlock *block = emitter_.getCurr<RuntimeBlock *>();
-  try {
-    emitter_.setSize(emitter_.getSize() + sizeof(RuntimeBlock));
-  } catch (const Xbyak::Error &) {
-    return nullptr;
-  }
-
+BlockRunner X64Backend::AssembleBlock(ir::IRBuilder &builder, void *guest_ctx) {
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
   X64Fn fn;
@@ -68,18 +58,14 @@ RuntimeBlock *X64Backend::AssembleBlock(ir::IRBuilder &builder,
     }
     LOG_FATAL("X64 codegen failure, %s", e.what());
   }
-
-  // initialize block structure
-  new (block) RuntimeBlock(reinterpret_cast<RuntimeBlockCall>(fn));
-
-  return block;
+  return reinterpret_cast<BlockRunner>(fn);
 }
 
-void X64Backend::DumpBlock(RuntimeBlock *block) {
+void X64Backend::DumpBlock(BlockRunner block) {
   DISASM dsm;
   memset(&dsm, 0, sizeof(dsm));
   dsm.Archi = 64;
-  dsm.EIP = (uintptr_t)block->call;
+  dsm.EIP = (uintptr_t)block;
   dsm.SecurityBlock = 0;
   dsm.Options = NasmSyntax | PrefixedNumeral;
 
@@ -111,10 +97,6 @@ void X64Backend::DumpBlock(RuntimeBlock *block) {
 
     dsm.EIP = dsm.EIP + len;
   }
-}
-
-void X64Backend::FreeBlock(RuntimeBlock *block) {
-  // delete block;
 }
 
 bool X64Backend::HandleException(Exception &ex) {

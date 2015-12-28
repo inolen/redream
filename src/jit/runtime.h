@@ -29,21 +29,12 @@ class Frontend;
 #define MAX_BLOCKS (0x1000000 >> BLOCK_ADDR_SHIFT)
 
 // callback assigned to each block by the compiler backend
-class Runtime;
-struct RuntimeBlock;
-typedef uint32_t (*RuntimeBlockCall)(RuntimeBlock *);
-
-struct RuntimeBlock {
-  RuntimeBlock(RuntimeBlockCall call) : call(call) {}
-  virtual ~RuntimeBlock() {}
-
-  RuntimeBlockCall call;
-};
+typedef uint32_t (*BlockRunner)();
 
 class Runtime {
  public:
   Runtime(hw::Memory &memory, frontend::Frontend &frontend,
-          backend::Backend &backend, RuntimeBlockCall default_handler);
+          backend::Backend &backend, BlockRunner default_handler);
   ~Runtime();
 
   hw::Memory &memory() { return memory_; }
@@ -64,12 +55,12 @@ class Runtime {
   // block, and the cache is initialized with all entries pointing to a special
   // compile block. this compile block, when called, will compile the actual
   // block and update the cache to point to it
-  RuntimeBlock *GetBlock(uint32_t addr) {
+  BlockRunner GetBlock(uint32_t addr) {
     int offset = BLOCK_OFFSET(addr);
     CHECK_LT(offset, MAX_BLOCKS);
     return blocks_[offset];
   }
-  RuntimeBlock *CompileBlock(uint32_t addr, void *guest_ctx);
+  BlockRunner CompileBlock(uint32_t addr, void *guest_ctx);
   void ResetBlocks();
 
  private:
@@ -80,8 +71,8 @@ class Runtime {
   frontend::Frontend &frontend_;
   backend::Backend &backend_;
   ir::passes::PassRunner pass_runner_;
-  RuntimeBlock **blocks_;
-  RuntimeBlock compile_block_;
+  BlockRunner *blocks_;
+  BlockRunner compile_block_;
 };
 }
 }

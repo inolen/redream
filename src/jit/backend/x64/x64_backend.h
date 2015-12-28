@@ -22,9 +22,8 @@ class X64Backend : public Backend {
   int num_registers() const;
 
   void Reset();
-  RuntimeBlock *AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
-  void DumpBlock(RuntimeBlock *block);
-  void FreeBlock(RuntimeBlock *block);
+  BlockRunner AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
+  void DumpBlock(BlockRunner block);
 
   bool HandleException(sys::Exception &ex);
 
