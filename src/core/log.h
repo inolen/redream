@@ -17,10 +17,19 @@ void Log(LogLevel level, const char *format, ...);
     Log(LOG_LEVEL_WARNING, ##__VA_ARGS__); \
   } while (0)
 
+#ifndef NDEBUG
+#define LOG_FATAL(...)                   \
+  do {                                   \
+    Log(LOG_LEVEL_FATAL, ##__VA_ARGS__); \
+    debug_break();                       \
+    exit(1);                             \
+  } while (0)
+#else
 #define LOG_FATAL(...)                   \
   do {                                   \
     Log(LOG_LEVEL_FATAL, ##__VA_ARGS__); \
     exit(1);                             \
   } while (0)
+#endif
 
 #endif

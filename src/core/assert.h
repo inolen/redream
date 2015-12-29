@@ -1,6 +1,7 @@
 #ifndef DREAVM_ASSERT_H
 #define DREAVM_ASSERT_H
 
+#include "core/debug_break.h"
 #include "core/log.h"
 #include "core/platform.h"
 
