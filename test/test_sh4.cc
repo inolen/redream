@@ -5,19 +5,15 @@
 #include "core/core.h"
 #include "hw/sh4/sh4.h"
 #include "hw/memory.h"
-#include "jit/frontend/sh4/sh4_frontend.h"
-#include "jit/backend/interpreter/interpreter_backend.h"
-#include "jit/backend/x64/x64_backend.h"
 
 using namespace dreavm;
 using namespace dreavm::hw;
 using namespace dreavm::hw::sh4;
 using namespace dreavm::jit;
-using namespace dreavm::jit::backend::interpreter;
-using namespace dreavm::jit::backend::x64;
 using namespace dreavm::jit::frontend::sh4;
 
-template <typename BACKEND>
+DECLARE_bool(interpreter);
+
 void dreavm::hw::sh4::RunSH4Test(const SH4Test &test);
 
 enum {
@@ -135,10 +131,12 @@ int sh4_num_test_regs =
                  xf0_out, xf1_out, xf2_out, xf3_out, xf4_out, xf5_out,  xf6_out,  xf7_out, xf8_out, xf9_out, xf10_out, xf11_out, xf12_out, xf13_out, xf14_out, xf15_out) \
   };                                                                                                                                                                     \
   TEST(sh4_interpreter, name) {                                                                                                                                          \
-    RunSH4Test<InterpreterBackend>(test_##name);                                                                                                                         \
+    FLAGS_interpreter = true;                                                                                                                                            \
+    RunSH4Test(test_##name);                                                                                                                                             \
   }                                                                                                                                                                      \
   TEST(sh4_x64, name) {                                                                                                                                                  \
-    RunSH4Test<X64Backend>(test_##name);                                                                                                                                 \
+    FLAGS_interpreter = false;                                                                                                                                           \
+    RunSH4Test(test_##name);                                                                                                                                             \
   }
 #include "test_sh4.inc"
 #undef TEST_SH4
@@ -148,7 +146,6 @@ namespace dreavm {
 namespace hw {
 namespace sh4 {
 
-template <typename BACKEND>
 void RunSH4Test(const SH4Test &test) {
   static const uint32_t stack_address = 0x0;
   static const uint32_t stack_size = PAGE_BLKSIZE;
@@ -168,10 +165,7 @@ void RunSH4Test(const SH4Test &test) {
   CHECK(memory.Map(memmap));
 
   // initialize cpu
-  SH4Frontend frontend(memory);
-  BACKEND backend(memory);
-  Runtime runtime(memory, frontend, backend, &SH4::CompilePC);
-  SH4 sh4(memory, runtime);
+  SH4 sh4(memory);
   CHECK(sh4.Init());
 
   // setup in registers

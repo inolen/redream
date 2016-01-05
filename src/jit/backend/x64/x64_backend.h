@@ -3,7 +3,6 @@
 
 #include "jit/backend/backend.h"
 #include "jit/backend/x64/x64_emitter.h"
-#include "jit/runtime.h"
 
 namespace dreavm {
 namespace jit {
@@ -22,8 +21,8 @@ class X64Backend : public Backend {
   int num_registers() const;
 
   void Reset();
-  BlockRunner AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
-  void DumpBlock(BlockRunner block);
+  BlockPointer AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
+  void DumpBlock(BlockPointer block);
 
   bool HandleException(sys::Exception &ex);
 

@@ -3,7 +3,6 @@
 
 #include "jit/backend/backend.h"
 #include "jit/backend/interpreter/interpreter_emitter.h"
-#include "jit/runtime.h"
 
 namespace dreavm {
 namespace jit {
@@ -36,8 +35,8 @@ class InterpreterBackend : public Backend {
   int num_registers() const;
 
   void Reset();
-  BlockRunner AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
-  void DumpBlock(BlockRunner block);
+  BlockPointer AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
+  void DumpBlock(BlockPointer block);
 
   bool HandleException(sys::Exception &ex);
 

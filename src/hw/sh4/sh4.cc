@@ -2,7 +2,6 @@
 #include "emu/profiler.h"
 #include "hw/sh4/sh4.h"
 #include "hw/memory.h"
-#include "jit/runtime.h"
 
 using namespace dreavm;
 using namespace dreavm::emu;
@@ -19,21 +18,21 @@ InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-// CompilePC is used by the Runtime class as the default callback for
-// uncached blocks. It's assumed here that the uncached block being ran
-// is at the current PC.
+// CompilePC is used by the code cache as the default callback for uncached
+// blocks. It's assumed here that the uncached block being ran is at the
+// current PC.
 static SH4 *current_cpu = nullptr;
 
 uint32_t SH4::CompilePC() {
-  Runtime &runtime = current_cpu->runtime_;
+  SH4CodeCache &code_cache = current_cpu->code_cache_;
   SH4Context &ctx = current_cpu->ctx_;
-  BlockRunner run = runtime.CompileBlock(ctx.pc, &ctx);
+  BlockPointer run = code_cache.CompileBlock(ctx.pc, &ctx);
   return run();
 }
 
-SH4::SH4(Memory &memory, Runtime &runtime)
+SH4::SH4(Memory &memory)
     : memory_(memory),
-      runtime_(runtime),
+      code_cache_(memory, &SH4::CompilePC),
       pending_cache_reset_(false),
       requested_interrupts_(0),
       pending_interrupts_(0) {}
@@ -86,7 +85,7 @@ int SH4::Run(int cycles) {
   ctx_.cycles = cycles;
 
   while (ctx_.pc && ctx_.cycles > 0) {
-    BlockRunner run = runtime_.GetBlock(ctx_.pc);
+    BlockPointer run = code_cache_.GetBlock(ctx_.pc);
     ctx_.pc = run();
 
     CheckPendingCacheReset();
@@ -408,7 +407,7 @@ inline void SH4::CheckPendingCacheReset() {
     return;
   }
 
-  runtime_.ResetBlocks();
+  code_cache_.ResetBlocks();
 
   pending_cache_reset_ = false;
 }

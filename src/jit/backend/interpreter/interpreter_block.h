@@ -16,7 +16,7 @@ struct InterpreterBlock {
   int locals_size;
 };
 
-extern BlockRunner int_runners[MAX_INT_BLOCKS];
+extern BlockPointer int_runners[MAX_INT_BLOCKS];
 extern InterpreterBlock int_blocks[MAX_INT_BLOCKS];
 extern int int_num_blocks;
 }

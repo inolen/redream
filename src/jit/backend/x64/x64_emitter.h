@@ -6,7 +6,6 @@
 #include "core/arena.h"
 #include "core/platform.h"
 #include "hw/memory.h"
-#include "jit/runtime.h"
 
 extern const Xbyak::Reg &int_arg0;
 extern const Xbyak::Reg &int_arg1;

@@ -24,7 +24,7 @@ namespace interpreter {
 template <int N>
 static uint32_t CallBlock();
 
-BlockRunner int_runners[MAX_INT_BLOCKS] = {REP_8192(CallBlock<, 0, >)};
+BlockPointer int_runners[MAX_INT_BLOCKS] = {REP_8192(CallBlock<, 0, >)};
 InterpreterBlock int_blocks[MAX_INT_BLOCKS] = {};
 int int_num_blocks = 0;
 

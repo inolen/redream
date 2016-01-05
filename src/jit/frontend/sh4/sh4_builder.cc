@@ -3,7 +3,6 @@
 #include "emu/profiler.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_instr.h"
-#include "jit/runtime.h"
 
 using namespace dreavm::hw;
 using namespace dreavm::jit;

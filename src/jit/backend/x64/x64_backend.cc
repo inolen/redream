@@ -46,7 +46,8 @@ int X64Backend::num_registers() const {
 
 void X64Backend::Reset() { emitter_.Reset(); }
 
-BlockRunner X64Backend::AssembleBlock(ir::IRBuilder &builder, void *guest_ctx) {
+BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
+                                       void *guest_ctx) {
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
   X64Fn fn;
@@ -58,10 +59,10 @@ BlockRunner X64Backend::AssembleBlock(ir::IRBuilder &builder, void *guest_ctx) {
     }
     LOG_FATAL("X64 codegen failure, %s", e.what());
   }
-  return reinterpret_cast<BlockRunner>(fn);
+  return reinterpret_cast<BlockPointer>(fn);
 }
 
-void X64Backend::DumpBlock(BlockRunner block) {
+void X64Backend::DumpBlock(BlockPointer block) {
   DISASM dsm;
   memset(&dsm, 0, sizeof(dsm));
   dsm.Archi = 64;

@@ -7,15 +7,6 @@
 #include "hw/sh4/sh4.h"
 
 namespace dreavm {
-namespace jit {
-namespace backend {
-class Backend;
-}
-namespace frontend {
-class Frontend;
-}
-class Runtime;
-}
 
 namespace renderer {
 class Backend;
@@ -52,6 +43,7 @@ class SH4;
 }
 
 class Memory;
+class Scheduler;
 
 //
 // memory layout
@@ -159,7 +151,6 @@ class Dreamcast {
 
   hw::Memory *memory() { return memory_; }
   hw::Scheduler *scheduler() { return scheduler_; }
-  jit::Runtime *runtime() { return runtime_; }
   hw::aica::AICA *aica() { return aica_; }
   hw::gdrom::GDROM *gdrom() { return gdrom_; }
   hw::holly::Holly *holly() { return holly_; }
@@ -212,9 +203,6 @@ class Dreamcast {
 
   hw::Memory *memory_;
   hw::Scheduler *scheduler_;
-  jit::frontend::Frontend *rt_frontend_;
-  jit::backend::Backend *rt_backend_;
-  jit::Runtime *runtime_;
   hw::aica::AICA *aica_;
   hw::gdrom::GDROM *gdrom_;
   hw::holly::Holly *holly_;

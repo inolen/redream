@@ -134,6 +134,7 @@ set(DREAVM_SOURCES
   src/hw/maple/maple.cc
   src/hw/maple/maple_controller.cc
   src/hw/sh4/sh4.cc
+  src/hw/sh4/sh4_code_cache.cc
   src/hw/dreamcast.cc
   src/hw/memory.cc
   src/hw/scheduler.cc
@@ -151,7 +152,6 @@ set(DREAVM_SOURCES
   src/jit/ir/passes/pass_runner.cc
   src/jit/ir/passes/register_allocation_pass.cc
   src/jit/ir/passes/validate_pass.cc
-  src/jit/runtime.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
   src/sys/exception_handler.cc

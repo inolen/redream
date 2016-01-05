@@ -2,25 +2,17 @@
 #define SH4_H
 
 #include "hw/scheduler.h"
+#include "hw/sh4/sh4_code_cache.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
 struct SH4Test;
 
 namespace dreavm {
-namespace jit {
-struct RuntimeBlock;
-class Runtime;
-}
-
 namespace hw {
+
 class Memory;
 
 namespace sh4 {
-
-// translate address to 29-bit physical space, ignoring all modifier bits
-enum {
-  ADDR_MASK = 0x1fffffff,
-};
 
 // registers
 enum {
@@ -115,13 +107,12 @@ enum DDTRW {  //
 };
 
 class SH4 : public hw::Device {
-  template <typename BACKEND>
   friend void RunSH4Test(const SH4Test &);
 
  public:
   static uint32_t CompilePC();
 
-  SH4(hw::Memory &memory, jit::Runtime &runtime);
+  SH4(hw::Memory &memory);
 
   int GetClockFrequency() { return 200000000; }
 
@@ -175,13 +166,14 @@ class SH4 : public hw::Device {
   void RunTimer(int n, int cycles);
 
   hw::Memory &memory_;
-  jit::Runtime &runtime_;
 
   jit::frontend::sh4::SH4Context ctx_;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   type &name{reinterpret_cast<type &>(area7_[name##_OFFSET])};
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
+
+  SH4CodeCache code_cache_;
 
   bool pending_cache_reset_;
 

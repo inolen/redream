@@ -53,8 +53,8 @@ void InterpreterBackend::Reset() {
   emitter_.Reset();
 }
 
-BlockRunner InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
-                                              void *guest_ctx) {
+BlockPointer InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
+                                               void *guest_ctx) {
   int idx = int_num_blocks++;
   if (idx >= MAX_INT_BLOCKS) {
     return nullptr;
@@ -69,7 +69,7 @@ BlockRunner InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
   return int_runners[idx];
 }
 
-void InterpreterBackend::DumpBlock(BlockRunner block) {
+void InterpreterBackend::DumpBlock(BlockPointer block) {
   LOG_WARNING("Not implemented");
 }
 

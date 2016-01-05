@@ -11,9 +11,6 @@
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
-#include "jit/backend/interpreter/interpreter_backend.h"
-#include "jit/backend/x64/x64_backend.h"
-#include "jit/frontend/sh4/sh4_frontend.h"
 #include "renderer/backend.h"
 #include "trace/trace.h"
 
@@ -25,9 +22,6 @@ using namespace dreavm::hw::holly;
 using namespace dreavm::hw::maple;
 using namespace dreavm::hw::sh4;
 using namespace dreavm::jit;
-using namespace dreavm::jit::backend::interpreter;
-using namespace dreavm::jit::backend::x64;
-using namespace dreavm::jit::frontend::sh4;
 using namespace dreavm::renderer;
 using namespace dreavm::sys;
 using namespace dreavm::trace;
@@ -59,17 +53,12 @@ Dreamcast::Dreamcast()
 
   scheduler_ = new Scheduler();
   memory_ = new Memory();
-  rt_frontend_ = new SH4Frontend(*memory_);
-  rt_backend_ = new X64Backend(*memory_);
-  // rt_backend_ = new InterpreterBackend(*memory_);
-  runtime_ =
-      new Runtime(*memory_, *rt_frontend_, *rt_backend_, &SH4::CompilePC);
   aica_ = new AICA(this);
   gdrom_ = new GDROM(this);
   holly_ = new Holly(this);
   maple_ = new Maple(this);
   pvr_ = new PVR2(this);
-  sh4_ = new SH4(*memory_, *runtime_);
+  sh4_ = new SH4(*memory_);
   ta_ = new TileAccelerator(this);
   texcache_ = new TextureCache(this);
   tile_renderer_ = new TileRenderer(*texcache_);
@@ -81,9 +70,6 @@ Dreamcast::~Dreamcast() {
 
   delete scheduler_;
   delete memory_;
-  delete rt_frontend_;
-  delete rt_backend_;
-  delete runtime_;
   delete aica_;
   delete gdrom_;
   delete holly_;
