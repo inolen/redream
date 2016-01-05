@@ -183,6 +183,11 @@ void RunSH4Test(const SH4Test &test) {
                                   reg.offset) = input;
   }
 
+  // write out RTS / NOP at 0x0 so tests will spin once the main function
+  // returns to 0x0
+  memory.W16(0x0, 0b0000000000001011);
+  memory.W16(0x2, 0b0000000000001001);
+
   // setup initial stack pointer
   sh4.ctx_.r[15] = stack_size;
 
@@ -192,7 +197,8 @@ void RunSH4Test(const SH4Test &test) {
   // skip to the test's offset
   sh4.SetPC(code_address + test.buffer_offset);
 
-  sh4.Run(INT_MAX);
+  // no instruction takes more than 8 cycles, this should be enough
+  sh4.Run(code_size * 8);
 
   // validate out registers
   for (int i = 0; i < sh4_num_test_regs; i++) {

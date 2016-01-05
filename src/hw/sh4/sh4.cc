@@ -77,14 +77,14 @@ int SH4::Run(int cycles) {
     RunTimer(i, cycles >> 2);
   }
 
-  // bind current sh4 for lazy block compilation handler
+  // set current sh4 instance for CompilePC
   current_cpu = this;
 
   // set the number of cycles to execute. each block's epilog will decrement
   // this as they run
   ctx_.cycles = cycles;
 
-  while (ctx_.pc && ctx_.cycles > 0) {
+  while (ctx_.cycles > 0) {
     BlockPointer run = code_cache_.GetBlock(ctx_.pc);
     ctx_.pc = run();
 
