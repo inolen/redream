@@ -6,15 +6,15 @@
 #include "hw/sh4/sh4.h"
 #include "hw/memory.h"
 
-using namespace dreavm;
-using namespace dreavm::hw;
-using namespace dreavm::hw::sh4;
-using namespace dreavm::jit;
-using namespace dreavm::jit::frontend::sh4;
+using namespace dvm;
+using namespace dvm::hw;
+using namespace dvm::hw::sh4;
+using namespace dvm::jit;
+using namespace dvm::jit::frontend::sh4;
 
 DECLARE_bool(interpreter);
 
-void dreavm::hw::sh4::RunSH4Test(const SH4Test &test);
+void dvm::hw::sh4::RunSH4Test(const SH4Test &test);
 
 enum {
   UNINITIALIZED_REG = 0xbaadf00d,
@@ -142,7 +142,7 @@ int sh4_num_test_regs =
 #undef TEST_SH4
 // clang-format on
 
-namespace dreavm {
+namespace dvm {
 namespace hw {
 namespace sh4 {
 
@@ -151,7 +151,7 @@ void RunSH4Test(const SH4Test &test) {
   static const uint32_t stack_size = PAGE_BLKSIZE;
   static const uint32_t code_address = 0x8c010000;
   const uint32_t code_size =
-      dreavm::align(test.buffer_size, static_cast<uint32_t>(PAGE_BLKSIZE));
+      dvm::align(test.buffer_size, static_cast<uint32_t>(PAGE_BLKSIZE));
 
   // setup stack and executable space in memory map
   Memory memory;
@@ -172,21 +172,15 @@ void RunSH4Test(const SH4Test &test) {
   for (int i = 0; i < sh4_num_test_regs; i++) {
     SH4TestRegister &reg = sh4_test_regs[i];
 
-    uint32_t input = *reinterpret_cast<const uint32_t *>(
+    uint32_t input = dvm::load<uint32_t>(
         reinterpret_cast<const uint8_t *>(&test.in) + reg.offset);
 
     if (input == UNINITIALIZED_REG) {
       continue;
     }
 
-    *reinterpret_cast<uint32_t *>(reinterpret_cast<uint8_t *>(&sh4.ctx_) +
-                                  reg.offset) = input;
+    dvm::store(reinterpret_cast<uint8_t *>(&sh4.ctx_) + reg.offset, input);
   }
-
-  // write out RTS / NOP at 0x0 so tests will spin once the main function
-  // returns to 0x0
-  memory.W16(0x0, 0b0000000000001011);
-  memory.W16(0x2, 0b0000000000001001);
 
   // setup initial stack pointer
   sh4.ctx_.r[15] = stack_size;
@@ -197,21 +191,23 @@ void RunSH4Test(const SH4Test &test) {
   // skip to the test's offset
   sh4.SetPC(code_address + test.buffer_offset);
 
-  // no instruction takes more than 8 cycles, this should be enough
-  sh4.Run(code_size * 8);
+  // run until the function returns
+  while (sh4.ctx_.pc) {
+    sh4.Run(1);
+  }
 
   // validate out registers
   for (int i = 0; i < sh4_num_test_regs; i++) {
     SH4TestRegister &reg = sh4_test_regs[i];
 
-    uint32_t expected = *reinterpret_cast<const uint32_t *>(
+    uint32_t expected = dvm::load<uint32_t>(
         reinterpret_cast<const uint8_t *>(&test.out) + reg.offset);
 
     if (expected == UNINITIALIZED_REG) {
       continue;
     }
 
-    uint32_t actual = *reinterpret_cast<const uint32_t *>(
+    uint32_t actual = dvm::load<uint32_t>(
         reinterpret_cast<const uint8_t *>(&sh4.ctx_) + reg.offset);
 
     ASSERT_EQ(expected, actual) << reg.name << " expected: 0x" << std::hex

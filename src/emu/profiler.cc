@@ -14,9 +14,9 @@
 #include "core/core.h"
 #include "emu/profiler.h"
 
-using namespace dreavm::emu;
-using namespace dreavm::renderer;
-using namespace dreavm::sys;
+using namespace dvm::emu;
+using namespace dvm::renderer;
+using namespace dvm::sys;
 
 static Backend *current_backend = nullptr;
 

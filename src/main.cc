@@ -6,10 +6,10 @@
 #include "sys/filesystem.h"
 #include "sys/network.h"
 
-using namespace dreavm;
-using namespace dreavm::emu;
-using namespace dreavm::sys;
-using namespace dreavm::trace;
+using namespace dvm;
+using namespace dvm::emu;
+using namespace dvm::sys;
+using namespace dvm::trace;
 
 void InitFlags(int *argc, char ***argv) {
   const char *appdir = GetAppDir();

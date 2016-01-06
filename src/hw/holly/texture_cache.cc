@@ -5,10 +5,10 @@
 #include "hw/dreamcast.h"
 #include "trace/trace.h"
 
-using namespace dreavm::hw;
-using namespace dreavm::hw::holly;
-using namespace dreavm::renderer;
-using namespace dreavm::sys;
+using namespace dvm::hw;
+using namespace dvm::hw::holly;
+using namespace dvm::renderer;
+using namespace dvm::sys;
 
 TextureCache::TextureCache(Dreamcast *dc)
     : dc_(dc), trace_writer_(nullptr), num_invalidated_(0) {}

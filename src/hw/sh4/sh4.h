@@ -7,7 +7,7 @@
 
 struct SH4Test;
 
-namespace dreavm {
+namespace dvm {
 namespace hw {
 
 class Memory;

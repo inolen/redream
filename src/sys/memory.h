@@ -5,7 +5,7 @@
 #include "core/platform.h"
 #include "sys/exception_handler.h"
 
-namespace dreavm {
+namespace dvm {
 namespace sys {
 
 //

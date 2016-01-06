@@ -2,7 +2,7 @@
 #include "core/core.h"
 #include "sys/memory.h"
 
-namespace dreavm {
+namespace dvm {
 namespace sys {
 
 static DWORD AccessToFileFlags(PageAccess access) {

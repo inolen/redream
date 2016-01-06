@@ -5,7 +5,7 @@
 #include "core/core.h"
 #include "core/intrusive_list.h"
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace ir {
 

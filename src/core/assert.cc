@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "core/assert.h"
 
-namespace dreavm {
+namespace dvm {
 
 const char *FormatCheckError(const char *filename, int linenum,
                              const char *expr, const char *format, ...) {

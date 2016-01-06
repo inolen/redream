@@ -4,7 +4,7 @@
 #include <chrono>
 #include <vector>
 
-namespace dreavm {
+namespace dvm {
 namespace hw {
 
 enum { INVALID_HANDLE = -1, NS_PER_SEC = 1000000000 };

@@ -4,10 +4,10 @@
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_emitter.h"
 
-using namespace dreavm;
-using namespace dreavm::hw;
-using namespace dreavm::jit::backend::x64;
-using namespace dreavm::jit::ir;
+using namespace dvm;
+using namespace dvm::hw;
+using namespace dvm::jit::backend::x64;
+using namespace dvm::jit::ir;
 
 //
 // x64 register layout
@@ -203,13 +203,13 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   // align locals
   for (auto local : builder.locals()) {
     int type_size = SizeForType(local->type());
-    stack_size = dreavm::align(stack_size, type_size);
+    stack_size = dvm::align(stack_size, type_size);
     local->set_offset(builder.AllocConstant(stack_size));
     stack_size += type_size;
   }
 
   // stack must be 16 byte aligned
-  stack_size = dreavm::align(stack_size, 16);
+  stack_size = dvm::align(stack_size, 16);
 
   // add 8 for return address which will be pushed when this is called
   stack_size += 8;
@@ -396,11 +396,11 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
 
       if (v->type() == VALUE_F32) {
         float val = v->value<float>();
-        mov(eax, *reinterpret_cast<int32_t *>(&val));
+        mov(eax, dvm::load<int32_t>(&val));
         movd(reinterpret_cast<const Xbyak::Xmm &>(to), eax);
       } else {
         double val = v->value<double>();
-        mov(rax, *reinterpret_cast<int64_t *>(&val));
+        mov(rax, dvm::load<int64_t>(&val));
         movq(reinterpret_cast<const Xbyak::Xmm &>(to), rax);
       }
     } else {

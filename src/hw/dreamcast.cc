@@ -14,17 +14,17 @@
 #include "renderer/backend.h"
 #include "trace/trace.h"
 
-using namespace dreavm;
-using namespace dreavm::hw;
-using namespace dreavm::hw::aica;
-using namespace dreavm::hw::gdrom;
-using namespace dreavm::hw::holly;
-using namespace dreavm::hw::maple;
-using namespace dreavm::hw::sh4;
-using namespace dreavm::jit;
-using namespace dreavm::renderer;
-using namespace dreavm::sys;
-using namespace dreavm::trace;
+using namespace dvm;
+using namespace dvm::hw;
+using namespace dvm::hw::aica;
+using namespace dvm::hw::gdrom;
+using namespace dvm::hw::holly;
+using namespace dvm::hw::maple;
+using namespace dvm::hw::sh4;
+using namespace dvm::jit;
+using namespace dvm::renderer;
+using namespace dvm::sys;
+using namespace dvm::trace;
 
 Dreamcast::Dreamcast()
     :  // allocate registers and initialize references

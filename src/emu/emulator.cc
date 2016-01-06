@@ -9,14 +9,14 @@
 #include "renderer/gl_backend.h"
 #include "trace/trace.h"
 
-using namespace dreavm;
-using namespace dreavm::emu;
-using namespace dreavm::hw;
-using namespace dreavm::hw::gdrom;
-using namespace dreavm::hw::holly;
-using namespace dreavm::renderer;
-using namespace dreavm::sys;
-using namespace dreavm::trace;
+using namespace dvm;
+using namespace dvm::emu;
+using namespace dvm::hw;
+using namespace dvm::hw::gdrom;
+using namespace dvm::hw::holly;
+using namespace dvm::renderer;
+using namespace dvm::sys;
+using namespace dvm::trace;
 
 // scheduler is ticked at 1000hz, this is fairly arbitrary, but seems to be a
 // good balance of executing cycles / handling interrupts

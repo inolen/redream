@@ -6,17 +6,17 @@
 #include "sys/keycode.h"
 
 #define PROFILER_SCOPE(group, name) \
-  MICROPROFILE_SCOPEI(group, name, dreavm::emu::Profiler::ScopeColor(name))
+  MICROPROFILE_SCOPEI(group, name, dvm::emu::Profiler::ScopeColor(name))
 
 #define PROFILER_GPU(name) \
-  MICROPROFILE_SCOPEI("gpu", name, dreavm::emu::Profiler::ScopeColor(name))
+  MICROPROFILE_SCOPEI("gpu", name, dvm::emu::Profiler::ScopeColor(name))
 
 #define PROFILER_RUNTIME(name) \
-  MICROPROFILE_SCOPEI("runtime", name, dreavm::emu::Profiler::ScopeColor(name))
+  MICROPROFILE_SCOPEI("runtime", name, dvm::emu::Profiler::ScopeColor(name))
 
 #define PROFILER_COUNT(name, count) MICROPROFILE_COUNTER_SET(name, count)
 
-namespace dreavm {
+namespace dvm {
 namespace emu {
 
 class Profiler {

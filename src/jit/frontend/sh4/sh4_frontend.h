@@ -5,7 +5,7 @@
 #include "jit/frontend/sh4/sh4_builder.h"
 #include "jit/frontend/sh4/sh4_instr.h"
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace frontend {
 namespace sh4 {

@@ -7,15 +7,15 @@
 #include "jit/backend/x64/x64_backend.h"
 #include "sys/exception_handler.h"
 
-using namespace dreavm;
-using namespace dreavm::hw;
-using namespace dreavm::jit;
-using namespace dreavm::jit::backend;
-using namespace dreavm::jit::backend::x64;
-using namespace dreavm::jit::ir;
-using namespace dreavm::sys;
+using namespace dvm;
+using namespace dvm::hw;
+using namespace dvm::jit;
+using namespace dvm::jit::backend;
+using namespace dvm::jit::backend::x64;
+using namespace dvm::jit::ir;
+using namespace dvm::sys;
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace backend {
 namespace x64 {

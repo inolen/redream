@@ -1,7 +1,7 @@
 #include <string.h>
 #include "core/string.h"
 
-namespace dreavm {
+namespace dvm {
 
 #ifndef HAVE_STRNSTR
 char *strnstr(const char *s1, const char *s2, size_t n) {

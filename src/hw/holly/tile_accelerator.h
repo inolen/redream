@@ -6,7 +6,7 @@
 #include "hw/holly/tile_renderer.h"
 #include "renderer/backend.h"
 
-namespace dreavm {
+namespace dvm {
 namespace trace {
 class TraceWriter;
 }

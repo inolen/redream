@@ -5,8 +5,8 @@
 #define DEFAULT_WIDTH 800
 #define DEFAULT_HEIGHT 600
 
-using namespace dreavm;
-using namespace dreavm::sys;
+using namespace dvm;
+using namespace dvm::sys;
 
 static inline WindowEvent MakeKeyEvent(Keycode code, int16_t value) {
   WindowEvent ev;

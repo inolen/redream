@@ -4,8 +4,8 @@
 #include "core/core.h"
 #include "hw/maple/maple_controller.h"
 
-using namespace dreavm::hw::maple;
-using namespace dreavm::sys;
+using namespace dvm::hw::maple;
+using namespace dvm::sys;
 using namespace json11;
 
 DEFINE_string(profile, "", "Controller profile");

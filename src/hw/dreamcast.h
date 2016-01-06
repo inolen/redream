@@ -6,7 +6,7 @@
 #include "hw/holly/pvr2.h"
 #include "hw/sh4/sh4.h"
 
-namespace dreavm {
+namespace dvm {
 
 namespace renderer {
 class Backend;

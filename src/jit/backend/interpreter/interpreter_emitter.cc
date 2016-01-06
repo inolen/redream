@@ -3,11 +3,11 @@
 #include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/interpreter/interpreter_emitter.h"
 
-using namespace dreavm;
-using namespace dreavm::hw;
-using namespace dreavm::jit;
-using namespace dreavm::jit::backend::interpreter;
-using namespace dreavm::jit::ir;
+using namespace dvm;
+using namespace dvm::hw;
+using namespace dvm::jit;
+using namespace dvm::jit::backend::interpreter;
+using namespace dvm::jit::ir;
 
 static IntFn GetCallback(Instr &ir_i);
 
@@ -258,60 +258,54 @@ template <typename T>
 static inline T GetLocal(int offset);
 template <>
 inline int8_t GetLocal(int offset) {
-  return *reinterpret_cast<const int8_t *>(
-      &int_state.stack[int_state.sp + offset]);
+  return dvm::load<int8_t>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline int16_t GetLocal(int offset) {
-  return *reinterpret_cast<const int16_t *>(
-      &int_state.stack[int_state.sp + offset]);
+  return dvm::load<int16_t>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline int32_t GetLocal(int offset) {
-  return *reinterpret_cast<const int32_t *>(
-      &int_state.stack[int_state.sp + offset]);
+  return dvm::load<int32_t>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline int64_t GetLocal(int offset) {
-  return *reinterpret_cast<const int64_t *>(
-      &int_state.stack[int_state.sp + offset]);
+  return dvm::load<int64_t>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline float GetLocal(int offset) {
-  return *reinterpret_cast<const float *>(
-      &int_state.stack[int_state.sp + offset]);
+  return dvm::load<float>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline double GetLocal(int offset) {
-  return *reinterpret_cast<const double *>(
-      &int_state.stack[int_state.sp + offset]);
+  return dvm::load<double>(&int_state.stack[int_state.sp + offset]);
 }
 
 template <typename T>
 static inline void SetLocal(int offset, T v);
 template <>
 inline void SetLocal(int offset, int8_t v) {
-  *reinterpret_cast<int8_t *>(&int_state.stack[int_state.sp + offset]) = v;
+  dvm::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, int16_t v) {
-  *reinterpret_cast<int16_t *>(&int_state.stack[int_state.sp + offset]) = v;
+  dvm::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, int32_t v) {
-  *reinterpret_cast<int32_t *>(&int_state.stack[int_state.sp + offset]) = v;
+  dvm::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, int64_t v) {
-  *reinterpret_cast<int64_t *>(&int_state.stack[int_state.sp + offset]) = v;
+  dvm::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, float v) {
-  *reinterpret_cast<float *>(&int_state.stack[int_state.sp + offset]) = v;
+  dvm::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, double v) {
-  *reinterpret_cast<double *>(&int_state.stack[int_state.sp + offset]) = v;
+  dvm::store(&int_state.stack[int_state.sp + offset], v);
 }
 
 template <typename T, int ARG, int ACC>
@@ -349,7 +343,7 @@ struct helper<T, ARG, ACC_IMM> {
 //
 INT_CALLBACK(LOAD_CONTEXT) {
   A0 offset = LOAD_ARG0();
-  R v = *reinterpret_cast<R *>(reinterpret_cast<uint8_t *>(i->ctx) + offset);
+  R v = dvm::load<R>(reinterpret_cast<uint8_t *>(i->ctx) + offset);
   STORE_RESULT(v);
 }
 REGISTER_INT_CALLBACK(LOAD_CONTEXT, LOAD_CONTEXT, I8, I32, V);
@@ -362,7 +356,7 @@ REGISTER_INT_CALLBACK(LOAD_CONTEXT, LOAD_CONTEXT, F64, I32, V);
 INT_CALLBACK(STORE_CONTEXT) {
   A0 offset = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  *reinterpret_cast<A1 *>(reinterpret_cast<uint8_t *>(i->ctx) + offset) = v;
+  dvm::store(reinterpret_cast<uint8_t *>(i->ctx) + offset, v);
 }
 REGISTER_INT_CALLBACK(STORE_CONTEXT, STORE_CONTEXT, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE_CONTEXT, STORE_CONTEXT, V, I32, I16);
@@ -418,12 +412,12 @@ INT_CALLBACK(LOAD_I64) {
 INT_CALLBACK(LOAD_F32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   uint32_t v = reinterpret_cast<Memory *>(i->ctx)->R32(addr);
-  STORE_RESULT(*reinterpret_cast<float *>(&v));
+  STORE_RESULT(dvm::load<float>(&v));
 }
 INT_CALLBACK(LOAD_F64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   uint64_t v = reinterpret_cast<Memory *>(i->ctx)->R64(addr);
-  STORE_RESULT(*reinterpret_cast<double *>(&v));
+  STORE_RESULT(dvm::load<double>(&v));
 }
 REGISTER_INT_CALLBACK(LOAD, LOAD_I8, I8, I32, V);
 REGISTER_INT_CALLBACK(LOAD, LOAD_I16, I16, I32, V);
@@ -455,14 +449,12 @@ INT_CALLBACK(STORE_I64) {
 INT_CALLBACK(STORE_F32) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)
-      ->W32(addr, *reinterpret_cast<uint32_t *>(&v));
+  reinterpret_cast<Memory *>(i->ctx)->W32(addr, dvm::load<uint32_t>(&v));
 }
 INT_CALLBACK(STORE_F64) {
   uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
   A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)
-      ->W64(addr, *reinterpret_cast<uint64_t *>(&v));
+  reinterpret_cast<Memory *>(i->ctx)->W64(addr, dvm::load<uint64_t>(&v));
 }
 REGISTER_INT_CALLBACK(STORE, STORE_I8, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE, STORE_I16, V, I32, I16);

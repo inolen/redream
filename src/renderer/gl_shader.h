@@ -4,7 +4,7 @@
 #include <GL/glew.h>
 #include <SDL_opengl.h>
 
-namespace dreavm {
+namespace dvm {
 namespace renderer {
 
 enum UniformAttr {

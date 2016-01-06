@@ -2,7 +2,7 @@
 #include "core/core.h"
 #include "core/intrusive_list.h"
 
-using namespace dreavm;
+using namespace dvm;
 
 struct Person : public IntrusiveListNode<Person> {
   Person(const char *name) : name(name) {}

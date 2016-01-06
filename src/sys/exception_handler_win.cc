@@ -2,7 +2,7 @@
 #include "core/core.h"
 #include "sys/exception_handler_win.h"
 
-using namespace dreavm::sys;
+using namespace dvm::sys;
 
 static void CopyStateTo(PCONTEXT src, ThreadState *dst) {
   dst->rax = src->Rax;

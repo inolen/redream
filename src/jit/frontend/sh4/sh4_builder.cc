@@ -4,11 +4,11 @@
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_instr.h"
 
-using namespace dreavm::hw;
-using namespace dreavm::jit;
-using namespace dreavm::jit::frontend;
-using namespace dreavm::jit::frontend::sh4;
-using namespace dreavm::jit::ir;
+using namespace dvm::hw;
+using namespace dvm::jit;
+using namespace dvm::jit::frontend;
+using namespace dvm::jit::frontend::sh4;
+using namespace dvm::jit::ir;
 
 typedef void (*EmitCallback)(SH4Builder &b, const FPUState &,
                              const sh4::Instr &i);

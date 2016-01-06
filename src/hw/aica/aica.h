@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "hw/scheduler.h"
 
-namespace dreavm {
+namespace dvm {
 namespace hw {
 class Dreamcast;
 

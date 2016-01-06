@@ -4,7 +4,7 @@
 #include <memory>
 #include "hw/gdrom/disc.h"
 
-namespace dreavm {
+namespace dvm {
 namespace hw {
 namespace holly {
 class Holly;

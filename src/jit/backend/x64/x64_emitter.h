@@ -11,7 +11,7 @@ extern const Xbyak::Reg &int_arg0;
 extern const Xbyak::Reg &int_arg1;
 extern const Xbyak::Reg &int_arg2;
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace backend {
 namespace x64 {

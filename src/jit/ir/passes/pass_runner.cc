@@ -3,8 +3,8 @@
 #include "jit/ir/ir_builder.h"
 #include "jit/ir/passes/pass_runner.h"
 
-using namespace dreavm::jit::ir;
-using namespace dreavm::jit::ir::passes;
+using namespace dvm::jit::ir;
+using namespace dvm::jit::ir::passes;
 
 PassRunner::PassRunner() {}
 

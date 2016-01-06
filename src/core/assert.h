@@ -5,7 +5,7 @@
 #include "core/log.h"
 #include "core/platform.h"
 
-namespace dreavm {
+namespace dvm {
 
 // CHECK_* macros are usually true, hint this to the compiler if possible
 #if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)

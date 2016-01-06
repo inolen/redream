@@ -8,7 +8,7 @@
 #include "core/assert.h"
 #include "core/intrusive_tree.h"
 
-namespace dreavm {
+namespace dvm {
 
 typedef uintptr_t interval_type;
 

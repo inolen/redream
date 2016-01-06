@@ -4,8 +4,8 @@
 #include "hw/holly/tile_accelerator.h"
 #include "hw/holly/tile_renderer.h"
 
-using namespace dreavm::hw::holly;
-using namespace dreavm::renderer;
+using namespace dvm::hw::holly;
+using namespace dvm::renderer;
 
 static int compressed_mipmap_offsets[] = {
     0x00006,  // 8 x 8
@@ -252,31 +252,26 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
   for (int i = 0; i < 3; i++) {
     Vertex *v = verts[i] = AllocVert();
 
-    v->xyz[0] = *reinterpret_cast<const float *>(&tactx->bg_vertices[offset]);
-    v->xyz[1] =
-        *reinterpret_cast<const float *>(&tactx->bg_vertices[offset + 4]);
-    v->xyz[2] =
-        *reinterpret_cast<const float *>(&tactx->bg_vertices[offset + 8]);
+    v->xyz[0] = dvm::load<float>(&tactx->bg_vertices[offset]);
+    v->xyz[1] = dvm::load<float>(&tactx->bg_vertices[offset + 4]);
+    v->xyz[2] = dvm::load<float>(&tactx->bg_vertices[offset + 8]);
     offset += 12;
 
     if (tactx->bg_isp.texture) {
       LOG_FATAL("Unhandled");
-      // v->uv[0] = *reinterpret_cast<const float
-      // *>(&tactx->bg_vertices[offset]);
-      // v->uv[1] = *reinterpret_cast<const float *>(&tactx->bg_vertices[offset
-      // + 4]);
+      // v->uv[0] = dvm::load<float>(&tactx->bg_vertices[offset]);
+      // v->uv[1] = dvm::load<float>(&tactx->bg_vertices[offset + 4]);
       // offset += 8;
     }
 
-    uint32_t base_color =
-        *reinterpret_cast<const uint32_t *>(&tactx->bg_vertices[offset]);
+    uint32_t base_color = dvm::load<uint32_t>(&tactx->bg_vertices[offset]);
     v->color = abgr_to_rgba(base_color);
     offset += 4;
 
     if (tactx->bg_isp.offset) {
       LOG_FATAL("Unhandled");
-      // uint32_t offset_color = *reinterpret_cast<const uint32_t
-      // *>(&tactx->bg_vertices[offset]);
+      // uint32_t offset_color =
+      // dvm::load<uint32_t>(&tactx->bg_vertices[offset]);
       // v->offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
       // v->offset_color[1] = ((offset_color >> 16) & 0xff) / 255.0f;
       // v->offset_color[2] = ((offset_color >> 16) & 0xff) / 255.0f;
@@ -462,8 +457,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       ParseOffsetColor(param->type4.offset_color, &vert->offset_color);
       uint32_t u = param->type4.uv[0] << 16;
       uint32_t v = param->type4.uv[0] << 16;
-      vert->uv[0] = *reinterpret_cast<float *>(&u);
-      vert->uv[1] = *reinterpret_cast<float *>(&v);
+      vert->uv[0] = dvm::load<float>(&u);
+      vert->uv[1] = dvm::load<float>(&v);
     } break;
 
     case 5: {
@@ -494,8 +489,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
                        &vert->offset_color);
       uint32_t u = param->type6.uv[0] << 16;
       uint32_t v = param->type6.uv[0] << 16;
-      vert->uv[0] = *reinterpret_cast<float *>(&u);
-      vert->uv[1] = *reinterpret_cast<float *>(&v);
+      vert->uv[0] = dvm::load<float>(&u);
+      vert->uv[1] = dvm::load<float>(&v);
     } break;
 
     case 7: {
@@ -518,8 +513,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
       ParseOffsetColor(param->type8.offset_intensity, &vert->offset_color);
       uint32_t u = param->type8.uv[0] << 16;
       uint32_t v = param->type8.uv[0] << 16;
-      vert->uv[0] = *reinterpret_cast<float *>(&u);
-      vert->uv[1] = *reinterpret_cast<float *>(&v);
+      vert->uv[0] = dvm::load<float>(&u);
+      vert->uv[1] = dvm::load<float>(&v);
     } break;
 
     case 15:
@@ -548,8 +543,8 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
           u = (param->sprite1.uv[i] & 0xffff0000);
           v = (param->sprite1.uv[i] & 0x0000ffff) << 16;
         }
-        vert->uv[0] = *reinterpret_cast<float *>(&u);
-        vert->uv[1] = *reinterpret_cast<float *>(&v);
+        vert->uv[0] = dvm::load<float>(&u);
+        vert->uv[1] = dvm::load<float>(&v);
       };
 
       ParseSpriteVert(0, AllocVert());

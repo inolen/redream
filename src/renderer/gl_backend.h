@@ -9,7 +9,7 @@
 #include "renderer/gl_shader.h"
 #include "sys/window.h"
 
-namespace dreavm {
+namespace dvm {
 namespace renderer {
 
 enum {  //

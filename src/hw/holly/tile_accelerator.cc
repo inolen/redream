@@ -5,11 +5,11 @@
 #include "hw/memory.h"
 #include "trace/trace.h"
 
-using namespace dreavm;
-using namespace dreavm::hw;
-using namespace dreavm::hw::holly;
-using namespace dreavm::renderer;
-using namespace dreavm::trace;
+using namespace dvm;
+using namespace dvm::hw;
+using namespace dvm::hw::holly;
+using namespace dvm::renderer;
+using namespace dvm::trace;
 
 static void BuildLookupTables();
 static int GetParamSize_raw(const PCW &pcw, int vertex_type);
@@ -254,7 +254,7 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
   // completely received or not
   if (tactx->size % 32 == 0) {
     void *data = &tactx->data[tactx->cursor];
-    PCW pcw = *reinterpret_cast<PCW *>(data);
+    PCW pcw = dvm::load<PCW>(data);
 
     int size = GetParamSize(pcw, tactx->vertex_type);
     int recv = tactx->size - tactx->cursor;
@@ -328,7 +328,7 @@ void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
 
   addr &= 0xeeffffff;
 
-  *reinterpret_cast<uint32_t *>(&self->video_ram_[addr]) = value;
+  dvm::store(&self->video_ram_[addr], value);
 }
 
 TileContextIterator TileAccelerator::FindContext(uint32_t addr) {
@@ -398,7 +398,7 @@ void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
   vram_offset += 12;
 
   // get the background depth
-  tactx->bg_depth = *reinterpret_cast<float *>(&dc_->ISP_BACKGND_D);
+  tactx->bg_depth = dvm::load<float>(&dc_->ISP_BACKGND_D);
 
   // get the byte size for each vertex. normally, the byte size is
   // ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in

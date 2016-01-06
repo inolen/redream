@@ -5,7 +5,7 @@
 #include "core/core.h"
 #include "sys/filesystem.h"
 
-namespace dreavm {
+namespace dvm {
 namespace sys {
 
 const char *GetAppDir() {

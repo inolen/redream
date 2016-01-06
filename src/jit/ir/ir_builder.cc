@@ -3,10 +3,10 @@
 #include <unordered_map>
 #include "jit/ir/ir_builder.h"
 
-using namespace dreavm::jit;
-using namespace dreavm::jit::ir;
+using namespace dvm::jit;
+using namespace dvm::jit::ir;
 
-const char *dreavm::jit::ir::Opnames[NUM_OPCODES] = {
+const char *dvm::jit::ir::Opnames[NUM_OPCODES] = {
 #define IR_OP(name) #name,
 #include "jit/ir/ir_ops.inc"
 };
@@ -33,9 +33,9 @@ uint64_t Value::GetZExtValue() const {
     case VALUE_I64:
       return static_cast<uint64_t>(i64_);
     case VALUE_F32:
-      return *reinterpret_cast<const uint32_t *>(&f32_);
+      return dvm::load<uint32_t>(&f32_);
     case VALUE_F64:
-      return *reinterpret_cast<const uint64_t *>(&f64_);
+      return dvm::load<uint64_t>(&f64_);
   }
   return 0;
 }

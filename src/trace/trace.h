@@ -3,7 +3,7 @@
 
 #include "hw/holly/tile_accelerator.h"
 
-namespace dreavm {
+namespace dvm {
 namespace trace {
 
 enum TraceCommandType { TRACE_INSERT_TEXTURE, TRACE_RENDER_CONTEXT };

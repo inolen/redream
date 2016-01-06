@@ -4,11 +4,11 @@
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
-using namespace dreavm;
-using namespace dreavm::hw;
-using namespace dreavm::hw::gdrom;
-using namespace dreavm::hw::holly;
-using namespace dreavm::hw::sh4;
+using namespace dvm;
+using namespace dvm::hw;
+using namespace dvm::hw::gdrom;
+using namespace dvm::hw::holly;
+using namespace dvm::hw::sh4;
 
 #define SWAP_24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))

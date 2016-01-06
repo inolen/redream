@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace frontend {
 namespace sh4 {

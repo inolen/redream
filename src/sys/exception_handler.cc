@@ -3,7 +3,7 @@
 #include "emu/profiler.h"
 #include "sys/exception_handler.h"
 
-using namespace dreavm::sys;
+using namespace dvm::sys;
 
 ExceptionHandler::ExceptionHandler() : next_handle_(0) {}
 

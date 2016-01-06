@@ -3,7 +3,7 @@
 
 #include <vector>
 
-namespace dreavm {
+namespace dvm {
 namespace sys {
 
 // exception handler information

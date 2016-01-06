@@ -1,9 +1,9 @@
 #include "jit/frontend/sh4/sh4_frontend.h"
 
-using namespace dreavm::hw;
-using namespace dreavm::jit;
-using namespace dreavm::jit::frontend::sh4;
-using namespace dreavm::jit::ir;
+using namespace dvm::hw;
+using namespace dvm::jit;
+using namespace dvm::jit::frontend::sh4;
+using namespace dvm::jit::ir;
 
 SH4Frontend::SH4Frontend(Memory &memory) : Frontend(memory) {}
 

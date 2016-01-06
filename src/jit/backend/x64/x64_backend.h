@@ -4,7 +4,7 @@
 #include "jit/backend/backend.h"
 #include "jit/backend/x64/x64_emitter.h"
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace backend {
 namespace x64 {

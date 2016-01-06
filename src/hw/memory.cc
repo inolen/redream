@@ -1,9 +1,9 @@
 #include "core/core.h"
 #include "hw/memory.h"
 
-using namespace dreavm;
-using namespace dreavm::hw;
-using namespace dreavm::sys;
+using namespace dvm;
+using namespace dvm::hw;
+using namespace dvm::sys;
 
 static inline bool PageAligned(uint32_t start, uint32_t size) {
   return (start & (PAGE_OFFSET_BITS - 1)) == 0 &&
@@ -519,7 +519,7 @@ inline INT Memory::ReadBytes(uint32_t addr) {
   DCHECK(page);
 
   if (IsStaticRegion(page)) {
-    return *reinterpret_cast<INT *>(page + page_offset);
+    return dvm::load<INT>(RegionPointer(page) + page_offset);
   }
 
   MemoryRegion &region = regions_[RegionIndex(page)];
@@ -534,7 +534,7 @@ inline void Memory::WriteBytes(uint32_t addr, INT value) {
   DCHECK(page);
 
   if (IsStaticRegion(page)) {
-    *reinterpret_cast<INT *>(page + page_offset) = value;
+    dvm::store(RegionPointer(page) + page_offset, value);
     return;
   }
 

@@ -4,7 +4,7 @@
 #include "jit/backend/backend.h"
 #include "jit/backend/interpreter/interpreter_emitter.h"
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace backend {
 namespace interpreter {

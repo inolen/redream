@@ -2,7 +2,7 @@
 #include "core/core.h"
 #include "core/ring_buffer.h"
 
-using namespace dreavm;
+using namespace dvm;
 
 class RingTest : public ::testing::Test {
  public:

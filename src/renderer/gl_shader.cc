@@ -1,7 +1,7 @@
 #include "core/core.h"
 #include "renderer/gl_shader.h"
 
-namespace dreavm {
+namespace dvm {
 namespace renderer {
 
 #define GLSL_VERSION 330

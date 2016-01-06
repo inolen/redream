@@ -5,11 +5,11 @@
 #include "trace/trace.h"
 #include "trace/trace_viewer.h"
 
-using namespace dreavm;
-using namespace dreavm::hw::holly;
-using namespace dreavm::renderer;
-using namespace dreavm::sys;
-using namespace dreavm::trace;
+using namespace dvm;
+using namespace dvm::hw::holly;
+using namespace dvm::renderer;
+using namespace dvm::sys;
+using namespace dvm::trace;
 
 void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
                                    const uint8_t *palette,

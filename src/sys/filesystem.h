@@ -20,7 +20,7 @@
 
 #endif
 
-namespace dreavm {
+namespace dvm {
 namespace sys {
 
 bool GetUserDir(char *userdir, size_t size);

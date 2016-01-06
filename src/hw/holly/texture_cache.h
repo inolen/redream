@@ -8,7 +8,7 @@
 #include "hw/memory.h"
 #include "renderer/backend.h"
 
-namespace dreavm {
+namespace dvm {
 namespace trace {
 class TraceWriter;
 }

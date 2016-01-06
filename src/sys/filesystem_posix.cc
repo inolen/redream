@@ -8,7 +8,7 @@
 #include "core/core.h"
 #include "sys/filesystem.h"
 
-namespace dreavm {
+namespace dvm {
 namespace sys {
 
 bool GetUserDir(char *userdir, size_t size) {

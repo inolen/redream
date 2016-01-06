@@ -3,10 +3,10 @@
 #include "hw/holly/tile_accelerator.h"
 #include "hw/dreamcast.h"
 
-using namespace dreavm::hw;
-using namespace dreavm::hw::holly;
-using namespace dreavm::hw::sh4;
-using namespace dreavm::renderer;
+using namespace dvm::hw;
+using namespace dvm::hw::holly;
+using namespace dvm::hw::sh4;
+using namespace dvm::renderer;
 
 PVR2::PVR2(Dreamcast *dc)
     : dc_(dc), line_cycles_(0), current_scanline_(0), rps_(0.0f) {}
@@ -123,7 +123,7 @@ T PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr) {
 
   addr = MAP64(addr);
 
-  return *reinterpret_cast<T *>(&self->video_ram_[addr]);
+  return dvm::load<T>(&self->video_ram_[addr]);
 }
 
 template void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr,
@@ -136,7 +136,7 @@ void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr, T value) {
 
   addr = MAP64(addr);
 
-  *reinterpret_cast<T *>(&self->video_ram_[addr]) = value;
+  dvm::store(&self->video_ram_[addr], value);
 }
 
 void PVR2::ReconfigureSPG() {

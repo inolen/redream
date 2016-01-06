@@ -5,7 +5,7 @@
 #include "renderer/backend.h"
 #include "sys/window.h"
 
-namespace dreavm {
+namespace dvm {
 namespace emu {
 
 enum {

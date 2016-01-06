@@ -1,9 +1,9 @@
 #include "core/core.h"
 #include "jit/frontend/sh4/sh4_instr.h"
 
-using namespace dreavm;
+using namespace dvm;
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace frontend {
 namespace sh4 {

@@ -4,7 +4,7 @@
 #include <thread>
 #include "sys/exception_handler.h"
 
-namespace dreavm {
+namespace dvm {
 namespace sys {
 
 class ExceptionHandlerLinux : public ExceptionHandler {

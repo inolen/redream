@@ -2,7 +2,7 @@
 #include <chrono>
 #include "hw/scheduler.h"
 
-using namespace dreavm::hw;
+using namespace dvm::hw;
 
 Scheduler::Scheduler() : base_time_() {}
 

@@ -16,7 +16,7 @@
 #define REP_4096(l, x, r) REP_2048(l, x, r), REP_2048(l, x + 2048, r)
 #define REP_8192(l, x, r) REP_4096(l, x, r), REP_4096(l, x + 4096, r)
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace backend {
 namespace interpreter {

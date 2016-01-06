@@ -3,7 +3,7 @@
 
 #include "hw/maple/maple.h"
 
-namespace dreavm {
+namespace dvm {
 namespace hw {
 namespace maple {
 

@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include "core/assert.h"
 
-namespace dreavm {
+namespace dvm {
 
 enum Color { RED = true, BLACK = false };
 

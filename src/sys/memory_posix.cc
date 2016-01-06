@@ -6,7 +6,7 @@
 #include "core/core.h"
 #include "sys/memory.h"
 
-namespace dreavm {
+namespace dvm {
 namespace sys {
 
 static std::unordered_map<int, std::string> shared_handles;

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-namespace dreavm {
+namespace dvm {
 namespace hw {
 namespace gdrom {
 class GDROM;

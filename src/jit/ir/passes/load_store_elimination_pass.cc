@@ -2,8 +2,8 @@
 #include "emu/profiler.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 
-using namespace dreavm::jit::ir;
-using namespace dreavm::jit::ir::passes;
+using namespace dvm::jit::ir;
+using namespace dvm::jit::ir::passes;
 
 void LoadStoreEliminationPass::Run(IRBuilder &builder) {
   PROFILER_RUNTIME("LoadStoreEliminationPass::Run");

@@ -1,3 +1,5 @@
+// clang-format off
+
 /* Copyright (c) 2011-2015, Scott Tsai
 *
 * All rights reserved.
@@ -134,3 +136,5 @@ extern "C" {
 #endif
 
 #endif
+
+// clang-format on

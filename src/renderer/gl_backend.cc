@@ -6,9 +6,9 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 
-using namespace dreavm;
-using namespace dreavm::renderer;
-using namespace dreavm::sys;
+using namespace dvm;
+using namespace dvm::renderer;
+using namespace dvm::sys;
 
 #include "inconsolata_ttf.inc"
 #include "renderer/ta.glsl"

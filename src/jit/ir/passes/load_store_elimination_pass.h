@@ -4,7 +4,7 @@
 #include <vector>
 #include "jit/ir/passes/pass_runner.h"
 
-namespace dreavm {
+namespace dvm {
 namespace jit {
 namespace ir {
 namespace passes {

@@ -4,7 +4,7 @@
 #include <functional>
 #include "core/platform.h"
 
-namespace dreavm {
+namespace dvm {
 
 template <typename T>
 T align(T v, T alignment) {

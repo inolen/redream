@@ -8,6 +8,7 @@
 #include "core/debug_break.h"
 #include "core/log.h"
 #include "core/math.h"
+#include "core/memory.h"
 #include "core/platform.h"
 #include "core/string.h"
 
