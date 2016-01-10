@@ -6,6 +6,8 @@
 
 using namespace dvm;
 using namespace dvm::hw;
+using namespace dvm::jit;
+using namespace dvm::jit::backend;
 using namespace dvm::jit::backend::x64;
 using namespace dvm::jit::ir;
 
@@ -17,10 +19,10 @@ using namespace dvm::jit::ir;
 // %rcx %ecx %cx %cl      <-- argument
 // %rdx %edx %dx %dl      <-- argument
 // %rbx %ebx %bx %bl      <-- available, callee saved
-// %rsi %esi %si %sil     <-- argument
-// %rdi %edi %di %dil     <-- argument
 // %rsp %esp %sp %spl     <-- reserved
 // %rbp %ebp %bp %bpl     <-- available, callee saved
+// %rsi %esi %si %sil     <-- argument
+// %rdi %edi %di %dil     <-- argument
 // %r8 %r8d %r8w %r8b     <-- argument
 // %r9 %r9d %r9w %r9b     <-- argument
 // %r10 %r10d %r10w %r10b <-- available, not callee saved
@@ -94,63 +96,37 @@ static const Xbyak::Reg *callee_save_map[] = {
     nullptr,           nullptr,
     nullptr,           nullptr};
 
-#ifdef PLATFORM_WINDOWS
-const Xbyak::Reg &int_arg0 = Xbyak::util::rcx;
-const Xbyak::Reg &int_arg1 = Xbyak::util::rdx;
-const Xbyak::Reg &int_arg2 = Xbyak::util::r8;
-#else
-const Xbyak::Reg &int_arg0 = Xbyak::util::rdi;
-const Xbyak::Reg &int_arg1 = Xbyak::util::rsi;
-const Xbyak::Reg &int_arg2 = Xbyak::util::rdx;
-#endif
+const Xbyak::Reg64 int_arg0(Xbyak::Operand::INT_ARG0);
+const Xbyak::Reg64 int_arg1(Xbyak::Operand::INT_ARG1);
+const Xbyak::Reg64 int_arg2(Xbyak::Operand::INT_ARG2);
 
 // get and set Xbyak::Labels in the IR block's tag
 #define GetLabel(blk) (*reinterpret_cast<Xbyak::Label *>(blk->tag()))
 #define SetLabel(blk, lbl) (blk->set_tag(reinterpret_cast<intptr_t>(lbl)))
 
 // callbacks for emitting each IR op
-typedef void (*X64Emit)(X64Emitter &, Memory &, const Instr *);
+typedef void (*X64Emit)(X64Emitter &, const Instr *);
 
 static X64Emit x64_emitters[NUM_OPCODES];
 
-#define EMITTER(op)                                           \
-  void op(X64Emitter &e, Memory &memory, const Instr *instr); \
-  static struct _x64_##op##_init {                            \
-    _x64_##op##_init() { x64_emitters[OP_##op] = &op; }       \
-  } x64_##op##_init;                                          \
-  void op(X64Emitter &e, Memory &memory, const Instr *instr)
+#define EMITTER(op)                                     \
+  void op(X64Emitter &, const Instr *);                 \
+  static struct _x64_##op##_init {                      \
+    _x64_##op##_init() { x64_emitters[OP_##op] = &op; } \
+  } x64_##op##_init;                                    \
+  void op(X64Emitter &e, const Instr *instr)
 
-X64Emitter::X64Emitter(Memory &memory, size_t max_size)
-    : CodeGenerator(max_size), memory_(memory), arena_(1024) {
-  modified_marker_ = 0;
+X64Emitter::X64Emitter(size_t max_size)
+    : CodeGenerator(max_size),
+      arena_(1024),
+      source_map_(nullptr),
+      memory_(nullptr),
+      guest_ctx_(nullptr),
+      block_flags_(0),
+      epilog_label_(nullptr) {
   modified_ = new int[x64_num_registers];
 
   Reset();
-}
-
-// helpers for accessing memory
-uint8_t R8(Memory *memory, uint32_t addr) { return memory->R8(addr); }
-
-uint16_t R16(Memory *memory, uint32_t addr) { return memory->R16(addr); }
-
-uint32_t R32(Memory *memory, uint32_t addr) { return memory->R32(addr); }
-
-uint64_t R64(Memory *memory, uint32_t addr) { return memory->R64(addr); }
-
-void W8(Memory *memory, uint32_t addr, uint8_t value) {
-  memory->W8(addr, value);
-}
-
-void W16(Memory *memory, uint32_t addr, uint16_t value) {
-  memory->W16(addr, value);
-}
-
-void W32(Memory *memory, uint32_t addr, uint32_t value) {
-  memory->W32(addr, value);
-}
-
-void W64(Memory *memory, uint32_t addr, uint64_t value) {
-  memory->W64(addr, value);
 }
 
 X64Emitter::~X64Emitter() { delete[] modified_; }
@@ -162,19 +138,24 @@ void X64Emitter::Reset() {
   memset(modified_, modified_marker_, sizeof(int) * x64_num_registers);
 }
 
-X64Fn X64Emitter::Emit(IRBuilder &builder, void *guest_ctx) {
+BlockPointer X64Emitter::Emit(IRBuilder &builder, SourceMap &source_map,
+                              Memory &memory, void *guest_ctx,
+                              int block_flags) {
   PROFILER_RUNTIME("X64Emitter::Emit");
+
+  // save off parameters for ease of access
+  source_map_ = &source_map;
+  memory_ = &memory;
+  guest_ctx_ = guest_ctx;
+  block_flags_ = block_flags;
 
   // getCurr returns the current spot in the codegen buffer which the function
   // is about to emitted to
-  X64Fn fn = getCurr<X64Fn>();
+  BlockPointer fn = getCurr<BlockPointer>();
 
   // reset emit state
   arena_.Reset();
   epilog_label_ = AllocLabel();
-
-  // save guest context
-  guest_ctx_ = guest_ctx;
 
   int stack_size = 0;
   EmitProlog(builder, &stack_size);
@@ -183,18 +164,6 @@ X64Fn X64Emitter::Emit(IRBuilder &builder, void *guest_ctx) {
   ready();
 
   return fn;
-}
-
-Xbyak::Label *X64Emitter::AllocLabel() {
-  Xbyak::Label *label = arena_.Alloc<Xbyak::Label>();
-  new (label) Xbyak::Label();
-  return label;
-}
-
-Xbyak::Address *X64Emitter::AllocAddress(const Xbyak::Address &from) {
-  Xbyak::Address *addr = arena_.Alloc<Xbyak::Address>();
-  new (addr) Xbyak::Address(from);
-  return addr;
 }
 
 void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
@@ -260,7 +229,7 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
 
   // copy guest context and memory base to argument registers
   mov(int_arg0, reinterpret_cast<uintptr_t>(guest_ctx_));
-  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_.protected_base()));
+  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_->protected_base()));
 
   *out_stack_size = stack_size;
 }
@@ -279,7 +248,7 @@ void X64Emitter::EmitBody(IRBuilder &builder) {
     for (auto instr : block->instrs()) {
       X64Emit emit = x64_emitters[instr->op()];
       CHECK(emit, "Failed to find emitter for %s", Opnames[instr->op()]);
-      emit(*this, memory_, instr);
+      emit(*this, instr);
     }
   }
 }
@@ -451,6 +420,12 @@ const Xbyak::Operand &X64Emitter::CopyOperand(const Value *v,
   return to;
 }
 
+Xbyak::Label *X64Emitter::AllocLabel() {
+  Xbyak::Label *label = arena_.Alloc<Xbyak::Label>();
+  new (label) Xbyak::Label();
+  return label;
+}
+
 bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
   if (!v->constant()) {
     return false;
@@ -462,7 +437,7 @@ bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
 void X64Emitter::RestoreArgs() {
   // restore registers that are not callee-saved
   mov(int_arg0, reinterpret_cast<uintptr_t>(guest_ctx_));
-  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_.protected_base()));
+  mov(int_arg1, reinterpret_cast<uintptr_t>(memory_->protected_base()));
 }
 
 EMITTER(LOAD_CONTEXT) {
@@ -659,7 +634,7 @@ EMITTER(LOAD) {
     MemoryRegion *region = nullptr;
     uint32_t offset = 0;
 
-    memory.Lookup(addr, &host_addr, &region, &offset);
+    e.memory().Lookup(addr, &host_addr, &region, &offset);
 
     // if the address maps to a physical page, not a dynamic handler, make it
     // fast
@@ -691,62 +666,57 @@ EMITTER(LOAD) {
     }
   }
 
-  Xbyak::Label *end_label = e.AllocLabel();
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
 
-  //
-  // fast path, will be nop'd out if a dynamic handler needs to be called
-  //
-  switch (instr->result()->type()) {
-    case VALUE_I8:
-      e.mov(result, e.byte[a.cvt64() + int_arg1]);
-      break;
-    case VALUE_I16:
-      e.mov(result, e.word[a.cvt64() + int_arg1]);
-      break;
-    case VALUE_I32:
-      e.mov(result, e.dword[a.cvt64() + int_arg1]);
-      break;
-    case VALUE_I64:
-      e.mov(result, e.qword[a.cvt64() + int_arg1]);
-      break;
-    default:
-      LOG_FATAL("Unexpected load result type");
-      break;
+  if (e.block_flags() & BF_SLOWMEM) {
+    void *fn = nullptr;
+    switch (instr->result()->type()) {
+      case VALUE_I8:
+        fn = reinterpret_cast<void *>(
+            static_cast<uint8_t (*)(Memory *, uint32_t)>(&Memory::R8));
+        break;
+      case VALUE_I16:
+        fn = reinterpret_cast<void *>(
+            static_cast<uint16_t (*)(Memory *, uint32_t)>(&Memory::R16));
+        break;
+      case VALUE_I32:
+        fn = reinterpret_cast<void *>(
+            static_cast<uint32_t (*)(Memory *, uint32_t)>(&Memory::R32));
+        break;
+      case VALUE_I64:
+        fn = reinterpret_cast<void *>(
+            static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
+        break;
+      default:
+        LOG_FATAL("Unexpected load result type");
+        break;
+    }
+
+    e.mov(int_arg0, reinterpret_cast<uintptr_t>(&e.memory()));
+    e.mov(int_arg1, a);
+    e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
+    e.call(e.rax);
+    e.mov(result, e.rax);
+    e.RestoreArgs();
+  } else {
+    switch (instr->result()->type()) {
+      case VALUE_I8:
+        e.mov(result, e.byte[a.cvt64() + int_arg1]);
+        break;
+      case VALUE_I16:
+        e.mov(result, e.word[a.cvt64() + int_arg1]);
+        break;
+      case VALUE_I32:
+        e.mov(result, e.dword[a.cvt64() + int_arg1]);
+        break;
+      case VALUE_I64:
+        e.mov(result, e.qword[a.cvt64() + int_arg1]);
+        break;
+      default:
+        LOG_FATAL("Unexpected load result type");
+        break;
+    }
   }
-
-  e.jmp(*end_label);
-
-  //
-  // slow path
-  //
-  void *fn = nullptr;
-  switch (instr->result()->type()) {
-    case VALUE_I8:
-      fn = reinterpret_cast<void *>(&R8);
-      break;
-    case VALUE_I16:
-      fn = reinterpret_cast<void *>(&R16);
-      break;
-    case VALUE_I32:
-      fn = reinterpret_cast<void *>(&R32);
-      break;
-    case VALUE_I64:
-      fn = reinterpret_cast<void *>(&R64);
-      break;
-    default:
-      LOG_FATAL("Unexpected load result type");
-      break;
-  }
-
-  e.mov(int_arg0, reinterpret_cast<uintptr_t>(&memory));
-  e.mov(int_arg1, a);
-  e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
-  e.call(e.rax);
-  e.mov(result, e.rax);
-  e.RestoreArgs();
-
-  e.L(*end_label);
 }
 
 EMITTER(STORE) {
@@ -757,7 +727,7 @@ EMITTER(STORE) {
     MemoryRegion *bank = nullptr;
     uint32_t offset = 0;
 
-    memory.Lookup(addr, &host_addr, &bank, &offset);
+    e.memory().Lookup(addr, &host_addr, &bank, &offset);
 
     if (host_addr) {
       const Xbyak::Reg &b = e.GetRegister(instr->arg1());
@@ -789,63 +759,58 @@ EMITTER(STORE) {
     }
   }
 
-  Xbyak::Label *end_label = e.AllocLabel();
   const Xbyak::Reg &a = e.GetRegister(instr->arg0());
   const Xbyak::Reg &b = e.GetRegister(instr->arg1());
 
-  //
-  // fast path, will be nop'd out if a dynamic handler needs to be called
-  //
-  switch (instr->arg1()->type()) {
-    case VALUE_I8:
-      e.mov(e.byte[a.cvt64() + int_arg1], b);
-      break;
-    case VALUE_I16:
-      e.mov(e.word[a.cvt64() + int_arg1], b);
-      break;
-    case VALUE_I32:
-      e.mov(e.dword[a.cvt64() + int_arg1], b);
-      break;
-    case VALUE_I64:
-      e.mov(e.qword[a.cvt64() + int_arg1], b);
-      break;
-    default:
-      LOG_FATAL("Unexpected store value type");
-      break;
+  if (e.block_flags() & BF_SLOWMEM) {
+    void *fn = nullptr;
+    switch (instr->arg1()->type()) {
+      case VALUE_I8:
+        fn = reinterpret_cast<void *>(
+            static_cast<void (*)(Memory *, uint32_t, uint8_t)>(&Memory::W8));
+        break;
+      case VALUE_I16:
+        fn = reinterpret_cast<void *>(
+            static_cast<void (*)(Memory *, uint32_t, uint16_t)>(&Memory::W16));
+        break;
+      case VALUE_I32:
+        fn = reinterpret_cast<void *>(
+            static_cast<void (*)(Memory *, uint32_t, uint32_t)>(&Memory::W32));
+        break;
+      case VALUE_I64:
+        fn = reinterpret_cast<void *>(
+            static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
+        break;
+      default:
+        LOG_FATAL("Unexpected store value type");
+        break;
+    }
+
+    e.mov(int_arg0, reinterpret_cast<uintptr_t>(&e.memory()));
+    e.mov(int_arg1, a);
+    e.mov(int_arg2, b);
+    e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
+    e.call(e.rax);
+    e.RestoreArgs();
+  } else {
+    switch (instr->arg1()->type()) {
+      case VALUE_I8:
+        e.mov(e.byte[a.cvt64() + int_arg1], b);
+        break;
+      case VALUE_I16:
+        e.mov(e.word[a.cvt64() + int_arg1], b);
+        break;
+      case VALUE_I32:
+        e.mov(e.dword[a.cvt64() + int_arg1], b);
+        break;
+      case VALUE_I64:
+        e.mov(e.qword[a.cvt64() + int_arg1], b);
+        break;
+      default:
+        LOG_FATAL("Unexpected store value type");
+        break;
+    }
   }
-
-  e.jmp(*end_label);
-
-  //
-  // slow path
-  //
-  void *fn = nullptr;
-  switch (instr->arg1()->type()) {
-    case VALUE_I8:
-      fn = reinterpret_cast<void *>(&W8);
-      break;
-    case VALUE_I16:
-      fn = reinterpret_cast<void *>(&W16);
-      break;
-    case VALUE_I32:
-      fn = reinterpret_cast<void *>(&W32);
-      break;
-    case VALUE_I64:
-      fn = reinterpret_cast<void *>(&W64);
-      break;
-    default:
-      LOG_FATAL("Unexpected store value type");
-      break;
-  }
-
-  e.mov(int_arg0, reinterpret_cast<uintptr_t>(&memory));
-  e.mov(int_arg1, a);
-  e.mov(int_arg2, b);
-  e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
-  e.call(e.rax);
-  e.RestoreArgs();
-
-  e.L(*end_label);
 }
 
 EMITTER(CAST) {
@@ -1695,4 +1660,16 @@ EMITTER(CALL_EXTERNAL) {
   e.CopyOperand(instr->arg0(), e.rax);
   e.call(e.rax);
   e.RestoreArgs();
+}
+
+EMITTER(GUEST_ADDRESS) {
+  uintptr_t host_addr = reinterpret_cast<uintptr_t>(e.getCurr());
+  uint32_t guest_addr = instr->arg0()->value<int32_t>();
+
+  // if this is the very first instruction, mark the start of the block
+  if (!instr->prev()) {
+    e.source_map().AddBlockAddress(host_addr, guest_addr);
+  }
+
+  e.source_map().AddLineAddress(host_addr, guest_addr);
 }

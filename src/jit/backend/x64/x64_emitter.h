@@ -1,20 +1,26 @@
 #ifndef X64_EMITTER_H
 #define X64_EMITTER_H
 
-#include <memory>
 #include <xbyak/xbyak.h>
 #include "core/arena.h"
 #include "core/platform.h"
 #include "hw/memory.h"
-
-extern const Xbyak::Reg &int_arg0;
-extern const Xbyak::Reg &int_arg1;
-extern const Xbyak::Reg &int_arg2;
+#include "jit/source_map.h"
 
 namespace dvm {
 namespace jit {
 namespace backend {
 namespace x64 {
+
+#ifdef PLATFORM_WINDOWS
+#define INT_ARG0 RCX
+#define INT_ARG1 RDX
+#define INT_ARG2 R8
+#else
+#define INT_ARG0 RDI
+#define INT_ARG1 RSI
+#define INT_ARG2 RDX
+#endif
 
 enum {
 #ifdef PLATFORM_WINDOWS
@@ -27,18 +33,20 @@ enum {
   STACK_SIZE = STACK_OFFSET_LOCALS
 };
 
-typedef uint32_t (*X64Fn)(hw::Memory *, void *);
-
 class X64Emitter : public Xbyak::CodeGenerator {
  public:
-  X64Emitter(hw::Memory &memory, size_t max_size);
+  X64Emitter(size_t max_size);
   ~X64Emitter();
 
   Xbyak::Label &epilog_label() { return *epilog_label_; }
+  SourceMap &source_map() { return *source_map_; }
+  hw::Memory &memory() { return *memory_; }
+  int block_flags() { return block_flags_; }
 
   void Reset();
 
-  X64Fn Emit(ir::IRBuilder &builder, void *guest_ctx);
+  BlockPointer Emit(ir::IRBuilder &builder, SourceMap &source_map,
+                    hw::Memory &memory, void *guest_ctx, int block_flags);
 
   // helpers for the emitter callbacks
   const Xbyak::Operand &GetOperand(const ir::Value *v, int size = -1);
@@ -47,21 +55,22 @@ class X64Emitter : public Xbyak::CodeGenerator {
   const Xbyak::Operand &CopyOperand(const ir::Value *v,
                                     const Xbyak::Operand &to);
 
+  Xbyak::Label *AllocLabel();
+
   bool CanEncodeAsImmediate(const ir::Value *v) const;
   void RestoreArgs();
 
   // private:
-  Xbyak::Label *AllocLabel();
-  Xbyak::Address *AllocAddress(const Xbyak::Address &addr);
-
   void EmitProlog(ir::IRBuilder &builder, int *stack_size);
   void EmitBody(ir::IRBuilder &builder);
   void EmitEpilog(ir::IRBuilder &builder, int stack_size);
 
-  hw::Memory &memory_;
   Arena arena_;
-  Xbyak::Label *epilog_label_;
+  SourceMap *source_map_;
+  hw::Memory *memory_;
   void *guest_ctx_;
+  int block_flags_;
+  Xbyak::Label *epilog_label_;
   int modified_marker_;
   int *modified_;
 };

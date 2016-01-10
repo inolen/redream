@@ -54,15 +54,17 @@ void InterpreterBackend::Reset() {
 }
 
 BlockPointer InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
-                                               void *guest_ctx) {
+                                               SourceMap &source_map,
+                                               void *guest_ctx,
+                                               int block_flags) {
   int idx = int_num_blocks++;
   if (idx >= MAX_INT_BLOCKS) {
     return nullptr;
   }
 
   InterpreterBlock *block = &int_blocks[idx];
-  if (!emitter_.Emit(builder, guest_ctx, &block->instrs, &block->num_instrs,
-                     &block->locals_size)) {
+  if (!emitter_.Emit(builder, guest_ctx, source_map, &block->instrs,
+                     &block->num_instrs, &block->locals_size)) {
     return nullptr;
   }
 
@@ -73,4 +75,7 @@ void InterpreterBackend::DumpBlock(BlockPointer block) {
   LOG_WARNING("Not implemented");
 }
 
-bool InterpreterBackend::HandleException(Exception &ex) { return false; }
+bool InterpreterBackend::HandleException(BlockPointer block, int *block_flags,
+                                         Exception &ex) {
+  return false;
+}

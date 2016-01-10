@@ -24,8 +24,8 @@ InterpreterEmitter::~InterpreterEmitter() { delete[] codegen_begin_; }
 void InterpreterEmitter::Reset() { codegen_ = codegen_begin_; }
 
 bool InterpreterEmitter::Emit(ir::IRBuilder &builder, void *guest_ctx,
-                              IntInstr **instr, int *num_instr,
-                              int *locals_size) {
+                              SourceMap &source_map, IntInstr **instr,
+                              int *num_instr, int *locals_size) {
   guest_ctx_ = guest_ctx;
 
   // do an initial pass assigning ordinals to instructions so local branches
@@ -886,6 +886,9 @@ INT_CALLBACK(CALL_EXTERNAL2) {
 }
 REGISTER_INT_CALLBACK(CALL_EXTERNAL, CALL_EXTERNAL1, V, I64, V);
 REGISTER_INT_CALLBACK(CALL_EXTERNAL, CALL_EXTERNAL2, V, I64, I64);
+
+INT_CALLBACK(GUEST_ADDRESS) {}
+REGISTER_INT_CALLBACK(GUEST_ADDRESS, GUEST_ADDRESS, V, I32, V);
 
 //
 // lookup callback for ir instruction

@@ -6,13 +6,13 @@ using namespace dvm::sys;
 
 static void CopyStateTo(PCONTEXT src, ThreadState *dst) {
   dst->rax = src->Rax;
-  dst->rbx = src->Rbx;
   dst->rcx = src->Rcx;
   dst->rdx = src->Rdx;
-  dst->rdi = src->Rdi;
-  dst->rsi = src->Rsi;
-  dst->rbp = src->Rbp;
+  dst->rbx = src->Rbx;
   dst->rsp = src->Rsp;
+  dst->rbp = src->Rbp;
+  dst->rsi = src->Rsi;
+  dst->rdi = src->Rdi;
   dst->r8 = src->R8;
   dst->r9 = src->R9;
   dst->r10 = src->R10;
@@ -26,13 +26,13 @@ static void CopyStateTo(PCONTEXT src, ThreadState *dst) {
 
 static void CopyStateFrom(ThreadState *src, PCONTEXT dst) {
   dst->Rax = src->rax;
-  dst->Rbx = src->rbx;
   dst->Rcx = src->rcx;
   dst->Rdx = src->rdx;
-  dst->Rdi = src->rdi;
-  dst->Rsi = src->rsi;
-  dst->Rbp = src->rbp;
+  dst->Rbx = src->rbx;
   dst->Rsp = src->rsp;
+  dst->Rbp = src->rbp;
+  dst->Rsi = src->rsi;
+  dst->Rdi = src->rdi;
   dst->R8 = src->r8;
   dst->R9 = src->r9;
   dst->R10 = src->r10;
@@ -55,6 +55,7 @@ static LONG CALLBACK WinExceptionHandler(PEXCEPTION_POINTERS ex_info) {
   ex.type = code == STATUS_ACCESS_VIOLATION ? EX_ACCESS_VIOLATION
                                             : EX_INVALID_INSTRUCTION;
   ex.fault_addr = ex_info->ExceptionRecord->ExceptionInformation[1];
+  ex.pc = ex_info->ContextRecord->Rip;
   CopyStateTo(ex_info->ContextRecord, &ex.thread_state);
 
   // call exception handler, letting it potentially update the thread state

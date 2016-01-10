@@ -35,10 +35,12 @@ class InterpreterBackend : public Backend {
   int num_registers() const;
 
   void Reset();
-  BlockPointer AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
+  BlockPointer AssembleBlock(ir::IRBuilder &builder, SourceMap &source_map,
+                             void *guest_ctx, int block_flags);
   void DumpBlock(BlockPointer block);
 
-  bool HandleException(sys::Exception &ex);
+  bool HandleException(BlockPointer block, int *block_flags,
+                       sys::Exception &ex);
 
  private:
   InterpreterEmitter emitter_;

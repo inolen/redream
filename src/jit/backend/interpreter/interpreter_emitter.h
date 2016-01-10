@@ -36,8 +36,8 @@ class InterpreterEmitter {
 
   void Reset();
 
-  bool Emit(ir::IRBuilder &builder, void *guest_ctx, IntInstr **instr,
-            int *num_instr, int *locals_size);
+  bool Emit(ir::IRBuilder &builder, void *guest_ctx, SourceMap &source_map,
+            IntInstr **instr, int *num_instr, int *locals_size);
 
  private:
   hw::Memory &memory_;

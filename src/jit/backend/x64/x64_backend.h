@@ -21,10 +21,12 @@ class X64Backend : public Backend {
   int num_registers() const;
 
   void Reset();
-  BlockPointer AssembleBlock(ir::IRBuilder &builder, void *guest_ctx);
-  void DumpBlock(BlockPointer block);
 
-  bool HandleException(sys::Exception &ex);
+  BlockPointer AssembleBlock(ir::IRBuilder &builder, SourceMap &source_map,
+                             void *guest_ctx, int block_flags);
+  void DumpBlock(BlockPointer block);
+  bool HandleException(BlockPointer block, int *block_flags,
+                       sys::Exception &ex);
 
  private:
   X64Emitter emitter_;

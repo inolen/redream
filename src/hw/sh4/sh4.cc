@@ -26,8 +26,8 @@ static SH4 *current_cpu = nullptr;
 uint32_t SH4::CompilePC() {
   SH4CodeCache &code_cache = current_cpu->code_cache_;
   SH4Context &ctx = current_cpu->ctx_;
-  BlockPointer run = code_cache.CompileBlock(ctx.pc, &ctx);
-  return run();
+  BlockEntry *block = code_cache.CompileBlock(ctx.pc, &ctx);
+  return block->run();
 }
 
 SH4::SH4(Memory &memory)
@@ -85,8 +85,8 @@ int SH4::Run(int cycles) {
   ctx_.cycles = cycles;
 
   while (ctx_.cycles > 0) {
-    BlockPointer run = code_cache_.GetBlock(ctx_.pc);
-    ctx_.pc = run();
+    BlockEntry *block = code_cache_.GetBlock(ctx_.pc);
+    ctx_.pc = block->run();
 
     CheckPendingCacheReset();
     CheckPendingInterrupts();

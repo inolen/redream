@@ -45,9 +45,13 @@ SH4CodeCache::SH4CodeCache(Memory &memory, BlockPointer default_block)
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
 
-  // initialize all entries in block cache to reference the compile block
-  blocks_ = new BlockPointer[MAX_BLOCKS];
-  std::fill_n(blocks_, MAX_BLOCKS, default_block_);
+  // initialize all entries in block cache to reference the default block
+  blocks_ = new BlockEntry[MAX_BLOCKS]();
+
+  for (int i = 0; i < MAX_BLOCKS; i++) {
+    BlockEntry *block = &blocks_[i];
+    block->run = default_block_;
+  }
 }
 
 SH4CodeCache::~SH4CodeCache() {
@@ -59,18 +63,20 @@ SH4CodeCache::~SH4CodeCache() {
   delete[] blocks_;
 }
 
-BlockPointer SH4CodeCache::CompileBlock(uint32_t addr, void *guest_ctx) {
+BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, void *guest_ctx) {
   PROFILER_RUNTIME("SH4CodeCache::CompileBlock");
+
+  BlockEntry *block = &blocks_[BLOCK_OFFSET(addr)];
 
   std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr, guest_ctx);
 
-  // run optimization passes
   pass_runner_.Run(*builder);
 
   // try to assemble the block
-  BlockPointer block = backend_->AssembleBlock(*builder, guest_ctx);
+  BlockPointer run =
+      backend_->AssembleBlock(*builder, source_map_, guest_ctx, block->flags);
 
-  if (!block) {
+  if (!run) {
     LOG_INFO("Assembler overflow, resetting block cache");
 
     // the backend overflowed, reset the block cache
@@ -78,34 +84,54 @@ BlockPointer SH4CodeCache::CompileBlock(uint32_t addr, void *guest_ctx) {
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
-    block = backend_->AssembleBlock(*builder, guest_ctx);
+    run =
+        backend_->AssembleBlock(*builder, source_map_, guest_ctx, block->flags);
 
-    CHECK(block, "Backend assembler buffer overflow");
+    CHECK(run, "Backend assembler buffer overflow");
   }
 
-  // add the block to the cache
-  blocks_[BLOCK_OFFSET(addr)] = block;
+  // update cache entry
+  block->run = run;
+  block->flags = 0;
 
   return block;
 }
 
 void SH4CodeCache::ResetBlocks() {
   // reset block cache
-  std::fill_n(blocks_, MAX_BLOCKS, default_block_);
+  for (int i = 0; i < MAX_BLOCKS; i++) {
+    BlockEntry *block = &blocks_[i];
+    block->run = default_block_;
+    block->flags = 0;
+  }
 
   // have the backend reset any underlying data the blocks may have relied on
   backend_->Reset();
+
+  // reset source map
+  source_map_.Reset();
 }
 
 bool SH4CodeCache::HandleException(void *ctx, Exception &ex) {
   SH4CodeCache *self = reinterpret_cast<SH4CodeCache *>(ctx);
-  const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex.fault_addr);
-  const uint8_t *protected_start = self->memory_.protected_base();
-  const uint8_t *protected_end = protected_start + self->memory_.total_size();
 
-  if (fault_addr < protected_start || fault_addr >= protected_end) {
+  // see if there is an assembled block corresponding to the current pc
+  uint32_t block_addr = 0;
+  if (!self->source_map_.LookupBlockAddress(ex.pc, &block_addr)) {
     return false;
   }
 
-  return self->backend_->HandleException(ex);
+  // let the backend attempt to handle the exception
+  BlockEntry *block = self->GetBlock(block_addr);
+  if (!self->backend_->HandleException(block->run, &block->flags, ex)) {
+    return false;
+  }
+
+  // invalidate the block if the backend says so
+  if (block->flags & BF_INVALIDATE) {
+    block->run = self->default_block_;
+    block->flags &= ~BF_INVALIDATE;
+  }
+
+  return true;
 }

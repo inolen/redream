@@ -36,8 +36,7 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   uint32_t addr = start_addr;
   Instr instr;
 
-  // use fpu state when generating code. we could emit branches that check this
-  // state in the actual IR, but that's extremely slow
+  // use fpu state when generating code
   fpu_state_.double_precision = ctx.fpscr & PR;
   fpu_state_.single_precision_pair = ctx.fpscr & SZ;
 
@@ -46,12 +45,13 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
     instr.opcode = memory_.R16(instr.addr);
     CHECK(Disasm(&instr));
 
-    bool delayed = instr.type->flags & OP_FLAG_DELAYED;
-
     guest_cycles += instr.type->cycles;
 
+    // mark the current guest address
+    GuestAddress(addr);
+
     // save off the delay instruction if we need to
-    if (delayed) {
+    if (instr.type->flags & OP_FLAG_DELAYED) {
       delay_instr_.addr = addr + 2;
       delay_instr_.opcode = memory_.R16(delay_instr_.addr);
       CHECK(Disasm(&delay_instr_));
@@ -59,13 +59,14 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
       has_delay_instr_ = true;
 
       guest_cycles += delay_instr_.type->cycles;
+
+      addr += 2;
     }
 
     // emit the current instruction
     (emit_callbacks[instr.type->op])(*this, fpu_state_, instr);
 
-    // delayed instructions will be emitted already by the instructions handler
-    addr += delayed ? 4 : 2;
+    addr += 2;
 
     // if fpscr is changed, stop emitting since the fpu state is invalidated
     if (instr.type->flags & OP_FLAG_SET_FPSCR) {
@@ -174,6 +175,8 @@ void SH4Builder::EmitDelayInstr() {
   CHECK_EQ(has_delay_instr_, true, "No delay instruction available");
 
   has_delay_instr_ = false;
+
+  // modify the previous guest address instruction
 
   (emit_callbacks[delay_instr_.type->op])(*this, fpu_state_, delay_instr_);
 }

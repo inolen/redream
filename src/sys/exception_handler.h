@@ -19,16 +19,23 @@ struct ExceptionHandlerEntry {
 };
 
 // generic exception structure for all platforms
-enum ExceptionType { EX_ACCESS_VIOLATION, EX_INVALID_INSTRUCTION };
+enum ExceptionType {
+  EX_ACCESS_VIOLATION,
+  EX_INVALID_INSTRUCTION,
+};
 
-struct ThreadState {
-  uint64_t rax, rbx, rcx, rdx, rdi, rsi, rbp, rsp, r8, r9, r10, r11, r12, r13,
-      r14, r15, rip;
+union ThreadState {
+  struct {
+    uint64_t rax, rcx, rdx, rbx, rsp, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13,
+        r14, r15, rip;
+  };
+  uint64_t r[17];
 };
 
 struct Exception {
   ExceptionType type;
   uintptr_t fault_addr;
+  uintptr_t pc;
   ThreadState thread_state;
 };
 

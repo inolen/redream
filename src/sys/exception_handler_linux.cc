@@ -9,13 +9,13 @@ static struct sigaction old_sigill;
 
 static void CopyStateTo(mcontext_t *src, ThreadState *dst) {
   dst->rax = src->gregs[REG_RAX];
-  dst->rbx = src->gregs[REG_RBX];
   dst->rcx = src->gregs[REG_RCX];
   dst->rdx = src->gregs[REG_RDX];
-  dst->rdi = src->gregs[REG_RDI];
-  dst->rsi = src->gregs[REG_RSI];
-  dst->rbp = src->gregs[REG_RBP];
+  dst->rbx = src->gregs[REG_RBX];
   dst->rsp = src->gregs[REG_RSP];
+  dst->rbp = src->gregs[REG_RBP];
+  dst->rsi = src->gregs[REG_RSI];
+  dst->rdi = src->gregs[REG_RDI];
   dst->r8 = src->gregs[REG_R8];
   dst->r9 = src->gregs[REG_R9];
   dst->r10 = src->gregs[REG_R10];
@@ -29,13 +29,13 @@ static void CopyStateTo(mcontext_t *src, ThreadState *dst) {
 
 static void CopyStateFrom(ThreadState *src, mcontext_t *dst) {
   dst->gregs[REG_RAX] = src->rax;
-  dst->gregs[REG_RBX] = src->rbx;
   dst->gregs[REG_RCX] = src->rcx;
   dst->gregs[REG_RDX] = src->rdx;
-  dst->gregs[REG_RDI] = src->rdi;
-  dst->gregs[REG_RSI] = src->rsi;
-  dst->gregs[REG_RBP] = src->rbp;
+  dst->gregs[REG_RBX] = src->rbx;
   dst->gregs[REG_RSP] = src->rsp;
+  dst->gregs[REG_RBP] = src->rbp;
+  dst->gregs[REG_RSI] = src->rsi;
+  dst->gregs[REG_RDI] = src->rdi;
   dst->gregs[REG_R8] = src->r8;
   dst->gregs[REG_R9] = src->r9;
   dst->gregs[REG_R10] = src->r10;
@@ -54,6 +54,7 @@ static void SignalHandler(int signo, siginfo_t *info, void *ctx) {
   Exception ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
   ex.fault_addr = reinterpret_cast<uintptr_t>(info->si_addr);
+  ex.pc = uctx->uc_mcontext->gregs[REG_RIP];
   CopyStateTo(&uctx->uc_mcontext, &ex.thread_state);
 
   // call exception handler, letting it potentially update the thread state

@@ -18,9 +18,14 @@ class Memory;
 #define BLOCK_OFFSET(addr) ((addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT)
 #define MAX_BLOCKS (0x1000000 >> BLOCK_ADDR_SHIFT)
 
+struct BlockEntry {
+  jit::backend::BlockPointer run;
+  int flags;
+};
+
 class SH4CodeCache {
  public:
-  SH4CodeCache(hw::Memory &memory, jit::BlockPointer default_handler);
+  SH4CodeCache(hw::Memory &memory, jit::backend::BlockPointer default_handler);
   ~SH4CodeCache();
 
   hw::Memory &memory() { return memory_; }
@@ -41,12 +46,12 @@ class SH4CodeCache {
   // block, and the cache is initialized with all entries pointing to a special
   // default block. this default block, when called, will compile the actual
   // block and update the cache to point to it
-  jit::BlockPointer GetBlock(uint32_t addr) {
+  BlockEntry *GetBlock(uint32_t addr) {
     int offset = BLOCK_OFFSET(addr);
     CHECK_LT(offset, MAX_BLOCKS);
-    return blocks_[offset];
+    return &blocks_[offset];
   }
-  jit::BlockPointer CompileBlock(uint32_t addr, void *guest_ctx);
+  BlockEntry *CompileBlock(uint32_t addr, void *guest_ctx);
   void ResetBlocks();
 
  private:
@@ -57,8 +62,9 @@ class SH4CodeCache {
   jit::frontend::Frontend *frontend_;
   jit::backend::Backend *backend_;
   jit::ir::passes::PassRunner pass_runner_;
-  jit::BlockPointer *blocks_;
-  jit::BlockPointer default_block_;
+  BlockEntry *blocks_;
+  jit::backend::BlockPointer default_block_;
+  jit::SourceMap source_map_;
 };
 }
 }

@@ -12,13 +12,13 @@ using namespace dvm::sys;
 
 static void CopyStateTo(x86_thread_state64_t *src, ThreadState *dst) {
   dst->rax = src->__rax;
-  dst->rbx = src->__rbx;
   dst->rcx = src->__rcx;
   dst->rdx = src->__rdx;
-  dst->rdi = src->__rdi;
-  dst->rsi = src->__rsi;
-  dst->rbp = src->__rbp;
+  dst->rbx = src->__rbx;
   dst->rsp = src->__rsp;
+  dst->rbp = src->__rbp;
+  dst->rsi = src->__rsi;
+  dst->rdi = src->__rdi;
   dst->r8 = src->__r8;
   dst->r9 = src->__r9;
   dst->r10 = src->__r10;
@@ -32,13 +32,13 @@ static void CopyStateTo(x86_thread_state64_t *src, ThreadState *dst) {
 
 static void CopyStateFrom(ThreadState *src, x86_thread_state64_t *dst) {
   dst->__rax = src->rax;
-  dst->__rbx = src->rbx;
   dst->__rcx = src->rcx;
   dst->__rdx = src->rdx;
-  dst->__rdi = src->rdi;
-  dst->__rsi = src->rsi;
-  dst->__rbp = src->rbp;
+  dst->__rbx = src->rbx;
   dst->__rsp = src->rsp;
+  dst->__rbp = src->rbp;
+  dst->__rsi = src->rsi;
+  dst->__rdi = src->rdi;
   dst->__r8 = src->r8;
   dst->__r9 = src->r9;
   dst->__r10 = src->r10;
@@ -82,6 +82,7 @@ extern "C" kern_return_t catch_exception_raise(
   ex.type = exception & EXC_MASK_BAD_ACCESS ? EX_ACCESS_VIOLATION
                                             : EX_INVALID_INSTRUCTION;
   ex.fault_addr = exc_state.__faultvaddr;
+  ex.pc = thread_state.__rip;
   CopyStateTo(&thread_state, &ex.thread_state);
 
   // call exception handler, letting it potentially update the thread state
