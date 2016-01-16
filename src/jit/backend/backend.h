@@ -43,7 +43,6 @@ class Backend {
   virtual BlockPointer AssembleBlock(ir::IRBuilder &builder,
                                      SourceMap &source_map, void *guest_ctx,
                                      int block_flags) = 0;
-  virtual void DumpBlock(BlockPointer block) = 0;
   virtual bool HandleException(BlockPointer block, int *block_flags,
                                sys::Exception &ex) = 0;
 
