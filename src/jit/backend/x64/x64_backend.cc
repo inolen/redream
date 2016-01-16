@@ -1,6 +1,5 @@
 #include <iomanip>
 #include <sstream>
-#include <beaengine/BeaEngine.h>
 #include <xbyak/xbyak.h>
 #include "core/core.h"
 #include "emu/profiler.h"
@@ -63,44 +62,6 @@ BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
   }
 
   return fn;
-}
-
-void X64Backend::DumpBlock(BlockPointer block) {
-  DISASM dsm;
-  memset(&dsm, 0, sizeof(dsm));
-  dsm.Archi = 64;
-  dsm.EIP = (uintptr_t)block;
-  dsm.SecurityBlock = 0;
-  dsm.Options = NasmSyntax | PrefixedNumeral;
-
-  while (true) {
-    int len = Disasm(&dsm);
-    if (len == OUT_OF_BLOCK) {
-      LOG_INFO("Disasm engine is not allowed to read more memory");
-      break;
-    } else if (len == UNKNOWN_OPCODE) {
-      LOG_INFO("Unknown opcode");
-      break;
-    }
-
-    // format instruction binary
-    static const int MAX_INSTR_LENGTH = 15;
-    std::stringstream instr;
-    for (int i = 0; i < MAX_INSTR_LENGTH; i++) {
-      uint32_t v =
-          i < len ? (uint32_t) * reinterpret_cast<uint8_t *>(dsm.EIP + i) : 0;
-      instr << std::hex << std::setw(2) << std::setfill('0') << v;
-    }
-
-    // print out binary / mnemonic
-    LOG_INFO("%s %s", instr.str().c_str(), dsm.CompleteInstr);
-
-    if (dsm.Instruction.BranchType == RetType) {
-      break;
-    }
-
-    dsm.EIP = dsm.EIP + len;
-  }
 }
 
 // the memory thunks exist as a mechanism to service dynamic memory handlers

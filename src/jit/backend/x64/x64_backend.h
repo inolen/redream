@@ -24,7 +24,7 @@ class X64Backend : public Backend {
 
   BlockPointer AssembleBlock(ir::IRBuilder &builder, SourceMap &source_map,
                              void *guest_ctx, int block_flags);
-  void DumpBlock(BlockPointer block);
+
   bool HandleException(BlockPointer block, int *block_flags,
                        sys::Exception &ex);
 

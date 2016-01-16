@@ -71,10 +71,6 @@ BlockPointer InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
   return int_runners[idx];
 }
 
-void InterpreterBackend::DumpBlock(BlockPointer block) {
-  LOG_WARNING("Not implemented");
-}
-
 bool InterpreterBackend::HandleException(BlockPointer block, int *block_flags,
                                          Exception &ex) {
   return false;
