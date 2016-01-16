@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <memory>
 #include "core/core.h"
 #include "emu/emulator.h"
 #include "trace/trace_viewer.h"
@@ -49,11 +50,11 @@ int main(int argc, char **argv) {
 
   const char *load = argc > 1 ? argv[1] : nullptr;
   if (load && strstr(load, ".trace")) {
-    TraceViewer tracer;
-    tracer.Run(load);
+    std::unique_ptr<TraceViewer> tracer(new TraceViewer());
+    tracer->Run(load);
   } else {
-    Emulator emu;
-    emu.Run(load);
+    std::unique_ptr<Emulator> emu(new Emulator());
+    emu->Run(load);
   }
 
   Network::Shutdown();

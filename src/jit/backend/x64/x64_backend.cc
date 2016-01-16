@@ -15,6 +15,24 @@ using namespace dvm::jit::backend::x64;
 using namespace dvm::jit::ir;
 using namespace dvm::sys;
 
+extern "C" void load_thunk_rax();
+extern "C" void load_thunk_rcx();
+extern "C" void load_thunk_rdx();
+extern "C" void load_thunk_rbx();
+extern "C" void load_thunk_rsp();
+extern "C" void load_thunk_rbp();
+extern "C" void load_thunk_rsi();
+extern "C" void load_thunk_rdi();
+extern "C" void load_thunk_r8();
+extern "C" void load_thunk_r9();
+extern "C" void load_thunk_r10();
+extern "C" void load_thunk_r11();
+extern "C" void load_thunk_r12();
+extern "C" void load_thunk_r13();
+extern "C" void load_thunk_r14();
+extern "C" void load_thunk_r15();
+extern "C" void store_thunk();
+
 namespace dvm {
 namespace jit {
 namespace backend {
@@ -64,63 +82,6 @@ BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
   return fn;
 }
 
-// the memory thunks exist as a mechanism to service dynamic memory handlers
-// AFTER exiting the exception handler. invoking the handlers from inside the
-// exception handler imposes many restrictions:
-// https://www.securecoding.cert.org/confluence/display/c/SIG30-C.+Call+only+
-// asynchronous-safe+functions+within+signal+handlers
-//
-// instead, the handler preps the stack and registers for the handler, sets rip
-// to the thunk address, and once the execption handler exits the thunk will be
-// invoked, the handler will be called, and the stack will be cleaned back up
-
-// clang-format off
-static void (*memory_load_thunks[16])();
-static void (*memory_store_thunks[16])();
-
-#define STRINGIFY(x)            #x
-#define EXPAND_AND_STRINGIFY(x) STRINGIFY(x)
-
-#define DECL_MEMORY_THUNK(reg)                                               \
-  static __attribute__ ((naked)) void memory_load_thunk_##reg() {            \
-    asm("call *%rax\n\t"                                                     \
-        "mov %rax, %" #reg "\n\t"                                            \
-        "pop %" EXPAND_AND_STRINGIFY(INT_ARG1) "\n\t"                        \
-        "pop %" EXPAND_AND_STRINGIFY(INT_ARG0) "\n\t"                        \
-        "ret\n\t");                                                          \
-  }                                                                          \
-  static __attribute__ ((naked)) void memory_store_thunk_##reg() {           \
-    asm("call *%rax\n\t"                                                     \
-        "pop %" EXPAND_AND_STRINGIFY(INT_ARG2) "\n\t"                        \
-        "pop %" EXPAND_AND_STRINGIFY(INT_ARG1) "\n\t"                        \
-        "pop %" EXPAND_AND_STRINGIFY(INT_ARG0) "\n\t"                        \
-        "ret\n\t");                                                          \
-  }                                                                          \
-  static struct _memory_thunk_##reg##_init {                                 \
-    _memory_thunk_##reg##_init() {                                           \
-      memory_load_thunks[Xbyak::Operand::reg] = &memory_load_thunk_##reg;    \
-      memory_store_thunks[Xbyak::Operand::reg] = &memory_store_thunk_##reg;  \
-    }                                                                        \
-  } memory_thunk_##reg##_init
-// clang-format on
-
-DECL_MEMORY_THUNK(RAX);
-DECL_MEMORY_THUNK(RCX);
-DECL_MEMORY_THUNK(RDX);
-DECL_MEMORY_THUNK(RBX);
-DECL_MEMORY_THUNK(RSP);
-DECL_MEMORY_THUNK(RBP);
-DECL_MEMORY_THUNK(RSI);
-DECL_MEMORY_THUNK(RDI);
-DECL_MEMORY_THUNK(R8);
-DECL_MEMORY_THUNK(R9);
-DECL_MEMORY_THUNK(R10);
-DECL_MEMORY_THUNK(R11);
-DECL_MEMORY_THUNK(R12);
-DECL_MEMORY_THUNK(R13);
-DECL_MEMORY_THUNK(R14);
-DECL_MEMORY_THUNK(R15);
-
 bool X64Backend::HandleException(BlockPointer block, int *block_flags,
                                  Exception &ex) {
   const uint8_t *data = reinterpret_cast<const uint8_t *>(ex.thread_state.rip);
@@ -141,17 +102,20 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
   // callback once the exception handler has exited. this frees the callbacks
   // from any restrictions imposed by an exception handler, and also prevents
   // a possible recursive exceptions
-  if (mov.is_load) {
-    // push the original argument registers and the return address (the next
-    // instruction after the current mov) to the stack
-    ex.thread_state.rsp -= 24;
-    dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp),
-               ex.thread_state.r[Xbyak::Operand::INT_ARG1]);
-    dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + 8),
-               ex.thread_state.r[Xbyak::Operand::INT_ARG0]);
-    dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + 16),
-               ex.thread_state.rip + mov.length);
 
+  // push the original argument registers and the return address (the next
+  // instruction after the current mov) to the stack
+  ex.thread_state.rsp -= STACK_SHADOW_SPACE + 24 + 8;
+  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE),
+             ex.thread_state.r[Xbyak::Operand::INT_ARG2]);
+  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 8),
+             ex.thread_state.r[Xbyak::Operand::INT_ARG1]);
+  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 16),
+             ex.thread_state.r[Xbyak::Operand::INT_ARG0]);
+  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 24),
+             ex.thread_state.rip + mov.length);
+
+  if (mov.is_load) {
     // prep argument registers (memory object, guest_addr) for read function
     ex.thread_state.r[Xbyak::Operand::INT_ARG0] =
         reinterpret_cast<uint64_t>(&memory_);
@@ -179,19 +143,57 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
     }
 
     // resume execution in the thunk once the exception handler exits
-    ex.thread_state.rip =
-        reinterpret_cast<uint64_t>(memory_load_thunks[mov.reg]);
+    switch (mov.reg) {
+      case 0:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rax);
+        break;
+      case 1:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rcx);
+        break;
+      case 2:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rdx);
+        break;
+      case 3:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rbx);
+        break;
+      case 4:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rsp);
+        break;
+      case 5:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rbp);
+        break;
+      case 6:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rsi);
+        break;
+      case 7:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rdi);
+        break;
+      case 8:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r8);
+        break;
+      case 9:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r9);
+        break;
+      case 10:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r10);
+        break;
+      case 11:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r11);
+        break;
+      case 12:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r12);
+        break;
+      case 13:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r13);
+        break;
+      case 14:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r14);
+        break;
+      case 15:
+        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r15);
+        break;
+    }
   } else {
-    ex.thread_state.rsp -= 32;
-    dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp),
-               ex.thread_state.r[Xbyak::Operand::INT_ARG2]);
-    dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + 8),
-               ex.thread_state.r[Xbyak::Operand::INT_ARG1]);
-    dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + 16),
-               ex.thread_state.r[Xbyak::Operand::INT_ARG0]);
-    dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + 24),
-               ex.thread_state.rip + mov.length);
-
     // prep argument registers (memory object, guest_addr, value) for write
     // function
     ex.thread_state.r[Xbyak::Operand::INT_ARG0] =
@@ -221,9 +223,12 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
         break;
     }
 
+    // ensure stack is 16b aligned
+    CHECK(ex.thread_state.rsp % 16 == 0);
+
     // resume execution in the thunk once the exception handler exits
     ex.thread_state.rip =
-        reinterpret_cast<uint64_t>(memory_store_thunks[mov.reg]);
+        reinterpret_cast<uint64_t>(store_thunk);
   }
 
   // tell the cache to invalidate this block, appending the slowmem flag for

@@ -11,7 +11,9 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
-project(dreavm)
+# enable both ASM and ASM_MASM. cmake will ignore whichever one isn't supported
+# by the current platform
+project(dreavm C CXX ASM ASM_MASM)
 
 # export compile_commands.json for clang-tidy
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -160,14 +162,17 @@ set(DREAVM_SOURCES
   src/main.cc)
 
 if(WIN32)
+  list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_win.asm)
   list(APPEND DREAVM_SOURCES src/sys/exception_handler_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_win.cc)
 elseif(APPLE)
+  list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_posix.s)
   list(APPEND DREAVM_SOURCES src/sys/exception_handler_mac.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
 else()
+  list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_posix.s)
   list(APPEND DREAVM_SOURCES src/sys/exception_handler_linux.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)

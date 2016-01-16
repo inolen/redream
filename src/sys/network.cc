@@ -1,7 +1,8 @@
+#include "core/core.h"
 #include "sys/network.h"
 
 bool Network::Init() {
-#if PLATFORM_WINDOWS
+#ifdef PLATFORM_WINDOWS
   WSADATA wsadata = {};
 
   int r = WSAStartup(MAKEWORD(1, 1), &wsadata);
@@ -17,7 +18,7 @@ bool Network::Init() {
 }
 
 void Network::Shutdown() {
-#if PLATFORM_WINDOWS
+#ifdef PLATFORM_WINDOWS
   WSACleanup();
 #endif
 }

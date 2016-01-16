@@ -3,7 +3,7 @@
 
 #include "core/platform.h"
 
-#if PLATFORM_WINDOWS
+#ifdef PLATFORM_WINDOWS
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
@@ -14,10 +14,10 @@ typedef int socklen_t;
 typedef unsigned short sa_family_t;
 #endif
 
-#define EAGAIN WSAEWOULDBLOCK
-#define EADDRNOTAVAIL WSAEADDRNOTAVAIL
-#define EAFNOSUPPORT WSAEAFNOSUPPORT
-#define ECONNRESET WSAECONNRESET
+//#define EAGAIN WSAEWOULDBLOCK
+//#define EADDRNOTAVAIL WSAEADDRNOTAVAIL
+//#define EAFNOSUPPORT WSAEAFNOSUPPORT
+//#define ECONNRESET WSAECONNRESET
 typedef u_long ioctlarg_t;
 #define socketError WSAGetLastError()
 
