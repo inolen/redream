@@ -1,4 +1,5 @@
 #include "core/core.h"
+#include "core/minmax_heap.h"
 #include "emu/profiler.h"
 #include "jit/ir/passes/register_allocation_pass.h"
 
@@ -16,15 +17,25 @@ static inline bool RegisterCanStore(const Register &r, ValueTy type) {
   return r.value_types & (1 << type);
 }
 
-RegisterSet::RegisterSet(int max_registers) : live_(max_registers) {
+struct LiveIntervalSort {
+  bool operator()(const Interval *lhs, const Interval *rhs) const {
+    return GetOrdinal(lhs->next->instr()) < GetOrdinal(rhs->next->instr());
+  }
+};
+
+RegisterSet::RegisterSet(int max_registers) {
   free_ = new int[max_registers];
+  live_ = new Interval *[max_registers];
 }
 
-RegisterSet::~RegisterSet() { delete[] free_; }
+RegisterSet::~RegisterSet() {
+  delete[] free_;
+  delete[] live_;
+}
 
 void RegisterSet::Clear() {
   num_free_ = 0;
-  live_.Clear();
+  num_live_ = 0;
 }
 
 int RegisterSet::PopRegister() {
@@ -37,33 +48,36 @@ int RegisterSet::PopRegister() {
 void RegisterSet::PushRegister(int reg) { free_[num_free_++] = reg; }
 
 Interval *RegisterSet::HeadInterval() {
-  if (live_.Empty()) {
+  if (!num_live_) {
     return nullptr;
   }
 
-  return live_.front();
+  auto it = dvm::mmheap_find_min(live_, live_ + num_live_, LiveIntervalSort());
+  return *it;
 }
 
 Interval *RegisterSet::TailInterval() {
-  if (live_.Empty()) {
+  if (!num_live_) {
     return nullptr;
   }
 
-  return live_.back();
+  auto it = dvm::mmheap_find_max(live_, live_ + num_live_, LiveIntervalSort());
+  return *it;
 }
 
-void RegisterSet::PopHeadInterval() { live_.PopFront(); }
+void RegisterSet::PopHeadInterval() {
+  dvm::mmheap_pop_min(live_, live_ + num_live_, LiveIntervalSort());
+  num_live_--;
+}
 
-void RegisterSet::PopTailInterval() { live_.PopBack(); }
+void RegisterSet::PopTailInterval() {
+  dvm::mmheap_pop_max(live_, live_ + num_live_, LiveIntervalSort());
+  num_live_--;
+}
 
 void RegisterSet::InsertInterval(Interval *interval) {
-  auto it = std::lower_bound(live_.begin(), live_.end(),
-                             GetOrdinal(interval->next->instr()),
-                             [](const Interval *lhs, int rhs) {
-                               return GetOrdinal(lhs->next->instr()) < rhs;
-                             });
-
-  live_.Insert(it, interval);
+  live_[num_live_++] = interval;
+  dvm::mmheap_push(live_, live_ + num_live_, LiveIntervalSort());
 }
 
 RegisterAllocationPass::RegisterAllocationPass(const Backend &backend)

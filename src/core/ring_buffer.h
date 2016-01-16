@@ -122,24 +122,6 @@ class RingBuffer {
     front_++;
   }
 
-  void Insert(const iterator &it, const T &el) {
-    size_t end = front_ + max_ - 1;
-
-    // if the buffer isn't full, increase its size
-    if (back_ < end) {
-      end = back_++;
-    }
-
-    // shift old elements over by one
-    while ((end - front_) != it.index_) {
-      buffer_[end % max_] = buffer_[(end - 1) % max_];
-      end--;
-    }
-
-    // add new element
-    buffer_[end % max_] = el;
-  }
-
  private:
   T *buffer_;
   const size_t max_;

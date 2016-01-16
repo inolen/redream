@@ -1,7 +1,7 @@
 #ifndef REGISTER_ALLOCATION_PASS_H
 #define REGISTER_ALLOCATION_PASS_H
 
-#include "core/ring_buffer.h"
+#include <vector>
 #include "jit/backend/backend.h"
 #include "jit/ir/passes/pass_runner.h"
 
@@ -39,7 +39,8 @@ class RegisterSet {
   int *free_, num_free_;
 
   // intervals used by this register set, sorted in order of next use
-  RingBuffer<Interval *> live_;
+  Interval **live_;
+  int num_live_;
 };
 
 class RegisterAllocationPass : public Pass {

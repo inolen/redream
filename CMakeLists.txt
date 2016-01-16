@@ -317,6 +317,7 @@ set(DREAVM_TEST_SOURCES
   ${DREAVM_SOURCES}
   test/test_interval_tree.cc
   test/test_intrusive_list.cc
+  test/test_minmax_heap.cc
   test/test_ring_buffer.cc
   test/test_sh4.cc
   ${asm_inc})

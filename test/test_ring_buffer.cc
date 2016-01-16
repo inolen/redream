@@ -47,27 +47,6 @@ TEST_F(RingTest, PushBack) {
   ASSERT_EQ(2, (int)items.Size());
 }
 
-TEST_F(RingTest, Insert) {
-  items.PushBack(7);
-  items.PushBack(9);
-
-  // insert at beginning
-  items.Insert(items.begin(), 3);
-  ASSERT_EQ(3, items.front());
-  ASSERT_EQ(3, *items.begin());
-  ASSERT_EQ(7, items.back());
-  ASSERT_EQ(7, *(--items.end()));
-  ASSERT_EQ(2, (int)items.Size());
-
-  // insert at end
-  items.Insert(++items.begin(), 5);
-  ASSERT_EQ(3, items.front());
-  ASSERT_EQ(3, *items.begin());
-  ASSERT_EQ(5, items.back());
-  ASSERT_EQ(5, *(--items.end()));
-  ASSERT_EQ(2, (int)items.Size());
-}
-
 // remove tests
 TEST_F(RingTest, PopBack) {
   items.PushBack(7);
