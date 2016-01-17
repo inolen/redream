@@ -376,8 +376,8 @@ bool GLBackend::InitContext() {
     return false;
   }
 
-  // disable vsync
-  SDL_GL_SetSwapInterval(0);
+  // enable vsync
+  SDL_GL_SetSwapInterval(1);
 
   // set default width / height
   state_.video_width = window_.width();

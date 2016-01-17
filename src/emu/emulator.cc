@@ -1,7 +1,9 @@
+#include <thread>
 #include "core/core.h"
 #include "emu/emulator.h"
 #include "emu/profiler.h"
 #include "hw/gdrom/gdrom.h"
+#include "hw/holly/texture_cache.h"
 #include "hw/holly/tile_renderer.h"
 #include "hw/maple/maple.h"
 #include "hw/dreamcast.h"
@@ -18,17 +20,14 @@ using namespace dvm::renderer;
 using namespace dvm::sys;
 using namespace dvm::trace;
 
-// scheduler is ticked at 1000hz, this is fairly arbitrary, but seems to be a
-// good balance of executing cycles / handling interrupts
-static const std::chrono::nanoseconds SCHEDULER_STEP = HZ_TO_NANO(1000);
-
-// process input and render frames at 60hz
-static const std::chrono::nanoseconds FRAME_STEP = HZ_TO_NANO(60);
-
 DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
-Emulator::Emulator() : trace_writer_(nullptr), deltas_(), delta_seq_(0) {
+Emulator::Emulator()
+    : tile_renderer_(*dc_.texcache()),
+      trace_writer_(nullptr),
+      core_events_(MAX_EVENTS),
+      speed_() {
   rb_ = new GLBackend(window_);
   dc_.set_rb(rb_);
 }
@@ -69,40 +68,17 @@ void Emulator::Run(const char *path) {
     }
   }
 
-  auto current_time = std::chrono::high_resolution_clock::now();
-  auto last_time = current_time;
-  auto delta_time = std::chrono::nanoseconds(0);
-
-  auto scheduler_remaining = std::chrono::nanoseconds(0);
-  auto frame_remaining = std::chrono::nanoseconds(0);
-
+  // start running
   running_ = true;
 
-  while (running_) {
-    current_time = std::chrono::high_resolution_clock::now();
-    delta_time = current_time - last_time;
-    last_time = current_time;
+  // run core emulator in a separate thread
+  std::thread cpu_thread(&Emulator::CoreThread, this);
 
-    scheduler_remaining += delta_time;
-    if (scheduler_remaining >= SCHEDULER_STEP) {
-      scheduler_remaining -= SCHEDULER_STEP;
+  // run graphics in the current thread
+  GraphicsThread();
 
-      auto start = current_time;
-      dc_.scheduler()->Tick(SCHEDULER_STEP);
-      auto end = std::chrono::high_resolution_clock::now();
-
-      // save off delta for speed stats
-      deltas_[delta_seq_++ % MAX_SCHEDULER_DELTAS] = end - start;
-    }
-
-    frame_remaining += delta_time;
-    if (frame_remaining >= FRAME_STEP) {
-      frame_remaining -= FRAME_STEP;
-
-      PumpEvents();
-      RenderFrame();
-    }
-  }
+  // wait until cpu thread finishes
+  cpu_thread.join();
 }
 
 bool Emulator::LoadBios(const char *path) {
@@ -203,44 +179,6 @@ bool Emulator::LaunchGDI(const char *path) {
   return true;
 }
 
-void Emulator::PumpEvents() {
-  WindowEvent ev;
-
-  window_.PumpEvents();
-
-  while (window_.PollEvent(&ev)) {
-    switch (ev.type) {
-      case WE_KEY: {
-        // let the profiler take a stab at the input first
-        if (!Profiler::instance().HandleInput(ev.key.code, ev.key.value)) {
-          // debug tracing
-          if (ev.key.code == K_F2) {
-            if (ev.key.value) {
-              ToggleTracing();
-            }
-          }
-          // else, forward to maple
-          else {
-            dc_.maple()->HandleInput(0, ev.key.code, ev.key.value);
-          }
-        }
-      } break;
-
-      case WE_MOUSEMOVE: {
-        Profiler::instance().HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
-      } break;
-
-      case WE_RESIZE: {
-        rb_->ResizeVideo(ev.resize.width, ev.resize.height);
-      } break;
-
-      case WE_QUIT: {
-        running_ = false;
-      } break;
-    }
-  }
-}
-
 void Emulator::ToggleTracing() {
   if (!trace_writer_) {
     char filename[PATH_MAX];
@@ -268,27 +206,54 @@ void Emulator::ToggleTracing() {
   dc_.set_trace_writer(trace_writer_);
 }
 
-void Emulator::RenderFrame() {
+void Emulator::GraphicsThread() {
+  while (running_.load(std::memory_order_relaxed)) {
+    PumpGraphicsEvents();
+    RenderGraphics();
+  }
+}
+
+void Emulator::PumpGraphicsEvents() {
+  WindowEvent ev;
+
+  window_.PumpEvents();
+
+  while (window_.PollEvent(&ev)) {
+    switch (ev.type) {
+      case WE_KEY: {
+        // let the profiler take a stab at the input first
+        if (!Profiler::instance().HandleInput(ev.key.code, ev.key.value)) {
+          // else, forward to the CPU thread
+          QueueCoreEvent(ev);
+        }
+      } break;
+
+      case WE_MOUSEMOVE: {
+        Profiler::instance().HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
+      } break;
+
+      case WE_RESIZE: {
+        rb_->ResizeVideo(ev.resize.width, ev.resize.height);
+      } break;
+
+      case WE_QUIT: {
+        running_.store(false, std::memory_order_relaxed);
+      } break;
+    }
+  }
+}
+
+void Emulator::RenderGraphics() {
   rb_->BeginFrame();
 
-  // render the last tile context
-  TileContext *last_context = dc_.ta()->GetLastContext();
-
-  if (last_context) {
-    dc_.tile_renderer()->RenderContext(last_context, rb_);
+  // render the latest tile context
+  if (TileContext *tactx = dc_.ta()->GetLastContext()) {
+    tile_renderer_.RenderContext(tactx, rb_);
   }
-
-  // calculate scheduler speed
-  auto total_delta = std::chrono::nanoseconds(0);
-  for (unsigned i = 0; i < MAX_SCHEDULER_DELTAS; i++) {
-    total_delta += deltas_[(delta_seq_ + i) % MAX_SCHEDULER_DELTAS];
-  }
-  float speed = ((SCHEDULER_STEP.count() * MAX_SCHEDULER_DELTAS) /
-                 (float)total_delta.count()) *
-                100.0f;
 
   // render stats
   char stats[512];
+  float speed = *reinterpret_cast<float *>(&speed_);
   snprintf(stats, sizeof(stats), "%.2f%%, %.2f rps", speed, dc_.pvr()->rps());
   rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
@@ -296,4 +261,95 @@ void Emulator::RenderFrame() {
   Profiler::instance().Render(rb_);
 
   rb_->EndFrame();
+}
+
+void Emulator::CoreThread() {
+  static const std::chrono::nanoseconds STEP = HZ_TO_NANO(1000);
+  static const std::chrono::nanoseconds SAMPLE_PERIOD = HZ_TO_NANO(10);
+
+  auto current_time = std::chrono::high_resolution_clock::now();
+  auto delta_time = std::chrono::nanoseconds(0);
+  auto last_time = current_time;
+
+  auto remaining_time = std::chrono::nanoseconds(0);
+  auto next_sample_time = current_time + SAMPLE_PERIOD;
+  auto run_time = std::chrono::nanoseconds(0);
+  bool ran = false;
+
+  while (running_.load(std::memory_order_relaxed)) {
+    current_time = std::chrono::high_resolution_clock::now();
+    delta_time = current_time - last_time;
+    last_time = current_time;
+    remaining_time += delta_time;
+
+    // handle events the graphics thread forwarded on
+    PumpCoreEvents();
+
+    // track run time in this backwards way with a condition variable to avoid
+    // polling the clock too much
+    if (ran) {
+      run_time += delta_time;
+      ran = false;
+    }
+
+    // run scheduler every STEP nanoseconds
+    while (remaining_time >= STEP) {
+      remaining_time -= STEP;
+      dc_.scheduler()->Tick(STEP);
+      ran = true;
+    }
+
+    // update speed every SAMPLE_PERIOD nanoseconds
+    if (current_time > next_sample_time) {
+      auto since = SAMPLE_PERIOD + (current_time - next_sample_time);
+      float speed = (since.count() / (float)run_time.count()) * 100.0f;
+      speed_ = *reinterpret_cast<uint32_t *>(&speed);
+      next_sample_time = current_time + SAMPLE_PERIOD;
+      run_time = std::chrono::nanoseconds(0);
+    }
+  }
+}
+
+void Emulator::QueueCoreEvent(const WindowEvent &ev) {
+  std::lock_guard<std::mutex> guard(core_events_mutex_);
+
+  if (core_events_.Full()) {
+    LOG_WARNING("Core event overflow");
+    return;
+  }
+
+  core_events_.PushBack(ev);
+}
+
+bool Emulator::PollCoreEvent(WindowEvent *ev) {
+  std::lock_guard<std::mutex> guard(core_events_mutex_);
+
+  if (core_events_.Empty()) {
+    return false;
+  }
+
+  *ev = core_events_.front();
+  core_events_.PopFront();
+
+  return true;
+}
+
+void Emulator::PumpCoreEvents() {
+  WindowEvent ev;
+
+  while (PollCoreEvent(&ev)) {
+    switch (ev.type) {
+      case WE_KEY: {
+        if (ev.key.code == K_F2) {
+          if (ev.key.value) {
+            ToggleTracing();
+          }
+        } else {
+          dc_.maple()->HandleInput(0, ev.key.code, ev.key.value);
+        }
+      } break;
+
+      default: { CHECK(false, "Unexpected event type"); } break;
+    }
+  }
 }

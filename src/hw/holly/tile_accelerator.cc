@@ -204,17 +204,10 @@ int TileAccelerator::GetVertexType(const PCW &pcw) {
                             pcw.para_type * TA_NUM_LISTS + pcw.list_type];
 }
 
-TileAccelerator::TileAccelerator(Dreamcast *dc)
-    : dc_(dc), last_context_(nullptr) {}
-
-TileAccelerator::~TileAccelerator() {
-  while (contexts_.size()) {
-    const auto &it = contexts_.begin();
-
-    TileContext *tactx = it->second;
-    delete tactx;
-
-    contexts_.erase(it);
+TileAccelerator::TileAccelerator(Dreamcast *dc) : dc_(dc), contexts_() {
+  // initialize context queue
+  for (int i = 0; i < MAX_CONTEXTS; i++) {
+    free_contexts_.push(&contexts_[i]);
   }
 }
 
@@ -232,8 +225,26 @@ void TileAccelerator::SoftReset() {
 }
 
 void TileAccelerator::InitContext(uint32_t addr) {
-  TileContext *tactx = GetContext(addr);
+  // try to reuse an existing live context
+  auto it = live_contexts_.find(addr);
 
+  if (it == live_contexts_.end()) {
+    // else, allocate a new context from the free queue
+    std::lock_guard<std::mutex> guard(context_mutex_);
+
+    CHECK(free_contexts_.size());
+
+    TileContext *tactx = free_contexts_.front();
+    free_contexts_.pop();
+
+    auto res = live_contexts_.insert(std::make_pair(addr, tactx));
+    CHECK(res.second);
+    it = res.first;
+  }
+
+  TileContext *tactx = it->second;
+  memset(tactx, 0, sizeof(*tactx));
+  tactx->addr = addr;
   tactx->cursor = 0;
   tactx->size = 0;
   tactx->last_poly = nullptr;
@@ -243,7 +254,9 @@ void TileAccelerator::InitContext(uint32_t addr) {
 }
 
 void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
-  TileContext *tactx = GetContext(addr);
+  auto it = live_contexts_.find(addr);
+  CHECK_NE(it, live_contexts_.end());
+  TileContext *tactx = it->second;
 
   CHECK_LT(tactx->size + 4, (int)sizeof(tactx->data));
   *(uint32_t *)&tactx->data[tactx->size] = value;
@@ -289,33 +302,50 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
   }
 }
 
-void TileAccelerator::SwapContext(uint32_t addr) {
-  if (!last_context_) {
-    last_context_ = &scratch_context_;
-  }
-
-  // swap context with last context to be delayed rendered
-  auto it = FindContext(addr);
-  TileContext *tmp = last_context_;
-  last_context_ = it->second;
-  it->second = tmp;
+void TileAccelerator::FinalizeContext(uint32_t addr) {
+  auto it = live_contexts_.find(addr);
+  CHECK_NE(it, live_contexts_.end());
+  TileContext *tactx = it->second;
 
   // save PVR state to context
-  WritePVRState(last_context_);
-  WriteBackgroundState(last_context_);
+  WritePVRState(tactx);
+  WriteBackgroundState(tactx);
 
   // add context to trace
   if (dc_->trace_writer()) {
-    dc_->trace_writer()->WriteRenderContext(last_context_);
+    dc_->trace_writer()->WriteRenderContext(tactx);
   }
 
   // tell holly that rendering is complete
   holly_->RequestInterrupt(HOLLY_INTC_PCEOVINT);
   holly_->RequestInterrupt(HOLLY_INTC_PCEOIINT);
   holly_->RequestInterrupt(HOLLY_INTC_PCEOTINT);
+
+  // erase from the live map
+  live_contexts_.erase(it);
+
+  // append to the pending queue
+  std::lock_guard<std::mutex> guard(context_mutex_);
+  pending_contexts_.push(tactx);
 }
 
-TileContext *TileAccelerator::GetLastContext() { return last_context_; }
+TileContext *TileAccelerator::GetLastContext() {
+  std::lock_guard<std::mutex> guard(context_mutex_);
+
+  if (pending_contexts_.empty()) {
+    return nullptr;
+  }
+
+  // free pending contexts which are not the latest
+  while (pending_contexts_.size() > 1) {
+    TileContext *tactx = pending_contexts_.front();
+    pending_contexts_.pop();
+    free_contexts_.push(tactx);
+  }
+
+  // return the latest context
+  return pending_contexts_.front();
+}
 
 void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, uint32_t value) {
   TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
@@ -329,27 +359,6 @@ void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
 
   dvm::store(&self->video_ram_[addr], value);
-}
-
-TileContextIterator TileAccelerator::FindContext(uint32_t addr) {
-  TileContextIterator it = contexts_.find(addr);
-
-  // add context if it doesn't exist
-  if (it == contexts_.end()) {
-    TileContext *ctx = new TileContext();
-    auto result = contexts_.insert(std::make_pair(addr, ctx));
-    it = result.first;
-  }
-
-  // set context address
-  it->second->addr = addr;
-
-  return it;
-}
-
-TileContext *TileAccelerator::GetContext(uint32_t addr) {
-  TileContextIterator it = FindContext(addr);
-  return it->second;
 }
 
 void TileAccelerator::WritePVRState(TileContext *tactx) {

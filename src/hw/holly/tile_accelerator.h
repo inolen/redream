@@ -2,6 +2,7 @@
 #define TILE_ACCELERATOR_H
 
 #include <memory>
+#include <queue>
 #include <unordered_map>
 #include "hw/holly/tile_renderer.h"
 #include "renderer/backend.h"
@@ -444,6 +445,7 @@ union VertexParam {
 };
 
 enum {
+  MAX_CONTEXTS = 8,
   // worst case background vertex size, see ISP_BACKGND_T field
   BG_VERTEX_SIZE = (0b111 * 2 + 3) * 4 * 3
 };
@@ -476,7 +478,7 @@ struct TileContext {
 };
 
 typedef std::unordered_map<TextureKey, TileContext *> TileContextMap;
-typedef TileContextMap::iterator TileContextIterator;
+typedef std::queue<TileContext *> TileContextQueue;
 
 class TileAccelerator {
  public:
@@ -485,22 +487,20 @@ class TileAccelerator {
   static int GetVertexType(const PCW &pcw);
 
   TileAccelerator(hw::Dreamcast *dc);
-  ~TileAccelerator();
 
   bool Init();
 
   void SoftReset();
   void InitContext(uint32_t addr);
   void WriteContext(uint32_t addr, uint32_t value);
-  void SwapContext(uint32_t addr);
+  void FinalizeContext(uint32_t addr);
+
   TileContext *GetLastContext();
 
   static void WriteCommand(void *ctx, uint32_t addr, uint32_t value);
   static void WriteTexture(void *ctx, uint32_t addr, uint32_t value);
 
  private:
-  TileContextIterator FindContext(uint32_t addr);
-  TileContext *GetContext(uint32_t addr);
   void WritePVRState(TileContext *tactx);
   void WriteBackgroundState(TileContext *tactx);
 
@@ -510,9 +510,11 @@ class TileAccelerator {
   hw::holly::TextureCache *texcache_;
   uint8_t *video_ram_;
 
-  TileContextMap contexts_;
-  TileContext scratch_context_;
-  TileContext *last_context_;
+  std::mutex context_mutex_;
+  TileContext contexts_[MAX_CONTEXTS];
+  TileContextMap live_contexts_;
+  TileContextQueue free_contexts_;
+  TileContextQueue pending_contexts_;
 };
 }
 }

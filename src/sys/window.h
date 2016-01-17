@@ -11,7 +11,7 @@ namespace sys {
 enum {
   MAX_EVENTS = 1024,
   NUM_JOYSTICK_AXES = (K_AXIS15 - K_AXIS0) + 1,
-  NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1
+  NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1,
 };
 
 enum WindowEventType {
