@@ -83,7 +83,7 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
         self->rps_ = 1000000000.0f / delta.count();
       }
 
-      self->ta_->SwapContext(self->dc_->PARAM_BASE.base_address);
+      self->ta_->FinalizeContext(self->dc_->PARAM_BASE.base_address);
     } break;
 
     case SPG_LOAD_OFFSET:

@@ -5,7 +5,6 @@
 #include "hw/holly/pvr2.h"
 #include "hw/holly/texture_cache.h"
 #include "hw/holly/tile_accelerator.h"
-#include "hw/holly/tile_renderer.h"
 #include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
@@ -61,7 +60,6 @@ Dreamcast::Dreamcast()
   sh4_ = new SH4(*memory_);
   ta_ = new TileAccelerator(this);
   texcache_ = new TextureCache(this);
-  tile_renderer_ = new TileRenderer(*texcache_);
 }
 
 Dreamcast::~Dreamcast() {
@@ -78,7 +76,6 @@ Dreamcast::~Dreamcast() {
   delete sh4_;
   delete ta_;
   delete texcache_;
-  delete tile_renderer_;
 }
 
 bool Dreamcast::Init() {

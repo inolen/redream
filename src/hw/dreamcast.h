@@ -159,7 +159,6 @@ class Dreamcast {
   hw::sh4::SH4 *sh4() { return sh4_; }
   hw::holly::TileAccelerator *ta() { return ta_; }
   hw::holly::TextureCache *texcache() { return texcache_; }
-  hw::holly::TileRenderer *tile_renderer() { return tile_renderer_; }
 
   renderer::Backend *rb() { return rb_; }
   void set_rb(renderer::Backend *rb) { rb_ = rb; }
@@ -211,7 +210,6 @@ class Dreamcast {
   hw::sh4::SH4 *sh4_;
   hw::holly::TileAccelerator *ta_;
   hw::holly::TextureCache *texcache_;
-  hw::holly::TileRenderer *tile_renderer_;
 
   // not owned by us
   renderer::Backend *rb_;
