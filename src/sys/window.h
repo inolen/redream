@@ -18,6 +18,7 @@ enum WindowEventType {
   WE_KEY,
   WE_MOUSEMOVE,
   WE_RESIZE,
+  WE_QUIT,
 };
 
 struct WindowEvent {
@@ -36,10 +37,6 @@ struct WindowEvent {
       int width;
       int height;
     } resize;
-
-    struct {
-      const char *buffer;
-    } tty;
   };
 };
 

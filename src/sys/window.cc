@@ -32,6 +32,12 @@ static inline WindowEvent MakeResizeEvent(int width, int height) {
   return ev;
 }
 
+static inline WindowEvent MakeQuitEvent() {
+  WindowEvent ev;
+  ev.type = WE_QUIT;
+  return ev;
+}
+
 Window::Window()
     : window_(nullptr),
       width_(DEFAULT_WIDTH),
@@ -736,7 +742,7 @@ void Window::PumpSDLEvents() {
         break;
 
       case SDL_QUIT:
-        exit(EXIT_SUCCESS);
+        QueueEvent(MakeQuitEvent());
         break;
     }
   }

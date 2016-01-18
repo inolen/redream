@@ -76,7 +76,9 @@ void Emulator::Run(const char *path) {
   auto scheduler_remaining = std::chrono::nanoseconds(0);
   auto frame_remaining = std::chrono::nanoseconds(0);
 
-  while (true) {
+  running_ = true;
+
+  while (running_) {
     current_time = std::chrono::high_resolution_clock::now();
     delta_time = current_time - last_time;
     last_time = current_time;
@@ -230,6 +232,10 @@ void Emulator::PumpEvents() {
 
       case WE_RESIZE: {
         rb_->ResizeVideo(ev.resize.width, ev.resize.height);
+      } break;
+
+      case WE_QUIT: {
+        running_ = false;
       } break;
     }
   }
