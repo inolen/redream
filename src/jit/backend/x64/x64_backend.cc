@@ -106,13 +106,17 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
   // push the original argument registers and the return address (the next
   // instruction after the current mov) to the stack
   ex.thread_state.rsp -= STACK_SHADOW_SPACE + 24 + 8;
-  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE),
-             ex.thread_state.r[Xbyak::Operand::INT_ARG2]);
-  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 8),
-             ex.thread_state.r[Xbyak::Operand::INT_ARG1]);
-  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 16),
+  dvm::store(
+      reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE),
+      ex.thread_state.r[Xbyak::Operand::INT_ARG2]);
+  dvm::store(
+      reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 8),
+      ex.thread_state.r[Xbyak::Operand::INT_ARG1]);
+  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
+                                         STACK_SHADOW_SPACE + 16),
              ex.thread_state.r[Xbyak::Operand::INT_ARG0]);
-  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 24),
+  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
+                                         STACK_SHADOW_SPACE + 24),
              ex.thread_state.rip + mov.length);
 
   if (mov.is_load) {
@@ -227,8 +231,7 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
     CHECK(ex.thread_state.rsp % 16 == 0);
 
     // resume execution in the thunk once the exception handler exits
-    ex.thread_state.rip =
-        reinterpret_cast<uint64_t>(store_thunk);
+    ex.thread_state.rip = reinterpret_cast<uint64_t>(store_thunk);
   }
 
   // tell the cache to invalidate this block, appending the slowmem flag for
