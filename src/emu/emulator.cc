@@ -207,6 +207,8 @@ void Emulator::ToggleTracing() {
 }
 
 void Emulator::GraphicsThread() {
+  Profiler::ThreadScope thread_scope("graphics");
+
   while (running_.load(std::memory_order_relaxed)) {
     PumpGraphicsEvents();
     RenderGraphics();
@@ -264,6 +266,8 @@ void Emulator::RenderGraphics() {
 }
 
 void Emulator::CoreThread() {
+  Profiler::ThreadScope thread_scope("core");
+
   static const std::chrono::nanoseconds STEP = HZ_TO_NANO(1000);
   static const std::chrono::nanoseconds SAMPLE_PERIOD = HZ_TO_NANO(10);
 

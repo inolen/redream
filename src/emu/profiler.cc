@@ -58,6 +58,12 @@ static void HSLToRGB(float h, float s, float l, uint8_t *r, uint8_t *g,
   *b = static_cast<uint8_t>(fb * 255);
 }
 
+Profiler::ThreadScope::ThreadScope(const char *name) {
+  MicroProfileOnThreadCreate(name);
+}
+
+Profiler::ThreadScope::~ThreadScope() { MicroProfileOnThreadExit(); }
+
 Profiler &Profiler::instance() {
   static Profiler instance;
   return instance;
@@ -75,8 +81,6 @@ uint32_t Profiler::ScopeColor(const char *name) {
 }
 
 Profiler::Profiler() {
-  MicroProfileOnThreadCreate("main");
-
   // register and enable gpu and runtime group by default
   uint16_t gpu_group = MicroProfileGetGroup("gpu", MicroProfileTokenTypeCpu);
   g_MicroProfile.nActiveGroupWanted |= 1ll << gpu_group;
