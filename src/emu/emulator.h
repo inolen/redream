@@ -36,6 +36,7 @@ class Emulator {
   trace::TraceWriter *trace_writer_;
   std::chrono::nanoseconds deltas_[MAX_SCHEDULER_DELTAS];
   unsigned delta_seq_;
+  bool running_;
 };
 }
 }
