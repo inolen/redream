@@ -46,13 +46,20 @@ const Register x64_registers[] = {
     {"xmm10", ir::VALUE_FLOAT_MASK}, {"xmm11", ir::VALUE_FLOAT_MASK}};
 
 const int x64_num_registers = sizeof(x64_registers) / sizeof(Register);
+
+// this will break down if running two instances of the x64 backend, but it's
+// extremely useful when profiling to group JITd blocks of code with an actual
+// symbol name
+static const size_t x64_codegen_size = 1024 * 1024 * 8;
+static uint8_t x64_codegen[x64_codegen_size];
+
 }
 }
 }
 }
 
 X64Backend::X64Backend(Memory &memory)
-    : Backend(memory), emitter_(1024 * 1024 * 8) {}
+    : Backend(memory), emitter_(x64_codegen, x64_codegen_size) {}
 
 X64Backend::~X64Backend() {}
 
