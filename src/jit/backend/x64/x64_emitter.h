@@ -35,7 +35,7 @@ enum {
 
 class X64Emitter : public Xbyak::CodeGenerator {
  public:
-  X64Emitter(size_t max_size);
+  X64Emitter(void *buffer, size_t buffer_size);
   ~X64Emitter();
 
   Xbyak::Label &epilog_label() { return *epilog_label_; }

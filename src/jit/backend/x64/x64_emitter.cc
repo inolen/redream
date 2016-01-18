@@ -116,8 +116,8 @@ static X64Emit x64_emitters[NUM_OPCODES];
   } x64_##op##_init;                                    \
   void op(X64Emitter &e, const Instr *instr)
 
-X64Emitter::X64Emitter(size_t max_size)
-    : CodeGenerator(max_size),
+X64Emitter::X64Emitter(void *buffer, size_t buffer_size)
+    : CodeGenerator(buffer_size, buffer),
       arena_(1024),
       source_map_(nullptr),
       memory_(nullptr),
