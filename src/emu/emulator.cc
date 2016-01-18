@@ -231,10 +231,6 @@ void Emulator::PumpEvents() {
       case WE_RESIZE: {
         rb_->ResizeVideo(ev.resize.width, ev.resize.height);
       } break;
-
-      case WE_TTY: {
-        LOG_INFO("tty input \"%s\"", ev.tty.buffer);
-      } break;
     }
   }
 }

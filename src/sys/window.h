@@ -14,7 +14,11 @@ enum {
   NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1
 };
 
-enum WindowEventType { WE_KEY, WE_MOUSEMOVE, WE_RESIZE, WE_TTY };
+enum WindowEventType {
+  WE_KEY,
+  WE_MOUSEMOVE,
+  WE_RESIZE,
+};
 
 struct WindowEvent {
   WindowEventType type;
@@ -60,8 +64,6 @@ class Window {
 
   Keycode TranslateSDLKey(SDL_Keysym keysym);
   void PumpSDLEvents();
-
-  void PumpTTYEvents();
 
   SDL_Window *window_;
   int width_;
