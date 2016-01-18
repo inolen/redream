@@ -24,7 +24,16 @@ class Profiler {
   static Profiler &instance();
   static uint32_t ScopeColor(const char *name);
 
+  class ThreadScope {
+   public:
+    ThreadScope(const char *name);
+    ~ThreadScope();
+  };
+
   Profiler();
+
+  void ThreadCreate(const char *name);
+  void ThreadExit();
 
   bool HandleInput(sys::Keycode key, int16_t value);
   bool HandleMouseMove(int x, int y);
