@@ -14,17 +14,18 @@ bool AICA::Init() {
   return true;
 }
 
-int AICA::Run(int cycles) {
-  // uint16_t MCIEB = dvm::load<uint16_t>(&aica_regs_[MCIEB_OFFSET]);
-  // uint16_t MCIPD = dvm::load<uint16_t>(&aica_regs_[MCIPD_OFFSET]);
+// frequency 22579200
+// int AICA::Run(int cycles) {
+//   // uint16_t MCIEB = dvm::load<uint16_t>(&aica_regs_[MCIEB_OFFSET]);
+//   // uint16_t MCIPD = dvm::load<uint16_t>(&aica_regs_[MCIPD_OFFSET]);
 
-  // if (MCIEB || MCIPD) {
-  //   LOG_INFO("0x%x & 0x%x", MCIEB, MCIPD);
-  // }
-  // dc_->holly()->RequestInterrupt(HOLLY_INTC_G2AICINT);
+//   // if (MCIEB || MCIPD) {
+//   //   LOG_INFO("0x%x & 0x%x", MCIEB, MCIPD);
+//   // }
+//   // dc_->holly()->RequestInterrupt(HOLLY_INTC_G2AICINT);
 
-  return cycles;
-}
+//   return cycles;
+// }
 
 uint32_t AICA::ReadRegister(void *ctx, uint32_t addr) {
   AICA *self = reinterpret_cast<AICA *>(ctx);

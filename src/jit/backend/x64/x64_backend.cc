@@ -52,7 +52,6 @@ const int x64_num_registers = sizeof(x64_registers) / sizeof(Register);
 // symbol name
 static const size_t x64_codegen_size = 1024 * 1024 * 8;
 static uint8_t x64_codegen[x64_codegen_size];
-
 }
 }
 }

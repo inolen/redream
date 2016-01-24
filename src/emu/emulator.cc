@@ -272,45 +272,39 @@ void Emulator::CoreThread() {
   static const std::chrono::nanoseconds SAMPLE_PERIOD = HZ_TO_NANO(10);
 
   auto current_time = std::chrono::high_resolution_clock::now();
-  auto delta_time = std::chrono::nanoseconds(0);
   auto last_time = current_time;
 
-  auto remaining_time = std::chrono::nanoseconds(0);
-  auto next_sample_time = current_time + SAMPLE_PERIOD;
-  auto run_time = std::chrono::nanoseconds(0);
-  bool ran = false;
+  auto next_step_time = current_time;
+  auto next_sample_time = current_time;
+
+  auto host_time = std::chrono::nanoseconds(0);
+  auto guest_time = std::chrono::nanoseconds(0);
 
   while (running_.load(std::memory_order_relaxed)) {
     current_time = std::chrono::high_resolution_clock::now();
-    delta_time = current_time - last_time;
     last_time = current_time;
-    remaining_time += delta_time;
-
-    // handle events the graphics thread forwarded on
-    PumpCoreEvents();
-
-    // track run time in this backwards way with a condition variable to avoid
-    // polling the clock too much
-    if (ran) {
-      run_time += delta_time;
-      ran = false;
-    }
 
     // run scheduler every STEP nanoseconds
-    while (remaining_time >= STEP) {
-      remaining_time -= STEP;
-      dc_.scheduler()->Tick(STEP);
-      ran = true;
+    if (current_time > next_step_time) {
+      dc_.scheduler->Tick(STEP);
+
+      host_time += std::chrono::high_resolution_clock::now() - last_time;
+      guest_time += STEP;
+      next_step_time = current_time + STEP;
     }
 
     // update speed every SAMPLE_PERIOD nanoseconds
     if (current_time > next_sample_time) {
-      auto since = SAMPLE_PERIOD + (current_time - next_sample_time);
-      float speed = (since.count() / (float)run_time.count()) * 100.0f;
+      float speed = (guest_time.count() / static_cast<float>(host_time.count())) * 100.0f;
       speed_ = *reinterpret_cast<uint32_t *>(&speed);
+
+      host_time = std::chrono::nanoseconds(0);
+      guest_time = std::chrono::nanoseconds(0);
       next_sample_time = current_time + SAMPLE_PERIOD;
-      run_time = std::chrono::nanoseconds(0);
     }
+
+    // handle events the graphics thread forwarded on
+    PumpCoreEvents();
   }
 }
 

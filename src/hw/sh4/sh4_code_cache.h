@@ -25,10 +25,8 @@ struct BlockEntry {
 
 class SH4CodeCache {
  public:
-  SH4CodeCache(hw::Memory &memory, jit::backend::BlockPointer default_handler);
+  SH4CodeCache(hw::Memory *memory, jit::backend::BlockPointer default_handler);
   ~SH4CodeCache();
-
-  hw::Memory &memory() { return memory_; }
 
   // originally, GetBlock looked something like this:
   //
@@ -58,7 +56,6 @@ class SH4CodeCache {
   static bool HandleException(void *ctx, sys::Exception &ex);
 
   sys::ExceptionHandlerHandle eh_handle_;
-  hw::Memory &memory_;
   jit::frontend::Frontend *frontend_;
   jit::backend::Backend *backend_;
   jit::ir::passes::PassRunner pass_runner_;

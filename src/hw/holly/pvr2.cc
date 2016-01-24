@@ -9,7 +9,7 @@ using namespace dvm::hw::sh4;
 using namespace dvm::renderer;
 
 PVR2::PVR2(Dreamcast *dc)
-    : dc_(dc), line_cycles_(0), current_scanline_(0), rps_(0.0f) {}
+    : dc_(dc), line_timer_(INVALID_TIMER), current_scanline_(0), rps_(0.0f) {}
 
 bool PVR2::Init() {
   scheduler_ = dc_->scheduler();
@@ -23,15 +23,6 @@ bool PVR2::Init() {
   ReconfigureSPG();
 
   return true;
-}
-
-int PVR2::Run(int cycles) {
-  int remaining = cycles;
-  while (remaining >= line_cycles_) {
-    NextScanline();
-    remaining -= line_cycles_;
-  }
-  return cycles - remaining;
 }
 
 uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
@@ -147,20 +138,25 @@ void PVR2::ReconfigureSPG() {
   }
 
   // hcount is number of pixel clock cycles per line - 1
-  line_cycles_ = dc_->SPG_LOAD.hcount + 1;
+  int line_clock = pixel_clock / (dc_->SPG_LOAD.hcount + 1);
   if (dc_->SPG_CONTROL.interlace) {
-    line_cycles_ /= 2;
+    line_clock *= 2;
   }
 
-  // scale line cycles by pvr clock frequency for Run()
-  line_cycles_ *= GetClockFrequency() / pixel_clock;
-
   LOG_INFO(
-      "ReconfigureSPG: pixel_clock %d, line_cycles %d, vcount %d, hcount %d, "
+      "ReconfigureSPG: pixel_clock %d, line_clock %d, vcount %d, hcount %d, "
       "interlace %d, vbstart %d, vbend %d",
-      pixel_clock, line_cycles_, dc_->SPG_LOAD.vcount, dc_->SPG_LOAD.hcount,
+      pixel_clock, line_clock, dc_->SPG_LOAD.vcount, dc_->SPG_LOAD.hcount,
       dc_->SPG_CONTROL.interlace, dc_->SPG_VBLANK.vbstart,
       dc_->SPG_VBLANK.vbend);
+
+  if (line_timer_ != INVALID_TIMER) {
+    scheduler_->RemoveTimer(line_timer_);
+    line_timer_ = INVALID_TIMER;
+  }
+
+  line_timer_ = scheduler_->AddTimer(HZ_TO_NANO(line_clock),
+                                     std::bind(&PVR2::NextScanline, this));
 }
 
 void PVR2::NextScanline() {

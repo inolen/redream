@@ -87,9 +87,10 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   current_block_ = tail_block;
   current_instr_ = tail_instr->prev();
 
-  Value *cycles = LoadContext(offsetof(SH4Context, cycles), VALUE_I32);
-  cycles = Sub(cycles, AllocConstant(guest_cycles));
-  StoreContext(offsetof(SH4Context, cycles), cycles);
+  Value *remaining_cycles =
+      LoadContext(offsetof(SH4Context, remaining_cycles), VALUE_I32);
+  remaining_cycles = Sub(remaining_cycles, AllocConstant(guest_cycles));
+  StoreContext(offsetof(SH4Context, remaining_cycles), remaining_cycles);
 }
 
 Value *SH4Builder::LoadRegister(int n, ValueTy type) {

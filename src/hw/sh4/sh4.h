@@ -10,7 +10,7 @@ struct SH4Test;
 namespace dvm {
 namespace hw {
 
-class Memory;
+class Dreamcast;
 
 namespace sh4 {
 
@@ -106,19 +106,16 @@ enum DDTRW {  //
   DDT_W
 };
 
-class SH4 : public hw::Device {
+class SH4 {
   friend void RunSH4Test(const SH4Test &);
 
  public:
-  static uint32_t CompilePC();
-
-  SH4(hw::Memory &memory);
-
-  int GetClockFrequency() { return 200000000; }
+  SH4(hw::Dreamcast *dc);
+  ~SH4();
 
   bool Init();
   void SetPC(uint32_t pc);
-  int Run(int cycles);
+  void Run(const std::chrono::nanoseconds &period);
 
   // DMAC
   void DDT(int channel, DDTRW rw, uint32_t addr);
@@ -143,6 +140,7 @@ class SH4 : public hw::Device {
   static void WriteSQ(void *ctx, uint32_t addr, T value);
 
  private:
+  static uint32_t CompilePC();
   static void Pref(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
   static void SRUpdated(jit::frontend::sh4::SH4Context *ctx, uint64_t old_sr);
   static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,
@@ -163,17 +161,20 @@ class SH4 : public hw::Device {
 
   // TMU
   bool TimerEnabled(int n);
-  void RunTimer(int n, int cycles);
+  uint32_t TimerCount(int n);
+  void ScheduleTimer(int n);
+  void ExpireTimer(int n);
 
-  hw::Memory &memory_;
+  hw::Dreamcast *dc_;
+  hw::Memory *memory_;
+  hw::Scheduler *scheduler_;
+  SH4CodeCache *code_cache_;
 
   jit::frontend::sh4::SH4Context ctx_;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   type &name{reinterpret_cast<type &>(area7_[name##_OFFSET])};
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
-
-  SH4CodeCache code_cache_;
 
   bool pending_cache_reset_;
 
@@ -182,6 +183,8 @@ class SH4 : public hw::Device {
   uint64_t priority_mask_[16];
   uint64_t requested_interrupts_;
   uint64_t pending_interrupts_;
+
+  hw::TimerHandle tmu_timers_[3];
 
   uint32_t area7_[0x4000];  // consolidated, 16kb area 7 memory
   uint8_t cache_[0x2000];   // 8kb cache

@@ -2,49 +2,71 @@
 #define SCHEDULER_H
 
 #include <chrono>
-#include <vector>
+#include <functional>
 
 namespace dvm {
 namespace hw {
 
-enum { INVALID_HANDLE = -1, NS_PER_SEC = 1000000000 };
+enum {
+  MAX_TIMERS = 16,
+};
+
+typedef int64_t TimerHandle;
+
+enum : TimerHandle {
+  INVALID_TIMER = -1,
+};
+
+typedef std::function<void(const std::chrono::nanoseconds &)> TimerCallback;
+
+struct Timer {
+  TimerHandle handle;
+  std::chrono::nanoseconds period;
+  std::chrono::high_resolution_clock::time_point expire;
+  TimerCallback callback;
+};
+
+enum : int64_t {
+  NS_PER_SEC = 1000000000ll,
+};
 
 static inline std::chrono::nanoseconds HZ_TO_NANO(int64_t hz) {
-  return std::chrono::nanoseconds(NS_PER_SEC / hz);
+  return std::chrono::nanoseconds(
+      static_cast<int64_t>(NS_PER_SEC / static_cast<float>(hz)));
 }
 
-static inline std::chrono::nanoseconds MHZ_TO_NANO(int64_t hz) {
-  return std::chrono::nanoseconds(NS_PER_SEC / (hz * 1000000));
+static inline int64_t NANO_TO_CYCLES(const std::chrono::nanoseconds &ns,
+                                     int64_t hz) {
+  return static_cast<int64_t>((ns.count() / static_cast<float>(NS_PER_SEC)) *
+                              hz);
 }
 
-class Device {
- public:
-  virtual ~Device(){};
-
-  virtual int GetClockFrequency() = 0;
-  virtual int Run(int cycles) = 0;
-};
-
-struct DeviceInfo {
-  DeviceInfo(Device *device) : device(device), current_time() {}
-
-  Device *device;
-  std::chrono::high_resolution_clock::time_point current_time;
-};
-
-typedef int DeviceHandle;
+static inline std::chrono::nanoseconds CYCLES_TO_NANO(int64_t cycles,
+                                                      int64_t hz) {
+  return std::chrono::nanoseconds(
+      static_cast<int64_t>((cycles / static_cast<float>(hz)) * NS_PER_SEC));
+}
 
 class Scheduler {
  public:
   Scheduler();
 
-  DeviceHandle AddDevice(Device *device);
+  std::chrono::high_resolution_clock::time_point base_time() {
+    return base_time_;
+  }
+
   void Tick(const std::chrono::nanoseconds &delta);
 
- private:
-  std::vector<DeviceInfo> devices_;
+  TimerHandle AddTimer(const std::chrono::nanoseconds &period,
+                       TimerCallback callback);
+  Timer &GetTimer(TimerHandle handle);
+  bool RemoveTimer(TimerHandle handle);
 
+ private:
   std::chrono::high_resolution_clock::time_point base_time_;
+  Timer timers_[MAX_TIMERS];
+  int num_timers_;
+  TimerHandle next_handle_;
 };
 }
 }

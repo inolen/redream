@@ -2,7 +2,6 @@
 #define AICA_H
 
 #include <stdint.h>
-#include "hw/scheduler.h"
 
 namespace dvm {
 namespace hw {
@@ -10,14 +9,11 @@ class Dreamcast;
 
 namespace aica {
 
-class AICA : public hw::Device {
+class AICA {
  public:
   AICA(hw::Dreamcast *dc);
 
-  int GetClockFrequency() { return 22579200; }
-
   bool Init();
-  int Run(int cycles);
 
   static uint32_t ReadRegister(void *ctx, uint32_t addr);
   static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
