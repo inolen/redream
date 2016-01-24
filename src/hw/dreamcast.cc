@@ -155,16 +155,16 @@ bool Dreamcast::MapMemory() {
     nullptr,
     &PVR2::WriteRegister,
     nullptr);
-  RegionHandle aica_reg_handle = memory_->AllocRegion(
-    AICA_REG_START, AICA_REG_SIZE, aica(),
-    nullptr,
-    nullptr,
-    &AICA::ReadRegister,
-    nullptr,
-    nullptr,
-    nullptr,
-    &AICA::WriteRegister,
-    nullptr);
+  // RegionHandle aica_reg_handle = memory_->AllocRegion(
+  //   AICA_REG_START, AICA_REG_SIZE, aica(),
+  //   nullptr,
+  //   nullptr,
+  //   &AICA::ReadRegister,
+  //   nullptr,
+  //   nullptr,
+  //   nullptr,
+  //   &AICA::WriteRegister,
+  //   nullptr);
   RegionHandle wave_ram_handle = memory_->AllocRegion(
     WAVE_RAM_START, WAVE_RAM_SIZE, aica(),
     nullptr,
@@ -248,7 +248,7 @@ bool Dreamcast::MapMemory() {
   memmap.Mount(a7_handle, AREA7_SIZE, AREA7_START);
   memmap.Mount(holly_handle, HOLLY_REG_SIZE, HOLLY_REG_START);
   memmap.Mount(pvr_reg_handle, PVR_REG_SIZE, PVR_REG_START);
-  memmap.Mount(aica_reg_handle, AICA_REG_SIZE, AICA_REG_START);
+  // memmap.Mount(aica_reg_handle, AICA_REG_SIZE, AICA_REG_START);
   memmap.Mount(wave_ram_handle, WAVE_RAM_SIZE, WAVE_RAM_START);
   memmap.Mount(pvr_vram64_handle, PVR_VRAM64_SIZE, PVR_VRAM64_START);
   memmap.Mount(ta_cmd_handle, TA_CMD_SIZE, TA_CMD_START);
@@ -282,7 +282,7 @@ bool Dreamcast::MapMemory() {
   wave_ram_ = memory_->virtual_base() + WAVE_RAM_START;
   palette_ram_ = memory_->virtual_base() + PVR_PALETTE_START;
   video_ram_ = memory_->virtual_base() + PVR_VRAM32_START;
-  aica_regs_ = memory_->virtual_base() + AICA_REG_START;
+  // aica_regs_ = memory_->virtual_base() + AICA_REG_START;
   ram_ = memory_->virtual_base() + MAIN_RAM_1_START;
 
   return true;

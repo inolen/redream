@@ -336,7 +336,7 @@ void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
 uint32_t SH4::CompilePC() {
   SH4CodeCache *code_cache = s_current_cpu->code_cache_;
   SH4Context *ctx = &s_current_cpu->ctx_;
-  BlockEntry *block = code_cache->CompileBlock(ctx.pc, ctx);
+  BlockEntry *block = code_cache->CompileBlock(ctx->pc, ctx);
   return block->run();
 }
 

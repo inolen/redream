@@ -8,7 +8,7 @@ using namespace dvm::hw::holly;
 AICA::AICA(Dreamcast *dc) : dc_(dc) {}
 
 bool AICA::Init() {
-  aica_regs_ = dc_->aica_regs();
+  // aica_regs_ = dc_->aica_regs();
   wave_ram_ = dc_->wave_ram();
 
   return true;
@@ -27,17 +27,17 @@ bool AICA::Init() {
 //   return cycles;
 // }
 
-uint32_t AICA::ReadRegister(void *ctx, uint32_t addr) {
-  AICA *self = reinterpret_cast<AICA *>(ctx);
-  // LOG_INFO("AICA::ReadRegister32 0x%x", addr);
-  return dvm::load<uint32_t>(&self->aica_regs_[addr]);
-}
+// uint32_t AICA::ReadRegister(void *ctx, uint32_t addr) {
+//   AICA *self = reinterpret_cast<AICA *>(ctx);
+//   // LOG_INFO("AICA::ReadRegister32 0x%x", addr);
+//   return dvm::load<uint32_t>(&self->aica_regs_[addr]);
+// }
 
-void AICA::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
-  AICA *self = reinterpret_cast<AICA *>(ctx);
-  // LOG_INFO("AICA::WriteRegister32 0x%x", addr);
-  dvm::store(&self->aica_regs_[addr], value);
-}
+// void AICA::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
+//   AICA *self = reinterpret_cast<AICA *>(ctx);
+//   // LOG_INFO("AICA::WriteRegister32 0x%x", addr);
+//   dvm::store(&self->aica_regs_[addr], value);
+// }
 
 uint32_t AICA::ReadWave(void *ctx, uint32_t addr) {
   AICA *self = reinterpret_cast<AICA *>(ctx);
