@@ -57,7 +57,7 @@ Dreamcast::Dreamcast()
   holly_ = new Holly(this);
   maple_ = new Maple(this);
   pvr_ = new PVR2(this);
-  sh4_ = new SH4(*memory_);
+  sh4_ = new SH4(this);
   ta_ = new TileAccelerator(this);
   texcache_ = new TextureCache(this);
 }
@@ -114,10 +114,6 @@ bool Dreamcast::Init() {
   if (!texcache_->Init()) {
     return false;
   }
-
-  scheduler_->AddDevice(aica_);
-  scheduler_->AddDevice(pvr_);
-  scheduler_->AddDevice(sh4_);
 
   return true;
 }

@@ -22,20 +22,20 @@ using namespace dvm::sys;
 
 DEFINE_bool(interpreter, false, "Use interpreter");
 
-SH4CodeCache::SH4CodeCache(Memory &memory, BlockPointer default_block)
-    : memory_(memory), default_block_(default_block) {
+SH4CodeCache::SH4CodeCache(Memory *memory, BlockPointer default_block)
+    : default_block_(default_block) {
   // add exception handler to help recompile blocks when protected memory is
   // accessed
   eh_handle_ = ExceptionHandler::instance().AddHandler(
       this, &SH4CodeCache::HandleException);
 
   // setup parser and emitter
-  frontend_ = new SH4Frontend(memory);
+  frontend_ = new SH4Frontend(*memory);
 
   if (FLAGS_interpreter) {
-    backend_ = new InterpreterBackend(memory);
+    backend_ = new InterpreterBackend(*memory);
   } else {
-    backend_ = new X64Backend(memory);
+    backend_ = new X64Backend(*memory);
   }
 
   // setup optimization passes

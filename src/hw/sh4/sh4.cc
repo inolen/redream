@@ -1,7 +1,9 @@
 #include "core/core.h"
 #include "emu/profiler.h"
 #include "hw/sh4/sh4.h"
+#include "hw/dreamcast.h"
 #include "hw/memory.h"
+#include "hw/scheduler.h"
 
 using namespace dvm;
 using namespace dvm::emu;
@@ -10,7 +12,7 @@ using namespace dvm::hw::sh4;
 using namespace dvm::jit;
 using namespace dvm::jit::frontend::sh4;
 
-InterruptInfo interrupts[NUM_INTERRUPTS] = {
+static InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
   { intevt, pri, ipr, ipr_shift }                  \
   ,
@@ -18,26 +20,28 @@ InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-// CompilePC is used by the code cache as the default callback for uncached
-// blocks. It's assumed here that the uncached block being ran is at the
-// current PC.
-static SH4 *current_cpu = nullptr;
+static SH4 *s_current_cpu = nullptr;
 
-uint32_t SH4::CompilePC() {
-  SH4CodeCache &code_cache = current_cpu->code_cache_;
-  SH4Context &ctx = current_cpu->ctx_;
-  BlockEntry *block = code_cache.CompileBlock(ctx.pc, &ctx);
-  return block->run();
-}
+enum {
+  SH4_CLOCK_FREQ = 200000000,
+};
 
-SH4::SH4(Memory &memory)
-    : memory_(memory),
-      code_cache_(memory, &SH4::CompilePC),
+SH4::SH4(Dreamcast *dc)
+    : dc_(dc),
+      code_cache_(nullptr),
       pending_cache_reset_(false),
       requested_interrupts_(0),
-      pending_interrupts_(0) {}
+      pending_interrupts_(0),
+      tmu_timers_{INVALID_TIMER, INVALID_TIMER, INVALID_TIMER} {}
+
+SH4::~SH4() { delete code_cache_; }
 
 bool SH4::Init() {
+  memory_ = dc_->memory();
+  scheduler_ = dc_->scheduler();
+
+  code_cache_ = new SH4CodeCache(memory_, &SH4::CompilePC);
+
   // initialize context
   memset(&ctx_, 0, sizeof(ctx_));
   ctx_.sh4 = this;
@@ -64,37 +68,36 @@ bool SH4::Init() {
   // reset interrupts
   ReprioritizeInterrupts();
 
+  // add to scheduler
+  scheduler_->AddTimer(HZ_TO_NANO(1000),
+                       std::bind(&SH4::Run, this, std::placeholders::_1));
+
   return true;
 }
 
 void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }
 
-int SH4::Run(int cycles) {
+void SH4::Run(const std::chrono::nanoseconds &period) {
   PROFILER_RUNTIME("SH4::Execute");
 
-  // TMU runs on the peripheral clock which is 50mhz vs our 200mhz
-  for (int i = 0; i < 3; i++) {
-    RunTimer(i, cycles >> 2);
-  }
+  int64_t cycles = NANO_TO_CYCLES(period, SH4_CLOCK_FREQ);
 
   // set current sh4 instance for CompilePC
-  current_cpu = this;
+  s_current_cpu = this;
 
-  // set the number of cycles to execute. each block's epilog will decrement
-  // this as they run
-  ctx_.cycles = cycles;
+  // each block's epilog will decrement the remaining cycles as they run
+  ctx_.total_cycles = cycles;
+  ctx_.remaining_cycles = cycles;
 
-  while (ctx_.cycles > 0) {
-    BlockEntry *block = code_cache_.GetBlock(ctx_.pc);
+  while (ctx_.remaining_cycles > 0) {
+    BlockEntry *block = code_cache_->GetBlock(ctx_.pc);
     ctx_.pc = block->run();
 
     CheckPendingCacheReset();
     CheckPendingInterrupts();
   }
 
-  current_cpu = nullptr;
-
-  return cycles - ctx_.cycles;
+  s_current_cpu = nullptr;
 }
 
 void SH4::DDT(int channel, DDTRW rw, uint32_t addr) {
@@ -111,7 +114,7 @@ void SH4::DDT(int channel, DDTRW rw, uint32_t addr) {
 
   size_t transfer_size = DMATCR2 * 32;
   for (size_t i = 0; i < transfer_size / 4; i++) {
-    memory_.W32(dst_addr, memory_.R32(src_addr));
+    memory_->W32(dst_addr, memory_->R32(src_addr));
     dst_addr += 4;
     src_addr += 4;
   }
@@ -211,6 +214,15 @@ T SH4::ReadRegister(void *ctx, uint32_t addr) {
       // v |= 0x3 << 8;
       return v;
     }
+
+    case TCNT0_OFFSET:
+      return self->TimerCount(0);
+
+    case TCNT1_OFFSET:
+      return self->TimerCount(1);
+
+    case TCNT2_OFFSET:
+      return self->TimerCount(2);
   }
 
   return static_cast<T>(self->area7_[addr]);
@@ -229,27 +241,45 @@ void SH4::WriteRegister(void *ctx, uint32_t addr, T value) {
   self->area7_[addr] = static_cast<uint32_t>(value);
 
   switch (addr) {
-    case MMUCR_OFFSET:
+    case MMUCR_OFFSET: {
       if (value) {
         LOG_FATAL("MMU not currently supported");
       }
-      break;
+    } break;
 
     // it seems the only aspect of the cache control register that needs to be
     // emulated is the instruction cache invalidation
-    case CCR_OFFSET:
+    case CCR_OFFSET: {
       if (self->CCR.ICI) {
         self->ResetCache();
       }
-      break;
+    } break;
 
     case IPRA_OFFSET:
     case IPRB_OFFSET:
-    case IPRC_OFFSET:
+    case IPRC_OFFSET: {
       self->ReprioritizeInterrupts();
-      break;
+    } break;
 
-      // TODO UnrequestInterrupt on TCR write
+    // TODO UnrequestInterrupt on TCR write
+
+    case TSTR_OFFSET: {
+      self->ScheduleTimer(0);
+      self->ScheduleTimer(1);
+      self->ScheduleTimer(2);
+    } break;
+
+    case TCNT0_OFFSET: {
+      self->ScheduleTimer(0);
+    } break;
+
+    case TCNT1_OFFSET: {
+      self->ScheduleTimer(1);
+    } break;
+
+    case TCNT2_OFFSET: {
+      self->ScheduleTimer(2);
+    } break;
   }
 }
 
@@ -303,6 +333,13 @@ void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
   self->ctx_.sq[sqi][idx] = static_cast<uint32_t>(value);
 }
 
+uint32_t SH4::CompilePC() {
+  SH4CodeCache *code_cache = s_current_cpu->code_cache_;
+  SH4Context *ctx = &s_current_cpu->ctx_;
+  BlockEntry *block = code_cache->CompileBlock(ctx.pc, ctx);
+  return block->run();
+}
+
 void SH4::Pref(SH4Context *ctx, uint64_t arg0) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
   uint32_t addr = static_cast<uint32_t>(arg0);
@@ -322,9 +359,8 @@ void SH4::Pref(SH4Context *ctx, uint64_t arg0) {
   }
 
   // perform the "burst" 32-byte copy
-  Memory &memory = self->memory_;
   for (int i = 0; i < 8; i++) {
-    memory.W32(dest, ctx->sq[sqi][i]);
+    self->memory_->W32(dest, ctx->sq[sqi][i]);
     dest += 4;
   }
 }
@@ -393,24 +429,36 @@ void SH4::SwapFPCouples() {
   }
 }
 
-// FIXME this isn't right. When the IC is reset a pending flag is set and the
-// cache is actually reset at the end of the current block. However, the docs
-// for the SH4 IC state "After CCR is updated, an instruction that performs data
-// access to the P0, P1, P3, or U0 area should be located at least four
-// instructions after the CCR update instruction. Also, a branch instruction to
-// the P0, P1, P3, or U0 area should be located at least eight instructions
-// after the CCR update instruction."
-void SH4::ResetCache() { pending_cache_reset_ = true; }
+//
+// CCN
+//
+
+void SH4::ResetCache() {
+  // FIXME this isn't right. When the IC is reset a pending flag is set and the
+  // cache is actually reset at the end of the current block. However, the docs
+  // for the SH4 IC state "After CCR is updated, an instruction that performs
+  // data
+  // access to the P0, P1, P3, or U0 area should be located at least four
+  // instructions after the CCR update instruction. Also, a branch instruction
+  // to
+  // the P0, P1, P3, or U0 area should be located at least eight instructions
+  // after the CCR update instruction."
+  pending_cache_reset_ = true;
+}
 
 inline void SH4::CheckPendingCacheReset() {
   if (!pending_cache_reset_) {
     return;
   }
 
-  code_cache_.ResetBlocks();
+  code_cache_->ResetBlocks();
 
   pending_cache_reset_ = false;
 }
+
+//
+// INTC
+//
 
 // Generate a sorted set of interrupts based on their priority. These sorted
 // ids are used to represent all of the currently requested interrupts as a
@@ -480,64 +528,88 @@ inline void SH4::CheckPendingInterrupts() {
   SRUpdated(&ctx_, ctx_.ssr);
 }
 
+//
+// TMU
+//
+static const int64_t PERIPHERAL_CLOCK_FREQ = SH4_CLOCK_FREQ >> 2;
+static const int PERIPHERAL_SCALE[] = {2, 4, 6, 8, 10, 0, 0, 0};
+
+#define TCOR(n) (n == 0 ? TCOR0 : n == 1 ? TCOR1 : TCOR2)
+#define TCNT(n) (n == 0 ? TCNT0 : n == 1 ? TCNT1 : TCNT2)
+#define TCR(n) (n == 0 ? TCR0 : n == 1 ? TCR1 : TCR2)
+#define TUNI(n) \
+  (n == 0 ? SH4_INTC_TUNI0 : n == 1 ? SH4_INTC_TUNI1 : SH4_INTC_TUNI2)
+
 bool SH4::TimerEnabled(int n) {  //
   return TSTR & (1 << n);
 }
 
-void SH4::RunTimer(int n, int cycles) {
-  static const int tcr_shift[] = {2, 4, 6, 8, 10, 0, 0, 0};
+uint32_t SH4::TimerCount(int n) {
+  // instead of updating TCNT constantly, a timer is scheduled to expire when
+  // TCNT should underflow. use this scheduled timer to calculate the current
+  // value for TCNT
+  TimerHandle &handle = tmu_timers_[n];
+  Timer &timer = scheduler_->GetTimer(handle);
+
+  uint32_t &tcr = TCR(n);
+
+  // calculate how many peripheral cycles away the timer is from expiring
+  int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
+  std::chrono::nanoseconds remaining_ns =
+      timer.expire - scheduler_->base_time();
+  int64_t remaining_cycles = NANO_TO_CYCLES(remaining_ns, freq);
+
+  // the scheduler doesn't update its view of time as SH4::Run executes,
+  // offset the remaining cycles based on how many cycles SH4::Run has
+  // currently executed
+  remaining_cycles -= (ctx_.total_cycles - ctx_.remaining_cycles) >> 2;
+
+  return static_cast<uint32_t>(std::max(remaining_cycles, 0ll));
+}
+
+void SH4::ScheduleTimer(int n) {
+  TimerHandle &handle = tmu_timers_[n];
+
+  // remove old timer if one exists
+  scheduler_->RemoveTimer(handle);
+  handle = INVALID_TIMER;
 
   if (!TimerEnabled(n)) {
     return;
   }
 
-  uint32_t *tcor = nullptr;
-  uint32_t *tcnt = nullptr;
-  uint32_t *tcr = nullptr;
-  Interrupt exception = (Interrupt)0;
-  switch (n) {
-    case 0:
-      tcor = &TCOR0;
-      tcnt = &TCNT0;
-      tcr = &TCR0;
-      exception = SH4_INTC_TUNI0;
-      break;
-    case 1:
-      tcor = &TCOR1;
-      tcnt = &TCNT1;
-      tcr = &TCR1;
-      exception = SH4_INTC_TUNI1;
-      break;
-    case 2:
-      tcor = &TCOR2;
-      tcnt = &TCNT2;
-      tcr = &TCR2;
-      exception = SH4_INTC_TUNI2;
-      break;
-    default:
-      LOG_FATAL("Unexpected timer index %d", n);
-      break;
+  uint32_t &tcnt = TCNT(n);
+  uint32_t &tcr = TCR(n);
+
+  // TCNT represents the number of perhiperal clock cycles to count down from,
+  // while the lower 3 bits of TCR describe the clock scale factor
+  int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
+  int64_t cycles = static_cast<int64_t>(tcnt);
+  std::chrono::nanoseconds ns = CYCLES_TO_NANO(cycles, freq);
+
+  // instead of updating TCNT constantly, schedule a timer to expire when TCNT
+  // should underflow
+  handle = scheduler_->AddTimer(
+      ns, [this, n](const std::chrono::nanoseconds &) { ExpireTimer(n); });
+}
+
+void SH4::ExpireTimer(int n) {
+  uint32_t &tcor = TCOR(n);
+  uint32_t &tcnt = TCNT(n);
+  uint32_t &tcr = TCR(n);
+
+  CHECK(TimerEnabled(n));
+
+  // timer expired, set the underflow flag
+  tcr |= 0x100;
+
+  // if interrupt generation on underflow is enabled, do so
+  if (tcr & 0x20) {
+    RequestInterrupt(TUNI(n));
   }
 
-  // adjust cycles based on clock scale
-  cycles >>= tcr_shift[*tcr & 7];
+  // reset the count with the value from TCOR and reschedule
+  tcnt = tcor;
 
-  // decrement timer
-  bool underflowed = false;
-  if ((*tcnt - cycles) > *tcnt) {
-    cycles -= *tcnt;
-    *tcnt = *tcor;
-    underflowed = true;
-  }
-  *tcnt -= cycles;
-
-  // set underflow flags and raise exception
-  if (underflowed) {
-    *tcnt = *tcor;
-    *tcr |= 0x100;
-
-    if (*tcr & 0x20) {
-      RequestInterrupt(exception);
-    }
-  }
+  ScheduleTimer(n);
 }
