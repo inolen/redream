@@ -139,7 +139,7 @@ enum {
 
 class Dreamcast {
  public:
-  uint8_t *aica_regs() { return aica_regs_; }
+  // uint8_t *aica_regs() { return aica_regs_; }
   Register *holly_regs() { return holly_regs_; }
   Register *pvr_regs() { return pvr_regs_; }
 
@@ -192,7 +192,7 @@ class Dreamcast {
  private:
   bool MapMemory();
 
-  uint8_t *aica_regs_;
+  // uint8_t *aica_regs_;
   uint8_t *bios_;
   uint8_t *flash_;
   uint8_t *palette_ram_;
