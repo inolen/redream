@@ -21,6 +21,12 @@ bool Holly::Init() {
   maple_ = dc_->maple;
   sh4_ = dc_->sh4;
 
+  // initialize registers
+#define HOLLY_REG(addr, name, flags, default, type) \
+  holly_regs_[name##_OFFSET] = {flags, default};
+#include "hw/holly/holly_regs.inc"
+#undef HOLLY_REG
+
   return true;
 }
 

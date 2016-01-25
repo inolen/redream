@@ -20,6 +20,12 @@ bool PVR2::Init() {
   palette_ram_ = dc_->palette_ram;
   video_ram_ = dc_->video_ram;
 
+  // initialize registers
+#define PVR_REG(addr, name, flags, default, type) \
+  pvr_regs_[name##_OFFSET] = {flags, default};
+#include "hw/holly/pvr2_regs.inc"
+#undef PVR_REG
+
   ReconfigureSPG();
 
   return true;
