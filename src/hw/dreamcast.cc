@@ -25,118 +25,30 @@ using namespace dvm::renderer;
 using namespace dvm::sys;
 using namespace dvm::trace;
 
-Dreamcast::Dreamcast()
-    :  // allocate registers and initialize references
-      holly_regs_(new Register[HOLLY_REG_SIZE >> 2]),
-#define HOLLY_REG(offset, name, flags, default, type) \
-  name{reinterpret_cast<type &>(holly_regs_[name##_OFFSET].value)},
-#include "hw/holly/holly_regs.inc"
-#undef HOLLY_REG
-      pvr_regs_(new Register[PVR_REG_SIZE >> 2]),
-#define PVR_REG(offset, name, flags, default, type) \
-  name{reinterpret_cast<type &>(pvr_regs_[name##_OFFSET].value)},
-#include "hw/holly/pvr2_regs.inc"
-#undef PVR_REG
-      rb_(nullptr),
-      trace_writer_(nullptr) {
-// initialize register values
-#define HOLLY_REG(addr, name, flags, default, type) \
-  holly_regs_[name##_OFFSET] = {flags, default};
-#include "hw/holly/holly_regs.inc"
-#undef HOLLY_REG
-
-#define PVR_REG(addr, name, flags, default, type) \
-  pvr_regs_[name##_OFFSET] = {flags, default};
-#include "hw/holly/pvr2_regs.inc"
-#undef PVR_REG
-
-  scheduler_ = new Scheduler();
-  memory_ = new Memory();
-  aica_ = new AICA(this);
-  gdrom_ = new GDROM(this);
-  holly_ = new Holly(this);
-  maple_ = new Maple(this);
-  pvr_ = new PVR2(this);
-  sh4_ = new SH4(this);
-  ta_ = new TileAccelerator(this);
-  texcache_ = new TextureCache(this);
-}
-
-Dreamcast::~Dreamcast() {
-  delete[] holly_regs_;
-  delete[] pvr_regs_;
-
-  delete scheduler_;
-  delete memory_;
-  delete aica_;
-  delete gdrom_;
-  delete holly_;
-  delete maple_;
-  delete pvr_;
-  delete sh4_;
-  delete ta_;
-  delete texcache_;
-}
-
-bool Dreamcast::Init() {
-  if (!MapMemory()) {
-    return false;
-  }
-
-  if (!aica_->Init()) {
-    return false;
-  }
-
-  if (!gdrom_->Init()) {
-    return false;
-  }
-
-  if (!holly_->Init()) {
-    return false;
-  }
-
-  if (!maple_->Init()) {
-    return false;
-  }
-
-  if (!pvr_->Init()) {
-    return false;
-  }
-
-  if (!sh4_->Init()) {
-    return false;
-  }
-
-  if (!ta_->Init()) {
-    return false;
-  }
-
-  if (!texcache_->Init()) {
-    return false;
-  }
-
-  return true;
-}
+namespace dvm {
+namespace hw {
 
 // clang-format off
-bool Dreamcast::MapMemory() {
-  if (!memory_->Init()) {
+static bool MapMemory(Dreamcast &dc) {
+  Memory *memory = dc.memory;
+
+  if (!memory->Init()) {
     return false;
   }
 
   // first, allocate static regions
-  RegionHandle a0_handle = memory_->AllocRegion(AREA0_START, AREA0_SIZE);
-  RegionHandle a1_handle = memory_->AllocRegion(AREA1_START, AREA1_SIZE);
+  RegionHandle a0_handle = memory->AllocRegion(AREA0_START, AREA0_SIZE);
+  RegionHandle a1_handle = memory->AllocRegion(AREA1_START, AREA1_SIZE);
   // area 2 unused
-  RegionHandle a3_handle = memory_->AllocRegion(AREA3_START, AREA3_SIZE);
+  RegionHandle a3_handle = memory->AllocRegion(AREA3_START, AREA3_SIZE);
   // area 4 unused
-  RegionHandle a5_handle = memory_->AllocRegion(AREA5_START, AREA5_SIZE);
-  RegionHandle a6_handle = memory_->AllocRegion(AREA6_START, AREA6_SIZE);
-  RegionHandle a7_handle = memory_->AllocRegion(AREA7_START, AREA7_SIZE);
+  RegionHandle a5_handle = memory->AllocRegion(AREA5_START, AREA5_SIZE);
+  RegionHandle a6_handle = memory->AllocRegion(AREA6_START, AREA6_SIZE);
+  RegionHandle a7_handle = memory->AllocRegion(AREA7_START, AREA7_SIZE);
 
   // second, allocate dynamic regions that overlap static regions
-  RegionHandle holly_handle = memory_->AllocRegion(
-    HOLLY_REG_START, HOLLY_REG_SIZE, holly(),
+  RegionHandle holly_handle = memory->AllocRegion(
+    HOLLY_REG_START, HOLLY_REG_SIZE, dc.holly,
     &Holly::ReadRegister<uint8_t>,
     &Holly::ReadRegister<uint16_t>,
     &Holly::ReadRegister<uint32_t>,
@@ -145,8 +57,8 @@ bool Dreamcast::MapMemory() {
     &Holly::WriteRegister<uint16_t>,
     &Holly::WriteRegister<uint32_t>,
     nullptr);
-  RegionHandle pvr_reg_handle = memory_->AllocRegion(
-    PVR_REG_START, PVR_REG_SIZE, pvr(),
+  RegionHandle pvr_reg_handle = memory->AllocRegion(
+    PVR_REG_START, PVR_REG_SIZE, dc.pvr,
     nullptr,
     nullptr,
     &PVR2::ReadRegister,
@@ -155,7 +67,7 @@ bool Dreamcast::MapMemory() {
     nullptr,
     &PVR2::WriteRegister,
     nullptr);
-  // RegionHandle aica_reg_handle = memory_->AllocRegion(
+  // RegionHandle aica_reg_handle = memory->AllocRegion(
   //   AICA_REG_START, AICA_REG_SIZE, aica(),
   //   nullptr,
   //   nullptr,
@@ -165,8 +77,8 @@ bool Dreamcast::MapMemory() {
   //   nullptr,
   //   &AICA::WriteRegister,
   //   nullptr);
-  RegionHandle wave_ram_handle = memory_->AllocRegion(
-    WAVE_RAM_START, WAVE_RAM_SIZE, aica(),
+  RegionHandle wave_ram_handle = memory->AllocRegion(
+    WAVE_RAM_START, WAVE_RAM_SIZE, dc.aica,
     nullptr,
     nullptr,
     &AICA::ReadWave,
@@ -175,8 +87,8 @@ bool Dreamcast::MapMemory() {
     nullptr,
     &AICA::WriteWave,
     nullptr);
-  RegionHandle pvr_vram64_handle = memory_->AllocRegion(
-    PVR_VRAM64_START, PVR_VRAM64_SIZE, pvr(),
+  RegionHandle pvr_vram64_handle = memory->AllocRegion(
+    PVR_VRAM64_START, PVR_VRAM64_SIZE, dc.pvr,
     &PVR2::ReadVRamInterleaved<uint8_t>,
     &PVR2::ReadVRamInterleaved<uint16_t>,
     &PVR2::ReadVRamInterleaved<uint32_t>,
@@ -185,8 +97,8 @@ bool Dreamcast::MapMemory() {
     &PVR2::WriteVRamInterleaved<uint16_t>,
     &PVR2::WriteVRamInterleaved<uint32_t>,
     nullptr);
-  RegionHandle ta_cmd_handle = memory_->AllocRegion(
-    TA_CMD_START, TA_CMD_SIZE, ta(),
+  RegionHandle ta_cmd_handle = memory->AllocRegion(
+    TA_CMD_START, TA_CMD_SIZE, dc.ta,
     nullptr,
     nullptr,
     nullptr,
@@ -195,8 +107,8 @@ bool Dreamcast::MapMemory() {
     nullptr,
     &TileAccelerator::WriteCommand,
     nullptr);
-  RegionHandle ta_texture_handle = memory_->AllocRegion(
-    TA_TEXTURE_START, TA_TEXTURE_SIZE, ta(),
+  RegionHandle ta_texture_handle = memory->AllocRegion(
+    TA_TEXTURE_START, TA_TEXTURE_SIZE, dc.ta,
     nullptr,
     nullptr,
     nullptr,
@@ -205,8 +117,8 @@ bool Dreamcast::MapMemory() {
     nullptr,
     &TileAccelerator::WriteTexture,
     nullptr);
-  RegionHandle sh4_reg_handle = memory_->AllocRegion(
-    SH4_REG_START, SH4_REG_SIZE, sh4(),
+  RegionHandle sh4_reg_handle = memory->AllocRegion(
+    SH4_REG_START, SH4_REG_SIZE, dc.sh4,
     &SH4::ReadRegister<uint8_t>,
     &SH4::ReadRegister<uint16_t>,
     &SH4::ReadRegister<uint32_t>,
@@ -215,8 +127,8 @@ bool Dreamcast::MapMemory() {
     &SH4::WriteRegister<uint16_t>,
     &SH4::WriteRegister<uint32_t>,
     nullptr);
-  RegionHandle sh4_cache_handle = memory_->AllocRegion(
-    SH4_CACHE_START, SH4_CACHE_SIZE, sh4(),
+  RegionHandle sh4_cache_handle = memory->AllocRegion(
+    SH4_CACHE_START, SH4_CACHE_SIZE, dc.sh4,
     &SH4::ReadCache<uint8_t>,
     &SH4::ReadCache<uint16_t>,
     &SH4::ReadCache<uint32_t>,
@@ -225,8 +137,8 @@ bool Dreamcast::MapMemory() {
     &SH4::WriteCache<uint16_t>,
     &SH4::WriteCache<uint32_t>,
     &SH4::WriteCache<uint64_t>);
-   RegionHandle sh4_sq_handle = memory_->AllocRegion(
-    SH4_SQ_START, SH4_SQ_SIZE, sh4(),
+   RegionHandle sh4_sq_handle = memory->AllocRegion(
+    SH4_SQ_START, SH4_SQ_SIZE, dc.sh4,
     &SH4::ReadSQ<uint8_t>,
     &SH4::ReadSQ<uint16_t>,
     &SH4::ReadSQ<uint32_t>,
@@ -273,18 +185,72 @@ bool Dreamcast::MapMemory() {
   memmap.Mount(sh4_cache_handle, SH4_CACHE_SIZE, SH4_CACHE_START);
   memmap.Mount(sh4_sq_handle, SH4_SQ_SIZE, SH4_SQ_START);
 
-  if (!memory_->Map(memmap)) {
+  if (!memory->Map(memmap)) {
     return false;
   }
 
-  bios_ = memory_->virtual_base() + BIOS_START;
-  flash_ = memory_->virtual_base() + FLASH_START;
-  wave_ram_ = memory_->virtual_base() + WAVE_RAM_START;
-  palette_ram_ = memory_->virtual_base() + PVR_PALETTE_START;
-  video_ram_ = memory_->virtual_base() + PVR_VRAM32_START;
-  // aica_regs_ = memory_->virtual_base() + AICA_REG_START;
-  ram_ = memory_->virtual_base() + MAIN_RAM_1_START;
+  dc.bios = memory->virtual_base() + BIOS_START;
+  dc.flash = memory->virtual_base() + FLASH_START;
+  dc.wave_ram = memory->virtual_base() + WAVE_RAM_START;
+  dc.palette_ram = memory->virtual_base() + PVR_PALETTE_START;
+  dc.video_ram = memory->virtual_base() + PVR_VRAM32_START;
+  // dc.aica_regs = memory->virtual_base() + AICA_REG_START;
+  dc.ram = memory->virtual_base() + MAIN_RAM_1_START;
 
   return true;
 }
 // clang-format on
+
+bool CreateDreamcast(Dreamcast &dc, renderer::Backend *rb) {
+  dc.scheduler = new Scheduler();
+  dc.memory = new Memory();
+  dc.aica = new AICA(&dc);
+  dc.gdrom = new GDROM(&dc);
+  dc.holly = new Holly(&dc);
+  dc.maple = new Maple(&dc);
+  dc.pvr = new PVR2(&dc);
+  dc.sh4 = new SH4(&dc);
+  dc.ta = new TileAccelerator(&dc);
+  dc.texcache = new TextureCache(&dc);
+  dc.rb = rb;
+
+  if (!MapMemory(dc) ||     //
+      !dc.aica->Init() ||   //
+      !dc.gdrom->Init() ||  //
+      !dc.holly->Init() ||  //
+      !dc.maple->Init() ||  //
+      !dc.pvr->Init() ||    //
+      !dc.sh4->Init() ||    //
+      !dc.ta->Init() ||     //
+      !dc.texcache->Init()) {
+    DestroyDreamcast(dc);
+    return false;
+  }
+
+  return true;
+}
+
+void DestroyDreamcast(Dreamcast &dc) {
+  delete dc.scheduler;
+  dc.scheduler = nullptr;
+  delete dc.memory;
+  dc.memory = nullptr;
+  delete dc.aica;
+  dc.aica = nullptr;
+  delete dc.gdrom;
+  dc.gdrom = nullptr;
+  delete dc.holly;
+  dc.holly = nullptr;
+  delete dc.maple;
+  dc.maple = nullptr;
+  delete dc.pvr;
+  dc.pvr = nullptr;
+  delete dc.sh4;
+  dc.sh4 = nullptr;
+  delete dc.ta;
+  dc.ta = nullptr;
+  delete dc.texcache;
+  dc.texcache = nullptr;
+}
+}
+}

@@ -10,7 +10,7 @@ namespace holly {
 class Holly;
 }
 
-class Dreamcast;
+struct Dreamcast;
 class Memory;
 struct Register;
 

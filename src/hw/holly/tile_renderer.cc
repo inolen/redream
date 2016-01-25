@@ -105,8 +105,9 @@ TextureKey TextureProvider::GetTextureKey(const TSP &tsp, const TCW &tcw) {
   return ((uint64_t)tsp.full << 32) | tcw.full;
 }
 
-TileRenderer::TileRenderer(TextureProvider &texture_provider)
-    : texture_provider_(texture_provider) {
+TileRenderer::TileRenderer(renderer::Backend &rb,
+                           TextureProvider &texture_provider)
+    : rb_(rb), texture_provider_(texture_provider) {
   surfs_ = new Surface[MAX_SURFACES];
   verts_ = new Vertex[MAX_VERTICES];
   sorted_surfs_ = new int[MAX_SURFACES];
@@ -118,11 +119,11 @@ TileRenderer::~TileRenderer() {
   delete[] sorted_surfs_;
 }
 
-void TileRenderer::RenderContext(const TileContext *tactx, Backend *rb) {
-  ParseContext(tactx, rb);
+void TileRenderer::RenderContext(const TileContext *tactx) {
+  ParseContext(tactx);
 
   const Eigen::Matrix4f &projection = GetProjectionMatrix(tactx);
-  rb->RenderSurfaces(projection, surfs_, num_surfs_, verts_, num_verts_,
+  rb_.RenderSurfaces(projection, surfs_, num_surfs_, verts_, num_verts_,
                      sorted_surfs_);
 }
 
@@ -305,7 +306,7 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
 
 // NOTE this offset color implementation is not correct at all, see the
 // Texture/Shading Instruction in the TSP instruction word
-void TileRenderer::ParsePolyParam(const TileContext *tactx, Backend *rb,
+void TileRenderer::ParsePolyParam(const TileContext *tactx,
                                   const PolyParam *param) {
   last_poly_ = param;
   last_vertex_ = nullptr;
@@ -336,10 +337,9 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx, Backend *rb,
     surf->depth_func = DEPTH_GEQUAL;
   }
 
-  surf->texture =
-      param->type0.pcw.texture
-          ? GetTexture(tactx, rb, param->type0.tsp, param->type0.tcw)
-          : 0;
+  surf->texture = param->type0.pcw.texture
+                      ? GetTexture(tactx, param->type0.tsp, param->type0.tcw)
+                      : 0;
 
   int poly_type = TileAccelerator::GetPolyType(param->type0.pcw);
   switch (poly_type) {
@@ -391,7 +391,7 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx, Backend *rb,
   }
 }
 
-void TileRenderer::ParseVertexParam(const TileContext *tactx, Backend *rb,
+void TileRenderer::ParseVertexParam(const TileContext *tactx,
                                     const VertexParam *param) {
   // If there is no need to change the Global Parameters, a Vertex Parameter for
   // the next polygon may be input immediately after inputting a Vertex
@@ -608,7 +608,7 @@ void TileRenderer::ParseEndOfList(const TileContext *tactx) {
   last_sorted_surf_ = num_surfs_;
 }
 
-void TileRenderer::ParseContext(const TileContext *tactx, Backend *rb) {
+void TileRenderer::ParseContext(const TileContext *tactx) {
   PROFILER_GPU("TileRenderer::ParseContext");
 
   const uint8_t *data = tactx->data;
@@ -643,17 +643,16 @@ void TileRenderer::ParseContext(const TileContext *tactx, Backend *rb) {
 
       // global params
       case TA_PARAM_POLY_OR_VOL:
-        ParsePolyParam(tactx, rb, reinterpret_cast<const PolyParam *>(data));
+        ParsePolyParam(tactx, reinterpret_cast<const PolyParam *>(data));
         break;
 
       case TA_PARAM_SPRITE:
-        ParsePolyParam(tactx, rb, reinterpret_cast<const PolyParam *>(data));
+        ParsePolyParam(tactx, reinterpret_cast<const PolyParam *>(data));
         break;
 
       // vertex params
       case TA_PARAM_VERTEX:
-        ParseVertexParam(tactx, rb,
-                         reinterpret_cast<const VertexParam *>(data));
+        ParseVertexParam(tactx, reinterpret_cast<const VertexParam *>(data));
         break;
 
       default:
@@ -707,8 +706,7 @@ Eigen::Matrix4f TileRenderer::GetProjectionMatrix(const TileContext *tactx) {
 }
 
 TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
-                                            Backend *rb, const TSP &tsp,
-                                            const TCW &tcw,
+                                            const TSP &tsp, const TCW &tcw,
                                             const uint8_t *palette,
                                             const uint8_t *texture) {
   static uint8_t converted[1024 * 1024 * 4];
@@ -883,7 +881,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
                         ? WRAP_CLAMP_TO_EDGE
                         : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
-  TextureHandle handle = rb->RegisterTexture(pixel_fmt, filter, wrap_u, wrap_v,
+  TextureHandle handle = rb_.RegisterTexture(pixel_fmt, filter, wrap_u, wrap_v,
                                              mip_mapped, width, height, output);
 
   if (!handle) {
@@ -894,10 +892,10 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
   return handle;
 }
 
-TextureHandle TileRenderer::GetTexture(const TileContext *tactx, Backend *rb,
-                                       const TSP &tsp, const TCW &tcw) {
+TextureHandle TileRenderer::GetTexture(const TileContext *tactx, const TSP &tsp,
+                                       const TCW &tcw) {
   return texture_provider_.GetTexture(
       tsp, tcw, [&](const uint8_t *palette, const uint8_t *texture) {
-        return RegisterTexture(tactx, rb, tsp, tcw, palette, texture);
+        return RegisterTexture(tactx, tsp, tcw, palette, texture);
       });
 }

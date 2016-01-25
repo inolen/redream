@@ -23,9 +23,9 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   }
 
   // if the trace writer has changed, clear the cache to force insert events
-  if (dc_->trace_writer() != trace_writer_) {
+  if (dc_->trace_writer != trace_writer_) {
     Clear();
-    trace_writer_ = dc_->trace_writer();
+    trace_writer_ = dc_->trace_writer;
   }
 
   // see if an an entry already exists
@@ -40,7 +40,7 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   uint32_t texture_addr = tcw.texture_addr << 3;
 
   // get the texture data
-  uint8_t *video_ram = dc_->video_ram();
+  uint8_t *video_ram = dc_->video_ram;
   uint8_t *texture = &video_ram[texture_addr];
   int width = 8 << tsp.texture_u_size;
   int height = 8 << tsp.texture_v_size;
@@ -50,7 +50,7 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   int texture_size = (width * height * element_size_bits) >> 3;
 
   // get the palette data
-  uint8_t *palette_ram = dc_->palette_ram();
+  uint8_t *palette_ram = dc_->palette_ram;
   uint8_t *palette = nullptr;
   uint32_t palette_addr = 0;
   int palette_size = 0;
@@ -175,7 +175,7 @@ void TextureCache::Invalidate(TextureCacheMap::iterator it) {
     RemoveAccessWatch(entry.palette_watch);
   }
 
-  dc_->rb()->FreeTexture(entry.handle);
+  dc_->rb->FreeTexture(entry.handle);
 
   textures_.erase(it);
 }

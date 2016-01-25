@@ -16,10 +16,10 @@ using namespace dvm::sys;
 Holly::Holly(Dreamcast *dc) : dc_(dc) {}
 
 bool Holly::Init() {
-  holly_regs_ = dc_->holly_regs();
-  gdrom_ = dc_->gdrom();
-  maple_ = dc_->maple();
-  sh4_ = dc_->sh4();
+  holly_regs_ = dc_->holly_regs;
+  gdrom_ = dc_->gdrom;
+  maple_ = dc_->maple;
+  sh4_ = dc_->sh4;
 
   return true;
 }
@@ -30,7 +30,7 @@ void Holly::RequestInterrupt(HollyInterrupt intr) {
   uint32_t irq = static_cast<uint32_t>(intr & ~HOLLY_INTC_MASK);
 
   if (intr == HOLLY_INTC_PCVOINT) {
-    dc_->maple()->VBlank();
+    dc_->maple->VBlank();
   }
 
   switch (type) {

@@ -17,9 +17,9 @@ Maple::Maple(Dreamcast *dc) : dc_(dc), devices_() {
 }
 
 bool Maple::Init() {
-  memory_ = dc_->memory();
-  holly_ = dc_->holly();
-  holly_regs_ = dc_->holly_regs();
+  memory_ = dc_->memory;
+  holly_ = dc_->holly;
+  holly_regs_ = dc_->holly_regs;
 
   return true;
 }

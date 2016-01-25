@@ -212,10 +212,10 @@ TileAccelerator::TileAccelerator(Dreamcast *dc) : dc_(dc), contexts_() {
 }
 
 bool TileAccelerator::Init() {
-  memory_ = dc_->memory();
-  holly_ = dc_->holly();
-  texcache_ = dc_->texcache();
-  video_ram_ = dc_->video_ram();
+  memory_ = dc_->memory;
+  holly_ = dc_->holly;
+  texcache_ = dc_->texcache;
+  video_ram_ = dc_->video_ram;
 
   return true;
 }
@@ -312,8 +312,8 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
   WriteBackgroundState(tactx);
 
   // add context to trace
-  if (dc_->trace_writer()) {
-    dc_->trace_writer()->WriteRenderContext(tactx);
+  if (dc_->trace_writer) {
+    dc_->trace_writer->WriteRenderContext(tactx);
   }
 
   // tell holly that rendering is complete

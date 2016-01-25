@@ -24,17 +24,19 @@ DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
 Emulator::Emulator()
-    : tile_renderer_(*dc_.texcache()),
-      trace_writer_(nullptr),
+    : trace_writer_(nullptr),
+      tile_renderer_(nullptr),
       core_events_(MAX_EVENTS),
       speed_() {
   rb_ = new GLBackend(window_);
-  dc_.set_rb(rb_);
 }
 
 Emulator::~Emulator() {
   delete rb_;
   delete trace_writer_;
+  delete tile_renderer_;
+
+  DestroyDreamcast(dc_);
 }
 
 void Emulator::Run(const char *path) {
@@ -46,9 +48,13 @@ void Emulator::Run(const char *path) {
     return;
   }
 
-  if (!dc_.Init()) {
+  if (!CreateDreamcast(dc_, rb_)) {
     return;
   }
+
+  // setup tile renderer with the renderer backend and the dreamcast's
+  // internal textue cache
+  tile_renderer_ = new TileRenderer(*rb_, *dc_.texcache);
 
   if (!LoadBios(FLAGS_bios.c_str())) {
     return;
@@ -98,7 +104,7 @@ bool Emulator::LoadBios(const char *path) {
     return false;
   }
 
-  int n = static_cast<int>(fread(dc_.bios(), sizeof(uint8_t), size, fp));
+  int n = static_cast<int>(fread(dc_.bios, sizeof(uint8_t), size, fp));
   fclose(fp);
 
   if (n != size) {
@@ -126,7 +132,7 @@ bool Emulator::LoadFlash(const char *path) {
     return false;
   }
 
-  int n = static_cast<int>(fread(dc_.flash(), sizeof(uint8_t), size, fp));
+  int n = static_cast<int>(fread(dc_.flash, sizeof(uint8_t), size, fp));
   fclose(fp);
 
   if (n != size) {
@@ -158,10 +164,10 @@ bool Emulator::LaunchBIN(const char *path) {
 
   // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is normally
   // loaded to
-  dc_.memory()->Memcpy(0x0c010000, data, size);
+  dc_.memory->Memcpy(0x0c010000, data, size);
   free(data);
 
-  dc_.sh4()->SetPC(0x0c010000);
+  dc_.sh4->SetPC(0x0c010000);
 
   return true;
 }
@@ -173,8 +179,8 @@ bool Emulator::LaunchGDI(const char *path) {
     return false;
   }
 
-  dc_.gdrom()->SetDisc(std::move(gdi));
-  dc_.sh4()->SetPC(0xa0000000);
+  dc_.gdrom->SetDisc(std::move(gdi));
+  dc_.sh4->SetPC(0xa0000000);
 
   return true;
 }
@@ -203,7 +209,7 @@ void Emulator::ToggleTracing() {
     LOG_INFO("End tracing");
   }
 
-  dc_.set_trace_writer(trace_writer_);
+  dc_.trace_writer = trace_writer_;
 }
 
 void Emulator::GraphicsThread() {
@@ -249,14 +255,14 @@ void Emulator::RenderGraphics() {
   rb_->BeginFrame();
 
   // render the latest tile context
-  if (TileContext *tactx = dc_.ta()->GetLastContext()) {
-    tile_renderer_.RenderContext(tactx, rb_);
+  if (TileContext *tactx = dc_.ta->GetLastContext()) {
+    tile_renderer_->RenderContext(tactx);
   }
 
   // render stats
   char stats[512];
   float speed = *reinterpret_cast<float *>(&speed_);
-  snprintf(stats, sizeof(stats), "%.2f%%, %.2f rps", speed, dc_.pvr()->rps());
+  snprintf(stats, sizeof(stats), "%.2f%%, %.2f rps", speed, dc_.pvr->rps());
   rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
   // render profiler
@@ -343,7 +349,7 @@ void Emulator::PumpCoreEvents() {
             ToggleTracing();
           }
         } else {
-          dc_.maple()->HandleInput(0, ev.key.code, ev.key.value);
+          dc_.maple->HandleInput(0, ev.key.code, ev.key.value);
         }
       } break;
 

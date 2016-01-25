@@ -12,13 +12,13 @@ PVR2::PVR2(Dreamcast *dc)
     : dc_(dc), line_timer_(INVALID_TIMER), current_scanline_(0), rps_(0.0f) {}
 
 bool PVR2::Init() {
-  scheduler_ = dc_->scheduler();
-  holly_ = dc_->holly();
-  ta_ = dc_->ta();
-  texcache_ = dc_->texcache();
-  pvr_regs_ = dc_->pvr_regs();
-  palette_ram_ = dc_->palette_ram();
-  video_ram_ = dc_->video_ram();
+  scheduler_ = dc_->scheduler;
+  holly_ = dc_->holly;
+  ta_ = dc_->ta;
+  texcache_ = dc_->texcache;
+  pvr_regs_ = dc_->pvr_regs;
+  palette_ram_ = dc_->palette_ram;
+  video_ram_ = dc_->video_ram;
 
   ReconfigureSPG();
 

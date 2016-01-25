@@ -5,7 +5,7 @@
 
 namespace dvm {
 namespace hw {
-class Dreamcast;
+struct Dreamcast;
 
 namespace aica {
 
