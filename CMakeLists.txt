@@ -323,8 +323,8 @@ list(REMOVE_ITEM DREAVM_TEST_SOURCES src/main.cc)
 # assign source groups for visual studio projects
 source_group_by_dir(DREAVM_TEST_SOURCES)
 
-#add_executable(dreavm_test ${DREAVM_TEST_SOURCES})
-#target_include_directories(dreavm_test PUBLIC deps/gtest-1.7.0/include src/ test/ ${DREAVM_INCLUDE_DIRS})
-#target_link_libraries(dreavm_test gtest gtest_main ${DREAVM_LIBS})
-#target_compile_definitions(dreavm_test PRIVATE ${DREAVM_DEFS})
-#target_compile_options(dreavm_test PRIVATE ${DREAVM_COMPILE_FLAGS})
+add_executable(dreavm_test ${DREAVM_TEST_SOURCES})
+target_include_directories(dreavm_test PUBLIC deps/gtest-1.7.0/include src/ test/ ${DREAVM_INCLUDE_DIRS})
+target_link_libraries(dreavm_test gtest gtest_main ${DREAVM_LIBS})
+target_compile_definitions(dreavm_test PRIVATE DREAVM_TEST=1 ${DREAVM_DEFS})
+target_compile_options(dreavm_test PRIVATE ${DREAVM_COMPILE_FLAGS})

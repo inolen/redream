@@ -4,7 +4,9 @@
 #include "gtest/gtest.h"
 #include "core/core.h"
 #include "hw/sh4/sh4.h"
+#include "hw/dreamcast.h"
 #include "hw/memory.h"
+#include "hw/scheduler.h"
 
 using namespace dvm;
 using namespace dvm::hw;
@@ -97,7 +99,7 @@ int sh4_num_test_regs =
                      xf12, xf13, xf14, xf15)                                  \
   SH4Context {                                                                \
     nullptr, nullptr, nullptr, nullptr,                                       \
-    0, 0, 0, 0, 0, 0, 0, 0,                                                   \
+    0, 0, 0, 0, 0, 0, 0, 0, 0,                                                \
     {r0, r1, r2,  r3,  r4,  r5,  r6,  r7,                                     \
      r8, r9, r10, r11, r12, r13, r14, r15},                                   \
     {0, 0, 0, 0, 0, 0, 0, 0}, 0,                                              \
@@ -164,8 +166,16 @@ void RunSH4Test(const SH4Test &test) {
   memmap.Mount(code_handle, code_size, code_address);
   CHECK(memory.Map(memmap));
 
+  // fake scheduler
+  Scheduler scheduler;
+
+  // initialize fake dreamcast device
+  std::unique_ptr<Dreamcast> dc(new Dreamcast());
+  dc->memory = &memory;
+  dc->scheduler = &scheduler;
+
   // initialize cpu
-  SH4 sh4(memory);
+  SH4 sh4(dc.get());
   CHECK(sh4.Init());
 
   // setup in registers
@@ -193,7 +203,7 @@ void RunSH4Test(const SH4Test &test) {
 
   // run until the function returns
   while (sh4.ctx_.pc) {
-    sh4.Run(1);
+    sh4.Run(std::chrono::nanoseconds(1));
   }
 
   // validate out registers

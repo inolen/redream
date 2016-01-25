@@ -137,29 +137,17 @@ enum {
 };
 
 struct Dreamcast {
-  Dreamcast() {
-#define HOLLY_REG(addr, name, flags, default, type) \
-  holly_regs[name##_OFFSET] = {flags, default};
-#include "hw/holly/holly_regs.inc"
-#undef HOLLY_REG
-
-#define PVR_REG(addr, name, flags, default, type) \
-  pvr_regs[name##_OFFSET] = {flags, default};
-#include "hw/holly/pvr2_regs.inc"
-#undef PVR_REG
-  }
-
   // uint8_t *aica_regs;
   Register holly_regs[HOLLY_REG_SIZE >> 2];
   Register pvr_regs[PVR_REG_SIZE >> 2];
 
 #define HOLLY_REG(offset, name, flags, default, type) \
-  type &name{reinterpret_cast<type &>(holly_regs[name##_OFFSET].value)};
+  type &name = reinterpret_cast<type &>(holly_regs[name##_OFFSET].value);
 #include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
 
 #define PVR_REG(offset, name, flags, default, type) \
-  type &name{reinterpret_cast<type &>(pvr_regs[name##_OFFSET].value)};
+  type &name = reinterpret_cast<type &>(pvr_regs[name##_OFFSET].value);
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 
