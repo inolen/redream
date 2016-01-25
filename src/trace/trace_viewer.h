@@ -54,8 +54,8 @@ class TraceViewer {
 
   sys::Window wnd_;
   TraceTextureCache texcache_;
-  hw::holly::TileRenderer tile_renderer_;
   renderer::Backend *rb_;
+  hw::holly::TileRenderer *tile_renderer_;
 
   TraceReader reader_;
   TraceCommand *current_cmd_;

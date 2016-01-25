@@ -9,7 +9,7 @@ AICA::AICA(Dreamcast *dc) : dc_(dc) {}
 
 bool AICA::Init() {
   // aica_regs_ = dc_->aica_regs();
-  wave_ram_ = dc_->wave_ram();
+  wave_ram_ = dc_->wave_ram;
 
   return true;
 }

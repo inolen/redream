@@ -40,9 +40,9 @@ class Emulator {
 
   sys::Window window_;
   hw::Dreamcast dc_;
-  hw::holly::TileRenderer tile_renderer_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;
+  hw::holly::TileRenderer *tile_renderer_;
 
   // variables accessed by both the graphics and core thread
   RingBuffer<sys::WindowEvent> core_events_;

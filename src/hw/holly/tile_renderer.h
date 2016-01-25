@@ -42,10 +42,10 @@ enum { MAX_SURFACES = 0x10000, MAX_VERTICES = 0x10000 };
 
 class TileRenderer {
  public:
-  TileRenderer(TextureProvider &texture_provider);
+  TileRenderer(renderer::Backend &rb, TextureProvider &texture_provider);
   ~TileRenderer();
 
-  void RenderContext(const TileContext *tactx, renderer::Backend *rb);
+  void RenderContext(const TileContext *tactx);
 
  private:
   void Reset();
@@ -59,23 +59,20 @@ class TileRenderer {
   void ParseOffsetColor(float r, float g, float b, float a, uint32_t *color);
   void ParseOffsetColor(float intensity, uint32_t *color);
   void ParseBackground(const TileContext *tactx);
-  void ParsePolyParam(const TileContext *tactx, renderer::Backend *rb,
-                      const PolyParam *param);
-  void ParseVertexParam(const TileContext *tactx, renderer::Backend *rb,
-                        const VertexParam *param);
+  void ParsePolyParam(const TileContext *tactx, const PolyParam *param);
+  void ParseVertexParam(const TileContext *tactx, const VertexParam *param);
   void ParseEndOfList(const TileContext *tactx);
-  void ParseContext(const TileContext *tactx, renderer::Backend *rb);
+  void ParseContext(const TileContext *tactx);
   Eigen::Matrix4f GetProjectionMatrix(const TileContext *tactx);
 
   renderer::TextureHandle RegisterTexture(const TileContext *tactx,
-                                          renderer::Backend *rb, const TSP &tsp,
-                                          const TCW &tcw,
+                                          const TSP &tsp, const TCW &tcw,
                                           const uint8_t *palette,
                                           const uint8_t *texture);
-  renderer::TextureHandle GetTexture(const TileContext *tactx,
-                                     renderer::Backend *rb, const TSP &tsp,
+  renderer::TextureHandle GetTexture(const TileContext *tactx, const TSP &tsp,
                                      const TCW &tcw);
 
+  renderer::Backend &rb_;
   TextureProvider &texture_provider_;
 
   // current global state

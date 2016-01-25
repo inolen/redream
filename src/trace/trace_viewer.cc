@@ -42,14 +42,16 @@ TextureHandle TraceTextureCache::GetTexture(
   return texture.handle;
 }
 
-TraceViewer::TraceViewer() : tile_renderer_(texcache_) {
+TraceViewer::TraceViewer() {
   rb_ = new GLBackend(wnd_);
+  tile_renderer_ = new TileRenderer(*rb_, texcache_);
   current_ctx_ = new TileContext();
 }
 
 TraceViewer::~TraceViewer() {
-  delete current_ctx_;
   delete rb_;
+  delete tile_renderer_;
+  delete current_ctx_;
 }
 
 void TraceViewer::Run(const char *path) {
@@ -124,7 +126,7 @@ void TraceViewer::PumpEvents() {
 void TraceViewer::RenderFrame() {
   rb_->BeginFrame();
 
-  tile_renderer_.RenderContext(current_ctx_, rb_);
+  tile_renderer_->RenderContext(current_ctx_);
 
   // render stats
   char stats[512];

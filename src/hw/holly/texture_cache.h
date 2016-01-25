@@ -14,7 +14,7 @@ class TraceWriter;
 }
 
 namespace hw {
-class Dreamcast;
+struct Dreamcast;
 
 namespace holly {
 
@@ -37,7 +37,7 @@ class TextureCache : public TextureProvider {
 
   bool Init();
   renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
-                                     RegisterTextureCallback register_cb);
+                                     RegisterTextureCallback register_cb) final;
 
  private:
   static void HandleTextureWrite(void *ctx, const sys::Exception &ex,

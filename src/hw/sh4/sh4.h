@@ -10,7 +10,7 @@ struct SH4Test;
 namespace dvm {
 namespace hw {
 
-class Dreamcast;
+struct Dreamcast;
 
 namespace sh4 {
 

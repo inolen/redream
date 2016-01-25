@@ -37,8 +37,8 @@ SH4::SH4(Dreamcast *dc)
 SH4::~SH4() { delete code_cache_; }
 
 bool SH4::Init() {
-  memory_ = dc_->memory();
-  scheduler_ = dc_->scheduler();
+  memory_ = dc_->memory;
+  scheduler_ = dc_->scheduler;
 
   code_cache_ = new SH4CodeCache(memory_, &SH4::CompilePC);
 

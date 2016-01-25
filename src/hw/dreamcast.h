@@ -31,7 +31,6 @@ class Holly;
 class PVR2;
 class TextureCache;
 class TileAccelerator;
-class TileRenderer;
 }
 
 namespace maple {
@@ -137,84 +136,58 @@ enum {
 #undef PVR_REG
 };
 
-class Dreamcast {
- public:
-  // uint8_t *aica_regs() { return aica_regs_; }
-  Register *holly_regs() { return holly_regs_; }
-  Register *pvr_regs() { return pvr_regs_; }
-
-  uint8_t *bios() { return bios_; }
-  uint8_t *flash() { return flash_; }
-  uint8_t *wave_ram() { return wave_ram_; }
-  uint8_t *palette_ram() { return palette_ram_; }
-  uint8_t *video_ram() { return video_ram_; }
-
-  hw::Memory *memory() { return memory_; }
-  hw::Scheduler *scheduler() { return scheduler_; }
-  hw::aica::AICA *aica() { return aica_; }
-  hw::gdrom::GDROM *gdrom() { return gdrom_; }
-  hw::holly::Holly *holly() { return holly_; }
-  hw::maple::Maple *maple() { return maple_; }
-  hw::holly::PVR2 *pvr() { return pvr_; }
-  hw::sh4::SH4 *sh4() { return sh4_; }
-  hw::holly::TileAccelerator *ta() { return ta_; }
-  hw::holly::TextureCache *texcache() { return texcache_; }
-
-  renderer::Backend *rb() { return rb_; }
-  void set_rb(renderer::Backend *rb) { rb_ = rb; }
-
-  trace::TraceWriter *trace_writer() { return trace_writer_; }
-  void set_trace_writer(trace::TraceWriter *trace_writer) {
-    trace_writer_ = trace_writer;
-  }
-
-  Dreamcast();
-  ~Dreamcast();
-
-  bool Init();
-
- private:
-  Register *holly_regs_;
-
- public:
-#define HOLLY_REG(offset, name, flags, default, type) type &name;
+struct Dreamcast {
+  Dreamcast() {
+#define HOLLY_REG(addr, name, flags, default, type) \
+  holly_regs[name##_OFFSET] = {flags, default};
 #include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
 
- private:
-  Register *pvr_regs_;
+#define PVR_REG(addr, name, flags, default, type) \
+  pvr_regs[name##_OFFSET] = {flags, default};
+#include "hw/holly/pvr2_regs.inc"
+#undef PVR_REG
+  }
 
- public:
-#define PVR_REG(offset, name, flags, default, type) type &name;
+  // uint8_t *aica_regs;
+  Register holly_regs[HOLLY_REG_SIZE >> 2];
+  Register pvr_regs[PVR_REG_SIZE >> 2];
+
+#define HOLLY_REG(offset, name, flags, default, type) \
+  type &name{reinterpret_cast<type &>(holly_regs[name##_OFFSET].value)};
+#include "hw/holly/holly_regs.inc"
+#undef HOLLY_REG
+
+#define PVR_REG(offset, name, flags, default, type) \
+  type &name{reinterpret_cast<type &>(pvr_regs[name##_OFFSET].value)};
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 
- private:
-  bool MapMemory();
+  uint8_t *bios;
+  uint8_t *flash;
+  uint8_t *palette_ram;
+  uint8_t *ram;
+  uint8_t *video_ram;
+  uint8_t *wave_ram;
 
-  // uint8_t *aica_regs_;
-  uint8_t *bios_;
-  uint8_t *flash_;
-  uint8_t *palette_ram_;
-  uint8_t *ram_;
-  uint8_t *video_ram_;
-  uint8_t *wave_ram_;
-
-  hw::Memory *memory_;
-  hw::Scheduler *scheduler_;
-  hw::aica::AICA *aica_;
-  hw::gdrom::GDROM *gdrom_;
-  hw::holly::Holly *holly_;
-  hw::maple::Maple *maple_;
-  hw::holly::PVR2 *pvr_;
-  hw::sh4::SH4 *sh4_;
-  hw::holly::TileAccelerator *ta_;
-  hw::holly::TextureCache *texcache_;
+  hw::Memory *memory;
+  hw::Scheduler *scheduler;
+  hw::aica::AICA *aica;
+  hw::gdrom::GDROM *gdrom;
+  hw::holly::Holly *holly;
+  hw::maple::Maple *maple;
+  hw::holly::PVR2 *pvr;
+  hw::sh4::SH4 *sh4;
+  hw::holly::TileAccelerator *ta;
+  hw::holly::TextureCache *texcache;
 
   // not owned by us
-  renderer::Backend *rb_;
-  trace::TraceWriter *trace_writer_;
+  renderer::Backend *rb;
+  trace::TraceWriter *trace_writer;
 };
+
+bool CreateDreamcast(Dreamcast &dc, renderer::Backend *rb);
+void DestroyDreamcast(Dreamcast &dc);
 }
 }
 

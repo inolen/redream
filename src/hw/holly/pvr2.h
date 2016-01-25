@@ -6,7 +6,7 @@
 
 namespace dvm {
 namespace hw {
-class Dreamcast;
+struct Dreamcast;
 struct Register;
 
 namespace holly {

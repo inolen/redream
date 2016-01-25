@@ -13,7 +13,7 @@ class TraceWriter;
 }
 
 namespace hw {
-class Dreamcast;
+struct Dreamcast;
 class Memory;
 
 namespace holly {

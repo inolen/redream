@@ -31,9 +31,9 @@ GDROM::GDROM(Dreamcast *dc)
 GDROM::~GDROM() { delete[] dma_buffer_; }
 
 bool GDROM::Init() {
-  memory_ = dc_->memory();
-  holly_ = dc_->holly();
-  holly_regs_ = dc_->holly_regs();
+  memory_ = dc_->memory;
+  holly_ = dc_->holly;
+  holly_regs_ = dc_->holly_regs;
 
   SetDisc(nullptr);
 

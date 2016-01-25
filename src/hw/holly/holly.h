@@ -15,7 +15,7 @@ namespace sh4 {
 class SH4;
 }
 
-class Dreamcast;
+struct Dreamcast;
 struct Register;
 
 namespace holly {
