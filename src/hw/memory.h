@@ -183,24 +183,6 @@ class Memory {
               uint32_t *offset);
 
  private:
-  // shared memory object where all physical data is written to
-  sys::SharedMemoryHandle shmem_;
-
-  // physical regions of memory
-  MemoryRegion *regions_;
-  int num_regions_;
-
-  // map virtual addresses -> physical addresses
-  PageEntry *pages_;
-
-  // base addresses for the 32-bit address space. physical base is where
-  // the physical regions are mapped, virtual base is where the page table
-  // gets mapped to, and protected base is the same as virtual, but with
-  // dynamic regions mprotected so they segfaul on access
-  uint8_t *physical_base_;
-  uint8_t *virtual_base_;
-  uint8_t *protected_base_;
-
   bool CreateSharedMemory();
   void DestroySharedMemory();
 
@@ -225,6 +207,24 @@ class Memory {
   INT ReadBytes(uint32_t addr);
   template <typename INT, void (*MemoryRegion::*HANDLER)(void *, uint32_t, INT)>
   void WriteBytes(uint32_t addr, INT value);
+
+  // shared memory object where all physical data is written to
+  sys::SharedMemoryHandle shmem_;
+
+  // physical regions of memory
+  MemoryRegion *regions_;
+  int num_regions_;
+
+  // map virtual addresses -> physical addresses
+  PageEntry *pages_;
+
+  // base addresses for the 32-bit address space. physical base is where
+  // the physical regions are mapped, virtual base is where the page table
+  // gets mapped to, and protected base is the same as virtual, but with
+  // dynamic regions mprotected so they segfaul on access
+  uint8_t *physical_base_;
+  uint8_t *virtual_base_;
+  uint8_t *protected_base_;
 };
 }
 }

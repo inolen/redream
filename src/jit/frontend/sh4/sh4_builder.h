@@ -3,7 +3,7 @@
 
 #include "hw/memory.h"
 #include "jit/frontend/sh4/sh4_context.h"
-#include "jit/frontend/sh4/sh4_instr.h"
+#include "jit/frontend/sh4/sh4_disassembler.h"
 #include "jit/ir/ir_builder.h"
 
 namespace dvm {

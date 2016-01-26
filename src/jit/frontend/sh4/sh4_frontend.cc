@@ -1,3 +1,4 @@
+#include "jit/frontend/sh4/sh4_builder.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 
 using namespace dvm::hw;

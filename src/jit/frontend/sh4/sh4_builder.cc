@@ -1,8 +1,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include "emu/profiler.h"
-#include "jit/frontend/sh4/sh4_frontend.h"
-#include "jit/frontend/sh4/sh4_instr.h"
+#include "jit/frontend/sh4/sh4_builder.h"
 
 using namespace dvm::hw;
 using namespace dvm::jit;

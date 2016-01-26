@@ -301,7 +301,8 @@ void Emulator::CoreThread() {
 
     // update speed every SAMPLE_PERIOD nanoseconds
     if (current_time > next_sample_time) {
-      float speed = (guest_time.count() / static_cast<float>(host_time.count())) * 100.0f;
+      float speed =
+          (guest_time.count() / static_cast<float>(host_time.count())) * 100.0f;
       speed_ = *reinterpret_cast<uint32_t *>(&speed);
 
       host_time = std::chrono::nanoseconds(0);
