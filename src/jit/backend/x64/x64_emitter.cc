@@ -440,6 +440,275 @@ void X64Emitter::RestoreArgs() {
   mov(int_arg1, reinterpret_cast<uintptr_t>(memory_->protected_base()));
 }
 
+EMITTER(LOAD_HOST) {
+  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
+
+  if (IsFloatType(instr->result()->type())) {
+    const Xbyak::Xmm &result = e.GetXMMRegister(instr->result());
+
+    switch (instr->result()->type()) {
+      case VALUE_F32:
+        e.vmovss(result, e.dword[a]);
+        break;
+      case VALUE_F64:
+        e.vmovsd(result, e.qword[a]);
+        break;
+      default:
+        LOG_FATAL("Unexpected result type");
+        break;
+    }
+  } else {
+    const Xbyak::Reg &result = e.GetRegister(instr->result());
+
+    switch (instr->result()->type()) {
+      case VALUE_I8:
+        e.mov(result, e.byte[a]);
+        break;
+      case VALUE_I16:
+        e.mov(result, e.word[a]);
+        break;
+      case VALUE_I32:
+        e.mov(result, e.dword[a]);
+        break;
+      case VALUE_I64:
+        e.mov(result, e.qword[a]);
+        break;
+      default:
+        LOG_FATAL("Unexpected load result type");
+        break;
+    }
+  }
+}
+
+EMITTER(STORE_HOST) {
+  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
+
+  if (IsFloatType(instr->arg1()->type())) {
+    const Xbyak::Xmm &b = e.GetXMMRegister(instr->arg1());
+
+    switch (instr->arg1()->type()) {
+      case VALUE_F32:
+        e.movss(e.dword[a], b);
+        break;
+      case VALUE_F64:
+        e.movsd(e.qword[a], b);
+        break;
+      default:
+        LOG_FATAL("Unexpected value type");
+        break;
+    }
+  } else {
+    const Xbyak::Reg &b = e.GetRegister(instr->arg1());
+
+    switch (instr->arg1()->type()) {
+      case VALUE_I8:
+        e.mov(e.byte[a], b);
+        break;
+      case VALUE_I16:
+        e.mov(e.word[a], b);
+        break;
+      case VALUE_I32:
+        e.mov(e.dword[a], b);
+        break;
+      case VALUE_I64:
+        e.mov(e.qword[a], b);
+        break;
+      default:
+        LOG_FATAL("Unexpected store value type");
+        break;
+    }
+  }
+}
+
+EMITTER(LOAD_GUEST) {
+  const Xbyak::Reg &result = e.GetRegister(instr->result());
+
+  if (instr->arg0()->constant()) {
+    // try to resolve the address to a physical page
+    uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
+    uint8_t *host_addr = nullptr;
+    MemoryRegion *region = nullptr;
+    uint32_t offset = 0;
+
+    e.memory().Lookup(addr, &host_addr, &region, &offset);
+
+    // if the address maps to a physical page, not a dynamic handler, make it
+    // fast
+    if (host_addr) {
+      // FIXME it'd be nice if xbyak had a mov operation which would convert
+      // the displacement to a RIP-relative address when finalizing code so
+      // we didn't have to store the absolute address in the scratch register
+      e.mov(e.rax, reinterpret_cast<uintptr_t>(host_addr));
+
+      switch (instr->result()->type()) {
+        case VALUE_I8:
+          e.mov(result, e.byte[e.rax]);
+          break;
+        case VALUE_I16:
+          e.mov(result, e.word[e.rax]);
+          break;
+        case VALUE_I32:
+          e.mov(result, e.dword[e.rax]);
+          break;
+        case VALUE_I64:
+          e.mov(result, e.qword[e.rax]);
+          break;
+        default:
+          LOG_FATAL("Unexpected load result type");
+          break;
+      }
+
+      return;
+    }
+  }
+
+  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
+
+  if (e.block_flags() & BF_SLOWMEM) {
+    void *fn = nullptr;
+    switch (instr->result()->type()) {
+      case VALUE_I8:
+        fn = reinterpret_cast<void *>(
+            static_cast<uint8_t (*)(Memory *, uint32_t)>(&Memory::R8));
+        break;
+      case VALUE_I16:
+        fn = reinterpret_cast<void *>(
+            static_cast<uint16_t (*)(Memory *, uint32_t)>(&Memory::R16));
+        break;
+      case VALUE_I32:
+        fn = reinterpret_cast<void *>(
+            static_cast<uint32_t (*)(Memory *, uint32_t)>(&Memory::R32));
+        break;
+      case VALUE_I64:
+        fn = reinterpret_cast<void *>(
+            static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
+        break;
+      default:
+        LOG_FATAL("Unexpected load result type");
+        break;
+    }
+
+    e.mov(int_arg0, reinterpret_cast<uintptr_t>(&e.memory()));
+    e.mov(int_arg1, a);
+    e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
+    e.call(e.rax);
+    e.mov(result, e.rax);
+    e.RestoreArgs();
+  } else {
+    switch (instr->result()->type()) {
+      case VALUE_I8:
+        e.mov(result, e.byte[a.cvt64() + int_arg1]);
+        break;
+      case VALUE_I16:
+        e.mov(result, e.word[a.cvt64() + int_arg1]);
+        break;
+      case VALUE_I32:
+        e.mov(result, e.dword[a.cvt64() + int_arg1]);
+        break;
+      case VALUE_I64:
+        e.mov(result, e.qword[a.cvt64() + int_arg1]);
+        break;
+      default:
+        LOG_FATAL("Unexpected load result type");
+        break;
+    }
+  }
+}
+
+EMITTER(STORE_GUEST) {
+  if (instr->arg0()->constant()) {
+    // try to resolve the address to a physical page
+    uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
+    uint8_t *host_addr = nullptr;
+    MemoryRegion *bank = nullptr;
+    uint32_t offset = 0;
+
+    e.memory().Lookup(addr, &host_addr, &bank, &offset);
+
+    if (host_addr) {
+      const Xbyak::Reg &b = e.GetRegister(instr->arg1());
+
+      // FIXME it'd be nice if xbyak had a mov operation which would convert
+      // the displacement to a RIP-relative address when finalizing code so
+      // we didn't have to store the absolute address in the scratch register
+      e.mov(e.rax, reinterpret_cast<uintptr_t>(host_addr));
+
+      switch (instr->arg1()->type()) {
+        case VALUE_I8:
+          e.mov(e.byte[e.rax], b);
+          break;
+        case VALUE_I16:
+          e.mov(e.word[e.rax], b);
+          break;
+        case VALUE_I32:
+          e.mov(e.dword[e.rax], b);
+          break;
+        case VALUE_I64:
+          e.mov(e.qword[e.rax], b);
+          break;
+        default:
+          LOG_FATAL("Unexpected store value type");
+          break;
+      }
+
+      return;
+    }
+  }
+
+  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
+  const Xbyak::Reg &b = e.GetRegister(instr->arg1());
+
+  if (e.block_flags() & BF_SLOWMEM) {
+    void *fn = nullptr;
+    switch (instr->arg1()->type()) {
+      case VALUE_I8:
+        fn = reinterpret_cast<void *>(
+            static_cast<void (*)(Memory *, uint32_t, uint8_t)>(&Memory::W8));
+        break;
+      case VALUE_I16:
+        fn = reinterpret_cast<void *>(
+            static_cast<void (*)(Memory *, uint32_t, uint16_t)>(&Memory::W16));
+        break;
+      case VALUE_I32:
+        fn = reinterpret_cast<void *>(
+            static_cast<void (*)(Memory *, uint32_t, uint32_t)>(&Memory::W32));
+        break;
+      case VALUE_I64:
+        fn = reinterpret_cast<void *>(
+            static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
+        break;
+      default:
+        LOG_FATAL("Unexpected store value type");
+        break;
+    }
+
+    e.mov(int_arg0, reinterpret_cast<uintptr_t>(&e.memory()));
+    e.mov(int_arg1, a);
+    e.mov(int_arg2, b);
+    e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
+    e.call(e.rax);
+    e.RestoreArgs();
+  } else {
+    switch (instr->arg1()->type()) {
+      case VALUE_I8:
+        e.mov(e.byte[a.cvt64() + int_arg1], b);
+        break;
+      case VALUE_I16:
+        e.mov(e.word[a.cvt64() + int_arg1], b);
+        break;
+      case VALUE_I32:
+        e.mov(e.dword[a.cvt64() + int_arg1], b);
+        break;
+      case VALUE_I64:
+        e.mov(e.qword[a.cvt64() + int_arg1], b);
+        break;
+      default:
+        LOG_FATAL("Unexpected store value type");
+        break;
+    }
+  }
+}
+
 EMITTER(LOAD_CONTEXT) {
   int offset = instr->arg0()->value<int32_t>();
 
@@ -624,195 +893,6 @@ EMITTER(STORE_LOCAL) {
   }
 }
 
-EMITTER(LOAD) {
-  const Xbyak::Reg &result = e.GetRegister(instr->result());
-
-  if (instr->arg0()->constant()) {
-    // try to resolve the address to a physical page
-    uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
-    uint8_t *host_addr = nullptr;
-    MemoryRegion *region = nullptr;
-    uint32_t offset = 0;
-
-    e.memory().Lookup(addr, &host_addr, &region, &offset);
-
-    // if the address maps to a physical page, not a dynamic handler, make it
-    // fast
-    if (host_addr) {
-      // FIXME it'd be nice if xbyak had a mov operation which would convert
-      // the displacement to a RIP-relative address when finalizing code so
-      // we didn't have to store the absolute address in the scratch register
-      e.mov(e.rax, reinterpret_cast<uintptr_t>(host_addr));
-
-      switch (instr->result()->type()) {
-        case VALUE_I8:
-          e.mov(result, e.byte[e.rax]);
-          break;
-        case VALUE_I16:
-          e.mov(result, e.word[e.rax]);
-          break;
-        case VALUE_I32:
-          e.mov(result, e.dword[e.rax]);
-          break;
-        case VALUE_I64:
-          e.mov(result, e.qword[e.rax]);
-          break;
-        default:
-          LOG_FATAL("Unexpected load result type");
-          break;
-      }
-
-      return;
-    }
-  }
-
-  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
-
-  if (e.block_flags() & BF_SLOWMEM) {
-    void *fn = nullptr;
-    switch (instr->result()->type()) {
-      case VALUE_I8:
-        fn = reinterpret_cast<void *>(
-            static_cast<uint8_t (*)(Memory *, uint32_t)>(&Memory::R8));
-        break;
-      case VALUE_I16:
-        fn = reinterpret_cast<void *>(
-            static_cast<uint16_t (*)(Memory *, uint32_t)>(&Memory::R16));
-        break;
-      case VALUE_I32:
-        fn = reinterpret_cast<void *>(
-            static_cast<uint32_t (*)(Memory *, uint32_t)>(&Memory::R32));
-        break;
-      case VALUE_I64:
-        fn = reinterpret_cast<void *>(
-            static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
-        break;
-      default:
-        LOG_FATAL("Unexpected load result type");
-        break;
-    }
-
-    e.mov(int_arg0, reinterpret_cast<uintptr_t>(&e.memory()));
-    e.mov(int_arg1, a);
-    e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
-    e.call(e.rax);
-    e.mov(result, e.rax);
-    e.RestoreArgs();
-  } else {
-    switch (instr->result()->type()) {
-      case VALUE_I8:
-        e.mov(result, e.byte[a.cvt64() + int_arg1]);
-        break;
-      case VALUE_I16:
-        e.mov(result, e.word[a.cvt64() + int_arg1]);
-        break;
-      case VALUE_I32:
-        e.mov(result, e.dword[a.cvt64() + int_arg1]);
-        break;
-      case VALUE_I64:
-        e.mov(result, e.qword[a.cvt64() + int_arg1]);
-        break;
-      default:
-        LOG_FATAL("Unexpected load result type");
-        break;
-    }
-  }
-}
-
-EMITTER(STORE) {
-  if (instr->arg0()->constant()) {
-    // try to resolve the address to a physical page
-    uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
-    uint8_t *host_addr = nullptr;
-    MemoryRegion *bank = nullptr;
-    uint32_t offset = 0;
-
-    e.memory().Lookup(addr, &host_addr, &bank, &offset);
-
-    if (host_addr) {
-      const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-
-      // FIXME it'd be nice if xbyak had a mov operation which would convert
-      // the displacement to a RIP-relative address when finalizing code so
-      // we didn't have to store the absolute address in the scratch register
-      e.mov(e.rax, reinterpret_cast<uintptr_t>(host_addr));
-
-      switch (instr->arg1()->type()) {
-        case VALUE_I8:
-          e.mov(e.byte[e.rax], b);
-          break;
-        case VALUE_I16:
-          e.mov(e.word[e.rax], b);
-          break;
-        case VALUE_I32:
-          e.mov(e.dword[e.rax], b);
-          break;
-        case VALUE_I64:
-          e.mov(e.qword[e.rax], b);
-          break;
-        default:
-          LOG_FATAL("Unexpected store value type");
-          break;
-      }
-
-      return;
-    }
-  }
-
-  const Xbyak::Reg &a = e.GetRegister(instr->arg0());
-  const Xbyak::Reg &b = e.GetRegister(instr->arg1());
-
-  if (e.block_flags() & BF_SLOWMEM) {
-    void *fn = nullptr;
-    switch (instr->arg1()->type()) {
-      case VALUE_I8:
-        fn = reinterpret_cast<void *>(
-            static_cast<void (*)(Memory *, uint32_t, uint8_t)>(&Memory::W8));
-        break;
-      case VALUE_I16:
-        fn = reinterpret_cast<void *>(
-            static_cast<void (*)(Memory *, uint32_t, uint16_t)>(&Memory::W16));
-        break;
-      case VALUE_I32:
-        fn = reinterpret_cast<void *>(
-            static_cast<void (*)(Memory *, uint32_t, uint32_t)>(&Memory::W32));
-        break;
-      case VALUE_I64:
-        fn = reinterpret_cast<void *>(
-            static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
-        break;
-      default:
-        LOG_FATAL("Unexpected store value type");
-        break;
-    }
-
-    e.mov(int_arg0, reinterpret_cast<uintptr_t>(&e.memory()));
-    e.mov(int_arg1, a);
-    e.mov(int_arg2, b);
-    e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
-    e.call(e.rax);
-    e.RestoreArgs();
-  } else {
-    switch (instr->arg1()->type()) {
-      case VALUE_I8:
-        e.mov(e.byte[a.cvt64() + int_arg1], b);
-        break;
-      case VALUE_I16:
-        e.mov(e.word[a.cvt64() + int_arg1], b);
-        break;
-      case VALUE_I32:
-        e.mov(e.dword[a.cvt64() + int_arg1], b);
-        break;
-      case VALUE_I64:
-        e.mov(e.qword[a.cvt64() + int_arg1], b);
-        break;
-      default:
-        LOG_FATAL("Unexpected store value type");
-        break;
-    }
-  }
-}
-
 EMITTER(CAST) {
   if (IsFloatType(instr->result()->type())) {
     const Xbyak::Xmm &result = e.GetXMMRegister(instr->result());
@@ -876,7 +956,7 @@ EMITTER(ZEXT) {
     return;
   }
 
-  if (result.isBit(64)) {
+  if (result.isBit(64) && a.isBit(32)) {
     // mov will automatically zero fill the upper 32-bits
     e.mov(result.cvt32(), a);
   } else {
@@ -1352,52 +1432,6 @@ EMITTER(ABS) {
     // e.neg(e.rax);
     // e.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), e.rax);
   }
-}
-
-EMITTER(SIN) {
-  CHECK(IsFloatType(instr->result()->type()));
-
-  const Xbyak::Xmm &result = e.GetXMMRegister(instr->result());
-  const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0());
-
-  // FIXME xmm registers aren't callee saved, this would probably break if we
-  // used the lower indexed xmm registers
-  if (instr->result()->type() == VALUE_F32) {
-    e.movss(e.xmm0, a);
-    e.mov(e.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&sinf));
-    e.call(e.rax);
-    e.movss(result, e.xmm0);
-  } else {
-    e.movsd(e.xmm0, a);
-    e.mov(e.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&sin));
-    e.call(e.rax);
-    e.movsd(result, e.xmm0);
-  }
-
-  e.RestoreArgs();
-}
-
-EMITTER(COS) {
-  CHECK(IsFloatType(instr->result()->type()));
-
-  const Xbyak::Xmm &result = e.GetXMMRegister(instr->result());
-  const Xbyak::Xmm &a = e.GetXMMRegister(instr->arg0());
-
-  // FIXME xmm registers aren't callee saved, this would probably break if we
-  // used the lower indexed xmm registers
-  if (instr->result()->type() == VALUE_F32) {
-    e.movss(e.xmm0, a);
-    e.mov(e.rax, (uint64_t) reinterpret_cast<float (*)(float)>(&cosf));
-    e.call(e.rax);
-    e.movss(result, e.xmm0);
-  } else {
-    e.movsd(e.xmm0, a);
-    e.mov(e.rax, (uint64_t) reinterpret_cast<double (*)(double)>(&cos));
-    e.call(e.rax);
-    e.movsd(result, e.xmm0);
-  }
-
-  e.RestoreArgs();
 }
 
 EMITTER(AND) {

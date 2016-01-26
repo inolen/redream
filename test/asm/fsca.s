@@ -5,4 +5,4 @@ test_fsca:
   rts
   nop
   # REGISTER_OUT fr2 0x3f800000
-  # REGISTER_OUT fr3 0xb33bbd2e
+  # REGISTER_OUT fr3 0x80000000

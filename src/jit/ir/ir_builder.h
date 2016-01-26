@@ -378,6 +378,14 @@ class IRBuilder {
   Block *AppendBlock();
   void RemoveBlock(Block *block);
 
+  // direct access to host memory
+  Value *LoadHost(Value *addr, ValueTy type);
+  void StoreHost(Value *addr, Value *v);
+
+  // guest memory operations
+  Value *LoadGuest(Value *addr, ValueTy type);
+  void StoreGuest(Value *addr, Value *v);
+
   // context operations
   Value *LoadContext(size_t offset, ValueTy type);
   void StoreContext(size_t offset, Value *v, InstrFlag flags = IF_NONE);
@@ -385,10 +393,6 @@ class IRBuilder {
   // local operations
   Value *LoadLocal(Local *local);
   void StoreLocal(Local *local, Value *v);
-
-  // memory operations
-  Value *Load(Value *addr, ValueTy type);
-  void Store(Value *addr, Value *v);
 
   // cast / conversion operations
   Value *Cast(Value *v, ValueTy dest_type);
@@ -418,8 +422,6 @@ class IRBuilder {
   Value *Neg(Value *a);
   Value *Sqrt(Value *a);
   Value *Abs(Value *a);
-  Value *Sin(Value *a);
-  Value *Cos(Value *a);
 
   // bitwise operations
   Value *And(Value *a, Value *b);
