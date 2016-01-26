@@ -140,8 +140,8 @@ set(DREAVM_SOURCES
   src/jit/backend/x64/x64_disassembler.cc
   src/jit/backend/x64/x64_emitter.cc
   src/jit/frontend/sh4/sh4_builder.cc
+  src/jit/frontend/sh4/sh4_disassembler.cc
   src/jit/frontend/sh4/sh4_frontend.cc
-  src/jit/frontend/sh4/sh4_instr.cc
   src/jit/ir/ir_builder.cc
   src/jit/ir/passes/constant_propagation_pass.cc
   src/jit/ir/passes/load_store_elimination_pass.cc
