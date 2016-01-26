@@ -239,6 +239,42 @@ void IRBuilder::RemoveBlock(Block *block) {
   block->~Block();
 }
 
+Value *IRBuilder::LoadHost(Value *addr, ValueTy type) {
+  CHECK_EQ(VALUE_I64, addr->type());
+
+  Instr *instr = AppendInstr(OP_LOAD_HOST);
+  Value *result = AllocDynamic(type);
+  instr->set_arg0(addr);
+  instr->set_result(result);
+  return result;
+}
+
+void IRBuilder::StoreHost(Value *addr, Value *v) {
+  CHECK_EQ(VALUE_I64, addr->type());
+
+  Instr *instr = AppendInstr(OP_STORE_HOST);
+  instr->set_arg0(addr);
+  instr->set_arg1(v);
+}
+
+Value *IRBuilder::LoadGuest(Value *addr, ValueTy type) {
+  CHECK_EQ(VALUE_I32, addr->type());
+
+  Instr *instr = AppendInstr(OP_LOAD_GUEST);
+  Value *result = AllocDynamic(type);
+  instr->set_arg0(addr);
+  instr->set_result(result);
+  return result;
+}
+
+void IRBuilder::StoreGuest(Value *addr, Value *v) {
+  CHECK_EQ(VALUE_I32, addr->type());
+
+  Instr *instr = AppendInstr(OP_STORE_GUEST);
+  instr->set_arg0(addr);
+  instr->set_arg1(v);
+}
+
 Value *IRBuilder::LoadContext(size_t offset, ValueTy type) {
   Instr *instr = AppendInstr(OP_LOAD_CONTEXT);
   Value *result = AllocDynamic(type);
@@ -264,24 +300,6 @@ Value *IRBuilder::LoadLocal(Local *local) {
 void IRBuilder::StoreLocal(Local *local, Value *v) {
   Instr *instr = AppendInstr(OP_STORE_LOCAL);
   instr->set_arg0(local->offset());
-  instr->set_arg1(v);
-}
-
-Value *IRBuilder::Load(Value *addr, ValueTy type) {
-  CHECK_EQ(VALUE_I32, addr->type());
-
-  Instr *instr = AppendInstr(OP_LOAD);
-  Value *result = AllocDynamic(type);
-  instr->set_arg0(addr);
-  instr->set_result(result);
-  return result;
-}
-
-void IRBuilder::Store(Value *addr, Value *v) {
-  CHECK_EQ(VALUE_I32, addr->type());
-
-  Instr *instr = AppendInstr(OP_STORE);
-  instr->set_arg0(addr);
   instr->set_arg1(v);
 }
 
@@ -530,22 +548,6 @@ Value *IRBuilder::Sqrt(Value *a) {
 
 Value *IRBuilder::Abs(Value *a) {
   Instr *instr = AppendInstr(OP_ABS);
-  Value *result = AllocDynamic(a->type());
-  instr->set_arg0(a);
-  instr->set_result(result);
-  return result;
-}
-
-Value *IRBuilder::Sin(Value *a) {
-  Instr *instr = AppendInstr(OP_SIN);
-  Value *result = AllocDynamic(a->type());
-  instr->set_arg0(a);
-  instr->set_result(result);
-  return result;
-}
-
-Value *IRBuilder::Cos(Value *a) {
-  Instr *instr = AppendInstr(OP_COS);
   Value *result = AllocDynamic(a->type());
   instr->set_arg0(a);
   instr->set_result(result);

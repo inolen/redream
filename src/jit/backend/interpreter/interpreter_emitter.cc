@@ -86,7 +86,7 @@ void InterpreterEmitter::TranslateInstr(Instr &ir_i, IntInstr *instr) {
   // HACK instead of writing out ctx and an array of IntValues, it'd be nice
   // to encode exactly what's needed for each instruction into the codegen
   // buffer
-  if (ir_i.op() == OP_LOAD || ir_i.op() == OP_STORE) {
+  if (ir_i.op() == OP_LOAD_GUEST || ir_i.op() == OP_STORE_GUEST) {
     instr->ctx = &memory_;
   } else if (ir_i.op() == OP_LOAD_CONTEXT || ir_i.op() == OP_STORE_CONTEXT ||
              ir_i.op() == OP_CALL_EXTERNAL) {
@@ -341,6 +341,154 @@ struct helper<T, ARG, ACC_IMM> {
 //
 // interpreter callbacks
 //
+INT_CALLBACK(LOAD_HOST_I8) {
+  uint64_t addr = LOAD_ARG0();
+  R v = dvm::load<int8_t>(reinterpret_cast<void *>(addr));
+  STORE_RESULT(v);
+}
+INT_CALLBACK(LOAD_HOST_I16) {
+  uint64_t addr = LOAD_ARG0();
+  R v = dvm::load<int16_t>(reinterpret_cast<void *>(addr));
+  STORE_RESULT(v);
+}
+INT_CALLBACK(LOAD_HOST_I32) {
+  uint64_t addr = LOAD_ARG0();
+  R v = dvm::load<int32_t>(reinterpret_cast<void *>(addr));
+  STORE_RESULT(v);
+}
+INT_CALLBACK(LOAD_HOST_I64) {
+  uint64_t addr = LOAD_ARG0();
+  R v = dvm::load<int64_t>(reinterpret_cast<void *>(addr));
+  STORE_RESULT(v);
+}
+INT_CALLBACK(LOAD_HOST_F32) {
+  uint64_t addr = LOAD_ARG0();
+  int32_t v = dvm::load<int32_t>(reinterpret_cast<void *>(addr));
+  STORE_RESULT(dvm::load<float>(&v));
+}
+INT_CALLBACK(LOAD_HOST_F64) {
+  uint64_t addr = LOAD_ARG0();
+  int64_t v = dvm::load<int64_t>(reinterpret_cast<void *>(addr));
+  STORE_RESULT(dvm::load<double>(&v));
+}
+REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_I8, I8, I64, V);
+REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_I16, I16, I64, V);
+REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_I32, I32, I64, V);
+REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_I64, I64, I64, V);
+REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_F32, F32, I64, V);
+REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_F64, F64, I64, V);
+
+INT_CALLBACK(STORE_HOST_I8) {
+  uint64_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  dvm::store(reinterpret_cast<void *>(addr), v);
+}
+INT_CALLBACK(STORE_HOST_I16) {
+  uint64_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  dvm::store(reinterpret_cast<void *>(addr), v);
+}
+INT_CALLBACK(STORE_HOST_I32) {
+  uint64_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  dvm::store(reinterpret_cast<void *>(addr), v);
+}
+INT_CALLBACK(STORE_HOST_I64) {
+  uint64_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  dvm::store(reinterpret_cast<void *>(addr), v);
+}
+INT_CALLBACK(STORE_HOST_F32) {
+  uint64_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  dvm::store(reinterpret_cast<void *>(addr), dvm::load<uint32_t>(&v));
+}
+INT_CALLBACK(STORE_HOST_F64) {
+  uint64_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  dvm::store(reinterpret_cast<void *>(addr), dvm::load<uint64_t>(&v));
+}
+REGISTER_INT_CALLBACK(STORE_HOST, STORE_HOST_I8, V, I64, I8);
+REGISTER_INT_CALLBACK(STORE_HOST, STORE_HOST_I16, V, I64, I16);
+REGISTER_INT_CALLBACK(STORE_HOST, STORE_HOST_I32, V, I64, I32);
+REGISTER_INT_CALLBACK(STORE_HOST, STORE_HOST_I64, V, I64, I64);
+REGISTER_INT_CALLBACK(STORE_HOST, STORE_HOST_F32, V, I64, F32);
+REGISTER_INT_CALLBACK(STORE_HOST, STORE_HOST_F64, V, I64, F64);
+
+INT_CALLBACK(LOAD_GUEST_I8) {
+  uint32_t addr = LOAD_ARG0();
+  R v = reinterpret_cast<Memory *>(i->ctx)->R8(addr);
+  STORE_RESULT(v);
+}
+INT_CALLBACK(LOAD_GUEST_I16) {
+  uint32_t addr = LOAD_ARG0();
+  R v = reinterpret_cast<Memory *>(i->ctx)->R16(addr);
+  STORE_RESULT(v);
+}
+INT_CALLBACK(LOAD_GUEST_I32) {
+  uint32_t addr = LOAD_ARG0();
+  R v = reinterpret_cast<Memory *>(i->ctx)->R32(addr);
+  STORE_RESULT(v);
+}
+INT_CALLBACK(LOAD_GUEST_I64) {
+  uint32_t addr = LOAD_ARG0();
+  R v = reinterpret_cast<Memory *>(i->ctx)->R64(addr);
+  STORE_RESULT(v);
+}
+INT_CALLBACK(LOAD_GUEST_F32) {
+  uint32_t addr = LOAD_ARG0();
+  uint32_t v = reinterpret_cast<Memory *>(i->ctx)->R32(addr);
+  STORE_RESULT(dvm::load<float>(&v));
+}
+INT_CALLBACK(LOAD_GUEST_F64) {
+  uint32_t addr = LOAD_ARG0();
+  uint64_t v = reinterpret_cast<Memory *>(i->ctx)->R64(addr);
+  STORE_RESULT(dvm::load<double>(&v));
+}
+REGISTER_INT_CALLBACK(LOAD_GUEST, LOAD_GUEST_I8, I8, I32, V);
+REGISTER_INT_CALLBACK(LOAD_GUEST, LOAD_GUEST_I16, I16, I32, V);
+REGISTER_INT_CALLBACK(LOAD_GUEST, LOAD_GUEST_I32, I32, I32, V);
+REGISTER_INT_CALLBACK(LOAD_GUEST, LOAD_GUEST_I64, I64, I32, V);
+REGISTER_INT_CALLBACK(LOAD_GUEST, LOAD_GUEST_F32, F32, I32, V);
+REGISTER_INT_CALLBACK(LOAD_GUEST, LOAD_GUEST_F64, F64, I32, V);
+
+INT_CALLBACK(STORE_GUEST_I8) {
+  uint32_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  reinterpret_cast<Memory *>(i->ctx)->W8(addr, v);
+}
+INT_CALLBACK(STORE_GUEST_I16) {
+  uint32_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  reinterpret_cast<Memory *>(i->ctx)->W16(addr, v);
+}
+INT_CALLBACK(STORE_GUEST_I32) {
+  uint32_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  reinterpret_cast<Memory *>(i->ctx)->W32(addr, v);
+}
+INT_CALLBACK(STORE_GUEST_I64) {
+  uint32_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  reinterpret_cast<Memory *>(i->ctx)->W64(addr, v);
+}
+INT_CALLBACK(STORE_GUEST_F32) {
+  uint32_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  reinterpret_cast<Memory *>(i->ctx)->W32(addr, dvm::load<uint32_t>(&v));
+}
+INT_CALLBACK(STORE_GUEST_F64) {
+  uint32_t addr = LOAD_ARG0();
+  A1 v = LOAD_ARG1();
+  reinterpret_cast<Memory *>(i->ctx)->W64(addr, dvm::load<uint64_t>(&v));
+}
+REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_I8, V, I32, I8);
+REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_I16, V, I32, I16);
+REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_I32, V, I32, I32);
+REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_I64, V, I32, I64);
+REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_F32, V, I32, F32);
+REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_F64, V, I32, F64);
+
 INT_CALLBACK(LOAD_CONTEXT) {
   A0 offset = LOAD_ARG0();
   R v = dvm::load<R>(reinterpret_cast<uint8_t *>(i->ctx) + offset);
@@ -388,80 +536,6 @@ REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, I32);
 REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, I64);
 REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, F32);
 REGISTER_INT_CALLBACK(STORE_LOCAL, STORE_LOCAL, V, I32, F64);
-
-INT_CALLBACK(LOAD_I8) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = reinterpret_cast<Memory *>(i->ctx)->R8(addr);
-  STORE_RESULT(v);
-}
-INT_CALLBACK(LOAD_I16) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = reinterpret_cast<Memory *>(i->ctx)->R16(addr);
-  STORE_RESULT(v);
-}
-INT_CALLBACK(LOAD_I32) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = reinterpret_cast<Memory *>(i->ctx)->R32(addr);
-  STORE_RESULT(v);
-}
-INT_CALLBACK(LOAD_I64) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  R v = reinterpret_cast<Memory *>(i->ctx)->R64(addr);
-  STORE_RESULT(v);
-}
-INT_CALLBACK(LOAD_F32) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  uint32_t v = reinterpret_cast<Memory *>(i->ctx)->R32(addr);
-  STORE_RESULT(dvm::load<float>(&v));
-}
-INT_CALLBACK(LOAD_F64) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  uint64_t v = reinterpret_cast<Memory *>(i->ctx)->R64(addr);
-  STORE_RESULT(dvm::load<double>(&v));
-}
-REGISTER_INT_CALLBACK(LOAD, LOAD_I8, I8, I32, V);
-REGISTER_INT_CALLBACK(LOAD, LOAD_I16, I16, I32, V);
-REGISTER_INT_CALLBACK(LOAD, LOAD_I32, I32, I32, V);
-REGISTER_INT_CALLBACK(LOAD, LOAD_I64, I64, I32, V);
-REGISTER_INT_CALLBACK(LOAD, LOAD_F32, F32, I32, V);
-REGISTER_INT_CALLBACK(LOAD, LOAD_F64, F64, I32, V);
-
-INT_CALLBACK(STORE_I8) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)->W8(addr, v);
-}
-INT_CALLBACK(STORE_I16) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)->W16(addr, v);
-}
-INT_CALLBACK(STORE_I32) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)->W32(addr, v);
-}
-INT_CALLBACK(STORE_I64) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)->W64(addr, v);
-}
-INT_CALLBACK(STORE_F32) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)->W32(addr, dvm::load<uint32_t>(&v));
-}
-INT_CALLBACK(STORE_F64) {
-  uint32_t addr = static_cast<uint32_t>(LOAD_ARG0());
-  A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)->W64(addr, dvm::load<uint64_t>(&v));
-}
-REGISTER_INT_CALLBACK(STORE, STORE_I8, V, I32, I8);
-REGISTER_INT_CALLBACK(STORE, STORE_I16, V, I32, I16);
-REGISTER_INT_CALLBACK(STORE, STORE_I32, V, I32, I32);
-REGISTER_INT_CALLBACK(STORE, STORE_I64, V, I32, I64);
-REGISTER_INT_CALLBACK(STORE, STORE_F32, V, I32, F32);
-REGISTER_INT_CALLBACK(STORE, STORE_F64, V, I32, F64);
 
 INT_CALLBACK(CAST) {
   A0 v = LOAD_ARG0();
@@ -727,28 +801,6 @@ INT_CALLBACK(ABSF) {
 }
 REGISTER_INT_CALLBACK(ABS, ABSF, F32, F32, V);
 REGISTER_INT_CALLBACK(ABS, ABSF, F64, F64, V);
-
-INT_CALLBACK(SINF) {
-  A0 v = LOAD_ARG0();
-  STORE_RESULT(sinf(v));
-}
-INT_CALLBACK(SIN) {
-  A0 v = LOAD_ARG0();
-  STORE_RESULT(sin(v));
-}
-REGISTER_INT_CALLBACK(SIN, SINF, F32, F32, V);
-REGISTER_INT_CALLBACK(SIN, SIN, F64, F64, V);
-
-INT_CALLBACK(COSF) {
-  A0 v = LOAD_ARG0();
-  STORE_RESULT(cosf(v));
-}
-INT_CALLBACK(COS) {
-  A0 v = LOAD_ARG0();
-  STORE_RESULT(cos(v));
-}
-REGISTER_INT_CALLBACK(COS, COSF, F32, F32, V);
-REGISTER_INT_CALLBACK(COS, COS, F64, F64, V);
 
 INT_CALLBACK(AND) {
   A0 lhs = LOAD_ARG0();
