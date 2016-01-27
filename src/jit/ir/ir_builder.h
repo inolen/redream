@@ -388,7 +388,7 @@ class IRBuilder {
 
   // context operations
   Value *LoadContext(size_t offset, ValueTy type);
-  void StoreContext(size_t offset, Value *v, InstrFlag flags = IF_NONE);
+  void StoreContext(size_t offset, Value *v);
 
   // local operations
   Value *LoadLocal(Local *local);

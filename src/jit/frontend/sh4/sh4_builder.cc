@@ -130,7 +130,7 @@ void SH4Builder::StoreSR(Value *v) {
 
   Value *sr_updated = LoadContext(offsetof(SH4Context, SRUpdated), VALUE_I64);
   Value *old_sr = LoadSR();
-  StoreContext(offsetof(SH4Context, sr), v, IF_INVALIDATE_CONTEXT);
+  StoreContext(offsetof(SH4Context, sr), v);
   CallExternal2(sr_updated, ZExt(old_sr, VALUE_I64));
 }
 
