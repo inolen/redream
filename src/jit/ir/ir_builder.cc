@@ -1,7 +1,5 @@
-#include <iomanip>
-#include <sstream>
-#include <unordered_map>
 #include "jit/ir/ir_builder.h"
+#include "jit/ir/ir_writer.h"
 
 using namespace dvm::jit;
 using namespace dvm::jit::ir;
@@ -125,81 +123,9 @@ void Block::UnlinkInstr(Instr *instr) {
 IRBuilder::IRBuilder()
     : arena_(1024), current_block_(nullptr), current_instr_(nullptr) {}
 
-// TODO clean and speed up?
 void IRBuilder::Dump() const {
-  std::unordered_map<intptr_t, std::string> block_vars;
-  std::unordered_map<intptr_t, std::string> value_vars;
-  int next_temp_id = 0;
-  auto DumpBlock = [&](std::stringstream &ss, const Block *b) {
-    auto it = block_vars.find((intptr_t)b);
-    ss << it->second;
-  };
-  auto DumpVariable = [&](std::stringstream &ss, const Value *v) {
-    if (!v) {
-      return;
-    }
-    auto it = value_vars.find((intptr_t)v);
-    if (it == value_vars.end()) {
-      std::string name = "%" + std::to_string(next_temp_id++);
-      auto res = value_vars.insert(std::make_pair((intptr_t)v, name));
-      it = res.first;
-    }
-    ss << it->second << " (" << v->reg() << ")";
-  };
-  auto DumpValue = [&](std::stringstream &ss, const Value *v) {
-    if (!v) {
-      return;
-    }
-
-    if (!v->constant()) {
-      DumpVariable(ss, v);
-    } else {
-      switch (v->type()) {
-        case VALUE_I8:
-          ss << v->value<int8_t>();
-          break;
-        case VALUE_I16:
-          ss << v->value<int16_t>();
-          break;
-        case VALUE_I32:
-          ss << v->value<int32_t>();
-          break;
-        case VALUE_I64:
-          ss << v->value<int64_t>();
-          break;
-        case VALUE_F32:
-          ss << v->value<float>();
-          break;
-        case VALUE_F64:
-          ss << v->value<double>();
-          break;
-      }
-    }
-    ss << " ";
-  };
-  int bc = 0;
-  int ic = 0;
-  for (auto block : blocks_) {
-    block_vars.insert(
-        std::make_pair((intptr_t)block, "blk" + std::to_string(bc++)));
-  }
-  for (auto block : blocks_) {
-    std::stringstream header;
-    DumpBlock(header, block);
-    header << ":" << std::endl;
-    LOG_INFO(header.str().c_str());
-
-    for (auto instr : block->instrs()) {
-      std::stringstream ss;
-      ss << ic++ << ". " << Opnames[instr->op()] << " ";
-      DumpValue(ss, instr->arg0());
-      DumpValue(ss, instr->arg1());
-      DumpValue(ss, instr->arg2());
-      DumpValue(ss, instr->result());
-      LOG_INFO(ss.str().c_str());
-    }
-    LOG_INFO("");
-  }
+  IRWriter writer;
+  writer.Print(*this);
 }
 
 InsertPoint IRBuilder::GetInsertPoint() {
@@ -283,8 +209,8 @@ Value *IRBuilder::LoadContext(size_t offset, ValueTy type) {
   return result;
 }
 
-void IRBuilder::StoreContext(size_t offset, Value *v, InstrFlag flags) {
-  Instr *instr = AppendInstr(OP_STORE_CONTEXT, flags);
+void IRBuilder::StoreContext(size_t offset, Value *v) {
+  Instr *instr = AppendInstr(OP_STORE_CONTEXT);
   instr->set_arg0(AllocConstant((int32_t)offset));
   instr->set_arg1(v);
 }
