@@ -5,7 +5,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "core/core.h"
 #include "sys/filesystem.h"
 
 namespace dvm {

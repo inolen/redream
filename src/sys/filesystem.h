@@ -1,9 +1,7 @@
 #ifndef FILES_H
 #define FILES_H
 
-#include "core/platform.h"
-
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
 
 #include <windows.h>
 #include <direct.h>

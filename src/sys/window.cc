@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "core/core.h"
+#include <SDL.h>
 #include "sys/window.h"
 
 #define DEFAULT_WIDTH 800
@@ -116,7 +116,7 @@ void Window::QueueEvent(const WindowEvent &ev) {
   events_.PushBack(ev);
 }
 
-Keycode Window::TranslateSDLKey(SDL_Keysym keysym) {
+Keycode Window::TranslateSDLKey(const SDL_Keysym &keysym) {
   Keycode out = K_UNKNOWN;
 
   if (keysym.sym >= SDLK_SPACE && keysym.sym <= SDLK_z) {

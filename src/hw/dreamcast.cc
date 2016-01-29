@@ -1,4 +1,3 @@
-#include "core/core.h"
 #include "hw/aica/aica.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"

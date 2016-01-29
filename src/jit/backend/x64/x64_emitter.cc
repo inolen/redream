@@ -1,5 +1,6 @@
 #include <math.h>
-#include "core/core.h"
+#include "core/math.h"
+#include "core/memory.h"
 #include "emu/profiler.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_emitter.h"
@@ -1518,7 +1519,7 @@ EMITTER(SHL) {
     e.mov(e.cl, b);
     e.shl(result, e.cl);
 
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
     // arg0 was in rcx, needs to be restored
     e.RestoreArgs();
 #endif
@@ -1542,7 +1543,7 @@ EMITTER(ASHR) {
     e.mov(e.cl, b);
     e.sar(result, e.cl);
 
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
     // arg0 was in rcx, need to be restored
     e.RestoreArgs();
 #endif
@@ -1566,7 +1567,7 @@ EMITTER(LSHR) {
     e.mov(e.cl, b);
     e.shr(result, e.cl);
 
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
     // arg0 was in rcx, need to be restored
     e.RestoreArgs();
 #endif
@@ -1612,7 +1613,7 @@ EMITTER(ASHD) {
 
   // shift is done
   e.L(*end_label);
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
   // arg0 was in rcx, needs to be restored
   e.RestoreArgs();
 #endif
@@ -1657,7 +1658,7 @@ EMITTER(LSHD) {
 
   // shift is done
   e.L(*end_label);
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
   // arg0 was in rcx, needs to be restored
   e.RestoreArgs();
 #endif

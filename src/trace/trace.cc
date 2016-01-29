@@ -1,5 +1,5 @@
 #include <unordered_map>
-#include "core/core.h"
+#include "core/assert.h"
 #include "sys/filesystem.h"
 #include "trace/trace.h"
 

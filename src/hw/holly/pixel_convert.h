@@ -2,6 +2,7 @@
 #define PIXEL_CONVERT_H
 
 #include <algorithm>
+#include "core/memory.h"
 
 // Helper class for converting between different pixel formats.
 // Please note that RGBA values aren't normalized in the read and write

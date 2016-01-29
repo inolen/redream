@@ -2,7 +2,6 @@
 #define DREAVM_MATH_H
 
 #include <functional>
-#include "core/platform.h"
 
 namespace dvm {
 
@@ -11,13 +10,7 @@ T align(T v, T alignment) {
   return (v + alignment - 1) & ~(alignment - 1);
 }
 
-template <class T>
-inline void hash_combine(size_t &seed, const T &v) {
-  std::hash<T> hasher;
-  seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-}
-
-#if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
+#if PLATFORM_LINUX || PLATFORM_DARWIN
 inline int clz(uint32_t v) { return __builtin_clz(v); }
 inline int clz(uint64_t v) { return __builtin_clzll(v); }
 inline int ctz(uint32_t v) { return __builtin_ctz(v); }

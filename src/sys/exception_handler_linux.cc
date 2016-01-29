@@ -1,5 +1,4 @@
 #include <signal.h>
-#include "core/core.h"
 #include "sys/exception_handler_linux.h"
 
 using namespace dvm::sys;

@@ -2,7 +2,6 @@
 #define GL_SHADER_H
 
 #include <GL/glew.h>
-#include <SDL_opengl.h>
 
 namespace dvm {
 namespace renderer {

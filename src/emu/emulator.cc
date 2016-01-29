@@ -1,5 +1,5 @@
 #include <thread>
-#include "core/core.h"
+#include <gflags/gflags.h>
 #include "emu/emulator.h"
 #include "emu/profiler.h"
 #include "hw/gdrom/gdrom.h"

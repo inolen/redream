@@ -1,4 +1,3 @@
-#include "core/core.h"
 #include "hw/maple/maple.h"
 #include "hw/maple/maple_controller.h"
 #include "hw/dreamcast.h"

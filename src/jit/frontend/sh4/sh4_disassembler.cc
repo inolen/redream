@@ -1,4 +1,5 @@
-#include "core/core.h"
+#include "core/memory.h"
+#include "core/string.h"
 #include "hw/memory.h"
 #include "jit/frontend/sh4/sh4_disassembler.h"
 
@@ -103,7 +104,7 @@ void Dump(const void *data, size_t size, uint32_t base) {
   for (size_t i = 0; i < size; i++) {
     instr.addr = base + (i << 1);
     instr.opcode =
-        load<uint16_t>(reinterpret_cast<const uint8_t *>(data) + (i << 1));
+        dvm::load<uint16_t>(reinterpret_cast<const uint8_t *>(data) + (i << 1));
     CHECK(Disasm(&instr));
 
     // copy initial formatted description

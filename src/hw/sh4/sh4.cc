@@ -1,4 +1,5 @@
-#include "core/core.h"
+#include "core/math.h"
+#include "core/memory.h"
 #include "emu/profiler.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"

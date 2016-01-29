@@ -1,4 +1,5 @@
-#include "core/core.h"
+#include "core/log.h"
+#include "core/string.h"
 #include "renderer/gl_shader.h"
 
 namespace dvm {

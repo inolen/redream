@@ -2,7 +2,6 @@
 #define SYS_MEMORY_H
 
 #include "core/interval_tree.h"
-#include "core/platform.h"
 #include "sys/exception_handler.h"
 
 namespace dvm {
@@ -26,7 +25,7 @@ bool ReleasePages(void *ptr, size_t size);
 //
 // shared memory objects
 //
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
 typedef void *SharedMemoryHandle;
 #define SHMEM_INVALID nullptr
 #else

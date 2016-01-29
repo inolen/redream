@@ -1,4 +1,3 @@
-#include "core/core.h"
 #include "core/interval_tree.h"
 #include "emu/profiler.h"
 #include "sys/exception_handler.h"

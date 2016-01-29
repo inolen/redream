@@ -1,4 +1,4 @@
-#include "core/core.h"
+#include "core/memory.h"
 #include "hw/holly/pixel_convert.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/dreamcast.h"

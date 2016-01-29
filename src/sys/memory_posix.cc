@@ -2,8 +2,8 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <string>
 #include <unordered_map>
-#include "core/core.h"
 #include "sys/memory.h"
 
 namespace dvm {

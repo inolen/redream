@@ -1,5 +1,4 @@
 #include <windows.h>
-#include "core/core.h"
 #include "sys/memory.h"
 
 namespace dvm {

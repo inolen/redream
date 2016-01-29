@@ -45,4 +45,16 @@ int strnrep(char *dst, size_t dst_size, const char *token, size_t token_len,
 
   return 0;
 }
+
+int xtoi(char c) {
+  int i = -1;
+  c = tolower(c);
+  if (c >= 'a' && c <= 'f') {
+    i = 0xa + (c - 'a');
+  } else if (c >= '0' && c <= '9') {
+    i = c - '0';
+  }
+  return i;
+}
+
 }

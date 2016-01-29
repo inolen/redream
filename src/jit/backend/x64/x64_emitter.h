@@ -3,7 +3,6 @@
 
 #include <xbyak/xbyak.h>
 #include "core/arena.h"
-#include "core/platform.h"
 #include "hw/memory.h"
 #include "jit/source_map.h"
 
@@ -12,7 +11,7 @@ namespace jit {
 namespace backend {
 namespace x64 {
 
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
 #define INT_ARG0 RCX
 #define INT_ARG1 RDX
 #define INT_ARG2 R8
@@ -23,7 +22,7 @@ namespace x64 {
 #endif
 
 enum {
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
   STACK_SHADOW_SPACE = 32,
 #else
   STACK_SHADOW_SPACE = 0,

@@ -1,8 +1,9 @@
 #include <algorithm>
 #include <errno.h>
 #include <stdlib.h>
-#include <string.h>
-#include "core/core.h"
+#include "core/debug_break.h"
+#include "core/log.h"
+#include "core/string.h"
 #include "sys/filesystem.h"
 
 namespace dvm {

@@ -1,4 +1,4 @@
-#include "core/core.h"
+#include "core/assert.h"
 #include "hw/gdrom/disc.h"
 
 #define PREGAP_SIZE 150

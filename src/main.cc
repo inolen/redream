@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <memory>
-#include "core/core.h"
+#include <gflags/gflags.h>
 #include "emu/emulator.h"
 #include "trace/trace_viewer.h"
 #include "sys/exception_handler.h"
@@ -32,6 +32,11 @@ void InitFlags(int *argc, char ***argv) {
 }
 
 void ShutdownFlags() { google::ShutDownCommandLineFlags(); }
+
+#include "jit/ir/ir_reader.h"
+#include "jit/ir/ir_writer.h"
+
+using namespace dvm::jit::ir;
 
 int main(int argc, char **argv) {
   EnsureAppDirExists();
