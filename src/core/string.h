@@ -20,7 +20,6 @@ int strnrep(char *dst, size_t dst_size, const char *token, size_t token_len,
             const char *value, size_t value_len);
 
 int xtoi(char c);
-
 }
 
 #endif

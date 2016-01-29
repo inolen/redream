@@ -360,6 +360,8 @@ struct InsertPoint {
 };
 
 class IRBuilder {
+  friend class IRReader;
+
  public:
   IRBuilder();
 

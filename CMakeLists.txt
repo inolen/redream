@@ -146,6 +146,7 @@ set(DREAVM_SOURCES
   src/jit/frontend/sh4/sh4_disassembler.cc
   src/jit/frontend/sh4/sh4_frontend.cc
   src/jit/ir/ir_builder.cc
+  src/jit/ir/ir_reader.cc
   src/jit/ir/ir_writer.cc
   src/jit/ir/passes/constant_propagation_pass.cc
   src/jit/ir/passes/load_store_elimination_pass.cc

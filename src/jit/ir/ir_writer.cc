@@ -4,107 +4,104 @@
 using namespace dvm::jit;
 using namespace dvm::jit::ir;
 
-void IRWriter::Print(const IRBuilder &builder) {
-  value_ids_.clear();
-  next_value_id_ = 0;
-
-  std::stringstream ss;
+void IRWriter::Print(const IRBuilder &builder, std::ostringstream &output) {
+  slots_.clear();
+  next_slot_ = 0;
 
   for (auto block : builder.blocks()) {
     for (auto instr : block->instrs()) {
-      PrintInstruction(ss, instr);
+      PrintInstruction(instr, output);
     }
   }
-
-  LOG_INFO(ss.str().c_str());
 }
 
-void IRWriter::PrintType(std::stringstream &ss, ValueTy type) const {
+void IRWriter::PrintType(ValueTy type, std::ostringstream &output) const {
   switch (type) {
     case VALUE_I8:
-      ss << "i8";
+      output << "i8";
       break;
 
     case VALUE_I16:
-      ss << "i16";
+      output << "i16";
       break;
 
     case VALUE_I32:
-      ss << "i32";
+      output << "i32";
       break;
 
     case VALUE_I64:
-      ss << "i64";
+      output << "i64";
       break;
 
     case VALUE_F32:
-      ss << "f32";
+      output << "f32";
       break;
 
     case VALUE_F64:
-      ss << "f64";
+      output << "f64";
       break;
   }
 }
 
-void IRWriter::PrintOpcode(std::stringstream &ss, Opcode op) const {
+void IRWriter::PrintOpcode(Opcode op, std::ostringstream &output) const {
   const char *name = Opnames[op];
 
   while (*name) {
-    ss << static_cast<char>(tolower(*name));
+    output << static_cast<char>(tolower(*name));
     name++;
   }
 }
 
-void IRWriter::PrintValue(std::stringstream &ss, const Value *value) {
-  PrintType(ss, value->type());
+void IRWriter::PrintValue(const Value *value, std::ostringstream &output) {
+  PrintType(value->type(), output);
 
-  ss << " ";
+  output << " ";
 
   if (!value->constant()) {
     uintptr_t key = reinterpret_cast<uintptr_t>(value);
-    auto it = value_ids_.find(key);
+    auto it = slots_.find(key);
 
-    if (it == value_ids_.end()) {
-      auto res = value_ids_.insert(std::make_pair(key, next_value_id_++));
+    if (it == slots_.end()) {
+      auto res = slots_.insert(std::make_pair(key, next_slot_++));
       it = res.first;
     }
 
-    ss << "%%" << it->second;
+    output << "%" << it->second;
   } else {
     switch (value->type()) {
       case VALUE_I8:
-        ss << "0x" << std::hex << value->value<int8_t>() << std::dec;
+        output << "0x" << std::hex << value->value<int8_t>() << std::dec;
         break;
       case VALUE_I16:
-        ss << "0x" << std::hex << value->value<int16_t>() << std::dec;
+        output << "0x" << std::hex << value->value<int16_t>() << std::dec;
         break;
       case VALUE_I32:
-        ss << "0x" << std::hex << value->value<int32_t>() << std::dec;
+        output << "0x" << std::hex << value->value<int32_t>() << std::dec;
         break;
       case VALUE_I64:
-        ss << "0x" << std::hex << value->value<int64_t>() << std::dec;
+        output << "0x" << std::hex << value->value<int64_t>() << std::dec;
         break;
       case VALUE_F32:
-        ss << "0x" << std::hex << value->value<float>() << std::dec;
+        output << "0x" << std::hex << value->value<float>() << std::dec;
         break;
       case VALUE_F64:
-        ss << "0x" << std::hex << value->value<double>() << std::dec;
+        output << "0x" << std::hex << value->value<double>() << std::dec;
         break;
     }
   }
 }
 
-void IRWriter::PrintInstruction(std::stringstream &ss, const Instr *instr) {
+void IRWriter::PrintInstruction(const Instr *instr,
+                                std::ostringstream &output) {
   // print result value if we have one
   if (instr->result()) {
-    PrintValue(ss, instr->result());
-    ss << " = ";
+    PrintValue(instr->result(), output);
+    output << " = ";
   }
 
   // print the actual opcode
-  PrintOpcode(ss, instr->op());
-  ss << " ";
+  PrintOpcode(instr->op(), output);
+  output << " ";
 
   // print each argument
   bool need_comma = false;
@@ -115,19 +112,19 @@ void IRWriter::PrintInstruction(std::stringstream &ss, const Instr *instr) {
     }
 
     if (need_comma) {
-      ss << ", ";
+      output << ", ";
       need_comma = false;
     }
 
-    PrintValue(ss, instr->arg(i));
+    PrintValue(instr->arg(i), output);
 
     need_comma = true;
   }
 
   // print out any opcode flags
   if (instr->flags() & IF_INVALIDATE_CONTEXT) {
-    ss << " INVALIDATE_CONTEXT";
+    output << " INVALIDATE_CONTEXT";
   }
 
-  ss << std::endl;
+  output << std::endl;
 }

@@ -1,0 +1,288 @@
+#include "core/string.h"
+#include "jit/ir/ir_reader.h"
+
+using namespace dvm;
+using namespace dvm::jit;
+using namespace dvm::jit::ir;
+
+struct IRType {
+  const char *name;
+  ValueTy ty;
+};
+
+static IRType s_ir_types[] = {
+    {"i8", VALUE_I8},   {"i16", VALUE_I16}, {"i32", VALUE_I32},
+    {"i64", VALUE_I64}, {"f32", VALUE_F32}, {"f64", VALUE_F64},
+};
+static const int s_num_ir_types = sizeof(s_ir_types) / sizeof(s_ir_types[0]);
+
+IRLexer::IRLexer(std::istringstream &input) : input_(input) {}
+
+IRToken IRLexer::Next() {
+  // skip past whitespace characters, except newlines
+  char next;
+  do {
+    next = Get();
+  } while (isspace(next) && next != '\n');
+
+  // test for end of file
+  if (next == EOF) {
+    strncpy(val_.s, "", sizeof(val_.s));
+    return (tok_ = TOK_EOF);
+  }
+
+  // test for newline
+  if (next == '\n') {
+    strncpy(val_.s, "\n", sizeof(val_.s));
+
+    // chomp adjacent newlines
+    while (next == '\n') {
+      next = Get();
+    }
+    Unget();
+
+    return (tok_ = TOK_EOL);
+  }
+
+  // test for comma
+  if (next == ',') {
+    strncpy(val_.s, ",", sizeof(val_.s));
+    return (tok_ = TOK_COMMA);
+  }
+
+  // test for assignment operator
+  if (next == '=') {
+    strncpy(val_.s, "=", sizeof(val_.s));
+    return (tok_ = TOK_OPERATOR);
+  }
+
+  // test for type keyword
+  for (int i = 0; i < s_num_ir_types; i++) {
+    IRType &ir_type = s_ir_types[i];
+    const char *ptr = ir_type.name;
+    char tmp = next;
+
+    // try to match
+    while (*ptr && *ptr == tmp) {
+      tmp = Get();
+      ptr++;
+    }
+
+    // if we had a match, return
+    if (!*ptr) {
+      strncpy(val_.s, ir_type.name, sizeof(val_.s));
+      val_.ty = ir_type.ty;
+      return (tok_ = TOK_TYPE);
+    }
+
+    // no match, undo
+    while (*ptr && ptr != ir_type.name) {
+      Unget();
+      ptr--;
+    }
+  }
+
+  // test for hex literal
+  if (next == '0') {
+    next = Get();
+
+    if (next == 'x') {
+      next = Get();
+
+      // parse literal
+      val_.i64 = 0;
+      while (isxdigit(next)) {
+        val_.i64 <<= 4;
+        val_.i64 |= xtoi(next);
+        next = Get();
+      }
+      Unget();
+
+      return (tok_ = TOK_INTEGER);
+    } else {
+      Unget();
+    }
+  }
+
+  // treat anything else as an identifier
+  char *ptr = val_.s;
+  while (isalpha(next) || isdigit(next) || next == '%' || next == '_') {
+    *ptr++ = next;
+    next = Get();
+  }
+  Unget();
+  *ptr = 0;
+
+  return (tok_ = TOK_IDENTIFIER);
+}
+
+char IRLexer::Get() { return input_.get(); }
+
+void IRLexer::Unget() { input_.unget(); }
+
+bool IRReader::Parse(std::istringstream &input, IRBuilder &builder) {
+  IRLexer lex(input);
+
+  while (true) {
+    IRToken tok = lex.Next();
+
+    if (tok == TOK_EOF) {
+      break;
+    }
+
+    if (!ParseInstruction(lex, builder)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool IRReader::ParseType(IRLexer &lex, IRBuilder &builder, ValueTy *type) {
+  if (lex.tok() != TOK_TYPE) {
+    LOG_INFO("Unexpected token %d when parsing type");
+    return false;
+  }
+
+  // eat token
+  lex.Next();
+
+  *type = lex.val().ty;
+
+  return true;
+}
+
+bool IRReader::ParseOpcode(IRLexer &lex, IRBuilder &builder, Opcode *op) {
+  const char *opcode_str = lex.val().s;
+
+  // match token against opnames
+  int i;
+  for (i = 0; i < NUM_OPCODES; i++) {
+    if (!strcasecmp(opcode_str, Opnames[i])) {
+      break;
+    }
+  }
+
+  // eat token
+  lex.Next();
+
+  if (i == NUM_OPCODES) {
+    LOG_INFO("Unexpected opcode '%s'", opcode_str);
+    return false;
+  }
+
+  *op = static_cast<Opcode>(i);
+
+  return true;
+}
+
+bool IRReader::ParseValue(IRLexer &lex, IRBuilder &builder, Value **value) {
+  // parse value type
+  ValueTy type;
+  if (!ParseType(lex, builder, &type)) {
+    return false;
+  }
+
+  // parse value
+  if (lex.tok() == TOK_IDENTIFIER) {
+    const char *ident = lex.val().s;
+
+    if (ident[0] != '%') {
+      return false;
+    }
+
+    int slot = atoi(&ident[1]);
+    auto it = slots_.find(slot);
+    if (it == slots_.end()) {
+      auto res =
+          slots_.insert(std::make_pair(slot, builder.AllocDynamic(type)));
+      it = res.first;
+    }
+
+    *value = it->second;
+  } else if (lex.tok() == TOK_INTEGER) {
+    switch (type) {
+      case VALUE_I8:
+        *value = builder.AllocConstant(lex.val().i8);
+        break;
+      case VALUE_I16:
+        *value = builder.AllocConstant(lex.val().i16);
+        break;
+      case VALUE_I32:
+        *value = builder.AllocConstant(lex.val().i32);
+        break;
+      case VALUE_I64:
+        *value = builder.AllocConstant(lex.val().i64);
+        break;
+      case VALUE_F32: {
+        *value = builder.AllocConstant(lex.val().f32);
+      } break;
+      case VALUE_F64:
+        *value = builder.AllocConstant(lex.val().f64);
+        break;
+    }
+  } else {
+    return false;
+  }
+
+  // eat token
+  lex.Next();
+
+  return true;
+}
+
+bool IRReader::ParseOperator(IRLexer &lex, IRBuilder &builder) {
+  const char *op_str = lex.val().s;
+
+  if (strcmp(op_str, "=")) {
+    LOG_INFO("Unexpected operator '%s'", op_str);
+    return false;
+  }
+
+  // eat token
+  lex.Next();
+
+  // nothing to do, there's only one operator token
+
+  return true;
+}
+
+bool IRReader::ParseInstruction(IRLexer &lex, IRBuilder &builder) {
+  Value *arg[4] = {};
+
+  if (lex.tok() == TOK_TYPE) {
+    // parse result value
+    if (!ParseValue(lex, builder, &arg[3]) || !ParseOperator(lex, builder)) {
+      return false;
+    }
+  }
+
+  // parse opcode
+  Opcode op;
+  if (!ParseOpcode(lex, builder, &op)) {
+    return false;
+  }
+
+  // parse arguments
+  for (int i = 0; i < 3; i++) {
+    ParseValue(lex, builder, &arg[i]);
+
+    if (lex.tok() != TOK_COMMA) {
+      break;
+    }
+
+    // eat comma and move onto the next argument
+    lex.Next();
+  }
+
+  // create instruction
+  Instr *instr = builder.AppendInstr(op);
+
+  for (int i = 0; i < 4; i++) {
+    if (arg[i]) {
+      instr->set_arg(i, arg[i]);
+    }
+  }
+
+  return true;
+}

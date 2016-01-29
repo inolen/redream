@@ -56,5 +56,4 @@ int xtoi(char c) {
   }
   return i;
 }
-
 }

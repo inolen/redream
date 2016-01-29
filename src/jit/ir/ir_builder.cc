@@ -126,7 +126,9 @@ IRBuilder::IRBuilder()
 
 void IRBuilder::Dump() const {
   IRWriter writer;
-  writer.Print(*this);
+  std::ostringstream ss;
+  writer.Print(*this, ss);
+  LOG_INFO(ss.str().c_str());
 }
 
 InsertPoint IRBuilder::GetInsertPoint() {

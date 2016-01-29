@@ -11,16 +11,16 @@ namespace ir {
 
 class IRWriter {
  public:
-  void Print(const IRBuilder &builder);
+  void Print(const IRBuilder &builder, std::ostringstream &output);
 
  private:
-  void PrintType(std::stringstream &ss, ValueTy type) const;
-  void PrintOpcode(std::stringstream &ss, Opcode op) const;
-  void PrintValue(std::stringstream &ss, const Value *value);
-  void PrintInstruction(std::stringstream &ss, const Instr *instr);
+  void PrintType(ValueTy type, std::ostringstream &output) const;
+  void PrintOpcode(Opcode op, std::ostringstream &output) const;
+  void PrintValue(const Value *value, std::ostringstream &output);
+  void PrintInstruction(const Instr *instr, std::ostringstream &output);
 
-  std::unordered_map<uintptr_t, int> value_ids_;
-  int next_value_id_;
+  std::unordered_map<uintptr_t, int> slots_;
+  int next_slot_;
 };
 }
 }
