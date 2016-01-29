@@ -1,9 +1,7 @@
 #ifndef SOCKET_H
 #define SOCKET_H
 
-#include "core/platform.h"
-
-#ifdef PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
 #include <winsock2.h>
 #include <ws2tcpip.h>
 

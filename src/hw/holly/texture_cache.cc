@@ -1,4 +1,3 @@
-#include "core/core.h"
 #include "emu/profiler.h"
 #include "hw/holly/texture_cache.h"
 #include "hw/holly/tile_accelerator.h"

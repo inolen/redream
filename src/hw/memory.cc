@@ -1,4 +1,4 @@
-#include "core/core.h"
+#include "core/memory.h"
 #include "hw/memory.h"
 
 using namespace dvm;

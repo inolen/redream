@@ -19,10 +19,13 @@ project(dreavm C CXX ASM ASM_MASM)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 #--------------------------------------------------
-# dynamic libs
+# config file
 #--------------------------------------------------
 
+check_function_exists(strcasecmp HAVE_STRCASECMP)
 check_function_exists(strnstr HAVE_STRNSTR)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/core/config.h)
+list(APPEND DREAVM_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/src)
 
 #--------------------------------------------------
 # dynamic libs
@@ -163,16 +166,19 @@ set(DREAVM_SOURCES
   src/main.cc)
 
 if(WIN32)
+  list(APPEND DREAVM_DEFS PLATFORM_WINDOWS=1)
   list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_win.asm)
   list(APPEND DREAVM_SOURCES src/sys/exception_handler_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_win.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_win.cc)
 elseif(APPLE)
+  list(APPEND DREAVM_DEFS PLATFORM_DARWIN=1)
   list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_posix.s)
   list(APPEND DREAVM_SOURCES src/sys/exception_handler_mac.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
   list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
 else()
+  list(APPEND DREAVM_DEFS PLATFORM_LINUX=1)
   list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_posix.s)
   list(APPEND DREAVM_SOURCES src/sys/exception_handler_linux.cc)
   list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)

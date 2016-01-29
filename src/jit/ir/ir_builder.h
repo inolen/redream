@@ -2,7 +2,8 @@
 #define IR_BUILDER_H
 
 #include <unordered_map>
-#include "core/core.h"
+#include "core/arena.h"
+#include "core/assert.h"
 #include "core/intrusive_list.h"
 
 namespace dvm {

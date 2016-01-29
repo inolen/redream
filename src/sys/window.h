@@ -59,7 +59,7 @@ class Window {
 
   void QueueEvent(const WindowEvent &ev);
 
-  Keycode TranslateSDLKey(SDL_Keysym keysym);
+  Keycode TranslateSDLKey(const SDL_Keysym &keysym);
   void PumpSDLEvents();
 
   SDL_Window *window_;

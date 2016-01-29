@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
-#include "core/core.h"
+#include <gtest/gtest.h>
+#include "core/arena.h"
 #include "core/intrusive_list.h"
 
 using namespace dvm;

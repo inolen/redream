@@ -1,7 +1,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "core/log.h"
-#include "core/platform.h"
 
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_GREEN "\x1b[32m"

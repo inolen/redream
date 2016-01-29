@@ -1,7 +1,7 @@
 #include <iomanip>
 #include <sstream>
 #include <xbyak/xbyak.h>
-#include "core/core.h"
+#include "core/memory.h"
 #include "emu/profiler.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"

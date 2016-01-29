@@ -1,5 +1,5 @@
 #include <mach/mach.h>
-#include "core/core.h"
+#include "core/log.h"
 #include "sys/exception_handler_mac.h"
 
 using namespace dvm::sys;

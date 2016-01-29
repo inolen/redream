@@ -1,8 +1,10 @@
 #include <limits.h>
 #include <memory>
 #include <unordered_map>
-#include "gtest/gtest.h"
-#include "core/core.h"
+#include <gflags/gflags.h>
+#include <gtest/gtest.h>
+#include "core/math.h"
+#include "core/memory.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"

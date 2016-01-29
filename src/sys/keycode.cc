@@ -1,4 +1,4 @@
-#include "core/core.h"
+#include "core/string.h"
 #include "sys/keycode.h"
 
 namespace dvm {

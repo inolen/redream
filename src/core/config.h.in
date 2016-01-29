@@ -1,0 +1,7 @@
+#ifndef DREAVM_CONFIG_H
+#define DREAVM_CONFIG_H
+
+#cmakedefine HAVE_STRCASECMP
+#cmakedefine HAVE_STRNSTR
+
+#endif

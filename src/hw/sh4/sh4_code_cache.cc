@@ -1,3 +1,4 @@
+#include <gflags/gflags.h>
 #include "emu/profiler.h"
 #include "hw/sh4/sh4_code_cache.h"
 #include "jit/backend/interpreter/interpreter_backend.h"

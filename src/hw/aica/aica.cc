@@ -1,3 +1,4 @@
+#include "core/memory.h"
 #include "hw/aica/aica.h"
 #include "hw/dreamcast.h"
 

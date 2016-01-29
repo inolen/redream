@@ -1,5 +1,4 @@
 #include <algorithm>
-#include "core/core.h"
 #include "hw/holly/tile_accelerator.h"
 #include "renderer/gl_backend.h"
 #include "trace/trace.h"

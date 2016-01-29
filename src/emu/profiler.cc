@@ -11,7 +11,6 @@
 #include <microprofile.h>
 #include <microprofileui.h>
 #include <string>
-#include "core/core.h"
 #include "emu/profiler.h"
 
 using namespace dvm::emu;

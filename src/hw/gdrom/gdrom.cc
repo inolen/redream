@@ -1,4 +1,3 @@
-#include "core/core.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/gdrom/gdrom_replies.inc"
 #include "hw/dreamcast.h"

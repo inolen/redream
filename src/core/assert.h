@@ -3,7 +3,6 @@
 
 #include "core/debug_break.h"
 #include "core/log.h"
-#include "core/platform.h"
 
 namespace dvm {
 

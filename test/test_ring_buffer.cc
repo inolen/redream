@@ -1,5 +1,4 @@
-#include "gtest/gtest.h"
-#include "core/core.h"
+#include <gtest/gtest.h>
 #include "core/ring_buffer.h"
 
 using namespace dvm;

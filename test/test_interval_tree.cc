@@ -1,7 +1,6 @@
 #include <math.h>
 #include <set>
-#include "gtest/gtest.h"
-#include "core/core.h"
+#include <gtest/gtest.h>
 #define VERIFY_INTRUSIVE_TREE
 #include "core/interval_tree.h"
 

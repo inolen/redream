@@ -1,7 +1,8 @@
-#include <json11.hpp>
 #include <fstream>
 #include <sstream>
-#include "core/core.h"
+#include <gflags/gflags.h>
+#include <json11.hpp>
+#include "core/log.h"
 #include "hw/maple/maple_controller.h"
 
 using namespace dvm::hw::maple;
