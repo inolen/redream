@@ -42,8 +42,8 @@ def add_value(test, set, idx, value):
     # registers that they alias
     set = set.replace('dr', 'fr')
     set = set.replace('xd', 'xf')
-    test[set][idx] = (value & 0xffffffff);
-    test[set][idx + 1] = ((value >> 32) & 0xffffffff);
+    test[set][idx + 1] = (value & 0xffffffff);
+    test[set][idx] = ((value >> 32) & 0xffffffff);
   else:
     test[set][idx] = value
 

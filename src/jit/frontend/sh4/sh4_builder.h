@@ -12,8 +12,8 @@ namespace frontend {
 namespace sh4 {
 
 struct FPUState {
-  bool double_precision;
-  bool single_precision_pair;
+  bool double_pr;
+  bool double_sz;
 };
 
 class SH4Builder : public ir::IRBuilder {

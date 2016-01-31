@@ -1,8 +1,8 @@
-#define _USE_MATH_DEFINES
-#include <math.h>
+#include "core/assert.h"
 #include "emu/profiler.h"
 #include "jit/frontend/sh4/sh4_builder.h"
 
+using namespace dvm;
 using namespace dvm::hw;
 using namespace dvm::jit;
 using namespace dvm::jit::frontend;
@@ -40,8 +40,8 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
   Instr instr;
 
   // use fpu state when generating code
-  fpu_state_.double_precision = ctx.fpscr & PR;
-  fpu_state_.single_precision_pair = ctx.fpscr & SZ;
+  fpu_state_.double_pr = ctx.fpscr & PR;
+  fpu_state_.double_sz = ctx.fpscr & SZ;
 
   while (true) {
     instr.addr = addr;
@@ -106,18 +106,31 @@ void SH4Builder::StoreRegister(int n, Value *v) {
 }
 
 Value *SH4Builder::LoadRegisterF(int n, ValueTy type) {
+  if (SizeForType(type) == 4) {
+    // see notes in sh4_context.h
+    n ^= 1;
+  }
   return LoadContext(offsetof(SH4Context, fr[n]), type);
 }
 
 void SH4Builder::StoreRegisterF(int n, Value *v) {
+  if (SizeForType(v->type()) == 4) {
+    n ^= 1;
+  }
   return StoreContext(offsetof(SH4Context, fr[n]), v);
 }
 
 Value *SH4Builder::LoadRegisterXF(int n, ValueTy type) {
+  if (SizeForType(type) == 4) {
+    n ^= 1;
+  }
   return LoadContext(offsetof(SH4Context, xf[n]), type);
 }
 
 void SH4Builder::StoreRegisterXF(int n, Value *v) {
+  if (SizeForType(v->type()) == 4) {
+    n ^= 1;
+  }
   return StoreContext(offsetof(SH4Context, xf[n]), v);
 }
 
@@ -1521,28 +1534,24 @@ EMITTER(FLDI0) { b.StoreRegisterF(i.Rn, b.AllocConstant(0)); }
 // FLDI1  FRn 1111nnnn10011101
 EMITTER(FLDI1) { b.StoreRegisterF(i.Rn, b.AllocConstant(0x3F800000)); }
 
-// FMOV    FRm,FRn PR=0 SZ=0 FRm -> FRn 1111nnnnmmmm1100
-// FMOV    DRm,DRn PR=0 SZ=1 DRm -> DRn 1111nnn0mmm01100
-// FMOV    XDm,DRn PR=1      XDm -> DRn 1111nnn0mmm11100
-// FMOV    DRm,XDn PR=1      DRm -> XDn 1111nnn1mmm01100
-// FMOV    XDm,XDn PR=1      XDm -> XDn 1111nnn1mmm11100
-EMITTER(FMOV0) {
-  if (fpu.double_precision || fpu.single_precision_pair) {
+// FMOV    FRm,FRn 1111nnnnmmmm1100
+// FMOV    DRm,DRn 1111nnn0mmm01100
+// FMOV    XDm,DRn 1111nnn0mmm11100
+// FMOV    DRm,XDn 1111nnn1mmm01100
+// FMOV    XDm,XDn 1111nnn1mmm11100
+EMITTER(FMOV) {
+  if (fpu.double_sz) {
     if (i.Rm & 1) {
       if (i.Rn & 1) {
-        b.StoreRegisterXF(i.Rn & 0xe, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-        b.StoreRegisterXF(i.Rn | 0x1, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+        b.StoreRegisterXF(i.Rn & 0xe, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I64));
       } else {
-        b.StoreRegisterF(i.Rn & 0xe, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-        b.StoreRegisterF(i.Rn | 0x1, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+        b.StoreRegisterF(i.Rn, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I64));
       }
     } else {
       if (i.Rn & 1) {
-        b.StoreRegisterXF(i.Rn & 0xe, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
-        b.StoreRegisterXF(i.Rn | 0x1, b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+        b.StoreRegisterXF(i.Rn & 0xe, b.LoadRegisterF(i.Rm, VALUE_I64));
       } else {
-        b.StoreRegisterF(i.Rn & 0xe, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
-        b.StoreRegisterF(i.Rn | 0x1, b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+        b.StoreRegisterF(i.Rn, b.LoadRegisterF(i.Rm, VALUE_I64));
       }
     }
   } else {
@@ -1550,31 +1559,19 @@ EMITTER(FMOV0) {
   }
 }
 
-// FMOV.S  @Rm,FRn PR=0 SZ=0 1111nnnnmmmm1000
-// FMOV    @Rm,DRn PR=0 SZ=1 1111nnn0mmmm1000
-// FMOV    @Rm,XDn PR=0 SZ=1 1111nnn1mmmm1000
-// FMOV    @Rm,XDn PR=1      1111nnn1mmmm1000
-// FMOV    @Rm,DRn PR=1      1111nnn0mmmm1000
-EMITTER(FMOV1) {
+// FMOV.S  @Rm,FRn 1111nnnnmmmm1000
+// FMOV    @Rm,DRn 1111nnn0mmmm1000
+// FMOV    @Rm,XDn 1111nnn1mmmm1000
+EMITTER(FMOV_LOAD) {
   Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
 
-  if (fpu.double_precision) {
-    if (i.Rn & 1) {
-      b.StoreRegisterXF(i.Rn | 0x1, b.LoadGuest(addr, VALUE_I32));
-      b.StoreRegisterXF(
-          i.Rn & 0xe, b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-    } else {
-      b.StoreRegisterF(i.Rn | 0x1, b.LoadGuest(addr, VALUE_I32));
-      b.StoreRegisterF(i.Rn & 0xe,
-                       b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-    }
-  } else if (fpu.single_precision_pair) {
+  if (fpu.double_sz) {
     if (i.Rn & 1) {
       b.StoreRegisterXF(i.Rn & 0xe, b.LoadGuest(addr, VALUE_I32));
       b.StoreRegisterXF(
-          i.Rn | 0x1, b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+          i.Rn, b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
     } else {
-      b.StoreRegisterF(i.Rn & 0xe, b.LoadGuest(addr, VALUE_I32));
+      b.StoreRegisterF(i.Rn, b.LoadGuest(addr, VALUE_I32));
       b.StoreRegisterF(i.Rn | 0x1,
                        b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
     }
@@ -1583,26 +1580,20 @@ EMITTER(FMOV1) {
   }
 }
 
-// FMOV.S  @(R0,Rm),FRn PR=0 SZ=0 1111nnnnmmmm0110
-// FMOV    @(R0,Rm),DRn PR=0 SZ=1 1111nnn0mmmm0110
-// FMOV    @(R0,Rm),XDn PR=0 SZ=1 1111nnn1mmmm0110
-// FMOV    @(R0,Rm),XDn PR=1      1111nnn1mmmm0110
-EMITTER(FMOV2) {
+// FMOV.S  @(R0,Rm),FRn 1111nnnnmmmm0110
+// FMOV    @(R0,Rm),DRn 1111nnn0mmmm0110
+// FMOV    @(R0,Rm),XDn 1111nnn1mmmm0110
+EMITTER(FMOV_INDEX_LOAD) {
   Value *addr =
       b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rm, VALUE_I32));
 
-  // FMOV with PR=1 assumes the values are word-swapped in memory
-  if (fpu.double_precision) {
-    b.StoreRegisterXF(i.Rn | 0x1, b.LoadGuest(addr, VALUE_I32));
-    b.StoreRegisterXF(i.Rn & 0xe,
-                      b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-  } else if (fpu.single_precision_pair) {
+  if (fpu.double_sz) {
     if (i.Rn & 1) {
       b.StoreRegisterXF(i.Rn & 0xe, b.LoadGuest(addr, VALUE_I32));
       b.StoreRegisterXF(
-          i.Rn | 0x1, b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
+          i.Rn, b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
     } else {
-      b.StoreRegisterF(i.Rn & 0xe, b.LoadGuest(addr, VALUE_I32));
+      b.StoreRegisterF(i.Rn, b.LoadGuest(addr, VALUE_I32));
       b.StoreRegisterF(i.Rn | 0x1,
                        b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
     }
@@ -1611,54 +1602,19 @@ EMITTER(FMOV2) {
   }
 }
 
-// FMOV.S  @Rm+,FRn PR=0 SZ=0 1111nnnnmmmm1001
-// FMOV    @Rm+,DRn PR=0 SZ=1 1111nnn0mmmm1001
-// FMOV    @Rm+,XDn PR=0 SZ=1 1111nnn1mmmm1001
-// FMOV    @Rm+,XDn PR=1      1111nnn1mmmm1001
-EMITTER(FMOV3) {
-  Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
-
-  // FMOV with PR=1 assumes the values are word-swapped in memory
-  if (fpu.double_precision) {
-    b.StoreRegisterXF(i.Rn | 0x1, b.LoadGuest(addr, VALUE_I32));
-    b.StoreRegisterXF(i.Rn & 0xe,
-                      b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(8)));
-  } else if (fpu.single_precision_pair) {
-    if (i.Rn & 1) {
-      b.StoreRegisterXF(i.Rn & 0xe, b.LoadGuest(addr, VALUE_I32));
-      b.StoreRegisterXF(
-          i.Rn | 0x1, b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-    } else {
-      b.StoreRegisterF(i.Rn & 0xe, b.LoadGuest(addr, VALUE_I32));
-      b.StoreRegisterF(i.Rn | 0x1,
-                       b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
-    }
-    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(8)));
-  } else {
-    b.StoreRegisterF(i.Rn, b.LoadGuest(addr, VALUE_I32));
-    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
-  }
-}
-
-// FMOV.S  FRm,@Rn PR=0 SZ=0 1111nnnnmmmm1010
-// FMOV    DRm,@Rn PR=0 SZ=1 1111nnnnmmm01010
-// FMOV    XDm,@Rn PR=0 SZ=1 1111nnnnmmm11010
-// FMOV    XDm,@Rn PR=1      1111nnnnmmm11010
-EMITTER(FMOV4) {
+// FMOV.S  FRm,@Rn 1111nnnnmmmm1010
+// FMOV    DRm,@Rn 1111nnnnmmm01010
+// FMOV    XDm,@Rn 1111nnnnmmm11010
+EMITTER(FMOV_STORE) {
   Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
 
-  if (fpu.double_precision) {
-    b.StoreGuest(addr, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
-    b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
-                 b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-  } else if (fpu.single_precision_pair) {
+  if (fpu.double_sz) { 
     if (i.Rm & 1) {
       b.StoreGuest(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
       b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
-                   b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+                   b.LoadRegisterXF(i.Rm, VALUE_I32));
     } else {
-      b.StoreGuest(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
+      b.StoreGuest(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
       b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
                    b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
     }
@@ -1667,26 +1623,41 @@ EMITTER(FMOV4) {
   }
 }
 
-// FMOV.S  FRm,@-Rn PR=0 SZ=0 1111nnnnmmmm1011
-// FMOV    DRm,@-Rn PR=0 SZ=1 1111nnnnmmm01011
-// FMOV    XDm,@-Rn PR=0 SZ=1 1111nnnnmmm11011
-// FMOV    XDm,@-Rn PR=1      1111nnnnmmm11011
-EMITTER(FMOV5) {
-  if (fpu.double_precision) {
-    Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(8));
-    b.StoreRegister(i.Rn, addr);
-    b.StoreGuest(addr, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
-    b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
-                 b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-  } else if (fpu.single_precision_pair) {
+// FMOV.S  FRm,@(R0,Rn) 1111nnnnmmmm0111
+// FMOV    DRm,@(R0,Rn) 1111nnnnmmm00111
+// FMOV    XDm,@(R0,Rn) 1111nnnnmmm10111
+EMITTER(FMOV_INDEX_STORE) {
+  Value *addr =
+      b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rn, VALUE_I32));
+
+  if (fpu.double_sz) {
+    if (i.Rm & 1) {
+      b.StoreGuest(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
+      b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
+                   b.LoadRegisterXF(i.Rm, VALUE_I32));
+    } else {
+      b.StoreGuest(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
+      b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
+                   b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+    }
+  } else {
+    b.StoreGuest(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
+  }
+}
+
+// FMOV.S  FRm,@-Rn 1111nnnnmmmm1011
+// FMOV    DRm,@-Rn 1111nnnnmmm01011
+// FMOV    XDm,@-Rn 1111nnnnmmm11011
+EMITTER(FMOV_SAVE) {
+  if (fpu.double_sz) {
     Value *addr = b.Sub(b.LoadRegister(i.Rn, VALUE_I32), b.AllocConstant(8));
     b.StoreRegister(i.Rn, addr);
     if (i.Rm & 1) {
       b.StoreGuest(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
       b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
-                   b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+                   b.LoadRegisterXF(i.Rm, VALUE_I32));
     } else {
-      b.StoreGuest(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
+      b.StoreGuest(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
       b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
                    b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
     }
@@ -1697,30 +1668,26 @@ EMITTER(FMOV5) {
   }
 }
 
-// FMOV.S  FRm,@(R0,Rn) PR=0 SZ=0 1111nnnnmmmm0111
-// FMOV    DRm,@(R0,Rn) PR=0 SZ=1 1111nnnnmmm00111
-// FMOV    XDm,@(R0,Rn) PR=0 SZ=1 1111nnnnmmm10111
-// FMOV    XDm,@(R0,Rn) PR=1      1111nnnnmmm10111
-EMITTER(FMOV6) {
-  Value *addr =
-      b.Add(b.LoadRegister(0, VALUE_I32), b.LoadRegister(i.Rn, VALUE_I32));
+// FMOV.S  @Rm+,FRn 1111nnnnmmmm1001
+// FMOV    @Rm+,DRn 1111nnn0mmmm1001
+// FMOV    @Rm+,XDn 1111nnn1mmmm1001
+EMITTER(FMOV_RESTORE) {
+  Value *addr = b.LoadRegister(i.Rm, VALUE_I32);
 
-  if (fpu.double_precision) {
-    b.StoreGuest(addr, b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
-    b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
-                 b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-  } else if (fpu.single_precision_pair) {
-    if (i.Rm & 1) {
-      b.StoreGuest(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
-      b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
-                   b.LoadRegisterXF(i.Rm | 0x1, VALUE_I32));
+  if (fpu.double_sz) {
+    if (i.Rn & 1) {
+      b.StoreRegisterXF(i.Rn & 0xe, b.LoadGuest(addr, VALUE_I32));
+      b.StoreRegisterXF(
+          i.Rn, b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
     } else {
-      b.StoreGuest(addr, b.LoadRegisterF(i.Rm & 0xe, VALUE_I32));
-      b.StoreGuest(b.Add(addr, b.AllocConstant(4)),
-                   b.LoadRegisterF(i.Rm | 0x1, VALUE_I32));
+      b.StoreRegisterF(i.Rn, b.LoadGuest(addr, VALUE_I32));
+      b.StoreRegisterF(i.Rn | 0x1,
+                       b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32));
     }
+    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(8)));
   } else {
-    b.StoreGuest(addr, b.LoadRegisterF(i.Rm, VALUE_I32));
+    b.StoreRegisterF(i.Rn, b.LoadGuest(addr, VALUE_I32));
+    b.StoreRegister(i.Rm, b.Add(addr, b.AllocConstant(4)));
   }
 }
 
@@ -1739,7 +1706,7 @@ EMITTER(FSTS) {
 // FABS FRn PR=0 1111nnnn01011101
 // FABS DRn PR=1 1111nnn001011101
 EMITTER(FABS) {
-  if (fpu.double_precision) {
+  if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     b.StoreRegisterF(n, b.Abs(b.LoadRegisterF(n, VALUE_F64)));
   } else {
@@ -1756,7 +1723,7 @@ EMITTER(FSRRA) {
 // FADD FRm,FRn PR=0 1111nnnnmmmm0000
 // FADD DRm,DRn PR=1 1111nnn0mmm00000
 EMITTER(FADD) {
-  if (fpu.double_precision) {
+  if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     b.StoreRegisterF(
@@ -1770,9 +1737,11 @@ EMITTER(FADD) {
 // FCMP/EQ FRm,FRn PR=0 1111nnnnmmmm0100
 // FCMP/EQ DRm,DRn PR=1 1111nnn0mmm00100
 EMITTER(FCMPEQ) {
-  if (fpu.double_precision) {
-    b.StoreT(b.EQ(b.LoadRegisterF(i.Rn & 0xe, VALUE_F64),
-                  b.LoadRegisterF(i.Rm & 0xe, VALUE_F64)));
+  if (fpu.double_pr) {
+    int n = i.Rn & 0xe;
+    int m = i.Rm & 0xe;
+    b.StoreT(
+        b.EQ(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
   } else {
     b.StoreT(b.EQ(b.LoadRegisterF(i.Rn, VALUE_F32),
                   b.LoadRegisterF(i.Rm, VALUE_F32)));
@@ -1782,9 +1751,11 @@ EMITTER(FCMPEQ) {
 // FCMP/GT FRm,FRn PR=0 1111nnnnmmmm0101
 // FCMP/GT DRm,DRn PR=1 1111nnn0mmm00101
 EMITTER(FCMPGT) {
-  if (fpu.double_precision) {
-    b.StoreT(b.SGT(b.LoadRegisterF(i.Rn & 0xe, VALUE_F64),
-                   b.LoadRegisterF(i.Rm & 0xe, VALUE_F64)));
+  if (fpu.double_pr) {
+    int n = i.Rn & 0xe;
+    int m = i.Rm & 0xe;
+    b.StoreT(
+        b.SGT(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
   } else {
     b.StoreT(b.SGT(b.LoadRegisterF(i.Rn, VALUE_F32),
                    b.LoadRegisterF(i.Rm, VALUE_F32)));
@@ -1794,7 +1765,7 @@ EMITTER(FCMPGT) {
 // FDIV FRm,FRn PR=0 1111nnnnmmmm0011
 // FDIV DRm,DRn PR=1 1111nnn0mmm00011
 EMITTER(FDIV) {
-  if (fpu.double_precision) {
+  if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     b.StoreRegisterF(
@@ -1811,8 +1782,9 @@ EMITTER(FDIV) {
 EMITTER(FLOAT) {
   Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
 
-  if (fpu.double_precision) {
-    b.StoreRegisterF(i.Rn & 0xe, b.Cast(b.SExt(fpul, VALUE_I64), VALUE_F64));
+  if (fpu.double_pr) {
+    int n = i.Rn & 0xe;
+    b.StoreRegisterF(n, b.Cast(b.SExt(fpul, VALUE_I64), VALUE_F64));
   } else {
     b.StoreRegisterF(i.Rn, b.Cast(fpul, VALUE_F32));
   }
@@ -1820,17 +1792,17 @@ EMITTER(FLOAT) {
 
 // FMAC FR0,FRm,FRn PR=0 1111nnnnmmmm1110
 EMITTER(FMAC) {
-  if (!fpu.double_precision) {
-    Value *rm = b.LoadRegisterF(i.Rm, VALUE_F32);
-    b.StoreRegisterF(i.Rn, b.Add(b.SMul(b.LoadRegisterF(0, VALUE_F32), rm),
-                                 b.LoadRegisterF(i.Rn, VALUE_F32)));
-  }
+  CHECK(!fpu.double_pr);
+
+  Value *rm = b.LoadRegisterF(i.Rm, VALUE_F32);
+  b.StoreRegisterF(i.Rn, b.Add(b.SMul(b.LoadRegisterF(0, VALUE_F32), rm),
+                               b.LoadRegisterF(i.Rn, VALUE_F32)));
 }
 
 // FMUL FRm,FRn PR=0 1111nnnnmmmm0010
 // FMUL DRm,DRn PR=1 1111nnn0mmm00010
 EMITTER(FMUL) {
-  if (fpu.double_precision) {
+  if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     b.StoreRegisterF(n, b.SMul(b.LoadRegisterF(n, VALUE_F64),
@@ -1844,7 +1816,7 @@ EMITTER(FMUL) {
 // FNEG FRn PR=0 1111nnnn01001101
 // FNEG DRn PR=1 1111nnn001001101
 EMITTER(FNEG) {
-  if (fpu.double_precision) {
+  if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     b.StoreRegisterF(n, b.Neg(b.LoadRegisterF(n, VALUE_F64)));
   } else {
@@ -1855,7 +1827,7 @@ EMITTER(FNEG) {
 // FSQRT FRn PR=0 1111nnnn01101101
 // FSQRT DRn PR=1 1111nnnn01101101
 EMITTER(FSQRT) {
-  if (fpu.double_precision) {
+  if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     b.StoreRegisterF(n, b.Sqrt(b.LoadRegisterF(n, VALUE_F64)));
   } else {
@@ -1866,7 +1838,7 @@ EMITTER(FSQRT) {
 // FSUB FRm,FRn PR=0 1111nnnnmmmm0001
 // FSUB DRm,DRn PR=1 1111nnn0mmm00001
 EMITTER(FSUB) {
-  if (fpu.double_precision) {
+  if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     b.StoreRegisterF(
@@ -1880,10 +1852,11 @@ EMITTER(FSUB) {
 // FTRC FRm,FPUL PR=0 1111mmmm00111101
 // FTRC DRm,FPUL PR=1 1111mmm000111101
 EMITTER(FTRC) {
-  if (fpu.double_precision) {
+  if (fpu.double_pr) {
+    int m = i.Rm & 0xe;
     // FIXME is this truncate correct?
-    Value *dpv = b.Truncate(b.Cast(b.LoadRegisterF(i.Rm, VALUE_F64), VALUE_I64),
-                            VALUE_I32);
+    Value *dpv =
+        b.Truncate(b.Cast(b.LoadRegisterF(m, VALUE_F64), VALUE_I64), VALUE_I32);
     b.StoreContext(offsetof(SH4Context, fpul), dpv);
   } else {
     Value *spv = b.Cast(b.LoadRegisterF(i.Rm, VALUE_F32), VALUE_I32);

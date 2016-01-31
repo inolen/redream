@@ -39,6 +39,7 @@ struct SH4TestRegister {
   int size;
 };
 
+// as per the notes in sh4_context.h, the fr / xf register pairs are swapped
 static SH4TestRegister sh4_test_regs[] = {
     {"fpscr", offsetof(SH4Context, fpscr), 4},
     {"r0", offsetof(SH4Context, r[0]), 4},
@@ -57,38 +58,38 @@ static SH4TestRegister sh4_test_regs[] = {
     {"r13", offsetof(SH4Context, r[13]), 4},
     {"r14", offsetof(SH4Context, r[14]), 4},
     {"r15", offsetof(SH4Context, r[15]), 4},
-    {"fr0", offsetof(SH4Context, fr[0]), 4},
-    {"fr1", offsetof(SH4Context, fr[1]), 4},
-    {"fr2", offsetof(SH4Context, fr[2]), 4},
-    {"fr3", offsetof(SH4Context, fr[3]), 4},
-    {"fr4", offsetof(SH4Context, fr[4]), 4},
-    {"fr5", offsetof(SH4Context, fr[5]), 4},
-    {"fr6", offsetof(SH4Context, fr[6]), 4},
-    {"fr7", offsetof(SH4Context, fr[7]), 4},
-    {"fr8", offsetof(SH4Context, fr[8]), 4},
-    {"fr9", offsetof(SH4Context, fr[9]), 4},
-    {"fr10", offsetof(SH4Context, fr[10]), 4},
-    {"fr11", offsetof(SH4Context, fr[11]), 4},
-    {"fr12", offsetof(SH4Context, fr[12]), 4},
-    {"fr13", offsetof(SH4Context, fr[13]), 4},
-    {"fr14", offsetof(SH4Context, fr[14]), 4},
-    {"fr15", offsetof(SH4Context, fr[15]), 4},
-    {"xf0", offsetof(SH4Context, xf[0]), 4},
-    {"xf1", offsetof(SH4Context, xf[1]), 4},
-    {"xf2", offsetof(SH4Context, xf[2]), 4},
-    {"xf3", offsetof(SH4Context, xf[3]), 4},
-    {"xf4", offsetof(SH4Context, xf[4]), 4},
-    {"xf5", offsetof(SH4Context, xf[5]), 4},
-    {"xf6", offsetof(SH4Context, xf[6]), 4},
-    {"xf7", offsetof(SH4Context, xf[7]), 4},
-    {"xf8", offsetof(SH4Context, xf[8]), 4},
-    {"xf9", offsetof(SH4Context, xf[9]), 4},
-    {"xf10", offsetof(SH4Context, xf[10]), 4},
-    {"xf11", offsetof(SH4Context, xf[11]), 4},
-    {"xf12", offsetof(SH4Context, xf[12]), 4},
-    {"xf13", offsetof(SH4Context, xf[13]), 4},
-    {"xf14", offsetof(SH4Context, xf[14]), 4},
-    {"xf15", offsetof(SH4Context, xf[15]), 4},
+    {"fr0", offsetof(SH4Context, fr[1]), 4},
+    {"fr1", offsetof(SH4Context, fr[0]), 4},
+    {"fr2", offsetof(SH4Context, fr[3]), 4},
+    {"fr3", offsetof(SH4Context, fr[2]), 4},
+    {"fr4", offsetof(SH4Context, fr[5]), 4},
+    {"fr5", offsetof(SH4Context, fr[4]), 4},
+    {"fr6", offsetof(SH4Context, fr[7]), 4},
+    {"fr7", offsetof(SH4Context, fr[6]), 4},
+    {"fr8", offsetof(SH4Context, fr[9]), 4},
+    {"fr9", offsetof(SH4Context, fr[8]), 4},
+    {"fr10", offsetof(SH4Context, fr[11]), 4},
+    {"fr11", offsetof(SH4Context, fr[10]), 4},
+    {"fr12", offsetof(SH4Context, fr[13]), 4},
+    {"fr13", offsetof(SH4Context, fr[12]), 4},
+    {"fr14", offsetof(SH4Context, fr[15]), 4},
+    {"fr15", offsetof(SH4Context, fr[14]), 4},
+    {"xf0", offsetof(SH4Context, xf[1]), 4},
+    {"xf1", offsetof(SH4Context, xf[0]), 4},
+    {"xf2", offsetof(SH4Context, xf[3]), 4},
+    {"xf3", offsetof(SH4Context, xf[2]), 4},
+    {"xf4", offsetof(SH4Context, xf[5]), 4},
+    {"xf5", offsetof(SH4Context, xf[4]), 4},
+    {"xf6", offsetof(SH4Context, xf[7]), 4},
+    {"xf7", offsetof(SH4Context, xf[6]), 4},
+    {"xf8", offsetof(SH4Context, xf[9]), 4},
+    {"xf9", offsetof(SH4Context, xf[8]), 4},
+    {"xf10", offsetof(SH4Context, xf[11]), 4},
+    {"xf11", offsetof(SH4Context, xf[10]), 4},
+    {"xf12", offsetof(SH4Context, xf[13]), 4},
+    {"xf13", offsetof(SH4Context, xf[12]), 4},
+    {"xf14", offsetof(SH4Context, xf[15]), 4},
+    {"xf15", offsetof(SH4Context, xf[14]), 4},
 };
 int sh4_num_test_regs =
     static_cast<int>(sizeof(sh4_test_regs) / sizeof(sh4_test_regs[0]));
@@ -101,17 +102,19 @@ int sh4_num_test_regs =
                      xf12, xf13, xf14, xf15)                                  \
   SH4Context {                                                                \
     nullptr, nullptr, nullptr, nullptr,                                       \
-    0, 0, 0, 0, 0, 0, 0, 0, 0,                                                \
+    0, 0,                                                                     \
+    0, 0, 0, 0, fpscr,                                                        \
+    0, 0, 0,                                                                  \
+    0, 0, 0,                                                                  \
+    0, 0, 0,                                                                  \
+    { {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0 } },                  \
     {r0, r1, r2,  r3,  r4,  r5,  r6,  r7,                                     \
      r8, r9, r10, r11, r12, r13, r14, r15},                                   \
-    {0, 0, 0, 0, 0, 0, 0, 0}, 0,                                              \
-    {fr0, fr1, fr2,  fr3,  fr4,  fr5,  fr6,  fr7,                             \
-     fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15},                           \
-    {xf0, xf1, xf2,  xf3,  xf4,  xf5,  xf6,  xf7,                             \
-     xf8, xf9, xf10, xf11, xf12, xf13, xf14, xf15},                           \
-    0, 0,                                                                     \
-    { {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0 } },                  \
-    0, 0, 0, fpscr                                                            \
+    {0, 0, 0, 0, 0, 0, 0, 0},                                                 \
+    {fr1, fr0, fr3,  fr2,  fr5,  fr4,  fr7,  fr6,                             \
+     fr9, fr8, fr11, fr10, fr13, fr12, fr15, fr14},                           \
+    {xf1, xf0, xf3,  xf2,  xf5,  xf4,  xf7,  xf6,                             \
+     xf9, xf8, xf11, xf10, xf13, xf12, xf15, xf14},                           \
   }
 
 #define TEST_SH4(name, buffer, buffer_size, buffer_offset,                                                                                                               \
