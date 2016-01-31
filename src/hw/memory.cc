@@ -547,6 +547,11 @@ inline INT Memory::ReadBytes(uint32_t addr) {
   }
 
   MemoryRegion &region = regions_[RegionIndex(page)];
+  if (!(region.*HANDLER)) {
+    LOG_WARNING("Unmapped read at 0x%08x", addr);
+    return 0;
+  }
+
   uint32_t region_offset = RegionOffset(page);
   return (region.*HANDLER)(region.ctx, region_offset + page_offset);
 }
@@ -563,6 +568,11 @@ inline void Memory::WriteBytes(uint32_t addr, INT value) {
   }
 
   MemoryRegion &region = regions_[RegionIndex(page)];
+  if (!(region.*HANDLER)) {
+    LOG_WARNING("Unmapped write at 0x%08x", addr);
+    return;
+  }
+
   uint32_t region_offset = RegionOffset(page);
   (region.*HANDLER)(region.ctx, region_offset + page_offset, value);
 }
