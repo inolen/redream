@@ -78,13 +78,13 @@ static bool MapMemory(Dreamcast &dc) {
   //   nullptr);
   RegionHandle wave_ram_handle = memory->AllocRegion(
     WAVE_RAM_START, WAVE_RAM_SIZE, dc.aica,
+    &AICA::ReadWave<uint8_t>,
+    &AICA::ReadWave<uint16_t>,
+    &AICA::ReadWave<uint32_t>,
     nullptr,
-    nullptr,
-    &AICA::ReadWave,
-    nullptr,
-    nullptr,
-    nullptr,
-    &AICA::WriteWave,
+    &AICA::WriteWave<uint8_t>,
+    &AICA::WriteWave<uint16_t>,
+    &AICA::WriteWave<uint32_t>,
     nullptr);
   RegionHandle pvr_vram64_handle = memory->AllocRegion(
     PVR_VRAM64_START, PVR_VRAM64_SIZE, dc.pvr,
