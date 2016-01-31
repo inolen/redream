@@ -252,9 +252,13 @@ set(TEST_ASM
   test/asm/fld.s
   test/asm/float.s
   test/asm/fmac.s
-  test/asm/fmovd.s
-  test/asm/fmovf.s
-  test/asm/fmovsz.s
+  test/asm/fmov.s
+  test/asm/fmov_load.s
+  test/asm/fmov_index_load.s
+  test/asm/fmov_store.s
+  test/asm/fmov_index_store.s
+  test/asm/fmov_save.s
+  test/asm/fmov_restore.s
   test/asm/fmul.s
   test/asm/fneg.s
   test/asm/frchg.s
@@ -321,10 +325,10 @@ endif()
 # build test binary
 set(DREAVM_TEST_SOURCES
   ${DREAVM_SOURCES}
-  test/test_interval_tree.cc
-  test/test_intrusive_list.cc
-  test/test_minmax_heap.cc
-  test/test_ring_buffer.cc
+  #test/test_interval_tree.cc
+  #test/test_intrusive_list.cc
+  #test/test_minmax_heap.cc
+  #test/test_ring_buffer.cc
   test/test_sh4.cc
   ${asm_inc})
 list(REMOVE_ITEM DREAVM_TEST_SOURCES src/main.cc)

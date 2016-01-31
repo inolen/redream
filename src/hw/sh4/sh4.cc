@@ -385,10 +385,6 @@ void SH4::FPSCRUpdated(SH4Context *ctx, uint64_t old_fpscr) {
   if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
     self->SwapFPRegisters();
   }
-
-  if ((ctx->fpscr & PR) != (old_fpscr & PR)) {
-    self->SwapFPCouples();
-  }
 }
 
 void SH4::SetRegisterBank(int bank) {
@@ -414,20 +410,6 @@ void SH4::SwapFPRegisters() {
     z = ctx_.fr[s];
     ctx_.fr[s] = ctx_.xf[s];
     ctx_.xf[s] = z;
-  }
-}
-
-void SH4::SwapFPCouples() {
-  uint32_t z;
-
-  for (int s = 0; s <= 15; s = s + 2) {
-    z = ctx_.fr[s];
-    ctx_.fr[s] = ctx_.fr[s + 1];
-    ctx_.fr[s + 1] = z;
-
-    z = ctx_.xf[s];
-    ctx_.xf[s] = ctx_.xf[s + 1];
-    ctx_.xf[s + 1] = z;
   }
 }
 

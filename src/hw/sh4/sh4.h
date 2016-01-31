@@ -148,7 +148,6 @@ class SH4 {
 
   void SetRegisterBank(int bank);
   void SwapFPRegisters();
-  void SwapFPCouples();
 
   // CCN
   void ResetCache();
