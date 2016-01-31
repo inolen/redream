@@ -18,8 +18,11 @@ class AICA {
   // static uint32_t ReadRegister(void *ctx, uint32_t addr);
   // static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
 
-  static uint32_t ReadWave(void *ctx, uint32_t addr);
-  static void WriteWave(void *ctx, uint32_t addr, uint32_t value);
+  template <typename T>
+  static T ReadWave(void *ctx, uint32_t addr);
+
+  template <typename T>
+  static void WriteWave(void *ctx, uint32_t addr, T value);
 
  private:
   hw::Dreamcast *dc_;
