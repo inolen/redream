@@ -20,7 +20,7 @@ using namespace dvm::renderer;
 using namespace dvm::sys;
 using namespace dvm::trace;
 
-DEFINE_string(bios, "dc_bios.bin", "Path to BIOS");
+DEFINE_string(bios, "dc_boot.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
 Emulator::Emulator()

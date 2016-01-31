@@ -33,14 +33,14 @@ The build has been tested on OSX 10.10 with clang 3.6, Ubuntu 14.04 with GCC 4.9
 
 ## Running
 ```
-dreavm --bios=path/to/dc_bios.bin --flash=path/to/dc_flash.bin <bin or gdi file>
+dreavm --bios=path/to/dc_boot.bin --flash=path/to/dc_flash.bin <bin or gdi file>
 ```
 
 Command line flags are loaded from and saved to `$HOME/.dreavm/flags` each run. This means that bios and flash path, etc. only need to be set on the first run.
 
 ### All options
 ```
-     --bios  Path to BIOS                 [default: dc_bios.bin]
+     --bios  Path to BIOS                 [default: dc_boot.bin]
     --flash  Path to flash ROM            [default: dc_flash.bin]
   --profile  Path to controller profile
 ```
