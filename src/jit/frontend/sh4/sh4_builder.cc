@@ -71,8 +71,10 @@ void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
 
     addr += 2;
 
-    // if fpscr is changed, stop emitting since the fpu state is invalidated
-    if (instr.type->flags & OP_FLAG_SET_FPSCR) {
+    // if fpscr has changed, stop emitting since the fpu state is invalidated.
+    // if sr has changed, stop emitting as there are interrupts that possibly
+    // need to be handled
+    if (instr.type->flags & (OP_FLAG_SET_FPSCR | OP_FLAG_SET_SR)) {
       Branch(AllocConstant(addr));
       break;
     }

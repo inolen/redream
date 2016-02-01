@@ -47,9 +47,6 @@ class SH4Builder : public ir::IRBuilder {
   void EmitDelayInstr();
 
  private:
-  void StoreAndPreserveContext(size_t offset, ir::Value *v,
-                               ir::InstrFlag flags = ir::IF_NONE);
-
   hw::Memory &memory_;
   FPUState fpu_state_;
   Instr delay_instr_;

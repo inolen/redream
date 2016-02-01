@@ -146,8 +146,8 @@ class SH4 {
   static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,
                            uint64_t old_fpscr);
 
-  void SetRegisterBank(int bank);
-  void SwapFPRegisters();
+  void SwapRegisterBank();
+  void SwapFPRegisterBank();
 
   // CCN
   void ResetCache();

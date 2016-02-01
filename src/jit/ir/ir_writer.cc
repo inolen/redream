@@ -121,10 +121,5 @@ void IRWriter::PrintInstruction(const Instr *instr,
     need_comma = true;
   }
 
-  // print out any opcode flags
-  if (instr->flags() & IF_INVALIDATE_CONTEXT) {
-    output << " INVALIDATE_CONTEXT";
-  }
-
   output << std::endl;
 }
