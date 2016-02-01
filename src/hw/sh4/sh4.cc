@@ -371,7 +371,7 @@ void SH4::SRUpdated(SH4Context *ctx, uint64_t old_sr) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
 
   if ((ctx->sr & RB) != (old_sr & RB)) {
-    self->SetRegisterBank(ctx->sr & RB);
+    self->SwapRegisterBank();
   }
 
   if ((ctx->sr & I) != (old_sr & I) || (ctx->sr & BL) != (old_sr & BL)) {
@@ -383,33 +383,23 @@ void SH4::FPSCRUpdated(SH4Context *ctx, uint64_t old_fpscr) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
 
   if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
-    self->SwapFPRegisters();
+    self->SwapFPRegisterBank();
   }
 }
 
-void SH4::SetRegisterBank(int bank) {
-  if (bank == 0) {
-    for (int s = 0; s < 8; s++) {
-      uint32_t tmp = ctx_.r[s];
-      ctx_.r[s] = ctx_.ralt[s];
-      ctx_.ralt[s] = tmp;
-    }
-  } else {
-    for (int s = 0; s < 8; s++) {
-      uint32_t tmp = ctx_.r[s];
-      ctx_.r[s] = ctx_.ralt[s];
-      ctx_.ralt[s] = tmp;
-    }
+void SH4::SwapRegisterBank() {
+  for (int s = 0; s < 8; s++) {
+    uint32_t tmp = ctx_.r[s];
+    ctx_.r[s] = ctx_.ralt[s];
+    ctx_.ralt[s] = tmp;
   }
 }
 
-void SH4::SwapFPRegisters() {
-  uint32_t z;
-
+void SH4::SwapFPRegisterBank() {
   for (int s = 0; s <= 15; s++) {
-    z = ctx_.fr[s];
+    uint32_t tmp = ctx_.fr[s];
     ctx_.fr[s] = ctx_.xf[s];
-    ctx_.xf[s] = z;
+    ctx_.xf[s] = tmp;
   }
 }
 

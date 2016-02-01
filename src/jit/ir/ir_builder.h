@@ -274,21 +274,17 @@ class Local : public IntrusiveListNode<Local> {
 //
 // instructions
 //
-enum InstrFlag { IF_NONE = 0x0, IF_INVALIDATE_CONTEXT = 0x1 };
-
 class Instr : public IntrusiveListNode<Instr> {
   friend class Block;
 
  public:
-  Instr(Opcode op, InstrFlag flags);
+  Instr(Opcode op);
   ~Instr();
 
   const Block *block() const { return block_; }
   Block *block() { return block_; }
 
   Opcode op() const { return op_; }
-
-  InstrFlag flags() const { return flags_; }
 
   const Value *arg0() const { return arg(0); }
   Value *arg0() { return arg(0); }
@@ -318,7 +314,6 @@ class Instr : public IntrusiveListNode<Instr> {
 
   Block *block_;
   Opcode op_;
-  InstrFlag flags_;
   ValueRef args_[4];
   intptr_t tag_;
 };
@@ -466,8 +461,8 @@ class IRBuilder {
   Local *AllocLocal(ValueTy type);
 
  protected:
-  Instr *AllocInstr(Opcode op, InstrFlag flags = IF_NONE);
-  Instr *AppendInstr(Opcode op, InstrFlag flags = IF_NONE);
+  Instr *AllocInstr(Opcode op);
+  Instr *AppendInstr(Opcode op);
 
   Arena arena_;
   IntrusiveList<Block> blocks_;

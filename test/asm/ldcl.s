@@ -16,19 +16,20 @@ test_ldcl_stcl_sr:
   # read result from mem
   mov.l .DATA_ADDR, r0
   mov.l @r0, r3
-  # r0 in alt bank should have been post-incremented to 4
+  # r0 in alt bank should have been post-incremented by 4
+  mov.l .ALT_SR, r1
   stc r0_bank, r4
+  sub r1, r4
   # r1 in alt bank should have been pre-decremented by 4
-  mov.l .DATA_ADDR, r5
-  stc r1_bank, r6
-  cmp/eq r6, r5
-  movt r5
+  mov.l .DATA_ADDR, r1
+  stc r1_bank, r5
+  sub r1, r5
   rts
   nop
   # REGISTER_OUT r2 13
   # REGISTER_OUT r3 0x500000f0
   # REGISTER_OUT r4 4
-  # REGISTER_OUT r5 1
+  # REGISTER_OUT r5 0
 
 test_ldcl_stcl_rbank:
   # REGISTER_IN r0 13

@@ -67,10 +67,9 @@ Local::Local(ValueTy ty, Value *offset) : type_(ty), offset_(offset) {}
 //
 // Instr
 //
-Instr::Instr(Opcode op, InstrFlag flags)
+Instr::Instr(Opcode op)
     : block_(nullptr),
       op_(op),
-      flags_(flags),
       args_{{this}, {this}, {this}, {this}},
       tag_(0) {}
 
@@ -612,7 +611,7 @@ void IRBuilder::BranchCond(Value *cond, Value *true_addr, Value *false_addr) {
 void IRBuilder::CallExternal1(Value *addr) {
   CHECK_EQ(addr->type(), VALUE_I64);
 
-  Instr *instr = AppendInstr(OP_CALL_EXTERNAL, IF_INVALIDATE_CONTEXT);
+  Instr *instr = AppendInstr(OP_CALL_EXTERNAL);
   instr->set_arg0(addr);
 }
 
@@ -620,7 +619,7 @@ void IRBuilder::CallExternal2(Value *addr, Value *arg0) {
   CHECK_EQ(addr->type(), VALUE_I64);
   CHECK_EQ(arg0->type(), VALUE_I64);
 
-  Instr *instr = AppendInstr(OP_CALL_EXTERNAL, IF_INVALIDATE_CONTEXT);
+  Instr *instr = AppendInstr(OP_CALL_EXTERNAL);
   instr->set_arg0(addr);
   instr->set_arg1(arg0);
 }
@@ -693,19 +692,19 @@ Local *IRBuilder::AllocLocal(ValueTy type) {
   return l;
 }
 
-Instr *IRBuilder::AllocInstr(Opcode op, InstrFlag flags) {
+Instr *IRBuilder::AllocInstr(Opcode op) {
   Instr *instr = arena_.Alloc<Instr>();
-  new (instr) Instr(op, flags);
+  new (instr) Instr(op);
   return instr;
 }
 
-Instr *IRBuilder::AppendInstr(Opcode op, InstrFlag flags) {
+Instr *IRBuilder::AppendInstr(Opcode op) {
   if (!current_block_) {
     current_block_ = InsertBlock(current_block_);
     current_instr_ = nullptr;
   }
 
-  Instr *instr = AllocInstr(op, flags);
+  Instr *instr = AllocInstr(op);
   current_block_->InsertInstr(current_instr_, instr);
   current_instr_ = instr;
   return instr;

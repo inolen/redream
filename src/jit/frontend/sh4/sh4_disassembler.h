@@ -12,7 +12,7 @@ enum Opcode {
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) OP_##name,
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
-  NUM_OPCODES
+  NUM_OPCODES,
 };
 
 enum OpcodeFlag {
@@ -20,7 +20,8 @@ enum OpcodeFlag {
   OP_FLAG_CONDITIONAL = 0x2,
   OP_FLAG_DELAYED = 0x4,
   OP_FLAG_SET_T = 0x8,
-  OP_FLAG_SET_FPSCR = 0x10
+  OP_FLAG_SET_FPSCR = 0x10,
+  OP_FLAG_SET_SR = 0x20,
 };
 
 struct InstrType {
