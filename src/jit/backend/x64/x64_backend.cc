@@ -37,25 +37,87 @@ namespace dvm {
 namespace jit {
 namespace backend {
 namespace x64 {
+// x64 register layout
+
+// %rax %eax %ax %al      <-- temporary
+// %rcx %ecx %cx %cl      <-- argument
+// %rdx %edx %dx %dl      <-- argument
+// %rbx %ebx %bx %bl      <-- available, callee saved
+// %rsp %esp %sp %spl     <-- reserved
+// %rbp %ebp %bp %bpl     <-- available, callee saved
+// %rsi %esi %si %sil     <-- argument
+// %rdi %edi %di %dil     <-- argument
+// %r8 %r8d %r8w %r8b     <-- argument
+// %r9 %r9d %r9w %r9b     <-- argument
+// %r10 %r10d %r10w %r10b <-- available, not callee saved
+// %r11 %r11d %r11w %r11b <-- available, not callee saved
+// %r12 %r12d %r12w %r12b <-- available, callee saved
+// %r13 %r13d %r13w %r13b <-- available, callee saved
+// %r14 %r14d %r14w %r14b <-- available, callee saved
+// %r15 %r15d %r15w %r15b <-- available, callee saved
+
+// msvc calling convention uses rcx, rdx, r8 and r9 for arguments
+// amd64 calling convention uses rdi, rsi, rdx, rcx, r8 and r9 for arguments
+// both use the same xmm registers for floating point arguments
+// our largest function call uses only 3 arguments, leaving rdi, rsi and r9
+// available on msvc and rcx, r8 and r9 available on amd64
+
+// rax is used as a scratch register, while rdi/r8, r9 and xmm1 are used for
+// storing
+// a constant in case the constant propagation pass didn't eliminate it
+
+// rsi is left unused on msvc and rcx is left unused on amd64
 const Register x64_registers[] = {
-    {"rbx", ir::VALUE_INT_MASK},     {"rbp", ir::VALUE_INT_MASK},
-    {"r12", ir::VALUE_INT_MASK},     {"r13", ir::VALUE_INT_MASK},
-    {"r14", ir::VALUE_INT_MASK},     {"r15", ir::VALUE_INT_MASK},
-    {"xmm6", ir::VALUE_FLOAT_MASK},  {"xmm7", ir::VALUE_FLOAT_MASK},
-    {"xmm8", ir::VALUE_FLOAT_MASK},  {"xmm9", ir::VALUE_FLOAT_MASK},
-    {"xmm10", ir::VALUE_FLOAT_MASK}, {"xmm11", ir::VALUE_FLOAT_MASK}};
+    {"rbx", ir::VALUE_INT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::rbx)},
+    {"rbp", ir::VALUE_INT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::rbp)},
+    {"r12", ir::VALUE_INT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::r12)},
+    {"r13", ir::VALUE_INT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::r13)},
+    {"r14", ir::VALUE_INT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::r14)},
+    {"r15", ir::VALUE_INT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::r15)},
+    {"xmm6", ir::VALUE_FLOAT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm6)},
+    {"xmm7", ir::VALUE_FLOAT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm7)},
+    {"xmm8", ir::VALUE_FLOAT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm8)},
+    {"xmm9", ir::VALUE_FLOAT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm9)},
+    {"xmm10", ir::VALUE_FLOAT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm10)},
+    {"xmm11", ir::VALUE_FLOAT_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm11)}};
 
 const int x64_num_registers = sizeof(x64_registers) / sizeof(Register);
+
+#if PLATFORM_WINDOWS
+const int x64_arg0_idx = Xbyak::Operand::RCX;
+const int x64_arg1_idx = Xbyak::Operand::RDX;
+const int x64_arg2_idx = Xbyak::Operand::R8;
+const int x64_tmp0_idx = Xbyak::Operand::RDI;
+const int x64_tmp1_idx = Xbyak::Operand::R9;
+#else
+const int x64_arg0_idx = Xbyak::Operand::RDI;
+const int x64_arg1_idx = Xbyak::Operand::RSI;
+const int x64_arg2_idx = Xbyak::Operand::RDX;
+const int x64_tmp0_idx = Xbyak::Operand::R8;
+const int x64_tmp1_idx = Xbyak::Operand::R9;
+#endif
+}
+}
+}
+}
 
 // this will break down if running two instances of the x64 backend, but it's
 // extremely useful when profiling to group JITd blocks of code with an actual
 // symbol name
 static const size_t x64_codegen_size = 1024 * 1024 * 8;
 static uint8_t x64_codegen[x64_codegen_size];
-}
-}
-}
-}
 
 X64Backend::X64Backend(Memory &memory)
     : Backend(memory), emitter_(x64_codegen, x64_codegen_size) {}
@@ -114,23 +176,21 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
   ex.thread_state.rsp -= STACK_SHADOW_SPACE + 24 + 8;
   dvm::store(
       reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE),
-      ex.thread_state.r[Xbyak::Operand::INT_ARG2]);
+      ex.thread_state.r[x64_arg2_idx]);
   dvm::store(
       reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 8),
-      ex.thread_state.r[Xbyak::Operand::INT_ARG1]);
+      ex.thread_state.r[x64_arg1_idx]);
   dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
                                          STACK_SHADOW_SPACE + 16),
-             ex.thread_state.r[Xbyak::Operand::INT_ARG0]);
+             ex.thread_state.r[x64_arg0_idx]);
   dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
                                          STACK_SHADOW_SPACE + 24),
              ex.thread_state.rip + mov.length);
 
   if (mov.is_load) {
     // prep argument registers (memory object, guest_addr) for read function
-    ex.thread_state.r[Xbyak::Operand::INT_ARG0] =
-        reinterpret_cast<uint64_t>(&memory_);
-    ex.thread_state.r[Xbyak::Operand::INT_ARG1] =
-        static_cast<uint64_t>(guest_addr);
+    ex.thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(&memory_);
+    ex.thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
 
     // prep function call address for thunk
     switch (mov.operand_size) {
@@ -206,12 +266,9 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
   } else {
     // prep argument registers (memory object, guest_addr, value) for write
     // function
-    ex.thread_state.r[Xbyak::Operand::INT_ARG0] =
-        reinterpret_cast<uint64_t>(&memory_);
-    ex.thread_state.r[Xbyak::Operand::INT_ARG1] =
-        static_cast<uint64_t>(guest_addr);
-    ex.thread_state.r[Xbyak::Operand::INT_ARG2] =
-        *(&ex.thread_state.r[mov.reg]);
+    ex.thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(&memory_);
+    ex.thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
+    ex.thread_state.r[x64_arg2_idx] = *(&ex.thread_state.r[mov.reg]);
 
     // prep function call address for thunk
     switch (mov.operand_size) {

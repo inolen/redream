@@ -11,6 +11,11 @@ namespace x64 {
 
 extern const Register x64_registers[];
 extern const int x64_num_registers;
+extern const int x64_arg0_idx;
+extern const int x64_arg1_idx;
+extern const int x64_arg2_idx;
+extern const int x64_tmp0_idx;
+extern const int x64_tmp1_idx;
 
 class X64Backend : public Backend {
  public:

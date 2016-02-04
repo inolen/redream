@@ -755,7 +755,7 @@ INT_CALLBACK(UMUL) {
   using U1 = typename std::make_unsigned<A1>::type;
   U0 lhs = static_cast<U0>(LOAD_ARG0());
   U1 rhs = static_cast<U1>(LOAD_ARG1());
-  STORE_RESULT((A0)(lhs * rhs));
+  STORE_RESULT(static_cast<A0>(lhs * rhs));
 }
 REGISTER_INT_CALLBACK(UMUL, UMUL, I8, I8, I8);
 REGISTER_INT_CALLBACK(UMUL, UMUL, I16, I16, I16);
