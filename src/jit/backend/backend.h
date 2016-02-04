@@ -18,6 +18,7 @@ namespace backend {
 struct Register {
   const char *name;
   int value_types;
+  const void *data;
 };
 
 enum BlockFlags {
