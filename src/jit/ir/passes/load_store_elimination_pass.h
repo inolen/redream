@@ -3,7 +3,7 @@
 
 #include "jit/ir/passes/pass_runner.h"
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace ir {
 namespace passes {

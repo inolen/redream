@@ -8,7 +8,7 @@
 #include "core/assert.h"
 #include "core/intrusive_tree.h"
 
-namespace dvm {
+namespace re {
 
 typedef uintptr_t interval_type;
 

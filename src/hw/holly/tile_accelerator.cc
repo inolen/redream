@@ -5,11 +5,11 @@
 #include "hw/memory.h"
 #include "trace/trace.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::hw::holly;
-using namespace dvm::renderer;
-using namespace dvm::trace;
+using namespace re;
+using namespace re::hw;
+using namespace re::hw::holly;
+using namespace re::renderer;
+using namespace re::trace;
 
 static void BuildLookupTables();
 static int GetParamSize_raw(const PCW &pcw, int vertex_type);
@@ -267,7 +267,7 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
   // completely received or not
   if (tactx->size % 32 == 0) {
     void *data = &tactx->data[tactx->cursor];
-    PCW pcw = dvm::load<PCW>(data);
+    PCW pcw = re::load<PCW>(data);
 
     int size = GetParamSize(pcw, tactx->vertex_type);
     int recv = tactx->size - tactx->cursor;
@@ -358,7 +358,7 @@ void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
 
   addr &= 0xeeffffff;
 
-  dvm::store(&self->video_ram_[addr], value);
+  re::store(&self->video_ram_[addr], value);
 }
 
 void TileAccelerator::WritePVRState(TileContext *tactx) {
@@ -407,7 +407,7 @@ void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
   vram_offset += 12;
 
   // get the background depth
-  tactx->bg_depth = dvm::load<float>(&dc_->ISP_BACKGND_D);
+  tactx->bg_depth = re::load<float>(&dc_->ISP_BACKGND_D);
 
   // get the byte size for each vertex. normally, the byte size is
   // ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in

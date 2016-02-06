@@ -2,8 +2,8 @@
 #include "jit/ir/ir_builder.h"
 #include "jit/ir/passes/pass_runner.h"
 
-using namespace dvm::jit::ir;
-using namespace dvm::jit::ir::passes;
+using namespace re::jit::ir;
+using namespace re::jit::ir::passes;
 
 PassRunner::PassRunner() {}
 

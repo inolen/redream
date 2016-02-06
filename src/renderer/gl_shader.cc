@@ -2,7 +2,7 @@
 #include "core/string.h"
 #include "renderer/gl_shader.h"
 
-namespace dvm {
+namespace re {
 namespace renderer {
 
 #define GLSL_VERSION 330

@@ -5,7 +5,7 @@
 #include "core/ring_buffer.h"
 #include "sys/keycode.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 enum {

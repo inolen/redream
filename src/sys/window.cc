@@ -5,8 +5,8 @@
 #define DEFAULT_WIDTH 800
 #define DEFAULT_HEIGHT 600
 
-using namespace dvm;
-using namespace dvm::sys;
+using namespace re;
+using namespace re::sys;
 
 static inline WindowEvent MakeKeyEvent(Keycode code, int16_t value) {
   WindowEvent ev;
@@ -62,7 +62,7 @@ bool Window::Init() {
     return false;
   }
 
-  window_ = SDL_CreateWindow("dreavm", SDL_WINDOWPOS_UNDEFINED,
+  window_ = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
                              SDL_WINDOWPOS_UNDEFINED, width_, height_,
                              SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   if (!window_) {

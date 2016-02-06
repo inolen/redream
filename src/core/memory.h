@@ -1,7 +1,7 @@
-#ifndef DREAVM_MEMORY_H
-#define DREAVM_MEMORY_H
+#ifndef REDREAM_MEMORY_H
+#define REDREAM_MEMORY_H
 
-namespace dvm {
+namespace re {
 
 template <typename T>
 T load(const void *ptr) {

@@ -2,12 +2,12 @@
 #include "emu/profiler.h"
 #include "jit/frontend/sh4/sh4_builder.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::jit;
-using namespace dvm::jit::frontend;
-using namespace dvm::jit::frontend::sh4;
-using namespace dvm::jit::ir;
+using namespace re;
+using namespace re::hw;
+using namespace re::jit;
+using namespace re::jit::frontend;
+using namespace re::jit::frontend::sh4;
+using namespace re::jit::ir;
 
 static uint32_t s_fsca_table[0x20000] = {
 #include "jit/frontend/sh4/sh4_fsca.inc"

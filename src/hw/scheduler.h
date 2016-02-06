@@ -4,7 +4,7 @@
 #include <chrono>
 #include <functional>
 
-namespace dvm {
+namespace re {
 namespace hw {
 
 enum {

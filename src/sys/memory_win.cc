@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "sys/memory.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 static DWORD AccessToFileFlags(PageAccess access) {

@@ -1,7 +1,7 @@
 #ifndef DEBUGGER_H
 #define DEBUGGER_H
 
-namespace dvm {
+namespace re {
 namespace emu {
 
 class Debugger {

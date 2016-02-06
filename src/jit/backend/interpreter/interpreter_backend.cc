@@ -3,15 +3,15 @@
 #include "jit/backend/interpreter/interpreter_emitter.h"
 #include "sys/exception_handler.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::jit;
-using namespace dvm::jit::backend;
-using namespace dvm::jit::backend::interpreter;
-using namespace dvm::jit::ir;
-using namespace dvm::sys;
+using namespace re;
+using namespace re::hw;
+using namespace re::jit;
+using namespace re::jit::backend;
+using namespace re::jit::backend::interpreter;
+using namespace re::jit::ir;
+using namespace re::sys;
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace backend {
 namespace interpreter {

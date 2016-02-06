@@ -4,7 +4,7 @@
 #include "sys/exception_handler.h"
 #include "sys/memory.h"
 
-namespace dvm {
+namespace re {
 namespace hw {
 
 typedef uint8_t RegionHandle;

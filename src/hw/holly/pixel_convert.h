@@ -18,7 +18,7 @@
   (((TWIDTAB(x & (min - 1)) << 1) | TWIDTAB(y & (min - 1))) + \
    (x / min + y / min) * min * min)
 
-namespace dvm {
+namespace re {
 namespace hw {
 namespace holly {
 
@@ -216,7 +216,7 @@ class PixelConvert {
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
         int palette_idx = src[TWIDIDX(x, y, min)];
-        auto entry = dvm::load<typename FROM::data_type>(&palette[palette_idx]);
+        auto entry = re::load<typename FROM::data_type>(&palette[palette_idx]);
         FROM::Read(entry, &r, &g, &b, &a);
         TO::Write(dst++, r, g, b, a);
       }
@@ -233,7 +233,7 @@ class PixelConvert {
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
         int tidx = TWIDIDX(x, y, min);
-        auto code = dvm::load<typename FROM::data_type>(
+        auto code = re::load<typename FROM::data_type>(
             &codebook[index[tidx / 4] * 8 + ((tidx % 4) * 2)]);
         FROM::Read(code, &r, &g, &b, &a);
         TO::Write(dst++, r, g, b, a);

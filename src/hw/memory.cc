@@ -1,9 +1,9 @@
 #include "core/memory.h"
 #include "hw/memory.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::sys;
+using namespace re;
+using namespace re::hw;
+using namespace re::sys;
 
 static inline bool PageAligned(uint32_t start, uint32_t size) {
   return (start & (PAGE_OFFSET_BITS - 1)) == 0 &&
@@ -199,7 +199,7 @@ void Memory::Lookup(uint32_t virtual_addr, uint8_t **ptr, MemoryRegion **region,
 
 bool Memory::CreateSharedMemory() {
   // create the shared memory object to back the address space
-  shmem_ = ::CreateSharedMemory("/dreavm", ADDRESS_SPACE_SIZE, ACC_READWRITE);
+  shmem_ = ::CreateSharedMemory("/redream", ADDRESS_SPACE_SIZE, ACC_READWRITE);
 
   if (shmem_ == SHMEM_INVALID) {
     LOG_WARNING("Failed to create shared memory object");
@@ -543,7 +543,7 @@ inline INT Memory::ReadBytes(uint32_t addr) {
   DCHECK(page);
 
   if (IsStaticRegion(page)) {
-    return dvm::load<INT>(RegionPointer(page) + page_offset);
+    return re::load<INT>(RegionPointer(page) + page_offset);
   }
 
   MemoryRegion &region = regions_[RegionIndex(page)];
@@ -563,7 +563,7 @@ inline void Memory::WriteBytes(uint32_t addr, INT value) {
   DCHECK(page);
 
   if (IsStaticRegion(page)) {
-    dvm::store(RegionPointer(page) + page_offset, value);
+    re::store(RegionPointer(page) + page_offset, value);
     return;
   }
 

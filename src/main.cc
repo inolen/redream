@@ -7,10 +7,10 @@
 #include "sys/filesystem.h"
 #include "sys/network.h"
 
-using namespace dvm;
-using namespace dvm::emu;
-using namespace dvm::sys;
-using namespace dvm::trace;
+using namespace re;
+using namespace re::emu;
+using namespace re::sys;
+using namespace re::trace;
 
 void InitFlags(int *argc, char ***argv) {
   const char *appdir = GetAppDir();

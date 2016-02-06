@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include "sys/memory.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 static std::unordered_map<int, std::string> shared_handles;

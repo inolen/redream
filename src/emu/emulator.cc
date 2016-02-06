@@ -11,14 +11,14 @@
 #include "renderer/gl_backend.h"
 #include "trace/trace.h"
 
-using namespace dvm;
-using namespace dvm::emu;
-using namespace dvm::hw;
-using namespace dvm::hw::gdrom;
-using namespace dvm::hw::holly;
-using namespace dvm::renderer;
-using namespace dvm::sys;
-using namespace dvm::trace;
+using namespace re;
+using namespace re::emu;
+using namespace re::hw;
+using namespace re::hw::gdrom;
+using namespace re::hw::holly;
+using namespace re::renderer;
+using namespace re::sys;
+using namespace re::trace;
 
 DEFINE_string(bios, "dc_boot.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");

@@ -5,7 +5,7 @@
 #include "hw/memory.h"
 #include "jit/ir/ir_builder.h"
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace frontend {
 

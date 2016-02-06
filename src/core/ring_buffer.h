@@ -4,7 +4,7 @@
 #include <iterator>
 #include "core/assert.h"
 
-namespace dvm {
+namespace re {
 
 template <typename T>
 class RingBuffer {

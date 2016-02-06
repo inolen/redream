@@ -5,8 +5,8 @@
 #include "core/log.h"
 #include "hw/maple/maple_controller.h"
 
-using namespace dvm::hw::maple;
-using namespace dvm::sys;
+using namespace re::hw::maple;
+using namespace re::sys;
 using namespace json11;
 
 DEFINE_string(profile, "", "Controller profile");

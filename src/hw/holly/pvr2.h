@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "hw/scheduler.h"
 
-namespace dvm {
+namespace re {
 namespace hw {
 struct Dreamcast;
 struct Register;

@@ -1,9 +1,9 @@
-#ifndef DREAVM_MATH_H
-#define DREAVM_MATH_H
+#ifndef REDREAM_MATH_H
+#define REDREAM_MATH_H
 
 #include <functional>
 
-namespace dvm {
+namespace re {
 
 template <typename T>
 T align(T v, T alignment) {

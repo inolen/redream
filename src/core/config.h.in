@@ -1,5 +1,5 @@
-#ifndef DREAVM_CONFIG_H
-#define DREAVM_CONFIG_H
+#ifndef REDREAM_CONFIG_H
+#define REDREAM_CONFIG_H
 
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNSTR

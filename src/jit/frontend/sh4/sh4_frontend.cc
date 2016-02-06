@@ -1,10 +1,10 @@
 #include "jit/frontend/sh4/sh4_builder.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 
-using namespace dvm::hw;
-using namespace dvm::jit;
-using namespace dvm::jit::frontend::sh4;
-using namespace dvm::jit::ir;
+using namespace re::hw;
+using namespace re::jit;
+using namespace re::jit::frontend::sh4;
+using namespace re::jit::ir;
 
 SH4Frontend::SH4Frontend(Memory &memory) : Frontend(memory) {}
 

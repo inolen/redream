@@ -4,7 +4,7 @@
 #include <memory>
 #include "sys/keycode.h"
 
-namespace dvm {
+namespace re {
 namespace hw {
 namespace holly {
 class Holly;

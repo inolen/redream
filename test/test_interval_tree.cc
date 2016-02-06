@@ -4,7 +4,7 @@
 #define VERIFY_INTRUSIVE_TREE
 #include "core/interval_tree.h"
 
-using namespace dvm;
+using namespace re;
 
 typedef IntervalTree<void *> TestTree;
 typedef TestTree::node_type TestNode;

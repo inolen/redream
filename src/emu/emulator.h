@@ -8,7 +8,7 @@
 #include "renderer/backend.h"
 #include "sys/window.h"
 
-namespace dvm {
+namespace re {
 namespace emu {
 
 class Emulator {

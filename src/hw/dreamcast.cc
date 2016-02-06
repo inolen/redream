@@ -12,19 +12,19 @@
 #include "renderer/backend.h"
 #include "trace/trace.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::hw::aica;
-using namespace dvm::hw::gdrom;
-using namespace dvm::hw::holly;
-using namespace dvm::hw::maple;
-using namespace dvm::hw::sh4;
-using namespace dvm::jit;
-using namespace dvm::renderer;
-using namespace dvm::sys;
-using namespace dvm::trace;
+using namespace re;
+using namespace re::hw;
+using namespace re::hw::aica;
+using namespace re::hw::gdrom;
+using namespace re::hw::holly;
+using namespace re::hw::maple;
+using namespace re::hw::sh4;
+using namespace re::jit;
+using namespace re::renderer;
+using namespace re::sys;
+using namespace re::trace;
 
-namespace dvm {
+namespace re {
 namespace hw {
 
 // clang-format off

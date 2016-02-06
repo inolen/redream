@@ -2,9 +2,9 @@
 #include "emu/profiler.h"
 #include "jit/ir/passes/register_allocation_pass.h"
 
-using namespace dvm::jit::backend;
-using namespace dvm::jit::ir;
-using namespace dvm::jit::ir::passes;
+using namespace re::jit::backend;
+using namespace re::jit::ir;
+using namespace re::jit::ir::passes;
 
 static inline int GetOrdinal(const Instr *i) { return (int)i->tag(); }
 
@@ -51,7 +51,7 @@ Interval *RegisterSet::HeadInterval() {
     return nullptr;
   }
 
-  auto it = dvm::mmheap_find_min(live_, live_ + num_live_, LiveIntervalSort());
+  auto it = re::mmheap_find_min(live_, live_ + num_live_, LiveIntervalSort());
   return *it;
 }
 
@@ -60,23 +60,23 @@ Interval *RegisterSet::TailInterval() {
     return nullptr;
   }
 
-  auto it = dvm::mmheap_find_max(live_, live_ + num_live_, LiveIntervalSort());
+  auto it = re::mmheap_find_max(live_, live_ + num_live_, LiveIntervalSort());
   return *it;
 }
 
 void RegisterSet::PopHeadInterval() {
-  dvm::mmheap_pop_min(live_, live_ + num_live_, LiveIntervalSort());
+  re::mmheap_pop_min(live_, live_ + num_live_, LiveIntervalSort());
   num_live_--;
 }
 
 void RegisterSet::PopTailInterval() {
-  dvm::mmheap_pop_max(live_, live_ + num_live_, LiveIntervalSort());
+  re::mmheap_pop_max(live_, live_ + num_live_, LiveIntervalSort());
   num_live_--;
 }
 
 void RegisterSet::InsertInterval(Interval *interval) {
   live_[num_live_++] = interval;
-  dvm::mmheap_push(live_, live_ + num_live_, LiveIntervalSort());
+  re::mmheap_push(live_, live_ + num_live_, LiveIntervalSort());
 }
 
 RegisterAllocationPass::RegisterAllocationPass(const Backend &backend)

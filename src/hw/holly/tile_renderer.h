@@ -5,7 +5,7 @@
 #include <Eigen/Dense>
 #include "renderer/backend.h"
 
-namespace dvm {
+namespace re {
 namespace hw {
 namespace holly {
 

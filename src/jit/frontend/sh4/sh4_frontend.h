@@ -3,7 +3,7 @@
 
 #include "jit/frontend/frontend.h"
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace frontend {
 namespace sh4 {

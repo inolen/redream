@@ -1,10 +1,10 @@
-#ifndef DREAVM_ASSERT_H
-#define DREAVM_ASSERT_H
+#ifndef REDREAM_ASSERT_H
+#define REDREAM_ASSERT_H
 
 #include "core/debug_break.h"
 #include "core/log.h"
 
-namespace dvm {
+namespace re {
 
 // CHECK_* macros are usually true, hint this to the compiler if possible
 #if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)

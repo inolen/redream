@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "core/ring_buffer.h"
 
-using namespace dvm;
+using namespace re;
 
 class RingTest : public ::testing::Test {
  public:

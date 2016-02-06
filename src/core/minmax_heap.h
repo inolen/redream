@@ -8,7 +8,7 @@
 // Min-max heap implementation, based on
 // http://www.akira.ruc.dk/~keld/teaching/algoritmedesign_f03/Artikler/02../Atkinson86.pdf
 
-namespace dvm {
+namespace re {
 
 template <typename T>
 static inline bool mmheap_is_max_level(T index) {

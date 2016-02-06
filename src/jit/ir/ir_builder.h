@@ -6,7 +6,7 @@
 #include "core/assert.h"
 #include "core/intrusive_list.h"
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace ir {
 
