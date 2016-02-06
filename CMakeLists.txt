@@ -325,9 +325,10 @@ endif()
 # build test binary
 set(DREAVM_TEST_SOURCES
   ${DREAVM_SOURCES}
-  #test/test_interval_tree.cc
-  #test/test_intrusive_list.cc
-  #test/test_ring_buffer.cc
+  test/test_interval_tree.cc
+  test/test_intrusive_list.cc
+  test/test_load_store_elimination_pass.cc
+  test/test_ring_buffer.cc
   test/test_sh4.cc
   ${asm_inc})
 list(REMOVE_ITEM DREAVM_TEST_SOURCES src/main.cc)

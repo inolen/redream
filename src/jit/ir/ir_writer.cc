@@ -4,7 +4,7 @@
 using namespace dvm::jit;
 using namespace dvm::jit::ir;
 
-void IRWriter::Print(const IRBuilder &builder, std::ostringstream &output) {
+void IRWriter::Print(const IRBuilder &builder, std::ostream &output) {
   slots_.clear();
   next_slot_ = 0;
 
@@ -15,7 +15,7 @@ void IRWriter::Print(const IRBuilder &builder, std::ostringstream &output) {
   }
 }
 
-void IRWriter::PrintType(ValueTy type, std::ostringstream &output) const {
+void IRWriter::PrintType(ValueTy type, std::ostream &output) const {
   switch (type) {
     case VALUE_I8:
       output << "i8";
@@ -43,7 +43,7 @@ void IRWriter::PrintType(ValueTy type, std::ostringstream &output) const {
   }
 }
 
-void IRWriter::PrintOpcode(Opcode op, std::ostringstream &output) const {
+void IRWriter::PrintOpcode(Opcode op, std::ostream &output) const {
   const char *name = Opnames[op];
 
   while (*name) {
@@ -52,7 +52,7 @@ void IRWriter::PrintOpcode(Opcode op, std::ostringstream &output) const {
   }
 }
 
-void IRWriter::PrintValue(const Value *value, std::ostringstream &output) {
+void IRWriter::PrintValue(const Value *value, std::ostream &output) {
   PrintType(value->type(), output);
 
   output << " ";
@@ -92,7 +92,7 @@ void IRWriter::PrintValue(const Value *value, std::ostringstream &output) {
 }
 
 void IRWriter::PrintInstruction(const Instr *instr,
-                                std::ostringstream &output) {
+                                std::ostream &output) {
   // print result value if we have one
   if (instr->result()) {
     PrintValue(instr->result(), output);

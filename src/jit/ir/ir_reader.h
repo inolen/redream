@@ -1,7 +1,7 @@
 #ifndef IR_READER_H
 #define IR_READER_H
 
-#include <sstream>
+#include <istream>
 #include <unordered_map>
 #include "jit/ir/ir_builder.h"
 
@@ -21,18 +21,13 @@ enum IRToken {
 
 struct IRLexeme {
   char s[128];
-  uint8_t i8;
-  uint16_t i16;
-  uint32_t i32;
-  uint32_t i64;
-  float f32;
-  double f64;
+  uint64_t i;
   ValueTy ty;
 };
 
 class IRLexer {
  public:
-  IRLexer(std::istringstream &input);
+  IRLexer(std::istream &input);
 
   IRToken tok() const { return tok_; }
   const IRLexeme &val() const { return val_; }
@@ -43,14 +38,14 @@ class IRLexer {
   char Get();
   void Unget();
 
-  std::istringstream &input_;
+  std::istream &input_;
   IRToken tok_;
   IRLexeme val_;
 };
 
 class IRReader {
  public:
-  bool Parse(std::istringstream &input, IRBuilder &builder);
+  bool Parse(std::istream &input, IRBuilder &builder);
 
  private:
   bool ParseType(IRLexer &lex, IRBuilder &builder, ValueTy *type);

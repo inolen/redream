@@ -1,3 +1,4 @@
+#include <sstream>
 #include "core/memory.h"
 #include "jit/ir/ir_builder.h"
 #include "jit/ir/ir_writer.h"

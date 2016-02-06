@@ -16,7 +16,7 @@ static IRType s_ir_types[] = {
 };
 static const int s_num_ir_types = sizeof(s_ir_types) / sizeof(s_ir_types[0]);
 
-IRLexer::IRLexer(std::istringstream &input) : input_(input) {}
+IRLexer::IRLexer(std::istream &input) : input_(input) {}
 
 IRToken IRLexer::Next() {
   // skip past whitespace characters, except newlines
@@ -90,10 +90,10 @@ IRToken IRLexer::Next() {
       next = Get();
 
       // parse literal
-      val_.i64 = 0;
+      val_.i = 0;
       while (isxdigit(next)) {
-        val_.i64 <<= 4;
-        val_.i64 |= xtoi(next);
+        val_.i <<= 4;
+        val_.i |= xtoi(next);
         next = Get();
       }
       Unget();
@@ -120,7 +120,7 @@ char IRLexer::Get() { return input_.get(); }
 
 void IRLexer::Unget() { input_.unget(); }
 
-bool IRReader::Parse(std::istringstream &input, IRBuilder &builder) {
+bool IRReader::Parse(std::istream &input, IRBuilder &builder) {
   IRLexer lex(input);
 
   while (true) {
@@ -202,24 +202,30 @@ bool IRReader::ParseValue(IRLexer &lex, IRBuilder &builder, Value **value) {
     *value = it->second;
   } else if (lex.tok() == TOK_INTEGER) {
     switch (type) {
-      case VALUE_I8:
-        *value = builder.AllocConstant(lex.val().i8);
-        break;
-      case VALUE_I16:
-        *value = builder.AllocConstant(lex.val().i16);
-        break;
-      case VALUE_I32:
-        *value = builder.AllocConstant(lex.val().i32);
-        break;
-      case VALUE_I64:
-        *value = builder.AllocConstant(lex.val().i64);
-        break;
-      case VALUE_F32: {
-        *value = builder.AllocConstant(lex.val().f32);
+      case VALUE_I8: {
+        uint8_t v = static_cast<uint8_t>(lex.val().i);
+        *value = builder.AllocConstant(v);
       } break;
-      case VALUE_F64:
-        *value = builder.AllocConstant(lex.val().f64);
-        break;
+      case VALUE_I16: {
+        uint16_t v = static_cast<uint16_t>(lex.val().i);
+        *value = builder.AllocConstant(v);
+      } break;
+      case VALUE_I32: {
+        uint32_t v = static_cast<uint32_t>(lex.val().i);
+        *value = builder.AllocConstant(v);
+      } break;
+      case VALUE_I64: {
+        uint64_t v = static_cast<uint64_t>(lex.val().i);
+        *value = builder.AllocConstant(v);
+      } break;
+      case VALUE_F32: {
+        uint32_t v = static_cast<uint32_t>(lex.val().i);
+        *value = builder.AllocConstant(*reinterpret_cast<float *>(&v));
+      } break;
+      case VALUE_F64: {
+        uint64_t v = static_cast<uint64_t>(lex.val().i);
+        *value = builder.AllocConstant(*reinterpret_cast<double *>(&v));
+      } break;
     }
   } else {
     return false;
