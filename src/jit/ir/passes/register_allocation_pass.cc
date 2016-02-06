@@ -302,6 +302,7 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
         "Register being spilled has no next use, why wasn't it expired?");
   CHECK(prev_ref,
         "Register being spilled has no prev use, why is it already live?");
+  CHECK_LT(GetOrdinal(prev_ref->instr()), GetOrdinal(next_ref->instr()));
 
   // allocate a place on the stack to spill the value
   Local *local = builder.AllocLocal(interval->value->type());

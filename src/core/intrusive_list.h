@@ -237,11 +237,12 @@ class IntrusiveList {
 
           // move merged node to tail
           if (!tail) {
-            head = tail = next;
+            head = next;
           } else {
             tail->next_ = next;
-            tail = tail->next_;
           }
+          next->prev_ = tail;
+          tail = next;
         }
 
         p = q;
