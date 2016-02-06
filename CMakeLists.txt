@@ -191,7 +191,7 @@ endif()
 source_group_by_dir(REDREAM_SOURCES)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(REDREAM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-parameter -Wno-strict-aliasing)
+  set(REDREAM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-parameter)
 
   string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 
