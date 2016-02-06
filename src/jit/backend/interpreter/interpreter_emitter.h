@@ -3,7 +3,7 @@
 
 #include "jit/ir/ir_builder.h"
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace backend {
 namespace interpreter {

@@ -1,8 +1,8 @@
 #include "emu/profiler.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 
-using namespace dvm::jit::ir;
-using namespace dvm::jit::ir::passes;
+using namespace re::jit::ir;
+using namespace re::jit::ir::passes;
 
 LoadStoreEliminationPass::LoadStoreEliminationPass()
     : available_(nullptr), num_available_(0) {}

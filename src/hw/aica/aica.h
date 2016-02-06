@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-namespace dvm {
+namespace re {
 namespace hw {
 struct Dreamcast;
 

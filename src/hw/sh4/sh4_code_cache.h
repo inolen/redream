@@ -6,7 +6,7 @@
 #include "jit/ir/passes/pass_runner.h"
 #include "sys/exception_handler.h"
 
-namespace dvm {
+namespace re {
 namespace hw {
 
 class Memory;

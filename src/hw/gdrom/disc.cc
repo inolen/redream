@@ -3,9 +3,9 @@
 
 #define PREGAP_SIZE 150
 
-using namespace dvm;
-using namespace dvm::hw::gdrom;
-using namespace dvm::sys;
+using namespace re;
+using namespace re::hw::gdrom;
+using namespace re::sys;
 
 //
 // GDI format

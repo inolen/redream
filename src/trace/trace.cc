@@ -3,12 +3,12 @@
 #include "sys/filesystem.h"
 #include "trace/trace.h"
 
-using namespace dvm;
-using namespace dvm::hw::holly;
-using namespace dvm::sys;
-using namespace dvm::trace;
+using namespace re;
+using namespace re::hw::holly;
+using namespace re::sys;
+using namespace re::trace;
 
-void dvm::trace::GetNextTraceFilename(char *filename, size_t size) {
+void re::trace::GetNextTraceFilename(char *filename, size_t size) {
   const char *appdir = GetAppDir();
 
   for (int i = 0; i < INT_MAX; i++) {

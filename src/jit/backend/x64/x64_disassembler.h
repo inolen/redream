@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace backend {
 namespace x64 {

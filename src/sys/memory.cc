@@ -1,7 +1,7 @@
 #include "core/math.h"
 #include "sys/memory.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 static ExceptionHandlerHandle exc_handler;
@@ -46,9 +46,9 @@ WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
                                 void *ctx, void *data) {
   // page align the range to be watched
   size_t page_size = GetPageSize();
-  ptr = reinterpret_cast<void *>(dvm::align(reinterpret_cast<uintptr_t>(ptr),
-                                            static_cast<uintptr_t>(page_size)));
-  size = dvm::align(size, page_size);
+  ptr = reinterpret_cast<void *>(re::align(reinterpret_cast<uintptr_t>(ptr),
+                                           static_cast<uintptr_t>(page_size)));
+  size = re::align(size, page_size);
 
   // disable writing to the pages
   CHECK(ProtectPages(ptr, size, ACC_READONLY));

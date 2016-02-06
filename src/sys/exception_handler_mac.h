@@ -4,7 +4,7 @@
 #include <thread>
 #include "sys/exception_handler.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 class ExceptionHandlerMac : public ExceptionHandler {

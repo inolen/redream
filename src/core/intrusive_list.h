@@ -6,7 +6,7 @@
 #include <type_traits>
 #include "core/assert.h"
 
-namespace dvm {
+namespace re {
 
 // Objects are directly stored in the instrusive container, not copies. Due to
 // this, the lifetime of the object is not bound to the container. It's up to

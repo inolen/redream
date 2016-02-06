@@ -3,8 +3,8 @@
 #include "emu/profiler.h"
 #include "jit/ir/passes/constant_propagation_pass.h"
 
-using namespace dvm::jit::ir;
-using namespace dvm::jit::ir::passes;
+using namespace re::jit::ir;
+using namespace re::jit::ir::passes;
 
 typedef void (*FoldFn)(IRBuilder &, Block *, Instr *i);
 

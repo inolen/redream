@@ -1,12 +1,12 @@
-#ifndef DREAVM_STRING_H
-#define DREAVM_STRING_H
+#ifndef REDREAM_STRING_H
+#define REDREAM_STRING_H
 
 #include <ctype.h>
 #include <stdio.h>
 #include <strings.h>
 #include "core/config.h"
 
-namespace dvm {
+namespace re {
 
 #ifndef HAVE_STRCASECMP
 #define strcasecmp stricmp

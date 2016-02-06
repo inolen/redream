@@ -3,7 +3,7 @@
 
 #include <map>
 
-namespace dvm {
+namespace re {
 namespace jit {
 
 class SourceMap {

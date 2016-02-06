@@ -6,12 +6,12 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 
-using namespace dvm;
-using namespace dvm::emu;
-using namespace dvm::hw;
-using namespace dvm::hw::sh4;
-using namespace dvm::jit;
-using namespace dvm::jit::frontend::sh4;
+using namespace re;
+using namespace re::emu;
+using namespace re::hw;
+using namespace re::hw::sh4;
+using namespace re::jit;
+using namespace re::jit::frontend::sh4;
 
 static InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
@@ -298,7 +298,7 @@ T SH4::ReadCache(void *ctx, uint32_t addr) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx);
   CHECK_EQ(self->CCR.ORA, 1u);
   addr = CACHE_OFFSET(addr, self->CCR.OIX);
-  return dvm::load<T>(&self->cache_[addr]);
+  return re::load<T>(&self->cache_[addr]);
 }
 
 template void SH4::WriteCache(void *ctx, uint32_t addr, uint8_t value);
@@ -310,7 +310,7 @@ void SH4::WriteCache(void *ctx, uint32_t addr, T value) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx);
   CHECK_EQ(self->CCR.ORA, 1u);
   addr = CACHE_OFFSET(addr, self->CCR.OIX);
-  dvm::store(&self->cache_[addr], value);
+  re::store(&self->cache_[addr], value);
 }
 
 template uint8_t SH4::ReadSQ(void *ctx, uint32_t addr);
@@ -449,7 +449,7 @@ void SH4::ReprioritizeInterrupts() {
       // get current priority for interrupt
       int priority = int_info.default_priority;
       if (int_info.ipr) {
-        uint16_t v = dvm::load<uint16_t>(&area7_[int_info.ipr]);
+        uint16_t v = re::load<uint16_t>(&area7_[int_info.ipr]);
         priority = (v >> int_info.ipr_shift) & 0xf;
       }
 
@@ -488,7 +488,7 @@ inline void SH4::CheckPendingInterrupts() {
   }
 
   // process the highest priority in the pending vector
-  int n = 63 - dvm::clz(pending_interrupts_);
+  int n = 63 - re::clz(pending_interrupts_);
   Interrupt intr = sorted_interrupts_[n];
   InterruptInfo &int_info = interrupts[intr];
 

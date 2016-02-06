@@ -13,7 +13,7 @@ endif()
 
 # enable both ASM and ASM_MASM. cmake will ignore whichever one isn't supported
 # by the current platform
-project(dreavm C CXX ASM ASM_MASM)
+project(redream C CXX ASM ASM_MASM)
 
 # export compile_commands.json for clang-tidy
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -25,7 +25,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 check_function_exists(strcasecmp HAVE_STRCASECMP)
 check_function_exists(strnstr HAVE_STRNSTR)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/core/config.h)
-list(APPEND DREAVM_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/src)
+list(APPEND REDREAM_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/src)
 
 #--------------------------------------------------
 # dynamic libs
@@ -33,8 +33,8 @@ list(APPEND DREAVM_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/src)
 
 # opengl
 find_package(OpenGL REQUIRED)
-list(APPEND DREAVM_INCLUDE_DIRS ${OPENGL_INCLUDE_DIR})
-list(APPEND DREAVM_LIBS ${OPENGL_LIBRARIES})
+list(APPEND REDREAM_INCLUDE_DIRS ${OPENGL_INCLUDE_DIR})
+list(APPEND REDREAM_LIBS ${OPENGL_LIBRARIES})
 
 
 #--------------------------------------------------
@@ -56,39 +56,39 @@ if(APPLE)
   set(SDL_FRAMEWORK_CARBON 1)
 endif()
 add_subdirectory(deps/sdl2-2.0.3 EXCLUDE_FROM_ALL)
-list(APPEND DREAVM_INCLUDE_DIRS deps/sdl2-2.0.3/include)
-list(APPEND DREAVM_LIBS SDL2main SDL2-static)
+list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.3/include)
+list(APPEND REDREAM_LIBS SDL2main SDL2-static)
 
 # eigen
-list(APPEND DREAVM_DEFS EIGEN_DEFAULT_TO_ROW_MAJOR)
-list(APPEND DREAVM_INCLUDE_DIRS deps/eigen-3.2.1)
+list(APPEND REDREAM_DEFS EIGEN_DEFAULT_TO_ROW_MAJOR)
+list(APPEND REDREAM_INCLUDE_DIRS deps/eigen-3.2.1)
 
 # gflags
 set(GFLAGS_NAMESPACE "google" CACHE STRING "")
 add_subdirectory(deps/gflags-2.1.2 EXCLUDE_FROM_ALL)
-list(APPEND DREAVM_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/deps/gflags-2.1.2/include)
-list(APPEND DREAVM_LIBS gflags_nothreads-static)
+list(APPEND REDREAM_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/deps/gflags-2.1.2/include)
+list(APPEND REDREAM_LIBS gflags_nothreads-static)
 
 # glew
 set(BUILD_UTILS OFF CACHE BOOL "")
 add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
-list(APPEND DREAVM_INCLUDE_DIRS deps/glew-1.13.0/include)
-list(APPEND DREAVM_LIBS glew_s)
+list(APPEND REDREAM_INCLUDE_DIRS deps/glew-1.13.0/include)
+list(APPEND REDREAM_LIBS glew_s)
 
 # json11
 add_library(json11 STATIC deps/json11/json11.cpp)
-list(APPEND DREAVM_INCLUDE_DIRS deps/json11)
-list(APPEND DREAVM_LIBS json11)
+list(APPEND REDREAM_INCLUDE_DIRS deps/json11)
+list(APPEND REDREAM_LIBS json11)
 target_compile_options(json11 PRIVATE -std=c++11)
 
 # microprofile
-list(APPEND DREAVM_INCLUDE_DIRS deps/microprofile)
+list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
 
 # stb_truetype
-list(APPEND DREAVM_INCLUDE_DIRS deps/stb_truetype-1.0.5)
+list(APPEND REDREAM_INCLUDE_DIRS deps/stb_truetype-1.0.5)
 
 # xbyak
-list(APPEND DREAVM_INCLUDE_DIRS deps/xbyak-4.85)
+list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.85)
 
 
 #--------------------------------------------------
@@ -115,7 +115,7 @@ add_custom_target(tidy ${CLANG_TIDY_EXECUTABLE} -p=${CMAKE_CURRENT_BINARY_DIR}/c
 # emulator
 #--------------------------------------------------
 
-set(DREAVM_SOURCES
+set(REDREAM_SOURCES
   src/core/assert.cc
   src/core/log.cc
   src/core/string.cc
@@ -167,54 +167,54 @@ set(DREAVM_SOURCES
   src/main.cc)
 
 if(WIN32)
-  list(APPEND DREAVM_DEFS PLATFORM_WINDOWS=1)
-  list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_win.asm)
-  list(APPEND DREAVM_SOURCES src/sys/exception_handler_win.cc)
-  list(APPEND DREAVM_SOURCES src/sys/filesystem_win.cc)
-  list(APPEND DREAVM_SOURCES src/sys/memory_win.cc)
+  list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
+  list(APPEND REDREAM_SOURCES src/jit/backend/x64/x64_thunks_win.asm)
+  list(APPEND REDREAM_SOURCES src/sys/exception_handler_win.cc)
+  list(APPEND REDREAM_SOURCES src/sys/filesystem_win.cc)
+  list(APPEND REDREAM_SOURCES src/sys/memory_win.cc)
 elseif(APPLE)
-  list(APPEND DREAVM_DEFS PLATFORM_DARWIN=1)
-  list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_posix.s)
-  list(APPEND DREAVM_SOURCES src/sys/exception_handler_mac.cc)
-  list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
-  list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
+  list(APPEND REDREAM_DEFS PLATFORM_DARWIN=1)
+  list(APPEND REDREAM_SOURCES src/jit/backend/x64/x64_thunks_posix.s)
+  list(APPEND REDREAM_SOURCES src/sys/exception_handler_mac.cc)
+  list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.cc)
+  list(APPEND REDREAM_SOURCES src/sys/memory_posix.cc)
 else()
-  list(APPEND DREAVM_DEFS PLATFORM_LINUX=1)
-  list(APPEND DREAVM_SOURCES src/jit/backend/x64/x64_thunks_posix.s)
-  list(APPEND DREAVM_SOURCES src/sys/exception_handler_linux.cc)
-  list(APPEND DREAVM_SOURCES src/sys/filesystem_posix.cc)
-  list(APPEND DREAVM_SOURCES src/sys/memory_posix.cc)
+  list(APPEND REDREAM_DEFS PLATFORM_LINUX=1)
+  list(APPEND REDREAM_SOURCES src/jit/backend/x64/x64_thunks_posix.s)
+  list(APPEND REDREAM_SOURCES src/sys/exception_handler_linux.cc)
+  list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.cc)
+  list(APPEND REDREAM_SOURCES src/sys/memory_posix.cc)
 endif()
 
 
 # assign source groups for visual studio projects
-source_group_by_dir(DREAVM_SOURCES)
+source_group_by_dir(REDREAM_SOURCES)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(DREAVM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-parameter -Wno-strict-aliasing)
+  set(REDREAM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-parameter -Wno-strict-aliasing)
 
   string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 
   if(BUILD_TYPE STREQUAL "debug")
-    set(DREAVM_COMPILE_FLAGS ${DREAVM_COMPILE_FLAGS} -fno-omit-frame-pointer)
+    set(REDREAM_COMPILE_FLAGS ${REDREAM_COMPILE_FLAGS} -fno-omit-frame-pointer)
   endif()
 
   # used by shm_open / shm_unlink on linux
   if(NOT WIN32 AND NOT APPLE)
-    list(APPEND DREAVM_LIBS rt)
+    list(APPEND REDREAM_LIBS rt)
   endif()
 else()
-  set(DREAVM_COMPILE_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /bigobj /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+  set(REDREAM_COMPILE_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /bigobj /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 
-  list(APPEND DREAVM_LIBS userenv ws2_32)
+  list(APPEND REDREAM_LIBS userenv ws2_32)
 endif()
 
-add_executable(dreavm ${DREAVM_SOURCES})
-target_include_directories(dreavm SYSTEM PUBLIC ${DREAVM_INCLUDE_DIRS})
-target_include_directories(dreavm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(dreavm ${DREAVM_LIBS})
-target_compile_definitions(dreavm PRIVATE ${DREAVM_DEFS})
-target_compile_options(dreavm PRIVATE ${DREAVM_COMPILE_FLAGS})
+add_executable(redream ${REDREAM_SOURCES})
+target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(redream ${REDREAM_LIBS})
+target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
+target_compile_options(redream PRIVATE ${REDREAM_COMPILE_FLAGS})
 
 
 #--------------------------------------------------
@@ -323,21 +323,21 @@ else()
 endif()
 
 # build test binary
-set(DREAVM_TEST_SOURCES
-  ${DREAVM_SOURCES}
+set(REDREAM_TEST_SOURCES
+  ${REDREAM_SOURCES}
   test/test_interval_tree.cc
   test/test_intrusive_list.cc
   test/test_load_store_elimination_pass.cc
   test/test_ring_buffer.cc
   test/test_sh4.cc
   ${asm_inc})
-list(REMOVE_ITEM DREAVM_TEST_SOURCES src/main.cc)
+list(REMOVE_ITEM REDREAM_TEST_SOURCES src/main.cc)
 
 # assign source groups for visual studio projects
-source_group_by_dir(DREAVM_TEST_SOURCES)
+source_group_by_dir(REDREAM_TEST_SOURCES)
 
-add_executable(dreavm_test ${DREAVM_TEST_SOURCES})
-target_include_directories(dreavm_test PUBLIC deps/gtest-1.7.0/include src/ test/ ${DREAVM_INCLUDE_DIRS})
-target_link_libraries(dreavm_test gtest gtest_main ${DREAVM_LIBS})
-target_compile_definitions(dreavm_test PRIVATE DREAVM_TEST=1 ${DREAVM_DEFS})
-target_compile_options(dreavm_test PRIVATE ${DREAVM_COMPILE_FLAGS})
+add_executable(redream_test ${REDREAM_TEST_SOURCES})
+target_include_directories(redream_test PUBLIC deps/gtest-1.7.0/include src/ test/ ${REDREAM_INCLUDE_DIRS})
+target_link_libraries(redream_test gtest gtest_main ${REDREAM_LIBS})
+target_compile_definitions(redream_test PRIVATE REDREAM_TEST=1 ${REDREAM_DEFS})
+target_compile_options(redream_test PRIVATE ${REDREAM_COMPILE_FLAGS})

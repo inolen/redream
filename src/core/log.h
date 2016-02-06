@@ -1,5 +1,5 @@
-#ifndef DREAVM_LOG_H
-#define DREAVM_LOG_H
+#ifndef REDREAM_LOG_H
+#define REDREAM_LOG_H
 
 #include <stdlib.h>
 

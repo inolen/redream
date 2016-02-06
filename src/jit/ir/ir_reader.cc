@@ -1,9 +1,9 @@
 #include "core/string.h"
 #include "jit/ir/ir_reader.h"
 
-using namespace dvm;
-using namespace dvm::jit;
-using namespace dvm::jit::ir;
+using namespace re;
+using namespace re::jit;
+using namespace re::jit::ir;
 
 struct IRType {
   const char *name;

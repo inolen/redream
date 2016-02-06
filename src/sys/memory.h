@@ -4,7 +4,7 @@
 #include "core/interval_tree.h"
 #include "sys/exception_handler.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 //

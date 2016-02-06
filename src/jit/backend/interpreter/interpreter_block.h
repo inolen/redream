@@ -1,7 +1,7 @@
 #ifndef INTERPRETER_BLOCK_H
 #define INTERPRETER_BLOCK_H
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace backend {
 namespace interpreter {

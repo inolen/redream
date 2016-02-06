@@ -1,9 +1,9 @@
 #include "emu/profiler.h"
 #include "jit/ir/passes/register_allocation_pass.h"
 
-using namespace dvm::jit::backend;
-using namespace dvm::jit::ir;
-using namespace dvm::jit::ir::passes;
+using namespace re::jit::backend;
+using namespace re::jit::ir;
+using namespace re::jit::ir::passes;
 
 static inline int GetOrdinal(const Instr *i) { return (int)i->tag(); }
 

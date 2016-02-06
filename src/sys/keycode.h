@@ -1,7 +1,7 @@
 #ifndef KEYS_H
 #define KEYS_H
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 enum Keycode {

@@ -6,7 +6,7 @@
 #include "jit/frontend/sh4/sh4_disassembler.h"
 #include "jit/ir/ir_builder.h"
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace frontend {
 namespace sh4 {

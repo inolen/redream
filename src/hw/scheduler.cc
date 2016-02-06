@@ -1,7 +1,7 @@
 #include "core/assert.h"
 #include "hw/scheduler.h"
 
-using namespace dvm::hw;
+using namespace re::hw;
 
 Scheduler::Scheduler()
     : base_time_(), timers_(), num_timers_(0), next_handle_(0) {}

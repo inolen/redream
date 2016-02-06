@@ -13,9 +13,9 @@
 #include <string>
 #include "emu/profiler.h"
 
-using namespace dvm::emu;
-using namespace dvm::renderer;
-using namespace dvm::sys;
+using namespace re::emu;
+using namespace re::renderer;
+using namespace re::sys;
 
 static Backend *current_backend = nullptr;
 

@@ -2,7 +2,7 @@
 #include "core/arena.h"
 #include "core/intrusive_list.h"
 
-using namespace dvm;
+using namespace re;
 
 struct Person : public IntrusiveListNode<Person> {
   Person(const char *name) : name(name) {}

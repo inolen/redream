@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "sys/exception_handler_win.h"
 
-using namespace dvm::sys;
+using namespace re::sys;
 
 static void CopyStateTo(PCONTEXT src, ThreadState *dst) {
   dst->rax = src->Rax;

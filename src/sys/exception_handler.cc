@@ -2,7 +2,7 @@
 #include "emu/profiler.h"
 #include "sys/exception_handler.h"
 
-using namespace dvm::sys;
+using namespace re::sys;
 
 ExceptionHandler::ExceptionHandler() : next_handle_(0) {}
 

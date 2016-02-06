@@ -6,7 +6,7 @@
 #include "core/string.h"
 #include "sys/filesystem.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 const char *GetAppDir() {
@@ -23,7 +23,7 @@ const char *GetAppDir() {
   }
 
   // setup our own subdirectory inside of it
-  snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR ".dreavm", userdir);
+  snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR ".redream", userdir);
 
   return appdir;
 }

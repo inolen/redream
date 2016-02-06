@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include "core/assert.h"
 
-namespace dvm {
+namespace re {
 
 class Arena {
   struct Chunk {

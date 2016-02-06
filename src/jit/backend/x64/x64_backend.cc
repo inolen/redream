@@ -7,13 +7,13 @@
 #include "jit/backend/x64/x64_disassembler.h"
 #include "sys/exception_handler.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::jit;
-using namespace dvm::jit::backend;
-using namespace dvm::jit::backend::x64;
-using namespace dvm::jit::ir;
-using namespace dvm::sys;
+using namespace re;
+using namespace re::hw;
+using namespace re::jit;
+using namespace re::jit::backend;
+using namespace re::jit::backend::x64;
+using namespace re::jit::ir;
+using namespace re::sys;
 
 extern "C" void load_thunk_rax();
 extern "C" void load_thunk_rcx();
@@ -33,7 +33,7 @@ extern "C" void load_thunk_r14();
 extern "C" void load_thunk_r15();
 extern "C" void store_thunk();
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace backend {
 namespace x64 {
@@ -174,18 +174,18 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
   // push the original argument registers and the return address (the next
   // instruction after the current mov) to the stack
   ex.thread_state.rsp -= STACK_SHADOW_SPACE + 24 + 8;
-  dvm::store(
+  re::store(
       reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE),
       ex.thread_state.r[x64_arg2_idx]);
-  dvm::store(
+  re::store(
       reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 8),
       ex.thread_state.r[x64_arg1_idx]);
-  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
-                                         STACK_SHADOW_SPACE + 16),
-             ex.thread_state.r[x64_arg0_idx]);
-  dvm::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
-                                         STACK_SHADOW_SPACE + 24),
-             ex.thread_state.rip + mov.length);
+  re::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
+                                        STACK_SHADOW_SPACE + 16),
+            ex.thread_state.r[x64_arg0_idx]);
+  re::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
+                                        STACK_SHADOW_SPACE + 24),
+            ex.thread_state.rip + mov.length);
 
   if (mov.is_load) {
     // prep argument registers (memory object, guest_addr) for read function

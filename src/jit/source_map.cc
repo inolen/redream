@@ -1,7 +1,7 @@
 #include "jit/source_map.h"
 
-using namespace dvm;
-using namespace dvm::jit;
+using namespace re;
+using namespace re::jit;
 
 void SourceMap::AddBlockAddress(uintptr_t host_addr, uint32_t guest_addr) {
   block_addresses_.insert(std::make_pair(host_addr, guest_addr));

@@ -7,7 +7,7 @@
 #include "sys/window.h"
 #include "trace/trace.h"
 
-namespace dvm {
+namespace re {
 namespace trace {
 
 struct TextureInst {

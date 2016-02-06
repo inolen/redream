@@ -3,10 +3,10 @@
 #include "jit/ir/ir_builder.h"
 #include "jit/ir/ir_writer.h"
 
-using namespace dvm::jit;
-using namespace dvm::jit::ir;
+using namespace re::jit;
+using namespace re::jit::ir;
 
-const char *dvm::jit::ir::Opnames[NUM_OPCODES] = {
+const char *re::jit::ir::Opnames[NUM_OPCODES] = {
 #define IR_OP(name) #name,
 #include "jit/ir/ir_ops.inc"
 };
@@ -33,9 +33,9 @@ uint64_t Value::GetZExtValue() const {
     case VALUE_I64:
       return static_cast<uint64_t>(i64_);
     case VALUE_F32:
-      return dvm::load<uint32_t>(&f32_);
+      return re::load<uint32_t>(&f32_);
     case VALUE_F64:
-      return dvm::load<uint64_t>(&f64_);
+      return re::load<uint64_t>(&f64_);
   }
   return 0;
 }

@@ -5,9 +5,9 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 
-using namespace dvm;
-using namespace dvm::renderer;
-using namespace dvm::sys;
+using namespace re;
+using namespace re::renderer;
+using namespace re::sys;
 
 #include "inconsolata_ttf.inc"
 #include "renderer/ta.glsl"

@@ -1,7 +1,7 @@
 #include "core/string.h"
 #include "sys/keycode.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 struct Key {

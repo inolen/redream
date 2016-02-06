@@ -2,7 +2,7 @@
 #include "core/log.h"
 #include "sys/exception_handler_mac.h"
 
-using namespace dvm::sys;
+using namespace re::sys;
 
 // POSIX signal handlers, for whatever reason, don't seem to be invoked for
 // segmentation faults on OSX when running the application under lldb / gdb.

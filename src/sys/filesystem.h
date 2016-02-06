@@ -18,7 +18,7 @@
 
 #endif
 
-namespace dvm {
+namespace re {
 namespace sys {
 
 bool GetUserDir(char *userdir, size_t size);

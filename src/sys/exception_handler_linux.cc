@@ -1,7 +1,7 @@
 #include <signal.h>
 #include "sys/exception_handler_linux.h"
 
-using namespace dvm::sys;
+using namespace re::sys;
 
 static struct sigaction old_sigsegv;
 static struct sigaction old_sigill;

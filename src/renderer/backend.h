@@ -3,7 +3,7 @@
 
 #include <Eigen/Dense>
 
-namespace dvm {
+namespace re {
 namespace renderer {
 
 typedef int TextureHandle;

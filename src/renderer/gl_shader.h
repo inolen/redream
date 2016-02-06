@@ -3,7 +3,7 @@
 
 #include <GL/glew.h>
 
-namespace dvm {
+namespace re {
 namespace renderer {
 
 enum UniformAttr {

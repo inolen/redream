@@ -6,7 +6,7 @@
 #include "jit/ir/ir_builder.h"
 #include "jit/source_map.h"
 
-namespace dvm {
+namespace re {
 namespace sys {
 struct Exception;
 }

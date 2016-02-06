@@ -10,15 +10,15 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::hw::sh4;
-using namespace dvm::jit;
-using namespace dvm::jit::frontend::sh4;
+using namespace re;
+using namespace re::hw;
+using namespace re::hw::sh4;
+using namespace re::jit;
+using namespace re::jit::frontend::sh4;
 
 DECLARE_bool(interpreter);
 
-void dvm::hw::sh4::RunSH4Test(const SH4Test &test);
+void re::hw::sh4::RunSH4Test(const SH4Test &test);
 
 enum {
   UNINITIALIZED_REG = 0xbaadf00d,
@@ -149,7 +149,7 @@ int sh4_num_test_regs =
 #undef TEST_SH4
 // clang-format on
 
-namespace dvm {
+namespace re {
 namespace hw {
 namespace sh4 {
 
@@ -158,7 +158,7 @@ void RunSH4Test(const SH4Test &test) {
   static const uint32_t stack_size = PAGE_BLKSIZE;
   static const uint32_t code_address = 0x8c010000;
   const uint32_t code_size =
-      dvm::align(test.buffer_size, static_cast<uint32_t>(PAGE_BLKSIZE));
+      re::align(test.buffer_size, static_cast<uint32_t>(PAGE_BLKSIZE));
 
   // setup stack and executable space in memory map
   Memory memory;
@@ -187,14 +187,14 @@ void RunSH4Test(const SH4Test &test) {
   for (int i = 0; i < sh4_num_test_regs; i++) {
     SH4TestRegister &reg = sh4_test_regs[i];
 
-    uint32_t input = dvm::load<uint32_t>(
+    uint32_t input = re::load<uint32_t>(
         reinterpret_cast<const uint8_t *>(&test.in) + reg.offset);
 
     if (input == UNINITIALIZED_REG) {
       continue;
     }
 
-    dvm::store(reinterpret_cast<uint8_t *>(&sh4.ctx_) + reg.offset, input);
+    re::store(reinterpret_cast<uint8_t *>(&sh4.ctx_) + reg.offset, input);
   }
 
   // setup initial stack pointer
@@ -215,14 +215,14 @@ void RunSH4Test(const SH4Test &test) {
   for (int i = 0; i < sh4_num_test_regs; i++) {
     SH4TestRegister &reg = sh4_test_regs[i];
 
-    uint32_t expected = dvm::load<uint32_t>(
+    uint32_t expected = re::load<uint32_t>(
         reinterpret_cast<const uint8_t *>(&test.out) + reg.offset);
 
     if (expected == UNINITIALIZED_REG) {
       continue;
     }
 
-    uint32_t actual = dvm::load<uint32_t>(
+    uint32_t actual = re::load<uint32_t>(
         reinterpret_cast<const uint8_t *>(&sh4.ctx_) + reg.offset);
 
     ASSERT_EQ(expected, actual) << reg.name << " expected: 0x" << std::hex

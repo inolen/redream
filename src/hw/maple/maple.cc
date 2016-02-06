@@ -3,12 +3,12 @@
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::hw::holly;
-using namespace dvm::hw::maple;
-using namespace dvm::hw::sh4;
-using namespace dvm::sys;
+using namespace re;
+using namespace re::hw;
+using namespace re::hw::holly;
+using namespace re::hw::maple;
+using namespace re::hw::sh4;
+using namespace re::sys;
 
 Maple::Maple(Dreamcast *dc) : dc_(dc), devices_() {
   // default controller device

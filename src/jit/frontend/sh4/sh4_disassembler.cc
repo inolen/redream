@@ -3,9 +3,9 @@
 #include "hw/memory.h"
 #include "jit/frontend/sh4/sh4_disassembler.h"
 
-using namespace dvm;
+using namespace re;
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace frontend {
 namespace sh4 {
@@ -104,7 +104,7 @@ void Dump(const void *data, size_t size, uint32_t base) {
   for (size_t i = 0; i < size; i += 2) {
     instr.addr = base + i;
     instr.opcode =
-        dvm::load<uint16_t>(reinterpret_cast<const uint8_t *>(data) + i);
+        re::load<uint16_t>(reinterpret_cast<const uint8_t *>(data) + i);
 
     if (!Disasm(&instr)) {
       snprintf(buffer, sizeof(buffer), "%08x  .word 0x%04x", instr.addr,

@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include "jit/ir/ir_builder.h"
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace ir {
 

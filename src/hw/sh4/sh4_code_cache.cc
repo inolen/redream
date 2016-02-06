@@ -10,16 +10,16 @@
 #include "jit/ir/passes/register_allocation_pass.h"
 #include "jit/ir/passes/validate_pass.h"
 
-using namespace dvm::hw;
-using namespace dvm::jit;
-using namespace dvm::jit::backend;
-using namespace dvm::jit::backend::interpreter;
-using namespace dvm::jit::backend::x64;
-using namespace dvm::jit::frontend;
-using namespace dvm::jit::frontend::sh4;
-using namespace dvm::jit::ir;
-using namespace dvm::jit::ir::passes;
-using namespace dvm::sys;
+using namespace re::hw;
+using namespace re::jit;
+using namespace re::jit::backend;
+using namespace re::jit::backend::interpreter;
+using namespace re::jit::backend::x64;
+using namespace re::jit::frontend;
+using namespace re::jit::frontend::sh4;
+using namespace re::jit::ir;
+using namespace re::jit::ir::passes;
+using namespace re::sys;
 
 DEFINE_bool(interpreter, false, "Use interpreter");
 

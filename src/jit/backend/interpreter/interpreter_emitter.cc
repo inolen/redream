@@ -4,11 +4,11 @@
 #include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/interpreter/interpreter_emitter.h"
 
-using namespace dvm;
-using namespace dvm::hw;
-using namespace dvm::jit;
-using namespace dvm::jit::backend::interpreter;
-using namespace dvm::jit::ir;
+using namespace re;
+using namespace re::hw;
+using namespace re::jit;
+using namespace re::jit::backend::interpreter;
+using namespace re::jit::ir;
 
 static IntFn GetCallback(Instr &ir_i);
 
@@ -259,54 +259,54 @@ template <typename T>
 static inline T GetLocal(int offset);
 template <>
 inline int8_t GetLocal(int offset) {
-  return dvm::load<int8_t>(&int_state.stack[int_state.sp + offset]);
+  return re::load<int8_t>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline int16_t GetLocal(int offset) {
-  return dvm::load<int16_t>(&int_state.stack[int_state.sp + offset]);
+  return re::load<int16_t>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline int32_t GetLocal(int offset) {
-  return dvm::load<int32_t>(&int_state.stack[int_state.sp + offset]);
+  return re::load<int32_t>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline int64_t GetLocal(int offset) {
-  return dvm::load<int64_t>(&int_state.stack[int_state.sp + offset]);
+  return re::load<int64_t>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline float GetLocal(int offset) {
-  return dvm::load<float>(&int_state.stack[int_state.sp + offset]);
+  return re::load<float>(&int_state.stack[int_state.sp + offset]);
 }
 template <>
 inline double GetLocal(int offset) {
-  return dvm::load<double>(&int_state.stack[int_state.sp + offset]);
+  return re::load<double>(&int_state.stack[int_state.sp + offset]);
 }
 
 template <typename T>
 static inline void SetLocal(int offset, T v);
 template <>
 inline void SetLocal(int offset, int8_t v) {
-  dvm::store(&int_state.stack[int_state.sp + offset], v);
+  re::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, int16_t v) {
-  dvm::store(&int_state.stack[int_state.sp + offset], v);
+  re::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, int32_t v) {
-  dvm::store(&int_state.stack[int_state.sp + offset], v);
+  re::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, int64_t v) {
-  dvm::store(&int_state.stack[int_state.sp + offset], v);
+  re::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, float v) {
-  dvm::store(&int_state.stack[int_state.sp + offset], v);
+  re::store(&int_state.stack[int_state.sp + offset], v);
 }
 template <>
 inline void SetLocal(int offset, double v) {
-  dvm::store(&int_state.stack[int_state.sp + offset], v);
+  re::store(&int_state.stack[int_state.sp + offset], v);
 }
 
 template <typename T, int ARG, int ACC>
@@ -344,33 +344,33 @@ struct helper<T, ARG, ACC_IMM> {
 //
 INT_CALLBACK(LOAD_HOST_I8) {
   uint64_t addr = LOAD_ARG0();
-  R v = dvm::load<int8_t>(reinterpret_cast<void *>(addr));
+  R v = re::load<int8_t>(reinterpret_cast<void *>(addr));
   STORE_RESULT(v);
 }
 INT_CALLBACK(LOAD_HOST_I16) {
   uint64_t addr = LOAD_ARG0();
-  R v = dvm::load<int16_t>(reinterpret_cast<void *>(addr));
+  R v = re::load<int16_t>(reinterpret_cast<void *>(addr));
   STORE_RESULT(v);
 }
 INT_CALLBACK(LOAD_HOST_I32) {
   uint64_t addr = LOAD_ARG0();
-  R v = dvm::load<int32_t>(reinterpret_cast<void *>(addr));
+  R v = re::load<int32_t>(reinterpret_cast<void *>(addr));
   STORE_RESULT(v);
 }
 INT_CALLBACK(LOAD_HOST_I64) {
   uint64_t addr = LOAD_ARG0();
-  R v = dvm::load<int64_t>(reinterpret_cast<void *>(addr));
+  R v = re::load<int64_t>(reinterpret_cast<void *>(addr));
   STORE_RESULT(v);
 }
 INT_CALLBACK(LOAD_HOST_F32) {
   uint64_t addr = LOAD_ARG0();
-  int32_t v = dvm::load<int32_t>(reinterpret_cast<void *>(addr));
-  STORE_RESULT(dvm::load<float>(&v));
+  int32_t v = re::load<int32_t>(reinterpret_cast<void *>(addr));
+  STORE_RESULT(re::load<float>(&v));
 }
 INT_CALLBACK(LOAD_HOST_F64) {
   uint64_t addr = LOAD_ARG0();
-  int64_t v = dvm::load<int64_t>(reinterpret_cast<void *>(addr));
-  STORE_RESULT(dvm::load<double>(&v));
+  int64_t v = re::load<int64_t>(reinterpret_cast<void *>(addr));
+  STORE_RESULT(re::load<double>(&v));
 }
 REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_I8, I8, I64, V);
 REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_I16, I16, I64, V);
@@ -382,32 +382,32 @@ REGISTER_INT_CALLBACK(LOAD_HOST, LOAD_HOST_F64, F64, I64, V);
 INT_CALLBACK(STORE_HOST_I8) {
   uint64_t addr = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  dvm::store(reinterpret_cast<void *>(addr), v);
+  re::store(reinterpret_cast<void *>(addr), v);
 }
 INT_CALLBACK(STORE_HOST_I16) {
   uint64_t addr = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  dvm::store(reinterpret_cast<void *>(addr), v);
+  re::store(reinterpret_cast<void *>(addr), v);
 }
 INT_CALLBACK(STORE_HOST_I32) {
   uint64_t addr = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  dvm::store(reinterpret_cast<void *>(addr), v);
+  re::store(reinterpret_cast<void *>(addr), v);
 }
 INT_CALLBACK(STORE_HOST_I64) {
   uint64_t addr = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  dvm::store(reinterpret_cast<void *>(addr), v);
+  re::store(reinterpret_cast<void *>(addr), v);
 }
 INT_CALLBACK(STORE_HOST_F32) {
   uint64_t addr = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  dvm::store(reinterpret_cast<void *>(addr), dvm::load<uint32_t>(&v));
+  re::store(reinterpret_cast<void *>(addr), re::load<uint32_t>(&v));
 }
 INT_CALLBACK(STORE_HOST_F64) {
   uint64_t addr = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  dvm::store(reinterpret_cast<void *>(addr), dvm::load<uint64_t>(&v));
+  re::store(reinterpret_cast<void *>(addr), re::load<uint64_t>(&v));
 }
 REGISTER_INT_CALLBACK(STORE_HOST, STORE_HOST_I8, V, I64, I8);
 REGISTER_INT_CALLBACK(STORE_HOST, STORE_HOST_I16, V, I64, I16);
@@ -439,12 +439,12 @@ INT_CALLBACK(LOAD_GUEST_I64) {
 INT_CALLBACK(LOAD_GUEST_F32) {
   uint32_t addr = LOAD_ARG0();
   uint32_t v = reinterpret_cast<Memory *>(i->ctx)->R32(addr);
-  STORE_RESULT(dvm::load<float>(&v));
+  STORE_RESULT(re::load<float>(&v));
 }
 INT_CALLBACK(LOAD_GUEST_F64) {
   uint32_t addr = LOAD_ARG0();
   uint64_t v = reinterpret_cast<Memory *>(i->ctx)->R64(addr);
-  STORE_RESULT(dvm::load<double>(&v));
+  STORE_RESULT(re::load<double>(&v));
 }
 REGISTER_INT_CALLBACK(LOAD_GUEST, LOAD_GUEST_I8, I8, I32, V);
 REGISTER_INT_CALLBACK(LOAD_GUEST, LOAD_GUEST_I16, I16, I32, V);
@@ -476,12 +476,12 @@ INT_CALLBACK(STORE_GUEST_I64) {
 INT_CALLBACK(STORE_GUEST_F32) {
   uint32_t addr = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)->W32(addr, dvm::load<uint32_t>(&v));
+  reinterpret_cast<Memory *>(i->ctx)->W32(addr, re::load<uint32_t>(&v));
 }
 INT_CALLBACK(STORE_GUEST_F64) {
   uint32_t addr = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  reinterpret_cast<Memory *>(i->ctx)->W64(addr, dvm::load<uint64_t>(&v));
+  reinterpret_cast<Memory *>(i->ctx)->W64(addr, re::load<uint64_t>(&v));
 }
 REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_I8, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_I16, V, I32, I16);
@@ -492,7 +492,7 @@ REGISTER_INT_CALLBACK(STORE_GUEST, STORE_GUEST_F64, V, I32, F64);
 
 INT_CALLBACK(LOAD_CONTEXT) {
   A0 offset = LOAD_ARG0();
-  R v = dvm::load<R>(reinterpret_cast<uint8_t *>(i->ctx) + offset);
+  R v = re::load<R>(reinterpret_cast<uint8_t *>(i->ctx) + offset);
   STORE_RESULT(v);
 }
 REGISTER_INT_CALLBACK(LOAD_CONTEXT, LOAD_CONTEXT, I8, I32, V);
@@ -505,7 +505,7 @@ REGISTER_INT_CALLBACK(LOAD_CONTEXT, LOAD_CONTEXT, F64, I32, V);
 INT_CALLBACK(STORE_CONTEXT) {
   A0 offset = LOAD_ARG0();
   A1 v = LOAD_ARG1();
-  dvm::store(reinterpret_cast<uint8_t *>(i->ctx) + offset, v);
+  re::store(reinterpret_cast<uint8_t *>(i->ctx) + offset, v);
 }
 REGISTER_INT_CALLBACK(STORE_CONTEXT, STORE_CONTEXT, V, I32, I8);
 REGISTER_INT_CALLBACK(STORE_CONTEXT, STORE_CONTEXT, V, I32, I16);

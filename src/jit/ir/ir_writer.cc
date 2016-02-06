@@ -1,8 +1,8 @@
 #include <iomanip>
 #include "jit/ir/ir_writer.h"
 
-using namespace dvm::jit;
-using namespace dvm::jit::ir;
+using namespace re::jit;
+using namespace re::jit::ir;
 
 void IRWriter::Print(const IRBuilder &builder, std::ostream &output) {
   slots_.clear();
@@ -91,8 +91,7 @@ void IRWriter::PrintValue(const Value *value, std::ostream &output) {
   }
 }
 
-void IRWriter::PrintInstruction(const Instr *instr,
-                                std::ostream &output) {
+void IRWriter::PrintInstruction(const Instr *instr, std::ostream &output) {
   // print result value if we have one
   if (instr->result()) {
     PrintValue(instr->result(), output);

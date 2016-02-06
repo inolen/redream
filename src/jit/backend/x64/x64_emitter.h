@@ -6,7 +6,7 @@
 #include "hw/memory.h"
 #include "jit/source_map.h"
 
-namespace dvm {
+namespace re {
 namespace jit {
 namespace backend {
 namespace x64 {
