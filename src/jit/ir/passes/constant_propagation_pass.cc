@@ -9,11 +9,15 @@ using namespace re::jit::ir::passes;
 typedef void (*FoldFn)(IRBuilder &, Block *, Instr *i);
 
 // specify which arguments must be constant in order for fold operation to run
-enum { ARG0_CNST = 0x1, ARG1_CNST = 0x2, ARG2_CNST = 0x4 };
+enum {
+  ARG0_CNST = 0x1,
+  ARG1_CNST = 0x2,
+  ARG2_CNST = 0x4,
+};
 
 // fold callbacks for each operaton
 std::unordered_map<int, FoldFn> fold_cbs;
-int fold_masks[NUM_OPCODES];
+int fold_masks[NUM_OPS];
 
 // OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
 // arg2's type always matches arg1's. because of this, arg2 isn't considered
@@ -186,8 +190,26 @@ REGISTER_FOLD(SUB, I64, I64, I64);
 REGISTER_FOLD(SUB, F32, F32, F32);
 REGISTER_FOLD(SUB, F64, F64, F64);
 
-// IR_OP(SMUL)
-// IR_OP(UMUL)
+FOLD(SMUL, ARG0_CNST | ARG1_CNST) { RESULT(ARG0() * ARG1()); }
+REGISTER_FOLD(SMUL, I8, I8, I8);
+REGISTER_FOLD(SMUL, I16, I16, I16);
+REGISTER_FOLD(SMUL, I32, I32, I32);
+REGISTER_FOLD(SMUL, I64, I64, I64);
+REGISTER_FOLD(SMUL, F32, F32, F32);
+REGISTER_FOLD(SMUL, F64, F64, F64);
+
+FOLD(UMUL, ARG0_CNST | ARG1_CNST) {
+  using U0 = typename std::make_unsigned<A0>::type;
+  using U1 = typename std::make_unsigned<A1>::type;
+  U0 lhs = static_cast<U0>(ARG0());
+  U1 rhs = static_cast<U1>(ARG1());
+  RESULT(static_cast<A0>(lhs * rhs));
+}
+REGISTER_FOLD(UMUL, I8, I8, I8);
+REGISTER_FOLD(UMUL, I16, I16, I16);
+REGISTER_FOLD(UMUL, I32, I32, I32);
+REGISTER_FOLD(UMUL, I64, I64, I64);
+
 // IR_OP(DIV)
 // IR_OP(NEG)
 // IR_OP(SQRT)

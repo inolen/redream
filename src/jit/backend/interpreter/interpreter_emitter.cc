@@ -969,7 +969,7 @@ static int GetArgAccess(Instr &ir_i, int arg) {
 }
 
 static IntFn GetCallback(Instr &ir_i) {
-  Opcode op = ir_i.op();
+  Op op = ir_i.op();
   auto it = int_cbs.find(CALLBACK_IDX(
       op, GetArgType(ir_i, 3), GetArgType(ir_i, 0), GetArgType(ir_i, 1),
       GetArgAccess(ir_i, 0), GetArgAccess(ir_i, 1), GetArgAccess(ir_i, 2)));

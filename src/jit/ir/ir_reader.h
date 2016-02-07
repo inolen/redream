@@ -49,7 +49,7 @@ class IRReader {
 
  private:
   bool ParseType(IRLexer &lex, IRBuilder &builder, ValueTy *type);
-  bool ParseOpcode(IRLexer &lex, IRBuilder &builder, Opcode *op);
+  bool ParseOp(IRLexer &lex, IRBuilder &builder, Op *op);
   bool ParseValue(IRLexer &lex, IRBuilder &builder, Value **value);
   bool ParseOperator(IRLexer &lex, IRBuilder &builder);
   bool ParseInstruction(IRLexer &lex, IRBuilder &builder);

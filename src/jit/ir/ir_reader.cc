@@ -152,13 +152,13 @@ bool IRReader::ParseType(IRLexer &lex, IRBuilder &builder, ValueTy *type) {
   return true;
 }
 
-bool IRReader::ParseOpcode(IRLexer &lex, IRBuilder &builder, Opcode *op) {
-  const char *opcode_str = lex.val().s;
+bool IRReader::ParseOp(IRLexer &lex, IRBuilder &builder, Op *op) {
+  const char *op_str = lex.val().s;
 
   // match token against opnames
   int i;
-  for (i = 0; i < NUM_OPCODES; i++) {
-    if (!strcasecmp(opcode_str, Opnames[i])) {
+  for (i = 0; i < NUM_OPS; i++) {
+    if (!strcasecmp(op_str, Opnames[i])) {
       break;
     }
   }
@@ -166,12 +166,12 @@ bool IRReader::ParseOpcode(IRLexer &lex, IRBuilder &builder, Opcode *op) {
   // eat token
   lex.Next();
 
-  if (i == NUM_OPCODES) {
-    LOG_INFO("Unexpected opcode '%s'", opcode_str);
+  if (i == NUM_OPS) {
+    LOG_INFO("Unexpected op '%s'", op_str);
     return false;
   }
 
-  *op = static_cast<Opcode>(i);
+  *op = static_cast<Op>(i);
 
   return true;
 }
@@ -263,9 +263,9 @@ bool IRReader::ParseInstruction(IRLexer &lex, IRBuilder &builder) {
     }
   }
 
-  // parse opcode
-  Opcode op;
-  if (!ParseOpcode(lex, builder, &op)) {
+  // parse op
+  Op op;
+  if (!ParseOp(lex, builder, &op)) {
     return false;
   }
 

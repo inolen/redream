@@ -259,7 +259,7 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
     offset += 12;
 
     if (tactx->bg_isp.texture) {
-      LOG_FATAL("Unhandled");
+      LOG_FATAL("Unsupported bg_isp.texture");
       // v->uv[0] = re::load<float>(&tactx->bg_vertices[offset]);
       // v->uv[1] = re::load<float>(&tactx->bg_vertices[offset + 4]);
       // offset += 8;
@@ -270,7 +270,7 @@ void TileRenderer::ParseBackground(const TileContext *tactx) {
     offset += 4;
 
     if (tactx->bg_isp.offset) {
-      LOG_FATAL("Unhandled");
+      LOG_FATAL("Unsupported bg_isp.offset");
       // uint32_t offset_color =
       // re::load<uint32_t>(&tactx->bg_vertices[offset]);
       // v->offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
@@ -386,7 +386,7 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx,
     } break;
 
     default:
-      LOG_FATAL("Unhandled");
+      LOG_FATAL("Unsupported poly type %d", poly_type);
       break;
   }
 }
@@ -517,10 +517,6 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx,
       vert->uv[1] = re::load<float>(&v);
     } break;
 
-    case 15:
-      LOG_FATAL("Unhandled");
-      break;
-
     case 16: {
       CHECK_EQ(param->sprite1.pcw.end_of_strip, 1);
 
@@ -551,9 +547,6 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx,
       ParseSpriteVert(1, AllocVert());
       ParseSpriteVert(3, AllocVert());
       ParseSpriteVert(2, AllocVert());
-    } break;
-
-    case 17: {
     } break;
 
     default:
@@ -656,7 +649,7 @@ void TileRenderer::ParseContext(const TileContext *tactx) {
         break;
 
       default:
-        LOG_FATAL("Unhandled");
+        LOG_FATAL("Unsupported parameter type %d", pcw.para_type);
         break;
     }
 
@@ -813,16 +806,6 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       CHECK(!compressed);
       output = converted;
       switch (tactx->pal_pxl_format) {
-        case TA_PAL_ARGB1555:
-          // pixel_fmt = PXL_RGBA5551;
-          LOG_FATAL("Unhandled");
-          break;
-
-        case TA_PAL_RGB565:
-          // pixel_fmt = PXL_RGB565;
-          LOG_FATAL("Unhandled");
-          break;
-
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           PixelConvert::ConvertPal4<ARGB4444, RGBA4444>(
@@ -830,9 +813,8 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
               reinterpret_cast<const uint32_t *>(palette), width, height);
           break;
 
-        case TA_PAL_ARGB8888:
-          // pixel_fmt = PXL_RGBA8888;
-          LOG_FATAL("Unhandled");
+        default:
+          LOG_FATAL("Unsupported 4bpp palette pixel format %d", tactx->pal_pxl_format);
           break;
       }
       break;
@@ -841,16 +823,6 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
       CHECK(!compressed);
       output = converted;
       switch (tactx->pal_pxl_format) {
-        case TA_PAL_ARGB1555:
-          // pixel_fmt = PXL_RGBA5551;
-          LOG_FATAL("Unhandled");
-          break;
-
-        case TA_PAL_RGB565:
-          // pixel_fmt = PXL_RGB565;
-          LOG_FATAL("Unhandled");
-          break;
-
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           PixelConvert::ConvertPal8<ARGB4444, RGBA4444>(
@@ -863,6 +835,10 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
           PixelConvert::ConvertPal8<ARGB8888, RGBA8888>(
               input, reinterpret_cast<uint32_t *>(converted),
               reinterpret_cast<const uint32_t *>(palette), width, height);
+          break;
+
+        default:
+          LOG_FATAL("Unsupported 8bpp palette pixel format %d", tactx->pal_pxl_format);
           break;
       }
       break;

@@ -43,7 +43,7 @@ void IRWriter::PrintType(ValueTy type, std::ostream &output) const {
   }
 }
 
-void IRWriter::PrintOpcode(Opcode op, std::ostream &output) const {
+void IRWriter::PrintOp(Op op, std::ostream &output) const {
   const char *name = Opnames[op];
 
   while (*name) {
@@ -98,8 +98,8 @@ void IRWriter::PrintInstruction(const Instr *instr, std::ostream &output) {
     output << " = ";
   }
 
-  // print the actual opcode
-  PrintOpcode(instr->op(), output);
+  // print the actual op
+  PrintOp(instr->op(), output);
   output << " ";
 
   // print each argument

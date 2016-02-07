@@ -21,7 +21,7 @@ const Xbyak::Reg64 tmp1(x64_tmp1_idx);
 // callbacks for emitting each IR op
 typedef void (*X64Emit)(X64Emitter &, const Instr *);
 
-static X64Emit x64_emitters[NUM_OPCODES];
+static X64Emit x64_emitters[NUM_OPS];
 
 #define EMITTER(op)                                     \
   void op(X64Emitter &, const Instr *);                 \

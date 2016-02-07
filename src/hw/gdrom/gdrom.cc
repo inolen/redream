@@ -332,31 +332,30 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
   status_.BSY = 1;
 
   switch (cmd) {
-    case ATA_NOP:
-      LOG_FATAL("Unhandled");
-      // Setting "abort" in the error register
-      // Setting "error" in the status register
-      // Clearing BUSY in the status register
-      // Asserting the INTRQ signal
-      TriggerEvent(EV_ATA_CMD_DONE);
-      break;
+    // case ATA_NOP:
+    //   // Setting "abort" in the error register
+    //   // Setting "error" in the status register
+    //   // Clearing BUSY in the status register
+    //   // Asserting the INTRQ signal
+    //   TriggerEvent(EV_ATA_CMD_DONE);
+    //   break;
 
     case ATA_SOFT_RESET:
       SetDisc(std::move(current_disc_));
       TriggerEvent(EV_ATA_CMD_DONE);
       break;
 
-    case ATA_EXEC_DIAG:
-      LOG_FATAL("Unhandled");
-      break;
+    // case ATA_EXEC_DIAG:
+    //   LOG_FATAL("Unhandled");
+    //   break;
 
     case ATA_PACKET:
       TriggerEvent(EV_SPI_WAIT_CMD);
       break;
 
-    case ATA_IDENTIFY_DEV:
-      LOG_FATAL("Unhandled");
-      break;
+    // case ATA_IDENTIFY_DEV:
+    //   LOG_FATAL("Unhandled");
+    //   break;
 
     case ATA_SET_FEATURES:
       // FIXME I think we're supposed to be honoring GD_SECTCNT here to control
@@ -365,7 +364,7 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
       break;
 
     default:
-      LOG_FATAL("Unhandled");
+      LOG_FATAL("Unsupported ATA command %d", cmd);
       break;
   }
 }
@@ -380,9 +379,9 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     //
     // Packet Command Flow For PIO DATA To Host
     //
-    case SPI_REQ_STAT:
-      LOG_FATAL("Unhandled");
-      break;
+    // case SPI_REQ_STAT:
+    //   LOG_FATAL("Unhandled");
+    //   break;
 
     case SPI_REQ_MODE: {
       int addr = data[2];
@@ -390,9 +389,9 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
       TriggerEvent(EV_SPI_WRITE_START, (intptr_t)&reply_11[addr >> 1], sz);
     } break;
 
-    case SPI_REQ_ERROR:
-      LOG_FATAL("Unhandled");
-      break;
+    // case SPI_REQ_ERROR:
+    //   LOG_FATAL("Unhandled");
+    //   break;
 
     case SPI_GET_TOC: {
       AreaType area_type = (AreaType)(data[1] & 0x1);
@@ -449,13 +448,13 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
                             dma_buffer_);
         dma_size_ = r;
       } else {
-        LOG_FATAL("Unhandled");
+        LOG_FATAL("Unsupported non-dma CD read");
       }
     } break;
 
-    case SPI_CD_READ2:
-      LOG_FATAL("Unhandled");
-      break;
+    // case SPI_CD_READ2:
+    //   LOG_FATAL("Unhandled");
+    //   break;
 
     //
     // Transfer Packet Command Flow For PIO Data from Host
@@ -473,13 +472,12 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
       TriggerEvent(EV_SPI_CMD_DONE);
       break;
 
-    case SPI_CD_OPEN:
-    case SPI_CD_PLAY:
-    case SPI_CD_SEEK:
-    case SPI_CD_SCAN:
-      LOG_FATAL("Unhandled");
-      TriggerEvent(EV_SPI_CMD_DONE);
-      break;
+    // case SPI_CD_OPEN:
+    // case SPI_CD_PLAY:
+    // case SPI_CD_SEEK:
+    // case SPI_CD_SCAN:
+    //   TriggerEvent(EV_SPI_CMD_DONE);
+    //   break;
 
     case SPI_UNKNOWN_70:
       TriggerEvent(EV_SPI_CMD_DONE);
@@ -490,7 +488,7 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
       break;
 
     default:
-      LOG_FATAL("Unhandled");
+      LOG_FATAL("Unsupported SPI command %d", cmd);
       break;
   }
 }
