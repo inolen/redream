@@ -6,7 +6,7 @@
 using namespace re::jit;
 using namespace re::jit::ir;
 
-const char *re::jit::ir::Opnames[NUM_OPCODES] = {
+const char *re::jit::ir::Opnames[NUM_OPS] = {
 #define IR_OP(name) #name,
 #include "jit/ir/ir_ops.inc"
 };
@@ -68,7 +68,7 @@ Local::Local(ValueTy ty, Value *offset) : type_(ty), offset_(offset) {}
 //
 // Instr
 //
-Instr::Instr(Opcode op)
+Instr::Instr(Op op)
     : block_(nullptr),
       op_(op),
       args_{{this}, {this}, {this}, {this}},
@@ -693,13 +693,13 @@ Local *IRBuilder::AllocLocal(ValueTy type) {
   return l;
 }
 
-Instr *IRBuilder::AllocInstr(Opcode op) {
+Instr *IRBuilder::AllocInstr(Op op) {
   Instr *instr = arena_.Alloc<Instr>();
   new (instr) Instr(op);
   return instr;
 }
 
-Instr *IRBuilder::AppendInstr(Opcode op) {
+Instr *IRBuilder::AppendInstr(Op op) {
   if (!current_block_) {
     current_block_ = InsertBlock(current_block_);
     current_instr_ = nullptr;

@@ -10,14 +10,14 @@ namespace re {
 namespace jit {
 namespace ir {
 
-enum Opcode {
+enum Op {
 #define IR_OP(name) OP_##name,
 #include "jit/ir/ir_ops.inc"
 #undef IR_OP
-  NUM_OPCODES
+  NUM_OPS
 };
 
-extern const char *Opnames[NUM_OPCODES];
+extern const char *Opnames[NUM_OPS];
 
 //
 // values
@@ -278,13 +278,13 @@ class Instr : public IntrusiveListNode<Instr> {
   friend class Block;
 
  public:
-  Instr(Opcode op);
+  Instr(Op op);
   ~Instr();
 
   const Block *block() const { return block_; }
   Block *block() { return block_; }
 
-  Opcode op() const { return op_; }
+  Op op() const { return op_; }
 
   const Value *arg0() const { return arg(0); }
   Value *arg0() { return arg(0); }
@@ -313,7 +313,7 @@ class Instr : public IntrusiveListNode<Instr> {
   Block *set_block(Block *block) { return block_ = block; }
 
   Block *block_;
-  Opcode op_;
+  Op op_;
   ValueRef args_[4];
   intptr_t tag_;
 };
@@ -461,8 +461,8 @@ class IRBuilder {
   Local *AllocLocal(ValueTy type);
 
  protected:
-  Instr *AllocInstr(Opcode op);
-  Instr *AppendInstr(Opcode op);
+  Instr *AllocInstr(Op op);
+  Instr *AppendInstr(Op op);
 
   Arena arena_;
   IntrusiveList<Block> blocks_;
