@@ -1,4 +1,4 @@
-# redream
+# redream (formerly dreavm)
 
 redream is a work in progress emulator for the SEGA Dreamcast.
 
