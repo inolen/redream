@@ -347,18 +347,14 @@ TileContext *TileAccelerator::GetLastContext() {
   return pending_contexts_.front();
 }
 
-void TileAccelerator::WriteCommand(void *ctx, uint32_t addr, uint32_t value) {
-  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
-
-  self->WriteContext(self->dc_->TA_ISP_BASE.base_address, value);
+void TileAccelerator::WriteCommand(uint32_t addr, uint32_t value) {
+  WriteContext(dc_->TA_ISP_BASE.base_address, value);
 }
 
-void TileAccelerator::WriteTexture(void *ctx, uint32_t addr, uint32_t value) {
-  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
-
+void TileAccelerator::WriteTexture(uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
 
-  re::store(&self->video_ram_[addr], value);
+  re::store(&video_ram_[addr], value);
 }
 
 void TileAccelerator::WritePVRState(TileContext *tactx) {

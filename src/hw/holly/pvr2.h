@@ -198,34 +198,34 @@ union TA_ISP_BASE_T {
 
 class PVR2 {
  public:
-  PVR2(hw::Dreamcast *dc);
+  PVR2(Dreamcast *dc);
 
   float rps() { return rps_; }
 
   bool Init();
 
-  static uint32_t ReadRegister(void *ctx, uint32_t addr);
-  static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+  uint32_t ReadRegister(uint32_t addr);
+  void WriteRegister(uint32_t addr, uint32_t value);
 
   template <typename T>
-  static T ReadVRamInterleaved(void *ctx, uint32_t addr);
+  T ReadVRamInterleaved(uint32_t addr);
   template <typename T>
-  static void WriteVRamInterleaved(void *ctx, uint32_t addr, T value);
+  void WriteVRamInterleaved(uint32_t addr, T value);
 
  private:
   void ReconfigureSPG();
   void NextScanline();
 
-  hw::Dreamcast *dc_;
-  hw::Scheduler *scheduler_;
-  hw::holly::Holly *holly_;
-  hw::holly::TileAccelerator *ta_;
-  hw::holly::TextureCache *texcache_;
-  hw::Register *pvr_regs_;
+  Dreamcast *dc_;
+  Scheduler *scheduler_;
+  holly::Holly *holly_;
+  holly::TileAccelerator *ta_;
+  holly::TextureCache *texcache_;
+  Register *pvr_regs_;
   uint8_t *palette_ram_;
   uint8_t *video_ram_;
 
-  hw::TimerHandle line_timer_;
+  TimerHandle line_timer_;
   uint32_t current_scanline_;
 
   std::chrono::high_resolution_clock::time_point last_render_;

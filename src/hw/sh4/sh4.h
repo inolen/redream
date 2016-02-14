@@ -110,7 +110,7 @@ class SH4 {
   friend void RunSH4Test(const SH4Test &);
 
  public:
-  SH4(hw::Dreamcast *dc);
+  SH4(Dreamcast *dc);
   ~SH4();
 
   bool Init();
@@ -125,19 +125,19 @@ class SH4 {
   void UnrequestInterrupt(Interrupt intr);
 
   template <typename T>
-  static T ReadRegister(void *ctx, uint32_t addr);
+  T ReadRegister(uint32_t addr);
   template <typename T>
-  static void WriteRegister(void *ctx, uint32_t addr, T value);
+  void WriteRegister(uint32_t addr, T value);
 
   template <typename T>
-  static T ReadCache(void *ctx, uint32_t addr);
+  T ReadCache(uint32_t addr);
   template <typename T>
-  static void WriteCache(void *ctx, uint32_t addr, T value);
+  void WriteCache(uint32_t addr, T value);
 
   template <typename T>
-  static T ReadSQ(void *ctx, uint32_t addr);
+  T ReadSQ(uint32_t addr);
   template <typename T>
-  static void WriteSQ(void *ctx, uint32_t addr, T value);
+  void WriteSQ(uint32_t addr, T value);
 
  private:
   static uint32_t CompilePC();
@@ -164,9 +164,9 @@ class SH4 {
   void ScheduleTimer(int n);
   void ExpireTimer(int n);
 
-  hw::Dreamcast *dc_;
-  hw::Memory *memory_;
-  hw::Scheduler *scheduler_;
+  Dreamcast *dc_;
+  Memory *memory_;
+  Scheduler *scheduler_;
   SH4CodeCache *code_cache_;
 
   jit::frontend::sh4::SH4Context ctx_;

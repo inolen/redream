@@ -101,7 +101,7 @@ class MapleDevice {
 
 class Maple {
  public:
-  Maple(hw::Dreamcast *dc);
+  Maple(Dreamcast *dc);
 
   bool Init();
 
@@ -109,18 +109,18 @@ class Maple {
   void VBlank();
 
   template <typename T>
-  static T ReadRegister(void *ctx, uint32_t addr);
+  T ReadRegister(uint32_t addr);
   template <typename T>
-  static void WriteRegister(void *ctx, uint32_t addr, T value);
+  void WriteRegister(uint32_t addr, T value);
 
  private:
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
   void StartDMA();
 
-  hw::Dreamcast *dc_;
-  hw::Memory *memory_;
-  hw::holly::Holly *holly_;
-  hw::Register *holly_regs_;
+  Dreamcast *dc_;
+  Memory *memory_;
+  holly::Holly *holly_;
+  Register *holly_regs_;
 
   std::unique_ptr<MapleDevice> devices_[MAX_PORTS];
 };

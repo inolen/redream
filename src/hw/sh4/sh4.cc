@@ -138,13 +138,11 @@ void SH4::UnrequestInterrupt(Interrupt intr) {
   UpdatePendingInterrupts();
 }
 
-template uint8_t SH4::ReadRegister(void *ctx, uint32_t addr);
-template uint16_t SH4::ReadRegister(void *ctx, uint32_t addr);
-template uint32_t SH4::ReadRegister(void *ctx, uint32_t addr);
+template uint8_t SH4::ReadRegister(uint32_t addr);
+template uint16_t SH4::ReadRegister(uint32_t addr);
+template uint32_t SH4::ReadRegister(uint32_t addr);
 template <typename T>
-T SH4::ReadRegister(void *ctx, uint32_t addr) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx);
-
+T SH4::ReadRegister(uint32_t addr) {
   // translate from 64mb space to our 16kb space
   addr = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2);
 
@@ -177,8 +175,8 @@ T SH4::ReadRegister(void *ctx, uint32_t addr) {
       // reg[PDTRA] = reg[PDTRA] & 0xfffd;
       // _8c00b92c(0);
       // reg[PCTRA] = old_PCTRA;
-      uint32_t pctra = self->PCTRA;
-      uint32_t pdtra = self->PDTRA;
+      uint32_t pctra = PCTRA;
+      uint32_t pdtra = PDTRA;
       uint32_t v = 0;
       if ((pctra & 0xf) == 0x8 ||
           ((pctra & 0xf) == 0xb && (pdtra & 0xf) != 0x2) ||
@@ -218,29 +216,27 @@ T SH4::ReadRegister(void *ctx, uint32_t addr) {
     }
 
     case TCNT0_OFFSET:
-      return self->TimerCount(0);
+      return TimerCount(0);
 
     case TCNT1_OFFSET:
-      return self->TimerCount(1);
+      return TimerCount(1);
 
     case TCNT2_OFFSET:
-      return self->TimerCount(2);
+      return TimerCount(2);
   }
 
-  return static_cast<T>(self->area7_[addr]);
+  return static_cast<T>(area7_[addr]);
 }
 
-template void SH4::WriteRegister(void *ctx, uint32_t addr, uint8_t value);
-template void SH4::WriteRegister(void *ctx, uint32_t addr, uint16_t value);
-template void SH4::WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+template void SH4::WriteRegister(uint32_t addr, uint8_t value);
+template void SH4::WriteRegister(uint32_t addr, uint16_t value);
+template void SH4::WriteRegister(uint32_t addr, uint32_t value);
 template <typename T>
-void SH4::WriteRegister(void *ctx, uint32_t addr, T value) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx);
-
+void SH4::WriteRegister(uint32_t addr, T value) {
   // translate from 64mb space to our 16kb space
   addr = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2);
 
-  self->area7_[addr] = static_cast<uint32_t>(value);
+  area7_[addr] = static_cast<uint32_t>(value);
 
   switch (addr) {
     case MMUCR_OFFSET: {
@@ -252,35 +248,35 @@ void SH4::WriteRegister(void *ctx, uint32_t addr, T value) {
     // it seems the only aspect of the cache control register that needs to be
     // emulated is the instruction cache invalidation
     case CCR_OFFSET: {
-      if (self->CCR.ICI) {
-        self->ResetCache();
+      if (CCR.ICI) {
+        ResetCache();
       }
     } break;
 
     case IPRA_OFFSET:
     case IPRB_OFFSET:
     case IPRC_OFFSET: {
-      self->ReprioritizeInterrupts();
+      ReprioritizeInterrupts();
     } break;
 
     // TODO UnrequestInterrupt on TCR write
 
     case TSTR_OFFSET: {
-      self->ScheduleTimer(0);
-      self->ScheduleTimer(1);
-      self->ScheduleTimer(2);
+      ScheduleTimer(0);
+      ScheduleTimer(1);
+      ScheduleTimer(2);
     } break;
 
     case TCNT0_OFFSET: {
-      self->ScheduleTimer(0);
+      ScheduleTimer(0);
     } break;
 
     case TCNT1_OFFSET: {
-      self->ScheduleTimer(1);
+      ScheduleTimer(1);
     } break;
 
     case TCNT2_OFFSET: {
-      self->ScheduleTimer(2);
+      ScheduleTimer(2);
     } break;
   }
 }
@@ -289,50 +285,46 @@ void SH4::WriteRegister(void *ctx, uint32_t addr, T value) {
 #define CACHE_OFFSET(addr, OIX) \
   ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
 
-template uint8_t SH4::ReadCache(void *ctx, uint32_t addr);
-template uint16_t SH4::ReadCache(void *ctx, uint32_t addr);
-template uint32_t SH4::ReadCache(void *ctx, uint32_t addr);
-template uint64_t SH4::ReadCache(void *ctx, uint32_t addr);
+template uint8_t SH4::ReadCache(uint32_t addr);
+template uint16_t SH4::ReadCache(uint32_t addr);
+template uint32_t SH4::ReadCache(uint32_t addr);
+template uint64_t SH4::ReadCache(uint32_t addr);
 template <typename T>
-T SH4::ReadCache(void *ctx, uint32_t addr) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx);
-  CHECK_EQ(self->CCR.ORA, 1u);
-  addr = CACHE_OFFSET(addr, self->CCR.OIX);
-  return re::load<T>(&self->cache_[addr]);
+T SH4::ReadCache(uint32_t addr) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  return re::load<T>(&cache_[addr]);
 }
 
-template void SH4::WriteCache(void *ctx, uint32_t addr, uint8_t value);
-template void SH4::WriteCache(void *ctx, uint32_t addr, uint16_t value);
-template void SH4::WriteCache(void *ctx, uint32_t addr, uint32_t value);
-template void SH4::WriteCache(void *ctx, uint32_t addr, uint64_t value);
+template void SH4::WriteCache(uint32_t addr, uint8_t value);
+template void SH4::WriteCache(uint32_t addr, uint16_t value);
+template void SH4::WriteCache(uint32_t addr, uint32_t value);
+template void SH4::WriteCache(uint32_t addr, uint64_t value);
 template <typename T>
-void SH4::WriteCache(void *ctx, uint32_t addr, T value) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx);
-  CHECK_EQ(self->CCR.ORA, 1u);
-  addr = CACHE_OFFSET(addr, self->CCR.OIX);
-  re::store(&self->cache_[addr], value);
+void SH4::WriteCache(uint32_t addr, T value) {
+  CHECK_EQ(CCR.ORA, 1u);
+  addr = CACHE_OFFSET(addr, CCR.OIX);
+  re::store(&cache_[addr], value);
 }
 
-template uint8_t SH4::ReadSQ(void *ctx, uint32_t addr);
-template uint16_t SH4::ReadSQ(void *ctx, uint32_t addr);
-template uint32_t SH4::ReadSQ(void *ctx, uint32_t addr);
+template uint8_t SH4::ReadSQ(uint32_t addr);
+template uint16_t SH4::ReadSQ(uint32_t addr);
+template uint32_t SH4::ReadSQ(uint32_t addr);
 template <typename T>
-T SH4::ReadSQ(void *ctx, uint32_t addr) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx);
+T SH4::ReadSQ(uint32_t addr) {
   uint32_t sqi = (addr & 0x20) >> 5;
   unsigned idx = (addr & 0x1c) >> 2;
-  return static_cast<T>(self->ctx_.sq[sqi][idx]);
+  return static_cast<T>(ctx_.sq[sqi][idx]);
 }
 
-template void SH4::WriteSQ(void *ctx, uint32_t addr, uint8_t value);
-template void SH4::WriteSQ(void *ctx, uint32_t addr, uint16_t value);
-template void SH4::WriteSQ(void *ctx, uint32_t addr, uint32_t value);
+template void SH4::WriteSQ(uint32_t addr, uint8_t value);
+template void SH4::WriteSQ(uint32_t addr, uint16_t value);
+template void SH4::WriteSQ(uint32_t addr, uint32_t value);
 template <typename T>
-void SH4::WriteSQ(void *ctx, uint32_t addr, T value) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx);
+void SH4::WriteSQ(uint32_t addr, T value) {
   uint32_t sqi = (addr & 0x20) >> 5;
   uint32_t idx = (addr & 0x1c) >> 2;
-  self->ctx_.sq[sqi][idx] = static_cast<uint32_t>(value);
+  ctx_.sq[sqi][idx] = static_cast<uint32_t>(value);
 }
 
 uint32_t SH4::CompilePC() {

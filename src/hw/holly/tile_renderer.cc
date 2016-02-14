@@ -814,7 +814,8 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
           break;
 
         default:
-          LOG_FATAL("Unsupported 4bpp palette pixel format %d", tactx->pal_pxl_format);
+          LOG_FATAL("Unsupported 4bpp palette pixel format %d",
+                    tactx->pal_pxl_format);
           break;
       }
       break;
@@ -838,7 +839,8 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
           break;
 
         default:
-          LOG_FATAL("Unsupported 8bpp palette pixel format %d", tactx->pal_pxl_format);
+          LOG_FATAL("Unsupported 8bpp palette pixel format %d",
+                    tactx->pal_pxl_format);
           break;
       }
       break;

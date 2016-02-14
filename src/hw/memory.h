@@ -1,6 +1,8 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#include <functional>
+#include "core/delegate.h"
 #include "sys/exception_handler.h"
 #include "sys/memory.h"
 
@@ -86,14 +88,15 @@ class MemoryMap {
 // entries are always non-zero
 typedef uintptr_t PageEntry;
 
-typedef uint8_t (*R8Handler)(void *, uint32_t);
-typedef uint16_t (*R16Handler)(void *, uint32_t);
-typedef uint32_t (*R32Handler)(void *, uint32_t);
-typedef uint64_t (*R64Handler)(void *, uint32_t);
-typedef void (*W8Handler)(void *, uint32_t, uint8_t);
-typedef void (*W16Handler)(void *, uint32_t, uint16_t);
-typedef void (*W32Handler)(void *, uint32_t, uint32_t);
-typedef void (*W64Handler)(void *, uint32_t, uint64_t);
+typedef delegate<uint8_t(uint32_t)> R8Delegate;
+typedef delegate<uint16_t(uint32_t)> R16Delegate;
+typedef delegate<uint32_t(uint32_t)> R32Delegate;
+typedef delegate<uint64_t(uint32_t)> R64Delegate;
+
+typedef delegate<void(uint32_t, uint8_t)> W8Delegate;
+typedef delegate<void(uint32_t, uint16_t)> W16Delegate;
+typedef delegate<void(uint32_t, uint32_t)> W32Delegate;
+typedef delegate<void(uint32_t, uint64_t)> W64Delegate;
 
 enum {
   PAGE_BITS = 20,
@@ -131,14 +134,15 @@ struct MemoryRegion {
   uint32_t physical_addr;
   uint32_t size;
   void *ctx;
-  R8Handler r8;
-  R16Handler r16;
-  R32Handler r32;
-  R64Handler r64;
-  W8Handler w8;
-  W16Handler w16;
-  W32Handler w32;
-  W64Handler w64;
+
+  R8Delegate r8;
+  R16Delegate r16;
+  R32Delegate r32;
+  R64Delegate r64;
+  W8Delegate w8;
+  W16Delegate w16;
+  W32Delegate w32;
+  W64Delegate w64;
 };
 
 class Memory {
@@ -162,10 +166,10 @@ class Memory {
   bool Init();
 
   RegionHandle AllocRegion(uint32_t physical_addr, uint32_t size);
-  RegionHandle AllocRegion(uint32_t physical_addr, uint32_t size, void *ctx,
-                           R8Handler r8, R16Handler r16, R32Handler r32,
-                           R64Handler r64, W8Handler w8, W16Handler w16,
-                           W32Handler w32, W64Handler w64);
+  RegionHandle AllocRegion(uint32_t physical_addr, uint32_t size, R8Delegate r8,
+                           R16Delegate r16, R32Delegate r32, R64Delegate r64,
+                           W8Delegate w8, W16Delegate w16, W32Delegate w32,
+                           W64Delegate w64);
 
   bool Map(const MemoryMap &map);
 
@@ -203,9 +207,9 @@ class Memory {
   bool MapVirtualSpace();
   void UnmapVirtualSpace();
 
-  template <typename INT, INT (*MemoryRegion::*HANDLER)(void *, uint32_t)>
+  template <typename INT, delegate<INT(uint32_t)> MemoryRegion::*DELEGATE>
   INT ReadBytes(uint32_t addr);
-  template <typename INT, void (*MemoryRegion::*HANDLER)(void *, uint32_t, INT)>
+  template <typename INT, delegate<void(uint32_t, INT)> MemoryRegion::*DELEGATE>
   void WriteBytes(uint32_t addr, INT value);
 
   // shared memory object where all physical data is written to

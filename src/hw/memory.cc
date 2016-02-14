@@ -247,15 +247,14 @@ RegionHandle Memory::AllocRegion(uint32_t physical_addr, uint32_t size) {
 }
 
 RegionHandle Memory::AllocRegion(uint32_t physical_addr, uint32_t size,
-                                 void *ctx, R8Handler r8, R16Handler r16,
-                                 R32Handler r32, R64Handler r64, W8Handler w8,
-                                 W16Handler w16, W32Handler w32,
-                                 W64Handler w64) {
+                                 R8Delegate r8, R16Delegate r16,
+                                 R32Delegate r32, R64Delegate r64,
+                                 W8Delegate w8, W16Delegate w16,
+                                 W32Delegate w32, W64Delegate w64) {
   MemoryRegion *region = AllocRegion();
   region->dynamic = true;
   region->physical_addr = physical_addr;
   region->size = size;
-  region->ctx = ctx;
   region->r8 = r8;
   region->r16 = r16;
   region->r32 = r32;
@@ -536,7 +535,7 @@ void Memory::UnmapVirtualSpace() {
   unmap_virtual(protected_base_);
 }
 
-template <typename INT, INT (*MemoryRegion::*HANDLER)(void *, uint32_t)>
+template <typename INT, delegate<INT(uint32_t)> MemoryRegion::*DELEGATE>
 inline INT Memory::ReadBytes(uint32_t addr) {
   PageEntry page = pages_[PageIndex(addr)];
   uint32_t page_offset = PageOffset(addr);
@@ -547,16 +546,11 @@ inline INT Memory::ReadBytes(uint32_t addr) {
   }
 
   MemoryRegion &region = regions_[RegionIndex(page)];
-  if (!(region.*HANDLER)) {
-    LOG_WARNING("Unmapped read at 0x%08x", addr);
-    return 0;
-  }
-
   uint32_t region_offset = RegionOffset(page);
-  return (region.*HANDLER)(region.ctx, region_offset + page_offset);
+  return (region.*DELEGATE)(region_offset + page_offset);
 }
 
-template <typename INT, void (*MemoryRegion::*HANDLER)(void *, uint32_t, INT)>
+template <typename INT, delegate<void(uint32_t, INT)> MemoryRegion::*DELEGATE>
 inline void Memory::WriteBytes(uint32_t addr, INT value) {
   PageEntry page = pages_[PageIndex(addr)];
   uint32_t page_offset = PageOffset(addr);
@@ -568,11 +562,6 @@ inline void Memory::WriteBytes(uint32_t addr, INT value) {
   }
 
   MemoryRegion &region = regions_[RegionIndex(page)];
-  if (!(region.*HANDLER)) {
-    LOG_WARNING("Unmapped write at 0x%08x", addr);
-    return;
-  }
-
   uint32_t region_offset = RegionOffset(page);
-  (region.*HANDLER)(region.ctx, region_offset + page_offset, value);
+  (region.*DELEGATE)(region_offset + page_offset, value);
 }

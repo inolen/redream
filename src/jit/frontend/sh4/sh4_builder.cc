@@ -1610,7 +1610,7 @@ EMITTER(FMOV_INDEX_LOAD) {
 EMITTER(FMOV_STORE) {
   Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
 
-  if (fpu.double_sz) { 
+  if (fpu.double_sz) {
     if (i.Rm & 1) {
       b.StoreGuest(addr, b.LoadRegisterXF(i.Rm & 0xe, VALUE_I32));
       b.StoreGuest(b.Add(addr, b.AllocConstant(4)),

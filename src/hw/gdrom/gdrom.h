@@ -204,7 +204,7 @@ enum DataMask {
 
 class GDROM {
  public:
-  GDROM(hw::Dreamcast *dc);
+  GDROM(Dreamcast *dc);
   ~GDROM();
 
   bool Init();
@@ -212,9 +212,9 @@ class GDROM {
   void SetDisc(std::unique_ptr<Disc> disc);
 
   template <typename T>
-  static T ReadRegister(void *ctx, uint32_t addr);
+  T ReadRegister(uint32_t addr);
   template <typename T>
-  static void WriteRegister(void *ctx, uint32_t addr, T value);
+  void WriteRegister(uint32_t addr, T value);
 
  private:
   void TriggerEvent(GDEvent ev);
@@ -228,10 +228,10 @@ class GDROM {
   int ReadSectors(int fad, SectorFormat format, DataMask mask, int num_sectors,
                   uint8_t *dst);
 
-  hw::Dreamcast *dc_;
-  hw::Memory *memory_;
-  hw::holly::Holly *holly_;
-  hw::Register *holly_regs_;
+  Dreamcast *dc_;
+  Memory *memory_;
+  holly::Holly *holly_;
+  Register *holly_regs_;
 
   GD_FEATURES_T features_;
   GD_INTREASON_T intreason_;

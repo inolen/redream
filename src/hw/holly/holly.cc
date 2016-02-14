@@ -77,23 +77,21 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
   ForwardRequestInterrupts();
 }
 
-template uint8_t Holly::ReadRegister(void *ctx, uint32_t addr);
-template uint16_t Holly::ReadRegister(void *ctx, uint32_t addr);
-template uint32_t Holly::ReadRegister(void *ctx, uint32_t addr);
+template uint8_t Holly::ReadRegister(uint32_t addr);
+template uint16_t Holly::ReadRegister(uint32_t addr);
+template uint32_t Holly::ReadRegister(uint32_t addr);
 template <typename T>
-T Holly::ReadRegister(void *ctx, uint32_t addr) {
-  Holly *self = reinterpret_cast<Holly *>(ctx);
-
+T Holly::ReadRegister(uint32_t addr) {
   // service all devices connected through the system bus
   uint32_t offset = addr >> 2;
   if (offset >= SB_MDSTAR_OFFSET && offset <= SB_MRXDBD_OFFSET) {
-    return Maple::ReadRegister<T>(self->maple_, addr);
+    return maple_->ReadRegister<T>(addr);
   }
   if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET && offset <= SB_GDLEND_OFFSET) {
-    return GDROM::ReadRegister<T>(self->gdrom_, addr);
+    return gdrom_->ReadRegister<T>(addr);
   }
 
-  Register &reg = self->holly_regs_[offset];
+  Register &reg = holly_regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
@@ -106,10 +104,10 @@ T Holly::ReadRegister(void *ctx, uint32_t addr) {
       // bits in SB_ISTEXT and SB_ISTERR, respectively, and writes to these two
       // bits are ignored.
       uint32_t v = reg.value & 0x3fffffff;
-      if (self->dc_->SB_ISTEXT) {
+      if (dc_->SB_ISTEXT) {
         v |= 0x40000000;
       }
-      if (self->dc_->SB_ISTERR) {
+      if (dc_->SB_ISTERR) {
         v |= 0x80000000;
       }
       return static_cast<T>(v);
@@ -119,25 +117,23 @@ T Holly::ReadRegister(void *ctx, uint32_t addr) {
   return static_cast<T>(reg.value);
 }
 
-template void Holly::WriteRegister(void *ctx, uint32_t addr, uint8_t value);
-template void Holly::WriteRegister(void *ctx, uint32_t addr, uint16_t value);
-template void Holly::WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+template void Holly::WriteRegister(uint32_t addr, uint8_t value);
+template void Holly::WriteRegister(uint32_t addr, uint16_t value);
+template void Holly::WriteRegister(uint32_t addr, uint32_t value);
 template <typename T>
-void Holly::WriteRegister(void *ctx, uint32_t addr, T value) {
-  Holly *self = reinterpret_cast<Holly *>(ctx);
-
+void Holly::WriteRegister(uint32_t addr, T value) {
   // service all devices connected through the system bus
   uint32_t offset = addr >> 2;
   if (offset >= SB_MDSTAR_OFFSET && offset <= SB_MRXDBD_OFFSET) {
-    Maple::WriteRegister<T>(self->maple_, addr, value);
+    maple_->WriteRegister<T>(addr, value);
     return;
   }
   if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET && offset <= SB_GDLEND_OFFSET) {
-    GDROM::WriteRegister<T>(self->gdrom_, addr, value);
+    gdrom_->WriteRegister<T>(addr, value);
     return;
   }
 
-  Register &reg = self->holly_regs_[offset];
+  Register &reg = holly_regs_[offset];
 
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);
@@ -153,7 +149,7 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, T value) {
     case SB_ISTERR_OFFSET: {
       // writing a 1 clears the interrupt
       reg.value = old & ~value;
-      self->ForwardRequestInterrupts();
+      ForwardRequestInterrupts();
     } break;
 
     case SB_IML2NRM_OFFSET:
@@ -165,18 +161,18 @@ void Holly::WriteRegister(void *ctx, uint32_t addr, T value) {
     case SB_IML6NRM_OFFSET:
     case SB_IML6EXT_OFFSET:
     case SB_IML6ERR_OFFSET:
-      self->ForwardRequestInterrupts();
+      ForwardRequestInterrupts();
       break;
 
     case SB_C2DST_OFFSET:
       if (value) {
-        self->CH2DMATransfer();
+        CH2DMATransfer();
       }
       break;
 
     case SB_SDST_OFFSET:
       if (value) {
-        self->SortDMATransfer();
+        SortDMATransfer();
       }
       break;
 

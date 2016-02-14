@@ -40,13 +40,11 @@ bool AICA::Init() {
 //   re::store(&self->aica_regs_[addr], value);
 // }
 
-template uint8_t AICA::ReadWave(void *ctx, uint32_t addr);
-template uint16_t AICA::ReadWave(void *ctx, uint32_t addr);
-template uint32_t AICA::ReadWave(void *ctx, uint32_t addr);
+template uint8_t AICA::ReadWave(uint32_t addr);
+template uint16_t AICA::ReadWave(uint32_t addr);
+template uint32_t AICA::ReadWave(uint32_t addr);
 template <typename T>
-T AICA::ReadWave(void *ctx, uint32_t addr) {
-  AICA *self = reinterpret_cast<AICA *>(ctx);
-
+T AICA::ReadWave(uint32_t addr) {
   if (sizeof(T) == 4) {
     // FIXME temp hacks to get Crazy Taxi 1 booting
     if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
@@ -58,14 +56,13 @@ T AICA::ReadWave(void *ctx, uint32_t addr) {
     }
   }
 
-  return re::load<T>(&self->wave_ram_[addr]);
+  return re::load<T>(&wave_ram_[addr]);
 }
 
-template void AICA::WriteWave(void *ctx, uint32_t addr, uint8_t value);
-template void AICA::WriteWave(void *ctx, uint32_t addr, uint16_t value);
-template void AICA::WriteWave(void *ctx, uint32_t addr, uint32_t value);
+template void AICA::WriteWave(uint32_t addr, uint8_t value);
+template void AICA::WriteWave(uint32_t addr, uint16_t value);
+template void AICA::WriteWave(uint32_t addr, uint32_t value);
 template <typename T>
-void AICA::WriteWave(void *ctx, uint32_t addr, T value) {
-  AICA *self = reinterpret_cast<AICA *>(ctx);
-  re::store(&self->wave_ram_[addr], value);
+void AICA::WriteWave(uint32_t addr, T value) {
+  re::store(&wave_ram_[addr], value);
 }

@@ -486,7 +486,7 @@ class TileAccelerator {
   static int GetPolyType(const PCW &pcw);
   static int GetVertexType(const PCW &pcw);
 
-  TileAccelerator(hw::Dreamcast *dc);
+  TileAccelerator(Dreamcast *dc);
 
   bool Init();
 
@@ -497,17 +497,17 @@ class TileAccelerator {
 
   TileContext *GetLastContext();
 
-  static void WriteCommand(void *ctx, uint32_t addr, uint32_t value);
-  static void WriteTexture(void *ctx, uint32_t addr, uint32_t value);
+  void WriteCommand(uint32_t addr, uint32_t value);
+  void WriteTexture(uint32_t addr, uint32_t value);
 
  private:
   void WritePVRState(TileContext *tactx);
   void WriteBackgroundState(TileContext *tactx);
 
-  hw::Dreamcast *dc_;
-  hw::Memory *memory_;
-  hw::holly::Holly *holly_;
-  hw::holly::TextureCache *texcache_;
+  Dreamcast *dc_;
+  Memory *memory_;
+  holly::Holly *holly_;
+  holly::TextureCache *texcache_;
   uint8_t *video_ram_;
 
   std::mutex context_mutex_;

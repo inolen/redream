@@ -31,11 +31,9 @@ bool PVR2::Init() {
   return true;
 }
 
-uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
-  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
-
+uint32_t PVR2::ReadRegister(uint32_t addr) {
   uint32_t offset = addr >> 2;
-  Register &reg = self->pvr_regs_[offset];
+  Register &reg = pvr_regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
@@ -45,11 +43,9 @@ uint32_t PVR2::ReadRegister(void *ctx, uint32_t addr) {
   return reg.value;
 }
 
-void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
-  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
-
+void PVR2::WriteRegister(uint32_t addr, uint32_t value) {
   uint32_t offset = addr >> 2;
-  Register &reg = self->pvr_regs_[offset];
+  Register &reg = pvr_regs_[offset];
 
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);
@@ -62,12 +58,12 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
     case SOFTRESET_OFFSET: {
       bool reset_ta = value & 0x1;
       if (reset_ta) {
-        self->ta_->SoftReset();
+        ta_->SoftReset();
       }
     } break;
 
     case TA_LIST_INIT_OFFSET: {
-      self->ta_->InitContext(self->dc_->TA_ISP_BASE.base_address);
+      ta_->InitContext(dc_->TA_ISP_BASE.base_address);
     } break;
 
     case STARTRENDER_OFFSET: {
@@ -75,17 +71,17 @@ void PVR2::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
       {
         auto now = std::chrono::high_resolution_clock::now();
         auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now - self->last_render_);
-        self->last_render_ = now;
-        self->rps_ = 1000000000.0f / delta.count();
+            now - last_render_);
+        last_render_ = now;
+        rps_ = 1000000000.0f / delta.count();
       }
 
-      self->ta_->FinalizeContext(self->dc_->PARAM_BASE.base_address);
+      ta_->FinalizeContext(dc_->PARAM_BASE.base_address);
     } break;
 
     case SPG_LOAD_OFFSET:
     case FB_R_CTRL_OFFSET: {
-      self->ReconfigureSPG();
+      ReconfigureSPG();
     } break;
   }
 }
@@ -111,29 +107,21 @@ static uint32_t MAP64(uint32_t addr) {
           (addr & 0x3));
 }
 
-template uint8_t PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr);
-template uint16_t PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr);
-template uint32_t PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr);
+template uint8_t PVR2::ReadVRamInterleaved(uint32_t addr);
+template uint16_t PVR2::ReadVRamInterleaved(uint32_t addr);
+template uint32_t PVR2::ReadVRamInterleaved(uint32_t addr);
 template <typename T>
-T PVR2::ReadVRamInterleaved(void *ctx, uint32_t addr) {
-  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
-
+T PVR2::ReadVRamInterleaved(uint32_t addr) {
   addr = MAP64(addr);
-
-  return re::load<T>(&self->video_ram_[addr]);
+  return re::load<T>(&video_ram_[addr]);
 }
 
-template void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr,
-                                         uint16_t value);
-template void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr,
-                                         uint32_t value);
+template void PVR2::WriteVRamInterleaved(uint32_t addr, uint16_t value);
+template void PVR2::WriteVRamInterleaved(uint32_t addr, uint32_t value);
 template <typename T>
-void PVR2::WriteVRamInterleaved(void *ctx, uint32_t addr, T value) {
-  PVR2 *self = reinterpret_cast<PVR2 *>(ctx);
-
+void PVR2::WriteVRamInterleaved(uint32_t addr, T value) {
   addr = MAP64(addr);
-
-  re::store(&self->video_ram_[addr], value);
+  re::store(&video_ram_[addr], value);
 }
 
 void PVR2::ReconfigureSPG() {

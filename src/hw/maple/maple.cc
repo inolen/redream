@@ -46,15 +46,13 @@ void Maple::VBlank() {
   // TODO maple vblank interrupt?
 }
 
-template uint8_t Maple::ReadRegister(void *ctx, uint32_t addr);
-template uint16_t Maple::ReadRegister(void *ctx, uint32_t addr);
-template uint32_t Maple::ReadRegister(void *ctx, uint32_t addr);
+template uint8_t Maple::ReadRegister(uint32_t addr);
+template uint16_t Maple::ReadRegister(uint32_t addr);
+template uint32_t Maple::ReadRegister(uint32_t addr);
 template <typename T>
-T Maple::ReadRegister(void *ctx, uint32_t addr) {
-  Maple *self = reinterpret_cast<Maple *>(ctx);
-
+T Maple::ReadRegister(uint32_t addr) {
   uint32_t offset = addr >> 2;
-  Register &reg = self->holly_regs_[offset];
+  Register &reg = holly_regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
@@ -64,15 +62,13 @@ T Maple::ReadRegister(void *ctx, uint32_t addr) {
   return static_cast<T>(reg.value);
 }
 
-template void Maple::WriteRegister(void *ctx, uint32_t addr, uint8_t value);
-template void Maple::WriteRegister(void *ctx, uint32_t addr, uint16_t value);
-template void Maple::WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+template void Maple::WriteRegister(uint32_t addr, uint8_t value);
+template void Maple::WriteRegister(uint32_t addr, uint16_t value);
+template void Maple::WriteRegister(uint32_t addr, uint32_t value);
 template <typename T>
-void Maple::WriteRegister(void *ctx, uint32_t addr, T value) {
-  Maple *self = reinterpret_cast<Maple *>(ctx);
-
+void Maple::WriteRegister(uint32_t addr, T value) {
   uint32_t offset = addr >> 2;
-  Register &reg = self->holly_regs_[offset];
+  Register &reg = holly_regs_[offset];
 
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);
@@ -84,10 +80,10 @@ void Maple::WriteRegister(void *ctx, uint32_t addr, T value) {
 
   switch (offset) {
     case SB_MDST_OFFSET: {
-      uint32_t enabled = self->dc_->SB_MDEN;
+      uint32_t enabled = dc_->SB_MDEN;
       if (enabled) {
         if (value) {
-          self->StartDMA();
+          StartDMA();
         }
       } else {
         reg.value = 0;

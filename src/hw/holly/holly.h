@@ -157,7 +157,7 @@ enum HollyInterrupt : uint64_t {
 
 class Holly {
  public:
-  Holly(hw::Dreamcast *dc);
+  Holly(Dreamcast *dc);
 
   bool Init();
 
@@ -165,20 +165,20 @@ class Holly {
   void UnrequestInterrupt(HollyInterrupt intr);
 
   template <typename T>
-  static T ReadRegister(void *ctx, uint32_t addr);
+  T ReadRegister(uint32_t addr);
   template <typename T>
-  static void WriteRegister(void *ctx, uint32_t addr, T value);
+  void WriteRegister(uint32_t addr, T value);
 
  private:
   void CH2DMATransfer();
   void SortDMATransfer();
   void ForwardRequestInterrupts();
 
-  hw::Dreamcast *dc_;
-  hw::Register *holly_regs_;
-  hw::gdrom::GDROM *gdrom_;
-  hw::maple::Maple *maple_;
-  hw::sh4::SH4 *sh4_;
+  Dreamcast *dc_;
+  Register *holly_regs_;
+  gdrom::GDROM *gdrom_;
+  maple::Maple *maple_;
+  sh4::SH4 *sh4_;
 };
 }
 }
