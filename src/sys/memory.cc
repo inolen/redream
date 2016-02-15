@@ -33,7 +33,10 @@ static bool HandleException(void *ctx, Exception &ex) {
 
     if (watch.type == WATCH_SINGLE_WRITE) {
       // restore page permissions
-      CHECK(ProtectPages(watch.ptr, watch.size, ACC_READWRITE));
+      uintptr_t aligned_begin = node->low;
+      size_t aligned_size = (node->high - node->low) + 1;
+      CHECK(ProtectPages(reinterpret_cast<void *>(aligned_begin), aligned_size,
+                         ACC_READWRITE));
 
       watches.Remove(node);
     }
@@ -46,17 +49,19 @@ WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
                                 void *ctx, void *data) {
   // page align the range to be watched
   size_t page_size = GetPageSize();
-  ptr = reinterpret_cast<void *>(re::align(reinterpret_cast<uintptr_t>(ptr),
-                                           static_cast<uintptr_t>(page_size)));
-  size = re::align(size, page_size);
+  uintptr_t aligned_begin =
+      re::align_down(reinterpret_cast<uintptr_t>(ptr), page_size);
+  uintptr_t aligned_end =
+      re::align_up(reinterpret_cast<uintptr_t>(ptr) + size, page_size) - 1;
+  size_t aligned_size = (aligned_end - aligned_begin) + 1;
 
   // disable writing to the pages
-  CHECK(ProtectPages(ptr, size, ACC_READONLY));
+  CHECK(ProtectPages(reinterpret_cast<void *>(aligned_begin), aligned_size,
+                     ACC_READONLY));
 
-  uintptr_t start = reinterpret_cast<uintptr_t>(ptr);
-  uintptr_t end = start + size - 1;
-  WatchHandle handle = watches.Insert(
-      start, end, Watch{WATCH_SINGLE_WRITE, handler, ctx, data, ptr, size});
+  WatchHandle handle =
+      watches.Insert(aligned_begin, aligned_end,
+                     Watch{WATCH_SINGLE_WRITE, handler, ctx, data});
 
   return handle;
 }

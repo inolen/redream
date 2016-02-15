@@ -124,13 +124,13 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   // align locals
   for (auto local : builder.locals()) {
     int type_size = SizeForType(local->type());
-    stack_size = re::align(stack_size, type_size);
+    stack_size = re::align_up(stack_size, type_size);
     local->set_offset(builder.AllocConstant(stack_size));
     stack_size += type_size;
   }
 
   // stack must be 16 byte aligned
-  stack_size = re::align(stack_size, 16);
+  stack_size = re::align_up(stack_size, 16);
 
   // add 8 for return address which will be pushed when this is called
   stack_size += 8;

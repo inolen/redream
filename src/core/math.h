@@ -6,8 +6,13 @@
 namespace re {
 
 template <typename T>
-T align(T v, T alignment) {
+T align_up(T v, T alignment) {
   return (v + alignment - 1) & ~(alignment - 1);
+}
+
+template <typename T>
+T align_down(T v, T alignment) {
+  return v & ~(alignment - 1);
 }
 
 #if PLATFORM_LINUX || PLATFORM_DARWIN

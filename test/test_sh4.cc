@@ -158,7 +158,7 @@ void RunSH4Test(const SH4Test &test) {
   static const uint32_t stack_size = PAGE_BLKSIZE;
   static const uint32_t code_address = 0x8c010000;
   const uint32_t code_size =
-      re::align(test.buffer_size, static_cast<uint32_t>(PAGE_BLKSIZE));
+      re::align_up(test.buffer_size, static_cast<uint32_t>(PAGE_BLKSIZE));
 
   // setup stack and executable space in memory map
   Memory memory;

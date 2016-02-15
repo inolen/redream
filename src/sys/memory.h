@@ -55,8 +55,6 @@ struct Watch {
   WatchHandler handler;
   void *ctx;
   void *data;
-  void *ptr;
-  size_t size;
 };
 
 typedef IntervalTree<Watch> WatchTree;
