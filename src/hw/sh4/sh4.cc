@@ -138,6 +138,74 @@ void SH4::UnrequestInterrupt(Interrupt intr) {
   UpdatePendingInterrupts();
 }
 
+uint32_t SH4::CompilePC() {
+  SH4CodeCache *code_cache = s_current_cpu->code_cache_;
+  SH4Context *ctx = &s_current_cpu->ctx_;
+  BlockEntry *block = code_cache->CompileBlock(ctx->pc, ctx);
+  return block->run();
+}
+
+void SH4::Pref(SH4Context *ctx, uint64_t arg0) {
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+  uint32_t addr = static_cast<uint32_t>(arg0);
+
+  // only concerned about SQ related prefetches
+  if (addr < 0xe0000000 || addr > 0xe3ffffff) {
+    return;
+  }
+
+  // figure out the source and destination
+  uint32_t dest = addr & 0x03ffffe0;
+  uint32_t sqi = (addr & 0x20) >> 5;
+  if (sqi) {
+    dest |= (self->QACR1 & 0x1c) << 24;
+  } else {
+    dest |= (self->QACR0 & 0x1c) << 24;
+  }
+
+  // perform the "burst" 32-byte copy
+  for (int i = 0; i < 8; i++) {
+    self->memory_->W32(dest, ctx->sq[sqi][i]);
+    dest += 4;
+  }
+}
+
+void SH4::SRUpdated(SH4Context *ctx, uint64_t old_sr) {
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+
+  if ((ctx->sr & RB) != (old_sr & RB)) {
+    self->SwapRegisterBank();
+  }
+
+  if ((ctx->sr & I) != (old_sr & I) || (ctx->sr & BL) != (old_sr & BL)) {
+    self->UpdatePendingInterrupts();
+  }
+}
+
+void SH4::FPSCRUpdated(SH4Context *ctx, uint64_t old_fpscr) {
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+
+  if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
+    self->SwapFPRegisterBank();
+  }
+}
+
+void SH4::SwapRegisterBank() {
+  for (int s = 0; s < 8; s++) {
+    uint32_t tmp = ctx_.r[s];
+    ctx_.r[s] = ctx_.ralt[s];
+    ctx_.ralt[s] = tmp;
+  }
+}
+
+void SH4::SwapFPRegisterBank() {
+  for (int s = 0; s <= 15; s++) {
+    uint32_t tmp = ctx_.fr[s];
+    ctx_.fr[s] = ctx_.xf[s];
+    ctx_.xf[s] = tmp;
+  }
+}
+
 template uint8_t SH4::ReadRegister(uint32_t addr);
 template uint16_t SH4::ReadRegister(uint32_t addr);
 template uint32_t SH4::ReadRegister(uint32_t addr);
@@ -325,74 +393,6 @@ void SH4::WriteSQ(uint32_t addr, T value) {
   uint32_t sqi = (addr & 0x20) >> 5;
   uint32_t idx = (addr & 0x1c) >> 2;
   ctx_.sq[sqi][idx] = static_cast<uint32_t>(value);
-}
-
-uint32_t SH4::CompilePC() {
-  SH4CodeCache *code_cache = s_current_cpu->code_cache_;
-  SH4Context *ctx = &s_current_cpu->ctx_;
-  BlockEntry *block = code_cache->CompileBlock(ctx->pc, ctx);
-  return block->run();
-}
-
-void SH4::Pref(SH4Context *ctx, uint64_t arg0) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-  uint32_t addr = static_cast<uint32_t>(arg0);
-
-  // only concerned about SQ related prefetches
-  if (addr < 0xe0000000 || addr > 0xe3ffffff) {
-    return;
-  }
-
-  // figure out the source and destination
-  uint32_t dest = addr & 0x03ffffe0;
-  uint32_t sqi = (addr & 0x20) >> 5;
-  if (sqi) {
-    dest |= (self->QACR1 & 0x1c) << 24;
-  } else {
-    dest |= (self->QACR0 & 0x1c) << 24;
-  }
-
-  // perform the "burst" 32-byte copy
-  for (int i = 0; i < 8; i++) {
-    self->memory_->W32(dest, ctx->sq[sqi][i]);
-    dest += 4;
-  }
-}
-
-void SH4::SRUpdated(SH4Context *ctx, uint64_t old_sr) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-
-  if ((ctx->sr & RB) != (old_sr & RB)) {
-    self->SwapRegisterBank();
-  }
-
-  if ((ctx->sr & I) != (old_sr & I) || (ctx->sr & BL) != (old_sr & BL)) {
-    self->UpdatePendingInterrupts();
-  }
-}
-
-void SH4::FPSCRUpdated(SH4Context *ctx, uint64_t old_fpscr) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-
-  if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
-    self->SwapFPRegisterBank();
-  }
-}
-
-void SH4::SwapRegisterBank() {
-  for (int s = 0; s < 8; s++) {
-    uint32_t tmp = ctx_.r[s];
-    ctx_.r[s] = ctx_.ralt[s];
-    ctx_.ralt[s] = tmp;
-  }
-}
-
-void SH4::SwapFPRegisterBank() {
-  for (int s = 0; s <= 15; s++) {
-    uint32_t tmp = ctx_.fr[s];
-    ctx_.fr[s] = ctx_.xf[s];
-    ctx_.xf[s] = tmp;
-  }
 }
 
 //

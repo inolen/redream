@@ -12,6 +12,8 @@ namespace hw {
 
 struct Dreamcast;
 
+extern bool MapMemory(Dreamcast &dc);
+
 namespace sh4 {
 
 // registers
@@ -107,6 +109,7 @@ enum DDTRW {  //
 };
 
 class SH4 {
+  friend bool re::hw::MapMemory(Dreamcast &dc);
   friend void RunSH4Test(const SH4Test &);
 
  public:
@@ -124,6 +127,16 @@ class SH4 {
   void RequestInterrupt(Interrupt intr);
   void UnrequestInterrupt(Interrupt intr);
 
+ private:
+  static uint32_t CompilePC();
+  static void Pref(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
+  static void SRUpdated(jit::frontend::sh4::SH4Context *ctx, uint64_t old_sr);
+  static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,
+                           uint64_t old_fpscr);
+
+  void SwapRegisterBank();
+  void SwapFPRegisterBank();
+
   template <typename T>
   T ReadRegister(uint32_t addr);
   template <typename T>
@@ -138,16 +151,6 @@ class SH4 {
   T ReadSQ(uint32_t addr);
   template <typename T>
   void WriteSQ(uint32_t addr, T value);
-
- private:
-  static uint32_t CompilePC();
-  static void Pref(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
-  static void SRUpdated(jit::frontend::sh4::SH4Context *ctx, uint64_t old_sr);
-  static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,
-                           uint64_t old_fpscr);
-
-  void SwapRegisterBank();
-  void SwapFPRegisterBank();
 
   // CCN
   void ResetCache();

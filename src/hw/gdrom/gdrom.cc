@@ -137,8 +137,7 @@ void GDROM::WriteRegister(uint32_t addr, T value) {
       *(uint16_t *)(&pio_buffer_[pio_idx_]) = reg.value & 0xffff;
       pio_idx_ += 2;
       if ((state_ == STATE_SPI_READ_CMD && pio_idx_ == 12) ||
-          (state_ == STATE_SPI_READ_DATA &&
-           pio_idx_ == pio_size_)) {
+          (state_ == STATE_SPI_READ_DATA && pio_idx_ == pio_size_)) {
         TriggerEvent(EV_SPI_READ_END);
       }
     } break;

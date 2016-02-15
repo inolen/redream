@@ -28,7 +28,7 @@ namespace re {
 namespace hw {
 
 // clang-format off
-static bool MapMemory(Dreamcast &dc) {
+bool MapMemory(Dreamcast &dc) {
   Memory *memory = dc.memory;
 
   if (!memory->Init()) {

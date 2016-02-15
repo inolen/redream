@@ -11,8 +11,8 @@ class Holly;
 }
 
 struct Dreamcast;
-class Memory;
 struct Register;
+class Memory;
 
 namespace gdrom {
 
@@ -203,6 +203,8 @@ enum DataMask {
 };
 
 class GDROM {
+  friend class holly::Holly;
+
  public:
   GDROM(Dreamcast *dc);
   ~GDROM();
@@ -211,12 +213,12 @@ class GDROM {
 
   void SetDisc(std::unique_ptr<Disc> disc);
 
+ private:
   template <typename T>
   T ReadRegister(uint32_t addr);
   template <typename T>
   void WriteRegister(uint32_t addr, T value);
 
- private:
   void TriggerEvent(GDEvent ev);
   void TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1);
   void ProcessATACommand(ATACommand cmd);

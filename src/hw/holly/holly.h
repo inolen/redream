@@ -18,6 +18,8 @@ class SH4;
 struct Dreamcast;
 struct Register;
 
+extern bool MapMemory(Dreamcast &dc);
+
 namespace holly {
 
 // interrupts
@@ -156,6 +158,8 @@ enum HollyInterrupt : uint64_t {
 };
 
 class Holly {
+  friend bool re::hw::MapMemory(Dreamcast &dc);
+
  public:
   Holly(Dreamcast *dc);
 
@@ -164,12 +168,12 @@ class Holly {
   void RequestInterrupt(HollyInterrupt intr);
   void UnrequestInterrupt(HollyInterrupt intr);
 
+ private:
   template <typename T>
   T ReadRegister(uint32_t addr);
   template <typename T>
   void WriteRegister(uint32_t addr, T value);
 
- private:
   void CH2DMATransfer();
   void SortDMATransfer();
   void ForwardRequestInterrupts();

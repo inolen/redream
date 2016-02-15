@@ -6,8 +6,11 @@
 
 namespace re {
 namespace hw {
+
 struct Dreamcast;
 struct Register;
+
+extern bool MapMemory(Dreamcast &dc);
 
 namespace holly {
 
@@ -197,6 +200,8 @@ union TA_ISP_BASE_T {
 };
 
 class PVR2 {
+  friend bool re::hw::MapMemory(Dreamcast &dc);
+
  public:
   PVR2(Dreamcast *dc);
 
@@ -204,6 +209,7 @@ class PVR2 {
 
   bool Init();
 
+ private:
   uint32_t ReadRegister(uint32_t addr);
   void WriteRegister(uint32_t addr, uint32_t value);
 
@@ -212,7 +218,6 @@ class PVR2 {
   template <typename T>
   void WriteVRamInterleaved(uint32_t addr, T value);
 
- private:
   void ReconfigureSPG();
   void NextScanline();
 

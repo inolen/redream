@@ -13,8 +13,11 @@ class TraceWriter;
 }
 
 namespace hw {
+
 struct Dreamcast;
 class Memory;
+
+extern bool MapMemory(Dreamcast &dc);
 
 namespace holly {
 
@@ -481,6 +484,8 @@ typedef std::unordered_map<TextureKey, TileContext *> TileContextMap;
 typedef std::queue<TileContext *> TileContextQueue;
 
 class TileAccelerator {
+  friend bool re::hw::MapMemory(Dreamcast &dc);
+
  public:
   static int GetParamSize(const PCW &pcw, int vertex_type);
   static int GetPolyType(const PCW &pcw);
@@ -497,10 +502,10 @@ class TileAccelerator {
 
   TileContext *GetLastContext();
 
+ private:
   void WriteCommand(uint32_t addr, uint32_t value);
   void WriteTexture(uint32_t addr, uint32_t value);
 
- private:
   void WritePVRState(TileContext *tactx);
   void WriteBackgroundState(TileContext *tactx);
 

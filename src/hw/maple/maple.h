@@ -11,8 +11,8 @@ class Holly;
 }
 
 struct Dreamcast;
-class Memory;
 struct Register;
+class Memory;
 
 namespace maple {
 
@@ -100,6 +100,8 @@ class MapleDevice {
 };
 
 class Maple {
+  friend class holly::Holly;
+
  public:
   Maple(Dreamcast *dc);
 
@@ -108,12 +110,12 @@ class Maple {
   bool HandleInput(int port, sys::Keycode key, int16_t value);
   void VBlank();
 
+ private:
   template <typename T>
   T ReadRegister(uint32_t addr);
   template <typename T>
   void WriteRegister(uint32_t addr, T value);
 
- private:
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
   void StartDMA();
 
