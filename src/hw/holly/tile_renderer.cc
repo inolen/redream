@@ -517,6 +517,28 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx,
       vert->uv[1] = re::load<float>(&v);
     } break;
 
+    case 15: {
+      CHECK_EQ(param->sprite1.pcw.end_of_strip, 1);
+
+      auto ParseSpriteVert = [&](int i, Vertex *vert) {
+        // FIXME this is assuming all sprites are billboards
+        // z isn't specified for i == 3
+        vert->xyz[0] = param->sprite0.xyz[i][0];
+        vert->xyz[1] = param->sprite0.xyz[i][1];
+        vert->xyz[2] = param->sprite0.xyz[0][2];
+        ParseColor(face_color_[0], face_color_[1], face_color_[2],
+                   face_color_[3], &vert->color);
+        ParseOffsetColor(face_offset_color_[0], face_offset_color_[1],
+                         face_offset_color_[2], face_offset_color_[3],
+                         &vert->offset_color);
+      };
+
+      ParseSpriteVert(0, AllocVert());
+      ParseSpriteVert(1, AllocVert());
+      ParseSpriteVert(3, AllocVert());
+      ParseSpriteVert(2, AllocVert());
+    } break;
+
     case 16: {
       CHECK_EQ(param->sprite1.pcw.end_of_strip, 1);
 
@@ -547,6 +569,10 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx,
       ParseSpriteVert(1, AllocVert());
       ParseSpriteVert(3, AllocVert());
       ParseSpriteVert(2, AllocVert());
+    } break;
+
+    case 17: {
+      LOG_WARNING("Unhandled modvol triangle");
     } break;
 
     default:
