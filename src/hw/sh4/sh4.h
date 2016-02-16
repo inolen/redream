@@ -162,9 +162,11 @@ class SH4 {
   void CheckPendingInterrupts();
 
   // TMU
-  bool TimerEnabled(int n);
+  void UpdateTimerStart();
+  void UpdateTimerControl(uint32_t n);
+  void UpdateTimerCount(uint32_t n);
   uint32_t TimerCount(int n);
-  void ScheduleTimer(int n);
+  void ScheduleTimer(int n, uint32_t tcnt, uint32_t tcr);
   void ExpireTimer(int n);
 
   Dreamcast *dc_;

@@ -26,6 +26,10 @@ bool PVR2::Init() {
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 
+  // register scanline timer
+  line_timer_ = scheduler_->AllocTimer(std::bind(&PVR2::NextScanline, this));
+
+  // configure initial vsync interval
   ReconfigureSPG();
 
   return true;
@@ -56,27 +60,36 @@ void PVR2::WriteRegister(uint32_t addr, uint32_t value) {
 
   switch (offset) {
     case SOFTRESET_OFFSET: {
-      bool reset_ta = value & 0x1;
-      if (reset_ta) {
+      if (value & 0x1) {
         ta_->SoftReset();
       }
     } break;
 
     case TA_LIST_INIT_OFFSET: {
-      ta_->InitContext(dc_->TA_ISP_BASE.base_address);
+      if (value & 0x80000000) {
+        ta_->InitContext(dc_->TA_ISP_BASE.base_address);
+      }
+    } break;
+
+    case TA_LIST_CONT_OFFSET: {
+      if (value & 0x80000000) {
+        LOG_WARNING("Unsupported TA_LIST_CONT");
+      }
     } break;
 
     case STARTRENDER_OFFSET: {
-      // track render stats
-      {
-        auto now = std::chrono::high_resolution_clock::now();
-        auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now - last_render_);
-        last_render_ = now;
-        rps_ = 1000000000.0f / delta.count();
-      }
+      if (value) {
+        // track render stats
+        {
+          auto now = std::chrono::high_resolution_clock::now();
+          auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
+              now - last_render_);
+          last_render_ = now;
+          rps_ = 1000000000.0f / delta.count();
+        }
 
-      ta_->FinalizeContext(dc_->PARAM_BASE.base_address);
+        ta_->FinalizeContext(dc_->PARAM_BASE.base_address);
+      }
     } break;
 
     case SPG_LOAD_OFFSET:
@@ -144,13 +157,7 @@ void PVR2::ReconfigureSPG() {
       dc_->SPG_CONTROL.interlace, dc_->SPG_VBLANK.vbstart,
       dc_->SPG_VBLANK.vbend);
 
-  if (line_timer_ != INVALID_TIMER) {
-    scheduler_->RemoveTimer(line_timer_);
-    line_timer_ = INVALID_TIMER;
-  }
-
-  line_timer_ = scheduler_->AddTimer(HZ_TO_NANO(line_clock),
-                                     std::bind(&PVR2::NextScanline, this));
+  scheduler_->AdjustTimer(line_timer_, HZ_TO_NANO(line_clock));
 }
 
 void PVR2::NextScanline() {

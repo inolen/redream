@@ -32,8 +32,7 @@ SH4::SH4(Dreamcast *dc)
       code_cache_(nullptr),
       pending_cache_reset_(false),
       requested_interrupts_(0),
-      pending_interrupts_(0),
-      tmu_timers_{INVALID_TIMER, INVALID_TIMER, INVALID_TIMER} {}
+      pending_interrupts_(0) {}
 
 SH4::~SH4() { delete code_cache_; }
 
@@ -69,9 +68,16 @@ bool SH4::Init() {
   // reset interrupts
   ReprioritizeInterrupts();
 
-  // add to scheduler
-  scheduler_->AddTimer(HZ_TO_NANO(1000),
-                       std::bind(&SH4::Run, this, std::placeholders::_1));
+  // register timer
+  TimerHandle timer =
+      scheduler_->AllocTimer(std::bind(&SH4::Run, this, std::placeholders::_1));
+  scheduler_->AdjustTimer(timer, std::chrono::nanoseconds(446428));
+
+  // initialize tmu timers
+  for (int i = 0; i < 3; i++) {
+    tmu_timers_[i] = scheduler_->AllocTimer(
+        [this, i](const std::chrono::nanoseconds &) { ExpireTimer(i); });
+  }
 
   return true;
 }
@@ -88,7 +94,6 @@ void SH4::Run(const std::chrono::nanoseconds &period) {
   s_current_cpu = this;
 
   // each block's epilog will decrement the remaining cycles as they run
-  ctx_.total_cycles = cycles;
   ctx_.remaining_cycles = cycles;
 
   while (ctx_.remaining_cycles > 0) {
@@ -284,13 +289,11 @@ T SH4::ReadRegister(uint32_t addr) {
     }
 
     case TCNT0_OFFSET:
-      return TimerCount(0);
-
     case TCNT1_OFFSET:
-      return TimerCount(1);
-
-    case TCNT2_OFFSET:
-      return TimerCount(2);
+    case TCNT2_OFFSET: {
+      int n = addr == TCNT0_OFFSET ? 0 : addr == TCNT1_OFFSET ? 1 : 2;
+      return TimerCount(n);
+    }
   }
 
   return static_cast<T>(area7_[addr]);
@@ -327,24 +330,22 @@ void SH4::WriteRegister(uint32_t addr, T value) {
       ReprioritizeInterrupts();
     } break;
 
-    // TODO UnrequestInterrupt on TCR write
-
     case TSTR_OFFSET: {
-      ScheduleTimer(0);
-      ScheduleTimer(1);
-      ScheduleTimer(2);
+      UpdateTimerStart();
     } break;
 
-    case TCNT0_OFFSET: {
-      ScheduleTimer(0);
+    case TCR0_OFFSET:
+    case TCR1_OFFSET:
+    case TCR2_OFFSET: {
+      int n = addr == TCR0_OFFSET ? 0 : addr == TCR1_OFFSET ? 1 : 2;
+      UpdateTimerControl(n);
     } break;
 
-    case TCNT1_OFFSET: {
-      ScheduleTimer(1);
-    } break;
-
+    case TCNT0_OFFSET:
+    case TCNT1_OFFSET:
     case TCNT2_OFFSET: {
-      ScheduleTimer(2);
+      int n = addr == TCNT0_OFFSET ? 0 : addr == TCNT1_OFFSET ? 1 : 2;
+      UpdateTimerCount(n);
     } break;
   }
 }
@@ -500,71 +501,83 @@ inline void SH4::CheckPendingInterrupts() {
 static const int64_t PERIPHERAL_CLOCK_FREQ = SH4_CLOCK_FREQ >> 2;
 static const int PERIPHERAL_SCALE[] = {2, 4, 6, 8, 10, 0, 0, 0};
 
+#define TSTR(n) (TSTR & (1 << n))
 #define TCOR(n) (n == 0 ? TCOR0 : n == 1 ? TCOR1 : TCOR2)
 #define TCNT(n) (n == 0 ? TCNT0 : n == 1 ? TCNT1 : TCNT2)
 #define TCR(n) (n == 0 ? TCR0 : n == 1 ? TCR1 : TCR2)
 #define TUNI(n) \
   (n == 0 ? SH4_INTC_TUNI0 : n == 1 ? SH4_INTC_TUNI1 : SH4_INTC_TUNI2)
 
-bool SH4::TimerEnabled(int n) {  //
-  return TSTR & (1 << n);
+void SH4::UpdateTimerStart() {
+  for (int i = 0; i < 3; i++) {
+    TimerHandle &handle = tmu_timers_[i];
+
+    if (TSTR(i)) {
+      // schedule the timer if not already started
+      if (scheduler_->RemainingTime(handle) == SUSPENDED) {
+        ScheduleTimer(i, TCNT(i), TCR(i));
+      }
+    } else {
+      // disable the timer
+      scheduler_->AdjustTimer(handle, SUSPENDED);
+    }
+  }
+}
+
+void SH4::UpdateTimerControl(uint32_t n) {
+  if (TSTR(n)) {
+    // timer is already scheduled, reschedule it with the current cycle count,
+    // but the new TCR value
+    ScheduleTimer(n, TimerCount(n), TCR(n));
+  }
+
+  // if the timer no longer cares about underflow interrupts, unrequest
+  if (!(TCR(n) & 0x20) || !(TCR(n) & 0x100)) {
+    UnrequestInterrupt(TUNI(n));
+  }
+}
+
+void SH4::UpdateTimerCount(uint32_t n) {
+  if (TSTR(n)) {
+    ScheduleTimer(n, TCNT(n), TCR(n));
+  }
 }
 
 uint32_t SH4::TimerCount(int n) {
-  // instead of updating TCNT constantly, a timer is scheduled to expire when
-  // TCNT should underflow. use this scheduled timer to calculate the current
-  // value for TCNT
-  TimerHandle &handle = tmu_timers_[n];
-  Timer &timer = scheduler_->GetTimer(handle);
-
-  uint32_t &tcr = TCR(n);
-
-  // calculate how many peripheral cycles away the timer is from expiring
-  int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
-  std::chrono::nanoseconds remaining_ns =
-      timer.expire - scheduler_->base_time();
-  int64_t remaining_cycles = NANO_TO_CYCLES(remaining_ns, freq);
-
-  // the scheduler doesn't update its view of time as SH4::Run executes,
-  // offset the remaining cycles based on how many cycles SH4::Run has
-  // currently executed
-  remaining_cycles -= (ctx_.total_cycles - ctx_.remaining_cycles) >> 2;
-
-  return static_cast<uint32_t>(std::max(remaining_cycles, 0ll));
-}
-
-void SH4::ScheduleTimer(int n) {
-  TimerHandle &handle = tmu_timers_[n];
-
-  // remove old timer if one exists
-  scheduler_->RemoveTimer(handle);
-  handle = INVALID_TIMER;
-
-  if (!TimerEnabled(n)) {
-    return;
+  // TCNT values aren't updated in real time. if a timer is enabled, query the
+  // scheduler to figure out how many cycles are remaining for the given timer
+  if (!TSTR(n)) {
+    return TCNT(n);
   }
 
-  uint32_t &tcnt = TCNT(n);
-  uint32_t &tcr = TCR(n);
+  // FIXME should the number of SH4 cycles that've been executed be considered
+  // here? this would prevent an entire SH4 slice from just busy waiting on
+  // this to change
 
-  // TCNT represents the number of perhiperal clock cycles to count down from,
-  // while the lower 3 bits of TCR describe the clock scale factor
+  TimerHandle &handle = tmu_timers_[n];
+  uint32_t tcr = TCR(n);
+
+  int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
+  std::chrono::nanoseconds remaining = scheduler_->RemainingTime(handle);
+  int64_t cycles = static_cast<uint32_t>(NANO_TO_CYCLES(remaining, freq));
+
+  return cycles;
+}
+
+void SH4::ScheduleTimer(int n, uint32_t tcnt, uint32_t tcr) {
+  TimerHandle &handle = tmu_timers_[n];
+
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
   int64_t cycles = static_cast<int64_t>(tcnt);
-  std::chrono::nanoseconds ns = CYCLES_TO_NANO(cycles, freq);
+  std::chrono::nanoseconds remaining = CYCLES_TO_NANO(cycles, freq);
 
-  // instead of updating TCNT constantly, schedule a timer to expire when TCNT
-  // should underflow
-  handle = scheduler_->AddTimer(
-      ns, [this, n](const std::chrono::nanoseconds &) { ExpireTimer(n); });
+  scheduler_->AdjustTimer(handle, remaining);
 }
 
 void SH4::ExpireTimer(int n) {
   uint32_t &tcor = TCOR(n);
   uint32_t &tcnt = TCNT(n);
   uint32_t &tcr = TCR(n);
-
-  CHECK(TimerEnabled(n));
 
   // timer expired, set the underflow flag
   tcr |= 0x100;
@@ -574,8 +587,9 @@ void SH4::ExpireTimer(int n) {
     RequestInterrupt(TUNI(n));
   }
 
-  // reset the count with the value from TCOR and reschedule
+  // reset TCNT with the value from TCOR
   tcnt = tcor;
 
-  ScheduleTimer(n);
+  // reschedule the timer with the new count
+  ScheduleTimer(n, tcnt, tcr);
 }

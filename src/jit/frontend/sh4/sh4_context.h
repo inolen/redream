@@ -39,7 +39,6 @@ struct SH4Context {
   void (*FPSCRUpdated)(SH4Context *, uint64_t old_fpscr);
 
   int32_t remaining_cycles;
-  int32_t total_cycles;
 
   uint32_t pc, pr, sr, sr_qm, fpscr;
   uint32_t dbr, gbr, vbr;

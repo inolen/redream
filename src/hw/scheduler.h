@@ -1,6 +1,7 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
+#include <stdint.h>
 #include <chrono>
 #include <functional>
 
@@ -22,13 +23,15 @@ typedef std::function<void(const std::chrono::nanoseconds &)> TimerCallback;
 struct Timer {
   TimerHandle handle;
   std::chrono::nanoseconds period;
-  std::chrono::high_resolution_clock::time_point expire;
+  std::chrono::nanoseconds remaining;
   TimerCallback callback;
 };
 
 enum : int64_t {
   NS_PER_SEC = 1000000000ll,
 };
+
+extern const std::chrono::nanoseconds SUSPENDED;
 
 static inline std::chrono::nanoseconds HZ_TO_NANO(int64_t hz) {
   return std::chrono::nanoseconds(
@@ -51,18 +54,16 @@ class Scheduler {
  public:
   Scheduler();
 
-  std::chrono::high_resolution_clock::time_point base_time() {
-    return base_time_;
-  }
-
   void Tick(const std::chrono::nanoseconds &delta);
 
-  TimerHandle AddTimer(const std::chrono::nanoseconds &period,
-                       TimerCallback callback);
-  Timer &GetTimer(TimerHandle handle);
-  bool RemoveTimer(TimerHandle handle);
+  TimerHandle AllocTimer(TimerCallback callback);
+  void FreeTimer(TimerHandle handle);
+  void AdjustTimer(TimerHandle, const std::chrono::nanoseconds &period);
+  std::chrono::nanoseconds RemainingTime(TimerHandle handle);
 
  private:
+  Timer &GetTimer(TimerHandle handle);
+
   std::chrono::high_resolution_clock::time_point base_time_;
   Timer timers_[MAX_TIMERS];
   int num_timers_;
