@@ -166,7 +166,7 @@ void Dump(const void *data, size_t size, uint32_t base) {
       // disp:12
       value_len = snprintf(
           value, sizeof(value), "0x%08x",
-          (((int32_t)(instr.disp & 0xfff) << 20) >> 20) + instr.addr + 4);
+          ((((int32_t)(instr.disp & 0xfff) << 20) >> 20) * 2) + instr.addr + 4);
       CHECK_EQ(strnrep(buffer, sizeof(buffer), "disp:12", 7, value, value_len),
                0);
 
