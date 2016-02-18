@@ -11,9 +11,14 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
-# enable both ASM and ASM_MASM. cmake will ignore whichever one isn't supported
-# by the current platform
-project(redream C CXX ASM ASM_MASM)
+list(APPEND REDREAM_LANGUAGES C CXX)
+if(WIN32)
+list(APPEND REDREAM_LANGUAGES ASM_MASM)
+else()
+list(APPEND REDREAM_LANGUAGES ASM)
+endif()
+
+project(redream ${REDREAM_LANGUAGES})
 
 # export compile_commands.json for clang-tidy
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
