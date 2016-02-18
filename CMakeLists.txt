@@ -94,22 +94,24 @@ list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.85)
 #--------------------------------------------------
 # format
 #--------------------------------------------------
-find_package(ClangFormat REQUIRED)
+find_package(ClangFormat)
 
+if(CLANG_FORMAT_FOUND)
 file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.cc" "src/*.h" "test/*.cc" "test/*.h")
 
 add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -style=Google -i ${CLANG_FORMAT_ARGS})
-
+endif()
 
 #--------------------------------------------------
 # tidy
 #--------------------------------------------------
 find_package(ClangTidy REQUIRED)
 
+if(CLANG_TIDY_FOUND)
 file(GLOB_RECURSE CLANG_TIDY_ARGS "src/*.cc" "test/*.cc")
 
 add_custom_target(tidy ${CLANG_TIDY_EXECUTABLE} -p=${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json -checks=-*,readability-* ${CLANG_TIDY_ARGS})
-
+endif()
 
 #--------------------------------------------------
 # emulator
@@ -191,7 +193,7 @@ endif()
 source_group_by_dir(REDREAM_SOURCES)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(REDREAM_COMPILE_FLAGS -std=c++11 -fno-operator-names -fno-rtti -Wall -Wextra -Werror -Wno-unused-parameter)
+  set(REDREAM_COMPILE_FLAGS -std=c++11 -fno-operator-names -Wall -Wextra -Werror -Wno-unused-parameter)
 
   string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 
