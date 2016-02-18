@@ -105,7 +105,7 @@ endif()
 #--------------------------------------------------
 # tidy
 #--------------------------------------------------
-find_package(ClangTidy REQUIRED)
+find_package(ClangTidy)
 
 if(CLANG_TIDY_FOUND)
 file(GLOB_RECURSE CLANG_TIDY_ARGS "src/*.cc" "test/*.cc")
