@@ -2,10 +2,14 @@
 #define FRONTEND_H
 
 #include <memory>
-#include "hw/memory.h"
 #include "jit/ir/ir_builder.h"
 
 namespace re {
+
+namespace hw {
+class Memory;
+}
+
 namespace jit {
 namespace frontend {
 

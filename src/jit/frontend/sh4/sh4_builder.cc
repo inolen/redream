@@ -1,5 +1,6 @@
 #include "core/assert.h"
 #include "emu/profiler.h"
+#include "hw/memory.h"
 #include "jit/frontend/sh4/sh4_builder.h"
 
 using namespace re;

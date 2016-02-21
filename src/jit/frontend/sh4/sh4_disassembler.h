@@ -1,6 +1,7 @@
 #ifndef SH4_DISASSEMBLER_H
 #define SH4_DISASSEMBLER_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace re {

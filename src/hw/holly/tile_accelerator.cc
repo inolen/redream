@@ -204,7 +204,8 @@ int TileAccelerator::GetVertexType(const PCW &pcw) {
                             pcw.para_type * TA_NUM_LISTS + pcw.list_type];
 }
 
-TileAccelerator::TileAccelerator(Dreamcast *dc) : dc_(dc), contexts_() {
+TileAccelerator::TileAccelerator(Dreamcast *dc)
+    : Device(*dc), MemoryInterface(this), dc_(dc), contexts_() {
   // initialize context queue
   for (int i = 0; i < MAX_CONTEXTS; i++) {
     free_contexts_.push(&contexts_[i]);
@@ -215,7 +216,7 @@ bool TileAccelerator::Init() {
   memory_ = dc_->memory;
   holly_ = dc_->holly;
   texcache_ = dc_->texcache;
-  video_ram_ = dc_->video_ram;
+  video_ram_ = dc_->memory->TranslateVirtual(PVR_VRAM32_START);
 
   return true;
 }
@@ -345,6 +346,20 @@ TileContext *TileAccelerator::GetLastContext() {
 
   // return the latest context
   return pending_contexts_.front();
+}
+
+void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
+  RegionHandle ta_cmd_handle = memory.AllocRegion(
+      TA_CMD_START, TA_CMD_SIZE, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, make_delegate(&TileAccelerator::WriteCommand, this), nullptr);
+
+  RegionHandle ta_texture_handle = memory.AllocRegion(
+      TA_TEXTURE_START, TA_TEXTURE_SIZE, nullptr, nullptr, nullptr, nullptr,
+      nullptr, nullptr, make_delegate(&TileAccelerator::WriteTexture, this),
+      nullptr);
+
+  memmap.Mount(ta_cmd_handle, TA_CMD_SIZE, TA_CMD_START);
+  memmap.Mount(ta_texture_handle, TA_TEXTURE_SIZE, TA_TEXTURE_START);
 }
 
 void TileAccelerator::WriteCommand(uint32_t addr, uint32_t value) {

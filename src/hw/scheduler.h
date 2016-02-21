@@ -3,71 +3,60 @@
 
 #include <stdint.h>
 #include <chrono>
-#include <functional>
+#include "core/arena.h"
+#include "core/delegate.h"
+#include "core/intrusive_list.h"
 
 namespace re {
 namespace hw {
 
-enum {
-  MAX_TIMERS = 16,
+class Machine;
+
+typedef re::delegate<void()> TimerDelegate;
+
+struct Timer : public IntrusiveListNode<Timer> {
+  std::chrono::high_resolution_clock::time_point expire;
+  TimerDelegate delegate;
 };
 
-typedef int64_t TimerHandle;
-
-enum : TimerHandle {
-  INVALID_TIMER = -1,
-};
-
-typedef std::function<void(const std::chrono::nanoseconds &)> TimerCallback;
-
-struct Timer {
-  TimerHandle handle;
-  std::chrono::nanoseconds period;
-  std::chrono::nanoseconds remaining;
-  TimerCallback callback;
-};
-
-enum : int64_t {
-  NS_PER_SEC = 1000000000ll,
-};
-
-extern const std::chrono::nanoseconds SUSPENDED;
+typedef Timer *TimerHandle;
+static const TimerHandle INVALID_TIMER = nullptr;
+static const int64_t NS_PER_SEC = 1000000000ll;
 
 static inline std::chrono::nanoseconds HZ_TO_NANO(int64_t hz) {
-  return std::chrono::nanoseconds(
-      static_cast<int64_t>(NS_PER_SEC / static_cast<float>(hz)));
+  float nano = NS_PER_SEC / static_cast<float>(hz);
+  return std::chrono::nanoseconds(static_cast<int64_t>(nano));
 }
 
 static inline int64_t NANO_TO_CYCLES(const std::chrono::nanoseconds &ns,
                                      int64_t hz) {
-  return static_cast<int64_t>((ns.count() / static_cast<float>(NS_PER_SEC)) *
-                              hz);
+  float cycles = (ns.count() / static_cast<float>(NS_PER_SEC)) * hz;
+  return static_cast<int64_t>(cycles);
 }
 
 static inline std::chrono::nanoseconds CYCLES_TO_NANO(int64_t cycles,
                                                       int64_t hz) {
-  return std::chrono::nanoseconds(
-      static_cast<int64_t>((cycles / static_cast<float>(hz)) * NS_PER_SEC));
+  float nano = (cycles / static_cast<float>(hz)) * NS_PER_SEC;
+  return std::chrono::nanoseconds(static_cast<int64_t>(nano));
 }
 
 class Scheduler {
  public:
-  Scheduler();
+  Scheduler(Machine &machine);
 
   void Tick(const std::chrono::nanoseconds &delta);
 
-  TimerHandle AllocTimer(TimerCallback callback);
-  void FreeTimer(TimerHandle handle);
-  void AdjustTimer(TimerHandle, const std::chrono::nanoseconds &period);
+  TimerHandle ScheduleTimer(TimerDelegate delegate,
+                            const std::chrono::nanoseconds &period);
   std::chrono::nanoseconds RemainingTime(TimerHandle handle);
+  void CancelTimer(TimerHandle handle);
 
  private:
-  Timer &GetTimer(TimerHandle handle);
-
+  Machine &machine_;
+  Arena arena_;
+  IntrusiveList<Timer> timers_;
+  IntrusiveList<Timer> free_timers_;
   std::chrono::high_resolution_clock::time_point base_time_;
-  Timer timers_[MAX_TIMERS];
-  int num_timers_;
-  TimerHandle next_handle_;
 };
 }
 }

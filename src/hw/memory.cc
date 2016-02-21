@@ -1,4 +1,6 @@
+#include "core/math.h"
 #include "core/memory.h"
+#include "hw/machine.h"
 #include "hw/memory.h"
 
 using namespace re;
@@ -49,24 +51,22 @@ static inline int RegionIndex(const PageEntry &page) {
 
 MemoryMap::MemoryMap() : entries_(), num_entries_(0) {}
 
-MapEntryHandle MemoryMap::Mount(RegionHandle handle, uint32_t size,
-                                uint32_t virtual_addr) {
+void MemoryMap::Mount(RegionHandle handle, uint32_t size,
+                      uint32_t virtual_addr) {
   MapEntry *entry = AllocEntry();
   entry->type = MAP_ENTRY_MOUNT;
   entry->mount.handle = handle;
   entry->mount.size = size;
   entry->mount.virtual_addr = virtual_addr;
-  return entry->handle;
 }
 
-MapEntryHandle MemoryMap::Mirror(uint32_t physical_addr, uint32_t size,
-                                 uint32_t virtual_addr) {
+void MemoryMap::Mirror(uint32_t physical_addr, uint32_t size,
+                       uint32_t virtual_addr) {
   MapEntry *entry = AllocEntry();
   entry->type = MAP_ENTRY_MIRROR;
   entry->mirror.physical_addr = physical_addr;
   entry->mirror.size = size;
   entry->mirror.virtual_addr = virtual_addr;
-  return entry->handle;
 }
 
 MapEntry *MemoryMap::AllocEntry() {
@@ -101,8 +101,9 @@ void Memory::W64(Memory *memory, uint32_t addr, uint64_t value) {
   memory->W64(addr, value);
 }
 
-Memory::Memory()
-    : shmem_(SHMEM_INVALID),
+Memory::Memory(Machine &machine)
+    : machine_(machine),
+      shmem_(SHMEM_INVALID),
       physical_base_(nullptr),
       virtual_base_(nullptr),
       protected_base_(nullptr) {
@@ -122,11 +123,39 @@ Memory::~Memory() {
 }
 
 bool Memory::Init() {
+  // create the backing shared memory object
   if (!CreateSharedMemory()) {
     return false;
   }
 
-  return true;
+  // iterate each device, giving it a chance to append to the memory map
+  MemoryMap memmap;
+
+  for (auto device : machine_.devices) {
+    if (!device->memory()) {
+      continue;
+    }
+
+    device->memory()->MapPhysicalMemory(*this, memmap);
+  }
+
+  for (auto device : machine_.devices) {
+    if (!device->memory()) {
+      continue;
+    }
+
+    device->memory()->MapVirtualMemory(*this, memmap);
+  }
+
+  return Map(memmap);
+}
+
+uint8_t *Memory::TranslateVirtual(uint32_t addr) {
+  return virtual_base_ + addr;
+}
+
+uint8_t *Memory::TranslateProtected(uint32_t addr) {
+  return protected_base_ + addr;
 }
 
 uint8_t Memory::R8(uint32_t addr) {

@@ -2,10 +2,12 @@
 #include <gflags/gflags.h>
 #include "emu/emulator.h"
 #include "emu/profiler.h"
+#include "hw/aica/aica.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/texture_cache.h"
 #include "hw/holly/tile_renderer.h"
 #include "hw/maple/maple.h"
+#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "renderer/gl_backend.h"
@@ -14,8 +16,11 @@
 using namespace re;
 using namespace re::emu;
 using namespace re::hw;
+using namespace re::hw::aica;
 using namespace re::hw::gdrom;
 using namespace re::hw::holly;
+using namespace re::hw::maple;
+using namespace re::hw::sh4;
 using namespace re::renderer;
 using namespace re::sys;
 using namespace re::trace;
@@ -24,7 +29,8 @@ DEFINE_string(bios, "dc_boot.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
 Emulator::Emulator()
-    : trace_writer_(nullptr),
+    : rb_(nullptr),
+      trace_writer_(nullptr),
       tile_renderer_(nullptr),
       core_events_(MAX_EVENTS),
       speed_() {
@@ -33,10 +39,11 @@ Emulator::Emulator()
 
 Emulator::~Emulator() {
   delete rb_;
+
+  DestroyDreamcast();
+
   delete trace_writer_;
   delete tile_renderer_;
-
-  DestroyDreamcast(dc_);
 }
 
 void Emulator::Run(const char *path) {
@@ -48,7 +55,7 @@ void Emulator::Run(const char *path) {
     return;
   }
 
-  if (!CreateDreamcast(dc_, rb_)) {
+  if (!CreateDreamcast()) {
     return;
   }
 
@@ -87,6 +94,45 @@ void Emulator::Run(const char *path) {
   cpu_thread.join();
 }
 
+bool Emulator::CreateDreamcast() {
+  dc_.sh4 = new SH4(&dc_);
+  dc_.aica = new AICA(&dc_);
+  dc_.gdrom = new GDROM(&dc_);
+  dc_.holly = new Holly(&dc_);
+  dc_.maple = new Maple(&dc_);
+  dc_.pvr = new PVR2(&dc_);
+  dc_.ta = new TileAccelerator(&dc_);
+  dc_.texcache = new TextureCache(&dc_, rb_);
+
+  if (!dc_.Init()) {
+    DestroyDreamcast();
+    return false;
+  }
+
+  return true;
+}
+
+void Emulator::DestroyDreamcast() {
+  delete dc_.sh4;
+  dc_.sh4 = nullptr;
+  delete dc_.aica;
+  dc_.aica = nullptr;
+  delete dc_.gdrom;
+  dc_.gdrom = nullptr;
+  delete dc_.holly;
+  dc_.holly = nullptr;
+  delete dc_.maple;
+  dc_.maple = nullptr;
+  delete dc_.pvr;
+  dc_.pvr = nullptr;
+  delete dc_.ta;
+  dc_.ta = nullptr;
+  delete dc_.texcache;
+  dc_.texcache = nullptr;
+
+  dc_.trace_writer = nullptr;
+}
+
 bool Emulator::LoadBios(const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
@@ -104,7 +150,8 @@ bool Emulator::LoadBios(const char *path) {
     return false;
   }
 
-  int n = static_cast<int>(fread(dc_.bios, sizeof(uint8_t), size, fp));
+  uint8_t *bios = dc_.memory->TranslateVirtual(BIOS_START);
+  int n = static_cast<int>(fread(bios, sizeof(uint8_t), size, fp));
   fclose(fp);
 
   if (n != size) {
@@ -132,7 +179,8 @@ bool Emulator::LoadFlash(const char *path) {
     return false;
   }
 
-  int n = static_cast<int>(fread(dc_.flash, sizeof(uint8_t), size, fp));
+  uint8_t *flash = dc_.memory->TranslateVirtual(FLASH_START);
+  int n = static_cast<int>(fread(flash, sizeof(uint8_t), size, fp));
   fclose(fp);
 
   if (n != size) {
@@ -153,21 +201,18 @@ bool Emulator::LaunchBIN(const char *path) {
   int size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  uint8_t *data = reinterpret_cast<uint8_t *>(malloc(size));
+  // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to
+  uint32_t pc = 0x0c010000;
+  uint8_t *data = dc_.memory->TranslateVirtual(pc);
   int n = static_cast<int>(fread(data, sizeof(uint8_t), size, fp));
   fclose(fp);
 
   if (n != size) {
-    free(data);
+    LOG_WARNING("BIN read failed");
     return false;
   }
 
-  // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is normally
-  // loaded to
-  dc_.memory->Memcpy(0x0c010000, data, size);
-  free(data);
-
-  dc_.sh4->SetPC(0x0c010000);
+  dc_.sh4->SetPC(pc);
 
   return true;
 }

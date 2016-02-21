@@ -2,6 +2,7 @@
 #define HOLLY_H
 
 #include <stdint.h>
+#include "hw/machine.h"
 
 namespace re {
 namespace hw {
@@ -15,10 +16,8 @@ namespace sh4 {
 class SH4;
 }
 
-struct Dreamcast;
+class Dreamcast;
 struct Register;
-
-extern bool MapMemory(Dreamcast &dc);
 
 namespace holly {
 
@@ -157,16 +156,17 @@ enum HollyInterrupt : uint64_t {
   HOLLY_INTC_CIHINT = HOLLY_INTC_ERR | 0x80000000
 };
 
-class Holly {
-  friend bool re::hw::MapMemory(Dreamcast &dc);
-
+class Holly : public Device, public MemoryInterface {
  public:
   Holly(Dreamcast *dc);
 
-  bool Init();
+  bool Init() final;
 
   void RequestInterrupt(HollyInterrupt intr);
   void UnrequestInterrupt(HollyInterrupt intr);
+
+ protected:
+  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
   template <typename T>

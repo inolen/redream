@@ -2,6 +2,7 @@
 #define MAPLE_H
 
 #include <memory>
+#include "hw/machine.h"
 #include "sys/keycode.h"
 
 namespace re {
@@ -10,7 +11,7 @@ namespace holly {
 class Holly;
 }
 
-struct Dreamcast;
+class Dreamcast;
 struct Register;
 class Memory;
 
@@ -99,13 +100,13 @@ class MapleDevice {
   virtual bool HandleFrame(const MapleFrame &frame, MapleFrame &res) = 0;
 };
 
-class Maple {
+class Maple : public Device {
   friend class holly::Holly;
 
  public:
   Maple(Dreamcast *dc);
 
-  bool Init();
+  bool Init() final;
 
   bool HandleInput(int port, sys::Keycode key, int16_t value);
   void VBlank();

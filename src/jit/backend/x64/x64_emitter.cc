@@ -2,6 +2,7 @@
 #include "core/math.h"
 #include "core/memory.h"
 #include "emu/profiler.h"
+#include "hw/memory.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_emitter.h"
 

@@ -13,7 +13,8 @@ using namespace re::hw::sh4;
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
 GDROM::GDROM(Dreamcast *dc)
-    : dc_(dc),
+    : Device(*dc),
+      dc_(dc),
       features_{0},
       intreason_{0},
       sectnum_{0},

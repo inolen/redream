@@ -154,34 +154,14 @@ namespace hw {
 namespace sh4 {
 
 void RunSH4Test(const SH4Test &test) {
-  static const uint32_t stack_address = 0x0;
-  static const uint32_t stack_size = PAGE_BLKSIZE;
-  static const uint32_t code_address = 0x8c010000;
-  const uint32_t code_size =
-      re::align_up(test.buffer_size, static_cast<uint32_t>(PAGE_BLKSIZE));
-
-  // setup stack and executable space in memory map
-  Memory memory;
-  CHECK(memory.Init());
-  RegionHandle stack_handle = memory.AllocRegion(stack_address, stack_size);
-  RegionHandle code_handle = memory.AllocRegion(code_address, code_size);
-
-  MemoryMap memmap;
-  memmap.Mount(stack_handle, stack_size, stack_address);
-  memmap.Mount(code_handle, code_size, code_address);
-  CHECK(memory.Map(memmap));
-
-  // fake scheduler
-  Scheduler scheduler;
-
   // initialize fake dreamcast device
+  // TODO avoid initializing an entire 32-bit addres space for each test?
+  // perhaps initialize the machine once, resetting the SH4 context between
+  // runs?
   std::unique_ptr<Dreamcast> dc(new Dreamcast());
-  dc->memory = &memory;
-  dc->scheduler = &scheduler;
+  std::unique_ptr<SH4> sh4(new SH4(dc.get()));
 
-  // initialize cpu
-  SH4 sh4(dc.get());
-  CHECK(sh4.Init());
+  CHECK(dc->Init());
 
   // setup in registers
   for (int i = 0; i < sh4_num_test_regs; i++) {
@@ -194,21 +174,21 @@ void RunSH4Test(const SH4Test &test) {
       continue;
     }
 
-    re::store(reinterpret_cast<uint8_t *>(&sh4.ctx_) + reg.offset, input);
+    re::store(reinterpret_cast<uint8_t *>(&sh4->ctx_) + reg.offset, input);
   }
 
   // setup initial stack pointer
-  sh4.ctx_.r[15] = stack_size;
+  sh4->ctx_.r[15] = 0x8d000000;
 
   // load binary
-  memory.Memcpy(code_address, test.buffer, test.buffer_size);
+  dc->memory->Memcpy(0x8c010000, test.buffer, test.buffer_size);
 
   // skip to the test's offset
-  sh4.SetPC(code_address + test.buffer_offset);
+  sh4->SetPC(0x8c010000 + test.buffer_offset);
 
   // run until the function returns
-  while (sh4.ctx_.pc) {
-    sh4.Run(std::chrono::nanoseconds(1));
+  while (sh4->ctx_.pc) {
+    sh4->Run(std::chrono::nanoseconds(1));
   }
 
   // validate out registers
@@ -223,7 +203,7 @@ void RunSH4Test(const SH4Test &test) {
     }
 
     uint32_t actual = re::load<uint32_t>(
-        reinterpret_cast<const uint8_t *>(&sh4.ctx_) + reg.offset);
+        reinterpret_cast<const uint8_t *>(&sh4->ctx_) + reg.offset);
 
     ASSERT_EQ(expected, actual) << reg.name << " expected: 0x" << std::hex
                                 << expected << ", actual 0x" << actual;

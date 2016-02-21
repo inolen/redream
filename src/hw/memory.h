@@ -9,6 +9,8 @@
 namespace re {
 namespace hw {
 
+class Machine;
+
 typedef uint8_t RegionHandle;
 
 enum {
@@ -49,14 +51,12 @@ class MemoryMap {
   const MapEntry *entry(int i) const { return &entries_[i]; }
   int num_entries() const { return num_entries_; }
 
-  // Physical regions can be allocated through Memory::AllocRegion, and the
-  // returned handle mounted here.
-  MapEntryHandle Mount(RegionHandle handle, uint32_t virtual_addr,
-                       uint32_t size);
+  // physical regions can be allocated through Memory::AllocRegion, and the
+  // returned handle mounted here
+  void Mount(RegionHandle handle, uint32_t virtual_addr, uint32_t size);
 
-  // Mirror arbitary, page-aligned ranges of memory to a virtual address.
-  MapEntryHandle Mirror(uint32_t physical_addr, uint32_t size,
-                        uint32_t virtual_addr);
+  // mirror arbitary, page-aligned ranges of memory to a virtual address
+  void Mirror(uint32_t physical_addr, uint32_t size, uint32_t virtual_addr);
 
  private:
   MapEntry *AllocEntry();
@@ -156,7 +156,7 @@ class Memory {
   static void W32(Memory *memory, uint32_t addr, uint32_t value);
   static void W64(Memory *memory, uint32_t addr, uint64_t value);
 
-  Memory();
+  Memory(Machine &machine);
   ~Memory();
 
   size_t total_size() { return ADDRESS_SPACE_SIZE; }
@@ -171,8 +171,8 @@ class Memory {
                            W8Delegate w8, W16Delegate w16, W32Delegate w32,
                            W64Delegate w64);
 
-  bool Map(const MemoryMap &map);
-
+  uint8_t *TranslateVirtual(uint32_t addr);
+  uint8_t *TranslateProtected(uint32_t addr);
   uint8_t R8(uint32_t addr);
   uint16_t R16(uint32_t addr);
   uint32_t R32(uint32_t addr);
@@ -194,6 +194,7 @@ class Memory {
 
   MemoryRegion *AllocRegion();
 
+  bool Map(const MemoryMap &map);
   void Unmap();
 
   bool GetNextContiguousRegion(uint32_t *physical_start,
@@ -211,6 +212,8 @@ class Memory {
   INT ReadBytes(uint32_t addr);
   template <typename INT, delegate<void(uint32_t, INT)> MemoryRegion::*DELEGATE>
   void WriteBytes(uint32_t addr, INT value);
+
+  Machine &machine_;
 
   // shared memory object where all physical data is written to
   sys::SharedMemoryHandle shmem_;

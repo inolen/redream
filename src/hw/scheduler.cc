@@ -1,79 +1,96 @@
 #include "core/assert.h"
+#include "core/minmax_heap.h"
+#include "hw/machine.h"
 #include "hw/scheduler.h"
 
 using namespace re::hw;
 
-namespace re {
-namespace hw {
-const std::chrono::nanoseconds SUSPENDED(INT64_MAX);
-}
-}
-
-Scheduler::Scheduler()
-    : base_time_(), timers_(), num_timers_(0), next_handle_(0) {}
+Scheduler::Scheduler(Machine &machine)
+    : machine_(machine), arena_(sizeof(Timer) * 128), timers_(), base_time_() {}
 
 void Scheduler::Tick(const std::chrono::nanoseconds &delta) {
-  auto next_time = base_time_ + delta;
+  auto target_time = base_time_ + delta;
 
-  // fire callbacks for all expired timers
-  for (int i = 0; i < num_timers_; i++) {
-    Timer &timer = timers_[i];
+  while (base_time_ < target_time) {
+    auto next_time = target_time;
 
-    if (timer.remaining == SUSPENDED) {
-      continue;
+    // run devices up to the next timer
+    Timer *next_timer = timers_.head();
+    if (next_timer && next_timer->expire < next_time) {
+      next_time = next_timer->expire;
     }
 
-    timer.remaining -= delta;
+    // go ahead and update base time before running devices and expiring timers
+    // in case one of them schedules a new timer
+    auto slice = next_time - base_time_;
+    base_time_ += slice;
 
-    while (timer.remaining <= std::chrono::nanoseconds::zero()) {
-      timer.callback(timer.period);
-      timer.remaining += timer.period;
+    for (auto device : machine_.devices) {
+      if (!device->execute()) {
+        continue;
+      }
+
+      device->execute()->Run(slice);
+    }
+
+    // execute expired timers
+    while (next_timer) {
+      if (next_timer->expire > base_time_) {
+        break;
+      }
+
+      next_timer->delegate();
+
+      // free the timer
+      Timer *next_next_timer = next_timer->next();
+      timers_.Remove(next_timer);
+      free_timers_.Append(next_timer);
+      next_timer = next_next_timer;
     }
   }
 
-  base_time_ = next_time;
+  CHECK_EQ(base_time_, target_time);
 }
 
-TimerHandle Scheduler::AllocTimer(TimerCallback callback) {
-  CHECK_LT(num_timers_, MAX_TIMERS);
+TimerHandle Scheduler::ScheduleTimer(TimerDelegate delegate,
+                                     const std::chrono::nanoseconds &period) {
+  // allocate a timer instance from the pool
+  Timer *timer = nullptr;
 
-  Timer &timer = timers_[num_timers_++];
-  timer.handle = next_handle_++;
-  timer.callback = callback;
-  timer.period = SUSPENDED;
-  timer.remaining = SUSPENDED;
+  if (free_timers_.head()) {
+    timer = free_timers_.head();
+    free_timers_.Remove(timer);
+  } else {
+    timer = arena_.Alloc<Timer>();
+    new (timer) Timer();
+  }
 
-  return timer.handle;
-}
+  timer->expire = base_time_ + period;
+  timer->delegate = delegate;
 
-void Scheduler::AdjustTimer(TimerHandle handle,
-                            const std::chrono::nanoseconds &period) {
-  Timer &timer = GetTimer(handle);
-  timer.period = period;
-  timer.remaining = period;
-}
+  // insert it into the sorted list
+  Timer *after = nullptr;
 
-void Scheduler::FreeTimer(TimerHandle handle) {
-  // swap timer to be removed with last timer to keep a contiguous array
-  Timer &timer = GetTimer(handle);
-  timer = timers_[--num_timers_];
+  for (auto t : timers_) {
+    if (t->expire > timer->expire) {
+      break;
+    }
+
+    after = t;
+  }
+
+  timers_.Insert(after, timer);
+
+  return static_cast<TimerHandle>(timer);
 }
 
 std::chrono::nanoseconds Scheduler::RemainingTime(TimerHandle handle) {
-  Timer &timer = GetTimer(handle);
-  return timer.remaining;
+  Timer *timer = static_cast<Timer *>(handle);
+  return timer->expire - base_time_;
 }
 
-Timer &Scheduler::GetTimer(TimerHandle handle) {
-  Timer *timer = nullptr;
-  for (int i = 0; i < num_timers_; i++) {
-    Timer *t = &timers_[i];
-
-    if (t->handle == handle) {
-      timer = t;
-      break;
-    }
-  }
-  CHECK_NOTNULL(timer);
-  return *timer;
+void Scheduler::CancelTimer(TimerHandle handle) {
+  Timer *timer = static_cast<Timer *>(handle);
+  timers_.Remove(timer);
+  free_timers_.Append(timer);
 }

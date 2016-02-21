@@ -2,22 +2,22 @@
 #define AICA_H
 
 #include <stdint.h>
+#include "hw/machine.h"
 
 namespace re {
 namespace hw {
-struct Dreamcast;
-
-extern bool MapMemory(Dreamcast &dc);
+class Dreamcast;
 
 namespace aica {
 
-class AICA {
-  friend bool re::hw::MapMemory(Dreamcast &dc);
-
+class AICA : public Device, public MemoryInterface {
  public:
   AICA(Dreamcast *dc);
 
-  bool Init();
+  bool Init() final;
+
+ protected:
+  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
   // static uint32_t ReadRegister(void *ctx, uint32_t addr);
@@ -25,7 +25,6 @@ class AICA {
 
   template <typename T>
   T ReadWave(uint32_t addr);
-
   template <typename T>
   void WriteWave(uint32_t addr, T value);
 

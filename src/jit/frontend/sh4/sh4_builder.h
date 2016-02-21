@@ -1,12 +1,16 @@
 #ifndef SH4_BUILDER_H
 #define SH4_BUILDER_H
 
-#include "hw/memory.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disassembler.h"
 #include "jit/ir/ir_builder.h"
 
 namespace re {
+
+namespace hw {
+class Memory;
+}
+
 namespace jit {
 namespace frontend {
 namespace sh4 {

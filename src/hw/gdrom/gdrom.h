@@ -3,6 +3,7 @@
 
 #include <memory>
 #include "hw/gdrom/disc.h"
+#include "hw/machine.h"
 
 namespace re {
 namespace hw {
@@ -10,7 +11,7 @@ namespace holly {
 class Holly;
 }
 
-struct Dreamcast;
+class Dreamcast;
 struct Register;
 class Memory;
 
@@ -202,14 +203,14 @@ enum DataMask {
   MASK_OTHER = 0x1
 };
 
-class GDROM {
+class GDROM : public Device {
   friend class holly::Holly;
 
  public:
   GDROM(Dreamcast *dc);
   ~GDROM();
 
-  bool Init();
+  bool Init() final;
 
   void SetDisc(std::unique_ptr<Disc> disc);
 

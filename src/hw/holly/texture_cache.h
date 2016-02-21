@@ -5,8 +5,8 @@
 #include <unordered_map>
 #include "core/interval_tree.h"
 #include "hw/holly/tile_renderer.h"
-#include "hw/memory.h"
 #include "renderer/backend.h"
+#include "sys/memory.h"
 
 namespace re {
 namespace trace {
@@ -14,7 +14,8 @@ class TraceWriter;
 }
 
 namespace hw {
-struct Dreamcast;
+class Dreamcast;
+class Memory;
 
 namespace holly {
 
@@ -33,7 +34,7 @@ struct TextureEntry {
 
 class TextureCache : public TextureProvider {
  public:
-  TextureCache(hw::Dreamcast *dc);
+  TextureCache(hw::Dreamcast *dc, renderer::Backend *rb);
 
   bool Init();
   renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
@@ -51,6 +52,7 @@ class TextureCache : public TextureProvider {
   void Invalidate(TextureCacheMap::iterator it);
 
   hw::Dreamcast *dc_;
+  renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;
   TextureCacheMap textures_;
   TextureSet pending_invalidations_;

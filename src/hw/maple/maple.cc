@@ -10,7 +10,7 @@ using namespace re::hw::maple;
 using namespace re::hw::sh4;
 using namespace re::sys;
 
-Maple::Maple(Dreamcast *dc) : dc_(dc), devices_() {
+Maple::Maple(Dreamcast *dc) : Device(*dc), dc_(dc), devices_() {
   // default controller device
   devices_[0] = std::unique_ptr<MapleController>(new MapleController());
 }

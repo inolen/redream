@@ -140,7 +140,7 @@ set(REDREAM_SOURCES
   src/hw/maple/maple_controller.cc
   src/hw/sh4/sh4.cc
   src/hw/sh4/sh4_code_cache.cc
-  src/hw/dreamcast.cc
+  src/hw/machine.cc
   src/hw/memory.cc
   src/hw/scheduler.cc
   src/jit/backend/interpreter/interpreter_backend.cc

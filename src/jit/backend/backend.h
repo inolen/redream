@@ -2,11 +2,15 @@
 #define BACKEND_H
 
 #include <map>
-#include "hw/memory.h"
 #include "jit/ir/ir_builder.h"
 #include "jit/source_map.h"
 
 namespace re {
+
+namespace hw {
+class Memory;
+}
+
 namespace sys {
 struct Exception;
 }

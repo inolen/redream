@@ -2,6 +2,7 @@
 #include "hw/holly/pvr2.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
 
 using namespace re::hw;
 using namespace re::hw::holly;
@@ -9,7 +10,12 @@ using namespace re::hw::sh4;
 using namespace re::renderer;
 
 PVR2::PVR2(Dreamcast *dc)
-    : dc_(dc), line_timer_(INVALID_TIMER), current_scanline_(0), rps_(0.0f) {}
+    : Device(*dc),
+      MemoryInterface(this),
+      dc_(dc),
+      line_timer_(INVALID_TIMER),
+      current_scanline_(0),
+      rps_(0.0f) {}
 
 bool PVR2::Init() {
   scheduler_ = dc_->scheduler;
@@ -17,8 +23,8 @@ bool PVR2::Init() {
   ta_ = dc_->ta;
   texcache_ = dc_->texcache;
   pvr_regs_ = dc_->pvr_regs;
-  palette_ram_ = dc_->palette_ram;
-  video_ram_ = dc_->video_ram;
+  palette_ram_ = dc_->memory->TranslateVirtual(PVR_PALETTE_START);
+  video_ram_ = dc_->memory->TranslateVirtual(PVR_VRAM32_START);
 
 // initialize registers
 #define PVR_REG(addr, name, flags, default, type) \
@@ -26,13 +32,28 @@ bool PVR2::Init() {
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
 
-  // register scanline timer
-  line_timer_ = scheduler_->AllocTimer(std::bind(&PVR2::NextScanline, this));
-
   // configure initial vsync interval
   ReconfigureSPG();
 
   return true;
+}
+
+void PVR2::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
+  RegionHandle pvr_reg_handle = memory.AllocRegion(
+      PVR_REG_START, PVR_REG_SIZE, nullptr, nullptr,
+      make_delegate(&PVR2::ReadRegister, this), nullptr, nullptr, nullptr,
+      make_delegate(&PVR2::WriteRegister, this), nullptr);
+
+  RegionHandle pvr_vram64_handle = memory.AllocRegion(
+      PVR_VRAM64_START, PVR_VRAM64_SIZE,
+      make_delegate(&PVR2::ReadVRamInterleaved<uint8_t>, this),
+      make_delegate(&PVR2::ReadVRamInterleaved<uint16_t>, this),
+      make_delegate(&PVR2::ReadVRamInterleaved<uint32_t>, this), nullptr,
+      nullptr, make_delegate(&PVR2::WriteVRamInterleaved<uint16_t>, this),
+      make_delegate(&PVR2::WriteVRamInterleaved<uint32_t>, this), nullptr);
+
+  memmap.Mount(pvr_reg_handle, PVR_REG_SIZE, PVR_REG_START);
+  memmap.Mount(pvr_vram64_handle, PVR_VRAM64_SIZE, PVR_VRAM64_START);
 }
 
 uint32_t PVR2::ReadRegister(uint32_t addr) {
@@ -120,17 +141,12 @@ static uint32_t MAP64(uint32_t addr) {
           (addr & 0x3));
 }
 
-template uint8_t PVR2::ReadVRamInterleaved(uint32_t addr);
-template uint16_t PVR2::ReadVRamInterleaved(uint32_t addr);
-template uint32_t PVR2::ReadVRamInterleaved(uint32_t addr);
 template <typename T>
 T PVR2::ReadVRamInterleaved(uint32_t addr) {
   addr = MAP64(addr);
   return re::load<T>(&video_ram_[addr]);
 }
 
-template void PVR2::WriteVRamInterleaved(uint32_t addr, uint16_t value);
-template void PVR2::WriteVRamInterleaved(uint32_t addr, uint32_t value);
 template <typename T>
 void PVR2::WriteVRamInterleaved(uint32_t addr, T value) {
   addr = MAP64(addr);
@@ -145,19 +161,25 @@ void PVR2::ReconfigureSPG() {
   }
 
   // hcount is number of pixel clock cycles per line - 1
-  int line_clock = pixel_clock / (dc_->SPG_LOAD.hcount + 1);
+  line_clock_ = pixel_clock / (dc_->SPG_LOAD.hcount + 1);
   if (dc_->SPG_CONTROL.interlace) {
-    line_clock *= 2;
+    line_clock_ *= 2;
   }
 
   LOG_INFO(
       "ReconfigureSPG: pixel_clock %d, line_clock %d, vcount %d, hcount %d, "
       "interlace %d, vbstart %d, vbend %d",
-      pixel_clock, line_clock, dc_->SPG_LOAD.vcount, dc_->SPG_LOAD.hcount,
+      pixel_clock, line_clock_, dc_->SPG_LOAD.vcount, dc_->SPG_LOAD.hcount,
       dc_->SPG_CONTROL.interlace, dc_->SPG_VBLANK.vbstart,
       dc_->SPG_VBLANK.vbend);
 
-  scheduler_->AdjustTimer(line_timer_, HZ_TO_NANO(line_clock));
+  if (line_timer_ != INVALID_TIMER) {
+    scheduler_->CancelTimer(line_timer_);
+    line_timer_ = nullptr;
+  }
+
+  line_timer_ = scheduler_->ScheduleTimer(
+      re::make_delegate(&PVR2::NextScanline, this), HZ_TO_NANO(line_clock_));
 }
 
 void PVR2::NextScanline() {
@@ -190,4 +212,8 @@ void PVR2::NextScanline() {
   // FIXME toggle SPG_STATUS.fieldnum on vblank?
   // if (!was_vsync && dc_->SPG_STATUS.vsync) {
   // }
+
+  // reschedule
+  line_timer_ = scheduler_->ScheduleTimer(
+      re::make_delegate(&PVR2::NextScanline, this), HZ_TO_NANO(line_clock_));
 }

@@ -3,10 +3,14 @@
 
 #include <xbyak/xbyak.h>
 #include "core/arena.h"
-#include "hw/memory.h"
 #include "jit/source_map.h"
 
 namespace re {
+
+namespace hw {
+class Memory;
+}
+
 namespace jit {
 namespace backend {
 namespace x64 {

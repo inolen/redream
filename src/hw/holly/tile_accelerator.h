@@ -5,6 +5,7 @@
 #include <queue>
 #include <unordered_map>
 #include "hw/holly/tile_renderer.h"
+#include "hw/machine.h"
 #include "renderer/backend.h"
 
 namespace re {
@@ -14,10 +15,8 @@ class TraceWriter;
 
 namespace hw {
 
-struct Dreamcast;
+class Dreamcast;
 class Memory;
-
-extern bool MapMemory(Dreamcast &dc);
 
 namespace holly {
 
@@ -483,9 +482,7 @@ struct TileContext {
 typedef std::unordered_map<TextureKey, TileContext *> TileContextMap;
 typedef std::queue<TileContext *> TileContextQueue;
 
-class TileAccelerator {
-  friend bool re::hw::MapMemory(Dreamcast &dc);
-
+class TileAccelerator : public Device, public MemoryInterface {
  public:
   static int GetParamSize(const PCW &pcw, int vertex_type);
   static int GetPolyType(const PCW &pcw);
@@ -493,7 +490,7 @@ class TileAccelerator {
 
   TileAccelerator(Dreamcast *dc);
 
-  bool Init();
+  bool Init() final;
 
   void SoftReset();
   void InitContext(uint32_t addr);
@@ -501,6 +498,9 @@ class TileAccelerator {
   void FinalizeContext(uint32_t addr);
 
   TileContext *GetLastContext();
+
+ protected:
+  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
   void WriteCommand(uint32_t addr, uint32_t value);

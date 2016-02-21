@@ -1,8 +1,9 @@
 #ifndef SH4_H
 #define SH4_H
 
-#include "hw/scheduler.h"
 #include "hw/sh4/sh4_code_cache.h"
+#include "hw/machine.h"
+#include "hw/scheduler.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
 struct SH4Test;
@@ -10,9 +11,7 @@ struct SH4Test;
 namespace re {
 namespace hw {
 
-struct Dreamcast;
-
-extern bool MapMemory(Dreamcast &dc);
+class Dreamcast;
 
 namespace sh4 {
 
@@ -108,17 +107,16 @@ enum DDTRW {  //
   DDT_W
 };
 
-class SH4 {
-  friend bool re::hw::MapMemory(Dreamcast &dc);
+class SH4 : public Device, public MemoryInterface, public ExecuteInterface {
   friend void RunSH4Test(const SH4Test &);
 
  public:
   SH4(Dreamcast *dc);
   ~SH4();
 
-  bool Init();
+  bool Init() final;
   void SetPC(uint32_t pc);
-  void Run(const std::chrono::nanoseconds &period);
+  void Run(const std::chrono::nanoseconds &delta) final;
 
   // DMAC
   void DDT(int channel, DDTRW rw, uint32_t addr);
@@ -126,6 +124,10 @@ class SH4 {
   // INTC
   void RequestInterrupt(Interrupt intr);
   void UnrequestInterrupt(Interrupt intr);
+
+ protected:
+  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
+  void MapVirtualMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
   static uint32_t CompilePC();
@@ -166,8 +168,9 @@ class SH4 {
   void UpdateTimerControl(uint32_t n);
   void UpdateTimerCount(uint32_t n);
   uint32_t TimerCount(int n);
-  void ScheduleTimer(int n, uint32_t tcnt, uint32_t tcr);
-  void ExpireTimer(int n);
+  void RescheduleTimer(int n, uint32_t tcnt, uint32_t tcr);
+  template <int N>
+  void ExpireTimer();
 
   Dreamcast *dc_;
   Memory *memory_;
@@ -189,6 +192,7 @@ class SH4 {
   uint64_t pending_interrupts_;
 
   hw::TimerHandle tmu_timers_[3];
+  TimerDelegate tmu_delegates_[3];
 
   uint32_t area7_[0x4000];  // consolidated, 16kb area 7 memory
   uint8_t cache_[0x2000];   // 8kb cache

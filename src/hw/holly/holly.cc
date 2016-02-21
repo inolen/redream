@@ -2,6 +2,7 @@
 #include "hw/holly/holly.h"
 #include "hw/maple/maple.h"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
 
 using namespace re;
 using namespace re::hw;
@@ -12,7 +13,7 @@ using namespace re::hw::sh4;
 using namespace re::renderer;
 using namespace re::sys;
 
-Holly::Holly(Dreamcast *dc) : dc_(dc) {}
+Holly::Holly(Dreamcast *dc) : Device(*dc), MemoryInterface(this), dc_(dc) {}
 
 bool Holly::Init() {
   holly_regs_ = dc_->holly_regs;
@@ -77,9 +78,19 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
   ForwardRequestInterrupts();
 }
 
-template uint8_t Holly::ReadRegister(uint32_t addr);
-template uint16_t Holly::ReadRegister(uint32_t addr);
-template uint32_t Holly::ReadRegister(uint32_t addr);
+void Holly::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
+  RegionHandle holly_handle = memory.AllocRegion(
+      HOLLY_REG_START, HOLLY_REG_SIZE,
+      make_delegate(&Holly::ReadRegister<uint8_t>, this),
+      make_delegate(&Holly::ReadRegister<uint16_t>, this),
+      make_delegate(&Holly::ReadRegister<uint32_t>, this), nullptr,
+      make_delegate(&Holly::WriteRegister<uint8_t>, this),
+      make_delegate(&Holly::WriteRegister<uint16_t>, this),
+      make_delegate(&Holly::WriteRegister<uint32_t>, this), nullptr);
+
+  memmap.Mount(holly_handle, HOLLY_REG_SIZE, HOLLY_REG_START);
+}
+
 template <typename T>
 T Holly::ReadRegister(uint32_t addr) {
   // service all devices connected through the system bus
@@ -117,9 +128,6 @@ T Holly::ReadRegister(uint32_t addr) {
   return static_cast<T>(reg.value);
 }
 
-template void Holly::WriteRegister(uint32_t addr, uint8_t value);
-template void Holly::WriteRegister(uint32_t addr, uint16_t value);
-template void Holly::WriteRegister(uint32_t addr, uint32_t value);
 template <typename T>
 void Holly::WriteRegister(uint32_t addr, T value) {
   // service all devices connected through the system bus

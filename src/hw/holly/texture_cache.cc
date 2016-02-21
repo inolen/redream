@@ -2,6 +2,7 @@
 #include "hw/holly/texture_cache.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
 #include "trace/trace.h"
 
 using namespace re::hw;
@@ -9,8 +10,8 @@ using namespace re::hw::holly;
 using namespace re::renderer;
 using namespace re::sys;
 
-TextureCache::TextureCache(Dreamcast *dc)
-    : dc_(dc), trace_writer_(nullptr), num_invalidated_(0) {}
+TextureCache::TextureCache(Dreamcast *dc, Backend *rb)
+    : dc_(dc), rb_(rb), trace_writer_(nullptr), num_invalidated_(0) {}
 
 bool TextureCache::Init() { return true; }
 
@@ -39,7 +40,7 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   uint32_t texture_addr = tcw.texture_addr << 3;
 
   // get the texture data
-  uint8_t *video_ram = dc_->video_ram;
+  uint8_t *video_ram = dc_->memory->TranslateVirtual(PVR_VRAM32_START);
   uint8_t *texture = &video_ram[texture_addr];
   int width = 8 << tsp.texture_u_size;
   int height = 8 << tsp.texture_v_size;
@@ -49,7 +50,7 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   int texture_size = (width * height * element_size_bits) >> 3;
 
   // get the palette data
-  uint8_t *palette_ram = dc_->palette_ram;
+  uint8_t *palette_ram = dc_->memory->TranslateVirtual(PVR_PALETTE_START);
   uint8_t *palette = nullptr;
   uint32_t palette_addr = 0;
   int palette_size = 0;
@@ -174,7 +175,7 @@ void TextureCache::Invalidate(TextureCacheMap::iterator it) {
     RemoveAccessWatch(entry.palette_watch);
   }
 
-  dc_->rb->FreeTexture(entry.handle);
+  rb_->FreeTexture(entry.handle);
 
   textures_.erase(it);
 }

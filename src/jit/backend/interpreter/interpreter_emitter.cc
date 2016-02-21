@@ -1,6 +1,7 @@
 #include <math.h>
 #include <unordered_map>
 #include "core/memory.h"
+#include "hw/memory.h"
 #include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/interpreter/interpreter_emitter.h"
 

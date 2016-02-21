@@ -2,15 +2,14 @@
 #define PVR_CLX2_H
 
 #include <stdint.h>
+#include "hw/machine.h"
 #include "hw/scheduler.h"
 
 namespace re {
 namespace hw {
 
-struct Dreamcast;
+class Dreamcast;
 struct Register;
-
-extern bool MapMemory(Dreamcast &dc);
 
 namespace holly {
 
@@ -199,15 +198,16 @@ union TA_ISP_BASE_T {
   };
 };
 
-class PVR2 {
-  friend bool re::hw::MapMemory(Dreamcast &dc);
-
+class PVR2 : public Device, public MemoryInterface {
  public:
   PVR2(Dreamcast *dc);
 
   float rps() { return rps_; }
 
-  bool Init();
+  bool Init() final;
+
+ protected:
+  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
   uint32_t ReadRegister(uint32_t addr);
@@ -231,6 +231,7 @@ class PVR2 {
   uint8_t *video_ram_;
 
   TimerHandle line_timer_;
+  int line_clock_;
   uint32_t current_scanline_;
 
   std::chrono::high_resolution_clock::time_point last_render_;

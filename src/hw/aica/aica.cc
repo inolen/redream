@@ -1,18 +1,44 @@
 #include "core/memory.h"
 #include "hw/aica/aica.h"
 #include "hw/dreamcast.h"
+#include "hw/memory.h"
 
 using namespace re::hw;
 using namespace re::hw::aica;
 using namespace re::hw::holly;
 
-AICA::AICA(Dreamcast *dc) : dc_(dc) {}
+AICA::AICA(Dreamcast *dc) : Device(*dc), MemoryInterface(this), dc_(dc) {}
 
 bool AICA::Init() {
   // aica_regs_ = dc_->aica_regs();
-  wave_ram_ = dc_->wave_ram;
+  wave_ram_ = dc_->memory->TranslateVirtual(WAVE_RAM_START);
 
   return true;
+}
+
+void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
+  // RegionHandle aica_reg_handle = memory.AllocRegion(
+  //   AICA_REG_START, AICA_REG_SIZE, aica(),
+  //   nullptr,
+  //   nullptr,
+  //   &AICA::ReadRegister,
+  //   nullptr,
+  //   nullptr,
+  //   nullptr,
+  //   &AICA::WriteRegister,
+  //   nullptr);
+
+  RegionHandle wave_ram_handle = memory.AllocRegion(
+      WAVE_RAM_START, WAVE_RAM_SIZE,
+      make_delegate(&AICA::ReadWave<uint8_t>, this),
+      make_delegate(&AICA::ReadWave<uint16_t>, this),
+      make_delegate(&AICA::ReadWave<uint32_t>, this), nullptr,
+      make_delegate(&AICA::WriteWave<uint8_t>, this),
+      make_delegate(&AICA::WriteWave<uint16_t>, this),
+      make_delegate(&AICA::WriteWave<uint32_t>, this), nullptr);
+
+  // memmap.Mount(aica_reg_handle, AICA_REG_SIZE, AICA_REG_START);
+  memmap.Mount(wave_ram_handle, WAVE_RAM_SIZE, WAVE_RAM_START);
 }
 
 // frequency 22579200
@@ -40,9 +66,6 @@ bool AICA::Init() {
 //   re::store(&self->aica_regs_[addr], value);
 // }
 
-template uint8_t AICA::ReadWave(uint32_t addr);
-template uint16_t AICA::ReadWave(uint32_t addr);
-template uint32_t AICA::ReadWave(uint32_t addr);
 template <typename T>
 T AICA::ReadWave(uint32_t addr) {
   if (sizeof(T) == 4) {
@@ -59,9 +82,6 @@ T AICA::ReadWave(uint32_t addr) {
   return re::load<T>(&wave_ram_[addr]);
 }
 
-template void AICA::WriteWave(uint32_t addr, uint8_t value);
-template void AICA::WriteWave(uint32_t addr, uint16_t value);
-template void AICA::WriteWave(uint32_t addr, uint32_t value);
 template <typename T>
 void AICA::WriteWave(uint32_t addr, T value) {
   re::store(&wave_ram_[addr], value);

@@ -1,6 +1,8 @@
 #ifndef DREAMCAST_H
 #define DREAMCAST_H
 
+#include "hw/machine.h"
+
 // needed for register types
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr2.h"
@@ -136,10 +138,34 @@ enum {
 #undef PVR_REG
 };
 
-struct Dreamcast {
-  // uint8_t *aica_regs;
+class Dreamcast : public Machine {
+ public:
+  Dreamcast()
+      : holly_regs(),
+        pvr_regs(),
+        sh4(nullptr),
+        aica(nullptr),
+        gdrom(nullptr),
+        holly(nullptr),
+        maple(nullptr),
+        pvr(nullptr),
+        ta(nullptr),
+        texcache(nullptr),
+        trace_writer(nullptr) {}
+
   Register holly_regs[HOLLY_REG_SIZE >> 2];
   Register pvr_regs[PVR_REG_SIZE >> 2];
+
+  hw::sh4::SH4 *sh4;
+  hw::aica::AICA *aica;
+  hw::gdrom::GDROM *gdrom;
+  hw::holly::Holly *holly;
+  hw::maple::Maple *maple;
+  hw::holly::PVR2 *pvr;
+  hw::holly::TileAccelerator *ta;
+  hw::holly::TextureCache *texcache;
+
+  trace::TraceWriter *trace_writer;
 
 #define HOLLY_REG(offset, name, flags, default, type) \
   type &name = reinterpret_cast<type &>(holly_regs[name##_OFFSET].value);
@@ -150,32 +176,7 @@ struct Dreamcast {
   type &name = reinterpret_cast<type &>(pvr_regs[name##_OFFSET].value);
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
-
-  uint8_t *bios;
-  uint8_t *flash;
-  uint8_t *palette_ram;
-  uint8_t *ram;
-  uint8_t *video_ram;
-  uint8_t *wave_ram;
-
-  hw::Memory *memory;
-  hw::Scheduler *scheduler;
-  hw::aica::AICA *aica;
-  hw::gdrom::GDROM *gdrom;
-  hw::holly::Holly *holly;
-  hw::maple::Maple *maple;
-  hw::holly::PVR2 *pvr;
-  hw::sh4::SH4 *sh4;
-  hw::holly::TileAccelerator *ta;
-  hw::holly::TextureCache *texcache;
-
-  // not owned by us
-  renderer::Backend *rb;
-  trace::TraceWriter *trace_writer;
 };
-
-bool CreateDreamcast(Dreamcast &dc, renderer::Backend *rb);
-void DestroyDreamcast(Dreamcast &dc);
 }
 }
 

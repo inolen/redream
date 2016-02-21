@@ -28,11 +28,18 @@ enum {
 };
 
 SH4::SH4(Dreamcast *dc)
-    : dc_(dc),
+    : Device(*dc),
+      MemoryInterface(this),
+      ExecuteInterface(this),
+      dc_(dc),
       code_cache_(nullptr),
       pending_cache_reset_(false),
       requested_interrupts_(0),
-      pending_interrupts_(0) {}
+      pending_interrupts_(0),
+      tmu_timers_{INVALID_TIMER, INVALID_TIMER, INVALID_TIMER},
+      tmu_delegates_{re::make_delegate(&SH4::ExpireTimer<0>, this),
+                     re::make_delegate(&SH4::ExpireTimer<1>, this),
+                     re::make_delegate(&SH4::ExpireTimer<2>, this)} {}
 
 SH4::~SH4() { delete code_cache_; }
 
@@ -68,27 +75,16 @@ bool SH4::Init() {
   // reset interrupts
   ReprioritizeInterrupts();
 
-  // register timer
-  TimerHandle timer =
-      scheduler_->AllocTimer(std::bind(&SH4::Run, this, std::placeholders::_1));
-  scheduler_->AdjustTimer(timer, std::chrono::nanoseconds(446428));
-
-  // initialize tmu timers
-  for (int i = 0; i < 3; i++) {
-    tmu_timers_[i] = scheduler_->AllocTimer(
-        [this, i](const std::chrono::nanoseconds &) { ExpireTimer(i); });
-  }
-
   return true;
 }
 
 void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }
 
-void SH4::Run(const std::chrono::nanoseconds &period) {
+void SH4::Run(const std::chrono::nanoseconds &delta) {
   PROFILER_RUNTIME("SH4::Execute");
 
   // execute at least 1 cycle. the tests rely on this to step block by block
-  int64_t cycles = std::max(NANO_TO_CYCLES(period, SH4_CLOCK_FREQ), 1ll);
+  int64_t cycles = std::max(NANO_TO_CYCLES(delta, SH4_CLOCK_FREQ), 1ll);
 
   // set current sh4 instance for CompilePC
   s_current_cpu = this;
@@ -141,6 +137,72 @@ void SH4::RequestInterrupt(Interrupt intr) {
 void SH4::UnrequestInterrupt(Interrupt intr) {
   requested_interrupts_ &= ~sort_id_[intr];
   UpdatePendingInterrupts();
+}
+
+void SH4::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
+  // area 2 and 4 are unused
+  RegionHandle a0_handle = memory.AllocRegion(AREA0_START, AREA0_SIZE);
+  RegionHandle a1_handle = memory.AllocRegion(AREA1_START, AREA1_SIZE);
+  RegionHandle a3_handle = memory.AllocRegion(AREA3_START, AREA3_SIZE);
+  RegionHandle a5_handle = memory.AllocRegion(AREA5_START, AREA5_SIZE);
+  RegionHandle a6_handle = memory.AllocRegion(AREA6_START, AREA6_SIZE);
+  RegionHandle a7_handle = memory.AllocRegion(AREA7_START, AREA7_SIZE);
+
+  RegionHandle sh4_reg_handle = memory.AllocRegion(
+      SH4_REG_START, SH4_REG_SIZE,
+      make_delegate(&SH4::ReadRegister<uint8_t>, this),
+      make_delegate(&SH4::ReadRegister<uint16_t>, this),
+      make_delegate(&SH4::ReadRegister<uint32_t>, this), nullptr,
+      make_delegate(&SH4::WriteRegister<uint8_t>, this),
+      make_delegate(&SH4::WriteRegister<uint16_t>, this),
+      make_delegate(&SH4::WriteRegister<uint32_t>, this), nullptr);
+
+  memmap.Mount(a0_handle, AREA0_SIZE, AREA0_START);
+  memmap.Mount(a1_handle, AREA1_SIZE, AREA1_START);
+  memmap.Mount(a3_handle, AREA3_SIZE, AREA3_START);
+  memmap.Mount(a5_handle, AREA5_SIZE, AREA5_START);
+  memmap.Mount(a6_handle, AREA6_SIZE, AREA6_START);
+  memmap.Mount(a7_handle, AREA7_SIZE, AREA7_START);
+  memmap.Mount(sh4_reg_handle, SH4_REG_SIZE, SH4_REG_START);
+}
+
+void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
+  RegionHandle sh4_cache_handle =
+      memory.AllocRegion(SH4_CACHE_START, SH4_CACHE_SIZE,
+                         make_delegate(&SH4::ReadCache<uint8_t>, this),
+                         make_delegate(&SH4::ReadCache<uint16_t>, this),
+                         make_delegate(&SH4::ReadCache<uint32_t>, this),
+                         make_delegate(&SH4::ReadCache<uint64_t>, this),
+                         make_delegate(&SH4::WriteCache<uint8_t>, this),
+                         make_delegate(&SH4::WriteCache<uint16_t>, this),
+                         make_delegate(&SH4::WriteCache<uint32_t>, this),
+                         make_delegate(&SH4::WriteCache<uint64_t>, this));
+
+  RegionHandle sh4_sq_handle = memory.AllocRegion(
+      SH4_SQ_START, SH4_SQ_SIZE, make_delegate(&SH4::ReadSQ<uint8_t>, this),
+      make_delegate(&SH4::ReadSQ<uint16_t>, this),
+      make_delegate(&SH4::ReadSQ<uint32_t>, this), nullptr,
+      make_delegate(&SH4::WriteSQ<uint8_t>, this),
+      make_delegate(&SH4::WriteSQ<uint16_t>, this),
+      make_delegate(&SH4::WriteSQ<uint32_t>, this), nullptr);
+
+  // main ram mirrors
+  memmap.Mirror(MAIN_RAM_1_START, MAIN_RAM_1_SIZE, MAIN_RAM_2_START);
+  memmap.Mirror(MAIN_RAM_1_START, MAIN_RAM_1_SIZE, MAIN_RAM_3_START);
+  memmap.Mirror(MAIN_RAM_1_START, MAIN_RAM_1_SIZE, MAIN_RAM_4_START);
+
+  // physical mirrors (ignoring p, alt and cache bits in bits 31-29)
+  memmap.Mirror(P0_1_START, P0_1_SIZE, P0_2_START);
+  memmap.Mirror(P0_1_START, P0_1_SIZE, P0_3_START);
+  memmap.Mirror(P0_1_START, P0_1_SIZE, P0_4_START);
+  memmap.Mirror(P0_1_START, P0_1_SIZE, P1_START);
+  memmap.Mirror(P0_1_START, P0_1_SIZE, P2_START);
+  memmap.Mirror(P0_1_START, P0_1_SIZE, P3_START);
+  memmap.Mirror(P0_1_START, P0_1_SIZE, P4_START);
+
+  // handle some special access only available in P4 after applying mirrors
+  memmap.Mount(sh4_cache_handle, SH4_CACHE_SIZE, SH4_CACHE_START);
+  memmap.Mount(sh4_sq_handle, SH4_SQ_SIZE, SH4_SQ_START);
 }
 
 uint32_t SH4::CompilePC() {
@@ -211,9 +273,6 @@ void SH4::SwapFPRegisterBank() {
   }
 }
 
-template uint8_t SH4::ReadRegister(uint32_t addr);
-template uint16_t SH4::ReadRegister(uint32_t addr);
-template uint32_t SH4::ReadRegister(uint32_t addr);
 template <typename T>
 T SH4::ReadRegister(uint32_t addr) {
   // translate from 64mb space to our 16kb space
@@ -299,9 +358,6 @@ T SH4::ReadRegister(uint32_t addr) {
   return static_cast<T>(area7_[addr]);
 }
 
-template void SH4::WriteRegister(uint32_t addr, uint8_t value);
-template void SH4::WriteRegister(uint32_t addr, uint16_t value);
-template void SH4::WriteRegister(uint32_t addr, uint32_t value);
 template <typename T>
 void SH4::WriteRegister(uint32_t addr, T value) {
   // translate from 64mb space to our 16kb space
@@ -354,10 +410,6 @@ void SH4::WriteRegister(uint32_t addr, T value) {
 #define CACHE_OFFSET(addr, OIX) \
   ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
 
-template uint8_t SH4::ReadCache(uint32_t addr);
-template uint16_t SH4::ReadCache(uint32_t addr);
-template uint32_t SH4::ReadCache(uint32_t addr);
-template uint64_t SH4::ReadCache(uint32_t addr);
 template <typename T>
 T SH4::ReadCache(uint32_t addr) {
   CHECK_EQ(CCR.ORA, 1u);
@@ -365,10 +417,6 @@ T SH4::ReadCache(uint32_t addr) {
   return re::load<T>(&cache_[addr]);
 }
 
-template void SH4::WriteCache(uint32_t addr, uint8_t value);
-template void SH4::WriteCache(uint32_t addr, uint16_t value);
-template void SH4::WriteCache(uint32_t addr, uint32_t value);
-template void SH4::WriteCache(uint32_t addr, uint64_t value);
 template <typename T>
 void SH4::WriteCache(uint32_t addr, T value) {
   CHECK_EQ(CCR.ORA, 1u);
@@ -376,9 +424,6 @@ void SH4::WriteCache(uint32_t addr, T value) {
   re::store(&cache_[addr], value);
 }
 
-template uint8_t SH4::ReadSQ(uint32_t addr);
-template uint16_t SH4::ReadSQ(uint32_t addr);
-template uint32_t SH4::ReadSQ(uint32_t addr);
 template <typename T>
 T SH4::ReadSQ(uint32_t addr) {
   uint32_t sqi = (addr & 0x20) >> 5;
@@ -386,9 +431,6 @@ T SH4::ReadSQ(uint32_t addr) {
   return static_cast<T>(ctx_.sq[sqi][idx]);
 }
 
-template void SH4::WriteSQ(uint32_t addr, uint8_t value);
-template void SH4::WriteSQ(uint32_t addr, uint16_t value);
-template void SH4::WriteSQ(uint32_t addr, uint32_t value);
 template <typename T>
 void SH4::WriteSQ(uint32_t addr, T value) {
   uint32_t sqi = (addr & 0x20) >> 5;
@@ -514,12 +556,13 @@ void SH4::UpdateTimerStart() {
 
     if (TSTR(i)) {
       // schedule the timer if not already started
-      if (scheduler_->RemainingTime(handle) == SUSPENDED) {
-        ScheduleTimer(i, TCNT(i), TCR(i));
+      if (handle == INVALID_TIMER) {
+        RescheduleTimer(i, TCNT(i), TCR(i));
       }
-    } else {
+    } else if (handle != INVALID_TIMER) {
       // disable the timer
-      scheduler_->AdjustTimer(handle, SUSPENDED);
+      scheduler_->CancelTimer(handle);
+      handle = INVALID_TIMER;
     }
   }
 }
@@ -528,7 +571,7 @@ void SH4::UpdateTimerControl(uint32_t n) {
   if (TSTR(n)) {
     // timer is already scheduled, reschedule it with the current cycle count,
     // but the new TCR value
-    ScheduleTimer(n, TimerCount(n), TCR(n));
+    RescheduleTimer(n, TimerCount(n), TCR(n));
   }
 
   // if the timer no longer cares about underflow interrupts, unrequest
@@ -539,7 +582,7 @@ void SH4::UpdateTimerControl(uint32_t n) {
 
 void SH4::UpdateTimerCount(uint32_t n) {
   if (TSTR(n)) {
-    ScheduleTimer(n, TCNT(n), TCR(n));
+    RescheduleTimer(n, TCNT(n), TCR(n));
   }
 }
 
@@ -564,32 +607,38 @@ uint32_t SH4::TimerCount(int n) {
   return cycles;
 }
 
-void SH4::ScheduleTimer(int n, uint32_t tcnt, uint32_t tcr) {
+void SH4::RescheduleTimer(int n, uint32_t tcnt, uint32_t tcr) {
   TimerHandle &handle = tmu_timers_[n];
 
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
   int64_t cycles = static_cast<int64_t>(tcnt);
   std::chrono::nanoseconds remaining = CYCLES_TO_NANO(cycles, freq);
 
-  scheduler_->AdjustTimer(handle, remaining);
+  if (handle) {
+    scheduler_->CancelTimer(handle);
+    handle = nullptr;
+  }
+
+  handle = scheduler_->ScheduleTimer(tmu_delegates_[n], remaining);
 }
 
-void SH4::ExpireTimer(int n) {
-  uint32_t &tcor = TCOR(n);
-  uint32_t &tcnt = TCNT(n);
-  uint32_t &tcr = TCR(n);
+template <int N>
+void SH4::ExpireTimer() {
+  uint32_t &tcor = TCOR(N);
+  uint32_t &tcnt = TCNT(N);
+  uint32_t &tcr = TCR(N);
 
   // timer expired, set the underflow flag
   tcr |= 0x100;
 
   // if interrupt generation on underflow is enabled, do so
   if (tcr & 0x20) {
-    RequestInterrupt(TUNI(n));
+    RequestInterrupt(TUNI(N));
   }
 
   // reset TCNT with the value from TCOR
   tcnt = tcor;
 
   // reschedule the timer with the new count
-  ScheduleTimer(n, tcnt, tcr);
+  RescheduleTimer(N, tcnt, tcr);
 }
