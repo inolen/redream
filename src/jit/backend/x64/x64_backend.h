@@ -27,11 +27,10 @@ class X64Backend : public Backend {
 
   void Reset();
 
-  BlockPointer AssembleBlock(ir::IRBuilder &builder, SourceMap &source_map,
-                             void *guest_ctx, int block_flags);
+  BlockPointer AssembleBlock(ir::IRBuilder &builder, void *guest_ctx,
+                             int block_flags);
 
-  bool HandleException(BlockPointer block, int *block_flags,
-                       sys::Exception &ex);
+  bool HandleFastmemException(sys::Exception &ex);
 
  private:
   X64Emitter emitter_;

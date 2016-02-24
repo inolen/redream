@@ -17,7 +17,7 @@ using namespace re::emu;
 using namespace re::renderer;
 using namespace re::sys;
 
-static Backend *current_backend = nullptr;
+static Backend *s_current_backend = nullptr;
 
 static float HueToRGB(float p, float q, float t) {
   if (t < 0.0f) {
@@ -62,11 +62,6 @@ Profiler::ThreadScope::ThreadScope(const char *name) {
 }
 
 Profiler::ThreadScope::~ThreadScope() { MicroProfileOnThreadExit(); }
-
-Profiler &Profiler::instance() {
-  static Profiler instance;
-  return instance;
-}
 
 uint32_t Profiler::ScopeColor(const char *name) {
   auto hash = std::hash<std::string>();
@@ -119,10 +114,10 @@ bool Profiler::HandleMouseMove(int x, int y) {
 }
 
 void Profiler::Render(Backend *backend) {
-  current_backend = backend;
+  s_current_backend = backend;
   MicroProfileFlip();
-  MicroProfileDraw(current_backend->video_width(),
-                   current_backend->video_height());
+  MicroProfileDraw(s_current_backend->video_width(),
+                   s_current_backend->video_height());
 }
 
 //
@@ -132,19 +127,19 @@ void MicroProfileDrawText(int x, int y, uint32_t color, const char *text,
                           uint32_t len) {
   // microprofile provides 24-bit rgb values for text color
   color = 0xff000000 | color;
-  current_backend->RenderText2D(x, y, 12.0f, color, text);
+  s_current_backend->RenderText2D(x, y, 12.0f, color, text);
 }
 
 void MicroProfileDrawBox(int x0, int y0, int x1, int y1, uint32_t color,
                          MicroProfileBoxType type) {
   // microprofile provides 32-bit argb values for box color, forward straight
   // through
-  current_backend->RenderBox2D(x0, y0, x1, y1, color, (BoxType)type);
+  s_current_backend->RenderBox2D(x0, y0, x1, y1, color, (BoxType)type);
 }
 
 void MicroProfileDrawLine2D(uint32_t num_vertices, float *vertices,
                             uint32_t color) {
   // microprofile provides 24-bit rgb values for line color
   color = 0xff000000 | color;
-  current_backend->RenderLine2D(vertices, num_vertices, color);
+  s_current_backend->RenderLine2D(vertices, num_vertices, color);
 }

@@ -34,7 +34,8 @@ enum {
 struct SH4Context {
   // IRBuilder only supports 64-bit arguments for external calls atm
   void *sh4;
-  void (*Pref)(SH4Context *, uint64_t addr);
+  void (*InvalidInstruction)(SH4Context *, uint64_t addr);
+  void (*Prefetch)(SH4Context *, uint64_t addr);
   void (*SRUpdated)(SH4Context *, uint64_t old_sr);
   void (*FPSCRUpdated)(SH4Context *, uint64_t old_fpscr);
 

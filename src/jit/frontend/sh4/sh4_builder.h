@@ -24,7 +24,7 @@ class SH4Builder : public ir::IRBuilder {
  public:
   SH4Builder(hw::Memory &memory);
 
-  void Emit(uint32_t start_addr, const SH4Context &ctx);
+  void Emit(uint32_t addr, int max_instrs, const SH4Context &ctx);
 
   ir::Value *LoadRegister(int n, ir::ValueTy type);
   void StoreRegister(int n, ir::Value *v);
@@ -43,21 +43,15 @@ class SH4Builder : public ir::IRBuilder {
   ir::Value *LoadPR();
   void StorePR(ir::Value *v);
 
-  void PreserveT();
-  void PreservePR();
-  void PreserveRegister(int n);
-  ir::Value *LoadPreserved();
+  void InvalidInstruction(uint32_t guest_addr);
 
-  void EmitDelayInstr();
+  bool EmitDelayInstr(const Instr &prev);
 
  private:
   hw::Memory &memory_;
+  uint32_t pc_;
+  int guest_cycles_;
   FPUState fpu_state_;
-  Instr delay_instr_;
-  bool has_delay_instr_;
-  size_t preserve_offset_;
-  uint32_t preserve_mask_;
-  bool offset_preserved_;
 };
 }
 }

@@ -625,11 +625,6 @@ void IRBuilder::CallExternal2(Value *addr, Value *arg0) {
   instr->set_arg1(arg0);
 }
 
-void IRBuilder::GuestAddress(uint32_t guest_addr) {
-  Instr *instr = AppendInstr(OP_GUEST_ADDRESS);
-  instr->set_arg0(AllocConstant(guest_addr));
-}
-
 Value *IRBuilder::AllocConstant(uint8_t c) { return AllocConstant((int8_t)c); }
 
 Value *IRBuilder::AllocConstant(uint16_t c) {

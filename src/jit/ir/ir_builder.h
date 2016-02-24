@@ -443,9 +443,6 @@ class IRBuilder {
   void CallExternal1(Value *addr);
   void CallExternal2(Value *addr, Value *arg0);
 
-  // debug info
-  void GuestAddress(uint32_t addr);
-
   // values
   Value *AllocConstant(uint8_t c);
   Value *AllocConstant(uint16_t c);

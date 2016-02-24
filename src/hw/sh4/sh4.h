@@ -107,7 +107,10 @@ enum DDTRW {  //
   DDT_W
 };
 
-class SH4 : public Device, public MemoryInterface, public ExecuteInterface {
+class SH4 : public Device,
+            public DebugInterface,
+            public ExecuteInterface,
+            public MemoryInterface {
   friend void RunSH4Test(const SH4Test &);
 
  public:
@@ -116,6 +119,8 @@ class SH4 : public Device, public MemoryInterface, public ExecuteInterface {
 
   bool Init() final;
   void SetPC(uint32_t pc);
+
+  // ExecuteInterface
   void Run(const std::chrono::nanoseconds &delta) final;
 
   // DMAC
@@ -126,12 +131,23 @@ class SH4 : public Device, public MemoryInterface, public ExecuteInterface {
   void UnrequestInterrupt(Interrupt intr);
 
  protected:
+  // DebugInterface
+  int NumRegisters() final;
+  void Step() final;
+  void AddBreakpoint(int type, uint32_t addr) final;
+  void RemoveBreakpoint(int type, uint32_t addr) final;
+  void ReadMemory(uint32_t addr, uint8_t *buffer, int size) final;
+  void ReadRegister(int n, uint64_t *value, int *size) final;
+
+  // MemoryInterface
   void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
   void MapVirtualMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
   static uint32_t CompilePC();
-  static void Pref(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
+  static void InvalidInstruction(jit::frontend::sh4::SH4Context *ctx,
+                                 uint64_t addr);
+  static void Prefetch(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
   static void SRUpdated(jit::frontend::sh4::SH4Context *ctx, uint64_t old_sr);
   static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,
                            uint64_t old_fpscr);
@@ -176,6 +192,7 @@ class SH4 : public Device, public MemoryInterface, public ExecuteInterface {
   Memory *memory_;
   Scheduler *scheduler_;
   SH4CodeCache *code_cache_;
+  std::map<uint32_t, uint16_t> breakpoints_;
 
   jit::frontend::sh4::SH4Context ctx_;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \

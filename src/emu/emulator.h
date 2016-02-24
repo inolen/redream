@@ -3,12 +3,26 @@
 
 #include <atomic>
 #include <mutex>
-#include "hw/holly/tile_renderer.h"
+#include "emu/profiler.h"
 #include "hw/dreamcast.h"
-#include "renderer/backend.h"
 #include "sys/window.h"
 
 namespace re {
+
+namespace hw {
+namespace holly {
+class TileRenderer;
+}
+}
+
+namespace renderer {
+class Backend;
+}
+
+namespace trace {
+class TraceWriter;
+}
+
 namespace emu {
 
 class Emulator {
@@ -42,6 +56,7 @@ class Emulator {
   void PumpCoreEvents();
 
   sys::Window window_;
+  Profiler profiler_;
   hw::Dreamcast dc_;
   renderer::Backend *rb_;
   trace::TraceWriter *trace_writer_;

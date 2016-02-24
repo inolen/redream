@@ -275,14 +275,14 @@ void Emulator::PumpGraphicsEvents() {
     switch (ev.type) {
       case WE_KEY: {
         // let the profiler take a stab at the input first
-        if (!Profiler::instance().HandleInput(ev.key.code, ev.key.value)) {
+        if (!profiler_.HandleInput(ev.key.code, ev.key.value)) {
           // else, forward to the CPU thread
           QueueCoreEvent(ev);
         }
       } break;
 
       case WE_MOUSEMOVE: {
-        Profiler::instance().HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
+        profiler_.HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
       } break;
 
       case WE_RESIZE: {
@@ -311,7 +311,7 @@ void Emulator::RenderGraphics() {
   rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
 
   // render profiler
-  Profiler::instance().Render(rb_);
+  profiler_.Render(rb_);
 
   rb_->EndFrame();
 }
@@ -335,9 +335,9 @@ void Emulator::CoreThread() {
     current_time = std::chrono::high_resolution_clock::now();
     last_time = current_time;
 
-    // run scheduler every STEP nanoseconds
+    // run machine every STEP nanoseconds
     if (current_time > next_step_time) {
-      dc_.scheduler->Tick(STEP);
+      dc_.Tick(STEP);
 
       host_time += std::chrono::high_resolution_clock::now() - last_time;
       guest_time += STEP;
@@ -385,6 +385,7 @@ bool Emulator::PollCoreEvent(WindowEvent *ev) {
 }
 
 void Emulator::PumpCoreEvents() {
+  // pump any events the graphics thread forwarded on
   WindowEvent ev;
 
   while (PollCoreEvent(&ev)) {

@@ -43,7 +43,9 @@ bool GDROM::Init() {
 void GDROM::SetDisc(std::unique_ptr<Disc> disc) {
   current_disc_ = std::move(disc);
 
-  sectnum_.status = current_disc_ ? GD_STATUS_PAUSE : GD_STATUS_NODISC;
+  // looking at "6.1.1 CD Drive State Transition Diagram" in CDIF131E.pdf, it
+  // seems standby is the default state for when a disc is inserted
+  sectnum_.status = current_disc_ ? GD_STATUS_STANDBY : GD_STATUS_NODISC;
   sectnum_.format = GD_GDROM;
 
   status_.full = 0;

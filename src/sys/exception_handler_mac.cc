@@ -10,6 +10,9 @@ using namespace re::sys;
 // them.
 // https://llvm.org/bugs/show_bug.cgi?id=22868
 
+static const exception_mask_t exception_mask =
+    EXC_MASK_BAD_ACCESS | EXC_MASK_BAD_INSTRUCTION;
+
 static void CopyStateTo(x86_thread_state64_t *src, ThreadState *dst) {
   dst->rax = src->__rax;
   dst->rcx = src->__rcx;
@@ -79,8 +82,8 @@ extern "C" kern_return_t catch_exception_raise(
 
   // convert mach exception to internal exception
   Exception ex;
-  ex.type = exception & EXC_MASK_BAD_ACCESS ? EX_ACCESS_VIOLATION
-                                            : EX_INVALID_INSTRUCTION;
+  ex.type = exception == EXC_BAD_ACCESS ? EX_ACCESS_VIOLATION
+                                        : EX_INVALID_INSTRUCTION;
   ex.fault_addr = exc_state.__faultvaddr;
   ex.pc = thread_state.__rip;
   CopyStateTo(&thread_state, &ex.thread_state);
@@ -109,8 +112,7 @@ ExceptionHandler &ExceptionHandler::instance() {
 }
 
 ExceptionHandlerMac::~ExceptionHandlerMac() {
-  task_set_exception_ports(mach_task_self(),
-                           EXC_MASK_BAD_ACCESS | EXC_MASK_BAD_INSTRUCTION, 0,
+  task_set_exception_ports(mach_task_self(), exception_mask, 0,
                            EXCEPTION_DEFAULT, 0);
   mach_port_deallocate(mach_task_self(), listen_port_);
 }
@@ -130,8 +132,8 @@ bool ExceptionHandlerMac::Init() {
 
   // filter out any exception other than EXC_BAD_ACCESS
   // http://web.mit.edu/darwin/src/modules/xnu/osfmk/man/task_set_exception_ports.html
-  if (task_set_exception_ports(mach_task_self(), EXC_MASK_BAD_ACCESS,
-                               listen_port_, EXCEPTION_DEFAULT,
+  if (task_set_exception_ports(mach_task_self(), exception_mask, listen_port_,
+                               EXCEPTION_DEFAULT,
                                MACHINE_THREAD_STATE) != KERN_SUCCESS) {
     return false;
   }

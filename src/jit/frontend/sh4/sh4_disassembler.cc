@@ -82,6 +82,7 @@ static struct _sh4_disassembler_init {
 bool Disasm(Instr *i) {
   InstrType *type = s_instr_lookup[i->opcode];
   if (!type) {
+    i->type = nullptr;
     return false;
   }
 

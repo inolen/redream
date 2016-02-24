@@ -12,7 +12,7 @@ class SH4Frontend : public Frontend {
  public:
   SH4Frontend(hw::Memory &memory);
 
-  std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr,
+  std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr, int max_instrs,
                                             const void *guest_ctx);
 };
 }

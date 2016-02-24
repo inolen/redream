@@ -12,10 +12,14 @@ void Scheduler::Tick(const std::chrono::nanoseconds &delta) {
   auto target_time = base_time_ + delta;
 
   while (base_time_ < target_time) {
-    auto next_time = target_time;
+    if (machine_.suspended()) {
+      break;
+    }
 
     // run devices up to the next timer
+    auto next_time = target_time;
     Timer *next_timer = timers_.head();
+
     if (next_timer && next_timer->expire < next_time) {
       next_time = next_timer->expire;
     }
@@ -48,8 +52,6 @@ void Scheduler::Tick(const std::chrono::nanoseconds &delta) {
       next_timer = next_next_timer;
     }
   }
-
-  CHECK_EQ(base_time_, target_time);
 }
 
 TimerHandle Scheduler::ScheduleTimer(TimerDelegate delegate,

@@ -3,7 +3,6 @@
 
 #include <xbyak/xbyak.h>
 #include "core/arena.h"
-#include "jit/source_map.h"
 
 namespace re {
 
@@ -32,14 +31,13 @@ class X64Emitter : public Xbyak::CodeGenerator {
   ~X64Emitter();
 
   Xbyak::Label &epilog_label() { return *epilog_label_; }
-  SourceMap &source_map() { return *source_map_; }
   hw::Memory &memory() { return *memory_; }
   int block_flags() { return block_flags_; }
 
   void Reset();
 
-  BlockPointer Emit(ir::IRBuilder &builder, SourceMap &source_map,
-                    hw::Memory &memory, void *guest_ctx, int block_flags);
+  BlockPointer Emit(ir::IRBuilder &builder, hw::Memory &memory, void *guest_ctx,
+                    int block_flags);
 
   // helpers for the emitter callbacks
   const Xbyak::Reg GetRegister(const ir::Value *v);
@@ -57,7 +55,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void EmitEpilog(ir::IRBuilder &builder, int stack_size);
 
   Arena arena_;
-  SourceMap *source_map_;
   hw::Memory *memory_;
   void *guest_ctx_;
   int block_flags_;

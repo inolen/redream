@@ -70,7 +70,6 @@ void InterpreterBackend::Reset() {
 }
 
 BlockPointer InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
-                                               SourceMap &source_map,
                                                void *guest_ctx,
                                                int block_flags) {
   int idx = int_num_blocks++;
@@ -79,15 +78,12 @@ BlockPointer InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
   }
 
   InterpreterBlock *block = &int_blocks[idx];
-  if (!emitter_.Emit(builder, guest_ctx, source_map, &block->instrs,
-                     &block->num_instrs, &block->locals_size)) {
+  if (!emitter_.Emit(builder, guest_ctx, &block->instrs, &block->num_instrs,
+                     &block->locals_size)) {
     return nullptr;
   }
 
   return int_runners[idx];
 }
 
-bool InterpreterBackend::HandleException(BlockPointer block, int *block_flags,
-                                         Exception &ex) {
-  return false;
-}
+bool InterpreterBackend::HandleFastmemException(Exception &ex) { return false; }

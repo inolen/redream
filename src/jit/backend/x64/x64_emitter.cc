@@ -69,7 +69,6 @@ static bool IsCalleeSaved(const Xbyak::Reg &reg) {
 X64Emitter::X64Emitter(void *buffer, size_t buffer_size)
     : CodeGenerator(buffer_size, buffer),
       arena_(1024),
-      source_map_(nullptr),
       memory_(nullptr),
       guest_ctx_(nullptr),
       block_flags_(0),
@@ -91,13 +90,11 @@ void X64Emitter::Reset() {
   memset(modified_, modified_marker_, sizeof(int) * x64_num_registers);
 }
 
-BlockPointer X64Emitter::Emit(IRBuilder &builder, SourceMap &source_map,
-                              Memory &memory, void *guest_ctx,
-                              int block_flags) {
+BlockPointer X64Emitter::Emit(IRBuilder &builder, Memory &memory,
+                              void *guest_ctx, int block_flags) {
   PROFILER_RUNTIME("X64Emitter::Emit");
 
   // save off parameters for ease of access
-  source_map_ = &source_map;
   memory_ = &memory;
   guest_ctx_ = guest_ctx;
   block_flags_ = block_flags;
@@ -1612,16 +1609,4 @@ EMITTER(CALL_EXTERNAL) {
   e.CopyOperand(instr->arg0(), e.rax);
   e.call(e.rax);
   e.RestoreArgs();
-}
-
-EMITTER(GUEST_ADDRESS) {
-  uintptr_t host_addr = reinterpret_cast<uintptr_t>(e.getCurr());
-  uint32_t guest_addr = instr->arg0()->value<int32_t>();
-
-  // if this is the very first instruction, mark the start of the block
-  if (!instr->prev()) {
-    e.source_map().AddBlockAddress(host_addr, guest_addr);
-  }
-
-  e.source_map().AddLineAddress(host_addr, guest_addr);
 }

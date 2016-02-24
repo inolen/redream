@@ -1,6 +1,7 @@
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"
 #include "hw/maple/maple.h"
+#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
@@ -93,16 +94,16 @@ void Holly::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
 
 template <typename T>
 T Holly::ReadRegister(uint32_t addr) {
-  // service all devices connected through the system bus
   uint32_t offset = addr >> 2;
+  Register &reg = holly_regs_[offset];
+
+  // service all devices connected through the system bus
   if (offset >= SB_MDSTAR_OFFSET && offset <= SB_MRXDBD_OFFSET) {
     return maple_->ReadRegister<T>(addr);
   }
   if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET && offset <= SB_GDLEND_OFFSET) {
     return gdrom_->ReadRegister<T>(addr);
   }
-
-  Register &reg = holly_regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
@@ -130,8 +131,10 @@ T Holly::ReadRegister(uint32_t addr) {
 
 template <typename T>
 void Holly::WriteRegister(uint32_t addr, T value) {
-  // service all devices connected through the system bus
   uint32_t offset = addr >> 2;
+  Register &reg = holly_regs_[offset];
+
+  // service all devices connected through the system bus
   if (offset >= SB_MDSTAR_OFFSET && offset <= SB_MRXDBD_OFFSET) {
     maple_->WriteRegister<T>(addr, value);
     return;
@@ -140,8 +143,6 @@ void Holly::WriteRegister(uint32_t addr, T value) {
     gdrom_->WriteRegister<T>(addr, value);
     return;
   }
-
-  Register &reg = holly_regs_[offset];
 
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);

@@ -15,10 +15,17 @@ static uint32_t s_fsca_table[0x20000] = {
 };
 
 typedef void (*EmitCallback)(SH4Builder &b, const FPUState &,
-                             const sh4::Instr &i);
+                             const sh4::Instr &i, bool *endblock);
 
-#define EMITTER(name) \
-  void Emit_OP_##name(SH4Builder &b, const FPUState &fpu, const sh4::Instr &i)
+#define EMITTER(name)                                                          \
+  void Emit_OP_##name(SH4Builder &b, const FPUState &fpu, const sh4::Instr &i, \
+                      bool *endblock)
+
+#define EMIT_DELAYED()        \
+  if (!b.EmitDelayInstr(i)) { \
+    *endblock = true;         \
+    return;                   \
+  }
 
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) static EMITTER(name);
 #include "jit/frontend/sh4/sh4_instr.inc"
@@ -30,72 +37,67 @@ EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
 #undef SH4_INSTR
 };
 
-SH4Builder::SH4Builder(Memory &memory)
-    : memory_(memory), has_delay_instr_(false) {}
+SH4Builder::SH4Builder(Memory &memory) : memory_(memory) {}
 
-void SH4Builder::Emit(uint32_t start_addr, const SH4Context &ctx) {
+void SH4Builder::Emit(uint32_t start_addr, int max_instrs,
+                      const SH4Context &ctx) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
-  int guest_cycles = 0;
-  uint32_t addr = start_addr;
-  Instr instr;
-
-  // use fpu state when generating code
+  pc_ = start_addr;
+  guest_cycles_ = 0;
   fpu_state_.double_pr = ctx.fpscr & PR;
   fpu_state_.double_sz = ctx.fpscr & SZ;
 
-  while (true) {
-    instr.addr = addr;
+  // clamp block to max_instrs if non-zero
+  for (int i = 0; !max_instrs || i < max_instrs; i++) {
+    Instr instr;
+    instr.addr = pc_;
     instr.opcode = memory_.R16(instr.addr);
-    CHECK(Disasm(&instr));
+    Disasm(&instr);
 
-    guest_cycles += instr.type->cycles;
-
-    // mark the current guest address
-    GuestAddress(addr);
-
-    // save off the delay instruction if we need to
-    if (instr.type->flags & OP_FLAG_DELAYED) {
-      delay_instr_.addr = addr + 2;
-      delay_instr_.opcode = memory_.R16(delay_instr_.addr);
-      CHECK(Disasm(&delay_instr_));
-
-      has_delay_instr_ = true;
-
-      guest_cycles += delay_instr_.type->cycles;
-
-      addr += 2;
-    }
-
-    // emit the current instruction
-    (emit_callbacks[instr.type->op])(*this, fpu_state_, instr);
-
-    addr += 2;
-
-    // if fpscr has changed, stop emitting since the fpu state is invalidated.
-    // if sr has changed, stop emitting as there are interrupts that possibly
-    // need to be handled
-    if (instr.type->flags & (OP_FLAG_SET_FPSCR | OP_FLAG_SET_SR)) {
-      Branch(AllocConstant(addr));
+    if (!instr.type) {
+      InvalidInstruction(instr.addr);
       break;
     }
 
-    // end block once a branch is hit
-    if (instr.type->flags & OP_FLAG_BRANCH) {
+    pc_ += 2;
+    guest_cycles_ += instr.type->cycles;
+
+    // emit the current instruction
+    bool endblock = false;
+    (emit_callbacks[instr.type->op])(*this, fpu_state_, instr, &endblock);
+
+    // end block if delay instruction is invalid
+    if (endblock) {
+      break;
+    }
+
+    // stop emitting once a branch has been hit. in addition, if fpscr has
+    // changed, stop emitting since the fpu state is invalidated. also, if
+    // sr has changed, stop emitting as there are interrupts that possibly
+    // need to be handled
+    if (instr.type->flags &
+        (OP_FLAG_BRANCH | OP_FLAG_SET_FPSCR | OP_FLAG_SET_SR)) {
       break;
     }
   }
 
-  // emit block epilog
   ir::Block *tail_block = blocks_.tail();
   ir::Instr *tail_instr = tail_block->instrs().tail();
 
+  // if the block was terminated before a branch instruction, emit a
+  // fallthrough branch to the next pc
+  if (tail_instr->op() != OP_BRANCH && tail_instr->op() != OP_BRANCH_COND) {
+    Branch(AllocConstant(pc_));
+  }
+
+  // emit block epilog
   current_block_ = tail_block;
   current_instr_ = tail_instr->prev();
 
   Value *remaining_cycles =
       LoadContext(offsetof(SH4Context, remaining_cycles), VALUE_I32);
-  remaining_cycles = Sub(remaining_cycles, AllocConstant(guest_cycles));
+  remaining_cycles = Sub(remaining_cycles, AllocConstant(guest_cycles_));
   StoreContext(offsetof(SH4Context, remaining_cycles), remaining_cycles);
 }
 
@@ -191,14 +193,35 @@ void SH4Builder::StorePR(ir::Value *v) {
   StoreContext(offsetof(SH4Context, pr), v);
 }
 
-void SH4Builder::EmitDelayInstr() {
-  CHECK_EQ(has_delay_instr_, true, "No delay instruction available");
+void SH4Builder::InvalidInstruction(uint32_t guest_addr) {
+  Value *invalid_instruction =
+      LoadContext(offsetof(SH4Context, InvalidInstruction), VALUE_I64);
+  CallExternal2(invalid_instruction,
+                AllocConstant(static_cast<uint64_t>(guest_addr)));
+}
 
-  has_delay_instr_ = false;
+bool SH4Builder::EmitDelayInstr(const sh4::Instr &prev) {
+  CHECK(prev.type->flags & OP_FLAG_DELAYED);
 
-  // modify the previous guest address instruction
+  Instr delay;
+  delay.addr = prev.addr + 2;
+  delay.opcode = memory_.R16(delay.addr);
+  Disasm(&delay);
 
-  (emit_callbacks[delay_instr_.type->op])(*this, fpu_state_, delay_instr_);
+  if (!delay.type) {
+    InvalidInstruction(delay.addr);
+    return false;
+  }
+
+  CHECK(!(delay.type->flags & OP_FLAG_DELAYED));
+
+  pc_ += 2;
+  guest_cycles_ += delay.type->cycles;
+
+  bool endblock = false;
+  (emit_callbacks[delay.type->op])(*this, fpu_state_, delay, &endblock);
+
+  return true;
 }
 
 // MOV     #imm,Rn
@@ -1077,7 +1100,7 @@ EMITTER(BF) {
 // BFS     disp
 EMITTER(BFS) {
   Value *cond = b.LoadT();
-  b.EmitDelayInstr();
+  EMIT_DELAYED();
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   b.BranchCond(cond, b.AllocConstant(i.addr + 4), b.AllocConstant(dest_addr));
 }
@@ -1096,7 +1119,7 @@ EMITTER(BT) {
 // BTS     disp
 EMITTER(BTS) {
   Value *cond = b.LoadT();
-  b.EmitDelayInstr();
+  EMIT_DELAYED();
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   b.BranchCond(cond, b.AllocConstant(dest_addr), b.AllocConstant(i.addr + 4));
 }
@@ -1105,8 +1128,7 @@ EMITTER(BTS) {
 // 1010 dddd dddd dddd  2       -
 // BRA     disp
 EMITTER(BRA) {
-  b.EmitDelayInstr();
-
+  EMIT_DELAYED();
   int32_t disp = ((i.disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
   uint32_t dest_addr = (disp * 2) + i.addr + 4;
@@ -1118,7 +1140,7 @@ EMITTER(BRA) {
 // BRAF    Rn
 EMITTER(BRAF) {
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.EmitDelayInstr();
+  EMIT_DELAYED();
   Value *dest_addr = b.Add(b.AllocConstant(i.addr + 4), rn);
   b.Branch(dest_addr);
 }
@@ -1127,7 +1149,7 @@ EMITTER(BRAF) {
 // 1011 dddd dddd dddd  2       -
 // BSR     disp
 EMITTER(BSR) {
-  b.EmitDelayInstr();
+  EMIT_DELAYED();
   int32_t disp = ((i.disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
   uint32_t ret_addr = i.addr + 4;
@@ -1141,7 +1163,7 @@ EMITTER(BSR) {
 // BSRF    Rn
 EMITTER(BSRF) {
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.EmitDelayInstr();
+  EMIT_DELAYED();
   Value *ret_addr = b.AllocConstant(i.addr + 4);
   Value *dest_addr = b.Add(rn, ret_addr);
   b.StorePR(ret_addr);
@@ -1151,14 +1173,14 @@ EMITTER(BSRF) {
 // JMP     @Rm
 EMITTER(JMP) {
   Value *dest_addr = b.LoadRegister(i.Rn, VALUE_I32);
-  b.EmitDelayInstr();
+  EMIT_DELAYED();
   b.Branch(dest_addr);
 }
 
 // JSR     @Rn
 EMITTER(JSR) {
   Value *dest_addr = b.LoadRegister(i.Rn, VALUE_I32);
-  b.EmitDelayInstr();
+  EMIT_DELAYED();
   Value *ret_addr = b.AllocConstant(i.addr + 4);
   b.StorePR(ret_addr);
   b.Branch(dest_addr);
@@ -1167,7 +1189,7 @@ EMITTER(JSR) {
 // RTS
 EMITTER(RTS) {
   Value *dest_addr = b.LoadPR();
-  b.EmitDelayInstr();
+  EMIT_DELAYED();
   b.Branch(dest_addr);
 }
 
@@ -1347,9 +1369,9 @@ EMITTER(OCBWB) {}
 
 // PREF     @Rn
 EMITTER(PREF) {
-  Value *pref = b.LoadContext(offsetof(SH4Context, Pref), VALUE_I64);
+  Value *prefetch = b.LoadContext(offsetof(SH4Context, Prefetch), VALUE_I64);
   Value *addr = b.ZExt(b.LoadRegister(i.Rn, VALUE_I32), VALUE_I64);
-  b.CallExternal2(pref, addr);
+  b.CallExternal2(prefetch, addr);
 }
 
 // RTE

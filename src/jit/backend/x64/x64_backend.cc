@@ -133,14 +133,13 @@ int X64Backend::num_registers() const {
 
 void X64Backend::Reset() { emitter_.Reset(); }
 
-BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
-                                       SourceMap &source_map, void *guest_ctx,
+BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder, void *guest_ctx,
                                        int block_flags) {
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
   BlockPointer fn;
   try {
-    fn = emitter_.Emit(builder, source_map, memory_, guest_ctx, block_flags);
+    fn = emitter_.Emit(builder, memory_, guest_ctx, block_flags);
   } catch (const Xbyak::Error &e) {
     if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
       return nullptr;
@@ -151,8 +150,7 @@ BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
   return fn;
 }
 
-bool X64Backend::HandleException(BlockPointer block, int *block_flags,
-                                 Exception &ex) {
+bool X64Backend::HandleFastmemException(Exception &ex) {
   const uint8_t *data = reinterpret_cast<const uint8_t *>(ex.thread_state.rip);
 
   // it's assumed a mov has triggered the exception
@@ -297,13 +295,6 @@ bool X64Backend::HandleException(BlockPointer block, int *block_flags,
     // resume execution in the thunk once the exception handler exits
     ex.thread_state.rip = reinterpret_cast<uint64_t>(store_thunk);
   }
-
-  // tell the cache to invalidate this block, appending the slowmem flag for
-  // the next compile. the slowmem flag tells the backend to handle all load
-  // and store operations with the slower Memory read and write functions (as
-  // opposed to a `mov reg, [mmap_base + guest_addr]` instruction) to avoid
-  // triggering the exception handler
-  *block_flags |= BF_INVALIDATE | BF_SLOWMEM;
 
   return true;
 }

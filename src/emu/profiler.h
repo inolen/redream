@@ -21,7 +21,6 @@ namespace emu {
 
 class Profiler {
  public:
-  static Profiler &instance();
   static uint32_t ScopeColor(const char *name);
 
   class ThreadScope {

@@ -42,7 +42,18 @@ Command line flags are loaded from and saved to `$HOME/.redream/flags` each run.
 ```
      --bios  Path to BIOS                 [default: dc_boot.bin]
     --flash  Path to flash ROM            [default: dc_flash.bin]
+    --debug  Start GDB debug server
   --profile  Path to controller profile
+```
+
+### Debugging
+
+If ran with `--debug`, a server is setup on port `24690` for remote debugging of the guest SH4 code with GDB.
+
+The server can be connected to with GDB like so:
+```
+set architecture sh4
+target remote localhost:24690
 ```
 
 ## Running tests

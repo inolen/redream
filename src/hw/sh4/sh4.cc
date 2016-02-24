@@ -3,6 +3,7 @@
 #include "emu/profiler.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
+#include "hw/debugger.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 
@@ -12,6 +13,7 @@ using namespace re::hw;
 using namespace re::hw::sh4;
 using namespace re::jit;
 using namespace re::jit::frontend::sh4;
+using namespace re::sys;
 
 static InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
@@ -29,8 +31,9 @@ enum {
 
 SH4::SH4(Dreamcast *dc)
     : Device(*dc),
-      MemoryInterface(this),
+      DebugInterface(this),
       ExecuteInterface(this),
+      MemoryInterface(this),
       dc_(dc),
       code_cache_(nullptr),
       pending_cache_reset_(false),
@@ -52,7 +55,8 @@ bool SH4::Init() {
   // initialize context
   memset(&ctx_, 0, sizeof(ctx_));
   ctx_.sh4 = this;
-  ctx_.Pref = &SH4::Pref;
+  ctx_.InvalidInstruction = &SH4::InvalidInstruction;
+  ctx_.Prefetch = &SH4::Prefetch;
   ctx_.SRUpdated = &SH4::SRUpdated;
   ctx_.FPSCRUpdated = &SH4::FPSCRUpdated;
   ctx_.pc = 0xa0000000;
@@ -93,7 +97,7 @@ void SH4::Run(const std::chrono::nanoseconds &delta) {
   ctx_.remaining_cycles = cycles;
 
   while (ctx_.remaining_cycles > 0) {
-    BlockEntry *block = code_cache_->GetBlock(ctx_.pc);
+    SH4BlockEntry *block = code_cache_->GetBlock(ctx_.pc);
     ctx_.pc = block->run();
 
     CheckPendingCacheReset();
@@ -115,7 +119,7 @@ void SH4::DDT(int channel, DDTRW rw, uint32_t addr) {
     dst_addr = addr;
   }
 
-  size_t transfer_size = DMATCR2 * 32;
+  uint32_t transfer_size = DMATCR2 * 32;
   for (size_t i = 0; i < transfer_size / 4; i++) {
     memory_->W32(dst_addr, memory_->R32(src_addr));
     dst_addr += 4;
@@ -137,6 +141,86 @@ void SH4::RequestInterrupt(Interrupt intr) {
 void SH4::UnrequestInterrupt(Interrupt intr) {
   requested_interrupts_ &= ~sort_id_[intr];
   UpdatePendingInterrupts();
+}
+
+int SH4::NumRegisters() { return 59; }
+
+void SH4::Step() {
+  // invalidate the block for the current pc
+  code_cache_->InvalidateBlocks(ctx_.pc);
+
+  // recompile it with only one instruction and run it
+  SH4BlockEntry *block = code_cache_->CompileBlock(ctx_.pc, 1, &ctx_);
+  ctx_.pc = block->run();
+
+  // let the debugger know we've stopped
+  dc_->debugger->Trap();
+}
+
+void SH4::AddBreakpoint(int type, uint32_t addr) {
+  // save off the original instruction
+  uint16_t instr = memory_->R16(addr);
+  breakpoints_.insert(std::make_pair(addr, instr));
+
+  // write out an invalid instruction
+  memory_->W16(addr, 0);
+
+  code_cache_->InvalidateBlocks(addr);
+}
+
+void SH4::RemoveBreakpoint(int type, uint32_t addr) {
+  // recover the original instruction
+  auto it = breakpoints_.find(addr);
+  CHECK_NE(it, breakpoints_.end());
+  uint16_t instr = it->second;
+  breakpoints_.erase(it);
+
+  // overwrite the invalid instruction with the original
+  memory_->W16(addr, instr);
+
+  code_cache_->InvalidateBlocks(addr);
+}
+
+void SH4::ReadMemory(uint32_t addr, uint8_t *buffer, int size) {
+  memory_->Memcpy(buffer, addr, size);
+}
+
+void SH4::ReadRegister(int n, uint64_t *value, int *size) {
+  if (n < 16) {
+    *value = ctx_.r[n];
+  } else if (n == 16) {
+    *value = ctx_.pc;
+  } else if (n == 17) {
+    *value = ctx_.pr;
+  } else if (n == 18) {
+    *value = ctx_.gbr;
+  } else if (n == 19) {
+    *value = ctx_.vbr;
+  } else if (n == 20) {
+    *value = ctx_.mach;
+  } else if (n == 21) {
+    *value = ctx_.macl;
+  } else if (n == 22) {
+    *value = ctx_.sr;
+  } else if (n == 23) {
+    *value = ctx_.fpul;
+  } else if (n == 24) {
+    *value = ctx_.fpscr;
+  } else if (n < 41) {
+    *value = ctx_.fr[n - 25];
+  } else if (n == 41) {
+    *value = ctx_.ssr;
+  } else if (n == 42) {
+    *value = ctx_.spc;
+  } else if (n < 51) {
+    uint32_t *b0 = (ctx_.sr & RB) ? ctx_.ralt : ctx_.r;
+    *value = b0[n - 43];
+  } else if (n < 59) {
+    uint32_t *b1 = (ctx_.sr & RB) ? ctx_.r : ctx_.ralt;
+    *value = b1[n - 51];
+  }
+
+  *size = 4;
 }
 
 void SH4::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
@@ -208,13 +292,27 @@ void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
 uint32_t SH4::CompilePC() {
   SH4CodeCache *code_cache = s_current_cpu->code_cache_;
   SH4Context *ctx = &s_current_cpu->ctx_;
-  BlockEntry *block = code_cache->CompileBlock(ctx->pc, ctx);
+  SH4BlockEntry *block = code_cache->CompileBlock(ctx->pc, 0, ctx);
   return block->run();
 }
 
-void SH4::Pref(SH4Context *ctx, uint64_t arg0) {
+void SH4::InvalidInstruction(SH4Context *ctx, uint64_t data) {
   SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-  uint32_t addr = static_cast<uint32_t>(arg0);
+  uint32_t addr = static_cast<uint32_t>(data);
+
+  auto it = self->breakpoints_.find(addr);
+  CHECK_NE(it, self->breakpoints_.end());
+
+  // force the main loop to break
+  self->ctx_.remaining_cycles = 0;
+
+  // let the debugger know execution has stopped
+  self->dc_->debugger->Trap();
+}
+
+void SH4::Prefetch(SH4Context *ctx, uint64_t data) {
+  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+  uint32_t addr = static_cast<uint32_t>(data);
 
   // only concerned about SQ related prefetches
   if (addr < 0xe0000000 || addr > 0xe3ffffff) {

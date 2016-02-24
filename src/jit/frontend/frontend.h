@@ -19,6 +19,7 @@ class Frontend {
   virtual ~Frontend() {}
 
   virtual std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr,
+                                                    int max_instrs,
                                                     const void *guest_ctx) = 0;
 
  protected:
