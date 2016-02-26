@@ -738,8 +738,8 @@ EMITTER(DMULS) {
   Value *rn = b.SExt(b.LoadRegister(i.Rn, VALUE_I32), VALUE_I64);
 
   Value *p = b.SMul(rm, rn);
-  Value *low = b.Truncate(p, VALUE_I32);
-  Value *high = b.Truncate(b.LShr(p, 32), VALUE_I32);
+  Value *low = b.Bitcast(p, VALUE_I32);
+  Value *high = b.Bitcast(b.LShr(p, 32), VALUE_I32);
 
   b.StoreContext(offsetof(SH4Context, macl), low);
   b.StoreContext(offsetof(SH4Context, mach), high);
@@ -751,8 +751,8 @@ EMITTER(DMULU) {
   Value *rn = b.ZExt(b.LoadRegister(i.Rn, VALUE_I32), VALUE_I64);
 
   Value *p = b.UMul(rm, rn);
-  Value *low = b.Truncate(p, VALUE_I32);
-  Value *high = b.Truncate(b.LShr(p, 32), VALUE_I32);
+  Value *low = b.Bitcast(p, VALUE_I32);
+  Value *high = b.Bitcast(b.LShr(p, 32), VALUE_I32);
 
   b.StoreContext(offsetof(SH4Context, macl), low);
   b.StoreContext(offsetof(SH4Context, mach), high);
@@ -1879,9 +1879,8 @@ EMITTER(FSUB) {
 EMITTER(FTRC) {
   if (fpu.double_pr) {
     int m = i.Rm & 0xe;
-    // FIXME is this truncate correct?
     Value *dpv =
-        b.Truncate(b.Cast(b.LoadRegisterF(m, VALUE_F64), VALUE_I64), VALUE_I32);
+        b.Bitcast(b.Cast(b.LoadRegisterF(m, VALUE_F64), VALUE_I64), VALUE_I32);
     b.StoreContext(offsetof(SH4Context, fpul), dpv);
   } else {
     Value *spv = b.Cast(b.LoadRegisterF(i.Rm, VALUE_F32), VALUE_I32);

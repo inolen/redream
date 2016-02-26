@@ -393,10 +393,10 @@ class IRBuilder {
   void StoreLocal(Local *local, Value *v);
 
   // cast / conversion operations
+  Value *Bitcast(Value *v, ValueTy dest_type);
   Value *Cast(Value *v, ValueTy dest_type);
   Value *SExt(Value *v, ValueTy dest_type);
   Value *ZExt(Value *v, ValueTy dest_type);
-  Value *Truncate(Value *v, ValueTy dest_type);
 
   // conditionals
   Value *Select(Value *cond, Value *t, Value *f);

@@ -803,6 +803,18 @@ EMITTER(STORE_LOCAL) {
   }
 }
 
+EMITTER(BITCAST) {
+  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+
+  if (result.getBit() == a.getBit()) {
+    // noop if already the same register
+    return;
+  }
+
+  e.mov(result.cvt64(), a.cvt64());
+}
+
 EMITTER(CAST) {
   if (IsFloatType(instr->result()->type())) {
     const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
@@ -871,38 +883,6 @@ EMITTER(ZEXT) {
     e.mov(result.cvt32(), a);
   } else {
     e.movzx(result, a);
-  }
-}
-
-EMITTER(TRUNCATE) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
-  const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-  if (a == result) {
-    // already the correct width
-    return;
-  }
-
-  Xbyak::Reg truncated = a;
-  switch (instr->result()->type()) {
-    case VALUE_I8:
-      truncated = a.cvt8();
-      break;
-    case VALUE_I16:
-      truncated = a.cvt16();
-      break;
-    case VALUE_I32:
-      truncated = a.cvt32();
-      break;
-    default:
-      LOG_FATAL("Unexpected truncation result size");
-  }
-
-  if (truncated.isBit(32)) {
-    // mov will automatically zero fill the upper 32-bits
-    e.mov(result, truncated);
-  } else {
-    e.movzx(result.cvt32(), truncated);
   }
 }
 

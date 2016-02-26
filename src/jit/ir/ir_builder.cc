@@ -232,6 +232,17 @@ void IRBuilder::StoreLocal(Local *local, Value *v) {
   instr->set_arg1(v);
 }
 
+Value *IRBuilder::Bitcast(Value *v, ValueTy dest_type) {
+  CHECK((IsIntType(v->type()) && IsIntType(dest_type)) ||
+        (IsFloatType(v->type()) && IsFloatType(dest_type)));
+
+  Instr *instr = AppendInstr(OP_BITCAST);
+  Value *result = AllocDynamic(dest_type);
+  instr->set_arg0(v);
+  instr->set_result(result);
+  return result;
+}
+
 Value *IRBuilder::Cast(Value *v, ValueTy dest_type) {
   CHECK((IsIntType(v->type()) && IsFloatType(dest_type)) ||
         (IsFloatType(v->type()) && IsIntType(dest_type)));
@@ -257,16 +268,6 @@ Value *IRBuilder::ZExt(Value *v, ValueTy dest_type) {
   CHECK(IsIntType(v->type()) && IsIntType(dest_type));
 
   Instr *instr = AppendInstr(OP_ZEXT);
-  Value *result = AllocDynamic(dest_type);
-  instr->set_arg0(v);
-  instr->set_result(result);
-  return result;
-}
-
-Value *IRBuilder::Truncate(Value *v, ValueTy dest_type) {
-  CHECK(IsIntType(v->type()) && IsIntType(dest_type));
-
-  Instr *instr = AppendInstr(OP_TRUNCATE);
   Value *result = AllocDynamic(dest_type);
   instr->set_arg0(v);
   instr->set_result(result);
