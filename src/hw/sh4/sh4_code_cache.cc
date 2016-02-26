@@ -23,7 +23,8 @@ using namespace re::sys;
 
 DEFINE_bool(interpreter, false, "Use interpreter");
 
-SH4CodeCache::SH4CodeCache(Memory *memory, BlockPointer default_block)
+SH4CodeCache::SH4CodeCache(Memory *memory, void *guest_ctx,
+                           BlockPointer default_block)
     : default_block_(default_block) {
   // add exception handler to help recompile blocks when protected memory is
   // accessed
@@ -31,12 +32,12 @@ SH4CodeCache::SH4CodeCache(Memory *memory, BlockPointer default_block)
       this, &SH4CodeCache::HandleException);
 
   // setup parser and emitter
-  frontend_ = new SH4Frontend(*memory);
+  frontend_ = new SH4Frontend(*memory, guest_ctx);
 
   if (FLAGS_interpreter) {
-    backend_ = new InterpreterBackend(*memory);
+    backend_ = new InterpreterBackend(*memory, guest_ctx);
   } else {
-    backend_ = new X64Backend(*memory);
+    backend_ = new X64Backend(*memory, guest_ctx);
   }
 
   // setup optimization passes
@@ -67,8 +68,7 @@ SH4CodeCache::~SH4CodeCache() {
   delete[] blocks_;
 }
 
-SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs,
-                                          void *guest_ctx) {
+SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
   PROFILER_RUNTIME("SH4CodeCache::CompileBlock");
 
   int offset = BLOCK_OFFSET(addr);
@@ -88,13 +88,12 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs,
   }
 
   // compile the SH4 into IR
-  std::unique_ptr<IRBuilder> builder =
-      frontend_->BuildBlock(addr, max_instrs, guest_ctx);
+  std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr, max_instrs);
 
   pass_runner_.Run(*builder);
 
   // assemble the IR into native code
-  BlockPointer run = backend_->AssembleBlock(*builder, guest_ctx, block->flags);
+  BlockPointer run = backend_->AssembleBlock(*builder, block->flags);
 
   if (!run) {
     LOG_INFO("Assembler overflow, resetting block cache");
@@ -104,7 +103,7 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs,
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
-    run = backend_->AssembleBlock(*builder, guest_ctx, block->flags);
+    run = backend_->AssembleBlock(*builder, block->flags);
 
     CHECK(run, "Backend assembler buffer overflow");
   }

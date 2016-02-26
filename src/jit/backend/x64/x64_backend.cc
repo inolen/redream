@@ -16,24 +16,6 @@ using namespace re::jit::backend::x64;
 using namespace re::jit::ir;
 using namespace re::sys;
 
-extern "C" void load_thunk_rax();
-extern "C" void load_thunk_rcx();
-extern "C" void load_thunk_rdx();
-extern "C" void load_thunk_rbx();
-extern "C" void load_thunk_rsp();
-extern "C" void load_thunk_rbp();
-extern "C" void load_thunk_rsi();
-extern "C" void load_thunk_rdi();
-extern "C" void load_thunk_r8();
-extern "C" void load_thunk_r9();
-extern "C" void load_thunk_r10();
-extern "C" void load_thunk_r11();
-extern "C" void load_thunk_r12();
-extern "C" void load_thunk_r13();
-extern "C" void load_thunk_r14();
-extern "C" void load_thunk_r15();
-extern "C" void store_thunk();
-
 namespace re {
 namespace jit {
 namespace backend {
@@ -117,11 +99,18 @@ const int x64_tmp1_idx = Xbyak::Operand::R9;
 // this will break down if running two instances of the x64 backend, but it's
 // extremely useful when profiling to group JITd blocks of code with an actual
 // symbol name
-static const size_t x64_codegen_size = 1024 * 1024 * 8;
-static uint8_t x64_codegen[x64_codegen_size];
+static const size_t x64_static_code_size = 4096;
+static const size_t x64_code_size = 1024 * 1024 * 8;
+static uint8_t x64_codegen[x64_code_size];
 
-X64Backend::X64Backend(Memory &memory)
-    : Backend(memory), emitter_(x64_codegen, x64_codegen_size) {}
+X64Backend::X64Backend(Memory &memory, void *guest_ctx)
+    : Backend(memory, guest_ctx),
+      static_emitter_(x64_codegen, x64_static_code_size),
+      emitter_(x64_codegen + x64_static_code_size,
+               x64_code_size - x64_static_code_size) {
+  Xbyak::CodeArray::protect(x64_codegen, x64_code_size, true);
+  AssembleThunks();
+}
 
 X64Backend::~X64Backend() {}
 
@@ -133,13 +122,13 @@ int X64Backend::num_registers() const {
 
 void X64Backend::Reset() { emitter_.Reset(); }
 
-BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder, void *guest_ctx,
+BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
                                        int block_flags) {
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
   BlockPointer fn;
   try {
-    fn = emitter_.Emit(builder, memory_, guest_ctx, block_flags);
+    fn = emitter_.Emit(builder, memory_, guest_ctx_, block_flags);
   } catch (const Xbyak::Error &e) {
     if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
       return nullptr;
@@ -170,21 +159,13 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
   // from any restrictions imposed by an exception handler, and also prevents
   // a possible recursive exceptions
 
-  // push the original argument registers and the return address (the next
-  // instruction after the current mov) to the stack
-  ex.thread_state.rsp -= STACK_SHADOW_SPACE + 24 + 8;
-  re::store(
-      reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE),
-      ex.thread_state.r[x64_arg2_idx]);
-  re::store(
-      reinterpret_cast<uint8_t *>(ex.thread_state.rsp + STACK_SHADOW_SPACE + 8),
-      ex.thread_state.r[x64_arg1_idx]);
-  re::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
-                                        STACK_SHADOW_SPACE + 16),
-            ex.thread_state.r[x64_arg0_idx]);
-  re::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp +
-                                        STACK_SHADOW_SPACE + 24),
+  // push the return address (the next instruction after the current mov) to
+  // the stack. also, adjust the stack for the return address, with an extra
+  // 8 bytes to keep it aligned
+  re::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp - 8),
             ex.thread_state.rip + mov.length);
+  ex.thread_state.rsp -= STACK_SHADOW_SPACE + 8 + 8;
+  CHECK(ex.thread_state.rsp % 16 == 0);
 
   if (mov.is_load) {
     // prep argument registers (memory object, guest_addr) for read function
@@ -212,62 +193,13 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
     }
 
     // resume execution in the thunk once the exception handler exits
-    switch (mov.reg) {
-      case 0:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rax);
-        break;
-      case 1:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rcx);
-        break;
-      case 2:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rdx);
-        break;
-      case 3:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rbx);
-        break;
-      case 4:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rsp);
-        break;
-      case 5:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rbp);
-        break;
-      case 6:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rsi);
-        break;
-      case 7:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_rdi);
-        break;
-      case 8:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r8);
-        break;
-      case 9:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r9);
-        break;
-      case 10:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r10);
-        break;
-      case 11:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r11);
-        break;
-      case 12:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r12);
-        break;
-      case 13:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r13);
-        break;
-      case 14:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r14);
-        break;
-      case 15:
-        ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_r15);
-        break;
-    }
+    ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_[mov.reg]);
   } else {
     // prep argument registers (memory object, guest_addr, value) for write
     // function
     ex.thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(&memory_);
     ex.thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
-    ex.thread_state.r[x64_arg2_idx] = *(&ex.thread_state.r[mov.reg]);
+    ex.thread_state.r[x64_arg2_idx] = ex.thread_state.r[mov.reg];
 
     // prep function call address for thunk
     switch (mov.operand_size) {
@@ -289,12 +221,41 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
         break;
     }
 
-    // ensure stack is 16b aligned
-    CHECK(ex.thread_state.rsp % 16 == 0);
-
     // resume execution in the thunk once the exception handler exits
-    ex.thread_state.rip = reinterpret_cast<uint64_t>(store_thunk);
+    ex.thread_state.rip = reinterpret_cast<uint64_t>(store_thunk_);
   }
 
   return true;
+}
+
+void X64Backend::AssembleThunks() {
+  auto &e = static_emitter_;
+
+  {
+    for (int i = 0; i < 16; i++) {
+      e.align(32);
+
+      load_thunk_[i] = e.getCurr<SlowmemThunk>();
+
+      Xbyak::Reg64 dst(i);
+      e.call(e.rax);
+      e.mov(dst, e.rax);
+      e.mov(e.r10, reinterpret_cast<uint64_t>(guest_ctx_));
+      e.mov(e.r11, reinterpret_cast<uint64_t>(memory_.protected_base()));
+      e.add(e.rsp, STACK_SHADOW_SPACE + 8);
+      e.ret();
+    }
+  }
+
+  {
+    e.align(32);
+
+    store_thunk_ = e.getCurr<SlowmemThunk>();
+
+    e.call(e.rax);
+    e.mov(e.r10, reinterpret_cast<uint64_t>(guest_ctx_));
+    e.mov(e.r11, reinterpret_cast<uint64_t>(memory_.protected_base()));
+    e.add(e.rsp, STACK_SHADOW_SPACE + 8);
+    e.ret();
+  }
 }

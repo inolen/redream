@@ -29,14 +29,13 @@ extern InterpreterState int_state;
 
 class InterpreterBackend : public Backend {
  public:
-  InterpreterBackend(hw::Memory &memory);
+  InterpreterBackend(hw::Memory &memory, void *guest_ctx);
 
   const Register *registers() const;
   int num_registers() const;
 
   void Reset();
-  BlockPointer AssembleBlock(ir::IRBuilder &builder, void *guest_ctx,
-                             int block_flags);
+  BlockPointer AssembleBlock(ir::IRBuilder &builder, int block_flags);
 
   bool HandleFastmemException(sys::Exception &ex);
 

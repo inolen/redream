@@ -32,7 +32,8 @@ struct SH4BlockEntry {
 
 class SH4CodeCache {
  public:
-  SH4CodeCache(hw::Memory *memory, jit::backend::BlockPointer default_block);
+  SH4CodeCache(hw::Memory *memory, void *guest_ctx,
+               jit::backend::BlockPointer default_block);
   ~SH4CodeCache();
 
   // originally, GetBlock looked something like this:
@@ -56,7 +57,7 @@ class SH4CodeCache {
     CHECK_LT(offset, MAX_BLOCKS);
     return &blocks_[offset];
   }
-  SH4BlockEntry *CompileBlock(uint32_t addr, int max_instrs, void *guest_ctx);
+  SH4BlockEntry *CompileBlock(uint32_t addr, int max_instrs);
   void InvalidateBlocks(uint32_t addr);
   void ResetBlocks();
 

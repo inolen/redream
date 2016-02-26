@@ -132,6 +132,7 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
 
   // add 8 for return address which will be pushed when this is called
   stack_size += 8;
+
   CHECK_EQ((stack_size + 8) % 16, 0);
 
   // mark which registers have been modified
@@ -173,11 +174,11 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   }
 
   // adjust stack pointer
-  sub(Xbyak::util::rsp, stack_size);
+  sub(rsp, stack_size);
 
   // copy guest context and memory base to argument registers
-  mov(arg0, reinterpret_cast<uintptr_t>(guest_ctx_));
-  mov(arg1, reinterpret_cast<uintptr_t>(memory_->protected_base()));
+  mov(r10, reinterpret_cast<uint64_t>(guest_ctx_));
+  mov(r11, reinterpret_cast<uint64_t>(memory_->protected_base()));
 
   *out_stack_size = stack_size;
 }
@@ -200,7 +201,7 @@ void X64Emitter::EmitEpilog(IRBuilder &builder, int stack_size) {
   L(epilog_label());
 
   // adjust stack pointer
-  add(Xbyak::util::rsp, stack_size);
+  add(rsp, stack_size);
 
   // pop callee-saved registers which have been modified
   for (int i = x64_num_registers - 1; i >= 0; i--) {
@@ -349,12 +350,6 @@ bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
   return v->type() <= VALUE_I32;
 }
 
-void X64Emitter::RestoreArgs() {
-  // restore registers that are not callee-saved
-  mov(arg0, reinterpret_cast<uintptr_t>(guest_ctx_));
-  mov(arg1, reinterpret_cast<uintptr_t>(memory_->protected_base()));
-}
-
 EMITTER(LOAD_HOST) {
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
@@ -445,7 +440,7 @@ EMITTER(LOAD_GUEST) {
     MemoryRegion *region = nullptr;
     uint32_t offset = 0;
 
-    e.memory().Lookup(addr, &host_addr, &region, &offset);
+    e.memory()->Lookup(addr, &host_addr, &region, &offset);
 
     // if the address maps to a physical page, not a dynamic handler, make it
     // fast
@@ -453,7 +448,7 @@ EMITTER(LOAD_GUEST) {
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
-      e.mov(e.rax, reinterpret_cast<uintptr_t>(host_addr));
+      e.mov(e.rax, reinterpret_cast<uint64_t>(host_addr));
 
       switch (instr->result()->type()) {
         case VALUE_I8:
@@ -503,25 +498,27 @@ EMITTER(LOAD_GUEST) {
         break;
     }
 
-    e.mov(arg0, reinterpret_cast<uintptr_t>(&e.memory()));
+    e.mov(arg0, reinterpret_cast<uint64_t>(e.memory()));
     e.mov(arg1, a);
-    e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
-    e.call(e.rax);
+    e.call(reinterpret_cast<void *>(fn));
     e.mov(result, e.rax);
-    e.RestoreArgs();
+
+    // restore context register
+    e.mov(e.r10, reinterpret_cast<uint64_t>(e.guest_ctx()));
+    e.mov(e.r11, reinterpret_cast<uint64_t>(e.memory()->protected_base()));
   } else {
     switch (instr->result()->type()) {
       case VALUE_I8:
-        e.mov(result, e.byte[a.cvt64() + arg1]);
+        e.mov(result, e.byte[a.cvt64() + e.r11]);
         break;
       case VALUE_I16:
-        e.mov(result, e.word[a.cvt64() + arg1]);
+        e.mov(result, e.word[a.cvt64() + e.r11]);
         break;
       case VALUE_I32:
-        e.mov(result, e.dword[a.cvt64() + arg1]);
+        e.mov(result, e.dword[a.cvt64() + e.r11]);
         break;
       case VALUE_I64:
-        e.mov(result, e.qword[a.cvt64() + arg1]);
+        e.mov(result, e.qword[a.cvt64() + e.r11]);
         break;
       default:
         LOG_FATAL("Unexpected load result type");
@@ -538,7 +535,7 @@ EMITTER(STORE_GUEST) {
     MemoryRegion *bank = nullptr;
     uint32_t offset = 0;
 
-    e.memory().Lookup(addr, &host_addr, &bank, &offset);
+    e.memory()->Lookup(addr, &host_addr, &bank, &offset);
 
     if (host_addr) {
       const Xbyak::Reg b = e.GetRegister(instr->arg1());
@@ -546,7 +543,7 @@ EMITTER(STORE_GUEST) {
       // FIXME it'd be nice if xbyak had a mov operation which would convert
       // the displacement to a RIP-relative address when finalizing code so
       // we didn't have to store the absolute address in the scratch register
-      e.mov(e.rax, reinterpret_cast<uintptr_t>(host_addr));
+      e.mov(e.rax, reinterpret_cast<uint64_t>(host_addr));
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
@@ -597,25 +594,27 @@ EMITTER(STORE_GUEST) {
         break;
     }
 
-    e.mov(arg0, reinterpret_cast<uintptr_t>(&e.memory()));
+    e.mov(arg0, reinterpret_cast<uint64_t>(e.memory()));
     e.mov(arg1, a);
     e.mov(arg2, b);
-    e.mov(e.rax, reinterpret_cast<uintptr_t>(fn));
-    e.call(e.rax);
-    e.RestoreArgs();
+    e.call(reinterpret_cast<void *>(fn));
+
+    // restore context register
+    e.mov(e.r10, reinterpret_cast<uint64_t>(e.guest_ctx()));
+    e.mov(e.r11, reinterpret_cast<uint64_t>(e.memory()->protected_base()));
   } else {
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        e.mov(e.byte[a.cvt64() + arg1], b);
+        e.mov(e.byte[a.cvt64() + e.r11], b);
         break;
       case VALUE_I16:
-        e.mov(e.word[a.cvt64() + arg1], b);
+        e.mov(e.word[a.cvt64() + e.r11], b);
         break;
       case VALUE_I32:
-        e.mov(e.dword[a.cvt64() + arg1], b);
+        e.mov(e.dword[a.cvt64() + e.r11], b);
         break;
       case VALUE_I64:
-        e.mov(e.qword[a.cvt64() + arg1], b);
+        e.mov(e.qword[a.cvt64() + e.r11], b);
         break;
       default:
         LOG_FATAL("Unexpected store value type");
@@ -632,10 +631,10 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->result()->type()) {
       case VALUE_F32:
-        e.movss(result, e.dword[arg0 + offset]);
+        e.movss(result, e.dword[e.r10 + offset]);
         break;
       case VALUE_F64:
-        e.movsd(result, e.qword[arg0 + offset]);
+        e.movsd(result, e.qword[e.r10 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -646,16 +645,16 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->result()->type()) {
       case VALUE_I8:
-        e.mov(result, e.byte[arg0 + offset]);
+        e.mov(result, e.byte[e.r10 + offset]);
         break;
       case VALUE_I16:
-        e.mov(result, e.word[arg0 + offset]);
+        e.mov(result, e.word[e.r10 + offset]);
         break;
       case VALUE_I32:
-        e.mov(result, e.dword[arg0 + offset]);
+        e.mov(result, e.dword[e.r10 + offset]);
         break;
       case VALUE_I64:
-        e.mov(result, e.qword[arg0 + offset]);
+        e.mov(result, e.qword[e.r10 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -670,18 +669,18 @@ EMITTER(STORE_CONTEXT) {
   if (instr->arg1()->constant()) {
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        e.mov(e.byte[arg0 + offset], instr->arg1()->value<int8_t>());
+        e.mov(e.byte[e.r10 + offset], instr->arg1()->value<int8_t>());
         break;
       case VALUE_I16:
-        e.mov(e.word[arg0 + offset], instr->arg1()->value<int16_t>());
+        e.mov(e.word[e.r10 + offset], instr->arg1()->value<int16_t>());
         break;
       case VALUE_I32:
       case VALUE_F32:
-        e.mov(e.dword[arg0 + offset], instr->arg1()->value<int32_t>());
+        e.mov(e.dword[e.r10 + offset], instr->arg1()->value<int32_t>());
         break;
       case VALUE_I64:
       case VALUE_F64:
-        e.mov(e.qword[arg0 + offset], instr->arg1()->value<int64_t>());
+        e.mov(e.qword[e.r10 + offset], instr->arg1()->value<int64_t>());
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -693,10 +692,10 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_F32:
-          e.movss(e.dword[arg0 + offset], src);
+          e.movss(e.dword[e.r10 + offset], src);
           break;
         case VALUE_F64:
-          e.movsd(e.qword[arg0 + offset], src);
+          e.movsd(e.qword[e.r10 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -707,16 +706,16 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
-          e.mov(e.byte[arg0 + offset], src);
+          e.mov(e.byte[e.r10 + offset], src);
           break;
         case VALUE_I16:
-          e.mov(e.word[arg0 + offset], src);
+          e.mov(e.word[e.r10 + offset], src);
           break;
         case VALUE_I32:
-          e.mov(e.dword[arg0 + offset], src);
+          e.mov(e.dword[e.r10 + offset], src);
           break;
         case VALUE_I64:
-          e.mov(e.qword[arg0 + offset], src);
+          e.mov(e.qword[e.r10 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -1432,11 +1431,6 @@ EMITTER(SHL) {
     const Xbyak::Reg b = e.GetRegister(instr->arg1());
     e.mov(e.cl, b);
     e.shl(result, e.cl);
-
-#if PLATFORM_WINDOWS
-    // arg0 was in rcx, needs to be restored
-    e.RestoreArgs();
-#endif
   }
 }
 
@@ -1456,11 +1450,6 @@ EMITTER(ASHR) {
     const Xbyak::Reg b = e.GetRegister(instr->arg1());
     e.mov(e.cl, b);
     e.sar(result, e.cl);
-
-#if PLATFORM_WINDOWS
-    // arg0 was in rcx, need to be restored
-    e.RestoreArgs();
-#endif
   }
 }
 
@@ -1480,11 +1469,6 @@ EMITTER(LSHR) {
     const Xbyak::Reg b = e.GetRegister(instr->arg1());
     e.mov(e.cl, b);
     e.shr(result, e.cl);
-
-#if PLATFORM_WINDOWS
-    // arg0 was in rcx, need to be restored
-    e.RestoreArgs();
-#endif
   }
 }
 
@@ -1527,10 +1511,6 @@ EMITTER(ASHD) {
 
   // shift is done
   e.L(*end_label);
-#if PLATFORM_WINDOWS
-  // arg0 was in rcx, needs to be restored
-  e.RestoreArgs();
-#endif
 }
 
 EMITTER(LSHD) {
@@ -1572,10 +1552,6 @@ EMITTER(LSHD) {
 
   // shift is done
   e.L(*end_label);
-#if PLATFORM_WINDOWS
-  // arg0 was in rcx, needs to be restored
-  e.RestoreArgs();
-#endif
 }
 
 EMITTER(BRANCH) {
@@ -1599,6 +1575,8 @@ EMITTER(BRANCH_COND) {
 }
 
 EMITTER(CALL_EXTERNAL) {
+  e.mov(arg0, reinterpret_cast<uint64_t>(e.guest_ctx()));
+
   // if an additional argument is specified, copy it into the register for arg1
   if (instr->arg1()) {
     const Xbyak::Reg arg = e.GetRegister(instr->arg1());
@@ -1608,5 +1586,8 @@ EMITTER(CALL_EXTERNAL) {
   // call the external function
   e.CopyOperand(instr->arg0(), e.rax);
   e.call(e.rax);
-  e.RestoreArgs();
+
+  // restore context register
+  e.mov(e.r10, reinterpret_cast<uint64_t>(e.guest_ctx()));
+  e.mov(e.r11, reinterpret_cast<uint64_t>(e.memory()->protected_base()));
 }

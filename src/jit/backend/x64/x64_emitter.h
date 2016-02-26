@@ -31,7 +31,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   ~X64Emitter();
 
   Xbyak::Label &epilog_label() { return *epilog_label_; }
-  hw::Memory &memory() { return *memory_; }
+  void *guest_ctx() { return guest_ctx_; }
+  hw::Memory *memory() { return memory_; }
   int block_flags() { return block_flags_; }
 
   void Reset();
@@ -47,9 +48,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Xbyak::Label *AllocLabel();
 
   bool CanEncodeAsImmediate(const ir::Value *v) const;
-  void RestoreArgs();
 
-  // private:
+ private:
   void EmitProlog(ir::IRBuilder &builder, int *stack_size);
   void EmitBody(ir::IRBuilder &builder);
   void EmitEpilog(ir::IRBuilder &builder, int stack_size);

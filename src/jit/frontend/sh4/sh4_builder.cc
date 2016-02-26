@@ -37,16 +37,16 @@ EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
 #undef SH4_INSTR
 };
 
-SH4Builder::SH4Builder(Memory &memory) : memory_(memory) {}
+SH4Builder::SH4Builder(Memory &memory, const SH4Context &guest_ctx)
+    : memory_(memory), guest_ctx_(guest_ctx) {}
 
-void SH4Builder::Emit(uint32_t start_addr, int max_instrs,
-                      const SH4Context &ctx) {
+void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
   pc_ = start_addr;
   guest_cycles_ = 0;
-  fpu_state_.double_pr = ctx.fpscr & PR;
-  fpu_state_.double_sz = ctx.fpscr & SZ;
+  fpu_state_.double_pr = guest_ctx_.fpscr & PR;
+  fpu_state_.double_sz = guest_ctx_.fpscr & SZ;
 
   // clamp block to max_instrs if non-zero
   for (int i = 0; !max_instrs || i < max_instrs; i++) {

@@ -57,8 +57,8 @@ InterpreterState int_state;
 }
 }
 
-InterpreterBackend::InterpreterBackend(Memory &memory)
-    : Backend(memory), emitter_(memory) {}
+InterpreterBackend::InterpreterBackend(Memory &memory, void *guest_ctx)
+    : Backend(memory, guest_ctx), emitter_(memory) {}
 
 const Register *InterpreterBackend::registers() const { return int_registers; }
 
@@ -70,7 +70,6 @@ void InterpreterBackend::Reset() {
 }
 
 BlockPointer InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
-                                               void *guest_ctx,
                                                int block_flags) {
   int idx = int_num_blocks++;
   if (idx >= MAX_INT_BLOCKS) {
@@ -78,7 +77,7 @@ BlockPointer InterpreterBackend::AssembleBlock(ir::IRBuilder &builder,
   }
 
   InterpreterBlock *block = &int_blocks[idx];
-  if (!emitter_.Emit(builder, guest_ctx, &block->instrs, &block->num_instrs,
+  if (!emitter_.Emit(builder, guest_ctx_, &block->instrs, &block->num_instrs,
                      &block->locals_size)) {
     return nullptr;
   }

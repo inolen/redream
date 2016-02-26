@@ -22,9 +22,9 @@ struct FPUState {
 
 class SH4Builder : public ir::IRBuilder {
  public:
-  SH4Builder(hw::Memory &memory);
+  SH4Builder(hw::Memory &memory, const SH4Context &guest_ctx);
 
-  void Emit(uint32_t addr, int max_instrs, const SH4Context &ctx);
+  void Emit(uint32_t addr, int max_instrs);
 
   ir::Value *LoadRegister(int n, ir::ValueTy type);
   void StoreRegister(int n, ir::Value *v);
@@ -49,6 +49,7 @@ class SH4Builder : public ir::IRBuilder {
 
  private:
   hw::Memory &memory_;
+  const SH4Context &guest_ctx_;
   uint32_t pc_;
   int guest_cycles_;
   FPUState fpu_state_;

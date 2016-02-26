@@ -33,7 +33,8 @@ typedef uint32_t (*BlockPointer)();
 
 class Backend {
  public:
-  Backend(hw::Memory &memory) : memory_(memory) {}
+  Backend(hw::Memory &memory, void *guest_ctx)
+      : memory_(memory), guest_ctx_(guest_ctx) {}
   virtual ~Backend() {}
 
   virtual const Register *registers() const = 0;
@@ -41,13 +42,14 @@ class Backend {
 
   virtual void Reset() = 0;
 
-  virtual BlockPointer AssembleBlock(ir::IRBuilder &builder, void *guest_ctx,
+  virtual BlockPointer AssembleBlock(ir::IRBuilder &builder,
                                      int block_flags) = 0;
 
   virtual bool HandleFastmemException(sys::Exception &ex) = 0;
 
  protected:
   hw::Memory &memory_;
+  void *guest_ctx_;
 };
 }
 }

@@ -17,9 +17,11 @@ extern const int x64_arg2_idx;
 extern const int x64_tmp0_idx;
 extern const int x64_tmp1_idx;
 
+typedef void (*SlowmemThunk)();
+
 class X64Backend : public Backend {
  public:
-  X64Backend(hw::Memory &memory);
+  X64Backend(hw::Memory &memory, void *guest_ctx);
   ~X64Backend();
 
   const Register *registers() const;
@@ -27,13 +29,17 @@ class X64Backend : public Backend {
 
   void Reset();
 
-  BlockPointer AssembleBlock(ir::IRBuilder &builder, void *guest_ctx,
-                             int block_flags);
+  BlockPointer AssembleBlock(ir::IRBuilder &builder, int block_flags);
 
   bool HandleFastmemException(sys::Exception &ex);
 
  private:
+  void AssembleThunks();
+
+  X64Emitter static_emitter_;
   X64Emitter emitter_;
+  SlowmemThunk load_thunk_[16];
+  SlowmemThunk store_thunk_;
 };
 }
 }

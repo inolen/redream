@@ -15,15 +15,16 @@ namespace frontend {
 
 class Frontend {
  public:
-  Frontend(hw::Memory &memory) : memory_(memory) {}
+  Frontend(hw::Memory &memory, void *guest_ctx)
+      : memory_(memory), guest_ctx_(guest_ctx) {}
   virtual ~Frontend() {}
 
   virtual std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr,
-                                                    int max_instrs,
-                                                    const void *guest_ctx) = 0;
+                                                    int max_instrs) = 0;
 
  protected:
   hw::Memory &memory_;
+  void *guest_ctx_;
 };
 }
 }

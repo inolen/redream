@@ -50,7 +50,7 @@ bool SH4::Init() {
   memory_ = dc_->memory;
   scheduler_ = dc_->scheduler;
 
-  code_cache_ = new SH4CodeCache(memory_, &SH4::CompilePC);
+  code_cache_ = new SH4CodeCache(memory_, &ctx_, &SH4::CompilePC);
 
   // initialize context
   memset(&ctx_, 0, sizeof(ctx_));
@@ -150,7 +150,7 @@ void SH4::Step() {
   code_cache_->InvalidateBlocks(ctx_.pc);
 
   // recompile it with only one instruction and run it
-  SH4BlockEntry *block = code_cache_->CompileBlock(ctx_.pc, 1, &ctx_);
+  SH4BlockEntry *block = code_cache_->CompileBlock(ctx_.pc, 1);
   ctx_.pc = block->run();
 
   // let the debugger know we've stopped
@@ -292,7 +292,7 @@ void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
 uint32_t SH4::CompilePC() {
   SH4CodeCache *code_cache = s_current_cpu->code_cache_;
   SH4Context *ctx = &s_current_cpu->ctx_;
-  SH4BlockEntry *block = code_cache->CompileBlock(ctx->pc, 0, ctx);
+  SH4BlockEntry *block = code_cache->CompileBlock(ctx->pc, 0);
   return block->run();
 }
 
