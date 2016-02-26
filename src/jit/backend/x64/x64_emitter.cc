@@ -71,8 +71,7 @@ X64Emitter::X64Emitter(void *buffer, size_t buffer_size)
       arena_(1024),
       memory_(nullptr),
       guest_ctx_(nullptr),
-      block_flags_(0),
-      epilog_label_(nullptr) {
+      block_flags_(0) {
   // temporary registers aren't tracked to be pushed and popped
   CHECK(!IsCalleeSaved(tmp0) && !IsCalleeSaved(tmp1));
 
@@ -105,7 +104,6 @@ BlockPointer X64Emitter::Emit(IRBuilder &builder, Memory &memory,
 
   // reset emit state
   arena_.Reset();
-  epilog_label_ = AllocLabel();
 
   int stack_size = 0;
   EmitProlog(builder, &stack_size);
@@ -198,8 +196,6 @@ void X64Emitter::EmitBody(IRBuilder &builder) {
 }
 
 void X64Emitter::EmitEpilog(IRBuilder &builder, int stack_size) {
-  L(epilog_label());
-
   // adjust stack pointer
   add(rsp, stack_size);
 
@@ -220,9 +216,9 @@ void X64Emitter::EmitEpilog(IRBuilder &builder, int stack_size) {
 // return the register allocated for it.
 const Xbyak::Reg X64Emitter::GetRegister(const Value *v) {
   if (v->constant()) {
-    CHECK_LT(num_temps_++, 2);
+    CHECK_LT(num_temps_, 2);
 
-    Xbyak::Reg tmp = num_temps_ ? tmp1 : tmp0;
+    Xbyak::Reg tmp = num_temps_++ ? tmp1 : tmp0;
 
     switch (v->type()) {
       case VALUE_I8:
@@ -1556,21 +1552,17 @@ EMITTER(LSHD) {
 
 EMITTER(BRANCH) {
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
+
   e.mov(e.rax, a);
 }
 
 EMITTER(BRANCH_COND) {
   const Xbyak::Reg cond = e.GetRegister(instr->arg0());
-  e.test(cond, cond);
-
-  // TODO use cmovnz / cmove and avoid the jump once we can support
-  // two temporaries
-
   const Xbyak::Reg true_addr = e.GetRegister(instr->arg1());
-  e.mov(e.eax, true_addr);
-  e.jnz(e.epilog_label());
-
   const Xbyak::Reg false_addr = e.GetRegister(instr->arg2());
+
+  e.test(cond, cond);
+  e.cmovnz(e.eax, true_addr);
   e.cmove(e.eax, false_addr);
 }
 

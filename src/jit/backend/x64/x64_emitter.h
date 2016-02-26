@@ -30,7 +30,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Emitter(void *buffer, size_t buffer_size);
   ~X64Emitter();
 
-  Xbyak::Label &epilog_label() { return *epilog_label_; }
   void *guest_ctx() { return guest_ctx_; }
   hw::Memory *memory() { return memory_; }
   int block_flags() { return block_flags_; }
@@ -58,7 +57,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
   hw::Memory *memory_;
   void *guest_ctx_;
   int block_flags_;
-  Xbyak::Label *epilog_label_;
   int modified_marker_;
   int *modified_;
   int num_temps_;
