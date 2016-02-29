@@ -130,10 +130,10 @@ Value *LoadStoreEliminationPass::GetAvailable(int offset) {
 }
 
 void LoadStoreEliminationPass::EraseAvailable(int offset, int size) {
-  Reserve(offset + size);
-
   int begin = offset;
-  int end = offset + size;
+  int end = offset + size - 1;
+
+  Reserve(end);
 
   // if the invalidation range intersects with an entry, merge that entry into
   // the invalidation range
@@ -145,10 +145,10 @@ void LoadStoreEliminationPass::EraseAvailable(int offset, int size) {
   }
 
   if (end_entry.value) {
-    end = end_entry.offset + SizeForType(end_entry.value->type());
+    end = end_entry.offset + SizeForType(end_entry.value->type()) - 1;
   }
 
-  for (; begin < end; begin++) {
+  for (; begin <= end; begin++) {
     AvailableEntry &entry = available_[begin];
     entry.offset = 0;
     entry.value = nullptr;
@@ -157,15 +157,17 @@ void LoadStoreEliminationPass::EraseAvailable(int offset, int size) {
 
 void LoadStoreEliminationPass::SetAvailable(int offset, Value *v) {
   int size = SizeForType(v->type());
+  int begin = offset;
+  int end = offset + size - 1;
 
-  Reserve(offset + size);
+  Reserve(end);
 
   EraseAvailable(offset, size);
 
   // add entries for the entire range to aid in invalidation. only the initial
   // entry where offset == entry.offset is valid for reuse
-  for (int i = offset, end = offset + size; i < end; i++) {
-    AvailableEntry &entry = available_[i];
+  for (; begin <= end; begin++) {
+    AvailableEntry &entry = available_[begin];
     entry.offset = offset;
     entry.value = v;
   }
