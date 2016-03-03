@@ -58,8 +58,9 @@ class SH4CodeCache {
     return &blocks_[offset];
   }
   SH4BlockEntry *CompileBlock(uint32_t addr, int max_instrs);
-  void InvalidateBlocks(uint32_t addr);
-  void ResetBlocks();
+  void RemoveBlocks(uint32_t addr);
+  void UnlinkBlocks();
+  void ClearBlocks();
 
  private:
   static bool HandleException(void *ctx, sys::Exception &ex);

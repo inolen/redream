@@ -36,7 +36,6 @@ SH4::SH4(Dreamcast *dc)
       MemoryInterface(this),
       dc_(dc),
       code_cache_(nullptr),
-      pending_cache_reset_(false),
       requested_interrupts_(0),
       pending_interrupts_(0),
       tmu_timers_{INVALID_TIMER, INVALID_TIMER, INVALID_TIMER},
@@ -100,7 +99,6 @@ void SH4::Run(const std::chrono::nanoseconds &delta) {
     SH4BlockEntry *block = code_cache_->GetBlock(ctx_.pc);
     ctx_.pc = block->run();
 
-    CheckPendingCacheReset();
     CheckPendingInterrupts();
   }
 
@@ -147,7 +145,7 @@ int SH4::NumRegisters() { return 59; }
 
 void SH4::Step() {
   // invalidate the block for the current pc
-  code_cache_->InvalidateBlocks(ctx_.pc);
+  code_cache_->RemoveBlocks(ctx_.pc);
 
   // recompile it with only one instruction and run it
   SH4BlockEntry *block = code_cache_->CompileBlock(ctx_.pc, 1);
@@ -165,7 +163,7 @@ void SH4::AddBreakpoint(int type, uint32_t addr) {
   // write out an invalid instruction
   memory_->W16(addr, 0);
 
-  code_cache_->InvalidateBlocks(addr);
+  code_cache_->RemoveBlocks(addr);
 }
 
 void SH4::RemoveBreakpoint(int type, uint32_t addr) {
@@ -178,7 +176,7 @@ void SH4::RemoveBreakpoint(int type, uint32_t addr) {
   // overwrite the invalid instruction with the original
   memory_->W16(addr, instr);
 
-  code_cache_->InvalidateBlocks(addr);
+  code_cache_->RemoveBlocks(addr);
 }
 
 void SH4::ReadMemory(uint32_t addr, uint8_t *buffer, int size) {
@@ -550,17 +548,9 @@ void SH4::ResetCache() {
   // to
   // the P0, P1, P3, or U0 area should be located at least eight instructions
   // after the CCR update instruction."
-  pending_cache_reset_ = true;
-}
+  LOG_INFO("Reset instruction cache");
 
-inline void SH4::CheckPendingCacheReset() {
-  if (!pending_cache_reset_) {
-    return;
-  }
-
-  code_cache_->ResetBlocks();
-
-  pending_cache_reset_ = false;
+  code_cache_->UnlinkBlocks();
 }
 
 //

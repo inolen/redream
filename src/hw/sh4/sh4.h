@@ -172,7 +172,6 @@ class SH4 : public Device,
 
   // CCN
   void ResetCache();
-  void CheckPendingCacheReset();
 
   // INTC
   void ReprioritizeInterrupts();
@@ -199,8 +198,6 @@ class SH4 : public Device,
   type &name{reinterpret_cast<type &>(area7_[name##_OFFSET])};
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
-
-  bool pending_cache_reset_;
 
   Interrupt sorted_interrupts_[NUM_INTERRUPTS];
   uint64_t sort_id_[NUM_INTERRUPTS];

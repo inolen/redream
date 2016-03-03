@@ -98,8 +98,8 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
   if (!run) {
     LOG_INFO("Assembler overflow, resetting block cache");
 
-    // the backend overflowed, reset the block cache
-    ResetBlocks();
+    // the backend overflowed, completely clear the block cache
+    ClearBlocks();
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
@@ -124,8 +124,7 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
 
   return block;
 }
-
-void SH4CodeCache::InvalidateBlocks(uint32_t addr) {
+void SH4CodeCache::RemoveBlocks(uint32_t addr) {
   // remove any block which overlaps the address
   while (true) {
     SH4BlockEntry *block = LookupBlock(addr);
@@ -146,8 +145,19 @@ void SH4CodeCache::InvalidateBlocks(uint32_t addr) {
   }
 }
 
-void SH4CodeCache::ResetBlocks() {
-  // reset block cache
+void SH4CodeCache::UnlinkBlocks() {
+  // unlink the block pointers, but don't remove the map entries. this is used
+  // when clearing the cache while a block is currently executing
+  for (int i = 0; i < MAX_BLOCKS; i++) {
+    SH4BlockEntry *block = &blocks_[i];
+    block->run = default_block_;
+    block->flags = 0;
+  }
+}
+
+void SH4CodeCache::ClearBlocks() {
+  // unlink all block pointers and remove all map entries. this is only safe to
+  // use when no blocks are currently executing
   for (int i = 0; i < MAX_BLOCKS; i++) {
     SH4BlockEntry *block = &blocks_[i];
     block->run = default_block_;
@@ -158,7 +168,7 @@ void SH4CodeCache::ResetBlocks() {
   block_map_.clear();
   reverse_block_map_.clear();
 
-  // have the backend reset its codegen buffers
+  // have the backend reset its codegen buffers as well
   backend_->Reset();
 }
 
@@ -176,11 +186,10 @@ bool SH4CodeCache::HandleException(void *ctx, Exception &ex) {
     return false;
   }
 
-  // exception was handled, reset the block pointer back to the default compile
-  // handler and flag the block to be recompiled without fastmem optimizations
-  // on the next access. note, the block can't be removed from the lookup maps
-  // at this point because blocks may trigger multiple exceptions before being
-  // recompiled
+  // exception was handled, unlink the block pointer and flag the block to be
+  // recompiled without fastmem optimizations on the next access. note, the
+  // block can't be removed from the lookup maps at this point because it's
+  // still executing and may trigger subsequent exceptions
   block->run = self->default_block_;
   block->flags |= BF_SLOWMEM;
 
