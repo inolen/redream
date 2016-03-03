@@ -14,25 +14,18 @@ typedef enum {
   GDB_BIG_ENDIAN,
 } endianness_t;
 
-typedef void (*stop_cb)(void *);
-typedef void (*resume_cb)(void *);
-typedef void (*step_cb)(void *);
-typedef void (*add_bp_cb)(void *, int type, intmax_t addr);
-typedef void (*rem_bp_cb)(void *, int type, intmax_t addr);
-typedef void (*read_mem_cb)(void *, intmax_t addr, uint8_t *value, int size);
-typedef void (*read_reg_cb)(void *, int n, intmax_t *value, int *size);
-
 typedef struct {
   void *ctx;
   endianness_t endian;
   int num_regs;
-  stop_cb stop;
-  resume_cb resume;
-  step_cb step;
-  add_bp_cb add_bp;
-  rem_bp_cb rem_bp;
-  read_mem_cb read_mem;
-  read_reg_cb read_reg;
+  void (*detach)(void *);
+  void (*stop)(void *);
+  void (*resume)(void *);
+  void (*step)(void *);
+  void (*add_bp)(void *, int type, intmax_t addr);
+  void (*rem_bp)(void *, int type, intmax_t addr);
+  void (*read_mem)(void *, intmax_t addr, uint8_t *value, int size);
+  void (*read_reg)(void *, int n, intmax_t *value, int *size);
 } gdb_target_t;
 
 //
@@ -650,6 +643,14 @@ static int gdb_server_handle_int3(gdb_server_t *sv, const char *data) {
   return 1;
 }
 
+static int gdb_server_handle_detach(gdb_server_t *sv, const char *data) {
+  sv->target.detach(sv->target.ctx);
+
+  gdb_server_destroy_client(sv);
+
+  return 1;
+}
+
 // 'c [addr]'
 // Continue at addr, which is the address to resume. If addr is omitted, resume
 // at current address.
@@ -971,6 +972,8 @@ static void gdb_server_handle_packet(gdb_server_t *sv, const char *data) {
     handled = gdb_server_handle_nack(sv, data);
   } else if (data[0] == 0x3) {
     handled = gdb_server_handle_int3(sv, data);
+  } else if (data[0] == 'D') {
+    handled = gdb_server_handle_detach(sv, data);
   } else if (data[0] == 'c') {
     handled = gdb_server_handle_c(sv, data);
   } else if (data[0] == 'g') {

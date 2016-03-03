@@ -33,6 +33,7 @@ bool Debugger::Init() {
   target.ctx = this;
   target.endian = GDB_LITTLE_ENDIAN;
   target.num_regs = debug_->NumRegisters();
+  target.detach = &Debugger::gdb_server_detach;
   target.stop = &Debugger::gdb_server_stop;
   target.resume = &Debugger::gdb_server_resume;
   target.step = &Debugger::gdb_server_step;
@@ -57,6 +58,11 @@ void Debugger::Trap() {
 }
 
 void Debugger::PumpEvents() { gdb_server_pump(sv_); }
+
+void Debugger::gdb_server_detach(void *data) {
+  Debugger *debugger = reinterpret_cast<Debugger *>(data);
+  debugger->machine_.Resume();
+}
 
 void Debugger::gdb_server_stop(void *data) {
   Debugger *debugger = reinterpret_cast<Debugger *>(data);

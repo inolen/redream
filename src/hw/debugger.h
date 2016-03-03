@@ -20,6 +20,7 @@ class Debugger {
   void PumpEvents();
 
  private:
+  static void gdb_server_detach(void *data);
   static void gdb_server_stop(void *data);
   static void gdb_server_resume(void *data);
   static void gdb_server_step(void *data);
