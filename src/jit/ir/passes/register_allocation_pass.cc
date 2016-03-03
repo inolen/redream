@@ -12,7 +12,7 @@ static inline void SetOrdinal(Instr *i, int ordinal) {
   i->set_tag((intptr_t)ordinal);
 }
 
-static inline bool RegisterCanStore(const Register &r, ValueTy type) {
+static inline bool RegisterCanStore(const Register &r, ValueType type) {
   return r.value_types & (1 << type);
 }
 
@@ -137,7 +137,7 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
   }
 }
 
-RegisterSet &RegisterAllocationPass::GetRegisterSet(ValueTy type) {
+RegisterSet &RegisterAllocationPass::GetRegisterSet(ValueType type) {
   if (IsIntType(type)) {
     return int_registers_;
   }

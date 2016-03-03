@@ -14,7 +14,7 @@ const char *re::jit::ir::Opnames[NUM_OPS] = {
 //
 // Value
 //
-Value::Value(ValueTy ty) : type_(ty), constant_(false) {}
+Value::Value(ValueType ty) : type_(ty), constant_(false) {}
 Value::Value(int8_t v) : type_(VALUE_I8), constant_(true), i8_(v) {}
 Value::Value(int16_t v) : type_(VALUE_I16), constant_(true), i16_(v) {}
 Value::Value(int32_t v) : type_(VALUE_I32), constant_(true), i32_(v) {}
@@ -32,12 +32,10 @@ uint64_t Value::GetZExtValue() const {
       return static_cast<uint32_t>(i32_);
     case VALUE_I64:
       return static_cast<uint64_t>(i64_);
-    case VALUE_F32:
-      return re::load<uint32_t>(&f32_);
-    case VALUE_F64:
-      return re::load<uint64_t>(&f64_);
+    default:
+      LOG_FATAL("Unexpected value type");
+      break;
   }
-  return 0;
 }
 
 void Value::AddRef(ValueRef *ref) { refs_.Append(ref); }
@@ -63,7 +61,7 @@ ValueRef::~ValueRef() {
   }
 }
 
-Local::Local(ValueTy ty, Value *offset) : type_(ty), offset_(offset) {}
+Local::Local(ValueType ty, Value *offset) : type_(ty), offset_(offset) {}
 
 //
 // Instr
@@ -168,7 +166,7 @@ void IRBuilder::RemoveBlock(Block *block) {
   block->~Block();
 }
 
-Value *IRBuilder::LoadHost(Value *addr, ValueTy type) {
+Value *IRBuilder::LoadHost(Value *addr, ValueType type) {
   CHECK_EQ(VALUE_I64, addr->type());
 
   Instr *instr = AppendInstr(OP_LOAD_HOST);
@@ -186,7 +184,7 @@ void IRBuilder::StoreHost(Value *addr, Value *v) {
   instr->set_arg1(v);
 }
 
-Value *IRBuilder::LoadGuest(Value *addr, ValueTy type) {
+Value *IRBuilder::LoadGuest(Value *addr, ValueType type) {
   CHECK_EQ(VALUE_I32, addr->type());
 
   Instr *instr = AppendInstr(OP_LOAD_GUEST);
@@ -204,7 +202,7 @@ void IRBuilder::StoreGuest(Value *addr, Value *v) {
   instr->set_arg1(v);
 }
 
-Value *IRBuilder::LoadContext(size_t offset, ValueTy type) {
+Value *IRBuilder::LoadContext(size_t offset, ValueType type) {
   Instr *instr = AppendInstr(OP_LOAD_CONTEXT);
   Value *result = AllocDynamic(type);
   instr->set_arg0(AllocConstant((int32_t)offset));
@@ -232,7 +230,7 @@ void IRBuilder::StoreLocal(Local *local, Value *v) {
   instr->set_arg1(v);
 }
 
-Value *IRBuilder::Bitcast(Value *v, ValueTy dest_type) {
+Value *IRBuilder::Bitcast(Value *v, ValueType dest_type) {
   CHECK((IsIntType(v->type()) && IsIntType(dest_type)) ||
         (IsFloatType(v->type()) && IsFloatType(dest_type)));
 
@@ -243,7 +241,7 @@ Value *IRBuilder::Bitcast(Value *v, ValueTy dest_type) {
   return result;
 }
 
-Value *IRBuilder::Cast(Value *v, ValueTy dest_type) {
+Value *IRBuilder::Cast(Value *v, ValueType dest_type) {
   CHECK((IsIntType(v->type()) && IsFloatType(dest_type)) ||
         (IsFloatType(v->type()) && IsIntType(dest_type)));
 
@@ -254,7 +252,7 @@ Value *IRBuilder::Cast(Value *v, ValueTy dest_type) {
   return result;
 }
 
-Value *IRBuilder::SExt(Value *v, ValueTy dest_type) {
+Value *IRBuilder::SExt(Value *v, ValueType dest_type) {
   CHECK(IsIntType(v->type()) && IsIntType(dest_type));
 
   Instr *instr = AppendInstr(OP_SEXT);
@@ -264,7 +262,7 @@ Value *IRBuilder::SExt(Value *v, ValueTy dest_type) {
   return result;
 }
 
-Value *IRBuilder::ZExt(Value *v, ValueTy dest_type) {
+Value *IRBuilder::ZExt(Value *v, ValueType dest_type) {
   CHECK(IsIntType(v->type()) && IsIntType(dest_type));
 
   Instr *instr = AppendInstr(OP_ZEXT);
@@ -676,13 +674,13 @@ Value *IRBuilder::AllocConstant(double c) {
   return v;
 }
 
-Value *IRBuilder::AllocDynamic(ValueTy type) {
+Value *IRBuilder::AllocDynamic(ValueType type) {
   Value *v = arena_.Alloc<Value>();
   new (v) Value(type);
   return v;
 }
 
-Local *IRBuilder::AllocLocal(ValueTy type) {
+Local *IRBuilder::AllocLocal(ValueType type) {
   Local *l = arena_.Alloc<Local>();
   new (l) Local(type, AllocConstant(0));
   locals_.Append(l);

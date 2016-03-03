@@ -22,7 +22,7 @@ enum IRToken {
 struct IRLexeme {
   char s[128];
   uint64_t i;
-  ValueTy ty;
+  ValueType ty;
 };
 
 class IRLexer {
@@ -48,7 +48,7 @@ class IRReader {
   bool Parse(std::istream &input, IRBuilder &builder);
 
  private:
-  bool ParseType(IRLexer &lex, IRBuilder &builder, ValueTy *type);
+  bool ParseType(IRLexer &lex, IRBuilder &builder, ValueType *type);
   bool ParseOp(IRLexer &lex, IRBuilder &builder, Op *op);
   bool ParseValue(IRLexer &lex, IRBuilder &builder, Value **value);
   bool ParseOperator(IRLexer &lex, IRBuilder &builder);

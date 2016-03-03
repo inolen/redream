@@ -29,29 +29,34 @@ int fold_masks[NUM_OPS];
 // declare a templated callback for an IR operation. note, declaring a
 // callback does not actually register it. callbacks must be registered
 // for a particular signature with REGISTER_FOLD
-#define FOLD(op, mask)                                                 \
-  static struct _##op##_init {                                         \
-    _##op##_init() { fold_masks[OP_##op] = mask; }                     \
-  } op##_init;                                                         \
-  template <typename R = void, typename A0 = void, typename A1 = void> \
+#define FOLD(op, mask)                                                         \
+  static struct _##op##_init {                                                 \
+    _##op##_init() { fold_masks[OP_##op] = mask; }                             \
+  } op##_init;                                                                 \
+  template <typename R = ValueInfo<VALUE_V>, typename A0 = ValueInfo<VALUE_V>, \
+            typename A1 = ValueInfo<VALUE_V>>                                  \
   void Handle##op(IRBuilder &builder, Block *block, Instr *instr)
 
 // registers a fold callback for the specified signature
-#define REGISTER_FOLD(op, r, a0, a1)                                           \
-  static struct _cpp_##op##_##r##_##a0##_##a1##_init {                         \
-    _cpp_##op##_##r##_##a0##_##a1##_init() {                                   \
-      fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1)] =     \
-          &Handle##op<ValueType<VALUE_##r>::type, ValueType<VALUE_##a0>::type, \
-                      ValueType<VALUE_##a1>::type>;                            \
-    }                                                                          \
+#define REGISTER_FOLD(op, r, a0, a1)                                       \
+  static struct _cpp_##op##_##r##_##a0##_##a1##_init {                     \
+    _cpp_##op##_##r##_##a0##_##a1##_init() {                               \
+      fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1)] = \
+          &Handle##op<ValueInfo<VALUE_##r>, ValueInfo<VALUE_##a0>,         \
+                      ValueInfo<VALUE_##a1>>;                              \
+    }                                                                      \
   } cpp_##op##_##r##_##a0##_##a1##_init
 
 // common helpers for fold functions
-#define ARG0() instr->arg0()->value<A0>()
-#define ARG1() instr->arg1()->value<A1>()
-#define ARG2() instr->arg2()->value<A1>()
-#define RESULT(expr)                                                  \
-  instr->result()->ReplaceRefsWith(builder.AllocConstant((R)(expr))); \
+#define ARG0() (instr->arg0()->*A0::fn)()
+#define ARG1() (instr->arg1()->*A1::fn)()
+#define ARG2() (instr->arg2()->*A1::fn)()
+#define ARG0_UNSIGNED() static_cast<typename A0::unsigned_type>(ARG0())
+#define ARG1_UNSIGNED() static_cast<typename A1::unsigned_type>(ARG1())
+#define ARG2_UNSIGNED() static_cast<typename A1::unsigned_type>(ARG2())
+#define RESULT(expr)                                                      \
+  instr->result()->ReplaceRefsWith(                                       \
+      builder.AllocConstant(static_cast<typename R::signed_type>(expr))); \
   block->RemoveInstr(instr)
 
 static FoldFn GetFoldFn(Instr *instr) {
@@ -199,11 +204,9 @@ REGISTER_FOLD(SMUL, F32, F32, F32);
 REGISTER_FOLD(SMUL, F64, F64, F64);
 
 FOLD(UMUL, ARG0_CNST | ARG1_CNST) {
-  using U0 = typename std::make_unsigned<A0>::type;
-  using U1 = typename std::make_unsigned<A1>::type;
-  U0 lhs = static_cast<U0>(ARG0());
-  U1 rhs = static_cast<U1>(ARG1());
-  RESULT(static_cast<A0>(lhs * rhs));
+  auto lhs = ARG0_UNSIGNED();
+  auto rhs = ARG1_UNSIGNED();
+  RESULT(lhs * rhs);
 }
 REGISTER_FOLD(UMUL, I8, I8, I8);
 REGISTER_FOLD(UMUL, I16, I16, I16);
@@ -249,10 +252,7 @@ REGISTER_FOLD(SHL, I64, I64, I32);
 
 // IR_OP(ASHR)
 
-FOLD(LSHR, ARG0_CNST | ARG1_CNST) {
-  using U0 = typename std::make_unsigned<A0>::type;
-  RESULT((A0)((U0)ARG0() >> ARG1()));
-}
+FOLD(LSHR, ARG0_CNST | ARG1_CNST) { RESULT(ARG0_UNSIGNED() >> ARG1()); }
 REGISTER_FOLD(LSHR, I8, I8, I32);
 REGISTER_FOLD(LSHR, I16, I16, I32);
 REGISTER_FOLD(LSHR, I32, I32, I32);

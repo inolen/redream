@@ -101,7 +101,7 @@ void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
   StoreContext(offsetof(SH4Context, remaining_cycles), remaining_cycles);
 }
 
-Value *SH4Builder::LoadRegister(int n, ValueTy type) {
+Value *SH4Builder::LoadRegister(int n, ValueType type) {
   return LoadContext(offsetof(SH4Context, r[n]), type);
 }
 
@@ -110,7 +110,7 @@ void SH4Builder::StoreRegister(int n, Value *v) {
   return StoreContext(offsetof(SH4Context, r[n]), v);
 }
 
-Value *SH4Builder::LoadRegisterF(int n, ValueTy type) {
+Value *SH4Builder::LoadRegisterF(int n, ValueType type) {
   if (SizeForType(type) == 4) {
     // see notes in sh4_context.h
     n ^= 1;
@@ -125,7 +125,7 @@ void SH4Builder::StoreRegisterF(int n, Value *v) {
   return StoreContext(offsetof(SH4Context, fr[n]), v);
 }
 
-Value *SH4Builder::LoadRegisterXF(int n, ValueTy type) {
+Value *SH4Builder::LoadRegisterXF(int n, ValueType type) {
   if (SizeForType(type) == 4) {
     n ^= 1;
   }

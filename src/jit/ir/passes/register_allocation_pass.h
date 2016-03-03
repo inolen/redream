@@ -60,7 +60,7 @@ class RegisterAllocationPass : public Pass {
   // intervals, keyed by register
   Interval *intervals_;
 
-  RegisterSet &GetRegisterSet(ValueTy type);
+  RegisterSet &GetRegisterSet(ValueType type);
 
   void Reset();
   void AssignOrdinals(ir::Block *block);

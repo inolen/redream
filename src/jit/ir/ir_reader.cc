@@ -7,7 +7,7 @@ using namespace re::jit::ir;
 
 struct IRType {
   const char *name;
-  ValueTy ty;
+  ValueType ty;
 };
 
 static IRType s_ir_types[] = {
@@ -138,7 +138,7 @@ bool IRReader::Parse(std::istream &input, IRBuilder &builder) {
   return true;
 }
 
-bool IRReader::ParseType(IRLexer &lex, IRBuilder &builder, ValueTy *type) {
+bool IRReader::ParseType(IRLexer &lex, IRBuilder &builder, ValueType *type) {
   if (lex.tok() != TOK_TYPE) {
     LOG_INFO("Unexpected token %d when parsing type");
     return false;
@@ -178,7 +178,7 @@ bool IRReader::ParseOp(IRLexer &lex, IRBuilder &builder, Op *op) {
 
 bool IRReader::ParseValue(IRLexer &lex, IRBuilder &builder, Value **value) {
   // parse value type
-  ValueTy type;
+  ValueType type;
   if (!ParseType(lex, builder, &type)) {
     return false;
   }
@@ -226,6 +226,9 @@ bool IRReader::ParseValue(IRLexer &lex, IRBuilder &builder, Value **value) {
         uint64_t v = static_cast<uint64_t>(lex.val().i);
         *value = builder.AllocConstant(*reinterpret_cast<double *>(&v));
       } break;
+      default:
+        LOG_FATAL("Unexpected value type");
+        break;
     }
   } else {
     return false;

@@ -26,11 +26,11 @@ class SH4Builder : public ir::IRBuilder {
 
   void Emit(uint32_t addr, int max_instrs);
 
-  ir::Value *LoadRegister(int n, ir::ValueTy type);
+  ir::Value *LoadRegister(int n, ir::ValueType type);
   void StoreRegister(int n, ir::Value *v);
-  ir::Value *LoadRegisterF(int n, ir::ValueTy type);
+  ir::Value *LoadRegisterF(int n, ir::ValueType type);
   void StoreRegisterF(int n, ir::Value *v);
-  ir::Value *LoadRegisterXF(int n, ir::ValueTy type);
+  ir::Value *LoadRegisterXF(int n, ir::ValueType type);
   void StoreRegisterXF(int n, ir::Value *v);
   ir::Value *LoadSR();
   void StoreSR(ir::Value *v);

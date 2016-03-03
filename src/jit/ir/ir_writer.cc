@@ -15,30 +15,28 @@ void IRWriter::Print(const IRBuilder &builder, std::ostream &output) {
   }
 }
 
-void IRWriter::PrintType(ValueTy type, std::ostream &output) const {
+void IRWriter::PrintType(ValueType type, std::ostream &output) const {
   switch (type) {
     case VALUE_I8:
       output << "i8";
       break;
-
     case VALUE_I16:
       output << "i16";
       break;
-
     case VALUE_I32:
       output << "i32";
       break;
-
     case VALUE_I64:
       output << "i64";
       break;
-
     case VALUE_F32:
       output << "f32";
       break;
-
     case VALUE_F64:
       output << "f64";
+      break;
+    default:
+      LOG_FATAL("Unexpected value type");
       break;
   }
 }
@@ -70,22 +68,25 @@ void IRWriter::PrintValue(const Value *value, std::ostream &output) {
   } else {
     switch (value->type()) {
       case VALUE_I8:
-        output << "0x" << std::hex << value->value<int8_t>() << std::dec;
+        output << "0x" << std::hex << value->i8() << std::dec;
         break;
       case VALUE_I16:
-        output << "0x" << std::hex << value->value<int16_t>() << std::dec;
+        output << "0x" << std::hex << value->i16() << std::dec;
         break;
       case VALUE_I32:
-        output << "0x" << std::hex << value->value<int32_t>() << std::dec;
+        output << "0x" << std::hex << value->i32() << std::dec;
         break;
       case VALUE_I64:
-        output << "0x" << std::hex << value->value<int64_t>() << std::dec;
+        output << "0x" << std::hex << value->i64() << std::dec;
         break;
       case VALUE_F32:
-        output << "0x" << std::hex << value->value<float>() << std::dec;
+        output << "0x" << std::hex << value->f32() << std::dec;
         break;
       case VALUE_F64:
-        output << "0x" << std::hex << value->value<double>() << std::dec;
+        output << "0x" << std::hex << value->f64() << std::dec;
+        break;
+      default:
+        LOG_FATAL("Unexpected value type");
         break;
     }
   }

@@ -33,7 +33,7 @@ void LoadStoreEliminationPass::ProcessBlock(Block *block) {
       if (instr->op() == OP_LOAD_CONTEXT) {
         // if there is already a value available for this offset, reuse it and
         // remove this redundant load
-        int offset = instr->arg0()->value<int32_t>();
+        int offset = instr->arg0()->i32();
         Value *available = GetAvailable(offset);
 
         if (available && available->type() == instr->result()->type()) {
@@ -45,7 +45,7 @@ void LoadStoreEliminationPass::ProcessBlock(Block *block) {
 
         SetAvailable(offset, instr->result());
       } else if (instr->op() == OP_STORE_CONTEXT) {
-        int offset = instr->arg0()->value<int32_t>();
+        int offset = instr->arg0()->i32();
 
         // mark the value being stored as available
         SetAvailable(offset, instr->arg1());
@@ -65,14 +65,14 @@ void LoadStoreEliminationPass::ProcessBlock(Block *block) {
       Instr *instr = *(it++);
 
       if (instr->op() == OP_LOAD_CONTEXT) {
-        int offset = instr->arg0()->value<int32_t>();
+        int offset = instr->arg0()->i32();
         int size = SizeForType(instr->result()->type());
 
         EraseAvailable(offset, size);
       } else if (instr->op() == OP_STORE_CONTEXT) {
         // if subsequent stores have been made for this offset that would
         // overwrite it completely, mark instruction as dead
-        int offset = instr->arg0()->value<int32_t>();
+        int offset = instr->arg0()->i32();
         Value *available = GetAvailable(offset);
         int available_size = available ? SizeForType(available->type()) : 0;
         int store_size = SizeForType(instr->arg1()->type());

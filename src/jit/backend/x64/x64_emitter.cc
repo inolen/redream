@@ -290,11 +290,11 @@ void X64Emitter::CopyOperand(const Value *v, const Xbyak::Reg &to) {
       CHECK(IsFloatType(v->type()));
 
       if (v->type() == VALUE_F32) {
-        float val = v->value<float>();
+        float val = v->f32();
         mov(eax, re::load<int32_t>(&val));
         movd(reinterpret_cast<const Xbyak::Xmm &>(to), eax);
       } else {
-        double val = v->value<double>();
+        double val = v->f64();
         mov(rax, re::load<int64_t>(&val));
         movq(reinterpret_cast<const Xbyak::Xmm &>(to), rax);
       }
@@ -431,7 +431,7 @@ EMITTER(LOAD_GUEST) {
 
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
-    uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
+    uint32_t addr = static_cast<uint32_t>(instr->arg0()->i32());
     uint8_t *host_addr = nullptr;
     MemoryRegion *region = nullptr;
     uint32_t offset = 0;
@@ -526,7 +526,7 @@ EMITTER(LOAD_GUEST) {
 EMITTER(STORE_GUEST) {
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
-    uint32_t addr = static_cast<uint32_t>(instr->arg0()->value<int32_t>());
+    uint32_t addr = static_cast<uint32_t>(instr->arg0()->i32());
     uint8_t *host_addr = nullptr;
     MemoryRegion *bank = nullptr;
     uint32_t offset = 0;
@@ -620,7 +620,7 @@ EMITTER(STORE_GUEST) {
 }
 
 EMITTER(LOAD_CONTEXT) {
-  int offset = instr->arg0()->value<int32_t>();
+  int offset = instr->arg0()->i32();
 
   if (IsFloatType(instr->result()->type())) {
     const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
@@ -660,23 +660,23 @@ EMITTER(LOAD_CONTEXT) {
 }
 
 EMITTER(STORE_CONTEXT) {
-  int offset = instr->arg0()->value<int32_t>();
+  int offset = instr->arg0()->i32();
 
   if (instr->arg1()->constant()) {
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        e.mov(e.byte[e.r10 + offset], instr->arg1()->value<int8_t>());
+        e.mov(e.byte[e.r10 + offset], instr->arg1()->i8());
         break;
       case VALUE_I16:
-        e.mov(e.word[e.r10 + offset], instr->arg1()->value<int16_t>());
+        e.mov(e.word[e.r10 + offset], instr->arg1()->i16());
         break;
       case VALUE_I32:
       case VALUE_F32:
-        e.mov(e.dword[e.r10 + offset], instr->arg1()->value<int32_t>());
+        e.mov(e.dword[e.r10 + offset], instr->arg1()->i32());
         break;
       case VALUE_I64:
       case VALUE_F64:
-        e.mov(e.qword[e.r10 + offset], instr->arg1()->value<int64_t>());
+        e.mov(e.qword[e.r10 + offset], instr->arg1()->i64());
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -722,7 +722,7 @@ EMITTER(STORE_CONTEXT) {
 }
 
 EMITTER(LOAD_LOCAL) {
-  int offset = instr->arg0()->value<int32_t>();
+  int offset = instr->arg0()->i32();
 
   if (IsFloatType(instr->result()->type())) {
     const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
@@ -762,7 +762,7 @@ EMITTER(LOAD_LOCAL) {
 }
 
 EMITTER(STORE_LOCAL) {
-  int offset = instr->arg0()->value<int32_t>();
+  int offset = instr->arg0()->i32();
 
   CHECK(!instr->arg1()->constant());
 

@@ -14,7 +14,7 @@ class IRWriter {
   void Print(const IRBuilder &builder, std::ostream &output);
 
  private:
-  void PrintType(ValueTy type, std::ostream &output) const;
+  void PrintType(ValueType type, std::ostream &output) const;
   void PrintOp(Op op, std::ostream &output) const;
   void PrintValue(const Value *value, std::ostream &output);
   void PrintInstruction(const Instr *instr, std::ostream &output);

@@ -22,18 +22,15 @@ extern const char *Opnames[NUM_OPS];
 //
 // values
 //
-enum ValueTy {
-  VALUE_I8 = 1,
+enum ValueType {
+  VALUE_V,
+  VALUE_I8,
   VALUE_I16,
   VALUE_I32,
   VALUE_I64,
   VALUE_F32,
-  VALUE_F64
-};
-enum {
-  // not used by IRBuilder directly, but useful when generating lookup tables
-  VALUE_V = 0,
-  VALUE_NUM = VALUE_F64 + 1
+  VALUE_F64,
+  VALUE_NUM,
 };
 
 enum {
@@ -46,53 +43,24 @@ enum {
   VALUE_INT_MASK =
       VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK | VALUE_I64_MASK,
   VALUE_FLOAT_MASK = VALUE_F32_MASK | VALUE_F64_MASK,
-  VALUE_ALL_MASK = VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK |
-                   VALUE_I64_MASK | VALUE_F32_MASK | VALUE_F64_MASK,
+  VALUE_ALL_MASK = VALUE_INT_MASK | VALUE_FLOAT_MASK,
 };
-enum { NO_REGISTER = -1 };
 
-template <int T>
-struct ValueType;
-template <>
-struct ValueType<VALUE_V> {
-  typedef void type;
-};
-template <>
-struct ValueType<VALUE_I8> {
-  typedef int8_t type;
-};
-template <>
-struct ValueType<VALUE_I16> {
-  typedef int16_t type;
-};
-template <>
-struct ValueType<VALUE_I32> {
-  typedef int32_t type;
-};
-template <>
-struct ValueType<VALUE_I64> {
-  typedef int64_t type;
-};
-template <>
-struct ValueType<VALUE_F32> {
-  typedef float type;
-};
-template <>
-struct ValueType<VALUE_F64> {
-  typedef double type;
+enum {
+  NO_REGISTER = -1,
 };
 
 class Block;
 class Instr;
 class ValueRef;
 
-static inline bool IsFloatType(ValueTy type) {
+static inline bool IsFloatType(ValueType type) {
   return type == VALUE_F32 || type == VALUE_F64;
 }
 
-static inline bool IsIntType(ValueTy type) { return !IsFloatType(type); }
+static inline bool IsIntType(ValueType type) { return !IsFloatType(type); }
 
-static inline int SizeForType(ValueTy type) {
+static inline int SizeForType(ValueType type) {
   switch (type) {
     case VALUE_I8:
       return 1;
@@ -106,13 +74,15 @@ static inline int SizeForType(ValueTy type) {
       return 4;
     case VALUE_F64:
       return 8;
+    default:
+      LOG_FATAL("Unexpected value type");
+      break;
   }
-  return 0;
 }
 
 class Value {
  public:
-  Value(ValueTy ty);
+  Value(ValueType ty);
   Value(int8_t v);
   Value(int16_t v);
   Value(int32_t v);
@@ -120,14 +90,40 @@ class Value {
   Value(float v);
   Value(double v);
 
-  ValueTy type() const { return type_; }
+  ValueType type() const { return type_; }
 
   bool constant() const { return constant_; }
 
-  template <typename T>
-  T value() const;
-  template <typename T>
-  T value();
+  int8_t i8() const {
+    DCHECK(constant_ && type_ == VALUE_I8);
+    return i8_;
+  }
+  int8_t i8() { return static_cast<const Value *>(this)->i8(); }
+  int16_t i16() const {
+    DCHECK(constant_ && type_ == VALUE_I16);
+    return i16_;
+  }
+  int16_t i16() { return static_cast<const Value *>(this)->i16(); }
+  int32_t i32() const {
+    DCHECK(constant_ && type_ == VALUE_I32);
+    return i32_;
+  }
+  int32_t i32() { return static_cast<const Value *>(this)->i32(); }
+  int64_t i64() const {
+    DCHECK(constant_ && type_ == VALUE_I64);
+    return i64_;
+  }
+  int64_t i64() { return static_cast<const Value *>(this)->i64(); }
+  float f32() const {
+    DCHECK(constant_ && type_ == VALUE_F32);
+    return f32_;
+  }
+  float f32() { return static_cast<const Value *>(this)->f32(); }
+  double f64() const {
+    DCHECK(constant_ && type_ == VALUE_F64);
+    return f64_;
+  }
+  double f64() { return static_cast<const Value *>(this)->f64(); }
 
   const IntrusiveList<ValueRef> &refs() const { return refs_; }
   IntrusiveList<ValueRef> &refs() { return refs_; }
@@ -145,7 +141,7 @@ class Value {
   void ReplaceRefsWith(Value *other);
 
  private:
-  const ValueTy type_;
+  const ValueType type_;
   const bool constant_;
   const union {
     int8_t i8_;
@@ -160,67 +156,6 @@ class Value {
   int reg_{NO_REGISTER};
   intptr_t tag_{0};
 };
-
-template <>
-inline int8_t Value::value() const {
-  DCHECK(constant_ && type_ == VALUE_I8);
-  return i8_;
-}
-template <>
-inline int8_t Value::value() {
-  DCHECK(constant_ && type_ == VALUE_I8);
-  return i8_;
-}
-template <>
-inline int16_t Value::value() const {
-  DCHECK(constant_ && type_ == VALUE_I16);
-  return i16_;
-}
-template <>
-inline int16_t Value::value() {
-  DCHECK(constant_ && type_ == VALUE_I16);
-  return i16_;
-}
-template <>
-inline int32_t Value::value() const {
-  DCHECK(constant_ && type_ == VALUE_I32);
-  return i32_;
-}
-template <>
-inline int32_t Value::value() {
-  DCHECK(constant_ && type_ == VALUE_I32);
-  return i32_;
-}
-template <>
-inline int64_t Value::value() const {
-  DCHECK(constant_ && type_ == VALUE_I64);
-  return i64_;
-}
-template <>
-inline int64_t Value::value() {
-  DCHECK(constant_ && type_ == VALUE_I64);
-  return i64_;
-}
-template <>
-inline float Value::value() const {
-  DCHECK(constant_ && type_ == VALUE_F32);
-  return f32_;
-}
-template <>
-inline float Value::value() {
-  DCHECK(constant_ && type_ == VALUE_F32);
-  return f32_;
-}
-template <>
-inline double Value::value() const {
-  DCHECK(constant_ && type_ == VALUE_F64);
-  return f64_;
-}
-template <>
-inline double Value::value() {
-  DCHECK(constant_ && type_ == VALUE_F64);
-  return f64_;
-}
 
 // ValueRef is a layer of indirection between an instruction and a values it
 // uses. Values maintain a list of all of their references, making it possible
@@ -248,16 +183,60 @@ class ValueRef : public IntrusiveListNode<ValueRef> {
   Value *value_;
 };
 
+// Templated structs to aid the interpreter / constant propagation handlers
+template <int T>
+struct ValueInfo;
+
+template <>
+struct ValueInfo<VALUE_V> {
+  typedef void signed_type;
+  constexpr static void (Value::*fn)() = nullptr;
+};
+template <>
+struct ValueInfo<VALUE_I8> {
+  typedef int8_t signed_type;
+  typedef uint8_t unsigned_type;
+  constexpr static int8_t (Value::*fn)() = &Value::i8;
+};
+template <>
+struct ValueInfo<VALUE_I16> {
+  typedef int16_t signed_type;
+  typedef uint16_t unsigned_type;
+  constexpr static int16_t (Value::*fn)() = &Value::i16;
+};
+template <>
+struct ValueInfo<VALUE_I32> {
+  typedef int32_t signed_type;
+  typedef uint32_t unsigned_type;
+  constexpr static int32_t (Value::*fn)() = &Value::i32;
+};
+template <>
+struct ValueInfo<VALUE_I64> {
+  typedef int64_t signed_type;
+  typedef uint64_t unsigned_type;
+  constexpr static int64_t (Value::*fn)() = &Value::i64;
+};
+template <>
+struct ValueInfo<VALUE_F32> {
+  typedef float signed_type;
+  constexpr static float (Value::*fn)() = &Value::f32;
+};
+template <>
+struct ValueInfo<VALUE_F64> {
+  typedef double signed_type;
+  constexpr static double (Value::*fn)() = &Value::f64;
+};
+
 // Locals are allocated for values that need to be spilled to the stack during
 // register allocation. When allocated, a default offset of 0 is assigned,
 // each backend is expected to update the offset to an appropriate value
 // before emitting.
 class Local : public IntrusiveListNode<Local> {
  public:
-  Local(ValueTy ty, Value *offset);
+  Local(ValueType ty, Value *offset);
 
-  ValueTy type() const { return type_; }
-  ValueTy type() { return type_; }
+  ValueType type() const { return type_; }
+  ValueType type() { return type_; }
 
   Value *offset() const { return offset_; }
   Value *offset() { return offset_; }
@@ -267,7 +246,7 @@ class Local : public IntrusiveListNode<Local> {
   }
 
  private:
-  ValueTy type_;
+  ValueType type_;
   Value *offset_;
 };
 
@@ -377,15 +356,15 @@ class IRBuilder {
   void RemoveBlock(Block *block);
 
   // direct access to host memory
-  Value *LoadHost(Value *addr, ValueTy type);
+  Value *LoadHost(Value *addr, ValueType type);
   void StoreHost(Value *addr, Value *v);
 
   // guest memory operations
-  Value *LoadGuest(Value *addr, ValueTy type);
+  Value *LoadGuest(Value *addr, ValueType type);
   void StoreGuest(Value *addr, Value *v);
 
   // context operations
-  Value *LoadContext(size_t offset, ValueTy type);
+  Value *LoadContext(size_t offset, ValueType type);
   void StoreContext(size_t offset, Value *v);
 
   // local operations
@@ -393,10 +372,10 @@ class IRBuilder {
   void StoreLocal(Local *local, Value *v);
 
   // cast / conversion operations
-  Value *Bitcast(Value *v, ValueTy dest_type);
-  Value *Cast(Value *v, ValueTy dest_type);
-  Value *SExt(Value *v, ValueTy dest_type);
-  Value *ZExt(Value *v, ValueTy dest_type);
+  Value *Bitcast(Value *v, ValueType dest_type);
+  Value *Cast(Value *v, ValueType dest_type);
+  Value *SExt(Value *v, ValueType dest_type);
+  Value *ZExt(Value *v, ValueType dest_type);
 
   // conditionals
   Value *Select(Value *cond, Value *t, Value *f);
@@ -454,8 +433,8 @@ class IRBuilder {
   Value *AllocConstant(int64_t c);
   Value *AllocConstant(float c);
   Value *AllocConstant(double c);
-  Value *AllocDynamic(ValueTy type);
-  Local *AllocLocal(ValueTy type);
+  Value *AllocDynamic(ValueType type);
+  Local *AllocLocal(ValueType type);
 
  protected:
   Instr *AllocInstr(Op op);
