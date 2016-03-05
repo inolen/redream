@@ -22,7 +22,7 @@ namespace backend {
 namespace interpreter {
 
 template <int N>
-static uint32_t CallBlock();
+static void CallBlock();
 
 BlockPointer int_runners[MAX_INT_BLOCKS] = {REP_8192(CallBlock<, 0, >)};
 InterpreterBlock int_blocks[MAX_INT_BLOCKS] = {};
@@ -55,7 +55,7 @@ int int_num_blocks = 0;
 //     per-block and unrolling it with a duff's device, this thrashing is
 //     greatly alleviated
 template <int N>
-static uint32_t CallBlock() {
+static void CallBlock() {
   InterpreterBlock *block = &int_blocks[N];
 
   IntInstr *instr = block->instrs;
@@ -70,8 +70,6 @@ static uint32_t CallBlock() {
   });
 
   int_state.sp -= block->locals_size;
-
-  return int_state.pc;
 }
 }
 }

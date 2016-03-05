@@ -97,7 +97,8 @@ void SH4::Run(const std::chrono::nanoseconds &delta) {
 
   while (ctx_.remaining_cycles > 0) {
     SH4BlockEntry *block = code_cache_->GetBlock(ctx_.pc);
-    ctx_.pc = block->run();
+
+    block->run();
 
     CheckPendingInterrupts();
   }
@@ -149,7 +150,7 @@ void SH4::Step() {
 
   // recompile it with only one instruction and run it
   SH4BlockEntry *block = code_cache_->CompileBlock(ctx_.pc, 1);
-  ctx_.pc = block->run();
+  block->run();
 
   // let the debugger know we've stopped
   dc_->debugger->Trap();
@@ -287,11 +288,13 @@ void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
   memmap.Mount(sh4_sq_handle, SH4_SQ_SIZE, SH4_SQ_START);
 }
 
-uint32_t SH4::CompilePC() {
+void SH4::CompilePC() {
   SH4CodeCache *code_cache = s_current_cpu->code_cache_;
   SH4Context *ctx = &s_current_cpu->ctx_;
-  SH4BlockEntry *block = code_cache->CompileBlock(ctx->pc, 0);
-  return block->run();
+  code_cache->CompileBlock(ctx->pc, 0);
+
+  // nothing else needs to be done, the newly compiled block is placed into the
+  // cache and will be ran on the next iteration in the dispatch loop
 }
 
 void SH4::InvalidInstruction(SH4Context *ctx, uint64_t data) {

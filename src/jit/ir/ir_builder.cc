@@ -592,22 +592,6 @@ Value *IRBuilder::LShd(Value *a, Value *n) {
   return result;
 }
 
-void IRBuilder::Branch(Value *dest) {
-  Instr *instr = AppendInstr(OP_BRANCH);
-  instr->set_arg0(dest);
-}
-
-void IRBuilder::BranchCond(Value *cond, Value *true_addr, Value *false_addr) {
-  if (cond->type() != VALUE_I8) {
-    cond = NE(cond, AllocConstant(0));
-  }
-
-  Instr *instr = AppendInstr(OP_BRANCH_COND);
-  instr->set_arg0(cond);
-  instr->set_arg1(true_addr);
-  instr->set_arg2(false_addr);
-}
-
 void IRBuilder::CallExternal1(Value *addr) {
   CHECK_EQ(addr->type(), VALUE_I64);
 

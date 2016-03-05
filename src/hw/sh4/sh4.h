@@ -144,7 +144,7 @@ class SH4 : public Device,
   void MapVirtualMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
-  static uint32_t CompilePC();
+  static void CompilePC();
   static void InvalidInstruction(jit::frontend::sh4::SH4Context *ctx,
                                  uint64_t addr);
   static void Prefetch(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);

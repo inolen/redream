@@ -157,9 +157,9 @@ enum {
   NUM_ACC_COMBINATIONS = 1 << 3
 };
 
-// OP_SELECT and OP_BRANCH_COND are the only instructions using arg2, and
-// arg2's type always matches arg1's. because of this, arg2 isn't considered
-// when generating the lookup table
+// OP_SELECT is the only instructions using arg2, and arg2's type always
+// matches arg1's. because of this, arg2 isn't considered when generating
+// the lookup table
 #define MAX_CALLBACKS_PER_OP \
   (VALUE_NUM * VALUE_NUM * VALUE_NUM * NUM_ACC_COMBINATIONS)
 
@@ -859,24 +859,6 @@ INT_CALLBACK(LSHD) {
   STORE_RESULT(v);
 }
 REGISTER_INT_CALLBACK(LSHD, LSHD, I32, I32, I32);
-
-INT_CALLBACK(BRANCH) {
-  auto addr = LOAD_ARG0_UNSIGNED();
-  int_state.pc = addr;
-}
-REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I8, V);
-REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I16, V);
-REGISTER_INT_CALLBACK(BRANCH, BRANCH, V, I32, V);
-
-INT_CALLBACK(BRANCH_COND) {
-  auto cond = LOAD_ARG0();
-  auto true_addr = LOAD_ARG1_UNSIGNED();
-  auto false_addr = LOAD_ARG2_UNSIGNED();
-  int_state.pc = cond ? true_addr : false_addr;
-}
-REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I8);
-REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I16);
-REGISTER_INT_CALLBACK(BRANCH_COND, BRANCH_COND, V, I8, I32);
 
 INT_CALLBACK(CALL_EXTERNAL1) {
   auto addr = LOAD_ARG0();
