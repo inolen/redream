@@ -66,61 +66,14 @@ Local::Local(ValueType ty, Value *offset) : type_(ty), offset_(offset) {}
 //
 // Instr
 //
-Instr::Instr(Op op)
-    : block_(nullptr),
-      op_(op),
-      args_{{this}, {this}, {this}, {this}},
-      tag_(0) {}
+Instr::Instr(Op op) : op_(op), args_{{this}, {this}, {this}, {this}}, tag_(0) {}
 
 Instr::~Instr() {}
 
 //
-// Block
-//
-Block::Block() : tag_(0) {}
-Block::~Block() {
-  while (instrs_.tail()) {
-    RemoveInstr(instrs_.tail());
-  }
-}
-
-void Block::InsertInstr(Instr *after, Instr *instr) {
-  instr->set_block(this);
-  instrs_.Insert(after, instr);
-}
-
-void Block::ReplaceInstr(Instr *replace, Instr *with) {
-  // insert the new instruction
-  InsertInstr(replace, with);
-
-  // replace references to our result with other result
-  if (replace->result()) {
-    CHECK_NOTNULL(with->result());
-    replace->result()->ReplaceRefsWith(with->result());
-  }
-
-  // remove old instruction
-  RemoveInstr(replace);
-}
-
-void Block::RemoveInstr(Instr *instr) {
-  instr->set_block(nullptr);
-  instrs_.Remove(instr);
-
-  // call destructor manually
-  instr->~Instr();
-}
-
-void Block::UnlinkInstr(Instr *instr) {
-  instr->set_block(nullptr);
-  instrs_.Remove(instr);
-}
-
-//
 // IRBuilder
 //
-IRBuilder::IRBuilder()
-    : arena_(1024), current_block_(nullptr), current_instr_(nullptr) {}
+IRBuilder::IRBuilder() : arena_(1024), current_instr_(nullptr) {}
 
 void IRBuilder::Dump() const {
   IRWriter writer;
@@ -129,41 +82,17 @@ void IRBuilder::Dump() const {
   LOG_INFO(ss.str().c_str());
 }
 
-InsertPoint IRBuilder::GetInsertPoint() {
-  return {current_block_, current_instr_};
-}
+InsertPoint IRBuilder::GetInsertPoint() { return {current_instr_}; }
 
 void IRBuilder::SetInsertPoint(const InsertPoint &point) {
-  current_block_ = point.block;
   current_instr_ = point.instr;
 }
 
-Block *IRBuilder::InsertBlock(Block *after) {
-  Block *block = arena_.Alloc<Block>();
-  new (block) Block();
+void IRBuilder::RemoveInstr(Instr *instr) {
+  instrs_.Remove(instr);
 
-  // insert at beginning if no after specified
-  if (!after) {
-    blocks_.Insert(nullptr, block);
-  } else {
-    blocks_.Insert(after, block);
-  }
-
-  return block;
-}
-
-Block *IRBuilder::AppendBlock() { return InsertBlock(blocks_.tail()); }
-
-void IRBuilder::RemoveBlock(Block *block) {
-  if (current_block_ == block) {
-    current_block_ = block->next() ? block->next() : block->prev();
-    current_instr_ = current_block_->instrs().tail();
-  }
-
-  blocks_.Remove(block);
-
-  // call destructor manually
-  block->~Block();
+  // call destructor manually to release value references
+  instr->~Instr();
 }
 
 Value *IRBuilder::LoadHost(Value *addr, ValueType type) {
@@ -678,13 +607,8 @@ Instr *IRBuilder::AllocInstr(Op op) {
 }
 
 Instr *IRBuilder::AppendInstr(Op op) {
-  if (!current_block_) {
-    current_block_ = InsertBlock(current_block_);
-    current_instr_ = nullptr;
-  }
-
   Instr *instr = AllocInstr(op);
-  current_block_->InsertInstr(current_instr_, instr);
+  instrs_.Insert(current_instr_, instr);
   current_instr_ = instr;
   return instr;
 }

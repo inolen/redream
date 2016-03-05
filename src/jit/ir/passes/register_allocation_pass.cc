@@ -93,47 +93,45 @@ RegisterAllocationPass::~RegisterAllocationPass() { delete[] intervals_; }
 void RegisterAllocationPass::Run(IRBuilder &builder) {
   PROFILER_RUNTIME("RegisterAllocationPass::Run");
 
-  for (auto block : builder.blocks()) {
-    Reset();
+  Reset();
 
-    AssignOrdinals(block);
+  AssignOrdinals(builder);
 
-    for (auto instr : block->instrs()) {
-      Value *result = instr->result();
+  for (auto instr : builder.instrs()) {
+    Value *result = instr->result();
 
-      // only allocate registers for results, assume constants can always be
-      // encoded as immediates or that the backend has registers reserved
-      // for storing the constants
-      if (!result) {
-        continue;
-      }
-
-      // sort the value's ref list
-      result->refs().Sort([](const ValueRef *a, const ValueRef *b) {
-        return GetOrdinal(a->instr()) < GetOrdinal(b->instr());
-      });
-
-      // get the live range of the value
-      ValueRef *start = result->refs().head();
-      ValueRef *end = result->refs().tail();
-
-      // expire any old intervals, freeing up the registers they claimed
-      ExpireOldIntervals(start->instr());
-
-      // first, try and reuse the register of one of the incoming arguments
-      int reg = ReuuseArgRegister(instr, start, end);
-      if (reg == NO_REGISTER) {
-        // else, allocate a new register for the result
-        reg = AllocFreeRegister(result, start, end);
-        if (reg == NO_REGISTER) {
-          // if a register couldn't be allocated, spill a register and try again
-          reg = AllocBlockedRegister(builder, result, start, end);
-          CHECK_NE(reg, NO_REGISTER, "Failed to allocate register");
-        }
-      }
-
-      result->set_reg(reg);
+    // only allocate registers for results, assume constants can always be
+    // encoded as immediates or that the backend has registers reserved
+    // for storing the constants
+    if (!result) {
+      continue;
     }
+
+    // sort the value's ref list
+    result->refs().Sort([](const ValueRef *a, const ValueRef *b) {
+      return GetOrdinal(a->instr()) < GetOrdinal(b->instr());
+    });
+
+    // get the live range of the value
+    ValueRef *start = result->refs().head();
+    ValueRef *end = result->refs().tail();
+
+    // expire any old intervals, freeing up the registers they claimed
+    ExpireOldIntervals(start->instr());
+
+    // first, try and reuse the register of one of the incoming arguments
+    int reg = ReuuseArgRegister(instr, start, end);
+    if (reg == NO_REGISTER) {
+      // else, allocate a new register for the result
+      reg = AllocFreeRegister(result, start, end);
+      if (reg == NO_REGISTER) {
+        // if a register couldn't be allocated, spill a register and try again
+        reg = AllocBlockedRegister(builder, result, start, end);
+        CHECK_NE(reg, NO_REGISTER, "Failed to allocate register");
+      }
+    }
+
+    result->set_reg(reg);
   }
 }
 
@@ -168,11 +166,11 @@ void RegisterAllocationPass::Reset() {
   }
 }
 
-void RegisterAllocationPass::AssignOrdinals(Block *block) {
+void RegisterAllocationPass::AssignOrdinals(IRBuilder &builder) {
   // assign each instruction an ordinal. these ordinals are used to describe
   // the live range of a particular value
   int ordinal = 0;
-  for (auto instr : block->instrs()) {
+  for (auto instr : builder.instrs()) {
     SetOrdinal(instr, ordinal);
 
     // space out ordinals to leave available values for instructions inserted
@@ -308,7 +306,7 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   Local *local = builder.AllocLocal(interval->value->type());
 
   // insert load before next use
-  builder.SetInsertPoint({insert_point.block, next_ref->instr()->prev()});
+  builder.SetInsertPoint({next_ref->instr()->prev()});
   Value *load_local = builder.LoadLocal(local);
   Instr *load_instr = builder.GetInsertPoint().instr;
 
@@ -337,7 +335,7 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
   // instruction is created and added as a reference, the sorted order will be
   // invalidated. because of this, the save instruction needs to be added after
   // the load instruction has updated the sorted references.
-  builder.SetInsertPoint({insert_point.block, prev_ref->instr()});
+  builder.SetInsertPoint({prev_ref->instr()});
   builder.StoreLocal(local, interval->value);
   Instr *store_instr = builder.GetInsertPoint().instr;
 

@@ -11,8 +11,6 @@ namespace passes {
 class ValidatePass : public Pass {
  public:
   void Run(IRBuilder &builder);
-  void ValidateBlock(IRBuilder &builder, Block *block);
-  void ValidateInstr(IRBuilder &builder, Block *block, Instr *instr);
 };
 }
 }

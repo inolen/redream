@@ -6,7 +6,7 @@
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 
-typedef void (*FoldFn)(IRBuilder &, Block *, Instr *i);
+typedef void (*FoldFn)(IRBuilder &, Instr *i);
 
 // specify which arguments must be constant in order for fold operation to run
 enum {
@@ -35,7 +35,7 @@ int fold_masks[NUM_OPS];
   } op##_init;                                                                 \
   template <typename R = ValueInfo<VALUE_V>, typename A0 = ValueInfo<VALUE_V>, \
             typename A1 = ValueInfo<VALUE_V>>                                  \
-  void Handle##op(IRBuilder &builder, Block *block, Instr *instr)
+  void Handle##op(IRBuilder &builder, Instr *instr)
 
 // registers a fold callback for the specified signature
 #define REGISTER_FOLD(op, r, a0, a1)                                       \
@@ -57,7 +57,7 @@ int fold_masks[NUM_OPS];
 #define RESULT(expr)                                                      \
   instr->result()->ReplaceRefsWith(                                       \
       builder.AllocConstant(static_cast<typename R::signed_type>(expr))); \
-  block->RemoveInstr(instr)
+  builder.RemoveInstr(instr)
 
 static FoldFn GetFoldFn(Instr *instr) {
   auto it = fold_cbs.find(CALLBACK_IDX(
@@ -93,32 +93,30 @@ static int GetConstantSig(Instr *instr) {
 void ConstantPropagationPass::Run(IRBuilder &builder) {
   PROFILER_RUNTIME("ConstantPropagationPass::Run");
 
-  for (auto block : builder.blocks()) {
-    auto it = block->instrs().begin();
-    auto end = block->instrs().end();
+  auto it = builder.instrs().begin();
+  auto end = builder.instrs().end();
 
-    while (it != end) {
-      Instr *instr = *(it++);
+  while (it != end) {
+    Instr *instr = *(it++);
 
-      int fold_mask = GetFoldMask(instr);
-      int cnst_sig = GetConstantSig(instr);
-      if (!fold_mask || (cnst_sig & fold_mask) != fold_mask) {
-        continue;
-      }
-
-      FoldFn fold = GetFoldFn(instr);
-      if (!fold) {
-        continue;
-      }
-
-      fold(builder, block, instr);
+    int fold_mask = GetFoldMask(instr);
+    int cnst_sig = GetConstantSig(instr);
+    if (!fold_mask || (cnst_sig & fold_mask) != fold_mask) {
+      continue;
     }
+
+    FoldFn fold = GetFoldFn(instr);
+    if (!fold) {
+      continue;
+    }
+
+    fold(builder, instr);
   }
 }
 
 FOLD(SELECT, ARG0_CNST) {
   instr->result()->ReplaceRefsWith(ARG0() ? instr->arg1() : instr->arg2());
-  block->RemoveInstr(instr);
+  builder.RemoveInstr(instr);
 }
 REGISTER_FOLD(SELECT, I8, I8, I8);
 REGISTER_FOLD(SELECT, I16, I16, I16);

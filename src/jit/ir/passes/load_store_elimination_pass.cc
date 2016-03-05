@@ -12,18 +12,10 @@ void LoadStoreEliminationPass::Run(IRBuilder &builder) {
 
   Reset();
 
-  for (auto block : builder.blocks()) {
-    ProcessBlock(block);
-  }
-}
-
-void LoadStoreEliminationPass::Reset() { ClearAvailable(); }
-
-void LoadStoreEliminationPass::ProcessBlock(Block *block) {
   // eliminate redundant loads
   {
-    auto it = block->instrs().begin();
-    auto end = block->instrs().end();
+    auto it = builder.instrs().begin();
+    auto end = builder.instrs().end();
 
     ClearAvailable();
 
@@ -39,7 +31,7 @@ void LoadStoreEliminationPass::ProcessBlock(Block *block) {
         if (available && available->type() == instr->result()->type()) {
           instr->result()->ReplaceRefsWith(available);
           CHECK_EQ(instr->result(), available);
-          block->RemoveInstr(instr);
+          builder.RemoveInstr(instr);
           continue;
         }
 
@@ -56,8 +48,8 @@ void LoadStoreEliminationPass::ProcessBlock(Block *block) {
   // eliminate dead stores
   {
     // iterate in reverse so the current instruction is the one being removed
-    auto it = block->instrs().rbegin();
-    auto end = block->instrs().rend();
+    auto it = builder.instrs().rbegin();
+    auto end = builder.instrs().rend();
 
     ClearAvailable();
 
@@ -78,7 +70,7 @@ void LoadStoreEliminationPass::ProcessBlock(Block *block) {
         int store_size = SizeForType(instr->arg1()->type());
 
         if (available_size >= store_size) {
-          block->RemoveInstr(instr);
+          builder.RemoveInstr(instr);
           continue;
         }
 
@@ -87,6 +79,8 @@ void LoadStoreEliminationPass::ProcessBlock(Block *block) {
     }
   }
 }
+
+void LoadStoreEliminationPass::Reset() { ClearAvailable(); }
 
 void LoadStoreEliminationPass::Reserve(int offset) {
   int reserve = offset + 1;

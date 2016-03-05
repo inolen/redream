@@ -21,7 +21,6 @@ class LoadStoreEliminationPass : public Pass {
 
  private:
   void Reset();
-  void ProcessBlock(Block *block);
 
   void Reserve(int offset);
   void ClearAvailable();

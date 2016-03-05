@@ -34,10 +34,8 @@ bool InterpreterEmitter::Emit(ir::IRBuilder &builder, void *guest_ctx,
   // do an initial pass assigning ordinals to instructions so local branches
   // can be resolved
   int32_t ordinal = 0;
-  for (auto ir_block : builder.blocks()) {
-    for (auto ir_instr : ir_block->instrs()) {
-      ir_instr->set_tag((intptr_t)ordinal++);
-    }
+  for (auto ir_instr : builder.instrs()) {
+    ir_instr->set_tag((intptr_t)ordinal++);
   }
 
   // assign local offsets
@@ -51,15 +49,13 @@ bool InterpreterEmitter::Emit(ir::IRBuilder &builder, void *guest_ctx,
   // translate each instruction
   *instr = reinterpret_cast<IntInstr *>(codegen_);
 
-  for (auto ir_block : builder.blocks()) {
-    for (auto ir_instr : ir_block->instrs()) {
-      IntInstr *instr = AllocInstr();
-      if (!instr) {
-        return false;
-      }
-
-      TranslateInstr(*ir_instr, instr);
+  for (auto ir_instr : builder.instrs()) {
+    IntInstr *instr = AllocInstr();
+    if (!instr) {
+      return false;
     }
+
+    TranslateInstr(*ir_instr, instr);
   }
 
   IntInstr *instr_end = reinterpret_cast<IntInstr *>(codegen_);

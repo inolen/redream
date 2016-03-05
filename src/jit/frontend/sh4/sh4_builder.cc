@@ -82,8 +82,7 @@ void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
     }
   }
 
-  ir::Block *tail_block = blocks_.tail();
-  ir::Instr *tail_instr = tail_block->instrs().tail();
+  ir::Instr *tail_instr = instrs_.tail();
 
   // if the block was terminated before a branch instruction, emit a
   // fallthrough branch to the next pc
@@ -93,7 +92,6 @@ void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
   }
 
   // emit block epilog
-  current_block_ = tail_block;
   current_instr_ = tail_instr->prev();
 
   Value *remaining_cycles =

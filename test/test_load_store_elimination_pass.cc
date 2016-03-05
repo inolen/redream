@@ -34,8 +34,7 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
       "i32 %8 = load_context i32 0x2c\n"
       "i32 %9 = load_context i32 0x20\n"
       "i32 %10 = sub i32 %9, i32 0x10\n"
-      "store_context i32 0x20, i32 %10\n"
-      "branch i32 %8\n";
+      "store_context i32 0x20, i32 %10\n";
 
   static const char *output =
       "store_context i32 0x104, i32 0x0\n"
@@ -57,8 +56,7 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
       "i32 %3 = load_context i32 0x2c\n"
       "i32 %4 = load_context i32 0x20\n"
       "i32 %5 = sub i32 %4, i32 0x10\n"
-      "store_context i32 0x20, i32 %5\n"
-      "branch i32 %3\n";
+      "store_context i32 0x20, i32 %5\n";
 
   IRBuilder builder;
 

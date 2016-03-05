@@ -50,7 +50,6 @@ enum {
   NO_REGISTER = -1,
 };
 
-class Block;
 class Instr;
 class ValueRef;
 
@@ -254,14 +253,9 @@ class Local : public IntrusiveListNode<Local> {
 // instructions
 //
 class Instr : public IntrusiveListNode<Instr> {
-  friend class Block;
-
  public:
   Instr(Op op);
   ~Instr();
-
-  const Block *block() const { return block_; }
-  Block *block() { return block_; }
 
   Op op() const { return op_; }
 
@@ -289,37 +283,8 @@ class Instr : public IntrusiveListNode<Instr> {
   void set_tag(intptr_t tag) { tag_ = tag; }
 
  private:
-  Block *set_block(Block *block) { return block_ = block; }
-
-  Block *block_;
   Op op_;
   ValueRef args_[4];
-  intptr_t tag_;
-};
-
-//
-// blocks
-//
-class Block : public IntrusiveListNode<Block> {
-  friend class IRBuilder;
-
- public:
-  Block();
-  ~Block();
-
-  const IntrusiveList<Instr> &instrs() const { return instrs_; }
-  IntrusiveList<Instr> &instrs() { return instrs_; }
-
-  intptr_t tag() const { return tag_; }
-  void set_tag(intptr_t tag) { tag_ = tag; }
-
-  void InsertInstr(Instr *after, Instr *instr);
-  void ReplaceInstr(Instr *replace, Instr *with);
-  void RemoveInstr(Instr *instr);
-  void UnlinkInstr(Instr *instr);
-
- private:
-  IntrusiveList<Instr> instrs_;
   intptr_t tag_;
 };
 
@@ -329,7 +294,6 @@ class Block : public IntrusiveListNode<Block> {
 typedef void (*ExternalFn)(void *);
 
 struct InsertPoint {
-  Block *block;
   Instr *instr;
 };
 
@@ -339,8 +303,8 @@ class IRBuilder {
  public:
   IRBuilder();
 
-  const IntrusiveList<Block> &blocks() const { return blocks_; }
-  IntrusiveList<Block> &blocks() { return blocks_; }
+  const IntrusiveList<Instr> &instrs() const { return instrs_; }
+  IntrusiveList<Instr> &instrs() { return instrs_; }
 
   const IntrusiveList<Local> &locals() const { return locals_; }
   IntrusiveList<Local> &locals() { return locals_; }
@@ -350,10 +314,7 @@ class IRBuilder {
   InsertPoint GetInsertPoint();
   void SetInsertPoint(const InsertPoint &point);
 
-  // blocks
-  Block *InsertBlock(Block *after);
-  Block *AppendBlock();
-  void RemoveBlock(Block *block);
+  void RemoveInstr(Instr *instr);
 
   // direct access to host memory
   Value *LoadHost(Value *addr, ValueType type);
@@ -437,9 +398,8 @@ class IRBuilder {
   Instr *AppendInstr(Op op);
 
   Arena arena_;
-  IntrusiveList<Block> blocks_;
+  IntrusiveList<Instr> instrs_;
   IntrusiveList<Local> locals_;
-  Block *current_block_;
   Instr *current_instr_;
 };
 }

@@ -63,7 +63,7 @@ class RegisterAllocationPass : public Pass {
   RegisterSet &GetRegisterSet(ValueType type);
 
   void Reset();
-  void AssignOrdinals(ir::Block *block);
+  void AssignOrdinals(IRBuilder &builder);
   void ExpireOldIntervals(Instr *start);
   int ReuuseArgRegister(Instr *instr, ValueRef *start, ValueRef *end);
   int AllocFreeRegister(Value *value, ValueRef *start, ValueRef *end);

@@ -8,10 +8,8 @@ void IRWriter::Print(const IRBuilder &builder, std::ostream &output) {
   slots_.clear();
   next_slot_ = 0;
 
-  for (auto block : builder.blocks()) {
-    for (auto instr : block->instrs()) {
-      PrintInstruction(instr, output);
-    }
+  for (auto instr : builder.instrs()) {
+    PrintInstruction(instr, output);
   }
 }
 

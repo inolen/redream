@@ -136,20 +136,18 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   // mark which registers have been modified
   modified_marker_++;
 
-  for (auto block : builder.blocks()) {
-    for (auto instr : block->instrs()) {
-      Value *result = instr->result();
-      if (!result) {
-        continue;
-      }
-
-      int i = result->reg();
-      if (i == NO_REGISTER) {
-        continue;
-      }
-
-      modified_[i] = modified_marker_;
+  for (auto instr : builder.instrs()) {
+    Value *result = instr->result();
+    if (!result) {
+      continue;
     }
+
+    int i = result->reg();
+    if (i == NO_REGISTER) {
+      continue;
+    }
+
+    modified_[i] = modified_marker_;
   }
 
   // push the callee-saved registers which have been modified
@@ -182,16 +180,14 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
 }
 
 void X64Emitter::EmitBody(IRBuilder &builder) {
-  for (auto block : builder.blocks()) {
-    for (auto instr : block->instrs()) {
-      X64Emit emit = x64_emitters[instr->op()];
-      CHECK(emit, "Failed to find emitter for %s", Opnames[instr->op()]);
+  for (auto instr : builder.instrs()) {
+    X64Emit emit = x64_emitters[instr->op()];
+    CHECK(emit, "Failed to find emitter for %s", Opnames[instr->op()]);
 
-      // reset temp count used by GetRegister
-      num_temps_ = 0;
+    // reset temp count used by GetRegister
+    num_temps_ = 0;
 
-      emit(*this, instr);
-    }
+    emit(*this, instr);
   }
 }
 
