@@ -20,8 +20,8 @@ class AICA : public Device, public MemoryInterface {
   void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
-  // static uint32_t ReadRegister(void *ctx, uint32_t addr);
-  // static void WriteRegister(void *ctx, uint32_t addr, uint32_t value);
+  uint32_t ReadRegister(uint32_t addr);
+  void WriteRegister(uint32_t addr, uint32_t value);
 
   template <typename T>
   T ReadWave(uint32_t addr);
@@ -29,7 +29,7 @@ class AICA : public Device, public MemoryInterface {
   void WriteWave(uint32_t addr, T value);
 
   Dreamcast *dc_;
-  // uint8_t *aica_regs_;
+  uint8_t *aica_regs_;
   uint8_t *wave_ram_;
 };
 }

@@ -1353,7 +1353,11 @@ EMITTER(LDSMPR) {
 }
 
 // MOVCA.L     R0,@Rn
-EMITTER(MOVCAL) { LOG_FATAL("MOVCAL not implemented"); }
+EMITTER(MOVCAL) {
+  Value *v = b.LoadRegister(0, VALUE_I32);
+  Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
+  b.StoreGuest(addr, v);
+}
 
 // NOP
 EMITTER(NOP) {}

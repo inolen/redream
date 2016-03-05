@@ -807,7 +807,7 @@ EMITTER(BITCAST) {
   const Xbyak::Reg result = e.GetRegister(instr->result());
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
-  if (result.getBit() == a.getBit()) {
+  if (result.getIdx() == a.getIdx()) {
     // noop if already the same register
     return;
   }

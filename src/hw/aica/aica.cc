@@ -1,3 +1,4 @@
+#include "core/log.h"
 #include "core/memory.h"
 #include "hw/aica/aica.h"
 #include "hw/dreamcast.h"
@@ -10,23 +11,17 @@ using namespace re::hw::holly;
 AICA::AICA(Dreamcast *dc) : Device(*dc), MemoryInterface(this), dc_(dc) {}
 
 bool AICA::Init() {
-  // aica_regs_ = dc_->aica_regs();
+  aica_regs_ = dc_->memory->TranslateVirtual(AICA_REG_START);
   wave_ram_ = dc_->memory->TranslateVirtual(WAVE_RAM_START);
 
   return true;
 }
 
 void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
-  // RegionHandle aica_reg_handle = memory.AllocRegion(
-  //   AICA_REG_START, AICA_REG_SIZE, aica(),
-  //   nullptr,
-  //   nullptr,
-  //   &AICA::ReadRegister,
-  //   nullptr,
-  //   nullptr,
-  //   nullptr,
-  //   &AICA::WriteRegister,
-  //   nullptr);
+  RegionHandle aica_reg_handle = memory.AllocRegion(
+      AICA_REG_START, AICA_REG_SIZE, nullptr, nullptr,
+      make_delegate(&AICA::ReadRegister, this), nullptr, nullptr, nullptr,
+      make_delegate(&AICA::WriteRegister, this), nullptr);
 
   RegionHandle wave_ram_handle = memory.AllocRegion(
       WAVE_RAM_START, WAVE_RAM_SIZE,
@@ -37,7 +32,7 @@ void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
       make_delegate(&AICA::WriteWave<uint16_t>, this),
       make_delegate(&AICA::WriteWave<uint32_t>, this), nullptr);
 
-  // memmap.Mount(aica_reg_handle, AICA_REG_SIZE, AICA_REG_START);
+  memmap.Mount(aica_reg_handle, AICA_REG_SIZE, AICA_REG_START);
   memmap.Mount(wave_ram_handle, WAVE_RAM_SIZE, WAVE_RAM_START);
 }
 
@@ -54,17 +49,13 @@ void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
 //   return cycles;
 // }
 
-// uint32_t AICA::ReadRegister(void *ctx, uint32_t addr) {
-//   AICA *self = reinterpret_cast<AICA *>(ctx);
-//   // LOG_INFO("AICA::ReadRegister32 0x%x", addr);
-//   return re::load<uint32_t>(&self->aica_regs_[addr]);
-// }
+uint32_t AICA::ReadRegister(uint32_t addr) {
+  return re::load<uint32_t>(&aica_regs_[addr]);
+}
 
-// void AICA::WriteRegister(void *ctx, uint32_t addr, uint32_t value) {
-//   AICA *self = reinterpret_cast<AICA *>(ctx);
-//   // LOG_INFO("AICA::WriteRegister32 0x%x", addr);
-//   re::store(&self->aica_regs_[addr], value);
-// }
+void AICA::WriteRegister(uint32_t addr, uint32_t value) {
+  re::store(&aica_regs_[addr], value);
+}
 
 template <typename T>
 T AICA::ReadWave(uint32_t addr) {
@@ -76,6 +67,17 @@ T AICA::ReadWave(uint32_t addr) {
     // FIXME temp hacks to get Crazy Taxi 2 booting
     if (addr == 0x5c) {
       return 0x54494e49;
+    }
+    // FIXME temp hacks to get PoP booting
+    if (addr == 0xb200 || addr == 0xb210 || addr == 0xb220 || addr == 0xb230 ||
+        addr == 0xb240 || addr == 0xb250 || addr == 0xb260 || addr == 0xb270 ||
+        addr == 0xb280 || addr == 0xb290 || addr == 0xb2a0 || addr == 0xb2b0 ||
+        addr == 0xb2c0 || addr == 0xb2d0 || addr == 0xb2e0 || addr == 0xb2f0 ||
+        addr == 0xb300 || addr == 0xb310 || addr == 0xb320 || addr == 0xb330 ||
+        addr == 0xb340 || addr == 0xb350 || addr == 0xb360 || addr == 0xb370 ||
+        addr == 0xb380 || addr == 0xb390 || addr == 0xb3a0 || addr == 0xb3b0 ||
+        addr == 0xb3c0 || addr == 0xb3d0 || addr == 0xb3e0 || addr == 0xb3f0) {
+      return 0x0;
     }
   }
 

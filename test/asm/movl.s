@@ -1,3 +1,12 @@
+test_movca:
+  # REGISTER_IN r0 -6
+  mov.l .L2, r1
+  movca.l r0, @r1
+  mov.l @r1, r2
+  rts
+  nop
+  # REGISTER_OUT r2 -6
+
 test_movllpc:
   # MOV.L   @(disp8,PC),Rn
   mov.l .L1, r2
