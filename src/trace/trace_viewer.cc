@@ -223,7 +223,6 @@ void TraceViewer::NextContext() {
 
   while (current_cmd_) {
     if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
-             current_cmd_->insert_texture.tcw.texture_addr << 3);
       texcache_.AddTexture(current_cmd_->insert_texture.tsp,
                            current_cmd_->insert_texture.tcw,
                            current_cmd_->insert_texture.palette,

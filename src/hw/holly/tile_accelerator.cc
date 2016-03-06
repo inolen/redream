@@ -230,9 +230,6 @@ void TileAccelerator::InitContext(uint32_t addr) {
   auto it = live_contexts_.find(addr);
 
   if (it == live_contexts_.end()) {
-    // else, allocate a new context from the free queue
-    std::lock_guard<std::mutex> guard(context_mutex_);
-
     CHECK(free_contexts_.size());
 
     TileContext *tactx = free_contexts_.front();
@@ -326,13 +323,10 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
   live_contexts_.erase(it);
 
   // append to the pending queue
-  std::lock_guard<std::mutex> guard(context_mutex_);
   pending_contexts_.push(tactx);
 }
 
 TileContext *TileAccelerator::GetLastContext() {
-  std::lock_guard<std::mutex> guard(context_mutex_);
-
   if (pending_contexts_.empty()) {
     return nullptr;
   }

@@ -1,8 +1,6 @@
 #ifndef EMULATOR_H
 #define EMULATOR_H
 
-#include <atomic>
-#include <mutex>
 #include "emu/profiler.h"
 #include "hw/dreamcast.h"
 #include "sys/window.h"
@@ -41,31 +39,16 @@ class Emulator {
   bool LaunchBIN(const char *path);
   bool LaunchGDI(const char *path);
   void ToggleTracing();
-
-  // ran in the main thread, the graphics thread processes the TA output and
-  // renders it along with various stats and debug menus
-  void GraphicsThread();
-  void PumpGraphicsEvents();
-  void RenderGraphics();
-
-  // ran from a separate thread, the core thread actually runs the emulator,
-  // ultimately producing output for the graphics thread
-  void CoreThread();
-  void QueueCoreEvent(const sys::WindowEvent &ev);
-  bool PollCoreEvent(sys::WindowEvent *ev);
-  void PumpCoreEvents();
+  void RenderFrame();
+  void PumpEvents();
 
   sys::Window window_;
   Profiler profiler_;
   hw::Dreamcast dc_;
   renderer::Backend *rb_;
   hw::holly::TileRenderer *tile_renderer_;
-
-  // variables accessed by both the graphics and core thread
-  RingBuffer<sys::WindowEvent> core_events_;
-  std::mutex core_events_mutex_;
-  std::atomic<uint32_t> speed_;
-  std::atomic<bool> running_;
+  uint32_t speed_;
+  bool running_;
 };
 }
 }

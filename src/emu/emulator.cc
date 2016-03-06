@@ -28,11 +28,7 @@ using namespace re::trace;
 DEFINE_string(bios, "dc_boot.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
-Emulator::Emulator()
-    : rb_(nullptr),
-      tile_renderer_(nullptr),
-      core_events_(MAX_EVENTS),
-      speed_() {}
+Emulator::Emulator() : rb_(nullptr), tile_renderer_(nullptr), speed_() {}
 
 Emulator::~Emulator() {
   delete rb_;
@@ -81,16 +77,54 @@ void Emulator::Run(const char *path) {
   }
 
   // start running
+  static const std::chrono::nanoseconds MACHINE_STEP = HZ_TO_NANO(1000);
+  static const std::chrono::nanoseconds FRAME_STEP = HZ_TO_NANO(60);
+  static const std::chrono::nanoseconds SAMPLE_PERIOD = HZ_TO_NANO(10);
+
+  auto current_time = std::chrono::high_resolution_clock::now();
+  auto last_time = current_time;
+
+  auto next_machine_time = current_time;
+  auto next_frame_time = current_time;
+  auto next_sample_time = current_time;
+
+  auto host_time = std::chrono::nanoseconds(0);
+  auto guest_time = std::chrono::nanoseconds(0);
+
   running_ = true;
 
-  // run core emulator in a separate thread
-  std::thread cpu_thread(&Emulator::CoreThread, this);
+  while (running_) {
+    current_time = std::chrono::high_resolution_clock::now();
+    last_time = current_time;
 
-  // run graphics in the current thread
-  GraphicsThread();
+    // run machine
+    if (current_time > next_machine_time) {
+      dc_.Tick(MACHINE_STEP);
 
-  // wait until cpu thread finishes
-  cpu_thread.join();
+      host_time += std::chrono::high_resolution_clock::now() - last_time;
+      guest_time += MACHINE_STEP;
+      next_machine_time = current_time + MACHINE_STEP;
+    }
+
+    // pump input / render frame
+    if (current_time > next_frame_time) {
+      PumpEvents();
+      RenderFrame();
+
+      next_frame_time = current_time + FRAME_STEP;
+    }
+
+    // update debug stats
+    if (current_time > next_sample_time) {
+      float speed =
+          (guest_time.count() / static_cast<float>(host_time.count())) * 100.0f;
+      speed_ = *reinterpret_cast<uint32_t *>(&speed);
+
+      host_time = std::chrono::nanoseconds(0);
+      guest_time = std::chrono::nanoseconds(0);
+      next_sample_time = current_time + SAMPLE_PERIOD;
+    }
+  }
 }
 
 bool Emulator::CreateDreamcast() {
@@ -258,46 +292,7 @@ void Emulator::ToggleTracing() {
   }
 }
 
-void Emulator::GraphicsThread() {
-  Profiler::ThreadScope thread_scope("graphics");
-
-  while (running_.load(std::memory_order_relaxed)) {
-    PumpGraphicsEvents();
-    RenderGraphics();
-  }
-}
-
-void Emulator::PumpGraphicsEvents() {
-  WindowEvent ev;
-
-  window_.PumpEvents();
-
-  while (window_.PollEvent(&ev)) {
-    switch (ev.type) {
-      case WE_KEY: {
-        // let the profiler take a stab at the input first
-        if (!profiler_.HandleInput(ev.key.code, ev.key.value)) {
-          // else, forward to the CPU thread
-          QueueCoreEvent(ev);
-        }
-      } break;
-
-      case WE_MOUSEMOVE: {
-        profiler_.HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
-      } break;
-
-      case WE_RESIZE: {
-        rb_->ResizeVideo(ev.resize.width, ev.resize.height);
-      } break;
-
-      case WE_QUIT: {
-        running_.store(false, std::memory_order_relaxed);
-      } break;
-    }
-  }
-}
-
-void Emulator::RenderGraphics() {
+void Emulator::RenderFrame() {
   rb_->BeginFrame();
 
   // render the latest tile context
@@ -317,91 +312,37 @@ void Emulator::RenderGraphics() {
   rb_->EndFrame();
 }
 
-void Emulator::CoreThread() {
-  Profiler::ThreadScope thread_scope("core");
-
-  static const std::chrono::nanoseconds STEP = HZ_TO_NANO(1000);
-  static const std::chrono::nanoseconds SAMPLE_PERIOD = HZ_TO_NANO(10);
-
-  auto current_time = std::chrono::high_resolution_clock::now();
-  auto last_time = current_time;
-
-  auto next_step_time = current_time;
-  auto next_sample_time = current_time;
-
-  auto host_time = std::chrono::nanoseconds(0);
-  auto guest_time = std::chrono::nanoseconds(0);
-
-  while (running_.load(std::memory_order_relaxed)) {
-    current_time = std::chrono::high_resolution_clock::now();
-    last_time = current_time;
-
-    // run machine every STEP nanoseconds
-    if (current_time > next_step_time) {
-      dc_.Tick(STEP);
-
-      host_time += std::chrono::high_resolution_clock::now() - last_time;
-      guest_time += STEP;
-      next_step_time = current_time + STEP;
-    }
-
-    // update speed every SAMPLE_PERIOD nanoseconds
-    if (current_time > next_sample_time) {
-      float speed =
-          (guest_time.count() / static_cast<float>(host_time.count())) * 100.0f;
-      speed_ = *reinterpret_cast<uint32_t *>(&speed);
-
-      host_time = std::chrono::nanoseconds(0);
-      guest_time = std::chrono::nanoseconds(0);
-      next_sample_time = current_time + SAMPLE_PERIOD;
-    }
-
-    // handle events the graphics thread forwarded on
-    PumpCoreEvents();
-  }
-}
-
-void Emulator::QueueCoreEvent(const WindowEvent &ev) {
-  std::lock_guard<std::mutex> guard(core_events_mutex_);
-
-  if (core_events_.Full()) {
-    LOG_WARNING("Core event overflow");
-    return;
-  }
-
-  core_events_.PushBack(ev);
-}
-
-bool Emulator::PollCoreEvent(WindowEvent *ev) {
-  std::lock_guard<std::mutex> guard(core_events_mutex_);
-
-  if (core_events_.Empty()) {
-    return false;
-  }
-
-  *ev = core_events_.front();
-  core_events_.PopFront();
-
-  return true;
-}
-
-void Emulator::PumpCoreEvents() {
-  // pump any events the graphics thread forwarded on
+void Emulator::PumpEvents() {
   WindowEvent ev;
 
-  while (PollCoreEvent(&ev)) {
+  window_.PumpEvents();
+
+  while (window_.PollEvent(&ev)) {
     switch (ev.type) {
       case WE_KEY: {
-        if (ev.key.code == K_F2) {
-          if (ev.key.value) {
-            ToggleTracing();
+        // let the profiler take a stab at the input first
+        if (!profiler_.HandleInput(ev.key.code, ev.key.value)) {
+          if (ev.key.code == K_F2) {
+            if (ev.key.value) {
+              ToggleTracing();
+            }
+          } else {
+            dc_.maple->HandleInput(0, ev.key.code, ev.key.value);
           }
-        } else {
-          dc_.maple->HandleInput(0, ev.key.code, ev.key.value);
         }
       } break;
 
-      default: { CHECK(false, "Unexpected event type"); } break;
+      case WE_MOUSEMOVE: {
+        profiler_.HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
+      } break;
+
+      case WE_RESIZE: {
+        rb_->ResizeVideo(ev.resize.width, ev.resize.height);
+      } break;
+
+      case WE_QUIT: {
+        running_ = false;
+      } break;
     }
   }
 }

@@ -515,7 +515,6 @@ class TileAccelerator : public Device, public MemoryInterface {
   holly::TextureCache *texcache_;
   uint8_t *video_ram_;
 
-  std::mutex context_mutex_;
   TileContext contexts_[MAX_CONTEXTS];
   TileContextMap live_contexts_;
   TileContextQueue free_contexts_;
