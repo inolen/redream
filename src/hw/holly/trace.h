@@ -4,7 +4,8 @@
 #include "hw/holly/tile_accelerator.h"
 
 namespace re {
-namespace trace {
+namespace hw {
+namespace holly {
 
 enum TraceCommandType { TRACE_INSERT_TEXTURE, TRACE_RENDER_CONTEXT };
 
@@ -22,8 +23,8 @@ struct TraceCommand {
   // and patched to absolute pointers on read
   union {
     struct {
-      hw::holly::TSP tsp;
-      hw::holly::TCW tcw;
+      TSP tsp;
+      TCW tcw;
       uint32_t palette_size;
       const uint8_t *palette;
       uint32_t texture_size;
@@ -38,9 +39,9 @@ struct TraceCommand {
       uint32_t pal_pxl_format;
       uint32_t video_width;
       uint32_t video_height;
-      hw::holly::ISP_TSP bg_isp;
-      hw::holly::TSP bg_tsp;
-      hw::holly::TCW bg_tcw;
+      ISP_TSP bg_isp;
+      TSP bg_tsp;
+      TCW bg_tcw;
       float bg_depth;
       uint32_t bg_vertices_size;
       const uint8_t *bg_vertices;
@@ -78,14 +79,15 @@ class TraceWriter {
   bool Open(const char *filename);
   void Close();
 
-  void WriteInsertTexture(const hw::holly::TSP &tsp, const hw::holly::TCW &tcw,
+  void WriteInsertTexture(const TSP &tsp, const TCW &tcw,
                           const uint8_t *palette, int palette_size,
                           const uint8_t *texture, int texture_size);
-  void WriteRenderContext(hw::holly::TileContext *tactx);
+  void WriteRenderContext(TileContext *tactx);
 
  private:
   FILE *file_;
 };
+}
 }
 }
 

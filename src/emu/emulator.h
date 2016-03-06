@@ -17,10 +17,6 @@ namespace renderer {
 class Backend;
 }
 
-namespace trace {
-class TraceWriter;
-}
-
 namespace emu {
 
 class Emulator {

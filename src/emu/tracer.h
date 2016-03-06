@@ -1,14 +1,14 @@
-#ifndef TRACE_VIEWER_H
-#define TRACE_VIEWER_H
+#ifndef TRACER_H
+#define TRACER_H
 
 #include <unordered_map>
 #include <vector>
 #include "hw/holly/tile_renderer.h"
+#include "hw/holly/trace.h"
 #include "sys/window.h"
-#include "trace/trace.h"
 
 namespace re {
-namespace trace {
+namespace emu {
 
 struct TextureInst {
   hw::holly::TSP tsp;
@@ -32,10 +32,10 @@ class TraceTextureCache : public hw::holly::TextureProvider {
   std::unordered_map<hw::holly::TextureKey, TextureInst> textures_;
 };
 
-class TraceViewer {
+class Tracer {
  public:
-  TraceViewer();
-  ~TraceViewer();
+  Tracer();
+  ~Tracer();
 
   void Run(const char *path);
 
@@ -47,7 +47,7 @@ class TraceViewer {
   void RenderFrame();
 
   int GetNumFrames();
-  void CopyCommandToContext(const TraceCommand *cmd,
+  void CopyCommandToContext(const hw::holly::TraceCommand *cmd,
                             hw::holly::TileContext *ctx);
   void PrevContext();
   void NextContext();
@@ -58,8 +58,8 @@ class TraceViewer {
   hw::holly::TileRenderer *tile_renderer_;
 
   bool running_;
-  TraceReader reader_;
-  TraceCommand *current_cmd_;
+  hw::holly::TraceReader reader_;
+  hw::holly::TraceCommand *current_cmd_;
   int num_frames_;
   int current_frame_;
   hw::holly::TileContext *current_ctx_;

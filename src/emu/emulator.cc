@@ -6,12 +6,12 @@
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/texture_cache.h"
 #include "hw/holly/tile_renderer.h"
+#include "hw/holly/trace.h"
 #include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "renderer/gl_backend.h"
-#include "trace/trace.h"
 
 using namespace re;
 using namespace re::emu;
@@ -23,7 +23,6 @@ using namespace re::hw::maple;
 using namespace re::hw::sh4;
 using namespace re::renderer;
 using namespace re::sys;
-using namespace re::trace;
 
 DEFINE_string(bios, "dc_boot.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");

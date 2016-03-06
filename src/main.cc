@@ -2,7 +2,7 @@
 #include <memory>
 #include <gflags/gflags.h>
 #include "emu/emulator.h"
-#include "trace/trace_viewer.h"
+#include "emu/tracer.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 #include "sys/network.h"
@@ -10,7 +10,6 @@
 using namespace re;
 using namespace re::emu;
 using namespace re::sys;
-using namespace re::trace;
 
 void InitFlags(int *argc, char ***argv) {
   const char *appdir = GetAppDir();
@@ -50,7 +49,7 @@ int main(int argc, char **argv) {
 
   const char *load = argc > 1 ? argv[1] : nullptr;
   if (load && strstr(load, ".trace")) {
-    std::unique_ptr<TraceViewer> tracer(new TraceViewer());
+    std::unique_ptr<Tracer> tracer(new Tracer());
     tracer->Run(load);
   } else {
     std::unique_ptr<Emulator> emu(new Emulator());

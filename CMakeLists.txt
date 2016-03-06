@@ -131,6 +131,7 @@ set(REDREAM_SOURCES
   src/core/string.cc
   src/emu/emulator.cc
   src/emu/profiler.cc
+  src/emu/tracer.cc
   src/hw/aica/aica.cc
   src/hw/gdrom/disc.cc
   src/hw/gdrom/gdrom.cc
@@ -139,6 +140,7 @@ set(REDREAM_SOURCES
   src/hw/holly/texture_cache.cc
   src/hw/holly/tile_accelerator.cc
   src/hw/holly/tile_renderer.cc
+  src/hw/holly/trace.cc
   src/hw/maple/maple.cc
   src/hw/maple/maple_controller.cc
   src/hw/sh4/sh4.cc
@@ -172,8 +174,6 @@ set(REDREAM_SOURCES
   src/sys/memory.cc
   src/sys/network.cc
   src/sys/window.cc
-  src/trace/trace.cc
-  src/trace/trace_viewer.cc
   src/main.cc)
 
 if(WIN32)

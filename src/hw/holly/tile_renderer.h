@@ -16,7 +16,7 @@ union VertexParam;
 struct TileContext;
 
 // The TextureCache interface provides an abstraction so the TileAccelerator /
-// TraceViewer can provide raw texture and palette data on demand to the
+// Tracer can provide raw texture and palette data on demand to the
 // TileRenderer. While a static GetTextureKey is provided, each implementation
 // is expected to manage their own cache internally.
 typedef std::function<renderer::TextureHandle(const uint8_t *, const uint8_t *)>
@@ -37,7 +37,7 @@ class TextureProvider {
 // The TileRenderer class is responsible for taking a particular TileContext,
 // parsing it and ultimately rendering it out to the supplied backend. This
 // is split out of the main TileAccelerator code so it can be re-used by
-// TraceViewer.
+// Tracer.
 enum { MAX_SURFACES = 0x10000, MAX_VERTICES = 0x10000 };
 
 class TileRenderer {

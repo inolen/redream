@@ -1,14 +1,14 @@
 #include <algorithm>
+#include "emu/tracer.h"
 #include "hw/holly/tile_accelerator.h"
+#include "hw/holly/trace.h"
 #include "renderer/gl_backend.h"
-#include "trace/trace.h"
-#include "trace/trace_viewer.h"
 
 using namespace re;
+using namespace re::emu;
 using namespace re::hw::holly;
 using namespace re::renderer;
 using namespace re::sys;
-using namespace re::trace;
 
 void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
                                    const uint8_t *palette,
@@ -41,19 +41,19 @@ TextureHandle TraceTextureCache::GetTexture(
   return texture.handle;
 }
 
-TraceViewer::TraceViewer() {
+Tracer::Tracer() {
   rb_ = new GLBackend(wnd_);
   tile_renderer_ = new TileRenderer(*rb_, texcache_);
   current_ctx_ = new TileContext();
 }
 
-TraceViewer::~TraceViewer() {
+Tracer::~Tracer() {
   delete rb_;
   delete tile_renderer_;
   delete current_ctx_;
 }
 
-void TraceViewer::Run(const char *path) {
+void Tracer::Run(const char *path) {
   if (!Init()) {
     LOG_WARNING("Failed to initialize trace viewer");
     return;
@@ -72,7 +72,7 @@ void TraceViewer::Run(const char *path) {
   }
 }
 
-bool TraceViewer::Init() {
+bool Tracer::Init() {
   if (!wnd_.Init()) {
     return false;
   }
@@ -84,7 +84,7 @@ bool TraceViewer::Init() {
   return true;
 }
 
-bool TraceViewer::Parse(const char *path) {
+bool Tracer::Parse(const char *path) {
   if (!reader_.Parse(path)) {
     LOG_WARNING("Failed to parse %s", path);
     return false;
@@ -103,7 +103,7 @@ bool TraceViewer::Parse(const char *path) {
   return true;
 }
 
-void TraceViewer::PumpEvents() {
+void Tracer::PumpEvents() {
   WindowEvent ev;
 
   wnd_.PumpEvents();
@@ -128,7 +128,7 @@ void TraceViewer::PumpEvents() {
   }
 }
 
-void TraceViewer::RenderFrame() {
+void Tracer::RenderFrame() {
   rb_->BeginFrame();
 
   tile_renderer_->RenderContext(current_ctx_);
@@ -141,7 +141,7 @@ void TraceViewer::RenderFrame() {
   rb_->EndFrame();
 }
 
-int TraceViewer::GetNumFrames() {
+int Tracer::GetNumFrames() {
   int num_frames = 0;
 
   TraceCommand *cmd = reader_.cmd_head();
@@ -157,8 +157,7 @@ int TraceViewer::GetNumFrames() {
   return num_frames;
 }
 
-void TraceViewer::CopyCommandToContext(const TraceCommand *cmd,
-                                       TileContext *ctx) {
+void Tracer::CopyCommandToContext(const TraceCommand *cmd, TileContext *ctx) {
   CHECK_EQ(cmd->type, TRACE_RENDER_CONTEXT);
 
   ctx->autosort = cmd->render_context.autosort;
@@ -176,7 +175,7 @@ void TraceViewer::CopyCommandToContext(const TraceCommand *cmd,
   ctx->size = cmd->render_context.data_size;
 }
 
-void TraceViewer::PrevContext() {
+void Tracer::PrevContext() {
   int prev_frame = std::max(1, current_frame_ - 1);
   if (prev_frame == current_frame_) {
     return;
@@ -213,7 +212,7 @@ void TraceViewer::PrevContext() {
   CopyCommandToContext(current_cmd_, current_ctx_);
 }
 
-void TraceViewer::NextContext() {
+void Tracer::NextContext() {
   int next_frame = std::min(num_frames_, current_frame_ + 1);
   if (next_frame == current_frame_) {
     return;

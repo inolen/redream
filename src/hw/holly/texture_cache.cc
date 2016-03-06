@@ -1,9 +1,9 @@
 #include "emu/profiler.h"
 #include "hw/holly/texture_cache.h"
 #include "hw/holly/tile_accelerator.h"
+#include "hw/holly/trace.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
-#include "trace/trace.h"
 
 using namespace re::hw;
 using namespace re::hw::holly;

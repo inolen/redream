@@ -1,15 +1,14 @@
 #include "core/memory.h"
 #include "hw/holly/pixel_convert.h"
 #include "hw/holly/tile_accelerator.h"
+#include "hw/holly/trace.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
-#include "trace/trace.h"
 
 using namespace re;
 using namespace re::hw;
 using namespace re::hw::holly;
 using namespace re::renderer;
-using namespace re::trace;
 
 static void BuildLookupTables();
 static int GetParamSize_raw(const PCW &pcw, int vertex_type);

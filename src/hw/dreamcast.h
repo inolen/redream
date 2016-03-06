@@ -14,10 +14,6 @@ namespace renderer {
 class Backend;
 }
 
-namespace trace {
-class TraceWriter;
-}
-
 namespace hw {
 
 namespace aica {
@@ -33,6 +29,7 @@ class Holly;
 class PVR2;
 class TextureCache;
 class TileAccelerator;
+class TraceWriter;
 }
 
 namespace maple {
@@ -164,7 +161,7 @@ class Dreamcast : public Machine {
   hw::holly::PVR2 *pvr;
   hw::holly::TileAccelerator *ta;
   hw::holly::TextureCache *texcache;
-  trace::TraceWriter *trace_writer;
+  hw::holly::TraceWriter *trace_writer;
 
 #define HOLLY_REG(offset, name, flags, default, type) \
   type &name = reinterpret_cast<type &>(holly_regs[name##_OFFSET].value);

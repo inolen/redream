@@ -9,10 +9,6 @@
 #include "renderer/backend.h"
 
 namespace re {
-namespace trace {
-class TraceWriter;
-}
-
 namespace hw {
 
 class Dreamcast;
