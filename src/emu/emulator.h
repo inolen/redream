@@ -59,7 +59,6 @@ class Emulator {
   Profiler profiler_;
   hw::Dreamcast dc_;
   renderer::Backend *rb_;
-  trace::TraceWriter *trace_writer_;
   hw::holly::TileRenderer *tile_renderer_;
 
   // variables accessed by both the graphics and core thread

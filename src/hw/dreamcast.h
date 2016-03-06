@@ -164,7 +164,6 @@ class Dreamcast : public Machine {
   hw::holly::PVR2 *pvr;
   hw::holly::TileAccelerator *ta;
   hw::holly::TextureCache *texcache;
-
   trace::TraceWriter *trace_writer;
 
 #define HOLLY_REG(offset, name, flags, default, type) \

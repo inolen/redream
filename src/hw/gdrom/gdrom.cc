@@ -199,8 +199,8 @@ void GDROM::WriteRegister(uint32_t addr, T value) {
         int transfer_size = dc_->SB_GDLEN;
         uint32_t start = dc_->SB_GDSTAR;
 
-        printf("GD DMA START 0x%x -> 0x%x, 0x%x bytes\n", start,
-               start + transfer_size, transfer_size);
+        LOG_INFO("GD DMA START 0x%x -> 0x%x, 0x%x bytes", start,
+                 start + transfer_size, transfer_size);
 
         memory_->Memcpy(start, dma_buffer_, transfer_size);
 

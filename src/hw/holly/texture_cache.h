@@ -9,10 +9,6 @@
 #include "sys/memory.h"
 
 namespace re {
-namespace trace {
-class TraceWriter;
-}
-
 namespace hw {
 class Dreamcast;
 class Memory;
@@ -39,6 +35,7 @@ class TextureCache : public TextureProvider {
   bool Init();
   renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
                                      RegisterTextureCallback register_cb) final;
+  void Clear();
 
  private:
   static void HandleTextureWrite(void *ctx, const sys::Exception &ex,
@@ -46,14 +43,12 @@ class TextureCache : public TextureProvider {
   static void HandlePaletteWrite(void *ctx, const sys::Exception &ex,
                                  void *data);
 
-  void Clear();
   void ClearPending();
   void Invalidate(TextureKey key);
   void Invalidate(TextureCacheMap::iterator it);
 
   hw::Dreamcast *dc_;
   renderer::Backend *rb_;
-  trace::TraceWriter *trace_writer_;
   TextureCacheMap textures_;
   TextureSet pending_invalidations_;
   uint64_t num_invalidated_;

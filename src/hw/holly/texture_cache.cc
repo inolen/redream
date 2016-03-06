@@ -11,7 +11,7 @@ using namespace re::renderer;
 using namespace re::sys;
 
 TextureCache::TextureCache(Dreamcast *dc, Backend *rb)
-    : dc_(dc), rb_(rb), trace_writer_(nullptr), num_invalidated_(0) {}
+    : dc_(dc), rb_(rb), num_invalidated_(0) {}
 
 bool TextureCache::Init() { return true; }
 
@@ -20,12 +20,6 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   // if there are any pending removals, do so at this time
   if (pending_invalidations_.size()) {
     ClearPending();
-  }
-
-  // if the trace writer has changed, clear the cache to force insert events
-  if (dc_->trace_writer != trace_writer_) {
-    Clear();
-    trace_writer_ = dc_->trace_writer;
   }
 
   // see if an an entry already exists
@@ -94,9 +88,9 @@ TextureHandle TextureCache::GetTexture(const TSP &tsp, const TCW &tcw,
   }
 
   // add insert to trace
-  if (trace_writer_) {
-    trace_writer_->WriteInsertTexture(tsp, tcw, palette, palette_size, texture,
-                                      texture_size);
+  if (dc_->trace_writer) {
+    dc_->trace_writer->WriteInsertTexture(tsp, tcw, palette, palette_size,
+                                          texture, texture_size);
   }
 
   return handle;
@@ -135,9 +129,17 @@ void TextureCache::HandlePaletteWrite(void *ctx, const Exception &ex,
 }
 
 void TextureCache::Clear() {
-  for (auto it = textures_.begin(), e = textures_.end(); it != e; ++it) {
-    Invalidate(it);
+  LOG_INFO("Texture cache cleared");
+
+  auto it = textures_.begin();
+  auto e = textures_.end();
+
+  while (it != e) {
+    auto curr = it++;
+    Invalidate(curr);
   }
+
+  CHECK(!textures_.size());
 }
 
 void TextureCache::ClearPending() {

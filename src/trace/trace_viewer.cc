@@ -63,7 +63,9 @@ void TraceViewer::Run(const char *path) {
     return;
   }
 
-  while (true) {
+  running_ = true;
+
+  while (running_) {
     PumpEvents();
 
     RenderFrame();
@@ -114,6 +116,10 @@ void TraceViewer::PumpEvents() {
         } else if (ev.key.code == K_RIGHT && ev.key.value) {
           NextContext();
         }
+      } break;
+
+      case WE_QUIT: {
+        running_ = false;
       } break;
 
       default:
@@ -217,6 +223,7 @@ void TraceViewer::NextContext() {
 
   while (current_cmd_) {
     if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
+             current_cmd_->insert_texture.tcw.texture_addr << 3);
       texcache_.AddTexture(current_cmd_->insert_texture.tsp,
                            current_cmd_->insert_texture.tcw,
                            current_cmd_->insert_texture.palette,

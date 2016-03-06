@@ -30,20 +30,15 @@ DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
 Emulator::Emulator()
     : rb_(nullptr),
-      trace_writer_(nullptr),
       tile_renderer_(nullptr),
       core_events_(MAX_EVENTS),
-      speed_() {
-  rb_ = new GLBackend(window_);
-}
+      speed_() {}
 
 Emulator::~Emulator() {
   delete rb_;
+  delete tile_renderer_;
 
   DestroyDreamcast();
-
-  delete trace_writer_;
-  delete tile_renderer_;
 }
 
 void Emulator::Run(const char *path) {
@@ -51,10 +46,14 @@ void Emulator::Run(const char *path) {
     return;
   }
 
+  // initialize renderer backend
+  rb_ = new GLBackend(window_);
+
   if (!rb_->Init()) {
     return;
   }
 
+  // initialize dreamcast machine and all dependent hardware
   if (!CreateDreamcast()) {
     return;
   }
@@ -129,7 +128,7 @@ void Emulator::DestroyDreamcast() {
   dc_.ta = nullptr;
   delete dc_.texcache;
   dc_.texcache = nullptr;
-
+  delete dc_.trace_writer;
   dc_.trace_writer = nullptr;
 }
 
@@ -231,30 +230,32 @@ bool Emulator::LaunchGDI(const char *path) {
 }
 
 void Emulator::ToggleTracing() {
-  if (!trace_writer_) {
+  if (!dc_.trace_writer) {
     char filename[PATH_MAX];
     GetNextTraceFilename(filename, sizeof(filename));
 
-    trace_writer_ = new TraceWriter();
+    dc_.trace_writer = new TraceWriter();
 
-    if (!trace_writer_->Open(filename)) {
-      delete trace_writer_;
-      trace_writer_ = nullptr;
+    if (!dc_.trace_writer->Open(filename)) {
+      delete dc_.trace_writer;
+      dc_.trace_writer = nullptr;
 
       LOG_INFO("Failed to start tracing");
 
       return;
     }
 
+    // clear texture cache in order to generate insert events for all textures
+    // referenced while tracing
+    dc_.texcache->Clear();
+
     LOG_INFO("Begin tracing to %s", filename);
   } else {
-    delete trace_writer_;
-    trace_writer_ = nullptr;
+    delete dc_.trace_writer;
+    dc_.trace_writer = nullptr;
 
     LOG_INFO("End tracing");
   }
-
-  dc_.trace_writer = trace_writer_;
 }
 
 void Emulator::GraphicsThread() {

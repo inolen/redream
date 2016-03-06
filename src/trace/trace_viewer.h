@@ -57,6 +57,7 @@ class TraceViewer {
   renderer::Backend *rb_;
   hw::holly::TileRenderer *tile_renderer_;
 
+  bool running_;
   TraceReader reader_;
   TraceCommand *current_cmd_;
   int num_frames_;
