@@ -1,4 +1,5 @@
 #include "core/memory.h"
+#include "hw/holly/holly.h"
 #include "hw/holly/pvr2.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/dreamcast.h"
@@ -21,7 +22,6 @@ bool PVR2::Init() {
   scheduler_ = dc_->scheduler;
   holly_ = dc_->holly;
   ta_ = dc_->ta;
-  texcache_ = dc_->texcache;
   pvr_regs_ = dc_->pvr_regs;
   palette_ram_ = dc_->memory->TranslateVirtual(PVR_PALETTE_START);
   video_ram_ = dc_->memory->TranslateVirtual(PVR_VRAM32_START);

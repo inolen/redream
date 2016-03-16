@@ -1,5 +1,6 @@
 #include "hw/gdrom/gdrom.h"
 #include "hw/gdrom/gdrom_replies.inc"
+#include "hw/holly/holly.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 

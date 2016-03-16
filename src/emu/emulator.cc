@@ -4,7 +4,8 @@
 #include "emu/profiler.h"
 #include "hw/aica/aica.h"
 #include "hw/gdrom/gdrom.h"
-#include "hw/holly/texture_cache.h"
+#include "hw/holly/holly.h"
+#include "hw/holly/pvr2.h"
 #include "hw/holly/tile_renderer.h"
 #include "hw/holly/trace.h"
 #include "hw/maple/maple.h"
@@ -55,7 +56,7 @@ void Emulator::Run(const char *path) {
 
   // setup tile renderer with the renderer backend and the dreamcast's
   // internal textue cache
-  tile_renderer_ = new TileRenderer(*rb_, *dc_.texcache);
+  tile_renderer_ = new TileRenderer(*rb_, *dc_.ta);
 
   if (!LoadBios(FLAGS_bios.c_str())) {
     return;
@@ -133,8 +134,7 @@ bool Emulator::CreateDreamcast() {
   dc_.holly = new Holly(&dc_);
   dc_.maple = new Maple(&dc_);
   dc_.pvr = new PVR2(&dc_);
-  dc_.ta = new TileAccelerator(&dc_);
-  dc_.texcache = new TextureCache(&dc_, rb_);
+  dc_.ta = new TileAccelerator(&dc_, rb_);
 
   if (!dc_.Init()) {
     DestroyDreamcast();
@@ -159,8 +159,6 @@ void Emulator::DestroyDreamcast() {
   dc_.pvr = nullptr;
   delete dc_.ta;
   dc_.ta = nullptr;
-  delete dc_.texcache;
-  dc_.texcache = nullptr;
   delete dc_.trace_writer;
   dc_.trace_writer = nullptr;
 }
@@ -280,7 +278,7 @@ void Emulator::ToggleTracing() {
 
     // clear texture cache in order to generate insert events for all textures
     // referenced while tracing
-    dc_.texcache->Clear();
+    dc_.ta->ClearTextures();
 
     LOG_INFO("Begin tracing to %s", filename);
   } else {

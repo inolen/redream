@@ -2,11 +2,7 @@
 #define DREAMCAST_H
 
 #include "hw/machine.h"
-
-// needed for register types
-#include "hw/holly/holly.h"
-#include "hw/holly/pvr2.h"
-#include "hw/sh4/sh4.h"
+#include "hw/holly/pvr2_regs.h"
 
 namespace re {
 
@@ -27,7 +23,6 @@ class GDROM;
 namespace holly {
 class Holly;
 class PVR2;
-class TextureCache;
 class TileAccelerator;
 class TraceWriter;
 }
@@ -103,12 +98,10 @@ enum {
 //
 // registers
 //
-enum {  //
-  R = 0x1,
-  W = 0x2,
-  RW = 0x3,
-  UNDEFINED = 0x0
-};
+static const uint32_t R = 0x1;
+static const uint32_t W = 0x2;
+static const uint32_t RW = 0x3;
+static const uint32_t UNDEFINED = 0x0;
 
 struct Register {
   Register() : flags(RW), value(0) {}
@@ -147,7 +140,6 @@ class Dreamcast : public Machine {
         maple(nullptr),
         pvr(nullptr),
         ta(nullptr),
-        texcache(nullptr),
         trace_writer(nullptr) {}
 
   Register holly_regs[HOLLY_REG_SIZE >> 2];
@@ -160,7 +152,6 @@ class Dreamcast : public Machine {
   hw::maple::Maple *maple;
   hw::holly::PVR2 *pvr;
   hw::holly::TileAccelerator *ta;
-  hw::holly::TextureCache *texcache;
   hw::holly::TraceWriter *trace_writer;
 
 #define HOLLY_REG(offset, name, flags, default, type) \

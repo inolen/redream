@@ -2,11 +2,14 @@
 #define TILE_ACCELERATOR_H
 
 #include <memory>
+#include <set>
 #include <queue>
 #include <unordered_map>
+#include "core/interval_tree.h"
 #include "hw/holly/tile_renderer.h"
 #include "hw/machine.h"
 #include "renderer/backend.h"
+#include "sys/memory.h"
 
 namespace re {
 namespace hw {
@@ -17,7 +20,6 @@ class Memory;
 namespace holly {
 
 class Holly;
-class TextureCache;
 
 enum {
   // control params
@@ -448,6 +450,19 @@ enum {
   BG_VERTEX_SIZE = (0b111 * 2 + 3) * 4 * 3
 };
 
+struct TextureEntry;
+typedef std::unordered_map<TextureKey, TextureEntry> TextureCacheMap;
+typedef std::set<TextureKey> TextureSet;
+
+struct TextureEntry {
+  TextureEntry(renderer::TextureHandle handle)
+      : handle(handle), texture_watch(nullptr), palette_watch(nullptr) {}
+
+  renderer::TextureHandle handle;
+  sys::WatchHandle texture_watch;
+  sys::WatchHandle palette_watch;
+};
+
 struct TileContext {
   uint32_t addr;
 
@@ -478,27 +493,41 @@ struct TileContext {
 typedef std::unordered_map<TextureKey, TileContext *> TileContextMap;
 typedef std::queue<TileContext *> TileContextQueue;
 
-class TileAccelerator : public Device, public MemoryInterface {
+class TileAccelerator : public Device,
+                        public MemoryInterface,
+                        public TextureProvider {
  public:
   static int GetParamSize(const PCW &pcw, int vertex_type);
   static int GetPolyType(const PCW &pcw);
   static int GetVertexType(const PCW &pcw);
 
-  TileAccelerator(Dreamcast *dc);
+  TileAccelerator(Dreamcast *dc, renderer::Backend *rb);
 
   bool Init() final;
+
+  renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
+                                     RegisterTextureCallback register_cb) final;
+  void ClearTextures();
 
   void SoftReset();
   void InitContext(uint32_t addr);
   void WriteContext(uint32_t addr, uint32_t value);
   void FinalizeContext(uint32_t addr);
-
   TileContext *GetLastContext();
 
  protected:
   void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
 
  private:
+  static void HandleTextureWrite(void *ctx, const sys::Exception &ex,
+                                 void *data);
+  static void HandlePaletteWrite(void *ctx, const sys::Exception &ex,
+                                 void *data);
+
+  void ClearPendingTextures();
+  void InvalidateTexture(TextureKey key);
+  void InvalidateTexture(TextureCacheMap::iterator it);
+
   void WriteCommand(uint32_t addr, uint32_t value);
   void WriteTexture(uint32_t addr, uint32_t value);
 
@@ -506,10 +535,14 @@ class TileAccelerator : public Device, public MemoryInterface {
   void WriteBackgroundState(TileContext *tactx);
 
   Dreamcast *dc_;
+  renderer::Backend *rb_;
   Memory *memory_;
   holly::Holly *holly_;
-  holly::TextureCache *texcache_;
   uint8_t *video_ram_;
+
+  TextureCacheMap textures_;
+  TextureSet pending_invalidations_;
+  uint64_t num_invalidated_;
 
   TileContext contexts_[MAX_CONTEXTS];
   TileContextMap live_contexts_;

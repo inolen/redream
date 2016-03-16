@@ -137,7 +137,6 @@ set(REDREAM_SOURCES
   src/hw/gdrom/gdrom.cc
   src/hw/holly/holly.cc
   src/hw/holly/pvr2.cc
-  src/hw/holly/texture_cache.cc
   src/hw/holly/tile_accelerator.cc
   src/hw/holly/tile_renderer.cc
   src/hw/holly/trace.cc

@@ -1,4 +1,6 @@
 #include "core/memory.h"
+#include "emu/profiler.h"
+#include "hw/holly/holly.h"
 #include "hw/holly/pixel_convert.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/holly/trace.h"
@@ -9,6 +11,7 @@ using namespace re;
 using namespace re::hw;
 using namespace re::hw::holly;
 using namespace re::renderer;
+using namespace re::sys;
 
 static void BuildLookupTables();
 static int GetParamSize_raw(const PCW &pcw, int vertex_type);
@@ -203,8 +206,13 @@ int TileAccelerator::GetVertexType(const PCW &pcw) {
                             pcw.para_type * TA_NUM_LISTS + pcw.list_type];
 }
 
-TileAccelerator::TileAccelerator(Dreamcast *dc)
-    : Device(*dc), MemoryInterface(this), dc_(dc), contexts_() {
+TileAccelerator::TileAccelerator(Dreamcast *dc, Backend *rb)
+    : Device(*dc),
+      MemoryInterface(this),
+      dc_(dc),
+      rb_(rb),
+      num_invalidated_(0),
+      contexts_() {
   // initialize context queue
   for (int i = 0; i < MAX_CONTEXTS; i++) {
     free_contexts_.push(&contexts_[i]);
@@ -214,10 +222,90 @@ TileAccelerator::TileAccelerator(Dreamcast *dc)
 bool TileAccelerator::Init() {
   memory_ = dc_->memory;
   holly_ = dc_->holly;
-  texcache_ = dc_->texcache;
   video_ram_ = dc_->memory->TranslateVirtual(PVR_VRAM32_START);
 
   return true;
+}
+
+TextureHandle TileAccelerator::GetTexture(const TSP &tsp, const TCW &tcw,
+                                          RegisterTextureCallback register_cb) {
+  // if there are any pending removals, do so at this time
+  if (pending_invalidations_.size()) {
+    ClearPendingTextures();
+  }
+
+  // see if an an entry already exists
+  TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
+
+  auto it = textures_.find(texture_key);
+  if (it != textures_.end()) {
+    return it->second.handle;
+  }
+
+  // TCW texture_addr field is in 64-bit units
+  uint32_t texture_addr = tcw.texture_addr << 3;
+
+  // get the texture data
+  uint8_t *video_ram = dc_->memory->TranslateVirtual(PVR_VRAM32_START);
+  uint8_t *texture = &video_ram[texture_addr];
+  int width = 8 << tsp.texture_u_size;
+  int height = 8 << tsp.texture_v_size;
+  int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
+                              ? 8
+                              : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
+  int texture_size = (width * height * element_size_bits) >> 3;
+
+  // get the palette data
+  uint8_t *palette_ram = dc_->memory->TranslateVirtual(PVR_PALETTE_START);
+  uint8_t *palette = nullptr;
+  uint32_t palette_addr = 0;
+  int palette_size = 0;
+
+  if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
+    // palette ram is 4096 bytes, with each palette entry being 4 bytes each,
+    // resulting in 1 << 10 indexes
+    if (tcw.pixel_format == TA_PIXEL_4BPP) {
+      // in 4bpp mode, the palette selector represents the upper 6 bits of the
+      // palette index, with the remaining 4 bits being filled in by the texture
+      palette_addr = (tcw.p.palette_selector << 4) * 4;
+      palette_size = (1 << 4) * 4;
+    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
+      // in 4bpp mode, the palette selector represents the upper 2 bits of the
+      // palette index, with the remaining 8 bits being filled in by the texture
+      palette_addr = ((tcw.p.palette_selector & 0x30) << 4) * 4;
+      palette_size = (1 << 8) * 4;
+    }
+
+    palette = &palette_ram[palette_addr];
+  }
+
+  // register and insert into the cache
+  TextureHandle handle = register_cb(palette, texture);
+  auto result =
+      textures_.insert(std::make_pair(texture_key, TextureEntry(handle)));
+  CHECK(result.second, "Texture already in the map?");
+
+  // add write callback in order to invalidate on future writes. the callback
+  // address will be page aligned, therefore it will be triggered falsely in
+  // some cases. over invalidate in these cases
+  TextureEntry &entry = result.first->second;
+  TextureCacheMap::value_type *map_entry = &(*result.first);
+
+  entry.texture_watch = AddSingleWriteWatch(
+      texture, texture_size, &HandleTextureWrite, this, map_entry);
+
+  if (palette) {
+    entry.palette_watch = AddSingleWriteWatch(
+        palette, palette_size, &HandlePaletteWrite, this, map_entry);
+  }
+
+  // add insert to trace
+  if (dc_->trace_writer) {
+    dc_->trace_writer->WriteInsertTexture(tsp, tcw, palette, palette_size,
+                                          texture, texture_size);
+  }
+
+  return handle;
 }
 
 void TileAccelerator::SoftReset() {
@@ -353,6 +441,92 @@ void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
 
   memmap.Mount(ta_cmd_handle, TA_CMD_SIZE, TA_CMD_START);
   memmap.Mount(ta_texture_handle, TA_TEXTURE_SIZE, TA_TEXTURE_START);
+}
+
+void TileAccelerator::HandleTextureWrite(void *ctx, const Exception &ex,
+                                         void *data) {
+  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
+  TextureCacheMap::value_type *map_entry =
+      reinterpret_cast<TextureCacheMap::value_type *>(data);
+
+  // don't double remove the watch during invalidation
+  TextureEntry &entry = map_entry->second;
+  entry.texture_watch = nullptr;
+
+  // add to pending invalidation list (can't remove inside of signal
+  // handler)
+  TextureKey texture_key = map_entry->first;
+  self->pending_invalidations_.insert(texture_key);
+}
+
+void TileAccelerator::HandlePaletteWrite(void *ctx, const Exception &ex,
+                                         void *data) {
+  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
+  TextureCacheMap::value_type *map_entry =
+      reinterpret_cast<TextureCacheMap::value_type *>(data);
+
+  // don't double remove the watch during invalidation
+  TextureEntry &entry = map_entry->second;
+  entry.palette_watch = nullptr;
+
+  // add to pending invalidation list (can't remove inside of signal
+  // handler)
+  TextureKey texture_key = map_entry->first;
+  self->pending_invalidations_.insert(texture_key);
+}
+
+void TileAccelerator::ClearTextures() {
+  LOG_INFO("Texture cache cleared");
+
+  auto it = textures_.begin();
+  auto e = textures_.end();
+
+  while (it != e) {
+    auto curr = it++;
+    InvalidateTexture(curr);
+  }
+
+  CHECK(!textures_.size());
+}
+
+void TileAccelerator::ClearPendingTextures() {
+  for (auto texture_key : pending_invalidations_) {
+    auto it = textures_.find(texture_key);
+    CHECK_NE(it, textures_.end());
+    InvalidateTexture(it);
+  }
+
+  num_invalidated_ += pending_invalidations_.size();
+  PROFILER_COUNT("Num invalidated textures", num_invalidated_);
+
+  pending_invalidations_.clear();
+}
+
+void TileAccelerator::InvalidateTexture(TextureKey texture_key) {
+  auto it = textures_.find(texture_key);
+
+  // multiple writes may have already invalidated this texture
+  if (it == textures_.end()) {
+    return;
+  }
+
+  InvalidateTexture(it);
+}
+
+void TileAccelerator::InvalidateTexture(TextureCacheMap::iterator it) {
+  TextureEntry &entry = it->second;
+
+  if (entry.texture_watch) {
+    RemoveAccessWatch(entry.texture_watch);
+  }
+
+  if (entry.palette_watch) {
+    RemoveAccessWatch(entry.palette_watch);
+  }
+
+  rb_->FreeTexture(entry.handle);
+
+  textures_.erase(it);
 }
 
 void TileAccelerator::WriteCommand(uint32_t addr, uint32_t value) {

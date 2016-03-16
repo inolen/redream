@@ -1,3 +1,4 @@
+#include "hw/holly/holly.h"
 #include "hw/maple/maple.h"
 #include "hw/maple/maple_controller.h"
 #include "hw/dreamcast.h"

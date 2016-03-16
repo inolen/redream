@@ -22,7 +22,7 @@ struct Register;
 namespace holly {
 
 // interrupts
-#define HOLLY_INTC_MASK 0xf00000000
+static const uint64_t HOLLY_INTC_MASK = 0x0000000f00000000;
 
 enum HollyInterruptType : uint64_t {
   HOLLY_INTC_NRM = 0x100000000,
