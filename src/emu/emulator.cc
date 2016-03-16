@@ -1,18 +1,16 @@
-#include <thread>
+#include <algorithm>
 #include <gflags/gflags.h>
 #include "emu/emulator.h"
-#include "emu/profiler.h"
 #include "hw/aica/aica.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr2.h"
-#include "hw/holly/tile_renderer.h"
-#include "hw/holly/trace.h"
+#include "hw/holly/tile_accelerator.h"
 #include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
-#include "renderer/gl_backend.h"
+#include "ui/window.h"
 
 using namespace re;
 using namespace re::emu;
@@ -23,40 +21,25 @@ using namespace re::hw::holly;
 using namespace re::hw::maple;
 using namespace re::hw::sh4;
 using namespace re::renderer;
-using namespace re::sys;
+using namespace re::ui;
 
 DEFINE_string(bios, "dc_boot.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
-Emulator::Emulator() : rb_(nullptr), tile_renderer_(nullptr), speed_() {}
+Emulator::Emulator(ui::Window &window) : window_(window) {
+  window_.AddListener(this);
+}
 
 Emulator::~Emulator() {
-  delete rb_;
-  delete tile_renderer_;
+  window_.RemoveListener(this);
 
   DestroyDreamcast();
 }
 
 void Emulator::Run(const char *path) {
-  if (!window_.Init()) {
-    return;
-  }
-
-  // initialize renderer backend
-  rb_ = new GLBackend(window_);
-
-  if (!rb_->Init()) {
-    return;
-  }
-
-  // initialize dreamcast machine and all dependent hardware
   if (!CreateDreamcast()) {
     return;
   }
-
-  // setup tile renderer with the renderer backend and the dreamcast's
-  // internal textue cache
-  tile_renderer_ = new TileRenderer(*rb_, *dc_.ta);
 
   if (!LoadBios(FLAGS_bios.c_str())) {
     return;
@@ -79,17 +62,12 @@ void Emulator::Run(const char *path) {
   // start running
   static const std::chrono::nanoseconds MACHINE_STEP = HZ_TO_NANO(1000);
   static const std::chrono::nanoseconds FRAME_STEP = HZ_TO_NANO(60);
-  static const std::chrono::nanoseconds SAMPLE_PERIOD = HZ_TO_NANO(10);
 
   auto current_time = std::chrono::high_resolution_clock::now();
   auto last_time = current_time;
 
   auto next_machine_time = current_time;
   auto next_frame_time = current_time;
-  auto next_sample_time = current_time;
-
-  auto host_time = std::chrono::nanoseconds(0);
-  auto guest_time = std::chrono::nanoseconds(0);
 
   running_ = true;
 
@@ -97,32 +75,18 @@ void Emulator::Run(const char *path) {
     current_time = std::chrono::high_resolution_clock::now();
     last_time = current_time;
 
-    // run machine
+    // run dreamcast machine
     if (current_time > next_machine_time) {
       dc_.Tick(MACHINE_STEP);
 
-      host_time += std::chrono::high_resolution_clock::now() - last_time;
-      guest_time += MACHINE_STEP;
       next_machine_time = current_time + MACHINE_STEP;
     }
 
-    // pump input / render frame
+    // run local frame
     if (current_time > next_frame_time) {
-      PumpEvents();
-      RenderFrame();
+      window_.PumpEvents();
 
       next_frame_time = current_time + FRAME_STEP;
-    }
-
-    // update debug stats
-    if (current_time > next_sample_time) {
-      float speed =
-          (guest_time.count() / static_cast<float>(host_time.count())) * 100.0f;
-      speed_ = *reinterpret_cast<uint32_t *>(&speed);
-
-      host_time = std::chrono::nanoseconds(0);
-      guest_time = std::chrono::nanoseconds(0);
-      next_sample_time = current_time + SAMPLE_PERIOD;
     }
   }
 }
@@ -134,7 +98,7 @@ bool Emulator::CreateDreamcast() {
   dc_.holly = new Holly(&dc_);
   dc_.maple = new Maple(&dc_);
   dc_.pvr = new PVR2(&dc_);
-  dc_.ta = new TileAccelerator(&dc_, rb_);
+  dc_.ta = new TileAccelerator(&dc_, window_.render_backend());
 
   if (!dc_.Init()) {
     DestroyDreamcast();
@@ -159,8 +123,6 @@ void Emulator::DestroyDreamcast() {
   dc_.pvr = nullptr;
   delete dc_.ta;
   dc_.ta = nullptr;
-  delete dc_.trace_writer;
-  dc_.trace_writer = nullptr;
 }
 
 bool Emulator::LoadBios(const char *path) {
@@ -260,86 +222,17 @@ bool Emulator::LaunchGDI(const char *path) {
   return true;
 }
 
-void Emulator::ToggleTracing() {
-  if (!dc_.trace_writer) {
-    char filename[PATH_MAX];
-    GetNextTraceFilename(filename, sizeof(filename));
+void Emulator::OnPaint(bool show_main_menu) { dc_.OnPaint(show_main_menu); }
 
-    dc_.trace_writer = new TraceWriter();
-
-    if (!dc_.trace_writer->Open(filename)) {
-      delete dc_.trace_writer;
-      dc_.trace_writer = nullptr;
-
-      LOG_INFO("Failed to start tracing");
-
-      return;
+void Emulator::OnKeyDown(Keycode code, int16_t value) {
+  if (code == K_F1) {
+    if (value) {
+      window_.EnableMainMenu(!window_.MainMenuEnabled());
     }
-
-    // clear texture cache in order to generate insert events for all textures
-    // referenced while tracing
-    dc_.ta->ClearTextures();
-
-    LOG_INFO("Begin tracing to %s", filename);
-  } else {
-    delete dc_.trace_writer;
-    dc_.trace_writer = nullptr;
-
-    LOG_INFO("End tracing");
-  }
-}
-
-void Emulator::RenderFrame() {
-  rb_->BeginFrame();
-
-  // render the latest tile context
-  if (TileContext *tactx = dc_.ta->GetLastContext()) {
-    tile_renderer_->RenderContext(tactx);
+    return;
   }
 
-  // render stats
-  char stats[512];
-  float speed = *reinterpret_cast<float *>(&speed_);
-  snprintf(stats, sizeof(stats), "%.2f%%, %.2f rps", speed, dc_.pvr->rps());
-  rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
-
-  // render profiler
-  profiler_.Render(rb_);
-
-  rb_->EndFrame();
+  dc_.OnKeyDown(code, value);
 }
 
-void Emulator::PumpEvents() {
-  WindowEvent ev;
-
-  window_.PumpEvents();
-
-  while (window_.PollEvent(&ev)) {
-    switch (ev.type) {
-      case WE_KEY: {
-        // let the profiler take a stab at the input first
-        if (!profiler_.HandleInput(ev.key.code, ev.key.value)) {
-          if (ev.key.code == K_F2) {
-            if (ev.key.value) {
-              ToggleTracing();
-            }
-          } else {
-            dc_.maple->HandleInput(0, ev.key.code, ev.key.value);
-          }
-        }
-      } break;
-
-      case WE_MOUSEMOVE: {
-        profiler_.HandleMouseMove(ev.mousemove.x, ev.mousemove.y);
-      } break;
-
-      case WE_RESIZE: {
-        rb_->ResizeVideo(ev.resize.width, ev.resize.height);
-      } break;
-
-      case WE_QUIT: {
-        running_ = false;
-      } break;
-    }
-  }
-}
+void Emulator::OnClose() { running_ = false; }

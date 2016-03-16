@@ -1,15 +1,11 @@
 #ifndef DREAMCAST_H
 #define DREAMCAST_H
 
+#include <chrono>
 #include "hw/machine.h"
-#include "hw/holly/pvr2_regs.h"
+#include "hw/holly/pvr2_types.h"
 
 namespace re {
-
-namespace renderer {
-class Backend;
-}
-
 namespace hw {
 
 namespace aica {
@@ -24,7 +20,6 @@ namespace holly {
 class Holly;
 class PVR2;
 class TileAccelerator;
-class TraceWriter;
 }
 
 namespace maple {
@@ -70,7 +65,7 @@ enum {
   MEMORY_REGION(MAIN_RAM_4,  0x0f000000, 0x0fffffff),
 
   MEMORY_REGION(AREA4,       0x10000000, 0x13ffffff),
-  MEMORY_REGION(TA_CMD,      0x10000000, 0x107fffff),
+  MEMORY_REGION(TA_POLY,     0x10000000, 0x107fffff),
   MEMORY_REGION(TA_TEXTURE,  0x11000000, 0x11ffffff),
 
   MEMORY_REGION(AREA5,       0x14000000, 0x17ffffff),
@@ -139,8 +134,7 @@ class Dreamcast : public Machine {
         holly(nullptr),
         maple(nullptr),
         pvr(nullptr),
-        ta(nullptr),
-        trace_writer(nullptr) {}
+        ta(nullptr) {}
 
   Register holly_regs[HOLLY_REG_SIZE >> 2];
   Register pvr_regs[PVR_REG_SIZE >> 2];
@@ -152,7 +146,6 @@ class Dreamcast : public Machine {
   hw::maple::Maple *maple;
   hw::holly::PVR2 *pvr;
   hw::holly::TileAccelerator *ta;
-  hw::holly::TraceWriter *trace_writer;
 
 #define HOLLY_REG(offset, name, flags, default, type) \
   type &name = reinterpret_cast<type &>(holly_regs[name##_OFFSET].value);

@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <vector>
+#include "ui/window.h"
 
 namespace re {
 namespace hw {
@@ -47,10 +48,20 @@ class MemoryInterface {
   virtual void MapVirtualMemory(Memory &memory, MemoryMap &memmap) {}
 };
 
+class WindowInterface {
+ public:
+  WindowInterface(Device *device);
+  virtual ~WindowInterface() = default;
+
+  virtual void OnPaint(bool show_main_menu){};
+  virtual void OnKeyDown(ui::Keycode code, int16_t value){};
+};
+
 class Device {
   friend class DebugInterface;
   friend class ExecuteInterface;
   friend class MemoryInterface;
+  friend class WindowInterface;
 
  public:
   virtual ~Device() = default;
@@ -58,6 +69,7 @@ class Device {
   DebugInterface *debug() { return debug_; }
   ExecuteInterface *execute() { return execute_; }
   MemoryInterface *memory() { return memory_; }
+  WindowInterface *window() { return window_; }
 
   Device(Machine &machine);
 
@@ -67,6 +79,7 @@ class Device {
   DebugInterface *debug_;
   ExecuteInterface *execute_;
   MemoryInterface *memory_;
+  WindowInterface *window_;
 };
 
 class Machine {
@@ -81,7 +94,10 @@ class Machine {
   bool Init();
   void Suspend();
   void Resume();
+
   void Tick(const std::chrono::nanoseconds &delta);
+  void OnPaint(bool show_main_menu);
+  void OnKeyDown(ui::Keycode code, int16_t value);
 
   Debugger *debugger;
   Memory *memory;

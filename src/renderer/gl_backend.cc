@@ -1,26 +1,13 @@
-#include <memory>
+#include "core/assert.h"
 #include "emu/profiler.h"
 #include "renderer/gl_backend.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include <stb_truetype.h>
-
 using namespace re;
 using namespace re::renderer;
-using namespace re::sys;
+using namespace re::ui;
 
-#include "inconsolata_ttf.inc"
 #include "renderer/ta.glsl"
 #include "renderer/ui.glsl"
-
-#define Q0(d, member, v) d[0].member = v
-#define Q1(d, member, v) \
-  d[1].member = v;       \
-  d[3].member = v
-#define Q2(d, member, v) d[4].member = v
-#define Q3(d, member, v) \
-  d[2].member = v;       \
-  d[5].member = v
 
 static GLenum filter_funcs[] = {
     GL_NEAREST,                // FILTER_NEAREST
@@ -65,19 +52,23 @@ static GLenum blend_funcs[] = {GL_NONE,
                                GL_DST_COLOR,
                                GL_ONE_MINUS_DST_COLOR};
 
+static GLenum prim_types[] = {
+    GL_TRIANGLES,  // PRIM_TRIANGLES
+    GL_LINES,      // PRIM_LINES
+};
+
 GLBackend::GLBackend(Window &window)
-    : window_(window),
-      ctx_(nullptr),
-      textures_{0},
-      num_verts2d_(0),
-      num_surfs2d_(0) {}
+    : window_(window), ctx_(nullptr), textures_{0} {
+  window_.AddListener(this);
+}
 
 GLBackend::~GLBackend() {
-  DestroyFonts();
   DestroyVertexBuffers();
   DestroyShaders();
   DestroyTextures();
   DestroyContext();
+
+  window_.RemoveListener(this);
 }
 
 bool GLBackend::Init() {
@@ -88,14 +79,8 @@ bool GLBackend::Init() {
   CreateTextures();
   CreateShaders();
   CreateVertexBuffers();
-  SetupDefaultState();
 
   return true;
-}
-
-void GLBackend::ResizeVideo(int width, int height) {
-  state_.video_width = width;
-  state_.video_height = height;
 }
 
 TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
@@ -114,6 +99,10 @@ TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
   GLuint internal_fmt;
   GLuint pixel_fmt;
   switch (format) {
+    case PXL_RGBA:
+      internal_fmt = GL_RGBA;
+      pixel_fmt = GL_UNSIGNED_BYTE;
+      break;
     case PXL_RGBA5551:
       internal_fmt = GL_RGBA;
       pixel_fmt = GL_UNSIGNED_SHORT_5_5_5_1;
@@ -162,159 +151,93 @@ void GLBackend::FreeTexture(TextureHandle handle) {
 }
 
 void GLBackend::BeginFrame() {
+  int width = window_.width();
+  int height = window_.height();
+
   SetDepthMask(true);
 
-  glViewport(0, 0, state_.video_width, state_.video_height);
-  glScissor(0, 0, state_.video_width, state_.video_height);
+  glViewport(0, 0, width, height);
 
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void GLBackend::RenderText2D(int x, int y, float point_size, uint32_t color,
-                             const char *text) {
-  float fx = (float)x;
-  float fy = (float)y;
-  const BakedFont *font = GetFont(point_size);
+void GLBackend::EndFrame() { SDL_GL_SwapWindow(window_.handle()); }
 
-  int len = (int)strlen(text);
-  Vertex2D *vert =
-      AllocVertices2D({GL_TRIANGLES, (int)font->texture, BLEND_SRC_ALPHA,
-                       BLEND_ONE_MINUS_SRC_ALPHA, 0},
-                      6 * len);
+void GLBackend::Begin2D() {
+  Eigen::Matrix4f ortho = Eigen::Matrix4f::Identity();
+  ortho(0, 0) = 2.0f / (float)window_.width();
+  ortho(1, 1) = -2.0f / (float)window_.height();
+  ortho(0, 3) = -1.0;
+  ortho(1, 3) = 1.0;
+  ortho(2, 2) = 0;
 
-  // convert color from argb -> abgr
-  color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |
-          ((color & 0xff0000) >> 16);
+  Eigen::Matrix4f projection = ortho.transpose();
 
-  // stbtt_GetPackedQuad treats the y parameter as the character's baseline.
-  // however, the incoming y represents the top of the text. offset it by the
-  // font's ascent (distance from top -> baseline) to compensate
-  fy += font->ascent;
+  SetDepthMask(false);
+  SetDepthFunc(DEPTH_NONE);
+  SetCullFace(CULL_NONE);
 
-  while (*text) {
-    if (*text >= 32 /* && *text < 128*/) {
-      stbtt_aligned_quad q;
-      stbtt_GetPackedQuad(&font->chars[0], font->tw, font->th, *text, &fx, &fy,
-                          &q, 0);
-
-      Q0(vert, x, q.x0);
-      Q0(vert, y, q.y0);
-      Q0(vert, color, color);
-      Q0(vert, u, q.s0);
-      Q0(vert, v, q.t0);
-
-      Q1(vert, x, q.x1);
-      Q1(vert, y, q.y0);
-      Q1(vert, color, color);
-      Q1(vert, u, q.s1);
-      Q1(vert, v, q.t0);
-
-      Q2(vert, x, q.x1);
-      Q2(vert, y, q.y1);
-      Q2(vert, color, color);
-      Q2(vert, u, q.s1);
-      Q2(vert, v, q.t1);
-
-      Q3(vert, x, q.x0);
-      Q3(vert, y, q.y1);
-      Q3(vert, color, color);
-      Q3(vert, u, q.s0);
-      Q3(vert, v, q.t1);
-
-      vert += 6;
-    }
-
-    ++text;
-  }
+  BindVAO(ui_vao_);
+  BindProgram(&ui_program_);
+  glUniformMatrix4fv(GetUniform(UNIFORM_MODELVIEWPROJECTIONMATRIX), 1, GL_FALSE,
+                     projection.data());
+  glUniform1i(GetUniform(UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 }
 
-void GLBackend::RenderBox2D(int x0, int y0, int x1, int y1, uint32_t color,
-                            BoxType type) {
-  Vertex2D *vertex = AllocVertices2D(
-      {GL_TRIANGLES, 0, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA, 0}, 6);
+void GLBackend::End2D() { SetScissorTest(false); }
 
-  if (type == BOX_FLAT) {
-    CHECK(x0 <= x1);
-    CHECK(y0 <= y1);
+void GLBackend::BeginSurfaces2D(const Vertex2D *verts, int num_verts,
+                                uint16_t *indices, int num_indices) {
+  glBindBuffer(GL_ARRAY_BUFFER, ui_vbo_);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex2D) * num_verts, verts,
+               GL_DYNAMIC_DRAW);
 
-    // convert color from argb -> abgr
-    color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |
-            ((color & 0xff0000) >> 16);
-
-    Q0(vertex, x, (float)x0);
-    Q0(vertex, y, (float)y0);
-    Q0(vertex, color, color);
-    Q1(vertex, x, (float)x1);
-    Q1(vertex, y, (float)y0);
-    Q1(vertex, color, color);
-    Q2(vertex, x, (float)x1);
-    Q2(vertex, y, (float)y1);
-    Q2(vertex, color, color);
-    Q3(vertex, x, (float)x0);
-    Q3(vertex, y, (float)y1);
-    Q3(vertex, color, color);
+  if (indices) {
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ui_ibo_);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices,
+                 indices, GL_DYNAMIC_DRAW);
+    ui_use_ibo_ = true;
   } else {
-    uint32_t a = (color & 0xff000000) >> 24;
-    uint32_t r = (color & 0xff0000) >> 16;
-    uint32_t g = (color & 0xff00) >> 8;
-    uint32_t b = color & 0xff;
-    uint32_t max = std::max(std::max(std::max(r, g), b), 30u);
-    uint32_t min = std::min(std::min(std::min(r, g), b), 180u);
-
-    uint32_t r0 = 0xff & ((r + max) / 2);
-    uint32_t g0 = 0xff & ((g + max) / 2);
-    uint32_t b0 = 0xff & ((b + max) / 2);
-    uint32_t r1 = 0xff & ((r + min) / 2);
-    uint32_t g1 = 0xff & ((g + min) / 2);
-    uint32_t b1 = 0xff & ((b + min) / 2);
-    uint32_t color0 = (a << 24) | (b0 << 16) | (g0 << 8) | r0;
-    uint32_t color1 = (a << 24) | (b1 << 16) | (g1 << 8) | r1;
-
-    Q0(vertex, x, (float)x0);
-    Q0(vertex, y, (float)y0);
-    Q0(vertex, color, color0);
-    Q1(vertex, x, (float)x1);
-    Q1(vertex, y, (float)y0);
-    Q1(vertex, color, color0);
-    Q2(vertex, x, (float)x1);
-    Q2(vertex, y, (float)y1);
-    Q2(vertex, color, color1);
-    Q3(vertex, x, (float)x0);
-    Q3(vertex, y, (float)y1);
-    Q3(vertex, color, color1);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, -1);
+    ui_use_ibo_ = false;
   }
 }
 
-void GLBackend::RenderLine2D(float *verts, int num_verts, uint32_t color) {
-  if (!num_verts) {
-    return;
+void GLBackend::DrawSurface2D(const Surface2D &surf) {
+  if (surf.scissor) {
+    SetScissorTest(true);
+    SetScissorClip(static_cast<int>(surf.scissor_rect[0]),
+                   static_cast<int>(surf.scissor_rect[1]),
+                   static_cast<int>(surf.scissor_rect[2]),
+                   static_cast<int>(surf.scissor_rect[3]));
+  } else {
+    SetScissorTest(false);
   }
 
-  Vertex2D *vertex = AllocVertices2D(
-      {GL_LINES, 0, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA, 0},
-      2 * (num_verts - 1));
+  SetBlendFunc(surf.src_blend, surf.dst_blend);
+  BindTexture(MAP_DIFFUSE, surf.texture ? textures_[surf.texture] : white_tex_);
 
-  // convert color from argb -> abgr
-  color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |
-          ((color & 0xff0000) >> 16);
-
-  for (int i = 0; i < num_verts - 1; ++i) {
-    vertex[0].x = verts[i * 2];
-    vertex[0].y = verts[i * 2 + 1];
-    vertex[0].color = color;
-    vertex[1].x = verts[(i + 1) * 2];
-    vertex[1].y = verts[(i + 1) * 2 + 1];
-    vertex[1].color = color;
-    vertex += 2;
+  if (ui_use_ibo_) {
+    glDrawElements(
+        prim_types[surf.prim_type], surf.num_verts, GL_UNSIGNED_SHORT,
+        reinterpret_cast<void *>(sizeof(uint16_t) * surf.first_vert));
+  } else {
+    glDrawArrays(prim_types[surf.prim_type], surf.first_vert, surf.num_verts);
   }
 }
+
+void GLBackend::EndSurfaces2D() {}
 
 void GLBackend::RenderSurfaces(const Eigen::Matrix4f &projection,
                                const Surface *surfs, int num_surfs,
                                const Vertex *verts, int num_verts,
                                const int *sorted_surfs) {
   PROFILER_GPU("GLBackend::RenderSurfaces");
+
+  if (state_.debug_wireframe) {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  }
 
   // transpose to column-major for OpenGL
   Eigen::Matrix4f transposed = projection.transpose();
@@ -343,12 +266,21 @@ void GLBackend::RenderSurfaces(const Eigen::Matrix4f &projection,
                 surf->texture ? textures_[surf->texture] : white_tex_);
     glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
   }
+
+  if (state_.debug_wireframe) {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  }
 }
 
-void GLBackend::EndFrame() {
-  Flush2D();
+void GLBackend::OnPaint(bool show_main_menu) {
+  if (show_main_menu && ImGui::BeginMainMenuBar()) {
+    if (ImGui::BeginMenu("Render")) {
+      ImGui::MenuItem("Wireframe", "", &state_.debug_wireframe);
+      ImGui::EndMenu();
+    }
 
-  SDL_GL_SwapWindow(window_.handle());
+    ImGui::EndMainMenuBar();
+  }
 }
 
 bool GLBackend::InitContext() {
@@ -377,10 +309,6 @@ bool GLBackend::InitContext() {
 
   // enable vsync
   SDL_GL_SetSwapInterval(1);
-
-  // set default width / height
-  state_.video_width = window_.width();
-  state_.video_height = window_.height();
 
   return true;
 }
@@ -450,20 +378,23 @@ void GLBackend::CreateVertexBuffers() {
   glGenBuffers(1, &ui_vbo_);
   glBindBuffer(GL_ARRAY_BUFFER, ui_vbo_);
 
+  glGenBuffers(1, &ui_ibo_);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ui_ibo_);
+
   // xy
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex2D),
-                        (void *)offsetof(Vertex2D, x));
-
-  // color
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex2D),
-                        (void *)offsetof(Vertex2D, color));
+                        (void *)offsetof(Vertex2D, xy));
 
   // texcoord
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex2D),
+                        (void *)offsetof(Vertex2D, uv));
+
+  // color
   glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex2D),
-                        (void *)offsetof(Vertex2D, u));
+  glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex2D),
+                        (void *)offsetof(Vertex2D, color));
 
   glBindVertexArray(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -507,6 +438,7 @@ void GLBackend::DestroyVertexBuffers() {
     return;
   }
 
+  glDeleteBuffers(1, &ui_ibo_);
   glDeleteBuffers(1, &ui_vbo_);
   glDeleteVertexArrays(1, &ui_vao_);
 
@@ -514,22 +446,29 @@ void GLBackend::DestroyVertexBuffers() {
   glDeleteVertexArrays(1, &ta_vao_);
 }
 
-void GLBackend::DestroyFonts() {
-  if (!ctx_) {
+void GLBackend::SetScissorTest(bool enabled) {
+  if (state_.scissor_test == enabled) {
     return;
   }
 
-  for (auto it : fonts_) {
-    delete it.second;
+  state_.scissor_test = enabled;
+
+  if (enabled) {
+    glEnable(GL_SCISSOR_TEST);
+  } else {
+    glDisable(GL_SCISSOR_TEST);
   }
 }
 
-void GLBackend::SetupDefaultState() { glEnable(GL_SCISSOR_TEST); }
+void GLBackend::SetScissorClip(int x, int y, int width, int height) {
+  glScissor(x, y, width, height);
+}
 
 void GLBackend::SetDepthMask(bool enabled) {
   if (state_.depth_mask == enabled) {
     return;
   }
+
   state_.depth_mask = enabled;
 
   glDepthMask(enabled ? 1 : 0);
@@ -539,6 +478,7 @@ void GLBackend::SetDepthFunc(DepthFunc fn) {
   if (state_.depth_func == fn) {
     return;
   }
+
   state_.depth_func = fn;
 
   if (fn == DEPTH_NONE) {
@@ -553,6 +493,7 @@ void GLBackend::SetCullFace(CullFace fn) {
   if (state_.cull_face == fn) {
     return;
   }
+
   state_.cull_face = fn;
 
   if (fn == CULL_NONE) {
@@ -567,6 +508,7 @@ void GLBackend::SetBlendFunc(BlendFunc src_fn, BlendFunc dst_fn) {
   if (state_.src_blend == src_fn && state_.dst_blend == dst_fn) {
     return;
   }
+
   state_.src_blend = src_fn;
   state_.dst_blend = dst_fn;
 
@@ -582,7 +524,9 @@ void GLBackend::BindVAO(GLuint vao) {
   if (state_.current_vao == vao) {
     return;
   }
+
   state_.current_vao = vao;
+
   glBindVertexArray(vao);
 }
 
@@ -590,7 +534,9 @@ void GLBackend::BindProgram(ShaderProgram *program) {
   if (state_.current_program == program) {
     return;
   }
+
   state_.current_program = program;
+
   glUseProgram(program ? program->program : 0);
 }
 
@@ -601,139 +547,4 @@ void GLBackend::BindTexture(TextureMap map, GLuint tex) {
 
 GLint GLBackend::GetUniform(UniformAttr attr) {
   return state_.current_program->uniforms[attr];
-}
-
-const BakedFont *GLBackend::GetFont(float point_size) {
-  static const int FONT_TEXTURE_SIZE = 512;
-  static const unsigned char *ttf_data = inconsolata_ttf;
-
-  auto it = fonts_.find(point_size);
-  if (it != fonts_.end()) {
-    return it->second;
-  }
-
-  std::unique_ptr<BakedFont> font(new BakedFont());
-  font->tw = FONT_TEXTURE_SIZE;
-  font->th = FONT_TEXTURE_SIZE;
-
-  // load the font ourself in order to get the ascent info
-  stbtt_fontinfo f;
-  if (!stbtt_InitFont(&f, ttf_data, 0)) {
-    LOG_WARNING("Failed to initialize font");
-    return nullptr;
-  }
-  int ascent;
-  stbtt_GetFontVMetrics(&f, &ascent, nullptr, nullptr);
-  font->ascent = (float)ascent * stbtt_ScaleForPixelHeight(&f, point_size);
-
-  // bake the font into the bitmap
-  unsigned char bitmap[FONT_TEXTURE_SIZE * FONT_TEXTURE_SIZE];
-  stbtt_pack_context pc;
-  stbtt_PackBegin(&pc, bitmap, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, 0, 1,
-                  NULL);
-  stbtt_PackSetOversampling(&pc, 2, 2);
-  if (!stbtt_PackFontRange(&pc, ttf_data, 0, point_size, 32, 127,
-                           font->chars + 32)) {
-    LOG_WARNING("Failed to pack font");
-    return nullptr;
-  }
-  stbtt_PackEnd(&pc);
-
-  // generate gl texture for bitmap
-  GLuint texid;
-  glGenTextures(1, &texid);
-  glBindTexture(GL_TEXTURE_2D, texid);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  GLint swizzle_mask[] = {GL_ONE, GL_ONE, GL_ONE, GL_RED};
-  glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzle_mask);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, 0,
-               GL_RED, GL_UNSIGNED_BYTE, bitmap);
-  glBindTexture(GL_TEXTURE_2D, 0);
-  font->texture = texid;
-
-  // insert into cache (map now takes ownership)
-  auto pair = fonts_.insert(std::make_pair(point_size, font.release()));
-  CHECK(pair.second);
-  return (pair.first)->second;
-}
-
-Eigen::Matrix4f GLBackend::Ortho2D() {
-  Eigen::Matrix4f p = Eigen::Matrix4f::Identity();
-  p(0, 0) = 2.0f / (float)state_.video_width;
-  p(1, 1) = -2.0f / (float)state_.video_height;
-  p(0, 3) = -1.0;
-  p(1, 3) = 1.0;
-  p(2, 2) = 0;
-  return p;
-}
-
-Vertex2D *GLBackend::AllocVertices2D(const Surface2D &desc, int count) {
-  if (num_verts2d_ + count > MAX_2D_VERTICES) {
-    Flush2D();
-  }
-
-  CHECK(num_verts2d_ + count <= MAX_2D_VERTICES);
-  uint32_t first_vert = num_verts2d_;
-  num_verts2d_ += count;
-
-  // try to batch with the last surface if possible
-  if (num_surfs2d_) {
-    Surface2D &last_surf = surfs2d_[num_surfs2d_ - 1];
-
-    if (last_surf.prim_type == desc.prim_type &&
-        last_surf.texture == desc.texture &&
-        last_surf.src_blend == desc.src_blend &&
-        last_surf.dst_blend == desc.dst_blend) {
-      last_surf.num_verts += count;
-      return &verts2d_[first_vert];
-    }
-  }
-
-  // else, allocate a new surface
-  CHECK(num_surfs2d_ < MAX_2D_SURFACES);
-  Surface2D &next_surf = surfs2d_[num_surfs2d_];
-  next_surf.prim_type = desc.prim_type;
-  next_surf.texture = desc.texture;
-  next_surf.src_blend = desc.src_blend;
-  next_surf.dst_blend = desc.dst_blend;
-  next_surf.num_verts = count;
-  num_surfs2d_++;
-  return &verts2d_[first_vert];
-}
-
-void GLBackend::Flush2D() {
-  if (!num_surfs2d_) {
-    return;
-  }
-
-  Eigen::Matrix4f ortho = Ortho2D();
-  Eigen::Matrix4f projection = ortho.transpose();
-
-  glBindBuffer(GL_ARRAY_BUFFER, ui_vbo_);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex2D) * num_verts2d_, verts2d_,
-               GL_DYNAMIC_DRAW);
-
-  SetDepthMask(false);
-  SetDepthFunc(DEPTH_NONE);
-  SetCullFace(CULL_NONE);
-
-  BindVAO(ui_vao_);
-  BindProgram(&ui_program_);
-  glUniformMatrix4fv(GetUniform(UNIFORM_MODELVIEWPROJECTIONMATRIX), 1, GL_FALSE,
-                     projection.data());
-  glUniform1i(GetUniform(UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
-
-  int offset = 0;
-  for (int i = 0; i < num_surfs2d_; ++i) {
-    int count = surfs2d_[i].num_verts;
-    BindTexture(MAP_DIFFUSE,
-                surfs2d_[i].texture ? surfs2d_[i].texture : white_tex_);
-    SetBlendFunc(surfs2d_[i].src_blend, surfs2d_[i].dst_blend);
-    glDrawArrays(surfs2d_[i].prim_type, offset, count);
-    offset += count;
-  }
-
-  num_verts2d_ = 0;
-  num_surfs2d_ = 0;
 }

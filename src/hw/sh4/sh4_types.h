@@ -7,6 +7,7 @@ namespace re {
 namespace hw {
 namespace sh4 {
 
+// registers
 static const uint32_t UNDEFINED = 0x0;
 static const uint32_t HELD = 0x1;
 
@@ -78,6 +79,17 @@ enum {
 #undef SH4_REG
 };
 
+// interrupts
+enum Interrupt {
+#define SH4_INT(name, intevt, pri, ipr, ipr_shift) SH4_INTC_##name,
+#include "hw/sh4/sh4_int.inc"
+#undef SH4_INT
+  NUM_INTERRUPTS
+};
+
+struct InterruptInfo {
+  int intevt, default_priority, ipr, ipr_shift;
+};
 }
 }
 }

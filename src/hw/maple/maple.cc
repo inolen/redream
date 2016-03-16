@@ -9,9 +9,10 @@ using namespace re::hw;
 using namespace re::hw::holly;
 using namespace re::hw::maple;
 using namespace re::hw::sh4;
-using namespace re::sys;
+using namespace re::ui;
 
-Maple::Maple(Dreamcast *dc) : Device(*dc), dc_(dc), devices_() {
+Maple::Maple(Dreamcast *dc)
+    : Device(*dc), WindowInterface(this), dc_(dc), devices_() {
   // default controller device
   devices_[0] = std::unique_ptr<MapleController>(new MapleController());
 }
@@ -22,15 +23,6 @@ bool Maple::Init() {
   holly_regs_ = dc_->holly_regs;
 
   return true;
-}
-
-bool Maple::HandleInput(int port, Keycode key, int16_t value) {
-  CHECK_LT(port, MAX_PORTS);
-  std::unique_ptr<MapleDevice> &dev = devices_[port];
-  if (!dev) {
-    return false;
-  }
-  return dev->HandleInput(key, value);
 }
 
 // The controller can be started up by two methods: by software, or by hardware
@@ -45,6 +37,16 @@ void Maple::VBlank() {
   }
 
   // TODO maple vblank interrupt?
+}
+
+void Maple::OnKeyDown(Keycode key, int16_t value) {
+  std::unique_ptr<MapleDevice> &dev = devices_[0];
+
+  if (!dev) {
+    return;
+  }
+
+  dev->HandleInput(key, value);
 }
 
 template uint8_t Maple::ReadRegister(uint32_t addr);

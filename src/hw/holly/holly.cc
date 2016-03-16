@@ -11,7 +11,6 @@ using namespace re::hw::gdrom;
 using namespace re::hw::holly;
 using namespace re::hw::maple;
 using namespace re::hw::sh4;
-using namespace re::renderer;
 using namespace re::sys;
 
 Holly::Holly(Dreamcast *dc) : Device(*dc), MemoryInterface(this), dc_(dc) {}

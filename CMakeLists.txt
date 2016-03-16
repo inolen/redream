@@ -83,6 +83,11 @@ add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/glew-1.13.0/include)
 list(APPEND REDREAM_LIBS glew_s)
 
+# imgui
+add_library(imgui STATIC deps/imgui-1.47/imgui.cpp deps/imgui-1.47/imgui_draw.cpp)
+list(APPEND REDREAM_INCLUDE_DIRS deps/imgui-1.47)
+list(APPEND REDREAM_LIBS imgui)
+
 # json11
 add_library(json11 STATIC deps/json11/json11.cpp)
 list(APPEND REDREAM_INCLUDE_DIRS deps/json11)
@@ -91,9 +96,6 @@ target_compile_options(json11 PRIVATE -std=c++11)
 
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
-
-# stb_truetype
-list(APPEND REDREAM_INCLUDE_DIRS deps/stb_truetype-1.0.5)
 
 # xbyak
 list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.85)
@@ -130,7 +132,6 @@ set(REDREAM_SOURCES
   src/core/log.cc
   src/core/string.cc
   src/emu/emulator.cc
-  src/emu/profiler.cc
   src/emu/tracer.cc
   src/hw/aica/aica.cc
   src/hw/gdrom/disc.cc
@@ -169,10 +170,12 @@ set(REDREAM_SOURCES
   src/renderer/gl_shader.cc
   src/sys/exception_handler.cc
   src/sys/filesystem.cc
-  src/sys/keycode.cc
   src/sys/memory.cc
   src/sys/network.cc
-  src/sys/window.cc
+  src/ui/imgui_impl.cc
+  src/ui/microprofile_impl.cc
+  src/ui/keycode.cc
+  src/ui/window.cc
   src/main.cc)
 
 if(WIN32)
@@ -335,7 +338,6 @@ set(REDREAM_TEST_SOURCES
   test/test_intrusive_list.cc
   test/test_load_store_elimination_pass.cc
   test/test_minmax_heap.cc
-  test/test_ring_buffer.cc
   test/test_sh4.cc
   ${asm_inc})
 list(REMOVE_ITEM REDREAM_TEST_SOURCES src/main.cc)

@@ -2,8 +2,8 @@ static const char *ui_vp = R"END(
 uniform mat4 u_mvp;
 
 layout(location = 0) in vec2 attr_xy;
-layout(location = 1) in vec4 attr_color;
-layout(location = 2) in vec2 attr_texcoord;
+layout(location = 1) in vec2 attr_texcoord;
+layout(location = 2) in vec4 attr_color;
 
 out vec4 var_color;
 out vec2 var_diffuse_texcoord;

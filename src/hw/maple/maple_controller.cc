@@ -5,9 +5,9 @@
 #include "core/log.h"
 #include "hw/maple/maple_controller.h"
 
-using namespace re::hw::maple;
-using namespace re::sys;
 using namespace json11;
+using namespace re::hw::maple;
+using namespace re::ui;
 
 DEFINE_string(profile, "", "Controller profile");
 

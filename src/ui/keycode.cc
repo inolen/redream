@@ -1,8 +1,8 @@
 #include "core/string.h"
-#include "sys/keycode.h"
+#include "ui/keycode.h"
 
 namespace re {
-namespace sys {
+namespace ui {
 
 struct Key {
   Keycode code;

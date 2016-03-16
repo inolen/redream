@@ -1,9 +1,9 @@
 #ifndef SH4_H
 #define SH4_H
 
+#include <chrono>
 #include "hw/sh4/sh4_code_cache.h"
-#include "hw/sh4/sh4_int.h"
-#include "hw/sh4/sh4_regs.h"
+#include "hw/sh4/sh4_types.h"
 #include "hw/machine.h"
 #include "hw/scheduler.h"
 #include "jit/frontend/sh4/sh4_context.h"
@@ -17,15 +17,18 @@ class Dreamcast;
 
 namespace sh4 {
 
+static const int MAX_MIPS_SAMPLES = 10;
+
 enum DDTRW {
   DDT_R,
-  DDT_W
+  DDT_W,
 };
 
 class SH4 : public Device,
             public DebugInterface,
             public ExecuteInterface,
-            public MemoryInterface {
+            public MemoryInterface,
+            public WindowInterface {
   friend void RunSH4Test(const SH4Test &);
 
  public:
@@ -57,6 +60,9 @@ class SH4 : public Device,
   // MemoryInterface
   void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
   void MapVirtualMemory(Memory &memory, MemoryMap &memmap) final;
+
+  // WindowInterface
+  void OnPaint(bool show_main_menu) final;
 
  private:
   static void CompilePC();
@@ -114,6 +120,14 @@ class SH4 : public Device,
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
 
+  uint32_t area7_[0x4000];  // consolidated, 16kb area 7 memory
+  uint8_t cache_[0x2000];   // 8kb cache
+
+  bool show_perf_;
+  std::chrono::high_resolution_clock::time_point last_mips_time_;
+  float mips_[MAX_MIPS_SAMPLES];
+  int num_mips_;
+
   Interrupt sorted_interrupts_[NUM_INTERRUPTS];
   uint64_t sort_id_[NUM_INTERRUPTS];
   uint64_t priority_mask_[16];
@@ -122,9 +136,6 @@ class SH4 : public Device,
 
   hw::TimerHandle tmu_timers_[3];
   TimerDelegate tmu_delegates_[3];
-
-  uint32_t area7_[0x4000];  // consolidated, 16kb area 7 memory
-  uint8_t cache_[0x2000];   // 8kb cache
 };
 }
 }

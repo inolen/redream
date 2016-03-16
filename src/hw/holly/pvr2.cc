@@ -1,6 +1,7 @@
 #include "core/memory.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr2.h"
+#include "hw/holly/pvr2_types.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
@@ -15,8 +16,7 @@ PVR2::PVR2(Dreamcast *dc)
       MemoryInterface(this),
       dc_(dc),
       line_timer_(INVALID_TIMER),
-      current_scanline_(0),
-      rps_(0.0f) {}
+      current_scanline_(0) {}
 
 bool PVR2::Init() {
   scheduler_ = dc_->scheduler;
@@ -72,6 +72,12 @@ void PVR2::WriteRegister(uint32_t addr, uint32_t value) {
   uint32_t offset = addr >> 2;
   Register &reg = pvr_regs_[offset];
 
+  // // forward some reads and writes to the TA
+  // if (offset >= TA_OL_BASE && offset <= TA_NEXT_OPB_INIT) {
+  //   ta_->ReadRegister(addr);
+  //   return;
+  // }
+
   if (!(reg.flags & W)) {
     LOG_WARNING("Invalid write access at 0x%x", addr);
     return;
@@ -100,15 +106,6 @@ void PVR2::WriteRegister(uint32_t addr, uint32_t value) {
 
     case STARTRENDER_OFFSET: {
       if (value) {
-        // track render stats
-        {
-          auto now = std::chrono::high_resolution_clock::now();
-          auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-              now - last_render_);
-          last_render_ = now;
-          rps_ = 1000000000.0f / delta.count();
-        }
-
         ta_->FinalizeContext(dc_->PARAM_BASE.base_address);
       }
     } break;

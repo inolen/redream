@@ -94,10 +94,16 @@ void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
   // emit block epilog
   current_instr_ = tail_instr->prev();
 
-  Value *remaining_cycles =
-      LoadContext(offsetof(SH4Context, remaining_cycles), VALUE_I32);
-  remaining_cycles = Sub(remaining_cycles, AllocConstant(guest_cycles_));
-  StoreContext(offsetof(SH4Context, remaining_cycles), remaining_cycles);
+  // update remaining cycles
+  Value *num_cycles = LoadContext(offsetof(SH4Context, num_cycles), VALUE_I32);
+  num_cycles = Sub(num_cycles, AllocConstant(guest_cycles_));
+  StoreContext(offsetof(SH4Context, num_cycles), num_cycles);
+
+  // update num instructions
+  int sh4_num_instrs = (pc_ - start_addr) >> 1;
+  Value *num_instrs = LoadContext(offsetof(SH4Context, num_instrs), VALUE_I32);
+  num_instrs = Add(num_instrs, AllocConstant(sh4_num_instrs));
+  StoreContext(offsetof(SH4Context, num_instrs), num_instrs);
 }
 
 Value *SH4Builder::LoadRegister(int n, ValueType type) {

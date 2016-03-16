@@ -2,7 +2,6 @@
 #define PVR_CLX2_H
 
 #include <stdint.h>
-#include "hw/holly/pvr2_regs.h"
 #include "hw/machine.h"
 #include "hw/scheduler.h"
 
@@ -20,8 +19,6 @@ class TileAccelerator;
 class PVR2 : public Device, public MemoryInterface {
  public:
   PVR2(Dreamcast *dc);
-
-  float rps() { return rps_; }
 
   bool Init() final;
 
@@ -51,9 +48,6 @@ class PVR2 : public Device, public MemoryInterface {
   TimerHandle line_timer_;
   int line_clock_;
   uint32_t current_scanline_;
-
-  std::chrono::high_resolution_clock::time_point last_render_;
-  float rps_;
 };
 }
 }

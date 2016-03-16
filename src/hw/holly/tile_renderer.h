@@ -38,7 +38,10 @@ class TextureProvider {
 // parsing it and ultimately rendering it out to the supplied backend. This
 // is split out of the main TileAccelerator code so it can be re-used by
 // Tracer.
-enum { MAX_SURFACES = 0x10000, MAX_VERTICES = 0x10000 };
+enum {
+  MAX_SURFACES = 0x10000,
+  MAX_VERTICES = 0x10000,
+};
 
 class TileRenderer {
  public:

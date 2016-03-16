@@ -185,7 +185,6 @@ union TA_ISP_BASE_T {
     uint32_t reserved : 8;
   };
 };
-
 }
 }
 }

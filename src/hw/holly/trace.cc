@@ -1,5 +1,6 @@
 #include <unordered_map>
 #include "core/assert.h"
+#include "hw/holly/tile_accelerator.h"
 #include "hw/holly/trace.h"
 #include "sys/filesystem.h"
 
@@ -49,6 +50,10 @@ bool TraceReader::Parse(const char *filename) {
     return false;
   }
 
+  if (!PatchFrames()) {
+    return false;
+  }
+
   return true;
 }
 
@@ -81,18 +86,18 @@ bool TraceReader::PatchPointers() {
 
     // patch relative data pointers
     switch (curr_cmd->type) {
-      case TRACE_INSERT_TEXTURE: {
-        curr_cmd->insert_texture.palette += reinterpret_cast<intptr_t>(ptr);
-        curr_cmd->insert_texture.texture += reinterpret_cast<intptr_t>(ptr);
-        ptr += sizeof(*curr_cmd) + curr_cmd->insert_texture.palette_size +
-               curr_cmd->insert_texture.texture_size;
+      case TRACE_CMD_TEXTURE: {
+        curr_cmd->texture.palette += reinterpret_cast<intptr_t>(ptr);
+        curr_cmd->texture.texture += reinterpret_cast<intptr_t>(ptr);
+        ptr += sizeof(*curr_cmd) + curr_cmd->texture.palette_size +
+               curr_cmd->texture.texture_size;
       } break;
 
-      case TRACE_RENDER_CONTEXT: {
-        curr_cmd->render_context.bg_vertices += reinterpret_cast<intptr_t>(ptr);
-        curr_cmd->render_context.data += reinterpret_cast<intptr_t>(ptr);
-        ptr += sizeof(*curr_cmd) + curr_cmd->render_context.bg_vertices_size +
-               curr_cmd->render_context.data_size;
+      case TRACE_CMD_CONTEXT: {
+        curr_cmd->context.bg_vertices += reinterpret_cast<intptr_t>(ptr);
+        curr_cmd->context.data += reinterpret_cast<intptr_t>(ptr);
+        ptr += sizeof(*curr_cmd) + curr_cmd->context.bg_vertices_size +
+               curr_cmd->context.data_size;
       } break;
 
       default:
@@ -113,27 +118,36 @@ bool TraceReader::PatchOverrides() {
   std::unordered_map<TextureKey, TraceCommand *> last_inserts;
 
   while (cmd) {
-    switch (cmd->type) {
-      case TRACE_INSERT_TEXTURE: {
-        TextureKey texture_key = TextureProvider::GetTextureKey(
-            cmd->insert_texture.tsp, cmd->insert_texture.tcw);
-        auto last_insert = last_inserts.find(texture_key);
+    if (cmd->type == TRACE_CMD_TEXTURE) {
+      TextureKey texture_key =
+          TextureProvider::GetTextureKey(cmd->texture.tsp, cmd->texture.tcw);
+      auto last_insert = last_inserts.find(texture_key);
 
-        if (last_insert != last_inserts.end()) {
-          cmd->override = last_insert->second;
-          last_insert->second = cmd;
-        } else {
-          last_inserts.insert(std::make_pair(texture_key, cmd));
-        }
-      } break;
-
-      case TRACE_RENDER_CONTEXT: {
-      } break;
-
-      default:
-        LOG_INFO("Unexpected trace command type %d", cmd->type);
-        return false;
+      if (last_insert != last_inserts.end()) {
+        cmd->override = last_insert->second;
+        last_insert->second = cmd;
+      } else {
+        last_inserts.insert(std::make_pair(texture_key, cmd));
+      }
     }
+
+    cmd = cmd->next;
+  }
+
+  return true;
+}
+
+// Patch in frame numbers to ease working with the trace.
+bool TraceReader::PatchFrames() {
+  TraceCommand *cmd = cmd_head();
+  int frame = -1;
+
+  while (cmd) {
+    if (cmd->type == TRACE_CMD_CONTEXT) {
+      frame++;
+    }
+
+    cmd->frame = frame;
 
     cmd = cmd->next;
   }
@@ -163,13 +177,13 @@ void TraceWriter::WriteInsertTexture(const TSP &tsp, const TCW &tcw,
                                      const uint8_t *palette, int palette_size,
                                      const uint8_t *texture, int texture_size) {
   TraceCommand cmd;
-  cmd.type = TRACE_INSERT_TEXTURE;
-  cmd.insert_texture.tsp = tsp;
-  cmd.insert_texture.tcw = tcw;
-  cmd.insert_texture.palette_size = palette_size;
-  cmd.insert_texture.palette = reinterpret_cast<const uint8_t *>(sizeof(cmd));
-  cmd.insert_texture.texture_size = texture_size;
-  cmd.insert_texture.texture =
+  cmd.type = TRACE_CMD_TEXTURE;
+  cmd.texture.tsp = tsp;
+  cmd.texture.tcw = tcw;
+  cmd.texture.palette_size = palette_size;
+  cmd.texture.palette = reinterpret_cast<const uint8_t *>(sizeof(cmd));
+  cmd.texture.texture_size = texture_size;
+  cmd.texture.texture =
       reinterpret_cast<const uint8_t *>(sizeof(cmd) + palette_size);
 
   CHECK_EQ(fwrite(&cmd, sizeof(cmd), 1, file_), 1);
@@ -183,21 +197,20 @@ void TraceWriter::WriteInsertTexture(const TSP &tsp, const TCW &tcw,
 
 void TraceWriter::WriteRenderContext(TileContext *tactx) {
   TraceCommand cmd;
-  cmd.type = TRACE_RENDER_CONTEXT;
-  cmd.render_context.autosort = tactx->autosort;
-  cmd.render_context.stride = tactx->stride;
-  cmd.render_context.pal_pxl_format = tactx->pal_pxl_format;
-  cmd.render_context.video_width = tactx->video_width;
-  cmd.render_context.video_height = tactx->video_height;
-  cmd.render_context.bg_isp = tactx->bg_isp;
-  cmd.render_context.bg_tsp = tactx->bg_tsp;
-  cmd.render_context.bg_tcw = tactx->bg_tcw;
-  cmd.render_context.bg_depth = tactx->bg_depth;
-  cmd.render_context.bg_vertices_size = sizeof(tactx->bg_vertices);
-  cmd.render_context.bg_vertices =
-      reinterpret_cast<const uint8_t *>(sizeof(cmd));
-  cmd.render_context.data_size = tactx->size;
-  cmd.render_context.data = reinterpret_cast<const uint8_t *>(
+  cmd.type = TRACE_CMD_CONTEXT;
+  cmd.context.autosort = tactx->autosort;
+  cmd.context.stride = tactx->stride;
+  cmd.context.pal_pxl_format = tactx->pal_pxl_format;
+  cmd.context.video_width = tactx->video_width;
+  cmd.context.video_height = tactx->video_height;
+  cmd.context.bg_isp = tactx->bg_isp;
+  cmd.context.bg_tsp = tactx->bg_tsp;
+  cmd.context.bg_tcw = tactx->bg_tcw;
+  cmd.context.bg_depth = tactx->bg_depth;
+  cmd.context.bg_vertices_size = sizeof(tactx->bg_vertices);
+  cmd.context.bg_vertices = reinterpret_cast<const uint8_t *>(sizeof(cmd));
+  cmd.context.data_size = tactx->size;
+  cmd.context.data = reinterpret_cast<const uint8_t *>(
       sizeof(cmd) + sizeof(tactx->bg_vertices));
 
   CHECK_EQ(fwrite(&cmd, sizeof(cmd), 1, file_), 1);

@@ -1,8 +1,8 @@
-#ifndef KEYS_H
-#define KEYS_H
+#ifndef KEYCODE_H
+#define KEYCODE_H
 
 namespace re {
-namespace sys {
+namespace ui {
 
 enum Keycode {
   K_UNKNOWN,

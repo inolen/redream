@@ -6,6 +6,7 @@
 
 using namespace re;
 using namespace re::hw;
+using namespace re::ui;
 
 DEFINE_bool(debug, false, "Run debug server");
 
@@ -15,8 +16,10 @@ ExecuteInterface::ExecuteInterface(Device *device) { device->execute_ = this; }
 
 MemoryInterface::MemoryInterface(Device *device) { device->memory_ = this; }
 
+WindowInterface::WindowInterface(Device *device) { device->window_ = this; }
+
 Device::Device(Machine &machine)
-    : debug_(nullptr), execute_(nullptr), memory_(nullptr) {
+    : debug_(nullptr), execute_(nullptr), memory_(nullptr), window_(nullptr) {
   machine.devices.push_back(this);
 }
 
@@ -63,5 +66,25 @@ void Machine::Tick(const std::chrono::nanoseconds &delta) {
 
   if (!suspended_) {
     scheduler->Tick(delta);
+  }
+}
+
+void Machine::OnPaint(bool show_main_menu) {
+  for (auto device : devices) {
+    if (!device->window()) {
+      continue;
+    }
+
+    device->window()->OnPaint(show_main_menu);
+  }
+}
+
+void Machine::OnKeyDown(Keycode code, int16_t value) {
+  for (auto device : devices) {
+    if (!device->window()) {
+      continue;
+    }
+
+    device->window()->OnKeyDown(code, value);
   }
 }

@@ -1,16 +1,25 @@
 #ifndef TRACE_H
 #define TRACE_H
 
-#include "hw/holly/tile_accelerator.h"
+#include "hw/holly/tile_accelerator_types.h"
 
 namespace re {
 namespace hw {
 namespace holly {
 
-enum TraceCommandType { TRACE_INSERT_TEXTURE, TRACE_RENDER_CONTEXT };
+enum TraceCommandType {
+  TRACE_CMD_NONE,
+  TRACE_CMD_TEXTURE,
+  TRACE_CMD_CONTEXT,
+};
 
 struct TraceCommand {
-  TraceCommand() : prev(nullptr), next(nullptr), override(nullptr) {}
+  TraceCommand()
+      : type(TRACE_CMD_NONE),
+        prev(nullptr),
+        next(nullptr),
+        override(nullptr),
+        frame(0) {}
 
   TraceCommandType type;
 
@@ -18,6 +27,7 @@ struct TraceCommand {
   TraceCommand *prev;
   TraceCommand *next;
   TraceCommand *override;
+  int frame;
 
   // the data pointers in these structs are written out relative to the cmd,
   // and patched to absolute pointers on read
@@ -29,7 +39,7 @@ struct TraceCommand {
       const uint8_t *palette;
       uint32_t texture_size;
       const uint8_t *texture;
-    } insert_texture;
+    } texture;
 
     // slimmed down version of the TileContext structure, will need to be in
     // sync
@@ -47,7 +57,7 @@ struct TraceCommand {
       const uint8_t *bg_vertices;
       uint32_t data_size;
       const uint8_t *data;
-    } render_context;
+    } context;
   };
 };
 
@@ -65,6 +75,7 @@ class TraceReader {
  private:
   void Reset();
   bool PatchPointers();
+  bool PatchFrames();
   bool PatchOverrides();
 
   size_t trace_size_;

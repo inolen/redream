@@ -1,51 +1,30 @@
 #include <stdlib.h>
 #include <SDL.h>
-#include "sys/window.h"
+#include "core/assert.h"
+#include "renderer/gl_backend.h"
+#include "ui/imgui_impl.h"
+#include "ui/microprofile_impl.h"
+#include "ui/window.h"
 
 #define DEFAULT_WIDTH 800
 #define DEFAULT_HEIGHT 600
 
 using namespace re;
-using namespace re::sys;
-
-static inline WindowEvent MakeKeyEvent(Keycode code, int16_t value) {
-  WindowEvent ev;
-  ev.type = WE_KEY;
-  ev.key.code = code;
-  ev.key.value = value;
-  return ev;
-}
-
-static inline WindowEvent MakeMouseMoveEvent(int x, int y) {
-  WindowEvent ev;
-  ev.type = WE_MOUSEMOVE;
-  ev.mousemove.x = x;
-  ev.mousemove.y = y;
-  return ev;
-}
-
-static inline WindowEvent MakeResizeEvent(int width, int height) {
-  WindowEvent ev;
-  ev.type = WE_RESIZE;
-  ev.resize.width = width;
-  ev.resize.height = height;
-  return ev;
-}
-
-static inline WindowEvent MakeQuitEvent() {
-  WindowEvent ev;
-  ev.type = WE_QUIT;
-  return ev;
-}
+using namespace re::renderer;
+using namespace re::ui;
 
 Window::Window()
     : window_(nullptr),
+      rb_(nullptr),
+      imgui_(*this),
+      microprofile_(*this),
       width_(DEFAULT_WIDTH),
       height_(DEFAULT_HEIGHT),
-      joystick_(nullptr),
-      events_(MAX_EVENTS) {}
+      joystick_(nullptr) {}
 
 Window::~Window() {
+  delete rb_;
+
   DestroyJoystick();
 
   if (window_) {
@@ -62,6 +41,7 @@ bool Window::Init() {
     return false;
   }
 
+  // setup native window
   window_ = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
                              SDL_WINDOWPOS_UNDEFINED, width_, height_,
                              SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
@@ -70,20 +50,62 @@ bool Window::Init() {
     return false;
   }
 
-  return true;
-}
+  // setup render context
+  rb_ = new GLBackend(*this);
 
-void Window::PumpEvents() { PumpSDLEvents(); }
-
-bool Window::PollEvent(WindowEvent *ev) {
-  if (events_.Empty()) {
+  if (!rb_->Init()) {
+    LOG_WARNING("Render context creation failed");
     return false;
   }
 
-  *ev = events_.front();
-  events_.PopFront();
+  // setup imgui
+  if (!imgui_.Init()) {
+    LOG_WARNING("ImGui initialization failed");
+    return false;
+  }
+
+  // setup microprofile
+  if (!microprofile_.Init()) {
+    LOG_WARNING("MicroProfile initialization failed");
+    return false;
+  }
 
   return true;
+}
+
+void Window::AddListener(WindowListener *listener) {
+  listeners_.push_back(listener);
+}
+
+void Window::RemoveListener(WindowListener *listener) {
+  auto it = std::find(listeners_.begin(), listeners_.end(), listener);
+
+  if (it == listeners_.end()) {
+    return;
+  }
+
+  listeners_.erase(it);
+}
+
+bool Window::MainMenuEnabled() { return show_main_menu_; }
+
+void Window::EnableMainMenu(bool active) { show_main_menu_ = active; }
+
+bool Window::TextInputEnabled() { return SDL_IsTextInputActive(); }
+
+void Window::EnableTextInput(bool active) {
+  if (active) {
+    SDL_StartTextInput();
+  } else {
+    SDL_StopTextInput();
+  }
+}
+
+void Window::PumpEvents() {
+  PumpSDLEvents();
+
+  // trigger a paint event after draining all other window-related events
+  HandlePaint();
 }
 
 void Window::InitJoystick() {
@@ -107,13 +129,46 @@ void Window::DestroyJoystick() {
   }
 }
 
-void Window::QueueEvent(const WindowEvent &ev) {
-  if (events_.Full()) {
-    LOG_WARNING("System event overflow");
-    return;
+void Window::HandlePaint() {
+  rb_->BeginFrame();
+
+  for (auto listener : listeners_) {
+    listener->OnPrePaint();
   }
 
-  events_.PushBack(ev);
+  for (auto listener : listeners_) {
+    listener->OnPaint(show_main_menu_);
+  }
+
+  for (auto listener : listeners_) {
+    listener->OnPostPaint();
+  }
+
+  rb_->EndFrame();
+}
+
+void Window::HandleKeyDown(Keycode code, int16_t value) {
+  for (auto listener : listeners_) {
+    listener->OnKeyDown(code, value);
+  }
+}
+
+void Window::HandleTextInput(const char *text) {
+  for (auto listener : listeners_) {
+    listener->OnTextInput(text);
+  }
+}
+
+void Window::HandleMouseMove(int x, int y) {
+  for (auto listener : listeners_) {
+    listener->OnMouseMove(x, y);
+  }
+}
+
+void Window::HandleClose() {
+  for (auto listener : listeners_) {
+    listener->OnClose();
+  }
 }
 
 Keycode Window::TranslateSDLKey(const SDL_Keysym &keysym) {
@@ -653,7 +708,7 @@ void Window::PumpSDLEvents() {
         Keycode keycode = TranslateSDLKey(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          QueueEvent(MakeKeyEvent(keycode, 1));
+          HandleKeyDown(keycode, 1);
         }
       } break;
 
@@ -661,8 +716,12 @@ void Window::PumpSDLEvents() {
         Keycode keycode = TranslateSDLKey(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          QueueEvent(MakeKeyEvent(keycode, 0));
+          HandleKeyDown(keycode, 0);
         }
+      } break;
+
+      case SDL_TEXTINPUT: {
+        HandleTextInput(ev.text.text);
       } break;
 
       case SDL_MOUSEBUTTONDOWN:
@@ -691,23 +750,22 @@ void Window::PumpSDLEvents() {
         }
 
         if (keycode != K_UNKNOWN) {
-          QueueEvent(
-              MakeKeyEvent(keycode, ev.type == SDL_MOUSEBUTTONDOWN ? 1 : 0));
+          HandleKeyDown(keycode, ev.type == SDL_MOUSEBUTTONDOWN ? 1 : 0);
         }
       } break;
 
       case SDL_MOUSEWHEEL:
         if (ev.wheel.y > 0) {
-          QueueEvent(MakeKeyEvent(K_MWHEELUP, 1));
-          QueueEvent(MakeKeyEvent(K_MWHEELUP, 0));
+          HandleKeyDown(K_MWHEELUP, 1);
+          HandleKeyDown(K_MWHEELUP, 0);
         } else {
-          QueueEvent(MakeKeyEvent(K_MWHEELDOWN, 1));
-          QueueEvent(MakeKeyEvent(K_MWHEELDOWN, 0));
+          HandleKeyDown(K_MWHEELDOWN, 1);
+          HandleKeyDown(K_MWHEELDOWN, 0);
         }
         break;
 
       case SDL_MOUSEMOTION:
-        QueueEvent(MakeMouseMoveEvent(ev.motion.x, ev.motion.y));
+        HandleMouseMove(ev.motion.x, ev.motion.y);
         break;
 
       case SDL_JOYDEVICEADDED:
@@ -717,16 +775,15 @@ void Window::PumpSDLEvents() {
 
       case SDL_JOYAXISMOTION:
         if (ev.jaxis.axis < NUM_JOYSTICK_AXES) {
-          QueueEvent(
-              MakeKeyEvent((Keycode)(K_AXIS0 + ev.jaxis.axis), ev.jaxis.value));
+          HandleKeyDown((Keycode)(K_AXIS0 + ev.jaxis.axis), ev.jaxis.value);
         }
         break;
 
       case SDL_JOYBUTTONDOWN:
       case SDL_JOYBUTTONUP:
         if (ev.jbutton.button < NUM_JOYSTICK_KEYS) {
-          QueueEvent(MakeKeyEvent((Keycode)(K_JOY1 + ev.jbutton.button),
-                                  ev.type == SDL_JOYBUTTONDOWN ? 1 : 0));
+          HandleKeyDown((Keycode)(K_JOY1 + ev.jbutton.button),
+                        ev.type == SDL_JOYBUTTONDOWN ? 1 : 0);
         }
         break;
 
@@ -735,14 +792,12 @@ void Window::PumpSDLEvents() {
           case SDL_WINDOWEVENT_RESIZED: {
             width_ = ev.window.data1;
             height_ = ev.window.data2;
-
-            QueueEvent(MakeResizeEvent(width_, height_));
           } break;
         }
         break;
 
       case SDL_QUIT:
-        QueueEvent(MakeQuitEvent());
+        HandleClose();
         break;
     }
   }

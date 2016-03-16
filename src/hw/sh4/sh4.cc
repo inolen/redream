@@ -1,3 +1,4 @@
+#include <imgui.h>
 #include "core/math.h"
 #include "core/memory.h"
 #include "emu/profiler.h"
@@ -8,7 +9,6 @@
 #include "hw/scheduler.h"
 
 using namespace re;
-using namespace re::emu;
 using namespace re::hw;
 using namespace re::hw::sh4;
 using namespace re::jit;
@@ -34,8 +34,12 @@ SH4::SH4(Dreamcast *dc)
       DebugInterface(this),
       ExecuteInterface(this),
       MemoryInterface(this),
+      WindowInterface(this),
       dc_(dc),
       code_cache_(nullptr),
+      show_perf_(false),
+      mips_(),
+      num_mips_(0),
       requested_interrupts_(0),
       pending_interrupts_(0),
       tmu_timers_{INVALID_TIMER, INVALID_TIMER, INVALID_TIMER},
@@ -93,14 +97,29 @@ void SH4::Run(const std::chrono::nanoseconds &delta) {
   s_current_cpu = this;
 
   // each block's epilog will decrement the remaining cycles as they run
-  ctx_.remaining_cycles = cycles;
+  ctx_.num_cycles = cycles;
 
-  while (ctx_.remaining_cycles > 0) {
+  while (ctx_.num_cycles > 0) {
     SH4BlockEntry *block = code_cache_->GetBlock(ctx_.pc);
 
     block->run();
 
     CheckPendingInterrupts();
+  }
+
+  // track mips
+  auto now = std::chrono::high_resolution_clock::now();
+  auto next_time = last_mips_time_ + std::chrono::seconds(1);
+
+  if (now > next_time) {
+    auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        now - last_mips_time_);
+    auto delta_f =
+        std::chrono::duration_cast<std::chrono::duration<float>>(delta).count();
+    auto delta_scaled = delta_f * 1000000.0f;
+    mips_[num_mips_++ % MAX_MIPS_SAMPLES] = ctx_.num_instrs / delta_scaled;
+    ctx_.num_instrs = 0;
+    last_mips_time_ = now;
   }
 
   s_current_cpu = nullptr;
@@ -288,6 +307,40 @@ void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
   memmap.Mount(sh4_sq_handle, SH4_SQ_SIZE, SH4_SQ_START);
 }
 
+void SH4::OnPaint(bool show_main_menu) {
+  if (show_main_menu && ImGui::BeginMainMenuBar()) {
+    if (ImGui::BeginMenu("CPU")) {
+      ImGui::MenuItem("Perf", "", &show_perf_);
+      ImGui::EndMenu();
+    }
+
+    ImGui::EndMainMenuBar();
+  }
+
+  if (show_perf_) {
+    ImGui::Begin("Perf", nullptr, ImGuiWindowFlags_NoTitleBar |
+                                      ImGuiWindowFlags_AlwaysAutoResize);
+
+    ImGui::SetWindowPos(ImVec2(
+        ImGui::GetIO().DisplaySize.x - ImGui::GetWindowSize().x - 10, 10));
+
+    // calculate average mips
+    float avg_mips = 0.0f;
+    for (int i = std::max(0, num_mips_ - MAX_MIPS_SAMPLES); i < num_mips_;
+         i++) {
+      avg_mips += mips_[i % MAX_MIPS_SAMPLES];
+    }
+    avg_mips /= std::max(std::min(num_mips_, MAX_MIPS_SAMPLES), 1);
+
+    char overlay_text[128];
+    snprintf(overlay_text, sizeof(overlay_text), "%.2f", avg_mips);
+    ImGui::PlotLines("MIPS", mips_, MAX_MIPS_SAMPLES, num_mips_, overlay_text,
+                     0.0f, 400.0f);
+
+    ImGui::End();
+  }
+}
+
 void SH4::CompilePC() {
   SH4CodeCache *code_cache = s_current_cpu->code_cache_;
   SH4Context *ctx = &s_current_cpu->ctx_;
@@ -305,7 +358,7 @@ void SH4::InvalidInstruction(SH4Context *ctx, uint64_t data) {
   CHECK_NE(it, self->breakpoints_.end());
 
   // force the main loop to break
-  self->ctx_.remaining_cycles = 0;
+  self->ctx_.num_cycles = 0;
 
   // let the debugger know execution has stopped
   self->dc_->debugger->Trap();

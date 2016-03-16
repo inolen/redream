@@ -5,9 +5,14 @@
 #include <vector>
 #include "hw/holly/tile_renderer.h"
 #include "hw/holly/trace.h"
-#include "sys/window.h"
+#include "ui/window_listener.h"
 
 namespace re {
+
+namespace ui {
+class Window;
+}
+
 namespace emu {
 
 struct TextureInst {
@@ -32,37 +37,33 @@ class TraceTextureCache : public hw::holly::TextureProvider {
   std::unordered_map<hw::holly::TextureKey, TextureInst> textures_;
 };
 
-class Tracer {
+class Tracer : public ui::WindowListener {
  public:
-  Tracer();
+  Tracer(ui::Window &window);
   ~Tracer();
 
   void Run(const char *path);
 
  private:
-  bool Init();
+  void OnPaint(bool show_main_menu) final;
+  void OnKeyDown(ui::Keycode code, int16_t value);
+  void OnClose() final;
+
   bool Parse(const char *path);
-
-  void PumpEvents();
-  void RenderFrame();
-
   int GetNumFrames();
+  void SetFrame(int n);
   void CopyCommandToContext(const hw::holly::TraceCommand *cmd,
                             hw::holly::TileContext *ctx);
-  void PrevContext();
-  void NextContext();
 
-  sys::Window wnd_;
+  ui::Window &window_;
   TraceTextureCache texcache_;
-  renderer::Backend *rb_;
-  hw::holly::TileRenderer *tile_renderer_;
+  hw::holly::TileRenderer tile_renderer_;
 
   bool running_;
   hw::holly::TraceReader reader_;
+  hw::holly::TileContext current_ctx_;
   hw::holly::TraceCommand *current_cmd_;
   int num_frames_;
-  int current_frame_;
-  hw::holly::TileContext *current_ctx_;
 };
 }
 }

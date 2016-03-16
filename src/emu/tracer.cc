@@ -2,13 +2,13 @@
 #include "emu/tracer.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/holly/trace.h"
-#include "renderer/gl_backend.h"
+#include "ui/window.h"
 
 using namespace re;
 using namespace re::emu;
 using namespace re::hw::holly;
 using namespace re::renderer;
-using namespace re::sys;
+using namespace re::ui;
 
 void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
                                    const uint8_t *palette,
@@ -34,31 +34,20 @@ TextureHandle TraceTextureCache::GetTexture(
 
   // register the texture if it hasn't already been
   if (!texture.handle) {
-    // TODO compare tex_it->tsp and tex_it->tcw with incoming?
     texture.handle = register_cb(texture.palette, texture.texture);
   }
 
   return texture.handle;
 }
 
-Tracer::Tracer() {
-  rb_ = new GLBackend(wnd_);
-  tile_renderer_ = new TileRenderer(*rb_, texcache_);
-  current_ctx_ = new TileContext();
+Tracer::Tracer(Window &window)
+    : window_(window), tile_renderer_(*window.render_backend(), texcache_) {
+  window_.AddListener(this);
 }
 
-Tracer::~Tracer() {
-  delete rb_;
-  delete tile_renderer_;
-  delete current_ctx_;
-}
+Tracer::~Tracer() { window_.RemoveListener(this); }
 
 void Tracer::Run(const char *path) {
-  if (!Init()) {
-    LOG_WARNING("Failed to initialize trace viewer");
-    return;
-  }
-
   if (!Parse(path)) {
     return;
   }
@@ -66,23 +55,44 @@ void Tracer::Run(const char *path) {
   running_ = true;
 
   while (running_) {
-    PumpEvents();
-
-    RenderFrame();
+    window_.PumpEvents();
   }
 }
 
-bool Tracer::Init() {
-  if (!wnd_.Init()) {
-    return false;
-  }
+void Tracer::OnPaint(bool show_main_menu) {
+  tile_renderer_.RenderContext(&current_ctx_);
 
-  if (!rb_->Init()) {
-    return false;
-  }
+  if (ImGui::Begin("Tracer")) {
+    int frame = current_cmd_->frame;
 
-  return true;
+    if (ImGui::SliderInt("frame", &frame, 0, num_frames_ - 1)) {
+      SetFrame(frame);
+    }
+
+    ImGui::Separator();
+
+    ImGui::LabelText("autosort", "%d", current_ctx_.autosort);
+    ImGui::LabelText("texture stride", "%d", current_ctx_.stride);
+    ImGui::LabelText("palette pixel format", "0x%08x",
+                     current_ctx_.pal_pxl_format);
+    ImGui::LabelText("bg isp", "0x%08x", current_ctx_.bg_isp.full);
+    ImGui::LabelText("bg tsp", "0x%08x", current_ctx_.bg_tsp.full);
+    ImGui::LabelText("bg tcw", "0x%08x", current_ctx_.bg_tcw.full);
+    ImGui::LabelText("bg depth", "%.2f", current_ctx_.bg_depth);
+
+    ImGui::End();
+  }
 }
+
+void Tracer::OnKeyDown(Keycode code, int16_t value) {
+  if (code == K_LEFT && value) {
+    SetFrame(current_cmd_->frame - 1);
+  } else if (code == K_RIGHT && value) {
+    SetFrame(current_cmd_->frame + 1);
+  }
+}
+
+void Tracer::OnClose() { running_ = false; }
 
 bool Tracer::Parse(const char *path) {
   if (!reader_.Parse(path)) {
@@ -96,49 +106,10 @@ bool Tracer::Parse(const char *path) {
     return false;
   }
 
-  current_frame_ = 0;
   current_cmd_ = nullptr;
-  NextContext();
+  SetFrame(0);
 
   return true;
-}
-
-void Tracer::PumpEvents() {
-  WindowEvent ev;
-
-  wnd_.PumpEvents();
-
-  while (wnd_.PollEvent(&ev)) {
-    switch (ev.type) {
-      case WE_KEY: {
-        if (ev.key.code == K_LEFT && ev.key.value) {
-          PrevContext();
-        } else if (ev.key.code == K_RIGHT && ev.key.value) {
-          NextContext();
-        }
-      } break;
-
-      case WE_QUIT: {
-        running_ = false;
-      } break;
-
-      default:
-        break;
-    }
-  }
-}
-
-void Tracer::RenderFrame() {
-  rb_->BeginFrame();
-
-  tile_renderer_->RenderContext(current_ctx_);
-
-  // render stats
-  char stats[512];
-  snprintf(stats, sizeof(stats), "frame %d / %d", current_frame_, num_frames_);
-  rb_->RenderText2D(0, 0, 12.0f, 0xffffffff, stats);
-
-  rb_->EndFrame();
 }
 
 int Tracer::GetNumFrames() {
@@ -147,7 +118,7 @@ int Tracer::GetNumFrames() {
   TraceCommand *cmd = reader_.cmd_head();
 
   while (cmd) {
-    if (cmd->type == TRACE_RENDER_CONTEXT) {
+    if (cmd->type == TRACE_CMD_CONTEXT) {
       num_frames++;
     }
 
@@ -157,86 +128,85 @@ int Tracer::GetNumFrames() {
   return num_frames;
 }
 
+// Se the current frame to be rendered. Note, due to textures being inserted on
+// demand after the render event, the event order will look like so:
+// RENDER_CONTEXT frame 0
+// INSERT_TEXTURE frame 0
+// INSERT_TEXTURE frame 0
+// INSERT_TEXTURE frame 0
+// RENDER_CONTEXT frame 1
+// INSERT_TEXTURE frame 1
+// INSERT_TEXTURE frame 1
+// RENDER_CONTEXT frame 2
+// INSERT_TEXTURE frame 2
+void Tracer::SetFrame(int n) {
+  n = std::max(0, std::min(n, num_frames_ - 1));
+
+  // current_cmd_ is either null, or the first command of the current frame
+  if (!current_cmd_ || n > current_cmd_->frame) {
+    TraceCommand *next = current_cmd_ ? current_cmd_->next : reader_.cmd_head();
+
+    // step forward until all events up to the end of the target frame have
+    // been processed
+    while (next && next->frame <= n) {
+      if (next->type == TRACE_CMD_CONTEXT) {
+        // track the beginning of the target frame
+        current_cmd_ = next;
+      } else if (next->type == TRACE_CMD_TEXTURE) {
+        texcache_.AddTexture(next->texture.tsp, next->texture.tcw,
+                             next->texture.palette, next->texture.texture);
+      }
+
+      next = next->next;
+    }
+  } else if (n < current_cmd_->frame) {
+    TraceCommand *prev = current_cmd_;
+
+    // step backwards until the start of the requested frame
+    while (prev && prev->frame >= n) {
+      if (prev->type == TRACE_CMD_CONTEXT) {
+        // track the beginning of the target frame
+        current_cmd_ = prev;
+      } else if (prev->type == TRACE_CMD_TEXTURE) {
+        // if the texture belongs to a frame after the target frame, remove it
+        // from the cache and add back the texture it overrode (if it did)
+        if (prev->frame > n) {
+          texcache_.RemoveTexture(prev->texture.tsp, prev->texture.tcw);
+
+          TraceCommand *override = prev->override;
+          if (override) {
+            CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
+
+            texcache_.AddTexture(override->texture.tsp, override->texture.tcw,
+                                 override->texture.palette,
+                                 override->texture.texture);
+          }
+        }
+      }
+
+      prev = prev->prev;
+    }
+  }
+
+  // copy off the render command for the current frame
+  CopyCommandToContext(current_cmd_, &current_ctx_);
+}
+
+// Copy RENDER_CONTEXT command to the current context being rendered.
 void Tracer::CopyCommandToContext(const TraceCommand *cmd, TileContext *ctx) {
-  CHECK_EQ(cmd->type, TRACE_RENDER_CONTEXT);
+  CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
-  ctx->autosort = cmd->render_context.autosort;
-  ctx->stride = cmd->render_context.stride;
-  ctx->pal_pxl_format = cmd->render_context.pal_pxl_format;
-  ctx->bg_isp = cmd->render_context.bg_isp;
-  ctx->bg_tsp = cmd->render_context.bg_tsp;
-  ctx->bg_tcw = cmd->render_context.bg_tcw;
-  ctx->bg_depth = cmd->render_context.bg_depth;
-  ctx->video_width = cmd->render_context.video_width;
-  ctx->video_height = cmd->render_context.video_height;
-  memcpy(ctx->bg_vertices, cmd->render_context.bg_vertices,
-         cmd->render_context.bg_vertices_size);
-  memcpy(ctx->data, cmd->render_context.data, cmd->render_context.data_size);
-  ctx->size = cmd->render_context.data_size;
-}
-
-void Tracer::PrevContext() {
-  int prev_frame = std::max(1, current_frame_ - 1);
-  if (prev_frame == current_frame_) {
-    return;
-  }
-
-  current_cmd_ = current_cmd_->prev;
-
-  // scrub through commands until the previous context is reached. for each
-  // command we move backwards through, re-apply the value it overrode
-  while (current_cmd_) {
-    TraceCommand *override = current_cmd_->override;
-
-    if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
-      texcache_.RemoveTexture(current_cmd_->insert_texture.tsp,
-                              current_cmd_->insert_texture.tcw);
-
-      if (override) {
-        CHECK_EQ(override->type, TRACE_INSERT_TEXTURE);
-        texcache_.AddTexture(
-            override->insert_texture.tsp, override->insert_texture.tcw,
-            override->insert_texture.palette, override->insert_texture.texture);
-      }
-    } else if (current_cmd_->type == TRACE_RENDER_CONTEXT) {
-      if (--current_frame_ == prev_frame) {
-        break;
-      }
-    }
-
-    current_cmd_ = current_cmd_->prev;
-  }
-
-  CHECK_NOTNULL(current_cmd_);
-
-  CopyCommandToContext(current_cmd_, current_ctx_);
-}
-
-void Tracer::NextContext() {
-  int next_frame = std::min(num_frames_, current_frame_ + 1);
-  if (next_frame == current_frame_) {
-    return;
-  }
-
-  current_cmd_ = current_cmd_ ? current_cmd_->next : reader_.cmd_head();
-
-  while (current_cmd_) {
-    if (current_cmd_->type == TRACE_INSERT_TEXTURE) {
-      texcache_.AddTexture(current_cmd_->insert_texture.tsp,
-                           current_cmd_->insert_texture.tcw,
-                           current_cmd_->insert_texture.palette,
-                           current_cmd_->insert_texture.texture);
-    } else if (current_cmd_->type == TRACE_RENDER_CONTEXT) {
-      if (++current_frame_ == next_frame) {
-        break;
-      }
-    }
-
-    current_cmd_ = current_cmd_->next;
-  }
-
-  CHECK_NOTNULL(current_cmd_);
-
-  // render the context
-  CopyCommandToContext(current_cmd_, current_ctx_);
+  ctx->autosort = cmd->context.autosort;
+  ctx->stride = cmd->context.stride;
+  ctx->pal_pxl_format = cmd->context.pal_pxl_format;
+  ctx->bg_isp = cmd->context.bg_isp;
+  ctx->bg_tsp = cmd->context.bg_tsp;
+  ctx->bg_tcw = cmd->context.bg_tcw;
+  ctx->bg_depth = cmd->context.bg_depth;
+  ctx->video_width = cmd->context.video_width;
+  ctx->video_height = cmd->context.video_height;
+  memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
+         cmd->context.bg_vertices_size);
+  memcpy(ctx->data, cmd->context.data, cmd->context.data_size);
+  ctx->size = cmd->context.data_size;
 }

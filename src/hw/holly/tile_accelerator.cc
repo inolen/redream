@@ -209,8 +209,11 @@ int TileAccelerator::GetVertexType(const PCW &pcw) {
 TileAccelerator::TileAccelerator(Dreamcast *dc, Backend *rb)
     : Device(*dc),
       MemoryInterface(this),
+      WindowInterface(this),
       dc_(dc),
       rb_(rb),
+      tile_renderer_(*rb, *this),
+      trace_writer_(nullptr),
       num_invalidated_(0),
       contexts_() {
   // initialize context queue
@@ -299,10 +302,9 @@ TextureHandle TileAccelerator::GetTexture(const TSP &tsp, const TCW &tcw,
         palette, palette_size, &HandlePaletteWrite, this, map_entry);
   }
 
-  // add insert to trace
-  if (dc_->trace_writer) {
-    dc_->trace_writer->WriteInsertTexture(tsp, tcw, palette, palette_size,
-                                          texture, texture_size);
+  if (trace_writer_) {
+    trace_writer_->WriteInsertTexture(tsp, tcw, palette, palette_size, texture,
+                                      texture_size);
   }
 
   return handle;
@@ -392,14 +394,9 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
   CHECK_NE(it, live_contexts_.end());
   TileContext *tactx = it->second;
 
-  // save PVR state to context
-  WritePVRState(tactx);
-  WriteBackgroundState(tactx);
-
-  // add context to trace
-  if (dc_->trace_writer) {
-    dc_->trace_writer->WriteRenderContext(tactx);
-  }
+  // save required register state being that the actual rendering of this
+  // context will be deferred
+  SaveRegisterState(tactx);
 
   // tell holly that rendering is complete
   holly_->RequestInterrupt(HOLLY_INTC_PCEOVINT);
@@ -411,6 +408,10 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
 
   // append to the pending queue
   pending_contexts_.push(tactx);
+
+  if (trace_writer_) {
+    trace_writer_->WriteRenderContext(tactx);
+  }
 }
 
 TileContext *TileAccelerator::GetLastContext() {
@@ -430,49 +431,67 @@ TileContext *TileAccelerator::GetLastContext() {
 }
 
 void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
-  RegionHandle ta_cmd_handle = memory.AllocRegion(
-      TA_CMD_START, TA_CMD_SIZE, nullptr, nullptr, nullptr, nullptr, nullptr,
-      nullptr, make_delegate(&TileAccelerator::WriteCommand, this), nullptr);
+  RegionHandle ta_poly_handle = memory.AllocRegion(
+      TA_POLY_START, TA_POLY_SIZE, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, make_delegate(&TileAccelerator::WritePolyFIFO, this), nullptr);
 
   RegionHandle ta_texture_handle = memory.AllocRegion(
       TA_TEXTURE_START, TA_TEXTURE_SIZE, nullptr, nullptr, nullptr, nullptr,
-      nullptr, nullptr, make_delegate(&TileAccelerator::WriteTexture, this),
+      nullptr, nullptr, make_delegate(&TileAccelerator::WriteTextureFIFO, this),
       nullptr);
 
-  memmap.Mount(ta_cmd_handle, TA_CMD_SIZE, TA_CMD_START);
+  memmap.Mount(ta_poly_handle, TA_POLY_SIZE, TA_POLY_START);
   memmap.Mount(ta_texture_handle, TA_TEXTURE_SIZE, TA_TEXTURE_START);
 }
 
-void TileAccelerator::HandleTextureWrite(void *ctx, const Exception &ex,
-                                         void *data) {
-  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
-  TextureCacheMap::value_type *map_entry =
-      reinterpret_cast<TextureCacheMap::value_type *>(data);
+void TileAccelerator::OnPaint(bool show_main_menu) {
+  // render the latest context
+  TileContext *tactx = GetLastContext();
 
-  // don't double remove the watch during invalidation
-  TextureEntry &entry = map_entry->second;
-  entry.texture_watch = nullptr;
+  if (tactx) {
+    tile_renderer_.RenderContext(tactx);
+  }
 
-  // add to pending invalidation list (can't remove inside of signal
-  // handler)
-  TextureKey texture_key = map_entry->first;
-  self->pending_invalidations_.insert(texture_key);
+  if (show_main_menu && ImGui::BeginMainMenuBar()) {
+    if (ImGui::BeginMenu("TA")) {
+      if ((!trace_writer_ && ImGui::MenuItem("Start trace")) ||
+          (trace_writer_ && ImGui::MenuItem("Stop trace"))) {
+        ToggleTracing();
+      }
+      ImGui::EndMenu();
+    }
+
+    ImGui::EndMainMenuBar();
+  }
 }
 
-void TileAccelerator::HandlePaletteWrite(void *ctx, const Exception &ex,
-                                         void *data) {
-  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
-  TextureCacheMap::value_type *map_entry =
-      reinterpret_cast<TextureCacheMap::value_type *>(data);
+void TileAccelerator::ToggleTracing() {
+  if (!trace_writer_) {
+    char filename[PATH_MAX];
+    GetNextTraceFilename(filename, sizeof(filename));
 
-  // don't double remove the watch during invalidation
-  TextureEntry &entry = map_entry->second;
-  entry.palette_watch = nullptr;
+    trace_writer_ = new TraceWriter();
 
-  // add to pending invalidation list (can't remove inside of signal
-  // handler)
-  TextureKey texture_key = map_entry->first;
-  self->pending_invalidations_.insert(texture_key);
+    if (!trace_writer_->Open(filename)) {
+      delete trace_writer_;
+      trace_writer_ = nullptr;
+
+      LOG_INFO("Failed to start tracing");
+
+      return;
+    }
+
+    // clear texture cache in order to generate insert events for all textures
+    // referenced while tracing
+    ClearTextures();
+
+    LOG_INFO("Begin tracing to %s", filename);
+  } else {
+    delete trace_writer_;
+    trace_writer_ = nullptr;
+
+    LOG_INFO("End tracing");
+  }
 }
 
 void TileAccelerator::ClearTextures() {
@@ -529,17 +548,49 @@ void TileAccelerator::InvalidateTexture(TextureCacheMap::iterator it) {
   textures_.erase(it);
 }
 
-void TileAccelerator::WriteCommand(uint32_t addr, uint32_t value) {
+void TileAccelerator::HandleTextureWrite(void *ctx, const Exception &ex,
+                                         void *data) {
+  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
+  TextureCacheMap::value_type *map_entry =
+      reinterpret_cast<TextureCacheMap::value_type *>(data);
+
+  // don't double remove the watch during invalidation
+  TextureEntry &entry = map_entry->second;
+  entry.texture_watch = nullptr;
+
+  // add to pending invalidation list (can't remove inside of signal
+  // handler)
+  TextureKey texture_key = map_entry->first;
+  self->pending_invalidations_.insert(texture_key);
+}
+
+void TileAccelerator::HandlePaletteWrite(void *ctx, const Exception &ex,
+                                         void *data) {
+  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
+  TextureCacheMap::value_type *map_entry =
+      reinterpret_cast<TextureCacheMap::value_type *>(data);
+
+  // don't double remove the watch during invalidation
+  TextureEntry &entry = map_entry->second;
+  entry.palette_watch = nullptr;
+
+  // add to pending invalidation list (can't remove inside of signal
+  // handler)
+  TextureKey texture_key = map_entry->first;
+  self->pending_invalidations_.insert(texture_key);
+}
+
+void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
   WriteContext(dc_->TA_ISP_BASE.base_address, value);
 }
 
-void TileAccelerator::WriteTexture(uint32_t addr, uint32_t value) {
+void TileAccelerator::WriteTextureFIFO(uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
 
   re::store(&video_ram_[addr], value);
 }
 
-void TileAccelerator::WritePVRState(TileContext *tactx) {
+void TileAccelerator::SaveRegisterState(TileContext *tactx) {
   // autosort
   if (!dc_->FPU_PARAM_CFG.region_header_type) {
     tactx->autosort = !dc_->ISP_FEED_CFG.presort;
@@ -565,9 +616,7 @@ void TileAccelerator::WritePVRState(TileContext *tactx) {
     tactx->video_width = 320;
     tactx->video_height = 240;
   }
-}
 
-void TileAccelerator::WriteBackgroundState(TileContext *tactx) {
   // according to the hardware docs, this is the correct calculation of the
   // background ISP address. however, in practice, the second TA buffer's ISP
   // address comes out to be 0x800000 when booting the bios and the vram is

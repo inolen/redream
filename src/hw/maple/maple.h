@@ -3,7 +3,7 @@
 
 #include <memory>
 #include "hw/machine.h"
-#include "sys/keycode.h"
+#include "ui/keycode.h"
 
 namespace re {
 namespace hw {
@@ -16,8 +16,6 @@ struct Register;
 class Memory;
 
 namespace maple {
-
-enum { MAX_PORTS = 4 };
 
 enum MapleFunction {
   FN_CONTROLLER = 0x01000000,
@@ -92,15 +90,17 @@ struct MapleFrame {
   uint32_t params[0xff];
 };
 
+static const int MAX_PORTS = 4;
+
 class MapleDevice {
  public:
   virtual ~MapleDevice() {}
 
-  virtual bool HandleInput(sys::Keycode key, int16_t value) = 0;
+  virtual bool HandleInput(ui::Keycode key, int16_t value) = 0;
   virtual bool HandleFrame(const MapleFrame &frame, MapleFrame &res) = 0;
 };
 
-class Maple : public Device {
+class Maple : public Device, public WindowInterface {
   friend class holly::Holly;
 
  public:
@@ -108,8 +108,10 @@ class Maple : public Device {
 
   bool Init() final;
 
-  bool HandleInput(int port, sys::Keycode key, int16_t value);
   void VBlank();
+
+ private:
+  void OnKeyDown(ui::Keycode code, int16_t value) final;
 
  private:
   template <typename T>

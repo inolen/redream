@@ -39,7 +39,11 @@ struct SH4Context {
   void (*SRUpdated)(SH4Context *, uint64_t old_sr);
   void (*FPSCRUpdated)(SH4Context *, uint64_t old_fpscr);
 
-  int32_t remaining_cycles;
+  // the main dispatch loop is ran until num_cycles is <= 0
+  int32_t num_cycles;
+
+  // used for debug performance monitoring
+  uint32_t num_instrs;
 
   uint32_t pc, pr, sr, sr_qm, fpscr;
   uint32_t dbr, gbr, vbr;
