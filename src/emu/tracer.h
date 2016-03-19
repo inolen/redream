@@ -68,7 +68,6 @@ class Tracer : public ui::WindowListener {
   hw::holly::TraceReader reader_;
   hw::holly::TraceCommand *current_cmd_;
   hw::holly::TileContext current_ctx_;
-  hw::holly::TextureKey current_tex_;
   int num_frames_;
 };
 }

@@ -51,8 +51,7 @@ TextureHandle TraceTextureCache::GetTexture(hw::holly::TextureKey texture_key) {
 
 Tracer::Tracer(Window &window)
     : window_(window),
-      tile_renderer_(*window.render_backend(), texcache_),
-      current_tex_(0) {
+      tile_renderer_(*window.render_backend(), texcache_) {
   window_.AddListener(this);
 }
 
@@ -72,33 +71,35 @@ void Tracer::Run(const char *path) {
 
 void Tracer::OnPaint(bool show_main_menu) {
   // render the current frame
-  tile_renderer_.RenderContext(&current_ctx_);
+  tile_renderer_.RenderContext(&current_ctx_, true);
 
   // render debug UI
   ImGuiIO &io = ImGui::GetIO();
 
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-
   {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::Begin("Scrubber", nullptr,
                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar);
-
-    int frame = current_cmd_->frame;
 
     ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
     ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
 
     ImGui::PushItemWidth(-1.0f);
+    int frame = current_cmd_->frame;
     if (ImGui::SliderInt("", &frame, 0, num_frames_ - 1)) {
       SetFrame(frame);
     }
     ImGui::PopItemWidth();
 
     ImGui::End();
+    ImGui::PopStyleVar();
   }
 
   {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+
     ImGui::Begin("Textures", nullptr, ImGuiWindowFlags_NoTitleBar |
                                           ImGuiWindowFlags_NoResize |
                                           ImGuiWindowFlags_NoMove |
@@ -113,64 +114,35 @@ void Tracer::OnPaint(bool show_main_menu) {
 
     for (auto it = begin; it != end; ++it) {
       const TextureInst &tex = it->second;
-      ImTextureID texid =
+      ImTextureID handle_id =
           reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex.handle));
-      bool current = current_tex_ == it->first;
 
-      if (current) {
-        ImGui::PushStyleColor(ImGuiCol_Button,
-                              ImVec4(0.67f, 0.40f, 0.40f, 1.00f));
-      } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+      ImGui::ImageButton(handle_id, ImVec2(32.0f, 32.0f));
+
+      char popup_name[128];
+      snprintf(popup_name, sizeof(popup_name), "texture_%d", tex.handle);
+
+      if (ImGui::BeginPopupContextItem(popup_name, 0)) {
+        ImGui::Image(handle_id, ImVec2(128, 128));
+        ImGui::EndPopup();
       }
-
-      if (ImGui::ImageButton(texid, ImVec2(32.0f, 32.0f))) {
-        current_tex_ = it->first;
-      }
-
-      ImGui::PopStyleColor();
 
       ImGui::SameLine();
     }
 
     ImGui::End();
-  }
 
-  ImGui::PopStyleVar();
-
-  {
-    ImGui::Begin("Tracer", nullptr, ImGuiWindowFlags_NoTitleBar);
-
-    if (ImGui::CollapsingHeader("Frame")) {
-      ImGui::PushItemWidth(70.0f);
-      ImGui::LabelText("autosort", "%d", current_ctx_.autosort);
-      ImGui::LabelText("stride", "%d", current_ctx_.stride);
-      ImGui::LabelText("pal_pxl_format", "0x%08x", current_ctx_.pal_pxl_format);
-      ImGui::LabelText("bg isp", "0x%08x", current_ctx_.bg_isp.full);
-      ImGui::LabelText("bg tsp", "0x%08x", current_ctx_.bg_tsp.full);
-      ImGui::LabelText("bg tcw", "0x%08x", current_ctx_.bg_tcw.full);
-      ImGui::LabelText("bg depth", "%.2f", current_ctx_.bg_depth);
-      ImGui::PopItemWidth();
-    }
-
-    if (ImGui::CollapsingHeader("Current texture")) {
-      if (current_tex_) {
-        TextureHandle handle = texcache_.GetTexture(current_tex_);
-
-        if (handle) {
-          ImTextureID handle_id =
-              reinterpret_cast<ImTextureID>(static_cast<intptr_t>(handle));
-          ImGui::Image(handle_id, ImVec2(128, 128));
-        }
-      }
-    }
-
-    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
   }
 }
 
 void Tracer::OnKeyDown(Keycode code, int16_t value) {
-  if (code == K_LEFT && value) {
+  if (code == K_F1) {
+    if (value) {
+      window_.EnableMainMenu(!window_.MainMenuEnabled());
+    }
+  } else if (code == K_LEFT && value) {
     SetFrame(current_cmd_->frame - 1);
   } else if (code == K_RIGHT && value) {
     SetFrame(current_cmd_->frame + 1);
