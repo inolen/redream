@@ -323,6 +323,8 @@ void SH4::OnPaint(bool show_main_menu) {
 
   if (show_perf_) {
     ImGui::Begin("Perf", nullptr, ImGuiWindowFlags_NoTitleBar |
+                                      ImGuiWindowFlags_NoResize |
+                                      ImGuiWindowFlags_NoMove |
                                       ImGuiWindowFlags_AlwaysAutoResize);
 
     ImGui::SetWindowPos(ImVec2(

@@ -23,18 +23,23 @@ struct TextureInst {
   renderer::TextureHandle handle;
 };
 
+typedef std::unordered_map<hw::holly::TextureKey, TextureInst> TextureMap;
+
 class TraceTextureCache : public hw::holly::TextureProvider {
  public:
+  const TextureMap::iterator textures_begin() { return textures_.begin(); }
+  const TextureMap::iterator textures_end() { return textures_.end(); }
+
   void AddTexture(const hw::holly::TSP &tsp, hw::holly::TCW &tcw,
                   const uint8_t *palette, const uint8_t *texture);
   void RemoveTexture(const hw::holly::TSP &tsp, hw::holly::TCW &tcw);
-
   renderer::TextureHandle GetTexture(
       const hw::holly::TSP &tsp, const hw::holly::TCW &tcw,
       hw::holly::RegisterTextureCallback register_cb);
+  renderer::TextureHandle GetTexture(hw::holly::TextureKey texture_key);
 
  private:
-  std::unordered_map<hw::holly::TextureKey, TextureInst> textures_;
+  TextureMap textures_;
 };
 
 class Tracer : public ui::WindowListener {
@@ -61,8 +66,9 @@ class Tracer : public ui::WindowListener {
 
   bool running_;
   hw::holly::TraceReader reader_;
-  hw::holly::TileContext current_ctx_;
   hw::holly::TraceCommand *current_cmd_;
+  hw::holly::TileContext current_ctx_;
+  hw::holly::TextureKey current_tex_;
   int num_frames_;
 };
 }

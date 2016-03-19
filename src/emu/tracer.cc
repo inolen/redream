@@ -40,8 +40,19 @@ TextureHandle TraceTextureCache::GetTexture(
   return texture.handle;
 }
 
+TextureHandle TraceTextureCache::GetTexture(hw::holly::TextureKey texture_key) {
+  auto it = textures_.find(texture_key);
+  if (it == textures_.end()) {
+    return 0;
+  }
+  TextureInst &texture = it->second;
+  return texture.handle;
+}
+
 Tracer::Tracer(Window &window)
-    : window_(window), tile_renderer_(*window.render_backend(), texcache_) {
+    : window_(window),
+      tile_renderer_(*window.render_backend(), texcache_),
+      current_tex_(0) {
   window_.AddListener(this);
 }
 
@@ -60,25 +71,99 @@ void Tracer::Run(const char *path) {
 }
 
 void Tracer::OnPaint(bool show_main_menu) {
+  // render the current frame
   tile_renderer_.RenderContext(&current_ctx_);
 
-  if (ImGui::Begin("Tracer")) {
+  // render debug UI
+  ImGuiIO &io = ImGui::GetIO();
+
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+
+  {
+    ImGui::Begin("Scrubber", nullptr,
+                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar);
+
     int frame = current_cmd_->frame;
 
-    if (ImGui::SliderInt("frame", &frame, 0, num_frames_ - 1)) {
+    ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
+    ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
+
+    ImGui::PushItemWidth(-1.0f);
+    if (ImGui::SliderInt("", &frame, 0, num_frames_ - 1)) {
       SetFrame(frame);
     }
+    ImGui::PopItemWidth();
 
-    ImGui::Separator();
+    ImGui::End();
+  }
 
-    ImGui::LabelText("autosort", "%d", current_ctx_.autosort);
-    ImGui::LabelText("texture stride", "%d", current_ctx_.stride);
-    ImGui::LabelText("palette pixel format", "0x%08x",
-                     current_ctx_.pal_pxl_format);
-    ImGui::LabelText("bg isp", "0x%08x", current_ctx_.bg_isp.full);
-    ImGui::LabelText("bg tsp", "0x%08x", current_ctx_.bg_tsp.full);
-    ImGui::LabelText("bg tcw", "0x%08x", current_ctx_.bg_tcw.full);
-    ImGui::LabelText("bg depth", "%.2f", current_ctx_.bg_depth);
+  {
+    ImGui::Begin("Textures", nullptr, ImGuiWindowFlags_NoTitleBar |
+                                          ImGuiWindowFlags_NoResize |
+                                          ImGuiWindowFlags_NoMove |
+                                          ImGuiWindowFlags_HorizontalScrollbar);
+
+    ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
+    ImGui::SetWindowPos(
+        ImVec2(0.0f, io.DisplaySize.y - ImGui::GetWindowSize().y));
+
+    auto begin = texcache_.textures_begin();
+    auto end = texcache_.textures_end();
+
+    for (auto it = begin; it != end; ++it) {
+      const TextureInst &tex = it->second;
+      ImTextureID texid =
+          reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex.handle));
+      bool current = current_tex_ == it->first;
+
+      if (current) {
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              ImVec4(0.67f, 0.40f, 0.40f, 1.00f));
+      } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+      }
+
+      if (ImGui::ImageButton(texid, ImVec2(32.0f, 32.0f))) {
+        current_tex_ = it->first;
+      }
+
+      ImGui::PopStyleColor();
+
+      ImGui::SameLine();
+    }
+
+    ImGui::End();
+  }
+
+  ImGui::PopStyleVar();
+
+  {
+    ImGui::Begin("Tracer", nullptr, ImGuiWindowFlags_NoTitleBar);
+
+    if (ImGui::CollapsingHeader("Frame")) {
+      ImGui::PushItemWidth(70.0f);
+      ImGui::LabelText("autosort", "%d", current_ctx_.autosort);
+      ImGui::LabelText("stride", "%d", current_ctx_.stride);
+      ImGui::LabelText("pal_pxl_format", "0x%08x", current_ctx_.pal_pxl_format);
+      ImGui::LabelText("bg isp", "0x%08x", current_ctx_.bg_isp.full);
+      ImGui::LabelText("bg tsp", "0x%08x", current_ctx_.bg_tsp.full);
+      ImGui::LabelText("bg tcw", "0x%08x", current_ctx_.bg_tcw.full);
+      ImGui::LabelText("bg depth", "%.2f", current_ctx_.bg_depth);
+      ImGui::PopItemWidth();
+    }
+
+    if (ImGui::CollapsingHeader("Current texture")) {
+      if (current_tex_) {
+        TextureHandle handle = texcache_.GetTexture(current_tex_);
+
+        if (handle) {
+          ImTextureID handle_id =
+              reinterpret_cast<ImTextureID>(static_cast<intptr_t>(handle));
+          ImGui::Image(handle_id, ImVec2(128, 128));
+        }
+      }
+    }
 
     ImGui::End();
   }
