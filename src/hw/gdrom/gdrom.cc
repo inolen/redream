@@ -474,12 +474,12 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
       TriggerEvent(EV_SPI_CMD_DONE);
       break;
 
-    // case SPI_CD_OPEN:
-    // case SPI_CD_PLAY:
-    // case SPI_CD_SEEK:
-    // case SPI_CD_SCAN:
-    //   TriggerEvent(EV_SPI_CMD_DONE);
-    //   break;
+    case SPI_CD_OPEN:
+    case SPI_CD_PLAY:
+    case SPI_CD_SEEK:
+    case SPI_CD_SCAN:
+      TriggerEvent(EV_SPI_CMD_DONE);
+      break;
 
     case SPI_UNKNOWN_70:
       TriggerEvent(EV_SPI_CMD_DONE);
