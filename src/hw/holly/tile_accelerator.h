@@ -38,7 +38,7 @@ struct TextureEntry {
   sys::WatchHandle palette_watch;
 };
 
-typedef std::unordered_map<TextureKey, TileContext *> TileContextMap;
+typedef std::unordered_map<uint32_t, TileContext *> TileContextMap;
 typedef std::queue<TileContext *> TileContextQueue;
 
 class TileAccelerator : public Device,
@@ -63,7 +63,6 @@ class TileAccelerator : public Device,
   void InitContext(uint32_t addr);
   void WriteContext(uint32_t addr, uint32_t value);
   void FinalizeContext(uint32_t addr);
-  TileContext *GetLastContext();
 
  protected:
   // MemoryInterface
@@ -73,7 +72,8 @@ class TileAccelerator : public Device,
   void OnPaint(bool show_main_menu) final;
 
  private:
-  void ToggleTracing();
+  void WritePolyFIFO(uint32_t addr, uint32_t value);
+  void WriteTextureFIFO(uint32_t addr, uint32_t value);
 
   void ClearTextures();
   void ClearPendingTextures();
@@ -82,10 +82,9 @@ class TileAccelerator : public Device,
   void HandleTextureWrite(const sys::Exception &ex, void *data);
   void HandlePaletteWrite(const sys::Exception &ex, void *data);
 
-  void WritePolyFIFO(uint32_t addr, uint32_t value);
-  void WriteTextureFIFO(uint32_t addr, uint32_t value);
-
   void SaveRegisterState(TileContext *tactx);
+
+  void ToggleTracing();
 
   Dreamcast *dc_;
   renderer::Backend *rb_;
@@ -102,7 +101,7 @@ class TileAccelerator : public Device,
   TileContext contexts_[MAX_CONTEXTS];
   TileContextMap live_contexts_;
   TileContextQueue free_contexts_;
-  TileContextQueue pending_contexts_;
+  TileContext *last_context_;
 };
 }
 }

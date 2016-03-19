@@ -215,7 +215,8 @@ TileAccelerator::TileAccelerator(Dreamcast *dc, Backend *rb)
       tile_renderer_(*rb, *this),
       trace_writer_(nullptr),
       num_invalidated_(0),
-      contexts_() {
+      contexts_(),
+      last_context_(nullptr) {
   // initialize context queue
   for (int i = 0; i < MAX_CONTEXTS; i++) {
     free_contexts_.push(&contexts_[i]);
@@ -324,6 +325,7 @@ void TileAccelerator::InitContext(uint32_t addr) {
     CHECK(free_contexts_.size());
 
     TileContext *tactx = free_contexts_.front();
+    CHECK_NOTNULL(tactx);
     free_contexts_.pop();
 
     auto res = live_contexts_.insert(std::make_pair(addr, tactx));
@@ -408,28 +410,17 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
   // erase from the live map
   live_contexts_.erase(it);
 
-  // append to the pending queue
-  pending_contexts_.push(tactx);
+  // free and replace the last context
+  if (last_context_) {
+    free_contexts_.push(last_context_);
+    last_context_ = nullptr;
+  }
+
+  last_context_ = tactx;
 
   if (trace_writer_) {
     trace_writer_->WriteRenderContext(tactx);
   }
-}
-
-TileContext *TileAccelerator::GetLastContext() {
-  if (pending_contexts_.empty()) {
-    return nullptr;
-  }
-
-  // free pending contexts which are not the latest
-  while (pending_contexts_.size() > 1) {
-    TileContext *tactx = pending_contexts_.front();
-    pending_contexts_.pop();
-    free_contexts_.push(tactx);
-  }
-
-  // return the latest context
-  return pending_contexts_.front();
 }
 
 void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
@@ -447,11 +438,8 @@ void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
 }
 
 void TileAccelerator::OnPaint(bool show_main_menu) {
-  // render the latest context
-  TileContext *tactx = GetLastContext();
-
-  if (tactx) {
-    tile_renderer_.RenderContext(tactx);
+  if (last_context_) {
+    tile_renderer_.RenderContext(last_context_);
   }
 
   if (show_main_menu && ImGui::BeginMainMenuBar()) {
@@ -467,33 +455,14 @@ void TileAccelerator::OnPaint(bool show_main_menu) {
   }
 }
 
-void TileAccelerator::ToggleTracing() {
-  if (!trace_writer_) {
-    char filename[PATH_MAX];
-    GetNextTraceFilename(filename, sizeof(filename));
+void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
+  WriteContext(dc_->TA_ISP_BASE.base_address, value);
+}
 
-    trace_writer_ = new TraceWriter();
+void TileAccelerator::WriteTextureFIFO(uint32_t addr, uint32_t value) {
+  addr &= 0xeeffffff;
 
-    if (!trace_writer_->Open(filename)) {
-      delete trace_writer_;
-      trace_writer_ = nullptr;
-
-      LOG_INFO("Failed to start tracing");
-
-      return;
-    }
-
-    // clear texture cache in order to generate insert events for all textures
-    // referenced while tracing
-    ClearTextures();
-
-    LOG_INFO("Begin tracing to %s", filename);
-  } else {
-    delete trace_writer_;
-    trace_writer_ = nullptr;
-
-    LOG_INFO("End tracing");
-  }
+  re::store(&video_ram_[addr], value);
 }
 
 void TileAccelerator::ClearTextures() {
@@ -578,16 +547,6 @@ void TileAccelerator::HandlePaletteWrite(const Exception &ex, void *data) {
   pending_invalidations_.insert(texture_key);
 }
 
-void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
-  WriteContext(dc_->TA_ISP_BASE.base_address, value);
-}
-
-void TileAccelerator::WriteTextureFIFO(uint32_t addr, uint32_t value) {
-  addr &= 0xeeffffff;
-
-  re::store(&video_ram_[addr], value);
-}
-
 void TileAccelerator::SaveRegisterState(TileContext *tactx) {
   // autosort
   if (!dc_->FPU_PARAM_CFG.region_header_type) {
@@ -655,5 +614,34 @@ void TileAccelerator::SaveRegisterState(TileContext *tactx) {
 
     bg_offset += vertex_size;
     vram_offset += vertex_size;
+  }
+}
+
+void TileAccelerator::ToggleTracing() {
+  if (!trace_writer_) {
+    char filename[PATH_MAX];
+    GetNextTraceFilename(filename, sizeof(filename));
+
+    trace_writer_ = new TraceWriter();
+
+    if (!trace_writer_->Open(filename)) {
+      delete trace_writer_;
+      trace_writer_ = nullptr;
+
+      LOG_INFO("Failed to start tracing");
+
+      return;
+    }
+
+    // clear texture cache in order to generate insert events for all textures
+    // referenced while tracing
+    ClearTextures();
+
+    LOG_INFO("Begin tracing to %s", filename);
+  } else {
+    delete trace_writer_;
+    trace_writer_ = nullptr;
+
+    LOG_INFO("End tracing");
   }
 }
