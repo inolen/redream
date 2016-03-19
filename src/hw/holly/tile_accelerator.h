@@ -79,10 +79,8 @@ class TileAccelerator : public Device,
   void ClearPendingTextures();
   void InvalidateTexture(TextureKey key);
   void InvalidateTexture(TextureCacheMap::iterator it);
-  static void HandleTextureWrite(void *ctx, const sys::Exception &ex,
-                                 void *data);
-  static void HandlePaletteWrite(void *ctx, const sys::Exception &ex,
-                                 void *data);
+  void HandleTextureWrite(const sys::Exception &ex, void *data);
+  void HandlePaletteWrite(const sys::Exception &ex, void *data);
 
   void WritePolyFIFO(uint32_t addr, uint32_t value);
   void WriteTextureFIFO(uint32_t addr, uint32_t value);

@@ -1,6 +1,7 @@
 #ifndef SYS_MEMORY_H
 #define SYS_MEMORY_H
 
+#include "core/delegate.h"
 #include "core/interval_tree.h"
 #include "sys/exception_handler.h"
 
@@ -48,20 +49,19 @@ enum WatchType {
   WATCH_SINGLE_WRITE,
 };
 
-typedef void (*WatchHandler)(void *, const sys::Exception &, void *);
+typedef delegate<void(const sys::Exception &, void *)> WatchDelegate;
 
 struct Watch {
   WatchType type;
-  WatchHandler handler;
-  void *ctx;
+  WatchDelegate delegate;
   void *data;
 };
 
 typedef IntervalTree<Watch> WatchTree;
 typedef WatchTree::node_type *WatchHandle;
 
-WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
-                                void *ctx, void *data);
+WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchDelegate delegate,
+                                void *data);
 void RemoveAccessWatch(WatchHandle handle);
 }
 }

@@ -28,8 +28,8 @@ static bool HandleException(void *ctx, Exception &ex) {
     WatchTree::node_type *node = *(it++);
     Watch &watch = node->value;
 
-    // call the handler for this access watch
-    watch.handler(watch.ctx, ex, watch.data);
+    // call the delegate for this access watch
+    watch.delegate(ex, watch.data);
 
     if (watch.type == WATCH_SINGLE_WRITE) {
       // restore page permissions
@@ -45,8 +45,8 @@ static bool HandleException(void *ctx, Exception &ex) {
   return range_it.first != range_it.second;
 }
 
-WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
-                                void *ctx, void *data) {
+WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchDelegate delegate,
+                                void *data) {
   // page align the range to be watched
   size_t page_size = GetPageSize();
   uintptr_t aligned_begin =
@@ -59,9 +59,8 @@ WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchHandler handler,
   CHECK(ProtectPages(reinterpret_cast<void *>(aligned_begin), aligned_size,
                      ACC_READONLY));
 
-  WatchHandle handle =
-      watches.Insert(aligned_begin, aligned_end,
-                     Watch{WATCH_SINGLE_WRITE, handler, ctx, data});
+  WatchHandle handle = watches.Insert(
+      aligned_begin, aligned_end, Watch{WATCH_SINGLE_WRITE, delegate, data});
 
   return handle;
 }

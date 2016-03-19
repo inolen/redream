@@ -295,11 +295,13 @@ TextureHandle TileAccelerator::GetTexture(const TSP &tsp, const TCW &tcw,
   TextureCacheMap::value_type *map_entry = &(*result.first);
 
   entry.texture_watch = AddSingleWriteWatch(
-      texture, texture_size, &HandleTextureWrite, this, map_entry);
+      texture, texture_size,
+      make_delegate(&TileAccelerator::HandleTextureWrite, this), map_entry);
 
   if (palette) {
     entry.palette_watch = AddSingleWriteWatch(
-        palette, palette_size, &HandlePaletteWrite, this, map_entry);
+        palette, palette_size,
+        make_delegate(&TileAccelerator::HandlePaletteWrite, this), map_entry);
   }
 
   if (trace_writer_) {
@@ -548,9 +550,7 @@ void TileAccelerator::InvalidateTexture(TextureCacheMap::iterator it) {
   textures_.erase(it);
 }
 
-void TileAccelerator::HandleTextureWrite(void *ctx, const Exception &ex,
-                                         void *data) {
-  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
+void TileAccelerator::HandleTextureWrite(const Exception &ex, void *data) {
   TextureCacheMap::value_type *map_entry =
       reinterpret_cast<TextureCacheMap::value_type *>(data);
 
@@ -561,12 +561,10 @@ void TileAccelerator::HandleTextureWrite(void *ctx, const Exception &ex,
   // add to pending invalidation list (can't remove inside of signal
   // handler)
   TextureKey texture_key = map_entry->first;
-  self->pending_invalidations_.insert(texture_key);
+  pending_invalidations_.insert(texture_key);
 }
 
-void TileAccelerator::HandlePaletteWrite(void *ctx, const Exception &ex,
-                                         void *data) {
-  TileAccelerator *self = reinterpret_cast<TileAccelerator *>(ctx);
+void TileAccelerator::HandlePaletteWrite(const Exception &ex, void *data) {
   TextureCacheMap::value_type *map_entry =
       reinterpret_cast<TextureCacheMap::value_type *>(data);
 
@@ -577,7 +575,7 @@ void TileAccelerator::HandlePaletteWrite(void *ctx, const Exception &ex,
   // add to pending invalidation list (can't remove inside of signal
   // handler)
   TextureKey texture_key = map_entry->first;
-  self->pending_invalidations_.insert(texture_key);
+  pending_invalidations_.insert(texture_key);
 }
 
 void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
