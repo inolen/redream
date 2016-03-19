@@ -12,7 +12,13 @@ using namespace re::hw::sh4;
 using namespace re::ui;
 
 Maple::Maple(Dreamcast *dc)
-    : Device(*dc), WindowInterface(this), dc_(dc), devices_() {
+    : Device(*dc),
+      WindowInterface(this),
+      dc_(dc),
+      memory_(nullptr),
+      holly_(nullptr),
+      holly_regs_(nullptr),
+      devices_() {
   // default controller device
   devices_[0] = std::unique_ptr<MapleController>(new MapleController());
 }

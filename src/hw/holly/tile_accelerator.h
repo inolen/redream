@@ -88,10 +88,10 @@ class TileAccelerator : public Device,
 
   Dreamcast *dc_;
   renderer::Backend *rb_;
+  hw::holly::TileRenderer tile_renderer_;
   Memory *memory_;
   holly::Holly *holly_;
   uint8_t *video_ram_;
-  hw::holly::TileRenderer tile_renderer_;
   TraceWriter *trace_writer_;
 
   TextureCacheMap textures_;

@@ -15,7 +15,14 @@ PVR2::PVR2(Dreamcast *dc)
     : Device(*dc),
       MemoryInterface(this),
       dc_(dc),
+      scheduler_(nullptr),
+      holly_(nullptr),
+      ta_(nullptr),
+      pvr_regs_(nullptr),
+      palette_ram_(nullptr),
+      video_ram_(nullptr),
       line_timer_(INVALID_TIMER),
+      line_clock_(0),
       current_scanline_(0) {}
 
 bool PVR2::Init() {

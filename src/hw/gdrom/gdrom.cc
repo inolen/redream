@@ -16,6 +16,9 @@ using namespace re::hw::sh4;
 GDROM::GDROM(Dreamcast *dc)
     : Device(*dc),
       dc_(dc),
+      memory_(nullptr),
+      holly_(nullptr),
+      holly_regs_(nullptr),
       features_{0},
       intreason_{0},
       sectnum_{0},

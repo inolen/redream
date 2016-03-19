@@ -8,7 +8,12 @@ using namespace re::hw;
 using namespace re::hw::aica;
 using namespace re::hw::holly;
 
-AICA::AICA(Dreamcast *dc) : Device(*dc), MemoryInterface(this), dc_(dc) {}
+AICA::AICA(Dreamcast *dc)
+    : Device(*dc),
+      MemoryInterface(this),
+      dc_(dc),
+      aica_regs_(nullptr),
+      wave_ram_(nullptr) {}
 
 bool AICA::Init() {
   aica_regs_ = dc_->memory->TranslateVirtual(AICA_REG_START);

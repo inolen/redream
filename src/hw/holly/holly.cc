@@ -13,7 +13,14 @@ using namespace re::hw::maple;
 using namespace re::hw::sh4;
 using namespace re::sys;
 
-Holly::Holly(Dreamcast *dc) : Device(*dc), MemoryInterface(this), dc_(dc) {}
+Holly::Holly(Dreamcast *dc)
+    : Device(*dc),
+      MemoryInterface(this),
+      dc_(dc),
+      holly_regs_(nullptr),
+      gdrom_(nullptr),
+      maple_(nullptr),
+      sh4_(nullptr) {}
 
 bool Holly::Init() {
   holly_regs_ = dc_->holly_regs;

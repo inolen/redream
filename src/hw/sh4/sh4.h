@@ -112,7 +112,6 @@ class SH4 : public Device,
   Memory *memory_;
   Scheduler *scheduler_;
   SH4CodeCache *code_cache_;
-  std::map<uint32_t, uint16_t> breakpoints_;
 
   jit::frontend::sh4::SH4Context ctx_;
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
@@ -122,6 +121,8 @@ class SH4 : public Device,
 
   uint32_t area7_[0x4000];  // consolidated, 16kb area 7 memory
   uint8_t cache_[0x2000];   // 8kb cache
+
+  std::map<uint32_t, uint16_t> breakpoints_;
 
   bool show_perf_;
   std::chrono::high_resolution_clock::time_point last_mips_time_;
