@@ -17,11 +17,11 @@ enum {
   TA_PARAM_RESERVED1,
   // vertex params
   TA_PARAM_VERTEX,
-  TA_NUM_PARAMS
+  TA_NUM_PARAMS,
 };
 
-enum {  //
-  TA_NUM_VERT_TYPES = 18
+enum {
+  TA_NUM_VERT_TYPES = 18,
 };
 
 enum {
@@ -30,7 +30,7 @@ enum {
   TA_LIST_TRANSLUCENT,
   TA_LIST_TRANSLUCENT_MODVOL,
   TA_LIST_PUNCH_THROUGH,
-  TA_NUM_LISTS
+  TA_NUM_LISTS,
 };
 
 enum {
@@ -41,7 +41,7 @@ enum {
   TA_PIXEL_BUMPMAP,
   TA_PIXEL_4BPP,
   TA_PIXEL_8BPP,
-  TA_PIXEL_RESERVED
+  TA_PIXEL_RESERVED,
 };
 
 enum {

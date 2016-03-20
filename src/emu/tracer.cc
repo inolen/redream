@@ -1,4 +1,5 @@
 #include <algorithm>
+#include "core/memory.h"
 #include "emu/tracer.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/holly/trace.h"
@@ -9,6 +10,35 @@ using namespace re::emu;
 using namespace re::hw::holly;
 using namespace re::renderer;
 using namespace re::ui;
+
+static const char *s_depthfunc_names[] = {
+    "NONE",    "NEVER",  "LESS",   "EQUAL",  "LEQUAL",
+    "GREATER", "NEQUAL", "GEQUAL", "ALWAYS",
+};
+
+static const char *s_cullface_names[] = {
+    "NONE", "FRONT", "BACK",
+};
+
+static const char *s_blendfunc_names[] = {
+    "NONE",
+    "ZERO",
+    "ONE",
+    "SRC_COLOR",
+    "ONE_MINUS_SRC_COLOR",
+    "SRC_ALPHA",
+    "ONE_MINUS_SRC_ALPHA",
+    "DST_ALPHA",
+    "ONE_MINUS_DST_ALPHA",
+    "DST_COLOR",
+    "ONE_MINUS_DST_COLOR",
+};
+
+static const char *s_shademode_names[] = {
+    "DECAL", "MODULATE", "DECAL_ALPHA", "MODULATE_ALPHA",
+};
+
+static const int INVALID_OFFSET = -1;
 
 void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
                                    const uint8_t *palette,
@@ -51,7 +81,9 @@ TextureHandle TraceTextureCache::GetTexture(hw::holly::TextureKey texture_key) {
 
 Tracer::Tracer(Window &window)
     : window_(window),
-      tile_renderer_(*window.render_backend(), texcache_) {
+      rb_(*window.render_backend()),
+      tile_renderer_(rb_, texcache_),
+      hide_params_() {
   window_.AddListener(this);
 }
 
@@ -70,71 +102,36 @@ void Tracer::Run(const char *path) {
 }
 
 void Tracer::OnPaint(bool show_main_menu) {
-  // render the current frame
-  tile_renderer_.RenderContext(&current_ctx_, true);
+  tile_renderer_.ParseContext(tctx_, &rctx_, true);
 
-  // render debug UI
-  ImGuiIO &io = ImGui::GetIO();
+  // render UI
+  RenderScrubberMenu();
+  RenderTextureMenu();
+  RenderContextMenu();
 
-  {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::Begin("Scrubber", nullptr,
-                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar);
+  // clamp surfaces the last surface belonging to the current param
+  int last_idx = rctx_.surfs.size() - 1;
 
-    ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
-    ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
-
-    ImGui::PushItemWidth(-1.0f);
-    int frame = current_cmd_->frame;
-    if (ImGui::SliderInt("", &frame, 0, num_frames_ - 1)) {
-      SetFrame(frame);
-    }
-    ImGui::PopItemWidth();
-
-    ImGui::End();
-    ImGui::PopStyleVar();
+  if (current_offset_ != INVALID_OFFSET) {
+    const auto &param_entry = rctx_.param_map[current_offset_];
+    last_idx = param_entry.num_surfs;
   }
 
-  {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+  // render the context
+  rb_.BeginSurfaces(rctx_.projection, rctx_.verts.data(), rctx_.verts.size());
 
-    ImGui::Begin("Textures", nullptr, ImGuiWindowFlags_NoTitleBar |
-                                          ImGuiWindowFlags_NoResize |
-                                          ImGuiWindowFlags_NoMove |
-                                          ImGuiWindowFlags_HorizontalScrollbar);
+  for (int i = 0, n = rctx_.surfs.size(); i < n; i++) {
+    int idx = rctx_.sorted_surfs[i];
 
-    ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
-    ImGui::SetWindowPos(
-        ImVec2(0.0f, io.DisplaySize.y - ImGui::GetWindowSize().y));
-
-    auto begin = texcache_.textures_begin();
-    auto end = texcache_.textures_end();
-
-    for (auto it = begin; it != end; ++it) {
-      const TextureInst &tex = it->second;
-      ImTextureID handle_id =
-          reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex.handle));
-
-      ImGui::ImageButton(handle_id, ImVec2(32.0f, 32.0f));
-
-      char popup_name[128];
-      snprintf(popup_name, sizeof(popup_name), "texture_%d", tex.handle);
-
-      if (ImGui::BeginPopupContextItem(popup_name, 0)) {
-        ImGui::Image(handle_id, ImVec2(128, 128));
-        ImGui::EndPopup();
-      }
-
-      ImGui::SameLine();
+    // if this surface comes after the current parameter, ignore it
+    if (idx > last_idx) {
+      continue;
     }
 
-    ImGui::End();
-
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    rb_.DrawSurface(rctx_.surfs[idx]);
   }
+
+  rb_.EndSurfaces();
 }
 
 void Tracer::OnKeyDown(Keycode code, int16_t value) {
@@ -143,110 +140,358 @@ void Tracer::OnKeyDown(Keycode code, int16_t value) {
       window_.EnableMainMenu(!window_.MainMenuEnabled());
     }
   } else if (code == K_LEFT && value) {
-    SetFrame(current_cmd_->frame - 1);
+    PrevContext();
   } else if (code == K_RIGHT && value) {
-    SetFrame(current_cmd_->frame + 1);
+    NextContext();
+  } else if (code == K_UP && value) {
+    PrevParam();
+  } else if (code == K_DOWN && value) {
+    NextParam();
   }
 }
 
 void Tracer::OnClose() { running_ = false; }
 
 bool Tracer::Parse(const char *path) {
-  if (!reader_.Parse(path)) {
+  if (!trace_.Parse(path)) {
     LOG_WARNING("Failed to parse %s", path);
     return false;
   }
 
-  num_frames_ = GetNumFrames();
-  if (!num_frames_) {
-    LOG_WARNING("No frames in %s", path);
-    return false;
-  }
-
-  current_cmd_ = nullptr;
-  SetFrame(0);
+  ResetContext();
 
   return true;
 }
 
-int Tracer::GetNumFrames() {
-  int num_frames = 0;
+void Tracer::RenderScrubberMenu() {
+  ImGuiIO &io = ImGui::GetIO();
 
-  TraceCommand *cmd = reader_.cmd_head();
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::Begin("Scrubber", nullptr,
+               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar);
 
-  while (cmd) {
-    if (cmd->type == TRACE_CMD_CONTEXT) {
-      num_frames++;
+  ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
+  ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
+
+  ImGui::PushItemWidth(-1.0f);
+  int frame = current_frame_;
+  if (ImGui::SliderInt("", &frame, 0, num_frames_ - 1)) {
+    int delta = frame - current_frame_;
+    for (int i = 0; i < std::abs(delta); i++) {
+      if (delta > 0) {
+        NextContext();
+      } else {
+        PrevContext();
+      }
     }
-
-    cmd = cmd->next;
   }
+  ImGui::PopItemWidth();
 
-  return num_frames;
+  ImGui::End();
+  ImGui::PopStyleVar();
 }
 
-// Se the current frame to be rendered. Note, due to textures being inserted on
-// demand after the render event, the event order will look like so:
-// RENDER_CONTEXT frame 0
-// INSERT_TEXTURE frame 0
-// INSERT_TEXTURE frame 0
-// INSERT_TEXTURE frame 0
-// RENDER_CONTEXT frame 1
-// INSERT_TEXTURE frame 1
-// INSERT_TEXTURE frame 1
-// RENDER_CONTEXT frame 2
-// INSERT_TEXTURE frame 2
-void Tracer::SetFrame(int n) {
-  n = std::max(0, std::min(n, num_frames_ - 1));
+void Tracer::RenderTextureMenu() {
+  ImGuiIO &io = ImGui::GetIO();
 
-  // current_cmd_ is either null, or the first command of the current frame
-  if (!current_cmd_ || n > current_cmd_->frame) {
-    TraceCommand *next = current_cmd_ ? current_cmd_->next : reader_.cmd_head();
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::Begin("Textures", nullptr, ImGuiWindowFlags_NoTitleBar |
+                                        ImGuiWindowFlags_NoResize |
+                                        ImGuiWindowFlags_NoMove |
+                                        ImGuiWindowFlags_HorizontalScrollbar);
 
-    // step forward until all events up to the end of the target frame have
-    // been processed
-    while (next && next->frame <= n) {
-      if (next->type == TRACE_CMD_CONTEXT) {
-        // track the beginning of the target frame
-        current_cmd_ = next;
-      } else if (next->type == TRACE_CMD_TEXTURE) {
-        texcache_.AddTexture(next->texture.tsp, next->texture.tcw,
-                             next->texture.palette, next->texture.texture);
-      }
+  ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
+  ImGui::SetWindowPos(
+      ImVec2(0.0f, io.DisplaySize.y - ImGui::GetWindowSize().y));
 
-      next = next->next;
+  auto begin = texcache_.textures_begin();
+  auto end = texcache_.textures_end();
+
+  for (auto it = begin; it != end; ++it) {
+    const TextureInst &tex = it->second;
+    ImTextureID handle_id =
+        reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex.handle));
+
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::ImageButton(handle_id, ImVec2(32.0f, 32.0f));
+    ImGui::PopStyleColor();
+
+    char popup_name[128];
+    snprintf(popup_name, sizeof(popup_name), "texture_%d", tex.handle);
+
+    if (ImGui::BeginPopupContextItem(popup_name, 0)) {
+      ImGui::Image(handle_id, ImVec2(128, 128));
+      ImGui::EndPopup();
     }
-  } else if (n < current_cmd_->frame) {
-    TraceCommand *prev = current_cmd_;
 
-    // step backwards until the start of the requested frame
-    while (prev && prev->frame >= n) {
-      if (prev->type == TRACE_CMD_CONTEXT) {
-        // track the beginning of the target frame
-        current_cmd_ = prev;
-      } else if (prev->type == TRACE_CMD_TEXTURE) {
-        // if the texture belongs to a frame after the target frame, remove it
-        // from the cache and add back the texture it overrode (if it did)
-        if (prev->frame > n) {
-          texcache_.RemoveTexture(prev->texture.tsp, prev->texture.tcw);
+    ImGui::SameLine();
+  }
 
-          TraceCommand *override = prev->override;
-          if (override) {
-            CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
+  ImGui::End();
+  ImGui::PopStyleVar();
+}
 
-            texcache_.AddTexture(override->texture.tsp, override->texture.tcw,
-                                 override->texture.palette,
-                                 override->texture.texture);
+void Tracer::FormatTooltip(const PolyParam *param, const Surface *surf) {
+  int poly_type = TileAccelerator::GetPolyType(param->type0.pcw);
+
+  ImGui::BeginTooltip();
+
+  ImGui::Text("pcw: 0x%x", param->type0.pcw.full);
+  ImGui::Text("isp_tsp: 0x%x", param->type0.isp_tsp.full);
+  ImGui::Text("tsp: 0x%x", param->type0.tsp.full);
+  ImGui::Text("tcw: 0x%x", param->type0.tcw.full);
+
+  switch (poly_type) {
+    case 1:
+      ImGui::Text("face_color_a: %.2f", param->type1.face_color_a);
+      ImGui::Text("face_color_r: %.2f", param->type1.face_color_r);
+      ImGui::Text("face_color_g: %.2f", param->type1.face_color_g);
+      ImGui::Text("face_color_b: %.2f", param->type1.face_color_b);
+      break;
+
+    case 2:
+      ImGui::Text("face_color_a: %.2f", param->type2.face_color_a);
+      ImGui::Text("face_color_r: %.2f", param->type2.face_color_r);
+      ImGui::Text("face_color_g: %.2f", param->type2.face_color_g);
+      ImGui::Text("face_color_b: %.2f", param->type2.face_color_b);
+      ImGui::Text("face_offset_color_a: %.2f",
+                  param->type2.face_offset_color_a);
+      ImGui::Text("face_offset_color_r: %.2f",
+                  param->type2.face_offset_color_r);
+      ImGui::Text("face_offset_color_g: %.2f",
+                  param->type2.face_offset_color_g);
+      ImGui::Text("face_offset_color_b: %.2f",
+                  param->type2.face_offset_color_b);
+      break;
+
+    case 5:
+      ImGui::Text("base_color: 0x%x", param->sprite.base_color);
+      ImGui::Text("offset_color: 0x%x", param->sprite.offset_color);
+      break;
+  }
+
+  ImGui::Separator();
+
+  ImGui::Image(
+      reinterpret_cast<ImTextureID>(static_cast<intptr_t>(surf->texture)),
+      ImVec2(64.0f, 64.0f));
+  ImGui::Text("depth_write: %d", surf->depth_write);
+  ImGui::Text("depth_func: %s", s_depthfunc_names[surf->depth_func]);
+  ImGui::Text("cull: %s", s_cullface_names[surf->cull]);
+  ImGui::Text("src_blend: %s", s_blendfunc_names[surf->src_blend]);
+  ImGui::Text("dst_blend: %s", s_blendfunc_names[surf->dst_blend]);
+  ImGui::Text("shade: %s", s_shademode_names[surf->shade]);
+  ImGui::Text("ignore_tex_alpha: %d", surf->ignore_tex_alpha);
+  ImGui::Text("first_vert: %d", surf->first_vert);
+  ImGui::Text("num_verts: %d", surf->num_verts);
+
+  ImGui::EndTooltip();
+}
+
+void Tracer::FormatTooltip(const VertexParam *param, const Vertex *vert,
+                           int vertex_type) {
+  ImGui::BeginTooltip();
+
+  ImGui::Text("type: %d", vertex_type);
+
+  switch (vertex_type) {
+    case 0:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type0.xyz[0],
+                  param->type0.xyz[1], param->type0.xyz[2]);
+      ImGui::Text("base_color: 0x%x", param->type0.base_color);
+      break;
+
+    case 1:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type1.xyz[0],
+                  param->type1.xyz[1], param->type1.xyz[2]);
+      ImGui::Text("base_color_a: %.2f", param->type1.base_color_a);
+      ImGui::Text("base_color_r: %.2f", param->type1.base_color_r);
+      ImGui::Text("base_color_g: %.2f", param->type1.base_color_g);
+      ImGui::Text("base_color_b: %.2f", param->type1.base_color_b);
+      break;
+
+    case 2:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type2.xyz[0],
+                  param->type2.xyz[1], param->type2.xyz[2]);
+      ImGui::Text("base_intensity: %.2f", param->type2.base_intensity);
+      break;
+
+    case 3:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type3.xyz[0],
+                  param->type3.xyz[1], param->type3.xyz[2]);
+      ImGui::Text("uv: {%.2f, %.2f}", param->type3.uv[0], param->type3.uv[1]);
+      ImGui::Text("base_color: 0x%x", param->type3.base_color);
+      ImGui::Text("offset_color: 0x%x", param->type3.offset_color);
+      break;
+
+    case 4:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type4.xyz[0],
+                  param->type4.xyz[1], param->type4.xyz[2]);
+      ImGui::Text("uv: {0x%x, 0x%x}", param->type4.uv[0], param->type4.uv[1]);
+      ImGui::Text("base_color: 0x%x", param->type4.base_color);
+      ImGui::Text("offset_color: 0x%x", param->type4.offset_color);
+      break;
+
+    case 5:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type5.xyz[0],
+                  param->type5.xyz[1], param->type5.xyz[2]);
+      ImGui::Text("uv: {%.2f, %.2f}", param->type5.uv[0], param->type5.uv[1]);
+      ImGui::Text("base_color_a: %.2f", param->type5.base_color_a);
+      ImGui::Text("base_color_r: %.2f", param->type5.base_color_r);
+      ImGui::Text("base_color_g: %.2f", param->type5.base_color_g);
+      ImGui::Text("base_color_b: %.2f", param->type5.base_color_b);
+      ImGui::Text("offset_color_a: %.2f", param->type5.offset_color_a);
+      ImGui::Text("offset_color_r: %.2f", param->type5.offset_color_r);
+      ImGui::Text("offset_color_g: %.2f", param->type5.offset_color_g);
+      ImGui::Text("offset_color_b: %.2f", param->type5.offset_color_b);
+      break;
+
+    case 6:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type6.xyz[0],
+                  param->type6.xyz[1], param->type6.xyz[2]);
+      ImGui::Text("uv: {0x%x, 0x%x}", param->type6.uv[0], param->type6.uv[1]);
+      ImGui::Text("base_color_a: %.2f", param->type6.base_color_a);
+      ImGui::Text("base_color_r: %.2f", param->type6.base_color_r);
+      ImGui::Text("base_color_g: %.2f", param->type6.base_color_g);
+      ImGui::Text("base_color_b: %.2f", param->type6.base_color_b);
+      ImGui::Text("offset_color_a: %.2f", param->type6.offset_color_a);
+      ImGui::Text("offset_color_r: %.2f", param->type6.offset_color_r);
+      ImGui::Text("offset_color_g: %.2f", param->type6.offset_color_g);
+      ImGui::Text("offset_color_b: %.2f", param->type6.offset_color_b);
+      break;
+
+    case 7:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type7.xyz[0],
+                  param->type7.xyz[1], param->type7.xyz[2]);
+      ImGui::Text("uv: {%.2f, %.2f}", param->type7.uv[0], param->type7.uv[1]);
+      ImGui::Text("base_intensity: %.2f", param->type7.base_intensity);
+      ImGui::Text("offset_intensity: %.2f", param->type7.offset_intensity);
+      break;
+
+    case 8:
+      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type8.xyz[0],
+                  param->type8.xyz[1], param->type8.xyz[2]);
+      ImGui::Text("uv: {0x%x, 0x%x}", param->type8.uv[0], param->type8.uv[1]);
+      ImGui::Text("base_intensity: %.2f", param->type8.base_intensity);
+      ImGui::Text("offset_intensity: %.2f", param->type8.offset_intensity);
+      break;
+  }
+
+  ImGui::Separator();
+
+  ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert->xyz[0], vert->xyz[1],
+              vert->xyz[2]);
+  ImGui::Text("uv: {%.2f, %.2f}", vert->uv[0], vert->uv[1]);
+  ImGui::Text("color: 0x%08x", vert->color);
+  ImGui::Text("offset_color: 0x%08x", vert->offset_color);
+
+  ImGui::EndTooltip();
+}
+
+void Tracer::RenderContextMenu() {
+  ImGui::Begin("Context", nullptr, ImVec2(256.0f, 256.0f));
+
+  // param filters
+  ImGui::Checkbox("Hide TA_PARAM_END_OF_LIST",
+                  &hide_params_[TA_PARAM_END_OF_LIST]);
+  ImGui::Checkbox("Hide TA_PARAM_USER_TILE_CLIP",
+                  &hide_params_[TA_PARAM_USER_TILE_CLIP]);
+  ImGui::Checkbox("Hide TA_PARAM_OBJ_LIST_SET",
+                  &hide_params_[TA_PARAM_OBJ_LIST_SET]);
+  ImGui::Checkbox("Hide TA_PARAM_POLY_OR_VOL",
+                  &hide_params_[TA_PARAM_POLY_OR_VOL]);
+  ImGui::Checkbox("Hide TA_PARAM_SPRITE", &hide_params_[TA_PARAM_SPRITE]);
+  ImGui::Checkbox("Hide TA_PARAM_VERTEX", &hide_params_[TA_PARAM_VERTEX]);
+  ImGui::Separator();
+
+  // param list
+  int vertex_type = 0;
+  char label[128];
+
+  for (auto it : rctx_.param_map) {
+    int offset = it.first;
+    PCW pcw = re::load<PCW>(tctx_.data + offset);
+    bool param_selected = offset == current_offset_;
+
+    if (!hide_params_[pcw.para_type]) {
+      switch (pcw.para_type) {
+        case TA_PARAM_END_OF_LIST: {
+          snprintf(label, sizeof(label), "0x%04x TA_PARAM_END_OF_LIST", offset);
+          ImGui::Selectable(label, &param_selected);
+        } break;
+
+        case TA_PARAM_USER_TILE_CLIP: {
+          snprintf(label, sizeof(label), "0x%04x TA_PARAM_USER_TILE_CLIP",
+                   offset);
+          ImGui::Selectable(label, &param_selected);
+        } break;
+
+        case TA_PARAM_OBJ_LIST_SET: {
+          snprintf(label, sizeof(label), "0x%04x TA_PARAM_OBJ_LIST_SET",
+                   offset);
+          ImGui::Selectable(label, &param_selected);
+        } break;
+
+        case TA_PARAM_POLY_OR_VOL: {
+          const PolyParam *param =
+              reinterpret_cast<const PolyParam *>(tctx_.data);
+
+          vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
+
+          snprintf(label, sizeof(label), "0x%04x TA_PARAM_POLY_OR_VOL", offset);
+          ImGui::Selectable(label, &param_selected);
+
+          if (ImGui::IsItemHovered()) {
+            Surface *surf = &rctx_.surfs[rctx_.param_map[offset].num_surfs - 1];
+            FormatTooltip(param, surf);
           }
-        }
+        } break;
+
+        case TA_PARAM_SPRITE: {
+          const PolyParam *param =
+              reinterpret_cast<const PolyParam *>(tctx_.data);
+
+          vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
+
+          snprintf(label, sizeof(label), "0x%04x TA_PARAM_SPRITE", offset);
+          ImGui::Selectable(label, &param_selected);
+
+          if (ImGui::IsItemHovered()) {
+            Surface *surf = &rctx_.surfs[rctx_.param_map[offset].num_surfs - 1];
+            FormatTooltip(param, surf);
+          }
+        } break;
+
+        case TA_PARAM_VERTEX: {
+          const VertexParam *param =
+              reinterpret_cast<const VertexParam *>(tctx_.data);
+
+          snprintf(label, sizeof(label), "0x%04x TA_PARAM_VERTEX", offset);
+          ImGui::Selectable(label, &param_selected);
+
+          if (ImGui::IsItemHovered()) {
+            Vertex *vert = &rctx_.verts[rctx_.param_map[offset].num_verts - 1];
+            FormatTooltip(param, vert, vertex_type);
+          }
+        } break;
+
+        default:
+          LOG_FATAL("Unsupported parameter type %d", pcw.para_type);
+          break;
       }
 
-      prev = prev->prev;
+      if (param_selected) {
+        if (!ImGui::IsItemVisible()) {
+          ImGui::SetScrollHere();
+        }
+
+        current_offset_ = offset;
+      }
     }
   }
 
-  // copy off the render command for the current frame
-  CopyCommandToContext(current_cmd_, &current_ctx_);
+  ImGui::End();
 }
 
 // Copy RENDER_CONTEXT command to the current context being rendered.
@@ -267,3 +512,181 @@ void Tracer::CopyCommandToContext(const TraceCommand *cmd, TileContext *ctx) {
   memcpy(ctx->data, cmd->context.data, cmd->context.data_size);
   ctx->size = cmd->context.data_size;
 }
+
+void Tracer::PrevContext() {
+  // get the prev context command
+  TraceCommand *prev = current_cmd_->prev;
+  while (prev) {
+    if (prev->type == TRACE_CMD_CONTEXT) {
+      break;
+    }
+    prev = prev->prev;
+  }
+
+  if (!prev) {
+    return;
+  }
+
+  // skip forward to the last event for this frame
+  TraceCommand *next = current_cmd_->next;
+  TraceCommand *end = next;
+  while (next) {
+    if (next->type == TRACE_CMD_CONTEXT) {
+      break;
+    }
+    end = next;
+    next = next->next;
+  }
+
+  // revert all of the texture adds
+  while (end) {
+    if (end->type == TRACE_CMD_CONTEXT) {
+      break;
+    }
+
+    if (end->type == TRACE_CMD_TEXTURE) {
+      texcache_.RemoveTexture(prev->texture.tsp, prev->texture.tcw);
+
+      TraceCommand *override = prev->override;
+      if (override) {
+        CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
+
+        texcache_.AddTexture(override->texture.tsp, override->texture.tcw,
+                             override->texture.palette,
+                             override->texture.texture);
+      }
+    }
+
+    end = end->prev;
+  }
+
+  current_cmd_ = prev;
+
+  // copy off the render command for the current context
+  CopyCommandToContext(current_cmd_, &tctx_);
+
+  // reset ui state
+  current_frame_--;
+
+  ResetParam();
+}
+
+void Tracer::NextContext() {
+  // get the next context command
+  TraceCommand *next = current_cmd_;
+
+  if (!next) {
+    next = trace_.cmds();
+  } else {
+    next = next->next;
+
+    while (next) {
+      if (next->type == TRACE_CMD_CONTEXT) {
+        break;
+      }
+
+      next = next->next;
+    }
+  }
+
+  // no next command
+  if (!next) {
+    return;
+  }
+
+  //
+  current_cmd_ = next;
+
+  // add any textures for this command
+  next = current_cmd_->next;
+
+  while (next) {
+    if (next->type == TRACE_CMD_CONTEXT) {
+      break;
+    }
+
+    if (next->type == TRACE_CMD_TEXTURE) {
+      texcache_.AddTexture(next->texture.tsp, next->texture.tcw,
+                           next->texture.palette, next->texture.texture);
+    }
+
+    next = next->next;
+  }
+
+  // copy off the context command to the current tile context
+  CopyCommandToContext(current_cmd_, &tctx_);
+
+  // point to the start of the next frame
+  current_frame_++;
+
+  ResetParam();
+}
+
+void Tracer::ResetContext() {
+  // calculate the total number of frames for the trace
+  TraceCommand *cmd = trace_.cmds();
+
+  num_frames_ = 0;
+
+  while (cmd) {
+    if (cmd->type == TRACE_CMD_CONTEXT) {
+      num_frames_++;
+    }
+
+    cmd = cmd->next;
+  }
+
+  current_frame_ = -1;
+  current_cmd_ = nullptr;
+  NextContext();
+}
+
+void Tracer::PrevParam() {
+  auto it = rctx_.param_map.find(current_offset_);
+
+  if (it == rctx_.param_map.end()) {
+    return;
+  }
+
+  while (true) {
+    // no previous param
+    if (it-- == rctx_.param_map.begin()) {
+      break;
+    }
+
+    int offset = it->first;
+    PCW pcw = re::load<PCW>(tctx_.data + offset);
+
+    // found the next visible param
+    if (!hide_params_[pcw.para_type]) {
+      current_offset_ = it->first;
+      break;
+    }
+  }
+}
+
+void Tracer::NextParam() {
+  auto it = rctx_.param_map.find(current_offset_);
+
+  if (it == rctx_.param_map.end()) {
+    return;
+  }
+
+  while (true) {
+    // no next param
+    if (++it == rctx_.param_map.end()) {
+      break;
+    }
+
+    int offset = it->first;
+    PCW pcw = re::load<PCW>(tctx_.data + offset);
+
+    // found the next visible param
+    if (!hide_params_[pcw.para_type]) {
+      current_offset_ = it->first;
+      break;
+    }
+  }
+}
+
+void Tracer::ResetParam() { current_offset_ = INVALID_OFFSET; }

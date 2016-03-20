@@ -2,9 +2,9 @@ static const char *ta_vp = R"END(
 uniform mat4 u_mvp;
 
 layout(location = 0) in vec3 attr_xyz;
-layout(location = 1) in vec4 attr_color;
-layout(location = 2) in vec4 attr_offset_color;
-layout(location = 3) in vec2 attr_texcoord;
+layout(location = 1) in vec2 attr_texcoord;
+layout(location = 2) in vec4 attr_color;
+layout(location = 3) in vec4 attr_offset_color;
 
 out vec4 var_color;
 out vec4 var_offset_color;

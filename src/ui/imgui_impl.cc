@@ -25,12 +25,33 @@ bool ImGuiImpl::Init() {
   // don't save settings
   io.IniSavingRate = 0.0f;
 
+  // setup key mapping
+  io.KeyMap[ImGuiKey_Tab] = K_TAB;
+  io.KeyMap[ImGuiKey_LeftArrow] = K_LEFT;
+  io.KeyMap[ImGuiKey_RightArrow] = K_RIGHT;
+  io.KeyMap[ImGuiKey_UpArrow] = K_UP;
+  io.KeyMap[ImGuiKey_DownArrow] = K_DOWN;
+  io.KeyMap[ImGuiKey_PageUp] = K_PAGEUP;
+  io.KeyMap[ImGuiKey_PageDown] = K_PAGEDOWN;
+  io.KeyMap[ImGuiKey_Home] = K_HOME;
+  io.KeyMap[ImGuiKey_End] = K_END;
+  io.KeyMap[ImGuiKey_Delete] = K_DELETE;
+  io.KeyMap[ImGuiKey_Backspace] = K_BACKSPACE;
+  io.KeyMap[ImGuiKey_Enter] = K_RETURN;
+  io.KeyMap[ImGuiKey_Escape] = K_ESCAPE;
+  io.KeyMap[ImGuiKey_A] = 'a';
+  io.KeyMap[ImGuiKey_C] = 'c';
+  io.KeyMap[ImGuiKey_V] = 'v';
+  io.KeyMap[ImGuiKey_X] = 'x';
+  io.KeyMap[ImGuiKey_Y] = 'y';
+  io.KeyMap[ImGuiKey_Z] = 'z';
+
   // setup misc callbacks ImGui relies on
   io.RenderDrawListsFn = nullptr;
   io.SetClipboardTextFn = nullptr;
   io.GetClipboardTextFn = nullptr;
 
-  // register front in backend
+  // register font in backend
   uint8_t *pixels;
   int width, height;
   io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
@@ -53,6 +74,9 @@ void ImGuiImpl::OnPrePaint() {
       ImVec2(static_cast<float>(width), static_cast<float>(height));
 
   ImGui::NewFrame();
+
+  // reset mouse scroll state
+  io.MouseWheel = 0.0;
 }
 
 void ImGuiImpl::OnPostPaint() {
@@ -122,9 +146,9 @@ void ImGuiImpl::OnKeyDown(Keycode code, int16_t value) {
   ImGuiIO &io = ImGui::GetIO();
 
   if (code == K_MWHEELUP) {
-    io.MouseWheel = value ? 1.0f : 0.0f;
+    io.MouseWheel = 1.0f;
   } else if (code == K_MWHEELDOWN) {
-    io.MouseWheel = value ? -1.0f : 0.0f;
+    io.MouseWheel = -1.0f;
   } else if (code == K_MOUSE1) {
     io.MouseDown[0] = !!value;
   } else if (code == K_MOUSE2) {
@@ -140,6 +164,8 @@ void ImGuiImpl::OnKeyDown(Keycode code, int16_t value) {
   } else if (code == K_LSHIFT || code == K_RSHIFT) {
     shift_[code == K_LSHIFT ? 0 : 1] = !!value;
     io.KeyShift = shift_[0] || shift_[1];
+  } else {
+    io.KeysDown[code] = !!value;
   }
 }
 

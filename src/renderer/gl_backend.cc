@@ -229,16 +229,8 @@ void GLBackend::DrawSurface2D(const Surface2D &surf) {
 
 void GLBackend::EndSurfaces2D() {}
 
-void GLBackend::RenderSurfaces(const Eigen::Matrix4f &projection,
-                               const Surface *surfs, int num_surfs,
-                               const Vertex *verts, int num_verts,
-                               const int *sorted_surfs) {
-  PROFILER_GPU("GLBackend::RenderSurfaces");
-
-  if (state_.debug_wireframe) {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  }
-
+void GLBackend::BeginSurfaces(const Eigen::Matrix4f &projection,
+                              const Vertex *verts, int num_verts) {
   // transpose to column-major for OpenGL
   Eigen::Matrix4f transposed = projection.transpose();
 
@@ -252,21 +244,24 @@ void GLBackend::RenderSurfaces(const Eigen::Matrix4f &projection,
                      transposed.data());
   glUniform1i(GetUniform(UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 
-  for (int i = 0; i < num_surfs; i++) {
-    const Surface *surf = &surfs[sorted_surfs[i]];
-
-    SetDepthMask(surf->depth_write);
-    SetDepthFunc(surf->depth_func);
-    SetCullFace(surf->cull);
-    SetBlendFunc(surf->src_blend, surf->dst_blend);
-
-    // TODO use surf->shade to select correct shader
-
-    BindTexture(MAP_DIFFUSE,
-                surf->texture ? textures_[surf->texture] : white_tex_);
-    glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
+  if (state_.debug_wireframe) {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   }
+}
 
+void GLBackend::DrawSurface(const Surface &surf) {
+  SetDepthMask(surf.depth_write);
+  SetDepthFunc(surf.depth_func);
+  SetCullFace(surf.cull);
+  SetBlendFunc(surf.src_blend, surf.dst_blend);
+
+  // TODO use surf.shade to select correct shader
+
+  BindTexture(MAP_DIFFUSE, surf.texture ? textures_[surf.texture] : white_tex_);
+  glDrawArrays(GL_TRIANGLE_STRIP, surf.first_vert, surf.num_verts);
+}
+
+void GLBackend::EndSurfaces() {
   if (state_.debug_wireframe) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
@@ -413,20 +408,20 @@ void GLBackend::CreateVertexBuffers() {
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, xyz));
 
-  // color
+  // texcoord
   glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex),
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (void *)offsetof(Vertex, uv));
+
+  // color
+  glEnableVertexAttribArray(2);
+  glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex),
                         (void *)offsetof(Vertex, color));
 
   // offset color
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex),
-                        (void *)offsetof(Vertex, offset_color));
-
-  // texcoord
   glEnableVertexAttribArray(3);
-  glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                        (void *)offsetof(Vertex, uv));
+  glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex),
+                        (void *)offsetof(Vertex, offset_color));
 
   glBindVertexArray(0);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);

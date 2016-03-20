@@ -218,11 +218,11 @@ TileAccelerator::TileAccelerator(Dreamcast *dc, Backend *rb)
       video_ram_(nullptr),
       trace_writer_(nullptr),
       num_invalidated_(0),
-      contexts_(),
-      last_context_(nullptr) {
+      tctxs_(),
+      last_tctx_(nullptr) {
   // initialize context queue
   for (int i = 0; i < MAX_CONTEXTS; i++) {
-    free_contexts_.push(&contexts_[i]);
+    free_tctxs_.push(&tctxs_[i]);
   }
 }
 
@@ -322,49 +322,49 @@ void TileAccelerator::SoftReset() {
 
 void TileAccelerator::InitContext(uint32_t addr) {
   // try to reuse an existing live context
-  auto it = live_contexts_.find(addr);
+  auto it = live_tctxs_.find(addr);
 
-  if (it == live_contexts_.end()) {
-    CHECK(free_contexts_.size());
+  if (it == live_tctxs_.end()) {
+    CHECK(free_tctxs_.size());
 
-    TileContext *tactx = free_contexts_.front();
-    CHECK_NOTNULL(tactx);
-    free_contexts_.pop();
+    TileContext *tctx = free_tctxs_.front();
+    CHECK_NOTNULL(tctx);
+    free_tctxs_.pop();
 
-    auto res = live_contexts_.insert(std::make_pair(addr, tactx));
+    auto res = live_tctxs_.insert(std::make_pair(addr, tctx));
     CHECK(res.second);
     it = res.first;
   }
 
-  TileContext *tactx = it->second;
-  memset(tactx, 0, sizeof(*tactx));
-  tactx->addr = addr;
-  tactx->cursor = 0;
-  tactx->size = 0;
-  tactx->last_poly = nullptr;
-  tactx->last_vertex = nullptr;
-  tactx->list_type = 0;
-  tactx->vertex_type = 0;
+  TileContext *tctx = it->second;
+  memset(tctx, 0, sizeof(*tctx));
+  tctx->addr = addr;
+  tctx->cursor = 0;
+  tctx->size = 0;
+  tctx->last_poly = nullptr;
+  tctx->last_vertex = nullptr;
+  tctx->list_type = 0;
+  tctx->vertex_type = 0;
 }
 
 void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
-  auto it = live_contexts_.find(addr);
-  CHECK_NE(it, live_contexts_.end());
-  TileContext *tactx = it->second;
+  auto it = live_tctxs_.find(addr);
+  CHECK_NE(it, live_tctxs_.end());
+  TileContext *tctx = it->second;
 
-  CHECK_LT(tactx->size + 4, (int)sizeof(tactx->data));
-  *(uint32_t *)&tactx->data[tactx->size] = value;
-  tactx->size += 4;
+  CHECK_LT(tctx->size + 4, (int)sizeof(tctx->data));
+  *(uint32_t *)&tctx->data[tctx->size] = value;
+  tctx->size += 4;
 
   // each TA command is either 32 or 64 bytes, with the PCW being in the first
   // 32 bytes always. check every 32 bytes to see if the command has been
   // completely received or not
-  if (tactx->size % 32 == 0) {
-    void *data = &tactx->data[tactx->cursor];
+  if (tctx->size % 32 == 0) {
+    void *data = &tctx->data[tctx->cursor];
     PCW pcw = re::load<PCW>(data);
 
-    int size = GetParamSize(pcw, tactx->vertex_type);
-    int recv = tactx->size - tactx->cursor;
+    int size = GetParamSize(pcw, tctx->vertex_type);
+    int recv = tctx->size - tctx->cursor;
 
     if (recv < size) {
       // wait for the entire command
@@ -372,38 +372,38 @@ void TileAccelerator::WriteContext(uint32_t addr, uint32_t value) {
     }
 
     if (pcw.para_type == TA_PARAM_END_OF_LIST) {
-      holly_->RequestInterrupt(list_interrupts[tactx->list_type]);
+      holly_->RequestInterrupt(list_interrupts[tctx->list_type]);
 
-      tactx->last_poly = nullptr;
-      tactx->last_vertex = nullptr;
-      tactx->list_type = 0;
-      tactx->vertex_type = 0;
+      tctx->last_poly = nullptr;
+      tctx->last_vertex = nullptr;
+      tctx->list_type = 0;
+      tctx->vertex_type = 0;
     } else if (pcw.para_type == TA_PARAM_OBJ_LIST_SET) {
       LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
     } else if (pcw.para_type == TA_PARAM_POLY_OR_VOL) {
-      tactx->last_poly = reinterpret_cast<PolyParam *>(data);
-      tactx->last_vertex = nullptr;
-      tactx->list_type = tactx->last_poly->type0.pcw.list_type;
-      tactx->vertex_type = GetVertexType(tactx->last_poly->type0.pcw);
+      tctx->last_poly = reinterpret_cast<PolyParam *>(data);
+      tctx->last_vertex = nullptr;
+      tctx->list_type = tctx->last_poly->type0.pcw.list_type;
+      tctx->vertex_type = GetVertexType(tctx->last_poly->type0.pcw);
     } else if (pcw.para_type == TA_PARAM_SPRITE) {
-      tactx->last_poly = reinterpret_cast<PolyParam *>(data);
-      tactx->last_vertex = nullptr;
-      tactx->list_type = tactx->last_poly->type0.pcw.list_type;
-      tactx->vertex_type = GetVertexType(tactx->last_poly->type0.pcw);
+      tctx->last_poly = reinterpret_cast<PolyParam *>(data);
+      tctx->last_vertex = nullptr;
+      tctx->list_type = tctx->last_poly->type0.pcw.list_type;
+      tctx->vertex_type = GetVertexType(tctx->last_poly->type0.pcw);
     }
 
-    tactx->cursor += recv;
+    tctx->cursor += recv;
   }
 }
 
 void TileAccelerator::FinalizeContext(uint32_t addr) {
-  auto it = live_contexts_.find(addr);
-  CHECK_NE(it, live_contexts_.end());
-  TileContext *tactx = it->second;
+  auto it = live_tctxs_.find(addr);
+  CHECK_NE(it, live_tctxs_.end());
+  TileContext *tctx = it->second;
 
   // save required register state being that the actual rendering of this
   // context will be deferred
-  SaveRegisterState(tactx);
+  SaveRegisterState(tctx);
 
   // tell holly that rendering is complete
   holly_->RequestInterrupt(HOLLY_INTC_PCEOVINT);
@@ -411,18 +411,18 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
   holly_->RequestInterrupt(HOLLY_INTC_PCEOTINT);
 
   // erase from the live map
-  live_contexts_.erase(it);
+  live_tctxs_.erase(it);
 
   // free and replace the last context
-  if (last_context_) {
-    free_contexts_.push(last_context_);
-    last_context_ = nullptr;
+  if (last_tctx_) {
+    free_tctxs_.push(last_tctx_);
+    last_tctx_ = nullptr;
   }
 
-  last_context_ = tactx;
+  last_tctx_ = tctx;
 
   if (trace_writer_) {
-    trace_writer_->WriteRenderContext(tactx);
+    trace_writer_->WriteRenderContext(tctx);
   }
 }
 
@@ -441,8 +441,8 @@ void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
 }
 
 void TileAccelerator::OnPaint(bool show_main_menu) {
-  if (last_context_) {
-    tile_renderer_.RenderContext(last_context_);
+  if (last_tctx_) {
+    tile_renderer_.RenderContext(*last_tctx_);
   }
 
   if (show_main_menu && ImGui::BeginMainMenuBar()) {
@@ -550,31 +550,31 @@ void TileAccelerator::HandlePaletteWrite(const Exception &ex, void *data) {
   pending_invalidations_.insert(texture_key);
 }
 
-void TileAccelerator::SaveRegisterState(TileContext *tactx) {
+void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   // autosort
   if (!dc_->FPU_PARAM_CFG.region_header_type) {
-    tactx->autosort = !dc_->ISP_FEED_CFG.presort;
+    tctx->autosort = !dc_->ISP_FEED_CFG.presort;
   } else {
     uint32_t region_data = memory_->R32(PVR_VRAM64_START + dc_->REGION_BASE);
-    tactx->autosort = !(region_data & 0x20000000);
+    tctx->autosort = !(region_data & 0x20000000);
   }
 
   // texture stride
-  tactx->stride = dc_->TEXT_CONTROL.stride * 32;
+  tctx->stride = dc_->TEXT_CONTROL.stride * 32;
 
   // texture palette pixel format
-  tactx->pal_pxl_format = dc_->PAL_RAM_CTRL.pixel_format;
+  tctx->pal_pxl_format = dc_->PAL_RAM_CTRL.pixel_format;
 
   // write out video width to help with unprojecting the screen space
   // coordinates
   if (dc_->SPG_CONTROL.interlace ||
       (!dc_->SPG_CONTROL.NTSC && !dc_->SPG_CONTROL.PAL)) {
     // interlaced and VGA mode both render at full resolution
-    tactx->video_width = 640;
-    tactx->video_height = 480;
+    tctx->video_width = 640;
+    tctx->video_height = 480;
   } else {
-    tactx->video_width = 320;
-    tactx->video_height = 240;
+    tctx->video_width = 320;
+    tctx->video_height = 240;
   }
 
   // according to the hardware docs, this is the correct calculation of the
@@ -585,16 +585,16 @@ void TileAccelerator::SaveRegisterState(TileContext *tactx) {
   // correct solution
   uint32_t vram_offset =
       PVR_VRAM64_START +
-      ((tactx->addr + dc_->ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
+      ((tctx->addr + dc_->ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
 
   // get surface parameters
-  tactx->bg_isp.full = memory_->R32(vram_offset);
-  tactx->bg_tsp.full = memory_->R32(vram_offset + 4);
-  tactx->bg_tcw.full = memory_->R32(vram_offset + 8);
+  tctx->bg_isp.full = memory_->R32(vram_offset);
+  tctx->bg_tsp.full = memory_->R32(vram_offset + 4);
+  tctx->bg_tcw.full = memory_->R32(vram_offset + 8);
   vram_offset += 12;
 
   // get the background depth
-  tactx->bg_depth = re::load<float>(&dc_->ISP_BACKGND_D);
+  tctx->bg_depth = re::load<float>(&dc_->ISP_BACKGND_D);
 
   // get the byte size for each vertex. normally, the byte size is
   // ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in
@@ -611,9 +611,9 @@ void TileAccelerator::SaveRegisterState(TileContext *tactx) {
 
   // copy vertex data to context
   for (int i = 0, bg_offset = 0; i < 3; i++) {
-    CHECK_LE(bg_offset + vertex_size, (int)sizeof(tactx->bg_vertices));
+    CHECK_LE(bg_offset + vertex_size, (int)sizeof(tctx->bg_vertices));
 
-    memory_->Memcpy(&tactx->bg_vertices[bg_offset], vram_offset, vertex_size);
+    memory_->Memcpy(&tctx->bg_vertices[bg_offset], vram_offset, vertex_size);
 
     bg_offset += vertex_size;
     vram_offset += vertex_size;

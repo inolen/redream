@@ -55,20 +55,39 @@ class Tracer : public ui::WindowListener {
   void OnClose() final;
 
   bool Parse(const char *path);
-  int GetNumFrames();
-  void SetFrame(int n);
+
+  void RenderScrubberMenu();
+  void RenderTextureMenu();
+  void FormatTooltip(const hw::holly::PolyParam *param,
+                     const renderer::Surface *surf);
+  void FormatTooltip(const hw::holly::VertexParam *param,
+                     const renderer::Vertex *vert, int vertex_type);
+  void RenderContextMenu();
+
   void CopyCommandToContext(const hw::holly::TraceCommand *cmd,
                             hw::holly::TileContext *ctx);
+  void PrevContext();
+  void NextContext();
+  void ResetContext();
+
+  void PrevParam();
+  void NextParam();
+  void ResetParam();
 
   ui::Window &window_;
+  renderer::Backend &rb_;
   TraceTextureCache texcache_;
   hw::holly::TileRenderer tile_renderer_;
+  hw::holly::TileContext tctx_;
+  hw::holly::TileRenderContext rctx_;
 
   bool running_;
-  hw::holly::TraceReader reader_;
+  hw::holly::TraceReader trace_;
+
+  bool hide_params_[hw::holly::TA_NUM_PARAMS];
+  int current_frame_, num_frames_;
   hw::holly::TraceCommand *current_cmd_;
-  hw::holly::TileContext current_ctx_;
-  int num_frames_;
+  int current_offset_;
 };
 }
 }

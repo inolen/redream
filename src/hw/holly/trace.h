@@ -15,11 +15,7 @@ enum TraceCommandType {
 
 struct TraceCommand {
   TraceCommand()
-      : type(TRACE_CMD_NONE),
-        prev(nullptr),
-        next(nullptr),
-        override(nullptr),
-        frame(0) {}
+      : type(TRACE_CMD_NONE), prev(nullptr), next(nullptr), override(nullptr) {}
 
   TraceCommandType type;
 
@@ -27,7 +23,6 @@ struct TraceCommand {
   TraceCommand *prev;
   TraceCommand *next;
   TraceCommand *override;
-  int frame;
 
   // the data pointers in these structs are written out relative to the cmd,
   // and patched to absolute pointers on read
@@ -68,14 +63,13 @@ class TraceReader {
   TraceReader();
   ~TraceReader();
 
-  TraceCommand *cmd_head() { return reinterpret_cast<TraceCommand *>(trace_); }
+  TraceCommand *cmds() { return reinterpret_cast<TraceCommand *>(trace_); }
 
   bool Parse(const char *filename);
 
  private:
   void Reset();
   bool PatchPointers();
-  bool PatchFrames();
   bool PatchOverrides();
 
   size_t trace_size_;
@@ -93,7 +87,7 @@ class TraceWriter {
   void WriteInsertTexture(const TSP &tsp, const TCW &tcw,
                           const uint8_t *palette, int palette_size,
                           const uint8_t *texture, int texture_size);
-  void WriteRenderContext(TileContext *tactx);
+  void WriteRenderContext(TileContext *tctx);
 
  private:
   FILE *file_;

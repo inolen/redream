@@ -79,9 +79,9 @@ enum PrimativeType {
 
 struct Vertex {
   float xyz[3];
+  float uv[2];
   uint32_t color;
   uint32_t offset_color;
-  float uv[2];
 };
 
 struct Surface {
@@ -137,10 +137,10 @@ class Backend {
   virtual void DrawSurface2D(const Surface2D &surf) = 0;
   virtual void EndSurfaces2D() = 0;
 
-  virtual void RenderSurfaces(const Eigen::Matrix4f &projection,
-                              const Surface *surfs, int num_surfs,
-                              const Vertex *verts, int num_verts,
-                              const int *sorted_surfs) = 0;
+  virtual void BeginSurfaces(const Eigen::Matrix4f &projection,
+                             const Vertex *verts, int num_verts) = 0;
+  virtual void DrawSurface(const Surface &surf) = 0;
+  virtual void EndSurfaces() = 0;
 };
 }
 }

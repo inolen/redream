@@ -107,75 +107,144 @@ TextureKey TextureProvider::GetTextureKey(const TSP &tsp, const TCW &tcw) {
 
 TileRenderer::TileRenderer(renderer::Backend &rb,
                            TextureProvider &texture_provider)
-    : rb_(rb), texture_provider_(texture_provider) {
-  surfs_ = new Surface[MAX_SURFACES];
-  verts_ = new Vertex[MAX_VERTICES];
-  sorted_surfs_ = new int[MAX_SURFACES];
+    : rb_(rb), texture_provider_(texture_provider) {}
+
+void TileRenderer::ParseContext(const TileContext &tctx,
+                                TileRenderContext *rctx, bool map_params) {
+  PROFILER_GPU("TileRenderer::ParseContext");
+
+  const uint8_t *data = tctx.data;
+  const uint8_t *end = tctx.data + tctx.size;
+
+  Reset(rctx);
+
+  ParseBackground(tctx, rctx);
+
+  while (data < end) {
+    PCW pcw = *(PCW *)data;
+
+    // FIXME
+    // If Vertex Parameters with the "End of Strip" specification were not
+    // input, but parameters other than the Vertex Parameters were input, the
+    // polygon data in question is ignored and an interrupt signal is output.
+
+    switch (pcw.para_type) {
+      // control params
+      case TA_PARAM_END_OF_LIST:
+        ParseEndOfList(tctx, rctx, data);
+        break;
+
+      case TA_PARAM_USER_TILE_CLIP:
+        // nothing to do
+        break;
+
+      case TA_PARAM_OBJ_LIST_SET:
+        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
+        break;
+
+      // global params
+      case TA_PARAM_POLY_OR_VOL:
+        ParsePolyParam(tctx, rctx, data);
+        break;
+
+      case TA_PARAM_SPRITE:
+        ParsePolyParam(tctx, rctx, data);
+        break;
+
+      // vertex params
+      case TA_PARAM_VERTEX:
+        ParseVertexParam(tctx, rctx, data);
+        break;
+
+      default:
+        LOG_FATAL("Unsupported parameter type %d", pcw.para_type);
+        break;
+    }
+
+    // map ta parameters to their translated surfaces / vertices
+    if (map_params) {
+      int offset = static_cast<int>(data - tctx.data);
+      rctx->param_map[offset] = {static_cast<int>(rctx->surfs.size()),
+                                 static_cast<int>(rctx->verts.size())};
+    }
+
+    data += TileAccelerator::GetParamSize(pcw, vertex_type_);
+  }
+
+  FillProjectionMatrix(tctx, rctx);
 }
 
-TileRenderer::~TileRenderer() {
-  delete[] surfs_;
-  delete[] verts_;
-  delete[] sorted_surfs_;
+void TileRenderer::RenderContext(const TileRenderContext &rctx) {
+  rb_.BeginSurfaces(rctx_.projection, rctx_.verts.data(), rctx_.verts.size());
+
+  for (int i = 0, n = rctx_.surfs.size(); i < n; i++) {
+    rb_.DrawSurface(rctx_.surfs[rctx_.sorted_surfs[i]]);
+  }
+
+  rb_.EndSurfaces();
 }
 
-void TileRenderer::RenderContext(const TileContext *tactx) {
-  ParseContext(tactx);
-
-  const Eigen::Matrix4f &projection = GetProjectionMatrix(tactx);
-  rb_.RenderSurfaces(projection, surfs_, num_surfs_, verts_, num_verts_,
-                     sorted_surfs_);
+void TileRenderer::RenderContext(const TileContext &tctx) {
+  ParseContext(tctx, &rctx_, false);
+  RenderContext(rctx_);
 }
 
-void TileRenderer::Reset() {
+void TileRenderer::Reset(TileRenderContext *rctx) {
+  // reset render state
+  rctx->surfs.Clear();
+  rctx->verts.Clear();
+  rctx->sorted_surfs.Clear();
+  rctx->param_map.clear();
+
   // reset global state
   last_poly_ = nullptr;
   last_vertex_ = nullptr;
   list_type_ = 0;
   vertex_type_ = 0;
-
-  // reset render state
-  num_surfs_ = 0;
-  num_verts_ = 0;
   last_sorted_surf_ = 0;
 }
 
-Surface *TileRenderer::AllocSurf(bool copy_from_prev) {
-  CHECK_LT(num_surfs_, MAX_SURFACES);
-
-  // reuse previous surface if it wasn't completed, else, allocate a new one
-  int id;
-  if (last_vertex_ && !last_vertex_->type0.pcw.end_of_strip) {
-    CHECK(!copy_from_prev);
-    id = num_surfs_ - 1;
-  } else {
-    id = num_surfs_++;
-  }
+Surface &TileRenderer::AllocSurf(TileRenderContext *rctx, bool copy_from_prev) {
+  int id = rctx->surfs.size();
+  rctx->surfs.Resize(id + 1);
+  Surface &surf = rctx->surfs[id];
 
   // either reset the surface state, or copy the state from the previous surface
-  Surface *surf = &surfs_[id];
   if (copy_from_prev) {
-    CHECK_GT(id, 0);
-    *surf = surfs_[id - 1];
+    new (&surf) Surface(rctx->surfs[id - 1]);
   } else {
-    new (surf) Surface();
+    new (&surf) Surface();
   }
-  surf->first_vert = num_verts_;
-  surf->num_verts = 0;
+
+  surf.first_vert = rctx->verts.size();
+  surf.num_verts = 0;
 
   // default sort the surface
-  sorted_surfs_[id] = id;
+  rctx->sorted_surfs.Resize(id + 1);
+  rctx->sorted_surfs[id] = id;
 
   return surf;
 }
 
-Vertex *TileRenderer::AllocVert() {
-  CHECK_LT(num_verts_, MAX_VERTICES);
-  Surface *surf = &surfs_[num_surfs_ - 1];
-  surf->num_verts++;
-  Vertex *v = &verts_[num_verts_++];
-  new (v) Vertex();
+Vertex &TileRenderer::AllocVert(TileRenderContext *rctx) {
+  int id = rctx->verts.size();
+  rctx->verts.Resize(id + 1);
+  Vertex &v = rctx->verts[id];
+
+  new (&v) Vertex();
+
+  // update vertex count on the current surface
+  Surface &surf = rctx->surfs.back();
+  surf.num_verts++;
+
   return v;
+}
+
+void TileRenderer::DiscardIncompleteSurf(TileRenderContext *rctx) {
+  // free up the last surface if it wasn't finished
+  if (last_vertex_ && !last_vertex_->type0.pcw.end_of_strip) {
+    rctx->surfs.PopBack();
+  }
 }
 
 // FIXME we could offload a lot of this to the GPU, generating shaders
@@ -236,110 +305,93 @@ void TileRenderer::ParseOffsetColor(float intensity, uint32_t *color) {
   }
 }
 
-void TileRenderer::ParseBackground(const TileContext *tactx) {
+void TileRenderer::ParseBackground(const TileContext &tctx,
+                                   TileRenderContext *rctx) {
   // translate the surface
-  Surface *surf = AllocSurf(false);
+  Surface &surf = AllocSurf(rctx, false);
 
-  surf->texture = 0;
-  surf->depth_write = !tactx->bg_isp.z_write_disable;
-  surf->depth_func = TranslateDepthFunc(tactx->bg_isp.depth_compare_mode);
-  surf->cull = TranslateCull(tactx->bg_isp.culling_mode);
-  surf->src_blend = BLEND_NONE;
-  surf->dst_blend = BLEND_NONE;
+  surf.texture = 0;
+  surf.depth_write = !tctx.bg_isp.z_write_disable;
+  surf.depth_func = TranslateDepthFunc(tctx.bg_isp.depth_compare_mode);
+  surf.cull = TranslateCull(tctx.bg_isp.culling_mode);
+  surf.src_blend = BLEND_NONE;
+  surf.dst_blend = BLEND_NONE;
 
   // translate the first 3 vertices
-  Vertex *verts[4] = {nullptr};
-  int offset = 0;
-  for (int i = 0; i < 3; i++) {
-    Vertex *v = verts[i] = AllocVert();
+  Vertex &v0 = AllocVert(rctx);
+  Vertex &v1 = AllocVert(rctx);
+  Vertex &v2 = AllocVert(rctx);
+  Vertex &v3 = AllocVert(rctx);
 
-    v->xyz[0] = re::load<float>(&tactx->bg_vertices[offset]);
-    v->xyz[1] = re::load<float>(&tactx->bg_vertices[offset + 4]);
-    v->xyz[2] = re::load<float>(&tactx->bg_vertices[offset + 8]);
+  int offset = 0;
+  auto ParseBackgroundVert = [&](int i, Vertex &v) {
+    v.xyz[0] = re::load<float>(&tctx.bg_vertices[offset]);
+    v.xyz[1] = re::load<float>(&tctx.bg_vertices[offset + 4]);
+    v.xyz[2] = re::load<float>(&tctx.bg_vertices[offset + 8]);
     offset += 12;
 
-    if (tactx->bg_isp.texture) {
+    if (tctx.bg_isp.texture) {
       LOG_FATAL("Unsupported bg_isp.texture");
-      // v->uv[0] = re::load<float>(&tactx->bg_vertices[offset]);
-      // v->uv[1] = re::load<float>(&tactx->bg_vertices[offset + 4]);
+      // v.uv[0] = re::load<float>(&tctx.bg_vertices[offset]);
+      // v.uv[1] = re::load<float>(&tctx.bg_vertices[offset + 4]);
       // offset += 8;
     }
 
-    uint32_t base_color = re::load<uint32_t>(&tactx->bg_vertices[offset]);
-    v->color = abgr_to_rgba(base_color);
+    uint32_t base_color = re::load<uint32_t>(&tctx.bg_vertices[offset]);
+    v.color = abgr_to_rgba(base_color);
     offset += 4;
 
-    if (tactx->bg_isp.offset) {
+    if (tctx.bg_isp.offset) {
       LOG_FATAL("Unsupported bg_isp.offset");
       // uint32_t offset_color =
-      // re::load<uint32_t>(&tactx->bg_vertices[offset]);
-      // v->offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
-      // v->offset_color[1] = ((offset_color >> 16) & 0xff) / 255.0f;
-      // v->offset_color[2] = ((offset_color >> 16) & 0xff) / 255.0f;
-      // v->offset_color[3] = 0.0f;
+      // re::load<uint32_t>(&tctx.bg_vertices[offset]);
+      // v.offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
+      // v.offset_color[1] = ((offset_color >> 16) & 0xff) / 255.0f;
+      // v.offset_color[2] = ((offset_color >> 16) & 0xff) / 255.0f;
+      // v.offset_color[3] = 0.0f;
       // offset += 4;
     }
-  }
+  };
+
+  ParseBackgroundVert(0, v0);
+  ParseBackgroundVert(1, v1);
+  ParseBackgroundVert(2, v2);
 
   // override the xyz values supplied by ISP_BACKGND_T. while the hardware docs
   // act like the should be correct, they're most definitely not in most cases
-  verts[0]->xyz[0] = 0.0f;
-  verts[0]->xyz[1] = (float)tactx->video_height;
-  verts[0]->xyz[2] = tactx->bg_depth;
-  verts[1]->xyz[0] = 0.0f;
-  verts[1]->xyz[1] = 0.0f;
-  verts[1]->xyz[2] = tactx->bg_depth;
-  verts[2]->xyz[0] = (float)tactx->video_width;
-  verts[2]->xyz[1] = (float)tactx->video_height;
-  verts[2]->xyz[2] = tactx->bg_depth;
+  v0.xyz[0] = 0.0f;
+  v0.xyz[1] = (float)tctx.video_height;
+  v0.xyz[2] = tctx.bg_depth;
+  v1.xyz[0] = 0.0f;
+  v1.xyz[1] = 0.0f;
+  v1.xyz[2] = tctx.bg_depth;
+  v2.xyz[0] = (float)tctx.video_width;
+  v2.xyz[1] = (float)tctx.video_height;
+  v2.xyz[2] = tctx.bg_depth;
 
   // 4th vertex isn't supplied, fill it out automatically
-  verts[3] = AllocVert();
-  verts[3]->xyz[0] = verts[2]->xyz[0];
-  verts[3]->xyz[1] = verts[1]->xyz[1];
-  verts[3]->xyz[2] = tactx->bg_depth;
-  verts[3]->color = verts[0]->color;
-  verts[3]->offset_color = verts[0]->offset_color;
-  verts[3]->uv[0] = verts[2]->uv[0];
-  verts[3]->uv[1] = verts[1]->uv[1];
+  v3.xyz[0] = v2.xyz[0];
+  v3.xyz[1] = v1.xyz[1];
+  v3.xyz[2] = tctx.bg_depth;
+  v3.color = v0.color;
+  v3.offset_color = v0.offset_color;
+  v3.uv[0] = v2.uv[0];
+  v3.uv[1] = v1.uv[1];
 }
 
 // NOTE this offset color implementation is not correct at all, see the
 // Texture/Shading Instruction in the TSP instruction word
-void TileRenderer::ParsePolyParam(const TileContext *tactx,
-                                  const PolyParam *param) {
+void TileRenderer::ParsePolyParam(const TileContext &tctx,
+                                  TileRenderContext *rctx,
+                                  const uint8_t *data) {
+  DiscardIncompleteSurf(rctx);
+
+  const PolyParam *param = reinterpret_cast<const PolyParam *>(data);
+
   last_poly_ = param;
   last_vertex_ = nullptr;
   list_type_ = param->type0.pcw.list_type;
   vertex_type_ = TileAccelerator::GetVertexType(param->type0.pcw);
-
-  // setup the new surface
-  Surface *surf = AllocSurf(false);
-  surf->depth_write = !param->type0.isp_tsp.z_write_disable;
-  surf->depth_func =
-      TranslateDepthFunc(param->type0.isp_tsp.depth_compare_mode);
-  surf->cull = TranslateCull(param->type0.isp_tsp.culling_mode);
-  surf->src_blend = TranslateSrcBlendFunc(param->type0.tsp.src_alpha_instr);
-  surf->dst_blend = TranslateDstBlendFunc(param->type0.tsp.dst_alpha_instr);
-  surf->shade = TranslateShadeMode(param->type0.tsp.texture_shading_instr);
-  surf->ignore_tex_alpha = param->type0.tsp.ignore_tex_alpha;
-
-  // override a few surface parameters based on the list type
-  if (list_type_ != TA_LIST_TRANSLUCENT &&
-      list_type_ != TA_LIST_TRANSLUCENT_MODVOL) {
-    surf->src_blend = BLEND_NONE;
-    surf->dst_blend = BLEND_NONE;
-  } else if ((list_type_ == TA_LIST_TRANSLUCENT ||
-              list_type_ == TA_LIST_TRANSLUCENT_MODVOL) &&
-             tactx->autosort) {
-    surf->depth_func = DEPTH_LEQUAL;
-  } else if (list_type_ == TA_LIST_PUNCH_THROUGH) {
-    surf->depth_func = DEPTH_GEQUAL;
-  }
-
-  surf->texture = param->type0.pcw.texture
-                      ? GetTexture(tactx, param->type0.tsp, param->type0.tcw)
-                      : 0;
 
   int poly_type = TileAccelerator::GetPolyType(param->type0.pcw);
   switch (poly_type) {
@@ -380,176 +432,204 @@ void TileRenderer::ParsePolyParam(const TileContext *tactx,
           ((param->sprite.offset_color >> 24) & 0xff) / 255.0f;
     } break;
 
-    case 6: {
+    case 6:
       // don't do anything with modifier volume yet
-      num_surfs_--;
-    } break;
+      return;
 
     default:
       LOG_FATAL("Unsupported poly type %d", poly_type);
       break;
   }
+
+  // setup the new surface
+  Surface &surf = AllocSurf(rctx, false);
+  surf.depth_write = !param->type0.isp_tsp.z_write_disable;
+  surf.depth_func = TranslateDepthFunc(param->type0.isp_tsp.depth_compare_mode);
+  surf.cull = TranslateCull(param->type0.isp_tsp.culling_mode);
+  surf.src_blend = TranslateSrcBlendFunc(param->type0.tsp.src_alpha_instr);
+  surf.dst_blend = TranslateDstBlendFunc(param->type0.tsp.dst_alpha_instr);
+  surf.shade = TranslateShadeMode(param->type0.tsp.texture_shading_instr);
+  surf.ignore_tex_alpha = param->type0.tsp.ignore_tex_alpha;
+
+  // override a few surface parameters based on the list type
+  if (list_type_ != TA_LIST_TRANSLUCENT &&
+      list_type_ != TA_LIST_TRANSLUCENT_MODVOL) {
+    surf.src_blend = BLEND_NONE;
+    surf.dst_blend = BLEND_NONE;
+  } else if ((list_type_ == TA_LIST_TRANSLUCENT ||
+              list_type_ == TA_LIST_TRANSLUCENT_MODVOL) &&
+             tctx.autosort) {
+    surf.depth_func = DEPTH_LEQUAL;
+  } else if (list_type_ == TA_LIST_PUNCH_THROUGH) {
+    surf.depth_func = DEPTH_GEQUAL;
+  }
+
+  surf.texture = param->type0.pcw.texture
+                     ? GetTexture(tctx, param->type0.tsp, param->type0.tcw)
+                     : 0;
 }
 
-void TileRenderer::ParseVertexParam(const TileContext *tactx,
-                                    const VertexParam *param) {
+void TileRenderer::ParseVertexParam(const TileContext &tctx,
+                                    TileRenderContext *rctx,
+                                    const uint8_t *data) {
+  const VertexParam *param = reinterpret_cast<const VertexParam *>(data);
   // If there is no need to change the Global Parameters, a Vertex Parameter for
   // the next polygon may be input immediately after inputting a Vertex
   // Parameter for which "End of Strip" was specified.
   if (last_vertex_ && last_vertex_->type0.pcw.end_of_strip) {
-    AllocSurf(true);
+    AllocSurf(rctx, true);
   }
   last_vertex_ = param;
 
   switch (vertex_type_) {
     case 0: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type0.xyz[0];
-      vert->xyz[1] = param->type0.xyz[1];
-      vert->xyz[2] = param->type0.xyz[2];
-      ParseColor(param->type0.base_color, &vert->color);
-      vert->offset_color = 0;
-      vert->uv[0] = 0.0f;
-      vert->uv[1] = 0.0f;
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type0.xyz[0];
+      vert.xyz[1] = param->type0.xyz[1];
+      vert.xyz[2] = param->type0.xyz[2];
+      ParseColor(param->type0.base_color, &vert.color);
+      vert.offset_color = 0;
+      vert.uv[0] = 0.0f;
+      vert.uv[1] = 0.0f;
     } break;
 
     case 1: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type1.xyz[0];
-      vert->xyz[1] = param->type1.xyz[1];
-      vert->xyz[2] = param->type1.xyz[2];
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type1.xyz[0];
+      vert.xyz[1] = param->type1.xyz[1];
+      vert.xyz[2] = param->type1.xyz[2];
       ParseColor(param->type1.base_color_r, param->type1.base_color_g,
                  param->type1.base_color_b, param->type1.base_color_a,
-                 &vert->color);
-      vert->offset_color = 0;
-      vert->uv[0] = 0.0f;
-      vert->uv[1] = 0.0f;
+                 &vert.color);
+      vert.offset_color = 0;
+      vert.uv[0] = 0.0f;
+      vert.uv[1] = 0.0f;
     } break;
 
     case 2: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type2.xyz[0];
-      vert->xyz[1] = param->type2.xyz[1];
-      vert->xyz[2] = param->type2.xyz[2];
-      ParseColor(param->type2.base_intensity, &vert->color);
-      vert->offset_color = 0;
-      vert->uv[0] = 0.0f;
-      vert->uv[1] = 0.0f;
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type2.xyz[0];
+      vert.xyz[1] = param->type2.xyz[1];
+      vert.xyz[2] = param->type2.xyz[2];
+      ParseColor(param->type2.base_intensity, &vert.color);
+      vert.offset_color = 0;
+      vert.uv[0] = 0.0f;
+      vert.uv[1] = 0.0f;
     } break;
 
     case 3: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type3.xyz[0];
-      vert->xyz[1] = param->type3.xyz[1];
-      vert->xyz[2] = param->type3.xyz[2];
-      ParseColor(param->type3.base_color, &vert->color);
-      ParseOffsetColor(param->type3.offset_color, &vert->offset_color);
-      vert->uv[0] = param->type3.uv[0];
-      vert->uv[1] = param->type3.uv[1];
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type3.xyz[0];
+      vert.xyz[1] = param->type3.xyz[1];
+      vert.xyz[2] = param->type3.xyz[2];
+      ParseColor(param->type3.base_color, &vert.color);
+      ParseOffsetColor(param->type3.offset_color, &vert.offset_color);
+      vert.uv[0] = param->type3.uv[0];
+      vert.uv[1] = param->type3.uv[1];
     } break;
 
     case 4: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type4.xyz[0];
-      vert->xyz[1] = param->type4.xyz[1];
-      vert->xyz[2] = param->type4.xyz[2];
-      ParseColor(param->type4.base_color, &vert->color);
-      ParseOffsetColor(param->type4.offset_color, &vert->offset_color);
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type4.xyz[0];
+      vert.xyz[1] = param->type4.xyz[1];
+      vert.xyz[2] = param->type4.xyz[2];
+      ParseColor(param->type4.base_color, &vert.color);
+      ParseOffsetColor(param->type4.offset_color, &vert.offset_color);
       uint32_t u = param->type4.uv[0] << 16;
       uint32_t v = param->type4.uv[0] << 16;
-      vert->uv[0] = re::load<float>(&u);
-      vert->uv[1] = re::load<float>(&v);
+      vert.uv[0] = re::load<float>(&u);
+      vert.uv[1] = re::load<float>(&v);
     } break;
 
     case 5: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type5.xyz[0];
-      vert->xyz[1] = param->type5.xyz[1];
-      vert->xyz[2] = param->type5.xyz[2];
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type5.xyz[0];
+      vert.xyz[1] = param->type5.xyz[1];
+      vert.xyz[2] = param->type5.xyz[2];
       ParseColor(param->type5.base_color_r, param->type5.base_color_g,
                  param->type5.base_color_b, param->type5.base_color_a,
-                 &vert->color);
+                 &vert.color);
       ParseOffsetColor(param->type5.offset_color_r, param->type5.offset_color_g,
                        param->type5.offset_color_b, param->type5.offset_color_a,
-                       &vert->offset_color);
-      vert->uv[0] = param->type5.uv[0];
-      vert->uv[1] = param->type5.uv[1];
+                       &vert.offset_color);
+      vert.uv[0] = param->type5.uv[0];
+      vert.uv[1] = param->type5.uv[1];
     } break;
 
     case 6: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type6.xyz[0];
-      vert->xyz[1] = param->type6.xyz[1];
-      vert->xyz[2] = param->type6.xyz[2];
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type6.xyz[0];
+      vert.xyz[1] = param->type6.xyz[1];
+      vert.xyz[2] = param->type6.xyz[2];
       ParseColor(param->type6.base_color_r, param->type6.base_color_g,
                  param->type6.base_color_b, param->type6.base_color_a,
-                 &vert->color);
+                 &vert.color);
       ParseOffsetColor(param->type6.offset_color_r, param->type6.offset_color_g,
                        param->type6.offset_color_b, param->type6.offset_color_a,
-                       &vert->offset_color);
+                       &vert.offset_color);
       uint32_t u = param->type6.uv[0] << 16;
       uint32_t v = param->type6.uv[0] << 16;
-      vert->uv[0] = re::load<float>(&u);
-      vert->uv[1] = re::load<float>(&v);
+      vert.uv[0] = re::load<float>(&u);
+      vert.uv[1] = re::load<float>(&v);
     } break;
 
     case 7: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type7.xyz[0];
-      vert->xyz[1] = param->type7.xyz[1];
-      vert->xyz[2] = param->type7.xyz[2];
-      ParseColor(param->type7.base_intensity, &vert->color);
-      ParseOffsetColor(param->type7.offset_intensity, &vert->offset_color);
-      vert->uv[0] = param->type7.uv[0];
-      vert->uv[1] = param->type7.uv[1];
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type7.xyz[0];
+      vert.xyz[1] = param->type7.xyz[1];
+      vert.xyz[2] = param->type7.xyz[2];
+      ParseColor(param->type7.base_intensity, &vert.color);
+      ParseOffsetColor(param->type7.offset_intensity, &vert.offset_color);
+      vert.uv[0] = param->type7.uv[0];
+      vert.uv[1] = param->type7.uv[1];
     } break;
 
     case 8: {
-      Vertex *vert = AllocVert();
-      vert->xyz[0] = param->type8.xyz[0];
-      vert->xyz[1] = param->type8.xyz[1];
-      vert->xyz[2] = param->type8.xyz[2];
-      ParseColor(param->type8.base_intensity, &vert->color);
-      ParseOffsetColor(param->type8.offset_intensity, &vert->offset_color);
+      Vertex &vert = AllocVert(rctx);
+      vert.xyz[0] = param->type8.xyz[0];
+      vert.xyz[1] = param->type8.xyz[1];
+      vert.xyz[2] = param->type8.xyz[2];
+      ParseColor(param->type8.base_intensity, &vert.color);
+      ParseOffsetColor(param->type8.offset_intensity, &vert.offset_color);
       uint32_t u = param->type8.uv[0] << 16;
       uint32_t v = param->type8.uv[0] << 16;
-      vert->uv[0] = re::load<float>(&u);
-      vert->uv[1] = re::load<float>(&v);
+      vert.uv[0] = re::load<float>(&u);
+      vert.uv[1] = re::load<float>(&v);
     } break;
 
     case 15: {
-      auto ParseSpriteVert = [&](int i, Vertex *vert) {
+      auto ParseSpriteVert = [&](int i, Vertex &vert) {
         // FIXME this is assuming all sprites are billboards
         // z isn't specified for i == 3
-        vert->xyz[0] = param->sprite0.xyz[i][0];
-        vert->xyz[1] = param->sprite0.xyz[i][1];
-        vert->xyz[2] = param->sprite0.xyz[0][2];
+        vert.xyz[0] = param->sprite0.xyz[i][0];
+        vert.xyz[1] = param->sprite0.xyz[i][1];
+        vert.xyz[2] = param->sprite0.xyz[0][2];
 
         ParseColor(face_color_[0], face_color_[1], face_color_[2],
-                   face_color_[3], &vert->color);
+                   face_color_[3], &vert.color);
         ParseOffsetColor(face_offset_color_[0], face_offset_color_[1],
                          face_offset_color_[2], face_offset_color_[3],
-                         &vert->offset_color);
+                         &vert.offset_color);
       };
 
-      ParseSpriteVert(0, AllocVert());
-      ParseSpriteVert(1, AllocVert());
-      ParseSpriteVert(3, AllocVert());
-      ParseSpriteVert(2, AllocVert());
+      ParseSpriteVert(0, AllocVert(rctx));
+      ParseSpriteVert(1, AllocVert(rctx));
+      ParseSpriteVert(3, AllocVert(rctx));
+      ParseSpriteVert(2, AllocVert(rctx));
     } break;
 
     case 16: {
-      auto ParseSpriteVert = [&](int i, Vertex *vert) {
+      auto ParseSpriteVert = [&](int i, Vertex &vert) {
         // FIXME this is assuming all sprites are billboards
         // z isn't specified for i == 3
-        vert->xyz[0] = param->sprite1.xyz[i][0];
-        vert->xyz[1] = param->sprite1.xyz[i][1];
-        vert->xyz[2] = param->sprite1.xyz[0][2];
+        vert.xyz[0] = param->sprite1.xyz[i][0];
+        vert.xyz[1] = param->sprite1.xyz[i][1];
+        vert.xyz[2] = param->sprite1.xyz[0][2];
         ParseColor(face_color_[0], face_color_[1], face_color_[2],
-                   face_color_[3], &vert->color);
+                   face_color_[3], &vert.color);
         ParseOffsetColor(face_offset_color_[0], face_offset_color_[1],
                          face_offset_color_[2], face_offset_color_[3],
-                         &vert->offset_color);
+                         &vert.offset_color);
         uint32_t u, v;
         if (i == 3) {
           u = (param->sprite1.uv[0] & 0xffff0000);
@@ -558,14 +638,14 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx,
           u = (param->sprite1.uv[i] & 0xffff0000);
           v = (param->sprite1.uv[i] & 0x0000ffff) << 16;
         }
-        vert->uv[0] = re::load<float>(&u);
-        vert->uv[1] = re::load<float>(&v);
+        vert.uv[0] = re::load<float>(&u);
+        vert.uv[1] = re::load<float>(&v);
       };
 
-      ParseSpriteVert(0, AllocVert());
-      ParseSpriteVert(1, AllocVert());
-      ParseSpriteVert(3, AllocVert());
-      ParseSpriteVert(2, AllocVert());
+      ParseSpriteVert(0, AllocVert(rctx));
+      ParseSpriteVert(1, AllocVert(rctx));
+      ParseSpriteVert(3, AllocVert(rctx));
+      ParseSpriteVert(2, AllocVert(rctx));
     } break;
 
     case 17: {
@@ -585,31 +665,35 @@ void TileRenderer::ParseVertexParam(const TileContext *tactx,
   // FIXME is this true for sprites which come through this path as well?
 }
 
-void TileRenderer::ParseEndOfList(const TileContext *tactx) {
+void TileRenderer::ParseEndOfList(const TileContext &tctx,
+                                  TileRenderContext *rctx,
+                                  const uint8_t *data) {
+  DiscardIncompleteSurf(rctx);
+
   int first_surf_to_sort = last_sorted_surf_;
-  int num_surfs_to_sort = num_surfs_ - last_sorted_surf_;
+  int num_surfs_to_sort = rctx->surfs.size() - last_sorted_surf_;
 
   // sort transparent polys by their z value, from back to front. remember, in
   // dreamcast coordinates smaller z values are further away from the camera
   if ((list_type_ == TA_LIST_TRANSLUCENT ||
        list_type_ == TA_LIST_TRANSLUCENT_MODVOL) &&
-      tactx->autosort) {
-    int *first = sorted_surfs_ + first_surf_to_sort;
-    int *last = sorted_surfs_ + first_surf_to_sort + num_surfs_to_sort;
+      tctx.autosort) {
+    int *first = &rctx->sorted_surfs[first_surf_to_sort];
+    int *last = &rctx->sorted_surfs[first_surf_to_sort + num_surfs_to_sort];
     std::sort(first, last, [&](int a, int b) {
-      Surface *surfa = &surfs_[a];
-      Surface *surfb = &surfs_[b];
+      Surface *surfa = &rctx->surfs[a];
+      Surface *surfb = &rctx->surfs[b];
 
       float minza = std::numeric_limits<float>::max();
       for (int i = 0; i < surfa->num_verts; i++) {
-        Vertex *v = &verts_[surfa->first_vert + i];
+        Vertex *v = &rctx->verts[surfa->first_vert + i];
         if (v->xyz[2] < minza) {
           minza = v->xyz[2];
         }
       }
       float minzb = std::numeric_limits<float>::max();
       for (int i = 0; i < surfb->num_verts; i++) {
-        Vertex *v = &verts_[surfb->first_vert + i];
+        Vertex *v = &rctx->verts[surfb->first_vert + i];
         if (v->xyz[2] < minzb) {
           minzb = v->xyz[2];
         }
@@ -621,62 +705,7 @@ void TileRenderer::ParseEndOfList(const TileContext *tactx) {
 
   last_poly_ = nullptr;
   last_vertex_ = nullptr;
-  last_sorted_surf_ = num_surfs_;
-}
-
-void TileRenderer::ParseContext(const TileContext *tactx) {
-  PROFILER_GPU("TileRenderer::ParseContext");
-
-  const uint8_t *data = tactx->data;
-  const uint8_t *end = tactx->data + tactx->size;
-
-  Reset();
-
-  ParseBackground(tactx);
-
-  while (data < end) {
-    PCW pcw = *(PCW *)data;
-
-    // FIXME
-    // If Vertex Parameters with the "End of Strip" specification were not
-    // input, but parameters other than the Vertex Parameters were input, the
-    // polygon data in question is ignored and an interrupt signal is output.
-
-    switch (pcw.para_type) {
-      // control params
-      case TA_PARAM_END_OF_LIST:
-        ParseEndOfList(tactx);
-        break;
-
-      case TA_PARAM_USER_TILE_CLIP:
-        // nothing to do
-        break;
-
-      case TA_PARAM_OBJ_LIST_SET:
-        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
-        break;
-
-      // global params
-      case TA_PARAM_POLY_OR_VOL:
-        ParsePolyParam(tactx, reinterpret_cast<const PolyParam *>(data));
-        break;
-
-      case TA_PARAM_SPRITE:
-        ParsePolyParam(tactx, reinterpret_cast<const PolyParam *>(data));
-        break;
-
-      // vertex params
-      case TA_PARAM_VERTEX:
-        ParseVertexParam(tactx, reinterpret_cast<const VertexParam *>(data));
-        break;
-
-      default:
-        LOG_FATAL("Unsupported parameter type %d", pcw.para_type);
-        break;
-    }
-
-    data += TileAccelerator::GetParamSize(pcw, vertex_type_);
-  }
+  last_sorted_surf_ = static_cast<int>(rctx->surfs.size());
 }
 
 // Vertices coming into the TA are in window space, with the Z component being
@@ -685,13 +714,14 @@ void TileRenderer::ParseContext(const TileContext *tactx) {
 // projection on the vertices as they're already perspective correct, the
 // renderer backend will have to deal with setting the W component of each
 // in order to perspective correct the texture mapping.
-Eigen::Matrix4f TileRenderer::GetProjectionMatrix(const TileContext *tactx) {
+void TileRenderer::FillProjectionMatrix(const TileContext &tctx,
+                                        TileRenderContext *rctx) {
   float znear = std::numeric_limits<float>::min();
   float zfar = std::numeric_limits<float>::max();
 
   // Z component is 1/W, so +Z is into the screen
-  for (int i = 0; i < num_verts_; i++) {
-    Vertex *v = &verts_[i];
+  for (int i = 0, n = rctx->verts.size(); i < n; i++) {
+    Vertex *v = &rctx->verts[i];
     if (v->xyz[2] > znear) {
       znear = v->xyz[2];
     }
@@ -709,18 +739,16 @@ Eigen::Matrix4f TileRenderer::GetProjectionMatrix(const TileContext *tactx) {
   }
 
   // convert from window space coordinates into clip space
-  Eigen::Matrix4f p = Eigen::Matrix4f::Identity();
-  p(0, 0) = 2.0f / (float)tactx->video_width;
-  p(1, 1) = -2.0f / (float)tactx->video_height;
-  p(0, 3) = -1.0f;
-  p(1, 3) = 1.0f;
-  p(2, 2) = (-znear - zfar) / zdepth;
-  p(2, 3) = (2.0f * zfar * znear) / zdepth;
-
-  return p;
+  rctx->projection = Eigen::Matrix4f::Identity();
+  rctx->projection(0, 0) = 2.0f / (float)tctx.video_width;
+  rctx->projection(1, 1) = -2.0f / (float)tctx.video_height;
+  rctx->projection(0, 3) = -1.0f;
+  rctx->projection(1, 3) = 1.0f;
+  rctx->projection(2, 2) = (-znear - zfar) / zdepth;
+  rctx->projection(2, 3) = (2.0f * zfar * znear) / zdepth;
 }
 
-TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
+TextureHandle TileRenderer::RegisterTexture(const TileContext &tctx,
                                             const TSP &tsp, const TCW &tcw,
                                             const uint8_t *palette,
                                             const uint8_t *texture) {
@@ -739,12 +767,12 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
   int height = mip_mapped ? width : 8 << tsp.texture_v_size;
   int stride = width;
   if (!twiddled && tcw.stride_select) {
-    stride = tactx->stride;
+    stride = tctx.stride;
   }
 
   // FIXME used for texcoords, not width / height of texture
   // if (planar && tcw.stride_select) {
-  //   width = tactx->stride << 5;
+  //   width = tctx.stride << 5;
   // }
 
   // mipmap textures contain data for 1 x 1 up to width x height. skip to the
@@ -771,6 +799,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
   PixelFormat pixel_fmt = PXL_INVALID;
   switch (tcw.pixel_format) {
     case TA_PIXEL_1555:
+    case TA_PIXEL_RESERVED:
       output = converted;
       pixel_fmt = PXL_RGBA5551;
       if (compressed) {
@@ -827,7 +856,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
     case TA_PIXEL_4BPP:
       CHECK(!compressed);
       output = converted;
-      switch (tactx->pal_pxl_format) {
+      switch (tctx.pal_pxl_format) {
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           PixelConvert::ConvertPal4<ARGB4444, RGBA4444>(
@@ -837,7 +866,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
 
         default:
           LOG_FATAL("Unsupported 4bpp palette pixel format %d",
-                    tactx->pal_pxl_format);
+                    tctx.pal_pxl_format);
           break;
       }
       break;
@@ -845,7 +874,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
     case TA_PIXEL_8BPP:
       CHECK(!compressed);
       output = converted;
-      switch (tactx->pal_pxl_format) {
+      switch (tctx.pal_pxl_format) {
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           PixelConvert::ConvertPal8<ARGB4444, RGBA4444>(
@@ -862,7 +891,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
 
         default:
           LOG_FATAL("Unsupported 8bpp palette pixel format %d",
-                    tactx->pal_pxl_format);
+                    tctx.pal_pxl_format);
           break;
       }
       break;
@@ -892,10 +921,10 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext *tactx,
   return handle;
 }
 
-TextureHandle TileRenderer::GetTexture(const TileContext *tactx, const TSP &tsp,
+TextureHandle TileRenderer::GetTexture(const TileContext &tctx, const TSP &tsp,
                                        const TCW &tcw) {
   return texture_provider_.GetTexture(
       tsp, tcw, [&](const uint8_t *palette, const uint8_t *texture) {
-        return RegisterTexture(tactx, tsp, tcw, palette, texture);
+        return RegisterTexture(tctx, tsp, tcw, palette, texture);
       });
 }

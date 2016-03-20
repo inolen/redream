@@ -50,10 +50,6 @@ bool TraceReader::Parse(const char *filename) {
     return false;
   }
 
-  if (!PatchFrames()) {
-    return false;
-  }
-
   return true;
 }
 
@@ -113,7 +109,7 @@ bool TraceReader::PatchPointers() {
 // tracked in order to support unwinding. To do so, each command is iterated
 // and tagged with the previous command that it overrides.
 bool TraceReader::PatchOverrides() {
-  TraceCommand *cmd = cmd_head();
+  TraceCommand *cmd = cmds();
 
   std::unordered_map<TextureKey, TraceCommand *> last_inserts;
 
@@ -130,24 +126,6 @@ bool TraceReader::PatchOverrides() {
         last_inserts.insert(std::make_pair(texture_key, cmd));
       }
     }
-
-    cmd = cmd->next;
-  }
-
-  return true;
-}
-
-// Patch in frame numbers to ease working with the trace.
-bool TraceReader::PatchFrames() {
-  TraceCommand *cmd = cmd_head();
-  int frame = -1;
-
-  while (cmd) {
-    if (cmd->type == TRACE_CMD_CONTEXT) {
-      frame++;
-    }
-
-    cmd->frame = frame;
 
     cmd = cmd->next;
   }
@@ -195,27 +173,27 @@ void TraceWriter::WriteInsertTexture(const TSP &tsp, const TCW &tcw,
   }
 }
 
-void TraceWriter::WriteRenderContext(TileContext *tactx) {
+void TraceWriter::WriteRenderContext(TileContext *tctx) {
   TraceCommand cmd;
   cmd.type = TRACE_CMD_CONTEXT;
-  cmd.context.autosort = tactx->autosort;
-  cmd.context.stride = tactx->stride;
-  cmd.context.pal_pxl_format = tactx->pal_pxl_format;
-  cmd.context.video_width = tactx->video_width;
-  cmd.context.video_height = tactx->video_height;
-  cmd.context.bg_isp = tactx->bg_isp;
-  cmd.context.bg_tsp = tactx->bg_tsp;
-  cmd.context.bg_tcw = tactx->bg_tcw;
-  cmd.context.bg_depth = tactx->bg_depth;
-  cmd.context.bg_vertices_size = sizeof(tactx->bg_vertices);
+  cmd.context.autosort = tctx->autosort;
+  cmd.context.stride = tctx->stride;
+  cmd.context.pal_pxl_format = tctx->pal_pxl_format;
+  cmd.context.video_width = tctx->video_width;
+  cmd.context.video_height = tctx->video_height;
+  cmd.context.bg_isp = tctx->bg_isp;
+  cmd.context.bg_tsp = tctx->bg_tsp;
+  cmd.context.bg_tcw = tctx->bg_tcw;
+  cmd.context.bg_depth = tctx->bg_depth;
+  cmd.context.bg_vertices_size = sizeof(tctx->bg_vertices);
   cmd.context.bg_vertices = reinterpret_cast<const uint8_t *>(sizeof(cmd));
-  cmd.context.data_size = tactx->size;
+  cmd.context.data_size = tctx->size;
   cmd.context.data = reinterpret_cast<const uint8_t *>(
-      sizeof(cmd) + sizeof(tactx->bg_vertices));
+      sizeof(cmd) + sizeof(tctx->bg_vertices));
 
   CHECK_EQ(fwrite(&cmd, sizeof(cmd), 1, file_), 1);
-  CHECK_EQ(fwrite(tactx->bg_vertices, sizeof(tactx->bg_vertices), 1, file_), 1);
-  if (tactx->size) {
-    CHECK_EQ(fwrite(tactx->data, tactx->size, 1, file_), 1);
+  CHECK_EQ(fwrite(tctx->bg_vertices, sizeof(tctx->bg_vertices), 1, file_), 1);
+  if (tctx->size) {
+    CHECK_EQ(fwrite(tctx->data, tctx->size, 1, file_), 1);
   }
 }

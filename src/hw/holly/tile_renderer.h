@@ -2,7 +2,9 @@
 #define TILE_RENDERER_H
 
 #include <functional>
+#include <map>
 #include <Eigen/Dense>
+#include "core/array.h"
 #include "renderer/backend.h"
 
 namespace re {
@@ -36,47 +38,65 @@ class TextureProvider {
 
 // The TileRenderer class is responsible for taking a particular TileContext,
 // parsing it and ultimately rendering it out to the supplied backend. This
-// is split out of the main TileAccelerator code so it can be re-used by
+// is split out of the main TileAccelerator code so it can be re-used by the
 // Tracer.
-enum {
-  MAX_SURFACES = 0x10000,
-  MAX_VERTICES = 0x10000,
+struct TileRenderContext {
+  Eigen::Matrix4f projection;
+  re::array<renderer::Surface> surfs;
+  re::array<renderer::Vertex> verts;
+  re::array<int> sorted_surfs;
+
+  // map tile context offset -> number of surfs / verts rendered
+  struct ParamMapEntry {
+    int num_surfs;
+    int num_verts;
+  };
+  std::map<int, ParamMapEntry> param_map;
 };
 
 class TileRenderer {
  public:
   TileRenderer(renderer::Backend &rb, TextureProvider &texture_provider);
-  ~TileRenderer();
 
-  void RenderContext(const TileContext *tactx);
+  void ParseContext(const TileContext &tctx, TileRenderContext *rctx,
+                    bool map_params);
+  void RenderContext(const TileRenderContext &rctx);
+  void RenderContext(const TileContext &tctx);
 
  private:
-  void Reset();
-
-  renderer::Surface *AllocSurf(bool copy_from_prev);
-  renderer::Vertex *AllocVert();
+  void Reset(TileRenderContext *rctx);
+  renderer::Surface &AllocSurf(TileRenderContext *rctx, bool copy_from_prev);
+  renderer::Vertex &AllocVert(TileRenderContext *rctx);
+  void DiscardIncompleteSurf(TileRenderContext *rctx);
   void ParseColor(uint32_t base_color, uint32_t *color);
   void ParseColor(float r, float g, float b, float a, uint32_t *color);
   void ParseColor(float intensity, uint32_t *color);
   void ParseOffsetColor(uint32_t offset_color, uint32_t *color);
   void ParseOffsetColor(float r, float g, float b, float a, uint32_t *color);
   void ParseOffsetColor(float intensity, uint32_t *color);
-  void ParseBackground(const TileContext *tactx);
-  void ParsePolyParam(const TileContext *tactx, const PolyParam *param);
-  void ParseVertexParam(const TileContext *tactx, const VertexParam *param);
-  void ParseEndOfList(const TileContext *tactx);
-  void ParseContext(const TileContext *tactx);
-  Eigen::Matrix4f GetProjectionMatrix(const TileContext *tactx);
+  void ParseBackground(const TileContext &tctx, TileRenderContext *rctx);
+  void ParsePolyParam(const TileContext &tctx, TileRenderContext *rctx,
+                      const uint8_t *data);
+  void ParseVertexParam(const TileContext &tctx, TileRenderContext *rctx,
+                        const uint8_t *data);
+  void ParseEndOfList(const TileContext &tctx, TileRenderContext *rctx,
+                      const uint8_t *data);
+  void FillProjectionMatrix(const TileContext &tctx, TileRenderContext *rctx);
 
-  renderer::TextureHandle RegisterTexture(const TileContext *tactx,
+  renderer::TextureHandle RegisterTexture(const TileContext &tctx,
                                           const TSP &tsp, const TCW &tcw,
                                           const uint8_t *palette,
                                           const uint8_t *texture);
-  renderer::TextureHandle GetTexture(const TileContext *tactx, const TSP &tsp,
+  renderer::TextureHandle GetTexture(const TileContext &tctx, const TSP &tsp,
                                      const TCW &tcw);
 
   renderer::Backend &rb_;
   TextureProvider &texture_provider_;
+
+  // keep a persistent instance of this for RenderContext. the instance will be
+  // reset before each use, but the memory claimed by surfs / verts won't have
+  // to be reallocated
+  TileRenderContext rctx_;
 
   // current global state
   const PolyParam *last_poly_;
@@ -85,13 +105,6 @@ class TileRenderer {
   int vertex_type_;
   float face_color_[4];
   float face_offset_color_[4];
-
-  // current render state
-  renderer::Surface *surfs_;
-  renderer::Vertex *verts_;
-  int num_surfs_;
-  int num_verts_;
-  int *sorted_surfs_;
   int last_sorted_surf_;
 };
 }

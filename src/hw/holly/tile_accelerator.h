@@ -82,15 +82,15 @@ class TileAccelerator : public Device,
   void HandleTextureWrite(const sys::Exception &ex, void *data);
   void HandlePaletteWrite(const sys::Exception &ex, void *data);
 
-  void SaveRegisterState(TileContext *tactx);
+  void SaveRegisterState(TileContext *tctx);
 
   void ToggleTracing();
 
   Dreamcast *dc_;
   renderer::Backend *rb_;
-  hw::holly::TileRenderer tile_renderer_;
+  TileRenderer tile_renderer_;
   Memory *memory_;
-  holly::Holly *holly_;
+  Holly *holly_;
   uint8_t *video_ram_;
   TraceWriter *trace_writer_;
 
@@ -98,10 +98,10 @@ class TileAccelerator : public Device,
   TextureSet pending_invalidations_;
   uint64_t num_invalidated_;
 
-  TileContext contexts_[MAX_CONTEXTS];
-  TileContextMap live_contexts_;
-  TileContextQueue free_contexts_;
-  TileContext *last_context_;
+  TileContext tctxs_[MAX_CONTEXTS];
+  TileContextMap live_tctxs_;
+  TileContextQueue free_tctxs_;
+  TileContext *last_tctx_;
 };
 }
 }

@@ -66,9 +66,10 @@ class GLBackend : public Backend, public ui::WindowListener {
   void DrawSurface2D(const Surface2D &surf) final;
   void EndSurfaces2D() final;
 
-  void RenderSurfaces(const Eigen::Matrix4f &projection, const Surface *surfs,
-                      int num_surfs, const Vertex *verts, int num_verts,
-                      const int *sorted_surfs) final;
+  void BeginSurfaces(const Eigen::Matrix4f &projection, const Vertex *verts,
+                     int num_verts) final;
+  void DrawSurface(const Surface &surf) final;
+  void EndSurfaces() final;
 
  private:
   void OnPaint(bool show_main_menu) final;
