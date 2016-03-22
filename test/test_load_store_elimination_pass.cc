@@ -65,7 +65,7 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
   reader.Parse(input_stream, builder);
 
   LoadStoreEliminationPass pass;
-  pass.Run(builder);
+  pass.Run(builder, false);
 
   IRWriter writer;
   std::stringstream output_stream;

@@ -38,9 +38,9 @@ uint64_t Value::GetZExtValue() const {
   }
 }
 
-void Value::AddRef(ValueRef *ref) { refs_.Append(ref); }
+void Value::AddRef(Use *ref) { refs_.Append(ref); }
 
-void Value::RemoveRef(ValueRef *ref) { refs_.Remove(ref); }
+void Value::RemoveRef(Use *ref) { refs_.Remove(ref); }
 
 void Value::ReplaceRefsWith(Value *other) {
   CHECK_NE(this, other);
@@ -48,25 +48,32 @@ void Value::ReplaceRefsWith(Value *other) {
   // NOTE set_value will modify refs, be careful iterating
   auto it = refs_.begin();
   while (it != refs_.end()) {
-    ValueRef *ref = *(it++);
+    Use *ref = *(it++);
     ref->set_value(other);
   }
 }
 
-ValueRef::ValueRef(Instr *instr) : instr_(instr), value_(nullptr) {}
+//
+// Use
+//
+Use::Use(Instr *instr) : instr_(instr), value_(nullptr) {}
 
-ValueRef::~ValueRef() {
+Use::~Use() {
   if (value_) {
     value_->RemoveRef(this);
   }
 }
 
+//
+// Local
+//
 Local::Local(ValueType ty, Value *offset) : type_(ty), offset_(offset) {}
 
 //
 // Instr
 //
-Instr::Instr(Op op) : op_(op), args_{{this}, {this}, {this}, {this}}, tag_(0) {}
+Instr::Instr(Op op, ValueType result_type)
+    : Value(result_type), op_(op), uses_{{this}, {this}, {this}}, tag_(0) {}
 
 Instr::~Instr() {}
 
@@ -79,7 +86,7 @@ void IRBuilder::Dump() const {
   IRWriter writer;
   std::ostringstream ss;
   writer.Print(*this, ss);
-  LOG_INFO(ss.str().c_str());
+  LOG_INFO("%s", ss.str().c_str());
 }
 
 InsertPoint IRBuilder::GetInsertPoint() { return {current_instr_}; }
@@ -95,14 +102,12 @@ void IRBuilder::RemoveInstr(Instr *instr) {
   instr->~Instr();
 }
 
-Value *IRBuilder::LoadHost(Value *addr, ValueType type) {
+Instr *IRBuilder::LoadHost(Value *addr, ValueType type) {
   CHECK_EQ(VALUE_I64, addr->type());
 
-  Instr *instr = AppendInstr(OP_LOAD_HOST);
-  Value *result = AllocDynamic(type);
+  Instr *instr = AppendInstr(OP_LOAD_HOST, type);
   instr->set_arg0(addr);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
 void IRBuilder::StoreHost(Value *addr, Value *v) {
@@ -113,14 +118,12 @@ void IRBuilder::StoreHost(Value *addr, Value *v) {
   instr->set_arg1(v);
 }
 
-Value *IRBuilder::LoadGuest(Value *addr, ValueType type) {
+Instr *IRBuilder::LoadGuest(Value *addr, ValueType type) {
   CHECK_EQ(VALUE_I32, addr->type());
 
-  Instr *instr = AppendInstr(OP_LOAD_GUEST);
-  Value *result = AllocDynamic(type);
+  Instr *instr = AppendInstr(OP_LOAD_GUEST, type);
   instr->set_arg0(addr);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
 void IRBuilder::StoreGuest(Value *addr, Value *v) {
@@ -131,12 +134,10 @@ void IRBuilder::StoreGuest(Value *addr, Value *v) {
   instr->set_arg1(v);
 }
 
-Value *IRBuilder::LoadContext(size_t offset, ValueType type) {
-  Instr *instr = AppendInstr(OP_LOAD_CONTEXT);
-  Value *result = AllocDynamic(type);
+Instr *IRBuilder::LoadContext(size_t offset, ValueType type) {
+  Instr *instr = AppendInstr(OP_LOAD_CONTEXT, type);
   instr->set_arg0(AllocConstant((int32_t)offset));
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
 void IRBuilder::StoreContext(size_t offset, Value *v) {
@@ -145,12 +146,10 @@ void IRBuilder::StoreContext(size_t offset, Value *v) {
   instr->set_arg1(v);
 }
 
-Value *IRBuilder::LoadLocal(Local *local) {
-  Instr *instr = AppendInstr(OP_LOAD_LOCAL);
-  Value *result = AllocDynamic(local->type());
+Instr *IRBuilder::LoadLocal(Local *local) {
+  Instr *instr = AppendInstr(OP_LOAD_LOCAL, local->type());
   instr->set_arg0(local->offset());
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
 void IRBuilder::StoreLocal(Local *local, Value *v) {
@@ -159,366 +158,302 @@ void IRBuilder::StoreLocal(Local *local, Value *v) {
   instr->set_arg1(v);
 }
 
-Value *IRBuilder::Bitcast(Value *v, ValueType dest_type) {
+Instr *IRBuilder::Bitcast(Value *v, ValueType dest_type) {
   CHECK((IsIntType(v->type()) && IsIntType(dest_type)) ||
         (IsFloatType(v->type()) && IsFloatType(dest_type)));
 
-  Instr *instr = AppendInstr(OP_BITCAST);
-  Value *result = AllocDynamic(dest_type);
+  Instr *instr = AppendInstr(OP_BITCAST, dest_type);
   instr->set_arg0(v);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Cast(Value *v, ValueType dest_type) {
+Instr *IRBuilder::Cast(Value *v, ValueType dest_type) {
   CHECK((IsIntType(v->type()) && IsFloatType(dest_type)) ||
         (IsFloatType(v->type()) && IsIntType(dest_type)));
 
-  Instr *instr = AppendInstr(OP_CAST);
-  Value *result = AllocDynamic(dest_type);
+  Instr *instr = AppendInstr(OP_CAST, dest_type);
   instr->set_arg0(v);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::SExt(Value *v, ValueType dest_type) {
+Instr *IRBuilder::SExt(Value *v, ValueType dest_type) {
   CHECK(IsIntType(v->type()) && IsIntType(dest_type));
 
-  Instr *instr = AppendInstr(OP_SEXT);
-  Value *result = AllocDynamic(dest_type);
+  Instr *instr = AppendInstr(OP_SEXT, dest_type);
   instr->set_arg0(v);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::ZExt(Value *v, ValueType dest_type) {
+Instr *IRBuilder::ZExt(Value *v, ValueType dest_type) {
   CHECK(IsIntType(v->type()) && IsIntType(dest_type));
 
-  Instr *instr = AppendInstr(OP_ZEXT);
-  Value *result = AllocDynamic(dest_type);
+  Instr *instr = AppendInstr(OP_ZEXT, dest_type);
   instr->set_arg0(v);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Select(Value *cond, Value *t, Value *f) {
+Instr *IRBuilder::Select(Value *cond, Value *t, Value *f) {
   CHECK_EQ(t->type(), f->type());
 
   if (cond->type() != VALUE_I8) {
     cond = NE(cond, AllocConstant(0));
   }
 
-  Instr *instr = AppendInstr(OP_SELECT);
-  Value *result = AllocDynamic(t->type());
+  Instr *instr = AppendInstr(OP_SELECT, t->type());
   instr->set_arg0(cond);
   instr->set_arg1(t);
   instr->set_arg2(f);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::EQ(Value *a, Value *b) {
+Instr *IRBuilder::EQ(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_EQ);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_EQ, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::NE(Value *a, Value *b) {
+Instr *IRBuilder::NE(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_NE);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_NE, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::SGE(Value *a, Value *b) {
+Instr *IRBuilder::SGE(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_SGE);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_SGE, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::SGT(Value *a, Value *b) {
+Instr *IRBuilder::SGT(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_SGT);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_SGT, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::UGE(Value *a, Value *b) {
+Instr *IRBuilder::UGE(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
   CHECK_EQ(true, IsIntType(a->type()) && IsIntType(b->type()));
 
-  Instr *instr = AppendInstr(OP_UGE);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_UGE, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::UGT(Value *a, Value *b) {
+Instr *IRBuilder::UGT(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
   CHECK_EQ(true, IsIntType(a->type()) && IsIntType(b->type()));
 
-  Instr *instr = AppendInstr(OP_UGT);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_UGT, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::SLE(Value *a, Value *b) {
+Instr *IRBuilder::SLE(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_SLE);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_SLE, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::SLT(Value *a, Value *b) {
+Instr *IRBuilder::SLT(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_SLT);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_SLT, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::ULE(Value *a, Value *b) {
+Instr *IRBuilder::ULE(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
   CHECK_EQ(true, IsIntType(a->type()) && IsIntType(b->type()));
 
-  Instr *instr = AppendInstr(OP_ULE);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_ULE, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::ULT(Value *a, Value *b) {
+Instr *IRBuilder::ULT(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
   CHECK_EQ(true, IsIntType(a->type()) && IsIntType(b->type()));
 
-  Instr *instr = AppendInstr(OP_ULT);
-  Value *result = AllocDynamic(VALUE_I8);
+  Instr *instr = AppendInstr(OP_ULT, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Add(Value *a, Value *b) {
+Instr *IRBuilder::Add(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_ADD);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_ADD, a->type());
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Sub(Value *a, Value *b) {
+Instr *IRBuilder::Sub(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_SUB);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_SUB, a->type());
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::SMul(Value *a, Value *b) {
+Instr *IRBuilder::SMul(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_SMUL);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_SMUL, a->type());
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::UMul(Value *a, Value *b) {
+Instr *IRBuilder::UMul(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
   CHECK(IsIntType(a->type()));
-  Instr *instr = AppendInstr(OP_UMUL);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_UMUL, a->type());
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Div(Value *a, Value *b) {
+Instr *IRBuilder::Div(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_DIV);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_DIV, a->type());
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Neg(Value *a) {
-  Instr *instr = AppendInstr(OP_NEG);
-  Value *result = AllocDynamic(a->type());
+Instr *IRBuilder::Neg(Value *a) {
+  Instr *instr = AppendInstr(OP_NEG, a->type());
   instr->set_arg0(a);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Sqrt(Value *a) {
-  Instr *instr = AppendInstr(OP_SQRT);
-  Value *result = AllocDynamic(a->type());
+Instr *IRBuilder::Sqrt(Value *a) {
+  Instr *instr = AppendInstr(OP_SQRT, a->type());
   instr->set_arg0(a);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Abs(Value *a) {
-  Instr *instr = AppendInstr(OP_ABS);
-  Value *result = AllocDynamic(a->type());
+Instr *IRBuilder::Abs(Value *a) {
+  Instr *instr = AppendInstr(OP_ABS, a->type());
   instr->set_arg0(a);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::And(Value *a, Value *b) {
+Instr *IRBuilder::And(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_AND);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_AND, a->type());
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Or(Value *a, Value *b) {
+Instr *IRBuilder::Or(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_OR);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_OR, a->type());
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Xor(Value *a, Value *b) {
+Instr *IRBuilder::Xor(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_XOR);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_XOR, a->type());
   instr->set_arg0(a);
   instr->set_arg1(b);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Not(Value *a) {
-  Instr *instr = AppendInstr(OP_NOT);
-  Value *result = AllocDynamic(a->type());
+Instr *IRBuilder::Not(Value *a) {
+  Instr *instr = AppendInstr(OP_NOT, a->type());
   instr->set_arg0(a);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Shl(Value *a, Value *n) {
+Instr *IRBuilder::Shl(Value *a, Value *n) {
   CHECK_EQ(VALUE_I32, n->type());
 
-  Instr *instr = AppendInstr(OP_SHL);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_SHL, a->type());
   instr->set_arg0(a);
   instr->set_arg1(n);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::Shl(Value *a, int n) {
+Instr *IRBuilder::Shl(Value *a, int n) {
   return Shl(a, AllocConstant((int32_t)n));
 }
 
-Value *IRBuilder::AShr(Value *a, Value *n) {
+Instr *IRBuilder::AShr(Value *a, Value *n) {
   CHECK_EQ(VALUE_I32, n->type());
 
-  Instr *instr = AppendInstr(OP_ASHR);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_ASHR, a->type());
   instr->set_arg0(a);
   instr->set_arg1(n);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::AShr(Value *a, int n) {
+Instr *IRBuilder::AShr(Value *a, int n) {
   return AShr(a, AllocConstant((int32_t)n));
 }
 
-Value *IRBuilder::LShr(Value *a, Value *n) {
+Instr *IRBuilder::LShr(Value *a, Value *n) {
   CHECK_EQ(VALUE_I32, n->type());
 
-  Instr *instr = AppendInstr(OP_LSHR);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_LSHR, a->type());
   instr->set_arg0(a);
   instr->set_arg1(n);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::LShr(Value *a, int n) {
+Instr *IRBuilder::LShr(Value *a, int n) {
   return LShr(a, AllocConstant((int32_t)n));
 }
 
-Value *IRBuilder::AShd(Value *a, Value *n) {
+Instr *IRBuilder::AShd(Value *a, Value *n) {
   CHECK_EQ(VALUE_I32, a->type());
   CHECK_EQ(VALUE_I32, n->type());
 
-  Instr *instr = AppendInstr(OP_ASHD);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_ASHD, a->type());
   instr->set_arg0(a);
   instr->set_arg1(n);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
-Value *IRBuilder::LShd(Value *a, Value *n) {
+Instr *IRBuilder::LShd(Value *a, Value *n) {
   CHECK_EQ(VALUE_I32, a->type());
   CHECK_EQ(VALUE_I32, n->type());
 
-  Instr *instr = AppendInstr(OP_LSHD);
-  Value *result = AllocDynamic(a->type());
+  Instr *instr = AppendInstr(OP_LSHD, a->type());
   instr->set_arg0(a);
   instr->set_arg1(n);
-  instr->set_result(result);
-  return result;
+  return instr;
 }
 
 void IRBuilder::CallExternal1(Value *addr) {
@@ -600,14 +535,21 @@ Local *IRBuilder::AllocLocal(ValueType type) {
   return l;
 }
 
-Instr *IRBuilder::AllocInstr(Op op) {
+Instr *IRBuilder::AllocInstr(Op op, ValueType result_type) {
   Instr *instr = arena_.Alloc<Instr>();
-  new (instr) Instr(op);
+  new (instr) Instr(op, result_type);
   return instr;
 }
 
 Instr *IRBuilder::AppendInstr(Op op) {
-  Instr *instr = AllocInstr(op);
+  Instr *instr = AllocInstr(op, VALUE_V);
+  instrs_.Insert(current_instr_, instr);
+  current_instr_ = instr;
+  return instr;
+}
+
+Instr *IRBuilder::AppendInstr(Op op, ValueType result_type) {
+  Instr *instr = AllocInstr(op, result_type);
   instrs_.Insert(current_instr_, instr);
   current_instr_ = instr;
   return instr;

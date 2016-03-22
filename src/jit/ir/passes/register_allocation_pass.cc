@@ -75,6 +75,8 @@ void RegisterSet::PopTailInterval() {
 }
 
 void RegisterSet::InsertInterval(Interval *interval) {
+  CHECK(interval->start && interval->end && interval->next);
+
   live_[num_live_++] = interval;
   re::mmheap_push(live_, live_ + num_live_, LiveIntervalSort());
 }
@@ -90,7 +92,7 @@ RegisterAllocationPass::RegisterAllocationPass(const Backend &backend)
 
 RegisterAllocationPass::~RegisterAllocationPass() { delete[] intervals_; }
 
-void RegisterAllocationPass::Run(IRBuilder &builder) {
+void RegisterAllocationPass::Run(IRBuilder &builder, bool debug) {
   PROFILER_RUNTIME("RegisterAllocationPass::Run");
 
   Reset();
@@ -98,40 +100,34 @@ void RegisterAllocationPass::Run(IRBuilder &builder) {
   AssignOrdinals(builder);
 
   for (auto instr : builder.instrs()) {
-    Value *result = instr->result();
-
     // only allocate registers for results, assume constants can always be
     // encoded as immediates or that the backend has registers reserved
     // for storing the constants
-    if (!result) {
+    if (instr->type() == VALUE_V) {
       continue;
     }
 
-    // sort the value's ref list
-    result->refs().Sort([](const ValueRef *a, const ValueRef *b) {
+    // sort the instruction's ref list
+    instr->uses().Sort([](const Use *a, const Use *b) {
       return GetOrdinal(a->instr()) < GetOrdinal(b->instr());
     });
 
-    // get the live range of the value
-    ValueRef *start = result->refs().head();
-    ValueRef *end = result->refs().tail();
-
     // expire any old intervals, freeing up the registers they claimed
-    ExpireOldIntervals(start->instr());
+    ExpireOldIntervals(instr);
 
     // first, try and reuse the register of one of the incoming arguments
-    int reg = ReuuseArgRegister(instr, start, end);
+    int reg = ReuseArgRegister(builder, instr);
     if (reg == NO_REGISTER) {
       // else, allocate a new register for the result
-      reg = AllocFreeRegister(result, start, end);
+      reg = AllocFreeRegister(instr);
       if (reg == NO_REGISTER) {
         // if a register couldn't be allocated, spill a register and try again
-        reg = AllocBlockedRegister(builder, result, start, end);
+        reg = AllocBlockedRegister(builder, instr);
         CHECK_NE(reg, NO_REGISTER, "Failed to allocate register");
       }
     }
 
-    result->set_reg(reg);
+    instr->set_reg(reg);
   }
 }
 
@@ -180,7 +176,7 @@ void RegisterAllocationPass::AssignOrdinals(IRBuilder &builder) {
   }
 }
 
-void RegisterAllocationPass::ExpireOldIntervals(Instr *start) {
+void RegisterAllocationPass::ExpireOldIntervals(Instr *instr) {
   auto expire_set = [&](RegisterSet &set) {
     while (true) {
       Interval *interval = set.HeadInterval();
@@ -190,23 +186,34 @@ void RegisterAllocationPass::ExpireOldIntervals(Instr *start) {
 
       // intervals are sorted by their next use, once one fails to expire or
       // advance, they all will
-      if (GetOrdinal(interval->next->instr()) >= GetOrdinal(start)) {
+      if (GetOrdinal(interval->next->instr()) >= GetOrdinal(instr)) {
         break;
       }
 
       // remove interval from the sorted set
       set.PopHeadInterval();
 
-      // if there are no other uses, free the register assigned to this
-      // interval
-      if (!interval->next->next()) {
-        set.PushRegister(interval->reg);
-      }
       // if there are more uses, advance the next use and reinsert the interval
       // into the correct position
-      else {
+      if (interval->next->next()) {
         interval->next = interval->next->next();
         set.InsertInterval(interval);
+      }
+      // if there are no more uses, but the register has been reused by
+      // ReuseArgRegister, requeue the interval at this time
+      else if (interval->reused) {
+        Instr *reused = interval->reused;
+        interval->instr = reused;
+        interval->reused = nullptr;
+        interval->start = reused->uses().head();
+        interval->end = reused->uses().tail();
+        interval->next = interval->start;
+        set.InsertInterval(interval);
+      }
+      // if there are no other uses, free the register assigned to this
+      // interval
+      else {
+        set.PushRegister(interval->reg);
       }
     }
   };
@@ -220,8 +227,7 @@ void RegisterAllocationPass::ExpireOldIntervals(Instr *start) {
 // operations where the destination is the first argument.
 // TODO could reorder arguments for communicative binary ops and do this
 // with the second argument as well
-int RegisterAllocationPass::ReuuseArgRegister(Instr *instr, ValueRef *start,
-                                              ValueRef *end) {
+int RegisterAllocationPass::ReuseArgRegister(IRBuilder &builder, Instr *instr) {
   if (!instr->arg0() || instr->arg0()->constant()) {
     return NO_REGISTER;
   }
@@ -233,7 +239,7 @@ int RegisterAllocationPass::ReuuseArgRegister(Instr *instr, ValueRef *start,
 
   // make sure the register can hold the result type
   const Register &r = registers_[prefered];
-  if (!RegisterCanStore(r, instr->result()->type())) {
+  if (!RegisterCanStore(r, instr->type())) {
     return NO_REGISTER;
   }
 
@@ -245,23 +251,18 @@ int RegisterAllocationPass::ReuuseArgRegister(Instr *instr, ValueRef *start,
   }
 
   // the argument's register is not used after the current instruction, so the
-  // register can be reused for the result. since the interval's current next
-  // use (arg0 of this instruction) and the next use of the new interval  (the
-  // result of this instruction) share the same ordinal, the interval can be
-  // hijacked and overwritten without having to reinsert it into the register
-  // set's sorted interval list
-  CHECK_EQ(GetOrdinal(interval->next->instr()), GetOrdinal(start->instr()));
-  interval->start = start;
-  interval->next = start;
-  interval->value = instr->result();
-  interval->end = end;
+  // register can be reused for the result. note, since the interval min/max
+  // heap does not support removal of an arbitrary interval, the interval
+  // removal must be deferred. since there are no more references, the interval
+  // will expire on the next call to ExpireOldIntervals, and then immediately
+  // requeued by setting the reused property
+  interval->reused = instr;
 
   return prefered;
 }
 
-int RegisterAllocationPass::AllocFreeRegister(Value *value, ValueRef *start,
-                                              ValueRef *end) {
-  RegisterSet &set = GetRegisterSet(value->type());
+int RegisterAllocationPass::AllocFreeRegister(Instr *instr) {
+  RegisterSet &set = GetRegisterSet(instr->type());
 
   // get the first free register for this value type
   int reg = set.PopRegister();
@@ -271,10 +272,11 @@ int RegisterAllocationPass::AllocFreeRegister(Value *value, ValueRef *start,
 
   // add interval
   Interval *interval = &intervals_[reg];
-  interval->value = value;
-  interval->start = start;
-  interval->end = end;
-  interval->next = start;
+  interval->instr = instr;
+  interval->reused = nullptr;
+  interval->start = instr->uses().head();
+  interval->end = instr->uses().tail();
+  interval->next = interval->start;
   interval->reg = reg;
   set.InsertInterval(interval);
 
@@ -282,75 +284,75 @@ int RegisterAllocationPass::AllocFreeRegister(Value *value, ValueRef *start,
 }
 
 int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
-                                                 Value *value, ValueRef *start,
-                                                 ValueRef *end) {
+                                                 Instr *instr) {
   InsertPoint insert_point = builder.GetInsertPoint();
-  RegisterSet &set = GetRegisterSet(value->type());
+  RegisterSet &set = GetRegisterSet(instr->type());
 
   // spill the register who's next use is furthest away from start
   Interval *interval = set.TailInterval();
   set.PopTailInterval();
 
-  // find the next and prev use of the register. the interval's value needs
-  // to be spilled to the stack after the previous use, and filled back from
-  // from the stack before it's next use
-  ValueRef *next_ref = interval->next;
-  ValueRef *prev_ref = next_ref->prev();
+  // the interval's value needs to be filled back from from the stack before
+  // its next use
+  Use *next_ref = interval->next;
+  Use *prev_ref = next_ref->prev();
   CHECK(next_ref,
         "Register being spilled has no next use, why wasn't it expired?");
-  CHECK(prev_ref,
-        "Register being spilled has no prev use, why is it already live?");
-  CHECK_LT(GetOrdinal(prev_ref->instr()), GetOrdinal(next_ref->instr()));
 
   // allocate a place on the stack to spill the value
-  Local *local = builder.AllocLocal(interval->value->type());
+  Local *local = builder.AllocLocal(interval->instr->type());
 
   // insert load before next use
   builder.SetInsertPoint({next_ref->instr()->prev()});
-  Value *load_local = builder.LoadLocal(local);
-  Instr *load_instr = builder.GetInsertPoint().instr;
+  Instr *load_instr = builder.LoadLocal(local);
 
   // assign the load a valid ordinal
   int load_ordinal = GetOrdinal(load_instr->prev()) + 1;
   CHECK_LT(load_ordinal, GetOrdinal(load_instr->next()));
   SetOrdinal(load_instr, load_ordinal);
 
-  // update references to interval->value after the next use to use the new
+  // update references to interval->instr after the next use to use the new
   // value filled from the stack. this code asssumes that the refs were
   // previously sorted inside of Run().
   while (next_ref) {
     // cache off next next since calling set_value will modify the linked list
     // pointers
-    ValueRef *next_next_ref = next_ref->next();
-    next_ref->set_value(load_local);
+    Use *next_next_ref = next_ref->next();
+    next_ref->set_value(load_instr);
     next_ref = next_next_ref;
   }
 
-  // with all references >= next_ref using the new value, prev_ref->next
-  // should now be null
-  CHECK(!prev_ref->next(), "All future references should have been replaced");
-
   // insert spill after prev use, note that order here is extremely important.
-  // interval->value's ref list has already been sorted, and when the save
+  // interval->instr's ref list has already been sorted, and when the save
   // instruction is created and added as a reference, the sorted order will be
   // invalidated. because of this, the save instruction needs to be added after
   // the load instruction has updated the sorted references.
-  builder.SetInsertPoint({prev_ref->instr()});
-  builder.StoreLocal(local, interval->value);
-  Instr *store_instr = builder.GetInsertPoint().instr;
+  Instr *after = nullptr;
 
-  // since the interval that this save belongs to has now expired, there's no
+  if (prev_ref) {
+    // there is a previous reference, insert store after it
+    CHECK(prev_ref->next() == nullptr,
+          "All future references should have been replaced");
+    after = prev_ref->instr();
+  } else {
+    // there is no previous reference, insert store immediately after definition
+    CHECK(interval->instr->uses().head() == nullptr,
+          "All future references should have been replaced");
+    after = interval->instr;
+  }
+
+  builder.SetInsertPoint({after});
+  builder.StoreLocal(local, interval->instr);
+
+  // since the interval that this store belongs to has now expired, there's no
   // need to assign an ordinal to it
 
-  // the new store should now be the final reference
-  CHECK(prev_ref->next() && prev_ref->next()->instr() == store_instr,
-        "Spill should be the final reference for the interval value");
-
-  // overwrite the old interval
-  interval->value = value;
-  interval->start = start;
-  interval->next = start;
-  interval->end = end;
+  // reuse the old interval
+  interval->instr = instr;
+  interval->reused = nullptr;
+  interval->start = instr->uses().head();
+  interval->end = instr->uses().tail();
+  interval->next = interval->start;
   set.InsertInterval(interval);
 
   // reset insert point

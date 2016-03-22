@@ -13,7 +13,10 @@ namespace passes {
 class Pass {
  public:
   virtual ~Pass() {}
-  virtual void Run(IRBuilder &builder) = 0;
+
+  virtual const char *name() = 0;
+
+  virtual void Run(IRBuilder &builder, bool debug) = 0;
 };
 
 class PassRunner {
@@ -21,7 +24,7 @@ class PassRunner {
   PassRunner();
 
   void AddPass(std::unique_ptr<Pass> pass);
-  void Run(IRBuilder &builder);
+  void Run(IRBuilder &builder, bool debug);
 
  private:
   std::vector<std::unique_ptr<Pass>> passes_;

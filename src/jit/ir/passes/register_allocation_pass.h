@@ -11,10 +11,11 @@ namespace ir {
 namespace passes {
 
 struct Interval {
-  Value *value;
-  ValueRef *start;
-  ValueRef *next;
-  ValueRef *end;
+  Instr *instr;
+  Instr *reused;
+  Use *start;
+  Use *end;
+  Use *next;
   int reg;
 };
 
@@ -48,7 +49,9 @@ class RegisterAllocationPass : public Pass {
   RegisterAllocationPass(const backend::Backend &backend);
   ~RegisterAllocationPass();
 
-  void Run(IRBuilder &builder);
+  const char *name() { return "Register Allocation Pass"; }
+
+  void Run(IRBuilder &builder, bool debug);
 
  private:
   const backend::Register *registers_;
@@ -64,11 +67,10 @@ class RegisterAllocationPass : public Pass {
 
   void Reset();
   void AssignOrdinals(IRBuilder &builder);
-  void ExpireOldIntervals(Instr *start);
-  int ReuuseArgRegister(Instr *instr, ValueRef *start, ValueRef *end);
-  int AllocFreeRegister(Value *value, ValueRef *start, ValueRef *end);
-  int AllocBlockedRegister(IRBuilder &builder, Value *value, ValueRef *start,
-                           ValueRef *end);
+  void ExpireOldIntervals(Instr *instr);
+  int ReuseArgRegister(IRBuilder &builder, Instr *instr);
+  int AllocFreeRegister(Instr *instr);
+  int AllocBlockedRegister(IRBuilder &builder, Instr *instr);
 };
 }
 }

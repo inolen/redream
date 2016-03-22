@@ -6,9 +6,9 @@
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/ir_builder.h"
 #include "jit/ir/passes/constant_propagation_pass.h"
+#include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/register_allocation_pass.h"
-#include "jit/ir/passes/validate_pass.h"
 
 using namespace re::hw;
 using namespace re::jit;
@@ -41,9 +41,9 @@ SH4CodeCache::SH4CodeCache(Memory *memory, void *guest_ctx,
   }
 
   // setup optimization passes
-  pass_runner_.AddPass(std::unique_ptr<Pass>(new ValidatePass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new LoadStoreEliminationPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new DeadCodeEliminationPass()));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
 
@@ -90,7 +90,7 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
   // compile the SH4 into IR
   std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr, max_instrs);
 
-  pass_runner_.Run(*builder);
+  pass_runner_.Run(*builder, false);
 
   // assemble the IR into native code
   BlockPointer run = backend_->AssembleBlock(*builder, block->flags);

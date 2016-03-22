@@ -51,7 +51,7 @@ enum {
 };
 
 class Instr;
-class ValueRef;
+class Use;
 
 static inline bool IsFloatType(ValueType type) {
   return type == VALUE_F32 || type == VALUE_F64;
@@ -93,6 +93,11 @@ class Value {
 
   bool constant() const { return constant_; }
 
+  // defined at the end of the file, Instr is only forward declared at this
+  // point, it can't be static_cast to
+  const Instr *def() const;
+  Instr *def();
+
   int8_t i8() const {
     DCHECK(constant_ && type_ == VALUE_I8);
     return i8_;
@@ -124,8 +129,8 @@ class Value {
   }
   double f64() { return static_cast<const Value *>(this)->f64(); }
 
-  const IntrusiveList<ValueRef> &refs() const { return refs_; }
-  IntrusiveList<ValueRef> &refs() { return refs_; }
+  const IntrusiveList<Use> &uses() const { return refs_; }
+  IntrusiveList<Use> &uses() { return refs_; }
 
   int reg() const { return reg_; }
   void set_reg(int reg) { reg_ = reg; }
@@ -135,8 +140,8 @@ class Value {
 
   uint64_t GetZExtValue() const;
 
-  void AddRef(ValueRef *ref);
-  void RemoveRef(ValueRef *ref);
+  void AddRef(Use *ref);
+  void RemoveRef(Use *ref);
   void ReplaceRefsWith(Value *other);
 
  private:
@@ -150,19 +155,19 @@ class Value {
     float f32_;
     double f64_;
   };
-  IntrusiveList<ValueRef> refs_;
+  IntrusiveList<Use> refs_;
   // initializing here so each constructor variation doesn't have to
   int reg_{NO_REGISTER};
   intptr_t tag_{0};
 };
 
-// ValueRef is a layer of indirection between an instruction and a values it
-// uses. Values maintain a list of all of their references, making it possible
-// during optimization to replace all references to a value with a new value.
-class ValueRef : public IntrusiveListNode<ValueRef> {
+// Use is a layer of indirection between an instruction and a values it uses.
+// Values maintain a list of all of their uses, making it possible to replace
+// all uses of a value with a new value during optimizations
+class Use : public IntrusiveListNode<Use> {
  public:
-  ValueRef(Instr *instr);
-  ~ValueRef();
+  Use(Instr *instr);
+  ~Use();
 
   const Instr *instr() const { return instr_; }
   Instr *instr() { return instr_; }
@@ -227,9 +232,7 @@ struct ValueInfo<VALUE_F64> {
 };
 
 // Locals are allocated for values that need to be spilled to the stack during
-// register allocation. When allocated, a default offset of 0 is assigned,
-// each backend is expected to update the offset to an appropriate value
-// before emitting.
+// register allocation.
 class Local : public IntrusiveListNode<Local> {
  public:
   Local(ValueType ty, Value *offset);
@@ -252,9 +255,9 @@ class Local : public IntrusiveListNode<Local> {
 //
 // instructions
 //
-class Instr : public IntrusiveListNode<Instr> {
+class Instr : public Value, public IntrusiveListNode<Instr> {
  public:
-  Instr(Op op);
+  Instr(Op op, ValueType result_type);
   ~Instr();
 
   Op op() const { return op_; }
@@ -271,20 +274,25 @@ class Instr : public IntrusiveListNode<Instr> {
   Value *arg2() { return arg(2); }
   void set_arg2(Value *v) { set_arg(2, v); }
 
-  const Value *result() const { return arg(3); }
-  Value *result() { return arg(3); }
-  void set_result(Value *v) { set_arg(3, v); }
-
-  const Value *arg(int i) const { return args_[i].value(); }
-  Value *arg(int i) { return args_[i].value(); }
-  void set_arg(int i, Value *v) { args_[i].set_value(v); }
+  const Value *arg(int i) const {
+    CHECK_LT(i, 3);
+    return uses_[i].value();
+  }
+  Value *arg(int i) {
+    CHECK_LT(i, 3);
+    return uses_[i].value();
+  }
+  void set_arg(int i, Value *v) {
+    CHECK_LT(i, 3);
+    uses_[i].set_value(v);
+  }
 
   intptr_t tag() const { return tag_; }
   void set_tag(intptr_t tag) { tag_ = tag; }
 
  private:
   Op op_;
-  ValueRef args_[4];
+  Use uses_[3];
   intptr_t tag_;
 };
 
@@ -317,63 +325,63 @@ class IRBuilder {
   void RemoveInstr(Instr *instr);
 
   // direct access to host memory
-  Value *LoadHost(Value *addr, ValueType type);
+  Instr *LoadHost(Value *addr, ValueType type);
   void StoreHost(Value *addr, Value *v);
 
   // guest memory operations
-  Value *LoadGuest(Value *addr, ValueType type);
+  Instr *LoadGuest(Value *addr, ValueType type);
   void StoreGuest(Value *addr, Value *v);
 
   // context operations
-  Value *LoadContext(size_t offset, ValueType type);
+  Instr *LoadContext(size_t offset, ValueType type);
   void StoreContext(size_t offset, Value *v);
 
   // local operations
-  Value *LoadLocal(Local *local);
+  Instr *LoadLocal(Local *local);
   void StoreLocal(Local *local, Value *v);
 
   // cast / conversion operations
-  Value *Bitcast(Value *v, ValueType dest_type);
-  Value *Cast(Value *v, ValueType dest_type);
-  Value *SExt(Value *v, ValueType dest_type);
-  Value *ZExt(Value *v, ValueType dest_type);
+  Instr *Bitcast(Value *v, ValueType dest_type);
+  Instr *Cast(Value *v, ValueType dest_type);
+  Instr *SExt(Value *v, ValueType dest_type);
+  Instr *ZExt(Value *v, ValueType dest_type);
 
   // conditionals
-  Value *Select(Value *cond, Value *t, Value *f);
-  Value *EQ(Value *a, Value *b);
-  Value *NE(Value *a, Value *b);
-  Value *SGE(Value *a, Value *b);
-  Value *SGT(Value *a, Value *b);
-  Value *UGE(Value *a, Value *b);
-  Value *UGT(Value *a, Value *b);
-  Value *SLE(Value *a, Value *b);
-  Value *SLT(Value *a, Value *b);
-  Value *ULE(Value *a, Value *b);
-  Value *ULT(Value *a, Value *b);
+  Instr *Select(Value *cond, Value *t, Value *f);
+  Instr *EQ(Value *a, Value *b);
+  Instr *NE(Value *a, Value *b);
+  Instr *SGE(Value *a, Value *b);
+  Instr *SGT(Value *a, Value *b);
+  Instr *UGE(Value *a, Value *b);
+  Instr *UGT(Value *a, Value *b);
+  Instr *SLE(Value *a, Value *b);
+  Instr *SLT(Value *a, Value *b);
+  Instr *ULE(Value *a, Value *b);
+  Instr *ULT(Value *a, Value *b);
 
   // math operators
-  Value *Add(Value *a, Value *b);
-  Value *Sub(Value *a, Value *b);
-  Value *SMul(Value *a, Value *b);
-  Value *UMul(Value *a, Value *b);
-  Value *Div(Value *a, Value *b);
-  Value *Neg(Value *a);
-  Value *Sqrt(Value *a);
-  Value *Abs(Value *a);
+  Instr *Add(Value *a, Value *b);
+  Instr *Sub(Value *a, Value *b);
+  Instr *SMul(Value *a, Value *b);
+  Instr *UMul(Value *a, Value *b);
+  Instr *Div(Value *a, Value *b);
+  Instr *Neg(Value *a);
+  Instr *Sqrt(Value *a);
+  Instr *Abs(Value *a);
 
   // bitwise operations
-  Value *And(Value *a, Value *b);
-  Value *Or(Value *a, Value *b);
-  Value *Xor(Value *a, Value *b);
-  Value *Not(Value *a);
-  Value *Shl(Value *a, Value *n);
-  Value *Shl(Value *a, int n);
-  Value *AShr(Value *a, Value *n);
-  Value *AShr(Value *a, int n);
-  Value *LShr(Value *a, Value *n);
-  Value *LShr(Value *a, int n);
-  Value *AShd(Value *a, Value *n);
-  Value *LShd(Value *a, Value *n);
+  Instr *And(Value *a, Value *b);
+  Instr *Or(Value *a, Value *b);
+  Instr *Xor(Value *a, Value *b);
+  Instr *Not(Value *a);
+  Instr *Shl(Value *a, Value *n);
+  Instr *Shl(Value *a, int n);
+  Instr *AShr(Value *a, Value *n);
+  Instr *AShr(Value *a, int n);
+  Instr *LShr(Value *a, Value *n);
+  Instr *LShr(Value *a, int n);
+  Instr *AShd(Value *a, Value *n);
+  Instr *LShd(Value *a, Value *n);
 
   // calls
   void CallExternal1(Value *addr);
@@ -394,14 +402,25 @@ class IRBuilder {
   Local *AllocLocal(ValueType type);
 
  protected:
-  Instr *AllocInstr(Op op);
+  Instr *AllocInstr(Op op, ValueType result_type);
   Instr *AppendInstr(Op op);
+  Instr *AppendInstr(Op op, ValueType result_type);
 
   Arena arena_;
   IntrusiveList<Instr> instrs_;
   IntrusiveList<Local> locals_;
   Instr *current_instr_;
 };
+
+inline const Instr *Value::def() const {
+  CHECK(!constant_);
+  return static_cast<const Instr *>(this);
+}
+
+inline Instr *Value::def() {
+  CHECK(!constant_);
+  return static_cast<Instr *>(this);
+}
 }
 }
 }

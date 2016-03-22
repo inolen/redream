@@ -92,8 +92,8 @@ void IRWriter::PrintValue(const Value *value, std::ostream &output) {
 
 void IRWriter::PrintInstruction(const Instr *instr, std::ostream &output) {
   // print result value if we have one
-  if (instr->result()) {
-    PrintValue(instr->result(), output);
+  if (instr->type() != VALUE_V) {
+    PrintValue(instr, output);
     output << " = ";
   }
 
@@ -118,6 +118,8 @@ void IRWriter::PrintInstruction(const Instr *instr, std::ostream &output) {
 
     need_comma = true;
   }
+
+  // output << " [tag " << instr->tag() << ", reg " << instr->reg() << "]";
 
   output << std::endl;
 }

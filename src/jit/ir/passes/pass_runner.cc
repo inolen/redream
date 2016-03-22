@@ -11,10 +11,20 @@ void PassRunner::AddPass(std::unique_ptr<Pass> pass) {
   passes_.push_back(std::move(pass));
 }
 
-void PassRunner::Run(IRBuilder &builder) {
+void PassRunner::Run(IRBuilder &builder, bool debug) {
   PROFILER_RUNTIME("PassRunner::Run");
 
+  if (debug) {
+    LOG_INFO("Original:");
+    builder.Dump();
+  }
+
   for (auto &pass : passes_) {
-    pass->Run(builder);
+    pass->Run(builder, debug);
+
+    if (debug) {
+      LOG_INFO("%s:", pass->name());
+      builder.Dump();
+    }
   }
 }

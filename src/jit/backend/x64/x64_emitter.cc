@@ -137,12 +137,7 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   modified_marker_++;
 
   for (auto instr : builder.instrs()) {
-    Value *result = instr->result();
-    if (!result) {
-      continue;
-    }
-
-    int i = result->reg();
+    int i = instr->reg();
     if (i == NO_REGISTER) {
       continue;
     }
@@ -345,10 +340,10 @@ bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
 EMITTER(LOAD_HOST) {
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
 
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_F32:
         e.vmovss(result, e.dword[a]);
         break;
@@ -360,9 +355,9 @@ EMITTER(LOAD_HOST) {
         break;
     }
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr->result());
+    const Xbyak::Reg result = e.GetRegister(instr);
 
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_I8:
         e.mov(result, e.byte[a]);
         break;
@@ -423,7 +418,7 @@ EMITTER(STORE_HOST) {
 }
 
 EMITTER(LOAD_GUEST) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
 
   if (instr->arg0()->constant()) {
     // try to resolve the address to a physical page
@@ -442,7 +437,7 @@ EMITTER(LOAD_GUEST) {
       // we didn't have to store the absolute address in the scratch register
       e.mov(e.rax, reinterpret_cast<uint64_t>(host_addr));
 
-      switch (instr->result()->type()) {
+      switch (instr->type()) {
         case VALUE_I8:
           e.mov(result, e.byte[e.rax]);
           break;
@@ -468,7 +463,7 @@ EMITTER(LOAD_GUEST) {
 
   if (e.block_flags() & BF_SLOWMEM) {
     void *fn = nullptr;
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_I8:
         fn = reinterpret_cast<void *>(
             static_cast<uint8_t (*)(Memory *, uint32_t)>(&Memory::R8));
@@ -499,7 +494,7 @@ EMITTER(LOAD_GUEST) {
     e.mov(e.r10, reinterpret_cast<uint64_t>(e.guest_ctx()));
     e.mov(e.r11, reinterpret_cast<uint64_t>(e.memory()->protected_base()));
   } else {
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_I8:
         e.mov(result, e.byte[a.cvt64() + e.r11]);
         break;
@@ -618,10 +613,10 @@ EMITTER(STORE_GUEST) {
 EMITTER(LOAD_CONTEXT) {
   int offset = instr->arg0()->i32();
 
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
 
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_F32:
         e.movss(result, e.dword[e.r10 + offset]);
         break;
@@ -633,9 +628,9 @@ EMITTER(LOAD_CONTEXT) {
         break;
     }
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr->result());
+    const Xbyak::Reg result = e.GetRegister(instr);
 
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_I8:
         e.mov(result, e.byte[e.r10 + offset]);
         break;
@@ -720,10 +715,10 @@ EMITTER(STORE_CONTEXT) {
 EMITTER(LOAD_LOCAL) {
   int offset = instr->arg0()->i32();
 
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
 
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_F32:
         e.movss(result, e.dword[e.rsp + offset]);
         break;
@@ -735,9 +730,9 @@ EMITTER(LOAD_LOCAL) {
         break;
     }
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr->result());
+    const Xbyak::Reg result = e.GetRegister(instr);
 
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_I8:
         e.mov(result, e.byte[e.rsp + offset]);
         break;
@@ -800,7 +795,7 @@ EMITTER(STORE_LOCAL) {
 }
 
 EMITTER(BITCAST) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (result.getIdx() == a.getIdx()) {
@@ -812,11 +807,11 @@ EMITTER(BITCAST) {
 }
 
 EMITTER(CAST) {
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
     const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_F32:
         CHECK_EQ(instr->arg0()->type(), VALUE_I32);
         e.cvtsi2ss(result, a);
@@ -830,10 +825,10 @@ EMITTER(CAST) {
         break;
     }
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr->result());
+    const Xbyak::Reg result = e.GetRegister(instr);
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
 
-    switch (instr->result()->type()) {
+    switch (instr->type()) {
       case VALUE_I32:
         CHECK_EQ(instr->arg0()->type(), VALUE_F32);
         e.cvttss2si(result, a);
@@ -850,7 +845,7 @@ EMITTER(CAST) {
 }
 
 EMITTER(SEXT) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (a == result) {
@@ -866,7 +861,7 @@ EMITTER(SEXT) {
 }
 
 EMITTER(ZEXT) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (a == result) {
@@ -883,7 +878,7 @@ EMITTER(ZEXT) {
 }
 
 EMITTER(SELECT) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg cond = e.GetRegister(instr->arg0());
   const Xbyak::Reg a = e.GetRegister(instr->arg1());
   const Xbyak::Reg b = e.GetRegister(instr->arg2());
@@ -894,7 +889,7 @@ EMITTER(SELECT) {
 }
 
 EMITTER(EQ) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
 
   if (IsFloatType(instr->arg0()->type())) {
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
@@ -920,7 +915,7 @@ EMITTER(EQ) {
 }
 
 EMITTER(NE) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
 
   if (IsFloatType(instr->arg0()->type())) {
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
@@ -946,7 +941,7 @@ EMITTER(NE) {
 }
 
 EMITTER(SGE) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
 
   if (IsFloatType(instr->arg0()->type())) {
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
@@ -974,7 +969,7 @@ EMITTER(SGE) {
 }
 
 EMITTER(SGT) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
 
   if (IsFloatType(instr->arg0()->type())) {
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
@@ -1002,7 +997,7 @@ EMITTER(SGT) {
 }
 
 EMITTER(UGE) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
@@ -1016,7 +1011,7 @@ EMITTER(UGE) {
 }
 
 EMITTER(UGT) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
@@ -1030,7 +1025,7 @@ EMITTER(UGT) {
 }
 
 EMITTER(SLE) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
 
   if (IsFloatType(instr->arg0()->type())) {
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
@@ -1058,7 +1053,7 @@ EMITTER(SLE) {
 }
 
 EMITTER(SLT) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
 
   if (IsFloatType(instr->arg0()->type())) {
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
@@ -1086,7 +1081,7 @@ EMITTER(SLT) {
 }
 
 EMITTER(ULE) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
@@ -1100,7 +1095,7 @@ EMITTER(ULE) {
 }
 
 EMITTER(ULT) {
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
@@ -1114,12 +1109,12 @@ EMITTER(ULT) {
 }
 
 EMITTER(ADD) {
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
     const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
 
-    if (instr->result()->type() == VALUE_F32) {
+    if (instr->type() == VALUE_F32) {
       if (result != a) {
         e.movss(result, a);
       }
@@ -1133,7 +1128,7 @@ EMITTER(ADD) {
       e.addsd(result, b);
     }
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr->result());
+    const Xbyak::Reg result = e.GetRegister(instr);
     const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
     if (result != a) {
@@ -1150,12 +1145,12 @@ EMITTER(ADD) {
 }
 
 EMITTER(SUB) {
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
     const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
 
-    if (instr->result()->type() == VALUE_F32) {
+    if (instr->type() == VALUE_F32) {
       if (result != a) {
         e.movss(result, a);
       }
@@ -1169,7 +1164,7 @@ EMITTER(SUB) {
       e.subsd(result, b);
     }
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr->result());
+    const Xbyak::Reg result = e.GetRegister(instr);
     const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
     if (result != a) {
@@ -1186,12 +1181,12 @@ EMITTER(SUB) {
 }
 
 EMITTER(SMUL) {
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
     const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
 
-    if (instr->result()->type() == VALUE_F32) {
+    if (instr->type() == VALUE_F32) {
       if (result != a) {
         e.movss(result, a);
       }
@@ -1205,7 +1200,7 @@ EMITTER(SMUL) {
       e.mulsd(result, b);
     }
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr->result());
+    const Xbyak::Reg result = e.GetRegister(instr);
     const Xbyak::Reg a = e.GetRegister(instr->arg0());
     const Xbyak::Reg b = e.GetRegister(instr->arg1());
 
@@ -1218,9 +1213,9 @@ EMITTER(SMUL) {
 }
 
 EMITTER(UMUL) {
-  CHECK(IsIntType(instr->result()->type()));
+  CHECK(IsIntType(instr->type()));
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
   const Xbyak::Reg b = e.GetRegister(instr->arg1());
 
@@ -1232,13 +1227,13 @@ EMITTER(UMUL) {
 }
 
 EMITTER(DIV) {
-  CHECK(IsFloatType(instr->result()->type()));
+  CHECK(IsFloatType(instr->type()));
 
-  const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
   const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
   const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
 
-  if (instr->result()->type() == VALUE_F32) {
+  if (instr->type() == VALUE_F32) {
     if (result != a) {
       e.movss(result, a);
     }
@@ -1254,11 +1249,11 @@ EMITTER(DIV) {
 }
 
 EMITTER(NEG) {
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
 
-    if (instr->result()->type() == VALUE_F32) {
+    if (instr->type() == VALUE_F32) {
       // TODO use xorps
       e.movd(e.eax, a);
       e.xor (e.eax, (uint32_t)0x80000000);
@@ -1271,7 +1266,7 @@ EMITTER(NEG) {
       e.movq(result, e.rax);
     }
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr->result());
+    const Xbyak::Reg result = e.GetRegister(instr);
     const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
     if (result != a) {
@@ -1283,12 +1278,12 @@ EMITTER(NEG) {
 }
 
 EMITTER(SQRT) {
-  CHECK(IsFloatType(instr->result()->type()));
+  CHECK(IsFloatType(instr->type()));
 
-  const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
   const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
 
-  if (instr->result()->type() == VALUE_F32) {
+  if (instr->type() == VALUE_F32) {
     e.sqrtss(result, a);
   } else {
     e.sqrtsd(result, a);
@@ -1296,11 +1291,11 @@ EMITTER(SQRT) {
 }
 
 EMITTER(ABS) {
-  if (IsFloatType(instr->result()->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr->result());
+  if (IsFloatType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXMMRegister(instr);
     const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
 
-    if (instr->result()->type() == VALUE_F32) {
+    if (instr->type() == VALUE_F32) {
       // TODO use andps
       e.movd(e.eax, a);
       e.and (e.eax, (uint32_t)0x7fffffff);
@@ -1321,9 +1316,9 @@ EMITTER(ABS) {
 }
 
 EMITTER(AND) {
-  CHECK(IsIntType(instr->result()->type()));
+  CHECK(IsIntType(instr->type()));
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (result != a) {
@@ -1339,9 +1334,9 @@ EMITTER(AND) {
 }
 
 EMITTER(OR) {
-  CHECK(IsIntType(instr->result()->type()));
+  CHECK(IsIntType(instr->type()));
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (result != a) {
@@ -1357,9 +1352,9 @@ EMITTER(OR) {
 }
 
 EMITTER(XOR) {
-  CHECK(IsIntType(instr->result()->type()));
+  CHECK(IsIntType(instr->type()));
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (result != a) {
@@ -1375,9 +1370,9 @@ EMITTER(XOR) {
 }
 
 EMITTER(NOT) {
-  CHECK(IsIntType(instr->result()->type()));
+  CHECK(IsIntType(instr->type()));
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (result != a) {
@@ -1388,9 +1383,9 @@ EMITTER(NOT) {
 }
 
 EMITTER(SHL) {
-  CHECK(IsIntType(instr->result()->type()));
+  CHECK(IsIntType(instr->type()));
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (result != a) {
@@ -1407,9 +1402,9 @@ EMITTER(SHL) {
 }
 
 EMITTER(ASHR) {
-  CHECK(IsIntType(instr->result()->type()));
+  CHECK(IsIntType(instr->type()));
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (result != a) {
@@ -1426,9 +1421,9 @@ EMITTER(ASHR) {
 }
 
 EMITTER(LSHR) {
-  CHECK(IsIntType(instr->result()->type()));
+  CHECK(IsIntType(instr->type()));
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (result != a) {
@@ -1445,9 +1440,9 @@ EMITTER(LSHR) {
 }
 
 EMITTER(ASHD) {
-  CHECK_EQ(instr->result()->type(), VALUE_I32);
+  CHECK_EQ(instr->type(), VALUE_I32);
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg v = e.GetRegister(instr->arg0());
   const Xbyak::Reg n = e.GetRegister(instr->arg1());
 
@@ -1486,9 +1481,9 @@ EMITTER(ASHD) {
 }
 
 EMITTER(LSHD) {
-  CHECK_EQ(instr->result()->type(), VALUE_I32);
+  CHECK_EQ(instr->type(), VALUE_I32);
 
-  const Xbyak::Reg result = e.GetRegister(instr->result());
+  const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg v = e.GetRegister(instr->arg0());
   const Xbyak::Reg n = e.GetRegister(instr->arg1());
 

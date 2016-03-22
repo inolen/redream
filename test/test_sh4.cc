@@ -137,10 +137,6 @@ int sh4_num_test_regs =
                  fr0_out, fr1_out, fr2_out, fr3_out, fr4_out, fr5_out,  fr6_out,  fr7_out, fr8_out, fr9_out, fr10_out, fr11_out, fr12_out, fr13_out, fr14_out, fr15_out, \
                  xf0_out, xf1_out, xf2_out, xf3_out, xf4_out, xf5_out,  xf6_out,  xf7_out, xf8_out, xf9_out, xf10_out, xf11_out, xf12_out, xf13_out, xf14_out, xf15_out) \
   };                                                                                                                                                                     \
-  TEST(sh4_interpreter, name) {                                                                                                                                          \
-    FLAGS_interpreter = true;                                                                                                                                            \
-    RunSH4Test(test_##name);                                                                                                                                             \
-  }                                                                                                                                                                      \
   TEST(sh4_x64, name) {                                                                                                                                                  \
     FLAGS_interpreter = false;                                                                                                                                           \
     RunSH4Test(test_##name);                                                                                                                                             \

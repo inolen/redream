@@ -162,10 +162,10 @@ set(REDREAM_SOURCES
   src/jit/ir/ir_reader.cc
   src/jit/ir/ir_writer.cc
   src/jit/ir/passes/constant_propagation_pass.cc
+  src/jit/ir/passes/dead_code_elimination_pass.cc
   src/jit/ir/passes/load_store_elimination_pass.cc
   src/jit/ir/passes/pass_runner.cc
   src/jit/ir/passes/register_allocation_pass.cc
-  src/jit/ir/passes/validate_pass.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc
   src/sys/exception_handler.cc
@@ -336,6 +336,7 @@ set(REDREAM_TEST_SOURCES
   ${REDREAM_SOURCES}
   test/test_interval_tree.cc
   test/test_intrusive_list.cc
+  test/test_dead_code_elimination_pass.cc
   test/test_load_store_elimination_pass.cc
   test/test_minmax_heap.cc
   test/test_sh4.cc

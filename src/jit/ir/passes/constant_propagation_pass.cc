@@ -55,15 +55,15 @@ int fold_masks[NUM_OPS];
 #define ARG1_UNSIGNED() static_cast<typename A1::unsigned_type>(ARG1())
 #define ARG2_UNSIGNED() static_cast<typename A1::unsigned_type>(ARG2())
 #define RESULT(expr)                                                      \
-  instr->result()->ReplaceRefsWith(                                       \
+  instr->ReplaceRefsWith(                                                 \
       builder.AllocConstant(static_cast<typename R::signed_type>(expr))); \
   builder.RemoveInstr(instr)
 
 static FoldFn GetFoldFn(Instr *instr) {
-  auto it = fold_cbs.find(CALLBACK_IDX(
-      instr->op(), instr->result() ? (int)instr->result()->type() : VALUE_V,
-      instr->arg0() ? (int)instr->arg0()->type() : VALUE_V,
-      instr->arg1() ? (int)instr->arg1()->type() : VALUE_V));
+  auto it = fold_cbs.find(
+      CALLBACK_IDX(instr->op(), instr->type(),
+                   instr->arg0() ? (int)instr->arg0()->type() : VALUE_V,
+                   instr->arg1() ? (int)instr->arg1()->type() : VALUE_V));
   if (it == fold_cbs.end()) {
     return nullptr;
   }
@@ -90,7 +90,7 @@ static int GetConstantSig(Instr *instr) {
   return cnst_sig;
 }
 
-void ConstantPropagationPass::Run(IRBuilder &builder) {
+void ConstantPropagationPass::Run(IRBuilder &builder, bool debug) {
   PROFILER_RUNTIME("ConstantPropagationPass::Run");
 
   auto it = builder.instrs().begin();
@@ -115,7 +115,7 @@ void ConstantPropagationPass::Run(IRBuilder &builder) {
 }
 
 FOLD(SELECT, ARG0_CNST) {
-  instr->result()->ReplaceRefsWith(ARG0() ? instr->arg1() : instr->arg2());
+  instr->ReplaceRefsWith(ARG0() ? instr->arg1() : instr->arg2());
   builder.RemoveInstr(instr);
 }
 REGISTER_FOLD(SELECT, I8, I8, I8);

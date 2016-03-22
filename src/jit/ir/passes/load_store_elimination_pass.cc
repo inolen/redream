@@ -7,7 +7,7 @@ using namespace re::jit::ir::passes;
 LoadStoreEliminationPass::LoadStoreEliminationPass()
     : available_(nullptr), num_available_(0) {}
 
-void LoadStoreEliminationPass::Run(IRBuilder &builder) {
+void LoadStoreEliminationPass::Run(IRBuilder &builder, bool debug) {
   PROFILER_RUNTIME("LoadStoreEliminationPass::Run");
 
   Reset();
@@ -28,14 +28,13 @@ void LoadStoreEliminationPass::Run(IRBuilder &builder) {
         int offset = instr->arg0()->i32();
         Value *available = GetAvailable(offset);
 
-        if (available && available->type() == instr->result()->type()) {
-          instr->result()->ReplaceRefsWith(available);
-          CHECK_EQ(instr->result(), available);
+        if (available && available->type() == instr->type()) {
+          instr->ReplaceRefsWith(available);
           builder.RemoveInstr(instr);
           continue;
         }
 
-        SetAvailable(offset, instr->result());
+        SetAvailable(offset, instr);
       } else if (instr->op() == OP_STORE_CONTEXT) {
         int offset = instr->arg0()->i32();
 
@@ -58,7 +57,7 @@ void LoadStoreEliminationPass::Run(IRBuilder &builder) {
 
       if (instr->op() == OP_LOAD_CONTEXT) {
         int offset = instr->arg0()->i32();
-        int size = SizeForType(instr->result()->type());
+        int size = SizeForType(instr->type());
 
         EraseAvailable(offset, size);
       } else if (instr->op() == OP_STORE_CONTEXT) {

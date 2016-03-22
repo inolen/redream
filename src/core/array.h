@@ -7,22 +7,19 @@
 namespace re {
 
 template <typename T>
-class array
-{
+class array {
  public:
   array(size_t size = 8) : data_(nullptr), size_(0), capacity_(0) {
     Resize(size);
   }
-  ~array() {
-    free(data_);
-  }
+  ~array() { free(data_); }
 
   array(array const &) = delete;
   void operator=(array const &) = delete;
 
-  T &operator[] (size_t i) { return data_[i]; }
-  T operator[] (size_t i) const { return data_[i]; }
-  
+  T &operator[](size_t i) { return data_[i]; }
+  T operator[](size_t i) const { return data_[i]; }
+
   T *data() { return data_; }
   const T *data() const { return data_; }
 
@@ -60,12 +57,11 @@ class array
 
   void PopBack() { size_--; }
 
-private:
+ private:
   T *data_;
   size_t size_;
   size_t capacity_;
 };
-
 }
 
 #endif

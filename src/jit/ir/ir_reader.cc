@@ -257,11 +257,24 @@ bool IRReader::ParseOperator(IRLexer &lex, IRBuilder &builder) {
 }
 
 bool IRReader::ParseInstruction(IRLexer &lex, IRBuilder &builder) {
-  Value *arg[4] = {};
+  int slot = -1;
+  ValueType type = VALUE_V;
+  Value *arg[3] = {};
 
+  // parse result type and slot number
   if (lex.tok() == TOK_TYPE) {
-    // parse result value
-    if (!ParseValue(lex, builder, &arg[3]) || !ParseOperator(lex, builder)) {
+    if (!ParseType(lex, builder, &type)) {
+      return false;
+    }
+
+    const char *ident = lex.val().s;
+    if (ident[0] != '%') {
+      return false;
+    }
+    slot = atoi(&ident[1]);
+    lex.Next();
+
+    if (!ParseOperator(lex, builder)) {
       return false;
     }
   }
@@ -285,12 +298,19 @@ bool IRReader::ParseInstruction(IRLexer &lex, IRBuilder &builder) {
   }
 
   // create instruction
-  Instr *instr = builder.AppendInstr(op);
+  Instr *instr = builder.AppendInstr(op, type);
 
-  for (int i = 0; i < 4; i++) {
-    if (arg[i]) {
-      instr->set_arg(i, arg[i]);
+  for (int i = 0; i < 3; i++) {
+    if (!arg[i]) {
+      continue;
     }
+
+    instr->set_arg(i, arg[i]);
+  }
+
+  // insert instruction into slot if specified
+  if (slot != -1) {
+    slots_.insert(std::make_pair(slot, instr));
   }
 
   return true;
