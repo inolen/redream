@@ -52,7 +52,7 @@ class TileAccelerator : public Device,
   static int GetPolyType(const PCW &pcw);
   static int GetVertexType(const PCW &pcw);
 
-  TileAccelerator(Dreamcast *dc, renderer::Backend *rb);
+  TileAccelerator(Dreamcast &dc, renderer::Backend &rb);
 
   bool Init() final;
 
@@ -86,8 +86,8 @@ class TileAccelerator : public Device,
 
   void ToggleTracing();
 
-  Dreamcast *dc_;
-  renderer::Backend *rb_;
+  Dreamcast &dc_;
+  renderer::Backend &rb_;
   TileRenderer tile_renderer_;
   Memory *memory_;
   Holly *holly_;

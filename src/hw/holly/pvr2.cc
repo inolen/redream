@@ -11,8 +11,8 @@ using namespace re::hw::holly;
 using namespace re::hw::sh4;
 using namespace re::renderer;
 
-PVR2::PVR2(Dreamcast *dc)
-    : Device(*dc),
+PVR2::PVR2(Dreamcast &dc)
+    : Device(dc),
       MemoryInterface(this),
       dc_(dc),
       scheduler_(nullptr),
@@ -26,12 +26,12 @@ PVR2::PVR2(Dreamcast *dc)
       current_scanline_(0) {}
 
 bool PVR2::Init() {
-  scheduler_ = dc_->scheduler;
-  holly_ = dc_->holly;
-  ta_ = dc_->ta;
-  pvr_regs_ = dc_->pvr_regs;
-  palette_ram_ = dc_->memory->TranslateVirtual(PVR_PALETTE_START);
-  video_ram_ = dc_->memory->TranslateVirtual(PVR_VRAM32_START);
+  scheduler_ = dc_.scheduler;
+  holly_ = dc_.holly;
+  ta_ = dc_.ta;
+  pvr_regs_ = dc_.pvr_regs;
+  palette_ram_ = dc_.memory->TranslateVirtual(PVR_PALETTE_START);
+  video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_START);
 
 // initialize registers
 #define PVR_REG(addr, name, flags, default, type) \
@@ -101,7 +101,7 @@ void PVR2::WriteRegister(uint32_t addr, uint32_t value) {
 
     case TA_LIST_INIT_OFFSET: {
       if (value & 0x80000000) {
-        ta_->InitContext(dc_->TA_ISP_BASE.base_address);
+        ta_->InitContext(dc_.TA_ISP_BASE.base_address);
       }
     } break;
 
@@ -113,7 +113,7 @@ void PVR2::WriteRegister(uint32_t addr, uint32_t value) {
 
     case STARTRENDER_OFFSET: {
       if (value) {
-        ta_->FinalizeContext(dc_->PARAM_BASE.base_address);
+        ta_->FinalizeContext(dc_.PARAM_BASE.base_address);
       }
     } break;
 
@@ -160,22 +160,21 @@ void PVR2::WriteVRamInterleaved(uint32_t addr, T value) {
 void PVR2::ReconfigureSPG() {
   // get and scale pixel clock frequency
   int pixel_clock = 13500000;
-  if (dc_->FB_R_CTRL.vclk_div) {
+  if (dc_.FB_R_CTRL.vclk_div) {
     pixel_clock *= 2;
   }
 
   // hcount is number of pixel clock cycles per line - 1
-  line_clock_ = pixel_clock / (dc_->SPG_LOAD.hcount + 1);
-  if (dc_->SPG_CONTROL.interlace) {
+  line_clock_ = pixel_clock / (dc_.SPG_LOAD.hcount + 1);
+  if (dc_.SPG_CONTROL.interlace) {
     line_clock_ *= 2;
   }
 
   LOG_INFO(
       "ReconfigureSPG: pixel_clock %d, line_clock %d, vcount %d, hcount %d, "
       "interlace %d, vbstart %d, vbend %d",
-      pixel_clock, line_clock_, dc_->SPG_LOAD.vcount, dc_->SPG_LOAD.hcount,
-      dc_->SPG_CONTROL.interlace, dc_->SPG_VBLANK.vbstart,
-      dc_->SPG_VBLANK.vbend);
+      pixel_clock, line_clock_, dc_.SPG_LOAD.vcount, dc_.SPG_LOAD.hcount,
+      dc_.SPG_CONTROL.interlace, dc_.SPG_VBLANK.vbstart, dc_.SPG_VBLANK.vbend);
 
   if (line_timer_ != INVALID_TIMER) {
     scheduler_->CancelTimer(line_timer_);
@@ -187,34 +186,34 @@ void PVR2::ReconfigureSPG() {
 }
 
 void PVR2::NextScanline() {
-  uint32_t num_scanlines = dc_->SPG_LOAD.vcount + 1;
+  uint32_t num_scanlines = dc_.SPG_LOAD.vcount + 1;
   if (current_scanline_ > num_scanlines) {
     current_scanline_ = 0;
   }
 
   // vblank in
-  if (current_scanline_ == dc_->SPG_VBLANK_INT.vblank_in_line_number) {
+  if (current_scanline_ == dc_.SPG_VBLANK_INT.vblank_in_line_number) {
     holly_->RequestInterrupt(HOLLY_INTC_PCVIINT);
   }
 
   // vblank out
-  if (current_scanline_ == dc_->SPG_VBLANK_INT.vblank_out_line_number) {
+  if (current_scanline_ == dc_.SPG_VBLANK_INT.vblank_out_line_number) {
     holly_->RequestInterrupt(HOLLY_INTC_PCVOINT);
   }
 
   // hblank in
   holly_->RequestInterrupt(HOLLY_INTC_PCHIINT);
 
-  // bool was_vsync = dc_->SPG_STATUS.vsync;
-  dc_->SPG_STATUS.vsync = dc_->SPG_VBLANK.vbstart < dc_->SPG_VBLANK.vbend
-                              ? (current_scanline_ >= dc_->SPG_VBLANK.vbstart &&
-                                 current_scanline_ < dc_->SPG_VBLANK.vbend)
-                              : (current_scanline_ >= dc_->SPG_VBLANK.vbstart ||
-                                 current_scanline_ < dc_->SPG_VBLANK.vbend);
-  dc_->SPG_STATUS.scanline = current_scanline_++;
+  // bool was_vsync = dc_.SPG_STATUS.vsync;
+  dc_.SPG_STATUS.vsync = dc_.SPG_VBLANK.vbstart < dc_.SPG_VBLANK.vbend
+                             ? (current_scanline_ >= dc_.SPG_VBLANK.vbstart &&
+                                current_scanline_ < dc_.SPG_VBLANK.vbend)
+                             : (current_scanline_ >= dc_.SPG_VBLANK.vbstart ||
+                                current_scanline_ < dc_.SPG_VBLANK.vbend);
+  dc_.SPG_STATUS.scanline = current_scanline_++;
 
   // FIXME toggle SPG_STATUS.fieldnum on vblank?
-  // if (!was_vsync && dc_->SPG_STATUS.vsync) {
+  // if (!was_vsync && dc_.SPG_STATUS.vsync) {
   // }
 
   // reschedule

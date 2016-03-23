@@ -207,7 +207,7 @@ class GDROM : public Device {
   friend class holly::Holly;
 
  public:
-  GDROM(Dreamcast *dc);
+  GDROM(Dreamcast &dc);
   ~GDROM();
 
   bool Init() final;
@@ -231,7 +231,7 @@ class GDROM : public Device {
   int ReadSectors(int fad, SectorFormat format, DataMask mask, int num_sectors,
                   uint8_t *dst);
 
-  Dreamcast *dc_;
+  Dreamcast &dc_;
   Memory *memory_;
   holly::Holly *holly_;
   Register *holly_regs_;

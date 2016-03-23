@@ -11,8 +11,8 @@ using namespace re::hw::maple;
 using namespace re::hw::sh4;
 using namespace re::ui;
 
-Maple::Maple(Dreamcast *dc)
-    : Device(*dc),
+Maple::Maple(Dreamcast &dc)
+    : Device(dc),
       WindowInterface(this),
       dc_(dc),
       memory_(nullptr),
@@ -24,9 +24,9 @@ Maple::Maple(Dreamcast *dc)
 }
 
 bool Maple::Init() {
-  memory_ = dc_->memory;
-  holly_ = dc_->holly;
-  holly_regs_ = dc_->holly_regs;
+  memory_ = dc_.memory;
+  holly_ = dc_.holly;
+  holly_regs_ = dc_.holly_regs;
 
   return true;
 }
@@ -35,8 +35,8 @@ bool Maple::Init() {
 // in synchronization with the V-BLANK signal. These methods are selected
 // through the trigger selection register (SB_MDTSEL).
 void Maple::VBlank() {
-  uint32_t enabled = dc_->SB_MDEN;
-  uint32_t vblank_initiate = dc_->SB_MDTSEL;
+  uint32_t enabled = dc_.SB_MDEN;
+  uint32_t vblank_initiate = dc_.SB_MDTSEL;
 
   if (enabled && vblank_initiate) {
     StartDMA();
@@ -89,7 +89,7 @@ void Maple::WriteRegister(uint32_t addr, T value) {
 
   switch (offset) {
     case SB_MDST_OFFSET: {
-      uint32_t enabled = dc_->SB_MDEN;
+      uint32_t enabled = dc_.SB_MDEN;
       if (enabled) {
         if (value) {
           StartDMA();
@@ -102,7 +102,7 @@ void Maple::WriteRegister(uint32_t addr, T value) {
 }
 
 void Maple::StartDMA() {
-  uint32_t start_addr = dc_->SB_MDSTAR;
+  uint32_t start_addr = dc_.SB_MDSTAR;
   MapleTransferDesc desc;
   MapleFrame frame, res;
 
@@ -135,6 +135,6 @@ void Maple::StartDMA() {
     }
   } while (!desc.last);
 
-  dc_->SB_MDST = 0;
+  dc_.SB_MDST = 0;
   holly_->RequestInterrupt(HOLLY_INTC_MDEINT);
 }

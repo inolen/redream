@@ -13,8 +13,8 @@ using namespace re::hw::sh4;
 #define SWAP_24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
-GDROM::GDROM(Dreamcast *dc)
-    : Device(*dc),
+GDROM::GDROM(Dreamcast &dc)
+    : Device(dc),
       dc_(dc),
       memory_(nullptr),
       holly_(nullptr),
@@ -35,9 +35,9 @@ GDROM::GDROM(Dreamcast *dc)
 GDROM::~GDROM() { delete[] dma_buffer_; }
 
 bool GDROM::Init() {
-  memory_ = dc_->memory;
-  holly_ = dc_->holly;
-  holly_regs_ = dc_->holly_regs;
+  memory_ = dc_.memory;
+  holly_ = dc_.holly;
+  holly_regs_ = dc_.holly_regs;
 
   SetDisc(nullptr);
 
@@ -196,12 +196,12 @@ void GDROM::WriteRegister(uint32_t addr, T value) {
         // SB_GDSTAR, SB_GDLEN, or SB_GDDIR register is overwritten while a DMA
         // operation is in progress, the new setting has no effect on the
         // current DMA operation.
-        CHECK_EQ(dc_->SB_GDEN, 1);   // dma enabled
-        CHECK_EQ(dc_->SB_GDDIR, 1);  // gd-rom -> system memory
-        CHECK_EQ(dc_->SB_GDLEN, (uint32_t)dma_size_);
+        CHECK_EQ(dc_.SB_GDEN, 1);   // dma enabled
+        CHECK_EQ(dc_.SB_GDDIR, 1);  // gd-rom -> system memory
+        CHECK_EQ(dc_.SB_GDLEN, (uint32_t)dma_size_);
 
-        int transfer_size = dc_->SB_GDLEN;
-        uint32_t start = dc_->SB_GDSTAR;
+        int transfer_size = dc_.SB_GDLEN;
+        uint32_t start = dc_.SB_GDSTAR;
 
         LOG_INFO("GD DMA START 0x%x -> 0x%x, 0x%x bytes", start,
                  start + transfer_size, transfer_size);
@@ -209,9 +209,9 @@ void GDROM::WriteRegister(uint32_t addr, T value) {
         memory_->Memcpy(start, dma_buffer_, transfer_size);
 
         // done
-        dc_->SB_GDSTARD = start + transfer_size;
-        dc_->SB_GDLEND = transfer_size;
-        dc_->SB_GDST = 0;
+        dc_.SB_GDSTARD = start + transfer_size;
+        dc_.SB_GDLEND = transfer_size;
+        dc_.SB_GDST = 0;
         holly_->RequestInterrupt(HOLLY_INTC_G1DEINT);
 
         // finish off CD_READ command

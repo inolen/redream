@@ -155,7 +155,7 @@ void RunSH4Test(const SH4Test &test) {
   // perhaps initialize the machine once, resetting the SH4 context between
   // runs?
   std::unique_ptr<Dreamcast> dc(new Dreamcast());
-  std::unique_ptr<SH4> sh4(new SH4(dc.get()));
+  std::unique_ptr<SH4> sh4(new SH4(*dc.get()));
 
   CHECK(dc->Init());
 

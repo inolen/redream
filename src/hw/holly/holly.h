@@ -158,7 +158,7 @@ enum HollyInterrupt : uint64_t {
 
 class Holly : public Device, public MemoryInterface {
  public:
-  Holly(Dreamcast *dc);
+  Holly(Dreamcast &dc);
 
   bool Init() final;
 
@@ -178,7 +178,7 @@ class Holly : public Device, public MemoryInterface {
   void SortDMATransfer();
   void ForwardRequestInterrupts();
 
-  Dreamcast *dc_;
+  Dreamcast &dc_;
   Register *holly_regs_;
   gdrom::GDROM *gdrom_;
   maple::Maple *maple_;

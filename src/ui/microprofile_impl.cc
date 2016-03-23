@@ -1598,7 +1598,7 @@ MicroProfileImpl::MicroProfileImpl(Window &window)
 MicroProfileImpl::~MicroProfileImpl() { window_.RemoveListener(this); }
 
 bool MicroProfileImpl::Init() {
-  Backend *rb = window_.render_backend();
+  Backend &rb = window_.render_backend();
 
   // register and enable gpu and runtime group by default
   uint16_t gpu_group = MicroProfileGetGroup("gpu", MicroProfileTokenTypeCpu);
@@ -1612,7 +1612,7 @@ bool MicroProfileImpl::Init() {
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
 
   // register the font texture
-  font_tex_ = rb->RegisterTexture(
+  font_tex_ = rb.RegisterTexture(
       PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE, WRAP_CLAMP_TO_EDGE, false,
       FONT_WIDTH, FONT_HEIGHT, reinterpret_cast<const uint8_t *>(s_font_data));
 
@@ -1627,18 +1627,18 @@ void MicroProfileImpl::OnPostPaint() {
   MicroProfileDraw(window_.width(), window_.height());
 
   // render the surfaces
-  Backend *rb = window_.render_backend();
+  Backend &rb = window_.render_backend();
 
-  rb->Begin2D();
-  rb->BeginSurfaces2D(verts_, num_verts_, nullptr, 0);
+  rb.Begin2D();
+  rb.BeginSurfaces2D(verts_, num_verts_, nullptr, 0);
 
   for (int i = 0; i < num_surfs_; i++) {
     Surface2D &surf = surfs_[i];
-    rb->DrawSurface2D(surf);
+    rb.DrawSurface2D(surf);
   }
 
-  rb->EndSurfaces2D();
-  rb->End2D();
+  rb.EndSurfaces2D();
+  rb.End2D();
 
   // reset surfaces
   num_surfs_ = 0;

@@ -1,4 +1,5 @@
 #include <sstream>
+#include "core/math.h"
 #include "core/memory.h"
 #include "jit/ir/ir_builder.h"
 #include "jit/ir/ir_writer.h"
@@ -80,7 +81,8 @@ Instr::~Instr() {}
 //
 // IRBuilder
 //
-IRBuilder::IRBuilder() : arena_(1024), current_instr_(nullptr) {}
+IRBuilder::IRBuilder()
+    : arena_(1024), current_instr_(nullptr), locals_size_(0) {}
 
 void IRBuilder::Dump() const {
   IRWriter writer;
@@ -522,16 +524,17 @@ Value *IRBuilder::AllocConstant(double c) {
   return v;
 }
 
-Value *IRBuilder::AllocDynamic(ValueType type) {
-  Value *v = arena_.Alloc<Value>();
-  new (v) Value(type);
-  return v;
-}
-
 Local *IRBuilder::AllocLocal(ValueType type) {
+  // align local to natural size
+  int type_size = SizeForType(type);
+  locals_size_ = re::align_up(locals_size_, type_size);
+
   Local *l = arena_.Alloc<Local>();
-  new (l) Local(type, AllocConstant(0));
+  new (l) Local(type, AllocConstant(locals_size_));
   locals_.Append(l);
+
+  locals_size_ += type_size;
+
   return l;
 }
 

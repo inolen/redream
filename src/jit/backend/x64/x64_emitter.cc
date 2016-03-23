@@ -115,15 +115,7 @@ BlockPointer X64Emitter::Emit(IRBuilder &builder, Memory &memory,
 }
 
 void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
-  int stack_size = STACK_SIZE;
-
-  // align locals
-  for (auto local : builder.locals()) {
-    int type_size = SizeForType(local->type());
-    stack_size = re::align_up(stack_size, type_size);
-    local->set_offset(builder.AllocConstant(stack_size));
-    stack_size += type_size;
-  }
+  int stack_size = STACK_SIZE + builder.locals_size();
 
   // stack must be 16 byte aligned
   stack_size = re::align_up(stack_size, 16);

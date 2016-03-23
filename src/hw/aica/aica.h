@@ -12,7 +12,7 @@ namespace aica {
 
 class AICA : public Device, public MemoryInterface {
  public:
-  AICA(Dreamcast *dc);
+  AICA(Dreamcast &dc);
 
   bool Init() final;
 
@@ -28,7 +28,7 @@ class AICA : public Device, public MemoryInterface {
   template <typename T>
   void WriteWave(uint32_t addr, T value);
 
-  Dreamcast *dc_;
+  Dreamcast &dc_;
   uint8_t *aica_regs_;
   uint8_t *wave_ram_;
 };

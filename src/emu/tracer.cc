@@ -81,7 +81,7 @@ TextureHandle TraceTextureCache::GetTexture(hw::holly::TextureKey texture_key) {
 
 Tracer::Tracer(Window &window)
     : window_(window),
-      rb_(*window.render_backend()),
+      rb_(window.render_backend()),
       tile_renderer_(rb_, texcache_),
       hide_params_() {
   window_.AddListener(this);

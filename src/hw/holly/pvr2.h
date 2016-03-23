@@ -18,7 +18,7 @@ class TileAccelerator;
 
 class PVR2 : public Device, public MemoryInterface {
  public:
-  PVR2(Dreamcast *dc);
+  PVR2(Dreamcast &dc);
 
   bool Init() final;
 
@@ -37,7 +37,7 @@ class PVR2 : public Device, public MemoryInterface {
   void ReconfigureSPG();
   void NextScanline();
 
-  Dreamcast *dc_;
+  Dreamcast &dc_;
   Scheduler *scheduler_;
   holly::Holly *holly_;
   holly::TileAccelerator *ta_;

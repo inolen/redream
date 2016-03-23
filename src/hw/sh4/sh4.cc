@@ -29,8 +29,8 @@ enum {
   SH4_CLOCK_FREQ = 200000000,
 };
 
-SH4::SH4(Dreamcast *dc)
-    : Device(*dc),
+SH4::SH4(Dreamcast &dc)
+    : Device(dc),
       DebugInterface(this),
       ExecuteInterface(this),
       MemoryInterface(this),
@@ -54,8 +54,8 @@ SH4::SH4(Dreamcast *dc)
 SH4::~SH4() { delete code_cache_; }
 
 bool SH4::Init() {
-  memory_ = dc_->memory;
-  scheduler_ = dc_->scheduler;
+  memory_ = dc_.memory;
+  scheduler_ = dc_.scheduler;
 
   code_cache_ = new SH4CodeCache(memory_, &ctx_, &SH4::CompilePC);
 
@@ -176,7 +176,7 @@ void SH4::Step() {
   block->run();
 
   // let the debugger know we've stopped
-  dc_->debugger->Trap();
+  dc_.debugger->Trap();
 }
 
 void SH4::AddBreakpoint(int type, uint32_t addr) {
@@ -367,7 +367,7 @@ void SH4::InvalidInstruction(SH4Context *ctx, uint64_t data) {
   self->ctx_.num_cycles = 0;
 
   // let the debugger know execution has stopped
-  self->dc_->debugger->Trap();
+  self->dc_.debugger->Trap();
 }
 
 void SH4::Prefetch(SH4Context *ctx, uint64_t data) {

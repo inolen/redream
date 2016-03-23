@@ -39,12 +39,7 @@ bool InterpreterEmitter::Emit(ir::IRBuilder &builder, void *guest_ctx,
   }
 
   // assign local offsets
-  *locals_size = 0;
-  for (auto local : builder.locals()) {
-    int type_size = SizeForType(local->type());
-    local->set_offset(builder.AllocConstant(*locals_size));
-    *locals_size += type_size;
-  }
+  *locals_size = builder.locals_size();
 
   // translate each instruction
   *instr = reinterpret_cast<IntInstr *>(codegen_);

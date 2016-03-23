@@ -238,14 +238,7 @@ class Local : public IntrusiveListNode<Local> {
   Local(ValueType ty, Value *offset);
 
   ValueType type() const { return type_; }
-  ValueType type() { return type_; }
-
   Value *offset() const { return offset_; }
-  Value *offset() { return offset_; }
-  void set_offset(Value *offset) {
-    offset_->ReplaceRefsWith(offset);
-    offset_ = offset;
-  }
 
  private:
   ValueType type_;
@@ -314,8 +307,7 @@ class IRBuilder {
   const IntrusiveList<Instr> &instrs() const { return instrs_; }
   IntrusiveList<Instr> &instrs() { return instrs_; }
 
-  const IntrusiveList<Local> &locals() const { return locals_; }
-  IntrusiveList<Local> &locals() { return locals_; }
+  int locals_size() const { return locals_size_; }
 
   void Dump() const;
 
@@ -398,7 +390,6 @@ class IRBuilder {
   Value *AllocConstant(int64_t c);
   Value *AllocConstant(float c);
   Value *AllocConstant(double c);
-  Value *AllocDynamic(ValueType type);
   Local *AllocLocal(ValueType type);
 
  protected:
@@ -408,8 +399,9 @@ class IRBuilder {
 
   Arena arena_;
   IntrusiveList<Instr> instrs_;
-  IntrusiveList<Local> locals_;
   Instr *current_instr_;
+  IntrusiveList<Local> locals_;
+  int locals_size_;
 };
 
 inline const Instr *Value::def() const {

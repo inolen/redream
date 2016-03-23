@@ -206,13 +206,13 @@ int TileAccelerator::GetVertexType(const PCW &pcw) {
                             pcw.para_type * TA_NUM_LISTS + pcw.list_type];
 }
 
-TileAccelerator::TileAccelerator(Dreamcast *dc, Backend *rb)
-    : Device(*dc),
+TileAccelerator::TileAccelerator(Dreamcast &dc, Backend &rb)
+    : Device(dc),
       MemoryInterface(this),
       WindowInterface(this),
       dc_(dc),
       rb_(rb),
-      tile_renderer_(*rb, *this),
+      tile_renderer_(rb, *this),
       memory_(nullptr),
       holly_(nullptr),
       video_ram_(nullptr),
@@ -227,9 +227,9 @@ TileAccelerator::TileAccelerator(Dreamcast *dc, Backend *rb)
 }
 
 bool TileAccelerator::Init() {
-  memory_ = dc_->memory;
-  holly_ = dc_->holly;
-  video_ram_ = dc_->memory->TranslateVirtual(PVR_VRAM32_START);
+  memory_ = dc_.memory;
+  holly_ = dc_.holly;
+  video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_START);
 
   return true;
 }
@@ -253,7 +253,7 @@ TextureHandle TileAccelerator::GetTexture(const TSP &tsp, const TCW &tcw,
   uint32_t texture_addr = tcw.texture_addr << 3;
 
   // get the texture data
-  uint8_t *video_ram = dc_->memory->TranslateVirtual(PVR_VRAM32_START);
+  uint8_t *video_ram = dc_.memory->TranslateVirtual(PVR_VRAM32_START);
   uint8_t *texture = &video_ram[texture_addr];
   int width = 8 << tsp.texture_u_size;
   int height = 8 << tsp.texture_v_size;
@@ -263,7 +263,7 @@ TextureHandle TileAccelerator::GetTexture(const TSP &tsp, const TCW &tcw,
   int texture_size = (width * height * element_size_bits) >> 3;
 
   // get the palette data
-  uint8_t *palette_ram = dc_->memory->TranslateVirtual(PVR_PALETTE_START);
+  uint8_t *palette_ram = dc_.memory->TranslateVirtual(PVR_PALETTE_START);
   uint8_t *palette = nullptr;
   uint32_t palette_addr = 0;
   int palette_size = 0;
@@ -459,7 +459,7 @@ void TileAccelerator::OnPaint(bool show_main_menu) {
 }
 
 void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
-  WriteContext(dc_->TA_ISP_BASE.base_address, value);
+  WriteContext(dc_.TA_ISP_BASE.base_address, value);
 }
 
 void TileAccelerator::WriteTextureFIFO(uint32_t addr, uint32_t value) {
@@ -517,7 +517,7 @@ void TileAccelerator::InvalidateTexture(TextureCacheMap::iterator it) {
     RemoveAccessWatch(entry.palette_watch);
   }
 
-  rb_->FreeTexture(entry.handle);
+  rb_.FreeTexture(entry.handle);
 
   textures_.erase(it);
 }
@@ -552,23 +552,23 @@ void TileAccelerator::HandlePaletteWrite(const Exception &ex, void *data) {
 
 void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   // autosort
-  if (!dc_->FPU_PARAM_CFG.region_header_type) {
-    tctx->autosort = !dc_->ISP_FEED_CFG.presort;
+  if (!dc_.FPU_PARAM_CFG.region_header_type) {
+    tctx->autosort = !dc_.ISP_FEED_CFG.presort;
   } else {
-    uint32_t region_data = memory_->R32(PVR_VRAM64_START + dc_->REGION_BASE);
+    uint32_t region_data = memory_->R32(PVR_VRAM64_START + dc_.REGION_BASE);
     tctx->autosort = !(region_data & 0x20000000);
   }
 
   // texture stride
-  tctx->stride = dc_->TEXT_CONTROL.stride * 32;
+  tctx->stride = dc_.TEXT_CONTROL.stride * 32;
 
   // texture palette pixel format
-  tctx->pal_pxl_format = dc_->PAL_RAM_CTRL.pixel_format;
+  tctx->pal_pxl_format = dc_.PAL_RAM_CTRL.pixel_format;
 
   // write out video width to help with unprojecting the screen space
   // coordinates
-  if (dc_->SPG_CONTROL.interlace ||
-      (!dc_->SPG_CONTROL.NTSC && !dc_->SPG_CONTROL.PAL)) {
+  if (dc_.SPG_CONTROL.interlace ||
+      (!dc_.SPG_CONTROL.NTSC && !dc_.SPG_CONTROL.PAL)) {
     // interlaced and VGA mode both render at full resolution
     tctx->video_width = 640;
     tctx->video_height = 480;
@@ -585,7 +585,7 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   // correct solution
   uint32_t vram_offset =
       PVR_VRAM64_START +
-      ((tctx->addr + dc_->ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
+      ((tctx->addr + dc_.ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
 
   // get surface parameters
   tctx->bg_isp.full = memory_->R32(vram_offset);
@@ -594,20 +594,20 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   vram_offset += 12;
 
   // get the background depth
-  tctx->bg_depth = re::load<float>(&dc_->ISP_BACKGND_D);
+  tctx->bg_depth = re::load<float>(&dc_.ISP_BACKGND_D);
 
   // get the byte size for each vertex. normally, the byte size is
   // ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in
   // effect and the shadow bit is 1, then the byte size is
   // ISP_BACKGND_T.skip * 2 + 3
-  int vertex_size = dc_->ISP_BACKGND_T.skip;
-  if (!dc_->FPU_SHAD_SCALE.intensity_volume_mode && dc_->ISP_BACKGND_T.shadow) {
+  int vertex_size = dc_.ISP_BACKGND_T.skip;
+  if (!dc_.FPU_SHAD_SCALE.intensity_volume_mode && dc_.ISP_BACKGND_T.shadow) {
     vertex_size *= 2;
   }
   vertex_size = (vertex_size + 3) * 4;
 
   // skip to the first vertex
-  vram_offset += dc_->ISP_BACKGND_T.tag_offset * vertex_size;
+  vram_offset += dc_.ISP_BACKGND_T.tag_offset * vertex_size;
 
   // copy vertex data to context
   for (int i = 0, bg_offset = 0; i < 3; i++) {

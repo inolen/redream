@@ -8,16 +8,16 @@ using namespace re::hw;
 using namespace re::hw::aica;
 using namespace re::hw::holly;
 
-AICA::AICA(Dreamcast *dc)
-    : Device(*dc),
+AICA::AICA(Dreamcast &dc)
+    : Device(dc),
       MemoryInterface(this),
       dc_(dc),
       aica_regs_(nullptr),
       wave_ram_(nullptr) {}
 
 bool AICA::Init() {
-  aica_regs_ = dc_->memory->TranslateVirtual(AICA_REG_START);
-  wave_ram_ = dc_->memory->TranslateVirtual(WAVE_RAM_START);
+  aica_regs_ = dc_.memory->TranslateVirtual(AICA_REG_START);
+  wave_ram_ = dc_.memory->TranslateVirtual(WAVE_RAM_START);
 
   return true;
 }
@@ -49,7 +49,7 @@ void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
 //   // if (MCIEB || MCIPD) {
 //   //   LOG_INFO("0x%x & 0x%x", MCIEB, MCIPD);
 //   // }
-//   // dc_->holly()->RequestInterrupt(HOLLY_INTC_G2AICINT);
+//   // dc_.holly()->RequestInterrupt(HOLLY_INTC_G2AICINT);
 
 //   return cycles;
 // }

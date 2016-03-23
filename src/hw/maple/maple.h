@@ -104,7 +104,7 @@ class Maple : public Device, public WindowInterface {
   friend class holly::Holly;
 
  public:
-  Maple(Dreamcast *dc);
+  Maple(Dreamcast &dc);
 
   bool Init() final;
 
@@ -122,7 +122,7 @@ class Maple : public Device, public WindowInterface {
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
   void StartDMA();
 
-  Dreamcast *dc_;
+  Dreamcast &dc_;
   Memory *memory_;
   holly::Holly *holly_;
   Register *holly_regs_;

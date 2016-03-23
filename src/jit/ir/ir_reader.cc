@@ -193,11 +193,7 @@ bool IRReader::ParseValue(IRLexer &lex, IRBuilder &builder, Value **value) {
 
     int slot = atoi(&ident[1]);
     auto it = slots_.find(slot);
-    if (it == slots_.end()) {
-      auto res =
-          slots_.insert(std::make_pair(slot, builder.AllocDynamic(type)));
-      it = res.first;
-    }
+    CHECK_NE(it, slots_.end());
 
     *value = it->second;
   } else if (lex.tok() == TOK_INTEGER) {

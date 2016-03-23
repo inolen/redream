@@ -32,7 +32,7 @@ class SH4 : public Device,
   friend void RunSH4Test(const SH4Test &);
 
  public:
-  SH4(Dreamcast *dc);
+  SH4(Dreamcast &dc);
   ~SH4();
 
   bool Init() final;
@@ -108,7 +108,7 @@ class SH4 : public Device,
   template <int N>
   void ExpireTimer();
 
-  Dreamcast *dc_;
+  Dreamcast &dc_;
   Memory *memory_;
   Scheduler *scheduler_;
   SH4CodeCache *code_cache_;

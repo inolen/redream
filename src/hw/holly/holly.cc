@@ -13,8 +13,8 @@ using namespace re::hw::maple;
 using namespace re::hw::sh4;
 using namespace re::sys;
 
-Holly::Holly(Dreamcast *dc)
-    : Device(*dc),
+Holly::Holly(Dreamcast &dc)
+    : Device(dc),
       MemoryInterface(this),
       dc_(dc),
       holly_regs_(nullptr),
@@ -23,10 +23,10 @@ Holly::Holly(Dreamcast *dc)
       sh4_(nullptr) {}
 
 bool Holly::Init() {
-  holly_regs_ = dc_->holly_regs;
-  gdrom_ = dc_->gdrom;
-  maple_ = dc_->maple;
-  sh4_ = dc_->sh4;
+  holly_regs_ = dc_.holly_regs;
+  gdrom_ = dc_.gdrom;
+  maple_ = dc_.maple;
+  sh4_ = dc_.sh4;
 
 // initialize registers
 #define HOLLY_REG(addr, name, flags, default, type) \
@@ -43,20 +43,20 @@ void Holly::RequestInterrupt(HollyInterrupt intr) {
   uint32_t irq = static_cast<uint32_t>(intr & ~HOLLY_INTC_MASK);
 
   if (intr == HOLLY_INTC_PCVOINT) {
-    dc_->maple->VBlank();
+    dc_.maple->VBlank();
   }
 
   switch (type) {
     case HOLLY_INTC_NRM:
-      dc_->SB_ISTNRM |= irq;
+      dc_.SB_ISTNRM |= irq;
       break;
 
     case HOLLY_INTC_EXT:
-      dc_->SB_ISTEXT |= irq;
+      dc_.SB_ISTEXT |= irq;
       break;
 
     case HOLLY_INTC_ERR:
-      dc_->SB_ISTERR |= irq;
+      dc_.SB_ISTERR |= irq;
       break;
   }
 
@@ -70,15 +70,15 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
 
   switch (type) {
     case HOLLY_INTC_NRM:
-      dc_->SB_ISTNRM &= ~irq;
+      dc_.SB_ISTNRM &= ~irq;
       break;
 
     case HOLLY_INTC_EXT:
-      dc_->SB_ISTEXT &= ~irq;
+      dc_.SB_ISTEXT &= ~irq;
       break;
 
     case HOLLY_INTC_ERR:
-      dc_->SB_ISTERR &= ~irq;
+      dc_.SB_ISTERR &= ~irq;
       break;
   }
 
@@ -122,10 +122,10 @@ T Holly::ReadRegister(uint32_t addr) {
       // bits in SB_ISTEXT and SB_ISTERR, respectively, and writes to these two
       // bits are ignored.
       uint32_t v = reg.value & 0x3fffffff;
-      if (dc_->SB_ISTEXT) {
+      if (dc_.SB_ISTEXT) {
         v |= 0x40000000;
       }
-      if (dc_->SB_ISTERR) {
+      if (dc_.SB_ISTERR) {
         v |= 0x80000000;
       }
       return static_cast<T>(v);
@@ -219,15 +219,15 @@ void Holly::WriteRegister(uint32_t addr, T value) {
 
 // FIXME what are SB_LMMODE0 / SB_LMMODE1
 void Holly::CH2DMATransfer() {
-  sh4_->DDT(2, DDT_W, dc_->SB_C2DSTAT);
+  sh4_->DDT(2, DDT_W, dc_.SB_C2DSTAT);
 
-  dc_->SB_C2DLEN = 0;
-  dc_->SB_C2DST = 0;
+  dc_.SB_C2DLEN = 0;
+  dc_.SB_C2DST = 0;
   RequestInterrupt(HOLLY_INTC_DTDE2INT);
 }
 
 void Holly::SortDMATransfer() {
-  dc_->SB_SDST = 0;
+  dc_.SB_SDST = 0;
   RequestInterrupt(HOLLY_INTC_DTDESINT);
 }
 
@@ -235,9 +235,8 @@ void Holly::ForwardRequestInterrupts() {
   // trigger the respective level-encoded interrupt on the sh4 interrupt
   // controller
   {
-    if ((dc_->SB_ISTNRM & dc_->SB_IML6NRM) ||
-        (dc_->SB_ISTERR & dc_->SB_IML6ERR) ||
-        (dc_->SB_ISTEXT & dc_->SB_IML6EXT)) {
+    if ((dc_.SB_ISTNRM & dc_.SB_IML6NRM) || (dc_.SB_ISTERR & dc_.SB_IML6ERR) ||
+        (dc_.SB_ISTEXT & dc_.SB_IML6EXT)) {
       sh4_->RequestInterrupt(SH4_INTC_IRL_9);
     } else {
       sh4_->UnrequestInterrupt(SH4_INTC_IRL_9);
@@ -245,9 +244,8 @@ void Holly::ForwardRequestInterrupts() {
   }
 
   {
-    if ((dc_->SB_ISTNRM & dc_->SB_IML4NRM) ||
-        (dc_->SB_ISTERR & dc_->SB_IML4ERR) ||
-        (dc_->SB_ISTEXT & dc_->SB_IML4EXT)) {
+    if ((dc_.SB_ISTNRM & dc_.SB_IML4NRM) || (dc_.SB_ISTERR & dc_.SB_IML4ERR) ||
+        (dc_.SB_ISTEXT & dc_.SB_IML4EXT)) {
       sh4_->RequestInterrupt(SH4_INTC_IRL_11);
     } else {
       sh4_->UnrequestInterrupt(SH4_INTC_IRL_11);
@@ -255,9 +253,8 @@ void Holly::ForwardRequestInterrupts() {
   }
 
   {
-    if ((dc_->SB_ISTNRM & dc_->SB_IML2NRM) ||
-        (dc_->SB_ISTERR & dc_->SB_IML2ERR) ||
-        (dc_->SB_ISTEXT & dc_->SB_IML2EXT)) {
+    if ((dc_.SB_ISTNRM & dc_.SB_IML2NRM) || (dc_.SB_ISTERR & dc_.SB_IML2ERR) ||
+        (dc_.SB_ISTEXT & dc_.SB_IML2EXT)) {
       sh4_->RequestInterrupt(SH4_INTC_IRL_13);
     } else {
       sh4_->UnrequestInterrupt(SH4_INTC_IRL_13);
