@@ -606,7 +606,7 @@ EMITTER(ADDV) {
 EMITTER(CMPEQI) {
   Value *imm = b.AllocConstant((uint32_t)(int32_t)(int8_t)i.imm);
   Value *r0 = b.LoadRegister(0, VALUE_I32);
-  b.StoreT(b.EQ(r0, imm));
+  b.StoreT(b.CmpEQ(r0, imm));
 }
 
 // code                 cycles  t-bit
@@ -615,7 +615,7 @@ EMITTER(CMPEQI) {
 EMITTER(CMPEQ) {
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.StoreT(b.EQ(rn, rm));
+  b.StoreT(b.CmpEQ(rn, rm));
 }
 
 // code                 cycles  t-bit
@@ -624,7 +624,7 @@ EMITTER(CMPEQ) {
 EMITTER(CMPHS) {
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.StoreT(b.UGE(rn, rm));
+  b.StoreT(b.CmpUGE(rn, rm));
 }
 
 // code                 cycles  t-bit
@@ -633,7 +633,7 @@ EMITTER(CMPHS) {
 EMITTER(CMPGE) {
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.StoreT(b.SGE(rn, rm));
+  b.StoreT(b.CmpSGE(rn, rm));
 }
 
 // code                 cycles  t-bit
@@ -642,7 +642,7 @@ EMITTER(CMPGE) {
 EMITTER(CMPHI) {
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.StoreT(b.UGT(rn, rm));
+  b.StoreT(b.CmpUGT(rn, rm));
 }
 
 // code                 cycles  t-bit
@@ -651,7 +651,7 @@ EMITTER(CMPHI) {
 EMITTER(CMPGT) {
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.StoreT(b.SGT(rn, rm));
+  b.StoreT(b.CmpSGT(rn, rm));
 }
 
 // code                 cycles  t-bit
@@ -659,7 +659,7 @@ EMITTER(CMPGT) {
 // CMP/PZ  Rn
 EMITTER(CMPPZ) {
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.StoreT(b.SGE(rn, b.AllocConstant(0)));
+  b.StoreT(b.CmpSGE(rn, b.AllocConstant(0)));
 }
 
 // code                 cycles  t-bit
@@ -667,7 +667,7 @@ EMITTER(CMPPZ) {
 // CMP/PL  Rn
 EMITTER(CMPPL) {
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
-  b.StoreT(b.SGT(rn, b.AllocConstant(0)));
+  b.StoreT(b.CmpSGT(rn, b.AllocConstant(0)));
 }
 
 // code                 cycles  t-bit
@@ -680,13 +680,13 @@ EMITTER(CMPSTR) {
 
   // if any diff is zero, the bytes match
   Value *b4_eq =
-      b.EQ(b.And(diff, b.AllocConstant(0xff000000)), b.AllocConstant(0));
+      b.CmpEQ(b.And(diff, b.AllocConstant(0xff000000)), b.AllocConstant(0));
   Value *b3_eq =
-      b.EQ(b.And(diff, b.AllocConstant(0x00ff0000)), b.AllocConstant(0));
+      b.CmpEQ(b.And(diff, b.AllocConstant(0x00ff0000)), b.AllocConstant(0));
   Value *b2_eq =
-      b.EQ(b.And(diff, b.AllocConstant(0x0000ff00)), b.AllocConstant(0));
+      b.CmpEQ(b.And(diff, b.AllocConstant(0x0000ff00)), b.AllocConstant(0));
   Value *b1_eq =
-      b.EQ(b.And(diff, b.AllocConstant(0x000000ff)), b.AllocConstant(0));
+      b.CmpEQ(b.And(diff, b.AllocConstant(0x000000ff)), b.AllocConstant(0));
 
   b.StoreT(b.Or(b.Or(b.Or(b1_eq, b2_eq), b3_eq), b4_eq));
 }
@@ -752,8 +752,8 @@ EMITTER(DMULS) {
   Value *rn = b.SExt(b.LoadRegister(i.Rn, VALUE_I32), VALUE_I64);
 
   Value *p = b.SMul(rm, rn);
-  Value *low = b.Bitcast(p, VALUE_I32);
-  Value *high = b.Bitcast(b.LShr(p, 32), VALUE_I32);
+  Value *low = b.Trunc(p, VALUE_I32);
+  Value *high = b.Trunc(b.LShr(p, 32), VALUE_I32);
 
   b.StoreContext(offsetof(SH4Context, macl), low);
   b.StoreContext(offsetof(SH4Context, mach), high);
@@ -765,8 +765,8 @@ EMITTER(DMULU) {
   Value *rn = b.ZExt(b.LoadRegister(i.Rn, VALUE_I32), VALUE_I64);
 
   Value *p = b.UMul(rm, rn);
-  Value *low = b.Bitcast(p, VALUE_I32);
-  Value *high = b.Bitcast(b.LShr(p, 32), VALUE_I32);
+  Value *low = b.Trunc(p, VALUE_I32);
+  Value *high = b.Trunc(b.LShr(p, 32), VALUE_I32);
 
   b.StoreContext(offsetof(SH4Context, macl), low);
   b.StoreContext(offsetof(SH4Context, mach), high);
@@ -777,7 +777,7 @@ EMITTER(DT) {
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
   Value *v = b.Sub(rn, b.AllocConstant(1));
   b.StoreRegister(i.Rn, v);
-  b.StoreT(b.EQ(v, b.AllocConstant(0)));
+  b.StoreT(b.CmpEQ(v, b.AllocConstant(0)));
 }
 
 // EXTS.B  Rm,Rn
@@ -934,21 +934,21 @@ EMITTER(TAS) {
   Value *addr = b.LoadRegister(i.Rn, VALUE_I32);
   Value *v = b.LoadGuest(addr, VALUE_I8);
   b.StoreGuest(addr, b.Or(v, b.AllocConstant((uint8_t)0x80)));
-  b.StoreT(b.EQ(v, b.AllocConstant((uint8_t)0)));
+  b.StoreT(b.CmpEQ(v, b.AllocConstant((uint8_t)0)));
 }
 
 // TST     Rm,Rn
 EMITTER(TST) {
   Value *rn = b.LoadRegister(i.Rn, VALUE_I32);
   Value *rm = b.LoadRegister(i.Rm, VALUE_I32);
-  b.StoreT(b.EQ(b.And(rn, rm), b.AllocConstant(0)));
+  b.StoreT(b.CmpEQ(b.And(rn, rm), b.AllocConstant(0)));
 }
 
 // TST     #imm,R0
 EMITTER(TSTI) {
   Value *r0 = b.LoadRegister(0, VALUE_I32);
   Value *imm = b.AllocConstant((uint32_t)i.imm);
-  b.StoreT(b.EQ(b.And(r0, imm), b.AllocConstant((uint32_t)0)));
+  b.StoreT(b.CmpEQ(b.And(r0, imm), b.AllocConstant((uint32_t)0)));
 }
 
 // TST.B   #imm,@(R0,GBR)
@@ -956,7 +956,7 @@ EMITTER(TSTB) {
   Value *addr = b.Add(b.LoadRegister(0, VALUE_I32), b.LoadGBR());
   Value *v = b.LoadGuest(addr, VALUE_I8);
   Value *imm = b.AllocConstant((uint8_t)i.imm);
-  b.StoreT(b.EQ(b.And(v, imm), b.AllocConstant((uint8_t)0)));
+  b.StoreT(b.CmpEQ(b.And(v, imm), b.AllocConstant((uint8_t)0)));
 }
 
 // XOR     Rm,Rn
@@ -1784,10 +1784,10 @@ EMITTER(FCMPEQ) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     b.StoreT(
-        b.EQ(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
+        b.FCmpEQ(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
   } else {
-    b.StoreT(b.EQ(b.LoadRegisterF(i.Rn, VALUE_F32),
-                  b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.StoreT(b.FCmpEQ(b.LoadRegisterF(i.Rn, VALUE_F32),
+                      b.LoadRegisterF(i.Rm, VALUE_F32)));
   }
 }
 
@@ -1798,10 +1798,10 @@ EMITTER(FCMPGT) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     b.StoreT(
-        b.SGT(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
+        b.FCmpGT(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
   } else {
-    b.StoreT(b.SGT(b.LoadRegisterF(i.Rn, VALUE_F32),
-                   b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.StoreT(b.FCmpGT(b.LoadRegisterF(i.Rn, VALUE_F32),
+                      b.LoadRegisterF(i.Rm, VALUE_F32)));
   }
 }
 
@@ -1898,7 +1898,7 @@ EMITTER(FTRC) {
   if (fpu.double_pr) {
     int m = i.Rm & 0xe;
     Value *dpv =
-        b.Bitcast(b.Cast(b.LoadRegisterF(m, VALUE_F64), VALUE_I64), VALUE_I32);
+        b.Trunc(b.Cast(b.LoadRegisterF(m, VALUE_F64), VALUE_I64), VALUE_I32);
     b.StoreContext(offsetof(SH4Context, fpul), dpv);
   } else {
     Value *spv = b.Cast(b.LoadRegisterF(i.Rm, VALUE_F32), VALUE_I32);

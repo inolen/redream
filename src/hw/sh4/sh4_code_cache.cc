@@ -4,7 +4,7 @@
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/ir_builder.h"
-#include "jit/ir/passes/constant_propagation_pass.h"
+// #include "jit/ir/passes/constant_propagation_pass.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/register_allocation_pass.h"
@@ -33,7 +33,7 @@ SH4CodeCache::SH4CodeCache(Memory *memory, void *guest_ctx,
 
   // setup optimization passes
   pass_runner_.AddPass(std::unique_ptr<Pass>(new LoadStoreEliminationPass()));
-  pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
+  // pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new DeadCodeEliminationPass()));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));

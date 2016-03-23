@@ -786,18 +786,6 @@ EMITTER(STORE_LOCAL) {
   }
 }
 
-EMITTER(BITCAST) {
-  const Xbyak::Reg result = e.GetRegister(instr);
-  const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-  if (result.getIdx() == a.getIdx()) {
-    // noop if already the same register
-    return;
-  }
-
-  e.mov(result.cvt64(), a.cvt64());
-}
-
 EMITTER(CAST) {
   if (IsFloatType(instr->type())) {
     const Xbyak::Xmm result = e.GetXMMRegister(instr);
@@ -869,6 +857,39 @@ EMITTER(ZEXT) {
   }
 }
 
+EMITTER(TRUNC) {
+  const Xbyak::Reg result = e.GetRegister(instr);
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+
+  if (result.getIdx() == a.getIdx()) {
+    // noop if already the same register. note, this means the high order bits
+    // of the result won't be cleared, but I believe that is fine
+    return;
+  }
+
+  Xbyak::Reg truncated = a;
+  switch (instr->type()) {
+    case VALUE_I8:
+      truncated = a.cvt8();
+      break;
+    case VALUE_I16:
+      truncated = a.cvt16();
+      break;
+    case VALUE_I32:
+      truncated = a.cvt32();
+      break;
+    default:
+      LOG_FATAL("Unexpected value type");
+  }
+
+  if (truncated.isBit(32)) {
+    // mov will automatically zero fill the upper 32-bits
+    e.mov(result, truncated);
+  } else {
+    e.movzx(result.cvt32(), truncated);
+  }
+}
+
 EMITTER(SELECT) {
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg cond = e.GetRegister(instr->arg0());
@@ -880,224 +901,106 @@ EMITTER(SELECT) {
   e.cmovz(result.cvt32(), b);
 }
 
-EMITTER(EQ) {
-  const Xbyak::Reg result = e.GetRegister(instr);
-
-  if (IsFloatType(instr->arg0()->type())) {
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
-
-    if (instr->arg0()->type() == VALUE_F32) {
-      e.comiss(a, b);
-    } else {
-      e.comisd(a, b);
-    }
-  } else {
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-    if (e.CanEncodeAsImmediate(instr->arg1())) {
-      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
-    } else {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
-      e.cmp(a, b);
-    }
-  }
-
-  e.sete(result);
-}
-
-EMITTER(NE) {
-  const Xbyak::Reg result = e.GetRegister(instr);
-
-  if (IsFloatType(instr->arg0()->type())) {
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
-
-    if (instr->arg0()->type() == VALUE_F32) {
-      e.comiss(a, b);
-    } else {
-      e.comisd(a, b);
-    }
-  } else {
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-    if (e.CanEncodeAsImmediate(instr->arg1())) {
-      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
-    } else {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
-      e.cmp(a, b);
-    }
-  }
-
-  e.setne(result);
-}
-
-EMITTER(SGE) {
-  const Xbyak::Reg result = e.GetRegister(instr);
-
-  if (IsFloatType(instr->arg0()->type())) {
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
-
-    if (instr->arg0()->type() == VALUE_F32) {
-      e.comiss(a, b);
-    } else {
-      e.comisd(a, b);
-    }
-
-    e.setae(result);
-  } else {
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-    if (e.CanEncodeAsImmediate(instr->arg1())) {
-      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
-    } else {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
-      e.cmp(a, b);
-    }
-
-    e.setge(result);
-  }
-}
-
-EMITTER(SGT) {
-  const Xbyak::Reg result = e.GetRegister(instr);
-
-  if (IsFloatType(instr->arg0()->type())) {
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
-
-    if (instr->arg0()->type() == VALUE_F32) {
-      e.comiss(a, b);
-    } else {
-      e.comisd(a, b);
-    }
-
-    e.seta(result);
-  } else {
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-    if (e.CanEncodeAsImmediate(instr->arg1())) {
-      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
-    } else {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
-      e.cmp(a, b);
-    }
-
-    e.setg(result);
-  }
-}
-
-EMITTER(UGE) {
+EMITTER(CMP) {
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
   if (e.CanEncodeAsImmediate(instr->arg1())) {
-    e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+    e.cmp(a, static_cast<uint32_t>(instr->arg1()->GetZExtValue()));
   } else {
     const Xbyak::Reg b = e.GetRegister(instr->arg1());
     e.cmp(a, b);
   }
 
-  e.setae(result);
-}
+  CmpType cmp = static_cast<CmpType>(instr->arg2()->i32());
 
-EMITTER(UGT) {
-  const Xbyak::Reg result = e.GetRegister(instr);
-  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+  switch (cmp) {
+    case CMP_EQ:
+      e.sete(result);
+      break;
 
-  if (e.CanEncodeAsImmediate(instr->arg1())) {
-    e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
-  } else {
-    const Xbyak::Reg b = e.GetRegister(instr->arg1());
-    e.cmp(a, b);
-  }
+    case CMP_NE:
+      e.setne(result);
+      break;
 
-  e.seta(result);
-}
+    case CMP_SGE:
+      e.setge(result);
+      break;
 
-EMITTER(SLE) {
-  const Xbyak::Reg result = e.GetRegister(instr);
+    case CMP_SGT:
+      e.setg(result);
+      break;
 
-  if (IsFloatType(instr->arg0()->type())) {
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
+    case CMP_UGE:
+      e.setae(result);
+      break;
 
-    if (instr->arg0()->type() == VALUE_F32) {
-      e.comiss(a, b);
-    } else {
-      e.comisd(a, b);
-    }
+    case CMP_UGT:
+      e.seta(result);
+      break;
 
-    e.setbe(result);
-  } else {
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
+    case CMP_SLE:
+      e.setle(result);
+      break;
 
-    if (e.CanEncodeAsImmediate(instr->arg1())) {
-      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
-    } else {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
-      e.cmp(a, b);
-    }
+    case CMP_SLT:
+      e.setl(result);
+      break;
 
-    e.setle(result);
-  }
-}
+    case CMP_ULE:
+      e.setbe(result);
+      break;
 
-EMITTER(SLT) {
-  const Xbyak::Reg result = e.GetRegister(instr);
+    case CMP_ULT:
+      e.setb(result);
+      break;
 
-  if (IsFloatType(instr->arg0()->type())) {
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
-
-    if (instr->arg0()->type() == VALUE_F32) {
-      e.comiss(a, b);
-    } else {
-      e.comisd(a, b);
-    }
-
-    e.setb(result);
-  } else {
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-    if (e.CanEncodeAsImmediate(instr->arg1())) {
-      e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
-    } else {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
-      e.cmp(a, b);
-    }
-
-    e.setl(result);
+    default:
+      LOG_FATAL("Unexpected comparison type");
   }
 }
 
-EMITTER(ULE) {
+EMITTER(FCMP) {
   const Xbyak::Reg result = e.GetRegister(instr);
-  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
+  const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
 
-  if (e.CanEncodeAsImmediate(instr->arg1())) {
-    e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
+  if (instr->arg0()->type() == VALUE_F32) {
+    e.comiss(a, b);
   } else {
-    const Xbyak::Reg b = e.GetRegister(instr->arg1());
-    e.cmp(a, b);
+    e.comisd(a, b);
   }
 
-  e.setbe(result);
-}
+  CmpType cmp = static_cast<CmpType>(instr->arg2()->i32());
 
-EMITTER(ULT) {
-  const Xbyak::Reg result = e.GetRegister(instr);
-  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+  switch (cmp) {
+    case CMP_EQ:
+      e.sete(result);
+      break;
 
-  if (e.CanEncodeAsImmediate(instr->arg1())) {
-    e.cmp(a, (uint32_t)instr->arg1()->GetZExtValue());
-  } else {
-    const Xbyak::Reg b = e.GetRegister(instr->arg1());
-    e.cmp(a, b);
+    case CMP_NE:
+      e.setne(result);
+      break;
+
+    case CMP_SGE:
+      e.setae(result);
+      break;
+
+    case CMP_SGT:
+      e.seta(result);
+      break;
+
+    case CMP_SLE:
+      e.setbe(result);
+      break;
+
+    case CMP_SLT:
+      e.setb(result);
+      break;
+
+    default:
+      LOG_FATAL("Unexpected comparison type");
   }
-
-  e.setb(result);
 }
 
 EMITTER(ADD) {

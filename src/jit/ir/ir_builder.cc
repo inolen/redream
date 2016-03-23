@@ -160,15 +160,6 @@ void IRBuilder::StoreLocal(Local *local, Value *v) {
   instr->set_arg1(v);
 }
 
-Instr *IRBuilder::Bitcast(Value *v, ValueType dest_type) {
-  CHECK((IsIntType(v->type()) && IsIntType(dest_type)) ||
-        (IsFloatType(v->type()) && IsFloatType(dest_type)));
-
-  Instr *instr = AppendInstr(OP_BITCAST, dest_type);
-  instr->set_arg0(v);
-  return instr;
-}
-
 Instr *IRBuilder::Cast(Value *v, ValueType dest_type) {
   CHECK((IsIntType(v->type()) && IsFloatType(dest_type)) ||
         (IsFloatType(v->type()) && IsIntType(dest_type)));
@@ -194,11 +185,19 @@ Instr *IRBuilder::ZExt(Value *v, ValueType dest_type) {
   return instr;
 }
 
+Instr *IRBuilder::Trunc(Value *v, ValueType dest_type) {
+  CHECK(IsIntType(v->type()) && IsIntType(dest_type));
+
+  Instr *instr = AppendInstr(OP_TRUNC, dest_type);
+  instr->set_arg0(v);
+  return instr;
+}
+
 Instr *IRBuilder::Select(Value *cond, Value *t, Value *f) {
   CHECK_EQ(t->type(), f->type());
 
   if (cond->type() != VALUE_I8) {
-    cond = NE(cond, AllocConstant(0));
+    cond = CmpNE(cond, AllocConstant(0));
   }
 
   Instr *instr = AppendInstr(OP_SELECT, t->type());
@@ -208,99 +207,59 @@ Instr *IRBuilder::Select(Value *cond, Value *t, Value *f) {
   return instr;
 }
 
-Instr *IRBuilder::EQ(Value *a, Value *b) {
+Instr *IRBuilder::Cmp(Value *a, Value *b, CmpType type) {
+  CHECK(IsIntType(a->type()));
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_EQ, VALUE_I8);
+  Instr *instr = AppendInstr(OP_CMP, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
+  instr->set_arg2(AllocConstant(type));
   return instr;
 }
 
-Instr *IRBuilder::NE(Value *a, Value *b) {
+Instr *IRBuilder::CmpEQ(Value *a, Value *b) { return Cmp(a, b, CMP_EQ); }
+
+Instr *IRBuilder::CmpNE(Value *a, Value *b) { return Cmp(a, b, CMP_NE); }
+
+Instr *IRBuilder::CmpSGE(Value *a, Value *b) { return Cmp(a, b, CMP_SGE); }
+
+Instr *IRBuilder::CmpSGT(Value *a, Value *b) { return Cmp(a, b, CMP_SGT); }
+
+Instr *IRBuilder::CmpUGE(Value *a, Value *b) { return Cmp(a, b, CMP_UGE); }
+
+Instr *IRBuilder::CmpUGT(Value *a, Value *b) { return Cmp(a, b, CMP_UGT); }
+
+Instr *IRBuilder::CmpSLE(Value *a, Value *b) { return Cmp(a, b, CMP_SLE); }
+
+Instr *IRBuilder::CmpSLT(Value *a, Value *b) { return Cmp(a, b, CMP_SLT); }
+
+Instr *IRBuilder::CmpULE(Value *a, Value *b) { return Cmp(a, b, CMP_ULE); }
+
+Instr *IRBuilder::CmpULT(Value *a, Value *b) { return Cmp(a, b, CMP_ULT); }
+
+Instr *IRBuilder::FCmp(Value *a, Value *b, CmpType type) {
+  CHECK(IsFloatType(a->type()));
   CHECK_EQ(a->type(), b->type());
 
-  Instr *instr = AppendInstr(OP_NE, VALUE_I8);
+  Instr *instr = AppendInstr(OP_FCMP, VALUE_I8);
   instr->set_arg0(a);
   instr->set_arg1(b);
+  instr->set_arg2(AllocConstant(type));
   return instr;
 }
 
-Instr *IRBuilder::SGE(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+Instr *IRBuilder::FCmpEQ(Value *a, Value *b) { return FCmp(a, b, CMP_EQ); }
 
-  Instr *instr = AppendInstr(OP_SGE, VALUE_I8);
-  instr->set_arg0(a);
-  instr->set_arg1(b);
-  return instr;
-}
+Instr *IRBuilder::FCmpNE(Value *a, Value *b) { return FCmp(a, b, CMP_NE); }
 
-Instr *IRBuilder::SGT(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+Instr *IRBuilder::FCmpGE(Value *a, Value *b) { return FCmp(a, b, CMP_SGE); }
 
-  Instr *instr = AppendInstr(OP_SGT, VALUE_I8);
-  instr->set_arg0(a);
-  instr->set_arg1(b);
-  return instr;
-}
+Instr *IRBuilder::FCmpGT(Value *a, Value *b) { return FCmp(a, b, CMP_SGT); }
 
-Instr *IRBuilder::UGE(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
-  CHECK_EQ(true, IsIntType(a->type()) && IsIntType(b->type()));
+Instr *IRBuilder::FCmpLE(Value *a, Value *b) { return FCmp(a, b, CMP_SLE); }
 
-  Instr *instr = AppendInstr(OP_UGE, VALUE_I8);
-  instr->set_arg0(a);
-  instr->set_arg1(b);
-  return instr;
-}
-
-Instr *IRBuilder::UGT(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
-  CHECK_EQ(true, IsIntType(a->type()) && IsIntType(b->type()));
-
-  Instr *instr = AppendInstr(OP_UGT, VALUE_I8);
-  instr->set_arg0(a);
-  instr->set_arg1(b);
-  return instr;
-}
-
-Instr *IRBuilder::SLE(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
-
-  Instr *instr = AppendInstr(OP_SLE, VALUE_I8);
-  instr->set_arg0(a);
-  instr->set_arg1(b);
-  return instr;
-}
-
-Instr *IRBuilder::SLT(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
-
-  Instr *instr = AppendInstr(OP_SLT, VALUE_I8);
-  instr->set_arg0(a);
-  instr->set_arg1(b);
-  return instr;
-}
-
-Instr *IRBuilder::ULE(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
-  CHECK_EQ(true, IsIntType(a->type()) && IsIntType(b->type()));
-
-  Instr *instr = AppendInstr(OP_ULE, VALUE_I8);
-  instr->set_arg0(a);
-  instr->set_arg1(b);
-  return instr;
-}
-
-Instr *IRBuilder::ULT(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
-  CHECK_EQ(true, IsIntType(a->type()) && IsIntType(b->type()));
-
-  Instr *instr = AppendInstr(OP_ULT, VALUE_I8);
-  instr->set_arg0(a);
-  instr->set_arg1(b);
-  return instr;
-}
+Instr *IRBuilder::FCmpLT(Value *a, Value *b) { return FCmp(a, b, CMP_SLT); }
 
 Instr *IRBuilder::Add(Value *a, Value *b) {
   CHECK_EQ(a->type(), b->type());

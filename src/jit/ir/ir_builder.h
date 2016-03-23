@@ -292,6 +292,19 @@ class Instr : public Value, public IntrusiveListNode<Instr> {
 //
 // IRBuilder
 //
+enum CmpType {
+  CMP_EQ,
+  CMP_NE,
+  CMP_SGE,
+  CMP_SGT,
+  CMP_UGE,
+  CMP_UGT,
+  CMP_SLE,
+  CMP_SLT,
+  CMP_ULE,
+  CMP_ULT
+};
+
 typedef void (*ExternalFn)(void *);
 
 struct InsertPoint {
@@ -333,23 +346,29 @@ class IRBuilder {
   void StoreLocal(Local *local, Value *v);
 
   // cast / conversion operations
-  Instr *Bitcast(Value *v, ValueType dest_type);
   Instr *Cast(Value *v, ValueType dest_type);
   Instr *SExt(Value *v, ValueType dest_type);
   Instr *ZExt(Value *v, ValueType dest_type);
+  Instr *Trunc(Value *v, ValueType dest_type);
 
   // conditionals
   Instr *Select(Value *cond, Value *t, Value *f);
-  Instr *EQ(Value *a, Value *b);
-  Instr *NE(Value *a, Value *b);
-  Instr *SGE(Value *a, Value *b);
-  Instr *SGT(Value *a, Value *b);
-  Instr *UGE(Value *a, Value *b);
-  Instr *UGT(Value *a, Value *b);
-  Instr *SLE(Value *a, Value *b);
-  Instr *SLT(Value *a, Value *b);
-  Instr *ULE(Value *a, Value *b);
-  Instr *ULT(Value *a, Value *b);
+  Instr *CmpEQ(Value *a, Value *b);
+  Instr *CmpNE(Value *a, Value *b);
+  Instr *CmpSGE(Value *a, Value *b);
+  Instr *CmpSGT(Value *a, Value *b);
+  Instr *CmpUGE(Value *a, Value *b);
+  Instr *CmpUGT(Value *a, Value *b);
+  Instr *CmpSLE(Value *a, Value *b);
+  Instr *CmpSLT(Value *a, Value *b);
+  Instr *CmpULE(Value *a, Value *b);
+  Instr *CmpULT(Value *a, Value *b);
+  Instr *FCmpEQ(Value *a, Value *b);
+  Instr *FCmpNE(Value *a, Value *b);
+  Instr *FCmpGE(Value *a, Value *b);
+  Instr *FCmpGT(Value *a, Value *b);
+  Instr *FCmpLE(Value *a, Value *b);
+  Instr *FCmpLT(Value *a, Value *b);
 
   // math operators
   Instr *Add(Value *a, Value *b);
@@ -396,6 +415,9 @@ class IRBuilder {
   Instr *AllocInstr(Op op, ValueType result_type);
   Instr *AppendInstr(Op op);
   Instr *AppendInstr(Op op, ValueType result_type);
+
+  Instr *Cmp(Value *a, Value *b, CmpType type);
+  Instr *FCmp(Value *a, Value *b, CmpType type);
 
   Arena arena_;
   IntrusiveList<Instr> instrs_;
