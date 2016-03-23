@@ -149,9 +149,6 @@ set(REDREAM_SOURCES
   src/hw/machine.cc
   src/hw/memory.cc
   src/hw/scheduler.cc
-  src/jit/backend/interpreter/interpreter_backend.cc
-  src/jit/backend/interpreter/interpreter_block.cc
-  src/jit/backend/interpreter/interpreter_emitter.cc
   src/jit/backend/x64/x64_backend.cc
   src/jit/backend/x64/x64_disassembler.cc
   src/jit/backend/x64/x64_emitter.cc

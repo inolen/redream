@@ -1,7 +1,6 @@
 #include <gflags/gflags.h>
 #include "emu/profiler.h"
 #include "hw/sh4/sh4_code_cache.h"
-#include "jit/backend/interpreter/interpreter_backend.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/ir_builder.h"
@@ -13,15 +12,12 @@
 using namespace re::hw;
 using namespace re::jit;
 using namespace re::jit::backend;
-using namespace re::jit::backend::interpreter;
 using namespace re::jit::backend::x64;
 using namespace re::jit::frontend;
 using namespace re::jit::frontend::sh4;
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 using namespace re::sys;
-
-DEFINE_bool(interpreter, false, "Use interpreter");
 
 SH4CodeCache::SH4CodeCache(Memory *memory, void *guest_ctx,
                            BlockPointer default_block)
@@ -33,12 +29,7 @@ SH4CodeCache::SH4CodeCache(Memory *memory, void *guest_ctx,
 
   // setup parser and emitter
   frontend_ = new SH4Frontend(*memory, guest_ctx);
-
-  if (FLAGS_interpreter) {
-    backend_ = new InterpreterBackend(*memory, guest_ctx);
-  } else {
-    backend_ = new X64Backend(*memory, guest_ctx);
-  }
+  backend_ = new X64Backend(*memory, guest_ctx);
 
   // setup optimization passes
   pass_runner_.AddPass(std::unique_ptr<Pass>(new LoadStoreEliminationPass()));

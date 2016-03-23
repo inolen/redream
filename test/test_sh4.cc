@@ -16,8 +16,6 @@ using namespace re::hw::sh4;
 using namespace re::jit;
 using namespace re::jit::frontend::sh4;
 
-DECLARE_bool(interpreter);
-
 void re::hw::sh4::RunSH4Test(const SH4Test &test);
 
 enum {
@@ -138,7 +136,6 @@ int sh4_num_test_regs =
                  xf0_out, xf1_out, xf2_out, xf3_out, xf4_out, xf5_out,  xf6_out,  xf7_out, xf8_out, xf9_out, xf10_out, xf11_out, xf12_out, xf13_out, xf14_out, xf15_out) \
   };                                                                                                                                                                     \
   TEST(sh4_x64, name) {                                                                                                                                                  \
-    FLAGS_interpreter = false;                                                                                                                                           \
     RunSH4Test(test_##name);                                                                                                                                             \
   }
 #include "test_sh4.inc"
