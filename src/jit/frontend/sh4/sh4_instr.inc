@@ -220,8 +220,8 @@ SH4_INSTR(FTRC,             "ftrc    frm, fpul",         1111mmmm00111101, 1, 0)
 
 // floating-point double precision instructions,
 // some merged with single precision instructions
-SH4_INSTR(FCNVDS,    "fcnvds  drm, fpul",         1111mmm010111101, 1, 0)
-SH4_INSTR(FCNVSD,    "fcnvsd  fpul, drn",         1111nnn010101101, 1, 0)
+SH4_INSTR(FCNVDS,    "fcnvds  drm, fpul",         1111mmmm10111101, 1, 0)
+SH4_INSTR(FCNVSD,    "fcnvsd  fpul, drn",         1111nnnn10101101, 1, 0)
 
 
 // floating-point control instructions

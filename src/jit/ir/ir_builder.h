@@ -346,10 +346,13 @@ class IRBuilder {
   void StoreLocal(Local *local, Value *v);
 
   // cast / conversion operations
-  Instr *Cast(Value *v, ValueType dest_type);
+  Instr *FToI(Value *v, ValueType dest_type);
+  Instr *IToF(Value *v, ValueType dest_type);
   Instr *SExt(Value *v, ValueType dest_type);
   Instr *ZExt(Value *v, ValueType dest_type);
   Instr *Trunc(Value *v, ValueType dest_type);
+  Instr *FExt(Value *v, ValueType dest_type);
+  Instr *FTrunc(Value *v, ValueType dest_type);
 
   // conditionals
   Instr *Select(Value *cond, Value *t, Value *f);
@@ -377,8 +380,14 @@ class IRBuilder {
   Instr *UMul(Value *a, Value *b);
   Instr *Div(Value *a, Value *b);
   Instr *Neg(Value *a);
-  Instr *Sqrt(Value *a);
   Instr *Abs(Value *a);
+  Instr *FAdd(Value *a, Value *b);
+  Instr *FSub(Value *a, Value *b);
+  Instr *FMul(Value *a, Value *b);
+  Instr *FDiv(Value *a, Value *b);
+  Instr *FNeg(Value *a);
+  Instr *FAbs(Value *a);
+  Instr *Sqrt(Value *a);
 
   // bitwise operations
   Instr *And(Value *a, Value *b);

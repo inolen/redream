@@ -1751,16 +1751,16 @@ EMITTER(FSTS) {
 EMITTER(FABS) {
   if (fpu.double_pr) {
     int n = i.Rn & 0xe;
-    b.StoreRegisterF(n, b.Abs(b.LoadRegisterF(n, VALUE_F64)));
+    b.StoreRegisterF(n, b.FAbs(b.LoadRegisterF(n, VALUE_F64)));
   } else {
-    b.StoreRegisterF(i.Rn, b.Abs(b.LoadRegisterF(i.Rn, VALUE_F32)));
+    b.StoreRegisterF(i.Rn, b.FAbs(b.LoadRegisterF(i.Rn, VALUE_F32)));
   }
 }
 
 // FSRRA FRn PR=0 1111nnnn01111101
 EMITTER(FSRRA) {
   Value *frn = b.LoadRegisterF(i.Rn, VALUE_F32);
-  b.StoreRegisterF(i.Rn, b.Div(b.AllocConstant(1.0f), b.Sqrt(frn)));
+  b.StoreRegisterF(i.Rn, b.FDiv(b.AllocConstant(1.0f), b.Sqrt(frn)));
 }
 
 // FADD FRm,FRn PR=0 1111nnnnmmmm0000
@@ -1769,11 +1769,11 @@ EMITTER(FADD) {
   if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
-    b.StoreRegisterF(
-        n, b.Add(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
+    b.StoreRegisterF(n, b.FAdd(b.LoadRegisterF(n, VALUE_F64),
+                               b.LoadRegisterF(m, VALUE_F64)));
   } else {
-    b.StoreRegisterF(i.Rn, b.Add(b.LoadRegisterF(i.Rn, VALUE_F32),
-                                 b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.StoreRegisterF(i.Rn, b.FAdd(b.LoadRegisterF(i.Rn, VALUE_F32),
+                                  b.LoadRegisterF(i.Rm, VALUE_F32)));
   }
 }
 
@@ -1811,12 +1811,12 @@ EMITTER(FDIV) {
   if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
-    b.StoreRegisterF(
-        n, b.Div(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
+    b.StoreRegisterF(n, b.FDiv(b.LoadRegisterF(n, VALUE_F64),
+                               b.LoadRegisterF(m, VALUE_F64)));
 
   } else {
-    b.StoreRegisterF(i.Rn, b.Div(b.LoadRegisterF(i.Rn, VALUE_F32),
-                                 b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.StoreRegisterF(i.Rn, b.FDiv(b.LoadRegisterF(i.Rn, VALUE_F32),
+                                  b.LoadRegisterF(i.Rm, VALUE_F32)));
   }
 }
 
@@ -1827,9 +1827,9 @@ EMITTER(FLOAT) {
 
   if (fpu.double_pr) {
     int n = i.Rn & 0xe;
-    b.StoreRegisterF(n, b.Cast(b.SExt(fpul, VALUE_I64), VALUE_F64));
+    b.StoreRegisterF(n, b.IToF(b.SExt(fpul, VALUE_I64), VALUE_F64));
   } else {
-    b.StoreRegisterF(i.Rn, b.Cast(fpul, VALUE_F32));
+    b.StoreRegisterF(i.Rn, b.IToF(fpul, VALUE_F32));
   }
 }
 
@@ -1838,8 +1838,8 @@ EMITTER(FMAC) {
   CHECK(!fpu.double_pr);
 
   Value *rm = b.LoadRegisterF(i.Rm, VALUE_F32);
-  b.StoreRegisterF(i.Rn, b.Add(b.SMul(b.LoadRegisterF(0, VALUE_F32), rm),
-                               b.LoadRegisterF(i.Rn, VALUE_F32)));
+  b.StoreRegisterF(i.Rn, b.FAdd(b.FMul(b.LoadRegisterF(0, VALUE_F32), rm),
+                                b.LoadRegisterF(i.Rn, VALUE_F32)));
 }
 
 // FMUL FRm,FRn PR=0 1111nnnnmmmm0010
@@ -1848,10 +1848,10 @@ EMITTER(FMUL) {
   if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
-    b.StoreRegisterF(n, b.SMul(b.LoadRegisterF(n, VALUE_F64),
+    b.StoreRegisterF(n, b.FMul(b.LoadRegisterF(n, VALUE_F64),
                                b.LoadRegisterF(m, VALUE_F64)));
   } else {
-    b.StoreRegisterF(i.Rn, b.SMul(b.LoadRegisterF(i.Rn, VALUE_F32),
+    b.StoreRegisterF(i.Rn, b.FMul(b.LoadRegisterF(i.Rn, VALUE_F32),
                                   b.LoadRegisterF(i.Rm, VALUE_F32)));
   }
 }
@@ -1861,9 +1861,9 @@ EMITTER(FMUL) {
 EMITTER(FNEG) {
   if (fpu.double_pr) {
     int n = i.Rn & 0xe;
-    b.StoreRegisterF(n, b.Neg(b.LoadRegisterF(n, VALUE_F64)));
+    b.StoreRegisterF(n, b.FNeg(b.LoadRegisterF(n, VALUE_F64)));
   } else {
-    b.StoreRegisterF(i.Rn, b.Neg(b.LoadRegisterF(i.Rn, VALUE_F32)));
+    b.StoreRegisterF(i.Rn, b.FNeg(b.LoadRegisterF(i.Rn, VALUE_F32)));
   }
 }
 
@@ -1884,11 +1884,11 @@ EMITTER(FSUB) {
   if (fpu.double_pr) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
-    b.StoreRegisterF(
-        n, b.Sub(b.LoadRegisterF(n, VALUE_F64), b.LoadRegisterF(m, VALUE_F64)));
+    b.StoreRegisterF(n, b.FSub(b.LoadRegisterF(n, VALUE_F64),
+                               b.LoadRegisterF(m, VALUE_F64)));
   } else {
-    b.StoreRegisterF(i.Rn, b.Sub(b.LoadRegisterF(i.Rn, VALUE_F32),
-                                 b.LoadRegisterF(i.Rm, VALUE_F32)));
+    b.StoreRegisterF(i.Rn, b.FSub(b.LoadRegisterF(i.Rn, VALUE_F32),
+                                  b.LoadRegisterF(i.Rm, VALUE_F32)));
   }
 }
 
@@ -1898,19 +1898,37 @@ EMITTER(FTRC) {
   if (fpu.double_pr) {
     int m = i.Rm & 0xe;
     Value *dpv =
-        b.Trunc(b.Cast(b.LoadRegisterF(m, VALUE_F64), VALUE_I64), VALUE_I32);
+        b.Trunc(b.FToI(b.LoadRegisterF(m, VALUE_F64), VALUE_I64), VALUE_I32);
     b.StoreContext(offsetof(SH4Context, fpul), dpv);
   } else {
-    Value *spv = b.Cast(b.LoadRegisterF(i.Rm, VALUE_F32), VALUE_I32);
+    Value *spv = b.FToI(b.LoadRegisterF(i.Rm, VALUE_F32), VALUE_I32);
     b.StoreContext(offsetof(SH4Context, fpul), spv);
   }
 }
 
 // FCNVDS DRm,FPUL PR=1 1111mmm010111101
-EMITTER(FCNVDS) { LOG_FATAL("FCNVDS not implemented"); }
+EMITTER(FCNVDS) {
+  CHECK(fpu.double_pr);
+
+  // TODO rounding modes?
+
+  int m = i.Rm & 0xe;
+  Value *dpv = b.LoadRegisterF(m, VALUE_F64);
+  Value *spv = b.FTrunc(dpv, VALUE_F32);
+  b.StoreContext(offsetof(SH4Context, fpul), spv);
+}
 
 // FCNVSD FPUL, DRn PR=1 1111nnn010101101
-EMITTER(FCNVSD) { LOG_FATAL("FCNVSD not implemented"); }
+EMITTER(FCNVSD) {
+  CHECK(fpu.double_pr);
+
+  // TODO rounding modes?
+
+  Value *spv = b.LoadContext(offsetof(SH4Context, fpul), VALUE_F32);
+  Value *dpv = b.FExt(spv, VALUE_F64);
+  int n = i.Rn & 0xe;
+  b.StoreRegisterF(n, dpv);
+}
 
 // LDS     Rm,FPSCR
 EMITTER(LDSFPSCR) { b.StoreFPSCR(b.LoadRegister(i.Rm, VALUE_I32)); }
@@ -1968,11 +1986,11 @@ EMITTER(FIPR) {
 
   Value *p[4];
   for (int i = 0; i < 4; i++) {
-    p[i] = b.SMul(b.LoadRegisterF(m + i, VALUE_F32),
+    p[i] = b.FMul(b.LoadRegisterF(m + i, VALUE_F32),
                   b.LoadRegisterF(n + i, VALUE_F32));
   }
 
-  b.StoreRegisterF(n + 3, b.Add(b.Add(b.Add(p[0], p[1]), p[2]), p[3]));
+  b.StoreRegisterF(n + 3, b.FAdd(b.FAdd(b.FAdd(p[0], p[1]), p[2]), p[3]));
 }
 
 // FSCA FPUL,DRn PR=0 1111nnn011111101
@@ -1996,41 +2014,41 @@ EMITTER(FTRV) {
   Value *sum[4];
   int n = i.Rn << 2;
 
-  sum[0] = b.Add(b.Add(b.Add(b.SMul(b.LoadRegisterXF(0, VALUE_F32),
-                                    b.LoadRegisterF(n + 0, VALUE_F32)),
-                             b.SMul(b.LoadRegisterXF(4, VALUE_F32),
-                                    b.LoadRegisterF(n + 1, VALUE_F32))),
-                       b.SMul(b.LoadRegisterXF(8, VALUE_F32),
-                              b.LoadRegisterF(n + 2, VALUE_F32))),
-                 b.SMul(b.LoadRegisterXF(12, VALUE_F32),
-                        b.LoadRegisterF(n + 3, VALUE_F32)));
+  sum[0] = b.FAdd(b.FAdd(b.FAdd(b.FMul(b.LoadRegisterXF(0, VALUE_F32),
+                                       b.LoadRegisterF(n + 0, VALUE_F32)),
+                                b.FMul(b.LoadRegisterXF(4, VALUE_F32),
+                                       b.LoadRegisterF(n + 1, VALUE_F32))),
+                         b.FMul(b.LoadRegisterXF(8, VALUE_F32),
+                                b.LoadRegisterF(n + 2, VALUE_F32))),
+                  b.FMul(b.LoadRegisterXF(12, VALUE_F32),
+                         b.LoadRegisterF(n + 3, VALUE_F32)));
 
-  sum[1] = b.Add(b.Add(b.Add(b.SMul(b.LoadRegisterXF(1, VALUE_F32),
-                                    b.LoadRegisterF(n + 0, VALUE_F32)),
-                             b.SMul(b.LoadRegisterXF(5, VALUE_F32),
-                                    b.LoadRegisterF(n + 1, VALUE_F32))),
-                       b.SMul(b.LoadRegisterXF(9, VALUE_F32),
-                              b.LoadRegisterF(n + 2, VALUE_F32))),
-                 b.SMul(b.LoadRegisterXF(13, VALUE_F32),
-                        b.LoadRegisterF(n + 3, VALUE_F32)));
+  sum[1] = b.FAdd(b.FAdd(b.FAdd(b.FMul(b.LoadRegisterXF(1, VALUE_F32),
+                                       b.LoadRegisterF(n + 0, VALUE_F32)),
+                                b.FMul(b.LoadRegisterXF(5, VALUE_F32),
+                                       b.LoadRegisterF(n + 1, VALUE_F32))),
+                         b.FMul(b.LoadRegisterXF(9, VALUE_F32),
+                                b.LoadRegisterF(n + 2, VALUE_F32))),
+                  b.FMul(b.LoadRegisterXF(13, VALUE_F32),
+                         b.LoadRegisterF(n + 3, VALUE_F32)));
 
-  sum[2] = b.Add(b.Add(b.Add(b.SMul(b.LoadRegisterXF(2, VALUE_F32),
-                                    b.LoadRegisterF(n + 0, VALUE_F32)),
-                             b.SMul(b.LoadRegisterXF(6, VALUE_F32),
-                                    b.LoadRegisterF(n + 1, VALUE_F32))),
-                       b.SMul(b.LoadRegisterXF(10, VALUE_F32),
-                              b.LoadRegisterF(n + 2, VALUE_F32))),
-                 b.SMul(b.LoadRegisterXF(14, VALUE_F32),
-                        b.LoadRegisterF(n + 3, VALUE_F32)));
+  sum[2] = b.FAdd(b.FAdd(b.FAdd(b.FMul(b.LoadRegisterXF(2, VALUE_F32),
+                                       b.LoadRegisterF(n + 0, VALUE_F32)),
+                                b.FMul(b.LoadRegisterXF(6, VALUE_F32),
+                                       b.LoadRegisterF(n + 1, VALUE_F32))),
+                         b.FMul(b.LoadRegisterXF(10, VALUE_F32),
+                                b.LoadRegisterF(n + 2, VALUE_F32))),
+                  b.FMul(b.LoadRegisterXF(14, VALUE_F32),
+                         b.LoadRegisterF(n + 3, VALUE_F32)));
 
-  sum[3] = b.Add(b.Add(b.Add(b.SMul(b.LoadRegisterXF(3, VALUE_F32),
-                                    b.LoadRegisterF(n + 0, VALUE_F32)),
-                             b.SMul(b.LoadRegisterXF(7, VALUE_F32),
-                                    b.LoadRegisterF(n + 1, VALUE_F32))),
-                       b.SMul(b.LoadRegisterXF(11, VALUE_F32),
-                              b.LoadRegisterF(n + 2, VALUE_F32))),
-                 b.SMul(b.LoadRegisterXF(15, VALUE_F32),
-                        b.LoadRegisterF(n + 3, VALUE_F32)));
+  sum[3] = b.FAdd(b.FAdd(b.FAdd(b.FMul(b.LoadRegisterXF(3, VALUE_F32),
+                                       b.LoadRegisterF(n + 0, VALUE_F32)),
+                                b.FMul(b.LoadRegisterXF(7, VALUE_F32),
+                                       b.LoadRegisterF(n + 1, VALUE_F32))),
+                         b.FMul(b.LoadRegisterXF(11, VALUE_F32),
+                                b.LoadRegisterF(n + 2, VALUE_F32))),
+                  b.FMul(b.LoadRegisterXF(15, VALUE_F32),
+                         b.LoadRegisterF(n + 3, VALUE_F32)));
 
   b.StoreRegisterF(n + 0, sum[0]);
   b.StoreRegisterF(n + 1, sum[1]);

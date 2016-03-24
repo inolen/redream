@@ -160,11 +160,18 @@ void IRBuilder::StoreLocal(Local *local, Value *v) {
   instr->set_arg1(v);
 }
 
-Instr *IRBuilder::Cast(Value *v, ValueType dest_type) {
-  CHECK((IsIntType(v->type()) && IsFloatType(dest_type)) ||
-        (IsFloatType(v->type()) && IsIntType(dest_type)));
+Instr *IRBuilder::FToI(Value *v, ValueType dest_type) {
+  CHECK(IsFloatType(v->type()) && IsIntType(dest_type));
 
-  Instr *instr = AppendInstr(OP_CAST, dest_type);
+  Instr *instr = AppendInstr(OP_FTOI, dest_type);
+  instr->set_arg0(v);
+  return instr;
+}
+
+Instr *IRBuilder::IToF(Value *v, ValueType dest_type) {
+  CHECK(IsIntType(v->type()) && IsFloatType(dest_type));
+
+  Instr *instr = AppendInstr(OP_ITOF, dest_type);
   instr->set_arg0(v);
   return instr;
 }
@@ -193,6 +200,22 @@ Instr *IRBuilder::Trunc(Value *v, ValueType dest_type) {
   return instr;
 }
 
+Instr *IRBuilder::FExt(Value *v, ValueType dest_type) {
+  CHECK(v->type() == VALUE_F32 && dest_type == VALUE_F64);
+
+  Instr *instr = AppendInstr(OP_FEXT, dest_type);
+  instr->set_arg0(v);
+  return instr;
+}
+
+Instr *IRBuilder::FTrunc(Value *v, ValueType dest_type) {
+  CHECK(v->type() == VALUE_F64 && dest_type == VALUE_F32);
+
+  Instr *instr = AppendInstr(OP_FTRUNC, dest_type);
+  instr->set_arg0(v);
+  return instr;
+}
+
 Instr *IRBuilder::Select(Value *cond, Value *t, Value *f) {
   CHECK_EQ(t->type(), f->type());
 
@@ -208,8 +231,7 @@ Instr *IRBuilder::Select(Value *cond, Value *t, Value *f) {
 }
 
 Instr *IRBuilder::Cmp(Value *a, Value *b, CmpType type) {
-  CHECK(IsIntType(a->type()));
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_CMP, VALUE_I8);
   instr->set_arg0(a);
@@ -239,8 +261,7 @@ Instr *IRBuilder::CmpULE(Value *a, Value *b) { return Cmp(a, b, CMP_ULE); }
 Instr *IRBuilder::CmpULT(Value *a, Value *b) { return Cmp(a, b, CMP_ULT); }
 
 Instr *IRBuilder::FCmp(Value *a, Value *b, CmpType type) {
-  CHECK(IsFloatType(a->type()));
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsFloatType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_FCMP, VALUE_I8);
   instr->set_arg0(a);
@@ -262,7 +283,7 @@ Instr *IRBuilder::FCmpLE(Value *a, Value *b) { return FCmp(a, b, CMP_SLE); }
 Instr *IRBuilder::FCmpLT(Value *a, Value *b) { return FCmp(a, b, CMP_SLT); }
 
 Instr *IRBuilder::Add(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_ADD, a->type());
   instr->set_arg0(a);
@@ -271,7 +292,7 @@ Instr *IRBuilder::Add(Value *a, Value *b) {
 }
 
 Instr *IRBuilder::Sub(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_SUB, a->type());
   instr->set_arg0(a);
@@ -280,7 +301,7 @@ Instr *IRBuilder::Sub(Value *a, Value *b) {
 }
 
 Instr *IRBuilder::SMul(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_SMUL, a->type());
   instr->set_arg0(a);
@@ -289,7 +310,7 @@ Instr *IRBuilder::SMul(Value *a, Value *b) {
 }
 
 Instr *IRBuilder::UMul(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   CHECK(IsIntType(a->type()));
   Instr *instr = AppendInstr(OP_UMUL, a->type());
@@ -299,7 +320,7 @@ Instr *IRBuilder::UMul(Value *a, Value *b) {
 }
 
 Instr *IRBuilder::Div(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_DIV, a->type());
   instr->set_arg0(a);
@@ -308,25 +329,83 @@ Instr *IRBuilder::Div(Value *a, Value *b) {
 }
 
 Instr *IRBuilder::Neg(Value *a) {
+  CHECK(IsIntType(a->type()));
+
   Instr *instr = AppendInstr(OP_NEG, a->type());
   instr->set_arg0(a);
   return instr;
 }
 
-Instr *IRBuilder::Sqrt(Value *a) {
-  Instr *instr = AppendInstr(OP_SQRT, a->type());
-  instr->set_arg0(a);
-  return instr;
-}
-
 Instr *IRBuilder::Abs(Value *a) {
+  CHECK(IsIntType(a->type()));
+
   Instr *instr = AppendInstr(OP_ABS, a->type());
   instr->set_arg0(a);
   return instr;
 }
 
+Instr *IRBuilder::FAdd(Value *a, Value *b) {
+  CHECK(IsFloatType(a->type()) && a->type() == b->type());
+
+  Instr *instr = AppendInstr(OP_FADD, a->type());
+  instr->set_arg0(a);
+  instr->set_arg1(b);
+  return instr;
+}
+
+Instr *IRBuilder::FSub(Value *a, Value *b) {
+  CHECK(IsFloatType(a->type()) && a->type() == b->type());
+
+  Instr *instr = AppendInstr(OP_FSUB, a->type());
+  instr->set_arg0(a);
+  instr->set_arg1(b);
+  return instr;
+}
+
+Instr *IRBuilder::FMul(Value *a, Value *b) {
+  CHECK(IsFloatType(a->type()) && a->type() == b->type());
+
+  Instr *instr = AppendInstr(OP_FMUL, a->type());
+  instr->set_arg0(a);
+  instr->set_arg1(b);
+  return instr;
+}
+
+Instr *IRBuilder::FDiv(Value *a, Value *b) {
+  CHECK(IsFloatType(a->type()) && a->type() == b->type());
+
+  Instr *instr = AppendInstr(OP_FDIV, a->type());
+  instr->set_arg0(a);
+  instr->set_arg1(b);
+  return instr;
+}
+
+Instr *IRBuilder::FNeg(Value *a) {
+  CHECK(IsFloatType(a->type()));
+
+  Instr *instr = AppendInstr(OP_FNEG, a->type());
+  instr->set_arg0(a);
+  return instr;
+}
+
+Instr *IRBuilder::FAbs(Value *a) {
+  CHECK(IsFloatType(a->type()));
+
+  Instr *instr = AppendInstr(OP_FABS, a->type());
+  instr->set_arg0(a);
+  return instr;
+}
+
+Instr *IRBuilder::Sqrt(Value *a) {
+  CHECK(IsFloatType(a->type()));
+
+  Instr *instr = AppendInstr(OP_SQRT, a->type());
+  instr->set_arg0(a);
+  return instr;
+}
+
 Instr *IRBuilder::And(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_AND, a->type());
   instr->set_arg0(a);
@@ -335,7 +414,7 @@ Instr *IRBuilder::And(Value *a, Value *b) {
 }
 
 Instr *IRBuilder::Or(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_OR, a->type());
   instr->set_arg0(a);
@@ -344,7 +423,7 @@ Instr *IRBuilder::Or(Value *a, Value *b) {
 }
 
 Instr *IRBuilder::Xor(Value *a, Value *b) {
-  CHECK_EQ(a->type(), b->type());
+  CHECK(IsIntType(a->type()) && a->type() == b->type());
 
   Instr *instr = AppendInstr(OP_XOR, a->type());
   instr->set_arg0(a);
@@ -353,13 +432,15 @@ Instr *IRBuilder::Xor(Value *a, Value *b) {
 }
 
 Instr *IRBuilder::Not(Value *a) {
+  CHECK(IsIntType(a->type()));
+
   Instr *instr = AppendInstr(OP_NOT, a->type());
   instr->set_arg0(a);
   return instr;
 }
 
 Instr *IRBuilder::Shl(Value *a, Value *n) {
-  CHECK_EQ(VALUE_I32, n->type());
+  CHECK(IsIntType(a->type()) && n->type() == VALUE_I32);
 
   Instr *instr = AppendInstr(OP_SHL, a->type());
   instr->set_arg0(a);
@@ -372,7 +453,7 @@ Instr *IRBuilder::Shl(Value *a, int n) {
 }
 
 Instr *IRBuilder::AShr(Value *a, Value *n) {
-  CHECK_EQ(VALUE_I32, n->type());
+  CHECK(IsIntType(a->type()) && n->type() == VALUE_I32);
 
   Instr *instr = AppendInstr(OP_ASHR, a->type());
   instr->set_arg0(a);
@@ -385,7 +466,7 @@ Instr *IRBuilder::AShr(Value *a, int n) {
 }
 
 Instr *IRBuilder::LShr(Value *a, Value *n) {
-  CHECK_EQ(VALUE_I32, n->type());
+  CHECK(IsIntType(a->type()) && n->type() == VALUE_I32);
 
   Instr *instr = AppendInstr(OP_LSHR, a->type());
   instr->set_arg0(a);
@@ -398,8 +479,7 @@ Instr *IRBuilder::LShr(Value *a, int n) {
 }
 
 Instr *IRBuilder::AShd(Value *a, Value *n) {
-  CHECK_EQ(VALUE_I32, a->type());
-  CHECK_EQ(VALUE_I32, n->type());
+  CHECK(a->type() == VALUE_I32 && n->type() == VALUE_I32);
 
   Instr *instr = AppendInstr(OP_ASHD, a->type());
   instr->set_arg0(a);
@@ -408,8 +488,7 @@ Instr *IRBuilder::AShd(Value *a, Value *n) {
 }
 
 Instr *IRBuilder::LShd(Value *a, Value *n) {
-  CHECK_EQ(VALUE_I32, a->type());
-  CHECK_EQ(VALUE_I32, n->type());
+  CHECK(a->type() == VALUE_I32 && n->type() == VALUE_I32);
 
   Instr *instr = AppendInstr(OP_LSHD, a->type());
   instr->set_arg0(a);

@@ -786,41 +786,41 @@ EMITTER(STORE_LOCAL) {
   }
 }
 
-EMITTER(CAST) {
-  if (IsFloatType(instr->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr);
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
+EMITTER(FTOI) {
+  const Xbyak::Reg result = e.GetRegister(instr);
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
 
-    switch (instr->type()) {
-      case VALUE_F32:
-        CHECK_EQ(instr->arg0()->type(), VALUE_I32);
-        e.cvtsi2ss(result, a);
-        break;
-      case VALUE_F64:
-        CHECK_EQ(instr->arg0()->type(), VALUE_I64);
-        e.cvtsi2sd(result, a);
-        break;
-      default:
-        LOG_FATAL("Unexpected result type");
-        break;
-    }
-  } else {
-    const Xbyak::Reg result = e.GetRegister(instr);
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
+  switch (instr->type()) {
+    case VALUE_I32:
+      CHECK_EQ(instr->arg0()->type(), VALUE_F32);
+      e.cvttss2si(result, a);
+      break;
+    case VALUE_I64:
+      CHECK_EQ(instr->arg0()->type(), VALUE_F64);
+      e.cvttsd2si(result, a);
+      break;
+    default:
+      LOG_FATAL("Unexpected result type");
+      break;
+  }
+}
 
-    switch (instr->type()) {
-      case VALUE_I32:
-        CHECK_EQ(instr->arg0()->type(), VALUE_F32);
-        e.cvttss2si(result, a);
-        break;
-      case VALUE_I64:
-        CHECK_EQ(instr->arg0()->type(), VALUE_F64);
-        e.cvttsd2si(result, a);
-        break;
-      default:
-        LOG_FATAL("Unexpected result type");
-        break;
-    }
+EMITTER(ITOF) {
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+
+  switch (instr->type()) {
+    case VALUE_F32:
+      CHECK_EQ(instr->arg0()->type(), VALUE_I32);
+      e.cvtsi2ss(result, a);
+      break;
+    case VALUE_F64:
+      CHECK_EQ(instr->arg0()->type(), VALUE_I64);
+      e.cvtsi2sd(result, a);
+      break;
+    default:
+      LOG_FATAL("Unexpected result type");
+      break;
   }
 }
 
@@ -888,6 +888,20 @@ EMITTER(TRUNC) {
   } else {
     e.movzx(result.cvt32(), truncated);
   }
+}
+
+EMITTER(FEXT) {
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
+
+  e.cvtss2sd(result, a);
+}
+
+EMITTER(FTRUNC) {
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
+
+  e.cvtsd2ss(result, a);
 }
 
 EMITTER(SELECT) {
@@ -1004,112 +1018,38 @@ EMITTER(FCMP) {
 }
 
 EMITTER(ADD) {
-  if (IsFloatType(instr->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr);
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
+  const Xbyak::Reg result = e.GetRegister(instr);
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
-    if (instr->type() == VALUE_F32) {
-      if (result != a) {
-        e.movss(result, a);
-      }
+  if (result != a) {
+    e.mov(result, a);
+  }
 
-      e.addss(result, b);
-    } else {
-      if (result != a) {
-        e.movsd(result, a);
-      }
-
-      e.addsd(result, b);
-    }
+  if (e.CanEncodeAsImmediate(instr->arg1())) {
+    e.add(result, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr);
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-    if (result != a) {
-      e.mov(result, a);
-    }
-
-    if (e.CanEncodeAsImmediate(instr->arg1())) {
-      e.add(result, (uint32_t)instr->arg1()->GetZExtValue());
-    } else {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
-      e.add(result, b);
-    }
+    const Xbyak::Reg b = e.GetRegister(instr->arg1());
+    e.add(result, b);
   }
 }
 
 EMITTER(SUB) {
-  if (IsFloatType(instr->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr);
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
+  const Xbyak::Reg result = e.GetRegister(instr);
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
-    if (instr->type() == VALUE_F32) {
-      if (result != a) {
-        e.movss(result, a);
-      }
+  if (result != a) {
+    e.mov(result, a);
+  }
 
-      e.subss(result, b);
-    } else {
-      if (result != a) {
-        e.movsd(result, a);
-      }
-
-      e.subsd(result, b);
-    }
+  if (e.CanEncodeAsImmediate(instr->arg1())) {
+    e.sub(result, (uint32_t)instr->arg1()->GetZExtValue());
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr);
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
-
-    if (result != a) {
-      e.mov(result, a);
-    }
-
-    if (e.CanEncodeAsImmediate(instr->arg1())) {
-      e.sub(result, (uint32_t)instr->arg1()->GetZExtValue());
-    } else {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
-      e.sub(result, b);
-    }
+    const Xbyak::Reg b = e.GetRegister(instr->arg1());
+    e.sub(result, b);
   }
 }
 
 EMITTER(SMUL) {
-  if (IsFloatType(instr->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr);
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-    const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
-
-    if (instr->type() == VALUE_F32) {
-      if (result != a) {
-        e.movss(result, a);
-      }
-
-      e.mulss(result, b);
-    } else {
-      if (result != a) {
-        e.movsd(result, a);
-      }
-
-      e.mulsd(result, b);
-    }
-  } else {
-    const Xbyak::Reg result = e.GetRegister(instr);
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
-    const Xbyak::Reg b = e.GetRegister(instr->arg1());
-
-    if (result != a) {
-      e.mov(result, a);
-    }
-
-    e.imul(result, b);
-  }
-}
-
-EMITTER(UMUL) {
-  CHECK(IsIntType(instr->type()));
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
   const Xbyak::Reg b = e.GetRegister(instr->arg1());
@@ -1121,9 +1061,99 @@ EMITTER(UMUL) {
   e.imul(result, b);
 }
 
-EMITTER(DIV) {
-  CHECK(IsFloatType(instr->type()));
+EMITTER(UMUL) {
+  const Xbyak::Reg result = e.GetRegister(instr);
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+  const Xbyak::Reg b = e.GetRegister(instr->arg1());
 
+  if (result != a) {
+    e.mov(result, a);
+  }
+
+  e.imul(result, b);
+}
+
+EMITTER(DIV) { LOG_FATAL("Unsupported"); }
+
+EMITTER(NEG) {
+  const Xbyak::Reg result = e.GetRegister(instr);
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+
+  if (result != a) {
+    e.mov(result, a);
+  }
+
+  e.neg(result);
+}
+
+EMITTER(ABS) {
+  LOG_FATAL("Unsupported");
+  // e.mov(e.rax, *result);
+  // e.neg(e.rax);
+  // e.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), e.rax);
+}
+
+EMITTER(FADD) {
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
+  const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
+
+  if (instr->type() == VALUE_F32) {
+    if (result != a) {
+      e.movss(result, a);
+    }
+
+    e.addss(result, b);
+  } else {
+    if (result != a) {
+      e.movsd(result, a);
+    }
+
+    e.addsd(result, b);
+  }
+}
+
+EMITTER(FSUB) {
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
+  const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
+
+  if (instr->type() == VALUE_F32) {
+    if (result != a) {
+      e.movss(result, a);
+    }
+
+    e.subss(result, b);
+  } else {
+    if (result != a) {
+      e.movsd(result, a);
+    }
+
+    e.subsd(result, b);
+  }
+}
+
+EMITTER(FMUL) {
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
+  const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
+
+  if (instr->type() == VALUE_F32) {
+    if (result != a) {
+      e.movss(result, a);
+    }
+
+    e.mulss(result, b);
+  } else {
+    if (result != a) {
+      e.movsd(result, a);
+    }
+
+    e.mulsd(result, b);
+  }
+}
+
+EMITTER(FDIV) {
   const Xbyak::Xmm result = e.GetXMMRegister(instr);
   const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
   const Xbyak::Xmm b = e.GetXMMRegister(instr->arg1());
@@ -1143,38 +1173,43 @@ EMITTER(DIV) {
   }
 }
 
-EMITTER(NEG) {
-  if (IsFloatType(instr->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr);
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
+EMITTER(FNEG) {
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
 
-    if (instr->type() == VALUE_F32) {
-      // TODO use xorps
-      e.movd(e.eax, a);
-      e.xor (e.eax, (uint32_t)0x80000000);
-      e.movd(result, e.eax);
-    } else {
-      // TODO use xorpd
-      e.movq(e.rax, a);
-      e.mov(e.r9, (uint64_t)0x8000000000000000);
-      e.xor (e.rax, e.r9);
-      e.movq(result, e.rax);
-    }
+  if (instr->type() == VALUE_F32) {
+    // TODO use xorps
+    e.movd(e.eax, a);
+    e.xor (e.eax, (uint32_t)0x80000000);
+    e.movd(result, e.eax);
   } else {
-    const Xbyak::Reg result = e.GetRegister(instr);
-    const Xbyak::Reg a = e.GetRegister(instr->arg0());
+    // TODO use xorpd
+    e.movq(e.rax, a);
+    e.mov(e.r9, (uint64_t)0x8000000000000000);
+    e.xor (e.rax, e.r9);
+    e.movq(result, e.rax);
+  }
+}
 
-    if (result != a) {
-      e.mov(result, a);
-    }
+EMITTER(FABS) {
+  const Xbyak::Xmm result = e.GetXMMRegister(instr);
+  const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
 
-    e.neg(result);
+  if (instr->type() == VALUE_F32) {
+    // TODO use andps
+    e.movd(e.eax, a);
+    e.and (e.eax, (uint32_t)0x7fffffff);
+    e.movd(result, e.eax);
+  } else {
+    // TODO use andpd
+    e.movq(e.rax, a);
+    e.mov(e.r9, (uint64_t)0x7fffffffffffffff);
+    e.and (e.rax, e.r9);
+    e.movq(result, e.rax);
   }
 }
 
 EMITTER(SQRT) {
-  CHECK(IsFloatType(instr->type()));
-
   const Xbyak::Xmm result = e.GetXMMRegister(instr);
   const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
 
@@ -1185,34 +1220,7 @@ EMITTER(SQRT) {
   }
 }
 
-EMITTER(ABS) {
-  if (IsFloatType(instr->type())) {
-    const Xbyak::Xmm result = e.GetXMMRegister(instr);
-    const Xbyak::Xmm a = e.GetXMMRegister(instr->arg0());
-
-    if (instr->type() == VALUE_F32) {
-      // TODO use andps
-      e.movd(e.eax, a);
-      e.and (e.eax, (uint32_t)0x7fffffff);
-      e.movd(result, e.eax);
-    } else {
-      // TODO use andpd
-      e.movq(e.rax, a);
-      e.mov(e.r9, (uint64_t)0x7fffffffffffffff);
-      e.and (e.rax, e.r9);
-      e.movq(result, e.rax);
-    }
-  } else {
-    LOG_FATAL("Unexpected abs result type");
-    // e.mov(e.rax, *result);
-    // e.neg(e.rax);
-    // e.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), e.rax);
-  }
-}
-
 EMITTER(AND) {
-  CHECK(IsIntType(instr->type()));
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
@@ -1229,8 +1237,6 @@ EMITTER(AND) {
 }
 
 EMITTER(OR) {
-  CHECK(IsIntType(instr->type()));
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
@@ -1247,8 +1253,6 @@ EMITTER(OR) {
 }
 
 EMITTER(XOR) {
-  CHECK(IsIntType(instr->type()));
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
@@ -1265,8 +1269,6 @@ EMITTER(XOR) {
 }
 
 EMITTER(NOT) {
-  CHECK(IsIntType(instr->type()));
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
@@ -1278,8 +1280,6 @@ EMITTER(NOT) {
 }
 
 EMITTER(SHL) {
-  CHECK(IsIntType(instr->type()));
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
@@ -1297,8 +1297,6 @@ EMITTER(SHL) {
 }
 
 EMITTER(ASHR) {
-  CHECK(IsIntType(instr->type()));
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
@@ -1316,8 +1314,6 @@ EMITTER(ASHR) {
 }
 
 EMITTER(LSHR) {
-  CHECK(IsIntType(instr->type()));
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 

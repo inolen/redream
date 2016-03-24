@@ -253,6 +253,7 @@ set(TEST_ASM
   test/asm/fadd.s
   test/asm/fcmpeq.s
   test/asm/fcmpgt.s
+  test/asm/fcnv.s
   test/asm/fdiv.s
   test/asm/fipr.s
   test/asm/fld.s
