@@ -217,16 +217,12 @@ Instr *IRBuilder::FTrunc(Value *v, ValueType dest_type) {
 }
 
 Instr *IRBuilder::Select(Value *cond, Value *t, Value *f) {
-  CHECK_EQ(t->type(), f->type());
-
-  if (cond->type() != VALUE_I8) {
-    cond = CmpNE(cond, AllocConstant(0));
-  }
+  CHECK(IsIntType(cond->type()) && IsIntType(t->type()) && t->type() == f->type());
 
   Instr *instr = AppendInstr(OP_SELECT, t->type());
-  instr->set_arg0(cond);
-  instr->set_arg1(t);
-  instr->set_arg2(f);
+  instr->set_arg0(t);
+  instr->set_arg1(f);
+  instr->set_arg2(cond);
   return instr;
 }
 

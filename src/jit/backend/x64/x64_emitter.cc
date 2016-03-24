@@ -906,13 +906,19 @@ EMITTER(FTRUNC) {
 
 EMITTER(SELECT) {
   const Xbyak::Reg result = e.GetRegister(instr);
-  const Xbyak::Reg cond = e.GetRegister(instr->arg0());
-  const Xbyak::Reg a = e.GetRegister(instr->arg1());
-  const Xbyak::Reg b = e.GetRegister(instr->arg2());
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+  const Xbyak::Reg b = e.GetRegister(instr->arg1());
+  const Xbyak::Reg cond = e.GetRegister(instr->arg2());
+
+  // convert result to Reg32e to please xbyak
+  CHECK_GE(result.getBit(), 32);
+  Xbyak::Reg32e result_32e(result.getIdx(), result.getBit());
 
   e.test(cond, cond);
-  e.cmovnz(result.cvt32(), a);
-  e.cmovz(result.cvt32(), b);
+  if (result_32e != a) {
+    e.cmovnz(result_32e, a);
+  }
+  e.cmovz(result_32e, b);
 }
 
 EMITTER(CMP) {
