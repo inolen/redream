@@ -21,6 +21,8 @@ static const int MAX_MIPS_SAMPLES = 10;
 
 // data transfer request
 struct DTR {
+  DTR() : channel(0), rw(false), data(nullptr), addr(0), size(0) {}
+
   int channel;
   // when rw is true, addr is the dst address
   // when rw is false, addr is the src address

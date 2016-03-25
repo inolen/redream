@@ -3,7 +3,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
-#include <strings.h>
+#include <string.h>
 #include "core/config.h"
 
 namespace re {

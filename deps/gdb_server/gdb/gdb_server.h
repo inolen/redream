@@ -364,7 +364,8 @@ static int gdb_server_create_listen(gdb_server_t *sv, int port) {
     }
 
     // bind the socket to an address / port
-    struct sockaddr_in listen_addr_in = {};
+    struct sockaddr_in listen_addr_in;
+    memset(&listen_addr_in, 0, sizeof(listen_addr_in));
     listen_addr_in.sin_family = AF_INET;
     listen_addr_in.sin_port = htons(port);
     listen_addr_in.sin_addr.s_addr = INADDR_ANY;

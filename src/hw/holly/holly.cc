@@ -244,7 +244,7 @@ HOLLY_W32_DELEGATE(SB_C2DST) {
   }
 
   // FIXME what are SB_LMMODE0 / SB_LMMODE1
-  DTR dtr = {};
+  DTR dtr;
   dtr.channel = 2;
   dtr.rw = false;
   dtr.addr = SB_C2DSTAT;
@@ -287,7 +287,7 @@ HOLLY_W32_DELEGATE(SB_GDST) {
     uint8_t sector_data[SECTOR_SIZE];
     int n = gdrom_->ReadDMA(sector_data, sizeof(sector_data));
 
-    DTR dtr = {};
+    DTR dtr;
     dtr.channel = 0;
     dtr.rw = true;
     dtr.data = sector_data;

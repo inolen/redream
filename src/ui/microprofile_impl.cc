@@ -1759,9 +1759,6 @@ void MicroProfileImpl::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
                                    6);
 
   if (type == BOX_FLAT) {
-    CHECK(x0 <= x1);
-    CHECK(y0 <= y1);
-
     Q0(vertex, xy[0], (float)x0);
     Q0(vertex, xy[1], (float)y0);
     Q0(vertex, color, color);

@@ -53,7 +53,7 @@ static void SignalHandler(int signo, siginfo_t *info, void *ctx) {
   Exception ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
   ex.fault_addr = reinterpret_cast<uintptr_t>(info->si_addr);
-  ex.pc = uctx->uc_mcontext->gregs[REG_RIP];
+  ex.pc = uctx->uc_mcontext.gregs[REG_RIP];
   CopyStateTo(&uctx->uc_mcontext, &ex.thread_state);
 
   // call exception handler, letting it potentially update the thread state

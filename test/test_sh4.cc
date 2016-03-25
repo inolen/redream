@@ -16,7 +16,13 @@ using namespace re::hw::sh4;
 using namespace re::jit;
 using namespace re::jit::frontend::sh4;
 
-void re::hw::sh4::RunSH4Test(const SH4Test &test);
+namespace re {
+namespace hw {
+namespace sh4 {
+void RunSH4Test(const SH4Test &test);
+}
+}
+}
 
 enum {
   UNINITIALIZED_REG = 0xbaadf00d,

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "core/assert.h"
 #include "hw/gdrom/disc.h"
 

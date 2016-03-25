@@ -95,7 +95,7 @@ void SH4::Run(const std::chrono::nanoseconds &delta) {
   PROFILER_RUNTIME("SH4::Execute");
 
   // execute at least 1 cycle. the tests rely on this to step block by block
-  int64_t cycles = std::max(NANO_TO_CYCLES(delta, SH4_CLOCK_FREQ), 1ll);
+  int64_t cycles = std::max(NANO_TO_CYCLES(delta, SH4_CLOCK_FREQ), INT64_C(1));
 
   // set current sh4 instance for CompilePC
   s_current_cpu = this;

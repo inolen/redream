@@ -67,11 +67,11 @@ T AICA::ReadWave(uint32_t addr) {
   if (sizeof(T) == 4) {
     // FIXME temp hacks to get Crazy Taxi 1 booting
     if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
-      return 0x54494e49;
+      return static_cast<T>(0x54494e49);
     }
     // FIXME temp hacks to get Crazy Taxi 2 booting
     if (addr == 0x5c) {
-      return 0x54494e49;
+      return static_cast<T>(0x54494e49);
     }
     // FIXME temp hacks to get PoP booting
     if (addr == 0xb200 || addr == 0xb210 || addr == 0xb220 || addr == 0xb230 ||
@@ -82,7 +82,7 @@ T AICA::ReadWave(uint32_t addr) {
         addr == 0xb340 || addr == 0xb350 || addr == 0xb360 || addr == 0xb370 ||
         addr == 0xb380 || addr == 0xb390 || addr == 0xb3a0 || addr == 0xb3b0 ||
         addr == 0xb3c0 || addr == 0xb3d0 || addr == 0xb3e0 || addr == 0xb3f0) {
-      return 0x0;
+      return static_cast<T>(0x0);
     }
   }
 
