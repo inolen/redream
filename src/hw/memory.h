@@ -183,6 +183,7 @@ class Memory {
   void W64(uint32_t addr, uint64_t value);
   void Memcpy(uint32_t virtual_dest, const void *ptr, uint32_t size);
   void Memcpy(void *ptr, uint32_t virtual_src, uint32_t size);
+  void Memcpy(uint32_t virtual_dest, uint32_t virtual_src, uint32_t size);
   void Lookup(uint32_t virtual_addr, uint8_t **ptr, MemoryRegion **region,
               uint32_t *offset);
 

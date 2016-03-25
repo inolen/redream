@@ -129,30 +129,76 @@ void SH4::Run(const std::chrono::nanoseconds &delta) {
   s_current_cpu = nullptr;
 }
 
-void SH4::DDT(int channel, DDTRW rw, uint32_t addr) {
-  CHECK_EQ(2, channel);
-
-  uint32_t src_addr, dst_addr;
-  if (rw == DDT_R) {
-    src_addr = addr;
-    dst_addr = DAR2;
+void SH4::DDT(const DTR &dtr) {
+  if (dtr.data) {
+    // single address mode transfer
+    if (dtr.rw) {
+      memory_->Memcpy(dtr.addr, dtr.data, dtr.size);
+    } else {
+      memory_->Memcpy(dtr.data, dtr.addr, dtr.size);
+    }
   } else {
-    src_addr = SAR2;
-    dst_addr = addr;
-  }
+    // dual address mode transfer
+    // NOTE this should be made asynchronous, at which point the significance
+    // of the registers / interrupts should be more obvious
+    uint32_t *sar;
+    uint32_t *dar;
+    uint32_t *dmatcr;
+    CHCR_T *chcr;
+    Interrupt dmte;
 
-  uint32_t transfer_size = DMATCR2 * 32;
-  for (size_t i = 0; i < transfer_size / 4; i++) {
-    memory_->W32(dst_addr, memory_->R32(src_addr));
-    dst_addr += 4;
-    src_addr += 4;
-  }
+    switch (dtr.channel) {
+      case 0:
+        sar = &SAR0;
+        dar = &DAR0;
+        dmatcr = &DMATCR0;
+        chcr = &CHCR0;
+        dmte = SH4_INTC_DMTE0;
+        break;
+      case 1:
+        sar = &SAR1;
+        dar = &DAR1;
+        dmatcr = &DMATCR1;
+        chcr = &CHCR1;
+        dmte = SH4_INTC_DMTE1;
+        break;
+      case 2:
+        sar = &SAR2;
+        dar = &DAR2;
+        dmatcr = &DMATCR2;
+        chcr = &CHCR2;
+        dmte = SH4_INTC_DMTE2;
+        break;
+      case 3:
+        sar = &SAR3;
+        dar = &DAR3;
+        dmatcr = &DMATCR3;
+        chcr = &CHCR3;
+        dmte = SH4_INTC_DMTE3;
+        break;
+      default:
+        LOG_FATAL("Unexpected DMA channel");
+        break;
+    }
 
-  SAR2 = src_addr;
-  DAR2 = dst_addr;
-  DMATCR2 = 0;
-  CHCR2.TE = 1;
-  RequestInterrupt(SH4_INTC_DMTE2);
+    uint32_t src = dtr.rw ? dtr.addr : *sar;
+    uint32_t dst = dtr.rw ? *dar : dtr.addr;
+    int size = *dmatcr * 32;
+    memory_->Memcpy(dst, src, size);
+
+    // update src / addresses as well as remaining count
+    *sar = src + size;
+    *dar = dst + size;
+    *dmatcr = 0;
+
+    // signal transfer end
+    chcr->TE = 1;
+
+    // raise interrupt if requested
+    if (chcr->IE) {
+      RequestInterrupt(dmte);
+    }
+  }
 }
 
 void SH4::RequestInterrupt(Interrupt intr) {
@@ -530,12 +576,33 @@ void SH4::WriteRegister(uint32_t addr, T value) {
       }
     } break;
 
-    // it seems the only aspect of the cache control register that needs to be
-    // emulated is the instruction cache invalidation
     case CCR_OFFSET: {
       if (CCR.ICI) {
         ResetCache();
       }
+    } break;
+
+    case CHCR0_OFFSET: {
+      CheckDMA(0);
+    } break;
+
+    case CHCR1_OFFSET: {
+      CheckDMA(1);
+    } break;
+
+    case CHCR2_OFFSET: {
+      CheckDMA(2);
+    } break;
+
+    case CHCR3_OFFSET: {
+      CheckDMA(3);
+    } break;
+
+    case DMAOR_OFFSET: {
+      CheckDMA(0);
+      CheckDMA(1);
+      CheckDMA(2);
+      CheckDMA(3);
     } break;
 
     case IPRA_OFFSET:
@@ -613,6 +680,33 @@ void SH4::ResetCache() {
   LOG_INFO("Reset instruction cache");
 
   code_cache_->UnlinkBlocks();
+}
+
+//
+// DMAC
+//
+void SH4::CheckDMA(int channel) {
+  CHCR_T *chcr = nullptr;
+
+  switch (channel) {
+    case 0:
+      chcr = &CHCR0;
+      break;
+    case 1:
+      chcr = &CHCR1;
+      break;
+    case 2:
+      chcr = &CHCR2;
+      break;
+    case 3:
+      chcr = &CHCR3;
+      break;
+    default:
+      LOG_FATAL("Unexpected DMA channel");
+      break;
+  }
+
+  CHECK(DMAOR.DDT || !DMAOR.DME || !chcr->DE, "Non-DDT DMA not supported");
 }
 
 //

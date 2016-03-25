@@ -174,8 +174,6 @@ class Holly : public Device, public MemoryInterface {
   template <typename T>
   void WriteRegister(uint32_t addr, T value);
 
-  void CH2DMATransfer();
-  void SortDMATransfer();
   void ForwardRequestInterrupts();
 
   Dreamcast &dc_;

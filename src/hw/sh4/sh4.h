@@ -19,9 +19,21 @@ namespace sh4 {
 
 static const int MAX_MIPS_SAMPLES = 10;
 
-enum DDTRW {
-  DDT_R,
-  DDT_W,
+// data transfer request
+struct DTR {
+  int channel;
+  // when rw is true, addr is the dst address
+  // when rw is false, addr is the src address
+  bool rw;
+  // when data is non-null, a single address mode transfer is performed between
+  // the external device memory at data, and the memory at addr for
+  // when data is null, a dual address mode transfer is performed between addr
+  // and SARn / DARn
+  uint8_t *data;
+  uint32_t addr;
+  // size is only valid for single address mode transfers, dual address mode
+  // transfers honor DMATCR
+  int size;
 };
 
 class SH4 : public Device,
@@ -42,7 +54,7 @@ class SH4 : public Device,
   void Run(const std::chrono::nanoseconds &delta) final;
 
   // DMAC
-  void DDT(int channel, DDTRW rw, uint32_t addr);
+  void DDT(const DTR &dtr);
 
   // INTC
   void RequestInterrupt(Interrupt intr);
@@ -93,6 +105,9 @@ class SH4 : public Device,
 
   // CCN
   void ResetCache();
+
+  // DMAC
+  void CheckDMA(int channel);
 
   // INTC
   void ReprioritizeInterrupts();

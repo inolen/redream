@@ -190,23 +190,38 @@ void Memory::W64(uint32_t addr, uint64_t value) {
   WriteBytes<uint64_t, &MemoryRegion::w64>(addr, value);
 }
 
-void Memory::Memcpy(uint32_t virtual_dest, const void *ptr, uint32_t size) {
-  uint8_t *src = (uint8_t *)ptr;
-  uint32_t end = virtual_dest + size;
-  while (virtual_dest < end) {
-    W8(virtual_dest, *src);
-    virtual_dest++;
-    src++;
+void Memory::Memcpy(uint32_t virtual_dst, const void *ptr, uint32_t size) {
+  CHECK(size % 4 == 0);
+
+  const uint8_t *src = reinterpret_cast<const uint8_t *>(ptr);
+  uint32_t end = virtual_dst + size;
+  while (virtual_dst < end) {
+    W32(virtual_dst, re::load<uint32_t>(src));
+    virtual_dst += 4;
+    src += 4;
   }
 }
 
 void Memory::Memcpy(void *ptr, uint32_t virtual_src, uint32_t size) {
-  uint8_t *dest = (uint8_t *)ptr;
-  uint8_t *end = dest + size;
-  while (dest < end) {
-    *dest = R32(virtual_src);
-    virtual_src++;
-    dest++;
+  CHECK(size % 4 == 0);
+
+  uint8_t *dst = reinterpret_cast<uint8_t *>(ptr);
+  uint8_t *end = dst + size;
+  while (dst < end) {
+    re::store(dst, R32(virtual_src));
+    virtual_src += 4;
+    dst += 4;
+  }
+}
+
+void Memory::Memcpy(uint32_t virtual_dst, uint32_t virtual_src, uint32_t size) {
+  CHECK(size % 4 == 0);
+
+  uint32_t end = virtual_dst + size;
+  while (virtual_dst < end) {
+    W32(virtual_dst, R32(virtual_src));
+    virtual_src += 4;
+    virtual_dst += 4;
   }
 }
 

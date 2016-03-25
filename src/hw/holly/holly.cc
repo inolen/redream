@@ -107,7 +107,8 @@ T Holly::ReadRegister(uint32_t addr) {
   if (offset >= SB_MDSTAR_OFFSET && offset <= SB_MRXDBD_OFFSET) {
     return maple_->ReadRegister<T>(addr);
   }
-  if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET && offset <= SB_GDLEND_OFFSET) {
+  if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET &&
+      offset <= GD_STATUS_COMMAND_OFFSET) {
     return gdrom_->ReadRegister<T>(addr);
   }
 
@@ -145,7 +146,8 @@ void Holly::WriteRegister(uint32_t addr, T value) {
     maple_->WriteRegister<T>(addr, value);
     return;
   }
-  if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET && offset <= SB_GDLEND_OFFSET) {
+  if (offset >= GD_ALTSTAT_DEVCTRL_OFFSET &&
+      offset <= GD_STATUS_COMMAND_OFFSET) {
     gdrom_->WriteRegister<T>(addr, value);
     return;
   }
@@ -155,7 +157,7 @@ void Holly::WriteRegister(uint32_t addr, T value) {
     return;
   }
 
-  uint32_t old = reg.value;
+  uint32_t old_value = reg.value;
   reg.value = static_cast<uint32_t>(value);
 
   switch (offset) {
@@ -163,7 +165,7 @@ void Holly::WriteRegister(uint32_t addr, T value) {
     case SB_ISTEXT_OFFSET:
     case SB_ISTERR_OFFSET: {
       // writing a 1 clears the interrupt
-      reg.value = old & ~value;
+      reg.value = old_value & ~value;
       ForwardRequestInterrupts();
     } break;
 
@@ -181,16 +183,75 @@ void Holly::WriteRegister(uint32_t addr, T value) {
 
     case SB_C2DST_OFFSET:
       if (value) {
-        CH2DMATransfer();
+        // FIXME what are SB_LMMODE0 / SB_LMMODE1
+        DTR dtr = {};
+        dtr.channel = 2;
+        dtr.rw = false;
+        dtr.addr = dc_.SB_C2DSTAT;
+        sh4_->DDT(dtr);
+
+        dc_.SB_C2DLEN = 0;
+        dc_.SB_C2DST = 0;
+        RequestInterrupt(HOLLY_INTC_DTDE2INT);
       }
       break;
 
     case SB_SDST_OFFSET:
       if (value) {
-        SortDMATransfer();
+        LOG_FATAL("Sort DMA not supported");
       }
       break;
 
+    // g1 bus regs
+    case SB_GDEN_OFFSET:
+      // NOTE for when this is made asynchtonous
+      // This register can also be used to forcibly terminate such a DMA
+      // transfer that is in progress, by writing a "0" to this register.
+      break;
+
+    case SB_GDST_OFFSET:
+      // if a "0" is written to this register, it is ignored
+      reg.value |= old_value;
+
+      if (reg.value) {
+        CHECK_EQ(dc_.SB_GDEN, 1);   // dma enabled
+        CHECK_EQ(dc_.SB_GDDIR, 1);  // gd-rom -> system memory
+
+        int transfer_size = dc_.SB_GDLEN;
+        uint32_t start = dc_.SB_GDSTAR;
+
+        int remaining = transfer_size;
+        uint32_t addr = start;
+
+        gdrom_->BeginDMA();
+
+        while (remaining) {
+          // read a single sector at a time from the gdrom
+          uint8_t sector_data[SECTOR_SIZE];
+          int n = gdrom_->ReadDMA(sector_data, sizeof(sector_data));
+
+          DTR dtr = {};
+          dtr.channel = 0;
+          dtr.rw = true;
+          dtr.data = sector_data;
+          dtr.addr = addr;
+          dtr.size = n;
+          sh4_->DDT(dtr);
+
+          remaining -= n;
+          addr += n;
+        }
+
+        gdrom_->EndDMA();
+
+        dc_.SB_GDSTARD = start + transfer_size;
+        dc_.SB_GDLEND = transfer_size;
+        dc_.SB_GDST = 0;
+        RequestInterrupt(HOLLY_INTC_G1DEINT);
+      }
+      break;
+
+    // g2 bus regs
     case SB_ADEN_OFFSET:
     case SB_ADST_OFFSET:
     case SB_E1EN_OFFSET:
@@ -215,20 +276,6 @@ void Holly::WriteRegister(uint32_t addr, T value) {
     default:
       break;
   }
-}
-
-// FIXME what are SB_LMMODE0 / SB_LMMODE1
-void Holly::CH2DMATransfer() {
-  sh4_->DDT(2, DDT_W, dc_.SB_C2DSTAT);
-
-  dc_.SB_C2DLEN = 0;
-  dc_.SB_C2DST = 0;
-  RequestInterrupt(HOLLY_INTC_DTDE2INT);
-}
-
-void Holly::SortDMATransfer() {
-  dc_.SB_SDST = 0;
-  RequestInterrupt(HOLLY_INTC_DTDESINT);
 }
 
 void Holly::ForwardRequestInterrupts() {

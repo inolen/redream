@@ -8,7 +8,7 @@ namespace re {
 namespace hw {
 namespace gdrom {
 
-enum { SECTOR_SIZE = 2352 };
+static const int SECTOR_SIZE = 2352;
 
 struct Track {
   Track()

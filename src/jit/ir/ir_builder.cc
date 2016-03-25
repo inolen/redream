@@ -217,7 +217,8 @@ Instr *IRBuilder::FTrunc(Value *v, ValueType dest_type) {
 }
 
 Instr *IRBuilder::Select(Value *cond, Value *t, Value *f) {
-  CHECK(IsIntType(cond->type()) && IsIntType(t->type()) && t->type() == f->type());
+  CHECK(IsIntType(cond->type()) && IsIntType(t->type()) &&
+        t->type() == f->type());
 
   Instr *instr = AppendInstr(OP_SELECT, t->type());
   instr->set_arg0(t);

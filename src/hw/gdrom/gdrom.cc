@@ -1,3 +1,4 @@
+#include "core/memory.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/gdrom/gdrom_replies.inc"
 #include "hw/holly/holly.h"
@@ -24,15 +25,12 @@ GDROM::GDROM(Dreamcast &dc)
       sectnum_{0},
       byte_count_{0},
       status_{0},
-      pio_idx_(0),
+      pio_head_(0),
       pio_size_(0),
+      dma_head_(0),
       dma_size_(0),
       state_(STATE_STANDBY),
-      current_disc_(nullptr) {
-  dma_buffer_ = new uint8_t[0x1000000];
-}
-
-GDROM::~GDROM() { delete[] dma_buffer_; }
+      current_disc_(nullptr) {}
 
 bool GDROM::Init() {
   memory_ = dc_.memory;
@@ -57,6 +55,25 @@ void GDROM::SetDisc(std::unique_ptr<Disc> disc) {
   status_.BSY = 0;
 }
 
+void GDROM::BeginDMA() {
+}
+
+int GDROM::ReadDMA(uint8_t *data, int data_size) {
+  int remaining = dma_size_ - dma_head_;
+  int n = std::min(remaining, data_size);
+  memcpy(data, &dma_buffer_[dma_head_], n);
+  dma_head_ += n;
+  return n;
+}
+
+void GDROM::EndDMA() {
+  // reset DMA write state
+  dma_size_ = 0;
+
+  // CD_READ command is now done
+  TriggerEvent(EV_SPI_CMD_DONE);
+}
+
 template uint8_t GDROM::ReadRegister(uint32_t addr);
 template uint16_t GDROM::ReadRegister(uint32_t addr);
 template uint32_t GDROM::ReadRegister(uint32_t addr);
@@ -71,17 +88,15 @@ T GDROM::ReadRegister(uint32_t addr) {
   }
 
   switch (offset) {
-    // gdrom regs
     case GD_ALTSTAT_DEVCTRL_OFFSET:
       // this register is the same as the status register, but it does not
       // clear DMA status information when it is accessed
       return status_.full;
 
     case GD_DATA_OFFSET: {
-      // TODO add ReadData function
-      uint16_t v = *(uint16_t *)&pio_buffer_[pio_idx_];
-      pio_idx_ += 2;
-      if (pio_idx_ == pio_size_) {
+      uint16_t v = re::load<uint16_t>(&pio_buffer_[pio_head_]);
+      pio_head_ += 2;
+      if (pio_head_ == pio_size_) {
         TriggerEvent(EV_SPI_WRITE_END);
       }
       return static_cast<T>(v);
@@ -110,8 +125,6 @@ T GDROM::ReadRegister(uint32_t addr) {
     case GD_STATUS_COMMAND_OFFSET:
       holly_->UnrequestInterrupt(HOLLY_INTC_G1GDINT);
       return status_.full;
-
-      // g1 bus regs
   }
 
   return reg.value;
@@ -130,21 +143,21 @@ void GDROM::WriteRegister(uint32_t addr, T value) {
     return;
   }
 
-  uint32_t old_value = reg.value;
   reg.value = static_cast<uint32_t>(value);
 
   switch (offset) {
-    // gdrom regs
     case GD_ALTSTAT_DEVCTRL_OFFSET:
       // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
       break;
 
     case GD_DATA_OFFSET: {
-      // TODO add WriteData function
-      *(uint16_t *)(&pio_buffer_[pio_idx_]) = reg.value & 0xffff;
-      pio_idx_ += 2;
-      if ((state_ == STATE_SPI_READ_CMD && pio_idx_ == 12) ||
-          (state_ == STATE_SPI_READ_DATA && pio_idx_ == pio_size_)) {
+      re::store(&pio_buffer_[pio_head_],
+                static_cast<uint16_t>(reg.value & 0xffff));
+      pio_head_ += 2;
+
+      // check if we've finished reading a command / the remaining data
+      if ((state_ == STATE_SPI_READ_CMD && pio_head_ == SPI_CMD_SIZE) ||
+          (state_ == STATE_SPI_READ_DATA && pio_head_ == pio_size_)) {
         TriggerEvent(EV_SPI_READ_END);
       }
     } break;
@@ -176,48 +189,6 @@ void GDROM::WriteRegister(uint32_t addr, T value) {
     case GD_STATUS_COMMAND_OFFSET:
       ProcessATACommand((ATACommand)reg.value);
       break;
-
-    // g1 bus regs
-    case SB_GDEN_OFFSET:
-      // NOTE for when this is made asynchtonous
-      // This register can also be used to forcibly terminate such a DMA
-      // transfer that is in progress, by writing a "0" to this register.
-      break;
-
-    case SB_GDST_OFFSET:
-      // if a "0" is written to this register, it is ignored
-      reg.value |= old_value;
-
-      if (reg.value) {
-        // TODO add DMAStart function
-
-        // NOTE for when this is made asynchronous
-        // Cautions during DMA operations: If the SB_GDAPRO, SB_G1GDRC,
-        // SB_GDSTAR, SB_GDLEN, or SB_GDDIR register is overwritten while a DMA
-        // operation is in progress, the new setting has no effect on the
-        // current DMA operation.
-        CHECK_EQ(dc_.SB_GDEN, 1);   // dma enabled
-        CHECK_EQ(dc_.SB_GDDIR, 1);  // gd-rom -> system memory
-        CHECK_EQ(dc_.SB_GDLEN, (uint32_t)dma_size_);
-
-        int transfer_size = dc_.SB_GDLEN;
-        uint32_t start = dc_.SB_GDSTAR;
-
-        LOG_INFO("GD DMA START 0x%x -> 0x%x, 0x%x bytes", start,
-                 start + transfer_size, transfer_size);
-
-        memory_->Memcpy(start, dma_buffer_, transfer_size);
-
-        // done
-        dc_.SB_GDSTARD = start + transfer_size;
-        dc_.SB_GDLEND = transfer_size;
-        dc_.SB_GDST = 0;
-        holly_->RequestInterrupt(HOLLY_INTC_G1DEINT);
-
-        // finish off CD_READ command
-        TriggerEvent(EV_SPI_CMD_DONE);
-      }
-      break;
   }
 }
 
@@ -239,7 +210,7 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
     case EV_SPI_WAIT_CMD: {
       CHECK_EQ(state_, STATE_STANDBY);
 
-      pio_idx_ = 0;
+      pio_head_ = 0;
 
       intreason_.CoD = 1;
       intreason_.IO = 0;
@@ -256,9 +227,9 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
       int size = static_cast<int>(arg1);
       CHECK_NE(size, 0);
 
-      pio_idx_ = 0;
+      pio_head_ = 0;
       pio_size_ = size;
-      spi_read_offset_ = offset;
+      pio_read_offset_ = offset;
 
       byte_count_.full = size;
       intreason_.IO = 1;
@@ -275,12 +246,10 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
       CHECK(state_ == STATE_SPI_READ_CMD || state_ == STATE_SPI_READ_DATA);
 
       if (state_ == STATE_SPI_READ_CMD) {
+        CHECK_EQ(pio_head_, SPI_CMD_SIZE);
         ProcessSPICommand(pio_buffer_);
       } else if (state_ == STATE_SPI_READ_DATA) {
-        // only SPI_SET_MODE uses this
-        memcpy(reinterpret_cast<uint8_t *>(&reply_11[spi_read_offset_ >> 1]),
-               pio_buffer_, pio_size_);
-        TriggerEvent(EV_SPI_CMD_DONE);
+        ProcessSetMode(pio_read_offset_, pio_buffer_, pio_head_);
       }
     } break;
 
@@ -289,13 +258,13 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
 
       uint8_t *data = reinterpret_cast<uint8_t *>(arg0);
       int size = static_cast<int>(arg1);
-      CHECK_NE(size, 0);
 
+      CHECK(size && size < static_cast<int>(sizeof(pio_buffer_)));
       memcpy(pio_buffer_, data, size);
       pio_size_ = size;
-      pio_idx_ = 0;
+      pio_head_ = 0;
 
-      byte_count_.full = size;
+      byte_count_.full = pio_size_;
       intreason_.IO = 1;
       intreason_.CoD = 0;
       status_.DRQ = 1;
@@ -306,15 +275,66 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
       state_ = STATE_SPI_WRITE_DATA;
     } break;
 
-    case EV_SPI_WRITE_END: {
-      CHECK_EQ(state_, STATE_SPI_WRITE_DATA);
+    case EV_SPI_WRITE_SECTORS: {
+      CHECK(state_ == STATE_SPI_READ_CMD || state_ == STATE_SPI_WRITE_SECTORS);
 
-      TriggerEvent(EV_SPI_CMD_DONE);
+      if (cdreq_.dma) {
+        int max_dma_size = cdreq_.num_sectors * SECTOR_SIZE;
+
+        // reserve the worst case size
+        dma_buffer_.Reserve(max_dma_size);
+
+        // read to DMA buffer
+        dma_size_ = ReadSectors(cdreq_.first_sector, cdreq_.sector_format,
+                                cdreq_.sector_mask, cdreq_.num_sectors,
+                                dma_buffer_.data(), dma_buffer_.capacity());
+        dma_head_ = 0;
+
+        // gdrom state won't be updated until DMA transfer is completed
+      } else {
+        int max_pio_sectors = sizeof(pio_buffer_) / SECTOR_SIZE;
+
+        // fill PIO buffer with as many sectors as possible
+        int num_sectors = std::min(cdreq_.num_sectors, max_pio_sectors);
+        pio_size_ = ReadSectors(cdreq_.first_sector, cdreq_.sector_format,
+                                cdreq_.sector_mask, num_sectors, pio_buffer_,
+                                sizeof(pio_buffer_));
+        pio_head_ = 0;
+
+        // update sector read state
+        cdreq_.first_sector += num_sectors;
+        cdreq_.num_sectors -= num_sectors;
+
+        // update gdrom state
+        byte_count_.full = pio_size_;
+        intreason_.IO = 1;
+        intreason_.CoD = 0;
+        status_.DRQ = 1;
+        status_.BSY = 0;
+
+        holly_->RequestInterrupt(HOLLY_INTC_G1GDINT);
+      }
+
+      state_ = STATE_SPI_WRITE_SECTORS;
+    } break;
+
+    case EV_SPI_WRITE_END: {
+      CHECK(state_ == STATE_SPI_WRITE_DATA ||
+            state_ == STATE_SPI_WRITE_SECTORS);
+
+      // if there are still sectors remaining to be written out to the PIO
+      // buffer, continue doing so
+      if (state_ == STATE_SPI_WRITE_SECTORS && cdreq_.num_sectors) {
+        TriggerEvent(EV_SPI_WRITE_SECTORS);
+      } else {
+        TriggerEvent(EV_SPI_CMD_DONE);
+      }
     } break;
 
     case EV_SPI_CMD_DONE: {
       CHECK(state_ == STATE_SPI_READ_CMD || state_ == STATE_SPI_READ_DATA ||
-            state_ == STATE_SPI_WRITE_DATA);
+            state_ == STATE_SPI_WRITE_DATA ||
+            state_ == STATE_SPI_WRITE_SECTORS);
 
       intreason_.IO = 1;
       intreason_.CoD = 1;
@@ -334,13 +354,13 @@ void GDROM::ProcessATACommand(ATACommand cmd) {
   status_.BSY = 1;
 
   switch (cmd) {
-    // case ATA_NOP:
-    //   // Setting "abort" in the error register
-    //   // Setting "error" in the status register
-    //   // Clearing BUSY in the status register
-    //   // Asserting the INTRQ signal
-    //   TriggerEvent(EV_ATA_CMD_DONE);
-    //   break;
+    case ATA_NOP:
+      // Setting "abort" in the error register
+      // Setting "error" in the status register
+      // Clearing BUSY in the status register
+      // Asserting the INTRQ signal
+      TriggerEvent(EV_ATA_CMD_DONE);
+      break;
 
     case ATA_SOFT_RESET:
       SetDisc(std::move(current_disc_));
@@ -381,9 +401,23 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     //
     // Packet Command Flow For PIO DATA To Host
     //
-    // case SPI_REQ_STAT:
-    //   LOG_FATAL("Unhandled");
-    //   break;
+    case SPI_REQ_STAT: {
+      int addr = data[2];
+      int sz = data[4];
+      uint8_t stat[10];
+      stat[0] = sectnum_.status;
+      stat[1] = sectnum_.format << 4;
+      stat[2] = 0x4;
+      stat[3] = 2;
+      stat[4] = 0;
+      stat[5] = 0;
+      stat[6] = 0;
+      stat[7] = 0;
+      stat[8] = 0;
+      stat[9] = 0;
+      TriggerEvent(EV_SPI_WRITE_START, reinterpret_cast<intptr_t>(&stat[addr]),
+                   sz);
+    } break;
 
     case SPI_REQ_MODE: {
       int addr = data[2];
@@ -392,7 +426,6 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     } break;
 
     // case SPI_REQ_ERROR:
-    //   LOG_FATAL("Unhandled");
     //   break;
 
     case SPI_GET_TOC: {
@@ -420,42 +453,20 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
     } break;
 
     case SPI_CD_READ: {
-      auto GetFAD = [](uint8_t a, uint8_t b, uint8_t c, bool msf) {
-        if (msf) {
-          // MSF mode
-          // Byte 2 - Start time: minutes (binary 0 - 255)
-          // Byte 3 - Start time: seconds (binary 0 - 59)
-          // Byte 4 - Start time: frames (binary 0 - 74)
-          return (a * 60 * 75) + (b * 75) + c;
-        }
+      bool msf = (data[1] & 0x1);
 
-        // FAD mode
-        // Byte 2 - Start frame address (MSB)
-        // Byte 3 - Start frame address
-        // Byte 4- Start frame address (LSB)
-        return (a << 16) | (b << 8) | c;
-      };
+      cdreq_.dma = features_.dma;
+      cdreq_.sector_format = (SectorFormat)((data[1] & 0xe) >> 1);
+      cdreq_.sector_mask = (SectorMask)((data[1] >> 4) & 0xff);
+      cdreq_.first_sector = GetFAD(data[2], data[3], data[4], msf);
+      cdreq_.num_sectors = (data[8] << 16) | (data[9] << 8) | data[10];
 
-      bool use_dma = features_.dma;
-      bool use_msf = (data[1] & 0x1);
-      SectorFormat expected_format = (SectorFormat)((data[1] & 0xe) >> 1);
-      DataMask data_mask = (DataMask)((data[1] >> 4) & 0xff);
-      int start_addr = GetFAD(data[2], data[3], data[4], use_msf);
-      int num_sectors = (data[8] << 16) | (data[9] << 8) | data[10];
+      CHECK_EQ(cdreq_.sector_format, SECTOR_M1);
 
-      CHECK_EQ(expected_format, SECTOR_M1);
-
-      if (use_dma) {
-        int r = ReadSectors(start_addr, expected_format, data_mask, num_sectors,
-                            dma_buffer_);
-        dma_size_ = r;
-      } else {
-        LOG_FATAL("Unsupported non-dma CD read");
-      }
+      TriggerEvent(EV_SPI_WRITE_SECTORS);
     } break;
 
     // case SPI_CD_READ2:
-    //   LOG_FATAL("Unhandled");
     //   break;
 
     //
@@ -493,6 +504,12 @@ void GDROM::ProcessSPICommand(uint8_t *data) {
       LOG_FATAL("Unsupported SPI command %d", cmd);
       break;
   }
+}
+
+void GDROM::ProcessSetMode(int offset, uint8_t *data, int data_size) {
+  memcpy(reinterpret_cast<uint8_t *>(&reply_11[offset >> 1]), data, data_size);
+
+  TriggerEvent(EV_SPI_CMD_DONE);
 }
 
 void GDROM::GetTOC(AreaType area_type, TOC *toc) {
@@ -566,8 +583,24 @@ void GDROM::GetSubcode(int format, uint8_t *data) {
   LOG_INFO("GetSubcode not fully implemented");
 }
 
-int GDROM::ReadSectors(int fad, SectorFormat format, DataMask mask,
-                       int num_sectors, uint8_t *dst) {
+int GDROM::GetFAD(uint8_t a, uint8_t b, uint8_t c, bool msf) {
+  if (msf) {
+    // MSF mode
+    // Byte 2 - Start time: minutes (binary 0 - 255)
+    // Byte 3 - Start time: seconds (binary 0 - 59)
+    // Byte 4 - Start time: frames (binary 0 - 74)
+    return (a * 60 * 75) + (b * 75) + c;
+  }
+
+  // FAD mode
+  // Byte 2 - Start frame address (MSB)
+  // Byte 3 - Start frame address
+  // Byte 4- Start frame address (LSB)
+  return (a << 16) | (b << 8) | c;
+}
+
+int GDROM::ReadSectors(int fad, SectorFormat format, SectorMask mask,
+                       int num_sectors, uint8_t *dst, int dst_size) {
   CHECK(current_disc_);
 
   int total = 0;
@@ -580,7 +613,7 @@ int GDROM::ReadSectors(int fad, SectorFormat format, DataMask mask,
     CHECK_EQ(r, 1);
 
     if (format == SECTOR_M1 && mask == MASK_DATA) {
-      CHECK_LT(total + 2048, 0x1000000);
+      CHECK_LT(total + 2048, dst_size);
       memcpy(dst, data + 16, 2048);
       dst += 2048;
       total += 2048;
