@@ -1,11 +1,9 @@
 #ifndef TILE_ACCELERATOR_H
 #define TILE_ACCELERATOR_H
 
-#include <memory>
 #include <set>
 #include <queue>
 #include <unordered_map>
-#include "core/interval_tree.h"
 #include "hw/holly/tile_accelerator_types.h"
 #include "hw/holly/tile_renderer.h"
 #include "hw/holly/trace.h"
@@ -18,10 +16,12 @@ namespace hw {
 
 class Dreamcast;
 class Memory;
+struct Register;
 
 namespace holly {
 
 class Holly;
+class PVR2;
 
 static const int MAX_CONTEXTS = 8;
 
@@ -41,6 +41,21 @@ struct TextureEntry {
 typedef std::unordered_map<uint32_t, TileContext *> TileContextMap;
 typedef std::queue<TileContext *> TileContextQueue;
 
+#define TA_DECLARE_R32_DELEGATE(name) uint32_t name##_read(Register &)
+#define TA_DECLARE_W32_DELEGATE(name) void name##_write(Register &, uint32_t)
+
+#define TA_REGISTER_R32_DELEGATE(name) \
+  pvr_->reg(name##_OFFSET).read =      \
+      make_delegate(&TileAccelerator::name##_read, this)
+#define TA_REGISTER_W32_DELEGATE(name) \
+  pvr_->reg(name##_OFFSET).write =     \
+      make_delegate(&TileAccelerator::name##_write, this)
+
+#define TA_R32_DELEGATE(name) \
+  uint32_t TileAccelerator::name##_read(Register &reg)
+#define TA_W32_DELEGATE(name) \
+  void TileAccelerator::name##_write(Register &reg, uint32_t old_value)
+
 class TileAccelerator : public Device,
                         public MemoryInterface,
                         public WindowInterface,
@@ -59,21 +74,14 @@ class TileAccelerator : public Device,
   renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
                                      RegisterTextureCallback register_cb) final;
 
-  void SoftReset();
-  void InitContext(uint32_t addr);
-  void WriteContext(uint32_t addr, uint32_t value);
-  void FinalizeContext(uint32_t addr);
-
- protected:
+ private:
   // MemoryInterface
   void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
+  void WritePolyFIFO(uint32_t addr, uint32_t value);
+  void WriteTextureFIFO(uint32_t addr, uint32_t value);
 
   // WindowInterface
   void OnPaint(bool show_main_menu) final;
-
- private:
-  void WritePolyFIFO(uint32_t addr, uint32_t value);
-  void WriteTextureFIFO(uint32_t addr, uint32_t value);
 
   void ClearTextures();
   void ClearPendingTextures();
@@ -82,15 +90,25 @@ class TileAccelerator : public Device,
   void HandleTextureWrite(const sys::Exception &ex, void *data);
   void HandlePaletteWrite(const sys::Exception &ex, void *data);
 
+  void SoftReset();
+  void InitContext(uint32_t addr);
+  void WriteContext(uint32_t addr, uint32_t value);
+  void FinalizeContext(uint32_t addr);
   void SaveRegisterState(TileContext *tctx);
 
   void ToggleTracing();
+
+  TA_DECLARE_W32_DELEGATE(SOFTRESET);
+  TA_DECLARE_W32_DELEGATE(TA_LIST_INIT);
+  TA_DECLARE_W32_DELEGATE(TA_LIST_CONT);
+  TA_DECLARE_W32_DELEGATE(STARTRENDER);
 
   Dreamcast &dc_;
   renderer::Backend &rb_;
   TileRenderer tile_renderer_;
   Memory *memory_;
   Holly *holly_;
+  PVR2 *pvr_;
   uint8_t *video_ram_;
   TraceWriter *trace_writer_;
 

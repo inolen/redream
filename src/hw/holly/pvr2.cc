@@ -18,9 +18,9 @@ PVR2::PVR2(Dreamcast &dc)
       scheduler_(nullptr),
       holly_(nullptr),
       ta_(nullptr),
-      pvr_regs_(nullptr),
       palette_ram_(nullptr),
       video_ram_(nullptr),
+      regs_(),
       line_timer_(INVALID_TIMER),
       line_clock_(0),
       current_scanline_(0) {}
@@ -29,15 +29,17 @@ bool PVR2::Init() {
   scheduler_ = dc_.scheduler;
   holly_ = dc_.holly;
   ta_ = dc_.ta;
-  pvr_regs_ = dc_.pvr_regs;
   palette_ram_ = dc_.memory->TranslateVirtual(PVR_PALETTE_START);
   video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_START);
 
 // initialize registers
 #define PVR_REG(addr, name, flags, default, type) \
-  pvr_regs_[name##_OFFSET] = {flags, default};
+  regs_[name##_OFFSET] = {flags, default};
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
+
+  PVR2_REGISTER_W32_DELEGATE(SPG_LOAD);
+  PVR2_REGISTER_W32_DELEGATE(FB_R_CTRL);
 
   // configure initial vsync interval
   ReconfigureSPG();
@@ -65,11 +67,15 @@ void PVR2::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
 
 uint32_t PVR2::ReadRegister(uint32_t addr) {
   uint32_t offset = addr >> 2;
-  Register &reg = pvr_regs_[offset];
+  Register &reg = regs_[offset];
 
   if (!(reg.flags & R)) {
     LOG_WARNING("Invalid read access at 0x%x", addr);
     return 0;
+  }
+
+  if (reg.read) {
+    return reg.read(reg);
   }
 
   return reg.value;
@@ -77,7 +83,7 @@ uint32_t PVR2::ReadRegister(uint32_t addr) {
 
 void PVR2::WriteRegister(uint32_t addr, uint32_t value) {
   uint32_t offset = addr >> 2;
-  Register &reg = pvr_regs_[offset];
+  Register &reg = regs_[offset];
 
   // // forward some reads and writes to the TA
   // if (offset >= TA_OL_BASE && offset <= TA_NEXT_OPB_INIT) {
@@ -90,37 +96,11 @@ void PVR2::WriteRegister(uint32_t addr, uint32_t value) {
     return;
   }
 
+  uint32_t old_value = reg.value;
   reg.value = value;
 
-  switch (offset) {
-    case SOFTRESET_OFFSET: {
-      if (value & 0x1) {
-        ta_->SoftReset();
-      }
-    } break;
-
-    case TA_LIST_INIT_OFFSET: {
-      if (value & 0x80000000) {
-        ta_->InitContext(dc_.TA_ISP_BASE.base_address);
-      }
-    } break;
-
-    case TA_LIST_CONT_OFFSET: {
-      if (value & 0x80000000) {
-        LOG_WARNING("Unsupported TA_LIST_CONT");
-      }
-    } break;
-
-    case STARTRENDER_OFFSET: {
-      if (value) {
-        ta_->FinalizeContext(dc_.PARAM_BASE.base_address);
-      }
-    } break;
-
-    case SPG_LOAD_OFFSET:
-    case FB_R_CTRL_OFFSET: {
-      ReconfigureSPG();
-    } break;
+  if (reg.write) {
+    reg.write(reg, old_value);
   }
 }
 
@@ -160,21 +140,21 @@ void PVR2::WriteVRamInterleaved(uint32_t addr, T value) {
 void PVR2::ReconfigureSPG() {
   // get and scale pixel clock frequency
   int pixel_clock = 13500000;
-  if (dc_.FB_R_CTRL.vclk_div) {
+  if (FB_R_CTRL.vclk_div) {
     pixel_clock *= 2;
   }
 
   // hcount is number of pixel clock cycles per line - 1
-  line_clock_ = pixel_clock / (dc_.SPG_LOAD.hcount + 1);
-  if (dc_.SPG_CONTROL.interlace) {
+  line_clock_ = pixel_clock / (SPG_LOAD.hcount + 1);
+  if (SPG_CONTROL.interlace) {
     line_clock_ *= 2;
   }
 
   LOG_INFO(
       "ReconfigureSPG: pixel_clock %d, line_clock %d, vcount %d, hcount %d, "
       "interlace %d, vbstart %d, vbend %d",
-      pixel_clock, line_clock_, dc_.SPG_LOAD.vcount, dc_.SPG_LOAD.hcount,
-      dc_.SPG_CONTROL.interlace, dc_.SPG_VBLANK.vbstart, dc_.SPG_VBLANK.vbend);
+      pixel_clock, line_clock_, SPG_LOAD.vcount, SPG_LOAD.hcount,
+      SPG_CONTROL.interlace, SPG_VBLANK.vbstart, SPG_VBLANK.vbend);
 
   if (line_timer_ != INVALID_TIMER) {
     scheduler_->CancelTimer(line_timer_);
@@ -186,37 +166,41 @@ void PVR2::ReconfigureSPG() {
 }
 
 void PVR2::NextScanline() {
-  uint32_t num_scanlines = dc_.SPG_LOAD.vcount + 1;
+  uint32_t num_scanlines = SPG_LOAD.vcount + 1;
   if (current_scanline_ > num_scanlines) {
     current_scanline_ = 0;
   }
 
   // vblank in
-  if (current_scanline_ == dc_.SPG_VBLANK_INT.vblank_in_line_number) {
+  if (current_scanline_ == SPG_VBLANK_INT.vblank_in_line_number) {
     holly_->RequestInterrupt(HOLLY_INTC_PCVIINT);
   }
 
   // vblank out
-  if (current_scanline_ == dc_.SPG_VBLANK_INT.vblank_out_line_number) {
+  if (current_scanline_ == SPG_VBLANK_INT.vblank_out_line_number) {
     holly_->RequestInterrupt(HOLLY_INTC_PCVOINT);
   }
 
   // hblank in
   holly_->RequestInterrupt(HOLLY_INTC_PCHIINT);
 
-  // bool was_vsync = dc_.SPG_STATUS.vsync;
-  dc_.SPG_STATUS.vsync = dc_.SPG_VBLANK.vbstart < dc_.SPG_VBLANK.vbend
-                             ? (current_scanline_ >= dc_.SPG_VBLANK.vbstart &&
-                                current_scanline_ < dc_.SPG_VBLANK.vbend)
-                             : (current_scanline_ >= dc_.SPG_VBLANK.vbstart ||
-                                current_scanline_ < dc_.SPG_VBLANK.vbend);
-  dc_.SPG_STATUS.scanline = current_scanline_++;
+  // bool was_vsync = SPG_STATUS.vsync;
+  SPG_STATUS.vsync = SPG_VBLANK.vbstart < SPG_VBLANK.vbend
+                         ? (current_scanline_ >= SPG_VBLANK.vbstart &&
+                            current_scanline_ < SPG_VBLANK.vbend)
+                         : (current_scanline_ >= SPG_VBLANK.vbstart ||
+                            current_scanline_ < SPG_VBLANK.vbend);
+  SPG_STATUS.scanline = current_scanline_++;
 
   // FIXME toggle SPG_STATUS.fieldnum on vblank?
-  // if (!was_vsync && dc_.SPG_STATUS.vsync) {
+  // if (!was_vsync && SPG_STATUS.vsync) {
   // }
 
   // reschedule
   line_timer_ = scheduler_->ScheduleTimer(
       re::make_delegate(&PVR2::NextScanline, this), HZ_TO_NANO(line_clock_));
 }
+
+PVR2_W32_DELEGATE(SPG_LOAD) { ReconfigureSPG(); }
+
+PVR2_W32_DELEGATE(FB_R_CTRL) { ReconfigureSPG(); }

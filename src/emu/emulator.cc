@@ -94,8 +94,8 @@ void Emulator::Run(const char *path) {
 bool Emulator::CreateDreamcast() {
   dc_.sh4 = new SH4(dc_);
   dc_.aica = new AICA(dc_);
-  dc_.gdrom = new GDROM(dc_);
   dc_.holly = new Holly(dc_);
+  dc_.gdrom = new GDROM(dc_);
   dc_.maple = new Maple(dc_);
   dc_.pvr = new PVR2(dc_);
   dc_.ta = new TileAccelerator(dc_, window_.render_backend());
@@ -113,10 +113,10 @@ void Emulator::DestroyDreamcast() {
   dc_.sh4 = nullptr;
   delete dc_.aica;
   dc_.aica = nullptr;
-  delete dc_.gdrom;
-  dc_.gdrom = nullptr;
   delete dc_.holly;
   dc_.holly = nullptr;
+  delete dc_.gdrom;
+  dc_.gdrom = nullptr;
   delete dc_.maple;
   dc_.maple = nullptr;
   delete dc_.pvr;

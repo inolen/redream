@@ -17,6 +17,8 @@ class Memory;
 
 namespace maple {
 
+static const int MAX_PORTS = 4;
+
 enum MapleFunction {
   FN_CONTROLLER = 0x01000000,
   FN_MEMORYCARD = 0x02000000,
@@ -90,8 +92,6 @@ struct MapleFrame {
   uint32_t params[0xff];
 };
 
-static const int MAX_PORTS = 4;
-
 class MapleDevice {
  public:
   virtual ~MapleDevice() {}
@@ -100,9 +100,19 @@ class MapleDevice {
   virtual bool HandleFrame(const MapleFrame &frame, MapleFrame &res) = 0;
 };
 
-class Maple : public Device, public WindowInterface {
-  friend class holly::Holly;
+#define MAPLE_DECLARE_R32_DELEGATE(name) uint32_t name##_read(Register &)
+#define MAPLE_DECLARE_W32_DELEGATE(name) void name##_write(Register &, uint32_t)
 
+#define MAPLE_REGISTER_R32_DELEGATE(name) \
+  holly_->reg(name##_OFFSET).read = make_delegate(&Maple::name##_read, this)
+#define MAPLE_REGISTER_W32_DELEGATE(name) \
+  holly_->reg(name##_OFFSET).write = make_delegate(&Maple::name##_write, this)
+
+#define MAPLE_R32_DELEGATE(name) uint32_t Maple::name##_read(Register &reg)
+#define MAPLE_W32_DELEGATE(name) \
+  void Maple::name##_write(Register &reg, uint32_t old_value)
+
+class Maple : public Device, public WindowInterface {
  public:
   Maple(Dreamcast &dc);
 
@@ -111,21 +121,17 @@ class Maple : public Device, public WindowInterface {
   void VBlank();
 
  private:
+  // WindowInterface
   void OnKeyDown(ui::Keycode code, int16_t value) final;
-
- private:
-  template <typename T>
-  T ReadRegister(uint32_t addr);
-  template <typename T>
-  void WriteRegister(uint32_t addr, T value);
 
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
   void StartDMA();
 
+  MAPLE_DECLARE_W32_DELEGATE(SB_MDST);
+
   Dreamcast &dc_;
   Memory *memory_;
   holly::Holly *holly_;
-  Register *holly_regs_;
 
   std::unique_ptr<MapleDevice> devices_[MAX_PORTS];
 };

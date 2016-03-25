@@ -60,7 +60,7 @@ class SH4 : public Device,
   void RequestInterrupt(Interrupt intr);
   void UnrequestInterrupt(Interrupt intr);
 
- protected:
+ private:
   // DebugInterface
   int NumRegisters() final;
   void Step() final;
@@ -76,7 +76,6 @@ class SH4 : public Device,
   // WindowInterface
   void OnPaint(bool show_main_menu) final;
 
- private:
   static void CompilePC();
   static void InvalidInstruction(jit::frontend::sh4::SH4Context *ctx,
                                  uint64_t addr);

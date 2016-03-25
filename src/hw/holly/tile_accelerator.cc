@@ -3,6 +3,7 @@
 #include "hw/holly/holly.h"
 #include "hw/holly/pixel_convert.h"
 #include "hw/holly/tile_accelerator.h"
+#include "hw/holly/pvr2.h"
 #include "hw/holly/trace.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
@@ -215,6 +216,7 @@ TileAccelerator::TileAccelerator(Dreamcast &dc, Backend &rb)
       tile_renderer_(rb, *this),
       memory_(nullptr),
       holly_(nullptr),
+      pvr_(nullptr),
       video_ram_(nullptr),
       trace_writer_(nullptr),
       num_invalidated_(0),
@@ -229,7 +231,13 @@ TileAccelerator::TileAccelerator(Dreamcast &dc, Backend &rb)
 bool TileAccelerator::Init() {
   memory_ = dc_.memory;
   holly_ = dc_.holly;
+  pvr_ = dc_.pvr;
   video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_START);
+
+  TA_REGISTER_W32_DELEGATE(SOFTRESET);
+  TA_REGISTER_W32_DELEGATE(TA_LIST_INIT);
+  TA_REGISTER_W32_DELEGATE(TA_LIST_CONT);
+  TA_REGISTER_W32_DELEGATE(STARTRENDER);
 
   return true;
 }
@@ -440,6 +448,16 @@ void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
   memmap.Mount(ta_texture_handle, TA_TEXTURE_SIZE, TA_TEXTURE_START);
 }
 
+void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
+  WriteContext(pvr_->TA_ISP_BASE.base_address, value);
+}
+
+void TileAccelerator::WriteTextureFIFO(uint32_t addr, uint32_t value) {
+  addr &= 0xeeffffff;
+
+  re::store(&video_ram_[addr], value);
+}
+
 void TileAccelerator::OnPaint(bool show_main_menu) {
   if (last_tctx_) {
     tile_renderer_.RenderContext(*last_tctx_);
@@ -456,16 +474,6 @@ void TileAccelerator::OnPaint(bool show_main_menu) {
 
     ImGui::EndMainMenuBar();
   }
-}
-
-void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
-  WriteContext(dc_.TA_ISP_BASE.base_address, value);
-}
-
-void TileAccelerator::WriteTextureFIFO(uint32_t addr, uint32_t value) {
-  addr &= 0xeeffffff;
-
-  re::store(&video_ram_[addr], value);
 }
 
 void TileAccelerator::ClearTextures() {
@@ -552,23 +560,23 @@ void TileAccelerator::HandlePaletteWrite(const Exception &ex, void *data) {
 
 void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   // autosort
-  if (!dc_.FPU_PARAM_CFG.region_header_type) {
-    tctx->autosort = !dc_.ISP_FEED_CFG.presort;
+  if (!pvr_->FPU_PARAM_CFG.region_header_type) {
+    tctx->autosort = !pvr_->ISP_FEED_CFG.presort;
   } else {
-    uint32_t region_data = memory_->R32(PVR_VRAM64_START + dc_.REGION_BASE);
+    uint32_t region_data = memory_->R32(PVR_VRAM64_START + pvr_->REGION_BASE);
     tctx->autosort = !(region_data & 0x20000000);
   }
 
   // texture stride
-  tctx->stride = dc_.TEXT_CONTROL.stride * 32;
+  tctx->stride = pvr_->TEXT_CONTROL.stride * 32;
 
   // texture palette pixel format
-  tctx->pal_pxl_format = dc_.PAL_RAM_CTRL.pixel_format;
+  tctx->pal_pxl_format = pvr_->PAL_RAM_CTRL.pixel_format;
 
   // write out video width to help with unprojecting the screen space
   // coordinates
-  if (dc_.SPG_CONTROL.interlace ||
-      (!dc_.SPG_CONTROL.NTSC && !dc_.SPG_CONTROL.PAL)) {
+  if (pvr_->SPG_CONTROL.interlace ||
+      (!pvr_->SPG_CONTROL.NTSC && !pvr_->SPG_CONTROL.PAL)) {
     // interlaced and VGA mode both render at full resolution
     tctx->video_width = 640;
     tctx->video_height = 480;
@@ -585,7 +593,7 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   // correct solution
   uint32_t vram_offset =
       PVR_VRAM64_START +
-      ((tctx->addr + dc_.ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
+      ((tctx->addr + pvr_->ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
 
   // get surface parameters
   tctx->bg_isp.full = memory_->R32(vram_offset);
@@ -594,20 +602,21 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   vram_offset += 12;
 
   // get the background depth
-  tctx->bg_depth = re::load<float>(&dc_.ISP_BACKGND_D);
+  tctx->bg_depth = re::load<float>(&pvr_->ISP_BACKGND_D);
 
   // get the byte size for each vertex. normally, the byte size is
   // ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in
   // effect and the shadow bit is 1, then the byte size is
   // ISP_BACKGND_T.skip * 2 + 3
-  int vertex_size = dc_.ISP_BACKGND_T.skip;
-  if (!dc_.FPU_SHAD_SCALE.intensity_volume_mode && dc_.ISP_BACKGND_T.shadow) {
+  int vertex_size = pvr_->ISP_BACKGND_T.skip;
+  if (!pvr_->FPU_SHAD_SCALE.intensity_volume_mode &&
+      pvr_->ISP_BACKGND_T.shadow) {
     vertex_size *= 2;
   }
   vertex_size = (vertex_size + 3) * 4;
 
   // skip to the first vertex
-  vram_offset += dc_.ISP_BACKGND_T.tag_offset * vertex_size;
+  vram_offset += pvr_->ISP_BACKGND_T.tag_offset * vertex_size;
 
   // copy vertex data to context
   for (int i = 0, bg_offset = 0; i < 3; i++) {
@@ -647,4 +656,36 @@ void TileAccelerator::ToggleTracing() {
 
     LOG_INFO("End tracing");
   }
+}
+
+TA_W32_DELEGATE(SOFTRESET) {
+  if (!(reg.value & 0x1)) {
+    return;
+  }
+
+  SoftReset();
+}
+
+TA_W32_DELEGATE(TA_LIST_INIT) {
+  if (!(reg.value & 0x80000000)) {
+    return;
+  }
+
+  InitContext(pvr_->TA_ISP_BASE.base_address);
+}
+
+TA_W32_DELEGATE(TA_LIST_CONT) {
+  if (!(reg.value & 0x80000000)) {
+    return;
+  }
+
+  LOG_WARNING("Unsupported TA_LIST_CONT");
+}
+
+TA_W32_DELEGATE(STARTRENDER) {
+  if (!reg.value) {
+    return;
+  }
+
+  FinalizeContext(pvr_->PARAM_BASE.base_address);
 }

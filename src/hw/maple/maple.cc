@@ -17,7 +17,6 @@ Maple::Maple(Dreamcast &dc)
       dc_(dc),
       memory_(nullptr),
       holly_(nullptr),
-      holly_regs_(nullptr),
       devices_() {
   // default controller device
   devices_[0] = std::unique_ptr<MapleController>(new MapleController());
@@ -26,7 +25,8 @@ Maple::Maple(Dreamcast &dc)
 bool Maple::Init() {
   memory_ = dc_.memory;
   holly_ = dc_.holly;
-  holly_regs_ = dc_.holly_regs;
+
+  MAPLE_REGISTER_W32_DELEGATE(SB_MDST);
 
   return true;
 }
@@ -35,8 +35,8 @@ bool Maple::Init() {
 // in synchronization with the V-BLANK signal. These methods are selected
 // through the trigger selection register (SB_MDTSEL).
 void Maple::VBlank() {
-  uint32_t enabled = dc_.SB_MDEN;
-  uint32_t vblank_initiate = dc_.SB_MDTSEL;
+  uint32_t enabled = holly_->SB_MDEN;
+  uint32_t vblank_initiate = holly_->SB_MDTSEL;
 
   if (enabled && vblank_initiate) {
     StartDMA();
@@ -55,54 +55,8 @@ void Maple::OnKeyDown(Keycode key, int16_t value) {
   dev->HandleInput(key, value);
 }
 
-template uint8_t Maple::ReadRegister(uint32_t addr);
-template uint16_t Maple::ReadRegister(uint32_t addr);
-template uint32_t Maple::ReadRegister(uint32_t addr);
-template <typename T>
-T Maple::ReadRegister(uint32_t addr) {
-  uint32_t offset = addr >> 2;
-  Register &reg = holly_regs_[offset];
-
-  if (!(reg.flags & R)) {
-    LOG_WARNING("Invalid read access at 0x%x", addr);
-    return 0;
-  }
-
-  return static_cast<T>(reg.value);
-}
-
-template void Maple::WriteRegister(uint32_t addr, uint8_t value);
-template void Maple::WriteRegister(uint32_t addr, uint16_t value);
-template void Maple::WriteRegister(uint32_t addr, uint32_t value);
-template <typename T>
-void Maple::WriteRegister(uint32_t addr, T value) {
-  uint32_t offset = addr >> 2;
-  Register &reg = holly_regs_[offset];
-
-  if (!(reg.flags & W)) {
-    LOG_WARNING("Invalid write access at 0x%x", addr);
-    return;
-  }
-
-  // uint32_t old = reg.value;
-  reg.value = static_cast<uint32_t>(value);
-
-  switch (offset) {
-    case SB_MDST_OFFSET: {
-      uint32_t enabled = dc_.SB_MDEN;
-      if (enabled) {
-        if (value) {
-          StartDMA();
-        }
-      } else {
-        reg.value = 0;
-      }
-    } break;
-  }
-}
-
 void Maple::StartDMA() {
-  uint32_t start_addr = dc_.SB_MDSTAR;
+  uint32_t start_addr = holly_->SB_MDSTAR;
   MapleTransferDesc desc;
   MapleFrame frame, res;
 
@@ -135,6 +89,17 @@ void Maple::StartDMA() {
     }
   } while (!desc.last);
 
-  dc_.SB_MDST = 0;
+  holly_->SB_MDST = 0;
   holly_->RequestInterrupt(HOLLY_INTC_MDEINT);
+}
+
+MAPLE_W32_DELEGATE(SB_MDST) {
+  uint32_t enabled = holly_->SB_MDEN;
+  if (enabled) {
+    if (reg.value) {
+      StartDMA();
+    }
+  } else {
+    reg.value = 0;
+  }
 }

@@ -19,7 +19,6 @@ GDROM::GDROM(Dreamcast &dc)
       dc_(dc),
       memory_(nullptr),
       holly_(nullptr),
-      holly_regs_(nullptr),
       features_{0},
       intreason_{0},
       sectnum_{0},
@@ -35,7 +34,25 @@ GDROM::GDROM(Dreamcast &dc)
 bool GDROM::Init() {
   memory_ = dc_.memory;
   holly_ = dc_.holly;
-  holly_regs_ = dc_.holly_regs;
+
+  GDROM_REGISTER_R32_DELEGATE(GD_ALTSTAT_DEVCTRL);
+  GDROM_REGISTER_W32_DELEGATE(GD_ALTSTAT_DEVCTRL);
+  GDROM_REGISTER_R32_DELEGATE(GD_DATA);
+  GDROM_REGISTER_W32_DELEGATE(GD_DATA);
+  GDROM_REGISTER_R32_DELEGATE(GD_ERROR_FEATURES);
+  GDROM_REGISTER_W32_DELEGATE(GD_ERROR_FEATURES);
+  GDROM_REGISTER_R32_DELEGATE(GD_INTREASON_SECTCNT);
+  GDROM_REGISTER_W32_DELEGATE(GD_INTREASON_SECTCNT);
+  GDROM_REGISTER_R32_DELEGATE(GD_SECTNUM);
+  GDROM_REGISTER_W32_DELEGATE(GD_SECTNUM);
+  GDROM_REGISTER_R32_DELEGATE(GD_BYCTLLO);
+  GDROM_REGISTER_W32_DELEGATE(GD_BYCTLLO);
+  GDROM_REGISTER_R32_DELEGATE(GD_BYCTLHI);
+  GDROM_REGISTER_W32_DELEGATE(GD_BYCTLHI);
+  GDROM_REGISTER_R32_DELEGATE(GD_DRVSEL);
+  GDROM_REGISTER_W32_DELEGATE(GD_DRVSEL);
+  GDROM_REGISTER_R32_DELEGATE(GD_STATUS_COMMAND);
+  GDROM_REGISTER_W32_DELEGATE(GD_STATUS_COMMAND);
 
   SetDisc(nullptr);
 
@@ -55,8 +72,7 @@ void GDROM::SetDisc(std::unique_ptr<Disc> disc) {
   status_.BSY = 0;
 }
 
-void GDROM::BeginDMA() {
-}
+void GDROM::BeginDMA() {}
 
 int GDROM::ReadDMA(uint8_t *data, int data_size) {
   int remaining = dma_size_ - dma_head_;
@@ -72,124 +88,6 @@ void GDROM::EndDMA() {
 
   // CD_READ command is now done
   TriggerEvent(EV_SPI_CMD_DONE);
-}
-
-template uint8_t GDROM::ReadRegister(uint32_t addr);
-template uint16_t GDROM::ReadRegister(uint32_t addr);
-template uint32_t GDROM::ReadRegister(uint32_t addr);
-template <typename T>
-T GDROM::ReadRegister(uint32_t addr) {
-  uint32_t offset = addr >> 2;
-  Register &reg = holly_regs_[offset];
-
-  if (!(reg.flags & R)) {
-    LOG_WARNING("Invalid read access at 0x%x", addr);
-    return 0;
-  }
-
-  switch (offset) {
-    case GD_ALTSTAT_DEVCTRL_OFFSET:
-      // this register is the same as the status register, but it does not
-      // clear DMA status information when it is accessed
-      return status_.full;
-
-    case GD_DATA_OFFSET: {
-      uint16_t v = re::load<uint16_t>(&pio_buffer_[pio_head_]);
-      pio_head_ += 2;
-      if (pio_head_ == pio_size_) {
-        TriggerEvent(EV_SPI_WRITE_END);
-      }
-      return static_cast<T>(v);
-    }
-
-    case GD_ERROR_FEATURES_OFFSET:
-      // LOG_INFO("GD_ERROR");
-      return 0;
-
-    case GD_INTREASON_SECTCNT_OFFSET:
-      return intreason_.full;
-
-    case GD_SECTNUM_OFFSET:
-      return sectnum_.full;
-
-    case GD_BYCTLLO_OFFSET:
-      return byte_count_.lo;
-
-    case GD_BYCTLHI_OFFSET:
-      return byte_count_.hi;
-
-    case GD_DRVSEL_OFFSET:
-      // LOG_INFO("GD_DRVSEL");
-      return 0;
-
-    case GD_STATUS_COMMAND_OFFSET:
-      holly_->UnrequestInterrupt(HOLLY_INTC_G1GDINT);
-      return status_.full;
-  }
-
-  return reg.value;
-}
-
-template void GDROM::WriteRegister(uint32_t addr, uint8_t value);
-template void GDROM::WriteRegister(uint32_t addr, uint16_t value);
-template void GDROM::WriteRegister(uint32_t addr, uint32_t value);
-template <typename T>
-void GDROM::WriteRegister(uint32_t addr, T value) {
-  uint32_t offset = addr >> 2;
-  Register &reg = holly_regs_[offset];
-
-  if (!(reg.flags & W)) {
-    LOG_WARNING("Invalid write access at 0x%x", addr);
-    return;
-  }
-
-  reg.value = static_cast<uint32_t>(value);
-
-  switch (offset) {
-    case GD_ALTSTAT_DEVCTRL_OFFSET:
-      // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
-      break;
-
-    case GD_DATA_OFFSET: {
-      re::store(&pio_buffer_[pio_head_],
-                static_cast<uint16_t>(reg.value & 0xffff));
-      pio_head_ += 2;
-
-      // check if we've finished reading a command / the remaining data
-      if ((state_ == STATE_SPI_READ_CMD && pio_head_ == SPI_CMD_SIZE) ||
-          (state_ == STATE_SPI_READ_DATA && pio_head_ == pio_size_)) {
-        TriggerEvent(EV_SPI_READ_END);
-      }
-    } break;
-
-    case GD_ERROR_FEATURES_OFFSET:
-      features_.full = reg.value;
-      break;
-
-    case GD_INTREASON_SECTCNT_OFFSET:
-      // LOG_INFO("GD_SECTCNT 0x%x", reg.value);
-      break;
-
-    case GD_SECTNUM_OFFSET:
-      sectnum_.full = reg.value;
-      break;
-
-    case GD_BYCTLLO_OFFSET:
-      byte_count_.lo = reg.value;
-      break;
-
-    case GD_BYCTLHI_OFFSET:
-      byte_count_.hi = reg.value;
-      break;
-
-    case GD_DRVSEL_OFFSET:
-      // LOG_INFO("GD_DRVSEL 0x%x", (uint32_t)reg.value);
-      break;
-
-    case GD_STATUS_COMMAND_OFFSET:
-      ProcessATACommand((ATACommand)reg.value);
-      break;
-  }
 }
 
 void GDROM::TriggerEvent(GDEvent ev) { TriggerEvent(ev, 0, 0); }
@@ -624,4 +522,77 @@ int GDROM::ReadSectors(int fad, SectorFormat format, SectorMask mask,
   }
 
   return total;
+}
+
+GDROM_R32_DELEGATE(GD_ALTSTAT_DEVCTRL) {
+  // this register is the same as the status register, but it does not
+  // clear DMA status information when it is accessed
+  return status_.full;
+}
+
+GDROM_W32_DELEGATE(GD_ALTSTAT_DEVCTRL) {
+  // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
+}
+
+GDROM_R32_DELEGATE(GD_DATA) {
+  uint16_t v = re::load<uint16_t>(&pio_buffer_[pio_head_]);
+  pio_head_ += 2;
+  if (pio_head_ == pio_size_) {
+    TriggerEvent(EV_SPI_WRITE_END);
+  }
+  return v;
+}
+
+GDROM_W32_DELEGATE(GD_DATA) {
+  re::store(&pio_buffer_[pio_head_], static_cast<uint16_t>(reg.value & 0xffff));
+  pio_head_ += 2;
+
+  // check if we've finished reading a command / the remaining data
+  if ((state_ == STATE_SPI_READ_CMD && pio_head_ == SPI_CMD_SIZE) ||
+      (state_ == STATE_SPI_READ_DATA && pio_head_ == pio_size_)) {
+    TriggerEvent(EV_SPI_READ_END);
+  }
+}
+
+GDROM_R32_DELEGATE(GD_ERROR_FEATURES) {
+  // LOG_INFO("GD_ERROR");
+  return 0;
+}
+
+GDROM_W32_DELEGATE(GD_ERROR_FEATURES) { features_.full = reg.value; }
+
+GDROM_R32_DELEGATE(GD_INTREASON_SECTCNT) { return intreason_.full; }
+
+GDROM_W32_DELEGATE(GD_INTREASON_SECTCNT) {
+  // LOG_INFO("GD_SECTCNT 0x%x", reg.value);
+}
+
+GDROM_R32_DELEGATE(GD_SECTNUM) { return sectnum_.full; }
+
+GDROM_W32_DELEGATE(GD_SECTNUM) { sectnum_.full = reg.value; }
+
+GDROM_R32_DELEGATE(GD_BYCTLLO) { return byte_count_.lo; }
+
+GDROM_W32_DELEGATE(GD_BYCTLLO) { byte_count_.lo = reg.value; }
+
+GDROM_R32_DELEGATE(GD_BYCTLHI) { return byte_count_.hi; }
+
+GDROM_W32_DELEGATE(GD_BYCTLHI) { byte_count_.hi = reg.value; }
+
+GDROM_R32_DELEGATE(GD_DRVSEL) {
+  // LOG_INFO("GD_DRVSEL");
+  return 0;
+}
+
+GDROM_W32_DELEGATE(GD_DRVSEL) {
+  // LOG_INFO("GD_DRVSEL 0x%x", (uint32_t)reg.value);
+}
+
+GDROM_R32_DELEGATE(GD_STATUS_COMMAND) {
+  holly_->UnrequestInterrupt(HOLLY_INTC_G1GDINT);
+  return status_.full;
+}
+
+GDROM_W32_DELEGATE(GD_STATUS_COMMAND) {
+  ProcessATACommand(static_cast<ATACommand>(reg.value));
 }

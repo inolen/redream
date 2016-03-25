@@ -1,10 +1,13 @@
-#ifndef PVR2_REGS_H
-#define PVR2_REGS_H
+#ifndef PVR2_TYPES_H
+#define PVR2_TYPES_H
+
+#include "hw/regions.h"
 
 namespace re {
 namespace hw {
 namespace holly {
 
+// registers
 union PARAM_BASE_T {
   uint32_t full;
   struct {
@@ -184,6 +187,14 @@ union TA_ISP_BASE_T {
     uint32_t base_address : 24;
     uint32_t reserved : 8;
   };
+};
+
+enum {
+#define PVR_REG(addr, name, flags, default_value, type) \
+  name##_OFFSET = (addr - PVR_REG_START) >> 2,
+#include "hw/holly/pvr2_regs.inc"
+#undef PVR_REG
+  NUM_PVR_REGS = PVR_REG_SIZE >> 2,
 };
 }
 }

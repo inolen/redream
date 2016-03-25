@@ -16,10 +16,9 @@ class AICA : public Device, public MemoryInterface {
 
   bool Init() final;
 
- protected:
-  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
-
  private:
+  // MemoryInterface
+  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
   uint32_t ReadRegister(uint32_t addr);
   void WriteRegister(uint32_t addr, uint32_t value);
 
