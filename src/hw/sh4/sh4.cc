@@ -122,7 +122,7 @@ void SH4::Run(const std::chrono::nanoseconds &delta) {
   s_current_cpu = this;
 
   // each block's epilog will decrement the remaining cycles as they run
-  ctx_.num_cycles = cycles;
+  ctx_.num_cycles = static_cast<int>(cycles);
 
   while (ctx_.num_cycles > 0) {
     SH4BlockEntry *block = code_cache_->GetBlock(ctx_.pc);
@@ -748,9 +748,9 @@ uint32_t SH4::TimerCount(int n) {
 
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
   std::chrono::nanoseconds remaining = scheduler_->RemainingTime(handle);
-  int64_t cycles = static_cast<uint32_t>(NANO_TO_CYCLES(remaining, freq));
+  int64_t cycles = NANO_TO_CYCLES(remaining, freq);
 
-  return cycles;
+  return static_cast<uint32_t>(cycles);
 }
 
 void SH4::RescheduleTimer(int n, uint32_t tcnt, uint32_t tcr) {

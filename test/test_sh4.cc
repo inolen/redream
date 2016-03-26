@@ -31,8 +31,8 @@ enum {
 struct SH4Test {
   const char *name;
   const uint8_t *buffer;
-  uint32_t buffer_size;
-  uint32_t buffer_offset;
+  int buffer_size;
+  int buffer_offset;
   SH4Context in;
   SH4Context out;
 };
@@ -179,8 +179,11 @@ void RunSH4Test(const SH4Test &test) {
   // setup initial stack pointer
   sh4->ctx_.r[15] = 0x8d000000;
 
-  // load binary
-  dc->memory->Memcpy(0x8c010000, test.buffer, test.buffer_size);
+  // load binary. note, Memory::Memcpy only support 4 byte aligned sizes
+  int aligned_size = re::align_up(test.buffer_size, 4);
+  uint8_t *aligned_buffer = reinterpret_cast<uint8_t *>(alloca(aligned_size));
+  memcpy(aligned_buffer, test.buffer, test.buffer_size);
+  dc->memory->Memcpy(0x8c010000, aligned_buffer, aligned_size);
 
   // skip to the test's offset
   sh4->SetPC(0x8c010000 + test.buffer_offset);

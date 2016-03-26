@@ -1,3 +1,4 @@
+#include "core/log.h"
 #include "sys/network.h"
 
 bool Network::Init() {

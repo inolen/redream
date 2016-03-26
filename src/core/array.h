@@ -9,9 +9,7 @@ namespace re {
 template <typename T>
 class array {
  public:
-  array(int size = 8) : data_(nullptr), size_(0), capacity_(0) {
-    Resize(size);
-  }
+  array(int size = 8) : data_(nullptr), size_(0), capacity_(0) { Resize(size); }
   ~array() { free(data_); }
 
   array(array const &) = delete;

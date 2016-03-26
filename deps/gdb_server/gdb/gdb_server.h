@@ -7,6 +7,49 @@
 #include <stdlib.h>
 
 //
+// cross-platform Berkeley sockets shim
+//
+#if PLATFORM_WINDOWS
+
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+typedef int socklen_t;
+typedef u_long ioctlarg_t;
+
+#define sockerrno WSAGetLastError()
+
+#define SHUT_RD SD_RECEIVE
+#define SHUT_WR SD_SEND
+#define SHUT_RDWR SD_BOTH
+
+#else
+
+#include <sys/socket.h>
+#include <errno.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/time.h>
+#include <unistd.h>
+
+typedef int SOCKET;
+typedef int ioctlarg_t;
+
+#define INVALID_SOCKET -1
+#define SOCKET_ERROR -1
+
+#define closesocket close
+#define ioctlsocket ioctl
+#define sockerrno errno
+
+#endif
+
+//
 // target machine interface
 //
 typedef enum {
@@ -111,8 +154,8 @@ typedef struct {
 
 typedef struct {
   gdb_target_t target;
-  int listen;
-  int client;
+  SOCKET listen;
+  SOCKET client;
   gdb_connection_t conn;
 } gdb_server_t;
 
@@ -140,55 +183,20 @@ void gdb_server_destroy(gdb_server_t *sv);
 #define GDB_SERVER_MALLOC malloc
 #endif
 
+#ifndef GDB_SERVER_ALLOCA
+#if PLATFORM_WINDOWS
+#include <malloc.h>
+#define GDB_SERVER_ALLOCA _alloca
+#else
+#define GDB_SERVER_ALLOCA alloca
+#endif
+#endif
+
 #ifndef GDB_SERVER_FREE
 #define GDB_SERVER_FREE free
 #endif
 
 #define GDB_SERVER_UNUSED(x) ((void)x)
-
-//
-// cross-platform Berkeley sockets shim
-//
-#if PLATFORM_WINDOWS
-
-#include <winsock2.h>
-#include <ws2tcpip.h>
-
-typedef int socklen_t;
-typedef u_long ioctlarg_t;
-
-#define EAGAIN WSAEWOULDBLOCK
-#define EADDRNOTAVAIL WSAEADDRNOTAVAIL
-#define EAFNOSUPPORT WSAEAFNOSUPPORT
-#define ECONNRESET WSAECONNRESET
-
-#define sockerrno WSAGetLastError()
-
-#else
-
-#include <sys/socket.h>
-#include <errno.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <unistd.h>
-
-typedef int SOCKET;
-typedef int ioctlarg_t;
-
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-
-#define closesocket close
-#define ioctlsocket ioctl
-#define sockerrno errno
-
-#endif
 
 //
 // gdb server implementation
@@ -356,7 +364,7 @@ static int gdb_server_create_listen(gdb_server_t *sv, int port) {
 
     // enable reusing of the address / port
     int on = 1;
-    if (setsockopt(sv->listen, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) ==
+    if (setsockopt(sv->listen, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char *>(&on), sizeof(on)) ==
         SOCKET_ERROR) {
       GDB_SERVER_LOG("Failed to set socket options for gdb socket");
       ret = -1;
@@ -430,7 +438,7 @@ static void gdb_server_accept_client(gdb_server_t *sv) {
   t.tv_sec = 0;
   t.tv_usec = 0;
 
-  if (select(sv->listen + 1, &fd_read, NULL, NULL, &t) == SOCKET_ERROR) {
+  if (select(static_cast<int>(sv->listen + 1), &fd_read, NULL, NULL, &t) == SOCKET_ERROR) {
     return;
   }
 
@@ -478,7 +486,7 @@ static int gdb_server_data_available(gdb_server_t *sv) {
   t.tv_sec = 0;
   t.tv_usec = 0;
 
-  if (select(sv->client + 1, &fd_read, NULL, NULL, &t) == SOCKET_ERROR) {
+  if (select(static_cast<int>(sv->client + 1), &fd_read, NULL, NULL, &t) == SOCKET_ERROR) {
     return -1;
   }
 
@@ -765,7 +773,7 @@ static int gdb_server_handle_m(gdb_server_t *sv, const char *data) {
   data = parse_hex(&data[1], &length);
 
   // read bytes from the target
-  uint8_t *memory = (uint8_t *)alloca(length);
+  uint8_t *memory = (uint8_t *)GDB_SERVER_ALLOCA(length);
   memset(memory, 0, length);
   sv->target.read_mem(sv->target.ctx, addr, memory, length);
 

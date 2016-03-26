@@ -7,6 +7,7 @@
 #include "hw/holly/trace.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
+#include "sys/filesystem.h"
 
 using namespace re;
 using namespace re::hw;

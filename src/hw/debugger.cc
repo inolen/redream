@@ -81,18 +81,18 @@ void Debugger::gdb_server_step(void *data) {
 
 void Debugger::gdb_server_add_bp(void *data, int type, intmax_t addr) {
   Debugger *debugger = reinterpret_cast<Debugger *>(data);
-  debugger->debug_->AddBreakpoint(type, addr);
+  debugger->debug_->AddBreakpoint(type, static_cast<uint32_t>(addr));
 }
 
 void Debugger::gdb_server_rem_bp(void *data, int type, intmax_t addr) {
   Debugger *debugger = reinterpret_cast<Debugger *>(data);
-  debugger->debug_->RemoveBreakpoint(type, addr);
+  debugger->debug_->RemoveBreakpoint(type, static_cast<uint32_t>(addr));
 }
 
 void Debugger::gdb_server_read_mem(void *data, intmax_t addr, uint8_t *buffer,
                                    int size) {
   Debugger *debugger = reinterpret_cast<Debugger *>(data);
-  debugger->debug_->ReadMemory(addr, buffer, size);
+  debugger->debug_->ReadMemory(static_cast<uint32_t>(addr), buffer, size);
 }
 
 void Debugger::gdb_server_read_reg(void *data, int n, intmax_t *value,

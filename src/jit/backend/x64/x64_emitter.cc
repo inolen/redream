@@ -41,18 +41,15 @@ static bool IsCalleeSaved(const Xbyak::Reg &reg) {
     false,  // RCX
     false,  // RDX
     true,   // RBX
-#if PLATFORM_WINDOWS
-    true,  // RSP
-#else
     false,  // RSP
-#endif
-    true,  // RBP
+    true,   // RBP
 #if PLATFORM_WINDOWS
     true,  // RSI
+    true,  // RDI
 #else
     false,  // RSI
-#endif
     false,  // RDI
+#endif
     false,  // R8
     false,  // R9
     false,  // R10
@@ -138,7 +135,11 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   }
 
   // push the callee-saved registers which have been modified
-  int pushed = 0;
+  int pushed = 2;
+
+  // always used by guest ctx and memory pointers
+  push(r15);
+  push(r14);
 
   for (int i = 0; i < x64_num_registers; i++) {
     const Xbyak::Reg &reg =
@@ -160,8 +161,8 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   sub(rsp, stack_size);
 
   // copy guest context and memory base to argument registers
-  mov(r10, reinterpret_cast<uint64_t>(guest_ctx_));
-  mov(r11, reinterpret_cast<uint64_t>(memory_->protected_base()));
+  mov(r14, reinterpret_cast<uint64_t>(guest_ctx_));
+  mov(r15, reinterpret_cast<uint64_t>(memory_->protected_base()));
 
   *out_stack_size = stack_size;
 }
@@ -191,6 +192,10 @@ void X64Emitter::EmitEpilog(IRBuilder &builder, int stack_size) {
       pop(reg);
     }
   }
+
+  // pop r14 and r15
+  pop(r14);
+  pop(r15);
 
   ret();
 }
@@ -481,23 +486,19 @@ EMITTER(LOAD_GUEST) {
     e.mov(arg1, a);
     e.call(reinterpret_cast<void *>(fn));
     e.mov(result, e.rax);
-
-    // restore context register
-    e.mov(e.r10, reinterpret_cast<uint64_t>(e.guest_ctx()));
-    e.mov(e.r11, reinterpret_cast<uint64_t>(e.memory()->protected_base()));
   } else {
     switch (instr->type()) {
       case VALUE_I8:
-        e.mov(result, e.byte[a.cvt64() + e.r11]);
+        e.mov(result, e.byte[a.cvt64() + e.r15]);
         break;
       case VALUE_I16:
-        e.mov(result, e.word[a.cvt64() + e.r11]);
+        e.mov(result, e.word[a.cvt64() + e.r15]);
         break;
       case VALUE_I32:
-        e.mov(result, e.dword[a.cvt64() + e.r11]);
+        e.mov(result, e.dword[a.cvt64() + e.r15]);
         break;
       case VALUE_I64:
-        e.mov(result, e.qword[a.cvt64() + e.r11]);
+        e.mov(result, e.qword[a.cvt64() + e.r15]);
         break;
       default:
         LOG_FATAL("Unexpected load result type");
@@ -577,23 +578,19 @@ EMITTER(STORE_GUEST) {
     e.mov(arg1, a);
     e.mov(arg2, b);
     e.call(reinterpret_cast<void *>(fn));
-
-    // restore context register
-    e.mov(e.r10, reinterpret_cast<uint64_t>(e.guest_ctx()));
-    e.mov(e.r11, reinterpret_cast<uint64_t>(e.memory()->protected_base()));
   } else {
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        e.mov(e.byte[a.cvt64() + e.r11], b);
+        e.mov(e.byte[a.cvt64() + e.r15], b);
         break;
       case VALUE_I16:
-        e.mov(e.word[a.cvt64() + e.r11], b);
+        e.mov(e.word[a.cvt64() + e.r15], b);
         break;
       case VALUE_I32:
-        e.mov(e.dword[a.cvt64() + e.r11], b);
+        e.mov(e.dword[a.cvt64() + e.r15], b);
         break;
       case VALUE_I64:
-        e.mov(e.qword[a.cvt64() + e.r11], b);
+        e.mov(e.qword[a.cvt64() + e.r15], b);
         break;
       default:
         LOG_FATAL("Unexpected store value type");
@@ -610,10 +607,10 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->type()) {
       case VALUE_F32:
-        e.movss(result, e.dword[e.r10 + offset]);
+        e.movss(result, e.dword[e.r14 + offset]);
         break;
       case VALUE_F64:
-        e.movsd(result, e.qword[e.r10 + offset]);
+        e.movsd(result, e.qword[e.r14 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -624,16 +621,16 @@ EMITTER(LOAD_CONTEXT) {
 
     switch (instr->type()) {
       case VALUE_I8:
-        e.mov(result, e.byte[e.r10 + offset]);
+        e.mov(result, e.byte[e.r14 + offset]);
         break;
       case VALUE_I16:
-        e.mov(result, e.word[e.r10 + offset]);
+        e.mov(result, e.word[e.r14 + offset]);
         break;
       case VALUE_I32:
-        e.mov(result, e.dword[e.r10 + offset]);
+        e.mov(result, e.dword[e.r14 + offset]);
         break;
       case VALUE_I64:
-        e.mov(result, e.qword[e.r10 + offset]);
+        e.mov(result, e.qword[e.r14 + offset]);
         break;
       default:
         LOG_FATAL("Unexpected result type");
@@ -648,18 +645,18 @@ EMITTER(STORE_CONTEXT) {
   if (instr->arg1()->constant()) {
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        e.mov(e.byte[e.r10 + offset], instr->arg1()->i8());
+        e.mov(e.byte[e.r14 + offset], instr->arg1()->i8());
         break;
       case VALUE_I16:
-        e.mov(e.word[e.r10 + offset], instr->arg1()->i16());
+        e.mov(e.word[e.r14 + offset], instr->arg1()->i16());
         break;
       case VALUE_I32:
       case VALUE_F32:
-        e.mov(e.dword[e.r10 + offset], instr->arg1()->i32());
+        e.mov(e.dword[e.r14 + offset], instr->arg1()->i32());
         break;
       case VALUE_I64:
       case VALUE_F64:
-        e.mov(e.qword[e.r10 + offset], instr->arg1()->i64());
+        e.mov(e.qword[e.r14 + offset], instr->arg1()->i64());
         break;
       default:
         LOG_FATAL("Unexpected value type");
@@ -671,10 +668,10 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_F32:
-          e.movss(e.dword[e.r10 + offset], src);
+          e.movss(e.dword[e.r14 + offset], src);
           break;
         case VALUE_F64:
-          e.movsd(e.qword[e.r10 + offset], src);
+          e.movsd(e.qword[e.r14 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -685,16 +682,16 @@ EMITTER(STORE_CONTEXT) {
 
       switch (instr->arg1()->type()) {
         case VALUE_I8:
-          e.mov(e.byte[e.r10 + offset], src);
+          e.mov(e.byte[e.r14 + offset], src);
           break;
         case VALUE_I16:
-          e.mov(e.word[e.r10 + offset], src);
+          e.mov(e.word[e.r14 + offset], src);
           break;
         case VALUE_I32:
-          e.mov(e.dword[e.r10 + offset], src);
+          e.mov(e.dword[e.r14 + offset], src);
           break;
         case VALUE_I64:
-          e.mov(e.qword[e.r10 + offset], src);
+          e.mov(e.qword[e.r14 + offset], src);
           break;
         default:
           LOG_FATAL("Unexpected value type");
@@ -705,7 +702,7 @@ EMITTER(STORE_CONTEXT) {
 }
 
 EMITTER(LOAD_LOCAL) {
-  int offset = instr->arg0()->i32();
+  int offset = STACK_OFFSET_LOCALS + instr->arg0()->i32();
 
   if (IsFloatType(instr->type())) {
     const Xbyak::Xmm result = e.GetXMMRegister(instr);
@@ -745,7 +742,7 @@ EMITTER(LOAD_LOCAL) {
 }
 
 EMITTER(STORE_LOCAL) {
-  int offset = instr->arg0()->i32();
+  int offset = STACK_OFFSET_LOCALS + instr->arg0()->i32();
 
   CHECK(!instr->arg1()->constant());
 
@@ -1430,8 +1427,4 @@ EMITTER(CALL_EXTERNAL) {
   // call the external function
   e.CopyOperand(instr->arg0(), e.rax);
   e.call(e.rax);
-
-  // restore context register
-  e.mov(e.r10, reinterpret_cast<uint64_t>(e.guest_ctx()));
-  e.mov(e.r11, reinterpret_cast<uint64_t>(e.memory()->protected_base()));
 }

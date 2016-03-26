@@ -105,8 +105,7 @@ TextureKey TextureProvider::GetTextureKey(const TSP &tsp, const TCW &tcw) {
   return ((uint64_t)tsp.full << 32) | tcw.full;
 }
 
-TileRenderer::TileRenderer(renderer::Backend &rb,
-                           TextureProvider &texture_provider)
+TileRenderer::TileRenderer(Backend &rb, TextureProvider &texture_provider)
     : rb_(rb), texture_provider_(texture_provider) {}
 
 void TileRenderer::ParseContext(const TileContext &tctx,
@@ -164,8 +163,7 @@ void TileRenderer::ParseContext(const TileContext &tctx,
     // map ta parameters to their translated surfaces / vertices
     if (map_params) {
       int offset = static_cast<int>(data - tctx.data);
-      rctx->param_map[offset] = {static_cast<int>(rctx->surfs.size()),
-                                 static_cast<int>(rctx->verts.size())};
+      rctx->param_map[offset] = {rctx->surfs.size(), rctx->verts.size()};
     }
 
     data += TileAccelerator::GetParamSize(pcw, vertex_type_);
@@ -175,10 +173,14 @@ void TileRenderer::ParseContext(const TileContext &tctx,
 }
 
 void TileRenderer::RenderContext(const TileRenderContext &rctx) {
-  rb_.BeginSurfaces(rctx_.projection, rctx_.verts.data(), rctx_.verts.size());
+  auto &surfs = rctx_.surfs;
+  auto &verts = rctx_.verts;
+  auto &sorted_surfs = rctx_.sorted_surfs;
 
-  for (int i = 0, n = rctx_.surfs.size(); i < n; i++) {
-    rb_.DrawSurface(rctx_.surfs[rctx_.sorted_surfs[i]]);
+  rb_.BeginSurfaces(rctx_.projection, verts.data(), verts.size());
+
+  for (int i = 0, n = surfs.size(); i < n; i++) {
+    rb_.DrawSurface(surfs[sorted_surfs[i]]);
   }
 
   rb_.EndSurfaces();
@@ -205,17 +207,20 @@ void TileRenderer::Reset(TileRenderContext *rctx) {
 }
 
 Surface &TileRenderer::AllocSurf(TileRenderContext *rctx, bool copy_from_prev) {
-  int id = rctx->surfs.size();
-  rctx->surfs.Resize(id + 1);
-  Surface &surf = rctx->surfs[id];
+  auto &surfs = rctx->surfs;
+
+  int id = surfs.size();
+  surfs.Resize(id + 1);
+  Surface &surf = surfs[id];
 
   // either reset the surface state, or copy the state from the previous surface
   if (copy_from_prev) {
-    new (&surf) Surface(rctx->surfs[id - 1]);
+    new (&surf) Surface(surfs[id - 1]);
   } else {
     new (&surf) Surface();
   }
 
+  // star verts at the end
   surf.first_vert = rctx->verts.size();
   surf.num_verts = 0;
 
@@ -227,14 +232,17 @@ Surface &TileRenderer::AllocSurf(TileRenderContext *rctx, bool copy_from_prev) {
 }
 
 Vertex &TileRenderer::AllocVert(TileRenderContext *rctx) {
-  int id = rctx->verts.size();
-  rctx->verts.Resize(id + 1);
-  Vertex &v = rctx->verts[id];
+  auto &surfs = rctx->surfs;
+  auto &verts = rctx->verts;
+
+  int id = verts.size();
+  verts.Resize(id + 1);
+  Vertex &v = verts[id];
 
   new (&v) Vertex();
 
   // update vertex count on the current surface
-  Surface &surf = rctx->surfs.back();
+  Surface &surf = surfs.back();
   surf.num_verts++;
 
   return v;
@@ -670,32 +678,36 @@ void TileRenderer::ParseEndOfList(const TileContext &tctx,
                                   const uint8_t *data) {
   DiscardIncompleteSurf(rctx);
 
+  auto &surfs = rctx->surfs;
+  auto &verts = rctx->verts;
+  auto &sorted_surfs = rctx->sorted_surfs;
+
   int first_surf_to_sort = last_sorted_surf_;
-  int num_surfs_to_sort = rctx->surfs.size() - last_sorted_surf_;
+  int num_surfs_to_sort = surfs.size() - last_sorted_surf_;
 
   // sort transparent polys by their z value, from back to front. remember, in
   // dreamcast coordinates smaller z values are further away from the camera
   if ((list_type_ == TA_LIST_TRANSLUCENT ||
        list_type_ == TA_LIST_TRANSLUCENT_MODVOL) &&
       tctx.autosort) {
-    int *first = &rctx->sorted_surfs[first_surf_to_sort];
-    int *last = &rctx->sorted_surfs[first_surf_to_sort + num_surfs_to_sort];
+    int *first = &sorted_surfs[first_surf_to_sort];
+    int *last = &sorted_surfs[first_surf_to_sort + num_surfs_to_sort];
     std::sort(first, last, [&](int a, int b) {
-      Surface *surfa = &rctx->surfs[a];
-      Surface *surfb = &rctx->surfs[b];
+      Surface &surfa = surfs[a];
+      Surface &surfb = surfs[b];
 
       float minza = std::numeric_limits<float>::max();
-      for (int i = 0; i < surfa->num_verts; i++) {
-        Vertex *v = &rctx->verts[surfa->first_vert + i];
-        if (v->xyz[2] < minza) {
-          minza = v->xyz[2];
+      for (int i = 0, n = surfa.num_verts; i < n; i++) {
+        Vertex &v = verts[surfa.first_vert + i];
+        if (v.xyz[2] < minza) {
+          minza = v.xyz[2];
         }
       }
       float minzb = std::numeric_limits<float>::max();
-      for (int i = 0; i < surfb->num_verts; i++) {
-        Vertex *v = &rctx->verts[surfb->first_vert + i];
-        if (v->xyz[2] < minzb) {
-          minzb = v->xyz[2];
+      for (int i = 0, n = surfb.num_verts; i < n; i++) {
+        Vertex &v = verts[surfb.first_vert + i];
+        if (v.xyz[2] < minzb) {
+          minzb = v.xyz[2];
         }
       }
 
@@ -705,7 +717,7 @@ void TileRenderer::ParseEndOfList(const TileContext &tctx,
 
   last_poly_ = nullptr;
   last_vertex_ = nullptr;
-  last_sorted_surf_ = static_cast<int>(rctx->surfs.size());
+  last_sorted_surf_ = surfs.size();
 }
 
 // Vertices coming into the TA are in window space, with the Z component being
@@ -716,17 +728,18 @@ void TileRenderer::ParseEndOfList(const TileContext &tctx,
 // in order to perspective correct the texture mapping.
 void TileRenderer::FillProjectionMatrix(const TileContext &tctx,
                                         TileRenderContext *rctx) {
+  auto &verts = rctx->verts;
   float znear = std::numeric_limits<float>::min();
   float zfar = std::numeric_limits<float>::max();
 
   // Z component is 1/W, so +Z is into the screen
-  for (int i = 0, n = rctx->verts.size(); i < n; i++) {
-    Vertex *v = &rctx->verts[i];
-    if (v->xyz[2] > znear) {
-      znear = v->xyz[2];
+  for (int i = 0, n = verts.size(); i < n; i++) {
+    Vertex &v = verts[i];
+    if (v.xyz[2] > znear) {
+      znear = v.xyz[2];
     }
-    if (v->xyz[2] < zfar) {
-      zfar = v->xyz[2];
+    if (v.xyz[2] < zfar) {
+      zfar = v.xyz[2];
     }
   }
 

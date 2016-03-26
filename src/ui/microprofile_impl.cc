@@ -1698,7 +1698,7 @@ void MicroProfileImpl::DrawText(int x, int y, uint32_t color,
   float fx = static_cast<float>(x);
   float fy = static_cast<float>(y);
   float fy2 = fy + (MICROPROFILE_TEXT_HEIGHT + 1);
-  int text_len = strlen(text);
+  int text_len = static_cast<int>(strlen(text));
 
   Vertex2D *vertex = AllocVertices({PRIM_TRIANGLES,
                                     font_tex_,

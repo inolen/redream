@@ -11,7 +11,7 @@
 #define ANSI_COLOR_RESET "\x1b[0m"
 
 void Log(LogLevel level, const char *format, ...) {
-  static char buffer[10240];
+  static char buffer[0x20000];
 
   va_list args;
   va_start(args, format);

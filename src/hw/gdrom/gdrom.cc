@@ -196,7 +196,7 @@ void GDROM::TriggerEvent(GDEvent ev, intptr_t arg0, intptr_t arg1) {
         int num_sectors = std::min(cdreq_.num_sectors, max_pio_sectors);
         pio_size_ = ReadSectors(cdreq_.first_sector, cdreq_.sector_format,
                                 cdreq_.sector_mask, num_sectors, pio_buffer_,
-                                sizeof(pio_buffer_));
+                                static_cast<int>(sizeof(pio_buffer_)));
         pio_head_ = 0;
 
         // update sector read state

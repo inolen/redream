@@ -9,7 +9,7 @@
 namespace re {
 
 #ifndef HAVE_STRCASECMP
-#define strcasecmp stricmp
+#define strcasecmp _stricmp
 #endif
 
 #ifndef HAVE_STRNSTR

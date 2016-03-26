@@ -220,8 +220,8 @@ class Memory {
   sys::SharedMemoryHandle shmem_;
 
   // physical regions of memory
-  MemoryRegion *regions_;
   int num_regions_;
+  MemoryRegion *regions_;
 
   // map virtual addresses -> physical addresses
   PageEntry *pages_;

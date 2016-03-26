@@ -3,6 +3,10 @@
 
 namespace re {
 
+#if PLATFORM_WINDOWS
+#define alloca _alloca
+#endif
+
 template <typename T>
 T load(const void *ptr) {
   return *reinterpret_cast<const T *>(ptr);

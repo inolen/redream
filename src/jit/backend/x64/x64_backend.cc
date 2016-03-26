@@ -22,34 +22,34 @@ namespace backend {
 namespace x64 {
 // x64 register layout
 
-// %rax %eax %ax %al      <-- temporary
-// %rcx %ecx %cx %cl      <-- argument
-// %rdx %edx %dx %dl      <-- argument
-// %rbx %ebx %bx %bl      <-- available, callee saved
-// %rsp %esp %sp %spl     <-- reserved
-// %rbp %ebp %bp %bpl     <-- available, callee saved
-// %rsi %esi %si %sil     <-- argument
-// %rdi %edi %di %dil     <-- argument
-// %r8 %r8d %r8w %r8b     <-- argument
-// %r9 %r9d %r9w %r9b     <-- argument
-// %r10 %r10d %r10w %r10b <-- available, not callee saved
-// %r11 %r11d %r11w %r11b <-- available, not callee saved
-// %r12 %r12d %r12w %r12b <-- available, callee saved
-// %r13 %r13d %r13w %r13b <-- available, callee saved
-// %r14 %r14d %r14w %r14b <-- available, callee saved
-// %r15 %r15d %r15w %r15b <-- available, callee saved
+// %rax %eax %ax %al      <-- both: temporary
+// %rcx %ecx %cx %cl      <-- both: argument
+// %rdx %edx %dx %dl      <-- both: argument
+// %rbx %ebx %bx %bl      <-- both: available (callee saved)
+// %rsp %esp %sp %spl     <-- both: reserved
+// %rbp %ebp %bp %bpl     <-- both: available (callee saved)
+// %rsi %esi %si %sil     <-- msvc: available (callee saved), amd64: argument
+// %rdi %edi %di %dil     <-- msvc: available (callee saved), amd64: argument
+// %r8 %r8d %r8w %r8b     <-- both: argument
+// %r9 %r9d %r9w %r9b     <-- both: argument
+// %r10 %r10d %r10w %r10b <-- both: available (not callee saved)
+// %r11 %r11d %r11w %r11b <-- both: available (not callee saved)
+// %r12 %r12d %r12w %r12b <-- both: available (callee saved)
+// %r13 %r13d %r13w %r13b <-- both: available (callee saved)
+// %r14 %r14d %r14w %r14b <-- both: available (callee saved)
+// %r15 %r15d %r15w %r15b <-- both: available (callee saved)
 
-// msvc calling convention uses rcx, rdx, r8 and r9 for arguments
-// amd64 calling convention uses rdi, rsi, rdx, rcx, r8 and r9 for arguments
+// msvc calling convention uses rcx, rdx, r8, r9 for arguments
+// amd64 calling convention uses rdi, rsi, rdx, rcx, r8, r9 for arguments
 // both use the same xmm registers for floating point arguments
-// our largest function call uses only 3 arguments, leaving rdi, rsi and r9
-// available on msvc and rcx, r8 and r9 available on amd64
+// our largest function call uses only 3 arguments
+// msvc is left with rax, rdi, rsi, r9-r11,
+// amd64 is left with rax, rcx, r8-r11 available on amd64
 
-// rax is used as a scratch register, while rdi/r8, r9 and xmm1 are used for
-// storing
-// a constant in case the constant propagation pass didn't eliminate it
+// rax is used as a scratch register
+// r10, r11, xmm1 are used for constant not eliminated by const propagation
+// r14, r15 are reserved for the context and memory pointers
 
-// rsi is left unused on msvc and rcx is left unused on amd64
 const Register x64_registers[] = {
     {"rbx", ir::VALUE_INT_MASK,
      reinterpret_cast<const void *>(&Xbyak::util::rbx)},
@@ -59,10 +59,10 @@ const Register x64_registers[] = {
      reinterpret_cast<const void *>(&Xbyak::util::r12)},
     {"r13", ir::VALUE_INT_MASK,
      reinterpret_cast<const void *>(&Xbyak::util::r13)},
-    {"r14", ir::VALUE_INT_MASK,
-     reinterpret_cast<const void *>(&Xbyak::util::r14)},
-    {"r15", ir::VALUE_INT_MASK,
-     reinterpret_cast<const void *>(&Xbyak::util::r15)},
+    // {"r14", ir::VALUE_INT_MASK,
+    //  reinterpret_cast<const void *>(&Xbyak::util::r14)},
+    // {"r15", ir::VALUE_INT_MASK,
+    //  reinterpret_cast<const void *>(&Xbyak::util::r15)},
     {"xmm6", ir::VALUE_FLOAT_MASK,
      reinterpret_cast<const void *>(&Xbyak::util::xmm6)},
     {"xmm7", ir::VALUE_FLOAT_MASK,
@@ -82,15 +82,13 @@ const int x64_num_registers = sizeof(x64_registers) / sizeof(Register);
 const int x64_arg0_idx = Xbyak::Operand::RCX;
 const int x64_arg1_idx = Xbyak::Operand::RDX;
 const int x64_arg2_idx = Xbyak::Operand::R8;
-const int x64_tmp0_idx = Xbyak::Operand::RDI;
-const int x64_tmp1_idx = Xbyak::Operand::R9;
 #else
 const int x64_arg0_idx = Xbyak::Operand::RDI;
 const int x64_arg1_idx = Xbyak::Operand::RSI;
 const int x64_arg2_idx = Xbyak::Operand::RDX;
-const int x64_tmp0_idx = Xbyak::Operand::R8;
-const int x64_tmp1_idx = Xbyak::Operand::R9;
 #endif
+const int x64_tmp0_idx = Xbyak::Operand::R10;
+const int x64_tmp1_idx = Xbyak::Operand::R11;
 }
 }
 }
@@ -240,8 +238,6 @@ void X64Backend::AssembleThunks() {
       Xbyak::Reg64 dst(i);
       e.call(e.rax);
       e.mov(dst, e.rax);
-      e.mov(e.r10, reinterpret_cast<uint64_t>(guest_ctx_));
-      e.mov(e.r11, reinterpret_cast<uint64_t>(memory_.protected_base()));
       e.add(e.rsp, STACK_SHADOW_SPACE + 8);
       e.ret();
     }
@@ -253,8 +249,6 @@ void X64Backend::AssembleThunks() {
     store_thunk_ = e.getCurr<SlowmemThunk>();
 
     e.call(e.rax);
-    e.mov(e.r10, reinterpret_cast<uint64_t>(guest_ctx_));
-    e.mov(e.r11, reinterpret_cast<uint64_t>(memory_.protected_base()));
     e.add(e.rsp, STACK_SHADOW_SPACE + 8);
     e.ret();
   }

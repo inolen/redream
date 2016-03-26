@@ -8,6 +8,9 @@ using namespace re::hw;
 using namespace re::hw::aica;
 using namespace re::hw::holly;
 
+template <>
+uint32_t AICA::ReadWave(uint32_t addr);
+
 AICA::AICA(Dreamcast &dc)
     : Device(dc),
       MemoryInterface(this),
@@ -64,29 +67,32 @@ void AICA::WriteRegister(uint32_t addr, uint32_t value) {
 
 template <typename T>
 T AICA::ReadWave(uint32_t addr) {
-  if (sizeof(T) == 4) {
-    // FIXME temp hacks to get Crazy Taxi 1 booting
-    if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
-      return static_cast<T>(0x54494e49);
-    }
-    // FIXME temp hacks to get Crazy Taxi 2 booting
-    if (addr == 0x5c) {
-      return static_cast<T>(0x54494e49);
-    }
-    // FIXME temp hacks to get PoP booting
-    if (addr == 0xb200 || addr == 0xb210 || addr == 0xb220 || addr == 0xb230 ||
-        addr == 0xb240 || addr == 0xb250 || addr == 0xb260 || addr == 0xb270 ||
-        addr == 0xb280 || addr == 0xb290 || addr == 0xb2a0 || addr == 0xb2b0 ||
-        addr == 0xb2c0 || addr == 0xb2d0 || addr == 0xb2e0 || addr == 0xb2f0 ||
-        addr == 0xb300 || addr == 0xb310 || addr == 0xb320 || addr == 0xb330 ||
-        addr == 0xb340 || addr == 0xb350 || addr == 0xb360 || addr == 0xb370 ||
-        addr == 0xb380 || addr == 0xb390 || addr == 0xb3a0 || addr == 0xb3b0 ||
-        addr == 0xb3c0 || addr == 0xb3d0 || addr == 0xb3e0 || addr == 0xb3f0) {
-      return static_cast<T>(0x0);
-    }
+  return re::load<T>(&wave_ram_[addr]);
+}
+
+template <>
+uint32_t AICA::ReadWave(uint32_t addr) {
+  // FIXME temp hacks to get Crazy Taxi 1 booting
+  if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
+    return 0x54494e49;
+  }
+  // FIXME temp hacks to get Crazy Taxi 2 booting
+  if (addr == 0x5c) {
+    return 0x54494e49;
+  }
+  // FIXME temp hacks to get PoP booting
+  if (addr == 0xb200 || addr == 0xb210 || addr == 0xb220 || addr == 0xb230 ||
+      addr == 0xb240 || addr == 0xb250 || addr == 0xb260 || addr == 0xb270 ||
+      addr == 0xb280 || addr == 0xb290 || addr == 0xb2a0 || addr == 0xb2b0 ||
+      addr == 0xb2c0 || addr == 0xb2d0 || addr == 0xb2e0 || addr == 0xb2f0 ||
+      addr == 0xb300 || addr == 0xb310 || addr == 0xb320 || addr == 0xb330 ||
+      addr == 0xb340 || addr == 0xb350 || addr == 0xb360 || addr == 0xb370 ||
+      addr == 0xb380 || addr == 0xb390 || addr == 0xb3a0 || addr == 0xb3b0 ||
+      addr == 0xb3c0 || addr == 0xb3d0 || addr == 0xb3e0 || addr == 0xb3f0) {
+    return 0x0;
   }
 
-  return re::load<T>(&wave_ram_[addr]);
+  return re::load<uint32_t>(&wave_ram_[addr]);
 }
 
 template <typename T>

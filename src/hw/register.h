@@ -7,10 +7,10 @@
 namespace re {
 namespace hw {
 
-static const uint32_t R = 0x1;
-static const uint32_t W = 0x2;
-static const uint32_t RW = 0x3;
-static const uint32_t UNDEFINED = 0x0;
+static const uint8_t R = 0x1;
+static const uint8_t W = 0x2;
+static const uint8_t RW = 0x3;
+static const uint8_t UNDEFINED = 0x0;
 
 struct Register;
 

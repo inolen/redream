@@ -17,6 +17,7 @@ void PassRunner::Run(IRBuilder &builder, bool debug) {
   if (debug) {
     LOG_INFO("Original:");
     builder.Dump();
+    LOG_INFO("");
   }
 
   for (auto &pass : passes_) {
@@ -25,6 +26,7 @@ void PassRunner::Run(IRBuilder &builder, bool debug) {
     if (debug) {
       LOG_INFO("%s:", pass->name());
       builder.Dump();
+      LOG_INFO("");
     }
   }
 }

@@ -110,7 +110,8 @@ void Tracer::OnPaint(bool show_main_menu) {
   RenderContextMenu();
 
   // clamp surfaces the last surface belonging to the current param
-  int last_idx = rctx_.surfs.size() - 1;
+  int n = static_cast<int>(rctx_.surfs.size());
+  int last_idx = n - 1;
 
   if (current_offset_ != INVALID_OFFSET) {
     const auto &param_entry = rctx_.param_map[current_offset_];
@@ -118,9 +119,10 @@ void Tracer::OnPaint(bool show_main_menu) {
   }
 
   // render the context
-  rb_.BeginSurfaces(rctx_.projection, rctx_.verts.data(), rctx_.verts.size());
+  rb_.BeginSurfaces(rctx_.projection, rctx_.verts.data(),
+                    static_cast<int>(rctx_.verts.size()));
 
-  for (int i = 0, n = rctx_.surfs.size(); i < n; i++) {
+  for (int i = 0; i < n; i++) {
     int idx = rctx_.sorted_surfs[i];
 
     // if this surface comes after the current parameter, ignore it

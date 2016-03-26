@@ -107,19 +107,18 @@ Memory::Memory(Machine &machine)
       physical_base_(nullptr),
       virtual_base_(nullptr),
       protected_base_(nullptr) {
-  regions_ = new MemoryRegion[MAX_REGIONS]();
   num_regions_ = 1;  // 0 page is reserved
-
+  regions_ = new MemoryRegion[MAX_REGIONS]();
   pages_ = new PageEntry[NUM_PAGES]();
 }
 
 Memory::~Memory() {
-  delete[] regions_;
-  delete[] pages_;
-
   Unmap();
 
   DestroySharedMemory();
+
+  delete[] regions_;
+  delete[] pages_;
 }
 
 bool Memory::Init() {
