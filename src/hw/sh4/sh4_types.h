@@ -2,6 +2,7 @@
 #define SH4_REGS_H
 
 #include <stdint.h>
+#include "hw/regions.h"
 
 namespace re {
 namespace hw {
@@ -72,11 +73,17 @@ union DMAOR_T {
   };
 };
 
+// control register area (0xfe000000 - 0xffffffff) seems to actually only
+// represent 64 x 256 byte blocks of memory. the block index is represented
+// by bits 17-24 and the block offset by bits 2-7
+#define SH4_REG_OFFSET(addr) ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2)
+
 enum {
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
-  name##_OFFSET = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2),
+  name##_OFFSET = SH4_REG_OFFSET(addr),
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
+  NUM_SH4_REGS = SH4_REG_OFFSET(0xffffffff) + 1
 };
 
 // interrupts

@@ -43,7 +43,7 @@ enum {
   MEMORY_REGION(UNASSIGNED,  0x18000000, 0x1bffffff),
 
   MEMORY_REGION(AREA7,       0x1c000000, 0x1fffffff),
-  MEMORY_REGION(SH4_REG,     0x1c000000, 0x1fffffff),
+  MEMORY_REGION(SH4_REG,     0x1e000000, 0x1fffffff),
   MEMORY_REGION(SH4_CACHE,   0x7c000000, 0x7fffffff),
   MEMORY_REGION(SH4_SQ,      0xe0000000, 0xe3ffffff),
 
@@ -57,7 +57,6 @@ enum {
   MEMORY_REGION(P4,          0xe0000000, 0xffffffff),
 };
 // clang-format on
-
 }
 }
 

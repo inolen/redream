@@ -14,7 +14,6 @@ enum {
 #undef AICA_REG
   NUM_AICA_REGS = AICA_REG_SIZE >> 2,
 };
-
 }
 }
 ]

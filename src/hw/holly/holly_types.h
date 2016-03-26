@@ -150,7 +150,6 @@ enum HollyInterrupt : uint64_t {
   // SH4 Accessing to Inhibited Area
   HOLLY_INTC_CIHINT = HOLLY_INTC_ERR | 0x80000000
 };
-
 }
 }
 }

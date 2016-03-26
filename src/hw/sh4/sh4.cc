@@ -39,7 +39,7 @@ SH4::SH4(Dreamcast &dc)
       memory_(nullptr),
       scheduler_(nullptr),
       code_cache_(nullptr),
-      area7_(),
+      regs_(),
       cache_(),
       show_perf_(false),
       mips_(),
@@ -71,17 +71,38 @@ bool SH4::Init() {
   ctx_.sr = 0x700000f0;
   ctx_.fpscr = 0x00040001;
 
-  // initialize registers
-  memset(area7_, 0, sizeof(area7_));
+  // clear cache
+  memset(cache_, 0, sizeof(cache_));
+
+// initialize registers
 #define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
   if (default != HELD) {                                                 \
-    *(uint32_t *)&area7_[name##_OFFSET] = default;                       \
+    regs_[name##_OFFSET] = {flags, default};                             \
   }
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
 
-  // clear cache
-  memset(cache_, 0, sizeof(cache_));
+  SH4_REGISTER_R32_DELEGATE(PDTRA);
+  SH4_REGISTER_W32_DELEGATE(MMUCR);
+  SH4_REGISTER_W32_DELEGATE(CCR);
+  SH4_REGISTER_W32_DELEGATE(CHCR0);
+  SH4_REGISTER_W32_DELEGATE(CHCR1);
+  SH4_REGISTER_W32_DELEGATE(CHCR2);
+  SH4_REGISTER_W32_DELEGATE(CHCR3);
+  SH4_REGISTER_W32_DELEGATE(DMAOR);
+  SH4_REGISTER_W32_DELEGATE(IPRA);
+  SH4_REGISTER_W32_DELEGATE(IPRB);
+  SH4_REGISTER_W32_DELEGATE(IPRC);
+  SH4_REGISTER_W32_DELEGATE(TSTR);
+  SH4_REGISTER_W32_DELEGATE(TCR0);
+  SH4_REGISTER_W32_DELEGATE(TCR1);
+  SH4_REGISTER_W32_DELEGATE(TCR2);
+  SH4_REGISTER_R32_DELEGATE(TCNT0);
+  SH4_REGISTER_W32_DELEGATE(TCNT0);
+  SH4_REGISTER_R32_DELEGATE(TCNT1);
+  SH4_REGISTER_W32_DELEGATE(TCNT1);
+  SH4_REGISTER_R32_DELEGATE(TCNT2);
+  SH4_REGISTER_W32_DELEGATE(TCNT2);
 
   // reset interrupts
   ReprioritizeInterrupts();
@@ -479,155 +500,36 @@ void SH4::SwapFPRegisterBank() {
 
 template <typename T>
 T SH4::ReadRegister(uint32_t addr) {
-  // translate from 64mb space to our 16kb space
-  addr = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2);
+  uint32_t offset = SH4_REG_OFFSET(addr);
+  Register &reg = regs_[offset];
 
-  switch (addr) {
-    case PDTRA_OFFSET: {
-      // magic values to get past 0x8c00b948 in the boot rom:
-      // void _8c00b92c(int arg1) {
-      //   sysvars->var1 = reg[PDTRA];
-      //   for (i = 0; i < 4; i++) {
-      //     sysvars->var2 = reg[PDTRA];
-      //     if (arg1 == sysvars->var2 & 0x03) {
-      //       return;
-      //     }
-      //   }
-      //   reg[PR] = (uint32_t *)0x8c000000;    /* loop forever */
-      // }
-      // old_PCTRA = reg[PCTRA];
-      // i = old_PCTRA | 0x08;
-      // reg[PCTRA] = i;
-      // reg[PDTRA] = reg[PDTRA] | 0x03;
-      // _8c00b92c(3);
-      // reg[PCTRA] = i | 0x03;
-      // _8c00b92c(3);
-      // reg[PDTRA] = reg[PDTRA] & 0xfffe;
-      // _8c00b92c(0);
-      // reg[PCTRA] = i;
-      // _8c00b92c(3);
-      // reg[PCTRA] = i | 0x04;
-      // _8c00b92c(3);
-      // reg[PDTRA] = reg[PDTRA] & 0xfffd;
-      // _8c00b92c(0);
-      // reg[PCTRA] = old_PCTRA;
-      uint32_t pctra = PCTRA;
-      uint32_t pdtra = PDTRA;
-      uint32_t v = 0;
-      if ((pctra & 0xf) == 0x8 ||
-          ((pctra & 0xf) == 0xb && (pdtra & 0xf) != 0x2) ||
-          ((pctra & 0xf) == 0xc && (pdtra & 0xf) == 0x2)) {
-        v = 3;
-      }
-      // FIXME cable setting
-      // When a VGA cable* is connected
-      // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-      // "00")
-      // 2. Set the HOLLY synchronization register for VGA.  (The SYNC output is
-      // H-Sync and V-Sync.)
-      // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-      // VIDEO1 = 0 and VIDEO0 = 1 are output.  VIDEO0 is connected to the
-      // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-      //
-      // When an RGB(NTSC/PAL) cable* is connected
-      // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-      // "10")
-      // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-      // output is H-Sync and V-Sync.)
-      // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-      // VIDEO1 = 1 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-      // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-      //
-      // When a stereo A/V cable, an S-jack cable* or an RF converter* is
-      // connected
-      // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-      // "11")
-      // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-      // output is H-Sync and V-Sync.)
-      // 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
-      // VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-      // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-      // v |= 0x3 << 8;
-      return v;
-    }
-
-    case TCNT0_OFFSET:
-    case TCNT1_OFFSET:
-    case TCNT2_OFFSET: {
-      int n = addr == TCNT0_OFFSET ? 0 : addr == TCNT1_OFFSET ? 1 : 2;
-      return TimerCount(n);
-    }
+  if (!(reg.flags & R)) {
+    LOG_WARNING("Invalid read access at 0x%x", addr);
+    return 0;
   }
 
-  return static_cast<T>(area7_[addr]);
+  if (reg.read) {
+    return reg.read(reg);
+  }
+
+  return static_cast<T>(reg.value);
 }
 
 template <typename T>
 void SH4::WriteRegister(uint32_t addr, T value) {
-  // translate from 64mb space to our 16kb space
-  addr = ((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2);
+  uint32_t offset = SH4_REG_OFFSET(addr);
+  Register &reg = regs_[offset];
 
-  area7_[addr] = static_cast<uint32_t>(value);
+  if (!(reg.flags & W)) {
+    LOG_WARNING("Invalid write access at 0x%x", addr);
+    return;
+  }
 
-  switch (addr) {
-    case MMUCR_OFFSET: {
-      if (value) {
-        LOG_FATAL("MMU not currently supported");
-      }
-    } break;
+  uint32_t old_value = reg.value;
+  reg.value = static_cast<uint32_t>(value);
 
-    case CCR_OFFSET: {
-      if (CCR.ICI) {
-        ResetCache();
-      }
-    } break;
-
-    case CHCR0_OFFSET: {
-      CheckDMA(0);
-    } break;
-
-    case CHCR1_OFFSET: {
-      CheckDMA(1);
-    } break;
-
-    case CHCR2_OFFSET: {
-      CheckDMA(2);
-    } break;
-
-    case CHCR3_OFFSET: {
-      CheckDMA(3);
-    } break;
-
-    case DMAOR_OFFSET: {
-      CheckDMA(0);
-      CheckDMA(1);
-      CheckDMA(2);
-      CheckDMA(3);
-    } break;
-
-    case IPRA_OFFSET:
-    case IPRB_OFFSET:
-    case IPRC_OFFSET: {
-      ReprioritizeInterrupts();
-    } break;
-
-    case TSTR_OFFSET: {
-      UpdateTimerStart();
-    } break;
-
-    case TCR0_OFFSET:
-    case TCR1_OFFSET:
-    case TCR2_OFFSET: {
-      int n = addr == TCR0_OFFSET ? 0 : addr == TCR1_OFFSET ? 1 : 2;
-      UpdateTimerControl(n);
-    } break;
-
-    case TCNT0_OFFSET:
-    case TCNT1_OFFSET:
-    case TCNT2_OFFSET: {
-      int n = addr == TCNT0_OFFSET ? 0 : addr == TCNT1_OFFSET ? 1 : 2;
-      UpdateTimerCount(n);
-    } break;
+  if (reg.write) {
+    reg.write(reg, old_value);
   }
 }
 
@@ -728,8 +630,8 @@ void SH4::ReprioritizeInterrupts() {
       // get current priority for interrupt
       int priority = int_info.default_priority;
       if (int_info.ipr) {
-        uint16_t v = re::load<uint16_t>(&area7_[int_info.ipr]);
-        priority = (v >> int_info.ipr_shift) & 0xf;
+        Register &ipr_reg = regs_[int_info.ipr];
+        priority = ((ipr_reg.value & 0xffff) >> int_info.ipr_shift) & 0xf;
       }
 
       if (priority != i) {
@@ -886,3 +788,125 @@ void SH4::ExpireTimer() {
   // reschedule the timer with the new count
   RescheduleTimer(N, tcnt, tcr);
 }
+
+SH4_R32_DELEGATE(PDTRA) {
+  // magic values to get past 0x8c00b948 in the boot rom:
+  // void _8c00b92c(int arg1) {
+  //   sysvars->var1 = reg[PDTRA];
+  //   for (i = 0; i < 4; i++) {
+  //     sysvars->var2 = reg[PDTRA];
+  //     if (arg1 == sysvars->var2 & 0x03) {
+  //       return;
+  //     }
+  //   }
+  //   reg[PR] = (uint32_t *)0x8c000000;    /* loop forever */
+  // }
+  // old_PCTRA = reg[PCTRA];
+  // i = old_PCTRA | 0x08;
+  // reg[PCTRA] = i;
+  // reg[PDTRA] = reg[PDTRA] | 0x03;
+  // _8c00b92c(3);
+  // reg[PCTRA] = i | 0x03;
+  // _8c00b92c(3);
+  // reg[PDTRA] = reg[PDTRA] & 0xfffe;
+  // _8c00b92c(0);
+  // reg[PCTRA] = i;
+  // _8c00b92c(3);
+  // reg[PCTRA] = i | 0x04;
+  // _8c00b92c(3);
+  // reg[PDTRA] = reg[PDTRA] & 0xfffd;
+  // _8c00b92c(0);
+  // reg[PCTRA] = old_PCTRA;
+  uint32_t pctra = PCTRA;
+  uint32_t pdtra = PDTRA;
+  uint32_t v = 0;
+  if ((pctra & 0xf) == 0x8 || ((pctra & 0xf) == 0xb && (pdtra & 0xf) != 0x2) ||
+      ((pctra & 0xf) == 0xc && (pdtra & 0xf) == 0x2)) {
+    v = 3;
+  }
+  // FIXME cable setting
+  // When a VGA cable* is connected
+  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+  // "00")
+  // 2. Set the HOLLY synchronization register for VGA.  (The SYNC output is
+  // H-Sync and V-Sync.)
+  // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
+  // VIDEO1 = 0 and VIDEO0 = 1 are output.  VIDEO0 is connected to the
+  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+  //
+  // When an RGB(NTSC/PAL) cable* is connected
+  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+  // "10")
+  // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
+  // output is H-Sync and V-Sync.)
+  // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
+  // VIDEO1 = 1 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
+  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+  //
+  // When a stereo A/V cable, an S-jack cable* or an RF converter* is
+  // connected
+  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+  // "11")
+  // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
+  // output is H-Sync and V-Sync.)
+  // 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
+  // VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
+  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+  // v |= 0x3 << 8;
+  return v;
+}
+
+SH4_W32_DELEGATE(MMUCR) {
+  if (!reg.value) {
+    return;
+  }
+
+  LOG_FATAL("MMU not currently supported");
+}
+
+SH4_W32_DELEGATE(CCR) {
+  if (CCR.ICI) {
+    ResetCache();
+  }
+}
+
+SH4_W32_DELEGATE(CHCR0) { CheckDMA(0); }
+
+SH4_W32_DELEGATE(CHCR1) { CheckDMA(1); }
+
+SH4_W32_DELEGATE(CHCR2) { CheckDMA(2); }
+
+SH4_W32_DELEGATE(CHCR3) { CheckDMA(3); }
+
+SH4_W32_DELEGATE(DMAOR) {
+  CheckDMA(0);
+  CheckDMA(1);
+  CheckDMA(2);
+  CheckDMA(3);
+}
+
+SH4_W32_DELEGATE(IPRA) { ReprioritizeInterrupts(); }
+
+SH4_W32_DELEGATE(IPRB) { ReprioritizeInterrupts(); }
+
+SH4_W32_DELEGATE(IPRC) { ReprioritizeInterrupts(); }
+
+SH4_W32_DELEGATE(TSTR) { UpdateTimerStart(); }
+
+SH4_W32_DELEGATE(TCR0) { UpdateTimerControl(0); }
+
+SH4_W32_DELEGATE(TCR1) { UpdateTimerControl(1); }
+
+SH4_W32_DELEGATE(TCR2) { UpdateTimerControl(2); }
+
+SH4_R32_DELEGATE(TCNT0) { return TimerCount(0); }
+
+SH4_W32_DELEGATE(TCNT0) { UpdateTimerCount(0); }
+
+SH4_R32_DELEGATE(TCNT1) { return TimerCount(1); }
+
+SH4_W32_DELEGATE(TCNT1) { UpdateTimerCount(1); }
+
+SH4_R32_DELEGATE(TCNT2) { return TimerCount(2); }
+
+SH4_W32_DELEGATE(TCNT2) { UpdateTimerCount(2); }

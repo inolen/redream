@@ -2005,8 +2005,8 @@ EMITTER(FSCA) {
   Value *addr = b.Add(fsca_table, fsca_offset);
 
   b.StoreRegisterF(n, b.LoadHost(addr, VALUE_F32));
-  b.StoreRegisterF(n + 1,
-                   b.LoadHost(b.Add(addr, b.AllocConstant(INT64_C(4))), VALUE_F32));
+  b.StoreRegisterF(
+      n + 1, b.LoadHost(b.Add(addr, b.AllocConstant(INT64_C(4))), VALUE_F32));
 }
 
 // FTRV XMTRX,FVn PR=0 1111nn0111111101

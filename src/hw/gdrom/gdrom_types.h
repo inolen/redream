@@ -84,7 +84,6 @@ union GD_BYTECT_T {
     uint32_t reserved : 16;
   };
 };
-
 }
 }
 }

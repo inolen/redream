@@ -1,6 +1,9 @@
 #ifndef REGISTER_H
 #define REGISTER_H
 
+#include <stdint.h>
+#include "core/delegate.h"
+
 namespace re {
 namespace hw {
 
@@ -26,7 +29,6 @@ struct Register {
   RegisterReadDelegate read;
   RegisterWriteDelegate write;
 };
-
 }
 }
 
