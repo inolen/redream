@@ -9,20 +9,20 @@ namespace re {
 
 class Arena {
   struct Chunk {
-    Chunk(size_t capacity) : capacity(capacity), head(0), next(nullptr) {
+    Chunk(int capacity) : capacity(capacity), head(0), next(nullptr) {
       buffer = (uint8_t *)malloc(capacity);
     }
 
     ~Chunk() { free(buffer); }
 
-    size_t capacity;
+    int capacity;
     uint8_t *buffer;
-    size_t head;
+    int head;
     Chunk *next;
   };
 
  public:
-  Arena(size_t chunk_size)
+  Arena(int chunk_size)
       : chunk_size_(chunk_size), root_chunk_(nullptr), current_chunk_(nullptr) {
     current_chunk_ = root_chunk_ = new Chunk(chunk_size_);
   }
@@ -37,7 +37,7 @@ class Arena {
     }
   }
 
-  void *Alloc(size_t bytes) {
+  void *Alloc(int bytes) {
     CHECK_LE(bytes, chunk_size_,
              "Allocation of %zu bytes is greater than chunk size of %zu bytes",
              bytes, chunk_size_);
@@ -68,7 +68,7 @@ class Arena {
   }
 
  private:
-  size_t chunk_size_;
+  int chunk_size_;
   Chunk *root_chunk_, *current_chunk_;
 };
 }
