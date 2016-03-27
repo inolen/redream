@@ -111,7 +111,7 @@ void Tracer::OnPaint(bool show_main_menu) {
 
   // clamp surfaces the last surface belonging to the current param
   int n = static_cast<int>(rctx_.surfs.size());
-  int last_idx = n - 1;
+  int last_idx = n;
 
   if (current_offset_ != INVALID_OFFSET) {
     const auto &param_entry = rctx_.param_map[current_offset_];
@@ -126,7 +126,7 @@ void Tracer::OnPaint(bool show_main_menu) {
     int idx = rctx_.sorted_surfs[i];
 
     // if this surface comes after the current parameter, ignore it
-    if (idx > last_idx) {
+    if (idx >= last_idx) {
       continue;
     }
 
@@ -234,7 +234,7 @@ void Tracer::RenderTextureMenu() {
   ImGui::PopStyleVar();
 }
 
-void Tracer::FormatTooltip(const PolyParam *param, const Surface *surf) {
+void Tracer::FormatTooltip(const PolyParam *param, const Surface &surf) {
   int poly_type = TileAccelerator::GetPolyType(param->type0.pcw);
 
   ImGui::BeginTooltip();
@@ -276,22 +276,22 @@ void Tracer::FormatTooltip(const PolyParam *param, const Surface *surf) {
   ImGui::Separator();
 
   ImGui::Image(
-      reinterpret_cast<ImTextureID>(static_cast<intptr_t>(surf->texture)),
+      reinterpret_cast<ImTextureID>(static_cast<intptr_t>(surf.texture)),
       ImVec2(64.0f, 64.0f));
-  ImGui::Text("depth_write: %d", surf->depth_write);
-  ImGui::Text("depth_func: %s", s_depthfunc_names[surf->depth_func]);
-  ImGui::Text("cull: %s", s_cullface_names[surf->cull]);
-  ImGui::Text("src_blend: %s", s_blendfunc_names[surf->src_blend]);
-  ImGui::Text("dst_blend: %s", s_blendfunc_names[surf->dst_blend]);
-  ImGui::Text("shade: %s", s_shademode_names[surf->shade]);
-  ImGui::Text("ignore_tex_alpha: %d", surf->ignore_tex_alpha);
-  ImGui::Text("first_vert: %d", surf->first_vert);
-  ImGui::Text("num_verts: %d", surf->num_verts);
+  ImGui::Text("depth_write: %d", surf.depth_write);
+  ImGui::Text("depth_func: %s", s_depthfunc_names[surf.depth_func]);
+  ImGui::Text("cull: %s", s_cullface_names[surf.cull]);
+  ImGui::Text("src_blend: %s", s_blendfunc_names[surf.src_blend]);
+  ImGui::Text("dst_blend: %s", s_blendfunc_names[surf.dst_blend]);
+  ImGui::Text("shade: %s", s_shademode_names[surf.shade]);
+  ImGui::Text("ignore_tex_alpha: %d", surf.ignore_tex_alpha);
+  ImGui::Text("first_vert: %d", surf.first_vert);
+  ImGui::Text("num_verts: %d", surf.num_verts);
 
   ImGui::EndTooltip();
 }
 
-void Tracer::FormatTooltip(const VertexParam *param, const Vertex *vert,
+void Tracer::FormatTooltip(const VertexParam *param, const Vertex &vert,
                            int vertex_type) {
   ImGui::BeginTooltip();
 
@@ -382,11 +382,11 @@ void Tracer::FormatTooltip(const VertexParam *param, const Vertex *vert,
 
   ImGui::Separator();
 
-  ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert->xyz[0], vert->xyz[1],
-              vert->xyz[2]);
-  ImGui::Text("uv: {%.2f, %.2f}", vert->uv[0], vert->uv[1]);
-  ImGui::Text("color: 0x%08x", vert->color);
-  ImGui::Text("offset_color: 0x%08x", vert->offset_color);
+  ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert.xyz[0], vert.xyz[1],
+              vert.xyz[2]);
+  ImGui::Text("uv: {%.2f, %.2f}", vert.uv[0], vert.uv[1]);
+  ImGui::Text("color: 0x%08x", vert.color);
+  ImGui::Text("offset_color: 0x%08x", vert.offset_color);
 
   ImGui::EndTooltip();
 }
@@ -445,7 +445,7 @@ void Tracer::RenderContextMenu() {
           ImGui::Selectable(label, &param_selected);
 
           if (ImGui::IsItemHovered()) {
-            Surface *surf = &rctx_.surfs[rctx_.param_map[offset].num_surfs - 1];
+            Surface &surf = rctx_.surfs[rctx_.param_map[offset].num_surfs - 1];
             FormatTooltip(param, surf);
           }
         } break;
@@ -460,7 +460,7 @@ void Tracer::RenderContextMenu() {
           ImGui::Selectable(label, &param_selected);
 
           if (ImGui::IsItemHovered()) {
-            Surface *surf = &rctx_.surfs[rctx_.param_map[offset].num_surfs - 1];
+            Surface &surf = rctx_.surfs[rctx_.param_map[offset].num_surfs - 1];
             FormatTooltip(param, surf);
           }
         } break;
@@ -473,7 +473,7 @@ void Tracer::RenderContextMenu() {
           ImGui::Selectable(label, &param_selected);
 
           if (ImGui::IsItemHovered()) {
-            Vertex *vert = &rctx_.verts[rctx_.param_map[offset].num_verts - 1];
+            Vertex &vert = rctx_.verts[rctx_.param_map[offset].num_verts - 1];
             FormatTooltip(param, vert, vertex_type);
           }
         } break;
@@ -651,10 +651,12 @@ void Tracer::PrevParam() {
   }
 
   while (true) {
-    // no previous param
-    if (it-- == rctx_.param_map.begin()) {
+    // stop at first param
+    if (it == rctx_.param_map.begin()) {
       break;
     }
+
+    --it;
 
     int offset = it->first;
     PCW pcw = re::load<PCW>(tctx_.data + offset);
@@ -675,8 +677,10 @@ void Tracer::NextParam() {
   }
 
   while (true) {
-    // no next param
-    if (++it == rctx_.param_map.end()) {
+    ++it;
+
+    // stop at last param
+    if (it == rctx_.param_map.end()) {
       break;
     }
 

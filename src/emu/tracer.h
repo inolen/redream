@@ -59,9 +59,9 @@ class Tracer : public ui::WindowListener {
   void RenderScrubberMenu();
   void RenderTextureMenu();
   void FormatTooltip(const hw::holly::PolyParam *param,
-                     const renderer::Surface *surf);
+                     const renderer::Surface &surf);
   void FormatTooltip(const hw::holly::VertexParam *param,
-                     const renderer::Vertex *vert, int vertex_type);
+                     const renderer::Vertex &vert, int vertex_type);
   void RenderContextMenu();
 
   void CopyCommandToContext(const hw::holly::TraceCommand *cmd,
