@@ -413,7 +413,8 @@ void Tracer::RenderContextMenu() {
 
   for (auto it : rctx_.param_map) {
     int offset = it.first;
-    PCW pcw = re::load<PCW>(tctx_.data + offset);
+    const uint8_t *ptr = tctx_.data + offset;
+    PCW pcw = re::load<PCW>(ptr);
     bool param_selected = offset == current_offset_;
 
     if (!hide_params_[pcw.para_type]) {
@@ -437,7 +438,7 @@ void Tracer::RenderContextMenu() {
 
         case TA_PARAM_POLY_OR_VOL: {
           const PolyParam *param =
-              reinterpret_cast<const PolyParam *>(tctx_.data);
+              reinterpret_cast<const PolyParam *>(ptr);
 
           vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
 
@@ -452,7 +453,7 @@ void Tracer::RenderContextMenu() {
 
         case TA_PARAM_SPRITE: {
           const PolyParam *param =
-              reinterpret_cast<const PolyParam *>(tctx_.data);
+              reinterpret_cast<const PolyParam *>(ptr);
 
           vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
 
@@ -467,7 +468,7 @@ void Tracer::RenderContextMenu() {
 
         case TA_PARAM_VERTEX: {
           const VertexParam *param =
-              reinterpret_cast<const VertexParam *>(tctx_.data);
+              reinterpret_cast<const VertexParam *>(ptr);
 
           snprintf(label, sizeof(label), "0x%04x TA_PARAM_VERTEX", offset);
           ImGui::Selectable(label, &param_selected);

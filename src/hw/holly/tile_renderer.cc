@@ -66,7 +66,7 @@ inline CullFace TranslateCull(uint32_t cull_mode) {
 inline BlendFunc TranslateSrcBlendFunc(uint32_t blend_func) {
   static BlendFunc src_blend_funcs[] = {
       BLEND_ZERO,      BLEND_ONE,
-      BLEND_SRC_COLOR, BLEND_ONE_MINUS_SRC_COLOR,
+      BLEND_DST_COLOR, BLEND_ONE_MINUS_DST_COLOR,
       BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA,
       BLEND_DST_ALPHA, BLEND_ONE_MINUS_DST_ALPHA};
   return src_blend_funcs[blend_func];
@@ -75,7 +75,7 @@ inline BlendFunc TranslateSrcBlendFunc(uint32_t blend_func) {
 inline BlendFunc TranslateDstBlendFunc(uint32_t blend_func) {
   static BlendFunc dst_blend_funcs[] = {
       BLEND_ZERO,      BLEND_ONE,
-      BLEND_DST_COLOR, BLEND_ONE_MINUS_DST_COLOR,
+      BLEND_SRC_COLOR, BLEND_ONE_MINUS_SRC_COLOR,
       BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA,
       BLEND_DST_ALPHA, BLEND_ONE_MINUS_DST_ALPHA};
   return dst_blend_funcs[blend_func];
