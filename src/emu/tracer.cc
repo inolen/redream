@@ -382,8 +382,7 @@ void Tracer::FormatTooltip(const VertexParam *param, const Vertex &vert,
 
   ImGui::Separator();
 
-  ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert.xyz[0], vert.xyz[1],
-              vert.xyz[2]);
+  ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert.xyz[0], vert.xyz[1], vert.xyz[2]);
   ImGui::Text("uv: {%.2f, %.2f}", vert.uv[0], vert.uv[1]);
   ImGui::Text("color: 0x%08x", vert.color);
   ImGui::Text("offset_color: 0x%08x", vert.offset_color);
@@ -437,8 +436,7 @@ void Tracer::RenderContextMenu() {
         } break;
 
         case TA_PARAM_POLY_OR_VOL: {
-          const PolyParam *param =
-              reinterpret_cast<const PolyParam *>(ptr);
+          const PolyParam *param = reinterpret_cast<const PolyParam *>(ptr);
 
           vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
 
@@ -452,8 +450,7 @@ void Tracer::RenderContextMenu() {
         } break;
 
         case TA_PARAM_SPRITE: {
-          const PolyParam *param =
-              reinterpret_cast<const PolyParam *>(ptr);
+          const PolyParam *param = reinterpret_cast<const PolyParam *>(ptr);
 
           vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
 
@@ -467,8 +464,7 @@ void Tracer::RenderContextMenu() {
         } break;
 
         case TA_PARAM_VERTEX: {
-          const VertexParam *param =
-              reinterpret_cast<const VertexParam *>(ptr);
+          const VertexParam *param = reinterpret_cast<const VertexParam *>(ptr);
 
           snprintf(label, sizeof(label), "0x%04x TA_PARAM_VERTEX", offset);
           ImGui::Selectable(label, &param_selected);
@@ -497,7 +493,7 @@ void Tracer::RenderContextMenu() {
   ImGui::End();
 }
 
-// Copy RENDER_CONTEXT command to the current context being rendered.
+// Copy TRACE_CMD_CONTEXT command to the current context being rendered.
 void Tracer::CopyCommandToContext(const TraceCommand *cmd, TileContext *ctx) {
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
@@ -517,12 +513,17 @@ void Tracer::CopyCommandToContext(const TraceCommand *cmd, TileContext *ctx) {
 }
 
 void Tracer::PrevContext() {
-  // get the prev context command
-  TraceCommand *prev = current_cmd_->prev;
+  TraceCommand *begin = current_cmd_->prev;
+  ;
+
+  // ensure that there is a prev context
+  TraceCommand *prev = begin;
+
   while (prev) {
     if (prev->type == TRACE_CMD_CONTEXT) {
       break;
     }
+
     prev = prev->prev;
   }
 
@@ -530,27 +531,14 @@ void Tracer::PrevContext() {
     return;
   }
 
-  // skip forward to the last event for this frame
-  TraceCommand *next = current_cmd_->next;
-  TraceCommand *end = next;
-  while (next) {
-    if (next->type == TRACE_CMD_CONTEXT) {
-      break;
-    }
-    end = next;
-    next = next->next;
-  }
+  // walk back to the prev context, reverting any textures that've been added
+  TraceCommand *curr = prev;
 
-  // revert all of the texture adds
-  while (end) {
-    if (end->type == TRACE_CMD_CONTEXT) {
-      break;
-    }
+  while (curr != prev) {
+    if (curr->type == TRACE_CMD_TEXTURE) {
+      texcache_.RemoveTexture(curr->texture.tsp, curr->texture.tcw);
 
-    if (end->type == TRACE_CMD_TEXTURE) {
-      texcache_.RemoveTexture(prev->texture.tsp, prev->texture.tcw);
-
-      TraceCommand *override = prev->override;
+      TraceCommand *override = curr->override;
       if (override) {
         CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
 
@@ -560,68 +548,48 @@ void Tracer::PrevContext() {
       }
     }
 
-    end = end->prev;
+    curr = curr->prev;
   }
 
-  current_cmd_ = prev;
-
-  // copy off the render command for the current context
-  CopyCommandToContext(current_cmd_, &tctx_);
-
-  // reset ui state
+  current_cmd_ = curr;
   current_frame_--;
-
+  CopyCommandToContext(current_cmd_, &tctx_);
   ResetParam();
 }
 
 void Tracer::NextContext() {
-  // get the next context command
-  TraceCommand *next = current_cmd_;
+  TraceCommand *begin = current_cmd_ ? current_cmd_->next : trace_.cmds();
 
-  if (!next) {
-    next = trace_.cmds();
-  } else {
-    next = next->next;
-
-    while (next) {
-      if (next->type == TRACE_CMD_CONTEXT) {
-        break;
-      }
-
-      next = next->next;
-    }
-  }
-
-  // no next command
-  if (!next) {
-    return;
-  }
-
-  //
-  current_cmd_ = next;
-
-  // add any textures for this command
-  next = current_cmd_->next;
+  // ensure that there is a next context
+  TraceCommand *next = begin;
 
   while (next) {
     if (next->type == TRACE_CMD_CONTEXT) {
       break;
     }
 
-    if (next->type == TRACE_CMD_TEXTURE) {
-      texcache_.AddTexture(next->texture.tsp, next->texture.tcw,
-                           next->texture.palette, next->texture.texture);
-    }
-
     next = next->next;
   }
 
-  // copy off the context command to the current tile context
-  CopyCommandToContext(current_cmd_, &tctx_);
+  if (!next) {
+    return;
+  }
 
-  // point to the start of the next frame
+  // walk towards to the next context, adding any new textures
+  TraceCommand *curr = begin;
+
+  while (curr != next) {
+    if (curr->type == TRACE_CMD_TEXTURE) {
+      texcache_.AddTexture(curr->texture.tsp, curr->texture.tcw,
+                           curr->texture.palette, curr->texture.texture);
+    }
+
+    curr = curr->next;
+  }
+
+  current_cmd_ = curr;
   current_frame_++;
-
+  CopyCommandToContext(current_cmd_, &tctx_);
   ResetParam();
 }
 
@@ -639,6 +607,7 @@ void Tracer::ResetContext() {
     cmd = cmd->next;
   }
 
+  // start rendering the first context
   current_frame_ = -1;
   current_cmd_ = nullptr;
   NextContext();

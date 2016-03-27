@@ -458,6 +458,9 @@ struct TileContext {
   const VertexParam *last_vertex;
   int list_type;
   int vertex_type;
+
+  // debug traces
+  bool wrote;
 };
 }
 }

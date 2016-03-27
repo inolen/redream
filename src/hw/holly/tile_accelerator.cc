@@ -429,10 +429,6 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
   }
 
   last_tctx_ = tctx;
-
-  if (trace_writer_) {
-    trace_writer_->WriteRenderContext(tctx);
-  }
 }
 
 void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
@@ -462,6 +458,14 @@ void TileAccelerator::WriteTextureFIFO(uint32_t addr, uint32_t value) {
 void TileAccelerator::OnPaint(bool show_main_menu) {
   if (last_tctx_) {
     tile_renderer_.RenderContext(*last_tctx_);
+
+    // write render command after actually rendering the context so texture
+    // insert commands will be written out first
+    if (trace_writer_ && !last_tctx_->wrote) {
+      trace_writer_->WriteRenderContext(last_tctx_);
+
+      last_tctx_->wrote = true;
+    }
   }
 
   if (show_main_menu && ImGui::BeginMainMenuBar()) {
