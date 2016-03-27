@@ -11,6 +11,18 @@ using namespace re::hw::holly;
 using namespace re::renderer;
 using namespace re::ui;
 
+static const char *s_param_names[] = {
+    "TA_PARAM_END_OF_LIST", "TA_PARAM_USER_TILE_CLIP", "TA_PARAM_OBJ_LIST_SET",
+    "TA_PARAM_RESERVED0",   "TA_PARAM_POLY_OR_VOL",    "TA_PARAM_SPRITE",
+    "TA_PARAM_RESERVED1",   "TA_PARAM_VERTEX",
+};
+
+static const char *s_list_names[] = {
+    "TA_LIST_OPAQUE",        "TA_LIST_OPAQUE_MODVOL",
+    "TA_LIST_TRANSLUCENT",   "TA_LIST_TRANSLUCENT_MODVOL",
+    "TA_LIST_PUNCH_THROUGH",
+};
+
 static const char *s_depthfunc_names[] = {
     "NONE",    "NEVER",  "LESS",   "EQUAL",  "LEQUAL",
     "GREATER", "NEQUAL", "GEQUAL", "ALWAYS",
@@ -110,7 +122,7 @@ void Tracer::OnPaint(bool show_main_menu) {
   RenderContextMenu();
 
   // clamp surfaces the last surface belonging to the current param
-  int n = static_cast<int>(rctx_.surfs.size());
+  int n = rctx_.surfs.size();
   int last_idx = n;
 
   if (current_offset_ != INVALID_OFFSET) {
@@ -119,8 +131,7 @@ void Tracer::OnPaint(bool show_main_menu) {
   }
 
   // render the context
-  rb_.BeginSurfaces(rctx_.projection, rctx_.verts.data(),
-                    static_cast<int>(rctx_.verts.size()));
+  rb_.BeginSurfaces(rctx_.projection, rctx_.verts.data(), rctx_.verts.size());
 
   for (int i = 0; i < n; i++) {
     int idx = rctx_.sorted_surfs[i];
@@ -234,44 +245,161 @@ void Tracer::RenderTextureMenu() {
   ImGui::PopStyleVar();
 }
 
-void Tracer::FormatTooltip(const PolyParam *param, const Surface &surf) {
-  int poly_type = TileAccelerator::GetPolyType(param->type0.pcw);
+void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
+  int surf_id = rctx_.param_map[offset].num_surfs - 1;
+  int vert_id = rctx_.param_map[offset].num_verts - 1;
 
   ImGui::BeginTooltip();
 
-  ImGui::Text("pcw: 0x%x", param->type0.pcw.full);
-  ImGui::Text("isp_tsp: 0x%x", param->type0.isp_tsp.full);
-  ImGui::Text("tsp: 0x%x", param->type0.tsp.full);
-  ImGui::Text("tcw: 0x%x", param->type0.tcw.full);
+  ImGui::Text("list type: %s", s_list_names[list_type]);
+  ImGui::Text("surf: %d", surf_id);
 
-  switch (poly_type) {
-    case 1:
-      ImGui::Text("face_color_a: %.2f", param->type1.face_color_a);
-      ImGui::Text("face_color_r: %.2f", param->type1.face_color_r);
-      ImGui::Text("face_color_g: %.2f", param->type1.face_color_g);
-      ImGui::Text("face_color_b: %.2f", param->type1.face_color_b);
-      break;
-
-    case 2:
-      ImGui::Text("face_color_a: %.2f", param->type2.face_color_a);
-      ImGui::Text("face_color_r: %.2f", param->type2.face_color_r);
-      ImGui::Text("face_color_g: %.2f", param->type2.face_color_g);
-      ImGui::Text("face_color_b: %.2f", param->type2.face_color_b);
-      ImGui::Text("face_offset_color_a: %.2f",
-                  param->type2.face_offset_color_a);
-      ImGui::Text("face_offset_color_r: %.2f",
-                  param->type2.face_offset_color_r);
-      ImGui::Text("face_offset_color_g: %.2f",
-                  param->type2.face_offset_color_g);
-      ImGui::Text("face_offset_color_b: %.2f",
-                  param->type2.face_offset_color_b);
-      break;
-
-    case 5:
-      ImGui::Text("base_color: 0x%x", param->sprite.base_color);
-      ImGui::Text("offset_color: 0x%x", param->sprite.offset_color);
-      break;
+  {
+    // find sorted position
+    int sort = 0;
+    for (int i = 0, n = rctx_.surfs.size(); i < n; i++) {
+      int idx = rctx_.sorted_surfs[i];
+      if (idx == surf_id) {
+        sort = i;
+        break;
+      }
+    }
+    ImGui::Text("sort: %d", sort);
   }
+
+  // render source TA information
+  if (vertex_type == -1) {
+    const PolyParam *param =
+        reinterpret_cast<const PolyParam *>(tctx_.data + offset);
+
+    ImGui::Text("pcw: 0x%x", param->type0.pcw.full);
+    ImGui::Text("isp_tsp: 0x%x", param->type0.isp_tsp.full);
+    ImGui::Text("tsp: 0x%x", param->type0.tsp.full);
+    ImGui::Text("tcw: 0x%x", param->type0.tcw.full);
+
+    int poly_type = TileAccelerator::GetPolyType(param->type0.pcw);
+
+    switch (poly_type) {
+      case 1:
+        ImGui::Text("face_color_a: %.2f", param->type1.face_color_a);
+        ImGui::Text("face_color_r: %.2f", param->type1.face_color_r);
+        ImGui::Text("face_color_g: %.2f", param->type1.face_color_g);
+        ImGui::Text("face_color_b: %.2f", param->type1.face_color_b);
+        break;
+
+      case 2:
+        ImGui::Text("face_color_a: %.2f", param->type2.face_color_a);
+        ImGui::Text("face_color_r: %.2f", param->type2.face_color_r);
+        ImGui::Text("face_color_g: %.2f", param->type2.face_color_g);
+        ImGui::Text("face_color_b: %.2f", param->type2.face_color_b);
+        ImGui::Text("face_offset_color_a: %.2f",
+                    param->type2.face_offset_color_a);
+        ImGui::Text("face_offset_color_r: %.2f",
+                    param->type2.face_offset_color_r);
+        ImGui::Text("face_offset_color_g: %.2f",
+                    param->type2.face_offset_color_g);
+        ImGui::Text("face_offset_color_b: %.2f",
+                    param->type2.face_offset_color_b);
+        break;
+
+      case 5:
+        ImGui::Text("base_color: 0x%x", param->sprite.base_color);
+        ImGui::Text("offset_color: 0x%x", param->sprite.offset_color);
+        break;
+    }
+  } else {
+    const VertexParam *param =
+        reinterpret_cast<const VertexParam *>(tctx_.data + offset);
+
+    ImGui::Text("vert type: %d", vertex_type);
+
+    switch (vertex_type) {
+      case 0:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type0.xyz[0],
+                    param->type0.xyz[1], param->type0.xyz[2]);
+        ImGui::Text("base_color: 0x%x", param->type0.base_color);
+        break;
+
+      case 1:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type1.xyz[0],
+                    param->type1.xyz[1], param->type1.xyz[2]);
+        ImGui::Text("base_color_a: %.2f", param->type1.base_color_a);
+        ImGui::Text("base_color_r: %.2f", param->type1.base_color_r);
+        ImGui::Text("base_color_g: %.2f", param->type1.base_color_g);
+        ImGui::Text("base_color_b: %.2f", param->type1.base_color_b);
+        break;
+
+      case 2:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type2.xyz[0],
+                    param->type2.xyz[1], param->type2.xyz[2]);
+        ImGui::Text("base_intensity: %.2f", param->type2.base_intensity);
+        break;
+
+      case 3:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type3.xyz[0],
+                    param->type3.xyz[1], param->type3.xyz[2]);
+        ImGui::Text("uv: {%.2f, %.2f}", param->type3.uv[0], param->type3.uv[1]);
+        ImGui::Text("base_color: 0x%x", param->type3.base_color);
+        ImGui::Text("offset_color: 0x%x", param->type3.offset_color);
+        break;
+
+      case 4:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type4.xyz[0],
+                    param->type4.xyz[1], param->type4.xyz[2]);
+        ImGui::Text("uv: {0x%x, 0x%x}", param->type4.uv[0], param->type4.uv[1]);
+        ImGui::Text("base_color: 0x%x", param->type4.base_color);
+        ImGui::Text("offset_color: 0x%x", param->type4.offset_color);
+        break;
+
+      case 5:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type5.xyz[0],
+                    param->type5.xyz[1], param->type5.xyz[2]);
+        ImGui::Text("uv: {%.2f, %.2f}", param->type5.uv[0], param->type5.uv[1]);
+        ImGui::Text("base_color_a: %.2f", param->type5.base_color_a);
+        ImGui::Text("base_color_r: %.2f", param->type5.base_color_r);
+        ImGui::Text("base_color_g: %.2f", param->type5.base_color_g);
+        ImGui::Text("base_color_b: %.2f", param->type5.base_color_b);
+        ImGui::Text("offset_color_a: %.2f", param->type5.offset_color_a);
+        ImGui::Text("offset_color_r: %.2f", param->type5.offset_color_r);
+        ImGui::Text("offset_color_g: %.2f", param->type5.offset_color_g);
+        ImGui::Text("offset_color_b: %.2f", param->type5.offset_color_b);
+        break;
+
+      case 6:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type6.xyz[0],
+                    param->type6.xyz[1], param->type6.xyz[2]);
+        ImGui::Text("uv: {0x%x, 0x%x}", param->type6.uv[0], param->type6.uv[1]);
+        ImGui::Text("base_color_a: %.2f", param->type6.base_color_a);
+        ImGui::Text("base_color_r: %.2f", param->type6.base_color_r);
+        ImGui::Text("base_color_g: %.2f", param->type6.base_color_g);
+        ImGui::Text("base_color_b: %.2f", param->type6.base_color_b);
+        ImGui::Text("offset_color_a: %.2f", param->type6.offset_color_a);
+        ImGui::Text("offset_color_r: %.2f", param->type6.offset_color_r);
+        ImGui::Text("offset_color_g: %.2f", param->type6.offset_color_g);
+        ImGui::Text("offset_color_b: %.2f", param->type6.offset_color_b);
+        break;
+
+      case 7:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type7.xyz[0],
+                    param->type7.xyz[1], param->type7.xyz[2]);
+        ImGui::Text("uv: {%.2f, %.2f}", param->type7.uv[0], param->type7.uv[1]);
+        ImGui::Text("base_intensity: %.2f", param->type7.base_intensity);
+        ImGui::Text("offset_intensity: %.2f", param->type7.offset_intensity);
+        break;
+
+      case 8:
+        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type8.xyz[0],
+                    param->type8.xyz[1], param->type8.xyz[2]);
+        ImGui::Text("uv: {0x%x, 0x%x}", param->type8.uv[0], param->type8.uv[1]);
+        ImGui::Text("base_intensity: %.2f", param->type8.base_intensity);
+        ImGui::Text("offset_intensity: %.2f", param->type8.offset_intensity);
+        break;
+    }
+  }
+
+  // always render translated surface information. new surfaces can be created
+  // without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE
+  Surface &surf = rctx_.surfs[surf_id];
 
   ImGui::Separator();
 
@@ -288,204 +416,78 @@ void Tracer::FormatTooltip(const PolyParam *param, const Surface &surf) {
   ImGui::Text("first_vert: %d", surf.first_vert);
   ImGui::Text("num_verts: %d", surf.num_verts);
 
-  ImGui::EndTooltip();
-}
+  // render translated vert only when rendering a vertex tooltip
+  if (vertex_type != -1) {
+    Vertex &vert = rctx_.verts[vert_id];
 
-void Tracer::FormatTooltip(const VertexParam *param, const Vertex &vert,
-                           int vertex_type) {
-  ImGui::BeginTooltip();
+    ImGui::Separator();
 
-  ImGui::Text("type: %d", vertex_type);
-
-  switch (vertex_type) {
-    case 0:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type0.xyz[0],
-                  param->type0.xyz[1], param->type0.xyz[2]);
-      ImGui::Text("base_color: 0x%x", param->type0.base_color);
-      break;
-
-    case 1:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type1.xyz[0],
-                  param->type1.xyz[1], param->type1.xyz[2]);
-      ImGui::Text("base_color_a: %.2f", param->type1.base_color_a);
-      ImGui::Text("base_color_r: %.2f", param->type1.base_color_r);
-      ImGui::Text("base_color_g: %.2f", param->type1.base_color_g);
-      ImGui::Text("base_color_b: %.2f", param->type1.base_color_b);
-      break;
-
-    case 2:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type2.xyz[0],
-                  param->type2.xyz[1], param->type2.xyz[2]);
-      ImGui::Text("base_intensity: %.2f", param->type2.base_intensity);
-      break;
-
-    case 3:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type3.xyz[0],
-                  param->type3.xyz[1], param->type3.xyz[2]);
-      ImGui::Text("uv: {%.2f, %.2f}", param->type3.uv[0], param->type3.uv[1]);
-      ImGui::Text("base_color: 0x%x", param->type3.base_color);
-      ImGui::Text("offset_color: 0x%x", param->type3.offset_color);
-      break;
-
-    case 4:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type4.xyz[0],
-                  param->type4.xyz[1], param->type4.xyz[2]);
-      ImGui::Text("uv: {0x%x, 0x%x}", param->type4.uv[0], param->type4.uv[1]);
-      ImGui::Text("base_color: 0x%x", param->type4.base_color);
-      ImGui::Text("offset_color: 0x%x", param->type4.offset_color);
-      break;
-
-    case 5:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type5.xyz[0],
-                  param->type5.xyz[1], param->type5.xyz[2]);
-      ImGui::Text("uv: {%.2f, %.2f}", param->type5.uv[0], param->type5.uv[1]);
-      ImGui::Text("base_color_a: %.2f", param->type5.base_color_a);
-      ImGui::Text("base_color_r: %.2f", param->type5.base_color_r);
-      ImGui::Text("base_color_g: %.2f", param->type5.base_color_g);
-      ImGui::Text("base_color_b: %.2f", param->type5.base_color_b);
-      ImGui::Text("offset_color_a: %.2f", param->type5.offset_color_a);
-      ImGui::Text("offset_color_r: %.2f", param->type5.offset_color_r);
-      ImGui::Text("offset_color_g: %.2f", param->type5.offset_color_g);
-      ImGui::Text("offset_color_b: %.2f", param->type5.offset_color_b);
-      break;
-
-    case 6:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type6.xyz[0],
-                  param->type6.xyz[1], param->type6.xyz[2]);
-      ImGui::Text("uv: {0x%x, 0x%x}", param->type6.uv[0], param->type6.uv[1]);
-      ImGui::Text("base_color_a: %.2f", param->type6.base_color_a);
-      ImGui::Text("base_color_r: %.2f", param->type6.base_color_r);
-      ImGui::Text("base_color_g: %.2f", param->type6.base_color_g);
-      ImGui::Text("base_color_b: %.2f", param->type6.base_color_b);
-      ImGui::Text("offset_color_a: %.2f", param->type6.offset_color_a);
-      ImGui::Text("offset_color_r: %.2f", param->type6.offset_color_r);
-      ImGui::Text("offset_color_g: %.2f", param->type6.offset_color_g);
-      ImGui::Text("offset_color_b: %.2f", param->type6.offset_color_b);
-      break;
-
-    case 7:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type7.xyz[0],
-                  param->type7.xyz[1], param->type7.xyz[2]);
-      ImGui::Text("uv: {%.2f, %.2f}", param->type7.uv[0], param->type7.uv[1]);
-      ImGui::Text("base_intensity: %.2f", param->type7.base_intensity);
-      ImGui::Text("offset_intensity: %.2f", param->type7.offset_intensity);
-      break;
-
-    case 8:
-      ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type8.xyz[0],
-                  param->type8.xyz[1], param->type8.xyz[2]);
-      ImGui::Text("uv: {0x%x, 0x%x}", param->type8.uv[0], param->type8.uv[1]);
-      ImGui::Text("base_intensity: %.2f", param->type8.base_intensity);
-      ImGui::Text("offset_intensity: %.2f", param->type8.offset_intensity);
-      break;
+    ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert.xyz[0], vert.xyz[1],
+                vert.xyz[2]);
+    ImGui::Text("uv: {%.2f, %.2f}", vert.uv[0], vert.uv[1]);
+    ImGui::Text("color: 0x%08x", vert.color);
+    ImGui::Text("offset_color: 0x%08x", vert.offset_color);
   }
-
-  ImGui::Separator();
-
-  ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert.xyz[0], vert.xyz[1], vert.xyz[2]);
-  ImGui::Text("uv: {%.2f, %.2f}", vert.uv[0], vert.uv[1]);
-  ImGui::Text("color: 0x%08x", vert.color);
-  ImGui::Text("offset_color: 0x%08x", vert.offset_color);
 
   ImGui::EndTooltip();
 }
 
 void Tracer::RenderContextMenu() {
+  char label[128];
+
   ImGui::Begin("Context", nullptr, ImVec2(256.0f, 256.0f));
 
   // param filters
-  ImGui::Checkbox("Hide TA_PARAM_END_OF_LIST",
-                  &hide_params_[TA_PARAM_END_OF_LIST]);
-  ImGui::Checkbox("Hide TA_PARAM_USER_TILE_CLIP",
-                  &hide_params_[TA_PARAM_USER_TILE_CLIP]);
-  ImGui::Checkbox("Hide TA_PARAM_OBJ_LIST_SET",
-                  &hide_params_[TA_PARAM_OBJ_LIST_SET]);
-  ImGui::Checkbox("Hide TA_PARAM_POLY_OR_VOL",
-                  &hide_params_[TA_PARAM_POLY_OR_VOL]);
-  ImGui::Checkbox("Hide TA_PARAM_SPRITE", &hide_params_[TA_PARAM_SPRITE]);
-  ImGui::Checkbox("Hide TA_PARAM_VERTEX", &hide_params_[TA_PARAM_VERTEX]);
+  for (int i = 0; i < TA_NUM_PARAMS; i++) {
+    snprintf(label, sizeof(label), "Hide %s", s_param_names[i]);
+    ImGui::Checkbox(label, &hide_params_[i]);
+  }
   ImGui::Separator();
 
   // param list
+  int list_type = 0;
   int vertex_type = 0;
-  char label[128];
 
   for (auto it : rctx_.param_map) {
     int offset = it.first;
-    const uint8_t *ptr = tctx_.data + offset;
-    PCW pcw = re::load<PCW>(ptr);
+    PCW pcw = re::load<PCW>(tctx_.data + offset);
     bool param_selected = offset == current_offset_;
 
     if (!hide_params_[pcw.para_type]) {
+      snprintf(label, sizeof(label), "0x%04x %s", offset,
+               s_param_names[pcw.para_type]);
+      ImGui::Selectable(label, &param_selected);
+
       switch (pcw.para_type) {
-        case TA_PARAM_END_OF_LIST: {
-          snprintf(label, sizeof(label), "0x%04x TA_PARAM_END_OF_LIST", offset);
-          ImGui::Selectable(label, &param_selected);
-        } break;
-
-        case TA_PARAM_USER_TILE_CLIP: {
-          snprintf(label, sizeof(label), "0x%04x TA_PARAM_USER_TILE_CLIP",
-                   offset);
-          ImGui::Selectable(label, &param_selected);
-        } break;
-
-        case TA_PARAM_OBJ_LIST_SET: {
-          snprintf(label, sizeof(label), "0x%04x TA_PARAM_OBJ_LIST_SET",
-                   offset);
-          ImGui::Selectable(label, &param_selected);
-        } break;
-
-        case TA_PARAM_POLY_OR_VOL: {
-          const PolyParam *param = reinterpret_cast<const PolyParam *>(ptr);
-
-          vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
-
-          snprintf(label, sizeof(label), "0x%04x TA_PARAM_POLY_OR_VOL", offset);
-          ImGui::Selectable(label, &param_selected);
-
-          if (ImGui::IsItemHovered()) {
-            Surface &surf = rctx_.surfs[rctx_.param_map[offset].num_surfs - 1];
-            FormatTooltip(param, surf);
-          }
-        } break;
-
+        case TA_PARAM_POLY_OR_VOL:
         case TA_PARAM_SPRITE: {
-          const PolyParam *param = reinterpret_cast<const PolyParam *>(ptr);
-
+          const PolyParam *param =
+              reinterpret_cast<const PolyParam *>(tctx_.data + offset);
+          list_type = param->type0.pcw.list_type;
           vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
 
-          snprintf(label, sizeof(label), "0x%04x TA_PARAM_SPRITE", offset);
-          ImGui::Selectable(label, &param_selected);
-
           if (ImGui::IsItemHovered()) {
-            Surface &surf = rctx_.surfs[rctx_.param_map[offset].num_surfs - 1];
-            FormatTooltip(param, surf);
+            FormatTooltip(list_type, -1, offset);
           }
         } break;
 
         case TA_PARAM_VERTEX: {
-          const VertexParam *param = reinterpret_cast<const VertexParam *>(ptr);
-
-          snprintf(label, sizeof(label), "0x%04x TA_PARAM_VERTEX", offset);
-          ImGui::Selectable(label, &param_selected);
-
           if (ImGui::IsItemHovered()) {
-            Vertex &vert = rctx_.verts[rctx_.param_map[offset].num_verts - 1];
-            FormatTooltip(param, vert, vertex_type);
+            FormatTooltip(list_type, vertex_type, offset);
           }
         } break;
-
-        default:
-          LOG_FATAL("Unsupported parameter type %d", pcw.para_type);
-          break;
       }
 
       if (param_selected) {
-        if (!ImGui::IsItemVisible()) {
-          ImGui::SetScrollHere();
-        }
-
         current_offset_ = offset;
+
+        if (scroll_to_param_) {
+          if (!ImGui::IsItemVisible()) {
+            ImGui::SetScrollHere();
+          }
+
+          scroll_to_param_ = false;
+        }
       }
     }
   }
@@ -634,6 +636,7 @@ void Tracer::PrevParam() {
     // found the next visible param
     if (!hide_params_[pcw.para_type]) {
       current_offset_ = it->first;
+      scroll_to_param_ = true;
       break;
     }
   }
@@ -660,9 +663,13 @@ void Tracer::NextParam() {
     // found the next visible param
     if (!hide_params_[pcw.para_type]) {
       current_offset_ = it->first;
+      scroll_to_param_ = true;
       break;
     }
   }
 }
 
-void Tracer::ResetParam() { current_offset_ = INVALID_OFFSET; }
+void Tracer::ResetParam() {
+  current_offset_ = INVALID_OFFSET;
+  scroll_to_param_ = false;
+}

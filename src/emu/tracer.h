@@ -58,10 +58,7 @@ class Tracer : public ui::WindowListener {
 
   void RenderScrubberMenu();
   void RenderTextureMenu();
-  void FormatTooltip(const hw::holly::PolyParam *param,
-                     const renderer::Surface &surf);
-  void FormatTooltip(const hw::holly::VertexParam *param,
-                     const renderer::Vertex &vert, int vertex_type);
+  void FormatTooltip(int list_type, int vertex_type, int offset);
   void RenderContextMenu();
 
   void CopyCommandToContext(const hw::holly::TraceCommand *cmd,
@@ -88,6 +85,7 @@ class Tracer : public ui::WindowListener {
   int current_frame_, num_frames_;
   hw::holly::TraceCommand *current_cmd_;
   int current_offset_;
+  bool scroll_to_param_;
 };
 }
 }
