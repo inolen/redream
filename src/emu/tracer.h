@@ -20,6 +20,13 @@ struct TextureInst {
   hw::holly::TCW tcw;
   const uint8_t *palette;
   const uint8_t *texture;
+  // renderer::PixelFormat format;
+  // renderer::FilterMode filter;
+  // renderer::WrapMode wrap_u;
+  // renderer::WrapMode wrap_v;
+  // bool gen_mipmaps;
+  // int width;
+  // int height;
   renderer::TextureHandle handle;
 };
 
@@ -34,9 +41,9 @@ class TraceTextureCache : public hw::holly::TextureProvider {
                   const uint8_t *palette, const uint8_t *texture);
   void RemoveTexture(const hw::holly::TSP &tsp, hw::holly::TCW &tcw);
   renderer::TextureHandle GetTexture(
-      const hw::holly::TSP &tsp, const hw::holly::TCW &tcw,
-      hw::holly::RegisterTextureCallback register_cb);
-  renderer::TextureHandle GetTexture(hw::holly::TextureKey texture_key);
+      const hw::holly::TileContext &tctx, const hw::holly::TSP &tsp,
+      const hw::holly::TCW &tcw,
+      hw::holly::RegisterTextureDelegate register_delegate);
 
  private:
   TextureMap textures_;

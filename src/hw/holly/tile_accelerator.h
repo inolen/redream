@@ -71,8 +71,9 @@ class TileAccelerator : public Device,
 
   bool Init() final;
 
-  renderer::TextureHandle GetTexture(const TSP &tsp, const TCW &tcw,
-                                     RegisterTextureCallback register_cb) final;
+  renderer::TextureHandle GetTexture(
+      const TileContext &tctx, const TSP &tsp, const TCW &tcw,
+      RegisterTextureDelegate register_delegate) final;
 
  private:
   // MemoryInterface

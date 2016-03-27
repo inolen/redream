@@ -66,7 +66,8 @@ void TraceTextureCache::RemoveTexture(const TSP &tsp, TCW &tcw) {
 }
 
 TextureHandle TraceTextureCache::GetTexture(
-    const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) {
+    const TileContext &tctx, const TSP &tsp, const TCW &tcw,
+    RegisterTextureDelegate register_delegate) {
   TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
 
   auto it = textures_.find(texture_key);
@@ -76,18 +77,10 @@ TextureHandle TraceTextureCache::GetTexture(
 
   // register the texture if it hasn't already been
   if (!texture.handle) {
-    texture.handle = register_cb(texture.palette, texture.texture);
+    texture.handle =
+        register_delegate(tctx, tsp, tcw, texture.palette, texture.texture);
   }
 
-  return texture.handle;
-}
-
-TextureHandle TraceTextureCache::GetTexture(hw::holly::TextureKey texture_key) {
-  auto it = textures_.find(texture_key);
-  if (it == textures_.end()) {
-    return 0;
-  }
-  TextureInst &texture = it->second;
   return texture.handle;
 }
 

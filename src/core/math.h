@@ -1,7 +1,7 @@
 #ifndef REDREAM_MATH_H
 #define REDREAM_MATH_H
 
-#include <functional>
+#include <stdint.h>
 
 namespace re {
 

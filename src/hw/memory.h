@@ -1,7 +1,6 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#include <functional>
 #include "core/delegate.h"
 #include "sys/exception_handler.h"
 #include "sys/memory.h"

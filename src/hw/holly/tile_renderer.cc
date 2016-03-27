@@ -939,7 +939,5 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext &tctx,
 TextureHandle TileRenderer::GetTexture(const TileContext &tctx, const TSP &tsp,
                                        const TCW &tcw) {
   return texture_provider_.GetTexture(
-      tsp, tcw, [&](const uint8_t *palette, const uint8_t *texture) {
-        return RegisterTexture(tctx, tsp, tcw, palette, texture);
-      });
+      tctx, tsp, tcw, make_delegate(&TileRenderer::RegisterTexture, this));
 }

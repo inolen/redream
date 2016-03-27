@@ -1,10 +1,10 @@
 #ifndef TILE_RENDERER_H
 #define TILE_RENDERER_H
 
-#include <functional>
 #include <map>
 #include <Eigen/Dense>
 #include "core/array.h"
+#include "core/delegate.h"
 #include "renderer/backend.h"
 
 namespace re {
@@ -21,8 +21,9 @@ struct TileContext;
 // Tracer can provide raw texture and palette data on demand to the
 // TileRenderer. While a static GetTextureKey is provided, each implementation
 // is expected to manage their own cache internally.
-typedef std::function<renderer::TextureHandle(const uint8_t *, const uint8_t *)>
-    RegisterTextureCallback;
+typedef re::delegate<renderer::TextureHandle(
+    const TileContext &, const TSP &, const TCW &, const uint8_t *,
+    const uint8_t *)> RegisterTextureDelegate;
 
 typedef uint64_t TextureKey;
 
@@ -33,7 +34,8 @@ class TextureProvider {
   virtual ~TextureProvider() {}
 
   virtual renderer::TextureHandle GetTexture(
-      const TSP &tsp, const TCW &tcw, RegisterTextureCallback register_cb) = 0;
+      const TileContext &tctx, const TSP &tsp, const TCW &tcw,
+      RegisterTextureDelegate register_delegate) = 0;
 };
 
 // The TileRenderer class is responsible for taking a particular TileContext,

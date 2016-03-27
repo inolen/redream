@@ -2,7 +2,6 @@
 #define INTERVAL_TREE_H
 
 #include <algorithm>
-#include <functional>
 #include <utility>
 #include <stdlib.h>
 #include "core/assert.h"

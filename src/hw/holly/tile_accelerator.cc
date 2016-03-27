@@ -243,12 +243,16 @@ bool TileAccelerator::Init() {
   return true;
 }
 
-TextureHandle TileAccelerator::GetTexture(const TSP &tsp, const TCW &tcw,
-                                          RegisterTextureCallback register_cb) {
+TextureHandle TileAccelerator::GetTexture(
+    const TileContext &tctx, const TSP &tsp, const TCW &tcw,
+    RegisterTextureDelegate register_delegate) {
   // if there are any pending removals, do so at this time
   if (pending_invalidations_.size()) {
     ClearPendingTextures();
   }
+
+  // TODO TileContext isn't considered for caching here (stride and
+  // pal_pxl_format are used by TileRenderer), this feels bad
 
   // see if an an entry already exists
   TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
@@ -296,7 +300,7 @@ TextureHandle TileAccelerator::GetTexture(const TSP &tsp, const TCW &tcw,
   }
 
   // register and insert into the cache
-  TextureHandle handle = register_cb(palette, texture);
+  TextureHandle handle = register_delegate(tctx, tsp, tcw, palette, texture);
   auto result =
       textures_.insert(std::make_pair(texture_key, TextureEntry(handle)));
   CHECK(result.second, "Texture already in the map?");

@@ -1,7 +1,6 @@
 #ifndef INTRUSIVE_TREE_H
 #define INTRUSIVE_TREE_H
 
-#include <functional>
 #include <stdlib.h>
 #include "core/assert.h"
 
