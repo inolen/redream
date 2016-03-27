@@ -692,7 +692,9 @@ void TileRenderer::ParseEndOfList(const TileContext &tctx,
       tctx.autosort) {
     int *first = &sorted_surfs[first_surf_to_sort];
     int *last = &sorted_surfs[first_surf_to_sort + num_surfs_to_sort];
-    std::sort(first, last, [&](int a, int b) {
+
+    // input order must be preserved in the case minza == minzb
+    std::stable_sort(first, last, [&](int a, int b) {
       Surface &surfa = surfs[a];
       Surface &surfb = surfs[b];
 
