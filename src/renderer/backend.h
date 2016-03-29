@@ -122,7 +122,7 @@ class Backend {
 
   virtual TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
                                         WrapMode wrap_u, WrapMode wrap_v,
-                                        bool gen_mipmaps, int width, int height,
+                                        bool mipmaps, int width, int height,
                                         const uint8_t *buffer) = 0;
   virtual void FreeTexture(TextureHandle handle) = 0;
 

@@ -17,16 +17,30 @@ union PolyParam;
 union VertexParam;
 struct TileContext;
 
-// The TextureCache interface provides an abstraction so the TileAccelerator /
-// Tracer can provide raw texture and palette data on demand to the
-// TileRenderer. While a static GetTextureKey is provided, each implementation
-// is expected to manage their own cache internally.
-typedef re::delegate<renderer::TextureHandle(
+// RegisterTexture returns both the final texture handle, as well as the
+// parameters it was registered with for tracing
+typedef uint64_t TextureKey;
+
+struct RegisterTextureResult {
+  renderer::TextureHandle handle;
+  renderer::PixelFormat format;
+  renderer::FilterMode filter;
+  renderer::WrapMode wrap_u;
+  renderer::WrapMode wrap_v;
+  bool mipmaps;
+  int width;
+  int height;
+};
+
+typedef re::delegate<RegisterTextureResult(
     const TileContext &, const TSP &, const TCW &, const uint8_t *,
     const uint8_t *)> RegisterTextureDelegate;
 
-typedef uint64_t TextureKey;
-
+// The TextureProvider interface provides an abstraction so the TileAccelerator
+// /
+// Tracer can provide raw texture and palette data on demand to the
+// TileRenderer. While a static GetTextureKey is provided, each implementation
+// is expected to manage their own cache internally.
 class TextureProvider {
  public:
   static TextureKey GetTextureKey(const TSP &tsp, const TCW &tcw);
@@ -49,6 +63,7 @@ struct TileRenderContext {
   re::array<int> sorted_surfs;
 
   // map tile context offset -> number of surfs / verts rendered
+  // for tracing
   struct ParamMapEntry {
     int num_surfs;
     int num_verts;
@@ -85,10 +100,9 @@ class TileRenderer {
                       const uint8_t *data);
   void FillProjectionMatrix(const TileContext &tctx, TileRenderContext *rctx);
 
-  renderer::TextureHandle RegisterTexture(const TileContext &tctx,
-                                          const TSP &tsp, const TCW &tcw,
-                                          const uint8_t *palette,
-                                          const uint8_t *texture);
+  RegisterTextureResult RegisterTexture(const TileContext &tctx, const TSP &tsp,
+                                        const TCW &tcw, const uint8_t *palette,
+                                        const uint8_t *texture);
   renderer::TextureHandle GetTexture(const TileContext &tctx, const TSP &tsp,
                                      const TCW &tcw);
 

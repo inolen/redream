@@ -23,6 +23,19 @@ static const char *s_list_names[] = {
     "TA_LIST_PUNCH_THROUGH",
 };
 
+static const char *s_pixel_format_names[] = {
+    "PXL_INVALID", "PXL_RGBA",     "PXL_RGBA5551",
+    "PXL_RGB565",  "PXL_RGBA4444", "PXL_RGBA8888",
+};
+
+static const char *s_filter_mode_names[] = {
+    "FILTER_NEAREST", "FILTER_BILINEAR",
+};
+
+static const char *s_wrap_mode_names[] = {
+    "WRAP_REPEAT", "WRAP_CLAMP_TO_EDGE", "WRAP_MIRRORED_REPEAT",
+};
+
 static const char *s_depthfunc_names[] = {
     "NONE",    "NEVER",  "LESS",   "EQUAL",  "LEQUAL",
     "GREATER", "NEQUAL", "GEQUAL", "ALWAYS",
@@ -56,8 +69,12 @@ void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
                                    const uint8_t *palette,
                                    const uint8_t *texture) {
   TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
-  textures_[texture_key] =
-      TextureInst{tsp, tcw, palette, texture, (TextureHandle)0};
+  TextureInst &texture_inst = textures_[texture_key];
+  texture_inst.tsp = tsp;
+  texture_inst.tcw = tcw;
+  texture_inst.palette = palette;
+  texture_inst.texture = texture;
+  texture_inst.handle = 0;
 }
 
 void TraceTextureCache::RemoveTexture(const TSP &tsp, TCW &tcw) {
@@ -77,8 +94,16 @@ TextureHandle TraceTextureCache::GetTexture(
 
   // register the texture if it hasn't already been
   if (!texture.handle) {
-    texture.handle =
+    RegisterTextureResult res =
         register_delegate(tctx, tsp, tcw, texture.palette, texture.texture);
+    texture.handle = res.handle;
+    texture.format = res.format;
+    texture.filter = res.filter;
+    texture.wrap_u = res.wrap_u;
+    texture.wrap_v = res.wrap_v;
+    texture.mipmaps = res.mipmaps;
+    texture.width = res.width;
+    texture.height = res.height;
   }
 
   return texture.handle;
@@ -220,14 +245,27 @@ void Tracer::RenderTextureMenu() {
         reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex.handle));
 
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::ImageButton(handle_id, ImVec2(32.0f, 32.0f));
+    ImGui::ImageButton(handle_id, ImVec2(32.0f, 32.0f), ImVec2(0.0f, 1.0f),
+                       ImVec2(1.0f, 0.0f));
     ImGui::PopStyleColor();
 
     char popup_name[128];
     snprintf(popup_name, sizeof(popup_name), "texture_%d", tex.handle);
 
     if (ImGui::BeginPopupContextItem(popup_name, 0)) {
-      ImGui::Image(handle_id, ImVec2(128, 128));
+      ImGui::Image(handle_id, ImVec2(128, 128), ImVec2(0.0f, 1.0f),
+                   ImVec2(1.0f, 0.0f));
+
+      ImGui::Separator();
+
+      ImGui::Text("format: %s", s_pixel_format_names[tex.format]);
+      ImGui::Text("filter: %s", s_filter_mode_names[tex.filter]);
+      ImGui::Text("wrap_u: %s", s_wrap_mode_names[tex.wrap_u]);
+      ImGui::Text("wrap_v: %s", s_wrap_mode_names[tex.wrap_v]);
+      ImGui::Text("mipmaps: %d", tex.mipmaps);
+      ImGui::Text("width: %d", tex.width);
+      ImGui::Text("height: %d", tex.height);
+
       ImGui::EndPopup();
     }
 

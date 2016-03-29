@@ -12,8 +12,8 @@ using namespace re::ui;
 static GLenum filter_funcs[] = {
     GL_NEAREST,                // FILTER_NEAREST
     GL_LINEAR,                 // FILTER_BILINEAR
-    GL_NEAREST_MIPMAP_LINEAR,  // FILTER_NEAREST + gen_mipmaps
-    GL_LINEAR_MIPMAP_LINEAR    // FILTER_BILINEAR + gen_mipmaps
+    GL_NEAREST_MIPMAP_LINEAR,  // FILTER_NEAREST + mipmaps
+    GL_LINEAR_MIPMAP_LINEAR    // FILTER_BILINEAR + mipmaps
 };
 
 static GLenum wrap_modes[] = {
@@ -85,8 +85,8 @@ bool GLBackend::Init() {
 
 TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
                                          WrapMode wrap_u, WrapMode wrap_v,
-                                         bool gen_mipmaps, int width,
-                                         int height, const uint8_t *buffer) {
+                                         bool mipmaps, int width, int height,
+                                         const uint8_t *buffer) {
   // FIXME worth speeding up?
   TextureHandle handle;
   for (handle = 1; handle < MAX_TEXTURES; handle++) {
@@ -128,14 +128,14 @@ TextureHandle GLBackend::RegisterTexture(PixelFormat format, FilterMode filter,
   glGenTextures(1, &gltex);
   glBindTexture(GL_TEXTURE_2D, gltex);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                  filter_funcs[filter * gen_mipmaps]);
+                  filter_funcs[filter * mipmaps]);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_funcs[filter]);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_modes[wrap_u]);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_modes[wrap_v]);
   glTexImage2D(GL_TEXTURE_2D, 0, internal_fmt, width, height, 0, internal_fmt,
                pixel_fmt, buffer);
 
-  if (gen_mipmaps) {
+  if (mipmaps) {
     glGenerateMipmap(GL_TEXTURE_2D);
   }
 

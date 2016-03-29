@@ -20,14 +20,14 @@ struct TextureInst {
   hw::holly::TCW tcw;
   const uint8_t *palette;
   const uint8_t *texture;
-  // renderer::PixelFormat format;
-  // renderer::FilterMode filter;
-  // renderer::WrapMode wrap_u;
-  // renderer::WrapMode wrap_v;
-  // bool gen_mipmaps;
-  // int width;
-  // int height;
   renderer::TextureHandle handle;
+  renderer::PixelFormat format;
+  renderer::FilterMode filter;
+  renderer::WrapMode wrap_u;
+  renderer::WrapMode wrap_v;
+  bool mipmaps;
+  int width;
+  int height;
 };
 
 typedef std::unordered_map<hw::holly::TextureKey, TextureInst> TextureMap;

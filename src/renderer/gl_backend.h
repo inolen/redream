@@ -50,8 +50,8 @@ class GLBackend : public Backend, public ui::WindowListener {
   bool Init() final;
 
   TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
-                                WrapMode wrap_u, WrapMode wrap_v,
-                                bool gen_mipmaps, int width, int height,
+                                WrapMode wrap_u, WrapMode wrap_v, bool mipmaps,
+                                int width, int height,
                                 const uint8_t *buffer) final;
   void FreeTexture(TextureHandle handle) final;
 

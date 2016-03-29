@@ -6,8 +6,8 @@
 #include "ui/microprofile_impl.h"
 #include "ui/window.h"
 
-#define DEFAULT_WIDTH 800
-#define DEFAULT_HEIGHT 600
+#define DEFAULT_WIDTH 640
+#define DEFAULT_HEIGHT 480
 
 using namespace re;
 using namespace re::renderer;

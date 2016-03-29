@@ -300,9 +300,10 @@ TextureHandle TileAccelerator::GetTexture(
   }
 
   // register and insert into the cache
-  TextureHandle handle = register_delegate(tctx, tsp, tcw, palette, texture);
+  RegisterTextureResult reg =
+      register_delegate(tctx, tsp, tcw, palette, texture);
   auto result =
-      textures_.insert(std::make_pair(texture_key, TextureEntry(handle)));
+      textures_.insert(std::make_pair(texture_key, TextureEntry(reg.handle)));
   CHECK(result.second, "Texture already in the map?");
 
   // add write callback in order to invalidate on future writes. the callback
@@ -326,7 +327,7 @@ TextureHandle TileAccelerator::GetTexture(
                                       texture_size);
   }
 
-  return handle;
+  return reg.handle;
 }
 
 void TileAccelerator::SoftReset() {

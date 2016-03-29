@@ -763,10 +763,11 @@ void TileRenderer::FillProjectionMatrix(const TileContext &tctx,
   rctx->projection(2, 3) = (2.0f * zfar * znear) / zdepth;
 }
 
-TextureHandle TileRenderer::RegisterTexture(const TileContext &tctx,
-                                            const TSP &tsp, const TCW &tcw,
-                                            const uint8_t *palette,
-                                            const uint8_t *texture) {
+RegisterTextureResult TileRenderer::RegisterTexture(const TileContext &tctx,
+                                                    const TSP &tsp,
+                                                    const TCW &tcw,
+                                                    const uint8_t *palette,
+                                                    const uint8_t *texture) {
   static uint8_t converted[1024 * 1024 * 4];
   const uint8_t *input = texture;
   const uint8_t *output = texture;
@@ -928,12 +929,7 @@ TextureHandle TileRenderer::RegisterTexture(const TileContext &tctx,
   TextureHandle handle = rb_.RegisterTexture(pixel_fmt, filter, wrap_u, wrap_v,
                                              mip_mapped, width, height, output);
 
-  if (!handle) {
-    LOG_WARNING("Failed to register texture");
-    return 0;
-  }
-
-  return handle;
+  return {handle, pixel_fmt, filter, wrap_u, wrap_v, mip_mapped, width, height};
 }
 
 TextureHandle TileRenderer::GetTexture(const TileContext &tctx, const TSP &tsp,
