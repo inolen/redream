@@ -1495,9 +1495,10 @@ EMITTER(PREF) {
 
 // RTE
 EMITTER(RTE) {
-  Value *ssr = b.LoadContext(offsetof(SH4Context, ssr), VALUE_I32);
   Value *spc = b.LoadContext(offsetof(SH4Context, spc), VALUE_I32);
+  Value *ssr = b.LoadContext(offsetof(SH4Context, ssr), VALUE_I32);
   b.StoreSR(ssr);
+  EMIT_DELAYED();
   b.Branch(spc);
 }
 
