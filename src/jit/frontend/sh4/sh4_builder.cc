@@ -87,8 +87,7 @@ void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
 
   // if the block was terminated before a branch instruction, emit a
   // fallthrough branch to the next pc
-  if (tail_instr->op() != OP_STORE_CONTEXT ||
-      tail_instr->arg0()->i32() != offsetof(SH4Context, pc)) {
+  if (tail_instr->op() != OP_BRANCH && tail_instr->op() != OP_BRANCH_COND) {
     Branch(AllocConstant(pc_));
   }
 
@@ -200,15 +199,6 @@ ir::Value *SH4Builder::LoadPR() {
 void SH4Builder::StorePR(ir::Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
   StoreContext(offsetof(SH4Context, pr), v);
-}
-
-void SH4Builder::Branch(Value *dest) {
-  StoreContext(offsetof(SH4Context, pc), dest);
-}
-
-void SH4Builder::BranchCond(Value *cond, Value *true_addr, Value *false_addr) {
-  Value *dest = Select(cond, true_addr, false_addr);
-  StoreContext(offsetof(SH4Context, pc), dest);
 }
 
 void SH4Builder::InvalidInstruction(uint32_t guest_addr) {

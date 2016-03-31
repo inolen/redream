@@ -96,7 +96,7 @@ class SH4 : public Device,
   // WindowInterface
   void OnPaint(bool show_main_menu) final;
 
-  static void CompilePC();
+  static uint32_t CompilePC();
   static void InvalidInstruction(jit::frontend::sh4::SH4Context *ctx,
                                  uint64_t addr);
   static void Prefetch(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);

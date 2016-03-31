@@ -1415,6 +1415,22 @@ EMITTER(LSHD) {
   e.outLocalLabel();
 }
 
+EMITTER(BRANCH) {
+  const Xbyak::Reg a = e.GetRegister(instr->arg0());
+
+  e.mov(e.rax, a);
+}
+
+EMITTER(BRANCH_COND) {
+  const Xbyak::Reg cond = e.GetRegister(instr->arg0());
+  const Xbyak::Reg true_addr = e.GetRegister(instr->arg1());
+  const Xbyak::Reg false_addr = e.GetRegister(instr->arg2());
+
+  e.test(cond, cond);
+  e.cmovnz(e.eax, true_addr);
+  e.cmove(e.eax, false_addr);
+}
+
 EMITTER(CALL_EXTERNAL) {
   const Xbyak::Reg addr = e.GetRegister(instr->arg0());
 

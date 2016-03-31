@@ -421,6 +421,10 @@ class IRBuilder {
   Instr *AShd(Value *a, Value *n);
   Instr *LShd(Value *a, Value *n);
 
+  // branches
+  void Branch(Value *dest);
+  void BranchCond(Value *cond, Value *true_addr, Value *false_addr);
+
   // calls
   void CallExternal1(Value *addr);
   void CallExternal2(Value *addr, Value *arg0);

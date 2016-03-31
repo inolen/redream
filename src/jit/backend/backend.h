@@ -29,7 +29,7 @@ enum BlockFlags {
   BF_SLOWMEM = 0x1,
 };
 
-typedef void (*BlockPointer)();
+typedef uint32_t (*BlockPointer)();
 
 class Backend {
  public:

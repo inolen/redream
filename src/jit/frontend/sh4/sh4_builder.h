@@ -43,9 +43,6 @@ class SH4Builder : public ir::IRBuilder {
   ir::Value *LoadPR();
   void StorePR(ir::Value *v);
 
-  void Branch(ir::Value *dest);
-  void BranchCond(ir::Value *cond, ir::Value *true_addr, ir::Value *false_addr);
-
   void InvalidInstruction(uint32_t guest_addr);
 
   bool EmitDelayInstr(const Instr &prev);
