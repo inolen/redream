@@ -18,7 +18,7 @@ static inline bool RegisterCanStore(const Register &r, ValueType type) {
 
 struct LiveIntervalSort {
   bool operator()(const Interval *lhs, const Interval *rhs) const {
-    return GetOrdinal(lhs->next->instr()) < GetOrdinal(rhs->next->instr());
+    return !lhs->next || GetOrdinal(lhs->next->instr()) < GetOrdinal(rhs->next->instr());
   }
 };
 
@@ -75,8 +75,6 @@ void RegisterSet::PopTailInterval() {
 }
 
 void RegisterSet::InsertInterval(Interval *interval) {
-  CHECK(interval->start && interval->end && interval->next);
-
   live_[num_live_++] = interval;
   re::mmheap_push(live_, live_ + num_live_, LiveIntervalSort());
 }
@@ -186,7 +184,7 @@ void RegisterAllocationPass::ExpireOldIntervals(Instr *instr) {
 
       // intervals are sorted by their next use, once one fails to expire or
       // advance, they all will
-      if (GetOrdinal(interval->next->instr()) >= GetOrdinal(instr)) {
+      if (interval->next && GetOrdinal(interval->next->instr()) >= GetOrdinal(instr)) {
         break;
       }
 
@@ -195,7 +193,7 @@ void RegisterAllocationPass::ExpireOldIntervals(Instr *instr) {
 
       // if there are more uses, advance the next use and reinsert the interval
       // into the correct position
-      if (interval->next->next()) {
+      if (interval->next && interval->next->next()) {
         interval->next = interval->next->next();
         set.InsertInterval(interval);
       }
