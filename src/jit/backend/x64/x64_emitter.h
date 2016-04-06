@@ -24,6 +24,14 @@ enum {
   STACK_SIZE = STACK_OFFSET_LOCALS
 };
 
+enum XmmConstant {
+  XMM_CONST_ABS_MASK_PS,
+  XMM_CONST_ABS_MASK_PD,
+  XMM_CONST_SIGN_MASK_PS,
+  XMM_CONST_SIGN_MASK_PD,
+  NUM_XMM_CONST,
+};
+
 class X64Emitter : public Xbyak::CodeGenerator {
  public:
   X64Emitter(void *buffer, size_t buffer_size);
@@ -40,8 +48,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   // helpers for the emitter callbacks
   const Xbyak::Reg GetRegister(const ir::Value *v);
-  const Xbyak::Xmm GetXMMRegister(const ir::Value *v);
-  void CopyOperand(const ir::Value *v, const Xbyak::Reg &to);
+  const Xbyak::Xmm GetXmmRegister(const ir::Value *v);
+  const Xbyak::Address GetXmmConstant(XmmConstant c);
 
   Xbyak::Label *AllocLabel();
 
@@ -59,6 +67,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   int modified_marker_;
   int *modified_;
   int num_temps_;
+  Xbyak::Label xmm_const_[NUM_XMM_CONST];
 };
 }
 }

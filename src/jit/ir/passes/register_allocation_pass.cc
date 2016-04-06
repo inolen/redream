@@ -18,7 +18,8 @@ static inline bool RegisterCanStore(const Register &r, ValueType type) {
 
 struct LiveIntervalSort {
   bool operator()(const Interval *lhs, const Interval *rhs) const {
-    return !lhs->next || GetOrdinal(lhs->next->instr()) < GetOrdinal(rhs->next->instr());
+    return !lhs->next ||
+           GetOrdinal(lhs->next->instr()) < GetOrdinal(rhs->next->instr());
   }
 };
 
@@ -184,7 +185,8 @@ void RegisterAllocationPass::ExpireOldIntervals(Instr *instr) {
 
       // intervals are sorted by their next use, once one fails to expire or
       // advance, they all will
-      if (interval->next && GetOrdinal(interval->next->instr()) >= GetOrdinal(instr)) {
+      if (interval->next &&
+          GetOrdinal(interval->next->instr()) >= GetOrdinal(instr)) {
         break;
       }
 
