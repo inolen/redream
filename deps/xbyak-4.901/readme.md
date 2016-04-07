@@ -1,5 +1,5 @@
 
-Xbyak 4.85 ; JIT assembler for x86(IA32), x64(AMD64, x86-64) by C++
+Xbyak 4.901 ; JIT assembler for x86(IA32), x64(AMD64, x86-64) by C++
 =============
 
 Abstract
@@ -106,7 +106,15 @@ pointer by calling cgetCode() and casting the return value.
     mov eax, [ebx+ecx] --> mov (eax, ptr[ebx+ecx]);
     test byte [esp], 4 --> test (byte [esp], 4);
 
->selector is not supported.
+
+How to use Selector(Segment Register)
+
+>Note: Segment class is not derived from Operand.
+
+```
+mov eax, [fs:eax] --> putSeg(fs); mov(eax, ptr [eax]);
+mov ax, cs        --> mov(ax, cs);
+```
 
 >you can use ptr for almost memory access unless you specify the size of memory.
 
@@ -277,6 +285,12 @@ The header files under xbyak/ are independent of cybozulib.
 
 History
 -------------
+* 2016/May/14 ver 4.901 comment to ready() function(thanks to skmp)
+* 2016/Feb/04 ver 4.90 add jcc(const void *addr);
+* 2016/Jan/30 ver 4.89 vpblendvb supports ymm reg(thanks to John Funnell)
+* 2016/Jan/24 ver 4.88 lea, cmov supports 16-bit register(thanks to whyisthisfieldhere)
+* 2015/Oct/05 ver 4.87 support segment selectors
+* 2015/Aug/18 ver 4.86 fix [rip + label] addressing with immediate value(thanks to whyisthisfieldhere)
 * 2015/Aug/10 ver 4.85 Address::operator==() is not correct(thanks to inolen)
 * 2015/Jun/22 ver 4.84 call() support variadic template if available(thanks to randomstuff)
 * 2015/Jun/16 ver 4.83 support movbe(thanks to benvanik)

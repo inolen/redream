@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "xbyak/xbyak.h"
 #include <stdlib.h>
+#include <string.h>
 #define NUM_OF_ARRAY(x) (sizeof(x) / sizeof(x[0]))
 
 using namespace Xbyak;
@@ -78,6 +79,8 @@ const uint64 YMM = _YMM | _YMM2;
 const uint64 NOPARA = 1ULL << (bitEnd - 1);
 
 class Test {
+	Test(const Test&);
+	void operator=(const Test&);
 	const bool isXbyak_;
 	int funcNum_;
 	// check all op1, op2, op3
@@ -427,7 +430,7 @@ class Test {
 		}
 
 		put("bswap", REG32e);
-		put("lea", REG32e, MEM);
+		put("lea", REG32e|REG16, MEM);
 		put("fldcw", MEM);
 		put("fstcw", MEM);
 	}
@@ -803,6 +806,7 @@ class Test {
 		for (size_t i = 0; i < NUM_OF_ARRAY(tbl); i++) {
 			char buf[16];
 			sprintf(buf, "cmov%s", tbl[i]);
+			put(buf, REG16, REG16|MEM);
 			put(buf, REG32, REG32|MEM);
 			put(buf, REG64, REG64|MEM);
 			sprintf(buf, "set%s", tbl[i]);
@@ -812,35 +816,37 @@ class Test {
 	void putReg1() const
 	{
 		// (REG, REG|MEM)
-		static const char tbl[][16] = {
-			"adc",
-			"add",
-			"and",
-			"cmp",
-			"or",
-			"sbb",
-			"sub",
-			"xor",
-		};
-		for (size_t i = 0; i < NUM_OF_ARRAY(tbl); i++) {
-			const char *p = tbl[i];
-			put(p, REG32, REG32|MEM);
-			put(p, REG64, REG64|MEM);
-			put(p, REG16, REG16|MEM);
-			put(p, REG8|REG8_3, REG8|MEM);
-			put(p, MEM, REG32e|REG16|REG8|REG8_3);
+		{
+			static const char tbl[][16] = {
+				"adc",
+				"add",
+				"and",
+				"cmp",
+				"or",
+				"sbb",
+				"sub",
+				"xor",
+			};
+			for (size_t i = 0; i < NUM_OF_ARRAY(tbl); i++) {
+				const char *p = tbl[i];
+				put(p, REG32, REG32|MEM);
+				put(p, REG64, REG64|MEM);
+				put(p, REG16, REG16|MEM);
+				put(p, REG8|REG8_3, REG8|MEM);
+				put(p, MEM, REG32e|REG16|REG8|REG8_3);
 
-			put(p, MEM8, IMM8|NEG8);
-			put(p, MEM16, IMM8|IMM16|NEG8|NEG16);
-			put(p, MEM32, IMM8|IMM32|NEG8|NEG32);
+				put(p, MEM8, IMM8|NEG8);
+				put(p, MEM16, IMM8|IMM16|NEG8|NEG16);
+				put(p, MEM32, IMM8|IMM32|NEG8|NEG32);
 
-			put(p, REG64|RAX, IMM8|NEG8);
-			put(p, REG64|RAX, "0x12345678", "0x12345678");
-			put(p, REG64|RAX, "192", "192");
-			put(p, REG64|RAX, "0x1234", "0x1234");
-			put(p, REG32|EAX, IMM8|IMM32|NEG8);
-			put(p, REG16|AX, IMM8|IMM16|NEG8|NEG16);
-			put(p, REG8|REG8_3|AL, IMM|NEG8);
+				put(p, REG64|RAX, IMM8|NEG8);
+				put(p, REG64|RAX, "0x12345678", "0x12345678");
+				put(p, REG64|RAX, "192", "192");
+				put(p, REG64|RAX, "0x1234", "0x1234");
+				put(p, REG32|EAX, IMM8|IMM32|NEG8);
+				put(p, REG16|AX, IMM8|IMM16|NEG8|NEG16);
+				put(p, REG8|REG8_3|AL, IMM|NEG8);
+			}
 		}
 		{
 			const char tbl[][8] = {
@@ -962,40 +968,43 @@ class Test {
 	}
 	void putEtc() const
 	{
-		const char *p = "ret";
-		put(p);
-		put(p, IMM);
-		p = "mov";
-		put(p, EAX|REG32|MEM|MEM_ONLY_DISP, REG32|EAX);
-		put(p, REG64|MEM|MEM_ONLY_DISP, REG64|RAX);
-		put(p, AX|REG16|MEM|MEM_ONLY_DISP, REG16|AX);
-		put(p, AL|REG8|REG8_3|MEM|MEM_ONLY_DISP, REG8|REG8_3|AL);
-		put(p, REG32e|REG16|REG8|RAX|EAX|AX|AL, MEM|MEM_ONLY_DISP);
-		put(p, MEM32|MEM16|MEM8, IMM);
-		put(p, REG64, "0x1234567890abcdefLL", "0x1234567890abcdef");
-		put("movbe", REG16|REG32e, MEM);
-		put("movbe", MEM, REG16|REG32e);
+		{
+			const char *p = "ret";
+			put(p);
+			put(p, IMM);
+			p = "mov";
+			put(p, EAX|REG32|MEM|MEM_ONLY_DISP, REG32|EAX);
+			put(p, REG64|MEM|MEM_ONLY_DISP, REG64|RAX);
+			put(p, AX|REG16|MEM|MEM_ONLY_DISP, REG16|AX);
+			put(p, AL|REG8|REG8_3|MEM|MEM_ONLY_DISP, REG8|REG8_3|AL);
+			put(p, REG32e|REG16|REG8|RAX|EAX|AX|AL, MEM|MEM_ONLY_DISP);
+			put(p, MEM32|MEM16|MEM8, IMM);
+			put(p, REG64, "0x1234567890abcdefLL", "0x1234567890abcdef");
+			put("movbe", REG16|REG32e, MEM);
+			put("movbe", MEM, REG16|REG32e);
 #ifdef XBYAK64
-		put(p, RAX|EAX|AX|AL, "ptr [0x1234567890abcdefLL]", "[qword 0x1234567890abcdef]");
-		put(p, "ptr [0x1234567890abcdefLL]", "[qword 0x1234567890abcdef]", RAX|EAX|AX|AL);
-		put(p, "qword [rax], 0");
-		put(p, "qword [rax], 0x12");
-		put(p, "qword [rax], 0x1234");
-		put(p, "qword [rax], 0x12345678");
-//		put(p, "qword [rax], 0x123456789ab");
-		put(p, "qword [rax], 1000000");
-		put(p, "rdx, qword [rax]");
+			put(p, RAX|EAX|AX|AL, "ptr [0x1234567890abcdefLL]", "[qword 0x1234567890abcdef]");
+			put(p, "ptr [0x1234567890abcdefLL]", "[qword 0x1234567890abcdef]", RAX|EAX|AX|AL);
+			put(p, "qword [rax], 0");
+			put(p, "qword [rax], 0x12");
+			put(p, "qword [rax], 0x1234");
+			put(p, "qword [rax], 0x12345678");
+//			put(p, "qword [rax], 0x123456789ab");
+			put(p, "qword [rax], 1000000");
+			put(p, "rdx, qword [rax]");
 #endif
-
-		const char tbl[][8] = {
-			"movsx",
-			"movzx",
-		};
-		for (size_t i = 0; i < NUM_OF_ARRAY(tbl); i++) {
-			const char *p = tbl[i];
-			put(p, REG64, REG16|REG8|MEM8|MEM16);
-			put(p, REG32, REG16|REG8|MEM8|MEM16);
-			put(p, REG16, REG8|MEM8);
+		}
+		{
+			const char tbl[][8] = {
+				"movsx",
+				"movzx",
+			};
+			for (size_t i = 0; i < NUM_OF_ARRAY(tbl); i++) {
+				const char *p = tbl[i];
+				put(p, REG64, REG16|REG8|MEM8|MEM16);
+				put(p, REG32, REG16|REG8|MEM8|MEM16);
+				put(p, REG16, REG8|MEM8);
+			}
 		}
 #ifdef XBYAK64
 		put("movsxd", REG64, REG32|MEM32);
@@ -1146,27 +1155,29 @@ class Test {
 	}
 	void putSSE4_2() const
 	{
-		const char tbl[][16] = {
-			"blendpd",
-			"blendps",
-			"dppd",
-			"dpps",
-			"mpsadbw",
-			"pblendw",
-			"roundps",
-			"roundpd",
-			"roundss",
-			"roundsd",
-			"pcmpestrm",
-			"pcmpestri",
-			"pcmpistrm",
-			"pcmpistri",
-			"pclmulqdq",
-			"aeskeygenassist",
-		};
-		for (size_t i = 0; i < NUM_OF_ARRAY(tbl); i++) {
-			const char *p = tbl[i];
-			put(p, XMM, XMM|MEM, IMM);
+		{
+			const char tbl[][16] = {
+				"blendpd",
+				"blendps",
+				"dppd",
+				"dpps",
+				"mpsadbw",
+				"pblendw",
+				"roundps",
+				"roundpd",
+				"roundss",
+				"roundsd",
+				"pcmpestrm",
+				"pcmpestri",
+				"pcmpistrm",
+				"pcmpistri",
+				"pclmulqdq",
+				"aeskeygenassist",
+			};
+			for (size_t i = 0; i < NUM_OF_ARRAY(tbl); i++) {
+				const char *p = tbl[i];
+				put(p, XMM, XMM|MEM, IMM);
+			}
 		}
 		{
 			const char tbl[][16] = {
@@ -1794,7 +1805,7 @@ class Test {
 			} tbl[] = {
 				{ "vblendvpd", true },
 				{ "vblendvps", true },
-				{ "vpblendvb", false },
+				{ "vpblendvb", true },
 			};
 			for (size_t i = 0; i < NUM_OF_ARRAY(tbl); i++) {
 				const Tbl& p = tbl[i];
@@ -2134,6 +2145,59 @@ public:
 			} while (std::next_permutation(ord, ord + 3));
 		}
 	}
+	void putSeg()
+	{
+		const char *segTbl[] = {
+			"es",
+			"cs",
+			"ss",
+			"ds",
+			"fs",
+			"gs",
+		};
+		for (size_t i = 0; i < NUM_OF_ARRAY(segTbl); i++) {
+			const char *seg = segTbl[i];
+			const char *op1Tbl[] = {
+				"ax",
+				"edx",
+				(isXbyak_ ? "ptr [eax]" : "[eax]"),
+#ifdef XBYAK64
+				"r9",
+#endif
+			};
+			for (size_t j = 0; j < NUM_OF_ARRAY(op1Tbl); j++) {
+				const char *op1 = op1Tbl[j];
+				if (isXbyak_) {
+					printf("mov(%s, %s); dump();\n", op1, seg);
+					printf("mov(%s, %s); dump();\n", seg, op1);
+				} else {
+					printf("mov %s, %s\n", op1, seg);
+					printf("mov %s, %s\n", seg, op1);
+				}
+			}
+		}
+		{
+			const char *segTbl[] = {
+#ifdef XBYAK32
+				"es",
+				"ss",
+				"ds",
+#endif
+				"fs",
+				"gs",
+			};
+			for (size_t i = 0; i < NUM_OF_ARRAY(segTbl); i++) {
+				const char *seg = segTbl[i];
+				if (isXbyak_) {
+					printf("push(%s); dump();\n", seg);
+					printf("pop(%s); dump();\n", seg);
+				} else {
+					printf("push %s\n", seg);
+					printf("pop %s\n", seg);
+				}
+			}
+		}
+	}
 	void put()
 	{
 #ifdef USE_AVX
@@ -2171,6 +2235,7 @@ public:
 		putSSE4_1();
 		separateFunc();
 		putSSE4_2();
+		putSeg(); // same behavior as yasm for mov rax, cx
 #else
 		putSIMPLE();
 		putReg1();

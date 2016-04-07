@@ -98,7 +98,7 @@ target_compile_options(json11 PRIVATE -std=c++11)
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
 
 # xbyak
-list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.85)
+list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
 
 
 #--------------------------------------------------
