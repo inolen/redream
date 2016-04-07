@@ -30,6 +30,7 @@ enum ValueType {
   VALUE_I64,
   VALUE_F32,
   VALUE_F64,
+  VALUE_V128,
   VALUE_NUM,
 };
 
@@ -40,9 +41,11 @@ enum {
   VALUE_I64_MASK = 1 << VALUE_I64,
   VALUE_F32_MASK = 1 << VALUE_F32,
   VALUE_F64_MASK = 1 << VALUE_F64,
+  VALUE_V128_MASK = 1 << VALUE_V128,
   VALUE_INT_MASK =
       VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK | VALUE_I64_MASK,
   VALUE_FLOAT_MASK = VALUE_F32_MASK | VALUE_F64_MASK,
+  VALUE_VECTOR_MASK = VALUE_V128_MASK,
   VALUE_ALL_MASK = VALUE_INT_MASK | VALUE_FLOAT_MASK,
 };
 
@@ -53,11 +56,16 @@ enum {
 class Instr;
 class Use;
 
+static inline bool IsIntType(ValueType type) {
+  return type == VALUE_I8 || type == VALUE_I16 || type == VALUE_I32 ||
+         type == VALUE_I64;
+}
+
 static inline bool IsFloatType(ValueType type) {
   return type == VALUE_F32 || type == VALUE_F64;
 }
 
-static inline bool IsIntType(ValueType type) { return !IsFloatType(type); }
+static inline bool IsVectorType(ValueType type) { return type == VALUE_V128; }
 
 static inline int SizeForType(ValueType type) {
   switch (type) {
@@ -73,6 +81,8 @@ static inline int SizeForType(ValueType type) {
       return 4;
     case VALUE_F64:
       return 8;
+    case VALUE_V128:
+      return 16;
     default:
       LOG_FATAL("Unexpected value type");
       break;
@@ -373,7 +383,7 @@ class IRBuilder {
   Instr *FCmpLE(Value *a, Value *b);
   Instr *FCmpLT(Value *a, Value *b);
 
-  // math operators
+  // integer math operators
   Instr *Add(Value *a, Value *b);
   Instr *Sub(Value *a, Value *b);
   Instr *SMul(Value *a, Value *b);
@@ -381,6 +391,8 @@ class IRBuilder {
   Instr *Div(Value *a, Value *b);
   Instr *Neg(Value *a);
   Instr *Abs(Value *a);
+
+  // floating point math operators
   Instr *FAdd(Value *a, Value *b);
   Instr *FSub(Value *a, Value *b);
   Instr *FMul(Value *a, Value *b);
@@ -388,6 +400,12 @@ class IRBuilder {
   Instr *FNeg(Value *a);
   Instr *FAbs(Value *a);
   Instr *Sqrt(Value *a);
+
+  // vector math operators
+  Instr *VBroadcast(Value *a);
+  Instr *VAdd(Value *a, Value *b, ValueType el_type);
+  Instr *VDot(Value *a, Value *b, ValueType el_type);
+  Instr *VMul(Value *a, Value *b, ValueType el_type);
 
   // bitwise operations
   Instr *And(Value *a, Value *b);

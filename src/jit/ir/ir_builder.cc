@@ -401,6 +401,44 @@ Instr *IRBuilder::Sqrt(Value *a) {
   return instr;
 }
 
+Instr *IRBuilder::VBroadcast(Value *a) {
+  CHECK(a->type() == VALUE_F32);
+
+  Instr *instr = AppendInstr(OP_VBROADCAST, VALUE_V128);
+  instr->set_arg0(a);
+  return instr;
+}
+
+Instr *IRBuilder::VAdd(Value *a, Value *b, ValueType el_type) {
+  CHECK(IsVectorType(a->type()) && IsVectorType(b->type()));
+  CHECK_EQ(el_type, VALUE_F32);
+
+  Instr *instr = AppendInstr(OP_VADD, a->type());
+  instr->set_arg0(a);
+  instr->set_arg1(b);
+  return instr;
+}
+
+Instr *IRBuilder::VDot(Value *a, Value *b, ValueType el_type) {
+  CHECK(IsVectorType(a->type()) && IsVectorType(b->type()));
+  CHECK_EQ(el_type, VALUE_F32);
+
+  Instr *instr = AppendInstr(OP_VDOT, el_type);
+  instr->set_arg0(a);
+  instr->set_arg1(b);
+  return instr;
+}
+
+Instr *IRBuilder::VMul(Value *a, Value *b, ValueType el_type) {
+  CHECK(IsVectorType(a->type()) && IsVectorType(b->type()));
+  CHECK_EQ(el_type, VALUE_F32);
+
+  Instr *instr = AppendInstr(OP_VMUL, a->type());
+  instr->set_arg0(a);
+  instr->set_arg1(b);
+  return instr;
+}
+
 Instr *IRBuilder::And(Value *a, Value *b) {
   CHECK(IsIntType(a->type()) && a->type() == b->type());
 

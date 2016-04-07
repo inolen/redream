@@ -73,8 +73,16 @@ const Register x64_registers[] = {
      reinterpret_cast<const void *>(&Xbyak::util::xmm9)},
     {"xmm10", ir::VALUE_FLOAT_MASK,
      reinterpret_cast<const void *>(&Xbyak::util::xmm10)},
-    {"xmm11", ir::VALUE_FLOAT_MASK,
-     reinterpret_cast<const void *>(&Xbyak::util::xmm11)}};
+    {"xmm11", ir::VALUE_VECTOR_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm11)},
+    {"xmm12", ir::VALUE_VECTOR_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm12)},
+    {"xmm13", ir::VALUE_VECTOR_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm13)},
+    {"xmm14", ir::VALUE_VECTOR_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm14)},
+    {"xmm15", ir::VALUE_VECTOR_MASK,
+     reinterpret_cast<const void *>(&Xbyak::util::xmm15)}};
 
 const int x64_num_registers = sizeof(x64_registers) / sizeof(Register);
 

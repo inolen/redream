@@ -59,6 +59,7 @@ class RegisterAllocationPass : public Pass {
 
   RegisterSet int_registers_;
   RegisterSet float_registers_;
+  RegisterSet vector_registers_;
 
   // intervals, keyed by register
   Interval *intervals_;

@@ -82,7 +82,8 @@ void RegisterSet::InsertInterval(Interval *interval) {
 
 RegisterAllocationPass::RegisterAllocationPass(const Backend &backend)
     : int_registers_(backend.num_registers()),
-      float_registers_(backend.num_registers()) {
+      float_registers_(backend.num_registers()),
+      vector_registers_(backend.num_registers()) {
   registers_ = backend.registers();
   num_registers_ = backend.num_registers();
 
@@ -139,12 +140,17 @@ RegisterSet &RegisterAllocationPass::GetRegisterSet(ValueType type) {
     return float_registers_;
   }
 
+  if (IsVectorType(type)) {
+    return vector_registers_;
+  }
+
   LOG_FATAL("Unexpected value type");
 }
 
 void RegisterAllocationPass::Reset() {
   int_registers_.Clear();
   float_registers_.Clear();
+  vector_registers_.Clear();
 
   for (int i = 0; i < num_registers_; i++) {
     const Register &r = registers_[i];
@@ -153,10 +159,10 @@ void RegisterAllocationPass::Reset() {
       int_registers_.PushRegister(i);
     } else if (r.value_types == VALUE_FLOAT_MASK) {
       float_registers_.PushRegister(i);
+    } else if (r.value_types == VALUE_VECTOR_MASK) {
+      vector_registers_.PushRegister(i);
     } else {
-      LOG_FATAL(
-          "Unsupported register value mask, expected VALUE_INT_MASK or "
-          "VALUE_FLOAT_MASK");
+      LOG_FATAL("Unsupported register value mask");
     }
   }
 }
@@ -220,6 +226,7 @@ void RegisterAllocationPass::ExpireOldIntervals(Instr *instr) {
 
   expire_set(int_registers_);
   expire_set(float_registers_);
+  expire_set(vector_registers_);
 }
 
 // If the first argument isn't used after this instruction, its register

@@ -577,7 +577,18 @@ EMITTER(STORE_GUEST) {
 EMITTER(LOAD_CONTEXT) {
   int offset = instr->arg0()->i32();
 
-  if (IsFloatType(instr->type())) {
+  if (IsVectorType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXmmRegister(instr);
+
+    switch (instr->type()) {
+      case VALUE_V128:
+        e.movups(result, e.ptr[e.r14 + offset]);
+        break;
+      default:
+        LOG_FATAL("Unexpected result type");
+        break;
+    }
+  } else if (IsFloatType(instr->type())) {
     const Xbyak::Xmm result = e.GetXmmRegister(instr);
 
     switch (instr->type()) {
@@ -638,7 +649,18 @@ EMITTER(STORE_CONTEXT) {
         break;
     }
   } else {
-    if (IsFloatType(instr->arg1()->type())) {
+    if (IsVectorType(instr->arg1()->type())) {
+      const Xbyak::Xmm src = e.GetXmmRegister(instr->arg1());
+
+      switch (instr->arg1()->type()) {
+        case VALUE_V128:
+          e.vmovups(e.ptr[e.r14 + offset], src);
+          break;
+        default:
+          LOG_FATAL("Unexpected result type");
+          break;
+      }
+    } else if (IsFloatType(instr->arg1()->type())) {
       const Xbyak::Xmm src = e.GetXmmRegister(instr->arg1());
 
       switch (instr->arg1()->type()) {
@@ -679,7 +701,18 @@ EMITTER(STORE_CONTEXT) {
 EMITTER(LOAD_LOCAL) {
   int offset = STACK_OFFSET_LOCALS + instr->arg0()->i32();
 
-  if (IsFloatType(instr->type())) {
+  if (IsVectorType(instr->type())) {
+    const Xbyak::Xmm result = e.GetXmmRegister(instr);
+
+    switch (instr->type()) {
+      case VALUE_V128:
+        e.movups(result, e.ptr[e.rsp + offset]);
+        break;
+      default:
+        LOG_FATAL("Unexpected result type");
+        break;
+    }
+  } else if (IsFloatType(instr->type())) {
     const Xbyak::Xmm result = e.GetXmmRegister(instr);
 
     switch (instr->type()) {
@@ -721,7 +754,18 @@ EMITTER(STORE_LOCAL) {
 
   CHECK(!instr->arg1()->constant());
 
-  if (IsFloatType(instr->arg1()->type())) {
+  if (IsVectorType(instr->arg1()->type())) {
+    const Xbyak::Xmm src = e.GetXmmRegister(instr->arg1());
+
+    switch (instr->arg1()->type()) {
+      case VALUE_V128:
+        e.vmovups(e.ptr[e.rsp + offset], src);
+        break;
+      default:
+        LOG_FATAL("Unexpected result type");
+        break;
+    }
+  } else if (IsFloatType(instr->arg1()->type())) {
     const Xbyak::Xmm src = e.GetXmmRegister(instr->arg1());
 
     switch (instr->arg1()->type()) {
@@ -1150,6 +1194,37 @@ EMITTER(SQRT) {
   } else {
     e.vsqrtsd(result, a);
   }
+}
+
+EMITTER(VBROADCAST) {
+  const Xbyak::Xmm result = e.GetXmmRegister(instr);
+  const Xbyak::Xmm a = e.GetXmmRegister(instr->arg0());
+
+  e.vbroadcastss(result, a);
+}
+
+EMITTER(VADD) {
+  const Xbyak::Xmm result = e.GetXmmRegister(instr);
+  const Xbyak::Xmm a = e.GetXmmRegister(instr->arg0());
+  const Xbyak::Xmm b = e.GetXmmRegister(instr->arg1());
+
+  e.vaddps(result, a, b);
+}
+
+EMITTER(VDOT) {
+  const Xbyak::Xmm result = e.GetXmmRegister(instr);
+  const Xbyak::Xmm a = e.GetXmmRegister(instr->arg0());
+  const Xbyak::Xmm b = e.GetXmmRegister(instr->arg1());
+
+  e.vdpps(result, a, b, 0b11110001);
+}
+
+EMITTER(VMUL) {
+  const Xbyak::Xmm result = e.GetXmmRegister(instr);
+  const Xbyak::Xmm a = e.GetXmmRegister(instr->arg0());
+  const Xbyak::Xmm b = e.GetXmmRegister(instr->arg1());
+
+  e.vmulps(result, a, b);
 }
 
 EMITTER(AND) {

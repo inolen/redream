@@ -74,6 +74,11 @@ struct SH4Context {
   // mapping for each pair of single-precision registers is instead swapped by
   // XOR'ing the actual index with 1. for example, fr2 becomes fr[3] and fr3
   // becomes fr[2], enabling dr2 to perfectly alias fr[2]
+
+  // note note, this incorrectly causes fv registers to be swizzled. fv0 should
+  // be loaded as {fr0, fr1, fr2, fr3} but it's actually loaded as
+  // {fr1, fr0, fr3, fr2}. however, due to the way the FV registers are
+  // used (FIPR and FTRV) this doesn't actually affect the results
   uint32_t fr[16], xf[16];
 };
 }
