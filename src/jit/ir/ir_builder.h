@@ -315,7 +315,7 @@ class IRBuilder {
   friend class IRReader;
 
  public:
-  IRBuilder();
+  IRBuilder(Arena &arena);
 
   const IntrusiveList<Instr> &instrs() const { return instrs_; }
   IntrusiveList<Instr> &instrs() { return instrs_; }
@@ -428,7 +428,7 @@ class IRBuilder {
   Instr *Cmp(Value *a, Value *b, CmpType type);
   Instr *FCmp(Value *a, Value *b, CmpType type);
 
-  Arena arena_;
+  Arena &arena_;
   IntrusiveList<Instr> instrs_;
   Instr *current_instr_;
   IntrusiveList<Local> locals_;

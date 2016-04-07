@@ -81,8 +81,8 @@ Instr::~Instr() {}
 //
 // IRBuilder
 //
-IRBuilder::IRBuilder()
-    : arena_(1024), current_instr_(nullptr), locals_size_(0) {}
+IRBuilder::IRBuilder(Arena &arena)
+    : arena_(arena), current_instr_(nullptr), locals_size_(0) {}
 
 void IRBuilder::Dump() const {
   IRWriter writer;

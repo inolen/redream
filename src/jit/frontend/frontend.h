@@ -19,8 +19,7 @@ class Frontend {
       : memory_(memory), guest_ctx_(guest_ctx) {}
   virtual ~Frontend() {}
 
-  virtual std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr,
-                                                    int max_instrs) = 0;
+  virtual ir::IRBuilder &BuildBlock(uint32_t addr, int max_instrs) = 0;
 
  protected:
   hw::Memory &memory_;

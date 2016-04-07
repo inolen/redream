@@ -65,7 +65,6 @@ static bool IsCalleeSaved(const Xbyak::Reg &reg) {
 
 X64Emitter::X64Emitter(void *buffer, size_t buffer_size)
     : CodeGenerator(buffer_size, buffer),
-      arena_(1024),
       memory_(nullptr),
       guest_ctx_(nullptr),
       block_flags_(0) {
@@ -80,28 +79,13 @@ X64Emitter::X64Emitter(void *buffer, size_t buffer_size)
 X64Emitter::~X64Emitter() { delete[] modified_; }
 
 void X64Emitter::Reset() {
-  reset();
-
-  // emit xmm constants to codegen buffer
-  L(xmm_const_[XMM_CONST_ABS_MASK_PS]);
-  dq(INT64_C(0x7fffffff7fffffff));
-  dq(INT64_C(0x7fffffff7fffffff));
-
-  L(xmm_const_[XMM_CONST_ABS_MASK_PD]);
-  dq(INT64_C(0x7fffffffffffffff));
-  dq(INT64_C(0x7fffffffffffffff));
-
-  L(xmm_const_[XMM_CONST_SIGN_MASK_PS]);
-  dq(INT64_C(0x8000000080000000));
-  dq(INT64_C(0x8000000080000000));
-
-  L(xmm_const_[XMM_CONST_SIGN_MASK_PD]);
-  dq(INT64_C(0x8000000000000000));
-  dq(INT64_C(0x8000000000000000));
-
-  // reset modified registers
   modified_marker_ = 0;
   memset(modified_, modified_marker_, sizeof(int) * x64_num_registers);
+
+  // reset codegen buffer
+  reset();
+
+  EmitConstants();
 }
 
 BlockPointer X64Emitter::Emit(IRBuilder &builder, Memory &memory,
@@ -117,9 +101,6 @@ BlockPointer X64Emitter::Emit(IRBuilder &builder, Memory &memory,
   // is about to emitted to
   BlockPointer fn = getCurr<BlockPointer>();
 
-  // reset emit state
-  arena_.Reset();
-
   int stack_size = 0;
   EmitProlog(builder, &stack_size);
   EmitBody(builder);
@@ -127,6 +108,24 @@ BlockPointer X64Emitter::Emit(IRBuilder &builder, Memory &memory,
   ready();
 
   return fn;
+}
+
+void X64Emitter::EmitConstants() {
+  L(xmm_const_[XMM_CONST_ABS_MASK_PS]);
+  dq(INT64_C(0x7fffffff7fffffff));
+  dq(INT64_C(0x7fffffff7fffffff));
+
+  L(xmm_const_[XMM_CONST_ABS_MASK_PD]);
+  dq(INT64_C(0x7fffffffffffffff));
+  dq(INT64_C(0x7fffffffffffffff));
+
+  L(xmm_const_[XMM_CONST_SIGN_MASK_PS]);
+  dq(INT64_C(0x8000000080000000));
+  dq(INT64_C(0x8000000080000000));
+
+  L(xmm_const_[XMM_CONST_SIGN_MASK_PD]);
+  dq(INT64_C(0x8000000000000000));
+  dq(INT64_C(0x8000000000000000));
 }
 
 void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
@@ -300,12 +299,6 @@ const Xbyak::Xmm X64Emitter::GetXmmRegister(const Value *v) {
 
 const Xbyak::Address X64Emitter::GetXmmConstant(XmmConstant c) {
   return ptr[rip + xmm_const_[c]];
-}
-
-Xbyak::Label *X64Emitter::AllocLabel() {
-  Xbyak::Label *label = arena_.Alloc<Xbyak::Label>();
-  new (label) Xbyak::Label();
-  return label;
 }
 
 bool X64Emitter::CanEncodeAsImmediate(const Value *v) const {
@@ -1270,15 +1263,11 @@ EMITTER(LSHR) {
 }
 
 EMITTER(ASHD) {
-  CHECK_EQ(instr->type(), VALUE_I32);
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg v = e.GetRegister(instr->arg0());
   const Xbyak::Reg n = e.GetRegister(instr->arg1());
 
-  Xbyak::Label *shr_label = e.AllocLabel();
-  Xbyak::Label *shr_overflow_label = e.AllocLabel();
-  Xbyak::Label *end_label = e.AllocLabel();
+  e.inLocalLabel();
 
   if (result != v) {
     e.mov(result, v);
@@ -1286,40 +1275,38 @@ EMITTER(ASHD) {
 
   // check if we're shifting left or right
   e.test(n, 0x80000000);
-  e.jnz(*shr_label);
+  e.jnz(".shr");
 
   // perform shift left
   e.mov(e.cl, n);
   e.sal(result, e.cl);
-  e.jmp(*end_label);
+  e.jmp(".end");
 
   // perform right shift
-  e.L(*shr_label);
+  e.L(".shr");
   e.test(n, 0x1f);
-  e.jz(*shr_overflow_label);
+  e.jz(".shr_overflow");
   e.mov(e.cl, n);
   e.neg(e.cl);
   e.sar(result, e.cl);
-  e.jmp(*end_label);
+  e.jmp(".end");
 
   // right shift overflowed
-  e.L(*shr_overflow_label);
+  e.L(".shr_overflow");
   e.sar(result, 31);
 
   // shift is done
-  e.L(*end_label);
+  e.L(".end");
+
+  e.outLocalLabel();
 }
 
 EMITTER(LSHD) {
-  CHECK_EQ(instr->type(), VALUE_I32);
-
   const Xbyak::Reg result = e.GetRegister(instr);
   const Xbyak::Reg v = e.GetRegister(instr->arg0());
   const Xbyak::Reg n = e.GetRegister(instr->arg1());
 
-  Xbyak::Label *shr_label = e.AllocLabel();
-  Xbyak::Label *shr_overflow_label = e.AllocLabel();
-  Xbyak::Label *end_label = e.AllocLabel();
+  e.inLocalLabel();
 
   if (result != v) {
     e.mov(result, v);
@@ -1327,28 +1314,30 @@ EMITTER(LSHD) {
 
   // check if we're shifting left or right
   e.test(n, 0x80000000);
-  e.jnz(*shr_label);
+  e.jnz(".shr");
 
   // perform shift left
   e.mov(e.cl, n);
   e.shl(result, e.cl);
-  e.jmp(*end_label);
+  e.jmp(".end");
 
   // perform right shift
-  e.L(*shr_label);
+  e.L(".shr");
   e.test(n, 0x1f);
-  e.jz(*shr_overflow_label);
+  e.jz(".shr_overflow");
   e.mov(e.cl, n);
   e.neg(e.cl);
   e.shr(result, e.cl);
-  e.jmp(*end_label);
+  e.jmp(".end");
 
   // right shift overflowed
-  e.L(*shr_overflow_label);
+  e.L(".shr_overflow");
   e.mov(result, 0x0);
 
   // shift is done
-  e.L(*end_label);
+  e.L(".end");
+
+  e.outLocalLabel();
 }
 
 EMITTER(CALL_EXTERNAL) {

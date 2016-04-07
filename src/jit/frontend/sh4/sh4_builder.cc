@@ -37,8 +37,9 @@ EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
 #undef SH4_INSTR
 };
 
-SH4Builder::SH4Builder(Memory &memory, const SH4Context &guest_ctx)
-    : memory_(memory), guest_ctx_(guest_ctx) {}
+SH4Builder::SH4Builder(Arena &arena, Memory &memory,
+                       const SH4Context &guest_ctx)
+    : IRBuilder(arena), memory_(memory), guest_ctx_(guest_ctx) {}
 
 void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
   PROFILER_RUNTIME("SH4Builder::Emit");

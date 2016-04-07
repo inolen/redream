@@ -1,6 +1,7 @@
 #ifndef SH4_FRONTEND_H
 #define SH4_FRONTEND_H
 
+#include "core/arena.h"
 #include "jit/frontend/frontend.h"
 
 namespace re {
@@ -12,7 +13,10 @@ class SH4Frontend : public Frontend {
  public:
   SH4Frontend(hw::Memory &memory, void *guest_ctx);
 
-  std::unique_ptr<ir::IRBuilder> BuildBlock(uint32_t addr, int max_instrs);
+  ir::IRBuilder &BuildBlock(uint32_t addr, int max_instrs);
+
+ private:
+  Arena arena_;
 };
 }
 }

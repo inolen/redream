@@ -2,7 +2,6 @@
 #define X64_EMITTER_H
 
 #include <xbyak/xbyak.h>
-#include "core/arena.h"
 
 namespace re {
 
@@ -51,16 +50,14 @@ class X64Emitter : public Xbyak::CodeGenerator {
   const Xbyak::Xmm GetXmmRegister(const ir::Value *v);
   const Xbyak::Address GetXmmConstant(XmmConstant c);
 
-  Xbyak::Label *AllocLabel();
-
   bool CanEncodeAsImmediate(const ir::Value *v) const;
 
  private:
+  void EmitConstants();
   void EmitProlog(ir::IRBuilder &builder, int *stack_size);
   void EmitBody(ir::IRBuilder &builder);
   void EmitEpilog(ir::IRBuilder &builder, int stack_size);
 
-  Arena arena_;
   hw::Memory *memory_;
   void *guest_ctx_;
   int block_flags_;

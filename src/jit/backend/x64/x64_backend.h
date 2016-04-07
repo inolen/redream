@@ -34,9 +34,8 @@ class X64Backend : public Backend {
   bool HandleFastmemException(sys::Exception &ex);
 
  private:
-  void AssembleThunks();
+  void EmitThunks();
 
-  X64Emitter static_emitter_;
   X64Emitter emitter_;
   SlowmemThunk load_thunk_[16];
   SlowmemThunk store_thunk_;

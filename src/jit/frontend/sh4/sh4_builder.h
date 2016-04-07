@@ -22,7 +22,7 @@ struct FPUState {
 
 class SH4Builder : public ir::IRBuilder {
  public:
-  SH4Builder(hw::Memory &memory, const SH4Context &guest_ctx);
+  SH4Builder(Arena &arena, hw::Memory &memory, const SH4Context &guest_ctx);
 
   void Emit(uint32_t addr, int max_instrs);
 

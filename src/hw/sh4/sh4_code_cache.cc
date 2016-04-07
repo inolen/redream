@@ -79,12 +79,12 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
   }
 
   // compile the SH4 into IR
-  std::unique_ptr<IRBuilder> builder = frontend_->BuildBlock(addr, max_instrs);
+  IRBuilder &builder = frontend_->BuildBlock(addr, max_instrs);
 
-  pass_runner_.Run(*builder, false);
+  pass_runner_.Run(builder, false);
 
   // assemble the IR into native code
-  BlockPointer run = backend_->AssembleBlock(*builder, block->flags);
+  BlockPointer run = backend_->AssembleBlock(builder, block->flags);
 
   if (!run) {
     LOG_INFO("Assembler overflow, resetting block cache");
@@ -94,7 +94,7 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
-    run = backend_->AssembleBlock(*builder, block->flags);
+    run = backend_->AssembleBlock(builder, block->flags);
 
     CHECK(run, "Backend assembler buffer overflow");
   }

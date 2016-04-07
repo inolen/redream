@@ -97,17 +97,14 @@ const int x64_tmp1_idx = Xbyak::Operand::R11;
 // this will break down if running two instances of the x64 backend, but it's
 // extremely useful when profiling to group JITd blocks of code with an actual
 // symbol name
-static const size_t x64_static_code_size = 4096;
 static const size_t x64_code_size = 1024 * 1024 * 8;
 static uint8_t x64_codegen[x64_code_size];
 
 X64Backend::X64Backend(Memory &memory, void *guest_ctx)
-    : Backend(memory, guest_ctx),
-      static_emitter_(x64_codegen, x64_static_code_size),
-      emitter_(x64_codegen + x64_static_code_size,
-               x64_code_size - x64_static_code_size) {
+    : Backend(memory, guest_ctx), emitter_(x64_codegen, x64_code_size) {
   Xbyak::CodeArray::protect(x64_codegen, x64_code_size, true);
-  AssembleThunks();
+
+  Reset();
 }
 
 X64Backend::~X64Backend() {}
@@ -118,7 +115,11 @@ int X64Backend::num_registers() const {
   return sizeof(x64_registers) / sizeof(Register);
 }
 
-void X64Backend::Reset() { emitter_.Reset(); }
+void X64Backend::Reset() {
+  emitter_.Reset();
+
+  EmitThunks();
+}
 
 BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
                                        int block_flags) {
@@ -226,8 +227,8 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
   return true;
 }
 
-void X64Backend::AssembleThunks() {
-  auto &e = static_emitter_;
+void X64Backend::EmitThunks() {
+  auto &e = emitter_;
 
   {
     for (int i = 0; i < 16; i++) {

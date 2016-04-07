@@ -5,6 +5,7 @@
 #include "jit/ir/ir_reader.h"
 #include "jit/ir/ir_writer.h"
 
+using namespace re;
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 
@@ -57,7 +58,8 @@ TEST(DeadCodeEliminationPassTest, Sanity) {
       "call_external i64 %6, i64 %8\n"
       "store_context i32 0x30, i32 0x8c000940\n";
 
-  IRBuilder builder;
+  Arena arena(4096);
+  IRBuilder builder(arena);
 
   IRReader reader;
   std::stringstream input_stream(input);

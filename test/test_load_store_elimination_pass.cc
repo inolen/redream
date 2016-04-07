@@ -5,6 +5,7 @@
 #include "jit/ir/ir_reader.h"
 #include "jit/ir/ir_writer.h"
 
+using namespace re;
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 
@@ -58,7 +59,8 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
       "i32 %5 = sub i32 %4, i32 0x10\n"
       "store_context i32 0x20, i32 %5\n";
 
-  IRBuilder builder;
+  Arena arena(4096);
+  IRBuilder builder(arena);
 
   IRReader reader;
   std::stringstream input_stream(input);
