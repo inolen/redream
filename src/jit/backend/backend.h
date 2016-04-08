@@ -44,6 +44,7 @@ class Backend {
 
   virtual BlockPointer AssembleBlock(ir::IRBuilder &builder,
                                      int block_flags) = 0;
+  virtual void DumpBlock(BlockPointer block) = 0;
 
   virtual bool HandleFastmemException(sys::Exception &ex) = 0;
 

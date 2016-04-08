@@ -64,6 +64,13 @@ add_subdirectory(deps/sdl2-2.0.3 EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.3/include)
 list(APPEND REDREAM_LIBS SDL2main SDL2-static)
 
+# beaengine
+add_library(beaengine STATIC deps/beaengine-4.1/beaengineSources/BeaEngine.c)
+target_include_directories(beaengine PUBLIC deps/beaengine-4.1/include)
+list(APPEND REDREAM_DEFS BEA_ENGINE_STATIC)
+list(APPEND REDREAM_INCLUDE_DIRS deps/beaengine-4.1/include)
+list(APPEND REDREAM_LIBS beaengine)
+
 # eigen
 list(APPEND REDREAM_DEFS EIGEN_DEFAULT_TO_ROW_MAJOR)
 list(APPEND REDREAM_INCLUDE_DIRS deps/eigen-3.2.1)

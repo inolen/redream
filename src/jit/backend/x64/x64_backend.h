@@ -30,6 +30,7 @@ class X64Backend : public Backend {
   void Reset();
 
   BlockPointer AssembleBlock(ir::IRBuilder &builder, int block_flags);
+  void DumpBlock(BlockPointer block);
 
   bool HandleFastmemException(sys::Exception &ex);
 
