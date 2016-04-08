@@ -49,6 +49,7 @@ struct Instr {
 };
 
 bool Disasm(Instr *i);
+void Dump(const void *data, size_t size, uint32_t base);
 }
 }
 }
