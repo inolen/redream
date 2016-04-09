@@ -6,7 +6,6 @@
 #include "emu/tracer.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
-#include "sys/network.h"
 #include "ui/window.h"
 
 using namespace re;
@@ -40,11 +39,6 @@ int main(int argc, char **argv) {
 
   InitFlags(&argc, &argv);
 
-  if (!Network::Init()) {
-    LOG_WARNING("Failed to initialize networking");
-    return EXIT_FAILURE;
-  }
-
   if (!ExceptionHandler::instance().Init()) {
     LOG_WARNING("Failed to initialize exception handler");
     return EXIT_FAILURE;
@@ -65,8 +59,6 @@ int main(int argc, char **argv) {
     std::unique_ptr<Emulator> emu(new Emulator(window));
     emu->Run(load);
   }
-
-  Network::Shutdown();
 
   ShutdownFlags();
 

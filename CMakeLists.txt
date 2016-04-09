@@ -175,7 +175,6 @@ set(REDREAM_SOURCES
   src/sys/exception_handler.cc
   src/sys/filesystem.cc
   src/sys/memory.cc
-  src/sys/network.cc
   src/ui/imgui_impl.cc
   src/ui/microprofile_impl.cc
   src/ui/keycode.cc
