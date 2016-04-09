@@ -146,14 +146,14 @@ struct MemoryRegion {
 
 class Memory {
  public:
-  static uint8_t R8(Memory *memory, uint32_t addr);
-  static uint16_t R16(Memory *memory, uint32_t addr);
-  static uint32_t R32(Memory *memory, uint32_t addr);
-  static uint64_t R64(Memory *memory, uint32_t addr);
-  static void W8(Memory *memory, uint32_t addr, uint8_t value);
-  static void W16(Memory *memory, uint32_t addr, uint16_t value);
-  static void W32(Memory *memory, uint32_t addr, uint32_t value);
-  static void W64(Memory *memory, uint32_t addr, uint64_t value);
+  static uint8_t R8(void *memory, uint32_t addr);
+  static uint16_t R16(void *memory, uint32_t addr);
+  static uint32_t R32(void *memory, uint32_t addr);
+  static uint64_t R64(void *memory, uint32_t addr);
+  static void W8(void *memory, uint32_t addr, uint8_t value);
+  static void W16(void *memory, uint32_t addr, uint16_t value);
+  static void W32(void *memory, uint32_t addr, uint32_t value);
+  static void W64(void *memory, uint32_t addr, uint64_t value);
 
   Memory(Machine &machine);
   ~Memory();

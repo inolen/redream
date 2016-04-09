@@ -1,13 +1,11 @@
 #include <math.h>
 #include "core/math.h"
 #include "core/memory.h"
-#include "emu/profiler.h"
-#include "hw/memory.h"
+#include "core/profiler.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_emitter.h"
 
 using namespace re;
-using namespace re::hw;
 using namespace re::jit;
 using namespace re::jit::backend;
 using namespace re::jit::backend::x64;
@@ -63,11 +61,9 @@ static bool IsCalleeSaved(const Xbyak::Reg &reg) {
   return callee_saved[reg.getIdx()];
 }
 
-X64Emitter::X64Emitter(void *buffer, size_t buffer_size)
-    : CodeGenerator(buffer_size, buffer),
-      memory_(nullptr),
-      guest_ctx_(nullptr),
-      block_flags_(0) {
+X64Emitter::X64Emitter(const MemoryInterface &memif, void *buffer,
+                       size_t buffer_size)
+    : CodeGenerator(buffer_size, buffer), memif_(memif), block_flags_(0) {
   // temporary registers aren't tracked to be pushed and popped
   CHECK(!IsCalleeSaved(tmp0) && !IsCalleeSaved(tmp1));
 
@@ -88,13 +84,10 @@ void X64Emitter::Reset() {
   EmitConstants();
 }
 
-BlockPointer X64Emitter::Emit(IRBuilder &builder, Memory &memory,
-                              void *guest_ctx, int block_flags) {
+BlockPointer X64Emitter::Emit(IRBuilder &builder, int block_flags) {
   PROFILER_RUNTIME("X64Emitter::Emit");
 
   // save off parameters for ease of access
-  memory_ = &memory;
-  guest_ctx_ = guest_ctx;
   block_flags_ = block_flags;
 
   // getCurr returns the current spot in the codegen buffer which the function
@@ -178,8 +171,8 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   sub(rsp, stack_size);
 
   // copy guest context and memory base to argument registers
-  mov(r14, reinterpret_cast<uint64_t>(guest_ctx_));
-  mov(r15, reinterpret_cast<uint64_t>(memory_->protected_base()));
+  mov(r14, reinterpret_cast<uint64_t>(memif_.ctx_base));
+  mov(r15, reinterpret_cast<uint64_t>(memif_.mem_base));
 
   *out_stack_size = stack_size;
 }
@@ -392,44 +385,45 @@ EMITTER(STORE_HOST) {
 EMITTER(LOAD_GUEST) {
   const Xbyak::Reg result = e.GetRegister(instr);
 
-  if (instr->arg0()->constant()) {
-    // try to resolve the address to a physical page
-    uint32_t addr = static_cast<uint32_t>(instr->arg0()->i32());
-    uint8_t *host_addr = nullptr;
-    MemoryRegion *region = nullptr;
-    uint32_t offset = 0;
+  // TODO move to new constprop
+  // if (instr->arg0()->constant()) {
+  //   // try to resolve the address to a physical page
+  //   uint32_t addr = static_cast<uint32_t>(instr->arg0()->i32());
+  //   uint8_t *host_addr = nullptr;
+  //   MemoryRegion *region = nullptr;
+  //   uint32_t offset = 0;
 
-    e.memory()->Lookup(addr, &host_addr, &region, &offset);
+  //   e.memory()->Lookup(addr, &host_addr, &region, &offset);
 
-    // if the address maps to a physical page, not a dynamic handler, make it
-    // fast
-    if (host_addr) {
-      // FIXME it'd be nice if xbyak had a mov operation which would convert
-      // the displacement to a RIP-relative address when finalizing code so
-      // we didn't have to store the absolute address in the scratch register
-      e.mov(e.rax, reinterpret_cast<uint64_t>(host_addr));
+  //   // if the address maps to a physical page, not a dynamic handler, make it
+  //   // fast
+  //   if (host_addr) {
+  //     // FIXME it'd be nice if xbyak had a mov operation which would convert
+  //     // the displacement to a RIP-relative address when finalizing code so
+  //     // we didn't have to store the absolute address in the scratch register
+  //     e.mov(e.rax, reinterpret_cast<uint64_t>(host_addr));
 
-      switch (instr->type()) {
-        case VALUE_I8:
-          e.mov(result, e.byte[e.rax]);
-          break;
-        case VALUE_I16:
-          e.mov(result, e.word[e.rax]);
-          break;
-        case VALUE_I32:
-          e.mov(result, e.dword[e.rax]);
-          break;
-        case VALUE_I64:
-          e.mov(result, e.qword[e.rax]);
-          break;
-        default:
-          LOG_FATAL("Unexpected load result type");
-          break;
-      }
+  //     switch (instr->type()) {
+  //       case VALUE_I8:
+  //         e.mov(result, e.byte[e.rax]);
+  //         break;
+  //       case VALUE_I16:
+  //         e.mov(result, e.word[e.rax]);
+  //         break;
+  //       case VALUE_I32:
+  //         e.mov(result, e.dword[e.rax]);
+  //         break;
+  //       case VALUE_I64:
+  //         e.mov(result, e.qword[e.rax]);
+  //         break;
+  //       default:
+  //         LOG_FATAL("Unexpected load result type");
+  //         break;
+  //     }
 
-      return;
-    }
-  }
+  //     return;
+  //   }
+  // }
 
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
 
@@ -437,27 +431,23 @@ EMITTER(LOAD_GUEST) {
     void *fn = nullptr;
     switch (instr->type()) {
       case VALUE_I8:
-        fn = reinterpret_cast<void *>(
-            static_cast<uint8_t (*)(Memory *, uint32_t)>(&Memory::R8));
+        fn = reinterpret_cast<void *>(e.memif().r8);
         break;
       case VALUE_I16:
-        fn = reinterpret_cast<void *>(
-            static_cast<uint16_t (*)(Memory *, uint32_t)>(&Memory::R16));
+        fn = reinterpret_cast<void *>(e.memif().r16);
         break;
       case VALUE_I32:
-        fn = reinterpret_cast<void *>(
-            static_cast<uint32_t (*)(Memory *, uint32_t)>(&Memory::R32));
+        fn = reinterpret_cast<void *>(e.memif().r32);
         break;
       case VALUE_I64:
-        fn = reinterpret_cast<void *>(
-            static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
+        fn = reinterpret_cast<void *>(e.memif().r64);
         break;
       default:
         LOG_FATAL("Unexpected load result type");
         break;
     }
 
-    e.mov(arg0, reinterpret_cast<uint64_t>(e.memory()));
+    e.mov(arg0, reinterpret_cast<uint64_t>(e.memif().mem_self));
     e.mov(arg1, a);
     e.call(reinterpret_cast<void *>(fn));
     e.mov(result, e.rax);
@@ -483,44 +473,45 @@ EMITTER(LOAD_GUEST) {
 }
 
 EMITTER(STORE_GUEST) {
-  if (instr->arg0()->constant()) {
-    // try to resolve the address to a physical page
-    uint32_t addr = static_cast<uint32_t>(instr->arg0()->i32());
-    uint8_t *host_addr = nullptr;
-    MemoryRegion *bank = nullptr;
-    uint32_t offset = 0;
+  // TODO move to new constprop
+  // if (instr->arg0()->constant()) {
+  //   // try to resolve the address to a physical page
+  //   uint32_t addr = static_cast<uint32_t>(instr->arg0()->i32());
+  //   uint8_t *host_addr = nullptr;
+  //   MemoryRegion *bank = nullptr;
+  //   uint32_t offset = 0;
 
-    e.memory()->Lookup(addr, &host_addr, &bank, &offset);
+  //   e.memory()->Lookup(addr, &host_addr, &bank, &offset);
 
-    if (host_addr) {
-      const Xbyak::Reg b = e.GetRegister(instr->arg1());
+  //   if (host_addr) {
+  //     const Xbyak::Reg b = e.GetRegister(instr->arg1());
 
-      // FIXME it'd be nice if xbyak had a mov operation which would convert
-      // the displacement to a RIP-relative address when finalizing code so
-      // we didn't have to store the absolute address in the scratch register
-      e.mov(e.rax, reinterpret_cast<uint64_t>(host_addr));
+  //     // FIXME it'd be nice if xbyak had a mov operation which would convert
+  //     // the displacement to a RIP-relative address when finalizing code so
+  //     // we didn't have to store the absolute address in the scratch register
+  //     e.mov(e.rax, reinterpret_cast<uint64_t>(host_addr));
 
-      switch (instr->arg1()->type()) {
-        case VALUE_I8:
-          e.mov(e.byte[e.rax], b);
-          break;
-        case VALUE_I16:
-          e.mov(e.word[e.rax], b);
-          break;
-        case VALUE_I32:
-          e.mov(e.dword[e.rax], b);
-          break;
-        case VALUE_I64:
-          e.mov(e.qword[e.rax], b);
-          break;
-        default:
-          LOG_FATAL("Unexpected store value type");
-          break;
-      }
+  //     switch (instr->arg1()->type()) {
+  //       case VALUE_I8:
+  //         e.mov(e.byte[e.rax], b);
+  //         break;
+  //       case VALUE_I16:
+  //         e.mov(e.word[e.rax], b);
+  //         break;
+  //       case VALUE_I32:
+  //         e.mov(e.dword[e.rax], b);
+  //         break;
+  //       case VALUE_I64:
+  //         e.mov(e.qword[e.rax], b);
+  //         break;
+  //       default:
+  //         LOG_FATAL("Unexpected store value type");
+  //         break;
+  //     }
 
-      return;
-    }
-  }
+  //     return;
+  //   }
+  // }
 
   const Xbyak::Reg a = e.GetRegister(instr->arg0());
   const Xbyak::Reg b = e.GetRegister(instr->arg1());
@@ -529,27 +520,23 @@ EMITTER(STORE_GUEST) {
     void *fn = nullptr;
     switch (instr->arg1()->type()) {
       case VALUE_I8:
-        fn = reinterpret_cast<void *>(
-            static_cast<void (*)(Memory *, uint32_t, uint8_t)>(&Memory::W8));
+        fn = reinterpret_cast<void *>(e.memif().w8);
         break;
       case VALUE_I16:
-        fn = reinterpret_cast<void *>(
-            static_cast<void (*)(Memory *, uint32_t, uint16_t)>(&Memory::W16));
+        fn = reinterpret_cast<void *>(e.memif().w16);
         break;
       case VALUE_I32:
-        fn = reinterpret_cast<void *>(
-            static_cast<void (*)(Memory *, uint32_t, uint32_t)>(&Memory::W32));
+        fn = reinterpret_cast<void *>(e.memif().w32);
         break;
       case VALUE_I64:
-        fn = reinterpret_cast<void *>(
-            static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
+        fn = reinterpret_cast<void *>(e.memif().w64);
         break;
       default:
         LOG_FATAL("Unexpected store value type");
         break;
     }
 
-    e.mov(arg0, reinterpret_cast<uint64_t>(e.memory()));
+    e.mov(arg0, reinterpret_cast<uint64_t>(e.memif().mem_self));
     e.mov(arg1, a);
     e.mov(arg2, b);
     e.call(reinterpret_cast<void *>(fn));
@@ -1434,7 +1421,7 @@ EMITTER(BRANCH_COND) {
 EMITTER(CALL_EXTERNAL) {
   const Xbyak::Reg addr = e.GetRegister(instr->arg0());
 
-  e.mov(arg0, reinterpret_cast<uint64_t>(e.guest_ctx()));
+  e.mov(arg0, reinterpret_cast<uint64_t>(e.memif().ctx_base));
   if (instr->arg1()) {
     const Xbyak::Reg arg = e.GetRegister(instr->arg1());
     e.mov(arg1, arg);

@@ -1,5 +1,4 @@
 #include "core/minmax_heap.h"
-#include "emu/profiler.h"
 #include "jit/ir/passes/register_allocation_pass.h"
 
 using namespace re::jit::backend;
@@ -93,8 +92,6 @@ RegisterAllocationPass::RegisterAllocationPass(const Backend &backend)
 RegisterAllocationPass::~RegisterAllocationPass() { delete[] intervals_; }
 
 void RegisterAllocationPass::Run(IRBuilder &builder, bool debug) {
-  PROFILER_RUNTIME("RegisterAllocationPass::Run");
-
   Reset();
 
   AssignOrdinals(builder);

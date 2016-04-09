@@ -1,5 +1,5 @@
 #include "core/assert.h"
-#include "emu/profiler.h"
+#include "core/profiler.h"
 #include "hw/holly/pixel_convert.h"
 #include "hw/holly/tile_accelerator.h"
 #include "hw/holly/tile_renderer.h"

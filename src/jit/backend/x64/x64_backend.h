@@ -21,7 +21,7 @@ typedef void (*SlowmemThunk)();
 
 class X64Backend : public Backend {
  public:
-  X64Backend(hw::Memory &memory, void *guest_ctx);
+  X64Backend(const MemoryInterface &memif);
   ~X64Backend();
 
   const Register *registers() const;

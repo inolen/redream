@@ -1,10 +1,10 @@
 #include "core/assert.h"
-#include "emu/profiler.h"
-#include "hw/memory.h"
+#include "core/memory.h"
+#include "core/profiler.h"
 #include "jit/frontend/sh4/sh4_builder.h"
+#include "jit/frontend/sh4/sh4_frontend.h"
 
 using namespace re;
-using namespace re::hw;
 using namespace re::jit;
 using namespace re::jit::frontend;
 using namespace re::jit::frontend::sh4;
@@ -14,17 +14,17 @@ static uint32_t s_fsca_table[0x20000] = {
 #include "jit/frontend/sh4/sh4_fsca.inc"
 };
 
-typedef void (*EmitCallback)(SH4Builder &b, const FPUState &,
-                             const sh4::Instr &i, bool *endblock);
+typedef void (*EmitCallback)(SH4Builder &b, const sh4::Instr &i, int,
+                             bool *endblock);
 
-#define EMITTER(name)                                                          \
-  void Emit_OP_##name(SH4Builder &b, const FPUState &fpu, const sh4::Instr &i, \
+#define EMITTER(name)                                                \
+  void Emit_OP_##name(SH4Builder &b, const sh4::Instr &i, int flags, \
                       bool *endblock)
 
-#define EMIT_DELAYED()        \
-  if (!b.EmitDelayInstr(i)) { \
-    *endblock = true;         \
-    return;                   \
+#define EMIT_DELAYED()               \
+  if (!b.EmitDelayInstr(i, flags)) { \
+    *endblock = true;                \
+    return;                          \
   }
 
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) static EMITTER(name);
@@ -37,23 +37,20 @@ EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
 #undef SH4_INSTR
 };
 
-SH4Builder::SH4Builder(Arena &arena, Memory &memory,
-                       const SH4Context &guest_ctx)
-    : IRBuilder(arena), memory_(memory), guest_ctx_(guest_ctx) {}
+SH4Builder::SH4Builder(Arena &arena) : IRBuilder(arena) {}
 
-void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
+void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
-  pc_ = start_addr;
+  pc_ = guest_addr;
+  host_addr_ = host_addr;
   guest_cycles_ = 0;
-  fpu_state_.double_pr = guest_ctx_.fpscr & PR;
-  fpu_state_.double_sz = guest_ctx_.fpscr & SZ;
 
   // clamp block to max_instrs if non-zero
-  for (int i = 0; !max_instrs || i < max_instrs; i++) {
+  while (true) {
     Instr instr;
     instr.addr = pc_;
-    instr.opcode = memory_.R16(instr.addr);
+    instr.opcode = re::load<uint16_t>(host_addr_);
     Disasm(&instr);
 
     if (!instr.type) {
@@ -62,11 +59,12 @@ void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
     }
 
     pc_ += 2;
+    host_addr_ += 2;
     guest_cycles_ += instr.type->cycles;
 
     // emit the current instruction
     bool endblock = false;
-    (emit_callbacks[instr.type->op])(*this, fpu_state_, instr, &endblock);
+    (emit_callbacks[instr.type->op])(*this, instr, flags, &endblock);
 
     // end block if delay instruction is invalid
     if (endblock) {
@@ -79,6 +77,11 @@ void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
     // need to be handled
     if (instr.type->flags &
         (OP_FLAG_BRANCH | OP_FLAG_SET_FPSCR | OP_FLAG_SET_SR)) {
+      break;
+    }
+
+    // used by gdb server when stepping through instructions
+    if (flags & SH4_SINGLE_INSTR) {
       break;
     }
   }
@@ -100,7 +103,7 @@ void SH4Builder::Emit(uint32_t start_addr, int max_instrs) {
   StoreContext(offsetof(SH4Context, num_cycles), num_cycles);
 
   // update num instructions
-  int sh4_num_instrs = (pc_ - start_addr) >> 1;
+  int sh4_num_instrs = (pc_ - guest_addr) >> 1;
   Value *num_instrs = LoadContext(offsetof(SH4Context, num_instrs), VALUE_I32);
   num_instrs = Add(num_instrs, AllocConstant(sh4_num_instrs));
   StoreContext(offsetof(SH4Context, num_instrs), num_instrs);
@@ -143,7 +146,6 @@ void SH4Builder::StoreXFR(int n, Value *v) {
   }
   return StoreContext(offsetof(SH4Context, xf[n]), v);
 }
-
 
 Value *SH4Builder::LoadSR() {
   return LoadContext(offsetof(SH4Context, sr), VALUE_I32);
@@ -208,12 +210,12 @@ void SH4Builder::InvalidInstruction(uint32_t guest_addr) {
                 AllocConstant(static_cast<uint64_t>(guest_addr)));
 }
 
-bool SH4Builder::EmitDelayInstr(const sh4::Instr &prev) {
+bool SH4Builder::EmitDelayInstr(const sh4::Instr &prev, int flags) {
   CHECK(prev.type->flags & OP_FLAG_DELAYED);
 
   Instr delay;
   delay.addr = prev.addr + 2;
-  delay.opcode = memory_.R16(delay.addr);
+  delay.opcode = re::load<uint16_t>(host_addr_);
   Disasm(&delay);
 
   if (!delay.type) {
@@ -224,10 +226,11 @@ bool SH4Builder::EmitDelayInstr(const sh4::Instr &prev) {
   CHECK(!(delay.type->flags & OP_FLAG_DELAYED));
 
   pc_ += 2;
+  host_addr_ += 2;
   guest_cycles_ += delay.type->cycles;
 
   bool endblock = false;
-  (emit_callbacks[delay.type->op])(*this, fpu_state_, delay, &endblock);
+  (emit_callbacks[delay.type->op])(*this, delay, flags, &endblock);
 
   return true;
 }
@@ -1677,7 +1680,7 @@ EMITTER(FLDI1) { b.StoreFPR(i.Rn, b.AllocConstant(0x3F800000)); }
 // FMOV    DRm,XDn 1111nnn1mmm01100
 // FMOV    XDm,XDn 1111nnn1mmm11100
 EMITTER(FMOV) {
-  if (fpu.double_sz) {
+  if (flags & SH4_DOUBLE_SZ) {
     if (i.Rm & 1) {
       Value *rm = b.LoadXFR(i.Rm & 0xe, VALUE_I64);
       if (i.Rn & 1) {
@@ -1704,7 +1707,7 @@ EMITTER(FMOV) {
 EMITTER(FMOV_LOAD) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
 
-  if (fpu.double_sz) {
+  if (flags & SH4_DOUBLE_SZ) {
     Value *v_low = b.LoadGuest(addr, VALUE_I32);
     Value *v_high = b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32);
     if (i.Rn & 1) {
@@ -1725,7 +1728,7 @@ EMITTER(FMOV_LOAD) {
 EMITTER(FMOV_INDEX_LOAD) {
   Value *addr = b.Add(b.LoadGPR(0, VALUE_I32), b.LoadGPR(i.Rm, VALUE_I32));
 
-  if (fpu.double_sz) {
+  if (flags & SH4_DOUBLE_SZ) {
     Value *v_low = b.LoadGuest(addr, VALUE_I32);
     Value *v_high = b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32);
     if (i.Rn & 1) {
@@ -1746,7 +1749,7 @@ EMITTER(FMOV_INDEX_LOAD) {
 EMITTER(FMOV_STORE) {
   Value *addr = b.LoadGPR(i.Rn, VALUE_I32);
 
-  if (fpu.double_sz) {
+  if (flags & SH4_DOUBLE_SZ) {
     Value *addr_low = addr;
     Value *addr_high = b.Add(addr, b.AllocConstant(4));
     if (i.Rm & 1) {
@@ -1767,7 +1770,7 @@ EMITTER(FMOV_STORE) {
 EMITTER(FMOV_INDEX_STORE) {
   Value *addr = b.Add(b.LoadGPR(0, VALUE_I32), b.LoadGPR(i.Rn, VALUE_I32));
 
-  if (fpu.double_sz) {
+  if (flags & SH4_DOUBLE_SZ) {
     Value *addr_low = addr;
     Value *addr_high = b.Add(addr, b.AllocConstant(4));
     if (i.Rm & 1) {
@@ -1786,7 +1789,7 @@ EMITTER(FMOV_INDEX_STORE) {
 // FMOV    DRm,@-Rn 1111nnnnmmm01011
 // FMOV    XDm,@-Rn 1111nnnnmmm11011
 EMITTER(FMOV_SAVE) {
-  if (fpu.double_sz) {
+  if (flags & SH4_DOUBLE_SZ) {
     Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(8));
     b.StoreGPR(i.Rn, addr);
 
@@ -1813,7 +1816,7 @@ EMITTER(FMOV_SAVE) {
 EMITTER(FMOV_RESTORE) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
 
-  if (fpu.double_sz) {
+  if (flags & SH4_DOUBLE_SZ) {
     Value *v_low = b.LoadGuest(addr, VALUE_I32);
     Value *v_high = b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32);
     if (i.Rn & 1) {
@@ -1845,7 +1848,7 @@ EMITTER(FSTS) {
 // FABS FRn PR=0 1111nnnn01011101
 // FABS DRn PR=1 1111nnn001011101
 EMITTER(FABS) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     Value *v = b.FAbs(b.LoadFPR(n, VALUE_F64));
     b.StoreFPR(n, v);
@@ -1865,7 +1868,7 @@ EMITTER(FSRRA) {
 // FADD FRm,FRn PR=0 1111nnnnmmmm0000
 // FADD DRm,DRn PR=1 1111nnn0mmm00000
 EMITTER(FADD) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1883,7 +1886,7 @@ EMITTER(FADD) {
 // FCMP/EQ FRm,FRn PR=0 1111nnnnmmmm0100
 // FCMP/EQ DRm,DRn PR=1 1111nnn0mmm00100
 EMITTER(FCMPEQ) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1901,7 +1904,7 @@ EMITTER(FCMPEQ) {
 // FCMP/GT FRm,FRn PR=0 1111nnnnmmmm0101
 // FCMP/GT DRm,DRn PR=1 1111nnn0mmm00101
 EMITTER(FCMPGT) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1919,7 +1922,7 @@ EMITTER(FCMPGT) {
 // FDIV FRm,FRn PR=0 1111nnnnmmmm0011
 // FDIV DRm,DRn PR=1 1111nnn0mmm00011
 EMITTER(FDIV) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1939,7 +1942,7 @@ EMITTER(FDIV) {
 EMITTER(FLOAT) {
   Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
 
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     Value *v = b.IToF(b.SExt(fpul, VALUE_I64), VALUE_F64);
     b.StoreFPR(n, v);
@@ -1951,7 +1954,7 @@ EMITTER(FLOAT) {
 
 // FMAC FR0,FRm,FRn PR=0 1111nnnnmmmm1110
 EMITTER(FMAC) {
-  CHECK(!fpu.double_pr);
+  CHECK(!(flags & SH4_DOUBLE_PR));
 
   Value *frn = b.LoadFPR(i.Rn, VALUE_F32);
   Value *frm = b.LoadFPR(i.Rm, VALUE_F32);
@@ -1963,7 +1966,7 @@ EMITTER(FMAC) {
 // FMUL FRm,FRn PR=0 1111nnnnmmmm0010
 // FMUL DRm,DRn PR=1 1111nnn0mmm00010
 EMITTER(FMUL) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1981,7 +1984,7 @@ EMITTER(FMUL) {
 // FNEG FRn PR=0 1111nnnn01001101
 // FNEG DRn PR=1 1111nnn001001101
 EMITTER(FNEG) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
     Value *v = b.FNeg(drn);
@@ -1996,7 +1999,7 @@ EMITTER(FNEG) {
 // FSQRT FRn PR=0 1111nnnn01101101
 // FSQRT DRn PR=1 1111nnnn01101101
 EMITTER(FSQRT) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
     Value *v = b.Sqrt(drn);
@@ -2011,7 +2014,7 @@ EMITTER(FSQRT) {
 // FSUB FRm,FRn PR=0 1111nnnnmmmm0001
 // FSUB DRm,DRn PR=1 1111nnn0mmm00001
 EMITTER(FSUB) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -2029,7 +2032,7 @@ EMITTER(FSUB) {
 // FTRC FRm,FPUL PR=0 1111mmmm00111101
 // FTRC DRm,FPUL PR=1 1111mmm000111101
 EMITTER(FTRC) {
-  if (fpu.double_pr) {
+  if (flags & SH4_DOUBLE_PR) {
     int m = i.Rm & 0xe;
     Value *drm = b.LoadFPR(m, VALUE_F64);
     Value *dpv = b.Trunc(b.FToI(drm, VALUE_I64), VALUE_I32);
@@ -2043,7 +2046,7 @@ EMITTER(FTRC) {
 
 // FCNVDS DRm,FPUL PR=1 1111mmm010111101
 EMITTER(FCNVDS) {
-  CHECK(fpu.double_pr);
+  CHECK(flags & SH4_DOUBLE_PR);
 
   // TODO rounding modes?
 
@@ -2055,7 +2058,7 @@ EMITTER(FCNVDS) {
 
 // FCNVSD FPUL, DRn PR=1 1111nnn010101101
 EMITTER(FCNVSD) {
-  CHECK(fpu.double_pr);
+  CHECK(flags & SH4_DOUBLE_PR);
 
   // TODO rounding modes?
 
@@ -2155,16 +2158,9 @@ EMITTER(FSCA) {
 EMITTER(FTRV) {
   int n = i.Rn << 2;
 
-  // XF0 XF4 XF8  XF12     FR0     XF0 * FR0 + XF4 * FR1 + XF8  * FR2 + XF12 * FR3
-  // XF1 XF5 XF9  XF13  *  FR1  =  XF1 * FR0 + XF5 * FR1 + XF9  * FR2 + XF13 * FR3
-  // XF2 XF6 XF10 XF14     FR2     XF2 * FR0 + XF6 * FR1 + XF10 * FR2 + XF14 * FR3
-  // XF3 XF7 XF11 XF15     FR3     XF3 * FR0 + XF7 * FR1 + XF11 * FR2 + XF15 * FR3
-
-  Value *result = nullptr;
-
   Value *col0 = b.LoadXFR(0, VALUE_V128);
   Value *row0 = b.VBroadcast(b.LoadFPR(n + 0, VALUE_F32));
-  result = b.VMul(col0, row0, VALUE_F32);
+  Value *result = b.VMul(col0, row0, VALUE_F32);
 
   Value *col1 = b.LoadXFR(4, VALUE_V128);
   Value *row1 = b.VBroadcast(b.LoadFPR(n + 1, VALUE_F32));

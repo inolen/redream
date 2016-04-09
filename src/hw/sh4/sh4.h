@@ -104,6 +104,7 @@ class SH4 : public Device,
   static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,
                            uint64_t old_fpscr);
 
+  int GetCompileFlags();
   void SwapRegisterBank();
   void SwapFPRegisterBank();
 

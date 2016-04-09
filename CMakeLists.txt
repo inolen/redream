@@ -230,6 +230,28 @@ target_compile_options(redream PRIVATE ${REDREAM_COMPILE_FLAGS})
 
 
 #--------------------------------------------------
+# tools
+#--------------------------------------------------
+set(RECC_SOURCES tools/recc.cc)
+
+foreach(file ${REDREAM_SOURCES})
+  if(file MATCHES "(deps|src/(core|jit|sys))")
+    list(APPEND RECC_SOURCES ${file})
+  endif()
+endforeach()
+
+# assign source groups for visual studio projects
+source_group_by_dir(RECC_SOURCES)
+
+add_executable(recc ${RECC_SOURCES})
+target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(recc ${REDREAM_LIBS})
+target_compile_definitions(recc PRIVATE MICROPROFILE_ENABLED=0 ${REDREAM_DEFS})
+target_compile_options(recc PRIVATE ${REDREAM_COMPILE_FLAGS})
+
+
+#--------------------------------------------------
 # tests
 #--------------------------------------------------
 
@@ -336,7 +358,7 @@ else()
 endif()
 
 # build test binary
-set(REDREAM_TEST_SOURCES
+set(RETEST_SOURCES
   ${REDREAM_SOURCES}
   test/test_interval_tree.cc
   test/test_intrusive_list.cc
@@ -345,13 +367,13 @@ set(REDREAM_TEST_SOURCES
   test/test_minmax_heap.cc
   test/test_sh4.cc
   ${asm_inc})
-list(REMOVE_ITEM REDREAM_TEST_SOURCES src/main.cc)
+list(REMOVE_ITEM RETEST_SOURCES src/main.cc)
 
 # assign source groups for visual studio projects
-source_group_by_dir(REDREAM_TEST_SOURCES)
+source_group_by_dir(RETEST_SOURCES)
 
-add_executable(redream_test ${REDREAM_TEST_SOURCES})
-target_include_directories(redream_test PUBLIC deps/gtest-1.7.0/include src/ test/ ${REDREAM_INCLUDE_DIRS})
-target_link_libraries(redream_test gtest gtest_main ${REDREAM_LIBS})
-target_compile_definitions(redream_test PRIVATE REDREAM_TEST=1 ${REDREAM_DEFS})
-target_compile_options(redream_test PRIVATE ${REDREAM_COMPILE_FLAGS})
+add_executable(retest ${RETEST_SOURCES})
+target_include_directories(retest PUBLIC deps/gtest-1.7.0/include src/ test/ ${REDREAM_INCLUDE_DIRS})
+target_link_libraries(retest gtest gtest_main ${REDREAM_LIBS})
+target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
+target_compile_options(retest PRIVATE ${REDREAM_COMPILE_FLAGS})

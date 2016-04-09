@@ -15,16 +15,11 @@ namespace jit {
 namespace frontend {
 namespace sh4 {
 
-struct FPUState {
-  bool double_pr;
-  bool double_sz;
-};
-
 class SH4Builder : public ir::IRBuilder {
  public:
-  SH4Builder(Arena &arena, hw::Memory &memory, const SH4Context &guest_ctx);
+  SH4Builder(Arena &arena);
 
-  void Emit(uint32_t addr, int max_instrs);
+  void Emit(uint32_t guest_addr, uint8_t *host_addr, int flags);
 
   ir::Value *LoadGPR(int n, ir::ValueType type);
   void StoreGPR(int n, ir::Value *v);
@@ -45,14 +40,12 @@ class SH4Builder : public ir::IRBuilder {
 
   void InvalidInstruction(uint32_t guest_addr);
 
-  bool EmitDelayInstr(const Instr &prev);
+  bool EmitDelayInstr(const Instr &prev, int flags);
 
  private:
-  hw::Memory &memory_;
-  const SH4Context &guest_ctx_;
   uint32_t pc_;
+  uint8_t *host_addr_;
   int guest_cycles_;
-  FPUState fpu_state_;
 };
 }
 }

@@ -1,10 +1,12 @@
 #include <gflags/gflags.h>
-#include "emu/profiler.h"
+#include "core/profiler.h"
 #include "hw/sh4/sh4_code_cache.h"
+#include "hw/memory.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/ir_builder.h"
 // #include "jit/ir/passes/constant_propagation_pass.h"
+// #include "jit/ir/passes/conversion_elimination_pass.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/register_allocation_pass.h"
@@ -19,7 +21,7 @@ using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 using namespace re::sys;
 
-SH4CodeCache::SH4CodeCache(Memory *memory, void *guest_ctx,
+SH4CodeCache::SH4CodeCache(const MemoryInterface &memif,
                            BlockPointer default_block)
     : default_block_(default_block) {
   // add exception handler to help recompile blocks when protected memory is
@@ -28,12 +30,13 @@ SH4CodeCache::SH4CodeCache(Memory *memory, void *guest_ctx,
       this, &SH4CodeCache::HandleException);
 
   // setup parser and emitter
-  frontend_ = new SH4Frontend(*memory, guest_ctx);
-  backend_ = new X64Backend(*memory, guest_ctx);
+  frontend_ = new SH4Frontend();
+  backend_ = new X64Backend(memif);
 
   // setup optimization passes
   pass_runner_.AddPass(std::unique_ptr<Pass>(new LoadStoreEliminationPass()));
   // pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
+  // pass_runner_.AddPass(std::unique_ptr<Pass>(new ConversionEliminationPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new DeadCodeEliminationPass()));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
@@ -59,10 +62,11 @@ SH4CodeCache::~SH4CodeCache() {
   delete[] blocks_;
 }
 
-SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
+SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t guest_addr,
+                                          uint8_t *host_addr, int flags) {
   PROFILER_RUNTIME("SH4CodeCache::CompileBlock");
 
-  int offset = BLOCK_OFFSET(addr);
+  int offset = BLOCK_OFFSET(guest_addr);
   CHECK_LT(offset, MAX_BLOCKS);
   SH4BlockEntry *block = &blocks_[offset];
 
@@ -79,7 +83,7 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
   }
 
   // compile the SH4 into IR
-  IRBuilder &builder = frontend_->BuildBlock(addr, max_instrs);
+  IRBuilder &builder = frontend_->BuildBlock(guest_addr, host_addr, flags);
 
   pass_runner_.Run(builder, false);
 
@@ -100,7 +104,7 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
   }
 
   // add the cache entry to the lookup maps
-  auto res = block_map_.insert(std::make_pair(addr, block));
+  auto res = block_map_.insert(std::make_pair(guest_addr, block));
   CHECK(res.second);
 
   auto rres = reverse_block_map_.insert(
@@ -115,10 +119,10 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t addr, int max_instrs) {
 
   return block;
 }
-void SH4CodeCache::RemoveBlocks(uint32_t addr) {
+void SH4CodeCache::RemoveBlocks(uint32_t guest_addr) {
   // remove any block which overlaps the address
   while (true) {
-    SH4BlockEntry *block = LookupBlock(addr);
+    SH4BlockEntry *block = LookupBlock(guest_addr);
 
     if (!block) {
       break;

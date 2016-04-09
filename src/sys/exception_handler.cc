@@ -1,5 +1,5 @@
 #include "core/interval_tree.h"
-#include "emu/profiler.h"
+#include "core/profiler.h"
 #include "sys/exception_handler.h"
 
 using namespace re::sys;

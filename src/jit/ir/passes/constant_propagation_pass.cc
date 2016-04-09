@@ -1,6 +1,5 @@
 #include <type_traits>
 #include <unordered_map>
-#include "emu/profiler.h"
 #include "jit/ir/passes/constant_propagation_pass.h"
 
 using namespace re::jit::ir;
@@ -91,8 +90,6 @@ static int GetConstantSig(Instr *instr) {
 }
 
 void ConstantPropagationPass::Run(IRBuilder &builder, bool debug) {
-  PROFILER_RUNTIME("ConstantPropagationPass::Run");
-
   auto it = builder.instrs().begin();
   auto end = builder.instrs().end();
 

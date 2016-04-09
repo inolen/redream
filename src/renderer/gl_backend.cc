@@ -1,5 +1,5 @@
 #include "core/assert.h"
-#include "emu/profiler.h"
+#include "core/profiler.h"
 #include "renderer/gl_backend.h"
 
 using namespace re;

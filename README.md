@@ -58,5 +58,5 @@ target remote localhost:24690
 
 ## Running tests
 ```shell
-redream_test
+retest
 ```

@@ -1,6 +1,6 @@
+#include "core/assert.h"
 #include "core/memory.h"
 #include "core/string.h"
-#include "hw/memory.h"
 #include "jit/frontend/sh4/sh4_disassembler.h"
 
 using namespace re;

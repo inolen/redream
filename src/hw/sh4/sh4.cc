@@ -1,7 +1,7 @@
 #include <imgui.h>
 #include "core/math.h"
 #include "core/memory.h"
-#include "emu/profiler.h"
+#include "core/profiler.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/debugger.h"
@@ -12,6 +12,7 @@ using namespace re;
 using namespace re::hw;
 using namespace re::hw::sh4;
 using namespace re::jit;
+using namespace re::jit::backend;
 using namespace re::jit::frontend::sh4;
 using namespace re::sys;
 
@@ -57,7 +58,11 @@ bool SH4::Init() {
   memory_ = dc_.memory;
   scheduler_ = dc_.scheduler;
 
-  code_cache_ = new SH4CodeCache(memory_, &ctx_, &SH4::CompilePC);
+  code_cache_ =
+      new SH4CodeCache({&ctx_, memory_->protected_base(), memory_, &Memory::R8,
+                        &Memory::R16, &Memory::R32, &Memory::R64, &Memory::W8,
+                        &Memory::W16, &Memory::W32, &Memory::W64},
+                       &SH4::CompilePC);
 
   // initialize context
   memset(&ctx_, 0, sizeof(ctx_));
@@ -238,7 +243,12 @@ void SH4::Step() {
   code_cache_->RemoveBlocks(ctx_.pc);
 
   // recompile it with only one instruction and run it
-  SH4BlockEntry *block = code_cache_->CompileBlock(ctx_.pc, 1);
+  uint32_t guest_addr = ctx_.pc;
+  uint8_t *host_addr = memory_->TranslateVirtual(guest_addr);
+  int flags = GetCompileFlags() | SH4_SINGLE_INSTR;
+
+  SH4BlockEntry *block =
+      code_cache_->CompileBlock(guest_addr, host_addr, flags);
   ctx_.pc = block->run();
 
   // let the debugger know we've stopped
@@ -414,9 +424,13 @@ void SH4::OnPaint(bool show_main_menu) {
 }
 
 uint32_t SH4::CompilePC() {
-  SH4CodeCache *code_cache = s_current_cpu->code_cache_;
-  SH4Context *ctx = &s_current_cpu->ctx_;
-  SH4BlockEntry *block = code_cache->CompileBlock(ctx->pc, 0);
+  uint32_t guest_addr = s_current_cpu->ctx_.pc;
+  uint8_t *host_addr = s_current_cpu->memory_->TranslateVirtual(guest_addr);
+  int flags = s_current_cpu->GetCompileFlags();
+
+  SH4BlockEntry *block =
+      s_current_cpu->code_cache_->CompileBlock(guest_addr, host_addr, flags);
+
   return block->run();
 }
 
@@ -477,6 +491,17 @@ void SH4::FPSCRUpdated(SH4Context *ctx, uint64_t old_fpscr) {
   if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
     self->SwapFPRegisterBank();
   }
+}
+
+int SH4::GetCompileFlags() {
+  int flags = 0;
+  if (ctx_.fpscr & PR) {
+    flags |= SH4_DOUBLE_PR;
+  }
+  if (ctx_.fpscr & SZ) {
+    flags |= SH4_DOUBLE_SZ;
+  }
+  return flags;
 }
 
 void SH4::SwapRegisterBank() {

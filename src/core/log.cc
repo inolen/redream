@@ -2,20 +2,25 @@
 #include <stdio.h>
 #include "core/log.h"
 
-#define ANSI_COLOR_RED "\x1b[31m"
-#define ANSI_COLOR_GREEN "\x1b[32m"
-#define ANSI_COLOR_YELLOW "\x1b[33m"
-#define ANSI_COLOR_BLUE "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN "\x1b[36m"
-#define ANSI_COLOR_RESET "\x1b[0m"
+namespace re {
 
 void Log(LogLevel level, const char *format, ...) {
-  static char buffer[0x20000];
+  static char sbuffer[0x1000];
+  int buffer_size = sizeof(sbuffer);
+  char *buffer = sbuffer;
 
   va_list args;
+  // allocate a temporary buffer if need be to fit the string
   va_start(args, format);
-  vsnprintf(buffer, sizeof(buffer), format, args);
+  int len = vsnprintf(0, 0, format, args);
+  if (len > buffer_size) {
+    buffer_size = len + 1;
+    buffer = reinterpret_cast<char *>(malloc(buffer_size));
+  }
+  va_end(args);
+
+  va_start(args, format);
+  vsnprintf(buffer, buffer_size, format, args);
   va_end(args);
 
 #if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
@@ -33,4 +38,10 @@ void Log(LogLevel level, const char *format, ...) {
 #else
   printf("%s\n", buffer);
 #endif
+
+  // cleanup the temporary buffer
+  if (buffer != sbuffer) {
+    free(buffer);
+  }
+}
 }

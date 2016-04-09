@@ -49,7 +49,7 @@ class RegisterAllocationPass : public Pass {
   RegisterAllocationPass(const backend::Backend &backend);
   ~RegisterAllocationPass();
 
-  const char *name() { return "Register Allocation Pass"; }
+  const char *name() { return "ra"; }
 
   void Run(IRBuilder &builder, bool debug);
 

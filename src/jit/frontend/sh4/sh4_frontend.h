@@ -9,11 +9,17 @@ namespace jit {
 namespace frontend {
 namespace sh4 {
 
+enum SH4BlockFlags {
+  SH4_SINGLE_INSTR = 0x1,
+  SH4_DOUBLE_PR = 0x2,
+  SH4_DOUBLE_SZ = 0x4,
+};
+
 class SH4Frontend : public Frontend {
  public:
-  SH4Frontend(hw::Memory &memory, void *guest_ctx);
+  SH4Frontend();
 
-  ir::IRBuilder &BuildBlock(uint32_t addr, int max_instrs);
+  ir::IRBuilder &BuildBlock(uint32_t guest_addr, uint8_t *host_addr, int flags);
 
  private:
   Arena arena_;

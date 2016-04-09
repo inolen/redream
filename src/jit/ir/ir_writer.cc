@@ -33,6 +33,9 @@ void IRWriter::PrintType(ValueType type, std::ostream &output) const {
     case VALUE_F64:
       output << "f64";
       break;
+    case VALUE_V128:
+      output << "v128";
+      break;
     default:
       LOG_FATAL("Unexpected value type");
       break;
@@ -53,17 +56,7 @@ void IRWriter::PrintValue(const Value *value, std::ostream &output) {
 
   output << " ";
 
-  if (!value->constant()) {
-    uintptr_t key = reinterpret_cast<uintptr_t>(value);
-    auto it = slots_.find(key);
-
-    if (it == slots_.end()) {
-      auto res = slots_.insert(std::make_pair(key, next_slot_++));
-      it = res.first;
-    }
-
-    output << "%" << it->second;
-  } else {
+  if (value->constant()) {
     switch (value->type()) {
       case VALUE_I8:
         output << "0x" << std::hex << value->i8() << std::dec;
@@ -87,6 +80,16 @@ void IRWriter::PrintValue(const Value *value, std::ostream &output) {
         LOG_FATAL("Unexpected value type");
         break;
     }
+  } else {
+    uintptr_t key = reinterpret_cast<uintptr_t>(value);
+    auto it = slots_.find(key);
+
+    if (it == slots_.end()) {
+      auto res = slots_.insert(std::make_pair(key, next_slot_++));
+      it = res.first;
+    }
+
+    output << "%" << it->second;
   }
 }
 

@@ -1,4 +1,3 @@
-#include "emu/profiler.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 
 using namespace re::jit::ir;
@@ -8,8 +7,6 @@ LoadStoreEliminationPass::LoadStoreEliminationPass()
     : available_(nullptr), num_available_(0) {}
 
 void LoadStoreEliminationPass::Run(IRBuilder &builder, bool debug) {
-  PROFILER_RUNTIME("LoadStoreEliminationPass::Run");
-
   Reset();
 
   // eliminate redundant loads

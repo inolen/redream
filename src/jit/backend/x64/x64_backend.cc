@@ -3,14 +3,12 @@
 #include <beaengine/BeaEngine.h>
 #include <xbyak/xbyak.h>
 #include "core/memory.h"
-#include "emu/profiler.h"
-#include "hw/memory.h"
+#include "core/profiler.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"
 #include "sys/exception_handler.h"
 
 using namespace re;
-using namespace re::hw;
 using namespace re::jit;
 using namespace re::jit::backend;
 using namespace re::jit::backend::x64;
@@ -109,8 +107,8 @@ const int x64_tmp1_idx = Xbyak::Operand::R11;
 static const size_t x64_code_size = 1024 * 1024 * 8;
 static uint8_t x64_codegen[x64_code_size];
 
-X64Backend::X64Backend(Memory &memory, void *guest_ctx)
-    : Backend(memory, guest_ctx), emitter_(x64_codegen, x64_code_size) {
+X64Backend::X64Backend(const MemoryInterface &memif)
+    : Backend(memif), emitter_(memif, x64_codegen, x64_code_size) {
   Xbyak::CodeArray::protect(x64_codegen, x64_code_size, true);
 
   Reset();
@@ -136,7 +134,7 @@ BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
   // know so it can reset the cache and try again
   BlockPointer fn;
   try {
-    fn = emitter_.Emit(builder, memory_, guest_ctx_, block_flags);
+    fn = emitter_.Emit(builder, block_flags);
   } catch (const Xbyak::Error &e) {
     if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
       return nullptr;
@@ -196,7 +194,8 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
 
   // figure out the guest address that was being accessed
   const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex.fault_addr);
-  const uint8_t *protected_start = memory_.protected_base();
+  const uint8_t *protected_start =
+      reinterpret_cast<const uint8_t *>(memif_.mem_base);
   uint32_t guest_addr = static_cast<uint32_t>(fault_addr - protected_start);
 
   // instead of handling the dynamic callback from inside of the exception
@@ -215,26 +214,23 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
 
   if (mov.is_load) {
     // prep argument registers (memory object, guest_addr) for read function
-    ex.thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(&memory_);
+    ex.thread_state.r[x64_arg0_idx] =
+        reinterpret_cast<uint64_t>(memif_.mem_self);
     ex.thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
 
     // prep function call address for thunk
     switch (mov.operand_size) {
       case 1:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(
-            static_cast<uint8_t (*)(Memory *, uint32_t)>(&Memory::R8));
+        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.r8);
         break;
       case 2:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(
-            static_cast<uint16_t (*)(Memory *, uint32_t)>(&Memory::R16));
+        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.r16);
         break;
       case 4:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(
-            static_cast<uint32_t (*)(Memory *, uint32_t)>(&Memory::R32));
+        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.r32);
         break;
       case 8:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(
-            static_cast<uint64_t (*)(Memory *, uint32_t)>(&Memory::R64));
+        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.r64);
         break;
     }
 
@@ -243,27 +239,24 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
   } else {
     // prep argument registers (memory object, guest_addr, value) for write
     // function
-    ex.thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(&memory_);
+    ex.thread_state.r[x64_arg0_idx] =
+        reinterpret_cast<uint64_t>(memif_.mem_self);
     ex.thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
     ex.thread_state.r[x64_arg2_idx] = ex.thread_state.r[mov.reg];
 
     // prep function call address for thunk
     switch (mov.operand_size) {
       case 1:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(
-            static_cast<void (*)(Memory *, uint32_t, uint8_t)>(&Memory::W8));
+        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.w8);
         break;
       case 2:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(
-            static_cast<void (*)(Memory *, uint32_t, uint16_t)>(&Memory::W16));
+        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.w16);
         break;
       case 4:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(
-            static_cast<void (*)(Memory *, uint32_t, uint32_t)>(&Memory::W32));
+        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.w32);
         break;
       case 8:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(
-            static_cast<void (*)(Memory *, uint32_t, uint64_t)>(&Memory::W64));
+        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.w64);
         break;
     }
 

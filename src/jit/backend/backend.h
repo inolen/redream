@@ -1,22 +1,35 @@
 #ifndef BACKEND_H
 #define BACKEND_H
 
-#include <map>
 #include "jit/ir/ir_builder.h"
 
 namespace re {
-
-namespace hw {
-class Memory;
-}
 
 namespace sys {
 struct Exception;
 }
 
 namespace jit {
-
 namespace backend {
+
+enum BlockFlags {
+  // compile the block without fast memory access optimizations
+  BF_SLOWMEM = 0x1,
+};
+
+struct MemoryInterface {
+  void *ctx_base;
+  void *mem_base;
+  void *mem_self;
+  uint8_t (*r8)(void *, uint32_t);
+  uint16_t (*r16)(void *, uint32_t);
+  uint32_t (*r32)(void *, uint32_t);
+  uint64_t (*r64)(void *, uint32_t);
+  void (*w8)(void *, uint32_t, uint8_t);
+  void (*w16)(void *, uint32_t, uint16_t);
+  void (*w32)(void *, uint32_t, uint32_t);
+  void (*w64)(void *, uint32_t, uint64_t);
+};
 
 struct Register {
   const char *name;
@@ -24,17 +37,11 @@ struct Register {
   const void *data;
 };
 
-enum BlockFlags {
-  // compile the block without fast memory access optimizations
-  BF_SLOWMEM = 0x1,
-};
-
 typedef uint32_t (*BlockPointer)();
 
 class Backend {
  public:
-  Backend(hw::Memory &memory, void *guest_ctx)
-      : memory_(memory), guest_ctx_(guest_ctx) {}
+  Backend(const MemoryInterface &memif) : memif_(memif) {}
   virtual ~Backend() {}
 
   virtual const Register *registers() const = 0;
@@ -49,8 +56,7 @@ class Backend {
   virtual bool HandleFastmemException(sys::Exception &ex) = 0;
 
  protected:
-  hw::Memory &memory_;
-  void *guest_ctx_;
+  MemoryInterface memif_;
 };
 }
 }

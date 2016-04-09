@@ -78,27 +78,29 @@ MapEntry *MemoryMap::AllocEntry() {
 }
 
 // helpers for emitted assembly
-uint8_t Memory::R8(Memory *memory, uint32_t addr) { return memory->R8(addr); }
-uint16_t Memory::R16(Memory *memory, uint32_t addr) {
-  return memory->R16(addr);
+uint8_t Memory::R8(void *memory, uint32_t addr) {
+  return reinterpret_cast<Memory *>(memory)->R8(addr);
 }
-uint32_t Memory::R32(Memory *memory, uint32_t addr) {
-  return memory->R32(addr);
+uint16_t Memory::R16(void *memory, uint32_t addr) {
+  return reinterpret_cast<Memory *>(memory)->R16(addr);
 }
-uint64_t Memory::R64(Memory *memory, uint32_t addr) {
-  return memory->R64(addr);
+uint32_t Memory::R32(void *memory, uint32_t addr) {
+  return reinterpret_cast<Memory *>(memory)->R32(addr);
 }
-void Memory::W8(Memory *memory, uint32_t addr, uint8_t value) {
-  memory->W8(addr, value);
+uint64_t Memory::R64(void *memory, uint32_t addr) {
+  return reinterpret_cast<Memory *>(memory)->R64(addr);
 }
-void Memory::W16(Memory *memory, uint32_t addr, uint16_t value) {
-  memory->W16(addr, value);
+void Memory::W8(void *memory, uint32_t addr, uint8_t value) {
+  reinterpret_cast<Memory *>(memory)->W8(addr, value);
 }
-void Memory::W32(Memory *memory, uint32_t addr, uint32_t value) {
-  memory->W32(addr, value);
+void Memory::W16(void *memory, uint32_t addr, uint16_t value) {
+  reinterpret_cast<Memory *>(memory)->W16(addr, value);
 }
-void Memory::W64(Memory *memory, uint32_t addr, uint64_t value) {
-  memory->W64(addr, value);
+void Memory::W32(void *memory, uint32_t addr, uint32_t value) {
+  reinterpret_cast<Memory *>(memory)->W32(addr, value);
+}
+void Memory::W64(void *memory, uint32_t addr, uint64_t value) {
+  reinterpret_cast<Memory *>(memory)->W64(addr, value);
 }
 
 Memory::Memory(Machine &machine)

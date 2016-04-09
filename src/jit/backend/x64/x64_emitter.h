@@ -2,13 +2,9 @@
 #define X64_EMITTER_H
 
 #include <xbyak/xbyak.h>
+#include "jit/backend/backend.h"
 
 namespace re {
-
-namespace hw {
-class Memory;
-}
-
 namespace jit {
 namespace backend {
 namespace x64 {
@@ -33,17 +29,15 @@ enum XmmConstant {
 
 class X64Emitter : public Xbyak::CodeGenerator {
  public:
-  X64Emitter(void *buffer, size_t buffer_size);
+  X64Emitter(const MemoryInterface &memif, void *buffer, size_t buffer_size);
   ~X64Emitter();
 
-  void *guest_ctx() { return guest_ctx_; }
-  hw::Memory *memory() { return memory_; }
+  const MemoryInterface &memif() { return memif_; }
   int block_flags() { return block_flags_; }
 
   void Reset();
 
-  BlockPointer Emit(ir::IRBuilder &builder, hw::Memory &memory, void *guest_ctx,
-                    int block_flags);
+  BlockPointer Emit(ir::IRBuilder &builder, int block_flags);
 
   // helpers for the emitter callbacks
   const Xbyak::Reg GetRegister(const ir::Value *v);
@@ -58,8 +52,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void EmitBody(ir::IRBuilder &builder);
   void EmitEpilog(ir::IRBuilder &builder, int stack_size);
 
-  hw::Memory *memory_;
-  void *guest_ctx_;
+  MemoryInterface memif_;
   int block_flags_;
   int modified_marker_;
   int *modified_;

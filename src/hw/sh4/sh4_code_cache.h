@@ -1,7 +1,9 @@
 #ifndef SH4_CODE_CACHE_H
 #define SH4_CODE_CACHE_H
 
+#include <map>
 #include "jit/backend/x64/x64_backend.h"
+#include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/passes/pass_runner.h"
 #include "sys/exception_handler.h"
@@ -32,7 +34,7 @@ struct SH4BlockEntry {
 
 class SH4CodeCache {
  public:
-  SH4CodeCache(hw::Memory *memory, void *guest_ctx,
+  SH4CodeCache(const jit::backend::MemoryInterface &memif,
                jit::backend::BlockPointer default_block);
   ~SH4CodeCache();
 
@@ -52,13 +54,14 @@ class SH4CodeCache {
   // block, and the cache is initialized with all entries pointing to a special
   // default block. this default block, when called, will compile the actual
   // block and update the cache to point to it
-  SH4BlockEntry *GetBlock(uint32_t addr) {
-    int offset = BLOCK_OFFSET(addr);
+  SH4BlockEntry *GetBlock(uint32_t guest_addr) {
+    int offset = BLOCK_OFFSET(guest_addr);
     CHECK_LT(offset, MAX_BLOCKS);
     return &blocks_[offset];
   }
-  SH4BlockEntry *CompileBlock(uint32_t addr, int max_instrs);
-  void RemoveBlocks(uint32_t addr);
+  SH4BlockEntry *CompileBlock(uint32_t guest_addr, uint8_t *host_addr,
+                              int flags);
+  void RemoveBlocks(uint32_t guest_addr);
   void UnlinkBlocks();
   void ClearBlocks();
 
