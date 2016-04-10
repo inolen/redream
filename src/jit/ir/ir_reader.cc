@@ -11,8 +11,9 @@ struct IRType {
 };
 
 static IRType s_ir_types[] = {
-    {"i8", VALUE_I8},   {"i16", VALUE_I16}, {"i32", VALUE_I32},
-    {"i64", VALUE_I64}, {"f32", VALUE_F32}, {"f64", VALUE_F64},
+    {"i8", VALUE_I8},     {"i16", VALUE_I16}, {"i32", VALUE_I32},
+    {"i64", VALUE_I64},   {"f32", VALUE_F32}, {"f64", VALUE_F64},
+    {"v128", VALUE_V128},
 };
 static const int s_num_ir_types = sizeof(s_ir_types) / sizeof(s_ir_types[0]);
 

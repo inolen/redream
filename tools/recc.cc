@@ -9,15 +9,18 @@
 #include "jit/ir/ir_reader.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
+#include "sys/filesystem.h"
 
 using namespace re;
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
+using namespace re::sys;
 
 DEFINE_string(pass, "lse,dce", "Comma-separated list of passes to run");
 DEFINE_bool(print_after_all, true, "Print IR after each pass");
 DEFINE_bool(stats, true, "Display pass stats");
 
+DEFINE_STAT(num_instrs, "Total number of instructions");
 DEFINE_STAT(num_instrs_removed, "Number of instructions removed");
 
 static std::vector<std::string> split(const std::string &s, char delim) {
@@ -41,20 +44,15 @@ static int get_num_instrs(IRBuilder &builder) {
   return n;
 }
 
-int main(int argc, char **argv) {
-  google::ParseCommandLineFlags(&argc, &argv, true);
-
-  const char *file = argv[1];
-
+static void process_file(const char *filename, bool disable_ir_dump) {
   Arena arena(4096);
   IRBuilder builder(arena);
 
   // read in the input ir
   IRReader reader;
-  std::ifstream input_stream(file);
+  std::ifstream input_stream(filename);
   CHECK(reader.Parse(input_stream, builder));
 
-  // track total # of instructions removed
   int num_instrs_before = get_num_instrs(builder);
 
   // run optimization passes
@@ -72,23 +70,58 @@ int main(int argc, char **argv) {
     pass->Run(builder);
 
     // print IR after each pass if requested
-    if (FLAGS_print_after_all) {
+    if (!disable_ir_dump && FLAGS_print_after_all) {
       LOG_INFO("===-----------------------------------------------------===");
       LOG_INFO("IR after %s", pass->name());
       LOG_INFO("===-----------------------------------------------------===");
       builder.Dump();
+      LOG_INFO("");
     }
   }
 
+  int num_instrs_after = get_num_instrs(builder);
+
   // print out the final IR
-  if (!FLAGS_print_after_all) {
+  if (!disable_ir_dump && !FLAGS_print_after_all) {
     builder.Dump();
+    LOG_INFO("");
   }
 
-  int num_instrs_after = get_num_instrs(builder);
+  num_instrs += num_instrs_before;
   num_instrs_removed += num_instrs_before - num_instrs_after;
+}
 
-  // print stats if requested
+static void process_dir(const char *path) {
+  if (DIR *dir = opendir(path)) {
+    while (struct dirent *ent = readdir(dir)) {
+      if (!(ent->d_type & DT_REG)) {
+        continue;
+      }
+
+      char filename[PATH_MAX];
+      snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "%s", path,
+               ent->d_name);
+
+      LOG_INFO("processing %s", filename);
+
+      process_file(filename, true);
+    }
+
+    closedir(dir);
+  }
+}
+
+int main(int argc, char **argv) {
+  google::ParseCommandLineFlags(&argc, &argv, true);
+
+  const char *path = argv[1];
+
+  if (IsFile(path)) {
+    process_file(path, false);
+  } else {
+    process_dir(path);
+  }
+
   if (FLAGS_stats) {
     DumpStats();
   }

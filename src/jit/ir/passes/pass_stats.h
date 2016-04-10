@@ -15,6 +15,13 @@ struct Stat {
   Stat(const char *desc);
   ~Stat();
 
+  operator int() const { return n; }
+
+  const Stat &operator=(int v) {
+    n = v;
+    return *this;
+  }
+
   const Stat &operator++(int v) {
     n++;
     return *this;

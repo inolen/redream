@@ -1,3 +1,4 @@
+#include <fstream>
 #include <gflags/gflags.h>
 #include "core/profiler.h"
 #include "hw/sh4/sh4_code_cache.h"
@@ -10,6 +11,7 @@
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/register_allocation_pass.h"
+#include "sys/filesystem.h"
 
 using namespace re::hw;
 using namespace re::jit;
@@ -85,6 +87,20 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t guest_addr,
 
   // compile the SH4 into IR
   IRBuilder &builder = frontend_->BuildBlock(guest_addr, host_addr, flags);
+
+#if 0
+  const char *appdir = GetAppDir();
+
+  char irdir[PATH_MAX];
+  snprintf(irdir, sizeof(irdir), "%s" PATH_SEPARATOR "ir", appdir);
+  CreateDir(irdir);
+
+  char filename[PATH_MAX];
+  snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "0x%08x.ir", irdir, guest_addr);
+
+  std::ofstream output(filename);
+  builder.Dump(output);
+#endif
 
   pass_runner_.Run(builder);
 

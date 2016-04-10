@@ -1,6 +1,7 @@
 #ifndef IR_BUILDER_H
 #define IR_BUILDER_H
 
+#include <ostream>
 #include <unordered_map>
 #include "core/arena.h"
 #include "core/assert.h"
@@ -332,6 +333,7 @@ class IRBuilder {
 
   int locals_size() const { return locals_size_; }
 
+  void Dump(std::ostream &output) const;
   void Dump() const;
 
   InsertPoint GetInsertPoint();

@@ -1,4 +1,4 @@
-#include <sstream>
+#include <iostream>
 #include "core/math.h"
 #include "core/memory.h"
 #include "jit/ir/ir_builder.h"
@@ -84,12 +84,12 @@ Instr::~Instr() {}
 IRBuilder::IRBuilder(Arena &arena)
     : arena_(arena), current_instr_(nullptr), locals_size_(0) {}
 
-void IRBuilder::Dump() const {
+void IRBuilder::Dump(std::ostream &output) const {
   IRWriter writer;
-  std::ostringstream ss;
-  writer.Print(*this, ss);
-  LOG_INFO("%s", ss.str().c_str());
+  writer.Print(*this, output);
 }
+
+void IRBuilder::Dump() const { Dump(std::cout); }
 
 InsertPoint IRBuilder::GetInsertPoint() { return {current_instr_}; }
 

@@ -59,7 +59,8 @@ void IRWriter::PrintValue(const Value *value, std::ostream &output) {
   if (value->constant()) {
     switch (value->type()) {
       case VALUE_I8:
-        output << "0x" << std::hex << value->i8() << std::dec;
+        // force to int to avoid printing out as a character
+        output << "0x" << std::hex << static_cast<int>(value->i8()) << std::dec;
         break;
       case VALUE_I16:
         output << "0x" << std::hex << value->i16() << std::dec;

@@ -32,6 +32,22 @@ bool Exists(const char *path) {
   return stat(path, &buffer) == 0;
 }
 
+bool IsDir(const char *path) {
+  struct stat buffer;
+  if (stat(path, &buffer) != 0) {
+    return false;
+  }
+  return (buffer.st_mode & S_IFDIR) == S_IFDIR;
+}
+
+bool IsFile(const char *path) {
+  struct stat buffer;
+  if (stat(path, &buffer) != 0) {
+    return false;
+  }
+  return (buffer.st_mode & S_IFREG) == S_IFREG;
+}
+
 bool CreateDir(const char *path) {
   int res = mkdir(path, 0755);
   return res == 0 || errno == EEXIST;
