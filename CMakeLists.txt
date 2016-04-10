@@ -114,7 +114,7 @@ list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
 find_package(ClangFormat)
 
 if(CLANG_FORMAT_FOUND)
-file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.cc" "src/*.h" "test/*.cc" "test/*.h")
+file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.cc" "src/*.h" "test/*.cc" "test/*.h", "tools/*.cc" "tools/*.h")
 
 add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -style=Google -i ${CLANG_FORMAT_ARGS})
 endif()
@@ -169,6 +169,7 @@ set(REDREAM_SOURCES
   src/jit/ir/passes/dead_code_elimination_pass.cc
   src/jit/ir/passes/load_store_elimination_pass.cc
   src/jit/ir/passes/pass_runner.cc
+  src/jit/ir/passes/pass_stats.cc
   src/jit/ir/passes/register_allocation_pass.cc
   src/renderer/gl_backend.cc
   src/renderer/gl_shader.cc

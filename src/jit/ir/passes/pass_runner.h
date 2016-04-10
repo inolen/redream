@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include "jit/ir/passes/pass_stats.h"
 #include "jit/ir/ir_builder.h"
 
 namespace re {
@@ -16,7 +17,7 @@ class Pass {
 
   virtual const char *name() = 0;
 
-  virtual void Run(IRBuilder &builder, bool debug) = 0;
+  virtual void Run(IRBuilder &builder) = 0;
 };
 
 class PassRunner {
@@ -24,7 +25,7 @@ class PassRunner {
   PassRunner();
 
   void AddPass(std::unique_ptr<Pass> pass);
-  void Run(IRBuilder &builder, bool debug);
+  void Run(IRBuilder &builder);
 
  private:
   std::vector<std::unique_ptr<Pass>> passes_;

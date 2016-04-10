@@ -13,7 +13,7 @@ class DeadCodeEliminationPass : public Pass {
  public:
   const char *name() { return "dce"; }
 
-  void Run(IRBuilder &builder, bool debug);
+  void Run(IRBuilder &builder);
 };
 }
 }

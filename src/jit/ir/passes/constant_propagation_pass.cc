@@ -89,7 +89,7 @@ static int GetConstantSig(Instr *instr) {
   return cnst_sig;
 }
 
-void ConstantPropagationPass::Run(IRBuilder &builder, bool debug) {
+void ConstantPropagationPass::Run(IRBuilder &builder) {
   auto it = builder.instrs().begin();
   auto end = builder.instrs().end();
 

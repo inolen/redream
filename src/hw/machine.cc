@@ -8,7 +8,7 @@ using namespace re;
 using namespace re::hw;
 using namespace re::ui;
 
-DEFINE_bool(debug, false, "Run debug server");
+DEFINE_bool(gdb, false, "Run gdb debug server");
 
 DebugInterface::DebugInterface(Device *device) { device->debug_ = this; }
 
@@ -26,7 +26,7 @@ Device::Device(Machine &machine)
 bool Device::Init() { return true; }
 
 Machine::Machine() : suspended_(false) {
-  debugger = FLAGS_debug ? new Debugger(*this) : nullptr;
+  debugger = FLAGS_gdb ? new Debugger(*this) : nullptr;
   memory = new Memory(*this);
   scheduler = new Scheduler(*this);
 }

@@ -19,7 +19,7 @@ class LoadStoreEliminationPass : public Pass {
 
   const char *name() { return "lse"; }
 
-  void Run(IRBuilder &builder, bool debug);
+  void Run(IRBuilder &builder);
 
  private:
   void Reset();

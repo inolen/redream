@@ -1,4 +1,5 @@
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <gflags/gflags.h>
@@ -14,7 +15,10 @@ using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 
 DEFINE_string(pass, "lse,dce", "Comma-separated list of passes to run");
-DEFINE_bool(debug, false, "Enable debug spew for passes");
+DEFINE_bool(print_after_all, true, "Print IR after each pass");
+DEFINE_bool(stats, true, "Display pass stats");
+
+DEFINE_STAT(num_instrs_removed, "Number of instructions removed");
 
 static std::vector<std::string> split(const std::string &s, char delim) {
   std::stringstream ss(s);
@@ -37,7 +41,9 @@ static int get_num_instrs(IRBuilder &builder) {
   return n;
 }
 
-int main(int argc, const char **argv) {
+int main(int argc, char **argv) {
+  google::ParseCommandLineFlags(&argc, &argv, true);
+
   const char *file = argv[1];
 
   Arena arena(4096);
@@ -48,12 +54,13 @@ int main(int argc, const char **argv) {
   std::ifstream input_stream(file);
   CHECK(reader.Parse(input_stream, builder));
 
+  // track total # of instructions removed
+  int num_instrs_before = get_num_instrs(builder);
+
   // run optimization passes
   std::vector<std::string> passes = split(FLAGS_pass, ',');
   for (auto name : passes) {
     std::unique_ptr<Pass> pass;
-
-    int num_instrs_before = get_num_instrs(builder);
 
     if (name == "lse") {
       pass = std::unique_ptr<Pass>(new LoadStoreEliminationPass());
@@ -62,26 +69,31 @@ int main(int argc, const char **argv) {
     } else {
       LOG_WARNING("Unknown pass %s", name.c_str());
     }
-    pass->Run(builder, FLAGS_debug);
+    pass->Run(builder);
 
-    int num_instrs_after = get_num_instrs(builder);
-
-    // print out the resulting ir
-    LOG_INFO("%s:", pass->name());
-    builder.Dump();
-
-    // print out stats about the optimization pass
-    if (num_instrs_after <= num_instrs_before) {
-      int delta = num_instrs_before - num_instrs_after;
-      LOG_INFO(ANSI_COLOR_GREEN "%d (%.2f%%) instructions removed" ANSI_COLOR_RESET,
-        delta, (delta / static_cast<float>(num_instrs_before)) * 100.0f);
-    } else {
-      int delta = num_instrs_after - num_instrs_before;
-      LOG_INFO(ANSI_COLOR_RED "%d (%.2f%%) instructions added" ANSI_COLOR_RESET,
-        delta, (delta / static_cast<float>(num_instrs_before)) * 100.0f);
+    // print IR after each pass if requested
+    if (FLAGS_print_after_all) {
+      LOG_INFO("===-----------------------------------------------------===");
+      LOG_INFO("IR after %s", pass->name());
+      LOG_INFO("===-----------------------------------------------------===");
+      builder.Dump();
     }
-    LOG_INFO("");
   }
+
+  // print out the final IR
+  if (!FLAGS_print_after_all) {
+    builder.Dump();
+  }
+
+  int num_instrs_after = get_num_instrs(builder);
+  num_instrs_removed += num_instrs_before - num_instrs_after;
+
+  // print stats if requested
+  if (FLAGS_stats) {
+    DumpStats();
+  }
+
+  google::ShutDownCommandLineFlags();
 
   return 0;
 }

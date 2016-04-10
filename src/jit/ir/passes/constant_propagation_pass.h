@@ -12,7 +12,7 @@ class ConstantPropagationPass : public Pass {
  public:
   const char *name() { return "constprop"; }
 
-  void Run(IRBuilder &builder, bool debug);
+  void Run(IRBuilder &builder);
 };
 }
 }

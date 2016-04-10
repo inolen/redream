@@ -91,7 +91,7 @@ RegisterAllocationPass::RegisterAllocationPass(const Backend &backend)
 
 RegisterAllocationPass::~RegisterAllocationPass() { delete[] intervals_; }
 
-void RegisterAllocationPass::Run(IRBuilder &builder, bool debug) {
+void RegisterAllocationPass::Run(IRBuilder &builder) {
   Reset();
 
   AssignOrdinals(builder);

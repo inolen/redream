@@ -3,10 +3,13 @@
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 
+DEFINE_STAT(num_loads_removed, "Number of loads eliminated");
+DEFINE_STAT(num_stores_removed, "Number of stores eliminated");
+
 LoadStoreEliminationPass::LoadStoreEliminationPass()
     : available_(nullptr), num_available_(0) {}
 
-void LoadStoreEliminationPass::Run(IRBuilder &builder, bool debug) {
+void LoadStoreEliminationPass::Run(IRBuilder &builder) {
   Reset();
 
   // eliminate redundant loads
@@ -28,6 +31,9 @@ void LoadStoreEliminationPass::Run(IRBuilder &builder, bool debug) {
         if (available && available->type() == instr->type()) {
           instr->ReplaceRefsWith(available);
           builder.RemoveInstr(instr);
+
+          num_loads_removed++;
+
           continue;
         }
 
@@ -67,6 +73,9 @@ void LoadStoreEliminationPass::Run(IRBuilder &builder, bool debug) {
 
         if (available_size >= store_size) {
           builder.RemoveInstr(instr);
+
+          num_stores_removed++;
+
           continue;
         }
 

@@ -4,7 +4,9 @@ using namespace re::jit::backend;
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 
-void DeadCodeEliminationPass::Run(IRBuilder &builder, bool debug) {
+DEFINE_STAT(num_dead_removed, "Number of dead instructions eliminated");
+
+void DeadCodeEliminationPass::Run(IRBuilder &builder) {
   // iterate in reverse in order to remove groups of dead instructions that
   // only use eachother
   auto it = builder.instrs().rbegin();
@@ -19,6 +21,8 @@ void DeadCodeEliminationPass::Run(IRBuilder &builder, bool debug) {
 
     if (!instr->uses().head()) {
       builder.RemoveInstr(instr);
+
+      num_dead_removed++;
     }
   }
 }

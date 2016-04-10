@@ -66,7 +66,7 @@ TEST(DeadCodeEliminationPassTest, Sanity) {
   reader.Parse(input_stream, builder);
 
   DeadCodeEliminationPass pass;
-  pass.Run(builder, false);
+  pass.Run(builder);
 
   IRWriter writer;
   std::stringstream output_stream;

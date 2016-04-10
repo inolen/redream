@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include "core/log.h"
 
+DEFINE_bool(debug, false, "Enable debug logging");
+
 namespace re {
 
 void Log(LogLevel level, const char *format, ...) {
@@ -25,6 +27,7 @@ void Log(LogLevel level, const char *format, ...) {
 
 #if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
   switch (level) {
+    case LOG_LEVEL_DEBUG:
     case LOG_LEVEL_INFO:
       printf("%s\n", buffer);
       break;

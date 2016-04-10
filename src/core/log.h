@@ -2,10 +2,14 @@
 #define REDREAM_LOG_H
 
 #include <stdlib.h>
+#include <gflags/gflags.h>
+
+DECLARE_bool(debug);
 
 namespace re {
 
 enum LogLevel {
+  LOG_LEVEL_DEBUG,
   LOG_LEVEL_INFO,
   LOG_LEVEL_WARNING,
   LOG_LEVEL_FATAL,
@@ -20,6 +24,11 @@ enum LogLevel {
 #define ANSI_COLOR_RESET "\x1b[0m"
 
 void Log(LogLevel level, const char *format, ...);
+
+#define LOG_DEBUG(...)                   \
+  if (FLAGS_debug) {                     \
+    Log(LOG_LEVEL_DEBUG, ##__VA_ARGS__); \
+  }
 
 #define LOG_INFO(...)                   \
   do {                                  \

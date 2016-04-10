@@ -36,7 +36,8 @@ SH4CodeCache::SH4CodeCache(const MemoryInterface &memif,
   // setup optimization passes
   pass_runner_.AddPass(std::unique_ptr<Pass>(new LoadStoreEliminationPass()));
   // pass_runner_.AddPass(std::unique_ptr<Pass>(new ConstantPropagationPass()));
-  // pass_runner_.AddPass(std::unique_ptr<Pass>(new ConversionEliminationPass()));
+  // pass_runner_.AddPass(std::unique_ptr<Pass>(new
+  // ConversionEliminationPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new DeadCodeEliminationPass()));
   pass_runner_.AddPass(
       std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
@@ -85,7 +86,7 @@ SH4BlockEntry *SH4CodeCache::CompileBlock(uint32_t guest_addr,
   // compile the SH4 into IR
   IRBuilder &builder = frontend_->BuildBlock(guest_addr, host_addr, flags);
 
-  pass_runner_.Run(builder, false);
+  pass_runner_.Run(builder);
 
   // assemble the IR into native code
   BlockPointer run = backend_->AssembleBlock(builder, block->flags);

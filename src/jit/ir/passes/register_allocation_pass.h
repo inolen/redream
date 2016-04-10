@@ -51,7 +51,7 @@ class RegisterAllocationPass : public Pass {
 
   const char *name() { return "ra"; }
 
-  void Run(IRBuilder &builder, bool debug);
+  void Run(IRBuilder &builder);
 
  private:
   const backend::Register *registers_;
