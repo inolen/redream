@@ -173,6 +173,8 @@ void TileRenderer::ParseContext(const TileContext &tctx,
 }
 
 void TileRenderer::RenderContext(const TileRenderContext &rctx) {
+  PROFILER_GPU("TileRenderer::RenderContext");
+
   auto &surfs = rctx_.surfs;
   auto &verts = rctx_.verts;
   auto &sorted_surfs = rctx_.sorted_surfs;
