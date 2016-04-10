@@ -60,8 +60,8 @@ set(SDL_STATIC ON CACHE BOOL "")
 if(APPLE)
   set(SDL_FRAMEWORK_CARBON 1)
 endif()
-add_subdirectory(deps/sdl2-2.0.3 EXCLUDE_FROM_ALL)
-list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.3/include)
+add_subdirectory(deps/sdl2-2.0.4 EXCLUDE_FROM_ALL)
+list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.4/include)
 list(APPEND REDREAM_LIBS SDL2main SDL2-static)
 
 # beaengine
