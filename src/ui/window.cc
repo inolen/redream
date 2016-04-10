@@ -20,6 +20,7 @@ Window::Window()
       microprofile_(*this),
       width_(DEFAULT_WIDTH),
       height_(DEFAULT_HEIGHT),
+      show_main_menu_(false),
       joystick_(nullptr) {}
 
 Window::~Window() {
@@ -120,6 +121,9 @@ void Window::InitJoystick() {
       break;
     }
   }
+
+  // reset hat state
+  memset(hat_state_, 0, sizeof(hat_state_));
 }
 
 void Window::DestroyJoystick() {
@@ -776,6 +780,64 @@ void Window::PumpSDLEvents() {
       case SDL_JOYAXISMOTION:
         if (ev.jaxis.axis < NUM_JOYSTICK_AXES) {
           HandleKeyDown((Keycode)(K_AXIS0 + ev.jaxis.axis), ev.jaxis.value);
+        } else {
+          LOG_WARNING("Joystick motion ignored, axis %d >= NUM_JOYSTICK_AXES",
+                      ev.jaxis.axis);
+        }
+        break;
+
+      case SDL_JOYHATMOTION:
+        if (ev.jhat.hat < NUM_JOYSTICK_HATS) {
+          auto hat_down = [this](int hat, uint8_t state, int16_t value) {
+            switch (state) {
+              case SDL_HAT_UP:
+                HandleKeyDown(KEY_HAT_UP(hat), value);
+                break;
+              case SDL_HAT_RIGHT:
+                HandleKeyDown(KEY_HAT_RIGHT(hat), value);
+                break;
+              case SDL_HAT_DOWN:
+                HandleKeyDown(KEY_HAT_DOWN(hat), value);
+                break;
+              case SDL_HAT_LEFT:
+                HandleKeyDown(KEY_HAT_LEFT(hat), value);
+                break;
+              case SDL_HAT_RIGHTUP:
+                HandleKeyDown(KEY_HAT_RIGHT(hat), value);
+                HandleKeyDown(KEY_HAT_UP(hat), value);
+                break;
+              case SDL_HAT_RIGHTDOWN:
+                HandleKeyDown(KEY_HAT_RIGHT(hat), value);
+                HandleKeyDown(KEY_HAT_DOWN(hat), value);
+                break;
+              case SDL_HAT_LEFTUP:
+                HandleKeyDown(KEY_HAT_LEFT(hat), value);
+                HandleKeyDown(KEY_HAT_UP(hat), value);
+                break;
+              case SDL_HAT_LEFTDOWN:
+                HandleKeyDown(KEY_HAT_LEFT(hat), value);
+                HandleKeyDown(KEY_HAT_DOWN(hat), value);
+                break;
+              default:
+                break;
+            }
+          };
+
+          uint8_t &state = hat_state_[ev.jhat.hat];
+
+          if (ev.jhat.value != state) {
+            // old key is up
+            hat_down(ev.jhat.hat, state, 0);
+
+            // new key is down
+            hat_down(ev.jhat.hat, ev.jhat.value, 1);
+          }
+
+          state = ev.jhat.value;
+        } else {
+          LOG_WARNING(
+              "Joystick hat motion ignored, hat %d >= NUM_JOYSTICK_HATS",
+              ev.jhat.hat);
         }
         break;
 
@@ -784,6 +846,9 @@ void Window::PumpSDLEvents() {
         if (ev.jbutton.button < NUM_JOYSTICK_KEYS) {
           HandleKeyDown((Keycode)(K_JOY1 + ev.jbutton.button),
                         ev.type == SDL_JOYBUTTONDOWN ? 1 : 0);
+        } else {
+          LOG_WARNING("Joystick button ignored, button %d >= NUM_JOYSTICK_KEYS",
+                      ev.jbutton.button);
         }
         break;
 
