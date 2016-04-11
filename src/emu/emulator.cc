@@ -199,8 +199,7 @@ bool Emulator::LaunchBIN(const char *path) {
   fseek(fp, 0, SEEK_SET);
 
   // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to
-  uint32_t pc = 0x0c010000;
-  uint8_t *data = dc_.memory->TranslateVirtual(pc);
+  uint8_t *data = dc_.memory->TranslateVirtual(0x0c010000);
   int n = static_cast<int>(fread(data, sizeof(uint8_t), size, fp));
   fclose(fp);
 
@@ -209,7 +208,8 @@ bool Emulator::LaunchBIN(const char *path) {
     return false;
   }
 
-  dc_.sh4->SetPC(pc);
+  dc_.gdrom->SetDisc(nullptr);
+  dc_.sh4->SetPC(0x0c010000);
 
   return true;
 }

@@ -72,6 +72,7 @@ bool SH4::Init() {
   ctx_.SRUpdated = &SH4::SRUpdated;
   ctx_.FPSCRUpdated = &SH4::FPSCRUpdated;
   ctx_.pc = 0xa0000000;
+  ctx_.r[15] = 0x8d000000;
   ctx_.pr = 0x0;
   ctx_.sr = 0x700000f0;
   ctx_.fpscr = 0x00040001;
