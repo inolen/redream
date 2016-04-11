@@ -5,7 +5,7 @@ namespace re {
 namespace hw {
 
 #define MEMORY_REGION(name, start, end) \
-  name##_START = start, name##_END = end, name##_SIZE = end - start + 1
+  name##_BEGIN = start, name##_END = end, name##_SIZE = end - start + 1
 
 // clang-format off
 enum {

@@ -11,6 +11,10 @@ namespace aica {
 class AICA;
 }
 
+namespace arm7 {
+class ARM7;
+}
+
 namespace gdrom {
 class GDROM;
 }
@@ -33,6 +37,7 @@ class Dreamcast : public Machine {
  public:
   Dreamcast()
       : sh4(nullptr),
+        arm7(nullptr),
         aica(nullptr),
         holly(nullptr),
         gdrom(nullptr),
@@ -41,6 +46,7 @@ class Dreamcast : public Machine {
         ta(nullptr) {}
 
   hw::sh4::SH4 *sh4;
+  hw::arm7::ARM7 *arm7;
   hw::aica::AICA *aica;
   hw::holly::Holly *holly;
   hw::gdrom::GDROM *gdrom;

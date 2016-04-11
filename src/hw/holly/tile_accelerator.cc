@@ -233,7 +233,7 @@ bool TileAccelerator::Init() {
   memory_ = dc_.memory;
   holly_ = dc_.holly;
   pvr_ = dc_.pvr;
-  video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_START);
+  video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_BEGIN);
 
   TA_REGISTER_W32_DELEGATE(SOFTRESET);
   TA_REGISTER_W32_DELEGATE(TA_LIST_INIT);
@@ -266,7 +266,7 @@ TextureHandle TileAccelerator::GetTexture(
   uint32_t texture_addr = tcw.texture_addr << 3;
 
   // get the texture data
-  uint8_t *video_ram = dc_.memory->TranslateVirtual(PVR_VRAM32_START);
+  uint8_t *video_ram = dc_.memory->TranslateVirtual(PVR_VRAM32_BEGIN);
   uint8_t *texture = &video_ram[texture_addr];
   int width = 8 << tsp.texture_u_size;
   int height = 8 << tsp.texture_v_size;
@@ -276,7 +276,7 @@ TextureHandle TileAccelerator::GetTexture(
   int texture_size = (width * height * element_size_bits) >> 3;
 
   // get the palette data
-  uint8_t *palette_ram = dc_.memory->TranslateVirtual(PVR_PALETTE_START);
+  uint8_t *palette_ram = dc_.memory->TranslateVirtual(PVR_PALETTE_BEGIN);
   uint8_t *palette = nullptr;
   uint32_t palette_addr = 0;
   int palette_size = 0;
@@ -438,16 +438,16 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
 
 void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
   RegionHandle ta_poly_handle = memory.AllocRegion(
-      TA_POLY_START, TA_POLY_SIZE, nullptr, nullptr, nullptr, nullptr, nullptr,
+      TA_POLY_BEGIN, TA_POLY_SIZE, nullptr, nullptr, nullptr, nullptr, nullptr,
       nullptr, make_delegate(&TileAccelerator::WritePolyFIFO, this), nullptr);
 
   RegionHandle ta_texture_handle = memory.AllocRegion(
-      TA_TEXTURE_START, TA_TEXTURE_SIZE, nullptr, nullptr, nullptr, nullptr,
+      TA_TEXTURE_BEGIN, TA_TEXTURE_SIZE, nullptr, nullptr, nullptr, nullptr,
       nullptr, nullptr, make_delegate(&TileAccelerator::WriteTextureFIFO, this),
       nullptr);
 
-  memmap.Mount(ta_poly_handle, TA_POLY_SIZE, TA_POLY_START);
-  memmap.Mount(ta_texture_handle, TA_TEXTURE_SIZE, TA_TEXTURE_START);
+  memmap.Mount(ta_poly_handle, TA_POLY_SIZE, TA_POLY_BEGIN);
+  memmap.Mount(ta_texture_handle, TA_TEXTURE_SIZE, TA_TEXTURE_BEGIN);
 }
 
 void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
@@ -573,7 +573,7 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   if (!pvr_->FPU_PARAM_CFG.region_header_type) {
     tctx->autosort = !pvr_->ISP_FEED_CFG.presort;
   } else {
-    uint32_t region_data = memory_->R32(PVR_VRAM64_START + pvr_->REGION_BASE);
+    uint32_t region_data = memory_->R32(PVR_VRAM64_BEGIN + pvr_->REGION_BASE);
     tctx->autosort = !(region_data & 0x20000000);
   }
 
@@ -602,7 +602,7 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   // available at 0x0 when booting the bios, so masking this seems to be the
   // correct solution
   uint32_t vram_offset =
-      PVR_VRAM64_START +
+      PVR_VRAM64_BEGIN +
       ((tctx->addr + pvr_->ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
 
   // get surface parameters

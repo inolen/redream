@@ -8,31 +8,43 @@ using namespace re::hw;
 using namespace re::hw::aica;
 using namespace re::hw::holly;
 
+enum {
+  AICA_CLOCK_FREQ = 22579200,
+};
+
 template <>
 uint32_t AICA::ReadWave(uint32_t addr);
 
 AICA::AICA(Dreamcast &dc)
     : Device(dc),
+      ExecuteInterface(this),
       MemoryInterface(this),
       dc_(dc),
       aica_regs_(nullptr),
       wave_ram_(nullptr) {}
 
 bool AICA::Init() {
-  aica_regs_ = dc_.memory->TranslateVirtual(AICA_REG_START);
-  wave_ram_ = dc_.memory->TranslateVirtual(WAVE_RAM_START);
+  aica_regs_ = dc_.memory->TranslateVirtual(AICA_REG_BEGIN);
+  wave_ram_ = dc_.memory->TranslateVirtual(WAVE_RAM_BEGIN);
 
   return true;
 }
 
+void AICA::Run(const std::chrono::nanoseconds &delta) {
+  // int64_t cycles = NANO_TO_CYCLES(delta, AICA_CLOCK_FREQ);
+
+  // for (int i = 0; i < 64; i++) {
+  // }
+}
+
 void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
   RegionHandle aica_reg_handle = memory.AllocRegion(
-      AICA_REG_START, AICA_REG_SIZE, nullptr, nullptr,
+      AICA_REG_BEGIN, AICA_REG_SIZE, nullptr, nullptr,
       make_delegate(&AICA::ReadRegister, this), nullptr, nullptr, nullptr,
       make_delegate(&AICA::WriteRegister, this), nullptr);
 
   RegionHandle wave_ram_handle = memory.AllocRegion(
-      WAVE_RAM_START, WAVE_RAM_SIZE,
+      WAVE_RAM_BEGIN, WAVE_RAM_SIZE,
       make_delegate(&AICA::ReadWave<uint8_t>, this),
       make_delegate(&AICA::ReadWave<uint16_t>, this),
       make_delegate(&AICA::ReadWave<uint32_t>, this), nullptr,
@@ -40,22 +52,9 @@ void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
       make_delegate(&AICA::WriteWave<uint16_t>, this),
       make_delegate(&AICA::WriteWave<uint32_t>, this), nullptr);
 
-  memmap.Mount(aica_reg_handle, AICA_REG_SIZE, AICA_REG_START);
-  memmap.Mount(wave_ram_handle, WAVE_RAM_SIZE, WAVE_RAM_START);
+  memmap.Mount(aica_reg_handle, AICA_REG_SIZE, AICA_REG_BEGIN);
+  memmap.Mount(wave_ram_handle, WAVE_RAM_SIZE, WAVE_RAM_BEGIN);
 }
-
-// frequency 22579200
-// int AICA::Run(int cycles) {
-//   // uint16_t MCIEB = re::load<uint16_t>(&aica_regs_[MCIEB_OFFSET]);
-//   // uint16_t MCIPD = re::load<uint16_t>(&aica_regs_[MCIPD_OFFSET]);
-
-//   // if (MCIEB || MCIPD) {
-//   //   LOG_INFO("0x%x & 0x%x", MCIEB, MCIPD);
-//   // }
-//   // dc_.holly()->RequestInterrupt(HOLLY_INTC_G2AICINT);
-
-//   return cycles;
-// }
 
 uint32_t AICA::ReadRegister(uint32_t addr) {
   return re::load<uint32_t>(&aica_regs_[addr]);

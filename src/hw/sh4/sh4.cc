@@ -323,15 +323,15 @@ void SH4::ReadRegister(int n, uint64_t *value, int *size) {
 
 void SH4::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
   // area 2 and 4 are unused
-  RegionHandle a0_handle = memory.AllocRegion(AREA0_START, AREA0_SIZE);
-  RegionHandle a1_handle = memory.AllocRegion(AREA1_START, AREA1_SIZE);
-  RegionHandle a3_handle = memory.AllocRegion(AREA3_START, AREA3_SIZE);
-  RegionHandle a5_handle = memory.AllocRegion(AREA5_START, AREA5_SIZE);
-  RegionHandle a6_handle = memory.AllocRegion(AREA6_START, AREA6_SIZE);
-  RegionHandle a7_handle = memory.AllocRegion(AREA7_START, AREA7_SIZE);
+  RegionHandle a0_handle = memory.AllocRegion(AREA0_BEGIN, AREA0_SIZE);
+  RegionHandle a1_handle = memory.AllocRegion(AREA1_BEGIN, AREA1_SIZE);
+  RegionHandle a3_handle = memory.AllocRegion(AREA3_BEGIN, AREA3_SIZE);
+  RegionHandle a5_handle = memory.AllocRegion(AREA5_BEGIN, AREA5_SIZE);
+  RegionHandle a6_handle = memory.AllocRegion(AREA6_BEGIN, AREA6_SIZE);
+  RegionHandle a7_handle = memory.AllocRegion(AREA7_BEGIN, AREA7_SIZE);
 
   RegionHandle sh4_reg_handle = memory.AllocRegion(
-      SH4_REG_START, SH4_REG_SIZE,
+      SH4_REG_BEGIN, SH4_REG_SIZE,
       make_delegate(&SH4::ReadRegister<uint8_t>, this),
       make_delegate(&SH4::ReadRegister<uint16_t>, this),
       make_delegate(&SH4::ReadRegister<uint32_t>, this), nullptr,
@@ -339,18 +339,18 @@ void SH4::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
       make_delegate(&SH4::WriteRegister<uint16_t>, this),
       make_delegate(&SH4::WriteRegister<uint32_t>, this), nullptr);
 
-  memmap.Mount(a0_handle, AREA0_SIZE, AREA0_START);
-  memmap.Mount(a1_handle, AREA1_SIZE, AREA1_START);
-  memmap.Mount(a3_handle, AREA3_SIZE, AREA3_START);
-  memmap.Mount(a5_handle, AREA5_SIZE, AREA5_START);
-  memmap.Mount(a6_handle, AREA6_SIZE, AREA6_START);
-  memmap.Mount(a7_handle, AREA7_SIZE, AREA7_START);
-  memmap.Mount(sh4_reg_handle, SH4_REG_SIZE, SH4_REG_START);
+  memmap.Mount(a0_handle, AREA0_SIZE, AREA0_BEGIN);
+  memmap.Mount(a1_handle, AREA1_SIZE, AREA1_BEGIN);
+  memmap.Mount(a3_handle, AREA3_SIZE, AREA3_BEGIN);
+  memmap.Mount(a5_handle, AREA5_SIZE, AREA5_BEGIN);
+  memmap.Mount(a6_handle, AREA6_SIZE, AREA6_BEGIN);
+  memmap.Mount(a7_handle, AREA7_SIZE, AREA7_BEGIN);
+  memmap.Mount(sh4_reg_handle, SH4_REG_SIZE, SH4_REG_BEGIN);
 }
 
 void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
   RegionHandle sh4_cache_handle =
-      memory.AllocRegion(SH4_CACHE_START, SH4_CACHE_SIZE,
+      memory.AllocRegion(SH4_CACHE_BEGIN, SH4_CACHE_SIZE,
                          make_delegate(&SH4::ReadCache<uint8_t>, this),
                          make_delegate(&SH4::ReadCache<uint16_t>, this),
                          make_delegate(&SH4::ReadCache<uint32_t>, this),
@@ -361,7 +361,7 @@ void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
                          make_delegate(&SH4::WriteCache<uint64_t>, this));
 
   RegionHandle sh4_sq_handle = memory.AllocRegion(
-      SH4_SQ_START, SH4_SQ_SIZE, make_delegate(&SH4::ReadSQ<uint8_t>, this),
+      SH4_SQ_BEGIN, SH4_SQ_SIZE, make_delegate(&SH4::ReadSQ<uint8_t>, this),
       make_delegate(&SH4::ReadSQ<uint16_t>, this),
       make_delegate(&SH4::ReadSQ<uint32_t>, this), nullptr,
       make_delegate(&SH4::WriteSQ<uint8_t>, this),
@@ -369,22 +369,22 @@ void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
       make_delegate(&SH4::WriteSQ<uint32_t>, this), nullptr);
 
   // main ram mirrors
-  memmap.Mirror(MAIN_RAM_1_START, MAIN_RAM_1_SIZE, MAIN_RAM_2_START);
-  memmap.Mirror(MAIN_RAM_1_START, MAIN_RAM_1_SIZE, MAIN_RAM_3_START);
-  memmap.Mirror(MAIN_RAM_1_START, MAIN_RAM_1_SIZE, MAIN_RAM_4_START);
+  memmap.Mirror(MAIN_RAM_1_BEGIN, MAIN_RAM_1_SIZE, MAIN_RAM_2_BEGIN);
+  memmap.Mirror(MAIN_RAM_1_BEGIN, MAIN_RAM_1_SIZE, MAIN_RAM_3_BEGIN);
+  memmap.Mirror(MAIN_RAM_1_BEGIN, MAIN_RAM_1_SIZE, MAIN_RAM_4_BEGIN);
 
   // physical mirrors (ignoring p, alt and cache bits in bits 31-29)
-  memmap.Mirror(P0_1_START, P0_1_SIZE, P0_2_START);
-  memmap.Mirror(P0_1_START, P0_1_SIZE, P0_3_START);
-  memmap.Mirror(P0_1_START, P0_1_SIZE, P0_4_START);
-  memmap.Mirror(P0_1_START, P0_1_SIZE, P1_START);
-  memmap.Mirror(P0_1_START, P0_1_SIZE, P2_START);
-  memmap.Mirror(P0_1_START, P0_1_SIZE, P3_START);
-  memmap.Mirror(P0_1_START, P0_1_SIZE, P4_START);
+  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P0_2_BEGIN);
+  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P0_3_BEGIN);
+  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P0_4_BEGIN);
+  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P1_BEGIN);
+  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P2_BEGIN);
+  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P3_BEGIN);
+  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P4_BEGIN);
 
   // handle some special access only available in P4 after applying mirrors
-  memmap.Mount(sh4_cache_handle, SH4_CACHE_SIZE, SH4_CACHE_START);
-  memmap.Mount(sh4_sq_handle, SH4_SQ_SIZE, SH4_SQ_START);
+  memmap.Mount(sh4_cache_handle, SH4_CACHE_SIZE, SH4_CACHE_BEGIN);
+  memmap.Mount(sh4_sq_handle, SH4_SQ_SIZE, SH4_SQ_BEGIN);
 }
 
 void SH4::OnPaint(bool show_main_menu) {

@@ -10,7 +10,7 @@ namespace holly {
 // registers
 enum {
 #define HOLLY_REG(addr, name, flags, default, type) \
-  name##_OFFSET = (addr - HOLLY_REG_START) >> 2,
+  name##_OFFSET = (addr - HOLLY_REG_BEGIN) >> 2,
 #include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
   NUM_HOLLY_REGS = HOLLY_REG_SIZE >> 2,

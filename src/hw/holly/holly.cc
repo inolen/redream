@@ -113,7 +113,7 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
 
 void Holly::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
   RegionHandle holly_handle = memory.AllocRegion(
-      HOLLY_REG_START, HOLLY_REG_SIZE,
+      HOLLY_REG_BEGIN, HOLLY_REG_SIZE,
       make_delegate(&Holly::ReadRegister<uint8_t>, this),
       make_delegate(&Holly::ReadRegister<uint16_t>, this),
       make_delegate(&Holly::ReadRegister<uint32_t>, this), nullptr,
@@ -121,7 +121,7 @@ void Holly::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
       make_delegate(&Holly::WriteRegister<uint16_t>, this),
       make_delegate(&Holly::WriteRegister<uint32_t>, this), nullptr);
 
-  memmap.Mount(holly_handle, HOLLY_REG_SIZE, HOLLY_REG_START);
+  memmap.Mount(holly_handle, HOLLY_REG_SIZE, HOLLY_REG_BEGIN);
 }
 
 template <typename T>

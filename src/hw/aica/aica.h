@@ -10,13 +10,16 @@ class Dreamcast;
 
 namespace aica {
 
-class AICA : public Device, public MemoryInterface {
+class AICA : public Device, public ExecuteInterface, public MemoryInterface {
  public:
   AICA(Dreamcast &dc);
 
   bool Init() final;
 
  private:
+  // ExecuteInterface
+  void Run(const std::chrono::nanoseconds &delta) final;
+
   // MemoryInterface
   void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
   uint32_t ReadRegister(uint32_t addr);

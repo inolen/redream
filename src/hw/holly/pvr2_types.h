@@ -191,7 +191,7 @@ union TA_ISP_BASE_T {
 
 enum {
 #define PVR_REG(addr, name, flags, default_value, type) \
-  name##_OFFSET = (addr - PVR_REG_START) >> 2,
+  name##_OFFSET = (addr - PVR_REG_BEGIN) >> 2,
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
   NUM_PVR_REGS = PVR_REG_SIZE >> 2,

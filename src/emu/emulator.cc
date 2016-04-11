@@ -2,6 +2,7 @@
 #include <gflags/gflags.h>
 #include "emu/emulator.h"
 #include "hw/aica/aica.h"
+#include "hw/arm7/arm7.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr2.h"
@@ -16,6 +17,7 @@ using namespace re;
 using namespace re::emu;
 using namespace re::hw;
 using namespace re::hw::aica;
+using namespace re::hw::arm7;
 using namespace re::hw::gdrom;
 using namespace re::hw::holly;
 using namespace re::hw::maple;
@@ -93,6 +95,7 @@ void Emulator::Run(const char *path) {
 
 bool Emulator::CreateDreamcast() {
   dc_.sh4 = new SH4(dc_);
+  dc_.arm7 = new ARM7(dc_);
   dc_.aica = new AICA(dc_);
   dc_.holly = new Holly(dc_);
   dc_.gdrom = new GDROM(dc_);
@@ -111,6 +114,8 @@ bool Emulator::CreateDreamcast() {
 void Emulator::DestroyDreamcast() {
   delete dc_.sh4;
   dc_.sh4 = nullptr;
+  delete dc_.arm7;
+  dc_.arm7 = nullptr;
   delete dc_.aica;
   dc_.aica = nullptr;
   delete dc_.holly;
@@ -142,7 +147,7 @@ bool Emulator::LoadBios(const char *path) {
     return false;
   }
 
-  uint8_t *bios = dc_.memory->TranslateVirtual(BIOS_START);
+  uint8_t *bios = dc_.memory->TranslateVirtual(BIOS_BEGIN);
   int n = static_cast<int>(fread(bios, sizeof(uint8_t), size, fp));
   fclose(fp);
 
@@ -171,7 +176,7 @@ bool Emulator::LoadFlash(const char *path) {
     return false;
   }
 
-  uint8_t *flash = dc_.memory->TranslateVirtual(FLASH_START);
+  uint8_t *flash = dc_.memory->TranslateVirtual(FLASH_BEGIN);
   int n = static_cast<int>(fread(flash, sizeof(uint8_t), size, fp));
   fclose(fp);
 

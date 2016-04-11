@@ -144,6 +144,7 @@ set(REDREAM_SOURCES
   src/emu/emulator.cc
   src/emu/tracer.cc
   src/hw/aica/aica.cc
+  src/hw/arm7/arm7.cc
   src/hw/gdrom/disc.cc
   src/hw/gdrom/gdrom.cc
   src/hw/holly/holly.cc

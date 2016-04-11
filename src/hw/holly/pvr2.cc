@@ -29,8 +29,8 @@ bool PVR2::Init() {
   scheduler_ = dc_.scheduler;
   holly_ = dc_.holly;
   ta_ = dc_.ta;
-  palette_ram_ = dc_.memory->TranslateVirtual(PVR_PALETTE_START);
-  video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_START);
+  palette_ram_ = dc_.memory->TranslateVirtual(PVR_PALETTE_BEGIN);
+  video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_BEGIN);
 
 // initialize registers
 #define PVR_REG(addr, name, flags, default, type) \
@@ -49,20 +49,20 @@ bool PVR2::Init() {
 
 void PVR2::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
   RegionHandle pvr_reg_handle = memory.AllocRegion(
-      PVR_REG_START, PVR_REG_SIZE, nullptr, nullptr,
+      PVR_REG_BEGIN, PVR_REG_SIZE, nullptr, nullptr,
       make_delegate(&PVR2::ReadRegister, this), nullptr, nullptr, nullptr,
       make_delegate(&PVR2::WriteRegister, this), nullptr);
 
   RegionHandle pvr_vram64_handle = memory.AllocRegion(
-      PVR_VRAM64_START, PVR_VRAM64_SIZE,
+      PVR_VRAM64_BEGIN, PVR_VRAM64_SIZE,
       make_delegate(&PVR2::ReadVRamInterleaved<uint8_t>, this),
       make_delegate(&PVR2::ReadVRamInterleaved<uint16_t>, this),
       make_delegate(&PVR2::ReadVRamInterleaved<uint32_t>, this), nullptr,
       nullptr, make_delegate(&PVR2::WriteVRamInterleaved<uint16_t>, this),
       make_delegate(&PVR2::WriteVRamInterleaved<uint32_t>, this), nullptr);
 
-  memmap.Mount(pvr_reg_handle, PVR_REG_SIZE, PVR_REG_START);
-  memmap.Mount(pvr_vram64_handle, PVR_VRAM64_SIZE, PVR_VRAM64_START);
+  memmap.Mount(pvr_reg_handle, PVR_REG_SIZE, PVR_REG_BEGIN);
+  memmap.Mount(pvr_vram64_handle, PVR_VRAM64_SIZE, PVR_VRAM64_BEGIN);
 }
 
 uint32_t PVR2::ReadRegister(uint32_t addr) {
