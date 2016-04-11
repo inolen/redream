@@ -7,6 +7,7 @@
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/ir_builder.h"
 #include "jit/ir/ir_reader.h"
+#include "jit/ir/passes/conversion_elimination_pass.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "sys/filesystem.h"
@@ -16,7 +17,7 @@ using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 using namespace re::sys;
 
-DEFINE_string(pass, "lse,dce", "Comma-separated list of passes to run");
+DEFINE_string(pass, "lse,cve,dce", "Comma-separated list of passes to run");
 DEFINE_bool(print_after_all, true, "Print IR after each pass");
 DEFINE_bool(stats, true, "Display pass stats");
 
@@ -62,6 +63,8 @@ static void process_file(const char *filename, bool disable_ir_dump) {
 
     if (name == "lse") {
       pass = std::unique_ptr<Pass>(new LoadStoreEliminationPass());
+    } else if (name == "cve") {
+      pass = std::unique_ptr<Pass>(new ConversionEliminationPass());
     } else if (name == "dce") {
       pass = std::unique_ptr<Pass>(new DeadCodeEliminationPass());
     } else {

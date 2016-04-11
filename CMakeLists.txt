@@ -170,6 +170,7 @@ set(REDREAM_SOURCES
   src/jit/ir/ir_reader.cc
   src/jit/ir/ir_writer.cc
   #src/jit/ir/passes/constant_propagation_pass.cc
+  src/jit/ir/passes/conversion_elimination_pass.cc
   src/jit/ir/passes/dead_code_elimination_pass.cc
   src/jit/ir/passes/load_store_elimination_pass.cc
   src/jit/ir/passes/pass_runner.cc
