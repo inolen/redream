@@ -20,13 +20,16 @@ class Memory;
 #define BLOCK_OFFSET(addr) ((addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT)
 #define MAX_BLOCKS (0x1000000 >> BLOCK_ADDR_SHIFT)
 
-struct SH4BlockEntry;
+struct SH4Block;
 
-typedef std::map<uint32_t, SH4BlockEntry *> BlockMap;
-typedef std::map<uintptr_t, SH4BlockEntry *> ReverseBlockMap;
+typedef std::map<uint32_t, SH4Block *> BlockMap;
+typedef std::map<uintptr_t, SH4Block *> ReverseBlockMap;
 
-struct SH4BlockEntry {
-  jit::backend::BlockPointer run;
+struct SH4Block {
+  uintptr_t host_addr;
+  int host_size;
+  uint32_t guest_addr;
+  int guest_size;
   int flags;
   BlockMap::iterator it;
   ReverseBlockMap::iterator rit;
@@ -35,50 +38,41 @@ struct SH4BlockEntry {
 class SH4CodeCache {
  public:
   SH4CodeCache(const jit::backend::MemoryInterface &memif,
-               jit::backend::BlockPointer default_block);
+               jit::backend::CodePointer default_code);
   ~SH4CodeCache();
 
-  // originally, GetBlock looked something like this:
-  //
-  // RuntimeBlock *GetBlock(uint32_t addr) {
-  //   RuntimeBlock *block = blocks_[BLOCK_OFFSET(addr)];
-  //   if (!block) { ... compile block ... }
-  //   return block;
-  // }
-  //
-  // however, the conditional to check for a block's existence performs very
-  // poorly when called millions of times per second, and the most common case
-  // is that the block already exists in the cache.
-  //
-  // to work around this, GetBlock has been changed to always return a valid
-  // block, and the cache is initialized with all entries pointing to a special
-  // default block. this default block, when called, will compile the actual
-  // block and update the cache to point to it
-  SH4BlockEntry *GetBlock(uint32_t guest_addr) {
+  BlockMap::iterator blocks_begin() { return blocks_.begin(); }
+  BlockMap::iterator blocks_end() { return blocks_.end(); }
+
+  jit::backend::CodePointer GetCode(uint32_t guest_addr) {
     int offset = BLOCK_OFFSET(guest_addr);
     CHECK_LT(offset, MAX_BLOCKS);
-    return &blocks_[offset];
+    return code_[offset];
   }
-  SH4BlockEntry *CompileBlock(uint32_t guest_addr, uint8_t *host_addr,
-                              int flags);
+  jit::backend::CodePointer CompileCode(uint32_t guest_addr, uint8_t *host_addr,
+                                        int flags);
+
+  SH4Block *GetBlock(uint32_t guest_addr);
   void RemoveBlocks(uint32_t guest_addr);
   void UnlinkBlocks();
   void ClearBlocks();
 
  private:
   static bool HandleException(void *ctx, sys::Exception &ex);
-  SH4BlockEntry *LookupBlock(uint32_t guest_addr);
-  SH4BlockEntry *LookupBlockReverse(uintptr_t host_addr);
+
+  SH4Block *LookupBlock(uint32_t guest_addr);
+  SH4Block *LookupBlockReverse(uintptr_t host_addr);
+  void UnlinkBlock(SH4Block *block);
 
   sys::ExceptionHandlerHandle eh_handle_;
   jit::frontend::Frontend *frontend_;
   jit::backend::Backend *backend_;
   jit::ir::passes::PassRunner pass_runner_;
 
-  jit::backend::BlockPointer default_block_;
-  SH4BlockEntry *blocks_;
-  BlockMap block_map_;
-  ReverseBlockMap reverse_block_map_;
+  jit::backend::CodePointer default_code_;
+  jit::backend::CodePointer code_[MAX_BLOCKS];
+  BlockMap blocks_;
+  ReverseBlockMap reverse_blocks_;
 };
 }
 }

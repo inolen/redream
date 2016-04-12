@@ -11,8 +11,8 @@ class Frontend {
  public:
   virtual ~Frontend() {}
 
-  virtual ir::IRBuilder &BuildBlock(uint32_t guest_addr, uint8_t *host_addr,
-                                    int flags) = 0;
+  virtual ir::IRBuilder &TranslateCode(uint32_t guest_addr, uint8_t *host_addr,
+                                       int flags) = 0;
 };
 }
 }

@@ -346,8 +346,11 @@ class IRBuilder {
   void StoreHost(Value *addr, Value *v);
 
   // guest memory operations
-  Instr *LoadGuest(Value *addr, ValueType type);
-  void StoreGuest(Value *addr, Value *v);
+  Instr *LoadFast(Value *addr, ValueType type);
+  void StoreFast(Value *addr, Value *v);
+
+  Instr *LoadSlow(Value *addr, ValueType type);
+  void StoreSlow(Value *addr, Value *v);
 
   // context operations
   Instr *LoadContext(size_t offset, ValueType type);

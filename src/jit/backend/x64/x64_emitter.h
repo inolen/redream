@@ -33,11 +33,10 @@ class X64Emitter : public Xbyak::CodeGenerator {
   ~X64Emitter();
 
   const MemoryInterface &memif() { return memif_; }
-  int block_flags() { return block_flags_; }
 
   void Reset();
 
-  BlockPointer Emit(ir::IRBuilder &builder, int block_flags);
+  CodePointer Emit(ir::IRBuilder &builder);
 
   // helpers for the emitter callbacks
   const Xbyak::Reg GetRegister(const ir::Value *v);
@@ -53,7 +52,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void EmitEpilog(ir::IRBuilder &builder, int stack_size);
 
   MemoryInterface memif_;
-  int block_flags_;
   int modified_marker_;
   int *modified_;
   int num_temps_;

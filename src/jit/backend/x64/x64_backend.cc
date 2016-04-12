@@ -128,13 +128,12 @@ void X64Backend::Reset() {
   EmitThunks();
 }
 
-BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
-                                       int block_flags) {
+CodePointer X64Backend::AssembleCode(ir::IRBuilder &builder) {
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
-  BlockPointer fn;
+  CodePointer fn;
   try {
-    fn = emitter_.Emit(builder, block_flags);
+    fn = emitter_.Emit(builder);
   } catch (const Xbyak::Error &e) {
     if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
       return nullptr;
@@ -145,7 +144,7 @@ BlockPointer X64Backend::AssembleBlock(ir::IRBuilder &builder,
   return fn;
 }
 
-void X64Backend::DumpBlock(BlockPointer block) {
+void X64Backend::DumpBlock(CodePointer block) {
   DISASM dsm;
   memset(&dsm, 0, sizeof(dsm));
   dsm.Archi = 64;

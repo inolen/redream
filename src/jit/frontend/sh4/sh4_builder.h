@@ -21,6 +21,8 @@ class SH4Builder : public ir::IRBuilder {
 
   void Emit(uint32_t guest_addr, uint8_t *host_addr, int flags);
 
+  ir::Instr *LoadGuest(ir::Value *addr, ir::ValueType type);
+  void StoreGuest(ir::Value *addr, ir::Value *v);
   ir::Value *LoadGPR(int n, ir::ValueType type);
   void StoreGPR(int n, ir::Value *v);
   ir::Value *LoadFPR(int n, ir::ValueType type);
@@ -45,6 +47,7 @@ class SH4Builder : public ir::IRBuilder {
  private:
   uint32_t pc_;
   uint8_t *host_addr_;
+  int flags_;
   int guest_cycles_;
 };
 }

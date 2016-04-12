@@ -44,6 +44,7 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
 
   pc_ = guest_addr;
   host_addr_ = host_addr;
+  flags_ = flags;
   guest_cycles_ = 0;
 
   // clamp block to max_instrs if non-zero
@@ -107,6 +108,23 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
   Value *num_instrs = LoadContext(offsetof(SH4Context, num_instrs), VALUE_I32);
   num_instrs = Add(num_instrs, AllocConstant(sh4_num_instrs));
   StoreContext(offsetof(SH4Context, num_instrs), num_instrs);
+}
+
+ir::Instr *SH4Builder::LoadGuest(Value *addr, ValueType type) {
+  if (flags_ & SH4_SLOWMEM) {
+    return LoadSlow(addr, type);
+  }
+
+  return LoadFast(addr, type);
+}
+
+void SH4Builder::StoreGuest(Value *addr, Value *v) {
+  if (flags_ & SH4_SLOWMEM) {
+    StoreSlow(addr, v);
+    return;
+  }
+
+  StoreFast(addr, v);
 }
 
 Value *SH4Builder::LoadGPR(int n, ValueType type) {

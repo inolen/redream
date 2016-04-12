@@ -120,18 +120,34 @@ void IRBuilder::StoreHost(Value *addr, Value *v) {
   instr->set_arg1(v);
 }
 
-Instr *IRBuilder::LoadGuest(Value *addr, ValueType type) {
+Instr *IRBuilder::LoadFast(Value *addr, ValueType type) {
   CHECK_EQ(VALUE_I32, addr->type());
 
-  Instr *instr = AppendInstr(OP_LOAD_GUEST, type);
+  Instr *instr = AppendInstr(OP_LOAD_FAST, type);
   instr->set_arg0(addr);
   return instr;
 }
 
-void IRBuilder::StoreGuest(Value *addr, Value *v) {
+void IRBuilder::StoreFast(Value *addr, Value *v) {
   CHECK_EQ(VALUE_I32, addr->type());
 
-  Instr *instr = AppendInstr(OP_STORE_GUEST);
+  Instr *instr = AppendInstr(OP_STORE_FAST);
+  instr->set_arg0(addr);
+  instr->set_arg1(v);
+}
+
+Instr *IRBuilder::LoadSlow(Value *addr, ValueType type) {
+  CHECK_EQ(VALUE_I32, addr->type());
+
+  Instr *instr = AppendInstr(OP_LOAD_SLOW, type);
+  instr->set_arg0(addr);
+  return instr;
+}
+
+void IRBuilder::StoreSlow(Value *addr, Value *v) {
+  CHECK_EQ(VALUE_I32, addr->type());
+
+  Instr *instr = AppendInstr(OP_STORE_SLOW);
   instr->set_arg0(addr);
   instr->set_arg1(v);
 }

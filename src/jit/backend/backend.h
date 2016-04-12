@@ -12,11 +12,6 @@ struct Exception;
 namespace jit {
 namespace backend {
 
-enum BlockFlags {
-  // compile the block without fast memory access optimizations
-  BF_SLOWMEM = 0x1,
-};
-
 struct MemoryInterface {
   void *ctx_base;
   void *mem_base;
@@ -37,7 +32,7 @@ struct Register {
   const void *data;
 };
 
-typedef uint32_t (*BlockPointer)();
+typedef uint32_t (*CodePointer)();
 
 class Backend {
  public:
@@ -49,9 +44,8 @@ class Backend {
 
   virtual void Reset() = 0;
 
-  virtual BlockPointer AssembleBlock(ir::IRBuilder &builder,
-                                     int block_flags) = 0;
-  virtual void DumpBlock(BlockPointer block) = 0;
+  virtual CodePointer AssembleCode(ir::IRBuilder &builder) = 0;
+  virtual void DumpBlock(CodePointer block) = 0;
 
   virtual bool HandleFastmemException(sys::Exception &ex) = 0;
 

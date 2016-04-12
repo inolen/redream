@@ -131,8 +131,8 @@ void SH4::Run(const std::chrono::nanoseconds &delta) {
   ctx_.num_cycles = static_cast<int>(cycles);
 
   while (ctx_.num_cycles > 0) {
-    SH4BlockEntry *block = code_cache_->GetBlock(ctx_.pc);
-    ctx_.pc = block->run();
+    CodePointer code = code_cache_->GetCode(ctx_.pc);
+    ctx_.pc = code();
 
     CheckPendingInterrupts();
   }
@@ -248,9 +248,8 @@ void SH4::Step() {
   uint8_t *host_addr = memory_->TranslateVirtual(guest_addr);
   int flags = GetCompileFlags() | SH4_SINGLE_INSTR;
 
-  SH4BlockEntry *block =
-      code_cache_->CompileBlock(guest_addr, host_addr, flags);
-  ctx_.pc = block->run();
+  CodePointer code = code_cache_->CompileCode(guest_addr, host_addr, flags);
+  ctx_.pc = code();
 
   // let the debugger know we've stopped
   dc_.debugger->Trap();
@@ -429,10 +428,9 @@ uint32_t SH4::CompilePC() {
   uint8_t *host_addr = s_current_cpu->memory_->TranslateVirtual(guest_addr);
   int flags = s_current_cpu->GetCompileFlags();
 
-  SH4BlockEntry *block =
-      s_current_cpu->code_cache_->CompileBlock(guest_addr, host_addr, flags);
-
-  return block->run();
+  CodePointer code =
+      s_current_cpu->code_cache_->CompileCode(guest_addr, host_addr, flags);
+  return code();
 }
 
 void SH4::InvalidInstruction(SH4Context *ctx, uint64_t data) {

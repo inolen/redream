@@ -7,8 +7,8 @@ using namespace re::jit::ir;
 
 SH4Frontend::SH4Frontend() : arena_(4096) {}
 
-IRBuilder &SH4Frontend::BuildBlock(uint32_t guest_addr, uint8_t *host_addr,
-                                   int flags) {
+IRBuilder &SH4Frontend::TranslateCode(uint32_t guest_addr, uint8_t *host_addr,
+                                      int flags) {
   arena_.Reset();
 
   SH4Builder *builder = arena_.Alloc<SH4Builder>();

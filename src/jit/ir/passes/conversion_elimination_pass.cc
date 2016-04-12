@@ -16,8 +16,8 @@ void ConversionEliminationPass::Run(IRBuilder &builder) {
     Instr *instr = *(it++);
 
     // eliminate unnecessary sext / zext operations
-    if (instr->op() == OP_LOAD_HOST || instr->op() == OP_LOAD_GUEST ||
-        instr->op() == OP_LOAD_CONTEXT) {
+    if (instr->op() == OP_LOAD_HOST || instr->op() == OP_LOAD_FAST ||
+        instr->op() == OP_LOAD_SLOW || instr->op() == OP_LOAD_CONTEXT) {
       ValueType memory_type = VALUE_V;
       bool same_type = true;
       bool all_sext = true;
@@ -54,7 +54,8 @@ void ConversionEliminationPass::Run(IRBuilder &builder) {
 
         num_zext_removed++;
       }
-    } else if (instr->op() == OP_STORE_HOST || instr->op() == OP_STORE_GUEST ||
+    } else if (instr->op() == OP_STORE_HOST || instr->op() == OP_STORE_FAST ||
+               instr->op() == OP_STORE_SLOW ||
                instr->op() == OP_STORE_CONTEXT) {
       Value *store_value = instr->arg1();
 
