@@ -45,7 +45,7 @@ class Backend {
   virtual void Reset() = 0;
 
   virtual CodePointer AssembleCode(ir::IRBuilder &builder) = 0;
-  virtual void DumpBlock(CodePointer block) = 0;
+  virtual void DumpCode(uintptr_t host_addr, int size) = 0;
 
   virtual bool HandleFastmemException(sys::Exception &ex) = 0;
 

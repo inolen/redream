@@ -144,42 +144,43 @@ CodePointer X64Backend::AssembleCode(ir::IRBuilder &builder) {
   return fn;
 }
 
-void X64Backend::DumpBlock(CodePointer block) {
-  DISASM dsm;
-  memset(&dsm, 0, sizeof(dsm));
-  dsm.Archi = 64;
-  dsm.EIP = (uintptr_t)block;
-  dsm.SecurityBlock = 0;
-  dsm.Options = NasmSyntax | PrefixedNumeral;
+void X64Backend::DumpCode(uintptr_t host_addr, int size) {
+  // DISASM dsm;
+  // memset(&dsm, 0, sizeof(dsm));
+  // dsm.Archi = 64;
+  // dsm.EIP = (uintptr_t)block;
+  // dsm.SecurityBlock = 0;
+  // dsm.Options = NasmSyntax | PrefixedNumeral;
 
-  while (true) {
-    int len = Disasm(&dsm);
-    if (len == OUT_OF_BLOCK) {
-      LOG_INFO("Disasm engine is not allowed to read more memory");
-      break;
-    } else if (len == UNKNOWN_OPCODE) {
-      LOG_INFO("Unknown opcode");
-      break;
-    }
+  // while (true) {
+  //   int len = Disasm(&dsm);
+  //   if (len == OUT_OF_BLOCK) {
+  //     LOG_INFO("Disasm engine is not allowed to read more memory");
+  //     break;
+  //   } else if (len == UNKNOWN_OPCODE) {
+  //     LOG_INFO("Unknown opcode");
+  //     break;
+  //   }
 
-    // format instruction binary
-    static const int MAX_INSTR_LENGTH = 15;
-    std::stringstream instr;
-    for (int i = 0; i < MAX_INSTR_LENGTH; i++) {
-      uint32_t v =
-          i < len ? (uint32_t) * reinterpret_cast<uint8_t *>(dsm.EIP + i) : 0;
-      instr << std::hex << std::setw(2) << std::setfill('0') << v;
-    }
+  //   // format instruction binary
+  //   static const int MAX_INSTR_LENGTH = 15;
+  //   std::stringstream instr;
+  //   for (int i = 0; i < MAX_INSTR_LENGTH; i++) {
+  //     uint32_t v =
+  //         i < len ? (uint32_t) * reinterpret_cast<uint8_t *>(dsm.EIP + i) :
+  //         0;
+  //     instr << std::hex << std::setw(2) << std::setfill('0') << v;
+  //   }
 
-    // print out binary / mnemonic
-    LOG_INFO("%s %s", instr.str().c_str(), dsm.CompleteInstr);
+  //   // print out binary / mnemonic
+  //   LOG_INFO("%s %s", instr.str().c_str(), dsm.CompleteInstr);
 
-    if (dsm.Instruction.BranchType == RetType) {
-      break;
-    }
+  //   if (dsm.Instruction.BranchType == RetType) {
+  //     break;
+  //   }
 
-    dsm.EIP = dsm.EIP + len;
-  }
+  //   dsm.EIP = dsm.EIP + len;
+  // }
 }
 
 bool X64Backend::HandleFastmemException(Exception &ex) {

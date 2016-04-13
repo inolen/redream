@@ -32,11 +32,9 @@ EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
 
 SH4Builder::SH4Builder(Arena &arena) : IRBuilder(arena) {}
 
-void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
+void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int size,
+                      int flags) {
   PROFILER_RUNTIME("SH4Builder::Emit");
-
-  int size = 0;
-  SH4Analyzer::AnalyzeBlock(guest_addr, host_addr, flags, &size);
 
   // save off flags for ease of access
   flags_ = flags;

@@ -12,7 +12,8 @@ class Frontend {
   virtual ~Frontend() {}
 
   virtual ir::IRBuilder &TranslateCode(uint32_t guest_addr, uint8_t *host_addr,
-                                       int flags) = 0;
+                                       int flags, int *size) = 0;
+  virtual void DumpCode(uint32_t guest_addr, uint8_t *host_addr, int size) = 0;
 };
 }
 }

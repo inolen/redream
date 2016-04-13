@@ -95,8 +95,11 @@ CodePointer SH4CodeCache::CompileCode(uint32_t guest_addr, uint8_t *host_addr,
   block->flags |= flags;
 
   // translate the SH4 into IR
-  IRBuilder &builder =
-      frontend_->TranslateCode(guest_addr, host_addr, block->flags);
+  int guest_size = 0;
+  IRBuilder &builder = frontend_->TranslateCode(guest_addr, host_addr,
+                                                block->flags, &guest_size);
+
+// frontend_->DumpCode(guest_addr, host_addr, guest_size);
 
 #if 0
   const char *appdir = GetAppDir();
@@ -134,7 +137,7 @@ CodePointer SH4CodeCache::CompileCode(uint32_t guest_addr, uint8_t *host_addr,
   block->host_addr = reinterpret_cast<uintptr_t>(code);
   block->host_size = 0;
   block->guest_addr = guest_addr;
-  block->guest_size = 0;
+  block->guest_size = guest_size;
 
   // add block to the lookup maps
   auto res = blocks_.insert(std::make_pair(block->guest_addr, block));

@@ -30,7 +30,7 @@ class X64Backend : public Backend {
   void Reset();
 
   CodePointer AssembleCode(ir::IRBuilder &builder);
-  void DumpBlock(CodePointer block);
+  void DumpCode(uintptr_t host_addr, int size);
 
   bool HandleFastmemException(sys::Exception &ex);
 

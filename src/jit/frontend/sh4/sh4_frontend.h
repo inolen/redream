@@ -21,7 +21,8 @@ class SH4Frontend : public Frontend {
   SH4Frontend();
 
   ir::IRBuilder &TranslateCode(uint32_t guest_addr, uint8_t *host_addr,
-                               int flags);
+                               int flags, int *size);
+  void DumpCode(uint32_t guest_addr, uint8_t *host_addr, int size);
 
  private:
   Arena arena_;
