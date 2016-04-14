@@ -15,7 +15,7 @@ void Log(LogLevel level, const char *format, ...) {
   // allocate a temporary buffer if need be to fit the string
   va_start(args, format);
   int len = vsnprintf(0, 0, format, args);
-  if (len > buffer_size) {
+  if (len >= buffer_size) {
     buffer_size = len + 1;
     buffer = reinterpret_cast<char *>(malloc(buffer_size));
   }
