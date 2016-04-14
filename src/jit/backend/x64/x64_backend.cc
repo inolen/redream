@@ -1,6 +1,5 @@
 #include <iomanip>
 #include <sstream>
-#include <beaengine/BeaEngine.h>
 #include <xbyak/xbyak.h>
 #include "core/memory.h"
 #include "core/profiler.h"
@@ -109,12 +108,14 @@ static uint8_t x64_codegen[x64_code_size];
 
 X64Backend::X64Backend(const MemoryInterface &memif)
     : Backend(memif), emitter_(memif, x64_codegen, x64_code_size) {
+  CHECK_EQ(cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handle_), CS_ERR_OK);
+
   Xbyak::CodeArray::protect(x64_codegen, x64_code_size, true);
 
   Reset();
 }
 
-X64Backend::~X64Backend() {}
+X64Backend::~X64Backend() { cs_close(&capstone_handle_); }
 
 const Register *X64Backend::registers() const { return x64_registers; }
 
@@ -128,59 +129,34 @@ void X64Backend::Reset() {
   EmitThunks();
 }
 
-CodePointer X64Backend::AssembleCode(ir::IRBuilder &builder) {
+const uint8_t *X64Backend::AssembleCode(ir::IRBuilder &builder, int *size) {
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
-  CodePointer fn;
+  const uint8_t *fn = nullptr;
+
   try {
-    fn = emitter_.Emit(builder);
+    fn = emitter_.Emit(builder, size);
   } catch (const Xbyak::Error &e) {
-    if (e == Xbyak::ERR_CODE_IS_TOO_BIG) {
-      return nullptr;
+    if (e != Xbyak::ERR_CODE_IS_TOO_BIG) {
+      LOG_FATAL("X64 codegen failure, %s", e.what());
     }
-    LOG_FATAL("X64 codegen failure, %s", e.what());
   }
 
   return fn;
 }
 
-void X64Backend::DumpCode(uintptr_t host_addr, int size) {
-  // DISASM dsm;
-  // memset(&dsm, 0, sizeof(dsm));
-  // dsm.Archi = 64;
-  // dsm.EIP = (uintptr_t)block;
-  // dsm.SecurityBlock = 0;
-  // dsm.Options = NasmSyntax | PrefixedNumeral;
+void X64Backend::DumpCode(const uint8_t *host_addr, int size) {
+  cs_insn *insns;
+  size_t count = cs_disasm(capstone_handle_, host_addr, size, 0, 0, &insns);
+  CHECK(count);
 
-  // while (true) {
-  //   int len = Disasm(&dsm);
-  //   if (len == OUT_OF_BLOCK) {
-  //     LOG_INFO("Disasm engine is not allowed to read more memory");
-  //     break;
-  //   } else if (len == UNKNOWN_OPCODE) {
-  //     LOG_INFO("Unknown opcode");
-  //     break;
-  //   }
+  for (size_t i = 0; i < count; i++) {
+    cs_insn &insn = insns[i];
+    LOG_INFO("0x%" PRIx64 ":\t%s\t\t%s", insn.address, insn.mnemonic,
+             insn.op_str);
+  }
 
-  //   // format instruction binary
-  //   static const int MAX_INSTR_LENGTH = 15;
-  //   std::stringstream instr;
-  //   for (int i = 0; i < MAX_INSTR_LENGTH; i++) {
-  //     uint32_t v =
-  //         i < len ? (uint32_t) * reinterpret_cast<uint8_t *>(dsm.EIP + i) :
-  //         0;
-  //     instr << std::hex << std::setw(2) << std::setfill('0') << v;
-  //   }
-
-  //   // print out binary / mnemonic
-  //   LOG_INFO("%s %s", instr.str().c_str(), dsm.CompleteInstr);
-
-  //   if (dsm.Instruction.BranchType == RetType) {
-  //     break;
-  //   }
-
-  //   dsm.EIP = dsm.EIP + len;
-  // }
+  cs_free(insns, count);
 }
 
 bool X64Backend::HandleFastmemException(Exception &ex) {

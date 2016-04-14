@@ -36,7 +36,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   void Reset();
 
-  CodePointer Emit(ir::IRBuilder &builder);
+  const uint8_t *Emit(ir::IRBuilder &builder, int *size);
 
   // helpers for the emitter callbacks
   const Xbyak::Reg GetRegister(const ir::Value *v);

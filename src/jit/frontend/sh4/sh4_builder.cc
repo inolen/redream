@@ -32,7 +32,7 @@ EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
 
 SH4Builder::SH4Builder(Arena &arena) : IRBuilder(arena) {}
 
-void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int size,
+void SH4Builder::Emit(uint32_t guest_addr, uint8_t *guest_ptr, int size,
                       int flags) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
@@ -45,20 +45,19 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int size,
   while (i < size) {
     Instr instr;
     instr.addr = guest_addr + i;
-    instr.opcode = re::load<uint16_t>(host_addr + i);
+    instr.opcode = re::load<uint16_t>(guest_ptr + i);
 
     if (!SH4Disassembler::Disasm(&instr)) {
       InvalidInstruction(instr.addr);
       break;
     }
 
-
     i += 2;
     guest_cycles += instr.cycles;
 
     if (instr.flags & OP_FLAG_DELAYED) {
       delay_instr_.addr = guest_addr + i;
-      delay_instr_.opcode = re::load<uint16_t>(host_addr + i);
+      delay_instr_.opcode = re::load<uint16_t>(guest_ptr + i);
 
       // instruction must be valid, breakpoints on delay instructions aren't
       // currently supported
@@ -213,7 +212,6 @@ void SH4Builder::InvalidInstruction(uint32_t guest_addr) {
   CallExternal2(invalid_instruction,
                 AllocConstant(static_cast<uint64_t>(guest_addr)));
 }
-
 
 void SH4Builder::EmitDelayInstr() {
   (emit_callbacks[delay_instr_.op])(*this, delay_instr_);

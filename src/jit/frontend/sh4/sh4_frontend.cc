@@ -9,21 +9,21 @@ using namespace re::jit::ir;
 
 SH4Frontend::SH4Frontend() : arena_(4096) {}
 
-IRBuilder &SH4Frontend::TranslateCode(uint32_t guest_addr, uint8_t *host_addr,
+IRBuilder &SH4Frontend::TranslateCode(uint32_t guest_addr, uint8_t *guest_ptr,
                                       int flags, int *size) {
   // get the block size
-  SH4Analyzer::AnalyzeBlock(guest_addr, host_addr, flags, size);
+  SH4Analyzer::AnalyzeBlock(guest_addr, guest_ptr, flags, size);
 
   // emit IR for the SH4 code
   arena_.Reset();
   SH4Builder *builder = arena_.Alloc<SH4Builder>();
   new (builder) SH4Builder(arena_);
-  builder->Emit(guest_addr, host_addr, *size, flags);
+  builder->Emit(guest_addr, guest_ptr, *size, flags);
 
   return *builder;
 }
 
-void SH4Frontend::DumpCode(uint32_t guest_addr, uint8_t *host_addr, int size) {
+void SH4Frontend::DumpCode(uint32_t guest_addr, uint8_t *guest_ptr, int size) {
   char buffer[128];
 
   int i = 0;
@@ -31,7 +31,7 @@ void SH4Frontend::DumpCode(uint32_t guest_addr, uint8_t *host_addr, int size) {
   while (i < size) {
     Instr instr;
     instr.addr = guest_addr + i;
-    instr.opcode = re::load<uint16_t>(host_addr + i);
+    instr.opcode = re::load<uint16_t>(guest_ptr + i);
     SH4Disassembler::Disasm(&instr);
 
     SH4Disassembler::Format(instr, buffer, sizeof(buffer));
@@ -42,7 +42,7 @@ void SH4Frontend::DumpCode(uint32_t guest_addr, uint8_t *host_addr, int size) {
     if (instr.flags & OP_FLAG_DELAYED) {
       Instr delay;
       delay.addr = guest_addr + i;
-      delay.opcode = re::load<uint16_t>(host_addr + i);
+      delay.opcode = re::load<uint16_t>(guest_ptr + i);
       SH4Disassembler::Disasm(&delay);
 
       SH4Disassembler::Format(delay, buffer, sizeof(buffer));

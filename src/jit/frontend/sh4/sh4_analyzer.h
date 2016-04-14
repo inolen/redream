@@ -11,7 +11,7 @@ namespace sh4 {
 
 class SH4Analyzer {
  public:
-  static void AnalyzeBlock(uint32_t guest_addr, uint8_t *host_addr, int flags,
+  static void AnalyzeBlock(uint32_t guest_addr, uint8_t *guest_ptr, int flags,
                            int *size);
 };
 }

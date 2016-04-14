@@ -64,12 +64,17 @@ add_subdirectory(deps/sdl2-2.0.4 EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.4/include)
 list(APPEND REDREAM_LIBS SDL2main SDL2-static)
 
-# beaengine
-add_library(beaengine STATIC deps/beaengine-4.1/beaengineSources/BeaEngine.c)
-target_include_directories(beaengine PUBLIC deps/beaengine-4.1/include)
-list(APPEND REDREAM_DEFS BEA_ENGINE_STATIC)
-list(APPEND REDREAM_INCLUDE_DIRS deps/beaengine-4.1/include)
-list(APPEND REDREAM_LIBS beaengine)
+# capstone
+add_subdirectory(deps/capstone EXCLUDE_FROM_ALL)
+set(CAPSTONE_ARM_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_ARM64_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_MIPS_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_PPC_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_SPARC_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_SYSZ_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_XCORE_SUPPORT OFF CACHE BOOL "")
+list(APPEND REDREAM_INCLUDE_DIRS deps/capstone/include)
+list(APPEND REDREAM_LIBS capstone-static)
 
 # dirent
 list(APPEND REDREAM_INCLUDE_DIRS deps/dirent-1.21)

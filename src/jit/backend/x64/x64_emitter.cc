@@ -84,18 +84,17 @@ void X64Emitter::Reset() {
   EmitConstants();
 }
 
-CodePointer X64Emitter::Emit(IRBuilder &builder) {
+const uint8_t *X64Emitter::Emit(IRBuilder &builder, int *size) {
   PROFILER_RUNTIME("X64Emitter::Emit");
 
-  // getCurr returns the current spot in the codegen buffer which the function
-  // is about to emitted to
-  CodePointer fn = getCurr<CodePointer>();
+  const uint8_t *fn = getCurr();
 
   int stack_size = 0;
   EmitProlog(builder, &stack_size);
   EmitBody(builder);
   EmitEpilog(builder, stack_size);
-  ready();
+
+  *size = getCurr() - fn;
 
   return fn;
 }

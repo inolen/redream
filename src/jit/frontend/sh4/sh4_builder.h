@@ -22,7 +22,7 @@ class SH4Builder : public ir::IRBuilder {
 
   int flags() { return flags_; }
 
-  void Emit(uint32_t guest_addr, uint8_t *host_addr, int size, int flags);
+  void Emit(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags);
 
   ir::Instr *LoadGuest(ir::Value *addr, ir::ValueType type);
   void StoreGuest(ir::Value *addr, ir::Value *v);

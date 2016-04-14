@@ -32,8 +32,6 @@ struct Register {
   const void *data;
 };
 
-typedef uint32_t (*CodePointer)();
-
 class Backend {
  public:
   Backend(const MemoryInterface &memif) : memif_(memif) {}
@@ -44,8 +42,8 @@ class Backend {
 
   virtual void Reset() = 0;
 
-  virtual CodePointer AssembleCode(ir::IRBuilder &builder) = 0;
-  virtual void DumpCode(uintptr_t host_addr, int size) = 0;
+  virtual const uint8_t *AssembleCode(ir::IRBuilder &builder, int *size) = 0;
+  virtual void DumpCode(const uint8_t *host_addr, int size) = 0;
 
   virtual bool HandleFastmemException(sys::Exception &ex) = 0;
 

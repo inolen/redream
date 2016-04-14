@@ -7,14 +7,14 @@
 using namespace re;
 using namespace re::jit::frontend::sh4;
 
-void SH4Analyzer::AnalyzeBlock(uint32_t guest_addr, uint8_t *host_addr,
+void SH4Analyzer::AnalyzeBlock(uint32_t guest_addr, uint8_t *guest_ptr,
                                int flags, int *size) {
   *size = 0;
 
   while (true) {
     Instr instr;
     instr.addr = guest_addr;
-    instr.opcode = re::load<uint16_t>(host_addr);
+    instr.opcode = re::load<uint16_t>(guest_ptr);
 
     // end block on invalid instruction
     if (!SH4Disassembler::Disasm(&instr)) {
@@ -23,7 +23,7 @@ void SH4Analyzer::AnalyzeBlock(uint32_t guest_addr, uint8_t *host_addr,
 
     int step = (instr.flags & OP_FLAG_DELAYED) ? 4 : 2;
     guest_addr += step;
-    host_addr += step;
+    guest_ptr += step;
     *size += step;
 
     // stop emitting once a branch has been hit. in addition, if fpscr has

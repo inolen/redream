@@ -57,7 +57,7 @@ SH4CodeCache::~SH4CodeCache() {
   delete backend_;
 }
 
-CodePointer SH4CodeCache::CompileCode(uint32_t guest_addr, uint8_t *host_addr,
+CodePointer SH4CodeCache::CompileCode(uint32_t guest_addr, uint8_t *guest_ptr,
                                       int flags) {
   PROFILER_RUNTIME("SH4CodeCache::CompileCode");
 
@@ -69,37 +69,21 @@ CodePointer SH4CodeCache::CompileCode(uint32_t guest_addr, uint8_t *host_addr,
   CHECK_EQ(code, default_code_);
 
   // if the block being compiled had previously been unlinked by a
-  // fastmem exception, reuse the block but go ahead and remove
-  // the stale entries from the lookup maps
-  SH4Block *block = nullptr;
-
+  // fastmem exception, reuse the block's flags and finish removing
+  // it at this time;
   auto it = blocks_.find(guest_addr);
   if (it != blocks_.end()) {
-    block = it->second;
-    blocks_.erase(it);
-  }
+    SH4Block *unlinked = it->second;
 
-  auto rit = reverse_blocks_.find(guest_addr);
-  if (rit != reverse_blocks_.end()) {
-    block = it->second;
-    reverse_blocks_.erase(rit);
-  }
+    flags |= unlinked->flags;
 
-  // allocate a block if one can't be reused
-  if (!block) {
-    block = new SH4Block();
-    block->flags = 0;
+    RemoveBlock(unlinked);
   }
-
-  // merge flags
-  block->flags |= flags;
 
   // translate the SH4 into IR
   int guest_size = 0;
-  IRBuilder &builder = frontend_->TranslateCode(guest_addr, host_addr,
-                                                block->flags, &guest_size);
-
-// frontend_->DumpCode(guest_addr, host_addr, guest_size);
+  IRBuilder &builder =
+      frontend_->TranslateCode(guest_addr, guest_ptr, flags, &guest_size);
 
 #if 0
   const char *appdir = GetAppDir();
@@ -118,9 +102,10 @@ CodePointer SH4CodeCache::CompileCode(uint32_t guest_addr, uint8_t *host_addr,
   pass_runner_.Run(builder);
 
   // assemble the IR into native code
-  code = backend_->AssembleCode(builder);
+  int host_size = 0;
+  const uint8_t *host_addr = backend_->AssembleCode(builder, &host_size);
 
-  if (!code) {
+  if (!host_addr) {
     LOG_INFO("Assembler overflow, resetting block cache");
 
     // the backend overflowed, completely clear the block cache
@@ -128,18 +113,19 @@ CodePointer SH4CodeCache::CompileCode(uint32_t guest_addr, uint8_t *host_addr,
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
-    code = backend_->AssembleCode(builder);
+    host_addr = backend_->AssembleCode(builder, &host_size);
 
-    CHECK(code, "Backend assembler buffer overflow");
+    CHECK(host_addr, "Backend assembler buffer overflow");
   }
 
-  // update addresses
-  block->host_addr = reinterpret_cast<uintptr_t>(code);
-  block->host_size = 0;
+  // allocate the new block
+  SH4Block *block = new SH4Block();
+  block->host_addr = host_addr;
+  block->host_size = host_size;
   block->guest_addr = guest_addr;
   block->guest_size = guest_size;
+  block->flags = flags;
 
-  // add block to the lookup maps
   auto res = blocks_.insert(std::make_pair(block->guest_addr, block));
   CHECK(res.second);
   block->it = res.first;
@@ -147,6 +133,9 @@ CodePointer SH4CodeCache::CompileCode(uint32_t guest_addr, uint8_t *host_addr,
   auto rres = reverse_blocks_.insert(std::make_pair(block->host_addr, block));
   CHECK(rres.second);
   block->rit = rres.first;
+
+  // update code pointer
+  code = reinterpret_cast<CodePointer>(const_cast<uint8_t *>(block->host_addr));
 
   return code;
 }
@@ -168,14 +157,7 @@ void SH4CodeCache::RemoveBlocks(uint32_t guest_addr) {
       break;
     }
 
-    UnlinkBlock(block);
-
-    // erase from lookup maps
-    blocks_.erase(block->it);
-    reverse_blocks_.erase(block->rit);
-
-    // free the block
-    delete block;
+    RemoveBlock(block);
   }
 }
 
@@ -192,16 +174,11 @@ void SH4CodeCache::UnlinkBlocks() {
 void SH4CodeCache::ClearBlocks() {
   // unlink all code pointers and remove all block entries. this is only safe to
   // use when no code is currently executing
-  for (auto it : blocks_) {
-    SH4Block *block = it.second;
+  while (blocks_.size()) {
+    auto it = blocks_.begin();
 
-    UnlinkBlock(block);
-
-    delete block;
+    RemoveBlock(it->second);
   }
-
-  blocks_.clear();
-  reverse_blocks_.clear();
 
   // have the backend reset its codegen buffers as well
   backend_->Reset();
@@ -211,7 +188,8 @@ bool SH4CodeCache::HandleException(void *ctx, Exception &ex) {
   SH4CodeCache *self = reinterpret_cast<SH4CodeCache *>(ctx);
 
   // see if there is an assembled block corresponding to the current pc
-  SH4Block *block = self->LookupBlockReverse(ex.pc);
+  SH4Block *block =
+      self->LookupBlockReverse(reinterpret_cast<const uint8_t *>(ex.pc));
   if (!block) {
     return false;
   }
@@ -246,7 +224,7 @@ SH4Block *SH4CodeCache::LookupBlock(uint32_t guest_addr) {
   return (--it)->second;
 }
 
-SH4Block *SH4CodeCache::LookupBlockReverse(uintptr_t host_addr) {
+SH4Block *SH4CodeCache::LookupBlockReverse(const uint8_t *host_addr) {
   auto it = reverse_blocks_.upper_bound(host_addr);
 
   if (it == reverse_blocks_.begin()) {
@@ -258,4 +236,16 @@ SH4Block *SH4CodeCache::LookupBlockReverse(uintptr_t host_addr) {
 
 void SH4CodeCache::UnlinkBlock(SH4Block *block) {
   code_[BLOCK_OFFSET(block->guest_addr)] = default_code_;
+}
+
+void SH4CodeCache::RemoveBlock(SH4Block *block) {
+  UnlinkBlock(block);
+
+  blocks_.erase(block->it);
+  reverse_blocks_.erase(block->rit);
+
+  // sanity check
+  CHECK_EQ(blocks_.size(), reverse_blocks_.size());
+
+  delete block;
 }

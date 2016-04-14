@@ -23,10 +23,12 @@ class Memory;
 struct SH4Block;
 
 typedef std::map<uint32_t, SH4Block *> BlockMap;
-typedef std::map<uintptr_t, SH4Block *> ReverseBlockMap;
+typedef std::map<const uint8_t *, SH4Block *> ReverseBlockMap;
+
+typedef uint32_t (*CodePointer)();
 
 struct SH4Block {
-  uintptr_t host_addr;
+  const uint8_t *host_addr;
   int host_size;
   uint32_t guest_addr;
   int guest_size;
@@ -38,19 +40,18 @@ struct SH4Block {
 class SH4CodeCache {
  public:
   SH4CodeCache(const jit::backend::MemoryInterface &memif,
-               jit::backend::CodePointer default_code);
+               CodePointer default_code);
   ~SH4CodeCache();
 
   BlockMap::iterator blocks_begin() { return blocks_.begin(); }
   BlockMap::iterator blocks_end() { return blocks_.end(); }
 
-  jit::backend::CodePointer GetCode(uint32_t guest_addr) {
+  CodePointer GetCode(uint32_t guest_addr) {
     int offset = BLOCK_OFFSET(guest_addr);
     CHECK_LT(offset, MAX_BLOCKS);
     return code_[offset];
   }
-  jit::backend::CodePointer CompileCode(uint32_t guest_addr, uint8_t *host_addr,
-                                        int flags);
+  CodePointer CompileCode(uint32_t guest_addr, uint8_t *host_addr, int flags);
 
   SH4Block *GetBlock(uint32_t guest_addr);
   void RemoveBlocks(uint32_t guest_addr);
@@ -61,16 +62,17 @@ class SH4CodeCache {
   static bool HandleException(void *ctx, sys::Exception &ex);
 
   SH4Block *LookupBlock(uint32_t guest_addr);
-  SH4Block *LookupBlockReverse(uintptr_t host_addr);
+  SH4Block *LookupBlockReverse(const uint8_t *host_addr);
   void UnlinkBlock(SH4Block *block);
+  void RemoveBlock(SH4Block *block);
 
   sys::ExceptionHandlerHandle eh_handle_;
   jit::frontend::Frontend *frontend_;
   jit::backend::Backend *backend_;
   jit::ir::passes::PassRunner pass_runner_;
 
-  jit::backend::CodePointer default_code_;
-  jit::backend::CodePointer code_[MAX_BLOCKS];
+  CodePointer default_code_;
+  CodePointer code_[MAX_BLOCKS];
   BlockMap blocks_;
   ReverseBlockMap reverse_blocks_;
 };

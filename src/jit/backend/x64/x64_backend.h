@@ -1,6 +1,7 @@
 #ifndef X64_BACKEND_H
 #define X64_BACKEND_H
 
+#include <capstone.h>
 #include "jit/backend/backend.h"
 #include "jit/backend/x64/x64_emitter.h"
 
@@ -29,14 +30,15 @@ class X64Backend : public Backend {
 
   void Reset();
 
-  CodePointer AssembleCode(ir::IRBuilder &builder);
-  void DumpCode(uintptr_t host_addr, int size);
+  const uint8_t *AssembleCode(ir::IRBuilder &builder, int *size);
+  void DumpCode(const uint8_t *host_addr, int size);
 
   bool HandleFastmemException(sys::Exception &ex);
 
  private:
   void EmitThunks();
 
+  csh capstone_handle_;
   X64Emitter emitter_;
   SlowmemThunk load_thunk_[16];
   SlowmemThunk store_thunk_;
