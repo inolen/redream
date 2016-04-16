@@ -30,11 +30,13 @@ void Scheduler::Tick(const std::chrono::nanoseconds &delta) {
     base_time_ += slice;
 
     for (auto device : machine_.devices) {
-      if (!device->execute()) {
+      ExecuteInterface *execute = device->execute();
+
+      if (!execute || execute->suspended()) {
         continue;
       }
 
-      device->execute()->Run(slice);
+      execute->Run(slice);
     }
 
     // execute expired timers

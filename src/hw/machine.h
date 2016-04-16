@@ -36,7 +36,15 @@ class ExecuteInterface {
   ExecuteInterface(Device *device);
   virtual ~ExecuteInterface() = default;
 
+  bool suspended() { return suspended_; }
+
+  void Suspend();
+  void Resume();
+
   virtual void Run(const std::chrono::nanoseconds &delta) = 0;
+
+ private:
+  bool suspended_;
 };
 
 class MemoryInterface {
@@ -86,10 +94,10 @@ class Machine {
   friend class Device;
 
  public:
-  bool suspended() { return suspended_; }
-
   Machine();
   virtual ~Machine();
+
+  bool suspended() { return suspended_; }
 
   bool Init();
   void Suspend();

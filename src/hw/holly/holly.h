@@ -59,7 +59,7 @@ class Holly : public Device, public MemoryInterface {
   template <typename T>
   void WriteRegister(uint32_t addr, T value);
 
-  void ForwardRequestInterrupts();
+  void UpdateSH4Interrupts();
 
   HOLLY_DECLARE_R32_DELEGATE(SB_ISTNRM);
   HOLLY_DECLARE_W32_DELEGATE(SB_ISTNRM);

@@ -12,7 +12,13 @@ DEFINE_bool(gdb, false, "Run gdb debug server");
 
 DebugInterface::DebugInterface(Device *device) { device->debug_ = this; }
 
-ExecuteInterface::ExecuteInterface(Device *device) { device->execute_ = this; }
+ExecuteInterface::ExecuteInterface(Device *device) : suspended_(false) {
+  device->execute_ = this;
+}
+
+void ExecuteInterface::Suspend() { suspended_ = true; }
+
+void ExecuteInterface::Resume() { suspended_ = false; }
 
 MemoryInterface::MemoryInterface(Device *device) { device->memory_ = this; }
 

@@ -1,6 +1,7 @@
 #include "core/log.h"
 #include "core/memory.h"
 #include "hw/aica/aica.h"
+#include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
@@ -20,12 +21,20 @@ AICA::AICA(Dreamcast &dc)
       ExecuteInterface(this),
       MemoryInterface(this),
       dc_(dc),
+      sh4_(nullptr),
+      arm7_(nullptr),
       aica_regs_(nullptr),
       wave_ram_(nullptr) {}
 
 bool AICA::Init() {
+  sh4_ = dc_.sh4;
+  arm7_ = dc_.arm7;
   aica_regs_ = dc_.memory->TranslateVirtual(AICA_REG_BEGIN);
   wave_ram_ = dc_.memory->TranslateVirtual(WAVE_RAM_BEGIN);
+  common_data_ = reinterpret_cast<CommonData *>(aica_regs_ + 0x2800);
+
+  // start suspended
+  arm7_->Suspend();
 
   return true;
 }
@@ -39,9 +48,13 @@ void AICA::Run(const std::chrono::nanoseconds &delta) {
 
 void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
   RegionHandle aica_reg_handle = memory.AllocRegion(
-      AICA_REG_BEGIN, AICA_REG_SIZE, nullptr, nullptr,
-      make_delegate(&AICA::ReadRegister, this), nullptr, nullptr, nullptr,
-      make_delegate(&AICA::WriteRegister, this), nullptr);
+      AICA_REG_BEGIN, AICA_REG_SIZE,
+      make_delegate(&AICA::ReadRegister<uint8_t>, this),
+      make_delegate(&AICA::ReadRegister<uint16_t>, this),
+      make_delegate(&AICA::ReadRegister<uint32_t>, this), nullptr,
+      make_delegate(&AICA::WriteRegister<uint8_t>, this),
+      make_delegate(&AICA::WriteRegister<uint16_t>, this),
+      make_delegate(&AICA::WriteRegister<uint32_t>, this), nullptr);
 
   RegionHandle wave_ram_handle = memory.AllocRegion(
       WAVE_RAM_BEGIN, WAVE_RAM_SIZE,
@@ -56,12 +69,24 @@ void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
   memmap.Mount(wave_ram_handle, WAVE_RAM_SIZE, WAVE_RAM_BEGIN);
 }
 
-uint32_t AICA::ReadRegister(uint32_t addr) {
-  return re::load<uint32_t>(&aica_regs_[addr]);
+template <typename T>
+T AICA::ReadRegister(uint32_t addr) {
+  return re::load<T>(&aica_regs_[addr]);
 }
 
-void AICA::WriteRegister(uint32_t addr, uint32_t value) {
+template <typename T>
+void AICA::WriteRegister(uint32_t addr, T value) {
   re::store(&aica_regs_[addr], value);
+
+  switch (addr) {
+    case 0x2c00: {  // ARMRST
+      if (value) {
+        arm7_->Suspend();
+      } else {
+        arm7_->Resume();
+      }
+    } break;
+  }
 }
 
 template <typename T>
@@ -98,3 +123,7 @@ template <typename T>
 void AICA::WriteWave(uint32_t addr, T value) {
   re::store(&wave_ram_[addr], value);
 }
+
+void AICA::UpdateARMInterrupts() {}
+
+void AICA::UpdateSH4Interrupts() {}

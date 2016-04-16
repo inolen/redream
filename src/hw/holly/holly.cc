@@ -86,7 +86,7 @@ void Holly::RequestInterrupt(HollyInterrupt intr) {
       break;
   }
 
-  ForwardRequestInterrupts();
+  UpdateSH4Interrupts();
 }
 
 void Holly::UnrequestInterrupt(HollyInterrupt intr) {
@@ -108,7 +108,7 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
       break;
   }
 
-  ForwardRequestInterrupts();
+  UpdateSH4Interrupts();
 }
 
 void Holly::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
@@ -159,7 +159,7 @@ void Holly::WriteRegister(uint32_t addr, T value) {
   }
 }
 
-void Holly::ForwardRequestInterrupts() {
+void Holly::UpdateSH4Interrupts() {
   // trigger the respective level-encoded interrupt on the sh4 interrupt
   // controller
   {
@@ -207,36 +207,36 @@ HOLLY_R32_DELEGATE(SB_ISTNRM) {
 HOLLY_W32_DELEGATE(SB_ISTNRM) {
   // writing a 1 clears the interrupt
   reg.value = old_value & ~reg.value;
-  ForwardRequestInterrupts();
+  UpdateSH4Interrupts();
 }
 
 HOLLY_W32_DELEGATE(SB_ISTEXT) {
   reg.value = old_value & ~reg.value;
-  ForwardRequestInterrupts();
+  UpdateSH4Interrupts();
 }
 
 HOLLY_W32_DELEGATE(SB_ISTERR) {
   reg.value = old_value & ~reg.value;
-  ForwardRequestInterrupts();
+  UpdateSH4Interrupts();
 }
 
-HOLLY_W32_DELEGATE(SB_IML2NRM) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML2NRM) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML2EXT) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML2EXT) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML2ERR) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML2ERR) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML4NRM) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML4NRM) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML4EXT) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML4EXT) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML4ERR) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML4ERR) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML6NRM) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML6NRM) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML6EXT) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML6EXT) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML6ERR) { ForwardRequestInterrupts(); }
+HOLLY_W32_DELEGATE(SB_IML6ERR) { UpdateSH4Interrupts(); }
 
 HOLLY_W32_DELEGATE(SB_C2DST) {
   if (!reg.value) {
