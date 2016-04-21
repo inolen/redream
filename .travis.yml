@@ -8,6 +8,13 @@ compiler:
   - gcc
   - clang
 
+addons:
+    apt:
+      packages:
+        - cmake
+      sources:
+        - kalakris-cmake
+
 before_script:
   - mkdir build
   - cd build
