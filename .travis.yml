@@ -1,21 +1,24 @@
 language: cpp
 
-os:
-  - linux
-  - osx
+matrix:
+  include:
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources:
+            - kubuntu-backports
+            - ubuntu-toolchain-r-test
+          packages:
+            - cmake
+            - gcc-4.9
+            - g++-4.9
 
-compiler:
-  - gcc
-  - clang
-
-addons:
-    apt:
-      packages:
-        - cmake
-      sources:
-        - kubuntu-backports
+    - os: osx
+      compiler: clang
 
 script:
+  - if [ "$CC" = "gcc" ]; then export CC="gcc-4.9" CXX="g++-4.9"; fi
   - mkdir build
   - cd build
   - cmake ..
