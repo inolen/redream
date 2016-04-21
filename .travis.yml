@@ -13,12 +13,10 @@ addons:
       packages:
         - cmake
       sources:
-        - kalakris-cmake
+        - kubuntu-backports
 
-before_script:
+script:
   - mkdir build
   - cd build
   - cmake ..
-
-script:
   - make
