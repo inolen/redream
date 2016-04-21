@@ -1,3 +1,5 @@
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #include <iomanip>
 #include <sstream>
 #include <xbyak/xbyak.h>
