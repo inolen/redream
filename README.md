@@ -6,6 +6,10 @@ redream is a work in progress emulator for the SEGA Dreamcast.
 <a href="http://www.youtube.com/watch?v=kDBAweW9hD0"><img src="http://share.gifyoutube.com/vMZXGb.gif" /></a>
 </p>
 
+## Build status
+
+[![Build Status](https://travis-ci.org/inolen/redream.svg?branch=master)](https://travis-ci.org/inolen/redream)
+
 ## Getting started
 
 Start by cloning the repository and setting up a build directory.
