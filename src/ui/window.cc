@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <SDL.h>
 #include "core/assert.h"
+#include "core/memory.h"
 #include "renderer/gl_backend.h"
 #include "ui/imgui_impl.h"
 #include "ui/microprofile_impl.h"

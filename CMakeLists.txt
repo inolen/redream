@@ -217,10 +217,9 @@ source_group_by_dir(REDREAM_SOURCES)
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
   set(REDREAM_COMPILE_FLAGS -std=c++11 -fno-operator-names -Wall -Wextra -Werror -Wno-unused-parameter -Wno-strict-aliasing)
 
-  string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
-
-  if(BUILD_TYPE STREQUAL "debug")
-    set(REDREAM_COMPILE_FLAGS ${REDREAM_COMPILE_FLAGS} -fno-omit-frame-pointer)
+  # some flavors of GCC require this to be defined for the PR* macros in inttypes.h
+  if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+    set(REDREAM_COMPILE_FLAGS ${REDREAM_COMPILE_FLAGS} -D__STDC_FORMAT_MACROS)
   endif()
 
   # used by shm_open / shm_unlink on linux

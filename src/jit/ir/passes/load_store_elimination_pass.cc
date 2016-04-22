@@ -1,3 +1,4 @@
+#include "core/memory.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 
 using namespace re::jit::ir;

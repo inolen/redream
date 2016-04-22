@@ -154,6 +154,11 @@ bool IRReader::ParseType(IRLexer &lex, IRBuilder &builder, ValueType *type) {
 }
 
 bool IRReader::ParseOp(IRLexer &lex, IRBuilder &builder, Op *op) {
+  if (lex.tok() != TOK_IDENTIFIER) {
+    LOG_INFO("Unexpected token %d when parsing op");
+    return false;
+  }
+
   const char *op_str = lex.val().s;
 
   // match token against opnames

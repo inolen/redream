@@ -1,4 +1,5 @@
 #include "core/assert.h"
+#include "core/memory.h"
 #include "core/profiler.h"
 #include "renderer/gl_backend.h"
 

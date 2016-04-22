@@ -1,5 +1,5 @@
-#include <vector>
 #include "core/assert.h"
+#include "core/string.h"
 #include "jit/ir/passes/pass_stats.h"
 
 using namespace re::jit::ir;
@@ -10,29 +10,31 @@ namespace jit {
 namespace ir {
 namespace passes {
 
-static std::vector<const Stat *> *s_stats = nullptr;
+static Stat *s_head_stat;
 
-static void RegisterStat(const Stat *stat) {
-  // lazily initialize to avoid static initialization ordering problems
-  if (!s_stats) {
-    s_stats = new std::vector<const Stat *>();
-  }
-
-  s_stats->push_back(stat);
+static void RegisterStat(Stat *stat) {
+  stat->next = s_head_stat;
+  s_head_stat = stat;
 }
 
-static void UnregisterStat(const Stat *stat) {
-  auto it = std::find(s_stats->begin(), s_stats->end(), stat);
-  CHECK_NE(it, s_stats->end());
-  s_stats->erase(it);
+static void UnregisterStat(Stat *stat) {
+  Stat **tmp = &s_head_stat;
 
-  if (!s_stats->size()) {
-    delete s_stats;
-    s_stats = nullptr;
+  while (*tmp) {
+    Stat **next = &(*tmp)->next;
+
+    if (*tmp == stat) {
+      *tmp = *next;
+      break;
+    }
+
+    tmp = next;
   }
 }
 
-Stat::Stat(const char *desc) : desc(desc), n(0) { RegisterStat(this); }
+Stat::Stat(const char *desc) : desc(desc), n(0), next(nullptr) {
+  RegisterStat(this);
+}
 
 Stat::~Stat() { UnregisterStat(this); }
 
@@ -42,13 +44,17 @@ void DumpStats() {
   LOG_INFO("===-----------------------------------------------------===");
 
   int w = 0;
-  for (auto stat : *s_stats) {
+  Stat *stat = s_head_stat;
+  while (stat) {
     int l = static_cast<int>(strlen(stat->desc));
     w = std::max(l, w);
+    stat = stat->next;
   }
 
-  for (auto stat : *s_stats) {
+  stat = s_head_stat;
+  while (stat) {
     LOG_INFO("%-*s  %d", w, stat->desc, stat->n);
+    stat = stat->next;
   }
 }
 }

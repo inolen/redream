@@ -1,6 +1,8 @@
 #ifndef REDREAM_MEMORY_H
 #define REDREAM_MEMORY_H
 
+#include <string.h>
+
 namespace re {
 
 #if PLATFORM_WINDOWS

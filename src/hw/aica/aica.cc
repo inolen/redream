@@ -13,8 +13,15 @@ enum {
   AICA_CLOCK_FREQ = 22579200,
 };
 
+namespace re {
+namespace hw {
+namespace aica {
+
 template <>
 uint32_t AICA::ReadWave(uint32_t addr);
+}
+}
+}
 
 AICA::AICA(Dreamcast &dc)
     : Device(dc),
@@ -94,6 +101,10 @@ T AICA::ReadWave(uint32_t addr) {
   return re::load<T>(&wave_ram_[addr]);
 }
 
+namespace re {
+namespace hw {
+namespace aica {
+
 template <>
 uint32_t AICA::ReadWave(uint32_t addr) {
   // FIXME temp hacks to get Crazy Taxi 1 booting
@@ -117,6 +128,9 @@ uint32_t AICA::ReadWave(uint32_t addr) {
   }
 
   return re::load<uint32_t>(&wave_ram_[addr]);
+}
+}
+}
 }
 
 template <typename T>

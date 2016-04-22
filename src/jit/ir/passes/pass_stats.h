@@ -9,11 +9,12 @@ namespace passes {
 #define DEFINE_STAT(name, desc) static Stat name(desc);
 
 struct Stat {
-  const char *desc;
-  int n;
-
   Stat(const char *desc);
   ~Stat();
+
+  const char *desc;
+  int n;
+  Stat *next;
 
   operator int() const { return n; }
 

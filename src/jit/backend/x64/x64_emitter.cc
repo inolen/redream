@@ -1,4 +1,5 @@
 #include <math.h>
+#include "core/assert.h"
 #include "core/math.h"
 #include "core/memory.h"
 #include "core/profiler.h"
