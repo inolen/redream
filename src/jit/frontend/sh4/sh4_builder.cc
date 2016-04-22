@@ -32,6 +32,7 @@ typedef void (*EmitCallback)(SH4Builder &b, const sh4::Instr &i, int,
 #undef SH4_INSTR
 
 EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
+  nullptr,  // OP_INVALID
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) &Emit_OP_##name,
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
@@ -52,20 +53,19 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
     Instr instr;
     instr.addr = pc_;
     instr.opcode = re::load<uint16_t>(host_addr_);
-    Disasm(&instr);
 
-    if (!instr.type) {
+    if (!SH4Disassembler::Disasm(&instr)) {
       InvalidInstruction(instr.addr);
       break;
     }
 
     pc_ += 2;
     host_addr_ += 2;
-    guest_cycles_ += instr.type->cycles;
+    guest_cycles_ += instr.cycles;
 
     // emit the current instruction
     bool endblock = false;
-    (emit_callbacks[instr.type->op])(*this, instr, flags, &endblock);
+    (emit_callbacks[instr.op])(*this, instr, flags, &endblock);
 
     // end block if delay instruction is invalid
     if (endblock) {
@@ -76,7 +76,7 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
     // changed, stop emitting since the fpu state is invalidated. also, if
     // sr has changed, stop emitting as there are interrupts that possibly
     // need to be handled
-    if (instr.type->flags &
+    if (instr.flags &
         (OP_FLAG_BRANCH | OP_FLAG_SET_FPSCR | OP_FLAG_SET_SR)) {
       break;
     }
@@ -229,26 +229,25 @@ void SH4Builder::InvalidInstruction(uint32_t guest_addr) {
 }
 
 bool SH4Builder::EmitDelayInstr(const sh4::Instr &prev, int flags) {
-  CHECK(prev.type->flags & OP_FLAG_DELAYED);
+  CHECK(prev.flags & OP_FLAG_DELAYED);
 
   Instr delay;
   delay.addr = prev.addr + 2;
   delay.opcode = re::load<uint16_t>(host_addr_);
-  Disasm(&delay);
 
-  if (!delay.type) {
+  if (!SH4Disassembler::Disasm(&delay)) {
     InvalidInstruction(delay.addr);
     return false;
   }
 
-  CHECK(!(delay.type->flags & OP_FLAG_DELAYED));
+  CHECK(!(delay.flags & OP_FLAG_DELAYED));
 
   pc_ += 2;
   host_addr_ += 2;
-  guest_cycles_ += delay.type->cycles;
+  guest_cycles_ += delay.cycles;
 
   bool endblock = false;
-  (emit_callbacks[delay.type->op])(*this, delay, flags, &endblock);
+  (emit_callbacks[delay.op])(*this, delay, flags, &endblock);
 
   return true;
 }
@@ -2208,3 +2207,6 @@ EMITTER(FSCHG) {
   Value *v = b.Xor(fpscr, b.AllocConstant(SZ));
   b.StoreFPSCR(v);
 }
+
+
+

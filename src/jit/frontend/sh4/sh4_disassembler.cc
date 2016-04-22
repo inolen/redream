@@ -4,13 +4,23 @@
 #include "jit/frontend/sh4/sh4_disassembler.h"
 
 using namespace re;
+using namespace re::jit::frontend::sh4;
 
-namespace re {
-namespace jit {
-namespace frontend {
-namespace sh4 {
+struct InstrType {
+  Op op;
+  const char *desc;
+  const char *sig;
+  int cycles;
+  int flags;
+  uint16_t opcode_mask;
+  uint16_t imm_mask, imm_shift;
+  uint16_t disp_mask, disp_shift;
+  uint16_t rm_mask, rm_shift;
+  uint16_t rn_mask, rn_shift;
+};
 
 static InstrType s_instrs[NUM_OPCODES] = {
+    {OP_INVALID, nullptr, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 #define SH4_INSTR(name, desc, sig, cycles, flags)                     \
   { OP_##name, desc, #sig, cycles, flags, 0, 0, 0, 0, 0, 0, 0, 0, 0 } \
   ,
@@ -43,8 +53,9 @@ static void InitInstrTables() {
 
   // finalize type information by extracting argument encoding information
   // from signatures
-  for (int i = 0; i < NUM_OPCODES; i++) {
+  for (int i = 1 /* skip OP_INVALID */; i < NUM_OPCODES; i++) {
     InstrType *type = &s_instrs[i];
+
     GetArgMask(type->sig, 'i', &type->imm_mask, &type->imm_shift);
     GetArgMask(type->sig, 'd', &type->disp_mask, &type->disp_shift);
     GetArgMask(type->sig, 'm', &type->rm_mask, &type->rm_shift);
@@ -53,13 +64,13 @@ static void InitInstrTables() {
   }
 
   // initialize lookup table
-  for (unsigned w = 0; w < 0x10000; w += 0x1000) {
-    for (unsigned x = 0; x < 0x1000; x += 0x100) {
-      for (unsigned y = 0; y < 0x100; y += 0x10) {
-        for (unsigned z = 0; z < 0x10; z++) {
+  for (int w = 0; w < 0x10000; w += 0x1000) {
+    for (int x = 0; x < 0x1000; x += 0x100) {
+      for (int y = 0; y < 0x100; y += 0x10) {
+        for (int z = 0; z < 0x10; z++) {
           uint16_t value = w + x + y + z;
 
-          for (unsigned i = 0; i < NUM_OPCODES; i++) {
+          for (int i = 1 /* skip OP_INVALID */; i < NUM_OPCODES; i++) {
             InstrType *type = &s_instrs[i];
             uint16_t arg_mask = type->imm_mask | type->disp_mask |
                                 type->rm_mask | type->rn_mask;
@@ -75,144 +86,121 @@ static void InitInstrTables() {
   }
 }
 
-static struct _sh4_disassembler_init {
-  _sh4_disassembler_init() { InitInstrTables(); }
-} sh4_disassembler_init;
+bool SH4Disassembler::Disasm(Instr *i) {
+  InitInstrTables();
 
-bool Disasm(Instr *i) {
   InstrType *type = s_instr_lookup[i->opcode];
+
   if (!type) {
-    i->type = nullptr;
+    i->op = OP_INVALID;
     return false;
   }
 
-  i->type = type;
+  i->op = type->op;
+  i->cycles = type->cycles;
+  i->flags = type->flags;
   i->Rm = (i->opcode & type->rm_mask) >> type->rm_shift;
   i->Rn = (i->opcode & type->rn_mask) >> type->rn_shift;
   i->disp = (i->opcode & type->disp_mask) >> type->disp_shift;
   i->imm = (i->opcode & type->imm_mask) >> type->imm_shift;
+
   return true;
 }
 
-void Dump(const void *data, size_t size, uint32_t base) {
-  Instr instr;
-  char buffer[128];
+void SH4Disassembler::Format(const Instr &i, char *buffer, size_t buffer_size) {
+  if (i.op == OP_INVALID) {
+    snprintf(buffer, buffer_size, "%08x  .word 0x%04x", i.addr, i.opcode);
+    return;
+  }
+
   char value[128];
   size_t value_len;
   uint32_t movsize;
   uint32_t pcmask;
 
-  for (size_t i = 0; i < size; i += 2) {
-    instr.addr = base + i;
-    instr.opcode =
-        re::load<uint16_t>(reinterpret_cast<const uint8_t *>(data) + i);
+  // copy initial formatted description
+  snprintf(buffer, buffer_size, "%08x  %s", i.addr, s_instrs[i.op].desc);
 
-    if (!Disasm(&instr)) {
-      snprintf(buffer, sizeof(buffer), "%08x  .word 0x%04x", instr.addr,
-               instr.opcode);
-    } else {
-      // copy initial formatted description
-      snprintf(buffer, sizeof(buffer), "%08x  %s", instr.addr,
-               instr.type->desc);
-
-      // used by mov operators with displacements
-      if (strnstr(buffer, ".b", sizeof(buffer))) {
-        movsize = 1;
-        pcmask = 0xffffffff;
-      } else if (strnstr(buffer, ".w", sizeof(buffer))) {
-        movsize = 2;
-        pcmask = 0xffffffff;
-      } else if (strnstr(buffer, ".l", sizeof(buffer))) {
-        movsize = 4;
-        pcmask = 0xfffffffc;
-      } else {
-        movsize = 0;
-        pcmask = 0;
-      }
-
-      // (disp:4,rn)
-      value_len =
-          snprintf(value, sizeof(value), "(0x%x,rn)", instr.disp * movsize);
-      CHECK_EQ(
-          strnrep(buffer, sizeof(buffer), "(disp:4,rn)", 11, value, value_len),
-          0);
-
-      // (disp:4,rm)
-      value_len =
-          snprintf(value, sizeof(value), "(0x%x,rm)", instr.disp * movsize);
-      CHECK_EQ(
-          strnrep(buffer, sizeof(buffer), "(disp:4,rm)", 11, value, value_len),
-          0);
-
-      // (disp:8,gbr)
-      value_len =
-          snprintf(value, sizeof(value), "(0x%x,gbr)", instr.disp * movsize);
-      CHECK_EQ(
-          strnrep(buffer, sizeof(buffer), "(disp:8,gbr)", 12, value, value_len),
-          0);
-
-      // (disp:8,pc)
-      value_len = snprintf(value, sizeof(value), "(0x%08x)",
-                           (instr.disp * movsize) + (instr.addr & pcmask) + 4);
-      CHECK_EQ(
-          strnrep(buffer, sizeof(buffer), "(disp:8,pc)", 11, value, value_len),
-          0);
-
-      // disp:8
-      value_len = snprintf(value, sizeof(value), "0x%08x",
-                           ((int8_t)instr.disp * 2) + instr.addr + 4);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "disp:8", 6, value, value_len),
-               0);
-
-      // disp:12
-      value_len = snprintf(
-          value, sizeof(value), "0x%08x",
-          ((((int32_t)(instr.disp & 0xfff) << 20) >> 20) * 2) + instr.addr + 4);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "disp:12", 7, value, value_len),
-               0);
-
-      // drm
-      value_len = snprintf(value, sizeof(value), "dr%d", instr.Rm);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "drm", 3, value, value_len), 0);
-
-      // drn
-      value_len = snprintf(value, sizeof(value), "dr%d", instr.Rn);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "drn", 3, value, value_len), 0);
-
-      // frm
-      value_len = snprintf(value, sizeof(value), "fr%d", instr.Rm);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "frm", 3, value, value_len), 0);
-
-      // frn
-      value_len = snprintf(value, sizeof(value), "fr%d", instr.Rn);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "frn", 3, value, value_len), 0);
-
-      // fvm
-      value_len = snprintf(value, sizeof(value), "fv%d", instr.Rm);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "fvm", 3, value, value_len), 0);
-
-      // fvn
-      value_len = snprintf(value, sizeof(value), "fv%d", instr.Rn);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "fvn", 3, value, value_len), 0);
-
-      // rm
-      value_len = snprintf(value, sizeof(value), "r%d", instr.Rm);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "rm", 2, value, value_len), 0);
-
-      // rn
-      value_len = snprintf(value, sizeof(value), "r%d", instr.Rn);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "rn", 2, value, value_len), 0);
-
-      // #imm8
-      value_len = snprintf(value, sizeof(value), "0x%02x", instr.imm);
-      CHECK_EQ(strnrep(buffer, sizeof(buffer), "#imm8", 5, value, value_len),
-               0);
-    }
-
-    LOG_INFO(buffer);
+  // used by mov operators with displacements
+  if (strnstr(buffer, ".b", buffer_size)) {
+    movsize = 1;
+    pcmask = 0xffffffff;
+  } else if (strnstr(buffer, ".w", buffer_size)) {
+    movsize = 2;
+    pcmask = 0xffffffff;
+  } else if (strnstr(buffer, ".l", buffer_size)) {
+    movsize = 4;
+    pcmask = 0xfffffffc;
+  } else {
+    movsize = 0;
+    pcmask = 0;
   }
-}
-}
-}
-}
+
+  // (disp:4,rn)
+  value_len = snprintf(value, sizeof(value), "(0x%x,rn)", i.disp * movsize);
+  CHECK_EQ(strnrep(buffer, buffer_size, "(disp:4,rn)", 11, value, value_len),
+           0);
+
+  // (disp:4,rm)
+  value_len = snprintf(value, sizeof(value), "(0x%x,rm)", i.disp * movsize);
+  CHECK_EQ(strnrep(buffer, buffer_size, "(disp:4,rm)", 11, value, value_len),
+           0);
+
+  // (disp:8,gbr)
+  value_len = snprintf(value, sizeof(value), "(0x%x,gbr)", i.disp * movsize);
+  CHECK_EQ(strnrep(buffer, buffer_size, "(disp:8,gbr)", 12, value, value_len),
+           0);
+
+  // (disp:8,pc)
+  value_len = snprintf(value, sizeof(value), "(0x%08x)",
+                       (i.disp * movsize) + (i.addr & pcmask) + 4);
+  CHECK_EQ(strnrep(buffer, buffer_size, "(disp:8,pc)", 11, value, value_len),
+           0);
+
+  // disp:8
+  value_len = snprintf(value, sizeof(value), "0x%08x",
+                       ((int8_t)i.disp * 2) + i.addr + 4);
+  CHECK_EQ(strnrep(buffer, buffer_size, "disp:8", 6, value, value_len), 0);
+
+  // disp:12
+  value_len =
+      snprintf(value, sizeof(value), "0x%08x",
+               ((((int32_t)(i.disp & 0xfff) << 20) >> 20) * 2) + i.addr + 4);
+  CHECK_EQ(strnrep(buffer, buffer_size, "disp:12", 7, value, value_len), 0);
+
+  // drm
+  value_len = snprintf(value, sizeof(value), "dr%d", i.Rm);
+  CHECK_EQ(strnrep(buffer, buffer_size, "drm", 3, value, value_len), 0);
+
+  // drn
+  value_len = snprintf(value, sizeof(value), "dr%d", i.Rn);
+  CHECK_EQ(strnrep(buffer, buffer_size, "drn", 3, value, value_len), 0);
+
+  // frm
+  value_len = snprintf(value, sizeof(value), "fr%d", i.Rm);
+  CHECK_EQ(strnrep(buffer, buffer_size, "frm", 3, value, value_len), 0);
+
+  // frn
+  value_len = snprintf(value, sizeof(value), "fr%d", i.Rn);
+  CHECK_EQ(strnrep(buffer, buffer_size, "frn", 3, value, value_len), 0);
+
+  // fvm
+  value_len = snprintf(value, sizeof(value), "fv%d", i.Rm);
+  CHECK_EQ(strnrep(buffer, buffer_size, "fvm", 3, value, value_len), 0);
+
+  // fvn
+  value_len = snprintf(value, sizeof(value), "fv%d", i.Rn);
+  CHECK_EQ(strnrep(buffer, buffer_size, "fvn", 3, value, value_len), 0);
+
+  // rm
+  value_len = snprintf(value, sizeof(value), "r%d", i.Rm);
+  CHECK_EQ(strnrep(buffer, buffer_size, "rm", 2, value, value_len), 0);
+
+  // rn
+  value_len = snprintf(value, sizeof(value), "r%d", i.Rn);
+  CHECK_EQ(strnrep(buffer, buffer_size, "rn", 2, value, value_len), 0);
+
+  // #imm8
+  value_len = snprintf(value, sizeof(value), "0x%02x", i.imm);
+  CHECK_EQ(strnrep(buffer, buffer_size, "#imm8", 5, value, value_len), 0);
 }
