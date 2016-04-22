@@ -3,6 +3,7 @@
 
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disassembler.h"
+#include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/ir_builder.h"
 
 namespace re {
@@ -18,6 +19,8 @@ namespace sh4 {
 class SH4Builder : public ir::IRBuilder {
  public:
   SH4Builder(Arena &arena);
+
+  int flags() { return flags_; }
 
   void Emit(uint32_t guest_addr, uint8_t *host_addr, int flags);
 
@@ -41,14 +44,11 @@ class SH4Builder : public ir::IRBuilder {
   void StorePR(ir::Value *v);
 
   void InvalidInstruction(uint32_t guest_addr);
-
-  bool EmitDelayInstr(const Instr &prev, int flags);
+  void EmitDelayInstr();
 
  private:
-  uint32_t pc_;
-  uint8_t *host_addr_;
+  Instr delay_instr_;
   int flags_;
-  int guest_cycles_;
 };
 }
 }

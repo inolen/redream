@@ -1,6 +1,7 @@
 #include "core/assert.h"
 #include "core/memory.h"
 #include "core/profiler.h"
+#include "jit/frontend/sh4/sh4_analyzer.h"
 #include "jit/frontend/sh4/sh4_builder.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 
@@ -14,25 +15,16 @@ static uint32_t s_fsca_table[0x20000] = {
 #include "jit/frontend/sh4/sh4_fsca.inc"
 };
 
-typedef void (*EmitCallback)(SH4Builder &b, const sh4::Instr &i, int,
-                             bool *endblock);
+typedef void (*EmitCallback)(SH4Builder &, const sh4::Instr &);
 
-#define EMITTER(name)                                                \
-  void Emit_OP_##name(SH4Builder &b, const sh4::Instr &i, int flags, \
-                      bool *endblock)
-
-#define EMIT_DELAYED()               \
-  if (!b.EmitDelayInstr(i, flags)) { \
-    *endblock = true;                \
-    return;                          \
-  }
+#define EMITTER(name) void Emit_OP_##name(SH4Builder &b, const sh4::Instr &i)
 
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) static EMITTER(name);
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 
 EmitCallback emit_callbacks[sh4::NUM_OPCODES] = {
-  nullptr,  // OP_INVALID
+    nullptr,  // OP_INVALID
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) &Emit_OP_##name,
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
@@ -43,48 +35,45 @@ SH4Builder::SH4Builder(Arena &arena) : IRBuilder(arena) {}
 void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
   PROFILER_RUNTIME("SH4Builder::Emit");
 
-  pc_ = guest_addr;
-  host_addr_ = host_addr;
-  flags_ = flags;
-  guest_cycles_ = 0;
+  int size = 0;
+  SH4Analyzer::AnalyzeBlock(guest_addr, host_addr, flags, &size);
 
-  // clamp block to max_instrs if non-zero
-  while (true) {
+  // save off flags for ease of access
+  flags_ = flags;
+
+  int i = 0;
+  int guest_cycles = 0;
+
+  while (i < size) {
     Instr instr;
-    instr.addr = pc_;
-    instr.opcode = re::load<uint16_t>(host_addr_);
+    instr.addr = guest_addr + i;
+    instr.opcode = re::load<uint16_t>(host_addr + i);
 
     if (!SH4Disassembler::Disasm(&instr)) {
       InvalidInstruction(instr.addr);
       break;
     }
 
-    pc_ += 2;
-    host_addr_ += 2;
-    guest_cycles_ += instr.cycles;
 
-    // emit the current instruction
-    bool endblock = false;
-    (emit_callbacks[instr.op])(*this, instr, flags, &endblock);
+    i += 2;
+    guest_cycles += instr.cycles;
 
-    // end block if delay instruction is invalid
-    if (endblock) {
-      break;
+    if (instr.flags & OP_FLAG_DELAYED) {
+      delay_instr_.addr = guest_addr + i;
+      delay_instr_.opcode = re::load<uint16_t>(host_addr + i);
+
+      // instruction must be valid, breakpoints on delay instructions aren't
+      // currently supported
+      CHECK(SH4Disassembler::Disasm(&delay_instr_));
+
+      // delay instruction itself should never have a delay instr
+      CHECK(!(delay_instr_.flags & OP_FLAG_DELAYED));
+
+      i += 2;
+      guest_cycles += delay_instr_.cycles;
     }
 
-    // stop emitting once a branch has been hit. in addition, if fpscr has
-    // changed, stop emitting since the fpu state is invalidated. also, if
-    // sr has changed, stop emitting as there are interrupts that possibly
-    // need to be handled
-    if (instr.flags &
-        (OP_FLAG_BRANCH | OP_FLAG_SET_FPSCR | OP_FLAG_SET_SR)) {
-      break;
-    }
-
-    // used by gdb server when stepping through instructions
-    if (flags & SH4_SINGLE_INSTR) {
-      break;
-    }
+    (emit_callbacks[instr.op])(*this, instr);
   }
 
   ir::Instr *tail_instr = instrs_.tail();
@@ -92,7 +81,7 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
   // if the block was terminated before a branch instruction, emit a
   // fallthrough branch to the next pc
   if (tail_instr->op() != OP_BRANCH && tail_instr->op() != OP_BRANCH_COND) {
-    Branch(AllocConstant(pc_));
+    Branch(AllocConstant(guest_addr + i));
   }
 
   // emit block epilog
@@ -100,13 +89,12 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *host_addr, int flags) {
 
   // update remaining cycles
   Value *num_cycles = LoadContext(offsetof(SH4Context, num_cycles), VALUE_I32);
-  num_cycles = Sub(num_cycles, AllocConstant(guest_cycles_));
+  num_cycles = Sub(num_cycles, AllocConstant(guest_cycles));
   StoreContext(offsetof(SH4Context, num_cycles), num_cycles);
 
   // update num instructions
-  int sh4_num_instrs = (pc_ - guest_addr) >> 1;
   Value *num_instrs = LoadContext(offsetof(SH4Context, num_instrs), VALUE_I32);
-  num_instrs = Add(num_instrs, AllocConstant(sh4_num_instrs));
+  num_instrs = Add(num_instrs, AllocConstant(size >> 1));
   StoreContext(offsetof(SH4Context, num_instrs), num_instrs);
 }
 
@@ -228,28 +216,9 @@ void SH4Builder::InvalidInstruction(uint32_t guest_addr) {
                 AllocConstant(static_cast<uint64_t>(guest_addr)));
 }
 
-bool SH4Builder::EmitDelayInstr(const sh4::Instr &prev, int flags) {
-  CHECK(prev.flags & OP_FLAG_DELAYED);
 
-  Instr delay;
-  delay.addr = prev.addr + 2;
-  delay.opcode = re::load<uint16_t>(host_addr_);
-
-  if (!SH4Disassembler::Disasm(&delay)) {
-    InvalidInstruction(delay.addr);
-    return false;
-  }
-
-  CHECK(!(delay.flags & OP_FLAG_DELAYED));
-
-  pc_ += 2;
-  host_addr_ += 2;
-  guest_cycles_ += delay.cycles;
-
-  bool endblock = false;
-  (emit_callbacks[delay.op])(*this, delay, flags, &endblock);
-
-  return true;
+void SH4Builder::EmitDelayInstr() {
+  (emit_callbacks[delay_instr_.op])(*this, delay_instr_);
 }
 
 // MOV     #imm,Rn
@@ -1214,7 +1183,7 @@ EMITTER(BF) {
 // BFS     disp
 EMITTER(BFS) {
   Value *cond = b.LoadT();
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   b.BranchCond(cond, b.AllocConstant(i.addr + 4), b.AllocConstant(dest_addr));
 }
@@ -1233,7 +1202,7 @@ EMITTER(BT) {
 // BTS     disp
 EMITTER(BTS) {
   Value *cond = b.LoadT();
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   uint32_t dest_addr = ((int8_t)i.disp * 2) + i.addr + 4;
   b.BranchCond(cond, b.AllocConstant(dest_addr), b.AllocConstant(i.addr + 4));
 }
@@ -1242,7 +1211,7 @@ EMITTER(BTS) {
 // 1010 dddd dddd dddd  2       -
 // BRA     disp
 EMITTER(BRA) {
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   int32_t disp = ((i.disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
   uint32_t dest_addr = (disp * 2) + i.addr + 4;
@@ -1254,7 +1223,7 @@ EMITTER(BRA) {
 // BRAF    Rn
 EMITTER(BRAF) {
   Value *rn = b.LoadGPR(i.Rn, VALUE_I32);
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   Value *dest_addr = b.Add(b.AllocConstant(i.addr + 4), rn);
   b.Branch(dest_addr);
 }
@@ -1263,7 +1232,7 @@ EMITTER(BRAF) {
 // 1011 dddd dddd dddd  2       -
 // BSR     disp
 EMITTER(BSR) {
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   int32_t disp = ((i.disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
   uint32_t ret_addr = i.addr + 4;
@@ -1277,7 +1246,7 @@ EMITTER(BSR) {
 // BSRF    Rn
 EMITTER(BSRF) {
   Value *rn = b.LoadGPR(i.Rn, VALUE_I32);
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   Value *ret_addr = b.AllocConstant(i.addr + 4);
   Value *dest_addr = b.Add(rn, ret_addr);
   b.StorePR(ret_addr);
@@ -1287,14 +1256,14 @@ EMITTER(BSRF) {
 // JMP     @Rm
 EMITTER(JMP) {
   Value *dest_addr = b.LoadGPR(i.Rn, VALUE_I32);
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   b.Branch(dest_addr);
 }
 
 // JSR     @Rn
 EMITTER(JSR) {
   Value *dest_addr = b.LoadGPR(i.Rn, VALUE_I32);
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   Value *ret_addr = b.AllocConstant(i.addr + 4);
   b.StorePR(ret_addr);
   b.Branch(dest_addr);
@@ -1303,7 +1272,7 @@ EMITTER(JSR) {
 // RTS
 EMITTER(RTS) {
   Value *dest_addr = b.LoadPR();
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   b.Branch(dest_addr);
 }
 
@@ -1510,7 +1479,7 @@ EMITTER(RTE) {
   Value *spc = b.LoadContext(offsetof(SH4Context, spc), VALUE_I32);
   Value *ssr = b.LoadContext(offsetof(SH4Context, ssr), VALUE_I32);
   b.StoreSR(ssr);
-  EMIT_DELAYED();
+  b.EmitDelayInstr();
   b.Branch(spc);
 }
 
@@ -1697,7 +1666,7 @@ EMITTER(FLDI1) { b.StoreFPR(i.Rn, b.AllocConstant(0x3F800000)); }
 // FMOV    DRm,XDn 1111nnn1mmm01100
 // FMOV    XDm,XDn 1111nnn1mmm11100
 EMITTER(FMOV) {
-  if (flags & SH4_DOUBLE_SZ) {
+  if (b.flags() & SH4_DOUBLE_SZ) {
     if (i.Rm & 1) {
       Value *rm = b.LoadXFR(i.Rm & 0xe, VALUE_I64);
       if (i.Rn & 1) {
@@ -1724,7 +1693,7 @@ EMITTER(FMOV) {
 EMITTER(FMOV_LOAD) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
 
-  if (flags & SH4_DOUBLE_SZ) {
+  if (b.flags() & SH4_DOUBLE_SZ) {
     Value *v_low = b.LoadGuest(addr, VALUE_I32);
     Value *v_high = b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32);
     if (i.Rn & 1) {
@@ -1745,7 +1714,7 @@ EMITTER(FMOV_LOAD) {
 EMITTER(FMOV_INDEX_LOAD) {
   Value *addr = b.Add(b.LoadGPR(0, VALUE_I32), b.LoadGPR(i.Rm, VALUE_I32));
 
-  if (flags & SH4_DOUBLE_SZ) {
+  if (b.flags() & SH4_DOUBLE_SZ) {
     Value *v_low = b.LoadGuest(addr, VALUE_I32);
     Value *v_high = b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32);
     if (i.Rn & 1) {
@@ -1766,7 +1735,7 @@ EMITTER(FMOV_INDEX_LOAD) {
 EMITTER(FMOV_STORE) {
   Value *addr = b.LoadGPR(i.Rn, VALUE_I32);
 
-  if (flags & SH4_DOUBLE_SZ) {
+  if (b.flags() & SH4_DOUBLE_SZ) {
     Value *addr_low = addr;
     Value *addr_high = b.Add(addr, b.AllocConstant(4));
     if (i.Rm & 1) {
@@ -1787,7 +1756,7 @@ EMITTER(FMOV_STORE) {
 EMITTER(FMOV_INDEX_STORE) {
   Value *addr = b.Add(b.LoadGPR(0, VALUE_I32), b.LoadGPR(i.Rn, VALUE_I32));
 
-  if (flags & SH4_DOUBLE_SZ) {
+  if (b.flags() & SH4_DOUBLE_SZ) {
     Value *addr_low = addr;
     Value *addr_high = b.Add(addr, b.AllocConstant(4));
     if (i.Rm & 1) {
@@ -1806,7 +1775,7 @@ EMITTER(FMOV_INDEX_STORE) {
 // FMOV    DRm,@-Rn 1111nnnnmmm01011
 // FMOV    XDm,@-Rn 1111nnnnmmm11011
 EMITTER(FMOV_SAVE) {
-  if (flags & SH4_DOUBLE_SZ) {
+  if (b.flags() & SH4_DOUBLE_SZ) {
     Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(8));
     b.StoreGPR(i.Rn, addr);
 
@@ -1833,7 +1802,7 @@ EMITTER(FMOV_SAVE) {
 EMITTER(FMOV_RESTORE) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
 
-  if (flags & SH4_DOUBLE_SZ) {
+  if (b.flags() & SH4_DOUBLE_SZ) {
     Value *v_low = b.LoadGuest(addr, VALUE_I32);
     Value *v_high = b.LoadGuest(b.Add(addr, b.AllocConstant(4)), VALUE_I32);
     if (i.Rn & 1) {
@@ -1865,7 +1834,7 @@ EMITTER(FSTS) {
 // FABS FRn PR=0 1111nnnn01011101
 // FABS DRn PR=1 1111nnn001011101
 EMITTER(FABS) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     Value *v = b.FAbs(b.LoadFPR(n, VALUE_F64));
     b.StoreFPR(n, v);
@@ -1885,7 +1854,7 @@ EMITTER(FSRRA) {
 // FADD FRm,FRn PR=0 1111nnnnmmmm0000
 // FADD DRm,DRn PR=1 1111nnn0mmm00000
 EMITTER(FADD) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1903,7 +1872,7 @@ EMITTER(FADD) {
 // FCMP/EQ FRm,FRn PR=0 1111nnnnmmmm0100
 // FCMP/EQ DRm,DRn PR=1 1111nnn0mmm00100
 EMITTER(FCMPEQ) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1921,7 +1890,7 @@ EMITTER(FCMPEQ) {
 // FCMP/GT FRm,FRn PR=0 1111nnnnmmmm0101
 // FCMP/GT DRm,DRn PR=1 1111nnn0mmm00101
 EMITTER(FCMPGT) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1939,7 +1908,7 @@ EMITTER(FCMPGT) {
 // FDIV FRm,FRn PR=0 1111nnnnmmmm0011
 // FDIV DRm,DRn PR=1 1111nnn0mmm00011
 EMITTER(FDIV) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -1959,7 +1928,7 @@ EMITTER(FDIV) {
 EMITTER(FLOAT) {
   Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
 
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     Value *v = b.IToF(b.SExt(fpul, VALUE_I64), VALUE_F64);
     b.StoreFPR(n, v);
@@ -1971,7 +1940,7 @@ EMITTER(FLOAT) {
 
 // FMAC FR0,FRm,FRn PR=0 1111nnnnmmmm1110
 EMITTER(FMAC) {
-  CHECK(!(flags & SH4_DOUBLE_PR));
+  CHECK(!(b.flags() & SH4_DOUBLE_PR));
 
   Value *frn = b.LoadFPR(i.Rn, VALUE_F32);
   Value *frm = b.LoadFPR(i.Rm, VALUE_F32);
@@ -1983,7 +1952,7 @@ EMITTER(FMAC) {
 // FMUL FRm,FRn PR=0 1111nnnnmmmm0010
 // FMUL DRm,DRn PR=1 1111nnn0mmm00010
 EMITTER(FMUL) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -2001,7 +1970,7 @@ EMITTER(FMUL) {
 // FNEG FRn PR=0 1111nnnn01001101
 // FNEG DRn PR=1 1111nnn001001101
 EMITTER(FNEG) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
     Value *v = b.FNeg(drn);
@@ -2016,7 +1985,7 @@ EMITTER(FNEG) {
 // FSQRT FRn PR=0 1111nnnn01101101
 // FSQRT DRn PR=1 1111nnnn01101101
 EMITTER(FSQRT) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
     Value *v = b.Sqrt(drn);
@@ -2031,7 +2000,7 @@ EMITTER(FSQRT) {
 // FSUB FRm,FRn PR=0 1111nnnnmmmm0001
 // FSUB DRm,DRn PR=1 1111nnn0mmm00001
 EMITTER(FSUB) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
     int m = i.Rm & 0xe;
     Value *drn = b.LoadFPR(n, VALUE_F64);
@@ -2049,7 +2018,7 @@ EMITTER(FSUB) {
 // FTRC FRm,FPUL PR=0 1111mmmm00111101
 // FTRC DRm,FPUL PR=1 1111mmm000111101
 EMITTER(FTRC) {
-  if (flags & SH4_DOUBLE_PR) {
+  if (b.flags() & SH4_DOUBLE_PR) {
     int m = i.Rm & 0xe;
     Value *drm = b.LoadFPR(m, VALUE_F64);
     Value *dpv = b.Trunc(b.FToI(drm, VALUE_I64), VALUE_I32);
@@ -2063,7 +2032,7 @@ EMITTER(FTRC) {
 
 // FCNVDS DRm,FPUL PR=1 1111mmm010111101
 EMITTER(FCNVDS) {
-  CHECK(flags & SH4_DOUBLE_PR);
+  CHECK(b.flags() & SH4_DOUBLE_PR);
 
   // TODO rounding modes?
 
@@ -2075,7 +2044,7 @@ EMITTER(FCNVDS) {
 
 // FCNVSD FPUL, DRn PR=1 1111nnn010101101
 EMITTER(FCNVSD) {
-  CHECK(flags & SH4_DOUBLE_PR);
+  CHECK(b.flags() & SH4_DOUBLE_PR);
 
   // TODO rounding modes?
 
@@ -2207,6 +2176,3 @@ EMITTER(FSCHG) {
   Value *v = b.Xor(fpscr, b.AllocConstant(SZ));
   b.StoreFPSCR(v);
 }
-
-
-

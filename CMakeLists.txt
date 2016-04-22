@@ -163,6 +163,7 @@ set(REDREAM_SOURCES
   src/jit/backend/x64/x64_backend.cc
   src/jit/backend/x64/x64_disassembler.cc
   src/jit/backend/x64/x64_emitter.cc
+  src/jit/frontend/sh4/sh4_analyzer.cc
   src/jit/frontend/sh4/sh4_builder.cc
   src/jit/frontend/sh4/sh4_disassembler.cc
   src/jit/frontend/sh4/sh4_frontend.cc
