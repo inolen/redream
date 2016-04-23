@@ -20,6 +20,7 @@ enum PixelFormat {
 enum FilterMode {
   FILTER_NEAREST,
   FILTER_BILINEAR,
+  NUM_FILTER_MODES,
 };
 
 enum WrapMode {
