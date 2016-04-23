@@ -81,7 +81,7 @@ list(APPEND REDREAM_INCLUDE_DIRS deps/dirent-1.21)
 
 # eigen
 list(APPEND REDREAM_DEFS EIGEN_DEFAULT_TO_ROW_MAJOR)
-list(APPEND REDREAM_INCLUDE_DIRS deps/eigen-3.2.1)
+list(APPEND REDREAM_INCLUDE_DIRS deps/eigen-3.2.8)
 
 # gdb_server
 list(APPEND REDREAM_INCLUDE_DIRS deps/gdb_server)
