@@ -2,16 +2,13 @@
 #include "core/memory.h"
 #include "hw/aica/aica.h"
 #include "hw/arm7/arm7.h"
+#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
 using namespace re::hw;
 using namespace re::hw::aica;
 using namespace re::hw::holly;
-
-enum {
-  AICA_CLOCK_FREQ = 22579200,
-};
 
 namespace re {
 namespace hw {
@@ -23,10 +20,33 @@ uint32_t AICA::ReadWave(uint32_t addr);
 }
 }
 
-AICA::AICA(Dreamcast &dc)
-    : Device(dc),
+// clang-format off
+AM_BEGIN(AICA, reg_map)
+  AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE(&AICA::ReadRegister<uint8_t>,
+                                             &AICA::ReadRegister<uint16_t>,
+                                             &AICA::ReadRegister<uint32_t>,
+                                             nullptr,
+                                             &AICA::WriteRegister<uint8_t>,
+                                             &AICA::WriteRegister<uint16_t>,
+                                             &AICA::WriteRegister<uint32_t>,
+                                             nullptr)
+AM_END()
+
+AM_BEGIN(AICA, data_map)
+  AM_RANGE(0x00000000, 0x001fffff) AM_HANDLE(&AICA::ReadWave<uint8_t>,
+                                             &AICA::ReadWave<uint16_t>,
+                                             &AICA::ReadWave<uint32_t>,
+                                             nullptr,
+                                             &AICA::WriteWave<uint8_t>,
+                                             &AICA::WriteWave<uint16_t>,
+                                             &AICA::WriteWave<uint32_t>,
+                                             nullptr)
+AM_END()
+    // clang-format on
+
+    AICA::AICA(Dreamcast &dc)
+    : Device(dc, "aica"),
       ExecuteInterface(this),
-      MemoryInterface(this),
       dc_(dc),
       sh4_(nullptr),
       arm7_(nullptr),
@@ -34,10 +54,10 @@ AICA::AICA(Dreamcast &dc)
       wave_ram_(nullptr) {}
 
 bool AICA::Init() {
-  sh4_ = dc_.sh4;
-  arm7_ = dc_.arm7;
-  aica_regs_ = dc_.memory->TranslateVirtual(AICA_REG_BEGIN);
-  wave_ram_ = dc_.memory->TranslateVirtual(WAVE_RAM_BEGIN);
+  sh4_ = dc_.sh4();
+  arm7_ = dc_.arm7();
+  aica_regs_ = sh4_->space().Translate(0x00700000);
+  wave_ram_ = sh4_->space().Translate(0x00800000);
   common_data_ = reinterpret_cast<CommonData *>(aica_regs_ + 0x2800);
 
   // start suspended
@@ -51,29 +71,6 @@ void AICA::Run(const std::chrono::nanoseconds &delta) {
 
   // for (int i = 0; i < 64; i++) {
   // }
-}
-
-void AICA::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
-  RegionHandle aica_reg_handle = memory.AllocRegion(
-      AICA_REG_BEGIN, AICA_REG_SIZE,
-      make_delegate(&AICA::ReadRegister<uint8_t>, this),
-      make_delegate(&AICA::ReadRegister<uint16_t>, this),
-      make_delegate(&AICA::ReadRegister<uint32_t>, this), nullptr,
-      make_delegate(&AICA::WriteRegister<uint8_t>, this),
-      make_delegate(&AICA::WriteRegister<uint16_t>, this),
-      make_delegate(&AICA::WriteRegister<uint32_t>, this), nullptr);
-
-  RegionHandle wave_ram_handle = memory.AllocRegion(
-      WAVE_RAM_BEGIN, WAVE_RAM_SIZE,
-      make_delegate(&AICA::ReadWave<uint8_t>, this),
-      make_delegate(&AICA::ReadWave<uint16_t>, this),
-      make_delegate(&AICA::ReadWave<uint32_t>, this), nullptr,
-      make_delegate(&AICA::WriteWave<uint8_t>, this),
-      make_delegate(&AICA::WriteWave<uint16_t>, this),
-      make_delegate(&AICA::WriteWave<uint32_t>, this), nullptr);
-
-  memmap.Mount(aica_reg_handle, AICA_REG_SIZE, AICA_REG_BEGIN);
-  memmap.Mount(wave_ram_handle, WAVE_RAM_SIZE, WAVE_RAM_BEGIN);
 }
 
 template <typename T>

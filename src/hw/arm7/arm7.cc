@@ -12,13 +12,12 @@ enum {
   ARM7_CLOCK_FREQ = 22579200,
 };
 
-ARM7::ARM7(Dreamcast &dc) : Device(dc), ExecuteInterface(this), dc_(dc) {}
-
-bool ARM7::Init() {
-  memory_ = dc_.memory;
-
-  return true;
+ARM7::ARM7(Dreamcast &dc)
+    : Device(dc, "arm7"), ExecuteInterface(this), dc_(dc) {
+  ((void)dc_);
 }
+
+bool ARM7::Init() { return true; }
 
 void ARM7::Run(const std::chrono::nanoseconds &delta) {
   // ctx_.num_cycles = NANO_TO_CYCLES(delta, ARM7_CLOCK_FREQ);

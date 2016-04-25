@@ -105,7 +105,7 @@ TextureKey TextureProvider::GetTextureKey(const TSP &tsp, const TCW &tcw) {
   return ((uint64_t)tsp.full << 32) | tcw.full;
 }
 
-TileRenderer::TileRenderer(Backend &rb, TextureProvider &texture_provider)
+TileRenderer::TileRenderer(Backend *rb, TextureProvider &texture_provider)
     : rb_(rb), texture_provider_(texture_provider) {}
 
 void TileRenderer::ParseContext(const TileContext &tctx,
@@ -179,13 +179,13 @@ void TileRenderer::RenderContext(const TileRenderContext &rctx) {
   auto &verts = rctx_.verts;
   auto &sorted_surfs = rctx_.sorted_surfs;
 
-  rb_.BeginSurfaces(rctx_.projection, verts.data(), verts.size());
+  rb_->BeginSurfaces(rctx_.projection, verts.data(), verts.size());
 
   for (int i = 0, n = surfs.size(); i < n; i++) {
-    rb_.DrawSurface(surfs[sorted_surfs[i]]);
+    rb_->DrawSurface(surfs[sorted_surfs[i]]);
   }
 
-  rb_.EndSurfaces();
+  rb_->EndSurfaces();
 }
 
 void TileRenderer::RenderContext(const TileContext &tctx) {
@@ -928,8 +928,8 @@ RegisterTextureResult TileRenderer::RegisterTexture(const TileContext &tctx,
                         ? WRAP_CLAMP_TO_EDGE
                         : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
-  TextureHandle handle = rb_.RegisterTexture(pixel_fmt, filter, wrap_u, wrap_v,
-                                             mip_mapped, width, height, output);
+  TextureHandle handle = rb_->RegisterTexture(
+      pixel_fmt, filter, wrap_u, wrap_v, mip_mapped, width, height, output);
 
   return {handle, pixel_fmt, filter, wrap_u, wrap_v, mip_mapped, width, height};
 }

@@ -2,7 +2,6 @@
 #define AICA_TYPES_H
 
 #include <stdint.h>
-#include "hw/regions.h"
 
 namespace re {
 namespace hw {

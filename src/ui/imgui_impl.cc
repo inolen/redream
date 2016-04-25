@@ -17,7 +17,7 @@ ImGuiImpl::~ImGuiImpl() {
 
 bool ImGuiImpl::Init() {
   ImGuiIO &io = ImGui::GetIO();
-  Backend &rb = window_.render_backend();
+  Backend *rb = window_.render_backend();
 
   // don't really care if this is accurate
   io.DeltaTime = 1.0f / 60.0f;
@@ -57,8 +57,8 @@ bool ImGuiImpl::Init() {
   io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
   TextureHandle handle =
-      rb.RegisterTexture(PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT, WRAP_REPEAT,
-                         false, width, height, pixels);
+      rb->RegisterTexture(PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT, WRAP_REPEAT,
+                          false, width, height, pixels);
 
   io.Fonts->TexID = reinterpret_cast<void *>(static_cast<intptr_t>(handle));
 
@@ -81,7 +81,7 @@ void ImGuiImpl::OnPrePaint() {
 
 void ImGuiImpl::OnPostPaint() {
   ImGuiIO &io = ImGui::GetIO();
-  Backend &rb = window_.render_backend();
+  Backend *rb = window_.render_backend();
 
   // if there are any focused items, enable text input
   window_.EnableTextInput(ImGui::IsAnyItemActive());
@@ -93,7 +93,7 @@ void ImGuiImpl::OnPostPaint() {
   // get the latest draw batches, and pass them off out the render backend
   ImDrawData *data = ImGui::GetDrawData();
 
-  rb.Begin2D();
+  rb->Begin2D();
 
   for (int i = 0; i < data->CmdListsCount; ++i) {
     const auto cmd_list = data->CmdLists[i];
@@ -104,7 +104,7 @@ void ImGuiImpl::OnPostPaint() {
     uint16_t *indices = cmd_list->IdxBuffer.Data;
     int num_indices = cmd_list->IdxBuffer.size();
 
-    rb.BeginSurfaces2D(verts, num_verts, indices, num_indices);
+    rb->BeginSurfaces2D(verts, num_verts, indices, num_indices);
 
     int index_offset = 0;
 
@@ -125,15 +125,15 @@ void ImGuiImpl::OnPostPaint() {
       surf.first_vert = index_offset;
       surf.num_verts = cmd.ElemCount;
 
-      rb.DrawSurface2D(surf);
+      rb->DrawSurface2D(surf);
 
       index_offset += cmd.ElemCount;
     }
 
-    rb.EndSurfaces2D();
+    rb->EndSurfaces2D();
   }
 
-  rb.End2D();
+  rb->End2D();
 }
 
 void ImGuiImpl::OnTextInput(const char *text) {

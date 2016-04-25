@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <vector>
+#include "hw/memory.h"
 #include "ui/window.h"
 
 namespace re {
@@ -12,7 +13,6 @@ class Device;
 class Debugger;
 class Machine;
 class Memory;
-class MemoryMap;
 class Scheduler;
 
 class DebugInterface {
@@ -49,11 +49,15 @@ class ExecuteInterface {
 
 class MemoryInterface {
  public:
-  MemoryInterface(Device *device);
+  MemoryInterface(Device *device, AddressMapper mapper);
   virtual ~MemoryInterface() = default;
 
-  virtual void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {}
-  virtual void MapVirtualMemory(Memory &memory, MemoryMap &memmap) {}
+  AddressMapper mapper() { return mapper_; }
+  AddressSpace &space() { return space_; }
+
+ protected:
+  AddressMapper mapper_;
+  AddressSpace space_;
 };
 
 class WindowInterface {
@@ -72,18 +76,20 @@ class Device {
   friend class WindowInterface;
 
  public:
+  Device(Machine &machine, const char *name);
   virtual ~Device() = default;
 
+  const char *name() { return name_; }
   DebugInterface *debug() { return debug_; }
   ExecuteInterface *execute() { return execute_; }
   MemoryInterface *memory() { return memory_; }
   WindowInterface *window() { return window_; }
 
-  Device(Machine &machine);
-
   virtual bool Init();
 
  private:
+  Machine &machine_;
+  const char *name_;
   DebugInterface *debug_;
   ExecuteInterface *execute_;
   MemoryInterface *memory_;
@@ -98,22 +104,28 @@ class Machine {
   virtual ~Machine();
 
   bool suspended() { return suspended_; }
+  Debugger *debugger() { return debugger_; }
+  Memory *memory() { return memory_; }
+  Scheduler *scheduler() { return scheduler_; }
+  std::vector<Device *> &devices() { return devices_; }
 
   bool Init();
   void Suspend();
   void Resume();
 
+  Device *LookupDevice(const char *name);
+  void RegisterDevice(Device *device);
+
   void Tick(const std::chrono::nanoseconds &delta);
   void OnPaint(bool show_main_menu);
   void OnKeyDown(ui::Keycode code, int16_t value);
 
-  Debugger *debugger;
-  Memory *memory;
-  Scheduler *scheduler;
-  std::vector<Device *> devices;
-
  private:
   bool suspended_;
+  Debugger *debugger_;
+  Memory *memory_;
+  Scheduler *scheduler_;
+  std::vector<Device *> devices_;
 };
 }
 }

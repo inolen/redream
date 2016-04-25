@@ -153,12 +153,8 @@ namespace hw {
 namespace sh4 {
 
 void RunSH4Test(const SH4Test &test) {
-  // initialize fake dreamcast device
-  // TODO avoid initializing an entire 32-bit addres space for each test?
-  // perhaps initialize the machine once, resetting the SH4 context between
-  // runs?
-  std::unique_ptr<Dreamcast> dc(new Dreamcast());
-  std::unique_ptr<SH4> sh4(new SH4(*dc.get()));
+  std::unique_ptr<Dreamcast> dc(new Dreamcast(nullptr));
+  SH4 *sh4 = dc->sh4();
 
   CHECK(dc->Init());
 
@@ -183,7 +179,7 @@ void RunSH4Test(const SH4Test &test) {
   int aligned_size = re::align_up(test.buffer_size, 4);
   uint8_t *aligned_buffer = reinterpret_cast<uint8_t *>(alloca(aligned_size));
   memcpy(aligned_buffer, test.buffer, test.buffer_size);
-  dc->memory->Memcpy(0x8c010000, aligned_buffer, aligned_size);
+  sh4->space().Memcpy(0x8c010000, aligned_buffer, aligned_size);
 
   // skip to the test's offset
   sh4->SetPC(0x8c010000 + test.buffer_offset);

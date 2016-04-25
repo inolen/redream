@@ -8,6 +8,8 @@
 #include "hw/holly/tile_renderer.h"
 #include "hw/holly/trace.h"
 #include "hw/machine.h"
+#include "hw/memory.h"
+#include "hw/register.h"
 #include "renderer/backend.h"
 #include "sys/memory.h"
 
@@ -15,8 +17,10 @@ namespace re {
 namespace hw {
 
 class Dreamcast;
-class Memory;
-struct Register;
+
+namespace sh4 {
+class SH4;
+}
 
 namespace holly {
 
@@ -41,23 +45,7 @@ struct TextureEntry {
 typedef std::unordered_map<uint32_t, TileContext *> TileContextMap;
 typedef std::queue<TileContext *> TileContextQueue;
 
-#define TA_DECLARE_R32_DELEGATE(name) uint32_t name##_read(Register &)
-#define TA_DECLARE_W32_DELEGATE(name) void name##_write(Register &, uint32_t)
-
-#define TA_REGISTER_R32_DELEGATE(name) \
-  pvr_->reg(name##_OFFSET).read =      \
-      make_delegate(&TileAccelerator::name##_read, this)
-#define TA_REGISTER_W32_DELEGATE(name) \
-  pvr_->reg(name##_OFFSET).write =     \
-      make_delegate(&TileAccelerator::name##_write, this)
-
-#define TA_R32_DELEGATE(name) \
-  uint32_t TileAccelerator::name##_read(Register &reg)
-#define TA_W32_DELEGATE(name) \
-  void TileAccelerator::name##_write(Register &reg, uint32_t old_value)
-
 class TileAccelerator : public Device,
-                        public MemoryInterface,
                         public WindowInterface,
                         public TextureProvider {
   friend class PVR2;
@@ -67,7 +55,9 @@ class TileAccelerator : public Device,
   static int GetPolyType(const PCW &pcw);
   static int GetVertexType(const PCW &pcw);
 
-  TileAccelerator(Dreamcast &dc, renderer::Backend &rb);
+  AM_DECLARE(fifo_map);
+
+  TileAccelerator(Dreamcast &dc, renderer::Backend *rb);
 
   bool Init() final;
 
@@ -76,8 +66,6 @@ class TileAccelerator : public Device,
       RegisterTextureDelegate register_delegate) final;
 
  private:
-  // MemoryInterface
-  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
   void WritePolyFIFO(uint32_t addr, uint32_t value);
   void WriteTextureFIFO(uint32_t addr, uint32_t value);
 
@@ -99,15 +87,15 @@ class TileAccelerator : public Device,
 
   void ToggleTracing();
 
-  TA_DECLARE_W32_DELEGATE(SOFTRESET);
-  TA_DECLARE_W32_DELEGATE(TA_LIST_INIT);
-  TA_DECLARE_W32_DELEGATE(TA_LIST_CONT);
-  TA_DECLARE_W32_DELEGATE(STARTRENDER);
+  DECLARE_W32_DELEGATE(SOFTRESET);
+  DECLARE_W32_DELEGATE(TA_LIST_INIT);
+  DECLARE_W32_DELEGATE(TA_LIST_CONT);
+  DECLARE_W32_DELEGATE(STARTRENDER);
 
   Dreamcast &dc_;
-  renderer::Backend &rb_;
+  renderer::Backend *rb_;
   TileRenderer tile_renderer_;
-  Memory *memory_;
+  sh4::SH4 *sh4_;
   Holly *holly_;
   PVR2 *pvr_;
   uint8_t *video_ram_;

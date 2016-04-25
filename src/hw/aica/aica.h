@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "hw/aica/aica_types.h"
 #include "hw/machine.h"
+#include "hw/memory.h"
 
 namespace re {
 namespace hw {
@@ -19,8 +20,11 @@ class SH4;
 
 namespace aica {
 
-class AICA : public Device, public ExecuteInterface, public MemoryInterface {
+class AICA : public Device, public ExecuteInterface {
  public:
+  AM_DECLARE(reg_map);
+  AM_DECLARE(data_map);
+
   AICA(Dreamcast &dc);
 
   bool Init() final;
@@ -28,9 +32,6 @@ class AICA : public Device, public ExecuteInterface, public MemoryInterface {
  private:
   // ExecuteInterface
   void Run(const std::chrono::nanoseconds &delta) final;
-
-  // MemoryInterface
-  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
 
   template <typename T>
   T ReadRegister(uint32_t addr);

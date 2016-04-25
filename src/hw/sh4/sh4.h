@@ -5,6 +5,7 @@
 #include "hw/sh4/sh4_code_cache.h"
 #include "hw/sh4/sh4_types.h"
 #include "hw/machine.h"
+#include "hw/memory.h"
 #include "hw/register.h"
 #include "hw/scheduler.h"
 #include "jit/frontend/sh4/sh4_context.h"
@@ -39,18 +40,6 @@ struct DTR {
   int size;
 };
 
-#define SH4_DECLARE_R32_DELEGATE(name) uint32_t name##_read(Register &)
-#define SH4_DECLARE_W32_DELEGATE(name) void name##_write(Register &, uint32_t)
-
-#define SH4_REGISTER_R32_DELEGATE(name) \
-  regs_[name##_OFFSET].read = make_delegate(&SH4::name##_read, this)
-#define SH4_REGISTER_W32_DELEGATE(name) \
-  regs_[name##_OFFSET].write = make_delegate(&SH4::name##_write, this)
-
-#define SH4_R32_DELEGATE(name) uint32_t SH4::name##_read(Register &reg)
-#define SH4_W32_DELEGATE(name) \
-  void SH4::name##_write(Register &reg, uint32_t old_value)
-
 class SH4 : public Device,
             public DebugInterface,
             public ExecuteInterface,
@@ -59,6 +48,8 @@ class SH4 : public Device,
   friend void RunSH4Test(const SH4Test &);
 
  public:
+  AM_DECLARE(data_map);
+
   SH4(Dreamcast &dc);
   ~SH4();
 
@@ -88,10 +79,6 @@ class SH4 : public Device,
   void RemoveBreakpoint(int type, uint32_t addr) final;
   void ReadMemory(uint32_t addr, uint8_t *buffer, int size) final;
   void ReadRegister(int n, uint64_t *value, int *size) final;
-
-  // MemoryInterface
-  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
-  void MapVirtualMemory(Memory &memory, MemoryMap &memmap) final;
 
   // WindowInterface
   void OnPaint(bool show_main_menu) final;
@@ -143,30 +130,29 @@ class SH4 : public Device,
   template <int N>
   void ExpireTimer();
 
-  SH4_DECLARE_R32_DELEGATE(PDTRA);
-  SH4_DECLARE_W32_DELEGATE(MMUCR);
-  SH4_DECLARE_W32_DELEGATE(CCR);
-  SH4_DECLARE_W32_DELEGATE(CHCR0);
-  SH4_DECLARE_W32_DELEGATE(CHCR1);
-  SH4_DECLARE_W32_DELEGATE(CHCR2);
-  SH4_DECLARE_W32_DELEGATE(CHCR3);
-  SH4_DECLARE_W32_DELEGATE(DMAOR);
-  SH4_DECLARE_W32_DELEGATE(IPRA);
-  SH4_DECLARE_W32_DELEGATE(IPRB);
-  SH4_DECLARE_W32_DELEGATE(IPRC);
-  SH4_DECLARE_W32_DELEGATE(TSTR);
-  SH4_DECLARE_W32_DELEGATE(TCR0);
-  SH4_DECLARE_W32_DELEGATE(TCR1);
-  SH4_DECLARE_W32_DELEGATE(TCR2);
-  SH4_DECLARE_R32_DELEGATE(TCNT0);
-  SH4_DECLARE_W32_DELEGATE(TCNT0);
-  SH4_DECLARE_R32_DELEGATE(TCNT1);
-  SH4_DECLARE_W32_DELEGATE(TCNT1);
-  SH4_DECLARE_R32_DELEGATE(TCNT2);
-  SH4_DECLARE_W32_DELEGATE(TCNT2);
+  DECLARE_R32_DELEGATE(PDTRA);
+  DECLARE_W32_DELEGATE(MMUCR);
+  DECLARE_W32_DELEGATE(CCR);
+  DECLARE_W32_DELEGATE(CHCR0);
+  DECLARE_W32_DELEGATE(CHCR1);
+  DECLARE_W32_DELEGATE(CHCR2);
+  DECLARE_W32_DELEGATE(CHCR3);
+  DECLARE_W32_DELEGATE(DMAOR);
+  DECLARE_W32_DELEGATE(IPRA);
+  DECLARE_W32_DELEGATE(IPRB);
+  DECLARE_W32_DELEGATE(IPRC);
+  DECLARE_W32_DELEGATE(TSTR);
+  DECLARE_W32_DELEGATE(TCR0);
+  DECLARE_W32_DELEGATE(TCR1);
+  DECLARE_W32_DELEGATE(TCR2);
+  DECLARE_R32_DELEGATE(TCNT0);
+  DECLARE_W32_DELEGATE(TCNT0);
+  DECLARE_R32_DELEGATE(TCNT1);
+  DECLARE_W32_DELEGATE(TCNT1);
+  DECLARE_R32_DELEGATE(TCNT2);
+  DECLARE_W32_DELEGATE(TCNT2);
 
   Dreamcast &dc_;
-  Memory *memory_;
   Scheduler *scheduler_;
   SH4CodeCache *code_cache_;
 

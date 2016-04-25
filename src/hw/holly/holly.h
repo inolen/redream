@@ -5,6 +5,7 @@
 #include "core/delegate.h"
 #include "hw/holly/holly_types.h"
 #include "hw/machine.h"
+#include "hw/memory.h"
 #include "hw/register.h"
 
 namespace re {
@@ -23,20 +24,10 @@ class Dreamcast;
 
 namespace holly {
 
-#define HOLLY_DECLARE_R32_DELEGATE(name) uint32_t name##_read(Register &)
-#define HOLLY_DECLARE_W32_DELEGATE(name) void name##_write(Register &, uint32_t)
-
-#define HOLLY_REGISTER_R32_DELEGATE(name) \
-  regs_[name##_OFFSET].read = make_delegate(&Holly::name##_read, this)
-#define HOLLY_REGISTER_W32_DELEGATE(name) \
-  regs_[name##_OFFSET].write = make_delegate(&Holly::name##_write, this)
-
-#define HOLLY_R32_DELEGATE(name) uint32_t Holly::name##_read(Register &reg)
-#define HOLLY_W32_DELEGATE(name) \
-  void Holly::name##_write(Register &reg, uint32_t old_value)
-
-class Holly : public Device, public MemoryInterface {
+class Holly : public Device {
  public:
+  AM_DECLARE(reg_map);
+
   Holly(Dreamcast &dc);
 
   Register &reg(int offset) { return regs_[offset]; }
@@ -52,8 +43,6 @@ class Holly : public Device, public MemoryInterface {
 #undef HOLLY_REG
 
  private:
-  // MemoryInterface
-  void MapPhysicalMemory(Memory &memory, MemoryMap &memmap) final;
   template <typename T>
   T ReadRegister(uint32_t addr);
   template <typename T>
@@ -61,32 +50,32 @@ class Holly : public Device, public MemoryInterface {
 
   void UpdateSH4Interrupts();
 
-  HOLLY_DECLARE_R32_DELEGATE(SB_ISTNRM);
-  HOLLY_DECLARE_W32_DELEGATE(SB_ISTNRM);
-  HOLLY_DECLARE_W32_DELEGATE(SB_ISTEXT);
-  HOLLY_DECLARE_W32_DELEGATE(SB_ISTERR);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML2NRM);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML2EXT);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML2ERR);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML4NRM);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML4EXT);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML4ERR);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML6NRM);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML6EXT);
-  HOLLY_DECLARE_W32_DELEGATE(SB_IML6ERR);
-  HOLLY_DECLARE_W32_DELEGATE(SB_C2DST);
-  HOLLY_DECLARE_W32_DELEGATE(SB_SDST);
-  HOLLY_DECLARE_W32_DELEGATE(SB_GDST);
-  HOLLY_DECLARE_W32_DELEGATE(SB_ADEN);
-  HOLLY_DECLARE_W32_DELEGATE(SB_ADST);
-  HOLLY_DECLARE_W32_DELEGATE(SB_E1EN);
-  HOLLY_DECLARE_W32_DELEGATE(SB_E1ST);
-  HOLLY_DECLARE_W32_DELEGATE(SB_E2EN);
-  HOLLY_DECLARE_W32_DELEGATE(SB_E2ST);
-  HOLLY_DECLARE_W32_DELEGATE(SB_DDEN);
-  HOLLY_DECLARE_W32_DELEGATE(SB_DDST);
-  HOLLY_DECLARE_W32_DELEGATE(SB_PDEN);
-  HOLLY_DECLARE_W32_DELEGATE(SB_PDST);
+  DECLARE_R32_DELEGATE(SB_ISTNRM);
+  DECLARE_W32_DELEGATE(SB_ISTNRM);
+  DECLARE_W32_DELEGATE(SB_ISTEXT);
+  DECLARE_W32_DELEGATE(SB_ISTERR);
+  DECLARE_W32_DELEGATE(SB_IML2NRM);
+  DECLARE_W32_DELEGATE(SB_IML2EXT);
+  DECLARE_W32_DELEGATE(SB_IML2ERR);
+  DECLARE_W32_DELEGATE(SB_IML4NRM);
+  DECLARE_W32_DELEGATE(SB_IML4EXT);
+  DECLARE_W32_DELEGATE(SB_IML4ERR);
+  DECLARE_W32_DELEGATE(SB_IML6NRM);
+  DECLARE_W32_DELEGATE(SB_IML6EXT);
+  DECLARE_W32_DELEGATE(SB_IML6ERR);
+  DECLARE_W32_DELEGATE(SB_C2DST);
+  DECLARE_W32_DELEGATE(SB_SDST);
+  DECLARE_W32_DELEGATE(SB_GDST);
+  DECLARE_W32_DELEGATE(SB_ADEN);
+  DECLARE_W32_DELEGATE(SB_ADST);
+  DECLARE_W32_DELEGATE(SB_E1EN);
+  DECLARE_W32_DELEGATE(SB_E1ST);
+  DECLARE_W32_DELEGATE(SB_E2EN);
+  DECLARE_W32_DELEGATE(SB_E2ST);
+  DECLARE_W32_DELEGATE(SB_DDEN);
+  DECLARE_W32_DELEGATE(SB_DDST);
+  DECLARE_W32_DELEGATE(SB_PDEN);
+  DECLARE_W32_DELEGATE(SB_PDST);
 
   Dreamcast &dc_;
   gdrom::GDROM *gdrom_;

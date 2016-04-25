@@ -3,6 +3,7 @@
 #include "hw/holly/pvr2.h"
 #include "hw/holly/pvr2_types.h"
 #include "hw/holly/tile_accelerator.h"
+#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
@@ -11,9 +12,34 @@ using namespace re::hw::holly;
 using namespace re::hw::sh4;
 using namespace re::renderer;
 
-PVR2::PVR2(Dreamcast &dc)
-    : Device(dc),
-      MemoryInterface(this),
+// clang-format off
+AM_BEGIN(PVR2, reg_map)
+  AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE(nullptr,
+                                             nullptr,
+                                             &PVR2::ReadRegister,
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             &PVR2::WriteRegister,
+                                             nullptr)
+  AM_RANGE(0x00001000, 0x00001fff) AM_MOUNT()
+AM_END()
+
+AM_BEGIN(PVR2, vram_map)
+  AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT()
+  AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE(&PVR2::ReadVRamInterleaved<uint8_t>,
+                                             &PVR2::ReadVRamInterleaved<uint16_t>,
+                                             &PVR2::ReadVRamInterleaved<uint32_t>,
+                                             nullptr,
+                                             &PVR2::WriteVRamInterleaved<uint8_t>,
+                                             &PVR2::WriteVRamInterleaved<uint16_t>,
+                                             &PVR2::WriteVRamInterleaved<uint32_t>,
+                                             nullptr)
+AM_END()
+    // clang-format on
+
+    PVR2::PVR2(Dreamcast &dc)
+    : Device(dc, "pvr"),
       dc_(dc),
       scheduler_(nullptr),
       holly_(nullptr),
@@ -26,43 +52,28 @@ PVR2::PVR2(Dreamcast &dc)
       current_scanline_(0) {}
 
 bool PVR2::Init() {
-  scheduler_ = dc_.scheduler;
-  holly_ = dc_.holly;
-  ta_ = dc_.ta;
-  palette_ram_ = dc_.memory->TranslateVirtual(PVR_PALETTE_BEGIN);
-  video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_BEGIN);
+  scheduler_ = dc_.scheduler();
+  holly_ = dc_.holly();
+  ta_ = dc_.ta();
+  palette_ram_ = dc_.sh4()->space().Translate(0x005f9000);
+  video_ram_ = dc_.sh4()->space().Translate(0x04000000);
 
 // initialize registers
 #define PVR_REG(addr, name, flags, default, type) \
   regs_[name##_OFFSET] = {flags, default};
+#define PVR_REG_R32(name) \
+  regs_[name##_OFFSET].read = make_delegate(&PVR2::name##_r, this)
+#define PVR_REG_W32(name) \
+  regs_[name##_OFFSET].write = make_delegate(&PVR2::name##_w, this)
 #include "hw/holly/pvr2_regs.inc"
+  PVR_REG_W32(SPG_LOAD);
+  PVR_REG_W32(FB_R_CTRL);
 #undef PVR_REG
-
-  PVR2_REGISTER_W32_DELEGATE(SPG_LOAD);
-  PVR2_REGISTER_W32_DELEGATE(FB_R_CTRL);
 
   // configure initial vsync interval
   ReconfigureSPG();
 
   return true;
-}
-
-void PVR2::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
-  RegionHandle pvr_reg_handle = memory.AllocRegion(
-      PVR_REG_BEGIN, PVR_REG_SIZE, nullptr, nullptr,
-      make_delegate(&PVR2::ReadRegister, this), nullptr, nullptr, nullptr,
-      make_delegate(&PVR2::WriteRegister, this), nullptr);
-
-  RegionHandle pvr_vram64_handle = memory.AllocRegion(
-      PVR_VRAM64_BEGIN, PVR_VRAM64_SIZE,
-      make_delegate(&PVR2::ReadVRamInterleaved<uint8_t>, this),
-      make_delegate(&PVR2::ReadVRamInterleaved<uint16_t>, this),
-      make_delegate(&PVR2::ReadVRamInterleaved<uint32_t>, this), nullptr,
-      nullptr, make_delegate(&PVR2::WriteVRamInterleaved<uint16_t>, this),
-      make_delegate(&PVR2::WriteVRamInterleaved<uint32_t>, this), nullptr);
-
-  memmap.Mount(pvr_reg_handle, PVR_REG_SIZE, PVR_REG_BEGIN);
-  memmap.Mount(pvr_vram64_handle, PVR_VRAM64_SIZE, PVR_VRAM64_BEGIN);
 }
 
 uint32_t PVR2::ReadRegister(uint32_t addr) {
@@ -201,6 +212,6 @@ void PVR2::NextScanline() {
       re::make_delegate(&PVR2::NextScanline, this), HZ_TO_NANO(line_clock_));
 }
 
-PVR2_W32_DELEGATE(SPG_LOAD) { ReconfigureSPG(); }
+W32_DELEGATE(PVR2::SPG_LOAD) { ReconfigureSPG(); }
 
-PVR2_W32_DELEGATE(FB_R_CTRL) { ReconfigureSPG(); }
+W32_DELEGATE(PVR2::FB_R_CTRL) { ReconfigureSPG(); }

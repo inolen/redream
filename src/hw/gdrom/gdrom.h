@@ -6,6 +6,7 @@
 #include "hw/gdrom/disc.h"
 #include "hw/gdrom/gdrom_types.h"
 #include "hw/machine.h"
+#include "hw/register.h"
 
 namespace re {
 namespace hw {
@@ -15,7 +16,6 @@ class Holly;
 
 class Dreamcast;
 struct Register;
-class Memory;
 
 namespace gdrom {
 
@@ -138,18 +138,6 @@ struct Session {
   uint32_t start_fad : 24;
 };
 
-#define GDROM_DECLARE_R32_DELEGATE(name) uint32_t name##_read(Register &)
-#define GDROM_DECLARE_W32_DELEGATE(name) void name##_write(Register &, uint32_t)
-
-#define GDROM_REGISTER_R32_DELEGATE(name) \
-  holly_->reg(name##_OFFSET).read = make_delegate(&GDROM::name##_read, this)
-#define GDROM_REGISTER_W32_DELEGATE(name) \
-  holly_->reg(name##_OFFSET).write = make_delegate(&GDROM::name##_write, this)
-
-#define GDROM_R32_DELEGATE(name) uint32_t GDROM::name##_read(Register &reg)
-#define GDROM_W32_DELEGATE(name) \
-  void GDROM::name##_write(Register &reg, uint32_t old_value)
-
 class GDROM : public Device {
  public:
   GDROM(Dreamcast &dc);
@@ -176,27 +164,26 @@ class GDROM : public Device {
   int ReadSectors(int fad, SectorFormat format, SectorMask mask,
                   int num_sectors, uint8_t *dst, int dst_size);
 
-  GDROM_DECLARE_R32_DELEGATE(GD_ALTSTAT_DEVCTRL);
-  GDROM_DECLARE_W32_DELEGATE(GD_ALTSTAT_DEVCTRL);
-  GDROM_DECLARE_R32_DELEGATE(GD_DATA);
-  GDROM_DECLARE_W32_DELEGATE(GD_DATA);
-  GDROM_DECLARE_R32_DELEGATE(GD_ERROR_FEATURES);
-  GDROM_DECLARE_W32_DELEGATE(GD_ERROR_FEATURES);
-  GDROM_DECLARE_R32_DELEGATE(GD_INTREASON_SECTCNT);
-  GDROM_DECLARE_W32_DELEGATE(GD_INTREASON_SECTCNT);
-  GDROM_DECLARE_R32_DELEGATE(GD_SECTNUM);
-  GDROM_DECLARE_W32_DELEGATE(GD_SECTNUM);
-  GDROM_DECLARE_R32_DELEGATE(GD_BYCTLLO);
-  GDROM_DECLARE_W32_DELEGATE(GD_BYCTLLO);
-  GDROM_DECLARE_R32_DELEGATE(GD_BYCTLHI);
-  GDROM_DECLARE_W32_DELEGATE(GD_BYCTLHI);
-  GDROM_DECLARE_R32_DELEGATE(GD_DRVSEL);
-  GDROM_DECLARE_W32_DELEGATE(GD_DRVSEL);
-  GDROM_DECLARE_R32_DELEGATE(GD_STATUS_COMMAND);
-  GDROM_DECLARE_W32_DELEGATE(GD_STATUS_COMMAND);
+  DECLARE_R32_DELEGATE(GD_ALTSTAT_DEVCTRL);
+  DECLARE_W32_DELEGATE(GD_ALTSTAT_DEVCTRL);
+  DECLARE_R32_DELEGATE(GD_DATA);
+  DECLARE_W32_DELEGATE(GD_DATA);
+  DECLARE_R32_DELEGATE(GD_ERROR_FEATURES);
+  DECLARE_W32_DELEGATE(GD_ERROR_FEATURES);
+  DECLARE_R32_DELEGATE(GD_INTREASON_SECTCNT);
+  DECLARE_W32_DELEGATE(GD_INTREASON_SECTCNT);
+  DECLARE_R32_DELEGATE(GD_SECTNUM);
+  DECLARE_W32_DELEGATE(GD_SECTNUM);
+  DECLARE_R32_DELEGATE(GD_BYCTLLO);
+  DECLARE_W32_DELEGATE(GD_BYCTLLO);
+  DECLARE_R32_DELEGATE(GD_BYCTLHI);
+  DECLARE_W32_DELEGATE(GD_BYCTLHI);
+  DECLARE_R32_DELEGATE(GD_DRVSEL);
+  DECLARE_W32_DELEGATE(GD_DRVSEL);
+  DECLARE_R32_DELEGATE(GD_STATUS_COMMAND);
+  DECLARE_W32_DELEGATE(GD_STATUS_COMMAND);
 
   Dreamcast &dc_;
-  Memory *memory_;
   holly::Holly *holly_;
 
   GD_FEATURES_T features_;

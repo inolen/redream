@@ -79,7 +79,7 @@ class Tracer : public ui::WindowListener {
   void ResetParam();
 
   ui::Window &window_;
-  renderer::Backend &rb_;
+  renderer::Backend *rb_;
   TraceTextureCache texcache_;
   hw::holly::TileRenderer tile_renderer_;
   hw::holly::TileContext tctx_;

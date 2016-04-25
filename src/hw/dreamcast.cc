@@ -20,23 +20,23 @@ using namespace re::hw::sh4;
 using namespace re::renderer;
 
 Dreamcast::Dreamcast(renderer::Backend *rb) {
-  sh4 = new SH4(*this);
-  arm7 = new ARM7(*this);
-  aica = new AICA(*this);
-  holly = new Holly(*this);
-  gdrom = new GDROM(*this);
-  maple = new Maple(*this);
-  pvr = new PVR2(*this);
-  ta = new TileAccelerator(*this, rb);
+  sh4_ = new SH4(*this);
+  arm7_ = new ARM7(*this);
+  aica_ = new AICA(*this);
+  holly_ = new Holly(*this);
+  gdrom_ = new GDROM(*this);
+  maple_ = new Maple(*this);
+  pvr_ = new PVR2(*this);
+  ta_ = new TileAccelerator(*this, rb);
 }
 
 Dreamcast::~Dreamcast() {
-  delete sh4;
-  delete arm7;
-  delete aica;
-  delete holly;
-  delete gdrom;
-  delete maple;
-  delete pvr;
-  delete ta;
+  delete sh4_;
+  delete arm7_;
+  delete aica_;
+  delete holly_;
+  delete gdrom_;
+  delete maple_;
+  delete pvr_;
+  delete ta_;
 }

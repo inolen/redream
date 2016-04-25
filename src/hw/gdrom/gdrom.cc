@@ -15,9 +15,8 @@ using namespace re::hw::sh4;
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
 GDROM::GDROM(Dreamcast &dc)
-    : Device(dc),
+    : Device(dc, "gdrom"),
       dc_(dc),
-      memory_(nullptr),
       holly_(nullptr),
       features_{0},
       intreason_{0},
@@ -32,27 +31,33 @@ GDROM::GDROM(Dreamcast &dc)
       current_disc_(nullptr) {}
 
 bool GDROM::Init() {
-  memory_ = dc_.memory;
-  holly_ = dc_.holly;
+  holly_ = dc_.holly();
 
-  GDROM_REGISTER_R32_DELEGATE(GD_ALTSTAT_DEVCTRL);
-  GDROM_REGISTER_W32_DELEGATE(GD_ALTSTAT_DEVCTRL);
-  GDROM_REGISTER_R32_DELEGATE(GD_DATA);
-  GDROM_REGISTER_W32_DELEGATE(GD_DATA);
-  GDROM_REGISTER_R32_DELEGATE(GD_ERROR_FEATURES);
-  GDROM_REGISTER_W32_DELEGATE(GD_ERROR_FEATURES);
-  GDROM_REGISTER_R32_DELEGATE(GD_INTREASON_SECTCNT);
-  GDROM_REGISTER_W32_DELEGATE(GD_INTREASON_SECTCNT);
-  GDROM_REGISTER_R32_DELEGATE(GD_SECTNUM);
-  GDROM_REGISTER_W32_DELEGATE(GD_SECTNUM);
-  GDROM_REGISTER_R32_DELEGATE(GD_BYCTLLO);
-  GDROM_REGISTER_W32_DELEGATE(GD_BYCTLLO);
-  GDROM_REGISTER_R32_DELEGATE(GD_BYCTLHI);
-  GDROM_REGISTER_W32_DELEGATE(GD_BYCTLHI);
-  GDROM_REGISTER_R32_DELEGATE(GD_DRVSEL);
-  GDROM_REGISTER_W32_DELEGATE(GD_DRVSEL);
-  GDROM_REGISTER_R32_DELEGATE(GD_STATUS_COMMAND);
-  GDROM_REGISTER_W32_DELEGATE(GD_STATUS_COMMAND);
+// initialize registers
+#define GDROM_REG_R32(name) \
+  holly_->reg(name##_OFFSET).read = make_delegate(&GDROM::name##_r, this)
+#define GDROM_REG_W32(name) \
+  holly_->reg(name##_OFFSET).write = make_delegate(&GDROM::name##_w, this)
+  GDROM_REG_R32(GD_ALTSTAT_DEVCTRL);
+  GDROM_REG_W32(GD_ALTSTAT_DEVCTRL);
+  GDROM_REG_R32(GD_DATA);
+  GDROM_REG_W32(GD_DATA);
+  GDROM_REG_R32(GD_ERROR_FEATURES);
+  GDROM_REG_W32(GD_ERROR_FEATURES);
+  GDROM_REG_R32(GD_INTREASON_SECTCNT);
+  GDROM_REG_W32(GD_INTREASON_SECTCNT);
+  GDROM_REG_R32(GD_SECTNUM);
+  GDROM_REG_W32(GD_SECTNUM);
+  GDROM_REG_R32(GD_BYCTLLO);
+  GDROM_REG_W32(GD_BYCTLLO);
+  GDROM_REG_R32(GD_BYCTLHI);
+  GDROM_REG_W32(GD_BYCTLHI);
+  GDROM_REG_R32(GD_DRVSEL);
+  GDROM_REG_W32(GD_DRVSEL);
+  GDROM_REG_R32(GD_STATUS_COMMAND);
+  GDROM_REG_W32(GD_STATUS_COMMAND);
+#undef GDROM_REG_R32
+#undef GDROM_REG_W32
 
   SetDisc(nullptr);
 
@@ -524,17 +529,17 @@ int GDROM::ReadSectors(int fad, SectorFormat format, SectorMask mask,
   return total;
 }
 
-GDROM_R32_DELEGATE(GD_ALTSTAT_DEVCTRL) {
+R32_DELEGATE(GDROM::GD_ALTSTAT_DEVCTRL) {
   // this register is the same as the status register, but it does not
   // clear DMA status information when it is accessed
   return status_.full;
 }
 
-GDROM_W32_DELEGATE(GD_ALTSTAT_DEVCTRL) {
+W32_DELEGATE(GDROM::GD_ALTSTAT_DEVCTRL) {
   // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
 }
 
-GDROM_R32_DELEGATE(GD_DATA) {
+R32_DELEGATE(GDROM::GD_DATA) {
   uint16_t v = re::load<uint16_t>(&pio_buffer_[pio_head_]);
   pio_head_ += 2;
   if (pio_head_ == pio_size_) {
@@ -543,7 +548,7 @@ GDROM_R32_DELEGATE(GD_DATA) {
   return v;
 }
 
-GDROM_W32_DELEGATE(GD_DATA) {
+W32_DELEGATE(GDROM::GD_DATA) {
   re::store(&pio_buffer_[pio_head_], static_cast<uint16_t>(reg.value & 0xffff));
   pio_head_ += 2;
 
@@ -554,45 +559,45 @@ GDROM_W32_DELEGATE(GD_DATA) {
   }
 }
 
-GDROM_R32_DELEGATE(GD_ERROR_FEATURES) {
+R32_DELEGATE(GDROM::GD_ERROR_FEATURES) {
   // LOG_INFO("GD_ERROR");
   return 0;
 }
 
-GDROM_W32_DELEGATE(GD_ERROR_FEATURES) { features_.full = reg.value; }
+W32_DELEGATE(GDROM::GD_ERROR_FEATURES) { features_.full = reg.value; }
 
-GDROM_R32_DELEGATE(GD_INTREASON_SECTCNT) { return intreason_.full; }
+R32_DELEGATE(GDROM::GD_INTREASON_SECTCNT) { return intreason_.full; }
 
-GDROM_W32_DELEGATE(GD_INTREASON_SECTCNT) {
+W32_DELEGATE(GDROM::GD_INTREASON_SECTCNT) {
   // LOG_INFO("GD_SECTCNT 0x%x", reg.value);
 }
 
-GDROM_R32_DELEGATE(GD_SECTNUM) { return sectnum_.full; }
+R32_DELEGATE(GDROM::GD_SECTNUM) { return sectnum_.full; }
 
-GDROM_W32_DELEGATE(GD_SECTNUM) { sectnum_.full = reg.value; }
+W32_DELEGATE(GDROM::GD_SECTNUM) { sectnum_.full = reg.value; }
 
-GDROM_R32_DELEGATE(GD_BYCTLLO) { return byte_count_.lo; }
+R32_DELEGATE(GDROM::GD_BYCTLLO) { return byte_count_.lo; }
 
-GDROM_W32_DELEGATE(GD_BYCTLLO) { byte_count_.lo = reg.value; }
+W32_DELEGATE(GDROM::GD_BYCTLLO) { byte_count_.lo = reg.value; }
 
-GDROM_R32_DELEGATE(GD_BYCTLHI) { return byte_count_.hi; }
+R32_DELEGATE(GDROM::GD_BYCTLHI) { return byte_count_.hi; }
 
-GDROM_W32_DELEGATE(GD_BYCTLHI) { byte_count_.hi = reg.value; }
+W32_DELEGATE(GDROM::GD_BYCTLHI) { byte_count_.hi = reg.value; }
 
-GDROM_R32_DELEGATE(GD_DRVSEL) {
+R32_DELEGATE(GDROM::GD_DRVSEL) {
   // LOG_INFO("GD_DRVSEL");
   return 0;
 }
 
-GDROM_W32_DELEGATE(GD_DRVSEL) {
+W32_DELEGATE(GDROM::GD_DRVSEL) {
   // LOG_INFO("GD_DRVSEL 0x%x", (uint32_t)reg.value);
 }
 
-GDROM_R32_DELEGATE(GD_STATUS_COMMAND) {
+R32_DELEGATE(GDROM::GD_STATUS_COMMAND) {
   holly_->UnrequestInterrupt(HOLLY_INTC_G1GDINT);
   return status_.full;
 }
 
-GDROM_W32_DELEGATE(GD_STATUS_COMMAND) {
+W32_DELEGATE(GDROM::GD_STATUS_COMMAND) {
   ProcessATACommand(static_cast<ATACommand>(reg.value));
 }

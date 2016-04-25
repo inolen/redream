@@ -27,7 +27,7 @@ enum {
 class Window {
  public:
   SDL_Window *handle() { return window_; }
-  renderer::Backend &render_backend() { return *rb_; }
+  renderer::Backend *render_backend() { return rb_; }
 
   int width() { return width_; }
   int height() { return height_; }

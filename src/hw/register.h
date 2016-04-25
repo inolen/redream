@@ -17,6 +17,12 @@ struct Register;
 typedef delegate<uint32_t(Register &)> RegisterReadDelegate;
 typedef delegate<void(Register &, uint32_t)> RegisterWriteDelegate;
 
+#define DECLARE_R32_DELEGATE(name) uint32_t name##_r(Register &)
+#define DECLARE_W32_DELEGATE(name) void name##_w(Register &, uint32_t)
+
+#define R32_DELEGATE(name) uint32_t name##_r(Register &reg)
+#define W32_DELEGATE(name) void name##_w(Register &reg, uint32_t old_value)
+
 struct Register {
   Register() : flags(RW), value(0) {}
   Register(uint8_t flags, uint32_t value) : flags(flags), value(value) {}

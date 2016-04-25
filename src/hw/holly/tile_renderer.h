@@ -73,7 +73,7 @@ struct TileRenderContext {
 
 class TileRenderer {
  public:
-  TileRenderer(renderer::Backend &rb, TextureProvider &texture_provider);
+  TileRenderer(renderer::Backend *rb, TextureProvider &texture_provider);
 
   void ParseContext(const TileContext &tctx, TileRenderContext *rctx,
                     bool map_params);
@@ -106,7 +106,7 @@ class TileRenderer {
   renderer::TextureHandle GetTexture(const TileContext &tctx, const TSP &tsp,
                                      const TCW &tcw);
 
-  renderer::Backend &rb_;
+  renderer::Backend *rb_;
   TextureProvider &texture_provider_;
 
   // keep a persistent instance of this for RenderContext. the instance will be

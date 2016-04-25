@@ -13,9 +13,21 @@ using namespace re::hw::maple;
 using namespace re::hw::sh4;
 using namespace re::sys;
 
-Holly::Holly(Dreamcast &dc)
-    : Device(dc),
-      MemoryInterface(this),
+// clang-format off
+AM_BEGIN(Holly, reg_map)
+  AM_RANGE(0x00000000, 0x00001fff) AM_HANDLE(&Holly::ReadRegister<uint8_t>,
+                                             &Holly::ReadRegister<uint16_t>,
+                                             &Holly::ReadRegister<uint32_t>,
+                                             nullptr,
+                                             &Holly::WriteRegister<uint8_t>,
+                                             &Holly::WriteRegister<uint16_t>,
+                                             &Holly::WriteRegister<uint32_t>,
+                                             nullptr)
+AM_END()
+    // clang-format on
+
+    Holly::Holly(Dreamcast &dc)
+    : Device(dc, "holly"),
       dc_(dc),
       gdrom_(nullptr),
       maple_(nullptr),
@@ -23,42 +35,47 @@ Holly::Holly(Dreamcast &dc)
       regs_() {}
 
 bool Holly::Init() {
-  gdrom_ = dc_.gdrom;
-  maple_ = dc_.maple;
-  sh4_ = dc_.sh4;
+  gdrom_ = dc_.gdrom();
+  maple_ = dc_.maple();
+  sh4_ = dc_.sh4();
 
 // initialize registers
 #define HOLLY_REG(addr, name, flags, default, type) \
   regs_[name##_OFFSET] = {flags, default};
+#define HOLLY_REG_R32(name) \
+  regs_[name##_OFFSET].read = make_delegate(&Holly::name##_r, this)
+#define HOLLY_REG_W32(name) \
+  regs_[name##_OFFSET].write = make_delegate(&Holly::name##_w, this)
 #include "hw/holly/holly_regs.inc"
+  HOLLY_REG_R32(SB_ISTNRM);
+  HOLLY_REG_W32(SB_ISTNRM);
+  HOLLY_REG_W32(SB_ISTEXT);
+  HOLLY_REG_W32(SB_ISTERR);
+  HOLLY_REG_W32(SB_IML2NRM);
+  HOLLY_REG_W32(SB_IML2EXT);
+  HOLLY_REG_W32(SB_IML2ERR);
+  HOLLY_REG_W32(SB_IML4NRM);
+  HOLLY_REG_W32(SB_IML4EXT);
+  HOLLY_REG_W32(SB_IML4ERR);
+  HOLLY_REG_W32(SB_IML6NRM);
+  HOLLY_REG_W32(SB_IML6EXT);
+  HOLLY_REG_W32(SB_IML6ERR);
+  HOLLY_REG_W32(SB_C2DST);
+  HOLLY_REG_W32(SB_SDST);
+  HOLLY_REG_W32(SB_GDST);
+  HOLLY_REG_W32(SB_ADEN);
+  HOLLY_REG_W32(SB_ADST);
+  HOLLY_REG_W32(SB_E1EN);
+  HOLLY_REG_W32(SB_E1ST);
+  HOLLY_REG_W32(SB_E2EN);
+  HOLLY_REG_W32(SB_E2ST);
+  HOLLY_REG_W32(SB_DDEN);
+  HOLLY_REG_W32(SB_DDST);
+  HOLLY_REG_W32(SB_PDEN);
+  HOLLY_REG_W32(SB_PDST);
 #undef HOLLY_REG
-
-  HOLLY_REGISTER_R32_DELEGATE(SB_ISTNRM);
-  HOLLY_REGISTER_W32_DELEGATE(SB_ISTNRM);
-  HOLLY_REGISTER_W32_DELEGATE(SB_ISTEXT);
-  HOLLY_REGISTER_W32_DELEGATE(SB_ISTERR);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML2NRM);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML2EXT);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML2ERR);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML4NRM);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML4EXT);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML4ERR);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML6NRM);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML6EXT);
-  HOLLY_REGISTER_W32_DELEGATE(SB_IML6ERR);
-  HOLLY_REGISTER_W32_DELEGATE(SB_C2DST);
-  HOLLY_REGISTER_W32_DELEGATE(SB_SDST);
-  HOLLY_REGISTER_W32_DELEGATE(SB_GDST);
-  HOLLY_REGISTER_W32_DELEGATE(SB_ADEN);
-  HOLLY_REGISTER_W32_DELEGATE(SB_ADST);
-  HOLLY_REGISTER_W32_DELEGATE(SB_E1EN);
-  HOLLY_REGISTER_W32_DELEGATE(SB_E1ST);
-  HOLLY_REGISTER_W32_DELEGATE(SB_E2EN);
-  HOLLY_REGISTER_W32_DELEGATE(SB_E2ST);
-  HOLLY_REGISTER_W32_DELEGATE(SB_DDEN);
-  HOLLY_REGISTER_W32_DELEGATE(SB_DDST);
-  HOLLY_REGISTER_W32_DELEGATE(SB_PDEN);
-  HOLLY_REGISTER_W32_DELEGATE(SB_PDST);
+#undef HOLLY_REG_R32
+#undef HOLLY_REG_W32
 
   return true;
 }
@@ -69,7 +86,7 @@ void Holly::RequestInterrupt(HollyInterrupt intr) {
   uint32_t irq = static_cast<uint32_t>(intr & ~HOLLY_INTC_MASK);
 
   if (intr == HOLLY_INTC_PCVOINT) {
-    dc_.maple->VBlank();
+    maple_->VBlank();
   }
 
   switch (type) {
@@ -109,19 +126,6 @@ void Holly::UnrequestInterrupt(HollyInterrupt intr) {
   }
 
   UpdateSH4Interrupts();
-}
-
-void Holly::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
-  RegionHandle holly_handle = memory.AllocRegion(
-      HOLLY_REG_BEGIN, HOLLY_REG_SIZE,
-      make_delegate(&Holly::ReadRegister<uint8_t>, this),
-      make_delegate(&Holly::ReadRegister<uint16_t>, this),
-      make_delegate(&Holly::ReadRegister<uint32_t>, this), nullptr,
-      make_delegate(&Holly::WriteRegister<uint8_t>, this),
-      make_delegate(&Holly::WriteRegister<uint16_t>, this),
-      make_delegate(&Holly::WriteRegister<uint32_t>, this), nullptr);
-
-  memmap.Mount(holly_handle, HOLLY_REG_SIZE, HOLLY_REG_BEGIN);
 }
 
 template <typename T>
@@ -190,7 +194,7 @@ void Holly::UpdateSH4Interrupts() {
   }
 }
 
-HOLLY_R32_DELEGATE(SB_ISTNRM) {
+R32_DELEGATE(Holly::SB_ISTNRM) {
   // Note that the two highest bits indicate the OR'ed result of all of the
   // bits in SB_ISTEXT and SB_ISTERR, respectively, and writes to these two
   // bits are ignored.
@@ -204,41 +208,41 @@ HOLLY_R32_DELEGATE(SB_ISTNRM) {
   return v;
 }
 
-HOLLY_W32_DELEGATE(SB_ISTNRM) {
+W32_DELEGATE(Holly::SB_ISTNRM) {
   // writing a 1 clears the interrupt
   reg.value = old_value & ~reg.value;
   UpdateSH4Interrupts();
 }
 
-HOLLY_W32_DELEGATE(SB_ISTEXT) {
+W32_DELEGATE(Holly::SB_ISTEXT) {
   reg.value = old_value & ~reg.value;
   UpdateSH4Interrupts();
 }
 
-HOLLY_W32_DELEGATE(SB_ISTERR) {
+W32_DELEGATE(Holly::SB_ISTERR) {
   reg.value = old_value & ~reg.value;
   UpdateSH4Interrupts();
 }
 
-HOLLY_W32_DELEGATE(SB_IML2NRM) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML2NRM) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML2EXT) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML2EXT) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML2ERR) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML2ERR) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML4NRM) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML4NRM) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML4EXT) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML4EXT) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML4ERR) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML4ERR) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML6NRM) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML6NRM) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML6EXT) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML6EXT) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_IML6ERR) { UpdateSH4Interrupts(); }
+W32_DELEGATE(Holly::SB_IML6ERR) { UpdateSH4Interrupts(); }
 
-HOLLY_W32_DELEGATE(SB_C2DST) {
+W32_DELEGATE(Holly::SB_C2DST) {
   if (!reg.value) {
     return;
   }
@@ -255,7 +259,7 @@ HOLLY_W32_DELEGATE(SB_C2DST) {
   RequestInterrupt(HOLLY_INTC_DTDE2INT);
 }
 
-HOLLY_W32_DELEGATE(SB_SDST) {
+W32_DELEGATE(Holly::SB_SDST) {
   if (!reg.value) {
     return;
   }
@@ -263,7 +267,7 @@ HOLLY_W32_DELEGATE(SB_SDST) {
   LOG_FATAL("Sort DMA not supported");
 }
 
-HOLLY_W32_DELEGATE(SB_GDST) {
+W32_DELEGATE(Holly::SB_GDST) {
   // if a "0" is written to this register, it is ignored
   reg.value |= old_value;
 
@@ -307,7 +311,7 @@ HOLLY_W32_DELEGATE(SB_GDST) {
   RequestInterrupt(HOLLY_INTC_G1DEINT);
 }
 
-HOLLY_W32_DELEGATE(SB_ADEN) {
+W32_DELEGATE(Holly::SB_ADEN) {
   if (!reg.value) {
     return;
   }
@@ -315,7 +319,7 @@ HOLLY_W32_DELEGATE(SB_ADEN) {
   LOG_WARNING("Ignored aica DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_ADST) {
+W32_DELEGATE(Holly::SB_ADST) {
   if (!reg.value) {
     return;
   }
@@ -323,7 +327,7 @@ HOLLY_W32_DELEGATE(SB_ADST) {
   LOG_WARNING("Ignored aica DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_E1EN) {
+W32_DELEGATE(Holly::SB_E1EN) {
   if (!reg.value) {
     return;
   }
@@ -331,7 +335,7 @@ HOLLY_W32_DELEGATE(SB_E1EN) {
   LOG_WARNING("Ignored ext1 DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_E1ST) {
+W32_DELEGATE(Holly::SB_E1ST) {
   if (!reg.value) {
     return;
   }
@@ -339,7 +343,7 @@ HOLLY_W32_DELEGATE(SB_E1ST) {
   LOG_WARNING("Ignored ext1 DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_E2EN) {
+W32_DELEGATE(Holly::SB_E2EN) {
   if (!reg.value) {
     return;
   }
@@ -347,7 +351,7 @@ HOLLY_W32_DELEGATE(SB_E2EN) {
   LOG_WARNING("Ignored ext2 DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_E2ST) {
+W32_DELEGATE(Holly::SB_E2ST) {
   if (!reg.value) {
     return;
   }
@@ -355,7 +359,7 @@ HOLLY_W32_DELEGATE(SB_E2ST) {
   LOG_WARNING("Ignored ext2 DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_DDEN) {
+W32_DELEGATE(Holly::SB_DDEN) {
   if (!reg.value) {
     return;
   }
@@ -363,7 +367,7 @@ HOLLY_W32_DELEGATE(SB_DDEN) {
   LOG_WARNING("Ignored dev DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_DDST) {
+W32_DELEGATE(Holly::SB_DDST) {
   if (!reg.value) {
     return;
   }
@@ -371,7 +375,7 @@ HOLLY_W32_DELEGATE(SB_DDST) {
   LOG_WARNING("Ignored dev DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_PDEN) {
+W32_DELEGATE(Holly::SB_PDEN) {
   if (!reg.value) {
     return;
   }
@@ -379,7 +383,7 @@ HOLLY_W32_DELEGATE(SB_PDEN) {
   LOG_WARNING("Ignored pvr DMA request");
 }
 
-HOLLY_W32_DELEGATE(SB_PDST) {
+W32_DELEGATE(Holly::SB_PDST) {
   if (!reg.value) {
     return;
   }

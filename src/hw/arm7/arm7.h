@@ -20,7 +20,6 @@ class ARM7 : public Device, public ExecuteInterface {
   void Run(const std::chrono::nanoseconds &delta) final;
 
   Dreamcast &dc_;
-  Memory *memory_;
 };
 }
 }

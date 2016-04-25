@@ -20,9 +20,6 @@ class Emulator : public ui::WindowListener {
   void Run(const char *path);
 
  private:
-  bool CreateDreamcast();
-  void DestroyDreamcast();
-
   bool LoadBios(const char *path);
   bool LoadFlash(const char *path);
   bool LaunchBIN(const char *path);

@@ -8,8 +8,15 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 
+#include "hw/aica/aica.h"
+#include "hw/holly/holly.h"
+#include "hw/holly/pvr2.h"
+#include "hw/holly/tile_accelerator.h"
+
 using namespace re;
 using namespace re::hw;
+using namespace re::hw::aica;
+using namespace re::hw::holly;
 using namespace re::hw::sh4;
 using namespace re::jit;
 using namespace re::jit::backend;
@@ -24,20 +31,83 @@ static InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-static SH4 *s_current_cpu = nullptr;
+// clang-format off
+AM_BEGIN(SH4, data_map)
+  AM_RANGE(0x00000000, 0x03ffffff) AM_MOUNT()  // area 0
+  AM_RANGE(0x04000000, 0x07ffffff) AM_MOUNT()  // area 1
+  AM_RANGE(0x08000000, 0x0bffffff) AM_MOUNT()  // area 2
+  AM_RANGE(0x0c000000, 0x0cffffff) AM_MOUNT()  // area 3
+  AM_RANGE(0x10000000, 0x13ffffff) AM_MOUNT()  // area 4
+  AM_RANGE(0x14000000, 0x17ffffff) AM_MOUNT()  // area 5
+  AM_RANGE(0x18000000, 0x1bffffff) AM_MOUNT()  // area 6
+  AM_RANGE(0x1c000000, 0x1fffffff) AM_MOUNT()  // area 7
+
+  // main ram mirrors
+  AM_RANGE(0x0d000000, 0x0dffffff) AM_MIRROR(0x0c000000)
+  AM_RANGE(0x0e000000, 0x0effffff) AM_MIRROR(0x0c000000)
+  AM_RANGE(0x0f000000, 0x0fffffff) AM_MIRROR(0x0c000000)
+
+  // external devices
+  AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", Holly, reg_map)
+  AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", PVR2, reg_map)
+  AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", AICA, reg_map)
+  AM_RANGE(0x00800000, 0x009fffff) AM_DEVICE("aica", AICA, data_map)
+  AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", PVR2, vram_map)
+  AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", TileAccelerator, fifo_map)
+
+  // internal registers
+  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE(&SH4::ReadRegister<uint8_t>,
+                                             &SH4::ReadRegister<uint16_t>,
+                                             &SH4::ReadRegister<uint32_t>,
+                                             nullptr,
+                                             &SH4::WriteRegister<uint8_t>,
+                                             &SH4::WriteRegister<uint16_t>,
+                                             &SH4::WriteRegister<uint32_t>,
+                                             nullptr)
+
+  // physical mirrors
+  AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  // p0
+  AM_RANGE(0x40000000, 0x5fffffff) AM_MIRROR(0x00000000)  // p0
+  AM_RANGE(0x60000000, 0x7fffffff) AM_MIRROR(0x00000000)  // p0
+  AM_RANGE(0x80000000, 0x9fffffff) AM_MIRROR(0x00000000)  // p1
+  AM_RANGE(0xa0000000, 0xbfffffff) AM_MIRROR(0x00000000)  // p2
+  AM_RANGE(0xc0000000, 0xdfffffff) AM_MIRROR(0x00000000)  // p3
+  AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  // p4
+
+  // internal cache and sq only accessible through p4
+  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE(&SH4::ReadCache<uint8_t>,
+                                             &SH4::ReadCache<uint16_t>,
+                                             &SH4::ReadCache<uint32_t>,
+                                             &SH4::ReadCache<uint64_t>,
+                                             &SH4::WriteCache<uint8_t>,
+                                             &SH4::WriteCache<uint16_t>,
+                                             &SH4::WriteCache<uint32_t>,
+                                             &SH4::WriteCache<uint64_t>)
+
+  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE(&SH4::ReadSQ<uint8_t>,
+                                             &SH4::ReadSQ<uint16_t>,
+                                             &SH4::ReadSQ<uint32_t>,
+                                             nullptr,
+                                             &SH4::WriteSQ<uint8_t>,
+                                             &SH4::WriteSQ<uint16_t>,
+                                             &SH4::WriteSQ<uint32_t>,
+                                             nullptr)
+AM_END()
+    // clang-format on
+
+    static SH4 *s_current_cpu = nullptr;
 
 enum {
   SH4_CLOCK_FREQ = 200000000,
 };
 
 SH4::SH4(Dreamcast &dc)
-    : Device(dc),
+    : Device(dc, "sh4"),
       DebugInterface(this),
       ExecuteInterface(this),
-      MemoryInterface(this),
+      MemoryInterface(this, data_map),
       WindowInterface(this),
       dc_(dc),
-      memory_(nullptr),
       scheduler_(nullptr),
       code_cache_(nullptr),
       regs_(),
@@ -55,14 +125,15 @@ SH4::SH4(Dreamcast &dc)
 SH4::~SH4() { delete code_cache_; }
 
 bool SH4::Init() {
-  memory_ = dc_.memory;
-  scheduler_ = dc_.scheduler;
+  scheduler_ = dc_.scheduler();
 
-  code_cache_ =
-      new SH4CodeCache({&ctx_, memory_->protected_base(), memory_, &Memory::R8,
-                        &Memory::R16, &Memory::R32, &Memory::R64, &Memory::W8,
-                        &Memory::W16, &Memory::W32, &Memory::W64},
-                       &SH4::CompilePC);
+  // setup code cache
+  code_cache_ = new SH4CodeCache(
+      {&ctx_, space_.protected_base(), &space_, &AddressSpace::R8,
+       &AddressSpace::R16, &AddressSpace::R32, &AddressSpace::R64,
+       &AddressSpace::W8, &AddressSpace::W16, &AddressSpace::W32,
+       &AddressSpace::W64},
+      &SH4::CompilePC);
 
   // initialize context
   memset(&ctx_, 0, sizeof(ctx_));
@@ -85,30 +156,35 @@ bool SH4::Init() {
   if (default != HELD) {                                                 \
     regs_[name##_OFFSET] = {flags, default};                             \
   }
+#define SH4_REG_R32(name) \
+  regs_[name##_OFFSET].read = make_delegate(&SH4::name##_r, this);
+#define SH4_REG_W32(name) \
+  regs_[name##_OFFSET].write = make_delegate(&SH4::name##_w, this);
 #include "hw/sh4/sh4_regs.inc"
+  SH4_REG_R32(PDTRA);
+  SH4_REG_W32(MMUCR);
+  SH4_REG_W32(CCR);
+  SH4_REG_W32(CHCR0);
+  SH4_REG_W32(CHCR1);
+  SH4_REG_W32(CHCR2);
+  SH4_REG_W32(CHCR3);
+  SH4_REG_W32(DMAOR);
+  SH4_REG_W32(IPRA);
+  SH4_REG_W32(IPRB);
+  SH4_REG_W32(IPRC);
+  SH4_REG_W32(TSTR);
+  SH4_REG_W32(TCR0);
+  SH4_REG_W32(TCR1);
+  SH4_REG_W32(TCR2);
+  SH4_REG_R32(TCNT0);
+  SH4_REG_W32(TCNT0);
+  SH4_REG_R32(TCNT1);
+  SH4_REG_W32(TCNT1);
+  SH4_REG_R32(TCNT2);
+  SH4_REG_W32(TCNT2);
 #undef SH4_REG
-
-  SH4_REGISTER_R32_DELEGATE(PDTRA);
-  SH4_REGISTER_W32_DELEGATE(MMUCR);
-  SH4_REGISTER_W32_DELEGATE(CCR);
-  SH4_REGISTER_W32_DELEGATE(CHCR0);
-  SH4_REGISTER_W32_DELEGATE(CHCR1);
-  SH4_REGISTER_W32_DELEGATE(CHCR2);
-  SH4_REGISTER_W32_DELEGATE(CHCR3);
-  SH4_REGISTER_W32_DELEGATE(DMAOR);
-  SH4_REGISTER_W32_DELEGATE(IPRA);
-  SH4_REGISTER_W32_DELEGATE(IPRB);
-  SH4_REGISTER_W32_DELEGATE(IPRC);
-  SH4_REGISTER_W32_DELEGATE(TSTR);
-  SH4_REGISTER_W32_DELEGATE(TCR0);
-  SH4_REGISTER_W32_DELEGATE(TCR1);
-  SH4_REGISTER_W32_DELEGATE(TCR2);
-  SH4_REGISTER_R32_DELEGATE(TCNT0);
-  SH4_REGISTER_W32_DELEGATE(TCNT0);
-  SH4_REGISTER_R32_DELEGATE(TCNT1);
-  SH4_REGISTER_W32_DELEGATE(TCNT1);
-  SH4_REGISTER_R32_DELEGATE(TCNT2);
-  SH4_REGISTER_W32_DELEGATE(TCNT2);
+#undef SH4_REG_R32
+#undef SH4_REG_W32
 
   // reset interrupts
   ReprioritizeInterrupts();
@@ -159,9 +235,9 @@ void SH4::DDT(const DTR &dtr) {
   if (dtr.data) {
     // single address mode transfer
     if (dtr.rw) {
-      memory_->Memcpy(dtr.addr, dtr.data, dtr.size);
+      space_.Memcpy(dtr.addr, dtr.data, dtr.size);
     } else {
-      memory_->Memcpy(dtr.data, dtr.addr, dtr.size);
+      space_.Memcpy(dtr.data, dtr.addr, dtr.size);
     }
   } else {
     // dual address mode transfer
@@ -210,7 +286,7 @@ void SH4::DDT(const DTR &dtr) {
     uint32_t src = dtr.rw ? dtr.addr : *sar;
     uint32_t dst = dtr.rw ? *dar : dtr.addr;
     int size = *dmatcr * 32;
-    memory_->Memcpy(dst, src, size);
+    space_.Memcpy(dst, src, size);
 
     // update src / addresses as well as remaining count
     *sar = src + size;
@@ -245,23 +321,23 @@ void SH4::Step() {
 
   // recompile it with only one instruction and run it
   uint32_t guest_addr = ctx_.pc;
-  uint8_t *host_addr = memory_->TranslateVirtual(guest_addr);
+  uint8_t *host_addr = space_.Translate(guest_addr);
   int flags = GetCompileFlags() | SH4_SINGLE_INSTR;
 
   CodePointer code = code_cache_->CompileCode(guest_addr, host_addr, flags);
   ctx_.pc = code();
 
   // let the debugger know we've stopped
-  dc_.debugger->Trap();
+  dc_.debugger()->Trap();
 }
 
 void SH4::AddBreakpoint(int type, uint32_t addr) {
   // save off the original instruction
-  uint16_t instr = memory_->R16(addr);
+  uint16_t instr = space_.R16(addr);
   breakpoints_.insert(std::make_pair(addr, instr));
 
   // write out an invalid instruction
-  memory_->W16(addr, 0);
+  space_.W16(addr, 0);
 
   code_cache_->RemoveBlocks(addr);
 }
@@ -274,13 +350,13 @@ void SH4::RemoveBreakpoint(int type, uint32_t addr) {
   breakpoints_.erase(it);
 
   // overwrite the invalid instruction with the original
-  memory_->W16(addr, instr);
+  space_.W16(addr, instr);
 
   code_cache_->RemoveBlocks(addr);
 }
 
 void SH4::ReadMemory(uint32_t addr, uint8_t *buffer, int size) {
-  memory_->Memcpy(buffer, addr, size);
+  space_.Memcpy(buffer, addr, size);
 }
 
 void SH4::ReadRegister(int n, uint64_t *value, int *size) {
@@ -321,72 +397,6 @@ void SH4::ReadRegister(int n, uint64_t *value, int *size) {
   *size = 4;
 }
 
-void SH4::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
-  // area 2 and 4 are unused
-  RegionHandle a0_handle = memory.AllocRegion(AREA0_BEGIN, AREA0_SIZE);
-  RegionHandle a1_handle = memory.AllocRegion(AREA1_BEGIN, AREA1_SIZE);
-  RegionHandle a3_handle = memory.AllocRegion(AREA3_BEGIN, AREA3_SIZE);
-  RegionHandle a5_handle = memory.AllocRegion(AREA5_BEGIN, AREA5_SIZE);
-  RegionHandle a6_handle = memory.AllocRegion(AREA6_BEGIN, AREA6_SIZE);
-  RegionHandle a7_handle = memory.AllocRegion(AREA7_BEGIN, AREA7_SIZE);
-
-  RegionHandle sh4_reg_handle = memory.AllocRegion(
-      SH4_REG_BEGIN, SH4_REG_SIZE,
-      make_delegate(&SH4::ReadRegister<uint8_t>, this),
-      make_delegate(&SH4::ReadRegister<uint16_t>, this),
-      make_delegate(&SH4::ReadRegister<uint32_t>, this), nullptr,
-      make_delegate(&SH4::WriteRegister<uint8_t>, this),
-      make_delegate(&SH4::WriteRegister<uint16_t>, this),
-      make_delegate(&SH4::WriteRegister<uint32_t>, this), nullptr);
-
-  memmap.Mount(a0_handle, AREA0_SIZE, AREA0_BEGIN);
-  memmap.Mount(a1_handle, AREA1_SIZE, AREA1_BEGIN);
-  memmap.Mount(a3_handle, AREA3_SIZE, AREA3_BEGIN);
-  memmap.Mount(a5_handle, AREA5_SIZE, AREA5_BEGIN);
-  memmap.Mount(a6_handle, AREA6_SIZE, AREA6_BEGIN);
-  memmap.Mount(a7_handle, AREA7_SIZE, AREA7_BEGIN);
-  memmap.Mount(sh4_reg_handle, SH4_REG_SIZE, SH4_REG_BEGIN);
-}
-
-void SH4::MapVirtualMemory(Memory &memory, MemoryMap &memmap) {
-  RegionHandle sh4_cache_handle =
-      memory.AllocRegion(SH4_CACHE_BEGIN, SH4_CACHE_SIZE,
-                         make_delegate(&SH4::ReadCache<uint8_t>, this),
-                         make_delegate(&SH4::ReadCache<uint16_t>, this),
-                         make_delegate(&SH4::ReadCache<uint32_t>, this),
-                         make_delegate(&SH4::ReadCache<uint64_t>, this),
-                         make_delegate(&SH4::WriteCache<uint8_t>, this),
-                         make_delegate(&SH4::WriteCache<uint16_t>, this),
-                         make_delegate(&SH4::WriteCache<uint32_t>, this),
-                         make_delegate(&SH4::WriteCache<uint64_t>, this));
-
-  RegionHandle sh4_sq_handle = memory.AllocRegion(
-      SH4_SQ_BEGIN, SH4_SQ_SIZE, make_delegate(&SH4::ReadSQ<uint8_t>, this),
-      make_delegate(&SH4::ReadSQ<uint16_t>, this),
-      make_delegate(&SH4::ReadSQ<uint32_t>, this), nullptr,
-      make_delegate(&SH4::WriteSQ<uint8_t>, this),
-      make_delegate(&SH4::WriteSQ<uint16_t>, this),
-      make_delegate(&SH4::WriteSQ<uint32_t>, this), nullptr);
-
-  // main ram mirrors
-  memmap.Mirror(MAIN_RAM_1_BEGIN, MAIN_RAM_1_SIZE, MAIN_RAM_2_BEGIN);
-  memmap.Mirror(MAIN_RAM_1_BEGIN, MAIN_RAM_1_SIZE, MAIN_RAM_3_BEGIN);
-  memmap.Mirror(MAIN_RAM_1_BEGIN, MAIN_RAM_1_SIZE, MAIN_RAM_4_BEGIN);
-
-  // physical mirrors (ignoring p, alt and cache bits in bits 31-29)
-  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P0_2_BEGIN);
-  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P0_3_BEGIN);
-  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P0_4_BEGIN);
-  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P1_BEGIN);
-  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P2_BEGIN);
-  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P3_BEGIN);
-  memmap.Mirror(P0_1_BEGIN, P0_1_SIZE, P4_BEGIN);
-
-  // handle some special access only available in P4 after applying mirrors
-  memmap.Mount(sh4_cache_handle, SH4_CACHE_SIZE, SH4_CACHE_BEGIN);
-  memmap.Mount(sh4_sq_handle, SH4_SQ_SIZE, SH4_SQ_BEGIN);
-}
-
 void SH4::OnPaint(bool show_main_menu) {
   if (show_main_menu && ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("CPU")) {
@@ -425,7 +435,7 @@ void SH4::OnPaint(bool show_main_menu) {
 
 uint32_t SH4::CompilePC() {
   uint32_t guest_addr = s_current_cpu->ctx_.pc;
-  uint8_t *host_addr = s_current_cpu->memory_->TranslateVirtual(guest_addr);
+  uint8_t *host_addr = s_current_cpu->space_.Translate(guest_addr);
   int flags = s_current_cpu->GetCompileFlags();
 
   CodePointer code =
@@ -444,7 +454,7 @@ void SH4::InvalidInstruction(SH4Context *ctx, uint64_t data) {
   self->ctx_.num_cycles = 0;
 
   // let the debugger know execution has stopped
-  self->dc_.debugger->Trap();
+  self->dc_.debugger()->Trap();
 }
 
 void SH4::Prefetch(SH4Context *ctx, uint64_t data) {
@@ -467,7 +477,7 @@ void SH4::Prefetch(SH4Context *ctx, uint64_t data) {
 
   // perform the "burst" 32-byte copy
   for (int i = 0; i < 8; i++) {
-    self->memory_->W32(dest, ctx->sq[sqi][i]);
+    self->space_.W32(dest, ctx->sq[sqi][i]);
     dest += 4;
   }
 }
@@ -810,7 +820,7 @@ void SH4::ExpireTimer() {
   RescheduleTimer(N, tcnt, tcr);
 }
 
-SH4_R32_DELEGATE(PDTRA) {
+R32_DELEGATE(SH4::PDTRA) {
   // magic values to get past 0x8c00b948 in the boot rom:
   // void _8c00b92c(int arg1) {
   //   sysvars->var1 = reg[PDTRA];
@@ -877,7 +887,7 @@ SH4_R32_DELEGATE(PDTRA) {
   return v;
 }
 
-SH4_W32_DELEGATE(MMUCR) {
+W32_DELEGATE(SH4::MMUCR) {
   if (!reg.value) {
     return;
   }
@@ -885,49 +895,49 @@ SH4_W32_DELEGATE(MMUCR) {
   LOG_FATAL("MMU not currently supported");
 }
 
-SH4_W32_DELEGATE(CCR) {
+W32_DELEGATE(SH4::CCR) {
   if (CCR.ICI) {
     ResetCache();
   }
 }
 
-SH4_W32_DELEGATE(CHCR0) { CheckDMA(0); }
+W32_DELEGATE(SH4::CHCR0) { CheckDMA(0); }
 
-SH4_W32_DELEGATE(CHCR1) { CheckDMA(1); }
+W32_DELEGATE(SH4::CHCR1) { CheckDMA(1); }
 
-SH4_W32_DELEGATE(CHCR2) { CheckDMA(2); }
+W32_DELEGATE(SH4::CHCR2) { CheckDMA(2); }
 
-SH4_W32_DELEGATE(CHCR3) { CheckDMA(3); }
+W32_DELEGATE(SH4::CHCR3) { CheckDMA(3); }
 
-SH4_W32_DELEGATE(DMAOR) {
+W32_DELEGATE(SH4::DMAOR) {
   CheckDMA(0);
   CheckDMA(1);
   CheckDMA(2);
   CheckDMA(3);
 }
 
-SH4_W32_DELEGATE(IPRA) { ReprioritizeInterrupts(); }
+W32_DELEGATE(SH4::IPRA) { ReprioritizeInterrupts(); }
 
-SH4_W32_DELEGATE(IPRB) { ReprioritizeInterrupts(); }
+W32_DELEGATE(SH4::IPRB) { ReprioritizeInterrupts(); }
 
-SH4_W32_DELEGATE(IPRC) { ReprioritizeInterrupts(); }
+W32_DELEGATE(SH4::IPRC) { ReprioritizeInterrupts(); }
 
-SH4_W32_DELEGATE(TSTR) { UpdateTimerStart(); }
+W32_DELEGATE(SH4::TSTR) { UpdateTimerStart(); }
 
-SH4_W32_DELEGATE(TCR0) { UpdateTimerControl(0); }
+W32_DELEGATE(SH4::TCR0) { UpdateTimerControl(0); }
 
-SH4_W32_DELEGATE(TCR1) { UpdateTimerControl(1); }
+W32_DELEGATE(SH4::TCR1) { UpdateTimerControl(1); }
 
-SH4_W32_DELEGATE(TCR2) { UpdateTimerControl(2); }
+W32_DELEGATE(SH4::TCR2) { UpdateTimerControl(2); }
 
-SH4_R32_DELEGATE(TCNT0) { return TimerCount(0); }
+R32_DELEGATE(SH4::TCNT0) { return TimerCount(0); }
 
-SH4_W32_DELEGATE(TCNT0) { UpdateTimerCount(0); }
+W32_DELEGATE(SH4::TCNT0) { UpdateTimerCount(0); }
 
-SH4_R32_DELEGATE(TCNT1) { return TimerCount(1); }
+R32_DELEGATE(SH4::TCNT1) { return TimerCount(1); }
 
-SH4_W32_DELEGATE(TCNT1) { UpdateTimerCount(1); }
+W32_DELEGATE(SH4::TCNT1) { UpdateTimerCount(1); }
 
-SH4_R32_DELEGATE(TCNT2) { return TimerCount(2); }
+R32_DELEGATE(SH4::TCNT2) { return TimerCount(2); }
 
-SH4_W32_DELEGATE(TCNT2) { UpdateTimerCount(2); }
+W32_DELEGATE(SH4::TCNT2) { UpdateTimerCount(2); }

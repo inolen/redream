@@ -29,7 +29,7 @@ void Scheduler::Tick(const std::chrono::nanoseconds &delta) {
     auto slice = next_time - base_time_;
     base_time_ += slice;
 
-    for (auto device : machine_.devices) {
+    for (auto device : machine_.devices()) {
       ExecuteInterface *execute = device->execute();
 
       if (!execute || execute->suspended()) {

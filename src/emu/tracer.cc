@@ -149,7 +149,7 @@ void Tracer::OnPaint(bool show_main_menu) {
   }
 
   // render the context
-  rb_.BeginSurfaces(rctx_.projection, rctx_.verts.data(), rctx_.verts.size());
+  rb_->BeginSurfaces(rctx_.projection, rctx_.verts.data(), rctx_.verts.size());
 
   for (int i = 0; i < n; i++) {
     int idx = rctx_.sorted_surfs[i];
@@ -159,10 +159,10 @@ void Tracer::OnPaint(bool show_main_menu) {
       continue;
     }
 
-    rb_.DrawSurface(rctx_.surfs[idx]);
+    rb_->DrawSurface(rctx_.surfs[idx]);
   }
 
-  rb_.EndSurfaces();
+  rb_->EndSurfaces();
 }
 
 void Tracer::OnKeyDown(Keycode code, int16_t value) {
@@ -258,6 +258,7 @@ void Tracer::RenderTextureMenu() {
 
       ImGui::Separator();
 
+      ImGui::Text("addr; 0x%08x", tex.tcw.texture_addr << 3);
       ImGui::Text("format: %s", s_pixel_format_names[tex.format]);
       ImGui::Text("filter: %s", s_filter_mode_names[tex.filter]);
       ImGui::Text("wrap_u: %s", s_wrap_mode_names[tex.wrap_u]);

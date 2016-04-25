@@ -5,6 +5,7 @@
 #include "hw/holly/tile_accelerator.h"
 #include "hw/holly/pvr2.h"
 #include "hw/holly/trace.h"
+#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "sys/filesystem.h"
@@ -15,7 +16,28 @@ using namespace re::hw::holly;
 using namespace re::renderer;
 using namespace re::sys;
 
-static void BuildLookupTables();
+// clang-format off
+AM_BEGIN(TileAccelerator, fifo_map)
+  AM_RANGE(0x0000000, 0x07fffff) AM_HANDLE(nullptr,
+                                           nullptr,
+                                           nullptr,
+                                           nullptr,
+                                           nullptr,
+                                           nullptr,
+                                           &TileAccelerator::WritePolyFIFO,
+                                           nullptr)
+  AM_RANGE(0x1000000, 0x1ffffff) AM_HANDLE(nullptr,
+                                           nullptr,
+                                           nullptr,
+                                           nullptr,
+                                           nullptr,
+                                           nullptr,
+                                           &TileAccelerator::WriteTextureFIFO,
+                                           nullptr)
+AM_END()
+    // clang-format on
+
+    static void BuildLookupTables();
 static int GetParamSize_raw(const PCW &pcw, int vertex_type);
 static int GetPolyType_raw(const PCW &pcw);
 static int GetVertexType_raw(const PCW &pcw);
@@ -208,14 +230,13 @@ int TileAccelerator::GetVertexType(const PCW &pcw) {
                             pcw.para_type * TA_NUM_LISTS + pcw.list_type];
 }
 
-TileAccelerator::TileAccelerator(Dreamcast &dc, Backend &rb)
-    : Device(dc),
-      MemoryInterface(this),
+TileAccelerator::TileAccelerator(Dreamcast &dc, Backend *rb)
+    : Device(dc, "ta"),
       WindowInterface(this),
       dc_(dc),
       rb_(rb),
       tile_renderer_(rb, *this),
-      memory_(nullptr),
+      sh4_(nullptr),
       holly_(nullptr),
       pvr_(nullptr),
       video_ram_(nullptr),
@@ -230,15 +251,24 @@ TileAccelerator::TileAccelerator(Dreamcast &dc, Backend &rb)
 }
 
 bool TileAccelerator::Init() {
-  memory_ = dc_.memory;
-  holly_ = dc_.holly;
-  pvr_ = dc_.pvr;
-  video_ram_ = dc_.memory->TranslateVirtual(PVR_VRAM32_BEGIN);
+  sh4_ = dc_.sh4();
+  holly_ = dc_.holly();
+  pvr_ = dc_.pvr();
+  video_ram_ = sh4_->space().Translate(0x04000000);
 
-  TA_REGISTER_W32_DELEGATE(SOFTRESET);
-  TA_REGISTER_W32_DELEGATE(TA_LIST_INIT);
-  TA_REGISTER_W32_DELEGATE(TA_LIST_CONT);
-  TA_REGISTER_W32_DELEGATE(STARTRENDER);
+// initialize registers
+#define TA_REG_R32(name)          \
+  pvr_->reg(name##_OFFSET).read = \
+      make_delegate(&TileAccelerator::name##_r, this)
+#define TA_REG_W32(name)           \
+  pvr_->reg(name##_OFFSET).write = \
+      make_delegate(&TileAccelerator::name##_w, this)
+  TA_REG_W32(SOFTRESET);
+  TA_REG_W32(TA_LIST_INIT);
+  TA_REG_W32(TA_LIST_CONT);
+  TA_REG_W32(STARTRENDER);
+#undef TA_REG_R32
+#undef TA_REG_W32
 
   return true;
 }
@@ -266,7 +296,7 @@ TextureHandle TileAccelerator::GetTexture(
   uint32_t texture_addr = tcw.texture_addr << 3;
 
   // get the texture data
-  uint8_t *video_ram = dc_.memory->TranslateVirtual(PVR_VRAM32_BEGIN);
+  uint8_t *video_ram = sh4_->space().Translate(0x04000000);
   uint8_t *texture = &video_ram[texture_addr];
   int width = 8 << tsp.texture_u_size;
   int height = 8 << tsp.texture_v_size;
@@ -276,7 +306,7 @@ TextureHandle TileAccelerator::GetTexture(
   int texture_size = (width * height * element_size_bits) >> 3;
 
   // get the palette data
-  uint8_t *palette_ram = dc_.memory->TranslateVirtual(PVR_PALETTE_BEGIN);
+  uint8_t *palette_ram = sh4_->space().Translate(0x005f9000);
   uint8_t *palette = nullptr;
   uint32_t palette_addr = 0;
   int palette_size = 0;
@@ -436,27 +466,12 @@ void TileAccelerator::FinalizeContext(uint32_t addr) {
   last_tctx_ = tctx;
 }
 
-void TileAccelerator::MapPhysicalMemory(Memory &memory, MemoryMap &memmap) {
-  RegionHandle ta_poly_handle = memory.AllocRegion(
-      TA_POLY_BEGIN, TA_POLY_SIZE, nullptr, nullptr, nullptr, nullptr, nullptr,
-      nullptr, make_delegate(&TileAccelerator::WritePolyFIFO, this), nullptr);
-
-  RegionHandle ta_texture_handle = memory.AllocRegion(
-      TA_TEXTURE_BEGIN, TA_TEXTURE_SIZE, nullptr, nullptr, nullptr, nullptr,
-      nullptr, nullptr, make_delegate(&TileAccelerator::WriteTextureFIFO, this),
-      nullptr);
-
-  memmap.Mount(ta_poly_handle, TA_POLY_SIZE, TA_POLY_BEGIN);
-  memmap.Mount(ta_texture_handle, TA_TEXTURE_SIZE, TA_TEXTURE_BEGIN);
-}
-
 void TileAccelerator::WritePolyFIFO(uint32_t addr, uint32_t value) {
   WriteContext(pvr_->TA_ISP_BASE.base_address, value);
 }
 
 void TileAccelerator::WriteTextureFIFO(uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
-
   re::store(&video_ram_[addr], value);
 }
 
@@ -535,7 +550,7 @@ void TileAccelerator::InvalidateTexture(TextureCacheMap::iterator it) {
     RemoveAccessWatch(entry.palette_watch);
   }
 
-  rb_.FreeTexture(entry.handle);
+  rb_->FreeTexture(entry.handle);
 
   textures_.erase(it);
 }
@@ -573,7 +588,7 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   if (!pvr_->FPU_PARAM_CFG.region_header_type) {
     tctx->autosort = !pvr_->ISP_FEED_CFG.presort;
   } else {
-    uint32_t region_data = memory_->R32(PVR_VRAM64_BEGIN + pvr_->REGION_BASE);
+    uint32_t region_data = sh4_->space().R32(0x05000000 + pvr_->REGION_BASE);
     tctx->autosort = !(region_data & 0x20000000);
   }
 
@@ -602,13 +617,13 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   // available at 0x0 when booting the bios, so masking this seems to be the
   // correct solution
   uint32_t vram_offset =
-      PVR_VRAM64_BEGIN +
+      0x05000000 +
       ((tctx->addr + pvr_->ISP_BACKGND_T.tag_address * 4) & 0x7fffff);
 
   // get surface parameters
-  tctx->bg_isp.full = memory_->R32(vram_offset);
-  tctx->bg_tsp.full = memory_->R32(vram_offset + 4);
-  tctx->bg_tcw.full = memory_->R32(vram_offset + 8);
+  tctx->bg_isp.full = sh4_->space().R32(vram_offset);
+  tctx->bg_tsp.full = sh4_->space().R32(vram_offset + 4);
+  tctx->bg_tcw.full = sh4_->space().R32(vram_offset + 8);
   vram_offset += 12;
 
   // get the background depth
@@ -632,7 +647,8 @@ void TileAccelerator::SaveRegisterState(TileContext *tctx) {
   for (int i = 0, bg_offset = 0; i < 3; i++) {
     CHECK_LE(bg_offset + vertex_size, (int)sizeof(tctx->bg_vertices));
 
-    memory_->Memcpy(&tctx->bg_vertices[bg_offset], vram_offset, vertex_size);
+    sh4_->space().Memcpy(&tctx->bg_vertices[bg_offset], vram_offset,
+                         vertex_size);
 
     bg_offset += vertex_size;
     vram_offset += vertex_size;
@@ -668,7 +684,7 @@ void TileAccelerator::ToggleTracing() {
   }
 }
 
-TA_W32_DELEGATE(SOFTRESET) {
+W32_DELEGATE(TileAccelerator::SOFTRESET) {
   if (!(reg.value & 0x1)) {
     return;
   }
@@ -676,7 +692,7 @@ TA_W32_DELEGATE(SOFTRESET) {
   SoftReset();
 }
 
-TA_W32_DELEGATE(TA_LIST_INIT) {
+W32_DELEGATE(TileAccelerator::TA_LIST_INIT) {
   if (!(reg.value & 0x80000000)) {
     return;
   }
@@ -684,7 +700,7 @@ TA_W32_DELEGATE(TA_LIST_INIT) {
   InitContext(pvr_->TA_ISP_BASE.base_address);
 }
 
-TA_W32_DELEGATE(TA_LIST_CONT) {
+W32_DELEGATE(TileAccelerator::TA_LIST_CONT) {
   if (!(reg.value & 0x80000000)) {
     return;
   }
@@ -692,7 +708,7 @@ TA_W32_DELEGATE(TA_LIST_CONT) {
   LOG_WARNING("Unsupported TA_LIST_CONT");
 }
 
-TA_W32_DELEGATE(STARTRENDER) {
+W32_DELEGATE(TileAccelerator::STARTRENDER) {
   if (!reg.value) {
     return;
   }

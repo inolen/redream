@@ -3,17 +3,22 @@
 
 #include <memory>
 #include "hw/machine.h"
+#include "hw/register.h"
 #include "ui/keycode.h"
 
 namespace re {
 namespace hw {
+
+namespace sh4 {
+class SH4;
+}
+
 namespace holly {
 class Holly;
 }
 
 class Dreamcast;
-struct Register;
-class Memory;
+class AddressSpace;
 
 namespace maple {
 
@@ -100,18 +105,6 @@ class MapleDevice {
   virtual bool HandleFrame(const MapleFrame &frame, MapleFrame &res) = 0;
 };
 
-#define MAPLE_DECLARE_R32_DELEGATE(name) uint32_t name##_read(Register &)
-#define MAPLE_DECLARE_W32_DELEGATE(name) void name##_write(Register &, uint32_t)
-
-#define MAPLE_REGISTER_R32_DELEGATE(name) \
-  holly_->reg(name##_OFFSET).read = make_delegate(&Maple::name##_read, this)
-#define MAPLE_REGISTER_W32_DELEGATE(name) \
-  holly_->reg(name##_OFFSET).write = make_delegate(&Maple::name##_write, this)
-
-#define MAPLE_R32_DELEGATE(name) uint32_t Maple::name##_read(Register &reg)
-#define MAPLE_W32_DELEGATE(name) \
-  void Maple::name##_write(Register &reg, uint32_t old_value)
-
 class Maple : public Device, public WindowInterface {
  public:
   Maple(Dreamcast &dc);
@@ -127,10 +120,10 @@ class Maple : public Device, public WindowInterface {
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
   void StartDMA();
 
-  MAPLE_DECLARE_W32_DELEGATE(SB_MDST);
+  DECLARE_W32_DELEGATE(SB_MDST);
 
   Dreamcast &dc_;
-  Memory *memory_;
+  sh4::SH4 *sh4_;
   holly::Holly *holly_;
 
   std::unique_ptr<MapleDevice> devices_[MAX_PORTS];

@@ -162,6 +162,7 @@ set(REDREAM_SOURCES
   src/hw/sh4/sh4.cc
   src/hw/sh4/sh4_code_cache.cc
   src/hw/debugger.cc
+  src/hw/dreamcast.cc
   src/hw/machine.cc
   src/hw/memory.cc
   src/hw/scheduler.cc

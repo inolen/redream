@@ -20,39 +20,47 @@ void ExecuteInterface::Suspend() { suspended_ = true; }
 
 void ExecuteInterface::Resume() { suspended_ = false; }
 
-MemoryInterface::MemoryInterface(Device *device) { device->memory_ = this; }
+MemoryInterface::MemoryInterface(Device *device, AddressMapper mapper)
+    : mapper_(mapper), space_(*device->machine_.memory()) {
+  device->memory_ = this;
+}
 
 WindowInterface::WindowInterface(Device *device) { device->window_ = this; }
 
-Device::Device(Machine &machine)
-    : debug_(nullptr), execute_(nullptr), memory_(nullptr), window_(nullptr) {
-  machine.devices.push_back(this);
+Device::Device(Machine &machine, const char *name)
+    : machine_(machine),
+      name_(name),
+      debug_(nullptr),
+      execute_(nullptr),
+      memory_(nullptr),
+      window_(nullptr) {
+  machine_.RegisterDevice(this);
 }
 
 bool Device::Init() { return true; }
 
 Machine::Machine() : suspended_(false) {
-  debugger = FLAGS_gdb ? new Debugger(*this) : nullptr;
-  memory = new Memory(*this);
-  scheduler = new Scheduler(*this);
+  debugger_ = FLAGS_gdb ? new Debugger(*this) : nullptr;
+  memory_ = new Memory(*this);
+  scheduler_ = new Scheduler(*this);
 }
 
 Machine::~Machine() {
-  delete debugger;
-  delete memory;
-  delete scheduler;
+  delete debugger_;
+  delete memory_;
+  delete scheduler_;
 }
 
 bool Machine::Init() {
-  if (debugger && !debugger->Init()) {
+  if (debugger_ && !debugger_->Init()) {
     return false;
   }
 
-  if (!memory->Init()) {
+  if (!memory_->Init()) {
     return false;
   }
 
-  for (auto device : devices) {
+  for (auto device : devices_) {
     if (!device->Init()) {
       return false;
     }
@@ -66,31 +74,47 @@ void Machine::Suspend() { suspended_ = true; }
 void Machine::Resume() { suspended_ = false; }
 
 void Machine::Tick(const std::chrono::nanoseconds &delta) {
-  if (debugger) {
-    debugger->PumpEvents();
+  if (debugger_) {
+    debugger_->PumpEvents();
   }
 
   if (!suspended_) {
-    scheduler->Tick(delta);
+    scheduler_->Tick(delta);
   }
 }
 
+Device *Machine::LookupDevice(const char *name) {
+  for (auto device : devices_) {
+    if (!strcmp(device->name(), name)) {
+      return device;
+    }
+  }
+
+  return nullptr;
+}
+
+void Machine::RegisterDevice(Device *device) { devices_.push_back(device); }
+
 void Machine::OnPaint(bool show_main_menu) {
-  for (auto device : devices) {
-    if (!device->window()) {
+  for (auto device : devices_) {
+    WindowInterface *window = device->window();
+
+    if (!window) {
       continue;
     }
 
-    device->window()->OnPaint(show_main_menu);
+    window->OnPaint(show_main_menu);
   }
 }
 
 void Machine::OnKeyDown(Keycode code, int16_t value) {
-  for (auto device : devices) {
-    if (!device->window()) {
+  for (auto device : devices_) {
+    WindowInterface *window = device->window();
+
+    if (!window) {
       continue;
     }
 
-    device->window()->OnKeyDown(code, value);
+    window->OnKeyDown(code, value);
   }
 }

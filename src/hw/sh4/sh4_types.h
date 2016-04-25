@@ -2,7 +2,6 @@
 #define SH4_REGS_H
 
 #include <stdint.h>
-#include "hw/regions.h"
 
 namespace re {
 namespace hw {

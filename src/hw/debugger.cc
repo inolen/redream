@@ -15,7 +15,7 @@ Debugger::~Debugger() { gdb_server_destroy(sv_); }
 
 bool Debugger::Init() {
   // use the first device found with a debug interface
-  for (auto device : machine_.devices) {
+  for (auto device : machine_.devices()) {
     debug_ = device->debug();
 
     if (debug_) {

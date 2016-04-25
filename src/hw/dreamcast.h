@@ -2,10 +2,18 @@
 #define DREAMCAST_H
 
 #include "hw/machine.h"
-#include "hw/regions.h"
 
 namespace re {
+
+namespace renderer {
+class Backend;
+}
+
 namespace hw {
+
+class AddressMap;
+class AddressSpace;
+class Memory;
 
 namespace aica {
 class AICA;
@@ -35,24 +43,27 @@ class SH4;
 
 class Dreamcast : public Machine {
  public:
-  Dreamcast()
-      : sh4(nullptr),
-        arm7(nullptr),
-        aica(nullptr),
-        holly(nullptr),
-        gdrom(nullptr),
-        maple(nullptr),
-        pvr(nullptr),
-        ta(nullptr) {}
+  Dreamcast(renderer::Backend *rb);
+  ~Dreamcast();
 
-  hw::sh4::SH4 *sh4;
-  hw::arm7::ARM7 *arm7;
-  hw::aica::AICA *aica;
-  hw::holly::Holly *holly;
-  hw::gdrom::GDROM *gdrom;
-  hw::maple::Maple *maple;
-  hw::holly::PVR2 *pvr;
-  hw::holly::TileAccelerator *ta;
+  hw::sh4::SH4 *sh4() { return sh4_; }
+  hw::arm7::ARM7 *arm7() { return arm7_; }
+  hw::aica::AICA *aica() { return aica_; }
+  hw::holly::Holly *holly() { return holly_; }
+  hw::gdrom::GDROM *gdrom() { return gdrom_; }
+  hw::maple::Maple *maple() { return maple_; }
+  hw::holly::PVR2 *pvr() { return pvr_; }
+  hw::holly::TileAccelerator *ta() { return ta_; }
+
+ private:
+  hw::sh4::SH4 *sh4_;
+  hw::arm7::ARM7 *arm7_;
+  hw::aica::AICA *aica_;
+  hw::holly::Holly *holly_;
+  hw::gdrom::GDROM *gdrom_;
+  hw::maple::Maple *maple_;
+  hw::holly::PVR2 *pvr_;
+  hw::holly::TileAccelerator *ta_;
 };
 }
 }

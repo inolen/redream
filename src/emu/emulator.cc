@@ -1,45 +1,31 @@
 #include <algorithm>
 #include <gflags/gflags.h>
 #include "emu/emulator.h"
-#include "hw/aica/aica.h"
-#include "hw/arm7/arm7.h"
 #include "hw/gdrom/gdrom.h"
-#include "hw/holly/holly.h"
-#include "hw/holly/pvr2.h"
-#include "hw/holly/tile_accelerator.h"
-#include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
+#include "hw/scheduler.h"
 #include "ui/window.h"
 
 using namespace re;
 using namespace re::emu;
 using namespace re::hw;
-using namespace re::hw::aica;
-using namespace re::hw::arm7;
 using namespace re::hw::gdrom;
-using namespace re::hw::holly;
-using namespace re::hw::maple;
-using namespace re::hw::sh4;
-using namespace re::renderer;
 using namespace re::ui;
 
 DEFINE_string(bios, "dc_boot.bin", "Path to BIOS");
 DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
 
-Emulator::Emulator(ui::Window &window) : window_(window) {
+Emulator::Emulator(Window &window)
+    : window_(window), dc_(window_.render_backend()) {
   window_.AddListener(this);
 }
 
-Emulator::~Emulator() {
-  window_.RemoveListener(this);
-
-  DestroyDreamcast();
-}
+Emulator::~Emulator() { window_.RemoveListener(this); }
 
 void Emulator::Run(const char *path) {
-  if (!CreateDreamcast()) {
+  if (!dc_.Init()) {
     return;
   }
 
@@ -93,44 +79,10 @@ void Emulator::Run(const char *path) {
   }
 }
 
-bool Emulator::CreateDreamcast() {
-  dc_.sh4 = new SH4(dc_);
-  dc_.arm7 = new ARM7(dc_);
-  dc_.aica = new AICA(dc_);
-  dc_.holly = new Holly(dc_);
-  dc_.gdrom = new GDROM(dc_);
-  dc_.maple = new Maple(dc_);
-  dc_.pvr = new PVR2(dc_);
-  dc_.ta = new TileAccelerator(dc_, window_.render_backend());
-
-  if (!dc_.Init()) {
-    DestroyDreamcast();
-    return false;
-  }
-
-  return true;
-}
-
-void Emulator::DestroyDreamcast() {
-  delete dc_.sh4;
-  dc_.sh4 = nullptr;
-  delete dc_.arm7;
-  dc_.arm7 = nullptr;
-  delete dc_.aica;
-  dc_.aica = nullptr;
-  delete dc_.holly;
-  dc_.holly = nullptr;
-  delete dc_.gdrom;
-  dc_.gdrom = nullptr;
-  delete dc_.maple;
-  dc_.maple = nullptr;
-  delete dc_.pvr;
-  dc_.pvr = nullptr;
-  delete dc_.ta;
-  dc_.ta = nullptr;
-}
-
 bool Emulator::LoadBios(const char *path) {
+  static const int BIOS_BEGIN = 0x00000000;
+  static const int BIOS_SIZE = 0x00200000;
+
   FILE *fp = fopen(path, "rb");
   if (!fp) {
     LOG_WARNING("Failed to open bios at \"%s\"", path);
@@ -147,7 +99,7 @@ bool Emulator::LoadBios(const char *path) {
     return false;
   }
 
-  uint8_t *bios = dc_.memory->TranslateVirtual(BIOS_BEGIN);
+  uint8_t *bios = dc_.sh4()->space().Translate(BIOS_BEGIN);
   int n = static_cast<int>(fread(bios, sizeof(uint8_t), size, fp));
   fclose(fp);
 
@@ -160,6 +112,9 @@ bool Emulator::LoadBios(const char *path) {
 }
 
 bool Emulator::LoadFlash(const char *path) {
+  static const int FLASH_BEGIN = 0x00200000;
+  static const int FLASH_SIZE = 0x00020000;
+
   FILE *fp = fopen(path, "rb");
   if (!fp) {
     LOG_WARNING("Failed to open flash at \"%s\"", path);
@@ -176,7 +131,7 @@ bool Emulator::LoadFlash(const char *path) {
     return false;
   }
 
-  uint8_t *flash = dc_.memory->TranslateVirtual(FLASH_BEGIN);
+  uint8_t *flash = dc_.sh4()->space().Translate(FLASH_BEGIN);
   int n = static_cast<int>(fread(flash, sizeof(uint8_t), size, fp));
   fclose(fp);
 
@@ -199,7 +154,7 @@ bool Emulator::LaunchBIN(const char *path) {
   fseek(fp, 0, SEEK_SET);
 
   // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to
-  uint8_t *data = dc_.memory->TranslateVirtual(0x0c010000);
+  uint8_t *data = dc_.sh4()->space().Translate(0x0c010000);
   int n = static_cast<int>(fread(data, sizeof(uint8_t), size, fp));
   fclose(fp);
 
@@ -208,8 +163,8 @@ bool Emulator::LaunchBIN(const char *path) {
     return false;
   }
 
-  dc_.gdrom->SetDisc(nullptr);
-  dc_.sh4->SetPC(0x0c010000);
+  dc_.gdrom()->SetDisc(nullptr);
+  dc_.sh4()->SetPC(0x0c010000);
 
   return true;
 }
@@ -221,8 +176,8 @@ bool Emulator::LaunchGDI(const char *path) {
     return false;
   }
 
-  dc_.gdrom->SetDisc(std::move(gdi));
-  dc_.sh4->SetPC(0xa0000000);
+  dc_.gdrom()->SetDisc(std::move(gdi));
+  dc_.sh4()->SetPC(0xa0000000);
 
   return true;
 }

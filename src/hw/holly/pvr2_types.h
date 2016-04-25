@@ -1,7 +1,7 @@
 #ifndef PVR2_TYPES_H
 #define PVR2_TYPES_H
 
-#include "hw/regions.h"
+#include <stdint.h>
 
 namespace re {
 namespace hw {
@@ -191,10 +191,10 @@ union TA_ISP_BASE_T {
 
 enum {
 #define PVR_REG(addr, name, flags, default_value, type) \
-  name##_OFFSET = (addr - PVR_REG_BEGIN) >> 2,
+  name##_OFFSET = (addr - 0x005f8000) >> 2,
 #include "hw/holly/pvr2_regs.inc"
 #undef PVR_REG
-  NUM_PVR_REGS = PVR_REG_SIZE >> 2,
+  NUM_PVR_REGS = 0x00001000 >> 2,
 };
 }
 }
