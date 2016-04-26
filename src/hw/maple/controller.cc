@@ -3,7 +3,7 @@
 #include <gflags/gflags.h>
 #include <json11.hpp>
 #include "core/log.h"
-#include "hw/maple/maple_controller.h"
+#include "hw/maple/controller.h"
 
 using namespace json11;
 using namespace re::hw::maple;
@@ -20,9 +20,9 @@ static Json default_profile =
                  {"dpad_up", "w"},   {"dpad_down", "s"}, {"dpad_left", "a"},
                  {"dpad_right", "d"}};
 
-MapleControllerProfile::MapleControllerProfile() : button_map_() {}
+ControllerProfile::ControllerProfile() : button_map_() {}
 
-void MapleControllerProfile::Load(const char *path) {
+void ControllerProfile::Load(const char *path) {
   Json profile = default_profile;
 
   // load up the specified controller profile if set
@@ -64,7 +64,7 @@ void MapleControllerProfile::Load(const char *path) {
   MapKey(profile["dpad_right"].string_value().c_str(), CONT_DPAD_RIGHT);
 }
 
-void MapleControllerProfile::MapKey(const char *name, int button) {
+void ControllerProfile::MapKey(const char *name, int button) {
   Keycode code = GetKeycodeByName(name);
   button_map_[code] = button;
 }
@@ -81,7 +81,7 @@ static MapleDevinfo controller_devinfo = {
     0x01ae,
     0x01f4};
 
-MapleController::MapleController() {
+Controller::Controller() {
   state_.function = FN_CONTROLLER;
   // buttons bitfield contains 0s for pressed buttons and 1s for unpressed
   state_.buttons = 0xffff;
@@ -94,7 +94,7 @@ MapleController::MapleController() {
   profile_.Load(FLAGS_profile.c_str());
 }
 
-bool MapleController::HandleInput(Keycode key, int16_t value) {
+bool Controller::HandleInput(Keycode key, int16_t value) {
   // map incoming key to dreamcast button
   int button = profile_.LookupButton(key);
 
@@ -125,7 +125,7 @@ bool MapleController::HandleInput(Keycode key, int16_t value) {
   return true;
 }
 
-bool MapleController::HandleFrame(const MapleFrame &frame, MapleFrame &res) {
+bool Controller::HandleFrame(const MapleFrame &frame, MapleFrame &res) {
   switch (frame.header.command) {
     case CMD_REQDEVINFO:
       res.header.command = CMD_RESDEVINFO;

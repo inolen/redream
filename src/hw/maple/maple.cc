@@ -1,6 +1,6 @@
 #include "hw/holly/holly.h"
 #include "hw/maple/maple.h"
-#include "hw/maple/maple_controller.h"
+#include "hw/maple/controller.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
@@ -20,7 +20,7 @@ Maple::Maple(Dreamcast &dc)
       holly_(nullptr),
       devices_() {
   // default controller device
-  devices_[0] = std::unique_ptr<MapleController>(new MapleController());
+  devices_[0] = std::unique_ptr<Controller>(new Controller());
 }
 
 bool Maple::Init() {

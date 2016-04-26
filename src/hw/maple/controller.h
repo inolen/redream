@@ -1,5 +1,5 @@
-#ifndef MAPLE_CONTROLLER_H
-#define MAPLE_CONTROLLER_H
+#ifndef CONTROLLER_H
+#define CONTROLLER_H
 
 #include "hw/maple/maple.h"
 
@@ -31,7 +31,7 @@ enum {
   CONT_RTRIG = 0x80000
 };
 
-struct MapleControllerState {
+struct ControllerState {
   uint32_t function;
   uint16_t buttons;
   uint8_t rtrig;
@@ -42,9 +42,9 @@ struct MapleControllerState {
   uint8_t joyy2;
 };
 
-class MapleControllerProfile {
+class ControllerProfile {
  public:
-  MapleControllerProfile();
+  ControllerProfile();
 
   void Load(const char *path);
 
@@ -56,16 +56,16 @@ class MapleControllerProfile {
   int button_map_[ui::K_NUM_KEYS];
 };
 
-class MapleController : public MapleDevice {
+class Controller : public MapleDevice {
  public:
-  MapleController();
+  Controller();
 
   bool HandleInput(ui::Keycode key, int16_t value);
   bool HandleFrame(const MapleFrame &frame, MapleFrame &res);
 
  private:
-  MapleControllerState state_;
-  MapleControllerProfile profile_;
+  ControllerState state_;
+  ControllerProfile profile_;
 };
 }
 }
