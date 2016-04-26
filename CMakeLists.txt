@@ -240,6 +240,15 @@ target_link_libraries(redream ${REDREAM_LIBS})
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_COMPILE_FLAGS})
 
+if(APPLE)
+  add_executable(bundle MACOSX_BUNDLE ${REDREAM_SOURCES})
+  set_target_properties(bundle PROPERTIES OUTPUT_NAME redream)
+  target_include_directories(bundle SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+  target_include_directories(bundle PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_link_libraries(bundle ${REDREAM_LIBS})
+  target_compile_definitions(bundle PRIVATE ${REDREAM_DEFS})
+  target_compile_options(bundle PRIVATE ${REDREAM_COMPILE_FLAGS})
+endif()
 
 #--------------------------------------------------
 # tools
