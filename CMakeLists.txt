@@ -157,8 +157,8 @@ set(REDREAM_SOURCES
   src/hw/holly/tile_accelerator.cc
   src/hw/holly/tile_renderer.cc
   src/hw/holly/trace.cc
+  src/hw/maple/controller.cc
   src/hw/maple/maple.cc
-  src/hw/maple/maple_controller.cc
   src/hw/sh4/sh4.cc
   src/hw/sh4/sh4_code_cache.cc
   src/hw/debugger.cc
