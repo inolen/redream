@@ -51,7 +51,7 @@ AM_BEGIN(SH4, data_map)
   AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", Holly, reg_map)
   AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", PVR2, reg_map)
   AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", AICA, reg_map)
-  AM_RANGE(0x00800000, 0x009fffff) AM_DEVICE("aica", AICA, data_map)
+  AM_RANGE(0x00800000, 0x00ffffff) AM_DEVICE("aica", AICA, data_map)
   AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", PVR2, vram_map)
   AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", TileAccelerator, fifo_map)
 

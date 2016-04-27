@@ -10,11 +10,10 @@ namespace re {
 namespace hw {
 
 class AddressMap;
+class Device;
 class Machine;
 class Memory;
 
-typedef int MapEntryHandle;
-typedef uint8_t RegionHandle;
 typedef uintptr_t PageEntry;
 
 typedef delegate<uint8_t(uint32_t)> R8Delegate;
@@ -45,7 +44,7 @@ static const uintptr_t REGION_OFFSET_MASK =
     ~(REGION_TYPE_MASK | REGION_INDEX_MASK);
 
 struct MemoryRegion {
-  RegionHandle handle;
+  int handle;
   uint32_t shmem_offset;
   uint32_t size;
   bool dynamic;
@@ -69,16 +68,16 @@ class Memory {
 
   bool Init();
 
-  RegionHandle CreateRegion(uint32_t size);
-  RegionHandle CreateRegion(uint32_t size, R8Delegate r8, R16Delegate r16,
-                            R32Delegate r32, R64Delegate r64, W8Delegate w8,
-                            W16Delegate w16, W32Delegate w32, W64Delegate w64);
+  MemoryRegion *CreateRegion(uint32_t size);
+  MemoryRegion *CreateRegion(uint32_t size, R8Delegate r8, R16Delegate r16,
+                             R32Delegate r32, R64Delegate r64, W8Delegate w8,
+                             W16Delegate w16, W32Delegate w32, W64Delegate w64);
 
  private:
   bool CreateSharedMemory();
   void DestroySharedMemory();
 
-  MemoryRegion &AllocRegion(uint32_t size);
+  MemoryRegion *AllocRegion(uint32_t size);
 
   Machine &machine_;
   sys::SharedMemoryHandle shmem_;
@@ -92,51 +91,51 @@ class Memory {
 
 // macros to help generate static AddressMap creators
 #define AM_DECLARE(name)                                                            \
-  static void name(void *, Machine &, AddressMap &, uint32_t);
+  static void name(void *, Machine &, AddressMap &);
 
 #define AM_BEGIN(type, name)                                                        \
-  void type::name(void *that, Machine &machine, AddressMap &map, uint32_t offset) { \
+  void type::name(void *that, Machine &machine, AddressMap &map) {                  \
     type *self = static_cast<type *>(that);                                         \
-    Memory *memory = machine.memory();                                              \
-    uint32_t begin_addr = 0;                                                        \
-    uint32_t end_addr = 0;                                                          \
+    uint32_t begin = 0;                                                             \
     uint32_t size = 0;                                                              \
-    RegionHandle region = 0;                                                        \
-    Device *device = nullptr;                                                       \
+    uint32_t mask = 0xffffffff;                                                     \
     (void)self;                                                                     \
-    (void)memory;                                                                   \
-    (void)begin_addr;                                                               \
-    (void)end_addr;                                                                 \
+    (void)machine;                                                                  \
+    (void)begin;                                                                    \
     (void)size;                                                                     \
-    (void)region;                                                                   \
-    (void)device;
-#define AM_RANGE(begin, end)                                                        \
-    begin_addr = offset + begin;                                                    \
-    end_addr = offset + end;                                                        \
-    size = end_addr - begin_addr + 1;
+    (void)mask;
+#define AM_RANGE(begin_, end_)                                                      \
+    begin = begin_;                                                                 \
+    size = end_ - begin_ + 1   ;                                                    \
+    mask = 0xffffffff;
+#define AM_MASK(mask_)                                                              \
+    mask = mask_;
 #define AM_MOUNT()                                                                  \
-    region = memory->CreateRegion(size);                                            \
-    map.Mount(region, size, begin_addr);                                            \
-    region = 0;
-#define AM_HANDLE(r8_, r16_, r32_, r64_, w8_, w16_, w32_, w64_)                     \
-    region = memory->CreateRegion(size,                                             \
-                                 delegate<uint8_t(uint32_t)>(self, r8_),            \
-                                 delegate<uint16_t(uint32_t)>(self, r16_),          \
-                                 delegate<uint32_t(uint32_t)>(self, r32_),          \
-                                 delegate<uint64_t(uint32_t)>(self, r64_),          \
-                                 delegate<void(uint32_t, uint8_t)>(self, w8_) ,     \
-                                 delegate<void(uint32_t, uint16_t)>(self, w16_),    \
-                                 delegate<void(uint32_t, uint32_t)>(self, w32_),    \
-                                 delegate<void(uint32_t, uint64_t)>(self, w64_));   \
-    map.Mount(region, size, begin_addr);                                            \
-    region = 0;
+    {                                                                               \
+      static MemoryRegion *region = machine.memory()->CreateRegion(size);           \
+      map.MountRegion(region, size, begin, mask);                                   \
+    }
+#define AM_HANDLE(r8, r16, r32, r64, w8, w16, w32, w64)                             \
+    {                                                                               \
+      static MemoryRegion *region = machine.memory()->CreateRegion(size,            \
+        re::delegate<uint8_t(uint32_t)>(self, r8),                                  \
+        re::delegate<uint16_t(uint32_t)>(self, r16),                                \
+        re::delegate<uint32_t(uint32_t)>(self, r32),                                \
+        re::delegate<uint64_t(uint32_t)>(self, r64),                                \
+        re::delegate<void(uint32_t, uint8_t)>(self, w8) ,                           \
+        re::delegate<void(uint32_t, uint16_t)>(self, w16),                          \
+        re::delegate<void(uint32_t, uint32_t)>(self, w32),                          \
+        re::delegate<void(uint32_t, uint64_t)>(self, w64));                         \
+      map.MountRegion(region, size, begin, mask);                                   \
+    }
 #define AM_DEVICE(name, type, cb)                                                   \
-    device = machine.LookupDevice(name);                                            \
-    CHECK_NOTNULL(device);                                                          \
-    type::cb(device, machine, map, begin_addr);                                     \
-    device = nullptr;
+    {                                                                               \
+      static Device *device = machine.LookupDevice(name);                           \
+      CHECK_NOTNULL(device);                                                        \
+      map.MountDevice(device, &type::cb, size, begin, mask);                        \
+    }
 #define AM_MIRROR(addr)                                                             \
-    map.Mirror(addr, size, begin_addr);
+    map.Mirror(addr, size, begin);
 #define AM_END()                                                                    \
   }
 
@@ -144,28 +143,34 @@ class Memory {
 
 enum MapEntryType {
   MAP_ENTRY_MOUNT,
+  MAP_ENTRY_DEVICE,
   MAP_ENTRY_MIRROR,
 };
+
+typedef void (*AddressMapper)(void *, Machine &, AddressMap &);
 
 struct MapEntry {
   MapEntryType type;
 
+  uint32_t size;
+  uint32_t addr;
+  uint32_t addr_mask;
+
   union {
     struct {
-      RegionHandle handle;
-      uint32_t size;
-      uint32_t virtual_addr;
+      MemoryRegion *region;
     } mount;
 
     struct {
+      Device *device;
+      AddressMapper mapper;
+    } device;
+
+    struct {
       uint32_t physical_addr;
-      uint32_t size;
-      uint32_t virtual_addr;
     } mirror;
   };
 };
-
-typedef void (*AddressMapper)(void *, Machine &, AddressMap &, uint32_t);
 
 class AddressMap {
  public:
@@ -174,8 +179,11 @@ class AddressMap {
   const MapEntry *entry(int i) const { return &entries_[i]; }
   int num_entries() const { return num_entries_; }
 
-  void Mount(RegionHandle handle, uint32_t size, uint32_t virtual_addr);
-  void Mirror(uint32_t physical_addr, uint32_t size, uint32_t virtual_addr);
+  void MountRegion(MemoryRegion *region, uint32_t size, uint32_t addr,
+                   uint32_t addr_mask);
+  void MountDevice(Device *device, AddressMapper mapper, uint32_t size,
+                   uint32_t addr, uint32_t addr_mask);
+  void Mirror(uint32_t physical_addr, uint32_t size, uint32_t addr);
 
  private:
   MapEntry &AllocEntry();
@@ -195,7 +203,7 @@ class AddressSpace {
   static void W32(void *space, uint32_t addr, uint32_t value);
   static void W64(void *space, uint32_t addr, uint64_t value);
 
-  AddressSpace(Memory &memory);
+  AddressSpace(Machine &machine);
   ~AddressSpace();
 
   uint8_t *base() { return base_; }
@@ -223,7 +231,7 @@ class AddressSpace {
               uint32_t *offset);
 
  private:
-  void CreatePageTable(const AddressMap &map);
+  void MergeToPageTable(const AddressMap &map, uint32_t offset);
   uint32_t GetPageOffset(const PageEntry &page) const;
   int GetNumAdjacentPages(int page_index) const;
   bool MapPageTable(uint8_t *base);
@@ -234,6 +242,7 @@ class AddressSpace {
   template <typename INT, delegate<void(uint32_t, INT)> MemoryRegion::*DELEGATE>
   void WriteBytes(uint32_t addr, INT value);
 
+  Machine &machine_;
   Memory &memory_;
   PageEntry pages_[NUM_PAGES];
   uint8_t *base_;

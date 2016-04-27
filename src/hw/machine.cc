@@ -21,7 +21,7 @@ void ExecuteInterface::Suspend() { suspended_ = true; }
 void ExecuteInterface::Resume() { suspended_ = false; }
 
 MemoryInterface::MemoryInterface(Device *device, AddressMapper mapper)
-    : mapper_(mapper), space_(*device->machine_.memory()) {
+    : mapper_(mapper), space_(device->machine_) {
   device->memory_ = this;
 }
 
