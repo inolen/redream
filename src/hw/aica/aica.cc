@@ -21,7 +21,7 @@ uint32_t AICA::ReadWave(uint32_t addr);
 }
 
 // clang-format off
-AM_BEGIN(AICA, reg_map)
+AM_BEGIN(AICA, reg_map);
   AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE(&AICA::ReadRegister<uint8_t>,
                                              &AICA::ReadRegister<uint16_t>,
                                              &AICA::ReadRegister<uint32_t>,
@@ -30,10 +30,10 @@ AM_BEGIN(AICA, reg_map)
                                              &AICA::WriteRegister<uint16_t>,
                                              &AICA::WriteRegister<uint32_t>,
                                              nullptr)
-AM_END()
+AM_END();
 
-AM_BEGIN(AICA, data_map)
-  AM_RANGE(0x00000000, 0x001fffff) AM_HANDLE(&AICA::ReadWave<uint8_t>,
+AM_BEGIN(AICA, data_map);
+  AM_RANGE(0x00000000, 0x00ffffff) AM_HANDLE(&AICA::ReadWave<uint8_t>,
                                              &AICA::ReadWave<uint16_t>,
                                              &AICA::ReadWave<uint32_t>,
                                              nullptr,
@@ -41,10 +41,10 @@ AM_BEGIN(AICA, data_map)
                                              &AICA::WriteWave<uint16_t>,
                                              &AICA::WriteWave<uint32_t>,
                                              nullptr)
-AM_END()
-    // clang-format on
+AM_END();
+// clang-format on
 
-    AICA::AICA(Dreamcast &dc)
+AICA::AICA(Dreamcast &dc)
     : Device(dc, "aica"),
       ExecuteInterface(this),
       dc_(dc),
