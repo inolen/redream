@@ -10,7 +10,9 @@ namespace passes {
 
 class ConstantPropagationPass : public Pass {
  public:
-  const char *name() { return "constprop"; }
+  static const char *NAME = "constprop";
+
+  const char *name() { return NAME; }
 
   void Run(IRBuilder &builder);
 };

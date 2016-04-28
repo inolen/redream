@@ -41,8 +41,8 @@ SH4CodeCache::SH4CodeCache(const MemoryInterface &memif,
   // pass_runner_.AddPass(std::unique_ptr<Pass>(new
   // ConversionEliminationPass()));
   pass_runner_.AddPass(std::unique_ptr<Pass>(new DeadCodeEliminationPass()));
-  pass_runner_.AddPass(
-      std::unique_ptr<Pass>(new RegisterAllocationPass(*backend_)));
+  pass_runner_.AddPass(std::unique_ptr<Pass>(new RegisterAllocationPass(
+      backend_->registers(), backend_->num_registers())));
 
   // initialize all entries in block cache to reference the default block
   for (int i = 0; i < MAX_BLOCKS; i++) {

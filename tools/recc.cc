@@ -10,14 +10,17 @@
 #include "jit/ir/passes/conversion_elimination_pass.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
+#include "jit/ir/passes/register_allocation_pass.h"
 #include "sys/filesystem.h"
 
 using namespace re;
+using namespace re::jit::backend;
+using namespace re::jit::backend::x64;
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 using namespace re::sys;
 
-DEFINE_string(pass, "lse,cve,dce", "Comma-separated list of passes to run");
+DEFINE_string(pass, "lse,cve,dce,ra", "Comma-separated list of passes to run");
 DEFINE_bool(print_after_all, true, "Print IR after each pass");
 DEFINE_bool(stats, true, "Display pass stats");
 
@@ -61,12 +64,15 @@ static void process_file(const char *filename, bool disable_ir_dump) {
   for (auto name : passes) {
     std::unique_ptr<Pass> pass;
 
-    if (name == "lse") {
+    if (name == LoadStoreEliminationPass::NAME) {
       pass = std::unique_ptr<Pass>(new LoadStoreEliminationPass());
-    } else if (name == "cve") {
+    } else if (name == ConversionEliminationPass::NAME) {
       pass = std::unique_ptr<Pass>(new ConversionEliminationPass());
-    } else if (name == "dce") {
+    } else if (name == DeadCodeEliminationPass::NAME) {
       pass = std::unique_ptr<Pass>(new DeadCodeEliminationPass());
+    } else if (name == RegisterAllocationPass::NAME) {
+      pass = std::unique_ptr<Pass>(
+          new RegisterAllocationPass(x64_registers, x64_num_registers));
     } else {
       LOG_WARNING("Unknown pass %s", name.c_str());
     }

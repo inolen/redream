@@ -11,7 +11,9 @@ namespace passes {
 
 class DeadCodeEliminationPass : public Pass {
  public:
-  const char *name() { return "dce"; }
+  static constexpr const char *NAME = "dce";
+
+  const char *name() { return NAME; }
 
   void Run(IRBuilder &builder);
 };

@@ -15,9 +15,11 @@ struct AvailableEntry {
 
 class LoadStoreEliminationPass : public Pass {
  public:
+  static constexpr const char *NAME = "lse";
+
   LoadStoreEliminationPass();
 
-  const char *name() { return "lse"; }
+  const char *name() { return NAME; }
 
   void Run(IRBuilder &builder);
 

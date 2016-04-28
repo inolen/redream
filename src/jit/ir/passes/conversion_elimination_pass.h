@@ -11,7 +11,9 @@ namespace passes {
 
 class ConversionEliminationPass : public Pass {
  public:
-  const char *name() { return "cve"; }
+  static constexpr const char *NAME = "cve";
+
+  const char *name() { return NAME; }
 
   void Run(IRBuilder &builder);
 };
