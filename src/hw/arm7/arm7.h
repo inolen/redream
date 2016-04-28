@@ -18,7 +18,7 @@ class ARM7 : public Device, public ExecuteInterface, public MemoryInterface {
 
   bool Init() final;
 
-private:
+ private:
   void Run(const std::chrono::nanoseconds &delta) final;
 
   Dreamcast &dc_;

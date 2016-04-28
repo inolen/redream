@@ -28,5 +28,4 @@ bool ARM7::Init() {
   return true;
 }
 
-void ARM7::Run(const std::chrono::nanoseconds &delta) {
-}
+void ARM7::Run(const std::chrono::nanoseconds &delta) {}

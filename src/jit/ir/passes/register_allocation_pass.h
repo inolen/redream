@@ -46,7 +46,9 @@ class RegisterSet {
 
 class RegisterAllocationPass : public Pass {
  public:
-  RegisterAllocationPass(const backend::Backend &backend);
+  static constexpr const char *NAME = "ra";
+
+  RegisterAllocationPass(const backend::Register *registers, int num_registers);
   ~RegisterAllocationPass();
 
   const char *name() { return "ra"; }

@@ -5,6 +5,8 @@ using namespace re::jit::backend;
 using namespace re::jit::ir;
 using namespace re::jit::ir::passes;
 
+DEFINE_STAT(num_spills, "Number of registers spilled");
+
 static inline int GetOrdinal(const Instr *i) { return (int)i->tag(); }
 
 static inline void SetOrdinal(Instr *i, int ordinal) {
@@ -79,12 +81,13 @@ void RegisterSet::InsertInterval(Interval *interval) {
   re::mmheap_push(live_, live_ + num_live_, LiveIntervalSort());
 }
 
-RegisterAllocationPass::RegisterAllocationPass(const Backend &backend)
-    : int_registers_(backend.num_registers()),
-      float_registers_(backend.num_registers()),
-      vector_registers_(backend.num_registers()) {
-  registers_ = backend.registers();
-  num_registers_ = backend.num_registers();
+RegisterAllocationPass::RegisterAllocationPass(
+    const backend::Register *registers, int num_registers)
+    : int_registers_(num_registers),
+      float_registers_(num_registers),
+      vector_registers_(num_registers) {
+  registers_ = registers;
+  num_registers_ = num_registers;
 
   intervals_ = new Interval[num_registers_];
 }
@@ -361,6 +364,8 @@ int RegisterAllocationPass::AllocBlockedRegister(IRBuilder &builder,
 
   // reset insert point
   builder.SetInsertPoint(insert_point);
+
+  num_spills++;
 
   return interval->reg;
 }
