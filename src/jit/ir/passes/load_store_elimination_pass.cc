@@ -86,7 +86,9 @@ void LoadStoreEliminationPass::Run(IRBuilder &builder) {
   }
 }
 
-void LoadStoreEliminationPass::Reset() { ClearAvailable(); }
+void LoadStoreEliminationPass::Reset() {
+  ClearAvailable();
+}
 
 void LoadStoreEliminationPass::Reserve(int offset) {
   int reserve = offset + 1;

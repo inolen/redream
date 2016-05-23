@@ -1,39 +1,19 @@
 #ifndef EMULATOR_H
 #define EMULATOR_H
 
-#include "hw/dreamcast.h"
-#include "ui/window_listener.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-namespace re {
+struct emu_s;
+struct window_s;
 
-namespace ui {
-class Window;
+struct emu_s *emu_create(struct window_s *window);
+void emu_destroy(struct emu_s *emu);
+void emu_run(struct emu_s *emu, const char *path);
+
+#ifdef __cplusplus
 }
-
-namespace emu {
-
-class Emulator : public ui::WindowListener {
- public:
-  Emulator(ui::Window &window);
-  ~Emulator();
-
-  void Run(const char *path);
-
- private:
-  bool LoadBios(const char *path);
-  bool LoadFlash(const char *path);
-  bool LaunchBIN(const char *path);
-  bool LaunchGDI(const char *path);
-
-  void OnPaint(bool show_main_menu) final;
-  void OnKeyDown(ui::Keycode code, int16_t value) final;
-  void OnClose() final;
-
-  ui::Window &window_;
-  hw::Dreamcast dc_;
-  bool running_;
-};
-}
-}
+#endif
 
 #endif

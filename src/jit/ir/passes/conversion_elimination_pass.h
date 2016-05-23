@@ -13,7 +13,9 @@ class ConversionEliminationPass : public Pass {
  public:
   static constexpr const char *NAME = "cve";
 
-  const char *name() { return NAME; }
+  const char *name() {
+    return NAME;
+  }
 
   void Run(IRBuilder &builder);
 };

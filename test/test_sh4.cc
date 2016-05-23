@@ -1,7 +1,6 @@
 #include <limits.h>
 #include <memory>
 #include <unordered_map>
-#include <gflags/gflags.h>
 #include <gtest/gtest.h>
 #include "core/math.h"
 #include "core/memory.h"
@@ -9,20 +8,9 @@
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
+#include "sys/exception_handler.h"
 
-using namespace re;
-using namespace re::hw;
-using namespace re::hw::sh4;
-using namespace re::jit;
-using namespace re::jit::frontend::sh4;
-
-namespace re {
-namespace hw {
-namespace sh4 {
-void RunSH4Test(const SH4Test &test);
-}
-}
-}
+static void run_sh4_test(const SH4Test &test);
 
 enum {
   UNINITIALIZED_REG = 0xbaadf00d,
@@ -33,8 +21,8 @@ struct SH4Test {
   const uint8_t *buffer;
   int buffer_size;
   int buffer_offset;
-  SH4Context in;
-  SH4Context out;
+  sh4_context_t in;
+  sh4_context_t out;
 };
 
 struct SH4TestRegister {
@@ -45,55 +33,55 @@ struct SH4TestRegister {
 
 // as per the notes in sh4_context.h, the fr / xf register pairs are swapped
 static SH4TestRegister sh4_test_regs[] = {
-    {"fpscr", offsetof(SH4Context, fpscr), 4},
-    {"r0", offsetof(SH4Context, r[0]), 4},
-    {"r1", offsetof(SH4Context, r[1]), 4},
-    {"r2", offsetof(SH4Context, r[2]), 4},
-    {"r3", offsetof(SH4Context, r[3]), 4},
-    {"r4", offsetof(SH4Context, r[4]), 4},
-    {"r5", offsetof(SH4Context, r[5]), 4},
-    {"r6", offsetof(SH4Context, r[6]), 4},
-    {"r7", offsetof(SH4Context, r[7]), 4},
-    {"r8", offsetof(SH4Context, r[8]), 4},
-    {"r9", offsetof(SH4Context, r[9]), 4},
-    {"r10", offsetof(SH4Context, r[10]), 4},
-    {"r11", offsetof(SH4Context, r[11]), 4},
-    {"r12", offsetof(SH4Context, r[12]), 4},
-    {"r13", offsetof(SH4Context, r[13]), 4},
-    {"r14", offsetof(SH4Context, r[14]), 4},
-    {"r15", offsetof(SH4Context, r[15]), 4},
-    {"fr0", offsetof(SH4Context, fr[1]), 4},
-    {"fr1", offsetof(SH4Context, fr[0]), 4},
-    {"fr2", offsetof(SH4Context, fr[3]), 4},
-    {"fr3", offsetof(SH4Context, fr[2]), 4},
-    {"fr4", offsetof(SH4Context, fr[5]), 4},
-    {"fr5", offsetof(SH4Context, fr[4]), 4},
-    {"fr6", offsetof(SH4Context, fr[7]), 4},
-    {"fr7", offsetof(SH4Context, fr[6]), 4},
-    {"fr8", offsetof(SH4Context, fr[9]), 4},
-    {"fr9", offsetof(SH4Context, fr[8]), 4},
-    {"fr10", offsetof(SH4Context, fr[11]), 4},
-    {"fr11", offsetof(SH4Context, fr[10]), 4},
-    {"fr12", offsetof(SH4Context, fr[13]), 4},
-    {"fr13", offsetof(SH4Context, fr[12]), 4},
-    {"fr14", offsetof(SH4Context, fr[15]), 4},
-    {"fr15", offsetof(SH4Context, fr[14]), 4},
-    {"xf0", offsetof(SH4Context, xf[1]), 4},
-    {"xf1", offsetof(SH4Context, xf[0]), 4},
-    {"xf2", offsetof(SH4Context, xf[3]), 4},
-    {"xf3", offsetof(SH4Context, xf[2]), 4},
-    {"xf4", offsetof(SH4Context, xf[5]), 4},
-    {"xf5", offsetof(SH4Context, xf[4]), 4},
-    {"xf6", offsetof(SH4Context, xf[7]), 4},
-    {"xf7", offsetof(SH4Context, xf[6]), 4},
-    {"xf8", offsetof(SH4Context, xf[9]), 4},
-    {"xf9", offsetof(SH4Context, xf[8]), 4},
-    {"xf10", offsetof(SH4Context, xf[11]), 4},
-    {"xf11", offsetof(SH4Context, xf[10]), 4},
-    {"xf12", offsetof(SH4Context, xf[13]), 4},
-    {"xf13", offsetof(SH4Context, xf[12]), 4},
-    {"xf14", offsetof(SH4Context, xf[15]), 4},
-    {"xf15", offsetof(SH4Context, xf[14]), 4},
+    {"fpscr", offsetof(sh4_context_t, fpscr), 4},
+    {"r0", offsetof(sh4_context_t, r[0]), 4},
+    {"r1", offsetof(sh4_context_t, r[1]), 4},
+    {"r2", offsetof(sh4_context_t, r[2]), 4},
+    {"r3", offsetof(sh4_context_t, r[3]), 4},
+    {"r4", offsetof(sh4_context_t, r[4]), 4},
+    {"r5", offsetof(sh4_context_t, r[5]), 4},
+    {"r6", offsetof(sh4_context_t, r[6]), 4},
+    {"r7", offsetof(sh4_context_t, r[7]), 4},
+    {"r8", offsetof(sh4_context_t, r[8]), 4},
+    {"r9", offsetof(sh4_context_t, r[9]), 4},
+    {"r10", offsetof(sh4_context_t, r[10]), 4},
+    {"r11", offsetof(sh4_context_t, r[11]), 4},
+    {"r12", offsetof(sh4_context_t, r[12]), 4},
+    {"r13", offsetof(sh4_context_t, r[13]), 4},
+    {"r14", offsetof(sh4_context_t, r[14]), 4},
+    {"r15", offsetof(sh4_context_t, r[15]), 4},
+    {"fr0", offsetof(sh4_context_t, fr[1]), 4},
+    {"fr1", offsetof(sh4_context_t, fr[0]), 4},
+    {"fr2", offsetof(sh4_context_t, fr[3]), 4},
+    {"fr3", offsetof(sh4_context_t, fr[2]), 4},
+    {"fr4", offsetof(sh4_context_t, fr[5]), 4},
+    {"fr5", offsetof(sh4_context_t, fr[4]), 4},
+    {"fr6", offsetof(sh4_context_t, fr[7]), 4},
+    {"fr7", offsetof(sh4_context_t, fr[6]), 4},
+    {"fr8", offsetof(sh4_context_t, fr[9]), 4},
+    {"fr9", offsetof(sh4_context_t, fr[8]), 4},
+    {"fr10", offsetof(sh4_context_t, fr[11]), 4},
+    {"fr11", offsetof(sh4_context_t, fr[10]), 4},
+    {"fr12", offsetof(sh4_context_t, fr[13]), 4},
+    {"fr13", offsetof(sh4_context_t, fr[12]), 4},
+    {"fr14", offsetof(sh4_context_t, fr[15]), 4},
+    {"fr15", offsetof(sh4_context_t, fr[14]), 4},
+    {"xf0", offsetof(sh4_context_t, xf[1]), 4},
+    {"xf1", offsetof(sh4_context_t, xf[0]), 4},
+    {"xf2", offsetof(sh4_context_t, xf[3]), 4},
+    {"xf3", offsetof(sh4_context_t, xf[2]), 4},
+    {"xf4", offsetof(sh4_context_t, xf[5]), 4},
+    {"xf5", offsetof(sh4_context_t, xf[4]), 4},
+    {"xf6", offsetof(sh4_context_t, xf[7]), 4},
+    {"xf7", offsetof(sh4_context_t, xf[6]), 4},
+    {"xf8", offsetof(sh4_context_t, xf[9]), 4},
+    {"xf9", offsetof(sh4_context_t, xf[8]), 4},
+    {"xf10", offsetof(sh4_context_t, xf[11]), 4},
+    {"xf11", offsetof(sh4_context_t, xf[10]), 4},
+    {"xf12", offsetof(sh4_context_t, xf[13]), 4},
+    {"xf13", offsetof(sh4_context_t, xf[12]), 4},
+    {"xf14", offsetof(sh4_context_t, xf[15]), 4},
+    {"xf15", offsetof(sh4_context_t, xf[14]), 4},
 };
 int sh4_num_test_regs =
     static_cast<int>(sizeof(sh4_test_regs) / sizeof(sh4_test_regs[0]));
@@ -104,7 +92,7 @@ int sh4_num_test_regs =
                      fr7, fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15, xf0,  \
                      xf1, xf2, xf3, xf4, xf5, xf6, xf7, xf8, xf9, xf10, xf11, \
                      xf12, xf13, xf14, xf15)                                  \
-  SH4Context {                                                                \
+  sh4_context_t {                                                                \
     nullptr, nullptr, nullptr, nullptr, nullptr,                              \
     0, 0,                                                                     \
     0, 0, 0, 0, fpscr,                                                        \
@@ -142,71 +130,67 @@ int sh4_num_test_regs =
                  xf0_out, xf1_out, xf2_out, xf3_out, xf4_out, xf5_out,  xf6_out,  xf7_out, xf8_out, xf9_out, xf10_out, xf11_out, xf12_out, xf13_out, xf14_out, xf15_out) \
   };                                                                                                                                                                     \
   TEST(sh4_x64, name) {                                                                                                                                                  \
-    RunSH4Test(test_##name);                                                                                                                                             \
+    exception_handler_install();                                                                                                                                         \
+    run_sh4_test(test_##name);                                                                                                                                           \
+    exception_handler_uninstall();                                                                                                                                       \
   }
 #include "test_sh4.inc"
 #undef TEST_SH4
 // clang-format on
 
-namespace re {
-namespace hw {
-namespace sh4 {
-
-void RunSH4Test(const SH4Test &test) {
-  std::unique_ptr<Dreamcast> dc(new Dreamcast(nullptr));
-  SH4 *sh4 = dc->sh4();
-
-  CHECK(dc->Init());
+void run_sh4_test(const SH4Test &test) {
+  dreamcast_t *dc = dc_create(nullptr);
+  CHECK_NOTNULL(dc);
 
   // setup in registers
   for (int i = 0; i < sh4_num_test_regs; i++) {
     SH4TestRegister &reg = sh4_test_regs[i];
 
-    uint32_t input = re::load<uint32_t>(
+    uint32_t input = load<uint32_t>(
         reinterpret_cast<const uint8_t *>(&test.in) + reg.offset);
 
     if (input == UNINITIALIZED_REG) {
       continue;
     }
 
-    re::store(reinterpret_cast<uint8_t *>(&sh4->ctx_) + reg.offset, input);
+    store(reinterpret_cast<uint8_t *>(&dc->sh4->ctx) + reg.offset, input);
   }
 
   // setup initial stack pointer
-  sh4->ctx_.r[15] = 0x8d000000;
+  dc->sh4->ctx.r[15] = 0x8d000000;
 
   // load binary. note, Memory::Memcpy only support 4 byte aligned sizes
-  int aligned_size = re::align_up(test.buffer_size, 4);
+  int aligned_size = align_up(test.buffer_size, 4);
   uint8_t *aligned_buffer = reinterpret_cast<uint8_t *>(alloca(aligned_size));
   memcpy(aligned_buffer, test.buffer, test.buffer_size);
-  sh4->space().Memcpy(0x8c010000, aligned_buffer, aligned_size);
+  address_space_memcpy_to_guest(dc->sh4->base.memory->space, 0x8c010000,
+                                aligned_buffer, aligned_size);
 
   // skip to the test's offset
-  sh4->SetPC(0x8c010000 + test.buffer_offset);
+  sh4_set_pc(dc->sh4, 0x8c010000 + test.buffer_offset);
 
   // run until the function returns
-  while (sh4->ctx_.pc) {
-    sh4->Run(std::chrono::nanoseconds(1));
+  while (dc->sh4->ctx.pc) {
+    sh4_run(dc->sh4, 1);
   }
 
   // validate out registers
   for (int i = 0; i < sh4_num_test_regs; i++) {
     SH4TestRegister &reg = sh4_test_regs[i];
 
-    uint32_t expected = re::load<uint32_t>(
+    uint32_t expected = load<uint32_t>(
         reinterpret_cast<const uint8_t *>(&test.out) + reg.offset);
 
     if (expected == UNINITIALIZED_REG) {
       continue;
     }
 
-    uint32_t actual = re::load<uint32_t>(
-        reinterpret_cast<const uint8_t *>(&sh4->ctx_) + reg.offset);
+    uint32_t actual = load<uint32_t>(
+        reinterpret_cast<const uint8_t *>(&dc->sh4->ctx) + reg.offset);
 
     ASSERT_EQ(expected, actual) << reg.name << " expected: 0x" << std::hex
                                 << expected << ", actual 0x" << actual;
   }
-}
-}
-}
+
+  dc_destroy(dc);
 }

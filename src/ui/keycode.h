@@ -1,10 +1,11 @@
 #ifndef KEYCODE_H
 #define KEYCODE_H
 
-namespace re {
-namespace ui {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-enum Keycode {
+typedef enum {
   K_UNKNOWN,
   K_RETURN,
   K_ESCAPE,
@@ -268,11 +269,13 @@ enum Keycode {
   K_AXIS15,
 
   K_NUM_KEYS
-};
+} keycode_t;
 
-Keycode GetKeycodeByName(const char *keyname);
-const char *GetNameByKeycode(Keycode keycode);
+keycode_t get_key_by_name(const char *keyname);
+const char *get_name_by_key(keycode_t keycode);
+
+#ifdef __cplusplus
 }
-}
+#endif
 
 #endif

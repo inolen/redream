@@ -3,15 +3,7 @@
 
 #include <stdint.h>
 
-namespace re {
-namespace hw {
-namespace sh4 {
-
-// registers
-static const uint32_t UNDEFINED = 0x0;
-static const uint32_t HELD = 0x1;
-
-union CCR_T {
+typedef union {
   uint32_t full;
   struct {
     uint32_t OCE : 1;
@@ -30,9 +22,9 @@ union CCR_T {
     uint32_t reserved4 : 15;
     uint32_t EMODE : 1;
   };
-};
+} ccr_t;
 
-union CHCR_T {
+typedef union {
   uint32_t full;
   struct {
     uint32_t DE : 1;
@@ -54,9 +46,9 @@ union CHCR_T {
     uint32_t STC : 1;
     uint32_t SSA : 3;
   };
-};
+} chcr_t;
 
-union DMAOR_T {
+typedef union {
   uint32_t full;
   struct {
     uint32_t DME : 1;
@@ -70,7 +62,7 @@ union DMAOR_T {
     uint32_t DDT : 1;
     uint32_t reserved2 : 16;
   };
-};
+} dmaor_t;
 
 // control register area (0xfe000000 - 0xffffffff) seems to actually only
 // represent 64 x 256 byte blocks of memory. the block index is represented
@@ -78,26 +70,22 @@ union DMAOR_T {
 #define SH4_REG_OFFSET(addr) (((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2))
 
 enum {
-#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
-  name##_OFFSET = SH4_REG_OFFSET(addr),
+#define SH4_REG(addr, name, default, type) name = SH4_REG_OFFSET(addr),
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
   NUM_SH4_REGS = SH4_REG_OFFSET(0xffffffff) + 1
 };
 
 // interrupts
-enum Interrupt {
+typedef enum {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) SH4_INTC_##name,
 #include "hw/sh4/sh4_int.inc"
 #undef SH4_INT
-  NUM_INTERRUPTS
-};
+  NUM_SH_INTERRUPTS
+} sh4_interrupt_t;
 
-struct InterruptInfo {
+typedef struct {
   int intevt, default_priority, ipr, ipr_shift;
-};
-}
-}
-}
+} sh4_interrupt_info_t;
 
 #endif

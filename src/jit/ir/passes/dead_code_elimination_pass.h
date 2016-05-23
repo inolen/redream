@@ -13,7 +13,9 @@ class DeadCodeEliminationPass : public Pass {
  public:
   static constexpr const char *NAME = "dce";
 
-  const char *name() { return NAME; }
+  const char *name() {
+    return NAME;
+  }
 
   void Run(IRBuilder &builder);
 };

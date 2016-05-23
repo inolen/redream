@@ -32,7 +32,9 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Emitter(const MemoryInterface &memif, void *buffer, size_t buffer_size);
   ~X64Emitter();
 
-  const MemoryInterface &memif() { return memif_; }
+  const MemoryInterface &memif() {
+    return memif_;
+  }
 
   void Reset();
 

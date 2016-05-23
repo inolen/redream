@@ -6,7 +6,9 @@
 #include <string.h>
 #include "core/config.h"
 
-namespace re {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifndef HAVE_STRCASECMP
 #define strcasecmp _stricmp
@@ -20,6 +22,9 @@ int strnrep(char *dst, size_t dst_size, const char *token, size_t token_len,
             const char *value, size_t value_len);
 
 int xtoi(char c);
+
+#ifdef __cplusplus
 }
+#endif
 
 #endif

@@ -7,7 +7,9 @@ using namespace re::jit::ir::passes;
 
 DEFINE_STAT(num_spills, "Number of registers spilled");
 
-static inline int GetOrdinal(const Instr *i) { return (int)i->tag(); }
+static inline int GetOrdinal(const Instr *i) {
+  return (int)i->tag();
+}
 
 static inline void SetOrdinal(Instr *i, int ordinal) {
   i->set_tag((intptr_t)ordinal);
@@ -46,7 +48,9 @@ int RegisterSet::PopRegister() {
   return free_[--num_free_];
 }
 
-void RegisterSet::PushRegister(int reg) { free_[num_free_++] = reg; }
+void RegisterSet::PushRegister(int reg) {
+  free_[num_free_++] = reg;
+}
 
 Interval *RegisterSet::HeadInterval() {
   if (!num_live_) {
@@ -92,7 +96,9 @@ RegisterAllocationPass::RegisterAllocationPass(
   intervals_ = new Interval[num_registers_];
 }
 
-RegisterAllocationPass::~RegisterAllocationPass() { delete[] intervals_; }
+RegisterAllocationPass::~RegisterAllocationPass() {
+  delete[] intervals_;
+}
 
 void RegisterAllocationPass::Run(IRBuilder &builder) {
   Reset();

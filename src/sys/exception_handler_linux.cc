@@ -6,7 +6,7 @@ using namespace re::sys;
 static struct sigaction old_sigsegv;
 static struct sigaction old_sigill;
 
-static void CopyStateTo(mcontext_t *src, ThreadState *dst) {
+static void CopyStateTo(mcontext_t *src, re_thread_state_t *dst) {
   dst->rax = src->gregs[REG_RAX];
   dst->rcx = src->gregs[REG_RCX];
   dst->rdx = src->gregs[REG_RDX];
@@ -26,7 +26,7 @@ static void CopyStateTo(mcontext_t *src, ThreadState *dst) {
   dst->rip = src->gregs[REG_RIP];
 }
 
-static void CopyStateFrom(ThreadState *src, mcontext_t *dst) {
+static void CopyStateFrom(re_thread_state_t *src, mcontext_t *dst) {
   dst->gregs[REG_RAX] = src->rax;
   dst->gregs[REG_RCX] = src->rcx;
   dst->gregs[REG_RDX] = src->rdx;
@@ -50,14 +50,14 @@ static void SignalHandler(int signo, siginfo_t *info, void *ctx) {
   ucontext_t *uctx = reinterpret_cast<ucontext_t *>(ctx);
 
   // convert signal to internal exception
-  Exception ex;
+  re_exception_t ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
   ex.fault_addr = reinterpret_cast<uintptr_t>(info->si_addr);
   ex.pc = uctx->uc_mcontext.gregs[REG_RIP];
   CopyStateTo(&uctx->uc_mcontext, &ex.thread_state);
 
   // call exception handler, letting it potentially update the thread state
-  bool handled = ExceptionHandler::instance().HandleException(ex);
+  bool handled = exception_handler_handle(&ex);
 
   if (!handled) {
     // call into the original handler if the installed handler fails to handle

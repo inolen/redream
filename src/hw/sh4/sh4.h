@@ -1,30 +1,23 @@
 #ifndef SH4_H
 #define SH4_H
 
-#include <chrono>
-#include "hw/sh4/sh4_code_cache.h"
 #include "hw/sh4/sh4_types.h"
-#include "hw/machine.h"
+#include "hw/dreamcast.h"
 #include "hw/memory.h"
-#include "hw/register.h"
 #include "hw/scheduler.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct SH4Test;
 
-namespace re {
-namespace hw {
-
-class Dreamcast;
-
-namespace sh4 {
+struct dreamcast_s;
 
 static const int MAX_MIPS_SAMPLES = 10;
 
-// data transfer request
-struct DTR {
-  DTR() : channel(0), rw(false), data(nullptr), addr(0), size(0) {}
-
+typedef struct {
   int channel;
   // when rw is true, addr is the dst address
   // when rw is false, addr is the src address
@@ -38,145 +31,60 @@ struct DTR {
   // size is only valid for single address mode transfers, dual address mode
   // transfers honor DMATCR
   int size;
-};
+} sh4_dtr_t;
 
-class SH4 : public Device,
-            public DebugInterface,
-            public ExecuteInterface,
-            public MemoryInterface,
-            public WindowInterface {
-  friend void RunSH4Test(const SH4Test &);
+typedef struct {
+  bool show;
+  // std::chrono::high_resolution_clock::time_point last_mips_time;
+  float mips[MAX_MIPS_SAMPLES];
+  int num_mips;
+} sh4_perf_t;
 
- public:
-  AM_DECLARE(data_map);
+typedef struct sh4_s {
+  device_t base;
 
-  SH4(Dreamcast &dc);
-  ~SH4();
+  struct scheduler_s *scheduler;
+  address_space_t *space;
 
-  bool Init() final;
-  void SetPC(uint32_t pc);
+  struct sh4_cache_s *code_cache;
 
-  // ExecuteInterface
-  void Run(const std::chrono::nanoseconds &delta) final;
+  sh4_context_t ctx;
+  uint8_t cache[0x2000];  // 8kb cache
+  // std::map<uint32_t, uint16_t> breakpoints;
 
-  // DMAC
-  void DDT(const DTR &dtr);
+  uint32_t reg[NUM_SH4_REGS];
+  void *reg_data[NUM_SH4_REGS];
+  reg_read_cb reg_read[NUM_SH4_REGS];
+  reg_write_cb reg_write[NUM_SH4_REGS];
 
-  // INTC
-  void RequestInterrupt(Interrupt intr);
-  void UnrequestInterrupt(Interrupt intr);
-
-#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
-  type &name = reinterpret_cast<type &>(regs_[name##_OFFSET].value);
+#define SH4_REG(addr, name, default, type) type *name;
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
 
- private:
-  // DebugInterface
-  int NumRegisters() final;
-  void Step() final;
-  void AddBreakpoint(int type, uint32_t addr) final;
-  void RemoveBreakpoint(int type, uint32_t addr) final;
-  void ReadMemory(uint32_t addr, uint8_t *buffer, int size) final;
-  void ReadRegister(int n, uint64_t *value, int *size) final;
+  sh4_interrupt_t sorted_interrupts[NUM_SH_INTERRUPTS];
+  uint64_t sort_id[NUM_SH_INTERRUPTS];
+  uint64_t priority_mask[16];
+  uint64_t requested_interrupts;
+  uint64_t pending_interrupts;
 
-  // WindowInterface
-  void OnPaint(bool show_main_menu) final;
+  struct timer_s *tmu_timers[3];
 
-  static uint32_t CompilePC();
-  static void InvalidInstruction(jit::frontend::sh4::SH4Context *ctx,
-                                 uint64_t addr);
-  static void Prefetch(jit::frontend::sh4::SH4Context *ctx, uint64_t addr);
-  static void SRUpdated(jit::frontend::sh4::SH4Context *ctx, uint64_t old_sr);
-  static void FPSCRUpdated(jit::frontend::sh4::SH4Context *ctx,
-                           uint64_t old_fpscr);
+  sh4_perf_t perf;
+} sh4_t;
 
-  int GetCompileFlags();
-  void SwapRegisterBank();
-  void SwapFPRegisterBank();
+AM_DECLARE(sh4_data_map);
 
-  template <typename T>
-  T ReadRegister(uint32_t addr);
-  template <typename T>
-  void WriteRegister(uint32_t addr, T value);
+struct sh4_s *sh4_create(struct dreamcast_s *dc);
+void sh4_destroy(struct sh4_s *sh);
 
-  template <typename T>
-  T ReadCache(uint32_t addr);
-  template <typename T>
-  void WriteCache(uint32_t addr, T value);
+void sh4_set_pc(sh4_t *sh4, uint32_t pc);
+void sh4_run(sh4_t *sh4, int64_t ns);
+void sh4_raise_interrupt(struct sh4_s *sh, sh4_interrupt_t intr);
+void sh4_clear_interrupt(struct sh4_s *sh, sh4_interrupt_t intr);
+void sh4_ddt(struct sh4_s *sh, sh4_dtr_t *dtr);
 
-  template <typename T>
-  T ReadSQ(uint32_t addr);
-  template <typename T>
-  void WriteSQ(uint32_t addr, T value);
-
-  // CCN
-  void ResetCache();
-
-  // DMAC
-  void CheckDMA(int channel);
-
-  // INTC
-  void ReprioritizeInterrupts();
-  void UpdatePendingInterrupts();
-  void CheckPendingInterrupts();
-
-  // TMU
-  void UpdateTimerStart();
-  void UpdateTimerControl(uint32_t n);
-  void UpdateTimerCount(uint32_t n);
-  uint32_t TimerCount(int n);
-  void RescheduleTimer(int n, uint32_t tcnt, uint32_t tcr);
-  template <int N>
-  void ExpireTimer();
-
-  DECLARE_R32_DELEGATE(PDTRA);
-  DECLARE_W32_DELEGATE(MMUCR);
-  DECLARE_W32_DELEGATE(CCR);
-  DECLARE_W32_DELEGATE(CHCR0);
-  DECLARE_W32_DELEGATE(CHCR1);
-  DECLARE_W32_DELEGATE(CHCR2);
-  DECLARE_W32_DELEGATE(CHCR3);
-  DECLARE_W32_DELEGATE(DMAOR);
-  DECLARE_W32_DELEGATE(IPRA);
-  DECLARE_W32_DELEGATE(IPRB);
-  DECLARE_W32_DELEGATE(IPRC);
-  DECLARE_W32_DELEGATE(TSTR);
-  DECLARE_W32_DELEGATE(TCR0);
-  DECLARE_W32_DELEGATE(TCR1);
-  DECLARE_W32_DELEGATE(TCR2);
-  DECLARE_R32_DELEGATE(TCNT0);
-  DECLARE_W32_DELEGATE(TCNT0);
-  DECLARE_R32_DELEGATE(TCNT1);
-  DECLARE_W32_DELEGATE(TCNT1);
-  DECLARE_R32_DELEGATE(TCNT2);
-  DECLARE_W32_DELEGATE(TCNT2);
-
-  Dreamcast &dc_;
-  Scheduler *scheduler_;
-  SH4CodeCache *code_cache_;
-
-  jit::frontend::sh4::SH4Context ctx_;
-  Register regs_[NUM_SH4_REGS];
-  uint8_t cache_[0x2000];  // 8kb cache
-  std::map<uint32_t, uint16_t> breakpoints_;
-
-  bool show_perf_;
-  std::chrono::high_resolution_clock::time_point last_mips_time_;
-  float mips_[MAX_MIPS_SAMPLES];
-  int num_mips_;
-
-  Interrupt sorted_interrupts_[NUM_INTERRUPTS];
-  uint64_t sort_id_[NUM_INTERRUPTS];
-  uint64_t priority_mask_[16];
-  uint64_t requested_interrupts_;
-  uint64_t pending_interrupts_;
-
-  hw::TimerHandle tmu_timers_[3];
-  TimerDelegate tmu_delegates_[3];
-};
+#ifdef __cplusplus
 }
-}
-}
+#endif
 
 #endif

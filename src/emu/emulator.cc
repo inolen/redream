@@ -1,5 +1,4 @@
-#include <algorithm>
-#include <gflags/gflags.h>
+#include "core/option.h"
 #include "emu/emulator.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/sh4/sh4.h"
@@ -7,79 +6,21 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 #include "ui/window.h"
+#include "sys/time.h"
 
-using namespace re;
-using namespace re::emu;
-using namespace re::hw;
-using namespace re::hw::gdrom;
-using namespace re::ui;
+DEFINE_OPTION_STRING(bios, "/Users/inolen/projects/dreamcast/dc_boot.bin",
+                     "Path to BIOS");
+DEFINE_OPTION_STRING(flash, "/Users/inolen/projects/dreamcast/dc_flash.bin",
+                     "Path to flash ROM");
 
-DEFINE_string(bios, "dc_boot.bin", "Path to BIOS");
-DEFINE_string(flash, "dc_flash.bin", "Path to flash ROM");
+typedef struct emu_s {
+  struct window_s *window;
+  struct window_listener_s *listener;
+  dreamcast_t *dc;
+  bool running;
+} emu_t;
 
-Emulator::Emulator(Window &window)
-    : window_(window), dc_(window_.render_backend()) {
-  window_.AddListener(this);
-}
-
-Emulator::~Emulator() { window_.RemoveListener(this); }
-
-void Emulator::Run(const char *path) {
-  if (!dc_.Init()) {
-    return;
-  }
-
-  if (!LoadBios(FLAGS_bios.c_str())) {
-    return;
-  }
-
-  if (!LoadFlash(FLAGS_flash.c_str())) {
-    return;
-  }
-
-  if (path) {
-    LOG_INFO("Launching %s", path);
-
-    if ((strstr(path, ".bin") && !LaunchBIN(path)) ||
-        (strstr(path, ".gdi") && !LaunchGDI(path))) {
-      LOG_WARNING("Failed to launch %s", path);
-      return;
-    }
-  }
-
-  // start running
-  static const std::chrono::nanoseconds MACHINE_STEP = HZ_TO_NANO(1000);
-  static const std::chrono::nanoseconds FRAME_STEP = HZ_TO_NANO(60);
-
-  auto current_time = std::chrono::high_resolution_clock::now();
-  auto last_time = current_time;
-
-  auto next_machine_time = current_time;
-  auto next_frame_time = current_time;
-
-  running_ = true;
-
-  while (running_) {
-    current_time = std::chrono::high_resolution_clock::now();
-    last_time = current_time;
-
-    // run dreamcast machine
-    if (current_time > next_machine_time) {
-      dc_.Tick(MACHINE_STEP);
-
-      next_machine_time = current_time + MACHINE_STEP;
-    }
-
-    // run local frame
-    if (current_time > next_frame_time) {
-      window_.PumpEvents();
-
-      next_frame_time = current_time + FRAME_STEP;
-    }
-  }
-}
-
-bool Emulator::LoadBios(const char *path) {
+static bool emu_load_bios(emu_t *emu, const char *path) {
   static const int BIOS_BEGIN = 0x00000000;
   static const int BIOS_SIZE = 0x00200000;
 
@@ -99,8 +40,9 @@ bool Emulator::LoadBios(const char *path) {
     return false;
   }
 
-  uint8_t *bios = dc_.sh4()->space().Translate(BIOS_BEGIN);
-  int n = static_cast<int>(fread(bios, sizeof(uint8_t), size, fp));
+  uint8_t *bios =
+      address_space_translate(emu->dc->sh4->base.memory->space, BIOS_BEGIN);
+  int n = (int)fread(bios, sizeof(uint8_t), size, fp);
   fclose(fp);
 
   if (n != size) {
@@ -111,7 +53,7 @@ bool Emulator::LoadBios(const char *path) {
   return true;
 }
 
-bool Emulator::LoadFlash(const char *path) {
+static bool emu_load_flash(emu_t *emu, const char *path) {
   static const int FLASH_BEGIN = 0x00200000;
   static const int FLASH_SIZE = 0x00020000;
 
@@ -131,8 +73,9 @@ bool Emulator::LoadFlash(const char *path) {
     return false;
   }
 
-  uint8_t *flash = dc_.sh4()->space().Translate(FLASH_BEGIN);
-  int n = static_cast<int>(fread(flash, sizeof(uint8_t), size, fp));
+  uint8_t *flash =
+      address_space_translate(emu->dc->sh4->base.memory->space, FLASH_BEGIN);
+  int n = (int)fread(flash, sizeof(uint8_t), size, fp);
   fclose(fp);
 
   if (n != size) {
@@ -143,7 +86,7 @@ bool Emulator::LoadFlash(const char *path) {
   return true;
 }
 
-bool Emulator::LaunchBIN(const char *path) {
+static bool emu_launch_bin(emu_t *emu, const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
     return false;
@@ -154,8 +97,9 @@ bool Emulator::LaunchBIN(const char *path) {
   fseek(fp, 0, SEEK_SET);
 
   // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to
-  uint8_t *data = dc_.sh4()->space().Translate(0x0c010000);
-  int n = static_cast<int>(fread(data, sizeof(uint8_t), size, fp));
+  uint8_t *data =
+      address_space_translate(emu->dc->sh4->base.memory->space, 0x0c010000);
+  int n = (int)fread(data, sizeof(uint8_t), size, fp);
   fclose(fp);
 
   if (n != size) {
@@ -163,36 +107,123 @@ bool Emulator::LaunchBIN(const char *path) {
     return false;
   }
 
-  dc_.gdrom()->SetDisc(nullptr);
-  dc_.sh4()->SetPC(0x0c010000);
+  gdrom_set_disc(emu->dc->gdrom, nullptr);
+  sh4_set_pc(emu->dc->sh4, 0x0c010000);
 
   return true;
 }
 
-bool Emulator::LaunchGDI(const char *path) {
-  std::unique_ptr<GDI> gdi(new GDI());
+static bool emu_launch_gdi(emu_t *emu, const char *path) {
+  struct disc_s *disc = disc_create_gdi(path);
 
-  if (!gdi->Load(path)) {
+  if (!disc) {
     return false;
   }
 
-  dc_.gdrom()->SetDisc(std::move(gdi));
-  dc_.sh4()->SetPC(0xa0000000);
+  gdrom_set_disc(emu->dc->gdrom, disc);
+  sh4_set_pc(emu->dc->sh4, 0xa0000000);
 
   return true;
 }
 
-void Emulator::OnPaint(bool show_main_menu) { dc_.OnPaint(show_main_menu); }
+static void emu_onpaint(emu_t *emu, bool show_main_menu) {
+  dc_paint(emu->dc, show_main_menu);
+}
 
-void Emulator::OnKeyDown(Keycode code, int16_t value) {
+static void emu_onkeydown(emu_t *emu, keycode_t code, int16_t value) {
   if (code == K_F1) {
     if (value) {
-      window_.EnableMainMenu(!window_.MainMenuEnabled());
+      win_enable_main_menu(emu->window, !win_main_menu_enabled(emu->window));
     }
     return;
   }
 
-  dc_.OnKeyDown(code, value);
+  dc_keydown(emu->dc, code, value);
 }
 
-void Emulator::OnClose() { running_ = false; }
+static void emu_onclose(emu_t *emu) {
+  emu->running = false;
+}
+
+emu_t *emu_create(struct window_s *window) {
+  static const window_callbacks_t callbacks = {
+      NULL,
+      (window_paint_cb)&emu_onpaint,
+      NULL,
+      (window_keydown_cb)&emu_onkeydown,
+      NULL,
+      NULL,
+      (window_close_cb)&emu_onclose};
+
+  emu_t *emu = reinterpret_cast<emu_t *>(calloc(1, sizeof(emu_t)));
+
+  emu->window = window;
+  emu->listener = win_add_listener(emu->window, &callbacks, emu);
+
+  return emu;
+}
+
+void emu_destroy(emu_t *emu) {
+  win_remove_listener(emu->window, emu->listener);
+
+  if (emu->dc) {
+    dc_destroy(emu->dc);
+  }
+
+  free(emu);
+}
+
+void emu_run(emu_t *emu, const char *path) {
+  if (!(emu->dc = dc_create(win_render_backend(emu->window)))) {
+    return;
+  }
+
+  if (!emu_load_bios(emu, OPTION_bios)) {
+    return;
+  }
+
+  if (!emu_load_flash(emu, OPTION_flash)) {
+    return;
+  }
+
+  if (path) {
+    LOG_INFO("Launching %s", path);
+
+    if ((strstr(path, ".bin") && !emu_launch_bin(emu, path)) ||
+        (strstr(path, ".gdi") && !emu_launch_gdi(emu, path))) {
+      LOG_WARNING("Failed to launch %s", path);
+      return;
+    }
+  }
+
+  // start running
+  static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
+  static const int64_t FRAME_STEP = HZ_TO_NANO(60);
+
+  auto current_time = time_nanoseconds();
+  auto last_time = current_time;
+
+  auto next_machine_time = current_time;
+  auto next_frame_time = current_time;
+
+  emu->running = true;
+
+  while (emu->running) {
+    current_time = time_nanoseconds();
+    last_time = current_time;
+
+    // run dreamcast machine
+    if (current_time > next_machine_time) {
+      dc_tick(emu->dc, MACHINE_STEP);
+
+      next_machine_time = current_time + MACHINE_STEP;
+    }
+
+    // run local frame
+    if (current_time > next_frame_time) {
+      win_pump_events(emu->window);
+
+      next_frame_time = current_time + FRAME_STEP;
+    }
+  }
+}

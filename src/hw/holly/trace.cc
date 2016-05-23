@@ -1,20 +1,17 @@
 #include <unordered_map>
 #include "core/assert.h"
-#include "hw/holly/tile_accelerator.h"
+#include "hw/holly/ta.h"
+#include "hw/holly/tr.h"
 #include "hw/holly/trace.h"
 #include "sys/filesystem.h"
 
-using namespace re;
-using namespace re::hw::holly;
-using namespace re::sys;
-
-void re::hw::holly::GetNextTraceFilename(char *filename, size_t size) {
-  const char *appdir = GetAppDir();
+void GetNextTraceFilename(char *filename, size_t size) {
+  const char *appdir = fs_appdir();
 
   for (int i = 0; i < INT_MAX; i++) {
     snprintf(filename, size, "%s" PATH_SEPARATOR "%d.trace", appdir, i);
 
-    if (!Exists(filename)) {
+    if (!fs_exists(filename)) {
       return;
     }
   }
@@ -24,7 +21,9 @@ void re::hw::holly::GetNextTraceFilename(char *filename, size_t size) {
 
 TraceReader::TraceReader() : trace_size_(0), trace_(nullptr) {}
 
-TraceReader::~TraceReader() { Reset(); }
+TraceReader::~TraceReader() {
+  Reset();
+}
 
 bool TraceReader::Parse(const char *filename) {
   Reset();
@@ -111,12 +110,12 @@ bool TraceReader::PatchPointers() {
 bool TraceReader::PatchOverrides() {
   TraceCommand *cmd = cmds();
 
-  std::unordered_map<TextureKey, TraceCommand *> last_inserts;
+  std::unordered_map<texture_key_t, TraceCommand *> last_inserts;
 
   while (cmd) {
     if (cmd->type == TRACE_CMD_TEXTURE) {
-      TextureKey texture_key =
-          TextureProvider::GetTextureKey(cmd->texture.tsp, cmd->texture.tcw);
+      texture_key_t texture_key =
+          tr_get_texture_key(cmd->texture.tsp, cmd->texture.tcw);
       auto last_insert = last_inserts.find(texture_key);
 
       if (last_insert != last_inserts.end()) {
@@ -135,7 +134,9 @@ bool TraceReader::PatchOverrides() {
 
 TraceWriter::TraceWriter() : file_(nullptr) {}
 
-TraceWriter::~TraceWriter() { Close(); }
+TraceWriter::~TraceWriter() {
+  Close();
+}
 
 bool TraceWriter::Open(const char *filename) {
   Close();
@@ -151,7 +152,7 @@ void TraceWriter::Close() {
   }
 }
 
-void TraceWriter::WriteInsertTexture(const TSP &tsp, const TCW &tcw,
+void TraceWriter::WriteInsertTexture(tsp_t tsp, tcw_t tcw,
                                      const uint8_t *palette, int palette_size,
                                      const uint8_t *texture, int texture_size) {
   TraceCommand cmd;
@@ -173,7 +174,7 @@ void TraceWriter::WriteInsertTexture(const TSP &tsp, const TCW &tcw,
   }
 }
 
-void TraceWriter::WriteRenderContext(TileContext *tctx) {
+void TraceWriter::WriteRenderContext(ta_ctx_t *tctx) {
   TraceCommand cmd;
   cmd.type = TRACE_CMD_CONTEXT;
   cmd.context.autosort = tctx->autosort;

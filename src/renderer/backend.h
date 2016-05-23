@@ -1,35 +1,38 @@
 #ifndef RENDERER_BACKEND_H
 #define RENDERER_BACKEND_H
 
-#include <Eigen/Dense>
+#include <stdint.h>
 
-namespace re {
-namespace renderer {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef int TextureHandle;
+struct window_s;
 
-enum PixelFormat {
+typedef int texture_handle_t;
+
+typedef enum {
   PXL_INVALID,
   PXL_RGBA,
   PXL_RGBA5551,
   PXL_RGB565,
   PXL_RGBA4444,
   PXL_RGBA8888,
-};
+} pxl_format_t;
 
-enum FilterMode {
+typedef enum {
   FILTER_NEAREST,
   FILTER_BILINEAR,
   NUM_FILTER_MODES,
-};
+} filter_mode_t;
 
-enum WrapMode {
+typedef enum {
   WRAP_REPEAT,
   WRAP_CLAMP_TO_EDGE,
   WRAP_MIRRORED_REPEAT,
-};
+} wrap_mode_t;
 
-enum DepthFunc {
+typedef enum {
   DEPTH_NONE,
   DEPTH_NEVER,
   DEPTH_LESS,
@@ -39,15 +42,15 @@ enum DepthFunc {
   DEPTH_NEQUAL,
   DEPTH_GEQUAL,
   DEPTH_ALWAYS,
-};
+} depth_func_t;
 
-enum CullFace {
+typedef enum {
   CULL_NONE,
   CULL_FRONT,
   CULL_BACK,
-};
+} cull_face_t;
 
-enum BlendFunc {
+typedef enum {
   BLEND_NONE,
   BLEND_ZERO,
   BLEND_ONE,
@@ -59,91 +62,91 @@ enum BlendFunc {
   BLEND_ONE_MINUS_DST_ALPHA,
   BLEND_DST_COLOR,
   BLEND_ONE_MINUS_DST_COLOR,
-};
+} blend_func_t;
 
-enum ShadeMode {
+typedef enum {
   SHADE_DECAL,
   SHADE_MODULATE,
   SHADE_DECAL_ALPHA,
   SHADE_MODULATE_ALPHA,
-};
+} shade_mode_t;
 
-enum BoxType {
+typedef enum {
   BOX_BAR,
   BOX_FLAT,
-};
+} box_type_t;
 
-enum PrimativeType {
+typedef enum {
   PRIM_TRIANGLES,
   PRIM_LINES,
-};
+} prim_type_t;
 
-struct Vertex {
+typedef struct {
   float xyz[3];
   float uv[2];
   uint32_t color;
   uint32_t offset_color;
-};
+} vertex_t;
 
-struct Surface {
-  TextureHandle texture;
+typedef struct {
+  texture_handle_t texture;
   bool depth_write;
-  DepthFunc depth_func;
-  CullFace cull;
-  BlendFunc src_blend;
-  BlendFunc dst_blend;
-  ShadeMode shade;
+  depth_func_t depth_func;
+  cull_face_t cull;
+  blend_func_t src_blend;
+  blend_func_t dst_blend;
+  shade_mode_t shade;
   bool ignore_tex_alpha;
   int first_vert;
   int num_verts;
-};
+} surface_t;
 
-struct Vertex2D {
+typedef struct {
   float xy[2];
   float uv[2];
   uint32_t color;
-};
+} vertex2d_t;
 
-struct Surface2D {
-  PrimativeType prim_type;
-  TextureHandle texture;
-  BlendFunc src_blend;
-  BlendFunc dst_blend;
+typedef struct {
+  prim_type_t prim_type;
+  texture_handle_t texture;
+  blend_func_t src_blend;
+  blend_func_t dst_blend;
   bool scissor;
   float scissor_rect[4];
   int first_vert;
   int num_verts;
-};
+} surface2d_t;
 
-class Backend {
- public:
-  virtual ~Backend() {}
+struct rb_s;
 
-  virtual bool Init() = 0;
+struct rb_s *rb_create(struct window_s *window);
+void rb_destroy(struct rb_s *rb);
+texture_handle_t rb_register_texture(struct rb_s *rb, pxl_format_t format,
+                                     filter_mode_t filter, wrap_mode_t wrap_u,
+                                     wrap_mode_t wrap_v, bool mipmaps,
+                                     int width, int height,
+                                     const uint8_t *buffer);
+void rb_free_texture(struct rb_s *rb, texture_handle_t handle);
 
-  virtual TextureHandle RegisterTexture(PixelFormat format, FilterMode filter,
-                                        WrapMode wrap_u, WrapMode wrap_v,
-                                        bool mipmaps, int width, int height,
-                                        const uint8_t *buffer) = 0;
-  virtual void FreeTexture(TextureHandle handle) = 0;
+void rb_begin_frame(struct rb_s *rb);
+void rb_end_frame(struct rb_s *rb);
 
-  virtual void BeginFrame() = 0;
-  virtual void EndFrame() = 0;
+void rb_begin2d(struct rb_s *rb);
+void rb_end2d(struct rb_s *rb);
 
-  virtual void Begin2D() = 0;
-  virtual void End2D() = 0;
+void rb_begin_surfaces2d(struct rb_s *rb, const vertex2d_t *verts,
+                         int num_verts, uint16_t *indices, int num_indices);
+void rb_draw_surface2d(struct rb_s *rb, const surface2d_t *surf);
+void rb_end_surfaces2d(struct rb_s *rb);
 
-  virtual void BeginSurfaces2D(const Vertex2D *verts, int num_verts,
-                               uint16_t *indices, int num_indices) = 0;
-  virtual void DrawSurface2D(const Surface2D &surf) = 0;
-  virtual void EndSurfaces2D() = 0;
+void rb_begin_surfaces(struct rb_s *rb, const float *projection,
+                       const vertex_t *verts, int num_verts);
+void rb_draw_surface(struct rb_s *rb, const surface_t *surf);
+void rb_end_surfaces(struct rb_s *rb);
 
-  virtual void BeginSurfaces(const Eigen::Matrix4f &projection,
-                             const Vertex *verts, int num_verts) = 0;
-  virtual void DrawSurface(const Surface &surf) = 0;
-  virtual void EndSurfaces() = 0;
-};
+#ifdef __cplusplus
 }
-}
+#endif
 
 #endif

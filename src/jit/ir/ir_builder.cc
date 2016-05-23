@@ -39,9 +39,13 @@ uint64_t Value::GetZExtValue() const {
   }
 }
 
-void Value::AddRef(Use *ref) { refs_.Append(ref); }
+void Value::AddRef(Use *ref) {
+  refs_.Append(ref);
+}
 
-void Value::RemoveRef(Use *ref) { refs_.Remove(ref); }
+void Value::RemoveRef(Use *ref) {
+  refs_.Remove(ref);
+}
 
 void Value::ReplaceRefsWith(Value *other) {
   CHECK_NE(this, other);
@@ -89,9 +93,13 @@ void IRBuilder::Dump(std::ostream &output) const {
   writer.Print(*this, output);
 }
 
-void IRBuilder::Dump() const { Dump(std::cout); }
+void IRBuilder::Dump() const {
+  Dump(std::cout);
+}
 
-InsertPoint IRBuilder::GetInsertPoint() { return {current_instr_}; }
+InsertPoint IRBuilder::GetInsertPoint() {
+  return {current_instr_};
+}
 
 void IRBuilder::SetInsertPoint(const InsertPoint &point) {
   current_instr_ = point.instr;
@@ -253,25 +261,45 @@ Instr *IRBuilder::Cmp(Value *a, Value *b, CmpType type) {
   return instr;
 }
 
-Instr *IRBuilder::CmpEQ(Value *a, Value *b) { return Cmp(a, b, CMP_EQ); }
+Instr *IRBuilder::CmpEQ(Value *a, Value *b) {
+  return Cmp(a, b, CMP_EQ);
+}
 
-Instr *IRBuilder::CmpNE(Value *a, Value *b) { return Cmp(a, b, CMP_NE); }
+Instr *IRBuilder::CmpNE(Value *a, Value *b) {
+  return Cmp(a, b, CMP_NE);
+}
 
-Instr *IRBuilder::CmpSGE(Value *a, Value *b) { return Cmp(a, b, CMP_SGE); }
+Instr *IRBuilder::CmpSGE(Value *a, Value *b) {
+  return Cmp(a, b, CMP_SGE);
+}
 
-Instr *IRBuilder::CmpSGT(Value *a, Value *b) { return Cmp(a, b, CMP_SGT); }
+Instr *IRBuilder::CmpSGT(Value *a, Value *b) {
+  return Cmp(a, b, CMP_SGT);
+}
 
-Instr *IRBuilder::CmpUGE(Value *a, Value *b) { return Cmp(a, b, CMP_UGE); }
+Instr *IRBuilder::CmpUGE(Value *a, Value *b) {
+  return Cmp(a, b, CMP_UGE);
+}
 
-Instr *IRBuilder::CmpUGT(Value *a, Value *b) { return Cmp(a, b, CMP_UGT); }
+Instr *IRBuilder::CmpUGT(Value *a, Value *b) {
+  return Cmp(a, b, CMP_UGT);
+}
 
-Instr *IRBuilder::CmpSLE(Value *a, Value *b) { return Cmp(a, b, CMP_SLE); }
+Instr *IRBuilder::CmpSLE(Value *a, Value *b) {
+  return Cmp(a, b, CMP_SLE);
+}
 
-Instr *IRBuilder::CmpSLT(Value *a, Value *b) { return Cmp(a, b, CMP_SLT); }
+Instr *IRBuilder::CmpSLT(Value *a, Value *b) {
+  return Cmp(a, b, CMP_SLT);
+}
 
-Instr *IRBuilder::CmpULE(Value *a, Value *b) { return Cmp(a, b, CMP_ULE); }
+Instr *IRBuilder::CmpULE(Value *a, Value *b) {
+  return Cmp(a, b, CMP_ULE);
+}
 
-Instr *IRBuilder::CmpULT(Value *a, Value *b) { return Cmp(a, b, CMP_ULT); }
+Instr *IRBuilder::CmpULT(Value *a, Value *b) {
+  return Cmp(a, b, CMP_ULT);
+}
 
 Instr *IRBuilder::FCmp(Value *a, Value *b, CmpType type) {
   CHECK(IsFloatType(a->type()) && a->type() == b->type());
@@ -283,17 +311,29 @@ Instr *IRBuilder::FCmp(Value *a, Value *b, CmpType type) {
   return instr;
 }
 
-Instr *IRBuilder::FCmpEQ(Value *a, Value *b) { return FCmp(a, b, CMP_EQ); }
+Instr *IRBuilder::FCmpEQ(Value *a, Value *b) {
+  return FCmp(a, b, CMP_EQ);
+}
 
-Instr *IRBuilder::FCmpNE(Value *a, Value *b) { return FCmp(a, b, CMP_NE); }
+Instr *IRBuilder::FCmpNE(Value *a, Value *b) {
+  return FCmp(a, b, CMP_NE);
+}
 
-Instr *IRBuilder::FCmpGE(Value *a, Value *b) { return FCmp(a, b, CMP_SGE); }
+Instr *IRBuilder::FCmpGE(Value *a, Value *b) {
+  return FCmp(a, b, CMP_SGE);
+}
 
-Instr *IRBuilder::FCmpGT(Value *a, Value *b) { return FCmp(a, b, CMP_SGT); }
+Instr *IRBuilder::FCmpGT(Value *a, Value *b) {
+  return FCmp(a, b, CMP_SGT);
+}
 
-Instr *IRBuilder::FCmpLE(Value *a, Value *b) { return FCmp(a, b, CMP_SLE); }
+Instr *IRBuilder::FCmpLE(Value *a, Value *b) {
+  return FCmp(a, b, CMP_SLE);
+}
 
-Instr *IRBuilder::FCmpLT(Value *a, Value *b) { return FCmp(a, b, CMP_SLT); }
+Instr *IRBuilder::FCmpLT(Value *a, Value *b) {
+  return FCmp(a, b, CMP_SLT);
+}
 
 Instr *IRBuilder::Add(Value *a, Value *b) {
   CHECK(IsIntType(a->type()) && a->type() == b->type());
@@ -575,7 +615,9 @@ void IRBuilder::CallExternal2(Value *addr, Value *arg0) {
   instr->set_arg1(arg0);
 }
 
-Value *IRBuilder::AllocConstant(uint8_t c) { return AllocConstant((int8_t)c); }
+Value *IRBuilder::AllocConstant(uint8_t c) {
+  return AllocConstant((int8_t)c);
+}
 
 Value *IRBuilder::AllocConstant(uint16_t c) {
   return AllocConstant((int16_t)c);
@@ -628,7 +670,7 @@ Value *IRBuilder::AllocConstant(double c) {
 Local *IRBuilder::AllocLocal(ValueType type) {
   // align local to natural size
   int type_size = SizeForType(type);
-  locals_size_ = re::align_up(locals_size_, type_size);
+  locals_size_ = align_up(locals_size_, type_size);
 
   Local *l = arena_.Alloc<Local>();
   new (l) Local(type, AllocConstant(locals_size_));

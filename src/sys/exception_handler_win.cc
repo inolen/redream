@@ -3,7 +3,7 @@
 
 using namespace re::sys;
 
-static void CopyStateTo(PCONTEXT src, ThreadState *dst) {
+static void CopyStateTo(PCONTEXT src, re_thread_state_t *dst) {
   dst->rax = src->Rax;
   dst->rcx = src->Rcx;
   dst->rdx = src->Rdx;
@@ -23,7 +23,7 @@ static void CopyStateTo(PCONTEXT src, ThreadState *dst) {
   dst->rip = src->Rip;
 }
 
-static void CopyStateFrom(ThreadState *src, PCONTEXT dst) {
+static void CopyStateFrom(re_thread_state_t *src, PCONTEXT dst) {
   dst->Rax = src->rax;
   dst->Rcx = src->rcx;
   dst->Rdx = src->rdx;
@@ -50,7 +50,7 @@ static LONG CALLBACK WinExceptionHandler(PEXCEPTION_POINTERS ex_info) {
   }
 
   // convert signal to internal exception
-  Exception ex;
+  re_exception_t ex;
   ex.type = code == STATUS_ACCESS_VIOLATION ? EX_ACCESS_VIOLATION
                                             : EX_INVALID_INSTRUCTION;
   ex.fault_addr = ex_info->ExceptionRecord->ExceptionInformation[1];
@@ -58,7 +58,7 @@ static LONG CALLBACK WinExceptionHandler(PEXCEPTION_POINTERS ex_info) {
   CopyStateTo(ex_info->ContextRecord, &ex.thread_state);
 
   // call exception handler, letting it potentially update the thread state
-  bool handled = ExceptionHandler::instance().HandleException(ex);
+  bool handled = exception_handler_handle(&ex);
 
   if (!handled) {
     return EXCEPTION_CONTINUE_SEARCH;

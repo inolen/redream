@@ -34,7 +34,7 @@ SH4Builder::SH4Builder(Arena &arena) : IRBuilder(arena) {}
 
 void SH4Builder::Emit(uint32_t guest_addr, uint8_t *guest_ptr, int size,
                       int flags) {
-  PROFILER_RUNTIME("SH4Builder::Emit");
+  // PROFILER_RUNTIME("SH4Builder::Emit");
 
   // save off flags for ease of access
   flags_ = flags;
@@ -45,7 +45,7 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *guest_ptr, int size,
   while (i < size) {
     Instr instr;
     instr.addr = guest_addr + i;
-    instr.opcode = re::load<uint16_t>(guest_ptr + i);
+    instr.opcode = load<uint16_t>(guest_ptr + i);
 
     if (!SH4Disassembler::Disasm(&instr)) {
       InvalidInstruction(instr.addr);
@@ -57,7 +57,7 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *guest_ptr, int size,
 
     if (instr.flags & OP_FLAG_DELAYED) {
       delay_instr_.addr = guest_addr + i;
-      delay_instr_.opcode = re::load<uint16_t>(guest_ptr + i);
+      delay_instr_.opcode = load<uint16_t>(guest_ptr + i);
 
       // instruction must be valid, breakpoints on delay instructions aren't
       // currently supported
@@ -85,14 +85,16 @@ void SH4Builder::Emit(uint32_t guest_addr, uint8_t *guest_ptr, int size,
   current_instr_ = tail_instr->prev();
 
   // update remaining cycles
-  Value *num_cycles = LoadContext(offsetof(SH4Context, num_cycles), VALUE_I32);
+  Value *num_cycles =
+      LoadContext(offsetof(sh4_context_t, num_cycles), VALUE_I32);
   num_cycles = Sub(num_cycles, AllocConstant(guest_cycles));
-  StoreContext(offsetof(SH4Context, num_cycles), num_cycles);
+  StoreContext(offsetof(sh4_context_t, num_cycles), num_cycles);
 
   // update num instructions
-  Value *num_instrs = LoadContext(offsetof(SH4Context, num_instrs), VALUE_I32);
+  Value *num_instrs =
+      LoadContext(offsetof(sh4_context_t, num_instrs), VALUE_I32);
   num_instrs = Add(num_instrs, AllocConstant(size >> 1));
-  StoreContext(offsetof(SH4Context, num_instrs), num_instrs);
+  StoreContext(offsetof(sh4_context_t, num_instrs), num_instrs);
 }
 
 ir::Instr *SH4Builder::LoadGuest(Value *addr, ValueType type) {
@@ -113,12 +115,12 @@ void SH4Builder::StoreGuest(Value *addr, Value *v) {
 }
 
 Value *SH4Builder::LoadGPR(int n, ValueType type) {
-  return LoadContext(offsetof(SH4Context, r[n]), type);
+  return LoadContext(offsetof(sh4_context_t, r[n]), type);
 }
 
 void SH4Builder::StoreGPR(int n, Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
-  return StoreContext(offsetof(SH4Context, r[n]), v);
+  return StoreContext(offsetof(sh4_context_t, r[n]), v);
 }
 
 Value *SH4Builder::LoadFPR(int n, ValueType type) {
@@ -126,44 +128,47 @@ Value *SH4Builder::LoadFPR(int n, ValueType type) {
   if (SizeForType(type) == 4) {
     n ^= 1;
   }
-  return LoadContext(offsetof(SH4Context, fr[n]), type);
+  return LoadContext(offsetof(sh4_context_t, fr[n]), type);
 }
 
 void SH4Builder::StoreFPR(int n, Value *v) {
   if (SizeForType(v->type()) == 4) {
     n ^= 1;
   }
-  return StoreContext(offsetof(SH4Context, fr[n]), v);
+  return StoreContext(offsetof(sh4_context_t, fr[n]), v);
 }
 
 Value *SH4Builder::LoadXFR(int n, ValueType type) {
   if (SizeForType(type) == 4) {
     n ^= 1;
   }
-  return LoadContext(offsetof(SH4Context, xf[n]), type);
+  return LoadContext(offsetof(sh4_context_t, xf[n]), type);
 }
 
 void SH4Builder::StoreXFR(int n, Value *v) {
   if (SizeForType(v->type()) == 4) {
     n ^= 1;
   }
-  return StoreContext(offsetof(SH4Context, xf[n]), v);
+  return StoreContext(offsetof(sh4_context_t, xf[n]), v);
 }
 
 Value *SH4Builder::LoadSR() {
-  return LoadContext(offsetof(SH4Context, sr), VALUE_I32);
+  return LoadContext(offsetof(sh4_context_t, sr), VALUE_I32);
 }
 
 void SH4Builder::StoreSR(Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
 
-  Value *sr_updated = LoadContext(offsetof(SH4Context, SRUpdated), VALUE_I64);
+  Value *sr_updated =
+      LoadContext(offsetof(sh4_context_t, SRUpdated), VALUE_I64);
   Value *old_sr = LoadSR();
-  StoreContext(offsetof(SH4Context, sr), v);
+  StoreContext(offsetof(sh4_context_t, sr), v);
   CallExternal2(sr_updated, ZExt(old_sr, VALUE_I64));
 }
 
-ir::Value *SH4Builder::LoadT() { return And(LoadSR(), AllocConstant(T)); }
+ir::Value *SH4Builder::LoadT() {
+  return And(LoadSR(), AllocConstant(T));
+}
 
 void SH4Builder::StoreT(ir::Value *v) {
   Value *sr = LoadSR();
@@ -173,15 +178,15 @@ void SH4Builder::StoreT(ir::Value *v) {
 }
 
 Value *SH4Builder::LoadGBR() {
-  return LoadContext(offsetof(SH4Context, gbr), VALUE_I32);
+  return LoadContext(offsetof(sh4_context_t, gbr), VALUE_I32);
 }
 
 void SH4Builder::StoreGBR(Value *v) {
-  StoreContext(offsetof(SH4Context, gbr), v);
+  StoreContext(offsetof(sh4_context_t, gbr), v);
 }
 
 ir::Value *SH4Builder::LoadFPSCR() {
-  ir::Value *v = LoadContext(offsetof(SH4Context, fpscr), VALUE_I32);
+  ir::Value *v = LoadContext(offsetof(sh4_context_t, fpscr), VALUE_I32);
   v = And(v, AllocConstant(0x003fffff));
   return v;
 }
@@ -191,24 +196,24 @@ void SH4Builder::StoreFPSCR(ir::Value *v) {
   v = And(v, AllocConstant(0x003fffff));
 
   Value *fpscr_updated =
-      LoadContext(offsetof(SH4Context, FPSCRUpdated), VALUE_I64);
+      LoadContext(offsetof(sh4_context_t, FPSCRUpdated), VALUE_I64);
   Value *old_fpscr = LoadFPSCR();
-  StoreContext(offsetof(SH4Context, fpscr), v);
+  StoreContext(offsetof(sh4_context_t, fpscr), v);
   CallExternal2(fpscr_updated, ZExt(old_fpscr, VALUE_I64));
 }
 
 ir::Value *SH4Builder::LoadPR() {
-  return LoadContext(offsetof(SH4Context, pr), VALUE_I32);
+  return LoadContext(offsetof(sh4_context_t, pr), VALUE_I32);
 }
 
 void SH4Builder::StorePR(ir::Value *v) {
   CHECK_EQ(v->type(), VALUE_I32);
-  StoreContext(offsetof(SH4Context, pr), v);
+  StoreContext(offsetof(sh4_context_t, pr), v);
 }
 
 void SH4Builder::InvalidInstruction(uint32_t guest_addr) {
   Value *invalid_instruction =
-      LoadContext(offsetof(SH4Context, InvalidInstruction), VALUE_I64);
+      LoadContext(offsetof(sh4_context_t, InvalidInstruction), VALUE_I64);
   CallExternal2(invalid_instruction,
                 AllocConstant(static_cast<uint64_t>(guest_addr)));
 }
@@ -518,7 +523,9 @@ EMITTER(MOVA) {
 }
 
 // MOVT    Rn
-EMITTER(MOVT) { b.StoreGPR(i.Rn, b.LoadT()); }
+EMITTER(MOVT) {
+  b.StoreGPR(i.Rn, b.LoadT());
+}
 
 // SWAP.B  Rm,Rn
 EMITTER(SWAPB) {
@@ -704,7 +711,7 @@ EMITTER(DIV0S) {
   Value *qm = b.Xor(rn, rm);
 
   // update Q == M flag
-  b.StoreContext(offsetof(SH4Context, sr_qm), b.Not(qm));
+  b.StoreContext(offsetof(sh4_context_t, sr_qm), b.Not(qm));
 
   // msb of Q ^ M -> T
   b.StoreT(b.LShr(qm, 31));
@@ -714,7 +721,7 @@ EMITTER(DIV0S) {
 // 0000 0000 0001 1001  1       0
 // DIV0U
 EMITTER(DIV0U) {  //
-  b.StoreContext(offsetof(SH4Context, sr_qm), b.AllocConstant(0x80000000));
+  b.StoreContext(offsetof(sh4_context_t, sr_qm), b.AllocConstant(0x80000000));
 
   b.StoreSR(b.And(b.LoadSR(), b.AllocConstant(~T)));
 }
@@ -727,7 +734,8 @@ EMITTER(DIV1) {
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
 
   // if Q == M, r0 = ~Rm and C = 1; else, r0 = Rm and C = 0
-  Value *qm = b.AShr(b.LoadContext(offsetof(SH4Context, sr_qm), VALUE_I32), 31);
+  Value *qm =
+      b.AShr(b.LoadContext(offsetof(sh4_context_t, sr_qm), VALUE_I32), 31);
   Value *r0 = b.Xor(rm, qm);
   Value *carry = b.LShr(qm, 31);
 
@@ -751,7 +759,7 @@ EMITTER(DIV1) {
   carry = b.Or(and_rnr0, carry);
   carry = b.LShr(carry, 31);
   qm = b.Select(carry, qm, b.Not(qm));
-  b.StoreContext(offsetof(SH4Context, sr_qm), qm);
+  b.StoreContext(offsetof(sh4_context_t, sr_qm), qm);
 
   // set T to output bit (which happens to be Q == M)
   b.StoreT(b.LShr(qm, 31));
@@ -766,8 +774,8 @@ EMITTER(DMULS) {
   Value *low = b.Trunc(p, VALUE_I32);
   Value *high = b.Trunc(b.LShr(p, 32), VALUE_I32);
 
-  b.StoreContext(offsetof(SH4Context, macl), low);
-  b.StoreContext(offsetof(SH4Context, mach), high);
+  b.StoreContext(offsetof(sh4_context_t, macl), low);
+  b.StoreContext(offsetof(sh4_context_t, mach), high);
 }
 
 // DMULU.L Rm,Rn
@@ -779,8 +787,8 @@ EMITTER(DMULU) {
   Value *low = b.Trunc(p, VALUE_I32);
   Value *high = b.Trunc(b.LShr(p, 32), VALUE_I32);
 
-  b.StoreContext(offsetof(SH4Context, macl), low);
-  b.StoreContext(offsetof(SH4Context, mach), high);
+  b.StoreContext(offsetof(sh4_context_t, macl), low);
+  b.StoreContext(offsetof(sh4_context_t, mach), high);
 }
 
 // DT      Rn
@@ -820,17 +828,21 @@ EMITTER(EXTUW) {
 }
 
 // MAC.L   @Rm+,@Rn+
-EMITTER(MACL) { LOG_FATAL("MACL not implemented"); }
+EMITTER(MACL) {
+  LOG_FATAL("MACL not implemented");
+}
 
 // MAC.W   @Rm+,@Rn+
-EMITTER(MACW) { LOG_FATAL("MACW not implemented"); }
+EMITTER(MACW) {
+  LOG_FATAL("MACW not implemented");
+}
 
 // MUL.L   Rm,Rn
 EMITTER(MULL) {
   Value *rn = b.LoadGPR(i.Rn, VALUE_I32);
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
   Value *v = b.SMul(rn, rm);
-  b.StoreContext(offsetof(SH4Context, macl), v);
+  b.StoreContext(offsetof(sh4_context_t, macl), v);
 }
 
 // MULS    Rm,Rn
@@ -838,7 +850,7 @@ EMITTER(MULS) {
   Value *rn = b.SExt(b.LoadGPR(i.Rn, VALUE_I16), VALUE_I32);
   Value *rm = b.SExt(b.LoadGPR(i.Rm, VALUE_I16), VALUE_I32);
   Value *v = b.SMul(rn, rm);
-  b.StoreContext(offsetof(SH4Context, macl), v);
+  b.StoreContext(offsetof(sh4_context_t, macl), v);
 }
 
 // MULU    Rm,Rn
@@ -846,7 +858,7 @@ EMITTER(MULU) {
   Value *rn = b.ZExt(b.LoadGPR(i.Rn, VALUE_I16), VALUE_I32);
   Value *rm = b.ZExt(b.LoadGPR(i.Rm, VALUE_I16), VALUE_I32);
   Value *v = b.UMul(rn, rm);
-  b.StoreContext(offsetof(SH4Context, macl), v);
+  b.StoreContext(offsetof(sh4_context_t, macl), v);
 }
 
 // NEG     Rm,Rn
@@ -1276,8 +1288,8 @@ EMITTER(RTS) {
 // 0000 0000 0010 1000  1       -
 // CLRMAC
 EMITTER(CLRMAC) {
-  b.StoreContext(offsetof(SH4Context, mach), b.AllocConstant(0));
-  b.StoreContext(offsetof(SH4Context, macl), b.AllocConstant(0));
+  b.StoreContext(offsetof(sh4_context_t, mach), b.AllocConstant(0));
+  b.StoreContext(offsetof(sh4_context_t, macl), b.AllocConstant(0));
 }
 
 EMITTER(CLRS) {
@@ -1289,7 +1301,9 @@ EMITTER(CLRS) {
 // code                 cycles  t-bit
 // 0000 0000 0000 1000  1       -
 // CLRT
-EMITTER(CLRT) { b.StoreT(b.AllocConstant(0)); }
+EMITTER(CLRT) {
+  b.StoreT(b.AllocConstant(0));
+}
 
 // LDC     Rm,SR
 EMITTER(LDCSR) {
@@ -1306,32 +1320,32 @@ EMITTER(LDCGBR) {
 // LDC     Rm,VBR
 EMITTER(LDCVBR) {
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, vbr), rm);
+  b.StoreContext(offsetof(sh4_context_t, vbr), rm);
 }
 
 // LDC     Rm,SSR
 EMITTER(LDCSSR) {
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, ssr), rm);
+  b.StoreContext(offsetof(sh4_context_t, ssr), rm);
 }
 
 // LDC     Rm,SPC
 EMITTER(LDCSPC) {
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, spc), rm);
+  b.StoreContext(offsetof(sh4_context_t, spc), rm);
 }
 
 // LDC     Rm,DBR
 EMITTER(LDCDBR) {
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, dbr), rm);
+  b.StoreContext(offsetof(sh4_context_t, dbr), rm);
 }
 
 // LDC.L   Rm,Rn_BANK
 EMITTER(LDCRBANK) {
   int reg = i.Rn & 0x7;
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, ralt) + reg * 4, rm);
+  b.StoreContext(offsetof(sh4_context_t, ralt) + reg * 4, rm);
 }
 
 // LDC.L   @Rm+,SR
@@ -1358,7 +1372,7 @@ EMITTER(LDCMGBR) {
 EMITTER(LDCMVBR) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
   Value *v = b.LoadGuest(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, vbr), v);
+  b.StoreContext(offsetof(sh4_context_t, vbr), v);
   addr = b.Add(addr, b.AllocConstant(4));
   b.StoreGPR(i.Rm, addr);
 }
@@ -1367,7 +1381,7 @@ EMITTER(LDCMVBR) {
 EMITTER(LDCMSSR) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
   Value *v = b.LoadGuest(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, ssr), v);
+  b.StoreContext(offsetof(sh4_context_t, ssr), v);
   addr = b.Add(addr, b.AllocConstant(4));
   b.StoreGPR(i.Rm, addr);
 }
@@ -1376,7 +1390,7 @@ EMITTER(LDCMSSR) {
 EMITTER(LDCMSPC) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
   Value *v = b.LoadGuest(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, spc), v);
+  b.StoreContext(offsetof(sh4_context_t, spc), v);
   addr = b.Add(addr, b.AllocConstant(4));
   b.StoreGPR(i.Rm, addr);
 }
@@ -1385,7 +1399,7 @@ EMITTER(LDCMSPC) {
 EMITTER(LDCMDBR) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
   Value *v = b.LoadGuest(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, dbr), v);
+  b.StoreContext(offsetof(sh4_context_t, dbr), v);
   addr = b.Add(addr, b.AllocConstant(4));
   b.StoreGPR(i.Rm, addr);
 }
@@ -1396,19 +1410,19 @@ EMITTER(LDCMRBANK) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
   b.StoreGPR(i.Rm, b.Add(addr, b.AllocConstant(4)));
   Value *v = b.LoadGuest(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, ralt) + reg * 4, v);
+  b.StoreContext(offsetof(sh4_context_t, ralt) + reg * 4, v);
 }
 
 // LDS     Rm,MACH
 EMITTER(LDSMACH) {
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, mach), rm);
+  b.StoreContext(offsetof(sh4_context_t, mach), rm);
 }
 
 // LDS     Rm,MACL
 EMITTER(LDSMACL) {
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, macl), rm);
+  b.StoreContext(offsetof(sh4_context_t, macl), rm);
 }
 
 // LDS     Rm,PR
@@ -1421,7 +1435,7 @@ EMITTER(LDSPR) {
 EMITTER(LDSMMACH) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
   Value *v = b.LoadGuest(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, mach), v);
+  b.StoreContext(offsetof(sh4_context_t, mach), v);
   addr = b.Add(addr, b.AllocConstant(4));
   b.StoreGPR(i.Rm, addr);
 }
@@ -1430,7 +1444,7 @@ EMITTER(LDSMMACH) {
 EMITTER(LDSMMACL) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
   Value *v = b.LoadGuest(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, macl), v);
+  b.StoreContext(offsetof(sh4_context_t, macl), v);
   addr = b.Add(addr, b.AllocConstant(4));
   b.StoreGPR(i.Rm, addr);
 }
@@ -1465,28 +1479,34 @@ EMITTER(OCBWB) {}
 
 // PREF     @Rn
 EMITTER(PREF) {
-  Value *prefetch = b.LoadContext(offsetof(SH4Context, Prefetch), VALUE_I64);
+  Value *prefetch = b.LoadContext(offsetof(sh4_context_t, Prefetch), VALUE_I64);
   Value *addr = b.ZExt(b.LoadGPR(i.Rn, VALUE_I32), VALUE_I64);
   b.CallExternal2(prefetch, addr);
 }
 
 // RTE
 EMITTER(RTE) {
-  Value *spc = b.LoadContext(offsetof(SH4Context, spc), VALUE_I32);
-  Value *ssr = b.LoadContext(offsetof(SH4Context, ssr), VALUE_I32);
+  Value *spc = b.LoadContext(offsetof(sh4_context_t, spc), VALUE_I32);
+  Value *ssr = b.LoadContext(offsetof(sh4_context_t, ssr), VALUE_I32);
   b.StoreSR(ssr);
   b.EmitDelayInstr();
   b.Branch(spc);
 }
 
 // SETS
-EMITTER(SETS) { b.StoreSR(b.Or(b.LoadSR(), b.AllocConstant(S))); }
+EMITTER(SETS) {
+  b.StoreSR(b.Or(b.LoadSR(), b.AllocConstant(S)));
+}
 
 // SETT
-EMITTER(SETT) { b.StoreT(b.AllocConstant(1)); }
+EMITTER(SETT) {
+  b.StoreT(b.AllocConstant(1));
+}
 
 // SLEEP
-EMITTER(SLEEP) { LOG_FATAL("SLEEP not implemented"); }
+EMITTER(SLEEP) {
+  LOG_FATAL("SLEEP not implemented");
+}
 
 // STC     SR,Rn
 EMITTER(STCSR) {
@@ -1502,38 +1522,38 @@ EMITTER(STCGBR) {
 
 // STC     VBR,Rn
 EMITTER(STCVBR) {
-  Value *v = b.LoadContext(offsetof(SH4Context, vbr), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, vbr), VALUE_I32);
   b.StoreGPR(i.Rn, v);
 }
 
 // STC     SSR,Rn
 EMITTER(STCSSR) {
-  Value *v = b.LoadContext(offsetof(SH4Context, ssr), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, ssr), VALUE_I32);
   b.StoreGPR(i.Rn, v);
 }
 
 // STC     SPC,Rn
 EMITTER(STCSPC) {
-  Value *v = b.LoadContext(offsetof(SH4Context, spc), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, spc), VALUE_I32);
   b.StoreGPR(i.Rn, v);
 }
 
 // STC     SGR,Rn
 EMITTER(STCSGR) {
-  Value *v = b.LoadContext(offsetof(SH4Context, sgr), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, sgr), VALUE_I32);
   b.StoreGPR(i.Rn, v);
 }
 
 // STC     DBR,Rn
 EMITTER(STCDBR) {
-  Value *v = b.LoadContext(offsetof(SH4Context, dbr), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, dbr), VALUE_I32);
   b.StoreGPR(i.Rn, v);
 }
 
 // STC     Rm_BANK,Rn
 EMITTER(STCRBANK) {
   int reg = i.Rm & 0x7;
-  Value *v = b.LoadContext(offsetof(SH4Context, ralt) + reg * 4, VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, ralt) + reg * 4, VALUE_I32);
   b.StoreGPR(i.Rn, v);
 }
 
@@ -1557,7 +1577,7 @@ EMITTER(STCMGBR) {
 EMITTER(STCMVBR) {
   Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
-  Value *v = b.LoadContext(offsetof(SH4Context, vbr), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, vbr), VALUE_I32);
   b.StoreGuest(addr, v);
 }
 
@@ -1565,7 +1585,7 @@ EMITTER(STCMVBR) {
 EMITTER(STCMSSR) {
   Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
-  Value *v = b.LoadContext(offsetof(SH4Context, ssr), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, ssr), VALUE_I32);
   b.StoreGuest(addr, v);
 }
 
@@ -1573,7 +1593,7 @@ EMITTER(STCMSSR) {
 EMITTER(STCMSPC) {
   Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
-  Value *v = b.LoadContext(offsetof(SH4Context, spc), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, spc), VALUE_I32);
   b.StoreGuest(addr, v);
 }
 
@@ -1581,7 +1601,7 @@ EMITTER(STCMSPC) {
 EMITTER(STCMSGR) {
   Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
-  Value *v = b.LoadContext(offsetof(SH4Context, sgr), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, sgr), VALUE_I32);
   b.StoreGuest(addr, v);
 }
 
@@ -1589,7 +1609,7 @@ EMITTER(STCMSGR) {
 EMITTER(STCMDBR) {
   Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
-  Value *v = b.LoadContext(offsetof(SH4Context, dbr), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, dbr), VALUE_I32);
   b.StoreGuest(addr, v);
 }
 
@@ -1598,19 +1618,19 @@ EMITTER(STCMRBANK) {
   int reg = i.Rm & 0x7;
   Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
-  Value *v = b.LoadContext(offsetof(SH4Context, ralt) + reg * 4, VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, ralt) + reg * 4, VALUE_I32);
   b.StoreGuest(addr, v);
 }
 
 // STS     MACH,Rn
 EMITTER(STSMACH) {
-  Value *v = b.LoadContext(offsetof(SH4Context, mach), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, mach), VALUE_I32);
   b.StoreGPR(i.Rn, v);
 }
 
 // STS     MACL,Rn
 EMITTER(STSMACL) {
-  Value *v = b.LoadContext(offsetof(SH4Context, macl), VALUE_I32);
+  Value *v = b.LoadContext(offsetof(sh4_context_t, macl), VALUE_I32);
   b.StoreGPR(i.Rn, v);
 }
 
@@ -1625,7 +1645,7 @@ EMITTER(STSMMACH) {
   Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
 
-  Value *mach = b.LoadContext(offsetof(SH4Context, mach), VALUE_I32);
+  Value *mach = b.LoadContext(offsetof(sh4_context_t, mach), VALUE_I32);
   b.StoreGuest(addr, mach);
 }
 
@@ -1634,7 +1654,7 @@ EMITTER(STSMMACL) {
   Value *addr = b.Sub(b.LoadGPR(i.Rn, VALUE_I32), b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
 
-  Value *macl = b.LoadContext(offsetof(SH4Context, macl), VALUE_I32);
+  Value *macl = b.LoadContext(offsetof(sh4_context_t, macl), VALUE_I32);
   b.StoreGuest(addr, macl);
 }
 
@@ -1648,13 +1668,19 @@ EMITTER(STSMPR) {
 }
 
 // TRAPA   #imm
-EMITTER(TRAPA) { LOG_FATAL("TRAPA not implemented"); }
+EMITTER(TRAPA) {
+  LOG_FATAL("TRAPA not implemented");
+}
 
 // FLDI0  FRn 1111nnnn10001101
-EMITTER(FLDI0) { b.StoreFPR(i.Rn, b.AllocConstant(0)); }
+EMITTER(FLDI0) {
+  b.StoreFPR(i.Rn, b.AllocConstant(0));
+}
 
 // FLDI1  FRn 1111nnnn10011101
-EMITTER(FLDI1) { b.StoreFPR(i.Rn, b.AllocConstant(0x3F800000)); }
+EMITTER(FLDI1) {
+  b.StoreFPR(i.Rn, b.AllocConstant(0x3F800000));
+}
 
 // FMOV    FRm,FRn 1111nnnnmmmm1100
 // FMOV    DRm,DRn 1111nnn0mmm01100
@@ -1818,12 +1844,12 @@ EMITTER(FMOV_RESTORE) {
 // FLDS FRm,FPUL 1111mmmm00011101
 EMITTER(FLDS) {
   Value *rn = b.LoadFPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, fpul), rn);
+  b.StoreContext(offsetof(sh4_context_t, fpul), rn);
 }
 
 // FSTS FPUL,FRn 1111nnnn00001101
 EMITTER(FSTS) {
-  Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
+  Value *fpul = b.LoadContext(offsetof(sh4_context_t, fpul), VALUE_I32);
   b.StoreFPR(i.Rn, fpul);
 }
 
@@ -1922,7 +1948,7 @@ EMITTER(FDIV) {
 // FLOAT FPUL,FRn PR=0 1111nnnn00101101
 // FLOAT FPUL,DRn PR=1 1111nnn000101101
 EMITTER(FLOAT) {
-  Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
+  Value *fpul = b.LoadContext(offsetof(sh4_context_t, fpul), VALUE_I32);
 
   if (b.flags() & SH4_DOUBLE_PR) {
     int n = i.Rn & 0xe;
@@ -2018,11 +2044,11 @@ EMITTER(FTRC) {
     int m = i.Rm & 0xe;
     Value *drm = b.LoadFPR(m, VALUE_F64);
     Value *dpv = b.Trunc(b.FToI(drm, VALUE_I64), VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, fpul), dpv);
+    b.StoreContext(offsetof(sh4_context_t, fpul), dpv);
   } else {
     Value *frm = b.LoadFPR(i.Rm, VALUE_F32);
     Value *spv = b.FToI(frm, VALUE_I32);
-    b.StoreContext(offsetof(SH4Context, fpul), spv);
+    b.StoreContext(offsetof(sh4_context_t, fpul), spv);
   }
 }
 
@@ -2035,7 +2061,7 @@ EMITTER(FCNVDS) {
   int m = i.Rm & 0xe;
   Value *dpv = b.LoadFPR(m, VALUE_F64);
   Value *spv = b.FTrunc(dpv, VALUE_F32);
-  b.StoreContext(offsetof(SH4Context, fpul), spv);
+  b.StoreContext(offsetof(sh4_context_t, fpul), spv);
 }
 
 // FCNVSD FPUL, DRn PR=1 1111nnn010101101
@@ -2044,7 +2070,7 @@ EMITTER(FCNVSD) {
 
   // TODO rounding modes?
 
-  Value *spv = b.LoadContext(offsetof(SH4Context, fpul), VALUE_F32);
+  Value *spv = b.LoadContext(offsetof(sh4_context_t, fpul), VALUE_F32);
   Value *dpv = b.FExt(spv, VALUE_F64);
   int n = i.Rn & 0xe;
   b.StoreFPR(n, dpv);
@@ -2059,7 +2085,7 @@ EMITTER(LDSFPSCR) {
 // LDS     Rm,FPUL
 EMITTER(LDSFPUL) {
   Value *rm = b.LoadGPR(i.Rm, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, fpul), rm);
+  b.StoreContext(offsetof(sh4_context_t, fpul), rm);
 }
 
 // LDS.L   @Rm+,FPSCR
@@ -2075,7 +2101,7 @@ EMITTER(LDSMFPSCR) {
 EMITTER(LDSMFPUL) {
   Value *addr = b.LoadGPR(i.Rm, VALUE_I32);
   Value *v = b.LoadGuest(addr, VALUE_I32);
-  b.StoreContext(offsetof(SH4Context, fpul), v);
+  b.StoreContext(offsetof(sh4_context_t, fpul), v);
   addr = b.Add(addr, b.AllocConstant(4));
   b.StoreGPR(i.Rm, addr);
 }
@@ -2088,7 +2114,7 @@ EMITTER(STSFPSCR) {
 
 // STS     FPUL,Rn
 EMITTER(STSFPUL) {
-  Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
+  Value *fpul = b.LoadContext(offsetof(sh4_context_t, fpul), VALUE_I32);
   b.StoreGPR(i.Rn, fpul);
 }
 
@@ -2105,7 +2131,7 @@ EMITTER(STSMFPUL) {
   Value *addr = b.LoadGPR(i.Rn, VALUE_I32);
   addr = b.Sub(addr, b.AllocConstant(4));
   b.StoreGPR(i.Rn, addr);
-  Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I32);
+  Value *fpul = b.LoadContext(offsetof(sh4_context_t, fpul), VALUE_I32);
   b.StoreGuest(addr, fpul);
 }
 
@@ -2124,7 +2150,7 @@ EMITTER(FIPR) {
 EMITTER(FSCA) {
   int n = i.Rn << 1;
 
-  Value *fpul = b.LoadContext(offsetof(SH4Context, fpul), VALUE_I16);
+  Value *fpul = b.LoadContext(offsetof(sh4_context_t, fpul), VALUE_I16);
   fpul = b.ZExt(fpul, VALUE_I64);
 
   Value *fsca_table = b.AllocConstant(reinterpret_cast<uint64_t>(s_fsca_table));

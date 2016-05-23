@@ -31,7 +31,7 @@ void SH4Frontend::DumpCode(uint32_t guest_addr, uint8_t *guest_ptr, int size) {
   while (i < size) {
     Instr instr;
     instr.addr = guest_addr + i;
-    instr.opcode = re::load<uint16_t>(guest_ptr + i);
+    instr.opcode = load<uint16_t>(guest_ptr + i);
     SH4Disassembler::Disasm(&instr);
 
     SH4Disassembler::Format(instr, buffer, sizeof(buffer));
@@ -42,7 +42,7 @@ void SH4Frontend::DumpCode(uint32_t guest_addr, uint8_t *guest_ptr, int size) {
     if (instr.flags & OP_FLAG_DELAYED) {
       Instr delay;
       delay.addr = guest_addr + i;
-      delay.opcode = re::load<uint16_t>(guest_ptr + i);
+      delay.opcode = load<uint16_t>(guest_ptr + i);
       SH4Disassembler::Disasm(&delay);
 
       SH4Disassembler::Format(delay, buffer, sizeof(buffer));

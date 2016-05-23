@@ -3,6 +3,7 @@
 #include "core/memory.h"
 #include "core/profiler.h"
 #include "hw/sh4/sh4.h"
+#include "hw/sh4/sh4_code_cache.h"
 #include "hw/dreamcast.h"
 #include "hw/debugger.h"
 #include "hw/memory.h"
@@ -10,20 +11,14 @@
 
 #include "hw/aica/aica.h"
 #include "hw/holly/holly.h"
-#include "hw/holly/pvr2.h"
-#include "hw/holly/tile_accelerator.h"
+#include "hw/holly/pvr.h"
+#include "hw/holly/ta.h"
 
-using namespace re;
-using namespace re::hw;
-using namespace re::hw::aica;
-using namespace re::hw::holly;
-using namespace re::hw::sh4;
 using namespace re::jit;
 using namespace re::jit::backend;
 using namespace re::jit::frontend::sh4;
-using namespace re::sys;
 
-static InterruptInfo interrupts[NUM_INTERRUPTS] = {
+static sh4_interrupt_info_t sh4_interrupts[NUM_SH_INTERRUPTS] = {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
   { intevt, pri, ipr, ipr_shift }                  \
   ,
@@ -31,8 +26,68 @@ static InterruptInfo interrupts[NUM_INTERRUPTS] = {
 #undef SH4_INT
 };
 
+static bool sh4_init(sh4_t *sh4);
+static void sh4_paint(sh4_t *sh4, bool show_main_menu);
+static uint32_t sh4_compile_pc();
+static void sh4_invalid_instr(sh4_context_t *ctx, uint64_t data);
+static void sh4_prefetch(sh4_context_t *ctx, uint64_t data);
+static void sh4_sr_updated(sh4_context_t *ctx, uint64_t old_sr);
+static void sh4_fpscr_updated(sh4_context_t *ctx, uint64_t old_fpscr);
+static int sh4_compile_flags(sh4_t *sh4);
+static void sh4_swap_gpr_bank(sh4_t *sh4);
+static void sh4_swap_fpr_bank(sh4_t *sh4);
+static void sh4_ccn_reset(sh4_t *sh4);
+static void sh4_dmac_check(sh4_t *sh4, int channel);
+static void sh4_intc_reprioritize(sh4_t *sh4);
+static void sh4_intc_update_pending(sh4_t *sh4);
+static void sh4_intc_check_pending(sh4_t *sh4);
+static void sh4_tmu_update_tstr(sh4_t *sh4);
+static void sh4_tmu_update_tcr(sh4_t *sh4, uint32_t n);
+static void sh4_tmu_update_tcnt(sh4_t *sh4, uint32_t n);
+static uint32_t sh4_tmu_tcnt(sh4_t *sh4, int n);
+static void sh4_tmu_reschedule(sh4_t *sh4, int n, uint32_t tcnt, uint32_t tcr);
+static void sh4_tmu_expire(sh4_t *sh4, int n);
+static void sh4_tmu_expire_0(sh4_t *sh4);
+static void sh4_tmu_expire_1(sh4_t *sh4);
+static void sh4_tmu_expire_2(sh4_t *sh4);
+template <typename T>
+T sh4_read_reg(sh4_t *sh4, uint32_t addr);
+template <typename T>
+void sh4_write_reg(sh4_t *sh4, uint32_t addr, T value);
+template <typename T>
+T sh4_read_cache(sh4_t *sh4, uint32_t addr);
+template <typename T>
+void sh4_write_cache(sh4_t *sh4, uint32_t addr, T value);
+template <typename T>
+T sh4_read_sq(sh4_t *sh4, uint32_t addr);
+template <typename T>
+void sh4_write_sq(sh4_t *sh4, uint32_t addr, T value);
+DECLARE_REG_R32(sh4_t *sh4, PDTRA);
+DECLARE_REG_W32(sh4_t *sh4, MMUCR);
+DECLARE_REG_W32(sh4_t *sh4, CCR);
+DECLARE_REG_W32(sh4_t *sh4, CHCR0);
+DECLARE_REG_W32(sh4_t *sh4, CHCR1);
+DECLARE_REG_W32(sh4_t *sh4, CHCR2);
+DECLARE_REG_W32(sh4_t *sh4, CHCR3);
+DECLARE_REG_W32(sh4_t *sh4, DMAOR);
+DECLARE_REG_W32(sh4_t *sh4, IPRA);
+DECLARE_REG_W32(sh4_t *sh4, IPRB);
+DECLARE_REG_W32(sh4_t *sh4, IPRC);
+DECLARE_REG_W32(sh4_t *sh4, TSTR);
+DECLARE_REG_W32(sh4_t *sh4, TCR0);
+DECLARE_REG_W32(sh4_t *sh4, TCR1);
+DECLARE_REG_W32(sh4_t *sh4, TCR2);
+DECLARE_REG_R32(sh4_t *sh4, TCNT0);
+DECLARE_REG_W32(sh4_t *sh4, TCNT0);
+DECLARE_REG_R32(sh4_t *sh4, TCNT1);
+DECLARE_REG_W32(sh4_t *sh4, TCNT1);
+DECLARE_REG_R32(sh4_t *sh4, TCNT2);
+DECLARE_REG_W32(sh4_t *sh4, TCNT2);
+
+static sh4_t *g_sh4;
+
 // clang-format off
-AM_BEGIN(SH4, data_map)
+AM_BEGIN(sh4_t, sh4_data_map)
   AM_RANGE(0x00000000, 0x03ffffff) AM_MOUNT()  // area 0
   AM_RANGE(0x04000000, 0x07ffffff) AM_MOUNT()  // area 1
   AM_RANGE(0x08000000, 0x0bffffff) AM_MOUNT()  // area 2
@@ -48,21 +103,21 @@ AM_BEGIN(SH4, data_map)
   AM_RANGE(0x0f000000, 0x0fffffff) AM_MIRROR(0x0c000000)
 
   // external devices
-  AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", Holly, reg_map)
-  AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", PVR2, reg_map)
-  AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", AICA, reg_map)
-  AM_RANGE(0x00800000, 0x00ffffff) AM_DEVICE("aica", AICA, data_map)
-  AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", PVR2, vram_map)
-  AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", TileAccelerator, fifo_map)
+  AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", holly_reg_map)
+  AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", pvr_reg_map)
+  AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", aica_reg_map)
+  AM_RANGE(0x00800000, 0x00ffffff) AM_DEVICE("aica", aica_data_map)
+  AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", pvr_vram_map)
+  AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_fifo_map)
 
   // internal registers
-  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE(&SH4::ReadRegister<uint8_t>,
-                                             &SH4::ReadRegister<uint16_t>,
-                                             &SH4::ReadRegister<uint32_t>,
+  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE((r8_cb)&sh4_read_reg<uint8_t>,
+                                             (r16_cb)&sh4_read_reg<uint16_t>,
+                                             (r32_cb)&sh4_read_reg<uint32_t>,
                                              nullptr,
-                                             &SH4::WriteRegister<uint8_t>,
-                                             &SH4::WriteRegister<uint16_t>,
-                                             &SH4::WriteRegister<uint32_t>,
+                                             (w8_cb)&sh4_write_reg<uint8_t>,
+                                             (w16_cb)&sh4_write_reg<uint16_t>,
+                                             (w32_cb)&sh4_write_reg<uint32_t>,
                                              nullptr)
 
   // physical mirrors
@@ -75,92 +130,86 @@ AM_BEGIN(SH4, data_map)
   AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  // p4
 
   // internal cache and sq only accessible through p4
-  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE(&SH4::ReadCache<uint8_t>,
-                                             &SH4::ReadCache<uint16_t>,
-                                             &SH4::ReadCache<uint32_t>,
-                                             &SH4::ReadCache<uint64_t>,
-                                             &SH4::WriteCache<uint8_t>,
-                                             &SH4::WriteCache<uint16_t>,
-                                             &SH4::WriteCache<uint32_t>,
-                                             &SH4::WriteCache<uint64_t>)
+  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE((r8_cb)&sh4_read_cache<uint8_t>,
+                                             (r16_cb)&sh4_read_cache<uint16_t>,
+                                             (r32_cb)&sh4_read_cache<uint32_t>,
+                                             (r64_cb)&sh4_read_cache<uint64_t>,
+                                             (w8_cb)&sh4_write_cache<uint8_t>,
+                                             (w16_cb)&sh4_write_cache<uint16_t>,
+                                             (w32_cb)&sh4_write_cache<uint32_t>,
+                                             (w64_cb)&sh4_write_cache<uint64_t>)
 
-  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE(&SH4::ReadSQ<uint8_t>,
-                                             &SH4::ReadSQ<uint16_t>,
-                                             &SH4::ReadSQ<uint32_t>,
+  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE((r8_cb)&sh4_read_sq<uint8_t>,
+                                             (r16_cb)&sh4_read_sq<uint16_t>,
+                                             (r32_cb)&sh4_read_sq<uint32_t>,
                                              nullptr,
-                                             &SH4::WriteSQ<uint8_t>,
-                                             &SH4::WriteSQ<uint16_t>,
-                                             &SH4::WriteSQ<uint32_t>,
+                                             (w8_cb)&sh4_write_sq<uint8_t>,
+                                             (w16_cb)&sh4_write_sq<uint16_t>,
+                                             (w32_cb)&sh4_write_sq<uint32_t>,
                                              nullptr)
-AM_END()
-    // clang-format on
+AM_END();
+// clang-format on
 
-    static SH4 *s_current_cpu = nullptr;
+static const int64_t SH4_CLOCK_FREQ = 200000000;
 
-enum {
-  SH4_CLOCK_FREQ = 200000000,
-};
+sh4_t *sh4_create(dreamcast_t *dc) {
+  sh4_t *sh4 = reinterpret_cast<sh4_t *>(
+      dc_create_device(dc, sizeof(sh4_t), "sh", (device_init_cb)&sh4_init));
+  sh4->base.execute = execute_interface_create((device_run_cb)&sh4_run);
+  sh4->base.memory = memory_interface_create(dc, sh4_data_map);
+  sh4->base.window =
+      window_interface_create((device_paint_cb)&sh4_paint, nullptr);
 
-SH4::SH4(Dreamcast &dc)
-    : Device(dc, "sh4"),
-      DebugInterface(this),
-      ExecuteInterface(this),
-      MemoryInterface(this, data_map),
-      WindowInterface(this),
-      dc_(dc),
-      scheduler_(nullptr),
-      code_cache_(nullptr),
-      regs_(),
-      cache_(),
-      show_perf_(false),
-      mips_(),
-      num_mips_(0),
-      requested_interrupts_(0),
-      pending_interrupts_(0),
-      tmu_timers_{INVALID_TIMER, INVALID_TIMER, INVALID_TIMER},
-      tmu_delegates_{re::make_delegate(&SH4::ExpireTimer<0>, this),
-                     re::make_delegate(&SH4::ExpireTimer<1>, this),
-                     re::make_delegate(&SH4::ExpireTimer<2>, this)} {}
+  g_sh4 = sh4;
 
-SH4::~SH4() { delete code_cache_; }
+  return sh4;
+}
 
-bool SH4::Init() {
-  scheduler_ = dc_.scheduler();
+void sh4_destroy(sh4_t *sh4) {
+  sh4_cache_destroy(sh4->code_cache);
 
-  // setup code cache
-  code_cache_ = new SH4CodeCache(
-      {&ctx_, space_.protected_base(), &space_, &AddressSpace::R8,
-       &AddressSpace::R16, &AddressSpace::R32, &AddressSpace::R64,
-       &AddressSpace::W8, &AddressSpace::W16, &AddressSpace::W32,
-       &AddressSpace::W64},
-      &SH4::CompilePC);
+  execute_interface_destroy(sh4->base.execute);
+  memory_interface_destroy(sh4->base.memory);
+  dc_destroy_device(&sh4->base);
+}
+
+bool sh4_init(sh4_t *sh4) {
+  sh4->scheduler = sh4->base.dc->scheduler;
+  sh4->space = sh4->base.memory->space;
+
+  re::jit::backend::MemoryInterface memif = {
+      &sh4->ctx,
+      sh4->base.memory->space->protected_base,
+      sh4->base.memory->space,
+      &address_space_r8,
+      &address_space_r16,
+      &address_space_r32,
+      &address_space_r64,
+      &address_space_w8,
+      &address_space_w16,
+      &address_space_w32,
+      &address_space_w64};
+  sh4->code_cache = sh4_cache_create(&memif, &sh4_compile_pc);
 
   // initialize context
-  memset(&ctx_, 0, sizeof(ctx_));
-  ctx_.sh4 = this;
-  ctx_.InvalidInstruction = &SH4::InvalidInstruction;
-  ctx_.Prefetch = &SH4::Prefetch;
-  ctx_.SRUpdated = &SH4::SRUpdated;
-  ctx_.FPSCRUpdated = &SH4::FPSCRUpdated;
-  ctx_.pc = 0xa0000000;
-  ctx_.r[15] = 0x8d000000;
-  ctx_.pr = 0x0;
-  ctx_.sr = 0x700000f0;
-  ctx_.fpscr = 0x00040001;
-
-  // clear cache
-  memset(cache_, 0, sizeof(cache_));
+  sh4->ctx.sh4 = sh4;
+  sh4->ctx.InvalidInstruction = &sh4_invalid_instr;
+  sh4->ctx.Prefetch = &sh4_prefetch;
+  sh4->ctx.SRUpdated = &sh4_sr_updated;
+  sh4->ctx.FPSCRUpdated = &sh4_fpscr_updated;
+  sh4->ctx.pc = 0xa0000000;
+  sh4->ctx.r[15] = 0x8d000000;
+  sh4->ctx.pr = 0x0;
+  sh4->ctx.sr = 0x700000f0;
+  sh4->ctx.fpscr = 0x00040001;
 
 // initialize registers
-#define SH4_REG(addr, name, flags, default, reset, sleep, standby, type) \
-  if (default != HELD) {                                                 \
-    regs_[name##_OFFSET] = {flags, default};                             \
-  }
-#define SH4_REG_R32(name) \
-  regs_[name##_OFFSET].read = make_delegate(&SH4::name##_r, this);
-#define SH4_REG_W32(name) \
-  regs_[name##_OFFSET].write = make_delegate(&SH4::name##_w, this);
-#include "hw/sh4/sh4_regs.inc"
+#define SH4_REG_R32(name)    \
+  sh4->reg_data[name] = sh4; \
+  sh4->reg_read[name] = (reg_read_cb)&name##_r;
+#define SH4_REG_W32(name)    \
+  sh4->reg_data[name] = sh4; \
+  sh4->reg_write[name] = (reg_write_cb)&name##_w;
   SH4_REG_R32(PDTRA);
   SH4_REG_W32(MMUCR);
   SH4_REG_W32(CCR);
@@ -182,62 +231,207 @@ bool SH4::Init() {
   SH4_REG_W32(TCNT1);
   SH4_REG_R32(TCNT2);
   SH4_REG_W32(TCNT2);
-#undef SH4_REG
 #undef SH4_REG_R32
 #undef SH4_REG_W32
 
+#define SH4_REG(addr, name, default, type) \
+  sh4->reg[name] = default;                \
+  sh4->name = reinterpret_cast<type *>(&sh4->reg[name]);
+#include "hw/sh4/sh4_regs.inc"
+#undef SH4_REG
+
   // reset interrupts
-  ReprioritizeInterrupts();
+  sh4_intc_reprioritize(sh4);
 
   return true;
 }
 
-void SH4::SetPC(uint32_t pc) { ctx_.pc = pc; }
-
-void SH4::Run(const std::chrono::nanoseconds &delta) {
-  PROFILER_RUNTIME("SH4::Execute");
-
-  // execute at least 1 cycle. the tests rely on this to step block by block
-  int64_t cycles = std::max(NANO_TO_CYCLES(delta, SH4_CLOCK_FREQ), INT64_C(1));
-
-  // set current sh4 instance for CompilePC
-  s_current_cpu = this;
-
-  // each block's epilog will decrement the remaining cycles as they run
-  ctx_.num_cycles = static_cast<int>(cycles);
-
-  while (ctx_.num_cycles > 0) {
-    CodePointer code = code_cache_->GetCode(ctx_.pc);
-    ctx_.pc = code();
-
-    CheckPendingInterrupts();
-  }
-
-  // track mips
-  auto now = std::chrono::high_resolution_clock::now();
-  auto next_time = last_mips_time_ + std::chrono::seconds(1);
-
-  if (now > next_time) {
-    auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        now - last_mips_time_);
-    auto delta_f =
-        std::chrono::duration_cast<std::chrono::duration<float>>(delta).count();
-    auto delta_scaled = delta_f * 1000000.0f;
-    mips_[num_mips_++ % MAX_MIPS_SAMPLES] = ctx_.num_instrs / delta_scaled;
-    ctx_.num_instrs = 0;
-    last_mips_time_ = now;
-  }
-
-  s_current_cpu = nullptr;
+void sh4_set_pc(sh4_t *sh4, uint32_t pc) {
+  sh4->ctx.pc = pc;
 }
 
-void SH4::DDT(const DTR &dtr) {
-  if (dtr.data) {
+static void sh4_run_inner(sh4_t *sh4, int64_t ns) {
+  // execute at least 1 cycle. the tests rely on this to step block by block
+  int64_t cycles = std::max(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
+
+  // each block's epilog will decrement the remaining cycles as they run
+  sh4->ctx.num_cycles = static_cast<int>(cycles);
+
+  while (sh4->ctx.num_cycles > 0) {
+    code_pointer_t code = sh4_cache_get_code(sh4->code_cache, sh4->ctx.pc);
+    sh4->ctx.pc = code();
+
+    sh4_intc_check_pending(sh4);
+  }
+
+  // // track mips
+  // auto now = std::chrono::high_resolution_clock::now();
+  // auto next_time = last_mips_time_ + std::chrono::seconds(1);
+
+  // if (now > next_time) {
+  //   auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
+  //       now - last_mips_time_);
+  //   auto delta_f =
+  //       std::chrono::duration_cast<std::chrono::duration<float>>(delta).count();
+  //   auto delta_scaled = delta_f * 1000000.0f;
+  //   mips_[num_mips_++ % MAX_MIPS_SAMPLES] = sh4->ctx.num_instrs /
+  //   delta_scaled;
+  //   sh4->ctx.num_instrs = 0;
+  //   last_mips_time_ = now;
+  // }
+}
+
+void sh4_run(sh4_t *sh4, int64_t ns) {
+  prof_enter("sh4_run");
+
+  sh4_run_inner(sh4, ns);
+
+  prof_leave();
+}
+
+// int SH4::NumRegisters() {
+//   return 59;
+// }
+
+// void SH4::Step() {
+//   // invalidate the block for the current pc
+//   sh4->code_cache->RemoveBlocks(sh4->ctx.pc);
+
+//   // recompile it with only one instruction and run it
+//   uint32_t guest_addr = sh4->ctx.pc;
+//   uint8_t *host_addr = space->Translate(guest_addr);
+//   int flags = GetCompileFlags() | SH4_SINGLE_INSTR;
+
+//   code_pointer_t code = sh4->code_cache->CompileCode(guest_addr, host_addr,
+//   flags);
+//   sh4->ctx.pc = code();
+
+//   // let the debugger know we've stopped
+//   dc_.base->debugger->Trap();
+// }
+
+// void SH4::AddBreakpoint(int type, uint32_t addr) {
+//   // save off the original instruction
+//   uint16_t instr = space->R16(addr);
+//   breakpoints_.insert(std::make_pair(addr, instr));
+
+//   // write out an invalid instruction
+//   space->W16(addr, 0);
+
+//   sh4->code_cache->RemoveBlocks(addr);
+// }
+
+// void SH4::RemoveBreakpoint(int type, uint32_t addr) {
+//   // recover the original instruction
+//   auto it = breakpoints_.find(addr);
+//   CHECK_NE(it, breakpoints_.end());
+//   uint16_t instr = it->second;
+//   breakpoints_.erase(it);
+
+//   // overwrite the invalid instruction with the original
+//   space->W16(addr, instr);
+
+//   sh4->code_cache->RemoveBlocks(addr);
+// }
+
+// void SH4::ReadMemory(uint32_t addr, uint8_t *buffer, int size) {
+//   space->Memcpy(buffer, addr, size);
+// }
+
+// void SH4::ReadRegister(int n, uint64_t *value, int *size) {
+//   if (n < 16) {
+//     *value = sh4->ctx.r[n];
+//   } else if (n == 16) {
+//     *value = sh4->ctx.pc;
+//   } else if (n == 17) {
+//     *value = sh4->ctx.pr;
+//   } else if (n == 18) {
+//     *value = sh4->ctx.gbr;
+//   } else if (n == 19) {
+//     *value = sh4->ctx.vbr;
+//   } else if (n == 20) {
+//     *value = sh4->ctx.mach;
+//   } else if (n == 21) {
+//     *value = sh4->ctx.macl;
+//   } else if (n == 22) {
+//     *value = sh4->ctx.sr;
+//   } else if (n == 23) {
+//     *value = sh4->ctx.fpul;
+//   } else if (n == 24) {
+//     *value = sh4->ctx.fpscr;
+//   } else if (n < 41) {
+//     *value = sh4->ctx.fr[n - 25];
+//   } else if (n == 41) {
+//     *value = sh4->ctx.ssr;
+//   } else if (n == 42) {
+//     *value = sh4->ctx.spc;
+//   } else if (n < 51) {
+//     uint32_t *b0 = (sh4->ctx.sr & RB) ? sh4->ctx.ralt : sh4->ctx.r;
+//     *value = b0[n - 43];
+//   } else if (n < 59) {
+//     uint32_t *b1 = (sh4->ctx.sr & RB) ? sh4->ctx.r : sh4->ctx.ralt;
+//     *value = b1[n - 51];
+//   }
+
+//   *size = 4;
+// }
+
+void sh4_paint(sh4_t *sh4, bool show_main_menu) {
+  sh4_perf_t *perf = &sh4->perf;
+
+  if (show_main_menu && ImGui::BeginMainMenuBar()) {
+    if (ImGui::BeginMenu("CPU")) {
+      ImGui::MenuItem("Perf", "", &perf->show);
+      ImGui::EndMenu();
+    }
+
+    ImGui::EndMainMenuBar();
+  }
+
+  if (perf->show) {
+    ImGui::Begin("Perf", nullptr, ImGuiWindowFlags_NoTitleBar |
+                                      ImGuiWindowFlags_NoResize |
+                                      ImGuiWindowFlags_NoMove |
+                                      ImGuiWindowFlags_AlwaysAutoResize);
+
+    ImGui::SetWindowPos(ImVec2(
+        ImGui::GetIO().DisplaySize.x - ImGui::GetWindowSize().x - 10, 10));
+
+    // calculate average mips
+    float avg_mips = 0.0f;
+    for (int i = std::max(0, perf->num_mips - MAX_MIPS_SAMPLES);
+         i < perf->num_mips; i++) {
+      avg_mips += perf->mips[i % MAX_MIPS_SAMPLES];
+    }
+    avg_mips /= std::max(std::min(perf->num_mips, MAX_MIPS_SAMPLES), 1);
+
+    char overlay_text[128];
+    snprintf(overlay_text, sizeof(overlay_text), "%.2f", avg_mips);
+    ImGui::PlotLines("MIPS", perf->mips, MAX_MIPS_SAMPLES, perf->num_mips,
+                     overlay_text, 0.0f, 400.0f);
+
+    ImGui::End();
+  }
+}
+
+void sh4_raise_interrupt(sh4_t *sh4, sh4_interrupt_t intr) {
+  sh4->requested_interrupts |= sh4->sort_id[intr];
+  sh4_intc_update_pending(sh4);
+}
+
+void sh4_clear_interrupt(sh4_t *sh4, sh4_interrupt_t intr) {
+  sh4->requested_interrupts &= ~sh4->sort_id[intr];
+  sh4_intc_update_pending(sh4);
+}
+
+void sh4_ddt(sh4_t *sh4, sh4_dtr_t *dtr) {
+  if (dtr->data) {
     // single address mode transfer
-    if (dtr.rw) {
-      space_.Memcpy(dtr.addr, dtr.data, dtr.size);
+    if (dtr->rw) {
+      address_space_memcpy_to_guest(sh4->space, dtr->addr, dtr->data,
+                                    dtr->size);
     } else {
-      space_.Memcpy(dtr.data, dtr.addr, dtr.size);
+      address_space_memcpy_to_host(sh4->space, dtr->data, dtr->addr, dtr->size);
     }
   } else {
     // dual address mode transfer
@@ -246,36 +440,36 @@ void SH4::DDT(const DTR &dtr) {
     uint32_t *sar;
     uint32_t *dar;
     uint32_t *dmatcr;
-    CHCR_T *chcr;
-    Interrupt dmte;
+    chcr_t *chcr;
+    sh4_interrupt_t dmte;
 
-    switch (dtr.channel) {
+    switch (dtr->channel) {
       case 0:
-        sar = &SAR0;
-        dar = &DAR0;
-        dmatcr = &DMATCR0;
-        chcr = &CHCR0;
+        sar = sh4->SAR0;
+        dar = sh4->DAR0;
+        dmatcr = sh4->DMATCR0;
+        chcr = sh4->CHCR0;
         dmte = SH4_INTC_DMTE0;
         break;
       case 1:
-        sar = &SAR1;
-        dar = &DAR1;
-        dmatcr = &DMATCR1;
-        chcr = &CHCR1;
+        sar = sh4->SAR1;
+        dar = sh4->DAR1;
+        dmatcr = sh4->DMATCR1;
+        chcr = sh4->CHCR1;
         dmte = SH4_INTC_DMTE1;
         break;
       case 2:
-        sar = &SAR2;
-        dar = &DAR2;
-        dmatcr = &DMATCR2;
-        chcr = &CHCR2;
+        sar = sh4->SAR2;
+        dar = sh4->DAR2;
+        dmatcr = sh4->DMATCR2;
+        chcr = sh4->CHCR2;
         dmte = SH4_INTC_DMTE2;
         break;
       case 3:
-        sar = &SAR3;
-        dar = &DAR3;
-        dmatcr = &DMATCR3;
-        chcr = &CHCR3;
+        sar = sh4->SAR3;
+        dar = sh4->DAR3;
+        dmatcr = sh4->DMATCR3;
+        chcr = sh4->CHCR3;
         dmte = SH4_INTC_DMTE3;
         break;
       default:
@@ -283,10 +477,10 @@ void SH4::DDT(const DTR &dtr) {
         break;
     }
 
-    uint32_t src = dtr.rw ? dtr.addr : *sar;
-    uint32_t dst = dtr.rw ? *dar : dtr.addr;
+    uint32_t src = dtr->rw ? dtr->addr : *sar;
+    uint32_t dst = dtr->rw ? *dar : dtr->addr;
     int size = *dmatcr * 32;
-    space_.Memcpy(dst, src, size);
+    address_space_memcpy(sh4->space, dst, src, size);
 
     // update src / addresses as well as remaining count
     *sar = src + size;
@@ -298,167 +492,38 @@ void SH4::DDT(const DTR &dtr) {
 
     // raise interrupt if requested
     if (chcr->IE) {
-      RequestInterrupt(dmte);
+      sh4_raise_interrupt(sh4, dmte);
     }
   }
 }
 
-void SH4::RequestInterrupt(Interrupt intr) {
-  requested_interrupts_ |= sort_id_[intr];
-  UpdatePendingInterrupts();
-}
+uint32_t sh4_compile_pc() {
+  uint32_t guest_addr = g_sh4->ctx.pc;
+  uint8_t *guest_ptr =
+      address_space_translate(g_sh4->base.memory->space, guest_addr);
+  int flags = sh4_compile_flags(g_sh4);
 
-void SH4::UnrequestInterrupt(Interrupt intr) {
-  requested_interrupts_ &= ~sort_id_[intr];
-  UpdatePendingInterrupts();
-}
-
-int SH4::NumRegisters() { return 59; }
-
-void SH4::Step() {
-  // invalidate the block for the current pc
-  code_cache_->RemoveBlocks(ctx_.pc);
-
-  // recompile it with only one instruction and run it
-  uint32_t guest_addr = ctx_.pc;
-  uint8_t *host_addr = space_.Translate(guest_addr);
-  int flags = GetCompileFlags() | SH4_SINGLE_INSTR;
-
-  CodePointer code = code_cache_->CompileCode(guest_addr, host_addr, flags);
-  ctx_.pc = code();
-
-  // let the debugger know we've stopped
-  dc_.debugger()->Trap();
-}
-
-void SH4::AddBreakpoint(int type, uint32_t addr) {
-  // save off the original instruction
-  uint16_t instr = space_.R16(addr);
-  breakpoints_.insert(std::make_pair(addr, instr));
-
-  // write out an invalid instruction
-  space_.W16(addr, 0);
-
-  code_cache_->RemoveBlocks(addr);
-}
-
-void SH4::RemoveBreakpoint(int type, uint32_t addr) {
-  // recover the original instruction
-  auto it = breakpoints_.find(addr);
-  CHECK_NE(it, breakpoints_.end());
-  uint16_t instr = it->second;
-  breakpoints_.erase(it);
-
-  // overwrite the invalid instruction with the original
-  space_.W16(addr, instr);
-
-  code_cache_->RemoveBlocks(addr);
-}
-
-void SH4::ReadMemory(uint32_t addr, uint8_t *buffer, int size) {
-  space_.Memcpy(buffer, addr, size);
-}
-
-void SH4::ReadRegister(int n, uint64_t *value, int *size) {
-  if (n < 16) {
-    *value = ctx_.r[n];
-  } else if (n == 16) {
-    *value = ctx_.pc;
-  } else if (n == 17) {
-    *value = ctx_.pr;
-  } else if (n == 18) {
-    *value = ctx_.gbr;
-  } else if (n == 19) {
-    *value = ctx_.vbr;
-  } else if (n == 20) {
-    *value = ctx_.mach;
-  } else if (n == 21) {
-    *value = ctx_.macl;
-  } else if (n == 22) {
-    *value = ctx_.sr;
-  } else if (n == 23) {
-    *value = ctx_.fpul;
-  } else if (n == 24) {
-    *value = ctx_.fpscr;
-  } else if (n < 41) {
-    *value = ctx_.fr[n - 25];
-  } else if (n == 41) {
-    *value = ctx_.ssr;
-  } else if (n == 42) {
-    *value = ctx_.spc;
-  } else if (n < 51) {
-    uint32_t *b0 = (ctx_.sr & RB) ? ctx_.ralt : ctx_.r;
-    *value = b0[n - 43];
-  } else if (n < 59) {
-    uint32_t *b1 = (ctx_.sr & RB) ? ctx_.r : ctx_.ralt;
-    *value = b1[n - 51];
-  }
-
-  *size = 4;
-}
-
-void SH4::OnPaint(bool show_main_menu) {
-  if (show_main_menu && ImGui::BeginMainMenuBar()) {
-    if (ImGui::BeginMenu("CPU")) {
-      ImGui::MenuItem("Perf", "", &show_perf_);
-      ImGui::EndMenu();
-    }
-
-    ImGui::EndMainMenuBar();
-  }
-
-  if (show_perf_) {
-    ImGui::Begin("Perf", nullptr, ImGuiWindowFlags_NoTitleBar |
-                                      ImGuiWindowFlags_NoResize |
-                                      ImGuiWindowFlags_NoMove |
-                                      ImGuiWindowFlags_AlwaysAutoResize);
-
-    ImGui::SetWindowPos(ImVec2(
-        ImGui::GetIO().DisplaySize.x - ImGui::GetWindowSize().x - 10, 10));
-
-    // calculate average mips
-    float avg_mips = 0.0f;
-    for (int i = std::max(0, num_mips_ - MAX_MIPS_SAMPLES); i < num_mips_;
-         i++) {
-      avg_mips += mips_[i % MAX_MIPS_SAMPLES];
-    }
-    avg_mips /= std::max(std::min(num_mips_, MAX_MIPS_SAMPLES), 1);
-
-    char overlay_text[128];
-    snprintf(overlay_text, sizeof(overlay_text), "%.2f", avg_mips);
-    ImGui::PlotLines("MIPS", mips_, MAX_MIPS_SAMPLES, num_mips_, overlay_text,
-                     0.0f, 400.0f);
-
-    ImGui::End();
-  }
-}
-
-uint32_t SH4::CompilePC() {
-  uint32_t guest_addr = s_current_cpu->ctx_.pc;
-  uint8_t *host_addr = s_current_cpu->space_.Translate(guest_addr);
-  int flags = s_current_cpu->GetCompileFlags();
-
-  CodePointer code =
-      s_current_cpu->code_cache_->CompileCode(guest_addr, host_addr, flags);
+  code_pointer_t code =
+      sh4_cache_compile_code(g_sh4->code_cache, guest_addr, guest_ptr, flags);
   return code();
 }
 
-void SH4::InvalidInstruction(SH4Context *ctx, uint64_t data) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-  uint32_t addr = static_cast<uint32_t>(data);
+void sh4_invalid_instr(sh4_context_t *ctx, uint64_t data) {
+  // sh4_t *self = reinterpret_cast<SH4 *>(ctx->sh4);
+  // uint32_t addr = static_cast<uint32_t>(data);
 
-  auto it = self->breakpoints_.find(addr);
-  CHECK_NE(it, self->breakpoints_.end());
+  // auto it = self->breakpoints.find(addr);
+  // CHECK_NE(it, self->breakpoints.end());
 
-  // force the main loop to break
-  self->ctx_.num_cycles = 0;
+  // // force the main loop to break
+  // self->ctx.num_cycles = 0;
 
-  // let the debugger know execution has stopped
-  self->dc_.debugger()->Trap();
+  // // let the debugger know execution has stopped
+  // self->dc.base->debugger->Trap();
 }
 
-void SH4::Prefetch(SH4Context *ctx, uint64_t data) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+void sh4_prefetch(sh4_context_t *ctx, uint64_t data) {
+  sh4_t *sh4 = reinterpret_cast<sh4_t *>(ctx->sh4);
   uint32_t addr = static_cast<uint32_t>(data);
 
   // only concerned about SQ related prefetches
@@ -470,176 +535,107 @@ void SH4::Prefetch(SH4Context *ctx, uint64_t data) {
   uint32_t dest = addr & 0x03ffffe0;
   uint32_t sqi = (addr & 0x20) >> 5;
   if (sqi) {
-    dest |= (self->QACR1 & 0x1c) << 24;
+    dest |= (*sh4->QACR1 & 0x1c) << 24;
   } else {
-    dest |= (self->QACR0 & 0x1c) << 24;
+    dest |= (*sh4->QACR0 & 0x1c) << 24;
   }
 
   // perform the "burst" 32-byte copy
   for (int i = 0; i < 8; i++) {
-    self->space_.W32(dest, ctx->sq[sqi][i]);
+    address_space_w32(sh4->space, dest, sh4->ctx.sq[sqi][i]);
     dest += 4;
   }
 }
 
-void SH4::SRUpdated(SH4Context *ctx, uint64_t old_sr) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+void sh4_sr_updated(sh4_context_t *ctx, uint64_t old_sr) {
+  sh4_t *sh4 = reinterpret_cast<sh4_t *>(ctx->sh4);
 
   if ((ctx->sr & RB) != (old_sr & RB)) {
-    self->SwapRegisterBank();
+    sh4_swap_gpr_bank(sh4);
   }
 
   if ((ctx->sr & I) != (old_sr & I) || (ctx->sr & BL) != (old_sr & BL)) {
-    self->UpdatePendingInterrupts();
+    sh4_intc_update_pending(sh4);
   }
 }
 
-void SH4::FPSCRUpdated(SH4Context *ctx, uint64_t old_fpscr) {
-  SH4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+void sh4_fpscr_updated(sh4_context_t *ctx, uint64_t old_fpscr) {
+  sh4_t *sh4 = reinterpret_cast<sh4_t *>(ctx->sh4);
 
   if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
-    self->SwapFPRegisterBank();
+    sh4_swap_fpr_bank(sh4);
   }
 }
 
-int SH4::GetCompileFlags() {
+int sh4_compile_flags(sh4_t *sh4) {
   int flags = 0;
-  if (ctx_.fpscr & PR) {
+  if (sh4->ctx.fpscr & PR) {
     flags |= SH4_DOUBLE_PR;
   }
-  if (ctx_.fpscr & SZ) {
+  if (sh4->ctx.fpscr & SZ) {
     flags |= SH4_DOUBLE_SZ;
   }
   return flags;
 }
 
-void SH4::SwapRegisterBank() {
+void sh4_swap_gpr_bank(sh4_t *sh4) {
   for (int s = 0; s < 8; s++) {
-    uint32_t tmp = ctx_.r[s];
-    ctx_.r[s] = ctx_.ralt[s];
-    ctx_.ralt[s] = tmp;
+    uint32_t tmp = sh4->ctx.r[s];
+    sh4->ctx.r[s] = sh4->ctx.ralt[s];
+    sh4->ctx.ralt[s] = tmp;
   }
 }
 
-void SH4::SwapFPRegisterBank() {
+void sh4_swap_fpr_bank(sh4_t *sh4) {
   for (int s = 0; s <= 15; s++) {
-    uint32_t tmp = ctx_.fr[s];
-    ctx_.fr[s] = ctx_.xf[s];
-    ctx_.xf[s] = tmp;
+    uint32_t tmp = sh4->ctx.fr[s];
+    sh4->ctx.fr[s] = sh4->ctx.xf[s];
+    sh4->ctx.xf[s] = tmp;
   }
-}
-
-template <typename T>
-T SH4::ReadRegister(uint32_t addr) {
-  uint32_t offset = SH4_REG_OFFSET(addr);
-  Register &reg = regs_[offset];
-
-  if (!(reg.flags & R)) {
-    LOG_WARNING("Invalid read access at 0x%x", addr);
-    return 0;
-  }
-
-  if (reg.read) {
-    return reg.read(reg);
-  }
-
-  return static_cast<T>(reg.value);
-}
-
-template <typename T>
-void SH4::WriteRegister(uint32_t addr, T value) {
-  uint32_t offset = SH4_REG_OFFSET(addr);
-  Register &reg = regs_[offset];
-
-  if (!(reg.flags & W)) {
-    LOG_WARNING("Invalid write access at 0x%x", addr);
-    return;
-  }
-
-  uint32_t old_value = reg.value;
-  reg.value = static_cast<uint32_t>(value);
-
-  if (reg.write) {
-    reg.write(reg, old_value);
-  }
-}
-
-// with OIX, bit 25, rather than bit 13, determines which 4kb bank to use
-#define CACHE_OFFSET(addr, OIX) \
-  ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
-
-template <typename T>
-T SH4::ReadCache(uint32_t addr) {
-  CHECK_EQ(CCR.ORA, 1u);
-  addr = CACHE_OFFSET(addr, CCR.OIX);
-  return re::load<T>(&cache_[addr]);
-}
-
-template <typename T>
-void SH4::WriteCache(uint32_t addr, T value) {
-  CHECK_EQ(CCR.ORA, 1u);
-  addr = CACHE_OFFSET(addr, CCR.OIX);
-  re::store(&cache_[addr], value);
-}
-
-template <typename T>
-T SH4::ReadSQ(uint32_t addr) {
-  uint32_t sqi = (addr & 0x20) >> 5;
-  unsigned idx = (addr & 0x1c) >> 2;
-  return static_cast<T>(ctx_.sq[sqi][idx]);
-}
-
-template <typename T>
-void SH4::WriteSQ(uint32_t addr, T value) {
-  uint32_t sqi = (addr & 0x20) >> 5;
-  uint32_t idx = (addr & 0x1c) >> 2;
-  ctx_.sq[sqi][idx] = static_cast<uint32_t>(value);
 }
 
 //
 // CCN
 //
-
-void SH4::ResetCache() {
+void sh4_ccn_reset(sh4_t *sh4) {
   // FIXME this isn't right. When the IC is reset a pending flag is set and the
   // cache is actually reset at the end of the current block. However, the docs
   // for the SH4 IC state "After CCR is updated, an instruction that performs
-  // data
-  // access to the P0, P1, P3, or U0 area should be located at least four
+  // data access to the P0, P1, P3, or U0 area should be located at least four
   // instructions after the CCR update instruction. Also, a branch instruction
-  // to
-  // the P0, P1, P3, or U0 area should be located at least eight instructions
+  // to the P0, P1, P3, or U0 area should be located at least eight instructions
   // after the CCR update instruction."
   LOG_INFO("Reset instruction cache");
 
-  code_cache_->UnlinkBlocks();
+  sh4_cache_unlink_blocks(sh4->code_cache);
 }
 
 //
 // DMAC
 //
-void SH4::CheckDMA(int channel) {
-  CHCR_T *chcr = nullptr;
+void sh4_dmac_check(sh4_t *sh4, int channel) {
+  chcr_t *chcr = nullptr;
 
   switch (channel) {
     case 0:
-      chcr = &CHCR0;
+      chcr = sh4->CHCR0;
       break;
     case 1:
-      chcr = &CHCR1;
+      chcr = sh4->CHCR1;
       break;
     case 2:
-      chcr = &CHCR2;
+      chcr = sh4->CHCR2;
       break;
     case 3:
-      chcr = &CHCR3;
+      chcr = sh4->CHCR3;
       break;
     default:
       LOG_FATAL("Unexpected DMA channel");
       break;
   }
 
-  CHECK(DMAOR.DDT || !DMAOR.DME || !chcr->DE, "Non-DDT DMA not supported");
+  CHECK(sh4->DMAOR->DDT || !sh4->DMAOR->DME || !chcr->DE,
+        "Non-DDT DMA not supported");
 }
 
 //
@@ -649,69 +645,70 @@ void SH4::CheckDMA(int channel) {
 // Generate a sorted set of interrupts based on their priority. These sorted
 // ids are used to represent all of the currently requested interrupts as a
 // simple bitmask.
-void SH4::ReprioritizeInterrupts() {
-  uint64_t old = requested_interrupts_;
-  requested_interrupts_ = 0;
+void sh4_intc_reprioritize(sh4_t *sh4) {
+  uint64_t old = sh4->requested_interrupts;
+  sh4->requested_interrupts = 0;
 
   for (int i = 0, n = 0; i < 16; i++) {
     // for even priorities, give precedence to lower id interrupts
-    for (int j = NUM_INTERRUPTS - 1; j >= 0; j--) {
-      InterruptInfo &int_info = interrupts[j];
+    for (int j = NUM_SH_INTERRUPTS - 1; j >= 0; j--) {
+      sh4_interrupt_info_t &int_info = sh4_interrupts[j];
 
       // get current priority for interrupt
       int priority = int_info.default_priority;
       if (int_info.ipr) {
-        Register &ipr_reg = regs_[int_info.ipr];
-        priority = ((ipr_reg.value & 0xffff) >> int_info.ipr_shift) & 0xf;
+        uint32_t ipr = sh4->reg[int_info.ipr];
+        priority = ((ipr & 0xffff) >> int_info.ipr_shift) & 0xf;
       }
 
       if (priority != i) {
         continue;
       }
 
-      bool was_requested = old & sort_id_[j];
+      bool was_requested = old & sh4->sort_id[j];
 
-      sorted_interrupts_[n] = (Interrupt)j;
-      sort_id_[j] = (uint64_t)1 << n;
+      sh4->sorted_interrupts[n] = (sh4_interrupt_t)j;
+      sh4->sort_id[j] = (uint64_t)1 << n;
       n++;
 
       if (was_requested) {
         // rerequest with new sorted id
-        requested_interrupts_ |= sort_id_[j];
+        sh4->requested_interrupts |= sh4->sort_id[j];
       }
     }
 
     // generate a mask for all interrupts up to the current priority
-    priority_mask_[i] = ((uint64_t)1 << n) - 1;
+    sh4->priority_mask[i] = ((uint64_t)1 << n) - 1;
   }
 
-  UpdatePendingInterrupts();
+  sh4_intc_update_pending(sh4);
 }
 
-void SH4::UpdatePendingInterrupts() {
-  int min_priority = (ctx_.sr & I) >> 4;
-  uint64_t priority_mask = (ctx_.sr & BL) ? 0 : ~priority_mask_[min_priority];
-  pending_interrupts_ = requested_interrupts_ & priority_mask;
+void sh4_intc_update_pending(sh4_t *sh4) {
+  int min_priority = (sh4->ctx.sr & I) >> 4;
+  uint64_t priority_mask =
+      (sh4->ctx.sr & BL) ? 0 : ~sh4->priority_mask[min_priority];
+  sh4->pending_interrupts = sh4->requested_interrupts & priority_mask;
 }
 
-inline void SH4::CheckPendingInterrupts() {
-  if (!pending_interrupts_) {
+void sh4_intc_check_pending(sh4_t *sh4) {
+  if (!sh4->pending_interrupts) {
     return;
   }
 
   // process the highest priority in the pending vector
-  int n = 63 - re::clz(pending_interrupts_);
-  Interrupt intr = sorted_interrupts_[n];
-  InterruptInfo &int_info = interrupts[intr];
+  int n = 63 - clz64(sh4->pending_interrupts);
+  sh4_interrupt_t intr = sh4->sorted_interrupts[n];
+  sh4_interrupt_info_t &int_info = sh4_interrupts[intr];
 
-  INTEVT = int_info.intevt;
-  ctx_.ssr = ctx_.sr;
-  ctx_.spc = ctx_.pc;
-  ctx_.sgr = ctx_.r[15];
-  ctx_.sr |= (BL | MD | RB);
-  ctx_.pc = ctx_.vbr + 0x600;
+  *sh4->INTEVT = int_info.intevt;
+  sh4->ctx.ssr = sh4->ctx.sr;
+  sh4->ctx.spc = sh4->ctx.pc;
+  sh4->ctx.sgr = sh4->ctx.r[15];
+  sh4->ctx.sr |= (BL | MD | RB);
+  sh4->ctx.pc = sh4->ctx.vbr + 0x600;
 
-  SRUpdated(&ctx_, ctx_.ssr);
+  sh4_sr_updated(&sh4->ctx, sh4->ctx.ssr);
 }
 
 //
@@ -720,107 +717,183 @@ inline void SH4::CheckPendingInterrupts() {
 static const int64_t PERIPHERAL_CLOCK_FREQ = SH4_CLOCK_FREQ >> 2;
 static const int PERIPHERAL_SCALE[] = {2, 4, 6, 8, 10, 0, 0, 0};
 
-#define TSTR(n) (TSTR & (1 << n))
-#define TCOR(n) (n == 0 ? TCOR0 : n == 1 ? TCOR1 : TCOR2)
-#define TCNT(n) (n == 0 ? TCNT0 : n == 1 ? TCNT1 : TCNT2)
-#define TCR(n) (n == 0 ? TCR0 : n == 1 ? TCR1 : TCR2)
+#define TSTR(n) (*sh4->TSTR & (1 << n))
+#define TCOR(n) (n == 0 ? sh4->TCOR0 : n == 1 ? sh4->TCOR1 : sh4->TCOR2)
+#define TCNT(n) (n == 0 ? sh4->TCNT0 : n == 1 ? sh4->TCNT1 : sh4->TCNT2)
+#define TCR(n) (n == 0 ? sh4->TCR0 : n == 1 ? sh4->TCR1 : sh4->TCR2)
 #define TUNI(n) \
   (n == 0 ? SH4_INTC_TUNI0 : n == 1 ? SH4_INTC_TUNI1 : SH4_INTC_TUNI2)
 
-void SH4::UpdateTimerStart() {
+void sh4_tmu_update_tstr(sh4_t *sh4) {
   for (int i = 0; i < 3; i++) {
-    TimerHandle &handle = tmu_timers_[i];
+    struct timer_s **timer = &sh4->tmu_timers[i];
 
     if (TSTR(i)) {
       // schedule the timer if not already started
-      if (handle == INVALID_TIMER) {
-        RescheduleTimer(i, TCNT(i), TCR(i));
+      if (!*timer) {
+        sh4_tmu_reschedule(sh4, i, *TCNT(i), *TCR(i));
       }
-    } else if (handle != INVALID_TIMER) {
+    } else if (*timer) {
       // disable the timer
-      scheduler_->CancelTimer(handle);
-      handle = INVALID_TIMER;
+      scheduler_cancel_timer(sh4->scheduler, *timer);
+      *timer = nullptr;
     }
   }
 }
 
-void SH4::UpdateTimerControl(uint32_t n) {
+void sh4_tmu_update_tcr(sh4_t *sh4, uint32_t n) {
   if (TSTR(n)) {
-    // timer is already scheduled, reschedule it with the current cycle count,
-    // but the new TCR value
-    RescheduleTimer(n, TimerCount(n), TCR(n));
+    // timer is already scheduled, reschedule it with the current cycle
+    // count, but the new TCR value
+    sh4_tmu_reschedule(sh4, n, sh4_tmu_tcnt(sh4, n), *TCR(n));
   }
 
   // if the timer no longer cares about underflow interrupts, unrequest
-  if (!(TCR(n) & 0x20) || !(TCR(n) & 0x100)) {
-    UnrequestInterrupt(TUNI(n));
+  if (!(*TCR(n) & 0x20) || !(*TCR(n) & 0x100)) {
+    sh4_clear_interrupt(sh4, TUNI(n));
   }
 }
 
-void SH4::UpdateTimerCount(uint32_t n) {
+void sh4_tmu_update_tcnt(sh4_t *sh4, uint32_t n) {
   if (TSTR(n)) {
-    RescheduleTimer(n, TCNT(n), TCR(n));
+    sh4_tmu_reschedule(sh4, n, *TCNT(n), *TCR(n));
   }
 }
 
-uint32_t SH4::TimerCount(int n) {
-  // TCNT values aren't updated in real time. if a timer is enabled, query the
-  // scheduler to figure out how many cycles are remaining for the given timer
+uint32_t sh4_tmu_tcnt(sh4_t *sh4, int n) {
+  // TCNT values aren't updated in real time. if a timer is enabled, query
+  // the scheduler to figure out how many cycles are remaining for the given
+  // timer
   if (!TSTR(n)) {
-    return TCNT(n);
+    return *TCNT(n);
   }
 
   // FIXME should the number of SH4 cycles that've been executed be considered
   // here? this would prevent an entire SH4 slice from just busy waiting on
   // this to change
 
-  TimerHandle &handle = tmu_timers_[n];
-  uint32_t tcr = TCR(n);
+  struct timer_s *timer = sh4->tmu_timers[n];
+  uint32_t tcr = *TCR(n);
 
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
-  std::chrono::nanoseconds remaining = scheduler_->RemainingTime(handle);
+  int64_t remaining = scheduler_remaining_time(sh4->scheduler, timer);
   int64_t cycles = NANO_TO_CYCLES(remaining, freq);
 
   return static_cast<uint32_t>(cycles);
 }
 
-void SH4::RescheduleTimer(int n, uint32_t tcnt, uint32_t tcr) {
-  TimerHandle &handle = tmu_timers_[n];
+void sh4_tmu_reschedule(sh4_t *sh4, int n, uint32_t tcnt, uint32_t tcr) {
+  struct timer_s **timer = &sh4->tmu_timers[n];
 
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
   int64_t cycles = static_cast<int64_t>(tcnt);
-  std::chrono::nanoseconds remaining = CYCLES_TO_NANO(cycles, freq);
+  int64_t remaining = CYCLES_TO_NANO(cycles, freq);
 
-  if (handle) {
-    scheduler_->CancelTimer(handle);
-    handle = nullptr;
+  if (*timer) {
+    scheduler_cancel_timer(sh4->scheduler, *timer);
+    *timer = nullptr;
   }
 
-  handle = scheduler_->ScheduleTimer(tmu_delegates_[n], remaining);
+  timer_cb cb =
+      (timer_cb)(n == 0 ? &sh4_tmu_expire_0 : n == 1 ? &sh4_tmu_expire_1
+                                                     : &sh4_tmu_expire_2);
+  *timer = scheduler_start_timer(sh4->scheduler, cb, sh4, remaining);
 }
 
-template <int N>
-void SH4::ExpireTimer() {
-  uint32_t &tcor = TCOR(N);
-  uint32_t &tcnt = TCNT(N);
-  uint32_t &tcr = TCR(N);
+void sh4_tmu_expire(sh4_t *sh4, int n) {
+  uint32_t *tcor = TCOR(n);
+  uint32_t *tcnt = TCNT(n);
+  uint32_t *tcr = TCR(n);
+
+  LOG_INFO("sh4_tmu_expire");
 
   // timer expired, set the underflow flag
-  tcr |= 0x100;
+  *tcr |= 0x100;
 
   // if interrupt generation on underflow is enabled, do so
-  if (tcr & 0x20) {
-    RequestInterrupt(TUNI(N));
+  if (*tcr & 0x20) {
+    sh4_raise_interrupt(sh4, TUNI(n));
   }
 
   // reset TCNT with the value from TCOR
-  tcnt = tcor;
+  *tcnt = *tcor;
 
   // reschedule the timer with the new count
-  RescheduleTimer(N, tcnt, tcr);
+  sh4_tmu_reschedule(sh4, n, *tcnt, *tcr);
 }
 
-R32_DELEGATE(SH4::PDTRA) {
+void sh4_tmu_expire_0(sh4_t *sh4) {
+  sh4_tmu_expire(sh4, 0);
+}
+
+void sh4_tmu_expire_1(sh4_t *sh4) {
+  sh4_tmu_expire(sh4, 1);
+}
+
+void sh4_tmu_expire_2(sh4_t *sh4) {
+  sh4_tmu_expire(sh4, 2);
+}
+
+template <typename T>
+T sh4_read_reg(sh4_t *sh4, uint32_t addr) {
+  uint32_t offset = SH4_REG_OFFSET(addr);
+  reg_read_cb read = sh4->reg_read[offset];
+
+  if (read) {
+    void *data = sh4->reg_data[offset];
+    return read(data);
+  }
+
+  return static_cast<T>(sh4->reg[offset]);
+}
+
+template <typename T>
+void sh4_write_reg(sh4_t *sh4, uint32_t addr, T value) {
+  uint32_t offset = SH4_REG_OFFSET(addr);
+  reg_write_cb write = sh4->reg_write[offset];
+
+  uint32_t old_value = sh4->reg[offset];
+  sh4->reg[offset] = static_cast<uint32_t>(value);
+
+  if (write) {
+    void *data = sh4->reg_data[offset];
+    write(data, old_value, &sh4->reg[offset]);
+  }
+}
+
+// with OIX, bit 25, rather than bit 13, determines which 4kb bank to use
+#define CACHE_OFFSET(addr, OIX) \
+  ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
+
+template <typename T>
+T sh4_read_cache(sh4_t *sh4, uint32_t addr) {
+  CHECK_EQ(sh4->CCR->ORA, 1u);
+  addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
+  return load<T>(&sh4->cache[addr]);
+}
+
+template <typename T>
+void sh4_write_cache(sh4_t *sh4, uint32_t addr, T value) {
+  CHECK_EQ(sh4->CCR->ORA, 1u);
+  addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
+  store(&sh4->cache[addr], value);
+}
+
+template <typename T>
+T sh4_read_sq(sh4_t *sh4, uint32_t addr) {
+  uint32_t sqi = (addr & 0x20) >> 5;
+  unsigned idx = (addr & 0x1c) >> 2;
+  return static_cast<T>(sh4->ctx.sq[sqi][idx]);
+}
+
+template <typename T>
+void sh4_write_sq(sh4_t *sh4, uint32_t addr, T value) {
+  uint32_t sqi = (addr & 0x20) >> 5;
+  uint32_t idx = (addr & 0x1c) >> 2;
+  sh4->ctx.sq[sqi][idx] = static_cast<uint32_t>(value);
+}
+
+REG_R32(sh4_t *sh4, PDTRA) {
   // magic values to get past 0x8c00b948 in the boot rom:
   // void _8c00b92c(int arg1) {
   //   sysvars->var1 = reg[PDTRA];
@@ -848,8 +921,8 @@ R32_DELEGATE(SH4::PDTRA) {
   // reg[PDTRA] = reg[PDTRA] & 0xfffd;
   // _8c00b92c(0);
   // reg[PCTRA] = old_PCTRA;
-  uint32_t pctra = PCTRA;
-  uint32_t pdtra = PDTRA;
+  uint32_t pctra = *sh4->PCTRA;
+  uint32_t pdtra = *sh4->PDTRA;
   uint32_t v = 0;
   if ((pctra & 0xf) == 0x8 || ((pctra & 0xf) == 0xb && (pdtra & 0xf) != 0x2) ||
       ((pctra & 0xf) == 0xc && (pdtra & 0xf) == 0x2)) {
@@ -887,57 +960,91 @@ R32_DELEGATE(SH4::PDTRA) {
   return v;
 }
 
-W32_DELEGATE(SH4::MMUCR) {
-  if (!reg.value) {
+REG_W32(sh4_t *sh4, MMUCR) {
+  if (!*new_value) {
     return;
   }
 
   LOG_FATAL("MMU not currently supported");
 }
 
-W32_DELEGATE(SH4::CCR) {
-  if (CCR.ICI) {
-    ResetCache();
+REG_W32(sh4_t *sh4, CCR) {
+  if (sh4->CCR->ICI) {
+    sh4_ccn_reset(sh4);
   }
 }
 
-W32_DELEGATE(SH4::CHCR0) { CheckDMA(0); }
-
-W32_DELEGATE(SH4::CHCR1) { CheckDMA(1); }
-
-W32_DELEGATE(SH4::CHCR2) { CheckDMA(2); }
-
-W32_DELEGATE(SH4::CHCR3) { CheckDMA(3); }
-
-W32_DELEGATE(SH4::DMAOR) {
-  CheckDMA(0);
-  CheckDMA(1);
-  CheckDMA(2);
-  CheckDMA(3);
+REG_W32(sh4_t *sh4, CHCR0) {
+  sh4_dmac_check(sh4, 0);
 }
 
-W32_DELEGATE(SH4::IPRA) { ReprioritizeInterrupts(); }
+REG_W32(sh4_t *sh4, CHCR1) {
+  sh4_dmac_check(sh4, 1);
+}
 
-W32_DELEGATE(SH4::IPRB) { ReprioritizeInterrupts(); }
+REG_W32(sh4_t *sh4, CHCR2) {
+  sh4_dmac_check(sh4, 2);
+}
 
-W32_DELEGATE(SH4::IPRC) { ReprioritizeInterrupts(); }
+REG_W32(sh4_t *sh4, CHCR3) {
+  sh4_dmac_check(sh4, 3);
+}
 
-W32_DELEGATE(SH4::TSTR) { UpdateTimerStart(); }
+REG_W32(sh4_t *sh4, DMAOR) {
+  sh4_dmac_check(sh4, 0);
+  sh4_dmac_check(sh4, 1);
+  sh4_dmac_check(sh4, 2);
+  sh4_dmac_check(sh4, 3);
+}
 
-W32_DELEGATE(SH4::TCR0) { UpdateTimerControl(0); }
+REG_W32(sh4_t *sh4, IPRA) {
+  sh4_intc_reprioritize(sh4);
+}
 
-W32_DELEGATE(SH4::TCR1) { UpdateTimerControl(1); }
+REG_W32(sh4_t *sh4, IPRB) {
+  sh4_intc_reprioritize(sh4);
+}
 
-W32_DELEGATE(SH4::TCR2) { UpdateTimerControl(2); }
+REG_W32(sh4_t *sh4, IPRC) {
+  sh4_intc_reprioritize(sh4);
+}
 
-R32_DELEGATE(SH4::TCNT0) { return TimerCount(0); }
+REG_W32(sh4_t *sh4, TSTR) {
+  sh4_tmu_update_tstr(sh4);
+}
 
-W32_DELEGATE(SH4::TCNT0) { UpdateTimerCount(0); }
+REG_W32(sh4_t *sh4, TCR0) {
+  sh4_tmu_update_tcr(sh4, 0);
+}
 
-R32_DELEGATE(SH4::TCNT1) { return TimerCount(1); }
+REG_W32(sh4_t *sh4, TCR1) {
+  sh4_tmu_update_tcr(sh4, 1);
+}
 
-W32_DELEGATE(SH4::TCNT1) { UpdateTimerCount(1); }
+REG_W32(sh4_t *sh4, TCR2) {
+  sh4_tmu_update_tcr(sh4, 1);
+}
 
-R32_DELEGATE(SH4::TCNT2) { return TimerCount(2); }
+REG_R32(sh4_t *sh4, TCNT0) {
+  return sh4_tmu_tcnt(sh4, 0);
+}
 
-W32_DELEGATE(SH4::TCNT2) { UpdateTimerCount(2); }
+REG_W32(sh4_t *sh4, TCNT0) {
+  sh4_tmu_update_tcnt(sh4, 0);
+}
+
+REG_R32(sh4_t *sh4, TCNT1) {
+  return sh4_tmu_tcnt(sh4, 1);
+}
+
+REG_W32(sh4_t *sh4, TCNT1) {
+  sh4_tmu_update_tcnt(sh4, 1);
+}
+
+REG_R32(sh4_t *sh4, TCNT2) {
+  return sh4_tmu_tcnt(sh4, 2);
+}
+
+REG_W32(sh4_t *sh4, TCNT2) {
+  sh4_tmu_update_tcnt(sh4, 2);
+}

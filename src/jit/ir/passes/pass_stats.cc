@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "core/assert.h"
 #include "core/string.h"
 #include "jit/ir/passes/pass_stats.h"
@@ -36,7 +37,9 @@ Stat::Stat(const char *desc) : desc(desc), n(0), next(nullptr) {
   RegisterStat(this);
 }
 
-Stat::~Stat() { UnregisterStat(this); }
+Stat::~Stat() {
+  UnregisterStat(this);
+}
 
 void DumpStats() {
   LOG_INFO("===-----------------------------------------------------===");

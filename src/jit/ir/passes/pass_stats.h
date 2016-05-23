@@ -16,7 +16,9 @@ struct Stat {
   int n;
   Stat *next;
 
-  operator int() const { return n; }
+  operator int() const {
+    return n;
+  }
 
   const Stat &operator=(int v) {
     n = v;

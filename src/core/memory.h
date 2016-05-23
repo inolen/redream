@@ -3,8 +3,6 @@
 
 #include <string.h>
 
-namespace re {
-
 #if PLATFORM_WINDOWS
 #define alloca _alloca
 #endif
@@ -17,7 +15,6 @@ T load(const void *ptr) {
 template <typename T>
 void store(void *ptr, T v) {
   *reinterpret_cast<T *>(ptr) = v;
-}
 }
 
 #endif

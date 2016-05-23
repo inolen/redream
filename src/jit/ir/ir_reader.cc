@@ -117,9 +117,13 @@ IRToken IRLexer::Next() {
   return (tok_ = TOK_IDENTIFIER);
 }
 
-char IRLexer::Get() { return input_.get(); }
+char IRLexer::Get() {
+  return input_.get();
+}
 
-void IRLexer::Unget() { input_.unget(); }
+void IRLexer::Unget() {
+  input_.unget();
+}
 
 bool IRReader::Parse(std::istream &input, IRBuilder &builder) {
   IRLexer lex(input);

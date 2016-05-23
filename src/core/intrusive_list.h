@@ -19,11 +19,19 @@ class IntrusiveListNode {
  public:
   IntrusiveListNode() : prev_(nullptr), next_(nullptr) {}
 
-  T *prev() { return prev_; }
-  const T *prev() const { return prev_; }
+  T *prev() {
+    return prev_;
+  }
+  const T *prev() const {
+    return prev_;
+  }
 
-  T *next() { return next_; }
-  const T *next() const { return next_; }
+  T *next() {
+    return next_;
+  }
+  const T *next() const {
+    return next_;
+  }
 
  private:
   T *prev_;
@@ -82,15 +90,21 @@ class IntrusiveList {
       return old;
     }
 
-    pointer operator*() { return node_; }
+    pointer operator*() {
+      return node_;
+    }
 
-    pointer operator->() { return node_; }
+    pointer operator->() {
+      return node_;
+    }
 
     bool operator==(const self_type &other) const {
       return node_ == other.node_;
     }
 
-    bool operator!=(const self_type &other) const { return !(other == *this); }
+    bool operator!=(const self_type &other) const {
+      return !(other == *this);
+    }
 
    private:
     shared_iterator(list_pointer list, pointer node)
@@ -108,10 +122,18 @@ class IntrusiveList {
   typedef shared_iterator<true, true> const_reverse_iterator;
 
   // regular iterators
-  const_iterator begin() const { return const_iterator(this, head_); }
-  const_iterator end() const { return const_iterator(this, nullptr); }
-  iterator begin() { return iterator(this, head_); }
-  iterator end() { return iterator(this, nullptr); }
+  const_iterator begin() const {
+    return const_iterator(this, head_);
+  }
+  const_iterator end() const {
+    return const_iterator(this, nullptr);
+  }
+  iterator begin() {
+    return iterator(this, head_);
+  }
+  iterator end() {
+    return iterator(this, nullptr);
+  }
 
   // reverse iterators
   const_reverse_iterator rbegin() const {
@@ -120,20 +142,36 @@ class IntrusiveList {
   const_reverse_iterator rend() const {
     return const_reverse_iterator(this, nullptr);
   }
-  reverse_iterator rbegin() { return reverse_iterator(this, tail_); }
-  reverse_iterator rend() { return reverse_iterator(this, nullptr); }
+  reverse_iterator rbegin() {
+    return reverse_iterator(this, tail_);
+  }
+  reverse_iterator rend() {
+    return reverse_iterator(this, nullptr);
+  }
 
-  const T *head() const { return head_; }
-  const T *tail() const { return tail_; }
+  const T *head() const {
+    return head_;
+  }
+  const T *tail() const {
+    return tail_;
+  }
 
-  T *head() { return head_; }
-  T *tail() { return tail_; }
+  T *head() {
+    return head_;
+  }
+  T *tail() {
+    return tail_;
+  }
 
   IntrusiveList() : head_(nullptr), tail_(nullptr) {}
 
-  void Prepend(T *v) { Insert(nullptr, v); }
+  void Prepend(T *v) {
+    Insert(nullptr, v);
+  }
 
-  void Append(T *v) { Insert(tail_, v); }
+  void Append(T *v) {
+    Insert(tail_, v);
+  }
 
   void Insert(T *after, T *v) {
     DCHECK_EQ(reinterpret_cast<T *>(NULL), v->prev_);
@@ -182,7 +220,9 @@ class IntrusiveList {
     v->prev_ = v->next_ = nullptr;
   }
 
-  void Clear() { head_ = tail_ = nullptr; }
+  void Clear() {
+    head_ = tail_ = nullptr;
+  }
 
   // Implements the mergesort for linked lists as described at
   // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
