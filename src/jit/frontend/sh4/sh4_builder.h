@@ -7,11 +7,6 @@
 #include "jit/ir/ir_builder.h"
 
 namespace re {
-
-namespace hw {
-class Memory;
-}
-
 namespace jit {
 namespace frontend {
 namespace sh4 {
@@ -20,7 +15,9 @@ class SH4Builder : public ir::IRBuilder {
  public:
   SH4Builder(Arena &arena);
 
-  int flags() { return flags_; }
+  int flags() {
+    return flags_;
+  }
 
   void Emit(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags);
 

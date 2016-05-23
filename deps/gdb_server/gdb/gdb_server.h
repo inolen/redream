@@ -364,7 +364,7 @@ static int gdb_server_create_listen(gdb_server_t *sv, int port) {
 
     // enable reusing of the address / port
     int on = 1;
-    if (setsockopt(sv->listen, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char *>(&on), sizeof(on)) ==
+    if (setsockopt(sv->listen, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) ==
         SOCKET_ERROR) {
       GDB_SERVER_LOG("Failed to set socket options for gdb socket");
       ret = -1;
@@ -438,7 +438,7 @@ static void gdb_server_accept_client(gdb_server_t *sv) {
   t.tv_sec = 0;
   t.tv_usec = 0;
 
-  if (select(static_cast<int>(sv->listen + 1), &fd_read, NULL, NULL, &t) == SOCKET_ERROR) {
+  if (select((int)(sv->listen + 1), &fd_read, NULL, NULL, &t) == SOCKET_ERROR) {
     return;
   }
 
@@ -486,7 +486,7 @@ static int gdb_server_data_available(gdb_server_t *sv) {
   t.tv_sec = 0;
   t.tv_usec = 0;
 
-  if (select(static_cast<int>(sv->client + 1), &fd_read, NULL, NULL, &t) == SOCKET_ERROR) {
+  if (select((int)(sv->client + 1), &fd_read, NULL, NULL, &t) == SOCKET_ERROR) {
     return -1;
   }
 

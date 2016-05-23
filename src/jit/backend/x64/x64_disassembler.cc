@@ -9,7 +9,7 @@ bool X64Disassembler::DecodeMov(const uint8_t *data, X64Mov *mov) {
   // test for operand size prefix
   bool has_opprefix = false;
 
-  if (re::load<uint8_t>(data) == 0x66) {
+  if (load<uint8_t>(data) == 0x66) {
     has_opprefix = true;
     data++;
   }
@@ -22,8 +22,8 @@ bool X64Disassembler::DecodeMov(const uint8_t *data, X64Mov *mov) {
   uint8_t rex_x = 0;
   uint8_t rex_b = 0;
 
-  if ((re::load<uint8_t>(data) & 0xf0) == 0x40) {
-    rex = re::load<uint8_t>(data);
+  if ((load<uint8_t>(data) & 0xf0) == 0x40) {
+    rex = load<uint8_t>(data);
     rex_w = rex & 0b1000;
     rex_r = rex & 0b0100;
     rex_x = rex & 0b0010;
@@ -41,42 +41,40 @@ bool X64Disassembler::DecodeMov(const uint8_t *data, X64Mov *mov) {
   // MOV r16,r/m16
   // MOV r32,r/m32
   // MOV r64,r/m64
-  if (re::load<uint8_t>(data) == 0x8a || re::load<uint8_t>(data) == 0x8b) {
+  if (load<uint8_t>(data) == 0x8a || load<uint8_t>(data) == 0x8b) {
     is_load = true;
     has_imm = false;
-    operand_size = re::load<uint8_t>(data) == 0x8a
-                       ? 1
-                       : (has_opprefix ? 2 : (rex_w ? 8 : 4));
+    operand_size =
+        load<uint8_t>(data) == 0x8a ? 1 : (has_opprefix ? 2 : (rex_w ? 8 : 4));
     data++;
   }
   // MOV r/m8,r8
   // MOV r/m16,r16
   // MOV r/m32,r32
   // MOV r/m64,r64
-  else if (re::load<uint8_t>(data) == 0x88 || re::load<uint8_t>(data) == 0x89) {
+  else if (load<uint8_t>(data) == 0x88 || load<uint8_t>(data) == 0x89) {
     is_load = false;
     has_imm = false;
-    operand_size = re::load<uint8_t>(data) == 0x88
-                       ? 1
-                       : (has_opprefix ? 2 : (rex_w ? 8 : 4));
+    operand_size =
+        load<uint8_t>(data) == 0x88 ? 1 : (has_opprefix ? 2 : (rex_w ? 8 : 4));
     data++;
   }
   // MOV r8,imm8
   // MOV r16,imm16
   // MOV r32,imm32
-  else if (re::load<uint8_t>(data) == 0xb0 || re::load<uint8_t>(data) == 0xb8) {
+  else if (load<uint8_t>(data) == 0xb0 || load<uint8_t>(data) == 0xb8) {
     is_load = true;
     has_imm = true;
-    operand_size = re::load<uint8_t>(data) == 0xb0 ? 1 : (has_opprefix ? 2 : 4);
+    operand_size = load<uint8_t>(data) == 0xb0 ? 1 : (has_opprefix ? 2 : 4);
     data++;
   }
   // MOV r/m8,imm8
   // MOV r/m16,imm16
   // MOV r/m32,imm32
-  else if (re::load<uint8_t>(data) == 0xc6 || re::load<uint8_t>(data) == 0xc7) {
+  else if (load<uint8_t>(data) == 0xc6 || load<uint8_t>(data) == 0xc7) {
     is_load = false;
     has_imm = true;
-    operand_size = re::load<uint8_t>(data) == 0xc6 ? 1 : (has_opprefix ? 2 : 4);
+    operand_size = load<uint8_t>(data) == 0xc6 ? 1 : (has_opprefix ? 2 : 4);
     data++;
   }
   // not a supported MOV instruction
@@ -85,7 +83,7 @@ bool X64Disassembler::DecodeMov(const uint8_t *data, X64Mov *mov) {
   }
 
   // process ModR/M byte
-  uint8_t modrm = re::load<uint8_t>(data);
+  uint8_t modrm = load<uint8_t>(data);
   uint8_t modrm_mod = (modrm & 0b11000000) >> 6;
   uint8_t modrm_reg = (modrm & 0b00111000) >> 3;
   uint8_t modrm_rm = (modrm & 0b00000111);
@@ -106,7 +104,7 @@ bool X64Disassembler::DecodeMov(const uint8_t *data, X64Mov *mov) {
 
   // process optional SIB byte
   if (modrm_rm == 0b100) {
-    uint8_t sib = re::load<uint8_t>(data);
+    uint8_t sib = load<uint8_t>(data);
     uint8_t sib_scale = (sib & 0b11000000) >> 6;
     uint8_t sib_index = (sib & 0b00111000) >> 3;
     uint8_t sib_base = (sib & 0b00000111);
@@ -127,18 +125,18 @@ bool X64Disassembler::DecodeMov(const uint8_t *data, X64Mov *mov) {
     case 0b00: {
       // RIP-relative
       if (modrm_rm == 0b101) {
-        mov->disp = re::load<uint32_t>(data);
+        mov->disp = load<uint32_t>(data);
         data += 4;
       }
     } break;
 
     case 0b01: {
-      mov->disp = re::load<uint8_t>(data);
+      mov->disp = load<uint8_t>(data);
       data++;
     } break;
 
     case 0b10: {
-      mov->disp = re::load<uint32_t>(data);
+      mov->disp = load<uint32_t>(data);
       data += 4;
     } break;
   }
@@ -147,22 +145,22 @@ bool X64Disassembler::DecodeMov(const uint8_t *data, X64Mov *mov) {
   if (mov->has_imm) {
     switch (mov->operand_size) {
       case 1: {
-        mov->imm = re::load<uint8_t>(data);
+        mov->imm = load<uint8_t>(data);
         data++;
       } break;
 
       case 2: {
-        mov->imm = re::load<uint16_t>(data);
+        mov->imm = load<uint16_t>(data);
         data += 2;
       } break;
 
       case 4: {
-        mov->imm = re::load<uint32_t>(data);
+        mov->imm = load<uint32_t>(data);
         data += 4;
       } break;
 
       case 8: {
-        mov->imm = re::load<uint64_t>(data);
+        mov->imm = load<uint64_t>(data);
         data += 8;
       } break;
     }

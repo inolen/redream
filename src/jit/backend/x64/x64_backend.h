@@ -33,7 +33,7 @@ class X64Backend : public Backend {
   const uint8_t *AssembleCode(ir::IRBuilder &builder, int *size);
   void DumpCode(const uint8_t *host_addr, int size);
 
-  bool HandleFastmemException(sys::Exception &ex);
+  bool HandleFastmemException(struct re_exception_s *ex);
 
  private:
   void EmitThunks();

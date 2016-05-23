@@ -3,45 +3,54 @@
 
 #include <stdint.h>
 
-namespace re {
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-template <typename T>
-T align_up(T v, T alignment) {
-  return (v + alignment - 1) & ~(alignment - 1);
-}
+#define align_up(v, alignment) ((v + alignment - 1) & ~(alignment - 1))
+#define align_down(v, alignment) (v & ~(alignment - 1))
 
-template <typename T>
-T align_down(T v, T alignment) {
-  return v & ~(alignment - 1);
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #if PLATFORM_LINUX || PLATFORM_DARWIN
-inline int clz(uint32_t v) { return __builtin_clz(v); }
-inline int clz(uint64_t v) { return __builtin_clzll(v); }
-inline int ctz(uint32_t v) { return __builtin_ctz(v); }
-inline int ctz(uint64_t v) { return __builtin_ctzll(v); }
+static inline int clz32(uint32_t v) {
+  return __builtin_clz(v);
+}
+static inline int clz64(uint64_t v) {
+  return __builtin_clzll(v);
+}
+static inline int ctz32(uint32_t v) {
+  return __builtin_ctz(v);
+}
+static inline int ctz64(uint64_t v) {
+  return __builtin_ctzll(v);
+}
 #else
-inline int clz(uint32_t v) {
+static inline int clz32(uint32_t v) {
   unsigned long r = 0;
   _BitScanReverse(&r, v);
   return 31 - r;
 }
-inline int clz(uint64_t v) {
+static inline int clz64(uint64_t v) {
   unsigned long r = 0;
   _BitScanReverse64(&r, v);
   return 63 - r;
 }
-inline int ctz(uint32_t v) {
+static inline int ctz32(uint32_t v) {
   unsigned long r = 0;
   _BitScanForward(&r, v);
   return r;
 }
-inline int ctz(uint64_t v) {
+static inline int ctz64(uint64_t v) {
   unsigned long r = 0;
   _BitScanForward64(&r, v);
   return r;
 }
 #endif
+
+#ifdef __cplusplus
 }
+#endif
 
 #endif

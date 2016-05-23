@@ -14,7 +14,7 @@ void SH4Analyzer::AnalyzeBlock(uint32_t guest_addr, uint8_t *guest_ptr,
   while (true) {
     Instr instr;
     instr.addr = guest_addr;
-    instr.opcode = re::load<uint16_t>(guest_ptr);
+    instr.opcode = load<uint16_t>(guest_ptr);
 
     // end block on invalid instruction
     if (!SH4Disassembler::Disasm(&instr)) {

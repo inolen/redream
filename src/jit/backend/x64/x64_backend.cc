@@ -13,7 +13,6 @@ using namespace re::jit;
 using namespace re::jit::backend;
 using namespace re::jit::backend::x64;
 using namespace re::jit::ir;
-using namespace re::sys;
 
 namespace re {
 namespace jit {
@@ -116,9 +115,13 @@ X64Backend::X64Backend(const MemoryInterface &memif)
   Reset();
 }
 
-X64Backend::~X64Backend() { cs_close(&capstone_handle_); }
+X64Backend::~X64Backend() {
+  cs_close(&capstone_handle_);
+}
 
-const Register *X64Backend::registers() const { return x64_registers; }
+const Register *X64Backend::registers() const {
+  return x64_registers;
+}
 
 int X64Backend::num_registers() const {
   return sizeof(x64_registers) / sizeof(Register);
@@ -160,8 +163,8 @@ void X64Backend::DumpCode(const uint8_t *host_addr, int size) {
   cs_free(insns, count);
 }
 
-bool X64Backend::HandleFastmemException(Exception &ex) {
-  const uint8_t *data = reinterpret_cast<const uint8_t *>(ex.thread_state.rip);
+bool X64Backend::HandleFastmemException(struct re_exception_s *ex) {
+  const uint8_t *data = reinterpret_cast<const uint8_t *>(ex->thread_state.rip);
 
   // it's assumed a mov has triggered the exception
   X64Mov mov;
@@ -170,7 +173,7 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
   }
 
   // figure out the guest address that was being accessed
-  const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex.fault_addr);
+  const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex->fault_addr);
   const uint8_t *protected_start =
       reinterpret_cast<const uint8_t *>(memif_.mem_base);
   uint32_t guest_addr = static_cast<uint32_t>(fault_addr - protected_start);
@@ -184,61 +187,61 @@ bool X64Backend::HandleFastmemException(Exception &ex) {
   // push the return address (the next instruction after the current mov) to
   // the stack. also, adjust the stack for the return address, with an extra
   // 8 bytes to keep it aligned
-  re::store(reinterpret_cast<uint8_t *>(ex.thread_state.rsp - 8),
-            ex.thread_state.rip + mov.length);
-  ex.thread_state.rsp -= STACK_SHADOW_SPACE + 8 + 8;
-  CHECK(ex.thread_state.rsp % 16 == 0);
+  store(reinterpret_cast<uint8_t *>(ex->thread_state.rsp - 8),
+        ex->thread_state.rip + mov.length);
+  ex->thread_state.rsp -= STACK_SHADOW_SPACE + 8 + 8;
+  CHECK(ex->thread_state.rsp % 16 == 0);
 
   if (mov.is_load) {
     // prep argument registers (memory object, guest_addr) for read function
-    ex.thread_state.r[x64_arg0_idx] =
+    ex->thread_state.r[x64_arg0_idx] =
         reinterpret_cast<uint64_t>(memif_.mem_self);
-    ex.thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
+    ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
 
     // prep function call address for thunk
     switch (mov.operand_size) {
       case 1:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.r8);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(memif_.r8);
         break;
       case 2:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.r16);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(memif_.r16);
         break;
       case 4:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.r32);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(memif_.r32);
         break;
       case 8:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.r64);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(memif_.r64);
         break;
     }
 
     // resume execution in the thunk once the exception handler exits
-    ex.thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_[mov.reg]);
+    ex->thread_state.rip = reinterpret_cast<uint64_t>(load_thunk_[mov.reg]);
   } else {
     // prep argument registers (memory object, guest_addr, value) for write
     // function
-    ex.thread_state.r[x64_arg0_idx] =
+    ex->thread_state.r[x64_arg0_idx] =
         reinterpret_cast<uint64_t>(memif_.mem_self);
-    ex.thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
-    ex.thread_state.r[x64_arg2_idx] = ex.thread_state.r[mov.reg];
+    ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
+    ex->thread_state.r[x64_arg2_idx] = ex->thread_state.r[mov.reg];
 
     // prep function call address for thunk
     switch (mov.operand_size) {
       case 1:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.w8);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(memif_.w8);
         break;
       case 2:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.w16);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(memif_.w16);
         break;
       case 4:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.w32);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(memif_.w32);
         break;
       case 8:
-        ex.thread_state.rax = reinterpret_cast<uint64_t>(memif_.w64);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(memif_.w64);
         break;
     }
 
     // resume execution in the thunk once the exception handler exits
-    ex.thread_state.rip = reinterpret_cast<uint64_t>(store_thunk_);
+    ex->thread_state.rip = reinterpret_cast<uint64_t>(store_thunk_);
   }
 
   return true;

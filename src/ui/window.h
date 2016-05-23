@@ -1,79 +1,70 @@
 #ifndef SYSTEM_H
 #define SYSTEM_H
 
-#include <vector>
-#include <SDL.h>
-#include "renderer/backend.h"
+#include <stdint.h>
 #include "ui/keycode.h"
-#include "ui/imgui_impl.h"
-#include "ui/microprofile_impl.h"
-#include "ui/window_listener.h"
 
-namespace re {
-namespace ui {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define KEY_HAT_UP(hat) static_cast<Keycode>(K_HAT0 + hat * 4 + 0)
-#define KEY_HAT_RIGHT(hat) static_cast<Keycode>(K_HAT0 + hat * 4 + 1)
-#define KEY_HAT_DOWN(hat) static_cast<Keycode>(K_HAT0 + hat * 4 + 2)
-#define KEY_HAT_LEFT(hat) static_cast<Keycode>(K_HAT0 + hat * 4 + 3)
+struct rb_s;
+struct imgui_s;
+struct microprofile_s;
 
-enum {
-  NUM_JOYSTICK_AXES = (K_AXIS15 - K_AXIS0) + 1,
-  NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1,
-  // 4 keys per hat
-  NUM_JOYSTICK_HATS = ((K_HAT15 - K_HAT0) + 1) / 4,
-};
+struct SDL_Window;
 
-class Window {
- public:
-  SDL_Window *handle() { return window_; }
-  renderer::Backend *render_backend() { return rb_; }
+static const int MAX_WINDOW_LISTENERS = 16;
+static const int NUM_JOYSTICK_AXES = (K_AXIS15 - K_AXIS0) + 1;
+static const int NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1;
+static const int NUM_JOYSTICK_HATS =
+    ((K_HAT15 - K_HAT0) + 1) / 4;  // 4 keys per hat
 
-  int width() { return width_; }
-  int height() { return height_; }
+typedef void (*window_prepaint_cb)(void *data);
+typedef void (*window_paint_cb)(void *data, bool show_main_menu);
+typedef void (*window_postpaint_cb)(void *data);
+typedef void (*window_keydown_cb)(void *data, keycode_t code, int16_t value);
+typedef void (*window_textinput_cb)(void *data, const char *text);
+typedef void (*window_mousemove_cb)(void *data, int x, int y);
+typedef void (*window_close_cb)(void *data);
 
-  Window();
-  ~Window();
+typedef struct {
+  window_prepaint_cb prepaint;
+  window_paint_cb paint;
+  window_postpaint_cb postpaint;
+  window_keydown_cb keydown;
+  window_textinput_cb textinput;
+  window_mousemove_cb mousemove;
+  window_close_cb close;
+} window_callbacks_t;
 
-  bool Init();
+struct window_s;
+struct window_listener_s;
 
-  void AddListener(WindowListener *listener);
-  void RemoveListener(WindowListener *listener);
+struct SDL_Window *win_handle(struct window_s *win);
+struct rb_s *win_render_backend(struct window_s *win);
+int win_width(struct window_s *win);
+int win_height(struct window_s *win);
 
-  bool MainMenuEnabled();
-  void EnableMainMenu(bool active);
+bool win_main_menu_enabled(struct window_s *win);
+void win_enable_main_menu(struct window_s *win, bool active);
 
-  bool TextInputEnabled();
-  void EnableTextInput(bool active);
+bool win_text_input_enabled(struct window_s *win);
+void win_enable_text_input(struct window_s *win, bool active);
 
-  void PumpEvents();
+void win_pump_events(struct window_s *win);
 
- private:
-  void HandlePaint();
-  void HandleKeyDown(Keycode code, int16_t value);
-  void HandleTextInput(const char *text);
-  void HandleMouseMove(int x, int y);
-  void HandleResize(int width, int height);
-  void HandleClose();
+struct window_listener_s *win_add_listener(struct window_s *win,
+                                           const window_callbacks_t *cb,
+                                           void *data);
+void win_remove_listener(struct window_s *win,
+                         struct window_listener_s *listener);
 
-  void InitJoystick();
-  void DestroyJoystick();
+struct window_s *win_create();
+void win_destroy(struct window_s *win);
 
-  Keycode TranslateSDLKey(const SDL_Keysym &keysym);
-  void PumpSDLEvents();
-
-  std::vector<WindowListener *> listeners_;
-  SDL_Window *window_;
-  renderer::Backend *rb_;
-  ImGuiImpl imgui_;
-  MicroProfileImpl microprofile_;
-  int width_;
-  int height_;
-  bool show_main_menu_;
-  SDL_Joystick *joystick_;
-  uint8_t hat_state_[NUM_JOYSTICK_HATS];
-};
+#ifdef __cplusplus
 }
-}
+#endif
 
 #endif

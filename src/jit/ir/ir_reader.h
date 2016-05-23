@@ -29,8 +29,12 @@ class IRLexer {
  public:
   IRLexer(std::istream &input);
 
-  IRToken tok() const { return tok_; }
-  const IRLexeme &val() const { return val_; }
+  IRToken tok() const {
+    return tok_;
+  }
+  const IRLexeme &val() const {
+    return val_;
+  }
 
   IRToken Next();
 

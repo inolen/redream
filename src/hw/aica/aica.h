@@ -2,59 +2,23 @@
 #define AICA_H
 
 #include <stdint.h>
-#include "hw/aica/aica_types.h"
-#include "hw/machine.h"
 #include "hw/memory.h"
 
-namespace re {
-namespace hw {
-class Dreamcast;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-namespace arm7 {
-class ARM7;
+struct dreamcast_s;
+struct aica_s;
+
+AM_DECLARE(aica_reg_map);
+AM_DECLARE(aica_data_map);
+
+struct aica_s *aica_create(struct dreamcast_s *dc);
+void aica_destroy(struct aica_s *aica);
+
+#ifdef __cplusplus
 }
-
-namespace sh4 {
-class SH4;
-}
-
-namespace aica {
-
-class AICA : public Device, public ExecuteInterface {
- public:
-  AM_DECLARE(reg_map);
-  AM_DECLARE(data_map);
-
-  AICA(Dreamcast &dc);
-
-  bool Init() final;
-
- private:
-  // ExecuteInterface
-  void Run(const std::chrono::nanoseconds &delta) final;
-
-  template <typename T>
-  T ReadRegister(uint32_t addr);
-  template <typename T>
-  void WriteRegister(uint32_t addr, T value);
-
-  template <typename T>
-  T ReadWave(uint32_t addr);
-  template <typename T>
-  void WriteWave(uint32_t addr, T value);
-
-  void UpdateARMInterrupts();
-  void UpdateSH4Interrupts();
-
-  Dreamcast &dc_;
-  sh4::SH4 *sh4_;
-  arm7::ARM7 *arm7_;
-  uint8_t *aica_regs_;
-  uint8_t *wave_ram_;
-  CommonData *common_data_;
-};
-}
-}
-}
+#endif
 
 #endif

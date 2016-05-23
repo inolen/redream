@@ -3,27 +3,25 @@
 
 #include "jit/ir/ir_builder.h"
 
+struct address_space_s;
+struct re_exception_s;
+
 namespace re {
-
-namespace sys {
-struct Exception;
-}
-
 namespace jit {
 namespace backend {
 
 struct MemoryInterface {
   void *ctx_base;
   void *mem_base;
-  void *mem_self;
-  uint8_t (*r8)(void *, uint32_t);
-  uint16_t (*r16)(void *, uint32_t);
-  uint32_t (*r32)(void *, uint32_t);
-  uint64_t (*r64)(void *, uint32_t);
-  void (*w8)(void *, uint32_t, uint8_t);
-  void (*w16)(void *, uint32_t, uint16_t);
-  void (*w32)(void *, uint32_t, uint32_t);
-  void (*w64)(void *, uint32_t, uint64_t);
+  struct address_space_s *mem_self;
+  uint8_t (*r8)(struct address_space_s *, uint32_t);
+  uint16_t (*r16)(struct address_space_s *, uint32_t);
+  uint32_t (*r32)(struct address_space_s *, uint32_t);
+  uint64_t (*r64)(struct address_space_s *, uint32_t);
+  void (*w8)(struct address_space_s *, uint32_t, uint8_t);
+  void (*w16)(struct address_space_s *, uint32_t, uint16_t);
+  void (*w32)(struct address_space_s *, uint32_t, uint32_t);
+  void (*w64)(struct address_space_s *, uint32_t, uint64_t);
 };
 
 struct Register {
@@ -45,7 +43,7 @@ class Backend {
   virtual const uint8_t *AssembleCode(ir::IRBuilder &builder, int *size) = 0;
   virtual void DumpCode(const uint8_t *host_addr, int size) = 0;
 
-  virtual bool HandleFastmemException(sys::Exception &ex) = 0;
+  virtual bool HandleFastmemException(struct re_exception_s *ex) = 0;
 
  protected:
   MemoryInterface memif_;

@@ -1,17 +1,12 @@
 #ifndef SH4_CODE_CACHE_H
 #define SH4_CODE_CACHE_H
 
-#include <map>
+#include "core/rb_tree.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/passes/pass_runner.h"
 #include "sys/exception_handler.h"
-
-namespace re {
-namespace hw {
-
-class Memory;
 
 // executable code sits between 0x0c000000 and 0x0d000000 (16mb). each instr
 // is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
@@ -20,63 +15,52 @@ class Memory;
 #define BLOCK_OFFSET(addr) ((addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT)
 #define MAX_BLOCKS (0x1000000 >> BLOCK_ADDR_SHIFT)
 
-struct SH4Block;
+struct sh4_block_s;
 
-typedef std::map<uint32_t, SH4Block *> BlockMap;
-typedef std::map<const uint8_t *, SH4Block *> ReverseBlockMap;
+typedef uint32_t (*code_pointer_t)();
 
-typedef uint32_t (*CodePointer)();
-
-struct SH4Block {
+typedef struct sh4_block_s {
+  rb_node_t it;
+  rb_node_t rit;
   const uint8_t *host_addr;
   int host_size;
   uint32_t guest_addr;
   int guest_size;
   int flags;
-  BlockMap::iterator it;
-  ReverseBlockMap::iterator rit;
-};
+} sh4_block_t;
 
-class SH4CodeCache {
- public:
-  SH4CodeCache(const jit::backend::MemoryInterface &memif,
-               CodePointer default_code);
-  ~SH4CodeCache();
+typedef struct sh4_cache_s {
+  struct re_exception_handler_s *eh_handle;
+  re::jit::frontend::Frontend *frontend;
+  re::jit::backend::Backend *backend;
+  re::jit::ir::passes::PassRunner *pass_runner;
 
-  BlockMap::iterator blocks_begin() { return blocks_.begin(); }
-  BlockMap::iterator blocks_end() { return blocks_.end(); }
+  code_pointer_t default_code;
+  code_pointer_t code[MAX_BLOCKS];
 
-  CodePointer GetCode(uint32_t guest_addr) {
-    int offset = BLOCK_OFFSET(guest_addr);
-    CHECK_LT(offset, MAX_BLOCKS);
-    return code_[offset];
-  }
-  CodePointer CompileCode(uint32_t guest_addr, uint8_t *host_addr, int flags);
+  rb_tree_t blocks;
+  rb_tree_t reverse_blocks;
+} sh4_cache_t;
 
-  SH4Block *GetBlock(uint32_t guest_addr);
-  void RemoveBlocks(uint32_t guest_addr);
-  void UnlinkBlocks();
-  void ClearBlocks();
+struct sh4_cache_s *sh4_cache_create(
+    const re::jit::backend::MemoryInterface *memif,
+    code_pointer_t default_code);
+void sh4_cache_destroy(struct sh4_cache_s *cache);
 
- private:
-  static bool HandleException(void *ctx, sys::Exception &ex);
-
-  SH4Block *LookupBlock(uint32_t guest_addr);
-  SH4Block *LookupBlockReverse(const uint8_t *host_addr);
-  void UnlinkBlock(SH4Block *block);
-  void RemoveBlock(SH4Block *block);
-
-  sys::ExceptionHandlerHandle eh_handle_;
-  jit::frontend::Frontend *frontend_;
-  jit::backend::Backend *backend_;
-  jit::ir::passes::PassRunner pass_runner_;
-
-  CodePointer default_code_;
-  CodePointer code_[MAX_BLOCKS];
-  BlockMap blocks_;
-  ReverseBlockMap reverse_blocks_;
-};
+static inline code_pointer_t sh4_cache_get_code(struct sh4_cache_s *cache,
+                                                uint32_t guest_addr) {
+  int offset = BLOCK_OFFSET(guest_addr);
+  CHECK_LT(offset, MAX_BLOCKS);
+  return cache->code[offset];
 }
-}
+code_pointer_t sh4_cache_compile_code(struct sh4_cache_s *cache,
+                                      uint32_t guest_addr, uint8_t *guest_ptr,
+                                      int flags);
+
+sh4_block_t *sh4_cache_get_block(struct sh4_cache_s *cache,
+                                 uint32_t guest_addr);
+void sh4_cache_remove_blocks(struct sh4_cache_s *cache, uint32_t guest_addr);
+void sh4_cache_unlink_blocks(struct sh4_cache_s *cache);
+void sh4_cache_clear_blocks(struct sh4_cache_s *cache);
 
 #endif

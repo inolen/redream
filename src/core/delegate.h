@@ -65,7 +65,9 @@ class delegate<R(A...)> {
     *reinterpret_cast<func_data *>(data_) = func;
   }
 
-  operator bool() const { return !!thunk_; }
+  operator bool() const {
+    return !!thunk_;
+  }
 
   bool operator==(const delegate &rhs) const noexcept {
     return (thunk_ == rhs.thunk_) && !memcmp(data_, rhs.data_, sizeof(data_));

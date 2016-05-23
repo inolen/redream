@@ -13,7 +13,9 @@ class Arena {
       buffer = (uint8_t *)malloc(capacity);
     }
 
-    ~Chunk() { free(buffer); }
+    ~Chunk() {
+      free(buffer);
+    }
 
     int capacity;
     uint8_t *buffer;

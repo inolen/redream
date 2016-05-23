@@ -23,11 +23,13 @@ typedef void (*X64Emit)(X64Emitter &, const Instr *);
 
 static X64Emit x64_emitters[NUM_OPS];
 
-#define EMITTER(op)                                     \
-  void op(X64Emitter &, const Instr *);                 \
-  static struct _x64_##op##_init {                      \
-    _x64_##op##_init() { x64_emitters[OP_##op] = &op; } \
-  } x64_##op##_init;                                    \
+#define EMITTER(op)                     \
+  void op(X64Emitter &, const Instr *); \
+  static struct _x64_##op##_init {      \
+    _x64_##op##_init() {                \
+      x64_emitters[OP_##op] = &op;      \
+    }                                   \
+  } x64_##op##_init;                    \
   void op(X64Emitter &e, const Instr *instr)
 
 static bool IsCalleeSaved(const Xbyak::Reg &reg) {
@@ -73,7 +75,9 @@ X64Emitter::X64Emitter(const MemoryInterface &memif, void *buffer,
   Reset();
 }
 
-X64Emitter::~X64Emitter() { delete[] modified_; }
+X64Emitter::~X64Emitter() {
+  delete[] modified_;
+}
 
 void X64Emitter::Reset() {
   modified_marker_ = 0;
@@ -86,7 +90,7 @@ void X64Emitter::Reset() {
 }
 
 const uint8_t *X64Emitter::Emit(IRBuilder &builder, int *size) {
-  PROFILER_RUNTIME("X64Emitter::Emit");
+  // PROFILER_RUNTIME("X64Emitter::Emit");
 
   const uint8_t *fn = getCurr();
 
@@ -122,7 +126,7 @@ void X64Emitter::EmitProlog(IRBuilder &builder, int *out_stack_size) {
   int stack_size = STACK_SIZE + builder.locals_size();
 
   // stack must be 16 byte aligned
-  stack_size = re::align_up(stack_size, 16);
+  stack_size = align_up(stack_size, 16);
 
   // add 8 for return address which will be pushed when this is called
   stack_size += 8;
@@ -268,11 +272,11 @@ const Xbyak::Xmm X64Emitter::GetXmmRegister(const Value *v) {
     // copy value to the temporary register
     if (v->type() == VALUE_F32) {
       float val = v->f32();
-      mov(eax, re::load<int32_t>(&val));
+      mov(eax, load<int32_t>(&val));
       vmovd(xmm1, eax);
     } else {
       double val = v->f64();
-      mov(rax, re::load<int64_t>(&val));
+      mov(rax, load<int64_t>(&val));
       vmovq(xmm1, rax);
     }
     return xmm1;
@@ -1004,7 +1008,9 @@ EMITTER(UMUL) {
   e.imul(result, b);
 }
 
-EMITTER(DIV) { LOG_FATAL("Unsupported"); }
+EMITTER(DIV) {
+  LOG_FATAL("Unsupported");
+}
 
 EMITTER(NEG) {
   const Xbyak::Reg result = e.GetRegister(instr);

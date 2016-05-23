@@ -1,15 +1,12 @@
 #include <algorithm>
-#include "core/memory.h"
 #include "emu/tracer.h"
-#include "hw/holly/tile_accelerator.h"
+#include "hw/holly/ta.h"
 #include "hw/holly/trace.h"
 #include "ui/window.h"
 
 using namespace re;
 using namespace re::emu;
 using namespace re::hw::holly;
-using namespace re::renderer;
-using namespace re::ui;
 
 static const char *s_param_names[] = {
     "TA_PARAM_END_OF_LIST", "TA_PARAM_USER_TILE_CLIP", "TA_PARAM_OBJ_LIST_SET",
@@ -65,10 +62,10 @@ static const char *s_shademode_names[] = {
 
 static const int INVALID_OFFSET = -1;
 
-void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
+void TraceTextureCache::AddTexture(tsp_t tsp, tcw_t &tcw,
                                    const uint8_t *palette,
                                    const uint8_t *texture) {
-  TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
+  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
   TextureInst &texture_inst = textures_[texture_key];
   texture_inst.tsp = tsp;
   texture_inst.tcw = tcw;
@@ -77,15 +74,15 @@ void TraceTextureCache::AddTexture(const TSP &tsp, TCW &tcw,
   texture_inst.handle = 0;
 }
 
-void TraceTextureCache::RemoveTexture(const TSP &tsp, TCW &tcw) {
-  TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
+void TraceTextureCache::RemoveTexture(tsp_t tsp, tcw_t &tcw) {
+  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
   textures_.erase(texture_key);
 }
 
-TextureHandle TraceTextureCache::GetTexture(
-    const TileContext &tctx, const TSP &tsp, const TCW &tcw,
-    RegisterTextureDelegate register_delegate) {
-  TextureKey texture_key = TextureProvider::GetTextureKey(tsp, tcw);
+texture_handle_t TraceTextureCache::GetTexture(
+    const ta_ctx_t &tctx, tsp_t tsp, tcw_t tcw,
+    register_texture_cb register_cb) {
+  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
 
   auto it = textures_.find(texture_key);
   CHECK_NE(it, textures_.end(), "Texture wasn't available in cache");
@@ -94,7 +91,7 @@ TextureHandle TraceTextureCache::GetTexture(
 
   // register the texture if it hasn't already been
   if (!texture.handle) {
-    RegisterTextureResult res =
+    registered_texture_t res =
         register_delegate(tctx, tsp, tcw, texture.palette, texture.texture);
     texture.handle = res.handle;
     texture.format = res.format;
@@ -109,7 +106,7 @@ TextureHandle TraceTextureCache::GetTexture(
   return texture.handle;
 }
 
-Tracer::Tracer(Window &window)
+Tracer::Tracer(window_t &window)
     : window_(window),
       rb_(window.render_backend()),
       tile_renderer_(rb_, texcache_),
@@ -117,7 +114,9 @@ Tracer::Tracer(Window &window)
   window_.AddListener(this);
 }
 
-Tracer::~Tracer() { window_.RemoveListener(this); }
+Tracer::~Tracer() {
+  window_.RemoveListener(this);
+}
 
 void Tracer::Run(const char *path) {
   if (!Parse(path)) {
@@ -165,7 +164,7 @@ void Tracer::OnPaint(bool show_main_menu) {
   rb_->EndSurfaces();
 }
 
-void Tracer::OnKeyDown(Keycode code, int16_t value) {
+void Tracer::OnKeyDown(keycode_t code, int16_t value) {
   if (code == K_F1) {
     if (value) {
       window_.EnableMainMenu(!window_.MainMenuEnabled());
@@ -181,7 +180,9 @@ void Tracer::OnKeyDown(Keycode code, int16_t value) {
   }
 }
 
-void Tracer::OnClose() { running_ = false; }
+void Tracer::OnClose() {
+  running_ = false;
+}
 
 bool Tracer::Parse(const char *path) {
   if (!trace_.Parse(path)) {
@@ -301,15 +302,15 @@ void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
 
   // render source TA information
   if (vertex_type == -1) {
-    const PolyParam *param =
-        reinterpret_cast<const PolyParam *>(tctx_.data + offset);
+    const poly_param_t *param =
+        reinterpret_cast<const poly_param_t *>(tctx_.data + offset);
 
     ImGui::Text("pcw: 0x%x", param->type0.pcw.full);
     ImGui::Text("isp_tsp: 0x%x", param->type0.isp_tsp.full);
     ImGui::Text("tsp: 0x%x", param->type0.tsp.full);
     ImGui::Text("tcw: 0x%x", param->type0.tcw.full);
 
-    int poly_type = TileAccelerator::GetPolyType(param->type0.pcw);
+    int poly_type = ta_get_poly_type(param->type0.pcw);
 
     switch (poly_type) {
       case 1:
@@ -340,8 +341,8 @@ void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
         break;
     }
   } else {
-    const VertexParam *param =
-        reinterpret_cast<const VertexParam *>(tctx_.data + offset);
+    const vert_param_t *param =
+        reinterpret_cast<const vert_param_t *>(tctx_.data + offset);
 
     ImGui::Text("vert type: %d", vertex_type);
 
@@ -431,7 +432,7 @@ void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
 
   // always render translated surface information. new surfaces can be created
   // without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE
-  Surface &surf = rctx_.surfs[surf_id];
+  surface_t &surf = rctx_.surfs[surf_id];
 
   ImGui::Separator();
 
@@ -450,7 +451,7 @@ void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
 
   // render translated vert only when rendering a vertex tooltip
   if (vertex_type != -1) {
-    Vertex &vert = rctx_.verts[vert_id];
+    vertex_t &vert = rctx_.verts[vert_id];
 
     ImGui::Separator();
 
@@ -482,7 +483,7 @@ void Tracer::RenderContextMenu() {
 
   for (auto it : rctx_.param_map) {
     int offset = it.first;
-    PCW pcw = re::load<PCW>(tctx_.data + offset);
+    pcw_t pcw = load<pcw_t>(tctx_.data + offset);
     bool param_selected = offset == current_offset_;
 
     if (!hide_params_[pcw.para_type]) {
@@ -493,10 +494,10 @@ void Tracer::RenderContextMenu() {
       switch (pcw.para_type) {
         case TA_PARAM_POLY_OR_VOL:
         case TA_PARAM_SPRITE: {
-          const PolyParam *param =
-              reinterpret_cast<const PolyParam *>(tctx_.data + offset);
+          const poly_param_t *param =
+              reinterpret_cast<const poly_param_t *>(tctx_.data + offset);
           list_type = param->type0.pcw.list_type;
-          vertex_type = TileAccelerator::GetVertexType(param->type0.pcw);
+          vertex_type = ta_get_vert_type(param->type0.pcw);
 
           if (ImGui::IsItemHovered()) {
             FormatTooltip(list_type, -1, offset);
@@ -528,7 +529,7 @@ void Tracer::RenderContextMenu() {
 }
 
 // Copy TRACE_CMD_CONTEXT command to the current context being rendered.
-void Tracer::CopyCommandToContext(const TraceCommand *cmd, TileContext *ctx) {
+void Tracer::CopyCommandToContext(const TraceCommand *cmd, ta_ctx_t *ctx) {
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
   ctx->autosort = cmd->context.autosort;
@@ -663,7 +664,7 @@ void Tracer::PrevParam() {
     --it;
 
     int offset = it->first;
-    PCW pcw = re::load<PCW>(tctx_.data + offset);
+    pcw_t pcw = load<pcw_t>(tctx_.data + offset);
 
     // found the next visible param
     if (!hide_params_[pcw.para_type]) {
@@ -690,7 +691,7 @@ void Tracer::NextParam() {
     }
 
     int offset = it->first;
-    PCW pcw = re::load<PCW>(tctx_.data + offset);
+    pcw_t pcw = load<pcw_t>(tctx_.data + offset);
 
     // found the next visible param
     if (!hide_params_[pcw.para_type]) {

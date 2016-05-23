@@ -1,6 +1,13 @@
 #ifndef FILES_H
 #define FILES_H
 
+#include <stdbool.h>
+#include <stdio.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if PLATFORM_WINDOWS
 
 #include <windows.h>
@@ -20,22 +27,19 @@
 
 #endif
 
-namespace re {
-namespace sys {
+bool fs_userdir(char *userdir, size_t size);
+const char *fs_appdir();
 
-bool GetUserDir(char *userdir, size_t size);
-const char *GetAppDir();
-void EnsureAppDirExists();
+void fs_dirname(const char *path, char *dir, size_t size);
+void fs_basename(const char *path, char *base, size_t size);
 
-void DirName(const char *path, char *dir, size_t size);
-void BaseName(const char *path, char *base, size_t size);
+bool fs_exists(const char *path);
+bool fs_isdir(const char *path);
+bool fs_isfile(const char *path);
+bool fs_mkdir(const char *path);
 
-bool Exists(const char *path);
-bool IsDir(const char *path);
-bool IsFile(const char *path);
-
-bool CreateDir(const char *path);
+#ifdef __cplusplus
 }
-}
+#endif
 
 #endif

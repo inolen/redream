@@ -1,69 +1,60 @@
 #ifndef SYS_MEMORY_H
 #define SYS_MEMORY_H
 
-#include "core/delegate.h"
-#include "core/interval_tree.h"
-#include "sys/exception_handler.h"
+#include <stdbool.h>
+#include <stddef.h>
 
-namespace re {
-namespace sys {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct re_exception_s;
 
 //
 // page protection
 //
-enum PageAccess {
+typedef enum {
   ACC_NONE,
   ACC_READONLY,
   ACC_READWRITE,
-};
+} page_access_t;
 
-size_t GetPageSize();
-size_t GetAllocationGranularity();
-bool ProtectPages(void *ptr, size_t size, PageAccess access);
-bool ReservePages(void *ptr, size_t size);
-bool ReleasePages(void *ptr, size_t size);
+size_t get_page_size();
+size_t get_allocation_granularity();
+bool protect_pages(void *ptr, size_t size, page_access_t access);
+bool reserve_pages(void *ptr, size_t size);
+bool release_pages(void *ptr, size_t size);
 
 //
 // shared memory objects
 //
-#if PLATFORM_WINDOWS
-typedef void *SharedMemoryHandle;
-#define SHMEM_INVALID nullptr
-#else
-typedef int SharedMemoryHandle;
-#define SHMEM_INVALID -1
-#endif
+typedef void *shmem_handle_t;
+#define SHMEM_INVALID NULL
 
-SharedMemoryHandle CreateSharedMemory(const char *filename, size_t size,
-                                      PageAccess access);
-bool MapSharedMemory(SharedMemoryHandle handle, size_t offset, void *start,
-                     size_t size, PageAccess access);
-bool UnmapSharedMemory(SharedMemoryHandle handle, void *start, size_t size);
-bool DestroySharedMemory(SharedMemoryHandle handle);
+shmem_handle_t create_shared_memory(const char *filename, size_t size,
+                                    page_access_t access);
+bool map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
+                       size_t size, page_access_t access);
+bool unmap_shared_memory(shmem_handle_t handle, void *start, size_t size);
+bool destroy_shared_memory(shmem_handle_t handle);
 
 //
 // access watches
 //
-enum WatchType {
-  WATCH_ACCESS_FAULT,
+struct memory_watch_s;
+
+typedef enum {
   WATCH_SINGLE_WRITE,
-};
+} memory_watch_type_t;
 
-typedef delegate<void(const sys::Exception &, void *)> WatchDelegate;
+typedef void (*memory_watch_cb)(const struct re_exception_s *, void *);
 
-struct Watch {
-  WatchType type;
-  WatchDelegate delegate;
-  void *data;
-};
+struct memory_watch_s *add_single_write_watch(void *ptr, size_t size,
+                                              memory_watch_cb cb, void *data);
+void remove_memory_watch(struct memory_watch_s *watch);
 
-typedef IntervalTree<Watch> WatchTree;
-typedef WatchTree::node_type *WatchHandle;
-
-WatchHandle AddSingleWriteWatch(void *ptr, size_t size, WatchDelegate delegate,
-                                void *data);
-void RemoveAccessWatch(WatchHandle handle);
+#ifdef __cplusplus
 }
-}
+#endif
 
 #endif

@@ -1,65 +1,48 @@
 #ifndef EXCEPTION_HANDLER_H
 #define EXCEPTION_HANDLER_H
 
-#include <vector>
+#include <stdbool.h>
+#include <stdint.h>
 
-namespace re {
-namespace sys {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// exception handler information
-typedef int ExceptionHandlerHandle;
+struct re_exception_s;
 
-struct Exception;
-typedef bool (*ExceptionHandlerCallback)(void *ctx, Exception &ex);
+typedef bool (*exception_handler_cb)(void *data, struct re_exception_s *ex);
 
-struct ExceptionHandlerEntry {
-  ExceptionHandlerHandle handle;
-  void *ctx;
-  ExceptionHandlerCallback cb;
-};
-
-// generic exception structure for all platforms
-enum ExceptionType {
+typedef enum {
   EX_ACCESS_VIOLATION,
   EX_INVALID_INSTRUCTION,
-};
+} re_exception_type_t;
 
-union ThreadState {
+typedef union {
   struct {
     uint64_t rax, rcx, rdx, rbx, rsp, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13,
         r14, r15, rip;
   };
   uint64_t r[17];
-};
+} re_thread_state_t;
 
-struct Exception {
-  ExceptionType type;
+typedef struct re_exception_s {
+  re_exception_type_t type;
   uintptr_t fault_addr;
   uintptr_t pc;
-  ThreadState thread_state;
-};
+  re_thread_state_t thread_state;
+} re_exception_t;
 
-class ExceptionHandler {
- public:
-  static ExceptionHandler &instance();
+bool exception_handler_install();
+bool exception_handler_install_platform();
+void exception_handler_uninstall();
+void exception_handler_uninstall_platform();
+struct re_exception_handler_s *exception_handler_add(void *data,
+                                                     exception_handler_cb cb);
+void exception_handler_remove(struct re_exception_handler_s *handler);
+bool exception_handler_handle(re_exception_t *ex);
 
-  virtual ~ExceptionHandler() {}
-
-  virtual bool Init() = 0;
-
-  ExceptionHandlerHandle AddHandler(void *ctx, ExceptionHandlerCallback cb);
-  void RemoveHandler(ExceptionHandlerHandle handle);
-  bool HandleException(Exception &ex);
-
- protected:
-  ExceptionHandler();
-  ExceptionHandler(ExceptionHandler const &) = delete;
-  void operator=(ExceptionHandler const &) = delete;
-
-  ExceptionHandlerHandle next_handle_;
-  std::vector<ExceptionHandlerEntry> handlers_;
-};
+#ifdef __cplusplus
 }
-}
+#endif
 
 #endif

@@ -66,7 +66,9 @@ static inline bool IsFloatType(ValueType type) {
   return type == VALUE_F32 || type == VALUE_F64;
 }
 
-static inline bool IsVectorType(ValueType type) { return type == VALUE_V128; }
+static inline bool IsVectorType(ValueType type) {
+  return type == VALUE_V128;
+}
 
 static inline int SizeForType(ValueType type) {
   switch (type) {
@@ -100,9 +102,13 @@ class Value {
   Value(float v);
   Value(double v);
 
-  ValueType type() const { return type_; }
+  ValueType type() const {
+    return type_;
+  }
 
-  bool constant() const { return constant_; }
+  bool constant() const {
+    return constant_;
+  }
 
   // defined at the end of the file, Instr is only forward declared at this
   // point, it can't be static_cast to
@@ -113,41 +119,65 @@ class Value {
     DCHECK(constant_ && type_ == VALUE_I8);
     return i8_;
   }
-  int8_t i8() { return static_cast<const Value *>(this)->i8(); }
+  int8_t i8() {
+    return static_cast<const Value *>(this)->i8();
+  }
   int16_t i16() const {
     DCHECK(constant_ && type_ == VALUE_I16);
     return i16_;
   }
-  int16_t i16() { return static_cast<const Value *>(this)->i16(); }
+  int16_t i16() {
+    return static_cast<const Value *>(this)->i16();
+  }
   int32_t i32() const {
     DCHECK(constant_ && type_ == VALUE_I32);
     return i32_;
   }
-  int32_t i32() { return static_cast<const Value *>(this)->i32(); }
+  int32_t i32() {
+    return static_cast<const Value *>(this)->i32();
+  }
   int64_t i64() const {
     DCHECK(constant_ && type_ == VALUE_I64);
     return i64_;
   }
-  int64_t i64() { return static_cast<const Value *>(this)->i64(); }
+  int64_t i64() {
+    return static_cast<const Value *>(this)->i64();
+  }
   float f32() const {
     DCHECK(constant_ && type_ == VALUE_F32);
     return f32_;
   }
-  float f32() { return static_cast<const Value *>(this)->f32(); }
+  float f32() {
+    return static_cast<const Value *>(this)->f32();
+  }
   double f64() const {
     DCHECK(constant_ && type_ == VALUE_F64);
     return f64_;
   }
-  double f64() { return static_cast<const Value *>(this)->f64(); }
+  double f64() {
+    return static_cast<const Value *>(this)->f64();
+  }
 
-  const IntrusiveList<Use> &uses() const { return refs_; }
-  IntrusiveList<Use> &uses() { return refs_; }
+  const IntrusiveList<Use> &uses() const {
+    return refs_;
+  }
+  IntrusiveList<Use> &uses() {
+    return refs_;
+  }
 
-  int reg() const { return reg_; }
-  void set_reg(int reg) { reg_ = reg; }
+  int reg() const {
+    return reg_;
+  }
+  void set_reg(int reg) {
+    reg_ = reg;
+  }
 
-  intptr_t tag() const { return tag_; }
-  void set_tag(intptr_t tag) { tag_ = tag; }
+  intptr_t tag() const {
+    return tag_;
+  }
+  void set_tag(intptr_t tag) {
+    tag_ = tag;
+  }
 
   uint64_t GetZExtValue() const;
 
@@ -180,11 +210,19 @@ class Use : public IntrusiveListNode<Use> {
   Use(Instr *instr);
   ~Use();
 
-  const Instr *instr() const { return instr_; }
-  Instr *instr() { return instr_; }
+  const Instr *instr() const {
+    return instr_;
+  }
+  Instr *instr() {
+    return instr_;
+  }
 
-  const Value *value() const { return value_; }
-  Value *value() { return value_; }
+  const Value *value() const {
+    return value_;
+  }
+  Value *value() {
+    return value_;
+  }
   void set_value(Value *v) {
     if (value_) {
       value_->RemoveRef(this);
@@ -248,8 +286,12 @@ class Local : public IntrusiveListNode<Local> {
  public:
   Local(ValueType ty, Value *offset);
 
-  ValueType type() const { return type_; }
-  Value *offset() const { return offset_; }
+  ValueType type() const {
+    return type_;
+  }
+  Value *offset() const {
+    return offset_;
+  }
 
  private:
   ValueType type_;
@@ -264,19 +306,39 @@ class Instr : public Value, public IntrusiveListNode<Instr> {
   Instr(Op op, ValueType result_type);
   ~Instr();
 
-  Op op() const { return op_; }
+  Op op() const {
+    return op_;
+  }
 
-  const Value *arg0() const { return arg(0); }
-  Value *arg0() { return arg(0); }
-  void set_arg0(Value *v) { set_arg(0, v); }
+  const Value *arg0() const {
+    return arg(0);
+  }
+  Value *arg0() {
+    return arg(0);
+  }
+  void set_arg0(Value *v) {
+    set_arg(0, v);
+  }
 
-  const Value *arg1() const { return arg(1); }
-  Value *arg1() { return arg(1); }
-  void set_arg1(Value *v) { set_arg(1, v); }
+  const Value *arg1() const {
+    return arg(1);
+  }
+  Value *arg1() {
+    return arg(1);
+  }
+  void set_arg1(Value *v) {
+    set_arg(1, v);
+  }
 
-  const Value *arg2() const { return arg(2); }
-  Value *arg2() { return arg(2); }
-  void set_arg2(Value *v) { set_arg(2, v); }
+  const Value *arg2() const {
+    return arg(2);
+  }
+  Value *arg2() {
+    return arg(2);
+  }
+  void set_arg2(Value *v) {
+    set_arg(2, v);
+  }
 
   const Value *arg(int i) const {
     CHECK_LT(i, 3);
@@ -291,8 +353,12 @@ class Instr : public Value, public IntrusiveListNode<Instr> {
     uses_[i].set_value(v);
   }
 
-  intptr_t tag() const { return tag_; }
-  void set_tag(intptr_t tag) { tag_ = tag; }
+  intptr_t tag() const {
+    return tag_;
+  }
+  void set_tag(intptr_t tag) {
+    tag_ = tag;
+  }
 
  private:
   Op op_;
@@ -328,10 +394,16 @@ class IRBuilder {
  public:
   IRBuilder(Arena &arena);
 
-  const IntrusiveList<Instr> &instrs() const { return instrs_; }
-  IntrusiveList<Instr> &instrs() { return instrs_; }
+  const IntrusiveList<Instr> &instrs() const {
+    return instrs_;
+  }
+  IntrusiveList<Instr> &instrs() {
+    return instrs_;
+  }
 
-  int locals_size() const { return locals_size_; }
+  int locals_size() const {
+    return locals_size_;
+  }
 
   void Dump(std::ostream &output) const;
   void Dump() const;

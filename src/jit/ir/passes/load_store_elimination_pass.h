@@ -19,7 +19,9 @@ class LoadStoreEliminationPass : public Pass {
 
   LoadStoreEliminationPass();
 
-  const char *name() { return NAME; }
+  const char *name() {
+    return NAME;
+  }
 
   void Run(IRBuilder &builder);
 

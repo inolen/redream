@@ -79,18 +79,8 @@ list(APPEND REDREAM_LIBS capstone-static)
 # dirent
 list(APPEND REDREAM_INCLUDE_DIRS deps/dirent-1.21)
 
-# eigen
-list(APPEND REDREAM_DEFS EIGEN_DEFAULT_TO_ROW_MAJOR)
-list(APPEND REDREAM_INCLUDE_DIRS deps/eigen-3.2.8)
-
 # gdb_server
 list(APPEND REDREAM_INCLUDE_DIRS deps/gdb_server)
-
-# gflags
-set(GFLAGS_NAMESPACE "google" CACHE STRING "")
-add_subdirectory(deps/gflags-2.1.2 EXCLUDE_FROM_ALL)
-list(APPEND REDREAM_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/deps/gflags-2.1.2/include)
-list(APPEND REDREAM_LIBS gflags_nothreads-static)
 
 # glew
 set(BUILD_UTILS OFF CACHE BOOL "")
@@ -103,11 +93,10 @@ add_library(imgui STATIC deps/imgui-1.47/imgui.cpp deps/imgui-1.47/imgui_draw.cp
 list(APPEND REDREAM_INCLUDE_DIRS deps/imgui-1.47)
 list(APPEND REDREAM_LIBS imgui)
 
-# json11
-add_library(json11 STATIC deps/json11/json11.cpp)
-list(APPEND REDREAM_INCLUDE_DIRS deps/json11)
-list(APPEND REDREAM_LIBS json11)
-target_compile_options(json11 PRIVATE -std=c++11)
+# inih
+add_library(inih STATIC deps/inih/ini.c)
+list(APPEND REDREAM_INCLUDE_DIRS deps/inih)
+list(APPEND REDREAM_LIBS inih)
 
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
@@ -122,9 +111,9 @@ list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
 find_package(ClangFormat)
 
 if(CLANG_FORMAT_FOUND)
-file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.cc" "src/*.h" "test/*.cc" "test/*.h", "tools/*.cc" "tools/*.h")
+file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.c" "src/*.cc" "src/*.h" "test/*.c" "test/*.cc" "test/*.h" "tools/*.c" "tools/*.cc" "tools/*.h")
 
-add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -style=Google -i ${CLANG_FORMAT_ARGS})
+add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -i ${CLANG_FORMAT_ARGS})
 endif()
 
 #--------------------------------------------------
@@ -143,29 +132,33 @@ endif()
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
-  src/core/assert.cc
-  src/core/log.cc
-  src/core/string.cc
+  src/core/assert.c
+  src/core/interval_tree.c
+  src/core/list.c
+  src/core/log.c
+  src/core/option.c
+  src/core/profiler.c
+  src/core/rb_tree.c
+  src/core/string.c
   src/emu/emulator.cc
-  src/emu/tracer.cc
-  src/hw/aica/aica.cc
-  src/hw/arm7/arm7.cc
-  src/hw/gdrom/disc.cc
-  src/hw/gdrom/gdrom.cc
-  src/hw/holly/holly.cc
-  src/hw/holly/pvr2.cc
-  src/hw/holly/tile_accelerator.cc
-  src/hw/holly/tile_renderer.cc
+  #src/emu/tracer.cc
+  src/hw/aica/aica.c
+  src/hw/arm/arm.c
+  src/hw/gdrom/disc.c
+  src/hw/gdrom/gdrom.c
+  src/hw/holly/holly.c
+  src/hw/holly/pvr.c
+  src/hw/holly/ta.cc
+  src/hw/holly/tr.c
   src/hw/holly/trace.cc
-  src/hw/maple/controller.cc
-  src/hw/maple/maple.cc
+  src/hw/maple/controller.c
+  src/hw/maple/maple.c
   src/hw/sh4/sh4.cc
   src/hw/sh4/sh4_code_cache.cc
-  src/hw/debugger.cc
-  src/hw/dreamcast.cc
-  src/hw/machine.cc
-  src/hw/memory.cc
-  src/hw/scheduler.cc
+  src/hw/debugger.c
+  src/hw/dreamcast.c
+  src/hw/memory.c
+  src/hw/scheduler.c
   src/jit/backend/x64/x64_backend.cc
   src/jit/backend/x64/x64_disassembler.cc
   src/jit/backend/x64/x64_emitter.cc
@@ -183,32 +176,34 @@ set(REDREAM_SOURCES
   src/jit/ir/passes/pass_runner.cc
   src/jit/ir/passes/pass_stats.cc
   src/jit/ir/passes/register_allocation_pass.cc
-  src/renderer/gl_backend.cc
-  src/renderer/gl_shader.cc
-  src/sys/exception_handler.cc
-  src/sys/filesystem.cc
-  src/sys/memory.cc
-  src/ui/imgui_impl.cc
-  src/ui/microprofile_impl.cc
-  src/ui/keycode.cc
-  src/ui/window.cc
-  src/main.cc)
+  src/renderer/gl_backend.c
+  src/sys/exception_handler.c
+  src/sys/filesystem.c
+  src/sys/memory.c
+  src/ui/imgui.cc
+  src/ui/microprofile.cc
+  src/ui/keycode.c
+  src/ui/window.c
+  src/main.c)
 
 if(WIN32)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
   list(APPEND REDREAM_SOURCES src/sys/exception_handler_win.cc)
-  list(APPEND REDREAM_SOURCES src/sys/filesystem_win.cc)
-  list(APPEND REDREAM_SOURCES src/sys/memory_win.cc)
+  list(APPEND REDREAM_SOURCES src/sys/filesystem_win.c)
+  list(APPEND REDREAM_SOURCES src/sys/memory_win.c)
+  list(APPEND REDREAM_SOURCES src/sys/time_win.c)
 elseif(APPLE)
   list(APPEND REDREAM_DEFS PLATFORM_DARWIN=1)
-  list(APPEND REDREAM_SOURCES src/sys/exception_handler_mac.cc)
-  list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.cc)
-  list(APPEND REDREAM_SOURCES src/sys/memory_posix.cc)
+  list(APPEND REDREAM_SOURCES src/sys/exception_handler_mac.c)
+  list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.c)
+  list(APPEND REDREAM_SOURCES src/sys/memory_posix.c)
+  list(APPEND REDREAM_SOURCES src/sys/time_mac.c)
 else()
   list(APPEND REDREAM_DEFS PLATFORM_LINUX=1)
   list(APPEND REDREAM_SOURCES src/sys/exception_handler_linux.cc)
-  list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.cc)
-  list(APPEND REDREAM_SOURCES src/sys/memory_posix.cc)
+  list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.c)
+  list(APPEND REDREAM_SOURCES src/sys/memory_posix.c)
+  list(APPEND REDREAM_SOURCES src/sys/time_linux.c)
 endif()
 
 
@@ -216,7 +211,7 @@ endif()
 source_group_by_dir(REDREAM_SOURCES)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(REDREAM_COMPILE_FLAGS -std=c++11 -fno-operator-names -Wall -Wextra -Werror -Wno-unused-parameter -Wno-strict-aliasing)
+  set(REDREAM_COMPILE_FLAGS $<$<COMPILE_LANGUAGE:CXX>:-std=c++11> $<$<COMPILE_LANGUAGE:C>:-std=c11> -fno-operator-names -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing)
 
   # some flavors of GCC require this to be defined for the PR* macros in inttypes.h
   if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
@@ -381,14 +376,15 @@ endif()
 # build test binary
 set(RETEST_SOURCES
   ${REDREAM_SOURCES}
-  test/test_interval_tree.cc
-  test/test_intrusive_list.cc
-  test/test_dead_code_elimination_pass.cc
-  test/test_load_store_elimination_pass.cc
-  test/test_minmax_heap.cc
+  #test/test_interval_tree.cc
+  #test/test_intrusive_list.cc
+  test/test_list.cc
+  #test/test_dead_code_elimination_pass.cc
+  #test/test_load_store_elimination_pass.cc
+  #test/test_minmax_heap.cc
   test/test_sh4.cc
   ${asm_inc})
-list(REMOVE_ITEM RETEST_SOURCES src/main.cc)
+list(REMOVE_ITEM RETEST_SOURCES src/main.c)
 
 # assign source groups for visual studio projects
 source_group_by_dir(RETEST_SOURCES)

@@ -1,59 +1,35 @@
 #ifndef DISC_H
 #define DISC_H
 
-#include <vector>
 #include "sys/filesystem.h"
 
-namespace re {
-namespace hw {
-namespace gdrom {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static const int SECTOR_SIZE = 2352;
 
-struct Track {
-  Track()
-      : num(0),
-        fad(0),
-        adr(0),
-        ctrl(0),
-        filename(),
-        file_offset(0),
-        priv(nullptr) {}
-
+typedef struct track_s {
   int num;
   int fad;
   int adr;
   int ctrl;
   char filename[PATH_MAX];
   int file_offset;
-  void *priv;
-};
+  FILE *file;
+} track_t;
 
-class Disc {
- public:
-  virtual ~Disc() {}
+struct disc_s;
 
-  virtual int num_tracks() const = 0;
-  virtual const Track &track(int i) const = 0;
+struct disc_s *disc_create_gdi(const char *filename);
+void disc_destroy(struct disc_s *disc);
 
-  virtual int ReadSector(int fad, void *dst) = 0;
-};
+int disc_num_tracks(struct disc_s *disc);
+track_t *disc_get_track(struct disc_s *disc, int n);
+int disc_read_sector(struct disc_s *disc, int fad, void *dst);
 
-class GDI : public Disc {
- public:
-  ~GDI();
-
-  int num_tracks() const { return static_cast<int>(tracks_.size()); }
-  const Track &track(int i) const { return tracks_[i]; }
-
-  bool Load(const char *filename);
-  int ReadSector(int fad, void *dst);
-
- private:
-  std::vector<Track> tracks_;
-};
+#ifdef __cplusplus
 }
-}
-}
+#endif
 
 #endif

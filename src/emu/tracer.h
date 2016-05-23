@@ -3,62 +3,63 @@
 
 #include <unordered_map>
 #include <vector>
-#include "hw/holly/tile_renderer.h"
+#include "hw/holly/tr.h"
 #include "hw/holly/trace.h"
-#include "ui/window_listener.h"
+#include "ui/window.h"
+
+struct window_s;
 
 namespace re {
-
-namespace ui {
-class Window;
-}
-
 namespace emu {
 
 struct TextureInst {
-  hw::holly::TSP tsp;
-  hw::holly::TCW tcw;
+  hw::holly::tsp_t tsp;
+  hw::holly::tcw_t tcw;
   const uint8_t *palette;
   const uint8_t *texture;
-  renderer::TextureHandle handle;
-  renderer::PixelFormat format;
-  renderer::FilterMode filter;
-  renderer::WrapMode wrap_u;
-  renderer::WrapMode wrap_v;
+  texture_handle_t handle;
+  pxl_format_t format;
+  filter_mode_t filter;
+  wrap_mode_t wrap_u;
+  wrap_mode_t wrap_v;
   bool mipmaps;
   int width;
   int height;
 };
 
-typedef std::unordered_map<hw::holly::TextureKey, TextureInst> TextureMap;
+typedef std::unordered_map<hw::holly::texture_key_t, TextureInst> TextureMap;
 
 class TraceTextureCache : public hw::holly::TextureProvider {
  public:
-  const TextureMap::iterator textures_begin() { return textures_.begin(); }
-  const TextureMap::iterator textures_end() { return textures_.end(); }
+  const TextureMap::iterator textures_begin() {
+    return textures_.begin();
+  }
+  const TextureMap::iterator textures_end() {
+    return textures_.end();
+  }
 
-  void AddTexture(const hw::holly::TSP &tsp, hw::holly::TCW &tcw,
+  void AddTexture(const hw::holly::tsp_t &tsp, hw::holly::tcw_t &tcw,
                   const uint8_t *palette, const uint8_t *texture);
-  void RemoveTexture(const hw::holly::TSP &tsp, hw::holly::TCW &tcw);
-  renderer::TextureHandle GetTexture(
-      const hw::holly::TileContext &tctx, const hw::holly::TSP &tsp,
-      const hw::holly::TCW &tcw,
+  void RemoveTexture(const hw::holly::tsp_t &tsp, hw::holly::tcw_t &tcw);
+  texture_handle_t GetTexture(
+      const hw::holly::ta_ctx_t &tctx, const hw::holly::tsp_t &tsp,
+      const hw::holly::tcw_t &tcw,
       hw::holly::RegisterTextureDelegate register_delegate);
 
  private:
   TextureMap textures_;
 };
 
-class Tracer : public ui::WindowListener {
+class Tracer : public WindowListener {
  public:
-  Tracer(ui::Window &window);
+  Tracer(struct window_s &window);
   ~Tracer();
 
   void Run(const char *path);
 
  private:
   void OnPaint(bool show_main_menu) final;
-  void OnKeyDown(ui::Keycode code, int16_t value);
+  void OnKeyDown(keycode_t code, int16_t value);
   void OnClose() final;
 
   bool Parse(const char *path);
@@ -69,7 +70,7 @@ class Tracer : public ui::WindowListener {
   void RenderContextMenu();
 
   void CopyCommandToContext(const hw::holly::TraceCommand *cmd,
-                            hw::holly::TileContext *ctx);
+                            hw::holly::ta_ctx_t *ctx);
   void PrevContext();
   void NextContext();
   void ResetContext();
@@ -78,12 +79,12 @@ class Tracer : public ui::WindowListener {
   void NextParam();
   void ResetParam();
 
-  ui::Window &window_;
-  renderer::Backend *rb_;
+  struct window_s &window_;
+  struct rb_s *rb_;
   TraceTextureCache texcache_;
   hw::holly::TileRenderer tile_renderer_;
-  hw::holly::TileContext tctx_;
-  hw::holly::TileRenderContext rctx_;
+  ta_ctx_t tctx_;
+  tr_ctx_t rctx_;
 
   bool running_;
   hw::holly::TraceReader trace_;

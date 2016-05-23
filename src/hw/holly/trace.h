@@ -1,11 +1,7 @@
 #ifndef TRACE_H
 #define TRACE_H
 
-#include "hw/holly/tile_accelerator_types.h"
-
-namespace re {
-namespace hw {
-namespace holly {
+#include "hw/holly/ta_types.h"
 
 enum TraceCommandType {
   TRACE_CMD_NONE,
@@ -28,15 +24,15 @@ struct TraceCommand {
   // and patched to absolute pointers on read
   union {
     struct {
-      TSP tsp;
-      TCW tcw;
+      tsp_t tsp;
+      tcw_t tcw;
       uint32_t palette_size;
       const uint8_t *palette;
       uint32_t texture_size;
       const uint8_t *texture;
     } texture;
 
-    // slimmed down version of the TileContext structure, will need to be in
+    // slimmed down version of the ta_ctx_t structure, will need to be in
     // sync
     struct {
       int8_t autosort;
@@ -44,9 +40,9 @@ struct TraceCommand {
       uint32_t pal_pxl_format;
       uint32_t video_width;
       uint32_t video_height;
-      ISP_TSP bg_isp;
-      TSP bg_tsp;
-      TCW bg_tcw;
+      isp_t bg_isp;
+      tsp_t bg_tsp;
+      tcw_t bg_tcw;
       float bg_depth;
       uint32_t bg_vertices_size;
       const uint8_t *bg_vertices;
@@ -63,7 +59,9 @@ class TraceReader {
   TraceReader();
   ~TraceReader();
 
-  TraceCommand *cmds() { return reinterpret_cast<TraceCommand *>(trace_); }
+  TraceCommand *cmds() {
+    return reinterpret_cast<TraceCommand *>(trace_);
+  }
 
   bool Parse(const char *filename);
 
@@ -84,16 +82,13 @@ class TraceWriter {
   bool Open(const char *filename);
   void Close();
 
-  void WriteInsertTexture(const TSP &tsp, const TCW &tcw,
-                          const uint8_t *palette, int palette_size,
-                          const uint8_t *texture, int texture_size);
-  void WriteRenderContext(TileContext *tctx);
+  void WriteInsertTexture(tsp_t tsp, tcw_t tcw, const uint8_t *palette,
+                          int palette_size, const uint8_t *texture,
+                          int texture_size);
+  void WriteRenderContext(ta_ctx_t *tctx);
 
  private:
   FILE *file_;
 };
-}
-}
-}
 
 #endif
