@@ -1,22 +1,20 @@
 #ifndef FRONTEND_H
 #define FRONTEND_H
 
-#include "jit/ir/ir_builder.h"
+struct ir_s;
+struct jit_frontend_s;
 
-namespace re {
-namespace jit {
-namespace frontend {
+typedef void (*jit_frontend_translate_code)(struct jit_frontend_s *frontend,
+                                            uint32_t guest_addr,
+                                            uint8_t *guest_ptr, int flags,
+                                            int *size, struct ir_s *ir);
+typedef void (*jit_frontend_dump_code)(struct jit_frontend_s *frontend,
+                                       uint32_t guest_addr, uint8_t *guest_ptr,
+                                       int size);
 
-class Frontend {
- public:
-  virtual ~Frontend() {}
-
-  virtual ir::IRBuilder &TranslateCode(uint32_t guest_addr, uint8_t *guest_ptr,
-                                       int flags, int *size) = 0;
-  virtual void DumpCode(uint32_t guest_addr, uint8_t *guest_ptr, int size) = 0;
-};
-}
-}
-}
+typedef struct jit_frontend_s {
+  jit_frontend_translate_code translate_code;
+  jit_frontend_dump_code dump_code;
+} jit_frontend_t;
 
 #endif

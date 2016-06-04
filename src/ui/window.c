@@ -61,19 +61,19 @@ static void win_init_joystick(window_t *win) {
 static void win_handle_paint(window_t *win) {
   rb_begin_frame(win->rb);
 
-  list_for_each_entry(&win->live_listeners, window_listener_t, it, listener) {
+  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
     if (listener->cb.prepaint) {
       listener->cb.prepaint(listener->data);
     }
   }
 
-  list_for_each_entry(&win->live_listeners, window_listener_t, it, listener) {
+  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
     if (listener->cb.paint) {
       listener->cb.paint(listener->data, win->show_main_menu);
     }
   }
 
-  list_for_each_entry(&win->live_listeners, window_listener_t, it, listener) {
+  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
     if (listener->cb.postpaint) {
       listener->cb.postpaint(listener->data);
     }
@@ -83,7 +83,7 @@ static void win_handle_paint(window_t *win) {
 }
 
 static void win_handle_keydown(window_t *win, keycode_t code, int16_t value) {
-  list_for_each_entry(&win->live_listeners, window_listener_t, it, listener) {
+  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
     if (listener->cb.keydown) {
       listener->cb.keydown(listener->data, code, value);
     }
@@ -132,7 +132,7 @@ static void win_handle_hatdown(window_t *win, int hat, uint8_t state,
 }
 
 static void win_handle_textinput(window_t *win, const char *text) {
-  list_for_each_entry(&win->live_listeners, window_listener_t, it, listener) {
+  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
     if (listener->cb.textinput) {
       listener->cb.textinput(listener->data, text);
     }
@@ -140,7 +140,7 @@ static void win_handle_textinput(window_t *win, const char *text) {
 }
 
 static void win_handle_mousemove(window_t *win, int x, int y) {
-  list_for_each_entry(&win->live_listeners, window_listener_t, it, listener) {
+  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
     if (listener->cb.mousemove) {
       listener->cb.mousemove(listener->data, x, y);
     }
@@ -148,7 +148,7 @@ static void win_handle_mousemove(window_t *win, int x, int y) {
 }
 
 static void win_handle_close(window_t *win) {
-  list_for_each_entry(&win->live_listeners, window_listener_t, it, listener) {
+  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
     if (listener->cb.close) {
       listener->cb.close(listener->data);
     }

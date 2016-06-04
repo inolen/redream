@@ -1,26 +1,22 @@
-#include <sstream>
 #include <gtest/gtest.h>
 #include "jit/ir/passes/dead_code_elimination_pass.h"
-#include "jit/ir/ir_builder.h"
-#include "jit/ir/ir_reader.h"
-#include "jit/ir/ir_writer.h"
+#include "jit/ir/ir.h"
 
-using namespace re;
-using namespace re::jit::ir;
-using namespace re::jit::ir::passes;
+static uint8_t ir_buffer[1024 * 1024];
+static char scratch_buffer[1024 * 1024];
 
 TEST(DeadCodeEliminationPassTest, Sanity) {
-  static const char *input =
+  static const char input_str[] =
       "i32 %0 = load_context i32 0xbc\n"
-      "i32 %1 = load_guest i32 %0\n"
-      "i32 %2 = load_guest i32 0x8c000a10\n"
-      "i32 %3 = load_guest i32 %2\n"
+      "i32 %1 = load_slow i32 %0\n"
+      "i32 %2 = load_slow i32 0x8c000a10\n"
+      "i32 %3 = load_slow i32 %2\n"
       "i32 %4 = load_context i32 0xc0\n"
       "i32 %5 = and i32 %3, i32 %4\n"
       "store_context i32 0xb0, i32 %5\n"
-      "store_guest i32 %2, i32 %5\n"
+      "store_slow i32 %2, i32 %5\n"
       "i32 %6 = load_context i32 0xe4\n"
-      "i32 %7 = load_guest i32 %6\n"
+      "i32 %7 = load_slow i32 %6\n"
       "store_context i32 0xb4, i32 %7\n"
       "i64 %8 = load_context i32 0x18\n"
       "i32 %9 = load_context i32 0x38\n"
@@ -35,15 +31,15 @@ TEST(DeadCodeEliminationPassTest, Sanity) {
       "call_external i64 %8, i64 %10\n"
       "store_context i32 0x30, i32 0x8c000940\n";
 
-  static const char *output =
-      "i32 %0 = load_guest i32 0x8c000a10\n"
-      "i32 %1 = load_guest i32 %0\n"
+  static const char output_str[] =
+      "i32 %0 = load_slow i32 0x8c000a10\n"
+      "i32 %1 = load_slow i32 %0\n"
       "i32 %2 = load_context i32 0xc0\n"
       "i32 %3 = and i32 %1, i32 %2\n"
       "store_context i32 0xb0, i32 %3\n"
-      "store_guest i32 %0, i32 %3\n"
+      "store_slow i32 %0, i32 %3\n"
       "i32 %4 = load_context i32 0xe4\n"
-      "i32 %5 = load_guest i32 %4\n"
+      "i32 %5 = load_slow i32 %4\n"
       "store_context i32 0xb4, i32 %5\n"
       "i64 %6 = load_context i32 0x18\n"
       "i32 %7 = load_context i32 0x38\n"
@@ -58,19 +54,25 @@ TEST(DeadCodeEliminationPassTest, Sanity) {
       "call_external i64 %6, i64 %8\n"
       "store_context i32 0x30, i32 0x8c000940\n";
 
-  Arena arena(4096);
-  IRBuilder builder(arena);
+  ir_t ir = {};
+  ir.buffer = ir_buffer;
+  ir.capacity = sizeof(ir_buffer);
 
-  IRReader reader;
-  std::stringstream input_stream(input);
-  reader.Parse(input_stream, builder);
+  FILE *input = tmpfile();
+  fwrite(input_str, 1, sizeof(input_str) - 1, input);
+  rewind(input);
+  bool res = ir_read(input, &ir);
+  fclose(input);
+  ASSERT_TRUE(res);
 
-  DeadCodeEliminationPass pass;
-  pass.Run(builder);
+  dce_run(&ir);
 
-  IRWriter writer;
-  std::stringstream output_stream;
-  writer.Print(builder, output_stream);
+  FILE *output = tmpfile();
+  ir_write(&ir, output);
+  rewind(output);
+  size_t n = fread(&scratch_buffer, 1, sizeof(scratch_buffer), output);
+  fclose(output);
+  ASSERT_NE(n, 0u);
 
-  ASSERT_STREQ(output_stream.str().c_str(), output);
+  ASSERT_STREQ(scratch_buffer, output_str);
 }

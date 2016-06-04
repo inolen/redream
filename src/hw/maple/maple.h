@@ -28,6 +28,8 @@ struct maple_s *maple_create(struct dreamcast_s *dc);
 void maple_destroy(struct maple_s *mp);
 void maple_vblank(struct maple_s *mp);
 
+struct maple_device_s *controller_create();
+
 #ifdef __cplusplus
 }
 #endif

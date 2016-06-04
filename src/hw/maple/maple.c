@@ -1,6 +1,5 @@
 #include "hw/holly/holly.h"
 #include "hw/maple/maple.h"
-#include "hw/maple/controller.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 
@@ -20,13 +19,13 @@ static void maple_dma(maple_t *mp);
 static void maple_keydown(maple_t *mp, keycode_t key, int16_t value);
 DECLARE_REG_W32(maple_t *mp, SB_MDST);
 
-struct maple_s *maple_create(struct dreamcast_s *dc) {
+maple_t *maple_create(struct dreamcast_s *dc) {
   maple_t *mp = dc_create_device(dc, sizeof(maple_t), "maple",
                                  (device_init_cb)&maple_init);
   mp->base.window =
       window_interface_create(NULL, (device_keydown_cb)&maple_keydown);
 
-  mp->devices[0] = maple_create_controller();
+  mp->devices[0] = controller_create();
 
   return mp;
 }
@@ -44,6 +43,21 @@ void maple_destroy(maple_t *mp) {
   dc_destroy_device(&mp->base);
 }
 
+void maple_vblank(maple_t *mp) {
+  uint32_t enabled = mp->holly->reg[SB_MDEN];
+  uint32_t vblank_initiate = mp->holly->reg[SB_MDTSEL];
+
+  // The controller can be started up by two methods: by software, or by
+  // hardware
+  // in synchronization with the V-BLANK signal. These methods are selected
+  // through the trigger selection register (SB_MDTSEL).
+  if (enabled && vblank_initiate) {
+    maple_dma(mp);
+  }
+
+  // TODO maple vblank interrupt?
+}
+
 bool maple_init(maple_t *mp) {
   mp->holly = mp->base.dc->holly;
   mp->space = mp->base.dc->sh4->base.memory->space;
@@ -58,21 +72,6 @@ bool maple_init(maple_t *mp) {
 #undef MAPLE_REG_R32
 #undef MAPLE_REG_W32
   return true;
-}
-
-void maple_vblank(maple_t *mp) {
-  uint32_t enabled = mp->holly->reg[SB_MDEN];
-  uint32_t vblank_initiate = mp->holly->reg[SB_MDTSEL];
-
-  // The controller can be started up by two methods: by software, or by
-  // hardware
-  // in synchronization with the V-BLANK signal. These methods are selected
-  // through the trigger selection register (SB_MDTSEL).
-  if (enabled && vblank_initiate) {
-    maple_dma(mp);
-  }
-
-  // TODO maple vblank interrupt?
 }
 
 void maple_dma(maple_t *mp) {

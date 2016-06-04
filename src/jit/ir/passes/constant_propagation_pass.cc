@@ -2,9 +2,6 @@
 #include <unordered_map>
 #include "jit/ir/passes/constant_propagation_pass.h"
 
-using namespace re::jit::ir;
-using namespace re::jit::ir::passes;
-
 typedef void (*FoldFn)(IRBuilder &, Instr *i);
 
 // specify which arguments must be constant in order for fold operation to run
@@ -28,43 +25,44 @@ int fold_masks[NUM_OPS];
 // declare a templated callback for an IR operation. note, declaring a
 // callback does not actually register it. callbacks must be registered
 // for a particular signature with REGISTER_FOLD
-#define FOLD(op, mask)                                                         \
-  static struct _##op##_init {                                                 \
-    _##op##_init() {                                                           \
-      fold_masks[OP_##op] = mask;                                              \
-    }                                                                          \
-  } op##_init;                                                                 \
-  template <typename R = ValueInfo<VALUE_V>, typename A0 = ValueInfo<VALUE_V>, \
-            typename A1 = ValueInfo<VALUE_V>>                                  \
-  void Handle##op(IRBuilder &builder, Instr *instr)
+#define FOLD(op, mask)                             \
+  static struct _##op##_init {                     \
+    _##op##_init() {                               \
+      fold_masks[OP_##op] = mask;                  \
+    }                                              \
+  } op##_init;                                     \
+  template <typename R = ir_value_tInfo<VALUE_V>,  \
+            typename A0 = ir_value_tInfo<VALUE_V>, \
+            typename A1 = ir_value_tInfo<VALUE_V>> \
+  void Handle##op(ir_t *ir, Instr *instr)
 
 // registers a fold callback for the specified signature
-#define REGISTER_FOLD(op, r, a0, a1)                                       \
-  static struct _cpp_##op##_##r##_##a0##_##a1##_init {                     \
-    _cpp_##op##_##r##_##a0##_##a1##_init() {                               \
-      fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1)] = \
-          &Handle##op<ValueInfo<VALUE_##r>, ValueInfo<VALUE_##a0>,         \
-                      ValueInfo<VALUE_##a1>>;                              \
-    }                                                                      \
+#define REGISTER_FOLD(op, r, a0, a1)                                         \
+  static struct _cpp_##op##_##r##_##a0##_##a1##_init {                       \
+    _cpp_##op##_##r##_##a0##_##a1##_init() {                                 \
+      fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1)] =   \
+          &Handle##op<ir_value_tInfo<VALUE_##r>, ir_value_tInfo<VALUE_##a0>, \
+                      ir_value_tInfo<VALUE_##a1>>;                           \
+    }                                                                        \
   } cpp_##op##_##r##_##a0##_##a1##_init
 
 // common helpers for fold functions
-#define ARG0() (instr->arg0()->*A0::fn)()
-#define ARG1() (instr->arg1()->*A1::fn)()
-#define ARG2() (instr->arg2()->*A1::fn)()
+#define ARG0() (instr->arg[0]->*A0::fn)()
+#define ARG1() (instr->arg[1]->*A1::fn)()
+#define ARG2() (instr->arg[2]->*A1::fn)()
 #define ARG0_UNSIGNED() static_cast<typename A0::unsigned_type>(ARG0())
 #define ARG1_UNSIGNED() static_cast<typename A1::unsigned_type>(ARG1())
 #define ARG2_UNSIGNED() static_cast<typename A1::unsigned_type>(ARG2())
-#define RESULT(expr)                                                      \
-  instr->ReplaceRefsWith(                                                 \
-      builder.AllocConstant(static_cast<typename R::signed_type>(expr))); \
-  builder.RemoveInstr(instr)
+#define RESULT(expr)                                                           \
+  ir_replace_uses(instr, ir_alloc_constant(                                    \
+                             ir, static_cast<typename R::signed_type>(expr))); \
+  ir_remove_instr(instr)
 
 static FoldFn GetFoldFn(Instr *instr) {
   auto it = fold_cbs.find(
-      CALLBACK_IDX(instr->op(), instr->type(),
-                   instr->arg0() ? (int)instr->arg0()->type() : VALUE_V,
-                   instr->arg1() ? (int)instr->arg1()->type() : VALUE_V));
+      CALLBACK_IDX(instr->op, instr->type,
+                   instr->arg[0] ? (int)instr->arg[0]->type : VALUE_V,
+                   instr->arg[1] ? (int)instr->arg[1]->type : VALUE_V));
   if (it == fold_cbs.end()) {
     return nullptr;
   }
@@ -72,34 +70,29 @@ static FoldFn GetFoldFn(Instr *instr) {
 }
 
 static int GetFoldMask(Instr *instr) {
-  return fold_masks[instr->op()];
+  return fold_masks[instr->op];
 }
 
 static int GetConstantSig(Instr *instr) {
   int cnst_sig = 0;
 
-  if (instr->arg0() && instr->arg0()->constant()) {
+  if (instr->arg[0] && ir_is_constant(instr->arg[0])) {
     cnst_sig |= ARG0_CNST;
   }
 
-  if (instr->arg1() && instr->arg1()->constant()) {
+  if (instr->arg[1] && ir_is_constant(instr->arg[1])) {
     cnst_sig |= ARG1_CNST;
   }
 
-  if (instr->arg2() && instr->arg2()->constant()) {
+  if (instr->arg[2] && ir_is_constant(instr->arg[2])) {
     cnst_sig |= ARG2_CNST;
   }
 
   return cnst_sig;
 }
 
-void ConstantPropagationPass::Run(IRBuilder &builder) {
-  auto it = builder.instrs().begin();
-  auto end = builder.instrs().end();
-
-  while (it != end) {
-    Instr *instr = *(it++);
-
+void ConstantPropagationPass::Run(ir_t *ir) {
+  list_for_each_entry_safe(instr, &ir->instrs, ir_instr_t, it) {
     int fold_mask = GetFoldMask(instr);
     int cnst_sig = GetConstantSig(instr);
     if (!fold_mask || (cnst_sig & fold_mask) != fold_mask) {
@@ -116,8 +109,8 @@ void ConstantPropagationPass::Run(IRBuilder &builder) {
 }
 
 FOLD(SELECT, ARG0_CNST) {
-  instr->ReplaceRefsWith(ARG0() ? instr->arg1() : instr->arg2());
-  builder.RemoveInstr(instr);
+  ir_replace_uses(instr, ARG0() ? instr->arg[1] : instr->arg[2]);
+  ir_remove_instr(ir, instr);
 }
 REGISTER_FOLD(SELECT, I8, I8, I8);
 REGISTER_FOLD(SELECT, I16, I16, I16);

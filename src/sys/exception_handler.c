@@ -49,7 +49,7 @@ void exception_handler_remove(re_exception_handler_t *handler) {
 }
 
 bool exception_handler_handle(re_exception_t *ex) {
-  list_for_each_entry(&s_live_handlers, re_exception_handler_t, it, handler) {
+  list_for_each_entry(handler, &s_live_handlers, re_exception_handler_t, it) {
     if (handler->cb(handler->data, ex)) {
       return true;
     }

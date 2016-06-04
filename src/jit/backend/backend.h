@@ -1,16 +1,23 @@
 #ifndef BACKEND_H
 #define BACKEND_H
 
-#include "jit/ir/ir_builder.h"
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct address_space_s;
+struct ir_s;
 struct re_exception_s;
 
-namespace re {
-namespace jit {
-namespace backend {
+typedef struct register_def_s {
+  const char *name;
+  int value_types;
+  const void *data;
+} register_def_t;
 
-struct MemoryInterface {
+typedef struct mem_interface_s {
   void *ctx_base;
   void *mem_base;
   struct address_space_s *mem_self;
@@ -22,34 +29,31 @@ struct MemoryInterface {
   void (*w16)(struct address_space_s *, uint32_t, uint16_t);
   void (*w32)(struct address_space_s *, uint32_t, uint32_t);
   void (*w64)(struct address_space_s *, uint32_t, uint64_t);
-};
+} mem_interface_t;
 
-struct Register {
-  const char *name;
-  int value_types;
-  const void *data;
-};
+struct jit_backend_s;
 
-class Backend {
- public:
-  Backend(const MemoryInterface &memif) : memif_(memif) {}
-  virtual ~Backend() {}
+typedef const register_def_t *(*registers_cb)();
+typedef int (*num_registers_cb)();
+typedef void (*reset_cb)(struct jit_backend_s *);
+typedef const uint8_t *(*assemble_code_cb)(struct jit_backend_s *,
+                                           struct ir_s *, int *);
+typedef void (*dump_code_cb)(struct jit_backend_s *, const uint8_t *, int);
+typedef bool (*handle_fastmem_exception_cb)(struct jit_backend_s *,
+                                            struct re_exception_s *);
 
-  virtual const Register *registers() const = 0;
-  virtual int num_registers() const = 0;
+typedef struct jit_backend_s {
+  const register_def_t *registers;
+  int num_registers;
 
-  virtual void Reset() = 0;
+  reset_cb reset;
+  assemble_code_cb assemble_code;
+  dump_code_cb dump_code;
+  handle_fastmem_exception_cb handle_fastmem_exception;
+} jit_backend_t;
 
-  virtual const uint8_t *AssembleCode(ir::IRBuilder &builder, int *size) = 0;
-  virtual void DumpCode(const uint8_t *host_addr, int size) = 0;
-
-  virtual bool HandleFastmemException(struct re_exception_s *ex) = 0;
-
- protected:
-  MemoryInterface memif_;
-};
+#ifdef __cplusplus
 }
-}
-}
+#endif
 
 #endif

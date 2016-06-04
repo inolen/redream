@@ -548,7 +548,8 @@ void ta_clear_textures(ta_t *ta) {
 }
 
 void ta_clear_pending_textures(ta_t *ta) {
-  list_for_each_entry(&ta->invalid_entries, texture_entry_t, invalid_it, it) {
+  list_for_each_entry_safe(it, &ta->invalid_entries, texture_entry_t,
+                           invalid_it) {
     ta_invalidate_texture(ta, it);
     ta->num_invalidated++;
   }

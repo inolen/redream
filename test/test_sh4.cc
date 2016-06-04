@@ -3,7 +3,6 @@
 #include <unordered_map>
 #include <gtest/gtest.h>
 #include "core/math.h"
-#include "core/memory.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
@@ -146,14 +145,15 @@ void run_sh4_test(const SH4Test &test) {
   for (int i = 0; i < sh4_num_test_regs; i++) {
     SH4TestRegister &reg = sh4_test_regs[i];
 
-    uint32_t input = load<uint32_t>(
+    uint32_t input = *reinterpret_cast<const uint32_t *>(
         reinterpret_cast<const uint8_t *>(&test.in) + reg.offset);
 
     if (input == UNINITIALIZED_REG) {
       continue;
     }
 
-    store(reinterpret_cast<uint8_t *>(&dc->sh4->ctx) + reg.offset, input);
+    *reinterpret_cast<uint32_t *>(reinterpret_cast<uint8_t *>(&dc->sh4->ctx) +
+                                  reg.offset) = input;
   }
 
   // setup initial stack pointer
@@ -178,14 +178,14 @@ void run_sh4_test(const SH4Test &test) {
   for (int i = 0; i < sh4_num_test_regs; i++) {
     SH4TestRegister &reg = sh4_test_regs[i];
 
-    uint32_t expected = load<uint32_t>(
+    uint32_t expected = *reinterpret_cast<const uint32_t *>(
         reinterpret_cast<const uint8_t *>(&test.out) + reg.offset);
 
     if (expected == UNINITIALIZED_REG) {
       continue;
     }
 
-    uint32_t actual = load<uint32_t>(
+    uint32_t actual = *reinterpret_cast<const uint32_t *>(
         reinterpret_cast<const uint8_t *>(&dc->sh4->ctx) + reg.offset);
 
     ASSERT_EQ(expected, actual) << reg.name << " expected: 0x" << std::hex

@@ -1,7 +1,9 @@
 #include <imgui.h>
 #include "core/math.h"
-#include "core/memory.h"
 #include "core/profiler.h"
+#include "core/string.h"
+#include "jit/backend/backend.h"
+#include "jit/frontend/sh4/sh4_analyze.h"
 #include "hw/sh4/sh4.h"
 #include "hw/sh4/sh4_code_cache.h"
 #include "hw/dreamcast.h"
@@ -13,10 +15,6 @@
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr.h"
 #include "hw/holly/ta.h"
-
-using namespace re::jit;
-using namespace re::jit::backend;
-using namespace re::jit::frontend::sh4;
 
 static sh4_interrupt_info_t sh4_interrupts[NUM_SH_INTERRUPTS] = {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
@@ -177,18 +175,17 @@ bool sh4_init(sh4_t *sh4) {
   sh4->scheduler = sh4->base.dc->scheduler;
   sh4->space = sh4->base.memory->space;
 
-  re::jit::backend::MemoryInterface memif = {
-      &sh4->ctx,
-      sh4->base.memory->space->protected_base,
-      sh4->base.memory->space,
-      &address_space_r8,
-      &address_space_r16,
-      &address_space_r32,
-      &address_space_r64,
-      &address_space_w8,
-      &address_space_w16,
-      &address_space_w32,
-      &address_space_w64};
+  mem_interface_t memif = {&sh4->ctx,
+                           sh4->base.memory->space->protected_base,
+                           sh4->base.memory->space,
+                           &address_space_r8,
+                           &address_space_r16,
+                           &address_space_r32,
+                           &address_space_r64,
+                           &address_space_w8,
+                           &address_space_w16,
+                           &address_space_w32,
+                           &address_space_w64};
   sh4->code_cache = sh4_cache_create(&memif, &sh4_compile_pc);
 
   // initialize context
@@ -252,7 +249,7 @@ void sh4_set_pc(sh4_t *sh4, uint32_t pc) {
 
 static void sh4_run_inner(sh4_t *sh4, int64_t ns) {
   // execute at least 1 cycle. the tests rely on this to step block by block
-  int64_t cycles = std::max(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
+  int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
 
   // each block's epilog will decrement the remaining cycles as they run
   sh4->ctx.num_cycles = static_cast<int>(cycles);
@@ -399,11 +396,11 @@ void sh4_paint(sh4_t *sh4, bool show_main_menu) {
 
     // calculate average mips
     float avg_mips = 0.0f;
-    for (int i = std::max(0, perf->num_mips - MAX_MIPS_SAMPLES);
-         i < perf->num_mips; i++) {
+    for (int i = MAX(0, perf->num_mips - MAX_MIPS_SAMPLES); i < perf->num_mips;
+         i++) {
       avg_mips += perf->mips[i % MAX_MIPS_SAMPLES];
     }
-    avg_mips /= std::max(std::min(perf->num_mips, MAX_MIPS_SAMPLES), 1);
+    avg_mips /= MAX(MIN(perf->num_mips, MAX_MIPS_SAMPLES), 1);
 
     char overlay_text[128];
     snprintf(overlay_text, sizeof(overlay_text), "%.2f", avg_mips);
@@ -869,14 +866,14 @@ template <typename T>
 T sh4_read_cache(sh4_t *sh4, uint32_t addr) {
   CHECK_EQ(sh4->CCR->ORA, 1u);
   addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
-  return load<T>(&sh4->cache[addr]);
+  return *(T *)&sh4->cache[addr];
 }
 
 template <typename T>
 void sh4_write_cache(sh4_t *sh4, uint32_t addr, T value) {
   CHECK_EQ(sh4->CCR->ORA, 1u);
   addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
-  store(&sh4->cache[addr], value);
+  *(T *)&sh4->cache[addr] = value;
 }
 
 template <typename T>

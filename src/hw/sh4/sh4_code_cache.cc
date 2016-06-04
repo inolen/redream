@@ -3,22 +3,17 @@
 #include "hw/sh4/sh4_code_cache.h"
 #include "hw/memory.h"
 #include "jit/backend/x64/x64_backend.h"
+#include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
-#include "jit/ir/ir_builder.h"
+#include "jit/backend/backend.h"
+#include "jit/frontend/frontend.h"
+#include "jit/ir/ir.h"
 // #include "jit/ir/passes/constant_propagation_pass.h"
 // #include "jit/ir/passes/conversion_elimination_pass.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/register_allocation_pass.h"
 #include "sys/filesystem.h"
-
-using namespace re::jit;
-using namespace re::jit::backend;
-using namespace re::jit::backend::x64;
-using namespace re::jit::frontend;
-using namespace re::jit::frontend::sh4;
-using namespace re::jit::ir;
-using namespace re::jit::ir::passes;
 
 static bool sh4_cache_handle_exception(sh4_cache_t *cache, re_exception_t *ex);
 static sh4_block_t *sh4_cache_lookup_block(sh4_cache_t *cache,
@@ -51,7 +46,7 @@ static rb_callback_t reverse_block_map_cb = {
     &reverse_block_map_cmp, NULL, NULL,
 };
 
-sh4_cache_t *sh4_cache_create(const re::jit::backend::MemoryInterface *memif,
+sh4_cache_t *sh4_cache_create(const mem_interface_t *memif,
                               code_pointer_t default_code) {
   sh4_cache_t *cache =
       reinterpret_cast<sh4_cache_t *>(calloc(1, sizeof(sh4_cache_t)));
@@ -62,21 +57,8 @@ sh4_cache_t *sh4_cache_create(const re::jit::backend::MemoryInterface *memif,
       cache, (exception_handler_cb)&sh4_cache_handle_exception);
 
   // setup parser and emitter
-  cache->frontend = new SH4Frontend();
-  cache->backend = new X64Backend(*memif);
-
-  cache->pass_runner = new PassRunner();
-  // setup optimization passes
-  cache->pass_runner->AddPass(
-      std::unique_ptr<Pass>(new LoadStoreEliminationPass()));
-  // cache->pass_runner->AddPass(std::unique_ptr<Pass>(new
-  // ConstantPropagationPass()));
-  // cache->pass_runner->AddPass(std::unique_ptr<Pass>(new
-  // ConversionEliminationPass()));
-  cache->pass_runner->AddPass(
-      std::unique_ptr<Pass>(new DeadCodeEliminationPass()));
-  cache->pass_runner->AddPass(std::unique_ptr<Pass>(new RegisterAllocationPass(
-      cache->backend->registers(), cache->backend->num_registers())));
+  cache->frontend = sh4_frontend_create();
+  cache->backend = x64_create(memif);
 
   // initialize all entries in block cache to reference the default block
   cache->default_code = default_code;
@@ -90,9 +72,8 @@ sh4_cache_t *sh4_cache_create(const re::jit::backend::MemoryInterface *memif,
 
 void sh4_cache_destroy(sh4_cache_t *cache) {
   exception_handler_remove(cache->eh_handle);
-  delete cache->frontend;
-  delete cache->backend;
-  delete cache->pass_runner;
+  sh4_frontend_destroy(cache->frontend);
+  x64_destroy(cache->backend);
   free(cache);
 }
 
@@ -123,9 +104,13 @@ static code_pointer_t sh4_cache_compile_code_inner(sh4_cache_t *cache,
   }
 
   // translate the SH4 into IR
+  ir_t ir = {};
+  ir.buffer = cache->ir_buffer;
+  ir.capacity = sizeof(cache->ir_buffer);
+
   int guest_size = 0;
-  IRBuilder &builder =
-      cache->frontend->TranslateCode(guest_addr, guest_ptr, flags, &guest_size);
+  cache->frontend->translate_code(cache->frontend, guest_addr, guest_ptr, flags,
+                                  &guest_size, &ir);
 
 #if 0
   const char *appdir = fs_appdir();
@@ -141,11 +126,15 @@ static code_pointer_t sh4_cache_compile_code_inner(sh4_cache_t *cache,
   builder.Dump(output);
 #endif
 
-  cache->pass_runner->Run(builder);
+  // run optimization passes
+  lse_run(&ir);
+  dce_run(&ir);
+  ra_run(&ir, cache->backend->registers, cache->backend->num_registers);
 
   // assemble the IR into native code
   int host_size = 0;
-  const uint8_t *host_addr = cache->backend->AssembleCode(builder, &host_size);
+  const uint8_t *host_addr =
+      cache->backend->assemble_code(cache->backend, &ir, &host_size);
 
   if (!host_addr) {
     LOG_INFO("Assembler overflow, resetting block cache");
@@ -155,7 +144,7 @@ static code_pointer_t sh4_cache_compile_code_inner(sh4_cache_t *cache,
 
     // if the backend fails to assemble on an empty cache, there's nothing to be
     // done
-    host_addr = cache->backend->AssembleCode(builder, &host_size);
+    host_addr = cache->backend->assemble_code(cache->backend, &ir, &host_size);
 
     CHECK(host_addr, "Backend assembler buffer overflow");
   }
@@ -236,7 +225,7 @@ void sh4_cache_clear_blocks(sh4_cache_t *cache) {
   }
 
   // have the backend reset its codegen buffers as well
-  cache->backend->Reset();
+  cache->backend->reset(cache->backend);
 }
 
 static bool sh4_cache_handle_exception(sh4_cache_t *cache, re_exception_t *ex) {
@@ -249,7 +238,7 @@ static bool sh4_cache_handle_exception(sh4_cache_t *cache, re_exception_t *ex) {
   }
 
   // let the backend attempt to handle the exception
-  if (!cache->backend->HandleFastmemException(ex)) {
+  if (!cache->backend->handle_fastmem_exception(cache->backend, ex)) {
     return false;
   }
 

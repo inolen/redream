@@ -48,6 +48,8 @@ static int access_to_protect_flags(page_access_t access) {
       return PROT_READ;
     case ACC_READWRITE:
       return PROT_READ | PROT_WRITE;
+    case ACC_READWRITEEXEC:
+      return PROT_READ | PROT_WRITE | PROT_EXEC;
     default:
       return PROT_NONE;
   }

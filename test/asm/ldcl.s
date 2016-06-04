@@ -23,7 +23,6 @@ test_ldcl_stcl_sr:
   # r1 in alt bank should have been pre-decremented by 4
   mov.l .DATA_ADDR, r1
   stc r1_bank, r5
-  sub r1, r5
   rts
   nop
   # REGISTER_OUT r2 13

@@ -38,7 +38,7 @@ static void validate_people(list_t *people_list, person_t **expected_people,
                             int num_expected_people) {
   int n = 0;
 
-  list_for_each_entry(people_list, person_t, it, person) {
+  list_for_each_entry(person, people_list, person_t, it) {
     person_t *expected_person = expected_people[n];
     ASSERT_STREQ(person->name, expected_person->name);
     n++;
@@ -52,7 +52,7 @@ static void validate_people_reverse(list_t *people_list,
                                     int num_expected_people) {
   int n = 0;
 
-  list_for_each_entry_reverse(people_list, person_t, it, person) {
+  list_for_each_entry_reverse(person, people_list, person_t, it) {
     person_t *expected_person = expected_people[num_expected_people - n - 1];
     ASSERT_STREQ(person->name, expected_person->name);
     n++;

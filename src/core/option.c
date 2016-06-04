@@ -6,7 +6,7 @@
 static list_t s_options;
 
 static option_t *option_find(const char *name) {
-  list_for_each_entry(&s_options, option_t, it, opt) {
+  list_for_each_entry(opt, &s_options, option_t, it) {
     if (!strcmp(opt->name, name)) {
       return opt;
     }
@@ -83,7 +83,7 @@ void option_print_help() {
   int max_name_width = 0;
   int max_desc_width = 0;
 
-  list_for_each_entry(&s_options, option_t, it, opt) {
+  list_for_each_entry(opt, &s_options, option_t, it) {
     int l = (int)strlen(opt->name);
     max_name_width = MAX(l, max_name_width);
 
@@ -91,7 +91,7 @@ void option_print_help() {
     max_desc_width = MAX(l, max_desc_width);
   }
 
-  list_for_each_entry(&s_options, option_t, it, opt) {
+  list_for_each_entry(opt, &s_options, option_t, it) {
     switch (opt->type) {
       case OPT_BOOL:
         LOG_INFO("--%-*s  %-*s  [default %s]", max_name_width, opt->name,

@@ -6,21 +6,28 @@
 
 #ifdef __cplusplus
 
-#define container_of(ptr, type, member)                 \
-  ({                                                    \
-    const decltype(((type*)0)->member)* __mptr = (ptr); \
-    (type*)((char*)__mptr - offsetof(type, member));    \
-  })
+#include <type_traits>
+
+#define TYPEOF(n) typename std::remove_reference<decltype(n)>::type
 
 #else
 
-#define container_of(ptr, type, member)                   \
-  ({                                                      \
-    const __typeof__(((type*)0)->member)* __mptr = (ptr); \
-    (type*)((char*)__mptr - offsetof(type, member));      \
-  })
+#define TYPEOF(n) __typeof__(n)
 
 #endif
+
+#define SWAP(a, b)       \
+  do {                   \
+    TYPEOF(a) tmp = (a); \
+    (a) = (b);           \
+    (b) = tmp;           \
+  } while (0)
+
+#define container_of(ptr, type, member)               \
+  ({                                                  \
+    const TYPEOF(((type*)0)->member)* __mptr = (ptr); \
+    (type*)((char*)__mptr - offsetof(type, member));  \
+  })
 
 #define array_size(arr) (sizeof(arr) / sizeof((arr)[0]))
 
