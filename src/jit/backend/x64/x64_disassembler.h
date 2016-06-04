@@ -1,14 +1,14 @@
 #ifndef X64_DISASSEMBLER_H
 #define X64_DISASSEMBLER_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
-namespace re {
-namespace jit {
-namespace backend {
-namespace x64 {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-struct X64Mov {
+typedef struct {
   int length;
   bool is_load;
   bool is_indirect;
@@ -22,15 +22,12 @@ struct X64Mov {
   int scale;
   int disp;
   uint64_t imm;
-};
+} x64_mov_t;
 
-class X64Disassembler {
- public:
-  static bool DecodeMov(const uint8_t *data, X64Mov *mov);
-};
+bool x64_decode_mov(const uint8_t *data, x64_mov_t *mov);
+
+#ifdef __cplusplus
 }
-}
-}
-}
+#endif
 
 #endif

@@ -3,11 +3,6 @@
 
 #include "jit/ir/passes/pass_runner.h"
 
-namespace re {
-namespace jit {
-namespace ir {
-namespace passes {
-
 class ConstantPropagationPass : public Pass {
  public:
   static const char *NAME = "constprop";
@@ -16,11 +11,7 @@ class ConstantPropagationPass : public Pass {
     return NAME;
   }
 
-  void Run(IRBuilder &builder);
+  void Run(struct ir_s *ir);
 };
-}
-}
-}
-}
 
 #endif

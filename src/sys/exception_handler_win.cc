@@ -1,8 +1,6 @@
 #include <windows.h>
 #include "sys/exception_handler_win.h"
 
-using namespace re::sys;
-
 static void CopyStateTo(PCONTEXT src, re_thread_state_t *dst) {
   dst->rax = src->Rax;
   dst->rcx = src->Rcx;

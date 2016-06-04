@@ -1,35 +1,17 @@
 #ifndef SH4_FRONTEND_H
 #define SH4_FRONTEND_H
 
-#include "core/arena.h"
-#include "jit/frontend/frontend.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-namespace re {
-namespace jit {
-namespace frontend {
-namespace sh4 {
+struct jit_frontend_s;
 
-enum SH4BlockFlags {
-  SH4_SLOWMEM = 0x1,
-  SH4_DOUBLE_PR = 0x2,
-  SH4_DOUBLE_SZ = 0x4,
-  SH4_SINGLE_INSTR = 0x8,
-};
+struct jit_frontend_s *sh4_frontend_create();
+void sh4_frontend_destroy(struct jit_frontend_s *frontend);
 
-class SH4Frontend : public Frontend {
- public:
-  SH4Frontend();
-
-  ir::IRBuilder &TranslateCode(uint32_t guest_addr, uint8_t *guest_ptr,
-                               int flags, int *size);
-  void DumpCode(uint32_t guest_addr, uint8_t *guest_ptr, int size);
-
- private:
-  Arena arena_;
-};
+#ifdef __cplusplus
 }
-}
-}
-}
+#endif
 
 #endif

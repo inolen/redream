@@ -18,6 +18,8 @@ static DWORD access_to_protection_flags(page_access_t access) {
       return PAGE_READONLY;
     case ACC_READWRITE:
       return PAGE_READWRITE;
+    case ACC_READWRITEEXEC:
+      return PAGE_EXECUTE_READWRITE;
     default:
       return PAGE_NOACCESS;
   }

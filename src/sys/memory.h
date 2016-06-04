@@ -17,6 +17,7 @@ typedef enum {
   ACC_NONE,
   ACC_READONLY,
   ACC_READWRITE,
+  ACC_READWRITEEXEC,
 } page_access_t;
 
 size_t get_page_size();

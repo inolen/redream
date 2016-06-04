@@ -1,16 +1,12 @@
-#include <sstream>
 #include <gtest/gtest.h>
 #include "jit/ir/passes/load_store_elimination_pass.h"
-#include "jit/ir/ir_builder.h"
-#include "jit/ir/ir_reader.h"
-#include "jit/ir/ir_writer.h"
+#include "jit/ir/ir.h"
 
-using namespace re;
-using namespace re::jit::ir;
-using namespace re::jit::ir::passes;
+static uint8_t ir_buffer[1024 * 1024];
+static char scratch_buffer[1024 * 1024];
 
 TEST(LoadStoreEliminationPassTest, Aliasing) {
-  static const char *input =
+  static const char input_str[] =
       "store_context i32 0x104, i32 0x0\n"
       "store_context i32 0x100, i32 0x0\n"
       "store_context i32 0x10c, i32 0x0\n"
@@ -37,7 +33,7 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
       "i32 %10 = sub i32 %9, i32 0x10\n"
       "store_context i32 0x20, i32 %10\n";
 
-  static const char *output =
+  static const char output_str[] =
       "store_context i32 0x104, i32 0x0\n"
       "store_context i32 0x100, i32 0x0\n"
       "store_context i32 0x10c, i32 0x0\n"
@@ -59,19 +55,25 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
       "i32 %5 = sub i32 %4, i32 0x10\n"
       "store_context i32 0x20, i32 %5\n";
 
-  Arena arena(4096);
-  IRBuilder builder(arena);
+  ir_t ir = {};
+  ir.buffer = ir_buffer;
+  ir.capacity = sizeof(ir_buffer);
 
-  IRReader reader;
-  std::stringstream input_stream(input);
-  reader.Parse(input_stream, builder);
+  FILE *input = tmpfile();
+  fwrite(input_str, 1, sizeof(input_str) - 1, input);
+  rewind(input);
+  bool res = ir_read(input, &ir);
+  fclose(input);
+  ASSERT_TRUE(res);
 
-  LoadStoreEliminationPass pass;
-  pass.Run(builder);
+  lse_run(&ir);
 
-  IRWriter writer;
-  std::stringstream output_stream;
-  writer.Print(builder, output_stream);
+  FILE *output = tmpfile();
+  ir_write(&ir, output);
+  rewind(output);
+  size_t n = fread(&scratch_buffer, 1, sizeof(scratch_buffer), output);
+  fclose(output);
+  ASSERT_NE(n, 0u);
 
-  ASSERT_STREQ(output_stream.str().c_str(), output);
+  ASSERT_STREQ(scratch_buffer, output_str);
 }

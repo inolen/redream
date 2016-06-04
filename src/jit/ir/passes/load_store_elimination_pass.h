@@ -1,45 +1,18 @@
 #ifndef LOAD_STORE_ELIMINATION_PASS_H
 #define LOAD_STORE_ELIMINATION_PASS_H
 
-#include "jit/ir/passes/pass_runner.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-namespace re {
-namespace jit {
-namespace ir {
-namespace passes {
+struct ir_s;
 
-struct AvailableEntry {
-  int offset;
-  Value *value;
-};
+extern const char *lse_name;
 
-class LoadStoreEliminationPass : public Pass {
- public:
-  static constexpr const char *NAME = "lse";
+void lse_run(struct ir_s *ir);
 
-  LoadStoreEliminationPass();
-
-  const char *name() {
-    return NAME;
-  }
-
-  void Run(IRBuilder &builder);
-
- private:
-  void Reset();
-
-  void Reserve(int offset);
-  void ClearAvailable();
-  void EraseAvailable(int offset, int size);
-  Value *GetAvailable(int offset);
-  void SetAvailable(int offset, Value *v);
-
-  AvailableEntry *available_;
-  int num_available_;
-};
+#ifdef __cplusplus
 }
-}
-}
-}
+#endif
 
 #endif

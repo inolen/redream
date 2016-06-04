@@ -136,6 +136,7 @@ set(REDREAM_SOURCES
   src/core/interval_tree.c
   src/core/list.c
   src/core/log.c
+  src/core/mm_heap.c
   src/core/option.c
   src/core/profiler.c
   src/core/rb_tree.c
@@ -160,22 +161,20 @@ set(REDREAM_SOURCES
   src/hw/memory.c
   src/hw/scheduler.c
   src/jit/backend/x64/x64_backend.cc
-  src/jit/backend/x64/x64_disassembler.cc
-  src/jit/backend/x64/x64_emitter.cc
-  src/jit/frontend/sh4/sh4_analyzer.cc
-  src/jit/frontend/sh4/sh4_builder.cc
-  src/jit/frontend/sh4/sh4_disassembler.cc
-  src/jit/frontend/sh4/sh4_frontend.cc
-  src/jit/ir/ir_builder.cc
-  src/jit/ir/ir_reader.cc
-  src/jit/ir/ir_writer.cc
+  src/jit/backend/x64/x64_disassembler.c
+  src/jit/frontend/sh4/sh4_analyze.c
+  src/jit/frontend/sh4/sh4_disasm.c
+  src/jit/frontend/sh4/sh4_frontend.c
+  src/jit/frontend/sh4/sh4_translate.c
+  src/jit/ir/ir.c
+  src/jit/ir/ir_read.c
+  src/jit/ir/ir_write.c
   #src/jit/ir/passes/constant_propagation_pass.cc
-  src/jit/ir/passes/conversion_elimination_pass.cc
-  src/jit/ir/passes/dead_code_elimination_pass.cc
-  src/jit/ir/passes/load_store_elimination_pass.cc
-  src/jit/ir/passes/pass_runner.cc
-  src/jit/ir/passes/pass_stats.cc
-  src/jit/ir/passes/register_allocation_pass.cc
+  src/jit/ir/passes/conversion_elimination_pass.c
+  src/jit/ir/passes/dead_code_elimination_pass.c
+  src/jit/ir/passes/load_store_elimination_pass.c
+  src/jit/ir/passes/pass_stat.c
+  src/jit/ir/passes/register_allocation_pass.c
   src/renderer/gl_backend.c
   src/sys/exception_handler.c
   src/sys/filesystem.c
@@ -379,8 +378,8 @@ set(RETEST_SOURCES
   #test/test_interval_tree.cc
   #test/test_intrusive_list.cc
   test/test_list.cc
-  #test/test_dead_code_elimination_pass.cc
-  #test/test_load_store_elimination_pass.cc
+  test/test_dead_code_elimination_pass.cc
+  test/test_load_store_elimination_pass.cc
   #test/test_minmax_heap.cc
   test/test_sh4.cc
   ${asm_inc})

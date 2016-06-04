@@ -1,27 +1,18 @@
 #ifndef CONVERSION_ELIMINATION_PASS_H
 #define CONVERSION_ELIMINATION_PASS_H
 
-#include "jit/backend/backend.h"
-#include "jit/ir/passes/pass_runner.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-namespace re {
-namespace jit {
-namespace ir {
-namespace passes {
+struct ir_s;
 
-class ConversionEliminationPass : public Pass {
- public:
-  static constexpr const char *NAME = "cve";
+extern const char *cve_name;
 
-  const char *name() {
-    return NAME;
-  }
+void cve_run(struct ir_s *ir);
 
-  void Run(IRBuilder &builder);
-};
+#ifdef __cplusplus
 }
-}
-}
-}
+#endif
 
 #endif
