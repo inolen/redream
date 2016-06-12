@@ -17,7 +17,7 @@ typedef struct memory_watch_s {
 } memory_watch_t;
 
 typedef struct {
-  struct re_exception_handler_s *exc_handler;
+  struct exc_handler_s *exc_handler;
   rb_tree_t tree;
   memory_watch_t watches[MAX_WATCHES];
   list_t free_watches;

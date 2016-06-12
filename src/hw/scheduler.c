@@ -22,25 +22,6 @@ typedef struct scheduler_s {
   int64_t base_time;
 } scheduler_t;
 
-scheduler_t *scheduler_create(dreamcast_t *dc) {
-  scheduler_t *sch = calloc(1, sizeof(scheduler_t));
-
-  sch->dc = dc;
-
-  // add all timers to the free list initially
-  for (int i = 0; i < MAX_TIMERS; i++) {
-    timer_t *timer = &sch->timers[i];
-
-    list_add(&sch->free_timers, &timer->it);
-  }
-
-  return sch;
-}
-
-void scheduler_destroy(scheduler_t *sch) {
-  free(sch);
-}
-
 void scheduler_tick(scheduler_t *sch, int64_t ns) {
   int64_t target_time = sch->base_time + ns;
 
@@ -123,9 +104,26 @@ int64_t scheduler_remaining_time(scheduler_t *sch, timer_t *timer) {
 }
 
 void scheduler_cancel_timer(scheduler_t *sch, timer_t *timer) {
-  // remove from live list
   list_remove(&sch->live_timers, &timer->it);
 
-  // add to free list
   list_add(&sch->free_timers, &timer->it);
+}
+
+scheduler_t *scheduler_create(dreamcast_t *dc) {
+  scheduler_t *sch = calloc(1, sizeof(scheduler_t));
+
+  sch->dc = dc;
+
+  // add all timers to the free list initially
+  for (int i = 0; i < MAX_TIMERS; i++) {
+    timer_t *timer = &sch->timers[i];
+
+    list_add(&sch->free_timers, &timer->it);
+  }
+
+  return sch;
+}
+
+void scheduler_destroy(scheduler_t *sch) {
+  free(sch);
 }

@@ -54,6 +54,118 @@ void device_run(device_t *dev, int64_t ns) {
   dev->execute->run(dev, ns);
 }
 
+void *dc_create_device(dreamcast_t *dc, size_t size, const char *name,
+                       device_init_cb init) {
+  device_t *dev = calloc(1, size);
+  dev->dc = dc;
+  dev->name = name;
+  dev->init = init;
+
+  // insert into device list
+  dev->next = dc->devices;
+  dc->devices = dev;
+
+  return dev;
+}
+
+device_t *dc_get_device(dreamcast_t *dc, const char *name) {
+  device_t *dev = dc->devices;
+
+  while (dev) {
+    if (!strcmp(dev->name, name)) {
+      return dev;
+    }
+
+    dev = dev->next;
+  }
+
+  return NULL;
+}
+
+void dc_destroy_device(device_t *dev) {
+  // remove from device list
+  device_t **it = &dev->dc->devices;
+
+  while (*it) {
+    if (*it == dev) {
+      *it = (*it)->next;
+      break;
+    }
+
+    it = &(*it)->next;
+  }
+
+  free(dev);
+}
+
+bool dc_init(dreamcast_t *dc) {
+  if (dc->debugger && !debugger_init(dc->debugger)) {
+    dc_destroy(dc);
+    return false;
+  }
+
+  if (!memory_init(dc->memory)) {
+    dc_destroy(dc);
+    return false;
+  }
+
+  // initialize each device
+  device_t *dev = dc->devices;
+
+  while (dev) {
+    if (!dev->init(dev)) {
+      dc_destroy(dc);
+      return false;
+    }
+
+    dev = dev->next;
+  }
+
+  return true;
+}
+
+void dc_suspend(dreamcast_t *dc) {
+  dc->suspended = true;
+}
+
+void dc_resume(dreamcast_t *dc) {
+  dc->suspended = false;
+}
+
+void dc_tick(dreamcast_t *dc, int64_t ns) {
+  if (dc->debugger) {
+    debugger_tick(dc->debugger);
+  }
+
+  if (!dc->suspended) {
+    scheduler_tick(dc->scheduler, ns);
+  }
+}
+
+void dc_paint(dreamcast_t *dc, bool show_main_menu) {
+  device_t *dev = dc->devices;
+
+  while (dev) {
+    if (dev->window && dev->window->paint) {
+      dev->window->paint(dev, show_main_menu);
+    }
+
+    dev = dev->next;
+  }
+}
+
+void dc_keydown(dreamcast_t *dc, keycode_t code, int16_t value) {
+  device_t *dev = dc->devices;
+
+  while (dev) {
+    if (dev->window && dev->window->keydown) {
+      dev->window->keydown(dev, code, value);
+    }
+
+    dev = dev->next;
+  }
+}
+
 dreamcast_t *dc_create(void *rb) {
   dreamcast_t *dc = calloc(1, sizeof(dreamcast_t));
 
@@ -94,116 +206,4 @@ void dc_destroy(dreamcast_t *dc) {
   ta_destroy(dc->ta);
 
   free(dc);
-}
-
-bool dc_init(dreamcast_t *dc) {
-  if (dc->debugger && !debugger_init(dc->debugger)) {
-    dc_destroy(dc);
-    return false;
-  }
-
-  if (!memory_init(dc->memory)) {
-    dc_destroy(dc);
-    return false;
-  }
-
-  // initialize each device
-  device_t *dev = dc->devices;
-
-  while (dev) {
-    if (!dev->init(dev)) {
-      dc_destroy(dc);
-      return false;
-    }
-
-    dev = dev->next;
-  }
-
-  return true;
-}
-
-void dc_suspend(dreamcast_t *dc) {
-  dc->suspended = true;
-}
-
-void dc_resume(dreamcast_t *dc) {
-  dc->suspended = false;
-}
-
-void *dc_create_device(dreamcast_t *dc, size_t size, const char *name,
-                       device_init_cb init) {
-  device_t *dev = calloc(1, size);
-  dev->dc = dc;
-  dev->name = name;
-  dev->init = init;
-
-  // insert into device list
-  dev->next = dc->devices;
-  dc->devices = dev;
-
-  return dev;
-}
-
-void dc_destroy_device(device_t *dev) {
-  // remove from device list
-  device_t **it = &dev->dc->devices;
-
-  while (*it) {
-    if (*it == dev) {
-      *it = (*it)->next;
-      break;
-    }
-
-    it = &(*it)->next;
-  }
-
-  free(dev);
-}
-
-device_t *dc_get_device(dreamcast_t *dc, const char *name) {
-  device_t *dev = dc->devices;
-
-  while (dev) {
-    if (!strcmp(dev->name, name)) {
-      return dev;
-    }
-
-    dev = dev->next;
-  }
-
-  return NULL;
-}
-
-void dc_tick(dreamcast_t *dc, int64_t ns) {
-  if (dc->debugger) {
-    debugger_tick(dc->debugger);
-  }
-
-  if (!dc->suspended) {
-    scheduler_tick(dc->scheduler, ns);
-  }
-}
-
-void dc_paint(dreamcast_t *dc, bool show_main_menu) {
-  device_t *dev = dc->devices;
-
-  while (dev) {
-    if (dev->window && dev->window->paint) {
-      dev->window->paint(dev, show_main_menu);
-    }
-
-    dev = dev->next;
-  }
-}
-
-void dc_keydown(dreamcast_t *dc, keycode_t code, int16_t value) {
-  device_t *dev = dc->devices;
-
-  while (dev) {
-    if (dev->window && dev->window->keydown) {
-      dev->window->keydown(dev, code, value);
-    }
-
-    dev = dev->next;
-  }
 }

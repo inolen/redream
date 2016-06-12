@@ -141,7 +141,7 @@ set(REDREAM_SOURCES
   src/core/profiler.c
   src/core/rb_tree.c
   src/core/string.c
-  src/emu/emulator.cc
+  src/emu/emulator.c
   #src/emu/tracer.cc
   src/hw/aica/aica.c
   src/hw/arm/arm.c
@@ -155,7 +155,7 @@ set(REDREAM_SOURCES
   src/hw/maple/controller.c
   src/hw/maple/maple.c
   src/hw/sh4/sh4.cc
-  src/hw/sh4/sh4_code_cache.cc
+  src/hw/sh4/sh4_code_cache.c
   src/hw/debugger.c
   src/hw/dreamcast.c
   src/hw/memory.c
