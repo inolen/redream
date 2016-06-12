@@ -1,3 +1,4 @@
+#include "gdb/gdb_server.h"
 #define GDB_SERVER_IMPL
 #include "gdb/gdb_server.h"
 
@@ -5,34 +6,54 @@
 #include "hw/debugger.h"
 #include "hw/dreamcast.h"
 
-static void debugger_gdb_server_detach(void *data);
-static void debugger_gdb_server_stop(void *data);
-static void debugger_gdb_server_resume(void *data);
-static void debugger_gdb_server_step(void *data);
-static void debugger_gdb_server_add_bp(void *data, int type, intmax_t addr);
-static void debugger_gdb_server_rem_bp(void *data, int type, intmax_t addr);
-static void debugger_gdb_server_read_mem(void *data, intmax_t addr,
-                                         uint8_t *buffer, int size);
-static void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
-                                         int *size);
-
 typedef struct debugger_s {
   dreamcast_t *dc;
   device_t *dev;
   gdb_server_t *sv;
 } debugger_t;
 
-debugger_t *debugger_create(dreamcast_t *dc) {
-  debugger_t *dbg = calloc(1, sizeof(debugger_t));
-
-  dbg->dc = dc;
-
-  return NULL;
+static void debugger_gdb_server_detach(void *data) {
+  debugger_t *dbg = (debugger_t *)data;
+  dc_resume(dbg->dc);
 }
 
-void debugger_destroy(debugger_t *dbg) {
-  gdb_server_destroy(dbg->sv);
-  free(dbg);
+static void debugger_gdb_server_stop(void *data) {
+  debugger_t *dbg = (debugger_t *)data;
+  dc_suspend(dbg->dc);
+}
+
+static void debugger_gdb_server_resume(void *data) {
+  debugger_t *dbg = (debugger_t *)data;
+  dc_resume(dbg->dc);
+}
+
+static void debugger_gdb_server_step(void *data) {
+  debugger_t *dbg = (debugger_t *)data;
+  dbg->dev->debug->step(dbg->dev);
+}
+
+static void debugger_gdb_server_add_bp(void *data, int type, intmax_t addr) {
+  debugger_t *dbg = (debugger_t *)data;
+  dbg->dev->debug->add_bp(dbg->dev, type, (uint32_t)addr);
+}
+
+static void debugger_gdb_server_rem_bp(void *data, int type, intmax_t addr) {
+  debugger_t *dbg = (debugger_t *)data;
+  dbg->dev->debug->rem_bp(dbg->dev, type, (uint32_t)addr);
+}
+
+static void debugger_gdb_server_read_mem(void *data, intmax_t addr,
+                                         uint8_t *buffer, int size) {
+  debugger_t *dbg = (debugger_t *)data;
+  dbg->dev->debug->read_mem(dbg->dev, (uint32_t)addr, buffer, size);
+}
+
+static void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
+                                         int *size) {
+  debugger_t *dbg = (debugger_t *)data;
+  uint64_t v = 0;
+  dbg->dev->debug->read_reg(dbg->dev, n, &v, size);
+  *value = v;
 }
 
 bool debugger_init(debugger_t *dbg) {
@@ -85,46 +106,15 @@ void debugger_tick(debugger_t *dbg) {
   gdb_server_pump(dbg->sv);
 }
 
-void debugger_gdb_server_detach(void *data) {
-  debugger_t *dbg = (debugger_t *)data;
-  dc_resume(dbg->dc);
+debugger_t *debugger_create(dreamcast_t *dc) {
+  debugger_t *dbg = calloc(1, sizeof(debugger_t));
+
+  dbg->dc = dc;
+
+  return NULL;
 }
 
-void debugger_gdb_server_stop(void *data) {
-  debugger_t *dbg = (debugger_t *)data;
-  dc_suspend(dbg->dc);
-}
-
-void debugger_gdb_server_resume(void *data) {
-  debugger_t *dbg = (debugger_t *)data;
-  dc_resume(dbg->dc);
-}
-
-void debugger_gdb_server_step(void *data) {
-  debugger_t *dbg = (debugger_t *)data;
-  dbg->dev->debug->step(dbg->dev);
-}
-
-void debugger_gdb_server_add_bp(void *data, int type, intmax_t addr) {
-  debugger_t *dbg = (debugger_t *)data;
-  dbg->dev->debug->add_bp(dbg->dev, type, (uint32_t)addr);
-}
-
-void debugger_gdb_server_rem_bp(void *data, int type, intmax_t addr) {
-  debugger_t *dbg = (debugger_t *)data;
-  dbg->dev->debug->rem_bp(dbg->dev, type, (uint32_t)addr);
-}
-
-void debugger_gdb_server_read_mem(void *data, intmax_t addr, uint8_t *buffer,
-                                  int size) {
-  debugger_t *dbg = (debugger_t *)data;
-  dbg->dev->debug->read_mem(dbg->dev, (uint32_t)addr, buffer, size);
-}
-
-void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
-                                  int *size) {
-  debugger_t *dbg = (debugger_t *)data;
-  uint64_t v = 0;
-  dbg->dev->debug->read_reg(dbg->dev, n, &v, size);
-  *value = v;
+void debugger_destroy(debugger_t *dbg) {
+  gdb_server_destroy(dbg->sv);
+  free(dbg);
 }

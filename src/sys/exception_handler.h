@@ -36,9 +36,9 @@ bool exception_handler_install();
 bool exception_handler_install_platform();
 void exception_handler_uninstall();
 void exception_handler_uninstall_platform();
-struct re_exception_handler_s *exception_handler_add(void *data,
-                                                     exception_handler_cb cb);
-void exception_handler_remove(struct re_exception_handler_s *handler);
+struct exc_handler_s *exception_handler_add(void *data,
+                                            exception_handler_cb cb);
+void exception_handler_remove(struct exc_handler_s *handler);
 bool exception_handler_handle(re_exception_t *ex);
 
 #ifdef __cplusplus

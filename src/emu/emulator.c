@@ -107,7 +107,7 @@ static bool emu_launch_bin(emu_t *emu, const char *path) {
     return false;
   }
 
-  gdrom_set_disc(emu->dc->gdrom, nullptr);
+  gdrom_set_disc(emu->dc->gdrom, NULL);
   sh4_set_pc(emu->dc->sh4, 0x0c010000);
 
   return true;
@@ -155,7 +155,7 @@ emu_t *emu_create(struct window_s *window) {
       NULL,
       (window_close_cb)&emu_onclose};
 
-  emu_t *emu = reinterpret_cast<emu_t *>(calloc(1, sizeof(emu_t)));
+  emu_t *emu = calloc(1, sizeof(emu_t));
 
   emu->window = window;
   emu->listener = win_add_listener(emu->window, &callbacks, emu);
@@ -200,11 +200,11 @@ void emu_run(emu_t *emu, const char *path) {
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
   static const int64_t FRAME_STEP = HZ_TO_NANO(60);
 
-  auto current_time = time_nanoseconds();
-  auto last_time = current_time;
+  int64_t current_time = time_nanoseconds();
+  int64_t last_time = current_time;
 
-  auto next_machine_time = current_time;
-  auto next_frame_time = current_time;
+  int64_t next_machine_time = current_time;
+  int64_t next_frame_time = current_time;
 
   emu->running = true;
 
