@@ -27,27 +27,29 @@ typedef struct memory_region_s {
   uint32_t size;
   bool dynamic;
 
-  r8_cb r8;
-  r16_cb r16;
-  r32_cb r32;
-  r64_cb r64;
-  w8_cb w8;
-  w16_cb w16;
-  w32_cb w32;
-  w64_cb w64;
+  r8_cb read8;
+  r16_cb read16;
+  r32_cb read32;
+  r64_cb read64;
+  w8_cb write8;
+  w16_cb write16;
+  w32_cb write32;
+  w64_cb write64;
 
   void *data;
 } memory_region_t;
 
 struct memory_s;
 
-struct memory_s *memory_create(struct dreamcast_s *dc);
-void memory_destroy(struct memory_s *memory);
-bool memory_init(struct memory_s *memory);
 memory_region_t *memory_create_region(struct memory_s *memory, uint32_t size);
 memory_region_t *memory_create_dynamic_region(
     struct memory_s *memory, uint32_t size, r8_cb r8, r16_cb r16, r32_cb r32,
     r64_cb r64, w8_cb w8, w16_cb w16, w32_cb w32, w64_cb w64, void *data);
+
+bool memory_init(struct memory_s *memory);
+
+struct memory_s *memory_create(struct dreamcast_s *dc);
+void memory_destroy(struct memory_s *memory);
 
 // macros to help generate static AddressMap creators
 #define AM_DECLARE(name) \
@@ -69,13 +71,13 @@ memory_region_t *memory_create_dynamic_region(
   size = end_ - begin_ + 1;    \
   mask = 0xffffffff;
 #define AM_MASK(mask_) mask = mask_;
-#define AM_MOUNT()                                            \
-  {                                                           \
-    static struct memory_region_s *region = NULL;             \
-    if (!region) {                                            \
-      region = memory_create_region(machine->memory, size);   \
-    }                                                         \
-    address_map_mount_region(map, region, size, begin, mask); \
+#define AM_MOUNT()                                          \
+  {                                                         \
+    static struct memory_region_s *region = NULL;           \
+    if (!region) {                                          \
+      region = memory_create_region(machine->memory, size); \
+    }                                                       \
+    am_mount_region(map, region, size, begin, mask);        \
   }
 #define AM_HANDLE(r8, r16, r32, r64, w8, w16, w32, w64)                       \
   {                                                                           \
@@ -84,18 +86,18 @@ memory_region_t *memory_create_dynamic_region(
       region = memory_create_dynamic_region(                                  \
           machine->memory, size, r8, r16, r32, r64, w8, w16, w32, w64, self); \
     }                                                                         \
-    address_map_mount_region(map, region, size, begin, mask);                 \
+    am_mount_region(map, region, size, begin, mask);                          \
   }
-#define AM_DEVICE(name, cb)                                        \
-  {                                                                \
-    static device_t *device = NULL;                                \
-    if (!device) {                                                 \
-      device = dc_get_device(machine, name);                       \
-    }                                                              \
-    CHECK_NOTNULL(device);                                         \
-    address_map_mount_device(map, device, &cb, size, begin, mask); \
+#define AM_DEVICE(name, cb)                               \
+  {                                                       \
+    static device_t *device = NULL;                       \
+    if (!device) {                                        \
+      device = dc_get_device(machine, name);              \
+    }                                                     \
+    CHECK_NOTNULL(device);                                \
+    am_mount_device(map, device, &cb, size, begin, mask); \
   }
-#define AM_MIRROR(addr) address_map_mirror(map, addr, size, begin);
+#define AM_MIRROR(addr) am_mirror(map, addr, size, begin);
 #define AM_END() }
 // clang-format on
 
@@ -140,13 +142,12 @@ typedef struct address_map_s {
   int num_entries;
 } address_map_t;
 
-void address_map_mount_region(address_map_t *am, struct memory_region_s *region,
-                              uint32_t size, uint32_t addr, uint32_t addr_mask);
-void address_map_mount_device(address_map_t *am, void *device,
-                              address_map_cb mapper, uint32_t size,
-                              uint32_t addr, uint32_t addr_mask);
-void address_map_mirror(address_map_t *am, uint32_t physical_addr,
-                        uint32_t size, uint32_t addr);
+void am_mount_region(address_map_t *am, struct memory_region_s *region,
+                     uint32_t size, uint32_t addr, uint32_t addr_mask);
+void am_mount_device(address_map_t *am, void *device, address_map_cb mapper,
+                     uint32_t size, uint32_t addr, uint32_t addr_mask);
+void am_mirror(address_map_t *am, uint32_t physical_addr, uint32_t size,
+               uint32_t addr);
 
 // helpers for extracting page information out of a virtual address
 static const int PAGE_BITS = 20;
@@ -172,31 +173,31 @@ typedef struct address_space_s {
   uint8_t *protected_base;
 } address_space_t;
 
-address_space_t *address_space_create(struct dreamcast_s *dc);
-void address_space_destroy(address_space_t *space);
-bool address_space_map(address_space_t *space, const address_map_t *map);
-void address_space_unmap(address_space_t *space);
-uint8_t *address_space_translate(address_space_t *space, uint32_t addr);
-uint8_t *address_space_translate_protected(address_space_t *space,
-                                           uint32_t addr);
-uint8_t address_space_r8(address_space_t *space, uint32_t addr);
-uint16_t address_space_r16(address_space_t *space, uint32_t addr);
-uint32_t address_space_r32(address_space_t *space, uint32_t addr);
-uint64_t address_space_r64(address_space_t *space, uint32_t addr);
-void address_space_w8(address_space_t *space, uint32_t addr, uint8_t value);
-void address_space_w16(address_space_t *space, uint32_t addr, uint16_t value);
-void address_space_w32(address_space_t *space, uint32_t addr, uint32_t value);
-void address_space_w64(address_space_t *space, uint32_t addr, uint64_t value);
-void address_space_memcpy_to_guest(address_space_t *space,
-                                   uint32_t virtual_dest, const void *ptr,
-                                   uint32_t size);
-void address_space_memcpy_to_host(address_space_t *space, void *ptr,
-                                  uint32_t virtual_src, uint32_t size);
-void address_space_memcpy(address_space_t *space, uint32_t virtual_dest,
-                          uint32_t virtual_src, uint32_t size);
-void address_space_lookup(address_space_t *space, uint32_t virtual_addr,
-                          uint8_t **ptr, memory_region_t **region,
-                          uint32_t *offset);
+void as_memcpy_to_guest(address_space_t *space, uint32_t virtual_dest,
+                        const void *ptr, uint32_t size);
+void as_memcpy_to_host(address_space_t *space, void *ptr, uint32_t virtual_src,
+                       uint32_t size);
+void as_memcpy(address_space_t *space, uint32_t virtual_dest,
+               uint32_t virtual_src, uint32_t size);
+void as_lookup(address_space_t *space, uint32_t virtual_addr, uint8_t **ptr,
+               memory_region_t **region, uint32_t *offset);
+
+uint8_t as_read8(address_space_t *space, uint32_t addr);
+uint16_t as_read16(address_space_t *space, uint32_t addr);
+uint32_t as_read32(address_space_t *space, uint32_t addr);
+uint64_t as_read64(address_space_t *space, uint32_t addr);
+void as_write8(address_space_t *space, uint32_t addr, uint8_t value);
+void as_write16(address_space_t *space, uint32_t addr, uint16_t value);
+void as_write32(address_space_t *space, uint32_t addr, uint32_t value);
+void as_write64(address_space_t *space, uint32_t addr, uint64_t value);
+
+bool as_map(address_space_t *space, const address_map_t *map);
+void as_unmap(address_space_t *space);
+uint8_t *as_translate(address_space_t *space, uint32_t addr);
+uint8_t *as_translate_protected(address_space_t *space, uint32_t addr);
+
+address_space_t *as_create(struct dreamcast_s *dc);
+void as_destroy(address_space_t *space);
 
 #ifdef __cplusplus
 }

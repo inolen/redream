@@ -4,14 +4,11 @@
 #include "hw/sh4/sh4_types.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
-#include "hw/scheduler.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-struct SH4Test;
 
 struct dreamcast_s;
 

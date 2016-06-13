@@ -9,29 +9,25 @@
 #include "hw/scheduler.h"
 #include "sys/exception_handler.h"
 
-static void run_sh4_test(const SH4Test &test);
+static const uint32_t UNINITIALIZED_REG = 0xbaadf00d;
 
-enum {
-  UNINITIALIZED_REG = 0xbaadf00d,
-};
-
-struct SH4Test {
+typedef struct {
   const char *name;
   const uint8_t *buffer;
   int buffer_size;
   int buffer_offset;
   sh4_context_t in;
   sh4_context_t out;
-};
+} sh4_test_t;
 
-struct SH4TestRegister {
+typedef struct {
   const char *name;
   size_t offset;
   int size;
-};
+} sh4_test_reg_t;
 
 // as per the notes in sh4_context.h, the fr / xf register pairs are swapped
-static SH4TestRegister sh4_test_regs[] = {
+static sh4_test_reg_t sh4_test_regs[] = {
     {"fpscr", offsetof(sh4_context_t, fpscr), 4},
     {"r0", offsetof(sh4_context_t, r[0]), 4},
     {"r1", offsetof(sh4_context_t, r[1]), 4},
@@ -85,6 +81,64 @@ static SH4TestRegister sh4_test_regs[] = {
 int sh4_num_test_regs =
     static_cast<int>(sizeof(sh4_test_regs) / sizeof(sh4_test_regs[0]));
 
+static void run_sh4_test(const sh4_test_t &test) {
+  dreamcast_t *dc = dc_create(nullptr);
+  CHECK_NOTNULL(dc);
+
+  // setup in registers
+  for (int i = 0; i < sh4_num_test_regs; i++) {
+    sh4_test_reg_t &reg = sh4_test_regs[i];
+
+    uint32_t input = *reinterpret_cast<const uint32_t *>(
+        reinterpret_cast<const uint8_t *>(&test.in) + reg.offset);
+
+    if (input == UNINITIALIZED_REG) {
+      continue;
+    }
+
+    *reinterpret_cast<uint32_t *>(reinterpret_cast<uint8_t *>(&dc->sh4->ctx) +
+                                  reg.offset) = input;
+  }
+
+  // setup initial stack pointer
+  dc->sh4->ctx.r[15] = 0x8d000000;
+
+  // load binary. note, Memory::Memcpy only support 4 byte aligned sizes
+  int aligned_size = align_up(test.buffer_size, 4);
+  uint8_t *aligned_buffer = reinterpret_cast<uint8_t *>(alloca(aligned_size));
+  memcpy(aligned_buffer, test.buffer, test.buffer_size);
+  as_memcpy_to_guest(dc->sh4->base.memory->space, 0x8c010000, aligned_buffer,
+                     aligned_size);
+
+  // skip to the test's offset
+  sh4_set_pc(dc->sh4, 0x8c010000 + test.buffer_offset);
+
+  // run until the function returns
+  while (dc->sh4->ctx.pc) {
+    sh4_run(dc->sh4, 1);
+  }
+
+  // validate out registers
+  for (int i = 0; i < sh4_num_test_regs; i++) {
+    sh4_test_reg_t &reg = sh4_test_regs[i];
+
+    uint32_t expected = *reinterpret_cast<const uint32_t *>(
+        reinterpret_cast<const uint8_t *>(&test.out) + reg.offset);
+
+    if (expected == UNINITIALIZED_REG) {
+      continue;
+    }
+
+    uint32_t actual = *reinterpret_cast<const uint32_t *>(
+        reinterpret_cast<const uint8_t *>(&dc->sh4->ctx) + reg.offset);
+
+    ASSERT_EQ(expected, actual) << reg.name << " expected: 0x" << std::hex
+                                << expected << ", actual 0x" << actual;
+  }
+
+  dc_destroy(dc);
+}
+
 // clang-format off
 #define INIT_CONTEXT(fpscr, r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, \
                      r12, r13, r14, r15, fr0, fr1, fr2, fr3, fr4, fr5, fr6,   \
@@ -117,7 +171,7 @@ int sh4_num_test_regs =
   r0_out,  r1_out,  r2_out,  r3_out,  r4_out,  r5_out,   r6_out,   r7_out,  r8_out,  r9_out,  r10_out,  r11_out,  r12_out,  r13_out,  r14_out,  r15_out,                 \
   fr0_out, fr1_out, fr2_out, fr3_out, fr4_out, fr5_out,  fr6_out,  fr7_out, fr8_out, fr9_out, fr10_out, fr11_out, fr12_out, fr13_out, fr14_out, fr15_out,                \
   xf0_out, xf1_out, xf2_out, xf3_out, xf4_out, xf5_out,  xf6_out,  xf7_out, xf8_out, xf9_out, xf10_out, xf11_out, xf12_out, xf13_out, xf14_out, xf15_out)                \
-  static SH4Test test_##name = {                                                                                                                                         \
+  static sh4_test_t test_##name = {                                                                                                                                         \
     #name, buffer, buffer_size, buffer_offset,                                                                                                                           \
     INIT_CONTEXT(fpscr_in,                                                                                                                                               \
                  r0_in,  r1_in,  r2_in,  r3_in,  r4_in,  r5_in,   r6_in,   r7_in,  r8_in,  r9_in,  r10_in,  r11_in,  r12_in,  r13_in,  r14_in,  r15_in,                  \
@@ -136,61 +190,3 @@ int sh4_num_test_regs =
 #include "test_sh4.inc"
 #undef TEST_SH4
 // clang-format on
-
-void run_sh4_test(const SH4Test &test) {
-  dreamcast_t *dc = dc_create(nullptr);
-  CHECK_NOTNULL(dc);
-
-  // setup in registers
-  for (int i = 0; i < sh4_num_test_regs; i++) {
-    SH4TestRegister &reg = sh4_test_regs[i];
-
-    uint32_t input = *reinterpret_cast<const uint32_t *>(
-        reinterpret_cast<const uint8_t *>(&test.in) + reg.offset);
-
-    if (input == UNINITIALIZED_REG) {
-      continue;
-    }
-
-    *reinterpret_cast<uint32_t *>(reinterpret_cast<uint8_t *>(&dc->sh4->ctx) +
-                                  reg.offset) = input;
-  }
-
-  // setup initial stack pointer
-  dc->sh4->ctx.r[15] = 0x8d000000;
-
-  // load binary. note, Memory::Memcpy only support 4 byte aligned sizes
-  int aligned_size = align_up(test.buffer_size, 4);
-  uint8_t *aligned_buffer = reinterpret_cast<uint8_t *>(alloca(aligned_size));
-  memcpy(aligned_buffer, test.buffer, test.buffer_size);
-  address_space_memcpy_to_guest(dc->sh4->base.memory->space, 0x8c010000,
-                                aligned_buffer, aligned_size);
-
-  // skip to the test's offset
-  sh4_set_pc(dc->sh4, 0x8c010000 + test.buffer_offset);
-
-  // run until the function returns
-  while (dc->sh4->ctx.pc) {
-    sh4_run(dc->sh4, 1);
-  }
-
-  // validate out registers
-  for (int i = 0; i < sh4_num_test_regs; i++) {
-    SH4TestRegister &reg = sh4_test_regs[i];
-
-    uint32_t expected = *reinterpret_cast<const uint32_t *>(
-        reinterpret_cast<const uint8_t *>(&test.out) + reg.offset);
-
-    if (expected == UNINITIALIZED_REG) {
-      continue;
-    }
-
-    uint32_t actual = *reinterpret_cast<const uint32_t *>(
-        reinterpret_cast<const uint8_t *>(&dc->sh4->ctx) + reg.offset);
-
-    ASSERT_EQ(expected, actual) << reg.name << " expected: 0x" << std::hex
-                                << expected << ", actual 0x" << actual;
-  }
-
-  dc_destroy(dc);
-}

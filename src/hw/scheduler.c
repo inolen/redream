@@ -15,7 +15,7 @@ typedef struct timer_s {
 } timer_t;
 
 typedef struct scheduler_s {
-  struct dreamcast_s *dc;
+  dreamcast_t *dc;
   timer_t timers[MAX_TIMERS];
   list_t free_timers;
   list_t live_timers;
@@ -44,14 +44,10 @@ void scheduler_tick(scheduler_t *sch, int64_t ns) {
     sch->base_time += slice;
 
     // execute each device
-    device_t *dev = sch->dc->devices;
-
-    while (dev) {
+    list_for_each_entry(dev, &sch->dc->devices, device_t, it) {
       if (dev->execute && !dev->execute->suspended) {
         dev->execute->run(dev, slice);
       }
-
-      dev = dev->next;
     }
 
     // execute expired timers

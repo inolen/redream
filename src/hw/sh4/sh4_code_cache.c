@@ -104,7 +104,7 @@ static bool sh4_cache_handle_exception(sh4_cache_t *cache, re_exception_t *ex) {
   }
 
   // let the backend attempt to handle the exception
-  if (!cache->backend->handle_fastmem_exception(cache->backend, ex)) {
+  if (!cache->backend->handle_exception(cache->backend, ex)) {
     return false;
   }
 
@@ -280,7 +280,7 @@ sh4_cache_t *sh4_cache_create(const mem_interface_t *memif,
 
   // setup parser and emitter
   cache->frontend = sh4_frontend_create();
-  cache->backend = x64_create(memif);
+  cache->backend = x64_backend_create(memif);
 
   // initialize all entries in block cache to reference the default block
   cache->default_code = default_code;
@@ -295,6 +295,6 @@ sh4_cache_t *sh4_cache_create(const mem_interface_t *memif,
 void sh4_cache_destroy(sh4_cache_t *cache) {
   exception_handler_remove(cache->exc_handler);
   sh4_frontend_destroy(cache->frontend);
-  x64_destroy(cache->backend);
+  x64_backend_destroy(cache->backend);
   free(cache);
 }

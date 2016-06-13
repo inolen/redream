@@ -19,7 +19,7 @@ static void maple_dma(maple_t *mp);
 static void maple_keydown(maple_t *mp, keycode_t key, int16_t value);
 DECLARE_REG_W32(maple_t *mp, SB_MDST);
 
-maple_t *maple_create(struct dreamcast_s *dc) {
+maple_t *maple_create(dreamcast_t *dc) {
   maple_t *mp = dc_create_device(dc, sizeof(maple_t), "maple",
                                  (device_init_cb)&maple_init);
   mp->base.window =
@@ -59,8 +59,10 @@ void maple_vblank(maple_t *mp) {
 }
 
 bool maple_init(maple_t *mp) {
-  mp->holly = mp->base.dc->holly;
-  mp->space = mp->base.dc->sh4->base.memory->space;
+  dreamcast_t *dc = mp->base.dc;
+
+  mp->holly = dc->holly;
+  mp->space = dc->sh4->base.memory->space;
 
 #define MAPLE_REG_R32(name)       \
   mp->holly->reg_data[name] = mp; \
@@ -80,15 +82,15 @@ void maple_dma(maple_t *mp) {
   maple_frame_t frame, res;
 
   do {
-    desc.full = address_space_r64(mp->space, start_addr);
+    desc.full = as_read64(mp->space, start_addr);
     start_addr += 8;
 
     // read input
-    frame.header.full = address_space_r32(mp->space, start_addr);
+    frame.header.full = as_read32(mp->space, start_addr);
     start_addr += 4;
 
     for (uint32_t i = 0; i < frame.header.num_words; i++) {
-      frame.params[i] = address_space_r32(mp->space, start_addr);
+      frame.params[i] = as_read32(mp->space, start_addr);
       start_addr += 4;
     }
 
@@ -96,15 +98,15 @@ void maple_dma(maple_t *mp) {
     maple_device_t *dev = mp->devices[desc.port];
 
     if (dev && dev->frame(dev, &frame, &res)) {
-      address_space_w32(mp->space, desc.result_addr, res.header.full);
+      as_write32(mp->space, desc.result_addr, res.header.full);
       desc.result_addr += 4;
 
       for (uint32_t i = 0; i < res.header.num_words; i++) {
-        address_space_w32(mp->space, desc.result_addr, res.params[i]);
+        as_write32(mp->space, desc.result_addr, res.params[i]);
         desc.result_addr += 4;
       }
     } else {
-      address_space_w32(mp->space, desc.result_addr, 0xffffffff);
+      as_write32(mp->space, desc.result_addr, 0xffffffff);
     }
   } while (!desc.last);
 

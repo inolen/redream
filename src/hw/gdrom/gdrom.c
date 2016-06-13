@@ -104,7 +104,7 @@ DECLARE_REG_W32(gdrom_t *gd, GD_DRVSEL);
 DECLARE_REG_R32(gdrom_t *gd, GD_STATUS_COMMAND);
 DECLARE_REG_W32(gdrom_t *gd, GD_STATUS_COMMAND);
 
-gdrom_t *gdrom_create(struct dreamcast_s *dc) {
+gdrom_t *gdrom_create(dreamcast_t *dc) {
   gdrom_t *gd = dc_create_device(dc, sizeof(gdrom_t), "gdrom",
                                  (device_init_cb)&gdrom_init);
   return gd;
@@ -119,7 +119,9 @@ void gdrom_destroy(gdrom_t *gd) {
 }
 
 bool gdrom_init(gdrom_t *gd) {
-  gd->holly = gd->base.dc->holly;
+  dreamcast_t *dc = gd->base.dc;
+
+  gd->holly = dc->holly;
 
 // initialize registers
 #define GDROM_REG_R32(name)       \

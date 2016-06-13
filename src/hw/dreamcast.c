@@ -25,16 +25,16 @@ void execute_interface_destroy(execute_interface_t *execute) {
   free(execute);
 }
 
-memory_interface_t *memory_interface_create(struct dreamcast_s *dc,
+memory_interface_t *memory_interface_create(dreamcast_t *dc,
                                             address_map_cb mapper) {
   memory_interface_t *memory = calloc(1, sizeof(memory_interface_t));
   memory->mapper = mapper;
-  memory->space = address_space_create(dc);
+  memory->space = as_create(dc);
   return memory;
 }
 
 void memory_interface_destroy(memory_interface_t *memory) {
-  address_space_destroy(memory->space);
+  as_destroy(memory->space);
   free(memory);
 }
 
@@ -61,39 +61,23 @@ void *dc_create_device(dreamcast_t *dc, size_t size, const char *name,
   dev->name = name;
   dev->init = init;
 
-  // insert into device list
-  dev->next = dc->devices;
-  dc->devices = dev;
+  list_add(&dc->devices, &dev->it);
 
   return dev;
 }
 
 device_t *dc_get_device(dreamcast_t *dc, const char *name) {
-  device_t *dev = dc->devices;
-
-  while (dev) {
+  list_for_each_entry(dev, &dc->devices, device_t, it) {
     if (!strcmp(dev->name, name)) {
       return dev;
     }
-
-    dev = dev->next;
   }
 
   return NULL;
 }
 
 void dc_destroy_device(device_t *dev) {
-  // remove from device list
-  device_t **it = &dev->dc->devices;
-
-  while (*it) {
-    if (*it == dev) {
-      *it = (*it)->next;
-      break;
-    }
-
-    it = &(*it)->next;
-  }
+  list_remove(&dev->dc->devices, &dev->it);
 
   free(dev);
 }
@@ -110,15 +94,11 @@ bool dc_init(dreamcast_t *dc) {
   }
 
   // initialize each device
-  device_t *dev = dc->devices;
-
-  while (dev) {
+  list_for_each_entry(dev, &dc->devices, device_t, it) {
     if (!dev->init(dev)) {
       dc_destroy(dc);
       return false;
     }
-
-    dev = dev->next;
   }
 
   return true;
@@ -143,26 +123,18 @@ void dc_tick(dreamcast_t *dc, int64_t ns) {
 }
 
 void dc_paint(dreamcast_t *dc, bool show_main_menu) {
-  device_t *dev = dc->devices;
-
-  while (dev) {
+  list_for_each_entry(dev, &dc->devices, device_t, it) {
     if (dev->window && dev->window->paint) {
       dev->window->paint(dev, show_main_menu);
     }
-
-    dev = dev->next;
   }
 }
 
 void dc_keydown(dreamcast_t *dc, keycode_t code, int16_t value) {
-  device_t *dev = dc->devices;
-
-  while (dev) {
+  list_for_each_entry(dev, &dc->devices, device_t, it) {
     if (dev->window && dev->window->keydown) {
       dev->window->keydown(dev, code, value);
     }
-
-    dev = dev->next;
   }
 }
 

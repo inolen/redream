@@ -39,8 +39,8 @@ typedef void (*reset_cb)(struct jit_backend_s *);
 typedef const uint8_t *(*assemble_code_cb)(struct jit_backend_s *,
                                            struct ir_s *, int *);
 typedef void (*dump_code_cb)(struct jit_backend_s *, const uint8_t *, int);
-typedef bool (*handle_fastmem_exception_cb)(struct jit_backend_s *,
-                                            struct re_exception_s *);
+typedef bool (*handle_exception_cb)(struct jit_backend_s *,
+                                    struct re_exception_s *);
 
 typedef struct jit_backend_s {
   const register_def_t *registers;
@@ -49,7 +49,7 @@ typedef struct jit_backend_s {
   reset_cb reset;
   assemble_code_cb assemble_code;
   dump_code_cb dump_code;
-  handle_fastmem_exception_cb handle_fastmem_exception;
+  handle_exception_cb handle_exception;
 } jit_backend_t;
 
 #ifdef __cplusplus

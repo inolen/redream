@@ -32,10 +32,10 @@ bool arm_init(arm_t *arm) {
 
 void arm_run(arm_t *arm, int64_t ns) {}
 
-void arm_suspend(struct arm_s *arm) {
+void arm_suspend(arm_t *arm) {
   arm->base.execute->suspended = true;
 }
 
-void arm_resume(struct arm_s *arm) {
+void arm_resume(arm_t *arm) {
   arm->base.execute->suspended = false;
 }

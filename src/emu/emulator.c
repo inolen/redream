@@ -40,8 +40,7 @@ static bool emu_load_bios(emu_t *emu, const char *path) {
     return false;
   }
 
-  uint8_t *bios =
-      address_space_translate(emu->dc->sh4->base.memory->space, BIOS_BEGIN);
+  uint8_t *bios = as_translate(emu->dc->sh4->base.memory->space, BIOS_BEGIN);
   int n = (int)fread(bios, sizeof(uint8_t), size, fp);
   fclose(fp);
 
@@ -73,8 +72,7 @@ static bool emu_load_flash(emu_t *emu, const char *path) {
     return false;
   }
 
-  uint8_t *flash =
-      address_space_translate(emu->dc->sh4->base.memory->space, FLASH_BEGIN);
+  uint8_t *flash = as_translate(emu->dc->sh4->base.memory->space, FLASH_BEGIN);
   int n = (int)fread(flash, sizeof(uint8_t), size, fp);
   fclose(fp);
 
@@ -97,8 +95,7 @@ static bool emu_launch_bin(emu_t *emu, const char *path) {
   fseek(fp, 0, SEEK_SET);
 
   // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to
-  uint8_t *data =
-      address_space_translate(emu->dc->sh4->base.memory->space, 0x0c010000);
+  uint8_t *data = as_translate(emu->dc->sh4->base.memory->space, 0x0c010000);
   int n = (int)fread(data, sizeof(uint8_t), size, fp);
   fclose(fp);
 
@@ -174,7 +171,9 @@ void emu_destroy(emu_t *emu) {
 }
 
 void emu_run(emu_t *emu, const char *path) {
-  if (!(emu->dc = dc_create(win_render_backend(emu->window)))) {
+  emu->dc = dc_create(win_render_backend(emu->window));
+
+  if (!emu->dc) {
     return;
   }
 
