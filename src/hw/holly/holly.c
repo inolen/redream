@@ -55,7 +55,7 @@ AM_BEGIN(holly_t, holly_reg_map);
 AM_END();
 // clang-format on
 
-holly_t *holly_create(struct dreamcast_s *dc) {
+holly_t *holly_create(dreamcast_t *dc) {
   holly_t *hl = dc_create_device(dc, sizeof(holly_t), "holly",
                                  (device_init_cb)&holly_init);
 
@@ -67,9 +67,11 @@ void holly_destroy(holly_t *hl) {
 }
 
 bool holly_init(holly_t *hl) {
-  hl->gdrom = hl->base.dc->gdrom;
-  hl->maple = hl->base.dc->maple;
-  hl->sh4 = hl->base.dc->sh4;
+  dreamcast_t *dc = hl->base.dc;
+
+  hl->gdrom = dc->gdrom;
+  hl->maple = dc->maple;
+  hl->sh4 = dc->sh4;
 
 #define HOLLY_REG_R32(name) \
   hl->reg_data[name] = hl;  \

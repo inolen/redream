@@ -119,17 +119,18 @@ struct x64_backend_s;
 typedef void (*X64Emit)(struct x64_backend_s *, Xbyak::CodeGenerator &,
                         const ir_instr_t *);
 
-static X64Emit x64_emitters[NUM_OPS];
+static X64Emit x64_backend_emitters[NUM_OPS];
 
-#define EMITTER(op)                                                            \
-  void op(struct x64_backend_s *, Xbyak::CodeGenerator &, const ir_instr_t *); \
-  static struct _x64_##op##_init {                                             \
-    _x64_##op##_init() {                                                       \
-      x64_emitters[OP_##op] = &op;                                             \
-    }                                                                          \
-  } x64_##op##_init;                                                           \
-  void op(struct x64_backend_s *backend, Xbyak::CodeGenerator &e,              \
-          const ir_instr_t *instr)
+#define EMITTER(op)                                                          \
+  void x64_emit_##op(struct x64_backend_s *, Xbyak::CodeGenerator &,         \
+                     const ir_instr_t *);                                    \
+  static struct _x64_##op##_init {                                           \
+    _x64_##op##_init() {                                                     \
+      x64_backend_emitters[OP_##op] = &x64_emit_##op;                        \
+    }                                                                        \
+  } x64_##op##_init;                                                         \
+  void x64_emit_##op(struct x64_backend_s *backend, Xbyak::CodeGenerator &e, \
+                     const ir_instr_t *instr)
 
 //
 // xmm constants. SSE / AVX provides no support for loading a constant into an
@@ -159,7 +160,8 @@ typedef struct x64_backend_s {
   int num_temps;
 } x64_backend_t;
 
-const Xbyak::Reg x64_get_register(x64_backend_t *backend, const ir_value_t *v) {
+const Xbyak::Reg x64_backend_register(x64_backend_t *backend,
+                                      const ir_value_t *v) {
   auto &e = *backend->codegen;
 
   // if the value is a local or constant, copy it to a tempory register, else
@@ -215,8 +217,8 @@ const Xbyak::Reg x64_get_register(x64_backend_t *backend, const ir_value_t *v) {
   }
 }
 
-const Xbyak::Xmm x64_get_xmm_register(x64_backend_t *backend,
-                                      const ir_value_t *v) {
+const Xbyak::Xmm x64_backend_xmm_register(x64_backend_t *backend,
+                                          const ir_value_t *v) {
   auto &e = *backend->codegen;
 
   // if the value isn't allocated a XMM register copy it to a temporary XMM,
@@ -244,14 +246,14 @@ const Xbyak::Xmm x64_get_xmm_register(x64_backend_t *backend,
   return xmm;
 }
 
-const Xbyak::Address x64_get_xmm_constant(x64_backend_t *backend,
-                                          xmm_constant_t c) {
+const Xbyak::Address x64_backend_xmm_constant(x64_backend_t *backend,
+                                              xmm_constant_t c) {
   auto &e = *backend->codegen;
 
   return e.ptr[e.rip + backend->xmm_const[c]];
 }
 
-static bool x64_can_encode_as_imm(const ir_value_t *v) {
+static bool x64_backend_can_encode_imm(const ir_value_t *v) {
   if (!ir_is_constant(v)) {
     return false;
   }
@@ -259,7 +261,7 @@ static bool x64_can_encode_as_imm(const ir_value_t *v) {
   return v->type <= VALUE_I32;
 }
 
-static bool x64_is_callee_saved(const Xbyak::Reg &reg) {
+static bool x64_backend_callee_saved(const Xbyak::Reg &reg) {
   if (reg.isXMM()) {
     return false;
   }
@@ -291,8 +293,8 @@ static bool x64_is_callee_saved(const Xbyak::Reg &reg) {
   return callee_saved[reg.getIdx()];
 }
 
-static void x64_emit_prolog(x64_backend_t *backend, ir_t *ir,
-                            int *out_stack_size) {
+static void x64_backend_emit_prolog(x64_backend_t *backend, ir_t *ir,
+                                    int *out_stack_size) {
   auto &e = *backend->codegen;
 
   int stack_size = STACK_SIZE + ir->locals_size;
@@ -329,7 +331,7 @@ static void x64_emit_prolog(x64_backend_t *backend, ir_t *ir,
     const Xbyak::Reg &reg =
         *reinterpret_cast<const Xbyak::Reg *>(x64_registers[i].data);
 
-    if (x64_is_callee_saved(reg) && backend->modified[i]) {
+    if (x64_backend_callee_saved(reg) && backend->modified[i]) {
       e.push(reg);
       pushed++;
     }
@@ -351,9 +353,9 @@ static void x64_emit_prolog(x64_backend_t *backend, ir_t *ir,
   *out_stack_size = stack_size;
 }
 
-static void x64_emit_body(x64_backend_t *backend, ir_t *ir) {
+static void x64_backend_emit_body(x64_backend_t *backend, ir_t *ir) {
   list_for_each_entry(instr, &ir->instrs, ir_instr_t, it) {
-    X64Emit emit = x64_emitters[instr->op];
+    X64Emit emit = x64_backend_emitters[instr->op];
     CHECK(emit, "Failed to find emitter for %s", ir_op_names[instr->op]);
 
     // reset temp count used by GetRegister
@@ -363,7 +365,8 @@ static void x64_emit_body(x64_backend_t *backend, ir_t *ir) {
   }
 }
 
-static void x64_emit_epilog(x64_backend_t *backend, ir_t *ir, int stack_size) {
+static void x64_backend_emit_epilog(x64_backend_t *backend, ir_t *ir,
+                                    int stack_size) {
   auto &e = *backend->codegen;
 
   // adjust stack pointer
@@ -374,7 +377,7 @@ static void x64_emit_epilog(x64_backend_t *backend, ir_t *ir, int stack_size) {
     const Xbyak::Reg &reg =
         *reinterpret_cast<const Xbyak::Reg *>(x64_registers[i].data);
 
-    if (x64_is_callee_saved(reg) && backend->modified[i]) {
+    if (x64_backend_callee_saved(reg) && backend->modified[i]) {
       e.pop(reg);
     }
   }
@@ -386,22 +389,22 @@ static void x64_emit_epilog(x64_backend_t *backend, ir_t *ir, int stack_size) {
   e.ret();
 }
 
-const uint8_t *x64_emit(x64_backend_t *backend, ir_t *ir, int *size) {
+const uint8_t *x64_backend_emit(x64_backend_t *backend, ir_t *ir, int *size) {
   // PROFILER_RUNTIME("X64Emitter::Emit");
 
   const uint8_t *fn = backend->codegen->getCurr();
 
   int stack_size = 0;
-  x64_emit_prolog(backend, ir, &stack_size);
-  x64_emit_body(backend, ir);
-  x64_emit_epilog(backend, ir, stack_size);
+  x64_backend_emit_prolog(backend, ir, &stack_size);
+  x64_backend_emit_body(backend, ir);
+  x64_backend_emit_epilog(backend, ir, stack_size);
 
   *size = backend->codegen->getCurr() - fn;
 
   return fn;
 }
 
-static void x64_emit_thunks(x64_backend_t *backend) {
+static void x64_backend_emit_thunks(x64_backend_t *backend) {
   auto &e = *backend->codegen;
 
   {
@@ -429,7 +432,7 @@ static void x64_emit_thunks(x64_backend_t *backend) {
   }
 }
 
-static void x64_emit_constants(x64_backend_t *backend) {
+static void x64_backend_emit_constants(x64_backend_t *backend) {
   auto &e = *backend->codegen;
 
   e.L(backend->xmm_const[XMM_CONST_ABS_MASK_PS]);
@@ -449,21 +452,21 @@ static void x64_emit_constants(x64_backend_t *backend) {
   e.dq(INT64_C(0x8000000000000000));
 }
 
-static void x64_reset(x64_backend_t *backend) {
+static void x64_backend_reset(x64_backend_t *backend) {
   backend->codegen->reset();
 
-  x64_emit_thunks(backend);
-  x64_emit_constants(backend);
+  x64_backend_emit_thunks(backend);
+  x64_backend_emit_constants(backend);
 }
 
-static const uint8_t *x64_assemble_code(x64_backend_t *backend, ir_t *ir,
-                                        int *size) {
+static const uint8_t *x64_backend_assemble_code(x64_backend_t *backend,
+                                                ir_t *ir, int *size) {
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
   const uint8_t *fn = nullptr;
 
   try {
-    fn = x64_emit(backend, ir, size);
+    fn = x64_backend_emit(backend, ir, size);
   } catch (const Xbyak::Error &e) {
     if (e != Xbyak::ERR_CODE_IS_TOO_BIG) {
       LOG_FATAL("X64 codegen failure, %s", e.what());
@@ -473,8 +476,8 @@ static const uint8_t *x64_assemble_code(x64_backend_t *backend, ir_t *ir,
   return fn;
 }
 
-static void x64_dump_code(x64_backend_t *backend, const uint8_t *host_addr,
-                          int size) {
+static void x64_backend_dump_code(x64_backend_t *backend,
+                                  const uint8_t *host_addr, int size) {
   cs_insn *insns;
   size_t count =
       cs_disasm(backend->capstone_handle, host_addr, size, 0, 0, &insns);
@@ -489,7 +492,7 @@ static void x64_dump_code(x64_backend_t *backend, const uint8_t *host_addr,
   cs_free(insns, count);
 }
 
-static bool x64_handle_fastmem_exception(x64_backend_t *backend,
+static bool x64_backend_handle_exception(x64_backend_t *backend,
                                          struct re_exception_s *ex) {
   const uint8_t *data = reinterpret_cast<const uint8_t *>(ex->thread_state.rip);
 
@@ -575,10 +578,10 @@ static bool x64_handle_fastmem_exception(x64_backend_t *backend,
 }
 
 EMITTER(LOAD_HOST) {
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (ir_is_float(instr->result->type)) {
-    const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
+    const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
 
     switch (instr->result->type) {
       case VALUE_F32:
@@ -592,7 +595,7 @@ EMITTER(LOAD_HOST) {
         break;
     }
   } else {
-    const Xbyak::Reg result = x64_get_register(backend, instr->result);
+    const Xbyak::Reg result = x64_backend_register(backend, instr->result);
 
     switch (instr->result->type) {
       case VALUE_I8:
@@ -615,10 +618,10 @@ EMITTER(LOAD_HOST) {
 }
 
 EMITTER(STORE_HOST) {
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (ir_is_float(instr->arg[1]->type)) {
-    const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+    const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
     switch (instr->arg[1]->type) {
       case VALUE_F32:
@@ -632,7 +635,7 @@ EMITTER(STORE_HOST) {
         break;
     }
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
 
     switch (instr->arg[1]->type) {
       case VALUE_I8:
@@ -655,8 +658,8 @@ EMITTER(STORE_HOST) {
 }
 
 EMITTER(LOAD_FAST) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   switch (instr->result->type) {
     case VALUE_I8:
@@ -678,8 +681,8 @@ EMITTER(LOAD_FAST) {
 }
 
 EMITTER(STORE_FAST) {
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
-  const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
 
   switch (instr->arg[1]->type) {
     case VALUE_I8:
@@ -701,8 +704,8 @@ EMITTER(STORE_FAST) {
 }
 
 EMITTER(LOAD_SLOW) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   void *fn = nullptr;
   switch (instr->result->type) {
@@ -730,8 +733,8 @@ EMITTER(LOAD_SLOW) {
 }
 
 EMITTER(STORE_SLOW) {
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
-  const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
 
   void *fn = nullptr;
   switch (instr->arg[1]->type) {
@@ -762,7 +765,7 @@ EMITTER(LOAD_CONTEXT) {
   int offset = instr->arg[0]->i32;
 
   if (ir_is_vector(instr->result->type)) {
-    const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
+    const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
 
     switch (instr->result->type) {
       case VALUE_V128:
@@ -773,7 +776,7 @@ EMITTER(LOAD_CONTEXT) {
         break;
     }
   } else if (ir_is_float(instr->result->type)) {
-    const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
+    const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
 
     switch (instr->result->type) {
       case VALUE_F32:
@@ -787,7 +790,7 @@ EMITTER(LOAD_CONTEXT) {
         break;
     }
   } else {
-    const Xbyak::Reg result = x64_get_register(backend, instr->result);
+    const Xbyak::Reg result = x64_backend_register(backend, instr->result);
 
     switch (instr->result->type) {
       case VALUE_I8:
@@ -834,7 +837,7 @@ EMITTER(STORE_CONTEXT) {
     }
   } else {
     if (ir_is_vector(instr->arg[1]->type)) {
-      const Xbyak::Xmm src = x64_get_xmm_register(backend, instr->arg[1]);
+      const Xbyak::Xmm src = x64_backend_xmm_register(backend, instr->arg[1]);
 
       switch (instr->arg[1]->type) {
         case VALUE_V128:
@@ -845,7 +848,7 @@ EMITTER(STORE_CONTEXT) {
           break;
       }
     } else if (ir_is_float(instr->arg[1]->type)) {
-      const Xbyak::Xmm src = x64_get_xmm_register(backend, instr->arg[1]);
+      const Xbyak::Xmm src = x64_backend_xmm_register(backend, instr->arg[1]);
 
       switch (instr->arg[1]->type) {
         case VALUE_F32:
@@ -859,7 +862,7 @@ EMITTER(STORE_CONTEXT) {
           break;
       }
     } else {
-      const Xbyak::Reg src = x64_get_register(backend, instr->arg[1]);
+      const Xbyak::Reg src = x64_backend_register(backend, instr->arg[1]);
 
       switch (instr->arg[1]->type) {
         case VALUE_I8:
@@ -886,7 +889,7 @@ EMITTER(LOAD_LOCAL) {
   int offset = STACK_OFFSET_LOCALS + instr->arg[0]->i32;
 
   if (ir_is_vector(instr->result->type)) {
-    const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
+    const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
 
     switch (instr->result->type) {
       case VALUE_V128:
@@ -897,7 +900,7 @@ EMITTER(LOAD_LOCAL) {
         break;
     }
   } else if (ir_is_float(instr->result->type)) {
-    const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
+    const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
 
     switch (instr->result->type) {
       case VALUE_F32:
@@ -911,7 +914,7 @@ EMITTER(LOAD_LOCAL) {
         break;
     }
   } else {
-    const Xbyak::Reg result = x64_get_register(backend, instr->result);
+    const Xbyak::Reg result = x64_backend_register(backend, instr->result);
 
     switch (instr->result->type) {
       case VALUE_I8:
@@ -939,7 +942,7 @@ EMITTER(STORE_LOCAL) {
   CHECK(!ir_is_constant(instr->arg[1]));
 
   if (ir_is_vector(instr->arg[1]->type)) {
-    const Xbyak::Xmm src = x64_get_xmm_register(backend, instr->arg[1]);
+    const Xbyak::Xmm src = x64_backend_xmm_register(backend, instr->arg[1]);
 
     switch (instr->arg[1]->type) {
       case VALUE_V128:
@@ -950,7 +953,7 @@ EMITTER(STORE_LOCAL) {
         break;
     }
   } else if (ir_is_float(instr->arg[1]->type)) {
-    const Xbyak::Xmm src = x64_get_xmm_register(backend, instr->arg[1]);
+    const Xbyak::Xmm src = x64_backend_xmm_register(backend, instr->arg[1]);
 
     switch (instr->arg[1]->type) {
       case VALUE_F32:
@@ -964,7 +967,7 @@ EMITTER(STORE_LOCAL) {
         break;
     }
   } else {
-    const Xbyak::Reg src = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg src = x64_backend_register(backend, instr->arg[1]);
 
     switch (instr->arg[1]->type) {
       case VALUE_I8:
@@ -987,8 +990,8 @@ EMITTER(STORE_LOCAL) {
 }
 
 EMITTER(FTOI) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
 
   switch (instr->result->type) {
     case VALUE_I32:
@@ -1006,8 +1009,8 @@ EMITTER(FTOI) {
 }
 
 EMITTER(ITOF) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   switch (instr->result->type) {
     case VALUE_F32:
@@ -1025,8 +1028,8 @@ EMITTER(ITOF) {
 }
 
 EMITTER(SEXT) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (a == result) {
     // already the correct width
@@ -1041,8 +1044,8 @@ EMITTER(SEXT) {
 }
 
 EMITTER(ZEXT) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (a == result) {
     // already the correct width
@@ -1058,8 +1061,8 @@ EMITTER(ZEXT) {
 }
 
 EMITTER(TRUNC) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result.getIdx() == a.getIdx()) {
     // noop if already the same register. note, this means the high order bits
@@ -1091,24 +1094,24 @@ EMITTER(TRUNC) {
 }
 
 EMITTER(FEXT) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
 
   e.cvtss2sd(result, a);
 }
 
 EMITTER(FTRUNC) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
 
   e.cvtsd2ss(result, a);
 }
 
 EMITTER(SELECT) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
-  const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
-  const Xbyak::Reg cond = x64_get_register(backend, instr->arg[2]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
+  const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[2]);
 
   // convert result to Reg32e to please xbyak
   CHECK_GE(result.getBit(), 32);
@@ -1122,13 +1125,13 @@ EMITTER(SELECT) {
 }
 
 EMITTER(CMP) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.cmp(a, static_cast<uint32_t>(ir_zext_constant(instr->arg[1])));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.cmp(a, b);
   }
 
@@ -1181,9 +1184,9 @@ EMITTER(CMP) {
 }
 
 EMITTER(FCMP) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
-  const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
   if (instr->arg[0]->type == VALUE_F32) {
     e.comiss(a, b);
@@ -1224,41 +1227,41 @@ EMITTER(FCMP) {
 }
 
 EMITTER(ADD) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
   }
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.add(result, (uint32_t)ir_zext_constant(instr->arg[1]));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.add(result, b);
   }
 }
 
 EMITTER(SUB) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
   }
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.sub(result, (uint32_t)ir_zext_constant(instr->arg[1]));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.sub(result, b);
   }
 }
 
 EMITTER(SMUL) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
-  const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
 
   if (result != a) {
     e.mov(result, a);
@@ -1268,9 +1271,9 @@ EMITTER(SMUL) {
 }
 
 EMITTER(UMUL) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
-  const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
 
   if (result != a) {
     e.mov(result, a);
@@ -1284,8 +1287,8 @@ EMITTER(DIV) {
 }
 
 EMITTER(NEG) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
@@ -1302,9 +1305,9 @@ EMITTER(ABS) {
 }
 
 EMITTER(FADD) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
-  const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
   if (instr->result->type == VALUE_F32) {
     e.vaddss(result, a, b);
@@ -1314,9 +1317,9 @@ EMITTER(FADD) {
 }
 
 EMITTER(FSUB) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
-  const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
   if (instr->result->type == VALUE_F32) {
     e.vsubss(result, a, b);
@@ -1326,9 +1329,9 @@ EMITTER(FSUB) {
 }
 
 EMITTER(FMUL) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
-  const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
   if (instr->result->type == VALUE_F32) {
     e.vmulss(result, a, b);
@@ -1338,9 +1341,9 @@ EMITTER(FMUL) {
 }
 
 EMITTER(FDIV) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
-  const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
   if (instr->result->type == VALUE_F32) {
     e.vdivss(result, a, b);
@@ -1350,30 +1353,34 @@ EMITTER(FDIV) {
 }
 
 EMITTER(FNEG) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
 
   if (instr->result->type == VALUE_F32) {
-    e.vxorps(result, a, x64_get_xmm_constant(backend, XMM_CONST_SIGN_MASK_PS));
+    e.vxorps(result, a,
+             x64_backend_xmm_constant(backend, XMM_CONST_SIGN_MASK_PS));
   } else {
-    e.vxorpd(result, a, x64_get_xmm_constant(backend, XMM_CONST_SIGN_MASK_PD));
+    e.vxorpd(result, a,
+             x64_backend_xmm_constant(backend, XMM_CONST_SIGN_MASK_PD));
   }
 }
 
 EMITTER(FABS) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
 
   if (instr->result->type == VALUE_F32) {
-    e.vandps(result, a, x64_get_xmm_constant(backend, XMM_CONST_ABS_MASK_PS));
+    e.vandps(result, a,
+             x64_backend_xmm_constant(backend, XMM_CONST_ABS_MASK_PS));
   } else {
-    e.vandpd(result, a, x64_get_xmm_constant(backend, XMM_CONST_ABS_MASK_PD));
+    e.vandpd(result, a,
+             x64_backend_xmm_constant(backend, XMM_CONST_ABS_MASK_PD));
   }
 }
 
 EMITTER(SQRT) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
 
   if (instr->result->type == VALUE_F32) {
     e.vsqrtss(result, a);
@@ -1383,87 +1390,87 @@ EMITTER(SQRT) {
 }
 
 EMITTER(VBROADCAST) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
 
   e.vbroadcastss(result, a);
 }
 
 EMITTER(VADD) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
-  const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
   e.vaddps(result, a, b);
 }
 
 EMITTER(VDOT) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
-  const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
   e.vdpps(result, a, b, 0b11110001);
 }
 
 EMITTER(VMUL) {
-  const Xbyak::Xmm result = x64_get_xmm_register(backend, instr->result);
-  const Xbyak::Xmm a = x64_get_xmm_register(backend, instr->arg[0]);
-  const Xbyak::Xmm b = x64_get_xmm_register(backend, instr->arg[1]);
+  const Xbyak::Xmm result = x64_backend_xmm_register(backend, instr->result);
+  const Xbyak::Xmm a = x64_backend_xmm_register(backend, instr->arg[0]);
+  const Xbyak::Xmm b = x64_backend_xmm_register(backend, instr->arg[1]);
 
   e.vmulps(result, a, b);
 }
 
 EMITTER(AND) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
   }
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.and (result, (uint32_t)ir_zext_constant(instr->arg[1]));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.and (result, b);
   }
 }
 
 EMITTER(OR) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
   }
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.or (result, (uint32_t)ir_zext_constant(instr->arg[1]));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.or (result, b);
   }
 }
 
 EMITTER(XOR) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
   }
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.xor (result, (uint32_t)ir_zext_constant(instr->arg[1]));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.xor (result, b);
   }
 }
 
 EMITTER(NOT) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
@@ -1473,60 +1480,60 @@ EMITTER(NOT) {
 }
 
 EMITTER(SHL) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
   }
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.shl(result, (int)ir_zext_constant(instr->arg[1]));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.mov(e.cl, b);
     e.shl(result, e.cl);
   }
 }
 
 EMITTER(ASHR) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
   }
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.sar(result, (int)ir_zext_constant(instr->arg[1]));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.mov(e.cl, b);
     e.sar(result, e.cl);
   }
 }
 
 EMITTER(LSHR) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result != a) {
     e.mov(result, a);
   }
 
-  if (x64_can_encode_as_imm(instr->arg[1])) {
+  if (x64_backend_can_encode_imm(instr->arg[1])) {
     e.shr(result, (int)ir_zext_constant(instr->arg[1]));
   } else {
-    const Xbyak::Reg b = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
     e.mov(e.cl, b);
     e.shr(result, e.cl);
   }
 }
 
 EMITTER(ASHD) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg v = x64_get_register(backend, instr->arg[0]);
-  const Xbyak::Reg n = x64_get_register(backend, instr->arg[1]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg v = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg n = x64_backend_register(backend, instr->arg[1]);
 
   e.inLocalLabel();
 
@@ -1563,9 +1570,9 @@ EMITTER(ASHD) {
 }
 
 EMITTER(LSHD) {
-  const Xbyak::Reg result = x64_get_register(backend, instr->result);
-  const Xbyak::Reg v = x64_get_register(backend, instr->arg[0]);
-  const Xbyak::Reg n = x64_get_register(backend, instr->arg[1]);
+  const Xbyak::Reg result = x64_backend_register(backend, instr->result);
+  const Xbyak::Reg v = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg n = x64_backend_register(backend, instr->arg[1]);
 
   e.inLocalLabel();
 
@@ -1602,15 +1609,15 @@ EMITTER(LSHD) {
 }
 
 EMITTER(BRANCH) {
-  const Xbyak::Reg a = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   e.mov(e.rax, a);
 }
 
 EMITTER(BRANCH_COND) {
-  const Xbyak::Reg cond = x64_get_register(backend, instr->arg[0]);
-  const Xbyak::Reg true_addr = x64_get_register(backend, instr->arg[1]);
-  const Xbyak::Reg false_addr = x64_get_register(backend, instr->arg[2]);
+  const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg true_addr = x64_backend_register(backend, instr->arg[1]);
+  const Xbyak::Reg false_addr = x64_backend_register(backend, instr->arg[2]);
 
   e.test(cond, cond);
   e.cmovnz(e.eax, true_addr);
@@ -1618,28 +1625,28 @@ EMITTER(BRANCH_COND) {
 }
 
 EMITTER(CALL_EXTERNAL) {
-  const Xbyak::Reg addr = x64_get_register(backend, instr->arg[0]);
+  const Xbyak::Reg addr = x64_backend_register(backend, instr->arg[0]);
 
   e.mov(arg0, reinterpret_cast<uint64_t>(backend->memif.ctx_base));
   if (instr->arg[1]) {
-    const Xbyak::Reg arg = x64_get_register(backend, instr->arg[1]);
+    const Xbyak::Reg arg = x64_backend_register(backend, instr->arg[1]);
     e.mov(arg1, arg);
   }
   e.mov(e.rax, addr);
   e.call(e.rax);
 }
 
-jit_backend_t *x64_create(const mem_interface_t *memif) {
+jit_backend_t *x64_backend_create(const mem_interface_t *memif) {
   x64_backend_t *backend =
       reinterpret_cast<x64_backend_t *>(calloc(1, sizeof(x64_backend_t)));
 
   backend->base.registers = x64_registers;
   backend->base.num_registers = sizeof(x64_registers) / sizeof(register_def_t);
-  backend->base.reset = (reset_cb)&x64_reset;
-  backend->base.assemble_code = (assemble_code_cb)&x64_assemble_code;
-  backend->base.dump_code = (dump_code_cb)&x64_dump_code;
-  backend->base.handle_fastmem_exception =
-      (handle_fastmem_exception_cb)&x64_handle_fastmem_exception;
+  backend->base.reset = (reset_cb)&x64_backend_reset;
+  backend->base.assemble_code = (assemble_code_cb)&x64_backend_assemble_code;
+  backend->base.dump_code = (dump_code_cb)&x64_backend_dump_code;
+  backend->base.handle_exception =
+      (handle_exception_cb)&x64_backend_handle_exception;
 
   backend->memif = *memif;
 
@@ -1648,7 +1655,7 @@ jit_backend_t *x64_create(const mem_interface_t *memif) {
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
 
-  x64_reset(backend);
+  x64_backend_reset(backend);
 
   // protect the code buffer
   int page_size = get_page_size();
@@ -1661,7 +1668,7 @@ jit_backend_t *x64_create(const mem_interface_t *memif) {
   return (jit_backend_t *)backend;
 }
 
-void x64_destroy(jit_backend_t *jit_backend) {
+void x64_backend_destroy(jit_backend_t *jit_backend) {
   x64_backend_t *backend = (x64_backend_t *)jit_backend;
 
   cs_close(&backend->capstone_handle);

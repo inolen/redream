@@ -60,11 +60,13 @@ void pvr_destroy(pvr_t *pvr) {
 }
 
 bool pvr_init(pvr_t *pvr) {
-  pvr->scheduler = pvr->base.dc->scheduler;
-  pvr->holly = pvr->base.dc->holly;
-  pvr->space = pvr->base.dc->sh4->base.memory->space;
-  pvr->palette_ram = address_space_translate(pvr->space, 0x005f9000);
-  pvr->video_ram = address_space_translate(pvr->space, 0x04000000);
+  dreamcast_t *dc = pvr->base.dc;
+
+  pvr->scheduler = dc->scheduler;
+  pvr->holly = dc->holly;
+  pvr->space = dc->sh4->base.memory->space;
+  pvr->palette_ram = as_translate(pvr->space, 0x005f9000);
+  pvr->video_ram = as_translate(pvr->space, 0x04000000);
 
 #define PVR_REG_R32(name)    \
   pvr->reg_data[name] = pvr; \

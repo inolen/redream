@@ -1,5 +1,5 @@
-#ifndef SH4_REGS_H
-#define SH4_REGS_H
+#ifndef SH4_TYPES_H
+#define SH4_TYPES_H
 
 #include <stdint.h>
 

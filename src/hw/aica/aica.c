@@ -67,11 +67,11 @@ void aica_destroy(aica_t *aica) {
 }
 
 bool aica_init(aica_t *aica) {
-  aica->arm = aica->base.dc->arm;
-  aica->aica_regs = address_space_translate(
-      aica->base.dc->sh4->base.memory->space, 0x00700000);
-  aica->wave_ram = address_space_translate(
-      aica->base.dc->sh4->base.memory->space, 0x00800000);
+  dreamcast_t *dc = aica->base.dc;
+
+  aica->arm = dc->arm;
+  aica->aica_regs = as_translate(dc->sh4->base.memory->space, 0x00700000);
+  aica->wave_ram = as_translate(dc->sh4->base.memory->space, 0x00800000);
   aica->common_data = (common_data_t *)(aica->aica_regs + 0x2800);
 
   arm_suspend(aica->arm);

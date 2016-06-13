@@ -58,14 +58,11 @@ static void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
 
 bool debugger_init(debugger_t *dbg) {
   // use the first device found with a debug interface
-  device_t *dev = dbg->dc->devices;
-
-  while (dev) {
+  list_for_each_entry(dev, &dbg->dc->devices, device_t, it) {
     if (dev->debug) {
       dbg->dev = dev;
+      break;
     }
-
-    dev = dev->next;
   }
 
   // didn't find a debuggable device

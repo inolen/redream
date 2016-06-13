@@ -27,11 +27,10 @@ static int gdi_read_sector(gdi_t *gdi, int fad, void *dst);
 gdi_t *gdi_create(const char *filename) {
   gdi_t *gdi = calloc(1, sizeof(gdi_t));
 
-  gdi->base.destroy = (void (*)(struct disc_s *)) & gdi_destroy;
-  gdi->base.num_tracks = (int (*)(struct disc_s *)) & gdi_num_tracks;
-  gdi->base.get_track = (track_t * (*)(struct disc_s *, int)) & gdi_get_track;
-  gdi->base.read_sector =
-      (int (*)(struct disc_s *, int, void *)) & gdi_read_sector;
+  gdi->base.destroy = (void (*)(disc_t *)) & gdi_destroy;
+  gdi->base.num_tracks = (int (*)(disc_t *)) & gdi_num_tracks;
+  gdi->base.get_track = (track_t * (*)(disc_t *, int)) & gdi_get_track;
+  gdi->base.read_sector = (int (*)(disc_t *, int, void *)) & gdi_read_sector;
 
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
@@ -131,22 +130,22 @@ int gdi_read_sector(gdi_t *gdi, int fad, void *dst) {
   return 1;
 }
 
-struct disc_s *disc_create_gdi(const char *filename) {
-  return (struct disc_s *)gdi_create(filename);
+disc_t *disc_create_gdi(const char *filename) {
+  return (disc_t *)gdi_create(filename);
 }
 
-void disc_destroy(struct disc_s *disc) {
+void disc_destroy(disc_t *disc) {
   return disc->destroy(disc);
 }
 
-int disc_num_tracks(struct disc_s *disc) {
+int disc_num_tracks(disc_t *disc) {
   return disc->num_tracks(disc);
 }
 
-track_t *disc_get_track(struct disc_s *disc, int n) {
+track_t *disc_get_track(disc_t *disc, int n) {
   return disc->get_track(disc, n);
 }
 
-int disc_read_sector(struct disc_s *disc, int fad, void *dst) {
+int disc_read_sector(disc_t *disc, int fad, void *dst) {
   return disc->read_sector(disc, fad, dst);
 }

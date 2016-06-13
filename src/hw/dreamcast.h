@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "core/list.h"
 #include "hw/memory.h"
 #include "ui/keycode.h"
 
@@ -98,23 +99,19 @@ typedef bool (*device_init_cb)(struct device_s *);
 
 typedef struct device_s {
   struct dreamcast_s *dc;
-  debug_interface_t debug_interface;
-
   const char *name;
   device_init_cb init;
   debug_interface_t *debug;
   execute_interface_t *execute;
   memory_interface_t *memory;
   window_interface_t *window;
-
-  struct device_s *next;
+  list_node_t it;
 } device_t;
 
 //
 // machine
 //
 typedef struct dreamcast_s {
-  device_t *devices;
   struct debugger_s *debugger;
   struct memory_s *memory;
   struct scheduler_s *scheduler;
@@ -127,6 +124,7 @@ typedef struct dreamcast_s {
   struct pvr_s *pvr;
   struct ta_s *ta;
   bool suspended;
+  list_t devices;
 } dreamcast_t;
 
 void *dc_create_device(dreamcast_t *dc, size_t size, const char *name,

@@ -328,7 +328,7 @@ int ta_context_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it) {
   return lhs->addr - rhs->addr;
 }
 
-ta_t *ta_create(struct dreamcast_s *dc, struct rb_s *rb) {
+ta_t *ta_create(dreamcast_t *dc, struct rb_s *rb) {
   ta_t *ta = (ta_t *)dc_create_device(dc, sizeof(ta_t), "ta",
                                       (device_init_cb)&ta_init);
   ta->base.window = window_interface_create((device_paint_cb)&ta_paint, NULL);
@@ -353,12 +353,14 @@ void ta_destroy(ta_t *ta) {
 }
 
 bool ta_init(ta_t *ta) {
+  dreamcast_t *dc = ta->base.dc;
+
   ta_build_tables();
 
-  ta->holly = ta->base.dc->holly;
-  ta->pvr = ta->base.dc->pvr;
-  ta->space = ta->base.dc->sh4->base.memory->space;
-  ta->video_ram = address_space_translate(ta->space, 0x04000000);
+  ta->holly = dc->holly;
+  ta->pvr = dc->pvr;
+  ta->space = dc->sh4->base.memory->space;
+  ta->video_ram = as_translate(ta->space, 0x04000000);
 
   for (int i = 0; i < MAX_TEXTURE_ENTRIES; i++) {
     texture_entry_t *entry = &ta->entries[i];
@@ -470,7 +472,7 @@ texture_handle_t ta_get_texture(ta_t *ta, const ta_ctx_t *ctx, tsp_t tsp,
   uint32_t texture_addr = tcw.texture_addr << 3;
 
   // get the texture data
-  uint8_t *video_ram = address_space_translate(ta->space, 0x04000000);
+  uint8_t *video_ram = as_translate(ta->space, 0x04000000);
   uint8_t *texture = &video_ram[texture_addr];
   int width = 8 << tsp.texture_u_size;
   int height = 8 << tsp.texture_v_size;
@@ -480,7 +482,7 @@ texture_handle_t ta_get_texture(ta_t *ta, const ta_ctx_t *ctx, tsp_t tsp,
   int texture_size = (width * height * element_size_bits) >> 3;
 
   // get the palette data
-  uint8_t *palette_ram = address_space_translate(ta->space, 0x005f9000);
+  uint8_t *palette_ram = as_translate(ta->space, 0x005f9000);
   uint8_t *palette = NULL;
   uint32_t palette_addr = 0;
   int palette_size = 0;
@@ -744,8 +746,7 @@ void ta_save_state(ta_t *ta, ta_ctx_t *ctx) {
   if (!pvr->FPU_PARAM_CFG->region_header_type) {
     ctx->autosort = !pvr->ISP_FEED_CFG->presort;
   } else {
-    uint32_t region_data =
-        address_space_r32(ta->space, 0x05000000 + *pvr->REGION_BASE);
+    uint32_t region_data = as_read32(ta->space, 0x05000000 + *pvr->REGION_BASE);
     ctx->autosort = !(region_data & 0x20000000);
   }
 
@@ -778,9 +779,9 @@ void ta_save_state(ta_t *ta, ta_ctx_t *ctx) {
       ((ctx->addr + pvr->ISP_BACKGND_T->tag_address * 4) & 0x7fffff);
 
   // get surface parameters
-  ctx->bg_isp.full = address_space_r32(ta->space, vram_offset);
-  ctx->bg_tsp.full = address_space_r32(ta->space, vram_offset + 4);
-  ctx->bg_tcw.full = address_space_r32(ta->space, vram_offset + 8);
+  ctx->bg_isp.full = as_read32(ta->space, vram_offset);
+  ctx->bg_tsp.full = as_read32(ta->space, vram_offset + 4);
+  ctx->bg_tcw.full = as_read32(ta->space, vram_offset + 8);
   vram_offset += 12;
 
   // get the background depth
@@ -804,8 +805,8 @@ void ta_save_state(ta_t *ta, ta_ctx_t *ctx) {
   for (int i = 0, bg_offset = 0; i < 3; i++) {
     CHECK_LE(bg_offset + vertex_size, (int)sizeof(ctx->bg_vertices));
 
-    address_space_memcpy_to_host(ta->space, &ctx->bg_vertices[bg_offset],
-                                 vram_offset, vertex_size);
+    as_memcpy_to_host(ta->space, &ctx->bg_vertices[bg_offset], vram_offset,
+                      vertex_size);
 
     bg_offset += vertex_size;
     vram_offset += vertex_size;

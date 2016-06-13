@@ -4,17 +4,16 @@
 #include "core/string.h"
 #include "jit/backend/backend.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
+#include "hw/aica/aica.h"
+#include "hw/holly/holly.h"
+#include "hw/holly/pvr.h"
+#include "hw/holly/ta.h"
 #include "hw/sh4/sh4.h"
 #include "hw/sh4/sh4_code_cache.h"
 #include "hw/dreamcast.h"
 #include "hw/debugger.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
-
-#include "hw/aica/aica.h"
-#include "hw/holly/holly.h"
-#include "hw/holly/pvr.h"
-#include "hw/holly/ta.h"
 
 static sh4_interrupt_info_t sh4_interrupts[NUM_SH_INTERRUPTS] = {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
@@ -172,20 +171,22 @@ void sh4_destroy(sh4_t *sh4) {
 }
 
 bool sh4_init(sh4_t *sh4) {
-  sh4->scheduler = sh4->base.dc->scheduler;
+  dreamcast_t *dc = sh4->base.dc;
+
+  sh4->scheduler = dc->scheduler;
   sh4->space = sh4->base.memory->space;
 
   mem_interface_t memif = {&sh4->ctx,
                            sh4->base.memory->space->protected_base,
                            sh4->base.memory->space,
-                           &address_space_r8,
-                           &address_space_r16,
-                           &address_space_r32,
-                           &address_space_r64,
-                           &address_space_w8,
-                           &address_space_w16,
-                           &address_space_w32,
-                           &address_space_w64};
+                           &as_read8,
+                           &as_read16,
+                           &as_read32,
+                           &as_read64,
+                           &as_write8,
+                           &as_write16,
+                           &as_write32,
+                           &as_write64};
   sh4->code_cache = sh4_cache_create(&memif, &sh4_compile_pc);
 
   // initialize context
@@ -425,10 +426,9 @@ void sh4_ddt(sh4_t *sh4, sh4_dtr_t *dtr) {
   if (dtr->data) {
     // single address mode transfer
     if (dtr->rw) {
-      address_space_memcpy_to_guest(sh4->space, dtr->addr, dtr->data,
-                                    dtr->size);
+      as_memcpy_to_guest(sh4->space, dtr->addr, dtr->data, dtr->size);
     } else {
-      address_space_memcpy_to_host(sh4->space, dtr->data, dtr->addr, dtr->size);
+      as_memcpy_to_host(sh4->space, dtr->data, dtr->addr, dtr->size);
     }
   } else {
     // dual address mode transfer
@@ -477,7 +477,7 @@ void sh4_ddt(sh4_t *sh4, sh4_dtr_t *dtr) {
     uint32_t src = dtr->rw ? dtr->addr : *sar;
     uint32_t dst = dtr->rw ? *dar : dtr->addr;
     int size = *dmatcr * 32;
-    address_space_memcpy(sh4->space, dst, src, size);
+    as_memcpy(sh4->space, dst, src, size);
 
     // update src / addresses as well as remaining count
     *sar = src + size;
@@ -496,8 +496,7 @@ void sh4_ddt(sh4_t *sh4, sh4_dtr_t *dtr) {
 
 uint32_t sh4_compile_pc() {
   uint32_t guest_addr = g_sh4->ctx.pc;
-  uint8_t *guest_ptr =
-      address_space_translate(g_sh4->base.memory->space, guest_addr);
+  uint8_t *guest_ptr = as_translate(g_sh4->base.memory->space, guest_addr);
   int flags = sh4_compile_flags(g_sh4);
 
   code_pointer_t code =
@@ -539,7 +538,7 @@ void sh4_prefetch(sh4_context_t *ctx, uint64_t data) {
 
   // perform the "burst" 32-byte copy
   for (int i = 0; i < 8; i++) {
-    address_space_w32(sh4->space, dest, sh4->ctx.sq[sqi][i]);
+    as_write32(sh4->space, dest, sh4->ctx.sq[sqi][i]);
     dest += 4;
   }
 }
