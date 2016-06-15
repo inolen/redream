@@ -4,168 +4,7 @@
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 
-static bool holly_init(holly_t *hl);
-static void holly_update_sh4_interrupts(holly_t *hl);
-
-static uint8_t holly_reg_r8(holly_t *hl, uint32_t addr);
-static uint16_t holly_reg_r16(holly_t *hl, uint32_t addr);
-static uint32_t holly_reg_r32(holly_t *hl, uint32_t addr);
-
-static void holly_reg_w8(holly_t *hl, uint32_t addr, uint8_t value);
-static void holly_reg_w16(holly_t *hl, uint32_t addr, uint16_t value);
-static void holly_reg_w32(holly_t *hl, uint32_t addr, uint32_t value);
-
-DECLARE_REG_R32(holly_t *hl, SB_ISTNRM);
-DECLARE_REG_W32(holly_t *hl, SB_ISTNRM);
-DECLARE_REG_W32(holly_t *hl, SB_ISTEXT);
-DECLARE_REG_W32(holly_t *hl, SB_ISTERR);
-DECLARE_REG_W32(holly_t *hl, SB_IML2NRM);
-DECLARE_REG_W32(holly_t *hl, SB_IML2EXT);
-DECLARE_REG_W32(holly_t *hl, SB_IML2ERR);
-DECLARE_REG_W32(holly_t *hl, SB_IML4NRM);
-DECLARE_REG_W32(holly_t *hl, SB_IML4EXT);
-DECLARE_REG_W32(holly_t *hl, SB_IML4ERR);
-DECLARE_REG_W32(holly_t *hl, SB_IML6NRM);
-DECLARE_REG_W32(holly_t *hl, SB_IML6EXT);
-DECLARE_REG_W32(holly_t *hl, SB_IML6ERR);
-DECLARE_REG_W32(holly_t *hl, SB_C2DST);
-DECLARE_REG_W32(holly_t *hl, SB_SDST);
-DECLARE_REG_W32(holly_t *hl, SB_GDST);
-DECLARE_REG_W32(holly_t *hl, SB_ADEN);
-DECLARE_REG_W32(holly_t *hl, SB_ADST);
-DECLARE_REG_W32(holly_t *hl, SB_E1EN);
-DECLARE_REG_W32(holly_t *hl, SB_E1ST);
-DECLARE_REG_W32(holly_t *hl, SB_E2EN);
-DECLARE_REG_W32(holly_t *hl, SB_E2ST);
-DECLARE_REG_W32(holly_t *hl, SB_DDEN);
-DECLARE_REG_W32(holly_t *hl, SB_DDST);
-DECLARE_REG_W32(holly_t *hl, SB_PDEN);
-DECLARE_REG_W32(holly_t *hl, SB_PDST);
-
-// clang-format off
-AM_BEGIN(holly_t, holly_reg_map);
-  AM_RANGE(0x00000000, 0x00001fff) AM_HANDLE((r8_cb)&holly_reg_r8,
-                                             (r16_cb)&holly_reg_r16,
-                                             (r32_cb)&holly_reg_r32,
-                                             NULL,
-                                             (w8_cb)&holly_reg_w8,
-                                             (w16_cb)&holly_reg_w16,
-                                             (w32_cb)&holly_reg_w32,
-                                             NULL)
-AM_END();
-// clang-format on
-
-holly_t *holly_create(dreamcast_t *dc) {
-  holly_t *hl = dc_create_device(dc, sizeof(holly_t), "holly",
-                                 (device_init_cb)&holly_init);
-
-  return hl;
-}
-
-void holly_destroy(holly_t *hl) {
-  dc_destroy_device(&hl->base);
-}
-
-bool holly_init(holly_t *hl) {
-  dreamcast_t *dc = hl->base.dc;
-
-  hl->gdrom = dc->gdrom;
-  hl->maple = dc->maple;
-  hl->sh4 = dc->sh4;
-
-#define HOLLY_REG_R32(name) \
-  hl->reg_data[name] = hl;  \
-  hl->reg_read[name] = (reg_read_cb)&name##_r;
-#define HOLLY_REG_W32(name) \
-  hl->reg_data[name] = hl;  \
-  hl->reg_write[name] = (reg_write_cb)&name##_w;
-  HOLLY_REG_R32(SB_ISTNRM);
-  HOLLY_REG_W32(SB_ISTNRM);
-  HOLLY_REG_W32(SB_ISTEXT);
-  HOLLY_REG_W32(SB_ISTERR);
-  HOLLY_REG_W32(SB_IML2NRM);
-  HOLLY_REG_W32(SB_IML2EXT);
-  HOLLY_REG_W32(SB_IML2ERR);
-  HOLLY_REG_W32(SB_IML4NRM);
-  HOLLY_REG_W32(SB_IML4EXT);
-  HOLLY_REG_W32(SB_IML4ERR);
-  HOLLY_REG_W32(SB_IML6NRM);
-  HOLLY_REG_W32(SB_IML6EXT);
-  HOLLY_REG_W32(SB_IML6ERR);
-  HOLLY_REG_W32(SB_C2DST);
-  HOLLY_REG_W32(SB_SDST);
-  HOLLY_REG_W32(SB_GDST);
-  HOLLY_REG_W32(SB_ADEN);
-  HOLLY_REG_W32(SB_ADST);
-  HOLLY_REG_W32(SB_E1EN);
-  HOLLY_REG_W32(SB_E1ST);
-  HOLLY_REG_W32(SB_E2EN);
-  HOLLY_REG_W32(SB_E2ST);
-  HOLLY_REG_W32(SB_DDEN);
-  HOLLY_REG_W32(SB_DDST);
-  HOLLY_REG_W32(SB_PDEN);
-  HOLLY_REG_W32(SB_PDST);
-#undef HOLLY_REG_R32
-#undef HOLLY_REG_W32
-
-#define HOLLY_REG(addr, name, default, type) \
-  hl->reg[name] = default;                   \
-  hl->name = (type *)&hl->reg[name];
-#include "hw/holly/holly_regs.inc"
-#undef HOLLY_REG
-
-  return true;
-}
-
-void holly_raise_interrupt(holly_t *hl, holly_interrupt_t intr) {
-  holly_interrupt_type_t type =
-      (holly_interrupt_type_t)(intr & HOLLY_INTC_MASK);
-  uint32_t irq = (uint32_t)(intr & ~HOLLY_INTC_MASK);
-
-  if (intr == HOLLY_INTC_PCVOINT) {
-    maple_vblank(hl->maple);
-  }
-
-  switch (type) {
-    case HOLLY_INTC_NRM:
-      *hl->SB_ISTNRM |= irq;
-      break;
-
-    case HOLLY_INTC_EXT:
-      *hl->SB_ISTEXT |= irq;
-      break;
-
-    case HOLLY_INTC_ERR:
-      *hl->SB_ISTERR |= irq;
-      break;
-  }
-
-  holly_update_sh4_interrupts(hl);
-}
-
-void holly_clear_interrupt(holly_t *hl, holly_interrupt_t intr) {
-  holly_interrupt_type_t type =
-      (holly_interrupt_type_t)(intr & HOLLY_INTC_MASK);
-  uint32_t irq = (uint32_t)(intr & ~HOLLY_INTC_MASK);
-
-  switch (type) {
-    case HOLLY_INTC_NRM:
-      *hl->SB_ISTNRM &= ~irq;
-      break;
-
-    case HOLLY_INTC_EXT:
-      *hl->SB_ISTEXT &= ~irq;
-      break;
-
-    case HOLLY_INTC_ERR:
-      *hl->SB_ISTERR &= ~irq;
-      break;
-  }
-
-  holly_update_sh4_interrupts(hl);
-}
-
-void holly_update_sh4_interrupts(holly_t *hl) {
+static void holly_update_sh4_interrupts(holly_t *hl) {
   // trigger the respective level-encoded interrupt on the sh4 interrupt
   // controller
   {
@@ -448,3 +287,126 @@ REG_W32(holly_t *hl, SB_PDST) {
 
   LOG_WARNING("Ignored pvr DMA request");
 }
+
+static bool holly_init(holly_t *hl) {
+  dreamcast_t *dc = hl->base.dc;
+
+  hl->gdrom = dc->gdrom;
+  hl->maple = dc->maple;
+  hl->sh4 = dc->sh4;
+
+#define HOLLY_REG_R32(name) \
+  hl->reg_data[name] = hl;  \
+  hl->reg_read[name] = (reg_read_cb)&name##_r;
+#define HOLLY_REG_W32(name) \
+  hl->reg_data[name] = hl;  \
+  hl->reg_write[name] = (reg_write_cb)&name##_w;
+  HOLLY_REG_R32(SB_ISTNRM);
+  HOLLY_REG_W32(SB_ISTNRM);
+  HOLLY_REG_W32(SB_ISTEXT);
+  HOLLY_REG_W32(SB_ISTERR);
+  HOLLY_REG_W32(SB_IML2NRM);
+  HOLLY_REG_W32(SB_IML2EXT);
+  HOLLY_REG_W32(SB_IML2ERR);
+  HOLLY_REG_W32(SB_IML4NRM);
+  HOLLY_REG_W32(SB_IML4EXT);
+  HOLLY_REG_W32(SB_IML4ERR);
+  HOLLY_REG_W32(SB_IML6NRM);
+  HOLLY_REG_W32(SB_IML6EXT);
+  HOLLY_REG_W32(SB_IML6ERR);
+  HOLLY_REG_W32(SB_C2DST);
+  HOLLY_REG_W32(SB_SDST);
+  HOLLY_REG_W32(SB_GDST);
+  HOLLY_REG_W32(SB_ADEN);
+  HOLLY_REG_W32(SB_ADST);
+  HOLLY_REG_W32(SB_E1EN);
+  HOLLY_REG_W32(SB_E1ST);
+  HOLLY_REG_W32(SB_E2EN);
+  HOLLY_REG_W32(SB_E2ST);
+  HOLLY_REG_W32(SB_DDEN);
+  HOLLY_REG_W32(SB_DDST);
+  HOLLY_REG_W32(SB_PDEN);
+  HOLLY_REG_W32(SB_PDST);
+#undef HOLLY_REG_R32
+#undef HOLLY_REG_W32
+
+#define HOLLY_REG(addr, name, default, type) \
+  hl->reg[name] = default;                   \
+  hl->name = (type *)&hl->reg[name];
+#include "hw/holly/holly_regs.inc"
+#undef HOLLY_REG
+
+  return true;
+}
+
+void holly_raise_interrupt(holly_t *hl, holly_interrupt_t intr) {
+  holly_interrupt_type_t type =
+      (holly_interrupt_type_t)(intr & HOLLY_INTC_MASK);
+  uint32_t irq = (uint32_t)(intr & ~HOLLY_INTC_MASK);
+
+  if (intr == HOLLY_INTC_PCVOINT) {
+    maple_vblank(hl->maple);
+  }
+
+  switch (type) {
+    case HOLLY_INTC_NRM:
+      *hl->SB_ISTNRM |= irq;
+      break;
+
+    case HOLLY_INTC_EXT:
+      *hl->SB_ISTEXT |= irq;
+      break;
+
+    case HOLLY_INTC_ERR:
+      *hl->SB_ISTERR |= irq;
+      break;
+  }
+
+  holly_update_sh4_interrupts(hl);
+}
+
+void holly_clear_interrupt(holly_t *hl, holly_interrupt_t intr) {
+  holly_interrupt_type_t type =
+      (holly_interrupt_type_t)(intr & HOLLY_INTC_MASK);
+  uint32_t irq = (uint32_t)(intr & ~HOLLY_INTC_MASK);
+
+  switch (type) {
+    case HOLLY_INTC_NRM:
+      *hl->SB_ISTNRM &= ~irq;
+      break;
+
+    case HOLLY_INTC_EXT:
+      *hl->SB_ISTEXT &= ~irq;
+      break;
+
+    case HOLLY_INTC_ERR:
+      *hl->SB_ISTERR &= ~irq;
+      break;
+  }
+
+  holly_update_sh4_interrupts(hl);
+}
+
+holly_t *holly_create(dreamcast_t *dc) {
+  holly_t *hl = dc_create_device(dc, sizeof(holly_t), "holly",
+                                 (device_init_cb)&holly_init);
+
+  return hl;
+}
+
+void holly_destroy(holly_t *hl) {
+  dc_destroy_device(&hl->base);
+}
+
+// clang-format off
+AM_BEGIN(holly_t, holly_reg_map);
+  AM_RANGE(0x00000000, 0x00001fff) AM_HANDLE((r8_cb)&holly_reg_r8,
+                                             (r16_cb)&holly_reg_r16,
+                                             (r32_cb)&holly_reg_r32,
+                                             NULL,
+                                             (w8_cb)&holly_reg_w8,
+                                             (w16_cb)&holly_reg_w16,
+                                             (w32_cb)&holly_reg_w32,
+                                             NULL)
+AM_END();
+// clang-format on

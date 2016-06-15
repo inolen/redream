@@ -32,7 +32,7 @@ typedef struct {
 
 typedef struct {
   bool show;
-  // std::chrono::high_resolution_clock::time_point last_mips_time;
+  int64_t last_sample_time;
   float mips[MAX_MIPS_SAMPLES];
   int num_mips;
 } sh4_perf_t;
@@ -69,16 +69,16 @@ typedef struct sh4_s {
   sh4_perf_t perf;
 } sh4_t;
 
-AM_DECLARE(sh4_data_map);
-
-struct sh4_s *sh4_create(struct dreamcast_s *dc);
-void sh4_destroy(struct sh4_s *sh);
-
 void sh4_set_pc(sh4_t *sh4, uint32_t pc);
 void sh4_run(sh4_t *sh4, int64_t ns);
 void sh4_raise_interrupt(struct sh4_s *sh, sh4_interrupt_t intr);
 void sh4_clear_interrupt(struct sh4_s *sh, sh4_interrupt_t intr);
 void sh4_ddt(struct sh4_s *sh, sh4_dtr_t *dtr);
+
+struct sh4_s *sh4_create(struct dreamcast_s *dc);
+void sh4_destroy(struct sh4_s *sh);
+
+AM_DECLARE(sh4_data_map);
 
 #ifdef __cplusplus
 }

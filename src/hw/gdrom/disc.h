@@ -21,12 +21,12 @@ typedef struct track_s {
 
 struct disc_s;
 
-struct disc_s *disc_create_gdi(const char *filename);
-void disc_destroy(struct disc_s *disc);
-
 int disc_num_tracks(struct disc_s *disc);
 track_t *disc_get_track(struct disc_s *disc, int n);
 int disc_read_sector(struct disc_s *disc, int fad, void *dst);
+
+struct disc_s *disc_create_gdi(const char *filename);
+void disc_destroy(struct disc_s *disc);
 
 #ifdef __cplusplus
 }

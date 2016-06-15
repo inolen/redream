@@ -59,64 +59,6 @@ static maple_deviceinfo_t controller_devinfo = {
     0x01ae,
     0x01f4};
 
-static void controller_load_profile(controller_t *ctrl, const char *path);
-static int controller_ini_handler(void *user, const char *section,
-                                  const char *name, const char *value);
-static void controller_destroy(controller_t *controller);
-static bool controller_input(controller_t *ctrl, keycode_t key, int16_t value);
-static bool controller_frame(controller_t *ctrl, const maple_frame_t *frame,
-                             maple_frame_t *res);
-
-maple_device_t *controller_create() {
-  controller_t *ctrl = calloc(1, sizeof(controller_t));
-  ctrl->base.destroy = (maple_destroy_cb)&controller_destroy;
-  ctrl->base.input = (maple_input_cb)&controller_input;
-  ctrl->base.frame = (maple_frame_cb)&controller_frame;
-  ctrl->cnd.function = FN_CONTROLLER;
-
-  // buttons bitfield contains 0s for pressed buttons and 1s for unpressed
-  ctrl->cnd.buttons = 0xffff;
-
-  // triggers completely unpressed
-  ctrl->cnd.rtrig = ctrl->cnd.ltrig = 0;
-
-  // joysticks default to dead center
-  ctrl->cnd.joyy = ctrl->cnd.joyx = ctrl->cnd.joyx2 = ctrl->cnd.joyy2 = 0x80;
-
-  // default profile
-  // CONT_JOYX
-  // CONT_JOYY
-  // CONT_LTRIG
-  // CONT_RTRIG
-  ctrl->map[K_SPACE] = CONT_START;
-  ctrl->map[(keycode_t)'k'] = CONT_A;
-  ctrl->map[(keycode_t)'l'] = CONT_B;
-  ctrl->map[(keycode_t)'j'] = CONT_X;
-  ctrl->map[(keycode_t)'i'] = CONT_Y;
-  ctrl->map[(keycode_t)'w'] = CONT_DPAD_UP;
-  ctrl->map[(keycode_t)'s'] = CONT_DPAD_DOWN;
-  ctrl->map[(keycode_t)'a'] = CONT_DPAD_LEFT;
-  ctrl->map[(keycode_t)'d'] = CONT_DPAD_RIGHT;
-
-  // load profile
-  controller_load_profile(ctrl, OPTION_profile);
-
-  return &ctrl->base;
-}
-
-static void controller_load_profile(controller_t *ctrl, const char *path) {
-  if (!*path) {
-    return;
-  }
-
-  LOG_INFO("Loading controller profile %s", path);
-
-  if (ini_parse(path, controller_ini_handler, ctrl) < 0) {
-    LOG_WARNING("Failed to parse %s", path);
-    return;
-  }
-}
-
 static int controller_ini_handler(void *user, const char *section,
                                   const char *name, const char *value) {
   controller_t *ctrl = user;
@@ -162,6 +104,19 @@ static int controller_ini_handler(void *user, const char *section,
   ctrl->map[key] = button;
 
   return 1;
+}
+
+static void controller_load_profile(controller_t *ctrl, const char *path) {
+  if (!*path) {
+    return;
+  }
+
+  LOG_INFO("Loading controller profile %s", path);
+
+  if (ini_parse(path, controller_ini_handler, ctrl) < 0) {
+    LOG_WARNING("Failed to parse %s", path);
+    return;
+  }
 }
 
 static void controller_destroy(controller_t *controller) {
@@ -220,4 +175,41 @@ static bool controller_frame(controller_t *ctrl, const maple_frame_t *frame,
   }
 
   return false;
+}
+
+maple_device_t *controller_create() {
+  controller_t *ctrl = calloc(1, sizeof(controller_t));
+  ctrl->base.destroy = (maple_destroy_cb)&controller_destroy;
+  ctrl->base.input = (maple_input_cb)&controller_input;
+  ctrl->base.frame = (maple_frame_cb)&controller_frame;
+  ctrl->cnd.function = FN_CONTROLLER;
+
+  // buttons bitfield contains 0s for pressed buttons and 1s for unpressed
+  ctrl->cnd.buttons = 0xffff;
+
+  // triggers completely unpressed
+  ctrl->cnd.rtrig = ctrl->cnd.ltrig = 0;
+
+  // joysticks default to dead center
+  ctrl->cnd.joyy = ctrl->cnd.joyx = ctrl->cnd.joyx2 = ctrl->cnd.joyy2 = 0x80;
+
+  // default profile
+  // CONT_JOYX
+  // CONT_JOYY
+  // CONT_LTRIG
+  // CONT_RTRIG
+  ctrl->map[K_SPACE] = CONT_START;
+  ctrl->map[(keycode_t)'k'] = CONT_A;
+  ctrl->map[(keycode_t)'l'] = CONT_B;
+  ctrl->map[(keycode_t)'j'] = CONT_X;
+  ctrl->map[(keycode_t)'i'] = CONT_Y;
+  ctrl->map[(keycode_t)'w'] = CONT_DPAD_UP;
+  ctrl->map[(keycode_t)'s'] = CONT_DPAD_DOWN;
+  ctrl->map[(keycode_t)'a'] = CONT_DPAD_LEFT;
+  ctrl->map[(keycode_t)'d'] = CONT_DPAD_RIGHT;
+
+  // load profile
+  controller_load_profile(ctrl, OPTION_profile);
+
+  return &ctrl->base;
 }

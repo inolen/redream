@@ -23,38 +23,6 @@ typedef struct tr_s {
   int last_sorted_surf;
 } tr_t;
 
-static void tr_reset(tr_t *tr, tr_ctx_t *rctx);
-static surface_t *tr_alloc_surf(tr_t *tr, tr_ctx_t *rctx, bool copy_from_prev);
-static vertex_t *tr_alloc_vert(tr_t *tr, tr_ctx_t *rctx);
-static void tr_discard_incomplete_surf(tr_t *tr, tr_ctx_t *rctx);
-static void tr_parse_color(tr_t *tr, uint32_t base_color, uint32_t *color);
-static void tr_parse_color_intensity(tr_t *tr, float base_intensity,
-                                     uint32_t *color);
-static void tr_parse_color_rgba(tr_t *tr, float r, float g, float b, float a,
-                                uint32_t *color);
-static void tr_parse_offset_color(tr_t *tr, uint32_t offset_color,
-                                  uint32_t *color);
-static void tr_parse_offset_color_rgba(tr_t *tr, float r, float g, float b,
-                                       float a, uint32_t *color);
-static void tr_parse_offset_color_intensity(tr_t *tr, float offset_intensity,
-                                            uint32_t *color);
-static void tr_parse_bg(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx);
-static void tr_parse_poly_param(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
-                                const uint8_t *data);
-static void tr_parse_vert_param(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
-                                const uint8_t *data);
-static float tr_cmp_surf(tr_ctx_t *rctx, const surface_t *a,
-                         const surface_t *b);
-static void tr_merge_surfs(tr_ctx_t *rctx, int *low, int *mid, int *high);
-static void tr_sort_surfs(tr_ctx_t *rctx, int first_surf, int num_surfs);
-static void tr_parse_eol(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
-                         const uint8_t *data);
-static void tr_proj_mat(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx);
-static registered_texture_t tr_register_texture(tr_t *tr, const ta_ctx_t *ctx,
-                                                tsp_t tsp, tcw_t tcw,
-                                                const uint8_t *palette,
-                                                const uint8_t *texture);
-
 static int compressed_mipmap_offsets[] = {
     0x00006,  // 8 x 8
     0x00016,  // 16 x 16
@@ -150,151 +118,186 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
          (float_to_u8(g) << 8) | float_to_u8(r);
 }
 
-texture_key_t tr_get_texture_key(tsp_t tsp, tcw_t tcw) {
-  return ((uint64_t)tsp.full << 32) | tcw.full;
-}
+static void tr_register_texture(tr_t *tr, texture_reg_t *reg) {
+  static uint8_t converted[1024 * 1024 * 4];
 
-tr_t *tr_create(struct rb_s *rb, void *get_texture_data,
-                get_texture_cb get_texture) {
-  tr_t *tr = malloc(sizeof(tr_t));
-  memset(tr, 0, sizeof(*tr));
-  tr->rb = rb;
-  tr->get_texture_data = get_texture_data;
-  tr->get_texture = get_texture;
+  const tile_ctx_t *ctx = reg->ctx;
+  tsp_t tsp = reg->tsp;
+  tcw_t tcw = reg->tcw;
+  const uint8_t *palette = reg->palette;
+  const uint8_t *data = reg->data;
+  const uint8_t *input = data;
+  const uint8_t *output = data;
 
-  return tr;
-}
+  // textures are either twiddled and vq compressed, twiddled and uncompressed
+  // or planar
+  bool twiddled = !tcw.scan_order;
+  bool compressed = tcw.vq_compressed;
+  bool mip_mapped = !tcw.scan_order && tcw.mip_mapped;
 
-void tr_destroy(tr_t *tr) {
-  free(tr);
-}
+  // get texture dimensions
+  int width = 8 << tsp.texture_u_size;
+  int height = mip_mapped ? width : 8 << tsp.texture_v_size;
+  int stride = width;
+  if (!twiddled && tcw.stride_select) {
+    stride = ctx->stride;
+  }
 
-static void tr_parse_context_inner(tr_t *tr, const ta_ctx_t *ctx,
-                                   tr_ctx_t *rctx, bool map_params) {
-  const uint8_t *data = ctx->data;
-  const uint8_t *end = ctx->data + ctx->size;
+  // FIXME used for texcoords, not width / height of texture
+  // if (planar && tcw.stride_select) {
+  //   width = ctx->stride << 5;
+  // }
 
-  tr_reset(tr, rctx);
-
-  tr_parse_bg(tr, ctx, rctx);
-
-  while (data < end) {
-    pcw_t pcw = *(pcw_t *)data;
-
-    // FIXME
-    // If Vertex Parameters with the "End of Strip" specification were not
-    // input, but parameters other than the Vertex Parameters were input, the
-    // polygon data in question is ignored and an interrupt signal is output.
-
-    switch (pcw.para_type) {
-      // control params
-      case TA_PARAM_END_OF_LIST:
-        tr_parse_eol(tr, ctx, rctx, data);
-        break;
-
-      case TA_PARAM_USER_TILE_CLIP:
-        // nothing to do
-        break;
-
-      case TA_PARAM_OBJ_LIST_SET:
-        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
-        break;
-
-      // global params
-      case TA_PARAM_POLY_OR_VOL:
-        tr_parse_poly_param(tr, ctx, rctx, data);
-        break;
-
-      case TA_PARAM_SPRITE:
-        tr_parse_poly_param(tr, ctx, rctx, data);
-        break;
-
-      // vertex params
-      case TA_PARAM_VERTEX:
-        tr_parse_vert_param(tr, ctx, rctx, data);
-        break;
-
-      default:
-        LOG_FATAL("Unsupported parameter type %d", pcw.para_type);
-        break;
+  // mipmap textures contain data for 1 x 1 up to width x height. skip to the
+  // highest res texture and let the renderer backend generate its own mipmaps
+  if (mip_mapped) {
+    if (compressed) {
+      // for vq compressed textures the offset is only for the index data, the
+      // codebook is the same for all levels
+      input += compressed_mipmap_offsets[tsp.texture_u_size];
+    } else if (tcw.pixel_format == TA_PIXEL_4BPP) {
+      input += paletted_4bpp_mipmap_offsets[tsp.texture_u_size];
+    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
+      input += paletted_8bpp_mipmap_offsets[tsp.texture_u_size];
+    } else {
+      input += nonpaletted_mipmap_offsets[tsp.texture_u_size];
     }
-
-    // // map ta parameters to their translated surfaces / vertices
-    // if (map_params) {
-    //   int offset = (int)(data - ctx->data);
-    //   rctx->param_map[offset] = {rctx->surfs.size(), rctx->verts.size()};
-    // }
-
-    data += ta_get_param_size(pcw, tr->vertex_type);
   }
 
-  tr_proj_mat(tr, ctx, rctx);
-}
+  // used by vq compressed textures
+  static const int codebook_size = 256 * 8;
+  const uint8_t *codebook = data;
+  const uint8_t *index = input + codebook_size;
 
-void tr_parse_context(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
-                      bool map_params) {
-  PROF_ENTER("tr_parse_context");
+  pxl_format_t pixel_fmt = PXL_INVALID;
+  switch (tcw.pixel_format) {
+    case TA_PIXEL_1555:
+    case TA_PIXEL_RESERVED:
+      output = converted;
+      pixel_fmt = PXL_RGBA5551;
+      if (compressed) {
+        convert_vq_ARGB1555_RGBA5551(codebook, index, (uint16_t *)converted,
+                                     width, height);
+      } else if (twiddled) {
+        convert_twiddled_ARGB1555_RGBA5551(
+            (const uint16_t *)input, (uint16_t *)converted, width, height);
+      } else {
+        convert_ARGB1555_RGBA5551((const uint16_t *)input,
+                                  (uint16_t *)converted, stride, height);
+      }
+      break;
 
-  tr_parse_context_inner(tr, ctx, rctx, map_params);
+    case TA_PIXEL_565:
+      output = converted;
+      pixel_fmt = PXL_RGB565;
+      if (compressed) {
+        convert_vq_RGB565_RGB565(codebook, index, (uint16_t *)converted, width,
+                                 height);
+      } else if (twiddled) {
+        convert_twiddled_RGB565_RGB565((const uint16_t *)input,
+                                       (uint16_t *)converted, width, height);
+      } else {
+        convert_RGB565_RGB565((const uint16_t *)input, (uint16_t *)converted,
+                              stride, height);
+      }
+      break;
 
-  PROF_LEAVE();
-}
+    case TA_PIXEL_4444:
+      output = converted;
+      pixel_fmt = PXL_RGBA4444;
+      if (compressed) {
+        convert_vq_ARGB4444_RGBA4444(codebook, index, (uint16_t *)converted,
+                                     width, height);
+      } else if (twiddled) {
+        convert_twiddled_ARGB4444_RGBA4444(
+            (const uint16_t *)input, (uint16_t *)converted, width, height);
+      } else {
+        convert_ARGB4444_RGBA4444((const uint16_t *)input,
+                                  (uint16_t *)converted, stride, height);
+      }
+      break;
 
-void tr_clear_context(tr_ctx_t *rctx) {
-  free(rctx->surfs);
-  rctx->surfs = NULL;
-  rctx->surfs_size = rctx->surfs_capacity = 0;
+    case TA_PIXEL_4BPP:
+      CHECK(!compressed);
+      output = converted;
+      switch (ctx->pal_pxl_format) {
+        case TA_PAL_ARGB4444:
+          pixel_fmt = PXL_RGBA4444;
+          convert_pal4_ARGB4444_RGBA4444(input, (uint16_t *)converted,
+                                         (const uint32_t *)palette, width,
+                                         height);
+          break;
 
-  free(rctx->verts);
-  rctx->verts = NULL;
-  rctx->verts_size = rctx->verts_capacity = 0;
+        default:
+          LOG_FATAL("Unsupported 4bpp palette pixel format %d",
+                    ctx->pal_pxl_format);
+          break;
+      }
+      break;
 
-  free(rctx->sorted_surfs);
-  rctx->sorted_surfs = NULL;
-  rctx->sorted_surfs_size = rctx->sorted_surfs_capacity = 0;
-}
+    case TA_PIXEL_8BPP:
+      CHECK(!compressed);
+      output = converted;
+      switch (ctx->pal_pxl_format) {
+        case TA_PAL_ARGB4444:
+          pixel_fmt = PXL_RGBA4444;
+          convert_pal8_ARGB4444_RGBA4444(input, (uint16_t *)converted,
+                                         (const uint32_t *)palette, width,
+                                         height);
+          break;
 
-static void tr_render_ctx_inner(tr_t *tr, const tr_ctx_t *ctx) {
-  rb_begin_surfaces(tr->rb, ctx->projection, ctx->verts, ctx->verts_size);
+        case TA_PAL_ARGB8888:
+          pixel_fmt = PXL_RGBA8888;
+          convert_pal8_ARGB8888_RGBA8888(input, (uint32_t *)converted,
+                                         (const uint32_t *)palette, width,
+                                         height);
+          break;
 
-  const int *sorted_surf = ctx->sorted_surfs;
-  const int *sorted_surf_end = ctx->sorted_surfs + ctx->surfs_size;
-  while (sorted_surf < sorted_surf_end) {
-    rb_draw_surface(tr->rb, &ctx->surfs[*sorted_surf]);
-    sorted_surf++;
+        default:
+          LOG_FATAL("Unsupported 8bpp palette pixel format %d",
+                    ctx->pal_pxl_format);
+          break;
+      }
+      break;
+
+    default:
+      LOG_FATAL("Unsupported tcw pixel format %d", tcw.pixel_format);
+      break;
   }
 
-  rb_end_surfaces(tr->rb);
+  // ignore trilinear filtering for now
+  filter_mode_t filter =
+      tsp.filter_mode == 0 ? FILTER_NEAREST : FILTER_BILINEAR;
+  wrap_mode_t wrap_u = tsp.clamp_u
+                           ? WRAP_CLAMP_TO_EDGE
+                           : (tsp.flip_u ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
+  wrap_mode_t wrap_v = tsp.clamp_v
+                           ? WRAP_CLAMP_TO_EDGE
+                           : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
+
+  texture_handle_t handle =
+      rb_register_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v, mip_mapped,
+                          width, height, output);
+
+  //
+  reg->handle = handle;
+  reg->format = pixel_fmt;
+  reg->filter = filter;
+  reg->wrap_u = wrap_u;
+  reg->wrap_v = wrap_v;
+  reg->mipmaps = mip_mapped;
+  reg->width = width;
+  reg->height = height;
 }
 
-void tr_render_ctx(tr_t *tr, const tr_ctx_t *ctx) {
-  PROF_ENTER("tr_render_ctx");
-
-  tr_render_ctx_inner(tr, ctx);
-
-  PROF_LEAVE();
-}
-
-void tr_reset(tr_t *tr, tr_ctx_t *rctx) {
-  // reset render state
-  rctx->surfs_size = 0;
-  rctx->verts_size = 0;
-  rctx->sorted_surfs_size = 0;
-  // rctx->param_map.clear();
-
-  // reset global state
-  tr->last_poly = NULL;
-  tr->last_vertex = NULL;
-  tr->list_type = 0;
-  tr->vertex_type = 0;
-  tr->last_sorted_surf = 0;
-}
-
-surface_t *tr_alloc_surf(tr_t *tr, tr_ctx_t *rctx, bool copy_from_prev) {
-  int id = rctx->surfs_size;
-  array_resize(rctx->surfs, id + 1);
-
+static surface_t *tr_alloc_surf(tr_t *tr, render_ctx_t *rctx,
+                                bool copy_from_prev) {
   // either reset the surface state, or copy the state from the previous surface
+  if (rctx->num_surfs >= rctx->surfs_size) {
+    __asm__("int $3");
+  }
+  CHECK_LT(rctx->num_surfs, rctx->surfs_size);
+  int id = rctx->num_surfs++;
   surface_t *surf = &rctx->surfs[id];
 
   if (copy_from_prev) {
@@ -304,34 +307,32 @@ surface_t *tr_alloc_surf(tr_t *tr, tr_ctx_t *rctx, bool copy_from_prev) {
   }
 
   // star verts at the end
-  surf->first_vert = rctx->verts_size;
+  surf->first_vert = rctx->num_verts;
   surf->num_verts = 0;
 
   // default sort the surface
-  array_resize(rctx->sorted_surfs, id + 1);
   rctx->sorted_surfs[id] = id;
 
   return surf;
 }
 
-vertex_t *tr_alloc_vert(tr_t *tr, tr_ctx_t *rctx) {
-  int id = rctx->verts_size;
-  array_resize(rctx->verts, id + 1);
-
+static vertex_t *tr_alloc_vert(tr_t *tr, render_ctx_t *rctx) {
+  CHECK_LT(rctx->num_verts, rctx->verts_size);
+  int id = rctx->num_verts++;
   vertex_t *v = &rctx->verts[id];
   memset(v, 0, sizeof(*v));
 
   // update vertex count on the current surface
-  surface_t *surf = &rctx->surfs[rctx->surfs_size - 1];
+  surface_t *surf = &rctx->surfs[rctx->num_surfs - 1];
   surf->num_verts++;
 
   return v;
 }
 
-void tr_discard_incomplete_surf(tr_t *tr, tr_ctx_t *rctx) {
+static void tr_discard_incomplete_surf(tr_t *tr, render_ctx_t *rctx) {
   // free up the last surface if it wasn't finished
   if (tr->last_vertex && !tr->last_vertex->type0.pcw.end_of_strip) {
-    rctx->surfs_size--;
+    rctx->num_surfs--;
   }
 }
 
@@ -340,7 +341,7 @@ void tr_discard_incomplete_surf(tr_t *tr, tr_ctx_t *rctx) {
 // ironed out
 // FIXME honor use alpha
 // FIXME honor ignore tex alpha
-void tr_parse_color(tr_t *tr, uint32_t base_color, uint32_t *color) {
+static void tr_parse_color(tr_t *tr, uint32_t base_color, uint32_t *color) {
   *color = abgr_to_rgba(base_color);
 
   // if (!tr->last_poly->type0.tsp.use_alpha) {
@@ -348,7 +349,8 @@ void tr_parse_color(tr_t *tr, uint32_t base_color, uint32_t *color) {
   // }
 }
 
-void tr_parse_color_intensity(tr_t *tr, float base_intensity, uint32_t *color) {
+static void tr_parse_color_intensity(tr_t *tr, float base_intensity,
+                                     uint32_t *color) {
   *color = float_to_rgba(tr->face_color[0] * base_intensity,
                          tr->face_color[1] * base_intensity,
                          tr->face_color[2] * base_intensity, tr->face_color[3]);
@@ -358,8 +360,8 @@ void tr_parse_color_intensity(tr_t *tr, float base_intensity, uint32_t *color) {
   // }
 }
 
-void tr_parse_color_rgba(tr_t *tr, float r, float g, float b, float a,
-                         uint32_t *color) {
+static void tr_parse_color_rgba(tr_t *tr, float r, float g, float b, float a,
+                                uint32_t *color) {
   *color = float_to_rgba(r, g, b, a);
 
   // if (!tr->last_poly->type0.tsp.use_alpha) {
@@ -367,7 +369,8 @@ void tr_parse_color_rgba(tr_t *tr, float r, float g, float b, float a,
   // }
 }
 
-void tr_parse_offset_color(tr_t *tr, uint32_t offset_color, uint32_t *color) {
+static void tr_parse_offset_color(tr_t *tr, uint32_t offset_color,
+                                  uint32_t *color) {
   if (!tr->last_poly->type0.isp_tsp.offset) {
     *color = 0;
   } else {
@@ -375,8 +378,8 @@ void tr_parse_offset_color(tr_t *tr, uint32_t offset_color, uint32_t *color) {
   }
 }
 
-void tr_parse_offset_color_rgba(tr_t *tr, float r, float g, float b, float a,
-                                uint32_t *color) {
+static void tr_parse_offset_color_rgba(tr_t *tr, float r, float g, float b,
+                                       float a, uint32_t *color) {
   if (!tr->last_poly->type0.isp_tsp.offset) {
     *color = 0;
   } else {
@@ -384,8 +387,8 @@ void tr_parse_offset_color_rgba(tr_t *tr, float r, float g, float b, float a,
   }
 }
 
-void tr_parse_offset_color_intensity(tr_t *tr, float offset_intensity,
-                                     uint32_t *color) {
+static void tr_parse_offset_color_intensity(tr_t *tr, float offset_intensity,
+                                            uint32_t *color) {
   if (!tr->last_poly->type0.isp_tsp.offset) {
     *color = 0;
   } else {
@@ -396,7 +399,7 @@ void tr_parse_offset_color_intensity(tr_t *tr, float offset_intensity,
   }
 }
 
-static int tr_parse_bg_vert(const ta_ctx_t *ctx, int offset, vertex_t *v) {
+static int tr_parse_bg_vert(const tile_ctx_t *ctx, int offset, vertex_t *v) {
   v->xyz[0] = *(float *)&ctx->bg_vertices[offset];
   v->xyz[1] = *(float *)&ctx->bg_vertices[offset + 4];
   v->xyz[2] = *(float *)&ctx->bg_vertices[offset + 8];
@@ -426,7 +429,7 @@ static int tr_parse_bg_vert(const ta_ctx_t *ctx, int offset, vertex_t *v) {
   return offset;
 }
 
-void tr_parse_bg(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx) {
+static void tr_parse_bg(tr_t *tr, const tile_ctx_t *ctx, render_ctx_t *rctx) {
   // translate the surface
   surface_t *surf = tr_alloc_surf(tr, rctx, false);
 
@@ -472,8 +475,8 @@ void tr_parse_bg(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx) {
 
 // NOTE this offset color implementation is not correct at all, see the
 // Texture/Shading Instruction in the tsp_t instruction word
-void tr_parse_poly_param(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
-                         const uint8_t *data) {
+static void tr_parse_poly_param(tr_t *tr, const tile_ctx_t *ctx,
+                                render_ctx_t *rctx, const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rctx);
 
   const poly_param_t *param = (const poly_param_t *)data;
@@ -603,8 +606,8 @@ static void tr_parse_spriteb_vert(tr_t *tr, const vert_param_t *param, int i,
   vert->uv[1] = *(float *)&v;
 }
 
-void tr_parse_vert_param(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
-                         const uint8_t *data) {
+static void tr_parse_vert_param(tr_t *tr, const tile_ctx_t *ctx,
+                                render_ctx_t *rctx, const uint8_t *data) {
   const vert_param_t *param = (const vert_param_t *)data;
   // If there is no need to change the Global Parameters, a vertex_t Parameter
   // for
@@ -766,7 +769,8 @@ void tr_parse_vert_param(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
   // FIXME is this true for sprites which come through this path as well?
 }
 
-float tr_cmp_surf(tr_ctx_t *rctx, const surface_t *a, const surface_t *b) {
+static float tr_cmp_surf(render_ctx_t *rctx, const surface_t *a,
+                         const surface_t *b) {
   float minza = FLT_MAX;
   for (int i = 0, n = a->num_verts; i < n; i++) {
     vertex_t *v = &rctx->verts[a->first_vert + i];
@@ -788,7 +792,7 @@ float tr_cmp_surf(tr_ctx_t *rctx, const surface_t *a, const surface_t *b) {
   return minza - minzb;
 }
 
-void tr_merge_surfs(tr_ctx_t *rctx, int *low, int *mid, int *high) {
+static void tr_merge_surfs(render_ctx_t *rctx, int *low, int *mid, int *high) {
   static const int MAX_SORT_SURFACES = 16384;
   static int tmp[MAX_SORT_SURFACES];
 
@@ -815,7 +819,7 @@ void tr_merge_surfs(tr_ctx_t *rctx, int *low, int *mid, int *high) {
   memcpy(low, tmp, (k - tmp) * sizeof(tmp[0]));
 }
 
-void tr_sort_surfs(tr_ctx_t *rctx, int low, int high) {
+static void tr_sort_surfs(render_ctx_t *rctx, int low, int high) {
   if (low >= high) {
     return;
   }
@@ -827,8 +831,8 @@ void tr_sort_surfs(tr_ctx_t *rctx, int low, int high) {
                  &rctx->sorted_surfs[high]);
 }
 
-void tr_parse_eol(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
-                  const uint8_t *data) {
+static void tr_parse_eol(tr_t *tr, const tile_ctx_t *ctx, render_ctx_t *rctx,
+                         const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rctx);
 
   // sort transparent polys by their z value, from back to front. remember, in
@@ -836,12 +840,12 @@ void tr_parse_eol(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
   if ((tr->list_type == TA_LIST_TRANSLUCENT ||
        tr->list_type == TA_LIST_TRANSLUCENT_MODVOL) &&
       ctx->autosort) {
-    tr_sort_surfs(rctx, tr->last_sorted_surf, rctx->surfs_size - 1);
+    tr_sort_surfs(rctx, tr->last_sorted_surf, rctx->num_surfs - 1);
   }
 
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
-  tr->last_sorted_surf = rctx->surfs_size;
+  tr->last_sorted_surf = rctx->num_surfs;
 }
 
 // Vertices coming into the TA are in window space, with the Z component being
@@ -850,12 +854,12 @@ void tr_parse_eol(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx,
 // projection on the vertices as they're already perspective correct, the
 // renderer backend will have to deal with setting the W component of each
 // in order to perspective correct the texture mapping.
-void tr_proj_mat(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx) {
+static void tr_proj_mat(tr_t *tr, const tile_ctx_t *ctx, render_ctx_t *rctx) {
   float znear = FLT_MIN;
   float zfar = FLT_MAX;
 
   // Z component is 1/W, so +Z is into the screen
-  for (int i = 0, n = rctx->verts_size; i < n; i++) {
+  for (int i = 0; i < rctx->num_verts; i++) {
     vertex_t *v = &rctx->verts[i];
     if (v->xyz[2] > znear) {
       znear = v->xyz[2];
@@ -895,166 +899,131 @@ void tr_proj_mat(tr_t *tr, const ta_ctx_t *ctx, tr_ctx_t *rctx) {
   rctx->projection[15] = 1.0f;
 }
 
-registered_texture_t tr_register_texture(tr_t *tr, const ta_ctx_t *ctx,
-                                         tsp_t tsp, tcw_t tcw,
-                                         const uint8_t *palette,
-                                         const uint8_t *texture) {
-  static uint8_t converted[1024 * 1024 * 4];
-  const uint8_t *input = texture;
-  const uint8_t *output = texture;
+static void tr_reset(tr_t *tr, render_ctx_t *rctx) {
+  // reset render state
+  rctx->num_surfs = 0;
+  rctx->num_verts = 0;
+  rctx->num_states = 0;
 
-  // textures are either twiddled and vq compressed, twiddled and uncompressed
-  // or planar
-  bool twiddled = !tcw.scan_order;
-  bool compressed = tcw.vq_compressed;
-  bool mip_mapped = !tcw.scan_order && tcw.mip_mapped;
+  // reset global state
+  tr->last_poly = NULL;
+  tr->last_vertex = NULL;
+  tr->list_type = 0;
+  tr->vertex_type = 0;
+  tr->last_sorted_surf = 0;
+}
 
-  // get texture dimensions
-  int width = 8 << tsp.texture_u_size;
-  int height = mip_mapped ? width : 8 << tsp.texture_v_size;
-  int stride = width;
-  if (!twiddled && tcw.stride_select) {
-    stride = ctx->stride;
-  }
+texture_key_t tr_get_texture_key(tsp_t tsp, tcw_t tcw) {
+  return ((uint64_t)tsp.full << 32) | tcw.full;
+}
 
-  // FIXME used for texcoords, not width / height of texture
-  // if (planar && tcw.stride_select) {
-  //   width = ctx->stride << 5;
-  // }
+static void tr_parse_context_inner(tr_t *tr, const tile_ctx_t *ctx,
+                                   render_ctx_t *rctx) {
+  const uint8_t *data = ctx->data;
+  const uint8_t *end = ctx->data + ctx->size;
 
-  // mipmap textures contain data for 1 x 1 up to width x height. skip to the
-  // highest res texture and let the renderer backend generate its own mipmaps
-  if (mip_mapped) {
-    if (compressed) {
-      // for vq compressed textures the offset is only for the index data, the
-      // codebook is the same for all levels
-      input += compressed_mipmap_offsets[tsp.texture_u_size];
-    } else if (tcw.pixel_format == TA_PIXEL_4BPP) {
-      input += paletted_4bpp_mipmap_offsets[tsp.texture_u_size];
-    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
-      input += paletted_8bpp_mipmap_offsets[tsp.texture_u_size];
-    } else {
-      input += nonpaletted_mipmap_offsets[tsp.texture_u_size];
+  tr_reset(tr, rctx);
+
+  tr_parse_bg(tr, ctx, rctx);
+
+  while (data < end) {
+    pcw_t pcw = *(pcw_t *)data;
+
+    // FIXME
+    // If Vertex Parameters with the "End of Strip" specification were not
+    // input, but parameters other than the Vertex Parameters were input, the
+    // polygon data in question is ignored and an interrupt signal is output.
+
+    switch (pcw.para_type) {
+      // control params
+      case TA_PARAM_END_OF_LIST:
+        tr_parse_eol(tr, ctx, rctx, data);
+        break;
+
+      case TA_PARAM_USER_TILE_CLIP:
+        // nothing to do
+        break;
+
+      case TA_PARAM_OBJ_LIST_SET:
+        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
+        break;
+
+      // global params
+      case TA_PARAM_POLY_OR_VOL:
+        tr_parse_poly_param(tr, ctx, rctx, data);
+        break;
+
+      case TA_PARAM_SPRITE:
+        tr_parse_poly_param(tr, ctx, rctx, data);
+        break;
+
+      // vertex params
+      case TA_PARAM_VERTEX:
+        tr_parse_vert_param(tr, ctx, rctx, data);
+        break;
+
+      default:
+        LOG_FATAL("Unsupported parameter type %d", pcw.para_type);
+        break;
     }
+
+    // keep track of the surf / vert counts at each parameter offset
+    if (rctx->states) {
+      int offset = (int)(data - ctx->data);
+      CHECK_LT(offset, rctx->states_size);
+      rctx->num_states = MAX(rctx->num_states, offset);
+
+      param_state_t *param_state = &rctx->states[offset];
+      param_state->num_surfs = rctx->num_surfs;
+      param_state->num_verts = rctx->num_verts;
+    }
+
+    data += ta_get_param_size(pcw, tr->vertex_type);
   }
 
-  // used by vq compressed textures
-  static const int codebook_size = 256 * 8;
-  const uint8_t *codebook = texture;
-  const uint8_t *index = input + codebook_size;
+  tr_proj_mat(tr, ctx, rctx);
+}
 
-  pxl_format_t pixel_fmt = PXL_INVALID;
-  switch (tcw.pixel_format) {
-    case TA_PIXEL_1555:
-    case TA_PIXEL_RESERVED:
-      output = converted;
-      pixel_fmt = PXL_RGBA5551;
-      if (compressed) {
-        convert_vq_ARGB1555_RGBA5551(codebook, index, (uint16_t *)converted,
-                                     width, height);
-      } else if (twiddled) {
-        convert_twiddled_ARGB1555_RGBA5551(
-            (const uint16_t *)input, (uint16_t *)converted, width, height);
-      } else {
-        convert_ARGB1555_RGBA5551((const uint16_t *)input,
-                                  (uint16_t *)converted, stride, height);
-      }
-      break;
+void tr_parse_context(tr_t *tr, const tile_ctx_t *ctx, render_ctx_t *rctx) {
+  PROF_ENTER("tr_parse_context");
 
-    case TA_PIXEL_565:
-      output = converted;
-      pixel_fmt = PXL_RGB565;
-      if (compressed) {
-        convert_vq_RGB565_RGB565(codebook, index, (uint16_t *)converted, width,
-                                 height);
-      } else if (twiddled) {
-        convert_twiddled_RGB565_RGB565((const uint16_t *)input,
-                                       (uint16_t *)converted, width, height);
-      } else {
-        convert_RGB565_RGB565((const uint16_t *)input, (uint16_t *)converted,
-                              stride, height);
-      }
-      break;
+  tr_parse_context_inner(tr, ctx, rctx);
 
-    case TA_PIXEL_4444:
-      output = converted;
-      pixel_fmt = PXL_RGBA4444;
-      if (compressed) {
-        convert_vq_ARGB4444_RGBA4444(codebook, index, (uint16_t *)converted,
-                                     width, height);
-      } else if (twiddled) {
-        convert_twiddled_ARGB4444_RGBA4444(
-            (const uint16_t *)input, (uint16_t *)converted, width, height);
-      } else {
-        convert_ARGB4444_RGBA4444((const uint16_t *)input,
-                                  (uint16_t *)converted, stride, height);
-      }
-      break;
+  PROF_LEAVE();
+}
 
-    case TA_PIXEL_4BPP:
-      CHECK(!compressed);
-      output = converted;
-      switch (ctx->pal_pxl_format) {
-        case TA_PAL_ARGB4444:
-          pixel_fmt = PXL_RGBA4444;
-          convert_pal4_ARGB4444_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
-          break;
+static void tr_render_context_inner(tr_t *tr, const render_ctx_t *ctx) {
+  rb_begin_surfaces(tr->rb, ctx->projection, ctx->verts, ctx->num_verts);
 
-        default:
-          LOG_FATAL("Unsupported 4bpp palette pixel format %d",
-                    ctx->pal_pxl_format);
-          break;
-      }
-      break;
-
-    case TA_PIXEL_8BPP:
-      CHECK(!compressed);
-      output = converted;
-      switch (ctx->pal_pxl_format) {
-        case TA_PAL_ARGB4444:
-          pixel_fmt = PXL_RGBA4444;
-          convert_pal8_ARGB4444_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
-          break;
-
-        case TA_PAL_ARGB8888:
-          pixel_fmt = PXL_RGBA8888;
-          convert_pal8_ARGB8888_RGBA8888(input, (uint32_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
-          break;
-
-        default:
-          LOG_FATAL("Unsupported 8bpp palette pixel format %d",
-                    ctx->pal_pxl_format);
-          break;
-      }
-      break;
-
-    default:
-      LOG_FATAL("Unsupported tcw pixel format %d", tcw.pixel_format);
-      break;
+  const int *sorted_surf = ctx->sorted_surfs;
+  const int *sorted_surf_end = ctx->sorted_surfs + ctx->num_surfs;
+  while (sorted_surf < sorted_surf_end) {
+    rb_draw_surface(tr->rb, &ctx->surfs[*sorted_surf]);
+    sorted_surf++;
   }
 
-  // ignore trilinear filtering for now
-  filter_mode_t filter =
-      tsp.filter_mode == 0 ? FILTER_NEAREST : FILTER_BILINEAR;
-  wrap_mode_t wrap_u = tsp.clamp_u
-                           ? WRAP_CLAMP_TO_EDGE
-                           : (tsp.flip_u ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
-  wrap_mode_t wrap_v = tsp.clamp_v
-                           ? WRAP_CLAMP_TO_EDGE
-                           : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
+  rb_end_surfaces(tr->rb);
+}
 
-  texture_handle_t handle =
-      rb_register_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v, mip_mapped,
-                          width, height, output);
+void tr_render_context(tr_t *tr, const render_ctx_t *ctx) {
+  PROF_ENTER("tr_render_context");
 
-  //
-  registered_texture_t result = {handle, pixel_fmt,  filter, wrap_u,
-                                 wrap_v, mip_mapped, width,  height};
-  return result;
+  tr_render_context_inner(tr, ctx);
+
+  PROF_LEAVE();
+}
+
+tr_t *tr_create(struct rb_s *rb, void *get_texture_data,
+                get_texture_cb get_texture) {
+  tr_t *tr = malloc(sizeof(tr_t));
+  memset(tr, 0, sizeof(*tr));
+  tr->rb = rb;
+  tr->get_texture_data = get_texture_data;
+  tr->get_texture = get_texture;
+
+  return tr;
+}
+
+void tr_destroy(tr_t *tr) {
+  free(tr);
 }

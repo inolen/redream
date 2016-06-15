@@ -48,22 +48,39 @@ rb_node_t *rb_next(rb_node_t *n);
 
 #define rb_entry(n, type, member) container_of(n, type, member)
 
-#define rb_find_entry(t, search, member, cb)           \
-  ({                                                   \
-    rb_node_t *it = rb_find(t, &(search)->member, cb); \
-    it ? rb_entry(it, TYPEOF(*search), member) : NULL; \
+#define rb_first_entry(t, type, member)     \
+  ({                                        \
+    rb_node_t *n = rb_first(t);             \
+    (n ? rb_entry(n, type, member) : NULL); \
   })
 
-// #define rb_for_each_entry(t, member, it)                                             \
-//   for (rb_node_t *it = rb_first(t), *it##_next = rb_next(it); it; \
-//        it = it##_next, it##_next = rb_next(it))
+#define rb_last_entry(t, type, member)   \
+  ({                                     \
+    rb_node_t *n = rb_last(t);           \
+    n ? rb_entry(n, type, member) : NULL \
+  })
 
-// rb_node_t *it = rb_first(&ta->live_entries);
+#define rb_next_entry(entry, member)                    \
+  ({                                                    \
+    rb_node_t *n = rb_next(&entry->member);             \
+    (n ? rb_entry(n, TYPEOF(*(entry)), member) : NULL); \
+  })
 
-//   while (it) {
-//     rb_node_t *next = rb_next(it);
+#define rb_prev_entry(entry, member)                    \
+  ({                                                    \
+    rb_node_t *n = rb_prev(&entry->member);             \
+    (n ? rb_entry(n, TYPEOF(*(entry)), member) : NULL); \
+  })
 
-//     texture_entry_t *entry = rb_entry(it, texture_entry_t, live_it);
+#define rb_find_entry(t, search, member, cb)             \
+  ({                                                     \
+    rb_node_t *it = rb_find(t, &(search)->member, cb);   \
+    (it ? rb_entry(it, TYPEOF(*search), member) : NULL); \
+  })
+
+#define rb_for_each_entry(it, t, type, member)         \
+  for (type *it = rb_first_entry(t, type, member); it; \
+       it = rb_next_entry(it, member))
 
 #ifdef __cplusplus
 }

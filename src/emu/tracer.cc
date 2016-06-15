@@ -1,12 +1,10 @@
-#include <algorithm>
+#include <imgui.h>
+#include "core/math.h"
 #include "emu/tracer.h"
 #include "hw/holly/ta.h"
+#include "hw/holly/tr.h"
 #include "hw/holly/trace.h"
 #include "ui/window.h"
-
-using namespace re;
-using namespace re::emu;
-using namespace re::hw::holly;
 
 static const char *s_param_names[] = {
     "TA_PARAM_END_OF_LIST", "TA_PARAM_USER_TILE_CLIP", "TA_PARAM_OBJ_LIST_SET",
@@ -60,146 +58,312 @@ static const char *s_shademode_names[] = {
     "DECAL", "MODULATE", "DECAL_ALPHA", "MODULATE_ALPHA",
 };
 
-static const int INVALID_OFFSET = -1;
+typedef struct {
+  tsp_t tsp;
+  tcw_t tcw;
+  const uint8_t *palette;
+  const uint8_t *data;
+  texture_handle_t handle;
+  pxl_format_t format;
+  filter_mode_t filter;
+  wrap_mode_t wrap_u;
+  wrap_mode_t wrap_v;
+  bool mipmaps;
+  int width;
+  int height;
 
-void TraceTextureCache::AddTexture(tsp_t tsp, tcw_t &tcw,
-                                   const uint8_t *palette,
-                                   const uint8_t *texture) {
-  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
-  TextureInst &texture_inst = textures_[texture_key];
-  texture_inst.tsp = tsp;
-  texture_inst.tcw = tcw;
-  texture_inst.palette = palette;
-  texture_inst.texture = texture;
-  texture_inst.handle = 0;
+  rb_node_t live_it;
+  list_node_t free_it;
+} texture_t;
+
+typedef struct tracer_s {
+  struct window_s *window;
+  struct window_listener_s *listener;
+  struct rb_s *rb;
+  struct tr_s *tr;
+
+  // trace state
+  trace_t *trace;
+  tile_ctx_t ctx;
+  trace_cmd_t *current_cmd;
+  int current_param_offset;
+  int current_context;
+  int num_contexts;
+
+  // ui state
+  bool hide_params[TA_NUM_PARAMS];
+  bool scroll_to_param;
+  bool running;
+
+  // render state
+  render_ctx_t rctx;
+  surface_t surfs[TA_MAX_SURFS];
+  vertex_t verts[TA_MAX_VERTS];
+  int sorted_surfs[TA_MAX_SURFS];
+  param_state_t states[TA_PARAMS_SIZE];
+
+  texture_t textures[1024];
+  rb_tree_t live_textures;
+  list_t free_textures;
+} tracer_t;
+
+static int tracer_texture_cmp(const rb_node_t *lhs_it,
+                              const rb_node_t *rhs_it) {
+  const texture_t *lhs = rb_entry(lhs_it, const texture_t, live_it);
+  const texture_t *rhs = rb_entry(rhs_it, const texture_t, live_it);
+  return tr_get_texture_key(lhs->tsp, lhs->tcw) -
+         tr_get_texture_key(rhs->tsp, rhs->tcw);
 }
 
-void TraceTextureCache::RemoveTexture(tsp_t tsp, tcw_t &tcw) {
-  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
-  textures_.erase(texture_key);
+static rb_callback_t tracer_texture_cb = {&tracer_texture_cmp, NULL, NULL};
+
+static void tracer_add_texture(tracer_t *tracer, tsp_t tsp, tcw_t tcw,
+                               const uint8_t *palette, const uint8_t *data) {
+  texture_t *texture =
+      list_first_entry(&tracer->free_textures, texture_t, free_it);
+  CHECK_NOTNULL(texture);
+  list_remove(&tracer->free_textures, &texture->free_it);
+
+  texture->tsp = tsp;
+  texture->tcw = tcw;
+  texture->palette = palette;
+  texture->data = data;
+  texture->handle = 0;
+
+  rb_insert(&tracer->live_textures, &texture->live_it, &tracer_texture_cb);
 }
 
-texture_handle_t TraceTextureCache::GetTexture(
-    const ta_ctx_t &tctx, tsp_t tsp, tcw_t tcw,
-    register_texture_cb register_cb) {
-  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
+static void tracer_remove_texture(tracer_t *tracer, tsp_t tsp, tcw_t tcw) {
+  texture_t search;
+  search.tsp = tsp;
+  search.tcw = tcw;
 
-  auto it = textures_.find(texture_key);
-  CHECK_NE(it, textures_.end(), "Texture wasn't available in cache");
+  texture_t *texture = rb_find_entry(&tracer->live_textures, &search, live_it,
+                                     &tracer_texture_cb);
+  CHECK_NOTNULL(texture);
+  rb_unlink(&tracer->live_textures, &texture->live_it, &tracer_texture_cb);
 
-  TextureInst &texture = it->second;
+  list_add(&tracer->free_textures, &texture->free_it);
+}
 
-  // register the texture if it hasn't already been
-  if (!texture.handle) {
-    registered_texture_t res =
-        register_delegate(tctx, tsp, tcw, texture.palette, texture.texture);
-    texture.handle = res.handle;
-    texture.format = res.format;
-    texture.filter = res.filter;
-    texture.wrap_u = res.wrap_u;
-    texture.wrap_v = res.wrap_v;
-    texture.mipmaps = res.mipmaps;
-    texture.width = res.width;
-    texture.height = res.height;
+static texture_handle_t tracer_get_texture(void *data, const tile_ctx_t *ctx,
+                                           tsp_t tsp, tcw_t tcw,
+                                           void *register_data,
+                                           register_texture_cb register_cb) {
+  tracer_t *tracer = reinterpret_cast<tracer_t *>(data);
+
+  texture_t search;
+  search.tsp = tsp;
+  search.tcw = tcw;
+
+  texture_t *texture = rb_find_entry(&tracer->live_textures, &search, live_it,
+                                     &tracer_texture_cb);
+  CHECK_NOTNULL(texture, "Texture wasn't available in cache");
+
+  // TODO fixme, pass correct tile_ctx_t to tracer_add_texture so this
+  // isn't deferred
+  if (!texture->handle) {
+    texture_reg_t reg = {};
+    reg.ctx = ctx;
+    reg.tsp = tsp;
+    reg.tcw = tcw;
+    reg.palette = texture->palette;
+    reg.data = texture->data;
+    register_cb(register_data, &reg);
+
+    texture->handle = reg.handle;
+    texture->format = reg.format;
+    texture->filter = reg.filter;
+    texture->wrap_u = reg.wrap_u;
+    texture->wrap_v = reg.wrap_v;
+    texture->mipmaps = reg.mipmaps;
+    texture->width = reg.width;
+    texture->height = reg.height;
   }
 
-  return texture.handle;
+  return texture->handle;
 }
 
-Tracer::Tracer(window_t &window)
-    : window_(window),
-      rb_(window.render_backend()),
-      tile_renderer_(rb_, texcache_),
-      hide_params_() {
-  window_.AddListener(this);
+static void tracer_copy_command(const trace_cmd_t *cmd, tile_ctx_t *ctx) {
+  // copy TRACE_CMD_CONTEXT to the current context being rendered
+  CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
+
+  ctx->autosort = cmd->context.autosort;
+  ctx->stride = cmd->context.stride;
+  ctx->pal_pxl_format = cmd->context.pal_pxl_format;
+  ctx->bg_isp = cmd->context.bg_isp;
+  ctx->bg_tsp = cmd->context.bg_tsp;
+  ctx->bg_tcw = cmd->context.bg_tcw;
+  ctx->bg_depth = cmd->context.bg_depth;
+  ctx->video_width = cmd->context.video_width;
+  ctx->video_height = cmd->context.video_height;
+  memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
+         cmd->context.bg_vertices_size);
+  memcpy(ctx->data, cmd->context.data, cmd->context.data_size);
+  ctx->size = cmd->context.data_size;
 }
 
-Tracer::~Tracer() {
-  window_.RemoveListener(this);
+static inline bool param_state_empty(param_state_t *param_state) {
+  return !param_state->num_surfs && !param_state->num_verts;
 }
 
-void Tracer::Run(const char *path) {
-  if (!Parse(path)) {
-    return;
-  }
-
-  running_ = true;
-
-  while (running_) {
-    window_.PumpEvents();
-  }
+static inline bool tracer_param_hidden(tracer_t *tracer, pcw_t pcw) {
+  return tracer->hide_params[pcw.para_type];
 }
 
-void Tracer::OnPaint(bool show_main_menu) {
-  tile_renderer_.ParseContext(tctx_, &rctx_, true);
+static void tracer_prev_param(tracer_t *tracer) {
+  int offset = tracer->current_param_offset;
 
-  // render UI
-  RenderScrubberMenu();
-  RenderTextureMenu();
-  RenderContextMenu();
+  while (--offset >= 0) {
+    param_state_t *param_state = &tracer->rctx.states[offset];
 
-  // clamp surfaces the last surface belonging to the current param
-  int n = rctx_.surfs.size();
-  int last_idx = n;
-
-  if (current_offset_ != INVALID_OFFSET) {
-    const auto &param_entry = rctx_.param_map[current_offset_];
-    last_idx = param_entry.num_surfs;
-  }
-
-  // render the context
-  rb_->BeginSurfaces(rctx_.projection, rctx_.verts.data(), rctx_.verts.size());
-
-  for (int i = 0; i < n; i++) {
-    int idx = rctx_.sorted_surfs[i];
-
-    // if this surface comes after the current parameter, ignore it
-    if (idx >= last_idx) {
+    if (param_state_empty(param_state)) {
       continue;
     }
 
-    rb_->DrawSurface(rctx_.surfs[idx]);
-  }
+    pcw_t pcw = *(pcw_t *)(tracer->ctx.data + offset);
 
-  rb_->EndSurfaces();
-}
-
-void Tracer::OnKeyDown(keycode_t code, int16_t value) {
-  if (code == K_F1) {
-    if (value) {
-      window_.EnableMainMenu(!window_.MainMenuEnabled());
+    // found the next visible param
+    if (!tracer_param_hidden(tracer, pcw)) {
+      tracer->current_param_offset = offset;
+      tracer->scroll_to_param = true;
+      break;
     }
-  } else if (code == K_LEFT && value) {
-    PrevContext();
-  } else if (code == K_RIGHT && value) {
-    NextContext();
-  } else if (code == K_UP && value) {
-    PrevParam();
-  } else if (code == K_DOWN && value) {
-    NextParam();
   }
 }
 
-void Tracer::OnClose() {
-  running_ = false;
+static void tracer_next_param(tracer_t *tracer) {
+  int offset = tracer->current_param_offset;
+
+  while (++offset < tracer->rctx.num_states) {
+    param_state_t *param_state = &tracer->rctx.states[offset];
+
+    if (param_state_empty(param_state)) {
+      continue;
+    }
+
+    pcw_t pcw = *(pcw_t *)(tracer->ctx.data + offset);
+
+    // found the next visible param
+    if (!tracer_param_hidden(tracer, pcw)) {
+      tracer->current_param_offset = offset;
+      tracer->scroll_to_param = true;
+      break;
+    }
+  }
 }
 
-bool Tracer::Parse(const char *path) {
-  if (!trace_.Parse(path)) {
-    LOG_WARNING("Failed to parse %s", path);
-    return false;
+static void tracer_reset_param(tracer_t *tracer) {
+  tracer->current_param_offset = -1;
+  tracer->scroll_to_param = false;
+}
+
+static void tracer_prev_context(tracer_t *tracer) {
+  trace_cmd_t *begin = tracer->current_cmd->prev;
+
+  // ensure that there is a prev context
+  trace_cmd_t *prev = begin;
+
+  while (prev) {
+    if (prev->type == TRACE_CMD_CONTEXT) {
+      break;
+    }
+
+    prev = prev->prev;
   }
 
-  ResetContext();
+  if (!prev) {
+    return;
+  }
 
-  return true;
+  // walk back to the prev context, reverting any textures that've been added
+  trace_cmd_t *curr = begin;
+
+  while (curr != prev) {
+    if (curr->type == TRACE_CMD_TEXTURE) {
+      tracer_remove_texture(tracer, curr->texture.tsp, curr->texture.tcw);
+
+      trace_cmd_t *override = curr->override;
+      if (override) {
+        CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
+
+        tracer_add_texture(tracer, override->texture.tsp, override->texture.tcw,
+                           override->texture.palette,
+                           override->texture.texture);
+      }
+    }
+
+    curr = curr->prev;
+  }
+
+  tracer->current_cmd = curr;
+  tracer->current_context--;
+  tracer_copy_command(tracer->current_cmd, &tracer->ctx);
+  tracer_reset_param(tracer);
 }
 
-void Tracer::RenderScrubberMenu() {
+static void tracer_next_context(tracer_t *tracer) {
+  trace_cmd_t *begin =
+      tracer->current_cmd ? tracer->current_cmd->next : tracer->trace->cmds;
+
+  // ensure that there is a next context
+  trace_cmd_t *next = begin;
+
+  while (next) {
+    if (next->type == TRACE_CMD_CONTEXT) {
+      break;
+    }
+
+    next = next->next;
+  }
+
+  if (!next) {
+    return;
+  }
+
+  // walk towards to the next context, adding any new textures
+  trace_cmd_t *curr = begin;
+
+  while (curr != next) {
+    if (curr->type == TRACE_CMD_TEXTURE) {
+      tracer_add_texture(tracer, curr->texture.tsp, curr->texture.tcw,
+                         curr->texture.palette, curr->texture.texture);
+    }
+
+    curr = curr->next;
+  }
+
+  tracer->current_cmd = curr;
+  tracer->current_context++;
+  tracer_copy_command(tracer->current_cmd, &tracer->ctx);
+  tracer_reset_param(tracer);
+}
+
+static void tracer_reset_context(tracer_t *tracer) {
+  // calculate the total number of frames for the trace
+  trace_cmd_t *cmd = tracer->trace->cmds;
+
+  tracer->num_contexts = 0;
+
+  while (cmd) {
+    if (cmd->type == TRACE_CMD_CONTEXT) {
+      tracer->num_contexts++;
+    }
+
+    cmd = cmd->next;
+  }
+
+  // start rendering the first context
+  tracer->current_cmd = NULL;
+  tracer->current_context = -1;
+  tracer_next_context(tracer);
+}
+
+static void tracer_render_scrubber_menu(tracer_t *tracer) {
   ImGuiIO &io = ImGui::GetIO();
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-  ImGui::Begin("Scrubber", nullptr,
+  ImGui::Begin("Scrubber", NULL,
                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                    ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar);
 
@@ -207,14 +371,14 @@ void Tracer::RenderScrubberMenu() {
   ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
 
   ImGui::PushItemWidth(-1.0f);
-  int frame = current_frame_;
-  if (ImGui::SliderInt("", &frame, 0, num_frames_ - 1)) {
-    int delta = frame - current_frame_;
-    for (int i = 0; i < std::abs(delta); i++) {
+  int frame = tracer->current_context;
+  if (ImGui::SliderInt("", &frame, 0, tracer->num_contexts - 1)) {
+    int delta = frame - tracer->current_context;
+    for (int i = 0; i < ABS(delta); i++) {
       if (delta > 0) {
-        NextContext();
+        tracer_next_context(tracer);
       } else {
-        PrevContext();
+        tracer_prev_context(tracer);
       }
     }
   }
@@ -224,26 +388,22 @@ void Tracer::RenderScrubberMenu() {
   ImGui::PopStyleVar();
 }
 
-void Tracer::RenderTextureMenu() {
+static void tracer_render_texture_menu(tracer_t *tracer) {
   ImGuiIO &io = ImGui::GetIO();
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-  ImGui::Begin("Textures", nullptr, ImGuiWindowFlags_NoTitleBar |
-                                        ImGuiWindowFlags_NoResize |
-                                        ImGuiWindowFlags_NoMove |
-                                        ImGuiWindowFlags_HorizontalScrollbar);
+  ImGui::Begin("Textures", NULL, ImGuiWindowFlags_NoTitleBar |
+                                     ImGuiWindowFlags_NoResize |
+                                     ImGuiWindowFlags_NoMove |
+                                     ImGuiWindowFlags_HorizontalScrollbar);
 
   ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
   ImGui::SetWindowPos(
       ImVec2(0.0f, io.DisplaySize.y - ImGui::GetWindowSize().y));
 
-  auto begin = texcache_.textures_begin();
-  auto end = texcache_.textures_end();
-
-  for (auto it = begin; it != end; ++it) {
-    const TextureInst &tex = it->second;
+  rb_for_each_entry(tex, &tracer->live_textures, texture_t, live_it) {
     ImTextureID handle_id =
-        reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex.handle));
+        reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex->handle));
 
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::ImageButton(handle_id, ImVec2(32.0f, 32.0f), ImVec2(0.0f, 1.0f),
@@ -251,7 +411,7 @@ void Tracer::RenderTextureMenu() {
     ImGui::PopStyleColor();
 
     char popup_name[128];
-    snprintf(popup_name, sizeof(popup_name), "texture_%d", tex.handle);
+    snprintf(popup_name, sizeof(popup_name), "texture_%d", tex->handle);
 
     if (ImGui::BeginPopupContextItem(popup_name, 0)) {
       ImGui::Image(handle_id, ImVec2(128, 128), ImVec2(0.0f, 1.0f),
@@ -259,14 +419,14 @@ void Tracer::RenderTextureMenu() {
 
       ImGui::Separator();
 
-      ImGui::Text("addr; 0x%08x", tex.tcw.texture_addr << 3);
-      ImGui::Text("format: %s", s_pixel_format_names[tex.format]);
-      ImGui::Text("filter: %s", s_filter_mode_names[tex.filter]);
-      ImGui::Text("wrap_u: %s", s_wrap_mode_names[tex.wrap_u]);
-      ImGui::Text("wrap_v: %s", s_wrap_mode_names[tex.wrap_v]);
-      ImGui::Text("mipmaps: %d", tex.mipmaps);
-      ImGui::Text("width: %d", tex.width);
-      ImGui::Text("height: %d", tex.height);
+      ImGui::Text("addr; 0x%08x", tex->tcw.texture_addr << 3);
+      ImGui::Text("format: %s", s_pixel_format_names[tex->format]);
+      ImGui::Text("filter: %s", s_filter_mode_names[tex->filter]);
+      ImGui::Text("wrap_u: %s", s_wrap_mode_names[tex->wrap_u]);
+      ImGui::Text("wrap_v: %s", s_wrap_mode_names[tex->wrap_v]);
+      ImGui::Text("mipmaps: %d", tex->mipmaps);
+      ImGui::Text("width: %d", tex->width);
+      ImGui::Text("height: %d", tex->height);
 
       ImGui::EndPopup();
     }
@@ -278,9 +438,11 @@ void Tracer::RenderTextureMenu() {
   ImGui::PopStyleVar();
 }
 
-void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
-  int surf_id = rctx_.param_map[offset].num_surfs - 1;
-  int vert_id = rctx_.param_map[offset].num_verts - 1;
+static void tracer_format_tooltip(tracer_t *tracer, int list_type,
+                                  int vertex_type, int offset) {
+  param_state_t *param_state = &tracer->rctx.states[offset];
+  int surf_id = param_state->num_surfs - 1;
+  int vert_id = param_state->num_verts - 1;
 
   ImGui::BeginTooltip();
 
@@ -290,8 +452,8 @@ void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
   {
     // find sorted position
     int sort = 0;
-    for (int i = 0, n = rctx_.surfs.size(); i < n; i++) {
-      int idx = rctx_.sorted_surfs[i];
+    for (int i = 0, n = tracer->rctx.num_surfs; i < n; i++) {
+      int idx = tracer->rctx.sorted_surfs[i];
       if (idx == surf_id) {
         sort = i;
         break;
@@ -303,7 +465,7 @@ void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
   // render source TA information
   if (vertex_type == -1) {
     const poly_param_t *param =
-        reinterpret_cast<const poly_param_t *>(tctx_.data + offset);
+        reinterpret_cast<const poly_param_t *>(tracer->ctx.data + offset);
 
     ImGui::Text("pcw: 0x%x", param->type0.pcw.full);
     ImGui::Text("isp_tsp: 0x%x", param->type0.isp_tsp.full);
@@ -342,7 +504,7 @@ void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
     }
   } else {
     const vert_param_t *param =
-        reinterpret_cast<const vert_param_t *>(tctx_.data + offset);
+        reinterpret_cast<const vert_param_t *>(tracer->ctx.data + offset);
 
     ImGui::Text("vert type: %d", vertex_type);
 
@@ -432,48 +594,48 @@ void Tracer::FormatTooltip(int list_type, int vertex_type, int offset) {
 
   // always render translated surface information. new surfaces can be created
   // without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE
-  surface_t &surf = rctx_.surfs[surf_id];
+  surface_t *surf = &tracer->rctx.surfs[surf_id];
 
   ImGui::Separator();
 
   ImGui::Image(
-      reinterpret_cast<ImTextureID>(static_cast<intptr_t>(surf.texture)),
+      reinterpret_cast<ImTextureID>(static_cast<intptr_t>(surf->texture)),
       ImVec2(64.0f, 64.0f));
-  ImGui::Text("depth_write: %d", surf.depth_write);
-  ImGui::Text("depth_func: %s", s_depthfunc_names[surf.depth_func]);
-  ImGui::Text("cull: %s", s_cullface_names[surf.cull]);
-  ImGui::Text("src_blend: %s", s_blendfunc_names[surf.src_blend]);
-  ImGui::Text("dst_blend: %s", s_blendfunc_names[surf.dst_blend]);
-  ImGui::Text("shade: %s", s_shademode_names[surf.shade]);
-  ImGui::Text("ignore_tex_alpha: %d", surf.ignore_tex_alpha);
-  ImGui::Text("first_vert: %d", surf.first_vert);
-  ImGui::Text("num_verts: %d", surf.num_verts);
+  ImGui::Text("depth_write: %d", surf->depth_write);
+  ImGui::Text("depth_func: %s", s_depthfunc_names[surf->depth_func]);
+  ImGui::Text("cull: %s", s_cullface_names[surf->cull]);
+  ImGui::Text("src_blend: %s", s_blendfunc_names[surf->src_blend]);
+  ImGui::Text("dst_blend: %s", s_blendfunc_names[surf->dst_blend]);
+  ImGui::Text("shade: %s", s_shademode_names[surf->shade]);
+  ImGui::Text("ignore_tex_alpha: %d", surf->ignore_tex_alpha);
+  ImGui::Text("first_vert: %d", surf->first_vert);
+  ImGui::Text("num_verts: %d", surf->num_verts);
 
   // render translated vert only when rendering a vertex tooltip
   if (vertex_type != -1) {
-    vertex_t &vert = rctx_.verts[vert_id];
+    vertex_t *vert = &tracer->rctx.verts[vert_id];
 
     ImGui::Separator();
 
-    ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert.xyz[0], vert.xyz[1],
-                vert.xyz[2]);
-    ImGui::Text("uv: {%.2f, %.2f}", vert.uv[0], vert.uv[1]);
-    ImGui::Text("color: 0x%08x", vert.color);
-    ImGui::Text("offset_color: 0x%08x", vert.offset_color);
+    ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert->xyz[0], vert->xyz[1],
+                vert->xyz[2]);
+    ImGui::Text("uv: {%.2f, %.2f}", vert->uv[0], vert->uv[1]);
+    ImGui::Text("color: 0x%08x", vert->color);
+    ImGui::Text("offset_color: 0x%08x", vert->offset_color);
   }
 
   ImGui::EndTooltip();
 }
 
-void Tracer::RenderContextMenu() {
+static void tracer_render_context_menu(tracer_t *tracer) {
   char label[128];
 
-  ImGui::Begin("Context", nullptr, ImVec2(256.0f, 256.0f));
+  ImGui::Begin("Context", NULL, ImVec2(256.0f, 256.0f));
 
   // param filters
   for (int i = 0; i < TA_NUM_PARAMS; i++) {
     snprintf(label, sizeof(label), "Hide %s", s_param_names[i]);
-    ImGui::Checkbox(label, &hide_params_[i]);
+    ImGui::Checkbox(label, &tracer->hide_params[i]);
   }
   ImGui::Separator();
 
@@ -481,12 +643,17 @@ void Tracer::RenderContextMenu() {
   int list_type = 0;
   int vertex_type = 0;
 
-  for (auto it : rctx_.param_map) {
-    int offset = it.first;
-    pcw_t pcw = load<pcw_t>(tctx_.data + offset);
-    bool param_selected = offset == current_offset_;
+  for (int offset = 0; offset < tracer->rctx.num_states; offset++) {
+    param_state_t *param_state = &tracer->rctx.states[offset];
 
-    if (!hide_params_[pcw.para_type]) {
+    if (param_state_empty(param_state)) {
+      continue;
+    }
+
+    pcw_t pcw = *(pcw_t *)(tracer->ctx.data + offset);
+    bool param_selected = (offset == tracer->current_param_offset);
+
+    if (!tracer_param_hidden(tracer, pcw)) {
       snprintf(label, sizeof(label), "0x%04x %s", offset,
                s_param_names[pcw.para_type]);
       ImGui::Selectable(label, &param_selected);
@@ -495,31 +662,31 @@ void Tracer::RenderContextMenu() {
         case TA_PARAM_POLY_OR_VOL:
         case TA_PARAM_SPRITE: {
           const poly_param_t *param =
-              reinterpret_cast<const poly_param_t *>(tctx_.data + offset);
+              reinterpret_cast<const poly_param_t *>(tracer->ctx.data + offset);
           list_type = param->type0.pcw.list_type;
           vertex_type = ta_get_vert_type(param->type0.pcw);
 
           if (ImGui::IsItemHovered()) {
-            FormatTooltip(list_type, -1, offset);
+            tracer_format_tooltip(tracer, list_type, -1, offset);
           }
         } break;
 
         case TA_PARAM_VERTEX: {
           if (ImGui::IsItemHovered()) {
-            FormatTooltip(list_type, vertex_type, offset);
+            tracer_format_tooltip(tracer, list_type, vertex_type, offset);
           }
         } break;
       }
 
       if (param_selected) {
-        current_offset_ = offset;
+        tracer->current_param_offset = offset;
 
-        if (scroll_to_param_) {
+        if (tracer->scroll_to_param) {
           if (!ImGui::IsItemVisible()) {
             ImGui::SetScrollHere();
           }
 
-          scroll_to_param_ = false;
+          tracer->scroll_to_param = false;
         }
       }
     }
@@ -528,181 +695,137 @@ void Tracer::RenderContextMenu() {
   ImGui::End();
 }
 
-// Copy TRACE_CMD_CONTEXT command to the current context being rendered.
-void Tracer::CopyCommandToContext(const TraceCommand *cmd, ta_ctx_t *ctx) {
-  CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
+static void tracer_onpaint(tracer_t *tracer, bool show_main_menu) {
+  tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rctx);
 
-  ctx->autosort = cmd->context.autosort;
-  ctx->stride = cmd->context.stride;
-  ctx->pal_pxl_format = cmd->context.pal_pxl_format;
-  ctx->bg_isp = cmd->context.bg_isp;
-  ctx->bg_tsp = cmd->context.bg_tsp;
-  ctx->bg_tcw = cmd->context.bg_tcw;
-  ctx->bg_depth = cmd->context.bg_depth;
-  ctx->video_width = cmd->context.video_width;
-  ctx->video_height = cmd->context.video_height;
-  memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
-         cmd->context.bg_vertices_size);
-  memcpy(ctx->data, cmd->context.data, cmd->context.data_size);
-  ctx->size = cmd->context.data_size;
-}
+  // render UI
+  tracer_render_scrubber_menu(tracer);
+  tracer_render_texture_menu(tracer);
+  tracer_render_context_menu(tracer);
 
-void Tracer::PrevContext() {
-  TraceCommand *begin = current_cmd_->prev;
-  ;
+  // clamp surfaces the last surface belonging to the current param
+  int n = tracer->rctx.num_surfs;
+  int last_idx = n;
 
-  // ensure that there is a prev context
-  TraceCommand *prev = begin;
-
-  while (prev) {
-    if (prev->type == TRACE_CMD_CONTEXT) {
-      break;
-    }
-
-    prev = prev->prev;
+  if (tracer->current_param_offset >= 0) {
+    const param_state_t *offset =
+        &tracer->rctx.states[tracer->current_param_offset];
+    last_idx = offset->num_surfs;
   }
 
-  if (!prev) {
+  // render the context
+  rb_begin_surfaces(tracer->rb, tracer->rctx.projection, tracer->rctx.verts,
+                    tracer->rctx.num_verts);
+
+  for (int i = 0; i < n; i++) {
+    int idx = tracer->rctx.sorted_surfs[i];
+
+    // if this surface comes after the current parameter, ignore it
+    if (idx >= last_idx) {
+      continue;
+    }
+
+    rb_draw_surface(tracer->rb, &tracer->rctx.surfs[idx]);
+  }
+
+  rb_end_surfaces(tracer->rb);
+}
+
+static void tracer_onkeydown(tracer_t *tracer, keycode_t code, int16_t value) {
+  if (code == K_F1) {
+    if (value) {
+      win_enable_main_menu(tracer->window,
+                           !win_main_menu_enabled(tracer->window));
+    }
+  } else if (code == K_LEFT && value) {
+    tracer_prev_context(tracer);
+  } else if (code == K_RIGHT && value) {
+    tracer_next_context(tracer);
+  } else if (code == K_UP && value) {
+    tracer_prev_param(tracer);
+  } else if (code == K_DOWN && value) {
+    tracer_next_param(tracer);
+  }
+}
+
+static void tracer_onclose(tracer_t *tracer) {
+  tracer->running = false;
+}
+
+static bool tracer_parse(tracer_t *tracer, const char *path) {
+  if (tracer->trace) {
+    trace_destroy(tracer->trace);
+    tracer->trace = NULL;
+  }
+
+  tracer->trace = trace_parse(path);
+
+  if (!tracer->trace) {
+    LOG_WARNING("Failed to parse %s", path);
+    return false;
+  }
+
+  tracer_reset_context(tracer);
+
+  return true;
+}
+
+void tracer_run(tracer_t *tracer, const char *path) {
+  if (!tracer_parse(tracer, path)) {
     return;
   }
 
-  // walk back to the prev context, reverting any textures that've been added
-  TraceCommand *curr = prev;
+  tracer->running = true;
 
-  while (curr != prev) {
-    if (curr->type == TRACE_CMD_TEXTURE) {
-      texcache_.RemoveTexture(curr->texture.tsp, curr->texture.tcw);
-
-      TraceCommand *override = curr->override;
-      if (override) {
-        CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
-
-        texcache_.AddTexture(override->texture.tsp, override->texture.tcw,
-                             override->texture.palette,
-                             override->texture.texture);
-      }
-    }
-
-    curr = curr->prev;
-  }
-
-  current_cmd_ = curr;
-  current_frame_--;
-  CopyCommandToContext(current_cmd_, &tctx_);
-  ResetParam();
-}
-
-void Tracer::NextContext() {
-  TraceCommand *begin = current_cmd_ ? current_cmd_->next : trace_.cmds();
-
-  // ensure that there is a next context
-  TraceCommand *next = begin;
-
-  while (next) {
-    if (next->type == TRACE_CMD_CONTEXT) {
-      break;
-    }
-
-    next = next->next;
-  }
-
-  if (!next) {
-    return;
-  }
-
-  // walk towards to the next context, adding any new textures
-  TraceCommand *curr = begin;
-
-  while (curr != next) {
-    if (curr->type == TRACE_CMD_TEXTURE) {
-      texcache_.AddTexture(curr->texture.tsp, curr->texture.tcw,
-                           curr->texture.palette, curr->texture.texture);
-    }
-
-    curr = curr->next;
-  }
-
-  current_cmd_ = curr;
-  current_frame_++;
-  CopyCommandToContext(current_cmd_, &tctx_);
-  ResetParam();
-}
-
-void Tracer::ResetContext() {
-  // calculate the total number of frames for the trace
-  TraceCommand *cmd = trace_.cmds();
-
-  num_frames_ = 0;
-
-  while (cmd) {
-    if (cmd->type == TRACE_CMD_CONTEXT) {
-      num_frames_++;
-    }
-
-    cmd = cmd->next;
-  }
-
-  // start rendering the first context
-  current_frame_ = -1;
-  current_cmd_ = nullptr;
-  NextContext();
-}
-
-void Tracer::PrevParam() {
-  auto it = rctx_.param_map.find(current_offset_);
-
-  if (it == rctx_.param_map.end()) {
-    return;
-  }
-
-  while (true) {
-    // stop at first param
-    if (it == rctx_.param_map.begin()) {
-      break;
-    }
-
-    --it;
-
-    int offset = it->first;
-    pcw_t pcw = load<pcw_t>(tctx_.data + offset);
-
-    // found the next visible param
-    if (!hide_params_[pcw.para_type]) {
-      current_offset_ = it->first;
-      scroll_to_param_ = true;
-      break;
-    }
+  while (tracer->running) {
+    win_pump_events(tracer->window);
   }
 }
 
-void Tracer::NextParam() {
-  auto it = rctx_.param_map.find(current_offset_);
+tracer_t *tracer_create(struct window_s *window) {
+  static const window_callbacks_t callbacks = {
+      NULL,
+      (window_paint_cb)&tracer_onpaint,
+      NULL,
+      (window_keydown_cb)&tracer_onkeydown,
+      NULL,
+      NULL,
+      (window_close_cb)&tracer_onclose};
 
-  if (it == rctx_.param_map.end()) {
-    return;
+  // ensure param / poly / vertex size LUTs are generated
+  ta_build_tables();
+
+  tracer_t *tracer = reinterpret_cast<tracer_t *>(calloc(1, sizeof(tracer_t)));
+
+  tracer->window = window;
+  tracer->listener = win_add_listener(window, &callbacks, tracer);
+  tracer->rb = win_render_backend(window);
+  tracer->tr = tr_create(tracer->rb, tracer, &tracer_get_texture);
+
+  // setup render context buffers
+  tracer->rctx.surfs = tracer->surfs;
+  tracer->rctx.surfs_size = array_size(tracer->surfs);
+  tracer->rctx.verts = tracer->verts;
+  tracer->rctx.verts_size = array_size(tracer->verts);
+  tracer->rctx.sorted_surfs = tracer->sorted_surfs;
+  tracer->rctx.sorted_surfs_size = array_size(tracer->sorted_surfs);
+  tracer->rctx.states = tracer->states;
+  tracer->rctx.states_size = array_size(tracer->states);
+
+  // add all textures to free list
+  for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
+    texture_t *texture = &tracer->textures[i];
+    list_add(&tracer->free_textures, &texture->free_it);
   }
 
-  while (true) {
-    ++it;
-
-    // stop at last param
-    if (it == rctx_.param_map.end()) {
-      break;
-    }
-
-    int offset = it->first;
-    pcw_t pcw = load<pcw_t>(tctx_.data + offset);
-
-    // found the next visible param
-    if (!hide_params_[pcw.para_type]) {
-      current_offset_ = it->first;
-      scroll_to_param_ = true;
-      break;
-    }
-  }
+  return tracer;
 }
 
-void Tracer::ResetParam() {
-  current_offset_ = INVALID_OFFSET;
-  scroll_to_param_ = false;
+void tracer_destroy(tracer_t *tracer) {
+  if (tracer->trace) {
+    trace_destroy(tracer->trace);
+  }
+  win_remove_listener(tracer->window, tracer->listener);
+  tr_destroy(tracer->tr);
+  free(tracer);
 }

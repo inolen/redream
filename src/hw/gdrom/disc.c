@@ -2,7 +2,6 @@
 #include "hw/gdrom/disc.h"
 
 static const int GDI_PREGAP_SIZE = 150;
-static const int GDI_MAX_TRACKS = 64;
 
 typedef struct disc_s {
   void (*destroy)(struct disc_s *);
@@ -14,17 +13,61 @@ typedef struct disc_s {
 typedef struct {
   disc_t base;
 
-  track_t tracks[GDI_MAX_TRACKS];
+  track_t tracks[64];
   int num_tracks;
 } gdi_t;
 
-static gdi_t *gdi_create(const char *filename);
-static void gdi_destroy(gdi_t *gdi);
-static int gdi_num_tracks(gdi_t *gdi);
-static track_t *gdi_get_track(gdi_t *gdi, int n);
-static int gdi_read_sector(gdi_t *gdi, int fad, void *dst);
+static int gdi_num_tracks(gdi_t *gdi) {
+  return gdi->num_tracks;
+}
 
-gdi_t *gdi_create(const char *filename) {
+static track_t *gdi_get_track(gdi_t *gdi, int n) {
+  return &gdi->tracks[n];
+}
+
+static int gdi_read_sector(gdi_t *gdi, int fad, void *dst) {
+  // find the track to read from
+  track_t *track = NULL;
+  for (int i = 0; i < gdi->num_tracks; i++) {
+    track_t *curr_track = &gdi->tracks[i];
+    track_t *next_track = i < gdi->num_tracks - 1 ? &gdi->tracks[i + 1] : NULL;
+
+    if (fad >= curr_track->fad && (!next_track || fad < next_track->fad)) {
+      track = curr_track;
+      break;
+    }
+  }
+  CHECK_NOTNULL(track);
+
+  // open the file backing the track
+  if (!track->file) {
+    track->file = fopen(track->filename, "rb");
+    CHECK(track->file);
+  }
+
+  // read from it
+  int res =
+      fseek(track->file, track->file_offset + fad * SECTOR_SIZE, SEEK_SET);
+  CHECK_EQ(res, 0);
+
+  res = (int)fread(dst, SECTOR_SIZE, 1, track->file);
+  CHECK_EQ(res, 1);
+
+  return 1;
+}
+
+static void gdi_destroy(gdi_t *gdi) {
+  // cleanup file handles
+  for (int i = 0; i < gdi->num_tracks; i++) {
+    track_t *track = &gdi->tracks[i];
+
+    if (track->file) {
+      fclose(track->file);
+    }
+  }
+}
+
+static gdi_t *gdi_create(const char *filename) {
   gdi_t *gdi = calloc(1, sizeof(gdi_t));
 
   gdi->base.destroy = (void (*)(disc_t *)) & gdi_destroy;
@@ -65,7 +108,7 @@ gdi_t *gdi_create(const char *filename) {
     }
 
     // add track
-    CHECK_LT(gdi->num_tracks, GDI_MAX_TRACKS);
+    CHECK_LT(gdi->num_tracks, array_size(gdi->tracks));
     track_t *track = &gdi->tracks[gdi->num_tracks++];
     track->num = num;
     track->fad = lba + GDI_PREGAP_SIZE;
@@ -80,64 +123,6 @@ gdi_t *gdi_create(const char *filename) {
   return gdi;
 }
 
-void gdi_destroy(gdi_t *gdi) {
-  // cleanup file handles
-  for (int i = 0; i < gdi->num_tracks; i++) {
-    track_t *track = &gdi->tracks[i];
-
-    if (track->file) {
-      fclose(track->file);
-    }
-  }
-}
-
-int gdi_num_tracks(gdi_t *gdi) {
-  return gdi->num_tracks;
-}
-
-track_t *gdi_get_track(gdi_t *gdi, int n) {
-  return &gdi->tracks[n];
-}
-
-int gdi_read_sector(gdi_t *gdi, int fad, void *dst) {
-  // find the track to read from
-  track_t *track = NULL;
-  for (int i = 0; i < gdi->num_tracks; i++) {
-    track_t *curr_track = &gdi->tracks[i];
-    track_t *next_track = i < gdi->num_tracks - 1 ? &gdi->tracks[i + 1] : NULL;
-
-    if (fad >= curr_track->fad && (!next_track || fad < next_track->fad)) {
-      track = curr_track;
-      break;
-    }
-  }
-  CHECK_NOTNULL(track);
-
-  // open the file backing the track
-  if (!track->file) {
-    track->file = fopen(track->filename, "rb");
-    CHECK(track->file);
-  }
-
-  // read from it
-  int res =
-      fseek(track->file, track->file_offset + fad * SECTOR_SIZE, SEEK_SET);
-  CHECK_EQ(res, 0);
-
-  res = (int)fread(dst, SECTOR_SIZE, 1, track->file);
-  CHECK_EQ(res, 1);
-
-  return 1;
-}
-
-disc_t *disc_create_gdi(const char *filename) {
-  return (disc_t *)gdi_create(filename);
-}
-
-void disc_destroy(disc_t *disc) {
-  return disc->destroy(disc);
-}
-
 int disc_num_tracks(disc_t *disc) {
   return disc->num_tracks(disc);
 }
@@ -148,4 +133,12 @@ track_t *disc_get_track(disc_t *disc, int n) {
 
 int disc_read_sector(disc_t *disc, int fad, void *dst) {
   return disc->read_sector(disc, fad, dst);
+}
+
+disc_t *disc_create_gdi(const char *filename) {
+  return (disc_t *)gdi_create(filename);
+}
+
+void disc_destroy(disc_t *disc) {
+  return disc->destroy(disc);
 }

@@ -1,24 +1,26 @@
 #ifndef TRACE_H
 #define TRACE_H
 
+#include <stdio.h>
 #include "hw/holly/ta_types.h"
 
-enum TraceCommandType {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum {
   TRACE_CMD_NONE,
   TRACE_CMD_TEXTURE,
   TRACE_CMD_CONTEXT,
-};
+} trace_cmd_type_t;
 
-struct TraceCommand {
-  TraceCommand()
-      : type(TRACE_CMD_NONE), prev(nullptr), next(nullptr), override(nullptr) {}
-
-  TraceCommandType type;
+typedef struct trace_cmd_s {
+  trace_cmd_type_t type;
 
   // set on read
-  TraceCommand *prev;
-  TraceCommand *next;
-  TraceCommand *override;
+  struct trace_cmd_s *prev;
+  struct trace_cmd_s *next;
+  struct trace_cmd_s *override;
 
   // the data pointers in these structs are written out relative to the cmd,
   // and patched to absolute pointers on read
@@ -32,7 +34,7 @@ struct TraceCommand {
       const uint8_t *texture;
     } texture;
 
-    // slimmed down version of the ta_ctx_t structure, will need to be in
+    // slimmed down version of the tile_ctx_t structure, will need to be in
     // sync
     struct {
       int8_t autosort;
@@ -50,45 +52,26 @@ struct TraceCommand {
       const uint8_t *data;
     } context;
   };
-};
+} trace_cmd_t;
 
-extern void GetNextTraceFilename(char *filename, size_t size);
+typedef struct { trace_cmd_t *cmds; } trace_t;
 
-class TraceReader {
- public:
-  TraceReader();
-  ~TraceReader();
+typedef struct { FILE *file; } trace_writer_t;
 
-  TraceCommand *cmds() {
-    return reinterpret_cast<TraceCommand *>(trace_);
-  }
+extern void get_next_trace_filename(char *filename, size_t size);
 
-  bool Parse(const char *filename);
+trace_t *trace_parse(const char *filename);
+void trace_destroy(trace_t *trace);
 
- private:
-  void Reset();
-  bool PatchPointers();
-  bool PatchOverrides();
+trace_writer_t *trace_writer_open(const char *filename);
+void trace_writer_insert_texture(trace_writer_t *writer, tsp_t tsp, tcw_t tcw,
+                                 const uint8_t *palette, int palette_size,
+                                 const uint8_t *texture, int texture_size);
+void trace_writer_render_context(trace_writer_t *writer, tile_ctx_t *ctx);
+void trace_writer_close(trace_writer_t *writer);
 
-  size_t trace_size_;
-  uint8_t *trace_;
-};
-
-class TraceWriter {
- public:
-  TraceWriter();
-  ~TraceWriter();
-
-  bool Open(const char *filename);
-  void Close();
-
-  void WriteInsertTexture(tsp_t tsp, tcw_t tcw, const uint8_t *palette,
-                          int palette_size, const uint8_t *texture,
-                          int texture_size);
-  void WriteRenderContext(ta_ctx_t *tctx);
-
- private:
-  FILE *file_;
-};
+#ifdef __cplusplus
+}
+#endif
 
 #endif

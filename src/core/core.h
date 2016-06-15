@@ -29,24 +29,6 @@
     (type*)((char*)__mptr - offsetof(type, member));  \
   })
 
-#define array_size(arr) (sizeof(arr) / sizeof((arr)[0]))
-
-#define array_resize(arr, new_size) \
-  {                                 \
-    array_reserve(arr, new_size);   \
-    arr##_size = new_size;          \
-  }
-
-#define array_reserve(arr, new_capacity)                   \
-  {                                                        \
-    if (arr##_capacity < new_capacity) {                   \
-      arr##_capacity = MAX(arr##_capacity, 4);             \
-                                                           \
-      while (arr##_capacity < new_capacity) {              \
-        arr##_capacity *= 2;                               \
-      }                                                    \
-      arr = realloc(arr, arr##_capacity * sizeof(arr[0])); \
-    }                                                      \
-  }
+#define array_size(arr) (int)(sizeof(arr) / sizeof((arr)[0]))
 
 #endif

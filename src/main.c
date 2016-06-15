@@ -1,7 +1,7 @@
 #include "core/log.h"
 #include "core/option.h"
 #include "emu/emulator.h"
-// #include "emu/tracer.h"
+#include "emu/tracer.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 #include "ui/window.h"
@@ -59,14 +59,15 @@ int main(int argc, char **argv) {
   }
 
   const char *load = argc > 1 ? argv[1] : NULL;
-  // if (load && strstr(load, ".trace")) {
-  //   std::unique_ptr<Tracer> tracer(new Tracer(window));
-  //   tracer->Run(load);
-  // } else {
-  struct emu_s *emu = emu_create(window);
-  emu_run(emu, load);
-  emu_destroy(emu);
-  // }
+  if (load && strstr(load, ".trace")) {
+    struct tracer_s *tracer = tracer_create(window);
+    tracer_run(tracer, load);
+    tracer_destroy(tracer);
+  } else {
+    struct emu_s *emu = emu_create(window);
+    emu_run(emu, load);
+    emu_destroy(emu);
+  }
 
   win_destroy(window);
 

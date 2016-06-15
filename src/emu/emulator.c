@@ -142,34 +142,6 @@ static void emu_onclose(emu_t *emu) {
   emu->running = false;
 }
 
-emu_t *emu_create(struct window_s *window) {
-  static const window_callbacks_t callbacks = {
-      NULL,
-      (window_paint_cb)&emu_onpaint,
-      NULL,
-      (window_keydown_cb)&emu_onkeydown,
-      NULL,
-      NULL,
-      (window_close_cb)&emu_onclose};
-
-  emu_t *emu = calloc(1, sizeof(emu_t));
-
-  emu->window = window;
-  emu->listener = win_add_listener(emu->window, &callbacks, emu);
-
-  return emu;
-}
-
-void emu_destroy(emu_t *emu) {
-  win_remove_listener(emu->window, emu->listener);
-
-  if (emu->dc) {
-    dc_destroy(emu->dc);
-  }
-
-  free(emu);
-}
-
 void emu_run(emu_t *emu, const char *path) {
   emu->dc = dc_create(win_render_backend(emu->window));
 
@@ -225,4 +197,32 @@ void emu_run(emu_t *emu, const char *path) {
       next_frame_time = current_time + FRAME_STEP;
     }
   }
+}
+
+emu_t *emu_create(struct window_s *window) {
+  static const window_callbacks_t callbacks = {
+      NULL,
+      (window_paint_cb)&emu_onpaint,
+      NULL,
+      (window_keydown_cb)&emu_onkeydown,
+      NULL,
+      NULL,
+      (window_close_cb)&emu_onclose};
+
+  emu_t *emu = calloc(1, sizeof(emu_t));
+
+  emu->window = window;
+  emu->listener = win_add_listener(emu->window, &callbacks, emu);
+
+  return emu;
+}
+
+void emu_destroy(emu_t *emu) {
+  win_remove_listener(emu->window, emu->listener);
+
+  if (emu->dc) {
+    dc_destroy(emu->dc);
+  }
+
+  free(emu);
 }

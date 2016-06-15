@@ -32,12 +32,13 @@ typedef struct holly_s {
 #undef HOLLY_REG
 } holly_t;
 
-AM_DECLARE(holly_reg_map);
+void holly_raise_interrupt(holly_t *hl, holly_interrupt_t intr);
+void holly_clear_interrupt(holly_t *hl, holly_interrupt_t intr);
 
 holly_t *holly_create(struct dreamcast_s *dc);
 void holly_destroy(holly_t *hl);
-void holly_raise_interrupt(holly_t *hl, holly_interrupt_t intr);
-void holly_clear_interrupt(holly_t *hl, holly_interrupt_t intr);
+
+AM_DECLARE(holly_reg_map);
 
 #ifdef __cplusplus
 }
