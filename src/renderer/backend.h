@@ -120,8 +120,22 @@ typedef struct {
 
 struct rb_s;
 
-struct rb_s *rb_create(struct window_s *window);
-void rb_destroy(struct rb_s *rb);
+void rb_begin_surfaces(struct rb_s *rb, const float *projection,
+                       const vertex_t *verts, int num_verts);
+void rb_draw_surface(struct rb_s *rb, const surface_t *surf);
+void rb_end_surfaces(struct rb_s *rb);
+
+void rb_begin_surfaces2d(struct rb_s *rb, const vertex2d_t *verts,
+                         int num_verts, uint16_t *indices, int num_indices);
+void rb_draw_surface2d(struct rb_s *rb, const surface2d_t *surf);
+void rb_end_surfaces2d(struct rb_s *rb);
+
+void rb_begin2d(struct rb_s *rb);
+void rb_end2d(struct rb_s *rb);
+
+void rb_begin_frame(struct rb_s *rb);
+void rb_end_frame(struct rb_s *rb);
+
 texture_handle_t rb_register_texture(struct rb_s *rb, pxl_format_t format,
                                      filter_mode_t filter, wrap_mode_t wrap_u,
                                      wrap_mode_t wrap_v, bool mipmaps,
@@ -129,21 +143,8 @@ texture_handle_t rb_register_texture(struct rb_s *rb, pxl_format_t format,
                                      const uint8_t *buffer);
 void rb_free_texture(struct rb_s *rb, texture_handle_t handle);
 
-void rb_begin_frame(struct rb_s *rb);
-void rb_end_frame(struct rb_s *rb);
-
-void rb_begin2d(struct rb_s *rb);
-void rb_end2d(struct rb_s *rb);
-
-void rb_begin_surfaces2d(struct rb_s *rb, const vertex2d_t *verts,
-                         int num_verts, uint16_t *indices, int num_indices);
-void rb_draw_surface2d(struct rb_s *rb, const surface2d_t *surf);
-void rb_end_surfaces2d(struct rb_s *rb);
-
-void rb_begin_surfaces(struct rb_s *rb, const float *projection,
-                       const vertex_t *verts, int num_verts);
-void rb_draw_surface(struct rb_s *rb, const surface_t *surf);
-void rb_end_surfaces(struct rb_s *rb);
+struct rb_s *rb_create(struct window_s *window);
+void rb_destroy(struct rb_s *rb);
 
 #ifdef __cplusplus
 }

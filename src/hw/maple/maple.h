@@ -24,11 +24,12 @@ typedef struct maple_device_s {
   maple_frame_cb frame;
 } maple_device_t;
 
-struct maple_s *maple_create(struct dreamcast_s *dc);
-void maple_destroy(struct maple_s *mp);
+struct maple_device_s *controller_create();
+
 void maple_vblank(struct maple_s *mp);
 
-struct maple_device_s *controller_create();
+struct maple_s *maple_create(struct dreamcast_s *dc);
+void maple_destroy(struct maple_s *mp);
 
 #ifdef __cplusplus
 }

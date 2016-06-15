@@ -36,11 +36,11 @@ typedef struct pvr_s {
 #undef PVR_REG
 } pvr_t;
 
-AM_DECLARE(pvr_reg_map);
-AM_DECLARE(pvr_vram_map);
-
 pvr_t *pvr_create(struct dreamcast_s *dc);
 void pvr_destroy(pvr_t *pvr);
+
+AM_DECLARE(pvr_reg_map);
+AM_DECLARE(pvr_vram_map);
 
 #ifdef __cplusplus
 }

@@ -430,10 +430,15 @@ typedef union {
   } sprite1;
 } vert_param_t;
 
+// shared by tracer
+static const int TA_MAX_SURFS = 4096;
+static const int TA_MAX_VERTS = 16384;
+static const int TA_PARAMS_SIZE = 0x200000;
+
 // worst case background vertex size, see ISP_BACKGND_T field
 static const int BG_VERTEX_SIZE = (0b111 * 2 + 3) * 4 * 3;
 
-typedef struct ta_ctx_s {
+typedef struct {
   uint32_t addr;
 
   // pvr state
@@ -449,7 +454,7 @@ typedef struct ta_ctx_s {
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
   // command buffer
-  uint8_t data[0x100000];
+  uint8_t data[TA_PARAMS_SIZE];
   int cursor;
   int size;
 
@@ -464,6 +469,6 @@ typedef struct ta_ctx_s {
 
   list_node_t free_it;
   rb_node_t live_it;
-} ta_ctx_t;
+} tile_ctx_t;
 
 #endif

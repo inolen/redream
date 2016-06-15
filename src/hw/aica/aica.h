@@ -11,11 +11,11 @@ extern "C" {
 struct dreamcast_s;
 struct aica_s;
 
-AM_DECLARE(aica_reg_map);
-AM_DECLARE(aica_data_map);
-
 struct aica_s *aica_create(struct dreamcast_s *dc);
 void aica_destroy(struct aica_s *aica);
+
+AM_DECLARE(aica_reg_map);
+AM_DECLARE(aica_data_map);
 
 #ifdef __cplusplus
 }

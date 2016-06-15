@@ -4,15 +4,19 @@
 
 typedef struct arm_s { device_t base; } arm_t;
 
-static bool arm_init(arm_t *arm);
-static void arm_run(arm_t *arm, int64_t ns);
+static bool arm_init(arm_t *arm) {
+  return true;
+}
 
-// clang-format off
-AM_BEGIN(arm_t, arm_data_map);
-  AM_RANGE(0x00000000, 0x007fffff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_data_map)
-  AM_RANGE(0x00800000, 0x00810fff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_reg_map)
-AM_END();
-// clang-format on
+static void arm_run(arm_t *arm, int64_t ns) {}
+
+void arm_suspend(arm_t *arm) {
+  arm->base.execute->suspended = true;
+}
+
+void arm_resume(arm_t *arm) {
+  arm->base.execute->suspended = false;
+}
 
 arm_t *arm_create(dreamcast_t *dc) {
   arm_t *arm =
@@ -26,16 +30,9 @@ void arm_destroy(arm_t *arm) {
   dc_destroy_device(&arm->base);
 }
 
-bool arm_init(arm_t *arm) {
-  return true;
-}
-
-void arm_run(arm_t *arm, int64_t ns) {}
-
-void arm_suspend(arm_t *arm) {
-  arm->base.execute->suspended = true;
-}
-
-void arm_resume(arm_t *arm) {
-  arm->base.execute->suspended = false;
-}
+// clang-format off
+AM_BEGIN(arm_t, arm_data_map);
+  AM_RANGE(0x00000000, 0x007fffff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_data_map)
+  AM_RANGE(0x00800000, 0x00810fff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_reg_map)
+AM_END();
+// clang-format on

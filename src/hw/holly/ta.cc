@@ -8,13 +8,11 @@
 #include "hw/holly/pvr.h"
 #include "hw/holly/ta.h"
 #include "hw/holly/tr.h"
-// #include "hw/holly/trace.h"
+#include "hw/holly/trace.h"
 #include "hw/sh4/sh4.h"
 #include "renderer/backend.h"
 #include "sys/exception_handler.h"
-
-static const int MAX_TEXTURE_ENTRIES = 1024;
-static const int MAX_TILE_CONTEXTS = 4;
+#include "sys/filesystem.h"
 
 typedef struct {
   struct ta_s *ta;
@@ -40,7 +38,7 @@ typedef struct ta_s {
   // texture cache entry pool. free entries are in a linked list, live entries
   // are in a tree ordered by texture key, textures queued for invalidation are
   // in the the invalid_entries linked list
-  texture_entry_t entries[MAX_TEXTURE_ENTRIES];
+  texture_entry_t entries[1024];
   list_t free_entries;
   rb_tree_t live_entries;
   list_t invalid_entries;
@@ -49,75 +47,22 @@ typedef struct ta_s {
   // tile context pool. free contexts are in a linked list, live contexts are
   // are in a tree ordered by the context's guest address, and a pointer to the
   // next context up for rendering is stored in pending_context
-  ta_ctx_t contexts[MAX_TILE_CONTEXTS];
+  tile_ctx_t contexts[4];
   list_t free_contexts;
   rb_tree_t live_contexts;
-  ta_ctx_t *pending_context;
+  tile_ctx_t *pending_context;
 
-  // persistent tile render context. parsing the tile context involves growing
-  // dynamic arrays for surfaces and vertices, keeping a persistent context
-  // keeps us from allocating and growing these each frame
-  tr_ctx_t rctx;
+  // buffers used by render contexts
+  surface_t surfs[TA_MAX_SURFS];
+  vertex_t verts[TA_MAX_VERTS];
+  int sorted_surfs[TA_MAX_SURFS];
 
-  // TraceWriter *trace_writer;
+  trace_writer_t *trace_writer;
 } ta_t;
 
-static void ta_build_tables();
-static int ta_get_param_size_raw(pcw_t pcw, int vertex_type);
-static int ta_get_poly_type_raw(pcw_t pcw);
-static int ta_get_vert_type_raw(pcw_t pcw);
-
-static int ta_entry_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it);
-static int ta_context_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it);
-
-static bool ta_init(ta_t *ta);
-static void ta_paint(ta_t *ta, bool show_main_menu);
-static texture_entry_t *ta_alloc_entry(ta_t *ta, texture_key_t key);
-static void ta_free_entry(ta_t *ta, texture_entry_t *entry);
-static texture_handle_t ta_get_texture(ta_t *ta, const ta_ctx_t *ctx, tsp_t tsp,
-                                       tcw_t tcw, void *register_data,
-                                       register_texture_cb register_cb);
-static void ta_clear_textures(ta_t *ta);
-static void ta_clear_pending_textures(ta_t *ta);
-static void ta_invalidate_texture(ta_t *ta, texture_entry_t *entry);
-static void ta_write_texture(const re_exception_t *ex, texture_entry_t *entry);
-static void ta_write_palette(const re_exception_t *ex, texture_entry_t *entry);
-static void ta_soft_reset(ta_t *ta);
-static ta_ctx_t *ta_get_context(ta_t *ta, uint32_t addr);
-static ta_ctx_t *ta_alloc_context(ta_t *ta, uint32_t addr);
-static void ta_unlink_context(ta_t *ta, ta_ctx_t *ctx);
-static void ta_free_context(ta_t *ta, ta_ctx_t *ctx);
-static void ta_init_context(ta_t *ta, uint32_t addr);
-static void ta_write_context(ta_t *ta, uint32_t addr, uint32_t value);
-static void ta_finish_context(ta_t *ta, uint32_t addr);
-static void ta_save_state(ta_t *ta, ta_ctx_t *tctx);
-static void ta_write_poly_fifo(ta_t *ta, uint32_t addr, uint32_t value);
-static void ta_write_texture_fifo(ta_t *ta, uint32_t addr, uint32_t value);
-DECLARE_REG_W32(ta_t *ta, SOFTRESET);
-DECLARE_REG_W32(ta_t *ta, TA_LIST_INIT);
-DECLARE_REG_W32(ta_t *ta, TA_LIST_CONT);
-DECLARE_REG_W32(ta_t *ta, STARTRENDER);
-
-// clang-format off
-AM_BEGIN(ta_t, ta_fifo_map);
-  AM_RANGE(0x0000000, 0x07fffff) AM_HANDLE(NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           (w32_cb)&ta_write_poly_fifo,
-                                           NULL)
-  AM_RANGE(0x1000000, 0x1ffffff) AM_HANDLE(NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           (w32_cb)&ta_write_texture_fifo,
-                                           NULL)
-AM_END();
-// clang-format on
+int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
+int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
+int g_vertex_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 
 static holly_interrupt_t list_interrupts[] = {
     HOLLY_INTC_TAEOINT,   // TA_LIST_OPAQUE
@@ -127,86 +72,23 @@ static holly_interrupt_t list_interrupts[] = {
     HOLLY_INTC_TAEPTIN    // TA_LIST_PUNCH_THROUGH
 };
 
-static int param_size_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
-static int poly_type_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
-static int vertex_type_lookup[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
-
-static rb_callback_t ta_entry_cb = {(rb_cmp_cb)&ta_entry_cmp, NULL, NULL};
-
-static rb_callback_t ta_context_cb = {(rb_cmp_cb)&ta_context_cmp, NULL, NULL};
-
-static void ta_build_tables() {
-  static bool initialized = false;
-
-  if (initialized) {
-    return;
-  }
-
-  initialized = true;
-
-  for (int i = 0; i < 0x100; i++) {
-    pcw_t pcw = *(pcw_t *)&i;
-
-    for (int j = 0; j < TA_NUM_PARAMS; j++) {
-      pcw.para_type = j;
-
-      for (int k = 0; k < TA_NUM_VERT_TYPES; k++) {
-        param_size_lookup[i * TA_NUM_PARAMS * TA_NUM_VERT_TYPES +
-                          j * TA_NUM_VERT_TYPES + k] =
-            ta_get_param_size_raw(pcw, k);
-      }
-    }
-  }
-
-  for (int i = 0; i < 0x100; i++) {
-    pcw_t pcw = *(pcw_t *)&i;
-
-    for (int j = 0; j < TA_NUM_PARAMS; j++) {
-      pcw.para_type = j;
-
-      for (int k = 0; k < TA_NUM_LISTS; k++) {
-        pcw.list_type = k;
-
-        poly_type_lookup[i * TA_NUM_PARAMS * TA_NUM_LISTS + j * TA_NUM_LISTS +
-                         k] = ta_get_poly_type_raw(pcw);
-        vertex_type_lookup[i * TA_NUM_PARAMS * TA_NUM_LISTS + j * TA_NUM_LISTS +
-                           k] = ta_get_vert_type_raw(pcw);
-      }
-    }
-  }
+static int ta_entry_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it) {
+  const texture_entry_t *lhs = rb_entry(lhs_it, const texture_entry_t, live_it);
+  const texture_entry_t *rhs = rb_entry(rhs_it, const texture_entry_t, live_it);
+  return lhs->key - rhs->key;
 }
 
-// Parameter size can be determined by only the pcw_t for every parameter other
-// than vertex parameters. For vertex parameters, the vertex type derived from
-// the last poly or modifier volume parameter is needed.
-static int ta_get_param_size_raw(pcw_t pcw, int vertex_type) {
-  switch (pcw.para_type) {
-    case TA_PARAM_END_OF_LIST:
-      return 32;
-    case TA_PARAM_USER_TILE_CLIP:
-      return 32;
-    case TA_PARAM_OBJ_LIST_SET:
-      return 32;
-    case TA_PARAM_POLY_OR_VOL: {
-      int type = ta_get_poly_type_raw(pcw);
-      return type == 0 || type == 1 || type == 3 ? 32 : 64;
-    }
-    case TA_PARAM_SPRITE:
-      return 32;
-    case TA_PARAM_VERTEX: {
-      return vertex_type == 0 || vertex_type == 1 || vertex_type == 2 ||
-                     vertex_type == 3 || vertex_type == 4 || vertex_type == 7 ||
-                     vertex_type == 8 || vertex_type == 9 || vertex_type == 10
-                 ? 32
-                 : 64;
-    }
-    default:
-      return 0;
-  }
+static int ta_context_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it) {
+  const tile_ctx_t *lhs = rb_entry(lhs_it, const tile_ctx_t, live_it);
+  const tile_ctx_t *rhs = rb_entry(rhs_it, const tile_ctx_t, live_it);
+  return lhs->addr - rhs->addr;
 }
+
+static rb_callback_t ta_entry_cb = {&ta_entry_cmp, NULL, NULL};
+static rb_callback_t ta_context_cb = {&ta_context_cmp, NULL, NULL};
 
 // See "57.1.1.2 Parameter Combinations" for information on the polygon types.
-int ta_get_poly_type_raw(pcw_t pcw) {
+static int ta_get_poly_type_raw(pcw_t pcw) {
   if (pcw.list_type == TA_LIST_OPAQUE_MODVOL ||
       pcw.list_type == TA_LIST_TRANSLUCENT_MODVOL) {
     return 6;
@@ -298,320 +180,44 @@ static int ta_get_vert_type_raw(pcw_t pcw) {
   return 0;
 }
 
-int ta_get_param_size(pcw_t pcw, int vertex_type) {
-  int size =
-      param_size_lookup[pcw.obj_control * TA_NUM_PARAMS * TA_NUM_VERT_TYPES +
-                        pcw.para_type * TA_NUM_VERT_TYPES + vertex_type];
-  CHECK_NE(size, 0);
-  return size;
-}
-
-int ta_get_poly_type(pcw_t pcw) {
-  return poly_type_lookup[pcw.obj_control * TA_NUM_PARAMS * TA_NUM_LISTS +
-                          pcw.para_type * TA_NUM_LISTS + pcw.list_type];
-}
-
-int ta_get_vert_type(pcw_t pcw) {
-  return vertex_type_lookup[pcw.obj_control * TA_NUM_PARAMS * TA_NUM_LISTS +
-                            pcw.para_type * TA_NUM_LISTS + pcw.list_type];
-}
-
-int ta_entry_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it) {
-  const texture_entry_t *lhs = rb_entry(lhs_it, const texture_entry_t, live_it);
-  const texture_entry_t *rhs = rb_entry(rhs_it, const texture_entry_t, live_it);
-  return lhs->key - rhs->key;
-}
-
-int ta_context_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it) {
-  const ta_ctx_t *lhs = rb_entry(lhs_it, const ta_ctx_t, live_it);
-  const ta_ctx_t *rhs = rb_entry(rhs_it, const ta_ctx_t, live_it);
-  return lhs->addr - rhs->addr;
-}
-
-ta_t *ta_create(dreamcast_t *dc, struct rb_s *rb) {
-  ta_t *ta = (ta_t *)dc_create_device(dc, sizeof(ta_t), "ta",
-                                      (device_init_cb)&ta_init);
-  ta->base.window = window_interface_create((device_paint_cb)&ta_paint, NULL);
-
-  ta->rb = rb;
-  ta->tr = tr_create(ta->rb, ta, (get_texture_cb)&ta_get_texture);
-
-  return ta;
-}
-
-void ta_destroy(ta_t *ta) {
-  window_interface_destroy(ta->base.window);
-
-  tr_destroy(ta->tr);
-
-  tr_clear_context(&ta->rctx);
-
-  // TODO cleanup rctx
-  // TODO cleanup contexts
-
-  dc_destroy_device(&ta->base);
-}
-
-bool ta_init(ta_t *ta) {
-  dreamcast_t *dc = ta->base.dc;
-
-  ta_build_tables();
-
-  ta->holly = dc->holly;
-  ta->pvr = dc->pvr;
-  ta->space = dc->sh4->base.memory->space;
-  ta->video_ram = as_translate(ta->space, 0x04000000);
-
-  for (int i = 0; i < MAX_TEXTURE_ENTRIES; i++) {
-    texture_entry_t *entry = &ta->entries[i];
-
-    list_add(&ta->free_entries, &entry->free_it);
-  }
-
-  for (int i = 0; i < MAX_TILE_CONTEXTS; i++) {
-    ta_ctx_t *ctx = &ta->contexts[i];
-
-    list_add(&ta->free_contexts, &ctx->free_it);
-  }
-
-// initialize registers
-#define TA_REG_R32(name)        \
-  ta->pvr->reg_data[name] = ta; \
-  ta->pvr->reg_read[name] = (reg_read_cb)&name##_r;
-#define TA_REG_W32(name)        \
-  ta->pvr->reg_data[name] = ta; \
-  ta->pvr->reg_write[name] = (reg_write_cb)&name##_w;
-  TA_REG_W32(SOFTRESET);
-  TA_REG_W32(TA_LIST_INIT);
-  TA_REG_W32(TA_LIST_CONT);
-  TA_REG_W32(STARTRENDER);
-#undef TA_REG_R32
-#undef TA_REG_W32
-
-  return true;
-}
-
-void ta_paint(ta_t *ta, bool show_main_menu) {
-  if (ta->pending_context) {
-    tr_parse_context(ta->tr, ta->pending_context, &ta->rctx, false);
-    tr_render_ctx(ta->tr, &ta->rctx);
-
-    //     // write render command after actually rendering the context so
-    //     texture
-    //     // insert commands will be written out first
-    //     if (trace_writer_ && !last_ctx_->wrote) {
-    //       trace_writer_->WriteRenderContext(last_ctx_);
-
-    //       last_ctx_->wrote = true;
-    //     }
-  }
-
-  if (show_main_menu) {
-    if (ImGui::BeginMainMenuBar()) {
-      if (ImGui::BeginMenu("TA")) {
-        // if ((!trace_writer_ && ImGui::MenuItem("Start trace")) ||
-        //     (trace_writer_ && ImGui::MenuItem("Stop trace"))) {
-        //   ToggleTracing();
-        // }
-        ImGui::EndMenu();
-      }
-
-      ImGui::EndMainMenuBar();
+// Parameter size can be determined by only the pcw_t for every parameter other
+// than vertex parameters. For vertex parameters, the vertex type derived from
+// the last poly or modifier volume parameter is needed.
+static int ta_get_param_size_raw(pcw_t pcw, int vertex_type) {
+  switch (pcw.para_type) {
+    case TA_PARAM_END_OF_LIST:
+      return 32;
+    case TA_PARAM_USER_TILE_CLIP:
+      return 32;
+    case TA_PARAM_OBJ_LIST_SET:
+      return 32;
+    case TA_PARAM_POLY_OR_VOL: {
+      int type = ta_get_poly_type_raw(pcw);
+      return type == 0 || type == 1 || type == 3 ? 32 : 64;
     }
-  }
-}
-
-texture_entry_t *ta_alloc_entry(ta_t *ta, texture_key_t key) {
-  // remove from free list
-  texture_entry_t *entry =
-      list_first_entry(&ta->free_entries, texture_entry_t, free_it);
-  CHECK_NOTNULL(entry);
-  list_remove(&ta->free_entries, &entry->free_it);
-
-  // reset entry
-  memset(entry, 0, sizeof(*entry));
-  entry->ta = ta;
-  entry->key = key;
-
-  // add to live tree
-  rb_insert(&ta->live_entries, &entry->live_it, &ta_entry_cb);
-
-  return entry;
-}
-
-void ta_free_entry(ta_t *ta, texture_entry_t *entry) {
-  // remove from live list
-  rb_unlink(&ta->live_entries, &entry->live_it, &ta_entry_cb);
-
-  // add back to free list
-  list_add(&ta->free_entries, &entry->free_it);
-}
-
-texture_handle_t ta_get_texture(ta_t *ta, const ta_ctx_t *ctx, tsp_t tsp,
-                                tcw_t tcw, void *register_data,
-                                register_texture_cb register_cb) {
-  // clear any pending texture invalidations at this time
-  ta_clear_pending_textures(ta);
-
-  // TODO ta_ctx_t isn't considered for caching here (stride and
-  // pal_pxl_format are used by TileRenderer), this feels bad
-  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
-
-  // see if an an entry already exists
-  texture_entry_t search;
-  search.key = texture_key;
-
-  texture_entry_t *existing =
-      rb_find_entry(&ta->live_entries, &search, live_it, &ta_entry_cb);
-
-  if (existing) {
-    return existing->handle;
-  }
-
-  // tcw_t texture_addr field is in 64-bit units
-  uint32_t texture_addr = tcw.texture_addr << 3;
-
-  // get the texture data
-  uint8_t *video_ram = as_translate(ta->space, 0x04000000);
-  uint8_t *texture = &video_ram[texture_addr];
-  int width = 8 << tsp.texture_u_size;
-  int height = 8 << tsp.texture_v_size;
-  int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
-                              ? 8
-                              : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
-  int texture_size = (width * height * element_size_bits) >> 3;
-
-  // get the palette data
-  uint8_t *palette_ram = as_translate(ta->space, 0x005f9000);
-  uint8_t *palette = NULL;
-  uint32_t palette_addr = 0;
-  int palette_size = 0;
-
-  if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
-    // palette ram is 4096 bytes, with each palette entry being 4 bytes each,
-    // resulting in 1 << 10 indexes
-    if (tcw.pixel_format == TA_PIXEL_4BPP) {
-      // in 4bpp mode, the palette selector represents the upper 6 bits of the
-      // palette index, with the remaining 4 bits being filled in by the texture
-      palette_addr = (tcw.p.palette_selector << 4) * 4;
-      palette_size = (1 << 4) * 4;
-    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
-      // in 4bpp mode, the palette selector represents the upper 2 bits of the
-      // palette index, with the remaining 8 bits being filled in by the texture
-      palette_addr = ((tcw.p.palette_selector & 0x30) << 4) * 4;
-      palette_size = (1 << 8) * 4;
+    case TA_PARAM_SPRITE:
+      return 32;
+    case TA_PARAM_VERTEX: {
+      return vertex_type == 0 || vertex_type == 1 || vertex_type == 2 ||
+                     vertex_type == 3 || vertex_type == 4 || vertex_type == 7 ||
+                     vertex_type == 8 || vertex_type == 9 || vertex_type == 10
+                 ? 32
+                 : 64;
     }
-
-    palette = &palette_ram[palette_addr];
-  }
-
-  // register and insert into the cache
-  texture_entry_t *entry = ta_alloc_entry(ta, texture_key);
-
-  registered_texture_t reg =
-      register_cb(register_data, ctx, tsp, tcw, palette, texture);
-  entry->handle = reg.handle;
-
-  // add write callback in order to invalidate on future writes. the callback
-  // address will be page aligned, therefore it will be triggered falsely in
-  // some cases. over invalidate in these cases
-  entry->texture_watch = add_single_write_watch(
-      texture, texture_size, (memory_watch_cb)&ta_write_texture, entry);
-
-  if (palette) {
-    entry->palette_watch = add_single_write_watch(
-        palette, palette_size, (memory_watch_cb)&ta_write_palette, entry);
-  }
-
-  // if (trace_writer_) {
-  //   trace_writer_->WriteInsertTexture(tsp, tcw, palette, palette_size,
-  //   texture,
-  //                                     texture_size);
-  // }
-
-  return reg.handle;
-}
-
-void ta_clear_textures(ta_t *ta) {
-  LOG_INFO("Texture cache cleared");
-
-  rb_node_t *it = rb_first(&ta->live_entries);
-
-  while (it) {
-    rb_node_t *next = rb_next(it);
-
-    texture_entry_t *entry = rb_entry(it, texture_entry_t, live_it);
-    ta_invalidate_texture(ta, entry);
-
-    it = next;
-  }
-
-  CHECK(!rb_first(&ta->live_entries));
-}
-
-void ta_clear_pending_textures(ta_t *ta) {
-  list_for_each_entry_safe(it, &ta->invalid_entries, texture_entry_t,
-                           invalid_it) {
-    ta_invalidate_texture(ta, it);
-    ta->num_invalidated++;
-  }
-
-  CHECK(list_empty(&ta->invalid_entries));
-
-  prof_count("Num invalidated textures", ta->num_invalidated);
-}
-
-void ta_invalidate_texture(ta_t *ta, texture_entry_t *entry) {
-  rb_free_texture(ta->rb, entry->handle);
-
-  if (entry->texture_watch) {
-    remove_memory_watch(entry->texture_watch);
-  }
-
-  if (entry->palette_watch) {
-    remove_memory_watch(entry->palette_watch);
-  }
-
-  list_remove(&ta->invalid_entries, &entry->invalid_it);
-
-  ta_free_entry(ta, entry);
-}
-
-void ta_write_texture(const re_exception_t *ex, texture_entry_t *entry) {
-  ta_t *ta = entry->ta;
-
-  // don't double remove the watch during invalidation
-  entry->texture_watch = NULL;
-
-  // add to pending invalidation list (can't remove inside of signal
-  // handler)
-  if (!entry->invalid_it.next) {
-    list_add(&ta->invalid_entries, &entry->invalid_it);
+    default:
+      return 0;
   }
 }
 
-void ta_write_palette(const re_exception_t *ex, texture_entry_t *entry) {
-  ta_t *ta = entry->ta;
-
-  // don't double remove the watch during invalidation
-  entry->palette_watch = NULL;
-
-  // add to pending invalidation list (can't remove inside of signal
-  // handler)
-  if (!entry->invalid_it.next) {
-    list_add(&ta->invalid_entries, &entry->invalid_it);
-  }
-}
-
-void ta_soft_reset(ta_t *ta) {
+static void ta_soft_reset(ta_t *ta) {
   // FIXME what are we supposed to do here?
 }
 
-ta_ctx_t *ta_get_context(ta_t *ta, uint32_t addr) {
-  ta_ctx_t search;
+static tile_ctx_t *ta_get_context(ta_t *ta, uint32_t addr) {
+  tile_ctx_t search;
   search.addr = addr;
 
-  ta_ctx_t *ctx =
+  tile_ctx_t *ctx =
       rb_find_entry(&ta->live_contexts, &search, live_it, &ta_context_cb);
 
   if (!ctx) {
@@ -621,9 +227,9 @@ ta_ctx_t *ta_get_context(ta_t *ta, uint32_t addr) {
   return ctx;
 }
 
-ta_ctx_t *ta_alloc_context(ta_t *ta, uint32_t addr) {
+static tile_ctx_t *ta_alloc_context(ta_t *ta, uint32_t addr) {
   // remove from free list
-  ta_ctx_t *ctx = list_first_entry(&ta->free_contexts, ta_ctx_t, free_it);
+  tile_ctx_t *ctx = list_first_entry(&ta->free_contexts, tile_ctx_t, free_it);
   CHECK_NOTNULL(ctx);
   list_remove(&ta->free_contexts, &ctx->free_it);
 
@@ -637,12 +243,12 @@ ta_ctx_t *ta_alloc_context(ta_t *ta, uint32_t addr) {
   return ctx;
 }
 
-void ta_unlink_context(ta_t *ta, ta_ctx_t *ctx) {
+static void ta_unlink_context(ta_t *ta, tile_ctx_t *ctx) {
   // remove from live tree
   rb_unlink(&ta->live_contexts, &ctx->live_it, &ta_context_cb);
 }
 
-void ta_free_context(ta_t *ta, ta_ctx_t *ctx) {
+static void ta_free_context(ta_t *ta, tile_ctx_t *ctx) {
   // remove from live tree
   ta_unlink_context(ta, ctx);
 
@@ -650,8 +256,8 @@ void ta_free_context(ta_t *ta, ta_ctx_t *ctx) {
   list_add(&ta->free_contexts, &ctx->free_it);
 }
 
-void ta_init_context(ta_t *ta, uint32_t addr) {
-  ta_ctx_t *ctx = ta_get_context(ta, addr);
+static void ta_init_context(ta_t *ta, uint32_t addr) {
+  tile_ctx_t *ctx = ta_get_context(ta, addr);
 
   if (!ctx) {
     ctx = ta_alloc_context(ta, addr);
@@ -666,8 +272,8 @@ void ta_init_context(ta_t *ta, uint32_t addr) {
   ctx->vertex_type = 0;
 }
 
-void ta_write_context(ta_t *ta, uint32_t addr, uint32_t value) {
-  ta_ctx_t *ctx = ta_get_context(ta, addr);
+static void ta_write_context(ta_t *ta, uint32_t addr, uint32_t value) {
+  tile_ctx_t *ctx = ta_get_context(ta, addr);
   CHECK_NOTNULL(ctx);
 
   CHECK_LT(ctx->size + 4, (int)sizeof(ctx->data));
@@ -714,32 +320,7 @@ void ta_write_context(ta_t *ta, uint32_t addr, uint32_t value) {
   }
 }
 
-void ta_finish_context(ta_t *ta, uint32_t addr) {
-  ta_ctx_t *ctx = ta_get_context(ta, addr);
-  CHECK_NOTNULL(ctx);
-
-  // save required register state being that the actual rendering of this
-  // context will be deferred
-  ta_save_state(ta, ctx);
-
-  // tell holly that rendering is complete
-  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOVINT);
-  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOIINT);
-  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOTINT);
-
-  // free the last pending context
-  if (ta->pending_context) {
-    ta_free_context(ta, ta->pending_context);
-    ta->pending_context = NULL;
-  }
-
-  // set this context to pending
-  ta_unlink_context(ta, ctx);
-
-  ta->pending_context = ctx;
-}
-
-void ta_save_state(ta_t *ta, ta_ctx_t *ctx) {
+static void ta_save_state(ta_t *ta, tile_ctx_t *ctx) {
   pvr_t *pvr = ta->pvr;
 
   // autosort
@@ -813,42 +394,226 @@ void ta_save_state(ta_t *ta, ta_ctx_t *ctx) {
   }
 }
 
-// TODO
-// void ta_toggle_tracing(ta_t *ta) {
-//   if (!trace_writer_) {
-//     char filename[PATH_MAX];
-//     GetNextTraceFilename(filename, sizeof(filename));
+static void ta_finish_context(ta_t *ta, uint32_t addr) {
+  tile_ctx_t *ctx = ta_get_context(ta, addr);
+  CHECK_NOTNULL(ctx);
 
-//     trace_writer_ = new TraceWriter();
+  // save required register state being that the actual rendering of this
+  // context will be deferred
+  ta_save_state(ta, ctx);
 
-//     if (!trace_writer_->Open(filename)) {
-//       delete trace_writer_;
-//       trace_writer_ = NULL;
+  // tell holly that rendering is complete
+  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOVINT);
+  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOIINT);
+  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOTINT);
 
-//       LOG_INFO("Failed to start tracing");
+  // free the last pending context
+  if (ta->pending_context) {
+    ta_free_context(ta, ta->pending_context);
+    ta->pending_context = NULL;
+  }
 
-//       return;
-//     }
+  // set this context to pending
+  ta_unlink_context(ta, ctx);
 
-//     // clear texture cache in order to generate insert events for all
-//     textures
-//     // referenced while tracing
-//     ClearTextures();
+  ta->pending_context = ctx;
+}
 
-//     LOG_INFO("Begin tracing to %s", filename);
-//   } else {
-//     delete trace_writer_;
-//     trace_writer_ = NULL;
+static texture_entry_t *ta_alloc_texture(ta_t *ta, texture_key_t key) {
+  // remove from free list
+  texture_entry_t *entry =
+      list_first_entry(&ta->free_entries, texture_entry_t, free_it);
+  CHECK_NOTNULL(entry);
+  list_remove(&ta->free_entries, &entry->free_it);
 
-//     LOG_INFO("End tracing");
-//   }
-// }
+  // reset entry
+  memset(entry, 0, sizeof(*entry));
+  entry->ta = ta;
+  entry->key = key;
 
-void ta_write_poly_fifo(ta_t *ta, uint32_t addr, uint32_t value) {
+  // add to live tree
+  rb_insert(&ta->live_entries, &entry->live_it, &ta_entry_cb);
+
+  return entry;
+}
+
+static void ta_free_texture(ta_t *ta, texture_entry_t *entry) {
+  // remove from live list
+  rb_unlink(&ta->live_entries, &entry->live_it, &ta_entry_cb);
+
+  // add back to free list
+  list_add(&ta->free_entries, &entry->free_it);
+}
+
+static void ta_invalidate_texture(ta_t *ta, texture_entry_t *entry) {
+  rb_free_texture(ta->rb, entry->handle);
+
+  if (entry->texture_watch) {
+    remove_memory_watch(entry->texture_watch);
+  }
+
+  if (entry->palette_watch) {
+    remove_memory_watch(entry->palette_watch);
+  }
+
+  list_remove(&ta->invalid_entries, &entry->invalid_it);
+
+  ta_free_texture(ta, entry);
+}
+
+static void ta_clear_textures(ta_t *ta) {
+  LOG_INFO("Texture cache cleared");
+
+  rb_node_t *it = rb_first(&ta->live_entries);
+
+  while (it) {
+    rb_node_t *next = rb_next(it);
+
+    texture_entry_t *entry = rb_entry(it, texture_entry_t, live_it);
+    ta_invalidate_texture(ta, entry);
+
+    it = next;
+  }
+
+  CHECK(!rb_first(&ta->live_entries));
+}
+
+static void ta_clear_pending_textures(ta_t *ta) {
+  list_for_each_entry_safe(it, &ta->invalid_entries, texture_entry_t,
+                           invalid_it) {
+    ta_invalidate_texture(ta, it);
+    ta->num_invalidated++;
+  }
+
+  CHECK(list_empty(&ta->invalid_entries));
+
+  prof_count("Num invalidated textures", ta->num_invalidated);
+}
+
+static void ta_texture_invalidated(const re_exception_t *ex,
+                                   texture_entry_t *entry) {
+  ta_t *ta = entry->ta;
+
+  // don't double remove the watch during invalidation
+  entry->texture_watch = NULL;
+
+  // add to pending invalidation list (can't remove inside of signal
+  // handler)
+  if (!entry->invalid_it.next) {
+    list_add(&ta->invalid_entries, &entry->invalid_it);
+  }
+}
+
+static void ta_palette_invalidated(const re_exception_t *ex,
+                                   texture_entry_t *entry) {
+  ta_t *ta = entry->ta;
+
+  // don't double remove the watch during invalidation
+  entry->palette_watch = NULL;
+
+  // add to pending invalidation list (can't remove inside of signal
+  // handler)
+  if (!entry->invalid_it.next) {
+    list_add(&ta->invalid_entries, &entry->invalid_it);
+  }
+}
+
+static texture_handle_t ta_get_texture(ta_t *ta, const tile_ctx_t *ctx,
+                                       tsp_t tsp, tcw_t tcw,
+                                       void *register_data,
+                                       register_texture_cb register_cb) {
+  // clear any pending texture invalidations at this time
+  ta_clear_pending_textures(ta);
+
+  // TODO tile_ctx_t isn't considered for caching here (stride and
+  // pal_pxl_format are used by TileRenderer), this feels bad
+  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
+
+  // see if an an entry already exists
+  texture_entry_t search;
+  search.key = texture_key;
+
+  texture_entry_t *existing =
+      rb_find_entry(&ta->live_entries, &search, live_it, &ta_entry_cb);
+
+  if (existing) {
+    return existing->handle;
+  }
+
+  // tcw_t texture_addr field is in 64-bit units
+  uint32_t texture_addr = tcw.texture_addr << 3;
+
+  // get the texture data
+  uint8_t *video_ram = as_translate(ta->space, 0x04000000);
+  uint8_t *texture = &video_ram[texture_addr];
+  int width = 8 << tsp.texture_u_size;
+  int height = 8 << tsp.texture_v_size;
+  int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
+                              ? 8
+                              : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
+  int texture_size = (width * height * element_size_bits) >> 3;
+
+  // get the palette data
+  uint8_t *palette_ram = as_translate(ta->space, 0x005f9000);
+  uint8_t *palette = NULL;
+  uint32_t palette_addr = 0;
+  int palette_size = 0;
+
+  if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
+    // palette ram is 4096 bytes, with each palette entry being 4 bytes each,
+    // resulting in 1 << 10 indexes
+    if (tcw.pixel_format == TA_PIXEL_4BPP) {
+      // in 4bpp mode, the palette selector represents the upper 6 bits of the
+      // palette index, with the remaining 4 bits being filled in by the texture
+      palette_addr = (tcw.p.palette_selector << 4) * 4;
+      palette_size = (1 << 4) * 4;
+    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
+      // in 4bpp mode, the palette selector represents the upper 2 bits of the
+      // palette index, with the remaining 8 bits being filled in by the texture
+      palette_addr = ((tcw.p.palette_selector & 0x30) << 4) * 4;
+      palette_size = (1 << 8) * 4;
+    }
+
+    palette = &palette_ram[palette_addr];
+  }
+
+  // register the texture with the render backend
+  texture_reg_t reg = {};
+  reg.ctx = ctx;
+  reg.tsp = tsp;
+  reg.tcw = tcw;
+  reg.palette = palette;
+  reg.data = texture;
+  register_cb(register_data, &reg);
+
+  // insert into the cache
+  texture_entry_t *entry = ta_alloc_texture(ta, texture_key);
+  entry->handle = reg.handle;
+
+  // add write callback in order to invalidate on future writes. the callback
+  // address will be page aligned, therefore it will be triggered falsely in
+  // some cases. over invalidate in these cases
+  entry->texture_watch = add_single_write_watch(
+      texture, texture_size, (memory_watch_cb)&ta_texture_invalidated, entry);
+
+  if (palette) {
+    entry->palette_watch = add_single_write_watch(
+        palette, palette_size, (memory_watch_cb)&ta_palette_invalidated, entry);
+  }
+
+  if (ta->trace_writer) {
+    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, palette,
+                                palette_size, texture, texture_size);
+  }
+
+  return reg.handle;
+}
+
+static void ta_write_poly_fifo(ta_t *ta, uint32_t addr, uint32_t value) {
   ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, value);
 }
 
-void ta_write_texture_fifo(ta_t *ta, uint32_t addr, uint32_t value) {
+static void ta_write_texture_fifo(ta_t *ta, uint32_t addr, uint32_t value) {
   addr &= 0xeeffffff;
   *(uint32_t *)&ta->video_ram[addr] = value;
 }
@@ -884,3 +649,185 @@ REG_W32(ta_t *ta, STARTRENDER) {
 
   ta_finish_context(ta, ta->pvr->PARAM_BASE->base_address);
 }
+
+static bool ta_init(ta_t *ta) {
+  dreamcast_t *dc = ta->base.dc;
+
+  ta->holly = dc->holly;
+  ta->pvr = dc->pvr;
+  ta->space = dc->sh4->base.memory->space;
+  ta->video_ram = as_translate(ta->space, 0x04000000);
+
+  for (int i = 0; i < array_size(ta->entries); i++) {
+    texture_entry_t *entry = &ta->entries[i];
+
+    list_add(&ta->free_entries, &entry->free_it);
+  }
+
+  for (int i = 0; i < array_size(ta->contexts); i++) {
+    tile_ctx_t *ctx = &ta->contexts[i];
+
+    list_add(&ta->free_contexts, &ctx->free_it);
+  }
+
+// initialize registers
+#define TA_REG_R32(name)        \
+  ta->pvr->reg_data[name] = ta; \
+  ta->pvr->reg_read[name] = (reg_read_cb)&name##_r;
+#define TA_REG_W32(name)        \
+  ta->pvr->reg_data[name] = ta; \
+  ta->pvr->reg_write[name] = (reg_write_cb)&name##_w;
+  TA_REG_W32(SOFTRESET);
+  TA_REG_W32(TA_LIST_INIT);
+  TA_REG_W32(TA_LIST_CONT);
+  TA_REG_W32(STARTRENDER);
+#undef TA_REG_R32
+#undef TA_REG_W32
+
+  return true;
+}
+
+static void ta_toggle_tracing(ta_t *ta) {
+  if (!ta->trace_writer) {
+    char filename[PATH_MAX];
+    get_next_trace_filename(filename, sizeof(filename));
+
+    ta->trace_writer = trace_writer_open(filename);
+
+    if (!ta->trace_writer) {
+      LOG_INFO("Failed to start tracing");
+      return;
+    }
+
+    // clear texture cache in order to generate insert events for all
+    // textures referenced while tracing
+    ta_clear_textures(ta);
+
+    LOG_INFO("Begin tracing to %s", filename);
+  } else {
+    trace_writer_close(ta->trace_writer);
+    ta->trace_writer = NULL;
+
+    LOG_INFO("End tracing");
+  }
+}
+
+static void ta_paint(ta_t *ta, bool show_main_menu) {
+  if (ta->pending_context) {
+    render_ctx_t rctx = {};
+    rctx.surfs = ta->surfs;
+    rctx.surfs_size = array_size(ta->surfs);
+    rctx.verts = ta->verts;
+    rctx.verts_size = array_size(ta->verts);
+    rctx.sorted_surfs = ta->sorted_surfs;
+    rctx.sorted_surfs_size = array_size(ta->sorted_surfs);
+
+    tr_parse_context(ta->tr, ta->pending_context, &rctx);
+
+    tr_render_context(ta->tr, &rctx);
+
+    // write render command after actually rendering the context so texture
+    // insert commands will be written out first
+    if (ta->trace_writer && !ta->pending_context->wrote) {
+      trace_writer_render_context(ta->trace_writer, ta->pending_context);
+      ta->pending_context->wrote = true;
+    }
+  }
+
+  if (show_main_menu) {
+    if (ImGui::BeginMainMenuBar()) {
+      if (ImGui::BeginMenu("TA")) {
+        if ((!ta->trace_writer && ImGui::MenuItem("Start trace")) ||
+            (ta->trace_writer && ImGui::MenuItem("Stop trace"))) {
+          ta_toggle_tracing(ta);
+        }
+        ImGui::EndMenu();
+      }
+
+      ImGui::EndMainMenuBar();
+    }
+  }
+}
+
+void ta_build_tables() {
+  static bool initialized = false;
+
+  if (initialized) {
+    return;
+  }
+
+  initialized = true;
+
+  for (int i = 0; i < 0x100; i++) {
+    pcw_t pcw = *(pcw_t *)&i;
+
+    for (int j = 0; j < TA_NUM_PARAMS; j++) {
+      pcw.para_type = j;
+
+      for (int k = 0; k < TA_NUM_VERT_TYPES; k++) {
+        g_param_sizes[i * TA_NUM_PARAMS * TA_NUM_VERT_TYPES +
+                      j * TA_NUM_VERT_TYPES + k] =
+            ta_get_param_size_raw(pcw, k);
+      }
+    }
+  }
+
+  for (int i = 0; i < 0x100; i++) {
+    pcw_t pcw = *(pcw_t *)&i;
+
+    for (int j = 0; j < TA_NUM_PARAMS; j++) {
+      pcw.para_type = j;
+
+      for (int k = 0; k < TA_NUM_LISTS; k++) {
+        pcw.list_type = k;
+
+        g_poly_types[i * TA_NUM_PARAMS * TA_NUM_LISTS + j * TA_NUM_LISTS + k] =
+            ta_get_poly_type_raw(pcw);
+        g_vertex_types[i * TA_NUM_PARAMS * TA_NUM_LISTS + j * TA_NUM_LISTS +
+                       k] = ta_get_vert_type_raw(pcw);
+      }
+    }
+  }
+}
+
+ta_t *ta_create(dreamcast_t *dc, struct rb_s *rb) {
+  ta_build_tables();
+
+  ta_t *ta = (ta_t *)dc_create_device(dc, sizeof(ta_t), "ta",
+                                      (device_init_cb)&ta_init);
+  ta->base.window = window_interface_create((device_paint_cb)&ta_paint, NULL);
+
+  ta->rb = rb;
+  ta->tr = tr_create(ta->rb, ta, (get_texture_cb)&ta_get_texture);
+
+  return ta;
+}
+
+void ta_destroy(ta_t *ta) {
+  tr_destroy(ta->tr);
+
+  window_interface_destroy(ta->base.window);
+
+  dc_destroy_device(&ta->base);
+}
+
+// clang-format off
+AM_BEGIN(ta_t, ta_fifo_map);
+  AM_RANGE(0x0000000, 0x07fffff) AM_HANDLE(NULL,
+                                           NULL,
+                                           NULL,
+                                           NULL,
+                                           NULL,
+                                           NULL,
+                                           (w32_cb)&ta_write_poly_fifo,
+                                           NULL)
+  AM_RANGE(0x1000000, 0x1ffffff) AM_HANDLE(NULL,
+                                           NULL,
+                                           NULL,
+                                           NULL,
+                                           NULL,
+                                           NULL,
+                                           (w32_cb)&ta_write_texture_fifo,
+                                           NULL)
+AM_END();
+// clang-format on

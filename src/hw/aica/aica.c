@@ -14,74 +14,9 @@ typedef struct aica_s {
   common_data_t *common_data;
 } aica_t;
 
-static bool aica_init(aica_t *aica);
-static void aica_update_arm(aica_t *aica);
-static void aica_update_sh(aica_t *aica);
+static void aica_update_arm(aica_t *aica) {}
 
-static uint8_t aica_reg_r8(aica_t *aica, uint32_t addr);
-static uint16_t aica_reg_r16(aica_t *aica, uint32_t addr);
-static uint32_t aica_reg_r32(aica_t *aica, uint32_t addr);
-static void aica_reg_w8(aica_t *aica, uint32_t addr, uint8_t value);
-static void aica_reg_w16(aica_t *aica, uint32_t addr, uint16_t value);
-static void aica_reg_w32(aica_t *aica, uint32_t addr, uint32_t value);
-
-static uint8_t aica_wave_r8(aica_t *aica, uint32_t addr);
-static uint16_t aica_wave_r16(aica_t *aica, uint32_t addr);
-static uint32_t aica_wave_r32(aica_t *aica, uint32_t addr);
-static void aica_wave_w8(aica_t *aica, uint32_t addr, uint8_t value);
-static void aica_wave_w16(aica_t *aica, uint32_t addr, uint16_t value);
-static void aica_wave_w32(aica_t *aica, uint32_t addr, uint32_t value);
-
-// clang-format off
-AM_BEGIN(aica_t, aica_reg_map);
-  AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE((r8_cb)&aica_reg_r8,
-                                             (r16_cb)&aica_reg_r16,
-                                             (r32_cb)&aica_reg_r32,
-                                             NULL,
-                                             (w8_cb)&aica_reg_w8,
-                                             (w16_cb)&aica_reg_w16,
-                                             (w32_cb)&aica_reg_w32,
-                                             NULL)
-AM_END();
-
-AM_BEGIN(aica_t, aica_data_map);
-  AM_RANGE(0x00000000, 0x00ffffff) AM_HANDLE((r8_cb)&aica_wave_r8,
-                                             (r16_cb)&aica_wave_r16,
-                                             (r32_cb)&aica_wave_r32,
-                                             NULL,
-                                             (w8_cb)&aica_wave_w8,
-                                             (w16_cb)&aica_wave_w16,
-                                             (w32_cb)&aica_wave_w32,
-                                             NULL)
-AM_END();
-// clang-format on
-
-aica_t *aica_create(dreamcast_t *dc) {
-  aica_t *aica =
-      dc_create_device(dc, sizeof(aica_t), "aica", (device_init_cb)&aica_init);
-  return aica;
-}
-
-void aica_destroy(aica_t *aica) {
-  dc_destroy_device(&aica->base);
-}
-
-bool aica_init(aica_t *aica) {
-  dreamcast_t *dc = aica->base.dc;
-
-  aica->arm = dc->arm;
-  aica->aica_regs = as_translate(dc->sh4->base.memory->space, 0x00700000);
-  aica->wave_ram = as_translate(dc->sh4->base.memory->space, 0x00800000);
-  aica->common_data = (common_data_t *)(aica->aica_regs + 0x2800);
-
-  arm_suspend(aica->arm);
-
-  return true;
-}
-
-void aica_update_arm(aica_t *aica) {}
-
-void aica_update_sh(aica_t *aica) {}
+static void aica_update_sh(aica_t *aica) {}
 
 #define define_reg_read(name, type)                   \
   type aica_reg_##name(aica_t *aica, uint32_t addr) { \
@@ -150,3 +85,50 @@ uint32_t aica_wave_r32(aica_t *aica, uint32_t addr) {
 define_write_wave(w8, uint8_t);
 define_write_wave(w16, uint16_t);
 define_write_wave(w32, uint32_t);
+
+static bool aica_init(aica_t *aica) {
+  dreamcast_t *dc = aica->base.dc;
+
+  aica->arm = dc->arm;
+  aica->aica_regs = as_translate(dc->sh4->base.memory->space, 0x00700000);
+  aica->wave_ram = as_translate(dc->sh4->base.memory->space, 0x00800000);
+  aica->common_data = (common_data_t *)(aica->aica_regs + 0x2800);
+
+  arm_suspend(aica->arm);
+
+  return true;
+}
+
+aica_t *aica_create(dreamcast_t *dc) {
+  aica_t *aica =
+      dc_create_device(dc, sizeof(aica_t), "aica", (device_init_cb)&aica_init);
+  return aica;
+}
+
+void aica_destroy(aica_t *aica) {
+  dc_destroy_device(&aica->base);
+}
+
+// clang-format off
+AM_BEGIN(aica_t, aica_reg_map);
+  AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE((r8_cb)&aica_reg_r8,
+                                             (r16_cb)&aica_reg_r16,
+                                             (r32_cb)&aica_reg_r32,
+                                             NULL,
+                                             (w8_cb)&aica_reg_w8,
+                                             (w16_cb)&aica_reg_w16,
+                                             (w32_cb)&aica_reg_w32,
+                                             NULL)
+AM_END();
+
+AM_BEGIN(aica_t, aica_data_map);
+  AM_RANGE(0x00000000, 0x00ffffff) AM_HANDLE((r8_cb)&aica_wave_r8,
+                                             (r16_cb)&aica_wave_r16,
+                                             (r32_cb)&aica_wave_r32,
+                                             NULL,
+                                             (w8_cb)&aica_wave_w8,
+                                             (w16_cb)&aica_wave_w16,
+                                             (w32_cb)&aica_wave_w32,
+                                             NULL)
+AM_END();
+// clang-format on

@@ -142,7 +142,7 @@ set(REDREAM_SOURCES
   src/core/rb_tree.c
   src/core/string.c
   src/emu/emulator.c
-  #src/emu/tracer.cc
+  src/emu/tracer.cc
   src/hw/aica/aica.c
   src/hw/arm/arm.c
   src/hw/gdrom/disc.c
@@ -151,7 +151,7 @@ set(REDREAM_SOURCES
   src/hw/holly/pvr.c
   src/hw/holly/ta.cc
   src/hw/holly/tr.c
-  src/hw/holly/trace.cc
+  src/hw/holly/trace.c
   src/hw/maple/controller.c
   src/hw/maple/maple.c
   src/hw/sh4/sh4.cc
@@ -175,7 +175,7 @@ set(REDREAM_SOURCES
   src/jit/ir/passes/load_store_elimination_pass.c
   src/jit/ir/passes/pass_stat.c
   src/jit/ir/passes/register_allocation_pass.c
-  src/renderer/gl_backend.c
+  src/renderer/gl_backend.cc
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c
