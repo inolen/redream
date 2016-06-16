@@ -1,7 +1,11 @@
 #include <imgui.h>
+
+extern "C" {
+
 #include "renderer/backend.h"
 #include "ui/imgui.h"
 #include "ui/window.h"
+}
 
 typedef struct imgui_s {
   struct window_s *window;

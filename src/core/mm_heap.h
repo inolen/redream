@@ -6,10 +6,6 @@
 
 #include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef void *mm_type;
 typedef bool (*mm_cmp)(mm_type lhs, mm_type rhs);
 
@@ -19,9 +15,5 @@ mm_type *mm_find_min(mm_type *begin, int size, mm_cmp cmp);
 mm_type *mm_find_max(mm_type *begin, int size, mm_cmp cmp);
 void mm_pop_min(mm_type *begin, int size, mm_cmp cmp);
 void mm_pop_max(mm_type *begin, int size, mm_cmp cmp);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

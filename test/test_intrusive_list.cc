@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
+
+extern "C" {
 #include "core/arena.h"
 #include "core/intrusive_list.h"
+}
 
 using namespace re;
 

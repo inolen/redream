@@ -3,10 +3,6 @@
 
 #include "hw/memory.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct arm_s;
 struct dreamcast_s;
 

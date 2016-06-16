@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #if PLATFORM_WINDOWS
 
 #include <windows.h>
@@ -37,9 +33,5 @@ bool fs_exists(const char *path);
 bool fs_isdir(const char *path);
 bool fs_isfile(const char *path);
 bool fs_mkdir(const char *path);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

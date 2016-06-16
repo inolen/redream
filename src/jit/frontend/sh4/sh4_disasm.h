@@ -5,10 +5,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   SH4_OP_INVALID,
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) SH4_OP_##name,
@@ -41,9 +37,5 @@ typedef struct {
 
 bool sh4_disasm(sh4_instr_t *i);
 void sh4_format(const sh4_instr_t *i, char *buffer, size_t buffer_size);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

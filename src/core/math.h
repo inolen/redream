@@ -10,10 +10,6 @@
 #define align_up(v, alignment) ((v + alignment - 1) & ~(alignment - 1))
 #define align_down(v, alignment) (v & ~(alignment - 1))
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #if PLATFORM_LINUX || PLATFORM_DARWIN
 static inline int clz32(uint32_t v) {
   return __builtin_clz(v);
@@ -47,10 +43,6 @@ static inline int ctz64(uint64_t v) {
   unsigned long r = 0;
   _BitScanForward64(&r, v);
   return r;
-}
-#endif
-
-#ifdef __cplusplus
 }
 #endif
 

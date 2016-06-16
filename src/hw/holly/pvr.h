@@ -7,10 +7,6 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 struct holly_s;
 

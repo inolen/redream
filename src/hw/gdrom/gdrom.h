@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include "hw/gdrom/disc.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 struct gdrom_s;
 

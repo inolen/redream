@@ -1,8 +1,11 @@
 #include <math.h>
 #include <set>
 #include <gtest/gtest.h>
+
+extern "C" {
 #define VERIFY_INTRUSIVE_TREE
 #include "core/interval_tree.h"
+}
 
 using namespace re;
 

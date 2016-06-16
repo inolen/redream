@@ -6,10 +6,6 @@
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 struct gdrom_s;
 struct maple_s;

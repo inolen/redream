@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   int length;
   bool is_load;
@@ -25,9 +21,5 @@ typedef struct {
 } x64_mov_t;
 
 bool x64_decode_mov(const uint8_t *data, x64_mov_t *mov);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

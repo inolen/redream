@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 struct debugger_s;
 
@@ -17,9 +13,5 @@ void debugger_tick(struct debugger_s *dbg);
 
 struct debugger_s *debugger_create(struct dreamcast_s *dc);
 void debugger_destroy(struct debugger_s *dbg);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

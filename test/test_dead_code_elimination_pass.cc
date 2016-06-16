@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
+
+extern "C" {
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/ir.h"
+}
 
 static uint8_t ir_buffer[1024 * 1024];
 static char scratch_buffer[1024 * 1024];

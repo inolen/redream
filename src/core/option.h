@@ -6,10 +6,6 @@
 #include "core/constructor.h"
 #include "core/list.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define DECLARE_OPTION_BOOL(name) extern bool OPTION_##name;
 
 #define DEFINE_OPTION_BOOL(name, value, desc)     \
@@ -71,9 +67,5 @@ void option_unregister(option_t *option);
 
 void option_parse(int *argc, char ***argv);
 void option_print_help();
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

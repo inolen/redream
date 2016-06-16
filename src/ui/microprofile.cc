@@ -9,11 +9,14 @@
 #include <microprofile.h>
 #include <microprofileui.h>
 
+extern "C" {
+
 #include "core/assert.h"
 #include "core/math.h"
 #include "renderer/backend.h"
 #include "ui/microprofile.h"
 #include "ui/window.h"
+}
 
 static const int FONT_WIDTH = 1024;
 static const int FONT_HEIGHT = 9;

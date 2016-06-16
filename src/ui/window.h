@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include "ui/keycode.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct rb_s;
 struct imgui_s;
 struct microprofile_s;
@@ -62,9 +58,5 @@ void win_remove_listener(struct window_s *win,
 
 struct window_s *win_create();
 void win_destroy(struct window_s *win);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

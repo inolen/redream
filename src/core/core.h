@@ -4,17 +4,7 @@
 #include <stddef.h>
 #include "core/math.h"
 
-#ifdef __cplusplus
-
-#include <type_traits>
-
-#define TYPEOF(n) typename std::remove_reference<decltype(n)>::type
-
-#else
-
 #define TYPEOF(n) __typeof__(n)
-
-#endif
 
 #define SWAP(a, b)       \
   do {                   \

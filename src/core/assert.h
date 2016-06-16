@@ -11,16 +11,10 @@
 #define CHECK_EXPECT_TRUE(expr) (expr)
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 const char *format_check_error_ex(const char *filename, int linenum,
                                   const char *expr, const char *format, ...);
 const char *format_check_error(const char *filename, int linenum,
                                const char *expr);
-#ifdef __cplusplus
-}
-#endif
 
 // 3: VA_ARGS = format_check_error
 // 4+: VA_ARGS = format_check_error_ex

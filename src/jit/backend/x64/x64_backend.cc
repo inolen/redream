@@ -1,6 +1,8 @@
 #include <inttypes.h>
 #include <capstone.h>
 #include <xbyak/xbyak.h>
+
+extern "C" {
 #include "core/profiler.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"
@@ -8,6 +10,7 @@
 #include "jit/ir/ir.h"
 #include "sys/exception_handler.h"
 #include "sys/memory.h"
+}
 
 //
 // x64 stack layout

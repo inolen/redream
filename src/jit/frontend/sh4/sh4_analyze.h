@@ -4,10 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 enum {
   SH4_SLOWMEM = 0x1,
   SH4_DOUBLE_PR = 0x2,
@@ -17,9 +13,5 @@ enum {
 
 void sh4_analyze_block(uint32_t guest_addr, uint8_t *guest_ptr, int flags,
                        int *size);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

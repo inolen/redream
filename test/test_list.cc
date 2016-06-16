@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
+
+extern "C" {
 #include "core/list.h"
+}
 
 typedef struct {
   list_node_t it;

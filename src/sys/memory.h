@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct re_exception_s;
 
 //
@@ -53,9 +49,5 @@ typedef void (*memory_watch_cb)(const struct re_exception_s *, void *);
 struct memory_watch_s *add_single_write_watch(void *ptr, size_t size,
                                               memory_watch_cb cb, void *data);
 void remove_memory_watch(struct memory_watch_s *watch);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

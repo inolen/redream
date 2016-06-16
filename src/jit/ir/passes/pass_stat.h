@@ -4,10 +4,6 @@
 #include "core/constructor.h"
 #include "core/list.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define DEFINE_STAT(name, desc)                                       \
   static int STAT_##name;                                             \
   static pass_stat_t STAT_T_##name = {#name, desc, &STAT_##name, {}}; \
@@ -28,9 +24,5 @@ typedef struct {
 void pass_stat_register(pass_stat_t *stat);
 void pass_stat_unregister(pass_stat_t *stat);
 void pass_stat_print_all();
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

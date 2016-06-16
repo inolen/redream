@@ -4,10 +4,6 @@
 #include "core/assert.h"
 #include "core/rb_tree.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // executable code sits between 0x0c000000 and 0x0d000000 (16mb). each instr
 // is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
 static const int BLOCK_ADDR_SHIFT = 1;
@@ -67,9 +63,5 @@ code_pointer_t sh4_cache_compile_code(struct sh4_cache_s *cache,
 struct sh4_cache_s *sh4_cache_create(const struct mem_interface_s *memif,
                                      code_pointer_t default_code);
 void sh4_cache_destroy(struct sh4_cache_s *cache);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
