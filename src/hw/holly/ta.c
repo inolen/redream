@@ -1,4 +1,4 @@
-#include <imgui.h>
+// #include <imgui.h>
 #include <string.h>
 #include "core/list.h"
 #include "core/profiler.h"
@@ -734,19 +734,19 @@ static void ta_paint(ta_t *ta, bool show_main_menu) {
     }
   }
 
-  if (show_main_menu) {
-    if (ImGui::BeginMainMenuBar()) {
-      if (ImGui::BeginMenu("TA")) {
-        if ((!ta->trace_writer && ImGui::MenuItem("Start trace")) ||
-            (ta->trace_writer && ImGui::MenuItem("Stop trace"))) {
-          ta_toggle_tracing(ta);
-        }
-        ImGui::EndMenu();
-      }
+  // if (show_main_menu) {
+  //   if (ImGui::BeginMainMenuBar()) {
+  //     if (ImGui::BeginMenu("TA")) {
+  //       if ((!ta->trace_writer && ImGui::MenuItem("Start trace")) ||
+  //           (ta->trace_writer && ImGui::MenuItem("Stop trace"))) {
+  //         ta_toggle_tracing(ta);
+  //       }
+  //       ImGui::EndMenu();
+  //     }
 
-      ImGui::EndMainMenuBar();
-    }
-  }
+  //     ImGui::EndMainMenuBar();
+  //   }
+  // }
 }
 
 void ta_build_tables() {

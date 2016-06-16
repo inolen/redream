@@ -72,7 +72,9 @@ static bool maple_init(maple_t *mp) {
 #define MAPLE_REG_W32(name)       \
   mp->holly->reg_data[name] = mp; \
   mp->holly->reg_write[name] = (reg_write_cb)&name##_w;
+
   MAPLE_REG_W32(SB_MDST);
+
 #undef MAPLE_REG_R32
 #undef MAPLE_REG_W32
   return true;

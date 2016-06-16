@@ -174,7 +174,7 @@ static bool pvr_init(pvr_t *pvr) {
 
   PVR_REG_W32(SPG_LOAD);
   PVR_REG_W32(FB_R_CTRL);
-  #include "hw/holly/pvr_regs.inc"
+#include "hw/holly/pvr_regs.inc"
 
 #undef PVR_REG_R32
 #undef PVR_REG_W32

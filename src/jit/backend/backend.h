@@ -1,6 +1,7 @@
 #ifndef BACKEND_H
 #define BACKEND_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
