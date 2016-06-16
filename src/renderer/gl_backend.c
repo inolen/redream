@@ -1,4 +1,4 @@
-#include <imgui.h>
+// #include <imgui.h>
 #include <GL/glew.h>
 #include <SDL.h>
 #include <SDL_opengl.h>
@@ -224,7 +224,7 @@ static void rb_print_shader_log(GLuint shader) {
   int max_length, length;
   glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &max_length);
 
-  char *info_log = reinterpret_cast<char *>(malloc(max_length));
+  char *info_log = malloc(max_length);
   glGetShaderInfoLog(shader, max_length, &length, info_log);
   LOG_INFO(info_log);
   free(info_log);
@@ -487,14 +487,14 @@ static void rb_set_initial_state(rb_t *rb) {
 }
 
 static void rb_onpaint(rb_t *rb, bool show_main_menu) {
-  if (show_main_menu && ImGui::BeginMainMenuBar()) {
-    if (ImGui::BeginMenu("Render")) {
-      ImGui::MenuItem("Wireframe", "", &rb->debug_wireframe);
-      ImGui::EndMenu();
-    }
+  // if (show_main_menu && ImGui::BeginMainMenuBar()) {
+  //   if (ImGui::BeginMenu("Render")) {
+  //     ImGui::MenuItem("Wireframe", "", &rb->debug_wireframe);
+  //     ImGui::EndMenu();
+  //   }
 
-    ImGui::EndMainMenuBar();
-  }
+  //   ImGui::EndMainMenuBar();
+  // }
 }
 
 void rb_begin_surfaces(rb_t *rb, const float *projection, const vertex_t *verts,

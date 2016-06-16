@@ -101,6 +101,9 @@ list(APPEND REDREAM_LIBS inih)
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
 
+# nuklear
+list(APPEND REDREAM_INCLUDE_DIRS deps/nuklear)
+
 # xbyak
 list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
 
@@ -142,19 +145,19 @@ set(REDREAM_SOURCES
   src/core/rb_tree.c
   src/core/string.c
   src/emu/emulator.c
-  src/emu/tracer.cc
+  #src/emu/tracer.cc
   src/hw/aica/aica.c
   src/hw/arm/arm.c
   src/hw/gdrom/disc.c
   src/hw/gdrom/gdrom.c
   src/hw/holly/holly.c
   src/hw/holly/pvr.c
-  src/hw/holly/ta.cc
+  src/hw/holly/ta.c
   src/hw/holly/tr.c
   src/hw/holly/trace.c
   src/hw/maple/controller.c
   src/hw/maple/maple.c
-  src/hw/sh4/sh4.cc
+  src/hw/sh4/sh4.c
   src/hw/sh4/sh4_code_cache.c
   src/hw/debugger.c
   src/hw/dreamcast.c
@@ -169,13 +172,13 @@ set(REDREAM_SOURCES
   src/jit/ir/ir.c
   src/jit/ir/ir_read.c
   src/jit/ir/ir_write.c
-  #src/jit/ir/passes/constant_propagation_pass.cc
+  #src/jit/ir/passes/constant_propagation_pass.c
   src/jit/ir/passes/conversion_elimination_pass.c
   src/jit/ir/passes/dead_code_elimination_pass.c
   src/jit/ir/passes/load_store_elimination_pass.c
   src/jit/ir/passes/pass_stat.c
   src/jit/ir/passes/register_allocation_pass.c
-  src/renderer/gl_backend.cc
+  src/renderer/gl_backend.c
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c

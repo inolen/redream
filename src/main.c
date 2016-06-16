@@ -60,9 +60,9 @@ int main(int argc, char **argv) {
 
   const char *load = argc > 1 ? argv[1] : NULL;
   if (load && strstr(load, ".trace")) {
-    struct tracer_s *tracer = tracer_create(window);
-    tracer_run(tracer, load);
-    tracer_destroy(tracer);
+    // struct tracer_s *tracer = tracer_create(window);
+    // tracer_run(tracer, load);
+    // tracer_destroy(tracer);
   } else {
     struct emu_s *emu = emu_create(window);
     emu_run(emu, load);

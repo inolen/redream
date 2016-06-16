@@ -1,4 +1,4 @@
-#include <imgui.h>
+// #include <imgui.h>
 #include "core/math.h"
 #include "core/profiler.h"
 #include "core/string.h"
@@ -64,7 +64,7 @@ static uint32_t sh4_tmu_tcnt(sh4_t *sh4, int n) {
   int64_t remaining = scheduler_remaining_time(sh4->scheduler, timer);
   int64_t cycles = NANO_TO_CYCLES(remaining, freq);
 
-  return static_cast<uint32_t>(cycles);
+  return (uint32_t)cycles;
 }
 
 static void sh4_tmu_expire(sh4_t *sh4, int n) {
@@ -105,12 +105,12 @@ static void sh4_tmu_reschedule(sh4_t *sh4, int n, uint32_t tcnt, uint32_t tcr) {
   struct timer_s **timer = &sh4->tmu_timers[n];
 
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
-  int64_t cycles = static_cast<int64_t>(tcnt);
+  int64_t cycles = (int64_t)tcnt;
   int64_t remaining = CYCLES_TO_NANO(cycles, freq);
 
   if (*timer) {
     scheduler_cancel_timer(sh4->scheduler, *timer);
-    *timer = nullptr;
+    *timer = NULL;
   }
 
   timer_cb cb =
@@ -131,7 +131,7 @@ static void sh4_tmu_update_tstr(sh4_t *sh4) {
     } else if (*timer) {
       // disable the timer
       scheduler_cancel_timer(sh4->scheduler, *timer);
-      *timer = nullptr;
+      *timer = NULL;
     }
   }
 }
@@ -173,9 +173,9 @@ static void sh4_intc_check_pending(sh4_t *sh4) {
   // process the highest priority in the pending vector
   int n = 63 - clz64(sh4->pending_interrupts);
   sh4_interrupt_t intr = sh4->sorted_interrupts[n];
-  sh4_interrupt_info_t &int_info = sh4_interrupts[intr];
+  sh4_interrupt_info_t *int_info = &sh4_interrupts[intr];
 
-  *sh4->INTEVT = int_info.intevt;
+  *sh4->INTEVT = int_info->intevt;
   sh4->ctx.ssr = sh4->ctx.sr;
   sh4->ctx.spc = sh4->ctx.pc;
   sh4->ctx.sgr = sh4->ctx.r[15];
@@ -195,13 +195,13 @@ static void sh4_intc_reprioritize(sh4_t *sh4) {
   for (int i = 0, n = 0; i < 16; i++) {
     // for even priorities, give precedence to lower id interrupts
     for (int j = NUM_SH_INTERRUPTS - 1; j >= 0; j--) {
-      sh4_interrupt_info_t &int_info = sh4_interrupts[j];
+      sh4_interrupt_info_t *int_info = &sh4_interrupts[j];
 
       // get current priority for interrupt
-      int priority = int_info.default_priority;
-      if (int_info.ipr) {
-        uint32_t ipr = sh4->reg[int_info.ipr];
-        priority = ((ipr & 0xffff) >> int_info.ipr_shift) & 0xf;
+      int priority = int_info->default_priority;
+      if (int_info->ipr) {
+        uint32_t ipr = sh4->reg[int_info->ipr];
+        priority = ((ipr & 0xffff) >> int_info->ipr_shift) & 0xf;
       }
 
       if (priority != i) {
@@ -231,7 +231,7 @@ static void sh4_intc_reprioritize(sh4_t *sh4) {
 // DMAC
 //
 static void sh4_dmac_check(sh4_t *sh4, int channel) {
-  chcr_t *chcr = nullptr;
+  chcr_t *chcr = NULL;
 
   switch (channel) {
     case 0:
@@ -291,7 +291,7 @@ static uint32_t sh4_compile_pc() {
 
 static void sh4_invalid_instr(sh4_context_t *ctx, uint64_t data) {
   // sh4_t *self = reinterpret_cast<SH4 *>(ctx->sh4);
-  // uint32_t addr = static_cast<uint32_t>(data);
+  // uint32_t addr = (uint32_t)data;
 
   // auto it = self->breakpoints.find(addr);
   // CHECK_NE(it, self->breakpoints.end());
@@ -304,8 +304,8 @@ static void sh4_invalid_instr(sh4_context_t *ctx, uint64_t data) {
 }
 
 static void sh4_prefetch(sh4_context_t *ctx, uint64_t data) {
-  sh4_t *sh4 = reinterpret_cast<sh4_t *>(ctx->sh4);
-  uint32_t addr = static_cast<uint32_t>(data);
+  sh4_t *sh4 = ctx->sh4;
+  uint32_t addr = (uint32_t)data;
 
   // only concerned about SQ related prefetches
   if (addr < 0xe0000000 || addr > 0xe3ffffff) {
@@ -337,7 +337,7 @@ static void sh4_swap_gpr_bank(sh4_t *sh4) {
 }
 
 static void sh4_sr_updated(sh4_context_t *ctx, uint64_t old_sr) {
-  sh4_t *sh4 = reinterpret_cast<sh4_t *>(ctx->sh4);
+  sh4_t *sh4 = ctx->sh4;
 
   if ((ctx->sr & RB) != (old_sr & RB)) {
     sh4_swap_gpr_bank(sh4);
@@ -357,7 +357,7 @@ static void sh4_swap_fpr_bank(sh4_t *sh4) {
 }
 
 static void sh4_fpscr_updated(sh4_context_t *ctx, uint64_t old_fpscr) {
-  sh4_t *sh4 = reinterpret_cast<sh4_t *>(ctx->sh4);
+  sh4_t *sh4 = ctx->sh4;
 
   if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
     sh4_swap_fpr_bank(sh4);
@@ -451,64 +451,90 @@ static void sh4_fpscr_updated(sh4_context_t *ctx, uint64_t old_fpscr) {
 //   *size = 4;
 // }
 
-template <typename T>
-static T sh4_read_reg(sh4_t *sh4, uint32_t addr) {
-  uint32_t offset = SH4_REG_OFFSET(addr);
-  reg_read_cb read = sh4->reg_read[offset];
-
-  if (read) {
-    void *data = sh4->reg_data[offset];
-    return read(data);
+#define define_reg_read(name, type)                       \
+  static type sh4_reg_##name(sh4_t *sh4, uint32_t addr) { \
+    uint32_t offset = SH4_REG_OFFSET(addr);               \
+    reg_read_cb read = sh4->reg_read[offset];             \
+                                                          \
+    if (read) {                                           \
+      void *data = sh4->reg_data[offset];                 \
+      return read(data);                                  \
+    }                                                     \
+                                                          \
+    return (type)sh4->reg[offset];                        \
   }
 
-  return static_cast<T>(sh4->reg[offset]);
-}
+define_reg_read(r8, uint8_t);
+define_reg_read(r16, uint16_t);
+define_reg_read(r32, uint32_t);
 
-template <typename T>
-static void sh4_write_reg(sh4_t *sh4, uint32_t addr, T value) {
-  uint32_t offset = SH4_REG_OFFSET(addr);
-  reg_write_cb write = sh4->reg_write[offset];
-
-  uint32_t old_value = sh4->reg[offset];
-  sh4->reg[offset] = static_cast<uint32_t>(value);
-
-  if (write) {
-    void *data = sh4->reg_data[offset];
-    write(data, old_value, &sh4->reg[offset]);
+#define define_reg_write(name, type)                                  \
+  static void sh4_reg_##name(sh4_t *sh4, uint32_t addr, type value) { \
+    uint32_t offset = SH4_REG_OFFSET(addr);                           \
+    reg_write_cb write = sh4->reg_write[offset];                      \
+                                                                      \
+    uint32_t old_value = sh4->reg[offset];                            \
+    sh4->reg[offset] = (uint32_t)value;                               \
+                                                                      \
+    if (write) {                                                      \
+      void *data = sh4->reg_data[offset];                             \
+      write(data, old_value, &sh4->reg[offset]);                      \
+    }                                                                 \
   }
-}
+
+define_reg_write(w8, uint8_t);
+define_reg_write(w16, uint16_t);
+define_reg_write(w32, uint32_t);
 
 // with OIX, bit 25, rather than bit 13, determines which 4kb bank to use
 #define CACHE_OFFSET(addr, OIX) \
   ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
 
-template <typename T>
-static T sh4_read_cache(sh4_t *sh4, uint32_t addr) {
-  CHECK_EQ(sh4->CCR->ORA, 1u);
-  addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
-  return *(T *)&sh4->cache[addr];
-}
+#define define_cache_read(name, type)                       \
+  static type sh4_cache_##name(sh4_t *sh4, uint32_t addr) { \
+    CHECK_EQ(sh4->CCR->ORA, 1u);                            \
+    addr = CACHE_OFFSET(addr, sh4->CCR->OIX);               \
+    return *(type *)&sh4->cache[addr];                      \
+  }
 
-template <typename T>
-static void sh4_write_cache(sh4_t *sh4, uint32_t addr, T value) {
-  CHECK_EQ(sh4->CCR->ORA, 1u);
-  addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
-  *(T *)&sh4->cache[addr] = value;
-}
+define_cache_read(r8, uint8_t);
+define_cache_read(r16, uint16_t);
+define_cache_read(r32, uint32_t);
+define_cache_read(r64, uint64_t);
 
-template <typename T>
-static T sh4_read_sq(sh4_t *sh4, uint32_t addr) {
-  uint32_t sqi = (addr & 0x20) >> 5;
-  unsigned idx = (addr & 0x1c) >> 2;
-  return static_cast<T>(sh4->ctx.sq[sqi][idx]);
-}
+#define define_cache_write(name, type)                                  \
+  static void sh4_cache_##name(sh4_t *sh4, uint32_t addr, type value) { \
+    CHECK_EQ(sh4->CCR->ORA, 1u);                                        \
+    addr = CACHE_OFFSET(addr, sh4->CCR->OIX);                           \
+    *(type *)&sh4->cache[addr] = value;                                 \
+  }
 
-template <typename T>
-static void sh4_write_sq(sh4_t *sh4, uint32_t addr, T value) {
-  uint32_t sqi = (addr & 0x20) >> 5;
-  uint32_t idx = (addr & 0x1c) >> 2;
-  sh4->ctx.sq[sqi][idx] = static_cast<uint32_t>(value);
-}
+define_cache_write(w8, uint8_t);
+define_cache_write(w16, uint16_t);
+define_cache_write(w32, uint32_t);
+define_cache_write(w64, uint64_t);
+
+#define define_sq_read(name, type)                       \
+  static type sh4_sq_##name(sh4_t *sh4, uint32_t addr) { \
+    uint32_t sqi = (addr & 0x20) >> 5;                   \
+    unsigned idx = (addr & 0x1c) >> 2;                   \
+    return (type)sh4->ctx.sq[sqi][idx];                  \
+  }
+
+define_sq_read(r8, uint8_t);
+define_sq_read(r16, uint16_t);
+define_sq_read(r32, uint32_t);
+
+#define define_sq_write(name, type)                                  \
+  static void sh4_sq_##name(sh4_t *sh4, uint32_t addr, type value) { \
+    uint32_t sqi = (addr & 0x20) >> 5;                               \
+    uint32_t idx = (addr & 0x1c) >> 2;                               \
+    sh4->ctx.sq[sqi][idx] = (uint32_t)value;                         \
+  }
+
+define_sq_write(w8, uint8_t);
+define_sq_write(w16, uint16_t);
+define_sq_write(w32, uint32_t);
 
 REG_R32(sh4_t *sh4, PDTRA) {
   // magic values to get past 0x8c00b948 in the boot rom:
@@ -730,7 +756,7 @@ static bool sh4_init(sh4_t *sh4) {
 
 #define SH4_REG(addr, name, default, type) \
   sh4->reg[name] = default;                \
-  sh4->name = reinterpret_cast<type *>(&sh4->reg[name]);
+  sh4->name = (type *)&sh4->reg[name];
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
 
@@ -743,39 +769,40 @@ static bool sh4_init(sh4_t *sh4) {
 static void sh4_paint(sh4_t *sh4, bool show_main_menu) {
   sh4_perf_t *perf = &sh4->perf;
 
-  if (show_main_menu && ImGui::BeginMainMenuBar()) {
-    if (ImGui::BeginMenu("CPU")) {
-      ImGui::MenuItem("Perf", "", &perf->show);
-      ImGui::EndMenu();
-    }
+  // if (show_main_menu && ImGui::BeginMainMenuBar()) {
+  //   if (ImGui::BeginMenu("CPU")) {
+  //     ImGui::MenuItem("Perf", "", &perf->show);
+  //     ImGui::EndMenu();
+  //   }
 
-    ImGui::EndMainMenuBar();
-  }
+  //   ImGui::EndMainMenuBar();
+  // }
 
-  if (perf->show) {
-    ImGui::Begin("Perf", nullptr, ImGuiWindowFlags_NoTitleBar |
-                                      ImGuiWindowFlags_NoResize |
-                                      ImGuiWindowFlags_NoMove |
-                                      ImGuiWindowFlags_AlwaysAutoResize);
+  // if (perf->show) {
+  //   ImGui::Begin("Perf", NULL, ImGuiWindowFlags_NoTitleBar |
+  //                                     ImGuiWindowFlags_NoResize |
+  //                                     ImGuiWindowFlags_NoMove |
+  //                                     ImGuiWindowFlags_AlwaysAutoResize);
 
-    ImGui::SetWindowPos(ImVec2(
-        ImGui::GetIO().DisplaySize.x - ImGui::GetWindowSize().x - 10, 10));
+  //   ImGui::SetWindowPos(ImVec2(
+  //       ImGui::GetIO().DisplaySize.x - ImGui::GetWindowSize().x - 10, 10));
 
-    // calculate average mips
-    float avg_mips = 0.0f;
-    for (int i = MAX(0, perf->num_mips - MAX_MIPS_SAMPLES); i < perf->num_mips;
-         i++) {
-      avg_mips += perf->mips[i % MAX_MIPS_SAMPLES];
-    }
-    avg_mips /= MAX(MIN(perf->num_mips, MAX_MIPS_SAMPLES), 1);
+  //   // calculate average mips
+  //   float avg_mips = 0.0f;
+  //   for (int i = MAX(0, perf->num_mips - MAX_MIPS_SAMPLES); i <
+  //   perf->num_mips;
+  //        i++) {
+  //     avg_mips += perf->mips[i % MAX_MIPS_SAMPLES];
+  //   }
+  //   avg_mips /= MAX(MIN(perf->num_mips, MAX_MIPS_SAMPLES), 1);
 
-    char overlay_text[128];
-    snprintf(overlay_text, sizeof(overlay_text), "%.2f", avg_mips);
-    ImGui::PlotLines("MIPS", perf->mips, MAX_MIPS_SAMPLES, perf->num_mips,
-                     overlay_text, 0.0f, 400.0f);
+  //   char overlay_text[128];
+  //   snprintf(overlay_text, sizeof(overlay_text), "%.2f", avg_mips);
+  //   ImGui::PlotLines("MIPS", perf->mips, MAX_MIPS_SAMPLES, perf->num_mips,
+  //                    overlay_text, 0.0f, 400.0f);
 
-    ImGui::End();
-  }
+  //   ImGui::End();
+  // }
 }
 
 void sh4_set_pc(sh4_t *sh4, uint32_t pc) {
@@ -787,7 +814,7 @@ static void sh4_run_inner(sh4_t *sh4, int64_t ns) {
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
 
   // each block's epilog will decrement the remaining cycles as they run
-  sh4->ctx.num_cycles = static_cast<int>(cycles);
+  sh4->ctx.num_cycles = (int)cycles;
 
   while (sh4->ctx.num_cycles > 0) {
     code_pointer_t code = sh4_cache_get_code(sh4->code_cache, sh4->ctx.pc);
@@ -906,12 +933,11 @@ void sh4_ddt(sh4_t *sh4, sh4_dtr_t *dtr) {
 }
 
 sh4_t *sh4_create(dreamcast_t *dc) {
-  sh4_t *sh4 = reinterpret_cast<sh4_t *>(
-      dc_create_device(dc, sizeof(sh4_t), "sh", (device_init_cb)&sh4_init));
+  sh4_t *sh4 =
+      dc_create_device(dc, sizeof(sh4_t), "sh", (device_init_cb)&sh4_init);
   sh4->base.execute = execute_interface_create((device_run_cb)&sh4_run);
   sh4->base.memory = memory_interface_create(dc, sh4_data_map);
-  sh4->base.window =
-      window_interface_create((device_paint_cb)&sh4_paint, nullptr);
+  sh4->base.window = window_interface_create((device_paint_cb)&sh4_paint, NULL);
 
   g_sh4 = sh4;
 
@@ -951,14 +977,14 @@ AM_BEGIN(sh4_t, sh4_data_map)
   AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_fifo_map)
 
   // internal registers
-  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE((r8_cb)&sh4_read_reg<uint8_t>,
-                                             (r16_cb)&sh4_read_reg<uint16_t>,
-                                             (r32_cb)&sh4_read_reg<uint32_t>,
-                                             nullptr,
-                                             (w8_cb)&sh4_write_reg<uint8_t>,
-                                             (w16_cb)&sh4_write_reg<uint16_t>,
-                                             (w32_cb)&sh4_write_reg<uint32_t>,
-                                             nullptr)
+  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE((r8_cb)&sh4_reg_r8,
+                                             (r16_cb)&sh4_reg_r16,
+                                             (r32_cb)&sh4_reg_r32,
+                                             NULL,
+                                             (w8_cb)&sh4_reg_w8,
+                                             (w16_cb)&sh4_reg_w16,
+                                             (w32_cb)&sh4_reg_w32,
+                                             NULL)
 
   // physical mirrors
   AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  // p0
@@ -970,22 +996,22 @@ AM_BEGIN(sh4_t, sh4_data_map)
   AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  // p4
 
   // internal cache and sq only accessible through p4
-  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE((r8_cb)&sh4_read_cache<uint8_t>,
-                                             (r16_cb)&sh4_read_cache<uint16_t>,
-                                             (r32_cb)&sh4_read_cache<uint32_t>,
-                                             (r64_cb)&sh4_read_cache<uint64_t>,
-                                             (w8_cb)&sh4_write_cache<uint8_t>,
-                                             (w16_cb)&sh4_write_cache<uint16_t>,
-                                             (w32_cb)&sh4_write_cache<uint32_t>,
-                                             (w64_cb)&sh4_write_cache<uint64_t>)
+  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE((r8_cb)&sh4_cache_r8,
+                                             (r16_cb)&sh4_cache_r16,
+                                             (r32_cb)&sh4_cache_r32,
+                                             (r64_cb)&sh4_cache_r64,
+                                             (w8_cb)&sh4_cache_w8,
+                                             (w16_cb)&sh4_cache_w16,
+                                             (w32_cb)&sh4_cache_w32,
+                                             (w64_cb)&sh4_cache_w64)
 
-  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE((r8_cb)&sh4_read_sq<uint8_t>,
-                                             (r16_cb)&sh4_read_sq<uint16_t>,
-                                             (r32_cb)&sh4_read_sq<uint32_t>,
-                                             nullptr,
-                                             (w8_cb)&sh4_write_sq<uint8_t>,
-                                             (w16_cb)&sh4_write_sq<uint16_t>,
-                                             (w32_cb)&sh4_write_sq<uint32_t>,
-                                             nullptr)
+  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE((r8_cb)&sh4_sq_r8,
+                                             (r16_cb)&sh4_sq_r16,
+                                             (r32_cb)&sh4_sq_r32,
+                                             NULL,
+                                             (w8_cb)&sh4_sq_w8,
+                                             (w16_cb)&sh4_sq_w16,
+                                             (w32_cb)&sh4_sq_w32,
+                                             NULL)
 AM_END();
 // clang-format on

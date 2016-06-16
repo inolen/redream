@@ -301,6 +301,10 @@ static bool holly_init(holly_t *hl) {
 #define HOLLY_REG_W32(name) \
   hl->reg_data[name] = hl;  \
   hl->reg_write[name] = (reg_write_cb)&name##_w;
+#define HOLLY_REG(addr, name, default, type) \
+  hl->reg[name] = default;                   \
+  hl->name = (type *)&hl->reg[name];
+
   HOLLY_REG_R32(SB_ISTNRM);
   HOLLY_REG_W32(SB_ISTNRM);
   HOLLY_REG_W32(SB_ISTEXT);
@@ -327,13 +331,10 @@ static bool holly_init(holly_t *hl) {
   HOLLY_REG_W32(SB_DDST);
   HOLLY_REG_W32(SB_PDEN);
   HOLLY_REG_W32(SB_PDST);
+#include "hw/holly/holly_regs.inc"
+
 #undef HOLLY_REG_R32
 #undef HOLLY_REG_W32
-
-#define HOLLY_REG(addr, name, default, type) \
-  hl->reg[name] = default;                   \
-  hl->name = (type *)&hl->reg[name];
-#include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
 
   return true;
