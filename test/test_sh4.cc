@@ -2,12 +2,15 @@
 #include <memory>
 #include <unordered_map>
 #include <gtest/gtest.h>
+
+extern "C" {
 #include "core/math.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 #include "sys/exception_handler.h"
+}
 
 static const uint32_t UNINITIALIZED_REG = 0xbaadf00d;
 

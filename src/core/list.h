@@ -4,12 +4,6 @@
 #include <stdlib.h>
 #include "core/core.h"
 
-#ifdef __cplusplus
-#include <type_traits>
-
-extern "C" {
-#endif
-
 typedef struct list_node_s {
   struct list_node_s *prev;
   struct list_node_s *next;
@@ -69,9 +63,5 @@ void list_sort(list_t *list, list_node_cmp cmp);
             *it##_next = it ? list_prev_entry(it, member) : NULL; \
        it;                                                        \
        it = it##_next, it##_next = it ? list_prev_entry(it, member) : NULL)
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

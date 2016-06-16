@@ -4,10 +4,6 @@
 #include "hw/holly/ta_types.h"
 #include "hw/memory.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 struct rb_s;
 

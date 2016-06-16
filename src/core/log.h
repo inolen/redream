@@ -5,10 +5,6 @@
 #include "core/debug_break.h"
 #include "core/option.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 DECLARE_OPTION_BOOL(debug);
 
 typedef enum {
@@ -56,10 +52,6 @@ void log_line(log_level_t level, const char *format, ...);
     log_line(LOG_LEVEL_FATAL, ##__VA_ARGS__); \
     exit(1);                                  \
   } while (0)
-#endif
-
-#ifdef __cplusplus
-}
 #endif
 
 #endif

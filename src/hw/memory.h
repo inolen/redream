@@ -4,10 +4,6 @@
 #include "core/assert.h"
 #include "sys/memory.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 
 static const uint64_t ADDRESS_SPACE_SIZE = 1ull << 32;
@@ -198,9 +194,5 @@ uint8_t *as_translate_protected(address_space_t *space, uint32_t addr);
 
 address_space_t *as_create(struct dreamcast_s *dc);
 void as_destroy(address_space_t *space);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

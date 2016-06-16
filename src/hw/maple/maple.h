@@ -5,10 +5,6 @@
 #include "hw/dreamcast.h"
 #include "ui/keycode.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 struct maple_s;
 struct maple_device_s;
@@ -30,9 +26,5 @@ void maple_vblank(struct maple_s *mp);
 
 struct maple_s *maple_create(struct dreamcast_s *dc);
 void maple_destroy(struct maple_s *mp);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -5,10 +5,6 @@
 #include "core/assert.h"
 #include "core/list.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
 #define IR_OP(name) OP_##name,
 #include "jit/ir/ir_ops.inc"
@@ -295,9 +291,5 @@ void ir_branch_cond(ir_t *ir, ir_value_t *cond, ir_value_t *true_addr,
 // calls
 void ir_call_external_1(ir_t *ir, ir_value_t *addr);
 void ir_call_external_2(ir_t *ir, ir_value_t *addr, ir_value_t *arg0);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

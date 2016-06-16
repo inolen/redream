@@ -3,10 +3,6 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 struct timer_s;
 struct scheduler_s;
@@ -27,9 +23,5 @@ void scheduler_cancel_timer(struct scheduler_s *sch, struct timer_s *);
 
 struct scheduler_s *scheduler_create(struct dreamcast_s *dc);
 void scheduler_destroy(struct scheduler_s *sch);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct address_space_s;
 struct ir_s;
 struct re_exception_s;
@@ -52,9 +48,5 @@ typedef struct jit_backend_s {
   dump_code_cb dump_code;
   handle_exception_cb handle_exception;
 } jit_backend_t;
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

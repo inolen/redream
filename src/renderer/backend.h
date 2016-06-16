@@ -1,11 +1,8 @@
 #ifndef RENDERER_BACKEND_H
 #define RENDERER_BACKEND_H
 
+#include <stdbool.h>
 #include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct window_s;
 
@@ -145,9 +142,5 @@ void rb_free_texture(struct rb_s *rb, texture_handle_t handle);
 
 struct rb_s *rb_create(struct window_s *window);
 void rb_destroy(struct rb_s *rb);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

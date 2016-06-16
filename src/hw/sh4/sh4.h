@@ -6,10 +6,6 @@
 #include "hw/memory.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct dreamcast_s;
 
 static const int MAX_MIPS_SAMPLES = 10;
@@ -79,9 +75,5 @@ struct sh4_s *sh4_create(struct dreamcast_s *dc);
 void sh4_destroy(struct sh4_s *sh);
 
 AM_DECLARE(sh4_data_map);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

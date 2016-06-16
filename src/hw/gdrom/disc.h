@@ -3,10 +3,6 @@
 
 #include "sys/filesystem.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 static const int SECTOR_SIZE = 2352;
 
 typedef struct track_s {

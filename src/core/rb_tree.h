@@ -1,10 +1,6 @@
 #ifndef RB_TREE_H
 #define RB_TREE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "core/core.h"
 
 #define RB_NODE(n) ((rb_node_t *)n)
@@ -81,9 +77,5 @@ rb_node_t *rb_next(rb_node_t *n);
 #define rb_for_each_entry(it, t, type, member)         \
   for (type *it = rb_first_entry(t, type, member); it; \
        it = rb_next_entry(it, member))
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

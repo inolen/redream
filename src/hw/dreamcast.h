@@ -8,10 +8,6 @@
 #include "hw/memory.h"
 #include "ui/keycode.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct address_map_s;
 struct aica_s;
 struct arm_s;
@@ -141,9 +137,5 @@ void dc_keydown(dreamcast_t *dc, keycode_t code, int16_t value);
 
 dreamcast_t *dc_create(void *rb);
 void dc_destroy(dreamcast_t *dc);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

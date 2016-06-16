@@ -4,10 +4,6 @@
 #include <stdio.h>
 #include "hw/holly/ta_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   TRACE_CMD_NONE,
   TRACE_CMD_TEXTURE,
@@ -69,9 +65,5 @@ void trace_writer_insert_texture(trace_writer_t *writer, tsp_t tsp, tcw_t tcw,
                                  const uint8_t *texture, int texture_size);
 void trace_writer_render_context(trace_writer_t *writer, tile_ctx_t *ctx);
 void trace_writer_close(trace_writer_t *writer);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

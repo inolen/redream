@@ -1,10 +1,6 @@
 #ifndef KEYCODE_H
 #define KEYCODE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   K_UNKNOWN,
   K_RETURN,
@@ -273,9 +269,5 @@ typedef enum {
 
 keycode_t get_key_by_name(const char *keyname);
 const char *get_name_by_key(keycode_t keycode);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

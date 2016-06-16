@@ -1,10 +1,6 @@
 #ifndef TRACER_H
 #define TRACER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct tracer_s;
 struct window_s;
 

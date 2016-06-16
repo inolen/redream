@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct re_exception_s;
 
 typedef bool (*exception_handler_cb)(void *data, struct re_exception_s *ex);
@@ -40,9 +36,5 @@ struct exc_handler_s *exception_handler_add(void *data,
                                             exception_handler_cb cb);
 void exception_handler_remove(struct exc_handler_s *handler);
 bool exception_handler_handle(re_exception_t *ex);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

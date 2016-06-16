@@ -4,10 +4,6 @@
 #include "hw/holly/ta_types.h"
 #include "renderer/backend.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct tr_s;
 
 // register_texture_cb / get_texture_cb provide an abstraction around
@@ -79,9 +75,5 @@ void tr_render_context(struct tr_s *tr, const render_ctx_t *rctx);
 struct tr_s *tr_create(struct rb_s *rb, void *get_tex_data,
                        get_texture_cb get_tex);
 void tr_destroy(struct tr_s *tr);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
