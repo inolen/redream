@@ -14,7 +14,8 @@ struct imgui {
   bool shift[2];
 };
 
-static void imgui_onprepaint(struct imgui *imgui) {
+static void imgui_onprepaint(void *data) {
+  struct imgui *imgui = reinterpret_cast<struct imgui *>(data);
   ImGuiIO &io = ImGui::GetIO();
 
   int width = win_width(imgui->window);
@@ -28,7 +29,8 @@ static void imgui_onprepaint(struct imgui *imgui) {
   io.MouseWheel = 0.0;
 }
 
-static void imgui_onpostpaint(struct imgui *imgui) {
+static void imgui_onpostpaint(void *data) {
+  struct imgui *imgui = reinterpret_cast<struct imgui *>(data);
   ImGuiIO &io = ImGui::GetIO();
   struct rb *rb = win_render_backend(imgui->window);
 
@@ -40,12 +42,12 @@ static void imgui_onpostpaint(struct imgui *imgui) {
   ImGui::Render();
 
   // get the latest draw batches, and pass them off out the render backend
-  ImDrawData *data = ImGui::GetDrawData();
+  ImDrawData *draw_data = ImGui::GetDrawData();
 
   rb_begin2d(rb);
 
-  for (int i = 0; i < data->CmdListsCount; ++i) {
-    const auto cmd_list = data->CmdLists[i];
+  for (int i = 0; i < draw_data->CmdListsCount; ++i) {
+    const auto cmd_list = draw_data->CmdLists[i];
 
     struct vertex2d *verts =
         reinterpret_cast<struct vertex2d *>(cmd_list->VtxBuffer.Data);
@@ -86,8 +88,8 @@ static void imgui_onpostpaint(struct imgui *imgui) {
   rb_end2d(rb);
 }
 
-static void imgui_onkeydown(struct imgui *imgui, enum keycode code,
-                            int16_t value) {
+static void imgui_onkeydown(void *data, enum keycode code, int16_t value) {
+  struct imgui *imgui = reinterpret_cast<struct imgui *>(data);
   ImGuiIO &io = ImGui::GetIO();
 
   if (code == K_MWHEELUP) {
@@ -114,27 +116,28 @@ static void imgui_onkeydown(struct imgui *imgui, enum keycode code,
   }
 }
 
-static void imgui_ontextinput(struct imgui *imgui, const char *text) {
+static void imgui_ontextinput(void *data, const char *text) {
+  struct imgui *imgui = reinterpret_cast<struct imgui *>(data);
   ImGuiIO &io = ImGui::GetIO();
 
   io.AddInputCharactersUTF8(text);
 }
 
-static void imgui_onmousemove(struct imgui *imgui, int x, int y) {
+static void imgui_onmousemove(void *data, int x, int y) {
+  struct imgui *imgui = reinterpret_cast<struct imgui *>(data);
   ImGuiIO &io = ImGui::GetIO();
 
   io.MousePos = ImVec2((float)x, (float)y);
 }
 
 struct imgui *imgui_create(struct window *window) {
-  static const struct window_callbacks callbacks = {
-      (window_prepaint_cb)&imgui_onprepaint,
-      NULL,
-      (window_postpaint_cb)&imgui_onpostpaint,
-      (window_keydown_cb)&imgui_onkeydown,
-      (window_textinput_cb)&imgui_ontextinput,
-      (window_mousemove_cb)&imgui_onmousemove,
-      NULL};
+  static const struct window_callbacks callbacks = {&imgui_onprepaint,
+                                                    NULL,
+                                                    &imgui_onpostpaint,
+                                                    &imgui_onkeydown,
+                                                    &imgui_ontextinput,
+                                                    &imgui_onmousemove,
+                                                    NULL};
 
   struct imgui *imgui =
       reinterpret_cast<struct imgui *>(calloc(1, sizeof(struct imgui)));

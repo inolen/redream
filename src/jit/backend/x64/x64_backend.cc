@@ -457,15 +457,19 @@ static void x64_backend_emit_constants(struct x64_backend *backend) {
   e.dq(INT64_C(0x8000000000000000));
 }
 
-static void x64_backend_reset(struct x64_backend *backend) {
+static void x64_backend_reset(struct jit_backend *base) {
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
   backend->codegen->reset();
 
   x64_backend_emit_thunks(backend);
   x64_backend_emit_constants(backend);
 }
 
-static const uint8_t *x64_backend_assemble_code(struct x64_backend *backend,
+static const uint8_t *x64_backend_assemble_code(struct jit_backend *base,
                                                 struct ir *ir, int *size) {
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
   const uint8_t *fn = nullptr;
@@ -481,8 +485,10 @@ static const uint8_t *x64_backend_assemble_code(struct x64_backend *backend,
   return fn;
 }
 
-static void x64_backend_dump_code(struct x64_backend *backend,
+static void x64_backend_dump_code(struct jit_backend *base,
                                   const uint8_t *host_addr, int size) {
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
   cs_insn *insns;
   size_t count =
       cs_disasm(backend->capstone_handle, host_addr, size, 0, 0, &insns);
@@ -497,8 +503,10 @@ static void x64_backend_dump_code(struct x64_backend *backend,
   cs_free(insns, count);
 }
 
-static bool x64_backend_handle_exception(struct x64_backend *backend,
+static bool x64_backend_handle_exception(struct jit_backend *base,
                                          struct exception *ex) {
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
   const uint8_t *data = reinterpret_cast<const uint8_t *>(ex->thread_state.rip);
 
   // it's assumed a mov has triggered the exception
@@ -1646,13 +1654,11 @@ struct jit_backend *x64_backend_create(const struct mem_interface *memif) {
       calloc(1, sizeof(struct x64_backend)));
 
   backend->base.registers = x64_registers;
-  backend->base.num_registers =
-      sizeof(x64_registers) / sizeof(struct register_def);
-  backend->base.reset = (reset_cb)&x64_backend_reset;
-  backend->base.assemble_code = (assemble_code_cb)&x64_backend_assemble_code;
-  backend->base.dump_code = (dump_code_cb)&x64_backend_dump_code;
-  backend->base.handle_exception =
-      (handle_exception_cb)&x64_backend_handle_exception;
+  backend->base.num_registers = array_size(x64_registers);
+  backend->base.reset = &x64_backend_reset;
+  backend->base.assemble_code = &x64_backend_assemble_code;
+  backend->base.dump_code = &x64_backend_dump_code;
+  backend->base.handle_exception = &x64_backend_handle_exception;
 
   backend->memif = *memif;
 
@@ -1661,15 +1667,16 @@ struct jit_backend *x64_backend_create(const struct mem_interface *memif) {
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
 
-  x64_backend_reset(backend);
-
-  // protect the code buffer
+  // make the code buffer executable
   int page_size = get_page_size();
   void *aligned_code = (void *)align_down((intptr_t)x64_code, page_size);
   int aligned_code_size = align_up(x64_code_size, page_size);
   bool success =
       protect_pages(aligned_code, aligned_code_size, ACC_READWRITEEXEC);
   CHECK(success);
+
+  // do an initial reset to emit constants and thinks
+  x64_backend_reset((jit_backend *)backend);
 
   return (struct jit_backend *)backend;
 }

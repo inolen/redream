@@ -93,16 +93,16 @@ static void sh4_tmu_expire(struct sh4 *sh4, int n) {
   sh4_tmu_reschedule(sh4, n, *tcnt, *tcr);
 }
 
-static void sh4_tmu_expire_0(struct sh4 *sh4) {
-  sh4_tmu_expire(sh4, 0);
+static void sh4_tmu_expire_0(void *data) {
+  sh4_tmu_expire(data, 0);
 }
 
-static void sh4_tmu_expire_1(struct sh4 *sh4) {
-  sh4_tmu_expire(sh4, 1);
+static void sh4_tmu_expire_1(void *data) {
+  sh4_tmu_expire(data, 1);
 }
 
-static void sh4_tmu_expire_2(struct sh4 *sh4) {
-  sh4_tmu_expire(sh4, 2);
+static void sh4_tmu_expire_2(void *data) {
+  sh4_tmu_expire(data, 2);
 }
 
 static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
@@ -118,8 +118,7 @@ static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
     *timer = NULL;
   }
 
-  timer_cb cb =
-      (timer_cb)(n == 0 ? &sh4_tmu_expire_0 : n == 1 ? &sh4_tmu_expire_1
+  timer_cb cb = (n == 0 ? &sh4_tmu_expire_0 : n == 1 ? &sh4_tmu_expire_1
                                                      : &sh4_tmu_expire_2);
   *timer = scheduler_start_timer(sh4->scheduler, cb, sh4, remaining);
 }
@@ -697,7 +696,8 @@ REG_W32(struct sh4 *sh4, TCNT2) {
   sh4_tmu_update_tcnt(sh4, 2);
 }
 
-static bool sh4_init(struct sh4 *sh4) {
+static bool sh4_init(struct device *dev) {
+  struct sh4 *sh4 = container_of(dev, struct sh4, base);
   struct dreamcast *dc = sh4->base.dc;
 
   sh4->scheduler = dc->scheduler;
@@ -771,7 +771,8 @@ static bool sh4_init(struct sh4 *sh4) {
   return true;
 }
 
-static void sh4_paint(struct sh4 *sh4, bool show_main_menu) {
+static void sh4_paint(struct device *dev, bool show_main_menu) {
+  struct sh4 *sh4 = container_of(dev, struct sh4, base);
   struct sh4_perf *perf = &sh4->perf;
 
   // if (show_main_menu && ImGui::BeginMainMenuBar()) {
@@ -814,7 +815,9 @@ void sh4_set_pc(struct sh4 *sh4, uint32_t pc) {
   sh4->ctx.pc = pc;
 }
 
-static void sh4_run_inner(struct sh4 *sh4, int64_t ns) {
+static void sh4_run_inner(struct device *dev, int64_t ns) {
+  struct sh4 *sh4 = container_of(dev, struct sh4, base);
+
   // execute at least 1 cycle. the tests rely on this to step block by block
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
 
@@ -847,10 +850,10 @@ static void sh4_run_inner(struct sh4 *sh4, int64_t ns) {
   }
 }
 
-void sh4_run(struct sh4 *sh4, int64_t ns) {
+void sh4_run(struct device *dev, int64_t ns) {
   prof_enter("sh4_run");
 
-  sh4_run_inner(sh4, ns);
+  sh4_run_inner(dev, ns);
 
   prof_leave();
 }
@@ -938,11 +941,10 @@ void sh4_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
 }
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
-  struct sh4 *sh4 =
-      dc_create_device(dc, sizeof(struct sh4), "sh", (device_init_cb)&sh4_init);
-  sh4->base.execute = execute_interface_create((device_run_cb)&sh4_run);
+  struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
+  sh4->base.execute = execute_interface_create(&sh4_run);
   sh4->base.memory = memory_interface_create(dc, &sh4_data_map);
-  sh4->base.window = window_interface_create((device_paint_cb)&sh4_paint, NULL);
+  sh4->base.window = window_interface_create(&sh4_paint, NULL);
 
   g_sh4 = sh4;
 

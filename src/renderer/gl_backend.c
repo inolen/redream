@@ -488,7 +488,9 @@ static void rb_set_initial_state(struct rb *rb) {
   rb_set_blend_func(rb, BLEND_NONE, BLEND_NONE);
 }
 
-static void rb_onpaint(struct rb *rb, bool show_main_menu) {
+static void rb_onpaint(void *data, bool show_main_menu) {
+  // struct rb *rb = data;
+
   // if (show_main_menu && ImGui::BeginMainMenuBar()) {
   //   if (ImGui::BeginMenu("Render")) {
   //     ImGui::MenuItem("Wireframe", "", &rb->debug_wireframe);
@@ -703,7 +705,7 @@ void rb_free_texture(struct rb *rb, texture_handle_t handle) {
 
 struct rb *rb_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL, (window_paint_cb)&rb_onpaint, NULL, NULL, NULL, NULL, NULL};
+      NULL, rb_onpaint, NULL, NULL, NULL, NULL, NULL};
 
   struct rb *rb = (struct rb *)calloc(1, sizeof(struct rb));
   rb->window = window;

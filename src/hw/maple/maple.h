@@ -9,16 +9,11 @@ struct dreamcast;
 struct maple;
 struct maple_device;
 
-typedef void (*maple_destroy_cb)(struct maple_device *);
-typedef bool (*maple_input_cb)(struct maple_device *, enum keycode, int16_t);
-typedef bool (*maple_frame_cb)(struct maple_device *,
-                               const struct maple_frame *,
-                               struct maple_frame *);
-
 struct maple_device {
-  maple_destroy_cb destroy;
-  maple_input_cb input;
-  maple_frame_cb frame;
+  void (*destroy)(struct maple_device *);
+  bool (*input)(struct maple_device *, enum keycode, int16_t);
+  bool (*frame)(struct maple_device *, const struct maple_frame *,
+                struct maple_frame *);
 };
 
 struct maple_device *controller_create();

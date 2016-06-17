@@ -123,11 +123,15 @@ static bool emu_launch_gdi(emu_t *emu, const char *path) {
   return true;
 }
 
-static void emu_onpaint(emu_t *emu, bool show_main_menu) {
+static void emu_onpaint(void *data, bool show_main_menu) {
+  emu_t *emu = data;
+
   dc_paint(emu->dc, show_main_menu);
 }
 
-static void emu_onkeydown(emu_t *emu, enum keycode code, int16_t value) {
+static void emu_onkeydown(void *data, enum keycode code, int16_t value) {
+  emu_t *emu = data;
+
   if (code == K_F1) {
     if (value) {
       win_enable_main_menu(emu->window, !win_main_menu_enabled(emu->window));
@@ -138,7 +142,9 @@ static void emu_onkeydown(emu_t *emu, enum keycode code, int16_t value) {
   dc_keydown(emu->dc, code, value);
 }
 
-static void emu_onclose(emu_t *emu) {
+static void emu_onclose(void *data) {
+  emu_t *emu = data;
+
   emu->running = false;
 }
 
@@ -201,13 +207,7 @@ void emu_run(emu_t *emu, const char *path) {
 
 emu_t *emu_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL,
-      (window_paint_cb)&emu_onpaint,
-      NULL,
-      (window_keydown_cb)&emu_onkeydown,
-      NULL,
-      NULL,
-      (window_close_cb)&emu_onclose};
+      NULL, &emu_onpaint, NULL, &emu_onkeydown, NULL, NULL, &emu_onclose};
 
   emu_t *emu = calloc(1, sizeof(emu_t));
 

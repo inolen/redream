@@ -118,16 +118,17 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
          (float_to_u8(g) << 8) | float_to_u8(r);
 }
 
-static void tr_register_texture(struct tr *tr, struct texture_reg *reg) {
+static void tr_register_texture(void *data, struct texture_reg *reg) {
   static uint8_t converted[1024 * 1024 * 4];
 
+  struct tr *tr = data;
   const struct tile_ctx *ctx = reg->ctx;
   union tsp tsp = reg->tsp;
   union tcw tcw = reg->tcw;
-  const uint8_t *palette = reg->palette;
-  const uint8_t *data = reg->data;
-  const uint8_t *input = data;
-  const uint8_t *output = data;
+  const uint8_t *palette_data = reg->palette;
+  const uint8_t *texture_data = reg->data;
+  const uint8_t *input = texture_data;
+  const uint8_t *output = texture_data;
 
   // textures are either twiddled and vq compressed, twiddled and uncompressed
   // or planar
@@ -166,7 +167,7 @@ static void tr_register_texture(struct tr *tr, struct texture_reg *reg) {
 
   // used by vq compressed textures
   static const int codebook_size = 256 * 8;
-  const uint8_t *codebook = data;
+  const uint8_t *codebook = texture_data;
   const uint8_t *index = input + codebook_size;
 
   enum pxl_format pixel_fmt = PXL_INVALID;
@@ -224,7 +225,7 @@ static void tr_register_texture(struct tr *tr, struct texture_reg *reg) {
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           convert_pal4_ARGB4444_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
+                                         (const uint32_t *)palette_data, width,
                                          height);
           break;
 
@@ -242,14 +243,14 @@ static void tr_register_texture(struct tr *tr, struct texture_reg *reg) {
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           convert_pal8_ARGB4444_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
+                                         (const uint32_t *)palette_data, width,
                                          height);
           break;
 
         case TA_PAL_ARGB8888:
           pixel_fmt = PXL_RGBA8888;
           convert_pal8_ARGB8888_RGBA8888(input, (uint32_t *)converted,
-                                         (const uint32_t *)palette, width,
+                                         (const uint32_t *)palette_data, width,
                                          height);
           break;
 
@@ -564,8 +565,7 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
 
   if (param->type0.pcw.texture) {
     surf->texture = tr->get_texture(tr->get_texture_data, ctx, param->type0.tsp,
-                                    param->type0.tcw, tr,
-                                    (register_texture_cb)&tr_register_texture);
+                                    param->type0.tcw, tr, &tr_register_texture);
   } else {
     surf->texture = 0;
   }

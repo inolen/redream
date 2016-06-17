@@ -71,19 +71,19 @@ static enum holly_interrupt list_interrupts[] = {
     HOLLY_INTC_TAEPTIN    // TA_LIST_PUNCH_THROUGH
 };
 
-static int ta_entry_cmp(const struct rb_node *lhs_it,
-                        const struct rb_node *rhs_it) {
+static int ta_entry_cmp(const struct rb_node *rb_lhs,
+                        const struct rb_node *rb_rhs) {
   const struct texture_entry *lhs =
-      rb_entry(lhs_it, const struct texture_entry, live_it);
+      rb_entry(rb_lhs, const struct texture_entry, live_it);
   const struct texture_entry *rhs =
-      rb_entry(rhs_it, const struct texture_entry, live_it);
+      rb_entry(rb_rhs, const struct texture_entry, live_it);
   return lhs->key - rhs->key;
 }
 
-static int ta_context_cmp(const struct rb_node *lhs_it,
-                          const struct rb_node *rhs_it) {
-  const struct tile_ctx *lhs = rb_entry(lhs_it, const struct tile_ctx, live_it);
-  const struct tile_ctx *rhs = rb_entry(rhs_it, const struct tile_ctx, live_it);
+static int ta_context_cmp(const struct rb_node *rb_lhs,
+                          const struct rb_node *rb_rhs) {
+  const struct tile_ctx *lhs = rb_entry(rb_lhs, const struct tile_ctx, live_it);
+  const struct tile_ctx *rhs = rb_entry(rb_rhs, const struct tile_ctx, live_it);
   return lhs->addr - rhs->addr;
 }
 
@@ -497,8 +497,8 @@ static void ta_clear_pending_textures(struct ta *ta) {
   prof_count("Num invalidated textures", ta->num_invalidated);
 }
 
-static void ta_texture_invalidated(const struct exception *ex,
-                                   struct texture_entry *entry) {
+static void ta_texture_invalidated(const struct exception *ex, void *data) {
+  struct texture_entry *entry = data;
   struct ta *ta = entry->ta;
 
   // don't double remove the watch during invalidation
@@ -511,8 +511,8 @@ static void ta_texture_invalidated(const struct exception *ex,
   }
 }
 
-static void ta_palette_invalidated(const struct exception *ex,
-                                   struct texture_entry *entry) {
+static void ta_palette_invalidated(const struct exception *ex, void *data) {
+  struct texture_entry *entry = data;
   struct ta *ta = entry->ta;
 
   // don't double remove the watch during invalidation
@@ -525,11 +525,12 @@ static void ta_palette_invalidated(const struct exception *ex,
   }
 }
 
-static texture_handle_t ta_get_texture(struct ta *ta,
-                                       const struct tile_ctx *ctx,
+static texture_handle_t ta_get_texture(void *data, const struct tile_ctx *ctx,
                                        union tsp tsp, union tcw tcw,
                                        void *register_data,
                                        register_texture_cb register_cb) {
+  struct ta *ta = data;
+
   // clear any pending texture invalidations at this time
   ta_clear_pending_textures(ta);
 
@@ -601,12 +602,12 @@ static texture_handle_t ta_get_texture(struct ta *ta,
   // add write callback in order to invalidate on future writes. the callback
   // address will be page aligned, therefore it will be triggered falsely in
   // some cases. over invalidate in these cases
-  entry->texture_watch = add_single_write_watch(
-      texture, texture_size, (memory_watch_cb)&ta_texture_invalidated, entry);
+  entry->texture_watch = add_single_write_watch(texture, texture_size,
+                                                &ta_texture_invalidated, entry);
 
   if (palette) {
     entry->palette_watch = add_single_write_watch(
-        palette, palette_size, (memory_watch_cb)&ta_palette_invalidated, entry);
+        palette, palette_size, &ta_palette_invalidated, entry);
   }
 
   if (ta->trace_writer) {
@@ -659,7 +660,8 @@ REG_W32(struct ta *ta, STARTRENDER) {
   ta_finish_context(ta, ta->pvr->PARAM_BASE->base_address);
 }
 
-static bool ta_init(struct ta *ta) {
+static bool ta_init(struct device *dev) {
+  struct ta *ta = container_of(dev, struct ta, base);
   struct dreamcast *dc = ta->base.dc;
 
   ta->holly = dc->holly;
@@ -719,7 +721,9 @@ static void ta_toggle_tracing(struct ta *ta) {
   }
 }
 
-static void ta_paint(struct ta *ta, bool show_main_menu) {
+static void ta_paint(struct device *dev, bool show_main_menu) {
+  struct ta *ta = container_of(dev, struct ta, base);
+
   if (ta->pending_context) {
     struct render_ctx rctx = {};
     rctx.surfs = ta->surfs;
@@ -800,12 +804,12 @@ void ta_build_tables() {
 struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
   ta_build_tables();
 
-  struct ta *ta = (struct ta *)dc_create_device(dc, sizeof(struct ta), "ta",
-                                                (device_init_cb)&ta_init);
-  ta->base.window = window_interface_create((device_paint_cb)&ta_paint, NULL);
+  struct ta *ta =
+      (struct ta *)dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
+  ta->base.window = window_interface_create(&ta_paint, NULL);
 
   ta->rb = rb;
-  ta->tr = tr_create(ta->rb, ta, (get_texture_cb)&ta_get_texture);
+  ta->tr = tr_create(ta->rb, ta, &ta_get_texture);
 
   return ta;
 }

@@ -605,7 +605,8 @@ REG_W32(struct gdrom *gd, GD_STATUS_COMMAND) {
   gdrom_ata_cmd(gd, (enum gd_ata_cmd) * new_value);
 }
 
-static bool gdrom_init(struct gdrom *gd) {
+static bool gdrom_init(struct device *dev) {
+  struct gdrom *gd = container_of(dev, struct gdrom, base);
   struct dreamcast *dc = gd->base.dc;
 
   gd->holly = dc->holly;
@@ -681,8 +682,8 @@ void gdrom_dma_end(struct gdrom *gd) {
 }
 
 struct gdrom *gdrom_create(struct dreamcast *dc) {
-  struct gdrom *gd = dc_create_device(dc, sizeof(struct gdrom), "gdrom",
-                                      (device_init_cb)&gdrom_init);
+  struct gdrom *gd =
+      dc_create_device(dc, sizeof(struct gdrom), "gdrom", &gdrom_init);
   return gd;
 }
 

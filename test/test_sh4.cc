@@ -118,7 +118,7 @@ static void run_sh4_test(const struct sh4_test &test) {
 
   // run until the function returns
   while (dc->sh4->ctx.pc) {
-    sh4_run(dc->sh4, 1);
+    dc_tick(dc, 1);
   }
 
   // validate out registers

@@ -56,7 +56,7 @@ void device_run(struct device *dev, int64_t ns) {
 }
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       device_init_cb init) {
+                       bool (*init)(struct device *dev)) {
   struct device *dev = calloc(1, size);
 
   dev->dc = dc;

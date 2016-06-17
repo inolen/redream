@@ -64,7 +64,6 @@ struct sh4 {
 };
 
 void sh4_set_pc(struct sh4 *sh4, uint32_t pc);
-void sh4_run(struct sh4 *sh4, int64_t ns);
 void sh4_raise_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
 void sh4_clear_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
 void sh4_ddt(struct sh4 *sh, struct sh4_dtr *dtr);

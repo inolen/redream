@@ -30,22 +30,16 @@ struct mem_interface {
 
 struct jit_backend;
 
-typedef const struct register_def *(*registers_cb)();
-typedef int (*num_registers_cb)();
-typedef void (*reset_cb)(struct jit_backend *);
-typedef const uint8_t *(*assemble_code_cb)(struct jit_backend *, struct ir *,
-                                           int *);
-typedef void (*dump_code_cb)(struct jit_backend *, const uint8_t *, int);
-typedef bool (*handle_exception_cb)(struct jit_backend *, struct exception *);
-
 struct jit_backend {
   const struct register_def *registers;
   int num_registers;
 
-  reset_cb reset;
-  assemble_code_cb assemble_code;
-  dump_code_cb dump_code;
-  handle_exception_cb handle_exception;
+  void (*reset)(struct jit_backend *base);
+  const uint8_t *(*assemble_code)(struct jit_backend *, struct ir *ir,
+                                  int *size);
+  void (*dump_code)(struct jit_backend *base, const uint8_t *host_addr,
+                    int size);
+  bool (*handle_exception)(struct jit_backend *base, struct exception *ex);
 };
 
 #endif

@@ -59,7 +59,8 @@ REG_W32(struct maple *mp, SB_MDST) {
   }
 }
 
-static bool maple_init(struct maple *mp) {
+static bool maple_init(struct device *dev) {
+  struct maple *mp = container_of(dev, struct maple, base);
   struct dreamcast *dc = mp->base.dc;
 
   mp->holly = dc->holly;
@@ -79,14 +80,13 @@ static bool maple_init(struct maple *mp) {
   return true;
 }
 
-static void maple_keydown(struct maple *mp, enum keycode key, int16_t value) {
-  struct maple_device *dev = mp->devices[0];
+static void maple_keydown(struct device *dev, enum keycode key, int16_t value) {
+  struct maple *mp = container_of(dev, struct maple, base);
+  struct maple_device *mp_dev = mp->devices[0];
 
-  if (!dev) {
-    return;
+  if (mp_dev) {
+    mp_dev->input(mp_dev, key, value);
   }
-
-  dev->input(dev, key, value);
 }
 
 void maple_vblank(struct maple *mp) {
@@ -105,10 +105,9 @@ void maple_vblank(struct maple *mp) {
 }
 
 struct maple *maple_create(struct dreamcast *dc) {
-  struct maple *mp = dc_create_device(dc, sizeof(struct maple), "maple",
-                                      (device_init_cb)&maple_init);
-  mp->base.window =
-      window_interface_create(NULL, (device_keydown_cb)&maple_keydown);
+  struct maple *mp =
+      dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
+  mp->base.window = window_interface_create(NULL, &maple_keydown);
 
   mp->devices[0] = controller_create();
 

@@ -94,12 +94,11 @@ void window_interface_destroy(struct window_interface *window);
 //
 // device
 //
-typedef bool (*device_init_cb)(struct device *);
 
 struct device {
   struct dreamcast *dc;
   const char *name;
-  device_init_cb init;
+  bool (*init)(struct device *dev);
   struct debug_interface *debug;
   struct execute_interface *execute;
   struct memory_interface *memory;
@@ -127,7 +126,7 @@ struct dreamcast {
 };
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       device_init_cb init);
+                       bool (*init)(struct device *dev));
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
