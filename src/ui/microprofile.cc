@@ -10,7 +10,6 @@
 #include <microprofileui.h>
 
 extern "C" {
-
 #include "core/assert.h"
 #include "core/math.h"
 #include "renderer/backend.h"
@@ -25,17 +24,17 @@ static const int FONT_HEIGHT = 9;
 static const int MAX_2D_VERTICES = 16384;
 static const int MAX_2D_SURFACES = 256;
 
-typedef struct microprofile_s {
-  struct window_s *window;
-  struct window_listener_s *listener;
+struct microprofile {
+  struct window *window;
+  struct window_listener *listener;
   texture_handle_t font_tex;
-  surface2d_t surfs[MAX_2D_SURFACES];
+  struct surface2d surfs[MAX_2D_SURFACES];
   int num_surfs;
-  vertex2d_t verts[MAX_2D_VERTICES];
+  struct vertex2d verts[MAX_2D_VERTICES];
   int num_verts;
-} microprofile_t;
+};
 
-static microprofile_t *s_mp;
+static struct microprofile *s_mp;
 
 #define Q0(d, member, v) d[0].member = v
 #define Q1(d, member, v) \
@@ -46,7 +45,7 @@ static microprofile_t *s_mp;
   d[2].member = v;       \
   d[5].member = v
 
-static void mp_onpostpaint(microprofile_t *mp) {
+static void mp_onpostpaint(struct microprofile *mp) {
   s_mp = mp;
 
   // update draw surfaces
@@ -54,13 +53,13 @@ static void mp_onpostpaint(microprofile_t *mp) {
   MicroProfileDraw(win_width(mp->window), win_height(mp->window));
 
   // render the surfaces
-  struct rb_s *rb = win_render_backend(mp->window);
+  struct rb *rb = win_render_backend(mp->window);
 
   rb_begin2d(rb);
   rb_begin_surfaces2d(rb, mp->verts, mp->num_verts, nullptr, 0);
 
   for (int i = 0; i < mp->num_surfs; i++) {
-    surface2d_t *surf = &mp->surfs[i];
+    struct surface2d *surf = &mp->surfs[i];
     rb_draw_surface2d(rb, surf);
   }
 
@@ -72,7 +71,8 @@ static void mp_onpostpaint(microprofile_t *mp) {
   mp->num_verts = 0;
 }
 
-static void mp_onkeydown(microprofile_t *mp, keycode_t code, int16_t value) {
+static void mp_onkeydown(struct microprofile *mp, enum keycode code,
+                         int16_t value) {
   if (code == K_F2) {
     if (value) {
       MicroProfileToggleDisplayMode();
@@ -84,19 +84,20 @@ static void mp_onkeydown(microprofile_t *mp, keycode_t code, int16_t value) {
   }
 }
 
-static void mp_onmousemove(microprofile_t *mp, int x, int y) {
+static void mp_onmousemove(struct microprofile *mp, int x, int y) {
   MicroProfileMousePosition(x, y, 0);
 }
 
-static vertex2d_t *mp_alloc_verts(microprofile_t *mp, const surface2d_t &desc,
-                                  int count) {
+static struct vertex2d *mp_alloc_verts(struct microprofile *mp,
+                                       const struct surface2d &desc,
+                                       int count) {
   CHECK(mp->num_verts + count <= MAX_2D_VERTICES);
   uint32_t first_vert = mp->num_verts;
   mp->num_verts += count;
 
   // try to batch with the last surface if possible
   if (mp->num_surfs) {
-    surface2d_t &last_surf = mp->surfs[mp->num_surfs - 1];
+    struct surface2d &last_surf = mp->surfs[mp->num_surfs - 1];
 
     if (last_surf.prim_type == desc.prim_type &&
         last_surf.texture == desc.texture &&
@@ -109,7 +110,7 @@ static vertex2d_t *mp_alloc_verts(microprofile_t *mp, const surface2d_t &desc,
 
   // else, allocate a new surface
   CHECK(mp->num_surfs < MAX_2D_SURFACES);
-  surface2d_t &next_surf = mp->surfs[mp->num_surfs];
+  struct surface2d &next_surf = mp->surfs[mp->num_surfs];
   next_surf.prim_type = desc.prim_type;
   next_surf.texture = desc.texture;
   next_surf.src_blend = desc.src_blend;
@@ -121,22 +122,22 @@ static vertex2d_t *mp_alloc_verts(microprofile_t *mp, const surface2d_t &desc,
   return &mp->verts[first_vert];
 }
 
-static void mp_draw_text(microprofile_t *mp, int x, int y, uint32_t color,
+static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
                          const char *text) {
   float fx = static_cast<float>(x);
   float fy = static_cast<float>(y);
   float fy2 = fy + (MICROPROFILE_TEXT_HEIGHT + 1);
   int text_len = static_cast<int>(strlen(text));
 
-  vertex2d_t *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                           mp->font_tex,
-                                           BLEND_SRC_ALPHA,
-                                           BLEND_ONE_MINUS_SRC_ALPHA,
-                                           false,
-                                           {0.0f, 0.0f, 0.0f, 0.0f},
-                                           0,
-                                           0},
-                                      6 * text_len);
+  struct vertex2d *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
+                                                mp->font_tex,
+                                                BLEND_SRC_ALPHA,
+                                                BLEND_ONE_MINUS_SRC_ALPHA,
+                                                false,
+                                                {0.0f, 0.0f, 0.0f, 0.0f},
+                                                0,
+                                                0},
+                                           6 * text_len);
 
   for (int i = 0; i < text_len; i++) {
     float fx2 = fx + MICROPROFILE_TEXT_WIDTH;
@@ -174,17 +175,17 @@ static void mp_draw_text(microprofile_t *mp, int x, int y, uint32_t color,
   }
 }
 
-static void mp_draw_box(microprofile_t *mp, int x0, int y0, int x1, int y1,
-                        uint32_t color, box_type_t type) {
-  vertex2d_t *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                           0,
-                                           BLEND_SRC_ALPHA,
-                                           BLEND_ONE_MINUS_SRC_ALPHA,
-                                           false,
-                                           {0.0f, 0.0f, 0.0f, 0.0f},
-                                           0,
-                                           0},
-                                      6);
+static void mp_draw_box(struct microprofile *mp, int x0, int y0, int x1, int y1,
+                        uint32_t color, enum box_type type) {
+  struct vertex2d *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
+                                                0,
+                                                BLEND_SRC_ALPHA,
+                                                BLEND_ONE_MINUS_SRC_ALPHA,
+                                                false,
+                                                {0.0f, 0.0f, 0.0f, 0.0f},
+                                                0,
+                                                0},
+                                           6);
 
   if (type == BOX_FLAT) {
     Q0(vertex, xy[0], (float)x0);
@@ -231,19 +232,19 @@ static void mp_draw_box(microprofile_t *mp, int x0, int y0, int x1, int y1,
   }
 }
 
-static void mp_draw_line(microprofile_t *mp, float *verts, int num_verts,
+static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
                          uint32_t color) {
   CHECK(num_verts);
 
-  vertex2d_t *vertex = mp_alloc_verts(mp, {PRIM_LINES,
-                                           0,
-                                           BLEND_SRC_ALPHA,
-                                           BLEND_ONE_MINUS_SRC_ALPHA,
-                                           false,
-                                           {0.0f, 0.0f, 0.0f, 0.0f},
-                                           0,
-                                           0},
-                                      2 * (num_verts - 1));
+  struct vertex2d *vertex = mp_alloc_verts(mp, {PRIM_LINES,
+                                                0,
+                                                BLEND_SRC_ALPHA,
+                                                BLEND_ONE_MINUS_SRC_ALPHA,
+                                                false,
+                                                {0.0f, 0.0f, 0.0f, 0.0f},
+                                                0,
+                                                0},
+                                           2 * (num_verts - 1));
 
   for (int i = 0; i < num_verts - 1; ++i) {
     vertex[0].xy[0] = verts[i * 2];
@@ -256,8 +257,8 @@ static void mp_draw_line(microprofile_t *mp, float *verts, int num_verts,
   }
 }
 
-microprofile_t *mp_create(struct window_s *window) {
-  static const window_callbacks_t callbacks = {
+struct microprofile *mp_create(struct window *window) {
+  static const struct window_callbacks callbacks = {
       NULL,
       NULL,
       (window_postpaint_cb)&mp_onpostpaint,
@@ -266,14 +267,14 @@ microprofile_t *mp_create(struct window_s *window) {
       (window_mousemove_cb)&mp_onmousemove,
       NULL};
 
-  microprofile_t *mp =
-      reinterpret_cast<microprofile_t *>(calloc(1, sizeof(microprofile_t)));
+  struct microprofile *mp = reinterpret_cast<struct microprofile *>(
+      calloc(1, sizeof(struct microprofile)));
 
   mp->window = window;
   mp->listener = win_add_listener(mp->window, &callbacks, mp);
 
   // init microprofile
-  struct rb_s *rb = win_render_backend(mp->window);
+  struct rb *rb = win_render_backend(mp->window);
 
   // register and enable gpu and runtime group by default
   uint16_t gpu_group = MicroProfileGetGroup("gpu", MicroProfileTokenTypeCpu);
@@ -295,7 +296,7 @@ microprofile_t *mp_create(struct window_s *window) {
   return mp;
 }
 
-void mp_destroy(microprofile_t *mp) {
+void mp_destroy(struct microprofile *mp) {
   win_remove_listener(mp->window, mp->listener);
 
   free(mp);
@@ -321,7 +322,7 @@ void MicroProfileDrawBox(int x0, int y0, int x1, int y1, uint32_t color,
   color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |
           ((color & 0xff0000) >> 16);
 
-  mp_draw_box(s_mp, x0, y0, x1, y1, color, (box_type_t)type);
+  mp_draw_box(s_mp, x0, y0, x1, y1, color, (enum box_type)type);
 }
 
 void MicroProfileDrawLine2D(uint32_t num_vertices, float *vertices,

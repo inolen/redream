@@ -15,48 +15,50 @@
 
 DEFINE_OPTION_BOOL(gdb, false, "Run gdb debug server");
 
-execute_interface_t *execute_interface_create(device_run_cb run) {
-  execute_interface_t *execute = calloc(1, sizeof(execute_interface_t));
+struct execute_interface *execute_interface_create(device_run_cb run) {
+  struct execute_interface *execute =
+      calloc(1, sizeof(struct execute_interface));
   execute->run = run;
   return execute;
 }
 
-void execute_interface_destroy(execute_interface_t *execute) {
+void execute_interface_destroy(struct execute_interface *execute) {
   free(execute);
 }
 
-memory_interface_t *memory_interface_create(dreamcast_t *dc,
-                                            address_map_cb mapper) {
-  memory_interface_t *memory = calloc(1, sizeof(memory_interface_t));
+struct memory_interface *memory_interface_create(struct dreamcast *dc,
+                                                 address_map_cb mapper) {
+  struct memory_interface *memory = calloc(1, sizeof(struct memory_interface));
   memory->mapper = mapper;
   memory->space = as_create(dc);
   return memory;
 }
 
-void memory_interface_destroy(memory_interface_t *memory) {
+void memory_interface_destroy(struct memory_interface *memory) {
   as_destroy(memory->space);
   free(memory);
 }
 
-window_interface_t *window_interface_create(device_paint_cb paint,
-                                            device_keydown_cb keydown) {
-  window_interface_t *window = calloc(1, sizeof(window_interface_t));
+struct window_interface *window_interface_create(device_paint_cb paint,
+                                                 device_keydown_cb keydown) {
+  struct window_interface *window = calloc(1, sizeof(struct window_interface));
   window->paint = paint;
   window->keydown = keydown;
   return window;
 }
 
-void window_interface_destroy(window_interface_t *window) {
+void window_interface_destroy(struct window_interface *window) {
   free(window);
 }
 
-void device_run(device_t *dev, int64_t ns) {
+void device_run(struct device *dev, int64_t ns) {
   dev->execute->run(dev, ns);
 }
 
-void *dc_create_device(dreamcast_t *dc, size_t size, const char *name,
+void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
                        device_init_cb init) {
-  device_t *dev = calloc(1, size);
+  struct device *dev = calloc(1, size);
+
   dev->dc = dc;
   dev->name = name;
   dev->init = init;
@@ -66,8 +68,8 @@ void *dc_create_device(dreamcast_t *dc, size_t size, const char *name,
   return dev;
 }
 
-device_t *dc_get_device(dreamcast_t *dc, const char *name) {
-  list_for_each_entry(dev, &dc->devices, device_t, it) {
+struct device *dc_get_device(struct dreamcast *dc, const char *name) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (!strcmp(dev->name, name)) {
       return dev;
     }
@@ -76,13 +78,13 @@ device_t *dc_get_device(dreamcast_t *dc, const char *name) {
   return NULL;
 }
 
-void dc_destroy_device(device_t *dev) {
+void dc_destroy_device(struct device *dev) {
   list_remove(&dev->dc->devices, &dev->it);
 
   free(dev);
 }
 
-bool dc_init(dreamcast_t *dc) {
+bool dc_init(struct dreamcast *dc) {
   if (dc->debugger && !debugger_init(dc->debugger)) {
     dc_destroy(dc);
     return false;
@@ -94,7 +96,7 @@ bool dc_init(dreamcast_t *dc) {
   }
 
   // initialize each device
-  list_for_each_entry(dev, &dc->devices, device_t, it) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (!dev->init(dev)) {
       dc_destroy(dc);
       return false;
@@ -104,15 +106,15 @@ bool dc_init(dreamcast_t *dc) {
   return true;
 }
 
-void dc_suspend(dreamcast_t *dc) {
+void dc_suspend(struct dreamcast *dc) {
   dc->suspended = true;
 }
 
-void dc_resume(dreamcast_t *dc) {
+void dc_resume(struct dreamcast *dc) {
   dc->suspended = false;
 }
 
-void dc_tick(dreamcast_t *dc, int64_t ns) {
+void dc_tick(struct dreamcast *dc, int64_t ns) {
   if (dc->debugger) {
     debugger_tick(dc->debugger);
   }
@@ -122,24 +124,24 @@ void dc_tick(dreamcast_t *dc, int64_t ns) {
   }
 }
 
-void dc_paint(dreamcast_t *dc, bool show_main_menu) {
-  list_for_each_entry(dev, &dc->devices, device_t, it) {
+void dc_paint(struct dreamcast *dc, bool show_main_menu) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->window && dev->window->paint) {
       dev->window->paint(dev, show_main_menu);
     }
   }
 }
 
-void dc_keydown(dreamcast_t *dc, keycode_t code, int16_t value) {
-  list_for_each_entry(dev, &dc->devices, device_t, it) {
+void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->window && dev->window->keydown) {
       dev->window->keydown(dev, code, value);
     }
   }
 }
 
-dreamcast_t *dc_create(void *rb) {
-  dreamcast_t *dc = calloc(1, sizeof(dreamcast_t));
+struct dreamcast *dc_create(void *rb) {
+  struct dreamcast *dc = calloc(1, sizeof(struct dreamcast));
 
   dc->debugger = OPTION_gdb ? debugger_create(dc) : NULL;
   dc->memory = memory_create(dc);
@@ -161,7 +163,7 @@ dreamcast_t *dc_create(void *rb) {
   return dc;
 }
 
-void dc_destroy(dreamcast_t *dc) {
+void dc_destroy(struct dreamcast *dc) {
   if (dc->debugger) {
     debugger_destroy(dc->debugger);
   }

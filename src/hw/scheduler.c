@@ -7,22 +7,22 @@
 
 static const int MAX_TIMERS = 128;
 
-typedef struct timer_s {
+struct timer {
   int64_t expire;
   timer_cb cb;
   void *data;
-  list_node_t it;
-} timer_t;
+  struct list_node it;
+};
 
-typedef struct scheduler_s {
-  dreamcast_t *dc;
-  timer_t timers[MAX_TIMERS];
-  list_t free_timers;
-  list_t live_timers;
+struct scheduler {
+  struct dreamcast *dc;
+  struct timer timers[MAX_TIMERS];
+  struct list free_timers;
+  struct list live_timers;
   int64_t base_time;
-} scheduler_t;
+};
 
-void scheduler_tick(scheduler_t *sch, int64_t ns) {
+void scheduler_tick(struct scheduler *sch, int64_t ns) {
   int64_t target_time = sch->base_time + ns;
 
   while (sch->base_time < target_time) {
@@ -32,7 +32,8 @@ void scheduler_tick(scheduler_t *sch, int64_t ns) {
 
     // run devices up to the next timer
     int64_t next_time = target_time;
-    timer_t *next_timer = list_first_entry(&sch->live_timers, timer_t, it);
+    struct timer *next_timer =
+        list_first_entry(&sch->live_timers, struct timer, it);
 
     if (next_timer && next_timer->expire < next_time) {
       next_time = next_timer->expire;
@@ -44,7 +45,7 @@ void scheduler_tick(scheduler_t *sch, int64_t ns) {
     sch->base_time += slice;
 
     // execute each device
-    list_for_each_entry(dev, &sch->dc->devices, device_t, it) {
+    list_for_each_entry(dev, &sch->dc->devices, struct device, it) {
       if (dev->execute && !dev->execute->suspended) {
         dev->execute->run(dev, slice);
       }
@@ -52,7 +53,8 @@ void scheduler_tick(scheduler_t *sch, int64_t ns) {
 
     // execute expired timers
     while (1) {
-      timer_t *timer = list_first_entry(&sch->live_timers, timer_t, it);
+      struct timer *timer =
+          list_first_entry(&sch->live_timers, struct timer, it);
 
       if (!timer || timer->expire > sch->base_time) {
         break;
@@ -66,9 +68,9 @@ void scheduler_tick(scheduler_t *sch, int64_t ns) {
   }
 }
 
-timer_t *scheduler_start_timer(scheduler_t *sch, timer_cb cb, void *data,
-                               int64_t ns) {
-  timer_t *timer = list_first_entry(&sch->free_timers, timer_t, it);
+struct timer *scheduler_start_timer(struct scheduler *sch, timer_cb cb,
+                                    void *data, int64_t ns) {
+  struct timer *timer = list_first_entry(&sch->free_timers, struct timer, it);
   CHECK_NOTNULL(timer);
   timer->expire = sch->base_time + ns;
   timer->cb = cb;
@@ -78,10 +80,10 @@ timer_t *scheduler_start_timer(scheduler_t *sch, timer_cb cb, void *data,
   list_remove(&sch->free_timers, &timer->it);
 
   // add to sorted live list
-  list_node_t *after = NULL;
+  struct list_node *after = NULL;
 
   list_for_each(&sch->live_timers, it) {
-    timer_t *entry = list_entry(it, timer_t, it);
+    struct timer *entry = list_entry(it, struct timer, it);
 
     if (entry->expire > timer->expire) {
       break;
@@ -95,24 +97,24 @@ timer_t *scheduler_start_timer(scheduler_t *sch, timer_cb cb, void *data,
   return timer;
 }
 
-int64_t scheduler_remaining_time(scheduler_t *sch, timer_t *timer) {
+int64_t scheduler_remaining_time(struct scheduler *sch, struct timer *timer) {
   return timer->expire - sch->base_time;
 }
 
-void scheduler_cancel_timer(scheduler_t *sch, timer_t *timer) {
+void scheduler_cancel_timer(struct scheduler *sch, struct timer *timer) {
   list_remove(&sch->live_timers, &timer->it);
 
   list_add(&sch->free_timers, &timer->it);
 }
 
-scheduler_t *scheduler_create(dreamcast_t *dc) {
-  scheduler_t *sch = calloc(1, sizeof(scheduler_t));
+struct scheduler *scheduler_create(struct dreamcast *dc) {
+  struct scheduler *sch = calloc(1, sizeof(struct scheduler));
 
   sch->dc = dc;
 
   // add all timers to the free list initially
   for (int i = 0; i < MAX_TIMERS; i++) {
-    timer_t *timer = &sch->timers[i];
+    struct timer *timer = &sch->timers[i];
 
     list_add(&sch->free_timers, &timer->it);
   }
@@ -120,6 +122,6 @@ scheduler_t *scheduler_create(dreamcast_t *dc) {
   return sch;
 }
 
-void scheduler_destroy(scheduler_t *sch) {
+void scheduler_destroy(struct scheduler *sch) {
   free(sch);
 }

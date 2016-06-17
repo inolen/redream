@@ -1,7 +1,7 @@
 #ifndef KEYCODE_H
 #define KEYCODE_H
 
-typedef enum {
+enum keycode {
   K_UNKNOWN,
   K_RETURN,
   K_ESCAPE,
@@ -265,9 +265,9 @@ typedef enum {
   K_AXIS15,
 
   K_NUM_KEYS
-} keycode_t;
+};
 
-keycode_t get_key_by_name(const char *keyname);
-const char *get_name_by_key(keycode_t keycode);
+enum keycode get_key_by_name(const char *keyname);
+const char *get_name_by_key(enum keycode keycode);
 
 #endif

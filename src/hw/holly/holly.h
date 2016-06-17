@@ -6,17 +6,17 @@
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
-struct dreamcast_s;
-struct gdrom_s;
-struct maple_s;
-struct sh4_s;
+struct dreamcast;
+struct gdrom;
+struct maple;
+struct sh4;
 
-typedef struct holly_s {
-  device_t base;
+struct holly {
+  struct device base;
 
-  struct gdrom_s *gdrom;
-  struct maple_s *maple;
-  struct sh4_s *sh4;
+  struct gdrom *gdrom;
+  struct maple *maple;
+  struct sh4 *sh4;
 
   uint32_t reg[NUM_HOLLY_REGS];
   void *reg_data[NUM_HOLLY_REGS];
@@ -26,13 +26,13 @@ typedef struct holly_s {
 #define HOLLY_REG(offset, name, default, type) type *name;
 #include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
-} holly_t;
+};
 
-void holly_raise_interrupt(holly_t *hl, holly_interrupt_t intr);
-void holly_clear_interrupt(holly_t *hl, holly_interrupt_t intr);
+void holly_raise_interrupt(struct holly *hl, enum holly_interrupt intr);
+void holly_clear_interrupt(struct holly *hl, enum holly_interrupt intr);
 
-holly_t *holly_create(struct dreamcast_s *dc);
-void holly_destroy(holly_t *hl);
+struct holly *holly_create(struct dreamcast *dc);
+void holly_destroy(struct holly *hl);
 
 AM_DECLARE(holly_reg_map);
 

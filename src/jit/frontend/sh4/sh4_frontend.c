@@ -5,11 +5,13 @@
 #include "jit/frontend/frontend.h"
 #include "jit/ir/ir.h"
 
-typedef struct sh4_frontend_s { jit_frontend_t base; } sh4_frontend_t;
+struct sh4_frontend {
+  struct jit_frontend base;
+};
 
-static void sh4_frontend_translate_code(sh4_frontend_t *frontend,
+static void sh4_frontend_translate_code(struct sh4_frontend *frontend,
                                         uint32_t guest_addr, uint8_t *guest_ptr,
-                                        int flags, int *size, ir_t *ir) {
+                                        int flags, int *size, struct ir *ir) {
   // get the block size
   sh4_analyze_block(guest_addr, guest_ptr, flags, size);
 
@@ -17,7 +19,7 @@ static void sh4_frontend_translate_code(sh4_frontend_t *frontend,
   sh4_translate(guest_addr, guest_ptr, *size, flags, ir);
 }
 
-static void sh4_frontend_dump_code(sh4_frontend_t *frontend,
+static void sh4_frontend_dump_code(struct sh4_frontend *frontend,
                                    uint32_t guest_addr, uint8_t *guest_ptr,
                                    int size) {
   char buffer[128];
@@ -25,7 +27,7 @@ static void sh4_frontend_dump_code(sh4_frontend_t *frontend,
   int i = 0;
 
   while (i < size) {
-    sh4_instr_t instr = {};
+    struct sh4_instr instr = {};
     instr.addr = guest_addr + i;
     instr.opcode = *(uint16_t *)(guest_ptr + i);
     sh4_disasm(&instr);
@@ -36,7 +38,7 @@ static void sh4_frontend_dump_code(sh4_frontend_t *frontend,
     i += 2;
 
     if (instr.flags & SH4_FLAG_DELAYED) {
-      sh4_instr_t delay = {};
+      struct sh4_instr delay = {};
       delay.addr = guest_addr + i;
       delay.opcode = *(uint16_t *)(guest_ptr + i);
       sh4_disasm(&delay);
@@ -49,18 +51,18 @@ static void sh4_frontend_dump_code(sh4_frontend_t *frontend,
   }
 }
 
-jit_frontend_t *sh4_frontend_create() {
-  sh4_frontend_t *frontend = calloc(1, sizeof(sh4_frontend_t));
+struct jit_frontend *sh4_frontend_create() {
+  struct sh4_frontend *frontend = calloc(1, sizeof(struct sh4_frontend));
 
   frontend->base.translate_code =
       (jit_frontend_translate_code)&sh4_frontend_translate_code;
   frontend->base.dump_code = (jit_frontend_dump_code)&sh4_frontend_dump_code;
 
-  return (jit_frontend_t *)frontend;
+  return (struct jit_frontend *)frontend;
 }
 
-void sh4_frontend_destroy(jit_frontend_t *jit_frontend) {
-  sh4_frontend_t *frontend = (sh4_frontend_t *)jit_frontend;
+void sh4_frontend_destroy(struct jit_frontend *jit_frontend) {
+  struct sh4_frontend *frontend = (struct sh4_frontend *)jit_frontend;
 
   free(frontend);
 }

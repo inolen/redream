@@ -57,7 +57,7 @@ TEST(DeadCodeEliminationPassTest, Sanity) {
       "call_external i64 %6, i64 %8\n"
       "store_context i32 0x30, i32 0x8c000940\n";
 
-  ir_t ir = {};
+  struct ir ir = {};
   ir.buffer = ir_buffer;
   ir.capacity = sizeof(ir_buffer);
 

@@ -11,7 +11,7 @@ class ConstantPropagationPass : public Pass {
     return NAME;
   }
 
-  void Run(struct ir_s *ir);
+  void Run(struct ir *ir);
 };
 
 #endif

@@ -4,14 +4,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct dreamcast_s;
-struct debugger_s;
+struct dreamcast;
+struct debugger;
 
-bool debugger_init(struct debugger_s *dbg);
-void debugger_trap(struct debugger_s *dbg);
-void debugger_tick(struct debugger_s *dbg);
+bool debugger_init(struct debugger *dbg);
+void debugger_trap(struct debugger *dbg);
+void debugger_tick(struct debugger *dbg);
 
-struct debugger_s *debugger_create(struct dreamcast_s *dc);
-void debugger_destroy(struct debugger_s *dbg);
+struct debugger *debugger_create(struct dreamcast *dc);
+void debugger_destroy(struct debugger *dbg);
 
 #endif

@@ -15,7 +15,7 @@ static const exception_mask_t exception_mask =
 static bool s_installed;
 static mach_port_t s_listen_port;
 
-static void copy_state_to(x86_thread_state64_t *src, re_thread_state_t *dst) {
+static void copy_state_to(x86_thread_state64_t *src, union thread_state *dst) {
   dst->rax = src->__rax;
   dst->rcx = src->__rcx;
   dst->rdx = src->__rdx;
@@ -35,7 +35,8 @@ static void copy_state_to(x86_thread_state64_t *src, re_thread_state_t *dst) {
   dst->rip = src->__rip;
 }
 
-static void copy_state_from(re_thread_state_t *src, x86_thread_state64_t *dst) {
+static void copy_state_from(union thread_state *src,
+                            x86_thread_state64_t *dst) {
   dst->__rax = src->rax;
   dst->__rcx = src->rcx;
   dst->__rdx = src->rdx;
@@ -62,7 +63,7 @@ boolean_t exc_server(mach_msg_header_t *request_msg,
 // http://web.mit.edu/darwin/src/modules/xnu/osfmk/man/catch_exception_raise.html
 kern_return_t catch_exception_raise(mach_port_t exception_port,
                                     mach_port_t thread, mach_port_t task,
-                                    re_exception_type_t exception,
+                                    enum exception_type exception,
                                     exception_data_t code,
                                     mach_msg_type_number_t code_count) {
   // get exception state
@@ -84,7 +85,7 @@ kern_return_t catch_exception_raise(mach_port_t exception_port,
   }
 
   // convert mach exception to internal exception
-  re_exception_t ex;
+  struct exception ex;
   ex.type = exception == EXC_BAD_ACCESS ? EX_ACCESS_VIOLATION
                                         : EX_INVALID_INSTRUCTION;
   ex.fault_addr = exc_state.__faultvaddr;

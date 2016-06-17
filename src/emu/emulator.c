@@ -14,9 +14,9 @@ DEFINE_OPTION_STRING(flash, "/Users/inolen/projects/dreamcast/dc_flash.bin",
                      "Path to flash ROM");
 
 typedef struct emu_s {
-  struct window_s *window;
-  struct window_listener_s *listener;
-  dreamcast_t *dc;
+  struct window *window;
+  struct window_listener *listener;
+  struct dreamcast *dc;
   bool running;
 } emu_t;
 
@@ -111,7 +111,7 @@ static bool emu_launch_bin(emu_t *emu, const char *path) {
 }
 
 static bool emu_launch_gdi(emu_t *emu, const char *path) {
-  struct disc_s *disc = disc_create_gdi(path);
+  struct disc *disc = disc_create_gdi(path);
 
   if (!disc) {
     return false;
@@ -127,7 +127,7 @@ static void emu_onpaint(emu_t *emu, bool show_main_menu) {
   dc_paint(emu->dc, show_main_menu);
 }
 
-static void emu_onkeydown(emu_t *emu, keycode_t code, int16_t value) {
+static void emu_onkeydown(emu_t *emu, enum keycode code, int16_t value) {
   if (code == K_F1) {
     if (value) {
       win_enable_main_menu(emu->window, !win_main_menu_enabled(emu->window));
@@ -199,8 +199,8 @@ void emu_run(emu_t *emu, const char *path) {
   }
 }
 
-emu_t *emu_create(struct window_s *window) {
-  static const window_callbacks_t callbacks = {
+emu_t *emu_create(struct window *window) {
+  static const struct window_callbacks callbacks = {
       NULL,
       (window_paint_cb)&emu_onpaint,
       NULL,

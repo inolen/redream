@@ -14,57 +14,56 @@
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 
-typedef struct {
-  struct ta_s *ta;
+struct texture_entry {
+  struct ta *ta;
   texture_key_t key;
   texture_handle_t handle;
-  struct memory_watch_s *texture_watch;
-  struct memory_watch_s *palette_watch;
-  list_node_t free_it;
-  rb_node_t live_it;
-  list_node_t invalid_it;
-} texture_entry_t;
+  struct memory_watch *texture_watch;
+  struct memory_watch *palette_watch;
+  struct list_node free_it;
+  struct rb_node live_it;
+  struct list_node invalid_it;
+};
 
-typedef struct ta_s {
-  device_t base;
-
-  struct holly_s *holly;
-  struct pvr_s *pvr;
-  struct address_space_s *space;
-  struct rb_s *rb;
-  struct tr_s *tr;
+struct ta {
+  struct device base;
+  struct holly *holly;
+  struct pvr *pvr;
+  struct address_space *space;
+  struct rb *rb;
+  struct tr *tr;
   uint8_t *video_ram;
 
   // texture cache entry pool. free entries are in a linked list, live entries
   // are in a tree ordered by texture key, textures queued for invalidation are
   // in the the invalid_entries linked list
-  texture_entry_t entries[1024];
-  list_t free_entries;
-  rb_tree_t live_entries;
-  list_t invalid_entries;
+  struct texture_entry entries[1024];
+  struct list free_entries;
+  struct rb_tree live_entries;
+  struct list invalid_entries;
   int num_invalidated;
 
   // tile context pool. free contexts are in a linked list, live contexts are
   // are in a tree ordered by the context's guest address, and a pointer to the
   // next context up for rendering is stored in pending_context
-  tile_ctx_t contexts[4];
-  list_t free_contexts;
-  rb_tree_t live_contexts;
-  tile_ctx_t *pending_context;
+  struct tile_ctx contexts[4];
+  struct list free_contexts;
+  struct rb_tree live_contexts;
+  struct tile_ctx *pending_context;
 
   // buffers used by render contexts
-  surface_t surfs[TA_MAX_SURFS];
-  vertex_t verts[TA_MAX_VERTS];
+  struct surface surfs[TA_MAX_SURFS];
+  struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];
 
-  trace_writer_t *trace_writer;
-} ta_t;
+  struct trace_writer *trace_writer;
+};
 
 int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
 int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 int g_vertex_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 
-static holly_interrupt_t list_interrupts[] = {
+static enum holly_interrupt list_interrupts[] = {
     HOLLY_INTC_TAEOINT,   // TA_LIST_OPAQUE
     HOLLY_INTC_TAEOMINT,  // TA_LIST_OPAQUE_MODVOL
     HOLLY_INTC_TAETINT,   // TA_LIST_TRANSLUCENT
@@ -72,23 +71,27 @@ static holly_interrupt_t list_interrupts[] = {
     HOLLY_INTC_TAEPTIN    // TA_LIST_PUNCH_THROUGH
 };
 
-static int ta_entry_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it) {
-  const texture_entry_t *lhs = rb_entry(lhs_it, const texture_entry_t, live_it);
-  const texture_entry_t *rhs = rb_entry(rhs_it, const texture_entry_t, live_it);
+static int ta_entry_cmp(const struct rb_node *lhs_it,
+                        const struct rb_node *rhs_it) {
+  const struct texture_entry *lhs =
+      rb_entry(lhs_it, const struct texture_entry, live_it);
+  const struct texture_entry *rhs =
+      rb_entry(rhs_it, const struct texture_entry, live_it);
   return lhs->key - rhs->key;
 }
 
-static int ta_context_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it) {
-  const tile_ctx_t *lhs = rb_entry(lhs_it, const tile_ctx_t, live_it);
-  const tile_ctx_t *rhs = rb_entry(rhs_it, const tile_ctx_t, live_it);
+static int ta_context_cmp(const struct rb_node *lhs_it,
+                          const struct rb_node *rhs_it) {
+  const struct tile_ctx *lhs = rb_entry(lhs_it, const struct tile_ctx, live_it);
+  const struct tile_ctx *rhs = rb_entry(rhs_it, const struct tile_ctx, live_it);
   return lhs->addr - rhs->addr;
 }
 
-static rb_callback_t ta_entry_cb = {&ta_entry_cmp, NULL, NULL};
-static rb_callback_t ta_context_cb = {&ta_context_cmp, NULL, NULL};
+static struct rb_callbacks ta_entry_cb = {&ta_entry_cmp, NULL, NULL};
+static struct rb_callbacks ta_context_cb = {&ta_context_cmp, NULL, NULL};
 
 // See "57.1.1.2 Parameter Combinations" for information on the polygon types.
-static int ta_get_poly_type_raw(pcw_t pcw) {
+static int ta_get_poly_type_raw(union pcw pcw) {
   if (pcw.list_type == TA_LIST_OPAQUE_MODVOL ||
       pcw.list_type == TA_LIST_TRANSLUCENT_MODVOL) {
     return 6;
@@ -127,7 +130,7 @@ static int ta_get_poly_type_raw(pcw_t pcw) {
 }
 
 // See "57.1.1.2 Parameter Combinations" for information on the vertex types.
-static int ta_get_vert_type_raw(pcw_t pcw) {
+static int ta_get_vert_type_raw(union pcw pcw) {
   if (pcw.list_type == TA_LIST_OPAQUE_MODVOL ||
       pcw.list_type == TA_LIST_TRANSLUCENT_MODVOL) {
     return 17;
@@ -180,10 +183,11 @@ static int ta_get_vert_type_raw(pcw_t pcw) {
   return 0;
 }
 
-// Parameter size can be determined by only the pcw_t for every parameter other
+// Parameter size can be determined by only the union pcw for every parameter
+// other
 // than vertex parameters. For vertex parameters, the vertex type derived from
 // the last poly or modifier volume parameter is needed.
-static int ta_get_param_size_raw(pcw_t pcw, int vertex_type) {
+static int ta_get_param_size_raw(union pcw pcw, int vertex_type) {
   switch (pcw.para_type) {
     case TA_PARAM_END_OF_LIST:
       return 32;
@@ -209,15 +213,15 @@ static int ta_get_param_size_raw(pcw_t pcw, int vertex_type) {
   }
 }
 
-static void ta_soft_reset(ta_t *ta) {
+static void ta_soft_reset(struct ta *ta) {
   // FIXME what are we supposed to do here?
 }
 
-static tile_ctx_t *ta_get_context(ta_t *ta, uint32_t addr) {
-  tile_ctx_t search;
+static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
+  struct tile_ctx search;
   search.addr = addr;
 
-  tile_ctx_t *ctx =
+  struct tile_ctx *ctx =
       rb_find_entry(&ta->live_contexts, &search, live_it, &ta_context_cb);
 
   if (!ctx) {
@@ -227,9 +231,10 @@ static tile_ctx_t *ta_get_context(ta_t *ta, uint32_t addr) {
   return ctx;
 }
 
-static tile_ctx_t *ta_alloc_context(ta_t *ta, uint32_t addr) {
+static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {
   // remove from free list
-  tile_ctx_t *ctx = list_first_entry(&ta->free_contexts, tile_ctx_t, free_it);
+  struct tile_ctx *ctx =
+      list_first_entry(&ta->free_contexts, struct tile_ctx, free_it);
   CHECK_NOTNULL(ctx);
   list_remove(&ta->free_contexts, &ctx->free_it);
 
@@ -243,12 +248,12 @@ static tile_ctx_t *ta_alloc_context(ta_t *ta, uint32_t addr) {
   return ctx;
 }
 
-static void ta_unlink_context(ta_t *ta, tile_ctx_t *ctx) {
+static void ta_unlink_context(struct ta *ta, struct tile_ctx *ctx) {
   // remove from live tree
   rb_unlink(&ta->live_contexts, &ctx->live_it, &ta_context_cb);
 }
 
-static void ta_free_context(ta_t *ta, tile_ctx_t *ctx) {
+static void ta_free_context(struct ta *ta, struct tile_ctx *ctx) {
   // remove from live tree
   ta_unlink_context(ta, ctx);
 
@@ -256,8 +261,8 @@ static void ta_free_context(ta_t *ta, tile_ctx_t *ctx) {
   list_add(&ta->free_contexts, &ctx->free_it);
 }
 
-static void ta_init_context(ta_t *ta, uint32_t addr) {
-  tile_ctx_t *ctx = ta_get_context(ta, addr);
+static void ta_init_context(struct ta *ta, uint32_t addr) {
+  struct tile_ctx *ctx = ta_get_context(ta, addr);
 
   if (!ctx) {
     ctx = ta_alloc_context(ta, addr);
@@ -272,20 +277,21 @@ static void ta_init_context(ta_t *ta, uint32_t addr) {
   ctx->vertex_type = 0;
 }
 
-static void ta_write_context(ta_t *ta, uint32_t addr, uint32_t value) {
-  tile_ctx_t *ctx = ta_get_context(ta, addr);
+static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t value) {
+  struct tile_ctx *ctx = ta_get_context(ta, addr);
   CHECK_NOTNULL(ctx);
 
   CHECK_LT(ctx->size + 4, (int)sizeof(ctx->data));
   *(uint32_t *)&ctx->data[ctx->size] = value;
   ctx->size += 4;
 
-  // each TA command is either 32 or 64 bytes, with the pcw_t being in the first
+  // each TA command is either 32 or 64 bytes, with the union pcw being in the
+  // first
   // 32 bytes always. check every 32 bytes to see if the command has been
   // completely received or not
   if (ctx->size % 32 == 0) {
     void *data = &ctx->data[ctx->cursor];
-    pcw_t pcw = *(pcw_t *)data;
+    union pcw pcw = *(union pcw *)data;
 
     int size = ta_get_param_size(pcw, ctx->vertex_type);
     int recv = ctx->size - ctx->cursor;
@@ -305,12 +311,12 @@ static void ta_write_context(ta_t *ta, uint32_t addr, uint32_t value) {
     } else if (pcw.para_type == TA_PARAM_OBJ_LIST_SET) {
       LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
     } else if (pcw.para_type == TA_PARAM_POLY_OR_VOL) {
-      ctx->last_poly = (poly_param_t *)data;
+      ctx->last_poly = (union poly_param *)data;
       ctx->last_vertex = NULL;
       ctx->list_type = ctx->last_poly->type0.pcw.list_type;
       ctx->vertex_type = ta_get_vert_type(ctx->last_poly->type0.pcw);
     } else if (pcw.para_type == TA_PARAM_SPRITE) {
-      ctx->last_poly = (poly_param_t *)data;
+      ctx->last_poly = (union poly_param *)data;
       ctx->last_vertex = NULL;
       ctx->list_type = ctx->last_poly->type0.pcw.list_type;
       ctx->vertex_type = ta_get_vert_type(ctx->last_poly->type0.pcw);
@@ -320,8 +326,8 @@ static void ta_write_context(ta_t *ta, uint32_t addr, uint32_t value) {
   }
 }
 
-static void ta_save_state(ta_t *ta, tile_ctx_t *ctx) {
-  pvr_t *pvr = ta->pvr;
+static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
+  struct pvr *pvr = ta->pvr;
 
   // autosort
   if (!pvr->FPU_PARAM_CFG->region_header_type) {
@@ -394,8 +400,8 @@ static void ta_save_state(ta_t *ta, tile_ctx_t *ctx) {
   }
 }
 
-static void ta_finish_context(ta_t *ta, uint32_t addr) {
-  tile_ctx_t *ctx = ta_get_context(ta, addr);
+static void ta_finish_context(struct ta *ta, uint32_t addr) {
+  struct tile_ctx *ctx = ta_get_context(ta, addr);
   CHECK_NOTNULL(ctx);
 
   // save required register state being that the actual rendering of this
@@ -419,10 +425,11 @@ static void ta_finish_context(ta_t *ta, uint32_t addr) {
   ta->pending_context = ctx;
 }
 
-static texture_entry_t *ta_alloc_texture(ta_t *ta, texture_key_t key) {
+static struct texture_entry *ta_alloc_texture(struct ta *ta,
+                                              texture_key_t key) {
   // remove from free list
-  texture_entry_t *entry =
-      list_first_entry(&ta->free_entries, texture_entry_t, free_it);
+  struct texture_entry *entry =
+      list_first_entry(&ta->free_entries, struct texture_entry, free_it);
   CHECK_NOTNULL(entry);
   list_remove(&ta->free_entries, &entry->free_it);
 
@@ -437,7 +444,7 @@ static texture_entry_t *ta_alloc_texture(ta_t *ta, texture_key_t key) {
   return entry;
 }
 
-static void ta_free_texture(ta_t *ta, texture_entry_t *entry) {
+static void ta_free_texture(struct ta *ta, struct texture_entry *entry) {
   // remove from live list
   rb_unlink(&ta->live_entries, &entry->live_it, &ta_entry_cb);
 
@@ -445,7 +452,7 @@ static void ta_free_texture(ta_t *ta, texture_entry_t *entry) {
   list_add(&ta->free_entries, &entry->free_it);
 }
 
-static void ta_invalidate_texture(ta_t *ta, texture_entry_t *entry) {
+static void ta_invalidate_texture(struct ta *ta, struct texture_entry *entry) {
   rb_free_texture(ta->rb, entry->handle);
 
   if (entry->texture_watch) {
@@ -461,15 +468,15 @@ static void ta_invalidate_texture(ta_t *ta, texture_entry_t *entry) {
   ta_free_texture(ta, entry);
 }
 
-static void ta_clear_textures(ta_t *ta) {
+static void ta_clear_textures(struct ta *ta) {
   LOG_INFO("Texture cache cleared");
 
-  rb_node_t *it = rb_first(&ta->live_entries);
+  struct rb_node *it = rb_first(&ta->live_entries);
 
   while (it) {
-    rb_node_t *next = rb_next(it);
+    struct rb_node *next = rb_next(it);
 
-    texture_entry_t *entry = rb_entry(it, texture_entry_t, live_it);
+    struct texture_entry *entry = rb_entry(it, struct texture_entry, live_it);
     ta_invalidate_texture(ta, entry);
 
     it = next;
@@ -478,8 +485,8 @@ static void ta_clear_textures(ta_t *ta) {
   CHECK(!rb_first(&ta->live_entries));
 }
 
-static void ta_clear_pending_textures(ta_t *ta) {
-  list_for_each_entry_safe(it, &ta->invalid_entries, texture_entry_t,
+static void ta_clear_pending_textures(struct ta *ta) {
+  list_for_each_entry_safe(it, &ta->invalid_entries, struct texture_entry,
                            invalid_it) {
     ta_invalidate_texture(ta, it);
     ta->num_invalidated++;
@@ -490,9 +497,9 @@ static void ta_clear_pending_textures(ta_t *ta) {
   prof_count("Num invalidated textures", ta->num_invalidated);
 }
 
-static void ta_texture_invalidated(const re_exception_t *ex,
-                                   texture_entry_t *entry) {
-  ta_t *ta = entry->ta;
+static void ta_texture_invalidated(const struct exception *ex,
+                                   struct texture_entry *entry) {
+  struct ta *ta = entry->ta;
 
   // don't double remove the watch during invalidation
   entry->texture_watch = NULL;
@@ -504,9 +511,9 @@ static void ta_texture_invalidated(const re_exception_t *ex,
   }
 }
 
-static void ta_palette_invalidated(const re_exception_t *ex,
-                                   texture_entry_t *entry) {
-  ta_t *ta = entry->ta;
+static void ta_palette_invalidated(const struct exception *ex,
+                                   struct texture_entry *entry) {
+  struct ta *ta = entry->ta;
 
   // don't double remove the watch during invalidation
   entry->palette_watch = NULL;
@@ -518,29 +525,30 @@ static void ta_palette_invalidated(const re_exception_t *ex,
   }
 }
 
-static texture_handle_t ta_get_texture(ta_t *ta, const tile_ctx_t *ctx,
-                                       tsp_t tsp, tcw_t tcw,
+static texture_handle_t ta_get_texture(struct ta *ta,
+                                       const struct tile_ctx *ctx,
+                                       union tsp tsp, union tcw tcw,
                                        void *register_data,
                                        register_texture_cb register_cb) {
   // clear any pending texture invalidations at this time
   ta_clear_pending_textures(ta);
 
-  // TODO tile_ctx_t isn't considered for caching here (stride and
+  // TODO struct tile_ctx isn't considered for caching here (stride and
   // pal_pxl_format are used by TileRenderer), this feels bad
   texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
 
   // see if an an entry already exists
-  texture_entry_t search;
+  struct texture_entry search;
   search.key = texture_key;
 
-  texture_entry_t *existing =
+  struct texture_entry *existing =
       rb_find_entry(&ta->live_entries, &search, live_it, &ta_entry_cb);
 
   if (existing) {
     return existing->handle;
   }
 
-  // tcw_t texture_addr field is in 64-bit units
+  // union tcw texture_addr field is in 64-bit units
   uint32_t texture_addr = tcw.texture_addr << 3;
 
   // get the texture data
@@ -578,7 +586,7 @@ static texture_handle_t ta_get_texture(ta_t *ta, const tile_ctx_t *ctx,
   }
 
   // register the texture with the render backend
-  texture_reg_t reg = {};
+  struct texture_reg reg = {};
   reg.ctx = ctx;
   reg.tsp = tsp;
   reg.tcw = tcw;
@@ -587,7 +595,7 @@ static texture_handle_t ta_get_texture(ta_t *ta, const tile_ctx_t *ctx,
   register_cb(register_data, &reg);
 
   // insert into the cache
-  texture_entry_t *entry = ta_alloc_texture(ta, texture_key);
+  struct texture_entry *entry = ta_alloc_texture(ta, texture_key);
   entry->handle = reg.handle;
 
   // add write callback in order to invalidate on future writes. the callback
@@ -609,16 +617,17 @@ static texture_handle_t ta_get_texture(ta_t *ta, const tile_ctx_t *ctx,
   return reg.handle;
 }
 
-static void ta_write_poly_fifo(ta_t *ta, uint32_t addr, uint32_t value) {
+static void ta_write_poly_fifo(struct ta *ta, uint32_t addr, uint32_t value) {
   ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, value);
 }
 
-static void ta_write_texture_fifo(ta_t *ta, uint32_t addr, uint32_t value) {
+static void ta_write_texture_fifo(struct ta *ta, uint32_t addr,
+                                  uint32_t value) {
   addr &= 0xeeffffff;
   *(uint32_t *)&ta->video_ram[addr] = value;
 }
 
-REG_W32(ta_t *ta, SOFTRESET) {
+REG_W32(struct ta *ta, SOFTRESET) {
   if (!(*new_value & 0x1)) {
     return;
   }
@@ -626,7 +635,7 @@ REG_W32(ta_t *ta, SOFTRESET) {
   ta_soft_reset(ta);
 }
 
-REG_W32(ta_t *ta, TA_LIST_INIT) {
+REG_W32(struct ta *ta, TA_LIST_INIT) {
   if (!(*new_value & 0x80000000)) {
     return;
   }
@@ -634,7 +643,7 @@ REG_W32(ta_t *ta, TA_LIST_INIT) {
   ta_init_context(ta, ta->pvr->TA_ISP_BASE->base_address);
 }
 
-REG_W32(ta_t *ta, TA_LIST_CONT) {
+REG_W32(struct ta *ta, TA_LIST_CONT) {
   if (!(*new_value & 0x80000000)) {
     return;
   }
@@ -642,7 +651,7 @@ REG_W32(ta_t *ta, TA_LIST_CONT) {
   LOG_WARNING("Unsupported TA_LIST_CONT");
 }
 
-REG_W32(ta_t *ta, STARTRENDER) {
+REG_W32(struct ta *ta, STARTRENDER) {
   if (!*new_value) {
     return;
   }
@@ -650,8 +659,8 @@ REG_W32(ta_t *ta, STARTRENDER) {
   ta_finish_context(ta, ta->pvr->PARAM_BASE->base_address);
 }
 
-static bool ta_init(ta_t *ta) {
-  dreamcast_t *dc = ta->base.dc;
+static bool ta_init(struct ta *ta) {
+  struct dreamcast *dc = ta->base.dc;
 
   ta->holly = dc->holly;
   ta->pvr = dc->pvr;
@@ -659,14 +668,12 @@ static bool ta_init(ta_t *ta) {
   ta->video_ram = as_translate(ta->space, 0x04000000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
-    texture_entry_t *entry = &ta->entries[i];
-
+    struct texture_entry *entry = &ta->entries[i];
     list_add(&ta->free_entries, &entry->free_it);
   }
 
   for (int i = 0; i < array_size(ta->contexts); i++) {
-    tile_ctx_t *ctx = &ta->contexts[i];
-
+    struct tile_ctx *ctx = &ta->contexts[i];
     list_add(&ta->free_contexts, &ctx->free_it);
   }
 
@@ -687,7 +694,7 @@ static bool ta_init(ta_t *ta) {
   return true;
 }
 
-static void ta_toggle_tracing(ta_t *ta) {
+static void ta_toggle_tracing(struct ta *ta) {
   if (!ta->trace_writer) {
     char filename[PATH_MAX];
     get_next_trace_filename(filename, sizeof(filename));
@@ -712,9 +719,9 @@ static void ta_toggle_tracing(ta_t *ta) {
   }
 }
 
-static void ta_paint(ta_t *ta, bool show_main_menu) {
+static void ta_paint(struct ta *ta, bool show_main_menu) {
   if (ta->pending_context) {
-    render_ctx_t rctx = {};
+    struct render_ctx rctx = {};
     rctx.surfs = ta->surfs;
     rctx.surfs_size = array_size(ta->surfs);
     rctx.verts = ta->verts;
@@ -759,7 +766,7 @@ void ta_build_tables() {
   initialized = true;
 
   for (int i = 0; i < 0x100; i++) {
-    pcw_t pcw = *(pcw_t *)&i;
+    union pcw pcw = *(union pcw *)&i;
 
     for (int j = 0; j < TA_NUM_PARAMS; j++) {
       pcw.para_type = j;
@@ -773,7 +780,7 @@ void ta_build_tables() {
   }
 
   for (int i = 0; i < 0x100; i++) {
-    pcw_t pcw = *(pcw_t *)&i;
+    union pcw pcw = *(union pcw *)&i;
 
     for (int j = 0; j < TA_NUM_PARAMS; j++) {
       pcw.para_type = j;
@@ -790,11 +797,11 @@ void ta_build_tables() {
   }
 }
 
-ta_t *ta_create(dreamcast_t *dc, struct rb_s *rb) {
+struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
   ta_build_tables();
 
-  ta_t *ta = (ta_t *)dc_create_device(dc, sizeof(ta_t), "ta",
-                                      (device_init_cb)&ta_init);
+  struct ta *ta = (struct ta *)dc_create_device(dc, sizeof(struct ta), "ta",
+                                                (device_init_cb)&ta_init);
   ta->base.window = window_interface_create((device_paint_cb)&ta_paint, NULL);
 
   ta->rb = rb;
@@ -803,7 +810,7 @@ ta_t *ta_create(dreamcast_t *dc, struct rb_s *rb) {
   return ta;
 }
 
-void ta_destroy(ta_t *ta) {
+void ta_destroy(struct ta *ta) {
   tr_destroy(ta->tr);
 
   window_interface_destroy(ta->base.window);
@@ -812,7 +819,7 @@ void ta_destroy(ta_t *ta) {
 }
 
 // clang-format off
-AM_BEGIN(ta_t, ta_fifo_map);
+AM_BEGIN(struct ta, ta_fifo_map);
   AM_RANGE(0x0000000, 0x07fffff) AM_HANDLE(NULL,
                                            NULL,
                                            NULL,

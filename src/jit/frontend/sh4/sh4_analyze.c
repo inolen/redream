@@ -1,4 +1,3 @@
-#include "core/assert.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 
@@ -7,7 +6,7 @@ void sh4_analyze_block(uint32_t guest_addr, uint8_t *guest_ptr, int flags,
   *size = 0;
 
   while (true) {
-    sh4_instr_t instr = {};
+    struct sh4_instr instr = {};
     instr.addr = guest_addr;
     instr.opcode = *(uint16_t *)guest_ptr;
 

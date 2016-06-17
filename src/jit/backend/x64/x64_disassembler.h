@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct {
+struct x64_mov {
   int length;
   bool is_load;
   bool is_indirect;
@@ -18,8 +18,8 @@ typedef struct {
   int scale;
   int disp;
   uint64_t imm;
-} x64_mov_t;
+};
 
-bool x64_decode_mov(const uint8_t *data, x64_mov_t *mov);
+bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov);
 
 #endif

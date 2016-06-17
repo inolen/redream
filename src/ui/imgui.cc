@@ -1,21 +1,20 @@
 #include <imgui.h>
 
 extern "C" {
-
 #include "renderer/backend.h"
 #include "ui/imgui.h"
 #include "ui/window.h"
 }
 
-typedef struct imgui_s {
-  struct window_s *window;
-  struct window_listener_s *listener;
+struct imgui {
+  struct window *window;
+  struct window_listener *listener;
   bool alt[2];
   bool ctrl[2];
   bool shift[2];
-} imgui_t;
+};
 
-static void imgui_onprepaint(imgui_t *imgui) {
+static void imgui_onprepaint(struct imgui *imgui) {
   ImGuiIO &io = ImGui::GetIO();
 
   int width = win_width(imgui->window);
@@ -29,9 +28,9 @@ static void imgui_onprepaint(imgui_t *imgui) {
   io.MouseWheel = 0.0;
 }
 
-static void imgui_onpostpaint(imgui_t *imgui) {
+static void imgui_onpostpaint(struct imgui *imgui) {
   ImGuiIO &io = ImGui::GetIO();
-  struct rb_s *rb = win_render_backend(imgui->window);
+  struct rb *rb = win_render_backend(imgui->window);
 
   // if there are any focused items, enable text input
   win_enable_text_input(imgui->window, ImGui::IsAnyItemActive());
@@ -48,8 +47,8 @@ static void imgui_onpostpaint(imgui_t *imgui) {
   for (int i = 0; i < data->CmdListsCount; ++i) {
     const auto cmd_list = data->CmdLists[i];
 
-    vertex2d_t *verts =
-        reinterpret_cast<vertex2d_t *>(cmd_list->VtxBuffer.Data);
+    struct vertex2d *verts =
+        reinterpret_cast<struct vertex2d *>(cmd_list->VtxBuffer.Data);
     int num_verts = cmd_list->VtxBuffer.size();
 
     uint16_t *indices = cmd_list->IdxBuffer.Data;
@@ -62,7 +61,7 @@ static void imgui_onpostpaint(imgui_t *imgui) {
     for (int j = 0; j < cmd_list->CmdBuffer.size(); ++j) {
       const auto &cmd = cmd_list->CmdBuffer[j];
 
-      surface2d_t surf;
+      struct surface2d surf;
       surf.prim_type = PRIM_TRIANGLES;
       surf.texture = static_cast<texture_handle_t>(
           reinterpret_cast<intptr_t>(cmd.TextureId));
@@ -87,7 +86,8 @@ static void imgui_onpostpaint(imgui_t *imgui) {
   rb_end2d(rb);
 }
 
-static void imgui_onkeydown(imgui_t *imgui, keycode_t code, int16_t value) {
+static void imgui_onkeydown(struct imgui *imgui, enum keycode code,
+                            int16_t value) {
   ImGuiIO &io = ImGui::GetIO();
 
   if (code == K_MWHEELUP) {
@@ -114,20 +114,20 @@ static void imgui_onkeydown(imgui_t *imgui, keycode_t code, int16_t value) {
   }
 }
 
-static void imgui_ontextinput(imgui_t *imgui, const char *text) {
+static void imgui_ontextinput(struct imgui *imgui, const char *text) {
   ImGuiIO &io = ImGui::GetIO();
 
   io.AddInputCharactersUTF8(text);
 }
 
-static void imgui_onmousemove(imgui_t *imgui, int x, int y) {
+static void imgui_onmousemove(struct imgui *imgui, int x, int y) {
   ImGuiIO &io = ImGui::GetIO();
 
   io.MousePos = ImVec2((float)x, (float)y);
 }
 
-imgui_t *imgui_create(window_s *window) {
-  static const window_callbacks_t callbacks = {
+struct imgui *imgui_create(struct window *window) {
+  static const struct window_callbacks callbacks = {
       (window_prepaint_cb)&imgui_onprepaint,
       NULL,
       (window_postpaint_cb)&imgui_onpostpaint,
@@ -136,14 +136,15 @@ imgui_t *imgui_create(window_s *window) {
       (window_mousemove_cb)&imgui_onmousemove,
       NULL};
 
-  imgui_t *imgui = reinterpret_cast<imgui_t *>(calloc(1, sizeof(imgui_t)));
+  struct imgui *imgui =
+      reinterpret_cast<struct imgui *>(calloc(1, sizeof(struct imgui)));
 
   imgui->window = window;
   imgui->listener = win_add_listener(imgui->window, &callbacks, imgui);
 
   // initialize imgui
   ImGuiIO &io = ImGui::GetIO();
-  struct rb_s *rb = win_render_backend(imgui->window);
+  struct rb *rb = win_render_backend(imgui->window);
 
   // don't really care if this is accurate
   io.DeltaTime = 1.0f / 60.0f;
@@ -190,7 +191,7 @@ imgui_t *imgui_create(window_s *window) {
   return imgui;
 }
 
-void imgui_destroy(imgui_t *imgui) {
+void imgui_destroy(struct imgui *imgui) {
   win_remove_listener(imgui->window, imgui->listener);
 
   ImGui::Shutdown();

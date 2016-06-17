@@ -3,14 +3,14 @@
 
 #include "hw/memory.h"
 
-struct arm_s;
-struct dreamcast_s;
+struct arm;
+struct dreamcast;
 
-void arm_suspend(struct arm_s *arm);
-void arm_resume(struct arm_s *arm);
+void arm_suspend(struct arm *arm);
+void arm_resume(struct arm *arm);
 
-struct arm_s *arm_create(struct dreamcast_s *dc);
-void arm_destroy(struct arm_s *arm);
+struct arm *arm_create(struct dreamcast *dc);
+void arm_destroy(struct arm *arm);
 
 AM_DECLARE(arm_data_map);
 

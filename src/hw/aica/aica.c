@@ -6,54 +6,54 @@
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 
-typedef struct aica_s {
-  device_t base;
-  struct arm_s *arm;
+struct aica {
+  struct device base;
+  struct arm *arm;
   uint8_t *aica_regs;
   uint8_t *wave_ram;
-  common_data_t *common_data;
-} aica_t;
+  struct common_data *common_data;
+};
 
-static void aica_update_arm(aica_t *aica) {}
+static void aica_update_arm(struct aica *aica) {}
 
-static void aica_update_sh(aica_t *aica) {}
+static void aica_update_sh(struct aica *aica) {}
 
-#define define_reg_read(name, type)                   \
-  type aica_reg_##name(aica_t *aica, uint32_t addr) { \
-    return *(type *)&aica->aica_regs[addr];           \
+#define define_reg_read(name, type)                        \
+  type aica_reg_##name(struct aica *aica, uint32_t addr) { \
+    return *(type *)&aica->aica_regs[addr];                \
   }
 
 define_reg_read(r8, uint8_t);
 define_reg_read(r16, uint16_t);
 define_reg_read(r32, uint32_t);
 
-#define define_reg_write(name, type)                              \
-  void aica_reg_##name(aica_t *aica, uint32_t addr, type value) { \
-    *(type *)&aica->aica_regs[addr] = value;                      \
-                                                                  \
-    switch (addr) {                                               \
-      case 0x2c00: { /* ARMRST */                                 \
-        if (value) {                                              \
-          arm_suspend(aica->arm);                                 \
-        } else {                                                  \
-          arm_resume(aica->arm);                                  \
-        }                                                         \
-      } break;                                                    \
-    }                                                             \
+#define define_reg_write(name, type)                                   \
+  void aica_reg_##name(struct aica *aica, uint32_t addr, type value) { \
+    *(type *)&aica->aica_regs[addr] = value;                           \
+                                                                       \
+    switch (addr) {                                                    \
+      case 0x2c00: { /* ARMRST */                                      \
+        if (value) {                                                   \
+          arm_suspend(aica->arm);                                      \
+        } else {                                                       \
+          arm_resume(aica->arm);                                       \
+        }                                                              \
+      } break;                                                         \
+    }                                                                  \
   }
 
 define_reg_write(w8, uint8_t);
 define_reg_write(w16, uint16_t);
 define_reg_write(w32, uint32_t);
 
-#define define_read_wave(name, type)                   \
-  type aica_wave_##name(aica_t *aica, uint32_t addr) { \
-    return *(type *)&aica->wave_ram[addr];             \
+#define define_read_wave(name, type)                        \
+  type aica_wave_##name(struct aica *aica, uint32_t addr) { \
+    return *(type *)&aica->wave_ram[addr];                  \
   }
 
 define_read_wave(r8, uint8_t);
 define_read_wave(r16, uint16_t);
-uint32_t aica_wave_r32(aica_t *aica, uint32_t addr) {
+uint32_t aica_wave_r32(struct aica *aica, uint32_t addr) {
   // FIXME temp hacks to get Crazy Taxi 1 booting
   if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
     return 0x54494e49;
@@ -77,40 +77,40 @@ uint32_t aica_wave_r32(aica_t *aica, uint32_t addr) {
   return *(uint32_t *)&aica->wave_ram[addr];
 }
 
-#define define_write_wave(name, type)                              \
-  void aica_wave_##name(aica_t *aica, uint32_t addr, type value) { \
-    *(type *)&aica->wave_ram[addr] = value;                        \
+#define define_write_wave(name, type)                                   \
+  void aica_wave_##name(struct aica *aica, uint32_t addr, type value) { \
+    *(type *)&aica->wave_ram[addr] = value;                             \
   }
 
 define_write_wave(w8, uint8_t);
 define_write_wave(w16, uint16_t);
 define_write_wave(w32, uint32_t);
 
-static bool aica_init(aica_t *aica) {
-  dreamcast_t *dc = aica->base.dc;
+static bool aica_init(struct aica *aica) {
+  struct dreamcast *dc = aica->base.dc;
 
   aica->arm = dc->arm;
   aica->aica_regs = as_translate(dc->sh4->base.memory->space, 0x00700000);
   aica->wave_ram = as_translate(dc->sh4->base.memory->space, 0x00800000);
-  aica->common_data = (common_data_t *)(aica->aica_regs + 0x2800);
+  aica->common_data = (struct common_data *)(aica->aica_regs + 0x2800);
 
   arm_suspend(aica->arm);
 
   return true;
 }
 
-aica_t *aica_create(dreamcast_t *dc) {
-  aica_t *aica =
-      dc_create_device(dc, sizeof(aica_t), "aica", (device_init_cb)&aica_init);
+struct aica *aica_create(struct dreamcast *dc) {
+  struct aica *aica = dc_create_device(dc, sizeof(struct aica), "aica",
+                                       (device_init_cb)&aica_init);
   return aica;
 }
 
-void aica_destroy(aica_t *aica) {
+void aica_destroy(struct aica *aica) {
   dc_destroy_device(&aica->base);
 }
 
 // clang-format off
-AM_BEGIN(aica_t, aica_reg_map);
+AM_BEGIN(struct aica, aica_reg_map);
   AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE((r8_cb)&aica_reg_r8,
                                              (r16_cb)&aica_reg_r16,
                                              (r32_cb)&aica_reg_r32,
@@ -121,7 +121,7 @@ AM_BEGIN(aica_t, aica_reg_map);
                                              NULL)
 AM_END();
 
-AM_BEGIN(aica_t, aica_data_map);
+AM_BEGIN(struct aica, aica_data_map);
   AM_RANGE(0x00000000, 0x00ffffff) AM_HANDLE((r8_cb)&aica_wave_r8,
                                              (r16_cb)&aica_wave_r16,
                                              (r32_cb)&aica_wave_r32,

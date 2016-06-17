@@ -8,19 +8,19 @@ DEFINE_STAT(num_trunc_removed, "Number of trunc eliminated");
 
 const char *cve_name = "cve";
 
-void cve_run(ir_t *ir) {
-  list_for_each_entry_safe(instr, &ir->instrs, ir_instr_t, it) {
+void cve_run(struct ir *ir) {
+  list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
     // eliminate unnecessary sext / zext operations
     if (instr->op == OP_LOAD_HOST || instr->op == OP_LOAD_FAST ||
         instr->op == OP_LOAD_SLOW || instr->op == OP_LOAD_CONTEXT) {
-      ir_type_t memory_type = VALUE_V;
+      enum ir_type memory_type = VALUE_V;
       bool same_type = true;
       bool all_sext = true;
       bool all_zext = true;
 
-      list_for_each_entry(use, &instr->result->uses, ir_use_t, it) {
-        ir_instr_t *use_instr = use->instr;
-        ir_value_t *use_result = use_instr->result;
+      list_for_each_entry(use, &instr->result->uses, struct ir_use, it) {
+        struct ir_instr *use_instr = use->instr;
+        struct ir_value *use_result = use_instr->result;
 
         if (use_instr->op == OP_SEXT || use_instr->op == OP_ZEXT) {
           if (memory_type == VALUE_V) {
@@ -52,7 +52,7 @@ void cve_run(ir_t *ir) {
       }
     } else if (instr->op == OP_STORE_HOST || instr->op == OP_STORE_FAST ||
                instr->op == OP_STORE_SLOW || instr->op == OP_STORE_CONTEXT) {
-      ir_value_t *store_value = instr->arg[1];
+      struct ir_value *store_value = instr->arg[1];
 
       if (store_value->def && store_value->def->op == OP_TRUNC) {
         // TODO implement

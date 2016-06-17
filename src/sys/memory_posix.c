@@ -10,17 +10,17 @@
 
 static const int MAX_SHMEM = 128;
 
-typedef struct {
+struct shmem {
   char filename[PATH_MAX];
   int handle;
-  list_node_t free_it;
-} shmem_t;
+  struct list_node free_it;
+};
 
 static bool s_initialized;
-static shmem_t s_shmem[MAX_SHMEM];
-static list_t s_free_shmem;
+static struct shmem s_shmem[MAX_SHMEM];
+static struct list s_free_shmem;
 
-static mode_t access_to_mode_flags(page_access_t access) {
+static mode_t access_to_mode_flags(enum page_access access) {
   switch (access) {
     case ACC_READONLY:
       return S_IREAD;
@@ -31,7 +31,7 @@ static mode_t access_to_mode_flags(page_access_t access) {
   }
 }
 
-static int access_to_open_flags(page_access_t access) {
+static int access_to_open_flags(enum page_access access) {
   switch (access) {
     case ACC_READONLY:
       return O_RDONLY;
@@ -42,7 +42,7 @@ static int access_to_open_flags(page_access_t access) {
   }
 }
 
-static int access_to_protect_flags(page_access_t access) {
+static int access_to_protect_flags(enum page_access access) {
   switch (access) {
     case ACC_READONLY:
       return PROT_READ;
@@ -63,7 +63,7 @@ size_t get_allocation_granularity() {
   return get_page_size();
 }
 
-bool protect_pages(void *ptr, size_t size, page_access_t access) {
+bool protect_pages(void *ptr, size_t size, enum page_access access) {
   int prot = access_to_protect_flags(access);
   return mprotect(ptr, size, prot) == 0;
 }
@@ -105,18 +105,18 @@ static void init_shared_memory_entries() {
 
   // add all entries to free list
   for (int i = 0; i < MAX_SHMEM; i++) {
-    shmem_t *shmem = &s_shmem[i];
+    struct shmem *shmem = &s_shmem[i];
     list_add(&s_free_shmem, &shmem->free_it);
   }
 }
 
 shmem_handle_t create_shared_memory(const char *filename, size_t size,
-                                    page_access_t access) {
+                                    enum page_access access) {
   init_shared_memory_entries();
 
   // find unused shmem entry (wrapper for both shmem object name and file
   // handle)
-  shmem_t *shmem = list_first_entry(&s_free_shmem, shmem_t, free_it);
+  struct shmem *shmem = list_first_entry(&s_free_shmem, struct shmem, free_it);
   CHECK_NOTNULL(shmem);
 
   // make sure the shared memory object doesn't already exist
@@ -146,10 +146,10 @@ shmem_handle_t create_shared_memory(const char *filename, size_t size,
 }
 
 bool map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
-                       size_t size, page_access_t access) {
+                       size_t size, enum page_access access) {
   init_shared_memory_entries();
 
-  shmem_t *shmem = (shmem_t *)handle;
+  struct shmem *shmem = (struct shmem *)handle;
 
   int prot = access_to_protect_flags(access);
   void *ptr =
@@ -165,7 +165,7 @@ bool unmap_shared_memory(shmem_handle_t handle, void *start, size_t size) {
 bool destroy_shared_memory(shmem_handle_t handle) {
   init_shared_memory_entries();
 
-  shmem_t *shmem = (shmem_t *)handle;
+  struct shmem *shmem = (struct shmem *)handle;
 
   int res1 = close(shmem->handle);
   int res2 = shm_unlink(shmem->filename);

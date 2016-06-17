@@ -6,11 +6,11 @@
 #include "hw/memory.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
-struct dreamcast_s;
+struct dreamcast;
 
 static const int MAX_MIPS_SAMPLES = 10;
 
-typedef struct {
+struct sh4_dtr {
   int channel;
   // when rw is true, addr is the dst address
   // when rw is false, addr is the src address
@@ -24,24 +24,22 @@ typedef struct {
   // size is only valid for single address mode transfers, dual address mode
   // transfers honor DMATCR
   int size;
-} sh4_dtr_t;
+};
 
-typedef struct {
+struct sh4_perf {
   bool show;
   int64_t last_sample_time;
   float mips[MAX_MIPS_SAMPLES];
   int num_mips;
-} sh4_perf_t;
+};
 
-typedef struct sh4_s {
-  device_t base;
+struct sh4 {
+  struct device base;
+  struct scheduler *scheduler;
+  struct address_space *space;
 
-  struct scheduler_s *scheduler;
-  address_space_t *space;
-
-  struct sh4_cache_s *code_cache;
-
-  sh4_context_t ctx;
+  struct sh4_cache *code_cache;
+  struct sh4_ctx ctx;
   uint8_t cache[0x2000];  // 8kb cache
   // std::map<uint32_t, uint16_t> breakpoints;
 
@@ -54,25 +52,25 @@ typedef struct sh4_s {
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
 
-  sh4_interrupt_t sorted_interrupts[NUM_SH_INTERRUPTS];
+  enum sh4_interrupt sorted_interrupts[NUM_SH_INTERRUPTS];
   uint64_t sort_id[NUM_SH_INTERRUPTS];
   uint64_t priority_mask[16];
   uint64_t requested_interrupts;
   uint64_t pending_interrupts;
 
-  struct timer_s *tmu_timers[3];
+  struct timer *tmu_timers[3];
 
-  sh4_perf_t perf;
-} sh4_t;
+  struct sh4_perf perf;
+};
 
-void sh4_set_pc(sh4_t *sh4, uint32_t pc);
-void sh4_run(sh4_t *sh4, int64_t ns);
-void sh4_raise_interrupt(struct sh4_s *sh, sh4_interrupt_t intr);
-void sh4_clear_interrupt(struct sh4_s *sh, sh4_interrupt_t intr);
-void sh4_ddt(struct sh4_s *sh, sh4_dtr_t *dtr);
+void sh4_set_pc(struct sh4 *sh4, uint32_t pc);
+void sh4_run(struct sh4 *sh4, int64_t ns);
+void sh4_raise_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
+void sh4_clear_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
+void sh4_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
 
-struct sh4_s *sh4_create(struct dreamcast_s *dc);
-void sh4_destroy(struct sh4_s *sh);
+struct sh4 *sh4_create(struct dreamcast *dc);
+void sh4_destroy(struct sh4 *sh);
 
 AM_DECLARE(sh4_data_map);
 

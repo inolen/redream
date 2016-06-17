@@ -1,7 +1,7 @@
 #ifndef GDROM_TYPES_H
 #define GDROM_TYPES_H
 
-typedef enum {
+enum gd_drive_status {
   DST_BUSY,     // State transition
   DST_PAUSE,    // Pause
   DST_STANDBY,  // Standby (drive stop)
@@ -12,28 +12,28 @@ typedef enum {
   DST_NODISC,   // No disc
   DST_RETRY,    // Read retry in progress (option)
   DST_ERROR,    // Reading of disc TOC failed (state does not allow access)
-} gd_drive_status_t;
+};
 
-typedef enum {
+enum gd_disc {
   DISC_CDDA = 0x00,
   DISC_CDROM = 0x01,
   DISC_CDROM_XA = 0x02,
   DISC_CDROM_EX = 0x03,
   DISC_CDROM_CDI = 0x04,
   DISC_GDROM = 0x08
-} gd_disc_t;
+};
 
 // ata / spi commands
-typedef enum {
+enum gd_ata_cmd {
   ATA_NOP = 0x00,
   ATA_SOFT_RESET = 0x08,
   ATA_EXEC_DIAG = 0x90,
   ATA_PACKET = 0xa0,
   ATA_IDENTIFY_DEV = 0xa1,
   ATA_SET_FEATURES = 0xef,
-} gd_ata_cmd_t;
+};
 
-typedef enum {
+enum gd_spi_cmd {
   SPI_TEST_UNIT = 0x00,  // Verify access readiness
   SPI_REQ_STAT = 0x10,   // Get CD status
   SPI_REQ_MODE = 0x11,   // Get various settings
@@ -50,30 +50,30 @@ typedef enum {
   SPI_GET_SCD = 0x40,    // Get subcode
   SPI_UNKNOWN_70 = 0x70,
   SPI_UNKNOWN_71 = 0x71,
-} gd_spi_cmd_t;
+};
 
-typedef enum {
+enum gd_area {
   AREA_SINGLE,
   AREA_DOUBLE,
-} gd_area_t;
+};
 
-typedef enum {
+enum gd_audio_status {
   AST_INVALID = 0x00,
   AST_INPROGRESS = 0x11,
   AST_PAUSED = 0x12,
   AST_ENDED = 0x13,
   AST_ERROR = 0x14,
   AST_NOSTATUS = 0x15,
-} gd_audio_status_t;
+};
 
-typedef enum {
+enum gd_secmask {
   MASK_HEADER = 0x8,
   MASK_SUBHEADER = 0x4,
   MASK_DATA = 0x2,
   MASK_OTHER = 0x1
-} gd_secmask_t;
+};
 
-typedef enum {
+enum gd_secfmt {
   SECTOR_ANY,
   SECTOR_CDDA,
   SECTOR_M1,
@@ -81,40 +81,40 @@ typedef enum {
   SECTOR_M2F1,
   SECTOR_M2F2,
   SECTOR_M2_NOXA
-} gd_secfmt_t;
+};
 
-typedef union {
+union gd_tocentry {
   uint32_t full;
   struct {
     uint32_t adr : 4;
     uint32_t ctrl : 4;
     uint32_t fad : 24;
   };
-} gd_tocentry_t;
+};
 
-typedef struct {
-  gd_tocentry_t entries[99];
-  gd_tocentry_t start;
-  gd_tocentry_t end;
-  gd_tocentry_t leadout;
-} gd_toc_t;
+struct gd_toc {
+  union gd_tocentry entries[99];
+  union gd_tocentry start;
+  union gd_tocentry end;
+  union gd_tocentry leadout;
+};
 
-typedef struct {
+struct gd_session {
   uint8_t status : 8;
   uint8_t reserved : 8;
   uint8_t first_track : 8;
   uint32_t start_fad : 24;
-} gd_session_t;
+};
 
-typedef union {
+union gd_features {
   uint32_t full;
   struct {
     uint32_t dma : 1;
     uint32_t reserved : 31;
   };
-} gd_features_t;
+};
 
-typedef union {
+union gd_intreason {
   uint32_t full;
   struct {
     uint32_t CoD : 1;  // "0" indicates data and "1" indicates a command.
@@ -122,18 +122,18 @@ typedef union {
                        // from host to device.
     uint32_t reserved : 30;
   };
-} gd_intreason_t;
+};
 
-typedef union {
+union gd_sectnum {
   uint32_t full;
   struct {
     uint32_t status : 4;
     uint32_t format : 4;
     uint32_t reserved : 24;
   };
-} gd_sectnum_t;
+};
 
-typedef union {
+union gd_status {
   uint32_t full;
   struct {
     uint32_t CHECK : 1;  // Becomes "1" when an error has occurred during
@@ -152,15 +152,15 @@ typedef union {
                         // command block.
     uint32_t reserved : 24;
   };
-} gd_status_t;
+};
 
-typedef union {
+union gd_bytect {
   uint32_t full;
   struct {
     uint32_t lo : 8;
     uint32_t hi : 8;
     uint32_t reserved : 16;
   };
-} gd_bytect_t;
+};
 
 #endif

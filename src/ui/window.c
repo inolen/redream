@@ -10,38 +10,38 @@
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
 
-typedef struct window_listener_s {
-  window_callbacks_t cb;
+struct window_listener {
+  struct window_callbacks cb;
   void *data;
-  list_node_t it;
-} window_listener_t;
+  struct list_node it;
+};
 
-typedef struct window_s {
+struct window {
   SDL_Window *handle;
-  struct rb_s *rb;
-  struct imgui_s *imgui;
-  struct microprofile_s *mp;
+  struct rb *rb;
+  struct imgui *imgui;
+  struct microprofile *mp;
   int width;
   int height;
 
-  window_listener_t listeners[MAX_WINDOW_LISTENERS];
-  list_t free_listeners;
-  list_t live_listeners;
+  struct window_listener listeners[MAX_WINDOW_LISTENERS];
+  struct list free_listeners;
+  struct list live_listeners;
 
   SDL_Joystick *joystick;
   uint8_t hat_state[NUM_JOYSTICK_HATS];
 
   bool show_main_menu;
-} window_t;
+};
 
-static void win_destroy_joystick(window_t *win) {
+static void win_destroy_joystick(struct window *win) {
   if (win->joystick) {
     SDL_JoystickClose(win->joystick);
     win->joystick = NULL;
   }
 }
 
-static void win_init_joystick(window_t *win) {
+static void win_init_joystick(struct window *win) {
   win_destroy_joystick(win);
 
   // open the first connected joystick
@@ -58,22 +58,25 @@ static void win_init_joystick(window_t *win) {
   memset(win->hat_state, 0, sizeof(win->hat_state));
 }
 
-static void win_handle_paint(window_t *win) {
+static void win_handle_paint(struct window *win) {
   rb_begin_frame(win->rb);
 
-  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
+  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
+                      it) {
     if (listener->cb.prepaint) {
       listener->cb.prepaint(listener->data);
     }
   }
 
-  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
+  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
+                      it) {
     if (listener->cb.paint) {
       listener->cb.paint(listener->data, win->show_main_menu);
     }
   }
 
-  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
+  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
+                      it) {
     if (listener->cb.postpaint) {
       listener->cb.postpaint(listener->data);
     }
@@ -82,20 +85,22 @@ static void win_handle_paint(window_t *win) {
   rb_end_frame(win->rb);
 }
 
-static void win_handle_keydown(window_t *win, keycode_t code, int16_t value) {
-  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
+static void win_handle_keydown(struct window *win, enum keycode code,
+                               int16_t value) {
+  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
+                      it) {
     if (listener->cb.keydown) {
       listener->cb.keydown(listener->data, code, value);
     }
   }
 }
 
-#define KEY_HAT_UP(hat) (keycode_t)(K_HAT0 + hat * 4 + 0)
-#define KEY_HAT_RIGHT(hat) (keycode_t)(K_HAT0 + hat * 4 + 1)
-#define KEY_HAT_DOWN(hat) (keycode_t)(K_HAT0 + hat * 4 + 2)
-#define KEY_HAT_LEFT(hat) (keycode_t)(K_HAT0 + hat * 4 + 3)
+#define KEY_HAT_UP(hat) (enum keycode)(K_HAT0 + hat * 4 + 0)
+#define KEY_HAT_RIGHT(hat) (enum keycode)(K_HAT0 + hat * 4 + 1)
+#define KEY_HAT_DOWN(hat) (enum keycode)(K_HAT0 + hat * 4 + 2)
+#define KEY_HAT_LEFT(hat) (enum keycode)(K_HAT0 + hat * 4 + 3)
 
-static void win_handle_hatdown(window_t *win, int hat, uint8_t state,
+static void win_handle_hatdown(struct window *win, int hat, uint8_t state,
                                int16_t value) {
   switch (state) {
     case SDL_HAT_UP:
@@ -131,36 +136,39 @@ static void win_handle_hatdown(window_t *win, int hat, uint8_t state,
   }
 }
 
-static void win_handle_textinput(window_t *win, const char *text) {
-  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
+static void win_handle_textinput(struct window *win, const char *text) {
+  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
+                      it) {
     if (listener->cb.textinput) {
       listener->cb.textinput(listener->data, text);
     }
   }
 }
 
-static void win_handle_mousemove(window_t *win, int x, int y) {
-  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
+static void win_handle_mousemove(struct window *win, int x, int y) {
+  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
+                      it) {
     if (listener->cb.mousemove) {
       listener->cb.mousemove(listener->data, x, y);
     }
   }
 }
 
-static void win_handle_close(window_t *win) {
-  list_for_each_entry(listener, &win->live_listeners, window_listener_t, it) {
+static void win_handle_close(struct window *win) {
+  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
+                      it) {
     if (listener->cb.close) {
       listener->cb.close(listener->data);
     }
   }
 }
 
-static keycode_t translate_sdl_key(SDL_Keysym keysym) {
-  keycode_t out = K_UNKNOWN;
+static enum keycode translate_sdl_key(SDL_Keysym keysym) {
+  enum keycode out = K_UNKNOWN;
 
   if (keysym.sym >= SDLK_SPACE && keysym.sym <= SDLK_z) {
     // this range maps 1:1 with ASCII chars
-    out = (keycode_t)keysym.sym;
+    out = (enum keycode)keysym.sym;
   } else {
     switch (keysym.sym) {
       case SDLK_RETURN:
@@ -683,13 +691,13 @@ static keycode_t translate_sdl_key(SDL_Keysym keysym) {
   return out;
 }
 
-static void win_pump_sdl(window_t *win) {
+static void win_pump_sdl(struct window *win) {
   SDL_Event ev;
 
   while (SDL_PollEvent(&ev)) {
     switch (ev.type) {
       case SDL_KEYDOWN: {
-        keycode_t keycode = translate_sdl_key(ev.key.keysym);
+        enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
           win_handle_keydown(win, keycode, 1);
@@ -697,7 +705,7 @@ static void win_pump_sdl(window_t *win) {
       } break;
 
       case SDL_KEYUP: {
-        keycode_t keycode = translate_sdl_key(ev.key.keysym);
+        enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
           win_handle_keydown(win, keycode, 0);
@@ -710,7 +718,7 @@ static void win_pump_sdl(window_t *win) {
 
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP: {
-        keycode_t keycode;
+        enum keycode keycode;
 
         switch (ev.button.button) {
           case SDL_BUTTON_LEFT:
@@ -760,7 +768,7 @@ static void win_pump_sdl(window_t *win) {
 
       case SDL_JOYAXISMOTION:
         if (ev.jaxis.axis < NUM_JOYSTICK_AXES) {
-          win_handle_keydown(win, (keycode_t)(K_AXIS0 + ev.jaxis.axis),
+          win_handle_keydown(win, (enum keycode)(K_AXIS0 + ev.jaxis.axis),
                              ev.jaxis.value);
         } else {
           LOG_WARNING("Joystick motion ignored, axis %d >= NUM_JOYSTICK_AXES",
@@ -791,7 +799,7 @@ static void win_pump_sdl(window_t *win) {
       case SDL_JOYBUTTONDOWN:
       case SDL_JOYBUTTONUP:
         if (ev.jbutton.button < NUM_JOYSTICK_KEYS) {
-          win_handle_keydown(win, (keycode_t)(K_JOY1 + ev.jbutton.button),
+          win_handle_keydown(win, (enum keycode)(K_JOY1 + ev.jbutton.button),
                              ev.type == SDL_JOYBUTTONDOWN ? 1 : 0);
         } else {
           LOG_WARNING("Joystick button ignored, button %d >= NUM_JOYSTICK_KEYS",
@@ -815,35 +823,35 @@ static void win_pump_sdl(window_t *win) {
   }
 }
 
-SDL_Window *win_handle(window_t *win) {
+SDL_Window *win_handle(struct window *win) {
   return win->handle;
 }
 
-struct rb_s *win_render_backend(window_t *win) {
+struct rb *win_render_backend(struct window *win) {
   return win->rb;
 }
 
-int win_width(window_t *win) {
+int win_width(struct window *win) {
   return win->width;
 }
 
-int win_height(window_t *win) {
+int win_height(struct window *win) {
   return win->height;
 }
 
-bool win_main_menu_enabled(window_t *win) {
+bool win_main_menu_enabled(struct window *win) {
   return win->show_main_menu;
 }
 
-void win_enable_main_menu(window_t *win, bool active) {
+void win_enable_main_menu(struct window *win, bool active) {
   win->show_main_menu = active;
 }
 
-bool win_text_input_enabled(window_t *win) {
+bool win_text_input_enabled(struct window *win) {
   return SDL_IsTextInputActive();
 }
 
-void win_enable_text_input(window_t *win, bool active) {
+void win_enable_text_input(struct window *win, bool active) {
   if (active) {
     SDL_StartTextInput();
   } else {
@@ -851,17 +859,18 @@ void win_enable_text_input(window_t *win, bool active) {
   }
 }
 
-void win_pump_events(window_t *win) {
+void win_pump_events(struct window *win) {
   win_pump_sdl(win);
 
   // trigger a paint event after draining all other window-related events
   win_handle_paint(win);
 }
 
-window_listener_t *win_add_listener(window_t *win, const window_callbacks_t *cb,
-                                    void *data) {
-  window_listener_t *listener =
-      list_first_entry(&win->free_listeners, window_listener_t, it);
+struct window_listener *win_add_listener(struct window *win,
+                                         const struct window_callbacks *cb,
+                                         void *data) {
+  struct window_listener *listener =
+      list_first_entry(&win->free_listeners, struct window_listener, it);
   CHECK_NOTNULL(listener);
   list_remove(&win->free_listeners, &listener->it);
 
@@ -872,20 +881,20 @@ window_listener_t *win_add_listener(window_t *win, const window_callbacks_t *cb,
   return listener;
 }
 
-void win_remove_listener(window_t *win, window_listener_t *listener) {
+void win_remove_listener(struct window *win, struct window_listener *listener) {
   list_remove(&win->live_listeners, &listener->it);
 
   list_add(&win->free_listeners, &listener->it);
 }
 
-window_t *win_create() {
-  window_t *win = calloc(1, sizeof(window_t));
+struct window *win_create() {
+  struct window *win = calloc(1, sizeof(struct window));
 
   win->width = DEFAULT_WIDTH;
   win->height = DEFAULT_HEIGHT;
 
   for (int i = 0; i < MAX_WINDOW_LISTENERS; i++) {
-    window_listener_t *listener = &win->listeners[i];
+    struct window_listener *listener = &win->listeners[i];
     list_add(&win->free_listeners, &listener->it);
   }
 
@@ -933,7 +942,7 @@ window_t *win_create() {
   return win;
 }
 
-void win_destroy(window_t *win) {
+void win_destroy(struct window *win) {
   if (win->mp) {
     mp_destroy(win->mp);
   }

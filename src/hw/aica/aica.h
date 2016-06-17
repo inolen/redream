@@ -4,11 +4,11 @@
 #include <stdint.h>
 #include "hw/memory.h"
 
-struct dreamcast_s;
-struct aica_s;
+struct aica;
+struct dreamcast;
 
-struct aica_s *aica_create(struct dreamcast_s *dc);
-void aica_destroy(struct aica_s *aica);
+struct aica *aica_create(struct dreamcast *dc);
+void aica_destroy(struct aica *aica);
 
 AM_DECLARE(aica_reg_map);
 AM_DECLARE(aica_data_map);

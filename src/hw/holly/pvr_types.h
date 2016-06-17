@@ -3,15 +3,15 @@
 
 #include <stdint.h>
 
-typedef union {
+union param_base {
   uint32_t full;
   struct {
     uint32_t base_address : 24;
     uint32_t reserved : 8;
   };
-} param_base_t;
+};
 
-typedef union {
+union fb_r_ctrl {
   uint32_t full;
   struct {
     uint32_t fb_enable : 1;
@@ -25,9 +25,9 @@ typedef union {
     uint32_t vclk_div : 1;
     uint32_t reserved1 : 8;
   };
-} fb_r_ctrl_t;
+};
 
-typedef union {
+union fb_w_ctrl {
   uint32_t full;
   struct {
     uint32_t fb_packmode : 3;
@@ -37,18 +37,18 @@ typedef union {
     uint32_t fb_alpha_threshhold : 8;
     uint32_t reserved1 : 8;
   };
-} fb_w_ctrl_t;
+};
 
-typedef union {
+union fpu_shad_scale {
   uint32_t full;
   struct {
     uint32_t scale_factor : 8;
     uint32_t intensity_volume_mode : 1;
     uint32_t reserved : 23;
   };
-} fpu_shad_scale_t;
+};
 
-typedef union {
+union fpu_param_cfg {
   uint32_t full;
   struct {
     uint32_t first_ptr_burst_size : 4;
@@ -59,9 +59,9 @@ typedef union {
     uint32_t region_header_type : 1;
     uint32_t reserved1 : 10;
   };
-} fpu_param_cfg_t;
+};
 
-typedef union {
+union isp_backgnd_t {
   uint32_t full;
   struct {
     uint32_t tag_offset : 3;
@@ -70,9 +70,9 @@ typedef union {
     uint32_t shadow : 1;
     uint32_t cache_bypass : 1;
   };
-} isp_backgnd_t_t;
+};
 
-typedef union {
+union isp_feed_cfg {
   uint32_t full;
   struct {
     uint32_t presort : 1;
@@ -82,9 +82,9 @@ typedef union {
     uint32_t cache_size : 10;
     uint32_t reserved1 : 8;
   };
-} isp_feed_cfg_t;
+};
 
-typedef union {
+union spg_hblank_int {
   uint32_t full;
   struct {
     uint32_t line_comp_val : 10;
@@ -94,9 +94,9 @@ typedef union {
     uint32_t hblank_in_interrupt : 10;
     uint32_t reserved3 : 6;
   };
-} spg_hblank_int_t;
+};
 
-typedef union {
+union spg_vblank_int {
   uint32_t full;
   struct {
     uint32_t vblank_in_line_number : 10;
@@ -104,9 +104,9 @@ typedef union {
     uint32_t vblank_out_line_number : 10;
     uint32_t reserved2 : 6;
   };
-} spg_vblank_int_t;
+};
 
-typedef union {
+union spg_control {
   uint32_t full;
   struct {
     uint32_t mhsync_pol : 1;
@@ -121,9 +121,9 @@ typedef union {
     uint32_t csync_on_h : 1;
     uint32_t reserved : 22;
   };
-} spg_control_t;
+};
 
-typedef union {
+union spg_load {
   uint32_t full;
   struct {
     uint32_t hcount : 10;
@@ -131,9 +131,9 @@ typedef union {
     uint32_t vcount : 10;
     uint32_t reserved2 : 6;
   };
-} spg_load_t;
+};
 
-typedef union {
+union spg_vblank {
   uint32_t full;
   struct {
     uint32_t vbstart : 10;
@@ -141,9 +141,9 @@ typedef union {
     uint32_t vbend : 10;
     uint32_t reserved2 : 6;
   };
-} spg_vblank_t;
+};
 
-typedef union {
+union text_control {
   uint32_t full;
   struct {
     uint32_t stride : 5;
@@ -154,17 +154,17 @@ typedef union {
     uint32_t codebook_endian : 1;
     uint32_t reserved3 : 14;
   };
-} text_control_t;
+};
 
-typedef union {
+union pal_ram_ctrl {
   uint32_t full;
   struct {
     uint32_t pixel_format : 2;
     uint32_t reserved0 : 30;
   };
-} pal_ram_ctrl_t;
+};
 
-typedef union {
+union spg_status {
   uint32_t full;
   struct {
     uint32_t scanline : 10;
@@ -174,15 +174,15 @@ typedef union {
     uint32_t vsync : 1;
     uint32_t reserved : 18;
   };
-} spg_status_t;
+};
 
-typedef union {
+union ta_isp_base {
   uint32_t full;
   struct {
     uint32_t base_address : 24;
     uint32_t reserved : 8;
   };
-} ta_isp_base_t;
+};
 
 enum {
 #define PVR_REG(addr, name, flags, default_value) \

@@ -1,10 +1,10 @@
 #ifndef IMGUI_H
 #define IMGUI_H
 
-struct window_s;
-struct imgui_s;
+struct window;
+struct imgui;
 
-struct imgui_s *imgui_create(struct window_s *window);
-void imgui_destroy(struct imgui_s *imgui);
+struct imgui *imgui_create(struct window *window);
+void imgui_destroy(struct imgui *imgui);
 
 #endif

@@ -31,18 +31,18 @@ int fold_masks[NUM_OPS];
       fold_masks[OP_##op] = mask;                  \
     }                                              \
   } op##_init;                                     \
-  template <typename R = ir_value_tInfo<VALUE_V>,  \
-            typename A0 = ir_value_tInfo<VALUE_V>, \
-            typename A1 = ir_value_tInfo<VALUE_V>> \
-  void Handle##op(ir_t *ir, Instr *instr)
+  template <typename R = struct ir_valueInfo<VALUE_V>,  \
+            typename A0 = struct ir_valueInfo<VALUE_V>, \
+            typename A1 = struct ir_valueInfo<VALUE_V>> \
+  void Handle##op(struct ir *ir, Instr *instr)
 
 // registers a fold callback for the specified signature
 #define REGISTER_FOLD(op, r, a0, a1)                                         \
   static struct _cpp_##op##_##r##_##a0##_##a1##_init {                       \
     _cpp_##op##_##r##_##a0##_##a1##_init() {                                 \
       fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1)] =   \
-          &Handle##op<ir_value_tInfo<VALUE_##r>, ir_value_tInfo<VALUE_##a0>, \
-                      ir_value_tInfo<VALUE_##a1>>;                           \
+          &Handle##op<struct ir_valueInfo<VALUE_##r>, struct ir_valueInfo<VALUE_##a0>, \
+                      struct ir_valueInfo<VALUE_##a1>>;                           \
     }                                                                        \
   } cpp_##op##_##r##_##a0##_##a1##_init
 
@@ -91,8 +91,8 @@ static int GetConstantSig(Instr *instr) {
   return cnst_sig;
 }
 
-void ConstantPropagationPass::Run(ir_t *ir) {
-  list_for_each_entry_safe(instr, &ir->instrs, ir_instr_t, it) {
+void ConstantPropagationPass::Run(struct ir *ir) {
+  list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
     int fold_mask = GetFoldMask(instr);
     int cnst_sig = GetConstantSig(instr);
     if (!fold_mask || (cnst_sig & fold_mask) != fold_mask) {

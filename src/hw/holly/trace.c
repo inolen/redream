@@ -22,14 +22,14 @@ void get_next_trace_filename(char *filename, size_t size) {
 // are written out relative to the command itself. Set the list pointers,
 // and make the data pointers absolute.
 static bool trace_patch_pointers(void *begin, int size) {
-  trace_cmd_t *prev_cmd = NULL;
-  trace_cmd_t *curr_cmd = NULL;
-  uint8_t *ptr = begin;
-  uint8_t *end = ptr + size;
+  struct trace_cmd *prev_cmd = NULL;
+  struct trace_cmd *curr_cmd = NULL;
+  void *ptr = begin;
+  void *end = ptr + size;
 
   while (ptr < end) {
     prev_cmd = curr_cmd;
-    curr_cmd = (trace_cmd_t *)ptr;
+    curr_cmd = ptr;
 
     // set prev / next pointers
     if (prev_cmd) {
@@ -67,7 +67,7 @@ static bool trace_patch_pointers(void *begin, int size) {
 // For commands which mutate global state, the previous state needs to be
 // tracked in order to support unwinding. To do so, each command is iterated
 // and tagged with the previous command that it overrides.
-static bool trace_patch_overrides(trace_cmd_t *cmd) {
+static bool trace_patch_overrides(struct trace_cmd *cmd) {
   while (cmd) {
     if (cmd->type == TRACE_CMD_TEXTURE) {
       texture_key_t texture_key =
@@ -75,7 +75,7 @@ static bool trace_patch_overrides(trace_cmd_t *cmd) {
 
       // walk backwards and see if this texture overrode a previous command
       // TODO could cache this information in a map
-      trace_cmd_t *prev = cmd->prev;
+      struct trace_cmd *prev = cmd->prev;
 
       while (prev) {
         if (prev->type == TRACE_CMD_TEXTURE) {
@@ -98,8 +98,8 @@ static bool trace_patch_overrides(trace_cmd_t *cmd) {
   return true;
 }
 
-trace_t *trace_parse(const char *filename) {
-  trace_t *trace = calloc(1, sizeof(trace_t));
+struct trace *trace_parse(const char *filename) {
+  struct trace *trace = calloc(1, sizeof(struct trace));
 
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
@@ -128,13 +128,13 @@ trace_t *trace_parse(const char *filename) {
   return trace;
 }
 
-void trace_destroy(trace_t *trace) {
+void trace_destroy(struct trace *trace) {
   free(trace->cmds);
   free(trace);
 }
 
-trace_writer_t *trace_writer_open(const char *filename) {
-  trace_writer_t *writer = calloc(1, sizeof(trace_writer_t));
+struct trace_writer *trace_writer_open(const char *filename) {
+  struct trace_writer *writer = calloc(1, sizeof(struct trace_writer));
 
   writer->file = fopen(filename, "wb");
 
@@ -146,10 +146,11 @@ trace_writer_t *trace_writer_open(const char *filename) {
   return writer;
 }
 
-void trace_writer_insert_texture(trace_writer_t *writer, tsp_t tsp, tcw_t tcw,
-                                 const uint8_t *palette, int palette_size,
-                                 const uint8_t *texture, int texture_size) {
-  trace_cmd_t cmd = {};
+void trace_writer_insert_texture(struct trace_writer *writer, union tsp tsp,
+                                 union tcw tcw, const uint8_t *palette,
+                                 int palette_size, const uint8_t *texture,
+                                 int texture_size) {
+  struct trace_cmd cmd = {};
   cmd.type = TRACE_CMD_TEXTURE;
   cmd.texture.tsp = tsp;
   cmd.texture.tcw = tcw;
@@ -167,8 +168,9 @@ void trace_writer_insert_texture(trace_writer_t *writer, tsp_t tsp, tcw_t tcw,
   }
 }
 
-void trace_writer_render_context(trace_writer_t *writer, tile_ctx_t *ctx) {
-  trace_cmd_t cmd = {};
+void trace_writer_render_context(struct trace_writer *writer,
+                                 struct tile_ctx *ctx) {
+  struct trace_cmd cmd = {};
   cmd.type = TRACE_CMD_CONTEXT;
   cmd.context.autosort = ctx->autosort;
   cmd.context.stride = ctx->stride;
@@ -193,7 +195,7 @@ void trace_writer_render_context(trace_writer_t *writer, tile_ctx_t *ctx) {
   }
 }
 
-void trace_writer_close(trace_writer_t *writer) {
+void trace_writer_close(struct trace_writer *writer) {
   if (writer->file) {
     fclose(writer->file);
   }

@@ -58,7 +58,7 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
       "i32 %5 = sub i32 %4, i32 0x10\n"
       "store_context i32 0x20, i32 %5\n";
 
-  ir_t ir = {};
+  struct ir ir = {};
   ir.buffer = ir_buffer;
   ir.capacity = sizeof(ir_buffer);
 

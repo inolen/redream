@@ -59,32 +59,32 @@ static const char *s_shademode_names[] = {
 };
 
 typedef struct {
-  tsp_t tsp;
-  tcw_t tcw;
+  union tsp tsp;
+  union tcw tcw;
   const uint8_t *palette;
   const uint8_t *data;
   texture_handle_t handle;
-  pxl_format_t format;
-  filter_mode_t filter;
-  wrap_mode_t wrap_u;
-  wrap_mode_t wrap_v;
+  enum pxl_format format;
+  enum filter_mode filter;
+  enum wrap_mode wrap_u;
+  enum wrap_mode wrap_v;
   bool mipmaps;
   int width;
   int height;
 
-  rb_node_t live_it;
-  list_node_t free_it;
+  struct rb_node live_it;
+  struct list_node free_it;
 } texture_t;
 
 typedef struct tracer_s {
-  struct window_s *window;
-  struct window_listener_s *listener;
-  struct rb_s *rb;
-  struct tr_s *tr;
+  struct window *window;
+  struct window_listener *listener;
+  struct rb *rb;
+  struct tr *tr;
 
   // trace state
   trace_t *trace;
-  tile_ctx_t ctx;
+  struct tile_ctx ctx;
   trace_cmd_t *current_cmd;
   int current_param_offset;
   int current_context;
@@ -96,28 +96,29 @@ typedef struct tracer_s {
   bool running;
 
   // render state
-  render_ctx_t rctx;
-  surface_t surfs[TA_MAX_SURFS];
-  vertex_t verts[TA_MAX_VERTS];
+  struct render_ctx rctx;
+  struct surface surfs[TA_MAX_SURFS];
+  struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];
-  param_state_t states[TA_PARAMS_SIZE];
+  struct param_state states[TA_PARAMS_SIZE];
 
   texture_t textures[1024];
-  rb_tree_t live_textures;
-  list_t free_textures;
+  struct rb_tree live_textures;
+  struct list free_textures;
 } tracer_t;
 
-static int tracer_texture_cmp(const rb_node_t *lhs_it,
-                              const rb_node_t *rhs_it) {
+static int tracer_texture_cmp(const struct rb_node *lhs_it,
+                              const struct rb_node *rhs_it) {
   const texture_t *lhs = rb_entry(lhs_it, const texture_t, live_it);
   const texture_t *rhs = rb_entry(rhs_it, const texture_t, live_it);
   return tr_get_texture_key(lhs->tsp, lhs->tcw) -
          tr_get_texture_key(rhs->tsp, rhs->tcw);
 }
 
-static rb_callback_t tracer_texture_cb = {&tracer_texture_cmp, NULL, NULL};
+static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,
+                                                NULL};
 
-static void tracer_add_texture(tracer_t *tracer, tsp_t tsp, tcw_t tcw,
+static void tracer_add_texture(tracer_t *tracer, union tsp tsp, union tcw tcw,
                                const uint8_t *palette, const uint8_t *data) {
   texture_t *texture =
       list_first_entry(&tracer->free_textures, texture_t, free_it);
@@ -133,7 +134,8 @@ static void tracer_add_texture(tracer_t *tracer, tsp_t tsp, tcw_t tcw,
   rb_insert(&tracer->live_textures, &texture->live_it, &tracer_texture_cb);
 }
 
-static void tracer_remove_texture(tracer_t *tracer, tsp_t tsp, tcw_t tcw) {
+static void tracer_remove_texture(tracer_t *tracer, union tsp tsp,
+                                  union tcw tcw) {
   texture_t search;
   search.tsp = tsp;
   search.tcw = tcw;
@@ -146,8 +148,9 @@ static void tracer_remove_texture(tracer_t *tracer, tsp_t tsp, tcw_t tcw) {
   list_add(&tracer->free_textures, &texture->free_it);
 }
 
-static texture_handle_t tracer_get_texture(void *data, const tile_ctx_t *ctx,
-                                           tsp_t tsp, tcw_t tcw,
+static texture_handle_t tracer_get_texture(void *data,
+                                           const struct tile_ctx *ctx,
+                                           union tsp tsp, union tcw tcw,
                                            void *register_data,
                                            register_texture_cb register_cb) {
   tracer_t *tracer = reinterpret_cast<tracer_t *>(data);
@@ -160,10 +163,10 @@ static texture_handle_t tracer_get_texture(void *data, const tile_ctx_t *ctx,
                                      &tracer_texture_cb);
   CHECK_NOTNULL(texture, "Texture wasn't available in cache");
 
-  // TODO fixme, pass correct tile_ctx_t to tracer_add_texture so this
+  // TODO fixme, pass correct struct tile_ctx to tracer_add_texture so this
   // isn't deferred
   if (!texture->handle) {
-    texture_reg_t reg = {};
+    struct texture_reg reg = {};
     reg.ctx = ctx;
     reg.tsp = tsp;
     reg.tcw = tcw;
@@ -184,7 +187,7 @@ static texture_handle_t tracer_get_texture(void *data, const tile_ctx_t *ctx,
   return texture->handle;
 }
 
-static void tracer_copy_command(const trace_cmd_t *cmd, tile_ctx_t *ctx) {
+static void tracer_copy_command(const trace_cmd_t *cmd, struct tile_ctx *ctx) {
   // copy TRACE_CMD_CONTEXT to the current context being rendered
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
@@ -203,11 +206,11 @@ static void tracer_copy_command(const trace_cmd_t *cmd, tile_ctx_t *ctx) {
   ctx->size = cmd->context.data_size;
 }
 
-static inline bool param_state_empty(param_state_t *param_state) {
+static inline bool param_state_empty(struct param_state *param_state) {
   return !param_state->num_surfs && !param_state->num_verts;
 }
 
-static inline bool tracer_param_hidden(tracer_t *tracer, pcw_t pcw) {
+static inline bool tracer_param_hidden(tracer_t *tracer, union pcw pcw) {
   return tracer->hide_params[pcw.para_type];
 }
 
@@ -215,13 +218,13 @@ static void tracer_prev_param(tracer_t *tracer) {
   int offset = tracer->current_param_offset;
 
   while (--offset >= 0) {
-    param_state_t *param_state = &tracer->rctx.states[offset];
+    struct param_state *param_state = &tracer->rctx.states[offset];
 
     if (param_state_empty(param_state)) {
       continue;
     }
 
-    pcw_t pcw = *(pcw_t *)(tracer->ctx.data + offset);
+    union pcw pcw = *(union pcw *)(tracer->ctx.data + offset);
 
     // found the next visible param
     if (!tracer_param_hidden(tracer, pcw)) {
@@ -236,13 +239,13 @@ static void tracer_next_param(tracer_t *tracer) {
   int offset = tracer->current_param_offset;
 
   while (++offset < tracer->rctx.num_states) {
-    param_state_t *param_state = &tracer->rctx.states[offset];
+    struct param_state *param_state = &tracer->rctx.states[offset];
 
     if (param_state_empty(param_state)) {
       continue;
     }
 
-    pcw_t pcw = *(pcw_t *)(tracer->ctx.data + offset);
+    union pcw pcw = *(union pcw *)(tracer->ctx.data + offset);
 
     // found the next visible param
     if (!tracer_param_hidden(tracer, pcw)) {
@@ -440,7 +443,7 @@ static void tracer_render_texture_menu(tracer_t *tracer) {
 
 static void tracer_format_tooltip(tracer_t *tracer, int list_type,
                                   int vertex_type, int offset) {
-  param_state_t *param_state = &tracer->rctx.states[offset];
+  struct param_state *param_state = &tracer->rctx.states[offset];
   int surf_id = param_state->num_surfs - 1;
   int vert_id = param_state->num_verts - 1;
 
@@ -464,8 +467,8 @@ static void tracer_format_tooltip(tracer_t *tracer, int list_type,
 
   // render source TA information
   if (vertex_type == -1) {
-    const poly_param_t *param =
-        reinterpret_cast<const poly_param_t *>(tracer->ctx.data + offset);
+    const union poly_param *param =
+        reinterpret_cast<const union poly_param *>(tracer->ctx.data + offset);
 
     ImGui::Text("pcw: 0x%x", param->type0.pcw.full);
     ImGui::Text("isp_tsp: 0x%x", param->type0.isp_tsp.full);
@@ -503,8 +506,8 @@ static void tracer_format_tooltip(tracer_t *tracer, int list_type,
         break;
     }
   } else {
-    const vert_param_t *param =
-        reinterpret_cast<const vert_param_t *>(tracer->ctx.data + offset);
+    const union vert_param *param =
+        reinterpret_cast<const union vert_param *>(tracer->ctx.data + offset);
 
     ImGui::Text("vert type: %d", vertex_type);
 
@@ -594,7 +597,7 @@ static void tracer_format_tooltip(tracer_t *tracer, int list_type,
 
   // always render translated surface information. new surfaces can be created
   // without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE
-  surface_t *surf = &tracer->rctx.surfs[surf_id];
+  struct surface *surf = &tracer->rctx.surfs[surf_id];
 
   ImGui::Separator();
 
@@ -613,7 +616,7 @@ static void tracer_format_tooltip(tracer_t *tracer, int list_type,
 
   // render translated vert only when rendering a vertex tooltip
   if (vertex_type != -1) {
-    vertex_t *vert = &tracer->rctx.verts[vert_id];
+    struct vertex *vert = &tracer->rctx.verts[vert_id];
 
     ImGui::Separator();
 
@@ -644,13 +647,13 @@ static void tracer_render_context_menu(tracer_t *tracer) {
   int vertex_type = 0;
 
   for (int offset = 0; offset < tracer->rctx.num_states; offset++) {
-    param_state_t *param_state = &tracer->rctx.states[offset];
+    struct param_state *param_state = &tracer->rctx.states[offset];
 
     if (param_state_empty(param_state)) {
       continue;
     }
 
-    pcw_t pcw = *(pcw_t *)(tracer->ctx.data + offset);
+    union pcw pcw = *(union pcw *)(tracer->ctx.data + offset);
     bool param_selected = (offset == tracer->current_param_offset);
 
     if (!tracer_param_hidden(tracer, pcw)) {
@@ -661,8 +664,9 @@ static void tracer_render_context_menu(tracer_t *tracer) {
       switch (pcw.para_type) {
         case TA_PARAM_POLY_OR_VOL:
         case TA_PARAM_SPRITE: {
-          const poly_param_t *param =
-              reinterpret_cast<const poly_param_t *>(tracer->ctx.data + offset);
+          const union poly_param *param =
+              reinterpret_cast<const union poly_param *>(tracer->ctx.data +
+                                                         offset);
           list_type = param->type0.pcw.list_type;
           vertex_type = ta_get_vert_type(param->type0.pcw);
 
@@ -708,7 +712,7 @@ static void tracer_onpaint(tracer_t *tracer, bool show_main_menu) {
   int last_idx = n;
 
   if (tracer->current_param_offset >= 0) {
-    const param_state_t *offset =
+    const struct param_state *offset =
         &tracer->rctx.states[tracer->current_param_offset];
     last_idx = offset->num_surfs;
   }
@@ -731,7 +735,8 @@ static void tracer_onpaint(tracer_t *tracer, bool show_main_menu) {
   rb_end_surfaces(tracer->rb);
 }
 
-static void tracer_onkeydown(tracer_t *tracer, keycode_t code, int16_t value) {
+static void tracer_onkeydown(tracer_t *tracer, enum keycode code,
+                             int16_t value) {
   if (code == K_F1) {
     if (value) {
       win_enable_main_menu(tracer->window,
@@ -782,8 +787,8 @@ void tracer_run(tracer_t *tracer, const char *path) {
   }
 }
 
-tracer_t *tracer_create(struct window_s *window) {
-  static const window_callbacks_t callbacks = {
+tracer_t *tracer_create(struct window *window) {
+  static const struct window_callbacks callbacks = {
       NULL,
       (window_paint_cb)&tracer_onpaint,
       NULL,

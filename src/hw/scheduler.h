@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-struct dreamcast_s;
-struct timer_s;
-struct scheduler_s;
+struct dreamcast;
+struct timer;
+struct scheduler;
 
 static const int64_t NS_PER_SEC = 1000000000ll;
 
@@ -15,13 +15,13 @@ static const int64_t NS_PER_SEC = 1000000000ll;
 
 typedef void (*timer_cb)(void *);
 
-void scheduler_tick(struct scheduler_s *sch, int64_t ns);
-struct timer_s *scheduler_start_timer(struct scheduler_s *sch, timer_cb cb,
-                                      void *data, int64_t ns);
-int64_t scheduler_remaining_time(struct scheduler_s *sch, struct timer_s *);
-void scheduler_cancel_timer(struct scheduler_s *sch, struct timer_s *);
+void scheduler_tick(struct scheduler *sch, int64_t ns);
+struct timer *scheduler_start_timer(struct scheduler *sch, timer_cb cb,
+                                    void *data, int64_t ns);
+int64_t scheduler_remaining_time(struct scheduler *sch, struct timer *);
+void scheduler_cancel_timer(struct scheduler *sch, struct timer *);
 
-struct scheduler_s *scheduler_create(struct dreamcast_s *dc);
-void scheduler_destroy(struct scheduler_s *sch);
+struct scheduler *scheduler_create(struct dreamcast *dc);
+void scheduler_destroy(struct scheduler *sch);
 
 #endif

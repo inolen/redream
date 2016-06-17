@@ -4,16 +4,16 @@
 #include <stdint.h>
 #include "hw/gdrom/disc.h"
 
-struct dreamcast_s;
-struct gdrom_s;
+struct dreamcast;
+struct gdrom;
 
-void gdrom_set_disc(struct gdrom_s *gd, struct disc_s *disc);
-void gdrom_dma_begin(struct gdrom_s *gd);
-int gdrom_dma_read(struct gdrom_s *gd, uint8_t *data, int data_size);
-void gdrom_dma_end(struct gdrom_s *gd);
+void gdrom_set_disc(struct gdrom *gd, struct disc *disc);
+void gdrom_dma_begin(struct gdrom *gd);
+int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int data_size);
+void gdrom_dma_end(struct gdrom *gd);
 
-struct gdrom_s *gdrom_create(struct dreamcast_s *dc);
-void gdrom_destroy(struct gdrom_s *gd);
+struct gdrom *gdrom_create(struct dreamcast *dc);
+void gdrom_destroy(struct gdrom *gd);
 
 #ifdef __cplusplus
 }

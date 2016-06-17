@@ -6,59 +6,59 @@
 #include "hw/debugger.h"
 #include "hw/dreamcast.h"
 
-typedef struct debugger_s {
-  dreamcast_t *dc;
-  device_t *dev;
+struct debugger {
+  struct dreamcast *dc;
+  struct device *dev;
   gdb_server_t *sv;
-} debugger_t;
+};
 
 static void debugger_gdb_server_detach(void *data) {
-  debugger_t *dbg = (debugger_t *)data;
+  struct debugger *dbg = data;
   dc_resume(dbg->dc);
 }
 
 static void debugger_gdb_server_stop(void *data) {
-  debugger_t *dbg = (debugger_t *)data;
+  struct debugger *dbg = data;
   dc_suspend(dbg->dc);
 }
 
 static void debugger_gdb_server_resume(void *data) {
-  debugger_t *dbg = (debugger_t *)data;
+  struct debugger *dbg = data;
   dc_resume(dbg->dc);
 }
 
 static void debugger_gdb_server_step(void *data) {
-  debugger_t *dbg = (debugger_t *)data;
+  struct debugger *dbg = data;
   dbg->dev->debug->step(dbg->dev);
 }
 
 static void debugger_gdb_server_add_bp(void *data, int type, intmax_t addr) {
-  debugger_t *dbg = (debugger_t *)data;
+  struct debugger *dbg = data;
   dbg->dev->debug->add_bp(dbg->dev, type, (uint32_t)addr);
 }
 
 static void debugger_gdb_server_rem_bp(void *data, int type, intmax_t addr) {
-  debugger_t *dbg = (debugger_t *)data;
+  struct debugger *dbg = data;
   dbg->dev->debug->rem_bp(dbg->dev, type, (uint32_t)addr);
 }
 
 static void debugger_gdb_server_read_mem(void *data, intmax_t addr,
                                          uint8_t *buffer, int size) {
-  debugger_t *dbg = (debugger_t *)data;
+  struct debugger *dbg = data;
   dbg->dev->debug->read_mem(dbg->dev, (uint32_t)addr, buffer, size);
 }
 
 static void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
                                          int *size) {
-  debugger_t *dbg = (debugger_t *)data;
+  struct debugger *dbg = data;
   uint64_t v = 0;
   dbg->dev->debug->read_reg(dbg->dev, n, &v, size);
   *value = v;
 }
 
-bool debugger_init(debugger_t *dbg) {
+bool debugger_init(struct debugger *dbg) {
   // use the first device found with a debug interface
-  list_for_each_entry(dev, &dbg->dc->devices, device_t, it) {
+  list_for_each_entry(dev, &dbg->dc->devices, struct device, it) {
     if (dev->debug) {
       dbg->dev = dev;
       break;
@@ -93,25 +93,25 @@ bool debugger_init(debugger_t *dbg) {
   return true;
 }
 
-void debugger_trap(debugger_t *dbg) {
+void debugger_trap(struct debugger *dbg) {
   gdb_server_interrupt(dbg->sv, GDB_SIGNAL_TRAP);
 
   dc_suspend(dbg->dc);
 }
 
-void debugger_tick(debugger_t *dbg) {
+void debugger_tick(struct debugger *dbg) {
   gdb_server_pump(dbg->sv);
 }
 
-debugger_t *debugger_create(dreamcast_t *dc) {
-  debugger_t *dbg = calloc(1, sizeof(debugger_t));
+struct debugger *debugger_create(struct dreamcast *dc) {
+  struct debugger *dbg = calloc(1, sizeof(struct debugger));
 
   dbg->dc = dc;
 
   return NULL;
 }
 
-void debugger_destroy(debugger_t *dbg) {
+void debugger_destroy(struct debugger *dbg) {
   gdb_server_destroy(dbg->sv);
   free(dbg);
 }

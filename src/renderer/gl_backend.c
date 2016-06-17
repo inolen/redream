@@ -9,26 +9,26 @@
 
 static const int MAX_TEXTURES = 1024;
 
-typedef enum {
+enum texture_map {
   MAP_DIFFUSE,
-} texture_map_t;
+};
 
-typedef enum {
+enum uniform_attr {
   UNIFORM_MODELVIEWPROJECTIONMATRIX,
   UNIFORM_DIFFUSEMAP,
   UNIFORM_NUM_UNIFORMS
-} uniform_attr_t;
+};
 
-typedef struct {
+struct shader_program {
   GLuint program;
   GLuint vertex_shader;
   GLuint fragment_shader;
   GLint uniforms[UNIFORM_NUM_UNIFORMS];
-} shader_program_t;
+};
 
-typedef struct rb_s {
-  struct window_s *window;
-  struct window_listener_s *listener;
+struct rb {
+  struct window *window;
+  struct window_listener *listener;
 
   SDL_GLContext ctx;
   bool debug_wireframe;
@@ -37,8 +37,8 @@ typedef struct rb_s {
   GLuint textures[MAX_TEXTURES];
   GLuint white_tex;
 
-  shader_program_t ta_program;
-  shader_program_t ui_program;
+  struct shader_program ta_program;
+  struct shader_program ui_program;
 
   GLuint ta_vao;
   GLuint ta_vbo;
@@ -50,21 +50,21 @@ typedef struct rb_s {
   // current gl state
   bool scissor_test;
   bool depth_mask;
-  depth_func_t depth_func;
-  cull_face_t cull_face;
-  blend_func_t src_blend;
-  blend_func_t dst_blend;
+  enum depth_func depth_func;
+  enum cull_face cull_face;
+  enum blend_func src_blend;
+  enum blend_func dst_blend;
   GLuint current_vao;
   int vertex_attribs;
-  shader_program_t *current_program;
-} rb_t;
+  struct shader_program *current_program;
+};
 
 #include "renderer/ta.glsl"
 #include "renderer/ui.glsl"
 
 static const int GLSL_VERSION = 330;
 
-// must match order of uniform_attr_t enum
+// must match order of enum uniform_attr enum
 static const char *uniform_names[] = {"u_mvp",  //
                                       "u_diffuse_map"};
 
@@ -116,7 +116,7 @@ static GLenum prim_types[] = {
     GL_LINES,      // PRIM_LINES
 };
 
-static void rb_set_scissor_test(rb_t *rb, bool enabled) {
+static void rb_set_scissor_test(struct rb *rb, bool enabled) {
   if (rb->scissor_test == enabled) {
     return;
   }
@@ -130,11 +130,12 @@ static void rb_set_scissor_test(rb_t *rb, bool enabled) {
   }
 }
 
-static void rb_set_scissor_clip(rb_t *rb, int x, int y, int width, int height) {
+static void rb_set_scissor_clip(struct rb *rb, int x, int y, int width,
+                                int height) {
   glScissor(x, y, width, height);
 }
 
-static void rb_set_depth_mask(rb_t *rb, bool enabled) {
+static void rb_set_depth_mask(struct rb *rb, bool enabled) {
   if (rb->depth_mask == enabled) {
     return;
   }
@@ -144,7 +145,7 @@ static void rb_set_depth_mask(rb_t *rb, bool enabled) {
   glDepthMask(enabled ? 1 : 0);
 }
 
-static void rb_set_depth_func(rb_t *rb, depth_func_t fn) {
+static void rb_set_depth_func(struct rb *rb, enum depth_func fn) {
   if (rb->depth_func == fn) {
     return;
   }
@@ -159,7 +160,7 @@ static void rb_set_depth_func(rb_t *rb, depth_func_t fn) {
   }
 }
 
-static void rb_set_cull_face(rb_t *rb, cull_face_t fn) {
+static void rb_set_cull_face(struct rb *rb, enum cull_face fn) {
   if (rb->cull_face == fn) {
     return;
   }
@@ -174,8 +175,8 @@ static void rb_set_cull_face(rb_t *rb, cull_face_t fn) {
   }
 }
 
-static void rb_set_blend_func(rb_t *rb, blend_func_t src_fn,
-                              blend_func_t dst_fn) {
+static void rb_set_blend_func(struct rb *rb, enum blend_func src_fn,
+                              enum blend_func dst_fn) {
   if (rb->src_blend == src_fn && rb->dst_blend == dst_fn) {
     return;
   }
@@ -191,7 +192,7 @@ static void rb_set_blend_func(rb_t *rb, blend_func_t src_fn,
   }
 }
 
-static void rb_bind_vao(rb_t *rb, GLuint vao) {
+static void rb_bind_vao(struct rb *rb, GLuint vao) {
   if (rb->current_vao == vao) {
     return;
   }
@@ -201,7 +202,7 @@ static void rb_bind_vao(rb_t *rb, GLuint vao) {
   glBindVertexArray(vao);
 }
 
-static void rb_bind_program(rb_t *rb, shader_program_t *program) {
+static void rb_bind_program(struct rb *rb, struct shader_program *program) {
   if (rb->current_program == program) {
     return;
   }
@@ -211,12 +212,12 @@ static void rb_bind_program(rb_t *rb, shader_program_t *program) {
   glUseProgram(program ? program->program : 0);
 }
 
-void rb_bind_texture(rb_t *rb, texture_map_t map, GLuint tex) {
+void rb_bind_texture(struct rb *rb, enum texture_map map, GLuint tex) {
   glActiveTexture(GL_TEXTURE0 + map);
   glBindTexture(GL_TEXTURE_2D, tex);
 }
 
-static GLint rb_get_uniform(rb_t *rb, uniform_attr_t attr) {
+static GLint rb_get_uniform(struct rb *rb, enum uniform_attr attr) {
   return rb->current_program->uniforms[attr];
 }
 
@@ -251,7 +252,7 @@ static bool rb_compile_shader(const char *source, GLenum shader_type,
   return true;
 }
 
-static void rb_destroy_program(shader_program_t *program) {
+static void rb_destroy_program(struct shader_program *program) {
   if (program->vertex_shader > 0) {
     glDeleteShader(program->vertex_shader);
   }
@@ -263,8 +264,8 @@ static void rb_destroy_program(shader_program_t *program) {
   glDeleteProgram(program->program);
 }
 
-static bool rb_compile_program(shader_program_t *program, const char *header,
-                               const char *vertex_source,
+static bool rb_compile_program(struct shader_program *program,
+                               const char *header, const char *vertex_source,
                                const char *fragment_source) {
   char buffer[16384] = {0};
 
@@ -316,7 +317,7 @@ static bool rb_compile_program(shader_program_t *program, const char *header,
   return true;
 }
 
-static bool rb_init_context(rb_t *rb) {
+static bool rb_init_context(struct rb *rb) {
   // need at least a 3.3 core context for our shaders
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -346,7 +347,7 @@ static bool rb_init_context(rb_t *rb) {
   return true;
 }
 
-static void rb_destroy_context(rb_t *rb) {
+static void rb_destroy_context(struct rb *rb) {
   if (!rb->ctx) {
     return;
   }
@@ -355,7 +356,7 @@ static void rb_destroy_context(rb_t *rb) {
   rb->ctx = NULL;
 }
 
-static void rb_create_textures(rb_t *rb) {
+static void rb_create_textures(struct rb *rb) {
   uint8_t pixels[64 * 64 * 4];
   memset(pixels, 0xff, sizeof(pixels));
   glGenTextures(1, &rb->white_tex);
@@ -367,7 +368,7 @@ static void rb_create_textures(rb_t *rb) {
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-static void rb_destroy_textures(rb_t *rb) {
+static void rb_destroy_textures(struct rb *rb) {
   if (!rb->ctx) {
     return;
   }
@@ -382,7 +383,7 @@ static void rb_destroy_textures(rb_t *rb) {
   }
 }
 
-static void rb_create_shaders(rb_t *rb) {
+static void rb_create_shaders(struct rb *rb) {
   if (!rb_compile_program(&rb->ta_program, NULL, ta_vp, ta_fp)) {
     LOG_FATAL("Failed to compile ta shader.");
   }
@@ -392,7 +393,7 @@ static void rb_create_shaders(rb_t *rb) {
   }
 }
 
-static void rb_destroy_shaders(rb_t *rb) {
+static void rb_destroy_shaders(struct rb *rb) {
   if (!rb->ctx) {
     return;
   }
@@ -401,7 +402,7 @@ static void rb_destroy_shaders(rb_t *rb) {
   rb_destroy_program(&rb->ui_program);
 }
 
-static void rb_create_vertex_buffers(rb_t *rb) {
+static void rb_create_vertex_buffers(struct rb *rb) {
   //
   // UI vao
   //
@@ -416,18 +417,19 @@ static void rb_create_vertex_buffers(rb_t *rb) {
 
   // xy
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vertex2d_t),
-                        (void *)offsetof(vertex2d_t, xy));
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex2d),
+                        (void *)offsetof(struct vertex2d, xy));
 
   // texcoord
   glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex2d_t),
-                        (void *)offsetof(vertex2d_t, uv));
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex2d),
+                        (void *)offsetof(struct vertex2d, uv));
 
   // color
   glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex2d_t),
-                        (void *)offsetof(vertex2d_t, color));
+  glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE,
+                        sizeof(struct vertex2d),
+                        (void *)offsetof(struct vertex2d, color));
 
   glBindVertexArray(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -443,30 +445,30 @@ static void rb_create_vertex_buffers(rb_t *rb) {
 
   // xyz
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_t),
-                        (void *)offsetof(vertex_t, xyz));
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
+                        (void *)offsetof(struct vertex, xyz));
 
   // texcoord
   glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex_t),
-                        (void *)offsetof(vertex_t, uv));
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
+                        (void *)offsetof(struct vertex, uv));
 
   // color
   glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex_t),
-                        (void *)offsetof(vertex_t, color));
+  glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(struct vertex),
+                        (void *)offsetof(struct vertex, color));
 
   // offset color
   glEnableVertexAttribArray(3);
-  glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex_t),
-                        (void *)offsetof(vertex_t, offset_color));
+  glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(struct vertex),
+                        (void *)offsetof(struct vertex, offset_color));
 
   glBindVertexArray(0);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-static void rb_destroy_vertex_buffers(rb_t *rb) {
+static void rb_destroy_vertex_buffers(struct rb *rb) {
   if (!rb->ctx) {
     return;
   }
@@ -479,14 +481,14 @@ static void rb_destroy_vertex_buffers(rb_t *rb) {
   glDeleteVertexArrays(1, &rb->ta_vao);
 }
 
-static void rb_set_initial_state(rb_t *rb) {
+static void rb_set_initial_state(struct rb *rb) {
   rb_set_depth_mask(rb, true);
   rb_set_depth_func(rb, DEPTH_NONE);
   rb_set_cull_face(rb, CULL_BACK);
   rb_set_blend_func(rb, BLEND_NONE, BLEND_NONE);
 }
 
-static void rb_onpaint(rb_t *rb, bool show_main_menu) {
+static void rb_onpaint(struct rb *rb, bool show_main_menu) {
   // if (show_main_menu && ImGui::BeginMainMenuBar()) {
   //   if (ImGui::BeginMenu("Render")) {
   //     ImGui::MenuItem("Wireframe", "", &rb->debug_wireframe);
@@ -497,10 +499,10 @@ static void rb_onpaint(rb_t *rb, bool show_main_menu) {
   // }
 }
 
-void rb_begin_surfaces(rb_t *rb, const float *projection, const vertex_t *verts,
-                       int num_verts) {
+void rb_begin_surfaces(struct rb *rb, const float *projection,
+                       const struct vertex *verts, int num_verts) {
   glBindBuffer(GL_ARRAY_BUFFER, rb->ta_vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_t) * num_verts, verts,
+  glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex) * num_verts, verts,
                GL_DYNAMIC_DRAW);
 
   rb_bind_vao(rb, rb->ta_vao);
@@ -514,7 +516,7 @@ void rb_begin_surfaces(rb_t *rb, const float *projection, const vertex_t *verts,
   }
 }
 
-void rb_draw_surface(rb_t *rb, const surface_t *surf) {
+void rb_draw_surface(struct rb *rb, const struct surface *surf) {
   rb_set_depth_mask(rb, surf->depth_write);
   rb_set_depth_func(rb, surf->depth_func);
   rb_set_cull_face(rb, surf->cull);
@@ -527,16 +529,16 @@ void rb_draw_surface(rb_t *rb, const surface_t *surf) {
   glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
 }
 
-void rb_end_surfaces(rb_t *rb) {
+void rb_end_surfaces(struct rb *rb) {
   if (rb->debug_wireframe) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
 }
 
-void rb_begin_surfaces2d(rb_t *rb, const vertex2d_t *verts, int num_verts,
-                         uint16_t *indices, int num_indices) {
+void rb_begin_surfaces2d(struct rb *rb, const struct vertex2d *verts,
+                         int num_verts, uint16_t *indices, int num_indices) {
   glBindBuffer(GL_ARRAY_BUFFER, rb->ui_vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertex2d_t) * num_verts, verts,
+  glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex2d) * num_verts, verts,
                GL_DYNAMIC_DRAW);
 
   if (indices) {
@@ -550,7 +552,7 @@ void rb_begin_surfaces2d(rb_t *rb, const vertex2d_t *verts, int num_verts,
   }
 }
 
-void rb_draw_surface2d(rb_t *rb, const surface2d_t *surf) {
+void rb_draw_surface2d(struct rb *rb, const struct surface2d *surf) {
   if (surf->scissor) {
     rb_set_scissor_test(rb, true);
     rb_set_scissor_clip(rb, (int)surf->scissor_rect[0],
@@ -574,9 +576,9 @@ void rb_draw_surface2d(rb_t *rb, const surface2d_t *surf) {
   }
 }
 
-void rb_end_surfaces2d(rb_t *rb) {}
+void rb_end_surfaces2d(struct rb *rb) {}
 
-void rb_begin2d(rb_t *rb) {
+void rb_begin2d(struct rb *rb) {
   float ortho[16];
 
   ortho[0] = 2.0f / (float)win_width(rb->window);
@@ -610,11 +612,11 @@ void rb_begin2d(rb_t *rb) {
   glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 }
 
-void rb_end2d(rb_t *rb) {
+void rb_end2d(struct rb *rb) {
   rb_set_scissor_test(rb, false);
 }
 
-void rb_begin_frame(rb_t *rb) {
+void rb_begin_frame(struct rb *rb) {
   int width = win_width(rb->window);
   int height = win_height(rb->window);
 
@@ -626,13 +628,14 @@ void rb_begin_frame(rb_t *rb) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void rb_end_frame(rb_t *rb) {
+void rb_end_frame(struct rb *rb) {
   SDL_GL_SwapWindow(win_handle(rb->window));
 }
 
-texture_handle_t rb_register_texture(rb_t *rb, pxl_format_t format,
-                                     filter_mode_t filter, wrap_mode_t wrap_u,
-                                     wrap_mode_t wrap_v, bool mipmaps,
+texture_handle_t rb_register_texture(struct rb *rb, enum pxl_format format,
+                                     enum filter_mode filter,
+                                     enum wrap_mode wrap_u,
+                                     enum wrap_mode wrap_v, bool mipmaps,
                                      int width, int height,
                                      const uint8_t *buffer) {
   // FIXME worth speeding up?
@@ -692,17 +695,17 @@ texture_handle_t rb_register_texture(rb_t *rb, pxl_format_t format,
   return handle;
 }
 
-void rb_free_texture(rb_t *rb, texture_handle_t handle) {
+void rb_free_texture(struct rb *rb, texture_handle_t handle) {
   GLuint *gltex = &rb->textures[handle];
   glDeleteTextures(1, gltex);
   *gltex = 0;
 }
 
-rb_t *rb_create(struct window_s *window) {
-  static const window_callbacks_t callbacks = {
+struct rb *rb_create(struct window *window) {
+  static const struct window_callbacks callbacks = {
       NULL, (window_paint_cb)&rb_onpaint, NULL, NULL, NULL, NULL, NULL};
 
-  rb_t *rb = (rb_t *)calloc(1, sizeof(rb_t));
+  struct rb *rb = (struct rb *)calloc(1, sizeof(struct rb));
   rb->window = window;
   rb->listener = win_add_listener(rb->window, &callbacks, rb);
 
@@ -719,7 +722,7 @@ rb_t *rb_create(struct window_s *window) {
   return rb;
 }
 
-void rb_destroy(rb_t *rb) {
+void rb_destroy(struct rb *rb) {
   rb_destroy_vertex_buffers(rb);
   rb_destroy_shaders(rb);
   rb_destroy_textures(rb);

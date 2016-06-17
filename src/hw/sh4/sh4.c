@@ -16,7 +16,11 @@
 #include "hw/scheduler.h"
 #include "sys/time.h"
 
-static sh4_interrupt_info_t sh4_interrupts[NUM_SH_INTERRUPTS] = {
+struct sh4_interrupt_info {
+  int intevt, default_priority, ipr, ipr_shift;
+};
+
+static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
   { intevt, pri, ipr, ipr_shift }                  \
   ,
@@ -25,10 +29,9 @@ static sh4_interrupt_info_t sh4_interrupts[NUM_SH_INTERRUPTS] = {
 };
 
 static const int64_t SH4_CLOCK_FREQ = 200000000;
+static struct sh4 *g_sh4;
 
-static sh4_t *g_sh4;
-
-static void sh4_sr_updated(sh4_context_t *ctx, uint64_t old_sr);
+static void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr);
 
 //
 // TMU
@@ -43,9 +46,10 @@ static const int PERIPHERAL_SCALE[] = {2, 4, 6, 8, 10, 0, 0, 0};
 #define TUNI(n) \
   (n == 0 ? SH4_INTC_TUNI0 : n == 1 ? SH4_INTC_TUNI1 : SH4_INTC_TUNI2)
 
-static void sh4_tmu_reschedule(sh4_t *sh4, int n, uint32_t tcnt, uint32_t tcr);
+static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
+                               uint32_t tcr);
 
-static uint32_t sh4_tmu_tcnt(sh4_t *sh4, int n) {
+static uint32_t sh4_tmu_tcnt(struct sh4 *sh4, int n) {
   // TCNT values aren't updated in real time. if a timer is enabled, query
   // the scheduler to figure out how many cycles are remaining for the given
   // timer
@@ -57,7 +61,7 @@ static uint32_t sh4_tmu_tcnt(sh4_t *sh4, int n) {
   // here? this would prevent an entire SH4 slice from just busy waiting on
   // this to change
 
-  struct timer_s *timer = sh4->tmu_timers[n];
+  struct timer *timer = sh4->tmu_timers[n];
   uint32_t tcr = *TCR(n);
 
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
@@ -67,7 +71,7 @@ static uint32_t sh4_tmu_tcnt(sh4_t *sh4, int n) {
   return (uint32_t)cycles;
 }
 
-static void sh4_tmu_expire(sh4_t *sh4, int n) {
+static void sh4_tmu_expire(struct sh4 *sh4, int n) {
   uint32_t *tcor = TCOR(n);
   uint32_t *tcnt = TCNT(n);
   uint32_t *tcr = TCR(n);
@@ -89,20 +93,21 @@ static void sh4_tmu_expire(sh4_t *sh4, int n) {
   sh4_tmu_reschedule(sh4, n, *tcnt, *tcr);
 }
 
-static void sh4_tmu_expire_0(sh4_t *sh4) {
+static void sh4_tmu_expire_0(struct sh4 *sh4) {
   sh4_tmu_expire(sh4, 0);
 }
 
-static void sh4_tmu_expire_1(sh4_t *sh4) {
+static void sh4_tmu_expire_1(struct sh4 *sh4) {
   sh4_tmu_expire(sh4, 1);
 }
 
-static void sh4_tmu_expire_2(sh4_t *sh4) {
+static void sh4_tmu_expire_2(struct sh4 *sh4) {
   sh4_tmu_expire(sh4, 2);
 }
 
-static void sh4_tmu_reschedule(sh4_t *sh4, int n, uint32_t tcnt, uint32_t tcr) {
-  struct timer_s **timer = &sh4->tmu_timers[n];
+static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
+                               uint32_t tcr) {
+  struct timer **timer = &sh4->tmu_timers[n];
 
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
   int64_t cycles = (int64_t)tcnt;
@@ -119,9 +124,9 @@ static void sh4_tmu_reschedule(sh4_t *sh4, int n, uint32_t tcnt, uint32_t tcr) {
   *timer = scheduler_start_timer(sh4->scheduler, cb, sh4, remaining);
 }
 
-static void sh4_tmu_update_tstr(sh4_t *sh4) {
+static void sh4_tmu_update_tstr(struct sh4 *sh4) {
   for (int i = 0; i < 3; i++) {
-    struct timer_s **timer = &sh4->tmu_timers[i];
+    struct timer **timer = &sh4->tmu_timers[i];
 
     if (TSTR(i)) {
       // schedule the timer if not already started
@@ -136,7 +141,7 @@ static void sh4_tmu_update_tstr(sh4_t *sh4) {
   }
 }
 
-static void sh4_tmu_update_tcr(sh4_t *sh4, uint32_t n) {
+static void sh4_tmu_update_tcr(struct sh4 *sh4, uint32_t n) {
   if (TSTR(n)) {
     // timer is already scheduled, reschedule it with the current cycle
     // count, but the new TCR value
@@ -149,7 +154,7 @@ static void sh4_tmu_update_tcr(sh4_t *sh4, uint32_t n) {
   }
 }
 
-static void sh4_tmu_update_tcnt(sh4_t *sh4, uint32_t n) {
+static void sh4_tmu_update_tcnt(struct sh4 *sh4, uint32_t n) {
   if (TSTR(n)) {
     sh4_tmu_reschedule(sh4, n, *TCNT(n), *TCR(n));
   }
@@ -158,22 +163,22 @@ static void sh4_tmu_update_tcnt(sh4_t *sh4, uint32_t n) {
 //
 // INTC
 //
-static void sh4_intc_update_pending(sh4_t *sh4) {
+static void sh4_intc_update_pending(struct sh4 *sh4) {
   int min_priority = (sh4->ctx.sr & I) >> 4;
   uint64_t priority_mask =
       (sh4->ctx.sr & BL) ? 0 : ~sh4->priority_mask[min_priority];
   sh4->pending_interrupts = sh4->requested_interrupts & priority_mask;
 }
 
-static void sh4_intc_check_pending(sh4_t *sh4) {
+static void sh4_intc_check_pending(struct sh4 *sh4) {
   if (!sh4->pending_interrupts) {
     return;
   }
 
   // process the highest priority in the pending vector
   int n = 63 - clz64(sh4->pending_interrupts);
-  sh4_interrupt_t intr = sh4->sorted_interrupts[n];
-  sh4_interrupt_info_t *int_info = &sh4_interrupts[intr];
+  enum sh4_interrupt intr = sh4->sorted_interrupts[n];
+  struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
 
   *sh4->INTEVT = int_info->intevt;
   sh4->ctx.ssr = sh4->ctx.sr;
@@ -188,14 +193,14 @@ static void sh4_intc_check_pending(sh4_t *sh4) {
 // Generate a sorted set of interrupts based on their priority. These sorted
 // ids are used to represent all of the currently requested interrupts as a
 // simple bitmask.
-static void sh4_intc_reprioritize(sh4_t *sh4) {
+static void sh4_intc_reprioritize(struct sh4 *sh4) {
   uint64_t old = sh4->requested_interrupts;
   sh4->requested_interrupts = 0;
 
   for (int i = 0, n = 0; i < 16; i++) {
     // for even priorities, give precedence to lower id interrupts
     for (int j = NUM_SH_INTERRUPTS - 1; j >= 0; j--) {
-      sh4_interrupt_info_t *int_info = &sh4_interrupts[j];
+      struct sh4_interrupt_info *int_info = &sh4_interrupts[j];
 
       // get current priority for interrupt
       int priority = int_info->default_priority;
@@ -210,7 +215,7 @@ static void sh4_intc_reprioritize(sh4_t *sh4) {
 
       bool was_requested = old & sh4->sort_id[j];
 
-      sh4->sorted_interrupts[n] = (sh4_interrupt_t)j;
+      sh4->sorted_interrupts[n] = j;
       sh4->sort_id[j] = (uint64_t)1 << n;
       n++;
 
@@ -230,8 +235,8 @@ static void sh4_intc_reprioritize(sh4_t *sh4) {
 //
 // DMAC
 //
-static void sh4_dmac_check(sh4_t *sh4, int channel) {
-  chcr_t *chcr = NULL;
+static void sh4_dmac_check(struct sh4 *sh4, int channel) {
+  union chcr *chcr = NULL;
 
   switch (channel) {
     case 0:
@@ -258,7 +263,7 @@ static void sh4_dmac_check(sh4_t *sh4, int channel) {
 //
 // CCN
 //
-static void sh4_ccn_reset(sh4_t *sh4) {
+static void sh4_ccn_reset(struct sh4 *sh4) {
   // FIXME this isn't right. When the IC is reset a pending flag is set and the
   // cache is actually reset at the end of the current block. However, the docs
   // for the SH4 IC state "After CCR is updated, an instruction that performs
@@ -289,8 +294,8 @@ static uint32_t sh4_compile_pc() {
   return code();
 }
 
-static void sh4_invalid_instr(sh4_context_t *ctx, uint64_t data) {
-  // sh4_t *self = reinterpret_cast<SH4 *>(ctx->sh4);
+static void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data) {
+  // struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
   // uint32_t addr = (uint32_t)data;
 
   // auto it = self->breakpoints.find(addr);
@@ -303,8 +308,8 @@ static void sh4_invalid_instr(sh4_context_t *ctx, uint64_t data) {
   // self->dc.base->debugger->Trap();
 }
 
-static void sh4_prefetch(sh4_context_t *ctx, uint64_t data) {
-  sh4_t *sh4 = ctx->sh4;
+static void sh4_prefetch(struct sh4_ctx *ctx, uint64_t data) {
+  struct sh4 *sh4 = ctx->sh4;
   uint32_t addr = (uint32_t)data;
 
   // only concerned about SQ related prefetches
@@ -328,7 +333,7 @@ static void sh4_prefetch(sh4_context_t *ctx, uint64_t data) {
   }
 }
 
-static void sh4_swap_gpr_bank(sh4_t *sh4) {
+static void sh4_swap_gpr_bank(struct sh4 *sh4) {
   for (int s = 0; s < 8; s++) {
     uint32_t tmp = sh4->ctx.r[s];
     sh4->ctx.r[s] = sh4->ctx.ralt[s];
@@ -336,8 +341,8 @@ static void sh4_swap_gpr_bank(sh4_t *sh4) {
   }
 }
 
-static void sh4_sr_updated(sh4_context_t *ctx, uint64_t old_sr) {
-  sh4_t *sh4 = ctx->sh4;
+static void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr) {
+  struct sh4 *sh4 = ctx->sh4;
 
   if ((ctx->sr & RB) != (old_sr & RB)) {
     sh4_swap_gpr_bank(sh4);
@@ -348,7 +353,7 @@ static void sh4_sr_updated(sh4_context_t *ctx, uint64_t old_sr) {
   }
 }
 
-static void sh4_swap_fpr_bank(sh4_t *sh4) {
+static void sh4_swap_fpr_bank(struct sh4 *sh4) {
   for (int s = 0; s <= 15; s++) {
     uint32_t tmp = sh4->ctx.fr[s];
     sh4->ctx.fr[s] = sh4->ctx.xf[s];
@@ -356,8 +361,8 @@ static void sh4_swap_fpr_bank(sh4_t *sh4) {
   }
 }
 
-static void sh4_fpscr_updated(sh4_context_t *ctx, uint64_t old_fpscr) {
-  sh4_t *sh4 = ctx->sh4;
+static void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr) {
+  struct sh4 *sh4 = ctx->sh4;
 
   if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
     sh4_swap_fpr_bank(sh4);
@@ -451,35 +456,35 @@ static void sh4_fpscr_updated(sh4_context_t *ctx, uint64_t old_fpscr) {
 //   *size = 4;
 // }
 
-#define define_reg_read(name, type)                       \
-  static type sh4_reg_##name(sh4_t *sh4, uint32_t addr) { \
-    uint32_t offset = SH4_REG_OFFSET(addr);               \
-    reg_read_cb read = sh4->reg_read[offset];             \
-                                                          \
-    if (read) {                                           \
-      void *data = sh4->reg_data[offset];                 \
-      return read(data);                                  \
-    }                                                     \
-                                                          \
-    return (type)sh4->reg[offset];                        \
+#define define_reg_read(name, type)                            \
+  static type sh4_reg_##name(struct sh4 *sh4, uint32_t addr) { \
+    uint32_t offset = SH4_REG_OFFSET(addr);                    \
+    reg_read_cb read = sh4->reg_read[offset];                  \
+                                                               \
+    if (read) {                                                \
+      void *data = sh4->reg_data[offset];                      \
+      return read(data);                                       \
+    }                                                          \
+                                                               \
+    return (type)sh4->reg[offset];                             \
   }
 
 define_reg_read(r8, uint8_t);
 define_reg_read(r16, uint16_t);
 define_reg_read(r32, uint32_t);
 
-#define define_reg_write(name, type)                                  \
-  static void sh4_reg_##name(sh4_t *sh4, uint32_t addr, type value) { \
-    uint32_t offset = SH4_REG_OFFSET(addr);                           \
-    reg_write_cb write = sh4->reg_write[offset];                      \
-                                                                      \
-    uint32_t old_value = sh4->reg[offset];                            \
-    sh4->reg[offset] = (uint32_t)value;                               \
-                                                                      \
-    if (write) {                                                      \
-      void *data = sh4->reg_data[offset];                             \
-      write(data, old_value, &sh4->reg[offset]);                      \
-    }                                                                 \
+#define define_reg_write(name, type)                                       \
+  static void sh4_reg_##name(struct sh4 *sh4, uint32_t addr, type value) { \
+    uint32_t offset = SH4_REG_OFFSET(addr);                                \
+    reg_write_cb write = sh4->reg_write[offset];                           \
+                                                                           \
+    uint32_t old_value = sh4->reg[offset];                                 \
+    sh4->reg[offset] = (uint32_t)value;                                    \
+                                                                           \
+    if (write) {                                                           \
+      void *data = sh4->reg_data[offset];                                  \
+      write(data, old_value, &sh4->reg[offset]);                           \
+    }                                                                      \
   }
 
 define_reg_write(w8, uint8_t);
@@ -490,11 +495,11 @@ define_reg_write(w32, uint32_t);
 #define CACHE_OFFSET(addr, OIX) \
   ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
 
-#define define_cache_read(name, type)                       \
-  static type sh4_cache_##name(sh4_t *sh4, uint32_t addr) { \
-    CHECK_EQ(sh4->CCR->ORA, 1u);                            \
-    addr = CACHE_OFFSET(addr, sh4->CCR->OIX);               \
-    return *(type *)&sh4->cache[addr];                      \
+#define define_cache_read(name, type)                            \
+  static type sh4_cache_##name(struct sh4 *sh4, uint32_t addr) { \
+    CHECK_EQ(sh4->CCR->ORA, 1u);                                 \
+    addr = CACHE_OFFSET(addr, sh4->CCR->OIX);                    \
+    return *(type *)&sh4->cache[addr];                           \
   }
 
 define_cache_read(r8, uint8_t);
@@ -502,11 +507,11 @@ define_cache_read(r16, uint16_t);
 define_cache_read(r32, uint32_t);
 define_cache_read(r64, uint64_t);
 
-#define define_cache_write(name, type)                                  \
-  static void sh4_cache_##name(sh4_t *sh4, uint32_t addr, type value) { \
-    CHECK_EQ(sh4->CCR->ORA, 1u);                                        \
-    addr = CACHE_OFFSET(addr, sh4->CCR->OIX);                           \
-    *(type *)&sh4->cache[addr] = value;                                 \
+#define define_cache_write(name, type)                                       \
+  static void sh4_cache_##name(struct sh4 *sh4, uint32_t addr, type value) { \
+    CHECK_EQ(sh4->CCR->ORA, 1u);                                             \
+    addr = CACHE_OFFSET(addr, sh4->CCR->OIX);                                \
+    *(type *)&sh4->cache[addr] = value;                                      \
   }
 
 define_cache_write(w8, uint8_t);
@@ -514,29 +519,29 @@ define_cache_write(w16, uint16_t);
 define_cache_write(w32, uint32_t);
 define_cache_write(w64, uint64_t);
 
-#define define_sq_read(name, type)                       \
-  static type sh4_sq_##name(sh4_t *sh4, uint32_t addr) { \
-    uint32_t sqi = (addr & 0x20) >> 5;                   \
-    unsigned idx = (addr & 0x1c) >> 2;                   \
-    return (type)sh4->ctx.sq[sqi][idx];                  \
+#define define_sq_read(name, type)                            \
+  static type sh4_sq_##name(struct sh4 *sh4, uint32_t addr) { \
+    uint32_t sqi = (addr & 0x20) >> 5;                        \
+    unsigned idx = (addr & 0x1c) >> 2;                        \
+    return (type)sh4->ctx.sq[sqi][idx];                       \
   }
 
 define_sq_read(r8, uint8_t);
 define_sq_read(r16, uint16_t);
 define_sq_read(r32, uint32_t);
 
-#define define_sq_write(name, type)                                  \
-  static void sh4_sq_##name(sh4_t *sh4, uint32_t addr, type value) { \
-    uint32_t sqi = (addr & 0x20) >> 5;                               \
-    uint32_t idx = (addr & 0x1c) >> 2;                               \
-    sh4->ctx.sq[sqi][idx] = (uint32_t)value;                         \
+#define define_sq_write(name, type)                                       \
+  static void sh4_sq_##name(struct sh4 *sh4, uint32_t addr, type value) { \
+    uint32_t sqi = (addr & 0x20) >> 5;                                    \
+    uint32_t idx = (addr & 0x1c) >> 2;                                    \
+    sh4->ctx.sq[sqi][idx] = (uint32_t)value;                              \
   }
 
 define_sq_write(w8, uint8_t);
 define_sq_write(w16, uint16_t);
 define_sq_write(w32, uint32_t);
 
-REG_R32(sh4_t *sh4, PDTRA) {
+REG_R32(struct sh4 *sh4, PDTRA) {
   // magic values to get past 0x8c00b948 in the boot rom:
   // void _8c00b92c(int arg1) {
   //   sysvars->var1 = reg[PDTRA];
@@ -603,7 +608,7 @@ REG_R32(sh4_t *sh4, PDTRA) {
   return v;
 }
 
-REG_W32(sh4_t *sh4, MMUCR) {
+REG_W32(struct sh4 *sh4, MMUCR) {
   if (!*new_value) {
     return;
   }
@@ -611,104 +616,104 @@ REG_W32(sh4_t *sh4, MMUCR) {
   LOG_FATAL("MMU not currently supported");
 }
 
-REG_W32(sh4_t *sh4, CCR) {
+REG_W32(struct sh4 *sh4, CCR) {
   if (sh4->CCR->ICI) {
     sh4_ccn_reset(sh4);
   }
 }
 
-REG_W32(sh4_t *sh4, CHCR0) {
+REG_W32(struct sh4 *sh4, CHCR0) {
   sh4_dmac_check(sh4, 0);
 }
 
-REG_W32(sh4_t *sh4, CHCR1) {
+REG_W32(struct sh4 *sh4, CHCR1) {
   sh4_dmac_check(sh4, 1);
 }
 
-REG_W32(sh4_t *sh4, CHCR2) {
+REG_W32(struct sh4 *sh4, CHCR2) {
   sh4_dmac_check(sh4, 2);
 }
 
-REG_W32(sh4_t *sh4, CHCR3) {
+REG_W32(struct sh4 *sh4, CHCR3) {
   sh4_dmac_check(sh4, 3);
 }
 
-REG_W32(sh4_t *sh4, DMAOR) {
+REG_W32(struct sh4 *sh4, DMAOR) {
   sh4_dmac_check(sh4, 0);
   sh4_dmac_check(sh4, 1);
   sh4_dmac_check(sh4, 2);
   sh4_dmac_check(sh4, 3);
 }
 
-REG_W32(sh4_t *sh4, IPRA) {
+REG_W32(struct sh4 *sh4, IPRA) {
   sh4_intc_reprioritize(sh4);
 }
 
-REG_W32(sh4_t *sh4, IPRB) {
+REG_W32(struct sh4 *sh4, IPRB) {
   sh4_intc_reprioritize(sh4);
 }
 
-REG_W32(sh4_t *sh4, IPRC) {
+REG_W32(struct sh4 *sh4, IPRC) {
   sh4_intc_reprioritize(sh4);
 }
 
-REG_W32(sh4_t *sh4, TSTR) {
+REG_W32(struct sh4 *sh4, TSTR) {
   sh4_tmu_update_tstr(sh4);
 }
 
-REG_W32(sh4_t *sh4, TCR0) {
+REG_W32(struct sh4 *sh4, TCR0) {
   sh4_tmu_update_tcr(sh4, 0);
 }
 
-REG_W32(sh4_t *sh4, TCR1) {
+REG_W32(struct sh4 *sh4, TCR1) {
   sh4_tmu_update_tcr(sh4, 1);
 }
 
-REG_W32(sh4_t *sh4, TCR2) {
+REG_W32(struct sh4 *sh4, TCR2) {
   sh4_tmu_update_tcr(sh4, 1);
 }
 
-REG_R32(sh4_t *sh4, TCNT0) {
+REG_R32(struct sh4 *sh4, TCNT0) {
   return sh4_tmu_tcnt(sh4, 0);
 }
 
-REG_W32(sh4_t *sh4, TCNT0) {
+REG_W32(struct sh4 *sh4, TCNT0) {
   sh4_tmu_update_tcnt(sh4, 0);
 }
 
-REG_R32(sh4_t *sh4, TCNT1) {
+REG_R32(struct sh4 *sh4, TCNT1) {
   return sh4_tmu_tcnt(sh4, 1);
 }
 
-REG_W32(sh4_t *sh4, TCNT1) {
+REG_W32(struct sh4 *sh4, TCNT1) {
   sh4_tmu_update_tcnt(sh4, 1);
 }
 
-REG_R32(sh4_t *sh4, TCNT2) {
+REG_R32(struct sh4 *sh4, TCNT2) {
   return sh4_tmu_tcnt(sh4, 2);
 }
 
-REG_W32(sh4_t *sh4, TCNT2) {
+REG_W32(struct sh4 *sh4, TCNT2) {
   sh4_tmu_update_tcnt(sh4, 2);
 }
 
-static bool sh4_init(sh4_t *sh4) {
-  dreamcast_t *dc = sh4->base.dc;
+static bool sh4_init(struct sh4 *sh4) {
+  struct dreamcast *dc = sh4->base.dc;
 
   sh4->scheduler = dc->scheduler;
   sh4->space = sh4->base.memory->space;
 
-  mem_interface_t memif = {&sh4->ctx,
-                           sh4->base.memory->space->protected_base,
-                           sh4->base.memory->space,
-                           &as_read8,
-                           &as_read16,
-                           &as_read32,
-                           &as_read64,
-                           &as_write8,
-                           &as_write16,
-                           &as_write32,
-                           &as_write64};
+  struct mem_interface memif = {&sh4->ctx,
+                                sh4->base.memory->space->protected_base,
+                                sh4->base.memory->space,
+                                &as_read8,
+                                &as_read16,
+                                &as_read32,
+                                &as_read64,
+                                &as_write8,
+                                &as_write16,
+                                &as_write32,
+                                &as_write64};
   sh4->code_cache = sh4_cache_create(&memif, &sh4_compile_pc);
 
   // initialize context
@@ -766,8 +771,8 @@ static bool sh4_init(sh4_t *sh4) {
   return true;
 }
 
-static void sh4_paint(sh4_t *sh4, bool show_main_menu) {
-  sh4_perf_t *perf = &sh4->perf;
+static void sh4_paint(struct sh4 *sh4, bool show_main_menu) {
+  struct sh4_perf *perf = &sh4->perf;
 
   // if (show_main_menu && ImGui::BeginMainMenuBar()) {
   //   if (ImGui::BeginMenu("CPU")) {
@@ -805,11 +810,11 @@ static void sh4_paint(sh4_t *sh4, bool show_main_menu) {
   // }
 }
 
-void sh4_set_pc(sh4_t *sh4, uint32_t pc) {
+void sh4_set_pc(struct sh4 *sh4, uint32_t pc) {
   sh4->ctx.pc = pc;
 }
 
-static void sh4_run_inner(sh4_t *sh4, int64_t ns) {
+static void sh4_run_inner(struct sh4 *sh4, int64_t ns) {
   // execute at least 1 cycle. the tests rely on this to step block by block
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
 
@@ -842,7 +847,7 @@ static void sh4_run_inner(sh4_t *sh4, int64_t ns) {
   }
 }
 
-void sh4_run(sh4_t *sh4, int64_t ns) {
+void sh4_run(struct sh4 *sh4, int64_t ns) {
   prof_enter("sh4_run");
 
   sh4_run_inner(sh4, ns);
@@ -850,17 +855,17 @@ void sh4_run(sh4_t *sh4, int64_t ns) {
   prof_leave();
 }
 
-void sh4_raise_interrupt(sh4_t *sh4, sh4_interrupt_t intr) {
+void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
   sh4->requested_interrupts |= sh4->sort_id[intr];
   sh4_intc_update_pending(sh4);
 }
 
-void sh4_clear_interrupt(sh4_t *sh4, sh4_interrupt_t intr) {
+void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
   sh4->requested_interrupts &= ~sh4->sort_id[intr];
   sh4_intc_update_pending(sh4);
 }
 
-void sh4_ddt(sh4_t *sh4, sh4_dtr_t *dtr) {
+void sh4_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
   if (dtr->data) {
     // single address mode transfer
     if (dtr->rw) {
@@ -875,8 +880,8 @@ void sh4_ddt(sh4_t *sh4, sh4_dtr_t *dtr) {
     uint32_t *sar;
     uint32_t *dar;
     uint32_t *dmatcr;
-    chcr_t *chcr;
-    sh4_interrupt_t dmte;
+    union chcr *chcr;
+    enum sh4_interrupt dmte;
 
     switch (dtr->channel) {
       case 0:
@@ -932,11 +937,11 @@ void sh4_ddt(sh4_t *sh4, sh4_dtr_t *dtr) {
   }
 }
 
-sh4_t *sh4_create(dreamcast_t *dc) {
-  sh4_t *sh4 =
-      dc_create_device(dc, sizeof(sh4_t), "sh", (device_init_cb)&sh4_init);
+struct sh4 *sh4_create(struct dreamcast *dc) {
+  struct sh4 *sh4 =
+      dc_create_device(dc, sizeof(struct sh4), "sh", (device_init_cb)&sh4_init);
   sh4->base.execute = execute_interface_create((device_run_cb)&sh4_run);
-  sh4->base.memory = memory_interface_create(dc, sh4_data_map);
+  sh4->base.memory = memory_interface_create(dc, &sh4_data_map);
   sh4->base.window = window_interface_create((device_paint_cb)&sh4_paint, NULL);
 
   g_sh4 = sh4;
@@ -944,7 +949,7 @@ sh4_t *sh4_create(dreamcast_t *dc) {
   return sh4;
 }
 
-void sh4_destroy(sh4_t *sh4) {
+void sh4_destroy(struct sh4 *sh4) {
   sh4_cache_destroy(sh4->code_cache);
 
   execute_interface_destroy(sh4->base.execute);
@@ -953,7 +958,7 @@ void sh4_destroy(sh4_t *sh4) {
 }
 
 // clang-format off
-AM_BEGIN(sh4_t, sh4_data_map)
+AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x00000000, 0x03ffffff) AM_MOUNT()  // area 0
   AM_RANGE(0x04000000, 0x07ffffff) AM_MOUNT()  // area 1
   AM_RANGE(0x08000000, 0x0bffffff) AM_MOUNT()  // area 2

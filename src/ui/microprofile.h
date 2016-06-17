@@ -1,10 +1,10 @@
 #ifndef MICROPROFILE_IMPL_H
 #define MICROPROFILE_IMPL_H
 
-struct microprofile_s;
-struct window_s;
+struct microprofile;
+struct window;
 
-struct microprofile_s *mp_create(struct window_s *window);
-void mp_destroy(struct microprofile_s *mp);
+struct microprofile *mp_create(struct window *window);
+void mp_destroy(struct microprofile *mp);
 
 #endif

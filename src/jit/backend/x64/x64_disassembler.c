@@ -1,6 +1,6 @@
 #include "jit/backend/x64/x64_disassembler.h"
 
-bool x64_decode_mov(const uint8_t *data, x64_mov_t *mov) {
+bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   const uint8_t *start = data;
 
   // test for operand size prefix

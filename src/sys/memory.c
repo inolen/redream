@@ -8,34 +8,34 @@
 
 static const int MAX_WATCHES = 1024;
 
-typedef struct memory_watch_s {
-  memory_watch_type_t type;
+struct memory_watch {
+  enum memory_watch_type type;
   memory_watch_cb cb;
   void *data;
-  interval_node_t tree_it;
-  list_node_t list_it;
-} memory_watch_t;
+  struct interval_node tree_it;
+  struct list_node list_it;
+};
 
-typedef struct {
-  struct exc_handler_s *exc_handler;
-  rb_tree_t tree;
-  memory_watch_t watches[MAX_WATCHES];
-  list_t free_watches;
-  list_t live_watches;
-} memory_watcher_t;
+struct memory_watcher {
+  struct exception_handler *exc_handler;
+  struct rb_tree tree;
+  struct memory_watch watches[MAX_WATCHES];
+  struct list free_watches;
+  struct list live_watches;
+};
 
-static memory_watcher_t *s_watcher;
+static struct memory_watcher *s_watcher;
 
-static bool watcher_handle_exception(void *ctx, re_exception_t *ex);
+static bool watcher_handle_exception(void *ctx, struct exception *ex);
 
 static void watcher_create() {
-  s_watcher = calloc(1, sizeof(memory_watcher_t));
+  s_watcher = calloc(1, sizeof(struct memory_watcher));
 
   s_watcher->exc_handler =
       exception_handler_add(NULL, &watcher_handle_exception);
 
   for (int i = 0; i < MAX_WATCHES; i++) {
-    memory_watch_t *watch = &s_watcher->watches[i];
+    struct memory_watch *watch = &s_watcher->watches[i];
     list_add(&s_watcher->free_watches, &watch->list_it);
   }
 }
@@ -48,18 +48,18 @@ static void watcher_destroy() {
   s_watcher = NULL;
 }
 
-static bool watcher_handle_exception(void *ctx, re_exception_t *ex) {
+static bool watcher_handle_exception(void *ctx, struct exception *ex) {
   bool handled = false;
 
-  interval_tree_iter_t it;
-  interval_node_t *n = interval_tree_iter_first(
+  struct interval_tree_it it;
+  struct interval_node *n = interval_tree_iter_first(
       &s_watcher->tree, ex->fault_addr, ex->fault_addr, &it);
 
   while (n) {
     handled = true;
 
-    interval_node_t *next = interval_tree_iter_next(&it);
-    memory_watch_t *watch = container_of(n, memory_watch_t, tree_it);
+    struct interval_node *next = interval_tree_iter_next(&it);
+    struct memory_watch *watch = container_of(n, struct memory_watch, tree_it);
 
     // call callback for this access watch
     watch->cb(ex, watch->data);
@@ -83,8 +83,8 @@ static bool watcher_handle_exception(void *ctx, re_exception_t *ex) {
   return handled;
 }
 
-memory_watch_t *add_single_write_watch(void *ptr, size_t size,
-                                       memory_watch_cb cb, void *data) {
+struct memory_watch *add_single_write_watch(void *ptr, size_t size,
+                                            memory_watch_cb cb, void *data) {
   if (!s_watcher) {
     watcher_create();
   }
@@ -99,8 +99,8 @@ memory_watch_t *add_single_write_watch(void *ptr, size_t size,
   CHECK(protect_pages((void *)aligned_begin, aligned_size, ACC_READONLY));
 
   // allocate new access watch
-  memory_watch_t *watch =
-      list_first_entry(&s_watcher->free_watches, memory_watch_t, list_it);
+  struct memory_watch *watch =
+      list_first_entry(&s_watcher->free_watches, struct memory_watch, list_it);
   CHECK_NOTNULL(watch);
   watch->type = WATCH_SINGLE_WRITE;
   watch->cb = cb;
@@ -121,7 +121,7 @@ memory_watch_t *add_single_write_watch(void *ptr, size_t size,
   return watch;
 }
 
-void remove_memory_watch(memory_watch_t *watch) {
+void remove_memory_watch(struct memory_watch *watch) {
   // remove from interval tree
   interval_tree_remove(&s_watcher->tree, &watch->tree_it);
 

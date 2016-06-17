@@ -4,32 +4,32 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct window_s;
+struct window;
 
 typedef int texture_handle_t;
 
-typedef enum {
+enum pxl_format {
   PXL_INVALID,
   PXL_RGBA,
   PXL_RGBA5551,
   PXL_RGB565,
   PXL_RGBA4444,
   PXL_RGBA8888,
-} pxl_format_t;
+};
 
-typedef enum {
+enum filter_mode {
   FILTER_NEAREST,
   FILTER_BILINEAR,
   NUM_FILTER_MODES,
-} filter_mode_t;
+};
 
-typedef enum {
+enum wrap_mode {
   WRAP_REPEAT,
   WRAP_CLAMP_TO_EDGE,
   WRAP_MIRRORED_REPEAT,
-} wrap_mode_t;
+};
 
-typedef enum {
+enum depth_func {
   DEPTH_NONE,
   DEPTH_NEVER,
   DEPTH_LESS,
@@ -39,15 +39,15 @@ typedef enum {
   DEPTH_NEQUAL,
   DEPTH_GEQUAL,
   DEPTH_ALWAYS,
-} depth_func_t;
+};
 
-typedef enum {
+enum cull_face {
   CULL_NONE,
   CULL_FRONT,
   CULL_BACK,
-} cull_face_t;
+};
 
-typedef enum {
+enum blend_func {
   BLEND_NONE,
   BLEND_ZERO,
   BLEND_ONE,
@@ -59,88 +59,89 @@ typedef enum {
   BLEND_ONE_MINUS_DST_ALPHA,
   BLEND_DST_COLOR,
   BLEND_ONE_MINUS_DST_COLOR,
-} blend_func_t;
+};
 
-typedef enum {
+enum shade_mode {
   SHADE_DECAL,
   SHADE_MODULATE,
   SHADE_DECAL_ALPHA,
   SHADE_MODULATE_ALPHA,
-} shade_mode_t;
+};
 
-typedef enum {
+enum box_type {
   BOX_BAR,
   BOX_FLAT,
-} box_type_t;
+};
 
-typedef enum {
+enum prim_type {
   PRIM_TRIANGLES,
   PRIM_LINES,
-} prim_type_t;
+};
 
-typedef struct {
+struct vertex {
   float xyz[3];
   float uv[2];
   uint32_t color;
   uint32_t offset_color;
-} vertex_t;
+};
 
-typedef struct {
+struct surface {
   texture_handle_t texture;
   bool depth_write;
-  depth_func_t depth_func;
-  cull_face_t cull;
-  blend_func_t src_blend;
-  blend_func_t dst_blend;
-  shade_mode_t shade;
+  enum depth_func depth_func;
+  enum cull_face cull;
+  enum blend_func src_blend;
+  enum blend_func dst_blend;
+  enum shade_mode shade;
   bool ignore_tex_alpha;
   int first_vert;
   int num_verts;
-} surface_t;
+};
 
-typedef struct {
+struct vertex2d {
   float xy[2];
   float uv[2];
   uint32_t color;
-} vertex2d_t;
+};
 
-typedef struct {
-  prim_type_t prim_type;
+struct surface2d {
+  enum prim_type prim_type;
   texture_handle_t texture;
-  blend_func_t src_blend;
-  blend_func_t dst_blend;
+  enum blend_func src_blend;
+  enum blend_func dst_blend;
   bool scissor;
   float scissor_rect[4];
   int first_vert;
   int num_verts;
-} surface2d_t;
+};
 
-struct rb_s;
+struct rb;
 
-void rb_begin_surfaces(struct rb_s *rb, const float *projection,
-                       const vertex_t *verts, int num_verts);
-void rb_draw_surface(struct rb_s *rb, const surface_t *surf);
-void rb_end_surfaces(struct rb_s *rb);
+void rb_begin_surfaces(struct rb *rb, const float *projection,
+                       const struct vertex *verts, int num_verts);
+void rb_draw_surface(struct rb *rb, const struct surface *surf);
+void rb_end_surfaces(struct rb *rb);
 
-void rb_begin_surfaces2d(struct rb_s *rb, const vertex2d_t *verts,
+void rb_begin_surfaces2d(struct rb *rb, const struct vertex2d *verts,
                          int num_verts, uint16_t *indices, int num_indices);
-void rb_draw_surface2d(struct rb_s *rb, const surface2d_t *surf);
-void rb_end_surfaces2d(struct rb_s *rb);
+void rb_draw_surface2d(struct rb *rb, const struct surface2d *surf);
+void rb_end_surfaces2d(struct rb *rb);
 
-void rb_begin2d(struct rb_s *rb);
-void rb_end2d(struct rb_s *rb);
+void rb_begin2d(struct rb *rb);
+void rb_end2d(struct rb *rb);
 
-void rb_begin_frame(struct rb_s *rb);
-void rb_end_frame(struct rb_s *rb);
+void rb_begin_frame(struct rb *rb);
+void rb_end_frame(struct rb *rb);
 
-texture_handle_t rb_register_texture(struct rb_s *rb, pxl_format_t format,
-                                     filter_mode_t filter, wrap_mode_t wrap_u,
-                                     wrap_mode_t wrap_v, bool mipmaps,
+texture_handle_t rb_register_texture(struct rb *rb, enum pxl_format format,
+                                     enum filter_mode filter,
+                                     enum wrap_mode wrap_u,
+                                     enum wrap_mode wrap_v, bool mipmaps,
                                      int width, int height,
                                      const uint8_t *buffer);
-void rb_free_texture(struct rb_s *rb, texture_handle_t handle);
+void rb_free_texture(struct rb *rb, texture_handle_t handle);
 
-struct rb_s *rb_create(struct window_s *window);
-void rb_destroy(struct rb_s *rb);
+struct rb *rb_create(struct window *window);
+void rb_destroy(struct rb *rb);
 
 #endif

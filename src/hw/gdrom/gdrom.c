@@ -13,7 +13,7 @@ static const int SPI_CMD_SIZE = 12;
 static const int SUBCODE_SIZE = 100;
 
 // internal gdrom state machine
-typedef enum {
+enum gd_event {
   EV_ATA_CMD_DONE,
   // each incomming SPI command will either:
   // a.) have no additional data and immediately fire EV_SPI_CMD_DONE
@@ -27,38 +27,38 @@ typedef enum {
   EV_SPI_WRITE_SECTORS,
   EV_SPI_WRITE_END,
   EV_SPI_CMD_DONE,
-} gd_event_t;
+};
 
-typedef enum {
+enum gd_state {
   STATE_STANDBY,
   STATE_SPI_READ_CMD,
   STATE_SPI_READ_DATA,
   STATE_SPI_WRITE_DATA,
   STATE_SPI_WRITE_SECTORS,
-} gd_state_t;
+};
 
-typedef struct {
+struct cdread {
   bool dma;
-  gd_secfmt_t sector_fmt;
-  gd_secmask_t sector_mask;
+  enum gd_secfmt sector_fmt;
+  enum gd_secmask sector_mask;
   int first_sector;
   int num_sectors;
-} gd_cdread_t;
+};
 
-typedef struct gdrom_s {
-  device_t base;
+struct gdrom {
+  struct device base;
 
-  holly_t *holly;
+  struct holly *holly;
 
-  gd_state_t state;
-  struct disc_s *disc;
-  gd_features_t features;
-  gd_intreason_t ireason;
-  gd_sectnum_t sectnum;
-  gd_bytect_t byte_count;
-  gd_status_t status;
+  enum gd_state state;
+  struct disc *disc;
+  union gd_features features;
+  union gd_intreason ireason;
+  union gd_sectnum sectnum;
+  union gd_bytect byte_count;
+  union gd_status status;
 
-  gd_cdread_t req;
+  struct cdread req;
 
   uint8_t pio_buffer[0x10000];
   int pio_head;
@@ -69,9 +69,9 @@ typedef struct gdrom_s {
   int dma_capacity;
   int dma_head;
   int dma_size;
-} gdrom_t;
+};
 
-static void gdrom_event(gdrom_t *gd, gd_event_t ev, intptr_t arg0,
+static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
                         intptr_t arg1);
 
 static int gdrom_get_fad(uint8_t a, uint8_t b, uint8_t c, bool msf) {
@@ -90,14 +90,15 @@ static int gdrom_get_fad(uint8_t a, uint8_t b, uint8_t c, bool msf) {
   return (a << 16) | (b << 8) | c;
 }
 
-static void gdrom_set_mode(gdrom_t *gd, int offset, uint8_t *data,
+static void gdrom_set_mode(struct gdrom *gd, int offset, uint8_t *data,
                            int data_size) {
   memcpy((uint8_t *)&reply_11[offset >> 1], data, data_size);
 
   gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
 }
 
-static void gdrom_get_toc(gdrom_t *gd, gd_area_t area_type, gd_toc_t *toc) {
+static void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
+                          struct gd_toc *toc) {
   CHECK(gd->disc);
 
   // for GD-ROMs, the single density area contains tracks 1 and 2, while the
@@ -115,14 +116,14 @@ static void gdrom_get_toc(gdrom_t *gd, gd_area_t area_type, gd_toc_t *toc) {
     }
   }
 
-  const track_t *start_track = disc_get_track(gd->disc, first_track_num);
-  const track_t *end_track = disc_get_track(gd->disc, last_track_num);
+  const struct track *start_track = disc_get_track(gd->disc, first_track_num);
+  const struct track *end_track = disc_get_track(gd->disc, last_track_num);
   int leadout_fad = area_type == AREA_SINGLE ? 0x4650 : 0x861b4;
 
   memset(toc, 0, sizeof(*toc));
   for (int i = first_track_num; i <= last_track_num; i++) {
-    gd_tocentry_t *entry = &toc->entries[i];
-    const track_t *track = disc_get_track(gd->disc, i);
+    union gd_tocentry *entry = &toc->entries[i];
+    const struct track *track = disc_get_track(gd->disc, i);
     entry->ctrl = track->ctrl;
     entry->adr = track->adr;
     entry->fad = track->num;
@@ -138,7 +139,8 @@ static void gdrom_get_toc(gdrom_t *gd, gd_area_t area_type, gd_toc_t *toc) {
   toc->leadout.fad = SWAP_24(leadout_fad);
 }
 
-static void gdrom_get_session(gdrom_t *gd, int session, gd_session_t *ses) {
+static void gdrom_get_session(struct gdrom *gd, int session,
+                              struct gd_session *ses) {
   CHECK(gd->disc);
 
   if (!session) {
@@ -158,7 +160,7 @@ static void gdrom_get_session(gdrom_t *gd, int session, gd_session_t *ses) {
   }
 }
 
-static void gdrom_get_subcode(gdrom_t *gd, int format, uint8_t *data) {
+static void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
   CHECK(gd->disc);
 
   // FIXME implement
@@ -168,7 +170,7 @@ static void gdrom_get_subcode(gdrom_t *gd, int format, uint8_t *data) {
   LOG_INFO("GetSubcode not fully implemented");
 }
 
-static void gdrom_ata_cmd(gdrom_t *gd, gd_ata_cmd_t cmd) {
+static void gdrom_ata_cmd(struct gdrom *gd, enum gd_ata_cmd cmd) {
   gd->status.DRDY = 0;
   gd->status.BSY = 1;
 
@@ -210,8 +212,8 @@ static void gdrom_ata_cmd(gdrom_t *gd, gd_ata_cmd_t cmd) {
   }
 }
 
-static void gdrom_spi_cmd(gdrom_t *gd, uint8_t *data) {
-  gd_spi_cmd_t cmd = (gd_spi_cmd_t)data[0];
+static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
+  enum gd_spi_cmd cmd = (enum gd_spi_cmd)data[0];
 
   gd->status.DRQ = 0;
   gd->status.BSY = 1;
@@ -247,9 +249,9 @@ static void gdrom_spi_cmd(gdrom_t *gd, uint8_t *data) {
     //   break;
 
     case SPI_GET_TOC: {
-      gd_area_t area_type = (gd_area_t)(data[1] & 0x1);
+      enum gd_area area_type = (enum gd_area)(data[1] & 0x1);
       int size = (data[3] << 8) | data[4];
-      gd_toc_t toc;
+      struct gd_toc toc;
       gdrom_get_toc(gd, area_type, &toc);
       gdrom_event(gd, EV_SPI_WRITE_START, (intptr_t)&toc, size);
     } break;
@@ -257,7 +259,7 @@ static void gdrom_spi_cmd(gdrom_t *gd, uint8_t *data) {
     case SPI_REQ_SES: {
       int session = data[2];
       int size = data[4];
-      gd_session_t ses;
+      struct gd_session ses;
       gdrom_get_session(gd, session, &ses);
       gdrom_event(gd, EV_SPI_WRITE_START, (intptr_t)&ses, size);
     } break;
@@ -274,8 +276,8 @@ static void gdrom_spi_cmd(gdrom_t *gd, uint8_t *data) {
       bool msf = (data[1] & 0x1);
 
       gd->req.dma = gd->features.dma;
-      gd->req.sector_fmt = (gd_secfmt_t)((data[1] & 0xe) >> 1);
-      gd->req.sector_mask = (gd_secmask_t)((data[1] >> 4) & 0xff);
+      gd->req.sector_fmt = (enum gd_secfmt)((data[1] & 0xe) >> 1);
+      gd->req.sector_mask = (enum gd_secmask)((data[1] >> 4) & 0xff);
       gd->req.first_sector = gdrom_get_fad(data[2], data[3], data[4], msf);
       gd->req.num_sectors = (data[8] << 16) | (data[9] << 8) | data[10];
 
@@ -324,9 +326,9 @@ static void gdrom_spi_cmd(gdrom_t *gd, uint8_t *data) {
   }
 }
 
-static int gdrom_read_sectors(gdrom_t *gd, int fad, gd_secfmt_t fmt,
-                              gd_secmask_t mask, int num_sectors, uint8_t *dst,
-                              int dst_size) {
+static int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
+                              enum gd_secmask mask, int num_sectors,
+                              uint8_t *dst, int dst_size) {
   CHECK(gd->disc);
 
   int total = 0;
@@ -352,7 +354,7 @@ static int gdrom_read_sectors(gdrom_t *gd, int fad, gd_secfmt_t fmt,
   return total;
 }
 
-static void gdrom_event(gdrom_t *gd, gd_event_t ev, intptr_t arg0,
+static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
                         intptr_t arg1) {
   switch (ev) {
     case EV_ATA_CMD_DONE: {
@@ -514,17 +516,17 @@ static void gdrom_event(gdrom_t *gd, gd_event_t ev, intptr_t arg0,
   }
 }
 
-REG_R32(gdrom_t *gd, GD_ALTSTAT_DEVCTRL) {
+REG_R32(struct gdrom *gd, GD_ALTSTAT_DEVCTRL) {
   // this register is the same as the status register, but it does not
   // clear DMA status information when it is accessed
   return gd->status.full;
 }
 
-REG_W32(gdrom_t *gd, GD_ALTSTAT_DEVCTRL) {
+REG_W32(struct gdrom *gd, GD_ALTSTAT_DEVCTRL) {
   // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
 }
 
-REG_R32(gdrom_t *gd, GD_DATA) {
+REG_R32(struct gdrom *gd, GD_DATA) {
   uint16_t v = *(uint16_t *)&gd->pio_buffer[gd->pio_head];
   gd->pio_head += 2;
   if (gd->pio_head == gd->pio_size) {
@@ -533,7 +535,7 @@ REG_R32(gdrom_t *gd, GD_DATA) {
   return v;
 }
 
-REG_W32(gdrom_t *gd, GD_DATA) {
+REG_W32(struct gdrom *gd, GD_DATA) {
   *(uint16_t *)&gd->pio_buffer[gd->pio_head] = (uint16_t)(*new_value & 0xffff);
   gd->pio_head += 2;
 
@@ -544,67 +546,67 @@ REG_W32(gdrom_t *gd, GD_DATA) {
   }
 }
 
-REG_R32(gdrom_t *gd, GD_ERROR_FEATURES) {
+REG_R32(struct gdrom *gd, GD_ERROR_FEATURES) {
   // LOG_INFO("GD_ERROR");
   return 0;
 }
 
-REG_W32(gdrom_t *gd, GD_ERROR_FEATURES) {
+REG_W32(struct gdrom *gd, GD_ERROR_FEATURES) {
   gd->features.full = *new_value;
 }
 
-REG_R32(gdrom_t *gd, GD_INTREASON_SECTCNT) {
+REG_R32(struct gdrom *gd, GD_INTREASON_SECTCNT) {
   return gd->ireason.full;
 }
 
-REG_W32(gdrom_t *gd, GD_INTREASON_SECTCNT) {
+REG_W32(struct gdrom *gd, GD_INTREASON_SECTCNT) {
   // LOG_INFO("GD_SECTCNT 0x%x", *new_value);
 }
 
-REG_R32(gdrom_t *gd, GD_SECTNUM) {
+REG_R32(struct gdrom *gd, GD_SECTNUM) {
   return gd->sectnum.full;
 }
 
-REG_W32(gdrom_t *gd, GD_SECTNUM) {
+REG_W32(struct gdrom *gd, GD_SECTNUM) {
   gd->sectnum.full = *new_value;
 }
 
-REG_R32(gdrom_t *gd, GD_BYCTLLO) {
+REG_R32(struct gdrom *gd, GD_BYCTLLO) {
   return gd->byte_count.lo;
 }
 
-REG_W32(gdrom_t *gd, GD_BYCTLLO) {
+REG_W32(struct gdrom *gd, GD_BYCTLLO) {
   gd->byte_count.lo = *new_value;
 }
 
-REG_R32(gdrom_t *gd, GD_BYCTLHI) {
+REG_R32(struct gdrom *gd, GD_BYCTLHI) {
   return gd->byte_count.hi;
 }
 
-REG_W32(gdrom_t *gd, GD_BYCTLHI) {
+REG_W32(struct gdrom *gd, GD_BYCTLHI) {
   gd->byte_count.hi = *new_value;
 }
 
-REG_R32(gdrom_t *gd, GD_DRVSEL) {
+REG_R32(struct gdrom *gd, GD_DRVSEL) {
   // LOG_INFO("GD_DRVSEL");
   return 0;
 }
 
-REG_W32(gdrom_t *gd, GD_DRVSEL) {
+REG_W32(struct gdrom *gd, GD_DRVSEL) {
   // LOG_INFO("GD_DRVSEL 0x%x", (uint32_t)*new_value);
 }
 
-REG_R32(gdrom_t *gd, GD_STATUS_COMMAND) {
+REG_R32(struct gdrom *gd, GD_STATUS_COMMAND) {
   holly_clear_interrupt(gd->holly, HOLLY_INTC_G1GDINT);
   return gd->status.full;
 }
 
-REG_W32(gdrom_t *gd, GD_STATUS_COMMAND) {
-  gdrom_ata_cmd(gd, (gd_ata_cmd_t)*new_value);
+REG_W32(struct gdrom *gd, GD_STATUS_COMMAND) {
+  gdrom_ata_cmd(gd, (enum gd_ata_cmd) * new_value);
 }
 
-static bool gdrom_init(gdrom_t *gd) {
-  dreamcast_t *dc = gd->base.dc;
+static bool gdrom_init(struct gdrom *gd) {
+  struct dreamcast *dc = gd->base.dc;
 
   gd->holly = dc->holly;
 
@@ -641,7 +643,7 @@ static bool gdrom_init(gdrom_t *gd) {
   return true;
 }
 
-void gdrom_set_disc(gdrom_t *gd, struct disc_s *disc) {
+void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   if (gd->disc != disc) {
     if (gd->disc) {
       disc_destroy(gd->disc);
@@ -660,9 +662,9 @@ void gdrom_set_disc(gdrom_t *gd, struct disc_s *disc) {
   gd->status.BSY = 0;
 }
 
-void gdrom_dma_begin(gdrom_t *gd) {}
+void gdrom_dma_begin(struct gdrom *gd) {}
 
-int gdrom_dma_read(gdrom_t *gd, uint8_t *data, int data_size) {
+int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int data_size) {
   int remaining = gd->dma_size - gd->dma_head;
   int n = MIN(remaining, data_size);
   memcpy(data, &gd->dma_buffer[gd->dma_head], n);
@@ -670,7 +672,7 @@ int gdrom_dma_read(gdrom_t *gd, uint8_t *data, int data_size) {
   return n;
 }
 
-void gdrom_dma_end(gdrom_t *gd) {
+void gdrom_dma_end(struct gdrom *gd) {
   // reset DMA write state
   gd->dma_size = 0;
 
@@ -678,13 +680,13 @@ void gdrom_dma_end(gdrom_t *gd) {
   gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
 }
 
-gdrom_t *gdrom_create(dreamcast_t *dc) {
-  gdrom_t *gd = dc_create_device(dc, sizeof(gdrom_t), "gdrom",
-                                 (device_init_cb)&gdrom_init);
+struct gdrom *gdrom_create(struct dreamcast *dc) {
+  struct gdrom *gd = dc_create_device(dc, sizeof(struct gdrom), "gdrom",
+                                      (device_init_cb)&gdrom_init);
   return gd;
 }
 
-void gdrom_destroy(gdrom_t *gd) {
+void gdrom_destroy(struct gdrom *gd) {
   if (gd->disc) {
     disc_destroy(gd->disc);
   }

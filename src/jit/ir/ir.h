@@ -5,14 +5,14 @@
 #include "core/assert.h"
 #include "core/list.h"
 
-typedef enum {
+enum ir_op {
 #define IR_OP(name) OP_##name,
 #include "jit/ir/ir_ops.inc"
 #undef IR_OP
   NUM_OPS
-} ir_op_t;
+};
 
-typedef enum {
+enum ir_type {
   VALUE_V,
   VALUE_I8,
   VALUE_I16,
@@ -22,9 +22,9 @@ typedef enum {
   VALUE_F64,
   VALUE_V128,
   VALUE_NUM,
-} ir_type_t;
+};
 
-typedef enum {
+enum ir_cmp {
   CMP_EQ,
   CMP_NE,
   CMP_SGE,
@@ -35,30 +35,30 @@ typedef enum {
   CMP_SLT,
   CMP_ULE,
   CMP_ULT
-} ir_cmp_t;
+};
 
-struct ir_value_s;
-struct ir_instr_s;
+struct ir_value;
+struct ir_instr;
 
 static const int MAX_INSTR_ARGS = 3;
 
 // use is a layer of indirection between an instruction and the values it uses
 // as arguments. this indirection makes it possible to maintain a list for each
 // value of the arguments that reference it
-typedef struct ir_use_s {
+struct ir_use {
   // the instruction that's using the value
-  struct ir_instr_s *instr;
+  struct ir_instr *instr;
 
   // pointer to the argument that's using the value. this is used to substitute
   // a new value for the argument in the case that the original value is
   // removed (e.g. due to constant propagation)
-  struct ir_value_s **parg;
+  struct ir_value **parg;
 
-  list_node_t it;
-} ir_use_t;
+  struct list_node it;
+};
 
-typedef struct ir_value_s {
-  ir_type_t type;
+struct ir_value {
+  enum ir_type type;
 
   union {
     int8_t i8;
@@ -70,56 +70,56 @@ typedef struct ir_value_s {
   };
 
   // instruction that defines this value (non-constant values)
-  struct ir_instr_s *def;
+  struct ir_instr *def;
 
   // instructions that use this value as an argument
-  list_t uses;
+  struct list uses;
 
   // host register allocated for this value
   int reg;
 
   // generic meta data used by optimization passes
   intptr_t tag;
-} ir_value_t;
+};
 
-typedef struct ir_instr_s {
-  ir_op_t op;
+struct ir_instr {
+  enum ir_op op;
 
   // values used by each argument. note, the argument / use is split into two
   // separate members to ease reading the argument value (instr->arg[0] vs
   // instr->arg[0].value)
-  ir_value_t *arg[MAX_INSTR_ARGS];
-  ir_use_t used[MAX_INSTR_ARGS];
+  struct ir_value *arg[MAX_INSTR_ARGS];
+  struct ir_use used[MAX_INSTR_ARGS];
 
   // result of the instruction. note, instruction results don't consider
   // themselves users of the value (eases register allocation logic)
-  ir_value_t *result;
+  struct ir_value *result;
 
   // generic meta data used by optimization passes
   intptr_t tag;
 
-  list_node_t it;
-} ir_instr_t;
+  struct list_node it;
+};
 
 // locals are allocated for values that need to be spilled to the stack
 // during register allocation
-typedef struct ir_local_s {
-  ir_type_t type;
-  ir_value_t *offset;
-  list_node_t it;
-} ir_local_t;
+struct ir_local {
+  enum ir_type type;
+  struct ir_value *offset;
+  struct list_node it;
+};
 
-typedef struct ir_s {
+struct ir {
   uint8_t *buffer;
   int capacity;
   int used;
 
-  list_t instrs;
-  list_t locals;
+  struct list instrs;
+  struct list locals;
   int locals_size;
 
-  ir_instr_t *current_instr;
-} ir_t;
+  struct ir_instr *current_instr;
+};
 
 extern const char *ir_op_names[NUM_OPS];
 
@@ -138,7 +138,7 @@ static const int VALUE_ALL_MASK = VALUE_INT_MASK | VALUE_FLOAT_MASK;
 
 static const int NO_REGISTER = -1;
 
-static inline int ir_type_size(ir_type_t type) {
+static inline int ir_type_size(enum ir_type type) {
   switch (type) {
     case VALUE_I8:
       return 1;
@@ -160,136 +160,170 @@ static inline int ir_type_size(ir_type_t type) {
   }
 }
 
-static inline bool is_is_int(ir_type_t type) {
+static inline bool is_is_int(enum ir_type type) {
   return type == VALUE_I8 || type == VALUE_I16 || type == VALUE_I32 ||
          type == VALUE_I64;
 }
 
-static inline bool ir_is_float(ir_type_t type) {
+static inline bool ir_is_float(enum ir_type type) {
   return type == VALUE_F32 || type == VALUE_F64;
 }
 
-static inline bool ir_is_vector(ir_type_t type) {
+static inline bool ir_is_vector(enum ir_type type) {
   return type == VALUE_V128;
 }
 
-bool ir_read(FILE *input, struct ir_s *ir);
-void ir_write(struct ir_s *ir, FILE *output);
+bool ir_read(FILE *input, struct ir *ir);
+void ir_write(struct ir *ir, FILE *output);
 
-ir_instr_t *ir_append_instr(ir_t *ir, ir_op_t op, ir_type_t result_type);
-void ir_remove_instr(ir_t *ir, ir_instr_t *instr);
+struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
+                                 enum ir_type result_type);
+void ir_remove_instr(struct ir *ir, struct ir_instr *instr);
 
-ir_value_t *ir_alloc_i8(ir_t *ir, int8_t c);
-ir_value_t *ir_alloc_i16(ir_t *ir, int16_t c);
-ir_value_t *ir_alloc_i32(ir_t *ir, int32_t c);
-ir_value_t *ir_alloc_i64(ir_t *ir, int64_t c);
-ir_value_t *ir_alloc_f32(ir_t *ir, float c);
-ir_value_t *ir_alloc_f64(ir_t *ir, double c);
-ir_local_t *ir_alloc_local(ir_t *ir, ir_type_t type);
+struct ir_value *ir_alloc_i8(struct ir *ir, int8_t c);
+struct ir_value *ir_alloc_i16(struct ir *ir, int16_t c);
+struct ir_value *ir_alloc_i32(struct ir *ir, int32_t c);
+struct ir_value *ir_alloc_i64(struct ir *ir, int64_t c);
+struct ir_value *ir_alloc_f32(struct ir *ir, float c);
+struct ir_value *ir_alloc_f64(struct ir *ir, double c);
+struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
 
-void ir_set_arg(ir_t *ir, ir_instr_t *instr, int n, ir_value_t *v);
-void ir_set_arg0(ir_t *ir, ir_instr_t *instr, ir_value_t *v);
-void ir_set_arg1(ir_t *ir, ir_instr_t *instr, ir_value_t *v);
-void ir_set_arg2(ir_t *ir, ir_instr_t *instr, ir_value_t *v);
+void ir_set_arg(struct ir *ir, struct ir_instr *instr, int n,
+                struct ir_value *v);
+void ir_set_arg0(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
+void ir_set_arg1(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
+void ir_set_arg2(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
 
-void ir_replace_use(ir_use_t *use, ir_value_t *other);
-void ir_replace_uses(ir_value_t *v, ir_value_t *other);
+void ir_replace_use(struct ir_use *use, struct ir_value *other);
+void ir_replace_uses(struct ir_value *v, struct ir_value *other);
 
-bool ir_is_constant(const ir_value_t *v);
-uint64_t ir_zext_constant(const ir_value_t *v);
+bool ir_is_constant(const struct ir_value *v);
+uint64_t ir_zext_constant(const struct ir_value *v);
 
 // direct access to host memory
-ir_value_t *ir_load_host(ir_t *ir, ir_value_t *addr, ir_type_t type);
-void ir_store_host(ir_t *ir, ir_value_t *addr, ir_value_t *v);
+struct ir_value *ir_load_host(struct ir *ir, struct ir_value *addr,
+                              enum ir_type type);
+void ir_store_host(struct ir *ir, struct ir_value *addr, struct ir_value *v);
 
 // guest memory operations
-ir_value_t *ir_load_fast(ir_t *ir, ir_value_t *addr, ir_type_t type);
-void ir_store_fast(ir_t *ir, ir_value_t *addr, ir_value_t *v);
+struct ir_value *ir_load_fast(struct ir *ir, struct ir_value *addr,
+                              enum ir_type type);
+void ir_store_fast(struct ir *ir, struct ir_value *addr, struct ir_value *v);
 
-ir_value_t *ir_load_slow(ir_t *ir, ir_value_t *addr, ir_type_t type);
-void ir_store_slow(ir_t *ir, ir_value_t *addr, ir_value_t *v);
+struct ir_value *ir_load_slow(struct ir *ir, struct ir_value *addr,
+                              enum ir_type type);
+void ir_store_slow(struct ir *ir, struct ir_value *addr, struct ir_value *v);
 
 // context operations
-ir_value_t *ir_load_context(ir_t *ir, size_t offset, ir_type_t type);
-void ir_store_context(ir_t *ir, size_t offset, ir_value_t *v);
+struct ir_value *ir_load_context(struct ir *ir, size_t offset,
+                                 enum ir_type type);
+void ir_store_context(struct ir *ir, size_t offset, struct ir_value *v);
 
 // local operations
-ir_value_t *ir_load_local(ir_t *ir, ir_local_t *local);
-void ir_store_local(ir_t *ir, ir_local_t *local, ir_value_t *v);
+struct ir_value *ir_load_local(struct ir *ir, struct ir_local *local);
+void ir_store_local(struct ir *ir, struct ir_local *local, struct ir_value *v);
 
 // cast / conversion operations
-ir_value_t *ir_ftoi(ir_t *ir, ir_value_t *v, ir_type_t dest_type);
-ir_value_t *ir_itof(ir_t *ir, ir_value_t *v, ir_type_t dest_type);
-ir_value_t *ir_sext(ir_t *ir, ir_value_t *v, ir_type_t dest_type);
-ir_value_t *ir_zext(ir_t *ir, ir_value_t *v, ir_type_t dest_type);
-ir_value_t *ir_trunc(ir_t *ir, ir_value_t *v, ir_type_t dest_type);
-ir_value_t *ir_fext(ir_t *ir, ir_value_t *v, ir_type_t dest_type);
-ir_value_t *ir_ftrunc(ir_t *ir, ir_value_t *v, ir_type_t dest_type);
+struct ir_value *ir_ftoi(struct ir *ir, struct ir_value *v,
+                         enum ir_type dest_type);
+struct ir_value *ir_itof(struct ir *ir, struct ir_value *v,
+                         enum ir_type dest_type);
+struct ir_value *ir_sext(struct ir *ir, struct ir_value *v,
+                         enum ir_type dest_type);
+struct ir_value *ir_zext(struct ir *ir, struct ir_value *v,
+                         enum ir_type dest_type);
+struct ir_value *ir_trunc(struct ir *ir, struct ir_value *v,
+                          enum ir_type dest_type);
+struct ir_value *ir_fext(struct ir *ir, struct ir_value *v,
+                         enum ir_type dest_type);
+struct ir_value *ir_ftrunc(struct ir *ir, struct ir_value *v,
+                           enum ir_type dest_type);
 
 // conditionals
-ir_value_t *ir_select(ir_t *ir, ir_value_t *cond, ir_value_t *t, ir_value_t *f);
-ir_value_t *ir_cmp_eq(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_ne(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_sge(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_sgt(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_uge(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_ugt(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_sle(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_slt(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_ule(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_cmp_ult(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fcmp_eq(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fcmp_ne(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fcmp_ge(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fcmp_gt(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fcmp_le(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fcmp_lt(ir_t *ir, ir_value_t *a, ir_value_t *b);
+struct ir_value *ir_select(struct ir *ir, struct ir_value *cond,
+                           struct ir_value *t, struct ir_value *f);
+struct ir_value *ir_cmp_eq(struct ir *ir, struct ir_value *a,
+                           struct ir_value *b);
+struct ir_value *ir_cmp_ne(struct ir *ir, struct ir_value *a,
+                           struct ir_value *b);
+struct ir_value *ir_cmp_sge(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_cmp_sgt(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_cmp_uge(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_cmp_ugt(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_cmp_sle(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_cmp_slt(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_cmp_ule(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_cmp_ult(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_fcmp_eq(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_fcmp_ne(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_fcmp_ge(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_fcmp_gt(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_fcmp_le(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
+struct ir_value *ir_fcmp_lt(struct ir *ir, struct ir_value *a,
+                            struct ir_value *b);
 
 // integer math operators
-ir_value_t *ir_add(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_sub(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_smul(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_umul(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_div(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_neg(ir_t *ir, ir_value_t *a);
-ir_value_t *ir_abs(ir_t *ir, ir_value_t *a);
+struct ir_value *ir_add(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_sub(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_smul(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_umul(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_div(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_neg(struct ir *ir, struct ir_value *a);
+struct ir_value *ir_abs(struct ir *ir, struct ir_value *a);
 
 // floating point math operators
-ir_value_t *ir_fadd(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fsub(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fmul(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fdiv(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_fneg(ir_t *ir, ir_value_t *a);
-ir_value_t *ir_fabs(ir_t *ir, ir_value_t *a);
-ir_value_t *ir_sqrt(ir_t *ir, ir_value_t *a);
+struct ir_value *ir_fadd(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_fsub(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_fmul(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_fdiv(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_fneg(struct ir *ir, struct ir_value *a);
+struct ir_value *ir_fabs(struct ir *ir, struct ir_value *a);
+struct ir_value *ir_sqrt(struct ir *ir, struct ir_value *a);
 
 // vector math operators
-ir_value_t *ir_vbroadcast(ir_t *ir, ir_value_t *a);
-ir_value_t *ir_vadd(ir_t *ir, ir_value_t *a, ir_value_t *b, ir_type_t el_type);
-ir_value_t *ir_vdot(ir_t *ir, ir_value_t *a, ir_value_t *b, ir_type_t el_type);
-ir_value_t *ir_vmul(ir_t *ir, ir_value_t *a, ir_value_t *b, ir_type_t el_type);
+struct ir_value *ir_vbroadcast(struct ir *ir, struct ir_value *a);
+struct ir_value *ir_vadd(struct ir *ir, struct ir_value *a, struct ir_value *b,
+                         enum ir_type el_type);
+struct ir_value *ir_vdot(struct ir *ir, struct ir_value *a, struct ir_value *b,
+                         enum ir_type el_type);
+struct ir_value *ir_vmul(struct ir *ir, struct ir_value *a, struct ir_value *b,
+                         enum ir_type el_type);
 
 // bitwise operations
-ir_value_t *ir_and(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_or(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_xor(ir_t *ir, ir_value_t *a, ir_value_t *b);
-ir_value_t *ir_not(ir_t *ir, ir_value_t *a);
-ir_value_t *ir_shl(ir_t *ir, ir_value_t *a, ir_value_t *n);
-ir_value_t *ir_shli(ir_t *ir, ir_value_t *a, int n);
-ir_value_t *ir_ashr(ir_t *ir, ir_value_t *a, ir_value_t *n);
-ir_value_t *ir_ashri(ir_t *ir, ir_value_t *a, int n);
-ir_value_t *ir_lshr(ir_t *ir, ir_value_t *a, ir_value_t *n);
-ir_value_t *ir_lshri(ir_t *ir, ir_value_t *a, int n);
-ir_value_t *ir_ashd(ir_t *ir, ir_value_t *a, ir_value_t *n);
-ir_value_t *ir_lshd(ir_t *ir, ir_value_t *a, ir_value_t *n);
+struct ir_value *ir_and(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_or(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_xor(struct ir *ir, struct ir_value *a, struct ir_value *b);
+struct ir_value *ir_not(struct ir *ir, struct ir_value *a);
+struct ir_value *ir_shl(struct ir *ir, struct ir_value *a, struct ir_value *n);
+struct ir_value *ir_shli(struct ir *ir, struct ir_value *a, int n);
+struct ir_value *ir_ashr(struct ir *ir, struct ir_value *a, struct ir_value *n);
+struct ir_value *ir_ashri(struct ir *ir, struct ir_value *a, int n);
+struct ir_value *ir_lshr(struct ir *ir, struct ir_value *a, struct ir_value *n);
+struct ir_value *ir_lshri(struct ir *ir, struct ir_value *a, int n);
+struct ir_value *ir_ashd(struct ir *ir, struct ir_value *a, struct ir_value *n);
+struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 
 // branches
-void ir_branch(ir_t *ir, ir_value_t *dest);
-void ir_branch_cond(ir_t *ir, ir_value_t *cond, ir_value_t *true_addr,
-                    ir_value_t *false_addr);
+void ir_branch(struct ir *ir, struct ir_value *dest);
+void ir_branch_cond(struct ir *ir, struct ir_value *cond,
+                    struct ir_value *true_addr, struct ir_value *false_addr);
 
 // calls
-void ir_call_external_1(ir_t *ir, ir_value_t *addr);
-void ir_call_external_2(ir_t *ir, ir_value_t *addr, ir_value_t *arg0);
+void ir_call_external_1(struct ir *ir, struct ir_value *addr);
+void ir_call_external_2(struct ir *ir, struct ir_value *addr,
+                        struct ir_value *arg0);
 
 #endif
