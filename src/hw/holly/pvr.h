@@ -7,15 +7,15 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 
-struct dreamcast_s;
-struct holly_s;
+struct dreamcast;
+struct holly;
 
-typedef struct pvr_s {
-  device_t base;
+struct pvr {
+  struct device base;
 
-  struct scheduler_s *scheduler;
-  struct holly_s *holly;
-  address_space_t *space;
+  struct scheduler *scheduler;
+  struct holly *holly;
+  struct address_space *space;
 
   uint8_t *palette_ram;
   uint8_t *video_ram;
@@ -23,17 +23,17 @@ typedef struct pvr_s {
   void *reg_data[NUM_PVR_REGS];
   reg_read_cb reg_read[NUM_PVR_REGS];
   reg_write_cb reg_write[NUM_PVR_REGS];
-  struct timer_s *line_timer;
+  struct timer *line_timer;
   int line_clock;
   uint32_t current_scanline;
 
 #define PVR_REG(offset, name, default, type) type *name;
 #include "hw/holly/pvr_regs.inc"
 #undef PVR_REG
-} pvr_t;
+};
 
-pvr_t *pvr_create(struct dreamcast_s *dc);
-void pvr_destroy(pvr_t *pvr);
+struct pvr *pvr_create(struct dreamcast *dc);
+void pvr_destroy(struct pvr *pvr);
 
 AM_DECLARE(pvr_reg_map);
 AM_DECLARE(pvr_vram_map);

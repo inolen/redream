@@ -4,28 +4,30 @@
 #include <stdlib.h>
 #include "core/core.h"
 
-typedef struct list_node_s {
-  struct list_node_s *prev;
-  struct list_node_s *next;
-} list_node_t;
+struct list_node {
+  struct list_node *prev;
+  struct list_node *next;
+};
 
-typedef struct list_s {
-  list_node_t *head;
-  list_node_t *tail;
-} list_t;
+struct list {
+  struct list_node *head;
+  struct list_node *tail;
+};
 
-typedef int (*list_node_cmp)(const list_node_t *a, const list_node_t *b);
+typedef int (*list_node_cmp)(const struct list_node *a,
+                             const struct list_node *b);
 
-int list_empty(list_t *list);
-void list_add(list_t *list, list_node_t *n);
-void list_add_after(list_t *list, list_node_t *after, list_node_t *n);
-void list_remove(list_t *list, list_node_t *n);
-void list_clear(list_t *list);
-void list_sort(list_t *list, list_node_cmp cmp);
+int list_empty(struct list *list);
+void list_add(struct list *list, struct list_node *n);
+void list_add_after(struct list *list, struct list_node *after,
+                    struct list_node *n);
+void list_remove(struct list *list, struct list_node *n);
+void list_clear(struct list *list);
+void list_sort(struct list *list, list_node_cmp cmp);
 
-#define list_for_each(list, it)                                               \
-  for (list_node_t *it = (list)->head, *it##_next = it ? it->next : NULL; it; \
-       it = it##_next, it##_next = it ? it->next : NULL)
+#define list_for_each(list, it)                                                \
+  for (struct list_node *it = (list)->head, *it##_next = it ? it->next : NULL; \
+       it; it = it##_next, it##_next = it ? it->next : NULL)
 
 #define list_entry(n, type, member) container_of(n, type, member)
 

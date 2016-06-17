@@ -15,34 +15,41 @@
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 
-static int block_map_cmp(const rb_node_t *lhs_it, const rb_node_t *rhs_it) {
-  const sh4_block_t *lhs = container_of(lhs_it, const sh4_block_t, it);
-  const sh4_block_t *rhs = container_of(rhs_it, const sh4_block_t, it);
+static int block_map_cmp(const struct rb_node *lhs_it,
+                         const struct rb_node *rhs_it) {
+  const struct sh4_block *lhs =
+      container_of(lhs_it, const struct sh4_block, it);
+  const struct sh4_block *rhs =
+      container_of(rhs_it, const struct sh4_block, it);
 
   return (int)((int64_t)lhs->guest_addr - (int64_t)rhs->guest_addr);
 }
 
-static int reverse_block_map_cmp(const rb_node_t *lhs_it,
-                                 const rb_node_t *rhs_it) {
-  const sh4_block_t *lhs = container_of(lhs_it, const sh4_block_t, rit);
-  const sh4_block_t *rhs = container_of(rhs_it, const sh4_block_t, rit);
+static int reverse_block_map_cmp(const struct rb_node *lhs_it,
+                                 const struct rb_node *rhs_it) {
+  const struct sh4_block *lhs =
+      container_of(lhs_it, const struct sh4_block, rit);
+  const struct sh4_block *rhs =
+      container_of(rhs_it, const struct sh4_block, rit);
 
   return (int)(lhs->host_addr - rhs->host_addr);
 }
 
-static rb_callback_t block_map_cb = {
+static struct rb_callbacks block_map_cb = {
     &block_map_cmp, NULL, NULL,
 };
 
-static rb_callback_t reverse_block_map_cb = {
+static struct rb_callbacks reverse_block_map_cb = {
     &reverse_block_map_cmp, NULL, NULL,
 };
 
-static void sh4_cache_unlink_block(sh4_cache_t *cache, sh4_block_t *block) {
+static void sh4_cache_unlink_block(struct sh4_cache *cache,
+                                   struct sh4_block *block) {
   cache->code[BLOCK_OFFSET(block->guest_addr)] = cache->default_code;
 }
 
-static void sh4_cache_remove_block(sh4_cache_t *cache, sh4_block_t *block) {
+static void sh4_cache_remove_block(struct sh4_cache *cache,
+                                   struct sh4_block *block) {
   sh4_cache_unlink_block(cache, block);
 
   rb_unlink(&cache->blocks, &block->it, &block_map_cb);
@@ -51,15 +58,16 @@ static void sh4_cache_remove_block(sh4_cache_t *cache, sh4_block_t *block) {
   free(block);
 }
 
-static sh4_block_t *sh4_cache_lookup_block(sh4_cache_t *cache,
-                                           uint32_t guest_addr) {
+static struct sh4_block *sh4_cache_lookup_block(struct sh4_cache *cache,
+                                                uint32_t guest_addr) {
   // find the first block who's address is greater than guest_addr
-  sh4_block_t search;
+  struct sh4_block search;
   search.guest_addr = guest_addr;
 
-  rb_node_t *first = rb_first(&cache->blocks);
-  rb_node_t *last = rb_last(&cache->blocks);
-  rb_node_t *it = rb_upper_bound(&cache->blocks, &search.it, &block_map_cb);
+  struct rb_node *first = rb_first(&cache->blocks);
+  struct rb_node *last = rb_last(&cache->blocks);
+  struct rb_node *it =
+      rb_upper_bound(&cache->blocks, &search.it, &block_map_cb);
 
   // if all addresses are greater than guest_addr, there is no block
   // for this address
@@ -70,19 +78,19 @@ static sh4_block_t *sh4_cache_lookup_block(sh4_cache_t *cache,
   // the actual block is the previous one
   it = it ? rb_prev(it) : last;
 
-  sh4_block_t *block = container_of(it, sh4_block_t, it);
+  struct sh4_block *block = container_of(it, struct sh4_block, it);
   return block;
 }
 
-static sh4_block_t *sh4_cache_lookup_block_reverse(sh4_cache_t *cache,
-                                                   const uint8_t *host_addr) {
-  sh4_block_t search;
+static struct sh4_block *sh4_cache_lookup_block_reverse(
+    struct sh4_cache *cache, const uint8_t *host_addr) {
+  struct sh4_block search;
   search.host_addr = host_addr;
 
-  rb_node_t *first = rb_first(&cache->reverse_blocks);
-  rb_node_t *last = rb_last(&cache->reverse_blocks);
-  rb_node_t *rit = rb_upper_bound(&cache->reverse_blocks, &search.rit,
-                                  &reverse_block_map_cb);
+  struct rb_node *first = rb_first(&cache->reverse_blocks);
+  struct rb_node *last = rb_last(&cache->reverse_blocks);
+  struct rb_node *rit = rb_upper_bound(&cache->reverse_blocks, &search.rit,
+                                       &reverse_block_map_cb);
 
   if (rit == first) {
     return NULL;
@@ -90,13 +98,14 @@ static sh4_block_t *sh4_cache_lookup_block_reverse(sh4_cache_t *cache,
 
   rit = rit ? rb_prev(rit) : last;
 
-  sh4_block_t *block = container_of(rit, sh4_block_t, rit);
+  struct sh4_block *block = container_of(rit, struct sh4_block, rit);
   return block;
 }
 
-static bool sh4_cache_handle_exception(sh4_cache_t *cache, re_exception_t *ex) {
+static bool sh4_cache_handle_exception(struct sh4_cache *cache,
+                                       struct exception *ex) {
   // see if there is an assembled block corresponding to the current pc
-  sh4_block_t *block =
+  struct sh4_block *block =
       sh4_cache_lookup_block_reverse(cache, (const uint8_t *)ex->pc);
 
   if (!block) {
@@ -119,7 +128,7 @@ static bool sh4_cache_handle_exception(sh4_cache_t *cache, re_exception_t *ex) {
   return true;
 }
 
-static code_pointer_t sh4_cache_compile_code_inner(sh4_cache_t *cache,
+static code_pointer_t sh4_cache_compile_code_inner(struct sh4_cache *cache,
                                                    uint32_t guest_addr,
                                                    uint8_t *guest_ptr,
                                                    int flags) {
@@ -133,10 +142,10 @@ static code_pointer_t sh4_cache_compile_code_inner(sh4_cache_t *cache,
   // if the block being compiled had previously been unlinked by a
   // fastmem exception, reuse the block's flags and finish removing
   // it at this time;
-  sh4_block_t search;
+  struct sh4_block search;
   search.guest_addr = guest_addr;
 
-  sh4_block_t *unlinked =
+  struct sh4_block *unlinked =
       rb_find_entry(&cache->blocks, &search, it, &block_map_cb);
 
   if (unlinked) {
@@ -146,7 +155,7 @@ static code_pointer_t sh4_cache_compile_code_inner(sh4_cache_t *cache,
   }
 
   // translate the SH4 into IR
-  ir_t ir = {};
+  struct ir ir = {};
   ir.buffer = cache->ir_buffer;
   ir.capacity = sizeof(cache->ir_buffer);
 
@@ -192,7 +201,7 @@ static code_pointer_t sh4_cache_compile_code_inner(sh4_cache_t *cache,
   }
 
   // allocate the new block
-  sh4_block_t *block = calloc(1, sizeof(sh4_block_t));
+  struct sh4_block *block = calloc(1, sizeof(struct sh4_block));
   block->host_addr = host_addr;
   block->host_size = host_size;
   block->guest_addr = guest_addr;
@@ -207,17 +216,18 @@ static code_pointer_t sh4_cache_compile_code_inner(sh4_cache_t *cache,
   return *code;
 }
 
-sh4_block_t *sh4_cache_get_block(sh4_cache_t *cache, uint32_t guest_addr) {
-  sh4_block_t search;
+struct sh4_block *sh4_cache_get_block(struct sh4_cache *cache,
+                                      uint32_t guest_addr) {
+  struct sh4_block search;
   search.guest_addr = guest_addr;
 
   return rb_find_entry(&cache->blocks, &search, it, &block_map_cb);
 }
 
-void sh4_cache_remove_blocks(sh4_cache_t *cache, uint32_t guest_addr) {
+void sh4_cache_remove_blocks(struct sh4_cache *cache, uint32_t guest_addr) {
   // remove any block which overlaps the address
   while (true) {
-    sh4_block_t *block = sh4_cache_lookup_block(cache, guest_addr);
+    struct sh4_block *block = sh4_cache_lookup_block(cache, guest_addr);
 
     if (!block) {
       break;
@@ -227,30 +237,30 @@ void sh4_cache_remove_blocks(sh4_cache_t *cache, uint32_t guest_addr) {
   }
 }
 
-void sh4_cache_unlink_blocks(sh4_cache_t *cache) {
+void sh4_cache_unlink_blocks(struct sh4_cache *cache) {
   // unlink all code pointers, but don't remove the block entries. this is used
   // when clearing the cache while code is currently executing
-  rb_node_t *it = rb_first(&cache->blocks);
+  struct rb_node *it = rb_first(&cache->blocks);
 
   while (it) {
-    rb_node_t *next = rb_next(it);
+    struct rb_node *next = rb_next(it);
 
-    sh4_block_t *block = container_of(it, sh4_block_t, it);
+    struct sh4_block *block = container_of(it, struct sh4_block, it);
     sh4_cache_unlink_block(cache, block);
 
     it = next;
   }
 }
 
-void sh4_cache_clear_blocks(sh4_cache_t *cache) {
+void sh4_cache_clear_blocks(struct sh4_cache *cache) {
   // unlink all code pointers and remove all block entries. this is only safe to
   // use when no code is currently executing
-  rb_node_t *it = rb_first(&cache->blocks);
+  struct rb_node *it = rb_first(&cache->blocks);
 
   while (it) {
-    rb_node_t *next = rb_next(it);
+    struct rb_node *next = rb_next(it);
 
-    sh4_block_t *block = container_of(it, sh4_block_t, it);
+    struct sh4_block *block = container_of(it, struct sh4_block, it);
     sh4_cache_remove_block(cache, block);
 
     it = next;
@@ -260,8 +270,9 @@ void sh4_cache_clear_blocks(sh4_cache_t *cache) {
   cache->backend->reset(cache->backend);
 }
 
-code_pointer_t sh4_cache_compile_code(sh4_cache_t *cache, uint32_t guest_addr,
-                                      uint8_t *guest_ptr, int flags) {
+code_pointer_t sh4_cache_compile_code(struct sh4_cache *cache,
+                                      uint32_t guest_addr, uint8_t *guest_ptr,
+                                      int flags) {
   prof_enter("sh4_cache_compile_code");
   code_pointer_t code =
       sh4_cache_compile_code_inner(cache, guest_addr, guest_ptr, flags);
@@ -269,9 +280,9 @@ code_pointer_t sh4_cache_compile_code(sh4_cache_t *cache, uint32_t guest_addr,
   return code;
 }
 
-sh4_cache_t *sh4_cache_create(const mem_interface_t *memif,
-                              code_pointer_t default_code) {
-  sh4_cache_t *cache = calloc(1, sizeof(sh4_cache_t));
+struct sh4_cache *sh4_cache_create(const struct mem_interface *memif,
+                                   code_pointer_t default_code) {
+  struct sh4_cache *cache = calloc(1, sizeof(struct sh4_cache));
 
   // add exception handler to help recompile blocks when protected memory is
   // accessed
@@ -292,7 +303,7 @@ sh4_cache_t *sh4_cache_create(const mem_interface_t *memif,
   return cache;
 }
 
-void sh4_cache_destroy(sh4_cache_t *cache) {
+void sh4_cache_destroy(struct sh4_cache *cache) {
   exception_handler_remove(cache->exc_handler);
   sh4_frontend_destroy(cache->frontend);
   x64_backend_destroy(cache->backend);

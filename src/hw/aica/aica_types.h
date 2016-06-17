@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-typedef struct {
+struct channel_data {
   uint32_t SA_hi : 7;
   uint32_t PCMS : 2;
   uint32_t LPCTL : 1;
@@ -96,9 +96,9 @@ typedef struct {
   uint32_t FD2R : 5;
   uint32_t : 3;
   uint32_t : 16;
-} channel_data_t;
+};
 
-typedef struct {
+struct common_data {
   uint32_t MVOL : 4;
   uint32_t VER : 4;
   uint32_t DAC18B : 1;
@@ -243,6 +243,6 @@ typedef struct {
   uint32_t RP : 1;
   uint32_t : 7;
   uint32_t : 16;
-} common_data_t;
+};
 
 #endif

@@ -14,83 +14,83 @@ extern "C" {
 
 static const uint32_t UNINITIALIZED_REG = 0xbaadf00d;
 
-typedef struct {
+struct sh4_test {
   const char *name;
   const uint8_t *buffer;
   int buffer_size;
   int buffer_offset;
-  sh4_context_t in;
-  sh4_context_t out;
-} sh4_test_t;
+  struct sh4_ctx in;
+  struct sh4_ctx out;
+};
 
-typedef struct {
+struct sh4_test_reg {
   const char *name;
   size_t offset;
   int size;
-} sh4_test_reg_t;
+};
 
 // as per the notes in sh4_context.h, the fr / xf register pairs are swapped
-static sh4_test_reg_t sh4_test_regs[] = {
-    {"fpscr", offsetof(sh4_context_t, fpscr), 4},
-    {"r0", offsetof(sh4_context_t, r[0]), 4},
-    {"r1", offsetof(sh4_context_t, r[1]), 4},
-    {"r2", offsetof(sh4_context_t, r[2]), 4},
-    {"r3", offsetof(sh4_context_t, r[3]), 4},
-    {"r4", offsetof(sh4_context_t, r[4]), 4},
-    {"r5", offsetof(sh4_context_t, r[5]), 4},
-    {"r6", offsetof(sh4_context_t, r[6]), 4},
-    {"r7", offsetof(sh4_context_t, r[7]), 4},
-    {"r8", offsetof(sh4_context_t, r[8]), 4},
-    {"r9", offsetof(sh4_context_t, r[9]), 4},
-    {"r10", offsetof(sh4_context_t, r[10]), 4},
-    {"r11", offsetof(sh4_context_t, r[11]), 4},
-    {"r12", offsetof(sh4_context_t, r[12]), 4},
-    {"r13", offsetof(sh4_context_t, r[13]), 4},
-    {"r14", offsetof(sh4_context_t, r[14]), 4},
-    {"r15", offsetof(sh4_context_t, r[15]), 4},
-    {"fr0", offsetof(sh4_context_t, fr[1]), 4},
-    {"fr1", offsetof(sh4_context_t, fr[0]), 4},
-    {"fr2", offsetof(sh4_context_t, fr[3]), 4},
-    {"fr3", offsetof(sh4_context_t, fr[2]), 4},
-    {"fr4", offsetof(sh4_context_t, fr[5]), 4},
-    {"fr5", offsetof(sh4_context_t, fr[4]), 4},
-    {"fr6", offsetof(sh4_context_t, fr[7]), 4},
-    {"fr7", offsetof(sh4_context_t, fr[6]), 4},
-    {"fr8", offsetof(sh4_context_t, fr[9]), 4},
-    {"fr9", offsetof(sh4_context_t, fr[8]), 4},
-    {"fr10", offsetof(sh4_context_t, fr[11]), 4},
-    {"fr11", offsetof(sh4_context_t, fr[10]), 4},
-    {"fr12", offsetof(sh4_context_t, fr[13]), 4},
-    {"fr13", offsetof(sh4_context_t, fr[12]), 4},
-    {"fr14", offsetof(sh4_context_t, fr[15]), 4},
-    {"fr15", offsetof(sh4_context_t, fr[14]), 4},
-    {"xf0", offsetof(sh4_context_t, xf[1]), 4},
-    {"xf1", offsetof(sh4_context_t, xf[0]), 4},
-    {"xf2", offsetof(sh4_context_t, xf[3]), 4},
-    {"xf3", offsetof(sh4_context_t, xf[2]), 4},
-    {"xf4", offsetof(sh4_context_t, xf[5]), 4},
-    {"xf5", offsetof(sh4_context_t, xf[4]), 4},
-    {"xf6", offsetof(sh4_context_t, xf[7]), 4},
-    {"xf7", offsetof(sh4_context_t, xf[6]), 4},
-    {"xf8", offsetof(sh4_context_t, xf[9]), 4},
-    {"xf9", offsetof(sh4_context_t, xf[8]), 4},
-    {"xf10", offsetof(sh4_context_t, xf[11]), 4},
-    {"xf11", offsetof(sh4_context_t, xf[10]), 4},
-    {"xf12", offsetof(sh4_context_t, xf[13]), 4},
-    {"xf13", offsetof(sh4_context_t, xf[12]), 4},
-    {"xf14", offsetof(sh4_context_t, xf[15]), 4},
-    {"xf15", offsetof(sh4_context_t, xf[14]), 4},
+static struct sh4_test_reg sh4_test_regs[] = {
+    {"fpscr", offsetof(struct sh4_ctx, fpscr), 4},
+    {"r0", offsetof(struct sh4_ctx, r[0]), 4},
+    {"r1", offsetof(struct sh4_ctx, r[1]), 4},
+    {"r2", offsetof(struct sh4_ctx, r[2]), 4},
+    {"r3", offsetof(struct sh4_ctx, r[3]), 4},
+    {"r4", offsetof(struct sh4_ctx, r[4]), 4},
+    {"r5", offsetof(struct sh4_ctx, r[5]), 4},
+    {"r6", offsetof(struct sh4_ctx, r[6]), 4},
+    {"r7", offsetof(struct sh4_ctx, r[7]), 4},
+    {"r8", offsetof(struct sh4_ctx, r[8]), 4},
+    {"r9", offsetof(struct sh4_ctx, r[9]), 4},
+    {"r10", offsetof(struct sh4_ctx, r[10]), 4},
+    {"r11", offsetof(struct sh4_ctx, r[11]), 4},
+    {"r12", offsetof(struct sh4_ctx, r[12]), 4},
+    {"r13", offsetof(struct sh4_ctx, r[13]), 4},
+    {"r14", offsetof(struct sh4_ctx, r[14]), 4},
+    {"r15", offsetof(struct sh4_ctx, r[15]), 4},
+    {"fr0", offsetof(struct sh4_ctx, fr[1]), 4},
+    {"fr1", offsetof(struct sh4_ctx, fr[0]), 4},
+    {"fr2", offsetof(struct sh4_ctx, fr[3]), 4},
+    {"fr3", offsetof(struct sh4_ctx, fr[2]), 4},
+    {"fr4", offsetof(struct sh4_ctx, fr[5]), 4},
+    {"fr5", offsetof(struct sh4_ctx, fr[4]), 4},
+    {"fr6", offsetof(struct sh4_ctx, fr[7]), 4},
+    {"fr7", offsetof(struct sh4_ctx, fr[6]), 4},
+    {"fr8", offsetof(struct sh4_ctx, fr[9]), 4},
+    {"fr9", offsetof(struct sh4_ctx, fr[8]), 4},
+    {"fr10", offsetof(struct sh4_ctx, fr[11]), 4},
+    {"fr11", offsetof(struct sh4_ctx, fr[10]), 4},
+    {"fr12", offsetof(struct sh4_ctx, fr[13]), 4},
+    {"fr13", offsetof(struct sh4_ctx, fr[12]), 4},
+    {"fr14", offsetof(struct sh4_ctx, fr[15]), 4},
+    {"fr15", offsetof(struct sh4_ctx, fr[14]), 4},
+    {"xf0", offsetof(struct sh4_ctx, xf[1]), 4},
+    {"xf1", offsetof(struct sh4_ctx, xf[0]), 4},
+    {"xf2", offsetof(struct sh4_ctx, xf[3]), 4},
+    {"xf3", offsetof(struct sh4_ctx, xf[2]), 4},
+    {"xf4", offsetof(struct sh4_ctx, xf[5]), 4},
+    {"xf5", offsetof(struct sh4_ctx, xf[4]), 4},
+    {"xf6", offsetof(struct sh4_ctx, xf[7]), 4},
+    {"xf7", offsetof(struct sh4_ctx, xf[6]), 4},
+    {"xf8", offsetof(struct sh4_ctx, xf[9]), 4},
+    {"xf9", offsetof(struct sh4_ctx, xf[8]), 4},
+    {"xf10", offsetof(struct sh4_ctx, xf[11]), 4},
+    {"xf11", offsetof(struct sh4_ctx, xf[10]), 4},
+    {"xf12", offsetof(struct sh4_ctx, xf[13]), 4},
+    {"xf13", offsetof(struct sh4_ctx, xf[12]), 4},
+    {"xf14", offsetof(struct sh4_ctx, xf[15]), 4},
+    {"xf15", offsetof(struct sh4_ctx, xf[14]), 4},
 };
 int sh4_num_test_regs =
     static_cast<int>(sizeof(sh4_test_regs) / sizeof(sh4_test_regs[0]));
 
-static void run_sh4_test(const sh4_test_t &test) {
-  dreamcast_t *dc = dc_create(nullptr);
+static void run_sh4_test(const struct sh4_test &test) {
+  struct dreamcast *dc = dc_create(nullptr);
   CHECK_NOTNULL(dc);
 
   // setup in registers
   for (int i = 0; i < sh4_num_test_regs; i++) {
-    sh4_test_reg_t &reg = sh4_test_regs[i];
+    struct sh4_test_reg &reg = sh4_test_regs[i];
 
     uint32_t input = *reinterpret_cast<const uint32_t *>(
         reinterpret_cast<const uint8_t *>(&test.in) + reg.offset);
@@ -123,7 +123,7 @@ static void run_sh4_test(const sh4_test_t &test) {
 
   // validate out registers
   for (int i = 0; i < sh4_num_test_regs; i++) {
-    sh4_test_reg_t &reg = sh4_test_regs[i];
+    struct sh4_test_reg &reg = sh4_test_regs[i];
 
     uint32_t expected = *reinterpret_cast<const uint32_t *>(
         reinterpret_cast<const uint8_t *>(&test.out) + reg.offset);
@@ -148,7 +148,7 @@ static void run_sh4_test(const sh4_test_t &test) {
                      fr7, fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15, xf0,  \
                      xf1, xf2, xf3, xf4, xf5, xf6, xf7, xf8, xf9, xf10, xf11, \
                      xf12, xf13, xf14, xf15)                                  \
-  sh4_context_t {                                                                \
+  sh4_ctx {                                                                   \
     nullptr, nullptr, nullptr, nullptr, nullptr,                              \
     0, 0,                                                                     \
     0, 0, 0, 0, fpscr,                                                        \
@@ -174,7 +174,7 @@ static void run_sh4_test(const sh4_test_t &test) {
   r0_out,  r1_out,  r2_out,  r3_out,  r4_out,  r5_out,   r6_out,   r7_out,  r8_out,  r9_out,  r10_out,  r11_out,  r12_out,  r13_out,  r14_out,  r15_out,                 \
   fr0_out, fr1_out, fr2_out, fr3_out, fr4_out, fr5_out,  fr6_out,  fr7_out, fr8_out, fr9_out, fr10_out, fr11_out, fr12_out, fr13_out, fr14_out, fr15_out,                \
   xf0_out, xf1_out, xf2_out, xf3_out, xf4_out, xf5_out,  xf6_out,  xf7_out, xf8_out, xf9_out, xf10_out, xf11_out, xf12_out, xf13_out, xf14_out, xf15_out)                \
-  static sh4_test_t test_##name = {                                                                                                                                         \
+  static struct sh4_test test_##name = {                                                                                                                                         \
     #name, buffer, buffer_size, buffer_offset,                                                                                                                           \
     INIT_CONTEXT(fpscr_in,                                                                                                                                               \
                  r0_in,  r1_in,  r2_in,  r3_in,  r4_in,  r5_in,   r6_in,   r7_in,  r8_in,  r9_in,  r10_in,  r11_in,  r12_in,  r13_in,  r14_in,  r15_in,                  \

@@ -51,7 +51,7 @@ enum {
   TA_PAL_ARGB8888,
 };
 
-typedef union {
+union pcw {
   struct {
     // obj control
     uint32_t uv_16bit : 1;
@@ -75,10 +75,10 @@ typedef union {
   };
   uint8_t obj_control;
   uint32_t full;
-} pcw_t;
+};
 
 // Image Synthesis Processor parameters
-typedef union {
+union isp {
   struct {
     uint32_t reserved : 20;
     uint32_t dcalc_ctrl : 1;
@@ -92,10 +92,10 @@ typedef union {
     uint32_t depth_compare_mode : 3;
   };
   uint32_t full;
-} isp_t;
+};
 
 // Texture and Shading Processor parameters
-typedef union {
+union tsp {
   struct {
     uint32_t texture_v_size : 3;
     uint32_t texture_u_size : 3;
@@ -117,10 +117,10 @@ typedef union {
     uint32_t src_alpha_instr : 3;
   };
   uint32_t full;
-} tsp_t;
+};
 
 // Texture parameters
-typedef union {
+union tcw {
   // rgb, yuv and bumpmap textures
   struct {
     uint32_t texture_addr : 21;
@@ -140,17 +140,17 @@ typedef union {
     uint32_t mip_mapped : 1;
   } p;
   uint32_t full;
-} tcw_t;
+};
 
 //
 // Global parameters
 //
-typedef union {
+union poly_param {
   struct {
-    pcw_t pcw;
-    isp_t isp_tsp;
-    tsp_t tsp;
-    tcw_t tcw;
+    union pcw pcw;
+    union isp isp_tsp;
+    union tsp tsp;
+    union tcw tcw;
     uint32_t ignore_0;
     uint32_t ignore_1;
     uint32_t sdma_data_size;
@@ -158,10 +158,10 @@ typedef union {
   } type0;
 
   struct {
-    pcw_t pcw;
-    isp_t isp_tsp;
-    tsp_t tsp;
-    tcw_t tcw;
+    union pcw pcw;
+    union isp isp_tsp;
+    union tsp tsp;
+    union tcw tcw;
     float face_color_a;
     float face_color_r;
     float face_color_g;
@@ -169,10 +169,10 @@ typedef union {
   } type1;
 
   struct {
-    pcw_t pcw;
-    isp_t isp_tsp;
-    tsp_t tsp;
-    tcw_t tcw;
+    union pcw pcw;
+    union isp isp_tsp;
+    union tsp tsp;
+    union tcw tcw;
     uint32_t ignore_0;
     uint32_t ignore_1;
     uint32_t sdma_data_size;
@@ -188,23 +188,23 @@ typedef union {
   } type2;
 
   struct {
-    pcw_t pcw;
-    isp_t isp_tsp;
-    tsp_t tsp0;
-    tcw_t tcw0;
-    tsp_t tsp1;
-    tcw_t tcw1;
+    union pcw pcw;
+    union isp isp_tsp;
+    union tsp tsp0;
+    union tcw tcw0;
+    union tsp tsp1;
+    union tcw tcw1;
     uint32_t sdma_data_size;
     uint32_t sdma_next_addr;
   } type3;
 
   struct {
-    pcw_t pcw;
-    isp_t isp_tsp;
-    tsp_t tsp0;
-    tcw_t tcw0;
-    tsp_t tsp1;
-    tcw_t tcw1;
+    union pcw pcw;
+    union isp isp_tsp;
+    union tsp tsp0;
+    union tcw tcw0;
+    union tsp tsp1;
+    union tcw tcw1;
     uint32_t sdma_data_size;
     uint32_t sdma_next_addr;
     float face_color_a_0;
@@ -218,10 +218,10 @@ typedef union {
   } type4;
 
   struct {
-    pcw_t pcw;
-    isp_t isp_tsp;
-    tsp_t tsp;
-    tcw_t tcw;
+    union pcw pcw;
+    union isp isp_tsp;
+    union tsp tsp;
+    union tcw tcw;
     uint32_t base_color;
     uint32_t offset_color;
     uint32_t sdma_data_size;
@@ -229,18 +229,18 @@ typedef union {
   } sprite;
 
   struct {
-    pcw_t pcw;
-    isp_t isp_tsp;
+    union pcw pcw;
+    union isp isp_tsp;
     uint32_t reserved[6];
   } modvol;
-} poly_param_t;
+};
 
 //
 // Vertex parameters
 //
-typedef union {
+union vert_param {
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     uint32_t ignore_0;
     uint32_t ignore_1;
@@ -249,7 +249,7 @@ typedef union {
   } type0;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     float base_color_a;
     float base_color_r;
@@ -258,7 +258,7 @@ typedef union {
   } type1;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     uint32_t ignore_0;
     uint32_t ignore_1;
@@ -267,7 +267,7 @@ typedef union {
   } type2;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     float uv[2];
     uint32_t base_color;
@@ -275,7 +275,7 @@ typedef union {
   } type3;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     uint16_t uv[2];
     uint32_t ignore_0;
@@ -284,7 +284,7 @@ typedef union {
   } type4;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     float uv[2];
     uint32_t ignore_0;
@@ -300,7 +300,7 @@ typedef union {
   } type5;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     uint16_t uv[2];
     uint32_t ignore_0;
@@ -317,7 +317,7 @@ typedef union {
   } type6;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     float uv[2];
     float base_intensity;
@@ -325,7 +325,7 @@ typedef union {
   } type7;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     uint16_t uv[2];
     uint32_t ignore_0;
@@ -334,7 +334,7 @@ typedef union {
   } type8;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     uint32_t base_color_0;
     uint32_t base_color_1;
@@ -343,7 +343,7 @@ typedef union {
   } type9;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     float base_intensity_0;
     float base_intensity_1;
@@ -352,7 +352,7 @@ typedef union {
   } type10;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     float uv_0[2];
     uint32_t base_color_0;
@@ -367,7 +367,7 @@ typedef union {
   } type11;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     uint16_t vu_0[2];
     uint32_t ignore_0;
@@ -384,7 +384,7 @@ typedef union {
   } type12;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     float uv_0[2];
     float base_intensity_0;
@@ -399,7 +399,7 @@ typedef union {
   } type13;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[3];
     uint16_t vu_0[2];
     uint32_t ignore_0;
@@ -416,7 +416,7 @@ typedef union {
   } type14;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[4][3];
     uint32_t ignore_0;
     uint32_t ignore_1;
@@ -424,11 +424,11 @@ typedef union {
   } sprite0;
 
   struct {
-    pcw_t pcw;
+    union pcw pcw;
     float xyz[4][3];
     uint32_t uv[3];
   } sprite1;
-} vert_param_t;
+};
 
 // shared by tracer
 static const int TA_MAX_SURFS = 4096;
@@ -438,7 +438,7 @@ static const int TA_PARAMS_SIZE = 0x200000;
 // worst case background vertex size, see ISP_BACKGND_T field
 static const int BG_VERTEX_SIZE = (0b111 * 2 + 3) * 4 * 3;
 
-typedef struct {
+struct tile_ctx {
   uint32_t addr;
 
   // pvr state
@@ -447,9 +447,9 @@ typedef struct {
   int pal_pxl_format;
   int video_width;
   int video_height;
-  isp_t bg_isp;
-  tsp_t bg_tsp;
-  tcw_t bg_tcw;
+  union isp bg_isp;
+  union tsp bg_tsp;
+  union tcw bg_tcw;
   float bg_depth;
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
@@ -459,16 +459,16 @@ typedef struct {
   int size;
 
   // current global state
-  const poly_param_t *last_poly;
-  const vert_param_t *last_vertex;
+  const union poly_param *last_poly;
+  const union vert_param *last_vertex;
   int list_type;
   int vertex_type;
 
   // debug traces
   bool wrote;
 
-  list_node_t free_it;
-  rb_node_t live_it;
-} tile_ctx_t;
+  struct list_node free_it;
+  struct rb_node live_it;
+};
 
 #endif

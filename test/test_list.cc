@@ -5,7 +5,7 @@ extern "C" {
 }
 
 typedef struct {
-  list_node_t it;
+  struct list_node it;
   const char *name;
 } person_t;
 
@@ -20,7 +20,7 @@ class IntrusiveTestEmptySet : public ::testing::Test {
  public:
   IntrusiveTestEmptySet() {}
 
-  list_t people_list = {};
+  struct list people_list = {};
 };
 
 class IntrusiveTestABCSet : public ::testing::Test {
@@ -31,13 +31,14 @@ class IntrusiveTestABCSet : public ::testing::Test {
     list_add(&people_list, &ccc.it);
   }
 
-  list_t people_list = {};
+  struct list people_list = {};
   person_t aaa = {{}, "aaa"};
   person_t bbb = {{}, "bbb"};
   person_t ccc = {{}, "ccc"};
 };
 
-static void validate_people(list_t *people_list, person_t **expected_people,
+static void validate_people(struct list *people_list,
+                            person_t **expected_people,
                             int num_expected_people) {
   int n = 0;
 
@@ -50,7 +51,7 @@ static void validate_people(list_t *people_list, person_t **expected_people,
   ASSERT_EQ(n, num_expected_people);
 }
 
-static void validate_people_reverse(list_t *people_list,
+static void validate_people_reverse(struct list *people_list,
                                     person_t **expected_people,
                                     int num_expected_people) {
   int n = 0;

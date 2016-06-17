@@ -1,15 +1,16 @@
 #include "core/assert.h"
 #include "core/list.h"
 
-int list_empty(list_t *list) {
+int list_empty(struct list *list) {
   return !list->head;
 }
 
-void list_add(list_t *list, list_node_t *n) {
+void list_add(struct list *list, struct list_node *n) {
   list_add_after(list, list->tail, n);
 }
 
-void list_add_after(list_t *list, list_node_t *after, list_node_t *n) {
+void list_add_after(struct list *list, struct list_node *after,
+                    struct list_node *n) {
   if (!after) {
     if (list->head) {
       n->next = list->head;
@@ -18,7 +19,7 @@ void list_add_after(list_t *list, list_node_t *after, list_node_t *n) {
 
     list->head = n;
   } else {
-    list_node_t *next = after->next;
+    struct list_node *next = after->next;
 
     n->prev = after;
     n->prev->next = n;
@@ -37,7 +38,7 @@ void list_add_after(list_t *list, list_node_t *after, list_node_t *n) {
   }
 }
 
-void list_remove(list_t *list, list_node_t *n) {
+void list_remove(struct list *list, struct list_node *n) {
   if (n->prev) {
     n->prev->next = n->next;
   } else {
@@ -53,20 +54,20 @@ void list_remove(list_t *list, list_node_t *n) {
   n->prev = n->next = NULL;
 }
 
-void list_clear(list_t *list) {
+void list_clear(struct list *list) {
   list->head = list->tail = NULL;
 }
 
 // Implements the mergesort for linked lists as described at
 // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
-void list_sort(list_t *list, list_node_cmp cmp) {
-  list_node_t *head = list->head;
-  list_node_t *tail = NULL;
+void list_sort(struct list *list, list_node_cmp cmp) {
+  struct list_node *head = list->head;
+  struct list_node *tail = NULL;
   int k = 1;
 
   while (true) {
     int merges = 0;
-    list_node_t *p = head;
+    struct list_node *p = head;
 
     head = NULL;
     tail = NULL;
@@ -78,7 +79,7 @@ void list_sort(list_t *list, list_node_cmp cmp) {
       // step q forward k places, tracking the size of p
       int psize = 0;
       int qsize = k;
-      list_node_t *q = p;
+      struct list_node *q = p;
       while (psize < k && q) {
         psize++;
         q = q->next;
@@ -87,7 +88,7 @@ void list_sort(list_t *list, list_node_cmp cmp) {
       // merge the list starting at p of length psize with the list starting
       // at q of at most, length qsize
       while (psize || (qsize && q)) {
-        list_node_t *next;
+        struct list_node *next;
 
         if (!psize) {
           next = q;

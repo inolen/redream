@@ -10,7 +10,7 @@
 
 #define DEFINE_OPTION_BOOL(name, value, desc)     \
   bool OPTION_##name;                             \
-  static option_t OPTION_T_##name = {             \
+  static struct option OPTION_T_##name = {        \
       OPT_BOOL, #name, desc, &OPTION_##name, {}}; \
   CONSTRUCTOR(OPTION_REGISTER_##name) {           \
     *(bool *)(&OPTION_##name) = value;            \
@@ -24,7 +24,7 @@
 
 #define DEFINE_OPTION_INT(name, value, desc)     \
   int OPTION_##name;                             \
-  static option_t OPTION_T_##name = {            \
+  static struct option OPTION_T_##name = {       \
       OPT_INT, #name, desc, &OPTION_##name, {}}; \
   CONSTRUCTOR(OPTION_REGISTER_##name) {          \
     *(int *)(&OPTION_##name) = value;            \
@@ -38,7 +38,7 @@
 
 #define DEFINE_OPTION_STRING(name, value, desc)     \
   char OPTION_##name[1024];                         \
-  static option_t OPTION_T_##name = {               \
+  static struct option OPTION_T_##name = {          \
       OPT_STRING, #name, desc, &OPTION_##name, {}}; \
   CONSTRUCTOR(OPTION_REGISTER_##name) {             \
     strcpy((char *) & OPTION_##name, value);        \
@@ -48,22 +48,22 @@
     option_unregister(&OPTION_T_##name);            \
   }
 
-typedef enum {
+enum option_type {
   OPT_BOOL,
   OPT_INT,
   OPT_STRING,
-} option_type_t;
+};
 
-typedef struct option_s {
-  option_type_t type;
+struct option {
+  enum option_type type;
   const char *name;
   const char *desc;
   void *storage;
-  list_node_t it;
-} option_t;
+  struct list_node it;
+};
 
-void option_register(option_t *option);
-void option_unregister(option_t *option);
+void option_register(struct option *option);
+void option_unregister(struct option *option);
 
 void option_parse(int *argc, char ***argv);
 void option_print_help();

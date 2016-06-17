@@ -74,7 +74,7 @@ const Xbyak::Reg64 arg2(x64_arg2_idx);
 const Xbyak::Reg64 tmp0(x64_tmp0_idx);
 const Xbyak::Reg64 tmp1(x64_tmp1_idx);
 
-const register_def_t x64_registers[] = {
+const struct register_def x64_registers[] = {
     {"rbx", VALUE_INT_MASK, reinterpret_cast<const void *>(&Xbyak::util::rbx)},
     {"rbp", VALUE_INT_MASK, reinterpret_cast<const void *>(&Xbyak::util::rbp)},
     {"r12", VALUE_INT_MASK, reinterpret_cast<const void *>(&Xbyak::util::r12)},
@@ -104,7 +104,8 @@ const register_def_t x64_registers[] = {
     {"xmm15", VALUE_VECTOR_MASK,
      reinterpret_cast<const void *>(&Xbyak::util::xmm15)}};
 
-const int x64_num_registers = sizeof(x64_registers) / sizeof(register_def_t);
+const int x64_num_registers =
+    sizeof(x64_registers) / sizeof(struct register_def);
 
 //
 // x64 code buffer. this will break down if running two instances of the x64
@@ -117,40 +118,40 @@ static uint8_t x64_code[x64_code_size];
 //
 // x64 emitters for each ir op
 //
-struct x64_backend_s;
+struct x64_backend;
 
-typedef void (*X64Emit)(struct x64_backend_s *, Xbyak::CodeGenerator &,
-                        const ir_instr_t *);
+typedef void (*x64_emit_cb)(struct x64_backend *, Xbyak::CodeGenerator &,
+                            const struct ir_instr *);
 
-static X64Emit x64_backend_emitters[NUM_OPS];
+static x64_emit_cb x64_backend_emitters[NUM_OPS];
 
-#define EMITTER(op)                                                          \
-  void x64_emit_##op(struct x64_backend_s *, Xbyak::CodeGenerator &,         \
-                     const ir_instr_t *);                                    \
-  static struct _x64_##op##_init {                                           \
-    _x64_##op##_init() {                                                     \
-      x64_backend_emitters[OP_##op] = &x64_emit_##op;                        \
-    }                                                                        \
-  } x64_##op##_init;                                                         \
-  void x64_emit_##op(struct x64_backend_s *backend, Xbyak::CodeGenerator &e, \
-                     const ir_instr_t *instr)
+#define EMITTER(op)                                                        \
+  void x64_emit_##op(struct x64_backend *, Xbyak::CodeGenerator &,         \
+                     const struct ir_instr *);                             \
+  static struct _x64_##op##_init {                                         \
+    _x64_##op##_init() {                                                   \
+      x64_backend_emitters[OP_##op] = &x64_emit_##op;                      \
+    }                                                                      \
+  } x64_##op##_init;                                                       \
+  void x64_emit_##op(struct x64_backend *backend, Xbyak::CodeGenerator &e, \
+                     const struct ir_instr *instr)
 
 //
 // xmm constants. SSE / AVX provides no support for loading a constant into an
 // xmm register, so instead frequently used constants are emitted to the code
 // buffer and used as memory operands
 //
-typedef enum {
+enum xmm_constant {
   XMM_CONST_ABS_MASK_PS,
   XMM_CONST_ABS_MASK_PD,
   XMM_CONST_SIGN_MASK_PS,
   XMM_CONST_SIGN_MASK_PD,
   NUM_XMM_CONST,
-} xmm_constant_t;
+};
 
-typedef struct x64_backend_s {
-  jit_backend_t base;
-  mem_interface_t memif;
+struct x64_backend {
+  struct jit_backend base;
+  struct mem_interface memif;
 
   Xbyak::CodeGenerator *codegen;
   csh capstone_handle;
@@ -161,10 +162,10 @@ typedef struct x64_backend_s {
 
   bool modified[x64_num_registers];
   int num_temps;
-} x64_backend_t;
+};
 
-const Xbyak::Reg x64_backend_register(x64_backend_t *backend,
-                                      const ir_value_t *v) {
+const Xbyak::Reg x64_backend_register(struct x64_backend *backend,
+                                      const struct ir_value *v) {
   auto &e = *backend->codegen;
 
   // if the value is a local or constant, copy it to a tempory register, else
@@ -220,8 +221,8 @@ const Xbyak::Reg x64_backend_register(x64_backend_t *backend,
   }
 }
 
-const Xbyak::Xmm x64_backend_xmm_register(x64_backend_t *backend,
-                                          const ir_value_t *v) {
+const Xbyak::Xmm x64_backend_xmm_register(struct x64_backend *backend,
+                                          const struct ir_value *v) {
   auto &e = *backend->codegen;
 
   // if the value isn't allocated a XMM register copy it to a temporary XMM,
@@ -249,14 +250,14 @@ const Xbyak::Xmm x64_backend_xmm_register(x64_backend_t *backend,
   return xmm;
 }
 
-const Xbyak::Address x64_backend_xmm_constant(x64_backend_t *backend,
-                                              xmm_constant_t c) {
+const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
+                                              enum xmm_constant c) {
   auto &e = *backend->codegen;
 
   return e.ptr[e.rip + backend->xmm_const[c]];
 }
 
-static bool x64_backend_can_encode_imm(const ir_value_t *v) {
+static bool x64_backend_can_encode_imm(const struct ir_value *v) {
   if (!ir_is_constant(v)) {
     return false;
   }
@@ -296,7 +297,7 @@ static bool x64_backend_callee_saved(const Xbyak::Reg &reg) {
   return callee_saved[reg.getIdx()];
 }
 
-static void x64_backend_emit_prolog(x64_backend_t *backend, ir_t *ir,
+static void x64_backend_emit_prolog(struct x64_backend *backend, struct ir *ir,
                                     int *out_stack_size) {
   auto &e = *backend->codegen;
 
@@ -313,8 +314,8 @@ static void x64_backend_emit_prolog(x64_backend_t *backend, ir_t *ir,
   // mark which registers have been modified
   memset(backend->modified, 0, sizeof(backend->modified));
 
-  list_for_each_entry(instr, &ir->instrs, ir_instr_t, it) {
-    ir_value_t *result = instr->result;
+  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
+    struct ir_value *result = instr->result;
 
     if (!result) {
       continue;
@@ -356,9 +357,9 @@ static void x64_backend_emit_prolog(x64_backend_t *backend, ir_t *ir,
   *out_stack_size = stack_size;
 }
 
-static void x64_backend_emit_body(x64_backend_t *backend, ir_t *ir) {
-  list_for_each_entry(instr, &ir->instrs, ir_instr_t, it) {
-    X64Emit emit = x64_backend_emitters[instr->op];
+static void x64_backend_emit_body(struct x64_backend *backend, struct ir *ir) {
+  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
+    x64_emit_cb emit = x64_backend_emitters[instr->op];
     CHECK(emit, "Failed to find emitter for %s", ir_op_names[instr->op]);
 
     // reset temp count used by GetRegister
@@ -368,7 +369,7 @@ static void x64_backend_emit_body(x64_backend_t *backend, ir_t *ir) {
   }
 }
 
-static void x64_backend_emit_epilog(x64_backend_t *backend, ir_t *ir,
+static void x64_backend_emit_epilog(struct x64_backend *backend, struct ir *ir,
                                     int stack_size) {
   auto &e = *backend->codegen;
 
@@ -392,7 +393,8 @@ static void x64_backend_emit_epilog(x64_backend_t *backend, ir_t *ir,
   e.ret();
 }
 
-const uint8_t *x64_backend_emit(x64_backend_t *backend, ir_t *ir, int *size) {
+const uint8_t *x64_backend_emit(struct x64_backend *backend, struct ir *ir,
+                                int *size) {
   // PROFILER_RUNTIME("X64Emitter::Emit");
 
   const uint8_t *fn = backend->codegen->getCurr();
@@ -407,7 +409,7 @@ const uint8_t *x64_backend_emit(x64_backend_t *backend, ir_t *ir, int *size) {
   return fn;
 }
 
-static void x64_backend_emit_thunks(x64_backend_t *backend) {
+static void x64_backend_emit_thunks(struct x64_backend *backend) {
   auto &e = *backend->codegen;
 
   {
@@ -435,7 +437,7 @@ static void x64_backend_emit_thunks(x64_backend_t *backend) {
   }
 }
 
-static void x64_backend_emit_constants(x64_backend_t *backend) {
+static void x64_backend_emit_constants(struct x64_backend *backend) {
   auto &e = *backend->codegen;
 
   e.L(backend->xmm_const[XMM_CONST_ABS_MASK_PS]);
@@ -455,15 +457,15 @@ static void x64_backend_emit_constants(x64_backend_t *backend) {
   e.dq(INT64_C(0x8000000000000000));
 }
 
-static void x64_backend_reset(x64_backend_t *backend) {
+static void x64_backend_reset(struct x64_backend *backend) {
   backend->codegen->reset();
 
   x64_backend_emit_thunks(backend);
   x64_backend_emit_constants(backend);
 }
 
-static const uint8_t *x64_backend_assemble_code(x64_backend_t *backend,
-                                                ir_t *ir, int *size) {
+static const uint8_t *x64_backend_assemble_code(struct x64_backend *backend,
+                                                struct ir *ir, int *size) {
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
   const uint8_t *fn = nullptr;
@@ -479,7 +481,7 @@ static const uint8_t *x64_backend_assemble_code(x64_backend_t *backend,
   return fn;
 }
 
-static void x64_backend_dump_code(x64_backend_t *backend,
+static void x64_backend_dump_code(struct x64_backend *backend,
                                   const uint8_t *host_addr, int size) {
   cs_insn *insns;
   size_t count =
@@ -495,12 +497,12 @@ static void x64_backend_dump_code(x64_backend_t *backend,
   cs_free(insns, count);
 }
 
-static bool x64_backend_handle_exception(x64_backend_t *backend,
-                                         struct re_exception_s *ex) {
+static bool x64_backend_handle_exception(struct x64_backend *backend,
+                                         struct exception *ex) {
   const uint8_t *data = reinterpret_cast<const uint8_t *>(ex->thread_state.rip);
 
   // it's assumed a mov has triggered the exception
-  x64_mov_t mov;
+  struct x64_mov mov;
   if (!x64_decode_mov(data, &mov)) {
     return false;
   }
@@ -1138,7 +1140,7 @@ EMITTER(CMP) {
     e.cmp(a, b);
   }
 
-  ir_cmp_t cmp = (ir_cmp_t)instr->arg[2]->i32;
+  enum ir_cmp cmp = (enum ir_cmp)instr->arg[2]->i32;
 
   switch (cmp) {
     case CMP_EQ:
@@ -1197,7 +1199,7 @@ EMITTER(FCMP) {
     e.comisd(a, b);
   }
 
-  ir_cmp_t cmp = (ir_cmp_t)instr->arg[2]->i32;
+  enum ir_cmp cmp = (enum ir_cmp)instr->arg[2]->i32;
 
   switch (cmp) {
     case CMP_EQ:
@@ -1639,12 +1641,13 @@ EMITTER(CALL_EXTERNAL) {
   e.call(e.rax);
 }
 
-jit_backend_t *x64_backend_create(const mem_interface_t *memif) {
-  x64_backend_t *backend =
-      reinterpret_cast<x64_backend_t *>(calloc(1, sizeof(x64_backend_t)));
+struct jit_backend *x64_backend_create(const struct mem_interface *memif) {
+  struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
+      calloc(1, sizeof(struct x64_backend)));
 
   backend->base.registers = x64_registers;
-  backend->base.num_registers = sizeof(x64_registers) / sizeof(register_def_t);
+  backend->base.num_registers =
+      sizeof(x64_registers) / sizeof(struct register_def);
   backend->base.reset = (reset_cb)&x64_backend_reset;
   backend->base.assemble_code = (assemble_code_cb)&x64_backend_assemble_code;
   backend->base.dump_code = (dump_code_cb)&x64_backend_dump_code;
@@ -1668,11 +1671,11 @@ jit_backend_t *x64_backend_create(const mem_interface_t *memif) {
       protect_pages(aligned_code, aligned_code_size, ACC_READWRITEEXEC);
   CHECK(success);
 
-  return (jit_backend_t *)backend;
+  return (struct jit_backend *)backend;
 }
 
-void x64_backend_destroy(jit_backend_t *jit_backend) {
-  x64_backend_t *backend = (x64_backend_t *)jit_backend;
+void x64_backend_destroy(struct jit_backend *jit_backend) {
+  struct x64_backend *backend = (struct x64_backend *)jit_backend;
 
   cs_close(&backend->capstone_handle);
 

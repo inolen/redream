@@ -4,7 +4,7 @@
 #include "hw/holly/ta_types.h"
 #include "renderer/backend.h"
 
-struct tr_s;
+struct tr;
 
 // register_texture_cb / get_texture_cb provide an abstraction around
 // providing textures to the renderer. when emulating the actual TA,
@@ -12,51 +12,52 @@ struct tr_s;
 // back traces the textures will come from the trace itself
 typedef uint64_t texture_key_t;
 
-typedef struct {
+struct texture_reg {
   // texture registration input
-  const tile_ctx_t *ctx;
-  tsp_t tsp;
-  tcw_t tcw;
+  const struct tile_ctx *ctx;
+  union tsp tsp;
+  union tcw tcw;
   const uint8_t *palette;
   const uint8_t *data;
 
   // texture registration output. normally, the handle is the only information
   // needed, but the rest is used by the tracer for debugging purposes
   texture_handle_t handle;
-  pxl_format_t format;
-  filter_mode_t filter;
-  wrap_mode_t wrap_u;
-  wrap_mode_t wrap_v;
+  enum pxl_format format;
+  enum filter_mode filter;
+  enum wrap_mode wrap_u;
+  enum wrap_mode wrap_v;
   bool mipmaps;
   int width;
   int height;
-} texture_reg_t;
+};
 
-typedef void (*register_texture_cb)(void *, texture_reg_t *reg);
+typedef void (*register_texture_cb)(void *, struct texture_reg *reg);
 
-typedef texture_handle_t (*get_texture_cb)(void *, const tile_ctx_t *, tsp_t,
-                                           tcw_t, void *, register_texture_cb);
+typedef texture_handle_t (*get_texture_cb)(void *, const struct tile_ctx *,
+                                           union tsp, union tcw, void *,
+                                           register_texture_cb);
 
 // represents the parse state after each ta parameter. used to visually scrub
 // through the scene parameter by parameter in the tracer
-typedef struct {
+struct param_state {
   int num_surfs;
   int num_verts;
-} param_state_t;
+};
 
 // tile context parsed into appropriate structures for the render backend
-typedef struct {
+struct render_ctx {
   // supplied by caller
-  surface_t *surfs;
+  struct surface *surfs;
   int surfs_size;
 
-  vertex_t *verts;
+  struct vertex *verts;
   int verts_size;
 
   int *sorted_surfs;
   int sorted_surfs_size;
 
-  param_state_t *states;
+  struct param_state *states;
   int states_size;
 
   //
@@ -64,16 +65,15 @@ typedef struct {
   int num_surfs;
   int num_verts;
   int num_states;
-} render_ctx_t;
+};
 
-texture_key_t tr_get_texture_key(tsp_t tsp, tcw_t tcw);
+texture_key_t tr_get_texture_key(union tsp tsp, union tcw tcw);
 
-void tr_parse_context(struct tr_s *tr, const tile_ctx_t *ctx,
-                      render_ctx_t *rctx);
-void tr_render_context(struct tr_s *tr, const render_ctx_t *rctx);
+void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
+                      struct render_ctx *rctx);
+void tr_render_context(struct tr *tr, const struct render_ctx *rctx);
 
-struct tr_s *tr_create(struct rb_s *rb, void *get_tex_data,
-                       get_texture_cb get_tex);
-void tr_destroy(struct tr_s *tr);
+struct tr *tr_create(struct rb *rb, void *get_tex_data, get_texture_cb get_tex);
+void tr_destroy(struct tr *tr);
 
 #endif

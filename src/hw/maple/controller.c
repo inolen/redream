@@ -30,7 +30,7 @@ enum {
   CONT_RTRIG = 0x80000
 };
 
-typedef struct {
+struct condition {
   uint32_t function;
   uint16_t buttons;
   uint8_t rtrig;
@@ -39,17 +39,17 @@ typedef struct {
   uint8_t joyy;
   uint8_t joyx2;
   uint8_t joyy2;
-} condition_t;
+};
 
-typedef struct {
-  maple_device_t base;
-  condition_t cnd;
+struct controller {
+  struct maple_device base;
+  struct condition cnd;
   int map[K_NUM_KEYS];
-} controller_t;
+};
 
 // Constant device info structure sent as response to CMD_REQDEVINFO to
 // identify the controller.
-static maple_deviceinfo_t controller_devinfo = {
+static struct maple_device_info controller_devinfo = {
     FN_CONTROLLER,
     {0xfe060f00, 0x0, 0x0},
     0xff,
@@ -61,7 +61,7 @@ static maple_deviceinfo_t controller_devinfo = {
 
 static int controller_ini_handler(void *user, const char *section,
                                   const char *name, const char *value) {
-  controller_t *ctrl = user;
+  struct controller *ctrl = user;
 
   int button = 0;
   if (!strcmp(name, "joyx")) {
@@ -95,7 +95,7 @@ static int controller_ini_handler(void *user, const char *section,
     return 0;
   }
 
-  keycode_t key = get_key_by_name(value);
+  enum keycode key = get_key_by_name(value);
   if (key == K_UNKNOWN) {
     LOG_WARNING("Unknown key %s", value);
     return 0;
@@ -106,7 +106,7 @@ static int controller_ini_handler(void *user, const char *section,
   return 1;
 }
 
-static void controller_load_profile(controller_t *ctrl, const char *path) {
+static void controller_load_profile(struct controller *ctrl, const char *path) {
   if (!*path) {
     return;
   }
@@ -119,11 +119,12 @@ static void controller_load_profile(controller_t *ctrl, const char *path) {
   }
 }
 
-static void controller_destroy(controller_t *controller) {
+static void controller_destroy(struct controller *controller) {
   free(controller);
 }
 
-static bool controller_input(controller_t *ctrl, keycode_t key, int16_t value) {
+static bool controller_input(struct controller *ctrl, enum keycode key,
+                             int16_t value) {
   // map incoming key to dreamcast button
   int button = ctrl->map[key];
 
@@ -154,8 +155,9 @@ static bool controller_input(controller_t *ctrl, keycode_t key, int16_t value) {
   return true;
 }
 
-static bool controller_frame(controller_t *ctrl, const maple_frame_t *frame,
-                             maple_frame_t *res) {
+static bool controller_frame(struct controller *ctrl,
+                             const struct maple_frame *frame,
+                             struct maple_frame *res) {
   switch (frame->header.command) {
     case CMD_REQDEVINFO:
       res->header.command = CMD_RESDEVINFO;
@@ -177,8 +179,8 @@ static bool controller_frame(controller_t *ctrl, const maple_frame_t *frame,
   return false;
 }
 
-maple_device_t *controller_create() {
-  controller_t *ctrl = calloc(1, sizeof(controller_t));
+struct maple_device *controller_create() {
+  struct controller *ctrl = calloc(1, sizeof(struct controller));
   ctrl->base.destroy = (maple_destroy_cb)&controller_destroy;
   ctrl->base.input = (maple_input_cb)&controller_input;
   ctrl->base.frame = (maple_frame_cb)&controller_frame;
@@ -199,14 +201,14 @@ maple_device_t *controller_create() {
   // CONT_LTRIG
   // CONT_RTRIG
   ctrl->map[K_SPACE] = CONT_START;
-  ctrl->map[(keycode_t)'k'] = CONT_A;
-  ctrl->map[(keycode_t)'l'] = CONT_B;
-  ctrl->map[(keycode_t)'j'] = CONT_X;
-  ctrl->map[(keycode_t)'i'] = CONT_Y;
-  ctrl->map[(keycode_t)'w'] = CONT_DPAD_UP;
-  ctrl->map[(keycode_t)'s'] = CONT_DPAD_DOWN;
-  ctrl->map[(keycode_t)'a'] = CONT_DPAD_LEFT;
-  ctrl->map[(keycode_t)'d'] = CONT_DPAD_RIGHT;
+  ctrl->map[(enum keycode)'k'] = CONT_A;
+  ctrl->map[(enum keycode)'l'] = CONT_B;
+  ctrl->map[(enum keycode)'j'] = CONT_X;
+  ctrl->map[(enum keycode)'i'] = CONT_Y;
+  ctrl->map[(enum keycode)'w'] = CONT_DPAD_UP;
+  ctrl->map[(enum keycode)'s'] = CONT_DPAD_DOWN;
+  ctrl->map[(enum keycode)'a'] = CONT_DPAD_LEFT;
+  ctrl->map[(enum keycode)'d'] = CONT_DPAD_RIGHT;
 
   // load profile
   controller_load_profile(ctrl, OPTION_profile);

@@ -8,62 +8,63 @@ DEFINE_STAT(num_spills, "Number of registers spilled");
 
 static const int MAX_REGISTERS = 32;
 
-typedef struct {
-  ir_instr_t *instr;
-  ir_instr_t *reused;
-  ir_use_t *start;
-  ir_use_t *end;
-  ir_use_t *next;
+struct interval {
+  struct ir_instr *instr;
+  struct ir_instr *reused;
+  struct ir_use *start;
+  struct ir_use *end;
+  struct ir_use *next;
   int reg;
-} interval_t;
+};
 
-typedef struct {
+struct register_set {
   int free_regs[MAX_REGISTERS];
   int num_free_regs;
 
-  interval_t *live_intervals[MAX_REGISTERS];
+  struct interval *live_intervals[MAX_REGISTERS];
   int num_live_intervals;
-} register_set_t;
+};
 
-typedef struct {
+struct ra {
   // canonical backend register information
-  const register_def_t *registers;
+  const struct register_def *registers;
   int num_registers;
 
   // allocation state
-  register_set_t int_registers;
-  register_set_t float_registers;
-  register_set_t vector_registers;
+  struct register_set int_registers;
+  struct register_set float_registers;
+  struct register_set vector_registers;
 
   // intervals, keyed by register
-  interval_t intervals[MAX_REGISTERS];
-} ra_t;
+  struct interval intervals[MAX_REGISTERS];
+};
 
-static int ra_get_ordinal(const ir_instr_t *i) {
+static int ra_get_ordinal(const struct ir_instr *i) {
   return (int)i->tag;
 }
 
-static void ra_set_ordinal(ir_instr_t *i, int ordinal) {
+static void ra_set_ordinal(struct ir_instr *i, int ordinal) {
   i->tag = (intptr_t)ordinal;
 }
 
-static int ra_pop_register(register_set_t *set) {
+static int ra_pop_register(struct register_set *set) {
   if (!set->num_free_regs) {
     return NO_REGISTER;
   }
   return set->free_regs[--set->num_free_regs];
 }
 
-static void ra_push_register(register_set_t *set, int reg) {
+static void ra_push_register(struct register_set *set, int reg) {
   set->free_regs[set->num_free_regs++] = reg;
 }
 
-static bool ra_interval_cmp(const interval_t *lhs, const interval_t *rhs) {
+static bool ra_interval_cmp(const struct interval *lhs,
+                            const struct interval *rhs) {
   return !lhs->next ||
          ra_get_ordinal(lhs->next->instr) < ra_get_ordinal(rhs->next->instr);
 };
 
-static interval_t *ra_head_interval(register_set_t *set) {
+static struct interval *ra_head_interval(struct register_set *set) {
   if (!set->num_live_intervals) {
     return NULL;
   }
@@ -73,7 +74,7 @@ static interval_t *ra_head_interval(register_set_t *set) {
   return *it;
 }
 
-static interval_t *ra_tail_interval(register_set_t *set) {
+static struct interval *ra_tail_interval(struct register_set *set) {
   if (!set->num_live_intervals) {
     return NULL;
   }
@@ -83,25 +84,27 @@ static interval_t *ra_tail_interval(register_set_t *set) {
   return *it;
 }
 
-static void ra_pop_head_interval(register_set_t *set) {
+static void ra_pop_head_interval(struct register_set *set) {
   mm_pop_min((mm_type *)set->live_intervals, set->num_live_intervals,
              (mm_cmp)&ra_interval_cmp);
   set->num_live_intervals--;
 }
 
-static void ra_pop_tail_interval(register_set_t *set) {
+static void ra_pop_tail_interval(struct register_set *set) {
   mm_pop_max((mm_type *)set->live_intervals, set->num_live_intervals,
              (mm_cmp)&ra_interval_cmp);
   set->num_live_intervals--;
 }
 
-static void ra_insert_interval(register_set_t *set, interval_t *interval) {
+static void ra_insert_interval(struct register_set *set,
+                               struct interval *interval) {
   set->live_intervals[set->num_live_intervals++] = interval;
   mm_push((mm_type *)set->live_intervals, set->num_live_intervals,
           (mm_cmp)&ra_interval_cmp);
 }
 
-static register_set_t *ra_get_register_set(ra_t *ra, ir_type_t type) {
+static struct register_set *ra_get_register_set(struct ra *ra,
+                                                enum ir_type type) {
   if (is_is_int(type)) {
     return &ra->int_registers;
   }
@@ -117,28 +120,29 @@ static register_set_t *ra_get_register_set(ra_t *ra, ir_type_t type) {
   LOG_FATAL("Unexpected value type");
 }
 
-static int ra_alloc_blocked_register(ra_t *ra, ir_t *ir, ir_instr_t *instr) {
-  ir_instr_t *insert_point = ir->current_instr;
-  register_set_t *set = ra_get_register_set(ra, instr->result->type);
+static int ra_alloc_blocked_register(struct ra *ra, struct ir *ir,
+                                     struct ir_instr *instr) {
+  struct ir_instr *insert_point = ir->current_instr;
+  struct register_set *set = ra_get_register_set(ra, instr->result->type);
 
   // spill the register who's next use is furthest away from start
-  interval_t *interval = ra_tail_interval(set);
+  struct interval *interval = ra_tail_interval(set);
   ra_pop_tail_interval(set);
 
   // the interval's value needs to be filled back from from the stack before
   // its next use
-  ir_use_t *next_use = interval->next;
-  ir_use_t *prev_use = list_prev_entry(next_use, it);
+  struct ir_use *next_use = interval->next;
+  struct ir_use *prev_use = list_prev_entry(next_use, it);
   CHECK(next_use,
         "Register being spilled has no next use, why wasn't it expired?");
 
   // allocate a place on the stack to spill the value
-  ir_local_t *local = ir_alloc_local(ir, interval->instr->result->type);
+  struct ir_local *local = ir_alloc_local(ir, interval->instr->result->type);
 
   // insert load before next use
   ir->current_instr = list_prev_entry(next_use->instr, it);
-  ir_value_t *load_value = ir_load_local(ir, local);
-  ir_instr_t *load_instr = load_value->def;
+  struct ir_value *load_value = ir_load_local(ir, local);
+  struct ir_instr *load_instr = load_value->def;
 
   // assign the load a valid ordinal
   int load_ordinal = ra_get_ordinal(list_prev_entry(load_instr, it)) + 1;
@@ -151,7 +155,7 @@ static int ra_alloc_blocked_register(ra_t *ra, ir_t *ir, ir_instr_t *instr) {
   while (next_use) {
     // cache off next next since calling set_value will modify the linked list
     // pointers
-    ir_use_t *next_next_use = list_next_entry(next_use, it);
+    struct ir_use *next_next_use = list_next_entry(next_use, it);
     ir_replace_use(next_use, load_instr->result);
     next_use = next_next_use;
   }
@@ -161,7 +165,7 @@ static int ra_alloc_blocked_register(ra_t *ra, ir_t *ir, ir_instr_t *instr) {
   // instruction is created and added as a use, the sorted order will be
   // invalidated. because of this, the save instruction needs to be added after
   // the load instruction has updated the sorted uses
-  ir_instr_t *after = NULL;
+  struct ir_instr *after = NULL;
 
   if (prev_use) {
     // there is a previous useerence, insert store after it
@@ -184,8 +188,8 @@ static int ra_alloc_blocked_register(ra_t *ra, ir_t *ir, ir_instr_t *instr) {
   // reuse the old interval
   interval->instr = instr;
   interval->reused = NULL;
-  interval->start = list_first_entry(&instr->result->uses, ir_use_t, it);
-  interval->end = list_last_entry(&instr->result->uses, ir_use_t, it);
+  interval->start = list_first_entry(&instr->result->uses, struct ir_use, it);
+  interval->end = list_last_entry(&instr->result->uses, struct ir_use, it);
   interval->next = interval->start;
   ra_insert_interval(set, interval);
 
@@ -197,8 +201,8 @@ static int ra_alloc_blocked_register(ra_t *ra, ir_t *ir, ir_instr_t *instr) {
   return interval->reg;
 }
 
-static int ra_alloc_free_register(ra_t *ra, ir_instr_t *instr) {
-  register_set_t *set = ra_get_register_set(ra, instr->result->type);
+static int ra_alloc_free_register(struct ra *ra, struct ir_instr *instr) {
+  struct register_set *set = ra_get_register_set(ra, instr->result->type);
 
   // get the first free register for this value type
   int reg = ra_pop_register(set);
@@ -207,11 +211,11 @@ static int ra_alloc_free_register(ra_t *ra, ir_instr_t *instr) {
   }
 
   // add interval
-  interval_t *interval = &ra->intervals[reg];
+  struct interval *interval = &ra->intervals[reg];
   interval->instr = instr;
   interval->reused = NULL;
-  interval->start = list_first_entry(&instr->result->uses, ir_use_t, it);
-  interval->end = list_last_entry(&instr->result->uses, ir_use_t, it);
+  interval->start = list_first_entry(&instr->result->uses, struct ir_use, it);
+  interval->end = list_last_entry(&instr->result->uses, struct ir_use, it);
   interval->next = interval->start;
   interval->reg = reg;
   ra_insert_interval(set, interval);
@@ -224,7 +228,8 @@ static int ra_alloc_free_register(ra_t *ra, ir_instr_t *instr) {
 // operations where the destination is the first argument.
 // TODO could reorder arguments for communicative binary ops and do this
 // with the second argument as well
-static int ra_reuse_arg_register(ra_t *ra, ir_t *ir, ir_instr_t *instr) {
+static int ra_reuse_arg_register(struct ra *ra, struct ir *ir,
+                                 struct ir_instr *instr) {
   if (!instr->arg[0]) {
     return NO_REGISTER;
   }
@@ -235,14 +240,14 @@ static int ra_reuse_arg_register(ra_t *ra, ir_t *ir, ir_instr_t *instr) {
   }
 
   // make sure the register can hold the result type
-  const register_def_t *r = &ra->registers[prefered];
+  const struct register_def *r = &ra->registers[prefered];
   if (!(r->value_types & (1 << instr->result->type))) {
     return NO_REGISTER;
   }
 
   // if the argument's register is used after this instruction, it's not
   // trivial to reuse
-  interval_t *interval = &ra->intervals[prefered];
+  struct interval *interval = &ra->intervals[prefered];
   if (list_next_entry(interval->next, it)) {
     return NO_REGISTER;
   }
@@ -258,9 +263,10 @@ static int ra_reuse_arg_register(ra_t *ra, ir_t *ir, ir_instr_t *instr) {
   return prefered;
 }
 
-static void ra_expire_set(ra_t *ra, register_set_t *set, ir_instr_t *instr) {
+static void ra_expire_set(struct ra *ra, struct register_set *set,
+                          struct ir_instr *instr) {
   while (true) {
-    interval_t *interval = ra_head_interval(set);
+    struct interval *interval = ra_head_interval(set);
     if (!interval) {
       break;
     }
@@ -284,11 +290,12 @@ static void ra_expire_set(ra_t *ra, register_set_t *set, ir_instr_t *instr) {
     // if there are no more uses, but the register has been reused by
     // ReuseArgRegister, requeue the interval at this time
     else if (interval->reused) {
-      ir_instr_t *reused = interval->reused;
+      struct ir_instr *reused = interval->reused;
       interval->instr = reused;
       interval->reused = NULL;
-      interval->start = list_first_entry(&reused->result->uses, ir_use_t, it);
-      interval->end = list_last_entry(&reused->result->uses, ir_use_t, it);
+      interval->start =
+          list_first_entry(&reused->result->uses, struct ir_use, it);
+      interval->end = list_last_entry(&reused->result->uses, struct ir_use, it);
       interval->next = interval->start;
       ra_insert_interval(set, interval);
     }
@@ -300,24 +307,24 @@ static void ra_expire_set(ra_t *ra, register_set_t *set, ir_instr_t *instr) {
   }
 }
 
-static void ra_expire_intervals(ra_t *ra, ir_instr_t *instr) {
+static void ra_expire_intervals(struct ra *ra, struct ir_instr *instr) {
   ra_expire_set(ra, &ra->int_registers, instr);
   ra_expire_set(ra, &ra->float_registers, instr);
   ra_expire_set(ra, &ra->vector_registers, instr);
 }
 
-static int use_cmp(const list_node_t *a_it, const list_node_t *b_it) {
-  ir_use_t *a = list_entry(a_it, ir_use_t, it);
-  ir_use_t *b = list_entry(b_it, ir_use_t, it);
+static int use_cmp(const struct list_node *a_it, const struct list_node *b_it) {
+  struct ir_use *a = list_entry(a_it, struct ir_use, it);
+  struct ir_use *b = list_entry(b_it, struct ir_use, it);
   return ra_get_ordinal(a->instr) - ra_get_ordinal(b->instr);
 }
 
-static void ra_assign_ordinals(ir_t *ir) {
+static void ra_assign_ordinals(struct ir *ir) {
   // assign each instruction an ordinal. these ordinals are used to describe
   // the live range of a particular value
   int ordinal = 0;
 
-  list_for_each_entry(instr, &ir->instrs, ir_instr_t, it) {
+  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
     ra_set_ordinal(instr, ordinal);
 
     // space out ordinals to leave available values for instructions inserted
@@ -327,13 +334,13 @@ static void ra_assign_ordinals(ir_t *ir) {
   }
 }
 
-static void ra_init_sets(ra_t *ra, const register_def_t *registers,
+static void ra_init_sets(struct ra *ra, const struct register_def *registers,
                          int num_registers) {
   ra->registers = registers;
   ra->num_registers = num_registers;
 
   for (int i = 0; i < ra->num_registers; i++) {
-    const register_def_t *r = &ra->registers[i];
+    const struct register_def *r = &ra->registers[i];
 
     if (r->value_types == VALUE_INT_MASK) {
       ra_push_register(&ra->int_registers, i);
@@ -347,15 +354,16 @@ static void ra_init_sets(ra_t *ra, const register_def_t *registers,
   }
 }
 
-void ra_run(ir_t *ir, const register_def_t *registers, int num_registers) {
-  ra_t ra = {};
+void ra_run(struct ir *ir, const struct register_def *registers,
+            int num_registers) {
+  struct ra ra = {};
 
   ra_init_sets(&ra, registers, num_registers);
 
   ra_assign_ordinals(ir);
 
-  list_for_each_entry(instr, &ir->instrs, ir_instr_t, it) {
-    ir_value_t *result = instr->result;
+  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
+    struct ir_value *result = instr->result;
 
     // only allocate registers for results, assume constants can always be
     // encoded as immediates or that the backend has registers reserved

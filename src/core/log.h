@@ -7,12 +7,12 @@
 
 DECLARE_OPTION_BOOL(debug);
 
-typedef enum {
+enum log_level {
   LOG_LEVEL_DEBUG,
   LOG_LEVEL_INFO,
   LOG_LEVEL_WARNING,
   LOG_LEVEL_FATAL,
-} log_level_t;
+};
 
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_GREEN "\x1b[32m"
@@ -22,7 +22,7 @@ typedef enum {
 #define ANSI_COLOR_CYAN "\x1b[36m"
 #define ANSI_COLOR_RESET "\x1b[0m"
 
-void log_line(log_level_t level, const char *format, ...);
+void log_line(enum log_level level, const char *format, ...);
 
 #define LOG_DEBUG(...)                        \
   if (OPTION_debug) {                         \

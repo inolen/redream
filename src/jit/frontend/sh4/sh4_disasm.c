@@ -2,8 +2,8 @@
 #include "core/string.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 
-typedef struct {
-  sh4_op_t op;
+struct sh4_opdef {
+  enum sh4_op op;
   const char *desc;
   const char *sig;
   int cycles;
@@ -13,9 +13,9 @@ typedef struct {
   uint16_t disp_mask, disp_shift;
   uint16_t rm_mask, rm_shift;
   uint16_t rn_mask, rn_shift;
-} sh4_opdef_t;
+};
 
-static sh4_opdef_t s_opdefs[NUM_SH4_OPS] = {
+static struct sh4_opdef s_opdefs[NUM_SH4_OPS] = {
     {SH4_OP_INVALID, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 #define SH4_INSTR(name, desc, sig, cycles, flags)                         \
   { SH4_OP_##name, desc, #sig, cycles, flags, 0, 0, 0, 0, 0, 0, 0, 0, 0 } \
@@ -23,7 +23,7 @@ static sh4_opdef_t s_opdefs[NUM_SH4_OPS] = {
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
-static sh4_opdef_t *s_opdef_lookup[UINT16_MAX] = {};
+static struct sh4_opdef *s_opdef_lookup[UINT16_MAX] = {};
 
 static void sh4_arg_mask(const char *instr_code, char c, uint16_t *mask,
                          uint16_t *shift) {
@@ -54,7 +54,7 @@ static void sh4_init_opdefs() {
   // finalize type information by extracting argument encoding information
   // from signatures
   for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
-    sh4_opdef_t *def = &s_opdefs[i];
+    struct sh4_opdef *def = &s_opdefs[i];
 
     sh4_arg_mask(def->sig, 'i', &def->imm_mask, &def->imm_shift);
     sh4_arg_mask(def->sig, 'd', &def->disp_mask, &def->disp_shift);
@@ -71,7 +71,7 @@ static void sh4_init_opdefs() {
           uint16_t value = w + x + y + z;
 
           for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
-            sh4_opdef_t *def = &s_opdefs[i];
+            struct sh4_opdef *def = &s_opdefs[i];
             uint16_t arg_mask =
                 def->imm_mask | def->disp_mask | def->rm_mask | def->rn_mask;
 
@@ -86,10 +86,10 @@ static void sh4_init_opdefs() {
   }
 }
 
-bool sh4_disasm(sh4_instr_t *i) {
+bool sh4_disasm(struct sh4_instr *i) {
   sh4_init_opdefs();
 
-  sh4_opdef_t *def = s_opdef_lookup[i->opcode];
+  struct sh4_opdef *def = s_opdef_lookup[i->opcode];
 
   if (!def) {
     i->op = SH4_OP_INVALID;
@@ -107,7 +107,7 @@ bool sh4_disasm(sh4_instr_t *i) {
   return true;
 }
 
-void sh4_format(const sh4_instr_t *i, char *buffer, size_t buffer_size) {
+void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size) {
   sh4_init_opdefs();
 
   if (i->op == SH4_OP_INVALID) {

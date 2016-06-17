@@ -2,7 +2,7 @@
 #include "core/string.h"
 #include "jit/ir/ir.h"
 
-static void ir_write_type(ir_type_t type, FILE *output) {
+static void ir_write_type(enum ir_type type, FILE *output) {
   switch (type) {
     case VALUE_I8:
       fprintf(output, "i8");
@@ -31,7 +31,7 @@ static void ir_write_type(ir_type_t type, FILE *output) {
   }
 }
 
-static void ir_write_op(ir_op_t op, FILE *output) {
+static void ir_write_op(enum ir_op op, FILE *output) {
   const char *name = ir_op_names[op];
 
   while (*name) {
@@ -40,7 +40,7 @@ static void ir_write_op(ir_op_t op, FILE *output) {
   }
 }
 
-static void ir_write_value(const ir_value_t *value, FILE *output) {
+static void ir_write_value(const struct ir_value *value, FILE *output) {
   ir_write_type(value->type, output);
 
   fprintf(output, " ");
@@ -77,7 +77,7 @@ static void ir_write_value(const ir_value_t *value, FILE *output) {
   }
 }
 
-static void ir_write_instr(const ir_instr_t *instr, FILE *output) {
+static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
   // print result value if we have one
   if (instr->result) {
     ir_write_value(instr->result, output);
@@ -92,7 +92,7 @@ static void ir_write_instr(const ir_instr_t *instr, FILE *output) {
   bool need_comma = false;
 
   for (int i = 0; i < 3; i++) {
-    const ir_value_t *arg = instr->arg[i];
+    const struct ir_value *arg = instr->arg[i];
 
     if (!arg) {
       continue;
@@ -113,10 +113,10 @@ static void ir_write_instr(const ir_instr_t *instr, FILE *output) {
   fprintf(output, "\n");
 }
 
-static void ir_assign_slots(ir_t *ir) {
+static void ir_assign_slots(struct ir *ir) {
   int next_slot = 0;
 
-  list_for_each_entry(instr, &ir->instrs, ir_instr_t, it) {
+  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
     // don't assign a slot to instructions without a return value
     if (!instr->result) {
       continue;
@@ -126,10 +126,10 @@ static void ir_assign_slots(ir_t *ir) {
   }
 }
 
-void ir_write(ir_t *ir, FILE *output) {
+void ir_write(struct ir *ir, FILE *output) {
   ir_assign_slots(ir);
 
-  list_for_each_entry(instr, &ir->instrs, ir_instr_t, it) {
+  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
     ir_write_instr(instr, output);
   }
 }

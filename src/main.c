@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  struct window_s *window = win_create();
+  struct window *window = win_create();
   if (!window) {
     LOG_WARNING("Failed to initialize window");
     return EXIT_FAILURE;

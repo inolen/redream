@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-typedef union {
+union ccr {
   uint32_t full;
   struct {
     uint32_t OCE : 1;
@@ -22,9 +22,9 @@ typedef union {
     uint32_t reserved4 : 15;
     uint32_t EMODE : 1;
   };
-} ccr_t;
+};
 
-typedef union {
+union chcr {
   uint32_t full;
   struct {
     uint32_t DE : 1;
@@ -46,9 +46,9 @@ typedef union {
     uint32_t STC : 1;
     uint32_t SSA : 3;
   };
-} chcr_t;
+};
 
-typedef union {
+union dmaor {
   uint32_t full;
   struct {
     uint32_t DME : 1;
@@ -62,7 +62,7 @@ typedef union {
     uint32_t DDT : 1;
     uint32_t reserved2 : 16;
   };
-} dmaor_t;
+};
 
 // control register area (0xfe000000 - 0xffffffff) seems to actually only
 // represent 64 x 256 byte blocks of memory. the block index is represented
@@ -77,15 +77,11 @@ enum {
 };
 
 // interrupts
-typedef enum {
+enum sh4_interrupt {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) SH4_INTC_##name,
 #include "hw/sh4/sh4_int.inc"
 #undef SH4_INT
   NUM_SH_INTERRUPTS
-} sh4_interrupt_t;
-
-typedef struct {
-  int intevt, default_priority, ipr, ipr_shift;
-} sh4_interrupt_info_t;
+};
 
 #endif

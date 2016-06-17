@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "sys/exception_handler_win.h"
 
-static void CopyStateTo(PCONTEXT src, re_thread_state_t *dst) {
+static void CopyStateTo(PCONTEXT src, union thread_state *dst) {
   dst->rax = src->Rax;
   dst->rcx = src->Rcx;
   dst->rdx = src->Rdx;
@@ -21,7 +21,7 @@ static void CopyStateTo(PCONTEXT src, re_thread_state_t *dst) {
   dst->rip = src->Rip;
 }
 
-static void CopyStateFrom(re_thread_state_t *src, PCONTEXT dst) {
+static void CopyStateFrom(union thread_state *src, PCONTEXT dst) {
   dst->Rax = src->rax;
   dst->Rcx = src->rcx;
   dst->Rdx = src->rdx;
@@ -48,7 +48,7 @@ static LONG CALLBACK WinExceptionHandler(PEXCEPTION_POINTERS ex_info) {
   }
 
   // convert signal to internal exception
-  re_exception_t ex;
+  struct exception ex;
   ex.type = code == STATUS_ACCESS_VIOLATION ? EX_ACCESS_VIOLATION
                                             : EX_INVALID_INSTRUCTION;
   ex.fault_addr = ex_info->ExceptionRecord->ExceptionInformation[1];

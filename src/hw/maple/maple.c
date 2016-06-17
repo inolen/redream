@@ -3,18 +3,17 @@
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 
-typedef struct maple_s {
-  device_t base;
+struct maple {
+  struct device base;
+  struct holly *holly;
+  struct address_space *space;
+  struct maple_device *devices[4];
+};
 
-  holly_t *holly;
-  address_space_t *space;
-  maple_device_t *devices[4];
-} maple_t;
-
-static void maple_dma(maple_t *mp) {
+static void maple_dma(struct maple *mp) {
   uint32_t start_addr = mp->holly->reg[SB_MDSTAR];
-  maple_transfer_t desc;
-  maple_frame_t frame, res;
+  union maple_transfer desc;
+  struct maple_frame frame, res;
 
   do {
     desc.full = as_read64(mp->space, start_addr);
@@ -30,7 +29,7 @@ static void maple_dma(maple_t *mp) {
     }
 
     // handle frame and write response
-    maple_device_t *dev = mp->devices[desc.port];
+    struct maple_device *dev = mp->devices[desc.port];
 
     if (dev && dev->frame(dev, &frame, &res)) {
       as_write32(mp->space, desc.result_addr, res.header.full);
@@ -49,7 +48,7 @@ static void maple_dma(maple_t *mp) {
   holly_raise_interrupt(mp->holly, HOLLY_INTC_MDEINT);
 }
 
-REG_W32(maple_t *mp, SB_MDST) {
+REG_W32(struct maple *mp, SB_MDST) {
   uint32_t enabled = mp->holly->reg[SB_MDEN];
   if (enabled) {
     if (*new_value) {
@@ -60,8 +59,8 @@ REG_W32(maple_t *mp, SB_MDST) {
   }
 }
 
-static bool maple_init(maple_t *mp) {
-  dreamcast_t *dc = mp->base.dc;
+static bool maple_init(struct maple *mp) {
+  struct dreamcast *dc = mp->base.dc;
 
   mp->holly = dc->holly;
   mp->space = dc->sh4->base.memory->space;
@@ -80,8 +79,8 @@ static bool maple_init(maple_t *mp) {
   return true;
 }
 
-static void maple_keydown(maple_t *mp, keycode_t key, int16_t value) {
-  maple_device_t *dev = mp->devices[0];
+static void maple_keydown(struct maple *mp, enum keycode key, int16_t value) {
+  struct maple_device *dev = mp->devices[0];
 
   if (!dev) {
     return;
@@ -90,7 +89,7 @@ static void maple_keydown(maple_t *mp, keycode_t key, int16_t value) {
   dev->input(dev, key, value);
 }
 
-void maple_vblank(maple_t *mp) {
+void maple_vblank(struct maple *mp) {
   uint32_t enabled = mp->holly->reg[SB_MDEN];
   uint32_t vblank_initiate = mp->holly->reg[SB_MDTSEL];
 
@@ -105,9 +104,9 @@ void maple_vblank(maple_t *mp) {
   // TODO maple vblank interrupt?
 }
 
-maple_t *maple_create(dreamcast_t *dc) {
-  maple_t *mp = dc_create_device(dc, sizeof(maple_t), "maple",
-                                 (device_init_cb)&maple_init);
+struct maple *maple_create(struct dreamcast *dc) {
+  struct maple *mp = dc_create_device(dc, sizeof(struct maple), "maple",
+                                      (device_init_cb)&maple_init);
   mp->base.window =
       window_interface_create(NULL, (device_keydown_cb)&maple_keydown);
 
@@ -116,9 +115,9 @@ maple_t *maple_create(dreamcast_t *dc) {
   return mp;
 }
 
-void maple_destroy(maple_t *mp) {
+void maple_destroy(struct maple *mp) {
   for (int i = 0; i < array_size(mp->devices); i++) {
-    maple_device_t *dev = mp->devices[i];
+    struct maple_device *dev = mp->devices[i];
 
     if (dev && dev->destroy) {
       dev->destroy(dev);

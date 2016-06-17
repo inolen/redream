@@ -1,12 +1,12 @@
 #ifndef REGISTER_ALLOCATION_PASS_H
 #define REGISTER_ALLOCATION_PASS_H
 
-struct ir_s;
-struct register_def_s;
+struct ir;
+struct register_def;
 
 extern const char *ra_name;
 
-void ra_run(struct ir_s *ir, const struct register_def_s *registers,
+void ra_run(struct ir *ir, const struct register_def *registers,
             int num_registers);
 
 #endif

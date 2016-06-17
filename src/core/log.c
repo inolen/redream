@@ -4,7 +4,7 @@
 
 DEFINE_OPTION_BOOL(debug, false, "Enable debug logging");
 
-void log_line(log_level_t level, const char *format, ...) {
+void log_line(enum log_level level, const char *format, ...) {
   static char sbuffer[0x1000];
   int buffer_size = sizeof(sbuffer);
   char *buffer = sbuffer;

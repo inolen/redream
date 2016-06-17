@@ -9,21 +9,23 @@ const char *lse_name = "lse";
 
 static const int MAX_OFFSET = 512;
 
-typedef struct {
+struct available {
   int offset;
-  ir_value_t *value;
-} available_t;
+  struct ir_value *value;
+};
 
-typedef struct { available_t available[MAX_OFFSET]; } lse_t;
+struct lse {
+  struct available available[MAX_OFFSET];
+};
 
-static void lse_clear_available(lse_t *lse) {
+static void lse_clear_available(struct lse *lse) {
   memset(lse->available, 0, sizeof(lse->available));
 }
 
-static ir_value_t *lse_get_available(lse_t *lse, int offset) {
+static struct ir_value *lse_get_available(struct lse *lse, int offset) {
   CHECK_LT(offset, MAX_OFFSET);
 
-  available_t *entry = &lse->available[offset];
+  struct available *entry = &lse->available[offset];
 
   // entries are added for the entire range of an available value to help with
   // invalidation. if this entry doesn't start at the requested offset, it's
@@ -35,14 +37,14 @@ static ir_value_t *lse_get_available(lse_t *lse, int offset) {
   return entry->value;
 }
 
-static void lse_erase_available(lse_t *lse, int offset, int size) {
+static void lse_erase_available(struct lse *lse, int offset, int size) {
   int begin = offset;
   int end = offset + size - 1;
 
   // if the invalidation range intersects with an entry, merge that entry into
   // the invalidation range
-  available_t *begin_entry = &lse->available[begin];
-  available_t *end_entry = &lse->available[end];
+  struct available *begin_entry = &lse->available[begin];
+  struct available *end_entry = &lse->available[end];
 
   if (begin_entry->value) {
     begin = begin_entry->offset;
@@ -53,13 +55,13 @@ static void lse_erase_available(lse_t *lse, int offset, int size) {
   }
 
   for (; begin <= end; begin++) {
-    available_t *entry = &lse->available[begin];
+    struct available *entry = &lse->available[begin];
     entry->offset = 0;
     entry->value = NULL;
   }
 }
 
-static void lse_set_available(lse_t *lse, int offset, ir_value_t *v) {
+static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
   int size = ir_type_size(v->type);
   int begin = offset;
   int end = offset + size - 1;
@@ -69,25 +71,25 @@ static void lse_set_available(lse_t *lse, int offset, ir_value_t *v) {
   // add entries for the entire range to aid in invalidation. only the initial
   // entry where offset == entry.offset is valid for reuse
   for (; begin <= end; begin++) {
-    available_t *entry = &lse->available[begin];
+    struct available *entry = &lse->available[begin];
     entry->offset = offset;
     entry->value = v;
   }
 }
 
-void lse_run(ir_t *ir) {
-  lse_t lse;
+void lse_run(struct ir *ir) {
+  struct lse lse;
 
   // eliminate redundant loads
   {
     lse_clear_available(&lse);
 
-    list_for_each_entry_safe(instr, &ir->instrs, ir_instr_t, it) {
+    list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
       if (instr->op == OP_LOAD_CONTEXT) {
         // if there is already a value available for this offset, reuse it and
         // remove this redundant load
         int offset = instr->arg[0]->i32;
-        ir_value_t *available = lse_get_available(&lse, offset);
+        struct ir_value *available = lse_get_available(&lse, offset);
 
         if (available && available->type == instr->result->type) {
           ir_replace_uses(instr->result, available);
@@ -113,7 +115,7 @@ void lse_run(ir_t *ir) {
     // iterate in reverse so the current instruction is the one being removed
     lse_clear_available(&lse);
 
-    list_for_each_entry_safe_reverse(instr, &ir->instrs, ir_instr_t, it) {
+    list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
       if (instr->op == OP_LOAD_CONTEXT) {
         int offset = instr->arg[0]->i32;
         int size = ir_type_size(instr->result->type);
@@ -123,7 +125,7 @@ void lse_run(ir_t *ir) {
         // if subsequent stores have been made for this offset that would
         // overwrite it completely, mark instruction as dead
         int offset = instr->arg[0]->i32;
-        ir_value_t *available = lse_get_available(&lse, offset);
+        struct ir_value *available = lse_get_available(&lse, offset);
         int available_size = available ? ir_type_size(available->type) : 0;
         int store_size = ir_type_size(instr->arg[1]->type);
 

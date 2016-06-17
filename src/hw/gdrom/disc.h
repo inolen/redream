@@ -5,7 +5,7 @@
 
 static const int SECTOR_SIZE = 2352;
 
-typedef struct track_s {
+struct track {
   int num;
   int fad;
   int adr;
@@ -13,16 +13,16 @@ typedef struct track_s {
   char filename[PATH_MAX];
   int file_offset;
   FILE *file;
-} track_t;
+};
 
-struct disc_s;
+struct disc;
 
-int disc_num_tracks(struct disc_s *disc);
-track_t *disc_get_track(struct disc_s *disc, int n);
-int disc_read_sector(struct disc_s *disc, int fad, void *dst);
+int disc_num_tracks(struct disc *disc);
+struct track *disc_get_track(struct disc *disc, int n);
+int disc_read_sector(struct disc *disc, int fad, void *dst);
 
-struct disc_s *disc_create_gdi(const char *filename);
-void disc_destroy(struct disc_s *disc);
+struct disc *disc_create_gdi(const char *filename);
+void disc_destroy(struct disc *disc);
 
 #ifdef __cplusplus
 }

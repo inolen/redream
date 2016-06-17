@@ -14,13 +14,13 @@ enum {
 // interrupts
 static const uint64_t HOLLY_INTC_MASK = 0x0000000f00000000;
 
-typedef enum {
+enum holly_interrupt_type {
   HOLLY_INTC_NRM = 0x100000000,
   HOLLY_INTC_EXT = 0x200000000,
   HOLLY_INTC_ERR = 0x300000000
-} holly_interrupt_type_t;
+};
 
-typedef enum {
+enum holly_interrupt {
   //
   // HOLLY_INTC_NRM
   //
@@ -28,7 +28,7 @@ typedef enum {
   HOLLY_INTC_PCEOVINT = HOLLY_INTC_NRM | 0x1,
   // ISP End of Render
   HOLLY_INTC_PCEOIINT = HOLLY_INTC_NRM | 0x2,
-  // tsp_t End of Render
+  // union tsp End of Render
   HOLLY_INTC_PCEOTINT = HOLLY_INTC_NRM | 0x4,
   // VBlank In
   HOLLY_INTC_PCVIINT = HOLLY_INTC_NRM | 0x8,
@@ -86,7 +86,7 @@ typedef enum {
   HOLLY_INTC_PCIOCINT = HOLLY_INTC_ERR | 0x1,
   // Hazard Processing of Strip Buffer
   HOLLY_INTC_PCHZDINT = HOLLY_INTC_ERR | 0x2,
-  // ISP/tsp_t Parameter Limit Address
+  // ISP/union tsp Parameter Limit Address
   HOLLY_INTC_TAPOFINT = HOLLY_INTC_ERR | 0x4,
   // Object List Limit Address
   HOLLY_INTC_TALOFINT = HOLLY_INTC_ERR | 0x8,
@@ -144,6 +144,6 @@ typedef enum {
   HOLLY_INTC_RESERVED2 = HOLLY_INTC_ERR | 0x40000000,
   // SH4 Accessing to Inhibited Area
   HOLLY_INTC_CIHINT = HOLLY_INTC_ERR | 0x80000000
-} holly_interrupt_t;
+};
 
 #endif

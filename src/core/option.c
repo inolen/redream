@@ -3,10 +3,10 @@
 #include "core/option.h"
 #include "core/string.h"
 
-static list_t s_options;
+static struct list s_options;
 
-static option_t *option_find(const char *name) {
-  list_for_each_entry(opt, &s_options, option_t, it) {
+static struct option *option_find(const char *name) {
+  list_for_each_entry(opt, &s_options, struct option, it) {
     if (!strcmp(opt->name, name)) {
       return opt;
     }
@@ -15,11 +15,11 @@ static option_t *option_find(const char *name) {
   return NULL;
 }
 
-void option_register(option_t *option) {
+void option_register(struct option *option) {
   list_add(&s_options, &option->it);
 }
 
-void option_unregister(option_t *option) {
+void option_unregister(struct option *option) {
   list_remove(&s_options, &option->it);
 }
 
@@ -54,7 +54,7 @@ void option_parse(int *argc, char ***argv) {
     }
 
     // lookup the option and assign the parsed value to it
-    option_t *opt = option_find(arg);
+    struct option *opt = option_find(arg);
 
     if (opt) {
       switch (opt->type) {
@@ -83,7 +83,7 @@ void option_print_help() {
   int max_name_width = 0;
   int max_desc_width = 0;
 
-  list_for_each_entry(opt, &s_options, option_t, it) {
+  list_for_each_entry(opt, &s_options, struct option, it) {
     int l = (int)strlen(opt->name);
     max_name_width = MAX(l, max_name_width);
 
@@ -91,7 +91,7 @@ void option_print_help() {
     max_desc_width = MAX(l, max_desc_width);
   }
 
-  list_for_each_entry(opt, &s_options, option_t, it) {
+  list_for_each_entry(opt, &s_options, struct option, it) {
     switch (opt->type) {
       case OPT_BOOL:
         LOG_INFO("--%-*s  %-*s  [default %s]", max_name_width, opt->name,

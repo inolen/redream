@@ -1,7 +1,7 @@
 #include "core/string.h"
 #include "jit/ir/ir.h"
 
-typedef enum {
+enum ir_token {
   TOK_EOF,
   TOK_EOL,
   TOK_COMMA,
@@ -9,33 +9,33 @@ typedef enum {
   TOK_TYPE,
   TOK_INTEGER,
   TOK_IDENTIFIER,
-} ir_token_t;
+};
 
-typedef struct {
+struct ir_lexeme {
   char s[128];
   uint64_t i;
-  ir_type_t ty;
-} ir_lexeme_t;
+  enum ir_type ty;
+};
 
-typedef struct {
+struct ir_parser {
   FILE *input;
-  ir_token_t tok;
-  ir_lexeme_t val;
-} ir_parser_t;
+  enum ir_token tok;
+  struct ir_lexeme val;
+};
 
 static const char *s_typenames[] = {"",    "i8",  "i16", "i32",
                                     "i64", "f32", "f64", "v128"};
 static const int s_num_typenames = sizeof(s_typenames) / sizeof(s_typenames[0]);
 
-static char ir_lex_get(ir_parser_t *p) {
+static char ir_lex_get(struct ir_parser *p) {
   return fgetc(p->input);
 }
 
-static void ir_lex_unget(ir_parser_t *p, char c) {
+static void ir_lex_unget(struct ir_parser *p, char c) {
   ungetc(c, p->input);
 }
 
-static void ir_lex_next(ir_parser_t *p) {
+static void ir_lex_next(struct ir_parser *p) {
   // skip past whitespace characters, except newlines
   char next;
   do {
@@ -145,7 +145,7 @@ static void ir_lex_next(ir_parser_t *p) {
   return;
 }
 
-bool ir_parse_type(ir_parser_t *p, ir_t *ir, ir_type_t *type) {
+bool ir_parse_type(struct ir_parser *p, struct ir *ir, enum ir_type *type) {
   if (p->tok != TOK_TYPE) {
     LOG_INFO("Unexpected token %d when parsing type", p->tok);
     return false;
@@ -159,7 +159,7 @@ bool ir_parse_type(ir_parser_t *p, ir_t *ir, ir_type_t *type) {
   return true;
 }
 
-bool ir_parse_op(ir_parser_t *p, ir_t *ir, ir_op_t *op) {
+bool ir_parse_op(struct ir_parser *p, struct ir *ir, enum ir_op *op) {
   if (p->tok != TOK_IDENTIFIER) {
     LOG_INFO("Unexpected token %d when parsing op", p->tok);
     return false;
@@ -183,14 +183,15 @@ bool ir_parse_op(ir_parser_t *p, ir_t *ir, ir_op_t *op) {
   // eat token
   ir_lex_next(p);
 
-  *op = (ir_op_t)i;
+  *op = (enum ir_op)i;
 
   return true;
 }
 
-bool ir_parse_value(ir_parser_t *p, ir_t *ir, ir_value_t **value) {
+bool ir_parse_value(struct ir_parser *p, struct ir *ir,
+                    struct ir_value **value) {
   // parse value type
-  ir_type_t type;
+  enum ir_type type;
   if (!ir_parse_type(p, ir, &type)) {
     return false;
   }
@@ -206,7 +207,7 @@ bool ir_parse_value(ir_parser_t *p, ir_t *ir, ir_value_t **value) {
     // lookup the slot slowly
     int slot = atoi(&ident[1]);
 
-    ir_instr_t *instr = list_first_entry(&ir->instrs, ir_instr_t, it);
+    struct ir_instr *instr = list_first_entry(&ir->instrs, struct ir_instr, it);
     while (instr) {
       if (instr->tag == slot) {
         break;
@@ -256,7 +257,7 @@ bool ir_parse_value(ir_parser_t *p, ir_t *ir, ir_value_t **value) {
   return true;
 }
 
-bool ir_parse_operator(ir_parser_t *p, ir_t *ir) {
+bool ir_parse_operator(struct ir_parser *p, struct ir *ir) {
   const char *op_str = p->val.s;
 
   if (strcmp(op_str, "=")) {
@@ -272,10 +273,10 @@ bool ir_parse_operator(ir_parser_t *p, ir_t *ir) {
   return true;
 }
 
-bool ir_parse_instr(ir_parser_t *p, ir_t *ir) {
+bool ir_parse_instr(struct ir_parser *p, struct ir *ir) {
   int slot = -1;
-  ir_type_t type = VALUE_V;
-  ir_value_t *arg[3] = {};
+  enum ir_type type = VALUE_V;
+  struct ir_value *arg[3] = {};
 
   // parse result type and slot number
   if (p->tok == TOK_TYPE) {
@@ -296,7 +297,7 @@ bool ir_parse_instr(ir_parser_t *p, ir_t *ir) {
   }
 
   // parse op
-  ir_op_t op;
+  enum ir_op op;
   if (!ir_parse_op(p, ir, &op)) {
     return false;
   }
@@ -316,7 +317,7 @@ bool ir_parse_instr(ir_parser_t *p, ir_t *ir) {
   }
 
   // create instruction
-  ir_instr_t *instr = ir_append_instr(ir, op, type);
+  struct ir_instr *instr = ir_append_instr(ir, op, type);
 
   for (int i = 0; i < 3; i++) {
     ir_set_arg(ir, instr, i, arg[i]);
@@ -327,8 +328,8 @@ bool ir_parse_instr(ir_parser_t *p, ir_t *ir) {
   return true;
 }
 
-bool ir_read(FILE *input, ir_t *ir) {
-  ir_parser_t p = {};
+bool ir_read(FILE *input, struct ir *ir) {
+  struct ir_parser p = {};
   p.input = input;
 
   while (true) {

@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "sys/memory.h"
 
-static DWORD access_to_file_flags(page_access_t access) {
+static DWORD access_to_file_flags(enum page_access access) {
   switch (access) {
     case ACC_READONLY:
       return FILE_MAP_READ;
@@ -12,7 +12,7 @@ static DWORD access_to_file_flags(page_access_t access) {
   }
 }
 
-static DWORD access_to_protection_flags(page_access_t access) {
+static DWORD access_to_protection_flags(enum page_access access) {
   switch (access) {
     case ACC_READONLY:
       return PAGE_READONLY;
@@ -37,7 +37,7 @@ size_t get_allocation_granularity() {
   return si.dwAllocationGranularity;
 }
 
-bool protect_pages(void *ptr, size_t size, page_access_t access) {
+bool protect_pages(void *ptr, size_t size, enum page_access access) {
   DWORD new_protect = access_to_protection_flags(access);
   DWORD old_protect;
   return VirtualProtect(ptr, size, new_protect, &old_protect) != 0;
@@ -53,7 +53,7 @@ bool release_pages(void *ptr, size_t size) {
 }
 
 shmem_handle_t create_shared_memory(const char *filename, size_t size,
-                                    page_access_t access) {
+                                    enum page_access access) {
   DWORD protect = access_to_protection_flags(access);
   return CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, protect | SEC_COMMIT,
                            static_cast<DWORD>(size >> 32),
@@ -61,7 +61,7 @@ shmem_handle_t create_shared_memory(const char *filename, size_t size,
 }
 
 bool map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
-                       size_t size, page_access_t access) {
+                       size_t size, enum page_access access) {
   DWORD file_flags = access_to_file_flags(access);
   void *ptr =
       MapViewOfFileEx(handle, file_flags, static_cast<DWORD>(offset >> 32),

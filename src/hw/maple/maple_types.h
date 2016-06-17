@@ -1,7 +1,7 @@
 #ifndef MAPLE_TYPES_H
 #define MAPLE_TYPES_H
 
-typedef enum {
+enum maple_fn {
   FN_CONTROLLER = 0x01000000,
   FN_MEMORYCARD = 0x02000000,
   FN_LCDDISPLAY = 0x04000000,
@@ -12,9 +12,9 @@ typedef enum {
   FN_LIGHTGUN = 0x80000000,
   FN_PURUPURUPACK = 0x00010000,
   FN_MOUSE = 0x00020000
-} maple_fn_t;
+};
 
-typedef enum {
+enum maple_cmd {
   CMD_REQDEVINFO = 1,
   CMD_REQDEVINFOEX = 2,
   CMD_RESETDEV = 3,
@@ -33,9 +33,9 @@ typedef enum {
   CMD_UNKNOWNCMD = -3,
   CMD_RESENDCMD = -4,
   CMD_FILEERROR = -5
-} maple_cmd_t;
+};
 
-typedef union {
+union maple_header {
   struct {
     uint32_t command : 8;
     uint32_t recv_addr : 8;
@@ -43,14 +43,14 @@ typedef union {
     uint32_t num_words : 8;
   };
   uint32_t full;
-} maple_header_t;
+};
 
-typedef struct {
-  maple_header_t header;
+struct maple_frame {
+  union maple_header header;
   uint32_t params[0xff];
-} maple_frame_t;
+};
 
-typedef union {
+union maple_transfer {
   struct {
     uint32_t length : 8;
     uint32_t pattern : 3;
@@ -61,9 +61,9 @@ typedef union {
     uint32_t result_addr : 32;
   };
   uint64_t full;
-} maple_transfer_t;
+};
 
-typedef struct {
+struct maple_device_info {
   uint32_t function;
   uint32_t function_data[3];
   uint8_t area_code;
@@ -72,6 +72,6 @@ typedef struct {
   char product_license[60];
   uint16_t standby_power;
   uint16_t max_power;
-} maple_deviceinfo_t;
+};
 
 #endif

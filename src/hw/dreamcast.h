@@ -8,20 +8,19 @@
 #include "hw/memory.h"
 #include "ui/keycode.h"
 
-struct address_map_s;
-struct aica_s;
-struct arm_s;
-struct debugger_s;
-struct device_s;
-struct dreamcast_s;
-struct gdrom_s;
-struct holly_s;
-struct maple_s;
-struct memory_s;
-struct pvr_s;
-struct scheduler_s;
-struct sh4_s;
-struct ta_s;
+struct aica;
+struct arm;
+struct debugger;
+struct device;
+struct dreamcast;
+struct gdrom;
+struct holly;
+struct maple;
+struct memory;
+struct pvr;
+struct scheduler;
+struct sh4;
+struct ta;
 
 //
 // register access helpers
@@ -40,102 +39,106 @@ typedef void (*reg_write_cb)(void *, uint32_t, uint32_t *);
 //
 // device interfaces
 //
-typedef int (*device_num_regs_cb)(struct device_s *);
-typedef void (*device_step_cb)(struct device_s *);
-typedef void (*device_add_bp_cb)(struct device_s *, int, uint32_t);
-typedef void (*device_rem_bp_cb)(struct device_s *, int, uint32_t);
-typedef void (*device_read_mem_cb)(struct device_s *, uint32_t, uint8_t *, int);
-typedef void (*device_read_reg_cb)(struct device_s *, int, uint64_t *, int *);
 
-typedef struct debug_interface_s {
+// debug interface
+typedef int (*device_num_regs_cb)(struct device *);
+typedef void (*device_step_cb)(struct device *);
+typedef void (*device_add_bp_cb)(struct device *, int, uint32_t);
+typedef void (*device_rem_bp_cb)(struct device *, int, uint32_t);
+typedef void (*device_read_mem_cb)(struct device *, uint32_t, uint8_t *, int);
+typedef void (*device_read_reg_cb)(struct device *, int, uint64_t *, int *);
+
+struct debug_interface {
   device_num_regs_cb num_regs;
   device_step_cb step;
   device_add_bp_cb add_bp;
   device_rem_bp_cb rem_bp;
   device_read_mem_cb read_mem;
   device_read_reg_cb read_reg;
-} debug_interface_t;
+};
 
-typedef void (*device_set_pc_cb)(struct device_s *, uint32_t);
-typedef void (*device_run_cb)(struct device_s *, int64_t);
+// execute interface
+typedef void (*device_run_cb)(struct device *, int64_t);
 
-typedef struct {
+struct execute_interface {
   device_run_cb run;
   bool suspended;
-} execute_interface_t;
+};
 
-execute_interface_t *execute_interface_create(device_run_cb run);
-void execute_interface_destroy(execute_interface_t *execute);
+struct execute_interface *execute_interface_create(device_run_cb run);
+void execute_interface_destroy(struct execute_interface *execute);
 
-typedef struct {
+// memory interface
+struct memory_interface {
   address_map_cb mapper;
-  struct address_space_s *space;
-} memory_interface_t;
+  struct address_space *space;
+};
 
-memory_interface_t *memory_interface_create(struct dreamcast_s *dc,
-                                            address_map_cb mapper);
-void memory_interface_destroy(memory_interface_t *memory);
+struct memory_interface *memory_interface_create(struct dreamcast *dc,
+                                                 address_map_cb mapper);
+void memory_interface_destroy(struct memory_interface *memory);
 
-typedef void (*device_paint_cb)(struct device_s *, bool);
-typedef void (*device_keydown_cb)(struct device_s *, keycode_t, int16_t);
+typedef void (*device_paint_cb)(struct device *, bool);
+typedef void (*device_keydown_cb)(struct device *, enum keycode, int16_t);
 
-typedef struct {
+// winder interface
+struct window_interface {
   device_paint_cb paint;
   device_keydown_cb keydown;
-} window_interface_t;
+};
 
-window_interface_t *window_interface_create(device_paint_cb paint,
-                                            device_keydown_cb keydown);
-void window_interface_destroy(window_interface_t *window);
+struct window_interface *window_interface_create(device_paint_cb paint,
+                                                 device_keydown_cb keydown);
+void window_interface_destroy(struct window_interface *window);
 
 //
 // device
 //
-typedef bool (*device_init_cb)(struct device_s *);
+typedef bool (*device_init_cb)(struct device *);
 
-typedef struct device_s {
-  struct dreamcast_s *dc;
+struct device {
+  struct dreamcast *dc;
   const char *name;
   device_init_cb init;
-  debug_interface_t *debug;
-  execute_interface_t *execute;
-  memory_interface_t *memory;
-  window_interface_t *window;
-  list_node_t it;
-} device_t;
+  struct debug_interface *debug;
+  struct execute_interface *execute;
+  struct memory_interface *memory;
+  struct window_interface *window;
+  struct list_node it;
+};
 
 //
 // machine
 //
-typedef struct dreamcast_s {
-  struct debugger_s *debugger;
-  struct memory_s *memory;
-  struct scheduler_s *scheduler;
-  struct sh4_s *sh4;
-  struct arm_s *arm;
-  struct aica_s *aica;
-  struct holly_s *holly;
-  struct gdrom_s *gdrom;
-  struct maple_s *maple;
-  struct pvr_s *pvr;
-  struct ta_s *ta;
+struct dreamcast {
+  struct debugger *debugger;
+  struct memory *memory;
+  struct scheduler *scheduler;
+  struct sh4 *sh4;
+  struct arm *arm;
+  struct aica *aica;
+  struct holly *holly;
+  struct gdrom *gdrom;
+  struct maple *maple;
+  struct pvr *pvr;
+  struct ta *ta;
   bool suspended;
-  list_t devices;
-} dreamcast_t;
+  struct list devices;
+};
 
-void *dc_create_device(dreamcast_t *dc, size_t size, const char *name,
+void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
                        device_init_cb init);
-device_t *dc_get_device(dreamcast_t *dc, const char *name);
-void dc_destroy_device(device_t *dev);
+struct device *dc_get_device(struct dreamcast *dc, const char *name);
+void dc_destroy_device(struct device *dev);
 
-bool dc_init(dreamcast_t *dc);
-void dc_suspend(dreamcast_t *dc);
-void dc_resume(dreamcast_t *dc);
-void dc_tick(dreamcast_t *dc, int64_t ns);
-void dc_paint(dreamcast_t *dc, bool show_main_menu);
-void dc_keydown(dreamcast_t *dc, keycode_t code, int16_t value);
+bool dc_init(struct dreamcast *dc);
+void dc_suspend(struct dreamcast *dc);
+void dc_resume(struct dreamcast *dc);
+void dc_tick(struct dreamcast *dc, int64_t ns);
+void dc_paint(struct dreamcast *dc, bool show_main_menu);
+void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value);
 
-dreamcast_t *dc_create(void *rb);
-void dc_destroy(dreamcast_t *dc);
+struct dreamcast *dc_create(void *rb);
+void dc_destroy(struct dreamcast *dc);
 
 #endif

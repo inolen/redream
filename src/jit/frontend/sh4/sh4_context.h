@@ -26,13 +26,13 @@ enum {
   FR = 0x00200000
 };
 
-typedef struct sh4_context_s {
+struct sh4_ctx {
   // IRBuilder only supports 64-bit arguments for external calls atm
   void *sh4;
-  void (*InvalidInstruction)(struct sh4_context_s *, uint64_t addr);
-  void (*Prefetch)(struct sh4_context_s *, uint64_t addr);
-  void (*SRUpdated)(struct sh4_context_s *, uint64_t old_sr);
-  void (*FPSCRUpdated)(struct sh4_context_s *, uint64_t old_fpscr);
+  void (*InvalidInstruction)(struct sh4_ctx *, uint64_t addr);
+  void (*Prefetch)(struct sh4_ctx *, uint64_t addr);
+  void (*SRUpdated)(struct sh4_ctx *, uint64_t old_sr);
+  void (*FPSCRUpdated)(struct sh4_ctx *, uint64_t old_fpscr);
 
   // the main dispatch loop is ran until num_cycles is <= 0
   int32_t num_cycles;
@@ -75,6 +75,6 @@ typedef struct sh4_context_s {
   // {fr1, fr0, fr3, fr2}. however, due to the way the FV registers are
   // used (FIPR and FTRV) this doesn't actually affect the results
   uint32_t fr[16], xf[16];
-} sh4_context_t;
+};
 
 #endif

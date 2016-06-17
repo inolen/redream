@@ -2,37 +2,39 @@
 #include "core/interval_tree.h"
 #include "core/math.h"
 
-static int interval_tree_cmp(const interval_node_t *lhs,
-                             const interval_node_t *rhs);
-static void interval_tree_augment_propagate(rb_tree_t *t, interval_node_t *n);
-static void interval_tree_augment_rotate(rb_tree_t *t, interval_node_t *oldn,
-                                         interval_node_t *newn);
+static int interval_tree_cmp(const struct interval_node *lhs,
+                             const struct interval_node *rhs);
+static void interval_tree_augment_propagate(struct rb_tree *t,
+                                            struct interval_node *n);
+static void interval_tree_augment_rotate(struct rb_tree *t,
+                                         struct interval_node *oldn,
+                                         struct interval_node *newn);
 
-rb_callback_t interval_tree_cb = {
+struct rb_callbacks interval_tree_cb = {
     (rb_cmp_cb)&interval_tree_cmp,
     (rb_augment_propagate_cb)&interval_tree_augment_propagate,
     (rb_augment_rotate_cb)&interval_tree_augment_rotate,
 };
 
-static interval_type_t interval_tree_node_max(interval_node_t *n) {
+static interval_type_t interval_tree_node_max(struct interval_node *n) {
   return n ? n->max : 0;
 }
 
-static int interval_tree_node_size(interval_node_t *n) {
+static int interval_tree_node_size(struct interval_node *n) {
   return n ? n->size : 0;
 }
 
-static int interval_tree_node_height(interval_node_t *n) {
+static int interval_tree_node_height(struct interval_node *n) {
   return n ? n->height : 0;
 }
 
-static void interval_tree_fix_counts(interval_node_t *n) {
+static void interval_tree_fix_counts(struct interval_node *n) {
   if (!n) {
     return;
   }
 
-  interval_node_t *l = INTERVAL_NODE(n->base.left);
-  interval_node_t *r = INTERVAL_NODE(n->base.right);
+  struct interval_node *l = INTERVAL_NODE(n->base.left);
+  struct interval_node *r = INTERVAL_NODE(n->base.right);
 
   n->size = 1 + interval_tree_node_size(l) + interval_tree_node_size(r);
   n->height =
@@ -41,27 +43,29 @@ static void interval_tree_fix_counts(interval_node_t *n) {
       MAX(MAX(n->high, interval_tree_node_max(l)), interval_tree_node_max(r));
 }
 
-static void interval_tree_augment_propagate(rb_tree_t *t, interval_node_t *n) {
+static void interval_tree_augment_propagate(struct rb_tree *t,
+                                            struct interval_node *n) {
   while (n) {
     interval_tree_fix_counts(n);
     n = INTERVAL_NODE(n->base.parent);
   }
 }
 
-static void interval_tree_augment_rotate(rb_tree_t *t, interval_node_t *oldn,
-                                         interval_node_t *newn) {
+static void interval_tree_augment_rotate(struct rb_tree *t,
+                                         struct interval_node *oldn,
+                                         struct interval_node *newn) {
   interval_tree_fix_counts(oldn);
   interval_tree_fix_counts(newn);
   interval_tree_fix_counts(INTERVAL_NODE(newn->base.parent));
 }
 
-static int interval_tree_intersects(const interval_node_t *n,
+static int interval_tree_intersects(const struct interval_node *n,
                                     interval_type_t low, interval_type_t high) {
   return high >= n->low && n->high >= low;
 }
 
-static int interval_tree_cmp(const interval_node_t *lhs,
-                             const interval_node_t *rhs) {
+static int interval_tree_cmp(const struct interval_node *lhs,
+                             const struct interval_node *rhs) {
   int cmp = lhs->low - rhs->low;
 
   if (!cmp) {
@@ -71,10 +75,10 @@ static int interval_tree_cmp(const interval_node_t *lhs,
   return cmp;
 }
 
-static interval_node_t *interval_tree_min_interval(interval_node_t *n,
-                                                   interval_type_t low,
-                                                   interval_type_t high) {
-  interval_node_t *min = NULL;
+static struct interval_node *interval_tree_min_interval(struct interval_node *n,
+                                                        interval_type_t low,
+                                                        interval_type_t high) {
+  struct interval_node *min = NULL;
 
   while (n) {
     int intersects = interval_tree_intersects(n, low, high);
@@ -102,13 +106,12 @@ static interval_node_t *interval_tree_min_interval(interval_node_t *n,
   return min;
 }
 
-static interval_node_t *interval_tree_next_interval(interval_node_t *n,
-                                                    interval_type_t low,
-                                                    interval_type_t high) {
+static struct interval_node *interval_tree_next_interval(
+    struct interval_node *n, interval_type_t low, interval_type_t high) {
   while (n) {
     // try to find the minimum node in the right subtree
     if (n->base.right) {
-      interval_node_t *min =
+      struct interval_node *min =
           interval_tree_min_interval(INTERVAL_NODE(n->base.right), low, high);
       if (min) {
         return min;
@@ -116,7 +119,7 @@ static interval_node_t *interval_tree_next_interval(interval_node_t *n,
     }
 
     // else, move up the tree until a left child link is traversed
-    interval_node_t *c = n;
+    struct interval_node *c = n;
     n = INTERVAL_NODE(n->base.parent);
     while (n && INTERVAL_NODE(n->base.right) == c) {
       c = n;
@@ -130,25 +133,25 @@ static interval_node_t *interval_tree_next_interval(interval_node_t *n,
   return NULL;
 }
 
-void interval_tree_insert(rb_tree_t *t, interval_node_t *n) {
+void interval_tree_insert(struct rb_tree *t, struct interval_node *n) {
   rb_insert(t, RB_NODE(n), &interval_tree_cb);
 }
 
-void interval_tree_remove(rb_tree_t *t, interval_node_t *n) {
+void interval_tree_remove(struct rb_tree *t, struct interval_node *n) {
   rb_unlink(t, RB_NODE(n), &interval_tree_cb);
 }
 
-void interval_tree_clear(rb_tree_t *t) {
+void interval_tree_clear(struct rb_tree *t) {
   t->root = NULL;
 }
 
-interval_node_t *interval_tree_find(rb_tree_t *t, interval_type_t low,
-                                    interval_type_t high) {
-  interval_node_t *n = INTERVAL_NODE(t->root);
+struct interval_node *interval_tree_find(struct rb_tree *t, interval_type_t low,
+                                         interval_type_t high) {
+  struct interval_node *n = INTERVAL_NODE(t->root);
 
   while (n) {
-    interval_node_t *l = INTERVAL_NODE(n->base.left);
-    interval_node_t *r = INTERVAL_NODE(n->base.right);
+    struct interval_node *l = INTERVAL_NODE(n->base.left);
+    struct interval_node *r = INTERVAL_NODE(n->base.right);
 
     if (interval_tree_intersects(n, low, high)) {
       return n;
@@ -162,16 +165,17 @@ interval_node_t *interval_tree_find(rb_tree_t *t, interval_type_t low,
   return NULL;
 }
 
-interval_node_t *interval_tree_iter_first(rb_tree_t *t, interval_type_t low,
-                                          interval_type_t high,
-                                          interval_tree_iter_t *it) {
+struct interval_node *interval_tree_iter_first(struct rb_tree *t,
+                                               interval_type_t low,
+                                               interval_type_t high,
+                                               struct interval_tree_it *it) {
   it->low = low;
   it->high = high;
   it->n = interval_tree_min_interval(INTERVAL_NODE(t->root), low, high);
   return it->n;
 }
 
-interval_node_t *interval_tree_iter_next(interval_tree_iter_t *it) {
+struct interval_node *interval_tree_iter_next(struct interval_tree_it *it) {
   it->n = interval_tree_next_interval(it->n, it->low, it->high);
   return it->n;
 }
