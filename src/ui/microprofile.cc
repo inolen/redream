@@ -45,7 +45,9 @@ static struct microprofile *s_mp;
   d[2].member = v;       \
   d[5].member = v
 
-static void mp_onpostpaint(struct microprofile *mp) {
+static void mp_onpostpaint(void *data) {
+  struct microprofile *mp = reinterpret_cast<struct microprofile *>(data);
+
   s_mp = mp;
 
   // update draw surfaces
@@ -71,8 +73,7 @@ static void mp_onpostpaint(struct microprofile *mp) {
   mp->num_verts = 0;
 }
 
-static void mp_onkeydown(struct microprofile *mp, enum keycode code,
-                         int16_t value) {
+static void mp_onkeydown(void *data, enum keycode code, int16_t value) {
   if (code == K_F2) {
     if (value) {
       MicroProfileToggleDisplayMode();
@@ -84,7 +85,7 @@ static void mp_onkeydown(struct microprofile *mp, enum keycode code,
   }
 }
 
-static void mp_onmousemove(struct microprofile *mp, int x, int y) {
+static void mp_onmousemove(void *data, int x, int y) {
   MicroProfileMousePosition(x, y, 0);
 }
 
@@ -259,13 +260,7 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
 
 struct microprofile *mp_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL,
-      NULL,
-      (window_postpaint_cb)&mp_onpostpaint,
-      (window_keydown_cb)&mp_onkeydown,
-      NULL,
-      (window_mousemove_cb)&mp_onmousemove,
-      NULL};
+      NULL, NULL, &mp_onpostpaint, &mp_onkeydown, NULL, &mp_onmousemove, NULL};
 
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));

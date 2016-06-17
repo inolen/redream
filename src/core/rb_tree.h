@@ -21,15 +21,10 @@ struct rb_tree {
   struct rb_node *root;
 };
 
-typedef int (*rb_cmp_cb)(const struct rb_node *, const struct rb_node *);
-typedef void (*rb_augment_propagate_cb)(struct rb_tree *, struct rb_node *);
-typedef void (*rb_augment_rotate_cb)(struct rb_tree *, struct rb_node *,
-                                     struct rb_node *);
-
 struct rb_callbacks {
-  rb_cmp_cb cmp;
-  rb_augment_propagate_cb propagate;
-  rb_augment_rotate_cb rotate;
+  int (*cmp)(const struct rb_node *, const struct rb_node *);
+  void (*propagate)(struct rb_tree *, struct rb_node *);
+  void (*rotate)(struct rb_tree *, struct rb_node *, struct rb_node *);
 };
 
 void rb_link(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb);

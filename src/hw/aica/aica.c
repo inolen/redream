@@ -86,7 +86,8 @@ define_write_wave(w8, uint8_t);
 define_write_wave(w16, uint16_t);
 define_write_wave(w32, uint32_t);
 
-static bool aica_init(struct aica *aica) {
+static bool aica_init(struct device *dev) {
+  struct aica *aica = container_of(dev, struct aica, base);
   struct dreamcast *dc = aica->base.dc;
 
   aica->arm = dc->arm;
@@ -100,8 +101,8 @@ static bool aica_init(struct aica *aica) {
 }
 
 struct aica *aica_create(struct dreamcast *dc) {
-  struct aica *aica = dc_create_device(dc, sizeof(struct aica), "aica",
-                                       (device_init_cb)&aica_init);
+  struct aica *aica =
+      dc_create_device(dc, sizeof(struct aica), "aica", &aica_init);
   return aica;
 }
 

@@ -6,11 +6,14 @@ struct arm {
   struct device base;
 };
 
-static bool arm_init(struct arm *arm) {
+static bool arm_init(struct device *dev) {
+  // struct arm *arm = container_of(dev, struct arm, base);
   return true;
 }
 
-static void arm_run(struct arm *arm, int64_t ns) {}
+static void arm_run(struct device *dev, int64_t ns) {
+  // struct arm *arm = container_of(dev, struct arm, base);
+}
 
 void arm_suspend(struct arm *arm) {
   arm->base.execute->suspended = true;
@@ -21,9 +24,8 @@ void arm_resume(struct arm *arm) {
 }
 
 struct arm *arm_create(struct dreamcast *dc) {
-  struct arm *arm = dc_create_device(dc, sizeof(struct arm), "arm",
-                                     (device_init_cb)&arm_init);
-  arm->base.execute = execute_interface_create((device_run_cb)&arm_run);
+  struct arm *arm = dc_create_device(dc, sizeof(struct arm), "arm", &arm_init);
+  arm->base.execute = execute_interface_create(&arm_run);
   return arm;
 }
 

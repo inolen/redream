@@ -107,10 +107,10 @@ typedef struct tracer_s {
   struct list free_textures;
 } tracer_t;
 
-static int tracer_texture_cmp(const struct rb_node *lhs_it,
-                              const struct rb_node *rhs_it) {
-  const texture_t *lhs = rb_entry(lhs_it, const texture_t, live_it);
-  const texture_t *rhs = rb_entry(rhs_it, const texture_t, live_it);
+static int tracer_texture_cmp(const struct rb_node *rb_lhs,
+                              const struct rb_node *rb_rhs) {
+  const texture_t *lhs = rb_entry(rb_lhs, const texture_t, live_it);
+  const texture_t *rhs = rb_entry(rb_rhs, const texture_t, live_it);
   return tr_get_texture_key(lhs->tsp, lhs->tcw) -
          tr_get_texture_key(rhs->tsp, rhs->tcw);
 }

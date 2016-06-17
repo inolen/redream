@@ -288,7 +288,8 @@ REG_W32(struct holly *hl, SB_PDST) {
   LOG_WARNING("Ignored pvr DMA request");
 }
 
-static bool holly_init(struct holly *hl) {
+static bool holly_init(struct device *dev) {
+  struct holly *hl = container_of(dev, struct holly, base);
   struct dreamcast *dc = hl->base.dc;
 
   hl->gdrom = dc->gdrom;
@@ -387,8 +388,8 @@ void holly_clear_interrupt(struct holly *hl, enum holly_interrupt intr) {
 }
 
 struct holly *holly_create(struct dreamcast *dc) {
-  struct holly *hl = dc_create_device(dc, sizeof(struct holly), "holly",
-                                      (device_init_cb)&holly_init);
+  struct holly *hl =
+      dc_create_device(dc, sizeof(struct holly), "holly", &holly_init);
 
   return hl;
 }

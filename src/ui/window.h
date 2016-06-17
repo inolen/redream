@@ -16,22 +16,14 @@ static const int NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1;
 static const int NUM_JOYSTICK_HATS =
     ((K_HAT15 - K_HAT0) + 1) / 4;  // 4 keys per hat
 
-typedef void (*window_prepaint_cb)(void *data);
-typedef void (*window_paint_cb)(void *data, bool show_main_menu);
-typedef void (*window_postpaint_cb)(void *data);
-typedef void (*window_keydown_cb)(void *data, enum keycode code, int16_t value);
-typedef void (*window_textinput_cb)(void *data, const char *text);
-typedef void (*window_mousemove_cb)(void *data, int x, int y);
-typedef void (*window_close_cb)(void *data);
-
 struct window_callbacks {
-  window_prepaint_cb prepaint;
-  window_paint_cb paint;
-  window_postpaint_cb postpaint;
-  window_keydown_cb keydown;
-  window_textinput_cb textinput;
-  window_mousemove_cb mousemove;
-  window_close_cb close;
+  void (*prepaint)(void *data);
+  void (*paint)(void *data, bool show_main_menu);
+  void (*postpaint)(void *data);
+  void (*keydown)(void *data, enum keycode code, int16_t value);
+  void (*textinput)(void *data, const char *text);
+  void (*mousemove)(void *data, int x, int y);
+  void (*close)(void *data);
 };
 
 struct window;

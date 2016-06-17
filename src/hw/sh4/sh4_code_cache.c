@@ -15,22 +15,22 @@
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 
-static int block_map_cmp(const struct rb_node *lhs_it,
-                         const struct rb_node *rhs_it) {
+static int block_map_cmp(const struct rb_node *rb_lhs,
+                         const struct rb_node *rb_rhs) {
   const struct sh4_block *lhs =
-      container_of(lhs_it, const struct sh4_block, it);
+      container_of(rb_lhs, const struct sh4_block, it);
   const struct sh4_block *rhs =
-      container_of(rhs_it, const struct sh4_block, it);
+      container_of(rb_rhs, const struct sh4_block, it);
 
   return (int)((int64_t)lhs->guest_addr - (int64_t)rhs->guest_addr);
 }
 
-static int reverse_block_map_cmp(const struct rb_node *lhs_it,
-                                 const struct rb_node *rhs_it) {
+static int reverse_block_map_cmp(const struct rb_node *rb_lhs,
+                                 const struct rb_node *rb_rhs) {
   const struct sh4_block *lhs =
-      container_of(lhs_it, const struct sh4_block, rit);
+      container_of(rb_lhs, const struct sh4_block, rit);
   const struct sh4_block *rhs =
-      container_of(rhs_it, const struct sh4_block, rit);
+      container_of(rb_rhs, const struct sh4_block, rit);
 
   return (int)(lhs->host_addr - rhs->host_addr);
 }
@@ -102,8 +102,9 @@ static struct sh4_block *sh4_cache_lookup_block_reverse(
   return block;
 }
 
-static bool sh4_cache_handle_exception(struct sh4_cache *cache,
-                                       struct exception *ex) {
+static bool sh4_cache_handle_exception(void *data, struct exception *ex) {
+  struct sh4_cache *cache = data;
+
   // see if there is an assembled block corresponding to the current pc
   struct sh4_block *block =
       sh4_cache_lookup_block_reverse(cache, (const uint8_t *)ex->pc);
@@ -286,8 +287,8 @@ struct sh4_cache *sh4_cache_create(const struct mem_interface *memif,
 
   // add exception handler to help recompile blocks when protected memory is
   // accessed
-  cache->exc_handler = exception_handler_add(
-      cache, (exception_handler_cb)&sh4_cache_handle_exception);
+  cache->exc_handler =
+      exception_handler_add(cache, &sh4_cache_handle_exception);
 
   // setup parser and emitter
   cache->frontend = sh4_frontend_create();

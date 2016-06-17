@@ -4,7 +4,9 @@
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 
-static void pvr_next_scanline(struct pvr *pvr) {
+static void pvr_next_scanline(void *data) {
+  struct pvr *pvr = data;
+
   uint32_t num_scanlines = pvr->SPG_LOAD->vcount + 1;
   if (pvr->current_scanline > num_scanlines) {
     pvr->current_scanline = 0;
@@ -37,9 +39,8 @@ static void pvr_next_scanline(struct pvr *pvr) {
   // }
 
   // reschedule
-  pvr->line_timer =
-      scheduler_start_timer(pvr->scheduler, (timer_cb)&pvr_next_scanline, pvr,
-                            HZ_TO_NANO(pvr->line_clock));
+  pvr->line_timer = scheduler_start_timer(pvr->scheduler, &pvr_next_scanline,
+                                          pvr, HZ_TO_NANO(pvr->line_clock));
 }
 
 static void pvr_reconfigure_spg(struct pvr *pvr) {
@@ -67,9 +68,8 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
     pvr->line_timer = NULL;
   }
 
-  pvr->line_timer =
-      scheduler_start_timer(pvr->scheduler, (timer_cb)&pvr_next_scanline, pvr,
-                            HZ_TO_NANO(pvr->line_clock));
+  pvr->line_timer = scheduler_start_timer(pvr->scheduler, &pvr_next_scanline,
+                                          pvr, HZ_TO_NANO(pvr->line_clock));
 }
 
 static uint32_t pvr_reg_r32(struct pvr *pvr, uint32_t addr) {
@@ -153,7 +153,8 @@ REG_W32(struct pvr *pvr, FB_R_CTRL) {
   pvr_reconfigure_spg(pvr);
 }
 
-static bool pvr_init(struct pvr *pvr) {
+static bool pvr_init(struct device *dev) {
+  struct pvr *pvr = container_of(dev, struct pvr, base);
   struct dreamcast *dc = pvr->base.dc;
 
   pvr->scheduler = dc->scheduler;
@@ -187,8 +188,7 @@ static bool pvr_init(struct pvr *pvr) {
 }
 
 struct pvr *pvr_create(struct dreamcast *dc) {
-  struct pvr *pvr = dc_create_device(dc, sizeof(struct pvr), "pvr",
-                                     (device_init_cb)&pvr_init);
+  struct pvr *pvr = dc_create_device(dc, sizeof(struct pvr), "pvr", &pvr_init);
 
   return pvr;
 }
