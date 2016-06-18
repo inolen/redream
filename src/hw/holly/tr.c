@@ -125,10 +125,10 @@ static void tr_register_texture(void *data, struct texture_reg *reg) {
   const struct tile_ctx *ctx = reg->ctx;
   union tsp tsp = reg->tsp;
   union tcw tcw = reg->tcw;
-  const uint8_t *palette_data = reg->palette;
-  const uint8_t *texture_data = reg->data;
-  const uint8_t *input = texture_data;
-  const uint8_t *output = texture_data;
+  const uint8_t *palette = reg->palette;
+  const uint8_t *texture = reg->texture;
+  const uint8_t *input = texture;
+  const uint8_t *output = texture;
 
   // textures are either twiddled and vq compressed, twiddled and uncompressed
   // or planar
@@ -167,7 +167,7 @@ static void tr_register_texture(void *data, struct texture_reg *reg) {
 
   // used by vq compressed textures
   static const int codebook_size = 256 * 8;
-  const uint8_t *codebook = texture_data;
+  const uint8_t *codebook = texture;
   const uint8_t *index = input + codebook_size;
 
   enum pxl_format pixel_fmt = PXL_INVALID;
@@ -225,7 +225,7 @@ static void tr_register_texture(void *data, struct texture_reg *reg) {
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           convert_pal4_ARGB4444_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette_data, width,
+                                         (const uint32_t *)palette, width,
                                          height);
           break;
 
@@ -243,14 +243,14 @@ static void tr_register_texture(void *data, struct texture_reg *reg) {
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           convert_pal8_ARGB4444_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette_data, width,
+                                         (const uint32_t *)palette, width,
                                          height);
           break;
 
         case TA_PAL_ARGB8888:
           pixel_fmt = PXL_RGBA8888;
           convert_pal8_ARGB8888_RGBA8888(input, (uint32_t *)converted,
-                                         (const uint32_t *)palette_data, width,
+                                         (const uint32_t *)palette, width,
                                          height);
           break;
 

@@ -1,4 +1,3 @@
-// #include <imgui.h>
 #include <string.h>
 #include "core/list.h"
 #include "core/profiler.h"
@@ -592,7 +591,7 @@ static texture_handle_t ta_get_texture(void *data, const struct tile_ctx *ctx,
   reg.tsp = tsp;
   reg.tcw = tcw;
   reg.palette = palette;
-  reg.data = texture;
+  reg.texture = texture;
   register_cb(register_data, &reg);
 
   // insert into the cache

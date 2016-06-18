@@ -18,7 +18,7 @@ struct texture_reg {
   union tsp tsp;
   union tcw tcw;
   const uint8_t *palette;
-  const uint8_t *data;
+  const uint8_t *texture;
 
   // texture registration output. normally, the handle is the only information
   // needed, but the rest is used by the tracer for debugging purposes
