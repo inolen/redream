@@ -1,4 +1,3 @@
-// #include <imgui.h>
 #include "core/math.h"
 #include "core/profiler.h"
 #include "core/string.h"

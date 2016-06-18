@@ -3,7 +3,6 @@
 #include "core/assert.h"
 #include "core/list.h"
 #include "renderer/backend.h"
-#include "ui/imgui.h"
 #include "ui/microprofile.h"
 #include "ui/window.h"
 
@@ -19,7 +18,6 @@ struct window_listener {
 struct window {
   SDL_Window *handle;
   struct rb *rb;
-  struct imgui *imgui;
   struct microprofile *mp;
   int width;
   int height;
@@ -923,14 +921,6 @@ struct window *win_create() {
     return NULL;
   }
 
-  // setup imgui
-  win->imgui = imgui_create(win);
-  if (!win->imgui) {
-    LOG_WARNING("ImGui creation failed");
-    win_destroy(win);
-    return NULL;
-  }
-
   // setup microprofile
   win->mp = mp_create(win);
   if (!win->mp) {
@@ -945,10 +935,6 @@ struct window *win_create() {
 void win_destroy(struct window *win) {
   if (win->mp) {
     mp_destroy(win->mp);
-  }
-
-  if (win->imgui) {
-    imgui_destroy(win->imgui);
   }
 
   if (win->rb) {

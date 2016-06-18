@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
     // tracer_run(tracer, load);
     // tracer_destroy(tracer);
   } else {
-    struct emu_s *emu = emu_create(window);
+    struct emu *emu = emu_create(window);
     emu_run(emu, load);
     emu_destroy(emu);
   }

@@ -88,11 +88,6 @@ add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/glew-1.13.0/include)
 list(APPEND REDREAM_LIBS glew_s)
 
-# imgui
-add_library(imgui STATIC deps/imgui-1.47/imgui.cpp deps/imgui-1.47/imgui_draw.cpp)
-list(APPEND REDREAM_INCLUDE_DIRS deps/imgui-1.47)
-list(APPEND REDREAM_LIBS imgui)
-
 # inih
 add_library(inih STATIC deps/inih/ini.c)
 list(APPEND REDREAM_INCLUDE_DIRS deps/inih)
@@ -100,9 +95,6 @@ list(APPEND REDREAM_LIBS inih)
 
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
-
-# nuklear
-list(APPEND REDREAM_INCLUDE_DIRS deps/nuklear)
 
 # xbyak
 list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
@@ -182,7 +174,6 @@ set(REDREAM_SOURCES
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c
-  src/ui/imgui.cc
   src/ui/microprofile.cc
   src/ui/keycode.c
   src/ui/window.c

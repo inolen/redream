@@ -13,14 +13,14 @@ DEFINE_OPTION_STRING(bios, "/Users/inolen/projects/dreamcast/dc_boot.bin",
 DEFINE_OPTION_STRING(flash, "/Users/inolen/projects/dreamcast/dc_flash.bin",
                      "Path to flash ROM");
 
-typedef struct emu_s {
+struct emu {
   struct window *window;
   struct window_listener *listener;
   struct dreamcast *dc;
   bool running;
-} emu_t;
+};
 
-static bool emu_load_bios(emu_t *emu, const char *path) {
+static bool emu_load_bios(struct emu *emu, const char *path) {
   static const int BIOS_BEGIN = 0x00000000;
   static const int BIOS_SIZE = 0x00200000;
 
@@ -52,7 +52,7 @@ static bool emu_load_bios(emu_t *emu, const char *path) {
   return true;
 }
 
-static bool emu_load_flash(emu_t *emu, const char *path) {
+static bool emu_load_flash(struct emu *emu, const char *path) {
   static const int FLASH_BEGIN = 0x00200000;
   static const int FLASH_SIZE = 0x00020000;
 
@@ -84,7 +84,7 @@ static bool emu_load_flash(emu_t *emu, const char *path) {
   return true;
 }
 
-static bool emu_launch_bin(emu_t *emu, const char *path) {
+static bool emu_launch_bin(struct emu *emu, const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
     return false;
@@ -110,7 +110,7 @@ static bool emu_launch_bin(emu_t *emu, const char *path) {
   return true;
 }
 
-static bool emu_launch_gdi(emu_t *emu, const char *path) {
+static bool emu_launch_gdi(struct emu *emu, const char *path) {
   struct disc *disc = disc_create_gdi(path);
 
   if (!disc) {
@@ -124,13 +124,13 @@ static bool emu_launch_gdi(emu_t *emu, const char *path) {
 }
 
 static void emu_onpaint(void *data, bool show_main_menu) {
-  emu_t *emu = data;
+  struct emu *emu = data;
 
   dc_paint(emu->dc, show_main_menu);
 }
 
 static void emu_onkeydown(void *data, enum keycode code, int16_t value) {
-  emu_t *emu = data;
+  struct emu *emu = data;
 
   if (code == K_F1) {
     if (value) {
@@ -143,12 +143,12 @@ static void emu_onkeydown(void *data, enum keycode code, int16_t value) {
 }
 
 static void emu_onclose(void *data) {
-  emu_t *emu = data;
+  struct emu *emu = data;
 
   emu->running = false;
 }
 
-void emu_run(emu_t *emu, const char *path) {
+void emu_run(struct emu *emu, const char *path) {
   emu->dc = dc_create(win_render_backend(emu->window));
 
   if (!emu->dc) {
@@ -205,11 +205,11 @@ void emu_run(emu_t *emu, const char *path) {
   }
 }
 
-emu_t *emu_create(struct window *window) {
+struct emu *emu_create(struct window *window) {
   static const struct window_callbacks callbacks = {
       NULL, &emu_onpaint, NULL, &emu_onkeydown, NULL, NULL, &emu_onclose};
 
-  emu_t *emu = calloc(1, sizeof(emu_t));
+  struct emu *emu = calloc(1, sizeof(struct emu));
 
   emu->window = window;
   emu->listener = win_add_listener(emu->window, &callbacks, emu);
@@ -217,7 +217,7 @@ emu_t *emu_create(struct window *window) {
   return emu;
 }
 
-void emu_destroy(emu_t *emu) {
+void emu_destroy(struct emu *emu) {
   win_remove_listener(emu->window, emu->listener);
 
   if (emu->dc) {

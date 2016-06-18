@@ -25,9 +25,6 @@ struct ta;
 //
 // register access helpers
 //
-#define DECLARE_REG_R32(self, name) uint32_t name##_r(self)
-#define DECLARE_REG_W32(self, name) \
-  static void name##_w(self, uint32_t, uint32_t *)
 
 #define REG_R32(self, name) uint32_t name##_r(self)
 #define REG_W32(self, name) \

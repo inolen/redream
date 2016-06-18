@@ -74,7 +74,7 @@ typedef struct {
 
   struct rb_node live_it;
   struct list_node free_it;
-} texture_t;
+} texture_entry_t;
 
 typedef struct tracer_s {
   struct window *window;
@@ -102,15 +102,15 @@ typedef struct tracer_s {
   int sorted_surfs[TA_MAX_SURFS];
   struct param_state states[TA_PARAMS_SIZE];
 
-  texture_t textures[1024];
+  texture_entry_t textures[1024];
   struct rb_tree live_textures;
   struct list free_textures;
 } tracer_t;
 
 static int tracer_texture_cmp(const struct rb_node *rb_lhs,
                               const struct rb_node *rb_rhs) {
-  const texture_t *lhs = rb_entry(rb_lhs, const texture_t, live_it);
-  const texture_t *rhs = rb_entry(rb_rhs, const texture_t, live_it);
+  const texture_entry_t *lhs = rb_entry(rb_lhs, const texture_entry_t, live_it);
+  const texture_entry_t *rhs = rb_entry(rb_rhs, const texture_entry_t, live_it);
   return tr_get_texture_key(lhs->tsp, lhs->tcw) -
          tr_get_texture_key(rhs->tsp, rhs->tcw);
 }
@@ -119,30 +119,30 @@ static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,
                                                 NULL};
 
 static void tracer_add_texture(tracer_t *tracer, union tsp tsp, union tcw tcw,
-                               const uint8_t *palette, const uint8_t *data) {
-  texture_t *texture =
-      list_first_entry(&tracer->free_textures, texture_t, free_it);
-  CHECK_NOTNULL(texture);
-  list_remove(&tracer->free_textures, &texture->free_it);
+                               const uint8_t *palette, const uint8_t *texture) {
+  texture_entry_t *entry =
+      list_first_entry(&tracer->free_textures, texture_entry_t, free_it);
+  CHECK_NOTNULL(entry);
+  list_remove(&tracer->free_textures, &entry->free_it);
 
-  texture->tsp = tsp;
-  texture->tcw = tcw;
-  texture->palette = palette;
-  texture->data = data;
-  texture->handle = 0;
+  entry->tsp = tsp;
+  entry->tcw = tcw;
+  entry->palette = palette;
+  entry->texture = texture;
+  entry->handle = 0;
 
-  rb_insert(&tracer->live_textures, &texture->live_it, &tracer_texture_cb);
+  rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
 }
 
 static void tracer_remove_texture(tracer_t *tracer, union tsp tsp,
                                   union tcw tcw) {
-  texture_t search;
+  texture_entry_t search;
   search.tsp = tsp;
   search.tcw = tcw;
 
-  texture_t *texture = rb_find_entry(&tracer->live_textures, &search, live_it,
-                                     &tracer_texture_cb);
-  CHECK_NOTNULL(texture);
+  texture_entry_t *entry = rb_find_entry(&tracer->live_textures, &search,
+                                         live_it, &tracer_texture_cb);
+  CHECK_NOTNULL(entry);
   rb_unlink(&tracer->live_textures, &texture->live_it, &tracer_texture_cb);
 
   list_add(&tracer->free_textures, &texture->free_it);
@@ -155,36 +155,36 @@ static texture_handle_t tracer_get_texture(void *data,
                                            register_texture_cb register_cb) {
   tracer_t *tracer = reinterpret_cast<tracer_t *>(data);
 
-  texture_t search;
+  texture_entry_t search;
   search.tsp = tsp;
   search.tcw = tcw;
 
-  texture_t *texture = rb_find_entry(&tracer->live_textures, &search, live_it,
-                                     &tracer_texture_cb);
+  texture_entry_t *entry = rb_find_entry(&tracer->live_textures, &search,
+                                         live_it, &tracer_texture_cb);
   CHECK_NOTNULL(texture, "Texture wasn't available in cache");
 
   // TODO fixme, pass correct struct tile_ctx to tracer_add_texture so this
   // isn't deferred
-  if (!texture->handle) {
+  if (!entry->handle) {
     struct texture_reg reg = {};
     reg.ctx = ctx;
     reg.tsp = tsp;
     reg.tcw = tcw;
-    reg.palette = texture->palette;
-    reg.data = texture->data;
+    reg.palette = entry->palette;
+    reg.texture = entry->texture;
     register_cb(register_data, &reg);
 
-    texture->handle = reg.handle;
-    texture->format = reg.format;
-    texture->filter = reg.filter;
-    texture->wrap_u = reg.wrap_u;
-    texture->wrap_v = reg.wrap_v;
-    texture->mipmaps = reg.mipmaps;
-    texture->width = reg.width;
-    texture->height = reg.height;
+    entry->handle = reg.handle;
+    entry->format = reg.format;
+    entry->filter = reg.filter;
+    entry->wrap_u = reg.wrap_u;
+    entry->wrap_v = reg.wrap_v;
+    entry->mipmaps = reg.mipmaps;
+    entry->width = reg.width;
+    entry->height = reg.height;
   }
 
-  return texture->handle;
+  return entry->handle;
 }
 
 static void tracer_copy_command(const trace_cmd_t *cmd, struct tile_ctx *ctx) {
@@ -404,7 +404,7 @@ static void tracer_render_texture_menu(tracer_t *tracer) {
   ImGui::SetWindowPos(
       ImVec2(0.0f, io.DisplaySize.y - ImGui::GetWindowSize().y));
 
-  rb_for_each_entry(tex, &tracer->live_textures, texture_t, live_it) {
+  rb_for_each_entry(tex, &tracer->live_textures, texture_entry_t, live_it) {
     ImTextureID handle_id =
         reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex->handle));
 
@@ -819,8 +819,8 @@ tracer_t *tracer_create(struct window *window) {
 
   // add all textures to free list
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
-    texture_t *texture = &tracer->textures[i];
-    list_add(&tracer->free_textures, &texture->free_it);
+    texture_entry_t *entry = &tracer->textures[i];
+    list_add(&tracer->free_textures, &entry->free_it);
   }
 
   return tracer;
