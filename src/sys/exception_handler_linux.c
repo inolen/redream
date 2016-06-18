@@ -1,10 +1,11 @@
 #include <signal.h>
-#include "sys/exception_handler_linux.h"
+#include <stdlib.h>
+#include "sys/exception_handler.h"
 
 static struct sigaction old_sigsegv;
 static struct sigaction old_sigill;
 
-static void CopyStateTo(mcontext_t *src, union thread_state *dst) {
+static void copy_state_to(mcontext_t *src, union thread_state *dst) {
   dst->rax = src->gregs[REG_RAX];
   dst->rcx = src->gregs[REG_RCX];
   dst->rdx = src->gregs[REG_RDX];
@@ -24,7 +25,7 @@ static void CopyStateTo(mcontext_t *src, union thread_state *dst) {
   dst->rip = src->gregs[REG_RIP];
 }
 
-static void CopyStateFrom(union thread_state *src, mcontext_t *dst) {
+static void copy_state_from(union thread_state *src, mcontext_t *dst) {
   dst->gregs[REG_RAX] = src->rax;
   dst->gregs[REG_RCX] = src->rcx;
   dst->gregs[REG_RDX] = src->rdx;
@@ -44,15 +45,15 @@ static void CopyStateFrom(union thread_state *src, mcontext_t *dst) {
   dst->gregs[REG_RIP] = src->rip;
 }
 
-static void SignalHandler(int signo, siginfo_t *info, void *ctx) {
-  ucontext_t *uctx = reinterpret_cast<ucontext_t *>(ctx);
+static void signal_handler(int signo, siginfo_t *info, void *ctx) {
+  ucontext_t *uctx = ctx;
 
   // convert signal to internal exception
   struct exception ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
-  ex.fault_addr = reinterpret_cast<uintptr_t>(info->si_addr);
+  ex.fault_addr = (uintptr_t)info->si_addr;
   ex.pc = uctx->uc_mcontext.gregs[REG_RIP];
-  CopyStateTo(&uctx->uc_mcontext, &ex.thread_state);
+  copy_state_to(&uctx->uc_mcontext, &ex.thread_state);
 
   // call exception handler, letting it potentially update the thread state
   bool handled = exception_handler_handle(&ex);
@@ -66,24 +67,14 @@ static void SignalHandler(int signo, siginfo_t *info, void *ctx) {
   }
 
   // copy internal thread state back to mach thread state and restore
-  CopyStateFrom(&ex.thread_state, &uctx->uc_mcontext);
+  copy_state_from(&ex.thread_state, &uctx->uc_mcontext);
 }
 
-ExceptionHandler &ExceptionHandler::instance() {
-  static ExceptionHandlerLinux instance;
-  return instance;
-}
-
-ExceptionHandlerLinux::~ExceptionHandlerLinux() {
-  sigaction(SIGSEGV, &old_sigsegv, nullptr);
-  sigaction(SIGILL, &old_sigill, nullptr);
-}
-
-bool ExceptionHandlerLinux::Init() {
+bool exception_handler_install_platform() {
   struct sigaction new_sa;
   new_sa.sa_flags = SA_SIGINFO;
   sigemptyset(&new_sa.sa_mask);
-  new_sa.sa_sigaction = &SignalHandler;
+  new_sa.sa_sigaction = &signal_handler;
 
   if (sigaction(SIGSEGV, &new_sa, &old_sigsegv) != 0) {
     return false;
@@ -94,4 +85,9 @@ bool ExceptionHandlerLinux::Init() {
   }
 
   return true;
+}
+
+void exception_handler_uninstall_platform() {
+  sigaction(SIGSEGV, &old_sigsegv, NULL);
+  sigaction(SIGILL, &old_sigill, NULL);
 }

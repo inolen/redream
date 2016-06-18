@@ -8,16 +8,18 @@ void prof_count(const char *name, int count) {}
 
 // #include <microprofile.h>
 
-// #define PROFILER_SCOPE(group, name) \
-//   MICROPROFILE_SCOPEI(group, name, re::emu::ScopeColor(name))
+/*
+  #define PROFILER_SCOPE(group, name) \
+  MICROPROFILE_SCOPEI(group, name, re::emu::ScopeColor(name))
 
-// #define PROFILER_GPU(name) \
-//   MICROPROFILE_SCOPEI("gpu", name, re::emu::ScopeColor(name))
+  #define PROFILER_GPU(name) \
+  MICROPROFILE_SCOPEI("gpu", name, re::emu::ScopeColor(name))
 
-// #define PROFILER_RUNTIME(name) \
-//   MICROPROFILE_SCOPEI("runtime", name, re::emu::ScopeColor(name))
+  #define PROFILER_RUNTIME(name) \
+  MICROPROFILE_SCOPEI("runtime", name, re::emu::ScopeColor(name))
 
-// #define PROFILER_COUNT(name, count) MICROPROFILE_COUNTER_SET(name, count)
+  #define PROFILER_COUNT(name, count) MICROPROFILE_COUNTER_SET(name, count)
+*/
 
 // static inline float HueToRGB(float p, float q, float t) {
 //   if (t < 0.0f) {

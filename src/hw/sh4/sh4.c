@@ -15,6 +15,8 @@
 #include "hw/scheduler.h"
 #include "sys/time.h"
 
+#define SH4_CLOCK_FREQ INT64_C(200000000)
+
 struct sh4_interrupt_info {
   int intevt, default_priority, ipr, ipr_shift;
 };
@@ -27,7 +29,6 @@ static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-static const int64_t SH4_CLOCK_FREQ = 200000000;
 static struct sh4 *g_sh4;
 
 static void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr);

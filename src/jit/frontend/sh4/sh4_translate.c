@@ -57,7 +57,7 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
   } while (0)
 
 // swizzle 32-bit fp loads, see notes in sh4_context.h
-#define swizzle_fpr(n, type) (ir_type_size(type) == 4 ? (n ^ 1) : n)
+#define swizzle_fpr(n, type) (ir_type_size(type) == 4 ? ((n) ^ 1) : (n))
 
 #define load_fpr(n, type)                                         \
   ({                                                              \

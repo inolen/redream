@@ -2,9 +2,10 @@
 #include <stdio.h>
 #include "core/assert.h"
 
+#define MAX_ERROR_SIZE 1024
+
 const char *format_check_error_ex(const char *filename, int linenum,
                                   const char *expr, const char *format, ...) {
-  static const int MAX_ERROR_SIZE = 1024;
   static char error[MAX_ERROR_SIZE];
   static char custom[MAX_ERROR_SIZE];
 

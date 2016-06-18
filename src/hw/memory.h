@@ -6,7 +6,7 @@
 
 struct dreamcast;
 
-static const uint64_t ADDRESS_SPACE_SIZE = 1ull << 32;
+#define ADDRESS_SPACE_SIZE (UINT64_C(1) << 32)
 
 typedef uint8_t (*r8_cb)(void *, uint32_t);
 typedef uint16_t (*r16_cb)(void *, uint32_t);
@@ -148,19 +148,18 @@ void am_mirror(struct address_map *am, uint32_t physical_addr, uint32_t size,
                uint32_t addr);
 
 // helpers for extracting page information out of a virtual address
-static const int PAGE_BITS = 20;
-static const int PAGE_OFFSET_BITS = 32 - PAGE_BITS;
-static const int PAGE_BLKSIZE = 1 << PAGE_OFFSET_BITS;
-static const int NUM_PAGES = 1 << PAGE_BITS;
-static const uint32_t PAGE_OFFSET_MASK = PAGE_BLKSIZE - 1;
-static const uint32_t PAGE_INDEX_MASK = ~PAGE_OFFSET_MASK;
+#define PAGE_BITS 20
+#define PAGE_OFFSET_BITS (32 - PAGE_BITS)
+#define PAGE_SIZE (1 << PAGE_OFFSET_BITS)
+#define PAGE_OFFSET_MASK (uint32_t)(PAGE_SIZE - 1)
+#define PAGE_INDEX_MASK (uint32_t)(~PAGE_OFFSET_MASK)
+#define NUM_PAGES (1 << PAGE_BITS)
 
 // helpers for accessing region information out of a page table entry
-static const int MAX_REGIONS = 1 << (PAGE_OFFSET_BITS - 1);
-static const uintptr_t REGION_INDEX_MASK = MAX_REGIONS - 1;
-static const uintptr_t REGION_TYPE_MASK = MAX_REGIONS;
-static const uintptr_t REGION_OFFSET_MASK =
-    ~(REGION_TYPE_MASK | REGION_INDEX_MASK);
+#define REGION_INDEX_MASK (uintptr_t)(MAX_REGIONS - 1)
+#define REGION_TYPE_MASK (uintptr_t)(MAX_REGIONS)
+#define REGION_OFFSET_MASK (uintptr_t)(~(REGION_TYPE_MASK | REGION_INDEX_MASK))
+#define MAX_REGIONS (1 << (PAGE_OFFSET_BITS - 1))
 
 typedef uintptr_t page_entry_t;
 

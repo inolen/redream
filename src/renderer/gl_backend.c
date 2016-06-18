@@ -2,11 +2,12 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include "core/assert.h"
+#include "core/string.h"
 #include "core/profiler.h"
 #include "renderer/backend.h"
 #include "ui/window.h"
 
-static const int MAX_TEXTURES = 1024;
+#define MAX_TEXTURES 1024
 
 enum texture_map {
   MAP_DIFFUSE,

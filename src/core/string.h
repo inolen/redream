@@ -6,8 +6,16 @@
 #include <string.h>
 #include "core/config.h"
 
+#ifdef HAVE_STRINGS_H
+#include <strings.h>
+#endif
+
 #ifndef HAVE_STRCASECMP
 #define strcasecmp _stricmp
+#endif
+
+#ifndef HAVE_STRNLEN
+size_t strnlen(const char *s, size_t max_len);
 #endif
 
 #ifndef HAVE_STRNSTR

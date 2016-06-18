@@ -50,7 +50,7 @@ extern "C" {
 #if defined(__i386__) || defined(__x86_64__)
   enum { HAVE_TRAP_INSTRUCTION = 1, };
   __attribute__((gnu_inline, always_inline))
-    static void __inline__ trap_instruction(void)
+    __inline__ static void trap_instruction(void)
   {
     __asm__ volatile("int $0x03");
   }
@@ -58,7 +58,7 @@ extern "C" {
   enum { HAVE_TRAP_INSTRUCTION = 1, };
   /* FIXME: handle __THUMB_INTERWORK__ */
   __attribute__((gnu_inline, always_inline))
-    static void __inline__ trap_instruction(void)
+    __inline__ static void trap_instruction(void)
   {
     /* See 'arm-linux-tdep.c' in GDB source.
     * Both instruction sequences below work. */
@@ -85,7 +85,7 @@ extern "C" {
 #elif defined(__arm__) && !defined(__thumb__)
   enum { HAVE_TRAP_INSTRUCTION = 1, };
   __attribute__((gnu_inline, always_inline))
-    static void __inline__ trap_instruction(void)
+    __inline__ static void trap_instruction(void)
   {
     /* See 'arm-linux-tdep.c' in GDB source,
     * 'eabi_linux_arm_le_breakpoint' */
@@ -96,7 +96,7 @@ extern "C" {
 #elif defined(__aarch64__)
   enum { HAVE_TRAP_INSTRUCTION = 1, };
   __attribute__((gnu_inline, always_inline))
-    static void __inline__ trap_instruction(void)
+    __inline__ static void trap_instruction(void)
   {
     /* See 'aarch64-tdep.c' in GDB source,
     * 'aarch64_default_breakpoint' */
@@ -107,7 +107,7 @@ extern "C" {
 #endif
 
   __attribute__((gnu_inline, always_inline))
-    static void __inline__ debug_break(void)
+    __inline__ static void debug_break(void)
   {
     if (HAVE_TRAP_INSTRUCTION) {
       trap_instruction();

@@ -4,7 +4,18 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_LINUX || PLATFORM_DARWIN
+
+#if PLATFORM_LINUX
+#include <linux/limits.h>
+#else
+#include <sys/syslimits.h>
+#endif
+#include <dirent.h>
+
+#define PATH_SEPARATOR "/"
+
+#else
 
 #include <windows.h>
 #include <direct.h>
@@ -13,13 +24,6 @@
 
 #define PATH_SEPARATOR "\\"
 #define PATH_MAX MAX_PATH
-
-#else
-
-#include <dirent.h>
-#include <limits.h>
-
-#define PATH_SEPARATOR "/"
 
 #endif
 

@@ -19,6 +19,10 @@ static bool is_page_aligned(uint32_t start, uint32_t size) {
          ((start + size) & (PAGE_OFFSET_BITS - 1)) == 0;
 }
 
+static int get_total_page_size(int num_pages) {
+  return (uint32_t)num_pages * PAGE_SIZE;
+}
+
 // map virtual addresses to pages
 static int get_page_index(uint32_t addr) {
   return addr >> PAGE_OFFSET_BITS;
@@ -379,7 +383,7 @@ static void as_merge_map(struct address_space *space,
 
           // create an entry in the page table for each page the region occupies
           for (int i = 0; i < num_pages; i++) {
-            uint32_t region_offset = i * PAGE_BLKSIZE;
+            uint32_t region_offset = get_total_page_size(i);
 
             space->pages[first_page + i] =
                 pack_page_entry(region, region_offset);
@@ -426,7 +430,7 @@ static int as_num_adj_pages(struct address_space *space, int first_page_index) {
     uint32_t page_offset = as_get_page_offset(space, page);
     uint32_t next_page_offset = as_get_page_offset(space, next_page);
 
-    if ((next_page_offset - page_offset) != PAGE_BLKSIZE) {
+    if ((next_page_offset - page_offset) != PAGE_SIZE) {
       break;
     }
   }
@@ -445,10 +449,10 @@ static bool as_map_pages(struct address_space *space, uint8_t *base) {
 
     // batch map djacent pages, mmap is fairly slow
     int num_pages = as_num_adj_pages(space, page_index);
-    uint32_t size = num_pages * PAGE_BLKSIZE;
+    uint32_t size = get_total_page_size(num_pages);
 
     // mmap the virtual address range to the raw address space
-    uint32_t addr = page_index * PAGE_BLKSIZE;
+    uint32_t addr = get_total_page_size(page_index);
     uint32_t page_offset = as_get_page_offset(space, page);
 
     if (!map_shared_memory(space->dc->memory->shmem, page_offset, base + addr,
@@ -487,8 +491,8 @@ bool as_map(struct address_space *space, const struct address_map *map) {
       continue;
     }
 
-    uint32_t addr = page_index * PAGE_BLKSIZE;
-    protect_pages(space->protected_base + addr, PAGE_BLKSIZE, ACC_NONE);
+    uint32_t addr = get_total_page_size(page_index);
+    protect_pages(space->protected_base + addr, PAGE_SIZE, ACC_NONE);
   }
 
   return true;
@@ -507,10 +511,10 @@ static void as_unmap_pages(struct address_space *space, uint8_t *base) {
       continue;
     }
 
-    uint32_t addr = page_index * PAGE_BLKSIZE;
+    uint32_t addr = get_total_page_size(page_index);
 
     int num_pages = as_num_adj_pages(space, page_index);
-    uint32_t size = num_pages * PAGE_BLKSIZE;
+    uint32_t size = get_total_page_size(num_pages);
 
     CHECK(unmap_shared_memory(space->dc->memory->shmem, base + addr, size));
 

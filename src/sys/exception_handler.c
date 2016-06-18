@@ -2,13 +2,14 @@
 #include "core/list.h"
 #include "sys/exception_handler.h"
 
+#define MAX_EXCEPTION_HANDLERS 32
+
 struct exception_handler {
   void *data;
   exception_handler_cb cb;
   struct list_node it;
 };
 
-static const int MAX_EXCEPTION_HANDLERS = 32;
 static struct exception_handler s_handlers[MAX_EXCEPTION_HANDLERS];
 static struct list s_live_handlers;
 static struct list s_free_handlers;

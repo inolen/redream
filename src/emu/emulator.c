@@ -176,8 +176,6 @@ void emu_run(struct emu *emu, const char *path) {
   static const int64_t FRAME_STEP = HZ_TO_NANO(60);
 
   int64_t current_time = time_nanoseconds();
-  int64_t last_time = current_time;
-
   int64_t next_machine_time = current_time;
   int64_t next_frame_time = current_time;
 
@@ -185,7 +183,6 @@ void emu_run(struct emu *emu, const char *path) {
 
   while (emu->running) {
     current_time = time_nanoseconds();
-    last_time = current_time;
 
     // run dreamcast machine
     if (current_time > next_machine_time) {

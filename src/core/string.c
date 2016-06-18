@@ -1,5 +1,3 @@
-#include <stdbool.h>
-#include <string.h>
 #include "core/string.h"
 
 #ifndef HAVE_STRNSTR
@@ -7,18 +5,27 @@ char *strnstr(const char *s1, const char *s2, size_t n) {
   size_t len = strlen(s2);
 
   if (!len) {
-    return const_cast<char *>(s1);
+    return (char *)s1;
   }
 
   while (n >= len) {
     if (!memcmp(s1, s2, len)) {
-      return const_cast<char *>(s1);
+      return (char *)s1;
     }
     n--;
     s1++;
   }
 
-  return nullptr;
+  return NULL;
+}
+#endif
+
+#ifndef HAVE_STRNLEN
+size_t strnlen(const char *s, size_t max_len) {
+  size_t n;
+  for (n = 0; *s && n < max_len; s++, n++)
+    ;
+  return n;
 }
 #endif
 
@@ -26,7 +33,7 @@ int strnrep(char *dst, size_t dst_size, const char *token, size_t token_len,
             const char *value, size_t value_len) {
   char *end = dst + dst_size;
 
-  while (true) {
+  while (1) {
     char *ptr = strnstr(dst, token, dst_size);
 
     if (!ptr) {

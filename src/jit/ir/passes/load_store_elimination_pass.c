@@ -7,7 +7,7 @@ DEFINE_STAT(num_stores_removed, "Number of stores eliminated");
 
 const char *lse_name = "lse";
 
-static const int MAX_OFFSET = 512;
+#define MAX_OFFSET 512
 
 struct available {
   int offset;

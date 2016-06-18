@@ -6,7 +6,7 @@
 
 DEFINE_STAT(num_spills, "Number of registers spilled");
 
-static const int MAX_REGISTERS = 32;
+#define MAX_REGISTERS 32
 
 struct interval {
   struct ir_instr *instr;

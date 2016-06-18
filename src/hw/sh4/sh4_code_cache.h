@@ -6,11 +6,9 @@
 
 // executable code sits between 0x0c000000 and 0x0d000000 (16mb). each instr
 // is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
-static const int BLOCK_ADDR_SHIFT = 1;
-static const int BLOCK_ADDR_MASK = (~0xfc000000);
-static const int MAX_BLOCKS = (0x1000000 >> BLOCK_ADDR_SHIFT);
-
-#define BLOCK_OFFSET(addr) ((addr & BLOCK_ADDR_MASK) >> BLOCK_ADDR_SHIFT)
+#define BLOCK_ADDR_MASK (~0xfc000000)
+#define BLOCK_OFFSET(addr) ((addr & BLOCK_ADDR_MASK) >> 1)
+#define MAX_BLOCKS (0x1000000 >> 1)
 
 struct exception_handler;
 struct jit_backend;

@@ -8,7 +8,7 @@
 #include "sys/filesystem.h"
 #include "sys/memory.h"
 
-static const int MAX_SHMEM = 128;
+#define MAX_SHMEM 128
 
 struct shmem {
   char filename[PATH_MAX];

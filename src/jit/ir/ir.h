@@ -40,8 +40,6 @@ enum ir_cmp {
 struct ir_value;
 struct ir_instr;
 
-static const int MAX_INSTR_ARGS = 3;
-
 // use is a layer of indirection between an instruction and the values it uses
 // as arguments. this indirection makes it possible to maintain a list for each
 // value of the arguments that reference it
@@ -81,6 +79,8 @@ struct ir_value {
   // generic meta data used by optimization passes
   intptr_t tag;
 };
+
+#define MAX_INSTR_ARGS 3
 
 struct ir_instr {
   enum ir_op op;
@@ -123,18 +123,18 @@ struct ir {
 
 extern const char *ir_op_names[NUM_OPS];
 
-static const int VALUE_I8_MASK = 1 << VALUE_I8;
-static const int VALUE_I16_MASK = 1 << VALUE_I16;
-static const int VALUE_I32_MASK = 1 << VALUE_I32;
-static const int VALUE_I64_MASK = 1 << VALUE_I64;
-static const int VALUE_F32_MASK = 1 << VALUE_F32;
-static const int VALUE_F64_MASK = 1 << VALUE_F64;
-static const int VALUE_V128_MASK = 1 << VALUE_V128;
-static const int VALUE_INT_MASK =
-    VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK | VALUE_I64_MASK;
-static const int VALUE_FLOAT_MASK = VALUE_F32_MASK | VALUE_F64_MASK;
-static const int VALUE_VECTOR_MASK = VALUE_V128_MASK;
-static const int VALUE_ALL_MASK = VALUE_INT_MASK | VALUE_FLOAT_MASK;
+#define VALUE_I8_MASK (1 << VALUE_I8)
+#define VALUE_I16_MASK (1 << VALUE_I16)
+#define VALUE_I32_MASK (1 << VALUE_I32)
+#define VALUE_I64_MASK (1 << VALUE_I64)
+#define VALUE_F32_MASK (1 << VALUE_F32)
+#define VALUE_F64_MASK (1 << VALUE_F64)
+#define VALUE_V128_MASK (1 << VALUE_V128)
+#define VALUE_INT_MASK \
+  (VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK | VALUE_I64_MASK)
+#define VALUE_FLOAT_MASK (VALUE_F32_MASK | VALUE_F64_MASK)
+#define VALUE_VECTOR_MASK (VALUE_V128_MASK)
+#define VALUE_ALL_MASK (VALUE_INT_MASK | VALUE_FLOAT_MASK)
 
 static const int NO_REGISTER = -1;
 
