@@ -9,6 +9,11 @@
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
 
+#define MAX_WINDOW_LISTENERS 16
+#define NUM_JOYSTICK_AXES ((K_AXIS15 - K_AXIS0) + 1)
+#define NUM_JOYSTICK_KEYS ((K_JOY31 - K_JOY0) + 1)
+#define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
+
 struct window_listener {
   struct window_callbacks cb;
   void *data;

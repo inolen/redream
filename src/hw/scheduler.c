@@ -5,7 +5,7 @@
 #include "hw/dreamcast.h"
 #include "hw/scheduler.h"
 
-static const int MAX_TIMERS = 128;
+#define MAX_TIMERS 128
 
 struct timer {
   int64_t expire;

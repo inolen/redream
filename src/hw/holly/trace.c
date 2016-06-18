@@ -1,3 +1,4 @@
+#include <limits.h>
 #include "core/assert.h"
 #include "hw/holly/ta.h"
 #include "hw/holly/tr.h"

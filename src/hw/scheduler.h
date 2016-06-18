@@ -7,8 +7,7 @@ struct dreamcast;
 struct timer;
 struct scheduler;
 
-static const int64_t NS_PER_SEC = 1000000000ll;
-
+#define NS_PER_SEC INT64_C(1000000000)
 #define HZ_TO_NANO(hz) (int64_t)(NS_PER_SEC / (float)hz)
 #define NANO_TO_CYCLES(ns, hz) (int64_t)((ns / (float)NS_PER_SEC) * hz)
 #define CYCLES_TO_NANO(cycles, hz) (int64_t)((cycles / (float)hz) * NS_PER_SEC)

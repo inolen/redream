@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8.12)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+include(CheckIncludeFiles)
 include(CheckFunctionExists)
 include(ExternalProject)
 include(SourceGroupByDir)
@@ -27,7 +28,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # config file
 #--------------------------------------------------
 
+check_include_files(strings.h HAVE_STRINGS_H)
 check_function_exists(strcasecmp HAVE_STRCASECMP)
+check_function_exists(strnlen HAVE_STRNLEN)
 check_function_exists(strnstr HAVE_STRNSTR)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/core/config.h)
 list(APPEND REDREAM_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/src)
@@ -181,7 +184,7 @@ set(REDREAM_SOURCES
 
 if(WIN32)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
-  list(APPEND REDREAM_SOURCES src/sys/exception_handler_win.cc)
+  list(APPEND REDREAM_SOURCES src/sys/exception_handler_win.c)
   list(APPEND REDREAM_SOURCES src/sys/filesystem_win.c)
   list(APPEND REDREAM_SOURCES src/sys/memory_win.c)
   list(APPEND REDREAM_SOURCES src/sys/time_win.c)
@@ -193,7 +196,7 @@ elseif(APPLE)
   list(APPEND REDREAM_SOURCES src/sys/time_mac.c)
 else()
   list(APPEND REDREAM_DEFS PLATFORM_LINUX=1)
-  list(APPEND REDREAM_SOURCES src/sys/exception_handler_linux.cc)
+  list(APPEND REDREAM_SOURCES src/sys/exception_handler_linux.c)
   list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.c)
   list(APPEND REDREAM_SOURCES src/sys/memory_posix.c)
   list(APPEND REDREAM_SOURCES src/sys/time_linux.c)
@@ -204,7 +207,7 @@ endif()
 source_group_by_dir(REDREAM_SOURCES)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(REDREAM_COMPILE_FLAGS $<$<COMPILE_LANGUAGE:CXX>:-std=c++11> $<$<COMPILE_LANGUAGE:C>:-std=c11> -fno-operator-names -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing)
+	set(REDREAM_COMPILE_FLAGS $<$<COMPILE_LANGUAGE:CXX>:-std=c++11 -fno-operator-names> $<$<COMPILE_LANGUAGE:C>:-std=c11> -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
   # some flavors of GCC require this to be defined for the PR* macros in inttypes.h
   if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")

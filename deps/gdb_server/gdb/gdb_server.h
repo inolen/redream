@@ -25,6 +25,7 @@ typedef u_long ioctlarg_t;
 
 #else
 
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <errno.h>
 #include <netdb.h>

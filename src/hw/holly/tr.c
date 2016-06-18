@@ -294,9 +294,6 @@ static void tr_register_texture(void *data, struct texture_reg *reg) {
 static struct surface *tr_alloc_surf(struct tr *tr, struct render_ctx *rctx,
                                      bool copy_from_prev) {
   // either reset the surface state, or copy the state from the previous surface
-  if (rctx->num_surfs >= rctx->surfs_size) {
-    __asm__("int $3");
-  }
   CHECK_LT(rctx->num_surfs, rctx->surfs_size);
   int id = rctx->num_surfs++;
   struct surface *surf = &rctx->surfs[id];
@@ -800,14 +797,15 @@ static float tr_cmp_surf(struct render_ctx *rctx, const struct surface *a,
 
 static void tr_merge_surfs(struct render_ctx *rctx, int *low, int *mid,
                            int *high) {
-  static const int MAX_SORT_SURFACES = 16384;
-  static int tmp[MAX_SORT_SURFACES];
+  static int tmp[16384];
 
   int *i = low;
   int *j = mid + 1;
   int *k = tmp;
+  int *end = tmp + array_size(tmp);
 
   while (i <= mid && j <= high) {
+    DCHECK_LT(k, end);
     if (tr_cmp_surf(rctx, &rctx->surfs[*i], &rctx->surfs[*j]) <= 0.0f) {
       *(k++) = *(i++);
     } else {
@@ -816,10 +814,12 @@ static void tr_merge_surfs(struct render_ctx *rctx, int *low, int *mid,
   }
 
   while (i <= mid) {
+    DCHECK_LT(k, end);
     *(k++) = *(i++);
   }
 
   while (j <= high) {
+    DCHECK_LT(k, end);
     *(k++) = *(j++);
   }
 

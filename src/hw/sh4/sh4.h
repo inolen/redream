@@ -8,7 +8,7 @@
 
 struct dreamcast;
 
-static const int MAX_MIPS_SAMPLES = 10;
+#define MAX_MIPS_SAMPLES 10
 
 struct sh4_dtr {
   int channel;

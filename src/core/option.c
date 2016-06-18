@@ -47,6 +47,8 @@ static const char *options_format_value(struct option *opt) {
     case OPT_STRING:
       return (char *)opt->storage;
   }
+
+  return NULL;
 }
 
 void options_register(struct option *option) {
