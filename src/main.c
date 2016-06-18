@@ -38,14 +38,18 @@ int main(int argc, char **argv) {
     LOG_FATAL("Failed to create app directory %s", appdir);
   }
 
-  option_parse(&argc, &argv);
+  // load base options from config
+  char config[PATH_MAX] = {};
+  snprintf(config, sizeof(config), "%s" PATH_SEPARATOR "config", appdir);
+  options_read(config);
+
+  // override options from the command line
+  options_parse(&argc, &argv);
 
   if (OPTION_help) {
-    option_print_help();
+    options_print_help();
     return EXIT_SUCCESS;
   }
-
-  // InitFlags(&argc, &argv);
 
   if (!exception_handler_install()) {
     LOG_WARNING("Failed to initialize exception handler");
@@ -73,7 +77,8 @@ int main(int argc, char **argv) {
 
   exception_handler_uninstall();
 
-  // ShutdownFlags();
+  // persist options for next run
+  options_write(config);
 
   return EXIT_SUCCESS;
 }

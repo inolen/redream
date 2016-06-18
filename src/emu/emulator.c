@@ -8,10 +8,8 @@
 #include "ui/window.h"
 #include "sys/time.h"
 
-DEFINE_OPTION_STRING(bios, "/Users/inolen/projects/dreamcast/dc_boot.bin",
-                     "Path to BIOS");
-DEFINE_OPTION_STRING(flash, "/Users/inolen/projects/dreamcast/dc_flash.bin",
-                     "Path to flash ROM");
+DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to BIOS");
+DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash ROM");
 
 struct emu {
   struct window *window;

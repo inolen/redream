@@ -25,25 +25,26 @@ int fold_masks[NUM_OPS];
 // declare a templated callback for an IR operation. note, declaring a
 // callback does not actually register it. callbacks must be registered
 // for a particular signature with REGISTER_FOLD
-#define FOLD(op, mask)                             \
-  static struct _##op##_init {                     \
-    _##op##_init() {                               \
-      fold_masks[OP_##op] = mask;                  \
-    }                                              \
-  } op##_init;                                     \
+#define FOLD(op, mask)                                  \
+  static struct _##op##_init {                          \
+    _##op##_init() {                                    \
+      fold_masks[OP_##op] = mask;                       \
+    }                                                   \
+  } op##_init;                                          \
   template <typename R = struct ir_valueInfo<VALUE_V>,  \
             typename A0 = struct ir_valueInfo<VALUE_V>, \
             typename A1 = struct ir_valueInfo<VALUE_V>> \
   void Handle##op(struct ir *ir, Instr *instr)
 
 // registers a fold callback for the specified signature
-#define REGISTER_FOLD(op, r, a0, a1)                                         \
-  static struct _cpp_##op##_##r##_##a0##_##a1##_init {                       \
-    _cpp_##op##_##r##_##a0##_##a1##_init() {                                 \
-      fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1)] =   \
-          &Handle##op<struct ir_valueInfo<VALUE_##r>, struct ir_valueInfo<VALUE_##a0>, \
-                      struct ir_valueInfo<VALUE_##a1>>;                           \
-    }                                                                        \
+#define REGISTER_FOLD(op, r, a0, a1)                                       \
+  static struct _cpp_##op##_##r##_##a0##_##a1##_init {                     \
+    _cpp_##op##_##r##_##a0##_##a1##_init() {                               \
+      fold_cbs[CALLBACK_IDX(OP_##op, VALUE_##r, VALUE_##a0, VALUE_##a1)] = \
+          &Handle##op<struct ir_valueInfo<VALUE_##r>,                      \
+                      struct ir_valueInfo<VALUE_##a0>,                     \
+                      struct ir_valueInfo<VALUE_##a1>>;                    \
+    }                                                                      \
   } cpp_##op##_##r##_##a0##_##a1##_init
 
 // common helpers for fold functions

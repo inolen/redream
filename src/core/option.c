@@ -1,3 +1,5 @@
+#include <ini.h>
+#include <stdlib.h>
 #include "core/log.h"
 #include "core/math.h"
 #include "core/option.h"
@@ -5,7 +7,7 @@
 
 static struct list s_options;
 
-static struct option *option_find(const char *name) {
+static struct option *options_find(const char *name) {
   list_for_each_entry(opt, &s_options, struct option, it) {
     if (!strcmp(opt->name, name)) {
       return opt;
@@ -15,15 +17,47 @@ static struct option *option_find(const char *name) {
   return NULL;
 }
 
-void option_register(struct option *option) {
+static void options_parse_value(struct option *opt, const char *value) {
+  switch (opt->type) {
+    case OPT_BOOL:
+      *(bool *)opt->storage = strcmp(value, "false") && strcmp(value, "0");
+      break;
+
+    case OPT_INT:
+      *(int *)opt->storage = atoi(value);
+      break;
+
+    case OPT_STRING:
+      strncpy((char *)opt->storage, value, MAX_OPTION_LENGTH);
+      break;
+  }
+}
+
+static const char *options_format_value(struct option *opt) {
+  static char value[MAX_OPTION_LENGTH];
+
+  switch (opt->type) {
+    case OPT_BOOL:
+      return *(bool *)opt->storage ? "true" : "false";
+
+    case OPT_INT:
+      snprintf(value, sizeof(value), "%d", *(int *)opt->storage);
+      return value;
+
+    case OPT_STRING:
+      return (char *)opt->storage;
+  }
+}
+
+void options_register(struct option *option) {
   list_add(&s_options, &option->it);
 }
 
-void option_unregister(struct option *option) {
+void options_unregister(struct option *option) {
   list_remove(&s_options, &option->it);
 }
 
-void option_parse(int *argc, char ***argv) {
+void options_parse(int *argc, char ***argv) {
   int end = *argc;
 
   for (int i = 1; i < end;) {
@@ -54,22 +88,10 @@ void option_parse(int *argc, char ***argv) {
     }
 
     // lookup the option and assign the parsed value to it
-    struct option *opt = option_find(arg);
+    struct option *opt = options_find(arg);
 
     if (opt) {
-      switch (opt->type) {
-        case OPT_BOOL:
-          *(bool *)opt->storage = strcmp(value, "false") && strcmp(value, "0");
-          break;
-
-        case OPT_INT:
-          *(int *)opt->storage = atoi(value);
-          break;
-
-        case OPT_STRING:
-          strcpy((char *)opt->storage, value);
-          break;
-      }
+      options_parse_value(opt, value);
     }
 
     i++;
@@ -79,7 +101,38 @@ void option_parse(int *argc, char ***argv) {
   *argv += end - 1;
 }
 
-void option_print_help() {
+static int options_ini_handler(void *user, const char *section,
+                               const char *name, const char *value) {
+  struct option *opt = options_find(name);
+
+  if (opt) {
+    options_parse_value(opt, value);
+  }
+
+  return 0;
+}
+
+bool options_read(const char *filename) {
+  return ini_parse(filename, options_ini_handler, NULL) >= 0;
+}
+
+bool options_write(const char *filename) {
+  FILE *output = fopen(filename, "wt");
+
+  if (!output) {
+    return false;
+  }
+
+  list_for_each_entry(opt, &s_options, struct option, it) {
+    fprintf(output, "%s: %s\n", opt->name, options_format_value(opt));
+  }
+
+  fclose(output);
+
+  return true;
+}
+
+void options_print_help() {
   int max_name_width = 0;
   int max_desc_width = 0;
 
@@ -92,22 +145,7 @@ void option_print_help() {
   }
 
   list_for_each_entry(opt, &s_options, struct option, it) {
-    switch (opt->type) {
-      case OPT_BOOL:
-        LOG_INFO("--%-*s  %-*s  [default %s]", max_name_width, opt->name,
-                 max_desc_width, opt->desc,
-                 *(bool *)opt->storage ? "true" : "false");
-        break;
-
-      case OPT_INT:
-        LOG_INFO("--%-*s  %-*s  [default %s]", max_name_width, opt->name,
-                 max_desc_width, opt->desc, *(int *)opt->storage);
-        break;
-
-      case OPT_STRING:
-        LOG_INFO("--%-*s  %-*s  [default %s]", max_name_width, opt->name,
-                 max_desc_width, opt->desc, (char *)opt->storage);
-        break;
-    }
+    LOG_INFO("--%-*s  %-*s  %s", max_name_width, opt->name, max_desc_width,
+             opt->desc, options_format_value(opt));
   }
 }
