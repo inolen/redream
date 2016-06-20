@@ -192,7 +192,7 @@ void trace_writer_render_context(struct trace_writer *writer,
   CHECK_EQ(fwrite(ctx->bg_vertices, sizeof(ctx->bg_vertices), 1, writer->file),
            1);
   if (ctx->size) {
-    CHECK_EQ(fwrite(ctx->data, ctx->size, 1, writer->file), 1);
+    CHECK_EQ(fwrite(ctx->params, ctx->size, 1, writer->file), 1);
   }
 }
 

@@ -1,6 +1,6 @@
-#include <string.h>
 #include "core/list.h"
 #include "core/profiler.h"
+#include "core/string.h"
 #include "core/rb_tree.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pixel_convert.h"
@@ -12,6 +12,8 @@
 #include "renderer/backend.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
+
+#define TA_MAX_CONTEXTS 4
 
 struct texture_entry {
   struct ta *ta;
@@ -45,10 +47,15 @@ struct ta {
   // tile context pool. free contexts are in a linked list, live contexts are
   // are in a tree ordered by the context's guest address, and a pointer to the
   // next context up for rendering is stored in pending_context
-  struct tile_ctx contexts[4];
+  struct tile_ctx contexts[TA_MAX_CONTEXTS];
   struct list free_contexts;
   struct rb_tree live_contexts;
   struct tile_ctx *pending_context;
+
+  // buffers used by the tile contexts. allocating here instead of inside each
+  // tile_ctx to avoid blowing the stack when a tile_ctx is needed temporarily
+  // on the stack for searching
+  uint8_t params[TA_MAX_CONTEXTS * TA_MAX_PARAMS];
 
   // buffers used by render contexts
   struct surface surfs[TA_MAX_SURFS];
@@ -237,9 +244,11 @@ static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {
   CHECK_NOTNULL(ctx);
   list_remove(&ta->free_contexts, &ctx->free_it);
 
-  // reset it
+  // reset context
+  uint8_t *params = ctx->params;
   memset(ctx, 0, sizeof(*ctx));
   ctx->addr = addr;
+  ctx->params = params;
 
   // add to live tree
   rb_insert(&ta->live_contexts, &ctx->live_it, &ta_context_cb);
@@ -280,8 +289,8 @@ static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t value) {
   struct tile_ctx *ctx = ta_get_context(ta, addr);
   CHECK_NOTNULL(ctx);
 
-  CHECK_LT(ctx->size + 4, (int)sizeof(ctx->data));
-  *(uint32_t *)&ctx->data[ctx->size] = value;
+  CHECK_LT(ctx->size + 4, TA_MAX_PARAMS);
+  *(uint32_t *)&ctx->params[ctx->size] = value;
   ctx->size += 4;
 
   // each TA command is either 32 or 64 bytes, with the union pcw being in the
@@ -289,8 +298,8 @@ static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t value) {
   // 32 bytes always. check every 32 bytes to see if the command has been
   // completely received or not
   if (ctx->size % 32 == 0) {
-    void *data = &ctx->data[ctx->cursor];
-    union pcw pcw = *(union pcw *)data;
+    void *param = &ctx->params[ctx->cursor];
+    union pcw pcw = *(union pcw *)param;
 
     int size = ta_get_param_size(pcw, ctx->vertex_type);
     int recv = ctx->size - ctx->cursor;
@@ -310,12 +319,12 @@ static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t value) {
     } else if (pcw.para_type == TA_PARAM_OBJ_LIST_SET) {
       LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
     } else if (pcw.para_type == TA_PARAM_POLY_OR_VOL) {
-      ctx->last_poly = (union poly_param *)data;
+      ctx->last_poly = (union poly_param *)param;
       ctx->last_vertex = NULL;
       ctx->list_type = ctx->last_poly->type0.pcw.list_type;
       ctx->vertex_type = ta_get_vert_type(ctx->last_poly->type0.pcw);
     } else if (pcw.para_type == TA_PARAM_SPRITE) {
-      ctx->last_poly = (union poly_param *)data;
+      ctx->last_poly = (union poly_param *)param;
       ctx->last_vertex = NULL;
       ctx->list_type = ctx->last_poly->type0.pcw.list_type;
       ctx->vertex_type = ta_get_vert_type(ctx->last_poly->type0.pcw);
@@ -675,6 +684,9 @@ static bool ta_init(struct device *dev) {
 
   for (int i = 0; i < array_size(ta->contexts); i++) {
     struct tile_ctx *ctx = &ta->contexts[i];
+
+    ctx->params = ta->params + (TA_MAX_PARAMS * i);
+
     list_add(&ta->free_contexts, &ctx->free_it);
   }
 

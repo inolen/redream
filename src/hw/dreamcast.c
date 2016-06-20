@@ -164,20 +164,20 @@ struct dreamcast *dc_create(void *rb) {
 }
 
 void dc_destroy(struct dreamcast *dc) {
+  ta_destroy(dc->ta);
+  pvr_destroy(dc->pvr);
+  maple_destroy(dc->maple);
+  gdrom_destroy(dc->gdrom);
+  holly_destroy(dc->holly);
+  aica_destroy(dc->aica);
+  arm_destroy(dc->arm);
+  sh4_destroy(dc->sh4);
+  scheduler_destroy(dc->scheduler);
+  memory_destroy(dc->memory);
+
   if (dc->debugger) {
     debugger_destroy(dc->debugger);
   }
-
-  memory_destroy(dc->memory);
-  scheduler_destroy(dc->scheduler);
-  sh4_destroy(dc->sh4);
-  arm_destroy(dc->arm);
-  aica_destroy(dc->aica);
-  holly_destroy(dc->holly);
-  gdrom_destroy(dc->gdrom);
-  maple_destroy(dc->maple);
-  pvr_destroy(dc->pvr);
-  ta_destroy(dc->ta);
 
   free(dc);
 }
