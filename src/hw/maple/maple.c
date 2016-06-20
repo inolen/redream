@@ -124,5 +124,6 @@ void maple_destroy(struct maple *mp) {
   }
 
   window_interface_destroy(mp->base.window);
+
   dc_destroy_device(&mp->base);
 }

@@ -305,8 +305,9 @@ struct sh4_cache *sh4_cache_create(const struct mem_interface *memif,
 }
 
 void sh4_cache_destroy(struct sh4_cache *cache) {
-  exception_handler_remove(cache->exc_handler);
-  sh4_frontend_destroy(cache->frontend);
+  sh4_cache_clear_blocks(cache);
   x64_backend_destroy(cache->backend);
+  sh4_frontend_destroy(cache->frontend);
+  exception_handler_remove(cache->exc_handler);
   free(cache);
 }

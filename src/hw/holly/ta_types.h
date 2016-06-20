@@ -433,7 +433,7 @@ union vert_param {
 // shared by tracer
 #define TA_MAX_SURFS 4096
 #define TA_MAX_VERTS 16384
-#define TA_PARAMS_SIZE 0x200000
+#define TA_MAX_PARAMS 0x200000
 
 // worst case background vertex size, see ISP_BACKGND_T field
 #define BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
@@ -453,8 +453,8 @@ struct tile_ctx {
   float bg_depth;
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
-  // command buffer
-  uint8_t data[TA_PARAMS_SIZE];
+  // parameter buffer
+  uint8_t *params;
   int cursor;
   int size;
 

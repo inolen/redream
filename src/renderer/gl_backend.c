@@ -730,4 +730,5 @@ void rb_destroy(struct rb *rb) {
   rb_destroy_textures(rb);
   rb_destroy_context(rb);
   win_remove_listener(rb->window, rb->listener);
+  free(rb);
 }

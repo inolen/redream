@@ -59,10 +59,10 @@ static void signal_handler(int signo, siginfo_t *info, void *ctx) {
   bool handled = exception_handler_handle(&ex);
 
   if (!handled) {
-    // call into the original handler if the installed handler fails to handle
-    // the signal
-    struct sigaction *sa = signo == SIGSEGV ? &old_sigsegv : &old_sigill;
-    (*sa->sa_sigaction)(signo, info, ctx);
+    // uninstall the signal handler if we couldn't handle it, let the kernel do
+    // its job
+    struct sigaction *old_sa = signo == SIGSEGV ? &old_sigsegv : &old_sigill;
+    sigaction(signo, old_sa, NULL);
     return;
   }
 

@@ -927,8 +927,8 @@ texture_key_t tr_get_texture_key(union tsp tsp, union tcw tcw) {
 
 static void tr_parse_context_inner(struct tr *tr, const struct tile_ctx *ctx,
                                    struct render_ctx *rctx) {
-  const uint8_t *data = ctx->data;
-  const uint8_t *end = ctx->data + ctx->size;
+  const uint8_t *data = ctx->params;
+  const uint8_t *end = ctx->params + ctx->size;
 
   tr_reset(tr, rctx);
 
@@ -977,7 +977,7 @@ static void tr_parse_context_inner(struct tr *tr, const struct tile_ctx *ctx,
 
     // keep track of the surf / vert counts at each parameter offset
     if (rctx->states) {
-      int offset = (int)(data - ctx->data);
+      int offset = (int)(data - ctx->params);
       CHECK_LT(offset, rctx->states_size);
       rctx->num_states = MAX(rctx->num_states, offset);
 

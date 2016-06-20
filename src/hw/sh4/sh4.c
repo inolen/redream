@@ -952,10 +952,15 @@ struct sh4 *sh4_create(struct dreamcast *dc) {
 }
 
 void sh4_destroy(struct sh4 *sh4) {
-  sh4_cache_destroy(sh4->code_cache);
+  g_sh4 = NULL;
 
-  execute_interface_destroy(sh4->base.execute);
+  if (sh4->code_cache) {
+    sh4_cache_destroy(sh4->code_cache);
+  }
+
+  window_interface_destroy(sh4->base.window);
   memory_interface_destroy(sh4->base.memory);
+  execute_interface_destroy(sh4->base.execute);
   dc_destroy_device(&sh4->base);
 }
 
