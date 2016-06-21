@@ -98,6 +98,9 @@ list(APPEND REDREAM_LIBS inih)
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
 
+# nuklear
+list(APPEND REDREAM_INCLUDE_DIRS deps/nuklear)
+
 # xbyak
 list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
 
@@ -178,6 +181,7 @@ set(REDREAM_SOURCES
   src/sys/memory.c
   src/ui/microprofile.cc
   src/ui/keycode.c
+  src/ui/nuklear.c
   src/ui/window.c
   src/main.c)
 

@@ -7,6 +7,9 @@
 struct rb;
 struct imgui;
 struct microprofile;
+struct nk_context;
+struct window;
+struct window_listener;
 
 struct SDL_Window;
 
@@ -26,11 +29,9 @@ struct window_callbacks {
   void (*close)(void *data);
 };
 
-struct window;
-struct window_listener;
-
 struct SDL_Window *win_handle(struct window *win);
 struct rb *win_render_backend(struct window *win);
+struct nk_context *win_nk_context(struct window *win);
 int win_width(struct window *win);
 int win_height(struct window *win);
 
