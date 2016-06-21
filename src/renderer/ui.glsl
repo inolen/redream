@@ -9,9 +9,9 @@ static const char *ui_vp =
 "out vec2 var_diffuse_texcoord;\n"
 
 "void main() {\n"
-"	var_color = attr_color;\n"
-"	var_diffuse_texcoord = attr_texcoord;\n"
-"	gl_Position = u_mvp * vec4(attr_xy, 0.0, 1.0);\n"
+"  var_color = attr_color;\n"
+"  var_diffuse_texcoord = attr_texcoord;\n"
+"  gl_Position = u_mvp * vec4(attr_xy, 0.0, 1.0);\n"
 "}";
 
 static const char *ui_fp =
@@ -23,7 +23,7 @@ static const char *ui_fp =
 "layout(location = 0) out vec4 fragcolor;\n"
 
 "void main() {\n"
-"	vec4 color = var_color;\n"
-"	color *= texture(u_diffuse_map, var_diffuse_texcoord);\n"
-"	fragcolor = color;\n"
+"  vec4 color = var_color;\n"
+"  color *= texture(u_diffuse_map, var_diffuse_texcoord);\n"
+"  fragcolor = color;\n"
 "}";

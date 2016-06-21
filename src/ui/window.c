@@ -3,6 +3,7 @@
 #include "core/assert.h"
 #include "core/list.h"
 #include "renderer/backend.h"
+#include "ui/nuklear.h"
 #include "ui/microprofile.h"
 #include "ui/window.h"
 
@@ -23,6 +24,7 @@ struct window_listener {
 struct window {
   SDL_Window *handle;
   struct rb *rb;
+  struct nuklear *nk;
   struct microprofile *mp;
   int width;
   int height;
@@ -834,6 +836,10 @@ struct rb *win_render_backend(struct window *win) {
   return win->rb;
 }
 
+struct nk_context *win_nk_context(struct window *win) {
+  return nuklear_context(win->nk);
+}
+
 int win_width(struct window *win) {
   return win->width;
 }
@@ -926,6 +932,14 @@ struct window *win_create() {
     return NULL;
   }
 
+  // setup nuklear
+  win->nk = nuklear_create(win);
+  if (!win->nk) {
+    LOG_WARNING("Nuklear creation failed");
+    win_destroy(win);
+    return NULL;
+  }
+
   // setup microprofile
   win->mp = mp_create(win);
   if (!win->mp) {
@@ -940,6 +954,10 @@ struct window *win_create() {
 void win_destroy(struct window *win) {
   if (win->mp) {
     mp_destroy(win->mp);
+  }
+
+  if (win->nk) {
+    nuklear_destroy(win->nk);
   }
 
   if (win->rb) {
