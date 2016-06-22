@@ -2,8 +2,8 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include "core/assert.h"
-#include "core/string.h"
 #include "core/profiler.h"
+#include "core/string.h"
 #include "renderer/backend.h"
 #include "ui/window.h"
 
@@ -327,7 +327,7 @@ static bool rb_init_context(struct rb *rb) {
   // unprojecting dreamcast coordinates, see tr_proj_mat
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-  rb->ctx = SDL_GL_CreateContext(win_handle(rb->window));
+  rb->ctx = SDL_GL_CreateContext(rb->window->handle);
   if (!rb->ctx) {
     LOG_WARNING("OpenGL context creation failed: %s", SDL_GetError());
     return false;
@@ -583,13 +583,13 @@ void rb_end_surfaces2d(struct rb *rb) {}
 void rb_begin2d(struct rb *rb) {
   float ortho[16];
 
-  ortho[0] = 2.0f / (float)win_width(rb->window);
+  ortho[0] = 2.0f / (float)rb->window->width;
   ortho[4] = 0.0f;
   ortho[8] = 0.0f;
   ortho[12] = -1.0f;
 
   ortho[1] = 0.0f;
-  ortho[5] = -2.0f / (float)win_height(rb->window);
+  ortho[5] = -2.0f / (float)rb->window->height;
   ortho[9] = 0.0f;
   ortho[13] = 1.0f;
 
@@ -619,19 +619,16 @@ void rb_end2d(struct rb *rb) {
 }
 
 void rb_begin_frame(struct rb *rb) {
-  int width = win_width(rb->window);
-  int height = win_height(rb->window);
-
   rb_set_depth_mask(rb, true);
 
-  glViewport(0, 0, width, height);
+  glViewport(0, 0, rb->window->width, rb->window->height);
 
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void rb_end_frame(struct rb *rb) {
-  SDL_GL_SwapWindow(win_handle(rb->window));
+  SDL_GL_SwapWindow(rb->window->handle);
 }
 
 texture_handle_t rb_register_texture(struct rb *rb, enum pxl_format format,

@@ -5,26 +5,8 @@
 #include "ui/nuklear.h"
 #include "ui/window.h"
 
-#define NK_INCLUDE_FIXED_TYPES
-#define NK_INCLUDE_STANDARD_IO
-#define NK_INCLUDE_DEFAULT_ALLOCATOR
-#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
-#define NK_INCLUDE_FONT_BAKING
-#define NK_INCLUDE_DEFAULT_FONT
 #define NK_IMPLEMENTATION
 #include <nuklear.h>
-
-struct nuklear {
-  struct window *window;
-  struct window_listener *listener;
-  struct nk_context ctx;
-  struct nk_buffer cmds;
-  struct nk_font_atlas atlas;
-  struct nk_draw_null_texture null;
-  bool alt[2];
-  bool ctrl[2];
-  bool shift[2];
-};
 
 static void nuklear_onprepaint(void *data) {
   struct nuklear *nk = data;
@@ -39,7 +21,7 @@ static void nuklear_onprepaint(void *data) {
 
 static void nuklear_onpostpaint(void *data) {
   struct nuklear *nk = data;
-  struct rb *rb = win_render_backend(nk->window);
+  struct rb *rb = nk->window->rb;
 
   /*// if there are any focused items, enable text input
   win_enable_text_input(nk->window, ImGui::IsAnyItemActive());
@@ -109,8 +91,8 @@ static void nuklear_onpostpaint(void *data) {
   config.null = nk->null;
 
   /* setup buffers to load vertices and elements */
-  static struct vertex2d vertices[1024*10];
-  static uint16_t elements[1024*10];
+  static struct vertex2d vertices[1024 * 10];
+  static uint16_t elements[1024 * 10];
 
   struct nk_buffer vbuf, ebuf;
   nk_buffer_init_fixed(&vbuf, vertices, (size_t)sizeof(vertices));
@@ -118,9 +100,9 @@ static void nuklear_onpostpaint(void *data) {
   nk_convert(&nk->ctx, &nk->cmds, &vbuf, &ebuf, &config);
 
   rb_begin2d(rb);
-  
-  rb_begin_surfaces2d(rb, vertices, nk->ctx.draw_list.vertex_count,
-     elements, nk->ctx.draw_list.element_count);    
+
+  rb_begin_surfaces2d(rb, vertices, nk->ctx.draw_list.vertex_count, elements,
+                      nk->ctx.draw_list.element_count);
 
   int n = 0;
   /* iterate over and execute each draw command */
@@ -137,10 +119,10 @@ static void nuklear_onpostpaint(void *data) {
     surf.src_blend = BLEND_SRC_ALPHA;
     surf.dst_blend = BLEND_ONE_MINUS_SRC_ALPHA;
     surf.scissor = true;
-    surf.scissor_rect[0] = (cmd->clip_rect.x);
-    surf.scissor_rect[1] = ((win_height(nk->window) - (cmd->clip_rect.y + cmd->clip_rect.h)));
-    surf.scissor_rect[2] = (cmd->clip_rect.w);
-    surf.scissor_rect[3] = (cmd->clip_rect.h);
+    surf.scissor_rect[0] = cmd->clip_rect.x;
+    surf.scissor_rect[1] = nk->window->height - (cmd->clip_rect.y + cmd->clip_rect.h);
+    surf.scissor_rect[2] = cmd->clip_rect.w;
+    surf.scissor_rect[3] = cmd->clip_rect.h;
     surf.first_vert = n;
     surf.num_verts = cmd->elem_count;
 
@@ -149,11 +131,13 @@ static void nuklear_onpostpaint(void *data) {
     /*glBindTexture(GL_TEXTURE_2D, (GLuint)cmd->texture.id);
     glScissor(
         (GLint)(cmd->clip_rect.x * scale.x),
-        (GLint)((height - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h)) * scale.y),
+        (GLint)((height - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h)) *
+    scale.y),
         (GLint)(cmd->clip_rect.w * scale.x),
         (GLint)(cmd->clip_rect.h * scale.y));
-    glDrawElements(GL_TRIANGLES, (GLsizei)cmd->elem_count, GL_UNSIGNED_SHORT, offset);*/
-    
+    glDrawElements(GL_TRIANGLES, (GLsizei)cmd->elem_count, GL_UNSIGNED_SHORT,
+    offset);*/
+
     n += cmd->elem_count;
     offset += cmd->elem_count;
   }
@@ -258,12 +242,15 @@ struct nuklear *nuklear_create(struct window *window) {
   nk_init_default(&nk->ctx, 0);
   nk_buffer_init_default(&nk->cmds);
 
-  struct rb *rb = win_render_backend(nk->window);
+  struct rb *rb = nk->window->rb;
   nk_font_atlas_init_default(&nk->atlas);
   nk_font_atlas_begin(&nk->atlas);
   int w, h;
-  const void *image = nk_font_atlas_bake(&nk->atlas, &w, &h, NK_FONT_ATLAS_RGBA32);
-  texture_handle_t handle = rb_register_texture(rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT, WRAP_REPEAT, false, w, h, image);
+  const void *image =
+      nk_font_atlas_bake(&nk->atlas, &w, &h, NK_FONT_ATLAS_RGBA32);
+  texture_handle_t handle =
+      rb_register_texture(rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
+                          WRAP_REPEAT, false, w, h, image);
   nk_font_atlas_end(&nk->atlas, nk_handle_id((int)handle), &nk->null);
   if (nk->atlas.default_font) {
     nk_style_set_font(&nk->ctx, &nk->atlas.default_font->handle);
