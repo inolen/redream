@@ -1,17 +1,11 @@
-#define NK_INCLUDE_FIXED_TYPES
-#define NK_INCLUDE_STANDARD_IO
-#define NK_INCLUDE_DEFAULT_ALLOCATOR
-#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
-#define NK_INCLUDE_FONT_BAKING
-#define NK_INCLUDE_DEFAULT_FONT
-#include <nuklear.h>
 #include "core/option.h"
 #include "emu/emulator.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
-#include "hw/memory.h"
 #include "hw/scheduler.h"
+#include "hw/memory.h"
+#include "ui/nuklear.h"
 #include "ui/window.h"
 #include "sys/time.h"
 
@@ -134,14 +128,13 @@ static void emu_onpaint(void *data, bool show_main_menu) {
   dc_paint(emu->dc, show_main_menu);
 
   {
-    struct nk_context *ctx = win_nk_context(emu->window);
+    struct nk_context *ctx = &emu->window->nk->ctx;
     struct nk_color background;
     struct nk_panel layout;
 
     if (nk_begin(ctx, &layout, "Demo", nk_rect(200, 200, 210, 250),
-        NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE|
-        NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE)) {
-      enum {EASY, HARD};
+                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
+      enum { EASY, HARD };
       static int op = EASY;
       static int property = 20;
 
@@ -168,10 +161,10 @@ static void emu_onpaint(void *data, bool show_main_menu) {
           nk_layout_row_dynamic(ctx, 120, 1);
           background = nk_color_picker(ctx, background, NK_RGBA);
           nk_layout_row_dynamic(ctx, 25, 1);
-          background.r = (nk_byte)nk_propertyi(ctx, "#R:", 0, background.r, 255, 1,1);
-          background.g = (nk_byte)nk_propertyi(ctx, "#G:", 0, background.g, 255, 1,1);
-          background.b = (nk_byte)nk_propertyi(ctx, "#B:", 0, background.b, 255, 1,1);
-          background.a = (nk_byte)nk_propertyi(ctx, "#A:", 0, background.a, 255, 1,1);
+          background.r = (nk_byte)nk_propertyi(ctx, "#R:", 0, background.r, 255, 1, 1);
+          background.g = (nk_byte)nk_propertyi(ctx, "#G:", 0, background.g, 255, 1, 1);
+          background.b = (nk_byte)nk_propertyi(ctx, "#B:", 0, background.b, 255, 1, 1);
+          background.a = (nk_byte)nk_propertyi(ctx, "#A:", 0, background.a, 255, 1, 1);
           nk_combo_end(ctx);
         }
       }
@@ -186,7 +179,7 @@ static void emu_onkeydown(void *data, enum keycode code, int16_t value) {
 
   if (code == K_F1) {
     if (value) {
-      win_enable_main_menu(emu->window, !win_main_menu_enabled(emu->window));
+      win_enable_main_menu(emu->window, !emu->window->main_menu);
     }
     return;
   }
@@ -201,7 +194,7 @@ static void emu_onclose(void *data) {
 }
 
 void emu_run(struct emu *emu, const char *path) {
-  emu->dc = dc_create(win_render_backend(emu->window));
+  emu->dc = dc_create(emu->window->rb);
 
   if (!emu->dc) {
     return;

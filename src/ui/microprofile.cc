@@ -52,10 +52,10 @@ static void mp_onpostpaint(void *data) {
 
   // update draw surfaces
   MicroProfileFlip();
-  MicroProfileDraw(win_width(mp->window), win_height(mp->window));
+  MicroProfileDraw(mp->window->width, mp->window->height);
 
   // render the surfaces
-  struct rb *rb = win_render_backend(mp->window);
+  struct rb *rb = mp->window->rb;
 
   rb_begin2d(rb);
   rb_begin_surfaces2d(rb, mp->verts, mp->num_verts, nullptr, 0);
@@ -269,7 +269,7 @@ struct microprofile *mp_create(struct window *window) {
   mp->listener = win_add_listener(mp->window, &callbacks, mp);
 
   // init microprofile
-  struct rb *rb = win_render_backend(mp->window);
+  struct rb *rb = mp->window->rb;
 
   // register and enable gpu and runtime group by default
   uint16_t gpu_group = MicroProfileGetGroup("gpu", MicroProfileTokenTypeCpu);

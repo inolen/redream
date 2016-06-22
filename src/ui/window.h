@@ -1,23 +1,25 @@
 #ifndef SYSTEM_H
 #define SYSTEM_H
 
+#include <stdbool.h>
 #include <stdint.h>
+#include "core/list.h"
 #include "ui/keycode.h"
 
 struct rb;
 struct imgui;
 struct microprofile;
-struct nk_context;
+struct nuklear;
 struct window;
 struct window_listener;
 
+struct _SDL_Joystick;
 struct SDL_Window;
 
-static const int MAX_WINDOW_LISTENERS = 16;
-static const int NUM_JOYSTICK_AXES = (K_AXIS15 - K_AXIS0) + 1;
-static const int NUM_JOYSTICK_KEYS = (K_JOY31 - K_JOY0) + 1;
-static const int NUM_JOYSTICK_HATS =
-    ((K_HAT15 - K_HAT0) + 1) / 4;  // 4 keys per hat
+#define MAX_WINDOW_LISTENERS 16
+#define NUM_JOYSTICK_AXES ((K_AXIS15 - K_AXIS0) + 1)
+#define NUM_JOYSTICK_KEYS ((K_JOY31 - K_JOY0) + 1)
+#define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
 
 struct window_callbacks {
   void (*prepaint)(void *data);
@@ -29,25 +31,39 @@ struct window_callbacks {
   void (*close)(void *data);
 };
 
-struct SDL_Window *win_handle(struct window *win);
-struct rb *win_render_backend(struct window *win);
-struct nk_context *win_nk_context(struct window *win);
-int win_width(struct window *win);
-int win_height(struct window *win);
+struct window_listener {
+  struct window_callbacks cb;
+  void *data;
+  struct list_node it;
+};
 
-bool win_main_menu_enabled(struct window *win);
+struct window {
+  // state is read-only to the public
+  struct SDL_Window *handle;
+  struct rb *rb;
+  struct nuklear *nk;
+  struct microprofile *mp;
+  int width;
+  int height;
+  bool main_menu;
+  bool text_input;
+
+  // private state
+  struct window_listener listeners[MAX_WINDOW_LISTENERS];
+  struct list free_listeners;
+  struct list live_listeners;
+
+  struct _SDL_Joystick *joystick;
+  uint8_t hat_state[NUM_JOYSTICK_HATS];
+};
+
 void win_enable_main_menu(struct window *win, bool active);
-
-bool win_text_input_enabled(struct window *win);
 void win_enable_text_input(struct window *win, bool active);
-
 void win_pump_events(struct window *win);
-
 struct window_listener *win_add_listener(struct window *win,
                                          const struct window_callbacks *cb,
                                          void *data);
 void win_remove_listener(struct window *win, struct window_listener *listener);
-
 struct window *win_create();
 void win_destroy(struct window *win);
 

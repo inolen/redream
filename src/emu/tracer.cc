@@ -286,7 +286,7 @@ static void tracer_prev_context(tracer_t *tracer) {
     if (curr->type == TRACE_CMD_TEXTURE) {
       tracer_remove_texture(tracer, curr->texture.tsp, curr->texture.tcw);
 
-      trace_cmd_t *override = curr->override;
+      trace_cmd_t * override = curr->override;
       if (override) {
         CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
 
@@ -739,8 +739,7 @@ static void tracer_onkeydown(tracer_t *tracer, enum keycode code,
                              int16_t value) {
   if (code == K_F1) {
     if (value) {
-      win_enable_main_menu(tracer->window,
-                           !win_main_menu_enabled(tracer->window));
+      win_enable_main_menu(tracer->window, !tracer->window->main_menu);
     }
   } else if (code == K_LEFT && value) {
     tracer_prev_context(tracer);
@@ -804,7 +803,7 @@ tracer_t *tracer_create(struct window *window) {
 
   tracer->window = window;
   tracer->listener = win_add_listener(window, &callbacks, tracer);
-  tracer->rb = win_render_backend(window);
+  tracer->rb = window->rb;
   tracer->tr = tr_create(tracer->rb, tracer, &tracer_get_texture);
 
   // setup render context buffers

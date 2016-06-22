@@ -10,35 +10,6 @@
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
 
-#define MAX_WINDOW_LISTENERS 16
-#define NUM_JOYSTICK_AXES ((K_AXIS15 - K_AXIS0) + 1)
-#define NUM_JOYSTICK_KEYS ((K_JOY31 - K_JOY0) + 1)
-#define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
-
-struct window_listener {
-  struct window_callbacks cb;
-  void *data;
-  struct list_node it;
-};
-
-struct window {
-  SDL_Window *handle;
-  struct rb *rb;
-  struct nuklear *nk;
-  struct microprofile *mp;
-  int width;
-  int height;
-
-  struct window_listener listeners[MAX_WINDOW_LISTENERS];
-  struct list free_listeners;
-  struct list live_listeners;
-
-  SDL_Joystick *joystick;
-  uint8_t hat_state[NUM_JOYSTICK_HATS];
-
-  bool show_main_menu;
-};
-
 static void win_destroy_joystick(struct window *win) {
   if (win->joystick) {
     SDL_JoystickClose(win->joystick);
@@ -76,7 +47,7 @@ static void win_handle_paint(struct window *win) {
   list_for_each_entry(listener, &win->live_listeners, struct window_listener,
                       it) {
     if (listener->cb.paint) {
-      listener->cb.paint(listener->data, win->show_main_menu);
+      listener->cb.paint(listener->data, win->main_menu);
     }
   }
 
@@ -828,40 +799,14 @@ static void win_pump_sdl(struct window *win) {
   }
 }
 
-SDL_Window *win_handle(struct window *win) {
-  return win->handle;
-}
-
-struct rb *win_render_backend(struct window *win) {
-  return win->rb;
-}
-
-struct nk_context *win_nk_context(struct window *win) {
-  return nuklear_context(win->nk);
-}
-
-int win_width(struct window *win) {
-  return win->width;
-}
-
-int win_height(struct window *win) {
-  return win->height;
-}
-
-bool win_main_menu_enabled(struct window *win) {
-  return win->show_main_menu;
-}
-
 void win_enable_main_menu(struct window *win, bool active) {
-  win->show_main_menu = active;
-}
-
-bool win_text_input_enabled(struct window *win) {
-  return SDL_IsTextInputActive();
+  win->main_menu = active;
 }
 
 void win_enable_text_input(struct window *win, bool active) {
-  if (active) {
+  win->text_input = active;
+
+  if (win->text_input) {
     SDL_StartTextInput();
   } else {
     SDL_StopTextInput();
