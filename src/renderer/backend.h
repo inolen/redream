@@ -127,8 +127,8 @@ void rb_begin_surfaces2d(struct rb *rb, const struct vertex2d *verts,
 void rb_draw_surface2d(struct rb *rb, const struct surface2d *surf);
 void rb_end_surfaces2d(struct rb *rb);
 
-void rb_begin2d(struct rb *rb);
-void rb_end2d(struct rb *rb);
+void rb_begin_ortho(struct rb *rb);
+void rb_end_ortho(struct rb *rb);
 
 void rb_begin_frame(struct rb *rb);
 void rb_end_frame(struct rb *rb);
