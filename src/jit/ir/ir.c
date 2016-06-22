@@ -1,5 +1,5 @@
-#include "core/math.h"
 #include "jit/ir/ir.h"
+#include "core/math.h"
 
 const char *ir_op_names[NUM_OPS] = {
 #define IR_OP(name) #name,

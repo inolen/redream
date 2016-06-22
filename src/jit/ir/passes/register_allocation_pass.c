@@ -1,8 +1,8 @@
+#include "jit/ir/passes/register_allocation_pass.h"
 #include "core/mm_heap.h"
 #include "jit/backend/backend.h"
-#include "jit/ir/passes/pass_stat.h"
-#include "jit/ir/passes/register_allocation_pass.h"
 #include "jit/ir/ir.h"
+#include "jit/ir/passes/pass_stat.h"
 
 DEFINE_STAT(num_spills, "Number of registers spilled");
 

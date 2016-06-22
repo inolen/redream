@@ -1,6 +1,8 @@
 #ifndef FRONTEND_H
 #define FRONTEND_H
 
+#include <stdint.h>
+
 struct ir;
 struct jit_frontend;
 

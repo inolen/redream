@@ -1,8 +1,8 @@
 #ifndef MAPLE_H
 #define MAPLE_H
 
-#include "hw/maple/maple_types.h"
 #include "hw/dreamcast.h"
+#include "hw/maple/maple_types.h"
 #include "ui/keycode.h"
 
 struct dreamcast;

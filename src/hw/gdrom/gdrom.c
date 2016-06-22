@@ -1,10 +1,10 @@
+#include "hw/gdrom/gdrom.h"
 #include "core/math.h"
 #include "core/string.h"
-#include "hw/gdrom/gdrom.h"
+#include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom_replies.inc"
 #include "hw/gdrom/gdrom_types.h"
 #include "hw/holly/holly.h"
-#include "hw/dreamcast.h"
 
 #define SWAP_24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))

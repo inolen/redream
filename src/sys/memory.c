@@ -1,10 +1,10 @@
 #include <stdlib.h>
+#include "sys/memory.h"
 #include "core/assert.h"
-#include "core/list.h"
 #include "core/interval_tree.h"
+#include "core/list.h"
 #include "core/math.h"
 #include "sys/exception_handler.h"
-#include "sys/memory.h"
 
 #define MAX_WATCHES 1024
 

@@ -1,8 +1,8 @@
-#include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"
+#include "hw/dreamcast.h"
+#include "hw/gdrom/gdrom.h"
 #include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
-#include "hw/dreamcast.h"
 
 static void holly_update_sh4_interrupts(struct holly *hl) {
   // trigger the respective level-encoded interrupt on the sh4 interrupt

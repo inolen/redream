@@ -1,6 +1,6 @@
+#include "core/mm_heap.h"
 #include "core/assert.h"
 #include "core/core.h"
-#include "core/mm_heap.h"
 
 static inline bool mm_is_max_level(int index) {
   int n = index + 1;

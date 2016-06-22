@@ -13,10 +13,10 @@
     (b) = tmp;           \
   } while (0)
 
-#define container_of(ptr, type, member)               \
-  ({                                                  \
-    const TYPEOF(((type*)0)->member)* __mptr = (ptr); \
-    (type*)((char*)__mptr - offsetof(type, member));  \
+#define container_of(ptr, type, member)                \
+  ({                                                   \
+    const TYPEOF(((type *)0)->member) *__mptr = (ptr); \
+    (type *)((char *)__mptr - offsetof(type, member)); \
   })
 
 #define array_size(arr) (int)(sizeof(arr) / sizeof((arr)[0]))

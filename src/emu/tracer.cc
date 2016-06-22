@@ -1,6 +1,6 @@
 #include <imgui.h>
-#include "core/math.h"
 #include "emu/tracer.h"
+#include "core/math.h"
 #include "hw/holly/ta.h"
 #include "hw/holly/tr.h"
 #include "hw/holly/trace.h"

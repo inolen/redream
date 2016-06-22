@@ -1,10 +1,10 @@
+#include "jit/frontend/sh4/sh4_translate.h"
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
-#include "jit/frontend/sh4/sh4_translate.h"
 #include "jit/ir/ir.h"
 
 //

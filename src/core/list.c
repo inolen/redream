@@ -1,5 +1,5 @@
-#include "core/assert.h"
 #include "core/list.h"
+#include "core/assert.h"
 
 int list_empty(struct list *list) {
   return !list->head;

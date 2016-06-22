@@ -1,8 +1,8 @@
 #include <stdlib.h>
+#include "ui/nuklear.h"
 #include "core/core.h"
 #include "core/string.h"
 #include "renderer/backend.h"
-#include "ui/nuklear.h"
 #include "ui/window.h"
 
 #define NK_IMPLEMENTATION
@@ -120,7 +120,8 @@ static void nuklear_onpostpaint(void *data) {
     surf.dst_blend = BLEND_ONE_MINUS_SRC_ALPHA;
     surf.scissor = true;
     surf.scissor_rect[0] = cmd->clip_rect.x;
-    surf.scissor_rect[1] = nk->window->height - (cmd->clip_rect.y + cmd->clip_rect.h);
+    surf.scissor_rect[1] =
+        nk->window->height - (cmd->clip_rect.y + cmd->clip_rect.h);
     surf.scissor_rect[2] = cmd->clip_rect.w;
     surf.scissor_rect[3] = cmd->clip_rect.h;
     surf.first_vert = n;
@@ -177,13 +178,13 @@ static void nuklear_onkeydown(void *data, enum keycode code, int16_t value) {
 static void nuklear_ontextinput(void *data, const char *text) {
   struct nuklear *nk = data;
 
-  //io.AddInputCharactersUTF8(text);
+  // io.AddInputCharactersUTF8(text);
 }
 
 static void nuklear_onmousemove(void *data, int x, int y) {
   struct nuklear *nk = data;
 
-  //io.MousePos = ImVec2((float)x, (float)y);
+  // io.MousePos = ImVec2((float)x, (float)y);
 }
 
 struct nk_context *nuklear_context(struct nuklear *nk) {

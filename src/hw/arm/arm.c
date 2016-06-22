@@ -1,5 +1,5 @@
-#include "hw/aica/aica.h"
 #include "hw/arm/arm.h"
+#include "hw/aica/aica.h"
 #include "hw/dreamcast.h"
 
 struct arm {

@@ -1,5 +1,5 @@
-#include "core/assert.h"
 #include "core/rb_tree.h"
+#include "core/assert.h"
 
 static enum rb_color rb_color(struct rb_node *n) {
   return n ? n->color : RB_BLACK;

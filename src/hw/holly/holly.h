@@ -2,8 +2,8 @@
 #define HOLLY_H
 
 #include <stdint.h>
-#include "hw/holly/holly_types.h"
 #include "hw/dreamcast.h"
+#include "hw/holly/holly_types.h"
 #include "hw/memory.h"
 
 struct dreamcast;

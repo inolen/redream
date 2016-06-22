@@ -1,8 +1,8 @@
-#include "hw/holly/holly.h"
 #include "hw/holly/pvr.h"
+#include "hw/dreamcast.h"
+#include "hw/holly/holly.h"
 #include "hw/holly/ta.h"
 #include "hw/sh4/sh4.h"
-#include "hw/dreamcast.h"
 
 static void pvr_next_scanline(void *data) {
   struct pvr *pvr = data;

@@ -1,10 +1,10 @@
-#include "core/log.h"
 #include "hw/aica/aica.h"
+#include "core/log.h"
 #include "hw/aica/aica_types.h"
 #include "hw/arm/arm.h"
-#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
+#include "hw/sh4/sh4.h"
 
 struct aica {
   struct device base;

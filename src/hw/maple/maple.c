@@ -1,7 +1,7 @@
-#include "hw/holly/holly.h"
 #include "hw/maple/maple.h"
-#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
+#include "hw/holly/holly.h"
+#include "hw/sh4/sh4.h"
 
 struct maple {
   struct device base;
