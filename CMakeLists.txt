@@ -44,7 +44,6 @@ find_package(OpenGL REQUIRED)
 list(APPEND REDREAM_INCLUDE_DIRS ${OPENGL_INCLUDE_DIR})
 list(APPEND REDREAM_LIBS ${OPENGL_LIBRARIES})
 
-
 #--------------------------------------------------
 # static libs
 #--------------------------------------------------
