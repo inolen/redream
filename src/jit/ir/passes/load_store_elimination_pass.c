@@ -1,6 +1,6 @@
 #include "jit/ir/passes/load_store_elimination_pass.h"
-#include "jit/ir/passes/pass_stat.h"
 #include "jit/ir/ir.h"
+#include "jit/ir/passes/pass_stat.h"
 
 DEFINE_STAT(num_loads_removed, "Number of loads eliminated");
 DEFINE_STAT(num_stores_removed, "Number of stores eliminated");

@@ -1,8 +1,8 @@
+#include <gflags/gflags.h>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include <gflags/gflags.h>
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/ir_builder.h"

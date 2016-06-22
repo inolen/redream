@@ -1,6 +1,6 @@
+#include "sys/exception_handler.h"
 #include "core/assert.h"
 #include "core/list.h"
-#include "sys/exception_handler.h"
 
 #define MAX_EXCEPTION_HANDLERS 32
 

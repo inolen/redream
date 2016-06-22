@@ -1,5 +1,5 @@
-#include "core/assert.h"
 #include "hw/gdrom/disc.h"
+#include "core/assert.h"
 
 static const int GDI_PREGAP_SIZE = 150;
 

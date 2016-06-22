@@ -16,7 +16,7 @@ struct trace_cmd {
   // set on read
   struct trace_cmd *prev;
   struct trace_cmd *next;
-  struct trace_cmd *override;
+  struct trace_cmd * override;
 
   // the data pointers in these structs are written out relative to the cmd,
   // and patched to absolute pointers on read

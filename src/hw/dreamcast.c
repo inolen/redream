@@ -1,17 +1,17 @@
+#include "hw/dreamcast.h"
 #include "core/option.h"
 #include "core/string.h"
-#include "hw/sh4/sh4.h"
-#include "hw/arm/arm.h"
 #include "hw/aica/aica.h"
+#include "hw/arm/arm.h"
+#include "hw/debugger.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr.h"
 #include "hw/holly/ta.h"
 #include "hw/maple/maple.h"
-#include "hw/dreamcast.h"
-#include "hw/debugger.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
+#include "hw/sh4/sh4.h"
 
 DEFINE_OPTION_BOOL(gdb, false, "Run gdb debug server");
 

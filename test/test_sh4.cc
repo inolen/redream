@@ -1,14 +1,14 @@
+#include <gtest/gtest.h>
 #include <limits.h>
 #include <memory>
 #include <unordered_map>
-#include <gtest/gtest.h>
 
 extern "C" {
 #include "core/math.h"
-#include "hw/sh4/sh4.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
+#include "hw/sh4/sh4.h"
 #include "sys/exception_handler.h"
 }
 

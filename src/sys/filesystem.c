@@ -1,10 +1,10 @@
 #include <errno.h>
 #include <stdlib.h>
+#include "sys/filesystem.h"
 #include "core/debug_break.h"
 #include "core/log.h"
 #include "core/math.h"
 #include "core/string.h"
-#include "sys/filesystem.h"
 
 const char *fs_appdir() {
   static char appdir[PATH_MAX] = {};

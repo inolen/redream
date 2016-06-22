@@ -1,7 +1,7 @@
 #include <mach/mach.h>
 #include <mach/mach_time.h>
-#include "core/assert.h"
 #include "sys/time.h"
+#include "core/assert.h"
 
 static const int64_t NS_PER_SEC = INT64_C(1000000000);
 

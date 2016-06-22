@@ -2,8 +2,8 @@
 #define PVR_H
 
 #include <stdint.h>
-#include "hw/holly/pvr_types.h"
 #include "hw/dreamcast.h"
+#include "hw/holly/pvr_types.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 

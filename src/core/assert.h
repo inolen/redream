@@ -20,8 +20,12 @@ const char *format_check_error(const char *filename, int linenum,
 // 4+: VA_ARGS = format_check_error_ex
 #define GET_FORMAT_CHECK_ERROR(_1, _2, _3, _4, _5, _6, _7, _8, _9, NAME, ...) \
   NAME
-#define FORMAT_CHECK_ERROR(...) \
-  GET_FORMAT_CHECK_ERROR(__VA_ARGS__, format_check_error_ex, format_check_error_ex, format_check_error_ex, format_check_error_ex, format_check_error_ex, format_check_error_ex, format_check_error)(__VA_ARGS__)
+#define FORMAT_CHECK_ERROR(...)                                        \
+  GET_FORMAT_CHECK_ERROR(__VA_ARGS__, format_check_error_ex,           \
+                         format_check_error_ex, format_check_error_ex, \
+                         format_check_error_ex, format_check_error_ex, \
+                         format_check_error_ex, format_check_error)    \
+  (__VA_ARGS__)
 
 // checks ran for all build configurations
 #define CHECK_BINARY_OP(v1, v2, op, ...)                           \

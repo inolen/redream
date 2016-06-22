@@ -1,6 +1,6 @@
 #include "jit/ir/passes/dead_code_elimination_pass.h"
-#include "jit/ir/passes/pass_stat.h"
 #include "jit/ir/ir.h"
+#include "jit/ir/passes/pass_stat.h"
 
 DEFINE_STAT(num_dead_removed, "Number of dead instructions eliminated");
 

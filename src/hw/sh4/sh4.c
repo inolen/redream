@@ -1,18 +1,18 @@
+#include "hw/sh4/sh4.h"
 #include "core/math.h"
 #include "core/profiler.h"
 #include "core/string.h"
-#include "jit/backend/backend.h"
-#include "jit/frontend/sh4/sh4_analyze.h"
 #include "hw/aica/aica.h"
+#include "hw/debugger.h"
+#include "hw/dreamcast.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr.h"
 #include "hw/holly/ta.h"
-#include "hw/sh4/sh4.h"
-#include "hw/sh4/sh4_code_cache.h"
-#include "hw/dreamcast.h"
-#include "hw/debugger.h"
 #include "hw/memory.h"
 #include "hw/scheduler.h"
+#include "hw/sh4/sh4_code_cache.h"
+#include "jit/backend/backend.h"
+#include "jit/frontend/sh4/sh4_analyze.h"
 #include "sys/time.h"
 
 #define SH4_CLOCK_FREQ INT64_C(200000000)
@@ -23,8 +23,7 @@ struct sh4_interrupt_info {
 
 static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
-  { intevt, pri, ipr, ipr_shift }                  \
-  ,
+  {intevt, pri, ipr, ipr_shift},
 #include "hw/sh4/sh4_int.inc"
 #undef SH4_INT
 };

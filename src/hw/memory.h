@@ -58,11 +58,11 @@ void memory_destroy(struct memory *memory);
     uint32_t begin = 0;                                                       \
     uint32_t size = 0;                                                        \
     uint32_t mask = 0xffffffff;                                               \
-    (void) self;                                                              \
-    (void) machine;                                                           \
-    (void) begin;                                                             \
-    (void) size;                                                              \
-    (void) mask;
+    (void)self;                                                               \
+    (void)machine;                                                            \
+    (void)begin;                                                              \
+    (void)size;                                                               \
+    (void)mask;
 #define AM_RANGE(begin_, end_) \
   begin = begin_;              \
   size = end_ - begin_ + 1;    \

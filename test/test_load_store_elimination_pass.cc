@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
 extern "C" {
-#include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/ir.h"
+#include "jit/ir/passes/load_store_elimination_pass.h"
 }
 
 static uint8_t ir_buffer[1024 * 1024];

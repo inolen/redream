@@ -1,6 +1,6 @@
+#include "jit/frontend/sh4/sh4_disasm.h"
 #include "core/assert.h"
 #include "core/string.h"
-#include "jit/frontend/sh4/sh4_disasm.h"
 
 struct sh4_opdef {
   enum sh4_op op;
@@ -17,9 +17,8 @@ struct sh4_opdef {
 
 static struct sh4_opdef s_opdefs[NUM_SH4_OPS] = {
     {SH4_OP_INVALID, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-#define SH4_INSTR(name, desc, sig, cycles, flags)                         \
-  { SH4_OP_##name, desc, #sig, cycles, flags, 0, 0, 0, 0, 0, 0, 0, 0, 0 } \
-  ,
+#define SH4_INSTR(name, desc, sig, cycles, flags) \
+  {SH4_OP_##name, desc, #sig, cycles, flags, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };

@@ -1,7 +1,7 @@
+#include "hw/memory.h"
 #include "core/math.h"
 #include "core/string.h"
 #include "hw/dreamcast.h"
-#include "hw/memory.h"
 #include "sys/exception_handler.h"
 
 struct memory {

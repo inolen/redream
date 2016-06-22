@@ -1,13 +1,13 @@
-#include "core/option.h"
 #include "emu/emulator.h"
-#include "hw/gdrom/gdrom.h"
-#include "hw/sh4/sh4.h"
+#include "core/option.h"
 #include "hw/dreamcast.h"
-#include "hw/scheduler.h"
+#include "hw/gdrom/gdrom.h"
 #include "hw/memory.h"
+#include "hw/scheduler.h"
+#include "hw/sh4/sh4.h"
+#include "sys/time.h"
 #include "ui/nuklear.h"
 #include "ui/window.h"
-#include "sys/time.h"
 
 DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to BIOS");
 DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash ROM");
@@ -133,7 +133,8 @@ static void emu_onpaint(void *data, bool show_main_menu) {
     struct nk_panel layout;
 
     if (nk_begin(ctx, &layout, "Demo", nk_rect(200, 200, 210, 250),
-                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
+                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
+                     NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
       enum { EASY, HARD };
       static int op = EASY;
       static int property = 20;
@@ -161,10 +162,14 @@ static void emu_onpaint(void *data, bool show_main_menu) {
           nk_layout_row_dynamic(ctx, 120, 1);
           background = nk_color_picker(ctx, background, NK_RGBA);
           nk_layout_row_dynamic(ctx, 25, 1);
-          background.r = (nk_byte)nk_propertyi(ctx, "#R:", 0, background.r, 255, 1, 1);
-          background.g = (nk_byte)nk_propertyi(ctx, "#G:", 0, background.g, 255, 1, 1);
-          background.b = (nk_byte)nk_propertyi(ctx, "#B:", 0, background.b, 255, 1, 1);
-          background.a = (nk_byte)nk_propertyi(ctx, "#A:", 0, background.a, 255, 1, 1);
+          background.r =
+              (nk_byte)nk_propertyi(ctx, "#R:", 0, background.r, 255, 1, 1);
+          background.g =
+              (nk_byte)nk_propertyi(ctx, "#G:", 0, background.g, 255, 1, 1);
+          background.b =
+              (nk_byte)nk_propertyi(ctx, "#B:", 0, background.b, 255, 1, 1);
+          background.a =
+              (nk_byte)nk_propertyi(ctx, "#A:", 0, background.a, 255, 1, 1);
           nk_combo_end(ctx);
         }
       }

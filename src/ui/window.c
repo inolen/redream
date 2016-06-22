@@ -1,11 +1,11 @@
-#include <stdlib.h>
 #include <SDL.h>
+#include <stdlib.h>
+#include "ui/window.h"
 #include "core/assert.h"
 #include "core/list.h"
 #include "renderer/backend.h"
-#include "ui/nuklear.h"
 #include "ui/microprofile.h"
-#include "ui/window.h"
+#include "ui/nuklear.h"
 
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480

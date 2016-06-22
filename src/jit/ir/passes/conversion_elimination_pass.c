@@ -1,6 +1,6 @@
 #include "jit/ir/passes/conversion_elimination_pass.h"
-#include "jit/ir/passes/pass_stat.h"
 #include "jit/ir/ir.h"
+#include "jit/ir/passes/pass_stat.h"
 
 DEFINE_STAT(num_sext_removed, "Number of sext eliminated");
 DEFINE_STAT(num_zext_removed, "Number of zext eliminated");

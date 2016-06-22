@@ -1,9 +1,9 @@
 #ifndef SH4_H
 #define SH4_H
 
-#include "hw/sh4/sh4_types.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
+#include "hw/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
 struct dreamcast;

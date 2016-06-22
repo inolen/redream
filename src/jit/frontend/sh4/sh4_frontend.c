@@ -1,8 +1,8 @@
+#include "jit/frontend/sh4/sh4_frontend.h"
+#include "jit/frontend/frontend.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
-#include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_translate.h"
-#include "jit/frontend/frontend.h"
 #include "jit/ir/ir.h"
 
 struct sh4_frontend {
