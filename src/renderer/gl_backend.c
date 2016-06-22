@@ -580,7 +580,7 @@ void rb_draw_surface2d(struct rb *rb, const struct surface2d *surf) {
 
 void rb_end_surfaces2d(struct rb *rb) {}
 
-void rb_begin2d(struct rb *rb) {
+void rb_begin_ortho(struct rb *rb) {
   float ortho[16];
 
   ortho[0] = 2.0f / (float)rb->window->width;
@@ -614,7 +614,7 @@ void rb_begin2d(struct rb *rb) {
   glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 }
 
-void rb_end2d(struct rb *rb) {
+void rb_end_ortho(struct rb *rb) {
   rb_set_scissor_test(rb, false);
 }
 

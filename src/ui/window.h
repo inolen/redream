@@ -38,11 +38,13 @@ struct window_listener {
 };
 
 struct window {
-  // state is read-only to the public
+  // public
   struct SDL_Window *handle;
   struct rb *rb;
   struct nuklear *nk;
   struct microprofile *mp;
+
+  // read only
   int width;
   int height;
   bool main_menu;

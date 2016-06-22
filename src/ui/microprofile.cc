@@ -57,7 +57,7 @@ static void mp_onpostpaint(void *data) {
   // render the surfaces
   struct rb *rb = mp->window->rb;
 
-  rb_begin2d(rb);
+  rb_begin_ortho(rb);
   rb_begin_surfaces2d(rb, mp->verts, mp->num_verts, nullptr, 0);
 
   for (int i = 0; i < mp->num_surfs; i++) {
@@ -66,7 +66,7 @@ static void mp_onpostpaint(void *data) {
   }
 
   rb_end_surfaces2d(rb);
-  rb_end2d(rb);
+  rb_end_ortho(rb);
 
   // reset surfaces
   mp->num_surfs = 0;
