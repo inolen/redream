@@ -127,7 +127,7 @@ static void emu_onpaint(void *data, bool show_main_menu) {
 
   dc_paint(emu->dc, show_main_menu);
 
-  {
+  /*{
     struct nk_context *ctx = &emu->window->nk->ctx;
     struct nk_color background;
     struct nk_panel layout;
@@ -176,7 +176,7 @@ static void emu_onpaint(void *data, bool show_main_menu) {
     }
 
     nk_end(ctx);
-  }
+  }*/
 }
 
 static void emu_onkeydown(void *data, enum keycode code, int16_t value) {

@@ -1,4 +1,3 @@
-#include <imgui.h>
 #include "emu/tracer.h"
 #include "core/math.h"
 #include "hw/holly/ta.h"
@@ -58,11 +57,11 @@ static const char *s_shademode_names[] = {
     "DECAL", "MODULATE", "DECAL_ALPHA", "MODULATE_ALPHA",
 };
 
-typedef struct {
+struct texture_entry {
   union tsp tsp;
   union tcw tcw;
   const uint8_t *palette;
-  const uint8_t *data;
+  const uint8_t *texture;
   texture_handle_t handle;
   enum pxl_format format;
   enum filter_mode filter;
@@ -74,43 +73,46 @@ typedef struct {
 
   struct rb_node live_it;
   struct list_node free_it;
-} texture_entry_t;
+};
 
-typedef struct tracer_s {
+struct tracer {
   struct window *window;
   struct window_listener *listener;
   struct rb *rb;
   struct tr *tr;
-
-  // trace state
-  trace_t *trace;
-  struct tile_ctx ctx;
-  trace_cmd_t *current_cmd;
-  int current_param_offset;
-  int current_context;
-  int num_contexts;
 
   // ui state
   bool hide_params[TA_NUM_PARAMS];
   bool scroll_to_param;
   bool running;
 
+  // trace state
+  struct trace *trace;
+  struct tile_ctx ctx;
+  uint8_t params[TA_MAX_PARAMS];
+  struct trace_cmd *current_cmd;
+  int current_param_offset;
+  int current_context;
+  int num_contexts;
+
   // render state
   struct render_ctx rctx;
   struct surface surfs[TA_MAX_SURFS];
   struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];
-  struct param_state states[TA_PARAMS_SIZE];
+  struct param_state states[TA_MAX_PARAMS];
 
-  texture_entry_t textures[1024];
+  struct texture_entry textures[1024];
   struct rb_tree live_textures;
   struct list free_textures;
-} tracer_t;
+};
 
 static int tracer_texture_cmp(const struct rb_node *rb_lhs,
                               const struct rb_node *rb_rhs) {
-  const texture_entry_t *lhs = rb_entry(rb_lhs, const texture_entry_t, live_it);
-  const texture_entry_t *rhs = rb_entry(rb_rhs, const texture_entry_t, live_it);
+  const struct texture_entry *lhs =
+      rb_entry(rb_lhs, const struct texture_entry, live_it);
+  const struct texture_entry *rhs =
+      rb_entry(rb_rhs, const struct texture_entry, live_it);
   return tr_get_texture_key(lhs->tsp, lhs->tcw) -
          tr_get_texture_key(rhs->tsp, rhs->tcw);
 }
@@ -118,10 +120,11 @@ static int tracer_texture_cmp(const struct rb_node *rb_lhs,
 static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,
                                                 NULL};
 
-static void tracer_add_texture(tracer_t *tracer, union tsp tsp, union tcw tcw,
-                               const uint8_t *palette, const uint8_t *texture) {
-  texture_entry_t *entry =
-      list_first_entry(&tracer->free_textures, texture_entry_t, free_it);
+static void tracer_add_texture(struct tracer *tracer, union tsp tsp,
+                               union tcw tcw, const uint8_t *palette,
+                               const uint8_t *texture) {
+  struct texture_entry *entry =
+      list_first_entry(&tracer->free_textures, struct texture_entry, free_it);
   CHECK_NOTNULL(entry);
   list_remove(&tracer->free_textures, &entry->free_it);
 
@@ -134,18 +137,18 @@ static void tracer_add_texture(tracer_t *tracer, union tsp tsp, union tcw tcw,
   rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
 }
 
-static void tracer_remove_texture(tracer_t *tracer, union tsp tsp,
+static void tracer_remove_texture(struct tracer *tracer, union tsp tsp,
                                   union tcw tcw) {
-  texture_entry_t search;
+  struct texture_entry search;
   search.tsp = tsp;
   search.tcw = tcw;
 
-  texture_entry_t *entry = rb_find_entry(&tracer->live_textures, &search,
-                                         live_it, &tracer_texture_cb);
+  struct texture_entry *entry = rb_find_entry(&tracer->live_textures, &search,
+                                              live_it, &tracer_texture_cb);
   CHECK_NOTNULL(entry);
-  rb_unlink(&tracer->live_textures, &texture->live_it, &tracer_texture_cb);
+  rb_unlink(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
 
-  list_add(&tracer->free_textures, &texture->free_it);
+  list_add(&tracer->free_textures, &entry->free_it);
 }
 
 static texture_handle_t tracer_get_texture(void *data,
@@ -153,15 +156,15 @@ static texture_handle_t tracer_get_texture(void *data,
                                            union tsp tsp, union tcw tcw,
                                            void *register_data,
                                            register_texture_cb register_cb) {
-  tracer_t *tracer = reinterpret_cast<tracer_t *>(data);
+  struct tracer *tracer = data;
 
-  texture_entry_t search;
+  struct texture_entry search;
   search.tsp = tsp;
   search.tcw = tcw;
 
-  texture_entry_t *entry = rb_find_entry(&tracer->live_textures, &search,
-                                         live_it, &tracer_texture_cb);
-  CHECK_NOTNULL(texture, "Texture wasn't available in cache");
+  struct texture_entry *entry = rb_find_entry(&tracer->live_textures, &search,
+                                              live_it, &tracer_texture_cb);
+  CHECK_NOTNULL(entry, "Texture wasn't available in cache");
 
   // TODO fixme, pass correct struct tile_ctx to tracer_add_texture so this
   // isn't deferred
@@ -187,7 +190,8 @@ static texture_handle_t tracer_get_texture(void *data,
   return entry->handle;
 }
 
-static void tracer_copy_command(const trace_cmd_t *cmd, struct tile_ctx *ctx) {
+static void tracer_copy_command(const struct trace_cmd *cmd,
+                                struct tile_ctx *ctx) {
   // copy TRACE_CMD_CONTEXT to the current context being rendered
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
@@ -202,19 +206,19 @@ static void tracer_copy_command(const trace_cmd_t *cmd, struct tile_ctx *ctx) {
   ctx->video_height = cmd->context.video_height;
   memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
          cmd->context.bg_vertices_size);
-  memcpy(ctx->data, cmd->context.data, cmd->context.data_size);
-  ctx->size = cmd->context.data_size;
+  memcpy(ctx->params, cmd->context.params, cmd->context.params_size);
+  ctx->size = cmd->context.params_size;
 }
 
 static inline bool param_state_empty(struct param_state *param_state) {
   return !param_state->num_surfs && !param_state->num_verts;
 }
 
-static inline bool tracer_param_hidden(tracer_t *tracer, union pcw pcw) {
+static inline bool tracer_param_hidden(struct tracer *tracer, union pcw pcw) {
   return tracer->hide_params[pcw.para_type];
 }
 
-static void tracer_prev_param(tracer_t *tracer) {
+static void tracer_prev_param(struct tracer *tracer) {
   int offset = tracer->current_param_offset;
 
   while (--offset >= 0) {
@@ -224,7 +228,7 @@ static void tracer_prev_param(tracer_t *tracer) {
       continue;
     }
 
-    union pcw pcw = *(union pcw *)(tracer->ctx.data + offset);
+    union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
 
     // found the next visible param
     if (!tracer_param_hidden(tracer, pcw)) {
@@ -235,7 +239,7 @@ static void tracer_prev_param(tracer_t *tracer) {
   }
 }
 
-static void tracer_next_param(tracer_t *tracer) {
+static void tracer_next_param(struct tracer *tracer) {
   int offset = tracer->current_param_offset;
 
   while (++offset < tracer->rctx.num_states) {
@@ -245,7 +249,7 @@ static void tracer_next_param(tracer_t *tracer) {
       continue;
     }
 
-    union pcw pcw = *(union pcw *)(tracer->ctx.data + offset);
+    union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
 
     // found the next visible param
     if (!tracer_param_hidden(tracer, pcw)) {
@@ -256,16 +260,16 @@ static void tracer_next_param(tracer_t *tracer) {
   }
 }
 
-static void tracer_reset_param(tracer_t *tracer) {
+static void tracer_reset_param(struct tracer *tracer) {
   tracer->current_param_offset = -1;
   tracer->scroll_to_param = false;
 }
 
-static void tracer_prev_context(tracer_t *tracer) {
-  trace_cmd_t *begin = tracer->current_cmd->prev;
+static void tracer_prev_context(struct tracer *tracer) {
+  struct trace_cmd *begin = tracer->current_cmd->prev;
 
   // ensure that there is a prev context
-  trace_cmd_t *prev = begin;
+  struct trace_cmd *prev = begin;
 
   while (prev) {
     if (prev->type == TRACE_CMD_CONTEXT) {
@@ -280,13 +284,13 @@ static void tracer_prev_context(tracer_t *tracer) {
   }
 
   // walk back to the prev context, reverting any textures that've been added
-  trace_cmd_t *curr = begin;
+  struct trace_cmd *curr = begin;
 
   while (curr != prev) {
     if (curr->type == TRACE_CMD_TEXTURE) {
       tracer_remove_texture(tracer, curr->texture.tsp, curr->texture.tcw);
 
-      trace_cmd_t * override = curr->override;
+      struct trace_cmd * override = curr->override;
       if (override) {
         CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
 
@@ -305,12 +309,12 @@ static void tracer_prev_context(tracer_t *tracer) {
   tracer_reset_param(tracer);
 }
 
-static void tracer_next_context(tracer_t *tracer) {
-  trace_cmd_t *begin =
+static void tracer_next_context(struct tracer *tracer) {
+  struct trace_cmd *begin =
       tracer->current_cmd ? tracer->current_cmd->next : tracer->trace->cmds;
 
   // ensure that there is a next context
-  trace_cmd_t *next = begin;
+  struct trace_cmd *next = begin;
 
   while (next) {
     if (next->type == TRACE_CMD_CONTEXT) {
@@ -325,7 +329,7 @@ static void tracer_next_context(tracer_t *tracer) {
   }
 
   // walk towards to the next context, adding any new textures
-  trace_cmd_t *curr = begin;
+  struct trace_cmd *curr = begin;
 
   while (curr != next) {
     if (curr->type == TRACE_CMD_TEXTURE) {
@@ -342,9 +346,9 @@ static void tracer_next_context(tracer_t *tracer) {
   tracer_reset_param(tracer);
 }
 
-static void tracer_reset_context(tracer_t *tracer) {
+static void tracer_reset_context(struct tracer *tracer) {
   // calculate the total number of frames for the trace
-  trace_cmd_t *cmd = tracer->trace->cmds;
+  struct trace_cmd *cmd = tracer->trace->cmds;
 
   tracer->num_contexts = 0;
 
@@ -362,8 +366,8 @@ static void tracer_reset_context(tracer_t *tracer) {
   tracer_next_context(tracer);
 }
 
-static void tracer_render_scrubber_menu(tracer_t *tracer) {
-  ImGuiIO &io = ImGui::GetIO();
+static void tracer_render_scrubber_menu(struct tracer *tracer) {
+  /*ImGuiIO &io = ImGui::GetIO();
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
   ImGui::Begin("Scrubber", NULL,
@@ -388,11 +392,11 @@ static void tracer_render_scrubber_menu(tracer_t *tracer) {
   ImGui::PopItemWidth();
 
   ImGui::End();
-  ImGui::PopStyleVar();
+  ImGui::PopStyleVar();*/
 }
 
-static void tracer_render_texture_menu(tracer_t *tracer) {
-  ImGuiIO &io = ImGui::GetIO();
+static void tracer_render_texture_menu(struct tracer *tracer) {
+  /*ImGuiIO &io = ImGui::GetIO();
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
   ImGui::Begin("Textures", NULL, ImGuiWindowFlags_NoTitleBar |
@@ -404,7 +408,8 @@ static void tracer_render_texture_menu(tracer_t *tracer) {
   ImGui::SetWindowPos(
       ImVec2(0.0f, io.DisplaySize.y - ImGui::GetWindowSize().y));
 
-  rb_for_each_entry(tex, &tracer->live_textures, texture_entry_t, live_it) {
+  rb_for_each_entry(tex, &tracer->live_textures, struct texture_entry, live_it)
+  {
     ImTextureID handle_id =
         reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex->handle));
 
@@ -438,12 +443,12 @@ static void tracer_render_texture_menu(tracer_t *tracer) {
   }
 
   ImGui::End();
-  ImGui::PopStyleVar();
+  ImGui::PopStyleVar();*/
 }
 
-static void tracer_format_tooltip(tracer_t *tracer, int list_type,
+static void tracer_format_tooltip(struct tracer *tracer, int list_type,
                                   int vertex_type, int offset) {
-  struct param_state *param_state = &tracer->rctx.states[offset];
+  /*struct param_state *param_state = &tracer->rctx.states[offset];
   int surf_id = param_state->num_surfs - 1;
   int vert_id = param_state->num_verts - 1;
 
@@ -468,7 +473,7 @@ static void tracer_format_tooltip(tracer_t *tracer, int list_type,
   // render source TA information
   if (vertex_type == -1) {
     const union poly_param *param =
-        reinterpret_cast<const union poly_param *>(tracer->ctx.data + offset);
+        reinterpret_cast<const union poly_param *>(tracer->ctx.params + offset);
 
     ImGui::Text("pcw: 0x%x", param->type0.pcw.full);
     ImGui::Text("isp_tsp: 0x%x", param->type0.isp_tsp.full);
@@ -507,7 +512,7 @@ static void tracer_format_tooltip(tracer_t *tracer, int list_type,
     }
   } else {
     const union vert_param *param =
-        reinterpret_cast<const union vert_param *>(tracer->ctx.data + offset);
+        reinterpret_cast<const union vert_param *>(tracer->ctx.params + offset);
 
     ImGui::Text("vert type: %d", vertex_type);
 
@@ -627,11 +632,11 @@ static void tracer_format_tooltip(tracer_t *tracer, int list_type,
     ImGui::Text("offset_color: 0x%08x", vert->offset_color);
   }
 
-  ImGui::EndTooltip();
+  ImGui::EndTooltip();*/
 }
 
-static void tracer_render_context_menu(tracer_t *tracer) {
-  char label[128];
+static void tracer_render_context_menu(struct tracer *tracer) {
+  /*char label[128];
 
   ImGui::Begin("Context", NULL, ImVec2(256.0f, 256.0f));
 
@@ -653,7 +658,7 @@ static void tracer_render_context_menu(tracer_t *tracer) {
       continue;
     }
 
-    union pcw pcw = *(union pcw *)(tracer->ctx.data + offset);
+    union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
     bool param_selected = (offset == tracer->current_param_offset);
 
     if (!tracer_param_hidden(tracer, pcw)) {
@@ -665,7 +670,7 @@ static void tracer_render_context_menu(tracer_t *tracer) {
         case TA_PARAM_POLY_OR_VOL:
         case TA_PARAM_SPRITE: {
           const union poly_param *param =
-              reinterpret_cast<const union poly_param *>(tracer->ctx.data +
+              reinterpret_cast<const union poly_param *>(tracer->ctx.params +
                                                          offset);
           list_type = param->type0.pcw.list_type;
           vertex_type = ta_get_vert_type(param->type0.pcw);
@@ -696,10 +701,12 @@ static void tracer_render_context_menu(tracer_t *tracer) {
     }
   }
 
-  ImGui::End();
+  ImGui::End();*/
 }
 
-static void tracer_onpaint(tracer_t *tracer, bool show_main_menu) {
+static void tracer_onpaint(void *data, bool show_main_menu) {
+  struct tracer *tracer = data;
+
   tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rctx);
 
   // render UI
@@ -735,8 +742,9 @@ static void tracer_onpaint(tracer_t *tracer, bool show_main_menu) {
   rb_end_surfaces(tracer->rb);
 }
 
-static void tracer_onkeydown(tracer_t *tracer, enum keycode code,
-                             int16_t value) {
+static void tracer_onkeydown(void *data, enum keycode code, int16_t value) {
+  struct tracer *tracer = data;
+
   if (code == K_F1) {
     if (value) {
       win_enable_main_menu(tracer->window, !tracer->window->main_menu);
@@ -752,11 +760,13 @@ static void tracer_onkeydown(tracer_t *tracer, enum keycode code,
   }
 }
 
-static void tracer_onclose(tracer_t *tracer) {
+static void tracer_onclose(void *data) {
+  struct tracer *tracer = data;
+
   tracer->running = false;
 }
 
-static bool tracer_parse(tracer_t *tracer, const char *path) {
+static bool tracer_parse(struct tracer *tracer, const char *path) {
   if (tracer->trace) {
     trace_destroy(tracer->trace);
     tracer->trace = NULL;
@@ -774,7 +784,7 @@ static bool tracer_parse(tracer_t *tracer, const char *path) {
   return true;
 }
 
-void tracer_run(tracer_t *tracer, const char *path) {
+void tracer_run(struct tracer *tracer, const char *path) {
   if (!tracer_parse(tracer, path)) {
     return;
   }
@@ -786,25 +796,23 @@ void tracer_run(tracer_t *tracer, const char *path) {
   }
 }
 
-tracer_t *tracer_create(struct window *window) {
+struct tracer *tracer_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL,
-      (window_paint_cb)&tracer_onpaint,
-      NULL,
-      (window_keydown_cb)&tracer_onkeydown,
-      NULL,
-      NULL,
-      (window_close_cb)&tracer_onclose};
+      NULL, &tracer_onpaint, NULL, &tracer_onkeydown, NULL,
+      NULL, &tracer_onclose};
 
   // ensure param / poly / vertex size LUTs are generated
   ta_build_tables();
 
-  tracer_t *tracer = reinterpret_cast<tracer_t *>(calloc(1, sizeof(tracer_t)));
+  struct tracer *tracer = calloc(1, sizeof(struct tracer));
 
   tracer->window = window;
   tracer->listener = win_add_listener(window, &callbacks, tracer);
   tracer->rb = window->rb;
   tracer->tr = tr_create(tracer->rb, tracer, &tracer_get_texture);
+
+  // setup tile context buffers
+  tracer->ctx.params = tracer->params;
 
   // setup render context buffers
   tracer->rctx.surfs = tracer->surfs;
@@ -818,14 +826,14 @@ tracer_t *tracer_create(struct window *window) {
 
   // add all textures to free list
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
-    texture_entry_t *entry = &tracer->textures[i];
+    struct texture_entry *entry = &tracer->textures[i];
     list_add(&tracer->free_textures, &entry->free_it);
   }
 
   return tracer;
 }
 
-void tracer_destroy(tracer_t *tracer) {
+void tracer_destroy(struct tracer *tracer) {
   if (tracer->trace) {
     trace_destroy(tracer->trace);
   }
