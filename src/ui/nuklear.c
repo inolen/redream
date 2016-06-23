@@ -14,9 +14,12 @@ static void nuklear_onprepaint(void *data) {
   nk_input_begin(&nk->ctx);
 
   nk_input_motion(&nk->ctx, nk->mousex, nk->mousey);
-  nk_input_button(&nk->ctx, NK_BUTTON_LEFT, nk->mousex, nk->mousey, nk->mouse_down[0]);
-  nk_input_button(&nk->ctx, NK_BUTTON_MIDDLE, nk->mousex, nk->mousey, nk->mouse_down[1]);
-  nk_input_button(&nk->ctx, NK_BUTTON_RIGHT, nk->mousex, nk->mousey, nk->mouse_down[2]);
+  nk_input_button(&nk->ctx, NK_BUTTON_LEFT, nk->mousex, nk->mousey,
+                  nk->mouse_down[0]);
+  nk_input_button(&nk->ctx, NK_BUTTON_MIDDLE, nk->mousex, nk->mousey,
+                  nk->mouse_down[1]);
+  nk_input_button(&nk->ctx, NK_BUTTON_RIGHT, nk->mousex, nk->mousey,
+                  nk->mouse_down[2]);
 
   nk_input_end(&nk->ctx);
 }
@@ -100,16 +103,16 @@ static void nuklear_onkeydown(void *data, enum keycode code, int16_t value) {
   } else if (code == K_MOUSE3) {
     nk->mouse_down[2] = !!value;
   } else if (code == K_LALT || code == K_RALT) {
-    //nk->alt[code == K_LALT ? 0 : 1] = !!value;
-    //io.KeyAlt = nk->alt[0] || nk->alt[1];
+    // nk->alt[code == K_LALT ? 0 : 1] = !!value;
+    // io.KeyAlt = nk->alt[0] || nk->alt[1];
   } else if (code == K_LCTRL || code == K_RCTRL) {
-    //nk->ctrl[code == K_LCTRL ? 0 : 1] = !!value;
-    //io.KeyCtrl = nk->ctrl[0] || nk->ctrl[1];
+    // nk->ctrl[code == K_LCTRL ? 0 : 1] = !!value;
+    // io.KeyCtrl = nk->ctrl[0] || nk->ctrl[1];
   } else if (code == K_LSHIFT || code == K_RSHIFT) {
-    //nk->shift[code == K_LSHIFT ? 0 : 1] = !!value;
-    //io.KeyShift = nk->shift[0] || nk->shift[1];
+    // nk->shift[code == K_LSHIFT ? 0 : 1] = !!value;
+    // io.KeyShift = nk->shift[0] || nk->shift[1];
   } else {
-    //io.KeysDown[code] = !!value;
+    // io.KeysDown[code] = !!value;
   }
 }
 

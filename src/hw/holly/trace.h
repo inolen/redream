@@ -44,8 +44,8 @@ struct trace_cmd {
       float bg_depth;
       uint32_t bg_vertices_size;
       const uint8_t *bg_vertices;
-      uint32_t data_size;
-      const uint8_t *data;
+      uint32_t params_size;
+      const uint8_t *params;
     } context;
   };
 };

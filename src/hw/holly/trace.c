@@ -51,9 +51,9 @@ static bool trace_patch_pointers(void *begin, int size) {
 
       case TRACE_CMD_CONTEXT: {
         curr_cmd->context.bg_vertices += (intptr_t)ptr;
-        curr_cmd->context.data += (intptr_t)ptr;
+        curr_cmd->context.params += (intptr_t)ptr;
         ptr += sizeof(*curr_cmd) + curr_cmd->context.bg_vertices_size +
-               curr_cmd->context.data_size;
+               curr_cmd->context.params_size;
       } break;
 
       default:
@@ -184,8 +184,8 @@ void trace_writer_render_context(struct trace_writer *writer,
   cmd.context.bg_depth = ctx->bg_depth;
   cmd.context.bg_vertices_size = sizeof(ctx->bg_vertices);
   cmd.context.bg_vertices = (const uint8_t *)(intptr_t)sizeof(cmd);
-  cmd.context.data_size = ctx->size;
-  cmd.context.data =
+  cmd.context.params_size = ctx->size;
+  cmd.context.params =
       (const uint8_t *)(intptr_t)(sizeof(cmd) + sizeof(ctx->bg_vertices));
 
   CHECK_EQ(fwrite(&cmd, sizeof(cmd), 1, writer->file), 1);

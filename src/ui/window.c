@@ -51,6 +51,39 @@ static void win_handle_paint(struct window *win) {
     }
   }
 
+  /*{
+    struct nk_context *ctx = &win->nk->ctx;
+
+    struct nk_panel layout;
+    struct nk_panel menu;
+
+    ctx->style.window.spacing = nk_vec2(0,0);
+    ctx->style.window.padding = nk_vec2(0,0);
+
+    if (nk_begin(ctx, &layout, "Button Demo 2", nk_rect(0,0,255,60),0))
+    {
+      nk_menubar_begin(ctx);
+
+      nk_layout_row_dynamic(ctx, 20, 1);
+
+      if (nk_menu_begin_label(ctx, &menu, "ADVANCED", NK_TEXT_LEFT, 200)) {
+        nk_layout_row_dynamic(ctx, 25, 1);
+
+        ctx->style.contextual_button.border = 0.0f;
+        ctx->style.contextual_button.padding = nk_vec2(0,0);
+
+        nk_menu_item_label(ctx, "Copy", NK_TEXT_LEFT);
+        nk_menu_item_label(ctx, "Delete", NK_TEXT_LEFT);
+        nk_menu_item_label(ctx, "Cut", NK_TEXT_LEFT);
+        nk_menu_item_label(ctx, "Paste", NK_TEXT_LEFT);
+        nk_menu_end(ctx);
+      }
+
+      nk_menubar_end(ctx);
+    }
+    nk_end(ctx);
+  }*/
+
   list_for_each_entry(listener, &win->live_listeners, struct window_listener,
                       it) {
     if (listener->cb.postpaint) {

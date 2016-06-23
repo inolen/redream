@@ -142,7 +142,7 @@ set(REDREAM_SOURCES
   src/core/rb_tree.c
   src/core/string.c
   src/emu/emulator.c
-  #src/emu/tracer.cc
+  src/emu/tracer.c
   src/hw/aica/aica.c
   src/hw/arm/arm.c
   src/hw/gdrom/disc.c

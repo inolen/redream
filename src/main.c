@@ -8,29 +8,6 @@
 
 DEFINE_OPTION_BOOL(help, false, "Show help");
 
-// void InitFlags(int *argc, char ***argv) {
-//   const char *appdir = fs_appdir();
-
-//   char flagfile[PATH_MAX] = {};
-//   snprintf(flagfile, sizeof(flagfile), "%s" PATH_SEPARATOR "flags", appdir);
-
-//   // read any saved flags
-//   if (fs_exists(flagfile)) {
-//     google::ReadFromFlagsFile(flagfile, nullptr, false);
-//   }
-
-//   // parse new flags from the command line
-//   google::ParseCommandLineFlags(argc, argv, true);
-
-//   // update saved flags
-//   remove(flagfile);
-//   google::AppendFlagsIntoFile(flagfile, nullptr);
-// }
-
-// void ShutdownFlags() {
-//   google::ShutDownCommandLineFlags();
-// }
-
 int main(int argc, char **argv) {
   const char *appdir = fs_appdir();
 
@@ -64,9 +41,9 @@ int main(int argc, char **argv) {
 
   const char *load = argc > 1 ? argv[1] : NULL;
   if (load && strstr(load, ".trace")) {
-    // struct tracer_s *tracer = tracer_create(window);
-    // tracer_run(tracer, load);
-    // tracer_destroy(tracer);
+    struct tracer *tracer = tracer_create(window);
+    tracer_run(tracer, load);
+    tracer_destroy(tracer);
   } else {
     struct emu *emu = emu_create(window);
     emu_run(emu, load);
