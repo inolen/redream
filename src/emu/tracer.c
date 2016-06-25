@@ -3,6 +3,7 @@
 #include "hw/holly/ta.h"
 #include "hw/holly/tr.h"
 #include "hw/holly/trace.h"
+#include "ui/nuklear.h"
 #include "ui/window.h"
 
 static const char *s_param_names[] = {
@@ -82,8 +83,7 @@ struct tracer {
   struct tr *tr;
 
   // ui state
-  bool hide_params[TA_NUM_PARAMS];
-  bool scroll_to_param;
+  int show_params[TA_NUM_PARAMS];
   bool running;
 
   // trace state
@@ -215,7 +215,7 @@ static inline bool param_state_empty(struct param_state *param_state) {
 }
 
 static inline bool tracer_param_hidden(struct tracer *tracer, union pcw pcw) {
-  return tracer->hide_params[pcw.para_type];
+  return !tracer->show_params[pcw.para_type];
 }
 
 static void tracer_prev_param(struct tracer *tracer) {
@@ -233,7 +233,6 @@ static void tracer_prev_param(struct tracer *tracer) {
     // found the next visible param
     if (!tracer_param_hidden(tracer, pcw)) {
       tracer->current_param_offset = offset;
-      tracer->scroll_to_param = true;
       break;
     }
   }
@@ -254,7 +253,6 @@ static void tracer_next_param(struct tracer *tracer) {
     // found the next visible param
     if (!tracer_param_hidden(tracer, pcw)) {
       tracer->current_param_offset = offset;
-      tracer->scroll_to_param = true;
       break;
     }
   }
@@ -262,7 +260,6 @@ static void tracer_next_param(struct tracer *tracer) {
 
 static void tracer_reset_param(struct tracer *tracer) {
   tracer->current_param_offset = -1;
-  tracer->scroll_to_param = false;
 }
 
 static void tracer_prev_context(struct tracer *tracer) {
@@ -367,97 +364,54 @@ static void tracer_reset_context(struct tracer *tracer) {
 }
 
 static void tracer_render_scrubber_menu(struct tracer *tracer) {
-  /*ImGuiIO &io = ImGui::GetIO();
+  struct nk_context *ctx = &tracer->window->nk->ctx;
 
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-  ImGui::Begin("Scrubber", NULL,
-               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar);
+  nk_style_default(ctx);
 
-  ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
-  ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
+  // disable spacing / padding
+  ctx->style.window.padding = nk_vec2(0, 0);
+  ctx->style.window.spacing = nk_vec2(0, 0);
 
-  ImGui::PushItemWidth(-1.0f);
-  int frame = tracer->current_context;
-  if (ImGui::SliderInt("", &frame, 0, tracer->num_contexts - 1)) {
-    int delta = frame - tracer->current_context;
-    for (int i = 0; i < ABS(delta); i++) {
-      if (delta > 0) {
-        tracer_next_context(tracer);
-      } else {
-        tracer_prev_context(tracer);
+  static const float SCRUBBER_WINDOW_HEIGHT = 20.0f;
+  struct nk_panel layout;
+  struct nk_rect bounds = {0.0f,
+                           tracer->window->height - SCRUBBER_WINDOW_HEIGHT,
+                           tracer->window->width, SCRUBBER_WINDOW_HEIGHT};
+  nk_flags flags = NK_WINDOW_NO_SCROLLBAR;
+
+  if (nk_begin(ctx, &layout, "context scrubber", bounds, flags)) {
+    nk_layout_row_dynamic(ctx, SCRUBBER_WINDOW_HEIGHT, 1);
+
+    nk_size frame = tracer->current_context;
+
+    if (nk_progress(ctx, &frame, tracer->num_contexts - 1, true)) {
+      int delta = (int)frame - tracer->current_context;
+      for (int i = 0; i < ABS(delta); i++) {
+        if (delta > 0) {
+          tracer_next_context(tracer);
+        } else {
+          tracer_prev_context(tracer);
+        }
       }
     }
   }
-  ImGui::PopItemWidth();
-
-  ImGui::End();
-  ImGui::PopStyleVar();*/
+  nk_end(ctx);
 }
 
-static void tracer_render_texture_menu(struct tracer *tracer) {
-  /*ImGuiIO &io = ImGui::GetIO();
-
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-  ImGui::Begin("Textures", NULL, ImGuiWindowFlags_NoTitleBar |
-                                     ImGuiWindowFlags_NoResize |
-                                     ImGuiWindowFlags_NoMove |
-                                     ImGuiWindowFlags_HorizontalScrollbar);
-
-  ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 0.0f));
-  ImGui::SetWindowPos(
-      ImVec2(0.0f, io.DisplaySize.y - ImGui::GetWindowSize().y));
-
-  rb_for_each_entry(tex, &tracer->live_textures, struct texture_entry, live_it)
-  {
-    ImTextureID handle_id =
-        reinterpret_cast<ImTextureID>(static_cast<intptr_t>(tex->handle));
-
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::ImageButton(handle_id, ImVec2(32.0f, 32.0f), ImVec2(0.0f, 1.0f),
-                       ImVec2(1.0f, 0.0f));
-    ImGui::PopStyleColor();
-
-    char popup_name[128];
-    snprintf(popup_name, sizeof(popup_name), "texture_%d", tex->handle);
-
-    if (ImGui::BeginPopupContextItem(popup_name, 0)) {
-      ImGui::Image(handle_id, ImVec2(128, 128), ImVec2(0.0f, 1.0f),
-                   ImVec2(1.0f, 0.0f));
-
-      ImGui::Separator();
-
-      ImGui::Text("addr; 0x%08x", tex->tcw.texture_addr << 3);
-      ImGui::Text("format: %s", s_pixel_format_names[tex->format]);
-      ImGui::Text("filter: %s", s_filter_mode_names[tex->filter]);
-      ImGui::Text("wrap_u: %s", s_wrap_mode_names[tex->wrap_u]);
-      ImGui::Text("wrap_v: %s", s_wrap_mode_names[tex->wrap_v]);
-      ImGui::Text("mipmaps: %d", tex->mipmaps);
-      ImGui::Text("width: %d", tex->width);
-      ImGui::Text("height: %d", tex->height);
-
-      ImGui::EndPopup();
-    }
-
-    ImGui::SameLine();
-  }
-
-  ImGui::End();
-  ImGui::PopStyleVar();*/
-}
-
-static void tracer_format_tooltip(struct tracer *tracer, int list_type,
-                                  int vertex_type, int offset) {
-  /*struct param_state *param_state = &tracer->rctx.states[offset];
+static void tracer_param_tooltip(struct tracer *tracer, int list_type,
+                                 int vertex_type, int offset) {
+  struct nk_context *ctx = &tracer->window->nk->ctx;
+  struct param_state *param_state = &tracer->rctx.states[offset];
   int surf_id = param_state->num_surfs - 1;
   int vert_id = param_state->num_verts - 1;
 
-  ImGui::BeginTooltip();
+  struct nk_panel tooltip;
+  if (nk_tooltip_begin(ctx, &tooltip, 300.0f)) {
+    nk_layout_row_dynamic(ctx, ctx->style.font.height, 1);
 
-  ImGui::Text("list type: %s", s_list_names[list_type]);
-  ImGui::Text("surf: %d", surf_id);
+    nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", s_list_names[list_type]);
+    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", surf_id);
 
-  {
     // find sorted position
     int sort = 0;
     for (int i = 0, n = tracer->rctx.num_surfs; i < n; i++) {
@@ -467,241 +421,377 @@ static void tracer_format_tooltip(struct tracer *tracer, int list_type,
         break;
       }
     }
-    ImGui::Text("sort: %d", sort);
-  }
+    nk_labelf(ctx, NK_TEXT_LEFT, "sort: %d", sort);
 
-  // render source TA information
-  if (vertex_type == -1) {
-    const union poly_param *param =
-        reinterpret_cast<const union poly_param *>(tracer->ctx.params + offset);
+    // render source TA information
+    if (vertex_type == -1) {
+      const union poly_param *param =
+          (const union poly_param *)(tracer->ctx.params + offset);
 
-    ImGui::Text("pcw: 0x%x", param->type0.pcw.full);
-    ImGui::Text("isp_tsp: 0x%x", param->type0.isp_tsp.full);
-    ImGui::Text("tsp: 0x%x", param->type0.tsp.full);
-    ImGui::Text("tcw: 0x%x", param->type0.tcw.full);
+      nk_labelf(ctx, NK_TEXT_LEFT, "pcw: 0x%x", param->type0.pcw.full);
+      nk_labelf(ctx, NK_TEXT_LEFT, "isp_tsp: 0x%x", param->type0.isp_tsp.full);
+      nk_labelf(ctx, NK_TEXT_LEFT, "tsp: 0x%x", param->type0.tsp.full);
+      nk_labelf(ctx, NK_TEXT_LEFT, "tcw: 0x%x", param->type0.tcw.full);
 
-    int poly_type = ta_get_poly_type(param->type0.pcw);
+      int poly_type = ta_get_poly_type(param->type0.pcw);
 
-    switch (poly_type) {
-      case 1:
-        ImGui::Text("face_color_a: %.2f", param->type1.face_color_a);
-        ImGui::Text("face_color_r: %.2f", param->type1.face_color_r);
-        ImGui::Text("face_color_g: %.2f", param->type1.face_color_g);
-        ImGui::Text("face_color_b: %.2f", param->type1.face_color_b);
-        break;
+      switch (poly_type) {
+        case 1:
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_color_a: %.2f",
+                    param->type1.face_color_a);
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_color_r: %.2f",
+                    param->type1.face_color_r);
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_color_g: %.2f",
+                    param->type1.face_color_g);
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_color_b: %.2f",
+                    param->type1.face_color_b);
+          break;
 
-      case 2:
-        ImGui::Text("face_color_a: %.2f", param->type2.face_color_a);
-        ImGui::Text("face_color_r: %.2f", param->type2.face_color_r);
-        ImGui::Text("face_color_g: %.2f", param->type2.face_color_g);
-        ImGui::Text("face_color_b: %.2f", param->type2.face_color_b);
-        ImGui::Text("face_offset_color_a: %.2f",
+        case 2:
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_color_a: %.2f",
+                    param->type2.face_color_a);
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_color_r: %.2f",
+                    param->type2.face_color_r);
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_color_g: %.2f",
+                    param->type2.face_color_g);
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_color_b: %.2f",
+                    param->type2.face_color_b);
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_offset_color_a: %.2f",
                     param->type2.face_offset_color_a);
-        ImGui::Text("face_offset_color_r: %.2f",
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_offset_color_r: %.2f",
                     param->type2.face_offset_color_r);
-        ImGui::Text("face_offset_color_g: %.2f",
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_offset_color_g: %.2f",
                     param->type2.face_offset_color_g);
-        ImGui::Text("face_offset_color_b: %.2f",
+          nk_labelf(ctx, NK_TEXT_LEFT, "face_offset_color_b: %.2f",
                     param->type2.face_offset_color_b);
-        break;
+          break;
 
-      case 5:
-        ImGui::Text("base_color: 0x%x", param->sprite.base_color);
-        ImGui::Text("offset_color: 0x%x", param->sprite.offset_color);
-        break;
+        case 5:
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color: 0x%x",
+                    param->sprite.base_color);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color: 0x%x",
+                    param->sprite.offset_color);
+          break;
+      }
+    } else {
+      const union vert_param *param =
+          (const union vert_param *)(tracer->ctx.params + offset);
+
+      nk_labelf(ctx, NK_TEXT_LEFT, "vert type: %d", vertex_type);
+
+      switch (vertex_type) {
+        case 0:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type0.xyz[0], param->type0.xyz[1],
+                    param->type0.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color: 0x%x",
+                    param->type0.base_color);
+          break;
+
+        case 1:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type1.xyz[0], param->type1.xyz[1],
+                    param->type1.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_a: %.2f",
+                    param->type1.base_color_a);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_r: %.2f",
+                    param->type1.base_color_r);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_g: %.2f",
+                    param->type1.base_color_g);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_b: %.2f",
+                    param->type1.base_color_b);
+          break;
+
+        case 2:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type2.xyz[0], param->type2.xyz[1],
+                    param->type2.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_intensity: %.2f",
+                    param->type2.base_intensity);
+          break;
+
+        case 3:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type3.xyz[0], param->type3.xyz[1],
+                    param->type3.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type3.uv[0],
+                    param->type3.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color: 0x%x",
+                    param->type3.base_color);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color: 0x%x",
+                    param->type3.offset_color);
+          break;
+
+        case 4:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type4.xyz[0], param->type4.xyz[1],
+                    param->type4.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type4.uv[0],
+                    param->type4.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color: 0x%x",
+                    param->type4.base_color);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color: 0x%x",
+                    param->type4.offset_color);
+          break;
+
+        case 5:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type5.xyz[0], param->type5.xyz[1],
+                    param->type5.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type5.uv[0],
+                    param->type5.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_a: %.2f",
+                    param->type5.base_color_a);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_r: %.2f",
+                    param->type5.base_color_r);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_g: %.2f",
+                    param->type5.base_color_g);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_b: %.2f",
+                    param->type5.base_color_b);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color_a: %.2f",
+                    param->type5.offset_color_a);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color_r: %.2f",
+                    param->type5.offset_color_r);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color_g: %.2f",
+                    param->type5.offset_color_g);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color_b: %.2f",
+                    param->type5.offset_color_b);
+          break;
+
+        case 6:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type6.xyz[0], param->type6.xyz[1],
+                    param->type6.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type6.uv[0],
+                    param->type6.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_a: %.2f",
+                    param->type6.base_color_a);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_r: %.2f",
+                    param->type6.base_color_r);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_g: %.2f",
+                    param->type6.base_color_g);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_color_b: %.2f",
+                    param->type6.base_color_b);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color_a: %.2f",
+                    param->type6.offset_color_a);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color_r: %.2f",
+                    param->type6.offset_color_r);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color_g: %.2f",
+                    param->type6.offset_color_g);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_color_b: %.2f",
+                    param->type6.offset_color_b);
+          break;
+
+        case 7:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type7.xyz[0], param->type7.xyz[1],
+                    param->type7.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type7.uv[0],
+                    param->type7.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_intensity: %.2f",
+                    param->type7.base_intensity);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_intensity: %.2f",
+                    param->type7.offset_intensity);
+          break;
+
+        case 8:
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+                    param->type8.xyz[0], param->type8.xyz[1],
+                    param->type8.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type8.uv[0],
+                    param->type8.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "base_intensity: %.2f",
+                    param->type8.base_intensity);
+          nk_labelf(ctx, NK_TEXT_LEFT, "offset_intensity: %.2f",
+                    param->type8.offset_intensity);
+          break;
+      }
     }
-  } else {
-    const union vert_param *param =
-        reinterpret_cast<const union vert_param *>(tracer->ctx.params + offset);
 
-    ImGui::Text("vert type: %d", vertex_type);
+    // always render translated surface information. new surfaces can be created
+    // without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE
+    struct surface *surf = &tracer->rctx.surfs[surf_id];
 
-    switch (vertex_type) {
-      case 0:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type0.xyz[0],
-                    param->type0.xyz[1], param->type0.xyz[2]);
-        ImGui::Text("base_color: 0x%x", param->type0.base_color);
-        break;
+    // TODO separator
 
-      case 1:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type1.xyz[0],
-                    param->type1.xyz[1], param->type1.xyz[2]);
-        ImGui::Text("base_color_a: %.2f", param->type1.base_color_a);
-        ImGui::Text("base_color_r: %.2f", param->type1.base_color_r);
-        ImGui::Text("base_color_g: %.2f", param->type1.base_color_g);
-        ImGui::Text("base_color_b: %.2f", param->type1.base_color_b);
-        break;
+    nk_layout_row_static(ctx, 40.0f, 40.0f, 1);
+    nk_image(ctx, nk_image_id((int)surf->texture));
 
-      case 2:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type2.xyz[0],
-                    param->type2.xyz[1], param->type2.xyz[2]);
-        ImGui::Text("base_intensity: %.2f", param->type2.base_intensity);
-        break;
+    nk_layout_row_dynamic(ctx, ctx->style.font.height, 1);
+    nk_labelf(ctx, NK_TEXT_LEFT, "depth_write: %d", surf->depth_write);
+    nk_labelf(ctx, NK_TEXT_LEFT, "depth_func: %s",
+              s_depthfunc_names[surf->depth_func]);
+    nk_labelf(ctx, NK_TEXT_LEFT, "cull: %s", s_cullface_names[surf->cull]);
+    nk_labelf(ctx, NK_TEXT_LEFT, "src_blend: %s",
+              s_blendfunc_names[surf->src_blend]);
+    nk_labelf(ctx, NK_TEXT_LEFT, "dst_blend: %s",
+              s_blendfunc_names[surf->dst_blend]);
+    nk_labelf(ctx, NK_TEXT_LEFT, "shade: %s", s_shademode_names[surf->shade]);
+    nk_labelf(ctx, NK_TEXT_LEFT, "ignore_tex_alpha: %d",
+              surf->ignore_tex_alpha);
+    nk_labelf(ctx, NK_TEXT_LEFT, "first_vert: %d", surf->first_vert);
+    nk_labelf(ctx, NK_TEXT_LEFT, "num_verts: %d", surf->num_verts);
 
-      case 3:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type3.xyz[0],
-                    param->type3.xyz[1], param->type3.xyz[2]);
-        ImGui::Text("uv: {%.2f, %.2f}", param->type3.uv[0], param->type3.uv[1]);
-        ImGui::Text("base_color: 0x%x", param->type3.base_color);
-        ImGui::Text("offset_color: 0x%x", param->type3.offset_color);
-        break;
+    // render translated vert only when rendering a vertex tooltip
+    if (vertex_type != -1) {
+      struct vertex *vert = &tracer->rctx.verts[vert_id];
 
-      case 4:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type4.xyz[0],
-                    param->type4.xyz[1], param->type4.xyz[2]);
-        ImGui::Text("uv: {0x%x, 0x%x}", param->type4.uv[0], param->type4.uv[1]);
-        ImGui::Text("base_color: 0x%x", param->type4.base_color);
-        ImGui::Text("offset_color: 0x%x", param->type4.offset_color);
-        break;
+      // TODO separator
 
-      case 5:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type5.xyz[0],
-                    param->type5.xyz[1], param->type5.xyz[2]);
-        ImGui::Text("uv: {%.2f, %.2f}", param->type5.uv[0], param->type5.uv[1]);
-        ImGui::Text("base_color_a: %.2f", param->type5.base_color_a);
-        ImGui::Text("base_color_r: %.2f", param->type5.base_color_r);
-        ImGui::Text("base_color_g: %.2f", param->type5.base_color_g);
-        ImGui::Text("base_color_b: %.2f", param->type5.base_color_b);
-        ImGui::Text("offset_color_a: %.2f", param->type5.offset_color_a);
-        ImGui::Text("offset_color_r: %.2f", param->type5.offset_color_r);
-        ImGui::Text("offset_color_g: %.2f", param->type5.offset_color_g);
-        ImGui::Text("offset_color_b: %.2f", param->type5.offset_color_b);
-        break;
-
-      case 6:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type6.xyz[0],
-                    param->type6.xyz[1], param->type6.xyz[2]);
-        ImGui::Text("uv: {0x%x, 0x%x}", param->type6.uv[0], param->type6.uv[1]);
-        ImGui::Text("base_color_a: %.2f", param->type6.base_color_a);
-        ImGui::Text("base_color_r: %.2f", param->type6.base_color_r);
-        ImGui::Text("base_color_g: %.2f", param->type6.base_color_g);
-        ImGui::Text("base_color_b: %.2f", param->type6.base_color_b);
-        ImGui::Text("offset_color_a: %.2f", param->type6.offset_color_a);
-        ImGui::Text("offset_color_r: %.2f", param->type6.offset_color_r);
-        ImGui::Text("offset_color_g: %.2f", param->type6.offset_color_g);
-        ImGui::Text("offset_color_b: %.2f", param->type6.offset_color_b);
-        break;
-
-      case 7:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type7.xyz[0],
-                    param->type7.xyz[1], param->type7.xyz[2]);
-        ImGui::Text("uv: {%.2f, %.2f}", param->type7.uv[0], param->type7.uv[1]);
-        ImGui::Text("base_intensity: %.2f", param->type7.base_intensity);
-        ImGui::Text("offset_intensity: %.2f", param->type7.offset_intensity);
-        break;
-
-      case 8:
-        ImGui::Text("xyz: {%.2f, %.2f, %.2f}", param->type8.xyz[0],
-                    param->type8.xyz[1], param->type8.xyz[2]);
-        ImGui::Text("uv: {0x%x, 0x%x}", param->type8.uv[0], param->type8.uv[1]);
-        ImGui::Text("base_intensity: %.2f", param->type8.base_intensity);
-        ImGui::Text("offset_intensity: %.2f", param->type8.offset_intensity);
-        break;
+      nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}", vert->xyz[0],
+                vert->xyz[1], vert->xyz[2]);
+      nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", vert->uv[0],
+                vert->uv[1]);
+      nk_labelf(ctx, NK_TEXT_LEFT, "color: 0x%08x", vert->color);
+      nk_labelf(ctx, NK_TEXT_LEFT, "offset_color: 0x%08x", vert->offset_color);
     }
+
+    nk_tooltip_end(ctx);
   }
-
-  // always render translated surface information. new surfaces can be created
-  // without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE
-  struct surface *surf = &tracer->rctx.surfs[surf_id];
-
-  ImGui::Separator();
-
-  ImGui::Image(
-      reinterpret_cast<ImTextureID>(static_cast<intptr_t>(surf->texture)),
-      ImVec2(64.0f, 64.0f));
-  ImGui::Text("depth_write: %d", surf->depth_write);
-  ImGui::Text("depth_func: %s", s_depthfunc_names[surf->depth_func]);
-  ImGui::Text("cull: %s", s_cullface_names[surf->cull]);
-  ImGui::Text("src_blend: %s", s_blendfunc_names[surf->src_blend]);
-  ImGui::Text("dst_blend: %s", s_blendfunc_names[surf->dst_blend]);
-  ImGui::Text("shade: %s", s_shademode_names[surf->shade]);
-  ImGui::Text("ignore_tex_alpha: %d", surf->ignore_tex_alpha);
-  ImGui::Text("first_vert: %d", surf->first_vert);
-  ImGui::Text("num_verts: %d", surf->num_verts);
-
-  // render translated vert only when rendering a vertex tooltip
-  if (vertex_type != -1) {
-    struct vertex *vert = &tracer->rctx.verts[vert_id];
-
-    ImGui::Separator();
-
-    ImGui::Text("xyz: {%.2f, %.2f, %.2f}", vert->xyz[0], vert->xyz[1],
-                vert->xyz[2]);
-    ImGui::Text("uv: {%.2f, %.2f}", vert->uv[0], vert->uv[1]);
-    ImGui::Text("color: 0x%08x", vert->color);
-    ImGui::Text("offset_color: 0x%08x", vert->offset_color);
-  }
-
-  ImGui::EndTooltip();*/
 }
 
-static void tracer_render_context_menu(struct tracer *tracer) {
-  /*char label[128];
+static void tracer_render_side_menu(struct tracer *tracer) {
+  struct nk_context *ctx = &tracer->window->nk->ctx;
 
-  ImGui::Begin("Context", NULL, ImVec2(256.0f, 256.0f));
+  nk_style_default(ctx);
 
-  // param filters
-  for (int i = 0; i < TA_NUM_PARAMS; i++) {
-    snprintf(label, sizeof(label), "Hide %s", s_param_names[i]);
-    ImGui::Checkbox(label, &tracer->hide_params[i]);
-  }
-  ImGui::Separator();
+  // transparent menu backgrounds / selectables
+  ctx->style.window.fixed_background.data.color.a = 0;
+  ctx->style.selectable.normal.data.color.a = 0;
 
-  // param list
-  int list_type = 0;
-  int vertex_type = 0;
+  {
+    struct nk_panel layout;
+    struct nk_rect bounds = {
+        0.0f, 0.0, 240.0f, 460.0f,
+    };
 
-  for (int offset = 0; offset < tracer->rctx.num_states; offset++) {
-    struct param_state *param_state = &tracer->rctx.states[offset];
+    char label[128];
 
-    if (param_state_empty(param_state)) {
-      continue;
-    }
-
-    union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
-    bool param_selected = (offset == tracer->current_param_offset);
-
-    if (!tracer_param_hidden(tracer, pcw)) {
-      snprintf(label, sizeof(label), "0x%04x %s", offset,
-               s_param_names[pcw.para_type]);
-      ImGui::Selectable(label, &param_selected);
-
-      switch (pcw.para_type) {
-        case TA_PARAM_POLY_OR_VOL:
-        case TA_PARAM_SPRITE: {
-          const union poly_param *param =
-              reinterpret_cast<const union poly_param *>(tracer->ctx.params +
-                                                         offset);
-          list_type = param->type0.pcw.list_type;
-          vertex_type = ta_get_vert_type(param->type0.pcw);
-
-          if (ImGui::IsItemHovered()) {
-            tracer_format_tooltip(tracer, list_type, -1, offset);
-          }
-        } break;
-
-        case TA_PARAM_VERTEX: {
-          if (ImGui::IsItemHovered()) {
-            tracer_format_tooltip(tracer, list_type, vertex_type, offset);
-          }
-        } break;
-      }
-
-      if (param_selected) {
-        tracer->current_param_offset = offset;
-
-        if (tracer->scroll_to_param) {
-          if (!ImGui::IsItemVisible()) {
-            ImGui::SetScrollHere();
-          }
-
-          tracer->scroll_to_param = false;
+    if (nk_begin(ctx, &layout, "side menu", bounds, 0)) {
+      // parem filters
+      if (nk_tree_push(ctx, NK_TREE_TAB, "filters", NK_MINIMIZED)) {
+        for (int i = 0; i < TA_NUM_PARAMS; i++) {
+          snprintf(label, sizeof(label), "Show %s", s_param_names[i]);
+          nk_checkbox_text(ctx, label, strlen(label), &tracer->show_params[i]);
         }
+
+        nk_tree_pop(ctx);
+      }
+
+      // context parameters
+      if (nk_tree_push(ctx, NK_TREE_TAB, "params", 0)) {
+        // param list
+        int list_type = 0;
+        int vertex_type = 0;
+
+        for (int offset = 0; offset < tracer->rctx.num_states; offset++) {
+          struct param_state *param_state = &tracer->rctx.states[offset];
+
+          if (param_state_empty(param_state)) {
+            continue;
+          }
+
+          union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
+          int param_selected = (offset == tracer->current_param_offset);
+
+          if (!tracer_param_hidden(tracer, pcw)) {
+            struct nk_rect bounds = nk_widget_bounds(ctx);
+
+            snprintf(label, sizeof(label), "0x%04x %s", offset,
+                     s_param_names[pcw.para_type]);
+            nk_selectable_label(ctx, label, NK_TEXT_LEFT, &param_selected);
+
+            switch (pcw.para_type) {
+              case TA_PARAM_POLY_OR_VOL:
+              case TA_PARAM_SPRITE: {
+                const union poly_param *param =
+                    (const union poly_param *)(tracer->ctx.params + offset);
+
+                list_type = param->type0.pcw.list_type;
+                vertex_type = ta_get_vert_type(param->type0.pcw);
+
+                if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+                  tracer_param_tooltip(tracer, list_type, -1, offset);
+                }
+              } break;
+
+              case TA_PARAM_VERTEX: {
+                if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+                  tracer_param_tooltip(tracer, list_type, vertex_type, offset);
+                }
+              } break;
+            }
+
+            if (param_selected) {
+              tracer->current_param_offset = offset;
+            }
+          }
+        }
+
+        nk_tree_pop(ctx);
+      }
+
+      // texture menu
+      if (nk_tree_push(ctx, NK_TREE_TAB, "textures", 0)) {
+        nk_layout_row_static(ctx, 40.0f, 40.0f, 4);
+
+        rb_for_each_entry(tex, &tracer->live_textures, struct texture_entry,
+                          live_it) {
+          struct nk_rect bounds = nk_widget_bounds(ctx);
+
+          nk_image(ctx, nk_image_id((int)tex->handle));
+
+          if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+            struct nk_panel tooltip;
+            struct nk_panel tab;
+
+            // disable spacing for tooltip
+            struct nk_vec2 original_spacing = ctx->style.window.spacing;
+            ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
+
+            if (nk_tooltip_begin(ctx, &tooltip, 380.0f)) {
+              nk_layout_row_static(ctx, 184.0f, 184.0f, 2);
+
+              if (nk_group_begin(ctx, &tab, "texture preview",
+                                 NK_WINDOW_NO_SCROLLBAR)) {
+                nk_layout_row_static(ctx, 184.0f, 184.0f, 1);
+                nk_image(ctx, nk_image_id((int)tex->handle));
+                nk_group_end(ctx);
+              }
+
+              if (nk_group_begin(ctx, &tab, "texture info",
+                                 NK_WINDOW_NO_SCROLLBAR)) {
+                nk_layout_row_static(ctx, ctx->style.font.height, 184.0f, 1);
+                nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
+                          tex->tcw.texture_addr << 3);
+                nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
+                          s_pixel_format_names[tex->format]);
+                nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
+                          s_filter_mode_names[tex->filter]);
+                nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
+                          s_wrap_mode_names[tex->wrap_u]);
+                nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
+                          s_wrap_mode_names[tex->wrap_v]);
+                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d", tex->mipmaps);
+                nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", tex->width);
+                nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", tex->height);
+                nk_group_end(ctx);
+              }
+
+              nk_tooltip_end(ctx);
+            }
+
+            // restore spacing
+            ctx->style.window.spacing = original_spacing;
+          }
+        }
+
+        nk_tree_pop(ctx);
       }
     }
-  }
 
-  ImGui::End();*/
+    nk_end(ctx);
+  }
 }
 
 static void tracer_onpaint(void *data, bool show_main_menu) {
@@ -709,10 +799,9 @@ static void tracer_onpaint(void *data, bool show_main_menu) {
 
   tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rctx);
 
-  // render UI
+  // render ui
+  tracer_render_side_menu(tracer);
   tracer_render_scrubber_menu(tracer);
-  tracer_render_texture_menu(tracer);
-  tracer_render_context_menu(tracer);
 
   // clamp surfaces the last surface belonging to the current param
   int n = tracer->rctx.num_surfs;
@@ -829,6 +918,16 @@ struct tracer *tracer_create(struct window *window) {
     struct texture_entry *entry = &tracer->textures[i];
     list_add(&tracer->free_textures, &entry->free_it);
   }
+
+  // initial param filters
+  tracer->show_params[TA_PARAM_END_OF_LIST] = 1;
+  tracer->show_params[TA_PARAM_USER_TILE_CLIP] = 1;
+  tracer->show_params[TA_PARAM_OBJ_LIST_SET] = 1;
+  tracer->show_params[TA_PARAM_RESERVED0] = 1;
+  tracer->show_params[TA_PARAM_POLY_OR_VOL] = 1;
+  tracer->show_params[TA_PARAM_SPRITE] = 1;
+  tracer->show_params[TA_PARAM_RESERVED1] = 1;
+  tracer->show_params[TA_PARAM_VERTEX] = false;
 
   return tracer;
 }
