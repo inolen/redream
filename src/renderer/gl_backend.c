@@ -5,6 +5,7 @@
 #include "core/profiler.h"
 #include "core/string.h"
 #include "renderer/backend.h"
+#include "ui/nuklear.h"
 #include "ui/window.h"
 
 #define MAX_TEXTURES 1024
@@ -488,17 +489,22 @@ static void rb_set_initial_state(struct rb *rb) {
   rb_set_blend_func(rb, BLEND_NONE, BLEND_NONE);
 }
 
-static void rb_onpaint(void *data, bool show_main_menu) {
-  // struct rb *rb = data;
+static void rb_paint_menubar(void *data, struct nk_context *ctx) {
+  struct rb *rb = data;
 
-  // if (show_main_menu && ImGui::BeginMainMenuBar()) {
-  //   if (ImGui::BeginMenu("Render")) {
-  //     ImGui::MenuItem("Wireframe", "", &rb->debug_wireframe);
-  //     ImGui::EndMenu();
-  //   }
+  struct nk_panel menu;
 
-  //   ImGui::EndMainMenuBar();
-  // }
+  nk_layout_row_push(ctx, 60.0f);
+
+  if (nk_menu_begin_label(ctx, &menu, "render", NK_TEXT_LEFT, 100.0f)) {
+    nk_layout_row_dynamic(ctx, 25.0f, 1);
+
+    if (nk_menu_item_label(ctx, "wireframe", NK_TEXT_LEFT)) {
+      rb->debug_wireframe = !rb->debug_wireframe;
+    }
+
+    nk_menu_end(ctx);
+  }
 }
 
 void rb_begin_surfaces(struct rb *rb, const float *projection,
@@ -702,7 +708,7 @@ void rb_free_texture(struct rb *rb, texture_handle_t handle) {
 
 struct rb *rb_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL, rb_onpaint, NULL, NULL, NULL, NULL, NULL};
+      NULL, &rb_paint_menubar, NULL, NULL, NULL, NULL, NULL};
 
   struct rb *rb = (struct rb *)calloc(1, sizeof(struct rb));
   rb->window = window;

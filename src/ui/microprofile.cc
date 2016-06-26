@@ -45,35 +45,7 @@ static struct microprofile *s_mp;
   d[2].member = v;       \
   d[5].member = v
 
-static void mp_onpostpaint(void *data) {
-  struct microprofile *mp = reinterpret_cast<struct microprofile *>(data);
-
-  s_mp = mp;
-
-  // update draw surfaces
-  MicroProfileFlip();
-  MicroProfileDraw(mp->window->width, mp->window->height);
-
-  // render the surfaces
-  struct rb *rb = mp->window->rb;
-
-  rb_begin_ortho(rb);
-  rb_begin_surfaces2d(rb, mp->verts, mp->num_verts, nullptr, 0);
-
-  for (int i = 0; i < mp->num_surfs; i++) {
-    struct surface2d *surf = &mp->surfs[i];
-    rb_draw_surface2d(rb, surf);
-  }
-
-  rb_end_surfaces2d(rb);
-  rb_end_ortho(rb);
-
-  // reset surfaces
-  mp->num_surfs = 0;
-  mp->num_verts = 0;
-}
-
-static void mp_onkeydown(void *data, enum keycode code, int16_t value) {
+static void mp_keydown(void *data, enum keycode code, int16_t value) {
   if (code == K_F2) {
     if (value) {
       MicroProfileToggleDisplayMode();
@@ -85,7 +57,7 @@ static void mp_onkeydown(void *data, enum keycode code, int16_t value) {
   }
 }
 
-static void mp_onmousemove(void *data, int x, int y) {
+static void mp_mousemove(void *data, int x, int y) {
   MicroProfileMousePosition(x, y, 0);
 }
 
@@ -258,9 +230,37 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
   }
 }
 
+void mp_begin_frame(struct microprofile *mp) {}
+
+void mp_end_frame(struct microprofile *mp) {
+  s_mp = mp;
+
+  // update draw surfaces
+  MicroProfileFlip();
+  MicroProfileDraw(mp->window->width, mp->window->height);
+
+  // render the surfaces
+  struct rb *rb = mp->window->rb;
+
+  rb_begin_ortho(rb);
+  rb_begin_surfaces2d(rb, mp->verts, mp->num_verts, nullptr, 0);
+
+  for (int i = 0; i < mp->num_surfs; i++) {
+    struct surface2d *surf = &mp->surfs[i];
+    rb_draw_surface2d(rb, surf);
+  }
+
+  rb_end_surfaces2d(rb);
+  rb_end_ortho(rb);
+
+  // reset surfaces
+  mp->num_surfs = 0;
+  mp->num_verts = 0;
+}
+
 struct microprofile *mp_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL, NULL, &mp_onpostpaint, &mp_onkeydown, NULL, &mp_onmousemove, NULL};
+      NULL, NULL, NULL, &mp_keydown, NULL, &mp_mousemove, NULL};
 
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));

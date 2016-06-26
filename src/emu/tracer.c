@@ -369,8 +369,8 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   nk_style_default(ctx);
 
   // disable spacing / padding
-  ctx->style.window.padding = nk_vec2(0, 0);
-  ctx->style.window.spacing = nk_vec2(0, 0);
+  ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
+  ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
   static const float SCRUBBER_WINDOW_HEIGHT = 20.0f;
   struct nk_panel layout;
@@ -794,7 +794,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   }
 }
 
-static void tracer_onpaint(void *data, bool show_main_menu) {
+static void tracer_paint(void *data) {
   struct tracer *tracer = data;
 
   tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rctx);
@@ -831,12 +831,12 @@ static void tracer_onpaint(void *data, bool show_main_menu) {
   rb_end_surfaces(tracer->rb);
 }
 
-static void tracer_onkeydown(void *data, enum keycode code, int16_t value) {
+static void tracer_keydown(void *data, enum keycode code, int16_t value) {
   struct tracer *tracer = data;
 
   if (code == K_F1) {
     if (value) {
-      win_enable_main_menu(tracer->window, !tracer->window->main_menu);
+      win_enable_menubar(tracer->window, !tracer->window->menubar);
     }
   } else if (code == K_LEFT && value) {
     tracer_prev_context(tracer);
@@ -849,7 +849,7 @@ static void tracer_onkeydown(void *data, enum keycode code, int16_t value) {
   }
 }
 
-static void tracer_onclose(void *data) {
+static void tracer_close(void *data) {
   struct tracer *tracer = data;
 
   tracer->running = false;
@@ -887,8 +887,7 @@ void tracer_run(struct tracer *tracer, const char *path) {
 
 struct tracer *tracer_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL, &tracer_onpaint, NULL, &tracer_onkeydown, NULL,
-      NULL, &tracer_onclose};
+      &tracer_paint, NULL, NULL, &tracer_keydown, NULL, NULL, &tracer_close};
 
   // ensure param / poly / vertex size LUTs are generated
   ta_build_tables();

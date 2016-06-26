@@ -122,69 +122,30 @@ static bool emu_launch_gdi(struct emu *emu, const char *path) {
   return true;
 }
 
-static void emu_onpaint(void *data, bool show_main_menu) {
+static void emu_paint(void *data) {
   struct emu *emu = data;
 
-  dc_paint(emu->dc, show_main_menu);
-
-  /*{
-    struct nk_context *ctx = &emu->window->nk->ctx;
-    struct nk_color background;
-    struct nk_panel layout;
-
-    if (nk_begin(ctx, &layout, "Demo", nk_rect(200, 200, 210, 250),
-                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-                     NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
-      enum { EASY, HARD };
-      static int op = EASY;
-      static int property = 20;
-
-      nk_layout_row_static(ctx, 30, 80, 1);
-      if (nk_button_label(ctx, "button", NK_BUTTON_DEFAULT)) {
-        fprintf(stdout, "button pressed\n");
-      }
-      nk_layout_row_dynamic(ctx, 30, 2);
-      if (nk_option_label(ctx, "easy", op == EASY)) {
-        op = EASY;
-      }
-      if (nk_option_label(ctx, "hard", op == HARD)) {
-        op = HARD;
-      }
-      nk_layout_row_dynamic(ctx, 25, 1);
-      nk_property_int(ctx, "Compression:", 0, &property, 100, 10, 1);
-
-      {
-        struct nk_panel combo;
-        nk_layout_row_dynamic(ctx, 20, 1);
-        nk_label(ctx, "background:", NK_TEXT_LEFT);
-        nk_layout_row_dynamic(ctx, 25, 1);
-        if (nk_combo_begin_color(ctx, &combo, background, 400)) {
-          nk_layout_row_dynamic(ctx, 120, 1);
-          background = nk_color_picker(ctx, background, NK_RGBA);
-          nk_layout_row_dynamic(ctx, 25, 1);
-          background.r =
-              (nk_byte)nk_propertyi(ctx, "#R:", 0, background.r, 255, 1, 1);
-          background.g =
-              (nk_byte)nk_propertyi(ctx, "#G:", 0, background.g, 255, 1, 1);
-          background.b =
-              (nk_byte)nk_propertyi(ctx, "#B:", 0, background.b, 255, 1, 1);
-          background.a =
-              (nk_byte)nk_propertyi(ctx, "#A:", 0, background.a, 255, 1, 1);
-          nk_combo_end(ctx);
-        }
-      }
-    }
-
-    nk_end(ctx);
-  }*/
+  dc_paint(emu->dc);
 }
 
-static void emu_onkeydown(void *data, enum keycode code, int16_t value) {
+static void emu_paint_menubar(void *data, struct nk_context *ctx) {
+  struct emu *emu = data;
+
+  dc_paint_menubar(emu->dc, ctx);
+}
+
+static void emu_paint_ui(void *data, struct nk_context *ctx) {
+  struct emu *emu = data;
+
+  dc_paint_ui(emu->dc, ctx);
+}
+
+static void emu_keydown(void *data, enum keycode code, int16_t value) {
   struct emu *emu = data;
 
   if (code == K_F1) {
     if (value) {
-      win_enable_main_menu(emu->window, !emu->window->main_menu);
+      win_enable_menubar(emu->window, !emu->window->menubar);
     }
     return;
   }
@@ -192,7 +153,7 @@ static void emu_onkeydown(void *data, enum keycode code, int16_t value) {
   dc_keydown(emu->dc, code, value);
 }
 
-static void emu_onclose(void *data) {
+static void emu_close(void *data) {
   struct emu *emu = data;
 
   emu->running = false;
@@ -254,7 +215,8 @@ void emu_run(struct emu *emu, const char *path) {
 
 struct emu *emu_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL, &emu_onpaint, NULL, &emu_onkeydown, NULL, NULL, &emu_onclose};
+      &emu_paint, &emu_paint_menubar, &emu_paint_ui, &emu_keydown, NULL,
+      NULL,       &emu_close};
 
   struct emu *emu = calloc(1, sizeof(struct emu));
 

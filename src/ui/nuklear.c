@@ -7,9 +7,49 @@
 #define NK_IMPLEMENTATION
 #include <nuklear.h>
 
-static void nuklear_onprepaint(void *data) {
+static void nk_keydown(void *data, enum keycode code, int16_t value) {
   struct nuklear *nk = data;
 
+  if (code == K_MWHEELUP) {
+    nk->mouse_wheel = 1;
+  } else if (code == K_MWHEELDOWN) {
+    nk->mouse_wheel = -1;
+  } else if (code == K_MOUSE1) {
+    nk->mouse_down[0] = !!value;
+  } else if (code == K_MOUSE2) {
+    nk->mouse_down[1] = !!value;
+  } else if (code == K_MOUSE3) {
+    nk->mouse_down[2] = !!value;
+  } else if (code == K_LALT || code == K_RALT) {
+    // nk->alt[code == K_LALT ? 0 : 1] = !!value;
+    // io.KeyAlt = nk->alt[0] || nk->alt[1];
+  } else if (code == K_LCTRL || code == K_RCTRL) {
+    // nk->ctrl[code == K_LCTRL ? 0 : 1] = !!value;
+    // io.KeyCtrl = nk->ctrl[0] || nk->ctrl[1];
+  } else if (code == K_LSHIFT || code == K_RSHIFT) {
+    // nk->shift[code == K_LSHIFT ? 0 : 1] = !!value;
+    // io.KeyShift = nk->shift[0] || nk->shift[1];
+  } else {
+    // io.KeysDown[code] = !!value;
+  }
+}
+
+static void nk_textinput(void *data, const char *text) {
+  struct nuklear *nk = data;
+
+  nk_glyph glyph;
+  memcpy(glyph, text, NK_UTF_SIZE);
+  nk_input_glyph(&nk->ctx, glyph);
+}
+
+static void nk_mousemove(void *data, int x, int y) {
+  struct nuklear *nk = data;
+
+  nk->mousex = x;
+  nk->mousey = y;
+}
+
+void nk_begin_frame(struct nuklear *nk) {
   // update input state for the frame
   nk_input_begin(&nk->ctx);
 
@@ -24,8 +64,7 @@ static void nuklear_onprepaint(void *data) {
   nk_input_end(&nk->ctx);
 }
 
-static void nuklear_onpostpaint(void *data) {
-  struct nuklear *nk = data;
+void nk_end_frame(struct nuklear *nk) {
   struct rb *rb = nk->window->rb;
 
   // // if there are any focused items, enable text input
@@ -89,60 +128,9 @@ static void nuklear_onpostpaint(void *data) {
   nk->mouse_wheel = 0;
 }
 
-static void nuklear_onkeydown(void *data, enum keycode code, int16_t value) {
-  struct nuklear *nk = data;
-
-  if (code == K_MWHEELUP) {
-    nk->mouse_wheel = 1;
-  } else if (code == K_MWHEELDOWN) {
-    nk->mouse_wheel = -1;
-  } else if (code == K_MOUSE1) {
-    nk->mouse_down[0] = !!value;
-  } else if (code == K_MOUSE2) {
-    nk->mouse_down[1] = !!value;
-  } else if (code == K_MOUSE3) {
-    nk->mouse_down[2] = !!value;
-  } else if (code == K_LALT || code == K_RALT) {
-    // nk->alt[code == K_LALT ? 0 : 1] = !!value;
-    // io.KeyAlt = nk->alt[0] || nk->alt[1];
-  } else if (code == K_LCTRL || code == K_RCTRL) {
-    // nk->ctrl[code == K_LCTRL ? 0 : 1] = !!value;
-    // io.KeyCtrl = nk->ctrl[0] || nk->ctrl[1];
-  } else if (code == K_LSHIFT || code == K_RSHIFT) {
-    // nk->shift[code == K_LSHIFT ? 0 : 1] = !!value;
-    // io.KeyShift = nk->shift[0] || nk->shift[1];
-  } else {
-    // io.KeysDown[code] = !!value;
-  }
-}
-
-static void nuklear_ontextinput(void *data, const char *text) {
-  struct nuklear *nk = data;
-
-  nk_glyph glyph;
-  memcpy(glyph, text, NK_UTF_SIZE);
-  nk_input_glyph(&nk->ctx, glyph);
-}
-
-static void nuklear_onmousemove(void *data, int x, int y) {
-  struct nuklear *nk = data;
-
-  nk->mousex = x;
-  nk->mousey = y;
-}
-
-struct nk_context *nuklear_context(struct nuklear *nk) {
-  return &nk->ctx;
-}
-
-struct nuklear *nuklear_create(struct window *window) {
-  static const struct window_callbacks callbacks = {&nuklear_onprepaint,
-                                                    NULL,
-                                                    &nuklear_onpostpaint,
-                                                    &nuklear_onkeydown,
-                                                    &nuklear_ontextinput,
-                                                    &nuklear_onmousemove,
-                                                    NULL};
+struct nuklear *nk_create(struct window *window) {
+  static const struct window_callbacks callbacks = {
+      NULL, NULL, NULL, &nk_keydown, &nk_textinput, &nk_mousemove, NULL};
 
   struct nuklear *nk = calloc(1, sizeof(struct nuklear));
   nk->window = window;
@@ -167,7 +155,7 @@ struct nuklear *nuklear_create(struct window *window) {
   return nk;
 }
 
-void nuklear_destroy(struct nuklear *nk) {
+void nk_destroy(struct nuklear *nk) {
   nk_buffer_free(&nk->cmds);
   nk_font_atlas_clear(&nk->atlas);
   nk_free(&nk->ctx);

@@ -10,6 +10,7 @@ struct rb;
 struct imgui;
 struct microprofile;
 struct nuklear;
+struct nk_context;
 struct window;
 struct window_listener;
 
@@ -22,9 +23,9 @@ struct SDL_Window;
 #define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
 
 struct window_callbacks {
-  void (*prepaint)(void *data);
-  void (*paint)(void *data, bool show_main_menu);
-  void (*postpaint)(void *data);
+  void (*paint)(void *data);
+  void (*paint_menubar)(void *data, struct nk_context *ctx);
+  void (*paint_ui)(void *data, struct nk_context *ctx);
   void (*keydown)(void *data, enum keycode code, int16_t value);
   void (*textinput)(void *data, const char *text);
   void (*mousemove)(void *data, int x, int y);
@@ -47,7 +48,7 @@ struct window {
   // read only
   int width;
   int height;
-  bool main_menu;
+  bool menubar;
   bool text_input;
 
   // private state
@@ -59,7 +60,7 @@ struct window {
   uint8_t hat_state[NUM_JOYSTICK_HATS];
 };
 
-void win_enable_main_menu(struct window *win, bool active);
+void win_enable_menubar(struct window *win, bool active);
 void win_enable_text_input(struct window *win, bool active);
 void win_pump_events(struct window *win);
 struct window_listener *win_add_listener(struct window *win,

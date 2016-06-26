@@ -12,6 +12,7 @@
 #include "renderer/backend.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
+#include "ui/nuklear.h"
 
 #define TA_MAX_CONTEXTS 4
 
@@ -732,7 +733,7 @@ static void ta_toggle_tracing(struct ta *ta) {
   }
 }
 
-static void ta_paint(struct device *dev, bool show_main_menu) {
+static void ta_paint(struct device *dev) {
   struct ta *ta = container_of(dev, struct ta, base);
 
   if (ta->pending_context) {
@@ -755,20 +756,28 @@ static void ta_paint(struct device *dev, bool show_main_menu) {
       ta->pending_context->wrote = true;
     }
   }
+}
 
-  // if (show_main_menu) {
-  //   if (ImGui::BeginMainMenuBar()) {
-  //     if (ImGui::BeginMenu("TA")) {
-  //       if ((!ta->trace_writer && ImGui::MenuItem("Start trace")) ||
-  //           (ta->trace_writer && ImGui::MenuItem("Stop trace"))) {
-  //         ta_toggle_tracing(ta);
-  //       }
-  //       ImGui::EndMenu();
-  //     }
+static void ta_paint_menu_bar(struct device *dev, struct nk_context *ctx) {
+  struct ta *ta = container_of(dev, struct ta, base);
 
-  //     ImGui::EndMainMenuBar();
-  //   }
-  // }
+  struct nk_panel menu;
+
+  nk_layout_row_push(ctx, 40.0f);
+
+  if (nk_menu_begin_label(ctx, &menu, "ta", NK_TEXT_LEFT, 100.0f)) {
+    nk_layout_row_dynamic(ctx, 25.0f, 1);
+
+    if (!ta->trace_writer &&
+        nk_menu_item_label(ctx, "start trace", NK_TEXT_LEFT)) {
+      ta_toggle_tracing(ta);
+    } else if (ta->trace_writer &&
+               nk_menu_item_label(ctx, "stop trace", NK_TEXT_LEFT)) {
+      ta_toggle_tracing(ta);
+    }
+
+    nk_menu_end(ctx);
+  }
 }
 
 void ta_build_tables() {
@@ -815,9 +824,9 @@ void ta_build_tables() {
 struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
   ta_build_tables();
 
-  struct ta *ta =
-      (struct ta *)dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
-  ta->base.window = window_interface_create(&ta_paint, NULL);
+  struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
+  ta->base.window =
+      window_interface_create(&ta_paint, &ta_paint_menu_bar, NULL, NULL);
 
   ta->rb = rb;
   ta->tr = tr_create(ta->rb, ta, &ta_get_texture);
