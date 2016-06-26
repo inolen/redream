@@ -42,7 +42,10 @@ struct nuklear {
   bool shift[2];
 };
 
-struct nuklear *nuklear_create(struct window *window);
-void nuklear_destroy(struct nuklear *nk);
+void nk_begin_frame(struct nuklear *nk);
+void nk_end_frame(struct nuklear *nk);
+
+struct nuklear *nk_create(struct window *window);
+void nk_destroy(struct nuklear *nk);
 
 #endif

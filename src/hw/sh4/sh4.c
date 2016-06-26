@@ -14,6 +14,7 @@
 #include "jit/backend/backend.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "sys/time.h"
+#include "ui/nuklear.h"
 
 #define SH4_CLOCK_FREQ INT64_C(200000000)
 
@@ -770,44 +771,55 @@ static bool sh4_init(struct device *dev) {
   return true;
 }
 
-static void sh4_paint(struct device *dev, bool show_main_menu) {
+static void sh4_paint_menu_bar(struct device *dev, struct nk_context *ctx) {
   struct sh4 *sh4 = container_of(dev, struct sh4, base);
   struct sh4_perf *perf = &sh4->perf;
 
-  // if (show_main_menu && ImGui::BeginMainMenuBar()) {
-  //   if (ImGui::BeginMenu("CPU")) {
-  //     ImGui::MenuItem("Perf", "", &perf->show);
-  //     ImGui::EndMenu();
-  //   }
+  struct nk_panel menu;
 
-  //   ImGui::EndMainMenuBar();
-  // }
+  char label[128];
+  float latest_mips = perf->mips[(perf->num_mips - 1) % MAX_MIPS_SAMPLES];
+  snprintf(label, sizeof(label), "sh4 [%06.2f mips]", latest_mips);
 
-  // if (perf->show) {
-  //   ImGui::Begin("Perf", NULL, ImGuiWindowFlags_NoTitleBar |
-  //                                     ImGuiWindowFlags_NoResize |
-  //                                     ImGuiWindowFlags_NoMove |
-  //                                     ImGuiWindowFlags_AlwaysAutoResize);
+  nk_layout_row_push(ctx, 140.0f);
 
-  //   ImGui::SetWindowPos(ImVec2(
-  //       ImGui::GetIO().DisplaySize.x - ImGui::GetWindowSize().x - 10, 10));
+  if (nk_menu_begin_label(ctx, &menu, label, NK_TEXT_LEFT, 100.0f)) {
+    /*nk_layout_row_dynamic(ctx, 25.0f, 1);
 
-  //   // calculate average mips
-  //   float avg_mips = 0.0f;
-  //   for (int i = MAX(0, perf->num_mips - MAX_MIPS_SAMPLES); i <
-  //   perf->num_mips;
-  //        i++) {
-  //     avg_mips += perf->mips[i % MAX_MIPS_SAMPLES];
-  //   }
-  //   avg_mips /= MAX(MIN(perf->num_mips, MAX_MIPS_SAMPLES), 1);
+    if (nk_menu_item_label(ctx, "perf", NK_TEXT_LEFT)) {
+      sh4->perf.show = !sh4->perf.show;
+    }*/
 
-  //   char overlay_text[128];
-  //   snprintf(overlay_text, sizeof(overlay_text), "%.2f", avg_mips);
-  //   ImGui::PlotLines("MIPS", perf->mips, MAX_MIPS_SAMPLES, perf->num_mips,
-  //                    overlay_text, 0.0f, 400.0f);
+    nk_menu_end(ctx);
+  }
+}
 
-  //   ImGui::End();
-  // }
+static void sh4_paint_ui(struct device *dev, struct nk_context *ctx) {
+  struct sh4 *sh4 = container_of(dev, struct sh4, base);
+  /*struct sh4_perf *perf = &sh4->perf;
+
+  if (perf->show) {
+    struct nk_panel layout;
+    struct nk_rect bounds = {440.0f, 20.0f, 200.0f, 20.0f};
+
+    nk_style_default(ctx);
+
+    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
+    ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
+
+    if (nk_begin(ctx, &layout, "sh4 perf", bounds, NK_WINDOW_NO_SCROLLBAR)) {
+      nk_layout_row_static(ctx, bounds.h, bounds.w, 1);
+
+      if (nk_chart_begin(ctx, NK_CHART_LINES, MAX_MIPS_SAMPLES, 0.0f, 400.0f)) {
+        for (int i = 0; i < MAX_MIPS_SAMPLES; i++) {
+          nk_flags res = nk_chart_push(ctx, perf->mips[i]);
+        }
+
+        nk_chart_end(ctx);
+      }
+    }
+    nk_end(ctx);
+  }*/
 }
 
 void sh4_set_pc(struct sh4 *sh4, uint32_t pc) {
@@ -943,7 +955,8 @@ struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
   sh4->base.execute = execute_interface_create(&sh4_run);
   sh4->base.memory = memory_interface_create(dc, &sh4_data_map);
-  sh4->base.window = window_interface_create(&sh4_paint, NULL);
+  sh4->base.window =
+      window_interface_create(NULL, &sh4_paint_menu_bar, &sh4_paint_ui, NULL);
 
   g_sh4 = sh4;
 

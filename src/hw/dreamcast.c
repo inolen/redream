@@ -39,10 +39,13 @@ void memory_interface_destroy(struct memory_interface *memory) {
   free(memory);
 }
 
-struct window_interface *window_interface_create(device_paint_cb paint,
-                                                 device_keydown_cb keydown) {
+struct window_interface *window_interface_create(
+    device_paint_cb paint, device_paint_menubar_cb paint_menubar,
+    device_paint_ui_cb paint_ui, device_keydown_cb keydown) {
   struct window_interface *window = calloc(1, sizeof(struct window_interface));
   window->paint = paint;
+  window->paint_menubar = paint_menubar;
+  window->paint_ui = paint_ui;
   window->keydown = keydown;
   return window;
 }
@@ -124,10 +127,26 @@ void dc_tick(struct dreamcast *dc, int64_t ns) {
   }
 }
 
-void dc_paint(struct dreamcast *dc, bool show_main_menu) {
+void dc_paint(struct dreamcast *dc) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->window && dev->window->paint) {
-      dev->window->paint(dev, show_main_menu);
+      dev->window->paint(dev);
+    }
+  }
+}
+
+void dc_paint_menubar(struct dreamcast *dc, struct nk_context *ctx) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if (dev->window && dev->window->paint_menubar) {
+      dev->window->paint_menubar(dev, ctx);
+    }
+  }
+}
+
+void dc_paint_ui(struct dreamcast *dc, struct nk_context *ctx) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if (dev->window && dev->window->paint_ui) {
+      dev->window->paint_ui(dev, ctx);
     }
   }
 }
