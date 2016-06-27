@@ -13,8 +13,4 @@ void aica_destroy(struct aica *aica);
 AM_DECLARE(aica_reg_map);
 AM_DECLARE(aica_data_map);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif

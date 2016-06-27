@@ -14,8 +14,4 @@ void arm_destroy(struct arm *arm);
 
 AM_DECLARE(arm_data_map);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif
