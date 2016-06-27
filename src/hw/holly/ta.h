@@ -35,8 +35,4 @@ void ta_destroy(struct ta *ta);
 
 AM_DECLARE(ta_fifo_map);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif

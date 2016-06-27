@@ -15,8 +15,4 @@ void gdrom_dma_end(struct gdrom *gd);
 struct gdrom *gdrom_create(struct dreamcast *dc);
 void gdrom_destroy(struct gdrom *gd);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif

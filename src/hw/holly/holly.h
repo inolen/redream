@@ -36,8 +36,4 @@ void holly_destroy(struct holly *hl);
 
 AM_DECLARE(holly_reg_map);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif

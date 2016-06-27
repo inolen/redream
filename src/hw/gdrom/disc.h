@@ -24,8 +24,4 @@ int disc_read_sector(struct disc *disc, int fad, void *dst);
 struct disc *disc_create_gdi(const char *filename);
 void disc_destroy(struct disc *disc);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif

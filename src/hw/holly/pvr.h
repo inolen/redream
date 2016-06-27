@@ -38,8 +38,4 @@ void pvr_destroy(struct pvr *pvr);
 AM_DECLARE(pvr_reg_map);
 AM_DECLARE(pvr_vram_map);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif
