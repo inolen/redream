@@ -54,7 +54,7 @@ void memory_destroy(struct memory *memory);
 
 #define AM_BEGIN(type, name)                                                  \
   void name(void *that, struct dreamcast *machine, struct address_map *map) { \
-    type *self = (type *)that;                                                \
+    type *self = that;                                                        \
     uint32_t begin = 0;                                                       \
     uint32_t size = 0;                                                        \
     uint32_t mask = 0xffffffff;                                               \
@@ -68,29 +68,21 @@ void memory_destroy(struct memory *memory);
   size = end_ - begin_ + 1;    \
   mask = 0xffffffff;
 #define AM_MASK(mask_) mask = mask_;
-#define AM_MOUNT()                                          \
-  {                                                         \
-    static struct memory_region *region = NULL;             \
-    if (!region) {                                          \
-      region = memory_create_region(machine->memory, size); \
-    }                                                       \
-    am_mount_region(map, region, size, begin, mask);        \
+#define AM_MOUNT()                                   \
+  {                                                  \
+    struct memory_region *region =                   \
+        memory_create_region(machine->memory, size); \
+    am_mount_region(map, region, size, begin, mask); \
   }
-#define AM_HANDLE(r8, r16, r32, r64, w8, w16, w32, w64)                       \
-  {                                                                           \
-    static struct memory_region *region = NULL;                               \
-    if (!region) {                                                            \
-      region = memory_create_dynamic_region(                                  \
-          machine->memory, size, r8, r16, r32, r64, w8, w16, w32, w64, self); \
-    }                                                                         \
-    am_mount_region(map, region, size, begin, mask);                          \
+#define AM_HANDLE(r8, r16, r32, r64, w8, w16, w32, w64)                     \
+  {                                                                         \
+    struct memory_region *region = memory_create_dynamic_region(            \
+        machine->memory, size, r8, r16, r32, r64, w8, w16, w32, w64, self); \
+    am_mount_region(map, region, size, begin, mask);                        \
   }
 #define AM_DEVICE(name, cb)                               \
   {                                                       \
-    static struct device *device = NULL;                  \
-    if (!device) {                                        \
-      device = dc_get_device(machine, name);              \
-    }                                                     \
+    struct device *device = dc_get_device(machine, name); \
     CHECK_NOTNULL(device);                                \
     am_mount_device(map, device, &cb, size, begin, mask); \
   }
