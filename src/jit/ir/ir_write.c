@@ -89,7 +89,7 @@ static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
   fprintf(output, " ");
 
   // print each argument
-  bool need_comma = false;
+  int need_comma = 0;
 
   for (int i = 0; i < 3; i++) {
     const struct ir_value *arg = instr->arg[i];
@@ -100,12 +100,12 @@ static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
 
     if (need_comma) {
       fprintf(output, ", ");
-      need_comma = false;
+      need_comma = 0;
     }
 
     ir_write_value(arg, output);
 
-    need_comma = true;
+    need_comma = 1;
   }
 
   // fprintf(output, "[tag %" PRId64 ", reg %d]", instr->tag, instr->reg);

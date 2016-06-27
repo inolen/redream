@@ -145,10 +145,10 @@ static void ir_lex_next(struct ir_parser *p) {
   return;
 }
 
-bool ir_parse_type(struct ir_parser *p, struct ir *ir, enum ir_type *type) {
+int ir_parse_type(struct ir_parser *p, struct ir *ir, enum ir_type *type) {
   if (p->tok != TOK_TYPE) {
     LOG_INFO("Unexpected token %d when parsing type", p->tok);
-    return false;
+    return 0;
   }
 
   // eat token
@@ -156,13 +156,13 @@ bool ir_parse_type(struct ir_parser *p, struct ir *ir, enum ir_type *type) {
 
   *type = p->val.ty;
 
-  return true;
+  return 1;
 }
 
-bool ir_parse_op(struct ir_parser *p, struct ir *ir, enum ir_op *op) {
+int ir_parse_op(struct ir_parser *p, struct ir *ir, enum ir_op *op) {
   if (p->tok != TOK_IDENTIFIER) {
     LOG_INFO("Unexpected token %d when parsing op", p->tok);
-    return false;
+    return 0;
   }
 
   const char *op_str = p->val.s;
@@ -177,7 +177,7 @@ bool ir_parse_op(struct ir_parser *p, struct ir *ir, enum ir_op *op) {
 
   if (i == NUM_OPS) {
     LOG_INFO("Unexpected op '%s'", op_str);
-    return false;
+    return 0;
   }
 
   // eat token
@@ -185,15 +185,15 @@ bool ir_parse_op(struct ir_parser *p, struct ir *ir, enum ir_op *op) {
 
   *op = (enum ir_op)i;
 
-  return true;
+  return 1;
 }
 
-bool ir_parse_value(struct ir_parser *p, struct ir *ir,
-                    struct ir_value **value) {
+int ir_parse_value(struct ir_parser *p, struct ir *ir,
+                   struct ir_value **value) {
   // parse value type
   enum ir_type type;
   if (!ir_parse_type(p, ir, &type)) {
-    return false;
+    return 0;
   }
 
   // parse value
@@ -201,7 +201,7 @@ bool ir_parse_value(struct ir_parser *p, struct ir *ir,
     const char *ident = p->val.s;
 
     if (ident[0] != '%') {
-      return false;
+      return 0;
     }
 
     // lookup the slot slowly
@@ -248,21 +248,21 @@ bool ir_parse_value(struct ir_parser *p, struct ir *ir,
         break;
     }
   } else {
-    return false;
+    return 0;
   }
 
   // eat token
   ir_lex_next(p);
 
-  return true;
+  return 1;
 }
 
-bool ir_parse_operator(struct ir_parser *p, struct ir *ir) {
+int ir_parse_operator(struct ir_parser *p, struct ir *ir) {
   const char *op_str = p->val.s;
 
   if (strcmp(op_str, "=")) {
     LOG_INFO("Unexpected operator '%s'", op_str);
-    return false;
+    return 0;
   }
 
   // eat token
@@ -270,10 +270,10 @@ bool ir_parse_operator(struct ir_parser *p, struct ir *ir) {
 
   // nothing to do, there's only one operator token
 
-  return true;
+  return 1;
 }
 
-bool ir_parse_instr(struct ir_parser *p, struct ir *ir) {
+int ir_parse_instr(struct ir_parser *p, struct ir *ir) {
   int slot = -1;
   enum ir_type type = VALUE_V;
   struct ir_value *arg[3] = {};
@@ -281,31 +281,31 @@ bool ir_parse_instr(struct ir_parser *p, struct ir *ir) {
   // parse result type and slot number
   if (p->tok == TOK_TYPE) {
     if (!ir_parse_type(p, ir, &type)) {
-      return false;
+      return 0;
     }
 
     const char *ident = p->val.s;
     if (ident[0] != '%') {
-      return false;
+      return 0;
     }
     slot = atoi(&ident[1]);
     ir_lex_next(p);
 
     if (!ir_parse_operator(p, ir)) {
-      return false;
+      return 0;
     }
   }
 
   // parse op
   enum ir_op op;
   if (!ir_parse_op(p, ir, &op)) {
-    return false;
+    return 0;
   }
 
   // parse arguments
   for (int i = 0; i < 3; i++) {
     if (!ir_parse_value(p, ir, &arg[i])) {
-      return false;
+      return 0;
     }
 
     if (p->tok != TOK_COMMA) {
@@ -325,14 +325,14 @@ bool ir_parse_instr(struct ir_parser *p, struct ir *ir) {
 
   instr->tag = slot;
 
-  return true;
+  return 1;
 }
 
-bool ir_read(FILE *input, struct ir *ir) {
+int ir_read(FILE *input, struct ir *ir) {
   struct ir_parser p = {};
   p.input = input;
 
-  while (true) {
+  while (1) {
     ir_lex_next(&p);
 
     if (p.tok == TOK_EOF) {
@@ -340,9 +340,9 @@ bool ir_read(FILE *input, struct ir *ir) {
     }
 
     if (!ir_parse_instr(&p, ir)) {
-      return false;
+      return 0;
     }
   }
 
-  return true;
+  return 1;
 }

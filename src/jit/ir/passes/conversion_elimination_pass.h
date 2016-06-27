@@ -3,8 +3,6 @@
 
 struct ir;
 
-extern const char *cve_name;
-
 void cve_run(struct ir *ir);
 
 #endif

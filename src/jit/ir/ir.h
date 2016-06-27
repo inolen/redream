@@ -173,7 +173,7 @@ static inline bool ir_is_vector(enum ir_type type) {
   return type == VALUE_V128;
 }
 
-bool ir_read(FILE *input, struct ir *ir);
+int ir_read(FILE *input, struct ir *ir);
 void ir_write(struct ir *ir, FILE *output);
 
 struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
