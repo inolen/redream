@@ -39,12 +39,12 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 // down on copy and paste
 #define load_guest(addr, type)                          \
   ((flags & SH4_SLOWMEM) ? ir_load_slow(ir, addr, type) \
-                         : ir_load_slow(ir, addr, type))
+                         : ir_load_fast(ir, addr, type))
 
 #define store_guest(addr, v)                              \
   do {                                                    \
     ((flags & SH4_SLOWMEM) ? ir_store_slow(ir, addr, v)   \
-                           : ir_store_slow(ir, addr, v)); \
+                           : ir_store_fast(ir, addr, v)); \
   } while (0)
 
 #define load_gpr(n, type) \
