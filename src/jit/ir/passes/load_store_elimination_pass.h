@@ -3,8 +3,6 @@
 
 struct ir;
 
-extern const char *lse_name;
-
 void lse_run(struct ir *ir);
 
 #endif

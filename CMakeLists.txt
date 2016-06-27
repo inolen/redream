@@ -247,7 +247,7 @@ endif()
 #--------------------------------------------------
 # tools
 #--------------------------------------------------
-set(RECC_SOURCES tools/recc.cc)
+set(RECC_SOURCES tools/recc.c)
 
 foreach(file ${REDREAM_SOURCES})
   if(file MATCHES "(deps|src/(core|jit|sys))")
