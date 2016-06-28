@@ -1,28 +1,27 @@
 #ifndef TR_H
 #define TR_H
 
+#include "core/rb_tree.h"
 #include "hw/holly/ta_types.h"
 #include "renderer/backend.h"
 
 struct tr;
 
-// register_texture_cb / get_texture_cb provide an abstraction around
-// providing textures to the renderer. when emulating the actual TA,
-// textures will be provided from guest memory, but when playing
-// back traces the textures will come from the trace itself
 typedef uint64_t texture_key_t;
 
-struct texture_reg {
-  // texture registration input
-  const struct tile_ctx *ctx;
+struct texture_entry {
   union tsp tsp;
   union tcw tcw;
-  const uint8_t *palette;
-  const uint8_t *texture;
 
-  // texture registration output. normally, the handle is the only information
-  // needed, but the rest is used by the tracer for debugging purposes
-  texture_handle_t handle;
+  // source info
+  int frame;
+  int dirty;
+  const uint8_t *texture;
+  int texture_size;
+  const uint8_t *palette;
+  int palette_size;
+
+  // backend info
   enum pxl_format format;
   enum filter_mode filter;
   enum wrap_mode wrap_u;
@@ -30,13 +29,16 @@ struct texture_reg {
   bool mipmaps;
   int width;
   int height;
+  texture_handle_t handle;
 };
 
-typedef void (*register_texture_cb)(void *, struct texture_reg *reg);
-
-typedef texture_handle_t (*get_texture_cb)(void *, const struct tile_ctx *,
-                                           union tsp, union tcw, void *,
-                                           register_texture_cb);
+// provides abstraction around providing texture data to the renderer. when
+// emulating the actual ta, textures will be provided from guest memory, but
+// when playing back traces the textures will come from the trace itself
+struct texture_interface {
+  void *data;
+  struct texture_entry *(*find_texture)(void *, union tsp, union tcw);
+};
 
 // represents the parse state after each ta parameter. used to visually scrub
 // through the scene parameter by parameter in the tracer
@@ -67,13 +69,15 @@ struct render_ctx {
   int num_states;
 };
 
-texture_key_t tr_get_texture_key(union tsp tsp, union tcw tcw);
+static inline texture_key_t tr_texture_key(union tsp tsp, union tcw tcw) {
+  return ((uint64_t)tsp.full << 32) | tcw.full;
+}
 
-void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
+void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
                       struct render_ctx *rctx);
 void tr_render_context(struct tr *tr, const struct render_ctx *rctx);
 
-struct tr *tr_create(struct rb *rb, void *get_tex_data, get_texture_cb get_tex);
+struct tr *tr_create(struct rb *rb, struct texture_interface *texture_if);
 void tr_destroy(struct tr *tr);
 
 #endif

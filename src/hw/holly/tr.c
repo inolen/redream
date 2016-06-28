@@ -9,9 +9,7 @@
 
 struct tr {
   struct rb *rb;
-
-  void *get_texture_data;
-  get_texture_cb get_texture;
+  struct texture_interface texture_if;
 
   // current global state
   const union poly_param *last_poly;
@@ -118,15 +116,36 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
          (float_to_u8(g) << 8) | float_to_u8(r);
 }
 
-static void tr_register_texture(void *data, struct texture_reg *reg) {
-  static uint8_t converted[1024 * 1024 * 4];
+static texture_handle_t tr_demand_texture(struct tr *tr,
+                                          const struct tile_ctx *ctx, int frame,
+                                          union tsp tsp, union tcw tcw) {
+  // TODO it's bad that textures are only cached based off tsp / tcw yet
+  // the TEXT_CONTROL registers and PAL_RAM_CTRL registers are used here
+  // to control texture generation
 
-  struct tr *tr = data;
-  const struct tile_ctx *ctx = reg->ctx;
-  union tsp tsp = reg->tsp;
-  union tcw tcw = reg->tcw;
-  const uint8_t *palette = reg->palette;
-  const uint8_t *texture = reg->texture;
+  struct texture_entry *entry =
+      tr->texture_if.find_texture(tr->texture_if.data, tsp, tcw);
+  CHECK_NOTNULL(entry);
+
+  // if there's a non-dirty handle, go ahead and return it
+  if (entry->handle && !entry->dirty) {
+    return entry->handle;
+  }
+
+  // if there's a dirty handle, destroy it before creating the new one
+  if (entry->handle && entry->dirty) {
+    rb_destroy_texture(tr->rb, entry->handle);
+    entry->handle = 0;
+  }
+
+  // sanity check that the texture source is valid for the current frame. video
+  // ram will be modified between frames, if these values don't match something
+  // is broken in the ta's thread synchronization
+  CHECK_EQ(frame, entry->frame);
+
+  static uint8_t converted[1024 * 1024 * 4];
+  const uint8_t *palette = entry->palette;
+  const uint8_t *texture = entry->texture;
   const uint8_t *input = texture;
   const uint8_t *output = texture;
 
@@ -276,19 +295,18 @@ static void tr_register_texture(void *data, struct texture_reg *reg) {
       tsp.clamp_v ? WRAP_CLAMP_TO_EDGE
                   : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
-  texture_handle_t handle =
-      rb_register_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v, mip_mapped,
-                          width, height, output);
+  entry->handle = rb_create_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v,
+                                    mip_mapped, width, height, output);
+  entry->format = pixel_fmt;
+  entry->filter = filter;
+  entry->wrap_u = wrap_u;
+  entry->wrap_v = wrap_v;
+  entry->mipmaps = mip_mapped;
+  entry->width = width;
+  entry->height = height;
+  entry->dirty = 0;
 
-  //
-  reg->handle = handle;
-  reg->format = pixel_fmt;
-  reg->filter = filter;
-  reg->wrap_u = wrap_u;
-  reg->wrap_v = wrap_v;
-  reg->mipmaps = mip_mapped;
-  reg->width = width;
-  reg->height = height;
+  return entry->handle;
 }
 
 static struct surface *tr_alloc_surf(struct tr *tr, struct render_ctx *rctx,
@@ -478,7 +496,8 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
 // NOTE this offset color implementation is not correct at all, see the
 // Texture/Shading Instruction in the union tsp instruction word
 static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
-                                struct render_ctx *rctx, const uint8_t *data) {
+                                int frame, struct render_ctx *rctx,
+                                const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rctx);
 
   const union poly_param *param = (const union poly_param *)data;
@@ -561,8 +580,8 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   }
 
   if (param->type0.pcw.texture) {
-    surf->texture = tr->get_texture(tr->get_texture_data, ctx, param->type0.tsp,
-                                    param->type0.tcw, tr, &tr_register_texture);
+    surf->texture =
+        tr_demand_texture(tr, ctx, frame, param->type0.tsp, param->type0.tcw);
   } else {
     surf->texture = 0;
   }
@@ -755,7 +774,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 17: {
-      LOG_WARNING("Unhandled modvol triangle");
+      // LOG_WARNING("Unhandled modvol triangle");
     } break;
 
     default:
@@ -921,12 +940,8 @@ static void tr_reset(struct tr *tr, struct render_ctx *rctx) {
   tr->last_sorted_surf = 0;
 }
 
-texture_key_t tr_get_texture_key(union tsp tsp, union tcw tcw) {
-  return ((uint64_t)tsp.full << 32) | tcw.full;
-}
-
 static void tr_parse_context_inner(struct tr *tr, const struct tile_ctx *ctx,
-                                   struct render_ctx *rctx) {
+                                   int frame, struct render_ctx *rctx) {
   const uint8_t *data = ctx->params;
   const uint8_t *end = ctx->params + ctx->size;
 
@@ -958,11 +973,11 @@ static void tr_parse_context_inner(struct tr *tr, const struct tile_ctx *ctx,
 
       // global params
       case TA_PARAM_POLY_OR_VOL:
-        tr_parse_poly_param(tr, ctx, rctx, data);
+        tr_parse_poly_param(tr, ctx, frame, rctx, data);
         break;
 
       case TA_PARAM_SPRITE:
-        tr_parse_poly_param(tr, ctx, rctx, data);
+        tr_parse_poly_param(tr, ctx, frame, rctx, data);
         break;
 
       // vertex params
@@ -992,11 +1007,11 @@ static void tr_parse_context_inner(struct tr *tr, const struct tile_ctx *ctx,
   tr_proj_mat(tr, ctx, rctx);
 }
 
-void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
+void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
                       struct render_ctx *rctx) {
   PROF_ENTER("tr_parse_context");
 
-  tr_parse_context_inner(tr, ctx, rctx);
+  tr_parse_context_inner(tr, ctx, frame, rctx);
 
   PROF_LEAVE();
 }
@@ -1023,13 +1038,11 @@ void tr_render_context(struct tr *tr, const struct render_ctx *ctx) {
   PROF_LEAVE();
 }
 
-struct tr *tr_create(struct rb *rb, void *get_texture_data,
-                     get_texture_cb get_texture) {
-  struct tr *tr = malloc(sizeof(struct tr));
-  memset(tr, 0, sizeof(*tr));
+struct tr *tr_create(struct rb *rb, struct texture_interface *texture_if) {
+  struct tr *tr = calloc(1, sizeof(struct tr));
+
   tr->rb = rb;
-  tr->get_texture_data = get_texture_data;
-  tr->get_texture = get_texture;
+  tr->texture_if = *texture_if;
 
   return tr;
 }

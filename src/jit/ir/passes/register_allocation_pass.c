@@ -27,7 +27,7 @@ struct register_set {
 
 struct ra {
   // canonical backend register information
-  const struct register_def *registers;
+  const struct jit_register *registers;
   int num_registers;
 
   // allocation state
@@ -240,7 +240,7 @@ static int ra_reuse_arg_register(struct ra *ra, struct ir *ir,
   }
 
   // make sure the register can hold the result type
-  const struct register_def *r = &ra->registers[prefered];
+  const struct jit_register *r = &ra->registers[prefered];
   if (!(r->value_types & (1 << instr->result->type))) {
     return NO_REGISTER;
   }
@@ -334,13 +334,13 @@ static void ra_assign_ordinals(struct ir *ir) {
   }
 }
 
-static void ra_init_sets(struct ra *ra, const struct register_def *registers,
+static void ra_init_sets(struct ra *ra, const struct jit_register *registers,
                          int num_registers) {
   ra->registers = registers;
   ra->num_registers = num_registers;
 
   for (int i = 0; i < ra->num_registers; i++) {
-    const struct register_def *r = &ra->registers[i];
+    const struct jit_register *r = &ra->registers[i];
 
     if (r->value_types == VALUE_INT_MASK) {
       ra_push_register(&ra->int_registers, i);
@@ -354,7 +354,7 @@ static void ra_init_sets(struct ra *ra, const struct register_def *registers,
   }
 }
 
-void ra_run(struct ir *ir, const struct register_def *registers,
+void ra_run(struct ir *ir, const struct jit_register *registers,
             int num_registers) {
   struct ra ra = {};
 

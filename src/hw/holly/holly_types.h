@@ -28,7 +28,7 @@ enum holly_interrupt {
   HOLLY_INTC_PCEOVINT = HOLLY_INTC_NRM | 0x1,
   // ISP End of Render
   HOLLY_INTC_PCEOIINT = HOLLY_INTC_NRM | 0x2,
-  // union tsp End of Render
+  // TSP End of Render
   HOLLY_INTC_PCEOTINT = HOLLY_INTC_NRM | 0x4,
   // VBlank In
   HOLLY_INTC_PCVIINT = HOLLY_INTC_NRM | 0x8,
@@ -86,7 +86,7 @@ enum holly_interrupt {
   HOLLY_INTC_PCIOCINT = HOLLY_INTC_ERR | 0x1,
   // Hazard Processing of Strip Buffer
   HOLLY_INTC_PCHZDINT = HOLLY_INTC_ERR | 0x2,
-  // ISP/union tsp Parameter Limit Address
+  // ISP/TSP Parameter Limit Address
   HOLLY_INTC_TAPOFINT = HOLLY_INTC_ERR | 0x4,
   // Object List Limit Address
   HOLLY_INTC_TALOFINT = HOLLY_INTC_ERR | 0x8,

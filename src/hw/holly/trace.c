@@ -72,7 +72,7 @@ static bool trace_patch_overrides(struct trace_cmd *cmd) {
   while (cmd) {
     if (cmd->type == TRACE_CMD_TEXTURE) {
       texture_key_t texture_key =
-          tr_get_texture_key(cmd->texture.tsp, cmd->texture.tcw);
+          tr_texture_key(cmd->texture.tsp, cmd->texture.tcw);
 
       // walk backwards and see if this texture overrode a previous command
       // TODO could cache this information in a map
@@ -81,7 +81,7 @@ static bool trace_patch_overrides(struct trace_cmd *cmd) {
       while (prev) {
         if (prev->type == TRACE_CMD_TEXTURE) {
           texture_key_t prev_texture_key =
-              tr_get_texture_key(prev->texture.tsp, prev->texture.tcw);
+              tr_texture_key(prev->texture.tsp, prev->texture.tcw);
 
           if (prev_texture_key == texture_key) {
             cmd->override = prev;

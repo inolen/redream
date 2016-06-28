@@ -629,12 +629,11 @@ void rb_end_frame(struct rb *rb) {
   SDL_GL_SwapWindow(rb->window->handle);
 }
 
-texture_handle_t rb_register_texture(struct rb *rb, enum pxl_format format,
-                                     enum filter_mode filter,
-                                     enum wrap_mode wrap_u,
-                                     enum wrap_mode wrap_v, bool mipmaps,
-                                     int width, int height,
-                                     const uint8_t *buffer) {
+texture_handle_t rb_create_texture(struct rb *rb, enum pxl_format format,
+                                   enum filter_mode filter,
+                                   enum wrap_mode wrap_u, enum wrap_mode wrap_v,
+                                   bool mipmaps, int width, int height,
+                                   const uint8_t *buffer) {
   // FIXME worth speeding up?
   texture_handle_t handle;
   for (handle = 1; handle < MAX_TEXTURES; handle++) {
@@ -692,7 +691,7 @@ texture_handle_t rb_register_texture(struct rb *rb, enum pxl_format format,
   return handle;
 }
 
-void rb_free_texture(struct rb *rb, texture_handle_t handle) {
+void rb_destroy_texture(struct rb *rb, texture_handle_t handle) {
   GLuint *gltex = &rb->textures[handle];
   glDeleteTextures(1, gltex);
   *gltex = 0;

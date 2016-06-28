@@ -423,9 +423,9 @@ void rb_link(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {
     cb->propagate(t, n);
   }
 
-  // #ifdef VERIFY_TREE
+#ifdef VERIFY_TREE
   rb_verify(t->root);
-  // #endif
+#endif
 }
 
 void rb_unlink(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {
@@ -457,9 +457,9 @@ void rb_unlink(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {
     cb->propagate(t, n->parent);
   }
 
-  // #ifdef VERIFY_TREE
+#ifdef VERIFY_TREE
   rb_verify(t->root);
-  // #endif
+#endif
 }
 
 void rb_insert(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {

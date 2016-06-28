@@ -143,10 +143,10 @@ struct nuklear *nk_create(struct window *window) {
   int font_width, font_height;
   const void *font_data = nk_font_atlas_bake(
       &nk->atlas, &font_width, &font_height, NK_FONT_ATLAS_RGBA32);
-  texture_handle_t handle = rb_register_texture(
-      nk->window->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT, WRAP_REPEAT,
-      false, font_width, font_height, font_data);
-  nk_font_atlas_end(&nk->atlas, nk_handle_id((int)handle), &nk->null);
+  nk->font_texture =
+      rb_create_texture(nk->window->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
+                        WRAP_REPEAT, false, font_width, font_height, font_data);
+  nk_font_atlas_end(&nk->atlas, nk_handle_id((int)nk->font_texture), &nk->null);
 
   // initialize nuklear context
   nk_init_default(&nk->ctx, &font->handle);
@@ -159,6 +159,8 @@ void nk_destroy(struct nuklear *nk) {
   nk_buffer_free(&nk->cmds);
   nk_font_atlas_clear(&nk->atlas);
   nk_free(&nk->ctx);
+
+  rb_destroy_texture(nk->window->rb, nk->font_texture);
 
   win_remove_listener(nk->window, nk->listener);
 
