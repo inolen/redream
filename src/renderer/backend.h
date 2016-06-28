@@ -133,13 +133,12 @@ void rb_end_ortho(struct rb *rb);
 void rb_begin_frame(struct rb *rb);
 void rb_end_frame(struct rb *rb);
 
-texture_handle_t rb_register_texture(struct rb *rb, enum pxl_format format,
-                                     enum filter_mode filter,
-                                     enum wrap_mode wrap_u,
-                                     enum wrap_mode wrap_v, bool mipmaps,
-                                     int width, int height,
-                                     const uint8_t *buffer);
-void rb_free_texture(struct rb *rb, texture_handle_t handle);
+texture_handle_t rb_create_texture(struct rb *rb, enum pxl_format format,
+                                   enum filter_mode filter,
+                                   enum wrap_mode wrap_u, enum wrap_mode wrap_v,
+                                   bool mipmaps, int width, int height,
+                                   const uint8_t *buffer);
+void rb_destroy_texture(struct rb *rb, texture_handle_t handle);
 
 struct rb *rb_create(struct window *window);
 void rb_destroy(struct rb *rb);

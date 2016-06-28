@@ -58,20 +58,8 @@ static const char *s_shademode_names[] = {
     "DECAL", "MODULATE", "DECAL_ALPHA", "MODULATE_ALPHA",
 };
 
-struct texture_entry {
-  union tsp tsp;
-  union tcw tcw;
-  const uint8_t *palette;
-  const uint8_t *texture;
-  texture_handle_t handle;
-  enum pxl_format format;
-  enum filter_mode filter;
-  enum wrap_mode wrap_u;
-  enum wrap_mode wrap_v;
-  bool mipmaps;
-  int width;
-  int height;
-
+struct tracer_texture_entry {
+  struct texture_entry base;
   struct rb_node live_it;
   struct list_node free_it;
 };
@@ -102,92 +90,68 @@ struct tracer {
   int sorted_surfs[TA_MAX_SURFS];
   struct param_state states[TA_MAX_PARAMS];
 
-  struct texture_entry textures[1024];
+  struct tracer_texture_entry textures[1024];
   struct rb_tree live_textures;
   struct list free_textures;
 };
 
 static int tracer_texture_cmp(const struct rb_node *rb_lhs,
                               const struct rb_node *rb_rhs) {
-  const struct texture_entry *lhs =
-      rb_entry(rb_lhs, const struct texture_entry, live_it);
-  const struct texture_entry *rhs =
-      rb_entry(rb_rhs, const struct texture_entry, live_it);
-  return tr_get_texture_key(lhs->tsp, lhs->tcw) -
-         tr_get_texture_key(rhs->tsp, rhs->tcw);
+  const struct tracer_texture_entry *lhs =
+      rb_entry(rb_lhs, const struct tracer_texture_entry, live_it);
+  const struct tracer_texture_entry *rhs =
+      rb_entry(rb_rhs, const struct tracer_texture_entry, live_it);
+  return tr_texture_key(lhs->base.tsp, lhs->base.tcw) -
+         tr_texture_key(rhs->base.tsp, rhs->base.tcw);
 }
 
 static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,
                                                 NULL};
 
+static struct tracer_texture_entry *tracer_find_texture(struct tracer *tracer,
+                                                        union tsp tsp,
+                                                        union tcw tcw) {
+  struct tracer_texture_entry search;
+  search.base.tsp = tsp;
+  search.base.tcw = tcw;
+
+  return rb_find_entry(&tracer->live_textures, &search, live_it,
+                       &tracer_texture_cb);
+}
+
 static void tracer_add_texture(struct tracer *tracer, union tsp tsp,
                                union tcw tcw, const uint8_t *palette,
                                const uint8_t *texture) {
-  struct texture_entry *entry =
-      list_first_entry(&tracer->free_textures, struct texture_entry, free_it);
-  CHECK_NOTNULL(entry);
-  list_remove(&tracer->free_textures, &entry->free_it);
+  struct tracer_texture_entry *entry = tracer_find_texture(tracer, tsp, tcw);
+  int new_entry = 0;
 
-  entry->tsp = tsp;
-  entry->tcw = tcw;
-  entry->palette = palette;
-  entry->texture = texture;
-  entry->handle = 0;
+  if (!entry) {
+    entry = list_first_entry(&tracer->free_textures,
+                             struct tracer_texture_entry, free_it);
+    CHECK_NOTNULL(entry);
+    list_remove(&tracer->free_textures, &entry->free_it);
 
-  rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
+    entry->base.tsp = tsp;
+    entry->base.tcw = tcw;
+
+    rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
+
+    new_entry = 1;
+  };
+
+  entry->base.dirty = new_entry ? 0 : 1;
+  entry->base.palette = palette;
+  entry->base.texture = texture;
 }
 
-static void tracer_remove_texture(struct tracer *tracer, union tsp tsp,
-                                  union tcw tcw) {
-  struct texture_entry search;
-  search.tsp = tsp;
-  search.tcw = tcw;
-
-  struct texture_entry *entry = rb_find_entry(&tracer->live_textures, &search,
-                                              live_it, &tracer_texture_cb);
-  CHECK_NOTNULL(entry);
-  rb_unlink(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
-
-  list_add(&tracer->free_textures, &entry->free_it);
-}
-
-static texture_handle_t tracer_get_texture(void *data,
-                                           const struct tile_ctx *ctx,
-                                           union tsp tsp, union tcw tcw,
-                                           void *register_data,
-                                           register_texture_cb register_cb) {
+static struct texture_entry *tracer_texture_interface_find_texture(
+    void *data, union tsp tsp, union tcw tcw) {
   struct tracer *tracer = data;
 
-  struct texture_entry search;
-  search.tsp = tsp;
-  search.tcw = tcw;
-
-  struct texture_entry *entry = rb_find_entry(&tracer->live_textures, &search,
-                                              live_it, &tracer_texture_cb);
+  struct tracer_texture_entry *entry = tracer_find_texture(tracer, tsp, tcw);
   CHECK_NOTNULL(entry, "Texture wasn't available in cache");
 
-  // TODO fixme, pass correct struct tile_ctx to tracer_add_texture so this
-  // isn't deferred
-  if (!entry->handle) {
-    struct texture_reg reg = {};
-    reg.ctx = ctx;
-    reg.tsp = tsp;
-    reg.tcw = tcw;
-    reg.palette = entry->palette;
-    reg.texture = entry->texture;
-    register_cb(register_data, &reg);
-
-    entry->handle = reg.handle;
-    entry->format = reg.format;
-    entry->filter = reg.filter;
-    entry->wrap_u = reg.wrap_u;
-    entry->wrap_v = reg.wrap_v;
-    entry->mipmaps = reg.mipmaps;
-    entry->width = reg.width;
-    entry->height = reg.height;
-  }
-
-  return entry->handle;
+  return &entry->base;
 }
 
 static void tracer_copy_command(const struct trace_cmd *cmd,
@@ -285,9 +249,8 @@ static void tracer_prev_context(struct tracer *tracer) {
 
   while (curr != prev) {
     if (curr->type == TRACE_CMD_TEXTURE) {
-      tracer_remove_texture(tracer, curr->texture.tsp, curr->texture.tcw);
-
       struct trace_cmd * override = curr->override;
+
       if (override) {
         CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
 
@@ -735,11 +698,11 @@ static void tracer_render_side_menu(struct tracer *tracer) {
       if (nk_tree_push(ctx, NK_TREE_TAB, "textures", 0)) {
         nk_layout_row_static(ctx, 40.0f, 40.0f, 4);
 
-        rb_for_each_entry(tex, &tracer->live_textures, struct texture_entry,
-                          live_it) {
+        rb_for_each_entry(entry, &tracer->live_textures,
+                          struct tracer_texture_entry, live_it) {
           struct nk_rect bounds = nk_widget_bounds(ctx);
 
-          nk_image(ctx, nk_image_id((int)tex->handle));
+          nk_image(ctx, nk_image_id((int)entry->base.handle));
 
           if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
             struct nk_panel tooltip;
@@ -755,7 +718,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
               if (nk_group_begin(ctx, &tab, "texture preview",
                                  NK_WINDOW_NO_SCROLLBAR)) {
                 nk_layout_row_static(ctx, 184.0f, 184.0f, 1);
-                nk_image(ctx, nk_image_id((int)tex->handle));
+                nk_image(ctx, nk_image_id((int)entry->base.handle));
                 nk_group_end(ctx);
               }
 
@@ -763,18 +726,19 @@ static void tracer_render_side_menu(struct tracer *tracer) {
                                  NK_WINDOW_NO_SCROLLBAR)) {
                 nk_layout_row_static(ctx, ctx->style.font.height, 184.0f, 1);
                 nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
-                          tex->tcw.texture_addr << 3);
+                          entry->base.tcw.texture_addr << 3);
                 nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
-                          s_pixel_format_names[tex->format]);
+                          s_pixel_format_names[entry->base.format]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
-                          s_filter_mode_names[tex->filter]);
+                          s_filter_mode_names[entry->base.filter]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
-                          s_wrap_mode_names[tex->wrap_u]);
+                          s_wrap_mode_names[entry->base.wrap_u]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
-                          s_wrap_mode_names[tex->wrap_v]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d", tex->mipmaps);
-                nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", tex->width);
-                nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", tex->height);
+                          s_wrap_mode_names[entry->base.wrap_v]);
+                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d",
+                          entry->base.mipmaps);
+                nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->base.width);
+                nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->base.height);
                 nk_group_end(ctx);
               }
 
@@ -797,7 +761,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 static void tracer_paint(void *data) {
   struct tracer *tracer = data;
 
-  tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rctx);
+  tr_parse_context(tracer->tr, &tracer->ctx, 0, &tracer->rctx);
 
   // render ui
   tracer_render_side_menu(tracer);
@@ -897,7 +861,10 @@ struct tracer *tracer_create(struct window *window) {
   tracer->window = window;
   tracer->listener = win_add_listener(window, &callbacks, tracer);
   tracer->rb = window->rb;
-  tracer->tr = tr_create(tracer->rb, tracer, &tracer_get_texture);
+
+  struct texture_interface texture_if = {
+      tracer, &tracer_texture_interface_find_texture};
+  tracer->tr = tr_create(tracer->rb, &texture_if);
 
   // setup tile context buffers
   tracer->ctx.params = tracer->params;
@@ -914,7 +881,7 @@ struct tracer *tracer_create(struct window *window) {
 
   // add all textures to free list
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
-    struct texture_entry *entry = &tracer->textures[i];
+    struct tracer_texture_entry *entry = &tracer->textures[i];
     list_add(&tracer->free_textures, &entry->free_it);
   }
 

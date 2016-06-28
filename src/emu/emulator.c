@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include "emu/emulator.h"
 #include "core/option.h"
 #include "hw/dreamcast.h"
@@ -5,6 +6,7 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
+#include "sys/thread.h"
 #include "sys/time.h"
 #include "ui/nuklear.h"
 #include "ui/window.h"
@@ -16,7 +18,8 @@ struct emu {
   struct window *window;
   struct window_listener *listener;
   struct dreamcast *dc;
-  bool running;
+  atomic_int running;
+  int throttled;
 };
 
 static bool emu_load_bios(struct emu *emu, const char *path) {
@@ -131,6 +134,11 @@ static void emu_paint(void *data) {
 static void emu_paint_debug_menu(void *data, struct nk_context *ctx) {
   struct emu *emu = data;
 
+  if (nk_tree_push(ctx, NK_TREE_TAB, "emu", NK_MINIMIZED)) {
+    nk_checkbox_label(ctx, "throttled", &emu->throttled);
+    nk_tree_pop(ctx);
+  }
+
   dc_paint_debug_menu(emu->dc, ctx);
 }
 
@@ -150,7 +158,30 @@ static void emu_keydown(void *data, enum keycode code, int16_t value) {
 static void emu_close(void *data) {
   struct emu *emu = data;
 
-  emu->running = false;
+  atomic_store(&emu->running, 0);
+}
+
+static void *emu_core_thread(void *data) {
+  struct emu *emu = data;
+
+  static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
+  int64_t current_time = time_nanoseconds();
+  int64_t next_time = current_time;
+
+  while (atomic_load_explicit(&emu->running, memory_order_relaxed)) {
+    current_time = time_nanoseconds();
+
+    int64_t delta_time = current_time - next_time;
+
+    if (emu->throttled && delta_time < 0) {
+      continue;
+    }
+
+    dc_tick(emu->dc, MACHINE_STEP);
+    next_time = current_time + MACHINE_STEP;
+  }
+
+  return 0;
 }
 
 void emu_run(struct emu *emu, const char *path) {
@@ -178,33 +209,19 @@ void emu_run(struct emu *emu, const char *path) {
     }
   }
 
-  // start running
-  static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
-  static const int64_t FRAME_STEP = HZ_TO_NANO(60);
+  // start core emulator thread
+  thread_t core_thread;
+  atomic_store(&emu->running, 1);
+  core_thread = thread_create(&emu_core_thread, NULL, emu);
 
-  int64_t current_time = time_nanoseconds();
-  int64_t next_machine_time = current_time;
-  int64_t next_frame_time = current_time;
-
-  emu->running = true;
-
-  while (emu->running) {
-    current_time = time_nanoseconds();
-
-    // run dreamcast machine
-    if (current_time > next_machine_time) {
-      dc_tick(emu->dc, MACHINE_STEP);
-
-      next_machine_time = current_time + MACHINE_STEP;
-    }
-
-    // run local frame
-    if (current_time > next_frame_time) {
-      win_pump_events(emu->window);
-
-      next_frame_time = current_time + FRAME_STEP;
-    }
+  // run the renderer / ui in the main thread
+  while (atomic_load_explicit(&emu->running, memory_order_relaxed)) {
+    win_pump_events(emu->window);
   }
+
+  // wait for the graphics thread to exit
+  void *result;
+  thread_join(core_thread, &result);
 }
 
 struct emu *emu_create(struct window *window) {
@@ -215,6 +232,7 @@ struct emu *emu_create(struct window *window) {
 
   emu->window = window;
   emu->listener = win_add_listener(emu->window, &callbacks, emu);
+  emu->running = ATOMIC_VAR_INIT(0);
 
   return emu;
 }

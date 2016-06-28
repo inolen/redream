@@ -441,7 +441,7 @@ union vert_param {
 struct tile_ctx {
   uint32_t addr;
 
-  // pvr state
+  // pvr / ta state
   bool autosort;
   int stride;
   int pal_pxl_format;
@@ -463,9 +463,6 @@ struct tile_ctx {
   const union vert_param *last_vertex;
   int list_type;
   int vertex_type;
-
-  // debug traces
-  bool wrote;
 
   struct list_node free_it;
   struct rb_node live_it;

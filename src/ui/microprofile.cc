@@ -27,7 +27,7 @@ static const int MAX_2D_SURFACES = 256;
 struct microprofile {
   struct window *window;
   struct window_listener *listener;
-  texture_handle_t font_tex;
+  texture_handle_t font_texture;
   struct surface2d surfs[MAX_2D_SURFACES];
   int num_surfs;
   struct vertex2d verts[MAX_2D_VERTICES];
@@ -103,7 +103,7 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
   int text_len = static_cast<int>(strlen(text));
 
   struct vertex2d *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                                mp->font_tex,
+                                                mp->font_texture,
                                                 BLEND_SRC_ALPHA,
                                                 BLEND_ONE_MINUS_SRC_ALPHA,
                                                 false,
@@ -283,15 +283,17 @@ struct microprofile *mp_create(struct window *window) {
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
 
   // register the font texture
-  mp->font_tex =
-      rb_register_texture(rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
-                          WRAP_CLAMP_TO_EDGE, false, FONT_WIDTH, FONT_HEIGHT,
-                          reinterpret_cast<const uint8_t *>(s_font_data));
+  mp->font_texture =
+      rb_create_texture(rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
+                        WRAP_CLAMP_TO_EDGE, false, FONT_WIDTH, FONT_HEIGHT,
+                        reinterpret_cast<const uint8_t *>(s_font_data));
 
   return mp;
 }
 
 void mp_destroy(struct microprofile *mp) {
+  rb_destroy_texture(mp->window->rb, mp->font_texture);
+
   win_remove_listener(mp->window, mp->listener);
 
   free(mp);

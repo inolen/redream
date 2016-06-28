@@ -703,18 +703,19 @@ static bool sh4_init(struct device *dev) {
   sh4->scheduler = dc->scheduler;
   sh4->space = sh4->base.memory->space;
 
-  struct mem_interface memif = {&sh4->ctx,
-                                sh4->base.memory->space->protected_base,
-                                sh4->base.memory->space,
-                                &as_read8,
-                                &as_read16,
-                                &as_read32,
-                                &as_read64,
-                                &as_write8,
-                                &as_write16,
-                                &as_write32,
-                                &as_write64};
-  sh4->code_cache = sh4_cache_create(&memif, &sh4_compile_pc);
+  struct jit_memory_interface memory_if = {
+      &sh4->ctx,
+      sh4->base.memory->space->protected_base,
+      sh4->base.memory->space,
+      &as_read8,
+      &as_read16,
+      &as_read32,
+      &as_read64,
+      &as_write8,
+      &as_write16,
+      &as_write32,
+      &as_write64};
+  sh4->code_cache = sh4_cache_create(&memory_if, &sh4_compile_pc);
 
   // initialize context
   sh4->ctx.sh4 = sh4;
@@ -775,11 +776,8 @@ static void sh4_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct sh4 *sh4 = container_of(dev, struct sh4, base);
   struct sh4_perf *perf = &sh4->perf;
 
-  struct nk_panel tab;
-
   if (nk_tree_push(ctx, NK_TREE_TAB, "sh4", NK_MINIMIZED)) {
-    float latest_mips = perf->mips[(perf->num_mips - 1) % MAX_MIPS_SAMPLES];
-    nk_value_float(ctx, "mips", latest_mips);
+    nk_value_int(ctx, "mips", perf->mips);
     nk_tree_pop(ctx);
   }
 
@@ -827,20 +825,19 @@ static void sh4_run_inner(struct device *dev, int64_t ns) {
 
   // track mips
   int64_t now = time_nanoseconds();
-  int64_t next_time = sh4->perf.last_sample_time + NS_PER_SEC;
+  int64_t next_time = sh4->perf.last_mips_time + NS_PER_SEC;
 
   if (now > next_time) {
     // convert total number of instructions / nanoseconds delta into millions
     // of instructions per second
     float num_instrs_millions = sh4->ctx.num_instrs / 1000000.0f;
-    int64_t delta_ns = now - sh4->perf.last_sample_time;
+    int64_t delta_ns = now - sh4->perf.last_mips_time;
     float delta_s = delta_ns / 1000000000.0f;
-    sh4->perf.mips[sh4->perf.num_mips] = num_instrs_millions / delta_s;
-    sh4->perf.num_mips = (sh4->perf.num_mips + 1) % MAX_MIPS_SAMPLES;
+    sh4->perf.mips = (int)(num_instrs_millions / delta_s);
 
     // reset state
+    sh4->perf.last_mips_time = now;
     sh4->ctx.num_instrs = 0;
-    sh4->perf.last_sample_time = now;
   }
 }
 

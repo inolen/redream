@@ -8,13 +8,13 @@ struct address_space;
 struct ir;
 struct exception;
 
-struct register_def {
+struct jit_register {
   const char *name;
   int value_types;
   const void *data;
 };
 
-struct mem_interface {
+struct jit_memory_interface {
   void *ctx_base;
   void *mem_base;
   struct address_space *mem_self;
@@ -31,7 +31,7 @@ struct mem_interface {
 struct jit_backend;
 
 struct jit_backend {
-  const struct register_def *registers;
+  const struct jit_register *registers;
   int num_registers;
 
   void (*reset)(struct jit_backend *base);

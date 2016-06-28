@@ -12,23 +12,22 @@
 #include "renderer/backend.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
+#include "sys/thread.h"
 #include "ui/nuklear.h"
 
-#define TA_MAX_CONTEXTS 4
+#define TA_MAX_CONTEXTS 32
 
-struct texture_entry {
-  struct ta *ta;
-  texture_key_t key;
-  texture_handle_t handle;
+struct ta_texture_entry {
+  struct texture_entry base;
   struct memory_watch *texture_watch;
   struct memory_watch *palette_watch;
   struct list_node free_it;
   struct rb_node live_it;
-  struct list_node invalid_it;
 };
 
 struct ta {
   struct device base;
+  struct scheduler *scheduler;
   struct holly *holly;
   struct pvr *pvr;
   struct address_space *space;
@@ -39,31 +38,42 @@ struct ta {
   // texture cache entry pool. free entries are in a linked list, live entries
   // are in a tree ordered by texture key, textures queued for invalidation are
   // in the the invalid_entries linked list
-  struct texture_entry entries[1024];
+  struct ta_texture_entry entries[1024];
   struct list free_entries;
   struct rb_tree live_entries;
-  struct list invalid_entries;
   int num_invalidated;
 
   // tile context pool. free contexts are in a linked list, live contexts are
-  // are in a tree ordered by the context's guest address, and a pointer to the
-  // next context up for rendering is stored in pending_context
+  // are in a tree ordered by the context's guest address
   struct tile_ctx contexts[TA_MAX_CONTEXTS];
   struct list free_contexts;
   struct rb_tree live_contexts;
+
+  // the pending context is the last context requested to be rendered by the
+  // emulation thread. a mutex is used to synchronize access with the graphics
+  // thread
+  mutex_t pending_mutex;
   struct tile_ctx *pending_context;
+
+  // last parsed pending context
+  struct render_ctx render_context;
 
   // buffers used by the tile contexts. allocating here instead of inside each
   // tile_ctx to avoid blowing the stack when a tile_ctx is needed temporarily
   // on the stack for searching
   uint8_t params[TA_MAX_CONTEXTS * TA_MAX_PARAMS];
 
-  // buffers used by render contexts
+  // buffers used by render context
   struct surface surfs[TA_MAX_SURFS];
   struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];
 
   struct trace_writer *trace_writer;
+
+  // debug info
+  int frame;
+  int frames_skipped;
+  int num_textures;
 };
 
 int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
@@ -80,11 +90,12 @@ static enum holly_interrupt list_interrupts[] = {
 
 static int ta_entry_cmp(const struct rb_node *rb_lhs,
                         const struct rb_node *rb_rhs) {
-  const struct texture_entry *lhs =
-      rb_entry(rb_lhs, const struct texture_entry, live_it);
-  const struct texture_entry *rhs =
-      rb_entry(rb_rhs, const struct texture_entry, live_it);
-  return lhs->key - rhs->key;
+  const struct ta_texture_entry *lhs =
+      rb_entry(rb_lhs, const struct ta_texture_entry, live_it);
+  const struct ta_texture_entry *rhs =
+      rb_entry(rb_rhs, const struct ta_texture_entry, live_it);
+  return tr_texture_key(lhs->base.tsp, lhs->base.tcw) -
+         tr_texture_key(rhs->base.tsp, rhs->base.tcw);
 }
 
 static int ta_context_cmp(const struct rb_node *rb_lhs,
@@ -224,18 +235,82 @@ static void ta_soft_reset(struct ta *ta) {
   // FIXME what are we supposed to do here?
 }
 
+static struct ta_texture_entry *ta_alloc_texture(struct ta *ta, union tsp tsp,
+                                                 union tcw tcw) {
+  // remove from free list
+  struct ta_texture_entry *entry =
+      list_first_entry(&ta->free_entries, struct ta_texture_entry, free_it);
+  CHECK_NOTNULL(entry);
+  list_remove(&ta->free_entries, &entry->free_it);
+
+  // reset entry
+  memset(entry, 0, sizeof(*entry));
+  entry->base.tsp = tsp;
+  entry->base.tcw = tcw;
+
+  // add to live tree
+  rb_insert(&ta->live_entries, &entry->live_it, &ta_entry_cb);
+
+  ta->num_textures++;
+
+  return entry;
+}
+
+static struct ta_texture_entry *ta_find_texture(struct ta *ta, union tsp tsp,
+                                                union tcw tcw) {
+  struct ta_texture_entry search;
+  search.base.tsp = tsp;
+  search.base.tcw = tcw;
+
+  return rb_find_entry(&ta->live_entries, &search, live_it, &ta_entry_cb);
+}
+
+static struct texture_entry *ta_texture_interface_find_texture(void *data,
+                                                               union tsp tsp,
+                                                               union tcw tcw) {
+  struct ta_texture_entry *entry = ta_find_texture(data, tsp, tcw);
+
+  if (!entry) {
+    return NULL;
+  }
+
+  return &entry->base;
+}
+
+static void ta_clear_textures(struct ta *ta) {
+  LOG_INFO("Texture cache cleared");
+
+  struct rb_node *it = rb_first(&ta->live_entries);
+
+  while (it) {
+    struct rb_node *next = rb_next(it);
+
+    struct ta_texture_entry *entry =
+        rb_entry(it, struct ta_texture_entry, live_it);
+
+    entry->base.dirty = 1;
+
+    it = next;
+  }
+}
+
+static void ta_texture_invalidated(const struct exception *ex, void *data) {
+  struct ta_texture_entry *entry = data;
+  entry->texture_watch = NULL;
+  entry->base.dirty = 1;
+}
+
+static void ta_palette_invalidated(const struct exception *ex, void *data) {
+  struct ta_texture_entry *entry = data;
+  entry->palette_watch = NULL;
+  entry->base.dirty = 1;
+}
+
 static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
   struct tile_ctx search;
   search.addr = addr;
 
-  struct tile_ctx *ctx =
-      rb_find_entry(&ta->live_contexts, &search, live_it, &ta_context_cb);
-
-  if (!ctx) {
-    return NULL;
-  }
-
-  return ctx;
+  return rb_find_entry(&ta->live_contexts, &search, live_it, &ta_context_cb);
 }
 
 static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {
@@ -258,15 +333,10 @@ static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {
 }
 
 static void ta_unlink_context(struct ta *ta, struct tile_ctx *ctx) {
-  // remove from live tree
   rb_unlink(&ta->live_contexts, &ctx->live_it, &ta_context_cb);
 }
 
 static void ta_free_context(struct ta *ta, struct tile_ctx *ctx) {
-  // remove from live tree
-  ta_unlink_context(ta, ctx);
-
-  // add to free list
   list_add(&ta->free_contexts, &ctx->free_it);
 }
 
@@ -294,8 +364,7 @@ static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t value) {
   *(uint32_t *)&ctx->params[ctx->size] = value;
   ctx->size += 4;
 
-  // each TA command is either 32 or 64 bytes, with the union pcw being in the
-  // first
+  // each TA command is either 32 or 64 bytes, with the pcw being in the first
   // 32 bytes always. check every 32 bytes to see if the command has been
   // completely received or not
   if (ctx->size % 32 == 0) {
@@ -335,7 +404,117 @@ static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t value) {
   }
 }
 
-static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
+  struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
+  int new_entry = 0;
+
+  if (!entry) {
+    entry = ta_alloc_texture(ta, tsp, tcw);
+    new_entry = 1;
+  }
+
+  // mark texture source valid for the current frame
+  entry->base.frame = ta->frame;
+
+  // set texture address
+  if (!entry->base.texture) {
+    uint8_t *video_ram = as_translate(ta->space, 0x04000000);
+    uint32_t texture_addr = tcw.texture_addr << 3;
+    int width = 8 << tsp.texture_u_size;
+    int height = 8 << tsp.texture_v_size;
+    int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
+                                ? 8
+                                : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
+    entry->base.texture = &video_ram[texture_addr];
+    entry->base.texture_size = (width * height * element_size_bits) >> 3;
+  }
+
+  // set palette address
+  if (!entry->base.palette) {
+    if (tcw.pixel_format == TA_PIXEL_4BPP ||
+        tcw.pixel_format == TA_PIXEL_8BPP) {
+      uint8_t *palette_ram = as_translate(ta->space, 0x005f9000);
+      uint32_t palette_addr = 0;
+      int palette_size = 0;
+
+      // palette ram is 4096 bytes, with each palette entry being 4 bytes each,
+      // resulting in 1 << 10 indexes
+      if (tcw.pixel_format == TA_PIXEL_4BPP) {
+        // in 4bpp mode, the palette selector represents the upper 6 bits of the
+        // palette index, with the remaining 4 bits being filled in by the
+        // texture
+        palette_addr = (tcw.p.palette_selector << 4) * 4;
+        palette_size = (1 << 4) * 4;
+      } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
+        // in 4bpp mode, the palette selector represents the upper 2 bits of the
+        // palette index, with the remaining 8 bits being filled in by the
+        // texture
+        palette_addr = ((tcw.p.palette_selector & 0x30) << 4) * 4;
+        palette_size = (1 << 8) * 4;
+      }
+
+      entry->base.palette = &palette_ram[palette_addr];
+      entry->base.palette_size = palette_size;
+    }
+  }
+
+  // add write callback in order to invalidate on future writes. the callback
+  // address will be page aligned, therefore it will be triggered falsely in
+  // some cases. over invalidate in these cases
+  if (!entry->texture_watch) {
+    entry->texture_watch =
+        add_single_write_watch(entry->base.texture, entry->base.texture_size,
+                               &ta_texture_invalidated, entry);
+  }
+
+  if (entry->base.palette && !entry->palette_watch) {
+    entry->palette_watch =
+        add_single_write_watch(entry->base.palette, entry->base.palette_size,
+                               &ta_palette_invalidated, entry);
+  }
+
+  // ad new entries to the trace
+  if (ta->trace_writer && new_entry) {
+    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->base.palette,
+                                entry->base.palette_size, entry->base.texture,
+                                entry->base.texture_size);
+  }
+}
+
+static void ta_register_textures(struct ta *ta, struct tile_ctx *ctx,
+                                 int *num_polys) {
+  const uint8_t *data = ctx->params;
+  const uint8_t *end = ctx->params + ctx->size;
+  int vertex_type = 0;
+
+  *num_polys = 0;
+
+  while (data < end) {
+    union pcw pcw = *(union pcw *)data;
+
+    switch (pcw.para_type) {
+      case TA_PARAM_POLY_OR_VOL:
+      case TA_PARAM_SPRITE: {
+        const union poly_param *param = (const union poly_param *)data;
+
+        vertex_type = ta_get_vert_type(param->type0.pcw);
+
+        if (param->type0.pcw.texture) {
+          ta_register_texture(ta, param->type0.tsp, param->type0.tcw);
+        }
+
+        (*num_polys)++;
+      } break;
+
+      default:
+        break;
+    }
+
+    data += ta_get_param_size(pcw, vertex_type);
+  }
+}
+
+static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
   struct pvr *pvr = ta->pvr;
 
   // autosort
@@ -409,222 +588,79 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   }
 }
 
-static void ta_finish_context(struct ta *ta, uint32_t addr) {
-  struct tile_ctx *ctx = ta_get_context(ta, addr);
-  CHECK_NOTNULL(ctx);
-
-  // save required register state being that the actual rendering of this
-  // context will be deferred
-  ta_save_state(ta, ctx);
-
-  // tell holly that rendering is complete
+static void ta_end_render(struct ta *ta) {
+  // let the game know rendering is complete
   holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOVINT);
   holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOIINT);
   holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOTINT);
+}
 
-  // free the last pending context
+static void ta_render_timer(void *data) {
+  struct ta *ta = data;
+
+  // ideally, the graphics thread has parsed the pending context, uploaded its
+  // textures, etc. during the estimated render time. however, if it hasn't
+  // finished, the emulation thread must be paused to avoid altering
+  // the yet-to-be-uploaded texture memory
+  mutex_lock(ta->pending_mutex);
+  mutex_unlock(ta->pending_mutex);
+
+  ta_end_render(ta);
+}
+
+static void ta_start_render(struct ta *ta, uint32_t addr) {
+  struct tile_ctx *ctx = ta_get_context(ta, addr);
+  CHECK_NOTNULL(ctx);
+
+  // save off required register state that may be modified by the time the
+  // context is rendered
+  ta_save_register_state(ta, ctx);
+
+  // if the graphics thread is still parsing the previous context, skip this one
+  if (!mutex_trylock(ta->pending_mutex)) {
+    ta_unlink_context(ta, ctx);
+    ta_free_context(ta, ctx);
+    ta_end_render(ta);
+    ta->frames_skipped++;
+    return;
+  }
+
+  // free the previous pending context if it wasn't rendered
   if (ta->pending_context) {
     ta_free_context(ta, ta->pending_context);
     ta->pending_context = NULL;
   }
 
-  // set this context to pending
+  // set the new pending context
   ta_unlink_context(ta, ctx);
-
   ta->pending_context = ctx;
-}
 
-static struct texture_entry *ta_alloc_texture(struct ta *ta,
-                                              texture_key_t key) {
-  // remove from free list
-  struct texture_entry *entry =
-      list_first_entry(&ta->free_entries, struct texture_entry, free_it);
-  CHECK_NOTNULL(entry);
-  list_remove(&ta->free_entries, &entry->free_it);
+  // increment internal frame number. this frame number is assigned to each
+  // texture source registered by this context
+  ta->frame++;
 
-  // reset entry
-  memset(entry, 0, sizeof(*entry));
-  entry->ta = ta;
-  entry->key = key;
+  // register the source of each texture referenced by the context with the
+  // tile renderer. note, the process of actually uploading the texture to the
+  // render backend happens lazily while rendering the context (keeping all
+  // backend operations on the same thread). this registration just lets the
+  // backend know where the texture's source data is
+  int num_polys = 0;
+  ta_register_textures(ta, ta->pending_context, &num_polys);
 
-  // add to live tree
-  rb_insert(&ta->live_entries, &entry->live_it, &ta_entry_cb);
-
-  return entry;
-}
-
-static void ta_free_texture(struct ta *ta, struct texture_entry *entry) {
-  // remove from live list
-  rb_unlink(&ta->live_entries, &entry->live_it, &ta_entry_cb);
-
-  // add back to free list
-  list_add(&ta->free_entries, &entry->free_it);
-}
-
-static void ta_invalidate_texture(struct ta *ta, struct texture_entry *entry) {
-  rb_free_texture(ta->rb, entry->handle);
-
-  if (entry->texture_watch) {
-    remove_memory_watch(entry->texture_watch);
-  }
-
-  if (entry->palette_watch) {
-    remove_memory_watch(entry->palette_watch);
-  }
-
-  list_remove(&ta->invalid_entries, &entry->invalid_it);
-
-  ta_free_texture(ta, entry);
-}
-
-static void ta_clear_textures(struct ta *ta) {
-  LOG_INFO("Texture cache cleared");
-
-  struct rb_node *it = rb_first(&ta->live_entries);
-
-  while (it) {
-    struct rb_node *next = rb_next(it);
-
-    struct texture_entry *entry = rb_entry(it, struct texture_entry, live_it);
-    ta_invalidate_texture(ta, entry);
-
-    it = next;
-  }
-
-  CHECK(!rb_first(&ta->live_entries));
-}
-
-static void ta_clear_pending_textures(struct ta *ta) {
-  list_for_each_entry_safe(it, &ta->invalid_entries, struct texture_entry,
-                           invalid_it) {
-    ta_invalidate_texture(ta, it);
-    ta->num_invalidated++;
-  }
-
-  CHECK(list_empty(&ta->invalid_entries));
-
-  prof_count("Num invalidated textures", ta->num_invalidated);
-}
-
-static void ta_texture_invalidated(const struct exception *ex, void *data) {
-  struct texture_entry *entry = data;
-  struct ta *ta = entry->ta;
-
-  // don't double remove the watch during invalidation
-  entry->texture_watch = NULL;
-
-  // add to pending invalidation list (can't remove inside of signal
-  // handler)
-  if (!entry->invalid_it.next) {
-    list_add(&ta->invalid_entries, &entry->invalid_it);
-  }
-}
-
-static void ta_palette_invalidated(const struct exception *ex, void *data) {
-  struct texture_entry *entry = data;
-  struct ta *ta = entry->ta;
-
-  // don't double remove the watch during invalidation
-  entry->palette_watch = NULL;
-
-  // add to pending invalidation list (can't remove inside of signal
-  // handler)
-  if (!entry->invalid_it.next) {
-    list_add(&ta->invalid_entries, &entry->invalid_it);
-  }
-}
-
-static texture_handle_t ta_get_texture(void *data, const struct tile_ctx *ctx,
-                                       union tsp tsp, union tcw tcw,
-                                       void *register_data,
-                                       register_texture_cb register_cb) {
-  struct ta *ta = data;
-
-  // clear any pending texture invalidations at this time
-  ta_clear_pending_textures(ta);
-
-  // TODO struct tile_ctx isn't considered for caching here (stride and
-  // pal_pxl_format are used by TileRenderer), this feels bad
-  texture_key_t texture_key = tr_get_texture_key(tsp, tcw);
-
-  // see if an an entry already exists
-  struct texture_entry search;
-  search.key = texture_key;
-
-  struct texture_entry *existing =
-      rb_find_entry(&ta->live_entries, &search, live_it, &ta_entry_cb);
-
-  if (existing) {
-    return existing->handle;
-  }
-
-  // union tcw texture_addr field is in 64-bit units
-  uint32_t texture_addr = tcw.texture_addr << 3;
-
-  // get the texture data
-  uint8_t *video_ram = as_translate(ta->space, 0x04000000);
-  uint8_t *texture = &video_ram[texture_addr];
-  int width = 8 << tsp.texture_u_size;
-  int height = 8 << tsp.texture_v_size;
-  int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
-                              ? 8
-                              : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
-  int texture_size = (width * height * element_size_bits) >> 3;
-
-  // get the palette data
-  uint8_t *palette_ram = as_translate(ta->space, 0x005f9000);
-  uint8_t *palette = NULL;
-  uint32_t palette_addr = 0;
-  int palette_size = 0;
-
-  if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
-    // palette ram is 4096 bytes, with each palette entry being 4 bytes each,
-    // resulting in 1 << 10 indexes
-    if (tcw.pixel_format == TA_PIXEL_4BPP) {
-      // in 4bpp mode, the palette selector represents the upper 6 bits of the
-      // palette index, with the remaining 4 bits being filled in by the texture
-      palette_addr = (tcw.p.palette_selector << 4) * 4;
-      palette_size = (1 << 4) * 4;
-    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
-      // in 4bpp mode, the palette selector represents the upper 2 bits of the
-      // palette index, with the remaining 8 bits being filled in by the texture
-      palette_addr = ((tcw.p.palette_selector & 0x30) << 4) * 4;
-      palette_size = (1 << 8) * 4;
-    }
-
-    palette = &palette_ram[palette_addr];
-  }
-
-  // register the texture with the render backend
-  struct texture_reg reg = {};
-  reg.ctx = ctx;
-  reg.tsp = tsp;
-  reg.tcw = tcw;
-  reg.palette = palette;
-  reg.texture = texture;
-  register_cb(register_data, &reg);
-
-  // insert into the cache
-  struct texture_entry *entry = ta_alloc_texture(ta, texture_key);
-  entry->handle = reg.handle;
-
-  // add write callback in order to invalidate on future writes. the callback
-  // address will be page aligned, therefore it will be triggered falsely in
-  // some cases. over invalidate in these cases
-  entry->texture_watch = add_single_write_watch(texture, texture_size,
-                                                &ta_texture_invalidated, entry);
-
-  if (palette) {
-    entry->palette_watch = add_single_write_watch(
-        palette, palette_size, &ta_palette_invalidated, entry);
-  }
+  // supposedly, the dreamcast can push around ~3 million polygons per second
+  // through the TA / PVR. with that in mind, a very poor estimate can be made
+  // for how long the TA would take to render a frame based on the number of
+  // polys pushed: 1,000,000,000 / 3,000,000 = 333 nanoseconds per polygon
+  int64_t ns = num_polys * INT64_C(333);
+  scheduler_start_timer(ta->scheduler, &ta_render_timer, ta, ns);
 
   if (ta->trace_writer) {
-    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, palette,
-                                palette_size, texture, texture_size);
+    trace_writer_render_context(ta->trace_writer, ta->pending_context);
   }
 
-  return reg.handle;
+  // unlock the mutex, enabling the graphics thread to start parsing the
+  // pending context
+  mutex_unlock(ta->pending_mutex);
 }
 
 static void ta_write_poly_fifo(struct ta *ta, uint32_t addr, uint32_t value) {
@@ -666,20 +702,21 @@ REG_W32(struct ta *ta, STARTRENDER) {
     return;
   }
 
-  ta_finish_context(ta, ta->pvr->PARAM_BASE->base_address);
+  ta_start_render(ta, ta->pvr->PARAM_BASE->base_address);
 }
 
 static bool ta_init(struct device *dev) {
   struct ta *ta = container_of(dev, struct ta, base);
   struct dreamcast *dc = ta->base.dc;
 
+  ta->scheduler = dc->scheduler;
   ta->holly = dc->holly;
   ta->pvr = dc->pvr;
   ta->space = dc->sh4->base.memory->space;
   ta->video_ram = as_translate(ta->space, 0x04000000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
-    struct texture_entry *entry = &ta->entries[i];
+    struct ta_texture_entry *entry = &ta->entries[i];
     list_add(&ta->free_entries, &entry->free_it);
   }
 
@@ -735,34 +772,36 @@ static void ta_toggle_tracing(struct ta *ta) {
 
 static void ta_paint(struct device *dev) {
   struct ta *ta = container_of(dev, struct ta, base);
+  struct render_ctx *rctx = &ta->render_context;
+
+  mutex_lock(ta->pending_mutex);
 
   if (ta->pending_context) {
-    struct render_ctx rctx = {};
-    rctx.surfs = ta->surfs;
-    rctx.surfs_size = array_size(ta->surfs);
-    rctx.verts = ta->verts;
-    rctx.verts_size = array_size(ta->verts);
-    rctx.sorted_surfs = ta->sorted_surfs;
-    rctx.sorted_surfs_size = array_size(ta->sorted_surfs);
+    rctx->surfs = ta->surfs;
+    rctx->surfs_size = array_size(ta->surfs);
+    rctx->verts = ta->verts;
+    rctx->verts_size = array_size(ta->verts);
+    rctx->sorted_surfs = ta->sorted_surfs;
+    rctx->sorted_surfs_size = array_size(ta->sorted_surfs);
 
-    tr_parse_context(ta->tr, ta->pending_context, &rctx);
+    tr_parse_context(ta->tr, ta->pending_context, ta->frame, rctx);
 
-    tr_render_context(ta->tr, &rctx);
-
-    // write render command after actually rendering the context so texture
-    // insert commands will be written out first
-    if (ta->trace_writer && !ta->pending_context->wrote) {
-      trace_writer_render_context(ta->trace_writer, ta->pending_context);
-      ta->pending_context->wrote = true;
-    }
+    ta_free_context(ta, ta->pending_context);
+    ta->pending_context = NULL;
   }
+
+  mutex_unlock(ta->pending_mutex);
+
+  tr_render_context(ta->tr, rctx);
 }
 
 static void ta_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct ta *ta = container_of(dev, struct ta, base);
 
   if (nk_tree_push(ctx, NK_TREE_TAB, "ta", NK_MINIMIZED)) {
-    // nk_layout_row_static(ctx, 40.0f, 40.0f, 4);
+    nk_value_int(ctx, "frames skipped", ta->frames_skipped);
+    nk_value_int(ctx, "num textures", ta->num_textures);
+
     if (!ta->trace_writer &&
         nk_button_label(ctx, "start trace", NK_BUTTON_DEFAULT)) {
       ta_toggle_tracing(ta);
@@ -824,16 +863,20 @@ struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
       window_interface_create(&ta_paint, &ta_paint_debug_menu, NULL);
 
   ta->rb = rb;
-  ta->tr = tr_create(ta->rb, ta, &ta_get_texture);
+
+  struct texture_interface texture_if = {ta,
+                                         &ta_texture_interface_find_texture};
+  ta->tr = tr_create(ta->rb, &texture_if);
+
+  ta->pending_mutex = mutex_create();
 
   return ta;
 }
 
 void ta_destroy(struct ta *ta) {
+  mutex_destroy(ta->pending_mutex);
   tr_destroy(ta->tr);
-
   window_interface_destroy(ta->base.window);
-
   dc_destroy_device(&ta->base);
 }
 

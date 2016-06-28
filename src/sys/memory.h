@@ -46,7 +46,7 @@ enum memory_watch_type {
 
 typedef void (*memory_watch_cb)(const struct exception *, void *);
 
-struct memory_watch *add_single_write_watch(void *ptr, size_t size,
+struct memory_watch *add_single_write_watch(const void *ptr, size_t size,
                                             memory_watch_cb cb, void *data);
 void remove_memory_watch(struct memory_watch *watch);
 

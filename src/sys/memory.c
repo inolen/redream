@@ -83,7 +83,7 @@ static bool watcher_handle_exception(void *ctx, struct exception *ex) {
   return handled;
 }
 
-struct memory_watch *add_single_write_watch(void *ptr, size_t size,
+struct memory_watch *add_single_write_watch(const void *ptr, size_t size,
                                             memory_watch_cb cb, void *data) {
   if (!s_watcher) {
     watcher_create();

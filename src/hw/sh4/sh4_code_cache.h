@@ -13,7 +13,7 @@
 struct exception_handler;
 struct jit_backend;
 struct jit_frontend;
-struct mem_interface;
+struct jit_memory_interface;
 
 typedef uint32_t (*code_pointer_t)();
 
@@ -57,7 +57,7 @@ code_pointer_t sh4_cache_compile_code(struct sh4_cache *cache,
                                       uint32_t guest_addr, uint8_t *guest_ptr,
                                       int flags);
 
-struct sh4_cache *sh4_cache_create(const struct mem_interface *memif,
+struct sh4_cache *sh4_cache_create(const struct jit_memory_interface *memory_if,
                                    code_pointer_t default_code);
 void sh4_cache_destroy(struct sh4_cache *cache);
 

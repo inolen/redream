@@ -28,9 +28,8 @@ struct sh4_dtr {
 
 struct sh4_perf {
   bool show;
-  int64_t last_sample_time;
-  float mips[MAX_MIPS_SAMPLES];
-  int num_mips;
+  int64_t last_mips_time;
+  int mips;
 };
 
 struct sh4 {
