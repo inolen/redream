@@ -32,7 +32,7 @@ struct rb {
   struct window_listener *listener;
 
   SDL_GLContext ctx;
-  bool debug_wireframe;
+  int debug_wireframe;
 
   // resources
   GLuint textures[MAX_TEXTURES];
@@ -489,21 +489,13 @@ static void rb_set_initial_state(struct rb *rb) {
   rb_set_blend_func(rb, BLEND_NONE, BLEND_NONE);
 }
 
-static void rb_paint_menubar(void *data, struct nk_context *ctx) {
+static void rb_paint_debug_menu(void *data, struct nk_context *ctx) {
   struct rb *rb = data;
 
-  struct nk_panel menu;
+  if (nk_tree_push(ctx, NK_TREE_TAB, "render", NK_MINIMIZED)) {
+    nk_checkbox_label(ctx, "wireframe", &rb->debug_wireframe);
 
-  nk_layout_row_push(ctx, 60.0f);
-
-  if (nk_menu_begin_label(ctx, &menu, "render", NK_TEXT_LEFT, 100.0f)) {
-    nk_layout_row_dynamic(ctx, 25.0f, 1);
-
-    if (nk_menu_item_label(ctx, "wireframe", NK_TEXT_LEFT)) {
-      rb->debug_wireframe = !rb->debug_wireframe;
-    }
-
-    nk_menu_end(ctx);
+    nk_tree_pop(ctx);
   }
 }
 
@@ -708,7 +700,7 @@ void rb_free_texture(struct rb *rb, texture_handle_t handle) {
 
 struct rb *rb_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL, &rb_paint_menubar, NULL, NULL, NULL, NULL, NULL};
+      NULL, &rb_paint_debug_menu, NULL, NULL, NULL, NULL};
 
   struct rb *rb = (struct rb *)calloc(1, sizeof(struct rb));
   rb->window = window;

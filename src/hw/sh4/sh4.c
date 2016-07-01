@@ -771,38 +771,21 @@ static bool sh4_init(struct device *dev) {
   return true;
 }
 
-static void sh4_paint_menu_bar(struct device *dev, struct nk_context *ctx) {
+static void sh4_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct sh4 *sh4 = container_of(dev, struct sh4, base);
   struct sh4_perf *perf = &sh4->perf;
 
-  struct nk_panel menu;
+  struct nk_panel tab;
 
-  char label[128];
-  float latest_mips = perf->mips[(perf->num_mips - 1) % MAX_MIPS_SAMPLES];
-  snprintf(label, sizeof(label), "sh4 [%06.2f mips]", latest_mips);
-
-  nk_layout_row_push(ctx, 140.0f);
-
-  if (nk_menu_begin_label(ctx, &menu, label, NK_TEXT_LEFT, 100.0f)) {
-    /*nk_layout_row_dynamic(ctx, 25.0f, 1);
-
-    if (nk_menu_item_label(ctx, "perf", NK_TEXT_LEFT)) {
-      sh4->perf.show = !sh4->perf.show;
-    }*/
-
-    nk_menu_end(ctx);
+  if (nk_tree_push(ctx, NK_TREE_TAB, "sh4", NK_MINIMIZED)) {
+    float latest_mips = perf->mips[(perf->num_mips - 1) % MAX_MIPS_SAMPLES];
+    nk_value_float(ctx, "mips", latest_mips);
+    nk_tree_pop(ctx);
   }
-}
 
-static void sh4_paint_ui(struct device *dev, struct nk_context *ctx) {
-  struct sh4 *sh4 = container_of(dev, struct sh4, base);
-  /*struct sh4_perf *perf = &sh4->perf;
-
-  if (perf->show) {
+  /*if (perf->show) {
     struct nk_panel layout;
     struct nk_rect bounds = {440.0f, 20.0f, 200.0f, 20.0f};
-
-    nk_style_default(ctx);
 
     ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
     ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
@@ -955,8 +938,7 @@ struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
   sh4->base.execute = execute_interface_create(&sh4_run);
   sh4->base.memory = memory_interface_create(dc, &sh4_data_map);
-  sh4->base.window =
-      window_interface_create(NULL, &sh4_paint_menu_bar, &sh4_paint_ui, NULL);
+  sh4->base.window = window_interface_create(NULL, &sh4_paint_debug_menu, NULL);
 
   g_sh4 = sh4;
 

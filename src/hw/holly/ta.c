@@ -758,25 +758,20 @@ static void ta_paint(struct device *dev) {
   }
 }
 
-static void ta_paint_menu_bar(struct device *dev, struct nk_context *ctx) {
+static void ta_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct ta *ta = container_of(dev, struct ta, base);
 
-  struct nk_panel menu;
-
-  nk_layout_row_push(ctx, 40.0f);
-
-  if (nk_menu_begin_label(ctx, &menu, "ta", NK_TEXT_LEFT, 100.0f)) {
-    nk_layout_row_dynamic(ctx, 25.0f, 1);
-
+  if (nk_tree_push(ctx, NK_TREE_TAB, "ta", NK_MINIMIZED)) {
+    // nk_layout_row_static(ctx, 40.0f, 40.0f, 4);
     if (!ta->trace_writer &&
-        nk_menu_item_label(ctx, "start trace", NK_TEXT_LEFT)) {
+        nk_button_label(ctx, "start trace", NK_BUTTON_DEFAULT)) {
       ta_toggle_tracing(ta);
     } else if (ta->trace_writer &&
-               nk_menu_item_label(ctx, "stop trace", NK_TEXT_LEFT)) {
+               nk_button_label(ctx, "stop trace", NK_BUTTON_DEFAULT)) {
       ta_toggle_tracing(ta);
     }
 
-    nk_menu_end(ctx);
+    nk_tree_pop(ctx);
   }
 }
 
@@ -826,7 +821,7 @@ struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
 
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
   ta->base.window =
-      window_interface_create(&ta_paint, &ta_paint_menu_bar, NULL, NULL);
+      window_interface_create(&ta_paint, &ta_paint_debug_menu, NULL);
 
   ta->rb = rb;
   ta->tr = tr_create(ta->rb, ta, &ta_get_texture);
