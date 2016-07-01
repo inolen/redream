@@ -19,6 +19,7 @@ struct maple;
 struct memory;
 struct nk_context;
 struct pvr;
+struct rb;
 struct scheduler;
 struct sh4;
 struct ta;
@@ -142,7 +143,7 @@ void dc_paint_menubar(struct dreamcast *dc, struct nk_context *ctx);
 void dc_paint_ui(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value);
 
-struct dreamcast *dc_create(void *rb);
+struct dreamcast *dc_create(struct rb *rb);
 void dc_destroy(struct dreamcast *dc);
 
 #endif
