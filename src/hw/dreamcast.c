@@ -159,7 +159,7 @@ void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value) {
   }
 }
 
-struct dreamcast *dc_create(void *rb) {
+struct dreamcast *dc_create(struct rb *rb) {
   struct dreamcast *dc = calloc(1, sizeof(struct dreamcast));
 
   dc->debugger = OPTION_gdb ? debugger_create(dc) : NULL;
