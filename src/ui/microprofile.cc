@@ -260,7 +260,7 @@ void mp_end_frame(struct microprofile *mp) {
 
 struct microprofile *mp_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      NULL, NULL, NULL, &mp_keydown, NULL, &mp_mousemove, NULL};
+      NULL, NULL, &mp_keydown, NULL, &mp_mousemove, NULL};
 
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));

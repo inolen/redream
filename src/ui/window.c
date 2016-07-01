@@ -35,8 +35,6 @@ static void win_init_joystick(struct window *win) {
 }
 
 static void win_handle_paint(struct window *win) {
-  struct nk_context *ctx = &win->nk->ctx;
-
   rb_begin_frame(win->rb);
   nk_begin_frame(win->nk);
   mp_begin_frame(win->mp);
@@ -48,36 +46,23 @@ static void win_handle_paint(struct window *win) {
     }
   }
 
-  if (win->menubar) {
+  if (win->debug_menu) {
+    struct nk_context *ctx = &win->nk->ctx;
     struct nk_panel layout;
-    struct nk_panel menu;
+    struct nk_rect bounds = {0.0f, 0.0, 200.0f, 200.0f};
 
-    ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
-    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
-
-    if (nk_begin(ctx, &layout, "main menu", nk_rect(0, 0, win->width, 20.0f),
-                 NK_WINDOW_NO_SCROLLBAR)) {
-      nk_menubar_begin(ctx);
-
-      nk_layout_row_begin(ctx, NK_STATIC, 20.0f, 999);
-
+    if (nk_begin(ctx, &layout, "debug menu", bounds,
+                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
+                     NK_WINDOW_TITLE)) {
       list_for_each_entry(listener, &win->live_listeners,
                           struct window_listener, it) {
-        if (listener->cb.paint_menubar) {
-          listener->cb.paint_menubar(listener->data, ctx);
+        if (listener->cb.paint_debug_menu) {
+          listener->cb.paint_debug_menu(listener->data, ctx);
         }
       }
-
-      nk_menubar_end(ctx);
     }
+
     nk_end(ctx);
-  }
-
-  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
-                      it) {
-    if (listener->cb.paint_ui) {
-      listener->cb.paint_ui(listener->data, ctx);
-    }
   }
 
   mp_end_frame(win->mp);
@@ -823,8 +808,8 @@ static void win_pump_sdl(struct window *win) {
   }
 }
 
-void win_enable_menubar(struct window *win, bool active) {
-  win->menubar = active;
+void win_enable_debug_menu(struct window *win, bool active) {
+  win->debug_menu = active;
 }
 
 void win_enable_text_input(struct window *win, bool active) {

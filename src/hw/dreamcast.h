@@ -78,21 +78,20 @@ struct memory_interface *memory_interface_create(struct dreamcast *dc,
 void memory_interface_destroy(struct memory_interface *memory);
 
 typedef void (*device_paint_cb)(struct device *);
-typedef void (*device_paint_menubar_cb)(struct device *, struct nk_context *);
-typedef void (*device_paint_ui_cb)(struct device *, struct nk_context *);
+typedef void (*device_paint_debug_menu_cb)(struct device *,
+                                           struct nk_context *);
 typedef void (*device_keydown_cb)(struct device *, enum keycode, int16_t);
 
 // winder interface
 struct window_interface {
   device_paint_cb paint;
-  device_paint_menubar_cb paint_menubar;
-  device_paint_ui_cb paint_ui;
+  device_paint_debug_menu_cb paint_debug_menu;
   device_keydown_cb keydown;
 };
 
 struct window_interface *window_interface_create(
-    device_paint_cb paint, device_paint_menubar_cb paint_menubar,
-    device_paint_ui_cb paint_ui, device_keydown_cb keydown);
+    device_paint_cb paint, device_paint_debug_menu_cb paint_debug_menu,
+    device_keydown_cb keydown);
 void window_interface_destroy(struct window_interface *window);
 
 //
@@ -139,8 +138,7 @@ void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_paint(struct dreamcast *dc);
-void dc_paint_menubar(struct dreamcast *dc, struct nk_context *ctx);
-void dc_paint_ui(struct dreamcast *dc, struct nk_context *ctx);
+void dc_paint_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value);
 
 struct dreamcast *dc_create(struct rb *rb);

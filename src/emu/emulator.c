@@ -128,16 +128,10 @@ static void emu_paint(void *data) {
   dc_paint(emu->dc);
 }
 
-static void emu_paint_menubar(void *data, struct nk_context *ctx) {
+static void emu_paint_debug_menu(void *data, struct nk_context *ctx) {
   struct emu *emu = data;
 
-  dc_paint_menubar(emu->dc, ctx);
-}
-
-static void emu_paint_ui(void *data, struct nk_context *ctx) {
-  struct emu *emu = data;
-
-  dc_paint_ui(emu->dc, ctx);
+  dc_paint_debug_menu(emu->dc, ctx);
 }
 
 static void emu_keydown(void *data, enum keycode code, int16_t value) {
@@ -145,7 +139,7 @@ static void emu_keydown(void *data, enum keycode code, int16_t value) {
 
   if (code == K_F1) {
     if (value) {
-      win_enable_menubar(emu->window, !emu->window->menubar);
+      win_enable_debug_menu(emu->window, !emu->window->debug_menu);
     }
     return;
   }
@@ -215,8 +209,7 @@ void emu_run(struct emu *emu, const char *path) {
 
 struct emu *emu_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      &emu_paint, &emu_paint_menubar, &emu_paint_ui, &emu_keydown, NULL,
-      NULL,       &emu_close};
+      &emu_paint, &emu_paint_debug_menu, &emu_keydown, NULL, NULL, &emu_close};
 
   struct emu *emu = calloc(1, sizeof(struct emu));
 

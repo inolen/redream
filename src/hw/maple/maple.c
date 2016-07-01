@@ -107,7 +107,7 @@ void maple_vblank(struct maple *mp) {
 struct maple *maple_create(struct dreamcast *dc) {
   struct maple *mp =
       dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
-  mp->base.window = window_interface_create(NULL, NULL, NULL, &maple_keydown);
+  mp->base.window = window_interface_create(NULL, NULL, &maple_keydown);
 
   mp->devices[0] = controller_create();
 

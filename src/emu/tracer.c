@@ -363,6 +363,8 @@ static void tracer_reset_context(struct tracer *tracer) {
   tracer_next_context(tracer);
 }
 
+static const float SCRUBBER_WINDOW_HEIGHT = 20.0f;
+
 static void tracer_render_scrubber_menu(struct tracer *tracer) {
   struct nk_context *ctx = &tracer->window->nk->ctx;
 
@@ -372,7 +374,6 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
   ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
-  static const float SCRUBBER_WINDOW_HEIGHT = 20.0f;
   struct nk_panel layout;
   struct nk_rect bounds = {0.0f,
                            tracer->window->height - SCRUBBER_WINDOW_HEIGHT,
@@ -661,9 +662,8 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
   {
     struct nk_panel layout;
-    struct nk_rect bounds = {
-        0.0f, 0.0, 240.0f, 460.0f,
-    };
+    struct nk_rect bounds = {0.0f, 0.0, 240.0f,
+                             tracer->window->height - SCRUBBER_WINDOW_HEIGHT};
 
     char label[128];
 
@@ -836,7 +836,7 @@ static void tracer_keydown(void *data, enum keycode code, int16_t value) {
 
   if (code == K_F1) {
     if (value) {
-      win_enable_menubar(tracer->window, !tracer->window->menubar);
+      win_enable_debug_menu(tracer->window, !tracer->window->debug_menu);
     }
   } else if (code == K_LEFT && value) {
     tracer_prev_context(tracer);
@@ -887,7 +887,7 @@ void tracer_run(struct tracer *tracer, const char *path) {
 
 struct tracer *tracer_create(struct window *window) {
   static const struct window_callbacks callbacks = {
-      &tracer_paint, NULL, NULL, &tracer_keydown, NULL, NULL, &tracer_close};
+      &tracer_paint, NULL, &tracer_keydown, NULL, NULL, &tracer_close};
 
   // ensure param / poly / vertex size LUTs are generated
   ta_build_tables();
