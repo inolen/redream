@@ -67,6 +67,7 @@ struct tracer_texture_entry {
 struct tracer {
   struct window *window;
   struct window_listener *listener;
+  struct texture_provider provider;
   struct rb *rb;
   struct tr *tr;
 
@@ -144,7 +145,7 @@ static void tracer_add_texture(struct tracer *tracer, union tsp tsp,
   entry->base.texture = texture;
 }
 
-static struct texture_entry *tracer_texture_interface_find_texture(
+static struct texture_entry *tracer_texture_provider_find_texture(
     void *data, union tsp tsp, union tcw tcw) {
   struct tracer *tracer = data;
 
@@ -860,11 +861,10 @@ struct tracer *tracer_create(struct window *window) {
 
   tracer->window = window;
   tracer->listener = win_add_listener(window, &callbacks, tracer);
+  tracer->provider =
+      (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
   tracer->rb = window->rb;
-
-  struct texture_interface texture_if = {
-      tracer, &tracer_texture_interface_find_texture};
-  tracer->tr = tr_create(tracer->rb, &texture_if);
+  tracer->tr = tr_create(tracer->rb, &tracer->provider);
 
   // setup tile context buffers
   tracer->ctx.params = tracer->params;

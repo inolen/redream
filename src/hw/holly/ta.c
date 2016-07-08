@@ -27,13 +27,16 @@ struct ta_texture_entry {
 
 struct ta {
   struct device base;
+  struct texture_provider provider;
+  struct rb *rb;
+  struct tr *tr;
+
   struct scheduler *scheduler;
   struct holly *holly;
   struct pvr *pvr;
   struct address_space *space;
-  struct rb *rb;
-  struct tr *tr;
   uint8_t *video_ram;
+  uint8_t *palette_ram;
 
   // texture cache entry pool. free entries are in a linked list, live entries
   // are in a tree ordered by texture key, textures queued for invalidation are
@@ -68,12 +71,11 @@ struct ta {
   struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];
 
-  struct trace_writer *trace_writer;
-
   // debug info
   int frame;
   int frames_skipped;
   int num_textures;
+  struct trace_writer *trace_writer;
 };
 
 int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
@@ -265,9 +267,9 @@ static struct ta_texture_entry *ta_find_texture(struct ta *ta, union tsp tsp,
   return rb_find_entry(&ta->live_entries, &search, live_it, &ta_entry_cb);
 }
 
-static struct texture_entry *ta_texture_interface_find_texture(void *data,
-                                                               union tsp tsp,
-                                                               union tcw tcw) {
+static struct texture_entry *ta_texture_provider_find_texture(void *data,
+                                                              union tsp tsp,
+                                                              union tcw tcw) {
   struct ta_texture_entry *entry = ta_find_texture(data, tsp, tcw);
 
   if (!entry) {
@@ -418,14 +420,13 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
 
   // set texture address
   if (!entry->base.texture) {
-    uint8_t *video_ram = as_translate(ta->space, 0x04000000);
     uint32_t texture_addr = tcw.texture_addr << 3;
     int width = 8 << tsp.texture_u_size;
     int height = 8 << tsp.texture_v_size;
     int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
                                 ? 8
                                 : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
-    entry->base.texture = &video_ram[texture_addr];
+    entry->base.texture = &ta->video_ram[texture_addr];
     entry->base.texture_size = (width * height * element_size_bits) >> 3;
   }
 
@@ -433,7 +434,6 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
   if (!entry->base.palette) {
     if (tcw.pixel_format == TA_PIXEL_4BPP ||
         tcw.pixel_format == TA_PIXEL_8BPP) {
-      uint8_t *palette_ram = as_translate(ta->space, 0x005f9000);
       uint32_t palette_addr = 0;
       int palette_size = 0;
 
@@ -453,7 +453,7 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
         palette_size = (1 << 8) * 4;
       }
 
-      entry->base.palette = &palette_ram[palette_addr];
+      entry->base.palette = &ta->palette_ram[palette_addr];
       entry->base.palette_size = palette_size;
     }
   }
@@ -714,6 +714,7 @@ static bool ta_init(struct device *dev) {
   ta->pvr = dc->pvr;
   ta->space = dc->sh4->base.memory->space;
   ta->video_ram = as_translate(ta->space, 0x04000000);
+  ta->palette_ram = as_translate(ta->space, 0x005f9000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
     struct ta_texture_entry *entry = &ta->entries[i];
@@ -861,13 +862,10 @@ struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
   ta->base.window =
       window_interface_create(&ta_paint, &ta_paint_debug_menu, NULL);
-
+  ta->provider =
+      (struct texture_provider){ta, &ta_texture_provider_find_texture};
   ta->rb = rb;
-
-  struct texture_interface texture_if = {ta,
-                                         &ta_texture_interface_find_texture};
-  ta->tr = tr_create(ta->rb, &texture_if);
-
+  ta->tr = tr_create(ta->rb, &ta->provider);
   ta->pending_mutex = mutex_create();
 
   return ta;

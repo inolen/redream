@@ -35,7 +35,7 @@ struct texture_entry {
 // provides abstraction around providing texture data to the renderer. when
 // emulating the actual ta, textures will be provided from guest memory, but
 // when playing back traces the textures will come from the trace itself
-struct texture_interface {
+struct texture_provider {
   void *data;
   struct texture_entry *(*find_texture)(void *, union tsp, union tcw);
 };
@@ -77,7 +77,7 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
                       struct render_ctx *rctx);
 void tr_render_context(struct tr *tr, const struct render_ctx *rctx);
 
-struct tr *tr_create(struct rb *rb, struct texture_interface *texture_if);
+struct tr *tr_create(struct rb *rb, struct texture_provider *provider);
 void tr_destroy(struct tr *tr);
 
 #endif
