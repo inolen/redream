@@ -12,16 +12,14 @@
 #include <nuklear.h>
 
 #include "renderer/backend.h"
-
-struct window;
-struct window_listener;
+#include "ui/window.h"
 
 #define NK_MAX_VERTICES 4096
 #define NK_MAX_ELEMENTS 16384
 
 struct nuklear {
   struct window *window;
-  struct window_listener *listener;
+  struct window_listener listener;
 
   //
   struct nk_context ctx;

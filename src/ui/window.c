@@ -39,10 +39,9 @@ static void win_handle_paint(struct window *win) {
   nk_begin_frame(win->nk);
   mp_begin_frame(win->mp);
 
-  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
-                      it) {
-    if (listener->cb.paint) {
-      listener->cb.paint(listener->data);
+  list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+    if (listener->paint) {
+      listener->paint(listener->data);
     }
   }
 
@@ -54,10 +53,10 @@ static void win_handle_paint(struct window *win) {
     if (nk_begin(ctx, &layout, "debug menu", bounds,
                  NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
                      NK_WINDOW_TITLE)) {
-      list_for_each_entry(listener, &win->live_listeners,
-                          struct window_listener, it) {
-        if (listener->cb.paint_debug_menu) {
-          listener->cb.paint_debug_menu(listener->data, ctx);
+      list_for_each_entry(listener, &win->listeners, struct window_listener,
+                          it) {
+        if (listener->paint_debug_menu) {
+          listener->paint_debug_menu(listener->data, ctx);
         }
       }
     }
@@ -72,10 +71,9 @@ static void win_handle_paint(struct window *win) {
 
 static void win_handle_keydown(struct window *win, enum keycode code,
                                int16_t value) {
-  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
-                      it) {
-    if (listener->cb.keydown) {
-      listener->cb.keydown(listener->data, code, value);
+  list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+    if (listener->keydown) {
+      listener->keydown(listener->data, code, value);
     }
   }
 }
@@ -122,28 +120,25 @@ static void win_handle_hatdown(struct window *win, int hat, uint8_t state,
 }
 
 static void win_handle_textinput(struct window *win, const char *text) {
-  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
-                      it) {
-    if (listener->cb.textinput) {
-      listener->cb.textinput(listener->data, text);
+  list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+    if (listener->textinput) {
+      listener->textinput(listener->data, text);
     }
   }
 }
 
 static void win_handle_mousemove(struct window *win, int x, int y) {
-  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
-                      it) {
-    if (listener->cb.mousemove) {
-      listener->cb.mousemove(listener->data, x, y);
+  list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+    if (listener->mousemove) {
+      listener->mousemove(listener->data, x, y);
     }
   }
 }
 
 static void win_handle_close(struct window *win) {
-  list_for_each_entry(listener, &win->live_listeners, struct window_listener,
-                      it) {
-    if (listener->cb.close) {
-      listener->cb.close(listener->data);
+  list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+    if (listener->close) {
+      listener->close(listener->data);
     }
   }
 }
@@ -829,25 +824,12 @@ void win_pump_events(struct window *win) {
   win_handle_paint(win);
 }
 
-struct window_listener *win_add_listener(struct window *win,
-                                         const struct window_callbacks *cb,
-                                         void *data) {
-  struct window_listener *listener =
-      list_first_entry(&win->free_listeners, struct window_listener, it);
-  CHECK_NOTNULL(listener);
-  list_remove(&win->free_listeners, &listener->it);
-
-  listener->cb = *cb;
-  listener->data = data;
-  list_add(&win->live_listeners, &listener->it);
-
-  return listener;
+void win_add_listener(struct window *win, struct window_listener *listener) {
+  list_add(&win->listeners, &listener->it);
 }
 
 void win_remove_listener(struct window *win, struct window_listener *listener) {
-  list_remove(&win->live_listeners, &listener->it);
-
-  list_add(&win->free_listeners, &listener->it);
+  list_remove(&win->listeners, &listener->it);
 }
 
 struct window *win_create() {
@@ -855,11 +837,6 @@ struct window *win_create() {
 
   win->width = DEFAULT_WIDTH;
   win->height = DEFAULT_HEIGHT;
-
-  for (int i = 0; i < MAX_WINDOW_LISTENERS; i++) {
-    struct window_listener *listener = &win->listeners[i];
-    list_add(&win->free_listeners, &listener->it);
-  }
 
   // initialize window
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {

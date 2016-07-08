@@ -16,7 +16,7 @@ DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash ROM");
 
 struct emu {
   struct window *window;
-  struct window_listener *listener;
+  struct window_listener listener;
   struct dreamcast *dc;
   atomic_int running;
   int throttled;
@@ -225,20 +225,21 @@ void emu_run(struct emu *emu, const char *path) {
 }
 
 struct emu *emu_create(struct window *window) {
-  static const struct window_callbacks callbacks = {
-      &emu_paint, &emu_paint_debug_menu, &emu_keydown, NULL, NULL, &emu_close};
-
   struct emu *emu = calloc(1, sizeof(struct emu));
 
   emu->window = window;
-  emu->listener = win_add_listener(emu->window, &callbacks, emu);
+  emu->listener = (struct window_listener){
+      emu,        &emu_paint, &emu_paint_debug_menu, &emu_keydown, NULL, NULL,
+      &emu_close, {}};
   emu->running = ATOMIC_VAR_INIT(0);
+
+  win_add_listener(emu->window, &emu->listener);
 
   return emu;
 }
 
 void emu_destroy(struct emu *emu) {
-  win_remove_listener(emu->window, emu->listener);
+  win_remove_listener(emu->window, &emu->listener);
 
   if (emu->dc) {
     dc_destroy(emu->dc);

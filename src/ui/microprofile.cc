@@ -26,7 +26,7 @@ static const int MAX_2D_SURFACES = 256;
 
 struct microprofile {
   struct window *window;
-  struct window_listener *listener;
+  struct window_listener listener;
   texture_handle_t font_texture;
   struct surface2d surfs[MAX_2D_SURFACES];
   int num_surfs;
@@ -259,14 +259,14 @@ void mp_end_frame(struct microprofile *mp) {
 }
 
 struct microprofile *mp_create(struct window *window) {
-  static const struct window_callbacks callbacks = {
-      NULL, NULL, &mp_keydown, NULL, &mp_mousemove, NULL};
-
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));
 
   mp->window = window;
-  mp->listener = win_add_listener(mp->window, &callbacks, mp);
+  mp->listener = (struct window_listener){
+      mp, NULL, NULL, &mp_keydown, NULL, &mp_mousemove, NULL, {}};
+
+  win_add_listener(mp->window, &mp->listener);
 
   // init microprofile
   struct rb *rb = mp->window->rb;
@@ -294,7 +294,7 @@ struct microprofile *mp_create(struct window *window) {
 void mp_destroy(struct microprofile *mp) {
   rb_destroy_texture(mp->window->rb, mp->font_texture);
 
-  win_remove_listener(mp->window, mp->listener);
+  win_remove_listener(mp->window, &mp->listener);
 
   free(mp);
 }

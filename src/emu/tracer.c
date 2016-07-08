@@ -66,7 +66,7 @@ struct tracer_texture_entry {
 
 struct tracer {
   struct window *window;
-  struct window_listener *listener;
+  struct window_listener listener;
   struct texture_provider provider;
   struct rb *rb;
   struct tr *tr;
@@ -851,20 +851,21 @@ void tracer_run(struct tracer *tracer, const char *path) {
 }
 
 struct tracer *tracer_create(struct window *window) {
-  static const struct window_callbacks callbacks = {
-      &tracer_paint, NULL, &tracer_keydown, NULL, NULL, &tracer_close};
-
   // ensure param / poly / vertex size LUTs are generated
   ta_build_tables();
 
   struct tracer *tracer = calloc(1, sizeof(struct tracer));
 
   tracer->window = window;
-  tracer->listener = win_add_listener(window, &callbacks, tracer);
+  tracer->listener = (struct window_listener){
+      tracer, &tracer_paint, NULL,          &tracer_keydown,
+      NULL,   NULL,          &tracer_close, {}};
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
   tracer->rb = window->rb;
   tracer->tr = tr_create(tracer->rb, &tracer->provider);
+
+  win_add_listener(tracer->window, &tracer->listener);
 
   // setup tile context buffers
   tracer->ctx.params = tracer->params;
@@ -902,7 +903,7 @@ void tracer_destroy(struct tracer *tracer) {
   if (tracer->trace) {
     trace_destroy(tracer->trace);
   }
-  win_remove_listener(tracer->window, tracer->listener);
+  win_remove_listener(tracer->window, &tracer->listener);
   tr_destroy(tracer->tr);
   free(tracer);
 }

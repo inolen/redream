@@ -29,7 +29,7 @@ struct shader_program {
 
 struct rb {
   struct window *window;
-  struct window_listener *listener;
+  struct window_listener listener;
 
   SDL_GLContext ctx;
   int debug_wireframe;
@@ -698,12 +698,12 @@ void rb_destroy_texture(struct rb *rb, texture_handle_t handle) {
 }
 
 struct rb *rb_create(struct window *window) {
-  static const struct window_callbacks callbacks = {
-      NULL, &rb_paint_debug_menu, NULL, NULL, NULL, NULL};
-
   struct rb *rb = (struct rb *)calloc(1, sizeof(struct rb));
   rb->window = window;
-  rb->listener = win_add_listener(rb->window, &callbacks, rb);
+  rb->listener = (struct window_listener){
+      rb, NULL, &rb_paint_debug_menu, NULL, NULL, NULL, NULL, {}};
+
+  win_add_listener(rb->window, &rb->listener);
 
   if (!rb_init_context(rb)) {
     rb_destroy(rb);
@@ -723,6 +723,6 @@ void rb_destroy(struct rb *rb) {
   rb_destroy_shaders(rb);
   rb_destroy_textures(rb);
   rb_destroy_context(rb);
-  win_remove_listener(rb->window, rb->listener);
+  win_remove_listener(rb->window, &rb->listener);
   free(rb);
 }
