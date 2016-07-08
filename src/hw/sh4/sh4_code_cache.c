@@ -281,7 +281,7 @@ code_pointer_t sh4_cache_compile_code(struct sh4_cache *cache,
   return code;
 }
 
-struct sh4_cache *sh4_cache_create(const struct jit_memory_interface *memory_if,
+struct sh4_cache *sh4_cache_create(struct jit_memory_interface *memory_if,
                                    code_pointer_t default_code) {
   struct sh4_cache *cache = calloc(1, sizeof(struct sh4_cache));
 
