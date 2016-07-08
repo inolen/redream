@@ -4,6 +4,7 @@
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "hw/sh4/sh4_types.h"
+#include "jit/backend/backend.h"
 #include "jit/frontend/sh4/sh4_context.h"
 
 struct dreamcast;
@@ -37,6 +38,7 @@ struct sh4 {
   struct scheduler *scheduler;
   struct address_space *space;
 
+  struct jit_memory_interface memory_if;
   struct sh4_cache *code_cache;
   struct sh4_ctx ctx;
   uint8_t cache[0x2000];  // 8kb cache

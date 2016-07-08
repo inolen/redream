@@ -11,7 +11,6 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4_code_cache.h"
-#include "jit/backend/backend.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "sys/time.h"
 #include "ui/nuklear.h"
@@ -703,19 +702,19 @@ static bool sh4_init(struct device *dev) {
   sh4->scheduler = dc->scheduler;
   sh4->space = sh4->base.memory->space;
 
-  struct jit_memory_interface memory_if = {
-      &sh4->ctx,
-      sh4->base.memory->space->protected_base,
-      sh4->base.memory->space,
-      &as_read8,
-      &as_read16,
-      &as_read32,
-      &as_read64,
-      &as_write8,
-      &as_write16,
-      &as_write32,
-      &as_write64};
-  sh4->code_cache = sh4_cache_create(&memory_if, &sh4_compile_pc);
+  sh4->memory_if =
+      (struct jit_memory_interface){&sh4->ctx,
+                                    sh4->base.memory->space->protected_base,
+                                    sh4->base.memory->space,
+                                    &as_read8,
+                                    &as_read16,
+                                    &as_read32,
+                                    &as_read64,
+                                    &as_write8,
+                                    &as_write16,
+                                    &as_write32,
+                                    &as_write64};
+  sh4->code_cache = sh4_cache_create(&sh4->memory_if, &sh4_compile_pc);
 
   // initialize context
   sh4->ctx.sh4 = sh4;
