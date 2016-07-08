@@ -129,12 +129,12 @@ void nk_end_frame(struct nuklear *nk) {
 }
 
 struct nuklear *nk_create(struct window *window) {
-  static const struct window_callbacks callbacks = {
-      NULL, NULL, &nk_keydown, &nk_textinput, &nk_mousemove, NULL};
-
   struct nuklear *nk = calloc(1, sizeof(struct nuklear));
   nk->window = window;
-  nk->listener = win_add_listener(nk->window, &callbacks, nk);
+  nk->listener = (struct window_listener){
+      nk, NULL, NULL, &nk_keydown, &nk_textinput, &nk_mousemove, NULL, {}};
+
+  win_add_listener(nk->window, &nk->listener);
 
   // create default font texture
   nk_font_atlas_init_default(&nk->atlas);
@@ -162,7 +162,7 @@ void nk_destroy(struct nuklear *nk) {
 
   rb_destroy_texture(nk->window->rb, nk->font_texture);
 
-  win_remove_listener(nk->window, nk->listener);
+  win_remove_listener(nk->window, &nk->listener);
 
   free(nk);
 }
