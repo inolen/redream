@@ -9,7 +9,7 @@
 
 struct tr {
   struct rb *rb;
-  struct texture_interface texture_if;
+  struct texture_provider *provider;
 
   // current global state
   const union poly_param *last_poly;
@@ -124,7 +124,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
   // to control texture generation
 
   struct texture_entry *entry =
-      tr->texture_if.find_texture(tr->texture_if.data, tsp, tcw);
+      tr->provider->find_texture(tr->provider->data, tsp, tcw);
   CHECK_NOTNULL(entry);
 
   // if there's a non-dirty handle, go ahead and return it
@@ -1038,11 +1038,11 @@ void tr_render_context(struct tr *tr, const struct render_ctx *ctx) {
   PROF_LEAVE();
 }
 
-struct tr *tr_create(struct rb *rb, struct texture_interface *texture_if) {
+struct tr *tr_create(struct rb *rb, struct texture_provider *provider) {
   struct tr *tr = calloc(1, sizeof(struct tr));
 
   tr->rb = rb;
-  tr->texture_if = *texture_if;
+  tr->provider = provider;
 
   return tr;
 }
