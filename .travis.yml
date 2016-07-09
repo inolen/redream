@@ -1,4 +1,4 @@
-language: cpp
+language: c
 
 matrix:
   include:
@@ -7,18 +7,23 @@ matrix:
       addons:
         apt:
           sources:
-            - kubuntu-backports
+            - george-edison55-precise-backports
             - ubuntu-toolchain-r-test
           packages:
             - cmake
-            - gcc-4.9
-            - g++-4.9
+            - cmake-data
+            - gcc-6
+            - g++-6
 
     - os: osx
+      osx_image: xcode7
       compiler: clang
+      before_install:
+        - brew upgrade
+        - brew install cmake
 
 script:
-  - if [ "$CC" = "gcc" ]; then export CC="gcc-4.9" CXX="g++-4.9"; fi
+  - if [ "$CC" = "gcc" ]; then export CC="gcc-6" CXX="g++-6"; fi
   - mkdir build
   - cd build
   - cmake ..

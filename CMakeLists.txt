@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.1)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -15,15 +15,18 @@ endif()
 
 list(APPEND REDREAM_LANGUAGES C CXX)
 if(WIN32)
-list(APPEND REDREAM_LANGUAGES ASM_MASM)
+  list(APPEND REDREAM_LANGUAGES ASM_MASM)
 else()
-list(APPEND REDREAM_LANGUAGES ASM)
+  list(APPEND REDREAM_LANGUAGES ASM)
 endif()
 
 project(redream ${REDREAM_LANGUAGES})
 
 # export compile_commands.json for clang-tidy
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
 
 #--------------------------------------------------
 # config file
@@ -214,8 +217,8 @@ endif()
 # assign source groups for visual studio projects
 source_group_by_dir(REDREAM_SOURCES)
 
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(REDREAM_COMPILE_FLAGS $<$<COMPILE_LANGUAGE:CXX>:-std=c++11 -fno-operator-names> $<$<COMPILE_LANGUAGE:C>:-std=c11> -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
+  set(REDREAM_COMPILE_FLAGS -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
   # some flavors of GCC require this to be defined for the PR* macros in inttypes.h
   if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")

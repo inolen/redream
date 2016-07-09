@@ -268,7 +268,7 @@ static void rb_destroy_program(struct shader_program *program) {
 static bool rb_compile_program(struct shader_program *program,
                                const char *header, const char *vertex_source,
                                const char *fragment_source) {
-  char buffer[16384] = {0};
+  char buffer[16384] = {};
 
   memset(program, 0, sizeof(*program));
   program->program = glCreateProgram();
