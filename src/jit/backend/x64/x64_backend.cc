@@ -1,5 +1,7 @@
 #include <capstone.h>
 #include <inttypes.h>
+
+#define XBYAK_NO_OP_NAMES
 #include <xbyak/xbyak.h>
 
 extern "C" {
@@ -1450,10 +1452,10 @@ EMITTER(AND) {
   }
 
   if (x64_backend_can_encode_imm(instr->arg[1])) {
-    e.and (result, (uint32_t)ir_zext_constant(instr->arg[1]));
+    e.and_(result, (uint32_t)ir_zext_constant(instr->arg[1]));
   } else {
     const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
-    e.and (result, b);
+    e.and_(result, b);
   }
 }
 
@@ -1466,10 +1468,10 @@ EMITTER(OR) {
   }
 
   if (x64_backend_can_encode_imm(instr->arg[1])) {
-    e.or (result, (uint32_t)ir_zext_constant(instr->arg[1]));
+    e.or_(result, (uint32_t)ir_zext_constant(instr->arg[1]));
   } else {
     const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
-    e.or (result, b);
+    e.or_(result, b);
   }
 }
 
@@ -1482,10 +1484,10 @@ EMITTER(XOR) {
   }
 
   if (x64_backend_can_encode_imm(instr->arg[1])) {
-    e.xor (result, (uint32_t)ir_zext_constant(instr->arg[1]));
+    e.xor_(result, (uint32_t)ir_zext_constant(instr->arg[1]));
   } else {
     const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
-    e.xor (result, b);
+    e.xor_(result, b);
   }
 }
 
@@ -1497,7 +1499,7 @@ EMITTER(NOT) {
     e.mov(result, a);
   }
 
-  e.not(result);
+  e.not_(result);
 }
 
 EMITTER(SHL) {

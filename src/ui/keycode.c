@@ -319,7 +319,7 @@ static struct key keys[] = {{K_UNKNOWN, "unknown"},
                             {K_AXIS15, "axis15"}};
 
 enum keycode get_key_by_name(const char *keyname) {
-  char buffer[256] = {0};
+  char buffer[256] = {};
   int len = 0;
 
   while (*keyname) {

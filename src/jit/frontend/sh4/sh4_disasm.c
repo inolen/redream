@@ -22,7 +22,7 @@ static struct sh4_opdef s_opdefs[NUM_SH4_OPS] = {
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
-static struct sh4_opdef *s_opdef_lookup[UINT16_MAX] = {};
+static struct sh4_opdef *s_opdef_lookup[UINT16_MAX];
 
 static void sh4_arg_mask(const char *instr_code, char c, uint16_t *mask,
                          uint16_t *shift) {

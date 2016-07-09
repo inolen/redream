@@ -7,7 +7,7 @@
 #include "core/string.h"
 
 const char *fs_appdir() {
-  static char appdir[PATH_MAX] = {};
+  static char appdir[PATH_MAX];
 
   if (appdir[0]) {
     return appdir;
