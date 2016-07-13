@@ -5,7 +5,8 @@
 #define MAX_ERROR_SIZE 1024
 
 const char *format_check_error_ex(const char *filename, int linenum,
-                                  const char *expr, const char *format, ...) {
+                                  const char *expr, const char *unused,
+                                  const char *format, ...) {
   static char error[MAX_ERROR_SIZE];
   static char custom[MAX_ERROR_SIZE];
 
@@ -26,6 +27,6 @@ const char *format_check_error_ex(const char *filename, int linenum,
 }
 
 const char *format_check_error(const char *filename, int linenum,
-                               const char *expr) {
-  return format_check_error_ex(filename, linenum, expr, NULL);
+                               const char *expr, const char *unused) {
+  return format_check_error_ex(filename, linenum, expr, unused, NULL);
 }
