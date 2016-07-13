@@ -10,13 +10,15 @@ struct memory {
   shmem_handle_t shmem;
   uint32_t shmem_size;
 
-  struct memory_region regions[MAX_REGIONS];
-  int num_regions;
+  struct physical_region physical_regions[MAX_REGIONS];
+  int num_physical_regions;
+  struct mmio_region mmio_regions[MAX_REGIONS];
+  int num_mmio_regions;
 };
 
-static bool is_page_aligned(uint32_t start, uint32_t size) {
-  return (start & (PAGE_OFFSET_BITS - 1)) == 0 &&
-         ((start + size) & (PAGE_OFFSET_BITS - 1)) == 0;
+static int is_page_aligned(uint32_t start, uint32_t size) {
+  return (start & ((1 << PAGE_OFFSET_BITS) - 1)) == 0 &&
+         ((start + size) & ((1 << PAGE_OFFSET_BITS) - 1)) == 0;
 }
 
 static int get_total_page_size(int num_pages) {
@@ -33,22 +35,27 @@ static uint32_t get_page_offset(uint32_t addr) {
 }
 
 // pack and unpack page entry bitstrings
-static page_entry_t pack_page_entry(const struct memory_region *region,
-                                    uint32_t region_offset) {
-  return region_offset | (region->dynamic ? 0 : REGION_TYPE_MASK) |
-         region->handle;
+static page_entry_t pack_page_entry(int physical_handle,
+                                    uint32_t physical_offset, int mmio_handle,
+                                    uint32_t mmio_offset) {
+  return ((page_entry_t)(physical_offset | physical_handle) << 32) |
+         (mmio_handle | mmio_offset);
 }
 
-static uint32_t get_region_offset(page_entry_t page) {
+static uint32_t get_physical_offset(page_entry_t page) {
+  return (page >> 32) & REGION_OFFSET_MASK;
+}
+
+static int get_physical_handle(page_entry_t page) {
+  return (page >> 32) & REGION_HANDLE_MASK;
+}
+
+static int get_mmio_offset(page_entry_t page) {
   return page & REGION_OFFSET_MASK;
 }
 
-static int is_region_static(page_entry_t page) {
-  return page & REGION_TYPE_MASK;
-}
-
-static int get_region_index(page_entry_t page) {
-  return page & REGION_INDEX_MASK;
+static int get_mmio_handle(page_entry_t page) {
+  return page & REGION_HANDLE_MASK;
 }
 
 // iterate mirrors for a given address and mask
@@ -122,38 +129,41 @@ static bool reserve_address_space(uint8_t **base) {
   return false;
 }
 
-static struct memory_region *memory_alloc_region(struct memory *memory,
-                                                 uint32_t size) {
-  CHECK_LT(memory->num_regions, MAX_REGIONS);
-  CHECK(is_page_aligned(memory->shmem_size, size));
+struct physical_region *memory_create_physical_region(struct memory *memory,
+                                                      uint32_t size) {
+  CHECK_LT(memory->num_physical_regions, MAX_REGIONS);
 
-  struct memory_region *region = &memory->regions[memory->num_regions];
-  memset(region, 0, sizeof(*region));
-  region->handle = memory->num_regions++;
+  memory->num_physical_regions++;
+
+  struct physical_region *region =
+      &memory->physical_regions[memory->num_physical_regions];
+  region->handle = memory->num_physical_regions;
   region->shmem_offset = memory->shmem_size;
   region->size = size;
 
+  // ensure the shared memory regions are aligned to the allocation granularity,
+  // otherwise it will confusingly fail to map further down the line
+  size_t granularity = get_allocation_granularity();
+  CHECK((memory->shmem_size & (granularity - 1)) == 0 &&
+        ((memory->shmem_size + size) & (granularity - 1)) == 0);
   memory->shmem_size += size;
 
   return region;
 }
 
-struct memory_region *memory_create_region(struct memory *memory,
-                                           uint32_t size) {
-  CHECK(is_page_aligned(memory->shmem_size, size));
+struct mmio_region *memory_create_mmio_region(struct memory *memory,
+                                              uint32_t size, void *data,
+                                              r8_cb r8, r16_cb r16, r32_cb r32,
+                                              r64_cb r64, w8_cb w8, w16_cb w16,
+                                              w32_cb w32, w64_cb w64) {
+  CHECK_LT(memory->num_mmio_regions, MAX_REGIONS);
 
-  struct memory_region *region = memory_alloc_region(memory, size);
-  region->dynamic = false;
+  memory->num_mmio_regions++;
 
-  return region;
-}
-
-struct memory_region *memory_create_dynamic_region(
-    struct memory *memory, uint32_t size, r8_cb r8, r16_cb r16, r32_cb r32,
-    r64_cb r64, w8_cb w8, w16_cb w16, w32_cb w32, w64_cb w64, void *data) {
-  struct memory_region *region = memory_alloc_region(memory, size);
-
-  region->dynamic = true;
+  struct mmio_region *region = &memory->mmio_regions[memory->num_mmio_regions];
+  region->handle = memory->num_mmio_regions;
+  region->size = size;
+  region->data = data;
   region->read8 = r8;
   region->read16 = r16;
   region->read32 = r32;
@@ -162,7 +172,6 @@ struct memory_region *memory_create_dynamic_region(
   region->write16 = w16;
   region->write32 = w32;
   region->write64 = w64;
-  region->data = data;
 
   return region;
 }
@@ -210,7 +219,7 @@ struct memory *memory_create(struct dreamcast *dc) {
   memory->dc = dc;
   memory->shmem = SHMEM_INVALID;
   // 0 page is reserved, meaning all valid page entries must be non-zero
-  memory->num_regions = 1;
+  memory->num_physical_regions = 1;
 
   return memory;
 }
@@ -228,19 +237,28 @@ static struct address_map_entry *address_map_alloc_entry(
   return entry;
 }
 
-void am_mount_region(struct address_map *am, struct memory_region *region,
-                     uint32_t size, uint32_t addr, uint32_t addr_mask) {
+void am_physical(struct address_map *am, struct physical_region *region,
+                 uint32_t size, uint32_t addr, uint32_t addr_mask) {
   struct address_map_entry *entry = address_map_alloc_entry(am);
-  entry->type = MAP_ENTRY_MOUNT;
+  entry->type = MAP_ENTRY_PHYSICAL;
   entry->size = size;
   entry->addr = addr;
   entry->addr_mask = addr_mask;
-  entry->mount.region = region;
+  entry->physical.region = region;
 }
 
-void am_mount_device(struct address_map *am, void *device,
-                     address_map_cb mapper, uint32_t size, uint32_t addr,
-                     uint32_t addr_mask) {
+void am_mmio(struct address_map *am, struct mmio_region *region, uint32_t size,
+             uint32_t addr, uint32_t addr_mask) {
+  struct address_map_entry *entry = address_map_alloc_entry(am);
+  entry->type = MAP_ENTRY_MMIO;
+  entry->size = size;
+  entry->addr = addr;
+  entry->addr_mask = addr_mask;
+  entry->mmio.region = region;
+}
+
+void am_device(struct address_map *am, void *device, address_map_cb mapper,
+               uint32_t size, uint32_t addr, uint32_t addr_mask) {
   struct address_map_entry *entry = address_map_alloc_entry(am);
   entry->type = MAP_ENTRY_DEVICE;
   entry->size = size;
@@ -264,16 +282,14 @@ void am_mirror(struct address_map *am, uint32_t physical_addr, uint32_t size,
   type as_##name(struct address_space *space, uint32_t addr) {      \
     page_entry_t page = space->pages[get_page_index(addr)];         \
     DCHECK(page);                                                   \
-                                                                    \
-    if (is_region_static(page)) {                                   \
+    int mmio_handle = get_mmio_handle(page);                        \
+    if (!mmio_handle) {                                             \
       return *(type *)(space->base + addr);                         \
     }                                                               \
-                                                                    \
-    struct memory_region *region =                                  \
-        &space->dc->memory->regions[get_region_index(page)];        \
-    uint32_t region_offset = get_region_offset(page);               \
+    struct mmio_region *region =                                    \
+        &space->dc->memory->mmio_regions[mmio_handle];              \
+    uint32_t region_offset = get_mmio_offset(page);                 \
     uint32_t page_offset = get_page_offset(addr);                   \
-                                                                    \
     return region->name(region->data, region_offset + page_offset); \
   }
 
@@ -286,17 +302,15 @@ define_read_bytes(read64, uint64_t);
   void as_##name(struct address_space *space, uint32_t addr, type value) { \
     page_entry_t page = space->pages[get_page_index(addr)];                \
     DCHECK(page);                                                          \
-                                                                           \
-    if (is_region_static(page)) {                                          \
+    int mmio_handle = get_mmio_handle(page);                               \
+    if (!mmio_handle) {                                                    \
       *(type *)(space->base + addr) = value;                               \
       return;                                                              \
     }                                                                      \
-                                                                           \
-    struct memory_region *region =                                         \
-        &space->dc->memory->regions[get_region_index(page)];               \
-    uint32_t region_offset = get_region_offset(page);                      \
+    struct mmio_region *region =                                           \
+        &space->dc->memory->mmio_regions[mmio_handle];                     \
+    uint32_t region_offset = get_mmio_offset(page);                        \
     uint32_t page_offset = get_page_offset(addr);                          \
-                                                                           \
     region->name(region->data, region_offset + page_offset, value);        \
   }
 
@@ -344,17 +358,21 @@ void as_memcpy(struct address_space *space, uint32_t dst, uint32_t src,
 }
 
 void as_lookup(struct address_space *space, uint32_t addr, uint8_t **ptr,
-               struct memory_region **region, uint32_t *offset) {
+               struct physical_region **physical_region,
+               uint32_t *physical_offset, struct mmio_region **mmio_region,
+               uint32_t *mmio_offset) {
   page_entry_t page = space->pages[get_page_index(addr)];
+  int physical_handle = get_physical_handle(page);
+  int mmio_handle = get_mmio_handle(page);
 
-  if (is_region_static(page)) {
-    *ptr = space->base + addr;
-  } else {
-    *ptr = NULL;
-  }
-
-  *region = &space->dc->memory->regions[get_region_index(page)];
-  *offset = get_region_offset(page) + get_page_offset(addr);
+  *ptr = space->base + addr;
+  *physical_region = physical_handle
+                         ? &space->dc->memory->physical_regions[physical_handle]
+                         : NULL;
+  *physical_offset = get_physical_offset(page) + get_page_offset(addr);
+  *mmio_region =
+      mmio_handle ? &space->dc->memory->mmio_regions[mmio_handle] : NULL;
+  *mmio_offset = get_mmio_offset(page) + get_page_offset(addr);
 }
 
 static void as_merge_map(struct address_space *space,
@@ -378,15 +396,30 @@ static void as_merge_map(struct address_space *space,
       int num_pages = size >> PAGE_OFFSET_BITS;
 
       switch (entry->type) {
-        case MAP_ENTRY_MOUNT: {
-          struct memory_region *region = entry->mount.region;
+        case MAP_ENTRY_PHYSICAL: {
+          struct physical_region *physical_region = entry->physical.region;
 
-          // create an entry in the page table for each page the region occupies
           for (int i = 0; i < num_pages; i++) {
-            uint32_t region_offset = get_total_page_size(i);
+            uint32_t physical_offset = get_total_page_size(i);
 
             space->pages[first_page + i] =
-                pack_page_entry(region, region_offset);
+                pack_page_entry(physical_region->handle, physical_offset, 0, 0);
+          }
+        } break;
+
+        case MAP_ENTRY_MMIO: {
+          struct mmio_region *mmio_region = entry->mmio.region;
+
+          for (int i = 0; i < num_pages; i++) {
+            uint32_t mmio_offset = get_total_page_size(i);
+
+            page_entry_t page = space->pages[first_page + i];
+            int physical_handle = get_physical_handle(page);
+            uint32_t physical_offset = get_physical_offset(page);
+
+            space->pages[first_page + i] =
+                pack_page_entry(physical_handle, physical_offset,
+                                mmio_region->handle, mmio_offset);
           }
         } break;
 
@@ -415,9 +448,9 @@ static void as_merge_map(struct address_space *space,
 
 static uint32_t as_get_page_offset(struct address_space *space,
                                    page_entry_t page) {
-  const struct memory_region *region =
-      &space->dc->memory->regions[get_region_index(page)];
-  return region->shmem_offset + get_region_offset(page);
+  const struct physical_region *region =
+      &space->dc->memory->physical_regions[get_physical_handle(page)];
+  return region->shmem_offset + get_physical_offset(page);
 }
 
 static int as_num_adj_pages(struct address_space *space, int first_page_index) {
@@ -486,8 +519,9 @@ bool as_map(struct address_space *space, const struct address_map *map) {
   // protect dynamic regions in the protected address space
   for (int page_index = 0; page_index < NUM_PAGES; page_index++) {
     page_entry_t page = space->pages[page_index];
+    int mmio_index = get_mmio_handle(page);
 
-    if (is_region_static(page)) {
+    if (!mmio_index) {
       continue;
     }
 

@@ -19,12 +19,16 @@ typedef void (*w64_cb)(void *, uint32_t, uint64_t);
 
 struct memory;
 
-struct memory_region {
+struct physical_region {
   int handle;
-  uint32_t shmem_offset;
   uint32_t size;
-  bool dynamic;
+  uint32_t shmem_offset;
+};
 
+struct mmio_region {
+  int handle;
+  uint32_t size;
+  void *data;
   r8_cb read8;
   r16_cb read16;
   r32_cb read32;
@@ -33,15 +37,15 @@ struct memory_region {
   w16_cb write16;
   w32_cb write32;
   w64_cb write64;
-
-  void *data;
 };
 
-struct memory_region *memory_create_region(struct memory *memory,
-                                           uint32_t size);
-struct memory_region *memory_create_dynamic_region(
-    struct memory *memory, uint32_t size, r8_cb r8, r16_cb r16, r32_cb r32,
-    r64_cb r64, w8_cb w8, w16_cb w16, w32_cb w32, w64_cb w64, void *data);
+struct physical_region *memory_create_physical_region(struct memory *memory,
+                                                      uint32_t size);
+struct mmio_region *memory_create_mmio_region(struct memory *memory,
+                                              uint32_t size, void *data,
+                                              r8_cb r8, r16_cb r16, r32_cb r32,
+                                              r64_cb r64, w8_cb w8, w16_cb w16,
+                                              w32_cb w32, w64_cb w64);
 
 bool memory_init(struct memory *memory);
 
@@ -68,27 +72,26 @@ void memory_destroy(struct memory *memory);
   size = end_ - begin_ + 1;    \
   mask = 0xffffffff;
 #define AM_MASK(mask_) mask = mask_;
-#define AM_MOUNT()                                   \
-  {                                                  \
-    struct memory_region *region =                   \
-        memory_create_region(machine->memory, size); \
-    am_mount_region(map, region, size, begin, mask); \
+#define AM_MOUNT()                                            \
+  {                                                           \
+    struct physical_region *region =                          \
+        memory_create_physical_region(machine->memory, size); \
+    am_physical(map, region, size, begin, mask);              \
   }
 #define AM_HANDLE(r8, r16, r32, r64, w8, w16, w32, w64)                     \
   {                                                                         \
-    struct memory_region *region = memory_create_dynamic_region(            \
-        machine->memory, size, r8, r16, r32, r64, w8, w16, w32, w64, self); \
-    am_mount_region(map, region, size, begin, mask);                        \
+    struct mmio_region *region = memory_create_mmio_region(                 \
+        machine->memory, size, self, r8, r16, r32, r64, w8, w16, w32, w64); \
+    am_mmio(map, region, size, begin, mask);                                \
   }
 #define AM_DEVICE(name, cb)                               \
   {                                                       \
     struct device *device = dc_get_device(machine, name); \
     CHECK_NOTNULL(device);                                \
-    am_mount_device(map, device, &cb, size, begin, mask); \
+    am_device(map, device, &cb, size, begin, mask);       \
   }
 #define AM_MIRROR(addr) am_mirror(map, addr, size, begin);
 #define AM_END() }
-// clang-format on
 
 #define MAX_MAP_ENTRIES 1024
 
@@ -98,7 +101,8 @@ typedef void (*address_map_cb)(void *, struct dreamcast *,
                                struct address_map *);
 
 enum map_entry_type {
-  MAP_ENTRY_MOUNT,
+  MAP_ENTRY_PHYSICAL,
+  MAP_ENTRY_MMIO,
   MAP_ENTRY_DEVICE,
   MAP_ENTRY_MIRROR,
 };
@@ -112,8 +116,12 @@ struct address_map_entry {
 
   union {
     struct {
-      struct memory_region *region;
-    } mount;
+      struct physical_region *region;
+    } physical;
+
+    struct {
+      struct mmio_region *region;
+    } mmio;
 
     struct {
       void *device;
@@ -131,11 +139,12 @@ struct address_map {
   int num_entries;
 };
 
-void am_mount_region(struct address_map *am, struct memory_region *region,
-                     uint32_t size, uint32_t addr, uint32_t addr_mask);
-void am_mount_device(struct address_map *am, void *device,
-                     address_map_cb mapper, uint32_t size, uint32_t addr,
-                     uint32_t addr_mask);
+void am_physical(struct address_map *am, struct physical_region *region,
+                 uint32_t size, uint32_t addr, uint32_t addr_mask);
+void am_mmio(struct address_map *am, struct mmio_region *region, uint32_t size,
+             uint32_t addr, uint32_t addr_mask);
+void am_device(struct address_map *am, void *device, address_map_cb mapper,
+               uint32_t size, uint32_t addr, uint32_t addr_mask);
 void am_mirror(struct address_map *am, uint32_t physical_addr, uint32_t size,
                uint32_t addr);
 
@@ -147,13 +156,12 @@ void am_mirror(struct address_map *am, uint32_t physical_addr, uint32_t size,
 #define PAGE_INDEX_MASK (uint32_t)(~PAGE_OFFSET_MASK)
 #define NUM_PAGES (1 << PAGE_BITS)
 
-// helpers for accessing region information out of a page table entry
-#define REGION_INDEX_MASK (uintptr_t)(MAX_REGIONS - 1)
-#define REGION_TYPE_MASK (uintptr_t)(MAX_REGIONS)
-#define REGION_OFFSET_MASK (uintptr_t)(~(REGION_TYPE_MASK | REGION_INDEX_MASK))
-#define MAX_REGIONS (1 << (PAGE_OFFSET_BITS - 1))
+// helpers for region information out of a page table entry
+#define REGION_HANDLE_MASK (page_entry_t)(MAX_REGIONS - 1)
+#define REGION_OFFSET_MASK (page_entry_t)(~REGION_HANDLE_MASK)
+#define MAX_REGIONS (1 << PAGE_OFFSET_BITS)
 
-typedef uintptr_t page_entry_t;
+typedef uint64_t page_entry_t;
 
 struct address_space {
   struct dreamcast *dc;
@@ -169,7 +177,9 @@ void as_memcpy_to_host(struct address_space *space, void *ptr,
 void as_memcpy(struct address_space *space, uint32_t virtual_dest,
                uint32_t virtual_src, uint32_t size);
 void as_lookup(struct address_space *space, uint32_t virtual_addr,
-               uint8_t **ptr, struct memory_region **region, uint32_t *offset);
+               uint8_t **ptr, struct physical_region **physical_region,
+               uint32_t *physical_offset, struct mmio_region **mmio_region,
+               uint32_t *mmio_offset);
 
 uint8_t as_read8(struct address_space *space, uint32_t addr);
 uint16_t as_read16(struct address_space *space, uint32_t addr);
