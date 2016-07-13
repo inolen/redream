@@ -68,10 +68,10 @@ static int interval_tree_cmp(const struct rb_node *rb_lhs,
   struct interval_node *lhs = rb_entry(rb_lhs, struct interval_node, base);
   struct interval_node *rhs = rb_entry(rb_rhs, struct interval_node, base);
 
-  int cmp = lhs->low - rhs->low;
+  int cmp = (int)(lhs->low - rhs->low);
 
   if (!cmp) {
-    cmp = lhs->high - rhs->high;
+    cmp = (int)(lhs->high - rhs->high);
   }
 
   return cmp;

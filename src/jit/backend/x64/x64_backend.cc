@@ -406,7 +406,7 @@ const uint8_t *x64_backend_emit(struct x64_backend *backend, struct ir *ir,
   x64_backend_emit_body(backend, ir);
   x64_backend_emit_epilog(backend, ir, stack_size);
 
-  *size = backend->codegen->getCurr() - fn;
+  *size = (int)(backend->codegen->getCurr() - fn);
 
   return fn;
 }
@@ -1678,7 +1678,7 @@ struct jit_backend *x64_backend_create(struct jit_memory_interface *memory_if) {
   CHECK_EQ(res, CS_ERR_OK);
 
   // make the code buffer executable
-  int page_size = get_page_size();
+  int page_size = (int)get_page_size();
   void *aligned_code = (void *)align_down((intptr_t)x64_code, page_size);
   int aligned_code_size = align_up(x64_code_size, page_size);
   bool success =

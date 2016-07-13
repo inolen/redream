@@ -5,7 +5,14 @@
 #include "ui/window.h"
 
 #define NK_IMPLEMENTATION
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4116)
+#endif
 #include <nuklear.h>
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 static void nk_keydown(void *data, enum keycode code, int16_t value) {
   struct nuklear *nk = data;
@@ -75,7 +82,7 @@ void nk_end_frame(struct nuklear *nk) {
   nk_buffer_init_fixed(&vbuf, nk->vertices, sizeof(nk->vertices));
   nk_buffer_init_fixed(&ebuf, nk->elements, sizeof(nk->elements));
 
-  struct nk_convert_config config = {};
+  struct nk_convert_config config = {0};
   config.global_alpha = 1.0f;
   config.shape_AA = NK_ANTI_ALIASING_ON;
   config.line_AA = NK_ANTI_ALIASING_ON;
@@ -95,7 +102,7 @@ void nk_end_frame(struct nuklear *nk) {
   const struct nk_draw_command *cmd = NULL;
   int offset = 0;
 
-  struct surface2d surf = {};
+  struct surface2d surf = {0};
   surf.prim_type = PRIM_TRIANGLES;
   surf.src_blend = BLEND_SRC_ALPHA;
   surf.dst_blend = BLEND_ONE_MINUS_SRC_ALPHA;
@@ -132,7 +139,7 @@ struct nuklear *nk_create(struct window *window) {
   struct nuklear *nk = calloc(1, sizeof(struct nuklear));
   nk->window = window;
   nk->listener = (struct window_listener){
-      nk, NULL, NULL, &nk_keydown, &nk_textinput, &nk_mousemove, NULL, {}};
+      nk, NULL, NULL, &nk_keydown, &nk_textinput, &nk_mousemove, NULL, {0}};
 
   win_add_listener(nk->window, &nk->listener);
 

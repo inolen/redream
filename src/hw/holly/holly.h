@@ -28,8 +28,8 @@ struct holly {
 #undef HOLLY_REG
 };
 
-void holly_raise_interrupt(struct holly *hl, enum holly_interrupt intr);
-void holly_clear_interrupt(struct holly *hl, enum holly_interrupt intr);
+void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr);
+void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr);
 
 struct holly *holly_create(struct dreamcast *dc);
 void holly_destroy(struct holly *hl);

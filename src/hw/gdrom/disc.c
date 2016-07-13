@@ -142,5 +142,5 @@ struct disc *disc_create_gdi(const char *filename) {
 }
 
 void disc_destroy(struct disc *disc) {
-  return disc->destroy(disc);
+  disc->destroy(disc);
 }

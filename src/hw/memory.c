@@ -202,7 +202,7 @@ bool memory_init(struct memory *memory) {
   list_for_each_entry(dev, &memory->dc->devices, struct device, it) {
     if (dev->memory) {
       // create the actual address map
-      struct address_map map = {};
+      struct address_map map = {0};
       dev->memory->mapper(dev, memory->dc, &map);
 
       // apply the map to create the address space
@@ -383,7 +383,7 @@ static void as_merge_map(struct address_space *space,
     const struct address_map_entry *entry = &map->entries[i];
 
     // iterate each mirror of the entry
-    struct mirror_iterator it = {};
+    struct mirror_iterator it = {0};
 
     mirror_iterator_init(&it, offset + entry->addr, entry->addr_mask);
 
@@ -424,7 +424,7 @@ static void as_merge_map(struct address_space *space,
         } break;
 
         case MAP_ENTRY_DEVICE: {
-          struct address_map device_map = {};
+          struct address_map device_map = {0};
           entry->device.mapper(entry->device.device, space->dc, &device_map);
           as_merge_map(space, &device_map, addr);
         } break;
@@ -480,7 +480,7 @@ static bool as_map_pages(struct address_space *space, uint8_t *base) {
       continue;
     }
 
-    // batch map djacent pages, mmap is fairly slow
+    // batch map adjacent pages, mmap is fairly slow
     int num_pages = as_num_adj_pages(space, page_index);
     uint32_t size = get_total_page_size(num_pages);
 

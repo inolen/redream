@@ -102,8 +102,8 @@ static int tracer_texture_cmp(const struct rb_node *rb_lhs,
       rb_entry(rb_lhs, const struct tracer_texture_entry, live_it);
   const struct tracer_texture_entry *rhs =
       rb_entry(rb_rhs, const struct tracer_texture_entry, live_it);
-  return tr_texture_key(lhs->base.tsp, lhs->base.tcw) -
-         tr_texture_key(rhs->base.tsp, rhs->base.tcw);
+  return (int)(tr_texture_key(lhs->base.tsp, lhs->base.tcw) -
+               tr_texture_key(rhs->base.tsp, rhs->base.tcw));
 }
 
 static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,
@@ -116,7 +116,8 @@ static struct tracer_texture_entry *tracer_find_texture(struct tracer *tracer,
   search.base.tsp = tsp;
   search.base.tcw = tcw;
 
-  return rb_find_entry(&tracer->live_textures, &search, live_it,
+  return rb_find_entry(&tracer->live_textures, &search,
+                       struct tracer_texture_entry, live_it,
                        &tracer_texture_cb);
 }
 
@@ -339,9 +340,9 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
   struct nk_panel layout;
-  struct nk_rect bounds = {0.0f,
-                           tracer->window->height - SCRUBBER_WINDOW_HEIGHT,
-                           tracer->window->width, SCRUBBER_WINDOW_HEIGHT};
+  struct nk_rect bounds = {
+      0.0f, (float)tracer->window->height - SCRUBBER_WINDOW_HEIGHT,
+      (float)tracer->window->width, SCRUBBER_WINDOW_HEIGHT};
   nk_flags flags = NK_WINDOW_NO_SCROLLBAR;
 
   if (nk_begin(ctx, &layout, "context scrubber", bounds, flags)) {
@@ -579,7 +580,7 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
 
     // TODO separator
 
-    nk_layout_row_static(ctx, 40.0f, 40.0f, 1);
+    nk_layout_row_static(ctx, 40.0f, 40, 1);
     nk_image(ctx, nk_image_id((int)surf->texture));
 
     nk_layout_row_dynamic(ctx, ctx->style.font.height, 1);
@@ -636,7 +637,8 @@ static void tracer_render_side_menu(struct tracer *tracer) {
       if (nk_tree_push(ctx, NK_TREE_TAB, "filters", NK_MINIMIZED)) {
         for (int i = 0; i < TA_NUM_PARAMS; i++) {
           snprintf(label, sizeof(label), "Show %s", s_param_names[i]);
-          nk_checkbox_text(ctx, label, strlen(label), &tracer->show_params[i]);
+          nk_checkbox_text(ctx, label, (int)strlen(label),
+                           &tracer->show_params[i]);
         }
 
         nk_tree_pop(ctx);
@@ -697,7 +699,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
       // texture menu
       if (nk_tree_push(ctx, NK_TREE_TAB, "textures", 0)) {
-        nk_layout_row_static(ctx, 40.0f, 40.0f, 4);
+        nk_layout_row_static(ctx, 40.0f, 40, 4);
 
         rb_for_each_entry(entry, &tracer->live_textures,
                           struct tracer_texture_entry, live_it) {
@@ -714,18 +716,18 @@ static void tracer_render_side_menu(struct tracer *tracer) {
             ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
             if (nk_tooltip_begin(ctx, &tooltip, 380.0f)) {
-              nk_layout_row_static(ctx, 184.0f, 184.0f, 2);
+              nk_layout_row_static(ctx, 184.0f, 184, 2);
 
               if (nk_group_begin(ctx, &tab, "texture preview",
                                  NK_WINDOW_NO_SCROLLBAR)) {
-                nk_layout_row_static(ctx, 184.0f, 184.0f, 1);
+                nk_layout_row_static(ctx, 184.0f, 184, 1);
                 nk_image(ctx, nk_image_id((int)entry->base.handle));
                 nk_group_end(ctx);
               }
 
               if (nk_group_begin(ctx, &tab, "texture info",
                                  NK_WINDOW_NO_SCROLLBAR)) {
-                nk_layout_row_static(ctx, ctx->style.font.height, 184.0f, 1);
+                nk_layout_row_static(ctx, ctx->style.font.height, 184, 1);
                 nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
                           entry->base.tcw.texture_addr << 3);
                 nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
@@ -859,7 +861,7 @@ struct tracer *tracer_create(struct window *window) {
   tracer->window = window;
   tracer->listener = (struct window_listener){
       tracer, &tracer_paint, NULL,          &tracer_keydown,
-      NULL,   NULL,          &tracer_close, {}};
+      NULL,   NULL,          &tracer_close, {0}};
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
   tracer->rb = window->rb;
