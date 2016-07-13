@@ -103,6 +103,14 @@ static void pvr_reg_w32(struct pvr *pvr, uint32_t addr, uint32_t value) {
   }
 }
 
+static uint32_t pvr_palette_r32(struct pvr *pvr, uint32_t addr) {
+  return *(uint32_t *)&pvr->palette_ram[addr];
+}
+
+static void pvr_palette_w32(struct pvr *pvr, uint32_t addr, uint32_t value) {
+  *(uint32_t *)&pvr->palette_ram[addr] = value;
+}
+
 static uint32_t MAP64(uint32_t addr) {
   // the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
   // accessing it:
@@ -199,26 +207,33 @@ void pvr_destroy(struct pvr *pvr) {
 
 // clang-format off
 AM_BEGIN(struct pvr, pvr_reg_map);
-  AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE(NULL,
-                                             NULL,
-                                             (r32_cb)&pvr_reg_r32,
-                                             NULL,
-                                             NULL,
-                                             NULL,
-                                             (w32_cb)&pvr_reg_w32,
-                                             NULL)
-  AM_RANGE(0x00001000, 0x00001fff) AM_MOUNT()
-AM_END()
+AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE(NULL,
+  NULL,
+  (r32_cb)&pvr_reg_r32,
+  NULL,
+  NULL,
+  NULL,
+  (w32_cb)&pvr_reg_w32,
+  NULL)
+  AM_RANGE(0x00001000, 0x00001fff) AM_HANDLE(NULL,
+    NULL,
+    (r32_cb)&pvr_palette_r32,
+    NULL,
+    NULL,
+    NULL,
+    (w32_cb)&pvr_palette_w32,
+    NULL)
+  AM_END()
 
-AM_BEGIN(struct pvr, pvr_vram_map);
-  AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT()
-  AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE((r8_cb)&pvr_vram_interleaved_r8,
-                                             (r16_cb)&pvr_vram_interleaved_r16,
-                                             (r32_cb)&pvr_vram_interleaved_r32,
-                                             NULL,
-                                             (w8_cb)&pvr_vram_interleaved_w8,
-                                             (w16_cb)&pvr_vram_interleaved_w16,
-                                             (w32_cb)&pvr_vram_interleaved_w32,
-                                             NULL)
+  AM_BEGIN(struct pvr, pvr_vram_map);
+AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT()
+AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE((r8_cb)&pvr_vram_interleaved_r8,
+(r16_cb)&pvr_vram_interleaved_r16,
+(r32_cb)&pvr_vram_interleaved_r32,
+NULL,
+(w8_cb)&pvr_vram_interleaved_w8,
+(w16_cb)&pvr_vram_interleaved_w16,
+(w32_cb)&pvr_vram_interleaved_w32,
+NULL)
 AM_END();
 // clang-format on
