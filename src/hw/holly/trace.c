@@ -25,12 +25,12 @@ void get_next_trace_filename(char *filename, size_t size) {
 static bool trace_patch_pointers(void *begin, int size) {
   struct trace_cmd *prev_cmd = NULL;
   struct trace_cmd *curr_cmd = NULL;
-  void *ptr = begin;
-  void *end = ptr + size;
+  uint8_t *ptr = begin;
+  uint8_t *end = ptr + size;
 
   while (ptr < end) {
     prev_cmd = curr_cmd;
-    curr_cmd = ptr;
+    curr_cmd = (struct trace_cmd *)ptr;
 
     // set prev / next pointers
     if (prev_cmd) {
@@ -151,7 +151,7 @@ void trace_writer_insert_texture(struct trace_writer *writer, union tsp tsp,
                                  union tcw tcw, const uint8_t *palette,
                                  int palette_size, const uint8_t *texture,
                                  int texture_size) {
-  struct trace_cmd cmd = {};
+  struct trace_cmd cmd = {0};
   cmd.type = TRACE_CMD_TEXTURE;
   cmd.texture.tsp = tsp;
   cmd.texture.tcw = tcw;
@@ -171,7 +171,7 @@ void trace_writer_insert_texture(struct trace_writer *writer, union tsp tsp,
 
 void trace_writer_render_context(struct trace_writer *writer,
                                  struct tile_ctx *ctx) {
-  struct trace_cmd cmd = {};
+  struct trace_cmd cmd = {0};
   cmd.type = TRACE_CMD_CONTEXT;
   cmd.context.autosort = ctx->autosort;
   cmd.context.stride = ctx->stride;

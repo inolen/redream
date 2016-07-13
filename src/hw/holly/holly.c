@@ -145,7 +145,7 @@ REG_W32(struct holly *hl, SB_C2DST) {
   }
 
   // FIXME what are SB_LMMODE0 / SB_LMMODE1
-  struct sh4_dtr dtr = {};
+  struct sh4_dtr dtr = {0};
   dtr.channel = 2;
   dtr.rw = false;
   dtr.addr = *hl->SB_C2DSTAT;
@@ -188,7 +188,7 @@ REG_W32(struct holly *hl, SB_GDST) {
     uint8_t sector_data[SECTOR_SIZE];
     int n = gdrom_dma_read(hl->gdrom, sector_data, sizeof(sector_data));
 
-    struct sh4_dtr dtr = {};
+    struct sh4_dtr dtr = {0};
     dtr.channel = 0;
     dtr.rw = true;
     dtr.data = sector_data;
@@ -341,9 +341,9 @@ static bool holly_init(struct device *dev) {
   return true;
 }
 
-void holly_raise_interrupt(struct holly *hl, enum holly_interrupt intr) {
-  enum holly_interrupt_type type = intr & HOLLY_INTC_MASK;
-  uint32_t irq = (uint32_t)(intr & ~HOLLY_INTC_MASK);
+void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
+  enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
+  uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
 
   if (intr == HOLLY_INTC_PCVOINT) {
     maple_vblank(hl->maple);
@@ -366,9 +366,9 @@ void holly_raise_interrupt(struct holly *hl, enum holly_interrupt intr) {
   holly_update_sh4_interrupts(hl);
 }
 
-void holly_clear_interrupt(struct holly *hl, enum holly_interrupt intr) {
-  enum holly_interrupt_type type = intr & HOLLY_INTC_MASK;
-  uint32_t irq = (uint32_t)(intr & ~HOLLY_INTC_MASK);
+void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr) {
+  enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
+  uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
 
   switch (type) {
     case HOLLY_INTC_NRM:

@@ -9,8 +9,8 @@
 #define SWAP_24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
-static const int SPI_CMD_SIZE = 12;
-static const int SUBCODE_SIZE = 100;
+#define SPI_CMD_SIZE 12
+#define SUBCODE_SIZE 100
 
 // internal gdrom state machine
 enum gd_event {

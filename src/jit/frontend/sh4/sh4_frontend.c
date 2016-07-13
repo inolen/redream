@@ -31,7 +31,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
   int i = 0;
 
   while (i < size) {
-    struct sh4_instr instr = {};
+    struct sh4_instr instr = {0};
     instr.addr = guest_addr + i;
     instr.opcode = *(uint16_t *)(guest_ptr + i);
     sh4_disasm(&instr);
@@ -42,7 +42,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
     i += 2;
 
     if (instr.flags & SH4_FLAG_DELAYED) {
-      struct sh4_instr delay = {};
+      struct sh4_instr delay = {0};
       delay.addr = guest_addr + i;
       delay.opcode = *(uint16_t *)(guest_ptr + i);
       sh4_disasm(&delay);

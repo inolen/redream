@@ -3,7 +3,7 @@
 
 #include "sys/filesystem.h"
 
-static const int SECTOR_SIZE = 2352;
+#define SECTOR_SIZE 2352
 
 struct track {
   int num;

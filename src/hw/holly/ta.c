@@ -82,7 +82,7 @@ int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
 int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 int g_vertex_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 
-static enum holly_interrupt list_interrupts[] = {
+static holly_interrupt_t list_interrupts[] = {
     HOLLY_INTC_TAEOINT,   // TA_LIST_OPAQUE
     HOLLY_INTC_TAEOMINT,  // TA_LIST_OPAQUE_MODVOL
     HOLLY_INTC_TAETINT,   // TA_LIST_TRANSLUCENT
@@ -96,15 +96,15 @@ static int ta_entry_cmp(const struct rb_node *rb_lhs,
       rb_entry(rb_lhs, const struct ta_texture_entry, live_it);
   const struct ta_texture_entry *rhs =
       rb_entry(rb_rhs, const struct ta_texture_entry, live_it);
-  return tr_texture_key(lhs->base.tsp, lhs->base.tcw) -
-         tr_texture_key(rhs->base.tsp, rhs->base.tcw);
+  return (int)(tr_texture_key(lhs->base.tsp, lhs->base.tcw) -
+               tr_texture_key(rhs->base.tsp, rhs->base.tcw));
 }
 
 static int ta_context_cmp(const struct rb_node *rb_lhs,
                           const struct rb_node *rb_rhs) {
   const struct tile_ctx *lhs = rb_entry(rb_lhs, const struct tile_ctx, live_it);
   const struct tile_ctx *rhs = rb_entry(rb_rhs, const struct tile_ctx, live_it);
-  return lhs->addr - rhs->addr;
+  return (int)(lhs->addr - rhs->addr);
 }
 
 static struct rb_callbacks ta_entry_cb = {&ta_entry_cmp, NULL, NULL};
@@ -264,7 +264,8 @@ static struct ta_texture_entry *ta_find_texture(struct ta *ta, union tsp tsp,
   search.base.tsp = tsp;
   search.base.tcw = tcw;
 
-  return rb_find_entry(&ta->live_entries, &search, live_it, &ta_entry_cb);
+  return rb_find_entry(&ta->live_entries, &search, struct ta_texture_entry,
+                       live_it, &ta_entry_cb);
 }
 
 static struct texture_entry *ta_texture_provider_find_texture(void *data,
@@ -312,7 +313,8 @@ static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
   struct tile_ctx search;
   search.addr = addr;
 
-  return rb_find_entry(&ta->live_contexts, &search, live_it, &ta_context_cb);
+  return rb_find_entry(&ta->live_contexts, &search, struct tile_ctx, live_it,
+                       &ta_context_cb);
 }
 
 static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {

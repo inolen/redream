@@ -33,7 +33,7 @@ static int get_num_instrs(const struct ir *ir) {
 }
 
 static void process_file(const char *filename, bool disable_ir_dump) {
-  struct ir ir = {};
+  struct ir ir = {0};
   ir.buffer = ir_buffer;
   ir.capacity = sizeof(ir_buffer);
 

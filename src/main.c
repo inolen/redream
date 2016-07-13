@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
   }
 
   // load base options from config
-  char config[PATH_MAX] = {};
+  char config[PATH_MAX] = {0};
   snprintf(config, sizeof(config), "%s" PATH_SEPARATOR "config", appdir);
   options_read(config);
 

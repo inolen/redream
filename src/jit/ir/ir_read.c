@@ -212,7 +212,7 @@ int ir_parse_value(struct ir_parser *p, struct ir *ir,
       if (instr->tag == slot) {
         break;
       }
-      instr = list_next_entry(instr, it);
+      instr = list_next_entry(instr, struct ir_instr, it);
     }
     CHECK_NOTNULL(instr);
 
@@ -276,7 +276,7 @@ int ir_parse_operator(struct ir_parser *p, struct ir *ir) {
 int ir_parse_instr(struct ir_parser *p, struct ir *ir) {
   int slot = -1;
   enum ir_type type = VALUE_V;
-  struct ir_value *arg[3] = {};
+  struct ir_value *arg[3] = {0};
 
   // parse result type and slot number
   if (p->tok == TOK_TYPE) {
@@ -329,7 +329,7 @@ int ir_parse_instr(struct ir_parser *p, struct ir *ir) {
 }
 
 int ir_read(FILE *input, struct ir *ir) {
-  struct ir_parser p = {};
+  struct ir_parser p = {0};
   p.input = input;
 
   while (1) {

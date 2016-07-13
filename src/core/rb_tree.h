@@ -41,40 +41,23 @@ struct rb_node *rb_last(struct rb_tree *t);
 struct rb_node *rb_prev(struct rb_node *n);
 struct rb_node *rb_next(struct rb_node *n);
 
-#define rb_entry(n, type, member) container_of(n, type, member)
+#define rb_entry(n, type, member) container_of_safe(n, type, member)
 
-#define rb_first_entry(t, type, member)     \
-  ({                                        \
-    struct rb_node *n = rb_first(t);        \
-    (n ? rb_entry(n, type, member) : NULL); \
-  })
+#define rb_first_entry(t, type, member) rb_entry(rb_first(t), type, member)
 
-#define rb_last_entry(t, type, member)   \
-  ({                                     \
-    struct rb_node *n = rb_last(t);      \
-    n ? rb_entry(n, type, member) : NULL \
-  })
+#define rb_last_entry(t, type, member) rb_entry(rb_last(t), type, member)
 
-#define rb_next_entry(entry, member)                    \
-  ({                                                    \
-    struct rb_node *n = rb_next(&entry->member);        \
-    (n ? rb_entry(n, TYPEOF(*(entry)), member) : NULL); \
-  })
+#define rb_next_entry(entry, type, member) \
+  rb_entry(rb_next(&entry->member), type, member)
 
-#define rb_prev_entry(entry, member)                    \
-  ({                                                    \
-    struct rb_node *n = rb_prev(&entry->member);        \
-    (n ? rb_entry(n, TYPEOF(*(entry)), member) : NULL); \
-  })
+#define rb_prev_entry(entry, type, member) \
+  rb_entry(rb_prev(&entry->member), type, member)
 
-#define rb_find_entry(t, search, member, cb)                \
-  ({                                                        \
-    struct rb_node *it = rb_find(t, &(search)->member, cb); \
-    (it ? rb_entry(it, TYPEOF(*search), member) : NULL);    \
-  })
+#define rb_find_entry(t, search, type, member, cb) \
+  rb_entry(rb_find(t, &(search)->member, cb), type, member)
 
 #define rb_for_each_entry(it, t, type, member)         \
   for (type *it = rb_first_entry(t, type, member); it; \
-       it = rb_next_entry(it, member))
+       it = rb_next_entry(it, type, member))
 
 #endif

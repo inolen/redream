@@ -59,11 +59,8 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 // swizzle 32-bit fp loads, see notes in sh4_context.h
 #define swizzle_fpr(n, type) (ir_type_size(type) == 4 ? ((n) ^ 1) : (n))
 
-#define load_fpr(n, type)                                         \
-  ({                                                              \
-    int tmp = swizzle_fpr(n, type);                               \
-    ir_load_context(ir, offsetof(struct sh4_ctx, fr[tmp]), type); \
-  })
+#define load_fpr(n, type) \
+  ir_load_context(ir, offsetof(struct sh4_ctx, fr[swizzle_fpr(n, type)]), type)
 
 #define store_fpr(n, v)                                         \
   do {                                                          \
@@ -71,11 +68,8 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
     ir_store_context(ir, offsetof(struct sh4_ctx, fr[tmp]), v); \
   } while (0)
 
-#define load_xfr(n, type)                                         \
-  ({                                                              \
-    int tmp = swizzle_fpr(n, type);                               \
-    ir_load_context(ir, offsetof(struct sh4_ctx, xf[tmp]), type); \
-  })
+#define load_xfr(n, type) \
+  ir_load_context(ir, offsetof(struct sh4_ctx, xf[swizzle_fpr(n, type)]), type)
 
 #define store_xfr(n, v)                                         \
   do {                                                          \
@@ -83,7 +77,7 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
     ir_store_context(ir, offsetof(struct sh4_ctx, xf[tmp]), v); \
   } while (0)
 
-#define load_sr() (ir_load_context(ir, offsetof(struct sh4_ctx, sr), VALUE_I32))
+#define load_sr() ir_load_context(ir, offsetof(struct sh4_ctx, sr), VALUE_I32)
 
 #define store_sr(v)                                                          \
   do {                                                                       \
@@ -112,12 +106,9 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
     ir_store_context(ir, offsetof(struct sh4_ctx, gbr), v); \
   } while (0)
 
-#define load_fpscr()                                                     \
-  ({                                                                     \
-    struct ir_value *v =                                                 \
-        ir_load_context(ir, offsetof(struct sh4_ctx, fpscr), VALUE_I32); \
-    ir_and(ir, v, ir_alloc_i32(ir, 0x003fffff));                         \
-  })
+#define load_fpscr()                                                          \
+  ir_and(ir, ir_load_context(ir, offsetof(struct sh4_ctx, fpscr), VALUE_I32), \
+         ir_alloc_i32(ir, 0x003fffff))
 
 #define store_fpscr(v)                                                        \
   do {                                                                        \
@@ -2194,7 +2185,7 @@ void sh4_translate(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags,
   int guest_cycles = 0;
 
   while (i < size) {
-    struct sh4_instr instr = {};
+    struct sh4_instr instr = {0};
     instr.addr = guest_addr + i;
     instr.opcode = *(uint16_t *)(guest_ptr + i);
 
@@ -2234,7 +2225,7 @@ void sh4_translate(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags,
   }
 
   // emit block epilog
-  ir->current_instr = list_prev_entry(tail_instr, it);
+  ir->current_instr = list_prev_entry(tail_instr, struct ir_instr, it);
 
   // update remaining cycles
   struct ir_value *num_cycles =

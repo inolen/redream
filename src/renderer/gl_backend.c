@@ -268,7 +268,7 @@ static void rb_destroy_program(struct shader_program *program) {
 static bool rb_compile_program(struct shader_program *program,
                                const char *header, const char *vertex_source,
                                const char *fragment_source) {
-  char buffer[16384] = {};
+  char buffer[16384] = {0};
 
   memset(program, 0, sizeof(*program));
   program->program = glCreateProgram();
@@ -701,7 +701,7 @@ struct rb *rb_create(struct window *window) {
   struct rb *rb = (struct rb *)calloc(1, sizeof(struct rb));
   rb->window = window;
   rb->listener = (struct window_listener){
-      rb, NULL, &rb_paint_debug_menu, NULL, NULL, NULL, NULL, {}};
+      rb, NULL, &rb_paint_debug_menu, NULL, NULL, NULL, NULL, {0}};
 
   win_add_listener(rb->window, &rb->listener);
 

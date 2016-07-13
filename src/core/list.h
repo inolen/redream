@@ -29,41 +29,41 @@ void list_sort(struct list *list, list_node_cmp cmp);
   for (struct list_node *it = (list)->head, *it##_next = it ? it->next : NULL; \
        it; it = it##_next, it##_next = it ? it->next : NULL)
 
-#define list_entry(n, type, member) container_of(n, type, member)
+#define list_entry(n, type, member) container_of_safe(n, type, member)
 
 #define list_add_after_entry(list, after, member, n) \
   list_add_after(list, (after) ? &(after)->member : NULL, &(n)->member)
 
 #define list_first_entry(list, type, member) \
-  ((list)->head ? list_entry((list)->head, type, member) : NULL)
+  list_entry((list)->head, type, member)
 
 #define list_last_entry(list, type, member) \
-  ((list)->tail ? list_entry((list)->tail, type, member) : NULL)
+  list_entry((list)->tail, type, member)
 
-#define list_next_entry(n, member) \
-  ((n)->member.next ? list_entry((n)->member.next, TYPEOF(*(n)), member) : NULL)
+#define list_next_entry(n, type, member) \
+  list_entry((n)->member.next, type, member)
 
-#define list_prev_entry(n, member) \
-  ((n)->member.prev ? list_entry((n)->member.prev, TYPEOF(*(n)), member) : NULL)
+#define list_prev_entry(n, type, member) \
+  list_entry((n)->member.prev, type, member)
 
 #define list_for_each_entry(it, list, type, member)         \
   for (type *it = list_first_entry(list, type, member); it; \
-       it = list_next_entry(it, member))
+       it = list_next_entry(it, type, member))
 
-#define list_for_each_entry_safe(it, list, type, member)          \
-  for (type *it = list_first_entry(list, type, member),           \
-            *it##_next = it ? list_next_entry(it, member) : NULL; \
-       it;                                                        \
-       it = it##_next, it##_next = it ? list_next_entry(it, member) : NULL)
+#define list_for_each_entry_safe(it, list, type, member)                \
+  for (type *it = list_first_entry(list, type, member),                 \
+            *it##_next = it ? list_next_entry(it, type, member) : NULL; \
+       it; it = it##_next,                                              \
+            it##_next = it ? list_next_entry(it, type, member) : NULL)
 
 #define list_for_each_entry_reverse(it, list, type, member) \
   for (type *it = list_last_entry(list, type, member); it;  \
-       it = list_prev_entry(it, member))
+       it = list_prev_entry(it, type, member))
 
-#define list_for_each_entry_safe_reverse(it, list, type, member)  \
-  for (type *it = list_last_entry(list, type, member),            \
-            *it##_next = it ? list_prev_entry(it, member) : NULL; \
-       it;                                                        \
-       it = it##_next, it##_next = it ? list_prev_entry(it, member) : NULL)
+#define list_for_each_entry_safe_reverse(it, list, type, member)        \
+  for (type *it = list_last_entry(list, type, member),                  \
+            *it##_next = it ? list_prev_entry(it, type, member) : NULL; \
+       it; it = it##_next,                                              \
+            it##_next = it ? list_prev_entry(it, type, member) : NULL)
 
 #endif

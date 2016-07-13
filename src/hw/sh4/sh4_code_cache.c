@@ -146,8 +146,8 @@ static code_pointer_t sh4_cache_compile_code_inner(struct sh4_cache *cache,
   struct sh4_block search;
   search.guest_addr = guest_addr;
 
-  struct sh4_block *unlinked =
-      rb_find_entry(&cache->blocks, &search, it, &block_map_cb);
+  struct sh4_block *unlinked = rb_find_entry(
+      &cache->blocks, &search, struct sh4_block, it, &block_map_cb);
 
   if (unlinked) {
     flags |= unlinked->flags;
@@ -156,7 +156,7 @@ static code_pointer_t sh4_cache_compile_code_inner(struct sh4_cache *cache,
   }
 
   // translate the SH4 into IR
-  struct ir ir = {};
+  struct ir ir = {0};
   ir.buffer = cache->ir_buffer;
   ir.capacity = sizeof(cache->ir_buffer);
 
@@ -222,7 +222,8 @@ struct sh4_block *sh4_cache_get_block(struct sh4_cache *cache,
   struct sh4_block search;
   search.guest_addr = guest_addr;
 
-  return rb_find_entry(&cache->blocks, &search, it, &block_map_cb);
+  return rb_find_entry(&cache->blocks, &search, struct sh4_block, it,
+                       &block_map_cb);
 }
 
 void sh4_cache_remove_blocks(struct sh4_cache *cache, uint32_t guest_addr) {

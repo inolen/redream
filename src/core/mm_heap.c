@@ -2,6 +2,13 @@
 #include "core/assert.h"
 #include "core/core.h"
 
+#define SWAP_NODE(a, b) \
+  do {                  \
+    mm_type tmp = (a);  \
+    (a) = (b);          \
+    (b) = tmp;          \
+  } while (0)
+
 static inline bool mm_is_max_level(int index) {
   int n = index + 1;
   int log2 = 0;
@@ -47,7 +54,7 @@ static void mm_sift_up(mm_type *begin, int size, int index, mm_cmp cmp) {
   // the node with its parent and check min (max) levels up to the root until
   // the min-max order property is satisfied
   if (cmp(*(begin + index), *(begin + ancestor_index)) ^ max_level) {
-    SWAP(*(begin + ancestor_index), *(begin + index));
+    SWAP_NODE(*(begin + ancestor_index), *(begin + index));
     index = ancestor_index;
   }
   // if the node is greater (smaller) than its parent, then it is greater
@@ -68,7 +75,7 @@ static void mm_sift_up(mm_type *begin, int size, int index, mm_cmp cmp) {
     }
 
     // swap node with parent
-    SWAP(*(begin + ancestor_index), *(begin + index));
+    SWAP_NODE(*(begin + ancestor_index), *(begin + index));
     index = ancestor_index;
   }
 }
@@ -102,7 +109,7 @@ static void mm_sift_down(mm_type *begin, int size, int index, mm_cmp cmp) {
     }
 
     // swap the node with the smallest (largest) descendant
-    SWAP(*(begin + index), *(begin + smallest));
+    SWAP_NODE(*(begin + index), *(begin + smallest));
 
     // if the swapped node was a child, then the current node, its child, and
     // its grandchild are all ordered correctly at this point satisfying the
@@ -114,7 +121,7 @@ static void mm_sift_down(mm_type *begin, int size, int index, mm_cmp cmp) {
     // if the node's new parent is now smaller than it, swap again
     int parent = mm_parent(smallest);
     if (cmp(*(begin + parent), *(begin + smallest)) ^ max_level) {
-      SWAP(*(begin + parent), *(begin + smallest));
+      SWAP_NODE(*(begin + parent), *(begin + smallest));
     }
 
     // if the swapped node was a grandchild, iteration must continue to
@@ -185,8 +192,8 @@ void mm_pop_min(mm_type *begin, int size, mm_cmp cmp) {
   }
 
   mm_type *min = mm_find_min(begin, size, cmp);
-  SWAP(*min, *(begin + size - 1));
-  mm_sift_down(begin, size - 1, min - begin, cmp);
+  SWAP_NODE(*min, *(begin + size - 1));
+  mm_sift_down(begin, size - 1, (int)(min - begin), cmp);
 }
 
 void mm_pop_max(mm_type *begin, int size, mm_cmp cmp) {
@@ -195,6 +202,6 @@ void mm_pop_max(mm_type *begin, int size, mm_cmp cmp) {
   }
 
   mm_type *max = mm_find_max(begin, size, cmp);
-  SWAP(*max, *(begin + size - 1));
-  mm_sift_down(begin, size - 1, max - begin, cmp);
+  SWAP_NODE(*max, *(begin + size - 1));
+  mm_sift_down(begin, size - 1, (int)(max - begin), cmp);
 }
