@@ -55,18 +55,15 @@ bool release_pages(void *ptr, size_t size) {
 shmem_handle_t create_shared_memory(const char *filename, size_t size,
                                     enum page_access access) {
   DWORD protect = access_to_protection_flags(access);
-  return CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, protect | SEC_COMMIT,
-                           static_cast<DWORD>(size >> 32),
-                           static_cast<DWORD>(size), filename);
+  return CreateFileMapping(INVALID_HANDLE_VALUE, NULL, protect | SEC_COMMIT,
+                           (DWORD)(size >> 32), (DWORD)(size), filename);
 }
 
 bool map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
                        size_t size, enum page_access access) {
   DWORD file_flags = access_to_file_flags(access);
-  void *ptr =
-      MapViewOfFileEx(handle, file_flags, static_cast<DWORD>(offset >> 32),
-                      static_cast<DWORD>(offset), size, start);
-
+  void *ptr = MapViewOfFileEx(handle, file_flags, (DWORD)(offset >> 32),
+                              (DWORD)offset, size, start);
   return ptr == start;
 }
 

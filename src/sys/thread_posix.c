@@ -1,10 +1,9 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include "sys/thread.h"
+#include "core/assert.h"
 
-static void thread_destroy(thread_t thread) {
-  pthread_t *pthread = (pthread_t *)thread;
-
+static void thread_destroy(pthread_t *pthread) {
   free(pthread);
 }
 
@@ -19,16 +18,12 @@ thread_t thread_create(thread_fn fn, const char *name, void *data) {
   return (thread_t)pthread;
 }
 
-void thread_detach(thread_t thread) {
-  pthread_t *pthread = (pthread_t *)thread;
-
-  pthread_detach(*pthread);
-}
-
 void thread_join(thread_t thread, void **result) {
   pthread_t *pthread = (pthread_t *)thread;
 
-  pthread_join(*pthread, result);
+  CHECK_EQ(pthread_join(*pthread, result), 0);
+
+  thread_destroy(pthread);
 }
 
 mutex_t mutex_create() {
@@ -48,13 +43,13 @@ int mutex_trylock(mutex_t mutex) {
 void mutex_lock(mutex_t mutex) {
   pthread_mutex_t *pmutex = (pthread_mutex_t *)mutex;
 
-  pthread_mutex_lock(pmutex);
+  CHECK_EQ(pthread_mutex_lock(pmutex), 0);
 }
 
 void mutex_unlock(mutex_t mutex) {
   pthread_mutex_t *pmutex = (pthread_mutex_t *)mutex;
 
-  pthread_mutex_unlock(pmutex);
+  CHECK_EQ(pthread_mutex_unlock(pmutex), 0);
 }
 
 void mutex_destroy(mutex_t mutex) {
@@ -63,33 +58,4 @@ void mutex_destroy(mutex_t mutex) {
   pthread_mutex_destroy(pmutex);
 
   free(pmutex);
-}
-
-cond_t cond_create() {
-  pthread_cond_t *pcond = calloc(1, sizeof(pthread_mutex_t));
-
-  pthread_cond_init(pcond, NULL);
-
-  return (cond_t)pcond;
-}
-
-void cond_wait(cond_t cond, mutex_t mutex) {
-  pthread_cond_t *pcond = (pthread_cond_t *)cond;
-  pthread_mutex_t *pmutex = (pthread_mutex_t *)mutex;
-
-  pthread_cond_wait(pcond, pmutex);
-}
-
-void cond_signal(cond_t cond) {
-  pthread_cond_t *pcond = (pthread_cond_t *)cond;
-
-  pthread_cond_signal(pcond);
-}
-
-void cond_destroy(cond_t cond) {
-  pthread_cond_t *pcond = (pthread_cond_t *)cond;
-
-  pthread_cond_destroy(pcond);
-
-  free(pcond);
 }
