@@ -1,4 +1,3 @@
-#include <stdatomic.h>
 #include "emu/emulator.h"
 #include "core/option.h"
 #include "hw/dreamcast.h"
@@ -18,7 +17,7 @@ struct emu {
   struct window *window;
   struct window_listener listener;
   struct dreamcast *dc;
-  atomic_int running;
+  int running;
   int throttled;
 };
 
@@ -158,7 +157,7 @@ static void emu_keydown(void *data, enum keycode code, int16_t value) {
 static void emu_close(void *data) {
   struct emu *emu = data;
 
-  atomic_store(&emu->running, 0);
+  emu->running = 0;
 }
 
 static void *emu_core_thread(void *data) {
@@ -168,7 +167,7 @@ static void *emu_core_thread(void *data) {
   int64_t current_time = time_nanoseconds();
   int64_t next_time = current_time;
 
-  while (atomic_load_explicit(&emu->running, memory_order_relaxed)) {
+  while (emu->running) {
     current_time = time_nanoseconds();
 
     int64_t delta_time = current_time - next_time;
@@ -211,11 +210,11 @@ void emu_run(struct emu *emu, const char *path) {
 
   // start core emulator thread
   thread_t core_thread;
-  atomic_store(&emu->running, 1);
+  emu->running = 1;
   core_thread = thread_create(&emu_core_thread, NULL, emu);
 
   // run the renderer / ui in the main thread
-  while (atomic_load_explicit(&emu->running, memory_order_relaxed)) {
+  while (emu->running) {
     win_pump_events(emu->window);
   }
 
@@ -230,8 +229,7 @@ struct emu *emu_create(struct window *window) {
   emu->window = window;
   emu->listener = (struct window_listener){
       emu,        &emu_paint, &emu_paint_debug_menu, &emu_keydown, NULL, NULL,
-      &emu_close, {}};
-  emu->running = ATOMIC_VAR_INIT(0);
+      &emu_close, {0}};
 
   win_add_listener(emu->window, &emu->listener);
 
