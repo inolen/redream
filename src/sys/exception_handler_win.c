@@ -1,7 +1,7 @@
 #include <windows.h>
-#include "sys/exception_handler_win.h"
+#include "sys/exception_handler.h"
 
-static void CopyStateTo(PCONTEXT src, union thread_state *dst) {
+static void copy_state_to(PCONTEXT src, union thread_state *dst) {
   dst->rax = src->Rax;
   dst->rcx = src->Rcx;
   dst->rdx = src->Rdx;
@@ -21,7 +21,7 @@ static void CopyStateTo(PCONTEXT src, union thread_state *dst) {
   dst->rip = src->Rip;
 }
 
-static void CopyStateFrom(union thread_state *src, PCONTEXT dst) {
+static void copy_state_from(union thread_state *src, PCONTEXT dst) {
   dst->Rax = src->rax;
   dst->Rcx = src->rcx;
   dst->Rdx = src->rdx;
@@ -41,7 +41,7 @@ static void CopyStateFrom(union thread_state *src, PCONTEXT dst) {
   dst->Rip = src->rip;
 }
 
-static LONG CALLBACK WinExceptionHandler(PEXCEPTION_POINTERS ex_info) {
+static LONG CALLBACK exception_handler(PEXCEPTION_POINTERS ex_info) {
   auto code = ex_info->ExceptionRecord->ExceptionCode;
   if (code != STATUS_ACCESS_VIOLATION && code != STATUS_ILLEGAL_INSTRUCTION) {
     return EXCEPTION_CONTINUE_SEARCH;
@@ -53,7 +53,7 @@ static LONG CALLBACK WinExceptionHandler(PEXCEPTION_POINTERS ex_info) {
                                             : EX_INVALID_INSTRUCTION;
   ex.fault_addr = ex_info->ExceptionRecord->ExceptionInformation[1];
   ex.pc = ex_info->ContextRecord->Rip;
-  CopyStateTo(ex_info->ContextRecord, &ex.thread_state);
+  copy_state_to(ex_info->ContextRecord, &ex.thread_state);
 
   // call exception handler, letting it potentially update the thread state
   bool handled = exception_handler_handle(&ex);
@@ -63,20 +63,15 @@ static LONG CALLBACK WinExceptionHandler(PEXCEPTION_POINTERS ex_info) {
   }
 
   // copy internal thread state back to mach thread state and restore
-  CopyStateFrom(&ex.thread_state, ex_info->ContextRecord);
+  copy_state_from(&ex.thread_state, ex_info->ContextRecord);
 
   return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-ExceptionHandler &ExceptionHandler::instance() {
-  static ExceptionHandlerWin instance;
-  return instance;
+bool exception_handler_install_platform() {
+  return AddVectoredExceptionHandler(1, &exception_handler) != NULL;
 }
 
-ExceptionHandlerWin::~ExceptionHandlerWin() {
-  RemoveVectoredExceptionHandler(WinExceptionHandler);
-}
-
-bool ExceptionHandlerWin::Init() {
-  return AddVectoredExceptionHandler(1, WinExceptionHandler) != nullptr;
+void exception_handler_uninstall_platform() {
+  RemoveVectoredExceptionHandler(&exception_handler);
 }
