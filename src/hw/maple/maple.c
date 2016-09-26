@@ -4,7 +4,7 @@
 #include "hw/sh4/sh4.h"
 
 struct maple {
-  struct device base;
+  struct device;
   struct holly *holly;
   struct address_space *space;
   struct maple_device *devices[4];
@@ -60,11 +60,11 @@ REG_W32(struct maple *mp, SB_MDST) {
 }
 
 static bool maple_init(struct device *dev) {
-  struct maple *mp = container_of(dev, struct maple, base);
-  struct dreamcast *dc = mp->base.dc;
+  struct maple *mp = (struct maple *)dev;
+  struct dreamcast *dc = mp->dc;
 
   mp->holly = dc->holly;
-  mp->space = dc->sh4->base.memory->space;
+  mp->space = dc->sh4->memory->space;
 
 #define MAPLE_REG_R32(name)       \
   mp->holly->reg_data[name] = mp; \
@@ -81,7 +81,7 @@ static bool maple_init(struct device *dev) {
 }
 
 static void maple_keydown(struct device *dev, enum keycode key, int16_t value) {
-  struct maple *mp = container_of(dev, struct maple, base);
+  struct maple *mp = (struct maple *)dev;
   struct maple_device *mp_dev = mp->devices[0];
 
   if (mp_dev) {
@@ -107,7 +107,7 @@ void maple_vblank(struct maple *mp) {
 struct maple *maple_create(struct dreamcast *dc) {
   struct maple *mp =
       dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
-  mp->base.window = window_interface_create(NULL, NULL, &maple_keydown);
+  mp->window = dc_create_window_interface(NULL, NULL, &maple_keydown);
 
   mp->devices[0] = controller_create();
 
@@ -123,7 +123,7 @@ void maple_destroy(struct maple *mp) {
     }
   }
 
-  window_interface_destroy(mp->base.window);
+  dc_destroy_window_interface(mp->window);
 
-  dc_destroy_device(&mp->base);
+  dc_destroy_device((struct device *)mp);
 }

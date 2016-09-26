@@ -162,12 +162,12 @@ REG_W32(struct pvr *pvr, FB_R_CTRL) {
 }
 
 static bool pvr_init(struct device *dev) {
-  struct pvr *pvr = container_of(dev, struct pvr, base);
-  struct dreamcast *dc = pvr->base.dc;
+  struct pvr *pvr = (struct pvr *)dev;
+  struct dreamcast *dc = pvr->dc;
 
   pvr->scheduler = dc->scheduler;
   pvr->holly = dc->holly;
-  pvr->space = dc->sh4->base.memory->space;
+  pvr->space = dc->sh4->memory->space;
   pvr->palette_ram = as_translate(pvr->space, 0x005f9000);
   pvr->video_ram = as_translate(pvr->space, 0x04000000);
 
@@ -202,7 +202,7 @@ struct pvr *pvr_create(struct dreamcast *dc) {
 }
 
 void pvr_destroy(struct pvr *pvr) {
-  dc_destroy_device(&pvr->base);
+  dc_destroy_device((struct device *)pvr);
 }
 
 // clang-format off

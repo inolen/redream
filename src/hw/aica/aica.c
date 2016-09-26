@@ -7,7 +7,8 @@
 #include "hw/sh4/sh4.h"
 
 struct aica {
-  struct device base;
+  struct device;
+
   struct arm *arm;
   uint8_t *aica_regs;
   uint8_t *wave_ram;
@@ -87,12 +88,12 @@ define_write_wave(w16, uint16_t);
 define_write_wave(w32, uint32_t);
 
 static bool aica_init(struct device *dev) {
-  struct aica *aica = container_of(dev, struct aica, base);
-  struct dreamcast *dc = aica->base.dc;
+  struct aica *aica = (struct aica *)dev;
+  struct dreamcast *dc = aica->dc;
 
   aica->arm = dc->arm;
-  aica->aica_regs = as_translate(dc->sh4->base.memory->space, 0x00700000);
-  aica->wave_ram = as_translate(dc->sh4->base.memory->space, 0x00800000);
+  aica->aica_regs = as_translate(dc->sh4->memory->space, 0x00700000);
+  aica->wave_ram = as_translate(dc->sh4->memory->space, 0x00800000);
   aica->common_data = (struct common_data *)(aica->aica_regs + 0x2800);
 
   arm_suspend(aica->arm);
@@ -107,7 +108,7 @@ struct aica *aica_create(struct dreamcast *dc) {
 }
 
 void aica_destroy(struct aica *aica) {
-  dc_destroy_device(&aica->base);
+  dc_destroy_device((struct device *)aica);
 }
 
 // clang-format off

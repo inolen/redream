@@ -218,7 +218,7 @@ endif()
 source_group_by_dir(REDREAM_SOURCES)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
-  set(REDREAM_COMPILE_FLAGS -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+  set(REDREAM_COMPILE_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
   # some flavors of GCC require this to be defined for the PR* macros in inttypes.h
   if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
@@ -273,131 +273,130 @@ target_link_libraries(recc ${REDREAM_LIBS})
 target_compile_definitions(recc PRIVATE MICROPROFILE_ENABLED=0 ${REDREAM_DEFS})
 target_compile_options(recc PRIVATE ${REDREAM_COMPILE_FLAGS})
 
-
 #--------------------------------------------------
 # tests
 #--------------------------------------------------
 
-set(gtest_force_shared_crt ON CACHE BOOL "")
-add_subdirectory(deps/gtest-1.7.0 EXCLUDE_FROM_ALL)
-
-# compile master .inc file from .s files in test/asm
-set(TEST_ASM
-  test/asm/add.s
-  test/asm/addc.s
-  test/asm/addv.s
-  test/asm/and.s
-  test/asm/bf.s
-  test/asm/bra.s
-  test/asm/braf.s
-  test/asm/bsr.s
-  test/asm/bsrf.s
-  test/asm/bt.s
-  test/asm/cmp.s
-  test/asm/div0.s
-  test/asm/div1s.s
-  test/asm/div1u.s
-  test/asm/dmul.s
-  test/asm/dt.s
-  test/asm/ext.s
-  test/asm/fabs.s
-  test/asm/fadd.s
-  test/asm/fcmpeq.s
-  test/asm/fcmpgt.s
-  test/asm/fcnv.s
-  test/asm/fdiv.s
-  test/asm/fipr.s
-  test/asm/fld.s
-  test/asm/float.s
-  test/asm/fmac.s
-  test/asm/fmov.s
-  test/asm/fmov_load.s
-  test/asm/fmov_index_load.s
-  test/asm/fmov_store.s
-  test/asm/fmov_index_store.s
-  test/asm/fmov_save.s
-  test/asm/fmov_restore.s
-  test/asm/fmul.s
-  test/asm/fneg.s
-  test/asm/frchg.s
-  test/asm/fsca.s
-  test/asm/fschg.s
-  test/asm/fsrra.s
-  test/asm/fsqrt.s
-  test/asm/fsub.s
-  test/asm/ftrc.s
-  test/asm/ftrv.s
-  test/asm/jmp.s
-  test/asm/jsr.s
-  test/asm/ldc.s
-  test/asm/ldcl.s
-  test/asm/lds.s
-  test/asm/ldsl.s
-  test/asm/mova.s
-  test/asm/movb.s
-  test/asm/movl.s
-  test/asm/movt.s
-  test/asm/movw.s
-  test/asm/mul.s
-  test/asm/neg.s
-  test/asm/negc.s
-  test/asm/not.s
-  test/asm/or.s
-  test/asm/rot.s
-  test/asm/sha.s
-  test/asm/shl.s
-  test/asm/sub.s
-  test/asm/subc.s
-  test/asm/subv.s
-  test/asm/swap.s
-  test/asm/tst.s
-  test/asm/xor.s
-  )
-set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.inc)
-
-# compile tests into include file if the sh4 toolchain is available
-find_package(PythonInterp)
-find_program(SH_AS NAMES sh-elf-as)
-find_program(SH_LD NAMES sh-elf-ld)
-find_program(SH_NM NAMES sh-elf-nm)
-find_program(SH_OBJCOPY NAMES sh-elf-objcopy)
-if(NOT PYTHONINTERP_FOUND)
-  message(WARNING "Could not find python interpreter, won't be able to generate tests")
-elseif(NOT SH_AS)
-  message(WARNING "Could not find sh-elf-as, won't be able to generate tests")
-elseif(NOT SH_LD)
-  message(WARNING "Could not find sh-elf-ld, won't be able to generate tests")
-elseif(NOT SH_NM)
-  message(WARNING "Could not find sh-elf-nm, won't be able to generate tests")
-elseif(NOT SH_OBJCOPY)
-  message(WARNING "Could not find sh-elf-objcopy, won't be able to generate tests")
-else()
-  add_custom_command(OUTPUT ${asm_inc}
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py -as ${SH_AS} -ld ${SH_LD} -nm ${SH_NM} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py ${TEST_ASM}
-    COMMENT "Assembling ${asm_inc} for ${TEST_ASM}"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    VERBATIM)
-endif()
-
-# build test binary
-set(RETEST_SOURCES
-  ${REDREAM_SOURCES}
-  #test/test_interval_tree.cc
-  #test/test_intrusive_list.cc
-  test/test_list.cc
-  test/test_dead_code_elimination_pass.cc
-  test/test_load_store_elimination_pass.cc
-  #test/test_minmax_heap.cc
-  test/test_sh4.cc
-  ${asm_inc})
-list(REMOVE_ITEM RETEST_SOURCES src/main.c)
-
-# assign source groups for visual studio projects
-source_group_by_dir(RETEST_SOURCES)
-
-add_executable(retest ${RETEST_SOURCES})
-target_include_directories(retest PUBLIC deps/gtest-1.7.0/include src/ test/ ${REDREAM_INCLUDE_DIRS})
-target_link_libraries(retest gtest gtest_main ${REDREAM_LIBS})
-target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
-target_compile_options(retest PRIVATE ${REDREAM_COMPILE_FLAGS})
+#set(gtest_force_shared_crt ON CACHE BOOL "")
+#add_subdirectory(deps/gtest-1.7.0 EXCLUDE_FROM_ALL)
+#
+## compile master .inc file from .s files in test/asm
+#set(TEST_ASM
+#  test/asm/add.s
+#  test/asm/addc.s
+#  test/asm/addv.s
+#  test/asm/and.s
+#  test/asm/bf.s
+#  test/asm/bra.s
+#  test/asm/braf.s
+#  test/asm/bsr.s
+#  test/asm/bsrf.s
+#  test/asm/bt.s
+#  test/asm/cmp.s
+#  test/asm/div0.s
+#  test/asm/div1s.s
+#  test/asm/div1u.s
+#  test/asm/dmul.s
+#  test/asm/dt.s
+#  test/asm/ext.s
+#  test/asm/fabs.s
+#  test/asm/fadd.s
+#  test/asm/fcmpeq.s
+#  test/asm/fcmpgt.s
+#  test/asm/fcnv.s
+#  test/asm/fdiv.s
+#  test/asm/fipr.s
+#  test/asm/fld.s
+#  test/asm/float.s
+#  test/asm/fmac.s
+#  test/asm/fmov.s
+#  test/asm/fmov_load.s
+#  test/asm/fmov_index_load.s
+#  test/asm/fmov_store.s
+#  test/asm/fmov_index_store.s
+#  test/asm/fmov_save.s
+#  test/asm/fmov_restore.s
+#  test/asm/fmul.s
+#  test/asm/fneg.s
+#  test/asm/frchg.s
+#  test/asm/fsca.s
+#  test/asm/fschg.s
+#  test/asm/fsrra.s
+#  test/asm/fsqrt.s
+#  test/asm/fsub.s
+#  test/asm/ftrc.s
+#  test/asm/ftrv.s
+#  test/asm/jmp.s
+#  test/asm/jsr.s
+#  test/asm/ldc.s
+#  test/asm/ldcl.s
+#  test/asm/lds.s
+#  test/asm/ldsl.s
+#  test/asm/mova.s
+#  test/asm/movb.s
+#  test/asm/movl.s
+#  test/asm/movt.s
+#  test/asm/movw.s
+#  test/asm/mul.s
+#  test/asm/neg.s
+#  test/asm/negc.s
+#  test/asm/not.s
+#  test/asm/or.s
+#  test/asm/rot.s
+#  test/asm/sha.s
+#  test/asm/shl.s
+#  test/asm/sub.s
+#  test/asm/subc.s
+#  test/asm/subv.s
+#  test/asm/swap.s
+#  test/asm/tst.s
+#  test/asm/xor.s
+#  )
+#set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.inc)
+#
+## compile tests into include file if the sh4 toolchain is available
+#find_package(PythonInterp)
+#find_program(SH_AS NAMES sh-elf-as)
+#find_program(SH_LD NAMES sh-elf-ld)
+#find_program(SH_NM NAMES sh-elf-nm)
+#find_program(SH_OBJCOPY NAMES sh-elf-objcopy)
+#if(NOT PYTHONINTERP_FOUND)
+#  message(WARNING "Could not find python interpreter, won't be able to generate tests")
+#elseif(NOT SH_AS)
+#  message(WARNING "Could not find sh-elf-as, won't be able to generate tests")
+#elseif(NOT SH_LD)
+#  message(WARNING "Could not find sh-elf-ld, won't be able to generate tests")
+#elseif(NOT SH_NM)
+#  message(WARNING "Could not find sh-elf-nm, won't be able to generate tests")
+#elseif(NOT SH_OBJCOPY)
+#  message(WARNING "Could not find sh-elf-objcopy, won't be able to generate tests")
+#else()
+#  add_custom_command(OUTPUT ${asm_inc}
+#    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py -as ${SH_AS} -ld ${SH_LD} -nm ${SH_NM} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
+#    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py ${TEST_ASM}
+#    COMMENT "Assembling ${asm_inc} for ${TEST_ASM}"
+#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+#    VERBATIM)
+#endif()
+#
+## build test binary
+#set(RETEST_SOURCES
+#  ${REDREAM_SOURCES}
+#  #test/test_interval_tree.cc
+#  #test/test_intrusive_list.cc
+#  test/test_list.cc
+#  test/test_dead_code_elimination_pass.cc
+#  test/test_load_store_elimination_pass.cc
+#  #test/test_minmax_heap.cc
+#  test/test_sh4.cc
+#  ${asm_inc})
+#list(REMOVE_ITEM RETEST_SOURCES src/main.c)
+#
+## assign source groups for visual studio projects
+#source_group_by_dir(RETEST_SOURCES)
+#
+#add_executable(retest ${RETEST_SOURCES})
+#target_include_directories(retest PUBLIC deps/gtest-1.7.0/include src/ test/ ${REDREAM_INCLUDE_DIRS})
+#target_link_libraries(retest gtest gtest_main ${REDREAM_LIBS})
+#target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
+#target_compile_options(retest PRIVATE ${REDREAM_COMPILE_FLAGS})
