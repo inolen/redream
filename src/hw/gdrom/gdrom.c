@@ -46,10 +46,8 @@ struct cdread {
 };
 
 struct gdrom {
-  struct device base;
-
+  struct device;
   struct holly *holly;
-
   enum gd_state state;
   struct disc *disc;
   union gd_features features;
@@ -57,14 +55,13 @@ struct gdrom {
   union gd_sectnum sectnum;
   union gd_bytect byte_count;
   union gd_status status;
-
   struct cdread req;
-
+  // pio state
   uint8_t pio_buffer[0x10000];
   int pio_head;
   int pio_size;
   int pio_read;
-
+  // dma state
   uint8_t *dma_buffer;
   int dma_capacity;
   int dma_head;
@@ -606,8 +603,8 @@ REG_W32(struct gdrom *gd, GD_STATUS_COMMAND) {
 }
 
 static bool gdrom_init(struct device *dev) {
-  struct gdrom *gd = container_of(dev, struct gdrom, base);
-  struct dreamcast *dc = gd->base.dc;
+  struct gdrom *gd = (struct gdrom *)dev;
+  struct dreamcast *dc = gd->dc;
 
   gd->holly = dc->holly;
 
@@ -692,5 +689,5 @@ void gdrom_destroy(struct gdrom *gd) {
     disc_destroy(gd->disc);
   }
 
-  dc_destroy_device(&gd->base);
+  dc_destroy_device((struct device *)gd);
 }

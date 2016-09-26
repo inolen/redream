@@ -276,7 +276,7 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
 
 static uint32_t sh4_compile_pc() {
   uint32_t guest_addr = g_sh4->ctx.pc;
-  uint8_t *guest_ptr = as_translate(g_sh4->base.memory->space, guest_addr);
+  uint8_t *guest_ptr = as_translate(g_sh4->memory->space, guest_addr);
 
   int flags = 0;
   if (g_sh4->ctx.fpscr & PR) {
@@ -303,7 +303,7 @@ static void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data) {
   // self->ctx.num_cycles = 0;
 
   // // let the debugger know execution has stopped
-  // self->dc.base->debugger->Trap();
+  // self->dc->debugger->Trap();
 }
 
 static void sh4_prefetch(struct sh4_ctx *ctx, uint64_t data) {
@@ -385,7 +385,7 @@ static void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr) {
 //   sh4->ctx.pc = code();
 
 //   // let the debugger know we've stopped
-//   dc_.base->debugger->Trap();
+//   dc->debugger->Trap();
 // }
 
 // static void sh4_debug_add_breakpoint(int type, uint32_t addr) {
@@ -696,24 +696,19 @@ REG_W32(struct sh4 *sh4, TCNT2) {
 }
 
 static bool sh4_init(struct device *dev) {
-  struct sh4 *sh4 = container_of(dev, struct sh4, base);
-  struct dreamcast *dc = sh4->base.dc;
+  struct sh4 *sh4 = (struct sh4 *)dev;
+  struct dreamcast *dc = sh4->dc;
 
   sh4->scheduler = dc->scheduler;
-  sh4->space = sh4->base.memory->space;
+  sh4->space = sh4->memory->space;
 
-  sh4->memory_if =
-      (struct jit_memory_interface){&sh4->ctx,
-                                    sh4->base.memory->space->protected_base,
-                                    sh4->base.memory->space,
-                                    &as_read8,
-                                    &as_read16,
-                                    &as_read32,
-                                    &as_read64,
-                                    &as_write8,
-                                    &as_write16,
-                                    &as_write32,
-                                    &as_write64};
+  sh4->memory_if = (struct jit_memory_interface){
+      &sh4->ctx,          sh4->memory->space->protected_base,
+      sh4->memory->space, &as_read8,
+      &as_read16,         &as_read32,
+      &as_read64,         &as_write8,
+      &as_write16,        &as_write32,
+      &as_write64};
   sh4->code_cache = sh4_cache_create(&sh4->memory_if, &sh4_compile_pc);
 
   // initialize context
@@ -772,7 +767,7 @@ static bool sh4_init(struct device *dev) {
 }
 
 static void sh4_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
-  struct sh4 *sh4 = container_of(dev, struct sh4, base);
+  struct sh4 *sh4 = (struct sh4 *)dev;
   struct sh4_perf *perf = &sh4->perf;
 
   if (nk_tree_push(ctx, NK_TREE_TAB, "sh4", NK_MINIMIZED)) {
@@ -807,7 +802,7 @@ void sh4_set_pc(struct sh4 *sh4, uint32_t pc) {
 }
 
 static void sh4_run_inner(struct device *dev, int64_t ns) {
-  struct sh4 *sh4 = container_of(dev, struct sh4, base);
+  struct sh4 *sh4 = (struct sh4 *)dev;
 
   // execute at least 1 cycle. the tests rely on this to step block by block
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
@@ -932,9 +927,9 @@ void sh4_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
-  sh4->base.execute = execute_interface_create(&sh4_run);
-  sh4->base.memory = memory_interface_create(dc, &sh4_data_map);
-  sh4->base.window = window_interface_create(NULL, &sh4_paint_debug_menu, NULL);
+  sh4->execute = dc_create_execute_interface(&sh4_run);
+  sh4->memory = dc_create_memory_interface(dc, &sh4_data_map);
+  sh4->window = dc_create_window_interface(NULL, &sh4_paint_debug_menu, NULL);
 
   g_sh4 = sh4;
 
@@ -948,10 +943,10 @@ void sh4_destroy(struct sh4 *sh4) {
     sh4_cache_destroy(sh4->code_cache);
   }
 
-  window_interface_destroy(sh4->base.window);
-  memory_interface_destroy(sh4->base.memory);
-  execute_interface_destroy(sh4->base.execute);
-  dc_destroy_device(&sh4->base);
+  dc_destroy_window_interface(sh4->window);
+  dc_destroy_memory_interface(sh4->memory);
+  dc_destroy_execute_interface(sh4->execute);
+  dc_destroy_device((struct device *)sh4);
 }
 
 // clang-format off

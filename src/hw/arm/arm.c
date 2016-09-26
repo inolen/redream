@@ -3,7 +3,7 @@
 #include "hw/dreamcast.h"
 
 struct arm {
-  struct device base;
+  struct device;
 };
 
 static bool arm_init(struct device *dev) {
@@ -16,22 +16,22 @@ static void arm_run(struct device *dev, int64_t ns) {
 }
 
 void arm_suspend(struct arm *arm) {
-  arm->base.execute->suspended = true;
+  arm->execute->suspended = true;
 }
 
 void arm_resume(struct arm *arm) {
-  arm->base.execute->suspended = false;
+  arm->execute->suspended = false;
 }
 
 struct arm *arm_create(struct dreamcast *dc) {
   struct arm *arm = dc_create_device(dc, sizeof(struct arm), "arm", &arm_init);
-  arm->base.execute = execute_interface_create(&arm_run);
+  arm->execute = dc_create_execute_interface(&arm_run);
   return arm;
 }
 
 void arm_destroy(struct arm *arm) {
-  execute_interface_destroy(arm->base.execute);
-  dc_destroy_device(&arm->base);
+  dc_destroy_execute_interface(arm->execute);
+  dc_destroy_device((struct device *)arm);
 }
 
 // clang-format off

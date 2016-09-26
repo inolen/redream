@@ -64,40 +64,27 @@ struct execute_interface {
   bool suspended;
 };
 
-struct execute_interface *execute_interface_create(device_run_cb run);
-void execute_interface_destroy(struct execute_interface *execute);
-
 // memory interface
 struct memory_interface {
   address_map_cb mapper;
   struct address_space *space;
 };
 
-struct memory_interface *memory_interface_create(struct dreamcast *dc,
-                                                 address_map_cb mapper);
-void memory_interface_destroy(struct memory_interface *memory);
-
+// window interface
 typedef void (*device_paint_cb)(struct device *);
 typedef void (*device_paint_debug_menu_cb)(struct device *,
                                            struct nk_context *);
 typedef void (*device_keydown_cb)(struct device *, enum keycode, int16_t);
 
-// winder interface
 struct window_interface {
   device_paint_cb paint;
   device_paint_debug_menu_cb paint_debug_menu;
   device_keydown_cb keydown;
 };
 
-struct window_interface *window_interface_create(
-    device_paint_cb paint, device_paint_debug_menu_cb paint_debug_menu,
-    device_keydown_cb keydown);
-void window_interface_destroy(struct window_interface *window);
-
 //
 // device
 //
-
 struct device {
   struct dreamcast *dc;
   const char *name;
@@ -128,11 +115,6 @@ struct dreamcast {
   struct list devices;
 };
 
-void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       bool (*init)(struct device *dev));
-struct device *dc_get_device(struct dreamcast *dc, const char *name);
-void dc_destroy_device(struct device *dev);
-
 bool dc_init(struct dreamcast *dc);
 void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
@@ -140,6 +122,23 @@ void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_paint(struct dreamcast *dc);
 void dc_paint_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value);
+
+struct execute_interface *dc_create_execute_interface(device_run_cb run);
+void dc_destroy_execute_interface(struct execute_interface *execute);
+
+struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
+                                                    address_map_cb mapper);
+void dc_destroy_memory_interface(struct memory_interface *memory);
+
+struct window_interface *dc_create_window_interface(
+    device_paint_cb paint, device_paint_debug_menu_cb paint_debug_menu,
+    device_keydown_cb keydown);
+void dc_destroy_window_interface(struct window_interface *window);
+
+void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
+                       bool (*init)(struct device *dev));
+struct device *dc_get_device(struct dreamcast *dc, const char *name);
+void dc_destroy_device(struct device *dev);
 
 struct dreamcast *dc_create(struct rb *rb);
 void dc_destroy(struct dreamcast *dc);

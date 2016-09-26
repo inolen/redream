@@ -289,8 +289,8 @@ REG_W32(struct holly *hl, SB_PDST) {
 }
 
 static bool holly_init(struct device *dev) {
-  struct holly *hl = container_of(dev, struct holly, base);
-  struct dreamcast *dc = hl->base.dc;
+  struct holly *hl = (struct holly *)dev;
+  struct dreamcast *dc = hl->dc;
 
   hl->gdrom = dc->gdrom;
   hl->maple = dc->maple;
@@ -395,7 +395,7 @@ struct holly *holly_create(struct dreamcast *dc) {
 }
 
 void holly_destroy(struct holly *hl) {
-  dc_destroy_device(&hl->base);
+  dc_destroy_device((struct device *)hl);
 }
 
 // clang-format off

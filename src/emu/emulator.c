@@ -41,7 +41,7 @@ static bool emu_load_bios(struct emu *emu, const char *path) {
     return false;
   }
 
-  uint8_t *bios = as_translate(emu->dc->sh4->base.memory->space, BIOS_BEGIN);
+  uint8_t *bios = as_translate(emu->dc->sh4->memory->space, BIOS_BEGIN);
   int n = (int)fread(bios, sizeof(uint8_t), size, fp);
   fclose(fp);
 
@@ -73,7 +73,7 @@ static bool emu_load_flash(struct emu *emu, const char *path) {
     return false;
   }
 
-  uint8_t *flash = as_translate(emu->dc->sh4->base.memory->space, FLASH_BEGIN);
+  uint8_t *flash = as_translate(emu->dc->sh4->memory->space, FLASH_BEGIN);
   int n = (int)fread(flash, sizeof(uint8_t), size, fp);
   fclose(fp);
 
@@ -96,7 +96,7 @@ static bool emu_launch_bin(struct emu *emu, const char *path) {
   fseek(fp, 0, SEEK_SET);
 
   // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to
-  uint8_t *data = as_translate(emu->dc->sh4->base.memory->space, 0x0c010000);
+  uint8_t *data = as_translate(emu->dc->sh4->memory->space, 0x0c010000);
   int n = (int)fread(data, sizeof(uint8_t), size, fp);
   fclose(fp);
 

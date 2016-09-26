@@ -110,7 +110,7 @@ static void run_sh4_test(const struct sh4_test &test) {
   int aligned_size = align_up(test.buffer_size, 4);
   uint8_t *aligned_buffer = reinterpret_cast<uint8_t *>(alloca(aligned_size));
   memcpy(aligned_buffer, test.buffer, test.buffer_size);
-  as_memcpy_to_guest(dc->sh4->base.memory->space, 0x8c010000, aligned_buffer,
+  as_memcpy_to_guest(dc->sh4->memory->space, 0x8c010000, aligned_buffer,
                      aligned_size);
 
   // skip to the test's offset

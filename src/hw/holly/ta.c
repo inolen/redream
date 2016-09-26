@@ -26,7 +26,7 @@ struct ta_texture_entry {
 };
 
 struct ta {
-  struct device base;
+  struct device;
   struct texture_provider provider;
   struct rb *rb;
   struct tr *tr;
@@ -708,13 +708,13 @@ REG_W32(struct ta *ta, STARTRENDER) {
 }
 
 static bool ta_init(struct device *dev) {
-  struct ta *ta = container_of(dev, struct ta, base);
-  struct dreamcast *dc = ta->base.dc;
+  struct ta *ta = (struct ta *)dev;
+  struct dreamcast *dc = ta->dc;
 
   ta->scheduler = dc->scheduler;
   ta->holly = dc->holly;
   ta->pvr = dc->pvr;
-  ta->space = dc->sh4->base.memory->space;
+  ta->space = dc->sh4->memory->space;
   ta->video_ram = as_translate(ta->space, 0x04000000);
   ta->palette_ram = as_translate(ta->space, 0x005f9000);
 
@@ -774,7 +774,7 @@ static void ta_toggle_tracing(struct ta *ta) {
 }
 
 static void ta_paint(struct device *dev) {
-  struct ta *ta = container_of(dev, struct ta, base);
+  struct ta *ta = (struct ta *)dev;
   struct render_ctx *rctx = &ta->render_context;
 
   mutex_lock(ta->pending_mutex);
@@ -799,7 +799,7 @@ static void ta_paint(struct device *dev) {
 }
 
 static void ta_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
-  struct ta *ta = container_of(dev, struct ta, base);
+  struct ta *ta = (struct ta *)dev;
 
   if (nk_tree_push(ctx, NK_TREE_TAB, "ta", NK_MINIMIZED)) {
     nk_value_int(ctx, "frames skipped", ta->frames_skipped);
@@ -862,8 +862,8 @@ struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
   ta_build_tables();
 
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
-  ta->base.window =
-      window_interface_create(&ta_paint, &ta_paint_debug_menu, NULL);
+  ta->window =
+      dc_create_window_interface(&ta_paint, &ta_paint_debug_menu, NULL);
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
   ta->rb = rb;
@@ -876,8 +876,8 @@ struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
 void ta_destroy(struct ta *ta) {
   mutex_destroy(ta->pending_mutex);
   tr_destroy(ta->tr);
-  window_interface_destroy(ta->base.window);
-  dc_destroy_device(&ta->base);
+  dc_destroy_window_interface(ta->window);
+  dc_destroy_device((struct device *)ta);
 }
 
 // clang-format off

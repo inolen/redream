@@ -12,12 +12,10 @@ struct maple;
 struct sh4;
 
 struct holly {
-  struct device base;
-
+  struct device;
   struct gdrom *gdrom;
   struct maple *maple;
   struct sh4 *sh4;
-
   uint32_t reg[NUM_HOLLY_REGS];
   void *reg_data[NUM_HOLLY_REGS];
   reg_read_cb reg_read[NUM_HOLLY_REGS];
