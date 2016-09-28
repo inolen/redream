@@ -76,7 +76,7 @@ bool reserve_pages(void *ptr, size_t size) {
   // knowing this, an existing mapping can be detected by not using MAP_FIXED,
   // and comparing the returned mapped address with the requested address
   void *res =
-      mmap(ptr, size, PROT_NONE, MAP_ANON | MAP_NORESERVE | MAP_PRIVATE, -1, 0);
+      mmap(ptr, size, PROT_NONE, MAP_SHARED | MAP_ANON | MAP_NORESERVE, -1, 0);
 
   if (res == MAP_FAILED) {
     return false;

@@ -92,8 +92,8 @@ static bool aica_init(struct device *dev) {
   struct dreamcast *dc = aica->dc;
 
   aica->arm = dc->arm;
-  aica->aica_regs = as_translate(dc->sh4->memory->space, 0x00700000);
-  aica->wave_ram = as_translate(dc->sh4->memory->space, 0x00800000);
+  aica->aica_regs = memory_translate(dc->memory, "aica reg ram", 0x00000000);
+  aica->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x00000000);
   aica->common_data = (struct common_data *)(aica->aica_regs + 0x2800);
 
   arm_suspend(aica->arm);
@@ -113,7 +113,9 @@ void aica_destroy(struct aica *aica) {
 
 // clang-format off
 AM_BEGIN(struct aica, aica_reg_map);
-  AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE((r8_cb)&aica_reg_r8,
+  AM_RANGE(0x00000000, 0x00010fff) AM_MOUNT("aica reg ram")
+  AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE("aica reg",
+                                             (r8_cb)&aica_reg_r8,
                                              (r16_cb)&aica_reg_r16,
                                              (r32_cb)&aica_reg_r32,
                                              NULL,
@@ -124,7 +126,9 @@ AM_BEGIN(struct aica, aica_reg_map);
 AM_END();
 
 AM_BEGIN(struct aica, aica_data_map);
-  AM_RANGE(0x00000000, 0x00ffffff) AM_HANDLE((r8_cb)&aica_wave_r8,
+  AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("aica wave ram")
+  AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("aica wave",
+                                             (r8_cb)&aica_wave_r8,
                                              (r16_cb)&aica_wave_r16,
                                              (r32_cb)&aica_wave_r32,
                                              NULL,

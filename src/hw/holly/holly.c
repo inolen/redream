@@ -400,7 +400,8 @@ void holly_destroy(struct holly *hl) {
 
 // clang-format off
 AM_BEGIN(struct holly, holly_reg_map);
-  AM_RANGE(0x00000000, 0x00001fff) AM_HANDLE((r8_cb)&holly_reg_r8,
+  AM_RANGE(0x00000000, 0x00001fff) AM_HANDLE("holly reg",
+                                             (r8_cb)&holly_reg_r8,
                                              (r16_cb)&holly_reg_r16,
                                              (r32_cb)&holly_reg_r32,
                                              NULL,

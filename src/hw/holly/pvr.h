@@ -14,7 +14,6 @@ struct pvr {
   struct device;
   struct scheduler *scheduler;
   struct holly *holly;
-  struct address_space *space;
   uint8_t *palette_ram;
   uint8_t *video_ram;
   uint32_t reg[NUM_PVR_REGS];

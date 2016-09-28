@@ -15,6 +15,8 @@
 #include "sys/thread.h"
 #include "ui/nuklear.h"
 
+DEFINE_OPTION_BOOL(texcache, true, "Enable SIGSEGV-based texture caching");
+
 #define TA_MAX_CONTEXTS 32
 
 struct ta_texture_entry {
@@ -463,19 +465,21 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
   // add write callback in order to invalidate on future writes. the callback
   // address will be page aligned, therefore it will be triggered falsely in
   // some cases. over invalidate in these cases
-  if (!entry->texture_watch) {
-    entry->texture_watch =
-        add_single_write_watch(entry->base.texture, entry->base.texture_size,
-                               &ta_texture_invalidated, entry);
+  if (OPTION_texcache) {
+    if (!entry->texture_watch) {
+      entry->texture_watch =
+          add_single_write_watch(entry->base.texture, entry->base.texture_size,
+                                 &ta_texture_invalidated, entry);
+    }
+
+    if (entry->base.palette && !entry->palette_watch) {
+      entry->palette_watch =
+          add_single_write_watch(entry->base.palette, entry->base.palette_size,
+                                 &ta_palette_invalidated, entry);
+    }
   }
 
-  if (entry->base.palette && !entry->palette_watch) {
-    entry->palette_watch =
-        add_single_write_watch(entry->base.palette, entry->base.palette_size,
-                               &ta_palette_invalidated, entry);
-  }
-
-  // ad new entries to the trace
+  // add new entries to the trace
   if (ta->trace_writer && new_entry) {
     trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->base.palette,
                                 entry->base.palette_size, entry->base.texture,
@@ -715,8 +719,8 @@ static bool ta_init(struct device *dev) {
   ta->holly = dc->holly;
   ta->pvr = dc->pvr;
   ta->space = dc->sh4->memory->space;
-  ta->video_ram = as_translate(ta->space, 0x04000000);
-  ta->palette_ram = as_translate(ta->space, 0x005f9000);
+  ta->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
+  ta->palette_ram = memory_translate(dc->memory, "palette ram", 0x00000000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
     struct ta_texture_entry *entry = &ta->entries[i];
@@ -882,7 +886,8 @@ void ta_destroy(struct ta *ta) {
 
 // clang-format off
 AM_BEGIN(struct ta, ta_fifo_map);
-  AM_RANGE(0x0000000, 0x07fffff) AM_HANDLE(NULL,
+  AM_RANGE(0x0000000, 0x07fffff) AM_HANDLE("ta poly fifo",
+                                           NULL,
                                            NULL,
                                            NULL,
                                            NULL,
@@ -890,7 +895,8 @@ AM_BEGIN(struct ta, ta_fifo_map);
                                            NULL,
                                            (w32_cb)&ta_write_poly_fifo,
                                            NULL)
-  AM_RANGE(0x1000000, 0x1ffffff) AM_HANDLE(NULL,
+  AM_RANGE(0x1000000, 0x1ffffff) AM_HANDLE("ta texture fifo",
+                                           NULL,
                                            NULL,
                                            NULL,
                                            NULL,

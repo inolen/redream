@@ -5,6 +5,7 @@
 #include "hw/arm/arm.h"
 #include "hw/debugger.h"
 #include "hw/gdrom/gdrom.h"
+#include "hw/holly/g2.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr.h"
 #include "hw/holly/ta.h"
@@ -160,6 +161,7 @@ struct dreamcast *dc_create(struct rb *rb) {
   dc->arm = arm_create(dc);
   dc->aica = aica_create(dc);
   dc->holly = holly_create(dc);
+  dc->g2 = g2_create(dc);
   dc->gdrom = gdrom_create(dc);
   dc->maple = maple_create(dc);
   dc->pvr = pvr_create(dc);
@@ -178,6 +180,7 @@ void dc_destroy(struct dreamcast *dc) {
   pvr_destroy(dc->pvr);
   maple_destroy(dc->maple);
   gdrom_destroy(dc->gdrom);
+  g2_destroy(dc->g2);
   holly_destroy(dc->holly);
   aica_destroy(dc->aica);
   arm_destroy(dc->arm);
