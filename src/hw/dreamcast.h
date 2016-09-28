@@ -13,6 +13,7 @@ struct arm;
 struct debugger;
 struct device;
 struct dreamcast;
+struct g2;
 struct gdrom;
 struct holly;
 struct maple;
@@ -107,6 +108,7 @@ struct dreamcast {
   struct arm *arm;
   struct aica *aica;
   struct holly *holly;
+  struct g2 *g2;
   struct gdrom *gdrom;
   struct maple *maple;
   struct pvr *pvr;

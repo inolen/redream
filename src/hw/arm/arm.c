@@ -7,12 +7,12 @@ struct arm {
 };
 
 static bool arm_init(struct device *dev) {
-  // struct arm *arm = container_of(dev, struct arm, base);
+  // struct arm *arm = (struct arm *)dev;
   return true;
 }
 
 static void arm_run(struct device *dev, int64_t ns) {
-  // struct arm *arm = container_of(dev, struct arm, base);
+  // struct arm *arm = (struct arm *)dev;
 }
 
 void arm_suspend(struct arm *arm) {
@@ -26,10 +26,12 @@ void arm_resume(struct arm *arm) {
 struct arm *arm_create(struct dreamcast *dc) {
   struct arm *arm = dc_create_device(dc, sizeof(struct arm), "arm", &arm_init);
   arm->execute = dc_create_execute_interface(&arm_run);
+  arm->memory = dc_create_memory_interface(dc, &arm_data_map);
   return arm;
 }
 
 void arm_destroy(struct arm *arm) {
+  dc_destroy_memory_interface(arm->memory);
   dc_destroy_execute_interface(arm->execute);
   dc_destroy_device((struct device *)arm);
 }

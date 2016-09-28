@@ -167,9 +167,8 @@ static bool pvr_init(struct device *dev) {
 
   pvr->scheduler = dc->scheduler;
   pvr->holly = dc->holly;
-  pvr->space = dc->sh4->memory->space;
-  pvr->palette_ram = as_translate(pvr->space, 0x005f9000);
-  pvr->video_ram = as_translate(pvr->space, 0x04000000);
+  pvr->palette_ram = memory_translate(dc->memory, "palette ram", 0x00000000);
+  pvr->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
 
 #define PVR_REG_R32(name)    \
   pvr->reg_data[name] = pvr; \
@@ -207,33 +206,37 @@ void pvr_destroy(struct pvr *pvr) {
 
 // clang-format off
 AM_BEGIN(struct pvr, pvr_reg_map);
-AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE(NULL,
-  NULL,
-  (r32_cb)&pvr_reg_r32,
-  NULL,
-  NULL,
-  NULL,
-  (w32_cb)&pvr_reg_w32,
-  NULL)
-  AM_RANGE(0x00001000, 0x00001fff) AM_HANDLE(NULL,
-    NULL,
-    (r32_cb)&pvr_palette_r32,
-    NULL,
-    NULL,
-    NULL,
-    (w32_cb)&pvr_palette_w32,
-    NULL)
-  AM_END()
+  AM_RANGE(0x00001000, 0x00001fff) AM_MOUNT("palette ram")
+  AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE("pvr reg",
+                                             NULL,
+                                             NULL,
+                                             (r32_cb)&pvr_reg_r32,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             (w32_cb)&pvr_reg_w32,
+                                             NULL)
+  AM_RANGE(0x00001000, 0x00001fff) AM_HANDLE("pvr palette",
+                                             NULL,
+                                             NULL,
+                                             (r32_cb)&pvr_palette_r32,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             (w32_cb)&pvr_palette_w32,
+                                             NULL)
+AM_END();
 
-  AM_BEGIN(struct pvr, pvr_vram_map);
-AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT()
-AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE((r8_cb)&pvr_vram_interleaved_r8,
-(r16_cb)&pvr_vram_interleaved_r16,
-(r32_cb)&pvr_vram_interleaved_r32,
-NULL,
-(w8_cb)&pvr_vram_interleaved_w8,
-(w16_cb)&pvr_vram_interleaved_w16,
-(w32_cb)&pvr_vram_interleaved_w32,
-NULL)
+AM_BEGIN(struct pvr, pvr_vram_map);
+  AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("video ram")
+  AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE("video ram interleaved",
+                                             (r8_cb)&pvr_vram_interleaved_r8,
+                                             (r16_cb)&pvr_vram_interleaved_r16,
+                                             (r32_cb)&pvr_vram_interleaved_r32,
+                                             NULL,
+                                             (w8_cb)&pvr_vram_interleaved_w8,
+                                             (w16_cb)&pvr_vram_interleaved_w16,
+                                             (w32_cb)&pvr_vram_interleaved_w32,
+                                             NULL)
 AM_END();
 // clang-format on

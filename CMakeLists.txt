@@ -152,6 +152,7 @@ set(REDREAM_SOURCES
   src/hw/arm/arm.c
   src/hw/gdrom/disc.c
   src/hw/gdrom/gdrom.c
+  src/hw/holly/g2.c
   src/hw/holly/holly.c
   src/hw/holly/pvr.c
   src/hw/holly/ta.c

@@ -5,6 +5,7 @@
 #include "hw/aica/aica.h"
 #include "hw/debugger.h"
 #include "hw/dreamcast.h"
+#include "hw/holly/g2.h"
 #include "hw/holly/holly.h"
 #include "hw/holly/pvr.h"
 #include "hw/holly/ta.h"
@@ -703,7 +704,7 @@ static bool sh4_init(struct device *dev) {
   sh4->space = sh4->memory->space;
 
   sh4->memory_if = (struct jit_memory_interface){
-      &sh4->ctx,          sh4->memory->space->protected_base,
+      &sh4->ctx,          sh4->memory->space->base,
       sh4->memory->space, &as_read8,
       &as_read16,         &as_read32,
       &as_read64,         &as_write8,
@@ -951,14 +952,8 @@ void sh4_destroy(struct sh4 *sh4) {
 
 // clang-format off
 AM_BEGIN(struct sh4, sh4_data_map)
-  AM_RANGE(0x00000000, 0x03ffffff) AM_MOUNT()  // area 0
-  AM_RANGE(0x04000000, 0x07ffffff) AM_MOUNT()  // area 1
-  AM_RANGE(0x08000000, 0x0bffffff) AM_MOUNT()  // area 2
-  AM_RANGE(0x0c000000, 0x0cffffff) AM_MOUNT()  // area 3
-  AM_RANGE(0x10000000, 0x13ffffff) AM_MOUNT()  // area 4
-  AM_RANGE(0x14000000, 0x17ffffff) AM_MOUNT()  // area 5
-  AM_RANGE(0x18000000, 0x1bffffff) AM_MOUNT()  // area 6
-  AM_RANGE(0x1c000000, 0x1fffffff) AM_MOUNT()  // area 7
+  AM_RANGE(0x00000000, 0x0021ffff) AM_MOUNT("system rom")
+  AM_RANGE(0x0c000000, 0x0cffffff) AM_MOUNT("system ram")
 
   // main ram mirrors
   AM_RANGE(0x0d000000, 0x0dffffff) AM_MIRROR(0x0c000000)
@@ -968,13 +963,18 @@ AM_BEGIN(struct sh4, sh4_data_map)
   // external devices
   AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", holly_reg_map)
   AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", pvr_reg_map)
+  AM_RANGE(0x00600000, 0x0067ffff) AM_DEVICE("g2", g2_modem_map)
   AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", aica_reg_map)
   AM_RANGE(0x00800000, 0x00ffffff) AM_DEVICE("aica", aica_data_map)
+  AM_RANGE(0x01000000, 0x01ffffff) AM_DEVICE("g2", g2_expansion0_map)
+  AM_RANGE(0x02700000, 0x02ffffff) AM_DEVICE("g2", g2_expansion1_map)
   AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", pvr_vram_map)
   AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_fifo_map)
+  AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("g2", g2_expansion2_map)
 
   // internal registers
-  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE((r8_cb)&sh4_reg_r8,
+  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE("sh4 reg",
+                                             (r8_cb)&sh4_reg_r8,
                                              (r16_cb)&sh4_reg_r16,
                                              (r32_cb)&sh4_reg_r32,
                                              NULL,
@@ -993,7 +993,8 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  // p4
 
   // internal cache and sq only accessible through p4
-  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE((r8_cb)&sh4_cache_r8,
+  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
+                                             (r8_cb)&sh4_cache_r8,
                                              (r16_cb)&sh4_cache_r16,
                                              (r32_cb)&sh4_cache_r32,
                                              (r64_cb)&sh4_cache_r64,
@@ -1002,7 +1003,8 @@ AM_BEGIN(struct sh4, sh4_data_map)
                                              (w32_cb)&sh4_cache_w32,
                                              (w64_cb)&sh4_cache_w64)
 
-  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE((r8_cb)&sh4_sq_r8,
+  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE("sh4 sq",
+                                             (r8_cb)&sh4_sq_r8,
                                              (r16_cb)&sh4_sq_r16,
                                              (r32_cb)&sh4_sq_r32,
                                              NULL,
