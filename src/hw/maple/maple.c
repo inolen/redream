@@ -5,26 +5,25 @@
 
 struct maple {
   struct device;
-  struct holly *holly;
-  struct address_space *space;
   struct maple_device *devices[4];
 };
 
 static void maple_dma(struct maple *mp) {
+  struct address_space *space = mp->sh4->memory_if->space;
   uint32_t start_addr = mp->holly->reg[SB_MDSTAR];
   union maple_transfer desc;
   struct maple_frame frame, res;
 
   do {
-    desc.full = as_read64(mp->space, start_addr);
+    desc.full = as_read64(space, start_addr);
     start_addr += 8;
 
     // read input
-    frame.header.full = as_read32(mp->space, start_addr);
+    frame.header.full = as_read32(space, start_addr);
     start_addr += 4;
 
     for (uint32_t i = 0; i < frame.header.num_words; i++) {
-      frame.params[i] = as_read32(mp->space, start_addr);
+      frame.params[i] = as_read32(space, start_addr);
       start_addr += 4;
     }
 
@@ -32,15 +31,15 @@ static void maple_dma(struct maple *mp) {
     struct maple_device *dev = mp->devices[desc.port];
 
     if (dev && dev->frame(dev, &frame, &res)) {
-      as_write32(mp->space, desc.result_addr, res.header.full);
+      as_write32(space, desc.result_addr, res.header.full);
       desc.result_addr += 4;
 
       for (uint32_t i = 0; i < res.header.num_words; i++) {
-        as_write32(mp->space, desc.result_addr, res.params[i]);
+        as_write32(space, desc.result_addr, res.params[i]);
         desc.result_addr += 4;
       }
     } else {
-      as_write32(mp->space, desc.result_addr, 0xffffffff);
+      as_write32(space, desc.result_addr, 0xffffffff);
     }
   } while (!desc.last);
 
@@ -48,35 +47,8 @@ static void maple_dma(struct maple *mp) {
   holly_raise_interrupt(mp->holly, HOLLY_INTC_MDEINT);
 }
 
-REG_W32(struct maple *mp, SB_MDST) {
-  uint32_t enabled = mp->holly->reg[SB_MDEN];
-  if (enabled) {
-    if (*new_value) {
-      maple_dma(mp);
-    }
-  } else {
-    *new_value = 0;
-  }
-}
-
 static bool maple_init(struct device *dev) {
-  struct maple *mp = (struct maple *)dev;
-  struct dreamcast *dc = mp->dc;
-
-  mp->holly = dc->holly;
-  mp->space = dc->sh4->memory->space;
-
-#define MAPLE_REG_R32(name)       \
-  mp->holly->reg_data[name] = mp; \
-  mp->holly->reg_read[name] = (reg_read_cb)&name##_r;
-#define MAPLE_REG_W32(name)       \
-  mp->holly->reg_data[name] = mp; \
-  mp->holly->reg_write[name] = (reg_write_cb)&name##_w;
-
-  MAPLE_REG_W32(SB_MDST);
-
-#undef MAPLE_REG_R32
-#undef MAPLE_REG_W32
+  // struct maple *mp = (struct maple *)dev;
   return true;
 }
 
@@ -107,7 +79,7 @@ void maple_vblank(struct maple *mp) {
 struct maple *maple_create(struct dreamcast *dc) {
   struct maple *mp =
       dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
-  mp->window = dc_create_window_interface(NULL, NULL, &maple_keydown);
+  mp->window_if = dc_create_window_interface(NULL, NULL, &maple_keydown);
 
   mp->devices[0] = controller_create();
 
@@ -123,7 +95,21 @@ void maple_destroy(struct maple *mp) {
     }
   }
 
-  dc_destroy_window_interface(mp->window);
-
+  dc_destroy_window_interface(mp->window_if);
   dc_destroy_device((struct device *)mp);
+}
+
+REG_W32(holly_cb, SB_MDST) {
+  struct maple *mp = dc->maple;
+  struct holly *hl = dc->holly;
+
+  *hl->SB_MDST = value;
+
+  if (*hl->SB_MDEN) {
+    if (*hl->SB_MDST) {
+      maple_dma(mp);
+    }
+  } else {
+    *hl->SB_MDST = 0;
+  }
 }

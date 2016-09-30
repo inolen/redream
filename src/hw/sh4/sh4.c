@@ -29,6 +29,8 @@ static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
 #undef SH4_INT
 };
 
+static struct reg_cb sh4_cb[NUM_SH4_REGS];
+
 static struct sh4 *g_sh4;
 
 static void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr);
@@ -277,7 +279,7 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
 
 static uint32_t sh4_compile_pc() {
   uint32_t guest_addr = g_sh4->ctx.pc;
-  uint8_t *guest_ptr = as_translate(g_sh4->memory->space, guest_addr);
+  uint8_t *guest_ptr = as_translate(g_sh4->memory_if->space, guest_addr);
 
   int flags = 0;
   if (g_sh4->ctx.fpscr & PR) {
@@ -327,7 +329,7 @@ static void sh4_prefetch(struct sh4_ctx *ctx, uint64_t data) {
 
   // perform the "burst" 32-byte copy
   for (int i = 0; i < 8; i++) {
-    as_write32(sh4->space, dest, sh4->ctx.sq[sqi][i]);
+    as_write32(sh4->memory_if->space, dest, sh4->ctx.sq[sqi][i]);
     dest += 4;
   }
 }
@@ -458,13 +460,10 @@ static void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr) {
 #define define_reg_read(name, type)                            \
   static type sh4_reg_##name(struct sh4 *sh4, uint32_t addr) { \
     uint32_t offset = SH4_REG_OFFSET(addr);                    \
-    reg_read_cb read = sh4->reg_read[offset];                  \
-                                                               \
+    reg_read_cb read = sh4_cb[offset].read;                    \
     if (read) {                                                \
-      void *data = sh4->reg_data[offset];                      \
-      return read(data);                                       \
+      return read(sh4->dc);                                    \
     }                                                          \
-                                                               \
     return (type)sh4->reg[offset];                             \
   }
 
@@ -475,15 +474,12 @@ define_reg_read(r32, uint32_t);
 #define define_reg_write(name, type)                                       \
   static void sh4_reg_##name(struct sh4 *sh4, uint32_t addr, type value) { \
     uint32_t offset = SH4_REG_OFFSET(addr);                                \
-    reg_write_cb write = sh4->reg_write[offset];                           \
-                                                                           \
-    uint32_t old_value = sh4->reg[offset];                                 \
-    sh4->reg[offset] = (uint32_t)value;                                    \
-                                                                           \
+    reg_write_cb write = sh4_cb[offset].write;                             \
     if (write) {                                                           \
-      void *data = sh4->reg_data[offset];                                  \
-      write(data, old_value, &sh4->reg[offset]);                           \
+      write(sh4->dc, value);                                               \
+      return;                                                              \
     }                                                                      \
+    sh4->reg[offset] = (uint32_t)value;                                    \
   }
 
 define_reg_write(w8, uint8_t);
@@ -540,177 +536,22 @@ define_sq_write(w8, uint8_t);
 define_sq_write(w16, uint16_t);
 define_sq_write(w32, uint32_t);
 
-REG_R32(struct sh4 *sh4, PDTRA) {
-  // magic values to get past 0x8c00b948 in the boot rom:
-  // void _8c00b92c(int arg1) {
-  //   sysvars->var1 = reg[PDTRA];
-  //   for (i = 0; i < 4; i++) {
-  //     sysvars->var2 = reg[PDTRA];
-  //     if (arg1 == sysvars->var2 & 0x03) {
-  //       return;
-  //     }
-  //   }
-  //   reg[PR] = (uint32_t *)0x8c000000;    /* loop forever */
-  // }
-  // old_PCTRA = reg[PCTRA];
-  // i = old_PCTRA | 0x08;
-  // reg[PCTRA] = i;
-  // reg[PDTRA] = reg[PDTRA] | 0x03;
-  // _8c00b92c(3);
-  // reg[PCTRA] = i | 0x03;
-  // _8c00b92c(3);
-  // reg[PDTRA] = reg[PDTRA] & 0xfffe;
-  // _8c00b92c(0);
-  // reg[PCTRA] = i;
-  // _8c00b92c(3);
-  // reg[PCTRA] = i | 0x04;
-  // _8c00b92c(3);
-  // reg[PDTRA] = reg[PDTRA] & 0xfffd;
-  // _8c00b92c(0);
-  // reg[PCTRA] = old_PCTRA;
-  uint32_t pctra = *sh4->PCTRA;
-  uint32_t pdtra = *sh4->PDTRA;
-  uint32_t v = 0;
-  if ((pctra & 0xf) == 0x8 || ((pctra & 0xf) == 0xb && (pdtra & 0xf) != 0x2) ||
-      ((pctra & 0xf) == 0xc && (pdtra & 0xf) == 0x2)) {
-    v = 3;
-  }
-  // FIXME cable setting
-  // When a VGA cable* is connected
-  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-  // "00")
-  // 2. Set the HOLLY synchronization register for VGA.  (The SYNC output is
-  // H-Sync and V-Sync.)
-  // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-  // VIDEO1 = 0 and VIDEO0 = 1 are output.  VIDEO0 is connected to the
-  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-  //
-  // When an RGB(NTSC/PAL) cable* is connected
-  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-  // "10")
-  // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-  // output is H-Sync and V-Sync.)
-  // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-  // VIDEO1 = 1 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-  //
-  // When a stereo A/V cable, an S-jack cable* or an RF converter* is
-  // connected
-  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-  // "11")
-  // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-  // output is H-Sync and V-Sync.)
-  // 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
-  // VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-  // v |= 0x3 << 8;
-  return v;
-}
-
-REG_W32(struct sh4 *sh4, MMUCR) {
-  if (!*new_value) {
-    return;
-  }
-
-  LOG_FATAL("MMU not currently supported");
-}
-
-REG_W32(struct sh4 *sh4, CCR) {
-  if (sh4->CCR->ICI) {
-    sh4_ccn_reset(sh4);
-  }
-}
-
-REG_W32(struct sh4 *sh4, CHCR0) {
-  sh4_dmac_check(sh4, 0);
-}
-
-REG_W32(struct sh4 *sh4, CHCR1) {
-  sh4_dmac_check(sh4, 1);
-}
-
-REG_W32(struct sh4 *sh4, CHCR2) {
-  sh4_dmac_check(sh4, 2);
-}
-
-REG_W32(struct sh4 *sh4, CHCR3) {
-  sh4_dmac_check(sh4, 3);
-}
-
-REG_W32(struct sh4 *sh4, DMAOR) {
-  sh4_dmac_check(sh4, 0);
-  sh4_dmac_check(sh4, 1);
-  sh4_dmac_check(sh4, 2);
-  sh4_dmac_check(sh4, 3);
-}
-
-REG_W32(struct sh4 *sh4, IPRA) {
-  sh4_intc_reprioritize(sh4);
-}
-
-REG_W32(struct sh4 *sh4, IPRB) {
-  sh4_intc_reprioritize(sh4);
-}
-
-REG_W32(struct sh4 *sh4, IPRC) {
-  sh4_intc_reprioritize(sh4);
-}
-
-REG_W32(struct sh4 *sh4, TSTR) {
-  sh4_tmu_update_tstr(sh4);
-}
-
-REG_W32(struct sh4 *sh4, TCR0) {
-  sh4_tmu_update_tcr(sh4, 0);
-}
-
-REG_W32(struct sh4 *sh4, TCR1) {
-  sh4_tmu_update_tcr(sh4, 1);
-}
-
-REG_W32(struct sh4 *sh4, TCR2) {
-  sh4_tmu_update_tcr(sh4, 1);
-}
-
-REG_R32(struct sh4 *sh4, TCNT0) {
-  return sh4_tmu_tcnt(sh4, 0);
-}
-
-REG_W32(struct sh4 *sh4, TCNT0) {
-  sh4_tmu_update_tcnt(sh4, 0);
-}
-
-REG_R32(struct sh4 *sh4, TCNT1) {
-  return sh4_tmu_tcnt(sh4, 1);
-}
-
-REG_W32(struct sh4 *sh4, TCNT1) {
-  sh4_tmu_update_tcnt(sh4, 1);
-}
-
-REG_R32(struct sh4 *sh4, TCNT2) {
-  return sh4_tmu_tcnt(sh4, 2);
-}
-
-REG_W32(struct sh4 *sh4, TCNT2) {
-  sh4_tmu_update_tcnt(sh4, 2);
-}
-
 static bool sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
-  sh4->scheduler = dc->scheduler;
-  sh4->space = sh4->memory->space;
-
-  sh4->memory_if = (struct jit_memory_interface){
-      &sh4->ctx,          sh4->memory->space->base,
-      sh4->memory->space, &as_read8,
-      &as_read16,         &as_read32,
-      &as_read64,         &as_write8,
-      &as_write16,        &as_write32,
-      &as_write64};
-  sh4->code_cache = sh4_cache_create(&sh4->memory_if, &sh4_compile_pc);
+  sh4->jit_if = (struct jit_memory_interface){&sh4->ctx,
+                                              sh4->memory_if->space->base,
+                                              sh4->memory_if->space,
+                                              &as_read8,
+                                              &as_read16,
+                                              &as_read32,
+                                              &as_read64,
+                                              &as_write8,
+                                              &as_write16,
+                                              &as_write32,
+                                              &as_write64};
+  sh4->code_cache = sh4_cache_create(&sh4->jit_if, &sh4_compile_pc);
 
   // initialize context
   sh4->ctx.sh4 = sh4;
@@ -725,36 +566,6 @@ static bool sh4_init(struct device *dev) {
   sh4->ctx.fpscr = 0x00040001;
 
 // initialize registers
-#define SH4_REG_R32(name)    \
-  sh4->reg_data[name] = sh4; \
-  sh4->reg_read[name] = (reg_read_cb)&name##_r;
-#define SH4_REG_W32(name)    \
-  sh4->reg_data[name] = sh4; \
-  sh4->reg_write[name] = (reg_write_cb)&name##_w;
-  SH4_REG_R32(PDTRA);
-  SH4_REG_W32(MMUCR);
-  SH4_REG_W32(CCR);
-  SH4_REG_W32(CHCR0);
-  SH4_REG_W32(CHCR1);
-  SH4_REG_W32(CHCR2);
-  SH4_REG_W32(CHCR3);
-  SH4_REG_W32(DMAOR);
-  SH4_REG_W32(IPRA);
-  SH4_REG_W32(IPRB);
-  SH4_REG_W32(IPRC);
-  SH4_REG_W32(TSTR);
-  SH4_REG_W32(TCR0);
-  SH4_REG_W32(TCR1);
-  SH4_REG_W32(TCR2);
-  SH4_REG_R32(TCNT0);
-  SH4_REG_W32(TCNT0);
-  SH4_REG_R32(TCNT1);
-  SH4_REG_W32(TCNT1);
-  SH4_REG_R32(TCNT2);
-  SH4_REG_W32(TCNT2);
-#undef SH4_REG_R32
-#undef SH4_REG_W32
-
 #define SH4_REG(addr, name, default, type) \
   sh4->reg[name] = default;                \
   sh4->name = (type *)&sh4->reg[name];
@@ -858,9 +669,10 @@ void sh4_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
   if (dtr->data) {
     // single address mode transfer
     if (dtr->rw) {
-      as_memcpy_to_guest(sh4->space, dtr->addr, dtr->data, dtr->size);
+      as_memcpy_to_guest(sh4->memory_if->space, dtr->addr, dtr->data,
+                         dtr->size);
     } else {
-      as_memcpy_to_host(sh4->space, dtr->data, dtr->addr, dtr->size);
+      as_memcpy_to_host(sh4->memory_if->space, dtr->data, dtr->addr, dtr->size);
     }
   } else {
     // dual address mode transfer
@@ -909,7 +721,7 @@ void sh4_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
     uint32_t src = dtr->rw ? dtr->addr : *sar;
     uint32_t dst = dtr->rw ? *dar : dtr->addr;
     int size = *dmatcr * 32;
-    as_memcpy(sh4->space, dst, src, size);
+    as_memcpy(sh4->memory_if->space, dst, src, size);
 
     // update src / addresses as well as remaining count
     *sar = src + size;
@@ -928,9 +740,10 @@ void sh4_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
-  sh4->execute = dc_create_execute_interface(&sh4_run);
-  sh4->memory = dc_create_memory_interface(dc, &sh4_data_map);
-  sh4->window = dc_create_window_interface(NULL, &sh4_paint_debug_menu, NULL);
+  sh4->execute_if = dc_create_execute_interface(&sh4_run);
+  sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
+  sh4->window_if =
+      dc_create_window_interface(NULL, &sh4_paint_debug_menu, NULL);
 
   g_sh4 = sh4;
 
@@ -944,10 +757,201 @@ void sh4_destroy(struct sh4 *sh4) {
     sh4_cache_destroy(sh4->code_cache);
   }
 
-  dc_destroy_window_interface(sh4->window);
-  dc_destroy_memory_interface(sh4->memory);
-  dc_destroy_execute_interface(sh4->execute);
+  dc_destroy_window_interface(sh4->window_if);
+  dc_destroy_memory_interface(sh4->memory_if);
+  dc_destroy_execute_interface(sh4->execute_if);
   dc_destroy_device((struct device *)sh4);
+}
+
+REG_R32(sh4_cb, PDTRA) {
+  struct sh4 *sh4 = dc->sh4;
+  // magic values to get past 0x8c00b948 in the boot rom:
+  // void _8c00b92c(int arg1) {
+  //   sysvars->var1 = reg[PDTRA];
+  //   for (i = 0; i < 4; i++) {
+  //     sysvars->var2 = reg[PDTRA];
+  //     if (arg1 == sysvars->var2 & 0x03) {
+  //       return;
+  //     }
+  //   }
+  //   reg[PR] = (uint32_t *)0x8c000000;    /* loop forever */
+  // }
+  // old_PCTRA = reg[PCTRA];
+  // i = old_PCTRA | 0x08;
+  // reg[PCTRA] = i;
+  // reg[PDTRA] = reg[PDTRA] | 0x03;
+  // _8c00b92c(3);
+  // reg[PCTRA] = i | 0x03;
+  // _8c00b92c(3);
+  // reg[PDTRA] = reg[PDTRA] & 0xfffe;
+  // _8c00b92c(0);
+  // reg[PCTRA] = i;
+  // _8c00b92c(3);
+  // reg[PCTRA] = i | 0x04;
+  // _8c00b92c(3);
+  // reg[PDTRA] = reg[PDTRA] & 0xfffd;
+  // _8c00b92c(0);
+  // reg[PCTRA] = old_PCTRA;
+  uint32_t pctra = *sh4->PCTRA;
+  uint32_t pdtra = *sh4->PDTRA;
+  uint32_t v = 0;
+  if ((pctra & 0xf) == 0x8 || ((pctra & 0xf) == 0xb && (pdtra & 0xf) != 0x2) ||
+      ((pctra & 0xf) == 0xc && (pdtra & 0xf) == 0x2)) {
+    v = 3;
+  }
+  // FIXME cable setting
+  // When a VGA cable* is connected
+  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+  // "00")
+  // 2. Set the HOLLY synchronization register for VGA.  (The SYNC output is
+  // H-Sync and V-Sync.)
+  // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
+  // VIDEO1 = 0 and VIDEO0 = 1 are output.  VIDEO0 is connected to the
+  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+  //
+  // When an RGB(NTSC/PAL) cable* is connected
+  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+  // "10")
+  // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
+  // output is H-Sync and V-Sync.)
+  // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
+  // VIDEO1 = 1 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
+  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+  //
+  // When a stereo A/V cable, an S-jack cable* or an RF converter* is
+  // connected
+  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+  // "11")
+  // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
+  // output is H-Sync and V-Sync.)
+  // 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
+  // VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
+  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+  // v |= 0x3 << 8;
+  return v;
+}
+
+REG_W32(sh4_cb, MMUCR) {
+  struct sh4 *sh4 = dc->sh4;
+  if (value) {
+    LOG_FATAL("MMU not currently supported");
+  }
+}
+
+REG_W32(sh4_cb, CCR) {
+  struct sh4 *sh4 = dc->sh4;
+  sh4->CCR->full = value;
+  if (sh4->CCR->ICI) {
+    sh4_ccn_reset(sh4);
+  }
+}
+
+REG_W32(sh4_cb, CHCR0) {
+  struct sh4 *sh4 = dc->sh4;
+  sh4->CHCR0->full = value;
+  sh4_dmac_check(sh4, 0);
+}
+
+REG_W32(sh4_cb, CHCR1) {
+  struct sh4 *sh4 = dc->sh4;
+  sh4->CHCR1->full = value;
+  sh4_dmac_check(sh4, 1);
+}
+
+REG_W32(sh4_cb, CHCR2) {
+  struct sh4 *sh4 = dc->sh4;
+  sh4->CHCR2->full = value;
+  sh4_dmac_check(sh4, 2);
+}
+
+REG_W32(sh4_cb, CHCR3) {
+  struct sh4 *sh4 = dc->sh4;
+  sh4->CHCR3->full = value;
+  sh4_dmac_check(sh4, 3);
+}
+
+REG_W32(sh4_cb, DMAOR) {
+  struct sh4 *sh4 = dc->sh4;
+  sh4->DMAOR->full = value;
+  sh4_dmac_check(sh4, 0);
+  sh4_dmac_check(sh4, 1);
+  sh4_dmac_check(sh4, 2);
+  sh4_dmac_check(sh4, 3);
+}
+
+REG_W32(sh4_cb, IPRA) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->IPRA = value;
+  sh4_intc_reprioritize(sh4);
+}
+
+REG_W32(sh4_cb, IPRB) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->IPRB = value;
+  sh4_intc_reprioritize(sh4);
+}
+
+REG_W32(sh4_cb, IPRC) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->IPRC = value;
+  sh4_intc_reprioritize(sh4);
+}
+
+REG_W32(sh4_cb, TSTR) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->TSTR = value;
+  sh4_tmu_update_tstr(sh4);
+}
+
+REG_W32(sh4_cb, TCR0) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->TCR0 = value;
+  sh4_tmu_update_tcr(sh4, 0);
+}
+
+REG_W32(sh4_cb, TCR1) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->TCR1 = value;
+  sh4_tmu_update_tcr(sh4, 1);
+}
+
+REG_W32(sh4_cb, TCR2) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->TCR2 = value;
+  sh4_tmu_update_tcr(sh4, 1);
+}
+
+REG_R32(sh4_cb, TCNT0) {
+  struct sh4 *sh4 = dc->sh4;
+  return sh4_tmu_tcnt(sh4, 0);
+}
+
+REG_W32(sh4_cb, TCNT0) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->TCNT0 = value;
+  sh4_tmu_update_tcnt(sh4, 0);
+}
+
+REG_R32(sh4_cb, TCNT1) {
+  struct sh4 *sh4 = dc->sh4;
+  return sh4_tmu_tcnt(sh4, 1);
+}
+
+REG_W32(sh4_cb, TCNT1) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->TCNT1 = value;
+  sh4_tmu_update_tcnt(sh4, 1);
+}
+
+REG_R32(sh4_cb, TCNT2) {
+  struct sh4 *sh4 = dc->sh4;
+  return sh4_tmu_tcnt(sh4, 2);
+}
+
+REG_W32(sh4_cb, TCNT2) {
+  struct sh4 *sh4 = dc->sh4;
+  *sh4->TCNT2 = value;
+  sh4_tmu_update_tcnt(sh4, 2);
 }
 
 // clang-format off

@@ -8,8 +8,6 @@
 
 struct aica {
   struct device;
-
-  struct arm *arm;
   uint8_t *aica_regs;
   uint8_t *wave_ram;
   struct common_data *common_data;
@@ -91,7 +89,6 @@ static bool aica_init(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
   struct dreamcast *dc = aica->dc;
 
-  aica->arm = dc->arm;
   aica->aica_regs = memory_translate(dc->memory, "aica reg ram", 0x00000000);
   aica->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x00000000);
   aica->common_data = (struct common_data *)(aica->aica_regs + 0x2800);

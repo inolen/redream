@@ -32,11 +32,6 @@ struct ta {
   struct texture_provider provider;
   struct rb *rb;
   struct tr *tr;
-
-  struct scheduler *scheduler;
-  struct holly *holly;
-  struct pvr *pvr;
-  struct address_space *space;
   uint8_t *video_ram;
   uint8_t *palette_ram;
 
@@ -522,12 +517,13 @@ static void ta_register_textures(struct ta *ta, struct tile_ctx *ctx,
 
 static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
   struct pvr *pvr = ta->pvr;
+  struct address_space *space = ta->sh4->memory_if->space;
 
   // autosort
   if (!pvr->FPU_PARAM_CFG->region_header_type) {
     ctx->autosort = !pvr->ISP_FEED_CFG->presort;
   } else {
-    uint32_t region_data = as_read32(ta->space, 0x05000000 + *pvr->REGION_BASE);
+    uint32_t region_data = as_read32(space, 0x05000000 + *pvr->REGION_BASE);
     ctx->autosort = !(region_data & 0x20000000);
   }
 
@@ -560,9 +556,9 @@ static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
       ((ctx->addr + pvr->ISP_BACKGND_T->tag_address * 4) & 0x7fffff);
 
   // get surface parameters
-  ctx->bg_isp.full = as_read32(ta->space, vram_offset);
-  ctx->bg_tsp.full = as_read32(ta->space, vram_offset + 4);
-  ctx->bg_tcw.full = as_read32(ta->space, vram_offset + 8);
+  ctx->bg_isp.full = as_read32(space, vram_offset);
+  ctx->bg_tsp.full = as_read32(space, vram_offset + 4);
+  ctx->bg_tcw.full = as_read32(space, vram_offset + 8);
   vram_offset += 12;
 
   // get the background depth
@@ -586,7 +582,7 @@ static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
   for (int i = 0, bg_offset = 0; i < 3; i++) {
     CHECK_LE(bg_offset + vertex_size, (int)sizeof(ctx->bg_vertices));
 
-    as_memcpy_to_host(ta->space, &ctx->bg_vertices[bg_offset], vram_offset,
+    as_memcpy_to_host(space, &ctx->bg_vertices[bg_offset], vram_offset,
                       vertex_size);
 
     bg_offset += vertex_size;
@@ -679,46 +675,10 @@ static void ta_write_texture_fifo(struct ta *ta, uint32_t addr,
   *(uint32_t *)&ta->video_ram[addr] = value;
 }
 
-REG_W32(struct ta *ta, SOFTRESET) {
-  if (!(*new_value & 0x1)) {
-    return;
-  }
-
-  ta_soft_reset(ta);
-}
-
-REG_W32(struct ta *ta, TA_LIST_INIT) {
-  if (!(*new_value & 0x80000000)) {
-    return;
-  }
-
-  ta_init_context(ta, ta->pvr->TA_ISP_BASE->base_address);
-}
-
-REG_W32(struct ta *ta, TA_LIST_CONT) {
-  if (!(*new_value & 0x80000000)) {
-    return;
-  }
-
-  LOG_WARNING("Unsupported TA_LIST_CONT");
-}
-
-REG_W32(struct ta *ta, STARTRENDER) {
-  if (!*new_value) {
-    return;
-  }
-
-  ta_start_render(ta, ta->pvr->PARAM_BASE->base_address);
-}
-
 static bool ta_init(struct device *dev) {
   struct ta *ta = (struct ta *)dev;
   struct dreamcast *dc = ta->dc;
 
-  ta->scheduler = dc->scheduler;
-  ta->holly = dc->holly;
-  ta->pvr = dc->pvr;
-  ta->space = dc->sh4->memory->space;
   ta->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
   ta->palette_ram = memory_translate(dc->memory, "palette ram", 0x00000000);
 
@@ -734,20 +694,6 @@ static bool ta_init(struct device *dev) {
 
     list_add(&ta->free_contexts, &ctx->free_it);
   }
-
-// initialize registers
-#define TA_REG_R32(name)        \
-  ta->pvr->reg_data[name] = ta; \
-  ta->pvr->reg_read[name] = (reg_read_cb)&name##_r;
-#define TA_REG_W32(name)        \
-  ta->pvr->reg_data[name] = ta; \
-  ta->pvr->reg_write[name] = (reg_write_cb)&name##_w;
-  TA_REG_W32(SOFTRESET);
-  TA_REG_W32(TA_LIST_INIT);
-  TA_REG_W32(TA_LIST_CONT);
-  TA_REG_W32(STARTRENDER);
-#undef TA_REG_R32
-#undef TA_REG_W32
 
   return true;
 }
@@ -866,7 +812,7 @@ struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
   ta_build_tables();
 
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
-  ta->window =
+  ta->window_if =
       dc_create_window_interface(&ta_paint, &ta_paint_debug_menu, NULL);
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
@@ -880,8 +826,46 @@ struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
 void ta_destroy(struct ta *ta) {
   mutex_destroy(ta->pending_mutex);
   tr_destroy(ta->tr);
-  dc_destroy_window_interface(ta->window);
+  dc_destroy_window_interface(ta->window_if);
   dc_destroy_device((struct device *)ta);
+}
+
+REG_W32(pvr_cb, SOFTRESET) {
+  struct ta *ta = dc->ta;
+
+  if (!(value & 0x1)) {
+    return;
+  }
+
+  ta_soft_reset(ta);
+}
+
+REG_W32(pvr_cb, TA_LIST_INIT) {
+  struct ta *ta = dc->ta;
+
+  if (!(value & 0x80000000)) {
+    return;
+  }
+
+  ta_init_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+}
+
+REG_W32(pvr_cb, TA_LIST_CONT) {
+  if (!(value & 0x80000000)) {
+    return;
+  }
+
+  LOG_WARNING("Unsupported TA_LIST_CONT");
+}
+
+REG_W32(pvr_cb, STARTRENDER) {
+  struct ta *ta = dc->ta;
+
+  if (!value) {
+    return;
+  }
+
+  ta_start_render(ta, ta->pvr->PARAM_BASE->base_address);
 }
 
 // clang-format off

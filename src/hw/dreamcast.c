@@ -17,7 +17,7 @@
 DEFINE_OPTION_BOOL(gdb, false, "Run gdb debug server");
 
 void device_run(struct device *dev, int64_t ns) {
-  dev->execute->run(dev, ns);
+  dev->execute_if->run(dev, ns);
 }
 
 bool dc_init(struct dreamcast *dc) {
@@ -33,6 +33,20 @@ bool dc_init(struct dreamcast *dc) {
 
   // initialize each device
   list_for_each_entry(dev, &dc->devices, struct device, it) {
+    // cache references to other devices
+    dev->debugger = dc->debugger;
+    dev->memory = dc->memory;
+    dev->scheduler = dc->scheduler;
+    dev->sh4 = dc->sh4;
+    dev->arm = dc->arm;
+    dev->aica = dc->aica;
+    dev->holly = dc->holly;
+    dev->g2 = dc->g2;
+    dev->gdrom = dc->gdrom;
+    dev->maple = dc->maple;
+    dev->pvr = dc->pvr;
+    dev->ta = dc->ta;
+
     if (!dev->init(dev)) {
       dc_destroy(dc);
       return false;
@@ -62,24 +76,24 @@ void dc_tick(struct dreamcast *dc, int64_t ns) {
 
 void dc_paint(struct dreamcast *dc) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window && dev->window->paint) {
-      dev->window->paint(dev);
+    if (dev->window_if && dev->window_if->paint) {
+      dev->window_if->paint(dev);
     }
   }
 }
 
 void dc_paint_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window && dev->window->paint_debug_menu) {
-      dev->window->paint_debug_menu(dev, ctx);
+    if (dev->window_if && dev->window_if->paint_debug_menu) {
+      dev->window_if->paint_debug_menu(dev, ctx);
     }
   }
 }
 
 void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window && dev->window->keydown) {
-      dev->window->keydown(dev, code, value);
+    if (dev->window_if && dev->window_if->keydown) {
+      dev->window_if->keydown(dev, code, value);
     }
   }
 }

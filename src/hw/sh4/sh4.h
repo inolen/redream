@@ -35,17 +35,12 @@ struct sh4_perf {
 
 struct sh4 {
   struct device;
-  struct scheduler *scheduler;
-  struct address_space *space;
-  struct jit_memory_interface memory_if;
+  struct jit_memory_interface jit_if;
   struct sh4_cache *code_cache;
   struct sh4_ctx ctx;
   uint8_t cache[0x2000];  // 8kb cache
   // std::map<uint32_t, uint16_t> breakpoints;
   uint32_t reg[NUM_SH4_REGS];
-  void *reg_data[NUM_SH4_REGS];
-  reg_read_cb reg_read[NUM_SH4_REGS];
-  reg_write_cb reg_write[NUM_SH4_REGS];
 
 #define SH4_REG(addr, name, default, type) type *name;
 #include "hw/sh4/sh4_regs.inc"

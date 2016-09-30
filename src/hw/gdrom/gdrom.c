@@ -47,7 +47,6 @@ struct cdread {
 
 struct gdrom {
   struct device;
-  struct holly *holly;
   enum gd_state state;
   struct disc *disc;
   union gd_features features;
@@ -513,128 +512,8 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
   }
 }
 
-REG_R32(struct gdrom *gd, GD_ALTSTAT_DEVCTRL) {
-  // this register is the same as the status register, but it does not
-  // clear DMA status information when it is accessed
-  return gd->status.full;
-}
-
-REG_W32(struct gdrom *gd, GD_ALTSTAT_DEVCTRL) {
-  // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
-}
-
-REG_R32(struct gdrom *gd, GD_DATA) {
-  uint16_t v = *(uint16_t *)&gd->pio_buffer[gd->pio_head];
-  gd->pio_head += 2;
-  if (gd->pio_head == gd->pio_size) {
-    gdrom_event(gd, EV_SPI_WRITE_END, 0, 0);
-  }
-  return v;
-}
-
-REG_W32(struct gdrom *gd, GD_DATA) {
-  *(uint16_t *)&gd->pio_buffer[gd->pio_head] = (uint16_t)(*new_value & 0xffff);
-  gd->pio_head += 2;
-
-  // check if we've finished reading a command / the remaining data
-  if ((gd->state == STATE_SPI_READ_CMD && gd->pio_head == SPI_CMD_SIZE) ||
-      (gd->state == STATE_SPI_READ_DATA && gd->pio_head == gd->pio_size)) {
-    gdrom_event(gd, EV_SPI_READ_END, 0, 0);
-  }
-}
-
-REG_R32(struct gdrom *gd, GD_ERROR_FEATURES) {
-  // LOG_INFO("GD_ERROR");
-  return 0;
-}
-
-REG_W32(struct gdrom *gd, GD_ERROR_FEATURES) {
-  gd->features.full = *new_value;
-}
-
-REG_R32(struct gdrom *gd, GD_INTREASON_SECTCNT) {
-  return gd->ireason.full;
-}
-
-REG_W32(struct gdrom *gd, GD_INTREASON_SECTCNT) {
-  // LOG_INFO("GD_SECTCNT 0x%x", *new_value);
-}
-
-REG_R32(struct gdrom *gd, GD_SECTNUM) {
-  return gd->sectnum.full;
-}
-
-REG_W32(struct gdrom *gd, GD_SECTNUM) {
-  gd->sectnum.full = *new_value;
-}
-
-REG_R32(struct gdrom *gd, GD_BYCTLLO) {
-  return gd->byte_count.lo;
-}
-
-REG_W32(struct gdrom *gd, GD_BYCTLLO) {
-  gd->byte_count.lo = *new_value;
-}
-
-REG_R32(struct gdrom *gd, GD_BYCTLHI) {
-  return gd->byte_count.hi;
-}
-
-REG_W32(struct gdrom *gd, GD_BYCTLHI) {
-  gd->byte_count.hi = *new_value;
-}
-
-REG_R32(struct gdrom *gd, GD_DRVSEL) {
-  // LOG_INFO("GD_DRVSEL");
-  return 0;
-}
-
-REG_W32(struct gdrom *gd, GD_DRVSEL) {
-  // LOG_INFO("GD_DRVSEL 0x%x", (uint32_t)*new_value);
-}
-
-REG_R32(struct gdrom *gd, GD_STATUS_COMMAND) {
-  holly_clear_interrupt(gd->holly, HOLLY_INTC_G1GDINT);
-  return gd->status.full;
-}
-
-REG_W32(struct gdrom *gd, GD_STATUS_COMMAND) {
-  gdrom_ata_cmd(gd, (enum gd_ata_cmd) * new_value);
-}
-
 static bool gdrom_init(struct device *dev) {
   struct gdrom *gd = (struct gdrom *)dev;
-  struct dreamcast *dc = gd->dc;
-
-  gd->holly = dc->holly;
-
-// initialize registers
-#define GDROM_REG_R32(name)       \
-  gd->holly->reg_data[name] = gd; \
-  gd->holly->reg_read[name] = (reg_read_cb)&name##_r;
-#define GDROM_REG_W32(name)       \
-  gd->holly->reg_data[name] = gd; \
-  gd->holly->reg_write[name] = (reg_write_cb)&name##_w;
-  GDROM_REG_R32(GD_ALTSTAT_DEVCTRL);
-  GDROM_REG_W32(GD_ALTSTAT_DEVCTRL);
-  GDROM_REG_R32(GD_DATA);
-  GDROM_REG_W32(GD_DATA);
-  GDROM_REG_R32(GD_ERROR_FEATURES);
-  GDROM_REG_W32(GD_ERROR_FEATURES);
-  GDROM_REG_R32(GD_INTREASON_SECTCNT);
-  GDROM_REG_W32(GD_INTREASON_SECTCNT);
-  GDROM_REG_R32(GD_SECTNUM);
-  GDROM_REG_W32(GD_SECTNUM);
-  GDROM_REG_R32(GD_BYCTLLO);
-  GDROM_REG_W32(GD_BYCTLLO);
-  GDROM_REG_R32(GD_BYCTLHI);
-  GDROM_REG_W32(GD_BYCTLHI);
-  GDROM_REG_R32(GD_DRVSEL);
-  GDROM_REG_W32(GD_DRVSEL);
-  GDROM_REG_R32(GD_STATUS_COMMAND);
-  GDROM_REG_W32(GD_STATUS_COMMAND);
-#undef GDROM_REG_R32
-#undef GDROM_REG_W32
 
   gdrom_set_disc(gd, NULL);
 
@@ -690,4 +569,104 @@ void gdrom_destroy(struct gdrom *gd) {
   }
 
   dc_destroy_device((struct device *)gd);
+}
+
+REG_R32(holly_cb, GD_ALTSTAT_DEVCTRL) {
+  struct gdrom *gd = dc->gdrom;
+  // this register is the same as the status register, but it does not
+  // clear DMA status information when it is accessed
+  return gd->status.full;
+}
+
+REG_W32(holly_cb, GD_ALTSTAT_DEVCTRL) {
+  // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
+}
+
+REG_R32(holly_cb, GD_DATA) {
+  struct gdrom *gd = dc->gdrom;
+  uint16_t v = *(uint16_t *)&gd->pio_buffer[gd->pio_head];
+  gd->pio_head += 2;
+  if (gd->pio_head == gd->pio_size) {
+    gdrom_event(gd, EV_SPI_WRITE_END, 0, 0);
+  }
+  return v;
+}
+
+REG_W32(holly_cb, GD_DATA) {
+  struct gdrom *gd = dc->gdrom;
+  *(uint16_t *)&gd->pio_buffer[gd->pio_head] = (uint16_t)(value & 0xffff);
+  gd->pio_head += 2;
+
+  // check if we've finished reading a command / the remaining data
+  if ((gd->state == STATE_SPI_READ_CMD && gd->pio_head == SPI_CMD_SIZE) ||
+      (gd->state == STATE_SPI_READ_DATA && gd->pio_head == gd->pio_size)) {
+    gdrom_event(gd, EV_SPI_READ_END, 0, 0);
+  }
+}
+
+REG_R32(holly_cb, GD_ERROR_FEATURES) {
+  // LOG_INFO("GD_ERROR");
+  return 0;
+}
+
+REG_W32(holly_cb, GD_ERROR_FEATURES) {
+  struct gdrom *gd = dc->gdrom;
+  gd->features.full = value;
+}
+
+REG_R32(holly_cb, GD_INTREASON_SECTCNT) {
+  struct gdrom *gd = dc->gdrom;
+  return gd->ireason.full;
+}
+
+REG_W32(holly_cb, GD_INTREASON_SECTCNT) {
+  struct gdrom *gd = dc->gdrom;
+  gd->ireason.full = value;
+}
+
+REG_R32(holly_cb, GD_SECTNUM) {
+  struct gdrom *gd = dc->gdrom;
+  return gd->sectnum.full;
+}
+
+REG_W32(holly_cb, GD_SECTNUM) {
+  struct gdrom *gd = dc->gdrom;
+  gd->sectnum.full = value;
+}
+
+REG_R32(holly_cb, GD_BYCTLLO) {
+  struct gdrom *gd = dc->gdrom;
+  return gd->byte_count.lo;
+}
+
+REG_W32(holly_cb, GD_BYCTLLO) {
+  struct gdrom *gd = dc->gdrom;
+  gd->byte_count.lo = value;
+}
+
+REG_R32(holly_cb, GD_BYCTLHI) {
+  struct gdrom *gd = dc->gdrom;
+  return gd->byte_count.hi;
+}
+
+REG_W32(holly_cb, GD_BYCTLHI) {
+  struct gdrom *gd = dc->gdrom;
+  gd->byte_count.hi = value;
+}
+
+REG_R32(holly_cb, GD_DRVSEL) {
+  return 0;
+}
+
+REG_W32(holly_cb, GD_DRVSEL) {}
+
+REG_R32(holly_cb, GD_STATUS_COMMAND) {
+  struct gdrom *gd = dc->gdrom;
+  holly_clear_interrupt(gd->holly, HOLLY_INTC_G1GDINT);
+  return gd->status.full;
+}
+
+REG_W32(holly_cb, GD_STATUS_COMMAND) {
+  struct gdrom *gd = dc->gdrom;
+  gdrom_ata_cmd(gd, (enum gd_ata_cmd)value);
 }

@@ -16,23 +16,23 @@ static void arm_run(struct device *dev, int64_t ns) {
 }
 
 void arm_suspend(struct arm *arm) {
-  arm->execute->suspended = true;
+  arm->execute_if->suspended = true;
 }
 
 void arm_resume(struct arm *arm) {
-  arm->execute->suspended = false;
+  arm->execute_if->suspended = false;
 }
 
 struct arm *arm_create(struct dreamcast *dc) {
   struct arm *arm = dc_create_device(dc, sizeof(struct arm), "arm", &arm_init);
-  arm->execute = dc_create_execute_interface(&arm_run);
-  arm->memory = dc_create_memory_interface(dc, &arm_data_map);
+  arm->execute_if = dc_create_execute_interface(&arm_run);
+  arm->memory_if = dc_create_memory_interface(dc, &arm_data_map);
   return arm;
 }
 
 void arm_destroy(struct arm *arm) {
-  dc_destroy_memory_interface(arm->memory);
-  dc_destroy_execute_interface(arm->execute);
+  dc_destroy_memory_interface(arm->memory_if);
+  dc_destroy_execute_interface(arm->execute_if);
   dc_destroy_device((struct device *)arm);
 }
 

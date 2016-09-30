@@ -4,6 +4,8 @@
 #include "hw/holly/ta.h"
 #include "hw/sh4/sh4.h"
 
+struct reg_cb pvr_cb[NUM_PVR_REGS];
+
 static void pvr_next_scanline(void *data) {
   struct pvr *pvr = data;
 
@@ -74,11 +76,10 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
 
 static uint32_t pvr_reg_r32(struct pvr *pvr, uint32_t addr) {
   uint32_t offset = addr >> 2;
-  reg_read_cb read = pvr->reg_read[offset];
+  reg_read_cb read = pvr_cb[offset].read;
 
   if (read) {
-    void *data = pvr->reg_data[offset];
-    return read(data);
+    return read(pvr->dc);
   }
 
   return pvr->reg[offset];
@@ -86,7 +87,7 @@ static uint32_t pvr_reg_r32(struct pvr *pvr, uint32_t addr) {
 
 static void pvr_reg_w32(struct pvr *pvr, uint32_t addr, uint32_t value) {
   uint32_t offset = addr >> 2;
-  reg_write_cb write = pvr->reg_write[offset];
+  reg_write_cb write = pvr_cb[offset].write;
 
   // ID register is read-only, and the bios will fail to boot if a write
   // goes through to this register
@@ -94,13 +95,12 @@ static void pvr_reg_w32(struct pvr *pvr, uint32_t addr, uint32_t value) {
     return;
   }
 
-  uint32_t old_value = pvr->reg[offset];
-  pvr->reg[offset] = (uint32_t)value;
-
   if (write) {
-    void *data = pvr->reg_data[offset];
-    write(data, old_value, &pvr->reg[offset]);
+    write(pvr->dc, value);
+    return;
   }
+
+  pvr->reg[offset] = (uint32_t)value;
 }
 
 static uint32_t pvr_palette_r32(struct pvr *pvr, uint32_t addr) {
@@ -153,39 +153,18 @@ define_vram_interleaved_write(w8, uint8_t);
 define_vram_interleaved_write(w16, uint16_t);
 define_vram_interleaved_write(w32, uint32_t);
 
-REG_W32(struct pvr *pvr, SPG_LOAD) {
-  pvr_reconfigure_spg(pvr);
-}
-
-REG_W32(struct pvr *pvr, FB_R_CTRL) {
-  pvr_reconfigure_spg(pvr);
-}
-
 static bool pvr_init(struct device *dev) {
   struct pvr *pvr = (struct pvr *)dev;
   struct dreamcast *dc = pvr->dc;
 
-  pvr->scheduler = dc->scheduler;
-  pvr->holly = dc->holly;
   pvr->palette_ram = memory_translate(dc->memory, "palette ram", 0x00000000);
   pvr->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
 
-#define PVR_REG_R32(name)    \
-  pvr->reg_data[name] = pvr; \
-  pvr->reg_read[name] = (reg_read_cb)&name##_r;
-#define PVR_REG_W32(name)    \
-  pvr->reg_data[name] = pvr; \
-  pvr->reg_write[name] = (reg_write_cb)&name##_w;
+// init registers
 #define PVR_REG(offset, name, default, type) \
   pvr->reg[name] = default;                  \
   pvr->name = (type *)&pvr->reg[name];
-
-  PVR_REG_W32(SPG_LOAD);
-  PVR_REG_W32(FB_R_CTRL);
 #include "hw/holly/pvr_regs.inc"
-
-#undef PVR_REG_R32
-#undef PVR_REG_W32
 #undef PVR_REG
 
   // configure initial vsync interval
@@ -202,6 +181,18 @@ struct pvr *pvr_create(struct dreamcast *dc) {
 
 void pvr_destroy(struct pvr *pvr) {
   dc_destroy_device((struct device *)pvr);
+}
+
+REG_W32(pvr_cb, SPG_LOAD) {
+  struct pvr *pvr = dc->pvr;
+  pvr->SPG_LOAD->full = value;
+  pvr_reconfigure_spg(pvr);
+}
+
+REG_W32(pvr_cb, FB_R_CTRL) {
+  struct pvr *pvr = dc->pvr;
+  pvr->FB_R_CTRL->full = value;
+  pvr_reconfigure_spg(pvr);
 }
 
 // clang-format off

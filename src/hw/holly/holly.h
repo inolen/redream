@@ -13,18 +13,14 @@ struct sh4;
 
 struct holly {
   struct device;
-  struct gdrom *gdrom;
-  struct maple *maple;
-  struct sh4 *sh4;
   uint32_t reg[NUM_HOLLY_REGS];
-  void *reg_data[NUM_HOLLY_REGS];
-  reg_read_cb reg_read[NUM_HOLLY_REGS];
-  reg_write_cb reg_write[NUM_HOLLY_REGS];
 
 #define HOLLY_REG(offset, name, default, type) type *name;
 #include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
 };
+
+extern struct reg_cb holly_cb[NUM_HOLLY_REGS];
 
 void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr);
 void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr);

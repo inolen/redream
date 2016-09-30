@@ -46,8 +46,8 @@ void scheduler_tick(struct scheduler *sch, int64_t ns) {
 
     // execute each device
     list_for_each_entry(dev, &sch->dc->devices, struct device, it) {
-      if (dev->execute && !dev->execute->suspended) {
-        dev->execute->run(dev, slice);
+      if (dev->execute_if && !dev->execute_if->suspended) {
+        dev->execute_if->run(dev, slice);
       }
     }
 
