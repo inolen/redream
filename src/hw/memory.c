@@ -216,13 +216,13 @@ bool memory_init(struct memory *memory) {
 
   // map each memory interface's address space
   list_for_each_entry(dev, &memory->dc->devices, struct device, it) {
-    if (dev->memory) {
+    if (dev->memory_if) {
       // create the actual address map
       struct address_map map = {0};
-      dev->memory->mapper(dev, memory->dc, &map);
+      dev->memory_if->mapper(dev, memory->dc, &map);
 
       // apply the map to create the address space
-      CHECK(as_map(dev->memory->space, dev->name, &map));
+      CHECK(as_map(dev->memory_if->space, dev->name, &map));
     }
   }
 

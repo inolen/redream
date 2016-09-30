@@ -29,37 +29,37 @@ static void debugger_gdb_server_resume(void *data) {
 
 static void debugger_gdb_server_step(void *data) {
   struct debugger *dbg = data;
-  dbg->dev->debug->step(dbg->dev);
+  dbg->dev->debug_if->step(dbg->dev);
 }
 
 static void debugger_gdb_server_add_bp(void *data, int type, intmax_t addr) {
   struct debugger *dbg = data;
-  dbg->dev->debug->add_bp(dbg->dev, type, (uint32_t)addr);
+  dbg->dev->debug_if->add_bp(dbg->dev, type, (uint32_t)addr);
 }
 
 static void debugger_gdb_server_rem_bp(void *data, int type, intmax_t addr) {
   struct debugger *dbg = data;
-  dbg->dev->debug->rem_bp(dbg->dev, type, (uint32_t)addr);
+  dbg->dev->debug_if->rem_bp(dbg->dev, type, (uint32_t)addr);
 }
 
 static void debugger_gdb_server_read_mem(void *data, intmax_t addr,
                                          uint8_t *buffer, int size) {
   struct debugger *dbg = data;
-  dbg->dev->debug->read_mem(dbg->dev, (uint32_t)addr, buffer, size);
+  dbg->dev->debug_if->read_mem(dbg->dev, (uint32_t)addr, buffer, size);
 }
 
 static void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
                                          int *size) {
   struct debugger *dbg = data;
   uint64_t v = 0;
-  dbg->dev->debug->read_reg(dbg->dev, n, &v, size);
+  dbg->dev->debug_if->read_reg(dbg->dev, n, &v, size);
   *value = v;
 }
 
 bool debugger_init(struct debugger *dbg) {
   // use the first device found with a debug interface
   list_for_each_entry(dev, &dbg->dc->devices, struct device, it) {
-    if (dev->debug) {
+    if (dev->debug_if) {
       dbg->dev = dev;
       break;
     }
@@ -74,7 +74,7 @@ bool debugger_init(struct debugger *dbg) {
   gdb_target_t target;
   target.ctx = dbg;
   target.endian = GDB_LITTLE_ENDIAN;
-  target.num_regs = dbg->dev->debug->num_regs(dbg->dev);
+  target.num_regs = dbg->dev->debug_if->num_regs(dbg->dev);
   target.detach = &debugger_gdb_server_detach;
   target.stop = &debugger_gdb_server_stop;
   target.resume = &debugger_gdb_server_resume;

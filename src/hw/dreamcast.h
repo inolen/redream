@@ -26,20 +26,33 @@ struct sh4;
 struct ta;
 
 //
-// register access helpers
+// register callbacks
 //
+typedef uint32_t (*reg_read_cb)(struct dreamcast *);
+typedef void (*reg_write_cb)(struct dreamcast *, uint32_t);
 
-#define REG_R32(self, name) uint32_t name##_r(self)
-#define REG_W32(self, name) \
-  static void name##_w(self, uint32_t old_value, uint32_t *new_value)
+struct reg_cb {
+  reg_read_cb read;
+  reg_write_cb write;
+};
 
-typedef uint32_t (*reg_read_cb)(void *);
-typedef void (*reg_write_cb)(void *, uint32_t, uint32_t *);
+#define REG_R32(callbacks, name)                     \
+  static uint32_t name##_read(struct dreamcast *dc); \
+  CONSTRUCTOR(REG_R32_INIT_##name) {                 \
+    callbacks[name].read = &name##_read;             \
+  }                                                  \
+  uint32_t name##_read(struct dreamcast *dc)
+
+#define REG_W32(callbacks, name)                                  \
+  static void name##_write(struct dreamcast *dc, uint32_t value); \
+  CONSTRUCTOR(REG_W32_INIT_##name) {                              \
+    callbacks[name].write = &name##_write;                        \
+  }                                                               \
+  void name##_write(struct dreamcast *dc, uint32_t value)
 
 //
 // device interfaces
 //
-
 // debug interface
 typedef int (*device_num_regs_cb)(struct device *);
 typedef void (*device_step_cb)(struct device *);
@@ -90,10 +103,27 @@ struct device {
   struct dreamcast *dc;
   const char *name;
   bool (*init)(struct device *dev);
-  struct debug_interface *debug;
-  struct execute_interface *execute;
-  struct memory_interface *memory;
-  struct window_interface *window;
+
+  // optional interfaces
+  struct debug_interface *debug_if;
+  struct execute_interface *execute_if;
+  struct memory_interface *memory_if;
+  struct window_interface *window_if;
+
+  // cached references to other devices
+  struct debugger *debugger;
+  struct memory *memory;
+  struct scheduler *scheduler;
+  struct sh4 *sh4;
+  struct arm *arm;
+  struct aica *aica;
+  struct holly *holly;
+  struct g2 *g2;
+  struct gdrom *gdrom;
+  struct maple *maple;
+  struct pvr *pvr;
+  struct ta *ta;
+
   struct list_node it;
 };
 
