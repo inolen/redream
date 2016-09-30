@@ -19,6 +19,9 @@ static void aica_update_sh(struct aica *aica) {}
 
 #define define_reg_read(name, type)                        \
   type aica_reg_##name(struct aica *aica, uint32_t addr) { \
+    if (addr >= 2800 /* common */) {                       \
+      return *(type *)&aica->aica_regs[addr];              \
+    }                                                      \
     return *(type *)&aica->aica_regs[addr];                \
   }
 
@@ -29,15 +32,18 @@ define_reg_read(r32, uint32_t);
 #define define_reg_write(name, type)                                   \
   void aica_reg_##name(struct aica *aica, uint32_t addr, type value) { \
     *(type *)&aica->aica_regs[addr] = value;                           \
+    if (addr >= 2800 /* common */) {                                   \
+      addr -= 2800;                                                    \
                                                                        \
-    switch (addr) {                                                    \
-      case 0x2c00: { /* ARMRST */                                      \
-        if (value) {                                                   \
-          arm_suspend(aica->arm);                                      \
-        } else {                                                       \
-          arm_resume(aica->arm);                                       \
-        }                                                              \
-      } break;                                                         \
+      switch (addr) {                                                  \
+        case 0x400: { /* ARMRST */                                     \
+          if (value) {                                                 \
+            arm_suspend(aica->arm);                                    \
+          } else {                                                     \
+            arm_resume(aica->arm);                                     \
+          }                                                            \
+        } break;                                                       \
+      }                                                                \
     }                                                                  \
   }
 
@@ -110,6 +116,7 @@ void aica_destroy(struct aica *aica) {
 
 // clang-format off
 AM_BEGIN(struct aica, aica_reg_map);
+  // over allocate a bit to match the allocation granularity of the host
   AM_RANGE(0x00000000, 0x00010fff) AM_MOUNT("aica reg ram")
   AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE("aica reg",
                                              (r8_cb)&aica_reg_r8,

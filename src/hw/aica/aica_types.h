@@ -99,6 +99,7 @@ struct channel_data {
 };
 
 struct common_data {
+  // 0x0
   uint32_t MVOL : 4;
   uint32_t VER : 4;
   uint32_t DAC18B : 1;
@@ -107,12 +108,14 @@ struct common_data {
   uint32_t MONO : 1;
   uint32_t : 16;
 
+  // 0x4
   uint32_t RBP : 12;
   uint32_t : 1;
   uint32_t RBL : 2;
   uint32_t TESTB0 : 1;
   uint32_t : 16;
 
+  // 0x8
   uint32_t MIBUF : 8;
   uint32_t MIEMP : 1;
   uint32_t MIFUL : 1;
@@ -122,22 +125,27 @@ struct common_data {
   uint32_t : 3;
   uint32_t : 16;
 
+  // 0xc
   uint32_t MOBUF : 8;
   uint32_t MSLC : 6;
   uint32_t AFSEL : 1;
   uint32_t : 1;
   uint32_t : 16;
 
+  // 0x10
   uint32_t EG : 13;
   uint32_t SGC : 2;
   uint32_t LP : 1;
   uint32_t : 16;
 
+  // 0x14
   uint32_t CA : 16;
   uint32_t : 16;
 
+  // 0x18
   uint8_t padding0[0x68];
 
+  // 0x80
   uint32_t MRWINH : 4;
   uint32_t T : 1;
   uint32_t TSCD : 3;
@@ -145,82 +153,101 @@ struct common_data {
   uint32_t DMEA_hi : 7;
   uint32_t : 16;
 
+  // 0x84
   uint32_t : 2;
   uint32_t DMEA_lo : 14;
   uint32_t : 16;
 
+  // 0x88
   uint32_t : 2;
   uint32_t DRGA : 13;
   uint32_t DGATE : 1;
   uint32_t : 16;
 
+  // 0x8c
   uint32_t DEXE : 1;
   uint32_t : 1;
   uint32_t DLG : 13;
   uint32_t DDIR : 1;
   uint32_t : 16;
 
+  // 0x90
   uint32_t TIMA : 8;
   uint32_t TACTL : 3;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0x94
   uint32_t TIMB : 8;
   uint32_t TBCTL : 3;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0x98
   uint32_t TIMC : 8;
   uint32_t TCCTL : 3;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0x9c
   uint32_t SCIEB : 11;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0xa0
   uint32_t SCIPD : 11;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0xa4
   uint32_t SCIRE : 11;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0xa8
   uint32_t SCILV0 : 8;
   uint32_t : 8;
   uint32_t : 16;
 
+  // 0xac
   uint32_t SCILV1 : 8;
   uint32_t : 8;
   uint32_t : 16;
 
+  // 0xb0
   uint32_t SCILV2 : 8;
   uint32_t : 8;
   uint32_t : 16;
 
+  // 0xb4
   uint32_t MCIEB : 11;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0xb8
   uint32_t MCIPD : 11;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0xbc
   uint32_t MCIRE : 11;
   uint32_t : 5;
   uint32_t : 16;
 
+  // 0xc0
   uint8_t padding1[0x340];
 
+  // 0x400
   uint32_t ARMRST : 1;
   uint32_t : 7;
   uint32_t VREG : 2;
   uint32_t : 6;
   uint32_t : 16;
 
+  // 0x404
   uint8_t padding2[0xfc];
 
+  // 0x500
   uint32_t L0 : 1;
   uint32_t L1 : 1;
   uint32_t L2 : 1;
@@ -232,6 +259,7 @@ struct common_data {
   uint32_t : 8;
   uint32_t : 16;
 
+  // 0x504
   uint32_t M0 : 1;
   uint32_t M1 : 1;
   uint32_t M2 : 1;
