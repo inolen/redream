@@ -39,8 +39,8 @@ void scheduler_tick(struct scheduler *sch, int64_t ns) {
       next_time = next_timer->expire;
     }
 
-    // go ahead and update base time before running devices and expiring timers
-    // in case one of them schedules a new timer
+    // update base time before running devices and expiring timers in case one
+    // of them schedules a new timer
     int64_t slice = next_time - sch->base_time;
     sch->base_time += slice;
 

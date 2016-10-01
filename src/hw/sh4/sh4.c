@@ -92,6 +92,7 @@ static void sh4_tmu_expire(struct sh4 *sh4, int n) {
   *tcnt = *tcor;
 
   // reschedule the timer with the new count
+  sh4->tmu_timers[n] = NULL;
   sh4_tmu_reschedule(sh4, n, *tcnt, *tcr);
 }
 
@@ -647,7 +648,7 @@ static void sh4_run_inner(struct device *dev, int64_t ns) {
   }
 }
 
-void sh4_run(struct device *dev, int64_t ns) {
+static void sh4_run(struct device *dev, int64_t ns) {
   prof_enter("sh4_run");
 
   sh4_run_inner(dev, ns);

@@ -74,6 +74,20 @@ static bool holly_init(struct device *dev) {
   return true;
 }
 
+static uint32_t *holly_interrupt_status(struct holly *hl,
+                                        enum holly_interrupt_type type) {
+  switch (type) {
+    case HOLLY_INTC_NRM:
+      return hl->SB_ISTNRM;
+    case HOLLY_INTC_EXT:
+      return hl->SB_ISTEXT;
+    case HOLLY_INTC_ERR:
+      return hl->SB_ISTERR;
+    default:
+      LOG_FATAL("Invalid interrupt type");
+  }
+}
+
 void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
   uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
@@ -82,19 +96,8 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
     maple_vblank(hl->maple);
   }
 
-  switch (type) {
-    case HOLLY_INTC_NRM:
-      *hl->SB_ISTNRM |= irq;
-      break;
-
-    case HOLLY_INTC_EXT:
-      *hl->SB_ISTEXT |= irq;
-      break;
-
-    case HOLLY_INTC_ERR:
-      *hl->SB_ISTERR |= irq;
-      break;
-  }
+  uint32_t *status = holly_interrupt_status(hl, type);
+  *status |= irq;
 
   holly_update_sh4_interrupts(hl);
 }
@@ -103,21 +106,22 @@ void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr) {
   enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
   uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
 
-  switch (type) {
-    case HOLLY_INTC_NRM:
-      *hl->SB_ISTNRM &= ~irq;
-      break;
-
-    case HOLLY_INTC_EXT:
-      *hl->SB_ISTEXT &= ~irq;
-      break;
-
-    case HOLLY_INTC_ERR:
-      *hl->SB_ISTERR &= ~irq;
-      break;
-  }
+  uint32_t *status = holly_interrupt_status(hl, type);
+  *status &= ~irq;
 
   holly_update_sh4_interrupts(hl);
+}
+
+void holly_toggle_interrupt(struct holly *hl, holly_interrupt_t intr) {
+  enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
+  uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
+
+  uint32_t *status = holly_interrupt_status(hl, type);
+  if (*status & irq) {
+    holly_clear_interrupt(hl, intr);
+  } else {
+    holly_raise_interrupt(hl, intr);
+  }
 }
 
 struct holly *holly_create(struct dreamcast *dc) {

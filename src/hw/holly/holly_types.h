@@ -12,7 +12,6 @@ enum {
 };
 
 // interrupts
-
 #define HOLLY_INTERRUPT(type, irq) (((uint64_t)type << 32) | irq)
 #define HOLLY_INTERRUPT_TYPE(intr) (intr >> 32)
 #define HOLLY_INTERRUPT_IRQ(intr) ((uint32_t)intr)
@@ -23,8 +22,6 @@ enum holly_interrupt_type {
   HOLLY_INTC_ERR = 0x3
 };
 
-// using a typedef and defines here as msvc (as of visual studio 2015) doesn't
-// support 64-bit enums
 typedef uint64_t holly_interrupt_t;
 
 //
