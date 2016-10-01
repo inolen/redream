@@ -3,6 +3,19 @@
 
 #include <stdint.h>
 
+// interrupts
+#define AICA_INT_INTON 0x1
+#define AICA_INT_RES1 0x2
+#define AICA_INT_RES2 0x4
+#define AICA_INT_MIDI_IN 0x8
+#define AICA_INT_DMA_END 0x10
+#define AICA_INT_DATA 0x20
+#define AICA_INT_TIMER_A 0x40
+#define AICA_INT_TIMER_B 0x80
+#define AICA_INT_TIMER_C 0x100
+#define AICA_INT_MIDI_OUT 0x200
+#define AICA_INT_SAMPLE 0x400
+
 struct channel_data {
   uint32_t SA_hi : 7;
   uint32_t PCMS : 2;
