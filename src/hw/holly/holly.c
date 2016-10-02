@@ -6,7 +6,157 @@
 
 struct reg_cb holly_cb[NUM_HOLLY_REGS];
 
-static void holly_update_sh4_interrupts(struct holly *hl) {
+static void holly_ch2_dma(struct holly *hl) {
+  // FIXME what are SB_LMMODE0 / SB_LMMODE1
+  struct sh4_dtr dtr = {0};
+  dtr.channel = 2;
+  dtr.rw = false;
+  dtr.addr = *hl->SB_C2DSTAT;
+  sh4_ddt(hl->sh4, &dtr);
+
+  *hl->SB_C2DLEN = 0;
+  *hl->SB_C2DST = 0;
+  holly_raise_interrupt(hl, HOLLY_INTC_DTDE2INT);
+}
+
+static void holly_gdrom_dma(struct holly *hl) {
+  if (!*hl->SB_GDEN) {
+    return;
+  }
+
+  struct gdrom *gd = hl->gdrom;
+  struct sh4 *sh4 = hl->sh4;
+
+  CHECK_EQ(*hl->SB_GDDIR, 1);  // gdrom -> sh4
+
+  int transfer_size = *hl->SB_GDLEN;
+  int remaining = transfer_size;
+  uint32_t addr = *hl->SB_GDSTAR;
+
+  gdrom_dma_begin(gd);
+
+  while (remaining) {
+    // read a single sector at a time from the gdrom
+    uint8_t sector_data[SECTOR_SIZE];
+    int n = gdrom_dma_read(gd, sector_data, sizeof(sector_data));
+
+    struct sh4_dtr dtr = {0};
+    dtr.channel = 0;
+    dtr.rw = true;
+    dtr.data = sector_data;
+    dtr.addr = addr;
+    dtr.size = n;
+    sh4_ddt(sh4, &dtr);
+
+    remaining -= n;
+    addr += n;
+  }
+
+  gdrom_dma_end(gd);
+
+  *hl->SB_GDSTARD = addr;
+  *hl->SB_GDLEND = transfer_size;
+  *hl->SB_GDST = 0;
+  holly_raise_interrupt(hl, HOLLY_INTC_G1DEINT);
+}
+
+static void holly_g2_dma(struct holly *hl, int channel) {
+  // clang-format off
+  struct g2_channel_desc {
+    int STAG, STAR, LEN, DIR, TSEL, EN, ST, SUSP;
+    holly_interrupt_t INTR;
+  };
+  static struct g2_channel_desc channel_descs[] = {
+      {SB_ADSTAG, SB_ADSTAR, SB_ADLEN, SB_ADDIR, SB_ADTSEL, SB_ADEN, SB_ADST, SB_ADSUSP, HOLLY_INTC_G2DEAINT},
+      {SB_E1STAG, SB_E1STAR, SB_E1LEN, SB_E1DIR, SB_E1TSEL, SB_E1EN, SB_E1ST, SB_E1SUSP, HOLLY_INTC_G2DE1INT},
+      {SB_E2STAG, SB_E2STAR, SB_E2LEN, SB_E2DIR, SB_E2TSEL, SB_E2EN, SB_E2ST, SB_E2SUSP, HOLLY_INTC_G2DE2INT},
+      {SB_DDSTAG, SB_DDSTAR, SB_DDLEN, SB_DDDIR, SB_DDTSEL, SB_DDEN, SB_DDST, SB_DDSUSP, HOLLY_INTC_G2DEDINT},
+  };
+  // clang-format on
+
+  struct g2_channel_desc *desc = &channel_descs[channel];
+  uint32_t *STAG = &hl->reg[desc->STAG];
+  uint32_t *STAR = &hl->reg[desc->STAR];
+  uint32_t *LEN = &hl->reg[desc->LEN];
+  uint32_t *DIR = &hl->reg[desc->DIR];
+  uint32_t *TSEL = &hl->reg[desc->TSEL];
+  uint32_t *EN = &hl->reg[desc->EN];
+  uint32_t *ST = &hl->reg[desc->ST];
+  uint32_t *SUSP = &hl->reg[desc->SUSP];
+  holly_interrupt_t INTR = desc->INTR;
+
+  if (!*EN) {
+    return;
+  }
+
+  struct address_space *space = hl->sh4->memory_if->space;
+  int transfer_size = *LEN & 0x7fffffff;
+  int enable = *LEN >> 31;
+  int remaining = transfer_size;
+  uint32_t src = *STAR;
+  uint32_t dst = *STAG;
+
+  // only sh4 -> g2 supported for now
+  CHECK_EQ(*DIR, 0);
+
+  while (remaining) {
+    as_write32(space, dst, as_read32(space, src));
+    remaining -= 4;
+    src += 4;
+    dst += 4;
+  }
+
+  *STAR = src;
+  *STAG = dst;
+  *LEN = 0;
+  *EN = enable ? 1 : *EN;
+  *ST = 0;
+  holly_raise_interrupt(hl, INTR);
+}
+
+static void holly_maple_dma(struct holly *hl) {
+  if (!*hl->SB_MDEN) {
+    return;
+  }
+
+  struct maple *mp = hl->maple;
+  struct address_space *space = hl->sh4->memory_if->space;
+  uint32_t addr = *hl->SB_MDSTAR;
+  union maple_transfer desc;
+  struct maple_frame frame, res;
+
+  do {
+    desc.full = as_read64(space, addr);
+    addr += 8;
+
+    // read input
+    frame.header.full = as_read32(space, addr);
+    addr += 4;
+
+    for (uint32_t i = 0; i < frame.header.num_words; i++) {
+      frame.params[i] = as_read32(space, addr);
+      addr += 4;
+    }
+
+    // handle command and write response
+    if (maple_handle_command(mp, desc.port, &frame, &res)) {
+      as_write32(space, desc.result_addr, res.header.full);
+      desc.result_addr += 4;
+
+      for (uint32_t i = 0; i < res.header.num_words; i++) {
+        as_write32(space, desc.result_addr, res.params[i]);
+        desc.result_addr += 4;
+      }
+    } else {
+      as_write32(space, desc.result_addr, 0xffffffff);
+    }
+  } while (!desc.last);
+
+  *hl->SB_MDST = 0;
+  holly_raise_interrupt(hl, HOLLY_INTC_MDEINT);
+}
+
+static void holly_update_interrupts(struct holly *hl) {
   // trigger the respective level-encoded interrupt on the sh4 interrupt
   // controller
   {
@@ -38,6 +188,8 @@ static void holly_update_sh4_interrupts(struct holly *hl) {
       sh4_clear_interrupt(hl->sh4, SH4_INTC_IRL_13);
     }
   }
+
+  // TODO check for hardware DMA initiation
 }
 
 #define define_reg_read(name, type)                        \
@@ -92,14 +244,15 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
   uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
 
-  if (intr == HOLLY_INTC_PCVOINT) {
-    maple_vblank(hl->maple);
-  }
-
   uint32_t *status = holly_interrupt_status(hl, type);
   *status |= irq;
 
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
+
+  // check for hardware dma initiation
+  if (intr == HOLLY_INTC_PCVOINT && *hl->SB_MDTSEL && *hl->SB_MDEN) {
+    holly_maple_dma(hl);
+  }
 }
 
 void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr) {
@@ -109,7 +262,7 @@ void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr) {
   uint32_t *status = holly_interrupt_status(hl, type);
   *status &= ~irq;
 
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 void holly_toggle_interrupt(struct holly *hl, holly_interrupt_t intr) {
@@ -161,240 +314,136 @@ REG_W32(holly_cb, SB_ISTNRM) {
   struct holly *hl = dc->holly;
   // writing a 1 clears the interrupt
   *hl->SB_ISTNRM &= ~value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_ISTEXT) {
   struct holly *hl = dc->holly;
   *hl->SB_ISTEXT &= ~value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_ISTERR) {
   struct holly *hl = dc->holly;
   *hl->SB_ISTERR &= ~value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML2NRM) {
   struct holly *hl = dc->holly;
   *hl->SB_IML2NRM = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML2EXT) {
   struct holly *hl = dc->holly;
   *hl->SB_IML2EXT = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML2ERR) {
   struct holly *hl = dc->holly;
   *hl->SB_IML2ERR = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML4NRM) {
   struct holly *hl = dc->holly;
   *hl->SB_IML4NRM = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML4EXT) {
   struct holly *hl = dc->holly;
   *hl->SB_IML4EXT = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML4ERR) {
   struct holly *hl = dc->holly;
   *hl->SB_IML4ERR = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML6NRM) {
   struct holly *hl = dc->holly;
   *hl->SB_IML6NRM = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML6EXT) {
   struct holly *hl = dc->holly;
   *hl->SB_IML6EXT = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_IML6ERR) {
   struct holly *hl = dc->holly;
   *hl->SB_IML6ERR = value;
-  holly_update_sh4_interrupts(hl);
+  holly_update_interrupts(hl);
 }
 
 REG_W32(holly_cb, SB_C2DST) {
   struct holly *hl = dc->holly;
-
-  *hl->SB_C2DST = value;
-
-  if (!*hl->SB_C2DST) {
-    return;
+  if ((*hl->SB_C2DST = value)) {
+    holly_ch2_dma(hl);
   }
-
-  // FIXME what are SB_LMMODE0 / SB_LMMODE1
-  struct sh4_dtr dtr = {0};
-  dtr.channel = 2;
-  dtr.rw = false;
-  dtr.addr = *hl->SB_C2DSTAT;
-  sh4_ddt(hl->sh4, &dtr);
-
-  *hl->SB_C2DLEN = 0;
-  *hl->SB_C2DST = 0;
-  holly_raise_interrupt(hl, HOLLY_INTC_DTDE2INT);
 }
 
 REG_W32(holly_cb, SB_SDST) {
   struct holly *hl = dc->holly;
-  *hl->SB_SDST = value;
-  if (!*hl->SB_SDST) {
-    return;
+  if ((*hl->SB_SDST = value)) {
+    LOG_FATAL("Sort DMA not supported");
   }
-  LOG_FATAL("Sort DMA not supported");
+}
+
+REG_W32(holly_cb, SB_MDST) {
+  struct holly *hl = dc->holly;
+  if ((*hl->SB_MDST = value)) {
+    holly_maple_dma(hl);
+  }
 }
 
 REG_W32(holly_cb, SB_GDST) {
-  struct gdrom *gd = dc->gdrom;
   struct holly *hl = dc->holly;
-
-  // if a "0" is written to this register, it is ignored
-  *hl->SB_GDST |= value;
-
-  if (!*hl->SB_GDST) {
-    return;
+  if ((*hl->SB_GDST = value)) {
+    holly_gdrom_dma(hl);
   }
-
-  CHECK_EQ(*hl->SB_GDEN, 1);   // dma enabled
-  CHECK_EQ(*hl->SB_GDDIR, 1);  // gd-rom -> system memory
-
-  int transfer_size = *hl->SB_GDLEN;
-  uint32_t start = *hl->SB_GDSTAR;
-
-  int remaining = transfer_size;
-  uint32_t addr = start;
-
-  gdrom_dma_begin(gd);
-
-  while (remaining) {
-    // read a single sector at a time from the gdrom
-    uint8_t sector_data[SECTOR_SIZE];
-    int n = gdrom_dma_read(gd, sector_data, sizeof(sector_data));
-
-    struct sh4_dtr dtr = {0};
-    dtr.channel = 0;
-    dtr.rw = true;
-    dtr.data = sector_data;
-    dtr.addr = addr;
-    dtr.size = n;
-    sh4_ddt(dc->sh4, &dtr);
-
-    remaining -= n;
-    addr += n;
-  }
-
-  gdrom_dma_end(gd);
-
-  *hl->SB_GDSTARD = start + transfer_size;
-  *hl->SB_GDLEND = transfer_size;
-  *hl->SB_GDST = 0;
-  holly_raise_interrupt(hl, HOLLY_INTC_G1DEINT);
-}
-
-REG_W32(holly_cb, SB_ADEN) {
-  struct holly *hl = dc->holly;
-  *hl->SB_ADEN = value;
-  if (!*hl->SB_ADEN) {
-    return;
-  }
-  LOG_WARNING("Ignored aica DMA request");
 }
 
 REG_W32(holly_cb, SB_ADST) {
   struct holly *hl = dc->holly;
-  *hl->SB_ADST = value;
-  if (!*hl->SB_ADST) {
-    return;
+  if ((*hl->SB_ADST = value)) {
+    holly_g2_dma(hl, 0);
   }
-  LOG_WARNING("Ignored aica DMA request");
-}
-
-REG_W32(holly_cb, SB_E1EN) {
-  struct holly *hl = dc->holly;
-  *hl->SB_E1EN = value;
-  if (!*hl->SB_E1EN) {
-    return;
-  }
-  LOG_WARNING("Ignored ext1 DMA request");
 }
 
 REG_W32(holly_cb, SB_E1ST) {
   struct holly *hl = dc->holly;
-  *hl->SB_E1ST = value;
-  if (!*hl->SB_E1ST) {
-    return;
+  if ((*hl->SB_E1ST = value)) {
+    holly_g2_dma(hl, 1);
   }
-  LOG_WARNING("Ignored ext1 DMA request");
-}
-
-REG_W32(holly_cb, SB_E2EN) {
-  struct holly *hl = dc->holly;
-  *hl->SB_E2EN = value;
-  if (!*hl->SB_E2EN) {
-    return;
-  }
-  LOG_WARNING("Ignored ext2 DMA request");
 }
 
 REG_W32(holly_cb, SB_E2ST) {
   struct holly *hl = dc->holly;
-  *hl->SB_E2ST = value;
-  if (!*hl->SB_E2ST) {
-    return;
+  if ((*hl->SB_E2ST = value)) {
+    holly_g2_dma(hl, 2);
   }
-  LOG_WARNING("Ignored ext2 DMA request");
-}
-
-REG_W32(holly_cb, SB_DDEN) {
-  struct holly *hl = dc->holly;
-  *hl->SB_DDEN = value;
-  if (!*hl->SB_DDEN) {
-    return;
-  }
-  LOG_WARNING("Ignored dev DMA request");
 }
 
 REG_W32(holly_cb, SB_DDST) {
   struct holly *hl = dc->holly;
-  *hl->SB_DDST = value;
-  if (!*hl->SB_DDST) {
-    return;
+  if ((*hl->SB_DDST = value)) {
+    holly_g2_dma(hl, 3);
   }
-  LOG_WARNING("Ignored dev DMA request");
-}
-
-REG_W32(holly_cb, SB_PDEN) {
-  struct holly *hl = dc->holly;
-  *hl->SB_PDEN = value;
-  if (!*hl->SB_PDEN) {
-    return;
-  }
-  LOG_WARNING("Ignored pvr DMA request");
 }
 
 REG_W32(holly_cb, SB_PDST) {
   struct holly *hl = dc->holly;
-  *hl->SB_PDST = value;
-  if (!*hl->SB_PDST) {
-    return;
+  if ((*hl->SB_PDST = value)) {
+    LOG_WARNING("Ignored pvr DMA request");
   }
-  LOG_WARNING("Ignored pvr DMA request");
 }
 
 // clang-format off
