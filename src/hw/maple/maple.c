@@ -8,45 +8,6 @@ struct maple {
   struct maple_device *devices[4];
 };
 
-static void maple_dma(struct maple *mp) {
-  struct address_space *space = mp->sh4->memory_if->space;
-  uint32_t start_addr = mp->holly->reg[SB_MDSTAR];
-  union maple_transfer desc;
-  struct maple_frame frame, res;
-
-  do {
-    desc.full = as_read64(space, start_addr);
-    start_addr += 8;
-
-    // read input
-    frame.header.full = as_read32(space, start_addr);
-    start_addr += 4;
-
-    for (uint32_t i = 0; i < frame.header.num_words; i++) {
-      frame.params[i] = as_read32(space, start_addr);
-      start_addr += 4;
-    }
-
-    // handle frame and write response
-    struct maple_device *dev = mp->devices[desc.port];
-
-    if (dev && dev->frame(dev, &frame, &res)) {
-      as_write32(space, desc.result_addr, res.header.full);
-      desc.result_addr += 4;
-
-      for (uint32_t i = 0; i < res.header.num_words; i++) {
-        as_write32(space, desc.result_addr, res.params[i]);
-        desc.result_addr += 4;
-      }
-    } else {
-      as_write32(space, desc.result_addr, 0xffffffff);
-    }
-  } while (!desc.last);
-
-  mp->holly->reg[SB_MDST] = 0;
-  holly_raise_interrupt(mp->holly, HOLLY_INTC_MDEINT);
-}
-
 static bool maple_init(struct device *dev) {
   // struct maple *mp = (struct maple *)dev;
   return true;
@@ -61,19 +22,15 @@ static void maple_keydown(struct device *dev, enum keycode key, int16_t value) {
   }
 }
 
-void maple_vblank(struct maple *mp) {
-  uint32_t enabled = mp->holly->reg[SB_MDEN];
-  uint32_t vblank_initiate = mp->holly->reg[SB_MDTSEL];
+int maple_handle_command(struct maple *mp, int port, struct maple_frame *frame,
+                         struct maple_frame *res) {
+  struct maple_device *dev = mp->devices[port];
 
-  // The controller can be started up by two methods: by software, or by
-  // hardware
-  // in synchronization with the V-BLANK signal. These methods are selected
-  // through the trigger selection register (SB_MDTSEL).
-  if (enabled && vblank_initiate) {
-    maple_dma(mp);
+  if (!dev) {
+    return 0;
   }
 
-  // TODO maple vblank interrupt?
+  return dev->frame(dev, frame, res);
 }
 
 struct maple *maple_create(struct dreamcast *dc) {
@@ -97,19 +54,4 @@ void maple_destroy(struct maple *mp) {
 
   dc_destroy_window_interface(mp->window_if);
   dc_destroy_device((struct device *)mp);
-}
-
-REG_W32(holly_cb, SB_MDST) {
-  struct maple *mp = dc->maple;
-  struct holly *hl = dc->holly;
-
-  *hl->SB_MDST = value;
-
-  if (*hl->SB_MDEN) {
-    if (*hl->SB_MDST) {
-      maple_dma(mp);
-    }
-  } else {
-    *hl->SB_MDST = 0;
-  }
 }

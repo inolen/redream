@@ -18,7 +18,9 @@ struct maple_device {
 
 struct maple_device *controller_create();
 
-void maple_vblank(struct maple *mp);
+int maple_handle_command(struct maple *mp, int port, struct maple_frame *frame,
+                         struct maple_frame *res);
+
 struct maple *maple_create(struct dreamcast *dc);
 void maple_destroy(struct maple *mp);
 
