@@ -1673,6 +1673,7 @@ struct jit_backend *x64_backend_create(struct jit_memory_interface *memory_if) {
   backend->memory_if = memory_if;
 
   backend->codegen = new Xbyak::CodeGenerator(x64_code_size, x64_code);
+  Xbyak::CodeArray::protect(x64_code, x64_code_size, true);
 
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
