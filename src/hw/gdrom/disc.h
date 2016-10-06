@@ -17,7 +17,7 @@ struct track {
 
 struct disc;
 
-int disc_num_tracks(struct disc *disc);
+int disc_get_num_tracks(struct disc *disc);
 struct track *disc_get_track(struct disc *disc, int n);
 int disc_read_sector(struct disc *disc, int fad, void *dst);
 

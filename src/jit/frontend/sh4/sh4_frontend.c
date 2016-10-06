@@ -6,13 +6,13 @@
 #include "jit/ir/ir.h"
 
 struct sh4_frontend {
-  struct jit_frontend base;
+  struct jit_frontend;
 };
 
 static void sh4_frontend_translate_code(struct jit_frontend *base,
                                         uint32_t guest_addr, uint8_t *guest_ptr,
                                         int flags, int *size, struct ir *ir) {
-  struct sh4_frontend *frontend = container_of(base, struct sh4_frontend, base);
+  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
 
   // get the block size
   sh4_analyze_block(guest_addr, guest_ptr, flags, size);
@@ -24,7 +24,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 static void sh4_frontend_dump_code(struct jit_frontend *base,
                                    uint32_t guest_addr, uint8_t *guest_ptr,
                                    int size) {
-  struct sh4_frontend *frontend = container_of(base, struct sh4_frontend, base);
+  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
 
   char buffer[128];
 
@@ -58,8 +58,8 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
 struct jit_frontend *sh4_frontend_create() {
   struct sh4_frontend *frontend = calloc(1, sizeof(struct sh4_frontend));
 
-  frontend->base.translate_code = &sh4_frontend_translate_code;
-  frontend->base.dump_code = &sh4_frontend_dump_code;
+  frontend->translate_code = &sh4_frontend_translate_code;
+  frontend->dump_code = &sh4_frontend_dump_code;
 
   return (struct jit_frontend *)frontend;
 }

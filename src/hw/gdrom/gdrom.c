@@ -100,7 +100,7 @@ static void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
   // for GD-ROMs, the single density area contains tracks 1 and 2, while the
   // dual density area contains tracks 3 - num_tracks
   int first_track_num = 0;
-  int last_track_num = disc_num_tracks(gd->disc) - 1;
+  int last_track_num = disc_get_num_tracks(gd->disc) - 1;
 
   // TODO conditionally check disc to make sure it's a GD-ROM once
   // CD-ROMs are supported
