@@ -30,5 +30,9 @@ struct holly *holly_create(struct dreamcast *dc);
 void holly_destroy(struct holly *hl);
 
 AM_DECLARE(holly_reg_map);
+AM_DECLARE(holly_modem_map);
+AM_DECLARE(holly_expansion0_map);
+AM_DECLARE(holly_expansion1_map);
+AM_DECLARE(holly_expansion2_map);
 
 #endif

@@ -458,4 +458,20 @@ AM_BEGIN(struct holly, holly_reg_map);
                                              (w32_cb)&holly_reg_w32,
                                              NULL)
 AM_END();
+
+AM_BEGIN(struct holly, holly_modem_map);
+  AM_RANGE(0x00000000, 0x0007ffff) AM_MOUNT("modem reg")
+AM_END();
+
+AM_BEGIN(struct holly, holly_expansion0_map);
+  AM_RANGE(0x00000000, 0x00ffffff) AM_MOUNT("expansion 0")
+AM_END();
+
+AM_BEGIN(struct holly, holly_expansion1_map);
+  AM_RANGE(0x00000000, 0x008fffff) AM_MOUNT("expansion 1")
+AM_END();
+
+AM_BEGIN(struct holly, holly_expansion2_map);
+  AM_RANGE(0x00000000, 0x03ffffff) AM_MOUNT("expansion 2")
+AM_END();
 // clang-format on
