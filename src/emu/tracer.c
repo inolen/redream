@@ -1,8 +1,8 @@
 #include "emu/tracer.h"
 #include "core/math.h"
-#include "hw/holly/ta.h"
-#include "hw/holly/tr.h"
-#include "hw/holly/trace.h"
+#include "hw/pvr/ta.h"
+#include "hw/pvr/tr.h"
+#include "hw/pvr/trace.h"
 #include "ui/nuklear.h"
 #include "ui/window.h"
 

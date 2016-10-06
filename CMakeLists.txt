@@ -154,12 +154,12 @@ set(REDREAM_SOURCES
   src/hw/gdrom/gdrom.c
   src/hw/holly/g2.c
   src/hw/holly/holly.c
-  src/hw/holly/pvr.c
-  src/hw/holly/ta.c
-  src/hw/holly/tr.c
-  src/hw/holly/trace.c
   src/hw/maple/controller.c
   src/hw/maple/maple.c
+  src/hw/pvr/pvr.c
+  src/hw/pvr/ta.c
+  src/hw/pvr/tr.c
+  src/hw/pvr/trace.c
   src/hw/sh4/sh4.c
   src/hw/sh4/sh4_code_cache.c
   src/hw/debugger.c

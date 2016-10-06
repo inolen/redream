@@ -1,11 +1,11 @@
 #include <float.h>
 #include <string.h>
-#include "hw/holly/tr.h"
+#include "hw/pvr/tr.h"
 #include "core/assert.h"
 #include "core/core.h"
 #include "core/profiler.h"
-#include "hw/holly/pixel_convert.h"
-#include "hw/holly/ta.h"
+#include "hw/pvr/pixel_convert.h"
+#include "hw/pvr/ta.h"
 
 struct tr {
   struct rb *rb;

@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 #include "hw/dreamcast.h"
-#include "hw/holly/pvr_types.h"
 #include "hw/memory.h"
+#include "hw/pvr/pvr_types.h"
 #include "hw/scheduler.h"
 
 struct dreamcast;
@@ -20,7 +20,7 @@ struct pvr {
   uint32_t current_scanline;
 
 #define PVR_REG(offset, name, default, type) type *name;
-#include "hw/holly/pvr_regs.inc"
+#include "hw/pvr/pvr_regs.inc"
 #undef PVR_REG
 };
 

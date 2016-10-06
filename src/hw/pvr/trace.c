@@ -1,8 +1,7 @@
 #include <limits.h>
-#include "hw/holly/tr.h"
+#include "hw/pvr/tr.h"
 #include "core/assert.h"
-#include "hw/holly/ta.h"
-#include "hw/holly/trace.h"
+#include "hw/pvr/trace.h"
 #include "sys/filesystem.h"
 
 void get_next_trace_filename(char *filename, size_t size) {
