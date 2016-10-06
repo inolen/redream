@@ -401,6 +401,8 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
 
       int poly_type = ta_get_poly_type(param->type0.pcw);
 
+      nk_labelf(ctx, NK_TEXT_LEFT, "poly type: %d", poly_type);
+
       switch (poly_type) {
         case 1:
           nk_labelf(ctx, NK_TEXT_LEFT, "face_color_a: %.2f",
