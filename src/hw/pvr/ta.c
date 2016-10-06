@@ -24,7 +24,7 @@ DEFINE_OPTION_BOOL(texcache, true, "Enable SIGSEGV-based texture caching");
   MAX(TA_YUV420_MACROBLOCK_SIZE, TA_YUV422_MACROBLOCK_SIZE)
 
 struct ta_texture_entry {
-  struct texture_entry base;
+  struct texture_entry;
   struct memory_watch *texture_watch;
   struct memory_watch *palette_watch;
   struct list_node free_it;
@@ -106,8 +106,8 @@ static int ta_entry_cmp(const struct rb_node *rb_lhs,
       rb_entry(rb_lhs, const struct ta_texture_entry, live_it);
   const struct ta_texture_entry *rhs =
       rb_entry(rb_rhs, const struct ta_texture_entry, live_it);
-  return (int)(tr_texture_key(lhs->base.tsp, lhs->base.tcw) -
-               tr_texture_key(rhs->base.tsp, rhs->base.tcw));
+  return (int)(tr_texture_key(lhs->tsp, lhs->tcw) -
+               tr_texture_key(rhs->tsp, rhs->tcw));
 }
 
 static int ta_context_cmp(const struct rb_node *rb_lhs,
@@ -257,8 +257,8 @@ static struct ta_texture_entry *ta_alloc_texture(struct ta *ta, union tsp tsp,
 
   // reset entry
   memset(entry, 0, sizeof(*entry));
-  entry->base.tsp = tsp;
-  entry->base.tcw = tcw;
+  entry->tsp = tsp;
+  entry->tcw = tcw;
 
   // add to live tree
   rb_insert(&ta->live_entries, &entry->live_it, &ta_entry_cb);
@@ -271,8 +271,8 @@ static struct ta_texture_entry *ta_alloc_texture(struct ta *ta, union tsp tsp,
 static struct ta_texture_entry *ta_find_texture(struct ta *ta, union tsp tsp,
                                                 union tcw tcw) {
   struct ta_texture_entry search;
-  search.base.tsp = tsp;
-  search.base.tcw = tcw;
+  search.tsp = tsp;
+  search.tcw = tcw;
 
   return rb_find_entry(&ta->live_entries, &search, struct ta_texture_entry,
                        live_it, &ta_entry_cb);
@@ -287,7 +287,7 @@ static struct texture_entry *ta_texture_provider_find_texture(void *data,
     return NULL;
   }
 
-  return &entry->base;
+  return (struct texture_entry *)entry;
 }
 
 static void ta_clear_textures(struct ta *ta) {
@@ -301,7 +301,7 @@ static void ta_clear_textures(struct ta *ta) {
     struct ta_texture_entry *entry =
         rb_entry(it, struct ta_texture_entry, live_it);
 
-    entry->base.dirty = 1;
+    entry->dirty = 1;
 
     it = next;
   }
@@ -310,13 +310,13 @@ static void ta_clear_textures(struct ta *ta) {
 static void ta_texture_invalidated(const struct exception *ex, void *data) {
   struct ta_texture_entry *entry = data;
   entry->texture_watch = NULL;
-  entry->base.dirty = 1;
+  entry->dirty = 1;
 }
 
 static void ta_palette_invalidated(const struct exception *ex, void *data) {
   struct ta_texture_entry *entry = data;
   entry->palette_watch = NULL;
-  entry->base.dirty = 1;
+  entry->dirty = 1;
 }
 
 static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
@@ -428,22 +428,22 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
   }
 
   // mark texture source valid for the current frame
-  entry->base.frame = ta->frame;
+  entry->frame = ta->frame;
 
   // set texture address
-  if (!entry->base.texture) {
+  if (!entry->texture) {
     uint32_t texture_addr = tcw.texture_addr << 3;
     int width = 8 << tsp.texture_u_size;
     int height = 8 << tsp.texture_v_size;
     int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
                                 ? 8
                                 : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
-    entry->base.texture = &ta->video_ram[texture_addr];
-    entry->base.texture_size = (width * height * element_size_bits) >> 3;
+    entry->texture = &ta->video_ram[texture_addr];
+    entry->texture_size = (width * height * element_size_bits) >> 3;
   }
 
   // set palette address
-  if (!entry->base.palette) {
+  if (!entry->palette) {
     if (tcw.pixel_format == TA_PIXEL_4BPP ||
         tcw.pixel_format == TA_PIXEL_8BPP) {
       uint32_t palette_addr = 0;
@@ -465,8 +465,8 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
         palette_size = (1 << 8) * 4;
       }
 
-      entry->base.palette = &ta->palette_ram[palette_addr];
-      entry->base.palette_size = palette_size;
+      entry->palette = &ta->palette_ram[palette_addr];
+      entry->palette_size = palette_size;
     }
   }
 
@@ -475,23 +475,21 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
   // some cases. over invalidate in these cases
   if (OPTION_texcache) {
     if (!entry->texture_watch) {
-      entry->texture_watch =
-          add_single_write_watch(entry->base.texture, entry->base.texture_size,
-                                 &ta_texture_invalidated, entry);
+      entry->texture_watch = add_single_write_watch(
+          entry->texture, entry->texture_size, &ta_texture_invalidated, entry);
     }
 
-    if (entry->base.palette && !entry->palette_watch) {
-      entry->palette_watch =
-          add_single_write_watch(entry->base.palette, entry->base.palette_size,
-                                 &ta_palette_invalidated, entry);
+    if (entry->palette && !entry->palette_watch) {
+      entry->palette_watch = add_single_write_watch(
+          entry->palette, entry->palette_size, &ta_palette_invalidated, entry);
     }
   }
 
   // add modified entries to the trace
-  if (ta->trace_writer && (new_entry || entry->base.dirty)) {
-    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->base.palette,
-                                entry->base.palette_size, entry->base.texture,
-                                entry->base.texture_size);
+  if (ta->trace_writer && (new_entry || entry->dirty)) {
+    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->palette,
+                                entry->palette_size, entry->texture,
+                                entry->texture_size);
   }
 }
 

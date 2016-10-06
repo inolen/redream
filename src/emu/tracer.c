@@ -59,7 +59,7 @@ static const char *s_shademode_names[] = {
 };
 
 struct tracer_texture_entry {
-  struct texture_entry base;
+  struct texture_entry;
   struct rb_node live_it;
   struct list_node free_it;
 };
@@ -102,8 +102,8 @@ static int tracer_texture_cmp(const struct rb_node *rb_lhs,
       rb_entry(rb_lhs, const struct tracer_texture_entry, live_it);
   const struct tracer_texture_entry *rhs =
       rb_entry(rb_rhs, const struct tracer_texture_entry, live_it);
-  return (int)(tr_texture_key(lhs->base.tsp, lhs->base.tcw) -
-               tr_texture_key(rhs->base.tsp, rhs->base.tcw));
+  return (int)(tr_texture_key(lhs->tsp, lhs->tcw) -
+               tr_texture_key(rhs->tsp, rhs->tcw));
 }
 
 static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,
@@ -113,8 +113,8 @@ static struct tracer_texture_entry *tracer_find_texture(struct tracer *tracer,
                                                         union tsp tsp,
                                                         union tcw tcw) {
   struct tracer_texture_entry search;
-  search.base.tsp = tsp;
-  search.base.tcw = tcw;
+  search.tsp = tsp;
+  search.tcw = tcw;
 
   return rb_find_entry(&tracer->live_textures, &search,
                        struct tracer_texture_entry, live_it,
@@ -133,17 +133,17 @@ static void tracer_add_texture(struct tracer *tracer, union tsp tsp,
     CHECK_NOTNULL(entry);
     list_remove(&tracer->free_textures, &entry->free_it);
 
-    entry->base.tsp = tsp;
-    entry->base.tcw = tcw;
+    entry->tsp = tsp;
+    entry->tcw = tcw;
 
     rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
 
     new_entry = 1;
   };
 
-  entry->base.dirty = new_entry ? 0 : 1;
-  entry->base.palette = palette;
-  entry->base.texture = texture;
+  entry->dirty = new_entry ? 0 : 1;
+  entry->palette = palette;
+  entry->texture = texture;
 }
 
 static struct texture_entry *tracer_texture_provider_find_texture(
@@ -153,7 +153,7 @@ static struct texture_entry *tracer_texture_provider_find_texture(
   struct tracer_texture_entry *entry = tracer_find_texture(tracer, tsp, tcw);
   CHECK_NOTNULL(entry, "Texture wasn't available in cache");
 
-  return &entry->base;
+  return (struct texture_entry *)entry;
 }
 
 static void tracer_copy_command(const struct trace_cmd *cmd,
@@ -707,7 +707,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
                           struct tracer_texture_entry, live_it) {
           struct nk_rect bounds = nk_widget_bounds(ctx);
 
-          nk_image(ctx, nk_image_id((int)entry->base.handle));
+          nk_image(ctx, nk_image_id((int)entry->handle));
 
           if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
             struct nk_panel tooltip;
@@ -723,7 +723,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
               if (nk_group_begin(ctx, &tab, "texture preview",
                                  NK_WINDOW_NO_SCROLLBAR)) {
                 nk_layout_row_static(ctx, 184.0f, 184, 1);
-                nk_image(ctx, nk_image_id((int)entry->base.handle));
+                nk_image(ctx, nk_image_id((int)entry->handle));
                 nk_group_end(ctx);
               }
 
@@ -731,19 +731,18 @@ static void tracer_render_side_menu(struct tracer *tracer) {
                                  NK_WINDOW_NO_SCROLLBAR)) {
                 nk_layout_row_static(ctx, ctx->style.font.height, 184, 1);
                 nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
-                          entry->base.tcw.texture_addr << 3);
+                          entry->tcw.texture_addr << 3);
                 nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
-                          s_pixel_format_names[entry->base.format]);
+                          s_pixel_format_names[entry->format]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
-                          s_filter_mode_names[entry->base.filter]);
+                          s_filter_mode_names[entry->filter]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
-                          s_wrap_mode_names[entry->base.wrap_u]);
+                          s_wrap_mode_names[entry->wrap_u]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
-                          s_wrap_mode_names[entry->base.wrap_v]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d",
-                          entry->base.mipmaps);
-                nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->base.width);
-                nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->base.height);
+                          s_wrap_mode_names[entry->wrap_v]);
+                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d", entry->mipmaps);
+                nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->width);
+                nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->height);
                 nk_group_end(ctx);
               }
 

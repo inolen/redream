@@ -42,7 +42,7 @@ struct condition {
 };
 
 struct controller {
-  struct maple_device base;
+  struct maple_device;
   struct condition cnd;
   int map[K_NUM_KEYS];
 };
@@ -120,14 +120,14 @@ static void controller_load_profile(struct controller *ctrl, const char *path) {
 }
 
 static void controller_destroy(struct maple_device *dev) {
-  struct controller *ctrl = container_of(dev, struct controller, base);
+  struct controller *ctrl = (struct controller *)dev;
 
   free(ctrl);
 }
 
 static bool controller_input(struct maple_device *dev, enum keycode key,
                              int16_t value) {
-  struct controller *ctrl = container_of(dev, struct controller, base);
+  struct controller *ctrl = (struct controller *)dev;
 
   // map incoming key to dreamcast button
   int button = ctrl->map[key];
@@ -162,7 +162,7 @@ static bool controller_input(struct maple_device *dev, enum keycode key,
 static bool controller_frame(struct maple_device *dev,
                              const struct maple_frame *frame,
                              struct maple_frame *res) {
-  struct controller *ctrl = container_of(dev, struct controller, base);
+  struct controller *ctrl = (struct controller *)dev;
 
   switch (frame->header.command) {
     case CMD_REQDEVINFO:
@@ -187,9 +187,9 @@ static bool controller_frame(struct maple_device *dev,
 
 struct maple_device *controller_create() {
   struct controller *ctrl = calloc(1, sizeof(struct controller));
-  ctrl->base.destroy = &controller_destroy;
-  ctrl->base.input = &controller_input;
-  ctrl->base.frame = &controller_frame;
+  ctrl->destroy = &controller_destroy;
+  ctrl->input = &controller_input;
+  ctrl->frame = &controller_frame;
   ctrl->cnd.function = FN_CONTROLLER;
 
   // buttons bitfield contains 0s for pressed buttons and 1s for unpressed
@@ -219,5 +219,5 @@ struct maple_device *controller_create() {
   // load profile
   controller_load_profile(ctrl, OPTION_profile);
 
-  return &ctrl->base;
+  return (struct maple_device *)ctrl;
 }
