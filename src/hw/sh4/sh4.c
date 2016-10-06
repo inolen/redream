@@ -5,7 +5,6 @@
 #include "hw/aica/aica.h"
 #include "hw/debugger.h"
 #include "hw/dreamcast.h"
-#include "hw/holly/g2.h"
 #include "hw/holly/holly.h"
 #include "hw/memory.h"
 #include "hw/pvr/pvr.h"
@@ -968,14 +967,14 @@ AM_BEGIN(struct sh4, sh4_data_map)
   // external devices
   AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", holly_reg_map)
   AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", pvr_reg_map)
-  AM_RANGE(0x00600000, 0x0067ffff) AM_DEVICE("g2", g2_modem_map)
+  AM_RANGE(0x00600000, 0x0067ffff) AM_DEVICE("holly", holly_modem_map)
   AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", aica_reg_map)
   AM_RANGE(0x00800000, 0x00ffffff) AM_DEVICE("aica", aica_data_map)
-  AM_RANGE(0x01000000, 0x01ffffff) AM_DEVICE("g2", g2_expansion0_map)
-  AM_RANGE(0x02700000, 0x02ffffff) AM_DEVICE("g2", g2_expansion1_map)
+  AM_RANGE(0x01000000, 0x01ffffff) AM_DEVICE("holly", holly_expansion0_map)
+  AM_RANGE(0x02700000, 0x02ffffff) AM_DEVICE("holly", holly_expansion1_map)
   AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", pvr_vram_map)
   AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_fifo_map)
-  AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("g2", g2_expansion2_map)
+  AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("holly", holly_expansion2_map)
 
   // internal registers
   AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE("sh4 reg",
