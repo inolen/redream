@@ -2,7 +2,7 @@
 #define TRACE_H
 
 #include <stdio.h>
-#include "hw/holly/ta_types.h"
+#include "hw/pvr/ta_types.h"
 
 enum trace_cmd_type {
   TRACE_CMD_NONE,

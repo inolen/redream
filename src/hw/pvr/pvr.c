@@ -1,7 +1,7 @@
-#include "hw/holly/pvr.h"
+#include "hw/pvr/pvr.h"
 #include "hw/dreamcast.h"
 #include "hw/holly/holly.h"
-#include "hw/holly/ta.h"
+#include "hw/pvr/ta.h"
 #include "hw/sh4/sh4.h"
 
 struct reg_cb pvr_cb[NUM_PVR_REGS];
@@ -164,7 +164,7 @@ static bool pvr_init(struct device *dev) {
 #define PVR_REG(offset, name, default, type) \
   pvr->reg[name] = default;                  \
   pvr->name = (type *)&pvr->reg[name];
-#include "hw/holly/pvr_regs.inc"
+#include "hw/pvr/pvr_regs.inc"
 #undef PVR_REG
 
   // configure initial vsync interval

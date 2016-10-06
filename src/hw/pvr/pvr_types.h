@@ -217,7 +217,7 @@ union ta_yuv_tex_cnt {
 enum {
 #define PVR_REG(addr, name, flags, default_value) \
   name = (addr - 0x005f8000) >> 2,
-#include "hw/holly/pvr_regs.inc"
+#include "hw/pvr/pvr_regs.inc"
 #undef PVR_REG
   NUM_PVR_REGS = 0x00001000 >> 2,
 };

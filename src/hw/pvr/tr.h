@@ -2,7 +2,7 @@
 #define TR_H
 
 #include "core/rb_tree.h"
-#include "hw/holly/ta_types.h"
+#include "hw/pvr/ta_types.h"
 #include "renderer/backend.h"
 
 struct tr;

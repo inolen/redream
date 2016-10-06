@@ -1,8 +1,8 @@
 #ifndef TILE_ACCELERATOR_H
 #define TILE_ACCELERATOR_H
 
-#include "hw/holly/ta_types.h"
 #include "hw/memory.h"
+#include "hw/pvr/ta_types.h"
 
 struct dreamcast;
 struct rb;

@@ -7,10 +7,10 @@
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/g2.h"
 #include "hw/holly/holly.h"
-#include "hw/holly/pvr.h"
-#include "hw/holly/ta.h"
 #include "hw/maple/maple.h"
 #include "hw/memory.h"
+#include "hw/pvr/pvr.h"
+#include "hw/pvr/ta.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 
