@@ -163,11 +163,6 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
     stride = ctx->stride;
   }
 
-  // FIXME used for texcoords, not width / height of texture
-  // if (planar && tcw.stride_select) {
-  //   width = ctx->stride << 5;
-  // }
-
   // mipmap textures contain data for 1 x 1 up to width x height. skip to the
   // highest res texture and let the renderer backend generate its own mipmaps
   if (mip_mapped) {
@@ -203,7 +198,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
             (const uint16_t *)input, (uint16_t *)converted, width, height);
       } else {
         convert_ARGB1555_RGBA5551((const uint16_t *)input,
-                                  (uint16_t *)converted, stride, height);
+                                  (uint16_t *)converted, width, height, stride);
       }
       break;
 
@@ -218,7 +213,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
                                        (uint16_t *)converted, width, height);
       } else {
         convert_RGB565_RGB565((const uint16_t *)input, (uint16_t *)converted,
-                              stride, height);
+                              width, height, stride);
       }
       break;
 
@@ -233,8 +228,17 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
             (const uint16_t *)input, (uint16_t *)converted, width, height);
       } else {
         convert_ARGB4444_RGBA4444((const uint16_t *)input,
-                                  (uint16_t *)converted, stride, height);
+                                  (uint16_t *)converted, width, height, stride);
       }
+      break;
+
+    case TA_PIXEL_YUV422:
+      output = converted;
+      pixel_fmt = PXL_RGB565;
+      CHECK(!compressed && !twiddled);
+      convert_packed_UYVY422_RGB565((const uint32_t *)input,
+                                    (uint16_t *)converted, width, height,
+                                    stride);
       break;
 
     case TA_PIXEL_4BPP:

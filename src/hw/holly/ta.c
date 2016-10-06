@@ -18,6 +18,10 @@
 DEFINE_OPTION_BOOL(texcache, true, "Enable SIGSEGV-based texture caching");
 
 #define TA_MAX_CONTEXTS 32
+#define TA_YUV420_MACROBLOCK_SIZE 384
+#define TA_YUV422_MACROBLOCK_SIZE 512
+#define TA_MAX_MACROBLOCK_SIZE \
+  MAX(TA_YUV420_MACROBLOCK_SIZE, TA_YUV422_MACROBLOCK_SIZE)
 
 struct ta_texture_entry {
   struct texture_entry base;
@@ -34,6 +38,15 @@ struct ta {
   struct tr *tr;
   uint8_t *video_ram;
   uint8_t *palette_ram;
+
+  // yuv data converter state
+  uint8_t *yuv_data;
+  int yuv_width;
+  int yuv_height;
+  int yuv_macroblock_pos;
+  int yuv_macroblock_size;
+  int yuv_macroblock_count;
+  uint8_t yuv_macroblock[TA_MAX_MACROBLOCK_SIZE];
 
   // texture cache entry pool. free entries are in a linked list, live entries
   // are in a tree ordered by texture key, textures queued for invalidation are
@@ -474,8 +487,8 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
     }
   }
 
-  // add new entries to the trace
-  if (ta->trace_writer && new_entry) {
+  // add modified entries to the trace
+  if (ta->trace_writer && (new_entry || entry->base.dirty)) {
     trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->base.palette,
                                 entry->base.palette_size, entry->base.texture,
                                 entry->base.texture_size);
@@ -665,8 +678,117 @@ static void ta_start_render(struct ta *ta, uint32_t addr) {
   mutex_unlock(ta->pending_mutex);
 }
 
+static void ta_yuv_init(struct ta *ta) {
+  struct pvr *pvr = ta->pvr;
+
+  // FIXME only YUV420 -> YUV422 supported for now
+  CHECK_EQ(pvr->TA_YUV_TEX_CTRL->format, 0);
+
+  // FIXME only format 0 supported for now
+  CHECK_EQ(pvr->TA_YUV_TEX_CTRL->tex, 0);
+
+  int u_size = pvr->TA_YUV_TEX_CTRL->u_size + 1;
+  int v_size = pvr->TA_YUV_TEX_CTRL->v_size + 1;
+
+  // setup internal state for the data conversion
+  ta->yuv_data = &ta->video_ram[pvr->TA_YUV_TEX_BASE->base_address];
+  ta->yuv_width = u_size * 16;
+  ta->yuv_height = v_size * 16;
+  ta->yuv_macroblock_pos = 0;
+  ta->yuv_macroblock_size = TA_YUV420_MACROBLOCK_SIZE;
+  ta->yuv_macroblock_count = u_size * v_size;
+
+  // reset number of macroblocks processed
+  pvr->TA_YUV_TEX_CNT->num = 0;
+}
+
+static void ta_yuv_process_block(struct ta *ta, const uint8_t *in_uv,
+                                 const uint8_t *in_y, uint8_t *out_uyvy) {
+  uint8_t *out_row0 = out_uyvy;
+  uint8_t *out_row1 = out_uyvy + (ta->yuv_width << 1);
+
+  // reencode 8x8 subblock of YUV420 data as UYVY422
+  for (int j = 0; j < 8; j += 2) {
+    for (int i = 0; i < 8; i += 2) {
+      uint8_t u = in_uv[0];
+      uint8_t v = in_uv[64];
+      uint8_t y0 = in_y[0];
+      uint8_t y1 = in_y[1];
+      uint8_t y2 = in_y[8];
+      uint8_t y3 = in_y[9];
+
+      out_row0[0] = u;
+      out_row0[1] = y0;
+      out_row0[2] = v;
+      out_row0[3] = y1;
+
+      out_row1[0] = u;
+      out_row1[1] = y2;
+      out_row1[2] = v;
+      out_row1[3] = y3;
+
+      in_uv += 1;
+      in_y += 2;
+      out_row0 += 4;
+      out_row1 += 4;
+    }
+
+    // skip past adjacent 8x8 subblock
+    in_uv += 4;
+    in_y += 8;
+    out_row0 += (ta->yuv_width << 2) - 16;
+    out_row1 += (ta->yuv_width << 2) - 16;
+  }
+}
+
+static void ta_yuv_process_macroblock(struct ta *ta) {
+  struct pvr *pvr = ta->pvr;
+  struct address_space *space = ta->sh4->memory_if->space;
+
+  // YUV420 data comes in as a series 16x16 macroblocks that need to be
+  // converted into a single UYVY422 texture
+  const uint8_t *in = ta->yuv_macroblock;
+  uint32_t out_x =
+      (pvr->TA_YUV_TEX_CNT->num % (pvr->TA_YUV_TEX_CTRL->u_size + 1)) * 16;
+  uint32_t out_y =
+      (pvr->TA_YUV_TEX_CNT->num / (pvr->TA_YUV_TEX_CTRL->u_size + 1)) * 16;
+  uint8_t *out = &ta->yuv_data[(out_y * ta->yuv_width + out_x) << 1];
+
+  // process each 8x8 subblock individually
+  // (0, 0)
+  ta_yuv_process_block(ta, &in[0], &in[128], &out[0]);
+  // (8, 0)
+  ta_yuv_process_block(ta, &in[4], &in[192], &out[16]);
+  // (0, 8)
+  ta_yuv_process_block(ta, &in[32], &in[256], &out[ta->yuv_width * 16]);
+  // (8, 8)
+  ta_yuv_process_block(ta, &in[36], &in[320], &out[ta->yuv_width * 16 + 16]);
+
+  // reset state once all macroblocks have been processed
+  if (++pvr->TA_YUV_TEX_CNT->num >= ta->yuv_macroblock_count) {
+    ta_yuv_init(ta);
+
+    // raise DMA end interrupt
+    holly_raise_interrupt(ta->holly, HOLLY_INTC_TAYUVINT);
+  }
+}
+
 static void ta_write_poly_fifo(struct ta *ta, uint32_t addr, uint32_t value) {
   ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, value);
+}
+
+static void ta_write_yuv_fifo(struct ta *ta, uint32_t addr, uint32_t value) {
+  struct holly *holly = ta->holly;
+  struct pvr *pvr = ta->pvr;
+
+  // append data to current macroblock
+  *(uint32_t *)&ta->yuv_macroblock[ta->yuv_macroblock_pos] = value;
+  ta->yuv_macroblock_pos += 4;
+
+  if (ta->yuv_macroblock_pos >= ta->yuv_macroblock_size) {
+    ta_yuv_process_macroblock(ta);
+    ta->yuv_macroblock_pos = 0;
+  }
 }
 
 static void ta_write_texture_fifo(struct ta *ta, uint32_t addr,
@@ -840,6 +962,16 @@ REG_W32(pvr_cb, SOFTRESET) {
   ta_soft_reset(ta);
 }
 
+REG_W32(pvr_cb, STARTRENDER) {
+  struct ta *ta = dc->ta;
+
+  if (!value) {
+    return;
+  }
+
+  ta_start_render(ta, ta->pvr->PARAM_BASE->base_address);
+}
+
 REG_W32(pvr_cb, TA_LIST_INIT) {
   struct ta *ta = dc->ta;
 
@@ -858,35 +990,45 @@ REG_W32(pvr_cb, TA_LIST_CONT) {
   LOG_WARNING("Unsupported TA_LIST_CONT");
 }
 
-REG_W32(pvr_cb, STARTRENDER) {
+REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
   struct ta *ta = dc->ta;
+  struct pvr *pvr = dc->pvr;
 
-  if (!value) {
-    return;
-  }
+  LOG_INFO("TA_YUV_TEX_BASE write 0x%08x", value);
 
-  ta_start_render(ta, ta->pvr->PARAM_BASE->base_address);
+  pvr->TA_YUV_TEX_BASE->full = value;
+
+  ta_yuv_init(ta);
 }
 
 // clang-format off
 AM_BEGIN(struct ta, ta_fifo_map);
-  AM_RANGE(0x0000000, 0x07fffff) AM_HANDLE("ta poly fifo",
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           (w32_cb)&ta_write_poly_fifo,
-                                           NULL)
-  AM_RANGE(0x1000000, 0x1ffffff) AM_HANDLE("ta texture fifo",
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           (w32_cb)&ta_write_texture_fifo,
-                                           NULL)
+  AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("ta poly fifo",
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             (w32_cb)&ta_write_poly_fifo,
+                                             NULL)
+  AM_RANGE(0x00800000, 0x00ffffff) AM_HANDLE("ta yuv fifo",
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             (w32_cb)&ta_write_yuv_fifo,
+                                             NULL)
+  AM_RANGE(0x01000000, 0x01ffffff) AM_HANDLE("ta texture fifo",
+                                            NULL,
+                                            NULL,
+                                            NULL,
+                                            NULL,
+                                            NULL,
+                                            NULL,
+                                            (w32_cb)&ta_write_texture_fifo,
+                                            NULL)
 AM_END();
 // clang-format on

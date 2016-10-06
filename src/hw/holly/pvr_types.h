@@ -184,6 +184,36 @@ union ta_isp_base {
   };
 };
 
+union ta_yuv_tex_base {
+  uint32_t full;
+  struct {
+    uint32_t base_address : 24;
+    uint32_t reserved : 8;
+  };
+};
+
+union ta_yuv_tex_ctrl {
+  uint32_t full;
+  struct {
+    uint32_t u_size : 6;
+    uint32_t : 2;
+    uint32_t v_size : 6;
+    uint32_t : 2;
+    uint32_t tex : 1;
+    uint32_t : 7;
+    uint32_t format : 1;
+    uint32_t : 7;
+  };
+};
+
+union ta_yuv_tex_cnt {
+  uint32_t full;
+  struct {
+    uint32_t num : 13;
+    uint32_t : 19;
+  };
+};
+
 enum {
 #define PVR_REG(addr, name, flags, default_value) \
   name = (addr - 0x005f8000) >> 2,
