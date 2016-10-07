@@ -204,18 +204,14 @@ AM_BEGIN(struct pvr, pvr_reg_map);
                                              (r32_cb)&pvr_reg_r32,
                                              NULL,
                                              NULL,
-                                             NULL,
-                                             (w32_cb)&pvr_reg_w32,
-                                             NULL)
+                                             (w32_cb)&pvr_reg_w32)
   AM_RANGE(0x00001000, 0x00001fff) AM_HANDLE("pvr palette",
                                              NULL,
                                              NULL,
                                              (r32_cb)&pvr_palette_r32,
                                              NULL,
                                              NULL,
-                                             NULL,
-                                             (w32_cb)&pvr_palette_w32,
-                                             NULL)
+                                             (w32_cb)&pvr_palette_w32)
 AM_END();
 
 AM_BEGIN(struct pvr, pvr_vram_map);
@@ -224,10 +220,8 @@ AM_BEGIN(struct pvr, pvr_vram_map);
                                              (r8_cb)&pvr_vram_interleaved_r8,
                                              (r16_cb)&pvr_vram_interleaved_r16,
                                              (r32_cb)&pvr_vram_interleaved_r32,
-                                             NULL,
                                              (w8_cb)&pvr_vram_interleaved_w8,
                                              (w16_cb)&pvr_vram_interleaved_w16,
-                                             (w32_cb)&pvr_vram_interleaved_w32,
-                                             NULL)
+                                             (w32_cb)&pvr_vram_interleaved_w32)
 AM_END();
 // clang-format on

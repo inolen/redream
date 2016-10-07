@@ -158,8 +158,7 @@ struct memory_region *memory_create_physical_region(struct memory *memory,
 
 struct memory_region *memory_create_mmio_region(
     struct memory *memory, const char *name, uint32_t size, void *data,
-    r8_cb r8, r16_cb r16, r32_cb r32, r64_cb r64, w8_cb w8, w16_cb w16,
-    w32_cb w32, w64_cb w64) {
+    r8_cb r8, r16_cb r16, r32_cb r32, w8_cb w8, w16_cb w16, w32_cb w32) {
   struct memory_region *region = memory_get_region(memory, name);
 
   if (!region) {
@@ -174,11 +173,9 @@ struct memory_region *memory_create_mmio_region(
     region->mmio.read8 = r8;
     region->mmio.read16 = r16;
     region->mmio.read32 = r32;
-    region->mmio.read64 = r64;
     region->mmio.write8 = w8;
     region->mmio.write16 = w16;
     region->mmio.write32 = w32;
-    region->mmio.write64 = w64;
   }
 
   return region;
@@ -321,7 +318,6 @@ void am_mirror(struct address_map *am, uint32_t physical_addr, uint32_t size,
 define_read_bytes(read8, uint8_t);
 define_read_bytes(read16, uint16_t);
 define_read_bytes(read32, uint32_t);
-define_read_bytes(read64, uint64_t);
 
 #define define_write_bytes(name, data_type)                                    \
   void as_##name(struct address_space *space, uint32_t addr,                   \
@@ -342,7 +338,6 @@ define_read_bytes(read64, uint64_t);
 define_write_bytes(write8, uint8_t);
 define_write_bytes(write16, uint16_t);
 define_write_bytes(write32, uint32_t);
-define_write_bytes(write64, uint64_t);
 
 void as_memcpy_to_guest(struct address_space *space, uint32_t dst,
                         const void *ptr, uint32_t size) {

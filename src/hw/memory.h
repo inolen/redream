@@ -11,11 +11,9 @@ struct dreamcast;
 typedef uint8_t (*r8_cb)(void *, uint32_t);
 typedef uint16_t (*r16_cb)(void *, uint32_t);
 typedef uint32_t (*r32_cb)(void *, uint32_t);
-typedef uint64_t (*r64_cb)(void *, uint32_t);
 typedef void (*w8_cb)(void *, uint32_t, uint8_t);
 typedef void (*w16_cb)(void *, uint32_t, uint16_t);
 typedef void (*w32_cb)(void *, uint32_t, uint32_t);
-typedef void (*w64_cb)(void *, uint32_t, uint64_t);
 
 enum region_type { REGION_PHYSICAL, REGION_MMIO };
 
@@ -36,11 +34,9 @@ struct memory_region {
       r8_cb read8;
       r16_cb read16;
       r32_cb read32;
-      r64_cb read64;
       w8_cb write8;
       w16_cb write16;
       w32_cb write32;
-      w64_cb write64;
     } mmio;
   };
 };
@@ -52,8 +48,7 @@ struct memory_region *memory_create_physical_region(struct memory *memory,
                                                     uint32_t size);
 struct memory_region *memory_create_mmio_region(
     struct memory *memory, const char *name, uint32_t size, void *data,
-    r8_cb r8, r16_cb r16, r32_cb r32, r64_cb r64, w8_cb w8, w16_cb w16,
-    w32_cb w32, w64_cb w64);
+    r8_cb r8, r16_cb r16, r32_cb r32, w8_cb w8, w16_cb w16, w32_cb w32);
 
 uint8_t *memory_translate(struct memory *memory, const char *name,
                           uint32_t offset);
@@ -88,12 +83,11 @@ void memory_destroy(struct memory *memory);
         memory_create_physical_region(machine->memory, name, size); \
     am_physical(map, region, size, begin, mask);                    \
   }
-#define AM_HANDLE(name, r8, r16, r32, r64, w8, w16, w32, w64)                 \
-  {                                                                           \
-    struct memory_region *region =                                            \
-        memory_create_mmio_region(machine->memory, name, size, self, r8, r16, \
-                                  r32, r64, w8, w16, w32, w64);               \
-    am_mmio(map, region, size, begin, mask);                                  \
+#define AM_HANDLE(name, r8, r16, r32, w8, w16, w32)                     \
+  {                                                                     \
+    struct memory_region *region = memory_create_mmio_region(           \
+        machine->memory, name, size, self, r8, r16, r32, w8, w16, w32); \
+    am_mmio(map, region, size, begin, mask);                            \
   }
 #define AM_DEVICE(name, cb)                               \
   {                                                       \
@@ -190,11 +184,9 @@ void as_memcpy(struct address_space *space, uint32_t virtual_dest,
 uint8_t as_read8(struct address_space *space, uint32_t addr);
 uint16_t as_read16(struct address_space *space, uint32_t addr);
 uint32_t as_read32(struct address_space *space, uint32_t addr);
-uint64_t as_read64(struct address_space *space, uint32_t addr);
 void as_write8(struct address_space *space, uint32_t addr, uint8_t value);
 void as_write16(struct address_space *space, uint32_t addr, uint16_t value);
 void as_write32(struct address_space *space, uint32_t addr, uint32_t value);
-void as_write64(struct address_space *space, uint32_t addr, uint64_t value);
 
 bool as_map(struct address_space *space, const char *name,
             const struct address_map *map);

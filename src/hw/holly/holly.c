@@ -126,7 +126,8 @@ static void holly_maple_dma(struct holly *hl) {
   struct maple_frame frame, res;
 
   do {
-    desc.full = as_read64(space, addr);
+    desc.full =
+        ((uint64_t)as_read32(space, addr + 4) << 32) | as_read32(space, addr);
     addr += 8;
 
     // read input
@@ -452,11 +453,9 @@ AM_BEGIN(struct holly, holly_reg_map);
                                              (r8_cb)&holly_reg_r8,
                                              (r16_cb)&holly_reg_r16,
                                              (r32_cb)&holly_reg_r32,
-                                             NULL,
                                              (w8_cb)&holly_reg_w8,
                                              (w16_cb)&holly_reg_w16,
-                                             (w32_cb)&holly_reg_w32,
-                                             NULL)
+                                             (w32_cb)&holly_reg_w32)
 AM_END();
 
 AM_BEGIN(struct holly, holly_modem_map);
