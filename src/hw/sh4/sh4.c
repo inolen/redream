@@ -500,7 +500,6 @@ define_reg_write(w32, uint32_t);
 define_cache_read(r8, uint8_t);
 define_cache_read(r16, uint16_t);
 define_cache_read(r32, uint32_t);
-define_cache_read(r64, uint64_t);
 
 #define define_cache_write(name, type)                                       \
   static void sh4_cache_##name(struct sh4 *sh4, uint32_t addr, type value) { \
@@ -512,7 +511,6 @@ define_cache_read(r64, uint64_t);
 define_cache_write(w8, uint8_t);
 define_cache_write(w16, uint16_t);
 define_cache_write(w32, uint32_t);
-define_cache_write(w64, uint64_t);
 
 #define define_sq_read(name, type)                            \
   static type sh4_sq_##name(struct sh4 *sh4, uint32_t addr) { \
@@ -546,11 +544,11 @@ static bool sh4_init(struct device *dev) {
                                               &as_read8,
                                               &as_read16,
                                               &as_read32,
-                                              &as_read64,
+                                              NULL,
                                               &as_write8,
                                               &as_write16,
                                               &as_write32,
-                                              &as_write64};
+                                              NULL};
   sh4->code_cache = sh4_cache_create(&sh4->jit_if, &sh4_compile_pc);
 
   // initialize context
@@ -981,11 +979,9 @@ AM_BEGIN(struct sh4, sh4_data_map)
                                              (r8_cb)&sh4_reg_r8,
                                              (r16_cb)&sh4_reg_r16,
                                              (r32_cb)&sh4_reg_r32,
-                                             NULL,
                                              (w8_cb)&sh4_reg_w8,
                                              (w16_cb)&sh4_reg_w16,
-                                             (w32_cb)&sh4_reg_w32,
-                                             NULL)
+                                             (w32_cb)&sh4_reg_w32)
 
   // physical mirrors
   AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  // p0
@@ -1001,20 +997,15 @@ AM_BEGIN(struct sh4, sh4_data_map)
                                              (r8_cb)&sh4_cache_r8,
                                              (r16_cb)&sh4_cache_r16,
                                              (r32_cb)&sh4_cache_r32,
-                                             (r64_cb)&sh4_cache_r64,
                                              (w8_cb)&sh4_cache_w8,
                                              (w16_cb)&sh4_cache_w16,
-                                             (w32_cb)&sh4_cache_w32,
-                                             (w64_cb)&sh4_cache_w64)
-
+                                             (w32_cb)&sh4_cache_w32)
   AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE("sh4 sq",
                                              (r8_cb)&sh4_sq_r8,
                                              (r16_cb)&sh4_sq_r16,
                                              (r32_cb)&sh4_sq_r32,
-                                             NULL,
                                              (w8_cb)&sh4_sq_w8,
                                              (w16_cb)&sh4_sq_w16,
-                                             (w32_cb)&sh4_sq_w32,
-                                             NULL)
+                                             (w32_cb)&sh4_sq_w32)
 AM_END();
 // clang-format on

@@ -274,11 +274,9 @@ AM_BEGIN(struct aica, aica_reg_map);
                                              (r8_cb)&aica_reg_r8,
                                              (r16_cb)&aica_reg_r16,
                                              (r32_cb)&aica_reg_r32,
-                                             NULL,
                                              (w8_cb)&aica_reg_w8,
                                              (w16_cb)&aica_reg_w16,
-                                             (w32_cb)&aica_reg_w32,
-                                             NULL)
+                                             (w32_cb)&aica_reg_w32)
 AM_END();
 
 AM_BEGIN(struct aica, aica_data_map);
@@ -287,10 +285,8 @@ AM_BEGIN(struct aica, aica_data_map);
                                              (r8_cb)&aica_wave_r8,
                                              (r16_cb)&aica_wave_r16,
                                              (r32_cb)&aica_wave_r32,
-                                             NULL,
                                              (w8_cb)&aica_wave_w8,
                                              (w16_cb)&aica_wave_w16,
-                                             (w32_cb)&aica_wave_w32,
-                                             NULL)
+                                             (w32_cb)&aica_wave_w32)
 AM_END();
 // clang-format on

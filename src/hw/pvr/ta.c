@@ -1005,26 +1005,20 @@ AM_BEGIN(struct ta, ta_fifo_map);
                                              NULL,
                                              NULL,
                                              NULL,
-                                             NULL,
-                                             (w32_cb)&ta_write_poly_fifo,
-                                             NULL)
+                                             (w32_cb)&ta_write_poly_fifo)
   AM_RANGE(0x00800000, 0x00ffffff) AM_HANDLE("ta yuv fifo",
                                              NULL,
                                              NULL,
                                              NULL,
                                              NULL,
                                              NULL,
-                                             NULL,
-                                             (w32_cb)&ta_write_yuv_fifo,
-                                             NULL)
+                                             (w32_cb)&ta_write_yuv_fifo)
   AM_RANGE(0x01000000, 0x01ffffff) AM_HANDLE("ta texture fifo",
                                             NULL,
                                             NULL,
                                             NULL,
                                             NULL,
                                             NULL,
-                                            NULL,
-                                            (w32_cb)&ta_write_texture_fifo,
-                                            NULL)
+                                            (w32_cb)&ta_write_texture_fifo)
 AM_END();
 // clang-format on
