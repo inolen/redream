@@ -12,14 +12,6 @@
 #define AICA_SAMPLE_FREQ INT64_C(44100)
 #define AICA_TIMER_PERIOD 0xff
 
-#define TCNT(n)                                              \
-  (n == 0 ? aica->common->TIMA : n == 1 ? aica->common->TIMB \
-                                        : aica->common->TIMC)
-
-#define TCTL(n)                                                \
-  (n == 0 ? aica->common->TACTL : n == 1 ? aica->common->TBCTL \
-                                         : aica->common->TCCTL)
-
 struct aica {
   struct device;
   uint8_t *aica_regs;
@@ -50,8 +42,14 @@ static void aica_update_sh(struct aica *aica) {
 static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period);
 
 static void aica_timer_expire(struct aica *aica, int n) {
+  // reschedule timer as soon as it expires
   aica->timers[n] = NULL;
   aica_timer_reschedule(aica, n, AICA_TIMER_PERIOD);
+
+  // raise timer interrupt
+  static holly_interrupt_t timer_intr[3] = {AICA_INT_TIMER_A, AICA_INT_TIMER_B,
+                                            AICA_INT_TIMER_C};
+  aica_raise_interrupt(aica, timer_intr[n]);
 }
 
 static void aica_timer_expire_0(void *data) {
@@ -67,16 +65,20 @@ static void aica_timer_expire_2(void *data) {
 }
 
 static uint32_t aica_timer_tctl(struct aica *aica, int n) {
-  return TCTL(n);
+  return n == 0 ? aica->common->TACTL : n == 1 ? aica->common->TBCTL
+                                               : aica->common->TCCTL;
 }
 
 static uint32_t aica_timer_tcnt(struct aica *aica, int n) {
   struct timer *timer = aica->timers[n];
   if (!timer) {
-    return TCNT(n);
+    // if no timer has been created, return the raw value
+    return n == 0 ? aica->common->TIMA : n == 1 ? aica->common->TIMB
+                                                : aica->common->TIMC;
   }
 
-  int tctl = TCTL(n);
+  // else, dynamically compute the value based on the timer's remaining time
+  int tctl = aica_timer_tctl(aica, n);
   int64_t freq = AICA_SAMPLE_FREQ >> tctl;
   int64_t remaining = scheduler_remaining_time(aica->scheduler, timer);
   int64_t cycles = NANO_TO_CYCLES(remaining, freq);
@@ -86,7 +88,7 @@ static uint32_t aica_timer_tcnt(struct aica *aica, int n) {
 static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
   struct timer **timer = &aica->timers[n];
 
-  int64_t freq = AICA_SAMPLE_FREQ >> TCTL(n);
+  int64_t freq = AICA_SAMPLE_FREQ >> aica_timer_tctl(aica, n);
   int64_t cycles = (int64_t)period;
   int64_t remaining = CYCLES_TO_NANO(cycles, freq);
 
@@ -95,9 +97,10 @@ static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
     *timer = NULL;
   }
 
-  timer_cb cb = (n == 0 ? &aica_timer_expire_0 : n == 1 ? &aica_timer_expire_1
-                                                        : &aica_timer_expire_2);
-  *timer = scheduler_start_timer(aica->scheduler, cb, aica, remaining);
+  static timer_cb timer_cbs[3] = {&aica_timer_expire_0, &aica_timer_expire_1,
+                                  &aica_timer_expire_2};
+  *timer =
+      scheduler_start_timer(aica->scheduler, timer_cbs[n], aica, remaining);
 }
 
 #define define_reg_read(name, type)                                          \
