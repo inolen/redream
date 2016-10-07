@@ -992,8 +992,6 @@ REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
   struct ta *ta = dc->ta;
   struct pvr *pvr = dc->pvr;
 
-  LOG_INFO("TA_YUV_TEX_BASE write 0x%08x", value);
-
   pvr->TA_YUV_TEX_BASE->full = value;
 
   ta_yuv_init(ta);

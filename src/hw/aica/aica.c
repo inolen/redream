@@ -103,9 +103,32 @@ static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
       scheduler_start_timer(aica->scheduler, timer_cbs[n], aica, remaining);
 }
 
+/*static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr) {
+  int ch = addr >> 7;
+  addr &= 0x7f;
+  return aica->aica_regs[(ch << 7) | addr];
+}
+
+static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
+                                   uint32_t value) {
+  int ch = addr >> 7;
+  addr &= 0x7f;
+
+  aica->aica_regs[(ch << 7) | addr] = value;
+}
+
+static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr) {
+  return 0;
+}
+
+static void aica_common_reg_write(struct aica *aica, uint32_t addr,
+                                  uint32_t value) {}*/
+
 #define define_reg_read(name, type)                                          \
   type aica_reg_##name(struct aica *aica, uint32_t addr) {                   \
-    if (addr >= 2800 /* common */) {                                         \
+    if (addr < 0x2000) { /* channel */                                       \
+    } else if (addr >= 0x2800 && addr < 0x2d08 /* common */) {               \
+      addr -= 0x2800;                                                        \
       switch (addr) {                                                        \
         case 0x90: /* TIMA */                                                \
           return (aica_timer_tctl(aica, 0) << 8) | aica_timer_tcnt(aica, 0); \
@@ -126,9 +149,9 @@ define_reg_read(r32, uint32_t);
 #define define_reg_write(name, type)                                           \
   void aica_reg_##name(struct aica *aica, uint32_t addr, type value) {         \
     *(type *)&aica->aica_regs[addr] = value;                                   \
-    if (addr >= 2800 /* common */) {                                           \
-      addr -= 2800;                                                            \
-                                                                               \
+    if (addr < 0x2000) { /* channel */                                         \
+    } else if (addr >= 0x2800 && addr < 0x2d08 /* common */) {                 \
+      addr -= 0x2800;                                                          \
       switch (addr) {                                                          \
         case 0x90: { /* TIMA */                                                \
           aica_timer_reschedule(aica, 0,                                       \
