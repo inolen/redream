@@ -103,122 +103,108 @@ static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
       scheduler_start_timer(aica->scheduler, timer_cbs[n], aica, remaining);
 }
 
-/*static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr) {
+/*static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
+uint32_t data_mask) {
   int ch = addr >> 7;
   addr &= 0x7f;
   return aica->aica_regs[(ch << 7) | addr];
 }
 
 static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
-                                   uint32_t value) {
+                                   uint32_t data, uint32_t data_mask) {
   int ch = addr >> 7;
   addr &= 0x7f;
 
-  aica->aica_regs[(ch << 7) | addr] = value;
+  aica->aica_regs[(ch << 7) | addr] = data;
 }
 
-static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr) {
+static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr, uint32_t
+data_mask) {
   return 0;
 }
 
 static void aica_common_reg_write(struct aica *aica, uint32_t addr,
-                                  uint32_t value) {}*/
+                                  uint32_t data, uint32_t data_mask) {}*/
 
-#define define_reg_read(name, type)                                          \
-  type aica_reg_##name(struct aica *aica, uint32_t addr) {                   \
-    if (addr < 0x2000) { /* channel */                                       \
-    } else if (addr >= 0x2800 && addr < 0x2d08 /* common */) {               \
-      addr -= 0x2800;                                                        \
-      switch (addr) {                                                        \
-        case 0x90: /* TIMA */                                                \
-          return (aica_timer_tctl(aica, 0) << 8) | aica_timer_tcnt(aica, 0); \
-        case 0x94: /* TIMB */                                                \
-          return (aica_timer_tctl(aica, 1) << 8) | aica_timer_tcnt(aica, 1); \
-        case 0x98: /* TIMC */                                                \
-          return (aica_timer_tctl(aica, 2) << 8) | aica_timer_tcnt(aica, 2); \
-      }                                                                      \
-      return *(type *)&aica->aica_regs[0x2800 + addr];                       \
-    }                                                                        \
-    return *(type *)&aica->aica_regs[addr];                                  \
+uint32_t aica_reg_read(struct aica *aica, uint32_t addr, uint32_t data_mask) {
+  if (addr < 0x2000) { /* channel */
+  } else if (addr >= 0x2800 && addr < 0x2d08 /* common */) {
+    addr -= 0x2800;
+    switch (addr) {
+      case 0x90: /* TIMA */
+        return (aica_timer_tctl(aica, 0) << 8) | aica_timer_tcnt(aica, 0);
+      case 0x94: /* TIMB */
+        return (aica_timer_tctl(aica, 1) << 8) | aica_timer_tcnt(aica, 1);
+      case 0x98: /* TIMC */
+        return (aica_timer_tctl(aica, 2) << 8) | aica_timer_tcnt(aica, 2);
+    }
+    return READ_DATA(&aica->aica_regs[0x2800 + addr]);
   }
 
-define_reg_read(r8, uint8_t);
-define_reg_read(r16, uint16_t);
-define_reg_read(r32, uint32_t);
-
-#define define_reg_write(name, type)                                           \
-  void aica_reg_##name(struct aica *aica, uint32_t addr, type value) {         \
-    *(type *)&aica->aica_regs[addr] = value;                                   \
-    if (addr < 0x2000) { /* channel */                                         \
-    } else if (addr >= 0x2800 && addr < 0x2d08 /* common */) {                 \
-      addr -= 0x2800;                                                          \
-      switch (addr) {                                                          \
-        case 0x90: { /* TIMA */                                                \
-          aica_timer_reschedule(aica, 0,                                       \
-                                AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 0)); \
-        } break;                                                               \
-        case 0x94: { /* TIMB */                                                \
-          aica_timer_reschedule(aica, 1,                                       \
-                                AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 1)); \
-        } break;                                                               \
-        case 0x98: { /* TIMC */                                                \
-          aica_timer_reschedule(aica, 2,                                       \
-                                AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 2)); \
-        } break;                                                               \
-        case 0x400: { /* ARMRST */                                             \
-          if (value) {                                                         \
-            arm_suspend(aica->arm);                                            \
-          } else {                                                             \
-            arm_resume(aica->arm);                                             \
-          }                                                                    \
-        } break;                                                               \
-      }                                                                        \
-    }                                                                          \
-  }
-
-define_reg_write(w8, uint8_t);
-define_reg_write(w16, uint16_t);
-define_reg_write(w32, uint32_t);
-
-#define define_read_wave(name, type)                        \
-  type aica_wave_##name(struct aica *aica, uint32_t addr) { \
-    return *(type *)&aica->wave_ram[addr];                  \
-  }
-
-define_read_wave(r8, uint8_t);
-define_read_wave(r16, uint16_t);
-uint32_t aica_wave_r32(struct aica *aica, uint32_t addr) {
-  // FIXME temp hacks to get Crazy Taxi 1 booting
-  if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
-    return 0x54494e49;
-  }
-  // FIXME temp hacks to get Crazy Taxi 2 booting
-  if (addr == 0x5c) {
-    return 0x54494e49;
-  }
-  // FIXME temp hacks to get PoP booting
-  if (addr == 0xb200 || addr == 0xb210 || addr == 0xb220 || addr == 0xb230 ||
-      addr == 0xb240 || addr == 0xb250 || addr == 0xb260 || addr == 0xb270 ||
-      addr == 0xb280 || addr == 0xb290 || addr == 0xb2a0 || addr == 0xb2b0 ||
-      addr == 0xb2c0 || addr == 0xb2d0 || addr == 0xb2e0 || addr == 0xb2f0 ||
-      addr == 0xb300 || addr == 0xb310 || addr == 0xb320 || addr == 0xb330 ||
-      addr == 0xb340 || addr == 0xb350 || addr == 0xb360 || addr == 0xb370 ||
-      addr == 0xb380 || addr == 0xb390 || addr == 0xb3a0 || addr == 0xb3b0 ||
-      addr == 0xb3c0 || addr == 0xb3d0 || addr == 0xb3e0 || addr == 0xb3f0) {
-    return 0x0;
-  }
-
-  return *(uint32_t *)&aica->wave_ram[addr];
+  return READ_DATA(&aica->aica_regs[addr]);
 }
 
-#define define_write_wave(name, type)                                   \
-  void aica_wave_##name(struct aica *aica, uint32_t addr, type value) { \
-    *(type *)&aica->wave_ram[addr] = value;                             \
+void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
+                    uint32_t data_mask) {
+  WRITE_DATA(&aica->aica_regs[addr]);
+
+  if (addr < 0x2000) { /* channel */
+  } else if (addr >= 0x2800 && addr < 0x2d08 /* common */) {
+    addr -= 0x2800;
+    switch (addr) {
+      case 0x90: { /* TIMA */
+        aica_timer_reschedule(aica, 0,
+                              AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 0));
+      } break;
+      case 0x94: { /* TIMB */
+        aica_timer_reschedule(aica, 1,
+                              AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 1));
+      } break;
+      case 0x98: { /* TIMC */
+        aica_timer_reschedule(aica, 2,
+                              AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 2));
+      } break;
+      case 0x400: { /* ARMRST */
+        if (data) {
+          arm_suspend(aica->arm);
+        } else {
+          arm_resume(aica->arm);
+        }
+      } break;
+    }
+  }
+}
+
+uint32_t aica_wave_read(struct aica *aica, uint32_t addr, uint32_t data_mask) {
+  if (DATA_SIZE() == 4) {
+    // FIXME temp hacks to get Crazy Taxi 1 booting
+    if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
+      return 0x54494e49;
+    }
+    // FIXME temp hacks to get Crazy Taxi 2 booting
+    if (addr == 0x5c) {
+      return 0x54494e49;
+    }
+    // FIXME temp hacks to get PoP booting
+    if (addr == 0xb200 || addr == 0xb210 || addr == 0xb220 || addr == 0xb230 ||
+        addr == 0xb240 || addr == 0xb250 || addr == 0xb260 || addr == 0xb270 ||
+        addr == 0xb280 || addr == 0xb290 || addr == 0xb2a0 || addr == 0xb2b0 ||
+        addr == 0xb2c0 || addr == 0xb2d0 || addr == 0xb2e0 || addr == 0xb2f0 ||
+        addr == 0xb300 || addr == 0xb310 || addr == 0xb320 || addr == 0xb330 ||
+        addr == 0xb340 || addr == 0xb350 || addr == 0xb360 || addr == 0xb370 ||
+        addr == 0xb380 || addr == 0xb390 || addr == 0xb3a0 || addr == 0xb3b0 ||
+        addr == 0xb3c0 || addr == 0xb3d0 || addr == 0xb3e0 || addr == 0xb3f0) {
+      return 0x0;
+    }
   }
 
-define_write_wave(w8, uint8_t);
-define_write_wave(w16, uint16_t);
-define_write_wave(w32, uint32_t);
+  return READ_DATA(&aica->wave_ram[addr]);
+}
+
+void aica_wave_write(struct aica *aica, uint32_t addr, uint32_t data,
+                     uint32_t data_mask) {
+  WRITE_DATA(&aica->wave_ram[addr]);
+}
 
 static void aica_run(struct device *dev, int64_t ns) {
   struct aica *aica = (struct aica *)dev;
@@ -271,22 +257,14 @@ AM_BEGIN(struct aica, aica_reg_map);
   // over allocate a bit to match the allocation granularity of the host
   AM_RANGE(0x00000000, 0x00010fff) AM_MOUNT("aica reg ram")
   AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE("aica reg",
-                                             (r8_cb)&aica_reg_r8,
-                                             (r16_cb)&aica_reg_r16,
-                                             (r32_cb)&aica_reg_r32,
-                                             (w8_cb)&aica_reg_w8,
-                                             (w16_cb)&aica_reg_w16,
-                                             (w32_cb)&aica_reg_w32)
+                                             (mmio_read_cb)&aica_reg_read,
+                                             (mmio_write_cb)&aica_reg_write)
 AM_END();
 
 AM_BEGIN(struct aica, aica_data_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("aica wave ram")
   AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("aica wave",
-                                             (r8_cb)&aica_wave_r8,
-                                             (r16_cb)&aica_wave_r16,
-                                             (r32_cb)&aica_wave_r32,
-                                             (w8_cb)&aica_wave_w8,
-                                             (w16_cb)&aica_wave_w16,
-                                             (w32_cb)&aica_wave_w32)
+                                             (mmio_read_cb)&aica_wave_read,
+                                             (mmio_write_cb)&aica_wave_write)
 AM_END();
 // clang-format on

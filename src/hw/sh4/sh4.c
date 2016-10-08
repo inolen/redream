@@ -457,82 +457,58 @@ static void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr) {
 //   *size = 4;
 // }
 
-#define define_reg_read(name, type)                            \
-  static type sh4_reg_##name(struct sh4 *sh4, uint32_t addr) { \
-    uint32_t offset = SH4_REG_OFFSET(addr);                    \
-    reg_read_cb read = sh4_cb[offset].read;                    \
-    if (read) {                                                \
-      return read(sh4->dc);                                    \
-    }                                                          \
-    return (type)sh4->reg[offset];                             \
+static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr,
+                             uint32_t data_mask) {
+  uint32_t offset = SH4_REG_OFFSET(addr);
+  reg_read_cb read = sh4_cb[offset].read;
+  if (read) {
+    return read(sh4->dc);
   }
+  return sh4->reg[offset];
+}
 
-define_reg_read(r8, uint8_t);
-define_reg_read(r16, uint16_t);
-define_reg_read(r32, uint32_t);
-
-#define define_reg_write(name, type)                                       \
-  static void sh4_reg_##name(struct sh4 *sh4, uint32_t addr, type value) { \
-    uint32_t offset = SH4_REG_OFFSET(addr);                                \
-    reg_write_cb write = sh4_cb[offset].write;                             \
-    if (write) {                                                           \
-      write(sh4->dc, value);                                               \
-      return;                                                              \
-    }                                                                      \
-    sh4->reg[offset] = (uint32_t)value;                                    \
+static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                          uint32_t data_mask) {
+  uint32_t offset = SH4_REG_OFFSET(addr);
+  reg_write_cb write = sh4_cb[offset].write;
+  if (write) {
+    write(sh4->dc, data);
+    return;
   }
-
-define_reg_write(w8, uint8_t);
-define_reg_write(w16, uint16_t);
-define_reg_write(w32, uint32_t);
+  sh4->reg[offset] = data;
+}
 
 // with OIX, bit 25, rather than bit 13, determines which 4kb bank to use
 #define CACHE_OFFSET(addr, OIX) \
   ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
 
-#define define_cache_read(name, type)                            \
-  static type sh4_cache_##name(struct sh4 *sh4, uint32_t addr) { \
-    CHECK_EQ(sh4->CCR->ORA, 1u);                                 \
-    addr = CACHE_OFFSET(addr, sh4->CCR->OIX);                    \
-    return *(type *)&sh4->cache[addr];                           \
-  }
+static uint32_t sh4_cache_read(struct sh4 *sh4, uint32_t addr,
+                               uint32_t data_mask) {
+  CHECK_EQ(sh4->CCR->ORA, 1u);
+  addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
+  return READ_DATA(&sh4->cache[addr]);
+}
 
-define_cache_read(r8, uint8_t);
-define_cache_read(r16, uint16_t);
-define_cache_read(r32, uint32_t);
+static void sh4_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                            uint32_t data_mask) {
+  CHECK_EQ(sh4->CCR->ORA, 1u);
+  addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
+  WRITE_DATA(&sh4->cache[addr]);
+}
 
-#define define_cache_write(name, type)                                       \
-  static void sh4_cache_##name(struct sh4 *sh4, uint32_t addr, type value) { \
-    CHECK_EQ(sh4->CCR->ORA, 1u);                                             \
-    addr = CACHE_OFFSET(addr, sh4->CCR->OIX);                                \
-    *(type *)&sh4->cache[addr] = value;                                      \
-  }
+static uint32_t sh4_sq_read(struct sh4 *sh4, uint32_t addr,
+                            uint32_t data_mask) {
+  uint32_t sqi = (addr & 0x20) >> 5;
+  unsigned idx = (addr & 0x1c) >> 2;
+  return sh4->ctx.sq[sqi][idx];
+}
 
-define_cache_write(w8, uint8_t);
-define_cache_write(w16, uint16_t);
-define_cache_write(w32, uint32_t);
-
-#define define_sq_read(name, type)                            \
-  static type sh4_sq_##name(struct sh4 *sh4, uint32_t addr) { \
-    uint32_t sqi = (addr & 0x20) >> 5;                        \
-    unsigned idx = (addr & 0x1c) >> 2;                        \
-    return (type)sh4->ctx.sq[sqi][idx];                       \
-  }
-
-define_sq_read(r8, uint8_t);
-define_sq_read(r16, uint16_t);
-define_sq_read(r32, uint32_t);
-
-#define define_sq_write(name, type)                                       \
-  static void sh4_sq_##name(struct sh4 *sh4, uint32_t addr, type value) { \
-    uint32_t sqi = (addr & 0x20) >> 5;                                    \
-    uint32_t idx = (addr & 0x1c) >> 2;                                    \
-    sh4->ctx.sq[sqi][idx] = (uint32_t)value;                              \
-  }
-
-define_sq_write(w8, uint8_t);
-define_sq_write(w16, uint16_t);
-define_sq_write(w32, uint32_t);
+static void sh4_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                         uint32_t data_mask) {
+  uint32_t sqi = (addr & 0x20) >> 5;
+  uint32_t idx = (addr & 0x1c) >> 2;
+  sh4->ctx.sq[sqi][idx] = data;
+}
 
 static bool sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
@@ -976,12 +952,8 @@ AM_BEGIN(struct sh4, sh4_data_map)
 
   // internal registers
   AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE("sh4 reg",
-                                             (r8_cb)&sh4_reg_r8,
-                                             (r16_cb)&sh4_reg_r16,
-                                             (r32_cb)&sh4_reg_r32,
-                                             (w8_cb)&sh4_reg_w8,
-                                             (w16_cb)&sh4_reg_w16,
-                                             (w32_cb)&sh4_reg_w32)
+                                             (mmio_read_cb)&sh4_reg_read,
+                                             (mmio_write_cb)&sh4_reg_write)
 
   // physical mirrors
   AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  // p0
@@ -994,18 +966,10 @@ AM_BEGIN(struct sh4, sh4_data_map)
 
   // internal cache and sq only accessible through p4
   AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
-                                             (r8_cb)&sh4_cache_r8,
-                                             (r16_cb)&sh4_cache_r16,
-                                             (r32_cb)&sh4_cache_r32,
-                                             (w8_cb)&sh4_cache_w8,
-                                             (w16_cb)&sh4_cache_w16,
-                                             (w32_cb)&sh4_cache_w32)
+                                             (mmio_read_cb)&sh4_cache_read,
+                                             (mmio_write_cb)&sh4_cache_write)
   AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE("sh4 sq",
-                                             (r8_cb)&sh4_sq_r8,
-                                             (r16_cb)&sh4_sq_r16,
-                                             (r32_cb)&sh4_sq_r32,
-                                             (w8_cb)&sh4_sq_w8,
-                                             (w16_cb)&sh4_sq_w16,
-                                             (w32_cb)&sh4_sq_w32)
+                                             (mmio_read_cb)&sh4_sq_read,
+                                             (mmio_write_cb)&sh4_sq_write)
 AM_END();
 // clang-format on

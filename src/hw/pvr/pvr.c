@@ -74,7 +74,8 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
                                           pvr, HZ_TO_NANO(pvr->line_clock));
 }
 
-static uint32_t pvr_reg_r32(struct pvr *pvr, uint32_t addr) {
+static uint32_t pvr_reg_read(struct pvr *pvr, uint32_t addr,
+                             uint32_t data_mask) {
   uint32_t offset = addr >> 2;
   reg_read_cb read = pvr_cb[offset].read;
 
@@ -85,7 +86,8 @@ static uint32_t pvr_reg_r32(struct pvr *pvr, uint32_t addr) {
   return pvr->reg[offset];
 }
 
-static void pvr_reg_w32(struct pvr *pvr, uint32_t addr, uint32_t value) {
+static void pvr_reg_write(struct pvr *pvr, uint32_t addr, uint32_t data,
+                          uint32_t data_mask) {
   uint32_t offset = addr >> 2;
   reg_write_cb write = pvr_cb[offset].write;
 
@@ -96,19 +98,21 @@ static void pvr_reg_w32(struct pvr *pvr, uint32_t addr, uint32_t value) {
   }
 
   if (write) {
-    write(pvr->dc, value);
+    write(pvr->dc, data);
     return;
   }
 
-  pvr->reg[offset] = (uint32_t)value;
+  pvr->reg[offset] = data;
 }
 
-static uint32_t pvr_palette_r32(struct pvr *pvr, uint32_t addr) {
-  return *(uint32_t *)&pvr->palette_ram[addr];
+static uint32_t pvr_palette_read(struct pvr *pvr, uint32_t addr,
+                                 uint32_t data_mask) {
+  return READ_DATA(&pvr->palette_ram[addr]);
 }
 
-static void pvr_palette_w32(struct pvr *pvr, uint32_t addr, uint32_t value) {
-  *(uint32_t *)&pvr->palette_ram[addr] = value;
+static void pvr_palette_write(struct pvr *pvr, uint32_t addr, uint32_t data,
+                              uint32_t data_mask) {
+  WRITE_DATA(&pvr->palette_ram[addr]);
 }
 
 static uint32_t MAP64(uint32_t addr) {
@@ -132,26 +136,17 @@ static uint32_t MAP64(uint32_t addr) {
           (addr & 0x3));
 }
 
-#define define_vram_interleaved_read(name, type)                            \
-  static type pvr_vram_interleaved_##name(struct pvr *pvr, uint32_t addr) { \
-    addr = MAP64(addr);                                                     \
-    return *(type *)&pvr->video_ram[addr];                                  \
-  }
+static uint32_t pvr_vram_interleaved_read(struct pvr *pvr, uint32_t addr,
+                                          uint32_t data_mask) {
+  addr = MAP64(addr);
+  return READ_DATA(&pvr->video_ram[addr]);
+}
 
-define_vram_interleaved_read(r8, uint8_t);
-define_vram_interleaved_read(r16, uint16_t);
-define_vram_interleaved_read(r32, uint32_t);
-
-#define define_vram_interleaved_write(name, type)                         \
-  static void pvr_vram_interleaved_##name(struct pvr *pvr, uint32_t addr, \
-                                          type value) {                   \
-    addr = MAP64(addr);                                                   \
-    *(type *)&pvr->video_ram[addr] = value;                               \
-  }
-
-define_vram_interleaved_write(w8, uint8_t);
-define_vram_interleaved_write(w16, uint16_t);
-define_vram_interleaved_write(w32, uint32_t);
+static void pvr_vram_interleaved_write(struct pvr *pvr, uint32_t addr,
+                                       uint32_t data, uint32_t data_mask) {
+  addr = MAP64(addr);
+  WRITE_DATA(&pvr->video_ram[addr]);
+}
 
 static bool pvr_init(struct device *dev) {
   struct pvr *pvr = (struct pvr *)dev;
@@ -199,29 +194,17 @@ REG_W32(pvr_cb, FB_R_CTRL) {
 AM_BEGIN(struct pvr, pvr_reg_map);
   AM_RANGE(0x00001000, 0x00001fff) AM_MOUNT("palette ram")
   AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE("pvr reg",
-                                             NULL,
-                                             NULL,
-                                             (r32_cb)&pvr_reg_r32,
-                                             NULL,
-                                             NULL,
-                                             (w32_cb)&pvr_reg_w32)
+                                             (mmio_read_cb)&pvr_reg_read,
+                                             (mmio_write_cb)&pvr_reg_write)
   AM_RANGE(0x00001000, 0x00001fff) AM_HANDLE("pvr palette",
-                                             NULL,
-                                             NULL,
-                                             (r32_cb)&pvr_palette_r32,
-                                             NULL,
-                                             NULL,
-                                             (w32_cb)&pvr_palette_w32)
+                                             (mmio_read_cb)&pvr_palette_read,
+                                             (mmio_write_cb)&pvr_palette_write)
 AM_END();
 
 AM_BEGIN(struct pvr, pvr_vram_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("video ram")
   AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE("video ram interleaved",
-                                             (r8_cb)&pvr_vram_interleaved_r8,
-                                             (r16_cb)&pvr_vram_interleaved_r16,
-                                             (r32_cb)&pvr_vram_interleaved_r32,
-                                             (w8_cb)&pvr_vram_interleaved_w8,
-                                             (w16_cb)&pvr_vram_interleaved_w16,
-                                             (w32_cb)&pvr_vram_interleaved_w32)
+                                             (mmio_read_cb)&pvr_vram_interleaved_read,
+                                             (mmio_write_cb)&pvr_vram_interleaved_write)
 AM_END();
 // clang-format on
