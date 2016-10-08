@@ -156,9 +156,10 @@ struct memory_region *memory_create_physical_region(struct memory *memory,
   return region;
 }
 
-struct memory_region *memory_create_mmio_region(
-    struct memory *memory, const char *name, uint32_t size, void *data,
-    r8_cb r8, r16_cb r16, r32_cb r32, w8_cb w8, w16_cb w16, w32_cb w32) {
+struct memory_region *memory_create_mmio_region(struct memory *memory,
+                                                const char *name, uint32_t size,
+                                                void *data, mmio_read_cb read,
+                                                mmio_write_cb write) {
   struct memory_region *region = memory_get_region(memory, name);
 
   if (!region) {
@@ -170,12 +171,8 @@ struct memory_region *memory_create_mmio_region(
     region->name = name;
     region->size = size;
     region->mmio.data = data;
-    region->mmio.read8 = r8;
-    region->mmio.read16 = r16;
-    region->mmio.read32 = r32;
-    region->mmio.write8 = w8;
-    region->mmio.write16 = w16;
-    region->mmio.write32 = w32;
+    region->mmio.read = read;
+    region->mmio.write = write;
   }
 
   return region;
@@ -312,7 +309,8 @@ void am_mirror(struct address_map *am, uint32_t physical_addr, uint32_t size,
     }                                                                          \
     uint32_t region_offset = get_region_offset(page);                          \
     uint32_t page_offset = get_page_offset(addr);                              \
-    return region->mmio.name(region->mmio.data, region_offset + page_offset);  \
+    return region->mmio.read(region->mmio.data, region_offset + page_offset,   \
+                             (1ull << (sizeof(data_type) * 8)) - 1);           \
   }
 
 define_read_bytes(read8, uint8_t);
@@ -320,19 +318,19 @@ define_read_bytes(read16, uint16_t);
 define_read_bytes(read32, uint32_t);
 
 #define define_write_bytes(name, data_type)                                    \
-  void as_##name(struct address_space *space, uint32_t addr,                   \
-                 data_type value) {                                            \
+  void as_##name(struct address_space *space, uint32_t addr, data_type data) { \
     page_entry_t page = space->pages[get_page_index(addr)];                    \
     DCHECK(page);                                                              \
     int region_handle = get_region_handle(page);                               \
     struct memory_region *region = &space->dc->memory->regions[region_handle]; \
     if (region->type == REGION_PHYSICAL) {                                     \
-      *(data_type *)(space->base + addr) = value;                              \
+      *(data_type *)(space->base + addr) = data;                               \
       return;                                                                  \
     }                                                                          \
     uint32_t region_offset = get_region_offset(page);                          \
     uint32_t page_offset = get_page_offset(addr);                              \
-    region->mmio.name(region->mmio.data, region_offset + page_offset, value);  \
+    region->mmio.write(region->mmio.data, region_offset + page_offset, data,   \
+                       (1ull << (sizeof(data_type) * 8)) - 1);                 \
   }
 
 define_write_bytes(write8, uint8_t);

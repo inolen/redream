@@ -1,14 +1,11 @@
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "core/assert.h"
-#include "core/option.h"
 #include "core/profiler.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/ir/ir.h"
-
-DEFINE_OPTION_BOOL(fastmem, true, "Enable SIGSEGV-based fast memory access");
 
 //
 // fsca estimate lookup table
@@ -40,15 +37,22 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 
 // helper functions for accessing the sh4 context, macros are used to cut
 // down on copy and paste
-#define load_guest(addr, type)                                               \
-  ((!OPTION_fastmem || (flags & SH4_SLOWMEM)) ? ir_load_slow(ir, addr, type) \
-                                              : ir_load_fast(ir, addr, type))
-
-#define store_guest(addr, v)                                                   \
-  do {                                                                         \
-    ((!OPTION_fastmem || (flags & SH4_SLOWMEM)) ? ir_store_slow(ir, addr, v)   \
-                                                : ir_store_fast(ir, addr, v)); \
+#ifdef NDEBUG
+#define load_guest(addr, type)                          \
+  ((flags & SH4_SLOWMEM) ? ir_load_slow(ir, addr, type) \
+                         : ir_load_fast(ir, addr, type))
+#define store_guest(addr, v)                              \
+  do {                                                    \
+    ((flags & SH4_SLOWMEM) ? ir_store_slow(ir, addr, v)   \
+                           : ir_store_fast(ir, addr, v)); \
   } while (0)
+#else
+#define load_guest(addr, type) ir_load_slow(ir, addr, type)
+#define store_guest(addr, v)    \
+  do {                          \
+    ir_store_slow(ir, addr, v); \
+  } while (0)
+#endif
 
 #define load_gpr(n, type) \
   ir_load_context(ir, offsetof(struct sh4_ctx, r[n]), type)

@@ -193,34 +193,25 @@ static void holly_update_interrupts(struct holly *hl) {
   // TODO check for hardware DMA initiation
 }
 
-#define define_reg_read(name, type)                        \
-  type holly_reg_##name(struct holly *hl, uint32_t addr) { \
-    uint32_t offset = addr >> 2;                           \
-    reg_read_cb read = holly_cb[offset].read;              \
-    if (read) {                                            \
-      return (type)read(hl->dc);                           \
-    }                                                      \
-    return (type)hl->reg[offset];                          \
+uint32_t holly_reg_read(struct holly *hl, uint32_t addr, uint32_t data_mask) {
+  uint32_t offset = addr >> 2;
+  reg_read_cb read = holly_cb[offset].read;
+  if (read) {
+    return read(hl->dc);
   }
+  return hl->reg[offset];
+}
 
-define_reg_read(r8, uint8_t);
-define_reg_read(r16, uint16_t);
-define_reg_read(r32, uint32_t);
-
-#define define_reg_write(name, type)                                   \
-  void holly_reg_##name(struct holly *hl, uint32_t addr, type value) { \
-    uint32_t offset = addr >> 2;                                       \
-    reg_write_cb write = holly_cb[offset].write;                       \
-    if (write) {                                                       \
-      write(hl->dc, value);                                            \
-      return;                                                          \
-    }                                                                  \
-    hl->reg[offset] = (uint32_t)value;                                 \
+void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
+                     uint32_t data_mask) {
+  uint32_t offset = addr >> 2;
+  reg_write_cb write = holly_cb[offset].write;
+  if (write) {
+    write(hl->dc, data);
+    return;
   }
-
-define_reg_write(w8, uint8_t);
-define_reg_write(w16, uint16_t);
-define_reg_write(w32, uint32_t);
+  hl->reg[offset] = data;
+}
 
 static bool holly_init(struct device *dev) {
   struct holly *hl = (struct holly *)dev;
@@ -450,12 +441,8 @@ REG_W32(holly_cb, SB_PDST) {
 // clang-format off
 AM_BEGIN(struct holly, holly_reg_map);
   AM_RANGE(0x00000000, 0x00001fff) AM_HANDLE("holly reg",
-                                             (r8_cb)&holly_reg_r8,
-                                             (r16_cb)&holly_reg_r16,
-                                             (r32_cb)&holly_reg_r32,
-                                             (w8_cb)&holly_reg_w8,
-                                             (w16_cb)&holly_reg_w16,
-                                             (w32_cb)&holly_reg_w32)
+                                             (mmio_read_cb)&holly_reg_read,
+                                             (mmio_write_cb)&holly_reg_write)
 AM_END();
 
 AM_BEGIN(struct holly, holly_modem_map);

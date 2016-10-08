@@ -15,8 +15,6 @@
 #include "sys/thread.h"
 #include "ui/nuklear.h"
 
-DEFINE_OPTION_BOOL(texcache, true, "Enable SIGSEGV-based texture caching");
-
 #define TA_MAX_CONTEXTS 32
 #define TA_YUV420_MACROBLOCK_SIZE 384
 #define TA_YUV422_MACROBLOCK_SIZE 512
@@ -370,12 +368,12 @@ static void ta_init_context(struct ta *ta, uint32_t addr) {
   ctx->vertex_type = 0;
 }
 
-static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t value) {
+static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t data) {
   struct tile_ctx *ctx = ta_get_context(ta, addr);
   CHECK_NOTNULL(ctx);
 
   CHECK_LT(ctx->size + 4, TA_MAX_PARAMS);
-  *(uint32_t *)&ctx->params[ctx->size] = value;
+  *(uint32_t *)&ctx->params[ctx->size] = data;
   ctx->size += 4;
 
   // each TA command is either 32 or 64 bytes, with the pcw being in the first
@@ -470,20 +468,20 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
     }
   }
 
-  // add write callback in order to invalidate on future writes. the callback
-  // address will be page aligned, therefore it will be triggered falsely in
-  // some cases. over invalidate in these cases
-  if (OPTION_texcache) {
-    if (!entry->texture_watch) {
-      entry->texture_watch = add_single_write_watch(
-          entry->texture, entry->texture_size, &ta_texture_invalidated, entry);
-    }
-
-    if (entry->palette && !entry->palette_watch) {
-      entry->palette_watch = add_single_write_watch(
-          entry->palette, entry->palette_size, &ta_palette_invalidated, entry);
-    }
+// add write callback in order to invalidate on future writes. the callback
+// address will be page aligned, therefore it will be triggered falsely in
+// some cases. over invalidate in these cases
+#ifdef NDEBUG
+  if (!entry->texture_watch) {
+    entry->texture_watch = add_single_write_watch(
+        entry->texture, entry->texture_size, &ta_texture_invalidated, entry);
   }
+
+  if (entry->palette && !entry->palette_watch) {
+    entry->palette_watch = add_single_write_watch(
+        entry->palette, entry->palette_size, &ta_palette_invalidated, entry);
+  }
+#endif
 
   // add modified entries to the trace
   if (ta->trace_writer && (new_entry || entry->dirty)) {
@@ -771,16 +769,21 @@ static void ta_yuv_process_macroblock(struct ta *ta) {
   }
 }
 
-static void ta_write_poly_fifo(struct ta *ta, uint32_t addr, uint32_t value) {
-  ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, value);
+static void ta_poly_fifo_write(struct ta *ta, uint32_t addr, uint32_t data,
+                               uint32_t data_mask) {
+  CHECK_EQ(DATA_SIZE(), 4);
+  ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, data);
 }
 
-static void ta_write_yuv_fifo(struct ta *ta, uint32_t addr, uint32_t value) {
+static void ta_yuv_fifo_write(struct ta *ta, uint32_t addr, uint32_t data,
+                              uint32_t data_mask) {
   struct holly *holly = ta->holly;
   struct pvr *pvr = ta->pvr;
 
+  CHECK_EQ(DATA_SIZE(), 4);
+
   // append data to current macroblock
-  *(uint32_t *)&ta->yuv_macroblock[ta->yuv_macroblock_pos] = value;
+  *(uint32_t *)&ta->yuv_macroblock[ta->yuv_macroblock_pos] = data;
   ta->yuv_macroblock_pos += 4;
 
   if (ta->yuv_macroblock_pos >= ta->yuv_macroblock_size) {
@@ -789,10 +792,11 @@ static void ta_write_yuv_fifo(struct ta *ta, uint32_t addr, uint32_t value) {
   }
 }
 
-static void ta_write_texture_fifo(struct ta *ta, uint32_t addr,
-                                  uint32_t value) {
+static void ta_texture_fifo_write(struct ta *ta, uint32_t addr, uint32_t data,
+                                  uint32_t data_mask) {
+  CHECK_EQ(DATA_SIZE(), 4);
   addr &= 0xeeffffff;
-  *(uint32_t *)&ta->video_ram[addr] = value;
+  *(uint32_t *)&ta->video_ram[addr] = data;
 }
 
 static bool ta_init(struct device *dev) {
@@ -1001,24 +1005,12 @@ REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
 AM_BEGIN(struct ta, ta_fifo_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("ta poly fifo",
                                              NULL,
-                                             NULL,
-                                             NULL,
-                                             NULL,
-                                             NULL,
-                                             (w32_cb)&ta_write_poly_fifo)
+                                             (mmio_write_cb)&ta_poly_fifo_write)
   AM_RANGE(0x00800000, 0x00ffffff) AM_HANDLE("ta yuv fifo",
                                              NULL,
-                                             NULL,
-                                             NULL,
-                                             NULL,
-                                             NULL,
-                                             (w32_cb)&ta_write_yuv_fifo)
+                                             (mmio_write_cb)&ta_yuv_fifo_write)
   AM_RANGE(0x01000000, 0x01ffffff) AM_HANDLE("ta texture fifo",
                                             NULL,
-                                            NULL,
-                                            NULL,
-                                            NULL,
-                                            NULL,
-                                            (w32_cb)&ta_write_texture_fifo)
+                                            (mmio_write_cb)&ta_texture_fifo_write)
 AM_END();
 // clang-format on
