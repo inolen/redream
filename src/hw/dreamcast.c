@@ -10,6 +10,8 @@
 #include "hw/memory.h"
 #include "hw/pvr/pvr.h"
 #include "hw/pvr/ta.h"
+#include "hw/rom/boot.h"
+#include "hw/rom/flash.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 
@@ -39,8 +41,10 @@ bool dc_init(struct dreamcast *dc) {
     dev->sh4 = dc->sh4;
     dev->arm = dc->arm;
     dev->aica = dc->aica;
-    dev->holly = dc->holly;
+    dev->boot = dc->boot;
+    dev->flash = dc->flash;
     dev->gdrom = dc->gdrom;
+    dev->holly = dc->holly;
     dev->maple = dc->maple;
     dev->pvr = dc->pvr;
     dev->ta = dc->ta;
@@ -172,8 +176,10 @@ struct dreamcast *dc_create(struct rb *rb) {
   dc->sh4 = sh4_create(dc);
   dc->arm = arm_create(dc);
   dc->aica = aica_create(dc);
-  dc->holly = holly_create(dc);
+  dc->boot = boot_create(dc);
+  dc->flash = flash_create(dc);
   dc->gdrom = gdrom_create(dc);
+  dc->holly = holly_create(dc);
   dc->maple = maple_create(dc);
   dc->pvr = pvr_create(dc);
   dc->ta = ta_create(dc, rb);
@@ -190,8 +196,10 @@ void dc_destroy(struct dreamcast *dc) {
   ta_destroy(dc->ta);
   pvr_destroy(dc->pvr);
   maple_destroy(dc->maple);
-  gdrom_destroy(dc->gdrom);
   holly_destroy(dc->holly);
+  gdrom_destroy(dc->gdrom);
+  flash_destroy(dc->flash);
+  boot_destroy(dc->boot);
   aica_destroy(dc->aica);
   arm_destroy(dc->arm);
   sh4_destroy(dc->sh4);

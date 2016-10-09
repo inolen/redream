@@ -7,22 +7,22 @@
 
 struct sh4_frontend {
   struct jit_frontend;
+  struct jit_guest guest;
 };
 
 static void sh4_frontend_translate_code(struct jit_frontend *base,
-                                        uint32_t guest_addr, uint8_t *guest_ptr,
-                                        int flags, int *size, struct ir *ir) {
+                                        uint32_t addr, int flags, int *size,
+                                        struct ir *ir) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
 
   // get the block size
-  sh4_analyze_block(guest_addr, guest_ptr, flags, size);
+  sh4_analyze_block(&frontend->guest, addr, flags, size);
 
   // emit IR for the SH4 code
-  sh4_translate(guest_addr, guest_ptr, *size, flags, ir);
+  sh4_translate(&frontend->guest, addr, *size, flags, ir);
 }
 
-static void sh4_frontend_dump_code(struct jit_frontend *base,
-                                   uint32_t guest_addr, uint8_t *guest_ptr,
+static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
                                    int size) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
 
@@ -32,8 +32,8 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
 
   while (i < size) {
     struct sh4_instr instr = {0};
-    instr.addr = guest_addr + i;
-    instr.opcode = *(uint16_t *)(guest_ptr + i);
+    instr.addr = addr + i;
+    instr.opcode = frontend->guest.r16(frontend->guest.mem_self, instr.addr);
     sh4_disasm(&instr);
 
     sh4_format(&instr, buffer, sizeof(buffer));
@@ -43,8 +43,8 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
 
     if (instr.flags & SH4_FLAG_DELAYED) {
       struct sh4_instr delay = {0};
-      delay.addr = guest_addr + i;
-      delay.opcode = *(uint16_t *)(guest_ptr + i);
+      delay.addr = addr + i;
+      delay.opcode = frontend->guest.r16(frontend->guest.mem_self, delay.addr);
       sh4_disasm(&delay);
 
       sh4_format(&delay, buffer, sizeof(buffer));
@@ -55,11 +55,12 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
   }
 }
 
-struct jit_frontend *sh4_frontend_create() {
+struct jit_frontend *sh4_frontend_create(const struct jit_guest *guest) {
   struct sh4_frontend *frontend = calloc(1, sizeof(struct sh4_frontend));
 
   frontend->translate_code = &sh4_frontend_translate_code;
   frontend->dump_code = &sh4_frontend_dump_code;
+  frontend->guest = *guest;
 
   return (struct jit_frontend *)frontend;
 }

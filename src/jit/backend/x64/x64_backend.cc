@@ -153,7 +153,7 @@ enum xmm_constant {
 
 struct x64_backend {
   struct jit_backend base;
-  struct jit_memory_interface *memory_if;
+  struct jit_guest guest;
 
   Xbyak::CodeGenerator *codegen;
   csh capstone_handle;
@@ -353,8 +353,8 @@ static void x64_backend_emit_prolog(struct x64_backend *backend, struct ir *ir,
   e.sub(e.rsp, stack_size);
 
   // copy guest context and memory base to argument registers
-  e.mov(e.r14, reinterpret_cast<uint64_t>(backend->memory_if->ctx_base));
-  e.mov(e.r15, reinterpret_cast<uint64_t>(backend->memory_if->mem_base));
+  e.mov(e.r14, reinterpret_cast<uint64_t>(backend->guest.ctx_base));
+  e.mov(e.r15, reinterpret_cast<uint64_t>(backend->guest.mem_base));
 
   *out_stack_size = stack_size;
 }
@@ -520,7 +520,7 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
   // figure out the guest address that was being accessed
   const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex->fault_addr);
   const uint8_t *protected_start =
-      reinterpret_cast<const uint8_t *>(backend->memory_if->mem_base);
+      reinterpret_cast<const uint8_t *>(backend->guest.mem_base);
   uint32_t guest_addr = static_cast<uint32_t>(fault_addr - protected_start);
 
   // instead of handling the dynamic callback from inside of the exception
@@ -539,26 +539,22 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
   if (mov.is_load) {
     // prep argument registers (memory object, guest_addr) for read function
     ex->thread_state.r[x64_arg0_idx] =
-        reinterpret_cast<uint64_t>(backend->memory_if->mem_self);
+        reinterpret_cast<uint64_t>(backend->guest.mem_self);
     ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
 
     // prep function call address for thunk
     switch (mov.operand_size) {
       case 1:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->memory_if->r8);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(backend->guest.r8);
         break;
       case 2:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->memory_if->r16);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(backend->guest.r16);
         break;
       case 4:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->memory_if->r32);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(backend->guest.r32);
         break;
       case 8:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->memory_if->r64);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(backend->guest.r64);
         break;
     }
 
@@ -569,27 +565,23 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
     // prep argument registers (memory object, guest_addr, value) for write
     // function
     ex->thread_state.r[x64_arg0_idx] =
-        reinterpret_cast<uint64_t>(backend->memory_if->mem_self);
+        reinterpret_cast<uint64_t>(backend->guest.mem_self);
     ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
     ex->thread_state.r[x64_arg2_idx] = ex->thread_state.r[mov.reg];
 
     // prep function call address for thunk
     switch (mov.operand_size) {
       case 1:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->memory_if->w8);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(backend->guest.w8);
         break;
       case 2:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->memory_if->w16);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(backend->guest.w16);
         break;
       case 4:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->memory_if->w32);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(backend->guest.w32);
         break;
       case 8:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->memory_if->w64);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(backend->guest.w64);
         break;
     }
 
@@ -733,23 +725,23 @@ EMITTER(LOAD_SLOW) {
   void *fn = nullptr;
   switch (instr->result->type) {
     case VALUE_I8:
-      fn = reinterpret_cast<void *>(backend->memory_if->r8);
+      fn = reinterpret_cast<void *>(backend->guest.r8);
       break;
     case VALUE_I16:
-      fn = reinterpret_cast<void *>(backend->memory_if->r16);
+      fn = reinterpret_cast<void *>(backend->guest.r16);
       break;
     case VALUE_I32:
-      fn = reinterpret_cast<void *>(backend->memory_if->r32);
+      fn = reinterpret_cast<void *>(backend->guest.r32);
       break;
     case VALUE_I64:
-      fn = reinterpret_cast<void *>(backend->memory_if->r64);
+      fn = reinterpret_cast<void *>(backend->guest.r64);
       break;
     default:
       LOG_FATAL("Unexpected load result type");
       break;
   }
 
-  e.mov(arg0, reinterpret_cast<uint64_t>(backend->memory_if->mem_self));
+  e.mov(arg0, reinterpret_cast<uint64_t>(backend->guest.mem_self));
   e.mov(arg1, a);
   e.call(reinterpret_cast<void *>(fn));
   e.mov(result, e.rax);
@@ -762,23 +754,23 @@ EMITTER(STORE_SLOW) {
   void *fn = nullptr;
   switch (instr->arg[1]->type) {
     case VALUE_I8:
-      fn = reinterpret_cast<void *>(backend->memory_if->w8);
+      fn = reinterpret_cast<void *>(backend->guest.w8);
       break;
     case VALUE_I16:
-      fn = reinterpret_cast<void *>(backend->memory_if->w16);
+      fn = reinterpret_cast<void *>(backend->guest.w16);
       break;
     case VALUE_I32:
-      fn = reinterpret_cast<void *>(backend->memory_if->w32);
+      fn = reinterpret_cast<void *>(backend->guest.w32);
       break;
     case VALUE_I64:
-      fn = reinterpret_cast<void *>(backend->memory_if->w64);
+      fn = reinterpret_cast<void *>(backend->guest.w64);
       break;
     default:
       LOG_FATAL("Unexpected store value type");
       break;
   }
 
-  e.mov(arg0, reinterpret_cast<uint64_t>(backend->memory_if->mem_self));
+  e.mov(arg0, reinterpret_cast<uint64_t>(backend->guest.mem_self));
   e.mov(arg1, a);
   e.mov(arg2, b);
   e.call(reinterpret_cast<void *>(fn));
@@ -1650,7 +1642,7 @@ EMITTER(BRANCH_COND) {
 EMITTER(CALL_EXTERNAL) {
   const Xbyak::Reg addr = x64_backend_register(backend, instr->arg[0]);
 
-  e.mov(arg0, reinterpret_cast<uint64_t>(backend->memory_if->ctx_base));
+  e.mov(arg0, reinterpret_cast<uint64_t>(backend->guest.ctx_base));
   if (instr->arg[1]) {
     const Xbyak::Reg arg = x64_backend_register(backend, instr->arg[1]);
     e.mov(arg1, arg);
@@ -1659,7 +1651,7 @@ EMITTER(CALL_EXTERNAL) {
   e.call(e.rax);
 }
 
-struct jit_backend *x64_backend_create(struct jit_memory_interface *memory_if) {
+struct jit_backend *x64_backend_create(const struct jit_guest *guest) {
   struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
       calloc(1, sizeof(struct x64_backend)));
 
@@ -1670,7 +1662,7 @@ struct jit_backend *x64_backend_create(struct jit_memory_interface *memory_if) {
   backend->base.dump_code = &x64_backend_dump_code;
   backend->base.handle_exception = &x64_backend_handle_exception;
 
-  backend->memory_if = memory_if;
+  backend->guest = *guest;
 
   backend->codegen = new Xbyak::CodeGenerator(x64_code_size, x64_code);
   Xbyak::CodeArray::protect(x64_code, x64_code_size, true);

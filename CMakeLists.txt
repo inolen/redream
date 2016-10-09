@@ -159,6 +159,8 @@ set(REDREAM_SOURCES
   src/hw/pvr/ta.c
   src/hw/pvr/tr.c
   src/hw/pvr/trace.c
+  src/hw/rom/boot.c
+  src/hw/rom/flash.c
   src/hw/sh4/sh4.c
   src/hw/sh4/sh4_code_cache.c
   src/hw/debugger.c

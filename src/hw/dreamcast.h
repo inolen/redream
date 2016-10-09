@@ -10,9 +10,11 @@
 
 struct aica;
 struct arm;
+struct boot;
 struct debugger;
 struct device;
 struct dreamcast;
+struct flash;
 struct gdrom;
 struct holly;
 struct maple;
@@ -116,8 +118,10 @@ struct device {
   struct sh4 *sh4;
   struct arm *arm;
   struct aica *aica;
-  struct holly *holly;
+  struct boot *boot;
+  struct flash *flash;
   struct gdrom *gdrom;
+  struct holly *holly;
   struct maple *maple;
   struct pvr *pvr;
   struct ta *ta;
@@ -135,8 +139,10 @@ struct dreamcast {
   struct sh4 *sh4;
   struct arm *arm;
   struct aica *aica;
-  struct holly *holly;
+  struct boot *boot;
+  struct flash *flash;
   struct gdrom *gdrom;
+  struct holly *holly;
   struct maple *maple;
   struct pvr *pvr;
   struct ta *ta;

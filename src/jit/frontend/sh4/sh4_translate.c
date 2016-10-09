@@ -5,6 +5,7 @@
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
+#include "jit/guest.h"
 #include "jit/ir/ir.h"
 
 //
@@ -2183,18 +2184,18 @@ EMITTER(FSCHG) {
   store_fpscr(v);
 }
 
-void sh4_translate(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags,
-                   struct ir *ir) {
+void sh4_translate(const struct jit_guest *guest, uint32_t addr, int size,
+                   int flags, struct ir *ir) {
   // PROFILER_RUNTIME("SH4ir::Emit");
   struct sh4_instr delay_instr;
 
   int i = 0;
-  int guest_cycles = 0;
+  int cycles = 0;
 
   while (i < size) {
     struct sh4_instr instr = {0};
-    instr.addr = guest_addr + i;
-    instr.opcode = *(uint16_t *)(guest_ptr + i);
+    instr.addr = addr + i;
+    instr.opcode = guest->r16(guest->mem_self, instr.addr);
 
     if (!sh4_disasm(&instr)) {
       sh4_invalid_instr(ir, instr.addr);
@@ -2202,11 +2203,11 @@ void sh4_translate(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags,
     }
 
     i += 2;
-    guest_cycles += instr.cycles;
+    cycles += instr.cycles;
 
     if (instr.flags & SH4_FLAG_DELAYED) {
-      delay_instr.addr = guest_addr + i;
-      delay_instr.opcode = *(uint16_t *)(guest_ptr + i);
+      delay_instr.addr = addr + i;
+      delay_instr.opcode = guest->r16(guest->mem_self, delay_instr.addr);
 
       // instruction must be valid, breakpoints on delay instructions aren't
       // currently supported
@@ -2216,7 +2217,7 @@ void sh4_translate(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags,
       CHECK(!(delay_instr.flags & SH4_FLAG_DELAYED));
 
       i += 2;
-      guest_cycles += delay_instr.cycles;
+      cycles += delay_instr.cycles;
     }
 
     sh4_emit_instr(ir, flags, &instr, &delay_instr);
@@ -2228,7 +2229,7 @@ void sh4_translate(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags,
   // if the block was terminated before a branch instruction, emit a
   // fallthrough branch to the next pc
   if (tail_instr->op != OP_BRANCH && tail_instr->op != OP_BRANCH_COND) {
-    ir_branch(ir, ir_alloc_i32(ir, guest_addr + i));
+    ir_branch(ir, ir_alloc_i32(ir, addr + i));
   }
 
   // emit block epilog
@@ -2237,7 +2238,7 @@ void sh4_translate(uint32_t guest_addr, uint8_t *guest_ptr, int size, int flags,
   // update remaining cycles
   struct ir_value *num_cycles =
       ir_load_context(ir, offsetof(struct sh4_ctx, num_cycles), VALUE_I32);
-  num_cycles = ir_sub(ir, num_cycles, ir_alloc_i32(ir, guest_cycles));
+  num_cycles = ir_sub(ir, num_cycles, ir_alloc_i32(ir, cycles));
   ir_store_context(ir, offsetof(struct sh4_ctx, num_cycles), num_cycles);
 
   // update num instructions

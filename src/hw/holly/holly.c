@@ -193,7 +193,8 @@ static void holly_update_interrupts(struct holly *hl) {
   // TODO check for hardware DMA initiation
 }
 
-uint32_t holly_reg_read(struct holly *hl, uint32_t addr, uint32_t data_mask) {
+static uint32_t holly_reg_read(struct holly *hl, uint32_t addr,
+                               uint32_t data_mask) {
   uint32_t offset = addr >> 2;
   reg_read_cb read = holly_cb[offset].read;
   if (read) {
@@ -202,8 +203,8 @@ uint32_t holly_reg_read(struct holly *hl, uint32_t addr, uint32_t data_mask) {
   return hl->reg[offset];
 }
 
-void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
-                     uint32_t data_mask) {
+static void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
+                            uint32_t data_mask) {
   uint32_t offset = addr >> 2;
   reg_write_cb write = holly_cb[offset].write;
   if (write) {

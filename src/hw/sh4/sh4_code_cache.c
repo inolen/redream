@@ -161,7 +161,7 @@ static code_pointer_t sh4_cache_compile_code_inner(struct sh4_cache *cache,
   ir.capacity = sizeof(cache->ir_buffer);
 
   int guest_size = 0;
-  cache->frontend->translate_code(cache->frontend, guest_addr, guest_ptr, flags,
+  cache->frontend->translate_code(cache->frontend, guest_addr, flags,
                                   &guest_size, &ir);
 
 #if 0
@@ -282,7 +282,7 @@ code_pointer_t sh4_cache_compile_code(struct sh4_cache *cache,
   return code;
 }
 
-struct sh4_cache *sh4_cache_create(struct jit_memory_interface *memory_if,
+struct sh4_cache *sh4_cache_create(struct jit_guest *guest,
                                    code_pointer_t default_code) {
   struct sh4_cache *cache = calloc(1, sizeof(struct sh4_cache));
 
@@ -292,8 +292,8 @@ struct sh4_cache *sh4_cache_create(struct jit_memory_interface *memory_if,
       exception_handler_add(cache, &sh4_cache_handle_exception);
 
   // setup parser and emitter
-  cache->frontend = sh4_frontend_create();
-  cache->backend = x64_backend_create(memory_if);
+  cache->frontend = sh4_frontend_create(guest);
+  cache->backend = x64_backend_create(guest);
 
   // initialize all entries in block cache to reference the default block
   cache->default_code = default_code;
