@@ -15,7 +15,7 @@
 #include "sys/thread.h"
 #include "ui/nuklear.h"
 
-#define TA_MAX_CONTEXTS 32
+#define TA_MAX_CONTEXTS 8
 #define TA_YUV420_MACROBLOCK_SIZE 384
 #define TA_YUV422_MACROBLOCK_SIZE 512
 #define TA_MAX_MACROBLOCK_SIZE \

@@ -431,8 +431,8 @@ union vert_param {
 };
 
 // shared by tracer
-#define TA_MAX_SURFS 4096
-#define TA_MAX_VERTS 16384
+#define TA_MAX_SURFS (1024*16)
+#define TA_MAX_VERTS (1024*64)
 #define TA_MAX_PARAMS 0x200000
 
 // worst case background vertex size, see ISP_BACKGND_T field
