@@ -1,14 +1,15 @@
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
+#include "jit/guest.h"
 
-void sh4_analyze_block(uint32_t guest_addr, uint8_t *guest_ptr, int flags,
+void sh4_analyze_block(const struct jit_guest *guest, uint32_t addr, int flags,
                        int *size) {
   *size = 0;
 
   while (true) {
     struct sh4_instr instr = {0};
-    instr.addr = guest_addr;
-    instr.opcode = *(uint16_t *)guest_ptr;
+    instr.addr = addr;
+    instr.opcode = guest->r16(guest->mem_self, instr.addr);
 
     // end block on invalid instruction
     if (!sh4_disasm(&instr)) {
@@ -16,8 +17,7 @@ void sh4_analyze_block(uint32_t guest_addr, uint8_t *guest_ptr, int flags,
     }
 
     int step = (instr.flags & SH4_FLAG_DELAYED) ? 4 : 2;
-    guest_addr += step;
-    guest_ptr += step;
+    addr += step;
     *size += step;
 
     // stop emitting once a branch has been hit. in addition, if fpscr has

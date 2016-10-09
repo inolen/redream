@@ -9,6 +9,8 @@
 #include "hw/memory.h"
 #include "hw/pvr/pvr.h"
 #include "hw/pvr/ta.h"
+#include "hw/rom/boot.h"
+#include "hw/rom/flash.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4_code_cache.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
@@ -514,18 +516,18 @@ static bool sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
-  sh4->jit_if = (struct jit_memory_interface){&sh4->ctx,
-                                              sh4->memory_if->space->base,
-                                              sh4->memory_if->space,
-                                              &as_read8,
-                                              &as_read16,
-                                              &as_read32,
-                                              NULL,
-                                              &as_write8,
-                                              &as_write16,
-                                              &as_write32,
-                                              NULL};
-  sh4->code_cache = sh4_cache_create(&sh4->jit_if, &sh4_compile_pc);
+  struct jit_guest guest = {&sh4->ctx,
+                            sh4->memory_if->space->base,
+                            sh4->memory_if->space,
+                            &as_read8,
+                            &as_read16,
+                            &as_read32,
+                            NULL,
+                            &as_write8,
+                            &as_write16,
+                            &as_write32,
+                            NULL};
+  sh4->code_cache = sh4_cache_create(&guest, &sh4_compile_pc);
 
   // initialize context
   sh4->ctx.sh4 = sh4;
@@ -930,7 +932,8 @@ REG_W32(sh4_cb, TCNT2) {
 
 // clang-format off
 AM_BEGIN(struct sh4, sh4_data_map)
-  AM_RANGE(0x00000000, 0x0021ffff) AM_MOUNT("system rom")
+  AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("boot", boot_rom_map)
+  AM_RANGE(0x00200000, 0x0021ffff) AM_DEVICE("flash", flash_rom_map)
   AM_RANGE(0x0c000000, 0x0cffffff) AM_MOUNT("system ram")
 
   // main ram mirrors

@@ -11,7 +11,9 @@ enum {
   SH4_SINGLE_INSTR = 0x8,
 };
 
-void sh4_analyze_block(uint32_t guest_addr, uint8_t *guest_ptr, int flags,
+struct jit_guest;
+
+void sh4_analyze_block(const struct jit_guest *guest, uint32_t addr, int flags,
                        int *size);
 
 #endif

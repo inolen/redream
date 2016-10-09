@@ -10,9 +10,6 @@
 #include "ui/nuklear.h"
 #include "ui/window.h"
 
-DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to BIOS");
-DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash ROM");
-
 struct emu {
   struct window *window;
   struct window_listener listener;
@@ -20,70 +17,6 @@ struct emu {
   int running;
   int throttled;
 };
-
-static bool emu_load_bios(struct emu *emu, const char *path) {
-  static const int BIOS_BEGIN = 0x00000000;
-  static const int BIOS_SIZE = 0x00200000;
-
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    LOG_WARNING("Failed to open bios at \"%s\"", path);
-    return false;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  if (size != BIOS_SIZE) {
-    LOG_WARNING("Bios size mismatch, is %d, expected %d", size, BIOS_SIZE);
-    fclose(fp);
-    return false;
-  }
-
-  uint8_t *bios = memory_translate(emu->dc->memory, "system rom", BIOS_BEGIN);
-  int n = (int)fread(bios, sizeof(uint8_t), size, fp);
-  fclose(fp);
-
-  if (n != size) {
-    LOG_WARNING("Bios read failed");
-    return false;
-  }
-
-  return true;
-}
-
-static bool emu_load_flash(struct emu *emu, const char *path) {
-  static const int FLASH_BEGIN = 0x00200000;
-  static const int FLASH_SIZE = 0x00020000;
-
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    LOG_WARNING("Failed to open flash at \"%s\"", path);
-    return false;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  if (size != FLASH_SIZE) {
-    LOG_WARNING("Flash size mismatch, is %d, expected %d", size, FLASH_SIZE);
-    fclose(fp);
-    return false;
-  }
-
-  uint8_t *flash = memory_translate(emu->dc->memory, "system rom", FLASH_BEGIN);
-  int n = (int)fread(flash, sizeof(uint8_t), size, fp);
-  fclose(fp);
-
-  if (n != size) {
-    LOG_WARNING("Flash read failed");
-    return false;
-  }
-
-  return true;
-}
 
 static bool emu_launch_bin(struct emu *emu, const char *path) {
   FILE *fp = fopen(path, "rb");
@@ -187,14 +120,6 @@ void emu_run(struct emu *emu, const char *path) {
   emu->dc = dc_create(emu->window->rb);
 
   if (!emu->dc) {
-    return;
-  }
-
-  if (!emu_load_bios(emu, OPTION_bios)) {
-    return;
-  }
-
-  if (!emu_load_flash(emu, OPTION_flash)) {
     return;
   }
 

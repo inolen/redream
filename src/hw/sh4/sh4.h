@@ -35,7 +35,6 @@ struct sh4_perf {
 
 struct sh4 {
   struct device;
-  struct jit_memory_interface jit_if;
   struct sh4_cache *code_cache;
   struct sh4_ctx ctx;
   uint8_t cache[0x2000];  // 8kb cache
