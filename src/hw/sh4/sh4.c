@@ -803,7 +803,7 @@ REG_R32(sh4_cb, PDTRA) {
   // 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
   // VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
   // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-  // v |= 0x3 << 8;
+  v |= 0x3 << 8;
   return v;
 }
 
