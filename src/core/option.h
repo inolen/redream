@@ -51,6 +51,8 @@
     options_unregister(&OPTION_T_##name);                     \
   }
 
+#define OPTION_HIDDEN NULL
+
 enum option_type {
   OPT_BOOL,
   OPT_INT,
