@@ -199,7 +199,8 @@ static bool memory_create_shmem(struct memory *memory) {
 }
 
 static void memory_destroy_shmem(struct memory *memory) {
-  CHECK(unmap_shared_memory(memory->shmem, memory->shmem_base, memory->shmem_size));
+  CHECK(unmap_shared_memory(memory->shmem, memory->shmem_base,
+                            memory->shmem_size));
   destroy_shared_memory(memory->shmem);
 }
 
