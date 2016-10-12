@@ -1,6 +1,8 @@
 #include "core/rb_tree.h"
 #include "core/assert.h"
 
+//#define VERIFY_TREE 1
+
 static enum rb_color rb_color(struct rb_node *n) {
   return n ? n->color : RB_BLACK;
 }
@@ -256,7 +258,7 @@ static void rb_link_3(struct rb_tree *t, struct rb_node *n,
 }
 
 // In this case, the new node has a black parent. All the properties are still
-// satisfied and we return->
+// satisfied and we return.
 static void rb_link_2(struct rb_tree *t, struct rb_node *n,
                       struct rb_callbacks *cb) {
   if (rb_color(n->parent) == RB_BLACK) {
@@ -406,6 +408,11 @@ static void rb_unlink_1(struct rb_tree *t, struct rb_node *n,
 }
 
 void rb_link(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {
+  // reset internal node state
+  n->left = NULL;
+  n->right = NULL;
+  n->color = RB_RED;
+
   // set initial root
   if (!t->root) {
     t->root = n;

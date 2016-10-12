@@ -1,5 +1,5 @@
-#ifndef INTERVAL_TREE_C_H
-#define INTERVAL_TREE_C_H
+#ifndef INTERVAL_TREE_H
+#define INTERVAL_TREE_H
 
 #include <stdint.h>
 #include "core/rb_tree.h"
