@@ -4,7 +4,7 @@
 #include "hw/dreamcast.h"
 #include "sys/filesystem.h"
 
-DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash ROM");
+DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash rom");
 
 // there doesn't seem to be any documentation on the flash rom used by thae
 // dreamcast. however, several people have replaced it with the MX29LV160TMC-90
@@ -67,7 +67,8 @@ static int flash_save_rom(struct flash *flash, const char *path) {
   return 1;
 }
 
-static uint32_t flash_cmd_read(struct flash *flash, uint32_t addr, uint32_t data_mask) {
+static uint32_t flash_cmd_read(struct flash *flash, uint32_t addr,
+                               uint32_t data_mask) {
   uint32_t *mem = (uint32_t *)&flash->rom[addr];
   return *mem & data_mask;
 }

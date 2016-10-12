@@ -3,7 +3,7 @@
 #include "core/option.h"
 #include "hw/dreamcast.h"
 
-DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to BIOS");
+DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to boot rom");
 
 #define BIOS_SIZE 0x00200000
 

@@ -17,6 +17,7 @@
 #define AICA_INT_SAMPLE 0x400
 
 struct channel_data {
+  // 0x0
   uint32_t SA_hi : 7;
   uint32_t PCMS : 2;
   uint32_t LPCTL : 1;
@@ -26,21 +27,26 @@ struct channel_data {
   uint32_t KYONEX : 1;
   uint32_t : 16;
 
+  // 0x4
   uint32_t SA_lo : 16;
   uint32_t : 16;
 
+  // 0x8
   uint32_t LSA : 16;
   uint32_t : 16;
 
+  // 0xc
   uint32_t LEA : 16;
   uint32_t : 16;
 
+  // 0x10
   uint32_t AR : 5;
   uint32_t : 1;
   uint32_t D1R : 5;
   uint32_t D2R : 5;
   uint32_t : 16;
 
+  // 0x14
   uint32_t RR : 5;
   uint32_t DL : 5;
   uint32_t KRS : 4;
@@ -48,12 +54,14 @@ struct channel_data {
   uint32_t : 1;
   uint32_t : 16;
 
+  // 0x18
   uint32_t FNS : 10;
   uint32_t : 1;
   uint32_t OCT : 4;
   uint32_t : 1;
   uint32_t : 16;
 
+  // 0x1c
   uint32_t ALFOS : 3;
   uint32_t ALFOWS : 2;
   uint32_t PLFOS : 3;
@@ -62,48 +70,58 @@ struct channel_data {
   uint32_t LFORE : 1;
   uint32_t : 16;
 
+  // 0x20
   uint32_t ISEL : 4;
   uint32_t IMXL : 4;
   uint32_t : 8;
   uint32_t : 16;
 
+  // 0x24
   uint32_t DIPAN : 5;
   uint32_t : 3;
   uint32_t DISDL : 4;
   uint32_t : 4;
   uint32_t : 16;
 
+  // 0x28
   uint32_t Q : 5;
   uint32_t : 3;
   uint32_t TL : 8;
   uint32_t : 16;
 
+  // 0x2c
   uint32_t FLV0 : 13;
   uint32_t : 3;
   uint32_t : 16;
 
+  // 0x30
   uint32_t FLV1 : 13;
   uint32_t : 3;
   uint32_t : 16;
 
+  // 0x34
   uint32_t FLV2 : 13;
   uint32_t : 3;
   uint32_t : 16;
 
+  // 0x38
   uint32_t FLV3 : 13;
   uint32_t : 3;
   uint32_t : 16;
 
+  // 0x3c
   uint32_t FLV4 : 13;
   uint32_t : 3;
   uint32_t : 16;
 
+  // 0x40
   uint32_t FD1R : 5;
   uint32_t : 3;
   uint32_t FAR : 5;
   uint32_t : 3;
   uint32_t : 16;
 
+  // 0x44
   uint32_t FRR : 5;
   uint32_t : 3;
   uint32_t FD2R : 5;
