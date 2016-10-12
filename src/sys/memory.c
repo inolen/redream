@@ -70,13 +70,13 @@ static bool watcher_handle_exception(void *ctx, struct exception *ex) {
       size_t aligned_size = (n->high - n->low) + 1;
       CHECK(protect_pages((void *)aligned_begin, aligned_size, ACC_READWRITE));
 
-      interval_tree_remove(&s_watcher->tree, n);
+      remove_memory_watch(watch);
     }
 
     n = next;
   }
 
-  if (!s_watcher->tree.root) {
+  if (s_watcher && !s_watcher->tree.root) {
     watcher_destroy();
   }
 
