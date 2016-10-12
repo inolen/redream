@@ -139,6 +139,10 @@ void options_print_help() {
   int max_desc_width = 0;
 
   list_for_each_entry(opt, &s_options, struct option, it) {
+    if (opt->desc == OPTION_HIDDEN) {
+      continue;
+    }
+
     int l = (int)strlen(opt->name);
     max_name_width = MAX(l, max_name_width);
 
@@ -147,6 +151,10 @@ void options_print_help() {
   }
 
   list_for_each_entry(opt, &s_options, struct option, it) {
+    if (opt->desc == OPTION_HIDDEN) {
+      continue;
+    }
+
     LOG_INFO("--%-*s  %-*s  %s", max_name_width, opt->name, max_desc_width,
              opt->desc, options_format_value(opt));
   }

@@ -10,7 +10,7 @@ struct dreamcast;
 
 // helpers for mmio callbacks, assume data is always a uint32_t
 #define DATA_SIZE() (ctz64((uint64_t)data_mask + 1) >> 3)
-#define READ_DATA(ptr) (*(uint32_t *)(ptr)&data_mask)
+#define READ_DATA(ptr) ((*(uint32_t *)(ptr)) & data_mask)
 #define WRITE_DATA(ptr) \
   (*(uint32_t *)(ptr) = (*(uint32_t *)(ptr) & ~data_mask) | (data & data_mask))
 
