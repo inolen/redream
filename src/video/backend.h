@@ -115,32 +115,35 @@ struct surface2d {
   int num_verts;
 };
 
-struct rb;
+struct video_backend;
 
-void rb_begin_surfaces(struct rb *rb, const float *projection,
-                       const struct vertex *verts, int num_verts);
-void rb_draw_surface(struct rb *rb, const struct surface *surf);
-void rb_end_surfaces(struct rb *rb);
+void video_begin_surfaces(struct video_backend *video, const float *projection,
+                          const struct vertex *verts, int num_verts);
+void video_draw_surface(struct video_backend *video,
+                        const struct surface *surf);
+void video_end_surfaces(struct video_backend *video);
 
-void rb_begin_surfaces2d(struct rb *rb, const struct vertex2d *verts,
-                         int num_verts, uint16_t *indices, int num_indices);
-void rb_draw_surface2d(struct rb *rb, const struct surface2d *surf);
-void rb_end_surfaces2d(struct rb *rb);
+void video_begin_surfaces2d(struct video_backend *video,
+                            const struct vertex2d *verts, int num_verts,
+                            uint16_t *indices, int num_indices);
+void video_draw_surface2d(struct video_backend *video,
+                          const struct surface2d *surf);
+void video_end_surfaces2d(struct video_backend *video);
 
-void rb_begin_ortho(struct rb *rb);
-void rb_end_ortho(struct rb *rb);
+void video_begin_ortho(struct video_backend *video);
+void video_end_ortho(struct video_backend *video);
 
-void rb_begin_frame(struct rb *rb);
-void rb_end_frame(struct rb *rb);
+void video_begin_frame(struct video_backend *video);
+void video_end_frame(struct video_backend *video);
 
-texture_handle_t rb_create_texture(struct rb *rb, enum pxl_format format,
-                                   enum filter_mode filter,
-                                   enum wrap_mode wrap_u, enum wrap_mode wrap_v,
-                                   bool mipmaps, int width, int height,
-                                   const uint8_t *buffer);
-void rb_destroy_texture(struct rb *rb, texture_handle_t handle);
+texture_handle_t video_create_texture(
+    struct video_backend *video, enum pxl_format format,
+    enum filter_mode filter, enum wrap_mode wrap_u, enum wrap_mode wrap_v,
+    bool mipmaps, int width, int height, const uint8_t *buffer);
+void video_destroy_texture(struct video_backend *video,
+                           texture_handle_t handle);
 
-struct rb *rb_create(struct window *window);
-void rb_destroy(struct rb *rb);
+struct video_backend *video_create(struct window *window);
+void video_destroy(struct video_backend *video);
 
 #endif

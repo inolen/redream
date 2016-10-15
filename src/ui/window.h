@@ -6,11 +6,11 @@
 #include "core/list.h"
 #include "ui/keycode.h"
 
-struct rb;
 struct imgui;
 struct microprofile;
 struct nuklear;
 struct nk_context;
+struct video_backend;
 struct window;
 struct window_listener;
 
@@ -36,7 +36,7 @@ struct window_listener {
 struct window {
   // public
   struct SDL_Window *handle;
-  struct rb *rb;
+  struct video_backend *video;
   struct nuklear *nk;
   struct microprofile *mp;
 

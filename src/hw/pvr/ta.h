@@ -5,7 +5,7 @@
 #include "hw/pvr/ta_types.h"
 
 struct dreamcast;
-struct rb;
+struct video_backend;
 
 extern int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
 extern int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
@@ -30,7 +30,7 @@ struct ta;
 
 void ta_build_tables();
 
-struct ta *ta_create(struct dreamcast *dc, struct rb *rb);
+struct ta *ta_create(struct dreamcast *dc, struct video_backend *video);
 void ta_destroy(struct ta *ta);
 
 AM_DECLARE(ta_fifo_map);

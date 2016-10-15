@@ -117,7 +117,7 @@ static void *emu_core_thread(void *data) {
 }
 
 void emu_run(struct emu *emu, const char *path) {
-  emu->dc = dc_create(emu->window->rb);
+  emu->dc = dc_create(emu->window->video);
 
   if (!emu->dc) {
     return;

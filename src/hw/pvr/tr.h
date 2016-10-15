@@ -3,7 +3,7 @@
 
 #include "core/rb_tree.h"
 #include "hw/pvr/ta_types.h"
-#include "renderer/backend.h"
+#include "video/backend.h"
 
 struct tr;
 
@@ -77,7 +77,8 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
                       struct render_ctx *rctx);
 void tr_render_context(struct tr *tr, const struct render_ctx *rctx);
 
-struct tr *tr_create(struct rb *rb, struct texture_provider *provider);
+struct tr *tr_create(struct video_backend *video,
+                     struct texture_provider *provider);
 void tr_destroy(struct tr *tr);
 
 #endif

@@ -8,7 +8,7 @@
 #include "hw/pvr/ta.h"
 
 struct tr {
-  struct rb *rb;
+  struct video_backend *video;
   struct texture_provider *provider;
 
   // current global state
@@ -134,7 +134,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 
   // if there's a dirty handle, destroy it before creating the new one
   if (entry->handle && entry->dirty) {
-    rb_destroy_texture(tr->rb, entry->handle);
+    video_destroy_texture(tr->video, entry->handle);
     entry->handle = 0;
   }
 
@@ -299,8 +299,9 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
       tsp.clamp_v ? WRAP_CLAMP_TO_EDGE
                   : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
-  entry->handle = rb_create_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v,
-                                    mip_mapped, width, height, output);
+  entry->handle =
+      video_create_texture(tr->video, pixel_fmt, filter, wrap_u, wrap_v,
+                           mip_mapped, width, height, output);
   entry->format = pixel_fmt;
   entry->filter = filter;
   entry->wrap_u = wrap_u;
@@ -1022,16 +1023,16 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
 
 static void tr_render_context_inner(struct tr *tr,
                                     const struct render_ctx *ctx) {
-  rb_begin_surfaces(tr->rb, ctx->projection, ctx->verts, ctx->num_verts);
+  video_begin_surfaces(tr->video, ctx->projection, ctx->verts, ctx->num_verts);
 
   const int *sorted_surf = ctx->sorted_surfs;
   const int *sorted_surf_end = ctx->sorted_surfs + ctx->num_surfs;
   while (sorted_surf < sorted_surf_end) {
-    rb_draw_surface(tr->rb, &ctx->surfs[*sorted_surf]);
+    video_draw_surface(tr->video, &ctx->surfs[*sorted_surf]);
     sorted_surf++;
   }
 
-  rb_end_surfaces(tr->rb);
+  video_end_surfaces(tr->video);
 }
 
 void tr_render_context(struct tr *tr, const struct render_ctx *ctx) {
@@ -1042,10 +1043,11 @@ void tr_render_context(struct tr *tr, const struct render_ctx *ctx) {
   PROF_LEAVE();
 }
 
-struct tr *tr_create(struct rb *rb, struct texture_provider *provider) {
+struct tr *tr_create(struct video_backend *video,
+                     struct texture_provider *provider) {
   struct tr *tr = calloc(1, sizeof(struct tr));
 
-  tr->rb = rb;
+  tr->video = video;
   tr->provider = provider;
 
   return tr;

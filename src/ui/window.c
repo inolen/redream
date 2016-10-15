@@ -3,9 +3,9 @@
 #include "ui/window.h"
 #include "core/assert.h"
 #include "core/list.h"
-#include "renderer/backend.h"
 #include "ui/microprofile.h"
 #include "ui/nuklear.h"
+#include "video/backend.h"
 
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
@@ -35,7 +35,7 @@ static void win_init_joystick(struct window *win) {
 }
 
 static void win_handle_paint(struct window *win) {
-  rb_begin_frame(win->rb);
+  video_begin_frame(win->video);
   nk_begin_frame(win->nk);
   mp_begin_frame(win->mp);
 
@@ -66,7 +66,7 @@ static void win_handle_paint(struct window *win) {
 
   mp_end_frame(win->mp);
   nk_end_frame(win->nk);
-  rb_end_frame(win->rb);
+  video_end_frame(win->video);
 }
 
 static void win_handle_keydown(struct window *win, enum keycode code,
@@ -855,10 +855,10 @@ struct window *win_create() {
     return NULL;
   }
 
-  // setup render context
-  win->rb = rb_create(win);
-  if (!win->rb) {
-    LOG_WARNING("Render backend creation failed");
+  // setup video backend
+  win->video = video_create(win);
+  if (!win->video) {
+    LOG_WARNING("Video backend creation failed");
     win_destroy(win);
     return NULL;
   }
@@ -891,8 +891,8 @@ void win_destroy(struct window *win) {
     nk_destroy(win->nk);
   }
 
-  if (win->rb) {
-    rb_destroy(win->rb);
+  if (win->video) {
+    video_destroy(win->video);
   }
 
   if (win->handle) {

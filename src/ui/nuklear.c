@@ -72,7 +72,7 @@ void nk_begin_frame(struct nuklear *nk) {
 }
 
 void nk_end_frame(struct nuklear *nk) {
-  struct rb *rb = nk->window->rb;
+  struct video_backend *video = nk->window->video;
 
   // // if there are any focused items, enable text input
   // win_enable_text_input(nk->window, ImGui::IsAnyItemActive());
@@ -94,9 +94,9 @@ void nk_end_frame(struct nuklear *nk) {
   nk_convert(&nk->ctx, &nk->cmds, &vbuf, &ebuf, &config);
 
   // bind buffers
-  rb_begin_ortho(rb);
-  rb_begin_surfaces2d(rb, nk->vertices, nk->ctx.draw_list.vertex_count,
-                      nk->elements, nk->ctx.draw_list.element_count);
+  video_begin_ortho(video);
+  video_begin_surfaces2d(video, nk->vertices, nk->ctx.draw_list.vertex_count,
+                         nk->elements, nk->ctx.draw_list.element_count);
 
   // pass each draw command off to the render backend
   const struct nk_draw_command *cmd = NULL;
@@ -122,14 +122,14 @@ void nk_end_frame(struct nuklear *nk) {
     surf.first_vert = offset;
     surf.num_verts = cmd->elem_count;
 
-    rb_draw_surface2d(rb, &surf);
+    video_draw_surface2d(video, &surf);
 
     offset += cmd->elem_count;
   }
   nk_clear(&nk->ctx);
 
-  rb_end_surfaces2d(rb);
-  rb_end_ortho(rb);
+  video_end_surfaces2d(video);
+  video_end_ortho(video);
 
   // reset mouse wheel state as it won't be reset through any event
   nk->mouse_wheel = 0;
@@ -150,9 +150,9 @@ struct nuklear *nk_create(struct window *window) {
   int font_width, font_height;
   const void *font_data = nk_font_atlas_bake(
       &nk->atlas, &font_width, &font_height, NK_FONT_ATLAS_RGBA32);
-  nk->font_texture =
-      rb_create_texture(nk->window->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
-                        WRAP_REPEAT, false, font_width, font_height, font_data);
+  nk->font_texture = video_create_texture(
+      nk->window->video, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT, WRAP_REPEAT,
+      false, font_width, font_height, font_data);
   nk_font_atlas_end(&nk->atlas, nk_handle_id((int)nk->font_texture), &nk->null);
 
   // initialize nuklear context
@@ -167,7 +167,7 @@ void nk_destroy(struct nuklear *nk) {
   nk_font_atlas_clear(&nk->atlas);
   nk_free(&nk->ctx);
 
-  rb_destroy_texture(nk->window->rb, nk->font_texture);
+  video_destroy_texture(nk->window->video, nk->font_texture);
 
   win_remove_listener(nk->window, &nk->listener);
 

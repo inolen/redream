@@ -11,8 +11,8 @@
 #define NK_INCLUDE_DEFAULT_FONT
 #include <nuklear.h>
 
-#include "renderer/backend.h"
 #include "ui/window.h"
+#include "video/backend.h"
 
 #define NK_MAX_VERTICES 4096
 #define NK_MAX_ELEMENTS 16384
