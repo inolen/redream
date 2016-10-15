@@ -1,5 +1,5 @@
-#ifndef RENDERER_BACKEND_H
-#define RENDERER_BACKEND_H
+#ifndef VIDEO_BACKEND_H
+#define VIDEO_BACKEND_H
 
 #include <stdbool.h>
 #include <stdint.h>

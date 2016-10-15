@@ -137,6 +137,7 @@ endif()
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
+  src/audio/sdl_backend.c
   src/core/assert.c
   src/core/interval_tree.c
   src/core/list.c
