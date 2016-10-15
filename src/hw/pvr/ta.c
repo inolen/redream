@@ -9,11 +9,11 @@
 #include "hw/pvr/tr.h"
 #include "hw/pvr/trace.h"
 #include "hw/sh4/sh4.h"
-#include "renderer/backend.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 #include "sys/thread.h"
 #include "ui/nuklear.h"
+#include "video/backend.h"
 
 #define TA_MAX_CONTEXTS 8
 #define TA_YUV420_MACROBLOCK_SIZE 384
@@ -32,7 +32,6 @@ struct ta_texture_entry {
 struct ta {
   struct device;
   struct texture_provider provider;
-  struct rb *rb;
   struct tr *tr;
   uint8_t *video_ram;
   uint8_t *palette_ram;
@@ -932,7 +931,7 @@ void ta_build_tables() {
   }
 }
 
-struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
+struct ta *ta_create(struct dreamcast *dc, struct video_backend *video) {
   ta_build_tables();
 
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
@@ -940,8 +939,7 @@ struct ta *ta_create(struct dreamcast *dc, struct rb *rb) {
       dc_create_window_interface(&ta_paint, &ta_paint_debug_menu, NULL);
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
-  ta->rb = rb;
-  ta->tr = tr_create(ta->rb, &ta->provider);
+  ta->tr = tr_create(video, &ta->provider);
   ta->pending_mutex = mutex_create();
 
   return ta;

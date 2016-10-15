@@ -182,7 +182,6 @@ set(REDREAM_SOURCES
   src/jit/ir/passes/load_store_elimination_pass.c
   src/jit/ir/passes/pass_stat.c
   src/jit/ir/passes/register_allocation_pass.c
-  src/renderer/gl_backend.c
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c
@@ -190,6 +189,7 @@ set(REDREAM_SOURCES
   src/ui/keycode.c
   src/ui/nuklear.c
   src/ui/window.c
+  src/video/gl_backend.c
   src/main.c)
 
 if(WIN32)

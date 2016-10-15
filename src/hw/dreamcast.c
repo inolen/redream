@@ -167,7 +167,7 @@ void dc_destroy_device(struct device *dev) {
   free(dev);
 }
 
-struct dreamcast *dc_create(struct rb *rb) {
+struct dreamcast *dc_create(struct video_backend *video) {
   struct dreamcast *dc = calloc(1, sizeof(struct dreamcast));
 
   dc->debugger = OPTION_gdb ? debugger_create(dc) : NULL;
@@ -182,7 +182,7 @@ struct dreamcast *dc_create(struct rb *rb) {
   dc->holly = holly_create(dc);
   dc->maple = maple_create(dc);
   dc->pvr = pvr_create(dc);
-  dc->ta = ta_create(dc, rb);
+  dc->ta = ta_create(dc, video);
 
   if (!dc_init(dc)) {
     dc_destroy(dc);

@@ -68,7 +68,7 @@ struct tracer {
   struct window *window;
   struct window_listener listener;
   struct texture_provider provider;
-  struct rb *rb;
+  struct video_backend *video;
   struct tr *tr;
 
   // ui state
@@ -782,8 +782,8 @@ static void tracer_paint(void *data) {
   }
 
   // render the context
-  rb_begin_surfaces(tracer->rb, tracer->rctx.projection, tracer->rctx.verts,
-                    tracer->rctx.num_verts);
+  video_begin_surfaces(tracer->video, tracer->rctx.projection,
+                       tracer->rctx.verts, tracer->rctx.num_verts);
 
   for (int i = 0; i < n; i++) {
     int idx = tracer->rctx.sorted_surfs[i];
@@ -793,10 +793,10 @@ static void tracer_paint(void *data) {
       continue;
     }
 
-    rb_draw_surface(tracer->rb, &tracer->rctx.surfs[idx]);
+    video_draw_surface(tracer->video, &tracer->rctx.surfs[idx]);
   }
 
-  rb_end_surfaces(tracer->rb);
+  video_end_surfaces(tracer->video);
 }
 
 static void tracer_keydown(void *data, enum keycode code, int16_t value) {
@@ -865,8 +865,8 @@ struct tracer *tracer_create(struct window *window) {
       NULL,   NULL,          &tracer_close, {0}};
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
-  tracer->rb = window->rb;
-  tracer->tr = tr_create(tracer->rb, &tracer->provider);
+  tracer->video = window->video;
+  tracer->tr = tr_create(tracer->video, &tracer->provider);
 
   win_add_listener(tracer->window, &tracer->listener);
 

@@ -21,10 +21,10 @@ struct maple;
 struct memory;
 struct nk_context;
 struct pvr;
-struct rb;
 struct scheduler;
 struct sh4;
 struct ta;
+struct video_backend;
 
 //
 // register callbacks
@@ -175,7 +175,7 @@ void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
-struct dreamcast *dc_create(struct rb *rb);
+struct dreamcast *dc_create(struct video_backend *video);
 void dc_destroy(struct dreamcast *dc);
 
 #endif

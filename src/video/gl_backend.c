@@ -4,9 +4,9 @@
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "core/string.h"
-#include "renderer/backend.h"
 #include "ui/nuklear.h"
 #include "ui/window.h"
+#include "video/backend.h"
 
 #define MAX_TEXTURES 1024
 
@@ -27,7 +27,7 @@ struct shader_program {
   GLint uniforms[UNIFORM_NUM_UNIFORMS];
 };
 
-struct rb {
+struct video_backend {
   struct window *window;
   struct window_listener listener;
 
@@ -60,8 +60,8 @@ struct rb {
   struct shader_program *current_program;
 };
 
-#include "renderer/ta.glsl"
-#include "renderer/ui.glsl"
+#include "video/ta.glsl"
+#include "video/ui.glsl"
 
 static const int GLSL_VERSION = 330;
 
@@ -117,12 +117,12 @@ static GLenum prim_types[] = {
     GL_LINES,      // PRIM_LINES
 };
 
-static void rb_set_scissor_test(struct rb *rb, bool enabled) {
-  if (rb->scissor_test == enabled) {
+static void video_set_scissor_test(struct video_backend *video, bool enabled) {
+  if (video->scissor_test == enabled) {
     return;
   }
 
-  rb->scissor_test = enabled;
+  video->scissor_test = enabled;
 
   if (enabled) {
     glEnable(GL_SCISSOR_TEST);
@@ -131,27 +131,28 @@ static void rb_set_scissor_test(struct rb *rb, bool enabled) {
   }
 }
 
-static void rb_set_scissor_clip(struct rb *rb, int x, int y, int width,
-                                int height) {
+static void video_set_scissor_clip(struct video_backend *video, int x, int y,
+                                   int width, int height) {
   glScissor(x, y, width, height);
 }
 
-static void rb_set_depth_mask(struct rb *rb, bool enabled) {
-  if (rb->depth_mask == enabled) {
+static void video_set_depth_mask(struct video_backend *video, bool enabled) {
+  if (video->depth_mask == enabled) {
     return;
   }
 
-  rb->depth_mask = enabled;
+  video->depth_mask = enabled;
 
   glDepthMask(enabled ? 1 : 0);
 }
 
-static void rb_set_depth_func(struct rb *rb, enum depth_func fn) {
-  if (rb->depth_func == fn) {
+static void video_set_depth_func(struct video_backend *video,
+                                 enum depth_func fn) {
+  if (video->depth_func == fn) {
     return;
   }
 
-  rb->depth_func = fn;
+  video->depth_func = fn;
 
   if (fn == DEPTH_NONE) {
     glDisable(GL_DEPTH_TEST);
@@ -161,12 +162,13 @@ static void rb_set_depth_func(struct rb *rb, enum depth_func fn) {
   }
 }
 
-static void rb_set_cull_face(struct rb *rb, enum cull_face fn) {
-  if (rb->cull_face == fn) {
+static void video_set_cull_face(struct video_backend *video,
+                                enum cull_face fn) {
+  if (video->cull_face == fn) {
     return;
   }
 
-  rb->cull_face = fn;
+  video->cull_face = fn;
 
   if (fn == CULL_NONE) {
     glDisable(GL_CULL_FACE);
@@ -176,14 +178,15 @@ static void rb_set_cull_face(struct rb *rb, enum cull_face fn) {
   }
 }
 
-static void rb_set_blend_func(struct rb *rb, enum blend_func src_fn,
-                              enum blend_func dst_fn) {
-  if (rb->src_blend == src_fn && rb->dst_blend == dst_fn) {
+static void video_set_blend_func(struct video_backend *video,
+                                 enum blend_func src_fn,
+                                 enum blend_func dst_fn) {
+  if (video->src_blend == src_fn && video->dst_blend == dst_fn) {
     return;
   }
 
-  rb->src_blend = src_fn;
-  rb->dst_blend = dst_fn;
+  video->src_blend = src_fn;
+  video->dst_blend = dst_fn;
 
   if (src_fn == BLEND_NONE || dst_fn == BLEND_NONE) {
     glDisable(GL_BLEND);
@@ -193,36 +196,39 @@ static void rb_set_blend_func(struct rb *rb, enum blend_func src_fn,
   }
 }
 
-static void rb_bind_vao(struct rb *rb, GLuint vao) {
-  if (rb->current_vao == vao) {
+static void video_bind_vao(struct video_backend *video, GLuint vao) {
+  if (video->current_vao == vao) {
     return;
   }
 
-  rb->current_vao = vao;
+  video->current_vao = vao;
 
   glBindVertexArray(vao);
 }
 
-static void rb_bind_program(struct rb *rb, struct shader_program *program) {
-  if (rb->current_program == program) {
+static void video_bind_program(struct video_backend *video,
+                               struct shader_program *program) {
+  if (video->current_program == program) {
     return;
   }
 
-  rb->current_program = program;
+  video->current_program = program;
 
   glUseProgram(program ? program->program : 0);
 }
 
-void rb_bind_texture(struct rb *rb, enum texture_map map, GLuint tex) {
+void video_bind_texture(struct video_backend *video, enum texture_map map,
+                        GLuint tex) {
   glActiveTexture(GL_TEXTURE0 + map);
   glBindTexture(GL_TEXTURE_2D, tex);
 }
 
-static GLint rb_get_uniform(struct rb *rb, enum uniform_attr attr) {
-  return rb->current_program->uniforms[attr];
+static GLint video_get_uniform(struct video_backend *video,
+                               enum uniform_attr attr) {
+  return video->current_program->uniforms[attr];
 }
 
-static void rb_print_shader_log(GLuint shader) {
+static void video_print_shader_log(GLuint shader) {
   int max_length, length;
   glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &max_length);
 
@@ -232,8 +238,8 @@ static void rb_print_shader_log(GLuint shader) {
   free(info_log);
 }
 
-static bool rb_compile_shader(const char *source, GLenum shader_type,
-                              GLuint *shader) {
+static bool video_compile_shader(const char *source, GLenum shader_type,
+                                 GLuint *shader) {
   size_t sourceLength = strlen(source);
 
   *shader = glCreateShader(shader_type);
@@ -245,7 +251,7 @@ static bool rb_compile_shader(const char *source, GLenum shader_type,
   glGetShaderiv(*shader, GL_COMPILE_STATUS, &compiled);
 
   if (!compiled) {
-    rb_print_shader_log(*shader);
+    video_print_shader_log(*shader);
     glDeleteShader(*shader);
     return false;
   }
@@ -253,7 +259,7 @@ static bool rb_compile_shader(const char *source, GLenum shader_type,
   return true;
 }
 
-static void rb_destroy_program(struct shader_program *program) {
+static void video_destroy_program(struct shader_program *program) {
   if (program->vertex_shader > 0) {
     glDeleteShader(program->vertex_shader);
   }
@@ -265,9 +271,9 @@ static void rb_destroy_program(struct shader_program *program) {
   glDeleteProgram(program->program);
 }
 
-static bool rb_compile_program(struct shader_program *program,
-                               const char *header, const char *vertex_source,
-                               const char *fragment_source) {
+static bool video_compile_program(struct shader_program *program,
+                                  const char *header, const char *vertex_source,
+                                  const char *fragment_source) {
   char buffer[16384] = {0};
 
   memset(program, 0, sizeof(*program));
@@ -278,8 +284,9 @@ static bool rb_compile_program(struct shader_program *program,
              header ? header : "", vertex_source);
     buffer[sizeof(buffer) - 1] = 0;
 
-    if (!rb_compile_shader(buffer, GL_VERTEX_SHADER, &program->vertex_shader)) {
-      rb_destroy_program(program);
+    if (!video_compile_shader(buffer, GL_VERTEX_SHADER,
+                              &program->vertex_shader)) {
+      video_destroy_program(program);
       return false;
     }
 
@@ -291,9 +298,9 @@ static bool rb_compile_program(struct shader_program *program,
              header ? header : "", fragment_source);
     buffer[sizeof(buffer) - 1] = 0;
 
-    if (!rb_compile_shader(buffer, GL_FRAGMENT_SHADER,
-                           &program->fragment_shader)) {
-      rb_destroy_program(program);
+    if (!video_compile_shader(buffer, GL_FRAGMENT_SHADER,
+                              &program->fragment_shader)) {
+      video_destroy_program(program);
       return false;
     }
 
@@ -306,7 +313,7 @@ static bool rb_compile_program(struct shader_program *program,
   glGetProgramiv(program->program, GL_LINK_STATUS, &linked);
 
   if (!linked) {
-    rb_destroy_program(program);
+    video_destroy_program(program);
     return false;
   }
 
@@ -318,7 +325,7 @@ static bool rb_compile_program(struct shader_program *program,
   return true;
 }
 
-static bool rb_init_context(struct rb *rb) {
+static bool video_init_context(struct video_backend *video) {
   // need at least a 3.3 core context for our shaders
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -328,8 +335,8 @@ static bool rb_init_context(struct rb *rb) {
   // unprojecting dreamcast coordinates, see tr_proj_mat
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-  rb->ctx = SDL_GL_CreateContext(rb->window->handle);
-  if (!rb->ctx) {
+  video->ctx = SDL_GL_CreateContext(video->window->handle);
+  if (!video->ctx) {
     LOG_WARNING("OpenGL context creation failed: %s", SDL_GetError());
     return false;
   }
@@ -348,20 +355,20 @@ static bool rb_init_context(struct rb *rb) {
   return true;
 }
 
-static void rb_destroy_context(struct rb *rb) {
-  if (!rb->ctx) {
+static void video_destroy_context(struct video_backend *video) {
+  if (!video->ctx) {
     return;
   }
 
-  SDL_GL_DeleteContext(rb->ctx);
-  rb->ctx = NULL;
+  SDL_GL_DeleteContext(video->ctx);
+  video->ctx = NULL;
 }
 
-static void rb_create_textures(struct rb *rb) {
+static void video_create_textures(struct video_backend *video) {
   uint8_t pixels[64 * 64 * 4];
   memset(pixels, 0xff, sizeof(pixels));
-  glGenTextures(1, &rb->white_tex);
-  glBindTexture(GL_TEXTURE_2D, rb->white_tex);
+  glGenTextures(1, &video->white_tex);
+  glBindTexture(GL_TEXTURE_2D, video->white_tex);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE,
@@ -369,52 +376,52 @@ static void rb_create_textures(struct rb *rb) {
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-static void rb_destroy_textures(struct rb *rb) {
-  if (!rb->ctx) {
+static void video_destroy_textures(struct video_backend *video) {
+  if (!video->ctx) {
     return;
   }
 
-  glDeleteTextures(1, &rb->white_tex);
+  glDeleteTextures(1, &video->white_tex);
 
   for (int i = 1; i < MAX_TEXTURES; i++) {
-    if (!rb->textures[i]) {
+    if (!video->textures[i]) {
       continue;
     }
-    glDeleteTextures(1, &rb->textures[i]);
+    glDeleteTextures(1, &video->textures[i]);
   }
 }
 
-static void rb_create_shaders(struct rb *rb) {
-  if (!rb_compile_program(&rb->ta_program, NULL, ta_vp, ta_fp)) {
+static void video_create_shaders(struct video_backend *video) {
+  if (!video_compile_program(&video->ta_program, NULL, ta_vp, ta_fp)) {
     LOG_FATAL("Failed to compile ta shader.");
   }
 
-  if (!rb_compile_program(&rb->ui_program, NULL, ui_vp, ui_fp)) {
+  if (!video_compile_program(&video->ui_program, NULL, ui_vp, ui_fp)) {
     LOG_FATAL("Failed to compile ui shader.");
   }
 }
 
-static void rb_destroy_shaders(struct rb *rb) {
-  if (!rb->ctx) {
+static void video_destroy_shaders(struct video_backend *video) {
+  if (!video->ctx) {
     return;
   }
 
-  rb_destroy_program(&rb->ta_program);
-  rb_destroy_program(&rb->ui_program);
+  video_destroy_program(&video->ta_program);
+  video_destroy_program(&video->ui_program);
 }
 
-static void rb_create_vertex_buffers(struct rb *rb) {
+static void video_create_vertex_buffers(struct video_backend *video) {
   //
   // UI vao
   //
-  glGenVertexArrays(1, &rb->ui_vao);
-  glBindVertexArray(rb->ui_vao);
+  glGenVertexArrays(1, &video->ui_vao);
+  glBindVertexArray(video->ui_vao);
 
-  glGenBuffers(1, &rb->ui_vbo);
-  glBindBuffer(GL_ARRAY_BUFFER, rb->ui_vbo);
+  glGenBuffers(1, &video->ui_vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, video->ui_vbo);
 
-  glGenBuffers(1, &rb->ui_ibo);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rb->ui_ibo);
+  glGenBuffers(1, &video->ui_ibo);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, video->ui_ibo);
 
   // xy
   glEnableVertexAttribArray(0);
@@ -438,11 +445,11 @@ static void rb_create_vertex_buffers(struct rb *rb) {
   //
   // TA vao
   //
-  glGenVertexArrays(1, &rb->ta_vao);
-  glBindVertexArray(rb->ta_vao);
+  glGenVertexArrays(1, &video->ta_vao);
+  glBindVertexArray(video->ta_vao);
 
-  glGenBuffers(1, &rb->ta_vbo);
-  glBindBuffer(GL_ARRAY_BUFFER, rb->ta_vbo);
+  glGenBuffers(1, &video->ta_vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, video->ta_vbo);
 
   // xyz
   glEnableVertexAttribArray(0);
@@ -469,104 +476,110 @@ static void rb_create_vertex_buffers(struct rb *rb) {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-static void rb_destroy_vertex_buffers(struct rb *rb) {
-  if (!rb->ctx) {
+static void video_destroy_vertex_buffers(struct video_backend *video) {
+  if (!video->ctx) {
     return;
   }
 
-  glDeleteBuffers(1, &rb->ui_ibo);
-  glDeleteBuffers(1, &rb->ui_vbo);
-  glDeleteVertexArrays(1, &rb->ui_vao);
+  glDeleteBuffers(1, &video->ui_ibo);
+  glDeleteBuffers(1, &video->ui_vbo);
+  glDeleteVertexArrays(1, &video->ui_vao);
 
-  glDeleteBuffers(1, &rb->ta_vbo);
-  glDeleteVertexArrays(1, &rb->ta_vao);
+  glDeleteBuffers(1, &video->ta_vbo);
+  glDeleteVertexArrays(1, &video->ta_vao);
 }
 
-static void rb_set_initial_state(struct rb *rb) {
-  rb_set_depth_mask(rb, true);
-  rb_set_depth_func(rb, DEPTH_NONE);
-  rb_set_cull_face(rb, CULL_BACK);
-  rb_set_blend_func(rb, BLEND_NONE, BLEND_NONE);
+static void video_set_initial_state(struct video_backend *video) {
+  video_set_depth_mask(video, true);
+  video_set_depth_func(video, DEPTH_NONE);
+  video_set_cull_face(video, CULL_BACK);
+  video_set_blend_func(video, BLEND_NONE, BLEND_NONE);
 }
 
-static void rb_paint_debug_menu(void *data, struct nk_context *ctx) {
-  struct rb *rb = data;
+static void video_paint_debug_menu(void *data, struct nk_context *ctx) {
+  struct video_backend *video = data;
 
   if (nk_tree_push(ctx, NK_TREE_TAB, "render", NK_MINIMIZED)) {
-    nk_checkbox_label(ctx, "wireframe", &rb->debug_wireframe);
+    nk_checkbox_label(ctx, "wireframe", &video->debug_wireframe);
 
     nk_tree_pop(ctx);
   }
 }
 
-void rb_begin_surfaces(struct rb *rb, const float *projection,
-                       const struct vertex *verts, int num_verts) {
-  glBindBuffer(GL_ARRAY_BUFFER, rb->ta_vbo);
+void video_begin_surfaces(struct video_backend *video, const float *projection,
+                          const struct vertex *verts, int num_verts) {
+  glBindBuffer(GL_ARRAY_BUFFER, video->ta_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex) * num_verts, verts,
                GL_DYNAMIC_DRAW);
 
-  rb_bind_vao(rb, rb->ta_vao);
-  rb_bind_program(rb, &rb->ta_program);
-  glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MODELVIEWPROJECTIONMATRIX), 1,
-                     GL_FALSE, projection);
-  glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
+  video_bind_vao(video, video->ta_vao);
+  video_bind_program(video, &video->ta_program);
+  glUniformMatrix4fv(
+      video_get_uniform(video, UNIFORM_MODELVIEWPROJECTIONMATRIX), 1, GL_FALSE,
+      projection);
+  glUniform1i(video_get_uniform(video, UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 
-  if (rb->debug_wireframe) {
+  if (video->debug_wireframe) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   }
 }
 
-void rb_draw_surface(struct rb *rb, const struct surface *surf) {
-  rb_set_depth_mask(rb, surf->depth_write);
-  rb_set_depth_func(rb, surf->depth_func);
-  rb_set_cull_face(rb, surf->cull);
-  rb_set_blend_func(rb, surf->src_blend, surf->dst_blend);
+void video_draw_surface(struct video_backend *video,
+                        const struct surface *surf) {
+  video_set_depth_mask(video, surf->depth_write);
+  video_set_depth_func(video, surf->depth_func);
+  video_set_cull_face(video, surf->cull);
+  video_set_blend_func(video, surf->src_blend, surf->dst_blend);
 
   // TODO use surf->shade to select correct shader
 
-  rb_bind_texture(rb, MAP_DIFFUSE,
-                  surf->texture ? rb->textures[surf->texture] : rb->white_tex);
+  video_bind_texture(video, MAP_DIFFUSE, surf->texture
+                                             ? video->textures[surf->texture]
+                                             : video->white_tex);
   glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
 }
 
-void rb_end_surfaces(struct rb *rb) {
-  if (rb->debug_wireframe) {
+void video_end_surfaces(struct video_backend *video) {
+  if (video->debug_wireframe) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
 }
 
-void rb_begin_surfaces2d(struct rb *rb, const struct vertex2d *verts,
-                         int num_verts, uint16_t *indices, int num_indices) {
-  glBindBuffer(GL_ARRAY_BUFFER, rb->ui_vbo);
+void video_begin_surfaces2d(struct video_backend *video,
+                            const struct vertex2d *verts, int num_verts,
+                            uint16_t *indices, int num_indices) {
+  glBindBuffer(GL_ARRAY_BUFFER, video->ui_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex2d) * num_verts, verts,
                GL_DYNAMIC_DRAW);
 
   if (indices) {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rb->ui_ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, video->ui_ibo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices,
                  indices, GL_DYNAMIC_DRAW);
-    rb->ui_use_ibo = true;
+    video->ui_use_ibo = true;
   } else {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, -1);
-    rb->ui_use_ibo = false;
+    video->ui_use_ibo = false;
   }
 }
 
-void rb_draw_surface2d(struct rb *rb, const struct surface2d *surf) {
+void video_draw_surface2d(struct video_backend *video,
+                          const struct surface2d *surf) {
   if (surf->scissor) {
-    rb_set_scissor_test(rb, true);
-    rb_set_scissor_clip(rb, (int)surf->scissor_rect[0],
-                        (int)surf->scissor_rect[1], (int)surf->scissor_rect[2],
-                        (int)surf->scissor_rect[3]);
+    video_set_scissor_test(video, true);
+    video_set_scissor_clip(
+        video, (int)surf->scissor_rect[0], (int)surf->scissor_rect[1],
+        (int)surf->scissor_rect[2], (int)surf->scissor_rect[3]);
   } else {
-    rb_set_scissor_test(rb, false);
+    video_set_scissor_test(video, false);
   }
 
-  rb_set_blend_func(rb, surf->src_blend, surf->dst_blend);
-  rb_bind_texture(rb, MAP_DIFFUSE,
-                  surf->texture ? rb->textures[surf->texture] : rb->white_tex);
+  video_set_blend_func(video, surf->src_blend, surf->dst_blend);
+  video_bind_texture(video, MAP_DIFFUSE, surf->texture
+                                             ? video->textures[surf->texture]
+                                             : video->white_tex);
 
-  if (rb->ui_use_ibo) {
+  if (video->ui_use_ibo) {
     glDrawElements(prim_types[surf->prim_type], surf->num_verts,
                    GL_UNSIGNED_SHORT,
                    (void *)(intptr_t)(sizeof(uint16_t) * surf->first_vert));
@@ -576,18 +589,18 @@ void rb_draw_surface2d(struct rb *rb, const struct surface2d *surf) {
   }
 }
 
-void rb_end_surfaces2d(struct rb *rb) {}
+void video_end_surfaces2d(struct video_backend *video) {}
 
-void rb_begin_ortho(struct rb *rb) {
+void video_begin_ortho(struct video_backend *video) {
   float ortho[16];
 
-  ortho[0] = 2.0f / (float)rb->window->width;
+  ortho[0] = 2.0f / (float)video->window->width;
   ortho[4] = 0.0f;
   ortho[8] = 0.0f;
   ortho[12] = -1.0f;
 
   ortho[1] = 0.0f;
-  ortho[5] = -2.0f / (float)rb->window->height;
+  ortho[5] = -2.0f / (float)video->window->height;
   ortho[9] = 0.0f;
   ortho[13] = 1.0f;
 
@@ -601,43 +614,43 @@ void rb_begin_ortho(struct rb *rb) {
   ortho[11] = 0.0f;
   ortho[15] = 1.0f;
 
-  rb_set_depth_mask(rb, false);
-  rb_set_depth_func(rb, DEPTH_NONE);
-  rb_set_cull_face(rb, CULL_NONE);
+  video_set_depth_mask(video, false);
+  video_set_depth_func(video, DEPTH_NONE);
+  video_set_cull_face(video, CULL_NONE);
 
-  rb_bind_vao(rb, rb->ui_vao);
-  rb_bind_program(rb, &rb->ui_program);
-  glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MODELVIEWPROJECTIONMATRIX), 1,
-                     GL_FALSE, ortho);
-  glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
+  video_bind_vao(video, video->ui_vao);
+  video_bind_program(video, &video->ui_program);
+  glUniformMatrix4fv(
+      video_get_uniform(video, UNIFORM_MODELVIEWPROJECTIONMATRIX), 1, GL_FALSE,
+      ortho);
+  glUniform1i(video_get_uniform(video, UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 }
 
-void rb_end_ortho(struct rb *rb) {
-  rb_set_scissor_test(rb, false);
+void video_end_ortho(struct video_backend *video) {
+  video_set_scissor_test(video, false);
 }
 
-void rb_begin_frame(struct rb *rb) {
-  rb_set_depth_mask(rb, true);
+void video_begin_frame(struct video_backend *video) {
+  video_set_depth_mask(video, true);
 
-  glViewport(0, 0, rb->window->width, rb->window->height);
+  glViewport(0, 0, video->window->width, video->window->height);
 
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void rb_end_frame(struct rb *rb) {
-  SDL_GL_SwapWindow(rb->window->handle);
+void video_end_frame(struct video_backend *video) {
+  SDL_GL_SwapWindow(video->window->handle);
 }
 
-texture_handle_t rb_create_texture(struct rb *rb, enum pxl_format format,
-                                   enum filter_mode filter,
-                                   enum wrap_mode wrap_u, enum wrap_mode wrap_v,
-                                   bool mipmaps, int width, int height,
-                                   const uint8_t *buffer) {
+texture_handle_t video_create_texture(
+    struct video_backend *video, enum pxl_format format,
+    enum filter_mode filter, enum wrap_mode wrap_u, enum wrap_mode wrap_v,
+    bool mipmaps, int width, int height, const uint8_t *buffer) {
   // FIXME worth speeding up?
   texture_handle_t handle;
   for (handle = 1; handle < MAX_TEXTURES; handle++) {
-    if (!rb->textures[handle]) {
+    if (!video->textures[handle]) {
       break;
     }
   }
@@ -671,7 +684,7 @@ texture_handle_t rb_create_texture(struct rb *rb, enum pxl_format format,
       break;
   }
 
-  GLuint *gltex = &rb->textures[handle];
+  GLuint *gltex = &video->textures[handle];
   glGenTextures(1, gltex);
   glBindTexture(GL_TEXTURE_2D, *gltex);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
@@ -691,38 +704,40 @@ texture_handle_t rb_create_texture(struct rb *rb, enum pxl_format format,
   return handle;
 }
 
-void rb_destroy_texture(struct rb *rb, texture_handle_t handle) {
-  GLuint *gltex = &rb->textures[handle];
+void video_destroy_texture(struct video_backend *video,
+                           texture_handle_t handle) {
+  GLuint *gltex = &video->textures[handle];
   glDeleteTextures(1, gltex);
   *gltex = 0;
 }
 
-struct rb *rb_create(struct window *window) {
-  struct rb *rb = (struct rb *)calloc(1, sizeof(struct rb));
-  rb->window = window;
-  rb->listener = (struct window_listener){
-      rb, NULL, &rb_paint_debug_menu, NULL, NULL, NULL, NULL, {0}};
+struct video_backend *video_create(struct window *window) {
+  struct video_backend *video =
+      (struct video_backend *)calloc(1, sizeof(struct video_backend));
+  video->window = window;
+  video->listener = (struct window_listener){
+      video, NULL, &video_paint_debug_menu, NULL, NULL, NULL, NULL, {0}};
 
-  win_add_listener(rb->window, &rb->listener);
+  win_add_listener(video->window, &video->listener);
 
-  if (!rb_init_context(rb)) {
-    rb_destroy(rb);
+  if (!video_init_context(video)) {
+    video_destroy(video);
     return NULL;
   }
 
-  rb_create_textures(rb);
-  rb_create_shaders(rb);
-  rb_create_vertex_buffers(rb);
-  rb_set_initial_state(rb);
+  video_create_textures(video);
+  video_create_shaders(video);
+  video_create_vertex_buffers(video);
+  video_set_initial_state(video);
 
-  return rb;
+  return video;
 }
 
-void rb_destroy(struct rb *rb) {
-  rb_destroy_vertex_buffers(rb);
-  rb_destroy_shaders(rb);
-  rb_destroy_textures(rb);
-  rb_destroy_context(rb);
-  win_remove_listener(rb->window, &rb->listener);
-  free(rb);
+void video_destroy(struct video_backend *video) {
+  video_destroy_vertex_buffers(video);
+  video_destroy_shaders(video);
+  video_destroy_textures(video);
+  video_destroy_context(video);
+  win_remove_listener(video->window, &video->listener);
+  free(video);
 }

@@ -12,9 +12,9 @@
 extern "C" {
 #include "core/assert.h"
 #include "core/math.h"
-#include "renderer/backend.h"
 #include "ui/microprofile.h"
 #include "ui/window.h"
+#include "video/backend.h"
 }
 
 static const int FONT_WIDTH = 1024;
@@ -240,18 +240,18 @@ void mp_end_frame(struct microprofile *mp) {
   MicroProfileDraw(mp->window->width, mp->window->height);
 
   // render the surfaces
-  struct rb *rb = mp->window->rb;
+  struct video_backend *video = mp->window->video;
 
-  rb_begin_ortho(rb);
-  rb_begin_surfaces2d(rb, mp->verts, mp->num_verts, nullptr, 0);
+  video_begin_ortho(video);
+  video_begin_surfaces2d(video, mp->verts, mp->num_verts, nullptr, 0);
 
   for (int i = 0; i < mp->num_surfs; i++) {
     struct surface2d *surf = &mp->surfs[i];
-    rb_draw_surface2d(rb, surf);
+    video_draw_surface2d(video, surf);
   }
 
-  rb_end_surfaces2d(rb);
-  rb_end_ortho(rb);
+  video_end_surfaces2d(video);
+  video_end_ortho(video);
 
   // reset surfaces
   mp->num_surfs = 0;
@@ -268,7 +268,7 @@ struct microprofile *mp_create(struct window *window) {
   win_add_listener(mp->window, &mp->listener);
 
   // init microprofile
-  struct rb *rb = mp->window->rb;
+  struct video_backend *video = mp->window->video;
 
   // register and enable gpu and runtime group by default
   uint16_t gpu_group = MicroProfileGetGroup("gpu", MicroProfileTokenTypeCpu);
@@ -283,15 +283,15 @@ struct microprofile *mp_create(struct window *window) {
 
   // register the font texture
   mp->font_texture =
-      rb_create_texture(rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
-                        WRAP_CLAMP_TO_EDGE, false, FONT_WIDTH, FONT_HEIGHT,
-                        reinterpret_cast<const uint8_t *>(s_font_data));
+      video_create_texture(video, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
+                           WRAP_CLAMP_TO_EDGE, false, FONT_WIDTH, FONT_HEIGHT,
+                           reinterpret_cast<const uint8_t *>(s_font_data));
 
   return mp;
 }
 
 void mp_destroy(struct microprofile *mp) {
-  rb_destroy_texture(mp->window->rb, mp->font_texture);
+  video_destroy_texture(mp->window->video, mp->font_texture);
 
   win_remove_listener(mp->window, &mp->listener);
 
