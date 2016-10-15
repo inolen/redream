@@ -6,6 +6,7 @@
 #include "core/list.h"
 #include "ui/keycode.h"
 
+struct audio_backend;
 struct imgui;
 struct microprofile;
 struct nuklear;
@@ -36,6 +37,7 @@ struct window_listener {
 struct window {
   // public
   struct SDL_Window *handle;
+  struct audio_backend *audio;
   struct video_backend *video;
   struct nuklear *nk;
   struct microprofile *mp;

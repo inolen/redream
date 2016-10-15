@@ -1,6 +1,7 @@
 #include <SDL.h>
 #include <stdlib.h>
 #include "ui/window.h"
+#include "audio/backend.h"
 #include "core/assert.h"
 #include "core/list.h"
 #include "ui/microprofile.h"
@@ -855,6 +856,14 @@ struct window *win_create() {
     return NULL;
   }
 
+  // setup audio backend
+  win->audio = audio_create(win);
+  if (!win->audio) {
+    LOG_WARNING("Audio backend creation failed");
+    win_destroy(win);
+    return NULL;
+  }
+
   // setup video backend
   win->video = video_create(win);
   if (!win->video) {
@@ -893,6 +902,10 @@ void win_destroy(struct window *win) {
 
   if (win->video) {
     video_destroy(win->video);
+  }
+
+  if (win->audio) {
+    audio_destroy(win->audio);
   }
 
   if (win->handle) {
