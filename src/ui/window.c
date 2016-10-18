@@ -1,7 +1,6 @@
 #include <SDL.h>
 #include <stdlib.h>
 #include "ui/window.h"
-#include "audio/backend.h"
 #include "core/assert.h"
 #include "core/list.h"
 #include "ui/microprofile.h"
@@ -940,10 +939,6 @@ void win_destroy(struct window *win) {
     rb_destroy(win->rb);
   }
 
-  if (win->audio) {
-    audio_destroy(win->audio);
-  }
-
   if (win->handle) {
     SDL_DestroyWindow(win->handle);
   }
@@ -979,14 +974,6 @@ struct window *win_create() {
       win->height, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   if (!win->handle) {
     LOG_WARNING("Window creation failed: %s", SDL_GetError());
-    win_destroy(win);
-    return NULL;
-  }
-
-  /* setup audio backend */
-  win->audio = audio_create(win);
-  if (!win->audio) {
-    LOG_WARNING("Audio backend creation failed");
     win_destroy(win);
     return NULL;
   }

@@ -1,4 +1,5 @@
 #include "emu/emulator.h"
+#include "audio/audio_backend.h"
 #include "core/option.h"
 #include "core/profiler.h"
 #include "hw/aica/aica.h"
@@ -161,6 +162,24 @@ static void emu_close(void *data) {
   emu->running = 0;
 }
 
+static void *emu_audio_thread(void *data) {
+  struct emu *emu = data;
+
+  struct audio_backend *audio = audio_create(emu->dc->aica);
+
+  while (emu->running) {
+    audio_pump_events(audio);
+
+    /* audio_pump_events just checks for device changes, there's no need to
+       spin */
+    sleep(1);
+  }
+
+  audio_destroy(audio);
+
+  return 0;
+}
+
 static void *emu_core_thread(void *data) {
   struct emu *emu = data;
 
@@ -217,16 +236,20 @@ void emu_run(struct emu *emu, const char *path) {
 
   emu->running = 1;
 
-  /* start core emulator thread */
+  /* emulator, audio and video all run on their own threads. the high-level
+     design is that the emulator behaves much like a codec, in that it
+     produces complete frames of decoded data, and the audio and video
+     thread are responsible for simply presenting the data */
   thread_t core_thread = thread_create(&emu_core_thread, NULL, emu);
+  thread_t audio_thread = thread_create(&emu_audio_thread, NULL, emu);
 
-  /* run the renderer / ui in the main thread */
   while (emu->running) {
     win_pump_events(emu->window);
   }
 
   /* wait for the core thread to exit */
   void *result;
+  thread_join(audio_thread, &result);
   thread_join(core_thread, &result);
 }
 
