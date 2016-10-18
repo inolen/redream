@@ -111,6 +111,14 @@ add_library(inih STATIC deps/inih/ini.c)
 list(APPEND REDREAM_INCLUDE_DIRS deps/inih)
 list(APPEND REDREAM_LIBS inih)
 
+# libsoundio
+set(BUILD_DYNAMIC_LIBS OFF CACHE BOOL "")
+set(BUILD_EXAMPLE_PROGRAMS OFF CACHE BOOL "")
+set(BUILD_TEST OFF CACHE BOOL "")
+add_subdirectory(deps/libsoundio EXCLUDE_FROM_ALL)
+list(APPEND REDREAM_INCLUDE_DIRS deps/libsoundio)
+list(APPEND REDREAM_LIBS libsoundio_static)
+
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
 
@@ -150,7 +158,7 @@ endif()
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
-  src/audio/sdl_backend.c
+  src/audio/soundio_backend.c
   src/core/assert.c
   src/core/interval_tree.c
   src/core/list.c

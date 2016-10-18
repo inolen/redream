@@ -243,6 +243,7 @@ if(BUILD_STATIC_LIBS)
         COMPILE_FLAGS ${LIB_CFLAGS}
         LINKER_LANGUAGE C
     )
+    target_link_libraries(libsoundio_static LINK_PUBLIC ${LIBSOUNDIO_LIBS})
     install(TARGETS libsoundio_static DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif()
 

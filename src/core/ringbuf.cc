@@ -14,6 +14,7 @@ struct ringbuf {
 
 void ringbuf_advance_write_ptr(struct ringbuf *rb, int n) {
   rb->write_offset.fetch_add(n);
+  DCHECK(ringbuf_remaining(rb) >= 0);
 }
 
 void *ringbuf_write_ptr(struct ringbuf *rb) {
@@ -23,6 +24,7 @@ void *ringbuf_write_ptr(struct ringbuf *rb) {
 
 void ringbuf_advance_read_ptr(struct ringbuf *rb, int n) {
   rb->read_offset.fetch_add(n);
+  DCHECK(ringbuf_remaining(rb) >= 0);
 }
 
 void *ringbuf_read_ptr(struct ringbuf *rb) {
@@ -34,11 +36,16 @@ int ringbuf_remaining(struct ringbuf *rb) {
   return ringbuf_capacity(rb) - ringbuf_available(rb);
 }
 
+void ringbuf_clear(struct ringbuf *rb) {
+  int64_t read_offset = rb->read_offset.load();
+  rb->write_offset.store(read_offset);
+}
+
 int ringbuf_available(struct ringbuf *rb) {
   int64_t read = rb->read_offset.load();
   int64_t write = rb->write_offset.load();
   int available = (int)(write - read);
-  CHECK(available >= 0 && available <= rb->capacity);
+  DCHECK(available >= 0 && available <= rb->capacity);
   return available;
 }
 
