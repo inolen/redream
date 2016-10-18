@@ -9,7 +9,7 @@
 #include "ui/keycode.h"
 
 struct aica;
-struct arm;
+struct arm7;
 struct boot;
 struct debugger;
 struct device;
@@ -116,7 +116,7 @@ struct device {
   struct memory *memory;
   struct scheduler *scheduler;
   struct sh4 *sh4;
-  struct arm *arm;
+  struct arm7 *arm;
   struct aica *aica;
   struct boot *boot;
   struct flash *flash;
@@ -137,7 +137,7 @@ struct dreamcast {
   struct memory *memory;
   struct scheduler *scheduler;
   struct sh4 *sh4;
-  struct arm *arm;
+  struct arm7 *arm;
   struct aica *aica;
   struct boot *boot;
   struct flash *flash;
