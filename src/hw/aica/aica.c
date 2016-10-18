@@ -2,7 +2,7 @@
 #include "core/log.h"
 #include "core/option.h"
 #include "hw/aica/aica_types.h"
-#include "hw/arm/arm.h"
+#include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/holly/holly.h"
 #include "hw/memory.h"
@@ -338,9 +338,9 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
     } break;
     case 0x400: { /* ARMRST */
       if (data) {
-        arm_suspend(aica->arm);
+        arm7_suspend(aica->arm);
       } else {
-        arm_resume(aica->arm);
+        arm7_resume(aica->arm);
       }
     } break;
   }
@@ -441,7 +441,7 @@ static bool aica_init(struct device *dev) {
   aica_timer_init(aica);
   aica_rtc_init(aica);
 
-  arm_suspend(aica->arm);
+  arm7_suspend(aica->arm);
 
   return true;
 }

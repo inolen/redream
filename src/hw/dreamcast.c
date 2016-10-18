@@ -2,7 +2,7 @@
 #include "core/option.h"
 #include "core/string.h"
 #include "hw/aica/aica.h"
-#include "hw/arm/arm.h"
+#include "hw/arm7/arm7.h"
 #include "hw/debugger.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"
@@ -174,7 +174,7 @@ struct dreamcast *dc_create(struct video_backend *video) {
   dc->memory = memory_create(dc);
   dc->scheduler = scheduler_create(dc);
   dc->sh4 = sh4_create(dc);
-  dc->arm = arm_create(dc);
+  dc->arm = arm7_create(dc);
   dc->aica = aica_create(dc);
   dc->boot = boot_create(dc);
   dc->flash = flash_create(dc);
@@ -201,7 +201,7 @@ void dc_destroy(struct dreamcast *dc) {
   flash_destroy(dc->flash);
   boot_destroy(dc->boot);
   aica_destroy(dc->aica);
-  arm_destroy(dc->arm);
+  arm7_destroy(dc->arm);
   sh4_destroy(dc->sh4);
   scheduler_destroy(dc->scheduler);
   memory_destroy(dc->memory);

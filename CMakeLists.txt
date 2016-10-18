@@ -150,7 +150,7 @@ set(REDREAM_SOURCES
   src/emu/emulator.c
   src/emu/tracer.c
   src/hw/aica/aica.c
-  src/hw/arm/arm.c
+  src/hw/arm7/arm7.c
   src/hw/gdrom/disc.c
   src/hw/gdrom/gdrom.c
   src/hw/holly/holly.c
