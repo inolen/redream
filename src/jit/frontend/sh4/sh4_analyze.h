@@ -1,15 +1,8 @@
-#ifndef SH4_ANALYZER_H
-#define SH4_ANALYZER_H
+#ifndef SH4_ANALYZE_H
+#define SH4_ANALYZE_H
 
 #include <stddef.h>
 #include <stdint.h>
-
-enum {
-  SH4_SLOWMEM = 0x1,
-  SH4_DOUBLE_PR = 0x2,
-  SH4_DOUBLE_SZ = 0x4,
-  SH4_SINGLE_INSTR = 0x8,
-};
 
 struct jit_guest;
 

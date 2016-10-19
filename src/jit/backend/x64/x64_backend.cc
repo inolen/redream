@@ -10,6 +10,7 @@ extern "C" {
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"
 #include "jit/ir/ir.h"
+#include "jit/jit.h"
 #include "sys/exception_handler.h"
 #include "sys/memory.h"
 }

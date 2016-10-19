@@ -1,8 +1,7 @@
-#ifndef FRONTEND_H
-#define FRONTEND_H
+#ifndef JIT_FRONTEND_H
+#define JIT_FRONTEND_H
 
 #include <stdint.h>
-#include "jit/guest.h"
 
 struct ir;
 struct jit_frontend;

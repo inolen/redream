@@ -1,9 +1,8 @@
-#ifndef BACKEND_H
-#define BACKEND_H
+#ifndef JIT_BACKEND_H
+#define JIT_BACKEND_H
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "jit/guest.h"
 
 struct address_space;
 struct ir;

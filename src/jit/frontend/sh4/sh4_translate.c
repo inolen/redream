@@ -5,8 +5,8 @@
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
-#include "jit/guest.h"
 #include "jit/ir/ir.h"
+#include "jit/jit.h"
 
 //
 // fsca estimate lookup table
@@ -40,11 +40,11 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 // down on copy and paste
 #ifdef NDEBUG
 #define load_guest(addr, type)                          \
-  ((flags & SH4_SLOWMEM) ? ir_load_slow(ir, addr, type) \
+  ((flags & JIT_SLOWMEM) ? ir_load_slow(ir, addr, type) \
                          : ir_load_fast(ir, addr, type))
 #define store_guest(addr, v)                              \
   do {                                                    \
-    ((flags & SH4_SLOWMEM) ? ir_store_slow(ir, addr, v)   \
+    ((flags & JIT_SLOWMEM) ? ir_store_slow(ir, addr, v)   \
                            : ir_store_fast(ir, addr, v)); \
   } while (0)
 #else

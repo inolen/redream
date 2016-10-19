@@ -7,7 +7,7 @@ DEFINE_STAT(num_stores_removed, "Number of stores eliminated");
 
 const char *lse_name = "lse";
 
-#define MAX_OFFSET 512
+#define MAX_OFFSET 16384
 
 struct available {
   int offset;
@@ -19,6 +19,7 @@ struct lse {
 };
 
 static void lse_clear_available(struct lse *lse) {
+  // TODO use auto-incremented token instead of memset'ing this each time
   memset(lse->available, 0, sizeof(lse->available));
 }
 
@@ -38,6 +39,8 @@ static struct ir_value *lse_get_available(struct lse *lse, int offset) {
 }
 
 static void lse_erase_available(struct lse *lse, int offset, int size) {
+  CHECK_LT(offset + size, MAX_OFFSET);
+
   int begin = offset;
   int end = offset + size - 1;
 
@@ -63,6 +66,8 @@ static void lse_erase_available(struct lse *lse, int offset, int size) {
 
 static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
   int size = ir_type_size(v->type);
+  CHECK_LT(offset + size, MAX_OFFSET);
+
   int begin = offset;
   int end = offset + size - 1;
 
