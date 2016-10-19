@@ -1,6 +1,7 @@
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
-#include "jit/guest.h"
+#include "jit/frontend/sh4/sh4_frontend.h"
+#include "jit/jit.h"
 
 void sh4_analyze_block(const struct jit_guest *guest, uint32_t addr, int flags,
                        int *size) {

@@ -4,6 +4,7 @@
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "jit/ir/ir.h"
+#include "jit/jit.h"
 
 struct sh4_frontend {
   struct jit_frontend;

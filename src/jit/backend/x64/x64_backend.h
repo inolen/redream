@@ -3,6 +3,8 @@
 
 #include "jit/backend/backend.h"
 
+struct jit_guest;
+
 extern const struct jit_register x64_registers[];
 extern const int x64_num_registers;
 

@@ -12,7 +12,7 @@ static void holly_ch2_dma(struct holly *hl) {
   dtr.channel = 2;
   dtr.rw = false;
   dtr.addr = *hl->SB_C2DSTAT;
-  sh4_ddt(hl->sh4, &dtr);
+  sh4_dmac_ddt(hl->sh4, &dtr);
 
   *hl->SB_C2DLEN = 0;
   *hl->SB_C2DST = 0;
@@ -46,7 +46,7 @@ static void holly_gdrom_dma(struct holly *hl) {
     dtr.data = sector_data;
     dtr.addr = addr;
     dtr.size = n;
-    sh4_ddt(sh4, &dtr);
+    sh4_dmac_ddt(sh4, &dtr);
 
     remaining -= n;
     addr += n;

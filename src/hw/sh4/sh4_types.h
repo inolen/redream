@@ -76,7 +76,6 @@ enum {
   NUM_SH4_REGS = SH4_REG_OFFSET(0xffffffff) + 1
 };
 
-// interrupts
 enum sh4_interrupt {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) SH4_INTC_##name,
 #include "hw/sh4/sh4_int.inc"

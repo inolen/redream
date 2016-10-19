@@ -163,7 +163,10 @@ set(REDREAM_SOURCES
   src/hw/rom/boot.c
   src/hw/rom/flash.c
   src/hw/sh4/sh4.c
-  src/hw/sh4/sh4_code_cache.c
+  src/hw/sh4/sh4_ccn.c
+  src/hw/sh4/sh4_dmac.c
+  src/hw/sh4/sh4_intc.c
+  src/hw/sh4/sh4_tmu.c
   src/hw/debugger.c
   src/hw/dreamcast.c
   src/hw/memory.c
@@ -183,6 +186,7 @@ set(REDREAM_SOURCES
   src/jit/ir/passes/load_store_elimination_pass.c
   src/jit/ir/passes/pass_stat.c
   src/jit/ir/passes/register_allocation_pass.c
+  src/jit/jit.c
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c
