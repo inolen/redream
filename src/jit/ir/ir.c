@@ -737,3 +737,9 @@ void ir_call_external_2(struct ir *ir, struct ir_value *addr,
   ir_set_arg0(ir, instr, addr);
   ir_set_arg1(ir, instr, arg0);
 }
+
+void ir_call_fallback(struct ir *ir, void *fallback, uint32_t raw_instr) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_CALL_FALLBACK, VALUE_V);
+  ir_set_arg0(ir, instr, ir_alloc_i64(ir, (uint64_t)fallback));
+  ir_set_arg1(ir, instr, ir_alloc_i32(ir, raw_instr));
+}

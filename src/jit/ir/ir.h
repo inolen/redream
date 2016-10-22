@@ -325,5 +325,6 @@ void ir_branch_cond(struct ir *ir, struct ir_value *cond,
 void ir_call_external_1(struct ir *ir, struct ir_value *addr);
 void ir_call_external_2(struct ir *ir, struct ir_value *addr,
                         struct ir_value *arg0);
+void ir_call_fallback(struct ir *ir, void *fallback, uint32_t raw_instr);
 
 #endif
