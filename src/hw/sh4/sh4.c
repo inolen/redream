@@ -31,10 +31,10 @@ static void sh4_paint_debug_menu(struct device *dev, struct nk_context *ctx);
 
 // sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.
 // each instr is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
-#define SH4_BLOCK_MASK (~0xfc000000)
+#define SH4_BLOCK_MASK 0x03ffffff
 #define SH4_BLOCK_SHIFT 1
 #define SH4_BLOCK_OFFSET(addr) ((addr & SH4_BLOCK_MASK) >> SH4_BLOCK_SHIFT)
-#define SH4_MAX_BLOCKS (0x1000000 >> 1)
+#define SH4_MAX_BLOCKS (0x1000000 >> SH4_BLOCK_SHIFT)
 
 // callbacks to service sh4_reg_read / sh4_reg_write calls
 struct reg_cb sh4_cb[NUM_SH4_REGS];
