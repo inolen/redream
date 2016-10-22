@@ -1652,6 +1652,15 @@ EMITTER(CALL_EXTERNAL) {
   e.call(e.rax);
 }
 
+EMITTER(CALL_FALLBACK) {
+  void *fallback = (void *)instr->arg[0]->i64;
+  uint32_t addr = instr->arg[1]->i32;
+
+  e.mov(arg0, addr);
+  e.mov(e.rax, reinterpret_cast<uint64_t>(fallback));
+  e.call(e.rax);
+}
+
 struct jit_backend *x64_backend_create(const struct jit_guest *guest) {
   struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
       calloc(1, sizeof(struct x64_backend)));

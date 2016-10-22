@@ -25,7 +25,7 @@ struct jit_guest {
   // used by the jit to map guest addresses to block offsets
   uint32_t block_mask;
   uint32_t block_shift;
-  int max_blocks;
+  int block_max;
 
   // used by the backend
   void *ctx_base;

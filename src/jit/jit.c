@@ -287,9 +287,9 @@ struct jit *jit_create(struct jit_guest *guest, struct jit_frontend *frontend,
 
   // initialize all entries in block jit to reference the default block
   jit->default_code = default_code;
-  jit->code = malloc(jit->guest.max_blocks * sizeof(struct jit_block));
+  jit->code = malloc(jit->guest.block_max * sizeof(struct jit_block));
 
-  for (int i = 0; i < jit->guest.max_blocks; i++) {
+  for (int i = 0; i < jit->guest.block_max; i++) {
     jit->code[i] = default_code;
   }
 
