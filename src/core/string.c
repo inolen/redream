@@ -1,19 +1,19 @@
 #include "core/string.h"
 
 #ifndef HAVE_STRNSTR
-char *strnstr(const char *s1, const char *s2, size_t n) {
-  size_t len = strlen(s2);
+char *strnstr(const char *big, const char *little, size_t n) {
+  size_t len = strlen(little);
 
   if (!len) {
-    return (char *)s1;
+    return (char *)big;
   }
 
-  while (n >= len) {
-    if (!memcmp(s1, s2, len)) {
-      return (char *)s1;
+  while (*big && n >= len) {
+    if (!memcmp(big, little, len)) {
+      return (char *)big;
     }
     n--;
-    s1++;
+    big++;
   }
 
   return NULL;
