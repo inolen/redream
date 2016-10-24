@@ -1,7 +1,6 @@
-#ifndef SH4_DISASSEMBLER_H
-#define SH4_DISASSEMBLER_H
+#ifndef SH4_DISASM_H
+#define SH4_DISASM_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -35,7 +34,7 @@ struct sh4_instr {
   uint16_t imm;
 };
 
-bool sh4_disasm(struct sh4_instr *i);
+int sh4_disasm(struct sh4_instr *i);
 void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size);
 
 #endif
