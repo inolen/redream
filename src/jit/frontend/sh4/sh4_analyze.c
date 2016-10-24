@@ -7,7 +7,7 @@ void sh4_analyze_block(const struct jit_guest *guest, uint32_t addr, int flags,
                        int *size) {
   *size = 0;
 
-  while (true) {
+  while (1) {
     struct sh4_instr instr = {0};
     instr.addr = addr;
     instr.opcode = guest->r16(guest->mem_self, instr.addr);

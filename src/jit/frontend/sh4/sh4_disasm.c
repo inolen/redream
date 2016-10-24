@@ -27,16 +27,20 @@ static struct sh4_opdef *s_opdef_lookup[UINT16_MAX];
 static void sh4_arg_mask(const char *instr_code, char c, uint16_t *mask,
                          uint16_t *shift) {
   size_t len = strlen(instr_code);
-  if (mask)
+  if (mask) {
     *mask = 0;
-  if (shift)
+  }
+  if (shift) {
     *shift = 0;
+  }
   for (size_t i = 0; i < len; i++) {
     if ((!c && instr_code[i] == '1') || (c && instr_code[i] == c)) {
-      if (mask)
+      if (mask) {
         *mask |= (1 << (len - i - 1));
-      if (shift)
+      }
+      if (shift) {
         *shift = (uint16_t)(len - i - 1);
+      }
     }
   }
 }
@@ -85,14 +89,14 @@ static void sh4_init_opdefs() {
   }
 }
 
-bool sh4_disasm(struct sh4_instr *i) {
+int sh4_disasm(struct sh4_instr *i) {
   sh4_init_opdefs();
 
   struct sh4_opdef *def = s_opdef_lookup[i->opcode];
 
   if (!def) {
     i->op = SH4_OP_INVALID;
-    return false;
+    return 0;
   }
 
   i->op = def->op;
@@ -103,7 +107,7 @@ bool sh4_disasm(struct sh4_instr *i) {
   i->disp = (i->opcode & def->disp_mask) >> def->disp_shift;
   i->imm = (i->opcode & def->imm_mask) >> def->imm_shift;
 
-  return true;
+  return 1;
 }
 
 void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size) {
