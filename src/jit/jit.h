@@ -5,7 +5,7 @@
 
 struct address_space;
 
-typedef uint32_t (*code_pointer_t)();
+typedef void (*code_pointer_t)();
 
 enum {
   JIT_SLOWMEM = 0x80000000,

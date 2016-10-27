@@ -138,6 +138,13 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
     ir_store_context(ir, offsetof(struct sh4_ctx, pr), v); \
   } while (0)
 
+#define branch(addr) ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr)
+#define branch_cond(cond, addr_true, addr_false)                        \
+  do {                                                                  \
+    struct ir_value *addr = ir_select(ir, cond, addr_true, addr_false); \
+    ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);           \
+  } while (0)
+
 #define emit_delay_instr() sh4_emit_instr(ir, flags, delay, NULL)
 
 static void sh4_invalid_instr(struct ir *ir, uint32_t guest_addr) {
@@ -1121,8 +1128,7 @@ EMITTER(SHLR16) {
 EMITTER(BF) {
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
   struct ir_value *cond = load_t();
-  ir_branch_cond(ir, cond, ir_alloc_i32(ir, i->addr + 2),
-                 ir_alloc_i32(ir, dest_addr));
+  branch_cond(cond, ir_alloc_i32(ir, i->addr + 2), ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1132,8 +1138,7 @@ EMITTER(BFS) {
   struct ir_value *cond = load_t();
   emit_delay_instr();
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
-  ir_branch_cond(ir, cond, ir_alloc_i32(ir, i->addr + 4),
-                 ir_alloc_i32(ir, dest_addr));
+  branch_cond(cond, ir_alloc_i32(ir, i->addr + 4), ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1142,8 +1147,7 @@ EMITTER(BFS) {
 EMITTER(BT) {
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
   struct ir_value *cond = load_t();
-  ir_branch_cond(ir, cond, ir_alloc_i32(ir, dest_addr),
-                 ir_alloc_i32(ir, i->addr + 2));
+  branch_cond(cond, ir_alloc_i32(ir, dest_addr), ir_alloc_i32(ir, i->addr + 2));
 }
 
 // code                 cycles  t-bit
@@ -1153,8 +1157,7 @@ EMITTER(BTS) {
   struct ir_value *cond = load_t();
   emit_delay_instr();
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
-  ir_branch_cond(ir, cond, ir_alloc_i32(ir, dest_addr),
-                 ir_alloc_i32(ir, i->addr + 4));
+  branch_cond(cond, ir_alloc_i32(ir, dest_addr), ir_alloc_i32(ir, i->addr + 4));
 }
 
 // code                 cycles  t-bit
@@ -1165,7 +1168,7 @@ EMITTER(BRA) {
   int32_t disp = ((i->disp & 0xfff) << 20) >>
                  20;  // 12-bit displacement must be sign extended
   uint32_t dest_addr = (disp * 2) + i->addr + 4;
-  ir_branch(ir, ir_alloc_i32(ir, dest_addr));
+  branch(ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1175,7 +1178,7 @@ EMITTER(BRAF) {
   struct ir_value *rn = load_gpr(i->Rn, VALUE_I32);
   emit_delay_instr();
   struct ir_value *dest_addr = ir_add(ir, ir_alloc_i32(ir, i->addr + 4), rn);
-  ir_branch(ir, dest_addr);
+  branch(dest_addr);
 }
 
 // code                 cycles  t-bit
@@ -1188,7 +1191,7 @@ EMITTER(BSR) {
   uint32_t ret_addr = i->addr + 4;
   uint32_t dest_addr = ret_addr + disp * 2;
   store_pr(ir_alloc_i32(ir, ret_addr));
-  ir_branch(ir, ir_alloc_i32(ir, dest_addr));
+  branch(ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1200,14 +1203,14 @@ EMITTER(BSRF) {
   struct ir_value *ret_addr = ir_alloc_i32(ir, i->addr + 4);
   struct ir_value *dest_addr = ir_add(ir, rn, ret_addr);
   store_pr(ret_addr);
-  ir_branch(ir, dest_addr);
+  branch(dest_addr);
 }
 
 // JMP     @Rm
 EMITTER(JMP) {
   struct ir_value *dest_addr = load_gpr(i->Rn, VALUE_I32);
   emit_delay_instr();
-  ir_branch(ir, dest_addr);
+  branch(dest_addr);
 }
 
 // JSR     @Rn
@@ -1216,14 +1219,14 @@ EMITTER(JSR) {
   emit_delay_instr();
   struct ir_value *ret_addr = ir_alloc_i32(ir, i->addr + 4);
   store_pr(ret_addr);
-  ir_branch(ir, dest_addr);
+  branch(dest_addr);
 }
 
 // RTS
 EMITTER(RTS) {
   struct ir_value *dest_addr = load_pr();
   emit_delay_instr();
-  ir_branch(ir, dest_addr);
+  branch(dest_addr);
 }
 
 // code                 cycles  t-bit
@@ -1435,7 +1438,7 @@ EMITTER(RTE) {
       ir_load_context(ir, offsetof(struct sh4_ctx, ssr), VALUE_I32);
   store_sr(ssr);
   emit_delay_instr();
-  ir_branch(ir, spc);
+  branch(spc);
 }
 
 // SETS
@@ -2228,8 +2231,9 @@ void sh4_translate(const struct jit_guest *guest, uint32_t addr, int size,
 
   // if the block was terminated before a branch instruction, emit a
   // fallthrough branch to the next pc
-  if (tail_instr->op != OP_BRANCH && tail_instr->op != OP_BRANCH_COND) {
-    ir_branch(ir, ir_alloc_i32(ir, addr + i));
+  if (tail_instr->op != OP_STORE_CONTEXT ||
+      tail_instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
+    branch(ir_alloc_i32(ir, addr + i));
   }
 
   // emit block epilog

@@ -5,11 +5,11 @@
 #include "hw/memory.h"
 #include "hw/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_context.h"
+#include "jit/jit.h"
 
 struct dreamcast;
 struct jit_frontend;
 struct jit_backend;
-struct jit;
 
 #define SH4_CLOCK_FREQ INT64_C(200000000)
 
@@ -39,6 +39,7 @@ struct sh4 {
 #undef SH4_REG
 
   // jit
+  struct jit_guest guest;
   struct jit_frontend *jit_frontend;
   struct jit_backend *jit_backend;
   struct jit *jit;
