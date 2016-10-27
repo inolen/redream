@@ -708,19 +708,6 @@ struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a,
   return instr->result;
 }
 
-void ir_branch(struct ir *ir, struct ir_value *dest) {
-  struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH, VALUE_V);
-  ir_set_arg0(ir, instr, dest);
-}
-
-void ir_branch_cond(struct ir *ir, struct ir_value *cond,
-                    struct ir_value *true_addr, struct ir_value *false_addr) {
-  struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_COND, VALUE_V);
-  ir_set_arg0(ir, instr, cond);
-  ir_set_arg1(ir, instr, true_addr);
-  ir_set_arg2(ir, instr, false_addr);
-}
-
 void ir_call_external_1(struct ir *ir, struct ir_value *addr) {
   CHECK_EQ(addr->type, VALUE_I64);
 
@@ -738,8 +725,10 @@ void ir_call_external_2(struct ir *ir, struct ir_value *addr,
   ir_set_arg1(ir, instr, arg0);
 }
 
-void ir_call_fallback(struct ir *ir, void *fallback, uint32_t raw_instr) {
+void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
+                      uint32_t raw_instr) {
   struct ir_instr *instr = ir_append_instr(ir, OP_CALL_FALLBACK, VALUE_V);
   ir_set_arg0(ir, instr, ir_alloc_i64(ir, (uint64_t)fallback));
-  ir_set_arg1(ir, instr, ir_alloc_i32(ir, raw_instr));
+  ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
+  ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
 }

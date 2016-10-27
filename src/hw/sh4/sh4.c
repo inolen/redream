@@ -20,7 +20,7 @@
 
 static bool sh4_init(struct device *dev);
 static int sh4_block_offset(uint32_t addr);
-static uint32_t sh4_compile_pc();
+static void sh4_compile_pc();
 static void sh4_run(struct device *dev, int64_t ns);
 static void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data);
 static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr,
@@ -137,24 +137,24 @@ bool sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
-  struct jit_guest guest = {SH4_BLOCK_MASK,
-                            SH4_BLOCK_SHIFT,
-                            SH4_MAX_BLOCKS,
-                            &sh4->ctx,
-                            sh4->memory_if->space->base,
-                            sh4->memory_if->space,
-                            &as_read8,
-                            &as_read16,
-                            &as_read32,
-                            NULL,
-                            &as_write8,
-                            &as_write16,
-                            &as_write32,
-                            NULL};
-  sh4->jit_frontend = sh4_frontend_create(&guest);
-  sh4->jit_backend = x64_backend_create(&guest);
-  sh4->jit =
-      jit_create(&guest, sh4->jit_frontend, sh4->jit_backend, &sh4_compile_pc);
+  // initialize jit interface
+  sh4->guest.block_mask = SH4_BLOCK_MASK;
+  sh4->guest.block_shift = SH4_BLOCK_SHIFT;
+  sh4->guest.block_max = SH4_MAX_BLOCKS;
+  sh4->guest.ctx_base = &sh4->ctx;
+  sh4->guest.mem_base = sh4->memory_if->space->base;
+  sh4->guest.mem_self = sh4->memory_if->space;
+  sh4->guest.r8 = &as_read8;
+  sh4->guest.r16 = &as_read16;
+  sh4->guest.r32 = &as_read32;
+  sh4->guest.w8 = &as_write8;
+  sh4->guest.w16 = &as_write16;
+  sh4->guest.w32 = &as_write32;
+
+  sh4->jit_frontend = sh4_frontend_create(&sh4->guest);
+  sh4->jit_backend = x64_backend_create(&sh4->guest);
+  sh4->jit = jit_create(&sh4->guest, sh4->jit_frontend, sh4->jit_backend,
+                        &sh4_compile_pc);
 
   // initialize context
   sh4->ctx.sh4 = sh4;
@@ -181,7 +181,7 @@ bool sh4_init(struct device *dev) {
   return true;
 }
 
-uint32_t sh4_compile_pc() {
+void sh4_compile_pc() {
   uint32_t guest_addr = g_sh4->ctx.pc;
   uint8_t *guest_ptr = as_translate(g_sh4->memory_if->space, guest_addr);
 
@@ -194,7 +194,7 @@ uint32_t sh4_compile_pc() {
   }
 
   code_pointer_t code = jit_compile_code(g_sh4->jit, guest_addr, flags);
-  return code();
+  code();
 }
 
 static inline code_pointer_t sh4_get_code(struct sh4 *sh4, uint32_t addr) {
@@ -216,7 +216,8 @@ static void sh4_run_inner(struct device *dev, int64_t ns) {
 
   while (sh4->ctx.num_cycles > 0) {
     code_pointer_t code = sh4_get_code(sh4, sh4->ctx.pc);
-    sh4->ctx.pc = code();
+    code();
+
     sh4_intc_check_pending(sh4);
   }
 

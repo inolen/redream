@@ -316,15 +316,11 @@ struct ir_value *ir_lshri(struct ir *ir, struct ir_value *a, int n);
 struct ir_value *ir_ashd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 
-// branches
-void ir_branch(struct ir *ir, struct ir_value *dest);
-void ir_branch_cond(struct ir *ir, struct ir_value *cond,
-                    struct ir_value *true_addr, struct ir_value *false_addr);
-
 // calls
 void ir_call_external_1(struct ir *ir, struct ir_value *addr);
 void ir_call_external_2(struct ir *ir, struct ir_value *addr,
                         struct ir_value *arg0);
-void ir_call_fallback(struct ir *ir, void *fallback, uint32_t raw_instr);
+void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
+                      uint32_t raw_instr);
 
 #endif
