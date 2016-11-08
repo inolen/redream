@@ -100,10 +100,19 @@ static int tracer_texture_cmp(const struct rb_node *rb_lhs,
                               const struct rb_node *rb_rhs) {
   const struct tracer_texture_entry *lhs =
       rb_entry(rb_lhs, const struct tracer_texture_entry, live_it);
+  texture_key_t lhs_key = tr_texture_key(lhs->tsp, lhs->tcw);
+
   const struct tracer_texture_entry *rhs =
       rb_entry(rb_rhs, const struct tracer_texture_entry, live_it);
-  return (int)(tr_texture_key(lhs->tsp, lhs->tcw) -
-               tr_texture_key(rhs->tsp, rhs->tcw));
+  texture_key_t rhs_key = tr_texture_key(rhs->tsp, rhs->tcw);
+
+  if (lhs_key < rhs_key) {
+    return -1;
+  } else if (lhs_key > rhs_key) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,

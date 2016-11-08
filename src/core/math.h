@@ -11,6 +11,10 @@
 #define align_down(v, alignment) (v & ~(alignment - 1))
 
 #if PLATFORM_LINUX || PLATFORM_DARWIN
+
+static inline int popcnt32(uint32_t v) {
+  return __builtin_popcount(v);
+}
 static inline int clz32(uint32_t v) {
   return __builtin_clz(v);
 }
@@ -23,7 +27,14 @@ static inline int ctz32(uint32_t v) {
 static inline int ctz64(uint64_t v) {
   return __builtin_ctzll(v);
 }
+
 #else
+
+#include <intrin.h>
+
+static inline int popcnt32(uint32_t v) {
+  return __popcnt(v);
+}
 static inline int clz32(uint32_t v) {
   unsigned long r = 0;
   _BitScanReverse(&r, v);
@@ -44,6 +55,7 @@ static inline int ctz64(uint64_t v) {
   _BitScanForward64(&r, v);
   return r;
 }
+
 #endif
 
 #endif

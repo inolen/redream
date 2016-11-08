@@ -1,5 +1,4 @@
 #include "core/list.h"
-#include "core/assert.h"
 
 int list_empty(struct list *list) {
   return !list->head;
@@ -65,7 +64,7 @@ void list_sort(struct list *list, list_node_cmp cmp) {
   struct list_node *tail = NULL;
   int k = 1;
 
-  while (true) {
+  while (1) {
     int merges = 0;
     struct list_node *p = head;
 

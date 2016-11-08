@@ -8,7 +8,7 @@
 #include "ui/window.h"
 #include "video/backend.h"
 
-#define MAX_TEXTURES 1024
+#define MAX_TEXTURES 8192
 
 enum texture_map {
   MAP_DIFFUSE,

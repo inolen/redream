@@ -48,7 +48,7 @@ struct ta {
   // texture cache entry pool. free entries are in a linked list, live entries
   // are in a tree ordered by texture key, textures queued for invalidation are
   // in the the invalid_entries linked list
-  struct ta_texture_entry entries[1024];
+  struct ta_texture_entry entries[8192];
   struct list free_entries;
   struct rb_tree live_entries;
   int num_invalidated;
@@ -101,17 +101,33 @@ static int ta_entry_cmp(const struct rb_node *rb_lhs,
                         const struct rb_node *rb_rhs) {
   const struct ta_texture_entry *lhs =
       rb_entry(rb_lhs, const struct ta_texture_entry, live_it);
+  texture_key_t lhs_key = tr_texture_key(lhs->tsp, lhs->tcw);
+
   const struct ta_texture_entry *rhs =
       rb_entry(rb_rhs, const struct ta_texture_entry, live_it);
-  return (int)(tr_texture_key(lhs->tsp, lhs->tcw) -
-               tr_texture_key(rhs->tsp, rhs->tcw));
+  texture_key_t rhs_key = tr_texture_key(rhs->tsp, rhs->tcw);
+
+  if (lhs_key < rhs_key) {
+    return -1;
+  } else if (lhs_key > rhs_key) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 static int ta_context_cmp(const struct rb_node *rb_lhs,
                           const struct rb_node *rb_rhs) {
   const struct tile_ctx *lhs = rb_entry(rb_lhs, const struct tile_ctx, live_it);
   const struct tile_ctx *rhs = rb_entry(rb_rhs, const struct tile_ctx, live_it);
-  return (int)(lhs->addr - rhs->addr);
+
+  if (lhs->addr < rhs->addr) {
+    return -1;
+  } else if (lhs->addr > rhs->addr) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 static struct rb_callbacks ta_entry_cb = {&ta_entry_cmp, NULL, NULL};

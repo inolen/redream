@@ -68,13 +68,17 @@ static int interval_tree_cmp(const struct rb_node *rb_lhs,
   struct interval_node *lhs = rb_entry(rb_lhs, struct interval_node, base);
   struct interval_node *rhs = rb_entry(rb_rhs, struct interval_node, base);
 
-  int cmp = (int)(lhs->low - rhs->low);
-
-  if (!cmp) {
-    cmp = (int)(lhs->high - rhs->high);
+  if (lhs->low < rhs->low) {
+    return -1;
+  } else if (lhs->low > rhs->low) {
+    return 1;
+  } else if (lhs->high < rhs->high) {
+    return -1;
+  } else if (lhs->high > rhs->high) {
+    return 1;
+  } else {
+    return 0;
   }
-
-  return cmp;
 }
 
 static int interval_tree_intersects(const struct interval_node *n,
