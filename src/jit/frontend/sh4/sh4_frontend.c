@@ -16,10 +16,10 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                                         struct ir *ir) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
 
-  // get the block size
+  /* get the block size */
   sh4_analyze_block(&frontend->guest, addr, flags, size);
 
-  // emit IR for the SH4 code
+  /* emit IR for the SH4 code */
   sh4_translate(&frontend->guest, addr, *size, flags, ir);
 }
 

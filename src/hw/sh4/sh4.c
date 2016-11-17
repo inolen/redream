@@ -29,18 +29,22 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                           uint32_t data_mask);
 static void sh4_paint_debug_menu(struct device *dev, struct nk_context *ctx);
 
-// sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.
-// each instr is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
+/*
+ * sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.
+ * each instr is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
+ */
 #define SH4_BLOCK_MASK 0x03ffffff
 #define SH4_BLOCK_SHIFT 1
 #define SH4_BLOCK_OFFSET(addr) ((addr & SH4_BLOCK_MASK) >> SH4_BLOCK_SHIFT)
 #define SH4_MAX_BLOCKS (0x1000000 >> SH4_BLOCK_SHIFT)
 
-// callbacks to service sh4_reg_read / sh4_reg_write calls
+/* callbacks to service sh4_reg_read / sh4_reg_write calls */
 struct reg_cb sh4_cb[NUM_SH4_REGS];
 
-// global sh4 pointer is used by sh4_compile_pc to resolve the current
-// sh4 instance when compiling a new block
+/*
+ * global sh4 pointer is used by sh4_compile_pc to resolve the current
+ * sh4 instance when compiling a new block
+ */
 static struct sh4 *g_sh4;
 
 // clang-format off
@@ -49,12 +53,12 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x00200000, 0x0021ffff) AM_DEVICE("flash", flash_rom_map)
   AM_RANGE(0x0c000000, 0x0cffffff) AM_MOUNT("system ram")
 
-  // main ram mirrors
+  /* main ram mirrors */
   AM_RANGE(0x0d000000, 0x0dffffff) AM_MIRROR(0x0c000000)
   AM_RANGE(0x0e000000, 0x0effffff) AM_MIRROR(0x0c000000)
   AM_RANGE(0x0f000000, 0x0fffffff) AM_MIRROR(0x0c000000)
 
-  // external devices
+  /* external devices */
   AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", holly_reg_map)
   AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", pvr_reg_map)
   AM_RANGE(0x00600000, 0x0067ffff) AM_DEVICE("holly", holly_modem_map)
@@ -66,21 +70,21 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_fifo_map)
   AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("holly", holly_expansion2_map)
 
-  // internal registers
+  /* internal registers */
   AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE("sh4 reg",
                                              (mmio_read_cb)&sh4_reg_read,
                                              (mmio_write_cb)&sh4_reg_write)
 
-  // physical mirrors
-  AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  // p0
-  AM_RANGE(0x40000000, 0x5fffffff) AM_MIRROR(0x00000000)  // p0
-  AM_RANGE(0x60000000, 0x7fffffff) AM_MIRROR(0x00000000)  // p0
-  AM_RANGE(0x80000000, 0x9fffffff) AM_MIRROR(0x00000000)  // p1
-  AM_RANGE(0xa0000000, 0xbfffffff) AM_MIRROR(0x00000000)  // p2
-  AM_RANGE(0xc0000000, 0xdfffffff) AM_MIRROR(0x00000000)  // p3
-  AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  // p4
+  /* physical mirrors */
+  AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  /* p0 */
+  AM_RANGE(0x40000000, 0x5fffffff) AM_MIRROR(0x00000000)  /* p0 */
+  AM_RANGE(0x60000000, 0x7fffffff) AM_MIRROR(0x00000000)  /* p0 */
+  AM_RANGE(0x80000000, 0x9fffffff) AM_MIRROR(0x00000000)  /* p1 */
+  AM_RANGE(0xa0000000, 0xbfffffff) AM_MIRROR(0x00000000)  /* p2 */
+  AM_RANGE(0xc0000000, 0xdfffffff) AM_MIRROR(0x00000000)  /* p3 */
+  AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  /* p4 */
 
-  // internal cache and sq only accessible through p4
+  /* internal cache and sq only accessible through p4 */
   AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
                                              (mmio_read_cb)&sh4_ccn_cache_read,
                                              (mmio_write_cb)&sh4_ccn_cache_write)
@@ -162,7 +166,7 @@ bool sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
-  // initialize jit interface
+  /* initialize jit interface */
   sh4->guest.block_mask = SH4_BLOCK_MASK;
   sh4->guest.block_shift = SH4_BLOCK_SHIFT;
   sh4->guest.block_max = SH4_MAX_BLOCKS;
@@ -209,10 +213,10 @@ static inline code_pointer_t sh4_get_code(struct sh4 *sh4, uint32_t addr) {
 static void sh4_run_inner(struct device *dev, int64_t ns) {
   struct sh4 *sh4 = (struct sh4 *)dev;
 
-  // execute at least 1 cycle. the tests rely on this to step block by block
+  /* execute at least 1 cycle. the tests rely on this to step block by block */
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
 
-  // each block's epilog will decrement the remaining cycles as they run
+  /* each block's epilog will decrement the remaining cycles as they run */
   sh4->ctx.num_cycles = (int)cycles;
 
   g_sh4 = sh4;
@@ -226,19 +230,21 @@ static void sh4_run_inner(struct device *dev, int64_t ns) {
 
   g_sh4 = NULL;
 
-  // track mips
+  /* track mips */
   int64_t now = time_nanoseconds();
   int64_t next_time = sh4->last_mips_time + NS_PER_SEC;
 
   if (now > next_time) {
-    // convert total number of instructions / nanoseconds delta into millions
-    // of instructions per second
+    /*
+     * convert total number of instructions / nanoseconds delta into millions
+     * of instructions per second
+     */
     float num_instrs_millions = sh4->ctx.num_instrs / 1000000.0f;
     int64_t delta_ns = now - sh4->last_mips_time;
     float delta_s = delta_ns / 1000000000.0f;
     sh4->mips = (int)(num_instrs_millions / delta_s);
 
-    // reset state
+    /* reset state */
     sh4->last_mips_time = now;
     sh4->ctx.num_instrs = 0;
   }
@@ -253,17 +259,17 @@ void sh4_run(struct device *dev, int64_t ns) {
 }
 
 void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data) {
-  // struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-  // uint32_t addr = (uint32_t)data;
+  /*struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+  uint32_t addr = (uint32_t)data;
 
-  // auto it = self->breakpoints.find(addr);
-  // CHECK_NE(it, self->breakpoints.end());
+  auto it = self->breakpoints.find(addr);
+  CHECK_NE(it, self->breakpoints.end());
 
-  // // force the main loop to break
-  // self->ctx.num_cycles = 0;
+  // force the main loop to break
+  self->ctx.num_cycles = 0;
 
-  // // let the debugger know execution has stopped
-  // self->dc->debugger->Trap();
+  // let the debugger know execution has stopped
+  self->dc->debugger->Trap();*/
 }
 
 static void sh4_swap_gpr_bank(struct sh4 *sh4) {
@@ -301,93 +307,6 @@ void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr) {
     sh4_swap_fpr_bank(sh4);
   }
 }
-
-// static int sh4_debug_num_registers() {
-//   return 59;
-// }
-
-// static void sh4_debug_step() {
-//   // invalidate the block for the current pc
-//   sh4->code_cache->RemoveBlocks(sh4->ctx.pc);
-
-//   // recompile it with only one instruction and run it
-//   uint32_t guest_addr = sh4->ctx.pc;
-//   uint8_t *host_addr = space->Translate(guest_addr);
-//   int flags = GetCompileFlags() | SH4_SINGLE_INSTR;
-
-//   code_pointer_t code = sh4->code_cache->CompileCode(guest_addr, host_addr,
-//   flags);
-//   sh4->ctx.pc = code();
-
-//   // let the debugger know we've stopped
-//   dc->debugger->Trap();
-// }
-
-// static void sh4_debug_add_breakpoint(int type, uint32_t addr) {
-//   // save off the original instruction
-//   uint16_t instr = space->R16(addr);
-//   breakpoints_.insert(std::make_pair(addr, instr));
-
-//   // write out an invalid instruction
-//   space->W16(addr, 0);
-
-//   sh4->code_cache->RemoveBlocks(addr);
-// }
-
-// static void sh4_debug_remove_breakpoint(int type, uint32_t addr) {
-//   // recover the original instruction
-//   auto it = breakpoints_.find(addr);
-//   CHECK_NE(it, breakpoints_.end());
-//   uint16_t instr = it->second;
-//   breakpoints_.erase(it);
-
-//   // overwrite the invalid instruction with the original
-//   space->W16(addr, instr);
-
-//   sh4->code_cache->RemoveBlocks(addr);
-// }
-
-// static void sh4_debug_read_memory(uint32_t addr, uint8_t *buffer, int size) {
-//   space->Memcpy(buffer, addr, size);
-// }
-
-// void sh4_debug_read_register(int n, uint64_t *value, int *size) {
-//   if (n < 16) {
-//     *value = sh4->ctx.r[n];
-//   } else if (n == 16) {
-//     *value = sh4->ctx.pc;
-//   } else if (n == 17) {
-//     *value = sh4->ctx.pr;
-//   } else if (n == 18) {
-//     *value = sh4->ctx.gbr;
-//   } else if (n == 19) {
-//     *value = sh4->ctx.vbr;
-//   } else if (n == 20) {
-//     *value = sh4->ctx.mach;
-//   } else if (n == 21) {
-//     *value = sh4->ctx.macl;
-//   } else if (n == 22) {
-//     *value = sh4->ctx.sr;
-//   } else if (n == 23) {
-//     *value = sh4->ctx.fpul;
-//   } else if (n == 24) {
-//     *value = sh4->ctx.fpscr;
-//   } else if (n < 41) {
-//     *value = sh4->ctx.fr[n - 25];
-//   } else if (n == 41) {
-//     *value = sh4->ctx.ssr;
-//   } else if (n == 42) {
-//     *value = sh4->ctx.spc;
-//   } else if (n < 51) {
-//     uint32_t *b0 = (sh4->ctx.sr & RB) ? sh4->ctx.ralt : sh4->ctx.r;
-//     *value = b0[n - 43];
-//   } else if (n < 59) {
-//     uint32_t *b1 = (sh4->ctx.sr & RB) ? sh4->ctx.r : sh4->ctx.ralt;
-//     *value = b1[n - 51];
-//   }
-
-//   *size = 4;
-// }
 
 uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
   uint32_t offset = SH4_REG_OFFSET(addr);
@@ -441,33 +360,35 @@ void sh4_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
 
 REG_R32(sh4_cb, PDTRA) {
   struct sh4 *sh4 = dc->sh4;
-  // magic values to get past 0x8c00b948 in the boot rom:
-  // void _8c00b92c(int arg1) {
-  //   sysvars->var1 = reg[PDTRA];
-  //   for (i = 0; i < 4; i++) {
-  //     sysvars->var2 = reg[PDTRA];
-  //     if (arg1 == sysvars->var2 & 0x03) {
-  //       return;
-  //     }
-  //   }
-  //   reg[PR] = (uint32_t *)0x8c000000;    /* loop forever */
-  // }
-  // old_PCTRA = reg[PCTRA];
-  // i = old_PCTRA | 0x08;
-  // reg[PCTRA] = i;
-  // reg[PDTRA] = reg[PDTRA] | 0x03;
-  // _8c00b92c(3);
-  // reg[PCTRA] = i | 0x03;
-  // _8c00b92c(3);
-  // reg[PDTRA] = reg[PDTRA] & 0xfffe;
-  // _8c00b92c(0);
-  // reg[PCTRA] = i;
-  // _8c00b92c(3);
-  // reg[PCTRA] = i | 0x04;
-  // _8c00b92c(3);
-  // reg[PDTRA] = reg[PDTRA] & 0xfffd;
-  // _8c00b92c(0);
-  // reg[PCTRA] = old_PCTRA;
+  /*
+   * magic values to get past 0x8c00b948 in the boot rom:
+   * void _8c00b92c(int arg1) {
+   *   sysvars->var1 = reg[PDTRA];
+   *   for (i = 0; i < 4; i++) {
+   *     sysvars->var2 = reg[PDTRA];
+   *     if (arg1 == sysvars->var2 & 0x03) {
+   *       return;
+   *     }
+   *   }
+   *   reg[PR] = (uint32_t *)0x8c000000;
+   * }
+   * old_PCTRA = reg[PCTRA];
+   * i = old_PCTRA | 0x08;
+   * reg[PCTRA] = i;
+   * reg[PDTRA] = reg[PDTRA] | 0x03;
+   * _8c00b92c(3);
+   * reg[PCTRA] = i | 0x03;
+   * _8c00b92c(3);
+   * reg[PDTRA] = reg[PDTRA] & 0xfffe;
+   * _8c00b92c(0);
+   * reg[PCTRA] = i;
+   * _8c00b92c(3);
+   * reg[PCTRA] = i | 0x04;
+   * _8c00b92c(3);
+   * reg[PDTRA] = reg[PDTRA] & 0xfffd;
+   * _8c00b92c(0);
+   * reg[PCTRA] = old_PCTRA;
+   */
   uint32_t pctra = *sh4->PCTRA;
   uint32_t pdtra = *sh4->PDTRA;
   uint32_t v = 0;
@@ -475,34 +396,36 @@ REG_R32(sh4_cb, PDTRA) {
       ((pctra & 0xf) == 0xc && (pdtra & 0xf) == 0x2)) {
     v = 3;
   }
-  // FIXME cable setting
-  // When a VGA cable* is connected
-  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-  // "00")
-  // 2. Set the HOLLY synchronization register for VGA.  (The SYNC output is
-  // H-Sync and V-Sync.)
-  // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-  // VIDEO1 = 0 and VIDEO0 = 1 are output.  VIDEO0 is connected to the
-  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-  //
-  // When an RGB(NTSC/PAL) cable* is connected
-  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-  // "10")
-  // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-  // output is H-Sync and V-Sync.)
-  // 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-  // VIDEO1 = 1 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-  //
-  // When a stereo A/V cable, an S-jack cable* or an RF converter* is
-  // connected
-  // 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-  // "11")
-  // 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-  // output is H-Sync and V-Sync.)
-  // 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
-  // VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-  // DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+  /*
+   * FIXME cable setting
+   * When a VGA cable* is connected
+   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+   * "00")
+   * 2. Set the HOLLY synchronization register for VGA.  (The SYNC output is
+   * H-Sync and V-Sync.)
+   * 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
+   * VIDEO1 = 0 and VIDEO0 = 1 are output.  VIDEO0 is connected to the
+   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+   *
+   * When an RGB(NTSC/PAL) cable* is connected
+   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+   * "10")
+   * 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
+   * output is H-Sync and V-Sync.)
+   * 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
+   * VIDEO1 = 1 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
+   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+   *
+   * When a stereo A/V cable, an S-jack cable* or an RF converter* is
+   * connected
+   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
+   * "11")
+   * 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
+   * output is H-Sync and V-Sync.)
+   * 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
+   * VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
+   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
+   */
   v |= 0x3 << 8;
   return v;
 }
