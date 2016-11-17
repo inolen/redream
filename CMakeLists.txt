@@ -173,6 +173,12 @@ set(REDREAM_SOURCES
   src/hw/scheduler.c
   src/jit/backend/x64/x64_backend.cc
   src/jit/backend/x64/x64_disassembler.c
+  src/jit/frontend/armv3/armv3_analyze.c
+  src/jit/frontend/armv3/armv3_context.c
+  src/jit/frontend/armv3/armv3_disasm.c
+  src/jit/frontend/armv3/armv3_fallback.c
+  src/jit/frontend/armv3/armv3_frontend.c
+  src/jit/frontend/armv3/armv3_translate.c
   src/jit/frontend/sh4/sh4_analyze.c
   src/jit/frontend/sh4/sh4_disasm.c
   src/jit/frontend/sh4/sh4_frontend.c
@@ -273,12 +279,12 @@ endforeach()
 # assign source groups for visual studio projects
 source_group_by_dir(RECC_SOURCES)
 
-add_executable(recc ${RECC_SOURCES})
-target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(recc ${REDREAM_LIBS})
-target_compile_definitions(recc PRIVATE MICROPROFILE_ENABLED=0 ${REDREAM_DEFS})
-target_compile_options(recc PRIVATE ${REDREAM_COMPILE_FLAGS})
+#add_executable(recc ${RECC_SOURCES})
+#target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+#target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+#target_link_libraries(recc ${REDREAM_LIBS})
+#target_compile_definitions(recc PRIVATE MICROPROFILE_ENABLED=0 ${REDREAM_DEFS})
+#target_compile_options(recc PRIVATE ${REDREAM_COMPILE_FLAGS})
 
 #--------------------------------------------------
 # tests

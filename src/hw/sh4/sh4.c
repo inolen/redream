@@ -92,7 +92,7 @@ AM_END();
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
-  sh4->execute_if = dc_create_execute_interface(&sh4_run);
+  sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
   sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
   sh4->window_if =
       dc_create_window_interface(NULL, &sh4_paint_debug_menu, NULL);
@@ -119,8 +119,33 @@ void sh4_destroy(struct sh4 *sh4) {
   dc_destroy_device((struct device *)sh4);
 }
 
-void sh4_set_pc(struct sh4 *sh4, uint32_t pc) {
+void sh4_reset(struct sh4 *sh4, uint32_t pc) {
+  /* unlink stale blocks */
+  jit_unlink_blocks(sh4->jit);
+
+  /* reset context */
+  sh4->ctx.sh4 = sh4;
+  sh4->ctx.InvalidInstruction = &sh4_invalid_instr;
+  sh4->ctx.Prefetch = &sh4_ccn_prefetch;
+  sh4->ctx.SRUpdated = &sh4_sr_updated;
+  sh4->ctx.FPSCRUpdated = &sh4_fpscr_updated;
   sh4->ctx.pc = pc;
+  sh4->ctx.r[15] = 0x8d000000;
+  sh4->ctx.pr = 0x0;
+  sh4->ctx.sr = 0x700000f0;
+  sh4->ctx.fpscr = 0x00040001;
+
+  /* initialize registers */
+#define SH4_REG(addr, name, default, type) \
+  sh4->reg[name] = default;                \
+  sh4->name = (type *)&sh4->reg[name];
+#include "hw/sh4/sh4_regs.inc"
+#undef SH4_REG
+
+  /* reset interrupts */
+  sh4_intc_reprioritize(sh4);
+
+  sh4->execute_if->running = 1;
 }
 
 void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
@@ -155,28 +180,6 @@ bool sh4_init(struct device *dev) {
   sh4->jit_backend = x64_backend_create(&sh4->guest);
   sh4->jit = jit_create(&sh4->guest, sh4->jit_frontend, sh4->jit_backend,
                         &sh4_compile_pc);
-
-  // initialize context
-  sh4->ctx.sh4 = sh4;
-  sh4->ctx.InvalidInstruction = &sh4_invalid_instr;
-  sh4->ctx.Prefetch = &sh4_ccn_prefetch;
-  sh4->ctx.SRUpdated = &sh4_sr_updated;
-  sh4->ctx.FPSCRUpdated = &sh4_fpscr_updated;
-  sh4->ctx.pc = 0xa0000000;
-  sh4->ctx.r[15] = 0x8d000000;
-  sh4->ctx.pr = 0x0;
-  sh4->ctx.sr = 0x700000f0;
-  sh4->ctx.fpscr = 0x00040001;
-
-// initialize registers
-#define SH4_REG(addr, name, default, type) \
-  sh4->reg[name] = default;                \
-  sh4->name = (type *)&sh4->reg[name];
-#include "hw/sh4/sh4_regs.inc"
-#undef SH4_REG
-
-  // reset interrupts
-  sh4_intc_reprioritize(sh4);
 
   return true;
 }

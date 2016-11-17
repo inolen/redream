@@ -39,7 +39,8 @@ static bool emu_launch_bin(struct emu *emu, const char *path) {
   }
 
   gdrom_set_disc(emu->dc->gdrom, NULL);
-  sh4_set_pc(emu->dc->sh4, 0x0c010000);
+  sh4_reset(emu->dc->sh4, 0x0c010000);
+  dc_resume(emu->dc);
 
   return true;
 }
@@ -52,7 +53,8 @@ static bool emu_launch_gdi(struct emu *emu, const char *path) {
   }
 
   gdrom_set_disc(emu->dc->gdrom, disc);
-  sh4_set_pc(emu->dc->sh4, 0xa0000000);
+  sh4_reset(emu->dc->sh4, 0xa0000000);
+  dc_resume(emu->dc);
 
   return true;
 }
@@ -68,6 +70,7 @@ static void emu_paint_debug_menu(void *data, struct nk_context *ctx) {
 
   if (nk_tree_push(ctx, NK_TREE_TAB, "emu", NK_MINIMIZED)) {
     nk_checkbox_label(ctx, "throttled", &emu->throttled);
+
     nk_tree_pop(ctx);
   }
 
@@ -133,17 +136,17 @@ void emu_run(struct emu *emu, const char *path) {
     }
   }
 
-  // start core emulator thread
+  /* start core emulator thread */
   thread_t core_thread;
   emu->running = 1;
   core_thread = thread_create(&emu_core_thread, NULL, emu);
 
-  // run the renderer / ui in the main thread
+  /* run the renderer / ui in the main thread */
   while (emu->running) {
     win_pump_events(emu->window);
   }
 
-  // wait for the graphics thread to exit
+  /* wait for the graphics thread to exit */
   void *result;
   thread_join(core_thread, &result);
 }

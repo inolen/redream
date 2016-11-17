@@ -115,7 +115,7 @@ const int x64_num_registers =
 // backend, but it's extremely useful when profiling to group JITd blocks of
 // code with an actual symbol name
 //
-static const size_t x64_code_size = 1024 * 1024 * 8;
+static const size_t x64_code_size = 1024 * 1024 * 32;
 static uint8_t x64_code[x64_code_size];
 
 //

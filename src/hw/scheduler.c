@@ -25,11 +25,7 @@ struct scheduler {
 void scheduler_tick(struct scheduler *sch, int64_t ns) {
   int64_t target_time = sch->base_time + ns;
 
-  while (sch->base_time < target_time) {
-    if (sch->dc->suspended) {
-      break;
-    }
-
+  while (sch->dc->running && sch->base_time < target_time) {
     // run devices up to the next timer
     int64_t next_time = target_time;
     struct timer *next_timer =
@@ -46,7 +42,7 @@ void scheduler_tick(struct scheduler *sch, int64_t ns) {
 
     // execute each device
     list_for_each_entry(dev, &sch->dc->devices, struct device, it) {
-      if (dev->execute_if && !dev->execute_if->suspended) {
+      if (dev->execute_if && dev->execute_if->running) {
         dev->execute_if->run(dev, slice);
       }
     }

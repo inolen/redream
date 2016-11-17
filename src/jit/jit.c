@@ -22,7 +22,13 @@ static int block_map_cmp(const struct rb_node *rb_lhs,
   const struct jit_block *rhs =
       container_of(rb_rhs, const struct jit_block, it);
 
-  return (int)((int64_t)lhs->guest_addr - (int64_t)rhs->guest_addr);
+  if (lhs->guest_addr < rhs->guest_addr) {
+    return -1;
+  } else if (lhs->guest_addr > rhs->guest_addr) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 static int reverse_block_map_cmp(const struct rb_node *rb_lhs,
@@ -32,7 +38,13 @@ static int reverse_block_map_cmp(const struct rb_node *rb_lhs,
   const struct jit_block *rhs =
       container_of(rb_rhs, const struct jit_block, rit);
 
-  return (int)(lhs->host_addr - rhs->host_addr);
+  if (lhs->host_addr < rhs->host_addr) {
+    return -1;
+  } else if (lhs->host_addr > rhs->host_addr) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 static struct rb_callbacks block_map_cb = {

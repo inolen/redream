@@ -25,13 +25,15 @@ struct aica {
   struct device;
   uint8_t *reg_ram;
   uint8_t *wave_ram;
-  // timers
+  /* reset state */
+  int arm_resetting;
+  /* timers */
   struct timer *timers[3];
-  // real-time clock
+  /* real-time clock */
   struct timer *rtc_timer;
   int rtc_write;
   uint32_t rtc;
-  // channels
+  /* channels */
   struct common_data *common_data;
   struct aica_channel channels[AICA_NUM_CHANNELS];
 };
@@ -66,11 +68,11 @@ static void aica_update_sh(struct aica *aica) {
 static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period);
 
 static void aica_timer_expire(struct aica *aica, int n) {
-  // reschedule timer as soon as it expires
+  /* reschedule timer as soon as it expires */
   aica->timers[n] = NULL;
   aica_timer_reschedule(aica, n, AICA_TIMER_PERIOD);
 
-  // raise timer interrupt
+  /* raise timer interrupt */
   static holly_interrupt_t timer_intr[3] = {AICA_INT_TIMER_A, AICA_INT_TIMER_B,
                                             AICA_INT_TIMER_C};
   aica_raise_interrupt(aica, timer_intr[n]);
@@ -96,12 +98,12 @@ static uint32_t aica_timer_tctl(struct aica *aica, int n) {
 static uint32_t aica_timer_tcnt(struct aica *aica, int n) {
   struct timer *timer = aica->timers[n];
   if (!timer) {
-    // if no timer has been created, return the raw value
+    /* if no timer has been created, return the raw value */
     return n == 0 ? aica->common_data->TIMA : n == 1 ? aica->common_data->TIMB
                                                      : aica->common_data->TIMC;
   }
 
-  // else, dynamically compute the value based on the timer's remaining time
+  /* else, dynamically compute the value based on the timer's remaining time */
   int tctl = aica_timer_tctl(aica, n);
   int64_t freq = AICA_SAMPLE_FREQ >> tctl;
   int64_t remaining = scheduler_remaining_time(aica->scheduler, timer);
@@ -337,10 +339,14 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
       aica_update_sh(aica);
     } break;
     case 0x400: { /* ARMRST */
-      if (data) {
+      if (aica->common_data->ARMRST) {
+        /* suspend arm when reset is pulled low */
+        aica->arm_resetting = 1;
         arm7_suspend(aica->arm);
-      } else {
-        arm7_resume(aica->arm);
+      } else if (aica->arm_resetting) {
+        /* reset and resume arm when reset is released */
+        aica->arm_resetting = 0;
+        arm7_reset(aica->arm);
       }
     } break;
   }
@@ -413,7 +419,6 @@ void aica_wave_write(struct aica *aica, uint32_t addr, uint32_t data,
 static void aica_run(struct device *dev, int64_t ns) {
   struct aica *aica = (struct aica *)dev;
 
-  int64_t cycles = MAX(NANO_TO_CYCLES(ns, AICA_CLOCK_FREQ), INT64_C(1));
   int64_t samples = NANO_TO_CYCLES(ns, AICA_SAMPLE_FREQ);
 
   aica_generate_samples(aica, samples);
@@ -430,7 +435,7 @@ static bool aica_init(struct device *dev) {
   aica->reg_ram = memory_translate(aica->memory, "aica reg ram", 0x00000000);
   aica->wave_ram = memory_translate(aica->memory, "aica wave ram", 0x00000000);
 
-  // setup channel data aliases
+  /* setup channel data aliases */
   for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
     struct aica_channel *ch = &aica->channels[i];
     ch->data = (struct channel_data *)(aica->reg_ram +
@@ -450,7 +455,7 @@ struct aica *aica_create(struct dreamcast *dc) {
   struct aica *aica =
       dc_create_device(dc, sizeof(struct aica), "aica", &aica_init);
 
-  aica->execute_if = dc_create_execute_interface(&aica_run);
+  aica->execute_if = dc_create_execute_interface(&aica_run, 1);
 
   return aica;
 }
@@ -465,7 +470,7 @@ void aica_destroy(struct aica *aica) {
 
 // clang-format off
 AM_BEGIN(struct aica, aica_reg_map);
-  // over allocate a bit to match the allocation granularity of the host
+  /* over allocate a bit to match the allocation granularity of the host */
   AM_RANGE(0x00000000, 0x00010fff) AM_MOUNT("aica reg ram")
   AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE("aica reg",
                                              (mmio_read_cb)&aica_reg_read,

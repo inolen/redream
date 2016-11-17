@@ -6,7 +6,7 @@
 #include "core/math.h"
 #include "sys/exception_handler.h"
 
-#define MAX_WATCHES 1024
+#define MAX_WATCHES 8192
 
 struct memory_watch {
   enum memory_watch_type type;

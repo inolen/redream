@@ -76,7 +76,7 @@ typedef void (*device_run_cb)(struct device *, int64_t);
 
 struct execute_interface {
   device_run_cb run;
-  bool suspended;
+  bool running;
 };
 
 // memory interface
@@ -146,7 +146,7 @@ struct dreamcast {
   struct maple *maple;
   struct pvr *pvr;
   struct ta *ta;
-  bool suspended;
+  int running;
   struct list devices;
 };
 
@@ -158,7 +158,7 @@ void dc_paint(struct dreamcast *dc);
 void dc_paint_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value);
 
-struct execute_interface *dc_create_execute_interface(device_run_cb run);
+struct execute_interface *dc_create_execute_interface(device_run_cb run, int running);
 void dc_destroy_execute_interface(struct execute_interface *execute);
 
 struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
