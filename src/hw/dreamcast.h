@@ -158,7 +158,8 @@ void dc_paint(struct dreamcast *dc);
 void dc_paint_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value);
 
-struct execute_interface *dc_create_execute_interface(device_run_cb run, int running);
+struct execute_interface *dc_create_execute_interface(device_run_cb run,
+                                                      int running);
 void dc_destroy_execute_interface(struct execute_interface *execute);
 
 struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
