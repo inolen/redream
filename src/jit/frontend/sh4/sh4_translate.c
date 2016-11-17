@@ -8,16 +8,16 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
-//
-// fsca estimate lookup table
-//
+/*
+ * fsca estimate lookup table
+ */
 static uint32_t s_fsca_table[0x20000] = {
 #include "jit/frontend/sh4/sh4_fsca.inc"
 };
 
-//
-// callbacks for translating each sh4 op
-//
+/*
+ * callbacks for translating each sh4 op
+ */
 typedef void (*emit_cb)(struct ir *, int, const struct sh4_instr *,
                         const struct sh4_instr *);
 
@@ -30,14 +30,16 @@ typedef void (*emit_cb)(struct ir *, int, const struct sh4_instr *,
 #undef SH4_INSTR
 
 static emit_cb emit_callbacks[NUM_SH4_OPS] = {
-    NULL,  // SH4_OP_INVALID
+    NULL, /* SH4_OP_INVALID */
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) &sh4_emit_OP_##name,
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
 
-// helper functions for accessing the sh4 context, macros are used to cut
-// down on copy and paste
+/*
+ * helper functions for accessing the sh4 context, macros are used to cut
+ * down on copy and paste
+ */
 #ifdef NDEBUG
 #define load_guest(addr, type)                          \
   ((flags & JIT_SLOWMEM) ? ir_load_slow(ir, addr, type) \
@@ -64,7 +66,7 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
     ir_store_context(ir, offsetof(struct sh4_ctx, r[n]), v); \
   } while (0)
 
-// swizzle 32-bit fp loads, see notes in sh4_context.h
+/* swizzle 32-bit fp loads, see notes in sh4_context.h */
 #define swizzle_fpr(n, type) (ir_type_size(type) == 4 ? ((n) ^ 1) : (n))
 
 #define load_fpr(n, type) \
@@ -230,77 +232,77 @@ EMITTER(MOVLL) {
 
 // MOV.B   Rm,@-Rn
 EMITTER(MOVBM) {
-  // decrease Rn by 1
+  /* decrease Rn by 1 */
   struct ir_value *addr = load_gpr(i->Rn, VALUE_I32);
   addr = ir_sub(ir, addr, ir_alloc_i32(ir, 1));
   store_gpr(i->Rn, addr);
 
-  // store Rm at (Rn)
+  /* store Rm at (Rn) */
   struct ir_value *v = load_gpr(i->Rm, VALUE_I8);
   store_guest(addr, v);
 }
 
 // MOV.W   Rm,@-Rn
 EMITTER(MOVWM) {
-  // decrease Rn by 2
+  /* decrease Rn by 2 */
   struct ir_value *addr = load_gpr(i->Rn, VALUE_I32);
   addr = ir_sub(ir, addr, ir_alloc_i32(ir, 2));
   store_gpr(i->Rn, addr);
 
-  // store Rm at (Rn)
+  /* store Rm at (Rn) */
   struct ir_value *v = load_gpr(i->Rm, VALUE_I16);
   store_guest(addr, v);
 }
 
 // MOV.L   Rm,@-Rn
 EMITTER(MOVLM) {
-  // decrease Rn by 4
+  /* decrease Rn by 4 */
   struct ir_value *addr = load_gpr(i->Rn, VALUE_I32);
   addr = ir_sub(ir, addr, ir_alloc_i32(ir, 4));
   store_gpr(i->Rn, addr);
 
-  // store Rm at (Rn)
+  /* store Rm at (Rn) */
   struct ir_value *v = load_gpr(i->Rm, VALUE_I32);
   store_guest(addr, v);
 }
 
 // MOV.B   @Rm+,Rn
 EMITTER(MOVBP) {
-  // store (Rm) at Rn
+  /* store (Rm) at Rn */
   struct ir_value *addr = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *v = load_guest(addr, VALUE_I8);
   v = ir_sext(ir, v, VALUE_I32);
   store_gpr(i->Rn, v);
 
-  // increase Rm by 1
-  // FIXME if rm != rn???
+  /* increase Rm by 1 */
+  /* FIXME if rm != rn??? */
   addr = ir_add(ir, addr, ir_alloc_i32(ir, 1));
   store_gpr(i->Rm, addr);
 }
 
 // MOV.W   @Rm+,Rn
 EMITTER(MOVWP) {
-  // store (Rm) at Rn
+  /* store (Rm) at Rn */
   struct ir_value *addr = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *v = load_guest(addr, VALUE_I16);
   v = ir_sext(ir, v, VALUE_I32);
   store_gpr(i->Rn, v);
 
-  // increase Rm by 2
-  // FIXME if rm != rn???
+  /* increase Rm by 2 */
+  /* FIXME if rm != rn??? */
   addr = ir_add(ir, addr, ir_alloc_i32(ir, 2));
   store_gpr(i->Rm, addr);
 }
 
 // MOV.L   @Rm+,Rn
 EMITTER(MOVLP) {
-  // store (Rm) at Rn
+  /* store (Rm) at Rn */
   struct ir_value *addr = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *v = load_guest(addr, VALUE_I32);
   store_gpr(i->Rn, v);
 
-  // increase Rm by 2
-  // FIXME if rm != rn???
+  /* increase Rm by 2 */
+  /* FIXME if rm != rn??? */
   addr = ir_add(ir, addr, ir_alloc_i32(ir, 4));
   store_gpr(i->Rm, addr);
 }
@@ -526,7 +528,7 @@ EMITTER(ADDC) {
   v = ir_add(ir, v, load_t());
   store_gpr(i->Rn, v);
 
-  // compute carry flag, taken from Hacker's Delight
+  /* compute carry flag, taken from Hacker's Delight */
   struct ir_value *and_rnrm = ir_and(ir, rn, rm);
   struct ir_value *or_rnrm = ir_or(ir, rn, rm);
   struct ir_value *not_v = ir_not(ir, v);
@@ -544,7 +546,7 @@ EMITTER(ADDV) {
   struct ir_value *v = ir_add(ir, rn, rm);
   store_gpr(i->Rn, v);
 
-  // compute overflow flag, taken from Hacker's Delight
+  /* compute overflow flag, taken from Hacker's Delight */
   struct ir_value *xor_vrn = ir_xor(ir, v, rn);
   struct ir_value *xor_vrm = ir_xor(ir, v, rm);
   struct ir_value *overflow = ir_lshri(ir, ir_and(ir, xor_vrn, xor_vrm), 31);
@@ -629,7 +631,7 @@ EMITTER(CMPSTR) {
   struct ir_value *rm = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *diff = ir_xor(ir, rn, rm);
 
-  // if any diff is zero, the bytes match
+  /* if any diff is zero, the bytes match */
   struct ir_value *b4_eq = ir_cmp_eq(
       ir, ir_and(ir, diff, ir_alloc_i32(ir, 0xff000000)), ir_alloc_i32(ir, 0));
   struct ir_value *b3_eq = ir_cmp_eq(
@@ -650,17 +652,17 @@ EMITTER(DIV0S) {
   struct ir_value *rm = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *qm = ir_xor(ir, rn, rm);
 
-  // update Q == M flag
+  /* update Q == M flag */
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_qm), ir_not(ir, qm));
 
-  // msb of Q ^ M -> T
+  /* msb of Q ^ M -> T */
   store_t(ir_lshri(ir, qm, 31));
 }
 
 // code                 cycles  t-bit
 // 0000 0000 0001 1001  1       0
 // DIV0U
-EMITTER(DIV0U) {  //
+EMITTER(DIV0U) {
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_qm),
                    ir_alloc_i32(ir, 0x80000000));
 
@@ -674,25 +676,25 @@ EMITTER(DIV1) {
   struct ir_value *rn = load_gpr(i->Rn, VALUE_I32);
   struct ir_value *rm = load_gpr(i->Rm, VALUE_I32);
 
-  // if Q == M, r0 = ~Rm and C = 1; else, r0 = Rm and C = 0
+  /* if Q == M, r0 = ~Rm and C = 1; else, r0 = Rm and C = 0 */
   struct ir_value *qm = ir_ashri(
       ir, ir_load_context(ir, offsetof(struct sh4_ctx, sr_qm), VALUE_I32), 31);
   struct ir_value *r0 = ir_xor(ir, rm, qm);
   struct ir_value *carry = ir_lshri(ir, qm, 31);
 
-  // initialize output bit as (Q == M) ^ Rn
+  /* initialize output bit as (Q == M) ^ Rn */
   qm = ir_xor(ir, qm, rn);
 
-  // shift Rn left by 1 and add T
+  /* shift Rn left by 1 and add T */
   rn = ir_shli(ir, rn, 1);
   rn = ir_or(ir, rn, load_t());
 
-  // add or subtract Rm based on r0 and C
+  /* add or subtract Rm based on r0 and C */
   struct ir_value *rd = ir_add(ir, rn, r0);
   rd = ir_add(ir, rd, carry);
   store_gpr(i->Rn, rd);
 
-  // if C is cleared, invert output bit
+  /* if C is cleared, invert output bit */
   struct ir_value *and_rnr0 = ir_and(ir, rn, r0);
   struct ir_value *or_rnr0 = ir_or(ir, rn, r0);
   struct ir_value *not_rd = ir_not(ir, rd);
@@ -702,7 +704,7 @@ EMITTER(DIV1) {
   qm = ir_select(ir, carry, qm, ir_not(ir, qm));
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_qm), qm);
 
-  // set T to output bit (which happens to be Q == M)
+  /* set T to output bit (which happens to be Q == M) */
   store_t(ir_lshri(ir, qm, 31));
 }
 
@@ -835,7 +837,7 @@ EMITTER(SUBC) {
   v = ir_sub(ir, v, load_t());
   store_gpr(i->Rn, v);
 
-  // compute carry flag, taken from Hacker's Delight
+  /* compute carry flag, taken from Hacker's Delight */
   struct ir_value *l = ir_and(ir, ir_not(ir, rn), rm);
   struct ir_value *r = ir_and(ir, ir_or(ir, ir_not(ir, rn), rm), v);
   struct ir_value *carry = ir_or(ir, l, r);
@@ -1022,9 +1024,11 @@ EMITTER(ROTCR) {
 
 // SHAD    Rm,Rn
 EMITTER(SHAD) {
-  // when Rm >= 0, Rn << Rm
-  // when Rm < 0, Rn >> Rm
-  // when shifting right > 32, Rn = (Rn >= 0 ? 0 : -1)
+  /*
+   * when Rm >= 0, Rn << Rm
+   * when Rm < 0, Rn >> Rm
+   * when shifting right > 32, Rn = (Rn >= 0 ? 0 : -1)
+   */
   struct ir_value *rn = load_gpr(i->Rn, VALUE_I32);
   struct ir_value *rm = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *v = ir_ashd(ir, rn, rm);
@@ -1052,9 +1056,11 @@ EMITTER(SHAR) {
 
 // SHLD    Rm,Rn
 EMITTER(SHLD) {
-  // when Rm >= 0, Rn << Rm
-  // when Rm < 0, Rn >> Rm
-  // when shifting right >= 32, Rn = 0
+  /*
+   * when Rm >= 0, Rn << Rm
+   * when Rm < 0, Rn >> Rm
+   * when shifting right >= 32, Rn = 0
+   */
   struct ir_value *rn = load_gpr(i->Rn, VALUE_I32);
   struct ir_value *rm = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *v = ir_lshd(ir, rn, rm);
@@ -1166,7 +1172,7 @@ EMITTER(BTS) {
 EMITTER(BRA) {
   emit_delay_instr();
   int32_t disp = ((i->disp & 0xfff) << 20) >>
-                 20;  // 12-bit displacement must be sign extended
+                 20; /* 12-bit displacement must be sign extended */
   uint32_t dest_addr = (disp * 2) + i->addr + 4;
   branch(ir_alloc_i32(ir, dest_addr));
 }
@@ -1187,7 +1193,7 @@ EMITTER(BRAF) {
 EMITTER(BSR) {
   emit_delay_instr();
   int32_t disp = ((i->disp & 0xfff) << 20) >>
-                 20;  // 12-bit displacement must be sign extended
+                 20; /* 12-bit displacement must be sign extended */
   uint32_t ret_addr = i->addr + 4;
   uint32_t dest_addr = ret_addr + disp * 2;
   store_pr(ir_alloc_i32(ir, ret_addr));
@@ -1298,7 +1304,7 @@ EMITTER(LDCMSR) {
   struct ir_value *addr = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *v = load_guest(addr, VALUE_I32);
   store_sr(v);
-  // reload Rm, sr store could have swapped banks
+  /* reload Rm, sr store could have swapped banks */
   addr = load_gpr(i->Rm, VALUE_I32);
   addr = ir_add(ir, addr, ir_alloc_i32(ir, 4));
   store_gpr(i->Rm, addr);
@@ -2040,7 +2046,7 @@ EMITTER(FTRC) {
 EMITTER(FCNVDS) {
   CHECK(flags & SH4_DOUBLE_PR);
 
-  // TODO rounding modes?
+  /* TODO rounding modes? */
 
   int m = i->Rm & 0xe;
   struct ir_value *dpv = load_fpr(m, VALUE_F64);
@@ -2052,7 +2058,7 @@ EMITTER(FCNVDS) {
 EMITTER(FCNVSD) {
   CHECK(flags & SH4_DOUBLE_PR);
 
-  // TODO rounding modes?
+  /* TODO rounding modes? */
 
   struct ir_value *spv =
       ir_load_context(ir, offsetof(struct sh4_ctx, fpul), VALUE_F32);
@@ -2189,7 +2195,7 @@ EMITTER(FSCHG) {
 
 void sh4_translate(const struct jit_guest *guest, uint32_t addr, int size,
                    int flags, struct ir *ir) {
-  // PROFILER_RUNTIME("SH4ir::Emit");
+  /* PROFILER_RUNTIME("sh4_translate"); */
   struct sh4_instr delay_instr;
 
   int i = 0;
@@ -2212,11 +2218,13 @@ void sh4_translate(const struct jit_guest *guest, uint32_t addr, int size,
       delay_instr.addr = addr + i;
       delay_instr.opcode = guest->r16(guest->mem_self, delay_instr.addr);
 
-      // instruction must be valid, breakpoints on delay instructions aren't
-      // currently supported
+      /*
+       * instruction must be valid, breakpoints on delay instructions aren't
+       * currently supported
+       */
       CHECK(sh4_disasm(&delay_instr));
 
-      // delay instruction itself should never have a delay instr
+      /* delay instruction itself should never have a delay instr */
       CHECK(!(delay_instr.flags & SH4_FLAG_DELAYED));
 
       i += 2;
@@ -2229,23 +2237,25 @@ void sh4_translate(const struct jit_guest *guest, uint32_t addr, int size,
   struct ir_instr *tail_instr =
       list_last_entry(&ir->instrs, struct ir_instr, it);
 
-  // if the block was terminated before a branch instruction, emit a
-  // fallthrough branch to the next pc
+  /*
+   * if the block was terminated before a branch instruction, emit a
+   * fallthrough branch to the next pc
+   */
   if (tail_instr->op != OP_STORE_CONTEXT ||
       tail_instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
     branch(ir_alloc_i32(ir, addr + i));
   }
 
-  // emit block epilog
+  /* emit block epilog */
   ir->current_instr = list_prev_entry(tail_instr, struct ir_instr, it);
 
-  // update remaining cycles
+  /* update remaining cycles */
   struct ir_value *num_cycles =
       ir_load_context(ir, offsetof(struct sh4_ctx, num_cycles), VALUE_I32);
   num_cycles = ir_sub(ir, num_cycles, ir_alloc_i32(ir, cycles));
   ir_store_context(ir, offsetof(struct sh4_ctx, num_cycles), num_cycles);
 
-  // update num instructions
+  /* update num instructions */
   struct ir_value *num_instrs =
       ir_load_context(ir, offsetof(struct sh4_ctx, num_instrs), VALUE_I32);
   num_instrs = ir_add(ir, num_instrs, ir_alloc_i32(ir, size >> 1));

@@ -54,8 +54,10 @@ static void sh4_init_opdefs() {
 
   initialized = true;
 
-  // finalize type information by extracting argument encoding information
-  // from signatures
+  /*
+   * finalize type information by extracting argument encoding information
+   * from signatures
+   */
   for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
     struct sh4_opdef *def = &s_opdefs[i];
 
@@ -66,7 +68,7 @@ static void sh4_init_opdefs() {
     sh4_arg_mask(def->sig, 0, &def->opcode_mask, NULL);
   }
 
-  // initialize lookup table
+  /* initialize lookup table */
   for (int w = 0; w < 0x10000; w += 0x1000) {
     for (int x = 0; x < 0x1000; x += 0x100) {
       for (int y = 0; y < 0x100; y += 0x10) {
@@ -123,10 +125,10 @@ void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size) {
   uint32_t movsize;
   uint32_t pcmask;
 
-  // copy initial formatted description
+  /* copy initial formatted description */
   snprintf(buffer, buffer_size, "%08x  %s", i->addr, s_opdefs[i->op].desc);
 
-  // used by mov operators with displacements
+  /* used by mov operators with displacements */
   if (strnstr(buffer, ".b", buffer_size)) {
     movsize = 1;
     pcmask = 0xffffffff;
@@ -141,71 +143,71 @@ void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size) {
     pcmask = 0;
   }
 
-  // (disp:4,rn)
+  /* (disp:4,rn) */
   value_len = snprintf(value, sizeof(value), "(0x%x,rn)", i->disp * movsize);
   CHECK_EQ(strnrep(buffer, buffer_size, "(disp:4,rn)", 11, value, value_len),
            0);
 
-  // (disp:4,rm)
+  /* (disp:4,rm) */
   value_len = snprintf(value, sizeof(value), "(0x%x,rm)", i->disp * movsize);
   CHECK_EQ(strnrep(buffer, buffer_size, "(disp:4,rm)", 11, value, value_len),
            0);
 
-  // (disp:8,gbr)
+  /* (disp:8,gbr) */
   value_len = snprintf(value, sizeof(value), "(0x%x,gbr)", i->disp * movsize);
   CHECK_EQ(strnrep(buffer, buffer_size, "(disp:8,gbr)", 12, value, value_len),
            0);
 
-  // (disp:8,pc)
+  /* (disp:8,pc) */
   value_len = snprintf(value, sizeof(value), "(0x%08x)",
                        (i->disp * movsize) + (i->addr & pcmask) + 4);
   CHECK_EQ(strnrep(buffer, buffer_size, "(disp:8,pc)", 11, value, value_len),
            0);
 
-  // disp:8
+  /* disp:8 */
   value_len = snprintf(value, sizeof(value), "0x%08x",
                        ((int8_t)i->disp * 2) + i->addr + 4);
   CHECK_EQ(strnrep(buffer, buffer_size, "disp:8", 6, value, value_len), 0);
 
-  // disp:12
+  /* disp:12 */
   value_len =
       snprintf(value, sizeof(value), "0x%08x",
                ((((int32_t)(i->disp & 0xfff) << 20) >> 20) * 2) + i->addr + 4);
   CHECK_EQ(strnrep(buffer, buffer_size, "disp:12", 7, value, value_len), 0);
 
-  // drm
+  /* drm */
   value_len = snprintf(value, sizeof(value), "dr%d", i->Rm);
   CHECK_EQ(strnrep(buffer, buffer_size, "drm", 3, value, value_len), 0);
 
-  // drn
+  /* drn */
   value_len = snprintf(value, sizeof(value), "dr%d", i->Rn);
   CHECK_EQ(strnrep(buffer, buffer_size, "drn", 3, value, value_len), 0);
 
-  // frm
+  /* frm */
   value_len = snprintf(value, sizeof(value), "fr%d", i->Rm);
   CHECK_EQ(strnrep(buffer, buffer_size, "frm", 3, value, value_len), 0);
 
-  // frn
+  /* frn */
   value_len = snprintf(value, sizeof(value), "fr%d", i->Rn);
   CHECK_EQ(strnrep(buffer, buffer_size, "frn", 3, value, value_len), 0);
 
-  // fvm
+  /* fvm */
   value_len = snprintf(value, sizeof(value), "fv%d", i->Rm);
   CHECK_EQ(strnrep(buffer, buffer_size, "fvm", 3, value, value_len), 0);
 
-  // fvn
+  /* fvn */
   value_len = snprintf(value, sizeof(value), "fv%d", i->Rn);
   CHECK_EQ(strnrep(buffer, buffer_size, "fvn", 3, value, value_len), 0);
 
-  // rm
+  /* rm */
   value_len = snprintf(value, sizeof(value), "r%d", i->Rm);
   CHECK_EQ(strnrep(buffer, buffer_size, "rm", 2, value, value_len), 0);
 
-  // rn
+  /* rn */
   value_len = snprintf(value, sizeof(value), "r%d", i->Rn);
   CHECK_EQ(strnrep(buffer, buffer_size, "rn", 2, value, value_len), 0);
 
-  // #imm8
+  /* #imm8 */
   value_len = snprintf(value, sizeof(value), "0x%02x", i->imm);
   CHECK_EQ(strnrep(buffer, buffer_size, "#imm8", 5, value, value_len), 0);
 }

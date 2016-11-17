@@ -15,17 +15,23 @@ struct jit_backend;
 
 struct sh4_dtr {
   int channel;
-  // when rw is true, addr is the dst address
-  // when rw is false, addr is the src address
+  /*
+   * when rw is true, addr is the dst address
+   * when rw is false, addr is the src address
+   */
   bool rw;
-  // when data is non-null, a single address mode transfer is performed between
-  // the external device memory at data, and the memory at addr for
-  // when data is null, a dual address mode transfer is performed between addr
-  // and SARn / DARn
+  /*
+   * when data is non-null, a single address mode transfer is performed between
+   * the external device memory at data, and the memory at addr for
+   * when data is null, a dual address mode transfer is performed between addr
+   * and SARn / DARn
+   */
   uint8_t *data;
   uint32_t addr;
-  // size is only valid for single address mode transfers, dual address mode
-  // transfers honor DMATCR
+  /*
+   * size is only valid for single address mode transfers, dual address mode
+   * transfers honor DMATCR
+   */
   int size;
 };
 
@@ -38,23 +44,23 @@ struct sh4 {
 #include "hw/sh4/sh4_regs.inc"
 #undef SH4_REG
 
-  // jit
+  /* jit */
   struct jit_guest guest;
   struct jit_frontend *jit_frontend;
   struct jit_backend *jit_backend;
   struct jit *jit;
 
-  // intc
+  /* intc */
   enum sh4_interrupt sorted_interrupts[NUM_SH_INTERRUPTS];
   uint64_t sort_id[NUM_SH_INTERRUPTS];
   uint64_t priority_mask[16];
   uint64_t requested_interrupts;
   uint64_t pending_interrupts;
 
-  // tmu
+  /* tmu */
   struct timer *tmu_timers[3];
 
-  // perf
+  /* perf */
   int64_t last_mips_time;
   int mips;
 };
