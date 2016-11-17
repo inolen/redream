@@ -32,9 +32,9 @@ bool dc_init(struct dreamcast *dc) {
     return false;
   }
 
-  // initialize each device
+  /* initialize each device */
   list_for_each_entry(dev, &dc->devices, struct device, it) {
-    // cache references to other devices
+    /* cache references to other devices */
     dev->debugger = dc->debugger;
     dev->memory = dc->memory;
     dev->scheduler = dc->scheduler;
@@ -59,11 +59,11 @@ bool dc_init(struct dreamcast *dc) {
 }
 
 void dc_suspend(struct dreamcast *dc) {
-  dc->suspended = true;
+  dc->running = 0;
 }
 
 void dc_resume(struct dreamcast *dc) {
-  dc->suspended = false;
+  dc->running = 1;
 }
 
 void dc_tick(struct dreamcast *dc, int64_t ns) {
@@ -71,7 +71,7 @@ void dc_tick(struct dreamcast *dc, int64_t ns) {
     debugger_tick(dc->debugger);
   }
 
-  if (!dc->suspended) {
+  if (dc->running) {
     scheduler_tick(dc->scheduler, ns);
   }
 }
@@ -100,10 +100,11 @@ void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value) {
   }
 }
 
-struct execute_interface *dc_create_execute_interface(device_run_cb run) {
+struct execute_interface *dc_create_execute_interface(device_run_cb run, int running) {
   struct execute_interface *execute =
       calloc(1, sizeof(struct execute_interface));
   execute->run = run;
+  execute->running = running;
   return execute;
 }
 

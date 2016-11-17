@@ -79,8 +79,7 @@ void sh4_intc_reprioritize(struct sh4 *sh4);
 
 struct sh4 *sh4_create(struct dreamcast *dc);
 void sh4_destroy(struct sh4 *sh);
-
-void sh4_set_pc(struct sh4 *sh4, uint32_t pc);
+void sh4_reset(struct sh4 *sh4, uint32_t pc);
 void sh4_raise_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
 void sh4_clear_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
 void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr);
