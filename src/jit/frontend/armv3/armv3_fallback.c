@@ -159,7 +159,10 @@ static void armv3_fallback_shift(const struct armv3_context *ctx,
   }
 }
 
-static inline void armv3_fallback_parse_shift(struct armv3_context *ctx, uint32_t addr, uint32_t reg, uint32_t shift, uint32_t *value, uint32_t *carry) {
+static inline void armv3_fallback_parse_shift(struct armv3_context *ctx,
+                                              uint32_t addr, uint32_t reg,
+                                              uint32_t shift, uint32_t *value,
+                                              uint32_t *carry) {
   enum armv3_shift_source src;
   enum armv3_shift_type type;
   uint32_t n;
@@ -184,8 +187,7 @@ static inline void armv3_fallback_parse_shift(struct armv3_context *ctx, uint32_
 }
 
 static inline uint32_t armv3_fallback_load_rn(struct armv3_context *ctx,
-                                              uint32_t addr,
-                                              int rn) {
+                                              uint32_t addr, int rn) {
   if (rn == 15) {
     /* account for instruction prefetching if loading the pc */
     return addr + 8;
@@ -195,8 +197,7 @@ static inline uint32_t armv3_fallback_load_rn(struct armv3_context *ctx,
 }
 
 static inline uint32_t armv3_fallback_load_rd(struct armv3_context *ctx,
-                                              uint32_t addr,
-                                              int rd) {
+                                              uint32_t addr, int rd) {
   if (rd == 15) {
     /* account for instruction prefetching if loading the pc */
     return addr + 12;
@@ -274,7 +275,8 @@ static inline void armv3_fallback_parse_op2(struct armv3_context *ctx,
     }
   } else {
     /* op2 is as shifted register */
-    armv3_fallback_parse_shift(ctx, addr, i.data_reg.rm, i.data_reg.shift, value, carry);
+    armv3_fallback_parse_shift(ctx, addr, i.data_reg.rm, i.data_reg.shift,
+                               value, carry);
   }
 }
 
@@ -616,7 +618,8 @@ static inline void armv3_fallback_memop(struct armv3_guest *guest,
   uint32_t offset = 0;
   if (i.xfr.i) {
     uint32_t carry;
-    armv3_fallback_parse_shift(guest->ctx, addr, i.xfr_reg.rm, i.xfr_reg.shift, &offset, &carry);
+    armv3_fallback_parse_shift(guest->ctx, addr, i.xfr_reg.rm, i.xfr_reg.shift,
+                               &offset, &carry);
   } else {
     offset = i.xfr_imm.imm;
   }

@@ -100,7 +100,8 @@ void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value) {
   }
 }
 
-struct execute_interface *dc_create_execute_interface(device_run_cb run, int running) {
+struct execute_interface *dc_create_execute_interface(device_run_cb run,
+                                                      int running) {
   struct execute_interface *execute =
       calloc(1, sizeof(struct execute_interface));
   execute->run = run;
