@@ -4,17 +4,25 @@
 #include <stdint.h>
 
 // interrupts
-#define AICA_INT_INTON 0x1
-#define AICA_INT_RES1 0x2
-#define AICA_INT_RES2 0x4
-#define AICA_INT_MIDI_IN 0x8
-#define AICA_INT_DMA_END 0x10
-#define AICA_INT_DATA 0x20
-#define AICA_INT_TIMER_A 0x40
-#define AICA_INT_TIMER_B 0x80
-#define AICA_INT_TIMER_C 0x100
-#define AICA_INT_MIDI_OUT 0x200
-#define AICA_INT_SAMPLE 0x400
+enum {
+  AICA_INT_INTON,
+  AICA_INT_RES1,
+  AICA_INT_RES2,
+  AICA_INT_MIDI_IN,
+  AICA_INT_DMA_END,
+  AICA_INT_DATA,
+  AICA_INT_TIMER_A,
+  AICA_INT_TIMER_B,
+  AICA_INT_TIMER_C,
+  AICA_INT_MIDI_OUT,
+  AICA_INT_SAMPLE,
+  NUM_AICA_INT,
+};
+
+// audio modes
+#define AICA_MODE_16BIT 0
+#define AICA_MODE_8BIT 1
+#define AICA_MODE_ADPCM 3
 
 struct channel_data {
   // 0x0
@@ -279,26 +287,12 @@ struct common_data {
   uint8_t padding2[0xfc];
 
   // 0x500
-  uint32_t L0 : 1;
-  uint32_t L1 : 1;
-  uint32_t L2 : 1;
-  uint32_t L3 : 1;
-  uint32_t L4 : 1;
-  uint32_t L5 : 1;
-  uint32_t L6 : 1;
-  uint32_t L7 : 1;
+  uint32_t L : 8;
   uint32_t : 8;
   uint32_t : 16;
 
   // 0x504
-  uint32_t M0 : 1;
-  uint32_t M1 : 1;
-  uint32_t M2 : 1;
-  uint32_t M3 : 1;
-  uint32_t M4 : 1;
-  uint32_t M5 : 1;
-  uint32_t M6 : 1;
-  uint32_t M7 : 1;
+  uint32_t M : 8;
   uint32_t RP : 1;
   uint32_t : 7;
   uint32_t : 16;

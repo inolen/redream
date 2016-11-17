@@ -18,7 +18,7 @@ DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
 
 struct aica_channel {
   struct channel_data *data;
-  uint8_t *start;
+  int active;
 };
 
 struct aica {
@@ -27,6 +27,9 @@ struct aica {
   uint8_t *wave_ram;
   /* reset state */
   int arm_resetting;
+  /* interrupts */
+  uint32_t arm_irq_l;
+  uint32_t arm_irq_m;
   /* timers */
   struct timer *timers[3];
   /* real-time clock */
@@ -42,16 +45,56 @@ struct aica {
  * interrupts
  */
 static void aica_raise_interrupt(struct aica *aica, int intr) {
-  aica->common_data->MCIPD |= intr;
-  aica->common_data->SCIPD |= intr;
+  aica->common_data->MCIPD |= (1 << intr);
+  aica->common_data->SCIPD |= (1 << intr);
 }
 
 static void aica_clear_interrupt(struct aica *aica, int intr) {
-  aica->common_data->MCIPD &= ~intr;
-  aica->common_data->SCIPD &= ~intr;
+  aica->common_data->MCIPD &= ~(1 << intr);
+  aica->common_data->SCIPD &= ~(1 << intr);
 }
 
-static void aica_update_arm(struct aica *aica) {}
+static uint32_t aica_encode_arm_irq_l(struct aica *aica, uint32_t intr) {
+  uint32_t l = 0;
+
+  /* interrupts past 7 share the same bit */
+  intr = MIN(intr, 7);
+
+  if (aica->common_data->SCILV0 & (1 << intr)) {
+    l |= 1;
+  }
+
+  if (aica->common_data->SCILV1 & (1 << intr)) {
+    l |= 2;
+  }
+
+  if (aica->common_data->SCILV2 & (1 << intr)) {
+    l |= 4;
+  }
+
+  return l;
+}
+
+static void aica_update_arm(struct aica *aica) {
+  uint32_t enabled_intr = aica->common_data->SCIEB;
+  uint32_t pending_intr = aica->common_data->SCIPD & enabled_intr;
+
+  aica->arm_irq_l = 0;
+
+  if (pending_intr) {
+    for (uint32_t i = 0; i < NUM_AICA_INT; i++) {
+      if (pending_intr & (1 << i)) {
+        aica->arm_irq_l = aica_encode_arm_irq_l(aica, i);
+        break;
+      }
+    }
+  }
+
+  if (aica->arm_irq_l) {
+    /* FIQ handler will load L from common data to check interrupt type */
+    arm7_raise_interrupt(aica->arm, ARM7_INT_FIQ);
+  }
+}
 
 static void aica_update_sh(struct aica *aica) {
   uint32_t enabled_intr = aica->common_data->MCIEB;
@@ -192,16 +235,16 @@ static void aica_rtc_timer(void *data) {
 static void aica_rtc_shutdown(struct aica *aica) {
   scheduler_cancel_timer(aica->scheduler, aica->rtc_timer);
 
-  // persist clock
+  /* persist clock */
   OPTION_rtc = *(int *)&aica->rtc;
 }
 
 static void aica_rtc_init(struct aica *aica) {
-  // seed clock from persistant options
+  /* seed clock from persistant options */
   CHECK(sizeof(aica->rtc) <= sizeof(OPTION_rtc));
   aica->rtc = *(uint32_t *)&OPTION_rtc;
 
-  // increment clock every second
+  /* increment clock every second */
   aica->rtc_timer =
       scheduler_start_timer(aica->scheduler, &aica_rtc_timer, aica, NS_PER_SEC);
 }
@@ -210,14 +253,23 @@ static void aica_rtc_init(struct aica *aica) {
  * channels
  */
 static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
-  CHECK_EQ(ch->data->KYONB, 1);
+  if (ch->active) {
+    return;
+  }
 
-  uint32_t start_addr = (ch->data->SA_hi << 16) | ch->data->SA_lo;
-  ch->start = &aica->wave_ram[start_addr];
+  ch->active = 1;
+
+  LOG_INFO("aica_channel_start %d", ch - aica->channels);
 }
 
 static void aica_channel_stop(struct aica *aica, struct aica_channel *ch) {
-  CHECK_EQ(ch->data->KYONB, 0);
+  if (!ch->active) {
+    return;
+  }
+
+  ch->active = 0;
+
+  LOG_INFO("aica_channel_stop %d", ch - aica->channels);
 }
 
 static void aica_channel_update_key_state(struct aica *aica,
@@ -226,7 +278,7 @@ static void aica_channel_update_key_state(struct aica *aica,
     return;
   }
 
-  // modifying KYONEX for any channel will update the key state for all channels
+  /* modifying KYONEX for any channel will update the key state for all */
   for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
     struct aica_channel *ch2 = &aica->channels[i];
 
@@ -237,24 +289,21 @@ static void aica_channel_update_key_state(struct aica *aica,
     }
   }
 
-  // register is read only
+  /* register is read only */
   ch->data->KYONEX = 0;
 }
 
-static void aica_step_channel(struct aica *aica, struct aica_channel *ch) {
-  if (!ch->data->KYONB) {
+static void aica_channel_step(struct aica *aica, struct aica_channel *ch) {
+  if (!ch->active) {
     return;
   }
-
-  LOG_FATAL("STEP CHANNEL %d", ch - aica->channels);
 }
 
 static void aica_generate_samples(struct aica *aica, int samples) {
   for (int i = 0; i < samples; i++) {
     for (int j = 0; j < AICA_NUM_CHANNELS; j++) {
       struct aica_channel *ch = &aica->channels[j];
-
-      aica_step_channel(aica, ch);
+      aica_channel_step(aica, ch);
     }
   }
 }
@@ -265,7 +314,7 @@ static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
   addr &= 0x7f;
   struct aica_channel *ch = &aica->channels[n];
 
-  return READ_DATA(&ch->data[addr]);
+  return READ_DATA((uint8_t *)ch->data + addr);
 }
 
 static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
@@ -274,11 +323,12 @@ static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
   addr &= 0x7f;
   struct aica_channel *ch = &aica->channels[n];
 
-  WRITE_DATA(&ch->data[addr]);
+  WRITE_DATA((uint8_t *)ch->data + addr);
 
   switch (addr) {
-    case 0x0:
+    case 0x0: /* SA_hi, KYONB, SA_lo */
     case 0x1:
+    case 0x4:
       aica_channel_update_key_state(aica, ch);
       break;
   }
@@ -287,32 +337,42 @@ static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
 static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
                                      uint32_t data_mask) {
   switch (addr) {
-    case 0x90: /* TIMA */
-      return (aica_timer_tctl(aica, 0) << 8) | aica_timer_tcnt(aica, 0);
-    case 0x94: /* TIMB */
-      return (aica_timer_tctl(aica, 1) << 8) | aica_timer_tcnt(aica, 1);
-    case 0x98: /* TIMC */
-      return (aica_timer_tctl(aica, 2) << 8) | aica_timer_tcnt(aica, 2);
+    case 0x90: { /* TIMA */
+      aica->common_data->TIMA =
+          (aica_timer_tctl(aica, 0) << 8) | aica_timer_tcnt(aica, 0);
+    } break;
+    case 0x94: { /* TIMB */
+      aica->common_data->TIMB =
+          (aica_timer_tctl(aica, 1) << 8) | aica_timer_tcnt(aica, 1);
+    } break;
+    case 0x98: { /* TIMC */
+      aica->common_data->TIMC =
+          (aica_timer_tctl(aica, 2) << 8) | aica_timer_tcnt(aica, 2);
+    } break;
+    case 0x500: { /* L0-9 */
+      aica->common_data->L = aica->arm_irq_l;
+    } break;
+    case 0x504: { /* M0-9 */
+      aica->common_data->M = aica->arm_irq_m;
+    } break;
   }
-  return READ_DATA(&aica->reg_ram[0x2800 + addr]);
+
+  return READ_DATA((uint8_t *)aica->common_data + addr);
 }
 
 static void aica_common_reg_write(struct aica *aica, uint32_t addr,
                                   uint32_t data, uint32_t data_mask) {
-  WRITE_DATA(&aica->reg_ram[addr]);
+  WRITE_DATA((uint8_t *)aica->common_data + addr);
 
   switch (addr) {
     case 0x90: { /* TIMA */
-      aica_timer_reschedule(aica, 0,
-                            AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 0));
+      aica_timer_reschedule(aica, 0, AICA_TIMER_PERIOD - data);
     } break;
     case 0x94: { /* TIMB */
-      aica_timer_reschedule(aica, 1,
-                            AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 1));
+      aica_timer_reschedule(aica, 1, AICA_TIMER_PERIOD - data);
     } break;
     case 0x98: { /* TIMC */
-      aica_timer_reschedule(aica, 2,
-                            AICA_TIMER_PERIOD - aica_timer_tcnt(aica, 2));
+      aica_timer_reschedule(aica, 2, AICA_TIMER_PERIOD - data);
     } break;
     case 0x9c:
     case 0x9d:
@@ -349,6 +409,13 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
         arm7_reset(aica->arm);
       }
     } break;
+    case 0x500: { /* L0-9 */
+      /* nop */
+    } break;
+    case 0x504: { /* M0-9 */
+      /* TODO run interrupt callbacks? */
+      aica->arm_irq_m = data;
+    } break;
   }
 }
 
@@ -382,37 +449,6 @@ void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
   WRITE_DATA(&aica->reg_ram[addr]);
 }
 
-uint32_t aica_wave_read(struct aica *aica, uint32_t addr, uint32_t data_mask) {
-  if (DATA_SIZE() == 4) {
-    // FIXME temp hacks to get Crazy Taxi 1 booting
-    if (addr == 0x104 || addr == 0x284 || addr == 0x288) {
-      return 0x54494e49;
-    }
-    // FIXME temp hacks to get Crazy Taxi 2 booting
-    if (addr == 0x5c) {
-      return 0x54494e49;
-    }
-    // FIXME temp hacks to get PoP booting
-    if (addr == 0xb200 || addr == 0xb210 || addr == 0xb220 || addr == 0xb230 ||
-        addr == 0xb240 || addr == 0xb250 || addr == 0xb260 || addr == 0xb270 ||
-        addr == 0xb280 || addr == 0xb290 || addr == 0xb2a0 || addr == 0xb2b0 ||
-        addr == 0xb2c0 || addr == 0xb2d0 || addr == 0xb2e0 || addr == 0xb2f0 ||
-        addr == 0xb300 || addr == 0xb310 || addr == 0xb320 || addr == 0xb330 ||
-        addr == 0xb340 || addr == 0xb350 || addr == 0xb360 || addr == 0xb370 ||
-        addr == 0xb380 || addr == 0xb390 || addr == 0xb3a0 || addr == 0xb3b0 ||
-        addr == 0xb3c0 || addr == 0xb3d0 || addr == 0xb3e0 || addr == 0xb3f0) {
-      return 0x0;
-    }
-  }
-
-  return READ_DATA(&aica->wave_ram[addr]);
-}
-
-void aica_wave_write(struct aica *aica, uint32_t addr, uint32_t data,
-                     uint32_t data_mask) {
-  WRITE_DATA(&aica->wave_ram[addr]);
-}
-
 /*
  * device
  */
@@ -424,7 +460,6 @@ static void aica_run(struct device *dev, int64_t ns) {
   aica_generate_samples(aica, samples);
 
   aica_raise_interrupt(aica, AICA_INT_SAMPLE);
-
   aica_update_arm(aica);
   aica_update_sh(aica);
 }
@@ -479,8 +514,5 @@ AM_END();
 
 AM_BEGIN(struct aica, aica_data_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("aica wave ram")
-  AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("aica wave",
-                                             (mmio_read_cb)&aica_wave_read,
-                                             (mmio_write_cb)&aica_wave_write)
 AM_END();
 // clang-format on
