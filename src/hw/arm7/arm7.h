@@ -6,9 +6,7 @@
 struct arm7;
 struct dreamcast;
 
-enum arm7_interrupt {
-  ARM7_INT_FIQ = 0x1
-};
+enum arm7_interrupt { ARM7_INT_FIQ = 0x1 };
 
 AM_DECLARE(arm7_data_map);
 
