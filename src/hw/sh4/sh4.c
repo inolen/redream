@@ -210,7 +210,9 @@ static inline code_pointer_t sh4_get_code(struct sh4 *sh4, uint32_t addr) {
   return sh4->jit->code[offset];
 }
 
-static void sh4_run_inner(struct device *dev, int64_t ns) {
+void sh4_run(struct device *dev, int64_t ns) {
+  PROF_ENTER("cpu", "sh4_run");
+
   struct sh4 *sh4 = (struct sh4 *)dev;
 
   /* execute at least 1 cycle. the tests rely on this to step block by block */
@@ -248,14 +250,8 @@ static void sh4_run_inner(struct device *dev, int64_t ns) {
     sh4->last_mips_time = now;
     sh4->ctx.num_instrs = 0;
   }
-}
 
-void sh4_run(struct device *dev, int64_t ns) {
-  prof_enter("sh4_run");
-
-  sh4_run_inner(dev, ns);
-
-  prof_leave();
+  PROF_LEAVE();
 }
 
 void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data) {

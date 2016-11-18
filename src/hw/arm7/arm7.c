@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "hw/arm7/arm7.h"
 #include "core/log.h"
+#include "core/profiler.h"
 #include "hw/aica/aica.h"
 #include "hw/dreamcast.h"
 #include "hw/scheduler.h"
@@ -150,6 +151,8 @@ static inline code_pointer_t arm7_get_code(struct arm7 *arm, uint32_t addr) {
 }
 
 static void arm7_run(struct device *dev, int64_t ns) {
+  PROF_ENTER("cpu", "arm7_run");
+
   struct arm7 *arm = (struct arm7 *)dev;
 
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ), INT64_C(1));
@@ -165,6 +168,8 @@ static void arm7_run(struct device *dev, int64_t ns) {
   }
 
   g_arm = NULL;
+
+  PROF_LEAVE();
 }
 
 static bool arm7_init(struct device *dev) {
