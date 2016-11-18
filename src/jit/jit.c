@@ -278,9 +278,9 @@ void jit_clear_blocks(struct jit *jit) {
 
 code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
                                 int flags) {
-  prof_enter("jit_compile_code");
+  PROF_ENTER("cpu", "jit_compile_code");
   code_pointer_t code = jit_compile_code_inner(jit, guest_addr, flags);
-  prof_leave();
+  PROF_LEAVE();
   return code;
 }
 

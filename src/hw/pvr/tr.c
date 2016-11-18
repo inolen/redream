@@ -1014,7 +1014,7 @@ static void tr_parse_context_inner(struct tr *tr, const struct tile_ctx *ctx,
 
 void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
                       struct render_ctx *rctx) {
-  PROF_ENTER("tr_parse_context");
+  PROF_ENTER("gpu", "tr_parse_context");
 
   tr_parse_context_inner(tr, ctx, frame, rctx);
 
@@ -1036,7 +1036,7 @@ static void tr_render_context_inner(struct tr *tr,
 }
 
 void tr_render_context(struct tr *tr, const struct render_ctx *ctx) {
-  PROF_ENTER("tr_render_context");
+  PROF_ENTER("gpu", "tr_render_context");
 
   tr_render_context_inner(tr, ctx);
 

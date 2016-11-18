@@ -270,13 +270,12 @@ struct microprofile *mp_create(struct window *window) {
   // init microprofile
   struct video_backend *video = mp->window->video;
 
-  // register and enable gpu and runtime group by default
+  // register and enable cpu and gpu groups by default
+  uint16_t cpu_group = MicroProfileGetGroup("cpu", MicroProfileTokenTypeCpu);
+  g_MicroProfile.nActiveGroupWanted |= 1ll << cpu_group;
+
   uint16_t gpu_group = MicroProfileGetGroup("gpu", MicroProfileTokenTypeCpu);
   g_MicroProfile.nActiveGroupWanted |= 1ll << gpu_group;
-
-  uint16_t runtime_group =
-      MicroProfileGetGroup("runtime", MicroProfileTokenTypeCpu);
-  g_MicroProfile.nActiveGroupWanted |= 1ll << runtime_group;
 
   // render time / average time bars by default
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
