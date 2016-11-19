@@ -8,7 +8,7 @@ include(CheckFunctionExists)
 include(ExternalProject)
 include(SourceGroupByDir)
 
-if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Release")
   set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
@@ -22,11 +22,33 @@ endif()
 
 project(redream ${REDREAM_LANGUAGES})
 
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
+
 # export compile_commands.json for clang-tidy
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 11)
+#--------------------------------------------------
+# configuration options
+#--------------------------------------------------
+
+option(PERFMAP "Generate perf-compatible maps for generated code" OFF)
+
+if(WIN32)
+  set(PLATFORM_WINDOWS TRUE)
+elseif(APPLE)
+  set(PLATFORM_DARWIN TRUE)
+elseif(UNIX)
+  set(PLATFORM_LINUX TRUE)
+endif()
+
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+  set(COMPILER_MSVC TRUE)
+elseif("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
+  set(COMPILER_CLANG TRUE)
+elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+  set(COMPILER_GCC TRUE)
+endif()
 
 #--------------------------------------------------
 # config file
@@ -121,6 +143,7 @@ file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.c" "src/*.cc" "src/*.h" "test/*.c" "t
 add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -i ${CLANG_FORMAT_ARGS})
 endif()
 
+
 #--------------------------------------------------
 # tidy
 #--------------------------------------------------
@@ -131,6 +154,7 @@ file(GLOB_RECURSE CLANG_TIDY_ARGS "src/*.cc" "test/*.cc")
 
 add_custom_target(tidy ${CLANG_TIDY_EXECUTABLE} -p=${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json -checks=-*,readability-* ${CLANG_TIDY_ARGS})
 endif()
+
 
 #--------------------------------------------------
 # emulator
@@ -203,21 +227,21 @@ set(REDREAM_SOURCES
   src/video/gl_backend.c
   src/main.c)
 
-if(WIN32)
+if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
   list(APPEND REDREAM_SOURCES src/sys/exception_handler_win.c)
   list(APPEND REDREAM_SOURCES src/sys/filesystem_win.c)
   list(APPEND REDREAM_SOURCES src/sys/memory_win.c)
   list(APPEND REDREAM_SOURCES src/sys/thread_win.c)
   list(APPEND REDREAM_SOURCES src/sys/time_win.c)
-elseif(APPLE)
+elseif(PLATFORM_DARWIN)
   list(APPEND REDREAM_DEFS PLATFORM_DARWIN=1)
   list(APPEND REDREAM_SOURCES src/sys/exception_handler_mac.c)
   list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.c)
   list(APPEND REDREAM_SOURCES src/sys/memory_posix.c)
   list(APPEND REDREAM_SOURCES src/sys/thread_posix.c)
   list(APPEND REDREAM_SOURCES src/sys/time_mac.c)
-else()
+elseif(PLATFORM_LINUX)
   list(APPEND REDREAM_DEFS PLATFORM_LINUX=1)
   list(APPEND REDREAM_SOURCES src/sys/exception_handler_linux.c)
   list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.c)
@@ -226,24 +250,23 @@ else()
   list(APPEND REDREAM_SOURCES src/sys/time_linux.c)
 endif()
 
-
 # assign source groups for visual studio projects
 source_group_by_dir(REDREAM_SOURCES)
 
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
-  set(REDREAM_COMPILE_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+if(COMPILER_GCC OR COMPILER_CLANG)
+  list(APPEND REDREAM_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
-  # some flavors of GCC require this to be defined for the PR* macros in inttypes.h
-  if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-    set(REDREAM_COMPILE_FLAGS ${REDREAM_COMPILE_FLAGS} -D__STDC_FORMAT_MACROS)
+  # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
+  if(COMPILER_GCC)
+    list(APPEND REDREAM_FLAGS ${REDREAM_FLAGS} -D__STDC_FORMAT_MACROS)
   endif()
 
   # used by shm_open / shm_unlink on linux
-  if(NOT WIN32 AND NOT APPLE)
+  if(PLATFORM_LINUX)
     list(APPEND REDREAM_LIBS rt)
   endif()
-else()
-  set(REDREAM_COMPILE_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /bigobj /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+elseif(COMPILER_MSVC)
+  list(APPEND REDREAM_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /bigobj /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 
   list(APPEND REDREAM_LIBS userenv ws2_32)
 endif()
@@ -253,7 +276,7 @@ target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream ${REDREAM_LIBS})
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
-target_compile_options(redream PRIVATE ${REDREAM_COMPILE_FLAGS})
+target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 if(APPLE)
   add_executable(bundle MACOSX_BUNDLE ${REDREAM_SOURCES})

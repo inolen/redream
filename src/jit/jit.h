@@ -1,6 +1,7 @@
 #ifndef JIT_H
 #define JIT_H
 
+#include <stdio.h>
 #include "core/rb_tree.h"
 
 struct address_space;
@@ -22,12 +23,12 @@ struct jit_block {
 };
 
 struct jit_guest {
-  // used by the jit to map guest addresses to block offsets
+  /* used by the jit to map guest addresses to block offsets */
   uint32_t block_mask;
   uint32_t block_shift;
   int block_max;
 
-  // used by the backend
+  /* used by the backend */
   void *ctx_base;
   void *mem_base;
   struct address_space *mem_self;
@@ -45,17 +46,23 @@ struct jit {
   struct jit_guest guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
-
   struct exception_handler *exc_handler;
 
   code_pointer_t default_code;
   code_pointer_t *code;
-
   struct rb_tree blocks;
   struct rb_tree reverse_blocks;
 
   uint8_t ir_buffer[1024 * 1024];
+
+  char perf_tag[32];
+  FILE *perf_map;
 };
+
+struct jit *jit_create(struct jit_guest *guest, struct jit_frontend *frontend,
+                       struct jit_backend *backend, code_pointer_t default_code,
+                       const char *tag);
+void jit_destroy(struct jit *jit);
 
 struct jit_block *jit_get_block(struct jit *cache, uint32_t guest_addr);
 void jit_remove_blocks(struct jit *jit, uint32_t guest_addr);
@@ -64,10 +71,5 @@ void jit_clear_blocks(struct jit *jit);
 
 code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
                                 int flags);
-
-struct jit *jit_create(struct jit_guest *guest, struct jit_frontend *frontend,
-                       struct jit_backend *backend,
-                       code_pointer_t default_code);
-void jit_destroy(struct jit *jit);
 
 #endif
