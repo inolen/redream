@@ -111,14 +111,6 @@ const int x64_num_registers =
     sizeof(x64_registers) / sizeof(struct jit_register);
 
 //
-// x64 code buffer. this will break down if running two instances of the x64
-// backend, but it's extremely useful when profiling to group JITd blocks of
-// code with an actual symbol name
-//
-static const size_t x64_code_size = 1024 * 1024 * 32;
-static uint8_t x64_code[x64_code_size];
-
-//
 // x64 emitters for each ir op
 //
 struct x64_backend;
@@ -1659,20 +1651,10 @@ struct jit_backend *x64_backend_create(const struct jit_guest *guest) {
   backend->base.handle_exception = &x64_backend_handle_exception;
 
   backend->guest = guest;
-
-  backend->codegen = new Xbyak::CodeGenerator(x64_code_size, x64_code);
-  Xbyak::CodeArray::protect(x64_code, x64_code_size, true);
+  backend->codegen = new Xbyak::CodeGenerator(1024 * 1024 * 8);
 
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
-
-  // make the code buffer executable
-  int page_size = (int)get_page_size();
-  void *aligned_code = (void *)align_down((intptr_t)x64_code, page_size);
-  int aligned_code_size = align_up(x64_code_size, page_size);
-  bool success =
-      protect_pages(aligned_code, aligned_code_size, ACC_READWRITEEXEC);
-  CHECK(success);
 
   // do an initial reset to emit constants and thinks
   x64_backend_reset((jit_backend *)backend);

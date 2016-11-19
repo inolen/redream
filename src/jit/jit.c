@@ -1,19 +1,22 @@
+#include <inttypes.h>
+#include <unistd.h>
 #include "jit/jit.h"
 #include "core/core.h"
+#include "core/option.h"
 #include "core/profiler.h"
 #include "jit/backend/backend.h"
 #include "jit/frontend/frontend.h"
 #include "jit/ir/ir.h"
-// #include "jit/ir/passes/constant_propagation_pass.h"
-// #include "jit/ir/passes/conversion_elimination_pass.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/register_allocation_pass.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 
-#define BLOCK_OFFSET(addr) \
-  ((addr & jit->guest.block_mask) >> jit->guest.block_shift)
+DEFINE_OPTION_BOOL(perf, false,
+                   "Generate perf-compatible maps for genrated code");
+
+static bool jit_handle_exception(void *data, struct exception *ex);
 
 static int block_map_cmp(const struct rb_node *rb_lhs,
                          const struct rb_node *rb_rhs) {
@@ -55,8 +58,60 @@ static struct rb_callbacks reverse_block_map_cb = {
     &reverse_block_map_cmp, NULL, NULL,
 };
 
+struct jit *jit_create(struct jit_guest *guest, struct jit_frontend *frontend,
+                       struct jit_backend *backend, code_pointer_t default_code,
+                       const char *perf_tag) {
+  struct jit *jit = calloc(1, sizeof(struct jit));
+
+  jit->guest = *guest;
+  jit->frontend = frontend;
+  jit->backend = backend;
+
+  /* add handler to recompile blocks when protected memory is accessed */
+  jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
+
+  /* initialize all entries to reference the default block */
+  jit->default_code = default_code;
+  jit->code = malloc(jit->guest.block_max * sizeof(struct jit_block));
+  for (int i = 0; i < jit->guest.block_max; i++) {
+    jit->code[i] = default_code;
+  }
+
+  /* open up perf map if enabled */
+  if (OPTION_perf) {
+#if PLATFORM_DARWIN || PLATFORM_LINUX
+    strncpy(jit->perf_tag, perf_tag, sizeof(jit->perf_tag));
+
+    char perf_map_path[PATH_MAX];
+    snprintf(perf_map_path, sizeof(perf_map_path), "/tmp/perf-%d.map",
+             getpid());
+    jit->perf_map = fopen(perf_map_path, "a");
+    CHECK_NOTNULL(jit->perf_map);
+#endif
+  }
+
+  return jit;
+}
+
+void jit_destroy(struct jit *jit) {
+  if (OPTION_perf) {
+    if (jit->perf_map) {
+      fclose(jit->perf_map);
+    }
+  }
+  jit_clear_blocks(jit);
+  free(jit->code);
+  exception_handler_remove(jit->exc_handler);
+  free(jit);
+}
+
+static inline int jit_block_offset(struct jit *jit, uint32_t addr) {
+  return (addr & jit->guest.block_mask) >> jit->guest.block_shift;
+}
+
 static void jit_unlink_block(struct jit *jit, struct jit_block *block) {
-  jit->code[BLOCK_OFFSET(block->guest_addr)] = jit->default_code;
+  int code_idx = jit_block_offset(jit, block->guest_addr);
+  jit->code[code_idx] = jit->default_code;
 }
 
 static void jit_remove_block(struct jit *jit, struct jit_block *block) {
@@ -70,7 +125,7 @@ static void jit_remove_block(struct jit *jit, struct jit_block *block) {
 
 static struct jit_block *jit_lookup_block(struct jit *jit,
                                           uint32_t guest_addr) {
-  // find the first block who's address is greater than guest_addr
+  /* find the first block who's address is greater than guest_addr */
   struct jit_block search;
   search.guest_addr = guest_addr;
 
@@ -78,13 +133,12 @@ static struct jit_block *jit_lookup_block(struct jit *jit,
   struct rb_node *last = rb_last(&jit->blocks);
   struct rb_node *it = rb_upper_bound(&jit->blocks, &search.it, &block_map_cb);
 
-  // if all addresses are greater than guest_addr, there is no block
-  // for this address
+  /* if all addresses are greater than guest_addr, there is no block */
   if (it == first) {
     return NULL;
   }
 
-  // the actual block is the previous one
+  /* the actual block is the previous one */
   it = it ? rb_prev(it) : last;
 
   struct jit_block *block = container_of(it, struct jit_block, it);
@@ -111,43 +165,79 @@ static struct jit_block *jit_lookup_block_reverse(struct jit *jit,
   return block;
 }
 
-static bool jit_handle_exception(void *data, struct exception *ex) {
-  struct jit *jit = data;
+struct jit_block *jit_get_block(struct jit *jit, uint32_t guest_addr) {
+  struct jit_block search;
+  search.guest_addr = guest_addr;
 
-  // see if there is an assembled block corresponding to the current pc
-  struct jit_block *block =
-      jit_lookup_block_reverse(jit, (const uint8_t *)ex->pc);
-
-  if (!block) {
-    return false;
-  }
-
-  // let the backend attempt to handle the exception
-  if (!jit->backend->handle_exception(jit->backend, ex)) {
-    return false;
-  }
-
-  // exception was handled, unlink the code pointer and flag the block to be
-  // recompiled without fastmem optimizations on the next access. note, the
-  // block can't be removed from the lookup maps at this point because it's
-  // still executing and may trigger subsequent exceptions
-  jit_unlink_block(jit, block);
-
-  block->flags |= JIT_SLOWMEM;
-
-  return true;
+  return rb_find_entry(&jit->blocks, &search, struct jit_block, it,
+                       &block_map_cb);
 }
 
-static code_pointer_t jit_compile_code_inner(struct jit *jit,
-                                             uint32_t guest_addr, int flags) {
-  code_pointer_t *code = &jit->code[BLOCK_OFFSET(guest_addr)];
+void jit_remove_blocks(struct jit *jit, uint32_t guest_addr) {
+  /* remove any block which overlaps the address */
+  while (1) {
+    struct jit_block *block = jit_lookup_block(jit, guest_addr);
 
-  // make sure there's not a valid code pointer
+    if (!block) {
+      break;
+    }
+
+    jit_remove_block(jit, block);
+  }
+}
+
+void jit_unlink_blocks(struct jit *jit) {
+  /*
+   * unlink all code pointers, but don't remove the block entries. this is used
+   * when clearing the jit while code is currently executing
+   */
+  struct rb_node *it = rb_first(&jit->blocks);
+
+  while (it) {
+    struct rb_node *next = rb_next(it);
+
+    struct jit_block *block = container_of(it, struct jit_block, it);
+    jit_unlink_block(jit, block);
+
+    it = next;
+  }
+}
+
+void jit_clear_blocks(struct jit *jit) {
+  /*
+   * unlink all code pointers and remove all block entries. this is only safe
+   * to use when no code is currently executing
+   */
+  struct rb_node *it = rb_first(&jit->blocks);
+
+  while (it) {
+    struct rb_node *next = rb_next(it);
+
+    struct jit_block *block = container_of(it, struct jit_block, it);
+    jit_remove_block(jit, block);
+
+    it = next;
+  }
+
+  /* have the backend reset its codegen buffers as well */
+  jit->backend->reset(jit->backend);
+}
+
+code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
+                                int flags) {
+  PROF_ENTER("cpu", "jit_compile_code");
+
+  int code_idx = jit_block_offset(jit, guest_addr);
+  code_pointer_t *code = &jit->code[code_idx];
+
+  /* make sure there's not a valid code pointer */
   CHECK_EQ(*code, jit->default_code);
 
-  // if the block being compiled had previously been unlinked by a
-  // fastmem exception, reuse the block's flags and finish removing
-  // it at this time;
+  /*
+   * if the block being compiled had previously been unlinked by a
+   * fastmem exception, reuse the block's flags and finish removing
+   * it at this time
+   */
   struct jit_block search;
   search.guest_addr = guest_addr;
 
@@ -160,7 +250,7 @@ static code_pointer_t jit_compile_code_inner(struct jit *jit,
     jit_remove_block(jit, unlinked);
   }
 
-  // translate the source machine code into IR
+  /* translate the source machine code into ir */
   struct ir ir = {0};
   ir.buffer = jit->ir_buffer;
   ir.capacity = sizeof(jit->ir_buffer);
@@ -183,30 +273,29 @@ static code_pointer_t jit_compile_code_inner(struct jit *jit,
   builder.Dump(output);
 #endif
 
-  // run optimization passes
+  /* run optimization passes */
   lse_run(&ir);
   dce_run(&ir);
   ra_run(&ir, jit->backend->registers, jit->backend->num_registers);
 
-  // assemble the IR into native code
+  /* assemble the ir into native code */
   int host_size = 0;
   const uint8_t *host_addr =
       jit->backend->assemble_code(jit->backend, &ir, &host_size);
 
   if (!host_addr) {
-    LOG_INFO("Assembler overflow, resetting block jit");
+    LOG_INFO("backend overflow, resetting code cache");
 
-    // the backend overflowed, completely clear the block jit
+    /* the backend overflowed, completely clear the code cache */
     jit_clear_blocks(jit);
 
-    // if the backend fails to assemble on an empty jit, there's nothing to be
-    // done
+    /* if the backend fails to assemble on an empty cache, abort */
     host_addr = jit->backend->assemble_code(jit->backend, &ir, &host_size);
 
     CHECK(host_addr, "Backend assembler buffer overflow");
   }
 
-  // allocate the new block
+  /* allocate the new block */
   struct jit_block *block = calloc(1, sizeof(struct jit_block));
   block->host_addr = host_addr;
   block->host_size = host_size;
@@ -216,101 +305,44 @@ static code_pointer_t jit_compile_code_inner(struct jit *jit,
   rb_insert(&jit->blocks, &block->it, &block_map_cb);
   rb_insert(&jit->reverse_blocks, &block->rit, &reverse_block_map_cb);
 
-  // update code pointer
+  /* update code pointer */
   *code = (code_pointer_t)block->host_addr;
+
+  if (OPTION_perf) {
+    fprintf(jit->perf_map, "%" PRIx64 " %x %s_0x%08x\n", (uintptr_t)host_addr,
+            host_size, jit->perf_tag, guest_addr);
+  }
+
+  PROF_LEAVE();
 
   return *code;
 }
 
-struct jit_block *jit_get_block(struct jit *jit, uint32_t guest_addr) {
-  struct jit_block search;
-  search.guest_addr = guest_addr;
+static bool jit_handle_exception(void *data, struct exception *ex) {
+  struct jit *jit = data;
 
-  return rb_find_entry(&jit->blocks, &search, struct jit_block, it,
-                       &block_map_cb);
-}
+  /* see if there is an assembled block corresponding to the current pc */
+  struct jit_block *block =
+      jit_lookup_block_reverse(jit, (const uint8_t *)ex->pc);
 
-void jit_remove_blocks(struct jit *jit, uint32_t guest_addr) {
-  // remove any block which overlaps the address
-  while (true) {
-    struct jit_block *block = jit_lookup_block(jit, guest_addr);
-
-    if (!block) {
-      break;
-    }
-
-    jit_remove_block(jit, block);
-  }
-}
-
-void jit_unlink_blocks(struct jit *jit) {
-  // unlink all code pointers, but don't remove the block entries. this is used
-  // when clearing the jit while code is currently executing
-  struct rb_node *it = rb_first(&jit->blocks);
-
-  while (it) {
-    struct rb_node *next = rb_next(it);
-
-    struct jit_block *block = container_of(it, struct jit_block, it);
-    jit_unlink_block(jit, block);
-
-    it = next;
-  }
-}
-
-void jit_clear_blocks(struct jit *jit) {
-  // unlink all code pointers and remove all block entries. this is only safe to
-  // use when no code is currently executing
-  struct rb_node *it = rb_first(&jit->blocks);
-
-  while (it) {
-    struct rb_node *next = rb_next(it);
-
-    struct jit_block *block = container_of(it, struct jit_block, it);
-    jit_remove_block(jit, block);
-
-    it = next;
+  if (!block) {
+    return false;
   }
 
-  // have the backend reset its codegen buffers as well
-  jit->backend->reset(jit->backend);
-}
-
-code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
-                                int flags) {
-  PROF_ENTER("cpu", "jit_compile_code");
-  code_pointer_t code = jit_compile_code_inner(jit, guest_addr, flags);
-  PROF_LEAVE();
-  return code;
-}
-
-struct jit *jit_create(struct jit_guest *guest, struct jit_frontend *frontend,
-                       struct jit_backend *backend,
-                       code_pointer_t default_code) {
-  struct jit *jit = calloc(1, sizeof(struct jit));
-
-  jit->guest = *guest;
-  jit->frontend = frontend;
-  jit->backend = backend;
-
-  // add exception handler to help recompile blocks when protected memory is
-  // accessed
-  jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
-
-  // initialize all entries in block jit to reference the default block
-  jit->default_code = default_code;
-  jit->code = malloc(jit->guest.block_max * sizeof(struct jit_block));
-
-  for (int i = 0; i < jit->guest.block_max; i++) {
-    jit->code[i] = default_code;
+  /* let the backend attempt to handle the exception */
+  if (!jit->backend->handle_exception(jit->backend, ex)) {
+    return false;
   }
 
-  return jit;
-}
+  /*
+   * exception was handled, unlink the code pointer and flag the block to be
+   * recompiled without fastmem optimizations on the next access. note, the
+   * block can't be removed from the lookup maps at this point because it's
+   * still executing and may trigger more exceptions
+   */
+  jit_unlink_block(jit, block);
 
-void jit_destroy(struct jit *jit) {
-  jit_clear_blocks(jit);
-  free(jit->code);
-  exception_handler_remove(jit->exc_handler);
-  free(jit);
+  block->flags |= JIT_SLOWMEM;
+
+  return true;
 }

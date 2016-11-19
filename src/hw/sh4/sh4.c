@@ -183,7 +183,7 @@ bool sh4_init(struct device *dev) {
   sh4->jit_frontend = sh4_frontend_create(&sh4->guest);
   sh4->jit_backend = x64_backend_create(&sh4->guest);
   sh4->jit = jit_create(&sh4->guest, sh4->jit_frontend, sh4->jit_backend,
-                        &sh4_compile_pc);
+                        &sh4_compile_pc, "sh4");
 
   return true;
 }

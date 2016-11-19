@@ -200,7 +200,7 @@ static bool arm7_init(struct device *dev) {
   arm->frontend = armv3_frontend_create(&arm->guest);
   arm->backend = x64_backend_create((struct jit_guest *)&arm->guest);
   arm->jit = jit_create((struct jit_guest *)&arm->guest, arm->frontend,
-                        arm->backend, &arm7_compile_pc);
+                        arm->backend, &arm7_compile_pc, "arm7");
 
   return true;
 }
