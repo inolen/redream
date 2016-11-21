@@ -15,10 +15,21 @@ DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
 #define AICA_SAMPLE_FREQ INT64_C(44100)
 #define AICA_NUM_CHANNELS 64
 #define AICA_TIMER_PERIOD 0xff
+#define AICA_SAMPLE_SHIFT 10
 
 struct aica_channel {
   struct channel_data *data;
+
   int active;
+
+  /* signals the the current channel has looped */
+  int looped;
+
+  /* base address in host memory of sound data */
+  uint8_t *base;
+
+  uint32_t step;
+  uint32_t offset;
 };
 
 struct aica {
@@ -252,12 +263,30 @@ static void aica_rtc_init(struct aica *aica) {
 /*
  * channels
  */
+static uint32_t aica_channel_step(struct aica_channel *ch) {
+  uint32_t oct = ch->data->OCT;
+  uint32_t step = (1 << AICA_SAMPLE_SHIFT) | ch->data->FNS;
+
+  /* OCT ranges from -8 to +7 */
+  if (oct & 8) {
+    step >>= (16 - oct);
+  } else {
+    step <<= oct;
+  }
+
+  return step;
+}
+
 static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
   if (ch->active) {
     return;
   }
 
+  uint32_t start_addr = (ch->data->SA_hi << 16) | ch->data->SA_lo;
   ch->active = 1;
+  ch->base = &aica->wave_ram[start_addr];
+  ch->step = aica_channel_step(ch);
+  ch->offset = 0;
 
   LOG_INFO("aica_channel_start %d", ch - aica->channels);
 }
@@ -293,9 +322,21 @@ static void aica_channel_update_key_state(struct aica *aica,
   ch->data->KYONEX = 0;
 }
 
-static void aica_channel_step(struct aica *aica, struct aica_channel *ch) {
+static void aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   if (!ch->active) {
     return;
+  }
+
+  ch->offset += ch->step;
+
+  int ca = ch->offset >> AICA_SAMPLE_SHIFT;
+  if (ca > ch->data->LEA) {
+    if (ch->data->LPCTL) {
+      ch->offset = ch->data->LSA << AICA_SAMPLE_SHIFT;
+      ch->looped = 1;
+    } else {
+      aica_channel_stop(aica, ch);
+    }
   }
 }
 
@@ -303,7 +344,7 @@ static void aica_generate_samples(struct aica *aica, int samples) {
   for (int i = 0; i < samples; i++) {
     for (int j = 0; j < AICA_NUM_CHANNELS; j++) {
       struct aica_channel *ch = &aica->channels[j];
-      aica_channel_step(aica, ch);
+      aica_channel_update(aica, ch);
     }
   }
 }
@@ -337,6 +378,18 @@ static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
 static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
                                      uint32_t data_mask) {
   switch (addr) {
+    case 0x10:
+    case 0x11: { /* EG, SGC, LP */
+      if ((DATA_SIZE() == 2 && addr == 0x10) || (DATA_SIZE() == 1 && addr == 0x11)) {
+        struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
+        aica->common_data->LP = ch->looped;
+        ch->looped = 0;
+      }
+    } break;
+    case 0x14: { /* CA */
+      struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
+      aica->common_data->CA = ch->offset >> AICA_SAMPLE_SHIFT;
+    } break;
     case 0x90: { /* TIMA */
       aica->common_data->TIMA =
           (aica_timer_tctl(aica, 0) << 8) | aica_timer_tcnt(aica, 0);
