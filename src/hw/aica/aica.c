@@ -380,7 +380,8 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
   switch (addr) {
     case 0x10:
     case 0x11: { /* EG, SGC, LP */
-      if ((DATA_SIZE() == 2 && addr == 0x10) || (DATA_SIZE() == 1 && addr == 0x11)) {
+      if ((DATA_SIZE() == 2 && addr == 0x10) ||
+          (DATA_SIZE() == 1 && addr == 0x11)) {
         struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
         aica->common_data->LP = ch->looped;
         ch->looped = 0;

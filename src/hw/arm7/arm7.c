@@ -27,16 +27,20 @@ struct arm7 {
 
   uint8_t *wave_ram;
   struct armv3_context ctx;
-  int pending_interrupts;
 
-  // jit
+  /* jit */
   struct armv3_guest guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
   struct jit *jit;
+
+  /* interrupts */
+  uint32_t requested_interrupts;
 };
 
 struct arm7 *g_arm;
+
+static void arm7_update_pending_interrupts(struct arm7 *arm);
 
 static void arm7_swap_registers(struct arm7 *arm, int old_mode, int new_mode) {
   if (old_mode == new_mode) {
@@ -68,14 +72,17 @@ static void arm7_swap_registers(struct arm7 *arm, int old_mode, int new_mode) {
   }
 }
 
-static void arm7_switch_mode(void *data, uint64_t mode64) {
+static void arm7_switch_mode(void *data, uint64_t sr) {
   struct arm7 *arm = data;
+  uint32_t new_sr = (uint32_t)sr;
   int old_mode = arm->ctx.r[CPSR] & M_MASK;
-  int new_mode = (int)mode64;
+  int new_mode = new_sr & M_MASK;
 
   arm7_swap_registers(arm, old_mode, new_mode);
   arm->ctx.r[SPSR] = arm->ctx.r[CPSR];
-  arm->ctx.r[CPSR] = (arm->ctx.r[CPSR] & ~M_MASK) | new_mode;
+  arm->ctx.r[CPSR] = new_sr;
+
+  arm7_update_pending_interrupts(arm);
 }
 
 static void arm7_restore_mode(void *data) {
@@ -85,36 +92,51 @@ static void arm7_restore_mode(void *data) {
 
   arm7_swap_registers(arm, old_mode, new_mode);
   arm->ctx.r[CPSR] = arm->ctx.r[SPSR];
+
+  arm7_update_pending_interrupts(arm);
 }
 
 static void arm7_software_interrupt(void *data) {
   struct arm7 *arm = data;
 
-  arm7_switch_mode(arm, MODE_SVC);
-  arm->ctx.r[CPSR] |= I_MASK;
+  uint32_t newsr = (arm->ctx.r[CPSR] & ~M_MASK);
+  newsr |= I_MASK | MODE_SVC;
+
+  arm7_switch_mode(arm, newsr);
   arm->ctx.r[14] = arm->ctx.r[15] + 4;
   arm->ctx.r[15] = 0x08;
 }
 
-static void arm7_check_interrupts(struct arm7 *arm) {
-  if (!arm->pending_interrupts) {
+static void arm7_update_pending_interrupts(struct arm7 *arm) {
+  uint32_t interrupt_mask = 0;
+
+  if (F_CLEAR(arm->ctx.r[CPSR])) {
+    interrupt_mask |= ARM7_INT_FIQ;
+  }
+
+  arm->ctx.pending_interrupts = arm->requested_interrupts & interrupt_mask;
+}
+
+void arm7_check_pending_interrupts(struct arm7 *arm) {
+  if (!arm->ctx.pending_interrupts) {
     return;
   }
 
-  if ((arm->pending_interrupts & ARM7_INT_FIQ)) {
-    if (F_CLEAR(arm->ctx.r[CPSR])) {
-      arm->pending_interrupts &= ~ARM7_INT_FIQ;
+  if ((arm->ctx.pending_interrupts & ARM7_INT_FIQ)) {
+    arm->requested_interrupts &= ~ARM7_INT_FIQ;
 
-      arm7_switch_mode(arm, MODE_FIQ);
-      arm->ctx.r[CPSR] |= I_MASK | F_MASK;
-      arm->ctx.r[14] = arm->ctx.r[15] + 4;
-      arm->ctx.r[15] = 0x1c;
-    }
+    uint32_t newsr = (arm->ctx.r[CPSR] & ~M_MASK);
+    newsr |= I_MASK | F_MASK | MODE_FIQ;
+
+    arm7_switch_mode(arm, newsr);
+    arm->ctx.r[14] = arm->ctx.r[15] + 4;
+    arm->ctx.r[15] = 0x1c;
   }
 }
 
 void arm7_raise_interrupt(struct arm7 *arm, enum arm7_interrupt intr) {
-  arm->pending_interrupts |= intr;
+  arm->requested_interrupts |= intr;
+  arm7_update_pending_interrupts(arm);
 }
 
 void arm7_reset(struct arm7 *arm) {
@@ -156,15 +178,15 @@ static void arm7_run(struct device *dev, int64_t ns) {
   struct arm7 *arm = (struct arm7 *)dev;
 
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ), INT64_C(1));
-  arm->ctx.num_cycles = (int)cycles;
+  arm->ctx.remaining_cycles = (int)cycles;
 
   g_arm = arm;
 
-  while (arm->ctx.num_cycles > 0) {
+  while (arm->ctx.remaining_cycles > 0) {
     code_pointer_t code = arm7_get_code(arm, arm->ctx.r[15]);
     code();
 
-    arm7_check_interrupts(arm);
+    arm7_check_pending_interrupts(arm);
   }
 
   g_arm = NULL;
