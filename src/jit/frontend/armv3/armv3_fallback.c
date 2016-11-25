@@ -556,9 +556,7 @@ FALLBACK(MSR) {
       newsr = (newsr & 0xf0000000) | (oldsr & 0x0fffffff);
     }
 
-    REG(CPSR) = newsr;
-
-    guest->switch_mode(guest->self, newsr & M_MASK);
+    guest->switch_mode(guest->self, newsr);
   }
 
   REG(15) = addr + 4;

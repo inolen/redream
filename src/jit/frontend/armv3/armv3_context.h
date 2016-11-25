@@ -90,9 +90,8 @@ enum {
 
 struct armv3_context {
   uint32_t r[NUM_ARMV3_REGS];
-
-  /* main dispatch loop is ran until num_cycles is <= 0 */
-  int32_t num_cycles;
+  uint32_t pending_interrupts;
+  int32_t remaining_cycles;
 };
 
 /* map mode to SPSR / register layout */

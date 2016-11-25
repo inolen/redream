@@ -23,8 +23,9 @@ void armv3_translate(const struct armv3_guest *guest, uint32_t addr, int size,
   }
 
   // update remaining cycles
-  struct ir_value *num_cycles = ir_load_context(
-      ir, offsetof(struct armv3_context, num_cycles), VALUE_I32);
-  num_cycles = ir_sub(ir, num_cycles, ir_alloc_i32(ir, cycles));
-  ir_store_context(ir, offsetof(struct armv3_context, num_cycles), num_cycles);
+  struct ir_value *remaining_cycles = ir_load_context(
+      ir, offsetof(struct armv3_context, remaining_cycles), VALUE_I32);
+  remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, cycles));
+  ir_store_context(ir, offsetof(struct armv3_context, remaining_cycles),
+                   remaining_cycles);
 }
