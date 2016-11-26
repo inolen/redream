@@ -76,14 +76,6 @@ void dc_tick(struct dreamcast *dc, int64_t ns) {
   }
 }
 
-void dc_paint(struct dreamcast *dc) {
-  list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window_if && dev->window_if->paint) {
-      dev->window_if->paint(dev);
-    }
-  }
-}
-
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->window_if && dev->window_if->debug_menu) {
@@ -127,10 +119,8 @@ void dc_destroy_memory_interface(struct memory_interface *memory) {
 }
 
 struct window_interface *dc_create_window_interface(
-    device_paint_cb paint, device_debug_menu_cb debug_menu,
-    device_keydown_cb keydown) {
+    device_debug_menu_cb debug_menu, device_keydown_cb keydown) {
   struct window_interface *window = calloc(1, sizeof(struct window_interface));
-  window->paint = paint;
   window->debug_menu = debug_menu;
   window->keydown = keydown;
   return window;
@@ -169,7 +159,7 @@ void dc_destroy_device(struct device *dev) {
   free(dev);
 }
 
-struct dreamcast *dc_create(struct video_backend *video) {
+struct dreamcast *dc_create() {
   struct dreamcast *dc = calloc(1, sizeof(struct dreamcast));
 
   dc->debugger = OPTION_gdb ? debugger_create(dc) : NULL;
@@ -184,7 +174,7 @@ struct dreamcast *dc_create(struct video_backend *video) {
   dc->holly = holly_create(dc);
   dc->maple = maple_create(dc);
   dc->pvr = pvr_create(dc);
-  dc->ta = ta_create(dc, video);
+  dc->ta = ta_create(dc);
 
   if (!dc_init(dc)) {
     dc_destroy(dc);
