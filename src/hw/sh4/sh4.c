@@ -18,6 +18,8 @@
 #include "sys/time.h"
 #include "ui/nuklear.h"
 
+PROF_STAT(sr_updated);
+
 static bool sh4_init(struct device *dev);
 static int sh4_block_offset(uint32_t addr);
 static void sh4_compile_pc();
@@ -285,6 +287,8 @@ static void sh4_swap_fpr_bank(struct sh4 *sh4) {
 
 void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr) {
   struct sh4 *sh4 = ctx->sh4;
+
+  STAT_sr_updated++;
 
   if ((ctx->sr & RB) != (old_sr & RB)) {
     sh4_swap_gpr_bank(sh4);
