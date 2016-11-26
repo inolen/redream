@@ -1,5 +1,6 @@
 #include "emu/emulator.h"
 #include "core/option.h"
+#include "core/profiler.h"
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/memory.h"
@@ -81,6 +82,8 @@ static void emu_paint(void *data) {
   }
 
   dc_paint(emu->dc);
+
+  PROF_FLIP();
 }
 
 static void emu_debug_menu(void *data, struct nk_context *ctx) {

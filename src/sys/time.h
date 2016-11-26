@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define NS_PER_SEC INT64_C(1000000000)
+
 int64_t time_nanoseconds();
 
 #endif

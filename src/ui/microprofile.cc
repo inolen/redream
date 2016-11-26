@@ -236,7 +236,6 @@ void mp_end_frame(struct microprofile *mp) {
   s_mp = mp;
 
   // update draw surfaces
-  MicroProfileFlip();
   MicroProfileDraw(mp->window->width, mp->window->height);
 
   // render the surfaces

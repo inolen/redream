@@ -3,6 +3,10 @@
 extern "C" {
 
 #include "core/profiler.h"
+#include "sys/time.h"
+
+static struct list prof_stats;
+static int64_t last_update;
 
 static inline float hue_to_rgb(float p, float q, float t) {
   if (t < 0.0f) {
@@ -78,7 +82,36 @@ void prof_leave(prof_token_t tok, uint64_t tick) {
   MicroProfileLeave(tok, tick);
 }
 
+void prof_stat_register(struct prof_stat *stat) {
+  stat->tok = prof_get_count_token(stat->name);
+
+  list_add(&prof_stats, &stat->it);
+}
+
+void prof_stat_unregister(struct prof_stat *stat) {
+  list_remove(&prof_stats, &stat->it);
+}
+
 void prof_count(prof_token_t tok, int count) {
   MicroProfileCounterSet(tok, count);
 }
+
+void prof_flip() {
+  /* flip count-based stats every second */
+  int64_t now = time_nanoseconds();
+  int64_t next_update = last_update + NS_PER_SEC;
+
+  if (now > next_update) {
+    list_for_each_entry(stat, &prof_stats, struct prof_stat, it) {
+      prof_count(stat->tok, *stat->n);
+      *stat->n = 0;
+    }
+
+    last_update = now;
+  }
+
+  /* flip time-based stats every frame */
+  MicroProfileFlip();
+}
+
 }
