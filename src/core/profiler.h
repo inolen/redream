@@ -1,6 +1,8 @@
 #ifndef PROFILER_H
 #define PROFILER_H
 
+#include <stdint.h>
+
 typedef uint64_t prof_token_t;
 
 #define PROF_ENTER(group, name)             \
