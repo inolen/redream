@@ -584,7 +584,7 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
   return true;
 }
 
-EMITTER(LOAD_HOST) {
+EMITTER(LOAD) {
   const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (ir_is_float(instr->result->type)) {
@@ -624,7 +624,7 @@ EMITTER(LOAD_HOST) {
   }
 }
 
-EMITTER(STORE_HOST) {
+EMITTER(STORE) {
   const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (ir_is_float(instr->arg[1]->type)) {

@@ -11,7 +11,7 @@ const char *cve_name = "cve";
 void cve_run(struct ir *ir) {
   list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
     // eliminate unnecessary sext / zext operations
-    if (instr->op == OP_LOAD_HOST || instr->op == OP_LOAD_FAST ||
+    if (instr->op == OP_LOAD || instr->op == OP_LOAD_FAST ||
         instr->op == OP_LOAD_SLOW || instr->op == OP_LOAD_CONTEXT) {
       enum ir_type memory_type = VALUE_V;
       bool same_type = true;
@@ -50,7 +50,7 @@ void cve_run(struct ir *ir) {
 
         STAT_num_zext_removed++;
       }
-    } else if (instr->op == OP_STORE_HOST || instr->op == OP_STORE_FAST ||
+    } else if (instr->op == OP_STORE || instr->op == OP_STORE_FAST ||
                instr->op == OP_STORE_SLOW || instr->op == OP_STORE_CONTEXT) {
       struct ir_value *store_value = instr->arg[1];
 

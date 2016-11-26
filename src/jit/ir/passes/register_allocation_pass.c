@@ -373,8 +373,8 @@ static void ra_assign_ordinals(struct ir *ir) {
 
     /*
      * space out ordinals to leave available values for instructions inserted
-     * by ra_alloc_blocked_register. there should never be an ir op with more than
-     * 10 arguments to spill registers for
+     * by ra_alloc_blocked_register. there should never be an ir op with more
+     * than 10 arguments to spill registers for
      */
     ordinal += 10;
   }
@@ -432,7 +432,7 @@ void ra_run(struct ir *ir, const struct jit_register *registers,
       /* else, allocate a new register for the result */
       reg = ra_alloc_free_register(&ra, instr);
       if (reg == NO_REGISTER) {
-        /* if a register couldn't be allocated, spill a register and try again */
+        /* if a register couldn't be allocated, spill and try again */
         reg = ra_alloc_blocked_register(&ra, ir, instr);
       }
     }
