@@ -723,7 +723,8 @@ void ir_branch(struct ir *ir, struct ir_value *dst) {
   ir_set_arg0(ir, instr, dst);
 }
 
-void ir_branch_false(struct ir *ir, struct ir_value *cond, struct ir_value *dst) {
+void ir_branch_false(struct ir *ir, struct ir_value *cond,
+                     struct ir_value *dst) {
   CHECK(dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_FALSE, VALUE_V);
@@ -731,7 +732,8 @@ void ir_branch_false(struct ir *ir, struct ir_value *cond, struct ir_value *dst)
   ir_set_arg1(ir, instr, dst);
 }
 
-void ir_branch_true(struct ir *ir, struct ir_value *cond, struct ir_value *dst) {
+void ir_branch_true(struct ir *ir, struct ir_value *cond,
+                    struct ir_value *dst) {
   CHECK(dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_TRUE, VALUE_V);

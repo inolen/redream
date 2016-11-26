@@ -113,5 +113,4 @@ void prof_flip() {
   /* flip time-based stats every frame */
   MicroProfileFlip();
 }
-
 }

@@ -18,14 +18,14 @@ typedef uint64_t prof_token_t;
 
 #define PROF_LEAVE() prof_leave(prof_tok, prof_tick)
 
-#define PROF_STAT(name)                                             \
-  static int STAT_##name;                                                   \
+#define PROF_STAT(name)                                                  \
+  static int STAT_##name;                                                \
   static struct prof_stat STAT_T_##name = {#name, &STAT_##name, 0, {0}}; \
-  CONSTRUCTOR(STAT_REGISTER_##name) {                                       \
-    prof_stat_register(&STAT_T_##name);                                     \
-  }                                                                         \
-  DESTRUCTOR(STAT_UNREGISTER_##name) {                                      \
-    prof_stat_unregister(&STAT_T_##name);                                   \
+  CONSTRUCTOR(STAT_REGISTER_##name) {                                    \
+    prof_stat_register(&STAT_T_##name);                                  \
+  }                                                                      \
+  DESTRUCTOR(STAT_UNREGISTER_##name) {                                   \
+    prof_stat_unregister(&STAT_T_##name);                                \
   }
 
 #define PROF_COUNT(name, count)              \

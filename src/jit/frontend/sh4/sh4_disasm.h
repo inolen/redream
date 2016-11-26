@@ -16,7 +16,6 @@ enum {
 };
 
 enum sh4_op {
-  SH4_OP_INVALID,
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) SH4_OP_##name,
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
