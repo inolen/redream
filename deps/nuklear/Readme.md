@@ -36,6 +36,8 @@ The implementation mode requires to define  the preprocessor macro
 #define NK_IMPLEMENTATION
 #include "nuklear.h"
 ```
+IMPORTANT: Every time you include "nuklear.h" you have to define the same optional flags.
+This is very important not doing it either leads to compiler errors or even worse stack corruptions.
 
 ## Gallery
 ![screenshot](https://cloud.githubusercontent.com/assets/8057201/11761525/ae06f0ca-a0c6-11e5-819d-5610b25f6ef4.gif)
@@ -56,20 +58,18 @@ int op = EASY;
 float value = 0.6f;
 int i =  20;
 
-struct nk_panel layout;
-nk_begin(&ctx, &layout, "Show", nk_rect(50, 50, 220, 220),
-    NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE);
-{
+if (nk_begin(&ctx, "Show", nk_rect(50, 50, 220, 220),
+    NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE)) {
     /* fixed widget pixel width */
     nk_layout_row_static(&ctx, 30, 80, 1);
-    if (nk_button_text(&ctx, "button", NK_BUTTON_DEFAULT)) {
+    if (nk_button_label(&ctx, "button")) {
         /* event handling */
     }
 
     /* fixed widget window ratio width */
     nk_layout_row_dynamic(&ctx, 30, 2);
-    if (nk_option(&ctx, "easy", op == EASY)) op = EASY;
-    if (nk_option(&ctx, "hard", op == HARD)) op = HARD;
+    if (nk_option_label(&ctx, "easy", op == EASY)) op = EASY;
+    if (nk_option_label(&ctx, "hard", op == HARD)) op = HARD;
 
     /* custom widget pixel width */
     nk_layout_row_begin(&ctx, NK_STATIC, 30, 2);
@@ -81,18 +81,20 @@ nk_begin(&ctx, &layout, "Show", nk_rect(50, 50, 220, 220),
     }
     nk_layout_row_end(&ctx);
 }
-nk_end(ctx);
+nk_end(&ctx);
 ```
 ![example](https://cloud.githubusercontent.com/assets/8057201/10187981/584ecd68-675c-11e5-897c-822ef534a876.png)
 
 ## Bindings:
-Java: https://github.com/glegris/nuklear4j
+Java: https://github.com/glegris/nuklear4j  
+Golang: https://github.com/golang-ui/nuklear  
+Rust: https://github.com/snuk182/nuklear-rust
 
 ## Credits:
 Developed by Micha Mettke and every direct or indirect contributor to the GitHub.
 
 
-Embeds `stb_texedit`, `stb_truetype` and `stb_rectpack` by Sean Barret (public domain)
+Embeds `stb_texedit`, `stb_truetype` and `stb_rectpack` by Sean Barret (public domain)  
 Embeds `ProggyClean.ttf` font by Tristan Grimmer (MIT license).
 
 

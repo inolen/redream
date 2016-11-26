@@ -30,8 +30,8 @@ struct ta;
 
 void ta_build_tables();
 
-struct ta *ta_create(struct dreamcast *dc, struct video_backend *video);
 void ta_destroy(struct ta *ta);
+struct ta *ta_create(struct dreamcast *dc, struct video_backend *video);
 
 AM_DECLARE(ta_fifo_map);
 

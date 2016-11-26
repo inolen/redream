@@ -348,13 +348,12 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
   ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
-  struct nk_panel layout;
   struct nk_rect bounds = {
       0.0f, (float)tracer->window->height - SCRUBBER_WINDOW_HEIGHT,
       (float)tracer->window->width, SCRUBBER_WINDOW_HEIGHT};
   nk_flags flags = NK_WINDOW_NO_SCROLLBAR;
 
-  if (nk_begin(ctx, &layout, "context scrubber", bounds, flags)) {
+  if (nk_begin(ctx, "context scrubber", bounds, flags)) {
     nk_layout_row_dynamic(ctx, SCRUBBER_WINDOW_HEIGHT, 1);
 
     nk_size frame = tracer->current_context;
@@ -380,9 +379,8 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
   int surf_id = param_state->num_surfs - 1;
   int vert_id = param_state->num_verts - 1;
 
-  struct nk_panel tooltip;
-  if (nk_tooltip_begin(ctx, &tooltip, 300.0f)) {
-    nk_layout_row_dynamic(ctx, ctx->style.font.height, 1);
+  if (nk_tooltip_begin(ctx, 300.0f)) {
+    nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
 
     nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", s_list_names[list_type]);
     nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", surf_id);
@@ -594,7 +592,7 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
     nk_layout_row_static(ctx, 40.0f, 40, 1);
     nk_image(ctx, nk_image_id((int)surf->texture));
 
-    nk_layout_row_dynamic(ctx, ctx->style.font.height, 1);
+    nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
     nk_labelf(ctx, NK_TEXT_LEFT, "depth_write: %d", surf->depth_write);
     nk_labelf(ctx, NK_TEXT_LEFT, "depth_func: %s",
               s_depthfunc_names[surf->depth_func]);
@@ -637,13 +635,12 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   ctx->style.selectable.normal.data.color.a = 0;
 
   {
-    struct nk_panel layout;
     struct nk_rect bounds = {0.0f, 0.0, 240.0f,
                              tracer->window->height - SCRUBBER_WINDOW_HEIGHT};
 
     char label[128];
 
-    if (nk_begin(ctx, &layout, "side menu", bounds, 0)) {
+    if (nk_begin(ctx, "side menu", bounds, 0)) {
       // parem filters
       if (nk_tree_push(ctx, NK_TREE_TAB, "filters", NK_MINIMIZED)) {
         for (int i = 0; i < TA_NUM_PARAMS; i++) {
@@ -719,26 +716,22 @@ static void tracer_render_side_menu(struct tracer *tracer) {
           nk_image(ctx, nk_image_id((int)entry->handle));
 
           if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-            struct nk_panel tooltip;
-            struct nk_panel tab;
-
             // disable spacing for tooltip
             struct nk_vec2 original_spacing = ctx->style.window.spacing;
             ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
-            if (nk_tooltip_begin(ctx, &tooltip, 380.0f)) {
+            if (nk_tooltip_begin(ctx, 380.0f)) {
               nk_layout_row_static(ctx, 184.0f, 184, 2);
 
-              if (nk_group_begin(ctx, &tab, "texture preview",
+              if (nk_group_begin(ctx, "texture preview",
                                  NK_WINDOW_NO_SCROLLBAR)) {
                 nk_layout_row_static(ctx, 184.0f, 184, 1);
                 nk_image(ctx, nk_image_id((int)entry->handle));
                 nk_group_end(ctx);
               }
 
-              if (nk_group_begin(ctx, &tab, "texture info",
-                                 NK_WINDOW_NO_SCROLLBAR)) {
-                nk_layout_row_static(ctx, ctx->style.font.height, 184, 1);
+              if (nk_group_begin(ctx, "texture info", NK_WINDOW_NO_SCROLLBAR)) {
+                nk_layout_row_static(ctx, ctx->style.font->height, 184, 1);
                 nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
                           entry->tcw.texture_addr << 3);
                 nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",

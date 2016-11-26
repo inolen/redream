@@ -1,4 +1,4 @@
-/* nuklear - v1.00 - public domain */
+/* nuklear - v1.17 - public domain */
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +12,7 @@
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
+#define NK_INCLUDE_STANDARD_VARARGS
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
 #define NK_IMPLEMENTATION
 #define NK_XLIB_IMPLEMENTATION
@@ -88,11 +89,10 @@ sleep_for(long t)
 /* This are some code examples to provide a small overview of what can be
  * done with this library. To try out an example uncomment the include
  * and the corresponding function. */
-
 /*#include "../style.c"*/
 /*#include "../calculator.c"*/
-/*#include "../overview.c"*/
-/*#include "../node_editor.c"*/
+#include "../overview.c"
+#include "../node_editor.c"
 
 /* ===============================================================
  *
@@ -155,8 +155,7 @@ main(void)
         nk_input_end(ctx);
 
         /* GUI */
-        {struct nk_panel layout;
-        if (nk_begin(ctx, &layout, "Demo", nk_rect(50, 50, 200, 200),
+        if (nk_begin(ctx, "Demo", nk_rect(50, 50, 200, 200),
             NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE|
             NK_WINDOW_CLOSABLE|NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE))
         {
@@ -165,7 +164,7 @@ main(void)
             static int property = 20;
 
             nk_layout_row_static(ctx, 30, 80, 1);
-            if (nk_button_label(ctx, "button", NK_BUTTON_DEFAULT))
+            if (nk_button_label(ctx, "button"))
                 fprintf(stdout, "button pressed\n");
             nk_layout_row_dynamic(ctx, 30, 2);
             if (nk_option_label(ctx, "easy", op == EASY)) op = EASY;
@@ -173,13 +172,13 @@ main(void)
             nk_layout_row_dynamic(ctx, 25, 1);
             nk_property_int(ctx, "Compression:", 0, &property, 100, 10, 1);
         }
-        nk_end(ctx);}
+        nk_end(ctx);
         if (nk_window_is_closed(ctx, "Demo")) break;
 
         /* -------------- EXAMPLES ---------------- */
         /*calculator(ctx);*/
-        /*overview(ctx);*/
-        /*node_editor(ctx);*/
+        overview(ctx);
+        node_editor(ctx);
         /* ----------------------------------------- */
 
         /* Draw */
