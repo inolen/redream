@@ -276,7 +276,7 @@ void ir_store_local(struct ir *ir, struct ir_local *local, struct ir_value *v) {
 
 struct ir_value *ir_ftoi(struct ir *ir, struct ir_value *v,
                          enum ir_type dest_type) {
-  CHECK(ir_is_float(v->type) && is_is_int(dest_type));
+  CHECK(ir_is_float(v->type) && ir_is_int(dest_type));
 
   struct ir_instr *instr = ir_append_instr(ir, OP_FTOI, dest_type);
   ir_set_arg0(ir, instr, v);
@@ -285,7 +285,7 @@ struct ir_value *ir_ftoi(struct ir *ir, struct ir_value *v,
 
 struct ir_value *ir_itof(struct ir *ir, struct ir_value *v,
                          enum ir_type dest_type) {
-  CHECK(is_is_int(v->type) && ir_is_float(dest_type));
+  CHECK(ir_is_int(v->type) && ir_is_float(dest_type));
 
   struct ir_instr *instr = ir_append_instr(ir, OP_ITOF, dest_type);
   ir_set_arg0(ir, instr, v);
@@ -294,7 +294,7 @@ struct ir_value *ir_itof(struct ir *ir, struct ir_value *v,
 
 struct ir_value *ir_sext(struct ir *ir, struct ir_value *v,
                          enum ir_type dest_type) {
-  CHECK(is_is_int(v->type) && is_is_int(dest_type));
+  CHECK(ir_is_int(v->type) && ir_is_int(dest_type));
 
   struct ir_instr *instr = ir_append_instr(ir, OP_SEXT, dest_type);
   ir_set_arg0(ir, instr, v);
@@ -303,7 +303,7 @@ struct ir_value *ir_sext(struct ir *ir, struct ir_value *v,
 
 struct ir_value *ir_zext(struct ir *ir, struct ir_value *v,
                          enum ir_type dest_type) {
-  CHECK(is_is_int(v->type) && is_is_int(dest_type));
+  CHECK(ir_is_int(v->type) && ir_is_int(dest_type));
 
   struct ir_instr *instr = ir_append_instr(ir, OP_ZEXT, dest_type);
   ir_set_arg0(ir, instr, v);
@@ -312,7 +312,7 @@ struct ir_value *ir_zext(struct ir *ir, struct ir_value *v,
 
 struct ir_value *ir_trunc(struct ir *ir, struct ir_value *v,
                           enum ir_type dest_type) {
-  CHECK(is_is_int(v->type) && is_is_int(dest_type));
+  CHECK(ir_is_int(v->type) && ir_is_int(dest_type));
 
   struct ir_instr *instr = ir_append_instr(ir, OP_TRUNC, dest_type);
   ir_set_arg0(ir, instr, v);
@@ -339,7 +339,7 @@ struct ir_value *ir_ftrunc(struct ir *ir, struct ir_value *v,
 
 struct ir_value *ir_select(struct ir *ir, struct ir_value *cond,
                            struct ir_value *t, struct ir_value *f) {
-  CHECK(is_is_int(cond->type) && is_is_int(t->type) && t->type == f->type);
+  CHECK(ir_is_int(cond->type) && ir_is_int(t->type) && t->type == f->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_SELECT, t->type);
   ir_set_arg0(ir, instr, t);
@@ -350,7 +350,7 @@ struct ir_value *ir_select(struct ir *ir, struct ir_value *cond,
 
 static struct ir_value *ir_cmp(struct ir *ir, struct ir_value *a,
                                struct ir_value *b, enum ir_cmp type) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_CMP, VALUE_I8);
   ir_set_arg0(ir, instr, a);
@@ -451,7 +451,7 @@ struct ir_value *ir_fcmp_lt(struct ir *ir, struct ir_value *a,
 }
 
 struct ir_value *ir_add(struct ir *ir, struct ir_value *a, struct ir_value *b) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_ADD, a->type);
   ir_set_arg0(ir, instr, a);
@@ -460,7 +460,7 @@ struct ir_value *ir_add(struct ir *ir, struct ir_value *a, struct ir_value *b) {
 }
 
 struct ir_value *ir_sub(struct ir *ir, struct ir_value *a, struct ir_value *b) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_SUB, a->type);
   ir_set_arg0(ir, instr, a);
@@ -470,7 +470,7 @@ struct ir_value *ir_sub(struct ir *ir, struct ir_value *a, struct ir_value *b) {
 
 struct ir_value *ir_smul(struct ir *ir, struct ir_value *a,
                          struct ir_value *b) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_SMUL, a->type);
   ir_set_arg0(ir, instr, a);
@@ -480,9 +480,9 @@ struct ir_value *ir_smul(struct ir *ir, struct ir_value *a,
 
 struct ir_value *ir_umul(struct ir *ir, struct ir_value *a,
                          struct ir_value *b) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
-  CHECK(is_is_int(a->type));
+  CHECK(ir_is_int(a->type));
   struct ir_instr *instr = ir_append_instr(ir, OP_UMUL, a->type);
   ir_set_arg0(ir, instr, a);
   ir_set_arg1(ir, instr, b);
@@ -490,7 +490,7 @@ struct ir_value *ir_umul(struct ir *ir, struct ir_value *a,
 }
 
 struct ir_value *ir_div(struct ir *ir, struct ir_value *a, struct ir_value *b) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_DIV, a->type);
   ir_set_arg0(ir, instr, a);
@@ -499,7 +499,7 @@ struct ir_value *ir_div(struct ir *ir, struct ir_value *a, struct ir_value *b) {
 }
 
 struct ir_value *ir_neg(struct ir *ir, struct ir_value *a) {
-  CHECK(is_is_int(a->type));
+  CHECK(ir_is_int(a->type));
 
   struct ir_instr *instr = ir_append_instr(ir, OP_NEG, a->type);
   ir_set_arg0(ir, instr, a);
@@ -507,7 +507,7 @@ struct ir_value *ir_neg(struct ir *ir, struct ir_value *a) {
 }
 
 struct ir_value *ir_abs(struct ir *ir, struct ir_value *a) {
-  CHECK(is_is_int(a->type));
+  CHECK(ir_is_int(a->type));
 
   struct ir_instr *instr = ir_append_instr(ir, OP_ABS, a->type);
   ir_set_arg0(ir, instr, a);
@@ -620,7 +620,7 @@ struct ir_value *ir_vmul(struct ir *ir, struct ir_value *a, struct ir_value *b,
 }
 
 struct ir_value *ir_and(struct ir *ir, struct ir_value *a, struct ir_value *b) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_AND, a->type);
   ir_set_arg0(ir, instr, a);
@@ -629,7 +629,7 @@ struct ir_value *ir_and(struct ir *ir, struct ir_value *a, struct ir_value *b) {
 }
 
 struct ir_value *ir_or(struct ir *ir, struct ir_value *a, struct ir_value *b) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_OR, a->type);
   ir_set_arg0(ir, instr, a);
@@ -638,7 +638,7 @@ struct ir_value *ir_or(struct ir *ir, struct ir_value *a, struct ir_value *b) {
 }
 
 struct ir_value *ir_xor(struct ir *ir, struct ir_value *a, struct ir_value *b) {
-  CHECK(is_is_int(a->type) && a->type == b->type);
+  CHECK(ir_is_int(a->type) && a->type == b->type);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_XOR, a->type);
   ir_set_arg0(ir, instr, a);
@@ -647,7 +647,7 @@ struct ir_value *ir_xor(struct ir *ir, struct ir_value *a, struct ir_value *b) {
 }
 
 struct ir_value *ir_not(struct ir *ir, struct ir_value *a) {
-  CHECK(is_is_int(a->type));
+  CHECK(ir_is_int(a->type));
 
   struct ir_instr *instr = ir_append_instr(ir, OP_NOT, a->type);
   ir_set_arg0(ir, instr, a);
@@ -655,7 +655,7 @@ struct ir_value *ir_not(struct ir *ir, struct ir_value *a) {
 }
 
 struct ir_value *ir_shl(struct ir *ir, struct ir_value *a, struct ir_value *n) {
-  CHECK(is_is_int(a->type) && n->type == VALUE_I32);
+  CHECK(ir_is_int(a->type) && n->type == VALUE_I32);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_SHL, a->type);
   ir_set_arg0(ir, instr, a);
@@ -669,7 +669,7 @@ struct ir_value *ir_shli(struct ir *ir, struct ir_value *a, int n) {
 
 struct ir_value *ir_ashr(struct ir *ir, struct ir_value *a,
                          struct ir_value *n) {
-  CHECK(is_is_int(a->type) && n->type == VALUE_I32);
+  CHECK(ir_is_int(a->type) && n->type == VALUE_I32);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_ASHR, a->type);
   ir_set_arg0(ir, instr, a);
@@ -683,7 +683,7 @@ struct ir_value *ir_ashri(struct ir *ir, struct ir_value *a, int n) {
 
 struct ir_value *ir_lshr(struct ir *ir, struct ir_value *a,
                          struct ir_value *n) {
-  CHECK(is_is_int(a->type) && n->type == VALUE_I32);
+  CHECK(ir_is_int(a->type) && n->type == VALUE_I32);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_LSHR, a->type);
   ir_set_arg0(ir, instr, a);
