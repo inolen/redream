@@ -132,7 +132,8 @@ struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type) {
   return l;
 }
 
-struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset, enum ir_type type) {
+struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
+                                enum ir_type type) {
   struct ir_local *l = ir_calloc(ir, sizeof(struct ir_local));
   l->type = type;
   l->offset = offset;
@@ -198,19 +199,19 @@ uint64_t ir_zext_constant(const struct ir_value *v) {
   }
 }
 
-struct ir_value *ir_load_host(struct ir *ir, struct ir_value *addr,
-                              enum ir_type type) {
+struct ir_value *ir_load(struct ir *ir, struct ir_value *addr,
+                         enum ir_type type) {
   CHECK_EQ(VALUE_I64, addr->type);
 
-  struct ir_instr *instr = ir_append_instr(ir, OP_LOAD_HOST, type);
+  struct ir_instr *instr = ir_append_instr(ir, OP_LOAD, type);
   ir_set_arg0(ir, instr, addr);
   return instr->result;
 }
 
-void ir_store_host(struct ir *ir, struct ir_value *addr, struct ir_value *v) {
+void ir_store(struct ir *ir, struct ir_value *addr, struct ir_value *v) {
   CHECK_EQ(VALUE_I64, addr->type);
 
-  struct ir_instr *instr = ir_append_instr(ir, OP_STORE_HOST, VALUE_V);
+  struct ir_instr *instr = ir_append_instr(ir, OP_STORE, VALUE_V);
   ir_set_arg0(ir, instr, addr);
   ir_set_arg1(ir, instr, v);
 }

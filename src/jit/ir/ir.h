@@ -186,7 +186,8 @@ struct ir_value *ir_alloc_i64(struct ir *ir, int64_t c);
 struct ir_value *ir_alloc_f32(struct ir *ir, float c);
 struct ir_value *ir_alloc_f64(struct ir *ir, double c);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
-struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset, enum ir_type type);
+struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
+                                enum ir_type type);
 
 void ir_set_arg(struct ir *ir, struct ir_instr *instr, int n,
                 struct ir_value *v);
@@ -201,9 +202,9 @@ bool ir_is_constant(const struct ir_value *v);
 uint64_t ir_zext_constant(const struct ir_value *v);
 
 // direct access to host memory
-struct ir_value *ir_load_host(struct ir *ir, struct ir_value *addr,
-                              enum ir_type type);
-void ir_store_host(struct ir *ir, struct ir_value *addr, struct ir_value *v);
+struct ir_value *ir_load(struct ir *ir, struct ir_value *addr,
+                         enum ir_type type);
+void ir_store(struct ir *ir, struct ir_value *addr, struct ir_value *v);
 
 // guest memory operations
 struct ir_value *ir_load_fast(struct ir *ir, struct ir_value *addr,

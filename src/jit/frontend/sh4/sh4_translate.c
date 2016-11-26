@@ -2151,9 +2151,9 @@ EMITTER(FSCA) {
   struct ir_value *fsca_offset = ir_shli(ir, fpul, 3);
   struct ir_value *addr = ir_add(ir, fsca_table, fsca_offset);
 
-  store_fpr(n, ir_load_host(ir, addr, VALUE_F32));
+  store_fpr(n, ir_load(ir, addr, VALUE_F32));
   store_fpr(n + 1,
-            ir_load_host(ir, ir_add(ir, addr, ir_alloc_i64(ir, 4)), VALUE_F32));
+            ir_load(ir, ir_add(ir, addr, ir_alloc_i64(ir, 4)), VALUE_F32));
 }
 
 // FTRV XMTRX,FVn PR=0 1111nn0111111101
