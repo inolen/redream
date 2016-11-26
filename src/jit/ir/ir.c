@@ -716,6 +716,29 @@ struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a,
   return instr->result;
 }
 
+void ir_branch(struct ir *ir, struct ir_value *dst) {
+  CHECK(dst->type == VALUE_I64);
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH, VALUE_V);
+  ir_set_arg0(ir, instr, dst);
+}
+
+void ir_branch_false(struct ir *ir, struct ir_value *cond, struct ir_value *dst) {
+  CHECK(dst->type == VALUE_I64);
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_FALSE, VALUE_V);
+  ir_set_arg0(ir, instr, cond);
+  ir_set_arg1(ir, instr, dst);
+}
+
+void ir_branch_true(struct ir *ir, struct ir_value *cond, struct ir_value *dst) {
+  CHECK(dst->type == VALUE_I64);
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_TRUE, VALUE_V);
+  ir_set_arg0(ir, instr, cond);
+  ir_set_arg1(ir, instr, dst);
+}
+
 void ir_call_external_1(struct ir *ir, struct ir_value *addr) {
   CHECK_EQ(addr->type, VALUE_I64);
 

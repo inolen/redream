@@ -1615,6 +1615,27 @@ EMITTER(LSHD) {
   e.outLocalLabel();
 }
 
+EMITTER(BRANCH) {
+  void *dst = (void *)instr->arg[0]->i64;
+  e.jmp(dst);
+}
+
+EMITTER(BRANCH_FALSE) {
+  const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[0]);
+  void *dst = (void *)instr->arg[1]->i64;
+
+  e.test(cond, cond);
+  e.jz(dst);
+}
+
+EMITTER(BRANCH_TRUE) {
+  const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[0]);
+  void *dst = (void *)instr->arg[1]->i64;
+
+  e.test(cond, cond);
+  e.jnz(dst);
+}
+
 EMITTER(CALL_EXTERNAL) {
   const Xbyak::Reg addr = x64_backend_register(backend, instr->arg[0]);
 

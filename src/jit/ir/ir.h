@@ -317,6 +317,11 @@ struct ir_value *ir_lshri(struct ir *ir, struct ir_value *a, int n);
 struct ir_value *ir_ashd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 
+// branches
+void ir_branch(struct ir *ir, struct ir_value *dst);
+void ir_branch_false(struct ir *ir, struct ir_value *cond, struct ir_value *dst);
+void ir_branch_true(struct ir *ir, struct ir_value *cond, struct ir_value *dst);
+
 // calls
 void ir_call_external_1(struct ir *ir, struct ir_value *addr);
 void ir_call_external_2(struct ir *ir, struct ir_value *addr,
