@@ -27,7 +27,7 @@ static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr,
                              uint32_t data_mask);
 static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                           uint32_t data_mask);
-static void sh4_paint_debug_menu(struct device *dev, struct nk_context *ctx);
+static void sh4_debug_menu(struct device *dev, struct nk_context *ctx);
 
 /*
  * sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.
@@ -98,8 +98,7 @@ struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
   sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
   sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
-  sh4->window_if =
-      dc_create_window_interface(NULL, &sh4_paint_debug_menu, NULL);
+  sh4->window_if = dc_create_window_interface(NULL, &sh4_debug_menu, NULL);
 
   return sh4;
 }
@@ -324,13 +323,8 @@ void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   sh4->reg[offset] = data;
 }
 
-void sh4_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
+void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct sh4 *sh4 = (struct sh4 *)dev;
-
-  if (nk_tree_push(ctx, NK_TREE_TAB, "sh4", NK_MINIMIZED)) {
-    nk_value_int(ctx, "mips", sh4->mips);
-    nk_tree_pop(ctx);
-  }
 
   /*if (perf->show) {
     struct nk_panel layout;

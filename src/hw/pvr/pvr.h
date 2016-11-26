@@ -15,9 +15,16 @@ struct pvr {
   uint8_t *palette_ram;
   uint8_t *video_ram;
   uint32_t reg[NUM_PVR_REGS];
+
+  /* raster progress */
   struct timer *line_timer;
   int line_clock;
-  uint32_t current_scanline;
+  uint32_t current_line;
+
+  /* perf */
+  int64_t last_vbs_time;
+  int vbs;
+  int num_vblanks;
 
 #define PVR_REG(offset, name, default, type) type *name;
 #include "hw/pvr/pvr_regs.inc"
@@ -26,8 +33,8 @@ struct pvr {
 
 extern struct reg_cb pvr_cb[NUM_PVR_REGS];
 
-struct pvr *pvr_create(struct dreamcast *dc);
 void pvr_destroy(struct pvr *pvr);
+struct pvr *pvr_create(struct dreamcast *dc);
 
 AM_DECLARE(pvr_reg_map);
 AM_DECLARE(pvr_vram_map);

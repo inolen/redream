@@ -3,6 +3,7 @@
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/memory.h"
+#include "hw/pvr/pvr.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 #include "sys/thread.h"
@@ -16,6 +17,11 @@ struct emu {
   struct dreamcast *dc;
   int running;
   int throttled;
+
+  /* fps */
+  int fps;
+  int64_t last_frame_time;
+  int num_frames;
 };
 
 static bool emu_launch_bin(struct emu *emu, const char *path) {
@@ -28,7 +34,7 @@ static bool emu_launch_bin(struct emu *emu, const char *path) {
   int size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  // load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to
+  /* load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to */
   uint8_t *data = memory_translate(emu->dc->memory, "system ram", 0x00010000);
   int n = (int)fread(data, sizeof(uint8_t), size, fp);
   fclose(fp);
@@ -62,19 +68,39 @@ static bool emu_launch_gdi(struct emu *emu, const char *path) {
 static void emu_paint(void *data) {
   struct emu *emu = data;
 
+  /* track fps */
+  int64_t now = time_nanoseconds();
+  int64_t next_time = emu->last_frame_time + NS_PER_SEC;
+
+  emu->num_frames++;
+
+  if (now > next_time) {
+    emu->fps = emu->num_frames;
+    emu->last_frame_time = now;
+    emu->num_frames = 0;
+  }
+
   dc_paint(emu->dc);
 }
 
-static void emu_paint_debug_menu(void *data, struct nk_context *ctx) {
+static void emu_debug_menu(void *data, struct nk_context *ctx) {
   struct emu *emu = data;
 
-  if (nk_tree_push(ctx, NK_TREE_TAB, "emu", NK_MINIMIZED)) {
-    nk_checkbox_label(ctx, "throttled", &emu->throttled);
+  nk_layout_row_push(ctx, 70.0f);
 
-    nk_tree_pop(ctx);
+  if (nk_menu_begin_label(ctx, "EMULATOR", NK_TEXT_LEFT,
+                          nk_vec2(140.0f, 200.0f))) {
+    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+    nk_checkbox_label(ctx, "throttled", &emu->throttled);
+    nk_menu_end(ctx);
   }
 
-  dc_paint_debug_menu(emu->dc, ctx);
+  char status[128];
+  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d MIPS", emu->fps,
+           emu->dc->pvr->vbs, emu->dc->sh4->mips);
+  win_set_status(emu->window, status);
+
+  dc_debug_menu(emu->dc, ctx);
 }
 
 static void emu_keydown(void *data, enum keycode code, int16_t value) {
@@ -155,9 +181,9 @@ struct emu *emu_create(struct window *window) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
   emu->window = window;
-  emu->listener = (struct window_listener){
-      emu,        &emu_paint, &emu_paint_debug_menu, &emu_keydown, NULL, NULL,
-      &emu_close, {0}};
+  emu->listener =
+      (struct window_listener){emu,  &emu_paint, &emu_debug_menu, &emu_keydown,
+                               NULL, NULL,       &emu_close,      {0}};
 
   win_add_listener(emu->window, &emu->listener);
 

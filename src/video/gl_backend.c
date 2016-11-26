@@ -496,13 +496,16 @@ static void video_set_initial_state(struct video_backend *video) {
   video_set_blend_func(video, BLEND_NONE, BLEND_NONE);
 }
 
-static void video_paint_debug_menu(void *data, struct nk_context *ctx) {
+static void video_debug_menu(void *data, struct nk_context *ctx) {
   struct video_backend *video = data;
 
-  if (nk_tree_push(ctx, NK_TREE_TAB, "render", NK_MINIMIZED)) {
-    nk_checkbox_label(ctx, "wireframe", &video->debug_wireframe);
+  nk_layout_row_push(ctx, 50.0f);
 
-    nk_tree_pop(ctx);
+  if (nk_menu_begin_label(ctx, "VIDEO", NK_TEXT_LEFT,
+                          nk_vec2(140.0f, 200.0f))) {
+    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+    nk_checkbox_label(ctx, "wireframe", &video->debug_wireframe);
+    nk_menu_end(ctx);
   }
 }
 
@@ -716,7 +719,7 @@ struct video_backend *video_create(struct window *window) {
       (struct video_backend *)calloc(1, sizeof(struct video_backend));
   video->window = window;
   video->listener = (struct window_listener){
-      video, NULL, &video_paint_debug_menu, NULL, NULL, NULL, NULL, {0}};
+      video, NULL, &video_debug_menu, NULL, NULL, NULL, NULL, {0}};
 
   win_add_listener(video->window, &video->listener);
 

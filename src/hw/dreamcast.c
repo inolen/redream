@@ -84,10 +84,10 @@ void dc_paint(struct dreamcast *dc) {
   }
 }
 
-void dc_paint_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
+void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window_if && dev->window_if->paint_debug_menu) {
-      dev->window_if->paint_debug_menu(dev, ctx);
+    if (dev->window_if && dev->window_if->debug_menu) {
+      dev->window_if->debug_menu(dev, ctx);
     }
   }
 }
@@ -127,11 +127,11 @@ void dc_destroy_memory_interface(struct memory_interface *memory) {
 }
 
 struct window_interface *dc_create_window_interface(
-    device_paint_cb paint, device_paint_debug_menu_cb paint_debug_menu,
+    device_paint_cb paint, device_debug_menu_cb debug_menu,
     device_keydown_cb keydown) {
   struct window_interface *window = calloc(1, sizeof(struct window_interface));
   window->paint = paint;
-  window->paint_debug_menu = paint_debug_menu;
+  window->debug_menu = debug_menu;
   window->keydown = keydown;
   return window;
 }

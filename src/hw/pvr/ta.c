@@ -887,22 +887,24 @@ static void ta_paint(struct device *dev) {
   tr_render_context(ta->tr, rctx);
 }
 
-static void ta_paint_debug_menu(struct device *dev, struct nk_context *ctx) {
+static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct ta *ta = (struct ta *)dev;
 
-  if (nk_tree_push(ctx, NK_TREE_TAB, "ta", NK_MINIMIZED)) {
+  nk_layout_row_push(ctx, 30.0f);
+
+  if (nk_menu_begin_label(ctx, "TA", NK_TEXT_LEFT, nk_vec2(140.0f, 200.0f))) {
+    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
     nk_value_int(ctx, "frames skipped", ta->frames_skipped);
     nk_value_int(ctx, "num textures", ta->num_textures);
 
-    if (!ta->trace_writer &&
-        nk_button_label(ctx, "start trace", NK_BUTTON_DEFAULT)) {
+    if (!ta->trace_writer && nk_button_label(ctx, "start trace")) {
       ta_toggle_tracing(ta);
-    } else if (ta->trace_writer &&
-               nk_button_label(ctx, "stop trace", NK_BUTTON_DEFAULT)) {
+    } else if (ta->trace_writer && nk_button_label(ctx, "stop trace")) {
       ta_toggle_tracing(ta);
     }
 
-    nk_tree_pop(ctx);
+    nk_menu_end(ctx);
   }
 }
 
@@ -947,25 +949,24 @@ void ta_build_tables() {
   }
 }
 
+void ta_destroy(struct ta *ta) {
+  mutex_destroy(ta->pending_mutex);
+  tr_destroy(ta->tr);
+  dc_destroy_window_interface(ta->window_if);
+  dc_destroy_device((struct device *)ta);
+}
+
 struct ta *ta_create(struct dreamcast *dc, struct video_backend *video) {
   ta_build_tables();
 
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
-  ta->window_if =
-      dc_create_window_interface(&ta_paint, &ta_paint_debug_menu, NULL);
+  ta->window_if = dc_create_window_interface(&ta_paint, &ta_debug_menu, NULL);
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
   ta->tr = tr_create(video, &ta->provider);
   ta->pending_mutex = mutex_create();
 
   return ta;
-}
-
-void ta_destroy(struct ta *ta) {
-  mutex_destroy(ta->pending_mutex);
-  tr_destroy(ta->tr);
-  dc_destroy_window_interface(ta->window_if);
-  dc_destroy_device((struct device *)ta);
 }
 
 REG_W32(pvr_cb, SOFTRESET) {

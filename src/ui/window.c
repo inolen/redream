@@ -21,7 +21,7 @@ static void win_destroy_joystick(struct window *win) {
 static void win_init_joystick(struct window *win) {
   win_destroy_joystick(win);
 
-  // open the first connected joystick
+  /* open the first connected joystick */
   for (int i = 0; i < SDL_NumJoysticks(); ++i) {
     win->joystick = SDL_JoystickOpen(i);
 
@@ -31,7 +31,7 @@ static void win_init_joystick(struct window *win) {
     }
   }
 
-  // reset hat state
+  /* reset hat state */
   memset(win->hat_state, 0, sizeof(win->hat_state));
 }
 
@@ -48,20 +48,34 @@ static void win_handle_paint(struct window *win) {
 
   if (win->debug_menu) {
     struct nk_context *ctx = &win->nk->ctx;
-    struct nk_panel layout;
-    struct nk_rect bounds = {0.0f, 0.0, 200.0f, 200.0f};
+    struct nk_rect bounds = {0.0f, 0.0f, (float)win->width, DEBUG_MENU_HEIGHT};
 
-    if (nk_begin(ctx, &layout, "debug menu", bounds,
-                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-                     NK_WINDOW_TITLE)) {
+    nk_style_default(ctx);
+
+    ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
+    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
+
+    if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
+      nk_menubar_begin(ctx);
+      nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT,
+                          MAX_WINDOW_LISTENERS + 1);
+
+      /* add each listener's debug menu */
       list_for_each_entry(listener, &win->listeners, struct window_listener,
                           it) {
-        if (listener->paint_debug_menu) {
-          listener->paint_debug_menu(listener->data, ctx);
+        if (listener->debug_menu) {
+          listener->debug_menu(listener->data, ctx);
         }
       }
-    }
 
+      /* fill up remaining space with status */
+      nk_layout_row_push(
+          ctx, (float)win->width - ctx->current->layout->row.item_offset);
+      nk_label(ctx, win->status, NK_TEXT_RIGHT);
+
+      nk_layout_row_end(ctx);
+      nk_menubar_end(ctx);
+    }
     nk_end(ctx);
   }
 
@@ -148,7 +162,7 @@ static enum keycode translate_sdl_key(SDL_Keysym keysym) {
   enum keycode out = K_UNKNOWN;
 
   if (keysym.sym >= SDLK_SPACE && keysym.sym <= SDLK_z) {
-    // this range maps 1:1 with ASCII chars
+    /* this range maps 1:1 with ASCII chars */
     out = (enum keycode)keysym.sym;
   } else {
     switch (keysym.sym) {
@@ -762,10 +776,10 @@ static void win_pump_sdl(struct window *win) {
           uint8_t *state = &win->hat_state[ev.jhat.hat];
 
           if (ev.jhat.value != *state) {
-            // old key is up
+            /* old key is up */
             win_handle_hatdown(win, ev.jhat.hat, *state, 0);
 
-            // new key is down
+            /* new key is down */
             win_handle_hatdown(win, ev.jhat.hat, ev.jhat.value, 1);
           }
 
@@ -804,10 +818,6 @@ static void win_pump_sdl(struct window *win) {
   }
 }
 
-void win_enable_debug_menu(struct window *win, bool active) {
-  win->debug_menu = active;
-}
-
 void win_enable_text_input(struct window *win, bool active) {
   win->text_input = active;
 
@@ -818,77 +828,27 @@ void win_enable_text_input(struct window *win, bool active) {
   }
 }
 
+void win_enable_debug_menu(struct window *win, bool active) {
+  win->debug_menu = active;
+}
+
+void win_set_status(struct window *win, const char *status) {
+  strncpy(win->status, status, sizeof(win->status));
+}
+
 void win_pump_events(struct window *win) {
   win_pump_sdl(win);
 
-  // trigger a paint event after draining all other window-related events
+  /* trigger a paint event after draining all other window-related events */
   win_handle_paint(win);
-}
-
-void win_add_listener(struct window *win, struct window_listener *listener) {
-  list_add(&win->listeners, &listener->it);
 }
 
 void win_remove_listener(struct window *win, struct window_listener *listener) {
   list_remove(&win->listeners, &listener->it);
 }
 
-struct window *win_create() {
-  struct window *win = calloc(1, sizeof(struct window));
-
-  win->width = DEFAULT_WIDTH;
-  win->height = DEFAULT_HEIGHT;
-
-  // initialize window
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {
-    LOG_WARNING("SDL initialization failed: %s", SDL_GetError());
-    win_destroy(win);
-    return NULL;
-  }
-
-  // setup native window
-  win->handle = SDL_CreateWindow(
-      "redream", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, win->width,
-      win->height, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
-  if (!win->handle) {
-    LOG_WARNING("Window creation failed: %s", SDL_GetError());
-    win_destroy(win);
-    return NULL;
-  }
-
-  // setup audio backend
-  win->audio = audio_create(win);
-  if (!win->audio) {
-    LOG_WARNING("Audio backend creation failed");
-    win_destroy(win);
-    return NULL;
-  }
-
-  // setup video backend
-  win->video = video_create(win);
-  if (!win->video) {
-    LOG_WARNING("Video backend creation failed");
-    win_destroy(win);
-    return NULL;
-  }
-
-  // setup nuklear
-  win->nk = nk_create(win);
-  if (!win->nk) {
-    LOG_WARNING("Nuklear creation failed");
-    win_destroy(win);
-    return NULL;
-  }
-
-  // setup microprofile
-  win->mp = mp_create(win);
-  if (!win->mp) {
-    LOG_WARNING("MicroProfile creation failed");
-    win_destroy(win);
-    return NULL;
-  }
-
-  return win;
+void win_add_listener(struct window *win, struct window_listener *listener) {
+  list_add(&win->listeners, &listener->it);
 }
 
 void win_destroy(struct window *win) {
@@ -917,4 +877,63 @@ void win_destroy(struct window *win) {
   SDL_Quit();
 
   free(win);
+}
+
+struct window *win_create() {
+  struct window *win = calloc(1, sizeof(struct window));
+
+  win->width = DEFAULT_WIDTH;
+  win->height = DEFAULT_HEIGHT;
+  win->debug_menu = 1;
+
+  /* initialize window */
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {
+    LOG_WARNING("SDL initialization failed: %s", SDL_GetError());
+    win_destroy(win);
+    return NULL;
+  }
+
+  /* setup native window */
+  win->handle = SDL_CreateWindow(
+      "redream", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, win->width,
+      win->height, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+  if (!win->handle) {
+    LOG_WARNING("Window creation failed: %s", SDL_GetError());
+    win_destroy(win);
+    return NULL;
+  }
+
+  /* setup audio backend */
+  win->audio = audio_create(win);
+  if (!win->audio) {
+    LOG_WARNING("Audio backend creation failed");
+    win_destroy(win);
+    return NULL;
+  }
+
+  /* setup video backend */
+  win->video = video_create(win);
+  if (!win->video) {
+    LOG_WARNING("Video backend creation failed");
+    win_destroy(win);
+    return NULL;
+  }
+
+  /* setup nuklear */
+  win->nk = nk_create(win);
+  if (!win->nk) {
+    LOG_WARNING("Nuklear creation failed");
+    win_destroy(win);
+    return NULL;
+  }
+
+  /* setup microprofile */
+  win->mp = mp_create(win);
+  if (!win->mp) {
+    LOG_WARNING("MicroProfile creation failed");
+    win_destroy(win);
+    return NULL;
+  }
+
+  return win;
 }
