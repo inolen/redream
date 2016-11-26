@@ -3,8 +3,6 @@
 #include "sys/time.h"
 #include "core/assert.h"
 
-static const int64_t NS_PER_SEC = INT64_C(1000000000);
-
 int64_t time_nanoseconds() {
   uint64_t result = mach_absolute_time();
 
