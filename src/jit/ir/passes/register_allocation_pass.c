@@ -26,16 +26,16 @@ struct register_set {
 };
 
 struct ra {
-  // canonical backend register information
+  /* canonical backend register information */
   const struct jit_register *registers;
   int num_registers;
 
-  // allocation state
+  /* allocation state */
   struct register_set int_registers;
   struct register_set float_registers;
   struct register_set vector_registers;
 
-  // intervals, keyed by register
+  /* intervals, keyed by register */
   struct interval intervals[MAX_REGISTERS];
 };
 
@@ -125,69 +125,95 @@ static int ra_alloc_blocked_register(struct ra *ra, struct ir *ir,
   struct ir_instr *insert_point = ir->current_instr;
   struct register_set *set = ra_get_register_set(ra, instr->result->type);
 
-  // spill the register who's next use is furthest away from start
+  /* spill the register who's next use is furthest away from start */
   struct interval *interval = ra_tail_interval(set);
   ra_pop_tail_interval(set);
 
-  // the interval's value needs to be filled back from from the stack before
-  // its next use
+  /*
+   * the interval's value needs to be filled back from from the stack before
+   * its next use
+   */
   struct ir_use *next_use = interval->next;
   struct ir_use *prev_use = list_prev_entry(next_use, struct ir_use, it);
   CHECK(next_use,
         "Register being spilled has no next use, why wasn't it expired?");
 
-  // allocate a place on the stack to spill the value
-  struct ir_local *local = ir_alloc_local(ir, interval->instr->result->type);
+  /*
+   * allocate a place on the stack to spill the value unless it was already
+   * previously spilled
+   */
+  struct ir_local *local;
+  int reuse_local;
 
-  // insert load before next use
+  struct ir_instr *spill_def = interval->instr->result->def;
+  if (spill_def->op == OP_LOAD_LOCAL) {
+    CHECK_EQ(spill_def->result->type, interval->instr->result->type);
+    local = ir_reuse_local(ir, spill_def->arg[0], spill_def->result->type);
+    reuse_local = 1;
+  } else {
+    local = ir_alloc_local(ir, interval->instr->result->type);
+    reuse_local = 0;
+  }
+
+  /* insert load before next use */
   ir->current_instr = list_prev_entry(next_use->instr, struct ir_instr, it);
   struct ir_value *load_value = ir_load_local(ir, local);
   struct ir_instr *load_instr = load_value->def;
 
-  // assign the load a valid ordinal
+  /* assign the load a valid ordinal */
   int load_ordinal =
       ra_get_ordinal(list_prev_entry(load_instr, struct ir_instr, it)) + 1;
   CHECK_LT(load_ordinal,
            ra_get_ordinal(list_next_entry(load_instr, struct ir_instr, it)));
   ra_set_ordinal(load_instr, load_ordinal);
 
-  // update uses of interval->instr after the next use to use the new value
-  // filled from the stack. this code asssumes that the uses were previously
-  // sorted inside of Run()
+  /*
+   * update uses of interval->instr after the next use to use the new value
+   * filled from the stack. this code asssumes that the uses were previously
+   * sorted inside of ra_run
+   */
   while (next_use) {
-    // cache off next next since calling set_value will modify the linked list
-    // pointers
+    /*
+     * cache off next next since calling set_value will modify the linked list
+     * pointers
+     */
     struct ir_use *next_next_use = list_next_entry(next_use, struct ir_use, it);
     ir_replace_use(next_use, load_instr->result);
     next_use = next_next_use;
   }
 
-  // insert spill after prev use, note that order here is extremely important.
-  // interval->instr's use list has already been sorted, and when the save
-  // instruction is created and added as a use, the sorted order will be
-  // invalidated. because of this, the save instruction needs to be added after
-  // the load instruction has updated the sorted uses
-  struct ir_instr *after = NULL;
+  /*
+   * insert spill after prev use, note that order here is extremely important.
+   * interval->instr's use list has already been sorted, and when the save
+   * instruction is created and added as a use, the sorted order will be
+   * invalidated. because of this, the save instruction needs to be added after
+   * the load instruction has updated the sorted uses
+   */
+  if (!reuse_local) {
+    struct ir_instr *after = NULL;
 
-  if (prev_use) {
-    // there is a previous useerence, insert store after it
-    CHECK(list_next_entry(prev_use, struct ir_use, it) == NULL,
-          "All future uses should have been replaced");
-    after = prev_use->instr;
-  } else {
-    // there is no previous use, insert store immediately after definition
-    CHECK(list_empty(&interval->instr->result->uses),
-          "All future uses should have been replaced");
-    after = interval->instr;
+    if (prev_use) {
+      /* there is a previous useerence, insert store after it */
+      CHECK(list_next_entry(prev_use, struct ir_use, it) == NULL,
+            "All future uses should have been replaced");
+      after = prev_use->instr;
+    } else {
+      /* there is no previous use, insert store immediately after definition */
+      CHECK(list_empty(&interval->instr->result->uses),
+            "All future uses should have been replaced");
+      after = interval->instr;
+    }
+
+    ir->current_instr = after;
+    ir_store_local(ir, local, interval->instr->result);
   }
 
-  ir->current_instr = after;
-  ir_store_local(ir, local, interval->instr->result);
+  /*
+   * since the interval that this store belongs to has now expired, there's no
+   * need to assign an ordinal to it
+   */
 
-  // since the interval that this store belongs to has now expired, there's no
-  // need to assign an ordinal to it
-
-  // reuse the old interval
+  /* reuse the old interval */
   interval->instr = instr;
   interval->reused = NULL;
   interval->start = list_first_entry(&instr->result->uses, struct ir_use, it);
@@ -195,7 +221,7 @@ static int ra_alloc_blocked_register(struct ra *ra, struct ir *ir,
   interval->next = interval->start;
   ra_insert_interval(set, interval);
 
-  // reset insert point
+  /* reset insert point */
   ir->current_instr = insert_point;
 
   STAT_num_spills++;
@@ -206,13 +232,13 @@ static int ra_alloc_blocked_register(struct ra *ra, struct ir *ir,
 static int ra_alloc_free_register(struct ra *ra, struct ir_instr *instr) {
   struct register_set *set = ra_get_register_set(ra, instr->result->type);
 
-  // get the first free register for this value type
+  /* get the first free register for this value type */
   int reg = ra_pop_register(set);
   if (reg == NO_REGISTER) {
     return NO_REGISTER;
   }
 
-  // add interval
+  /* add interval */
   struct interval *interval = &ra->intervals[reg];
   interval->instr = instr;
   interval->reused = NULL;
@@ -225,11 +251,13 @@ static int ra_alloc_free_register(struct ra *ra, struct ir_instr *instr) {
   return reg;
 }
 
-// If the first argument isn't used after this instruction, its register
-// can be reused to take advantage of many architectures supporting
-// operations where the destination is the first argument.
-// TODO could reorder arguments for communicative binary ops and do this
-// with the second argument as well
+/*
+ * if the first argument isn't used after this instruction, its register
+ * can be reused to take advantage of many architectures supporting
+ * operations where the destination is the first argument.
+ * TODO could reorder arguments for communicative binary ops and do this
+ * with the second argument as well
+ */
 static int ra_reuse_arg_register(struct ra *ra, struct ir *ir,
                                  struct ir_instr *instr) {
   if (!instr->arg[0]) {
@@ -241,25 +269,29 @@ static int ra_reuse_arg_register(struct ra *ra, struct ir *ir,
     return NO_REGISTER;
   }
 
-  // make sure the register can hold the result type
+  /* make sure the register can hold the result type */
   const struct jit_register *r = &ra->registers[prefered];
   if (!(r->value_types & (1 << instr->result->type))) {
     return NO_REGISTER;
   }
 
-  // if the argument's register is used after this instruction, it's not
-  // trivial to reuse
+  /*
+   * if the argument's register is used after this instruction, it's not
+   * trivial to reuse
+   */
   struct interval *interval = &ra->intervals[prefered];
   if (list_next_entry(interval->next, struct ir_use, it)) {
     return NO_REGISTER;
   }
 
-  // the argument's register is not used after the current instruction, so the
-  // register can be reused for the result. note, since the interval min/max
-  // heap does not support removal of an arbitrary interval, the interval
-  // removal must be deferred. since there are no more uses, the interval will
-  // expire on the next call to ExpireOldintervals, and then immediately
-  // requeued by setting the reused property
+  /*
+   * the argument's register is not used after the current instruction, so the
+   * register can be reused for the result. note, since the interval min/max
+   * heap does not support removal of an arbitrary interval, the interval
+   * removal must be deferred. since there are no more uses, the interval will
+   * expire on the next call to ra_expire_old_iintervals, and then immediately
+   * requeued by setting the reused property
+   */
   interval->reused = instr;
 
   return prefered;
@@ -273,24 +305,30 @@ static void ra_expire_set(struct ra *ra, struct register_set *set,
       break;
     }
 
-    // intervals are sorted by their next use, once one fails to expire or
-    // advance, they all will
+    /*
+     * intervals are sorted by their next use, once one fails to expire or
+     * advance, they all will
+     */
     if (interval->next &&
         ra_get_ordinal(interval->next->instr) >= ra_get_ordinal(instr)) {
       break;
     }
 
-    // remove interval from the sorted set
+    /* remove interval from the sorted set */
     ra_pop_head_interval(set);
 
-    // if there are more uses, advance the next use and reinsert the interval
-    // into the correct position
+    /*
+     * if there are more uses, advance the next use and reinsert the interval
+     * into the correct position
+     */
     if (interval->next && list_next_entry(interval->next, struct ir_use, it)) {
       interval->next = list_next_entry(interval->next, struct ir_use, it);
       ra_insert_interval(set, interval);
     }
-    // if there are no more uses, but the register has been reused by
-    // ReuseArgRegister, requeue the interval at this time
+    /*
+     * if there are no more uses, but the register has been reused by
+     * ra_reuse_arg_register, requeue the interval at this time
+     */
     else if (interval->reused) {
       struct ir_instr *reused = interval->reused;
       interval->instr = reused;
@@ -301,8 +339,10 @@ static void ra_expire_set(struct ra *ra, struct register_set *set,
       interval->next = interval->start;
       ra_insert_interval(set, interval);
     }
-    // if there are no other uses, free the register assigned to this
-    // interval
+    /*
+     * if there are no other uses, free the register assigned to this
+     * interval
+     */
     else {
       ra_push_register(set, interval->reg);
     }
@@ -322,16 +362,20 @@ static int use_cmp(const struct list_node *a_it, const struct list_node *b_it) {
 }
 
 static void ra_assign_ordinals(struct ir *ir) {
-  // assign each instruction an ordinal. these ordinals are used to describe
-  // the live range of a particular value
+  /*
+   * assign each instruction an ordinal. these ordinals are used to describe
+   * the live range of a particular value
+   */
   int ordinal = 0;
 
   list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
     ra_set_ordinal(instr, ordinal);
 
-    // space out ordinals to leave available values for instructions inserted
-    // by AllocBlockedRegister. there should never be an ir op with more than
-    // 10 arguments to spill registers for
+    /*
+     * space out ordinals to leave available values for instructions inserted
+     * by ra_alloc_blocked_register. there should never be an ir op with more than
+     * 10 arguments to spill registers for
+     */
     ordinal += 10;
   }
 }
@@ -367,26 +411,28 @@ void ra_run(struct ir *ir, const struct jit_register *registers,
   list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
     struct ir_value *result = instr->result;
 
-    // only allocate registers for results, assume constants can always be
-    // encoded as immediates or that the backend has registers reserved
-    // for storing the constants
+    /*
+     * only allocate registers for results, assume constants can always be
+     * encoded as immediates or that the backend has registers reserved
+     * for storing the constants
+     */
     if (!result) {
       continue;
     }
 
-    // sort the instruction's use list
+    /* sort the instruction's use list */
     list_sort(&result->uses, &use_cmp);
 
-    // expire any old intervals, freeing up the registers they claimed
+    /* expire any old intervals, freeing up the registers they claimed */
     ra_expire_intervals(&ra, instr);
 
-    // first, try and reuse the register of one of the incoming arguments
+    /* first, try and reuse the register of one of the incoming arguments */
     int reg = ra_reuse_arg_register(&ra, ir, instr);
     if (reg == NO_REGISTER) {
-      // else, allocate a new register for the result
+      /* else, allocate a new register for the result */
       reg = ra_alloc_free_register(&ra, instr);
       if (reg == NO_REGISTER) {
-        // if a register couldn't be allocated, spill a register and try again
+        /* if a register couldn't be allocated, spill a register and try again */
         reg = ra_alloc_blocked_register(&ra, ir, instr);
       }
     }
