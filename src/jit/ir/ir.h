@@ -115,7 +115,6 @@ struct ir {
   int used;
 
   struct list instrs;
-  struct list locals;
   int locals_size;
 
   struct ir_instr *current_instr;
@@ -187,6 +186,7 @@ struct ir_value *ir_alloc_i64(struct ir *ir, int64_t c);
 struct ir_value *ir_alloc_f32(struct ir *ir, float c);
 struct ir_value *ir_alloc_f64(struct ir *ir, double c);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
+struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset, enum ir_type type);
 
 void ir_set_arg(struct ir *ir, struct ir_instr *instr, int n,
                 struct ir_value *v);

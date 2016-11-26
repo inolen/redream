@@ -126,9 +126,16 @@ struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type) {
   struct ir_local *l = ir_calloc(ir, sizeof(struct ir_local));
   l->type = type;
   l->offset = ir_alloc_i32(ir, ir->locals_size);
-  list_add(&ir->locals, &l->it);
 
   ir->locals_size += type_size;
+
+  return l;
+}
+
+struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset, enum ir_type type) {
+  struct ir_local *l = ir_calloc(ir, sizeof(struct ir_local));
+  l->type = type;
+  l->offset = offset;
 
   return l;
 }
