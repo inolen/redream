@@ -24,7 +24,6 @@ struct pvr;
 struct scheduler;
 struct sh4;
 struct ta;
-struct video_backend;
 
 //
 // register callbacks
@@ -86,12 +85,10 @@ struct memory_interface {
 };
 
 // window interface
-typedef void (*device_paint_cb)(struct device *);
 typedef void (*device_debug_menu_cb)(struct device *, struct nk_context *);
 typedef void (*device_keydown_cb)(struct device *, enum keycode, int16_t);
 
 struct window_interface {
-  device_paint_cb paint;
   device_debug_menu_cb debug_menu;
   device_keydown_cb keydown;
 };
@@ -153,7 +150,6 @@ bool dc_init(struct dreamcast *dc);
 void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
-void dc_paint(struct dreamcast *dc);
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value);
 
@@ -166,8 +162,7 @@ struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
 void dc_destroy_memory_interface(struct memory_interface *memory);
 
 struct window_interface *dc_create_window_interface(
-    device_paint_cb paint, device_debug_menu_cb debug_menu,
-    device_keydown_cb keydown);
+    device_debug_menu_cb debug_menu, device_keydown_cb keydown);
 void dc_destroy_window_interface(struct window_interface *window);
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
@@ -175,7 +170,7 @@ void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
-struct dreamcast *dc_create(struct video_backend *video);
+struct dreamcast *dc_create();
 void dc_destroy(struct dreamcast *dc);
 
 #endif

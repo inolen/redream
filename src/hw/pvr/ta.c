@@ -13,7 +13,6 @@
 #include "sys/filesystem.h"
 #include "sys/thread.h"
 #include "ui/nuklear.h"
-#include "video/backend.h"
 
 #define TA_MAX_CONTEXTS 8
 #define TA_YUV420_MACROBLOCK_SIZE 384
@@ -32,7 +31,6 @@ struct ta_texture_entry {
 struct ta {
   struct device;
   struct texture_provider provider;
-  struct tr *tr;
   uint8_t *video_ram;
   uint8_t *palette_ram;
 
@@ -65,18 +63,10 @@ struct ta {
   mutex_t pending_mutex;
   struct tile_ctx *pending_context;
 
-  // last parsed pending context
-  struct render_ctx render_context;
-
   // buffers used by the tile contexts. allocating here instead of inside each
   // tile_ctx to avoid blowing the stack when a tile_ctx is needed temporarily
   // on the stack for searching
   uint8_t params[TA_MAX_CONTEXTS * TA_MAX_PARAMS];
-
-  // buffers used by render context
-  struct surface surfs[TA_MAX_SURFS];
-  struct vertex verts[TA_MAX_VERTS];
-  int sorted_surfs[TA_MAX_SURFS];
 
   // debug info
   int frame;
@@ -862,31 +852,6 @@ static void ta_toggle_tracing(struct ta *ta) {
   }
 }
 
-static void ta_paint(struct device *dev) {
-  struct ta *ta = (struct ta *)dev;
-  struct render_ctx *rctx = &ta->render_context;
-
-  mutex_lock(ta->pending_mutex);
-
-  if (ta->pending_context) {
-    rctx->surfs = ta->surfs;
-    rctx->surfs_size = array_size(ta->surfs);
-    rctx->verts = ta->verts;
-    rctx->verts_size = array_size(ta->verts);
-    rctx->sorted_surfs = ta->sorted_surfs;
-    rctx->sorted_surfs_size = array_size(ta->sorted_surfs);
-
-    tr_parse_context(ta->tr, ta->pending_context, ta->frame, rctx);
-
-    ta_free_context(ta, ta->pending_context);
-    ta->pending_context = NULL;
-  }
-
-  mutex_unlock(ta->pending_mutex);
-
-  tr_render_context(ta->tr, rctx);
-}
-
 static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct ta *ta = (struct ta *)dev;
 
@@ -949,21 +914,44 @@ void ta_build_tables() {
   }
 }
 
+void ta_unlock_pending_context(struct ta *ta) {
+  ta_free_context(ta, ta->pending_context);
+  ta->pending_context = NULL;
+
+  mutex_unlock(ta->pending_mutex);
+}
+
+int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
+                            int *pending_frame) {
+  mutex_lock(ta->pending_mutex);
+
+  if (!ta->pending_context) {
+    mutex_unlock(ta->pending_mutex);
+    return 0;
+  }
+
+  *pending_ctx = ta->pending_context;
+  *pending_frame = ta->frame;
+  return 1;
+}
+
+struct texture_provider *ta_texture_provider(struct ta *ta) {
+  return &ta->provider;
+}
+
 void ta_destroy(struct ta *ta) {
   mutex_destroy(ta->pending_mutex);
-  tr_destroy(ta->tr);
   dc_destroy_window_interface(ta->window_if);
   dc_destroy_device((struct device *)ta);
 }
 
-struct ta *ta_create(struct dreamcast *dc, struct video_backend *video) {
+struct ta *ta_create(struct dreamcast *dc) {
   ta_build_tables();
 
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
-  ta->window_if = dc_create_window_interface(&ta_paint, &ta_debug_menu, NULL);
+  ta->window_if = dc_create_window_interface(&ta_debug_menu, NULL);
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
-  ta->tr = tr_create(video, &ta->provider);
   ta->pending_mutex = mutex_create();
 
   return ta;

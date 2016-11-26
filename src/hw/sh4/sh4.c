@@ -100,7 +100,7 @@ struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
   sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
   sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
-  sh4->window_if = dc_create_window_interface(NULL, &sh4_debug_menu, NULL);
+  sh4->window_if = dc_create_window_interface(&sh4_debug_menu, NULL);
 
   return sh4;
 }

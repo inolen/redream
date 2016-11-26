@@ -5,6 +5,8 @@
 #include "hw/gdrom/gdrom.h"
 #include "hw/memory.h"
 #include "hw/pvr/pvr.h"
+#include "hw/pvr/ta.h"
+#include "hw/pvr/tr.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 #include "sys/thread.h"
@@ -18,6 +20,13 @@ struct emu {
   struct dreamcast *dc;
   int running;
   int throttled;
+
+  /* render state */
+  struct tr *tr;
+  struct render_context render_ctx;
+  struct surface surfs[TA_MAX_SURFS];
+  struct vertex verts[TA_MAX_VERTS];
+  int sorted_surfs[TA_MAX_SURFS];
 
   /* fps */
   int fps;
@@ -69,6 +78,25 @@ static bool emu_launch_gdi(struct emu *emu, const char *path) {
 static void emu_paint(void *data) {
   struct emu *emu = data;
 
+  /* render latest ta context */
+  struct render_context *render_ctx = &emu->render_ctx;
+  struct tile_ctx *pending_ctx = NULL;
+  int pending_frame = 0;
+
+  if (ta_lock_pending_context(emu->dc->ta, &pending_ctx, &pending_frame)) {
+    render_ctx->surfs = emu->surfs;
+    render_ctx->surfs_size = array_size(emu->surfs);
+    render_ctx->verts = emu->verts;
+    render_ctx->verts_size = array_size(emu->verts);
+    render_ctx->sorted_surfs = emu->sorted_surfs;
+    render_ctx->sorted_surfs_size = array_size(emu->sorted_surfs);
+    tr_parse_context(emu->tr, pending_ctx, pending_frame, render_ctx);
+
+    ta_unlock_pending_context(emu->dc->ta);
+  }
+
+  tr_render_context(emu->tr, render_ctx);
+
   /* track fps */
   int64_t now = time_nanoseconds();
   int64_t next_time = emu->last_frame_time + NS_PER_SEC;
@@ -81,27 +109,26 @@ static void emu_paint(void *data) {
     emu->num_frames = 0;
   }
 
-  dc_paint(emu->dc);
-
   PROF_FLIP();
 }
 
 static void emu_debug_menu(void *data, struct nk_context *ctx) {
   struct emu *emu = data;
 
-  nk_layout_row_push(ctx, 70.0f);
+  /* set status string */
+  char status[128];
+  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d MIPS", emu->fps,
+           emu->dc->pvr->vbs, emu->dc->sh4->mips);
+  win_set_status(emu->window, status);
 
+  /* add drop down menus */
+  nk_layout_row_push(ctx, 70.0f);
   if (nk_menu_begin_label(ctx, "EMULATOR", NK_TEXT_LEFT,
                           nk_vec2(140.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
     nk_checkbox_label(ctx, "throttled", &emu->throttled);
     nk_menu_end(ctx);
   }
-
-  char status[128];
-  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d MIPS", emu->fps,
-           emu->dc->pvr->vbs, emu->dc->sh4->mips);
-  win_set_status(emu->window, status);
 
   dc_debug_menu(emu->dc, ctx);
 }
@@ -149,7 +176,7 @@ static void *emu_core_thread(void *data) {
 }
 
 void emu_run(struct emu *emu, const char *path) {
-  emu->dc = dc_create(emu->window->video);
+  emu->dc = dc_create();
 
   if (!emu->dc) {
     return;
@@ -164,6 +191,9 @@ void emu_run(struct emu *emu, const char *path) {
       return;
     }
   }
+
+  /* create tile renderer */
+  emu->tr = tr_create(emu->window->video, ta_texture_provider(emu->dc->ta));
 
   /* start core emulator thread */
   thread_t core_thread;
@@ -195,6 +225,10 @@ struct emu *emu_create(struct window *window) {
 
 void emu_destroy(struct emu *emu) {
   win_remove_listener(emu->window, &emu->listener);
+
+  if (emu->tr) {
+    tr_destroy(emu->tr);
+  }
 
   if (emu->dc) {
     dc_destroy(emu->dc);

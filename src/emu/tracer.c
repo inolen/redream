@@ -85,7 +85,7 @@ struct tracer {
   int num_contexts;
 
   // render state
-  struct render_ctx rctx;
+  struct render_context rctx;
   struct surface surfs[TA_MAX_SURFS];
   struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];

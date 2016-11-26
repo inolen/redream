@@ -5,7 +5,7 @@
 #include "hw/pvr/ta_types.h"
 
 struct dreamcast;
-struct video_backend;
+struct texture_provider;
 
 extern int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
 extern int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
@@ -30,9 +30,14 @@ struct ta;
 
 void ta_build_tables();
 
-void ta_destroy(struct ta *ta);
-struct ta *ta_create(struct dreamcast *dc, struct video_backend *video);
-
 AM_DECLARE(ta_fifo_map);
+
+struct ta *ta_create(struct dreamcast *dc);
+void ta_destroy(struct ta *ta);
+
+struct texture_provider *ta_texture_provider(struct ta *ta);
+int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
+                            int *pending_frame);
+void ta_unlock_pending_context(struct ta *ta);
 
 #endif

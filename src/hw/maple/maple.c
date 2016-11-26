@@ -36,7 +36,7 @@ int maple_handle_command(struct maple *mp, int port, struct maple_frame *frame,
 struct maple *maple_create(struct dreamcast *dc) {
   struct maple *mp =
       dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
-  mp->window_if = dc_create_window_interface(NULL, NULL, &maple_keydown);
+  mp->window_if = dc_create_window_interface(NULL, &maple_keydown);
 
   mp->devices[0] = controller_create();
 
