@@ -105,7 +105,7 @@ static void ra_insert_interval(struct register_set *set,
 
 static struct register_set *ra_get_register_set(struct ra *ra,
                                                 enum ir_type type) {
-  if (is_is_int(type)) {
+  if (ir_is_int(type)) {
     return &ra->int_registers;
   }
 

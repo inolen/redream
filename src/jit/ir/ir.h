@@ -159,7 +159,7 @@ static inline int ir_type_size(enum ir_type type) {
   }
 }
 
-static inline bool is_is_int(enum ir_type type) {
+static inline bool ir_is_int(enum ir_type type) {
   return type == VALUE_I8 || type == VALUE_I16 || type == VALUE_I32 ||
          type == VALUE_I64;
 }
