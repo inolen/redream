@@ -76,18 +76,12 @@ struct sh4_ctx {
   uint32_t dbr, gbr, vbr;
   uint32_t fpul, mach, macl;
   uint32_t sgr, spc, ssr;
+  uint64_t pending_interrupts;
   uint8_t cache[0x2000];
   uint32_t sq[2][8];
 
   /* the main dispatch loop is ran until num_cycles is <= 0 */
-  int32_t num_cycles;
-
-  /* ir only supports 64-bit arguments for external calls atm */
-  void *sh4;
-  void (*InvalidInstruction)(struct sh4_ctx *, uint64_t addr);
-  void (*Prefetch)(struct sh4_ctx *, uint64_t addr);
-  void (*SRUpdated)(struct sh4_ctx *, uint64_t old_sr);
-  void (*FPSCRUpdated)(struct sh4_ctx *, uint64_t old_fpscr);
+  int32_t remaining_cycles;
 };
 
 #endif

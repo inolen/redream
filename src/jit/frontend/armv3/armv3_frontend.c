@@ -6,21 +6,12 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
-struct armv3_frontend {
-  struct jit_frontend;
-  const struct armv3_guest *guest;
-};
-
 static void armv3_frontend_translate_code(struct jit_frontend *base,
-                                          uint32_t addr, int flags, int *size,
-                                          struct ir *ir) {
+                                          uint32_t addr, struct ir *ir,
+                                          int flags) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
 
-  // get the block flags / size
-  armv3_analyze_block(frontend->guest, addr, &flags, size);
-
-  // emit ir for the arm7 code
-  armv3_translate(frontend->guest, addr, *size, flags, ir);
+  frontend->translate(frontend->data, addr, ir, flags);
 }
 
 static void armv3_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
@@ -30,7 +21,7 @@ static void armv3_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
   char buffer[128];
 
   for (int i = 0; i < size; i += 4) {
-    uint32_t data = frontend->guest->r32(frontend->guest->mem_self, addr);
+    uint32_t data = frontend->jit->r32(frontend->jit->space, addr);
 
     armv3_format(addr, data, buffer, sizeof(buffer));
     LOG_INFO(buffer);
@@ -39,12 +30,12 @@ static void armv3_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
   }
 }
 
-struct jit_frontend *armv3_frontend_create(const struct armv3_guest *guest) {
+struct jit_frontend *armv3_frontend_create(struct jit *jit) {
   struct armv3_frontend *frontend = calloc(1, sizeof(struct armv3_frontend));
 
+  frontend->jit = jit;
   frontend->translate_code = &armv3_frontend_translate_code;
   frontend->dump_code = &armv3_frontend_dump_code;
-  frontend->guest = guest;
 
   return (struct jit_frontend *)frontend;
 }

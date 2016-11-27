@@ -741,25 +741,34 @@ void ir_branch_true(struct ir *ir, struct ir_value *cond,
   ir_set_arg1(ir, instr, dst);
 }
 
-void ir_call_external_1(struct ir *ir, struct ir_value *addr) {
-  CHECK_EQ(addr->type, VALUE_I64);
-
-  struct ir_instr *instr = ir_append_instr(ir, OP_CALL_EXTERNAL, VALUE_V);
-  ir_set_arg0(ir, instr, addr);
+void ir_call(struct ir *ir, struct ir_value *fn) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_CALL, VALUE_V);
+  ir_set_arg0(ir, instr, fn);
 }
 
-void ir_call_external_2(struct ir *ir, struct ir_value *addr,
-                        struct ir_value *arg0) {
-  CHECK_EQ(addr->type, VALUE_I64);
-  CHECK_EQ(arg0->type, VALUE_I64);
+void ir_call_1(struct ir *ir, struct ir_value *fn, struct ir_value *arg0) {
+  CHECK(ir_is_int(arg0->type));
 
-  struct ir_instr *instr = ir_append_instr(ir, OP_CALL_EXTERNAL, VALUE_V);
-  ir_set_arg0(ir, instr, addr);
+  struct ir_instr *instr = ir_append_instr(ir, OP_CALL, VALUE_V);
+  ir_set_arg0(ir, instr, fn);
   ir_set_arg1(ir, instr, arg0);
+}
+
+void ir_call_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
+               struct ir_value *arg1) {
+  CHECK(ir_is_int(arg0->type));
+  CHECK(ir_is_int(arg1->type));
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_CALL, VALUE_V);
+  ir_set_arg0(ir, instr, fn);
+  ir_set_arg1(ir, instr, arg0);
+  ir_set_arg2(ir, instr, arg1);
 }
 
 void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
                       uint32_t raw_instr) {
+  CHECK(fallback);
+
   struct ir_instr *instr = ir_append_instr(ir, OP_CALL_FALLBACK, VALUE_V);
   ir_set_arg0(ir, instr, ir_alloc_i64(ir, (uint64_t)fallback));
   ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));

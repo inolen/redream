@@ -4,12 +4,12 @@
 #include "jit/frontend/armv3/armv3_disasm.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
 
-void armv3_analyze_block(const struct armv3_guest *guest, uint32_t addr,
-                         int *flags, int *size) {
+void armv3_analyze_block(const struct jit *jit, uint32_t addr, int *flags,
+                         int *size) {
   *size = 0;
 
   while (1) {
-    uint32_t data = guest->r32(guest->mem_self, addr);
+    uint32_t data = jit->r32(jit->space, addr);
     union armv3_instr i = {data};
     struct armv3_desc *desc = armv3_disasm(i.raw);
 

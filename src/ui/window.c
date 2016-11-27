@@ -56,11 +56,13 @@ static void win_debug_menu(struct window *win) {
 
   if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
     nk_menubar_begin(ctx);
-    nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT, MAX_WINDOW_LISTENERS + 2);
+    nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT,
+                        MAX_WINDOW_LISTENERS + 2);
 
     /* add our own debug menu */
     nk_layout_row_push(ctx, 50.0f);
-    if (nk_menu_begin_label(ctx, "WINDOW", NK_TEXT_LEFT, nk_vec2(140.0f, 200.0f))) {
+    if (nk_menu_begin_label(ctx, "WINDOW", NK_TEXT_LEFT,
+                            nk_vec2(140.0f, 200.0f))) {
       nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
 
       int fullscreen = win->fullscreen;
@@ -79,7 +81,8 @@ static void win_debug_menu(struct window *win) {
     }
 
     /* fill up remaining space with status */
-    nk_layout_row_push(ctx, (float)win->width - ctx->current->layout->row.item_offset);
+    nk_layout_row_push(
+        ctx, (float)win->width - ctx->current->layout->row.item_offset);
     nk_label(ctx, win->status, NK_TEXT_RIGHT);
 
     nk_layout_row_end(ctx);

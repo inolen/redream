@@ -13,7 +13,11 @@
 #include "hw/rom/flash.h"
 #include "hw/scheduler.h"
 #include "jit/backend/x64/x64_backend.h"
+#include "jit/frontend/sh4/sh4_analyze.h"
+#include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
+#include "jit/frontend/sh4/sh4_translate.h"
+#include "jit/ir/ir.h"
 #include "jit/jit.h"
 #include "sys/time.h"
 #include "ui/nuklear.h"
@@ -38,6 +42,9 @@ struct reg_cb sh4_cb[NUM_SH4_REGS];
  * sh4 instance when compiling a new block
  */
 static struct sh4 *g_sh4;
+static uint8_t sh4_code[1024 * 1024 * 8];
+static int sh4_code_size = 1024 * 1024 * 8;
+static int sh4_stack_size = 1024;
 
 static void sh4_swap_gpr_bank(struct sh4 *sh4) {
   for (int s = 0; s < 8; s++) {
@@ -55,7 +62,7 @@ static void sh4_swap_fpr_bank(struct sh4 *sh4) {
   }
 }
 
-static void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data) {
+static void sh4_invalid_instr(void *data, uint64_t addr) {
   /*struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
   uint32_t addr = (uint32_t)data;
 
@@ -69,8 +76,9 @@ static void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data) {
   self->dc->debugger->Trap();*/
 }
 
-void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr) {
-  struct sh4 *sh4 = ctx->sh4;
+void sh4_sr_updated(void *data, uint64_t old_sr) {
+  struct sh4 *sh4 = data;
+  struct sh4_ctx *ctx = &sh4->ctx;
 
   STAT_sh4_sr_updates++;
 
@@ -83,15 +91,17 @@ void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr) {
   }
 }
 
-void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr) {
-  struct sh4 *sh4 = ctx->sh4;
+void sh4_fpscr_updated(void *data, uint64_t old_fpscr) {
+  struct sh4 *sh4 = data;
+  struct sh4_ctx *ctx = &sh4->ctx;
 
   if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
     sh4_swap_fpr_bank(sh4);
   }
 }
 
-static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
+static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr,
+                             uint32_t data_mask) {
   uint32_t offset = SH4_REG_OFFSET(addr);
   reg_read_cb read = sh4_cb[offset].read;
   if (read) {
@@ -101,7 +111,7 @@ static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask)
 }
 
 static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                   uint32_t data_mask) {
+                          uint32_t data_mask) {
   uint32_t offset = SH4_REG_OFFSET(addr);
   reg_write_cb write = sh4_cb[offset].write;
   if (write) {
@@ -109,6 +119,80 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
     return;
   }
   sh4->reg[offset] = data;
+}
+
+static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
+                          int fastmem) {
+  struct sh4 *sh4 = data;
+
+  /* analyze the guest block to get its size, cycle count, etc. */
+  struct sh4_analysis as = {0};
+  as.addr = addr;
+  if (fastmem) {
+    as.flags |= SH4_FASTMEM;
+  }
+  if (sh4->ctx.fpscr & PR) {
+    as.flags |= SH4_DOUBLE_PR;
+  }
+  if (sh4->ctx.fpscr & SZ) {
+    as.flags |= SH4_DOUBLE_SZ;
+  }
+  sh4_analyze_block(sh4->jit, &as);
+
+  /* update remaining cycles */
+  struct ir_value *remaining_cycles = ir_load_context(
+      ir, offsetof(struct sh4_ctx, remaining_cycles), VALUE_I32);
+  remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, as.cycles));
+  ir_store_context(ir, offsetof(struct sh4_ctx, remaining_cycles),
+                   remaining_cycles);
+
+  /* update instruction run count */
+  struct ir_value *num_instrs_ptr =
+      ir_alloc_i64(ir, (uint64_t)&STAT_sh4_instrs);
+  struct ir_value *num_instrs = ir_load(ir, num_instrs_ptr, VALUE_I64);
+  num_instrs = ir_add(ir, num_instrs, ir_alloc_i64(ir, as.size / 2));
+  ir_store(ir, num_instrs_ptr, num_instrs);
+
+  /* translate the actual block */
+  for (int i = 0; i < as.size;) {
+    struct sh4_instr instr = {0};
+    struct sh4_instr delay_instr = {0};
+
+    instr.addr = addr + i;
+    instr.opcode = as_read16(sh4->memory_if->space, instr.addr);
+    sh4_disasm(&instr);
+
+    i += 2;
+
+    if (instr.flags & SH4_FLAG_DELAYED) {
+      delay_instr.addr = addr + i;
+      delay_instr.opcode = as_read16(sh4->memory_if->space, delay_instr.addr);
+
+      /*
+       * instruction must be valid, breakpoints on delay instructions aren't
+       * currently supported
+       */
+      CHECK(sh4_disasm(&delay_instr));
+
+      /* delay instruction itself should never have a delay instr */
+      CHECK(!(delay_instr.flags & SH4_FLAG_DELAYED));
+
+      i += 2;
+    }
+
+    sh4_emit_instr((struct sh4_frontend *)sh4->frontend, ir, as.flags, &instr,
+                   &delay_instr);
+  }
+
+  /* if the block terminates before a branch, fallthrough to the next pc */
+  struct ir_instr *tail_instr =
+      list_last_entry(&ir->instrs, struct ir_instr, it);
+
+  if (tail_instr->op != OP_STORE_CONTEXT ||
+      tail_instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
+    ir_store_context(ir, offsetof(struct sh4_ctx, pc),
+                     ir_alloc_i32(ir, addr + as.size));
+  }
 }
 
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
@@ -126,11 +210,6 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   jit_unlink_blocks(sh4->jit);
 
   /* reset context */
-  sh4->ctx.sh4 = sh4;
-  sh4->ctx.InvalidInstruction = &sh4_invalid_instr;
-  sh4->ctx.Prefetch = &sh4_ccn_prefetch;
-  sh4->ctx.SRUpdated = &sh4_sr_updated;
-  sh4->ctx.FPSCRUpdated = &sh4_fpscr_updated;
   sh4->ctx.pc = pc;
   sh4->ctx.r[15] = 0x8d000000;
   sh4->ctx.pr = 0x0;
@@ -152,17 +231,7 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
 
 static void sh4_compile_pc() {
   uint32_t guest_addr = g_sh4->ctx.pc;
-  uint8_t *guest_ptr = as_translate(g_sh4->memory_if->space, guest_addr);
-
-  int flags = 0;
-  if (g_sh4->ctx.fpscr & PR) {
-    flags |= SH4_DOUBLE_PR;
-  }
-  if (g_sh4->ctx.fpscr & SZ) {
-    flags |= SH4_DOUBLE_SZ;
-  }
-
-  code_pointer_t code = jit_compile_code(g_sh4->jit, guest_addr, flags);
+  code_pointer_t code = jit_compile_code(g_sh4->jit, guest_addr);
   code();
 }
 
@@ -177,18 +246,14 @@ static void sh4_run(struct device *dev, int64_t ns) {
 
   struct sh4 *sh4 = (struct sh4 *)dev;
 
-  /* execute at least 1 cycle. the tests rely on this to step block by block */
-  int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
-
-  /* each block's epilog will decrement the remaining cycles as they run */
-  sh4->ctx.num_cycles = (int)cycles;
+  int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
+  sh4->ctx.remaining_cycles = (int)cycles;
 
   g_sh4 = sh4;
 
-  while (sh4->ctx.num_cycles > 0) {
+  while (sh4->ctx.remaining_cycles > 0) {
     code_pointer_t code = sh4_get_code(sh4, sh4->ctx.pc);
     code();
-
     sh4_intc_check_pending(sh4);
   }
 
@@ -201,24 +266,39 @@ static bool sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
-  /* initialize jit interface */
-  sh4->guest.block_mask = SH4_BLOCK_MASK;
-  sh4->guest.block_shift = SH4_BLOCK_SHIFT;
-  sh4->guest.block_max = SH4_MAX_BLOCKS;
-  sh4->guest.ctx_base = &sh4->ctx;
-  sh4->guest.mem_base = sh4->memory_if->space->base;
-  sh4->guest.mem_self = sh4->memory_if->space;
-  sh4->guest.r8 = &as_read8;
-  sh4->guest.r16 = &as_read16;
-  sh4->guest.r32 = &as_read32;
-  sh4->guest.w8 = &as_write8;
-  sh4->guest.w16 = &as_write16;
-  sh4->guest.w32 = &as_write32;
+  /* initialize jit and its interfaces */
+  struct jit *jit = jit_create("sh4");
+  jit->block_mask = SH4_BLOCK_MASK;
+  jit->block_shift = SH4_BLOCK_SHIFT;
+  jit->block_max = SH4_MAX_BLOCKS;
+  jit->ctx = &sh4->ctx;
+  jit->mem = sh4->memory_if->space->base;
+  jit->space = sh4->memory_if->space;
+  jit->r8 = &as_read8;
+  jit->r16 = &as_read16;
+  jit->r32 = &as_read32;
+  jit->w8 = &as_write8;
+  jit->w16 = &as_write16;
+  jit->w32 = &as_write32;
+  sh4->jit = jit;
 
-  sh4->jit_frontend = sh4_frontend_create(&sh4->guest);
-  sh4->jit_backend = x64_backend_create(&sh4->guest);
-  sh4->jit = jit_create(&sh4->guest, sh4->jit_frontend, sh4->jit_backend,
-                        &sh4_compile_pc, "sh4");
+  struct sh4_frontend *frontend =
+      (struct sh4_frontend *)sh4_frontend_create(sh4->jit);
+  frontend->data = sh4;
+  frontend->translate = &sh4_translate;
+  frontend->invalid_instr = &sh4_invalid_instr;
+  frontend->prefetch = &sh4_ccn_prefetch;
+  frontend->sr_updated = &sh4_sr_updated;
+  frontend->fpscr_updated = &sh4_fpscr_updated;
+  sh4->frontend = (struct jit_frontend *)frontend;
+
+  struct jit_backend *backend =
+      x64_backend_create(sh4->jit, sh4_code, sh4_code_size, sh4_stack_size);
+  sh4->backend = backend;
+
+  if (!jit_init(sh4->jit, sh4->frontend, sh4->backend, &sh4_compile_pc)) {
+    return false;
+  }
 
   return true;
 }
@@ -228,12 +308,12 @@ void sh4_destroy(struct sh4 *sh4) {
     jit_destroy(sh4->jit);
   }
 
-  if (sh4->jit_backend) {
-    x64_backend_destroy(sh4->jit_backend);
+  if (sh4->backend) {
+    x64_backend_destroy(sh4->backend);
   }
 
-  if (sh4->jit_backend) {
-    sh4_frontend_destroy(sh4->jit_frontend);
+  if (sh4->frontend) {
+    sh4_frontend_destroy(sh4->frontend);
   }
 
   dc_destroy_memory_interface(sh4->memory_if);
@@ -367,4 +447,3 @@ AM_BEGIN(struct sh4, sh4_data_map)
                                              (mmio_write_cb)&sh4_ccn_sq_write)
 AM_END();
 // clang-format on
-

@@ -13,14 +13,14 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
   // instructions after the CCR update instruction. Also, a branch instruction
   // to the P0, P1, P3, or U0 area should be located at least eight instructions
   // after the CCR update instruction."
-  LOG_INFO("Reset instruction cache");
+  LOG_INFO("sh4_ccn_reset");
 
   jit_unlink_blocks(sh4->jit);
 }
 
-void sh4_ccn_prefetch(struct sh4_ctx *ctx, uint64_t data) {
-  struct sh4 *sh4 = ctx->sh4;
-  uint32_t addr = (uint32_t)data;
+void sh4_ccn_prefetch(void *data, uint64_t addr64) {
+  struct sh4 *sh4 = data;
+  uint32_t addr = (uint32_t)addr64;
 
   // only concerned about SQ related prefetches
   if (addr < 0xe0000000 || addr > 0xe3ffffff) {

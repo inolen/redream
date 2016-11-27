@@ -7,8 +7,12 @@
 #include "hw/dreamcast.h"
 #include "hw/scheduler.h"
 #include "jit/backend/x64/x64_backend.h"
+#include "jit/frontend/armv3/armv3_analyze.h"
 #include "jit/frontend/armv3/armv3_context.h"
+#include "jit/frontend/armv3/armv3_disasm.h"
+#include "jit/frontend/armv3/armv3_fallback.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
+#include "jit/ir/ir.h"
 #include "jit/jit.h"
 
 DEFINE_PROF_STAT(arm7_instrs);
@@ -24,6 +28,10 @@ DEFINE_PROF_STAT(arm7_instrs);
 #define ARM7_BLOCK_OFFSET(addr) ((addr & ARM7_BLOCK_MASK) >> ARM7_BLOCK_SHIFT)
 #define ARM7_MAX_BLOCKS (0x00800000 >> ARM7_BLOCK_SHIFT)
 
+static uint8_t arm7_code[1024 * 1024 * 8];
+static int arm7_code_size = 1024 * 1024 * 8;
+static int arm7_stack_size = 1024;
+
 struct arm7 {
   struct device;
 
@@ -31,7 +39,6 @@ struct arm7 {
   struct armv3_context ctx;
 
   /* jit */
-  struct armv3_guest guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
   struct jit *jit;
@@ -163,8 +170,7 @@ void arm7_suspend(struct arm7 *arm) {
 static void arm7_compile_pc() {
   uint32_t guest_addr = g_arm->ctx.r[15];
   uint8_t *guest_ptr = as_translate(g_arm->memory_if->space, guest_addr);
-  int flags = 0;
-  code_pointer_t code = jit_compile_code(g_arm->jit, guest_addr, flags);
+  code_pointer_t code = jit_compile_code(g_arm->jit, guest_addr);
   code();
 }
 
@@ -172,6 +178,37 @@ static inline code_pointer_t arm7_get_code(struct arm7 *arm, uint32_t addr) {
   int offset = ARM7_BLOCK_OFFSET(addr);
   DCHECK_LT(offset, ARM7_MAX_BLOCKS);
   return arm->jit->code[offset];
+}
+
+static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
+                           int flags) {
+  struct arm7 *arm = data;
+
+  int size;
+  armv3_analyze_block(arm->jit, addr, &flags, &size);
+
+  /* update remaining cycles */
+  struct ir_value *remaining_cycles = ir_load_context(
+      ir, offsetof(struct armv3_context, remaining_cycles), VALUE_I32);
+  int cycles = (size / 4);
+  remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, cycles));
+  ir_store_context(ir, offsetof(struct armv3_context, remaining_cycles),
+                   remaining_cycles);
+  CHECK(cycles && size);
+
+  /* update num instrs */
+  struct ir_value *num_instrs_ptr =
+      ir_alloc_i64(ir, (uint64_t)&STAT_arm7_instrs);
+  struct ir_value *num_instrs = ir_load(ir, num_instrs_ptr, VALUE_I64);
+  num_instrs = ir_add(ir, num_instrs, ir_alloc_i64(ir, size / 4));
+  ir_store(ir, num_instrs_ptr, num_instrs);
+
+  /* emit fallbacks */
+  for (int i = 0; i < size; i += 4) {
+    uint32_t data = arm->jit->r32(arm->jit->space, addr + i);
+    void *fallback = armv3_fallback(data);
+    ir_call_fallback(ir, fallback, addr + i, data);
+  }
 }
 
 static void arm7_run(struct device *dev, int64_t ns) {
@@ -188,7 +225,6 @@ static void arm7_run(struct device *dev, int64_t ns) {
   while (arm->ctx.remaining_cycles > 0) {
     code_pointer_t code = arm7_get_code(arm, arm->ctx.r[15]);
     code();
-
     arm7_check_pending_interrupts(arm);
   }
 
@@ -201,31 +237,40 @@ static bool arm7_init(struct device *dev) {
   struct arm7 *arm = (struct arm7 *)dev;
   struct dreamcast *dc = arm->dc;
 
+  /* initialize jit and its interfaces */
+  struct jit *jit = jit_create("arm7");
+  jit->block_mask = ARM7_BLOCK_MASK;
+  jit->block_shift = ARM7_BLOCK_SHIFT;
+  jit->block_max = ARM7_MAX_BLOCKS;
+  jit->ctx = &arm->ctx;
+  jit->mem = arm->memory_if->space->base;
+  jit->space = arm->memory_if->space;
+  jit->r8 = &as_read8;
+  jit->r16 = &as_read16;
+  jit->r32 = &as_read32;
+  jit->w8 = &as_write8;
+  jit->w16 = &as_write16;
+  jit->w32 = &as_write32;
+  arm->jit = jit;
+
+  struct armv3_frontend *frontend =
+      (struct armv3_frontend *)armv3_frontend_create(arm->jit);
+  frontend->data = arm;
+  frontend->translate = &arm7_translate;
+  frontend->switch_mode = &arm7_switch_mode;
+  frontend->restore_mode = &arm7_restore_mode;
+  frontend->software_interrupt = &arm7_software_interrupt;
+  arm->frontend = (struct jit_frontend *)frontend;
+
+  struct jit_backend *backend =
+      x64_backend_create(arm->jit, arm7_code, arm7_code_size, arm7_stack_size);
+  arm->backend = backend;
+
+  if (!jit_init(arm->jit, arm->frontend, arm->backend, &arm7_compile_pc)) {
+    return false;
+  }
+
   arm->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x00000000);
-
-  /* initialize jit interface */
-  arm->guest.block_mask = ARM7_BLOCK_MASK;
-  arm->guest.block_shift = ARM7_BLOCK_SHIFT;
-  arm->guest.block_max = ARM7_MAX_BLOCKS;
-  arm->guest.ctx_base = &arm->ctx;
-  arm->guest.mem_base = arm->memory_if->space->base;
-  arm->guest.mem_self = arm->memory_if->space;
-  arm->guest.r8 = &as_read8;
-  arm->guest.r16 = &as_read16;
-  arm->guest.r32 = &as_read32;
-  arm->guest.w8 = &as_write8;
-  arm->guest.w16 = &as_write16;
-  arm->guest.w32 = &as_write32;
-  arm->guest.ctx = &arm->ctx;
-  arm->guest.self = arm;
-  arm->guest.switch_mode = &arm7_switch_mode;
-  arm->guest.restore_mode = &arm7_restore_mode;
-  arm->guest.software_interrupt = &arm7_software_interrupt;
-
-  arm->frontend = armv3_frontend_create(&arm->guest);
-  arm->backend = x64_backend_create((struct jit_guest *)&arm->guest);
-  arm->jit = jit_create((struct jit_guest *)&arm->guest, arm->frontend,
-                        arm->backend, &arm7_compile_pc, "arm7");
 
   return true;
 }
@@ -239,7 +284,7 @@ void arm7_destroy(struct arm7 *arm) {
     x64_backend_destroy(arm->backend);
   }
 
-  if (arm->backend) {
+  if (arm->frontend) {
     armv3_frontend_destroy(arm->frontend);
   }
 
