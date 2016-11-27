@@ -441,7 +441,8 @@ REG_W32(holly_cb, SB_PDST) {
 
 // clang-format off
 AM_BEGIN(struct holly, holly_reg_map);
-  AM_RANGE(0x00000000, 0x00001fff) AM_HANDLE("holly reg",
+  /* over-allocate to align with the host allocation granularity */
+  AM_RANGE(0x00000000, 0x00007fff) AM_HANDLE("holly reg",
                                              (mmio_read_cb)&holly_reg_read,
                                              (mmio_write_cb)&holly_reg_write)
 AM_END();

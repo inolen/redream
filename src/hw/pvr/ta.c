@@ -33,7 +33,6 @@ struct ta {
   struct device;
   struct texture_provider provider;
   uint8_t *video_ram;
-  uint8_t *palette_ram;
 
   // yuv data converter state
   uint8_t *yuv_data;
@@ -469,7 +468,7 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
         palette_size = (1 << 8) * 4;
       }
 
-      entry->palette = &ta->palette_ram[palette_addr];
+      entry->palette = &ta->pvr->palette_ram[palette_addr];
       entry->palette_size = palette_size;
     }
   }
@@ -767,7 +766,9 @@ static void ta_yuv_process_macroblock(struct ta *ta) {
   ta_yuv_process_block(ta, &in[36], &in[320], &out[ta->yuv_width * 16 + 16]);
 
   // reset state once all macroblocks have been processed
-  if (++pvr->TA_YUV_TEX_CNT->num >= ta->yuv_macroblock_count) {
+  pvr->TA_YUV_TEX_CNT->num++;
+
+  if ((int)pvr->TA_YUV_TEX_CNT->num >= ta->yuv_macroblock_count) {
     ta_yuv_init(ta);
 
     // raise DMA end interrupt
@@ -810,7 +811,6 @@ static bool ta_init(struct device *dev) {
   struct dreamcast *dc = ta->dc;
 
   ta->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
-  ta->palette_ram = memory_translate(dc->memory, "palette ram", 0x00000000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
     struct ta_texture_entry *entry = &ta->entries[i];

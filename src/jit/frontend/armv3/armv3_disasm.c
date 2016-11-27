@@ -77,7 +77,7 @@ static void armv3_disasm_init_lookup() {
         uint32_t opcode_mask = opcode_masks[i];
 
         if ((instr & opcode_mask) == opcode) {
-          int bits = __builtin_popcount(opcode_mask);
+          int bits = popcnt32(opcode_mask);
 
           CHECK_NE(bits, prev_bits);
 

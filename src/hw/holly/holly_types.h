@@ -5,10 +5,10 @@
 
 // registers
 enum {
-#define HOLLY_REG(addr, name, flags, default) name = (addr - 0x005f6000) >> 2,
+#define HOLLY_REG(addr, name, flags, default) name = (addr - 0x005f0000) >> 2,
 #include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
-  NUM_HOLLY_REGS = 0x00002000 >> 2,
+  NUM_HOLLY_REGS = 0x00008000 >> 2,
 };
 
 // interrupts
