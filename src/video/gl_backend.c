@@ -500,7 +500,6 @@ static void video_debug_menu(void *data, struct nk_context *ctx) {
   struct video_backend *video = data;
 
   nk_layout_row_push(ctx, 50.0f);
-
   if (nk_menu_begin_label(ctx, "VIDEO", NK_TEXT_LEFT,
                           nk_vec2(140.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);

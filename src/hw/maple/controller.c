@@ -23,7 +23,7 @@ enum {
   CONT_DPAD2_DOWN = 0x2000,
   CONT_DPAD2_LEFT = 0x4000,
   CONT_DPAD2_RIGHT = 0x8000,
-  // only used by internal button map
+  /* only used by internal button map */
   CONT_JOYX = 0x10000,
   CONT_JOYY = 0x20000,
   CONT_LTRIG = 0x40000,
@@ -47,8 +47,10 @@ struct controller {
   int map[K_NUM_KEYS];
 };
 
-// Constant device info structure sent as response to CMD_REQDEVINFO to
-// identify the controller.
+/*
+ * constant device info structure sent as response to CMD_REQDEVINFO to
+ * identify the controller
+ */
 static struct maple_device_info controller_devinfo = {
     FN_CONTROLLER,
     {0xfe060f00, 0x0, 0x0},
@@ -129,14 +131,13 @@ static bool controller_input(struct maple_device *dev, enum keycode key,
                              int16_t value) {
   struct controller *ctrl = (struct controller *)dev;
 
-  // map incoming key to dreamcast button
+  /* map incoming key to dreamcast button */
   int button = ctrl->map[key];
 
-  // scale incoming int16_t -> uint8_t
+  /* scale incoming int16_t -> uint8_t */
   uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
 
   if (!button) {
-    LOG_WARNING("Ignored key %s, no mapping found", get_name_by_key(key));
     return false;
   }
 
@@ -192,20 +193,20 @@ struct maple_device *controller_create() {
   ctrl->frame = &controller_frame;
   ctrl->cnd.function = FN_CONTROLLER;
 
-  // buttons bitfield contains 0s for pressed buttons and 1s for unpressed
+  /* buttons bitfield contains 0s for pressed buttons and 1s for unpressed */
   ctrl->cnd.buttons = 0xffff;
 
-  // triggers completely unpressed
+  /* triggers completely unpressed */
   ctrl->cnd.rtrig = ctrl->cnd.ltrig = 0;
 
-  // joysticks default to dead center
+  /* joysticks default to dead center */
   ctrl->cnd.joyy = ctrl->cnd.joyx = ctrl->cnd.joyx2 = ctrl->cnd.joyy2 = 0x80;
 
-  // default profile
-  // CONT_JOYX
-  // CONT_JOYY
-  // CONT_LTRIG
-  // CONT_RTRIG
+  /* default profile */
+  /* CONT_JOYX */
+  /* CONT_JOYY */
+  /* CONT_LTRIG */
+  /* CONT_RTRIG */
   ctrl->map[K_SPACE] = CONT_START;
   ctrl->map[(enum keycode)'k'] = CONT_A;
   ctrl->map[(enum keycode)'l'] = CONT_B;
@@ -216,7 +217,7 @@ struct maple_device *controller_create() {
   ctrl->map[(enum keycode)'a'] = CONT_DPAD_LEFT;
   ctrl->map[(enum keycode)'d'] = CONT_DPAD_RIGHT;
 
-  // load profile
+  /* load profile */
   controller_load_profile(ctrl, OPTION_profile);
 
   return (struct maple_device *)ctrl;

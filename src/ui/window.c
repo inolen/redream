@@ -35,6 +35,59 @@ static void win_init_joystick(struct window *win) {
   memset(win->hat_state, 0, sizeof(win->hat_state));
 }
 
+static void win_set_fullscreen(struct window *win, int fullscreen) {
+  win->fullscreen = fullscreen;
+
+  SDL_SetWindowFullscreen(win->handle, fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
+}
+
+static void win_debug_menu(struct window *win) {
+  if (!win->debug_menu) {
+    return;
+  }
+
+  struct nk_context *ctx = &win->nk->ctx;
+  struct nk_rect bounds = {0.0f, 0.0f, (float)win->width, DEBUG_MENU_HEIGHT};
+
+  nk_style_default(ctx);
+
+  ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
+  ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
+
+  if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
+    nk_menubar_begin(ctx);
+    nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT, MAX_WINDOW_LISTENERS + 2);
+
+    /* add our own debug menu */
+    nk_layout_row_push(ctx, 50.0f);
+    if (nk_menu_begin_label(ctx, "WINDOW", NK_TEXT_LEFT, nk_vec2(140.0f, 200.0f))) {
+      nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+      int fullscreen = win->fullscreen;
+      if (nk_checkbox_label(ctx, "fullscreen", &fullscreen)) {
+        win_set_fullscreen(win, fullscreen);
+      }
+
+      nk_menu_end(ctx);
+    }
+
+    /* add each listener's debug menu */
+    list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+      if (listener->debug_menu) {
+        listener->debug_menu(listener->data, ctx);
+      }
+    }
+
+    /* fill up remaining space with status */
+    nk_layout_row_push(ctx, (float)win->width - ctx->current->layout->row.item_offset);
+    nk_label(ctx, win->status, NK_TEXT_RIGHT);
+
+    nk_layout_row_end(ctx);
+    nk_menubar_end(ctx);
+  }
+  nk_end(ctx);
+}
+
 static void win_handle_paint(struct window *win) {
   video_begin_frame(win->video);
   nk_begin_frame(win->nk);
@@ -46,38 +99,7 @@ static void win_handle_paint(struct window *win) {
     }
   }
 
-  if (win->debug_menu) {
-    struct nk_context *ctx = &win->nk->ctx;
-    struct nk_rect bounds = {0.0f, 0.0f, (float)win->width, DEBUG_MENU_HEIGHT};
-
-    nk_style_default(ctx);
-
-    ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
-    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
-
-    if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
-      nk_menubar_begin(ctx);
-      nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT,
-                          MAX_WINDOW_LISTENERS + 1);
-
-      /* add each listener's debug menu */
-      list_for_each_entry(listener, &win->listeners, struct window_listener,
-                          it) {
-        if (listener->debug_menu) {
-          listener->debug_menu(listener->data, ctx);
-        }
-      }
-
-      /* fill up remaining space with status */
-      nk_layout_row_push(
-          ctx, (float)win->width - ctx->current->layout->row.item_offset);
-      nk_label(ctx, win->status, NK_TEXT_RIGHT);
-
-      nk_layout_row_end(ctx);
-      nk_menubar_end(ctx);
-    }
-    nk_end(ctx);
-  }
+  win_debug_menu(win);
 
   mp_end_frame(win->mp);
   nk_end_frame(win->nk);

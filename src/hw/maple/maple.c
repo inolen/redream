@@ -9,7 +9,6 @@ struct maple {
 };
 
 static bool maple_init(struct device *dev) {
-  // struct maple *mp = (struct maple *)dev;
   return true;
 }
 
