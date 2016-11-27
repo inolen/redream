@@ -118,6 +118,13 @@ struct ir_value *ir_alloc_f64(struct ir *ir, double c) {
   return v;
 }
 
+struct ir_value *ir_alloc_label(struct ir *ir) {
+  struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
+  v->type = VALUE_LABEL;
+  v->reg = NO_REGISTER;
+  return v;
+}
+
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type) {
   // align local to natural size
   int type_size = ir_type_size(type);
@@ -716,8 +723,15 @@ struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a,
   return instr->result;
 }
 
+void ir_label(struct ir *ir, struct ir_value *lbl) {
+  CHECK(lbl->type == VALUE_LABEL);
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_LABEL, VALUE_V);
+  ir_set_arg0(ir, instr, lbl);
+}
+
 void ir_branch(struct ir *ir, struct ir_value *dst) {
-  CHECK(dst->type == VALUE_I64);
+  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH, VALUE_V);
   ir_set_arg0(ir, instr, dst);
@@ -725,7 +739,7 @@ void ir_branch(struct ir *ir, struct ir_value *dst) {
 
 void ir_branch_false(struct ir *ir, struct ir_value *cond,
                      struct ir_value *dst) {
-  CHECK(dst->type == VALUE_I64);
+  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_FALSE, VALUE_V);
   ir_set_arg0(ir, instr, cond);
@@ -734,7 +748,7 @@ void ir_branch_false(struct ir *ir, struct ir_value *cond,
 
 void ir_branch_true(struct ir *ir, struct ir_value *cond,
                     struct ir_value *dst) {
-  CHECK(dst->type == VALUE_I64);
+  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_TRUE, VALUE_V);
   ir_set_arg0(ir, instr, cond);

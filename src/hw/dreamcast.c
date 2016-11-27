@@ -50,6 +50,7 @@ bool dc_init(struct dreamcast *dc) {
     dev->ta = dc->ta;
 
     if (!dev->init(dev)) {
+      LOG_INFO("Device \"%s\" failed to initialize", dev->name);
       dc_destroy(dc);
       return false;
     }

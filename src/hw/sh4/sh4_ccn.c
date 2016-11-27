@@ -15,7 +15,7 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
   // after the CCR update instruction."
   LOG_INFO("sh4_ccn_reset");
 
-  jit_unlink_blocks(sh4->jit);
+  jit_invalidate_blocks(sh4->jit);
 }
 
 void sh4_ccn_prefetch(void *data, uint64_t addr64) {
