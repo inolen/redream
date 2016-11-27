@@ -48,6 +48,7 @@ struct window {
   /* read only */
   int width;
   int height;
+  int fullscreen;
   bool debug_menu;
   bool text_input;
 
