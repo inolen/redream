@@ -1,12 +1,15 @@
 #ifndef ARM7_H
 #define ARM7_H
 
+#include "core/profiler.h"
 #include "hw/memory.h"
 
 struct arm7;
 struct dreamcast;
 
 enum arm7_interrupt { ARM7_INT_FIQ = 0x1 };
+
+DECLARE_PROF_STAT(arm7_instrs);
 
 AM_DECLARE(arm7_data_map);
 

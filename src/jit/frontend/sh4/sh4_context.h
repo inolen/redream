@@ -82,9 +82,6 @@ struct sh4_ctx {
   /* the main dispatch loop is ran until num_cycles is <= 0 */
   int32_t num_cycles;
 
-  /* used for debug performance monitoring */
-  uint32_t num_instrs;
-
   /* ir only supports 64-bit arguments for external calls atm */
   void *sh4;
   void (*InvalidInstruction)(struct sh4_ctx *, uint64_t addr);

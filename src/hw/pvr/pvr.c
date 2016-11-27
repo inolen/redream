@@ -2,8 +2,11 @@
 #include "hw/dreamcast.h"
 #include "hw/holly/holly.h"
 #include "hw/pvr/ta.h"
+#include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 #include "sys/time.h"
+
+DEFINE_PROF_STAT(pvr_vblanks);
 
 struct reg_cb pvr_cb[NUM_PVR_REGS];
 
@@ -40,16 +43,7 @@ static void pvr_next_scanline(void *data) {
 
   /* FIXME toggle SPG_STATUS.fieldnum on vblank? */
   if (!was_vsync && pvr->SPG_STATUS->vsync) {
-    int64_t now = time_nanoseconds();
-    int64_t next_time = pvr->last_vbs_time + NS_PER_SEC;
-
-    pvr->num_vblanks++;
-
-    if (now > next_time) {
-      pvr->vbs = pvr->num_vblanks;
-      pvr->last_vbs_time = now;
-      pvr->num_vblanks = 0;
-    }
+    STAT_pvr_vblanks++;
   }
 
   /* reschedule */

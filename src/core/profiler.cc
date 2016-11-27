@@ -92,7 +92,7 @@ void prof_stat_unregister(struct prof_stat *stat) {
   list_remove(&prof_stats, &stat->it);
 }
 
-void prof_count(prof_token_t tok, int count) {
+void prof_count(prof_token_t tok, int64_t count) {
   MicroProfileCounterSet(tok, count);
 }
 
@@ -104,6 +104,7 @@ void prof_flip() {
   if (now > next_update) {
     list_for_each_entry(stat, &prof_stats, struct prof_stat, it) {
       prof_count(stat->tok, *stat->n);
+      *stat->prev = *stat->n;
       *stat->n = 0;
     }
 

@@ -8,6 +8,7 @@
 #include "hw/pvr/pvr.h"
 #include "hw/pvr/tr.h"
 #include "hw/pvr/trace.h"
+#include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"

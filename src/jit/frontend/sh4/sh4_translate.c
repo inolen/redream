@@ -1,6 +1,7 @@
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "core/assert.h"
 #include "core/profiler.h"
+#include "hw/sh4/sh4.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
@@ -2291,8 +2292,9 @@ void sh4_translate(const struct jit_guest *guest, uint32_t addr, int size,
   ir_store_context(ir, offsetof(struct sh4_ctx, num_cycles), num_cycles);
 
   /* update num instructions */
-  struct ir_value *num_instrs =
-      ir_load_context(ir, offsetof(struct sh4_ctx, num_instrs), VALUE_I32);
-  num_instrs = ir_add(ir, num_instrs, ir_alloc_i32(ir, size >> 1));
-  ir_store_context(ir, offsetof(struct sh4_ctx, num_instrs), num_instrs);
+  struct ir_value *num_instrs_ptr =
+      ir_alloc_i64(ir, (uint64_t)&STAT_sh4_instrs);
+  struct ir_value *num_instrs = ir_load(ir, num_instrs_ptr, VALUE_I64);
+  num_instrs = ir_add(ir, num_instrs, ir_alloc_i64(ir, size / 4));
+  ir_store(ir, num_instrs_ptr, num_instrs);
 }

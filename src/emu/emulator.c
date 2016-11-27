@@ -1,6 +1,7 @@
 #include "emu/emulator.h"
 #include "core/option.h"
 #include "core/profiler.h"
+#include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/memory.h"
@@ -13,6 +14,8 @@
 #include "sys/time.h"
 #include "ui/nuklear.h"
 #include "ui/window.h"
+
+DEFINE_PROF_STAT(fps);
 
 struct emu {
   struct window *window;
@@ -27,11 +30,6 @@ struct emu {
   struct surface surfs[TA_MAX_SURFS];
   struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];
-
-  /* fps */
-  int fps;
-  int64_t last_frame_time;
-  int num_frames;
 };
 
 static bool emu_launch_bin(struct emu *emu, const char *path) {
@@ -97,17 +95,7 @@ static void emu_paint(void *data) {
 
   tr_render_context(emu->tr, render_ctx);
 
-  /* track fps */
-  int64_t now = time_nanoseconds();
-  int64_t next_time = emu->last_frame_time + NS_PER_SEC;
-
-  emu->num_frames++;
-
-  if (now > next_time) {
-    emu->fps = emu->num_frames;
-    emu->last_frame_time = now;
-    emu->num_frames = 0;
-  }
+  STAT_fps++;
 
   PROF_FLIP();
 }
@@ -117,8 +105,10 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
 
   /* set status string */
   char status[128];
-  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d MIPS", emu->fps,
-           emu->dc->pvr->vbs, emu->dc->sh4->mips);
+  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d SH4 %d ARM",
+           (int)STAT_PREV_fps, (int)STAT_PREV_pvr_vblanks,
+           (int)(STAT_PREV_sh4_instrs / (float)INT64_C(1000000)),
+           (int)(STAT_PREV_arm7_instrs / (float)INT64_C(1000000)));
   win_set_status(emu->window, status);
 
   /* add drop down menus */
