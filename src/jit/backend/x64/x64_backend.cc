@@ -24,8 +24,7 @@ static const int STACK_SHADOW_SPACE = 32;
 #else
 static const int STACK_SHADOW_SPACE = 0;
 #endif
-static const int STACK_OFFSET_LOCALS = STACK_SHADOW_SPACE;
-static const int STACK_SIZE = STACK_OFFSET_LOCALS;
+static const int STACK_OFFSET_LOCALS = STACK_SHADOW_SPACE + 8;
 
 //
 // x64 register layout
@@ -63,10 +62,12 @@ static const int STACK_SIZE = STACK_OFFSET_LOCALS;
 const int x64_arg0_idx = Xbyak::Operand::RCX;
 const int x64_arg1_idx = Xbyak::Operand::RDX;
 const int x64_arg2_idx = Xbyak::Operand::R8;
+const int x64_arg3_idx = Xbyak::Operand::R9;
 #else
 const int x64_arg0_idx = Xbyak::Operand::RDI;
 const int x64_arg1_idx = Xbyak::Operand::RSI;
 const int x64_arg2_idx = Xbyak::Operand::RDX;
+const int x64_arg3_idx = Xbyak::Operand::RCX;
 #endif
 const int x64_tmp0_idx = Xbyak::Operand::R10;
 const int x64_tmp1_idx = Xbyak::Operand::R11;
@@ -74,6 +75,7 @@ const int x64_tmp1_idx = Xbyak::Operand::R11;
 const Xbyak::Reg64 arg0(x64_arg0_idx);
 const Xbyak::Reg64 arg1(x64_arg1_idx);
 const Xbyak::Reg64 arg2(x64_arg2_idx);
+const Xbyak::Reg64 arg3(x64_arg3_idx);
 const Xbyak::Reg64 tmp0(x64_tmp0_idx);
 const Xbyak::Reg64 tmp1(x64_tmp1_idx);
 
@@ -156,7 +158,6 @@ struct x64_backend {
   Xbyak::Label xmm_const[NUM_XMM_CONST];
   void (*load_thunk[16])();
   void (*store_thunk)();
-  bool modified[x64_num_registers];
   int num_temps;
 };
 
@@ -261,146 +262,31 @@ static bool x64_backend_can_encode_imm(const struct ir_value *v) {
   return v->type <= VALUE_I32;
 }
 
-static bool x64_backend_callee_saved(const Xbyak::Reg &reg) {
-  if (reg.isXMM()) {
-    return false;
-  }
+void *x64_backend_emit(struct x64_backend *backend, struct ir *ir, int *size) {
+  PROF_ENTER("cpu", "x64_backend_emit");
 
-  static bool callee_saved[16] = {
-    false,  // RAX
-    false,  // RCX
-    false,  // RDX
-    true,   // RBX
-    false,  // RSP
-    true,   // RBP
-#if PLATFORM_WINDOWS
-    true,  // RSI
-    true,  // RDI
-#else
-    false,  // RSI
-    false,  // RDI
-#endif
-    false,  // R8
-    false,  // R9
-    false,  // R10
-    false,  // R11
-    true,   // R12
-    true,   // R13
-    true,   // R14
-    true,   // R15
-  };
-
-  return callee_saved[reg.getIdx()];
-}
-
-static void x64_backend_emit_prolog(struct x64_backend *backend, struct ir *ir,
-                                    int *out_stack_size) {
   auto &e = *backend->codegen;
+  void *fn = (void *)backend->codegen->getCurr();
 
-  int stack_size = STACK_SIZE + ir->locals_size;
+  CHECK_LT(ir->locals_size, backend->stack_size);
 
-  // stack must be 16 byte aligned
-  stack_size = align_up(stack_size, 16);
+  e.inLocalLabel();
 
-  // add 8 for return address which will be pushed when this is called
-  stack_size += 8;
-
-  CHECK_EQ((stack_size + 8) % 16, 0);
-
-  // mark which registers have been modified
-  memset(backend->modified, 0, sizeof(backend->modified));
-
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
-    struct ir_value *result = instr->result;
-
-    if (!result) {
-      continue;
-    }
-
-    backend->modified[result->reg] = true;
-  }
-
-  // push the callee-saved registers which have been modified
-  int pushed = 2;
-
-  // always used by guest ctx and memory pointers
-  e.push(e.r15);
-  e.push(e.r14);
-
-  for (int i = 0; i < x64_num_registers; i++) {
-    const Xbyak::Reg &reg =
-        *reinterpret_cast<const Xbyak::Reg *>(x64_registers[i].data);
-
-    if (x64_backend_callee_saved(reg) && backend->modified[i]) {
-      e.push(reg);
-      pushed++;
-    }
-  }
-
-  // if an odd amount of push instructions are emitted stack_size needs to be
-  // adjusted to keep the stack aligned
-  if ((pushed % 2) == 1) {
-    stack_size += 8;
-  }
-
-  // adjust stack pointer
-  e.sub(e.rsp, stack_size);
-
-  // copy guest context and memory base to argument registers
-  e.mov(e.r14, reinterpret_cast<uint64_t>(backend->base.jit->ctx));
-  e.mov(e.r15, reinterpret_cast<uint64_t>(backend->base.jit->mem));
-
-  *out_stack_size = stack_size;
-}
-
-static void x64_backend_emit_body(struct x64_backend *backend, struct ir *ir) {
   list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
     x64_emit_cb emit = x64_backend_emitters[instr->op];
-    CHECK(emit, "Failed to find emitter for %s", ir_op_names[instr->op]);
+    CHECK_NOTNULL(emit);
 
     // reset temp count used by GetRegister
     backend->num_temps = 0;
 
     emit(backend, *backend->codegen, instr);
   }
-}
 
-static void x64_backend_emit_epilog(struct x64_backend *backend, struct ir *ir,
-                                    int stack_size) {
-  auto &e = *backend->codegen;
+  e.outLocalLabel();
 
-  // adjust stack pointer
-  e.add(e.rsp, stack_size);
+  *size = (int)((uint8_t *)backend->codegen->getCurr() - (uint8_t *)fn);
 
-  // pop callee-saved registers which have been modified
-  for (int i = x64_num_registers - 1; i >= 0; i--) {
-    const Xbyak::Reg &reg =
-        *reinterpret_cast<const Xbyak::Reg *>(x64_registers[i].data);
-
-    if (x64_backend_callee_saved(reg) && backend->modified[i]) {
-      e.pop(reg);
-    }
-  }
-
-  // pop r14 and r15
-  e.pop(e.r14);
-  e.pop(e.r15);
-
-  e.ret();
-}
-
-const uint8_t *x64_backend_emit(struct x64_backend *backend, struct ir *ir,
-                                int *size) {
-  // PROFILER_RUNTIME("X64Emitter::Emit");
-
-  const uint8_t *fn = backend->codegen->getCurr();
-
-  int stack_size = 0;
-  x64_backend_emit_prolog(backend, ir, &stack_size);
-  x64_backend_emit_body(backend, ir);
-  x64_backend_emit_epilog(backend, ir, stack_size);
-
-  *size = (int)(backend->codegen->getCurr() - fn);
+  PROF_LEAVE();
 
   return fn;
 }
@@ -462,13 +348,13 @@ static void x64_backend_reset(struct jit_backend *base) {
   x64_backend_emit_constants(backend);
 }
 
-static const uint8_t *x64_backend_assemble_code(struct jit_backend *base,
-                                                struct ir *ir, int *size) {
+static void *x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
+                                       int *size) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
 
   // try to generate the x64 code. if the code buffer overflows let the backend
   // know so it can reset the cache and try again
-  const uint8_t *fn = nullptr;
+  void *fn = NULL;
 
   try {
     fn = x64_backend_emit(backend, ir, size);
@@ -592,6 +478,11 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
   }
 
   return true;
+}
+
+static void x64_backend_label_name(char *name, size_t size,
+                                   struct ir_value *v) {
+  snprintf(name, size, ".L_%p", v);
 }
 
 EMITTER(LOAD) {
@@ -1625,25 +1516,51 @@ EMITTER(LSHD) {
   e.outLocalLabel();
 }
 
+EMITTER(LABEL) {
+  char name[128];
+  x64_backend_label_name(name, sizeof(name), instr->arg[0]);
+  e.L(name);
+}
+
 EMITTER(BRANCH) {
-  void *dst = (void *)instr->arg[0]->i64;
-  e.jmp(dst);
+  if (instr->arg[0]->type == VALUE_LABEL) {
+    char name[128];
+    x64_backend_label_name(name, sizeof(name), instr->arg[0]);
+    e.jmp(name);
+  } else {
+    void *dst = (void *)instr->arg[0]->i64;
+    e.jmp(dst);
+  }
 }
 
 EMITTER(BRANCH_FALSE) {
   const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[0]);
-  void *dst = (void *)instr->arg[1]->i64;
 
   e.test(cond, cond);
-  e.jz(dst);
+
+  if (instr->arg[1]->type == VALUE_LABEL) {
+    char name[128];
+    x64_backend_label_name(name, sizeof(name), instr->arg[1]);
+    e.jz(name);
+  } else {
+    void *dst = (void *)instr->arg[1]->i64;
+    e.jz(dst);
+  }
 }
 
 EMITTER(BRANCH_TRUE) {
   const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[0]);
-  void *dst = (void *)instr->arg[1]->i64;
 
   e.test(cond, cond);
-  e.jnz(dst);
+
+  if (instr->arg[1]->type == VALUE_LABEL) {
+    char name[128];
+    x64_backend_label_name(name, sizeof(name), instr->arg[1]);
+    e.jnz(name);
+  } else {
+    void *dst = (void *)instr->arg[1]->i64;
+    e.jnz(dst);
+  }
 }
 
 EMITTER(CALL) {
@@ -1674,6 +1591,16 @@ EMITTER(CALL_FALLBACK) {
   e.call(fallback);
 }
 
+void x64_backend_destroy(struct jit_backend *jit_backend) {
+  struct x64_backend *backend = (struct x64_backend *)jit_backend;
+
+  cs_close(&backend->capstone_handle);
+
+  delete backend->codegen;
+
+  free(backend);
+}
+
 struct jit_backend *x64_backend_create(struct jit *jit, void *code,
                                        int code_size, int stack_size) {
   struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
@@ -1691,7 +1618,6 @@ struct jit_backend *x64_backend_create(struct jit *jit, void *code,
   backend->code_size = code_size;
   backend->stack_size = stack_size;
   backend->codegen = new Xbyak::CodeGenerator(code_size, code);
-  CHECK(Xbyak::CodeArray::protect(code, code_size, true));
 
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
@@ -1700,14 +1626,4 @@ struct jit_backend *x64_backend_create(struct jit *jit, void *code,
   x64_backend_reset((jit_backend *)backend);
 
   return (struct jit_backend *)backend;
-}
-
-void x64_backend_destroy(struct jit_backend *jit_backend) {
-  struct x64_backend *backend = (struct x64_backend *)jit_backend;
-
-  cs_close(&backend->capstone_handle);
-
-  delete backend->codegen;
-
-  free(backend);
 }

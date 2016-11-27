@@ -11,6 +11,7 @@
 #include "hw/rom/boot.h"
 #include "hw/rom/flash.h"
 #include "hw/scheduler.h"
+#include "hw/sh4/x64/sh4_dispatch.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
@@ -24,26 +25,8 @@
 DEFINE_AGGREGATE_COUNTER(sh4_instrs);
 DEFINE_AGGREGATE_COUNTER(sh4_sr_updates);
 
-/*
- * sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.
- * each instr is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
- */
-#define SH4_BLOCK_MASK 0x03ffffff
-#define SH4_BLOCK_SHIFT 1
-#define SH4_BLOCK_OFFSET(addr) ((addr & SH4_BLOCK_MASK) >> SH4_BLOCK_SHIFT)
-#define SH4_MAX_BLOCKS (0x1000000 >> SH4_BLOCK_SHIFT)
-
 /* callbacks to service sh4_reg_read / sh4_reg_write calls */
 struct reg_cb sh4_cb[NUM_SH4_REGS];
-
-/*
- * global sh4 pointer is used by sh4_compile_pc to resolve the current
- * sh4 instance when compiling a new block
- */
-static struct sh4 *g_sh4;
-static uint8_t sh4_code[1024 * 1024 * 8];
-static int sh4_code_size = 1024 * 1024 * 8;
-static int sh4_stack_size = 1024;
 
 static void sh4_swap_gpr_bank(struct sh4 *sh4) {
   for (int s = 0; s < 8; s++) {
@@ -138,9 +121,19 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
   }
   sh4_analyze_block(sh4->jit, &as);
 
-  /* update remaining cycles */
+  /* yield control once remaining cycles are executed */
   struct ir_value *remaining_cycles = ir_load_context(
       ir, offsetof(struct sh4_ctx, remaining_cycles), VALUE_I32);
+  struct ir_value *done = ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
+  ir_branch_true(ir, done, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_leave));
+
+  /* handle pending interrupts */
+  struct ir_value *pending_intr = ir_load_context(
+      ir, offsetof(struct sh4_ctx, pending_interrupts), VALUE_I64);
+  ir_branch_true(ir, pending_intr,
+                 ir_alloc_i64(ir, (uint64_t)sh4_dispatch_interrupt));
+
+  /* update remaining cycles */
   remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, as.cycles));
   ir_store_context(ir, offsetof(struct sh4_ctx, remaining_cycles),
                    remaining_cycles);
@@ -166,10 +159,8 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
       delay_instr.addr = addr + i;
       delay_instr.opcode = as_read16(sh4->memory_if->space, delay_instr.addr);
 
-      /*
-       * instruction must be valid, breakpoints on delay instructions aren't
-       * currently supported
-       */
+      /* instruction must be valid, breakpoints on delay instructions aren't
+         currently supported */
       CHECK(sh4_disasm(&delay_instr));
 
       /* delay instruction itself should never have a delay instr */
@@ -191,6 +182,27 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
     ir_store_context(ir, offsetof(struct sh4_ctx, pc),
                      ir_alloc_i32(ir, addr + as.size));
   }
+
+  /* the default emitters won't actually insert calls / branches to the
+     appropriate dispatch routines (as how each is invoked is specific
+     to the particular dispatch backend) */
+  list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
+    if (instr->op != OP_STORE_CONTEXT ||
+        instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
+      continue;
+    }
+
+    int direct = ir_is_constant(instr->arg[1]);
+
+    /* insert dispatch call immediately after pc store */
+    ir->current_instr = instr;
+
+    if (direct) {
+      ir_call(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_static));
+    } else {
+      ir_branch(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_dynamic));
+    }
+  }
 }
 
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
@@ -204,8 +216,7 @@ void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
 }
 
 void sh4_reset(struct sh4 *sh4, uint32_t pc) {
-  /* unlink stale blocks */
-  jit_unlink_blocks(sh4->jit);
+  jit_free_blocks(sh4->jit);
 
   /* reset context */
   sh4->ctx.pc = pc;
@@ -227,18 +238,6 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   sh4->execute_if->running = 1;
 }
 
-static void sh4_compile_pc() {
-  uint32_t guest_addr = g_sh4->ctx.pc;
-  code_pointer_t code = jit_compile_code(g_sh4->jit, guest_addr);
-  code();
-}
-
-static inline code_pointer_t sh4_get_code(struct sh4 *sh4, uint32_t addr) {
-  int offset = SH4_BLOCK_OFFSET(addr);
-  DCHECK_LT(offset, SH4_MAX_BLOCKS);
-  return sh4->jit->code[offset];
-}
-
 static void sh4_run(struct device *dev, int64_t ns) {
   PROF_ENTER("cpu", "sh4_run");
 
@@ -247,17 +246,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
   int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
   sh4->ctx.remaining_cycles = (int)cycles;
   sh4->ctx.ran_instrs = 0;
-
-  g_sh4 = sh4;
-
-  while (sh4->ctx.remaining_cycles > 0) {
-    code_pointer_t code = sh4_get_code(sh4, sh4->ctx.pc);
-    code();
-    sh4_intc_check_pending(sh4);
-  }
-
-  g_sh4 = NULL;
-
+  sh4_dispatch_enter();
   prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 
   PROF_LEAVE();
@@ -269,11 +258,14 @@ static bool sh4_init(struct device *dev) {
 
   /* initialize jit and its interfaces */
   struct jit *jit = jit_create("sh4");
-  jit->block_mask = SH4_BLOCK_MASK;
-  jit->block_shift = SH4_BLOCK_SHIFT;
-  jit->block_max = SH4_MAX_BLOCKS;
+  sh4_dispatch_init(sh4, jit, &sh4->ctx, sh4->memory_if->space->base);
   jit->ctx = &sh4->ctx;
   jit->mem = sh4->memory_if->space->base;
+  jit->lookup_code = &sh4_dispatch_lookup_code;
+  jit->cache_code = &sh4_dispatch_cache_code;
+  jit->invalidate_code = &sh4_dispatch_invalidate_code;
+  jit->patch_edge = &sh4_dispatch_patch_edge;
+  jit->restore_edge = &sh4_dispatch_restore_edge;
   jit->space = sh4->memory_if->space;
   jit->r8 = &as_read8;
   jit->r16 = &as_read16;
@@ -297,7 +289,7 @@ static bool sh4_init(struct device *dev) {
       x64_backend_create(sh4->jit, sh4_code, sh4_code_size, sh4_stack_size);
   sh4->backend = backend;
 
-  if (!jit_init(sh4->jit, sh4->frontend, sh4->backend, &sh4_compile_pc)) {
+  if (!jit_init(sh4->jit, sh4->frontend, sh4->backend)) {
     return false;
   }
 
