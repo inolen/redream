@@ -88,33 +88,33 @@ static void ir_store_guest(struct ir *ir, int flags, struct ir_value *addr,
 }
 
 static struct ir_value *ir_load_gpr(struct ir *ir, int n, enum ir_type type) {
-  int offset = offsetof(struct sh4_ctx, r[n]);
+  size_t offset = offsetof(struct sh4_ctx, r[n]);
   return ir_load_context(ir, offset, type);
 }
 
 static void ir_store_gpr(struct ir *ir, int n, struct ir_value *v) {
   CHECK_EQ(v->type, VALUE_I32);
-  int offset = offsetof(struct sh4_ctx, r[n]);
+  size_t offset = offsetof(struct sh4_ctx, r[n]);
   ir_store_context(ir, offset, v);
 }
 
 static struct ir_value *ir_load_fpr(struct ir *ir, int n, enum ir_type type) {
-  int offset = offsetof(struct sh4_ctx, fr[swizzle_fpr(n, type)]);
+  size_t offset = offsetof(struct sh4_ctx, fr[swizzle_fpr(n, type)]);
   return ir_load_context(ir, offset, type);
 }
 
 static void ir_store_fpr(struct ir *ir, int n, struct ir_value *v) {
-  int offset = offsetof(struct sh4_ctx, fr[swizzle_fpr(n, v->type)]);
+  size_t offset = offsetof(struct sh4_ctx, fr[swizzle_fpr(n, v->type)]);
   ir_store_context(ir, offset, v);
 }
 
 static struct ir_value *ir_load_xfr(struct ir *ir, int n, enum ir_type type) {
-  int offset = offsetof(struct sh4_ctx, xf[swizzle_fpr(n, type)]);
+  size_t offset = offsetof(struct sh4_ctx, xf[swizzle_fpr(n, type)]);
   return ir_load_context(ir, offset, type);
 }
 
 static void ir_store_xfr(struct ir *ir, int n, struct ir_value *v) {
-  int offset = offsetof(struct sh4_ctx, xf[swizzle_fpr(n, v->type)]);
+  size_t offset = offsetof(struct sh4_ctx, xf[swizzle_fpr(n, v->type)]);
   ir_store_context(ir, offset, v);
 }
 

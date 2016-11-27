@@ -413,7 +413,7 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x0f000000, 0x0fffffff) AM_MIRROR(0x0c000000)
 
   /* external devices */
-  AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", holly_reg_map)
+  AM_RANGE(0x005f0000, 0x005f7fff) AM_DEVICE("holly", holly_reg_map)
   AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", pvr_reg_map)
   AM_RANGE(0x00600000, 0x0067ffff) AM_DEVICE("holly", holly_modem_map)
   AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", aica_reg_map)

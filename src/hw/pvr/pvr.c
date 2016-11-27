@@ -162,15 +162,15 @@ static bool pvr_init(struct device *dev) {
   struct pvr *pvr = (struct pvr *)dev;
   struct dreamcast *dc = pvr->dc;
 
-  pvr->palette_ram = memory_translate(dc->memory, "palette ram", 0x00000000);
-  pvr->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
-
 /* init registers */
 #define PVR_REG(offset, name, default, type) \
   pvr->reg[name] = default;                  \
   pvr->name = (type *)&pvr->reg[name];
 #include "hw/pvr/pvr_regs.inc"
 #undef PVR_REG
+
+  pvr->palette_ram = (uint8_t *)pvr->PALETTE_RAM000;
+  pvr->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
 
   /* configure initial vsync interval */
   pvr_reconfigure_spg(pvr);
@@ -202,7 +202,6 @@ REG_W32(pvr_cb, FB_R_CTRL) {
 
 // clang-format off
 AM_BEGIN(struct pvr, pvr_reg_map);
-  AM_RANGE(0x00001000, 0x00001fff) AM_MOUNT("palette ram")
   AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE("pvr reg",
                                              (mmio_read_cb)&pvr_reg_read,
                                              (mmio_write_cb)&pvr_reg_write)

@@ -460,15 +460,18 @@ static int as_num_adj_pages(struct address_space *space, int first_page_index) {
     const struct memory_region *next_region =
         &space->dc->memory->regions[next_region_handle];
 
-    if (region->type == REGION_MMIO && next_region_handle != region_handle) {
+    if (next_region->type != region->type) {
       break;
     }
 
-    uint32_t page_delta =
-        (next_region->physical.shmem_offset + next_region_offset) -
-        (region->physical.shmem_offset + region_offset);
-    if (region->type == REGION_PHYSICAL && page_delta != PAGE_SIZE) {
-      break;
+    if (region->type == REGION_PHYSICAL) {
+      uint32_t page_delta =
+          (next_region->physical.shmem_offset + next_region_offset) -
+          (region->physical.shmem_offset + region_offset);
+
+      if (page_delta != PAGE_SIZE) {
+        break;
+      }
     }
   }
 

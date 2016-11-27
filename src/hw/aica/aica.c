@@ -34,7 +34,7 @@ struct aica_channel {
 
 struct aica {
   struct device;
-  uint8_t *reg_ram;
+  uint8_t reg[0x11000];
   uint8_t *wave_ram;
   /* reset state */
   int arm_resetting;
@@ -127,8 +127,8 @@ static void aica_timer_expire(struct aica *aica, int n) {
   aica_timer_reschedule(aica, n, AICA_TIMER_PERIOD);
 
   /* raise timer interrupt */
-  static holly_interrupt_t timer_intr[3] = {AICA_INT_TIMER_A, AICA_INT_TIMER_B,
-                                            AICA_INT_TIMER_C};
+  static int timer_intr[3] = {AICA_INT_TIMER_A, AICA_INT_TIMER_B,
+                              AICA_INT_TIMER_C};
   aica_raise_interrupt(aica, timer_intr[n]);
 }
 
@@ -329,7 +329,7 @@ static void aica_channel_update(struct aica *aica, struct aica_channel *ch) {
 
   ch->offset += ch->step;
 
-  int ca = ch->offset >> AICA_SAMPLE_SHIFT;
+  uint32_t ca = ch->offset >> AICA_SAMPLE_SHIFT;
   if (ca > ch->data->LEA) {
     if (ch->data->LPCTL) {
       ch->offset = ch->data->LSA << AICA_SAMPLE_SHIFT;
@@ -484,7 +484,7 @@ uint32_t aica_reg_read(struct aica *aica, uint32_t addr, uint32_t data_mask) {
   } else if (addr >= 0x10000 && addr < 0x1000c) {
     return aica_rtc_reg_read(aica, addr - 0x10000, data_mask);
   }
-  return READ_DATA(&aica->reg_ram[addr]);
+  return READ_DATA(&aica->reg[addr]);
 }
 
 void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
@@ -500,7 +500,7 @@ void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
     return;
   }
 
-  WRITE_DATA(&aica->reg_ram[addr]);
+  WRITE_DATA(&aica->reg[addr]);
 }
 
 /*
@@ -509,7 +509,7 @@ void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
 static void aica_run(struct device *dev, int64_t ns) {
   struct aica *aica = (struct aica *)dev;
 
-  int64_t samples = NANO_TO_CYCLES(ns, AICA_SAMPLE_FREQ);
+  int samples = (int)NANO_TO_CYCLES(ns, AICA_SAMPLE_FREQ);
 
   aica_generate_samples(aica, samples);
 
@@ -521,16 +521,15 @@ static void aica_run(struct device *dev, int64_t ns) {
 static bool aica_init(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
 
-  aica->reg_ram = memory_translate(aica->memory, "aica reg ram", 0x00000000);
   aica->wave_ram = memory_translate(aica->memory, "aica wave ram", 0x00000000);
 
   /* setup channel data aliases */
   for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
     struct aica_channel *ch = &aica->channels[i];
-    ch->data = (struct channel_data *)(aica->reg_ram +
-                                       sizeof(struct channel_data) * i);
+    ch->data =
+        (struct channel_data *)(aica->reg + sizeof(struct channel_data) * i);
   }
-  aica->common_data = (struct common_data *)(aica->reg_ram + 0x2800);
+  aica->common_data = (struct common_data *)(aica->reg + 0x2800);
 
   aica_timer_init(aica);
   aica_rtc_init(aica);
@@ -559,8 +558,7 @@ void aica_destroy(struct aica *aica) {
 
 // clang-format off
 AM_BEGIN(struct aica, aica_reg_map);
-  /* over allocate a bit to match the allocation granularity of the host */
-  AM_RANGE(0x00000000, 0x00010fff) AM_MOUNT("aica reg ram")
+  /* over-allocate to align with the host allocation granularity */
   AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE("aica reg",
                                              (mmio_read_cb)&aica_reg_read,
                                              (mmio_write_cb)&aica_reg_write)

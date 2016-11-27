@@ -54,7 +54,6 @@ endif()
 # config file
 #--------------------------------------------------
 
-check_include_files(stdatomic.h HAVE_STDATOMIC_H)
 check_include_files(strings.h HAVE_STRINGS_H)
 check_function_exists(strcasecmp HAVE_STRCASECMP)
 check_function_exists(strnlen HAVE_STRNLEN)

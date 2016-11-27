@@ -1,5 +1,4 @@
 #include <inttypes.h>
-#include <unistd.h>
 #include "jit/jit.h"
 #include "core/core.h"
 #include "core/option.h"
@@ -12,6 +11,10 @@
 #include "jit/ir/passes/register_allocation_pass.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
+
+#if PLATFORM_DARWIN || PLATFORM_LINUX
+#include <unistd.h>
+#endif
 
 DEFINE_OPTION_BOOL(perf, false,
                    "Generate perf-compatible maps for genrated code");

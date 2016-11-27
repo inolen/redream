@@ -219,7 +219,7 @@ enum {
   name = (addr - 0x005f8000) >> 2,
 #include "hw/pvr/pvr_regs.inc"
 #undef PVR_REG
-  NUM_PVR_REGS = 0x00001000 >> 2,
+  NUM_PVR_REGS = 0x00002000 >> 2,
 };
 
 #endif
