@@ -307,7 +307,7 @@ code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   *code = (code_pointer_t)block->host_addr;
 
   if (OPTION_perf) {
-    fprintf(jit->perf_map, "%" PRIx64 " %x %s_0x%08x\n", (uintptr_t)host_addr,
+    fprintf(jit->perf_map, "%" PRIxPTR " %x %s_0x%08x\n", (uintptr_t)host_addr,
             host_size, jit->tag, guest_addr);
   }
 
