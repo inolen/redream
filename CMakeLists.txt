@@ -50,6 +50,8 @@ elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
   set(COMPILER_GCC TRUE)
 endif()
 
+set(ARCH_X64 TRUE)
+
 #--------------------------------------------------
 # config file
 #--------------------------------------------------
@@ -250,6 +252,11 @@ elseif(PLATFORM_LINUX)
   list(APPEND REDREAM_SOURCES src/sys/time_linux.c)
 endif()
 
+if(ARCH_X64)
+  list(APPEND REDREAM_SOURCES src/hw/arm7/x64/arm7_dispatch.cc)
+  list(APPEND REDREAM_SOURCES src/hw/sh4/x64/sh4_dispatch.cc)
+endif()
+
 # assign source groups for visual studio projects
 source_group_by_dir(REDREAM_SOURCES)
 
@@ -270,7 +277,7 @@ if(COMPILER_GCC OR COMPILER_CLANG)
     list(APPEND REDREAM_LIBS rt)
   endif()
 elseif(COMPILER_MSVC)
-  list(APPEND REDREAM_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /bigobj /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+  list(APPEND REDREAM_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 
   list(APPEND REDREAM_LIBS userenv ws2_32)
 endif()

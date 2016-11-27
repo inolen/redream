@@ -330,7 +330,7 @@ static int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
   int total = 0;
   char data[SECTOR_SIZE];
 
-  LOG_INFO("ReadSectors %d -> %d", fad, fad + num_sectors);
+  LOG_INFO("gdrom_read_sectors [%d, %d)", fad, fad + num_sectors);
 
   for (int i = 0; i < num_sectors; i++) {
     int r = disc_read_sector(gd->disc, fad, data);

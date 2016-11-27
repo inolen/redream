@@ -21,5 +21,6 @@ void arm7_suspend(struct arm7 *arm);
 void arm7_reset(struct arm7 *arm);
 void arm7_check_interrupts(struct arm7 *arm);
 void arm7_raise_interrupt(struct arm7 *arm, enum arm7_interrupt intr);
+void arm7_check_pending_interrupts(struct arm7 *arm);
 
 #endif

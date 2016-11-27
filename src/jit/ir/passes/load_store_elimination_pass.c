@@ -90,7 +90,9 @@ void lse_run(struct ir *ir) {
     lse_clear_available(&lse);
 
     list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
-      if (instr->op == OP_LOAD_CONTEXT) {
+      if (instr->op == OP_LABEL) {
+        lse_clear_available(&lse);
+      } else if (instr->op == OP_LOAD_CONTEXT) {
         // if there is already a value available for this offset, reuse it and
         // remove this redundant load
         int offset = instr->arg[0]->i32;
@@ -121,7 +123,9 @@ void lse_run(struct ir *ir) {
     lse_clear_available(&lse);
 
     list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
-      if (instr->op == OP_LOAD_CONTEXT) {
+      if (instr->op == OP_LABEL) {
+        lse_clear_available(&lse);
+      } else if (instr->op == OP_LOAD_CONTEXT) {
         int offset = instr->arg[0]->i32;
         int size = ir_type_size(instr->result->type);
 
