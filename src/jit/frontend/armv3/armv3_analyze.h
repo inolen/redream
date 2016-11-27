@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-struct armv3_guest;
+struct jit;
 
-void armv3_analyze_block(const struct armv3_guest *guest, uint32_t addr,
-                         int *flags, int *size);
+void armv3_analyze_block(const struct jit *jit, uint32_t addr, int *flags,
+                         int *size);
 
 #endif

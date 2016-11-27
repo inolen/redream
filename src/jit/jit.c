@@ -58,30 +58,24 @@ static struct rb_callbacks reverse_block_map_cb = {
     &reverse_block_map_cmp, NULL, NULL,
 };
 
-struct jit *jit_create(struct jit_guest *guest, struct jit_frontend *frontend,
-                       struct jit_backend *backend, code_pointer_t default_code,
-                       const char *perf_tag) {
-  struct jit *jit = calloc(1, sizeof(struct jit));
-
-  jit->guest = *guest;
+int jit_init(struct jit *jit, struct jit_frontend *frontend,
+             struct jit_backend *backend, code_pointer_t default_code) {
   jit->frontend = frontend;
   jit->backend = backend;
 
-  /* add handler to recompile blocks when protected memory is accessed */
+  /* add handler to invalidate blocks when protected memory is accessed */
   jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
 
-  /* initialize all entries to reference the default block */
+  /* initialize the dispatch cache */
   jit->default_code = default_code;
-  jit->code = malloc(jit->guest.block_max * sizeof(struct jit_block));
-  for (int i = 0; i < jit->guest.block_max; i++) {
+  jit->code = malloc(jit->block_max * sizeof(struct jit_block));
+  for (int i = 0; i < jit->block_max; i++) {
     jit->code[i] = default_code;
   }
 
-  /* open up perf map if enabled */
+  /* open perf map if enabled */
   if (OPTION_perf) {
 #if PLATFORM_DARWIN || PLATFORM_LINUX
-    strncpy(jit->perf_tag, perf_tag, sizeof(jit->perf_tag));
-
     char perf_map_path[PATH_MAX];
     snprintf(perf_map_path, sizeof(perf_map_path), "/tmp/perf-%d.map",
              getpid());
@@ -89,6 +83,14 @@ struct jit *jit_create(struct jit_guest *guest, struct jit_frontend *frontend,
     CHECK_NOTNULL(jit->perf_map);
 #endif
   }
+
+  return 1;
+}
+
+struct jit *jit_create(const char *tag) {
+  struct jit *jit = calloc(1, sizeof(struct jit));
+
+  strncpy(jit->tag, tag, sizeof(jit->tag));
 
   return jit;
 }
@@ -106,7 +108,7 @@ void jit_destroy(struct jit *jit) {
 }
 
 static inline int jit_block_offset(struct jit *jit, uint32_t addr) {
-  return (addr & jit->guest.block_mask) >> jit->guest.block_shift;
+  return (addr & jit->block_mask) >> jit->block_shift;
 }
 
 static void jit_unlink_block(struct jit *jit, struct jit_block *block) {
@@ -223,8 +225,7 @@ void jit_clear_blocks(struct jit *jit) {
   jit->backend->reset(jit->backend);
 }
 
-code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
-                                int flags) {
+code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   PROF_ENTER("cpu", "jit_compile_code");
 
   int code_idx = jit_block_offset(jit, guest_addr);
@@ -238,6 +239,8 @@ code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
    * fastmem exception, reuse the block's flags and finish removing
    * it at this time
    */
+  int fastmem = 1;
+
   struct jit_block search;
   search.guest_addr = guest_addr;
 
@@ -245,9 +248,8 @@ code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
       rb_find_entry(&jit->blocks, &search, struct jit_block, it, &block_map_cb);
 
   if (unlinked) {
-    flags |= unlinked->flags;
-
     jit_remove_block(jit, unlinked);
+    fastmem = 0;
   }
 
   /* translate the source machine code into ir */
@@ -255,9 +257,7 @@ code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
   ir.buffer = jit->ir_buffer;
   ir.capacity = sizeof(jit->ir_buffer);
 
-  int guest_size = 0;
-  jit->frontend->translate_code(jit->frontend, guest_addr, flags, &guest_size,
-                                &ir);
+  jit->frontend->translate_code(jit->frontend, guest_addr, &ir, fastmem);
 
 #if 0
   const char *appdir = fs_appdir();
@@ -300,8 +300,6 @@ code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
   block->host_addr = host_addr;
   block->host_size = host_size;
   block->guest_addr = guest_addr;
-  block->guest_size = guest_size;
-  block->flags = flags;
   rb_insert(&jit->blocks, &block->it, &block_map_cb);
   rb_insert(&jit->reverse_blocks, &block->rit, &reverse_block_map_cb);
 
@@ -310,7 +308,7 @@ code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr,
 
   if (OPTION_perf) {
     fprintf(jit->perf_map, "%" PRIx64 " %x %s_0x%08x\n", (uintptr_t)host_addr,
-            host_size, jit->perf_tag, guest_addr);
+            host_size, jit->tag, guest_addr);
   }
 
   PROF_LEAVE();
@@ -341,8 +339,6 @@ static bool jit_handle_exception(void *data, struct exception *ex) {
    * still executing and may trigger more exceptions
    */
   jit_unlink_block(jit, block);
-
-  block->flags |= JIT_SLOWMEM;
 
   return true;
 }

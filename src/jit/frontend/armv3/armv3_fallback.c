@@ -7,8 +7,8 @@
 #include "jit/frontend/armv3/armv3_frontend.h"
 
 /* forward declare each fallback */
-#define ARMV3_INSTR(name, desc, sig, cycles, flags)                           \
-  static void armv3_fallback_##name(struct armv3_guest *guest, uint32_t addr, \
+#define ARMV3_INSTR(name, desc, sig, cycles, flags)                 \
+  static void armv3_fallback_##name(struct jit *jit, uint32_t addr, \
                                     union armv3_instr i);
 #include "armv3_instr.inc"
 #undef ARMV3_INSTR
@@ -22,22 +22,22 @@ void *fallbacks[NUM_ARMV3_OPS] = {
 };
 
 /* helper functions / macros for writing fallbacks */
-#define FALLBACK(op)                                                 \
-  void armv3_fallback_##op(struct armv3_guest *guest, uint32_t addr, \
-                           union armv3_instr i)
+#define FALLBACK(op) \
+  void armv3_fallback_##op(struct jit *jit, uint32_t addr, union armv3_instr i)
 
-#define REG(n) guest->ctx->r[n]
+#define CTX ((struct armv3_context *)jit->ctx)
+#define FRONTEND ((struct armv3_frontend *)jit->frontend)
+#define REG(n) (CTX->r[n])
+#define MODE() (CTX->r[CPSR] & M_MASK)
 
-#define MODE() (guest->ctx->r[CPSR] & M_MASK)
-
-#define CHECK_COND()                                         \
-  if (!armv3_fallback_cond_check(guest->ctx, i.raw >> 28)) { \
-    REG(15) = addr + 4;                                      \
-    return;                                                  \
+#define CHECK_COND()                                  \
+  if (!armv3_fallback_cond_check(CTX, i.raw >> 28)) { \
+    REG(15) = addr + 4;                               \
+    return;                                           \
   }
 
-#define LOAD_RN(rn) armv3_fallback_load_rn(guest->ctx, addr, rn)
-#define LOAD_RD(rd) armv3_fallback_load_rd(guest->ctx, addr, rd)
+#define LOAD_RN(rn) armv3_fallback_load_rn(CTX, addr, rn)
+#define LOAD_RD(rd) armv3_fallback_load_rd(CTX, addr, rd)
 
 static inline int armv3_fallback_cond_check(struct armv3_context *ctx,
                                             uint32_t cond) {
@@ -228,32 +228,32 @@ FALLBACK(BL) {
  * data processing
  */
 #define PARSE_OP2(value, carry) \
-  armv3_fallback_parse_op2(guest->ctx, addr, i, value, carry)
+  armv3_fallback_parse_op2(CTX, addr, i, value, carry)
 
-#define CARRY() (C_SET(guest->ctx->r[CPSR]))
+#define CARRY() (C_SET(CTX->r[CPSR]))
 
-#define UPDATE_FLAGS_LOGICAL()                                   \
-  if (i.data.s) {                                                \
-    armv3_fallback_update_flags_logical(guest->ctx, res, carry); \
-    if (i.data.rd == 15) {                                       \
-      guest->restore_mode(guest->self);                          \
-    }                                                            \
+#define UPDATE_FLAGS_LOGICAL()                            \
+  if (i.data.s) {                                         \
+    armv3_fallback_update_flags_logical(CTX, res, carry); \
+    if (i.data.rd == 15) {                                \
+      FRONTEND->restore_mode(FRONTEND->data);             \
+    }                                                     \
   }
 
-#define UPDATE_FLAGS_SUB()                                      \
-  if (i.data.s) {                                               \
-    armv3_fallback_update_flags_sub(guest->ctx, lhs, rhs, res); \
-    if (i.data.rd == 15) {                                      \
-      guest->restore_mode(guest->self);                         \
-    }                                                           \
+#define UPDATE_FLAGS_SUB()                               \
+  if (i.data.s) {                                        \
+    armv3_fallback_update_flags_sub(CTX, lhs, rhs, res); \
+    if (i.data.rd == 15) {                               \
+      FRONTEND->restore_mode(FRONTEND->data);            \
+    }                                                    \
   }
 
-#define UPDATE_FLAGS_ADD()                                      \
-  if (i.data.s) {                                               \
-    armv3_fallback_update_flags_add(guest->ctx, lhs, rhs, res); \
-    if (i.data.rd == 15) {                                      \
-      guest->restore_mode(guest->self);                         \
-    }                                                           \
+#define UPDATE_FLAGS_ADD()                               \
+  if (i.data.s) {                                        \
+    armv3_fallback_update_flags_add(CTX, lhs, rhs, res); \
+    if (i.data.rd == 15) {                               \
+      FRONTEND->restore_mode(FRONTEND->data);            \
+    }                                                    \
   }
 
 #define MAKE_CPSR(cpsr, n, z, c, v)                                   \
@@ -556,7 +556,7 @@ FALLBACK(MSR) {
       newsr = (newsr & 0xf0000000) | (oldsr & 0x0fffffff);
     }
 
-    guest->switch_mode(guest->self, newsr);
+    FRONTEND->switch_mode(FRONTEND->data, newsr);
   }
 
   REG(15) = addr + 4;
@@ -565,9 +565,9 @@ FALLBACK(MSR) {
 /*
  * multiply and multiply-accumulate
  */
-#define UPDATE_FLAGS_MUL()                            \
-  if (i.mul.s) {                                      \
-    armv3_fallback_update_flags_mul(guest->ctx, res); \
+#define UPDATE_FLAGS_MUL()                     \
+  if (i.mul.s) {                               \
+    armv3_fallback_update_flags_mul(CTX, res); \
   }
 
 #define MAKE_CPSR_NZ(cpsr, n, z) \
@@ -608,15 +608,15 @@ FALLBACK(MLA) {
 /*
  * single data transfer
  */
-static inline void armv3_fallback_memop(struct armv3_guest *guest,
-                                        uint32_t addr, union armv3_instr i) {
+static inline void armv3_fallback_memop(struct jit *jit, uint32_t addr,
+                                        union armv3_instr i) {
   CHECK_COND();
 
   /* parse offset */
   uint32_t offset = 0;
   if (i.xfr.i) {
     uint32_t carry;
-    armv3_fallback_parse_shift(guest->ctx, addr, i.xfr_reg.rm, i.xfr_reg.shift,
+    armv3_fallback_parse_shift(CTX, addr, i.xfr_reg.rm, i.xfr_reg.shift,
                                &offset, &carry);
   } else {
     offset = i.xfr_imm.imm;
@@ -638,9 +638,9 @@ static inline void armv3_fallback_memop(struct armv3_guest *guest,
     /* load data */
     uint32_t data = 0;
     if (i.xfr.b) {
-      data = guest->r8(guest->mem_self, ea);
+      data = jit->r8(jit->space, ea);
     } else {
-      data = guest->r32(guest->mem_self, ea);
+      data = jit->r32(jit->space, ea);
     }
 
     REG(15) = addr + 4;
@@ -649,9 +649,9 @@ static inline void armv3_fallback_memop(struct armv3_guest *guest,
     /* store data */
     uint32_t data = LOAD_RD(i.xfr.rd);
     if (i.xfr.b) {
-      guest->w8(guest->mem_self, ea, data);
+      jit->w8(jit->space, ea, data);
     } else {
-      guest->w32(guest->mem_self, ea, data);
+      jit->w32(jit->space, ea, data);
     }
 
     REG(15) = addr + 4;
@@ -659,11 +659,11 @@ static inline void armv3_fallback_memop(struct armv3_guest *guest,
 }
 
 FALLBACK(LDR) {
-  armv3_fallback_memop(guest, addr, i);
+  armv3_fallback_memop(jit, addr, i);
 }
 
 FALLBACK(STR) {
-  armv3_fallback_memop(guest, addr, i);
+  armv3_fallback_memop(jit, addr, i);
 }
 
 /*
@@ -702,7 +702,7 @@ FALLBACK(LDM) {
         reg = armv3_reg_table[MODE()][reg];
       }
 
-      REG(reg) = guest->r32(guest->mem_self, ea);
+      REG(reg) = jit->r32(jit->space, ea);
 
       /* post-increment */
       if (!i.blk.p) {
@@ -713,7 +713,7 @@ FALLBACK(LDM) {
 
   if ((i.blk.rlist & 0x8000) && i.blk.s) {
     /* move SPSR into CPSR */
-    guest->restore_mode(guest->self);
+    FRONTEND->restore_mode(FRONTEND->data);
   }
 }
 
@@ -744,7 +744,7 @@ FALLBACK(STM) {
       }
 
       uint32_t data = LOAD_RD(reg);
-      guest->w32(guest->mem_self, base, data);
+      jit->w32(jit->space, base, data);
 
       /* post-increment */
       if (!i.blk.p) {
@@ -780,11 +780,11 @@ FALLBACK(SWP) {
   uint32_t old = 0;
 
   if (i.swp.b) {
-    old = guest->r8(guest->mem_self, ea);
-    guest->w8(guest->mem_self, ea, new);
+    old = jit->r8(jit->space, ea);
+    jit->w8(jit->space, ea, new);
   } else {
-    old = guest->r32(guest->mem_self, ea);
-    guest->w32(guest->mem_self, ea, new);
+    old = jit->r32(jit->space, ea);
+    jit->w32(jit->space, ea, new);
   }
 
   REG(15) = addr + 4;
@@ -799,7 +799,7 @@ FALLBACK(SWI) {
   CHECK_COND();
 
   REG(15) = addr + 4;
-  guest->software_interrupt(guest->self);
+  FRONTEND->software_interrupt(FRONTEND->data);
 }
 
 void *armv3_fallback(uint32_t instr) {

@@ -46,17 +46,16 @@ struct sh4 {
 #undef SH4_REG
 
   /* jit */
-  struct jit_guest guest;
-  struct jit_frontend *jit_frontend;
-  struct jit_backend *jit_backend;
   struct jit *jit;
+  struct jit_frontend *frontend;
+  struct jit_backend *backend;
 
   /* intc */
   enum sh4_interrupt sorted_interrupts[NUM_SH_INTERRUPTS];
   uint64_t sort_id[NUM_SH_INTERRUPTS];
   uint64_t priority_mask[16];
   uint64_t requested_interrupts;
-  uint64_t pending_interrupts;
+  /* pending interrupts moved to context for fast jit access */
 
   /* tmu */
   struct timer *tmu_timers[3];
@@ -68,7 +67,7 @@ DECLARE_PROF_STAT(sh4_instrs);
 
 AM_DECLARE(sh4_data_map);
 
-void sh4_ccn_prefetch(struct sh4_ctx *ctx, uint64_t data);
+void sh4_ccn_prefetch(void *data, uint64_t addr);
 uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
 void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                          uint32_t data_mask);
@@ -79,7 +78,7 @@ void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 void sh4_dmac_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
 
 void sh4_intc_update_pending(struct sh4 *sh4);
-void sh4_intc_check_pending(struct sh4 *sh4);
+int sh4_intc_check_pending(struct sh4 *sh4);
 void sh4_intc_reprioritize(struct sh4 *sh4);
 
 struct sh4 *sh4_create(struct dreamcast *dc);
@@ -87,7 +86,7 @@ void sh4_destroy(struct sh4 *sh);
 void sh4_reset(struct sh4 *sh4, uint32_t pc);
 void sh4_raise_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
 void sh4_clear_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
-void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr);
-void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr);
+void sh4_sr_updated(void *data, uint64_t old_sr);
+void sh4_fpscr_updated(void *data, uint64_t old_fpscr);
 
 #endif

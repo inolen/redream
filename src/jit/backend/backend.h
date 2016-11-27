@@ -5,8 +5,9 @@
 #include <stdint.h>
 
 struct address_space;
-struct ir;
 struct exception;
+struct ir;
+struct jit;
 
 struct jit_register {
   const char *name;
@@ -17,11 +18,13 @@ struct jit_register {
 struct jit_backend;
 
 struct jit_backend {
+  struct jit *jit;
+
   const struct jit_register *registers;
   int num_registers;
 
   void (*reset)(struct jit_backend *base);
-  const uint8_t *(*assemble_code)(struct jit_backend *, struct ir *ir,
+  const uint8_t *(*assemble_code)(struct jit_backend *base, struct ir *ir,
                                   int *size);
   void (*dump_code)(struct jit_backend *base, const uint8_t *host_addr,
                     int size);

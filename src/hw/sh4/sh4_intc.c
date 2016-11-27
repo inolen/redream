@@ -15,16 +15,16 @@ void sh4_intc_update_pending(struct sh4 *sh4) {
   int min_priority = (sh4->ctx.sr & I) >> 4;
   uint64_t priority_mask =
       (sh4->ctx.sr & BL) ? 0 : ~sh4->priority_mask[min_priority];
-  sh4->pending_interrupts = sh4->requested_interrupts & priority_mask;
+  sh4->ctx.pending_interrupts = sh4->requested_interrupts & priority_mask;
 }
 
-void sh4_intc_check_pending(struct sh4 *sh4) {
-  if (!sh4->pending_interrupts) {
-    return;
+int sh4_intc_check_pending(struct sh4 *sh4) {
+  if (!sh4->ctx.pending_interrupts) {
+    return 0;
   }
 
   // process the highest priority in the pending vector
-  int n = 63 - clz64(sh4->pending_interrupts);
+  int n = 63 - clz64(sh4->ctx.pending_interrupts);
   enum sh4_interrupt intr = sh4->sorted_interrupts[n];
   struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
 
@@ -34,8 +34,9 @@ void sh4_intc_check_pending(struct sh4 *sh4) {
   sh4->ctx.sgr = sh4->ctx.r[15];
   sh4->ctx.sr |= (BL | MD | RB);
   sh4->ctx.pc = sh4->ctx.vbr + 0x600;
+  sh4_sr_updated(sh4, sh4->ctx.ssr);
 
-  sh4_sr_updated(&sh4->ctx, sh4->ctx.ssr);
+  return 1;
 }
 
 // generate a sorted set of interrupts based on their priority. these sorted

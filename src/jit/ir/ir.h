@@ -324,9 +324,10 @@ void ir_branch_false(struct ir *ir, struct ir_value *cond,
 void ir_branch_true(struct ir *ir, struct ir_value *cond, struct ir_value *dst);
 
 // calls
-void ir_call_external_1(struct ir *ir, struct ir_value *addr);
-void ir_call_external_2(struct ir *ir, struct ir_value *addr,
-                        struct ir_value *arg0);
+void ir_call(struct ir *ir, struct ir_value *fn);
+void ir_call_1(struct ir *ir, struct ir_value *fn, struct ir_value *arg0);
+void ir_call_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
+               struct ir_value *arg1);
 void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
                       uint32_t raw_instr);
 
