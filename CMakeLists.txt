@@ -256,9 +256,13 @@ source_group_by_dir(REDREAM_SOURCES)
 if(COMPILER_GCC OR COMPILER_CLANG)
   list(APPEND REDREAM_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
-  # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
   if(COMPILER_GCC)
+    # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
     list(APPEND REDREAM_FLAGS ${REDREAM_FLAGS} -D__STDC_FORMAT_MACROS)
+  elseif(COMPILER_CLANG)
+    # clang will warn on '{0}' as -Wmissing-field-initializers even in C code
+    # https://llvm.org/bugs/show_bug.cgi?id=21689
+    list(APPEND REDREAM_FLAGS -Wno-missing-field-initializers -Wno-missing-braces -Wno-microsoft-anon-tag)
   endif()
 
   # used by shm_open / shm_unlink on linux
@@ -277,16 +281,6 @@ target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream ${REDREAM_LIBS})
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
-
-if(APPLE)
-  add_executable(bundle MACOSX_BUNDLE ${REDREAM_SOURCES})
-  set_target_properties(bundle PROPERTIES OUTPUT_NAME redream)
-  target_include_directories(bundle SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-  target_include_directories(bundle PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  target_link_libraries(bundle ${REDREAM_LIBS})
-  target_compile_definitions(bundle PRIVATE ${REDREAM_DEFS})
-  target_compile_options(bundle PRIVATE ${REDREAM_COMPILE_FLAGS})
-endif()
 
 #--------------------------------------------------
 # tools

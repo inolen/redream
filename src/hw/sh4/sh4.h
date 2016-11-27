@@ -20,7 +20,7 @@ struct sh4_dtr {
    * when rw is true, addr is the dst address
    * when rw is false, addr is the src address
    */
-  bool rw;
+  int rw;
   /*
    * when data is non-null, a single address mode transfer is performed between
    * the external device memory at data, and the memory at addr for

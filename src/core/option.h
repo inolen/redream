@@ -13,7 +13,7 @@
 #define DEFINE_OPTION_BOOL(name, value, desc)               \
   bool OPTION_##name;                                       \
   static struct option OPTION_T_##name = {                  \
-      OPT_BOOL, #name, desc, &OPTION_##name, {NULL, NULL}}; \
+      OPT_BOOL, #name, desc, &OPTION_##name, {0}};          \
   CONSTRUCTOR(OPTION_REGISTER_##name) {                     \
     *(bool *)(&OPTION_##name) = value;                      \
     options_register(&OPTION_T_##name);                     \
@@ -27,7 +27,7 @@
 #define DEFINE_OPTION_INT(name, value, desc)               \
   int OPTION_##name;                                       \
   static struct option OPTION_T_##name = {                 \
-      OPT_INT, #name, desc, &OPTION_##name, {NULL, NULL}}; \
+      OPT_INT, #name, desc, &OPTION_##name, {0}};          \
   CONSTRUCTOR(OPTION_REGISTER_##name) {                    \
     *(int *)(&OPTION_##name) = value;                      \
     options_register(&OPTION_T_##name);                    \
@@ -42,7 +42,7 @@
 #define DEFINE_OPTION_STRING(name, value, desc)               \
   char OPTION_##name[MAX_OPTION_LENGTH];                      \
   static struct option OPTION_T_##name = {                    \
-      OPT_STRING, #name, desc, &OPTION_##name, {NULL, NULL}}; \
+      OPT_STRING, #name, desc, &OPTION_##name, {0}};          \
   CONSTRUCTOR(OPTION_REGISTER_##name) {                       \
     strncpy(OPTION_##name, value, MAX_OPTION_LENGTH);         \
     options_register(&OPTION_T_##name);                       \
