@@ -18,7 +18,8 @@
 #include "sys/time.h"
 #include "ui/nuklear.h"
 
-PROF_STAT(sr_updated);
+DEFINE_PROF_STAT(sh4_instrs);
+DEFINE_PROF_STAT(sh4_sr_updates);
 
 static bool sh4_init(struct device *dev);
 static int sh4_block_offset(uint32_t addr);
@@ -233,25 +234,6 @@ void sh4_run(struct device *dev, int64_t ns) {
 
   g_sh4 = NULL;
 
-  /* track mips */
-  int64_t now = time_nanoseconds();
-  int64_t next_time = sh4->last_mips_time + NS_PER_SEC;
-
-  if (now > next_time) {
-    /*
-     * convert total number of instructions / nanoseconds delta into millions
-     * of instructions per second
-     */
-    float num_instrs_millions = sh4->ctx.num_instrs / 1000000.0f;
-    int64_t delta_ns = now - sh4->last_mips_time;
-    float delta_s = delta_ns / 1000000000.0f;
-    sh4->mips = (int)(num_instrs_millions / delta_s);
-
-    /* reset state */
-    sh4->last_mips_time = now;
-    sh4->ctx.num_instrs = 0;
-  }
-
   PROF_LEAVE();
 }
 
@@ -288,7 +270,7 @@ static void sh4_swap_fpr_bank(struct sh4 *sh4) {
 void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr) {
   struct sh4 *sh4 = ctx->sh4;
 
-  STAT_sr_updated++;
+  STAT_sh4_sr_updates++;
 
   if ((ctx->sr & RB) != (old_sr & RB)) {
     sh4_swap_gpr_bank(sh4);

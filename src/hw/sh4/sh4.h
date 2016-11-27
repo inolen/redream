@@ -1,6 +1,7 @@
 #ifndef SH4_H
 #define SH4_H
 
+#include "core/profiler.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "hw/sh4/sh4_types.h"
@@ -59,13 +60,11 @@ struct sh4 {
 
   /* tmu */
   struct timer *tmu_timers[3];
-
-  /* perf */
-  int64_t last_mips_time;
-  int mips;
 };
 
 extern struct reg_cb sh4_cb[NUM_SH4_REGS];
+
+DECLARE_PROF_STAT(sh4_instrs);
 
 AM_DECLARE(sh4_data_map);
 

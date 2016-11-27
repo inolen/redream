@@ -11,6 +11,8 @@
 #include "jit/frontend/armv3/armv3_frontend.h"
 #include "jit/jit.h"
 
+DEFINE_PROF_STAT(arm7_instrs);
+
 #define ARM7_CLOCK_FREQ INT64_C(20000000)
 
 /*
@@ -178,6 +180,7 @@ static void arm7_run(struct device *dev, int64_t ns) {
   struct arm7 *arm = (struct arm7 *)dev;
 
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ), INT64_C(1));
+
   arm->ctx.remaining_cycles = (int)cycles;
 
   g_arm = arm;
