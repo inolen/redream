@@ -21,17 +21,6 @@
 DEFINE_PROF_STAT(sh4_instrs);
 DEFINE_PROF_STAT(sh4_sr_updates);
 
-static bool sh4_init(struct device *dev);
-static int sh4_block_offset(uint32_t addr);
-static void sh4_compile_pc();
-static void sh4_run(struct device *dev, int64_t ns);
-static void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data);
-static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr,
-                             uint32_t data_mask);
-static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                          uint32_t data_mask);
-static void sh4_debug_menu(struct device *dev, struct nk_context *ctx);
-
 /*
  * sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.
  * each instr is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
@@ -50,79 +39,86 @@ struct reg_cb sh4_cb[NUM_SH4_REGS];
  */
 static struct sh4 *g_sh4;
 
-// clang-format off
-AM_BEGIN(struct sh4, sh4_data_map)
-  AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("boot", boot_rom_map)
-  AM_RANGE(0x00200000, 0x0021ffff) AM_DEVICE("flash", flash_rom_map)
-  AM_RANGE(0x0c000000, 0x0cffffff) AM_MOUNT("system ram")
-
-  /* main ram mirrors */
-  AM_RANGE(0x0d000000, 0x0dffffff) AM_MIRROR(0x0c000000)
-  AM_RANGE(0x0e000000, 0x0effffff) AM_MIRROR(0x0c000000)
-  AM_RANGE(0x0f000000, 0x0fffffff) AM_MIRROR(0x0c000000)
-
-  /* external devices */
-  AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", holly_reg_map)
-  AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", pvr_reg_map)
-  AM_RANGE(0x00600000, 0x0067ffff) AM_DEVICE("holly", holly_modem_map)
-  AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", aica_reg_map)
-  AM_RANGE(0x00800000, 0x00ffffff) AM_DEVICE("aica", aica_data_map)
-  AM_RANGE(0x01000000, 0x01ffffff) AM_DEVICE("holly", holly_expansion0_map)
-  AM_RANGE(0x02700000, 0x02ffffff) AM_DEVICE("holly", holly_expansion1_map)
-  AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", pvr_vram_map)
-  AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_fifo_map)
-  AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("holly", holly_expansion2_map)
-
-  /* internal registers */
-  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE("sh4 reg",
-                                             (mmio_read_cb)&sh4_reg_read,
-                                             (mmio_write_cb)&sh4_reg_write)
-
-  /* physical mirrors */
-  AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  /* p0 */
-  AM_RANGE(0x40000000, 0x5fffffff) AM_MIRROR(0x00000000)  /* p0 */
-  AM_RANGE(0x60000000, 0x7fffffff) AM_MIRROR(0x00000000)  /* p0 */
-  AM_RANGE(0x80000000, 0x9fffffff) AM_MIRROR(0x00000000)  /* p1 */
-  AM_RANGE(0xa0000000, 0xbfffffff) AM_MIRROR(0x00000000)  /* p2 */
-  AM_RANGE(0xc0000000, 0xdfffffff) AM_MIRROR(0x00000000)  /* p3 */
-  AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  /* p4 */
-
-  /* internal cache and sq only accessible through p4 */
-  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
-                                             (mmio_read_cb)&sh4_ccn_cache_read,
-                                             (mmio_write_cb)&sh4_ccn_cache_write)
-  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE("sh4 sq",
-                                             (mmio_read_cb)&sh4_ccn_sq_read,
-                                             (mmio_write_cb)&sh4_ccn_sq_write)
-AM_END();
-// clang-format on
-
-struct sh4 *sh4_create(struct dreamcast *dc) {
-  struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
-  sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
-  sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
-  sh4->window_if = dc_create_window_interface(&sh4_debug_menu, NULL);
-
-  return sh4;
+static void sh4_swap_gpr_bank(struct sh4 *sh4) {
+  for (int s = 0; s < 8; s++) {
+    uint32_t tmp = sh4->ctx.r[s];
+    sh4->ctx.r[s] = sh4->ctx.ralt[s];
+    sh4->ctx.ralt[s] = tmp;
+  }
 }
 
-void sh4_destroy(struct sh4 *sh4) {
-  if (sh4->jit) {
-    jit_destroy(sh4->jit);
+static void sh4_swap_fpr_bank(struct sh4 *sh4) {
+  for (int s = 0; s <= 15; s++) {
+    uint32_t tmp = sh4->ctx.fr[s];
+    sh4->ctx.fr[s] = sh4->ctx.xf[s];
+    sh4->ctx.xf[s] = tmp;
+  }
+}
+
+static void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data) {
+  /*struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
+  uint32_t addr = (uint32_t)data;
+
+  auto it = self->breakpoints.find(addr);
+  CHECK_NE(it, self->breakpoints.end());
+
+  // force the main loop to break
+  self->ctx.num_cycles = 0;
+
+  // let the debugger know execution has stopped
+  self->dc->debugger->Trap();*/
+}
+
+void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr) {
+  struct sh4 *sh4 = ctx->sh4;
+
+  STAT_sh4_sr_updates++;
+
+  if ((ctx->sr & RB) != (old_sr & RB)) {
+    sh4_swap_gpr_bank(sh4);
   }
 
-  if (sh4->jit_backend) {
-    x64_backend_destroy(sh4->jit_backend);
+  if ((ctx->sr & I) != (old_sr & I) || (ctx->sr & BL) != (old_sr & BL)) {
+    sh4_intc_update_pending(sh4);
   }
+}
 
-  if (sh4->jit_backend) {
-    sh4_frontend_destroy(sh4->jit_frontend);
+void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr) {
+  struct sh4 *sh4 = ctx->sh4;
+
+  if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
+    sh4_swap_fpr_bank(sh4);
   }
+}
 
-  dc_destroy_window_interface(sh4->window_if);
-  dc_destroy_memory_interface(sh4->memory_if);
-  dc_destroy_execute_interface(sh4->execute_if);
-  dc_destroy_device((struct device *)sh4);
+static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
+  uint32_t offset = SH4_REG_OFFSET(addr);
+  reg_read_cb read = sh4_cb[offset].read;
+  if (read) {
+    return read(sh4->dc);
+  }
+  return sh4->reg[offset];
+}
+
+static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                   uint32_t data_mask) {
+  uint32_t offset = SH4_REG_OFFSET(addr);
+  reg_write_cb write = sh4_cb[offset].write;
+  if (write) {
+    write(sh4->dc, data);
+    return;
+  }
+  sh4->reg[offset] = data;
+}
+
+void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
+  sh4->requested_interrupts &= ~sh4->sort_id[intr];
+  sh4_intc_update_pending(sh4);
+}
+
+void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
+  sh4->requested_interrupts |= sh4->sort_id[intr];
+  sh4_intc_update_pending(sh4);
 }
 
 void sh4_reset(struct sh4 *sh4, uint32_t pc) {
@@ -154,17 +150,54 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   sh4->execute_if->running = 1;
 }
 
-void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
-  sh4->requested_interrupts |= sh4->sort_id[intr];
-  sh4_intc_update_pending(sh4);
+static void sh4_compile_pc() {
+  uint32_t guest_addr = g_sh4->ctx.pc;
+  uint8_t *guest_ptr = as_translate(g_sh4->memory_if->space, guest_addr);
+
+  int flags = 0;
+  if (g_sh4->ctx.fpscr & PR) {
+    flags |= SH4_DOUBLE_PR;
+  }
+  if (g_sh4->ctx.fpscr & SZ) {
+    flags |= SH4_DOUBLE_SZ;
+  }
+
+  code_pointer_t code = jit_compile_code(g_sh4->jit, guest_addr, flags);
+  code();
 }
 
-void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
-  sh4->requested_interrupts &= ~sh4->sort_id[intr];
-  sh4_intc_update_pending(sh4);
+static inline code_pointer_t sh4_get_code(struct sh4 *sh4, uint32_t addr) {
+  int offset = SH4_BLOCK_OFFSET(addr);
+  DCHECK_LT(offset, SH4_MAX_BLOCKS);
+  return sh4->jit->code[offset];
 }
 
-bool sh4_init(struct device *dev) {
+static void sh4_run(struct device *dev, int64_t ns) {
+  PROF_ENTER("cpu", "sh4_run");
+
+  struct sh4 *sh4 = (struct sh4 *)dev;
+
+  /* execute at least 1 cycle. the tests rely on this to step block by block */
+  int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
+
+  /* each block's epilog will decrement the remaining cycles as they run */
+  sh4->ctx.num_cycles = (int)cycles;
+
+  g_sh4 = sh4;
+
+  while (sh4->ctx.num_cycles > 0) {
+    code_pointer_t code = sh4_get_code(sh4, sh4->ctx.pc);
+    code();
+
+    sh4_intc_check_pending(sh4);
+  }
+
+  g_sh4 = NULL;
+
+  PROF_LEAVE();
+}
+
+static bool sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
@@ -190,148 +223,30 @@ bool sh4_init(struct device *dev) {
   return true;
 }
 
-void sh4_compile_pc() {
-  uint32_t guest_addr = g_sh4->ctx.pc;
-  uint8_t *guest_ptr = as_translate(g_sh4->memory_if->space, guest_addr);
-
-  int flags = 0;
-  if (g_sh4->ctx.fpscr & PR) {
-    flags |= SH4_DOUBLE_PR;
-  }
-  if (g_sh4->ctx.fpscr & SZ) {
-    flags |= SH4_DOUBLE_SZ;
+void sh4_destroy(struct sh4 *sh4) {
+  if (sh4->jit) {
+    jit_destroy(sh4->jit);
   }
 
-  code_pointer_t code = jit_compile_code(g_sh4->jit, guest_addr, flags);
-  code();
-}
-
-static inline code_pointer_t sh4_get_code(struct sh4 *sh4, uint32_t addr) {
-  int offset = SH4_BLOCK_OFFSET(addr);
-  DCHECK_LT(offset, SH4_MAX_BLOCKS);
-  return sh4->jit->code[offset];
-}
-
-void sh4_run(struct device *dev, int64_t ns) {
-  PROF_ENTER("cpu", "sh4_run");
-
-  struct sh4 *sh4 = (struct sh4 *)dev;
-
-  /* execute at least 1 cycle. the tests rely on this to step block by block */
-  int64_t cycles = MAX(NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ), INT64_C(1));
-
-  /* each block's epilog will decrement the remaining cycles as they run */
-  sh4->ctx.num_cycles = (int)cycles;
-
-  g_sh4 = sh4;
-
-  while (sh4->ctx.num_cycles > 0) {
-    code_pointer_t code = sh4_get_code(sh4, sh4->ctx.pc);
-    code();
-
-    sh4_intc_check_pending(sh4);
+  if (sh4->jit_backend) {
+    x64_backend_destroy(sh4->jit_backend);
   }
 
-  g_sh4 = NULL;
-
-  PROF_LEAVE();
-}
-
-void sh4_invalid_instr(struct sh4_ctx *ctx, uint64_t data) {
-  /*struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-  uint32_t addr = (uint32_t)data;
-
-  auto it = self->breakpoints.find(addr);
-  CHECK_NE(it, self->breakpoints.end());
-
-  // force the main loop to break
-  self->ctx.num_cycles = 0;
-
-  // let the debugger know execution has stopped
-  self->dc->debugger->Trap();*/
-}
-
-static void sh4_swap_gpr_bank(struct sh4 *sh4) {
-  for (int s = 0; s < 8; s++) {
-    uint32_t tmp = sh4->ctx.r[s];
-    sh4->ctx.r[s] = sh4->ctx.ralt[s];
-    sh4->ctx.ralt[s] = tmp;
-  }
-}
-
-static void sh4_swap_fpr_bank(struct sh4 *sh4) {
-  for (int s = 0; s <= 15; s++) {
-    uint32_t tmp = sh4->ctx.fr[s];
-    sh4->ctx.fr[s] = sh4->ctx.xf[s];
-    sh4->ctx.xf[s] = tmp;
-  }
-}
-
-void sh4_sr_updated(struct sh4_ctx *ctx, uint64_t old_sr) {
-  struct sh4 *sh4 = ctx->sh4;
-
-  STAT_sh4_sr_updates++;
-
-  if ((ctx->sr & RB) != (old_sr & RB)) {
-    sh4_swap_gpr_bank(sh4);
+  if (sh4->jit_backend) {
+    sh4_frontend_destroy(sh4->jit_frontend);
   }
 
-  if ((ctx->sr & I) != (old_sr & I) || (ctx->sr & BL) != (old_sr & BL)) {
-    sh4_intc_update_pending(sh4);
-  }
+  dc_destroy_memory_interface(sh4->memory_if);
+  dc_destroy_execute_interface(sh4->execute_if);
+  dc_destroy_device((struct device *)sh4);
 }
 
-void sh4_fpscr_updated(struct sh4_ctx *ctx, uint64_t old_fpscr) {
-  struct sh4 *sh4 = ctx->sh4;
+struct sh4 *sh4_create(struct dreamcast *dc) {
+  struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
+  sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
+  sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
 
-  if ((ctx->fpscr & FR) != (old_fpscr & FR)) {
-    sh4_swap_fpr_bank(sh4);
-  }
-}
-
-uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
-  uint32_t offset = SH4_REG_OFFSET(addr);
-  reg_read_cb read = sh4_cb[offset].read;
-  if (read) {
-    return read(sh4->dc);
-  }
-  return sh4->reg[offset];
-}
-
-void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                   uint32_t data_mask) {
-  uint32_t offset = SH4_REG_OFFSET(addr);
-  reg_write_cb write = sh4_cb[offset].write;
-  if (write) {
-    write(sh4->dc, data);
-    return;
-  }
-  sh4->reg[offset] = data;
-}
-
-void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
-  struct sh4 *sh4 = (struct sh4 *)dev;
-
-  /*if (perf->show) {
-    struct nk_panel layout;
-    struct nk_rect bounds = {440.0f, 20.0f, 200.0f, 20.0f};
-
-    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
-    ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
-
-    if (nk_begin(ctx, &layout, "sh4 perf", bounds, NK_WINDOW_NO_SCROLLBAR)) {
-      nk_layout_row_static(ctx, bounds.h, bounds.w, 1);
-
-      if (nk_chart_begin(ctx, NK_CHART_LINES, MAX_MIPS_SAMPLES, 0.0f, 400.0f)) {
-        for (int i = 0; i < MAX_MIPS_SAMPLES; i++) {
-          nk_flags res = nk_chart_push(ctx, perf->mips[i]);
-        }
-
-        nk_chart_end(ctx);
-      }
-    }
-    nk_end(ctx);
-  }*/
+  return sh4;
 }
 
 REG_R32(sh4_cb, PDTRA) {
@@ -405,3 +320,51 @@ REG_R32(sh4_cb, PDTRA) {
   v |= 0x3 << 8;
   return v;
 }
+
+// clang-format off
+AM_BEGIN(struct sh4, sh4_data_map)
+  AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("boot", boot_rom_map)
+  AM_RANGE(0x00200000, 0x0021ffff) AM_DEVICE("flash", flash_rom_map)
+  AM_RANGE(0x0c000000, 0x0cffffff) AM_MOUNT("system ram")
+
+  /* main ram mirrors */
+  AM_RANGE(0x0d000000, 0x0dffffff) AM_MIRROR(0x0c000000)
+  AM_RANGE(0x0e000000, 0x0effffff) AM_MIRROR(0x0c000000)
+  AM_RANGE(0x0f000000, 0x0fffffff) AM_MIRROR(0x0c000000)
+
+  /* external devices */
+  AM_RANGE(0x005f6000, 0x005f7fff) AM_DEVICE("holly", holly_reg_map)
+  AM_RANGE(0x005f8000, 0x005f9fff) AM_DEVICE("pvr", pvr_reg_map)
+  AM_RANGE(0x00600000, 0x0067ffff) AM_DEVICE("holly", holly_modem_map)
+  AM_RANGE(0x00700000, 0x00710fff) AM_DEVICE("aica", aica_reg_map)
+  AM_RANGE(0x00800000, 0x00ffffff) AM_DEVICE("aica", aica_data_map)
+  AM_RANGE(0x01000000, 0x01ffffff) AM_DEVICE("holly", holly_expansion0_map)
+  AM_RANGE(0x02700000, 0x02ffffff) AM_DEVICE("holly", holly_expansion1_map)
+  AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", pvr_vram_map)
+  AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_fifo_map)
+  AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("holly", holly_expansion2_map)
+
+  /* internal registers */
+  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE("sh4 reg",
+                                             (mmio_read_cb)&sh4_reg_read,
+                                             (mmio_write_cb)&sh4_reg_write)
+
+  /* physical mirrors */
+  AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  /* p0 */
+  AM_RANGE(0x40000000, 0x5fffffff) AM_MIRROR(0x00000000)  /* p0 */
+  AM_RANGE(0x60000000, 0x7fffffff) AM_MIRROR(0x00000000)  /* p0 */
+  AM_RANGE(0x80000000, 0x9fffffff) AM_MIRROR(0x00000000)  /* p1 */
+  AM_RANGE(0xa0000000, 0xbfffffff) AM_MIRROR(0x00000000)  /* p2 */
+  AM_RANGE(0xc0000000, 0xdfffffff) AM_MIRROR(0x00000000)  /* p3 */
+  AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  /* p4 */
+
+  /* internal cache and sq only accessible through p4 */
+  AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
+                                             (mmio_read_cb)&sh4_ccn_cache_read,
+                                             (mmio_write_cb)&sh4_ccn_cache_write)
+  AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE("sh4 sq",
+                                             (mmio_read_cb)&sh4_ccn_sq_read,
+                                             (mmio_write_cb)&sh4_ccn_sq_write)
+AM_END();
+// clang-format on
+
