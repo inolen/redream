@@ -6,7 +6,7 @@
 #include "hw/sh4/sh4.h"
 #include "sys/time.h"
 
-DEFINE_PROF_STAT(pvr_vblanks);
+DEFINE_STAT("cpu", pvr_vblanks);
 
 struct reg_cb pvr_cb[NUM_PVR_REGS];
 

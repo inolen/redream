@@ -1,6 +1,7 @@
 #include "emu/emulator.h"
 #include "core/option.h"
 #include "core/profiler.h"
+#include "core/stat.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
@@ -15,7 +16,7 @@
 #include "ui/nuklear.h"
 #include "ui/window.h"
 
-DEFINE_PROF_STAT(fps);
+DEFINE_STAT("gpu", frames);
 
 struct emu {
   struct window *window;
@@ -94,9 +95,9 @@ static void emu_paint(void *data) {
   }
 
   tr_render_context(emu->tr, render_ctx);
+  STAT_frames++;
 
-  STAT_fps++;
-
+  STAT_UPDATE("gpu");
   PROF_FLIP();
 }
 
@@ -106,7 +107,7 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
   /* set status string */
   char status[128];
   snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d SH4 %d ARM",
-           (int)STAT_PREV_fps, (int)STAT_PREV_pvr_vblanks,
+           (int)STAT_PREV_frames, (int)STAT_PREV_pvr_vblanks,
            (int)(STAT_PREV_sh4_instrs / (float)INT64_C(1000000)),
            (int)(STAT_PREV_arm7_instrs / (float)INT64_C(1000000)));
   win_set_status(emu->window, status);
@@ -154,12 +155,12 @@ static void *emu_core_thread(void *data) {
 
     int64_t delta_time = current_time - next_time;
 
-    if (emu->throttled && delta_time < 0) {
-      continue;
+    if (!emu->throttled || delta_time >= 0) {
+      dc_tick(emu->dc, MACHINE_STEP);
+      next_time = current_time + MACHINE_STEP;
     }
 
-    dc_tick(emu->dc, MACHINE_STEP);
-    next_time = current_time + MACHINE_STEP;
+    STAT_UPDATE("cpu");
   }
 
   return 0;
@@ -172,6 +173,10 @@ void emu_run(struct emu *emu, const char *path) {
     return;
   }
 
+  /* create tile renderer */
+  emu->tr = tr_create(emu->window->video, ta_texture_provider(emu->dc->ta));
+
+  /* load gdi / bin if specified */
   if (path) {
     LOG_INFO("Launching %s", path);
 
@@ -181,9 +186,11 @@ void emu_run(struct emu *emu, const char *path) {
       return;
     }
   }
-
-  /* create tile renderer */
-  emu->tr = tr_create(emu->window->video, ta_texture_provider(emu->dc->ta));
+  /* else, boot to main menu */
+  else {
+    sh4_reset(emu->dc->sh4, 0xa0000000);
+    dc_resume(emu->dc);
+  }
 
   /* start core emulator thread */
   thread_t core_thread;
@@ -200,6 +207,17 @@ void emu_run(struct emu *emu, const char *path) {
   thread_join(core_thread, &result);
 }
 
+void emu_destroy(struct emu *emu) {
+  if (emu->tr) {
+    tr_destroy(emu->tr);
+  }
+  if (emu->dc) {
+    dc_destroy(emu->dc);
+  }
+  win_remove_listener(emu->window, &emu->listener);
+  free(emu);
+}
+
 struct emu *emu_create(struct window *window) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
@@ -207,22 +225,7 @@ struct emu *emu_create(struct window *window) {
   emu->listener =
       (struct window_listener){emu,  &emu_paint, &emu_debug_menu, &emu_keydown,
                                NULL, NULL,       &emu_close,      {0}};
-
   win_add_listener(emu->window, &emu->listener);
 
   return emu;
-}
-
-void emu_destroy(struct emu *emu) {
-  win_remove_listener(emu->window, &emu->listener);
-
-  if (emu->tr) {
-    tr_destroy(emu->tr);
-  }
-
-  if (emu->dc) {
-    dc_destroy(emu->dc);
-  }
-
-  free(emu);
 }
