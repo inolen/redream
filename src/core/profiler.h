@@ -7,22 +7,6 @@
 
 typedef uint64_t prof_token_t;
 
-#define DECLARE_PROF_STAT(name)    \
-  extern int64_t STAT_PREV_##name; \
-  extern int64_t STAT_##name
-
-#define DEFINE_PROF_STAT(name)                         \
-  int64_t STAT_PREV_##name;                            \
-  int64_t STAT_##name;                                 \
-  static struct prof_stat STAT_STRUCT_##name = {       \
-      #name, &STAT_PREV_##name, &STAT_##name, 0, {0}}; \
-  CONSTRUCTOR(STAT_REGISTER_##name) {                  \
-    prof_stat_register(&STAT_STRUCT_##name);           \
-  }                                                    \
-  DESTRUCTOR(STAT_UNREGISTER_##name) {                 \
-    prof_stat_unregister(&STAT_STRUCT_##name);         \
-  }
-
 #define PROF_ENTER(group, name)             \
   static int prof_init = 0;                 \
   static prof_token_t prof_tok;             \

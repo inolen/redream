@@ -1,6 +1,5 @@
 #include "hw/sh4/sh4.h"
 #include "core/math.h"
-#include "core/profiler.h"
 #include "core/string.h"
 #include "hw/aica/aica.h"
 #include "hw/debugger.h"
@@ -22,8 +21,8 @@
 #include "sys/time.h"
 #include "ui/nuklear.h"
 
-DEFINE_PROF_STAT(sh4_instrs);
-DEFINE_PROF_STAT(sh4_sr_updates);
+DEFINE_STAT("cpu", sh4_instrs);
+DEFINE_STAT("cpu", sh4_sr_updates);
 
 /*
  * sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.

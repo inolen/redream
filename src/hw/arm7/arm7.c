@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include "hw/arm7/arm7.h"
 #include "core/log.h"
-#include "core/profiler.h"
 #include "hw/aica/aica.h"
 #include "hw/dreamcast.h"
 #include "hw/scheduler.h"
@@ -15,7 +14,7 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
-DEFINE_PROF_STAT(arm7_instrs);
+DEFINE_STAT("cpu", arm7_instrs);
 
 #define ARM7_CLOCK_FREQ INT64_C(20000000)
 

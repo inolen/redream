@@ -2,7 +2,7 @@
 #define PVR_H
 
 #include <stdint.h>
-#include "core/profiler.h"
+#include "core/stat.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "hw/pvr/pvr_types.h"
@@ -27,7 +27,7 @@ struct pvr {
 #undef PVR_REG
 };
 
-DECLARE_PROF_STAT(pvr_vblanks);
+DECLARE_STAT(pvr_vblanks);
 
 extern struct reg_cb pvr_cb[NUM_PVR_REGS];
 
