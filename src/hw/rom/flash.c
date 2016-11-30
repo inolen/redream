@@ -6,99 +6,146 @@
 
 DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash rom");
 
-// there doesn't seem to be any documentation on the flash rom used by thae
-// dreamcast. however, several people have replaced it with the MX29LV160TMC-90
-// successfully. the implementation of the command parsing here is based on its
-// datasheet. note, the dreamcast seems to only use the word mode command
-// sequences, so that is all that is implemented
-
+/* there doesn't seem to be any documentation on the flash rom used by thae
+   dreamcast. however, several people have replaced it with the MX29LV160TMC-90
+   successfully. the implementation of the command parsing here is based on its
+   datasheet. note, the dreamcast seems to only use the word mode command
+   sequences, so that is all that is implemented */
 #define FLASH_SIZE 0x00020000
-#define SECTOR_SIZE 0x4000
-#define CMD_NONE 0x0
-#define CMD_ERASE 0x80
-#define CMD_ERASE_CHIP 0x10
-#define CMD_ERASE_SECTOR 0x30
-#define CMD_PROGRAM 0xa0
+#define FLASH_SECTOR_SIZE 0x4000
+#define FLASH_CMD_NONE 0x0
+#define FLASH_CMD_ERASE 0x80
+#define FLASH_CMD_ERASE_CHIP 0x10
+#define FLASH_CMD_ERASE_SECTOR 0x30
+#define FLASH_CMD_PROGRAM 0xa0
 
 struct flash {
   struct device;
-  // path to persistent flash rom kept in the application directory
-  char app_path[PATH_MAX];
-  // cmd parsing state
+  /* cmd parsing state */
   int cmd;
   int cmd_state;
-  // rom data
-  uint8_t rom[FLASH_SIZE];
 };
 
-static int flash_load_rom(struct flash *flash, const char *path) {
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
+const char *flash_bin_path() {
+  static char filename[PATH_MAX];
+
+  if (!filename[0]) {
+    const char *appdir = fs_appdir();
+    snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "flash.bin",
+             appdir);
+  }
+
+  return filename;
+}
+
+static void flash_read_bin(int offset, void *buffer, int size) {
+  const char *flash_path = flash_bin_path();
+  FILE *file = fopen(flash_path, "r");
+  CHECK_NOTNULL(file, "Failed to open %s", flash_path);
+  int r = fseek(file, offset, SEEK_SET);
+  CHECK_NE(r, -1);
+  r = fread(buffer, 1, size, file);
+  CHECK_EQ(r, size);
+  fclose(file);
+}
+
+static void flash_write_bin(int offset, const void *buffer, int size) {
+  const char *flash_path = flash_bin_path();
+  FILE *file = fopen(flash_path, "r+");
+  CHECK_NOTNULL(file, "Failed to open %s", flash_path);
+  int r = fseek(file, offset, SEEK_SET);
+  CHECK_NE(r, -1);
+  r = fwrite(buffer, 1, size, file);
+  CHECK_EQ(r, size);
+  fclose(file);
+}
+
+static int flash_init_bin() {
+  /* check to see if a persistent flash rom exists in the app directory */
+  const char *flash_path = flash_bin_path();
+  if (fs_exists(flash_path)) {
+    return 1;
+  }
+
+  /* if it doesn't, read the original flash rom from the command line path */
+  uint8_t rom[FLASH_SIZE];
+
+  LOG_INFO("Initializing flash rom from %s", OPTION_flash);
+
+  FILE *src = fopen(OPTION_flash, "r");
+  if (!src) {
+    LOG_WARNING("Failed to load %s", OPTION_flash);
     return 0;
   }
 
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
+  fseek(src, 0, SEEK_END);
+  int size = ftell(src);
+  fseek(src, 0, SEEK_SET);
 
   if (size != FLASH_SIZE) {
     LOG_WARNING("Flash size mismatch, is %d, expected %d", size, FLASH_SIZE);
-    fclose(fp);
+    fclose(src);
     return 0;
   }
 
-  int n = (int)fread(flash->rom, sizeof(uint8_t), size, fp);
+  int n = (int)fread(rom, 1, size, src);
   CHECK_EQ(n, size);
-  fclose(fp);
+  fclose(src);
 
-  return 1;
-}
-
-static int flash_save_rom(struct flash *flash, const char *path) {
-  FILE *fp = fopen(path, "wb");
-  if (!fp) {
-    return 0;
-  }
-
-  int n = (int)fwrite(flash->rom, 1, FLASH_SIZE, fp);
-  CHECK_EQ(n, FLASH_SIZE);
-  fclose(fp);
+  /* and copy it to the app directory */
+  FILE *dst = fopen(flash_path, "w");
+  CHECK_NOTNULL("Failed to open %s", flash_path);
+  int r = fwrite(rom, 1, size, dst);
+  CHECK_EQ(r, size);
+  fclose(dst);
 
   return 1;
 }
 
 static uint32_t flash_cmd_read(struct flash *flash, uint32_t addr,
                                uint32_t data_mask) {
-  uint32_t *mem = (uint32_t *)&flash->rom[addr];
-  return *mem & data_mask;
+  int size = DATA_SIZE();
+  uint32_t mem;
+  flash_read_bin(addr, &mem, size);
+  return mem & data_mask;
 }
 
 static void flash_cmd_program(struct flash *flash, uint32_t addr, uint32_t data,
                               uint32_t data_mask) {
-  uint32_t *mem = (uint32_t *)&flash->rom[addr];
-  *mem &= ~data_mask | data;
-
-  // update persistent copy of the flash rom
-  CHECK(flash_save_rom(flash, flash->app_path));
+  /* programming can only clear bits to 0 */
+  int size = DATA_SIZE();
+  uint32_t mem;
+  flash_read_bin(addr, &mem, size);
+  mem &= data;
+  flash_write_bin(addr, &mem, size);
 }
 
 static void flash_cmd_erase_chip(struct flash *flash) {
-  memset(flash->rom, 0xff, FLASH_SIZE);
+  /* erasing resets bits to 1 */
+  uint8_t empty_chip[FLASH_SIZE];
+  memset(empty_chip, 0xff, sizeof(empty_chip));
+  flash_write_bin(0, empty_chip, sizeof(empty_chip));
 }
 
 static void flash_cmd_erase_sector(struct flash *flash, uint32_t addr) {
-  addr &= ~(SECTOR_SIZE - 1);
-  memset(&flash->rom[addr], 0xff, SECTOR_SIZE);
+  /* round address down to the nearest sector start */
+  addr &= ~(FLASH_SECTOR_SIZE - 1);
+
+  /* erasing resets bits to 1 */
+  uint8_t empty_chip[FLASH_SIZE];
+  uint8_t empty_sector[FLASH_SECTOR_SIZE];
+  memset(empty_sector, 0xff, sizeof(empty_sector));
+  flash_write_bin(addr, empty_sector, sizeof(empty_sector));
 }
 
-static uint32_t flash_read(struct flash *flash, uint32_t addr,
-                           uint32_t data_mask) {
+static uint32_t flash_rom_read(struct flash *flash, uint32_t addr,
+                               uint32_t data_mask) {
   CHECK_EQ(flash->cmd_state, 0);
   return flash_cmd_read(flash, addr, data_mask);
 }
 
-static void flash_write(struct flash *flash, uint32_t addr, uint32_t data,
-                        uint32_t data_mask) {
+static void flash_rom_write(struct flash *flash, uint32_t addr, uint32_t data,
+                            uint32_t data_mask) {
   switch (flash->cmd_state) {
     case 0: {
       CHECK(addr == 0x5555 && data == 0xaa);
@@ -111,17 +158,18 @@ static void flash_write(struct flash *flash, uint32_t addr, uint32_t data,
     } break;
 
     case 2: {
-      CHECK(addr == 0x5555 && (data == CMD_ERASE || data == CMD_PROGRAM));
+      CHECK(addr == 0x5555 &&
+            (data == FLASH_CMD_ERASE || data == FLASH_CMD_PROGRAM));
       flash->cmd = data;
       flash->cmd_state++;
     } break;
 
     case 3: {
-      if (flash->cmd == CMD_PROGRAM) {
+      if (flash->cmd == FLASH_CMD_PROGRAM) {
         flash_cmd_program(flash, addr, data, data_mask);
         flash->cmd_state = 0;
       } else {
-        CHECK_EQ(flash->cmd, CMD_ERASE);
+        CHECK_EQ(flash->cmd, FLASH_CMD_ERASE);
         CHECK(addr == 0x5555 && data == 0xaa);
         flash->cmd_state++;
       }
@@ -133,11 +181,11 @@ static void flash_write(struct flash *flash, uint32_t addr, uint32_t data,
     } break;
 
     case 5: {
-      if (data == CMD_ERASE_CHIP) {
+      if (data == FLASH_CMD_ERASE_CHIP) {
         CHECK(addr == 0x5555);
         flash_cmd_erase_chip(flash);
       } else {
-        CHECK_EQ(data, CMD_ERASE_SECTOR);
+        CHECK_EQ(data, FLASH_CMD_ERASE_SECTOR);
         flash_cmd_erase_sector(flash, addr);
       }
       flash->cmd_state = 0;
@@ -152,20 +200,16 @@ static void flash_write(struct flash *flash, uint32_t addr, uint32_t data,
 static bool flash_init(struct device *dev) {
   struct flash *flash = (struct flash *)dev;
 
-  // keep a persistent copy of the flash rom in the application directory
-  const char *appdir = fs_appdir();
-  snprintf(flash->app_path, sizeof(flash->app_path),
-           "%s" PATH_SEPARATOR "flash.bin", appdir);
-
-  // attempt to load flash rom from the application directory first, falling
-  // back to the command line path if it doesn't exist
-  if (!(flash_load_rom(flash, flash->app_path) ||
-        flash_load_rom(flash, OPTION_flash))) {
+  if (!flash_init_bin()) {
     LOG_WARNING("Failed to load flash rom");
     return false;
   }
 
   return true;
+}
+
+void flash_destroy(struct flash *flash) {
+  dc_destroy_device((struct device *)flash);
 }
 
 struct flash *flash_create(struct dreamcast *dc) {
@@ -174,14 +218,10 @@ struct flash *flash_create(struct dreamcast *dc) {
   return flash;
 }
 
-void flash_destroy(struct flash *flash) {
-  dc_destroy_device((struct device *)flash);
-}
-
 // clang-format off
 AM_BEGIN(struct flash, flash_rom_map);
   AM_RANGE(0x00000000, 0x0001ffff) AM_HANDLE("flash rom",
-                                             (mmio_read_cb)&flash_read,
-                                             (mmio_write_cb)&flash_write)
+                                             (mmio_read_cb)&flash_rom_read,
+                                             (mmio_write_cb)&flash_rom_write)
 AM_END();
 // clang-format on

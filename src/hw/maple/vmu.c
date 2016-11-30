@@ -52,7 +52,7 @@ static void vmu_read_bin(int block, int phase, void *buffer, int num_words) {
   fclose(file);
 }
 
-static void vmu_create_bin() {
+static void vmu_init_bin() {
   const char *vmu_path = vmu_bin_path();
 
   if (fs_exists(vmu_path)) {
@@ -189,7 +189,7 @@ struct maple_device *vmu_create() {
   vmu->destroy = &vmu_destroy;
   vmu->frame = &vmu_frame;
 
-  vmu_create_bin();
+  vmu_init_bin();
 
   return (struct maple_device *)vmu;
 }
