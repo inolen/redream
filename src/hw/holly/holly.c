@@ -122,36 +122,56 @@ static void holly_maple_dma(struct holly *hl) {
   struct maple *mp = hl->maple;
   struct address_space *space = hl->sh4->memory_if->space;
   uint32_t addr = *hl->SB_MDSTAR;
-  union maple_transfer desc;
-  struct maple_frame frame, res;
 
-  do {
-    desc.full =
-        ((uint64_t)as_read32(space, addr + 4) << 32) | as_read32(space, addr);
-    addr += 8;
-
-    // read input
-    frame.header.full = as_read32(space, addr);
+  while (1) {
+    union maple_transfer desc;
+    desc.full = as_read32(space, addr);
     addr += 4;
 
-    for (uint32_t i = 0; i < frame.header.num_words; i++) {
-      frame.params[i] = as_read32(space, addr);
-      addr += 4;
+    switch (desc.pattern) {
+      case MAPLE_PATTERN_NORMAL: {
+        uint32_t result_addr = as_read32(space, addr);
+        addr += 4;
+
+        /* read message */
+        struct maple_frame frame, res;
+        frame.header.full = as_read32(space, addr);
+        addr += 4;
+
+        for (uint32_t i = 0; i < frame.header.num_words; i++) {
+          frame.params[i] = as_read32(space, addr);
+          addr += 4;
+        }
+
+        /* process message */
+        int handled = maple_handle_command(mp, &frame, &res);
+
+        /* write response */
+        if (handled) {
+          as_write32(space, result_addr, res.header.full);
+          result_addr += 4;
+
+          for (uint32_t i = 0; i < res.header.num_words; i++) {
+            as_write32(space, result_addr, res.params[i]);
+            result_addr += 4;
+          }
+        } else {
+          as_write32(space, result_addr, 0xffffffff);
+        }
+      } break;
+
+      case MAPLE_PATTERN_NOP:
+        break;
+
+      default:
+        LOG_FATAL("Unhandled maple pattern 0x%x", desc.pattern);
+        break;
     }
 
-    // handle command and write response
-    if (maple_handle_command(mp, desc.port, &frame, &res)) {
-      as_write32(space, desc.result_addr, res.header.full);
-      desc.result_addr += 4;
-
-      for (uint32_t i = 0; i < res.header.num_words; i++) {
-        as_write32(space, desc.result_addr, res.params[i]);
-        desc.result_addr += 4;
-      }
-    } else {
-      as_write32(space, desc.result_addr, 0xffffffff);
+    if (desc.last) {
+      break;
     }
-  } while (!desc.last);
+  }
 
   *hl->SB_MDST = 0;
   holly_raise_interrupt(hl, HOLLY_INTC_MDEINT);

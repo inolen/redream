@@ -180,6 +180,7 @@ set(REDREAM_SOURCES
   src/hw/holly/holly.c
   src/hw/maple/controller.c
   src/hw/maple/maple.c
+  src/hw/maple/vmu.c
   src/hw/pvr/pvr.c
   src/hw/pvr/ta.c
   src/hw/pvr/tr.c
