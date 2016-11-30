@@ -2,6 +2,7 @@
 #define MEMORY_H
 
 #include "core/assert.h"
+#include "core/math.h"
 #include "sys/memory.h"
 
 struct dreamcast;

@@ -56,14 +56,14 @@ static bool boot_init(struct device *dev) {
   return true;
 }
 
+void boot_destroy(struct boot *boot) {
+  dc_destroy_device((struct device *)boot);
+}
+
 struct boot *boot_create(struct dreamcast *dc) {
   struct boot *boot =
       dc_create_device(dc, sizeof(struct boot), "boot", &boot_init);
   return boot;
-}
-
-void boot_destroy(struct boot *boot) {
-  dc_destroy_device((struct device *)boot);
 }
 
 // clang-format off
