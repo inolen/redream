@@ -1,14 +1,14 @@
 #ifndef SH4_H
 #define SH4_H
 
-#include "core/stat.h"
+#include "core/profiler.h"
 #include "hw/dreamcast.h"
 #include "hw/memory.h"
 #include "hw/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_context.h"
-#include "jit/jit.h"
 
 struct dreamcast;
+struct jit;
 struct jit_frontend;
 struct jit_backend;
 
@@ -63,7 +63,7 @@ struct sh4 {
 
 extern struct reg_cb sh4_cb[NUM_SH4_REGS];
 
-DECLARE_STAT(sh4_instrs);
+DECLARE_COUNTER(sh4_instrs);
 
 AM_DECLARE(sh4_data_map);
 

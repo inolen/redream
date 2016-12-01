@@ -169,7 +169,6 @@ set(REDREAM_SOURCES
   src/core/option.c
   src/core/profiler.cc
   src/core/rb_tree.c
-  src/core/stat.c
   src/core/string.c
   src/emu/emulator.c
   src/emu/tracer.c

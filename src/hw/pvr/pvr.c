@@ -6,7 +6,7 @@
 #include "hw/sh4/sh4.h"
 #include "sys/time.h"
 
-DEFINE_STAT("cpu", pvr_vblanks);
+DEFINE_AGGREGATE_COUNTER(pvr_vblanks);
 
 struct reg_cb pvr_cb[NUM_PVR_REGS];
 
@@ -43,7 +43,7 @@ static void pvr_next_scanline(void *data) {
 
   /* FIXME toggle SPG_STATUS.fieldnum on vblank? */
   if (!was_vsync && pvr->SPG_STATUS->vsync) {
-    STAT_pvr_vblanks++;
+    prof_counter_add(COUNTER_pvr_vblanks, 1);
   }
 
   /* reschedule */

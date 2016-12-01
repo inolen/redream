@@ -21,8 +21,8 @@
 #include "sys/time.h"
 #include "ui/nuklear.h"
 
-DEFINE_STAT("cpu", sh4_instrs);
-DEFINE_STAT("cpu", sh4_sr_updates);
+DEFINE_AGGREGATE_COUNTER(sh4_instrs);
+DEFINE_AGGREGATE_COUNTER(sh4_sr_updates);
 
 /*
  * sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.
@@ -79,7 +79,7 @@ void sh4_sr_updated(void *data, uint64_t old_sr) {
   struct sh4 *sh4 = data;
   struct sh4_ctx *ctx = &sh4->ctx;
 
-  STAT_sh4_sr_updates++;
+  prof_counter_add(COUNTER_sh4_sr_updates, 1);
 
   if ((ctx->sr & RB) != (old_sr & RB)) {
     sh4_swap_gpr_bank(sh4);
@@ -146,11 +146,10 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
                    remaining_cycles);
 
   /* update instruction run count */
-  struct ir_value *num_instrs_ptr =
-      ir_alloc_i64(ir, (uint64_t)&STAT_sh4_instrs);
-  struct ir_value *num_instrs = ir_load(ir, num_instrs_ptr, VALUE_I64);
-  num_instrs = ir_add(ir, num_instrs, ir_alloc_i64(ir, as.size / 2));
-  ir_store(ir, num_instrs_ptr, num_instrs);
+  struct ir_value *ran_instrs =
+      ir_load_context(ir, offsetof(struct sh4_ctx, ran_instrs), VALUE_I64);
+  ran_instrs = ir_add(ir, ran_instrs, ir_alloc_i64(ir, as.size / 2));
+  ir_store_context(ir, offsetof(struct sh4_ctx, ran_instrs), ran_instrs);
 
   /* translate the actual block */
   for (int i = 0; i < as.size;) {
@@ -247,6 +246,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
 
   int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
   sh4->ctx.remaining_cycles = (int)cycles;
+  sh4->ctx.ran_instrs = 0;
 
   g_sh4 = sh4;
 
@@ -257,6 +257,8 @@ static void sh4_run(struct device *dev, int64_t ns) {
   }
 
   g_sh4 = NULL;
+
+  prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 
   PROF_LEAVE();
 }
