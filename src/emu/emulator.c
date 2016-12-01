@@ -1,7 +1,6 @@
 #include "emu/emulator.h"
 #include "core/option.h"
 #include "core/profiler.h"
-#include "core/stat.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
@@ -16,7 +15,7 @@
 #include "ui/nuklear.h"
 #include "ui/window.h"
 
-DEFINE_STAT("gpu", frames);
+DEFINE_AGGREGATE_COUNTER(frames);
 
 struct emu {
   struct window *window;
@@ -95,10 +94,9 @@ static void emu_paint(void *data) {
   }
 
   tr_render_context(emu->tr, render_ctx);
-  STAT_frames++;
+  prof_counter_add(COUNTER_frames, 1);
 
-  STAT_UPDATE("gpu");
-  PROF_FLIP();
+  prof_flip();
 }
 
 static void emu_debug_menu(void *data, struct nk_context *ctx) {
@@ -106,10 +104,14 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
 
   /* set status string */
   char status[128];
-  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d SH4 %d ARM",
-           (int)STAT_PREV_frames, (int)STAT_PREV_pvr_vblanks,
-           (int)(STAT_PREV_sh4_instrs / (float)INT64_C(1000000)),
-           (int)(STAT_PREV_arm7_instrs / (float)INT64_C(1000000)));
+
+  int frames = (int)prof_counter_load(COUNTER_frames);
+  int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
+  int sh4_instrs = (int)prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f;
+  int arm7_instrs = (int)prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f;
+
+  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d SH4 %d ARM", frames,
+           pvr_vblanks, sh4_instrs, arm7_instrs);
   win_set_status(emu->window, status);
 
   /* add drop down menus */
@@ -159,8 +161,6 @@ static void *emu_core_thread(void *data) {
       dc_tick(emu->dc, MACHINE_STEP);
       next_time = current_time + MACHINE_STEP;
     }
-
-    STAT_UPDATE("cpu");
   }
 
   return 0;

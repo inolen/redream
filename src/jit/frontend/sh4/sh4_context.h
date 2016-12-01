@@ -80,8 +80,11 @@ struct sh4_ctx {
   uint8_t cache[0x2000];
   uint32_t sq[2][8];
 
-  /* the main dispatch loop is ran until num_cycles is <= 0 */
+  /* the main dispatch loop is ran until remaining_cycles is <= 0 */
   int32_t remaining_cycles;
+
+  /* debug information */
+  int64_t ran_instrs;
 };
 
 #endif

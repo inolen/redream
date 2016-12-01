@@ -346,6 +346,7 @@ MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, cons
 MICROPROFILE_API MicroProfileToken MicroProfileGetMetaToken(const char* pName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName);
 MICROPROFILE_API void MicroProfileMetaUpdate(MicroProfileToken, int nCount, MicroProfileTokenType eTokenType);
+MICROPROFILE_API int64_t MicroProfileCounterLoad(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount);
 MICROPROFILE_API void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount);
 MICROPROFILE_API void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount);
@@ -1581,6 +1582,11 @@ void MicroProfileMetaUpdate(MicroProfileToken nToken, int nCount, MicroProfileTo
 			MicroProfileLogPut(nToken, nCount, MP_LOG_META, pLog);
 		}
 	}
+}
+int64_t MicroProfileCounterLoad(MicroProfileToken nToken)
+{
+	MP_ASSERT(nToken < S.nNumCounters);
+	return S.Counters[nToken].load();
 }
 void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount)
 {
