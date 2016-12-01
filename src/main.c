@@ -1,5 +1,6 @@
 #include "core/log.h"
 #include "core/option.h"
+#include "core/profiler.h"
 #include "emu/emulator.h"
 #include "emu/tracer.h"
 #include "sys/exception_handler.h"
@@ -15,12 +16,12 @@ int main(int argc, char **argv) {
     LOG_FATAL("Failed to create app directory %s", appdir);
   }
 
-  // load base options from config
+  /* load base options from config */
   char config[PATH_MAX] = {0};
   snprintf(config, sizeof(config), "%s" PATH_SEPARATOR "config", appdir);
   options_read(config);
 
-  // override options from the command line
+  /* override options from the command line */
   options_parse(&argc, &argv);
 
   if (OPTION_help) {
@@ -39,6 +40,8 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+  prof_init();
+
   const char *load = argc > 1 ? argv[1] : NULL;
   if (load && strstr(load, ".trace")) {
     struct tracer *tracer = tracer_create(window);
@@ -50,11 +53,13 @@ int main(int argc, char **argv) {
     emu_destroy(emu);
   }
 
+  prof_shutdown();
+
   win_destroy(window);
 
   exception_handler_uninstall();
 
-  // persist options for next run
+  /* persist options for next run */
   options_write(config);
 
   return EXIT_SUCCESS;

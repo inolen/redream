@@ -14,7 +14,7 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
-DEFINE_STAT("cpu", arm7_instrs);
+DEFINE_AGGREGATE_COUNTER(arm7_instrs);
 
 #define ARM7_CLOCK_FREQ INT64_C(20000000)
 
@@ -195,12 +195,11 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
                    remaining_cycles);
   CHECK(cycles && size);
 
-  /* update num instrs */
-  struct ir_value *num_instrs_ptr =
-      ir_alloc_i64(ir, (uint64_t)&STAT_arm7_instrs);
-  struct ir_value *num_instrs = ir_load(ir, num_instrs_ptr, VALUE_I64);
-  num_instrs = ir_add(ir, num_instrs, ir_alloc_i64(ir, size / 4));
-  ir_store(ir, num_instrs_ptr, num_instrs);
+  /* update instruction run count */
+  struct ir_value *ran_instrs = ir_load_context(
+      ir, offsetof(struct armv3_context, ran_instrs), VALUE_I64);
+  ran_instrs = ir_add(ir, ran_instrs, ir_alloc_i64(ir, size / 4));
+  ir_store_context(ir, offsetof(struct armv3_context, ran_instrs), ran_instrs);
 
   /* emit fallbacks */
   for (int i = 0; i < size; i += 4) {
@@ -216,8 +215,8 @@ static void arm7_run(struct device *dev, int64_t ns) {
   struct arm7 *arm = (struct arm7 *)dev;
 
   int64_t cycles = MAX(NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ), INT64_C(1));
-
   arm->ctx.remaining_cycles = (int)cycles;
+  arm->ctx.ran_instrs = 0;
 
   g_arm = arm;
 
@@ -228,6 +227,8 @@ static void arm7_run(struct device *dev, int64_t ns) {
   }
 
   g_arm = NULL;
+
+  prof_counter_add(COUNTER_arm7_instrs, arm->ctx.ran_instrs);
 
   PROF_LEAVE();
 }
