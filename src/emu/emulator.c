@@ -126,7 +126,8 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
   dc_debug_menu(emu->dc, ctx);
 }
 
-static void emu_keydown(void *data, enum keycode code, int16_t value) {
+static void emu_keydown(void *data, int device_index, enum keycode code,
+                        int16_t value) {
   struct emu *emu = data;
 
   if (code == K_F1) {
@@ -136,7 +137,7 @@ static void emu_keydown(void *data, enum keycode code, int16_t value) {
     return;
   }
 
-  dc_keydown(emu->dc, code, value);
+  dc_keydown(emu->dc, device_index, code, value);
 }
 
 static void emu_close(void *data) {
