@@ -86,7 +86,7 @@ struct memory_interface {
 
 // window interface
 typedef void (*device_debug_menu_cb)(struct device *, struct nk_context *);
-typedef void (*device_keydown_cb)(struct device *, enum keycode, int16_t);
+typedef void (*device_keydown_cb)(struct device *, int, enum keycode, int16_t);
 
 struct window_interface {
   device_debug_menu_cb debug_menu;
@@ -151,7 +151,8 @@ void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
-void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value);
+void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
+                int16_t value);
 
 struct execute_interface *dc_create_execute_interface(device_run_cb run,
                                                       int running);
