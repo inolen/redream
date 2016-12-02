@@ -151,7 +151,7 @@ void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
-void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value, uint8_t index);
+void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value, int device_index);
 
 struct execute_interface *dc_create_execute_interface(device_run_cb run,
                                                       int running);

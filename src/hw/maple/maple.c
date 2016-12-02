@@ -20,20 +20,20 @@ static bool maple_init(struct device *dev) {
 }
 
 static void maple_keydown(struct device *d, enum keycode key, int16_t value, uint8_t index) {
+  if(index >= MAPLE_NUM_PORTS) { return; }
+
   struct maple *mp = (struct maple *)d;
   struct maple_port *port = &mp->ports[index];
 
   /* Create a controller if getting data from a new device */
-  if(!port->units[0] && index < MAPLE_NUM_PORTS)
+  if(!port->units[0])
     port->units[0] = controller_create();
 
-  if(port->units[0] && index < MAPLE_NUM_PORTS){
-    for (int j = 0; j < MAPLE_MAX_UNITS; j++) {
-      struct maple_device *dev = port->units[j];
+  for (int j = 0; j < MAPLE_MAX_UNITS; j++) {
+    struct maple_device *dev = port->units[j];
 
-      if (dev && dev->input) {
-        dev->input(dev, key, value);
-      }
+    if (dev && dev->input) {
+      dev->input(dev, key, value);
     }
   }
 }
