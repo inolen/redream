@@ -85,10 +85,10 @@ void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
   }
 }
 
-void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value) {
+void dc_keydown(struct dreamcast *dc, enum keycode code, int16_t value, int device_index) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->window_if && dev->window_if->keydown) {
-      dev->window_if->keydown(dev, code, value);
+      dev->window_if->keydown(dev, code, value, device_index);
     }
   }
 }

@@ -45,7 +45,7 @@ static struct microprofile *s_mp;
   d[2].member = v;       \
   d[5].member = v
 
-static void mp_keydown(void *data, enum keycode code, int16_t value) {
+static void mp_keydown(void *data, enum keycode code, int16_t value, int device_index) {
   if (code == K_F2) {
     if (value) {
       MicroProfileToggleDisplayMode();

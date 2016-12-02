@@ -22,6 +22,8 @@ struct SDL_Window;
 
 #define DEBUG_MENU_HEIGHT 23.0f
 
+#define MAX_JOYSTICKS 4
+
 #define NUM_JOYSTICK_AXES ((K_AXIS15 - K_AXIS0) + 1)
 #define NUM_JOYSTICK_KEYS ((K_JOY31 - K_JOY0) + 1)
 #define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
@@ -30,7 +32,7 @@ struct window_listener {
   void *data;
   void (*paint)(void *data);
   void (*debug_menu)(void *data, struct nk_context *ctx);
-  void (*keydown)(void *data, enum keycode code, int16_t value);
+  void (*keydown)(void *data, enum keycode code, int16_t value, int device_index);
   void (*textinput)(void *data, const char *text);
   void (*mousemove)(void *data, int x, int y);
   void (*close)(void *data);
@@ -55,8 +57,8 @@ struct window {
   /* private state */
   struct list listeners;
   char status[256];
-  struct _SDL_Joystick *joystick;
-  uint8_t hat_state[NUM_JOYSTICK_HATS];
+  struct _SDL_Joystick *joysticks[MAX_JOYSTICKS];
+  uint8_t hat_state[MAX_JOYSTICKS][NUM_JOYSTICK_HATS];
 };
 
 struct window *win_create();

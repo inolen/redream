@@ -11,28 +11,37 @@
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
 
-static void win_destroy_joystick(struct window *win) {
-  if (win->joystick) {
-    SDL_JoystickClose(win->joystick);
-    win->joystick = NULL;
+static void win_destroy_joystick(struct window *win, struct _SDL_Joystick *joystick) {
+  for(int i = 0; i < MAX_JOYSTICKS; i++) {
+    if(win->joysticks[i] == joystick) {
+      SDL_JoystickClose(win->joysticks[i]);
+      win->joysticks[i] = NULL;
+    }
   }
 }
 
-static void win_init_joystick(struct window *win) {
-  win_destroy_joystick(win);
+static void win_init_joystick(struct window *win, int joystick_index) {
 
-  /* open the first connected joystick */
-  for (int i = 0; i < SDL_NumJoysticks(); ++i) {
-    win->joystick = SDL_JoystickOpen(i);
-
-    if (win->joystick) {
-      LOG_INFO("Opened joystick %s (%d)", SDL_JoystickName(win->joystick), i);
-      break;
+  /* connect joystick to first open slot */
+  for (int i = 0; i < MAX_JOYSTICKS; i++) {
+    if(!win->joysticks[i]) {
+      win->joysticks[i] = SDL_JoystickOpen(joystick_index);
+      if (win->joysticks[i]) {
+        LOG_INFO("Opened joystick %s (%d)", SDL_JoystickName(win->joysticks[i]), i);
+        /* reset hat state */
+        memset(win->hat_state[i], 0, sizeof(win->hat_state[i]));
+        break;
+      }
     }
   }
+}
 
-  /* reset hat state */
-  memset(win->hat_state, 0, sizeof(win->hat_state));
+static int win_get_device_index(struct window *win, int joystick_id) {
+  for(int i = 0; i < MAX_JOYSTICKS; i++) {
+    if(win->joysticks[i] == SDL_JoystickFromInstanceID(joystick_id))
+      return i;
+  }
+  return 0;
 }
 
 static void win_set_fullscreen(struct window *win, int fullscreen) {
@@ -110,10 +119,10 @@ static void win_handle_paint(struct window *win) {
 }
 
 static void win_handle_keydown(struct window *win, enum keycode code,
-                               int16_t value) {
+                               int16_t value, int device_index) {
   list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
     if (listener->keydown) {
-      listener->keydown(listener->data, code, value);
+      listener->keydown(listener->data, code, value, device_index);
     }
   }
 }
@@ -124,35 +133,35 @@ static void win_handle_keydown(struct window *win, enum keycode code,
 #define KEY_HAT_LEFT(hat) (enum keycode)(K_HAT0 + hat * 4 + 3)
 
 static void win_handle_hatdown(struct window *win, int hat, uint8_t state,
-                               int16_t value) {
+                               int16_t value, int device_index) {
   switch (state) {
     case SDL_HAT_UP:
-      win_handle_keydown(win, KEY_HAT_UP(hat), value);
+      win_handle_keydown(win, KEY_HAT_UP(hat), value, device_index);
       break;
     case SDL_HAT_RIGHT:
-      win_handle_keydown(win, KEY_HAT_RIGHT(hat), value);
+      win_handle_keydown(win, KEY_HAT_RIGHT(hat), value, device_index);
       break;
     case SDL_HAT_DOWN:
-      win_handle_keydown(win, KEY_HAT_DOWN(hat), value);
+      win_handle_keydown(win, KEY_HAT_DOWN(hat), value, device_index);
       break;
     case SDL_HAT_LEFT:
-      win_handle_keydown(win, KEY_HAT_LEFT(hat), value);
+      win_handle_keydown(win, KEY_HAT_LEFT(hat), value, device_index);
       break;
     case SDL_HAT_RIGHTUP:
-      win_handle_keydown(win, KEY_HAT_RIGHT(hat), value);
-      win_handle_keydown(win, KEY_HAT_UP(hat), value);
+      win_handle_keydown(win, KEY_HAT_RIGHT(hat), value, device_index);
+      win_handle_keydown(win, KEY_HAT_UP(hat), value, device_index);
       break;
     case SDL_HAT_RIGHTDOWN:
-      win_handle_keydown(win, KEY_HAT_RIGHT(hat), value);
-      win_handle_keydown(win, KEY_HAT_DOWN(hat), value);
+      win_handle_keydown(win, KEY_HAT_RIGHT(hat), value, device_index);
+      win_handle_keydown(win, KEY_HAT_DOWN(hat), value, device_index);
       break;
     case SDL_HAT_LEFTUP:
-      win_handle_keydown(win, KEY_HAT_LEFT(hat), value);
-      win_handle_keydown(win, KEY_HAT_UP(hat), value);
+      win_handle_keydown(win, KEY_HAT_LEFT(hat), value, device_index);
+      win_handle_keydown(win, KEY_HAT_UP(hat), value, device_index);
       break;
     case SDL_HAT_LEFTDOWN:
-      win_handle_keydown(win, KEY_HAT_LEFT(hat), value);
-      win_handle_keydown(win, KEY_HAT_DOWN(hat), value);
+      win_handle_keydown(win, KEY_HAT_LEFT(hat), value, device_index);
+      win_handle_keydown(win, KEY_HAT_DOWN(hat), value, device_index);
       break;
     default:
       break;
@@ -720,7 +729,7 @@ static void win_pump_sdl(struct window *win) {
         enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          win_handle_keydown(win, keycode, 1);
+          win_handle_keydown(win, keycode, 1, 0);
         }
       } break;
 
@@ -728,7 +737,7 @@ static void win_pump_sdl(struct window *win) {
         enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          win_handle_keydown(win, keycode, 0);
+          win_handle_keydown(win, keycode, 0, 0);
         }
       } break;
 
@@ -763,17 +772,17 @@ static void win_pump_sdl(struct window *win) {
 
         if (keycode != K_UNKNOWN) {
           win_handle_keydown(win, keycode,
-                             ev.type == SDL_MOUSEBUTTONDOWN ? 1 : 0);
+                             ev.type == SDL_MOUSEBUTTONDOWN ? 1 : 0, 0);
         }
       } break;
 
       case SDL_MOUSEWHEEL:
         if (ev.wheel.y > 0) {
-          win_handle_keydown(win, K_MWHEELUP, 1);
-          win_handle_keydown(win, K_MWHEELUP, 0);
+          win_handle_keydown(win, K_MWHEELUP, 1, 0);
+          win_handle_keydown(win, K_MWHEELUP, 0, 0);
         } else {
-          win_handle_keydown(win, K_MWHEELDOWN, 1);
-          win_handle_keydown(win, K_MWHEELDOWN, 0);
+          win_handle_keydown(win, K_MWHEELDOWN, 1, 0);
+          win_handle_keydown(win, K_MWHEELDOWN, 0, 0);
         }
         break;
 
@@ -782,14 +791,16 @@ static void win_pump_sdl(struct window *win) {
         break;
 
       case SDL_JOYDEVICEADDED:
+        win_init_joystick(win, ev.jdevice.which);
+        break;
       case SDL_JOYDEVICEREMOVED:
-        win_init_joystick(win);
+        win_destroy_joystick(win, SDL_JoystickFromInstanceID(ev.jdevice.which));
         break;
 
       case SDL_JOYAXISMOTION:
         if (ev.jaxis.axis < NUM_JOYSTICK_AXES) {
           win_handle_keydown(win, (enum keycode)(K_AXIS0 + ev.jaxis.axis),
-                             ev.jaxis.value);
+                             ev.jaxis.value, win_get_device_index(win, ev.jaxis.which));
         } else {
           LOG_WARNING("Joystick motion ignored, axis %d >= NUM_JOYSTICK_AXES",
                       ev.jaxis.axis);
@@ -798,14 +809,14 @@ static void win_pump_sdl(struct window *win) {
 
       case SDL_JOYHATMOTION:
         if (ev.jhat.hat < NUM_JOYSTICK_HATS) {
-          uint8_t *state = &win->hat_state[ev.jhat.hat];
+          uint8_t *state = &win->hat_state[0][ev.jhat.hat];
 
           if (ev.jhat.value != *state) {
             /* old key is up */
-            win_handle_hatdown(win, ev.jhat.hat, *state, 0);
+            win_handle_hatdown(win, ev.jhat.hat, *state, 0, win_get_device_index(win, ev.jhat.which));
 
             /* new key is down */
-            win_handle_hatdown(win, ev.jhat.hat, ev.jhat.value, 1);
+            win_handle_hatdown(win, ev.jhat.hat, ev.jhat.value, 1, win_get_device_index(win, ev.jhat.which));
           }
 
           *state = ev.jhat.value;
@@ -820,7 +831,7 @@ static void win_pump_sdl(struct window *win) {
       case SDL_JOYBUTTONUP:
         if (ev.jbutton.button < NUM_JOYSTICK_KEYS) {
           win_handle_keydown(win, (enum keycode)(K_JOY1 + ev.jbutton.button),
-                             ev.type == SDL_JOYBUTTONDOWN ? 1 : 0);
+                             ev.type == SDL_JOYBUTTONDOWN ? 1 : 0, win_get_device_index(win, ev.jbutton.which));
         } else {
           LOG_WARNING("Joystick button ignored, button %d >= NUM_JOYSTICK_KEYS",
                       ev.jbutton.button);
@@ -896,8 +907,11 @@ void win_destroy(struct window *win) {
   if (win->handle) {
     SDL_DestroyWindow(win->handle);
   }
-
-  win_destroy_joystick(win);
+  for(int i = 0; i < MAX_JOYSTICKS; i++) {
+    if(win->joysticks[i]) {
+    win_destroy_joystick(win, win->joysticks[i]);
+    }
+  }
 
   SDL_Quit();
 

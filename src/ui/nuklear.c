@@ -15,7 +15,7 @@
 #pragma warning(pop)
 #endif
 
-static void nk_keydown(void *data, enum keycode code, int16_t value) {
+static void nk_keydown(void *data, enum keycode code, int16_t value, int device_index) {
   struct nuklear *nk = data;
 
   if (code == K_MWHEELUP) {
