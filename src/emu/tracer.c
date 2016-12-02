@@ -801,7 +801,7 @@ static void tracer_paint(void *data) {
   video_end_surfaces(tracer->video);
 }
 
-static void tracer_keydown(void *data, enum keycode code, int16_t value) {
+static void tracer_keydown(void *data, enum keycode code, int16_t value, uint8_t index) {
   struct tracer *tracer = data;
 
   if (code == K_F1) {

@@ -19,12 +19,15 @@ static bool maple_init(struct device *dev) {
   return true;
 }
 
-static void maple_keydown(struct device *d, enum keycode key, int16_t value) {
+static void maple_keydown(struct device *d, enum keycode key, int16_t value, uint8_t index) {
   struct maple *mp = (struct maple *)d;
+  struct maple_port *port = &mp->ports[index];
 
-  for (int i = 0; i < MAPLE_NUM_PORTS; i++) {
-    struct maple_port *port = &mp->ports[i];
+  /* Create a controller if getting data from a new device */
+  if(!port->units[0] && index < MAPLE_NUM_PORTS)
+    port->units[0] = controller_create();
 
+  if(port->units[0] && index < MAPLE_NUM_PORTS){
     for (int j = 0; j < MAPLE_MAX_UNITS; j++) {
       struct maple_device *dev = port->units[j];
 
