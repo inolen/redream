@@ -1,6 +1,5 @@
 #include <SDL.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include "ui/window.h"
 #include "audio/backend.h"
 #include "core/assert.h"
@@ -792,11 +791,9 @@ static void win_pump_sdl(struct window *win) {
         break;
 
       case SDL_JOYDEVICEADDED:
-        printf("JOYSTICK ADDED\n\n");
         win_init_joystick(win, ev.jdevice.which);
         break;
       case SDL_JOYDEVICEREMOVED:
-        printf("JOYSTICK REMOVED\n\n");
         win_destroy_joystick(win, SDL_JoystickFromInstanceID(ev.jdevice.which));
         break;
 
