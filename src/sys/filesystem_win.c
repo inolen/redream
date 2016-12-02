@@ -29,7 +29,7 @@ int fs_exists(const char *path) {
 int fs_isdir(const char *path) {
   struct _stat buffer;
   if (_stat(path, &buffer) != 0) {
-    return false;
+    return 0;
   }
   return (buffer.st_mode & S_IFDIR) == S_IFDIR;
 }
@@ -37,7 +37,7 @@ int fs_isdir(const char *path) {
 int fs_isfile(const char *path) {
   struct _stat buffer;
   if (_stat(path, &buffer) != 0) {
-    return false;
+    return 0;
   }
   return (buffer.st_mode & S_IFREG) == S_IFREG;
 }

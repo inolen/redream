@@ -44,7 +44,7 @@ static void flash_read_bin(int offset, void *buffer, int size) {
   CHECK_NOTNULL(file, "Failed to open %s", flash_path);
   int r = fseek(file, offset, SEEK_SET);
   CHECK_NE(r, -1);
-  r = fread(buffer, 1, size, file);
+  r = (int)fread(buffer, 1, size, file);
   CHECK_EQ(r, size);
   fclose(file);
 }
@@ -55,7 +55,7 @@ static void flash_write_bin(int offset, const void *buffer, int size) {
   CHECK_NOTNULL(file, "Failed to open %s", flash_path);
   int r = fseek(file, offset, SEEK_SET);
   CHECK_NE(r, -1);
-  r = fwrite(buffer, 1, size, file);
+  r = (int)fwrite(buffer, 1, size, file);
   CHECK_EQ(r, size);
   fclose(file);
 }
@@ -95,7 +95,7 @@ static int flash_init_bin() {
   /* and copy it to the app directory */
   FILE *dst = fopen(flash_path, "w");
   CHECK_NOTNULL("Failed to open %s", flash_path);
-  int r = fwrite(rom, 1, size, dst);
+  int r = (int)fwrite(rom, 1, size, dst);
   CHECK_EQ(r, size);
   fclose(dst);
 
@@ -132,7 +132,6 @@ static void flash_cmd_erase_sector(struct flash *flash, uint32_t addr) {
   addr &= ~(FLASH_SECTOR_SIZE - 1);
 
   /* erasing resets bits to 1 */
-  uint8_t empty_chip[FLASH_SIZE];
   uint8_t empty_sector[FLASH_SECTOR_SIZE];
   memset(empty_sector, 0xff, sizeof(empty_sector));
   flash_write_bin(addr, empty_sector, sizeof(empty_sector));

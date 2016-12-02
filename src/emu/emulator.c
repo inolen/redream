@@ -107,8 +107,8 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
 
   int frames = (int)prof_counter_load(COUNTER_frames);
   int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
-  int sh4_instrs = (int)prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f;
-  int arm7_instrs = (int)prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f;
+  int sh4_instrs = (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
+  int arm7_instrs = (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
 
   snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d SH4 %d ARM", frames,
            pvr_vblanks, sh4_instrs, arm7_instrs);
