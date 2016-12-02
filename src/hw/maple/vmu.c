@@ -33,7 +33,7 @@ static void vmu_write_bin(int block, int phase, const void *buffer,
   CHECK_NOTNULL(file, "Failed to open %s", vmu_path);
   int r = fseek(file, offset, SEEK_SET);
   CHECK_NE(r, -1);
-  r = fwrite(buffer, 1, size, file);
+  r = (int)fwrite(buffer, 1, size, file);
   CHECK_EQ(r, size);
   fclose(file);
 }
@@ -47,7 +47,7 @@ static void vmu_read_bin(int block, int phase, void *buffer, int num_words) {
   CHECK_NOTNULL(file, "Failed to open %s", vmu_path);
   int r = fseek(file, offset, SEEK_SET);
   CHECK_NE(r, -1);
-  r = fread(buffer, 1, size, file);
+  r = (int)fread(buffer, 1, size, file);
   CHECK_EQ(r, size);
   fclose(file);
 }
