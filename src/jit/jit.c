@@ -99,6 +99,8 @@ static int jit_is_stale(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
+  PROF_ENTER("cpu", "jit_patch_edges");
+
   /* patch incoming edges to this block to directly jump to it instead of
      going through dispatch */
   list_for_each_entry(edge, &block->in_edges, struct jit_edge, in_it) {
@@ -115,9 +117,13 @@ static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
       jit->patch_edge(edge->branch, edge->dst->host_addr);
     }
   }
+
+  PROF_LEAVE();
 }
 
 static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
+  PROF_ENTER("cpu", "jit_restore_edges");
+
   /* restore any patched branches to go back through dispatch */
   list_for_each_entry(edge, &block->in_edges, struct jit_edge, in_it) {
     if (edge->patched) {
@@ -125,6 +131,8 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
       jit->restore_edge(edge->branch, edge->dst->guest_addr);
     }
   }
+
+  PROF_LEAVE();
 }
 
 static void jit_invalidate_block(struct jit *jit, struct jit_block *block) {
