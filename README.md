@@ -22,7 +22,7 @@ cd redream_build
 Next, generate a makefile or project file for your IDE of choice. For more info on the supported IDEs, checkout the [CMake documentation](http://www.cmake.org/cmake/help/latest/manual/cmake-generators.7.html).
 ```shell
 # Makefile
-cmake ../redream
+cmake -DCMAKE_BUILD_TYPE=RELEASE ../redream
 
 # Xcode project
 cmake -G "Xcode" ../redream

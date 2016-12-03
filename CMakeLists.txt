@@ -8,11 +8,6 @@ include(CheckFunctionExists)
 include(ExternalProject)
 include(SourceGroupByDir)
 
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "No build type selected, default to Release")
-  set(CMAKE_BUILD_TYPE "RelWithDebInfo")
-endif()
-
 list(APPEND REDREAM_LANGUAGES C CXX)
 if(WIN32)
   list(APPEND REDREAM_LANGUAGES ASM_MASM)
