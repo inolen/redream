@@ -7,7 +7,7 @@
 struct reg_cb holly_cb[NUM_HOLLY_REGS];
 
 static void holly_ch2_dma(struct holly *hl) {
-  // FIXME what are SB_LMMODE0 / SB_LMMODE1
+  /* FIXME what are SB_LMMODE0 / SB_LMMODE1 */
   struct sh4_dtr dtr = {0};
   dtr.channel = 2;
   dtr.rw = 0;
@@ -27,7 +27,8 @@ static void holly_gdrom_dma(struct holly *hl) {
   struct gdrom *gd = hl->gdrom;
   struct sh4 *sh4 = hl->sh4;
 
-  CHECK_EQ(*hl->SB_GDDIR, 1);  // gdrom -> sh4
+  /* only gdrom -> sh4 supported for now */
+  CHECK_EQ(*hl->SB_GDDIR, 1);
 
   int transfer_size = *hl->SB_GDLEN;
   int remaining = transfer_size;
@@ -36,7 +37,7 @@ static void holly_gdrom_dma(struct holly *hl) {
   gdrom_dma_begin(gd);
 
   while (remaining) {
-    // read a single sector at a time from the gdrom
+    /* read a single sector at a time from the gdrom */
     uint8_t sector_data[SECTOR_SIZE];
     int n = gdrom_dma_read(gd, sector_data, sizeof(sector_data));
 
@@ -61,7 +62,7 @@ static void holly_gdrom_dma(struct holly *hl) {
 }
 
 static void holly_g2_dma(struct holly *hl, int channel) {
-  // clang-format off
+  /* clang-format off */
   struct g2_channel_desc {
     int STAG, STAR, LEN, DIR, TSEL, EN, ST, SUSP;
     holly_interrupt_t INTR;
@@ -72,7 +73,7 @@ static void holly_g2_dma(struct holly *hl, int channel) {
       {SB_E2STAG, SB_E2STAR, SB_E2LEN, SB_E2DIR, SB_E2TSEL, SB_E2EN, SB_E2ST, SB_E2SUSP, HOLLY_INTC_G2DE2INT},
       {SB_DDSTAG, SB_DDSTAR, SB_DDLEN, SB_DDDIR, SB_DDTSEL, SB_DDEN, SB_DDST, SB_DDSUSP, HOLLY_INTC_G2DEDINT},
   };
-  // clang-format on
+  /* clang-format on */
 
   struct g2_channel_desc *desc = &channel_descs[channel];
   uint32_t *STAG = &hl->reg[desc->STAG];
@@ -96,7 +97,7 @@ static void holly_g2_dma(struct holly *hl, int channel) {
   uint32_t src = *STAR;
   uint32_t dst = *STAG;
 
-  // only sh4 -> g2 supported for now
+  /* only sh4 -> g2 supported for now */
   CHECK_EQ(*DIR, 0);
 
   while (remaining) {
@@ -178,8 +179,8 @@ static void holly_maple_dma(struct holly *hl) {
 }
 
 static void holly_update_interrupts(struct holly *hl) {
-  // trigger the respective level-encoded interrupt on the sh4 interrupt
-  // controller
+  /* trigger the respective level-encoded interrupt on the sh4 interrupt
+     controller */
   {
     if ((*hl->SB_ISTNRM & *hl->SB_IML6NRM) ||
         (*hl->SB_ISTERR & *hl->SB_IML6ERR) ||
@@ -210,17 +211,7 @@ static void holly_update_interrupts(struct holly *hl) {
     }
   }
 
-  // TODO check for hardware DMA initiation
-}
-
-static uint32_t holly_reg_read(struct holly *hl, uint32_t addr,
-                               uint32_t data_mask) {
-  uint32_t offset = addr >> 2;
-  reg_read_cb read = holly_cb[offset].read;
-  if (read) {
-    return read(hl->dc);
-  }
-  return hl->reg[offset];
+  /* TODO check for hardware DMA initiation */
 }
 
 static void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
@@ -234,9 +225,14 @@ static void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
   hl->reg[offset] = data;
 }
 
-static bool holly_init(struct device *dev) {
-  struct holly *hl = (struct holly *)dev;
-  return true;
+static uint32_t holly_reg_read(struct holly *hl, uint32_t addr,
+                               uint32_t data_mask) {
+  uint32_t offset = addr >> 2;
+  reg_read_cb read = holly_cb[offset].read;
+  if (read) {
+    return read(hl->dc);
+  }
+  return hl->reg[offset];
 }
 
 static uint32_t *holly_interrupt_status(struct holly *hl,
@@ -253,21 +249,6 @@ static uint32_t *holly_interrupt_status(struct holly *hl,
   }
 }
 
-void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
-  enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
-  uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
-
-  uint32_t *status = holly_interrupt_status(hl, type);
-  *status |= irq;
-
-  holly_update_interrupts(hl);
-
-  // check for hardware dma initiation
-  if (intr == HOLLY_INTC_PCVOINT && *hl->SB_MDTSEL && *hl->SB_MDEN) {
-    holly_maple_dma(hl);
-  }
-}
-
 void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr) {
   enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
   uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
@@ -278,23 +259,35 @@ void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr) {
   holly_update_interrupts(hl);
 }
 
-void holly_toggle_interrupt(struct holly *hl, holly_interrupt_t intr) {
+void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
   uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
 
   uint32_t *status = holly_interrupt_status(hl, type);
-  if (*status & irq) {
-    holly_clear_interrupt(hl, intr);
-  } else {
-    holly_raise_interrupt(hl, intr);
+  *status |= irq;
+
+  holly_update_interrupts(hl);
+
+  /* check for hardware dma initiation */
+  if (intr == HOLLY_INTC_PCVOINT && *hl->SB_MDTSEL && *hl->SB_MDEN) {
+    holly_maple_dma(hl);
   }
+}
+
+static bool holly_init(struct device *dev) {
+  struct holly *hl = (struct holly *)dev;
+  return true;
+}
+
+void holly_destroy(struct holly *hl) {
+  dc_destroy_device((struct device *)hl);
 }
 
 struct holly *holly_create(struct dreamcast *dc) {
   struct holly *hl =
       dc_create_device(dc, sizeof(struct holly), "holly", &holly_init);
 
-// init registers
+/* init registers */
 #define HOLLY_REG(addr, name, default, type) \
   hl->reg[name] = default;                   \
   hl->name = (type *)&hl->reg[name];
@@ -304,15 +297,11 @@ struct holly *holly_create(struct dreamcast *dc) {
   return hl;
 }
 
-void holly_destroy(struct holly *hl) {
-  dc_destroy_device((struct device *)hl);
-}
-
 REG_R32(holly_cb, SB_ISTNRM) {
   struct holly *hl = dc->holly;
-  // Note that the two highest bits indicate the OR'ed result of all of the
-  // bits in SB_ISTEXT and SB_ISTERR, respectively, and writes to these two
-  // bits are ignored.
+  /* note that the two highest bits indicate the OR'ed result of all of the
+     bits in SB_ISTEXT and SB_ISTERR, respectively, and writes to these two
+     bits are ignored */
   uint32_t v = *hl->SB_ISTNRM & 0x3fffffff;
   if (*hl->SB_ISTEXT) {
     v |= 0x40000000;
@@ -325,7 +314,7 @@ REG_R32(holly_cb, SB_ISTNRM) {
 
 REG_W32(holly_cb, SB_ISTNRM) {
   struct holly *hl = dc->holly;
-  // writing a 1 clears the interrupt
+  /* writing a 1 clears the interrupt */
   *hl->SB_ISTNRM &= ~value;
   holly_update_interrupts(hl);
 }
@@ -459,7 +448,7 @@ REG_W32(holly_cb, SB_PDST) {
   }
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct holly, holly_reg_map);
   /* over-allocate to align with the host allocation granularity */
   AM_RANGE(0x00000000, 0x00007fff) AM_HANDLE("holly reg",
@@ -482,4 +471,4 @@ AM_END();
 AM_BEGIN(struct holly, holly_expansion2_map);
   AM_RANGE(0x00000000, 0x03ffffff) AM_MOUNT("expansion 2")
 AM_END();
-// clang-format on
+/* clang-format on */
