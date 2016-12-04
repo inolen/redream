@@ -24,7 +24,7 @@ void maple_destroy(struct maple *mp);
 int maple_handle_command(struct maple *mp, struct maple_frame *frame,
                          struct maple_frame *res);
 
-struct maple_device *controller_create();
-struct maple_device *vmu_create();
+struct maple_device *controller_create(int port, int unit);
+struct maple_device *vmu_create(int port, int unit);
 
 #endif

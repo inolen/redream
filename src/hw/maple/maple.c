@@ -11,13 +11,19 @@ struct maple {
   struct maple_device *devices[MAPLE_NUM_PORTS][MAPLE_MAX_UNITS];
 };
 
-static void maple_register_device(struct maple *mp, struct maple_device *dev,
+static void maple_register_device(struct maple *mp, const char *device_type,
                                   int port, int unit) {
   CHECK(!mp->devices[port][unit],
         "Device already registered for port %d, unit %d", port, unit);
-  mp->devices[port][unit] = dev;
-  dev->port = port;
-  dev->unit = unit;
+  struct maple_device **dev = &mp->devices[port][unit];
+
+  if (!strcmp(device_type, "controller")) {
+    *dev = controller_create(port, unit);
+  } else if (!strcmp(device_type, "vmu")) {
+    *dev = vmu_create(port, unit);
+  } else {
+    LOG_WARNING("Unsupported device type: %s", device_type);
+  }
 }
 
 static void maple_keydown(struct device *d, int device_index, enum keycode key,
@@ -30,8 +36,7 @@ static void maple_keydown(struct device *d, int device_index, enum keycode key,
 
   /* create a controller if getting data from a new device */
   if (!mp->devices[device_index][0]) {
-    struct maple_device *controller = controller_create();
-    maple_register_device(mp, controller, device_index, 0);
+    maple_register_device(mp, "controller", device_index, 0);
   }
 
   for (int i = 0; i < MAPLE_MAX_UNITS; i++) {
@@ -140,13 +145,8 @@ struct maple *maple_create(struct dreamcast *dc) {
   mp->window_if = dc_create_window_interface(NULL, &maple_keydown);
 
   /* add one controller and vmu by default */
-  {
-    struct maple_device *controller = controller_create();
-    maple_register_device(mp, controller, 0, 0);
-
-    struct maple_device *vmu = vmu_create();
-    maple_register_device(mp, vmu, 0, 1);
-  }
+  maple_register_device(mp, "controller", 0, 0);
+  maple_register_device(mp, "vmu", 0, 1);
 
   return mp;
 }
