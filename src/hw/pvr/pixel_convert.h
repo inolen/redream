@@ -3,13 +3,7 @@
 
 #include "core/math.h"
 
-/*
- * Helper class for converting between different pixel formats.
- * Please note that RGBA values aren't normalized in the read and write
- * operations, so conversions between different bit widths aren't supported.
- * Also to note, Dreamcast palette data, regardless of the format stored, is
- * bytes per entry.
- */
+/* helper functions for converting between different pixel formats */
 
 #define TWIDTAB(x)                                                          \
   ((x & 1) | ((x & 2) << 1) | ((x & 4) << 2) | ((x & 8) << 3) |             \
