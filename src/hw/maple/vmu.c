@@ -184,8 +184,10 @@ static void vmu_destroy(struct maple_device *dev) {
   free(vmu);
 }
 
-struct maple_device *vmu_create() {
+struct maple_device *vmu_create(int port, int unit) {
   struct vmu *vmu = calloc(1, sizeof(struct vmu));
+  vmu->port = port;
+  vmu->unit = unit;
   vmu->destroy = &vmu_destroy;
   vmu->frame = &vmu_frame;
 

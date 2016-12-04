@@ -171,8 +171,10 @@ static void controller_destroy(struct maple_device *dev) {
   free(ctrl);
 }
 
-struct maple_device *controller_create() {
+struct maple_device *controller_create(int port, int unit) {
   struct controller *ctrl = calloc(1, sizeof(struct controller));
+  ctrl->port = port;
+  ctrl->unit = unit;
   ctrl->destroy = &controller_destroy;
   ctrl->input = &controller_input;
   ctrl->frame = &controller_frame;
