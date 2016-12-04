@@ -10,6 +10,8 @@ struct maple;
 struct maple_device;
 
 struct maple_device {
+  int port;
+  int unit;
   void (*destroy)(struct maple_device *);
   int (*input)(struct maple_device *, enum keycode, int16_t);
   int (*frame)(struct maple_device *, const struct maple_frame *,
