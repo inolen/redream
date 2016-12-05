@@ -15,15 +15,11 @@ static const char *ta_vp =
 "  var_offset_color = attr_offset_color;\n"
 "  var_diffuse_texcoord = attr_texcoord;\n"
 
+"  // convert from window space back into ndc space\n"
 "  gl_Position = u_mvp * vec4(attr_xyz, 1.0);\n"
 
-"  // z is in the range of -znear to +zfar, since the actual perspective divide\n"
-"  // won't occur, do it manually\n"
-"  gl_Position.z /= attr_xyz.z;\n"
-
 "  // specify w so OpenGL applies perspective corrected texture mapping, but\n"
-"  // cancel the perspective divide on the xyz, they're already perspective\n"
-"  // correct\n"
+"  // cancel the perspective divide on the xyz, they're already in ndc space\n"
 "  float w = 1.0 / attr_xyz.z;\n"
 "  gl_Position.xyz *= w;\n"
 "  gl_Position.w = w;\n"
