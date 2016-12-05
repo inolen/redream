@@ -287,7 +287,7 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 #--------------------------------------------------
 # tools
 #--------------------------------------------------
-set(RECC_SOURCES tools/recc.c)
+set(RECC_SOURCES tools/recc/recc.c)
 
 foreach(file ${REDREAM_SOURCES})
   if(file MATCHES "(deps|src/(core|jit|sys))")
@@ -298,12 +298,12 @@ endforeach()
 # assign source groups for visual studio projects
 source_group_by_dir(RECC_SOURCES)
 
-#add_executable(recc ${RECC_SOURCES})
-#target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-#target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-#target_link_libraries(recc ${REDREAM_LIBS})
-#target_compile_definitions(recc PRIVATE MICROPROFILE_ENABLED=0 ${REDREAM_DEFS})
-#target_compile_options(recc PRIVATE ${REDREAM_COMPILE_FLAGS})
+add_executable(recc ${RECC_SOURCES})
+target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(recc ${REDREAM_LIBS})
+target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 
 #--------------------------------------------------
 # tests

@@ -215,6 +215,25 @@ void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
   sh4_intc_update_pending(sh4);
 }
 
+static void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
+  struct sh4 *sh4 = (struct sh4 *)dev;
+
+  nk_layout_row_push(ctx, 30.0f);
+
+  if (nk_menu_begin_label(ctx, "SH4", NK_TEXT_LEFT, nk_vec2(200.0f, 200.0f))) {
+    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+    int dumping = jit_is_dumping(sh4->jit);
+    if (!dumping && nk_button_label(ctx, "start dumping blocks")) {
+      jit_toggle_dumping(sh4->jit);
+    } else if (dumping && nk_button_label(ctx, "stop dumping blocks")) {
+      jit_toggle_dumping(sh4->jit);
+    }
+
+    nk_menu_end(ctx);
+  }
+}
+
 void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   jit_free_blocks(sh4->jit);
 
@@ -309,6 +328,7 @@ void sh4_destroy(struct sh4 *sh4) {
     sh4_frontend_destroy(sh4->frontend);
   }
 
+  dc_destroy_window_interface(sh4->window_if);
   dc_destroy_memory_interface(sh4->memory_if);
   dc_destroy_execute_interface(sh4->execute_if);
   dc_destroy_device((struct device *)sh4);
@@ -318,6 +338,7 @@ struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
   sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
   sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
+  sh4->window_if = dc_create_window_interface(&sh4_debug_menu, NULL);
 
   return sh4;
 }

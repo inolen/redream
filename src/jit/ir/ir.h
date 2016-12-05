@@ -66,6 +66,7 @@ struct ir_value {
     int64_t i64;
     float f32;
     double f64;
+    char *str;
   };
 
   // instruction that defines this value (non-constant values)
@@ -186,7 +187,7 @@ struct ir_value *ir_alloc_i32(struct ir *ir, int32_t c);
 struct ir_value *ir_alloc_i64(struct ir *ir, int64_t c);
 struct ir_value *ir_alloc_f32(struct ir *ir, float c);
 struct ir_value *ir_alloc_f64(struct ir *ir, double c);
-struct ir_value *ir_alloc_label(struct ir *ir);
+struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
 struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
                                 enum ir_type type);

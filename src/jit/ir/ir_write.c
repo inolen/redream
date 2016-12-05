@@ -25,6 +25,9 @@ static void ir_write_type(enum ir_type type, FILE *output) {
     case VALUE_V128:
       fprintf(output, "v128");
       break;
+    case VALUE_LABEL:
+      fprintf(output, "lbl");
+      break;
     default:
       LOG_FATAL("Unexpected value type");
       break;
@@ -48,7 +51,7 @@ static void ir_write_value(const struct ir_value *value, FILE *output) {
   if (ir_is_constant(value)) {
     switch (value->type) {
       case VALUE_I8:
-        // force to int to avoid printing out as a character
+        /* force to int to avoid printing out as a character */
         fprintf(output, "0x%x", value->i8);
         break;
       case VALUE_I16:
@@ -68,6 +71,9 @@ static void ir_write_value(const struct ir_value *value, FILE *output) {
         double v = value->f64;
         fprintf(output, "0x%" PRIx64, *(uint64_t *)&v);
       } break;
+      case VALUE_LABEL: {
+        fprintf(output, ".%s", value->str);
+      } break;
       default:
         LOG_FATAL("Unexpected value type");
         break;
@@ -78,17 +84,17 @@ static void ir_write_value(const struct ir_value *value, FILE *output) {
 }
 
 static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
-  // print result value if we have one
+  /* print result value if it exists */
   if (instr->result) {
     ir_write_value(instr->result, output);
     fprintf(output, " = ");
   }
 
-  // print the actual op
+  /* print the actual op */
   ir_write_op(instr->op, output);
   fprintf(output, " ");
 
-  // print each argument
+  /* print each argument */
   int need_comma = 0;
 
   for (int i = 0; i < 3; i++) {
@@ -108,7 +114,9 @@ static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
     need_comma = 1;
   }
 
-  // fprintf(output, "[tag %" PRId64 ", reg %d]", instr->tag, instr->reg);
+#if 0
+  fprintf(output, "[tag %" PRId64 ", reg %d]", instr->tag, instr->reg);
+#endif
 
   fprintf(output, "\n");
 }
@@ -117,7 +125,7 @@ static void ir_assign_slots(struct ir *ir) {
   int next_slot = 0;
 
   list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
-    // don't assign a slot to instructions without a return value
+    /* don't assign a slot to instructions without a return value */
     if (!instr->result) {
       continue;
     }

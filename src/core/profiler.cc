@@ -1,6 +1,20 @@
 #include <microprofile.h>
 #include <atomic>
 
+/* clang-format off */
+#if MICROPROFILE_ENABLED == 0
+#define MICROPROFILE_MAX_COUNTERS 1
+#define MicroProfileInit() do{}while(0)
+#define MicroProfileGetToken(group, name, color, type) 0
+#define MicroProfileGetCounterToken(name) 0
+#define MicroProfileEnter(tok) 0
+#define MicroProfileLeave(tok, tick) do{}while(0)
+#define MicroProfileCounterAdd(tok, v) do{}while(0)
+#define MicroProfileCounterSet(tok, v) do{}while(0)
+#define MicroProfileCounterLoad(tok) 0
+#endif
+/* clang-format on */
+
 extern "C" {
 
 #include "core/profiler.h"
