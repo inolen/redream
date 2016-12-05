@@ -482,7 +482,8 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
 
 static void x64_backend_label_name(char *name, size_t size,
                                    struct ir_value *v) {
-  snprintf(name, size, ".L_%p", v);
+  /* all ir labels are local labels */
+  snprintf(name, size, ".%s", v->str);
 }
 
 EMITTER(LOAD) {

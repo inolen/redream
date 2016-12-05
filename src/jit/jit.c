@@ -237,6 +237,24 @@ void jit_add_edge(struct jit *jit, void *branch, uint32_t addr) {
   jit_patch_edges(jit, src);
 }
 
+static void jit_dump_block(struct jit *jit, uint32_t guest_addr,
+                           struct ir *ir) {
+  const char *appdir = fs_appdir();
+
+  char irdir[PATH_MAX];
+  snprintf(irdir, sizeof(irdir), "%s" PATH_SEPARATOR "ir", appdir);
+  CHECK(fs_mkdir(irdir));
+
+  char filename[PATH_MAX];
+  snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "0x%08x.ir", irdir,
+           guest_addr);
+
+  FILE *file = fopen(filename, "w");
+  CHECK_NOTNULL(file);
+  ir_write(ir, file);
+  fclose(file);
+}
+
 void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   PROF_ENTER("cpu", "jit_compile_block");
 
@@ -259,22 +277,12 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   struct ir ir = {0};
   ir.buffer = jit->ir_buffer;
   ir.capacity = sizeof(jit->ir_buffer);
-
   jit->frontend->translate_code(jit->frontend, guest_addr, &ir, fastmem);
 
-#if 0
-  const char *appdir = fs_appdir();
-
-  char irdir[PATH_MAX];
-  snprintf(irdir, sizeof(irdir), "%s" PATH_SEPARATOR "ir", appdir);
-  fs_mkdir(irdir);
-
-  char filename[PATH_MAX];
-  snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "0x%08x.ir", irdir, guest_addr);
-
-  std::ofstream output(filename);
-  builder.Dump(output);
-#endif
+  /* dump unoptimized block */
+  if (jit->dump_compiled_blocks) {
+    jit_dump_block(jit, guest_addr, &ir);
+  }
 
   /* run optimization passes */
   lse_run(&ir);
@@ -303,6 +311,21 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   }
 
   PROF_LEAVE();
+}
+
+void jit_toggle_dumping(struct jit *jit) {
+  int enabled = !jit->dump_compiled_blocks;
+
+  if (enabled) {
+    /* invalidate current blocks so they recompile and dump on the next run */
+    jit_invalidate_blocks(jit);
+  }
+
+  jit->dump_compiled_blocks = enabled;
+}
+
+int jit_is_dumping(struct jit *jit) {
+  return jit->dump_compiled_blocks;
 }
 
 static bool jit_handle_exception(void *data, struct exception *ex) {

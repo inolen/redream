@@ -201,7 +201,7 @@ static void ir_branch_guest(struct sh4_frontend *frontend, struct ir *ir,
 static void ir_branch_false_guest(struct sh4_frontend *frontend, struct ir *ir,
                                   struct ir_value *cond,
                                   struct ir_value *addr) {
-  struct ir_value *skip = ir_alloc_label(ir);
+  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", addr);
   ir_branch_true(ir, cond, skip);
   ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
   ir_label(ir, skip);
@@ -209,7 +209,7 @@ static void ir_branch_false_guest(struct sh4_frontend *frontend, struct ir *ir,
 
 static void ir_branch_true_guest(struct sh4_frontend *frontend, struct ir *ir,
                                  struct ir_value *cond, struct ir_value *addr) {
-  struct ir_value *skip = ir_alloc_label(ir);
+  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", addr);
   ir_branch_false(ir, cond, skip);
   ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
   ir_label(ir, skip);

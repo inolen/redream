@@ -11,10 +11,10 @@
 #include "sys/filesystem.h"
 
 DEFINE_OPTION_BOOL(help, false, "Show help");
-DEFINE_OPTION_STRING(pass, "lse,cve,dce,ra",
+DEFINE_OPTION_STRING(pass, "lse,dce,ra",
                      "Comma-separated list of passes to run");
+DEFINE_OPTION_BOOL(stats, true, "Print pass stats");
 DEFINE_OPTION_BOOL(print_after_all, true, "Print IR after each pass");
-DEFINE_OPTION_BOOL(stats, true, "Display pass stats");
 
 DEFINE_STAT(num_instrs, "Total number of instructions");
 DEFINE_STAT(num_instrs_removed, "Number of instructions removed");
@@ -37,7 +37,7 @@ static void process_file(const char *filename, bool disable_ir_dump) {
   ir.buffer = ir_buffer;
   ir.capacity = sizeof(ir_buffer);
 
-  // read in the input ir
+  /* read in the input ir */
   FILE *input = fopen(filename, "r");
   CHECK(input);
   int r = ir_read(input, &ir);
@@ -46,7 +46,7 @@ static void process_file(const char *filename, bool disable_ir_dump) {
 
   int num_instrs_before = get_num_instrs(&ir);
 
-  // run optimization passes
+  /* run optimization passes */
   char passes[MAX_OPTION_LENGTH];
   strncpy(passes, OPTION_pass, sizeof(passes));
 
@@ -64,7 +64,7 @@ static void process_file(const char *filename, bool disable_ir_dump) {
       LOG_WARNING("Unknown pass %s", name);
     }
 
-    // print IR after each pass if requested
+    /* print ir after each pass if requested */
     if (!disable_ir_dump && OPTION_print_after_all) {
       LOG_INFO("===-----------------------------------------------------===");
       LOG_INFO("IR after %s", name);
@@ -78,7 +78,7 @@ static void process_file(const char *filename, bool disable_ir_dump) {
 
   int num_instrs_after = get_num_instrs(&ir);
 
-  // print out the final IR
+  /* print out the final ir */
   if (!disable_ir_dump && !OPTION_print_after_all) {
     ir_write(&ir, stdout);
   }
@@ -90,25 +90,28 @@ static void process_file(const char *filename, bool disable_ir_dump) {
 static void process_dir(const char *path) {
   DIR *dir = opendir(path);
 
-  if (dir) {
-    struct dirent *ent = readdir(dir);
+  if (!dir) {
+    LOG_WARNING("Failed to open directory %s", path);
+    return;
+  }
 
-    while (ent) {
-      if (!(ent->d_type & DT_REG)) {
-        continue;
-      }
+  struct dirent *ent = NULL;
 
-      char filename[PATH_MAX];
-      snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "%s", path,
-               ent->d_name);
-
-      LOG_INFO("processing %s", filename);
-
-      process_file(filename, true);
+  while ((ent = readdir(dir)) != NULL) {
+    if (!(ent->d_type & DT_REG)) {
+      continue;
     }
 
-    closedir(dir);
+    char filename[PATH_MAX];
+    snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "%s", path,
+             ent->d_name);
+
+    LOG_INFO("Processing %s", filename);
+
+    process_file(filename, true);
   }
+
+  closedir(dir);
 }
 
 int main(int argc, char **argv) {

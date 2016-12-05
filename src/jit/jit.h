@@ -71,6 +71,8 @@ struct jit {
 
   struct exception_handler *exc_handler;
 
+  int dump_compiled_blocks;
+
   /* scratch compilation buffer */
   uint8_t ir_buffer[1024 * 1024];
 
@@ -87,6 +89,9 @@ void jit_destroy(struct jit *jit);
 
 int jit_init(struct jit *jit, struct jit_frontend *frontend,
              struct jit_backend *backend);
+
+int jit_is_dumping(struct jit *jit);
+void jit_toggle_dumping(struct jit *jit);
 
 void jit_compile_block(struct jit *jit, uint32_t guest_addr);
 void jit_add_edge(struct jit *jit, void *code, uint32_t dst);
