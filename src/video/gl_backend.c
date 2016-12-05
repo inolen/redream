@@ -331,10 +331,6 @@ static bool video_init_context(struct video_backend *video) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-  // request a 24-bit depth buffer. 16-bits isn't enough precision when
-  // unprojecting dreamcast coordinates, see tr_proj_mat
-  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-
   video->ctx = SDL_GL_CreateContext(video->window->handle);
   if (!video->ctx) {
     LOG_WARNING("OpenGL context creation failed: %s", SDL_GetError());

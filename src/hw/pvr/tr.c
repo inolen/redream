@@ -119,12 +119,9 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
 static texture_handle_t tr_demand_texture(struct tr *tr,
                                           const struct tile_ctx *ctx, int frame,
                                           union tsp tsp, union tcw tcw) {
-  /*
-   * TODO
-   * it's bad that textures are only cached based off tsp / tcw yet the
-   * TEXT_CONTROL registers and PAL_RAM_CTRL registers are used here to
-   * control texture generation
-   */
+  /* TODO it's bad that textures are only cached based off tsp / tcw yet the
+     TEXT_CONTROL registers and PAL_RAM_CTRL registers are used here to control
+     texture generation */
 
   struct texture_entry *entry =
       tr->provider->find_texture(tr->provider->data, tsp, tcw);
@@ -141,11 +138,9 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
     entry->handle = 0;
   }
 
-  /*
-   * sanity check that the texture source is valid for the current frame. video
-   * ram will be modified between frames, if these values don't match something
-   * is broken in the ta's thread synchronization
-   */
+  /* sanity check that the texture source is valid for the current frame. video
+     ram will be modified between frames, if these values don't match something
+     is broken in the ta's thread synchronization */
   CHECK_EQ(frame, entry->frame);
 
   static uint8_t converted[1024 * 1024 * 4];
@@ -154,10 +149,8 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
   const uint8_t *input = texture;
   const uint8_t *output = texture;
 
-  /*
-   * textures are either twiddled and vq compressed, twiddled and uncompressed
-   * or planar
-   */
+  /* textures are either twiddled and vq compressed, twiddled and uncompressed
+     or planar */
   bool twiddled = !tcw.scan_order;
   bool compressed = tcw.vq_compressed;
   bool mip_mapped = !tcw.scan_order && tcw.mip_mapped;
@@ -170,16 +163,12 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
     stride = ctx->stride;
   }
 
-  /*
-   * mipmap textures contain data for 1 x 1 up to width x height. skip to the
-   * highest res texture and let the renderer backend generate its own mipmaps
-   */
+  /* mipmap textures contain data for 1 x 1 up to width x height. skip to the
+     highest res and let the renderer backend generate its own mipmaps */
   if (mip_mapped) {
     if (compressed) {
-      /*
-       * for vq compressed textures the offset is only for the index data, the
-       * codebook is the same for all levels
-       */
+      /* for vq compressed textures the offset is only for the index data, the
+         codebook is the same for all levels */
       input += compressed_mipmap_offsets[tsp.texture_u_size];
     } else if (tcw.pixel_format == TA_PIXEL_4BPP) {
       input += paletted_4bpp_mipmap_offsets[tsp.texture_u_size];
@@ -369,11 +358,8 @@ static void tr_discard_incomplete_surf(struct tr *tr,
   }
 }
 
-/*
- * TODO
- * offload thiis to the GPU, generating shader for different combinations of
- * ISP/TSP parameters once the logic is ironed out
- */
+/* FIXME offload this to the GPU, generating shader for different combinations
+   of ISP/TSP parameters once the logic is ironed out */
 /* FIXME honor use alpha */
 /* FIXME honor ignore tex alpha */
 static void tr_parse_color(struct tr *tr, uint32_t base_color,
@@ -490,10 +476,8 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
   offset = tr_parse_bg_vert(ctx, offset, v1);
   offset = tr_parse_bg_vert(ctx, offset, v2);
 
-  /*
-   * override the xyz values supplied by ISP_BACKGND_T. while the hardware docs
-   * act like the should be correct, they're most definitely not in most cases
-   */
+  /* override xyz values supplied by ISP_BACKGND_T. while the hardware docs act
+     like they should be correct, they're most definitely not in most cases */
   v0->xyz[0] = 0.0f;
   v0->xyz[1] = (float)ctx->video_height;
   v0->xyz[2] = ctx->bg_depth;
@@ -514,10 +498,8 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
   v3->uv[1] = v1->uv[1];
 }
 
-/*
- * this offset color implementation is not correct at all, see the
- * Texture/Shading Instruction in the union tsp instruction word
- */
+/* this offset color implementation is not correct at all, see the
+   Texture/Shading Instruction in the union tsp instruction word */
 static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
                                 int frame, struct render_context *rctx,
                                 const uint8_t *data) {
@@ -653,11 +635,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
                                 struct render_context *rctx,
                                 const uint8_t *data) {
   const union vert_param *param = (const union vert_param *)data;
-  /*
-   * if there is no need to change the Global Parameters, a Vertex Parameter
-   * for the next polygon may be input immediately after inputting a Vertex
-   * Parameter for which "End of Strip" was specified
-   */
+  /* if there is no need to change the Global Parameters, a Vertex Parameter
+     for the next polygon may be input immediately after inputting a Vertex
+     Parameter for which "End of Strip" was specified */
   if (tr->last_vertex && tr->last_vertex->type0.pcw.end_of_strip) {
     tr_alloc_surf(tr, rctx, true);
   }
@@ -806,13 +786,11 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
       break;
   }
 
-  /*
-   * in the case of the Polygon type, the last Vertex Parameter for an object
-   * must have "End of Strip" specified.  If Vertex Parameters with the "End of
-   * Strip" specification were not input, but parameters other than the Vertex
-   * Parameters were input, the polygon data in question is ignored and
-   * an interrupt signal is output
-   */
+  /* in the case of the Polygon type, the last Vertex Parameter for an object
+     must have "End of Strip" specified.  If Vertex Parameters with the "End of
+     Strip" specification were not input, but parameters other than the Vertex
+     Parameters were input, the polygon data in question is ignored and
+     an interrupt signal is output */
 
   /* FIXME is this true for sprites which come through this path as well? */
 }
@@ -887,10 +865,8 @@ static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
                          struct render_context *rctx, const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rctx);
 
-  /*
-   * sort transparent polys by their z value, from back to front. remember, in
-   * dreamcast coordinates smaller z values are further away from the camera
-   */
+  /* sort transparent polys by their z value, from back to front. remember, in
+     dreamcast coordinates smaller z values are further away from the camera */
   if ((tr->list_type == TA_LIST_TRANSLUCENT ||
        tr->list_type == TA_LIST_TRANSLUCENT_MODVOL) &&
       ctx->autosort) {
@@ -902,20 +878,15 @@ static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
   tr->last_sorted_surf = rctx->num_surfs;
 }
 
-/*
- * vertices coming into the TA are in window space, with the Z component being
- * 1/W. these coordinates need to be converted back to clip space in order to
- * be rendered with OpenGL, etc. while we want to perform an orthographic
- * projection on the vertices as they're already perspective correct, the
- * renderer backend will have to deal with setting the W component of each
- * in order to perspective correct the texture mapping
- */
 static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
                         struct render_context *rctx) {
+  /* this isn't a traditional projection matrix. xy components coming into the
+     TA are in window space, while the z component is 1/w with +z headed into
+     the screen. these coordinates need to be scaled back into ndc space, and
+     z needs to be flipped so that -z is headed into the screen */
   float znear = FLT_MIN;
   float zfar = FLT_MAX;
 
-  /* Z component is 1/W, so +Z is into the screen */
   for (int i = 0; i < rctx->num_verts; i++) {
     struct vertex *v = &rctx->verts[i];
     if (v->xyz[2] > znear) {
@@ -926,15 +897,9 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
     }
   }
 
-  /* fudge so Z isn't being mapped to exactly 0.0 and 1.0 */
-  float zdepth = (znear - zfar) * 1.1f;
+  /* fudge so z isn't mapped to exactly 0.0 and 1.0 */
+  float zdepth = (znear - zfar) * 1.0001f;
 
-  /* fix case where a single polygon being renderered */
-  if (zdepth <= 0.0f) {
-    zdepth = 1.0f;
-  }
-
-  /* convert from window space coordinates into clip space */
   rctx->projection[0] = 2.0f / (float)ctx->video_width;
   rctx->projection[4] = 0.0f;
   rctx->projection[8] = 0.0f;
@@ -947,8 +912,8 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
 
   rctx->projection[2] = 0.0f;
   rctx->projection[6] = 0.0f;
-  rctx->projection[10] = (-znear - zfar) / zdepth;
-  rctx->projection[14] = (2.0f * zfar * znear) / zdepth;
+  rctx->projection[10] = 2.0f / -zdepth;
+  rctx->projection[14] = -2.0f * znear / -zdepth - 1.0f;
 
   rctx->projection[3] = 0.0f;
   rctx->projection[7] = 0.0f;
@@ -984,12 +949,10 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
 
-    /*
-     * FIXME
-     * if Vertex Parameters with the "End of Strip" specification were not
-     * input, but parameters other than the Vertex Parameters were input, the
-     * polygon data in question is ignored and an interrupt signal is output
-     */
+    /* FIXME if Vertex Parameters with the "End of Strip" specification were
+       not input, but parameters other than the Vertex Parameters were input,
+       the polygon data in question is ignored and an interrupt signal is
+       output */
 
     switch (pcw.para_type) {
       /* control params */
