@@ -11,7 +11,7 @@ struct imgui;
 struct microprofile;
 struct nuklear;
 struct nk_context;
-struct video_backend;
+struct render_backend;
 struct window;
 struct window_listener;
 
@@ -44,7 +44,7 @@ struct window {
   /* public */
   struct SDL_Window *handle;
   struct audio_backend *audio;
-  struct video_backend *video;
+  struct render_backend *rb;
   struct nuklear *nk;
   struct microprofile *mp;
 

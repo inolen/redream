@@ -8,7 +8,7 @@
 #include "hw/pvr/ta.h"
 
 struct tr {
-  struct video_backend *video;
+  struct render_backend *rb;
   struct texture_provider *provider;
 
   /* current global state */
@@ -134,7 +134,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 
   /* if there's a dirty handle, destroy it before creating the new one */
   if (entry->handle && entry->dirty) {
-    video_destroy_texture(tr->video, entry->handle);
+    rb_destroy_texture(tr->rb, entry->handle);
     entry->handle = 0;
   }
 
@@ -300,7 +300,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
                   : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
   entry->handle =
-      video_create_texture(tr->video, pixel_fmt, filter, wrap_u, wrap_v,
+      rb_create_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v,
                            mip_mapped, width, height, output);
   entry->format = pixel_fmt;
   entry->filter = filter;
@@ -479,13 +479,13 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
   /* override xyz values supplied by ISP_BACKGND_T. while the hardware docs act
      like they should be correct, they're most definitely not in most cases */
   v0->xyz[0] = 0.0f;
-  v0->xyz[1] = (float)ctx->video_height;
+  v0->xyz[1] = (float)ctx->rb_height;
   v0->xyz[2] = ctx->bg_depth;
   v1->xyz[0] = 0.0f;
   v1->xyz[1] = 0.0f;
   v1->xyz[2] = ctx->bg_depth;
-  v2->xyz[0] = (float)ctx->video_width;
-  v2->xyz[1] = (float)ctx->video_height;
+  v2->xyz[0] = (float)ctx->rb_width;
+  v2->xyz[1] = (float)ctx->rb_height;
   v2->xyz[2] = ctx->bg_depth;
 
   /* 4th vertex isn't supplied, fill it out automatically */
@@ -900,13 +900,13 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
   /* fudge so z isn't mapped to exactly 0.0 and 1.0 */
   float zdepth = (znear - zfar) * 1.0001f;
 
-  rctx->projection[0] = 2.0f / (float)ctx->video_width;
+  rctx->projection[0] = 2.0f / (float)ctx->rb_width;
   rctx->projection[4] = 0.0f;
   rctx->projection[8] = 0.0f;
   rctx->projection[12] = -1.0f;
 
   rctx->projection[1] = 0.0f;
-  rctx->projection[5] = -2.0f / (float)ctx->video_height;
+  rctx->projection[5] = -2.0f / (float)ctx->rb_height;
   rctx->projection[9] = 0.0f;
   rctx->projection[13] = 1.0f;
 
@@ -1009,17 +1009,17 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
 void tr_render_context(struct tr *tr, const struct render_context *rctx) {
   PROF_ENTER("gpu", "tr_render_context");
 
-  video_begin_surfaces(tr->video, rctx->projection, rctx->verts,
+  rb_begin_surfaces(tr->rb, rctx->projection, rctx->verts,
                        rctx->num_verts);
 
   const int *sorted_surf = rctx->sorted_surfs;
   const int *sorted_surf_end = rctx->sorted_surfs + rctx->num_surfs;
   while (sorted_surf < sorted_surf_end) {
-    video_draw_surface(tr->video, &rctx->surfs[*sorted_surf]);
+    rb_draw_surface(tr->rb, &rctx->surfs[*sorted_surf]);
     sorted_surf++;
   }
 
-  video_end_surfaces(tr->video);
+  rb_end_surfaces(tr->rb);
 
   PROF_LEAVE();
 }
@@ -1028,11 +1028,11 @@ void tr_destroy(struct tr *tr) {
   free(tr);
 }
 
-struct tr *tr_create(struct video_backend *video,
+struct tr *tr_create(struct render_backend *rb,
                      struct texture_provider *provider) {
   struct tr *tr = calloc(1, sizeof(struct tr));
 
-  tr->video = video;
+  tr->rb = rb;
   tr->provider = provider;
 
   return tr;

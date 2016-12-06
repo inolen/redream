@@ -32,7 +32,7 @@ struct ta_texture_entry {
 struct ta {
   struct device;
   struct texture_provider provider;
-  uint8_t *video_ram;
+  uint8_t *rb_ram;
 
   // yuv data converter state
   uint8_t *yuv_data;
@@ -441,7 +441,7 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
     int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
                                 ? 8
                                 : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
-    entry->texture = &ta->video_ram[texture_addr];
+    entry->texture = &ta->rb_ram[texture_addr];
     entry->texture_size = (width * height * element_size_bits) >> 3;
   }
 
@@ -552,11 +552,11 @@ static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
   if (pvr->SPG_CONTROL->interlace ||
       (!pvr->SPG_CONTROL->NTSC && !pvr->SPG_CONTROL->PAL)) {
     // interlaced and VGA mode both render at full resolution
-    ctx->video_width = 640;
-    ctx->video_height = 480;
+    ctx->rb_width = 640;
+    ctx->rb_height = 480;
   } else {
-    ctx->video_width = 320;
-    ctx->video_height = 240;
+    ctx->rb_width = 320;
+    ctx->rb_height = 240;
   }
 
   // according to the hardware docs, this is the correct calculation of the
@@ -692,7 +692,7 @@ static void ta_yuv_init(struct ta *ta) {
   int v_size = pvr->TA_YUV_TEX_CTRL->v_size + 1;
 
   // setup internal state for the data conversion
-  ta->yuv_data = &ta->video_ram[pvr->TA_YUV_TEX_BASE->base_address];
+  ta->yuv_data = &ta->rb_ram[pvr->TA_YUV_TEX_BASE->base_address];
   ta->yuv_width = u_size * 16;
   ta->yuv_height = v_size * 16;
   ta->yuv_macroblock_pos = 0;
@@ -803,14 +803,14 @@ static void ta_texture_fifo_write(struct ta *ta, uint32_t addr, uint32_t data,
                                   uint32_t data_mask) {
   CHECK_EQ(DATA_SIZE(), 4);
   addr &= 0xeeffffff;
-  *(uint32_t *)&ta->video_ram[addr] = data;
+  *(uint32_t *)&ta->rb_ram[addr] = data;
 }
 
 static bool ta_init(struct device *dev) {
   struct ta *ta = (struct ta *)dev;
   struct dreamcast *dc = ta->dc;
 
-  ta->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
+  ta->rb_ram = memory_translate(dc->memory, "video ram", 0x00000000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
     struct ta_texture_entry *entry = &ta->entries[i];

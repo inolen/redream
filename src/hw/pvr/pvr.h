@@ -14,7 +14,7 @@ struct timer;
 struct pvr {
   struct device;
   uint8_t *palette_ram;
-  uint8_t *video_ram;
+  uint8_t *rb_ram;
   uint32_t reg[NUM_PVR_REGS];
 
   /* raster progress */

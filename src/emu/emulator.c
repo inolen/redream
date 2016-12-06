@@ -175,7 +175,7 @@ void emu_run(struct emu *emu, const char *path) {
   }
 
   /* create tile renderer */
-  emu->tr = tr_create(emu->window->video, ta_texture_provider(emu->dc->ta));
+  emu->tr = tr_create(emu->window->rb, ta_texture_provider(emu->dc->ta));
 
   /* load gdi / bin if specified */
   if (path) {

@@ -3,7 +3,7 @@
 
 #include "core/rb_tree.h"
 #include "hw/pvr/ta_types.h"
-#include "video/backend.h"
+#include "video/render_backend.h"
 
 struct tr;
 
@@ -77,7 +77,7 @@ static inline texture_key_t tr_texture_key(union tsp tsp, union tcw tcw) {
   return ((uint64_t)tsp.full << 32) | tcw.full;
 }
 
-struct tr *tr_create(struct video_backend *video,
+struct tr *tr_create(struct render_backend *rb,
                      struct texture_provider *provider);
 void tr_destroy(struct tr *tr);
 

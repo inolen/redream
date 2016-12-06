@@ -68,7 +68,7 @@ struct tracer {
   struct window *window;
   struct window_listener listener;
   struct texture_provider provider;
-  struct video_backend *video;
+  struct render_backend *rb;
   struct tr *tr;
 
   // ui state
@@ -177,8 +177,8 @@ static void tracer_copy_command(const struct trace_cmd *cmd,
   ctx->bg_tsp = cmd->context.bg_tsp;
   ctx->bg_tcw = cmd->context.bg_tcw;
   ctx->bg_depth = cmd->context.bg_depth;
-  ctx->video_width = cmd->context.video_width;
-  ctx->video_height = cmd->context.video_height;
+  ctx->rb_width = cmd->context.rb_width;
+  ctx->rb_height = cmd->context.rb_height;
   memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
          cmd->context.bg_vertices_size);
   memcpy(ctx->params, cmd->context.params, cmd->context.params_size);
@@ -784,7 +784,7 @@ static void tracer_paint(void *data) {
   }
 
   // render the context
-  video_begin_surfaces(tracer->video, tracer->rctx.projection,
+  rb_begin_surfaces(tracer->rb, tracer->rctx.projection,
                        tracer->rctx.verts, tracer->rctx.num_verts);
 
   for (int i = 0; i < n; i++) {
@@ -795,10 +795,10 @@ static void tracer_paint(void *data) {
       continue;
     }
 
-    video_draw_surface(tracer->video, &tracer->rctx.surfs[idx]);
+    rb_draw_surface(tracer->rb, &tracer->rctx.surfs[idx]);
   }
 
-  video_end_surfaces(tracer->video);
+  rb_end_surfaces(tracer->rb);
 }
 
 static void tracer_keydown(void *data, int device_index, enum keycode code,
@@ -868,8 +868,8 @@ struct tracer *tracer_create(struct window *window) {
       NULL,   NULL,          &tracer_close, {0}};
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
-  tracer->video = window->video;
-  tracer->tr = tr_create(tracer->video, &tracer->provider);
+  tracer->rb = window->rb;
+  tracer->tr = tr_create(tracer->rb, &tracer->provider);
 
   win_add_listener(tracer->window, &tracer->listener);
 
