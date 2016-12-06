@@ -1,6 +1,6 @@
 #include "jit/ir/passes/register_allocation_pass.h"
 #include "core/mm_heap.h"
-#include "jit/backend/backend.h"
+#include "jit/backend/jit_backend.h"
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/pass_stat.h"
 

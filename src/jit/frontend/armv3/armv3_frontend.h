@@ -1,8 +1,7 @@
 #ifndef ARMV3_FRONTEND_H
 #define ARMV3_FRONTEND_H
 
-#include "jit/frontend/frontend.h"
-#include "jit/frontend/frontend.h"
+#include "jit/frontend/jit_frontend.h"
 #include "jit/jit.h"
 
 enum armv3_block_flags { PC_SET = 0x1 };
