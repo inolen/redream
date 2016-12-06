@@ -6,7 +6,7 @@
 
 extern "C" {
 #include "core/profiler.h"
-#include "jit/backend/backend.h"
+#include "jit/backend/jit_backend.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"
 #include "jit/ir/ir.h"

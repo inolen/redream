@@ -1,7 +1,7 @@
 #ifndef SH4_FRONTEND_H
 #define SH4_FRONTEND_H
 
-#include "jit/frontend/frontend.h"
+#include "jit/frontend/jit_frontend.h"
 
 struct ir;
 struct jit;

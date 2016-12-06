@@ -1,8 +1,5 @@
 #include "jit/frontend/armv3/armv3_frontend.h"
-#include "jit/frontend/armv3/armv3_analyze.h"
 #include "jit/frontend/armv3/armv3_disasm.h"
-#include "jit/frontend/armv3/armv3_translate.h"
-#include "jit/frontend/frontend.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
