@@ -381,37 +381,10 @@ REG_R32(sh4_cb, PDTRA) {
       ((pctra & 0xf) == 0xc && (pdtra & 0xf) == 0x2)) {
     v = 3;
   }
-  /*
-   * FIXME cable setting
-   * When a VGA cable* is connected
-   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-   * "00")
-   * 2. Set the HOLLY synchronization register for VGA.  (The SYNC output is
-   * H-Sync and V-Sync.)
-   * 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-   * VIDEO1 = 0 and VIDEO0 = 1 are output.  VIDEO0 is connected to the
-   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-   *
-   * When an RGB(NTSC/PAL) cable* is connected
-   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-   * "10")
-   * 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-   * output is H-Sync and V-Sync.)
-   * 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-   * VIDEO1 = 1 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-   *
-   * When a stereo A/V cable, an S-jack cable* or an RF converter* is
-   * connected
-   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-   * "11")
-   * 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-   * output is H-Sync and V-Sync.)
-   * 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
-   * VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-   */
-  v |= 0x3 << 8;
+
+  /* FIXME cable setting */
+  int cable_type = 3;
+  v |= (cable_type << 8);
   return v;
 }
 
