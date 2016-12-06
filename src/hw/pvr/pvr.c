@@ -149,13 +149,13 @@ static uint32_t MAP64(uint32_t addr) {
 static uint32_t pvr_vram_interleaved_read(struct pvr *pvr, uint32_t addr,
                                           uint32_t data_mask) {
   addr = MAP64(addr);
-  return READ_DATA(&pvr->video_ram[addr]);
+  return READ_DATA(&pvr->rb_ram[addr]);
 }
 
 static void pvr_vram_interleaved_write(struct pvr *pvr, uint32_t addr,
                                        uint32_t data, uint32_t data_mask) {
   addr = MAP64(addr);
-  WRITE_DATA(&pvr->video_ram[addr]);
+  WRITE_DATA(&pvr->rb_ram[addr]);
 }
 
 static bool pvr_init(struct device *dev) {
@@ -170,7 +170,7 @@ static bool pvr_init(struct device *dev) {
 #undef PVR_REG
 
   pvr->palette_ram = (uint8_t *)pvr->PALETTE_RAM000;
-  pvr->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
+  pvr->rb_ram = memory_translate(dc->memory, "video ram", 0x00000000);
 
   /* configure initial vsync interval */
   pvr_reconfigure_spg(pvr);

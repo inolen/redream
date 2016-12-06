@@ -445,8 +445,8 @@ struct tile_ctx {
   bool autosort;
   int stride;
   int pal_pxl_format;
-  int video_width;
-  int video_height;
+  int rb_width;
+  int rb_height;
   union isp bg_isp;
   union tsp bg_tsp;
   union tcw bg_tcw;

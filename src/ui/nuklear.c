@@ -59,7 +59,7 @@ static void nk_mousemove(void *data, int x, int y) {
 }
 
 void nk_end_frame(struct nuklear *nk) {
-  struct video_backend *video = nk->window->video;
+  struct render_backend *rb = nk->window->rb;
 
   /* convert draw list into vertex / element buffers */
   static const struct nk_draw_vertex_layout_element vertex_layout[] = {
@@ -88,8 +88,8 @@ void nk_end_frame(struct nuklear *nk) {
   nk_convert(&nk->ctx, &nk->cmds, &vbuf, &ebuf, &config);
 
   /* bind buffers */
-  video_begin_ortho(video);
-  video_begin_surfaces2d(video, nk->vertices, nk->ctx.draw_list.vertex_count,
+  rb_begin_ortho(rb);
+  rb_begin_surfaces2d(rb, nk->vertices, nk->ctx.draw_list.vertex_count,
                          nk->elements, nk->ctx.draw_list.element_count);
 
   /* pass each draw command off to the render backend */
@@ -116,14 +116,14 @@ void nk_end_frame(struct nuklear *nk) {
     surf.first_vert = offset;
     surf.num_verts = cmd->elem_count;
 
-    video_draw_surface2d(video, &surf);
+    rb_draw_surface2d(rb, &surf);
 
     offset += cmd->elem_count;
   }
   nk_clear(&nk->ctx);
 
-  video_end_surfaces2d(video);
-  video_end_ortho(video);
+  rb_end_surfaces2d(rb);
+  rb_end_ortho(rb);
 
   /* reset mouse wheel state as it won't be reset through any event */
   nk->mouse_wheel = 0;
@@ -149,7 +149,7 @@ void nk_destroy(struct nuklear *nk) {
   nk_font_atlas_clear(&nk->atlas);
   nk_free(&nk->ctx);
 
-  video_destroy_texture(nk->window->video, nk->font_texture);
+  rb_destroy_texture(nk->window->rb, nk->font_texture);
 
   win_remove_listener(nk->window, &nk->listener);
 
@@ -171,8 +171,8 @@ struct nuklear *nk_create(struct window *window) {
   int font_width, font_height;
   const void *font_data = nk_font_atlas_bake(
       &nk->atlas, &font_width, &font_height, NK_FONT_ATLAS_RGBA32);
-  nk->font_texture = video_create_texture(
-      nk->window->video, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT, WRAP_REPEAT,
+  nk->font_texture = rb_create_texture(
+      nk->window->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT, WRAP_REPEAT,
       false, font_width, font_height, font_data);
   nk_font_atlas_end(&nk->atlas, nk_handle_id((int)nk->font_texture), &nk->null);
 

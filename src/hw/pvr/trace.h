@@ -36,8 +36,8 @@ struct trace_cmd {
       int8_t autosort;
       uint32_t stride;
       uint32_t pal_pxl_format;
-      uint32_t video_width;
-      uint32_t video_height;
+      uint32_t rb_width;
+      uint32_t rb_height;
       union isp bg_isp;
       union tsp bg_tsp;
       union tcw bg_tcw;

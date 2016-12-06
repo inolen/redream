@@ -6,7 +6,7 @@
 #include "core/list.h"
 #include "ui/microprofile.h"
 #include "ui/nuklear.h"
-#include "video/backend.h"
+#include "video/render_backend.h"
 
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
@@ -114,7 +114,7 @@ static void win_debug_menu(struct window *win) {
 }
 
 static void win_handle_paint(struct window *win) {
-  video_begin_frame(win->video);
+  rb_begin_frame(win->rb);
   nk_begin_frame(win->nk);
   mp_begin_frame(win->mp);
 
@@ -128,7 +128,7 @@ static void win_handle_paint(struct window *win) {
 
   mp_end_frame(win->mp);
   nk_end_frame(win->nk);
-  video_end_frame(win->video);
+  rb_end_frame(win->rb);
 }
 
 static void win_handle_keydown(struct window *win, int device_index,
@@ -916,8 +916,8 @@ void win_destroy(struct window *win) {
     nk_destroy(win->nk);
   }
 
-  if (win->video) {
-    video_destroy(win->video);
+  if (win->rb) {
+    rb_destroy(win->rb);
   }
 
   if (win->audio) {
@@ -971,8 +971,8 @@ struct window *win_create() {
   }
 
   /* setup video backend */
-  win->video = video_create(win);
-  if (!win->video) {
+  win->rb = rb_create(win);
+  if (!win->rb) {
     LOG_WARNING("Video backend creation failed");
     win_destroy(win);
     return NULL;

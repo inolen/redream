@@ -1,5 +1,5 @@
-#ifndef VIDEO_BACKEND_H
-#define VIDEO_BACKEND_H
+#ifndef RENDER_BACKEND_H
+#define RENDER_BACKEND_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -115,35 +115,35 @@ struct surface2d {
   int num_verts;
 };
 
-struct video_backend;
+struct render_backend;
 
-void video_begin_surfaces(struct video_backend *video, const float *projection,
-                          const struct vertex *verts, int num_verts);
-void video_draw_surface(struct video_backend *video,
-                        const struct surface *surf);
-void video_end_surfaces(struct video_backend *video);
+struct render_backend *rb_create(struct window *window);
+void rb_destroy(struct render_backend *rb);
 
-void video_begin_surfaces2d(struct video_backend *video,
-                            const struct vertex2d *verts, int num_verts,
-                            uint16_t *indices, int num_indices);
-void video_draw_surface2d(struct video_backend *video,
-                          const struct surface2d *surf);
-void video_end_surfaces2d(struct video_backend *video);
-
-void video_begin_ortho(struct video_backend *video);
-void video_end_ortho(struct video_backend *video);
-
-void video_begin_frame(struct video_backend *video);
-void video_end_frame(struct video_backend *video);
-
-texture_handle_t video_create_texture(
-    struct video_backend *video, enum pxl_format format,
+texture_handle_t rb_create_texture(
+    struct render_backend *rb, enum pxl_format format,
     enum filter_mode filter, enum wrap_mode wrap_u, enum wrap_mode wrap_v,
     bool mipmaps, int width, int height, const uint8_t *buffer);
-void video_destroy_texture(struct video_backend *video,
+void rb_destroy_texture(struct render_backend *rb,
                            texture_handle_t handle);
 
-struct video_backend *video_create(struct window *window);
-void video_destroy(struct video_backend *video);
+void rb_begin_frame(struct render_backend *rb);
+void rb_end_frame(struct render_backend *rb);
+
+void rb_begin_ortho(struct render_backend *rb);
+void rb_end_ortho(struct render_backend *rb);
+
+void rb_begin_surfaces(struct render_backend *rb, const float *projection,
+                          const struct vertex *verts, int num_verts);
+void rb_draw_surface(struct render_backend *rb,
+                        const struct surface *surf);
+void rb_end_surfaces(struct render_backend *rb);
+
+void rb_begin_surfaces2d(struct render_backend *rb,
+                            const struct vertex2d *verts, int num_verts,
+                            uint16_t *indices, int num_indices);
+void rb_draw_surface2d(struct render_backend *rb,
+                          const struct surface2d *surf);
+void rb_end_surfaces2d(struct render_backend *rb);
 
 #endif
