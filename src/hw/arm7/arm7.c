@@ -44,10 +44,8 @@ static void arm7_swap_registers(struct arm7 *arm, int old_mode, int new_mode) {
     arm->ctx.r[armv3_spsr_table[old_mode]] = arm->ctx.r[SPSR];
   }
 
-  /*
-   * write out active registers to the old mode's bank, and load the
-   * new mode's bank into the active registers
-   */
+  /* write out active registers to the old mode's bank, and load the
+     new mode's bank into the active registers */
   for (int i = 0; i < 7; i++) {
     int n = 8 + i;
     int old_n = armv3_reg_table[old_mode][i];
@@ -132,6 +130,8 @@ void arm7_raise_interrupt(struct arm7 *arm, enum arm7_interrupt intr) {
 }
 
 void arm7_reset(struct arm7 *arm) {
+  LOG_INFO("arm7_reset");
+
   jit_free_blocks(arm->jit);
 
   /* reset context */
@@ -279,9 +279,9 @@ struct arm7 *arm7_create(struct dreamcast *dc) {
   return arm;
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct arm7, arm7_data_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_data_map)
   AM_RANGE(0x00800000, 0x00810fff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_reg_map)
 AM_END();
-// clang-format on
+/* clang-format on */

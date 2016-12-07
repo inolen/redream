@@ -29,7 +29,7 @@ static struct track *gdi_get_track(struct disc *disc, int n) {
 static int gdi_read_sector(struct disc *disc, int fad, void *dst) {
   struct gdi *gdi = (struct gdi *)disc;
 
-  // find the track to read from
+  /* find the track to read from */
   struct track *track = NULL;
   for (int i = 0; i < gdi->num_tracks; i++) {
     struct track *curr_track = &gdi->tracks[i];
@@ -43,13 +43,13 @@ static int gdi_read_sector(struct disc *disc, int fad, void *dst) {
   }
   CHECK_NOTNULL(track);
 
-  // open the file backing the track
+  /* open the file backing the track */
   if (!track->file) {
     track->file = fopen(track->filename, "rb");
     CHECK(track->file);
   }
 
-  // read from it
+  /* read from it */
   int res =
       fseek(track->file, track->file_offset + fad * SECTOR_SIZE, SEEK_SET);
   CHECK_EQ(res, 0);
@@ -63,7 +63,7 @@ static int gdi_read_sector(struct disc *disc, int fad, void *dst) {
 static void gdi_destroy(struct disc *disc) {
   struct gdi *gdi = (struct gdi *)disc;
 
-  // cleanup file handles
+  /* cleanup file handles */
   for (int i = 0; i < gdi->num_tracks; i++) {
     struct track *track = &gdi->tracks[i];
 
@@ -87,9 +87,8 @@ static struct gdi *gdi_create(const char *filename) {
     return NULL;
   }
 
-  // <number of tracks>
-  // <track num> <lba> <ctrl> <sector size> <file name> <file offset>
-  // <track num> <lba> <ctrl> <sector size> <file name> <file offset>
+  /* <number of tracks>
+     <track num> <lba> <ctrl> <sector size> <file name> <file offset> */
   int num_tracks;
   int n = fscanf(fp, "%d", &num_tracks);
   if (n != 1) {
@@ -98,7 +97,7 @@ static struct gdi *gdi_create(const char *filename) {
     return NULL;
   }
 
-  // get gdi dirname to help resolve track paths
+  /* get gdi dirname to help resolve track paths */
   char dirname[PATH_MAX];
   fs_dirname(filename, dirname, sizeof(dirname));
 
@@ -113,7 +112,7 @@ static struct gdi *gdi_create(const char *filename) {
       return NULL;
     }
 
-    // add track
+    /* add track */
     CHECK_LT(gdi->num_tracks, array_size(gdi->tracks));
     struct track *track = &gdi->tracks[gdi->num_tracks++];
     track->num = num;
@@ -129,22 +128,22 @@ static struct gdi *gdi_create(const char *filename) {
   return gdi;
 }
 
-int disc_get_num_tracks(struct disc *disc) {
-  return disc->get_num_tracks(disc);
+int disc_read_sector(struct disc *disc, int fad, void *dst) {
+  return disc->read_sector(disc, fad, dst);
 }
 
 struct track *disc_get_track(struct disc *disc, int n) {
   return disc->get_track(disc, n);
 }
 
-int disc_read_sector(struct disc *disc, int fad, void *dst) {
-  return disc->read_sector(disc, fad, dst);
-}
-
-struct disc *disc_create_gdi(const char *filename) {
-  return (struct disc *)gdi_create(filename);
+int disc_get_num_tracks(struct disc *disc) {
+  return disc->get_num_tracks(disc);
 }
 
 void disc_destroy(struct disc *disc) {
   disc->destroy(disc);
+}
+
+struct disc *disc_create_gdi(const char *filename) {
+  return (struct disc *)gdi_create(filename);
 }
