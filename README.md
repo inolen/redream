@@ -1,14 +1,13 @@
 # redream
 
+[![Build status](https://travis-ci.org/inolen/redream.svg?branch=master)](https://travis-ci.org/inolen/redream)
+[![Slack status](http://slack.redream.io/badge.svg)](http://slack.redream.io)
+
 redream is a work in progress emulator for the SEGA Dreamcast.
 
 <p align="center">
 <a href="http://www.youtube.com/watch?v=kDBAweW9hD0"><img src="http://share.gifyoutube.com/vMZXGb.gif" /></a>
 </p>
-
-## Build status
-
-[![Build Status](https://travis-ci.org/inolen/redream.svg?branch=master)](https://travis-ci.org/inolen/redream)
 
 ## Getting started
 
