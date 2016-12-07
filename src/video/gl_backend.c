@@ -713,8 +713,8 @@ void rb_destroy(struct render_backend *rb) {
 struct render_backend *rb_create(struct window *window) {
   struct render_backend *rb = calloc(1, sizeof(struct render_backend));
   rb->window = window;
-  rb->listener = (struct window_listener){rb,   NULL, &rb_debug_menu, NULL,
-                                          NULL, NULL, NULL,           {0}};
+  rb->listener = (struct window_listener){
+      rb, NULL, &rb_debug_menu, NULL, NULL, NULL, NULL, NULL, NULL, {0}};
 
   win_add_listener(rb->window, &rb->listener);
 

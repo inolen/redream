@@ -160,7 +160,8 @@ struct nuklear *nk_create(struct window *window) {
   struct nuklear *nk = calloc(1, sizeof(struct nuklear));
   nk->window = window;
   nk->listener = (struct window_listener){
-      nk, NULL, NULL, &nk_keydown, &nk_textinput, &nk_mousemove, NULL, {0}};
+      nk,          NULL,          NULL,          NULL, NULL,
+      &nk_keydown, &nk_textinput, &nk_mousemove, NULL, {0}};
 
   win_add_listener(nk->window, &nk->listener);
 
