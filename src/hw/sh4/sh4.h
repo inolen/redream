@@ -16,23 +16,17 @@ struct jit_backend;
 
 struct sh4_dtr {
   int channel;
-  /*
-   * when rw is true, addr is the dst address
-   * when rw is false, addr is the src address
-   */
+  /* when rw is true, addr is the dst address
+     when rw is false, addr is the src address */
   int rw;
-  /*
-   * when data is non-null, a single address mode transfer is performed between
-   * the external device memory at data, and the memory at addr for
-   * when data is null, a dual address mode transfer is performed between addr
-   * and SARn / DARn
-   */
+  /* when data is non-null, a single address mode transfer is performed between
+     the external device memory at data, and the memory at addr for
+     when data is null, a dual address mode transfer is performed between addr
+     and SARn / DARn */
   uint8_t *data;
   uint32_t addr;
-  /*
-   * size is only valid for single address mode transfers, dual address mode
-   * transfers honor DMATCR
-   */
+  /* size is only valid for single address mode transfers, dual address mode
+     transfers honor DMATCR */
   int size;
 };
 
