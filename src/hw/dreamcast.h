@@ -88,10 +88,14 @@ struct memory_interface {
 /* window interface */
 typedef void (*device_debug_menu_cb)(struct device *, struct nk_context *);
 typedef void (*device_keydown_cb)(struct device *, int, enum keycode, int16_t);
+typedef void (*device_joy_add_cb)(struct device *, int);
+typedef void (*device_joy_remove_cb)(struct device *, int);
 
 struct window_interface {
   device_debug_menu_cb debug_menu;
   device_keydown_cb keydown;
+  device_joy_add_cb joy_add;
+  device_joy_remove_cb joy_remove;
 };
 
 /*
@@ -164,7 +168,8 @@ struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
 void dc_destroy_memory_interface(struct memory_interface *memory);
 
 struct window_interface *dc_create_window_interface(
-    device_debug_menu_cb debug_menu, device_keydown_cb keydown);
+    device_debug_menu_cb debug_menu, device_keydown_cb keydown,
+    device_joy_add_cb joy_add, device_joy_remove_cb joy_remove);
 void dc_destroy_window_interface(struct window_interface *window);
 
 bool dc_init(struct dreamcast *dc);
@@ -174,5 +179,7 @@ void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
                 int16_t value);
+void dc_joy_add(struct dreamcast *dc, int joystick_index);
+void dc_joy_remove(struct dreamcast *dc, int joystick_index);
 
 #endif

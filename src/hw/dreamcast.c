@@ -17,6 +17,22 @@
 
 DEFINE_OPTION_BOOL(gdb, false, "Run gdb debug server");
 
+void dc_joy_remove(struct dreamcast *dc, int joystick_index) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if (dev->window_if && dev->window_if->joy_remove) {
+      dev->window_if->joy_remove(dev, joystick_index);
+    }
+  }
+}
+
+void dc_joy_add(struct dreamcast *dc, int joystick_index) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if (dev->window_if && dev->window_if->joy_add) {
+      dev->window_if->joy_add(dev, joystick_index);
+    }
+  }
+}
+
 void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
                 int16_t value) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
@@ -95,10 +111,13 @@ void dc_destroy_window_interface(struct window_interface *window) {
 }
 
 struct window_interface *dc_create_window_interface(
-    device_debug_menu_cb debug_menu, device_keydown_cb keydown) {
+    device_debug_menu_cb debug_menu, device_keydown_cb keydown,
+    device_joy_add_cb joy_add, device_joy_remove_cb joy_remove) {
   struct window_interface *window = calloc(1, sizeof(struct window_interface));
   window->debug_menu = debug_menu;
   window->keydown = keydown;
+  window->joy_add = joy_add;
+  window->joy_remove = joy_remove;
   return window;
 }
 
@@ -140,7 +159,6 @@ struct device *dc_get_device(struct dreamcast *dc, const char *name) {
       return dev;
     }
   }
-
   return NULL;
 }
 

@@ -15,10 +15,23 @@ static void win_destroy_joystick(struct window *win, SDL_Joystick *del) {
   for (int i = 0; i < MAX_JOYSTICKS; i++) {
     SDL_Joystick **joy = &win->joysticks[i];
 
-    if (*joy == del) {
-      SDL_JoystickClose(*joy);
-      *joy = NULL;
+    if (*joy != del) {
+      continue;
     }
+
+    LOG_INFO("Closing joystick %d: %s", i, SDL_JoystickName(*joy));
+
+    SDL_JoystickClose(*joy);
+    *joy = NULL;
+
+    /* inform listeners */
+    list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+      if (listener->joy_remove) {
+        listener->joy_remove(listener->data, i);
+      }
+    }
+
+    break;
   }
 }
 
@@ -36,10 +49,17 @@ static void win_create_joystick(struct window *win, int joystick_index) {
       break;
     }
 
-    LOG_INFO("Opened joystick %d: %s", i, SDL_JoystickName(win->joysticks[i]));
+    LOG_INFO("Opened joystick %d: %s", i, SDL_JoystickName(*joy));
 
     /* reset state */
     memset(win->hat_state[i], 0, sizeof(win->hat_state[i]));
+
+    /* inform listeners */
+    list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+      if (listener->joy_add) {
+        listener->joy_add(listener->data, joystick_index);
+      }
+    }
 
     break;
   }
@@ -927,6 +947,7 @@ void win_destroy(struct window *win) {
   if (win->handle) {
     SDL_DestroyWindow(win->handle);
   }
+
   for (int i = 0; i < MAX_JOYSTICKS; i++) {
     if (win->joysticks[i]) {
       win_destroy_joystick(win, win->joysticks[i]);

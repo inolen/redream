@@ -962,7 +962,7 @@ struct ta *ta_create(struct dreamcast *dc) {
   ta_build_tables();
 
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
-  ta->window_if = dc_create_window_interface(&ta_debug_menu, NULL);
+  ta->window_if = dc_create_window_interface(&ta_debug_menu, NULL, NULL, NULL);
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
   ta->pending_mutex = mutex_create();
