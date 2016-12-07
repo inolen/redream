@@ -64,3 +64,7 @@ target remote localhost:24690
 ```shell
 retest
 ```
+
+## Community
+
+Ask questions and help answer them on [Slack](http://slack.redream.io).
