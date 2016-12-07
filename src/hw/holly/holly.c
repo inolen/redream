@@ -210,8 +210,6 @@ static void holly_update_interrupts(struct holly *hl) {
       sh4_clear_interrupt(hl->sh4, SH4_INTC_IRL_13);
     }
   }
-
-  /* TODO check for hardware DMA initiation */
 }
 
 static void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
@@ -420,10 +418,22 @@ REG_W32(holly_cb, SB_ADST) {
   }
 }
 
+REG_W32(holly_cb, SB_ADTSEL) {
+  if ((value & 0x2) == 0x2) {
+    LOG_FATAL("Hardware DMA trigger not supported");
+  }
+}
+
 REG_W32(holly_cb, SB_E1ST) {
   struct holly *hl = dc->holly;
   if ((*hl->SB_E1ST = value)) {
     holly_g2_dma(hl, 1);
+  }
+}
+
+REG_W32(holly_cb, SB_E1TSEL) {
+  if ((value & 0x2) == 0x2) {
+    LOG_FATAL("Hardware DMA trigger not supported");
   }
 }
 
@@ -434,6 +444,12 @@ REG_W32(holly_cb, SB_E2ST) {
   }
 }
 
+REG_W32(holly_cb, SB_E2TSEL) {
+  if ((value & 0x2) == 0x2) {
+    LOG_FATAL("Hardware DMA trigger not supported");
+  }
+}
+
 REG_W32(holly_cb, SB_DDST) {
   struct holly *hl = dc->holly;
   if ((*hl->SB_DDST = value)) {
@@ -441,10 +457,22 @@ REG_W32(holly_cb, SB_DDST) {
   }
 }
 
+REG_W32(holly_cb, SB_DDTSEL) {
+  if ((value & 0x2) == 0x2) {
+    LOG_FATAL("Hardware DMA trigger not supported");
+  }
+}
+
 REG_W32(holly_cb, SB_PDST) {
   struct holly *hl = dc->holly;
   if ((*hl->SB_PDST = value)) {
-    LOG_WARNING("Ignored pvr DMA request");
+    LOG_FATAL("PVR DMA not supported");
+  }
+}
+
+REG_W32(holly_cb, SB_PDTSEL) {
+  if (value) {
+    LOG_FATAL("Hardware DMA trigger not supported");
   }
 }
 

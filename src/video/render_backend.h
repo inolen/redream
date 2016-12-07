@@ -120,12 +120,13 @@ struct render_backend;
 struct render_backend *rb_create(struct window *window);
 void rb_destroy(struct render_backend *rb);
 
-texture_handle_t rb_create_texture(
-    struct render_backend *rb, enum pxl_format format,
-    enum filter_mode filter, enum wrap_mode wrap_u, enum wrap_mode wrap_v,
-    bool mipmaps, int width, int height, const uint8_t *buffer);
-void rb_destroy_texture(struct render_backend *rb,
-                           texture_handle_t handle);
+texture_handle_t rb_create_texture(struct render_backend *rb,
+                                   enum pxl_format format,
+                                   enum filter_mode filter,
+                                   enum wrap_mode wrap_u, enum wrap_mode wrap_v,
+                                   bool mipmaps, int width, int height,
+                                   const uint8_t *buffer);
+void rb_destroy_texture(struct render_backend *rb, texture_handle_t handle);
 
 void rb_begin_frame(struct render_backend *rb);
 void rb_end_frame(struct render_backend *rb);
@@ -134,16 +135,14 @@ void rb_begin_ortho(struct render_backend *rb);
 void rb_end_ortho(struct render_backend *rb);
 
 void rb_begin_surfaces(struct render_backend *rb, const float *projection,
-                          const struct vertex *verts, int num_verts);
-void rb_draw_surface(struct render_backend *rb,
-                        const struct surface *surf);
+                       const struct vertex *verts, int num_verts);
+void rb_draw_surface(struct render_backend *rb, const struct surface *surf);
 void rb_end_surfaces(struct render_backend *rb);
 
 void rb_begin_surfaces2d(struct render_backend *rb,
-                            const struct vertex2d *verts, int num_verts,
-                            uint16_t *indices, int num_indices);
-void rb_draw_surface2d(struct render_backend *rb,
-                          const struct surface2d *surf);
+                         const struct vertex2d *verts, int num_verts,
+                         uint16_t *indices, int num_indices);
+void rb_draw_surface2d(struct render_backend *rb, const struct surface2d *surf);
 void rb_end_surfaces2d(struct render_backend *rb);
 
 #endif
