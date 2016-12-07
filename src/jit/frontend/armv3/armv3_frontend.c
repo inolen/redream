@@ -5,7 +5,7 @@
 
 static void armv3_frontend_translate_code(struct jit_frontend *base,
                                           uint32_t addr, struct ir *ir,
-                                          int flags) {
+                                          int flags, int *size) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
 
   frontend->translate(frontend->data, addr, ir, flags);

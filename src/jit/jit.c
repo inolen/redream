@@ -277,7 +277,10 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   struct ir ir = {0};
   ir.buffer = jit->ir_buffer;
   ir.capacity = sizeof(jit->ir_buffer);
-  jit->frontend->translate_code(jit->frontend, guest_addr, &ir, fastmem);
+
+  int guest_size;
+  jit->frontend->translate_code(jit->frontend, guest_addr, &ir, fastmem,
+                                &guest_size);
 
   /* dump unoptimized block */
   if (jit->dump_compiled_blocks) {

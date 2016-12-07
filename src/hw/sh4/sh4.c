@@ -103,8 +103,8 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   sh4->reg[offset] = data;
 }
 
-static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
-                          int fastmem) {
+static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
+                          int *size) {
   struct sh4 *sh4 = data;
 
   /* analyze the guest block to get its size, cycle count, etc. */
@@ -203,6 +203,9 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
       ir_branch(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_dynamic));
     }
   }
+
+  /* return size */
+  *size = as.size;
 }
 
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
@@ -412,7 +415,7 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("holly", holly_expansion2_map)
 
   /* internal registers */
-  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE("sh4 reg",
+  AM_RANGE(0x1c000000, 0x1fffffff) AM_HANDLE("sh4 reg",
                                              (mmio_read_cb)&sh4_reg_read,
                                              (mmio_write_cb)&sh4_reg_write)
 

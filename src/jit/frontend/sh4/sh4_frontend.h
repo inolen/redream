@@ -18,7 +18,7 @@ struct sh4_frontend {
 
   /* runtime interface */
   void *data;
-  void (*translate)(void *, uint32_t, struct ir *, int);
+  void (*translate)(void *, uint32_t, struct ir *, int, int *);
   void (*invalid_instr)(void *, uint64_t);
   void (*prefetch)(void *, uint64_t);
   void (*sr_updated)(void *, uint64_t);
