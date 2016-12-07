@@ -40,7 +40,10 @@ static void win_create_joystick(struct window *win, int joystick_index) {
 
     /* reset state */
     memset(win->hat_state[i], 0, sizeof(win->hat_state[i]));
-
+    list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+      if(listener->joy_add)
+        listener->joy_add(listener->data, joystick_index);
+    }
     break;
   }
 }

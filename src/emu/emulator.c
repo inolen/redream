@@ -140,6 +140,18 @@ static void emu_keydown(void *data, int device_index, enum keycode code,
   dc_keydown(emu->dc, device_index, code, value);
 }
 
+static void emu_joy_add(void *data, int joystick_index) {
+  struct emu *emu = data;
+
+  dc_joy_add(emu->dc, joystick_index);
+}
+
+static void emu_joy_remove(void *data, int joystick_index) {
+  struct emu *emu = data;
+
+  dc_joy_add(emu->dc, joystick_index);
+}
+
 static void emu_close(void *data) {
   struct emu *emu = data;
 
@@ -224,8 +236,10 @@ struct emu *emu_create(struct window *window) {
 
   emu->window = window;
   emu->listener =
-      (struct window_listener){emu,  &emu_paint, &emu_debug_menu, &emu_keydown,
-                               NULL, NULL,       &emu_close,      {0}};
+      (struct window_listener){emu,                  &emu_paint,            &emu_debug_menu,
+                               &emu_joy_add,         &emu_joy_remove,       &emu_keydown,
+                               NULL,                 NULL,                  &emu_close,
+                               {0}};
   win_add_listener(emu->window, &emu->listener);
 
   return emu;

@@ -26,6 +26,11 @@ static void maple_register_device(struct maple *mp, const char *device_type,
   }
 }
 
+void maple_joy_add(struct device *d, int joystick_index) {
+  LOG_INFO("NEW SUPER COOL JOYSTICK ADDED LMAO");
+
+}
+
 static void maple_keydown(struct device *d, int device_index, enum keycode key,
                           int16_t value) {
   if (device_index >= MAPLE_NUM_PORTS) {
@@ -144,6 +149,7 @@ struct maple *maple_create(struct dreamcast *dc) {
       dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
   mp->window_if = dc_create_window_interface(NULL, &maple_keydown);
 
+  mp->window_if->joy_add = &maple_joy_add;
   /* add one controller and vmu by default */
   maple_register_device(mp, "controller", 0, 0);
   maple_register_device(mp, "vmu", 0, 1);

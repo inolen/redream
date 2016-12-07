@@ -94,6 +94,19 @@ void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
   }
 }
 
+void dc_joy_add(struct dreamcast *dc, int joystick_index) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if(dev->window_if && dev->window_if->joy_add)
+      dev->window_if->joy_add(dev, joystick_index);
+  }
+}
+void dc_joy_remove(struct dreamcast *dc, int joystick_index) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if(dev->window_if && dev->window_if->joy_remove)
+      dev->window_if->joy_remove(dev, joystick_index);
+  }
+}
+
 struct execute_interface *dc_create_execute_interface(device_run_cb run,
                                                       int running) {
   struct execute_interface *execute =
