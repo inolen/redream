@@ -291,8 +291,8 @@ struct microprofile *mp_create(struct window *window) {
   /* register the font texture */
   mp->font_texture =
       rb_create_texture(rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
-                           WRAP_CLAMP_TO_EDGE, false, FONT_WIDTH, FONT_HEIGHT,
-                           reinterpret_cast<const uint8_t *>(s_font_data));
+                        WRAP_CLAMP_TO_EDGE, false, FONT_WIDTH, FONT_HEIGHT,
+                        reinterpret_cast<const uint8_t *>(s_font_data));
 
   return mp;
 }

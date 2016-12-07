@@ -299,9 +299,8 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
       tsp.clamp_v ? WRAP_CLAMP_TO_EDGE
                   : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
-  entry->handle =
-      rb_create_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v,
-                           mip_mapped, width, height, output);
+  entry->handle = rb_create_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v,
+                                    mip_mapped, width, height, output);
   entry->format = pixel_fmt;
   entry->filter = filter;
   entry->wrap_u = wrap_u;
@@ -1009,8 +1008,7 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
 void tr_render_context(struct tr *tr, const struct render_context *rctx) {
   PROF_ENTER("gpu", "tr_render_context");
 
-  rb_begin_surfaces(tr->rb, rctx->projection, rctx->verts,
-                       rctx->num_verts);
+  rb_begin_surfaces(tr->rb, rctx->projection, rctx->verts, rctx->num_verts);
 
   const int *sorted_surf = rctx->sorted_surfs;
   const int *sorted_surf_end = rctx->sorted_surfs + rctx->num_surfs;

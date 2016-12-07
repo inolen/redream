@@ -90,7 +90,7 @@ void nk_end_frame(struct nuklear *nk) {
   /* bind buffers */
   rb_begin_ortho(rb);
   rb_begin_surfaces2d(rb, nk->vertices, nk->ctx.draw_list.vertex_count,
-                         nk->elements, nk->ctx.draw_list.element_count);
+                      nk->elements, nk->ctx.draw_list.element_count);
 
   /* pass each draw command off to the render backend */
   const struct nk_draw_command *cmd = NULL;
@@ -171,9 +171,9 @@ struct nuklear *nk_create(struct window *window) {
   int font_width, font_height;
   const void *font_data = nk_font_atlas_bake(
       &nk->atlas, &font_width, &font_height, NK_FONT_ATLAS_RGBA32);
-  nk->font_texture = rb_create_texture(
-      nk->window->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT, WRAP_REPEAT,
-      false, font_width, font_height, font_data);
+  nk->font_texture =
+      rb_create_texture(nk->window->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
+                        WRAP_REPEAT, false, font_width, font_height, font_data);
   nk_font_atlas_end(&nk->atlas, nk_handle_id((int)nk->font_texture), &nk->null);
 
   /* initialize nuklear context */
