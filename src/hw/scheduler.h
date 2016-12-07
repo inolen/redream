@@ -14,13 +14,14 @@ struct scheduler;
 
 typedef void (*timer_cb)(void *);
 
+struct scheduler *scheduler_create(struct dreamcast *dc);
+void scheduler_destroy(struct scheduler *sch);
+
 void scheduler_tick(struct scheduler *sch, int64_t ns);
+
 struct timer *scheduler_start_timer(struct scheduler *sch, timer_cb cb,
                                     void *data, int64_t ns);
 int64_t scheduler_remaining_time(struct scheduler *sch, struct timer *);
 void scheduler_cancel_timer(struct scheduler *sch, struct timer *);
-
-struct scheduler *scheduler_create(struct dreamcast *dc);
-void scheduler_destroy(struct scheduler *sch);
 
 #endif

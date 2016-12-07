@@ -25,9 +25,9 @@ struct scheduler;
 struct sh4;
 struct ta;
 
-//
-// register callbacks
-//
+/*
+ * register callbacks
+*/
 typedef uint32_t (*reg_read_cb)(struct dreamcast *);
 typedef void (*reg_write_cb)(struct dreamcast *, uint32_t);
 
@@ -50,10 +50,11 @@ struct reg_cb {
   }                                                               \
   void name##_write(struct dreamcast *dc, uint32_t value)
 
-//
-// device interfaces
-//
-// debug interface
+/*
+ * device interfaces
+ */
+
+/* debug interface */
 typedef int (*device_num_regs_cb)(struct device *);
 typedef void (*device_step_cb)(struct device *);
 typedef void (*device_add_bp_cb)(struct device *, int, uint32_t);
@@ -70,7 +71,7 @@ struct debug_interface {
   device_read_reg_cb read_reg;
 };
 
-// execute interface
+/* execute interface */
 typedef void (*device_run_cb)(struct device *, int64_t);
 
 struct execute_interface {
@@ -78,13 +79,13 @@ struct execute_interface {
   bool running;
 };
 
-// memory interface
+/* memory interface */
 struct memory_interface {
   address_map_cb mapper;
   struct address_space *space;
 };
 
-// window interface
+/* window interface */
 typedef void (*device_debug_menu_cb)(struct device *, struct nk_context *);
 typedef void (*device_keydown_cb)(struct device *, int, enum keycode, int16_t);
 
@@ -93,21 +94,21 @@ struct window_interface {
   device_keydown_cb keydown;
 };
 
-//
-// device
-//
+/*
+ * device
+ */
 struct device {
   struct dreamcast *dc;
   const char *name;
   bool (*init)(struct device *dev);
 
-  // optional interfaces
+  /* optional interfaces */
   struct debug_interface *debug_if;
   struct execute_interface *execute_if;
   struct memory_interface *memory_if;
   struct window_interface *window_if;
 
-  // cached references to other devices
+  /* cached references to other devices */
   struct debugger *debugger;
   struct memory *memory;
   struct scheduler *scheduler;
@@ -125,9 +126,9 @@ struct device {
   struct list_node it;
 };
 
-//
-// machine
-//
+/*
+ * machine
+ */
 struct dreamcast {
   struct debugger *debugger;
   struct memory *memory;
@@ -146,13 +147,13 @@ struct dreamcast {
   struct list devices;
 };
 
-bool dc_init(struct dreamcast *dc);
-void dc_suspend(struct dreamcast *dc);
-void dc_resume(struct dreamcast *dc);
-void dc_tick(struct dreamcast *dc, int64_t ns);
-void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
-void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
-                int16_t value);
+struct dreamcast *dc_create();
+void dc_destroy(struct dreamcast *dc);
+
+void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
+                       bool (*init)(struct device *dev));
+struct device *dc_get_device(struct dreamcast *dc, const char *name);
+void dc_destroy_device(struct device *dev);
 
 struct execute_interface *dc_create_execute_interface(device_run_cb run,
                                                       int running);
@@ -166,12 +167,12 @@ struct window_interface *dc_create_window_interface(
     device_debug_menu_cb debug_menu, device_keydown_cb keydown);
 void dc_destroy_window_interface(struct window_interface *window);
 
-void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       bool (*init)(struct device *dev));
-struct device *dc_get_device(struct dreamcast *dc, const char *name);
-void dc_destroy_device(struct device *dev);
-
-struct dreamcast *dc_create();
-void dc_destroy(struct dreamcast *dc);
+bool dc_init(struct dreamcast *dc);
+void dc_suspend(struct dreamcast *dc);
+void dc_resume(struct dreamcast *dc);
+void dc_tick(struct dreamcast *dc, int64_t ns);
+void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
+void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
+                int16_t value);
 
 #endif

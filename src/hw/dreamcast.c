@@ -17,8 +17,39 @@
 
 DEFINE_OPTION_BOOL(gdb, false, "Run gdb debug server");
 
-void device_run(struct device *dev, int64_t ns) {
-  dev->execute_if->run(dev, ns);
+void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
+                int16_t value) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if (dev->window_if && dev->window_if->keydown) {
+      dev->window_if->keydown(dev, device_index, code, value);
+    }
+  }
+}
+
+void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if (dev->window_if && dev->window_if->debug_menu) {
+      dev->window_if->debug_menu(dev, ctx);
+    }
+  }
+}
+
+void dc_tick(struct dreamcast *dc, int64_t ns) {
+  if (dc->debugger) {
+    debugger_tick(dc->debugger);
+  }
+
+  if (dc->running) {
+    scheduler_tick(dc->scheduler, ns);
+  }
+}
+
+void dc_resume(struct dreamcast *dc) {
+  dc->running = 1;
+}
+
+void dc_suspend(struct dreamcast *dc) {
+  dc->running = 0;
 }
 
 bool dc_init(struct dreamcast *dc) {
@@ -59,39 +90,33 @@ bool dc_init(struct dreamcast *dc) {
   return true;
 }
 
-void dc_suspend(struct dreamcast *dc) {
-  dc->running = 0;
+void dc_destroy_window_interface(struct window_interface *window) {
+  free(window);
 }
 
-void dc_resume(struct dreamcast *dc) {
-  dc->running = 1;
+struct window_interface *dc_create_window_interface(
+    device_debug_menu_cb debug_menu, device_keydown_cb keydown) {
+  struct window_interface *window = calloc(1, sizeof(struct window_interface));
+  window->debug_menu = debug_menu;
+  window->keydown = keydown;
+  return window;
 }
 
-void dc_tick(struct dreamcast *dc, int64_t ns) {
-  if (dc->debugger) {
-    debugger_tick(dc->debugger);
-  }
-
-  if (dc->running) {
-    scheduler_tick(dc->scheduler, ns);
-  }
+void dc_destroy_memory_interface(struct memory_interface *memory) {
+  as_destroy(memory->space);
+  free(memory);
 }
 
-void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
-  list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window_if && dev->window_if->debug_menu) {
-      dev->window_if->debug_menu(dev, ctx);
-    }
-  }
+struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
+                                                    address_map_cb mapper) {
+  struct memory_interface *memory = calloc(1, sizeof(struct memory_interface));
+  memory->mapper = mapper;
+  memory->space = as_create(dc);
+  return memory;
 }
 
-void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
-                int16_t value) {
-  list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window_if && dev->window_if->keydown) {
-      dev->window_if->keydown(dev, device_index, code, value);
-    }
-  }
+void dc_destroy_execute_interface(struct execute_interface *execute) {
+  free(execute);
 }
 
 struct execute_interface *dc_create_execute_interface(device_run_cb run,
@@ -103,33 +128,20 @@ struct execute_interface *dc_create_execute_interface(device_run_cb run,
   return execute;
 }
 
-void dc_destroy_execute_interface(struct execute_interface *execute) {
-  free(execute);
+void dc_destroy_device(struct device *dev) {
+  list_remove(&dev->dc->devices, &dev->it);
+
+  free(dev);
 }
 
-struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
-                                                    address_map_cb mapper) {
-  struct memory_interface *memory = calloc(1, sizeof(struct memory_interface));
-  memory->mapper = mapper;
-  memory->space = as_create(dc);
-  return memory;
-}
+struct device *dc_get_device(struct dreamcast *dc, const char *name) {
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if (!strcmp(dev->name, name)) {
+      return dev;
+    }
+  }
 
-void dc_destroy_memory_interface(struct memory_interface *memory) {
-  as_destroy(memory->space);
-  free(memory);
-}
-
-struct window_interface *dc_create_window_interface(
-    device_debug_menu_cb debug_menu, device_keydown_cb keydown) {
-  struct window_interface *window = calloc(1, sizeof(struct window_interface));
-  window->debug_menu = debug_menu;
-  window->keydown = keydown;
-  return window;
-}
-
-void dc_destroy_window_interface(struct window_interface *window) {
-  free(window);
+  return NULL;
 }
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
@@ -145,20 +157,25 @@ void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
   return dev;
 }
 
-struct device *dc_get_device(struct dreamcast *dc, const char *name) {
-  list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (!strcmp(dev->name, name)) {
-      return dev;
-    }
+void dc_destroy(struct dreamcast *dc) {
+  ta_destroy(dc->ta);
+  pvr_destroy(dc->pvr);
+  maple_destroy(dc->maple);
+  holly_destroy(dc->holly);
+  gdrom_destroy(dc->gdrom);
+  flash_destroy(dc->flash);
+  boot_destroy(dc->boot);
+  aica_destroy(dc->aica);
+  arm7_destroy(dc->arm);
+  sh4_destroy(dc->sh4);
+  scheduler_destroy(dc->scheduler);
+  memory_destroy(dc->memory);
+
+  if (dc->debugger) {
+    debugger_destroy(dc->debugger);
   }
 
-  return NULL;
-}
-
-void dc_destroy_device(struct device *dev) {
-  list_remove(&dev->dc->devices, &dev->it);
-
-  free(dev);
+  free(dc);
 }
 
 struct dreamcast *dc_create() {
@@ -184,25 +201,4 @@ struct dreamcast *dc_create() {
   }
 
   return dc;
-}
-
-void dc_destroy(struct dreamcast *dc) {
-  ta_destroy(dc->ta);
-  pvr_destroy(dc->pvr);
-  maple_destroy(dc->maple);
-  holly_destroy(dc->holly);
-  gdrom_destroy(dc->gdrom);
-  flash_destroy(dc->flash);
-  boot_destroy(dc->boot);
-  aica_destroy(dc->aica);
-  arm7_destroy(dc->arm);
-  sh4_destroy(dc->sh4);
-  scheduler_destroy(dc->scheduler);
-  memory_destroy(dc->memory);
-
-  if (dc->debugger) {
-    debugger_destroy(dc->debugger);
-  }
-
-  free(dc);
 }

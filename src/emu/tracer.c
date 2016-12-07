@@ -784,8 +784,8 @@ static void tracer_paint(void *data) {
   }
 
   // render the context
-  rb_begin_surfaces(tracer->rb, tracer->rctx.projection,
-                       tracer->rctx.verts, tracer->rctx.num_verts);
+  rb_begin_surfaces(tracer->rb, tracer->rctx.projection, tracer->rctx.verts,
+                    tracer->rctx.num_verts);
 
   for (int i = 0; i < n; i++) {
     int idx = tracer->rctx.sorted_surfs[i];

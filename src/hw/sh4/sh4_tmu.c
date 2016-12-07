@@ -39,7 +39,9 @@ static void sh4_tmu_expire(struct sh4 *sh4, int n) {
   uint32_t *tcnt = TCNT(n);
   uint32_t *tcr = TCR(n);
 
+#if 0
   LOG_INFO("sh4_tmu_expire %d", n);
+#endif
 
   /* timer expired, set the underflow flag */
   *tcr |= 0x100;
