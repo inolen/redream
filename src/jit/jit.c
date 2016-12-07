@@ -185,6 +185,8 @@ static struct jit_block *jit_alloc_block(struct jit *jit, uint32_t guest_addr,
 }
 
 void jit_free_blocks(struct jit *jit) {
+  LOG_INFO("jit_free_blocks");
+
   /* invalidate code pointers and remove block entries from lookup maps. this
      is only safe to use when no code is currently executing */
   struct rb_node *it = rb_first(&jit->blocks);
@@ -203,6 +205,8 @@ void jit_free_blocks(struct jit *jit) {
 }
 
 void jit_invalidate_blocks(struct jit *jit) {
+  LOG_INFO("jit_invalidate_blocks");
+
   /* invalidate code pointers, but don't remove block entries from lookup maps.
      this is used when clearing the jit while code is currently executing */
   struct rb_node *it = rb_first(&jit->blocks);
