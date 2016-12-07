@@ -12,14 +12,14 @@
 #define SPI_CMD_SIZE 12
 #define SUBCODE_SIZE 100
 
-// internal gdrom state machine
+/* internal gdrom state machine */
 enum gd_event {
   EV_ATA_CMD_DONE,
-  // each incomming SPI command will either:
-  // a.) have no additional data and immediately fire EV_SPI_CMD_DONE
-  // b.) read additional data over PIO with EV_SPI_READ_START
-  // c.) write additional data over PIO with EV_SPI_WRITE_START
-  // d.) write additional data over DMA / PIO with EV_SPI_WRITE_SECTORS
+  /* each incomming SPI command will either:
+     a.) have no additional data and immediately fire EV_SPI_CMD_DONE
+     b.) read additional data over PIO with EV_SPI_READ_START
+     c.) write additional data over PIO with EV_SPI_WRITE_START
+     d.) write additional data over DMA / PIO with EV_SPI_WRITE_SECTORS */
   EV_SPI_WAIT_CMD,
   EV_SPI_READ_START,
   EV_SPI_READ_END,
@@ -55,12 +55,12 @@ struct gdrom {
   union gd_bytect byte_count;
   union gd_status status;
   struct cdread req;
-  // pio state
+  /* pio state */
   uint8_t pio_buffer[0x10000];
   int pio_head;
   int pio_size;
   int pio_read;
-  // dma state
+  /* dma state */
   uint8_t *dma_buffer;
   int dma_capacity;
   int dma_head;
@@ -72,17 +72,17 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
 
 static int gdrom_get_fad(uint8_t a, uint8_t b, uint8_t c, bool msf) {
   if (msf) {
-    // MSF mode
-    // Byte 2 - Start time: minutes (binary 0 - 255)
-    // Byte 3 - Start time: seconds (binary 0 - 59)
-    // Byte 4 - Start time: frames (binary 0 - 74)
+    /* MSF mode
+       Byte 2 - Start time: minutes (binary 0 - 255)
+       Byte 3 - Start time: seconds (binary 0 - 59)
+       Byte 4 - Start time: frames (binary 0 - 74) */
     return (a * 60 * 75) + (b * 75) + c;
   }
 
-  // FAD mode
-  // Byte 2 - Start frame address (MSB)
-  // Byte 3 - Start frame address
-  // Byte 4- Start frame address (LSB)
+  /* FAD mode
+     Byte 2 - Start frame address (MSB)
+     Byte 3 - Start frame address
+     Byte 4 - Start frame address (LSB) */
   return (a << 16) | (b << 8) | c;
 }
 
@@ -97,13 +97,13 @@ static void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
                           struct gd_toc *toc) {
   CHECK(gd->disc);
 
-  // for GD-ROMs, the single density area contains tracks 1 and 2, while the
-  // dual density area contains tracks 3 - num_tracks
+  /* for GD-ROMs, the single density area contains tracks 1 and 2, while the
+     dual density area contains tracks 3 - num_tracks */
   int first_track_num = 0;
   int last_track_num = disc_get_num_tracks(gd->disc) - 1;
 
-  // TODO conditionally check disc to make sure it's a GD-ROM once
-  // CD-ROMs are supported
+  /* TODO conditionally check disc to make sure it's a GD-ROM once
+     CD-ROMs are supported */
   if (1 /* is gd-rom */) {
     if (area_type == AREA_SINGLE) {
       last_track_num = 1;
@@ -140,12 +140,12 @@ static void gdrom_get_session(struct gdrom *gd, int session,
   CHECK(gd->disc);
 
   if (!session) {
-    // session values have a different meaning for session == 0
+    /* session values have a different meaning for session == 0 */
 
-    // TODO start_fad for non GD-Roms I guess is 0x4650
+    /* TODO start_fad for non GD-Roms I guess is 0x4650 */
     if (1 /* is gd-rom */) {
-      ses->first_track = 2;               // num sessions
-      ses->start_fad = SWAP_24(0x861b4);  // end fad
+      ses->first_track = 2;               /* num sessions */
+      ses->start_fad = SWAP_24(0x861b4);  /* end fad */
     }
   } else if (session == 1) {
     ses->first_track = 1;
@@ -159,7 +159,7 @@ static void gdrom_get_session(struct gdrom *gd, int session,
 static void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
   CHECK(gd->disc);
 
-  // FIXME implement
+  /* FIXME implement */
   memset(data, 0, SUBCODE_SIZE);
   data[1] = AST_NOSTATUS;
 
@@ -167,15 +167,17 @@ static void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
 }
 
 static void gdrom_ata_cmd(struct gdrom *gd, enum gd_ata_cmd cmd) {
+  LOG_INFO("gdrom_ata_cmd 0x%x", cmd);
+
   gd->status.DRDY = 0;
   gd->status.BSY = 1;
 
   switch (cmd) {
     case ATA_NOP:
-      // Setting "abort" in the error register
-      // Setting "error" in the status register
-      // Clearing BUSY in the status register
-      // Asserting the INTRQ signal
+      /* Setting "abort" in the error register */
+      /* Setting "error" in the status register */
+      /* Clearing BUSY in the status register */
+      /* Asserting the INTRQ signal */
       gdrom_event(gd, EV_ATA_CMD_DONE, 0, 0);
       break;
 
@@ -184,21 +186,21 @@ static void gdrom_ata_cmd(struct gdrom *gd, enum gd_ata_cmd cmd) {
       gdrom_event(gd, EV_ATA_CMD_DONE, 0, 0);
       break;
 
-    // case ATA_EXEC_DIAG:
-    //   LOG_FATAL("Unhandled");
-    //   break;
+    /*case ATA_EXEC_DIAG:
+        LOG_FATAL("Unhandled");
+        break;*/
 
     case ATA_PACKET:
       gdrom_event(gd, EV_SPI_WAIT_CMD, 0, 0);
       break;
 
-    // case ATA_IDENTIFY_DEV:
-    //   LOG_FATAL("Unhandled");
-    //   break;
+    /*case ATA_IDENTIFY_DEV:
+        LOG_FATAL("Unhandled");
+        break;*/
 
     case ATA_SET_FEATURES:
-      // FIXME I think we're supposed to be honoring GD_SECTCNT here to control
-      // the DMA setting used by CD_READ
+      /* FIXME I think we're supposed to be honoring GD_SECTCNT here to control
+         the DMA setting used by CD_READ */
       gdrom_event(gd, EV_ATA_CMD_DONE, 0, 0);
       break;
 
@@ -211,13 +213,15 @@ static void gdrom_ata_cmd(struct gdrom *gd, enum gd_ata_cmd cmd) {
 static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
   enum gd_spi_cmd cmd = (enum gd_spi_cmd)data[0];
 
+  LOG_INFO("gdrom_spi_cmd 0x%x", cmd);
+
   gd->status.DRQ = 0;
   gd->status.BSY = 1;
 
   switch (cmd) {
-    //
-    // Packet Command Flow For PIO DATA To Host
-    //
+    /*
+     * Packet Command Flow For PIO DATA To Host
+     */
     case SPI_REQ_STAT: {
       int addr = data[2];
       int sz = data[4];
@@ -241,8 +245,8 @@ static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
       gdrom_event(gd, EV_SPI_WRITE_START, (intptr_t)&reply_11[addr >> 1], sz);
     } break;
 
-    // case SPI_REQ_ERROR:
-    //   break;
+    /*case SPI_REQ_ERROR:
+        break;*/
 
     case SPI_GET_TOC: {
       enum gd_area area_type = (enum gd_area)(data[1] & 0x1);
@@ -282,21 +286,21 @@ static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
       gdrom_event(gd, EV_SPI_WRITE_SECTORS, 0, 0);
     } break;
 
-    // case SPI_CD_READ2:
-    //   break;
+    /*case SPI_CD_READ2:
+         break;*/
 
-    //
-    // Transfer Packet Command Flow For PIO Data from Host
-    //
+    /*
+     * Transfer Packet Command Flow For PIO Data from Host
+     */
     case SPI_SET_MODE: {
       int offset = data[2];
       int size = data[4];
       gdrom_event(gd, EV_SPI_READ_START, offset, size);
     } break;
 
-    //
-    // Non-Data Command Flow
-    //
+    /*
+     * Non-Data Command Flow
+     */
     case SPI_TEST_UNIT:
       gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
       break;
@@ -352,6 +356,8 @@ static int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
 
 static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
                         intptr_t arg1) {
+  enum gd_state old_state = gd->state;
+
   switch (ev) {
     case EV_ATA_CMD_DONE: {
       CHECK_EQ(gd->state, STATE_STANDBY);
@@ -440,34 +446,34 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
       if (gd->req.dma) {
         int max_dma_size = gd->req.num_sectors * SECTOR_SIZE;
 
-        // reserve the worst case size
+        /* reserve the worst case size */
         if (max_dma_size > gd->dma_capacity) {
           gd->dma_buffer = realloc(gd->dma_buffer, max_dma_size);
           gd->dma_capacity = max_dma_size;
         }
 
-        // read to DMA buffer
+        /* read to DMA buffer */
         gd->dma_size = gdrom_read_sectors(
             gd, gd->req.first_sector, gd->req.sector_fmt, gd->req.sector_mask,
             gd->req.num_sectors, gd->dma_buffer, gd->dma_capacity);
         gd->dma_head = 0;
 
-        // gdrom state won't be updated until DMA transfer is completed
+        /* gdrom state won't be updated until DMA transfer is completed */
       } else {
         int max_pio_sectors = sizeof(gd->pio_buffer) / SECTOR_SIZE;
 
-        // fill PIO buffer with as many sectors as possible
+        /* fill PIO buffer with as many sectors as possible */
         int num_sectors = MIN(gd->req.num_sectors, max_pio_sectors);
         gd->pio_size = gdrom_read_sectors(
             gd, gd->req.first_sector, gd->req.sector_fmt, gd->req.sector_mask,
             num_sectors, gd->pio_buffer, (int)sizeof(gd->pio_buffer));
         gd->pio_head = 0;
 
-        // update sector read state
+        /* update sector read state */
         gd->req.first_sector += num_sectors;
         gd->req.num_sectors -= num_sectors;
 
-        // update gdrom state
+        /* update gdrom state */
         gd->byte_count.full = gd->pio_size;
         gd->ireason.IO = 1;
         gd->ireason.CoD = 0;
@@ -484,8 +490,8 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
       CHECK(gd->state == STATE_SPI_WRITE_DATA ||
             gd->state == STATE_SPI_WRITE_SECTORS);
 
-      // if there are still sectors remaining to be written out to the PIO
-      // buffer, continue doing so
+      /* if there are still sectors remaining to be written out to the PIO
+         buffer, continue doing so */
       if (gd->state == STATE_SPI_WRITE_SECTORS && gd->req.num_sectors) {
         gdrom_event(gd, EV_SPI_WRITE_SECTORS, 0, 0);
       } else {
@@ -510,6 +516,8 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
       gd->state = STATE_STANDBY;
     } break;
   }
+
+  LOG_INFO("gdrom_event %d, old_state %d, new_state %d", ev, old_state, gd->state);
 }
 
 static bool gdrom_init(struct device *dev) {
@@ -520,26 +528,13 @@ static bool gdrom_init(struct device *dev) {
   return true;
 }
 
-void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
-  if (gd->disc != disc) {
-    if (gd->disc) {
-      disc_destroy(gd->disc);
-    }
+void gdrom_dma_end(struct gdrom *gd) {
+  /* reset DMA write state */
+  gd->dma_size = 0;
 
-    gd->disc = disc;
-  }
-
-  // looking at "6.1.1 CD Drive State Transition Diagram" in CDIF131E.pdf, it
-  // seems standby is the default state for when a disc is inserted
-  gd->sectnum.status = gd->disc ? DST_STANDBY : DST_NODISC;
-  gd->sectnum.format = DISC_GDROM;
-
-  gd->status.full = 0;
-  gd->status.DRDY = 1;
-  gd->status.BSY = 0;
+  /* CD_READ command is now done */
+  gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
 }
-
-void gdrom_dma_begin(struct gdrom *gd) {}
 
 int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int data_size) {
   int remaining = gd->dma_size - gd->dma_head;
@@ -549,18 +544,25 @@ int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int data_size) {
   return n;
 }
 
-void gdrom_dma_end(struct gdrom *gd) {
-  // reset DMA write state
-  gd->dma_size = 0;
+void gdrom_dma_begin(struct gdrom *gd) {}
 
-  // CD_READ command is now done
-  gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
-}
+void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
+  if (gd->disc != disc) {
+    if (gd->disc) {
+      disc_destroy(gd->disc);
+    }
 
-struct gdrom *gdrom_create(struct dreamcast *dc) {
-  struct gdrom *gd =
-      dc_create_device(dc, sizeof(struct gdrom), "gdrom", &gdrom_init);
-  return gd;
+    gd->disc = disc;
+  }
+
+  /* looking at "6.1.1 CD Drive State Transition Diagram" in CDIF131E.pdf, it
+     seems standby is the default state for when a disc is inserted */
+  gd->sectnum.status = gd->disc ? DST_STANDBY : DST_NODISC;
+  gd->sectnum.format = DISC_GDROM;
+
+  gd->status.full = 0;
+  gd->status.DRDY = 1;
+  gd->status.BSY = 0;
 }
 
 void gdrom_destroy(struct gdrom *gd) {
@@ -571,15 +573,21 @@ void gdrom_destroy(struct gdrom *gd) {
   dc_destroy_device((struct device *)gd);
 }
 
+struct gdrom *gdrom_create(struct dreamcast *dc) {
+  struct gdrom *gd =
+      dc_create_device(dc, sizeof(struct gdrom), "gdrom", &gdrom_init);
+  return gd;
+}
+
 REG_R32(holly_cb, GD_ALTSTAT_DEVCTRL) {
   struct gdrom *gd = dc->gdrom;
-  // this register is the same as the status register, but it does not
-  // clear DMA status information when it is accessed
+  /* this register is the same as the status register, but it does not
+     clear DMA status information when it is accessed */
   return gd->status.full;
 }
 
 REG_W32(holly_cb, GD_ALTSTAT_DEVCTRL) {
-  // LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value);
+  /* LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value); */
 }
 
 REG_R32(holly_cb, GD_DATA) {
@@ -597,7 +605,7 @@ REG_W32(holly_cb, GD_DATA) {
   *(uint16_t *)&gd->pio_buffer[gd->pio_head] = (uint16_t)(value & 0xffff);
   gd->pio_head += 2;
 
-  // check if we've finished reading a command / the remaining data
+  /* check if we've finished reading a command / the remaining data */
   if ((gd->state == STATE_SPI_READ_CMD && gd->pio_head == SPI_CMD_SIZE) ||
       (gd->state == STATE_SPI_READ_DATA && gd->pio_head == gd->pio_size)) {
     gdrom_event(gd, EV_SPI_READ_END, 0, 0);
@@ -605,7 +613,7 @@ REG_W32(holly_cb, GD_DATA) {
 }
 
 REG_R32(holly_cb, GD_ERROR_FEATURES) {
-  // LOG_INFO("GD_ERROR");
+  /* LOG_INFO("GD_ERROR"); */
   return 0;
 }
 
