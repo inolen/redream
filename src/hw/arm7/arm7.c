@@ -10,8 +10,8 @@
 #include "jit/frontend/armv3/armv3_analyze.h"
 #include "jit/frontend/armv3/armv3_context.h"
 #include "jit/frontend/armv3/armv3_disasm.h"
-#include "jit/frontend/armv3/armv3_fallback.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
+#include "jit/frontend/armv3/armv3_translate.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
@@ -185,8 +185,8 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
   /* emit fallbacks */
   for (int i = 0; i < size; i += 4) {
     uint32_t data = arm->jit->r32(arm->jit->space, addr + i);
-    void *fallback = armv3_fallback(data);
-    ir_call_fallback(ir, fallback, addr + i, data);
+    armv3_emit_instr((struct armv3_frontend *)arm->frontend, ir, 0, addr + i,
+                     data);
   }
 
   ir_branch(ir, ir_alloc_i64(ir, (uint64_t)arm7_dispatch_dynamic));
