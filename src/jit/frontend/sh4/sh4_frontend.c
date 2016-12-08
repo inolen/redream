@@ -21,7 +21,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
                                    int size) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  struct jit *jit = frontend->jit;
+  struct jit_guest *guest = frontend->jit->guest;
 
   char buffer[128];
 
@@ -30,7 +30,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
   while (i < size) {
     struct sh4_instr instr = {0};
     instr.addr = addr + i;
-    instr.opcode = jit->r16(jit->space, instr.addr);
+    instr.opcode = guest->r16(guest->space, instr.addr);
     sh4_disasm(&instr);
 
     sh4_format(&instr, buffer, sizeof(buffer));
@@ -41,7 +41,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
     if (instr.flags & SH4_FLAG_DELAYED) {
       struct sh4_instr delay = {0};
       delay.addr = addr + i;
-      delay.opcode = jit->r16(jit->space, delay.addr);
+      delay.opcode = guest->r16(guest->space, delay.addr);
       sh4_disasm(&delay);
 
       sh4_format(&delay, buffer, sizeof(buffer));

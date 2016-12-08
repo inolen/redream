@@ -24,9 +24,10 @@ struct arm7 {
   struct armv3_context ctx;
 
   /* jit */
+  struct jit *jit;
+  struct jit_guest *guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
-  struct jit *jit;
 
   /* interrupts */
   uint32_t requested_interrupts;
@@ -184,7 +185,7 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
 
   /* emit fallbacks */
   for (int i = 0; i < size; i += 4) {
-    uint32_t data = arm->jit->r32(arm->jit->space, addr + i);
+    uint32_t data = as_read32(arm->memory_if->space, addr + i);
     armv3_emit_instr((struct armv3_frontend *)arm->frontend, ir, 0, addr + i,
                      data);
   }
@@ -212,23 +213,26 @@ static bool arm7_init(struct device *dev) {
   struct dreamcast *dc = arm->dc;
 
   /* initialize jit and its interfaces */
-  struct jit *jit = jit_create("arm7");
-  arm7_dispatch_init(arm, jit, &arm->ctx, arm->memory_if->space->base);
-  jit->ctx = &arm->ctx;
-  jit->mem = arm->memory_if->space->base;
-  jit->lookup_code = &arm7_dispatch_lookup_code;
-  jit->cache_code = &arm7_dispatch_cache_code;
-  jit->invalidate_code = &arm7_dispatch_invalidate_code;
-  jit->patch_edge = &arm7_dispatch_patch_edge;
-  jit->restore_edge = &arm7_dispatch_restore_edge;
-  jit->space = arm->memory_if->space;
-  jit->r8 = &as_read8;
-  jit->r16 = &as_read16;
-  jit->r32 = &as_read32;
-  jit->w8 = &as_write8;
-  jit->w16 = &as_write16;
-  jit->w32 = &as_write32;
-  arm->jit = jit;
+  arm->jit = jit_create("arm7");
+
+  arm7_dispatch_init(arm, arm->jit, &arm->ctx, arm->memory_if->space->base);
+
+  struct jit_guest *guest = malloc(sizeof(struct jit_guest));
+  guest->ctx = &arm->ctx;
+  guest->mem = arm->memory_if->space->base;
+  guest->space = arm->memory_if->space;
+  guest->lookup_code = &arm7_dispatch_lookup_code;
+  guest->cache_code = &arm7_dispatch_cache_code;
+  guest->invalidate_code = &arm7_dispatch_invalidate_code;
+  guest->patch_edge = &arm7_dispatch_patch_edge;
+  guest->restore_edge = &arm7_dispatch_restore_edge;
+  guest->r8 = &as_read8;
+  guest->r16 = &as_read16;
+  guest->r32 = &as_read32;
+  guest->w8 = &as_write8;
+  guest->w16 = &as_write16;
+  guest->w32 = &as_write32;
+  arm->guest = guest;
 
   struct armv3_frontend *frontend =
       (struct armv3_frontend *)armv3_frontend_create(arm->jit);
@@ -243,7 +247,7 @@ static bool arm7_init(struct device *dev) {
       x64_backend_create(arm->jit, arm7_code, arm7_code_size, arm7_stack_size);
   arm->backend = backend;
 
-  if (!jit_init(arm->jit, arm->frontend, arm->backend)) {
+  if (!jit_init(arm->jit, arm->guest, arm->frontend, arm->backend)) {
     return false;
   }
 
@@ -263,6 +267,10 @@ void arm7_destroy(struct arm7 *arm) {
 
   if (arm->frontend) {
     armv3_frontend_destroy(arm->frontend);
+  }
+
+  if (arm->guest) {
+    free(arm->guest);
   }
 
   dc_destroy_memory_interface(arm->memory_if);

@@ -40,22 +40,7 @@ struct jit_edge {
   struct list_node out_it;
 };
 
-struct jit {
-  char tag[32];
-
-  /* */
-  struct jit_frontend *frontend;
-
-  /* */
-  struct jit_backend *backend;
-
-  /* backend dispatch interface */
-  void *(*lookup_code)(uint32_t);
-  void (*cache_code)(uint32_t, void *);
-  void (*invalidate_code)(uint32_t);
-  void (*patch_edge)(void *, void *);
-  void (*restore_edge)(void *, uint32_t);
-
+struct jit_guest {
   /* memory interface */
   void *ctx;
   void *mem;
@@ -69,9 +54,21 @@ struct jit {
   void (*w32)(struct address_space *, uint32_t, uint32_t);
   void (*w64)(struct address_space *, uint32_t, uint64_t);
 
-  struct exception_handler *exc_handler;
+  /* dispatch interface */
+  void *(*lookup_code)(uint32_t);
+  void (*cache_code)(uint32_t, void *);
+  void (*invalidate_code)(uint32_t);
+  void (*patch_edge)(void *, void *);
+  void (*restore_edge)(void *, uint32_t);
+};
 
-  int dump_compiled_blocks;
+struct jit {
+  char tag[32];
+
+  struct jit_guest *guest;
+  struct jit_frontend *frontend;
+  struct jit_backend *backend;
+  struct exception_handler *exc_handler;
 
   /* scratch compilation buffer */
   uint8_t ir_buffer[1024 * 1024];
@@ -80,6 +77,9 @@ struct jit {
   struct rb_tree blocks;
   struct rb_tree reverse_blocks;
 
+  /* debug flag for dumping blocks as they are compiled */
+  int dump_compiled_blocks;
+
   /* compiled block perf map */
   FILE *perf_map;
 };
@@ -87,8 +87,8 @@ struct jit {
 struct jit *jit_create(const char *tag);
 void jit_destroy(struct jit *jit);
 
-int jit_init(struct jit *jit, struct jit_frontend *frontend,
-             struct jit_backend *backend);
+int jit_init(struct jit *jit, struct jit_guest *guest,
+             struct jit_frontend *frontend, struct jit_backend *backend);
 
 int jit_is_dumping(struct jit *jit);
 void jit_toggle_dumping(struct jit *jit);

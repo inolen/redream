@@ -388,6 +388,7 @@ static void x64_backend_dump_code(struct jit_backend *base,
 static bool x64_backend_handle_exception(struct jit_backend *base,
                                          struct exception *ex) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
+  struct jit_guest *guest = backend->base.jit->guest;
 
   const uint8_t *data = reinterpret_cast<const uint8_t *>(ex->thread_state.rip);
 
@@ -418,27 +419,22 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
 
   if (mov.is_load) {
     // prep argument registers (memory object, guest_addr) for read function
-    ex->thread_state.r[x64_arg0_idx] =
-        reinterpret_cast<uint64_t>(backend->base.jit->space);
+    ex->thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(guest->space);
     ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
 
     // prep function call address for thunk
     switch (mov.operand_size) {
       case 1:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->base.jit->r8);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r8);
         break;
       case 2:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->base.jit->r16);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r16);
         break;
       case 4:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->base.jit->r32);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r32);
         break;
       case 8:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->base.jit->r64);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r64);
         break;
     }
 
@@ -448,28 +444,23 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
   } else {
     // prep argument registers (memory object, guest_addr, value) for write
     // function
-    ex->thread_state.r[x64_arg0_idx] =
-        reinterpret_cast<uint64_t>(backend->base.jit->space);
+    ex->thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(guest->space);
     ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
     ex->thread_state.r[x64_arg2_idx] = ex->thread_state.r[mov.reg];
 
     // prep function call address for thunk
     switch (mov.operand_size) {
       case 1:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->base.jit->w8);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w8);
         break;
       case 2:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->base.jit->w16);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w16);
         break;
       case 4:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->base.jit->w32);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w32);
         break;
       case 8:
-        ex->thread_state.rax =
-            reinterpret_cast<uint64_t>(backend->base.jit->w64);
+        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w64);
         break;
     }
 
@@ -613,58 +604,60 @@ EMITTER(STORE_FAST) {
 }
 
 EMITTER(LOAD_SLOW) {
+  struct jit_guest *guest = backend->base.jit->guest;
   const Xbyak::Reg result = x64_backend_register(backend, instr->result);
   const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   void *fn = nullptr;
   switch (instr->result->type) {
     case VALUE_I8:
-      fn = reinterpret_cast<void *>(backend->base.jit->r8);
+      fn = reinterpret_cast<void *>(guest->r8);
       break;
     case VALUE_I16:
-      fn = reinterpret_cast<void *>(backend->base.jit->r16);
+      fn = reinterpret_cast<void *>(guest->r16);
       break;
     case VALUE_I32:
-      fn = reinterpret_cast<void *>(backend->base.jit->r32);
+      fn = reinterpret_cast<void *>(guest->r32);
       break;
     case VALUE_I64:
-      fn = reinterpret_cast<void *>(backend->base.jit->r64);
+      fn = reinterpret_cast<void *>(guest->r64);
       break;
     default:
       LOG_FATAL("Unexpected load result type");
       break;
   }
 
-  e.mov(arg0, reinterpret_cast<uint64_t>(backend->base.jit->space));
+  e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
   e.mov(arg1, a);
   e.call(reinterpret_cast<void *>(fn));
   e.mov(result, e.rax);
 }
 
 EMITTER(STORE_SLOW) {
+  struct jit_guest *guest = backend->base.jit->guest;
   const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
   const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
 
   void *fn = nullptr;
   switch (instr->arg[1]->type) {
     case VALUE_I8:
-      fn = reinterpret_cast<void *>(backend->base.jit->w8);
+      fn = reinterpret_cast<void *>(guest->w8);
       break;
     case VALUE_I16:
-      fn = reinterpret_cast<void *>(backend->base.jit->w16);
+      fn = reinterpret_cast<void *>(guest->w16);
       break;
     case VALUE_I32:
-      fn = reinterpret_cast<void *>(backend->base.jit->w32);
+      fn = reinterpret_cast<void *>(guest->w32);
       break;
     case VALUE_I64:
-      fn = reinterpret_cast<void *>(backend->base.jit->w64);
+      fn = reinterpret_cast<void *>(guest->w64);
       break;
     default:
       LOG_FATAL("Unexpected store value type");
       break;
   }
 
-  e.mov(arg0, reinterpret_cast<uint64_t>(backend->base.jit->space));
+  e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
   e.mov(arg1, a);
   e.mov(arg2, b);
   e.call(reinterpret_cast<void *>(fn));

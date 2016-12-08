@@ -283,23 +283,26 @@ static bool sh4_init(struct device *dev) {
   struct dreamcast *dc = sh4->dc;
 
   /* initialize jit and its interfaces */
-  struct jit *jit = jit_create("sh4");
-  sh4_dispatch_init(sh4, jit, &sh4->ctx, sh4->memory_if->space->base);
-  jit->ctx = &sh4->ctx;
-  jit->mem = sh4->memory_if->space->base;
-  jit->lookup_code = &sh4_dispatch_lookup_code;
-  jit->cache_code = &sh4_dispatch_cache_code;
-  jit->invalidate_code = &sh4_dispatch_invalidate_code;
-  jit->patch_edge = &sh4_dispatch_patch_edge;
-  jit->restore_edge = &sh4_dispatch_restore_edge;
-  jit->space = sh4->memory_if->space;
-  jit->r8 = &as_read8;
-  jit->r16 = &as_read16;
-  jit->r32 = &as_read32;
-  jit->w8 = &as_write8;
-  jit->w16 = &as_write16;
-  jit->w32 = &as_write32;
-  sh4->jit = jit;
+  sh4->jit = jit_create("sh4");
+
+  sh4_dispatch_init(sh4, sh4->jit, &sh4->ctx, sh4->memory_if->space->base);
+
+  struct jit_guest *guest = malloc(sizeof(struct jit_guest));
+  guest->ctx = &sh4->ctx;
+  guest->mem = sh4->memory_if->space->base;
+  guest->space = sh4->memory_if->space;
+  guest->lookup_code = &sh4_dispatch_lookup_code;
+  guest->cache_code = &sh4_dispatch_cache_code;
+  guest->invalidate_code = &sh4_dispatch_invalidate_code;
+  guest->patch_edge = &sh4_dispatch_patch_edge;
+  guest->restore_edge = &sh4_dispatch_restore_edge;
+  guest->r8 = &as_read8;
+  guest->r16 = &as_read16;
+  guest->r32 = &as_read32;
+  guest->w8 = &as_write8;
+  guest->w16 = &as_write16;
+  guest->w32 = &as_write32;
+  sh4->guest = guest;
 
   struct sh4_frontend *frontend =
       (struct sh4_frontend *)sh4_frontend_create(sh4->jit);
@@ -315,7 +318,7 @@ static bool sh4_init(struct device *dev) {
       x64_backend_create(sh4->jit, sh4_code, sh4_code_size, sh4_stack_size);
   sh4->backend = backend;
 
-  if (!jit_init(sh4->jit, sh4->frontend, sh4->backend)) {
+  if (!jit_init(sh4->jit, sh4->guest, sh4->frontend, sh4->backend)) {
     return false;
   }
 
@@ -333,6 +336,10 @@ void sh4_destroy(struct sh4 *sh4) {
 
   if (sh4->frontend) {
     sh4_frontend_destroy(sh4->frontend);
+  }
+
+  if (sh4->guest) {
+    free(sh4->guest);
   }
 
   dc_destroy_window_interface(sh4->window_if);
