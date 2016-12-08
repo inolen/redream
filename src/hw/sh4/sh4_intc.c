@@ -23,7 +23,7 @@ int sh4_intc_check_pending(struct sh4 *sh4) {
     return 0;
   }
 
-  // process the highest priority in the pending vector
+  /* process the highest priority in the pending vector */
   int n = 63 - clz64(sh4->ctx.pending_interrupts);
   enum sh4_interrupt intr = sh4->sorted_interrupts[n];
   struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
@@ -39,19 +39,19 @@ int sh4_intc_check_pending(struct sh4 *sh4) {
   return 1;
 }
 
-// generate a sorted set of interrupts based on their priority. these sorted
-// ids are used to represent all of the currently requested interrupts as a
-// simple bitmask
+/* generate a sorted set of interrupts based on their priority. these sorted
+   ids are used to represent all of the currently requested interrupts as a
+   simple bitmask */
 void sh4_intc_reprioritize(struct sh4 *sh4) {
   uint64_t old = sh4->requested_interrupts;
   sh4->requested_interrupts = 0;
 
   for (int i = 0, n = 0; i < 16; i++) {
-    // for even priorities, give precedence to lower id interrupts
+    /* for even priorities, give precedence to lower id interrupts */
     for (int j = NUM_SH_INTERRUPTS - 1; j >= 0; j--) {
       struct sh4_interrupt_info *int_info = &sh4_interrupts[j];
 
-      // get current priority for interrupt
+      /* get current priority for interrupt */
       int priority = int_info->default_priority;
       if (int_info->ipr) {
         uint32_t ipr = sh4->reg[int_info->ipr];
@@ -69,12 +69,12 @@ void sh4_intc_reprioritize(struct sh4 *sh4) {
       n++;
 
       if (was_requested) {
-        // rerequest with new sorted id
+        /* rerequest with new sorted id */
         sh4->requested_interrupts |= sh4->sort_id[j];
       }
     }
 
-    // generate a mask for all interrupts up to the current priority
+    /* generate a mask for all interrupts up to the current priority */
     sh4->priority_mask[i] = ((uint64_t)1 << n) - 1;
   }
 

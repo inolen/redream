@@ -27,7 +27,7 @@ static void sh4_dmac_check(struct sh4 *sh4, int channel) {
 
 void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
   if (dtr->data) {
-    // single address mode transfer
+    /* single address mode transfer */
     if (dtr->rw) {
       as_memcpy_to_guest(sh4->memory_if->space, dtr->addr, dtr->data,
                          dtr->size);
@@ -35,9 +35,9 @@ void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
       as_memcpy_to_host(sh4->memory_if->space, dtr->data, dtr->addr, dtr->size);
     }
   } else {
-    // dual address mode transfer
-    // NOTE this should be made asynchronous, at which point the significance
-    // of the registers / interrupts should be more obvious
+    /* dual address mode transfer */
+    /* FIXME this should be made asynchronous, at which point the significance
+       of the registers / interrupts should be more obvious */
     uint32_t *sar;
     uint32_t *dar;
     uint32_t *dmatcr;
@@ -83,15 +83,15 @@ void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
     int size = *dmatcr * 32;
     as_memcpy(sh4->memory_if->space, dst, src, size);
 
-    // update src / addresses as well as remaining count
+    /* update src / addresses as well as remaining count */
     *sar = src + size;
     *dar = dst + size;
     *dmatcr = 0;
 
-    // signal transfer end
+    /* signal transfer end */
     chcr->TE = 1;
 
-    // raise interrupt if requested
+    /* raise interrupt if requested */
     if (chcr->IE) {
       sh4_raise_interrupt(sh4, dmte);
     }

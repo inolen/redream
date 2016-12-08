@@ -1,4 +1,4 @@
-//      ADDR        NAME         DEFAULT     TYPE
+/*      ADDR        NAME         DEFAULT     TYPE */
 SH4_REG(0xff000000, PTEH,        0x00000000, uint32_t)
 SH4_REG(0xff000004, PTEL,        0x00000000, uint32_t)
 SH4_REG(0xff000008, TTB,         0x00000000, uint32_t)

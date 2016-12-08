@@ -1,18 +1,22 @@
 #include "hw/sh4/sh4.h"
 #include "jit/jit.h"
 
-// with OIX, bit 25, rather than bit 13, determines which 4kb bank to use
+/* with OIX, bit 25, rather than bit 13, determines which 4kb bank to use */
 #define CACHE_OFFSET(addr, OIX) \
   ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
 
 static void sh4_ccn_reset(struct sh4 *sh4) {
-  // FIXME this isn't right. When the IC is reset a pending flag is set and the
-  // cache is actually reset at the end of the current block. However, the docs
-  // for the SH4 IC state "After CCR is updated, an instruction that performs
-  // data access to the P0, P1, P3, or U0 area should be located at least four
-  // instructions after the CCR update instruction. Also, a branch instruction
-  // to the P0, P1, P3, or U0 area should be located at least eight instructions
-  // after the CCR update instruction."
+  /* FIXME this isn't right. when the IC is reset a pending flag is set and the
+     cache is actually reset at the end of the current block. however, the docs
+     for the SH4 IC state "After CCR is updated, an instruction that performs
+     data access to the P0, P1, P3, or U0 area should be located at least four
+     instructions after the CCR update instruction. Also, a branch instruction
+     to the P0, P1, P3, or U0 area should be located at least eight instructions
+     after the CCR update instruction."
+
+     i'm not sure if this will ever actually cause problems, but there may need
+     to be some const prop that tries to detect writes to CCR and prematurely
+     end the block */
   LOG_INFO("sh4_ccn_reset");
 
   jit_invalidate_blocks(sh4->jit);
@@ -22,12 +26,12 @@ void sh4_ccn_prefetch(void *data, uint64_t addr64) {
   struct sh4 *sh4 = data;
   uint32_t addr = (uint32_t)addr64;
 
-  // only concerned about SQ related prefetches
+  /* only concerned about SQ related prefetches */
   if (addr < 0xe0000000 || addr > 0xe3ffffff) {
     return;
   }
 
-  // figure out the source and destination
+  /* figure out the source and destination */
   uint32_t dest = addr & 0x03ffffe0;
   uint32_t sqi = (addr & 0x20) >> 5;
   if (sqi) {
@@ -36,7 +40,7 @@ void sh4_ccn_prefetch(void *data, uint64_t addr64) {
     dest |= (*sh4->QACR0 & 0x1c) << 24;
   }
 
-  // perform the "burst" 32-byte copy
+  /* perform the "burst" 32-byte copy */
   for (int i = 0; i < 8; i++) {
     as_write32(sh4->memory_if->space, dest, sh4->ctx.sq[sqi][i]);
     dest += 4;
