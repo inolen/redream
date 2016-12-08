@@ -3,7 +3,6 @@
 #include "core/profiler.h"
 #include "emu/emulator.h"
 #include "emu/tracer.h"
-#include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 #include "ui/window.h"
 
@@ -29,11 +28,6 @@ int main(int argc, char **argv) {
     return EXIT_SUCCESS;
   }
 
-  if (!exception_handler_install()) {
-    LOG_WARNING("Failed to initialize exception handler");
-    return EXIT_FAILURE;
-  }
-
   struct window *window = win_create();
   if (!window) {
     LOG_WARNING("Failed to initialize window");
@@ -56,8 +50,6 @@ int main(int argc, char **argv) {
   prof_shutdown();
 
   win_destroy(window);
-
-  exception_handler_uninstall();
 
   /* persist options for next run */
   options_write(config);

@@ -287,7 +287,7 @@ static bool sh4_init(struct device *dev) {
 
   sh4_dispatch_init(sh4, sh4->jit, &sh4->ctx, sh4->memory_if->space->base);
 
-  struct jit_guest *guest = malloc(sizeof(struct jit_guest));
+  struct jit_guest *guest = &sh4->guest;
   guest->ctx = &sh4->ctx;
   guest->mem = sh4->memory_if->space->base;
   guest->space = sh4->memory_if->space;
@@ -302,7 +302,6 @@ static bool sh4_init(struct device *dev) {
   guest->w8 = &as_write8;
   guest->w16 = &as_write16;
   guest->w32 = &as_write32;
-  sh4->guest = guest;
 
   struct sh4_frontend *frontend =
       (struct sh4_frontend *)sh4_frontend_create(sh4->jit);
@@ -318,7 +317,7 @@ static bool sh4_init(struct device *dev) {
       x64_backend_create(sh4->jit, sh4_code, sh4_code_size, sh4_stack_size);
   sh4->backend = backend;
 
-  if (!jit_init(sh4->jit, sh4->guest, sh4->frontend, sh4->backend)) {
+  if (!jit_init(sh4->jit, &sh4->guest, sh4->frontend, sh4->backend)) {
     return false;
   }
 
@@ -336,10 +335,6 @@ void sh4_destroy(struct sh4 *sh4) {
 
   if (sh4->frontend) {
     sh4_frontend_destroy(sh4->frontend);
-  }
-
-  if (sh4->guest) {
-    free(sh4->guest);
   }
 
   dc_destroy_window_interface(sh4->window_if);

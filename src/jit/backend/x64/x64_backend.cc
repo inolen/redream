@@ -254,9 +254,9 @@ const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
   return e.ptr[e.rip + backend->xmm_const[c]];
 }
 
-static bool x64_backend_can_encode_imm(const struct ir_value *v) {
+static int x64_backend_can_encode_imm(const struct ir_value *v) {
   if (!ir_is_constant(v)) {
-    return false;
+    return 0;
   }
 
   return v->type <= VALUE_I32;
@@ -385,8 +385,8 @@ static void x64_backend_dump_code(struct jit_backend *base,
   cs_free(insns, count);
 }
 
-static bool x64_backend_handle_exception(struct jit_backend *base,
-                                         struct exception *ex) {
+static int x64_backend_handle_exception(struct jit_backend *base,
+                                        struct exception *ex) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
   struct jit_guest *guest = backend->base.jit->guest;
 
@@ -395,7 +395,7 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
   // it's assumed a mov has triggered the exception
   struct x64_mov mov;
   if (!x64_decode_mov(data, &mov)) {
-    return false;
+    return 0;
   }
 
   // figure out the guest address that was being accessed
@@ -468,7 +468,7 @@ static bool x64_backend_handle_exception(struct jit_backend *base,
     ex->thread_state.rip = reinterpret_cast<uint64_t>(backend->store_thunk);
   }
 
-  return true;
+  return 1;
 }
 
 static void x64_backend_label_name(char *name, size_t size,

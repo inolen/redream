@@ -25,7 +25,7 @@ struct arm7 {
 
   /* jit */
   struct jit *jit;
-  struct jit_guest *guest;
+  struct jit_guest guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
 
@@ -217,7 +217,7 @@ static bool arm7_init(struct device *dev) {
 
   arm7_dispatch_init(arm, arm->jit, &arm->ctx, arm->memory_if->space->base);
 
-  struct jit_guest *guest = malloc(sizeof(struct jit_guest));
+  struct jit_guest *guest = &arm->guest;
   guest->ctx = &arm->ctx;
   guest->mem = arm->memory_if->space->base;
   guest->space = arm->memory_if->space;
@@ -232,7 +232,6 @@ static bool arm7_init(struct device *dev) {
   guest->w8 = &as_write8;
   guest->w16 = &as_write16;
   guest->w32 = &as_write32;
-  arm->guest = guest;
 
   struct armv3_frontend *frontend =
       (struct armv3_frontend *)armv3_frontend_create(arm->jit);
@@ -247,7 +246,7 @@ static bool arm7_init(struct device *dev) {
       x64_backend_create(arm->jit, arm7_code, arm7_code_size, arm7_stack_size);
   arm->backend = backend;
 
-  if (!jit_init(arm->jit, arm->guest, arm->frontend, arm->backend)) {
+  if (!jit_init(arm->jit, &arm->guest, arm->frontend, arm->backend)) {
     return false;
   }
 
@@ -267,10 +266,6 @@ void arm7_destroy(struct arm7 *arm) {
 
   if (arm->frontend) {
     armv3_frontend_destroy(arm->frontend);
-  }
-
-  if (arm->guest) {
-    free(arm->guest);
   }
 
   dc_destroy_memory_interface(arm->memory_if);

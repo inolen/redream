@@ -48,43 +48,43 @@ static void copy_state_from(union thread_state *src, mcontext_t *dst) {
 static void signal_handler(int signo, siginfo_t *info, void *ctx) {
   ucontext_t *uctx = ctx;
 
-  // convert signal to internal exception
+  /* convert signal to internal exception */
   struct exception ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
   ex.fault_addr = (uintptr_t)info->si_addr;
   ex.pc = uctx->uc_mcontext.gregs[REG_RIP];
   copy_state_to(&uctx->uc_mcontext, &ex.thread_state);
 
-  // call exception handler, letting it potentially update the thread state
-  bool handled = exception_handler_handle(&ex);
+  /* call exception handler, letting it potentially update the thread state */
+  int handled = exception_handler_handle(&ex);
 
   if (!handled) {
-    // uninstall the signal handler if we couldn't handle it, let the kernel do
-    // its job
+    /* uninstall the signal handler if we couldn't handle it, let the kernel do
+       its job */
     struct sigaction *old_sa = signo == SIGSEGV ? &old_sigsegv : &old_sigill;
     sigaction(signo, old_sa, NULL);
     return;
   }
 
-  // copy internal thread state back to mach thread state and restore
+  /* copy internal thread state back to mach thread state and restore */
   copy_state_from(&ex.thread_state, &uctx->uc_mcontext);
 }
 
-bool exception_handler_install_platform() {
+int exception_handler_install_platform() {
   struct sigaction new_sa;
   new_sa.sa_flags = SA_SIGINFO;
   sigemptyset(&new_sa.sa_mask);
   new_sa.sa_sigaction = &signal_handler;
 
   if (sigaction(SIGSEGV, &new_sa, &old_sigsegv) != 0) {
-    return false;
+    return 0;
   }
 
   if (sigaction(SIGILL, &new_sa, &old_sigill) != 0) {
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 void exception_handler_uninstall_platform() {

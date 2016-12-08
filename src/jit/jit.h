@@ -8,38 +8,6 @@
 struct address_space;
 struct ir;
 
-struct jit_block {
-  /* address of source block in guest memory */
-  uint32_t guest_addr;
-
-  /* address of compiled block in host memory */
-  void *host_addr;
-  int host_size;
-
-  /* edges to other blocks */
-  struct list in_edges;
-  struct list out_edges;
-
-  /* lookup map iterators */
-  struct rb_node it;
-  struct rb_node rit;
-};
-
-struct jit_edge {
-  struct jit_block *src;
-  struct jit_block *dst;
-
-  /* location of branch instruction in host memory */
-  void *branch;
-
-  /* has this branch been patched */
-  int patched;
-
-  /* iterators for edge lists */
-  struct list_node in_it;
-  struct list_node out_it;
-};
-
 struct jit_guest {
   /* memory interface */
   void *ctx;

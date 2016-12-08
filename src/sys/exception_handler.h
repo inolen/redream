@@ -1,13 +1,12 @@
 #ifndef EXCEPTION_HANDLER_H
 #define EXCEPTION_HANDLER_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 struct exception;
 struct exception_handler;
 
-typedef bool (*exception_handler_cb)(void *data, struct exception *ex);
+typedef int (*exception_handler_cb)(void *data, struct exception *ex);
 
 enum exception_type {
   EX_ACCESS_VIOLATION,
@@ -29,13 +28,12 @@ struct exception {
   union thread_state thread_state;
 };
 
-bool exception_handler_install();
-bool exception_handler_install_platform();
-void exception_handler_uninstall();
+int exception_handler_install_platform();
 void exception_handler_uninstall_platform();
+
 struct exception_handler *exception_handler_add(void *data,
                                                 exception_handler_cb cb);
 void exception_handler_remove(struct exception_handler *handler);
-bool exception_handler_handle(struct exception *ex);
+int exception_handler_handle(struct exception *ex);
 
 #endif
