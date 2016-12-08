@@ -144,8 +144,8 @@ static void gdrom_get_session(struct gdrom *gd, int session,
 
     /* TODO start_fad for non GD-Roms I guess is 0x4650 */
     if (1 /* is gd-rom */) {
-      ses->first_track = 2;               /* num sessions */
-      ses->start_fad = SWAP_24(0x861b4);  /* end fad */
+      ses->first_track = 2;              /* num sessions */
+      ses->start_fad = SWAP_24(0x861b4); /* end fad */
     }
   } else if (session == 1) {
     ses->first_track = 1;
@@ -517,7 +517,8 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
     } break;
   }
 
-  LOG_INFO("gdrom_event %d, old_state %d, new_state %d", ev, old_state, gd->state);
+  LOG_INFO("gdrom_event %d, old_state %d, new_state %d", ev, old_state,
+           gd->state);
 }
 
 static bool gdrom_init(struct device *dev) {

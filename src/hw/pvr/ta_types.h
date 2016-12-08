@@ -6,16 +6,16 @@
 #include "core/rb_tree.h"
 
 enum {
-  // control params
+  /* control params */
   TA_PARAM_END_OF_LIST,
   TA_PARAM_USER_TILE_CLIP,
   TA_PARAM_OBJ_LIST_SET,
   TA_PARAM_RESERVED0,
-  // global params
+  /* global params */
   TA_PARAM_POLY_OR_VOL,
   TA_PARAM_SPRITE,
   TA_PARAM_RESERVED1,
-  // vertex params
+  /* vertex params */
   TA_PARAM_VERTEX,
   TA_NUM_PARAMS,
 };
@@ -53,7 +53,7 @@ enum {
 
 union pcw {
   struct {
-    // obj control
+    /* obj control */
     uint32_t uv_16bit : 1;
     uint32_t gouraud : 1;
     uint32_t offset : 1;
@@ -62,12 +62,12 @@ union pcw {
     uint32_t volume : 1;
     uint32_t shadow : 1;
     uint32_t reserved0 : 8;
-    // group control
+    /* group control */
     uint32_t user_clip : 2;
     uint32_t strip_len : 2;
     uint32_t reserved1 : 3;
     uint32_t group_en : 1;
-    // para control
+    /* para control */
     uint32_t list_type : 3;
     uint32_t reserved2 : 1;
     uint32_t end_of_strip : 1;
@@ -77,7 +77,7 @@ union pcw {
   uint32_t full;
 };
 
-// Image Synthesis Processor parameters
+/* Image Synthesis Processor parameters */
 union isp {
   struct {
     uint32_t reserved : 20;
@@ -94,7 +94,7 @@ union isp {
   uint32_t full;
 };
 
-// Texture and Shading Processor parameters
+/* Texture and Shading Processor parameters */
 union tsp {
   struct {
     uint32_t texture_v_size : 3;
@@ -119,9 +119,9 @@ union tsp {
   uint32_t full;
 };
 
-// Texture parameters
+/* Texture parameters */
 union tcw {
-  // rgb, yuv and bumpmap textures
+  /* rgb, yuv and bumpmap textures */
   struct {
     uint32_t texture_addr : 21;
     uint32_t reserved : 4;
@@ -131,7 +131,7 @@ union tcw {
     uint32_t vq_compressed : 1;
     uint32_t mip_mapped : 1;
   };
-  // palette textures
+  /* palette textures */
   struct {
     uint32_t texture_addr : 21;
     uint32_t palette_selector : 6;
@@ -142,9 +142,9 @@ union tcw {
   uint32_t full;
 };
 
-//
-// Global parameters
-//
+/*
+ * global parameters
+ */
 union poly_param {
   struct {
     union pcw pcw;
@@ -235,9 +235,9 @@ union poly_param {
   } modvol;
 };
 
-//
-// Vertex parameters
-//
+/*
+ * vertex parameters
+ */
 union vert_param {
   struct {
     union pcw pcw;
@@ -430,18 +430,18 @@ union vert_param {
   } sprite1;
 };
 
-// shared by tracer
+/* shared by tracer */
 #define TA_MAX_SURFS (1024 * 16)
 #define TA_MAX_VERTS (1024 * 64)
 #define TA_MAX_PARAMS 0x200000
 
-// worst case background vertex size, see ISP_BACKGND_T field
+/* worst case background vertex size, see ISP_BACKGND_T field */
 #define BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
 
 struct tile_ctx {
   uint32_t addr;
 
-  // pvr / ta state
+  /* pvr / ta state */
   bool autosort;
   int stride;
   int pal_pxl_format;
@@ -453,12 +453,12 @@ struct tile_ctx {
   float bg_depth;
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
-  // parameter buffer
+  /* parameter buffer */
   uint8_t *params;
   int cursor;
   int size;
 
-  // current global state
+  /* current global state */
   const union poly_param *last_poly;
   const union vert_param *last_vertex;
   int list_type;

@@ -208,7 +208,7 @@ REG_W32(pvr_cb, FB_R_CTRL) {
   pvr_reconfigure_spg(pvr);
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct pvr, pvr_reg_map);
   AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE("pvr reg",
                                              (mmio_read_cb)&pvr_reg_read,
@@ -224,4 +224,4 @@ AM_BEGIN(struct pvr, pvr_vram_map);
                                              (mmio_read_cb)&pvr_vram_interleaved_read,
                                              (mmio_write_cb)&pvr_vram_interleaved_write)
 AM_END();
-// clang-format on
+/* clang-format on */
