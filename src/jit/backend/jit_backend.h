@@ -1,7 +1,6 @@
 #ifndef JIT_BACKEND_H
 #define JIT_BACKEND_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 struct address_space;
@@ -25,7 +24,7 @@ struct jit_backend {
   void *(*assemble_code)(struct jit_backend *base, struct ir *ir, int *size);
   void (*dump_code)(struct jit_backend *base, const uint8_t *host_addr,
                     int size);
-  bool (*handle_exception)(struct jit_backend *base, struct exception *ex);
+  int (*handle_exception)(struct jit_backend *base, struct exception *ex);
 };
 
 #endif

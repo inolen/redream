@@ -6,6 +6,7 @@
 #include "hw/memory.h"
 #include "hw/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_context.h"
+#include "jit/jit.h"
 
 struct dreamcast;
 struct jit;
@@ -42,7 +43,7 @@ struct sh4 {
 
   /* jit */
   struct jit *jit;
-  struct jit_guest *guest;
+  struct jit_guest guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
 

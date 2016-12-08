@@ -19,6 +19,38 @@
 DEFINE_OPTION_BOOL(perf, false,
                    "Generate perf-compatible maps for genrated code");
 
+struct jit_block {
+  /* address of source block in guest memory */
+  uint32_t guest_addr;
+
+  /* address of compiled block in host memory */
+  void *host_addr;
+  int host_size;
+
+  /* edges to other blocks */
+  struct list in_edges;
+  struct list out_edges;
+
+  /* lookup map iterators */
+  struct rb_node it;
+  struct rb_node rit;
+};
+
+struct jit_edge {
+  struct jit_block *src;
+  struct jit_block *dst;
+
+  /* location of branch instruction in host memory */
+  void *branch;
+
+  /* has this branch been patched */
+  int patched;
+
+  /* iterators for edge lists */
+  struct list_node in_it;
+  struct list_node out_it;
+};
+
 static int block_map_cmp(const struct rb_node *rb_lhs,
                          const struct rb_node *rb_rhs) {
   const struct jit_block *lhs =
@@ -335,19 +367,19 @@ int jit_is_dumping(struct jit *jit) {
   return jit->dump_compiled_blocks;
 }
 
-static bool jit_handle_exception(void *data, struct exception *ex) {
+static int jit_handle_exception(void *data, struct exception *ex) {
   struct jit *jit = data;
 
   /* see if there is a cached block corresponding to the current pc */
   struct jit_block *block = jit_lookup_block_reverse(jit, (void *)ex->pc);
 
   if (!block) {
-    return false;
+    return 0;
   }
 
   /* let the backend attempt to handle the exception */
   if (!jit->backend->handle_exception(jit->backend, ex)) {
-    return false;
+    return 0;
   }
 
   /* invalidate the block so it's recompiled without fastmem optimizations
@@ -356,7 +388,7 @@ static bool jit_handle_exception(void *data, struct exception *ex) {
      exceptions */
   jit_invalidate_block(jit, block);
 
-  return true;
+  return 1;
 }
 
 int jit_init(struct jit *jit, struct jit_guest *guest,
