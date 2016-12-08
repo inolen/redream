@@ -149,7 +149,7 @@ static void emu_joy_add(void *data, int joystick_index) {
 static void emu_joy_remove(void *data, int joystick_index) {
   struct emu *emu = data;
 
-  dc_joy_add(emu->dc, joystick_index);
+  dc_joy_remove(emu->dc, joystick_index);
 }
 
 static void emu_close(void *data) {

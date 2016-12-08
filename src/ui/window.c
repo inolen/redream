@@ -18,6 +18,10 @@ static void win_destroy_joystick(struct window *win, SDL_Joystick *del) {
     if (*joy == del) {
       SDL_JoystickClose(*joy);
       *joy = NULL;
+      list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
+        if(listener->joy_remove)
+          listener->joy_remove(listener->data, i);
+      }
     }
   }
 }

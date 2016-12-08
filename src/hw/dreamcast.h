@@ -169,7 +169,8 @@ struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
 void dc_destroy_memory_interface(struct memory_interface *memory);
 
 struct window_interface *dc_create_window_interface(
-    device_debug_menu_cb debug_menu, device_keydown_cb keydown);
+    device_debug_menu_cb debug_menu, device_keydown_cb keydown,
+    device_joy_add_cb joy_add,       device_joy_remove_cb joy_remove);
 void dc_destroy_window_interface(struct window_interface *window);
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,

@@ -134,10 +134,13 @@ void dc_destroy_memory_interface(struct memory_interface *memory) {
 }
 
 struct window_interface *dc_create_window_interface(
-    device_debug_menu_cb debug_menu, device_keydown_cb keydown) {
+    device_debug_menu_cb debug_menu, device_keydown_cb keydown,
+    device_joy_add_cb joy_add,       device_joy_remove_cb joy_remove) {
   struct window_interface *window = calloc(1, sizeof(struct window_interface));
   window->debug_menu = debug_menu;
   window->keydown = keydown;
+  window->joy_add = joy_add;
+  window->joy_remove = joy_remove;
   return window;
 }
 
