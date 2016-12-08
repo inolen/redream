@@ -1,8 +1,6 @@
 #ifndef SH4_TRANSLATE_H
 #define SH4_TRANSLATE_H
 
-#include <stdint.h>
-
 struct ir;
 struct sh4_instr;
 struct sh4_frontend;
