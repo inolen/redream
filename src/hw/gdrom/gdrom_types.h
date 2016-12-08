@@ -2,16 +2,16 @@
 #define GDROM_TYPES_H
 
 enum gd_drive_status {
-  DST_BUSY,     /* State transition */
-  DST_PAUSE,    /* Pause */
-  DST_STANDBY,  /* Standby (drive stop) */
-  DST_PLAY,     /* CD playback */
-  DST_SEEK,     /* Seeking */
-  DST_SCAN,     /* Scanning */
-  DST_OPEN,     /* Tray is open */
-  DST_NODISC,   /* No disc */
-  DST_RETRY,    /* Read retry in progress (option) */
-  DST_ERROR,    /* Reading of disc TOC failed (state does not allow access) */
+  DST_BUSY,    /* State transition */
+  DST_PAUSE,   /* Pause */
+  DST_STANDBY, /* Standby (drive stop) */
+  DST_PLAY,    /* CD playback */
+  DST_SEEK,    /* Seeking */
+  DST_SCAN,    /* Scanning */
+  DST_OPEN,    /* Tray is open */
+  DST_NODISC,  /* No disc */
+  DST_RETRY,   /* Read retry in progress (option) */
+  DST_ERROR,   /* Reading of disc TOC failed (state does not allow access) */
 };
 
 enum gd_disc {
@@ -34,20 +34,20 @@ enum gd_ata_cmd {
 };
 
 enum gd_spi_cmd {
-  SPI_TEST_UNIT = 0x00,  /* Verify access readiness */
-  SPI_REQ_STAT = 0x10,   /* Get CD status */
-  SPI_REQ_MODE = 0x11,   /* Get various settings */
-  SPI_SET_MODE = 0x12,   /* Make various settings */
-  SPI_REQ_ERROR = 0x13,  /* Get error details */
-  SPI_GET_TOC = 0x14,    /* Get all TOC data */
-  SPI_REQ_SES = 0x15,    /* Get specified session data */
-  SPI_CD_OPEN = 0x16,    /* Open tray */
-  SPI_CD_PLAY = 0x20,    /* Play CD */
-  SPI_CD_SEEK = 0x21,    /* Seek for playback position */
-  SPI_CD_SCAN = 0x22,    /* Perform scan */
-  SPI_CD_READ = 0x30,    /* Read CD */
-  SPI_CD_READ2 = 0x31,   /* CD read (pre-read position) */
-  SPI_GET_SCD = 0x40,    /* Get subcode */
+  SPI_TEST_UNIT = 0x00, /* Verify access readiness */
+  SPI_REQ_STAT = 0x10,  /* Get CD status */
+  SPI_REQ_MODE = 0x11,  /* Get various settings */
+  SPI_SET_MODE = 0x12,  /* Make various settings */
+  SPI_REQ_ERROR = 0x13, /* Get error details */
+  SPI_GET_TOC = 0x14,   /* Get all TOC data */
+  SPI_REQ_SES = 0x15,   /* Get specified session data */
+  SPI_CD_OPEN = 0x16,   /* Open tray */
+  SPI_CD_PLAY = 0x20,   /* Play CD */
+  SPI_CD_SEEK = 0x21,   /* Seek for playback position */
+  SPI_CD_SCAN = 0x22,   /* Perform scan */
+  SPI_CD_READ = 0x30,   /* Read CD */
+  SPI_CD_READ2 = 0x31,  /* CD read (pre-read position) */
+  SPI_GET_SCD = 0x40,   /* Get subcode */
   SPI_UNKNOWN_70 = 0x70,
   SPI_UNKNOWN_71 = 0x71,
 };
@@ -117,9 +117,9 @@ union gd_features {
 union gd_intreason {
   uint32_t full;
   struct {
-    uint32_t CoD : 1;  /* "0" indicates data and "1" indicates a command. */
-    uint32_t IO : 1;   /* "1" indicates transfer from device to host, and "0"
-                          from host to device. */
+    uint32_t CoD : 1; /* "0" indicates data and "1" indicates a command. */
+    uint32_t IO : 1;  /* "1" indicates transfer from device to host, and "0"
+                         from host to device. */
     uint32_t reserved : 30;
   };
 };
