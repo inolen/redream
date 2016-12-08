@@ -27,33 +27,31 @@ static void maple_register_device(struct maple *mp, const char *device_type,
 }
 
 void maple_joy_add(struct device *d, int joystick_index) {
-  if(joystick_index >= MAPLE_NUM_PORTS) {
+  if (joystick_index >= MAPLE_NUM_PORTS) {
     return;
   }
   struct maple *mp = (struct maple *)d;
 
   /* Attach joystick to the first available port */
-  for(int i = 0; i <= joystick_index; i++) {
+  for (int i = 0; i <= joystick_index; i++) {
     if (!mp->devices[i][0]) {
       maple_register_device(mp, "controller", i, 0);
       break;
     }
   }
-
-
 }
 
 void maple_joy_remove(struct device *d, int joystick_index) {
-  if(joystick_index >= MAPLE_NUM_PORTS) {
+  if (joystick_index >= MAPLE_NUM_PORTS) {
     return;
   }
   struct maple *mp = (struct maple *)d;
 
   /* Remove all units for this joystick */
-  for(int i = 0; i < MAPLE_MAX_UNITS; i++) {
+  for (int i = 0; i < MAPLE_MAX_UNITS; i++) {
     struct maple_device *dev = mp->devices[joystick_index][i];
 
-    if(dev && dev->destroy) {
+    if (dev && dev->destroy) {
       dev->destroy(dev);
       mp->devices[joystick_index][i] = NULL;
     }
@@ -171,8 +169,8 @@ void maple_destroy(struct maple *mp) {
 struct maple *maple_create(struct dreamcast *dc) {
   struct maple *mp =
       dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
-  mp->window_if = dc_create_window_interface(NULL, &maple_keydown, &maple_joy_add,
-                                             &maple_joy_remove);
+  mp->window_if = dc_create_window_interface(NULL, &maple_keydown,
+                                             &maple_joy_add, &maple_joy_remove);
 
   /* add one controller and vmu by default */
   maple_register_device(mp, "controller", 0, 0);

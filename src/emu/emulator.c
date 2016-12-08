@@ -235,11 +235,16 @@ struct emu *emu_create(struct window *window) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
   emu->window = window;
-  emu->listener =
-      (struct window_listener){emu,                  &emu_paint,            &emu_debug_menu,
-                               &emu_joy_add,         &emu_joy_remove,       &emu_keydown,
-                               NULL,                 NULL,                  &emu_close,
-                               {0}};
+  emu->listener = (struct window_listener){emu,
+                                           &emu_paint,
+                                           &emu_debug_menu,
+                                           &emu_joy_add,
+                                           &emu_joy_remove,
+                                           &emu_keydown,
+                                           NULL,
+                                           NULL,
+                                           &emu_close,
+                                           {0}};
   win_add_listener(emu->window, &emu->listener);
 
   return emu;
