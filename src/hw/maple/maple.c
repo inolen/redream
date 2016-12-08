@@ -32,13 +32,10 @@ void maple_joy_add(struct device *d, int joystick_index) {
   }
   struct maple *mp = (struct maple *)d;
 
-  /* Attach joystick to the first available port */
-  for (int i = 0; i <= joystick_index; i++) {
-    if (!mp->devices[i][0]) {
-      maple_register_device(mp, "controller", i, 0);
-      break;
-    }
-  }
+  /* Attach joystick to the corresponding maple port */
+  if(!mp->devices[joystick_index][0])
+    maple_register_device(mp, "controller", joystick_index, 0);
+
 }
 
 void maple_joy_remove(struct device *d, int joystick_index) {
