@@ -6,14 +6,16 @@
 
 void armv3_analyze_block(const struct jit *jit, uint32_t addr, int *flags,
                          int *size) {
+  const struct jit_guest *guest = jit->guest;
+
   *size = 0;
 
   while (1) {
-    uint32_t data = jit->r32(jit->space, addr);
+    uint32_t data = guest->r32(guest->space, addr);
     union armv3_instr i = {data};
     struct armv3_desc *desc = armv3_disasm(i.raw);
 
-    // end block on invalid instruction
+    /* end block on invalid instruction */
     if (desc->op == ARMV3_OP_INVALID) {
       break;
     }
@@ -21,7 +23,7 @@ void armv3_analyze_block(const struct jit *jit, uint32_t addr, int *flags,
     addr += 4;
     *size += 4;
 
-    // stop emitting when pc is changed
+    /* stop emitting when pc is changed */
     if ((desc->flags & FLAG_BRANCH) ||
         ((desc->flags & FLAG_DATA) && i.data.rd == 15) ||
         (desc->flags & FLAG_PSR) ||

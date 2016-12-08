@@ -94,7 +94,7 @@ static struct jit_block *jit_lookup_block_reverse(struct jit *jit,
 }
 
 static int jit_is_stale(struct jit *jit, struct jit_block *block) {
-  void *code = jit->lookup_code(block->guest_addr);
+  void *code = jit->guest->lookup_code(block->guest_addr);
   return code != block->host_addr;
 }
 
@@ -106,7 +106,7 @@ static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
   list_for_each_entry(edge, &block->in_edges, struct jit_edge, in_it) {
     if (!edge->patched) {
       edge->patched = 1;
-      jit->patch_edge(edge->branch, edge->dst->host_addr);
+      jit->guest->patch_edge(edge->branch, edge->dst->host_addr);
     }
   }
 
@@ -114,7 +114,7 @@ static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
   list_for_each_entry(edge, &block->out_edges, struct jit_edge, out_it) {
     if (!edge->patched) {
       edge->patched = 1;
-      jit->patch_edge(edge->branch, edge->dst->host_addr);
+      jit->guest->patch_edge(edge->branch, edge->dst->host_addr);
     }
   }
 
@@ -128,7 +128,7 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
   list_for_each_entry(edge, &block->in_edges, struct jit_edge, in_it) {
     if (edge->patched) {
       edge->patched = 0;
-      jit->restore_edge(edge->branch, edge->dst->guest_addr);
+      jit->guest->restore_edge(edge->branch, edge->dst->guest_addr);
     }
   }
 
@@ -136,7 +136,7 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_invalidate_block(struct jit *jit, struct jit_block *block) {
-  jit->invalidate_code(block->guest_addr);
+  jit->guest->invalidate_code(block->guest_addr);
 
   jit_restore_edges(jit, block);
 
@@ -154,7 +154,7 @@ static void jit_invalidate_block(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_cache_block(struct jit *jit, struct jit_block *block) {
-  jit->cache_code(block->guest_addr, block->host_addr);
+  jit->guest->cache_code(block->guest_addr, block->host_addr);
 
   CHECK(list_empty(&block->in_edges));
   CHECK(list_empty(&block->out_edges));
@@ -359,12 +359,11 @@ static bool jit_handle_exception(void *data, struct exception *ex) {
   return true;
 }
 
-int jit_init(struct jit *jit, struct jit_frontend *frontend,
-             struct jit_backend *backend) {
+int jit_init(struct jit *jit, struct jit_guest *guest,
+             struct jit_frontend *frontend, struct jit_backend *backend) {
+  jit->guest = guest;
   jit->frontend = frontend;
   jit->backend = backend;
-
-  /* add handler to invalidate blocks when protected memory is accessed */
   jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
 
   /* open perf map if enabled */

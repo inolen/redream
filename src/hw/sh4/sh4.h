@@ -9,6 +9,7 @@
 
 struct dreamcast;
 struct jit;
+struct jit_guest;
 struct jit_frontend;
 struct jit_backend;
 
@@ -41,6 +42,7 @@ struct sh4 {
 
   /* jit */
   struct jit *jit;
+  struct jit_guest *guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
 
