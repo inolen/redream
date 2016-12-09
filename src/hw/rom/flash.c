@@ -221,6 +221,7 @@ struct flash *flash_create(struct dreamcast *dc) {
 AM_BEGIN(struct flash, flash_rom_map);
   AM_RANGE(0x00000000, 0x0001ffff) AM_HANDLE("flash rom",
                                              (mmio_read_cb)&flash_rom_read,
-                                             (mmio_write_cb)&flash_rom_write)
+                                             (mmio_write_cb)&flash_rom_write,
+                                             NULL, NULL)
 AM_END();
 // clang-format on

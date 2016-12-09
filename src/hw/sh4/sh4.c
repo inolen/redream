@@ -397,7 +397,7 @@ REG_R32(sh4_cb, PDTRA) {
   return v;
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("boot", boot_rom_map)
   AM_RANGE(0x00200000, 0x0021ffff) AM_DEVICE("flash", flash_rom_map)
@@ -423,7 +423,8 @@ AM_BEGIN(struct sh4, sh4_data_map)
   /* internal registers */
   AM_RANGE(0x1c000000, 0x1fffffff) AM_HANDLE("sh4 reg",
                                              (mmio_read_cb)&sh4_reg_read,
-                                             (mmio_write_cb)&sh4_reg_write)
+                                             (mmio_write_cb)&sh4_reg_write,
+                                             NULL, NULL)
 
   /* physical mirrors */
   AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  /* p0 */
@@ -437,9 +438,11 @@ AM_BEGIN(struct sh4, sh4_data_map)
   /* internal cache and sq only accessible through p4 */
   AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
                                              (mmio_read_cb)&sh4_ccn_cache_read,
-                                             (mmio_write_cb)&sh4_ccn_cache_write)
+                                             (mmio_write_cb)&sh4_ccn_cache_write,
+                                             NULL, NULL)
   AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE("sh4 sq",
                                              (mmio_read_cb)&sh4_ccn_sq_read,
-                                             (mmio_write_cb)&sh4_ccn_sq_write)
+                                             (mmio_write_cb)&sh4_ccn_sq_write,
+                                             NULL, NULL)
 AM_END();
-// clang-format on
+/* clang-format on */
