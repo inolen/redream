@@ -30,18 +30,15 @@ void sh4_ccn_sq_prefetch(void *data, uint32_t addr) {
   /* make sure this is a sq related prefetch */
   DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
 
-  uint32_t dest = addr & 0x03ffffe0;
+  uint32_t dst = addr & 0x03ffffe0;
   uint32_t sqi = (addr & 0x20) >> 5;
   if (sqi) {
-    dest |= (*sh4->QACR1 & 0x1c) << 24;
+    dst |= (*sh4->QACR1 & 0x1c) << 24;
   } else {
-    dest |= (*sh4->QACR0 & 0x1c) << 24;
+    dst |= (*sh4->QACR0 & 0x1c) << 24;
   }
 
-  for (int i = 0; i < 8; i++) {
-    as_write32(sh4->memory_if->space, dest, sh4->ctx.sq[sqi][i]);
-    dest += 4;
-  }
+  as_memcpy_to_guest(sh4->memory_if->space, dst, sh4->ctx.sq[sqi], 32);
 
   PROF_LEAVE();
 }

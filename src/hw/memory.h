@@ -22,6 +22,8 @@ enum region_type {
 
 typedef uint32_t (*mmio_read_cb)(void *, uint32_t, uint32_t);
 typedef void (*mmio_write_cb)(void *, uint32_t, uint32_t, uint32_t);
+typedef void (*mmio_read_string_cb)(void *, void *, uint32_t, int);
+typedef void (*mmio_write_string_cb)(void *, uint32_t, const void *, int);
 
 struct memory_region {
   enum region_type type;
@@ -39,6 +41,8 @@ struct memory_region {
       void *data;
       mmio_read_cb read;
       mmio_write_cb write;
+      mmio_read_string_cb read_string;
+      mmio_write_string_cb write_string;
     } mmio;
   };
 };
@@ -55,10 +59,10 @@ uint8_t *memory_translate(struct memory *memory, const char *name,
 struct memory_region *memory_create_physical_region(struct memory *memory,
                                                     const char *name,
                                                     uint32_t size);
-struct memory_region *memory_create_mmio_region(struct memory *memory,
-                                                const char *name, uint32_t size,
-                                                void *data, mmio_read_cb read,
-                                                mmio_write_cb write);
+struct memory_region *memory_create_mmio_region(
+    struct memory *memory, const char *name, uint32_t size, void *data,
+    mmio_read_cb read, mmio_write_cb write, mmio_read_string_cb read_string,
+    mmio_write_string_cb write_string);
 
 /* macros to help generate address map functions */
 #define AM_DECLARE(name) \
@@ -86,12 +90,14 @@ struct memory_region *memory_create_mmio_region(struct memory *memory,
         memory_create_physical_region(machine->memory, name, size); \
     am_physical(map, region, size, begin, mask);                    \
   }
-#define AM_HANDLE(name, read, write)                          \
-  {                                                           \
-    struct memory_region *region = memory_create_mmio_region( \
-        machine->memory, name, size, self, read, write);      \
-    am_mmio(map, region, size, begin, mask);                  \
+#define AM_HANDLE(name, read, write, read_string, write_string)            \
+  {                                                                        \
+    struct memory_region *region =                                         \
+        memory_create_mmio_region(machine->memory, name, size, self, read, \
+                                  write, read_string, write_string);       \
+    am_mmio(map, region, size, begin, mask);                               \
   }
+
 #define AM_DEVICE(name, cb)                               \
   {                                                       \
     struct device *device = dc_get_device(machine, name); \

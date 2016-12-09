@@ -481,7 +481,8 @@ AM_BEGIN(struct holly, holly_reg_map);
   /* over-allocate to align with the host allocation granularity */
   AM_RANGE(0x00000000, 0x00007fff) AM_HANDLE("holly reg",
                                              (mmio_read_cb)&holly_reg_read,
-                                             (mmio_write_cb)&holly_reg_write)
+                                             (mmio_write_cb)&holly_reg_write,
+                                             NULL, NULL)
 AM_END();
 
 AM_BEGIN(struct holly, holly_modem_map);

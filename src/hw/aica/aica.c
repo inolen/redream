@@ -558,15 +558,16 @@ void aica_destroy(struct aica *aica) {
   dc_destroy_device((struct device *)aica);
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct aica, aica_reg_map);
   /* over-allocate to align with the host allocation granularity */
   AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE("aica reg",
                                              (mmio_read_cb)&aica_reg_read,
-                                             (mmio_write_cb)&aica_reg_write)
+                                             (mmio_write_cb)&aica_reg_write,
+                                             NULL, NULL)
 AM_END();
 
 AM_BEGIN(struct aica, aica_data_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("aica wave ram")
 AM_END();
-// clang-format on
+/* clang-format on */

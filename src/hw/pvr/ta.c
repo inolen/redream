@@ -38,10 +38,8 @@ struct ta {
   uint8_t *yuv_data;
   int yuv_width;
   int yuv_height;
-  int yuv_macroblock_pos;
   int yuv_macroblock_size;
   int yuv_macroblock_count;
-  uint8_t yuv_macroblock[TA_MAX_MACROBLOCK_SIZE];
 
   /* texture cache entry pool. free entries are in a linked list, live entries
      are in a tree ordered by texture key, textures queued for invalidation are
@@ -372,13 +370,14 @@ static void ta_init_context(struct ta *ta, uint32_t addr) {
   ctx->vertex_type = 0;
 }
 
-static void ta_write_context(struct ta *ta, uint32_t addr, uint32_t data) {
+static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
+                             int size) {
   struct tile_ctx *ctx = ta_get_context(ta, addr);
   CHECK_NOTNULL(ctx);
 
-  CHECK_LT(ctx->size + 4, TA_MAX_PARAMS);
-  *(uint32_t *)&ctx->params[ctx->size] = data;
-  ctx->size += 4;
+  CHECK_LT(ctx->size + size, TA_MAX_PARAMS);
+  memcpy(&ctx->params[ctx->size], ptr, size);
+  ctx->size += size;
 
   /* each TA command is either 32 or 64 bytes, with the pcw being in the first
      32 bytes always. check every 32 bytes to see if the command has been
@@ -695,7 +694,6 @@ static void ta_yuv_init(struct ta *ta) {
   ta->yuv_data = &ta->rb_ram[pvr->TA_YUV_TEX_BASE->base_address];
   ta->yuv_width = u_size * 16;
   ta->yuv_height = v_size * 16;
-  ta->yuv_macroblock_pos = 0;
   ta->yuv_macroblock_size = TA_YUV420_MACROBLOCK_SIZE;
   ta->yuv_macroblock_count = u_size * v_size;
 
@@ -742,13 +740,13 @@ static void ta_yuv_process_block(struct ta *ta, const uint8_t *in_uv,
   }
 }
 
-static void ta_yuv_process_macroblock(struct ta *ta) {
+static void ta_yuv_process_macroblock(struct ta *ta, void *data) {
   struct pvr *pvr = ta->pvr;
   struct address_space *space = ta->sh4->memory_if->space;
 
   /* YUV420 data comes in as a series 16x16 macroblocks that need to be
      converted into a single UYVY422 texture */
-  const uint8_t *in = ta->yuv_macroblock;
+  const uint8_t *in = data;
   uint32_t out_x =
       (pvr->TA_YUV_TEX_CNT->num % (pvr->TA_YUV_TEX_CTRL->u_size + 1)) * 16;
   uint32_t out_y =
@@ -776,44 +774,45 @@ static void ta_yuv_process_macroblock(struct ta *ta) {
   }
 }
 
-static void ta_poly_fifo_write(struct ta *ta, uint32_t addr, uint32_t data,
-                               uint32_t data_mask) {
+static void ta_poly_fifo_write(struct ta *ta, uint32_t dst, void *src,
+                               int size) {
   PROF_ENTER("cpu", "ta_poly_fifo_write");
 
-  CHECK_EQ(DATA_SIZE(), 4);
-  ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, data);
+  CHECK(size % 32 == 0);
 
-  PROF_LEAVE();
-}
-
-static void ta_yuv_fifo_write(struct ta *ta, uint32_t addr, uint32_t data,
-                              uint32_t data_mask) {
-  PROF_ENTER("cpu", "ta_yuv_fifo_write");
-
-  struct holly *holly = ta->holly;
-  struct pvr *pvr = ta->pvr;
-
-  CHECK_EQ(DATA_SIZE(), 4);
-
-  /* append data to current macroblock */
-  *(uint32_t *)&ta->yuv_macroblock[ta->yuv_macroblock_pos] = data;
-  ta->yuv_macroblock_pos += 4;
-
-  if (ta->yuv_macroblock_pos >= ta->yuv_macroblock_size) {
-    ta_yuv_process_macroblock(ta);
-    ta->yuv_macroblock_pos = 0;
+  void *end = src + size;
+  while (src < end) {
+    ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, src, 32);
+    src += 32;
   }
 
   PROF_LEAVE();
 }
 
-static void ta_texture_fifo_write(struct ta *ta, uint32_t addr, uint32_t data,
-                                  uint32_t data_mask) {
+static void ta_yuv_fifo_write(struct ta *ta, uint32_t dst, void *src,
+                              int size) {
+  PROF_ENTER("cpu", "ta_yuv_fifo_write");
+
+  struct holly *holly = ta->holly;
+  struct pvr *pvr = ta->pvr;
+
+  CHECK(size % ta->yuv_macroblock_size == 0);
+
+  void *end = src + size;
+  while (src < end) {
+    ta_yuv_process_macroblock(ta, src);
+    src += size;
+  }
+
+  PROF_LEAVE();
+}
+
+static void ta_texture_fifo_write(struct ta *ta, uint32_t dst, void *src,
+                                  int size) {
   PROF_ENTER("cpu", "ta_texture_fifo_write");
 
-  CHECK_EQ(DATA_SIZE(), 4);
-  addr &= 0xeeffffff;
-  *(uint32_t *)&ta->rb_ram[addr] = data;
+  dst &= 0xeeffffff;
+  memcpy(&ta->rb_ram[dst], src, size);
 
   PROF_LEAVE();
 }
@@ -1020,13 +1019,13 @@ REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
 /* clang-format off */
 AM_BEGIN(struct ta, ta_fifo_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("ta poly fifo",
-                                             NULL,
-                                             (mmio_write_cb)&ta_poly_fifo_write)
+                                             NULL, NULL, NULL,
+                                             (mmio_write_string_cb)&ta_poly_fifo_write)
   AM_RANGE(0x00800000, 0x00ffffff) AM_HANDLE("ta yuv fifo",
-                                             NULL,
-                                             (mmio_write_cb)&ta_yuv_fifo_write)
+                                             NULL, NULL, NULL,
+                                             (mmio_write_string_cb)&ta_yuv_fifo_write)
   AM_RANGE(0x01000000, 0x01ffffff) AM_HANDLE("ta texture fifo",
-                                            NULL,
-                                            (mmio_write_cb)&ta_texture_fifo_write)
+                                            NULL, NULL, NULL,
+                                            (mmio_write_string_cb)&ta_texture_fifo_write)
 AM_END();
 /* clang-format on */
