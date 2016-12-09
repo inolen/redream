@@ -24,7 +24,7 @@ static uint32_t get_total_page_size(int num_pages) {
   return (uint32_t)num_pages * PAGE_SIZE;
 }
 
-// map virtual addresses to pages
+/* map virtual addresses to pages */
 static int get_page_index(uint32_t addr) {
   return addr >> PAGE_OFFSET_BITS;
 }
@@ -33,7 +33,7 @@ static uint32_t get_page_offset(uint32_t addr) {
   return addr & PAGE_OFFSET_MASK;
 }
 
-// pack and unpack page entry bitstrings
+/* pack and unpack page entry bitstrings */
 static page_entry_t pack_page_entry(int region_handle, uint32_t region_offset) {
   return region_offset | region_handle;
 }
@@ -46,7 +46,7 @@ static int get_region_handle(page_entry_t page) {
   return page & REGION_HANDLE_MASK;
 }
 
-// iterate mirrors for a given address and mask
+/* iterate mirrors for a given address and mask */
 struct mirror_iterator {
   uint32_t base, mask, imask, step;
   uint32_t i, addr;
@@ -65,35 +65,35 @@ static void mirror_iterator_init(struct mirror_iterator *it, uint32_t addr,
 }
 
 static bool mirror_iterator_next(struct mirror_iterator *it) {
-  // first iteration just returns base
+  /* first iteration just returns base */
   if (it->first) {
     it->first = false;
     return true;
   }
 
-  // stop once mask complement is completely set
+  /* stop once mask complement is completely set */
   if ((it->addr & it->imask) == it->imask) {
     return false;
   }
 
-  // step to the next permutation
+  /* step to the next permutation */
   it->i += it->step;
 
-  // if the new value carries over into a masked off bit, skip it
+  /* if the new value carries over into a masked off bit, skip it */
   uint32_t carry;
   do {
     carry = it->i & it->mask;
     it->i += carry;
   } while (carry);
 
-  // merge with the base
+  /* merge with the base */
   it->addr = it->base | it->i;
 
   return true;
 }
 
 static bool reserve_address_space(uint8_t **base) {
-  // find a contiguous (1 << 32) byte chunk of memory to map an address space to
+  /* find a contiguous (1 << 32) chunk of memory to map an address space to */
   int i = 64;
 
   while (i > 32) {
@@ -105,8 +105,8 @@ static bool reserve_address_space(uint8_t **base) {
       continue;
     }
 
-    // reservation was a success, release now so shared memory can be mapped
-    // into it
+    /* reservation was a success, release now so shared memory can be mapped
+       into it */
     release_pages(*base, ADDRESS_SPACE_SIZE);
 
     return true;
@@ -146,8 +146,8 @@ struct memory_region *memory_create_physical_region(struct memory *memory,
     region->physical.shmem_offset = memory->shmem_size;
     memory->shmem_size += size;
 
-    // ensure physical memory regions are aligned to the allocation granularity,
-    // otherwise it will confusingly fail to map further down the line
+    /* ensure physical memory regions are aligned to the allocation granularity,
+       otherwise it will confusingly fail to map further down the line */
     size_t granularity = get_allocation_granularity();
     CHECK((memory->shmem_size & (granularity - 1)) == 0 &&
           ((memory->shmem_size + size) & (granularity - 1)) == 0);
@@ -186,7 +186,7 @@ uint8_t *memory_translate(struct memory *memory, const char *name,
 }
 
 static bool memory_create_shmem(struct memory *memory) {
-  // create the shared memory object to back the address space
+  /* create the shared memory object to back the address space */
   memory->shmem =
       create_shared_memory("/redream", ADDRESS_SPACE_SIZE, ACC_READWRITE);
 
@@ -209,19 +209,19 @@ bool memory_init(struct memory *memory) {
     return false;
   }
 
-  // map each memory interface's address space
+  /* map each memory interface's address space */
   list_for_each_entry(dev, &memory->dc->devices, struct device, it) {
     if (dev->memory_if) {
-      // create the actual address map
+      /* create the actual address map */
       struct address_map map = {0};
       dev->memory_if->mapper(dev, memory->dc, &map);
 
-      // apply the map to create the address space
+      /* apply the map to create the address space */
       CHECK(as_map(dev->memory_if->space, dev->name, &map));
     }
   }
 
-  // map raw address space
+  /* map raw address space */
   if (!reserve_address_space(&memory->shmem_base)) {
     return false;
   }
@@ -234,20 +234,20 @@ bool memory_init(struct memory *memory) {
   return true;
 }
 
+void memory_destroy(struct memory *memory) {
+  memory_destroy_shmem(memory);
+  free(memory);
+}
+
 struct memory *memory_create(struct dreamcast *dc) {
   struct memory *memory = calloc(1, sizeof(struct memory));
 
   memory->dc = dc;
   memory->shmem = SHMEM_INVALID;
-  // 0 page is reserved, meaning all valid page entries must be non-zero
+  /* 0 page is reserved, meaning all valid page entries must be non-zero */
   memory->num_regions = 1;
 
   return memory;
-}
-
-void memory_destroy(struct memory *memory) {
-  memory_destroy_shmem(memory);
-  free(memory);
 }
 
 static struct address_map_entry *address_map_alloc_entry(
@@ -258,24 +258,14 @@ static struct address_map_entry *address_map_alloc_entry(
   return entry;
 }
 
-void am_physical(struct address_map *am, struct memory_region *region,
-                 uint32_t size, uint32_t addr, uint32_t addr_mask) {
+void am_mirror(struct address_map *am, uint32_t physical_addr, uint32_t size,
+               uint32_t addr) {
   struct address_map_entry *entry = address_map_alloc_entry(am);
-  entry->type = MAP_ENTRY_PHYSICAL;
+  entry->type = MAP_ENTRY_MIRROR;
   entry->size = size;
   entry->addr = addr;
-  entry->addr_mask = addr_mask;
-  entry->physical.region = region;
-}
-
-void am_mmio(struct address_map *am, struct memory_region *region,
-             uint32_t size, uint32_t addr, uint32_t addr_mask) {
-  struct address_map_entry *entry = address_map_alloc_entry(am);
-  entry->type = MAP_ENTRY_MMIO;
-  entry->size = size;
-  entry->addr = addr;
-  entry->addr_mask = addr_mask;
-  entry->mmio.region = region;
+  entry->addr_mask = 0xffffffff;
+  entry->mirror.physical_addr = physical_addr;
 }
 
 void am_device(struct address_map *am, void *device, address_map_cb mapper,
@@ -289,14 +279,62 @@ void am_device(struct address_map *am, void *device, address_map_cb mapper,
   entry->device.mapper = mapper;
 }
 
-void am_mirror(struct address_map *am, uint32_t physical_addr, uint32_t size,
-               uint32_t addr) {
+void am_mmio(struct address_map *am, struct memory_region *region,
+             uint32_t size, uint32_t addr, uint32_t addr_mask) {
   struct address_map_entry *entry = address_map_alloc_entry(am);
-  entry->type = MAP_ENTRY_MIRROR;
+  entry->type = MAP_ENTRY_MMIO;
   entry->size = size;
   entry->addr = addr;
-  entry->addr_mask = 0xffffffff;
-  entry->mirror.physical_addr = physical_addr;
+  entry->addr_mask = addr_mask;
+  entry->mmio.region = region;
+}
+
+void am_physical(struct address_map *am, struct memory_region *region,
+                 uint32_t size, uint32_t addr, uint32_t addr_mask) {
+  struct address_map_entry *entry = address_map_alloc_entry(am);
+  entry->type = MAP_ENTRY_PHYSICAL;
+  entry->size = size;
+  entry->addr = addr;
+  entry->addr_mask = addr_mask;
+  entry->physical.region = region;
+}
+
+void as_memcpy(struct address_space *space, uint32_t dst, uint32_t src,
+               uint32_t size) {
+  CHECK(size % 4 == 0);
+
+  uint32_t end = dst + size;
+  while (dst < end) {
+    as_write32(space, dst, as_read32(space, src));
+    src += 4;
+    dst += 4;
+  }
+}
+
+void as_memcpy_to_host(struct address_space *space, void *ptr, uint32_t src,
+                       uint32_t size) {
+  CHECK(size % 4 == 0);
+
+  uint8_t *dst = ptr;
+  uint8_t *end = dst + size;
+  while (dst < end) {
+    *(uint32_t *)dst = as_read32(space, src);
+    src += 4;
+    dst += 4;
+  }
+}
+
+void as_memcpy_to_guest(struct address_space *space, uint32_t dst,
+                        const void *ptr, uint32_t size) {
+  CHECK(size % 4 == 0);
+
+  const uint8_t *src = ptr;
+  uint32_t end = dst + size;
+  while (dst < end) {
+    as_write32(space, dst, *(uint32_t *)src);
+    dst += 4;
+    src += 4;
+  }
 }
 
 #define define_read_bytes(name, data_type)                                     \
@@ -338,52 +376,27 @@ define_write_bytes(write8, uint8_t);
 define_write_bytes(write16, uint16_t);
 define_write_bytes(write32, uint32_t);
 
-void as_memcpy_to_guest(struct address_space *space, uint32_t dst,
-                        const void *ptr, uint32_t size) {
-  CHECK(size % 4 == 0);
-
-  const uint8_t *src = ptr;
-  uint32_t end = dst + size;
-  while (dst < end) {
-    as_write32(space, dst, *(uint32_t *)src);
-    dst += 4;
-    src += 4;
-  }
+uint8_t *as_translate(struct address_space *space, uint32_t addr) {
+  return space->base + addr;
 }
 
-void as_memcpy_to_host(struct address_space *space, void *ptr, uint32_t src,
-                       uint32_t size) {
-  CHECK(size % 4 == 0);
-
-  uint8_t *dst = ptr;
-  uint8_t *end = dst + size;
-  while (dst < end) {
-    *(uint32_t *)dst = as_read32(space, src);
-    src += 4;
-    dst += 4;
-  }
-}
-
-void as_memcpy(struct address_space *space, uint32_t dst, uint32_t src,
-               uint32_t size) {
-  CHECK(size % 4 == 0);
-
-  uint32_t end = dst + size;
-  while (dst < end) {
-    as_write32(space, dst, as_read32(space, src));
-    src += 4;
-    dst += 4;
-  }
+void as_lookup(struct address_space *space, uint32_t addr,
+               struct memory_region **region, uint32_t *offset) {
+  page_entry_t page = space->pages[get_page_index(addr)];
+  DCHECK(page);
+  int region_handle = get_region_handle(page);
+  *region = &space->dc->memory->regions[region_handle];
+  *offset = get_region_offset(page) + get_page_offset(addr);
 }
 
 static void as_merge_map(struct address_space *space,
                          const struct address_map *map, uint32_t offset) {
-  // iterate regions in the supplied memory map in the other added, flattening
-  // them out into a virtual page table
+  /* iterate regions in the supplied memory map in the other added, flattening
+     them out into a virtual page table */
   for (int i = 0, n = map->num_entries; i < n; i++) {
     const struct address_map_entry *entry = &map->entries[i];
 
-    // iterate each mirror of the entry
+    /* iterate each mirror of the entry */
     struct mirror_iterator it = {0};
 
     mirror_iterator_init(&it, offset + entry->addr, entry->addr_mask);
@@ -431,8 +444,8 @@ static void as_merge_map(struct address_space *space,
 
           int first_physical_page = get_page_index(entry->mirror.physical_addr);
 
-          // copy the page entries for the requested physical range into the new
-          // virtual address range
+          /* copy the page entries for the requested physical range into the new
+             virtual address range */
           for (int i = 0; i < num_pages; i++) {
             space->pages[first_page + i] =
                 space->pages[first_physical_page + i];
@@ -478,70 +491,6 @@ static int as_num_adj_pages(struct address_space *space, int first_page_index) {
   return (i + 1) - first_page_index;
 }
 
-bool as_map(struct address_space *space, const char *name,
-            const struct address_map *map) {
-  as_unmap(space);
-
-  // flatten the supplied address map out into a virtual page table
-  as_merge_map(space, map, 0);
-
-#if 0
-  LOG_INFO("===-----------------------------------------------------===");
-  LOG_INFO("%s address space", name);
-  LOG_INFO("===-----------------------------------------------------===");
-#endif
-
-  if (!reserve_address_space(&space->base)) {
-    return false;
-  }
-
-  // iterate the virtual page table, mapping it into the reserved address space
-  for (int page_index = 0; page_index < NUM_PAGES;) {
-    page_entry_t page = space->pages[page_index];
-
-    if (!page) {
-      page_index++;
-      continue;
-    }
-
-    int region_handle = get_region_handle(page);
-    uint32_t region_offset = get_region_offset(page);
-    struct memory_region *region = &space->dc->memory->regions[region_handle];
-
-    // batch adjacent pages, mmap is fairly slow
-    uint8_t *addr = space->base + get_total_page_size(page_index);
-    int num_pages = as_num_adj_pages(space, page_index);
-    uint32_t size = get_total_page_size(num_pages);
-
-#if 0
-    LOG_INFO("[0x%08x, 0x%08x] %s+0x%x", addr, addr + size - 1, region->name,
-             region_offset);
-#endif
-
-    if (region->type == REGION_PHYSICAL) {
-      // map virtual address range to backing shared memory object for physical
-      // regions
-      uint32_t shmem_offset = region->physical.shmem_offset + region_offset;
-
-      if (!map_shared_memory(space->dc->memory->shmem, shmem_offset, addr, size,
-                             ACC_READWRITE)) {
-        return false;
-      }
-    } else {
-      // disable access to virtual address range for mmio regions, resulting in
-      // SIGSEGV on access
-      if (!map_shared_memory(space->dc->memory->shmem, 0, addr, size,
-                             ACC_NONE)) {
-        return false;
-      }
-    }
-
-    page_index += num_pages;
-  }
-
-  return true;
-}
-
 void as_unmap(struct address_space *space) {
   for (int page_index = 0; page_index < NUM_PAGES;) {
     page_entry_t page = space->pages[page_index];
@@ -561,17 +510,77 @@ void as_unmap(struct address_space *space) {
   }
 }
 
-uint8_t *as_translate(struct address_space *space, uint32_t addr) {
-  return space->base + addr;
+bool as_map(struct address_space *space, const char *name,
+            const struct address_map *map) {
+  as_unmap(space);
+
+  /* flatten the supplied address map out into a virtual page table */
+  as_merge_map(space, map, 0);
+
+#if 0
+  LOG_INFO("===-----------------------------------------------------===");
+  LOG_INFO("%s address space", name);
+  LOG_INFO("===-----------------------------------------------------===");
+#endif
+
+  if (!reserve_address_space(&space->base)) {
+    return false;
+  }
+
+  /* iterate the virtual page table, mapping it to the reserved address space */
+  for (int page_index = 0; page_index < NUM_PAGES;) {
+    page_entry_t page = space->pages[page_index];
+
+    if (!page) {
+      page_index++;
+      continue;
+    }
+
+    int region_handle = get_region_handle(page);
+    uint32_t region_offset = get_region_offset(page);
+    struct memory_region *region = &space->dc->memory->regions[region_handle];
+
+    /* batch adjacent pages, mmap is fairly slow */
+    uint8_t *addr = space->base + get_total_page_size(page_index);
+    int num_pages = as_num_adj_pages(space, page_index);
+    uint32_t size = get_total_page_size(num_pages);
+
+#if 0
+    LOG_INFO("[0x%08x, 0x%08x] %s+0x%x", addr, addr + size - 1, region->name,
+             region_offset);
+#endif
+
+    if (region->type == REGION_PHYSICAL) {
+      /* map virtual address range to backing shared memory object for physical
+         regions */
+      uint32_t shmem_offset = region->physical.shmem_offset + region_offset;
+
+      if (!map_shared_memory(space->dc->memory->shmem, shmem_offset, addr, size,
+                             ACC_READWRITE)) {
+        return false;
+      }
+    } else {
+      /* disable access to virtual address range for mmio regions, resulting in
+         SIGSEGV on access */
+      if (!map_shared_memory(space->dc->memory->shmem, 0, addr, size,
+                             ACC_NONE)) {
+        return false;
+      }
+    }
+
+    page_index += num_pages;
+  }
+
+  return true;
+}
+
+void as_destroy(struct address_space *space) {
+  as_unmap(space);
+  free(space);
 }
 
 struct address_space *as_create(struct dreamcast *dc) {
   struct address_space *space = calloc(1, sizeof(struct address_space));
   space->dc = dc;
   return space;
-}
-
-void as_destroy(struct address_space *space) {
-  as_unmap(space);
-  free(space);
 }
