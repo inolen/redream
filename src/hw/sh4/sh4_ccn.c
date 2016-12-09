@@ -22,26 +22,25 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
   jit_invalidate_blocks(sh4->jit);
 }
 
-void sh4_ccn_prefetch(void *data, uint64_t addr64) {
-  PROF_ENTER("cpu", "sh4_ccn_prefetch");
+void sh4_ccn_sq_prefetch(void *data, uint32_t addr) {
+  PROF_ENTER("cpu", "sh4_ccn_sq_prefetch");
 
   struct sh4 *sh4 = data;
-  uint32_t addr = (uint32_t)addr64;
 
-  /* only concerned about SQ related prefetches */
-  if (addr >= 0xe0000000 && addr <= 0xe3ffffff) {
-    uint32_t dest = addr & 0x03ffffe0;
-    uint32_t sqi = (addr & 0x20) >> 5;
-    if (sqi) {
-      dest |= (*sh4->QACR1 & 0x1c) << 24;
-    } else {
-      dest |= (*sh4->QACR0 & 0x1c) << 24;
-    }
+  /* make sure this is a sq related prefetch */
+  DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
 
-    for (int i = 0; i < 8; i++) {
-      as_write32(sh4->memory_if->space, dest, sh4->ctx.sq[sqi][i]);
-      dest += 4;
-    }
+  uint32_t dest = addr & 0x03ffffe0;
+  uint32_t sqi = (addr & 0x20) >> 5;
+  if (sqi) {
+    dest |= (*sh4->QACR1 & 0x1c) << 24;
+  } else {
+    dest |= (*sh4->QACR0 & 0x1c) << 24;
+  }
+
+  for (int i = 0; i < 8; i++) {
+    as_write32(sh4->memory_if->space, dest, sh4->ctx.sq[sqi][i]);
+    dest += 4;
   }
 
   PROF_LEAVE();

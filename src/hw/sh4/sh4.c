@@ -44,9 +44,8 @@ static void sh4_swap_fpr_bank(struct sh4 *sh4) {
   }
 }
 
-static void sh4_invalid_instr(void *data, uint64_t addr) {
+static void sh4_invalid_instr(void *data, uint32_t addr) {
   /*struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-  uint32_t addr = (uint32_t)data;
 
   auto it = self->breakpoints.find(addr);
   CHECK_NE(it, self->breakpoints.end());
@@ -58,7 +57,7 @@ static void sh4_invalid_instr(void *data, uint64_t addr) {
   self->dc->debugger->Trap();*/
 }
 
-void sh4_sr_updated(void *data, uint64_t old_sr) {
+void sh4_sr_updated(void *data, uint32_t old_sr) {
   struct sh4 *sh4 = data;
   struct sh4_ctx *ctx = &sh4->ctx;
 
@@ -73,7 +72,7 @@ void sh4_sr_updated(void *data, uint64_t old_sr) {
   }
 }
 
-void sh4_fpscr_updated(void *data, uint64_t old_fpscr) {
+void sh4_fpscr_updated(void *data, uint32_t old_fpscr) {
   struct sh4 *sh4 = data;
   struct sh4_ctx *ctx = &sh4->ctx;
 
@@ -308,7 +307,7 @@ static bool sh4_init(struct device *dev) {
   frontend->data = sh4;
   frontend->translate = &sh4_translate;
   frontend->invalid_instr = &sh4_invalid_instr;
-  frontend->prefetch = &sh4_ccn_prefetch;
+  frontend->sq_prefetch = &sh4_ccn_sq_prefetch;
   frontend->sr_updated = &sh4_sr_updated;
   frontend->fpscr_updated = &sh4_fpscr_updated;
   sh4->frontend = (struct jit_frontend *)frontend;

@@ -161,8 +161,8 @@ struct x64_backend {
   int num_temps;
 };
 
-const Xbyak::Reg x64_backend_register(struct x64_backend *backend,
-                                      const struct ir_value *v) {
+static const Xbyak::Reg x64_backend_register(struct x64_backend *backend,
+                                             const struct ir_value *v) {
   auto &e = *backend->codegen;
 
   // if the value is a local or constant, copy it to a tempory register, else
@@ -218,8 +218,8 @@ const Xbyak::Reg x64_backend_register(struct x64_backend *backend,
   }
 }
 
-const Xbyak::Xmm x64_backend_xmm_register(struct x64_backend *backend,
-                                          const struct ir_value *v) {
+static const Xbyak::Xmm x64_backend_xmm_register(struct x64_backend *backend,
+                                                 const struct ir_value *v) {
   auto &e = *backend->codegen;
 
   // if the value isn't allocated a XMM register copy it to a temporary XMM,
@@ -247,8 +247,33 @@ const Xbyak::Xmm x64_backend_xmm_register(struct x64_backend *backend,
   return xmm;
 }
 
-const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
-                                              enum xmm_constant c) {
+static void x64_backend_load_value(struct x64_backend *backend, Xbyak::Reg dst,
+                                   const struct ir_value *v) {
+  auto &e = *backend->codegen;
+
+  const Xbyak::Reg src = x64_backend_register(backend, v);
+
+  switch (v->type) {
+    case VALUE_I8:
+      e.mov(dst.cvt8(), src);
+      break;
+    case VALUE_I16:
+      e.mov(dst.cvt16(), src);
+      break;
+    case VALUE_I32:
+      e.mov(dst.cvt32(), src);
+      break;
+    case VALUE_I64:
+      e.mov(dst, src);
+      break;
+    default:
+      LOG_FATAL("Unexpected value type");
+      break;
+  }
+}
+
+static const Xbyak::Address x64_backend_xmm_constant(
+    struct x64_backend *backend, enum xmm_constant c) {
   auto &e = *backend->codegen;
 
   return e.ptr[e.rip + backend->xmm_const[c]];
@@ -1559,13 +1584,12 @@ EMITTER(BRANCH_TRUE) {
 
 EMITTER(CALL) {
   if (instr->arg[1]) {
-    const Xbyak::Reg a = x64_backend_register(backend, instr->arg[1]);
-    e.mov(arg0, a);
+    x64_backend_load_value(backend, arg0, instr->arg[1]);
   }
   if (instr->arg[2]) {
-    const Xbyak::Reg b = x64_backend_register(backend, instr->arg[2]);
-    e.mov(arg1, b);
+    x64_backend_load_value(backend, arg1, instr->arg[2]);
   }
+
   if (ir_is_constant(instr->arg[0])) {
     e.call((void *)instr->arg[0]->i64);
   } else {

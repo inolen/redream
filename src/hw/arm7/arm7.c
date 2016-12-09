@@ -63,9 +63,8 @@ static void arm7_swap_registers(struct arm7 *arm, int old_mode, int new_mode) {
   }
 }
 
-static void arm7_switch_mode(void *data, uint64_t sr) {
+static void arm7_switch_mode(void *data, uint32_t new_sr) {
   struct arm7 *arm = data;
-  uint32_t new_sr = (uint32_t)sr;
   int old_mode = arm->ctx.r[CPSR] & M_MASK;
   int new_mode = new_sr & M_MASK;
 
