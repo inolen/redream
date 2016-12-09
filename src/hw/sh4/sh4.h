@@ -64,7 +64,7 @@ DECLARE_COUNTER(sh4_instrs);
 
 AM_DECLARE(sh4_data_map);
 
-void sh4_ccn_prefetch(void *data, uint64_t addr);
+void sh4_ccn_sq_prefetch(void *data, uint32_t addr);
 uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
 void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                          uint32_t data_mask);
@@ -83,7 +83,7 @@ void sh4_destroy(struct sh4 *sh);
 void sh4_reset(struct sh4 *sh4, uint32_t pc);
 void sh4_raise_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
 void sh4_clear_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
-void sh4_sr_updated(void *data, uint64_t old_sr);
-void sh4_fpscr_updated(void *data, uint64_t old_fpscr);
+void sh4_sr_updated(void *data, uint32_t old_sr);
+void sh4_fpscr_updated(void *data, uint32_t old_fpscr);
 
 #endif

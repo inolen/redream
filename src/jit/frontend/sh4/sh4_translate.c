@@ -140,7 +140,7 @@ static void ir_store_sr(struct sh4_frontend *frontend, struct ir *ir,
   ir_store_context(ir, offsetof(struct sh4_ctx, sr), v);
 
   if (update) {
-    ir_call_2(ir, sr_updated, data, ir_zext(ir, old_sr, VALUE_I64));
+    ir_call_2(ir, sr_updated, data, old_sr);
   }
 }
 
@@ -181,7 +181,7 @@ static void ir_store_fpscr(struct sh4_frontend *frontend, struct ir *ir,
   struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
   struct ir_value *old_fpscr = load_fpscr();
   ir_store_context(ir, offsetof(struct sh4_ctx, fpscr), v);
-  ir_call_2(ir, fpscr_updated, data, ir_zext(ir, old_fpscr, VALUE_I64));
+  ir_call_2(ir, fpscr_updated, data, old_fpscr);
 }
 
 static struct ir_value *ir_load_pr(struct ir *ir) {
@@ -227,7 +227,7 @@ EMITTER(INVALID) {
       ir_alloc_i64(ir, (uint64_t)frontend->invalid_instr);
   struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
 
-  ir_call_2(ir, invalid_instr, data, ir_alloc_i64(ir, (int64_t)i->addr));
+  ir_call_2(ir, invalid_instr, data, ir_alloc_i32(ir, i->addr));
 }
 
 // MOV     #imm,Rn
@@ -1498,10 +1498,18 @@ EMITTER(OCBWB) {}
 
 // PREF     @Rn
 EMITTER(PREF) {
+  /* check that the address is between 0xe0000000 and 0xe3ffffff */
+  struct ir_value *addr = load_gpr(i->Rn, VALUE_I32);
+  struct ir_value *cond = ir_lshr(ir, addr, ir_alloc_i32(ir, 26));
+  cond = ir_cmp_ne(ir, cond, ir_alloc_i32(ir, 0x38));
+  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", cond);
+  ir_branch_true(ir, cond, skip);
+
   struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
-  struct ir_value *prefetch = ir_alloc_i64(ir, (uint64_t)frontend->prefetch);
-  struct ir_value *addr = ir_zext(ir, load_gpr(i->Rn, VALUE_I32), VALUE_I64);
-  ir_call_2(ir, prefetch, data, addr);
+  struct ir_value *sq_prefetch =
+      ir_alloc_i64(ir, (uint64_t)frontend->sq_prefetch);
+  ir_call_2(ir, sq_prefetch, data, addr);
+  ir_label(ir, skip);
 }
 
 // RTE
