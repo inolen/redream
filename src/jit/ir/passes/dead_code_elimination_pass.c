@@ -2,11 +2,11 @@
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/pass_stat.h"
 
-DEFINE_STAT(num_dead_removed, "Number of dead instructions eliminated");
+DEFINE_STAT(dead_removed, "Dead instructions eliminated");
 
 void dce_run(struct ir *ir) {
-  // iterate in reverse in order to remove groups of dead instructions that
-  // only use eachother
+  /* iterate in reverse in order to remove groups of dead instructions that
+     only use eachother */
   list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
     struct ir_value *result = instr->result;
 
@@ -17,7 +17,7 @@ void dce_run(struct ir *ir) {
     if (list_empty(&result->uses)) {
       ir_remove_instr(ir, instr);
 
-      STAT_num_dead_removed++;
+      STAT_dead_removed++;
     }
   }
 }

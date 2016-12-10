@@ -5,6 +5,7 @@
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/conversion_elimination_pass.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
+#include "jit/ir/passes/expression_simplification_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/pass_stat.h"
 #include "jit/ir/passes/register_allocation_pass.h"
@@ -12,14 +13,14 @@
 #include "sys/filesystem.h"
 
 DEFINE_OPTION_BOOL(help, false, "Show help");
-DEFINE_OPTION_STRING(pass, "lse,dce,ra",
+DEFINE_OPTION_STRING(pass, "lse,cve,esimp,dce,ra",
                      "Comma-separated list of passes to run");
 DEFINE_OPTION_BOOL(stats, true, "Print pass stats");
 DEFINE_OPTION_BOOL(print_after_all, true, "Print IR after each pass");
 
 DEFINE_STAT(backend_size, "Backend code size");
-DEFINE_STAT(num_instrs, "Total IR instructions");
-DEFINE_STAT(num_instrs_removed, "Total IR instructions removed");
+DEFINE_STAT(num_instrs, "Total instructions");
+DEFINE_STAT(num_instrs_removed, "Total instructions removed");
 
 static uint8_t ir_buffer[1024 * 1024];
 static uint8_t code[1024 * 1024];
@@ -64,6 +65,8 @@ static void process_file(struct jit *jit, const char *filename,
       cve_run(&ir);
     } else if (!strcmp(name, "dce")) {
       dce_run(&ir);
+    } else if (!strcmp(name, "esimp")) {
+      esimp_run(&ir);
     } else if (!strcmp(name, "ra")) {
       ra_run(&ir, x64_registers, x64_num_registers);
     } else {

@@ -4,7 +4,8 @@
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/pass_stat.h"
 
-DEFINE_STAT(num_spills, "Number of registers spilled");
+DEFINE_STAT(gprs_spilled, "GPRs spilled");
+DEFINE_STAT(fprs_spilled, "FPRs spilled");
 
 #define MAX_REGISTERS 32
 
@@ -212,7 +213,11 @@ static int ra_alloc_blocked_register(struct ra *ra, struct ir *ir,
   /* reset insert point */
   ir->current_instr = insert_point;
 
-  STAT_num_spills++;
+  if (ir_is_int(instr->result->type)) {
+    STAT_gprs_spilled++;
+  } else {
+    STAT_fprs_spilled++;
+  }
 
   return interval->reg;
 }
