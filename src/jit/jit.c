@@ -7,6 +7,7 @@
 #include "jit/frontend/jit_frontend.h"
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
+#include "jit/ir/passes/expression_simplification_pass.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/passes/register_allocation_pass.h"
 #include "sys/exception_handler.h"
@@ -325,6 +326,7 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
 
   /* run optimization passes */
   lse_run(&ir);
+  esimp_run(&ir);
   dce_run(&ir);
   ra_run(&ir, jit->backend->registers, jit->backend->num_registers);
 

@@ -72,6 +72,30 @@ void ir_remove_instr(struct ir *ir, struct ir_instr *instr) {
   list_remove(&ir->instrs, &instr->it);
 }
 
+struct ir_value *ir_alloc_int(struct ir *ir, int64_t c, enum ir_type type) {
+  struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
+  v->type = type;
+  switch (type) {
+    case VALUE_I8:
+      v->i8 = (int8_t)c;
+      break;
+    case VALUE_I16:
+      v->i16 = (int16_t)c;
+      break;
+    case VALUE_I32:
+      v->i32 = (int32_t)c;
+      break;
+    case VALUE_I64:
+      v->i64 = c;
+      break;
+    default:
+      LOG_FATAL("Unexpected value type");
+      break;
+  }
+  v->reg = NO_REGISTER;
+  return v;
+}
+
 struct ir_value *ir_alloc_i8(struct ir *ir, int8_t c) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_I8;

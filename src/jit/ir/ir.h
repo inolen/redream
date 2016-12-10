@@ -181,6 +181,7 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
                                  enum ir_type result_type);
 void ir_remove_instr(struct ir *ir, struct ir_instr *instr);
 
+struct ir_value *ir_alloc_int(struct ir *ir, int64_t c, enum ir_type type);
 struct ir_value *ir_alloc_i8(struct ir *ir, int8_t c);
 struct ir_value *ir_alloc_i16(struct ir *ir, int16_t c);
 struct ir_value *ir_alloc_i32(struct ir *ir, int32_t c);
