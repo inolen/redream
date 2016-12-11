@@ -801,7 +801,7 @@ static void ta_yuv_fifo_write(struct ta *ta, uint32_t dst, void *src,
   void *end = src + size;
   while (src < end) {
     ta_yuv_process_macroblock(ta, src);
-    src += size;
+    src += ta->yuv_macroblock_size;
   }
 
   PROF_LEAVE();
