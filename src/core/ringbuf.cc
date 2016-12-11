@@ -1,36 +1,32 @@
-/* this file is compiled as C++ under MSVC due to it not supporting stdatomic.h */
-#ifdef __cplusplus
+/* would be nice to convert this file to C once MSVC supports stdatomic.h */
+#include <atomic>
 extern "C" {
-#endif
 #include "core/ringbuf.h"
 #include "core/assert.h"
-#ifdef __cplusplus
 }
-#endif
-#include "sys/atomic.h"
 
 struct ringbuf {
   int capacity;
   uint8_t *data;
-  struct re_atomic_long read_offset;
-  struct re_atomic_long write_offset;
+  std::atomic<int64_t> read_offset;
+  std::atomic<int64_t> write_offset;
 };
 
 void ringbuf_advance_write_ptr(struct ringbuf *rb, int n) {
-  ATOMIC_FETCH_ADD(rb->write_offset, n);
+  rb->write_offset.fetch_add(n);
 }
 
 void *ringbuf_write_ptr(struct ringbuf *rb) {
-  int write_offset = ATOMIC_LOAD(rb->write_offset);
+  int64_t write_offset = rb->write_offset.load();
   return rb->data + (write_offset % rb->capacity);
 }
 
 void ringbuf_advance_read_ptr(struct ringbuf *rb, int n) {
-  ATOMIC_FETCH_ADD(rb->write_offset, n);
+  rb->read_offset.fetch_add(n);
 }
 
 void *ringbuf_read_ptr(struct ringbuf *rb) {
-  int read_offset = ATOMIC_LOAD(rb->read_offset);
+  int64_t read_offset = rb->read_offset.load();
   return rb->data + (read_offset % rb->capacity);
 }
 
@@ -39,9 +35,9 @@ int ringbuf_remaining(struct ringbuf *rb) {
 }
 
 int ringbuf_available(struct ringbuf *rb) {
-  int read = ATOMIC_LOAD(rb->read_offset);
-  int write = ATOMIC_LOAD(rb->write_offset);
-  int available = write - read;
+  int64_t read = rb->read_offset.load();
+  int64_t write = rb->write_offset.load();
+  int available = (int)(write - read);
   CHECK(available >= 0 && available <= rb->capacity);
   return available;
 }
