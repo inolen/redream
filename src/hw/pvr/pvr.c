@@ -166,11 +166,12 @@ static void pvr_vram_interleaved_write(struct pvr *pvr, uint32_t addr,
   WRITE_DATA(&pvr->video_ram[addr]);
 }
 
-static void pvr_vram_interleaved_read_string(struct pvr *pvr, void *dst,
+static void pvr_vram_interleaved_read_string(struct pvr *pvr, void *ptr,
                                              uint32_t src, int size) {
   CHECK(size % 4 == 0);
 
-  void *end = dst + size;
+  uint8_t *dst = ptr;
+  uint8_t *end = dst + size;
   while (dst < end) {
     *(uint32_t *)dst = *(uint32_t *)&pvr->video_ram[MAP64(src)];
     dst += 4;
@@ -179,10 +180,11 @@ static void pvr_vram_interleaved_read_string(struct pvr *pvr, void *dst,
 }
 
 static void pvr_vram_interleaved_write_string(struct pvr *pvr, uint32_t dst,
-                                              void *src, int size) {
+                                              void *ptr, int size) {
   CHECK(size % 4 == 0);
 
-  void *end = src + size;
+  uint8_t *src = ptr;
+  uint8_t *end = src + size;
   while (src < end) {
     *(uint32_t *)&pvr->video_ram[MAP64(dst)] = *(uint32_t *)src;
     dst += 4;

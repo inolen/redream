@@ -25,8 +25,8 @@ void mutex_destroy(mutex_t mutex);
  * sleeping
  */
 #if PLATFORM_WINDOWS
-#include <stdlib.h>
-#define sleep _sleep
+#include <Synchapi.h>
+#define sleep Sleep
 #else
 #include <unistd.h>
 #endif
