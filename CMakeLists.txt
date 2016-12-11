@@ -51,6 +51,7 @@ set(ARCH_X64 TRUE)
 # config file
 #--------------------------------------------------
 
+check_include_files(stdatomic.h HAVE_STDATOMIC_H)
 check_include_files(strings.h HAVE_STRINGS_H)
 check_function_exists(strcasecmp HAVE_STRCASECMP)
 check_function_exists(strnlen HAVE_STRNLEN)
@@ -165,6 +166,7 @@ set(REDREAM_SOURCES
   src/core/mm_heap.c
   src/core/option.c
   src/core/profiler.cc
+  src/core/ringbuf.c
   src/core/rb_tree.c
   src/core/string.c
   src/emu/emulator.c
