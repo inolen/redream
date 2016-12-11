@@ -1,10 +1,17 @@
+/* this file is compiled as C++ under MSVC due to it not supporting stdatomic.h */
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "core/ringbuf.h"
 #include "core/assert.h"
+#ifdef __cplusplus
+}
+#endif
 #include "sys/atomic.h"
 
 struct ringbuf {
   int capacity;
-  void *data;
+  uint8_t *data;
   struct re_atomic_long read_offset;
   struct re_atomic_long write_offset;
 };
@@ -48,10 +55,10 @@ void ringbuf_destroy(struct ringbuf *rb) {
 }
 
 struct ringbuf *ringbuf_create(int capacity) {
-  struct ringbuf *rb = calloc(1, sizeof(struct ringbuf));
+  struct ringbuf *rb = (struct ringbuf *)calloc(1, sizeof(struct ringbuf));
 
   rb->capacity = capacity;
-  rb->data = malloc(capacity);
+  rb->data = (uint8_t *)malloc(capacity);
 
   return rb;
 }

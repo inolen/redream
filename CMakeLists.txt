@@ -8,14 +8,7 @@ include(CheckFunctionExists)
 include(ExternalProject)
 include(SourceGroupByDir)
 
-list(APPEND REDREAM_LANGUAGES C CXX)
-if(WIN32)
-  list(APPEND REDREAM_LANGUAGES ASM_MASM)
-else()
-  list(APPEND REDREAM_LANGUAGES ASM)
-endif()
-
-project(redream ${REDREAM_LANGUAGES})
+project(redream)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
@@ -51,7 +44,6 @@ set(ARCH_X64 TRUE)
 # config file
 #--------------------------------------------------
 
-check_include_files(stdatomic.h HAVE_STDATOMIC_H)
 check_include_files(strings.h HAVE_STRINGS_H)
 check_function_exists(strcasecmp HAVE_STRCASECMP)
 check_function_exists(strnlen HAVE_STRNLEN)
@@ -278,6 +270,9 @@ elseif(COMPILER_MSVC)
   list(APPEND REDREAM_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 
   list(APPEND REDREAM_LIBS userenv ws2_32)
+
+  # until msvc supports stdatomic.h, compile code using atomics as C++
+  set_source_files_properties(src/core/ringbuf.c PROPERTIES LANGUAGE CXX)
 endif()
 
 add_executable(redream ${REDREAM_SOURCES})

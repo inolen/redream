@@ -774,13 +774,14 @@ static void ta_yuv_process_macroblock(struct ta *ta, void *data) {
   }
 }
 
-static void ta_poly_fifo_write(struct ta *ta, uint32_t dst, void *src,
+static void ta_poly_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
                                int size) {
   PROF_ENTER("cpu", "ta_poly_fifo_write");
 
   CHECK(size % 32 == 0);
 
-  void *end = src + size;
+  uint8_t *src = ptr;
+  uint8_t *end = src + size;
   while (src < end) {
     ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, src, 32);
     src += 32;
@@ -789,7 +790,7 @@ static void ta_poly_fifo_write(struct ta *ta, uint32_t dst, void *src,
   PROF_LEAVE();
 }
 
-static void ta_yuv_fifo_write(struct ta *ta, uint32_t dst, void *src,
+static void ta_yuv_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
                               int size) {
   PROF_ENTER("cpu", "ta_yuv_fifo_write");
 
@@ -798,7 +799,8 @@ static void ta_yuv_fifo_write(struct ta *ta, uint32_t dst, void *src,
 
   CHECK(size % ta->yuv_macroblock_size == 0);
 
-  void *end = src + size;
+  uint8_t *src = ptr;
+  uint8_t *end = src + size;
   while (src < end) {
     ta_yuv_process_macroblock(ta, src);
     src += ta->yuv_macroblock_size;
@@ -807,10 +809,11 @@ static void ta_yuv_fifo_write(struct ta *ta, uint32_t dst, void *src,
   PROF_LEAVE();
 }
 
-static void ta_texture_fifo_write(struct ta *ta, uint32_t dst, void *src,
+static void ta_texture_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
                                   int size) {
   PROF_ENTER("cpu", "ta_texture_fifo_write");
 
+  uint8_t *src = ptr;
   dst &= 0xeeffffff;
   memcpy(&ta->rb_ram[dst], src, size);
 
