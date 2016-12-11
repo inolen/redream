@@ -158,7 +158,7 @@ set(REDREAM_SOURCES
   src/core/mm_heap.c
   src/core/option.c
   src/core/profiler.cc
-  src/core/ringbuf.c
+  src/core/ringbuf.cc
   src/core/rb_tree.c
   src/core/string.c
   src/emu/emulator.c
@@ -270,9 +270,6 @@ elseif(COMPILER_MSVC)
   list(APPEND REDREAM_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 
   list(APPEND REDREAM_LIBS userenv ws2_32)
-
-  # until msvc supports stdatomic.h, compile code using atomics as C++
-  set_source_files_properties(src/core/ringbuf.c PROPERTIES LANGUAGE CXX)
 endif()
 
 add_executable(redream ${REDREAM_SOURCES})
