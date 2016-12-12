@@ -1,26 +1,11 @@
 #ifndef OPTIONS_H
 #define OPTIONS_H
 
-#include <stdbool.h>
 #include <string.h>
 #include "core/constructor.h"
 #include "core/list.h"
 
 #define MAX_OPTION_LENGTH 1024
-
-#define DECLARE_OPTION_BOOL(name) extern bool OPTION_##name;
-
-#define DEFINE_OPTION_BOOL(name, value, desc)      \
-  bool OPTION_##name;                              \
-  static struct option OPTION_T_##name = {         \
-      OPT_BOOL, #name, desc, &OPTION_##name, {0}}; \
-  CONSTRUCTOR(OPTION_REGISTER_##name) {            \
-    *(bool *)(&OPTION_##name) = value;             \
-    options_register(&OPTION_T_##name);            \
-  }                                                \
-  DESTRUCTOR(OPTION_UNREGISTER_##name) {           \
-    options_unregister(&OPTION_T_##name);          \
-  }
 
 #define DECLARE_OPTION_INT(name) extern int OPTION_##name;
 
@@ -54,7 +39,6 @@
 #define OPTION_HIDDEN NULL
 
 enum option_type {
-  OPT_BOOL,
   OPT_INT,
   OPT_STRING,
 };
@@ -71,8 +55,8 @@ void options_register(struct option *option);
 void options_unregister(struct option *option);
 
 void options_parse(int *argc, char ***argv);
-bool options_read(const char *filename);
-bool options_write(const char *filename);
+int options_read(const char *filename);
+int options_write(const char *filename);
 
 void options_print_help();
 

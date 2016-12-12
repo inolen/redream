@@ -1,6 +1,7 @@
 #include "emu/emulator.h"
 #include "core/option.h"
 #include "core/profiler.h"
+#include "hw/aica/aica.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
@@ -15,6 +16,9 @@
 #include "ui/nuklear.h"
 #include "ui/window.h"
 
+DEFINE_OPTION_INT(throttle, 1,
+                  "Throttle emulation speed to match the original hardware");
+
 DEFINE_AGGREGATE_COUNTER(frames);
 
 struct emu {
@@ -22,7 +26,6 @@ struct emu {
   struct window_listener listener;
   struct dreamcast *dc;
   int running;
-  int throttled;
 
   /* render state */
   struct tr *tr;
@@ -119,7 +122,7 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
   if (nk_menu_begin_label(ctx, "EMULATOR", NK_TEXT_LEFT,
                           nk_vec2(140.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
-    nk_checkbox_label(ctx, "throttled", &emu->throttled);
+    nk_checkbox_label(ctx, "throttled", &OPTION_throttle);
     nk_menu_end(ctx);
   }
 
@@ -164,16 +167,23 @@ static void *emu_core_thread(void *data) {
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
   int64_t current_time = time_nanoseconds();
   int64_t next_time = current_time;
+  int64_t delta_time = 0;
 
   while (emu->running) {
     current_time = time_nanoseconds();
 
-    int64_t delta_time = current_time - next_time;
-
-    if (!emu->throttled || delta_time >= 0) {
-      dc_tick(emu->dc, MACHINE_STEP);
-      next_time = current_time + MACHINE_STEP;
+    if (OPTION_throttle) {
+      delta_time = current_time - next_time;
+    } else {
+      delta_time = 0;
     }
+
+    if (delta_time >= 0) {
+      dc_tick(emu->dc, MACHINE_STEP);
+      next_time = current_time + MACHINE_STEP - delta_time;
+    }
+
+    prof_update(current_time);
   }
 
   return 0;
@@ -205,17 +215,17 @@ void emu_run(struct emu *emu, const char *path) {
     dc_resume(emu->dc);
   }
 
-  /* start core emulator thread */
-  thread_t core_thread;
   emu->running = 1;
-  core_thread = thread_create(&emu_core_thread, NULL, emu);
+
+  /* start core emulator thread */
+  thread_t core_thread = thread_create(&emu_core_thread, NULL, emu);
 
   /* run the renderer / ui in the main thread */
   while (emu->running) {
     win_pump_events(emu->window);
   }
 
-  /* wait for the graphics thread to exit */
+  /* wait for the core thread to exit */
   void *result;
   thread_join(core_thread, &result);
 }

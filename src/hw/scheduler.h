@@ -8,9 +8,10 @@ struct dreamcast;
 struct timer;
 struct scheduler;
 
-#define HZ_TO_NANO(hz) (int64_t)(NS_PER_SEC / (float)hz)
-#define NANO_TO_CYCLES(ns, hz) (int64_t)((ns / (float)NS_PER_SEC) * hz)
-#define CYCLES_TO_NANO(cycles, hz) (int64_t)((cycles / (float)hz) * NS_PER_SEC)
+#define HZ_TO_NANO(hz) (int64_t)(NS_PER_SEC / (float)(hz))
+#define NANO_TO_CYCLES(ns, hz) (int64_t)(((ns) / (float)NS_PER_SEC) * (hz))
+#define CYCLES_TO_NANO(cycles, hz) \
+  (int64_t)(((cycles) / (float)(hz)) * NS_PER_SEC)
 
 typedef void (*timer_cb)(void *);
 

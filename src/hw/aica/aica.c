@@ -1,6 +1,7 @@
 #include "hw/aica/aica.h"
 #include "core/log.h"
 #include "core/option.h"
+#include "core/profiler.h"
 #include "hw/aica/aica_types.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
@@ -11,11 +12,13 @@
 
 DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
 
-#define AICA_CLOCK_FREQ INT64_C(22579200)
-#define AICA_SAMPLE_FREQ INT64_C(44100)
+DEFINE_AGGREGATE_COUNTER(aica_samples);
+
 #define AICA_NUM_CHANNELS 64
-#define AICA_TIMER_PERIOD 0xff
+#define AICA_SAMPLE_FREQ INT64_C(44100)
+#define AICA_SAMPLE_BATCH 10
 #define AICA_SAMPLE_SHIFT 10
+#define AICA_TIMER_PERIOD 0xff
 
 struct aica_channel {
   struct channel_data *data;
@@ -36,25 +39,28 @@ struct aica {
   struct device;
   uint8_t reg[0x11000];
   uint8_t *wave_ram;
+
   /* reset state */
   int arm_resetting;
+
   /* interrupts */
   uint32_t arm_irq_l;
   uint32_t arm_irq_m;
+
   /* timers */
   struct timer *timers[3];
+
   /* real-time clock */
   struct timer *rtc_timer;
   int rtc_write;
   uint32_t rtc;
+
   /* channels */
   struct common_data *common_data;
   struct aica_channel channels[AICA_NUM_CHANNELS];
+  struct timer *sample_timer;
 };
 
-/*
- * interrupts
- */
 static void aica_raise_interrupt(struct aica *aica, int intr) {
   aica->common_data->MCIPD |= (1 << intr);
   aica->common_data->SCIPD |= (1 << intr);
@@ -118,9 +124,6 @@ static void aica_update_sh(struct aica *aica) {
   }
 }
 
-/*
- * timers
- */
 static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period);
 
 static void aica_timer_expire(struct aica *aica, int n) {
@@ -197,9 +200,6 @@ static void aica_timer_init(struct aica *aica) {
   }
 }
 
-/*
- * rtc
- */
 static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
                                   uint32_t data_mask) {
   switch (addr) {
@@ -262,9 +262,6 @@ static void aica_rtc_init(struct aica *aica) {
       scheduler_start_timer(aica->scheduler, &aica_rtc_timer, aica, NS_PER_SEC);
 }
 
-/*
- * channels
- */
 static uint32_t aica_channel_step(struct aica_channel *ch) {
   uint32_t oct = ch->data->OCT;
   uint32_t step = (1 << AICA_SAMPLE_SHIFT) | ch->data->FNS;
@@ -334,6 +331,7 @@ static void aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   uint32_t ca = ch->offset >> AICA_SAMPLE_SHIFT;
   if (ca > ch->data->LEA) {
     if (ch->data->LPCTL) {
+      LOG_INFO("aica_channel_step %d restart", ch - aica->channels);
       ch->offset = ch->data->LSA << AICA_SAMPLE_SHIFT;
       ch->looped = 1;
     } else {
@@ -349,6 +347,8 @@ static void aica_generate_samples(struct aica *aica, int samples) {
       aica_channel_update(aica, ch);
     }
   }
+
+  prof_counter_add(COUNTER_aica_samples, samples);
 }
 
 static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
@@ -475,9 +475,6 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
   }
 }
 
-/*
- * memory callbacks
- */
 uint32_t aica_reg_read(struct aica *aica, uint32_t addr, uint32_t data_mask) {
   if (addr < 0x2000) {
     return aica_channel_reg_read(aica, addr, data_mask);
@@ -505,19 +502,18 @@ void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
   WRITE_DATA(&aica->reg[addr]);
 }
 
-/*
- * device
- */
-static void aica_run(struct device *dev, int64_t ns) {
-  struct aica *aica = (struct aica *)dev;
+static void aica_next_sample(void *data) {
+  struct aica *aica = data;
 
-  int samples = (int)NANO_TO_CYCLES(ns, AICA_SAMPLE_FREQ);
-
-  aica_generate_samples(aica, samples);
-
+  aica_generate_samples(aica, AICA_SAMPLE_BATCH);
   aica_raise_interrupt(aica, AICA_INT_SAMPLE);
   aica_update_arm(aica);
   aica_update_sh(aica);
+
+  /* reschedule */
+  aica->sample_timer =
+      scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
+                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
 }
 
 static bool aica_init(struct device *dev) {
@@ -536,26 +532,25 @@ static bool aica_init(struct device *dev) {
   aica_timer_init(aica);
   aica_rtc_init(aica);
 
-  arm7_suspend(aica->arm);
+  aica->sample_timer =
+      scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
+                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
 
   return true;
+}
+
+void aica_destroy(struct aica *aica) {
+  scheduler_cancel_timer(aica->scheduler, aica->sample_timer);
+  aica_rtc_shutdown(aica);
+  aica_timer_shutdown(aica);
+
+  dc_destroy_device((struct device *)aica);
 }
 
 struct aica *aica_create(struct dreamcast *dc) {
   struct aica *aica =
       dc_create_device(dc, sizeof(struct aica), "aica", &aica_init);
-
-  aica->execute_if = dc_create_execute_interface(&aica_run, 1);
-
   return aica;
-}
-
-void aica_destroy(struct aica *aica) {
-  aica_rtc_shutdown(aica);
-  aica_timer_shutdown(aica);
-
-  dc_destroy_execute_interface(aica->execute_if);
-  dc_destroy_device((struct device *)aica);
 }
 
 /* clang-format off */

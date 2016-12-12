@@ -21,7 +21,7 @@ static const int FONT_WIDTH = 1024;
 static const int FONT_HEIGHT = 9;
 #include "ui/microprofile_font.inc"
 
-static const int MAX_2D_VERTICES = 16384;
+static const int MAX_2D_VERTICES = 32768;
 static const int MAX_2D_SURFACES = 256;
 
 struct microprofile {

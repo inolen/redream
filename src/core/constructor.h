@@ -32,7 +32,7 @@
 
 #else
 
-// not supported
+/* not supported */
 
 #endif
 

@@ -15,6 +15,6 @@ recc [options] <path to file or directory>
 ### Options
 ```
            --pass  Comma-separated list of passes to run  [default: lse, dce, ra]
-          --stats  Print pass stats                       [default: true]
---print_after_all  Print IR after each pass               [default: true]
+          --stats  Print pass stats                       [default: 1]
+--print_after_all  Print IR after each pass               [default: 1]
 ```

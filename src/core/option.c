@@ -19,13 +19,15 @@ static struct option *options_find(const char *name) {
 
 static void options_parse_value(struct option *opt, const char *value) {
   switch (opt->type) {
-    case OPT_BOOL:
-      *(bool *)opt->storage = strcmp(value, "false") && strcmp(value, "0");
-      break;
-
-    case OPT_INT:
-      *(int *)opt->storage = atoi(value);
-      break;
+    case OPT_INT: {
+      if (!strcmp(value, "false")) {
+        *(int *)opt->storage = 0;
+      } else if (!strcmp(value, "true")) {
+        *(int *)opt->storage = 1;
+      } else {
+        *(int *)opt->storage = atoi(value);
+      }
+    } break;
 
     case OPT_STRING:
       strncpy((char *)opt->storage, value, MAX_OPTION_LENGTH);
@@ -37,9 +39,6 @@ static const char *options_format_value(struct option *opt) {
   static char value[MAX_OPTION_LENGTH];
 
   switch (opt->type) {
-    case OPT_BOOL:
-      return *(bool *)opt->storage ? "true" : "false";
-
     case OPT_INT:
       snprintf(value, sizeof(value), "%d", *(int *)opt->storage);
       return value;
@@ -65,7 +64,7 @@ void options_parse(int *argc, char ***argv) {
   for (int i = 1; i < end;) {
     char *arg = (*argv)[i];
 
-    // move non-option to the end for parsing by the application
+    /* move non-option to the end for parsing by the application */
     if (arg[0] != '-') {
       (*argv)[i] = (*argv)[end - 1];
       (*argv)[end - 1] = arg;
@@ -73,12 +72,12 @@ void options_parse(int *argc, char ***argv) {
       continue;
     }
 
-    // chomp leading -
+    /* chomp leading - */
     while (arg[0] == '-') {
       arg++;
     }
 
-    // terminate arg and extract value
+    /* terminate arg and extract value */
     char *value = arg;
 
     while (value[0] && value[0] != '=') {
@@ -89,7 +88,7 @@ void options_parse(int *argc, char ***argv) {
       *(value++) = 0;
     }
 
-    // lookup the option and assign the parsed value to it
+    /* lookup the option and assign the parsed value to it */
     struct option *opt = options_find(arg);
 
     if (opt) {
@@ -114,15 +113,15 @@ static int options_ini_handler(void *user, const char *section,
   return 0;
 }
 
-bool options_read(const char *filename) {
+int options_read(const char *filename) {
   return ini_parse(filename, options_ini_handler, NULL) >= 0;
 }
 
-bool options_write(const char *filename) {
+int options_write(const char *filename) {
   FILE *output = fopen(filename, "wt");
 
   if (!output) {
-    return false;
+    return 0;
   }
 
   list_for_each_entry(opt, &s_options, struct option, it) {
@@ -131,7 +130,7 @@ bool options_write(const char *filename) {
 
   fclose(output);
 
-  return true;
+  return 1;
 }
 
 void options_print_help() {

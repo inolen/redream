@@ -227,10 +227,6 @@ void ir_replace_uses(struct ir_value *v, struct ir_value *other) {
   }
 }
 
-bool ir_is_constant(const struct ir_value *v) {
-  return !v->def;
-}
-
 uint64_t ir_zext_constant(const struct ir_value *v) {
   switch (v->type) {
     case VALUE_I8:

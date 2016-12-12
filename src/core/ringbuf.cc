@@ -1,8 +1,8 @@
 /* would be nice to convert this file to C once MSVC supports stdatomic.h */
 #include <atomic>
 extern "C" {
-#include "core/ringbuf.h"
 #include "core/assert.h"
+#include "core/ringbuf.h"
 }
 
 struct ringbuf {

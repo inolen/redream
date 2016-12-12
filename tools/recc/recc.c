@@ -12,11 +12,11 @@
 #include "jit/jit.h"
 #include "sys/filesystem.h"
 
-DEFINE_OPTION_BOOL(help, false, "Show help");
+DEFINE_OPTION_INT(help, 0, "Show help");
 DEFINE_OPTION_STRING(pass, "lse,cve,esimp,dce,ra",
                      "Comma-separated list of passes to run");
-DEFINE_OPTION_BOOL(stats, true, "Print pass stats");
-DEFINE_OPTION_BOOL(print_after_all, true, "Print IR after each pass");
+DEFINE_OPTION_INT(stats, 1, "Print pass stats");
+DEFINE_OPTION_INT(print_after_all, 1, "Print IR after each pass");
 
 DEFINE_STAT(backend_size, "Backend code size");
 DEFINE_STAT(num_instrs, "Total instructions");
@@ -39,7 +39,7 @@ static int get_num_instrs(const struct ir *ir) {
 }
 
 static void process_file(struct jit *jit, const char *filename,
-                         bool disable_ir_dump) {
+                         int disable_ir_dump) {
   struct ir ir = {0};
   ir.buffer = ir_buffer;
   ir.capacity = sizeof(ir_buffer);
@@ -121,7 +121,7 @@ static void process_dir(struct jit *jit, const char *path) {
 
     LOG_INFO("Processing %s", filename);
 
-    process_file(jit, filename, true);
+    process_file(jit, filename, 1);
   }
 
   closedir(dir);
@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
   CHECK(jit_init(jit, &guest, NULL, backend));
 
   if (fs_isfile(path)) {
-    process_file(jit, path, false);
+    process_file(jit, path, 0);
   } else {
     process_dir(jit, path);
   }

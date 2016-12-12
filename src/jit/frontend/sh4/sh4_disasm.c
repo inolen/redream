@@ -45,13 +45,13 @@ static void sh4_arg_mask(const char *instr_code, char c, uint16_t *mask,
 }
 
 static void sh4_init_opdefs() {
-  static bool initialized = false;
+  static int initialized = 0;
 
   if (initialized) {
     return;
   }
 
-  initialized = true;
+  initialized = 1;
 
   /*
    * finalize type information by extracting argument encoding information

@@ -43,11 +43,13 @@ Command line flags are loaded from and saved to `$HOME/.redream/flags` each run.
 
 ### All options
 ```
-     --bios  Path to BIOS                 [default: dc_boot.bin]
-    --flash  Path to flash ROM            [default: dc_flash.bin]
-    --debug  Start GDB debug server
-     --perf  Write perf-compatible maps for generated code
-  --profile  Path to controller profile
+       --bios  Path to BIOS                                            [default: dc_boot.bin]
+      --flash  Path to flash ROM                                       [default: dc_flash.bin]
+ --controller  Path to controller profile
+   --throttle  Throttle emulation speed to match the original hardware [default: 1]
+    --verbose  Enable debug logging                                    [default: 0]
+       --perf  Write perf-compatible maps for generated code           [default: 0]
+        --gdb  Start GDB debug server                                  [default: 0]
 ```
 
 ### Debugging

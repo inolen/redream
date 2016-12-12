@@ -6,7 +6,7 @@
 #include "sys/filesystem.h"
 #include "ui/window.h"
 
-DEFINE_OPTION_BOOL(help, false, "Show help");
+DEFINE_OPTION_INT(help, 0, "Show help");
 
 int main(int argc, char **argv) {
   const char *appdir = fs_appdir();

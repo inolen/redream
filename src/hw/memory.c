@@ -50,7 +50,7 @@ static int get_region_handle(page_entry_t page) {
 struct mirror_iterator {
   uint32_t base, mask, imask, step;
   uint32_t i, addr;
-  bool first;
+  int first;
 };
 
 static void mirror_iterator_init(struct mirror_iterator *it, uint32_t addr,
@@ -61,19 +61,19 @@ static void mirror_iterator_init(struct mirror_iterator *it, uint32_t addr,
   it->step = 1 << ctz32(it->imask);
   it->i = 0;
   it->addr = it->base;
-  it->first = true;
+  it->first = 1;
 }
 
 static bool mirror_iterator_next(struct mirror_iterator *it) {
   /* first iteration just returns base */
   if (it->first) {
-    it->first = false;
-    return true;
+    it->first = 0;
+    return 1;
   }
 
   /* stop once mask complement is completely set */
   if ((it->addr & it->imask) == it->imask) {
-    return false;
+    return 0;
   }
 
   /* step to the next permutation */
@@ -89,7 +89,7 @@ static bool mirror_iterator_next(struct mirror_iterator *it) {
   /* merge with the base */
   it->addr = it->base | it->i;
 
-  return true;
+  return 1;
 }
 
 static bool reserve_address_space(uint8_t **base) {
@@ -109,12 +109,12 @@ static bool reserve_address_space(uint8_t **base) {
        into it */
     release_pages(*base, ADDRESS_SPACE_SIZE);
 
-    return true;
+    return 1;
   }
 
   LOG_WARNING("Failed to reserve address space");
 
-  return false;
+  return 0;
 }
 
 struct memory_region *memory_get_region(struct memory *memory,
@@ -187,17 +187,17 @@ uint8_t *memory_translate(struct memory *memory, const char *name,
   return memory->shmem_base + region->physical.shmem_offset + offset;
 }
 
-static bool memory_create_shmem(struct memory *memory) {
+static int memory_create_shmem(struct memory *memory) {
   /* create the shared memory object to back the address space */
   memory->shmem =
       create_shared_memory("/redream", ADDRESS_SPACE_SIZE, ACC_READWRITE);
 
   if (memory->shmem == SHMEM_INVALID) {
     LOG_WARNING("Failed to create shared memory object");
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 static void memory_destroy_shmem(struct memory *memory) {
@@ -206,9 +206,9 @@ static void memory_destroy_shmem(struct memory *memory) {
   destroy_shared_memory(memory->shmem);
 }
 
-bool memory_init(struct memory *memory) {
+int memory_init(struct memory *memory) {
   if (!memory_create_shmem(memory)) {
-    return false;
+    return 0;
   }
 
   /* map each memory interface's address space */
@@ -225,15 +225,15 @@ bool memory_init(struct memory *memory) {
 
   /* map raw address space */
   if (!reserve_address_space(&memory->shmem_base)) {
-    return false;
+    return 0;
   }
 
   if (!map_shared_memory(memory->shmem, 0, memory->shmem_base,
                          memory->shmem_size, ACC_READWRITE)) {
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 void memory_destroy(struct memory *memory) {
@@ -574,8 +574,8 @@ void as_unmap(struct address_space *space) {
   }
 }
 
-bool as_map(struct address_space *space, const char *name,
-            const struct address_map *map) {
+int as_map(struct address_space *space, const char *name,
+           const struct address_map *map) {
   as_unmap(space);
 
   /* flatten the supplied address map out into a virtual page table */
@@ -588,7 +588,7 @@ bool as_map(struct address_space *space, const char *name,
 #endif
 
   if (!reserve_address_space(&space->base)) {
-    return false;
+    return 0;
   }
 
   /* iterate the virtual page table, mapping it to the reserved address space */
@@ -621,21 +621,21 @@ bool as_map(struct address_space *space, const char *name,
 
       if (!map_shared_memory(space->dc->memory->shmem, shmem_offset, addr, size,
                              ACC_READWRITE)) {
-        return false;
+        return 0;
       }
     } else {
       /* disable access to virtual address range for mmio regions, resulting in
          SIGSEGV on access */
       if (!map_shared_memory(space->dc->memory->shmem, 0, addr, size,
                              ACC_NONE)) {
-        return false;
+        return 0;
       }
     }
 
     page_index += num_pages;
   }
 
-  return true;
+  return 1;
 }
 
 void as_destroy(struct address_space *space) {

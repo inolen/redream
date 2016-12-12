@@ -161,17 +161,21 @@ static inline int ir_type_size(enum ir_type type) {
   }
 }
 
-static inline bool ir_is_int(enum ir_type type) {
+static inline int ir_is_int(enum ir_type type) {
   return type == VALUE_I8 || type == VALUE_I16 || type == VALUE_I32 ||
          type == VALUE_I64;
 }
 
-static inline bool ir_is_float(enum ir_type type) {
+static inline int ir_is_float(enum ir_type type) {
   return type == VALUE_F32 || type == VALUE_F64;
 }
 
-static inline bool ir_is_vector(enum ir_type type) {
+static inline int ir_is_vector(enum ir_type type) {
   return type == VALUE_V128;
+}
+
+static inline int ir_is_constant(const struct ir_value *v) {
+  return !v->def;
 }
 
 int ir_read(FILE *input, struct ir *ir);
@@ -202,7 +206,6 @@ void ir_set_arg2(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
 void ir_replace_use(struct ir_use *use, struct ir_value *other);
 void ir_replace_uses(struct ir_value *v, struct ir_value *other);
 
-bool ir_is_constant(const struct ir_value *v);
 uint64_t ir_zext_constant(const struct ir_value *v);
 
 // direct access to host memory
