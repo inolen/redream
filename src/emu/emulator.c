@@ -5,6 +5,8 @@
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
+#include "hw/gdrom/gdi.h"
+#include "hw/gdrom/cdi.h"
 #include "hw/memory.h"
 #include "hw/pvr/pvr.h"
 #include "hw/pvr/ta.h"
@@ -75,6 +77,21 @@ static bool emu_launch_gdi(struct emu *emu, const char *path) {
 
   return true;
 }
+
+static bool emu_launch_cdi(struct emu *emu, const char *path) {
+  struct disc *disc = disc_create_cdi(path);
+
+  if (!disc) {
+    return false;
+  }
+
+  gdrom_set_disc(emu->dc->gdrom, disc);
+  sh4_reset(emu->dc->sh4, 0xa0000000);
+  dc_resume(emu->dc);
+
+  return true;
+}
+
 
 static void emu_paint(void *data) {
   struct emu *emu = data;
@@ -204,7 +221,8 @@ void emu_run(struct emu *emu, const char *path) {
     LOG_INFO("Launching %s", path);
 
     if ((strstr(path, ".bin") && !emu_launch_bin(emu, path)) ||
-        (strstr(path, ".gdi") && !emu_launch_gdi(emu, path))) {
+        (strstr(path, ".gdi") && !emu_launch_gdi(emu, path)) ||
+        (strstr(path, ".cdi") && !emu_launch_cdi(emu, path))) {
       LOG_WARNING("Failed to launch %s", path);
       return;
     }
