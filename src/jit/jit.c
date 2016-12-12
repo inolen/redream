@@ -17,8 +17,7 @@
 #include <unistd.h>
 #endif
 
-DEFINE_OPTION_BOOL(perf, false,
-                   "Generate perf-compatible maps for genrated code");
+DEFINE_OPTION_INT(perf, 0, "Generate perf-compatible maps for genrated code");
 
 struct jit_block {
   /* address of source block in guest memory */

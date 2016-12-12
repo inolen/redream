@@ -15,7 +15,7 @@
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 
-DEFINE_OPTION_BOOL(gdb, false, "Run gdb debug server");
+DEFINE_OPTION_INT(gdb, 0, "Run gdb debug server");
 
 void dc_joy_remove(struct dreamcast *dc, int joystick_index) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {

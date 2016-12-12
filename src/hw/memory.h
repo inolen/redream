@@ -51,7 +51,7 @@ struct memory;
 
 struct memory *memory_create(struct dreamcast *dc);
 void memory_destroy(struct memory *memory);
-bool memory_init(struct memory *memory);
+int memory_init(struct memory *memory);
 
 uint8_t *memory_translate(struct memory *memory, const char *name,
                           uint32_t offset);
@@ -186,8 +186,8 @@ struct address_space {
 struct address_space *as_create(struct dreamcast *dc);
 void as_destroy(struct address_space *space);
 
-bool as_map(struct address_space *space, const char *name,
-            const struct address_map *map);
+int as_map(struct address_space *space, const char *name,
+           const struct address_map *map);
 void as_unmap(struct address_space *space);
 
 void as_lookup(struct address_space *space, uint32_t addr,

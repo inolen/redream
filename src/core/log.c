@@ -2,15 +2,15 @@
 #include <stdio.h>
 #include "core/log.h"
 
-DEFINE_OPTION_BOOL(debug, false, "Enable debug logging");
+DEFINE_OPTION_INT(verbose, 0, "Enable debug logging");
 
 void log_line(enum log_level level, const char *format, ...) {
   static char sbuffer[0x1000];
   int buffer_size = sizeof(sbuffer);
   char *buffer = sbuffer;
 
+  /* allocate a temporary buffer if need be to fit the string */
   va_list args;
-  // allocate a temporary buffer if need be to fit the string
   va_start(args, format);
   int len = vsnprintf(0, 0, format, args);
   if (len >= buffer_size) {
@@ -40,7 +40,7 @@ void log_line(enum log_level level, const char *format, ...) {
   printf("%s\n", buffer);
 #endif
 
-  // cleanup the temporary buffer
+  /* cleanup the temporary buffer */
   if (buffer != sbuffer) {
     free(buffer);
   }

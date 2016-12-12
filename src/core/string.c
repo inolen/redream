@@ -40,8 +40,8 @@ int strnrep(char *dst, size_t dst_size, const char *token, size_t token_len,
       break;
     }
 
-    // move substring starting at the end of the token to the end of where the
-    // new value will be)
+    /* move substring starting at the end of the token to the end of where the
+       new value will be) */
     size_t dst_len = strnlen(dst, dst_size);
     size_t move_size = (dst_len + 1) - ((ptr - dst) + token_len);
 
@@ -51,7 +51,7 @@ int strnrep(char *dst, size_t dst_size, const char *token, size_t token_len,
 
     memmove(ptr + value_len, ptr + token_len, move_size);
 
-    // copy new value into token position
+    /* copy new value into token position */
     memmove(ptr, value, value_len);
   }
 

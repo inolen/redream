@@ -31,7 +31,7 @@ void list_add_after(struct list *list, struct list_node *after,
     }
   }
 
-  // no need to check list->tail == NULL, in that case after would be NULL
+  /* no need to check list->tail == NULL, in that case after would be NULL */
   if (list->tail == after) {
     list->tail = n;
   }
@@ -57,8 +57,8 @@ void list_clear(struct list *list) {
   list->head = list->tail = NULL;
 }
 
-// Implements the mergesort for linked lists as described at
-// http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
+/* implements the mergesort for linked lists as described at
+   http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
 void list_sort(struct list *list, list_node_cmp cmp) {
   struct list_node *head = list->head;
   struct list_node *tail = NULL;
@@ -72,10 +72,10 @@ void list_sort(struct list *list, list_node_cmp cmp) {
     tail = NULL;
 
     while (p) {
-      // track the number of lists merged this pass
+      /* track the number of lists merged this pass */
       merges++;
 
-      // step q forward k places, tracking the size of p
+      /* step q forward k places, tracking the size of p */
       int psize = 0;
       int qsize = k;
       struct list_node *q = p;
@@ -84,8 +84,8 @@ void list_sort(struct list *list, list_node_cmp cmp) {
         q = q->next;
       }
 
-      // merge the list starting at p of length psize with the list starting
-      // at q of at most, length qsize
+      /* merge the list starting at p of length psize with the list starting
+         at q of at most, length qsize */
       while (psize || (qsize && q)) {
         struct list_node *next;
 
@@ -107,7 +107,7 @@ void list_sort(struct list *list, list_node_cmp cmp) {
           psize--;
         }
 
-        // move merged node to tail
+        /* move merged node to tail */
         if (!tail) {
           head = next;
         } else {
@@ -124,7 +124,7 @@ void list_sort(struct list *list, list_node_cmp cmp) {
       tail->next = NULL;
     }
 
-    // if only 1 pair of lists was merged, this is the end
+    /* if only 1 pair of lists was merged, this is the end */
     if (merges <= 1) {
       break;
     }
@@ -132,7 +132,7 @@ void list_sort(struct list *list, list_node_cmp cmp) {
     k *= 2;
   }
 
-  // update internal head and tail with sorted head and tail
+  /* update internal head and tail with sorted head and tail */
   list->head = head;
   list->tail = tail;
 }
