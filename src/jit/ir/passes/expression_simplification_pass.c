@@ -18,6 +18,7 @@ void esimp_run(struct ir *ir) {
     if (instr->arg[1] && ir_is_constant(instr->arg[1]) &&
         ir_is_int(instr->arg[1]->type)) {
       uint64_t rhs = ir_zext_constant(instr->arg[1]);
+      struct ir_value *lhs = instr->arg[0];
 
       /* simplify binary ops where an argument of 0 always results in 0 */
       if ((instr->op == OP_AND || instr->op == OP_SMUL ||
@@ -28,6 +29,14 @@ void esimp_run(struct ir *ir) {
         STAT_zero_properties_removed++;
       }
 
+        /* simplify binary ops where 0 is an identity */
+      else if((instr->op == OP_ADD || instr->op == OP_SUB ||
+               instr->op == OP_OR  || instr->op == OP_XOR ||
+               instr->op == OP_SHL || instr->op == OP_LSHR) &&
+               rhs == 0) {
+        ir_replace_uses(instr->result, lhs);
+        STAT_zero_identities_removed++;
+      }
       /* TODO simplify binary ops where 0 is the identity element */
       /* x + 0 = x */
       /* x - 0 = x */
