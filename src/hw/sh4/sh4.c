@@ -11,6 +11,7 @@
 #include "hw/rom/boot.h"
 #include "hw/rom/flash.h"
 #include "hw/scheduler.h"
+#include "hw/sh4/x64/sh4_dispatch.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
@@ -21,29 +22,11 @@
 #include "sys/time.h"
 #include "ui/nuklear.h"
 
-DEFINE_STAT("cpu", sh4_instrs);
-DEFINE_STAT("cpu", sh4_sr_updates);
-
-/*
- * sh4 code layout. executable code sits between 0x0c000000 and 0x0d000000.
- * each instr is 2 bytes, making for a maximum of 0x1000000 >> 1 blocks
- */
-#define SH4_BLOCK_MASK 0x03ffffff
-#define SH4_BLOCK_SHIFT 1
-#define SH4_BLOCK_OFFSET(addr) ((addr & SH4_BLOCK_MASK) >> SH4_BLOCK_SHIFT)
-#define SH4_MAX_BLOCKS (0x1000000 >> SH4_BLOCK_SHIFT)
+DEFINE_AGGREGATE_COUNTER(sh4_instrs);
+DEFINE_AGGREGATE_COUNTER(sh4_sr_updates);
 
 /* callbacks to service sh4_reg_read / sh4_reg_write calls */
 struct reg_cb sh4_cb[NUM_SH4_REGS];
-
-/*
- * global sh4 pointer is used by sh4_compile_pc to resolve the current
- * sh4 instance when compiling a new block
- */
-static struct sh4 *g_sh4;
-static uint8_t sh4_code[1024 * 1024 * 8];
-static int sh4_code_size = 1024 * 1024 * 8;
-static int sh4_stack_size = 1024;
 
 static void sh4_swap_gpr_bank(struct sh4 *sh4) {
   for (int s = 0; s < 8; s++) {
@@ -61,9 +44,8 @@ static void sh4_swap_fpr_bank(struct sh4 *sh4) {
   }
 }
 
-static void sh4_invalid_instr(void *data, uint64_t addr) {
+static void sh4_invalid_instr(void *data, uint32_t addr) {
   /*struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-  uint32_t addr = (uint32_t)data;
 
   auto it = self->breakpoints.find(addr);
   CHECK_NE(it, self->breakpoints.end());
@@ -75,11 +57,11 @@ static void sh4_invalid_instr(void *data, uint64_t addr) {
   self->dc->debugger->Trap();*/
 }
 
-void sh4_sr_updated(void *data, uint64_t old_sr) {
+void sh4_sr_updated(void *data, uint32_t old_sr) {
   struct sh4 *sh4 = data;
   struct sh4_ctx *ctx = &sh4->ctx;
 
-  STAT_sh4_sr_updates++;
+  prof_counter_add(COUNTER_sh4_sr_updates, 1);
 
   if ((ctx->sr & RB) != (old_sr & RB)) {
     sh4_swap_gpr_bank(sh4);
@@ -90,7 +72,7 @@ void sh4_sr_updated(void *data, uint64_t old_sr) {
   }
 }
 
-void sh4_fpscr_updated(void *data, uint64_t old_fpscr) {
+void sh4_fpscr_updated(void *data, uint32_t old_fpscr) {
   struct sh4 *sh4 = data;
   struct sh4_ctx *ctx = &sh4->ctx;
 
@@ -120,8 +102,8 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   sh4->reg[offset] = data;
 }
 
-static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
-                          int fastmem) {
+static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
+                          int *size) {
   struct sh4 *sh4 = data;
 
   /* analyze the guest block to get its size, cycle count, etc. */
@@ -138,19 +120,28 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
   }
   sh4_analyze_block(sh4->jit, &as);
 
-  /* update remaining cycles */
+  /* yield control once remaining cycles are executed */
   struct ir_value *remaining_cycles = ir_load_context(
       ir, offsetof(struct sh4_ctx, remaining_cycles), VALUE_I32);
+  struct ir_value *done = ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
+  ir_branch_true(ir, done, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_leave));
+
+  /* handle pending interrupts */
+  struct ir_value *pending_intr = ir_load_context(
+      ir, offsetof(struct sh4_ctx, pending_interrupts), VALUE_I64);
+  ir_branch_true(ir, pending_intr,
+                 ir_alloc_i64(ir, (uint64_t)sh4_dispatch_interrupt));
+
+  /* update remaining cycles */
   remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, as.cycles));
   ir_store_context(ir, offsetof(struct sh4_ctx, remaining_cycles),
                    remaining_cycles);
 
   /* update instruction run count */
-  struct ir_value *num_instrs_ptr =
-      ir_alloc_i64(ir, (uint64_t)&STAT_sh4_instrs);
-  struct ir_value *num_instrs = ir_load(ir, num_instrs_ptr, VALUE_I64);
-  num_instrs = ir_add(ir, num_instrs, ir_alloc_i64(ir, as.size / 2));
-  ir_store(ir, num_instrs_ptr, num_instrs);
+  struct ir_value *ran_instrs =
+      ir_load_context(ir, offsetof(struct sh4_ctx, ran_instrs), VALUE_I64);
+  ran_instrs = ir_add(ir, ran_instrs, ir_alloc_i64(ir, as.size / 2));
+  ir_store_context(ir, offsetof(struct sh4_ctx, ran_instrs), ran_instrs);
 
   /* translate the actual block */
   for (int i = 0; i < as.size;) {
@@ -167,10 +158,8 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
       delay_instr.addr = addr + i;
       delay_instr.opcode = as_read16(sh4->memory_if->space, delay_instr.addr);
 
-      /*
-       * instruction must be valid, breakpoints on delay instructions aren't
-       * currently supported
-       */
+      /* instruction must be valid, breakpoints on delay instructions aren't
+         currently supported */
       CHECK(sh4_disasm(&delay_instr));
 
       /* delay instruction itself should never have a delay instr */
@@ -192,6 +181,30 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir,
     ir_store_context(ir, offsetof(struct sh4_ctx, pc),
                      ir_alloc_i32(ir, addr + as.size));
   }
+
+  /* the default emitters won't actually insert calls / branches to the
+     appropriate dispatch routines (as how each is invoked is specific
+     to the particular dispatch backend) */
+  list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
+    if (instr->op != OP_STORE_CONTEXT ||
+        instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
+      continue;
+    }
+
+    int direct = ir_is_constant(instr->arg[1]);
+
+    /* insert dispatch call immediately after pc store */
+    ir->current_instr = instr;
+
+    if (direct) {
+      ir_call(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_static));
+    } else {
+      ir_branch(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_dynamic));
+    }
+  }
+
+  /* return size */
+  *size = as.size;
 }
 
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
@@ -204,9 +217,31 @@ void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
   sh4_intc_update_pending(sh4);
 }
 
+static void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
+  struct sh4 *sh4 = (struct sh4 *)dev;
+
+  nk_layout_row_push(ctx, 30.0f);
+
+  if (nk_menu_begin_label(ctx, "SH4", NK_TEXT_LEFT, nk_vec2(200.0f, 200.0f))) {
+    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+    if (nk_button_label(ctx, "clear cache")) {
+      jit_invalidate_blocks(sh4->jit);
+    }
+
+    int dumping = jit_is_dumping(sh4->jit);
+    if (!dumping && nk_button_label(ctx, "start dumping blocks")) {
+      jit_toggle_dumping(sh4->jit);
+    } else if (dumping && nk_button_label(ctx, "stop dumping blocks")) {
+      jit_toggle_dumping(sh4->jit);
+    }
+
+    nk_menu_end(ctx);
+  }
+}
+
 void sh4_reset(struct sh4 *sh4, uint32_t pc) {
-  /* unlink stale blocks */
-  jit_unlink_blocks(sh4->jit);
+  jit_free_blocks(sh4->jit);
 
   /* reset context */
   sh4->ctx.pc = pc;
@@ -228,18 +263,6 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   sh4->execute_if->running = 1;
 }
 
-static void sh4_compile_pc() {
-  uint32_t guest_addr = g_sh4->ctx.pc;
-  code_pointer_t code = jit_compile_code(g_sh4->jit, guest_addr);
-  code();
-}
-
-static inline code_pointer_t sh4_get_code(struct sh4 *sh4, uint32_t addr) {
-  int offset = SH4_BLOCK_OFFSET(addr);
-  DCHECK_LT(offset, SH4_MAX_BLOCKS);
-  return sh4->jit->code[offset];
-}
-
 static void sh4_run(struct device *dev, int64_t ns) {
   PROF_ENTER("cpu", "sh4_run");
 
@@ -247,16 +270,9 @@ static void sh4_run(struct device *dev, int64_t ns) {
 
   int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
   sh4->ctx.remaining_cycles = (int)cycles;
-
-  g_sh4 = sh4;
-
-  while (sh4->ctx.remaining_cycles > 0) {
-    code_pointer_t code = sh4_get_code(sh4, sh4->ctx.pc);
-    code();
-    sh4_intc_check_pending(sh4);
-  }
-
-  g_sh4 = NULL;
+  sh4->ctx.ran_instrs = 0;
+  sh4_dispatch_enter();
+  prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 
   PROF_LEAVE();
 }
@@ -266,27 +282,32 @@ static bool sh4_init(struct device *dev) {
   struct dreamcast *dc = sh4->dc;
 
   /* initialize jit and its interfaces */
-  struct jit *jit = jit_create("sh4");
-  jit->block_mask = SH4_BLOCK_MASK;
-  jit->block_shift = SH4_BLOCK_SHIFT;
-  jit->block_max = SH4_MAX_BLOCKS;
-  jit->ctx = &sh4->ctx;
-  jit->mem = sh4->memory_if->space->base;
-  jit->space = sh4->memory_if->space;
-  jit->r8 = &as_read8;
-  jit->r16 = &as_read16;
-  jit->r32 = &as_read32;
-  jit->w8 = &as_write8;
-  jit->w16 = &as_write16;
-  jit->w32 = &as_write32;
-  sh4->jit = jit;
+  sh4->jit = jit_create("sh4");
+
+  sh4_dispatch_init(sh4, sh4->jit, &sh4->ctx, sh4->memory_if->space->base);
+
+  struct jit_guest *guest = &sh4->guest;
+  guest->ctx = &sh4->ctx;
+  guest->mem = sh4->memory_if->space->base;
+  guest->space = sh4->memory_if->space;
+  guest->lookup_code = &sh4_dispatch_lookup_code;
+  guest->cache_code = &sh4_dispatch_cache_code;
+  guest->invalidate_code = &sh4_dispatch_invalidate_code;
+  guest->patch_edge = &sh4_dispatch_patch_edge;
+  guest->restore_edge = &sh4_dispatch_restore_edge;
+  guest->r8 = &as_read8;
+  guest->r16 = &as_read16;
+  guest->r32 = &as_read32;
+  guest->w8 = &as_write8;
+  guest->w16 = &as_write16;
+  guest->w32 = &as_write32;
 
   struct sh4_frontend *frontend =
       (struct sh4_frontend *)sh4_frontend_create(sh4->jit);
   frontend->data = sh4;
   frontend->translate = &sh4_translate;
   frontend->invalid_instr = &sh4_invalid_instr;
-  frontend->prefetch = &sh4_ccn_prefetch;
+  frontend->sq_prefetch = &sh4_ccn_sq_prefetch;
   frontend->sr_updated = &sh4_sr_updated;
   frontend->fpscr_updated = &sh4_fpscr_updated;
   sh4->frontend = (struct jit_frontend *)frontend;
@@ -295,7 +316,7 @@ static bool sh4_init(struct device *dev) {
       x64_backend_create(sh4->jit, sh4_code, sh4_code_size, sh4_stack_size);
   sh4->backend = backend;
 
-  if (!jit_init(sh4->jit, sh4->frontend, sh4->backend, &sh4_compile_pc)) {
+  if (!jit_init(sh4->jit, &sh4->guest, sh4->frontend, sh4->backend)) {
     return false;
   }
 
@@ -315,6 +336,7 @@ void sh4_destroy(struct sh4 *sh4) {
     sh4_frontend_destroy(sh4->frontend);
   }
 
+  dc_destroy_window_interface(sh4->window_if);
   dc_destroy_memory_interface(sh4->memory_if);
   dc_destroy_execute_interface(sh4->execute_if);
   dc_destroy_device((struct device *)sh4);
@@ -324,6 +346,8 @@ struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
   sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
   sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
+  sh4->window_if =
+      dc_create_window_interface(&sh4_debug_menu, NULL, NULL, NULL);
 
   return sh4;
 }
@@ -366,41 +390,14 @@ REG_R32(sh4_cb, PDTRA) {
       ((pctra & 0xf) == 0xc && (pdtra & 0xf) == 0x2)) {
     v = 3;
   }
-  /*
-   * FIXME cable setting
-   * When a VGA cable* is connected
-   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-   * "00")
-   * 2. Set the HOLLY synchronization register for VGA.  (The SYNC output is
-   * H-Sync and V-Sync.)
-   * 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-   * VIDEO1 = 0 and VIDEO0 = 1 are output.  VIDEO0 is connected to the
-   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-   *
-   * When an RGB(NTSC/PAL) cable* is connected
-   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-   * "10")
-   * 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-   * output is H-Sync and V-Sync.)
-   * 3. When VREG1 = 0 and VREG0 = 0 are written in the AICA register,
-   * VIDEO1 = 1 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-   *
-   * When a stereo A/V cable, an S-jack cable* or an RF converter* is
-   * connected
-   * 1. The SH4 obtains the cable information from the PIO port.  (PB[9:8] =
-   * "11")
-   * 2. Set the HOLLY synchronization register for NTSC/PAL.  (The SYNC
-   * output is H-Sync and V-Sync.)
-   * 3. When VREG1 = 1 and VREG0 = 1 are written in the AICA register,
-   * VIDEO1 = 0 and VIDEO0 = 0 are output.  VIDEO0 is connected to the
-   * DVE-DACH pin, and handles switching between RGB and NTSC/PAL.
-   */
-  v |= 0x3 << 8;
+
+  /* FIXME cable setting */
+  int cable_type = 3;
+  v |= (cable_type << 8);
   return v;
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("boot", boot_rom_map)
   AM_RANGE(0x00200000, 0x0021ffff) AM_DEVICE("flash", flash_rom_map)
@@ -424,9 +421,10 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("holly", holly_expansion2_map)
 
   /* internal registers */
-  AM_RANGE(0x1e000000, 0x1fffffff) AM_HANDLE("sh4 reg",
+  AM_RANGE(0x1c000000, 0x1fffffff) AM_HANDLE("sh4 reg",
                                              (mmio_read_cb)&sh4_reg_read,
-                                             (mmio_write_cb)&sh4_reg_write)
+                                             (mmio_write_cb)&sh4_reg_write,
+                                             NULL, NULL)
 
   /* physical mirrors */
   AM_RANGE(0x20000000, 0x3fffffff) AM_MIRROR(0x00000000)  /* p0 */
@@ -440,9 +438,11 @@ AM_BEGIN(struct sh4, sh4_data_map)
   /* internal cache and sq only accessible through p4 */
   AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
                                              (mmio_read_cb)&sh4_ccn_cache_read,
-                                             (mmio_write_cb)&sh4_ccn_cache_write)
+                                             (mmio_write_cb)&sh4_ccn_cache_write,
+                                             NULL, NULL)
   AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE("sh4 sq",
                                              (mmio_read_cb)&sh4_ccn_sq_read,
-                                             (mmio_write_cb)&sh4_ccn_sq_write)
+                                             (mmio_write_cb)&sh4_ccn_sq_write,
+                                             NULL, NULL)
 AM_END();
-// clang-format on
+/* clang-format on */

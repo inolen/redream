@@ -1,14 +1,13 @@
 # redream
 
+[![Build status](https://travis-ci.org/inolen/redream.svg?branch=master)](https://travis-ci.org/inolen/redream)
+[![Slack status](http://slack.redream.io/badge.svg)](http://slack.redream.io)
+
 redream is a work in progress emulator for the SEGA Dreamcast.
 
 <p align="center">
 <a href="http://www.youtube.com/watch?v=kDBAweW9hD0"><img src="http://share.gifyoutube.com/vMZXGb.gif" /></a>
 </p>
-
-## Build status
-
-[![Build Status](https://travis-ci.org/inolen/redream.svg?branch=master)](https://travis-ci.org/inolen/redream)
 
 ## Getting started
 
@@ -22,7 +21,7 @@ cd redream_build
 Next, generate a makefile or project file for your IDE of choice. For more info on the supported IDEs, checkout the [CMake documentation](http://www.cmake.org/cmake/help/latest/manual/cmake-generators.7.html).
 ```shell
 # Makefile
-cmake ../redream
+cmake -DCMAKE_BUILD_TYPE=RELEASE ../redream
 
 # Xcode project
 cmake -G "Xcode" ../redream
@@ -44,11 +43,13 @@ Command line flags are loaded from and saved to `$HOME/.redream/flags` each run.
 
 ### All options
 ```
-     --bios  Path to BIOS                 [default: dc_boot.bin]
-    --flash  Path to flash ROM            [default: dc_flash.bin]
-    --debug  Start GDB debug server
-     --perf  Write perf-compatible maps for generated code
-  --profile  Path to controller profile
+       --bios  Path to BIOS                                            [default: dc_boot.bin]
+      --flash  Path to flash ROM                                       [default: dc_flash.bin]
+ --controller  Path to controller profile
+   --throttle  Throttle emulation speed to match the original hardware [default: 1]
+    --verbose  Enable debug logging                                    [default: 0]
+       --perf  Write perf-compatible maps for generated code           [default: 0]
+        --gdb  Start GDB debug server                                  [default: 0]
 ```
 
 ### Debugging
@@ -65,3 +66,7 @@ target remote localhost:24690
 ```shell
 retest
 ```
+
+## Community
+
+Ask questions and help answer them on [Slack](http://slack.redream.io).

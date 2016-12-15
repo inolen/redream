@@ -2,42 +2,13 @@
 #define JIT_H
 
 #include <stdio.h>
+#include "core/list.h"
 #include "core/rb_tree.h"
 
 struct address_space;
+struct ir;
 
-typedef void (*code_pointer_t)();
-
-struct jit_block {
-  const uint8_t *host_addr;
-  int host_size;
-  uint32_t guest_addr;
-  struct rb_node it;
-  struct rb_node rit;
-};
-
-struct jit {
-  char tag[32];
-  struct jit_frontend *frontend;
-  struct jit_backend *backend;
-  struct exception_handler *exc_handler;
-
-  /* scratch compilation buffer */
-  uint8_t ir_buffer[1024 * 1024];
-
-  /* compiled block perf map */
-  FILE *perf_map;
-
-  code_pointer_t default_code;
-  code_pointer_t *code;
-  struct rb_tree blocks;
-  struct rb_tree reverse_blocks;
-
-  /* dispatch interface */
-  uint32_t block_mask;
-  uint32_t block_shift;
-  int block_max;
-
+struct jit_guest {
   /* memory interface */
   void *ctx;
   void *mem;
@@ -50,19 +21,50 @@ struct jit {
   void (*w16)(struct address_space *, uint32_t, uint16_t);
   void (*w32)(struct address_space *, uint32_t, uint32_t);
   void (*w64)(struct address_space *, uint32_t, uint64_t);
+
+  /* dispatch interface */
+  void *(*lookup_code)(uint32_t);
+  void (*cache_code)(uint32_t, void *);
+  void (*invalidate_code)(uint32_t);
+  void (*patch_edge)(void *, void *);
+  void (*restore_edge)(void *, uint32_t);
 };
 
-struct jit *jit_create(const char *code);
+struct jit {
+  char tag[32];
+
+  struct jit_guest *guest;
+  struct jit_frontend *frontend;
+  struct jit_backend *backend;
+  struct exception_handler *exc_handler;
+
+  /* scratch compilation buffer */
+  uint8_t ir_buffer[1024 * 1024];
+
+  /* compiled blocks */
+  struct rb_tree blocks;
+  struct rb_tree reverse_blocks;
+
+  /* debug flag for dumping blocks as they are compiled */
+  int dump_compiled_blocks;
+
+  /* compiled block perf map */
+  FILE *perf_map;
+};
+
+struct jit *jit_create(const char *tag);
 void jit_destroy(struct jit *jit);
 
-int jit_init(struct jit *jit, struct jit_frontend *frontend,
-             struct jit_backend *backend, code_pointer_t default_code);
+int jit_init(struct jit *jit, struct jit_guest *guest,
+             struct jit_frontend *frontend, struct jit_backend *backend);
 
-struct jit_block *jit_get_block(struct jit *cache, uint32_t guest_addr);
-void jit_remove_blocks(struct jit *jit, uint32_t guest_addr);
-void jit_unlink_blocks(struct jit *jit);
-void jit_clear_blocks(struct jit *jit);
+int jit_is_dumping(struct jit *jit);
+void jit_toggle_dumping(struct jit *jit);
 
-code_pointer_t jit_compile_code(struct jit *jit, uint32_t guest_addr);
+void jit_compile_block(struct jit *jit, uint32_t guest_addr);
+void jit_add_edge(struct jit *jit, void *code, uint32_t dst);
+
+void jit_invalidate_blocks(struct jit *jit);
+void jit_free_blocks(struct jit *jit);
 
 #endif

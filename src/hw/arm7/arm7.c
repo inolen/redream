@@ -3,33 +3,19 @@
 #include "hw/arm7/arm7.h"
 #include "core/log.h"
 #include "hw/aica/aica.h"
+#include "hw/arm7/x64/arm7_dispatch.h"
 #include "hw/dreamcast.h"
 #include "hw/scheduler.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/armv3/armv3_analyze.h"
 #include "jit/frontend/armv3/armv3_context.h"
 #include "jit/frontend/armv3/armv3_disasm.h"
-#include "jit/frontend/armv3/armv3_fallback.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
+#include "jit/frontend/armv3/armv3_translate.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
-DEFINE_STAT("cpu", arm7_instrs);
-
-#define ARM7_CLOCK_FREQ INT64_C(20000000)
-
-/*
- * arm code layout. executable code sits between 0x00000000 and 0x00800000.
- * each instr is 4 bytes, making for a maximum of 0x00800000 >> 2 blocks
- */
-#define ARM7_BLOCK_MASK 0x007fffff
-#define ARM7_BLOCK_SHIFT 2
-#define ARM7_BLOCK_OFFSET(addr) ((addr & ARM7_BLOCK_MASK) >> ARM7_BLOCK_SHIFT)
-#define ARM7_MAX_BLOCKS (0x00800000 >> ARM7_BLOCK_SHIFT)
-
-static uint8_t arm7_code[1024 * 1024 * 8];
-static int arm7_code_size = 1024 * 1024 * 8;
-static int arm7_stack_size = 1024;
+DEFINE_AGGREGATE_COUNTER(arm7_instrs);
 
 struct arm7 {
   struct device;
@@ -38,15 +24,14 @@ struct arm7 {
   struct armv3_context ctx;
 
   /* jit */
+  struct jit *jit;
+  struct jit_guest guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
-  struct jit *jit;
 
   /* interrupts */
   uint32_t requested_interrupts;
 };
-
-struct arm7 *g_arm;
 
 static void arm7_update_pending_interrupts(struct arm7 *arm);
 
@@ -60,10 +45,8 @@ static void arm7_swap_registers(struct arm7 *arm, int old_mode, int new_mode) {
     arm->ctx.r[armv3_spsr_table[old_mode]] = arm->ctx.r[SPSR];
   }
 
-  /*
-   * write out active registers to the old mode's bank, and load the
-   * new mode's bank into the active registers
-   */
+  /* write out active registers to the old mode's bank, and load the
+     new mode's bank into the active registers */
   for (int i = 0; i < 7; i++) {
     int n = 8 + i;
     int old_n = armv3_reg_table[old_mode][i];
@@ -80,9 +63,8 @@ static void arm7_swap_registers(struct arm7 *arm, int old_mode, int new_mode) {
   }
 }
 
-static void arm7_switch_mode(void *data, uint64_t sr) {
+static void arm7_switch_mode(void *data, uint32_t new_sr) {
   struct arm7 *arm = data;
-  uint32_t new_sr = (uint32_t)sr;
   int old_mode = arm->ctx.r[CPSR] & M_MASK;
   int new_mode = new_sr & M_MASK;
 
@@ -148,8 +130,9 @@ void arm7_raise_interrupt(struct arm7 *arm, enum arm7_interrupt intr) {
 }
 
 void arm7_reset(struct arm7 *arm) {
-  /* unlink stale blocks */
-  jit_unlink_blocks(arm->jit);
+  LOG_INFO("arm7_reset");
+
+  jit_free_blocks(arm->jit);
 
   /* reset context */
   memset(&arm->ctx, 0, sizeof(arm->ctx));
@@ -166,19 +149,6 @@ void arm7_suspend(struct arm7 *arm) {
   arm->execute_if->running = 0;
 }
 
-static void arm7_compile_pc() {
-  uint32_t guest_addr = g_arm->ctx.r[15];
-  uint8_t *guest_ptr = as_translate(g_arm->memory_if->space, guest_addr);
-  code_pointer_t code = jit_compile_code(g_arm->jit, guest_addr);
-  code();
-}
-
-static inline code_pointer_t arm7_get_code(struct arm7 *arm, uint32_t addr) {
-  int offset = ARM7_BLOCK_OFFSET(addr);
-  DCHECK_LT(offset, ARM7_MAX_BLOCKS);
-  return arm->jit->code[offset];
-}
-
 static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
                            int flags) {
   struct arm7 *arm = data;
@@ -186,28 +156,40 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
   int size;
   armv3_analyze_block(arm->jit, addr, &flags, &size);
 
-  /* update remaining cycles */
+  /* cycle check */
   struct ir_value *remaining_cycles = ir_load_context(
       ir, offsetof(struct armv3_context, remaining_cycles), VALUE_I32);
+  struct ir_value *foobar =
+      ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
+  ir_branch_true(ir, foobar, ir_alloc_i64(ir, (uint64_t)arm7_dispatch_leave));
+
+  /* interrupt check */
+  struct ir_value *pending_intr = ir_load_context(
+      ir, offsetof(struct armv3_context, pending_interrupts), VALUE_I32);
+  ir_branch_true(ir, pending_intr,
+                 ir_alloc_i64(ir, (uint64_t)arm7_dispatch_interrupt));
+
+  /* update remaining cycles */
   int cycles = (size / 4);
   remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, cycles));
   ir_store_context(ir, offsetof(struct armv3_context, remaining_cycles),
                    remaining_cycles);
   CHECK(cycles && size);
 
-  /* update num instrs */
-  struct ir_value *num_instrs_ptr =
-      ir_alloc_i64(ir, (uint64_t)&STAT_arm7_instrs);
-  struct ir_value *num_instrs = ir_load(ir, num_instrs_ptr, VALUE_I64);
-  num_instrs = ir_add(ir, num_instrs, ir_alloc_i64(ir, size / 4));
-  ir_store(ir, num_instrs_ptr, num_instrs);
+  /* update instruction run count */
+  struct ir_value *ran_instrs = ir_load_context(
+      ir, offsetof(struct armv3_context, ran_instrs), VALUE_I64);
+  ran_instrs = ir_add(ir, ran_instrs, ir_alloc_i64(ir, size / 4));
+  ir_store_context(ir, offsetof(struct armv3_context, ran_instrs), ran_instrs);
 
   /* emit fallbacks */
   for (int i = 0; i < size; i += 4) {
-    uint32_t data = arm->jit->r32(arm->jit->space, addr + i);
-    void *fallback = armv3_fallback(data);
-    ir_call_fallback(ir, fallback, addr + i, data);
+    uint32_t data = as_read32(arm->memory_if->space, addr + i);
+    armv3_emit_instr((struct armv3_frontend *)arm->frontend, ir, 0, addr + i,
+                     data);
   }
+
+  ir_branch(ir, ir_alloc_i64(ir, (uint64_t)arm7_dispatch_dynamic));
 }
 
 static void arm7_run(struct device *dev, int64_t ns) {
@@ -215,19 +197,12 @@ static void arm7_run(struct device *dev, int64_t ns) {
 
   struct arm7 *arm = (struct arm7 *)dev;
 
-  int64_t cycles = MAX(NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ), INT64_C(1));
-
+  static int64_t ARM7_CLOCK_FREQ = INT64_C(20000000);
+  int64_t cycles = NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ);
   arm->ctx.remaining_cycles = (int)cycles;
-
-  g_arm = arm;
-
-  while (arm->ctx.remaining_cycles > 0) {
-    code_pointer_t code = arm7_get_code(arm, arm->ctx.r[15]);
-    code();
-    arm7_check_pending_interrupts(arm);
-  }
-
-  g_arm = NULL;
+  arm->ctx.ran_instrs = 0;
+  arm7_dispatch_enter(arm, &arm->ctx, arm->memory_if->space->base);
+  prof_counter_add(COUNTER_arm7_instrs, arm->ctx.ran_instrs);
 
   PROF_LEAVE();
 }
@@ -237,20 +212,25 @@ static bool arm7_init(struct device *dev) {
   struct dreamcast *dc = arm->dc;
 
   /* initialize jit and its interfaces */
-  struct jit *jit = jit_create("arm7");
-  jit->block_mask = ARM7_BLOCK_MASK;
-  jit->block_shift = ARM7_BLOCK_SHIFT;
-  jit->block_max = ARM7_MAX_BLOCKS;
-  jit->ctx = &arm->ctx;
-  jit->mem = arm->memory_if->space->base;
-  jit->space = arm->memory_if->space;
-  jit->r8 = &as_read8;
-  jit->r16 = &as_read16;
-  jit->r32 = &as_read32;
-  jit->w8 = &as_write8;
-  jit->w16 = &as_write16;
-  jit->w32 = &as_write32;
-  arm->jit = jit;
+  arm->jit = jit_create("arm7");
+
+  arm7_dispatch_init(arm, arm->jit, &arm->ctx, arm->memory_if->space->base);
+
+  struct jit_guest *guest = &arm->guest;
+  guest->ctx = &arm->ctx;
+  guest->mem = arm->memory_if->space->base;
+  guest->space = arm->memory_if->space;
+  guest->lookup_code = &arm7_dispatch_lookup_code;
+  guest->cache_code = &arm7_dispatch_cache_code;
+  guest->invalidate_code = &arm7_dispatch_invalidate_code;
+  guest->patch_edge = &arm7_dispatch_patch_edge;
+  guest->restore_edge = &arm7_dispatch_restore_edge;
+  guest->r8 = &as_read8;
+  guest->r16 = &as_read16;
+  guest->r32 = &as_read32;
+  guest->w8 = &as_write8;
+  guest->w16 = &as_write16;
+  guest->w32 = &as_write32;
 
   struct armv3_frontend *frontend =
       (struct armv3_frontend *)armv3_frontend_create(arm->jit);
@@ -265,7 +245,7 @@ static bool arm7_init(struct device *dev) {
       x64_backend_create(arm->jit, arm7_code, arm7_code_size, arm7_stack_size);
   arm->backend = backend;
 
-  if (!jit_init(arm->jit, arm->frontend, arm->backend, &arm7_compile_pc)) {
+  if (!jit_init(arm->jit, &arm->guest, arm->frontend, arm->backend)) {
     return false;
   }
 
@@ -301,9 +281,9 @@ struct arm7 *arm7_create(struct dreamcast *dc) {
   return arm;
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct arm7, arm7_data_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_data_map)
   AM_RANGE(0x00800000, 0x00810fff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_reg_map)
 AM_END();
-// clang-format on
+/* clang-format on */

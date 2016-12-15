@@ -47,7 +47,7 @@ static LONG CALLBACK exception_handler(PEXCEPTION_POINTERS ex_info) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  // convert signal to internal exception
+  /* convert signal to internal exception */
   struct exception ex;
   ex.type = code == STATUS_ACCESS_VIOLATION ? EX_ACCESS_VIOLATION
                                             : EX_INVALID_INSTRUCTION;
@@ -55,20 +55,20 @@ static LONG CALLBACK exception_handler(PEXCEPTION_POINTERS ex_info) {
   ex.pc = ex_info->ContextRecord->Rip;
   copy_state_to(ex_info->ContextRecord, &ex.thread_state);
 
-  // call exception handler, letting it potentially update the thread state
-  bool handled = exception_handler_handle(&ex);
+  /* call exception handler, letting it potentially update the thread state */
+  int handled = exception_handler_handle(&ex);
 
   if (!handled) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  // copy internal thread state back to mach thread state and restore
+  /* copy internal thread state back to mach thread state and restore */
   copy_state_from(&ex.thread_state, ex_info->ContextRecord);
 
   return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-bool exception_handler_install_platform() {
+int exception_handler_install_platform() {
   return AddVectoredExceptionHandler(1, &exception_handler) != NULL;
 }
 

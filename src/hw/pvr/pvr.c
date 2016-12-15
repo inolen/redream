@@ -6,7 +6,7 @@
 #include "hw/sh4/sh4.h"
 #include "sys/time.h"
 
-DEFINE_STAT("cpu", pvr_vblanks);
+DEFINE_AGGREGATE_COUNTER(pvr_vblanks);
 
 struct reg_cb pvr_cb[NUM_PVR_REGS];
 
@@ -43,7 +43,7 @@ static void pvr_next_scanline(void *data) {
 
   /* FIXME toggle SPG_STATUS.fieldnum on vblank? */
   if (!was_vsync && pvr->SPG_STATUS->vsync) {
-    STAT_pvr_vblanks++;
+    prof_counter_add(COUNTER_pvr_vblanks, 1);
   }
 
   /* reschedule */
@@ -64,10 +64,18 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
     pvr->line_clock *= 2;
   }
 
+  const char *mode = "VGA";
+  if (pvr->SPG_CONTROL->NTSC == 1) {
+    mode = "NTSC";
+  } else if (pvr->SPG_CONTROL->PAL == 1) {
+    mode = "PAL";
+  }
+
   LOG_INFO(
-      "pvr_reconfigure_spg pixel_clock %d, line_clock %d, vcount %d, hcount %d"
+      "pvr_reconfigure_spg mode %s, pixel_clock %d, line_clock %d, vcount %d, "
+      "hcount %d"
       ", interlace %d, vbstart %d, vbend %d",
-      pixel_clock, pvr->line_clock, pvr->SPG_LOAD->vcount,
+      mode, pixel_clock, pvr->line_clock, pvr->SPG_LOAD->vcount,
       pvr->SPG_LOAD->hcount, pvr->SPG_CONTROL->interlace,
       pvr->SPG_VBLANK->vbstart, pvr->SPG_VBLANK->vbend);
 
@@ -158,6 +166,32 @@ static void pvr_vram_interleaved_write(struct pvr *pvr, uint32_t addr,
   WRITE_DATA(&pvr->video_ram[addr]);
 }
 
+static void pvr_vram_interleaved_read_string(struct pvr *pvr, void *ptr,
+                                             uint32_t src, int size) {
+  CHECK(size % 4 == 0);
+
+  uint8_t *dst = ptr;
+  uint8_t *end = dst + size;
+  while (dst < end) {
+    *(uint32_t *)dst = *(uint32_t *)&pvr->video_ram[MAP64(src)];
+    dst += 4;
+    src += 4;
+  }
+}
+
+static void pvr_vram_interleaved_write_string(struct pvr *pvr, uint32_t dst,
+                                              void *ptr, int size) {
+  CHECK(size % 4 == 0);
+
+  uint8_t *src = ptr;
+  uint8_t *end = src + size;
+  while (src < end) {
+    *(uint32_t *)&pvr->video_ram[MAP64(dst)] = *(uint32_t *)src;
+    dst += 4;
+    src += 4;
+  }
+}
+
 static bool pvr_init(struct device *dev) {
   struct pvr *pvr = (struct pvr *)dev;
   struct dreamcast *dc = pvr->dc;
@@ -200,20 +234,24 @@ REG_W32(pvr_cb, FB_R_CTRL) {
   pvr_reconfigure_spg(pvr);
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct pvr, pvr_reg_map);
   AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE("pvr reg",
                                              (mmio_read_cb)&pvr_reg_read,
-                                             (mmio_write_cb)&pvr_reg_write)
+                                             (mmio_write_cb)&pvr_reg_write,
+                                             NULL, NULL)
   AM_RANGE(0x00001000, 0x00001fff) AM_HANDLE("pvr palette",
                                              (mmio_read_cb)&pvr_palette_read,
-                                             (mmio_write_cb)&pvr_palette_write)
+                                             (mmio_write_cb)&pvr_palette_write,
+                                             NULL, NULL)
 AM_END();
 
 AM_BEGIN(struct pvr, pvr_vram_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("video ram")
   AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE("video ram interleaved",
                                              (mmio_read_cb)&pvr_vram_interleaved_read,
-                                             (mmio_write_cb)&pvr_vram_interleaved_write)
+                                             (mmio_write_cb)&pvr_vram_interleaved_write,
+                                             (mmio_read_string_cb)&pvr_vram_interleaved_read_string,
+                                             (mmio_write_string_cb)&pvr_vram_interleaved_write_string)
 AM_END();
-// clang-format on
+/* clang-format on */

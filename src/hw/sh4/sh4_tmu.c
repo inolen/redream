@@ -15,20 +15,18 @@ static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
                                uint32_t tcr);
 
 static uint32_t sh4_tmu_tcnt(struct sh4 *sh4, int n) {
-  // TCNT values aren't updated in real time. if a timer is enabled, query
-  // the scheduler to figure out how many cycles are remaining for the given
-  // timer
-  if (!TSTR(n)) {
+  /* TCNT values aren't updated in real time. if a timer is enabled, query
+     the scheduler to figure out how many cycles are remaining for the given
+     timer */
+  struct timer *timer = sh4->tmu_timers[n];
+  if (!timer) {
     return *TCNT(n);
   }
 
-  // FIXME should the number of SH4 cycles that've been executed be considered
-  // here? this would prevent an entire SH4 slice from just busy waiting on
-  // this to change
-
-  struct timer *timer = sh4->tmu_timers[n];
+  /* FIXME should the number of SH4 cycles that've been executed be considered
+     here? this would prevent an entire SH4 slice from just busy waiting on
+     this to change */
   uint32_t tcr = *TCR(n);
-
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
   int64_t remaining = scheduler_remaining_time(sh4->scheduler, timer);
   int64_t cycles = NANO_TO_CYCLES(remaining, freq);
@@ -41,20 +39,22 @@ static void sh4_tmu_expire(struct sh4 *sh4, int n) {
   uint32_t *tcnt = TCNT(n);
   uint32_t *tcr = TCR(n);
 
-  LOG_INFO("sh4_tmu_expire");
+#if 0
+  LOG_INFO("sh4_tmu_expire %d", n);
+#endif
 
-  // timer expired, set the underflow flag
+  /* timer expired, set the underflow flag */
   *tcr |= 0x100;
 
-  // if interrupt generation on underflow is enabled, do so
+  /* if interrupt generation on underflow is enabled, do so */
   if (*tcr & 0x20) {
     sh4_raise_interrupt(sh4, TUNI(n));
   }
 
-  // reset TCNT with the value from TCOR
+  /* reset TCNT with the value from TCOR */
   *tcnt = *tcor;
 
-  // reschedule the timer with the new count
+  /* reschedule the timer with the new count */
   sh4->tmu_timers[n] = NULL;
   sh4_tmu_reschedule(sh4, n, *tcnt, *tcr);
 }
@@ -94,12 +94,15 @@ static void sh4_tmu_update_tstr(struct sh4 *sh4) {
     struct timer **timer = &sh4->tmu_timers[i];
 
     if (TSTR(i)) {
-      // schedule the timer if not already started
+      /* schedule the timer if not already started */
       if (!*timer) {
         sh4_tmu_reschedule(sh4, i, *TCNT(i), *TCR(i));
       }
     } else if (*timer) {
-      // disable the timer
+      /* save off progress */
+      *TCNT(i) = sh4_tmu_tcnt(sh4, i);
+
+      /* disable the timer */
       scheduler_cancel_timer(sh4->scheduler, *timer);
       *timer = NULL;
     }
@@ -108,12 +111,12 @@ static void sh4_tmu_update_tstr(struct sh4 *sh4) {
 
 static void sh4_tmu_update_tcr(struct sh4 *sh4, uint32_t n) {
   if (TSTR(n)) {
-    // timer is already scheduled, reschedule it with the current cycle
-    // count, but the new TCR value
+    /* timer is already scheduled, reschedule it with the current cycle
+       count, but the new TCR value */
     sh4_tmu_reschedule(sh4, n, sh4_tmu_tcnt(sh4, n), *TCR(n));
   }
 
-  // if the timer no longer cares about underflow interrupts, unrequest
+  /* if the timer no longer cares about underflow interrupts, unrequest */
   if (!(*TCR(n) & 0x20) || !(*TCR(n) & 0x100)) {
     sh4_clear_interrupt(sh4, TUNI(n));
   }
@@ -146,7 +149,7 @@ REG_W32(sh4_cb, TCR1) {
 REG_W32(sh4_cb, TCR2) {
   struct sh4 *sh4 = dc->sh4;
   *sh4->TCR2 = value;
-  sh4_tmu_update_tcr(sh4, 1);
+  sh4_tmu_update_tcr(sh4, 2);
 }
 
 REG_R32(sh4_cb, TCNT0) {

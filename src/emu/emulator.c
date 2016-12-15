@@ -1,7 +1,8 @@
 #include "emu/emulator.h"
+#include "audio/audio_backend.h"
 #include "core/option.h"
 #include "core/profiler.h"
-#include "core/stat.h"
+#include "hw/aica/aica.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
@@ -16,14 +17,16 @@
 #include "ui/nuklear.h"
 #include "ui/window.h"
 
-DEFINE_STAT("gpu", frames);
+DEFINE_OPTION_INT(throttle, 1,
+                  "Throttle emulation speed to match the original hardware");
+
+DEFINE_AGGREGATE_COUNTER(frames);
 
 struct emu {
   struct window *window;
   struct window_listener listener;
   struct dreamcast *dc;
   int running;
-  int throttled;
 
   /* render state */
   struct tr *tr;
@@ -95,10 +98,9 @@ static void emu_paint(void *data) {
   }
 
   tr_render_context(emu->tr, render_ctx);
-  STAT_frames++;
+  prof_counter_add(COUNTER_frames, 1);
 
-  STAT_UPDATE("gpu");
-  PROF_FLIP();
+  prof_flip();
 }
 
 static void emu_debug_menu(void *data, struct nk_context *ctx) {
@@ -106,10 +108,14 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
 
   /* set status string */
   char status[128];
-  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d SH4 %d ARM",
-           (int)STAT_PREV_frames, (int)STAT_PREV_pvr_vblanks,
-           (int)(STAT_PREV_sh4_instrs / (float)INT64_C(1000000)),
-           (int)(STAT_PREV_arm7_instrs / (float)INT64_C(1000000)));
+
+  int frames = (int)prof_counter_load(COUNTER_frames);
+  int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
+  int sh4_instrs = (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
+  int arm7_instrs = (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
+
+  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d SH4 %d ARM", frames,
+           pvr_vblanks, sh4_instrs, arm7_instrs);
   win_set_status(emu->window, status);
 
   /* add drop down menus */
@@ -117,14 +123,15 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
   if (nk_menu_begin_label(ctx, "EMULATOR", NK_TEXT_LEFT,
                           nk_vec2(140.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
-    nk_checkbox_label(ctx, "throttled", &emu->throttled);
+    nk_checkbox_label(ctx, "throttled", &OPTION_throttle);
     nk_menu_end(ctx);
   }
 
   dc_debug_menu(emu->dc, ctx);
 }
 
-static void emu_keydown(void *data, enum keycode code, int16_t value) {
+static void emu_keydown(void *data, int device_index, enum keycode code,
+                        int16_t value) {
   struct emu *emu = data;
 
   if (code == K_F1) {
@@ -134,7 +141,19 @@ static void emu_keydown(void *data, enum keycode code, int16_t value) {
     return;
   }
 
-  dc_keydown(emu->dc, code, value);
+  dc_keydown(emu->dc, device_index, code, value);
+}
+
+static void emu_joy_add(void *data, int joystick_index) {
+  struct emu *emu = data;
+
+  dc_joy_add(emu->dc, joystick_index);
+}
+
+static void emu_joy_remove(void *data, int joystick_index) {
+  struct emu *emu = data;
+
+  dc_joy_remove(emu->dc, joystick_index);
 }
 
 static void emu_close(void *data) {
@@ -143,24 +162,52 @@ static void emu_close(void *data) {
   emu->running = 0;
 }
 
+static void *emu_audio_thread(void *data) {
+  struct emu *emu = data;
+
+  struct audio_backend *audio = audio_create(emu->dc->aica);
+
+  if (!audio) {
+    LOG_WARNING("Audio backend creation failed");
+    return 0;
+  }
+
+  while (emu->running) {
+    audio_pump_events(audio);
+
+    /* audio_pump_events just checks for device changes, there's no need to
+       spin */
+    sleep(1);
+  }
+
+  audio_destroy(audio);
+
+  return 0;
+}
+
 static void *emu_core_thread(void *data) {
   struct emu *emu = data;
 
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
   int64_t current_time = time_nanoseconds();
   int64_t next_time = current_time;
+  int64_t delta_time = 0;
 
   while (emu->running) {
     current_time = time_nanoseconds();
 
-    int64_t delta_time = current_time - next_time;
-
-    if (!emu->throttled || delta_time >= 0) {
-      dc_tick(emu->dc, MACHINE_STEP);
-      next_time = current_time + MACHINE_STEP;
+    if (OPTION_throttle) {
+      delta_time = current_time - next_time;
+    } else {
+      delta_time = 0;
     }
 
-    STAT_UPDATE("cpu");
+    if (delta_time >= 0) {
+      dc_tick(emu->dc, MACHINE_STEP);
+      next_time = current_time + MACHINE_STEP - delta_time;
+    }
+
+    prof_update(current_time);
   }
 
   return 0;
@@ -174,7 +221,7 @@ void emu_run(struct emu *emu, const char *path) {
   }
 
   /* create tile renderer */
-  emu->tr = tr_create(emu->window->video, ta_texture_provider(emu->dc->ta));
+  emu->tr = tr_create(emu->window->rb, ta_texture_provider(emu->dc->ta));
 
   /* load gdi / bin if specified */
   if (path) {
@@ -192,18 +239,22 @@ void emu_run(struct emu *emu, const char *path) {
     dc_resume(emu->dc);
   }
 
-  /* start core emulator thread */
-  thread_t core_thread;
   emu->running = 1;
-  core_thread = thread_create(&emu_core_thread, NULL, emu);
 
-  /* run the renderer / ui in the main thread */
+  /* emulator, audio and video all run on their own threads. the high-level
+     design is that the emulator behaves much like a codec, in that it
+     produces complete frames of decoded data, and the audio and video
+     thread are responsible for simply presenting the data */
+  thread_t core_thread = thread_create(&emu_core_thread, NULL, emu);
+  thread_t audio_thread = thread_create(&emu_audio_thread, NULL, emu);
+
   while (emu->running) {
     win_pump_events(emu->window);
   }
 
-  /* wait for the graphics thread to exit */
+  /* wait for the core thread to exit */
   void *result;
+  thread_join(audio_thread, &result);
   thread_join(core_thread, &result);
 }
 
@@ -222,9 +273,16 @@ struct emu *emu_create(struct window *window) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
   emu->window = window;
-  emu->listener =
-      (struct window_listener){emu,  &emu_paint, &emu_debug_menu, &emu_keydown,
-                               NULL, NULL,       &emu_close,      {0}};
+  emu->listener = (struct window_listener){emu,
+                                           &emu_paint,
+                                           &emu_debug_menu,
+                                           &emu_joy_add,
+                                           &emu_joy_remove,
+                                           &emu_keydown,
+                                           NULL,
+                                           NULL,
+                                           &emu_close,
+                                           {0}};
   win_add_listener(emu->window, &emu->listener);
 
   return emu;

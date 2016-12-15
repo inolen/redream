@@ -26,7 +26,7 @@ struct memory_watcher {
 
 static struct memory_watcher *s_watcher;
 
-static bool watcher_handle_exception(void *ctx, struct exception *ex);
+static int watcher_handle_exception(void *ctx, struct exception *ex);
 
 static void watcher_create() {
   s_watcher = calloc(1, sizeof(struct memory_watcher));
@@ -48,15 +48,15 @@ static void watcher_destroy() {
   s_watcher = NULL;
 }
 
-static bool watcher_handle_exception(void *ctx, struct exception *ex) {
-  bool handled = false;
+static int watcher_handle_exception(void *ctx, struct exception *ex) {
+  int handled = 0;
 
   struct interval_tree_it it;
   struct interval_node *n = interval_tree_iter_first(
       &s_watcher->tree, ex->fault_addr, ex->fault_addr, &it);
 
   while (n) {
-    handled = true;
+    handled = 1;
 
     struct interval_node *next = interval_tree_iter_next(&it);
     struct memory_watch *watch = container_of(n, struct memory_watch, tree_it);

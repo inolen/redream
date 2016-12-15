@@ -25,7 +25,7 @@ void *fallbacks[NUM_ARMV3_OPS] = {
 #define FALLBACK(op) \
   void armv3_fallback_##op(struct jit *jit, uint32_t addr, union armv3_instr i)
 
-#define CTX ((struct armv3_context *)jit->ctx)
+#define CTX ((struct armv3_context *)jit->guest->ctx)
 #define FRONTEND ((struct armv3_frontend *)jit->frontend)
 #define REG(n) (CTX->r[n])
 #define MODE() (CTX->r[CPSR] & M_MASK)
@@ -610,6 +610,8 @@ FALLBACK(MLA) {
  */
 static inline void armv3_fallback_memop(struct jit *jit, uint32_t addr,
                                         union armv3_instr i) {
+  struct jit_guest *guest = jit->guest;
+
   CHECK_COND();
 
   /* parse offset */
@@ -638,9 +640,9 @@ static inline void armv3_fallback_memop(struct jit *jit, uint32_t addr,
     /* load data */
     uint32_t data = 0;
     if (i.xfr.b) {
-      data = jit->r8(jit->space, ea);
+      data = guest->r8(guest->space, ea);
     } else {
-      data = jit->r32(jit->space, ea);
+      data = guest->r32(guest->space, ea);
     }
 
     REG(15) = addr + 4;
@@ -649,9 +651,9 @@ static inline void armv3_fallback_memop(struct jit *jit, uint32_t addr,
     /* store data */
     uint32_t data = LOAD_RD(i.xfr.rd);
     if (i.xfr.b) {
-      jit->w8(jit->space, ea, data);
+      guest->w8(guest->space, ea, data);
     } else {
-      jit->w32(jit->space, ea, data);
+      guest->w32(guest->space, ea, data);
     }
 
     REG(15) = addr + 4;
@@ -670,6 +672,8 @@ FALLBACK(STR) {
  * block data transfer
  */
 FALLBACK(LDM) {
+  struct jit_guest *guest = jit->guest;
+
   CHECK_COND();
 
   uint32_t base = LOAD_RN(i.blk.rn);
@@ -702,7 +706,7 @@ FALLBACK(LDM) {
         reg = armv3_reg_table[MODE()][reg];
       }
 
-      REG(reg) = jit->r32(jit->space, ea);
+      REG(reg) = guest->r32(guest->space, ea);
 
       /* post-increment */
       if (!i.blk.p) {
@@ -718,6 +722,8 @@ FALLBACK(LDM) {
 }
 
 FALLBACK(STM) {
+  struct jit_guest *guest = jit->guest;
+
   CHECK_COND();
 
   uint32_t base = LOAD_RN(i.blk.rn);
@@ -744,7 +750,7 @@ FALLBACK(STM) {
       }
 
       uint32_t data = LOAD_RD(reg);
-      jit->w32(jit->space, base, data);
+      guest->w32(guest->space, base, data);
 
       /* post-increment */
       if (!i.blk.p) {
@@ -773,6 +779,8 @@ FALLBACK(STM) {
  * single data swap
  */
 FALLBACK(SWP) {
+  struct jit_guest *guest = jit->guest;
+
   CHECK_COND();
 
   uint32_t ea = REG(i.swp.rn);
@@ -780,11 +788,11 @@ FALLBACK(SWP) {
   uint32_t old = 0;
 
   if (i.swp.b) {
-    old = jit->r8(jit->space, ea);
-    jit->w8(jit->space, ea, new);
+    old = guest->r8(guest->space, ea);
+    guest->w8(guest->space, ea, new);
   } else {
-    old = jit->r32(jit->space, ea);
-    jit->w32(jit->space, ea, new);
+    old = guest->r32(guest->space, ea);
+    guest->w32(guest->space, ea, new);
   }
 
   REG(15) = addr + 4;

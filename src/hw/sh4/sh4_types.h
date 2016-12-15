@@ -64,11 +64,10 @@ union dmaor {
   };
 };
 
-/*
- * control register area (0xfe000000 - 0xffffffff) seems to actually only
- * represent 64 x 256 byte blocks of memory. the block index is represented
- * by bits 17-24 and the block offset by bits 2-7
- */
+/* control register area (0xfc000000 - 0xffffffff) contains only 16kb of
+   physical memory. this memory is mapped as 64 x 256 byte blocks, with the
+   block index being encoded in bits 17-24 of the address, and the block
+   offset offset in bits 2-7 */
 #define SH4_REG_OFFSET(addr) (((addr & 0x1fe0000) >> 11) | ((addr & 0xfc) >> 2))
 
 enum {

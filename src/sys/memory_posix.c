@@ -16,9 +16,9 @@ struct shmem {
   struct list_node free_it;
 };
 
-static bool s_initialized;
-static struct shmem s_shmem[MAX_SHMEM];
-static struct list s_free_shmem;
+static int initialized;
+static struct shmem shmem_pool[MAX_SHMEM];
+static struct list free_shmem;
 
 static mode_t access_to_mode_flags(enum page_access access) {
   switch (access) {
@@ -63,50 +63,50 @@ size_t get_allocation_granularity() {
   return get_page_size();
 }
 
-bool protect_pages(void *ptr, size_t size, enum page_access access) {
+int protect_pages(void *ptr, size_t size, enum page_access access) {
   int prot = access_to_protect_flags(access);
   return mprotect(ptr, size, prot) == 0;
 }
 
-bool reserve_pages(void *ptr, size_t size) {
-  // NOTE mmap with MAP_FIXED will overwrite existing mappings, making it hard
-  // to detect that a section of memory has already been mmap'd. however, mmap
-  // without MAP_FIXED will obey the address parameter only if an existing
-  // mapping does not already exist, else it will map it to a new address.
-  // knowing this, an existing mapping can be detected by not using MAP_FIXED,
-  // and comparing the returned mapped address with the requested address
+int reserve_pages(void *ptr, size_t size) {
+  /* NOTE mmap with MAP_FIXED will overwrite existing mappings, making it hard
+     to detect that a section of memory has already been mmap'd. however, mmap
+     without MAP_FIXED will obey the address parameter only if an existing
+     mapping does not already exist, else it will map it to a new address.
+     knowing this, an existing mapping can be detected by not using MAP_FIXED,
+     and comparing the returned mapped address with the requested address */
   void *res =
       mmap(ptr, size, PROT_NONE, MAP_SHARED | MAP_ANON | MAP_NORESERVE, -1, 0);
 
   if (res == MAP_FAILED) {
-    return false;
+    return 0;
   }
 
   if (res != ptr) {
-    // mapping was successful. however, it was made at a different address
-    // than requested, meaning the requested address has already been mapped
+    /* mapping was successful. however, it was made at a different address
+       than requested, meaning the requested address has already been mapped */
     munmap(res, size);
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
-bool release_pages(void *ptr, size_t size) {
+int release_pages(void *ptr, size_t size) {
   return munmap(ptr, size) == 0;
 }
 
 static void init_shared_memory_entries() {
-  if (s_initialized) {
+  if (initialized) {
     return;
   }
 
-  s_initialized = true;
+  initialized = 1;
 
-  // add all entries to free list
+  /* add all entries to free list */
   for (int i = 0; i < MAX_SHMEM; i++) {
-    struct shmem *shmem = &s_shmem[i];
-    list_add(&s_free_shmem, &shmem->free_it);
+    struct shmem *shmem = &shmem_pool[i];
+    list_add(&free_shmem, &shmem->free_it);
   }
 }
 
@@ -114,15 +114,15 @@ shmem_handle_t create_shared_memory(const char *filename, size_t size,
                                     enum page_access access) {
   init_shared_memory_entries();
 
-  // find unused shmem entry (wrapper for both shmem object name and file
-  // handle)
-  struct shmem *shmem = list_first_entry(&s_free_shmem, struct shmem, free_it);
+  /* find unused shmem entry (wrapper for both shmem object name and file
+     handle) */
+  struct shmem *shmem = list_first_entry(&free_shmem, struct shmem, free_it);
   CHECK_NOTNULL(shmem);
 
-  // make sure the shared memory object doesn't already exist
+  /* make sure the shared memory object doesn't already exist */
   shm_unlink(filename);
 
-  // create the shared memory object and open a file handle to it
+  /* create the shared memory object and open a file handle to it */
   int oflag = access_to_open_flags(access);
   mode_t mode = access_to_mode_flags(access);
   int handle = shm_open(filename, oflag | O_CREAT | O_EXCL, mode);
@@ -130,23 +130,23 @@ shmem_handle_t create_shared_memory(const char *filename, size_t size,
     return NULL;
   }
 
-  // resize it
+  /* resize it */
   int res = ftruncate(handle, size);
   if (res == -1) {
     shm_unlink(filename);
     return NULL;
   }
 
-  // update entry, remove from free list
+  /* update entry, remove from free list */
   strncpy(shmem->filename, filename, sizeof(shmem->filename));
   shmem->handle = handle;
-  list_remove(&s_free_shmem, &shmem->free_it);
+  list_remove(&free_shmem, &shmem->free_it);
 
   return (shmem_handle_t)shmem;
 }
 
-bool map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
-                       size_t size, enum page_access access) {
+int map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
+                      size_t size, enum page_access access) {
   init_shared_memory_entries();
 
   struct shmem *shmem = (struct shmem *)handle;
@@ -158,11 +158,11 @@ bool map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
   return ptr != MAP_FAILED;
 }
 
-bool unmap_shared_memory(shmem_handle_t handle, void *start, size_t size) {
+int unmap_shared_memory(shmem_handle_t handle, void *start, size_t size) {
   return munmap(start, size) == 0;
 }
 
-bool destroy_shared_memory(shmem_handle_t handle) {
+int destroy_shared_memory(shmem_handle_t handle) {
   init_shared_memory_entries();
 
   struct shmem *shmem = (struct shmem *)handle;
@@ -170,8 +170,8 @@ bool destroy_shared_memory(shmem_handle_t handle) {
   int res1 = close(shmem->handle);
   int res2 = shm_unlink(shmem->filename);
 
-  // add back to free list
-  list_add(&s_free_shmem, &shmem->free_it);
+  /* add back to free list */
+  list_add(&free_shmem, &shmem->free_it);
 
   return res1 == 0 && res2 == 0;
 }

@@ -30,36 +30,11 @@ enum {
   CONT_RTRIG = 0x80000
 };
 
-struct condition {
-  uint32_t function;
-  uint16_t buttons;
-  uint8_t rtrig;
-  uint8_t ltrig;
-  uint8_t joyx;
-  uint8_t joyy;
-  uint8_t joyx2;
-  uint8_t joyy2;
-};
-
 struct controller {
   struct maple_device;
-  struct condition cnd;
+  struct maple_cond cnd;
   int map[K_NUM_KEYS];
 };
-
-/*
- * constant device info structure sent as response to CMD_REQDEVINFO to
- * identify the controller
- */
-static struct maple_device_info controller_devinfo = {
-    FN_CONTROLLER,
-    {0xfe060f00, 0x0, 0x0},
-    0xff,
-    0,
-    "Dreamcast Controller",
-    "Produced By or Under License From SEGA ENTERPRISES,LTD.",
-    0x01ae,
-    0x01f4};
 
 static int controller_ini_handler(void *user, const char *section,
                                   const char *name, const char *value) {
@@ -121,14 +96,8 @@ static void controller_load_profile(struct controller *ctrl, const char *path) {
   }
 }
 
-static void controller_destroy(struct maple_device *dev) {
-  struct controller *ctrl = (struct controller *)dev;
-
-  free(ctrl);
-}
-
-static bool controller_input(struct maple_device *dev, enum keycode key,
-                             int16_t value) {
+static int controller_input(struct maple_device *dev, enum keycode key,
+                            int16_t value) {
   struct controller *ctrl = (struct controller *)dev;
 
   /* map incoming key to dreamcast button */
@@ -138,7 +107,7 @@ static bool controller_input(struct maple_device *dev, enum keycode key,
   uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
 
   if (!button) {
-    return false;
+    return 0;
   }
 
   if (button <= CONT_DPAD2_RIGHT) {
@@ -157,65 +126,75 @@ static bool controller_input(struct maple_device *dev, enum keycode key,
     ctrl->cnd.rtrig = scaled;
   }
 
-  return true;
+  return 1;
 }
 
-static bool controller_frame(struct maple_device *dev,
-                             const struct maple_frame *frame,
-                             struct maple_frame *res) {
+static int controller_frame(struct maple_device *dev,
+                            const struct maple_frame *frame,
+                            struct maple_frame *res) {
   struct controller *ctrl = (struct controller *)dev;
 
   switch (frame->header.command) {
-    case CMD_REQDEVINFO:
-      res->header.command = CMD_RESDEVINFO;
+    case MAPLE_REQ_DEVINFO: {
+      static struct maple_device_info controller_devinfo = {
+          MAPLE_FUNC_CONTROLLER,
+          {0xfe060f00, 0x0, 0x0},
+          0xff,
+          0,
+          "Dreamcast Controller",
+          "Produced By or Under License From SEGA ENTERPRISES,LTD.",
+          0x01ae,
+          0x01f4};
+
+      res->header.command = MAPLE_RES_DEVINFO;
       res->header.recv_addr = frame->header.send_addr;
       res->header.send_addr = frame->header.recv_addr;
       res->header.num_words = sizeof(controller_devinfo) >> 2;
-      memcpy(&res->params, &controller_devinfo, sizeof(controller_devinfo));
-      return true;
+      memcpy(res->params, &controller_devinfo, sizeof(controller_devinfo));
+    }
+      return 1;
 
-    case CMD_GETCONDITION:
-      res->header.command = CMD_RESTRANSFER;
+    case MAPLE_REQ_GETCOND:
+      res->header.command = MAPLE_RES_TRANSFER;
       res->header.recv_addr = frame->header.send_addr;
       res->header.send_addr = frame->header.recv_addr;
       res->header.num_words = sizeof(ctrl->cnd) >> 2;
-      memcpy(&res->params, &ctrl->cnd, sizeof(ctrl->cnd));
-      return true;
+      memcpy(res->params, &ctrl->cnd, sizeof(ctrl->cnd));
+      return 1;
   }
 
-  return false;
+  return 0;
 }
 
-struct maple_device *controller_create() {
+static void controller_destroy(struct maple_device *dev) {
+  struct controller *ctrl = (struct controller *)dev;
+  free(ctrl);
+}
+
+struct maple_device *controller_create(int port, int unit) {
   struct controller *ctrl = calloc(1, sizeof(struct controller));
+  ctrl->port = port;
+  ctrl->unit = unit;
   ctrl->destroy = &controller_destroy;
   ctrl->input = &controller_input;
   ctrl->frame = &controller_frame;
-  ctrl->cnd.function = FN_CONTROLLER;
 
-  /* buttons bitfield contains 0s for pressed buttons and 1s for unpressed */
+  /* default state */
+  ctrl->cnd.function = MAPLE_FUNC_CONTROLLER;
   ctrl->cnd.buttons = 0xffff;
-
-  /* triggers completely unpressed */
   ctrl->cnd.rtrig = ctrl->cnd.ltrig = 0;
-
-  /* joysticks default to dead center */
   ctrl->cnd.joyy = ctrl->cnd.joyx = ctrl->cnd.joyx2 = ctrl->cnd.joyy2 = 0x80;
 
   /* default profile */
-  /* CONT_JOYX */
-  /* CONT_JOYY */
-  /* CONT_LTRIG */
-  /* CONT_RTRIG */
   ctrl->map[K_SPACE] = CONT_START;
-  ctrl->map[(enum keycode)'k'] = CONT_A;
-  ctrl->map[(enum keycode)'l'] = CONT_B;
-  ctrl->map[(enum keycode)'j'] = CONT_X;
-  ctrl->map[(enum keycode)'i'] = CONT_Y;
-  ctrl->map[(enum keycode)'w'] = CONT_DPAD_UP;
-  ctrl->map[(enum keycode)'s'] = CONT_DPAD_DOWN;
-  ctrl->map[(enum keycode)'a'] = CONT_DPAD_LEFT;
-  ctrl->map[(enum keycode)'d'] = CONT_DPAD_RIGHT;
+  ctrl->map['k'] = CONT_A;
+  ctrl->map['l'] = CONT_B;
+  ctrl->map['j'] = CONT_X;
+  ctrl->map['i'] = CONT_Y;
+  ctrl->map['w'] = CONT_DPAD_UP;
+  ctrl->map['s'] = CONT_DPAD_DOWN;
+  ctrl->map['a'] = CONT_DPAD_LEFT;
+  ctrl->map['d'] = CONT_DPAD_RIGHT;
 
   /* load profile */
   controller_load_profile(ctrl, OPTION_profile);

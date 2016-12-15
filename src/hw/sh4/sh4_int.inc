@@ -1,4 +1,4 @@
-//      NAME     INTEVT   PRI   IPR              IPR_SHIFT
+/*      NAME     INTEVT   PRI   IPR              IPR_SHIFT */
 SH4_INT(IRL_0,   0x200,   15,   0,               0)
 SH4_INT(IRL_1,   0x220,   14,   0,               0)
 SH4_INT(IRL_2,   0x240,   13,   0,               0)

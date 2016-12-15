@@ -5,7 +5,7 @@
 #include "core/debug_break.h"
 #include "core/option.h"
 
-DECLARE_OPTION_BOOL(debug);
+DECLARE_OPTION_INT(verbose);
 
 enum log_level {
   LOG_LEVEL_DEBUG,
@@ -25,7 +25,7 @@ enum log_level {
 void log_line(enum log_level level, const char *format, ...);
 
 #define LOG_DEBUG(...)                        \
-  if (OPTION_debug) {                         \
+  if (OPTION_verbose) {                       \
     log_line(LOG_LEVEL_DEBUG, ##__VA_ARGS__); \
   }
 

@@ -56,20 +56,21 @@ static bool boot_init(struct device *dev) {
   return true;
 }
 
+void boot_destroy(struct boot *boot) {
+  dc_destroy_device((struct device *)boot);
+}
+
 struct boot *boot_create(struct dreamcast *dc) {
   struct boot *boot =
       dc_create_device(dc, sizeof(struct boot), "boot", &boot_init);
   return boot;
 }
 
-void boot_destroy(struct boot *boot) {
-  dc_destroy_device((struct device *)boot);
-}
-
 // clang-format off
 AM_BEGIN(struct boot, boot_rom_map);
   AM_RANGE(0x00000000, 0x001fffff) AM_HANDLE("boot rom",
                                              (mmio_read_cb)&boot_rom_read,
-                                             (mmio_write_cb)&boot_rom_write)
+                                             (mmio_write_cb)&boot_rom_write,
+                                             NULL, NULL)
 AM_END();
 // clang-format on

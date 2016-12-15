@@ -1,6 +1,8 @@
 #include "hw/aica/aica.h"
 #include "core/log.h"
 #include "core/option.h"
+#include "core/profiler.h"
+#include "core/ringbuf.h"
 #include "hw/aica/aica_types.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
@@ -8,14 +10,22 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
+#include "sys/filesystem.h"
+#include "ui/nuklear.h"
 
 DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
 
-#define AICA_CLOCK_FREQ INT64_C(22579200)
-#define AICA_SAMPLE_FREQ INT64_C(44100)
+DEFINE_AGGREGATE_COUNTER(aica_samples);
+
+#define AICA_SAMPLE_FREQ 44100
+#define AICA_SAMPLE_BATCH 10
 #define AICA_NUM_CHANNELS 64
+
+#define AICA_FNS_BITS 10
+#define AICA_OFFSET_POS(s) (s >> AICA_FNS_BITS)
+#define AICA_OFFSET_FRAC(s) (s & ((1 << AICA_FNS_BITS) - 1))
+
 #define AICA_TIMER_PERIOD 0xff
-#define AICA_SAMPLE_SHIFT 10
 
 struct aica_channel {
   struct channel_data *data;
@@ -28,7 +38,10 @@ struct aica_channel {
   /* base address in host memory of sound data */
   uint8_t *base;
 
+  /* how much to step the sound source each sample */
   uint32_t step;
+
+  /* current position in the sound source */
   uint32_t offset;
 };
 
@@ -36,25 +49,32 @@ struct aica {
   struct device;
   uint8_t reg[0x11000];
   uint8_t *wave_ram;
+
   /* reset state */
   int arm_resetting;
+
   /* interrupts */
   uint32_t arm_irq_l;
   uint32_t arm_irq_m;
+
   /* timers */
   struct timer *timers[3];
+
   /* real-time clock */
   struct timer *rtc_timer;
   int rtc_write;
   uint32_t rtc;
+
   /* channels */
   struct common_data *common_data;
   struct aica_channel channels[AICA_NUM_CHANNELS];
+  struct timer *sample_timer;
+  struct ringbuf *frames;
+
+  /* raw audio recording */
+  FILE *recording;
 };
 
-/*
- * interrupts
- */
 static void aica_raise_interrupt(struct aica *aica, int intr) {
   aica->common_data->MCIPD |= (1 << intr);
   aica->common_data->SCIPD |= (1 << intr);
@@ -112,13 +132,12 @@ static void aica_update_sh(struct aica *aica) {
   uint32_t pending_intr = aica->common_data->MCIPD & enabled_intr;
 
   if (pending_intr) {
-    holly_toggle_interrupt(aica->holly, HOLLY_INTC_G2AICINT);
+    holly_raise_interrupt(aica->holly, HOLLY_INTC_G2AICINT);
+  } else {
+    holly_clear_interrupt(aica->holly, HOLLY_INTC_G2AICINT);
   }
 }
 
-/*
- * timers
- */
 static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period);
 
 static void aica_timer_expire(struct aica *aica, int n) {
@@ -195,9 +214,6 @@ static void aica_timer_init(struct aica *aica) {
   }
 }
 
-/*
- * rtc
- */
 static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
                                   uint32_t data_mask) {
   switch (addr) {
@@ -260,14 +276,17 @@ static void aica_rtc_init(struct aica *aica) {
       scheduler_start_timer(aica->scheduler, &aica_rtc_timer, aica, NS_PER_SEC);
 }
 
-/*
- * channels
- */
 static uint32_t aica_channel_step(struct aica_channel *ch) {
-  uint32_t oct = ch->data->OCT;
-  uint32_t step = (1 << AICA_SAMPLE_SHIFT) | ch->data->FNS;
+  /* by default, step the stream a single sample at a time */
+  uint32_t step = 1 << AICA_FNS_BITS;
 
-  /* OCT ranges from -8 to +7 */
+  /* FNS represents the fractional portion of a step, used to linearly
+     interpolate between samples */
+  step |= ch->data->FNS;
+
+  /* OCT represents a full octave pitch shift in two's complement, ranging
+     from -8 to +7 */
+  uint32_t oct = ch->data->OCT;
   if (oct & 8) {
     step >>= (16 - oct);
   } else {
@@ -275,6 +294,16 @@ static uint32_t aica_channel_step(struct aica_channel *ch) {
   }
 
   return step;
+}
+
+static void aica_channel_stop(struct aica *aica, struct aica_channel *ch) {
+  if (!ch->active) {
+    return;
+  }
+
+  ch->active = 0;
+
+  LOG_INFO("aica_channel_stop %d", ch - aica->channels);
 }
 
 static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
@@ -289,16 +318,6 @@ static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
   ch->offset = 0;
 
   LOG_INFO("aica_channel_start %d", ch - aica->channels);
-}
-
-static void aica_channel_stop(struct aica *aica, struct aica_channel *ch) {
-  if (!ch->active) {
-    return;
-  }
-
-  ch->active = 0;
-
-  LOG_INFO("aica_channel_stop %d", ch - aica->channels);
 }
 
 static void aica_channel_update_key_state(struct aica *aica,
@@ -322,30 +341,121 @@ static void aica_channel_update_key_state(struct aica *aica,
   ch->data->KYONEX = 0;
 }
 
-static void aica_channel_update(struct aica *aica, struct aica_channel *ch) {
+static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   if (!ch->active) {
-    return;
+    return 0;
   }
 
+  CHECK_NOTNULL(ch->base);
+
+  uint32_t pos = AICA_OFFSET_POS(ch->offset);
+  uint32_t frac = AICA_OFFSET_FRAC(ch->offset);
+
+  /* get prev and next sample from sound source */
+  int32_t prev = 0;
+  int32_t next = 0;
+
+  switch (ch->data->PCMS) {
+    case 0: {
+      int16_t *samples = (int16_t *)ch->base;
+      prev = samples[pos];
+      next = samples[pos + 1];
+    } break;
+
+    case 1: {
+      int8_t *samples = (int8_t *)ch->base;
+      prev = samples[pos] << 8;
+      next = samples[pos] << 8;
+    } break;
+  }
+
+  /* interpolate sample */
+  int32_t sample = (prev * ((1 << AICA_FNS_BITS) - frac)) + (next * frac);
+  sample >>= AICA_FNS_BITS;
+
+  /* step forward */
   ch->offset += ch->step;
 
-  uint32_t ca = ch->offset >> AICA_SAMPLE_SHIFT;
-  if (ca > ch->data->LEA) {
+  /* check if the current position in the sound source has passed the loop end
+     position */
+  if (pos > ch->data->LEA) {
     if (ch->data->LPCTL) {
-      ch->offset = ch->data->LSA << AICA_SAMPLE_SHIFT;
+      /* restart channel at LSA */
+      LOG_INFO("aica_channel_step %d restart", ch - aica->channels);
+      ch->offset = ch->data->LSA << AICA_FNS_BITS;
       ch->looped = 1;
     } else {
       aica_channel_stop(aica, ch);
     }
   }
+
+  return sample;
 }
 
-static void aica_generate_samples(struct aica *aica, int samples) {
-  for (int i = 0; i < samples; i++) {
-    for (int j = 0; j < AICA_NUM_CHANNELS; j++) {
-      struct aica_channel *ch = &aica->channels[j];
-      aica_channel_update(aica, ch);
+static void aica_clear_frames(struct aica *aica) {
+  ringbuf_clear(aica->frames);
+}
+
+static void aica_write_frames(struct aica *aica, const void *frames,
+                              int num_frames) {
+  int remaining = ringbuf_remaining(aica->frames);
+  int size = MIN(remaining, num_frames * 4);
+  CHECK_EQ(size % 4, 0);
+
+  void *write_ptr = ringbuf_write_ptr(aica->frames);
+  ringbuf_advance_write_ptr(aica->frames, size);
+  memcpy(write_ptr, frames, size);
+
+  /* save raw audio out while recording */
+  if (aica->recording) {
+    fwrite(frames, 1, size, aica->recording);
+  }
+}
+
+int aica_read_frames(struct aica *aica, void *frames, int num_frames) {
+  int available = ringbuf_available(aica->frames);
+  int size = MIN(available, num_frames * 4);
+  CHECK_EQ(size % 4, 0);
+
+  void *read_ptr = ringbuf_read_ptr(aica->frames);
+  memcpy(frames, read_ptr, size);
+  ringbuf_advance_read_ptr(aica->frames, size);
+
+  return size / 4;
+}
+
+int aica_available_frames(struct aica *aica) {
+  int available = ringbuf_available(aica->frames);
+  return available / 4;
+}
+
+static void aica_generate_frames(struct aica *aica, int num_frames) {
+  int32_t frames[10];
+
+  for (int frame = 0; frame < num_frames;) {
+    int n = MIN(num_frames - frame, array_size(frames));
+
+    for (int i = 0; i < n; i++) {
+      int32_t l = 0;
+      int32_t r = 0;
+
+      for (int j = 0; j < AICA_NUM_CHANNELS; j++) {
+        struct aica_channel *ch = &aica->channels[j];
+        int32_t s = aica_channel_update(aica, ch);
+        l += s;
+        r += s;
+      }
+
+      l = MIN(INT16_MAX, MAX(INT16_MIN, l));
+      r = MIN(INT16_MAX, MAX(INT16_MIN, r));
+
+      frames[i] = (r << 16) | l;
     }
+
+    aica_write_frames(aica, &frames, n);
+    prof_counter_add(COUNTER_aica_samples, n);
+
+    frame += n;
   }
 }
 
@@ -389,7 +499,7 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
     } break;
     case 0x14: { /* CA */
       struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
-      aica->common_data->CA = ch->offset >> AICA_SAMPLE_SHIFT;
+      aica->common_data->CA = AICA_OFFSET_POS(ch->offset);
     } break;
     case 0x90: { /* TIMA */
       aica->common_data->TIMA =
@@ -473,9 +583,6 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
   }
 }
 
-/*
- * memory callbacks
- */
 uint32_t aica_reg_read(struct aica *aica, uint32_t addr, uint32_t data_mask) {
   if (addr < 0x2000) {
     return aica_channel_reg_read(aica, addr, data_mask);
@@ -503,19 +610,54 @@ void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
   WRITE_DATA(&aica->reg[addr]);
 }
 
-/*
- * device
- */
-static void aica_run(struct device *dev, int64_t ns) {
-  struct aica *aica = (struct aica *)dev;
+static void aica_next_sample(void *data) {
+  struct aica *aica = data;
 
-  int samples = (int)NANO_TO_CYCLES(ns, AICA_SAMPLE_FREQ);
-
-  aica_generate_samples(aica, samples);
-
+  aica_generate_frames(aica, AICA_SAMPLE_BATCH);
   aica_raise_interrupt(aica, AICA_INT_SAMPLE);
   aica_update_arm(aica);
   aica_update_sh(aica);
+
+  /* reschedule */
+  aica->sample_timer =
+      scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
+                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
+}
+
+static void aica_toggle_recording(struct aica *aica) {
+  if (!aica->recording) {
+    char filename[PATH_MAX];
+    snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "aica.pcm",
+             fs_appdir());
+
+    aica->recording = fopen(filename, "w");
+    CHECK_NOTNULL(aica->recording, "Failed to open %s", filename);
+  } else {
+    fclose(aica->recording);
+    aica->recording = NULL;
+  }
+}
+
+static void aica_debug_menu(struct device *dev, struct nk_context *ctx) {
+  struct aica *aica = (struct aica *)dev;
+
+  nk_layout_row_push(ctx, 40.0f);
+
+  if (nk_menu_begin_label(ctx, "AICA", NK_TEXT_LEFT, nk_vec2(140.0f, 200.0f))) {
+    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+    if (nk_button_label(ctx, "clear frames")) {
+      aica_clear_frames(aica);
+    }
+
+    if (!aica->recording && nk_button_label(ctx, "stard recording")) {
+      aica_toggle_recording(aica);
+    } else if (aica->recording && nk_button_label(ctx, "stop recording")) {
+      aica_toggle_recording(aica);
+    }
+
+    nk_menu_end(ctx);
+  }
 }
 
 static bool aica_init(struct device *dev) {
@@ -534,37 +676,44 @@ static bool aica_init(struct device *dev) {
   aica_timer_init(aica);
   aica_rtc_init(aica);
 
-  arm7_suspend(aica->arm);
+  aica->sample_timer =
+      scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
+                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
 
   return true;
+}
+
+void aica_destroy(struct aica *aica) {
+  scheduler_cancel_timer(aica->scheduler, aica->sample_timer);
+  aica_rtc_shutdown(aica);
+  aica_timer_shutdown(aica);
+
+  ringbuf_destroy(aica->frames);
+  dc_destroy_window_interface(aica->window_if);
+  dc_destroy_device((struct device *)aica);
 }
 
 struct aica *aica_create(struct dreamcast *dc) {
   struct aica *aica =
       dc_create_device(dc, sizeof(struct aica), "aica", &aica_init);
 
-  aica->execute_if = dc_create_execute_interface(&aica_run, 1);
+  aica->window_if =
+      dc_create_window_interface(&aica_debug_menu, NULL, NULL, NULL);
+  aica->frames = ringbuf_create(AICA_SAMPLE_FREQ * 4);
 
   return aica;
 }
 
-void aica_destroy(struct aica *aica) {
-  aica_rtc_shutdown(aica);
-  aica_timer_shutdown(aica);
-
-  dc_destroy_execute_interface(aica->execute_if);
-  dc_destroy_device((struct device *)aica);
-}
-
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct aica, aica_reg_map);
   /* over-allocate to align with the host allocation granularity */
   AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE("aica reg",
                                              (mmio_read_cb)&aica_reg_read,
-                                             (mmio_write_cb)&aica_reg_write)
+                                             (mmio_write_cb)&aica_reg_write,
+                                             NULL, NULL)
 AM_END();
 
 AM_BEGIN(struct aica, aica_data_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("aica wave ram")
 AM_END();
-// clang-format on
+/* clang-format on */

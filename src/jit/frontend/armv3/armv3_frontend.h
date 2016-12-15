@@ -1,7 +1,7 @@
 #ifndef ARMV3_FRONTEND_H
 #define ARMV3_FRONTEND_H
 
-#include "jit/frontend/frontend.h"
+#include "jit/frontend/jit_frontend.h"
 #include "jit/jit.h"
 
 enum armv3_block_flags { PC_SET = 0x1 };
@@ -12,7 +12,7 @@ struct armv3_frontend {
   /* runtime interface */
   void *data;
   void (*translate)(void *, uint32_t, struct ir *, int);
-  void (*switch_mode)(void *, uint64_t);
+  void (*switch_mode)(void *, uint32_t);
   void (*restore_mode)(void *);
   void (*software_interrupt)(void *);
 };

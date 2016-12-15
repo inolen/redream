@@ -23,9 +23,9 @@ struct ir_parser {
   struct ir_lexeme val;
 };
 
-static const char *s_typenames[] = {"",    "i8",  "i16", "i32",
-                                    "i64", "f32", "f64", "v128"};
-static const int s_num_typenames = sizeof(s_typenames) / sizeof(s_typenames[0]);
+static const char *typenames[] = {"",    "i8",  "i16",  "i32", "i64",
+                                  "f32", "f64", "v128", "lbl"};
+static const int num_typenames = sizeof(typenames) / sizeof(typenames[0]);
 
 static char ir_lex_get(struct ir_parser *p) {
   return fgetc(p->input);
@@ -36,24 +36,24 @@ static void ir_lex_unget(struct ir_parser *p, char c) {
 }
 
 static void ir_lex_next(struct ir_parser *p) {
-  // skip past whitespace characters, except newlines
+  /* skip past whitespace characters, except newlines */
   char next;
   do {
     next = ir_lex_get(p);
   } while (isspace(next) && next != '\n');
 
-  // test for end of file
+  /* test for end of file */
   if (next == EOF) {
     strncpy(p->val.s, "", sizeof(p->val.s));
     p->tok = TOK_EOF;
     return;
   }
 
-  // test for newline
+  /* test for newline */
   if (next == '\n') {
     strncpy(p->val.s, "\n", sizeof(p->val.s));
 
-    // chomp adjacent newlines
+    /* chomp adjacent newlines */
     while (next == '\n') {
       next = ir_lex_get(p);
     }
@@ -63,33 +63,33 @@ static void ir_lex_next(struct ir_parser *p) {
     return;
   }
 
-  // test for comma
+  /* test for comma */
   if (next == ',') {
     strncpy(p->val.s, ",", sizeof(p->val.s));
     p->tok = TOK_COMMA;
     return;
   }
 
-  // test for assignment operator
+  /* test for assignment operator */
   if (next == '=') {
     strncpy(p->val.s, "=", sizeof(p->val.s));
     p->tok = TOK_OPERATOR;
     return;
   }
 
-  // test for type keyword
-  for (int i = 1; i < s_num_typenames; i++) {
-    const char *typename = s_typenames[i];
+  /* test for type keyword */
+  for (int i = 1; i < num_typenames; i++) {
+    const char *typename = typenames[i];
     const char *ptr = typename;
     char tmp = next;
 
-    // try to match
+    /* try to match */
     while (*ptr && *ptr == tmp) {
       tmp = ir_lex_get(p);
       ptr++;
     }
 
-    // if the typename matched, return
+    /* if the typename matched, return */
     if (!*ptr) {
       strncpy(p->val.s, typename, sizeof(p->val.s));
       p->val.ty = i;
@@ -97,7 +97,7 @@ static void ir_lex_next(struct ir_parser *p) {
       return;
     }
 
-    // no match, unget everything
+    /* no match, unget everything */
     if (*ptr && ptr != typename) {
       ir_lex_unget(p, tmp);
       ptr--;
@@ -109,14 +109,14 @@ static void ir_lex_next(struct ir_parser *p) {
     }
   }
 
-  // test for hex literal
+  /* test for hex literal */
   if (next == '0') {
     next = ir_lex_get(p);
 
     if (next == 'x') {
       next = ir_lex_get(p);
 
-      // parse literal
+      /* parse literal */
       p->val.i = 0;
       while (isxdigit(next)) {
         p->val.i <<= 4;
@@ -132,9 +132,10 @@ static void ir_lex_next(struct ir_parser *p) {
     }
   }
 
-  // treat anything else as an identifier
+  /* treat anything else as an identifier */
   char *ptr = p->val.s;
-  while (isalpha(next) || isdigit(next) || next == '%' || next == '_') {
+  while (isalpha(next) || isdigit(next) || next == '%' || next == '.' ||
+         next == '_') {
     *ptr++ = next;
     next = ir_lex_get(p);
   }
@@ -151,7 +152,7 @@ int ir_parse_type(struct ir_parser *p, struct ir *ir, enum ir_type *type) {
     return 0;
   }
 
-  // eat token
+  /* eat token */
   ir_lex_next(p);
 
   *type = p->val.ty;
@@ -167,7 +168,7 @@ int ir_parse_op(struct ir_parser *p, struct ir *ir, enum ir_op *op) {
 
   const char *op_str = p->val.s;
 
-  // match token against opnames
+  /* match token against opnames */
   int i;
   for (i = 0; i < NUM_OPS; i++) {
     if (!strcasecmp(op_str, ir_op_names[i])) {
@@ -180,7 +181,7 @@ int ir_parse_op(struct ir_parser *p, struct ir *ir, enum ir_op *op) {
     return 0;
   }
 
-  // eat token
+  /* eat token */
   ir_lex_next(p);
 
   *op = (enum ir_op)i;
@@ -190,33 +191,37 @@ int ir_parse_op(struct ir_parser *p, struct ir *ir, enum ir_op *op) {
 
 int ir_parse_value(struct ir_parser *p, struct ir *ir,
                    struct ir_value **value) {
-  // parse value type
+  /* parse value type */
   enum ir_type type;
   if (!ir_parse_type(p, ir, &type)) {
     return 0;
   }
 
-  // parse value
+  /* parse value */
   if (p->tok == TOK_IDENTIFIER) {
     const char *ident = p->val.s;
 
-    if (ident[0] != '%') {
-      return 0;
-    }
+    if (ident[0] == '%') {
+      /* slot reference, lookup the result for the instruction in that slot */
+      int slot = atoi(&ident[1]);
 
-    // lookup the slot slowly
-    int slot = atoi(&ident[1]);
-
-    struct ir_instr *instr = list_first_entry(&ir->instrs, struct ir_instr, it);
-    while (instr) {
-      if (instr->tag == slot) {
-        break;
+      struct ir_instr *instr =
+          list_first_entry(&ir->instrs, struct ir_instr, it);
+      while (instr) {
+        if (instr->tag == slot) {
+          break;
+        }
+        instr = list_next_entry(instr, struct ir_instr, it);
       }
-      instr = list_next_entry(instr, struct ir_instr, it);
-    }
-    CHECK_NOTNULL(instr);
+      CHECK_NOTNULL(instr);
 
-    *value = instr->result;
+      *value = instr->result;
+    } else if (ident[0] == '.') {
+      /* label reference */
+      const char *label = &ident[1];
+
+      *value = ir_alloc_label(ir, "%s", label);
+    }
   } else if (p->tok == TOK_INTEGER) {
     switch (type) {
       case VALUE_I8: {
@@ -251,7 +256,7 @@ int ir_parse_value(struct ir_parser *p, struct ir *ir,
     return 0;
   }
 
-  // eat token
+  /* eat token */
   ir_lex_next(p);
 
   return 1;
@@ -265,10 +270,10 @@ int ir_parse_operator(struct ir_parser *p, struct ir *ir) {
     return 0;
   }
 
-  // eat token
+  /* eat token */
   ir_lex_next(p);
 
-  // nothing to do, there's only one operator token
+  /* nothing to do, there's only one operator token */
 
   return 1;
 }
@@ -278,7 +283,7 @@ int ir_parse_instr(struct ir_parser *p, struct ir *ir) {
   enum ir_type type = VALUE_V;
   struct ir_value *arg[3] = {0};
 
-  // parse result type and slot number
+  /* parse result type and slot number */
   if (p->tok == TOK_TYPE) {
     if (!ir_parse_type(p, ir, &type)) {
       return 0;
@@ -296,30 +301,32 @@ int ir_parse_instr(struct ir_parser *p, struct ir *ir) {
     }
   }
 
-  // parse op
+  /* parse op */
   enum ir_op op;
   if (!ir_parse_op(p, ir, &op)) {
     return 0;
   }
 
-  // parse arguments
-  for (int i = 0; i < 3; i++) {
-    if (!ir_parse_value(p, ir, &arg[i])) {
-      return 0;
-    }
+  /* parse arguments */
+  if (p->tok == TOK_TYPE) {
+    for (int i = 0; i < MAX_INSTR_ARGS; i++) {
+      if (!ir_parse_value(p, ir, &arg[i])) {
+        return 0;
+      }
 
-    if (p->tok != TOK_COMMA) {
-      break;
-    }
+      if (p->tok != TOK_COMMA) {
+        break;
+      }
 
-    // eat comma and move onto the next argument
-    ir_lex_next(p);
+      /* eat comma and move onto the next argument */
+      ir_lex_next(p);
+    }
   }
 
-  // create instruction
+  /* create instruction */
   struct ir_instr *instr = ir_append_instr(ir, op, type);
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < MAX_INSTR_ARGS; i++) {
     ir_set_arg(ir, instr, i, arg[i]);
   }
 

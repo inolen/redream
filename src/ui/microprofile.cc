@@ -14,14 +14,14 @@ extern "C" {
 #include "core/math.h"
 #include "ui/microprofile.h"
 #include "ui/window.h"
-#include "video/backend.h"
+#include "video/render_backend.h"
 }
 
 static const int FONT_WIDTH = 1024;
 static const int FONT_HEIGHT = 9;
 #include "ui/microprofile_font.inc"
 
-static const int MAX_2D_VERTICES = 16384;
+static const int MAX_2D_VERTICES = 32768;
 static const int MAX_2D_SURFACES = 256;
 
 struct microprofile {
@@ -45,7 +45,8 @@ static struct microprofile *s_mp;
   d[2].member = v;       \
   d[5].member = v
 
-static void mp_keydown(void *data, enum keycode code, int16_t value) {
+static void mp_keydown(void *data, int device_index, enum keycode code,
+                       int16_t value) {
   if (code == K_F2) {
     if (value) {
       MicroProfileToggleDisplayMode();
@@ -68,7 +69,7 @@ static struct vertex2d *mp_alloc_verts(struct microprofile *mp,
   uint32_t first_vert = mp->num_verts;
   mp->num_verts += count;
 
-  // try to batch with the last surface if possible
+  /* try to batch with the last surface if possible */
   if (mp->num_surfs) {
     struct surface2d &last_surf = mp->surfs[mp->num_surfs - 1];
 
@@ -81,7 +82,7 @@ static struct vertex2d *mp_alloc_verts(struct microprofile *mp,
     }
   }
 
-  // else, allocate a new surface
+  /* else, allocate a new surface */
   CHECK(mp->num_surfs < MAX_2D_SURFACES);
   struct surface2d &next_surf = mp->surfs[mp->num_surfs];
   next_surf.prim_type = desc.prim_type;
@@ -230,31 +231,39 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
   }
 }
 
-void mp_begin_frame(struct microprofile *mp) {}
-
 void mp_end_frame(struct microprofile *mp) {
   s_mp = mp;
 
-  // update draw surfaces
+  /* update draw surfaces */
   MicroProfileDraw(mp->window->width, mp->window->height);
 
-  // render the surfaces
-  struct video_backend *video = mp->window->video;
+  /* render the surfaces */
+  struct render_backend *rb = mp->window->rb;
 
-  video_begin_ortho(video);
-  video_begin_surfaces2d(video, mp->verts, mp->num_verts, nullptr, 0);
+  rb_begin_ortho(rb);
+  rb_begin_surfaces2d(rb, mp->verts, mp->num_verts, nullptr, 0);
 
   for (int i = 0; i < mp->num_surfs; i++) {
     struct surface2d *surf = &mp->surfs[i];
-    video_draw_surface2d(video, surf);
+    rb_draw_surface2d(rb, surf);
   }
 
-  video_end_surfaces2d(video);
-  video_end_ortho(video);
+  rb_end_surfaces2d(rb);
+  rb_end_ortho(rb);
 
-  // reset surfaces
+  /* reset surfaces */
   mp->num_surfs = 0;
   mp->num_verts = 0;
+}
+
+void mp_begin_frame(struct microprofile *mp) {}
+
+void mp_destroy(struct microprofile *mp) {
+  rb_destroy_texture(mp->window->rb, mp->font_texture);
+
+  win_remove_listener(mp->window, &mp->listener);
+
+  free(mp);
 }
 
 struct microprofile *mp_create(struct window *window) {
@@ -262,48 +271,41 @@ struct microprofile *mp_create(struct window *window) {
       calloc(1, sizeof(struct microprofile)));
 
   mp->window = window;
-  mp->listener = {mp, NULL, NULL, &mp_keydown, NULL, &mp_mousemove, NULL, {}};
+  mp->listener = {mp,          NULL, NULL,          NULL, NULL,
+                  &mp_keydown, NULL, &mp_mousemove, NULL, {}};
 
   win_add_listener(mp->window, &mp->listener);
 
-  // init microprofile
-  struct video_backend *video = mp->window->video;
+  /* init microprofile */
+  struct render_backend *rb = mp->window->rb;
 
-  // register and enable cpu and gpu groups by default
+  /* register and enable cpu and gpu groups by default */
   uint16_t cpu_group = MicroProfileGetGroup("cpu", MicroProfileTokenTypeCpu);
   g_MicroProfile.nActiveGroupWanted |= 1ll << cpu_group;
 
   uint16_t gpu_group = MicroProfileGetGroup("gpu", MicroProfileTokenTypeCpu);
   g_MicroProfile.nActiveGroupWanted |= 1ll << gpu_group;
 
-  // render time / average time bars by default
+  /* render time / average time bars by default */
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
 
-  // register the font texture
+  /* register the font texture */
   mp->font_texture =
-      video_create_texture(video, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
-                           WRAP_CLAMP_TO_EDGE, false, FONT_WIDTH, FONT_HEIGHT,
-                           reinterpret_cast<const uint8_t *>(s_font_data));
+      rb_create_texture(rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
+                        WRAP_CLAMP_TO_EDGE, false, FONT_WIDTH, FONT_HEIGHT,
+                        reinterpret_cast<const uint8_t *>(s_font_data));
 
   return mp;
 }
 
-void mp_destroy(struct microprofile *mp) {
-  video_destroy_texture(mp->window->video, mp->font_texture);
-
-  win_remove_listener(mp->window, &mp->listener);
-
-  free(mp);
-}
-
-// microprofile expects the following three functions to be defined, they're
-// called during MicroProfileDraw
+/* microprofile expects the following three functions to be defined, they're
+   called during MicroProfileDraw */
 void MicroProfileDrawText(int x, int y, uint32_t color, const char *text,
                           uint32_t len) {
-  // microprofile provides 24-bit rgb values for text color
+  /* microprofile provides 24-bit rgb values for text color */
   color = 0xff000000 | color;
 
-  // convert color from argb -> abgr
+  /* convert color from argb -> abgr */
   color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |
           ((color & 0xff0000) >> 16);
 
@@ -312,7 +314,7 @@ void MicroProfileDrawText(int x, int y, uint32_t color, const char *text,
 
 void MicroProfileDrawBox(int x0, int y0, int x1, int y1, uint32_t color,
                          MicroProfileBoxType type) {
-  // convert color from argb -> abgr
+  /* convert color from argb -> abgr */
   color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |
           ((color & 0xff0000) >> 16);
 
@@ -321,10 +323,10 @@ void MicroProfileDrawBox(int x0, int y0, int x1, int y1, uint32_t color,
 
 void MicroProfileDrawLine2D(uint32_t num_vertices, float *vertices,
                             uint32_t color) {
-  // microprofile provides 24-bit rgb values for line color
+  /* microprofile provides 24-bit rgb values for line color */
   color = 0xff000000 | color;
 
-  // convert color from argb -> abgr
+  /* convert color from argb -> abgr */
   color = (color & 0xff000000) | ((color & 0xff) << 16) | (color & 0xff00) |
           ((color & 0xff0000) >> 16);
 

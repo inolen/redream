@@ -2,10 +2,8 @@
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/pass_stat.h"
 
-DEFINE_STAT(num_loads_removed, "Number of loads eliminated");
-DEFINE_STAT(num_stores_removed, "Number of stores eliminated");
-
-const char *lse_name = "lse";
+DEFINE_STAT(loads_removed, "Context loads eliminated");
+DEFINE_STAT(stores_removed, "Context stores eliminated");
 
 #define MAX_OFFSET 16384
 
@@ -19,7 +17,7 @@ struct lse {
 };
 
 static void lse_clear_available(struct lse *lse) {
-  // TODO use auto-incremented token instead of memset'ing this each time
+  /* TODO use auto-incremented token instead of memset'ing this each time */
   memset(lse->available, 0, sizeof(lse->available));
 }
 
@@ -28,9 +26,9 @@ static struct ir_value *lse_get_available(struct lse *lse, int offset) {
 
   struct available *entry = &lse->available[offset];
 
-  // entries are added for the entire range of an available value to help with
-  // invalidation. if this entry doesn't start at the requested offset, it's
-  // not actually valid for reuse
+  /* entries are added for the entire range of an available value to help with
+     invalidation. if this entry doesn't start at the requested offset, it's
+     not actually valid for reuse */
   if (entry->offset != offset) {
     return NULL;
   }
@@ -44,8 +42,8 @@ static void lse_erase_available(struct lse *lse, int offset, int size) {
   int begin = offset;
   int end = offset + size - 1;
 
-  // if the invalidation range intersects with an entry, merge that entry into
-  // the invalidation range
+  /* if the invalidation range intersects with an entry, merge that entry into
+     the invalidation range */
   struct available *begin_entry = &lse->available[begin];
   struct available *end_entry = &lse->available[end];
 
@@ -73,8 +71,8 @@ static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
 
   lse_erase_available(lse, offset, size);
 
-  // add entries for the entire range to aid in invalidation. only the initial
-  // entry where offset == entry.offset is valid for reuse
+  /* add entries for the entire range to aid in invalidation. only the initial
+     entry where offset == entry.offset is valid for reuse */
   for (; begin <= end; begin++) {
     struct available *entry = &lse->available[begin];
     entry->offset = offset;
@@ -85,14 +83,16 @@ static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
 void lse_run(struct ir *ir) {
   struct lse lse;
 
-  // eliminate redundant loads
+  /* eliminate redundant loads */
   {
     lse_clear_available(&lse);
 
     list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
-      if (instr->op == OP_LOAD_CONTEXT) {
-        // if there is already a value available for this offset, reuse it and
-        // remove this redundant load
+      if (instr->op == OP_LABEL) {
+        lse_clear_available(&lse);
+      } else if (instr->op == OP_LOAD_CONTEXT) {
+        /* if there is already a value available for this offset, reuse it and
+           remove this redundant load */
         int offset = instr->arg[0]->i32;
         struct ir_value *available = lse_get_available(&lse, offset);
 
@@ -100,7 +100,7 @@ void lse_run(struct ir *ir) {
           ir_replace_uses(instr->result, available);
           ir_remove_instr(ir, instr);
 
-          STAT_num_loads_removed++;
+          STAT_loads_removed++;
 
           continue;
         }
@@ -109,26 +109,27 @@ void lse_run(struct ir *ir) {
       } else if (instr->op == OP_STORE_CONTEXT) {
         int offset = instr->arg[0]->i32;
 
-        // mark the value being stored as available
+        /* mark the value being stored as available */
         lse_set_available(&lse, offset, instr->arg[1]);
       }
     }
   }
 
-  // eliminate dead stores
+  /* eliminate dead stores */
   {
-    // iterate in reverse so the current instruction is the one being removed
     lse_clear_available(&lse);
 
     list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
-      if (instr->op == OP_LOAD_CONTEXT) {
+      if (instr->op == OP_LABEL) {
+        lse_clear_available(&lse);
+      } else if (instr->op == OP_LOAD_CONTEXT) {
         int offset = instr->arg[0]->i32;
         int size = ir_type_size(instr->result->type);
 
         lse_erase_available(&lse, offset, size);
       } else if (instr->op == OP_STORE_CONTEXT) {
-        // if subsequent stores have been made for this offset that would
-        // overwrite it completely, mark instruction as dead
+        /* if subsequent stores have been made for this offset that would
+           overwrite it completely, mark instruction as dead */
         int offset = instr->arg[0]->i32;
         struct ir_value *available = lse_get_available(&lse, offset);
         int available_size = available ? ir_type_size(available->type) : 0;
@@ -137,7 +138,7 @@ void lse_run(struct ir *ir) {
         if (available_size >= store_size) {
           ir_remove_instr(ir, instr);
 
-          STAT_num_stores_removed++;
+          STAT_stores_removed++;
 
           continue;
         }

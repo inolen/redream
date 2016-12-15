@@ -62,8 +62,9 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 #define store_fpscr(v) ir_store_fpscr(frontend, ir, v)
 #define load_pr() ir_load_pr(ir)
 #define store_pr(v) ir_store_pr(ir, v)
-#define branch(addr) ir_branch_guest(ir, addr)
-#define branch_cond(addr, t, f) ir_branch_cond_guest(ir, addr, t, f)
+#define branch(addr) ir_branch_guest(frontend, ir, addr)
+#define branch_false(cond, addr) ir_branch_false_guest(frontend, ir, cond, addr)
+#define branch_true(cond, addr) ir_branch_true_guest(frontend, ir, cond, addr)
 
 static struct ir_value *ir_load_guest(struct ir *ir, int flags,
                                       struct ir_value *addr,
@@ -139,7 +140,7 @@ static void ir_store_sr(struct sh4_frontend *frontend, struct ir *ir,
   ir_store_context(ir, offsetof(struct sh4_ctx, sr), v);
 
   if (update) {
-    ir_call_2(ir, sr_updated, data, ir_zext(ir, old_sr, VALUE_I64));
+    ir_call_2(ir, sr_updated, data, old_sr);
   }
 }
 
@@ -153,7 +154,7 @@ static void ir_store_t(struct sh4_frontend *frontend, struct ir *ir,
   struct ir_value *sr_t = ir_or(ir, sr, ir_alloc_i32(ir, T));
   struct ir_value *sr_not = ir_and(ir, sr, ir_alloc_i32(ir, ~T));
   struct ir_value *res = ir_select(ir, v, sr_t, sr_not);
-  store_sr(res, false);
+  store_sr(res, 0);
 }
 
 static struct ir_value *ir_load_gbr(struct ir *ir) {
@@ -180,7 +181,7 @@ static void ir_store_fpscr(struct sh4_frontend *frontend, struct ir *ir,
   struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
   struct ir_value *old_fpscr = load_fpscr();
   ir_store_context(ir, offsetof(struct sh4_ctx, fpscr), v);
-  ir_call_2(ir, fpscr_updated, data, ir_zext(ir, old_fpscr, VALUE_I64));
+  ir_call_2(ir, fpscr_updated, data, old_fpscr);
 }
 
 static struct ir_value *ir_load_pr(struct ir *ir) {
@@ -192,14 +193,26 @@ static void ir_store_pr(struct ir *ir, struct ir_value *v) {
   ir_store_context(ir, offsetof(struct sh4_ctx, pr), v);
 }
 
-static void ir_branch_guest(struct ir *ir, struct ir_value *addr) {
+static void ir_branch_guest(struct sh4_frontend *frontend, struct ir *ir,
+                            struct ir_value *addr) {
   ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
 }
 
-static void ir_branch_cond_guest(struct ir *ir, struct ir_value *cond,
-                                 struct ir_value *t, struct ir_value *f) {
-  struct ir_value *addr = ir_select(ir, cond, t, f);
+static void ir_branch_false_guest(struct sh4_frontend *frontend, struct ir *ir,
+                                  struct ir_value *cond,
+                                  struct ir_value *addr) {
+  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", addr);
+  ir_branch_true(ir, cond, skip);
   ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
+  ir_label(ir, skip);
+}
+
+static void ir_branch_true_guest(struct sh4_frontend *frontend, struct ir *ir,
+                                 struct ir_value *cond, struct ir_value *addr) {
+  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", addr);
+  ir_branch_false(ir, cond, skip);
+  ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
+  ir_label(ir, skip);
 }
 
 void sh4_emit_instr(struct sh4_frontend *frontend, struct ir *ir, int flags,
@@ -214,7 +227,7 @@ EMITTER(INVALID) {
       ir_alloc_i64(ir, (uint64_t)frontend->invalid_instr);
   struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
 
-  ir_call_2(ir, invalid_instr, data, ir_alloc_i64(ir, (int64_t)i->addr));
+  ir_call_2(ir, invalid_instr, data, ir_alloc_i32(ir, i->addr));
 }
 
 // MOV     #imm,Rn
@@ -721,7 +734,7 @@ EMITTER(DIV0U) {
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_qm),
                    ir_alloc_i32(ir, 0x80000000));
 
-  store_sr(ir_and(ir, load_sr(), ir_alloc_i32(ir, ~T)), false);
+  store_sr(ir_and(ir, load_sr(), ir_alloc_i32(ir, ~T)), 0);
 }
 
 // code                 cycles  t-bit
@@ -1189,7 +1202,7 @@ EMITTER(SHLR16) {
 EMITTER(BF) {
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
   struct ir_value *cond = load_t();
-  branch_cond(cond, ir_alloc_i32(ir, i->addr + 2), ir_alloc_i32(ir, dest_addr));
+  branch_false(cond, ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1199,7 +1212,7 @@ EMITTER(BFS) {
   struct ir_value *cond = load_t();
   emit_delay_instr();
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
-  branch_cond(cond, ir_alloc_i32(ir, i->addr + 4), ir_alloc_i32(ir, dest_addr));
+  branch_false(cond, ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1208,7 +1221,7 @@ EMITTER(BFS) {
 EMITTER(BT) {
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
   struct ir_value *cond = load_t();
-  branch_cond(cond, ir_alloc_i32(ir, dest_addr), ir_alloc_i32(ir, i->addr + 2));
+  branch_true(cond, ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1218,7 +1231,7 @@ EMITTER(BTS) {
   struct ir_value *cond = load_t();
   emit_delay_instr();
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
-  branch_cond(cond, ir_alloc_i32(ir, dest_addr), ir_alloc_i32(ir, i->addr + 4));
+  branch_true(cond, ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1301,7 +1314,7 @@ EMITTER(CLRMAC) {
 EMITTER(CLRS) {
   struct ir_value *sr = load_sr();
   sr = ir_and(ir, sr, ir_alloc_i32(ir, ~S));
-  store_sr(sr, true);
+  store_sr(sr, 1);
 }
 
 // code                 cycles  t-bit
@@ -1314,7 +1327,7 @@ EMITTER(CLRT) {
 // LDC     Rm,SR
 EMITTER(LDCSR) {
   struct ir_value *rm = load_gpr(i->Rm, VALUE_I32);
-  store_sr(rm, true);
+  store_sr(rm, 1);
 }
 
 // LDC     Rm,GBR
@@ -1358,7 +1371,7 @@ EMITTER(LDCRBANK) {
 EMITTER(LDCMSR) {
   struct ir_value *addr = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *v = load_guest(addr, VALUE_I32);
-  store_sr(v, true);
+  store_sr(v, 1);
   /* reload Rm, sr store could have swapped banks */
   addr = load_gpr(i->Rm, VALUE_I32);
   addr = ir_add(ir, addr, ir_alloc_i32(ir, 4));
@@ -1485,10 +1498,18 @@ EMITTER(OCBWB) {}
 
 // PREF     @Rn
 EMITTER(PREF) {
+  /* check that the address is between 0xe0000000 and 0xe3ffffff */
+  struct ir_value *addr = load_gpr(i->Rn, VALUE_I32);
+  struct ir_value *cond = ir_lshr(ir, addr, ir_alloc_i32(ir, 26));
+  cond = ir_cmp_ne(ir, cond, ir_alloc_i32(ir, 0x38));
+  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", cond);
+  ir_branch_true(ir, cond, skip);
+
   struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
-  struct ir_value *prefetch = ir_alloc_i64(ir, (uint64_t)frontend->prefetch);
-  struct ir_value *addr = ir_zext(ir, load_gpr(i->Rn, VALUE_I32), VALUE_I64);
-  ir_call_2(ir, prefetch, data, addr);
+  struct ir_value *sq_prefetch =
+      ir_alloc_i64(ir, (uint64_t)frontend->sq_prefetch);
+  ir_call_2(ir, sq_prefetch, data, addr);
+  ir_label(ir, skip);
 }
 
 // RTE
@@ -1497,7 +1518,7 @@ EMITTER(RTE) {
       ir_load_context(ir, offsetof(struct sh4_ctx, spc), VALUE_I32);
   struct ir_value *ssr =
       ir_load_context(ir, offsetof(struct sh4_ctx, ssr), VALUE_I32);
-  store_sr(ssr, true);
+  store_sr(ssr, 1);
   emit_delay_instr();
   branch(spc);
 }
@@ -1505,7 +1526,7 @@ EMITTER(RTE) {
 // SETS
 EMITTER(SETS) {
   struct ir_value *sr = ir_or(ir, load_sr(), ir_alloc_i32(ir, S));
-  store_sr(sr, true);
+  store_sr(sr, 1);
 }
 
 // SETT

@@ -8,19 +8,7 @@ include(CheckFunctionExists)
 include(ExternalProject)
 include(SourceGroupByDir)
 
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "No build type selected, default to Release")
-  set(CMAKE_BUILD_TYPE "RelWithDebInfo")
-endif()
-
-list(APPEND REDREAM_LANGUAGES C CXX)
-if(WIN32)
-  list(APPEND REDREAM_LANGUAGES ASM_MASM)
-else()
-  list(APPEND REDREAM_LANGUAGES ASM)
-endif()
-
-project(redream ${REDREAM_LANGUAGES})
+project(redream)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
@@ -49,6 +37,8 @@ elseif("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
   set(COMPILER_GCC TRUE)
 endif()
+
+set(ARCH_X64 TRUE)
 
 #--------------------------------------------------
 # config file
@@ -121,6 +111,14 @@ add_library(inih STATIC deps/inih/ini.c)
 list(APPEND REDREAM_INCLUDE_DIRS deps/inih)
 list(APPEND REDREAM_LIBS inih)
 
+# libsoundio
+set(BUILD_DYNAMIC_LIBS OFF CACHE BOOL "")
+set(BUILD_EXAMPLE_PROGRAMS OFF CACHE BOOL "")
+set(BUILD_TEST OFF CACHE BOOL "")
+add_subdirectory(deps/libsoundio EXCLUDE_FROM_ALL)
+list(APPEND REDREAM_INCLUDE_DIRS deps/libsoundio)
+list(APPEND REDREAM_LIBS libsoundio_static)
+
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
 
@@ -160,7 +158,7 @@ endif()
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
-  src/audio/sdl_backend.c
+  src/audio/soundio_backend.c
   src/core/assert.c
   src/core/interval_tree.c
   src/core/list.c
@@ -168,8 +166,8 @@ set(REDREAM_SOURCES
   src/core/mm_heap.c
   src/core/option.c
   src/core/profiler.cc
+  src/core/ringbuf.cc
   src/core/rb_tree.c
-  src/core/stat.c
   src/core/string.c
   src/emu/emulator.c
   src/emu/tracer.c
@@ -180,6 +178,7 @@ set(REDREAM_SOURCES
   src/hw/holly/holly.c
   src/hw/maple/controller.c
   src/hw/maple/maple.c
+  src/hw/maple/vmu.c
   src/hw/pvr/pvr.c
   src/hw/pvr/ta.c
   src/hw/pvr/tr.c
@@ -213,6 +212,7 @@ set(REDREAM_SOURCES
   #src/jit/ir/passes/constant_propagation_pass.c
   src/jit/ir/passes/conversion_elimination_pass.c
   src/jit/ir/passes/dead_code_elimination_pass.c
+  src/jit/ir/passes/expression_simplification_pass.c
   src/jit/ir/passes/load_store_elimination_pass.c
   src/jit/ir/passes/pass_stat.c
   src/jit/ir/passes/register_allocation_pass.c
@@ -250,6 +250,11 @@ elseif(PLATFORM_LINUX)
   list(APPEND REDREAM_SOURCES src/sys/time_linux.c)
 endif()
 
+if(ARCH_X64)
+  list(APPEND REDREAM_SOURCES src/hw/arm7/x64/arm7_dispatch.cc)
+  list(APPEND REDREAM_SOURCES src/hw/sh4/x64/sh4_dispatch.cc)
+endif()
+
 # assign source groups for visual studio projects
 source_group_by_dir(REDREAM_SOURCES)
 
@@ -270,7 +275,7 @@ if(COMPILER_GCC OR COMPILER_CLANG)
     list(APPEND REDREAM_LIBS rt)
   endif()
 elseif(COMPILER_MSVC)
-  list(APPEND REDREAM_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /bigobj /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+  list(APPEND REDREAM_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 
   list(APPEND REDREAM_LIBS userenv ws2_32)
 endif()
@@ -285,7 +290,7 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 #--------------------------------------------------
 # tools
 #--------------------------------------------------
-set(RECC_SOURCES tools/recc.c)
+set(RECC_SOURCES tools/recc/recc.c)
 
 foreach(file ${REDREAM_SOURCES})
   if(file MATCHES "(deps|src/(core|jit|sys))")
@@ -296,12 +301,12 @@ endforeach()
 # assign source groups for visual studio projects
 source_group_by_dir(RECC_SOURCES)
 
-#add_executable(recc ${RECC_SOURCES})
-#target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-#target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-#target_link_libraries(recc ${REDREAM_LIBS})
-#target_compile_definitions(recc PRIVATE MICROPROFILE_ENABLED=0 ${REDREAM_DEFS})
-#target_compile_options(recc PRIVATE ${REDREAM_COMPILE_FLAGS})
+add_executable(recc ${RECC_SOURCES})
+target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(recc ${REDREAM_LIBS})
+target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 
 #--------------------------------------------------
 # tests

@@ -1,7 +1,7 @@
 #ifndef SH4_FRONTEND_H
 #define SH4_FRONTEND_H
 
-#include "jit/frontend/frontend.h"
+#include "jit/frontend/jit_frontend.h"
 
 struct ir;
 struct jit;
@@ -18,11 +18,11 @@ struct sh4_frontend {
 
   /* runtime interface */
   void *data;
-  void (*translate)(void *, uint32_t, struct ir *, int);
-  void (*invalid_instr)(void *, uint64_t);
-  void (*prefetch)(void *, uint64_t);
-  void (*sr_updated)(void *, uint64_t);
-  void (*fpscr_updated)(void *, uint64_t);
+  void (*translate)(void *, uint32_t, struct ir *, int, int *);
+  void (*invalid_instr)(void *, uint32_t);
+  void (*sq_prefetch)(void *, uint32_t);
+  void (*sr_updated)(void *, uint32_t);
+  void (*fpscr_updated)(void *, uint32_t);
 };
 
 struct jit_frontend *sh4_frontend_create(struct jit *jit);

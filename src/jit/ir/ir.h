@@ -21,6 +21,7 @@ enum ir_type {
   VALUE_F32,
   VALUE_F64,
   VALUE_V128,
+  VALUE_LABEL,
   VALUE_NUM,
 };
 
@@ -65,6 +66,7 @@ struct ir_value {
     int64_t i64;
     float f32;
     double f64;
+    char *str;
   };
 
   // instruction that defines this value (non-constant values)
@@ -159,17 +161,21 @@ static inline int ir_type_size(enum ir_type type) {
   }
 }
 
-static inline bool ir_is_int(enum ir_type type) {
+static inline int ir_is_int(enum ir_type type) {
   return type == VALUE_I8 || type == VALUE_I16 || type == VALUE_I32 ||
          type == VALUE_I64;
 }
 
-static inline bool ir_is_float(enum ir_type type) {
+static inline int ir_is_float(enum ir_type type) {
   return type == VALUE_F32 || type == VALUE_F64;
 }
 
-static inline bool ir_is_vector(enum ir_type type) {
+static inline int ir_is_vector(enum ir_type type) {
   return type == VALUE_V128;
+}
+
+static inline int ir_is_constant(const struct ir_value *v) {
+  return !v->def;
 }
 
 int ir_read(FILE *input, struct ir *ir);
@@ -179,12 +185,14 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
                                  enum ir_type result_type);
 void ir_remove_instr(struct ir *ir, struct ir_instr *instr);
 
+struct ir_value *ir_alloc_int(struct ir *ir, int64_t c, enum ir_type type);
 struct ir_value *ir_alloc_i8(struct ir *ir, int8_t c);
 struct ir_value *ir_alloc_i16(struct ir *ir, int16_t c);
 struct ir_value *ir_alloc_i32(struct ir *ir, int32_t c);
 struct ir_value *ir_alloc_i64(struct ir *ir, int64_t c);
 struct ir_value *ir_alloc_f32(struct ir *ir, float c);
 struct ir_value *ir_alloc_f64(struct ir *ir, double c);
+struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
 struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
                                 enum ir_type type);
@@ -198,7 +206,6 @@ void ir_set_arg2(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
 void ir_replace_use(struct ir_use *use, struct ir_value *other);
 void ir_replace_uses(struct ir_value *v, struct ir_value *other);
 
-bool ir_is_constant(const struct ir_value *v);
 uint64_t ir_zext_constant(const struct ir_value *v);
 
 // direct access to host memory
@@ -318,6 +325,7 @@ struct ir_value *ir_ashd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 
 // branches
+void ir_label(struct ir *ir, struct ir_value *lbl);
 void ir_branch(struct ir *ir, struct ir_value *dst);
 void ir_branch_false(struct ir *ir, struct ir_value *cond,
                      struct ir_value *dst);
