@@ -167,6 +167,11 @@ static void *emu_audio_thread(void *data) {
 
   struct audio_backend *audio = audio_create(emu->dc->aica);
 
+  if (!audio) {
+    LOG_WARNING("Audio backend creation failed");
+    return 0;
+  }
+
   while (emu->running) {
     audio_pump_events(audio);
 

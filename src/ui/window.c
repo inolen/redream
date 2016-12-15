@@ -981,7 +981,7 @@ struct window *win_create() {
   /* setup video backend */
   win->rb = rb_create(win);
   if (!win->rb) {
-    LOG_WARNING("Video backend creation failed");
+    LOG_WARNING("Render backend creation failed");
     win_destroy(win);
     return NULL;
   }
