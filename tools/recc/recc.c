@@ -18,6 +18,7 @@ DEFINE_OPTION_STRING(pass, "lse,cve,esimp,dce,ra",
 DEFINE_OPTION_INT(stats, 1, "Print pass stats");
 DEFINE_OPTION_INT(print_after_all, 1, "Print IR after each pass");
 
+DEFINE_STAT(frontend_size, "Frontend code size");
 DEFINE_STAT(backend_size, "Backend code size");
 DEFINE_STAT(num_instrs, "Total instructions");
 DEFINE_STAT(num_instrs_removed, "Total instructions removed");
@@ -51,11 +52,19 @@ static void process_file(struct jit *jit, const char *filename,
   fclose(input);
   CHECK(r);
 
-  int num_instrs_before = get_num_instrs(&ir);
+  /* calculate frontend input size */
+  list_for_each_entry(instr, &ir.instrs, struct ir_instr, it) {
+    if (instr->op == OP_DEBUG_INFO) {
+      struct ir_value *data = instr->arg[1];
+      STAT_frontend_size += ir_type_size(data->type);
+    }
+  }
 
   /* run optimization passes */
   char passes[MAX_OPTION_LENGTH];
   strncpy(passes, OPTION_pass, sizeof(passes));
+
+  int num_instrs_before = get_num_instrs(&ir);
 
   char *name = strtok(passes, ",");
   while (name) {
@@ -85,12 +94,13 @@ static void process_file(struct jit *jit, const char *filename,
     name = strtok(NULL, ",");
   }
 
+  int num_instrs_after = get_num_instrs(&ir);
+
   /* print out the final ir */
   if (!disable_ir_dump && !OPTION_print_after_all) {
     ir_write(&ir, stdout);
   }
 
-  int num_instrs_after = get_num_instrs(&ir);
   STAT_num_instrs += num_instrs_before;
   STAT_num_instrs_removed += num_instrs_before - num_instrs_after;
 

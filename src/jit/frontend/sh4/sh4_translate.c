@@ -218,6 +218,9 @@ static void ir_branch_true_guest(struct sh4_frontend *frontend, struct ir *ir,
 void sh4_emit_instr(struct sh4_frontend *frontend, struct ir *ir, int flags,
                     const struct sh4_instr *instr,
                     const struct sh4_instr *delay) {
+  /* emit debug info op for recc metrics */
+  ir_debug_info(ir, instr->addr, ir_alloc_i16(ir, instr->opcode));
+
   (emit_callbacks[instr->op])(frontend, ir, flags, instr, delay);
 }
 
