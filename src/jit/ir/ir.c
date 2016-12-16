@@ -21,7 +21,7 @@ static struct ir_instr *ir_alloc_instr(struct ir *ir, enum ir_op op) {
 
   instr->op = op;
 
-  // initialize use links
+  /* initialize use links */
   for (int i = 0; i < MAX_INSTR_ARGS; i++) {
     struct ir_use *use = &instr->used[i];
     use->instr = instr;
@@ -43,7 +43,7 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
                                  enum ir_type result_type) {
   struct ir_instr *instr = ir_alloc_instr(ir, op);
 
-  // allocate result if needed
+  /* allocate result if needed */
   if (result_type != VALUE_V) {
     struct ir_value *result = ir_calloc(ir, sizeof(struct ir_value));
     result->type = result_type;
@@ -60,7 +60,7 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
 }
 
 void ir_remove_instr(struct ir *ir, struct ir_instr *instr) {
-  // remove arguments from the use lists of their values
+  /* remove arguments from the use lists of their values */
   for (int i = 0; i < MAX_INSTR_ARGS; i++) {
     struct ir_value *value = instr->arg[i];
 
@@ -167,7 +167,7 @@ struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...) {
 }
 
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type) {
-  // align local to natural size
+  /* align local to natural size */
   int type_size = ir_type_size(type);
   ir->locals_size = align_up(ir->locals_size, type_size);
 
@@ -218,8 +218,8 @@ void ir_replace_use(struct ir_use *use, struct ir_value *other) {
   }
 }
 
-// replace all uses of v with other
 void ir_replace_uses(struct ir_value *v, struct ir_value *other) {
+  /* replace all uses of v with other */
   CHECK_NE(v, other);
 
   list_for_each_entry_safe(use, &v->uses, struct ir_use, it) {
@@ -824,4 +824,10 @@ void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
   ir_set_arg0(ir, instr, ir_alloc_i64(ir, (uint64_t)fallback));
   ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
   ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
+}
+
+void ir_debug_info(struct ir *ir, uint32_t addr, struct ir_value *data) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_DEBUG_INFO, VALUE_V);
+  ir_set_arg0(ir, instr, ir_alloc_i32(ir, addr));
+  ir_set_arg1(ir, instr, data);
 }

@@ -1609,6 +1609,8 @@ EMITTER(CALL_FALLBACK) {
   e.call(fallback);
 }
 
+EMITTER(DEBUG_INFO) {}
+
 void x64_backend_destroy(struct jit_backend *jit_backend) {
   struct x64_backend *backend = (struct x64_backend *)jit_backend;
 
