@@ -18,10 +18,10 @@ DEFINE_OPTION_STRING(pass, "lse,cve,esimp,dce,ra",
 DEFINE_OPTION_INT(stats, 1, "Print pass stats");
 DEFINE_OPTION_INT(print_after_all, 1, "Print IR after each pass");
 
-DEFINE_STAT(frontend_size, "Frontend code size");
-DEFINE_STAT(backend_size, "Backend code size");
-DEFINE_STAT(num_instrs, "Total instructions");
-DEFINE_STAT(num_instrs_removed, "Total instructions removed");
+DEFINE_STAT(guest_instrs, "Guest instructions");
+DEFINE_STAT(host_instrs, "Host instructions");
+DEFINE_STAT(ir_instrs, "IR instructions");
+DEFINE_STAT(ir_instrs_removed, "IR instructions removed");
 
 static uint8_t ir_buffer[1024 * 1024];
 static uint8_t code[1024 * 1024];
@@ -40,7 +40,7 @@ static int get_num_instrs(const struct ir *ir) {
 }
 
 static void process_file(struct jit *jit, const char *filename,
-                         int disable_ir_dump) {
+                         int disable_dumps) {
   struct ir ir = {0};
   ir.buffer = ir_buffer;
   ir.capacity = sizeof(ir_buffer);
@@ -52,11 +52,11 @@ static void process_file(struct jit *jit, const char *filename,
   fclose(input);
   CHECK(r);
 
-  /* calculate frontend input size */
+  /* calculate number of guest instructions */
+  int guest_num_instrs = 0;
   list_for_each_entry(instr, &ir.instrs, struct ir_instr, it) {
     if (instr->op == OP_DEBUG_INFO) {
-      struct ir_value *data = instr->arg[1];
-      STAT_frontend_size += ir_type_size(data->type);
+      guest_num_instrs++;
     }
   }
 
@@ -83,7 +83,7 @@ static void process_file(struct jit *jit, const char *filename,
     }
 
     /* print ir after each pass if requested */
-    if (!disable_ir_dump && OPTION_print_after_all) {
+    if (!disable_dumps && OPTION_print_after_all) {
       LOG_INFO("===-----------------------------------------------------===");
       LOG_INFO("IR after %s", name);
       LOG_INFO("===-----------------------------------------------------===");
@@ -97,17 +97,34 @@ static void process_file(struct jit *jit, const char *filename,
   int num_instrs_after = get_num_instrs(&ir);
 
   /* print out the final ir */
-  if (!disable_ir_dump && !OPTION_print_after_all) {
+  if (!disable_dumps && !OPTION_print_after_all) {
     ir_write(&ir, stdout);
   }
 
-  STAT_num_instrs += num_instrs_before;
-  STAT_num_instrs_removed += num_instrs_before - num_instrs_after;
-
   /* assemble backend code */
-  int backend_size = 0;
-  uint8_t *addr = jit->backend->assemble_code(jit->backend, &ir, &backend_size);
-  STAT_backend_size += backend_size;
+  int host_size = 0;
+  int host_num_instrs = 0;
+  uint8_t *host_code = NULL;
+
+  jit->backend->reset(jit->backend);
+  host_code = jit->backend->assemble_code(jit->backend, &ir, &host_size);
+
+  if (!disable_dumps) {
+    LOG_INFO("===-----------------------------------------------------===");
+    LOG_INFO("X64 code");
+    LOG_INFO("===-----------------------------------------------------===");
+    jit->backend->disassemble_code(jit->backend, host_code, host_size, 1,
+                                   &host_num_instrs);
+  } else {
+    jit->backend->disassemble_code(jit->backend, host_code, host_size, 0,
+                                   &host_num_instrs);
+  }
+
+  /* update stats */
+  STAT_guest_instrs += guest_num_instrs;
+  STAT_host_instrs += host_num_instrs;
+  STAT_ir_instrs += num_instrs_before;
+  STAT_ir_instrs_removed += num_instrs_before - num_instrs_after;
 }
 
 static void process_dir(struct jit *jit, const char *path) {

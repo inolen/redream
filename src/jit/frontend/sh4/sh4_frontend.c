@@ -18,8 +18,8 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   PROF_LEAVE();
 }
 
-static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
-                                   int size) {
+static void sh4_frontend_disassemble_code(struct jit_frontend *base,
+                                          uint32_t addr, int size) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct jit_guest *guest = frontend->jit->guest;
 
@@ -57,7 +57,7 @@ struct jit_frontend *sh4_frontend_create(struct jit *jit) {
 
   frontend->jit = jit;
   frontend->translate_code = &sh4_frontend_translate_code;
-  frontend->dump_code = &sh4_frontend_dump_code;
+  frontend->disassemble_code = &sh4_frontend_disassemble_code;
 
   return (struct jit_frontend *)frontend;
 }

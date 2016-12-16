@@ -392,19 +392,22 @@ static void *x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
   return fn;
 }
 
-static void x64_backend_dump_code(struct jit_backend *base,
-                                  const uint8_t *host_addr, int size) {
+static void x64_backend_disassemble_code(struct jit_backend *base,
+                                         const uint8_t *code, int size,
+                                         int dump, int *num_instrs) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
 
   cs_insn *insns;
-  size_t count =
-      cs_disasm(backend->capstone_handle, host_addr, size, 0, 0, &insns);
+  size_t count = cs_disasm(backend->capstone_handle, code, size, 0, 0, &insns);
   CHECK(count);
+  *num_instrs = count;
 
-  for (size_t i = 0; i < count; i++) {
-    cs_insn &insn = insns[i];
-    LOG_INFO("0x%" PRIx64 ":\t%s\t\t%s", insn.address, insn.mnemonic,
-             insn.op_str);
+  if (dump) {
+    for (size_t i = 0; i < count; i++) {
+      cs_insn &insn = insns[i];
+      LOG_INFO("0x%" PRIx64 ":\t%s\t\t%s", insn.address, insn.mnemonic,
+               insn.op_str);
+    }
   }
 
   cs_free(insns, count);
@@ -1631,7 +1634,7 @@ struct jit_backend *x64_backend_create(struct jit *jit, void *code,
   backend->base.num_registers = array_size(x64_registers);
   backend->base.reset = &x64_backend_reset;
   backend->base.assemble_code = &x64_backend_assemble_code;
-  backend->base.dump_code = &x64_backend_dump_code;
+  backend->base.disassemble_code = &x64_backend_disassemble_code;
   backend->base.handle_exception = &x64_backend_handle_exception;
 
   backend->code = code;
