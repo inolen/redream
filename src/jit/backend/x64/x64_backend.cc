@@ -1556,31 +1556,31 @@ EMITTER(BRANCH) {
 }
 
 EMITTER(BRANCH_FALSE) {
-  const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[1]);
 
   e.test(cond, cond);
 
-  if (instr->arg[1]->type == VALUE_LABEL) {
+  if (instr->arg[0]->type == VALUE_LABEL) {
     char name[128];
-    x64_backend_label_name(name, sizeof(name), instr->arg[1]);
+    x64_backend_label_name(name, sizeof(name), instr->arg[0]);
     e.jz(name);
   } else {
-    void *dst = (void *)instr->arg[1]->i64;
+    void *dst = (void *)instr->arg[0]->i64;
     e.jz(dst);
   }
 }
 
 EMITTER(BRANCH_TRUE) {
-  const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[0]);
+  const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[1]);
 
   e.test(cond, cond);
 
-  if (instr->arg[1]->type == VALUE_LABEL) {
+  if (instr->arg[0]->type == VALUE_LABEL) {
     char name[128];
-    x64_backend_label_name(name, sizeof(name), instr->arg[1]);
+    x64_backend_label_name(name, sizeof(name), instr->arg[0]);
     e.jnz(name);
   } else {
-    void *dst = (void *)instr->arg[1]->i64;
+    void *dst = (void *)instr->arg[0]->i64;
     e.jnz(dst);
   }
 }
