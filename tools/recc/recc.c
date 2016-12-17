@@ -39,6 +39,21 @@ static int get_num_instrs(const struct ir *ir) {
   return n;
 }
 
+static void sanitize_ir(struct ir *ir) {
+  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
+    if (instr->op != OP_BRANCH && instr->op != OP_BRANCH_FALSE &&
+        instr->op != OP_BRANCH_TRUE && instr->op != OP_CALL &&
+        instr->op != OP_CALL_FALLBACK) {
+      continue;
+    }
+
+    /* ensure that address are within 2 GB of the code buffer */
+    uint64_t addr = instr->arg[0]->i64;
+    addr = (uint64_t)code | (addr & 0x7fffffff);
+    ir_set_arg0(ir, instr, ir_alloc_i64(ir, addr));
+  }
+}
+
 static void process_file(struct jit *jit, const char *filename,
                          int disable_dumps) {
   struct ir ir = {0};
@@ -51,6 +66,9 @@ static void process_file(struct jit *jit, const char *filename,
   int r = ir_read(input, &ir);
   fclose(input);
   CHECK(r);
+
+  /* sanitize absolute addresses in the ir */
+  sanitize_ir(&ir);
 
   /* calculate number of guest instructions */
   int guest_num_instrs = 0;
@@ -164,10 +182,21 @@ int main(int argc, char **argv) {
 
   const char *path = argv[1];
 
+  /* initailize jit, stubbing out guest interfaces that are used during
+     assembly to a valid address */
   struct jit *jit = jit_create("recc");
+
   struct jit_guest guest = {0};
+  guest.r8 = (void *)code;
+  guest.r16 = (void *)code;
+  guest.r32 = (void *)code;
+  guest.w8 = (void *)code;
+  guest.w16 = (void *)code;
+  guest.w32 = (void *)code;
+
   struct jit_backend *backend =
       x64_backend_create(jit, code, code_size, stack_size);
+
   CHECK(jit_init(jit, &guest, NULL, backend));
 
   if (fs_isfile(path)) {
