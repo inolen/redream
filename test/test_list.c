@@ -46,7 +46,7 @@ static void validate_people(struct list *people, struct person **expected,
 }
 
 /* add tests */
-TEST(test_intrusive_list_append) {
+TEST(intrusive_list_append) {
   struct list people = {0};
   list_add(&people, &aaa.it);
   list_add(&people, &bbb.it);
@@ -57,7 +57,7 @@ TEST(test_intrusive_list_append) {
   validate_people(&people, expected, num_expected);
 }
 
-TEST(test_intrusive_list_prepend) {
+TEST(intrusive_list_prepend) {
   struct list people = {0};
   list_add_after(&people, NULL, &aaa.it);
   list_add_after(&people, NULL, &bbb.it);
@@ -69,7 +69,7 @@ TEST(test_intrusive_list_prepend) {
 }
 
 /* remove tests */
-TEST(test_intrusive_list_remove_head) {
+TEST(intrusive_list_remove_head) {
   struct list people = {0};
   init_people(&people);
 
@@ -80,7 +80,7 @@ TEST(test_intrusive_list_remove_head) {
   validate_people(&people, expected, num_expected);
 }
 
-TEST(test_intrusive_list_remove_middle) {
+TEST(intrusive_list_remove_middle) {
   struct list people = {0};
   init_people(&people);
 
@@ -91,7 +91,7 @@ TEST(test_intrusive_list_remove_middle) {
   validate_people(&people, expected, num_expected);
 }
 
-TEST(test_intrusive_list_remove_tail) {
+TEST(intrusive_list_remove_tail) {
   struct list people = {0};
   init_people(&people);
 
@@ -102,7 +102,7 @@ TEST(test_intrusive_list_remove_tail) {
   validate_people(&people, expected, num_expected);
 }
 
-TEST(test_intrusive_list_remove_clear) {
+TEST(intrusive_list_remove_clear) {
   struct list people = {0};
   init_people(&people);
 
@@ -124,7 +124,7 @@ int person_sort(const struct list_node *list_lhs,
   return strcmp(rhs->name, lhs->name);
 }
 
-TEST(test_intrusive_list_empty_sort) {
+TEST(intrusive_list_empty_sort) {
   struct list people = {0};
 
   list_sort(&people, &person_sort);
@@ -132,7 +132,7 @@ TEST(test_intrusive_list_empty_sort) {
   CHECK(list_empty(&people));
 }
 
-TEST(test_intrusive_list_sort) {
+TEST(intrusive_list_sort) {
   struct list people = {0};
   init_people(&people);
 

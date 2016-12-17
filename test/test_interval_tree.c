@@ -26,7 +26,7 @@ static void init_interval_tree(struct rb_tree *t) {
   }
 }
 
-TEST(test_interval_tree_size) {
+TEST(interval_tree_size) {
   struct rb_tree tree = {0};
   init_interval_tree(&tree);
 
@@ -34,7 +34,7 @@ TEST(test_interval_tree_size) {
   CHECK_EQ(size, MAX_NODES);
 }
 
-TEST(test_interval_tree_height) {
+TEST(interval_tree_height) {
   struct rb_tree tree = {0};
   init_interval_tree(&tree);
 
@@ -43,7 +43,7 @@ TEST(test_interval_tree_height) {
   CHECK(height <= 2 * log2(size + 1));
 }
 
-TEST(test_interval_tree_remove) {
+TEST(interval_tree_remove) {
   struct rb_tree tree = {0};
   init_interval_tree(&tree);
 
@@ -66,7 +66,7 @@ TEST(test_interval_tree_remove) {
   }
 }
 
-TEST(test_interval_tree_clear) {
+TEST(interval_tree_clear) {
   struct rb_tree tree = {0};
   init_interval_tree(&tree);
 
@@ -76,7 +76,7 @@ TEST(test_interval_tree_clear) {
   CHECK_EQ(size, 0);
 }
 
-TEST(test_interval_tree_find) {
+TEST(interval_tree_find) {
   struct rb_tree tree = {0};
   init_interval_tree(&tree);
 
@@ -117,7 +117,7 @@ TEST(test_interval_tree_find) {
   }
 }
 
-TEST(test_interval_tree_find_destructive) {
+TEST(interval_tree_find_destructive) {
   struct rb_tree tree = {0};
   init_interval_tree(&tree);
 

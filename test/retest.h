@@ -13,13 +13,13 @@ struct test {
   struct list_node it;
 };
 
-#define TEST(name)                                 \
-  static void name();                              \
-  CONSTRUCTOR(TEST_REGISTER_##name) {              \
-    static struct test test = {#name, &name, {0}}; \
-    test_register(&test);                          \
-  }                                                \
-  void name()
+#define TEST(name)                                                \
+  static void test_##name();                                      \
+  CONSTRUCTOR(TEST_REGISTER_##name) {                             \
+    static struct test test = {"test_" #name, &test_##name, {0}}; \
+    test_register(&test);                                         \
+  }                                                               \
+  void test_##name()
 
 void test_register(struct test *test);
 
