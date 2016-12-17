@@ -9,7 +9,7 @@ void test_register(struct test *test) {
 
 int main() {
   list_for_each_entry(test, &tests, struct test, it) {
-    LOG_INFO("[%s]", test->name);
+    LOG_INFO("%s..", test->name);
     test->run();
     LOG_INFO(ANSI_COLOR_GREEN "OK" ANSI_COLOR_RESET);
   }
