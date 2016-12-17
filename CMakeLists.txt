@@ -9,12 +9,11 @@ include(ExternalProject)
 include(SourceGroupByDir)
 
 project(redream)
-
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 
-# export compile_commands.json for clang-tidy
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+option(BUILD_TOOLS "Build tools" ON)
+option(BUILD_TESTS "Build tests" ON)
 
 #--------------------------------------------------
 # configuration options
@@ -138,18 +137,6 @@ if(CLANG_FORMAT_FOUND)
 file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.c" "src/*.cc" "src/*.h" "test/*.c" "test/*.cc" "test/*.h" "tools/*.c" "tools/*.cc" "tools/*.h")
 
 add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -i ${CLANG_FORMAT_ARGS})
-endif()
-
-
-#--------------------------------------------------
-# tidy
-#--------------------------------------------------
-find_package(ClangTidy)
-
-if(CLANG_TIDY_FOUND)
-file(GLOB_RECURSE CLANG_TIDY_ARGS "src/*.cc" "test/*.cc")
-
-add_custom_target(tidy ${CLANG_TIDY_EXECUTABLE} -p=${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json -checks=-*,readability-* ${CLANG_TIDY_ARGS})
 endif()
 
 
@@ -291,6 +278,8 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 #--------------------------------------------------
 # tools
 #--------------------------------------------------
+if(BUILD_TOOLS)
+
 set(RECC_SOURCES tools/recc/recc.c)
 
 foreach(file ${REDREAM_SOURCES})
@@ -309,13 +298,14 @@ target_link_libraries(recc ${REDREAM_LIBS})
 target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
 target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 
+endif()
+
 #--------------------------------------------------
 # tests
 #--------------------------------------------------
 
-#set(gtest_force_shared_crt ON CACHE BOOL "")
-#add_subdirectory(deps/gtest-1.7.0 EXCLUDE_FROM_ALL)
-#
+if(BUILD_TESTS)
+
 ## compile master .inc file from .s files in test/asm
 #set(TEST_ASM
 #  test/asm/add.s
@@ -416,23 +406,30 @@ target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 #endif()
 #
 ## build test binary
-#set(RETEST_SOURCES
-#  ${REDREAM_SOURCES}
-#  #test/test_interval_tree.cc
-#  #test/test_intrusive_list.cc
-#  test/test_list.cc
-#  test/test_dead_code_elimination_pass.cc
-#  test/test_load_store_elimination_pass.cc
-#  #test/test_minmax_heap.cc
-#  test/test_sh4.cc
-#  ${asm_inc})
-#list(REMOVE_ITEM RETEST_SOURCES src/main.c)
-#
-## assign source groups for visual studio projects
-#source_group_by_dir(RETEST_SOURCES)
-#
-#add_executable(retest ${RETEST_SOURCES})
-#target_include_directories(retest PUBLIC deps/gtest-1.7.0/include src/ test/ ${REDREAM_INCLUDE_DIRS})
-#target_link_libraries(retest gtest gtest_main ${REDREAM_LIBS})
-#target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
-#target_compile_options(retest PRIVATE ${REDREAM_COMPILE_FLAGS})
+set(RETEST_SOURCES
+  test/test_dead_code_elimination_pass.c
+  test/test_load_store_elimination_pass.c
+  #test/test_interval_tree.cc
+  #test/test_intrusive_list.cc
+  #test/test_list.cc
+  #test/test_minmax_heap.cc
+  #test/test_sh4.cc
+  #${asm_inc}
+  test/retest.c)
+
+foreach(file ${REDREAM_SOURCES})
+  if(file MATCHES "(deps|src/(core|jit|sys))")
+    list(APPEND RETEST_SOURCES ${file})
+  endif()
+endforeach()
+
+# assign source groups for visual studio projects
+source_group_by_dir(RETEST_SOURCES)
+
+add_executable(retest ${RETEST_SOURCES})
+target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
+target_link_libraries(retest ${REDREAM_LIBS})
+target_compile_definitions(retest PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_options(retest PRIVATE ${REDREAM_FLAGS})
+
+endif()
