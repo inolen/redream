@@ -132,8 +132,8 @@ static void ir_store_sr(struct sh4_frontend *frontend, struct ir *ir,
   struct ir_value *old_sr = NULL;
 
   if (update) {
-    sr_updated = ir_alloc_i64(ir, (uint64_t)frontend->sr_updated);
-    data = ir_alloc_i64(ir, (uint64_t)frontend->data);
+    sr_updated = ir_alloc_ptr(ir, frontend->sr_updated);
+    data = ir_alloc_ptr(ir, frontend->data);
     old_sr = load_sr();
   }
 
@@ -176,9 +176,8 @@ static void ir_store_fpscr(struct sh4_frontend *frontend, struct ir *ir,
   CHECK_EQ(v->type, VALUE_I32);
   v = ir_and(ir, v, ir_alloc_i32(ir, 0x003fffff));
 
-  struct ir_value *fpscr_updated =
-      ir_alloc_i64(ir, (uint64_t)frontend->fpscr_updated);
-  struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
+  struct ir_value *fpscr_updated = ir_alloc_ptr(ir, frontend->fpscr_updated);
+  struct ir_value *data = ir_alloc_ptr(ir, frontend->data);
   struct ir_value *old_fpscr = load_fpscr();
   ir_store_context(ir, offsetof(struct sh4_ctx, fpscr), v);
   ir_call_2(ir, fpscr_updated, data, old_fpscr);
@@ -226,9 +225,8 @@ void sh4_emit_instr(struct sh4_frontend *frontend, struct ir *ir, int flags,
 
 // INVALID
 EMITTER(INVALID) {
-  struct ir_value *invalid_instr =
-      ir_alloc_i64(ir, (uint64_t)frontend->invalid_instr);
-  struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
+  struct ir_value *invalid_instr = ir_alloc_ptr(ir, frontend->invalid_instr);
+  struct ir_value *data = ir_alloc_ptr(ir, frontend->data);
 
   ir_call_2(ir, invalid_instr, data, ir_alloc_i32(ir, i->addr));
 }
@@ -1508,9 +1506,8 @@ EMITTER(PREF) {
   struct ir_value *skip = ir_alloc_label(ir, "skip_%p", cond);
   ir_branch_true(ir, cond, skip);
 
-  struct ir_value *data = ir_alloc_i64(ir, (uint64_t)frontend->data);
-  struct ir_value *sq_prefetch =
-      ir_alloc_i64(ir, (uint64_t)frontend->sq_prefetch);
+  struct ir_value *data = ir_alloc_ptr(ir, frontend->data);
+  struct ir_value *sq_prefetch = ir_alloc_ptr(ir, frontend->sq_prefetch);
   ir_call_2(ir, sq_prefetch, data, addr);
   ir_label(ir, skip);
 }
