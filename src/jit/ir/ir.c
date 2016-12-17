@@ -144,6 +144,10 @@ struct ir_value *ir_alloc_f64(struct ir *ir, double c) {
   return v;
 }
 
+struct ir_value *ir_alloc_ptr(struct ir *ir, void *c) {
+  return ir_alloc_i64(ir, (uint64_t)c);
+}
+
 struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
 
@@ -821,7 +825,7 @@ void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
   CHECK(fallback);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_CALL_FALLBACK, VALUE_V);
-  ir_set_arg0(ir, instr, ir_alloc_i64(ir, (uint64_t)fallback));
+  ir_set_arg0(ir, instr, ir_alloc_ptr(ir, fallback));
   ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
   ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
 }

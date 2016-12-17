@@ -124,13 +124,12 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
   struct ir_value *remaining_cycles = ir_load_context(
       ir, offsetof(struct sh4_ctx, remaining_cycles), VALUE_I32);
   struct ir_value *done = ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
-  ir_branch_true(ir, done, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_leave));
+  ir_branch_true(ir, done, ir_alloc_ptr(ir, sh4_dispatch_leave));
 
   /* handle pending interrupts */
   struct ir_value *pending_intr = ir_load_context(
       ir, offsetof(struct sh4_ctx, pending_interrupts), VALUE_I64);
-  ir_branch_true(ir, pending_intr,
-                 ir_alloc_i64(ir, (uint64_t)sh4_dispatch_interrupt));
+  ir_branch_true(ir, pending_intr, ir_alloc_ptr(ir, sh4_dispatch_interrupt));
 
   /* update remaining cycles */
   remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, as.cycles));
@@ -197,9 +196,9 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
     ir->current_instr = instr;
 
     if (direct) {
-      ir_call(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_static));
+      ir_call(ir, ir_alloc_ptr(ir, sh4_dispatch_static));
     } else {
-      ir_branch(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_dynamic));
+      ir_branch(ir, ir_alloc_ptr(ir, sh4_dispatch_dynamic));
     }
   }
 
