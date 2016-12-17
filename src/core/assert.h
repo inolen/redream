@@ -51,6 +51,16 @@ const char *format_check_error(const char *filename, int linenum,
       LOG_FATAL(msg);                                                      \
     }                                                                      \
   } while (0)
+#define CHECK_STREQ(v1, v2, ...)                                       \
+  do {                                                                 \
+    if (!CHECK_EXPECT_TRUE(!strcmp(v1, v2))) {                         \
+      const char *msg = FORMAT_CHECK_ERROR(                            \
+          __FILE__, __LINE__, "Expected '" #v1 "' to eq '" #v2 "'", 0, \
+          ##__VA_ARGS__);                                              \
+      LOG_FATAL(msg);                                                  \
+    }                                                                  \
+  } while (0)
+
 #define CHECK(condition, ...)                                                 \
   do {                                                                        \
     if (!CHECK_EXPECT_TRUE(condition)) {                                      \

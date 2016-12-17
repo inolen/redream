@@ -1,14 +1,12 @@
-#include <gtest/gtest.h>
-
-extern "C" {
+#include "core/assert.h"
+#include "core/constructor.h"
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
-}
 
 static uint8_t ir_buffer[1024 * 1024];
 static char scratch_buffer[1024 * 1024];
 
-TEST(LoadStoreEliminationPassTest, Aliasing) {
+CONSTRUCTOR(test_load_store_elimination_pass_test) {
   static const char input_str[] =
       "store_context i32 0x104, i32 0x0\n"
       "store_context i32 0x100, i32 0x0\n"
@@ -58,16 +56,16 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
       "i32 %5 = sub i32 %4, i32 0x10\n"
       "store_context i32 0x20, i32 %5\n";
 
-  struct ir ir = {};
+  struct ir ir = {0};
   ir.buffer = ir_buffer;
   ir.capacity = sizeof(ir_buffer);
 
   FILE *input = tmpfile();
   fwrite(input_str, 1, sizeof(input_str) - 1, input);
   rewind(input);
-  bool res = ir_read(input, &ir);
+  int res = ir_read(input, &ir);
   fclose(input);
-  ASSERT_TRUE(res);
+  CHECK(res);
 
   lse_run(&ir);
 
@@ -76,7 +74,7 @@ TEST(LoadStoreEliminationPassTest, Aliasing) {
   rewind(output);
   size_t n = fread(&scratch_buffer, 1, sizeof(scratch_buffer), output);
   fclose(output);
-  ASSERT_NE(n, 0u);
+  CHECK_NE(n, 0u);
 
-  ASSERT_STREQ(scratch_buffer, output_str);
+  CHECK_STREQ(scratch_buffer, output_str);
 }

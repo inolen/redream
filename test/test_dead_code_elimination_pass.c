@@ -1,14 +1,12 @@
-#include <gtest/gtest.h>
-
-extern "C" {
+#include "core/assert.h"
+#include "core/constructor.h"
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
-}
 
 static uint8_t ir_buffer[1024 * 1024];
 static char scratch_buffer[1024 * 1024];
 
-TEST(DeadCodeEliminationPassTest, Sanity) {
+CONSTRUCTOR(test_dead_code_elimination_pass) {
   static const char input_str[] =
       "i32 %0 = load_context i32 0xbc\n"
       "i32 %1 = load_slow i32 %0\n"
@@ -31,7 +29,7 @@ TEST(DeadCodeEliminationPassTest, Sanity) {
       "i32 %13 = load_context i32 0x2c\n"
       "i32 %14 = add i32 %13, i32 0x7\n"
       "store_context i32 0x2c, i32 %14\n"
-      "call_external i64 %8, i64 %10\n"
+      "call i64 %8, i64 %10\n"
       "store_context i32 0x30, i32 0x8c000940\n";
 
   static const char output_str[] =
@@ -54,19 +52,19 @@ TEST(DeadCodeEliminationPassTest, Sanity) {
       "i32 %11 = load_context i32 0x2c\n"
       "i32 %12 = add i32 %11, i32 0x7\n"
       "store_context i32 0x2c, i32 %12\n"
-      "call_external i64 %6, i64 %8\n"
+      "call i64 %6, i64 %8\n"
       "store_context i32 0x30, i32 0x8c000940\n";
 
-  struct ir ir = {};
+  struct ir ir = {0};
   ir.buffer = ir_buffer;
   ir.capacity = sizeof(ir_buffer);
 
   FILE *input = tmpfile();
   fwrite(input_str, 1, sizeof(input_str) - 1, input);
   rewind(input);
-  bool res = ir_read(input, &ir);
+  int res = ir_read(input, &ir);
   fclose(input);
-  ASSERT_TRUE(res);
+  CHECK(res);
 
   dce_run(&ir);
 
@@ -75,7 +73,7 @@ TEST(DeadCodeEliminationPassTest, Sanity) {
   rewind(output);
   size_t n = fread(&scratch_buffer, 1, sizeof(scratch_buffer), output);
   fclose(output);
-  ASSERT_NE(n, 0u);
+  CHECK_NE(n, 0u);
 
-  ASSERT_STREQ(scratch_buffer, output_str);
+  CHECK_STREQ(scratch_buffer, output_str);
 }
