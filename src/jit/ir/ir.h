@@ -21,7 +21,7 @@ enum ir_type {
   VALUE_F32,
   VALUE_F64,
   VALUE_V128,
-  VALUE_LABEL,
+  VALUE_STRING,
   VALUE_NUM,
 };
 
@@ -192,8 +192,8 @@ struct ir_value *ir_alloc_i32(struct ir *ir, int32_t c);
 struct ir_value *ir_alloc_i64(struct ir *ir, int64_t c);
 struct ir_value *ir_alloc_f32(struct ir *ir, float c);
 struct ir_value *ir_alloc_f64(struct ir *ir, double c);
+struct ir_value *ir_alloc_str(struct ir *ir, const char *format, ...);
 struct ir_value *ir_alloc_ptr(struct ir *ir, void *c);
-struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
 struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
                                 enum ir_type type);
@@ -341,6 +341,7 @@ void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
                       uint32_t raw_instr);
 
 /* debug */
-void ir_debug_info(struct ir *ir, uint32_t addr, struct ir_value *data);
+void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,
+                   uint32_t instr);
 
 #endif

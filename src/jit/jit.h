@@ -45,11 +45,14 @@ struct jit {
   struct rb_tree blocks;
   struct rb_tree reverse_blocks;
 
-  /* debug flag for dumping blocks as they are compiled */
-  int dump_compiled_blocks;
-
   /* compiled block perf map */
   FILE *perf_map;
+
+  /* dump ir to application directory as blocks compile */
+  int dump_blocks;
+
+  /* track emitter stats as blocks compile */
+  int emit_stats;
 };
 
 struct jit *jit_create(const char *tag);
@@ -57,9 +60,6 @@ void jit_destroy(struct jit *jit);
 
 int jit_init(struct jit *jit, struct jit_guest *guest,
              struct jit_frontend *frontend, struct jit_backend *backend);
-
-int jit_is_dumping(struct jit *jit);
-void jit_toggle_dumping(struct jit *jit);
 
 void jit_compile_block(struct jit *jit, uint32_t guest_addr);
 void jit_add_edge(struct jit *jit, void *code, uint32_t dst);

@@ -22,6 +22,20 @@ enum sh4_op {
   NUM_SH4_OPS,
 };
 
+struct sh4_opdef {
+  enum sh4_op op;
+  const char *name;
+  const char *desc;
+  const char *sig;
+  int cycles;
+  int flags;
+  uint16_t opcode_mask;
+  uint16_t imm_mask, imm_shift;
+  uint16_t disp_mask, disp_shift;
+  uint16_t rm_mask, rm_shift;
+  uint16_t rn_mask, rn_shift;
+};
+
 struct sh4_instr {
   uint32_t addr;
   uint16_t opcode;
@@ -34,6 +48,8 @@ struct sh4_instr {
   uint16_t disp;
   uint16_t imm;
 };
+
+extern struct sh4_opdef sh4_opdefs[NUM_SH4_OPS];
 
 int sh4_disasm(struct sh4_instr *i);
 void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size);

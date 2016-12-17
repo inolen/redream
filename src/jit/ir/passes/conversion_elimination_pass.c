@@ -1,10 +1,10 @@
 #include "jit/ir/passes/conversion_elimination_pass.h"
 #include "jit/ir/ir.h"
-#include "jit/ir/passes/pass_stat.h"
+#include "jit/pass_stats.h"
 
-DEFINE_STAT(sext_removed, "Sign extends eliminated");
-DEFINE_STAT(zext_removed, "Zero extends eliminated");
-DEFINE_STAT(trunc_removed, "Truncations eliminated");
+DEFINE_STAT(sext_removed, "sign extends eliminated");
+DEFINE_STAT(zext_removed, "zero extends eliminated");
+DEFINE_STAT(trunc_removed, "truncations eliminated");
 
 void cve_run(struct ir *ir) {
   list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {

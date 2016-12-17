@@ -2,10 +2,10 @@
 #include "core/mm_heap.h"
 #include "jit/backend/jit_backend.h"
 #include "jit/ir/ir.h"
-#include "jit/ir/passes/pass_stat.h"
+#include "jit/pass_stats.h"
 
-DEFINE_STAT(gprs_spilled, "GPRs spilled");
-DEFINE_STAT(fprs_spilled, "FPRs spilled");
+DEFINE_STAT(gprs_spilled, "gprs spilled");
+DEFINE_STAT(fprs_spilled, "fprs spilled");
 
 #define MAX_REGISTERS 32
 
@@ -389,7 +389,7 @@ void ra_run(struct ir *ir, const struct jit_register *registers,
     /* only allocate registers for results, assume constants can always be
        encoded as immediates or that the backend has registers reserved
        for storing the constants */
-    if (!result || result->type == VALUE_LABEL) {
+    if (!result) {
       continue;
     }
 

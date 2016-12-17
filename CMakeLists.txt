@@ -214,9 +214,10 @@ set(REDREAM_SOURCES
   src/jit/ir/passes/dead_code_elimination_pass.c
   src/jit/ir/passes/expression_simplification_pass.c
   src/jit/ir/passes/load_store_elimination_pass.c
-  src/jit/ir/passes/pass_stat.c
   src/jit/ir/passes/register_allocation_pass.c
+  src/jit/emit_stats.c
   src/jit/jit.c
+  src/jit/pass_stats.c
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c

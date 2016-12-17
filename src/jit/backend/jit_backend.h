@@ -22,8 +22,7 @@ struct jit_backend {
 
   void (*reset)(struct jit_backend *base);
   void *(*assemble_code)(struct jit_backend *base, struct ir *ir, int *size);
-  void (*disassemble_code)(struct jit_backend *base, const uint8_t *code,
-                           int size, int dump, int *num_instrs);
+  void (*dump_code)(struct jit_backend *base, const uint8_t *code, int size);
 
   int (*handle_exception)(struct jit_backend *base, struct exception *ex);
 };

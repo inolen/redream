@@ -25,8 +25,8 @@ static void ir_write_type(enum ir_type type, FILE *output) {
     case VALUE_V128:
       fprintf(output, "v128");
       break;
-    case VALUE_LABEL:
-      fprintf(output, "lbl");
+    case VALUE_STRING:
+      fprintf(output, "str");
       break;
     default:
       LOG_FATAL("Unexpected value type");
@@ -71,8 +71,8 @@ static void ir_write_value(const struct ir_value *value, FILE *output) {
         double v = value->f64;
         fprintf(output, "0x%" PRIx64, *(uint64_t *)&v);
       } break;
-      case VALUE_LABEL: {
-        fprintf(output, ".%s", value->str);
+      case VALUE_STRING: {
+        fprintf(output, "%s", value->str);
       } break;
       default:
         LOG_FATAL("Unexpected value type");

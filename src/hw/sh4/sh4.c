@@ -228,11 +228,16 @@ static void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
       jit_invalidate_blocks(sh4->jit);
     }
 
-    int dumping = jit_is_dumping(sh4->jit);
-    if (!dumping && nk_button_label(ctx, "start dumping blocks")) {
-      jit_toggle_dumping(sh4->jit);
-    } else if (dumping && nk_button_label(ctx, "stop dumping blocks")) {
-      jit_toggle_dumping(sh4->jit);
+    struct jit *jit = sh4->jit;
+    if (!jit->dump_blocks) {
+      if (nk_button_label(ctx, "start dumping blocks")) {
+        jit->dump_blocks = 1;
+        jit_invalidate_blocks(jit);
+      }
+    } else {
+      if (nk_button_label(ctx, "stop dumping blocks")) {
+        jit->dump_blocks = 0;
+      }
     }
 
     nk_menu_end(ctx);

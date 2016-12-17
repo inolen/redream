@@ -144,17 +144,13 @@ struct ir_value *ir_alloc_f64(struct ir *ir, double c) {
   return v;
 }
 
-struct ir_value *ir_alloc_ptr(struct ir *ir, void *c) {
-  return ir_alloc_i64(ir, (uint64_t)c);
-}
-
-struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...) {
+struct ir_value *ir_alloc_str(struct ir *ir, const char *format, ...) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
 
-  v->type = VALUE_LABEL;
+  v->type = VALUE_STRING;
   v->reg = NO_REGISTER;
 
-  /* format the label name */
+  /* format the string */
   va_list args;
 
   va_start(args, format);
@@ -168,6 +164,10 @@ struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...) {
   va_end(args);
 
   return v;
+}
+
+struct ir_value *ir_alloc_ptr(struct ir *ir, void *c) {
+  return ir_alloc_i64(ir, (uint64_t)c);
 }
 
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type) {
@@ -765,14 +765,14 @@ struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a,
 }
 
 void ir_label(struct ir *ir, struct ir_value *lbl) {
-  CHECK(lbl->type == VALUE_LABEL);
+  CHECK(lbl->type == VALUE_STRING);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_LABEL, VALUE_V);
   ir_set_arg0(ir, instr, lbl);
 }
 
 void ir_branch(struct ir *ir, struct ir_value *dst) {
-  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
+  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH, VALUE_V);
   ir_set_arg0(ir, instr, dst);
@@ -780,7 +780,7 @@ void ir_branch(struct ir *ir, struct ir_value *dst) {
 
 void ir_branch_false(struct ir *ir, struct ir_value *dst,
                      struct ir_value *cond) {
-  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
+  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_FALSE, VALUE_V);
   ir_set_arg0(ir, instr, dst);
@@ -789,7 +789,7 @@ void ir_branch_false(struct ir *ir, struct ir_value *dst,
 
 void ir_branch_true(struct ir *ir, struct ir_value *dst,
                     struct ir_value *cond) {
-  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
+  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_TRUE, VALUE_V);
   ir_set_arg0(ir, instr, dst);
@@ -830,8 +830,10 @@ void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
   ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
 }
 
-void ir_debug_info(struct ir *ir, uint32_t addr, struct ir_value *data) {
+void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,
+                   uint32_t raw_instr) {
   struct ir_instr *instr = ir_append_instr(ir, OP_DEBUG_INFO, VALUE_V);
-  ir_set_arg0(ir, instr, ir_alloc_i32(ir, addr));
-  ir_set_arg1(ir, instr, data);
+  ir_set_arg0(ir, instr, ir_alloc_str(ir, desc));
+  ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
+  ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
 }

@@ -9,6 +9,7 @@ extern "C" {
 #include "jit/backend/jit_backend.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"
+#include "jit/emit_stats.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 #include "sys/exception_handler.h"
@@ -154,11 +155,14 @@ struct x64_backend {
   int stack_size;
   Xbyak::CodeGenerator *codegen;
 
-  csh capstone_handle;
   Xbyak::Label xmm_const[NUM_XMM_CONST];
   void (*load_thunk[16])();
   void (*store_thunk)();
   int num_temps;
+
+  csh capstone_handle;
+  struct ir_instr *last_op;
+  void *last_op_begin;
 };
 
 static const Xbyak::Reg x64_backend_register(struct x64_backend *backend,
@@ -279,6 +283,12 @@ static const Xbyak::Address x64_backend_xmm_constant(
   return e.ptr[e.rip + backend->xmm_const[c]];
 }
 
+static void x64_backend_label_name(char *name, size_t size,
+                                   struct ir_value *v) {
+  /* all ir labels are local labels */
+  snprintf(name, size, ".%s", v->str);
+}
+
 static int x64_backend_can_encode_imm(const struct ir_value *v) {
   if (!ir_is_constant(v)) {
     return 0;
@@ -287,11 +297,34 @@ static int x64_backend_can_encode_imm(const struct ir_value *v) {
   return v->type <= VALUE_I32;
 }
 
-void *x64_backend_emit(struct x64_backend *backend, struct ir *ir, int *size) {
-  PROF_ENTER("cpu", "x64_backend_emit");
+static void x64_backend_emit_stats(struct x64_backend *backend,
+                                   struct ir_instr *op) {
+  if (!backend->base.jit->emit_stats) {
+    return;
+  }
 
+  void *curr = backend->codegen->getCurr<void *>();
+
+  if (backend->last_op) {
+    cs_insn *insns;
+    size_t size = (int)((uint8_t *)curr - (uint8_t *)backend->last_op_begin);
+    size_t count =
+        cs_disasm(backend->capstone_handle, (uint8_t *)backend->last_op_begin,
+                  size, 0, 0, &insns);
+    cs_free(insns, count);
+
+    const char *desc = backend->last_op->arg[0]->str;
+    emit_stats_add(desc, count);
+  }
+
+  backend->last_op = op;
+  backend->last_op_begin = curr;
+}
+
+static void *x64_backend_emit(struct x64_backend *backend, struct ir *ir,
+                              int *size) {
   auto &e = *backend->codegen;
-  void *fn = (void *)backend->codegen->getCurr();
+  void *code = (void *)backend->codegen->getCurr();
 
   CHECK_LT(ir->locals_size, backend->stack_size);
 
@@ -301,7 +334,12 @@ void *x64_backend_emit(struct x64_backend *backend, struct ir *ir, int *size) {
     x64_emit_cb emit = x64_backend_emitters[instr->op];
     CHECK_NOTNULL(emit);
 
-    // reset temp count used by GetRegister
+    /* track stats for each guest op */
+    if (instr->op == OP_DEBUG_INFO) {
+      x64_backend_emit_stats(backend, instr);
+    }
+
+    /* reset temp count used by x64_backend_get_register */
     backend->num_temps = 0;
 
     emit(backend, *backend->codegen, instr);
@@ -309,11 +347,12 @@ void *x64_backend_emit(struct x64_backend *backend, struct ir *ir, int *size) {
 
   e.outLocalLabel();
 
-  *size = (int)((uint8_t *)backend->codegen->getCurr() - (uint8_t *)fn);
+  *size = (int)((uint8_t *)backend->codegen->getCurr() - (uint8_t *)code);
 
-  PROF_LEAVE();
+  /* flush stats for last op */
+  x64_backend_emit_stats(backend, NULL);
 
-  return fn;
+  return code;
 }
 
 static void x64_backend_emit_thunks(struct x64_backend *backend) {
@@ -362,55 +401,6 @@ static void x64_backend_emit_constants(struct x64_backend *backend) {
   e.L(backend->xmm_const[XMM_CONST_SIGN_MASK_PD]);
   e.dq(INT64_C(0x8000000000000000));
   e.dq(INT64_C(0x8000000000000000));
-}
-
-static void x64_backend_reset(struct jit_backend *base) {
-  struct x64_backend *backend = container_of(base, struct x64_backend, base);
-
-  backend->codegen->reset();
-
-  x64_backend_emit_thunks(backend);
-  x64_backend_emit_constants(backend);
-}
-
-static void *x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
-                                       int *size) {
-  struct x64_backend *backend = container_of(base, struct x64_backend, base);
-
-  // try to generate the x64 code. if the code buffer overflows let the backend
-  // know so it can reset the cache and try again
-  void *fn = NULL;
-
-  try {
-    fn = x64_backend_emit(backend, ir, size);
-  } catch (const Xbyak::Error &e) {
-    if (e != Xbyak::ERR_CODE_IS_TOO_BIG) {
-      LOG_FATAL("X64 codegen failure, %s", e.what());
-    }
-  }
-
-  return fn;
-}
-
-static void x64_backend_disassemble_code(struct jit_backend *base,
-                                         const uint8_t *code, int size,
-                                         int dump, int *num_instrs) {
-  struct x64_backend *backend = container_of(base, struct x64_backend, base);
-
-  cs_insn *insns;
-  size_t count = cs_disasm(backend->capstone_handle, code, size, 0, 0, &insns);
-  CHECK(count);
-  *num_instrs = count;
-
-  if (dump) {
-    for (size_t i = 0; i < count; i++) {
-      cs_insn &insn = insns[i];
-      LOG_INFO("0x%" PRIx64 ":\t%s\t\t%s", insn.address, insn.mnemonic,
-               insn.op_str);
-    }
-  }
-
-  cs_free(insns, count);
 }
 
 static int x64_backend_handle_exception(struct jit_backend *base,
@@ -499,10 +489,53 @@ static int x64_backend_handle_exception(struct jit_backend *base,
   return 1;
 }
 
-static void x64_backend_label_name(char *name, size_t size,
-                                   struct ir_value *v) {
-  /* all ir labels are local labels */
-  snprintf(name, size, ".%s", v->str);
+static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *code,
+                                  int size) {
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
+  cs_insn *insns;
+  size_t count = cs_disasm(backend->capstone_handle, code, size, 0, 0, &insns);
+  CHECK(count);
+
+  for (size_t i = 0; i < count; i++) {
+    cs_insn &insn = insns[i];
+    LOG_INFO("0x%" PRIx64 ":\t%s\t\t%s", insn.address, insn.mnemonic,
+             insn.op_str);
+  }
+
+  cs_free(insns, count);
+}
+
+static void *x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
+                                       int *size) {
+  PROF_ENTER("cpu", "x64_backend_assemble_code");
+
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
+  // try to generate the x64 code. if the code buffer overflows let the backend
+  // know so it can reset the cache and try again
+  void *code = NULL;
+
+  try {
+    code = x64_backend_emit(backend, ir, size);
+  } catch (const Xbyak::Error &e) {
+    if (e != Xbyak::ERR_CODE_IS_TOO_BIG) {
+      LOG_FATAL("X64 codegen failure, %s", e.what());
+    }
+  }
+
+  PROF_LEAVE();
+
+  return code;
+}
+
+static void x64_backend_reset(struct jit_backend *base) {
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
+  backend->codegen->reset();
+
+  x64_backend_emit_thunks(backend);
+  x64_backend_emit_constants(backend);
 }
 
 EMITTER(LOAD) {
@@ -1545,7 +1578,7 @@ EMITTER(LABEL) {
 }
 
 EMITTER(BRANCH) {
-  if (instr->arg[0]->type == VALUE_LABEL) {
+  if (instr->arg[0]->type == VALUE_STRING) {
     char name[128];
     x64_backend_label_name(name, sizeof(name), instr->arg[0]);
     e.jmp(name);
@@ -1560,7 +1593,7 @@ EMITTER(BRANCH_FALSE) {
 
   e.test(cond, cond);
 
-  if (instr->arg[0]->type == VALUE_LABEL) {
+  if (instr->arg[0]->type == VALUE_STRING) {
     char name[128];
     x64_backend_label_name(name, sizeof(name), instr->arg[0]);
     e.jz(name);
@@ -1575,7 +1608,7 @@ EMITTER(BRANCH_TRUE) {
 
   e.test(cond, cond);
 
-  if (instr->arg[0]->type == VALUE_LABEL) {
+  if (instr->arg[0]->type == VALUE_STRING) {
     char name[128];
     x64_backend_label_name(name, sizeof(name), instr->arg[0]);
     e.jnz(name);
@@ -1634,7 +1667,7 @@ struct jit_backend *x64_backend_create(struct jit *jit, void *code,
   backend->base.num_registers = array_size(x64_registers);
   backend->base.reset = &x64_backend_reset;
   backend->base.assemble_code = &x64_backend_assemble_code;
-  backend->base.disassemble_code = &x64_backend_disassemble_code;
+  backend->base.dump_code = &x64_backend_dump_code;
   backend->base.handle_exception = &x64_backend_handle_exception;
 
   backend->code = code;

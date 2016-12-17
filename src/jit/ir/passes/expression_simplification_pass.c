@@ -1,11 +1,11 @@
 #include "jit/ir/passes/expression_simplification_pass.h"
 #include "jit/ir/ir.h"
-#include "jit/ir/passes/pass_stat.h"
+#include "jit/pass_stats.h"
 
-DEFINE_STAT(zero_properties_removed, "Zero properties removed");
-DEFINE_STAT(zero_identities_removed, "Zero identities removed");
-DEFINE_STAT(one_identities_removed, "One identities removed");
-DEFINE_STAT(bitwise_identities_removed, "Bitwise identities removed");
+DEFINE_STAT(bitwise_identities_removed, "bitwise identities removed");
+DEFINE_STAT(zero_properties_removed, "zero properties removed");
+DEFINE_STAT(zero_identities_removed, "zero identities removed");
+DEFINE_STAT(one_identities_removed, "one identities removed");
 
 void esimp_run(struct ir *ir) {
   list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
