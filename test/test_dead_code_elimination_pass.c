@@ -1,12 +1,11 @@
-#include "core/assert.h"
-#include "core/constructor.h"
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/dead_code_elimination_pass.h"
+#include "retest.h"
 
 static uint8_t ir_buffer[1024 * 1024];
 static char scratch_buffer[1024 * 1024];
 
-CONSTRUCTOR(test_dead_code_elimination_pass) {
+TEST(test_dead_code_elimination_pass) {
   static const char input_str[] =
       "i32 %0 = load_context i32 0xbc\n"
       "i32 %1 = load_slow i32 %0\n"
