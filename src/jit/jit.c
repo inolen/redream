@@ -319,7 +319,7 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
                                 &guest_size);
 
   /* dump unoptimized block */
-  if (jit->dump_compiled_blocks) {
+  if (jit->dump_blocks) {
     jit_dump_block(jit, guest_addr, &ir);
   }
 
@@ -351,21 +351,6 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   }
 
   PROF_LEAVE();
-}
-
-void jit_toggle_dumping(struct jit *jit) {
-  int enabled = !jit->dump_compiled_blocks;
-
-  if (enabled) {
-    /* invalidate current blocks so they recompile and dump on the next run */
-    jit_invalidate_blocks(jit);
-  }
-
-  jit->dump_compiled_blocks = enabled;
-}
-
-int jit_is_dumping(struct jit *jit) {
-  return jit->dump_compiled_blocks;
 }
 
 static int jit_handle_exception(void *data, struct exception *ex) {

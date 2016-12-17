@@ -200,7 +200,7 @@ static void ir_branch_guest(struct sh4_frontend *frontend, struct ir *ir,
 static void ir_branch_false_guest(struct sh4_frontend *frontend, struct ir *ir,
                                   struct ir_value *addr,
                                   struct ir_value *cond) {
-  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", addr);
+  struct ir_value *skip = ir_alloc_str(ir, "skip_%p", addr);
   ir_branch_true(ir, skip, cond);
   ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
   ir_label(ir, skip);
@@ -208,7 +208,7 @@ static void ir_branch_false_guest(struct sh4_frontend *frontend, struct ir *ir,
 
 static void ir_branch_true_guest(struct sh4_frontend *frontend, struct ir *ir,
                                  struct ir_value *addr, struct ir_value *cond) {
-  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", addr);
+  struct ir_value *skip = ir_alloc_str(ir, "skip_%p", addr);
   ir_branch_false(ir, skip, cond);
   ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
   ir_label(ir, skip);
@@ -217,8 +217,11 @@ static void ir_branch_true_guest(struct sh4_frontend *frontend, struct ir *ir,
 void sh4_emit_instr(struct sh4_frontend *frontend, struct ir *ir, int flags,
                     const struct sh4_instr *instr,
                     const struct sh4_instr *delay) {
-  /* emit debug info op for recc metrics */
-  ir_debug_info(ir, instr->addr, ir_alloc_i16(ir, instr->opcode));
+  /* emit extra debug info for recc */
+  if (frontend->jit->dump_blocks) {
+    const char *name = sh4_opdefs[instr->op].name;
+    ir_debug_info(ir, name, instr->addr, instr->opcode);
+  }
 
   (emit_callbacks[instr->op])(frontend, ir, flags, instr, delay);
 }
@@ -1503,7 +1506,7 @@ EMITTER(PREF) {
   struct ir_value *addr = load_gpr(i->Rn, VALUE_I32);
   struct ir_value *cond = ir_lshr(ir, addr, ir_alloc_i32(ir, 26));
   cond = ir_cmp_ne(ir, cond, ir_alloc_i32(ir, 0x38));
-  struct ir_value *skip = ir_alloc_label(ir, "skip_%p", cond);
+  struct ir_value *skip = ir_alloc_str(ir, "skip_%p", cond);
   ir_branch_true(ir, skip, cond);
 
   struct ir_value *data = ir_alloc_ptr(ir, frontend->data);

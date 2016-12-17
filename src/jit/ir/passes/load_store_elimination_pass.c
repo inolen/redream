@@ -1,9 +1,9 @@
 #include "jit/ir/passes/load_store_elimination_pass.h"
 #include "jit/ir/ir.h"
-#include "jit/ir/passes/pass_stat.h"
+#include "jit/pass_stats.h"
 
-DEFINE_STAT(loads_removed, "Context loads eliminated");
-DEFINE_STAT(stores_removed, "Context stores eliminated");
+DEFINE_STAT(loads_removed, "context loads eliminated");
+DEFINE_STAT(stores_removed, "context stores eliminated");
 
 #define MAX_OFFSET 16384
 

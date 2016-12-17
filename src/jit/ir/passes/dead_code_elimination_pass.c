@@ -1,8 +1,8 @@
 #include "jit/ir/passes/dead_code_elimination_pass.h"
 #include "jit/ir/ir.h"
-#include "jit/ir/passes/pass_stat.h"
+#include "jit/pass_stats.h"
 
-DEFINE_STAT(dead_removed, "Dead instructions eliminated");
+DEFINE_STAT(dead_removed, "dead instructions eliminated");
 
 void dce_run(struct ir *ir) {
   /* iterate in reverse in order to remove groups of dead instructions that
