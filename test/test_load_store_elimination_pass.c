@@ -1,12 +1,11 @@
-#include "core/assert.h"
-#include "core/constructor.h"
 #include "jit/ir/ir.h"
 #include "jit/ir/passes/load_store_elimination_pass.h"
+#include "retest.h"
 
 static uint8_t ir_buffer[1024 * 1024];
 static char scratch_buffer[1024 * 1024];
 
-CONSTRUCTOR(test_load_store_elimination_pass_test) {
+TEST(test_load_store_elimination_pass_test) {
   static const char input_str[] =
       "store_context i32 0x104, i32 0x0\n"
       "store_context i32 0x100, i32 0x0\n"

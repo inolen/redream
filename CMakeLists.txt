@@ -408,10 +408,9 @@ if(BUILD_TESTS)
 ## build test binary
 set(RETEST_SOURCES
   test/test_dead_code_elimination_pass.c
+  test/test_list.c
   test/test_load_store_elimination_pass.c
   #test/test_interval_tree.cc
-  #test/test_intrusive_list.cc
-  #test/test_list.cc
   #test/test_minmax_heap.cc
   #test/test_sh4.cc
   #${asm_inc}
