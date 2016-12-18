@@ -6,6 +6,7 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 #include "jit/pass_stats.h"
+#include "jit/passes/constant_propagation_pass.h"
 #include "jit/passes/conversion_elimination_pass.h"
 #include "jit/passes/dead_code_elimination_pass.h"
 #include "jit/passes/expression_simplification_pass.h"
@@ -14,7 +15,7 @@
 #include "sys/filesystem.h"
 
 DEFINE_OPTION_INT(help, 0, "Show help");
-DEFINE_OPTION_STRING(pass, "lse,cve,esimp,dce,ra",
+DEFINE_OPTION_STRING(pass, "lse,cpro,cve,esimp,dce,ra",
                      "Comma-separated list of passes to run");
 
 DEFINE_STAT(ir_instrs_total, "total ir instructions");
@@ -77,6 +78,8 @@ static void process_file(struct jit *jit, const char *filename,
   while (name) {
     if (!strcmp(name, "lse")) {
       lse_run(&ir);
+    } else if (!strcmp(name, "cpro")){
+      cpro_run(&ir);
     } else if (!strcmp(name, "cve")) {
       cve_run(&ir);
     } else if (!strcmp(name, "dce")) {
