@@ -66,11 +66,11 @@ struct boot *boot_create(struct dreamcast *dc) {
   return boot;
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct boot, boot_rom_map);
   AM_RANGE(0x00000000, 0x001fffff) AM_HANDLE("boot rom",
                                              (mmio_read_cb)&boot_rom_read,
                                              (mmio_write_cb)&boot_rom_write,
                                              NULL, NULL)
 AM_END();
-// clang-format on
+/* clang-format on */
