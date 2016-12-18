@@ -4,13 +4,13 @@
 #include "jit/emit_stats.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/ir/ir.h"
-#include "jit/ir/passes/conversion_elimination_pass.h"
-#include "jit/ir/passes/dead_code_elimination_pass.h"
-#include "jit/ir/passes/expression_simplification_pass.h"
-#include "jit/ir/passes/load_store_elimination_pass.h"
-#include "jit/ir/passes/register_allocation_pass.h"
 #include "jit/jit.h"
 #include "jit/pass_stats.h"
+#include "jit/passes/conversion_elimination_pass.h"
+#include "jit/passes/dead_code_elimination_pass.h"
+#include "jit/passes/expression_simplification_pass.h"
+#include "jit/passes/load_store_elimination_pass.h"
+#include "jit/passes/register_allocation_pass.h"
 #include "sys/filesystem.h"
 
 DEFINE_OPTION_INT(help, 0, "Show help");

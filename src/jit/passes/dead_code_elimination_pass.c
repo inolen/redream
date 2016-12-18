@@ -1,4 +1,4 @@
-#include "jit/ir/passes/dead_code_elimination_pass.h"
+#include "jit/passes/dead_code_elimination_pass.h"
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 

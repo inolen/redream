@@ -1,4 +1,4 @@
-#include "jit/ir/passes/conversion_elimination_pass.h"
+#include "jit/passes/conversion_elimination_pass.h"
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 
