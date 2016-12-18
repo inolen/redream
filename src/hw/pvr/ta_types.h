@@ -21,7 +21,7 @@ enum {
 };
 
 enum {
-  TA_NUM_VERT_TYPES = 18,
+  TA_NUM_VERTS = 18,
 };
 
 enum {
@@ -459,8 +459,6 @@ struct tile_ctx {
   int size;
 
   /* current global state */
-  const union poly_param *last_poly;
-  const union vert_param *last_vertex;
   int list_type;
   int vertex_type;
 
