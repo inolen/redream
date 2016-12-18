@@ -10,7 +10,6 @@ DEFINE_OPTION_INT(help, 0, "Show help");
 
 int main(int argc, char **argv) {
   const char *appdir = fs_appdir();
-
   if (!fs_mkdir(appdir)) {
     LOG_FATAL("Failed to create app directory %s", appdir);
   }

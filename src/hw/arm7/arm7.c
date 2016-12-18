@@ -159,15 +159,13 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
   /* cycle check */
   struct ir_value *remaining_cycles = ir_load_context(
       ir, offsetof(struct armv3_context, remaining_cycles), VALUE_I32);
-  struct ir_value *foobar =
-      ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
-  ir_branch_true(ir, foobar, ir_alloc_i64(ir, (uint64_t)arm7_dispatch_leave));
+  struct ir_value *done = ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
+  ir_branch_true(ir, ir_alloc_ptr(ir, arm7_dispatch_leave), done);
 
   /* interrupt check */
   struct ir_value *pending_intr = ir_load_context(
       ir, offsetof(struct armv3_context, pending_interrupts), VALUE_I32);
-  ir_branch_true(ir, pending_intr,
-                 ir_alloc_i64(ir, (uint64_t)arm7_dispatch_interrupt));
+  ir_branch_true(ir, ir_alloc_ptr(ir, arm7_dispatch_interrupt), pending_intr);
 
   /* update remaining cycles */
   int cycles = (size / 4);
@@ -189,7 +187,7 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
                      data);
   }
 
-  ir_branch(ir, ir_alloc_i64(ir, (uint64_t)arm7_dispatch_dynamic));
+  ir_branch(ir, ir_alloc_ptr(ir, arm7_dispatch_dynamic));
 }
 
 static void arm7_run(struct device *dev, int64_t ns) {

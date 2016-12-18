@@ -73,7 +73,7 @@ struct ta {
   struct trace_writer *trace_writer;
 };
 
-int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERT_TYPES];
+int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERTS];
 int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 int g_vertex_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 
@@ -364,10 +364,8 @@ static void ta_init_context(struct ta *ta, uint32_t addr) {
   ctx->addr = addr;
   ctx->cursor = 0;
   ctx->size = 0;
-  ctx->last_poly = NULL;
-  ctx->last_vertex = NULL;
-  ctx->list_type = 0;
-  ctx->vertex_type = 0;
+  ctx->list_type = TA_NUM_LISTS;
+  ctx->vertex_type = TA_NUM_VERTS;
 }
 
 static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
@@ -395,24 +393,30 @@ static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
     }
 
     if (pcw.para_type == TA_PARAM_END_OF_LIST) {
-      holly_raise_interrupt(ta->holly, list_interrupts[ctx->list_type]);
+      /* it's common that a TA_PARAM_END_OF_LIST is sent before a
+       * valid list has been initialized */
+      if (ctx->list_type != TA_NUM_LISTS) {
+        holly_raise_interrupt(ta->holly, list_interrupts[ctx->list_type]);
+      }
 
-      ctx->last_poly = NULL;
-      ctx->last_vertex = NULL;
-      ctx->list_type = 0;
-      ctx->vertex_type = 0;
+      /* reset list state */
+      ctx->list_type = TA_NUM_LISTS;
+      ctx->vertex_type = TA_NUM_VERTS;
     } else if (pcw.para_type == TA_PARAM_OBJ_LIST_SET) {
       LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
     } else if (pcw.para_type == TA_PARAM_POLY_OR_VOL) {
-      ctx->last_poly = (union poly_param *)param;
-      ctx->last_vertex = NULL;
-      ctx->list_type = ctx->last_poly->type0.pcw.list_type;
-      ctx->vertex_type = ta_get_vert_type(ctx->last_poly->type0.pcw);
+      ctx->vertex_type = ta_get_vert_type(pcw);
     } else if (pcw.para_type == TA_PARAM_SPRITE) {
-      ctx->last_poly = (union poly_param *)param;
-      ctx->last_vertex = NULL;
-      ctx->list_type = ctx->last_poly->type0.pcw.list_type;
-      ctx->vertex_type = ta_get_vert_type(ctx->last_poly->type0.pcw);
+      ctx->vertex_type = ta_get_vert_type(pcw);
+    }
+
+    /* pcw.list_type is only valid for the first global parameter / object
+       list set after TA_LIST_INIT or a previous TA_PARAM_END_OF_LIST */
+    if ((pcw.para_type == TA_PARAM_OBJ_LIST_SET ||
+         pcw.para_type == TA_PARAM_POLY_OR_VOL ||
+         pcw.para_type == TA_PARAM_SPRITE) &&
+        ctx->list_type == TA_NUM_LISTS) {
+      ctx->list_type = pcw.list_type;
     }
 
     ctx->cursor += recv;
@@ -903,9 +907,8 @@ void ta_build_tables() {
     for (int j = 0; j < TA_NUM_PARAMS; j++) {
       pcw.para_type = j;
 
-      for (int k = 0; k < TA_NUM_VERT_TYPES; k++) {
-        g_param_sizes[i * TA_NUM_PARAMS * TA_NUM_VERT_TYPES +
-                      j * TA_NUM_VERT_TYPES + k] =
+      for (int k = 0; k < TA_NUM_VERTS; k++) {
+        g_param_sizes[i * TA_NUM_PARAMS * TA_NUM_VERTS + j * TA_NUM_VERTS + k] =
             ta_get_param_size_raw(pcw, k);
       }
     }
@@ -1007,7 +1010,7 @@ REG_W32(pvr_cb, TA_LIST_CONT) {
     return;
   }
 
-  LOG_WARNING("Unsupported TA_LIST_CONT");
+  LOG_FATAL("Unsupported TA_LIST_CONT");
 }
 
 REG_W32(pvr_cb, TA_YUV_TEX_BASE) {

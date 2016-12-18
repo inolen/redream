@@ -21,7 +21,7 @@ static struct ir_instr *ir_alloc_instr(struct ir *ir, enum ir_op op) {
 
   instr->op = op;
 
-  // initialize use links
+  /* initialize use links */
   for (int i = 0; i < MAX_INSTR_ARGS; i++) {
     struct ir_use *use = &instr->used[i];
     use->instr = instr;
@@ -43,7 +43,7 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
                                  enum ir_type result_type) {
   struct ir_instr *instr = ir_alloc_instr(ir, op);
 
-  // allocate result if needed
+  /* allocate result if needed */
   if (result_type != VALUE_V) {
     struct ir_value *result = ir_calloc(ir, sizeof(struct ir_value));
     result->type = result_type;
@@ -60,7 +60,7 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
 }
 
 void ir_remove_instr(struct ir *ir, struct ir_instr *instr) {
-  // remove arguments from the use lists of their values
+  /* remove arguments from the use lists of their values */
   for (int i = 0; i < MAX_INSTR_ARGS; i++) {
     struct ir_value *value = instr->arg[i];
 
@@ -144,13 +144,13 @@ struct ir_value *ir_alloc_f64(struct ir *ir, double c) {
   return v;
 }
 
-struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...) {
+struct ir_value *ir_alloc_str(struct ir *ir, const char *format, ...) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
 
-  v->type = VALUE_LABEL;
+  v->type = VALUE_STRING;
   v->reg = NO_REGISTER;
 
-  /* format the label name */
+  /* format the string */
   va_list args;
 
   va_start(args, format);
@@ -166,8 +166,12 @@ struct ir_value *ir_alloc_label(struct ir *ir, const char *format, ...) {
   return v;
 }
 
+struct ir_value *ir_alloc_ptr(struct ir *ir, void *c) {
+  return ir_alloc_i64(ir, (uint64_t)c);
+}
+
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type) {
-  // align local to natural size
+  /* align local to natural size */
   int type_size = ir_type_size(type);
   ir->locals_size = align_up(ir->locals_size, type_size);
 
@@ -218,8 +222,8 @@ void ir_replace_use(struct ir_use *use, struct ir_value *other) {
   }
 }
 
-// replace all uses of v with other
 void ir_replace_uses(struct ir_value *v, struct ir_value *other) {
+  /* replace all uses of v with other */
   CHECK_NE(v, other);
 
   list_for_each_entry_safe(use, &v->uses, struct ir_use, it) {
@@ -761,35 +765,35 @@ struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a,
 }
 
 void ir_label(struct ir *ir, struct ir_value *lbl) {
-  CHECK(lbl->type == VALUE_LABEL);
+  CHECK(lbl->type == VALUE_STRING);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_LABEL, VALUE_V);
   ir_set_arg0(ir, instr, lbl);
 }
 
 void ir_branch(struct ir *ir, struct ir_value *dst) {
-  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
+  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH, VALUE_V);
   ir_set_arg0(ir, instr, dst);
 }
 
-void ir_branch_false(struct ir *ir, struct ir_value *cond,
-                     struct ir_value *dst) {
-  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
+void ir_branch_false(struct ir *ir, struct ir_value *dst,
+                     struct ir_value *cond) {
+  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_FALSE, VALUE_V);
-  ir_set_arg0(ir, instr, cond);
-  ir_set_arg1(ir, instr, dst);
+  ir_set_arg0(ir, instr, dst);
+  ir_set_arg1(ir, instr, cond);
 }
 
-void ir_branch_true(struct ir *ir, struct ir_value *cond,
-                    struct ir_value *dst) {
-  CHECK(dst->type == VALUE_LABEL || dst->type == VALUE_I64);
+void ir_branch_true(struct ir *ir, struct ir_value *dst,
+                    struct ir_value *cond) {
+  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_TRUE, VALUE_V);
-  ir_set_arg0(ir, instr, cond);
-  ir_set_arg1(ir, instr, dst);
+  ir_set_arg0(ir, instr, dst);
+  ir_set_arg1(ir, instr, cond);
 }
 
 void ir_call(struct ir *ir, struct ir_value *fn) {
@@ -821,7 +825,15 @@ void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
   CHECK(fallback);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_CALL_FALLBACK, VALUE_V);
-  ir_set_arg0(ir, instr, ir_alloc_i64(ir, (uint64_t)fallback));
+  ir_set_arg0(ir, instr, ir_alloc_ptr(ir, fallback));
+  ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
+  ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
+}
+
+void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,
+                   uint32_t raw_instr) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_DEBUG_INFO, VALUE_V);
+  ir_set_arg0(ir, instr, ir_alloc_str(ir, desc));
   ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
   ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
 }

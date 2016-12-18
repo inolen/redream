@@ -9,18 +9,15 @@ include(ExternalProject)
 include(SourceGroupByDir)
 
 project(redream)
-
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
-
-# export compile_commands.json for clang-tidy
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 #--------------------------------------------------
 # configuration options
 #--------------------------------------------------
 
-option(PERFMAP "Generate perf-compatible maps for generated code" OFF)
+option(BUILD_TOOLS "Build tools" ON)
+option(BUILD_TESTS "Build tests" ON)
 
 if(WIN32)
   set(PLATFORM_WINDOWS TRUE)
@@ -132,29 +129,18 @@ list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
 #--------------------------------------------------
 # format
 #--------------------------------------------------
+
 find_package(ClangFormat)
 
 if(CLANG_FORMAT_FOUND)
 file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.c" "src/*.cc" "src/*.h" "test/*.c" "test/*.cc" "test/*.h" "tools/*.c" "tools/*.cc" "tools/*.h")
-
 add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -i ${CLANG_FORMAT_ARGS})
 endif()
 
 
 #--------------------------------------------------
-# tidy
-#--------------------------------------------------
-find_package(ClangTidy)
-
-if(CLANG_TIDY_FOUND)
-file(GLOB_RECURSE CLANG_TIDY_ARGS "src/*.cc" "test/*.cc")
-
-add_custom_target(tidy ${CLANG_TIDY_EXECUTABLE} -p=${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json -checks=-*,readability-* ${CLANG_TIDY_ARGS})
-endif()
-
-
-#--------------------------------------------------
-# emulator
+# relib
+# intermediate "object library" to speed up recc / retest compiles
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
@@ -163,7 +149,6 @@ set(REDREAM_SOURCES
   src/core/interval_tree.c
   src/core/list.c
   src/core/log.c
-  src/core/mm_heap.c
   src/core/option.c
   src/core/profiler.cc
   src/core/ringbuf.cc
@@ -209,14 +194,15 @@ set(REDREAM_SOURCES
   src/jit/ir/ir.c
   src/jit/ir/ir_read.c
   src/jit/ir/ir_write.c
-  #src/jit/ir/passes/constant_propagation_pass.c
-  src/jit/ir/passes/conversion_elimination_pass.c
-  src/jit/ir/passes/dead_code_elimination_pass.c
-  src/jit/ir/passes/expression_simplification_pass.c
-  src/jit/ir/passes/load_store_elimination_pass.c
-  src/jit/ir/passes/pass_stat.c
-  src/jit/ir/passes/register_allocation_pass.c
+  #src/jit/passes/constant_propagation_pass.c
+  src/jit/passes/conversion_elimination_pass.c
+  src/jit/passes/dead_code_elimination_pass.c
+  src/jit/passes/expression_simplification_pass.c
+  src/jit/passes/load_store_elimination_pass.c
+  src/jit/passes/register_allocation_pass.c
+  src/jit/emit_stats.c
   src/jit/jit.c
+  src/jit/pass_stats.c
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c
@@ -224,8 +210,7 @@ set(REDREAM_SOURCES
   src/ui/keycode.c
   src/ui/nuklear.c
   src/ui/window.c
-  src/video/gl_backend.c
-  src/main.c)
+  src/video/gl_backend.c)
 
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
@@ -280,7 +265,17 @@ elseif(COMPILER_MSVC)
   list(APPEND REDREAM_LIBS userenv ws2_32)
 endif()
 
-add_executable(redream ${REDREAM_SOURCES})
+add_library(relib OBJECT ${REDREAM_SOURCES})
+target_include_directories(relib SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(relib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(relib PRIVATE ${REDREAM_DEFS})
+target_compile_options(relib PRIVATE ${REDREAM_FLAGS})
+
+#--------------------------------------------------
+# redream
+#--------------------------------------------------
+
+add_executable(redream $<TARGET_OBJECTS:relib> src/main.c)
 target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream ${REDREAM_LIBS})
@@ -288,150 +283,139 @@ target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 #--------------------------------------------------
-# tools
+# recc
 #--------------------------------------------------
-set(RECC_SOURCES tools/recc/recc.c)
 
-foreach(file ${REDREAM_SOURCES})
-  if(file MATCHES "(deps|src/(core|jit|sys))")
-    list(APPEND RECC_SOURCES ${file})
-  endif()
-endforeach()
+if(BUILD_TOOLS)
 
-# assign source groups for visual studio projects
-source_group_by_dir(RECC_SOURCES)
-
-add_executable(recc ${RECC_SOURCES})
+add_executable(recc $<TARGET_OBJECTS:relib> tools/recc/recc.c)
 target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(recc ${REDREAM_LIBS})
 target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
 target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 
+endif()
+
 #--------------------------------------------------
-# tests
+# retest
 #--------------------------------------------------
 
-#set(gtest_force_shared_crt ON CACHE BOOL "")
-#add_subdirectory(deps/gtest-1.7.0 EXCLUDE_FROM_ALL)
-#
-## compile master .inc file from .s files in test/asm
-#set(TEST_ASM
-#  test/asm/add.s
-#  test/asm/addc.s
-#  test/asm/addv.s
-#  test/asm/and.s
-#  test/asm/bf.s
-#  test/asm/bra.s
-#  test/asm/braf.s
-#  test/asm/bsr.s
-#  test/asm/bsrf.s
-#  test/asm/bt.s
-#  test/asm/cmp.s
-#  test/asm/div0.s
-#  test/asm/div1s.s
-#  test/asm/div1u.s
-#  test/asm/dmul.s
-#  test/asm/dt.s
-#  test/asm/ext.s
-#  test/asm/fabs.s
-#  test/asm/fadd.s
-#  test/asm/fcmpeq.s
-#  test/asm/fcmpgt.s
-#  test/asm/fcnv.s
-#  test/asm/fdiv.s
-#  test/asm/fipr.s
-#  test/asm/fld.s
-#  test/asm/float.s
-#  test/asm/fmac.s
-#  test/asm/fmov.s
-#  test/asm/fmov_load.s
-#  test/asm/fmov_index_load.s
-#  test/asm/fmov_store.s
-#  test/asm/fmov_index_store.s
-#  test/asm/fmov_save.s
-#  test/asm/fmov_restore.s
-#  test/asm/fmul.s
-#  test/asm/fneg.s
-#  test/asm/frchg.s
-#  test/asm/fsca.s
-#  test/asm/fschg.s
-#  test/asm/fsrra.s
-#  test/asm/fsqrt.s
-#  test/asm/fsub.s
-#  test/asm/ftrc.s
-#  test/asm/ftrv.s
-#  test/asm/jmp.s
-#  test/asm/jsr.s
-#  test/asm/ldc.s
-#  test/asm/ldcl.s
-#  test/asm/lds.s
-#  test/asm/ldsl.s
-#  test/asm/mova.s
-#  test/asm/movb.s
-#  test/asm/movl.s
-#  test/asm/movt.s
-#  test/asm/movw.s
-#  test/asm/mul.s
-#  test/asm/neg.s
-#  test/asm/negc.s
-#  test/asm/not.s
-#  test/asm/or.s
-#  test/asm/rot.s
-#  test/asm/sha.s
-#  test/asm/shl.s
-#  test/asm/sub.s
-#  test/asm/subc.s
-#  test/asm/subv.s
-#  test/asm/swap.s
-#  test/asm/tst.s
-#  test/asm/xor.s
-#  )
-#set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.inc)
-#
-## compile tests into include file if the sh4 toolchain is available
-#find_package(PythonInterp)
-#find_program(SH_AS NAMES sh-elf-as)
-#find_program(SH_LD NAMES sh-elf-ld)
-#find_program(SH_NM NAMES sh-elf-nm)
-#find_program(SH_OBJCOPY NAMES sh-elf-objcopy)
-#if(NOT PYTHONINTERP_FOUND)
-#  message(WARNING "Could not find python interpreter, won't be able to generate tests")
-#elseif(NOT SH_AS)
-#  message(WARNING "Could not find sh-elf-as, won't be able to generate tests")
-#elseif(NOT SH_LD)
-#  message(WARNING "Could not find sh-elf-ld, won't be able to generate tests")
-#elseif(NOT SH_NM)
-#  message(WARNING "Could not find sh-elf-nm, won't be able to generate tests")
-#elseif(NOT SH_OBJCOPY)
-#  message(WARNING "Could not find sh-elf-objcopy, won't be able to generate tests")
-#else()
-#  add_custom_command(OUTPUT ${asm_inc}
-#    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py -as ${SH_AS} -ld ${SH_LD} -nm ${SH_NM} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
-#    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py ${TEST_ASM}
-#    COMMENT "Assembling ${asm_inc} for ${TEST_ASM}"
-#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-#    VERBATIM)
-#endif()
-#
-## build test binary
-#set(RETEST_SOURCES
-#  ${REDREAM_SOURCES}
-#  #test/test_interval_tree.cc
-#  #test/test_intrusive_list.cc
-#  test/test_list.cc
-#  test/test_dead_code_elimination_pass.cc
-#  test/test_load_store_elimination_pass.cc
-#  #test/test_minmax_heap.cc
-#  test/test_sh4.cc
-#  ${asm_inc})
-#list(REMOVE_ITEM RETEST_SOURCES src/main.c)
-#
-## assign source groups for visual studio projects
-#source_group_by_dir(RETEST_SOURCES)
-#
-#add_executable(retest ${RETEST_SOURCES})
-#target_include_directories(retest PUBLIC deps/gtest-1.7.0/include src/ test/ ${REDREAM_INCLUDE_DIRS})
-#target_link_libraries(retest gtest gtest_main ${REDREAM_LIBS})
-#target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
-#target_compile_options(retest PRIVATE ${REDREAM_COMPILE_FLAGS})
+if(BUILD_TESTS)
+
+# compile master .inc file from .s files in test/asm
+set(TEST_ASM
+  test/asm/add.s
+  test/asm/addc.s
+  test/asm/addv.s
+  test/asm/and.s
+  test/asm/bf.s
+  test/asm/bra.s
+  test/asm/braf.s
+  test/asm/bsr.s
+  test/asm/bsrf.s
+  test/asm/bt.s
+  test/asm/cmp.s
+  test/asm/div0.s
+  test/asm/div1s.s
+  test/asm/div1u.s
+  test/asm/dmul.s
+  test/asm/dt.s
+  test/asm/ext.s
+  test/asm/fabs.s
+  test/asm/fadd.s
+  test/asm/fcmpeq.s
+  test/asm/fcmpgt.s
+  test/asm/fcnv.s
+  test/asm/fdiv.s
+  test/asm/fipr.s
+  test/asm/fld.s
+  test/asm/float.s
+  test/asm/fmac.s
+  test/asm/fmov.s
+  test/asm/fmov_load.s
+  test/asm/fmov_index_load.s
+  test/asm/fmov_store.s
+  test/asm/fmov_index_store.s
+  test/asm/fmov_save.s
+  test/asm/fmov_restore.s
+  test/asm/fmul.s
+  test/asm/fneg.s
+  test/asm/frchg.s
+  test/asm/fsca.s
+  test/asm/fschg.s
+  test/asm/fsrra.s
+  test/asm/fsqrt.s
+  test/asm/fsub.s
+  test/asm/ftrc.s
+  test/asm/ftrv.s
+  test/asm/jmp.s
+  test/asm/jsr.s
+  test/asm/ldc.s
+  test/asm/ldcl.s
+  test/asm/lds.s
+  test/asm/ldsl.s
+  test/asm/mova.s
+  test/asm/movb.s
+  test/asm/movl.s
+  test/asm/movt.s
+  test/asm/movw.s
+  test/asm/mul.s
+  test/asm/neg.s
+  test/asm/negc.s
+  test/asm/not.s
+  test/asm/or.s
+  test/asm/rot.s
+  test/asm/sha.s
+  test/asm/shl.s
+  test/asm/sub.s
+  test/asm/subc.s
+  test/asm/subv.s
+  test/asm/swap.s
+  test/asm/tst.s
+  test/asm/xor.s
+  )
+set(asm_inc ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.inc)
+
+# compile tests into include file if the sh4 toolchain is available
+find_package(PythonInterp)
+find_program(SH_AS NAMES sh-elf-as)
+find_program(SH_LD NAMES sh-elf-ld)
+find_program(SH_NM NAMES sh-elf-nm)
+find_program(SH_OBJCOPY NAMES sh-elf-objcopy)
+if(NOT PYTHONINTERP_FOUND)
+  message(WARNING "Could not find python interpreter, won't be able to generate tests")
+elseif(NOT SH_AS)
+  message(WARNING "Could not find sh-elf-as, won't be able to generate tests")
+elseif(NOT SH_LD)
+  message(WARNING "Could not find sh-elf-ld, won't be able to generate tests")
+elseif(NOT SH_NM)
+  message(WARNING "Could not find sh-elf-nm, won't be able to generate tests")
+elseif(NOT SH_OBJCOPY)
+  message(WARNING "Could not find sh-elf-objcopy, won't be able to generate tests")
+else()
+  add_custom_command(OUTPUT ${asm_inc}
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py -as ${SH_AS} -ld ${SH_LD} -nm ${SH_NM} -objcopy ${SH_OBJCOPY} -o ${asm_inc} ${TEST_ASM}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sh4.py ${TEST_ASM}
+    COMMENT "Assembling ${asm_inc} for ${TEST_ASM}"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    VERBATIM)
+endif()
+
+# build test binary
+set(RETEST_SOURCES
+  test/test_dead_code_elimination.c
+  test/test_interval_tree.c
+  test/test_list.c
+  test/test_load_store_elimination.c
+  test/test_sh4.c
+  ${asm_inc}
+  test/retest.c)
+
+add_executable(retest $<TARGET_OBJECTS:relib> ${RETEST_SOURCES})
+target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
+target_link_libraries(retest ${REDREAM_LIBS})
+target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
+target_compile_options(retest PRIVATE ${REDREAM_FLAGS})
+
+endif()

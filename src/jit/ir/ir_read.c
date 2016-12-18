@@ -24,7 +24,7 @@ struct ir_parser {
 };
 
 static const char *typenames[] = {"",    "i8",  "i16",  "i32", "i64",
-                                  "f32", "f64", "v128", "lbl"};
+                                  "f32", "f64", "v128", "str"};
 static const int num_typenames = sizeof(typenames) / sizeof(typenames[0]);
 
 static char ir_lex_get(struct ir_parser *p) {
@@ -216,11 +216,9 @@ int ir_parse_value(struct ir_parser *p, struct ir *ir,
       CHECK_NOTNULL(instr);
 
       *value = instr->result;
-    } else if (ident[0] == '.') {
+    } else {
       /* label reference */
-      const char *label = &ident[1];
-
-      *value = ir_alloc_label(ir, "%s", label);
+      *value = ir_alloc_str(ir, ident);
     }
   } else if (p->tok == TOK_INTEGER) {
     switch (type) {

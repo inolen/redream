@@ -2,26 +2,14 @@
 #include "core/assert.h"
 #include "core/string.h"
 
-struct sh4_opdef {
-  enum sh4_op op;
-  const char *desc;
-  const char *sig;
-  int cycles;
-  int flags;
-  uint16_t opcode_mask;
-  uint16_t imm_mask, imm_shift;
-  uint16_t disp_mask, disp_shift;
-  uint16_t rm_mask, rm_shift;
-  uint16_t rn_mask, rn_shift;
-};
+static struct sh4_opdef *sh4_opdef_lookup[UINT16_MAX];
 
-static struct sh4_opdef s_opdefs[NUM_SH4_OPS] = {
+struct sh4_opdef sh4_opdefs[NUM_SH4_OPS] = {
 #define SH4_INSTR(name, desc, sig, cycles, flags) \
-  {SH4_OP_##name, desc, #sig, cycles, flags, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {SH4_OP_##name, #name, desc, #sig, cycles, flags, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
-static struct sh4_opdef *s_opdef_lookup[UINT16_MAX];
 
 static void sh4_arg_mask(const char *instr_code, char c, uint16_t *mask,
                          uint16_t *shift) {
@@ -58,7 +46,7 @@ static void sh4_init_opdefs() {
    * from signatures
    */
   for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
-    struct sh4_opdef *def = &s_opdefs[i];
+    struct sh4_opdef *def = &sh4_opdefs[i];
 
     sh4_arg_mask(def->sig, 'i', &def->imm_mask, &def->imm_shift);
     sh4_arg_mask(def->sig, 'd', &def->disp_mask, &def->disp_shift);
@@ -75,12 +63,12 @@ static void sh4_init_opdefs() {
           uint16_t value = w + x + y + z;
 
           for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
-            struct sh4_opdef *def = &s_opdefs[i];
+            struct sh4_opdef *def = &sh4_opdefs[i];
             uint16_t arg_mask =
                 def->imm_mask | def->disp_mask | def->rm_mask | def->rn_mask;
 
             if ((value & ~arg_mask) == def->opcode_mask) {
-              s_opdef_lookup[value] = def;
+              sh4_opdef_lookup[value] = def;
               break;
             }
           }
@@ -93,7 +81,7 @@ static void sh4_init_opdefs() {
 int sh4_disasm(struct sh4_instr *i) {
   sh4_init_opdefs();
 
-  struct sh4_opdef *def = s_opdef_lookup[i->opcode];
+  struct sh4_opdef *def = sh4_opdef_lookup[i->opcode];
 
   if (!def) {
     i->op = SH4_OP_INVALID;
@@ -125,7 +113,7 @@ void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size) {
   uint32_t pcmask;
 
   /* copy initial formatted description */
-  snprintf(buffer, buffer_size, "%08x  %s", i->addr, s_opdefs[i->op].desc);
+  snprintf(buffer, buffer_size, "%08x  %s", i->addr, sh4_opdefs[i->op].desc);
 
   /* used by mov operators with displacements */
   if (strnstr(buffer, ".b", buffer_size)) {

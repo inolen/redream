@@ -6,10 +6,10 @@
 #include "jit/backend/jit_backend.h"
 #include "jit/frontend/jit_frontend.h"
 #include "jit/ir/ir.h"
-#include "jit/ir/passes/dead_code_elimination_pass.h"
-#include "jit/ir/passes/expression_simplification_pass.h"
-#include "jit/ir/passes/load_store_elimination_pass.h"
-#include "jit/ir/passes/register_allocation_pass.h"
+#include "jit/passes/dead_code_elimination_pass.h"
+#include "jit/passes/expression_simplification_pass.h"
+#include "jit/passes/load_store_elimination_pass.h"
+#include "jit/passes/register_allocation_pass.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 
@@ -217,8 +217,6 @@ static struct jit_block *jit_alloc_block(struct jit *jit, uint32_t guest_addr,
 }
 
 void jit_free_blocks(struct jit *jit) {
-  LOG_INFO("jit_free_blocks");
-
   /* invalidate code pointers and remove block entries from lookup maps. this
      is only safe to use when no code is currently executing */
   struct rb_node *it = rb_first(&jit->blocks);
@@ -237,8 +235,6 @@ void jit_free_blocks(struct jit *jit) {
 }
 
 void jit_invalidate_blocks(struct jit *jit) {
-  LOG_INFO("jit_invalidate_blocks");
-
   /* invalidate code pointers, but don't remove block entries from lookup maps.
      this is used when clearing the jit while code is currently executing */
   struct rb_node *it = rb_first(&jit->blocks);
@@ -319,7 +315,7 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
                                 &guest_size);
 
   /* dump unoptimized block */
-  if (jit->dump_compiled_blocks) {
+  if (jit->dump_blocks) {
     jit_dump_block(jit, guest_addr, &ir);
   }
 
@@ -351,21 +347,6 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   }
 
   PROF_LEAVE();
-}
-
-void jit_toggle_dumping(struct jit *jit) {
-  int enabled = !jit->dump_compiled_blocks;
-
-  if (enabled) {
-    /* invalidate current blocks so they recompile and dump on the next run */
-    jit_invalidate_blocks(jit);
-  }
-
-  jit->dump_compiled_blocks = enabled;
-}
-
-int jit_is_dumping(struct jit *jit) {
-  return jit->dump_compiled_blocks;
 }
 
 static int jit_handle_exception(void *data, struct exception *ex) {

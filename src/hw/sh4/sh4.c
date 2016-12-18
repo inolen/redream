@@ -124,13 +124,12 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
   struct ir_value *remaining_cycles = ir_load_context(
       ir, offsetof(struct sh4_ctx, remaining_cycles), VALUE_I32);
   struct ir_value *done = ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
-  ir_branch_true(ir, done, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_leave));
+  ir_branch_true(ir, ir_alloc_ptr(ir, sh4_dispatch_leave), done);
 
   /* handle pending interrupts */
   struct ir_value *pending_intr = ir_load_context(
       ir, offsetof(struct sh4_ctx, pending_interrupts), VALUE_I64);
-  ir_branch_true(ir, pending_intr,
-                 ir_alloc_i64(ir, (uint64_t)sh4_dispatch_interrupt));
+  ir_branch_true(ir, ir_alloc_ptr(ir, sh4_dispatch_interrupt), pending_intr);
 
   /* update remaining cycles */
   remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, as.cycles));
@@ -197,9 +196,9 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
     ir->current_instr = instr;
 
     if (direct) {
-      ir_call(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_static));
+      ir_call(ir, ir_alloc_ptr(ir, sh4_dispatch_static));
     } else {
-      ir_branch(ir, ir_alloc_i64(ir, (uint64_t)sh4_dispatch_dynamic));
+      ir_branch(ir, ir_alloc_ptr(ir, sh4_dispatch_dynamic));
     }
   }
 
@@ -229,11 +228,16 @@ static void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
       jit_invalidate_blocks(sh4->jit);
     }
 
-    int dumping = jit_is_dumping(sh4->jit);
-    if (!dumping && nk_button_label(ctx, "start dumping blocks")) {
-      jit_toggle_dumping(sh4->jit);
-    } else if (dumping && nk_button_label(ctx, "stop dumping blocks")) {
-      jit_toggle_dumping(sh4->jit);
+    struct jit *jit = sh4->jit;
+    if (!jit->dump_blocks) {
+      if (nk_button_label(ctx, "start dumping blocks")) {
+        jit->dump_blocks = 1;
+        jit_invalidate_blocks(jit);
+      }
+    } else {
+      if (nk_button_label(ctx, "stop dumping blocks")) {
+        jit->dump_blocks = 0;
+      }
     }
 
     nk_menu_end(ctx);
@@ -244,6 +248,7 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   jit_free_blocks(sh4->jit);
 
   /* reset context */
+  memset(&sh4->ctx, 0, sizeof(sh4->ctx));
   sh4->ctx.pc = pc;
   sh4->ctx.r[15] = 0x8d000000;
   sh4->ctx.pr = 0x0;
@@ -269,6 +274,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
   struct sh4 *sh4 = (struct sh4 *)dev;
 
   int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
+  cycles = MAX(cycles, INT64_C(1));
   sh4->ctx.remaining_cycles = (int)cycles;
   sh4->ctx.ran_instrs = 0;
   sh4_dispatch_enter();

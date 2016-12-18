@@ -10,30 +10,24 @@ void list_add(struct list *list, struct list_node *n) {
 
 void list_add_after(struct list *list, struct list_node *after,
                     struct list_node *n) {
-  if (!after) {
-    if (list->head) {
-      n->next = list->head;
-      n->next->prev = n;
-    }
+  struct list_node *before = NULL;
 
-    list->head = n;
-  } else {
-    struct list_node *next = after->next;
-
+  if (after) {
+    before = after->next;
     n->prev = after;
     n->prev->next = n;
-
-    if (next) {
-      n->next = next;
-      n->next->prev = n;
-    } else {
-      n->next = NULL;
-    }
+  } else {
+    before = list->head;
+    list->head = n;
+    list->head->prev = NULL;
   }
 
-  /* no need to check list->tail == NULL, in that case after would be NULL */
-  if (list->tail == after) {
+  if (before) {
+    n->next = before;
+    n->next->prev = n;
+  } else {
     list->tail = n;
+    list->tail->next = NULL;
   }
 }
 
