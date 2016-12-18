@@ -172,7 +172,7 @@ TEST(sh4_x64) {
   }
 #include "test_sh4.inc"
 #undef TEST_SH4
-/* clang-format on */
+  /* clang-format on */
 
   dc_destroy(dc);
 }
