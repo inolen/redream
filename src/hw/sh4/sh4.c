@@ -248,6 +248,7 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   jit_free_blocks(sh4->jit);
 
   /* reset context */
+  memset(&sh4->ctx, 0, sizeof(sh4->ctx));
   sh4->ctx.pc = pc;
   sh4->ctx.r[15] = 0x8d000000;
   sh4->ctx.pr = 0x0;
@@ -273,6 +274,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
   struct sh4 *sh4 = (struct sh4 *)dev;
 
   int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
+  cycles = MAX(cycles, INT64_C(1));
   sh4->ctx.remaining_cycles = (int)cycles;
   sh4->ctx.ran_instrs = 0;
   sh4_dispatch_enter();

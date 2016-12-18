@@ -247,7 +247,7 @@ endif()
 source_group_by_dir(REDREAM_SOURCES)
 
 if(COMPILER_GCC OR COMPILER_CLANG)
-  list(APPEND REDREAM_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+  list(APPEND REDREAM_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-unused-but-set-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
   if(COMPILER_GCC)
     # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
@@ -404,20 +404,20 @@ if(BUILD_TESTS)
 #    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 #    VERBATIM)
 #endif()
-#
-## build test binary
+
+# build test binary
 set(RETEST_SOURCES
   test/test_dead_code_elimination.c
   test/test_interval_tree.c
   test/test_list.c
   test/test_load_store_elimination.c
   #test/test_minmax_heap.cc
-  #test/test_sh4.cc
+  test/test_sh4.c
   #${asm_inc}
   test/retest.c)
 
 foreach(file ${REDREAM_SOURCES})
-  if(file MATCHES "(deps|src/(core|jit|sys))")
+  if(file MATCHES "(deps|src/(audio|core|hw|jit|ui|video|sys))")
     list(APPEND RETEST_SOURCES ${file})
   endif()
 endforeach()
@@ -428,7 +428,7 @@ source_group_by_dir(RETEST_SOURCES)
 add_executable(retest ${RETEST_SOURCES})
 target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
 target_link_libraries(retest ${REDREAM_LIBS})
-target_compile_definitions(retest PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
 target_compile_options(retest PRIVATE ${REDREAM_FLAGS})
 
 endif()

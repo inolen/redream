@@ -56,7 +56,6 @@ static bool emu_launch_bin(struct emu *emu, const char *path) {
     return false;
   }
 
-  gdrom_set_disc(emu->dc->gdrom, NULL);
   sh4_reset(emu->dc->sh4, 0x0c010000);
   dc_resume(emu->dc);
 
