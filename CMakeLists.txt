@@ -247,7 +247,7 @@ endif()
 source_group_by_dir(REDREAM_SOURCES)
 
 if(COMPILER_GCC OR COMPILER_CLANG)
-  list(APPEND REDREAM_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-unused-but-set-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+  list(APPEND REDREAM_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
   if(COMPILER_GCC)
     # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
