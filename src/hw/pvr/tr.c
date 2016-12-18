@@ -929,8 +929,8 @@ static void tr_reset(struct tr *tr, struct render_context *rctx) {
   /* reset global state */
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
-  tr->list_type = 0;
-  tr->vertex_type = 0;
+  tr->list_type = TA_NUM_LISTS;
+  tr->vertex_type = TA_NUM_VERTS;
   tr->last_sorted_surf = 0;
 }
 

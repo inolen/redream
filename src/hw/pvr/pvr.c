@@ -105,10 +105,8 @@ static void pvr_reg_write(struct pvr *pvr, uint32_t addr, uint32_t data,
   uint32_t offset = addr >> 2;
   reg_write_cb write = pvr_cb[offset].write;
 
-  /*
-   * ID register is read-only, and the bios will fail to boot if a write
-   * goes through to this register
-   */
+  /* ID register is read-only, and the bios will fail to boot if a write
+     goes through to this register */
   if (offset == ID) {
     return;
   }
