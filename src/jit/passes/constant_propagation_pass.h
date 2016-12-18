@@ -4,7 +4,7 @@
 struct ir;
 
 
-void cpro_run(struct ir *ir);
+void cprop_run(struct ir *ir);
 
 
 #endif
