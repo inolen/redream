@@ -354,6 +354,14 @@ static void ta_free_context(struct ta *ta, struct tile_ctx *ctx) {
   list_add(&ta->free_contexts, &ctx->free_it);
 }
 
+static void ta_cont_context(struct ta *ta, uint32_t addr) {
+  struct tile_ctx *ctx = ta_get_context(ta, addr);
+  CHECK_NOTNULL(ctx);
+
+  ctx->list_type = TA_NUM_LISTS;
+  ctx->vertex_type = TA_NUM_VERTS;
+}
+
 static void ta_init_context(struct ta *ta, uint32_t addr) {
   struct tile_ctx *ctx = ta_get_context(ta, addr);
 
@@ -1017,11 +1025,13 @@ REG_W32(pvr_cb, TA_LIST_INIT) {
 }
 
 REG_W32(pvr_cb, TA_LIST_CONT) {
+  struct ta *ta = dc->ta;
+
   if (!(value & 0x80000000)) {
     return;
   }
 
-  LOG_FATAL("Unsupported TA_LIST_CONT");
+  ta_cont_context(ta, ta->pvr->TA_ISP_BASE->base_address);
 }
 
 REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
