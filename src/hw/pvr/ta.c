@@ -392,31 +392,42 @@ static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
       return;
     }
 
-    if (pcw.para_type == TA_PARAM_END_OF_LIST) {
-      /* it's common that a TA_PARAM_END_OF_LIST is sent before a
-       * valid list has been initialized */
-      if (ctx->list_type != TA_NUM_LISTS) {
-        holly_raise_interrupt(ta->holly, list_interrupts[ctx->list_type]);
-      }
-
-      /* reset list state */
-      ctx->list_type = TA_NUM_LISTS;
-      ctx->vertex_type = TA_NUM_VERTS;
-    } else if (pcw.para_type == TA_PARAM_OBJ_LIST_SET) {
-      LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
-    } else if (pcw.para_type == TA_PARAM_POLY_OR_VOL) {
-      ctx->vertex_type = ta_get_vert_type(pcw);
-    } else if (pcw.para_type == TA_PARAM_SPRITE) {
-      ctx->vertex_type = ta_get_vert_type(pcw);
+    if (ta_pcw_list_type_valid(pcw, ctx->list_type)) {
+      ctx->list_type = pcw.list_type;
     }
 
-    /* pcw.list_type is only valid for the first global parameter / object
-       list set after TA_LIST_INIT or a previous TA_PARAM_END_OF_LIST */
-    if ((pcw.para_type == TA_PARAM_OBJ_LIST_SET ||
-         pcw.para_type == TA_PARAM_POLY_OR_VOL ||
-         pcw.para_type == TA_PARAM_SPRITE) &&
-        ctx->list_type == TA_NUM_LISTS) {
-      ctx->list_type = pcw.list_type;
+    switch (pcw.para_type) {
+      /* control params */
+      case TA_PARAM_END_OF_LIST:
+        /* it's common that a TA_PARAM_END_OF_LIST is sent before a valid list
+           type has been set */
+        if (ctx->list_type != TA_NUM_LISTS) {
+          holly_raise_interrupt(ta->holly, list_interrupts[ctx->list_type]);
+        }
+        ctx->list_type = TA_NUM_LISTS;
+        ctx->vertex_type = TA_NUM_VERTS;
+        break;
+
+      case TA_PARAM_USER_TILE_CLIP:
+        break;
+
+      case TA_PARAM_OBJ_LIST_SET:
+        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
+        break;
+
+      /* global params */
+      case TA_PARAM_POLY_OR_VOL:
+      case TA_PARAM_SPRITE:
+        ctx->vertex_type = ta_get_vert_type(pcw);
+        break;
+
+      /* vertex params */
+      case TA_PARAM_VERTEX:
+        break;
+
+      default:
+        LOG_FATAL("Unsupported TA parameter %d", pcw.para_type);
+        break;
     }
 
     ctx->cursor += recv;

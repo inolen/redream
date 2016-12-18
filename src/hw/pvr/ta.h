@@ -26,6 +26,15 @@ static inline int ta_get_vert_type(union pcw pcw) {
                         pcw.para_type * TA_NUM_LISTS + pcw.list_type];
 }
 
+static inline int ta_pcw_list_type_valid(union pcw pcw, int current_list_type) {
+  /* pcw.list_type is only valid for the first global parameter / object list
+     set after TA_LIST_INIT or a previous TA_PARAM_END_OF_LIST */
+  return current_list_type == TA_NUM_LISTS &&
+         (pcw.para_type == TA_PARAM_OBJ_LIST_SET ||
+          pcw.para_type == TA_PARAM_POLY_OR_VOL ||
+          pcw.para_type == TA_PARAM_SPRITE);
+}
+
 struct ta;
 
 void ta_build_tables();
