@@ -508,7 +508,6 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
 
   tr->last_poly = param;
   tr->last_vertex = NULL;
-  tr->list_type = param->type0.pcw.list_type;
   tr->vertex_type = ta_get_vert_type(param->type0.pcw);
 
   int poly_type = ta_get_poly_type(param->type0.pcw);
@@ -874,6 +873,8 @@ static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
 
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
+  tr->list_type = TA_NUM_LISTS;
+  tr->vertex_type = TA_NUM_VERTS;
   tr->last_sorted_surf = rctx->num_surfs;
 }
 
@@ -953,6 +954,10 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
        the polygon data in question is ignored and an interrupt signal is
        output */
 
+    if (ta_pcw_list_type_valid(pcw, tr->list_type)) {
+      tr->list_type = pcw.list_type;
+    }
+
     switch (pcw.para_type) {
       /* control params */
       case TA_PARAM_END_OF_LIST:
@@ -960,7 +965,6 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
         break;
 
       case TA_PARAM_USER_TILE_CLIP:
-        /* nothing to do */
         break;
 
       case TA_PARAM_OBJ_LIST_SET:
@@ -979,10 +983,6 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
       /* vertex params */
       case TA_PARAM_VERTEX:
         tr_parse_vert_param(tr, ctx, rctx, data);
-        break;
-
-      default:
-        LOG_FATAL("Unsupported parameter type %d", pcw.para_type);
         break;
     }
 

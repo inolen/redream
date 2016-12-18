@@ -71,11 +71,11 @@ struct tracer {
   struct render_backend *rb;
   struct tr *tr;
 
-  // ui state
+  /* ui state */
   int show_params[TA_NUM_PARAMS];
   bool running;
 
-  // trace state
+  /* trace state */
   struct trace *trace;
   struct tile_ctx ctx;
   uint8_t params[TA_MAX_PARAMS];
@@ -84,7 +84,7 @@ struct tracer {
   int current_context;
   int num_contexts;
 
-  // render state
+  /* render state */
   struct render_context rctx;
   struct surface surfs[TA_MAX_SURFS];
   struct vertex verts[TA_MAX_VERTS];
@@ -167,7 +167,7 @@ static struct texture_entry *tracer_texture_provider_find_texture(
 
 static void tracer_copy_command(const struct trace_cmd *cmd,
                                 struct tile_ctx *ctx) {
-  // copy TRACE_CMD_CONTEXT to the current context being rendered
+  /* copy TRACE_CMD_CONTEXT to the current context being rendered */
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
   ctx->autosort = cmd->context.autosort;
@@ -205,7 +205,7 @@ static void tracer_prev_param(struct tracer *tracer) {
 
     union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
 
-    // found the next visible param
+    /* found the next visible param */
     if (!tracer_param_hidden(tracer, pcw)) {
       tracer->current_param_offset = offset;
       break;
@@ -225,7 +225,7 @@ static void tracer_next_param(struct tracer *tracer) {
 
     union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
 
-    // found the next visible param
+    /* found the next visible param */
     if (!tracer_param_hidden(tracer, pcw)) {
       tracer->current_param_offset = offset;
       break;
@@ -240,7 +240,7 @@ static void tracer_reset_param(struct tracer *tracer) {
 static void tracer_prev_context(struct tracer *tracer) {
   struct trace_cmd *begin = tracer->current_cmd->prev;
 
-  // ensure that there is a prev context
+  /* ensure that there is a prev context */
   struct trace_cmd *prev = begin;
 
   while (prev) {
@@ -255,7 +255,7 @@ static void tracer_prev_context(struct tracer *tracer) {
     return;
   }
 
-  // walk back to the prev context, reverting any textures that've been added
+  /* walk back to the prev context, reverting any textures that've been added */
   struct trace_cmd *curr = begin;
 
   while (curr != prev) {
@@ -284,7 +284,7 @@ static void tracer_next_context(struct tracer *tracer) {
   struct trace_cmd *begin =
       tracer->current_cmd ? tracer->current_cmd->next : tracer->trace->cmds;
 
-  // ensure that there is a next context
+  /* ensure that there is a next context */
   struct trace_cmd *next = begin;
 
   while (next) {
@@ -299,7 +299,7 @@ static void tracer_next_context(struct tracer *tracer) {
     return;
   }
 
-  // walk towards to the next context, adding any new textures
+  /* walk towards to the next context, adding any new textures */
   struct trace_cmd *curr = begin;
 
   while (curr != next) {
@@ -318,7 +318,7 @@ static void tracer_next_context(struct tracer *tracer) {
 }
 
 static void tracer_reset_context(struct tracer *tracer) {
-  // calculate the total number of frames for the trace
+  /* calculate the total number of frames for the trace */
   struct trace_cmd *cmd = tracer->trace->cmds;
 
   tracer->num_contexts = 0;
@@ -331,7 +331,7 @@ static void tracer_reset_context(struct tracer *tracer) {
     cmd = cmd->next;
   }
 
-  // start rendering the first context
+  /* start rendering the first context */
   tracer->current_cmd = NULL;
   tracer->current_context = -1;
   tracer_next_context(tracer);
@@ -344,7 +344,7 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
 
   nk_style_default(ctx);
 
-  // disable spacing / padding
+  /* disable spacing / padding */
   ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
   ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
@@ -385,7 +385,7 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
     nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", s_list_names[list_type]);
     nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", surf_id);
 
-    // find sorted position
+    /* find sorted position */
     int sort = 0;
     for (int i = 0, n = tracer->rctx.num_surfs; i < n; i++) {
       int idx = tracer->rctx.sorted_surfs[i];
@@ -396,7 +396,7 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
     }
     nk_labelf(ctx, NK_TEXT_LEFT, "sort: %d", sort);
 
-    // render source TA information
+    /* render source TA information */
     if (vertex_type == -1) {
       const union poly_param *param =
           (const union poly_param *)(tracer->ctx.params + offset);
@@ -583,11 +583,11 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
       }
     }
 
-    // always render translated surface information. new surfaces can be created
-    // without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE
+    /* always render translated surface information. new surfaces can be created
+       without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE */
     struct surface *surf = &tracer->rctx.surfs[surf_id];
 
-    // TODO separator
+    /* TODO separator */
 
     nk_layout_row_static(ctx, 40.0f, 40, 1);
     nk_image(ctx, nk_image_id((int)surf->texture));
@@ -607,11 +607,11 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
     nk_labelf(ctx, NK_TEXT_LEFT, "first_vert: %d", surf->first_vert);
     nk_labelf(ctx, NK_TEXT_LEFT, "num_verts: %d", surf->num_verts);
 
-    // render translated vert only when rendering a vertex tooltip
+    /* render translated vert only when rendering a vertex tooltip */
     if (vertex_type != -1) {
       struct vertex *vert = &tracer->rctx.verts[vert_id];
 
-      // TODO separator
+      /* TODO separator */
 
       nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}", vert->xyz[0],
                 vert->xyz[1], vert->xyz[2]);
@@ -630,7 +630,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
   nk_style_default(ctx);
 
-  // transparent menu backgrounds / selectables
+  /* transparent menu backgrounds / selectables */
   ctx->style.window.fixed_background.data.color.a = 0;
   ctx->style.selectable.normal.data.color.a = 0;
 
@@ -641,7 +641,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
     char label[128];
 
     if (nk_begin(ctx, "side menu", bounds, 0)) {
-      // parem filters
+      /* parem filters */
       if (nk_tree_push(ctx, NK_TREE_TAB, "filters", NK_MINIMIZED)) {
         for (int i = 0; i < TA_NUM_PARAMS; i++) {
           snprintf(label, sizeof(label), "Show %s", s_param_names[i]);
@@ -652,11 +652,11 @@ static void tracer_render_side_menu(struct tracer *tracer) {
         nk_tree_pop(ctx);
       }
 
-      // context parameters
+      /* context parameters */
       if (nk_tree_push(ctx, NK_TREE_TAB, "params", 0)) {
-        // param list
-        int list_type = 0;
-        int vertex_type = 0;
+        /* param list */
+        int list_type = TA_NUM_LISTS;
+        int vertex_type = TA_NUM_VERTS;
 
         for (int offset = 0; offset < tracer->rctx.num_states; offset++) {
           struct param_state *param_state = &tracer->rctx.states[offset];
@@ -675,25 +675,39 @@ static void tracer_render_side_menu(struct tracer *tracer) {
                      s_param_names[pcw.para_type]);
             nk_selectable_label(ctx, label, NK_TEXT_LEFT, &param_selected);
 
+            if (ta_pcw_list_type_valid(pcw, list_type)) {
+              list_type = pcw.list_type;
+            }
+
             switch (pcw.para_type) {
+              /* control params */
+              case TA_PARAM_END_OF_LIST:
+                list_type = TA_NUM_LISTS;
+                vertex_type = TA_NUM_VERTS;
+                break;
+
+              case TA_PARAM_USER_TILE_CLIP:
+                break;
+
+              case TA_PARAM_OBJ_LIST_SET:
+                LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
+                break;
+
+              /* global params */
               case TA_PARAM_POLY_OR_VOL:
-              case TA_PARAM_SPRITE: {
-                const union poly_param *param =
-                    (const union poly_param *)(tracer->ctx.params + offset);
-
-                list_type = param->type0.pcw.list_type;
-                vertex_type = ta_get_vert_type(param->type0.pcw);
-
+              case TA_PARAM_SPRITE:
+                vertex_type = ta_get_vert_type(pcw);
                 if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
                   tracer_param_tooltip(tracer, list_type, -1, offset);
                 }
-              } break;
+                break;
 
-              case TA_PARAM_VERTEX: {
+              /* vertex params */
+              case TA_PARAM_VERTEX:
                 if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
                   tracer_param_tooltip(tracer, list_type, vertex_type, offset);
                 }
-              } break;
+                break;
             }
 
             if (param_selected) {
@@ -705,7 +719,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
         nk_tree_pop(ctx);
       }
 
-      // texture menu
+      /* texture menu */
       if (nk_tree_push(ctx, NK_TREE_TAB, "textures", 0)) {
         nk_layout_row_static(ctx, 40.0f, 40, 4);
 
@@ -716,7 +730,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
           nk_image(ctx, nk_image_id((int)entry->handle));
 
           if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-            // disable spacing for tooltip
+            /* disable spacing for tooltip */
             struct nk_vec2 original_spacing = ctx->style.window.spacing;
             ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
@@ -751,7 +765,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
               nk_tooltip_end(ctx);
             }
 
-            // restore spacing
+            /* restore spacing */
             ctx->style.window.spacing = original_spacing;
           }
         }
@@ -769,11 +783,11 @@ static void tracer_paint(void *data) {
 
   tr_parse_context(tracer->tr, &tracer->ctx, 0, &tracer->rctx);
 
-  // render ui
+  /* render ui */
   tracer_render_side_menu(tracer);
   tracer_render_scrubber_menu(tracer);
 
-  // clamp surfaces the last surface belonging to the current param
+  /* clamp surfaces the last surface belonging to the current param */
   int n = tracer->rctx.num_surfs;
   int last_idx = n;
 
@@ -783,14 +797,14 @@ static void tracer_paint(void *data) {
     last_idx = offset->num_surfs;
   }
 
-  // render the context
+  /* render the context */
   rb_begin_surfaces(tracer->rb, tracer->rctx.projection, tracer->rctx.verts,
                     tracer->rctx.num_verts);
 
   for (int i = 0; i < n; i++) {
     int idx = tracer->rctx.sorted_surfs[i];
 
-    // if this surface comes after the current parameter, ignore it
+    /* if this surface comes after the current parameter, ignore it */
     if (idx >= last_idx) {
       continue;
     }
@@ -857,7 +871,7 @@ void tracer_run(struct tracer *tracer, const char *path) {
 }
 
 struct tracer *tracer_create(struct window *window) {
-  // ensure param / poly / vertex size LUTs are generated
+  /* ensure param / poly / vertex size LUTs are generated */
   ta_build_tables();
 
   struct tracer *tracer = calloc(1, sizeof(struct tracer));
@@ -873,10 +887,10 @@ struct tracer *tracer_create(struct window *window) {
 
   win_add_listener(tracer->window, &tracer->listener);
 
-  // setup tile context buffers
+  /* setup tile context buffers */
   tracer->ctx.params = tracer->params;
 
-  // setup render context buffers
+  /* setup render context buffers */
   tracer->rctx.surfs = tracer->surfs;
   tracer->rctx.surfs_size = array_size(tracer->surfs);
   tracer->rctx.verts = tracer->verts;
@@ -886,13 +900,13 @@ struct tracer *tracer_create(struct window *window) {
   tracer->rctx.states = tracer->states;
   tracer->rctx.states_size = array_size(tracer->states);
 
-  // add all textures to free list
+  /* add all textures to free list */
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
     struct tracer_texture_entry *entry = &tracer->textures[i];
     list_add(&tracer->free_textures, &entry->free_it);
   }
 
-  // initial param filters
+  /* initial param filters */
   tracer->show_params[TA_PARAM_END_OF_LIST] = 1;
   tracer->show_params[TA_PARAM_USER_TILE_CLIP] = 1;
   tracer->show_params[TA_PARAM_OBJ_LIST_SET] = 1;
