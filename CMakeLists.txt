@@ -12,14 +12,12 @@ project(redream)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 
-option(BUILD_TOOLS "Build tools" ON)
-option(BUILD_TESTS "Build tests" ON)
-
 #--------------------------------------------------
 # configuration options
 #--------------------------------------------------
 
-option(PERFMAP "Generate perf-compatible maps for generated code" OFF)
+option(BUILD_TOOLS "Build tools" ON)
+option(BUILD_TESTS "Build tests" ON)
 
 if(WIN32)
   set(PLATFORM_WINDOWS TRUE)
@@ -131,17 +129,18 @@ list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
 #--------------------------------------------------
 # format
 #--------------------------------------------------
+
 find_package(ClangFormat)
 
 if(CLANG_FORMAT_FOUND)
 file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.c" "src/*.cc" "src/*.h" "test/*.c" "test/*.cc" "test/*.h" "tools/*.c" "tools/*.cc" "tools/*.h")
-
 add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -i ${CLANG_FORMAT_ARGS})
 endif()
 
 
 #--------------------------------------------------
-# emulator
+# relib
+# intermediate "object library" to speed up recc / retest compiles
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
@@ -212,8 +211,7 @@ set(REDREAM_SOURCES
   src/ui/keycode.c
   src/ui/nuklear.c
   src/ui/window.c
-  src/video/gl_backend.c
-  src/main.c)
+  src/video/gl_backend.c)
 
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
@@ -268,7 +266,17 @@ elseif(COMPILER_MSVC)
   list(APPEND REDREAM_LIBS userenv ws2_32)
 endif()
 
-add_executable(redream ${REDREAM_SOURCES})
+add_library(relib OBJECT ${REDREAM_SOURCES})
+target_include_directories(relib SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(relib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(relib PRIVATE ${REDREAM_DEFS})
+target_compile_options(relib PRIVATE ${REDREAM_FLAGS})
+
+#--------------------------------------------------
+# redream
+#--------------------------------------------------
+
+add_executable(redream $<TARGET_OBJECTS:relib> src/main.c)
 target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream ${REDREAM_LIBS})
@@ -276,22 +284,12 @@ target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 #--------------------------------------------------
-# tools
+# recc
 #--------------------------------------------------
+
 if(BUILD_TOOLS)
 
-set(RECC_SOURCES tools/recc/recc.c)
-
-foreach(file ${REDREAM_SOURCES})
-  if(file MATCHES "(deps|src/(core|jit|sys))")
-    list(APPEND RECC_SOURCES ${file})
-  endif()
-endforeach()
-
-# assign source groups for visual studio projects
-source_group_by_dir(RECC_SOURCES)
-
-add_executable(recc ${RECC_SOURCES})
+add_executable(recc $<TARGET_OBJECTS:relib> tools/recc/recc.c)
 target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(recc ${REDREAM_LIBS})
@@ -301,7 +299,7 @@ target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 endif()
 
 #--------------------------------------------------
-# tests
+# retest
 #--------------------------------------------------
 
 if(BUILD_TESTS)
@@ -415,16 +413,7 @@ set(RETEST_SOURCES
   ${asm_inc}
   test/retest.c)
 
-foreach(file ${REDREAM_SOURCES})
-  if(file MATCHES "(deps|src/(audio|core|hw|jit|ui|video|sys))")
-    list(APPEND RETEST_SOURCES ${file})
-  endif()
-endforeach()
-
-# assign source groups for visual studio projects
-source_group_by_dir(RETEST_SOURCES)
-
-add_executable(retest ${RETEST_SOURCES})
+add_executable(retest $<TARGET_OBJECTS:relib> ${RETEST_SOURCES})
 target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
 target_link_libraries(retest ${REDREAM_LIBS})
 target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
