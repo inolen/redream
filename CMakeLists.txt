@@ -195,12 +195,12 @@ set(REDREAM_SOURCES
   src/jit/ir/ir.c
   src/jit/ir/ir_read.c
   src/jit/ir/ir_write.c
-  #src/jit/ir/passes/constant_propagation_pass.c
-  src/jit/ir/passes/conversion_elimination_pass.c
-  src/jit/ir/passes/dead_code_elimination_pass.c
-  src/jit/ir/passes/expression_simplification_pass.c
-  src/jit/ir/passes/load_store_elimination_pass.c
-  src/jit/ir/passes/register_allocation_pass.c
+  #src/jit/passes/constant_propagation_pass.c
+  src/jit/passes/conversion_elimination_pass.c
+  src/jit/passes/dead_code_elimination_pass.c
+  src/jit/passes/expression_simplification_pass.c
+  src/jit/passes/load_store_elimination_pass.c
+  src/jit/passes/register_allocation_pass.c
   src/jit/emit_stats.c
   src/jit/jit.c
   src/jit/pass_stats.c

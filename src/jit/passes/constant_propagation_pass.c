@@ -1,6 +1,6 @@
 #include <type_traits>
 #include <unordered_map>
-#include "jit/ir/passes/constant_propagation_pass.h"
+#include "jit/passes/constant_propagation_pass.h"
 
 typedef void (*FoldFn)(IRBuilder &, Instr *i);
 

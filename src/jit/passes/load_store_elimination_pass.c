@@ -1,4 +1,4 @@
-#include "jit/ir/passes/load_store_elimination_pass.h"
+#include "jit/passes/load_store_elimination_pass.h"
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 

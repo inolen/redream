@@ -1,5 +1,5 @@
 #include "jit/ir/ir.h"
-#include "jit/ir/passes/dead_code_elimination_pass.h"
+#include "jit/passes/dead_code_elimination_pass.h"
 #include "retest.h"
 
 static uint8_t ir_buffer[1024 * 1024];

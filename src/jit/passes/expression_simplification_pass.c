@@ -1,4 +1,4 @@
-#include "jit/ir/passes/expression_simplification_pass.h"
+#include "jit/passes/expression_simplification_pass.h"
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 

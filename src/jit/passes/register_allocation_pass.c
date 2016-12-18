@@ -1,4 +1,4 @@
-#include "jit/ir/passes/register_allocation_pass.h"
+#include "jit/passes/register_allocation_pass.h"
 #include "core/mm_heap.h"
 #include "jit/backend/jit_backend.h"
 #include "jit/ir/ir.h"
