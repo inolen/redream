@@ -3,8 +3,6 @@
 
 struct ir;
 
-
 void cprop_run(struct ir *ir);
-
 
 #endif
