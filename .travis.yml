@@ -14,6 +14,7 @@ matrix:
             - cmake-data
             - gcc-6
             - g++-6
+            - sshpass
       env:
         - ARTIFACT_NAME=redream.x86_64-linux.tar.gz
 
@@ -25,6 +26,7 @@ matrix:
       before_install:
         - brew upgrade
         - brew install cmake
+        - brew install hudochenkov/sshpass/sshpass
 
 script:
   - if [ "$CC" = "gcc" ]; then export CC="gcc-6" CXX="g++-6"; fi
@@ -34,7 +36,7 @@ script:
   - make
 
 after_success:
-  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master" && .
+  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master"
   - tar -cvzf $ARTIFACT_NAME ../profiles redream
   - export SSHPASS=$DEPLOY_PASS
   - sshpass -e scp $ARTIFACT_NAME $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH
