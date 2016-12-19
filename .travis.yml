@@ -14,10 +14,14 @@ matrix:
             - cmake-data
             - gcc-6
             - g++-6
+      env:
+        - ARTIFACT_NAME=redream.x86_64-linux.tar.gz
 
     - os: osx
       osx_image: xcode8.2
       compiler: clang
+      env:
+        - ARTIFACT_NAME=redream.x86_64-darwin.tar.gz
       before_install:
         - brew upgrade
         - brew install cmake
@@ -28,3 +32,9 @@ script:
   - cd build
   - cmake ..
   - make
+
+after_success:
+  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master" && .
+  - tar -cvzf $ARTIFACT_NAME ../profiles redream
+  - export SSHPASS=$DEPLOY_PASS
+  - sshpass -e scp $ARTIFACT_NAME $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH
