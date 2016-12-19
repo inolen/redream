@@ -39,4 +39,4 @@ after_success:
   - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master"
   - tar -cvzf $ARTIFACT_NAME ../profiles redream
   - export SSHPASS=$DEPLOY_PASS
-  - sshpass -e scp $ARTIFACT_NAME $DEPLOY_USER@$DEPLOY_HOST:~
+  - sshpass -e scp -o stricthostkeychecking=no $ARTIFACT_NAME $DEPLOY_USER@$DEPLOY_HOST:~
