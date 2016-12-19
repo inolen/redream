@@ -78,7 +78,7 @@ static void process_file(struct jit *jit, const char *filename,
   while (name) {
     if (!strcmp(name, "lse")) {
       lse_run(&ir);
-    } else if (!strcmp(name, "cprop")){
+    } else if (!strcmp(name, "cprop")) {
       cprop_run(&ir);
     } else if (!strcmp(name, "cve")) {
       cve_run(&ir);
