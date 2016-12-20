@@ -24,3 +24,4 @@ Report bugs via the [GitHub issue queue](https://github.com/inolen/redream/issue
 ## Community
 
 Ask questions and help answer them on [Slack](http://slack.redream.io).
+
