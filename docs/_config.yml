@@ -1,0 +1,30 @@
+title: redream.io
+baseurl: ""
+url:
+
+disqus:
+  shortname: redream 
+
+collections:
+  docs:
+    output: true
+
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      permalink: /:collection/:title
+      layout: post
+  - scope:
+      path: ""
+      type: docs
+    values:
+      permalink: /:collection/:title
+      layout: doc
+
+markdown: kramdown
+
+exclude:
+  - Gemfile
+  - Gemfile.lock

@@ -1,4 +1,6 @@
-# Building
+---
+title: Building
+---
 
 Start by cloning the repository and setting up a build directory.
 ```
