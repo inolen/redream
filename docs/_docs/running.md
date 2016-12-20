@@ -1,4 +1,6 @@
-# Running
+---
+title: Running
+---
 
 ```
 redream --bios=path/to/dc_boot.bin --flash=path/to/dc_flash.bin <bin or gdi file>

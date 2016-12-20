@@ -1,0 +1,27 @@
+---
+layout: default
+---
+
+<ul id="docs">
+  <li><a {% if page.url.end_with? '/docs' %} class="current"{% endif %} href="{{ site.github.url }}/docs">About</a></li>
+  <li><a {% if page.url.end_with? '/docs/building' %} class="current"{% endif %} href="{{ site.github.url }}/docs/building">Building</a></li>
+  <li><a {% if page.url.end_with? '/docs/running' %} class="current"{% endif %} href="{{ site.github.url }}/docs/running">Running</a></li>
+  <li><a {% if page.url.end_with? '/docs/testing' %} class="current"{% endif %} href="{{ site.github.url }}/docs/testing">Testing</a></li>
+  <li>
+    <li><a {% if page.url.end_with? '/docs/design' %} class="current"{% endif %} href="{{ site.github.url }}/docs/design">Design</a></li>
+    <ul>
+      <li><a {% if page.url.end_with? '/docs/design-cpu' %} class="current"{% endif %} href="{{ site.github.url }}/docs/design-cpu">CPU</a></li>
+      <li><a {% if page.url.end_with? '/docs/design-memory' %} class="current"{% endif %} href="{{ site.github.url }}/docs/design-memory">Memory</a></li>
+    </ul>
+  </li>
+</ul>
+
+<article class="article doc">
+  <header>
+    <h1>{{ page.title | escape }}</h1>
+  </header>
+
+  <div class="article-content">
+    {{ content }}
+  </div>
+</article>

@@ -1,4 +1,8 @@
-# Design
+---
+title: Design
+---
+
+## Directory structure
 
 ### audio
 
