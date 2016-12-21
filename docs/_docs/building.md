@@ -3,6 +3,7 @@ title: Building
 ---
 
 Start by cloning the repository and setting up a build directory.
+
 ```
 git clone https://github.com/inolen/redream.git
 mkdir redream_build
@@ -10,6 +11,7 @@ cd redream_build
 ```
 
 Next, generate a makefile or project file for your IDE of choice. For more info on the supported IDEs, checkout the [CMake documentation](http://www.cmake.org/cmake/help/latest/manual/cmake-generators.7.html).
+
 ```
 # Makefile
 cmake -DCMAKE_BUILD_TYPE=RELEASE ../redream

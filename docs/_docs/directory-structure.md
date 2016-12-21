@@ -1,18 +1,16 @@
 ---
-title: Design
+title: Directory Structure
 ---
 
-## Directory structure
-
-### audio
+## audio
 
 Audio backend implementation. Responsible for reading fully mixed data from the Dreamcast and playing it.
 
-### core
+## core
 
 Asserts, logging and data structures.
 
-### hw
+## hw
 
 Contains subfolders for each of the major hardware components of the Dreamcast:
 
@@ -25,18 +23,18 @@ Contains subfolders for each of the major hardware components of the Dreamcast:
 * `rom` boot and flash rom chips
 * `sh4` main cpu
 
-### jit
+## jit
 
 Contains the frontend, backend, ir and optimization passes used by the just-in-time compiler.
 
-### sys
+## sys
 
 Cross-platform abstractions for signal handling, paths, virtual memory, threads and time.
 
-### ui
+## ui
 
 Window creation and user interface code.
 
-### video
+## video
 
 Video backend implementation. Responsible for rendering parsed texture / polygon data from the Dreamcast.

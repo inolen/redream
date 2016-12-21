@@ -17,8 +17,8 @@ Please note, there is currently no Windows continous integration, as such there 
 
 ### Linux
 
-[redream.x86_64-linux.tar.gz](http://redream.io/builds/redream.x86_64-linux.tar.gz)
+[redream.x86_64-linux-HEAD.tar.gz](https://github.com/inolen/redream/releases/download/travis-ci-latest/redream.x86_64-linux-HEAD.tar.gz)
 
 ### Mac
 
-[redream.x86_64-darwin.tar.gz](http://redream.io/builds/redream.x86_64-darwin.tar.gz)
+[redream.x86_64-darwin-HEAD.tar.gz](https://github.com/inolen/redream/releases/download/travis-ci-latest/redream.x86_64-darwin-HEAD.tar.gz)
