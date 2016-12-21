@@ -32,7 +32,7 @@ script:
   - if [ "$CC" = "gcc" ]; then export CC="gcc-6" CXX="g++-6"; fi
   - mkdir build
   - cd build
-  - cmake ..
+  - cmake -DCMAKE_BUILD_TYPE=RELEASE ..
   - make
 
 before_deploy:
