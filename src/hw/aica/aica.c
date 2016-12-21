@@ -53,10 +53,6 @@ struct aica {
   /* reset state */
   int arm_resetting;
 
-  /* interrupts */
-  uint32_t arm_irq_l;
-  uint32_t arm_irq_m;
-
   /* timers */
   struct timer *timers[3];
 
@@ -110,18 +106,21 @@ static void aica_update_arm(struct aica *aica) {
   uint32_t enabled_intr = aica->common_data->SCIEB;
   uint32_t pending_intr = aica->common_data->SCIPD & enabled_intr;
 
-  aica->arm_irq_l = 0;
+  /* avoid reentering FIQ handler if it hasn't completed */
+  if (aica->common_data->L) {
+    return;
+  }
 
   if (pending_intr) {
     for (uint32_t i = 0; i < NUM_AICA_INT; i++) {
       if (pending_intr & (1 << i)) {
-        aica->arm_irq_l = aica_encode_arm_irq_l(aica, i);
+        aica->common_data->L = aica_encode_arm_irq_l(aica, i);
         break;
       }
     }
   }
 
-  if (aica->arm_irq_l) {
+  if (aica->common_data->L) {
     /* FIQ handler will load L from common data to check interrupt type */
     arm7_raise_interrupt(aica->arm, ARM7_INT_FIQ);
   }
@@ -367,6 +366,10 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
       prev = samples[pos] << 8;
       next = samples[pos] << 8;
     } break;
+
+    default:
+      /* LOG_WARNING("Unsupported PCMS %d", ch->data->PCMS); */
+      break;
   }
 
   /* interpolate sample */
@@ -490,9 +493,10 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
   switch (addr) {
     case 0x10:
     case 0x11: { /* EG, SGC, LP */
-      if ((DATA_SIZE() == 2 && addr == 0x10) ||
-          (DATA_SIZE() == 1 && addr == 0x11)) {
-        struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
+      struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
+
+      if ((addr == 0x10 && DATA_SIZE() == 2) ||
+          (addr == 0x11 && DATA_SIZE() == 1)) {
         aica->common_data->LP = ch->looped;
         ch->looped = 0;
       }
@@ -513,12 +517,6 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
       aica->common_data->TIMC =
           (aica_timer_tctl(aica, 2) << 8) | aica_timer_tcnt(aica, 2);
     } break;
-    case 0x500: { /* L0-9 */
-      aica->common_data->L = aica->arm_irq_l;
-    } break;
-    case 0x504: { /* M0-9 */
-      aica->common_data->M = aica->arm_irq_m;
-    } break;
   }
 
   return READ_DATA((uint8_t *)aica->common_data + addr);
@@ -526,6 +524,8 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
 
 static void aica_common_reg_write(struct aica *aica, uint32_t addr,
                                   uint32_t data, uint32_t data_mask) {
+  uint32_t old_data = READ_DATA((uint8_t *)aica->common_data + addr);
+
   WRITE_DATA((uint8_t *)aica->common_data + addr);
 
   switch (addr) {
@@ -539,27 +539,35 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
       aica_timer_reschedule(aica, 2, AICA_TIMER_PERIOD - data);
     } break;
     case 0x9c:
-    case 0x9d:
+    case 0x9d: { /* SCIEB */
+      aica_update_arm(aica);
+    } break;
     case 0xa0:
-    case 0xa1: { /* SCIEB, SCIPD */
+    case 0xa1: { /* SCIPD */
+      /* only AICA_INT_DATA can be written to */
+      CHECK(DATA_SIZE() == 2 && addr == 0xa0);
+      aica->common_data->SCIPD = old_data | (data & (1 << AICA_INT_DATA));
       aica_update_arm(aica);
     } break;
     case 0xa4:
     case 0xa5: { /* SCIRE */
       aica->common_data->SCIPD &= ~aica->common_data->SCIRE;
-      aica->common_data->SCIRE = 0;
       aica_update_arm(aica);
     } break;
     case 0xb4:
-    case 0xb5:
+    case 0xb5: { /* MCIEB */
+      aica_update_sh(aica);
+    } break;
     case 0xb8:
-    case 0xb9: { /* MCIEB, MCIPD */
+    case 0xb9: { /* MCIPD */
+      /* only AICA_INT_DATA can be written to */
+      CHECK(DATA_SIZE() == 2 && addr == 0xb8);
+      aica->common_data->MCIPD = old_data | (data & (1 << AICA_INT_DATA));
       aica_update_sh(aica);
     } break;
     case 0xbc:
     case 0xbd: { /* MCIRE */
       aica->common_data->MCIPD &= ~aica->common_data->MCIRE;
-      aica->common_data->MCIRE = 0;
       aica_update_sh(aica);
     } break;
     case 0x400: { /* ARMRST */
@@ -574,11 +582,13 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
       }
     } break;
     case 0x500: { /* L0-9 */
-      /* nop */
+      LOG_FATAL("L0-9 assumed to be read-only");
     } break;
     case 0x504: { /* M0-9 */
-      /* TODO run interrupt callbacks? */
-      aica->arm_irq_m = data;
+      /* M is written to signal that the interrupt previously raised has
+         finished processing */
+      aica->common_data->L = 0;
+      aica_update_arm(aica);
     } break;
   }
 }
