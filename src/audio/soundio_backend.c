@@ -155,5 +155,7 @@ struct audio_backend *audio_create(struct aica *aica) {
     }
   }
 
+  LOG_INFO("Audio backend created, latency %.2f", audio->outstream->software_latency);
+
   return audio;
 }
