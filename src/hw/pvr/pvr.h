@@ -15,7 +15,7 @@ struct pvr {
   struct device;
   uint8_t *palette_ram;
   uint8_t *video_ram;
-  uint32_t reg[NUM_PVR_REGS];
+  uint32_t reg[PVR_NUM_REGS];
 
   /* raster progress */
   struct timer *line_timer;
@@ -32,7 +32,7 @@ DECLARE_COUNTER(pvr_vblanks);
 AM_DECLARE(pvr_reg_map);
 AM_DECLARE(pvr_vram_map);
 
-extern struct reg_cb pvr_cb[NUM_PVR_REGS];
+extern struct reg_cb pvr_cb[PVR_NUM_REGS];
 
 struct pvr *pvr_create(struct dreamcast *dc);
 void pvr_destroy(struct pvr *pvr);

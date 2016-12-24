@@ -15,6 +15,8 @@
 #include "sys/thread.h"
 #include "ui/nuklear.h"
 
+DEFINE_AGGREGATE_COUNTER(ta_data);
+
 #define TA_MAX_CONTEXTS 8
 #define TA_YUV420_MACROBLOCK_SIZE 384
 #define TA_YUV422_MACROBLOCK_SIZE 512
@@ -32,7 +34,7 @@ struct ta_texture_entry {
 struct ta {
   struct device;
   struct texture_provider provider;
-  uint8_t *rb_ram;
+  uint8_t *video_ram;
 
   /* yuv data converter state */
   uint8_t *yuv_data;
@@ -385,6 +387,9 @@ static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
   memcpy(&ctx->params[ctx->size], ptr, size);
   ctx->size += size;
 
+  /* track how much TA data is written per second */
+  prof_counter_add(COUNTER_ta_data, size);
+
   /* each TA command is either 32 or 64 bytes, with the pcw being in the first
      32 bytes always. check every 32 bytes to see if the command has been
      completely received or not */
@@ -462,7 +467,7 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
     int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
                                 ? 8
                                 : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
-    entry->texture = &ta->rb_ram[texture_addr];
+    entry->texture = &ta->video_ram[texture_addr];
     entry->texture_size = (width * height * element_size_bits) >> 3;
   }
 
@@ -714,7 +719,7 @@ static void ta_yuv_init(struct ta *ta) {
   int v_size = pvr->TA_YUV_TEX_CTRL->v_size + 1;
 
   /* setup internal state for the data conversion */
-  ta->yuv_data = &ta->rb_ram[pvr->TA_YUV_TEX_BASE->base_address];
+  ta->yuv_data = &ta->video_ram[pvr->TA_YUV_TEX_BASE->base_address];
   ta->yuv_width = u_size * 16;
   ta->yuv_height = v_size * 16;
   ta->yuv_macroblock_size = TA_YUV420_MACROBLOCK_SIZE;
@@ -838,7 +843,7 @@ static void ta_texture_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
 
   uint8_t *src = ptr;
   dst &= 0xeeffffff;
-  memcpy(&ta->rb_ram[dst], src, size);
+  memcpy(&ta->video_ram[dst], src, size);
 
   PROF_LEAVE();
 }
@@ -847,7 +852,7 @@ static bool ta_init(struct device *dev) {
   struct ta *ta = (struct ta *)dev;
   struct dreamcast *dc = ta->dc;
 
-  ta->rb_ram = memory_translate(dc->memory, "video ram", 0x00000000);
+  ta->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
     struct ta_texture_entry *entry = &ta->entries[i];
@@ -866,6 +871,12 @@ static bool ta_init(struct device *dev) {
 }
 
 static void ta_toggle_tracing(struct ta *ta) {
+  /* this is called from the UI thread, need to take the context lock
+     as the graphics / emulation thread may be rendering a context.
+     this prevents partial frames being written to the trace, as well
+     as texture cache corruptions */
+  mutex_lock(ta->pending_mutex);
+
   if (!ta->trace_writer) {
     char filename[PATH_MAX];
     get_next_trace_filename(filename, sizeof(filename));
@@ -888,6 +899,8 @@ static void ta_toggle_tracing(struct ta *ta) {
 
     LOG_INFO("End tracing");
   }
+
+  mutex_unlock(ta->pending_mutex);
 }
 
 static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
