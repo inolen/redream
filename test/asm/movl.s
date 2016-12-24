@@ -33,6 +33,13 @@ test_movlm:
   nop
   # REGISTER_OUT r2 -24
 
+test_movlp:
+  mov.l .L2, r0
+  mov.w @r0+, r0
+  rts
+  nop
+  # REGISTER_OUT r0, -12
+
 test_movlsmd:
   mov.l .L2, r0
   mov.l @(4, r0), r1

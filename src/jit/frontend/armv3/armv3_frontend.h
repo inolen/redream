@@ -11,7 +11,7 @@ struct armv3_frontend {
 
   /* runtime interface */
   void *data;
-  void (*translate)(void *, uint32_t, struct ir *, int);
+  void (*translate)(void *, uint32_t, struct ir *, int, int *);
   void (*switch_mode)(void *, uint32_t);
   void (*restore_mode)(void *);
   void (*software_interrupt)(void *);

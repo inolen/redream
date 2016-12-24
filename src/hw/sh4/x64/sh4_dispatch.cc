@@ -23,6 +23,13 @@ static void *sh4_cache[CACHE_SIZE];
 static int sh4_cache_size = CACHE_SIZE;
 static uint8_t sh4_dispatch[DISPATCH_SIZE];
 
+/* controls if edges are added and managed between static branches. the first
+   time each branch is hit, its destination block will be dynamically looked
+   up. if this is enabled, an edge will be added between the two blocks, and
+   the branch will be patched to directly jmp to the destination block,
+   avoiding the need for redundant lookups */
+#define LINK_STATIC_BRANCHES 1
+
 void *sh4_dispatch_dynamic;
 void *sh4_dispatch_static;
 void *sh4_dispatch_compile;
@@ -111,11 +118,15 @@ void sh4_dispatch_init(void *sh4, void *jit, void *ctx, void *mem) {
 
     sh4_dispatch_static = e.getCurr<void *>();
 
+#if LINK_STATIC_BRANCHES
     e.mov(arg0, (uint64_t)jit);
     e.pop(arg1);
     e.sub(arg1, 5 /* sizeof jmp instr */);
     e.mov(arg2, e.dword[e.r14 + offsetof(struct sh4_ctx, pc)]);
     e.call(&jit_add_edge);
+#else
+    e.pop(arg1);
+#endif
     e.jmp(sh4_dispatch_dynamic);
   }
 

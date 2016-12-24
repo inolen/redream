@@ -149,8 +149,8 @@ void arm7_suspend(struct arm7 *arm) {
   arm->execute_if->running = 0;
 }
 
-static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
-                           int flags) {
+static void arm7_translate(void *data, uint32_t addr, struct ir *ir, int flags,
+                           int *out_size) {
   struct arm7 *arm = data;
 
   int size;
@@ -188,6 +188,9 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
   }
 
   ir_branch(ir, ir_alloc_ptr(ir, arm7_dispatch_dynamic));
+
+  /* return size */
+  *out_size = size;
 }
 
 static void arm7_run(struct device *dev, int64_t ns) {
