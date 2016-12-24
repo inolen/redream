@@ -17,6 +17,13 @@ test_movbm:
   nop
   # REGISTER_OUT r2 -24
 
+test_movbp:
+  mov.l .L2, r0
+  mov.b @r0+, r0
+  rts
+  nop
+  # REGISTER_OUT r0, -12
+
 test_movbs0d:
   mov.l .L2, r1
   mov.b @(1, r1), r0

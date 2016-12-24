@@ -24,6 +24,13 @@ test_movwm:
   nop
   # REGISTER_OUT r2 -24
 
+test_movwp:
+  mov.l .L2, r0
+  mov.w @r0+, r0
+  rts
+  nop
+  # REGISTER_OUT r0, -12
+
 test_movws0d:
   mov.l .L2, r1
   mov.w @(2, r1), r0
