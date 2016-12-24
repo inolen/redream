@@ -898,7 +898,7 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
   }
 
   /* fudge so z isn't mapped to exactly 0.0 and 1.0 */
-  float zdepth = (znear - zfar) * 1.0001f;
+  float zdepth = (znear - zfar) * 1.1f;
 
   rctx->projection[0] = 2.0f / (float)ctx->rb_width;
   rctx->projection[4] = 0.0f;
