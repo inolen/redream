@@ -263,10 +263,18 @@ static struct ta_texture_entry *ta_find_texture(struct ta *ta, union tsp tsp,
 static struct texture_entry *ta_texture_provider_find_texture(void *data,
                                                               union tsp tsp,
                                                               union tcw tcw) {
-  struct ta_texture_entry *entry = ta_find_texture(data, tsp, tcw);
+  struct ta *ta = (struct ta *)data;
+  struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
 
   if (!entry) {
     return NULL;
+  }
+
+  if (entry->dirty) {
+    /* sanity check that the texture source is valid for the current context.
+       video ram will be modified between frames, if these values don't match
+       something is broken in the thread synchronization */
+    CHECK_EQ(entry->frame, ta->frame);
   }
 
   return (struct texture_entry *)entry;
@@ -428,11 +436,10 @@ static void ta_write_context(struct ta *ta, struct tile_ctx *ctx, void *ptr,
 
 static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
   struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
-  int new_entry = 0;
 
   if (!entry) {
     entry = ta_alloc_texture(ta, tsp, tcw);
-    new_entry = 1;
+    entry->dirty = 1;
   }
 
   /* mark texture source valid for the current frame */
@@ -494,10 +501,10 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
 #endif
 
   /* add modified entries to the trace */
-  if (ta->trace_writer && (new_entry || entry->dirty)) {
-    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->palette,
-                                entry->palette_size, entry->texture,
-                                entry->texture_size);
+  if (ta->trace_writer && entry->dirty) {
+    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->frame,
+                                entry->palette, entry->palette_size,
+                                entry->texture, entry->texture_size);
   }
 }
 
@@ -534,9 +541,12 @@ static void ta_register_textures(struct ta *ta, struct tile_ctx *ctx,
   }
 }
 
-static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   struct pvr *pvr = ta->pvr;
   struct address_space *space = ta->sh4->memory_if->space;
+
+  /* mark context valid for the current frame */
+  ctx->frame = ta->frame;
 
   /* autosort */
   if (!pvr->FPU_PARAM_CFG->region_header_type) {
@@ -630,10 +640,6 @@ static void ta_render_timer(void *data) {
 }
 
 static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
-  /* save off required register state that may be modified by the time the
-     context is rendered */
-  ta_save_register_state(ta, ctx);
-
   /* if the graphics thread is still parsing the previous context, skip this
      one */
   if (!mutex_trylock(ta->pending_mutex)) {
@@ -654,9 +660,14 @@ static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
   ta_unlink_context(ta, ctx);
   ta->pending_context = ctx;
 
-  /* increment internal frame number. this frame number is assigned to each
-     texture source registered by this context */
+  /* increment internal frame number. this frame number is assigned to the
+     context and each texture source it registers to assert synchronization
+     between the emulator and graphics thread is working as expected */
   ta->frame++;
+
+  /* save off required state that may be modified by the time the context is
+     rendered */
+  ta_save_state(ta, ctx);
 
   /* register the source of each texture referenced by the context with the
      tile renderer. note, the process of actually uploading the texture to the
@@ -944,8 +955,7 @@ void ta_unlock_pending_context(struct ta *ta) {
   mutex_unlock(ta->pending_mutex);
 }
 
-int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
-                            int *pending_frame) {
+int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx) {
   mutex_lock(ta->pending_mutex);
 
   if (!ta->pending_context) {
@@ -953,8 +963,11 @@ int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
     return 0;
   }
 
+  /* ensure that the pending context is still valid */
+  CHECK_EQ(ta->pending_context->frame, ta->frame);
+
   *pending_ctx = ta->pending_context;
-  *pending_frame = ta->frame;
+
   return 1;
 }
 
@@ -1009,7 +1022,8 @@ REG_W32(pvr_cb, TA_LIST_INIT) {
     return;
   }
 
-  struct tile_ctx *ctx = ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  struct tile_ctx *ctx =
+      ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
   ta_init_context(ta, ctx);
   ta->next_context = ctx;
 }
