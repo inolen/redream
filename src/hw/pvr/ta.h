@@ -45,8 +45,7 @@ struct ta *ta_create(struct dreamcast *dc);
 void ta_destroy(struct ta *ta);
 
 struct texture_provider *ta_texture_provider(struct ta *ta);
-int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
-                            int *pending_frame);
+int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx);
 void ta_unlock_pending_context(struct ta *ta);
 
 #endif

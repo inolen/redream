@@ -82,16 +82,15 @@ static void emu_paint(void *data) {
   /* render latest ta context */
   struct render_context *render_ctx = &emu->render_ctx;
   struct tile_ctx *pending_ctx = NULL;
-  int pending_frame = 0;
 
-  if (ta_lock_pending_context(emu->dc->ta, &pending_ctx, &pending_frame)) {
+  if (ta_lock_pending_context(emu->dc->ta, &pending_ctx)) {
     render_ctx->surfs = emu->surfs;
     render_ctx->surfs_size = array_size(emu->surfs);
     render_ctx->verts = emu->verts;
     render_ctx->verts_size = array_size(emu->verts);
     render_ctx->sorted_surfs = emu->sorted_surfs;
     render_ctx->sorted_surfs_size = array_size(emu->sorted_surfs);
-    tr_parse_context(emu->tr, pending_ctx, pending_frame, render_ctx);
+    tr_parse_context(emu->tr, pending_ctx, render_ctx);
 
     ta_unlock_pending_context(emu->dc->ta);
   }
@@ -283,6 +282,9 @@ struct emu *emu_create(struct window *window) {
                                            &emu_close,
                                            {0}};
   win_add_listener(emu->window, &emu->listener);
+
+  /* enable debug menu by default */
+  win_enable_debug_menu(emu->window, 1);
 
   return emu;
 }

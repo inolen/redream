@@ -117,7 +117,7 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
 }
 
 static texture_handle_t tr_demand_texture(struct tr *tr,
-                                          const struct tile_ctx *ctx, int frame,
+                                          const struct tile_ctx *ctx,
                                           union tsp tsp, union tcw tcw) {
   /* TODO it's bad that textures are only cached based off tsp / tcw yet the
      TEXT_CONTROL registers and PAL_RAM_CTRL registers are used here to control
@@ -137,11 +137,6 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
     rb_destroy_texture(tr->rb, entry->handle);
     entry->handle = 0;
   }
-
-  /* sanity check that the texture source is valid for the current frame. video
-     ram will be modified between frames, if these values don't match something
-     is broken in the ta's thread synchronization */
-  CHECK_EQ(frame, entry->frame);
 
   static uint8_t converted[1024 * 1024 * 4];
   const uint8_t *palette = entry->palette;
@@ -313,47 +308,46 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
   return entry->handle;
 }
 
-static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rctx,
+static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
                                      bool copy_from_prev) {
-  CHECK_LT(rctx->num_surfs, rctx->surfs_size);
-  int id = rctx->num_surfs++;
-  struct surface *surf = &rctx->surfs[id];
+  CHECK_LT(rc->num_surfs, rc->surfs_size);
+  int id = rc->num_surfs++;
+  struct surface *surf = &rc->surfs[id];
 
   if (copy_from_prev) {
-    *surf = rctx->surfs[id - 1];
+    *surf = rc->surfs[id - 1];
   } else {
     memset(surf, 0, sizeof(*surf));
   }
 
   /* start verts at the end */
-  surf->first_vert = rctx->num_verts;
+  surf->first_vert = rc->num_verts;
   surf->num_verts = 0;
 
   /* default sort the surface */
-  rctx->sorted_surfs[id] = id;
+  rc->sorted_surfs[id] = id;
 
   return surf;
 }
 
-static struct vertex *tr_alloc_vert(struct tr *tr,
-                                    struct render_context *rctx) {
-  CHECK_LT(rctx->num_verts, rctx->verts_size);
-  int id = rctx->num_verts++;
-  struct vertex *v = &rctx->verts[id];
+static struct vertex *tr_alloc_vert(struct tr *tr, struct render_context *rc) {
+  CHECK_LT(rc->num_verts, rc->verts_size);
+  int id = rc->num_verts++;
+  struct vertex *v = &rc->verts[id];
   memset(v, 0, sizeof(*v));
 
   /* update vertex count on the current surface */
-  struct surface *surf = &rctx->surfs[rctx->num_surfs - 1];
+  struct surface *surf = &rc->surfs[rc->num_surfs - 1];
   surf->num_verts++;
 
   return v;
 }
 
 static void tr_discard_incomplete_surf(struct tr *tr,
-                                       struct render_context *rctx) {
+                                       struct render_context *rc) {
   /* free up the last surface if it wasn't finished */
   if (tr->last_vertex && !tr->last_vertex->type0.pcw.end_of_strip) {
-    rctx->num_surfs--;
+    rc->num_surfs--;
   }
 }
 
@@ -453,9 +447,9 @@ static int tr_parse_bg_vert(const struct tile_ctx *ctx, int offset,
 }
 
 static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
-                        struct render_context *rctx) {
+                        struct render_context *rc) {
   /* translate the surface */
-  struct surface *surf = tr_alloc_surf(tr, rctx, false);
+  struct surface *surf = tr_alloc_surf(tr, rc, false);
 
   surf->texture = 0;
   surf->depth_write = !ctx->bg_isp.z_write_disable;
@@ -465,10 +459,10 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
   surf->dst_blend = BLEND_NONE;
 
   /* translate the first 3 vertices */
-  struct vertex *v0 = tr_alloc_vert(tr, rctx);
-  struct vertex *v1 = tr_alloc_vert(tr, rctx);
-  struct vertex *v2 = tr_alloc_vert(tr, rctx);
-  struct vertex *v3 = tr_alloc_vert(tr, rctx);
+  struct vertex *v0 = tr_alloc_vert(tr, rc);
+  struct vertex *v1 = tr_alloc_vert(tr, rc);
+  struct vertex *v2 = tr_alloc_vert(tr, rc);
+  struct vertex *v3 = tr_alloc_vert(tr, rc);
 
   int offset = 0;
   offset = tr_parse_bg_vert(ctx, offset, v0);
@@ -500,9 +494,9 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
 /* this offset color implementation is not correct at all, see the
    Texture/Shading Instruction in the union tsp instruction word */
 static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
-                                int frame, struct render_context *rctx,
+                                struct render_context *rc,
                                 const uint8_t *data) {
-  tr_discard_incomplete_surf(tr, rctx);
+  tr_discard_incomplete_surf(tr, rc);
 
   const union poly_param *param = (const union poly_param *)data;
 
@@ -559,7 +553,7 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   }
 
   /* setup the new surface */
-  struct surface *surf = tr_alloc_surf(tr, rctx, false);
+  struct surface *surf = tr_alloc_surf(tr, rc, false);
   surf->depth_write = !param->type0.isp_tsp.z_write_disable;
   surf->depth_func =
       translate_depth_func(param->type0.isp_tsp.depth_compare_mode);
@@ -584,7 +578,7 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
 
   if (param->type0.pcw.texture) {
     surf->texture =
-        tr_demand_texture(tr, ctx, frame, param->type0.tsp, param->type0.tcw);
+        tr_demand_texture(tr, ctx, param->type0.tsp, param->type0.tcw);
   } else {
     surf->texture = 0;
   }
@@ -630,20 +624,20 @@ static void tr_parse_spriteb_vert(struct tr *tr, const union vert_param *param,
 }
 
 static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
-                                struct render_context *rctx,
+                                struct render_context *rc,
                                 const uint8_t *data) {
   const union vert_param *param = (const union vert_param *)data;
   /* if there is no need to change the Global Parameters, a Vertex Parameter
      for the next polygon may be input immediately after inputting a Vertex
      Parameter for which "End of Strip" was specified */
   if (tr->last_vertex && tr->last_vertex->type0.pcw.end_of_strip) {
-    tr_alloc_surf(tr, rctx, true);
+    tr_alloc_surf(tr, rc, true);
   }
   tr->last_vertex = param;
 
   switch (tr->vertex_type) {
     case 0: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type0.xyz[0];
       vert->xyz[1] = param->type0.xyz[1];
       vert->xyz[2] = param->type0.xyz[2];
@@ -654,7 +648,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 1: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type1.xyz[0];
       vert->xyz[1] = param->type1.xyz[1];
       vert->xyz[2] = param->type1.xyz[2];
@@ -667,7 +661,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 2: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type2.xyz[0];
       vert->xyz[1] = param->type2.xyz[1];
       vert->xyz[2] = param->type2.xyz[2];
@@ -678,7 +672,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 3: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type3.xyz[0];
       vert->xyz[1] = param->type3.xyz[1];
       vert->xyz[2] = param->type3.xyz[2];
@@ -689,7 +683,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 4: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type4.xyz[0];
       vert->xyz[1] = param->type4.xyz[1];
       vert->xyz[2] = param->type4.xyz[2];
@@ -702,7 +696,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 5: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type5.xyz[0];
       vert->xyz[1] = param->type5.xyz[1];
       vert->xyz[2] = param->type5.xyz[2];
@@ -718,7 +712,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 6: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type6.xyz[0];
       vert->xyz[1] = param->type6.xyz[1];
       vert->xyz[2] = param->type6.xyz[2];
@@ -736,7 +730,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 7: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type7.xyz[0];
       vert->xyz[1] = param->type7.xyz[1];
       vert->xyz[2] = param->type7.xyz[2];
@@ -748,7 +742,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 8: {
-      struct vertex *vert = tr_alloc_vert(tr, rctx);
+      struct vertex *vert = tr_alloc_vert(tr, rc);
       vert->xyz[0] = param->type8.xyz[0];
       vert->xyz[1] = param->type8.xyz[1];
       vert->xyz[2] = param->type8.xyz[2];
@@ -762,17 +756,17 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 15: {
-      tr_parse_spritea_vert(tr, param, 0, tr_alloc_vert(tr, rctx));
-      tr_parse_spritea_vert(tr, param, 1, tr_alloc_vert(tr, rctx));
-      tr_parse_spritea_vert(tr, param, 3, tr_alloc_vert(tr, rctx));
-      tr_parse_spritea_vert(tr, param, 2, tr_alloc_vert(tr, rctx));
+      tr_parse_spritea_vert(tr, param, 0, tr_alloc_vert(tr, rc));
+      tr_parse_spritea_vert(tr, param, 1, tr_alloc_vert(tr, rc));
+      tr_parse_spritea_vert(tr, param, 3, tr_alloc_vert(tr, rc));
+      tr_parse_spritea_vert(tr, param, 2, tr_alloc_vert(tr, rc));
     } break;
 
     case 16: {
-      tr_parse_spriteb_vert(tr, param, 0, tr_alloc_vert(tr, rctx));
-      tr_parse_spriteb_vert(tr, param, 1, tr_alloc_vert(tr, rctx));
-      tr_parse_spriteb_vert(tr, param, 3, tr_alloc_vert(tr, rctx));
-      tr_parse_spriteb_vert(tr, param, 2, tr_alloc_vert(tr, rctx));
+      tr_parse_spriteb_vert(tr, param, 0, tr_alloc_vert(tr, rc));
+      tr_parse_spriteb_vert(tr, param, 1, tr_alloc_vert(tr, rc));
+      tr_parse_spriteb_vert(tr, param, 3, tr_alloc_vert(tr, rc));
+      tr_parse_spriteb_vert(tr, param, 2, tr_alloc_vert(tr, rc));
     } break;
 
     case 17: {
@@ -793,11 +787,11 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
   /* FIXME is this true for sprites which come through this path as well? */
 }
 
-static float tr_cmp_surf(struct render_context *rctx, const struct surface *a,
+static float tr_cmp_surf(struct render_context *rc, const struct surface *a,
                          const struct surface *b) {
   float minza = FLT_MAX;
   for (int i = 0, n = a->num_verts; i < n; i++) {
-    struct vertex *v = &rctx->verts[a->first_vert + i];
+    struct vertex *v = &rc->verts[a->first_vert + i];
 
     if (v->xyz[2] < minza) {
       minza = v->xyz[2];
@@ -806,7 +800,7 @@ static float tr_cmp_surf(struct render_context *rctx, const struct surface *a,
 
   float minzb = FLT_MAX;
   for (int i = 0, n = b->num_verts; i < n; i++) {
-    struct vertex *v = &rctx->verts[b->first_vert + i];
+    struct vertex *v = &rc->verts[b->first_vert + i];
 
     if (v->xyz[2] < minzb) {
       minzb = v->xyz[2];
@@ -816,7 +810,7 @@ static float tr_cmp_surf(struct render_context *rctx, const struct surface *a,
   return minza - minzb;
 }
 
-static void tr_merge_surfs(struct render_context *rctx, int *low, int *mid,
+static void tr_merge_surfs(struct render_context *rc, int *low, int *mid,
                            int *high) {
   static int tmp[16384];
 
@@ -827,7 +821,7 @@ static void tr_merge_surfs(struct render_context *rctx, int *low, int *mid,
 
   while (i <= mid && j <= high) {
     DCHECK_LT(k, end);
-    if (tr_cmp_surf(rctx, &rctx->surfs[*i], &rctx->surfs[*j]) <= 0.0f) {
+    if (tr_cmp_surf(rc, &rc->surfs[*i], &rc->surfs[*j]) <= 0.0f) {
       *(k++) = *(i++);
     } else {
       *(k++) = *(j++);
@@ -847,48 +841,48 @@ static void tr_merge_surfs(struct render_context *rctx, int *low, int *mid,
   memcpy(low, tmp, (k - tmp) * sizeof(tmp[0]));
 }
 
-static void tr_sort_surfs(struct render_context *rctx, int low, int high) {
+static void tr_sort_surfs(struct render_context *rc, int low, int high) {
   if (low >= high) {
     return;
   }
 
   int mid = (low + high) / 2;
-  tr_sort_surfs(rctx, low, mid);
-  tr_sort_surfs(rctx, mid + 1, high);
-  tr_merge_surfs(rctx, &rctx->sorted_surfs[low], &rctx->sorted_surfs[mid],
-                 &rctx->sorted_surfs[high]);
+  tr_sort_surfs(rc, low, mid);
+  tr_sort_surfs(rc, mid + 1, high);
+  tr_merge_surfs(rc, &rc->sorted_surfs[low], &rc->sorted_surfs[mid],
+                 &rc->sorted_surfs[high]);
 }
 
 static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
-                         struct render_context *rctx, const uint8_t *data) {
-  tr_discard_incomplete_surf(tr, rctx);
+                         struct render_context *rc, const uint8_t *data) {
+  tr_discard_incomplete_surf(tr, rc);
 
   /* sort transparent polys by their z value, from back to front. remember, in
      dreamcast coordinates smaller z values are further away from the camera */
   if ((tr->list_type == TA_LIST_TRANSLUCENT ||
        tr->list_type == TA_LIST_TRANSLUCENT_MODVOL) &&
       ctx->autosort) {
-    tr_sort_surfs(rctx, tr->last_sorted_surf, rctx->num_surfs - 1);
+    tr_sort_surfs(rc, tr->last_sorted_surf, rc->num_surfs - 1);
   }
 
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
   tr->vertex_type = TA_NUM_VERTS;
-  tr->last_sorted_surf = rctx->num_surfs;
+  tr->last_sorted_surf = rc->num_surfs;
 }
 
 static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
-                        struct render_context *rctx) {
+                        struct render_context *rc) {
   /* this isn't a traditional projection matrix. xy components coming into the
      TA are in window space, while the z component is 1/w with +z headed into
      the screen. these coordinates need to be scaled back into ndc space, and
      z needs to be flipped so that -z is headed into the screen */
-  float znear = FLT_MIN;
+  float znear = -FLT_MAX;
   float zfar = FLT_MAX;
 
-  for (int i = 0; i < rctx->num_verts; i++) {
-    struct vertex *v = &rctx->verts[i];
+  for (int i = 0; i < rc->num_verts; i++) {
+    struct vertex *v = &rc->verts[i];
     if (v->xyz[2] > znear) {
       znear = v->xyz[2];
     }
@@ -900,32 +894,32 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
   /* fudge so z isn't mapped to exactly 0.0 and 1.0 */
   float zdepth = (znear - zfar) * 1.1f;
 
-  rctx->projection[0] = 2.0f / (float)ctx->video_width;
-  rctx->projection[4] = 0.0f;
-  rctx->projection[8] = 0.0f;
-  rctx->projection[12] = -1.0f;
+  rc->projection[0] = 2.0f / (float)ctx->video_width;
+  rc->projection[4] = 0.0f;
+  rc->projection[8] = 0.0f;
+  rc->projection[12] = -1.0f;
 
-  rctx->projection[1] = 0.0f;
-  rctx->projection[5] = -2.0f / (float)ctx->video_height;
-  rctx->projection[9] = 0.0f;
-  rctx->projection[13] = 1.0f;
+  rc->projection[1] = 0.0f;
+  rc->projection[5] = -2.0f / (float)ctx->video_height;
+  rc->projection[9] = 0.0f;
+  rc->projection[13] = 1.0f;
 
-  rctx->projection[2] = 0.0f;
-  rctx->projection[6] = 0.0f;
-  rctx->projection[10] = 2.0f / -zdepth;
-  rctx->projection[14] = -2.0f * znear / -zdepth - 1.0f;
+  rc->projection[2] = 0.0f;
+  rc->projection[6] = 0.0f;
+  rc->projection[10] = 2.0f / -zdepth;
+  rc->projection[14] = -2.0f * znear / -zdepth - 1.0f;
 
-  rctx->projection[3] = 0.0f;
-  rctx->projection[7] = 0.0f;
-  rctx->projection[11] = 0.0f;
-  rctx->projection[15] = 1.0f;
+  rc->projection[3] = 0.0f;
+  rc->projection[7] = 0.0f;
+  rc->projection[11] = 0.0f;
+  rc->projection[15] = 1.0f;
 }
 
-static void tr_reset(struct tr *tr, struct render_context *rctx) {
+static void tr_reset(struct tr *tr, struct render_context *rc) {
   /* reset render state */
-  rctx->num_surfs = 0;
-  rctx->num_verts = 0;
-  rctx->num_states = 0;
+  rc->num_surfs = 0;
+  rc->num_verts = 0;
+  rc->num_params = 0;
 
   /* reset global state */
   tr->last_poly = NULL;
@@ -935,16 +929,16 @@ static void tr_reset(struct tr *tr, struct render_context *rctx) {
   tr->last_sorted_surf = 0;
 }
 
-void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
-                      struct render_context *rctx) {
+void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
+                      struct render_context *rc) {
   PROF_ENTER("gpu", "tr_parse_context");
 
   const uint8_t *data = ctx->params;
   const uint8_t *end = ctx->params + ctx->size;
 
-  tr_reset(tr, rctx);
+  tr_reset(tr, rc);
 
-  tr_parse_bg(tr, ctx, rctx);
+  tr_parse_bg(tr, ctx, rc);
 
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
@@ -961,7 +955,7 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
     switch (pcw.para_type) {
       /* control params */
       case TA_PARAM_END_OF_LIST:
-        tr_parse_eol(tr, ctx, rctx, data);
+        tr_parse_eol(tr, ctx, rc, data);
         break;
 
       case TA_PARAM_USER_TILE_CLIP:
@@ -973,47 +967,46 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx, int frame,
 
       /* global params */
       case TA_PARAM_POLY_OR_VOL:
-        tr_parse_poly_param(tr, ctx, frame, rctx, data);
+        tr_parse_poly_param(tr, ctx, rc, data);
         break;
 
       case TA_PARAM_SPRITE:
-        tr_parse_poly_param(tr, ctx, frame, rctx, data);
+        tr_parse_poly_param(tr, ctx, rc, data);
         break;
 
       /* vertex params */
       case TA_PARAM_VERTEX:
-        tr_parse_vert_param(tr, ctx, rctx, data);
+        tr_parse_vert_param(tr, ctx, rc, data);
         break;
     }
 
     /* keep track of the surf / vert counts at each parameter offset */
-    if (rctx->states) {
-      int offset = (int)(data - ctx->params);
-      CHECK_LT(offset, rctx->states_size);
-      rctx->num_states = MAX(rctx->num_states, offset);
-
-      struct param_state *param_state = &rctx->states[offset];
-      param_state->num_surfs = rctx->num_surfs;
-      param_state->num_verts = rctx->num_verts;
+    if (rc->params) {
+      struct render_param *rp = &rc->params[rc->num_params++];
+      rp->offset = data - ctx->params;
+      rp->list_type = tr->list_type;
+      rp->vertex_type = tr->vertex_type;
+      rp->surf = rc->num_surfs ? &rc->surfs[rc->num_surfs - 1] : NULL;
+      rp->vert = rc->num_verts ? &rc->verts[rc->num_verts - 1] : NULL;
     }
 
     data += ta_get_param_size(pcw, tr->vertex_type);
   }
 
-  tr_proj_mat(tr, ctx, rctx);
+  tr_proj_mat(tr, ctx, rc);
 
   PROF_LEAVE();
 }
 
-void tr_render_context(struct tr *tr, const struct render_context *rctx) {
+void tr_render_context(struct tr *tr, const struct render_context *rc) {
   PROF_ENTER("gpu", "tr_render_context");
 
-  rb_begin_surfaces(tr->rb, rctx->projection, rctx->verts, rctx->num_verts);
+  rb_begin_surfaces(tr->rb, rc->projection, rc->verts, rc->num_verts);
 
-  const int *sorted_surf = rctx->sorted_surfs;
-  const int *sorted_surf_end = rctx->sorted_surfs + rctx->num_surfs;
+  const int *sorted_surf = rc->sorted_surfs;
+  const int *sorted_surf_end = rc->sorted_surfs + rc->num_surfs;
   while (sorted_surf < sorted_surf_end) {
-    rb_draw_surface(tr->rb, &rctx->surfs[*sorted_surf]);
+    rb_draw_surface(tr->rb, &rc->surfs[*sorted_surf]);
     sorted_surf++;
   }
 

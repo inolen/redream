@@ -6,41 +6,41 @@
 #include "ui/nuklear.h"
 #include "ui/window.h"
 
-static const char *s_param_names[] = {
+static const char *param_names[] = {
     "TA_PARAM_END_OF_LIST", "TA_PARAM_USER_TILE_CLIP", "TA_PARAM_OBJ_LIST_SET",
     "TA_PARAM_RESERVED0",   "TA_PARAM_POLY_OR_VOL",    "TA_PARAM_SPRITE",
     "TA_PARAM_RESERVED1",   "TA_PARAM_VERTEX",
 };
 
-static const char *s_list_names[] = {
+static const char *list_names[] = {
     "TA_LIST_OPAQUE",        "TA_LIST_OPAQUE_MODVOL",
     "TA_LIST_TRANSLUCENT",   "TA_LIST_TRANSLUCENT_MODVOL",
     "TA_LIST_PUNCH_THROUGH",
 };
 
-static const char *s_pixel_format_names[] = {
+static const char *pxl_names[] = {
     "PXL_INVALID", "PXL_RGBA",     "PXL_RGBA5551",
     "PXL_RGB565",  "PXL_RGBA4444", "PXL_RGBA8888",
 };
 
-static const char *s_filter_mode_names[] = {
+static const char *filter_names[] = {
     "FILTER_NEAREST", "FILTER_BILINEAR",
 };
 
-static const char *s_wrap_mode_names[] = {
+static const char *wrap_names[] = {
     "WRAP_REPEAT", "WRAP_CLAMP_TO_EDGE", "WRAP_MIRRORED_REPEAT",
 };
 
-static const char *s_depthfunc_names[] = {
+static const char *depthfunc_names[] = {
     "NONE",    "NEVER",  "LESS",   "EQUAL",  "LEQUAL",
     "GREATER", "NEQUAL", "GEQUAL", "ALWAYS",
 };
 
-static const char *s_cullface_names[] = {
+static const char *cullface_names[] = {
     "NONE", "FRONT", "BACK",
 };
 
-static const char *s_blendfunc_names[] = {
+static const char *blendfunc_names[] = {
     "NONE",
     "ZERO",
     "ONE",
@@ -54,7 +54,7 @@ static const char *s_blendfunc_names[] = {
     "ONE_MINUS_DST_COLOR",
 };
 
-static const char *s_shademode_names[] = {
+static const char *shademode_names[] = {
     "DECAL", "MODULATE", "DECAL_ALPHA", "MODULATE_ALPHA",
 };
 
@@ -78,18 +78,16 @@ struct tracer {
   /* trace state */
   struct trace *trace;
   struct tile_ctx ctx;
-  uint8_t params[TA_MAX_PARAMS];
   struct trace_cmd *current_cmd;
-  int current_param_offset;
-  int current_context;
-  int num_contexts;
+  int current_param;
+  int scroll_to_param;
 
   /* render state */
-  struct render_context rctx;
+  struct render_context rc;
   struct surface surfs[TA_MAX_SURFS];
   struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];
-  struct param_state states[TA_MAX_PARAMS];
+  struct render_param params[TA_MAX_PARAMS / 32];
 
   struct tracer_texture_entry textures[1024];
   struct rb_tree live_textures;
@@ -131,7 +129,7 @@ static struct tracer_texture_entry *tracer_find_texture(struct tracer *tracer,
 }
 
 static void tracer_add_texture(struct tracer *tracer, union tsp tsp,
-                               union tcw tcw, const uint8_t *palette,
+                               union tcw tcw, int frame, const uint8_t *palette,
                                const uint8_t *texture) {
   struct tracer_texture_entry *entry = tracer_find_texture(tracer, tsp, tcw);
   int new_entry = 0;
@@ -148,8 +146,9 @@ static void tracer_add_texture(struct tracer *tracer, union tsp tsp,
     rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
 
     new_entry = 1;
-  };
+  }
 
+  entry->frame = frame;
   entry->dirty = new_entry ? 0 : 1;
   entry->palette = palette;
   entry->texture = texture;
@@ -170,6 +169,7 @@ static void tracer_copy_command(const struct trace_cmd *cmd,
   /* copy TRACE_CMD_CONTEXT to the current context being rendered */
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
+  ctx->frame = cmd->context.frame;
   ctx->autosort = cmd->context.autosort;
   ctx->stride = cmd->context.stride;
   ctx->pal_pxl_format = cmd->context.pal_pxl_format;
@@ -185,56 +185,40 @@ static void tracer_copy_command(const struct trace_cmd *cmd,
   ctx->size = cmd->context.params_size;
 }
 
-static inline bool param_state_empty(struct param_state *param_state) {
-  return !param_state->num_surfs && !param_state->num_verts;
-}
-
 static inline bool tracer_param_hidden(struct tracer *tracer, union pcw pcw) {
   return !tracer->show_params[pcw.para_type];
 }
 
 static void tracer_prev_param(struct tracer *tracer) {
-  int offset = tracer->current_param_offset;
+  int i = tracer->current_param;
 
-  while (--offset >= 0) {
-    struct param_state *param_state = &tracer->rctx.states[offset];
-
-    if (param_state_empty(param_state)) {
-      continue;
-    }
-
-    union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
+  while (i--) {
+    struct render_param *rp = &tracer->rc.params[i];
+    union pcw pcw = *(const union pcw *)(tracer->params + rp->offset);
 
     /* found the next visible param */
     if (!tracer_param_hidden(tracer, pcw)) {
-      tracer->current_param_offset = offset;
+      tracer->current_param = i;
+      tracer->scroll_to_param = 1;
       break;
     }
   }
 }
 
 static void tracer_next_param(struct tracer *tracer) {
-  int offset = tracer->current_param_offset;
+  int i = tracer->current_param;
 
-  while (++offset < tracer->rctx.num_states) {
-    struct param_state *param_state = &tracer->rctx.states[offset];
-
-    if (param_state_empty(param_state)) {
-      continue;
-    }
-
-    union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
+  while (++i < tracer->rc.num_params) {
+    struct render_param *rp = &tracer->rc.params[i];
+    union pcw pcw = *(const union pcw *)(tracer->params + rp->offset);
 
     /* found the next visible param */
     if (!tracer_param_hidden(tracer, pcw)) {
-      tracer->current_param_offset = offset;
+      tracer->current_param = i;
+      tracer->scroll_to_param = 1;
       break;
     }
   }
-}
-
-static void tracer_reset_param(struct tracer *tracer) {
-  tracer->current_param_offset = -1;
 }
 
 static void tracer_prev_context(struct tracer *tracer) {
@@ -266,7 +250,7 @@ static void tracer_prev_context(struct tracer *tracer) {
         CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
 
         tracer_add_texture(tracer, override->texture.tsp, override->texture.tcw,
-                           override->texture.palette,
+                           override->texture.frame, override->texture.palette,
                            override->texture.texture);
       }
     }
@@ -274,10 +258,11 @@ static void tracer_prev_context(struct tracer *tracer) {
     curr = curr->prev;
   }
 
-  tracer->current_cmd = curr;
-  tracer->current_context--;
+  tracer->current_cmd = prev;
+  tracer->current_param = -1;
+  tracer->scroll_to_param = 0;
   tracer_copy_command(tracer->current_cmd, &tracer->ctx);
-  tracer_reset_param(tracer);
+  tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rc);
 }
 
 static void tracer_next_context(struct tracer *tracer) {
@@ -305,35 +290,22 @@ static void tracer_next_context(struct tracer *tracer) {
   while (curr != next) {
     if (curr->type == TRACE_CMD_TEXTURE) {
       tracer_add_texture(tracer, curr->texture.tsp, curr->texture.tcw,
-                         curr->texture.palette, curr->texture.texture);
+                         curr->texture.frame, curr->texture.palette,
+                         curr->texture.texture);
     }
 
     curr = curr->next;
   }
 
-  tracer->current_cmd = curr;
-  tracer->current_context++;
+  tracer->current_cmd = next;
+  tracer->current_param = -1;
+  tracer->scroll_to_param = 0;
   tracer_copy_command(tracer->current_cmd, &tracer->ctx);
-  tracer_reset_param(tracer);
+  tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rc);
 }
 
 static void tracer_reset_context(struct tracer *tracer) {
-  /* calculate the total number of frames for the trace */
-  struct trace_cmd *cmd = tracer->trace->cmds;
-
-  tracer->num_contexts = 0;
-
-  while (cmd) {
-    if (cmd->type == TRACE_CMD_CONTEXT) {
-      tracer->num_contexts++;
-    }
-
-    cmd = cmd->next;
-  }
-
-  /* start rendering the first context */
   tracer->current_cmd = NULL;
-  tracer->current_context = -1;
   tracer_next_context(tracer);
 }
 
@@ -354,12 +326,16 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   nk_flags flags = NK_WINDOW_NO_SCROLLBAR;
 
   if (nk_begin(ctx, "context scrubber", bounds, flags)) {
+    nk_window_set_bounds(ctx, bounds);
+
     nk_layout_row_dynamic(ctx, SCRUBBER_WINDOW_HEIGHT, 1);
 
-    nk_size frame = tracer->current_context;
+    nk_size frame = tracer->ctx.frame - tracer->trace->first_frame;
+    nk_size max_frames = tracer->trace->last_frame - tracer->trace->first_frame;
 
-    if (nk_progress(ctx, &frame, tracer->num_contexts - 1, true)) {
-      int delta = (int)frame - tracer->current_context;
+    if (nk_progress(ctx, &frame, max_frames - 1, true)) {
+      int delta = tracer->trace->first_frame + (int)frame - tracer->ctx.frame;
+
       for (int i = 0; i < ABS(delta); i++) {
         if (delta > 0) {
           tracer_next_context(tracer);
@@ -372,24 +348,23 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   nk_end(ctx);
 }
 
-static void tracer_param_tooltip(struct tracer *tracer, int list_type,
-                                 int vertex_type, int offset) {
+static void tracer_param_tooltip(struct tracer *tracer,
+                                 struct render_param *rp) {
   struct nk_context *ctx = &tracer->window->nk->ctx;
-  struct param_state *param_state = &tracer->rctx.states[offset];
-  int surf_id = param_state->num_surfs - 1;
-  int vert_id = param_state->num_verts - 1;
 
   if (nk_tooltip_begin(ctx, 300.0f)) {
     nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
 
-    nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", s_list_names[list_type]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", surf_id);
+    nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", list_names[rp->list_type]);
+    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", rp->surf - tracer->rc.surfs);
 
     /* find sorted position */
     int sort = 0;
-    for (int i = 0, n = tracer->rctx.num_surfs; i < n; i++) {
-      int idx = tracer->rctx.sorted_surfs[i];
-      if (idx == surf_id) {
+    for (int i = 0; i < tracer->rc.num_surfs; i++) {
+      int idx = tracer->rc.sorted_surfs[i];
+      struct surface *surf = &tracer->rc.surfs[idx];
+
+      if (surf == rp->surf) {
         sort = i;
         break;
       }
@@ -397,9 +372,12 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
     nk_labelf(ctx, NK_TEXT_LEFT, "sort: %d", sort);
 
     /* render source TA information */
-    if (vertex_type == -1) {
+    union pcw pcw = *(const union pcw *)(tracer->params + rp->offset);
+
+    if (pcw.para_type == TA_PARAM_POLY_OR_VOL ||
+        pcw.para_type == TA_PARAM_SPRITE) {
       const union poly_param *param =
-          (const union poly_param *)(tracer->ctx.params + offset);
+          (const union poly_param *)(tracer->params + rp->offset);
 
       nk_labelf(ctx, NK_TEXT_LEFT, "pcw: 0x%x", param->type0.pcw.full);
       nk_labelf(ctx, NK_TEXT_LEFT, "isp_tsp: 0x%x", param->type0.isp_tsp.full);
@@ -448,13 +426,13 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
                     param->sprite.offset_color);
           break;
       }
-    } else {
+    } else if (pcw.para_type == TA_PARAM_VERTEX) {
       const union vert_param *param =
-          (const union vert_param *)(tracer->ctx.params + offset);
+          (const union vert_param *)(tracer->params + rp->offset);
 
-      nk_labelf(ctx, NK_TEXT_LEFT, "vert type: %d", vertex_type);
+      nk_labelf(ctx, NK_TEXT_LEFT, "vert type: %d", rp->vertex_type);
 
-      switch (vertex_type) {
+      switch (rp->vertex_type) {
         case 0:
           nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
                     param->type0.xyz[0], param->type0.xyz[1],
@@ -585,31 +563,33 @@ static void tracer_param_tooltip(struct tracer *tracer, int list_type,
 
     /* always render translated surface information. new surfaces can be created
        without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE */
-    struct surface *surf = &tracer->rctx.surfs[surf_id];
+    if (rp->surf) {
+      struct surface *surf = rp->surf;
 
-    /* TODO separator */
+      /* TODO separator */
 
-    nk_layout_row_static(ctx, 40.0f, 40, 1);
-    nk_image(ctx, nk_image_id((int)surf->texture));
+      nk_layout_row_static(ctx, 40.0f, 40, 1);
+      nk_image(ctx, nk_image_id((int)surf->texture));
 
-    nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
-    nk_labelf(ctx, NK_TEXT_LEFT, "depth_write: %d", surf->depth_write);
-    nk_labelf(ctx, NK_TEXT_LEFT, "depth_func: %s",
-              s_depthfunc_names[surf->depth_func]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "cull: %s", s_cullface_names[surf->cull]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "src_blend: %s",
-              s_blendfunc_names[surf->src_blend]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "dst_blend: %s",
-              s_blendfunc_names[surf->dst_blend]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "shade: %s", s_shademode_names[surf->shade]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "ignore_tex_alpha: %d",
-              surf->ignore_tex_alpha);
-    nk_labelf(ctx, NK_TEXT_LEFT, "first_vert: %d", surf->first_vert);
-    nk_labelf(ctx, NK_TEXT_LEFT, "num_verts: %d", surf->num_verts);
+      nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
+      nk_labelf(ctx, NK_TEXT_LEFT, "depth_write: %d", surf->depth_write);
+      nk_labelf(ctx, NK_TEXT_LEFT, "depth_func: %s",
+                depthfunc_names[surf->depth_func]);
+      nk_labelf(ctx, NK_TEXT_LEFT, "cull: %s", cullface_names[surf->cull]);
+      nk_labelf(ctx, NK_TEXT_LEFT, "src_blend: %s",
+                blendfunc_names[surf->src_blend]);
+      nk_labelf(ctx, NK_TEXT_LEFT, "dst_blend: %s",
+                blendfunc_names[surf->dst_blend]);
+      nk_labelf(ctx, NK_TEXT_LEFT, "shade: %s", shademode_names[surf->shade]);
+      nk_labelf(ctx, NK_TEXT_LEFT, "ignore_tex_alpha: %d",
+                surf->ignore_tex_alpha);
+      nk_labelf(ctx, NK_TEXT_LEFT, "first_vert: %d", surf->first_vert);
+      nk_labelf(ctx, NK_TEXT_LEFT, "num_verts: %d", surf->num_verts);
+    }
 
     /* render translated vert only when rendering a vertex tooltip */
-    if (vertex_type != -1) {
-      struct vertex *vert = &tracer->rctx.verts[vert_id];
+    if (rp->vert) {
+      struct vertex *vert = rp->vert;
 
       /* TODO separator */
 
@@ -641,10 +621,15 @@ static void tracer_render_side_menu(struct tracer *tracer) {
     char label[128];
 
     if (nk_begin(ctx, "side menu", bounds, 0)) {
-      /* parem filters */
+      nk_window_set_bounds(ctx, bounds);
+
+      struct nk_window *win = ctx->current;
+      struct nk_panel *layout = win->layout;
+
+      /* param filters */
       if (nk_tree_push(ctx, NK_TREE_TAB, "filters", NK_MINIMIZED)) {
         for (int i = 0; i < TA_NUM_PARAMS; i++) {
-          snprintf(label, sizeof(label), "Show %s", s_param_names[i]);
+          snprintf(label, sizeof(label), "Show %s", param_names[i]);
           nk_checkbox_text(ctx, label, (int)strlen(label),
                            &tracer->show_params[i]);
         }
@@ -654,64 +639,49 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
       /* context parameters */
       if (nk_tree_push(ctx, NK_TREE_TAB, "params", 0)) {
-        /* param list */
-        int list_type = TA_NUM_LISTS;
-        int vertex_type = TA_NUM_VERTS;
+        for (int i = 0; i < tracer->rc.num_params; i++) {
+          struct render_param *rp = &tracer->rc.params[i];
+          union pcw pcw = *(const union pcw *)(tracer->params + rp->offset);
 
-        for (int offset = 0; offset < tracer->rctx.num_states; offset++) {
-          struct param_state *param_state = &tracer->rctx.states[offset];
-
-          if (param_state_empty(param_state)) {
-            continue;
-          }
-
-          union pcw pcw = *(union pcw *)(tracer->ctx.params + offset);
-          int param_selected = (offset == tracer->current_param_offset);
+          int selected = (i == tracer->current_param);
 
           if (!tracer_param_hidden(tracer, pcw)) {
             struct nk_rect bounds = nk_widget_bounds(ctx);
 
-            snprintf(label, sizeof(label), "0x%04x %s", offset,
-                     s_param_names[pcw.para_type]);
-            nk_selectable_label(ctx, label, NK_TEXT_LEFT, &param_selected);
-
-            if (ta_pcw_list_type_valid(pcw, list_type)) {
-              list_type = pcw.list_type;
-            }
+            snprintf(label, sizeof(label), "0x%04x %s", rp->offset,
+                     param_names[pcw.para_type]);
+            nk_selectable_label(ctx, label, NK_TEXT_LEFT, &selected);
 
             switch (pcw.para_type) {
-              /* control params */
-              case TA_PARAM_END_OF_LIST:
-                list_type = TA_NUM_LISTS;
-                vertex_type = TA_NUM_VERTS;
-                break;
-
-              case TA_PARAM_USER_TILE_CLIP:
-                break;
-
-              case TA_PARAM_OBJ_LIST_SET:
-                LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
-                break;
-
-              /* global params */
               case TA_PARAM_POLY_OR_VOL:
               case TA_PARAM_SPRITE:
-                vertex_type = ta_get_vert_type(pcw);
                 if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-                  tracer_param_tooltip(tracer, list_type, -1, offset);
+                  tracer_param_tooltip(tracer, rp);
                 }
                 break;
 
-              /* vertex params */
               case TA_PARAM_VERTEX:
                 if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-                  tracer_param_tooltip(tracer, list_type, vertex_type, offset);
+                  tracer_param_tooltip(tracer, rp);
                 }
                 break;
             }
 
-            if (param_selected) {
-              tracer->current_param_offset = offset;
+            if (selected) {
+              tracer->current_param = i;
+
+              /* scroll to parameter if not visible */
+              if (tracer->scroll_to_param) {
+                float at_y = layout->at_y;
+                float min_visible_y = layout->offset->y;
+                float max_visible_y = layout->offset->y + layout->bounds.h;
+
+                if (at_y < min_visible_y || at_y >= max_visible_y) {
+                  layout->offset->y = at_y;
+                }
+
+                tracer->scroll_to_param = 0;
+              }
             }
           }
         }
@@ -749,13 +719,13 @@ static void tracer_render_side_menu(struct tracer *tracer) {
                 nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
                           entry->tcw.texture_addr << 3);
                 nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
-                          s_pixel_format_names[entry->format]);
+                          pxl_names[entry->format]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
-                          s_filter_mode_names[entry->filter]);
+                          filter_names[entry->filter]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
-                          s_wrap_mode_names[entry->wrap_u]);
+                          wrap_names[entry->wrap_u]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
-                          s_wrap_mode_names[entry->wrap_v]);
+                          wrap_names[entry->wrap_v]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d", entry->mipmaps);
                 nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->width);
                 nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->height);
@@ -781,35 +751,31 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 static void tracer_paint(void *data) {
   struct tracer *tracer = data;
 
-  tr_parse_context(tracer->tr, &tracer->ctx, 0, &tracer->rctx);
-
   /* render ui */
   tracer_render_side_menu(tracer);
   tracer_render_scrubber_menu(tracer);
 
-  /* clamp surfaces the last surface belonging to the current param */
-  int n = tracer->rctx.num_surfs;
-  int last_idx = n;
+  /* only render up to the surface of the currently selected param */
+  int num_surfs = tracer->rc.num_surfs;
+  int last_surf = num_surfs - 1;
 
-  if (tracer->current_param_offset >= 0) {
-    const struct param_state *offset =
-        &tracer->rctx.states[tracer->current_param_offset];
-    last_idx = offset->num_surfs;
+  if (tracer->current_param >= 0) {
+    const struct render_param *rp = &tracer->rc.params[tracer->current_param];
+    last_surf = rp->surf - tracer->rc.surfs;
   }
 
   /* render the context */
-  rb_begin_surfaces(tracer->rb, tracer->rctx.projection, tracer->rctx.verts,
-                    tracer->rctx.num_verts);
+  rb_begin_surfaces(tracer->rb, tracer->rc.projection, tracer->rc.verts,
+                    tracer->rc.num_verts);
 
-  for (int i = 0; i < n; i++) {
-    int idx = tracer->rctx.sorted_surfs[i];
+  for (int i = 0; i < num_surfs; i++) {
+    int idx = tracer->rc.sorted_surfs[i];
 
-    /* if this surface comes after the current parameter, ignore it */
-    if (idx >= last_idx) {
+    if (idx > last_surf) {
       continue;
     }
 
-    rb_draw_surface(tracer->rb, &tracer->rctx.surfs[idx]);
+    rb_draw_surface(tracer->rb, &tracer->rc.surfs[idx]);
   }
 
   rb_end_surfaces(tracer->rb);
@@ -870,6 +836,15 @@ void tracer_run(struct tracer *tracer, const char *path) {
   }
 }
 
+void tracer_destroy(struct tracer *tracer) {
+  if (tracer->trace) {
+    trace_destroy(tracer->trace);
+  }
+  win_remove_listener(tracer->window, &tracer->listener);
+  tr_destroy(tracer->tr);
+  free(tracer);
+}
+
 struct tracer *tracer_create(struct window *window) {
   /* ensure param / poly / vertex size LUTs are generated */
   ta_build_tables();
@@ -888,14 +863,14 @@ struct tracer *tracer_create(struct window *window) {
   win_add_listener(tracer->window, &tracer->listener);
 
   /* setup render context buffers */
-  tracer->rctx.surfs = tracer->surfs;
-  tracer->rctx.surfs_size = array_size(tracer->surfs);
-  tracer->rctx.verts = tracer->verts;
-  tracer->rctx.verts_size = array_size(tracer->verts);
-  tracer->rctx.sorted_surfs = tracer->sorted_surfs;
-  tracer->rctx.sorted_surfs_size = array_size(tracer->sorted_surfs);
-  tracer->rctx.states = tracer->states;
-  tracer->rctx.states_size = array_size(tracer->states);
+  tracer->rc.surfs = tracer->surfs;
+  tracer->rc.surfs_size = array_size(tracer->surfs);
+  tracer->rc.verts = tracer->verts;
+  tracer->rc.verts_size = array_size(tracer->verts);
+  tracer->rc.sorted_surfs = tracer->sorted_surfs;
+  tracer->rc.sorted_surfs_size = array_size(tracer->sorted_surfs);
+  tracer->rc.params = tracer->params;
+  tracer->rc.params_size = array_size(tracer->params);
 
   /* add all textures to free list */
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
@@ -914,13 +889,4 @@ struct tracer *tracer_create(struct window *window) {
   tracer->show_params[TA_PARAM_VERTEX] = false;
 
   return tracer;
-}
-
-void tracer_destroy(struct tracer *tracer) {
-  if (tracer->trace) {
-    trace_destroy(tracer->trace);
-  }
-  win_remove_listener(tracer->window, &tracer->listener);
-  tr_destroy(tracer->tr);
-  free(tracer);
 }

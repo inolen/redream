@@ -96,6 +96,8 @@ static void win_debug_menu(struct window *win) {
   ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
 
   if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
+    nk_window_set_bounds(ctx, bounds);
+
     nk_menubar_begin(ctx);
     nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT,
                         MAX_WINDOW_LISTENERS + 2);
@@ -959,7 +961,6 @@ struct window *win_create() {
 
   win->width = DEFAULT_WIDTH;
   win->height = DEFAULT_HEIGHT;
-  win->debug_menu = 1;
 
   /* initialize window */
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {
