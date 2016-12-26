@@ -478,13 +478,13 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
   /* override xyz values supplied by ISP_BACKGND_T. while the hardware docs act
      like they should be correct, they're most definitely not in most cases */
   v0->xyz[0] = 0.0f;
-  v0->xyz[1] = (float)ctx->rb_height;
+  v0->xyz[1] = (float)ctx->video_height;
   v0->xyz[2] = ctx->bg_depth;
   v1->xyz[0] = 0.0f;
   v1->xyz[1] = 0.0f;
   v1->xyz[2] = ctx->bg_depth;
-  v2->xyz[0] = (float)ctx->rb_width;
-  v2->xyz[1] = (float)ctx->rb_height;
+  v2->xyz[0] = (float)ctx->video_width;
+  v2->xyz[1] = (float)ctx->video_height;
   v2->xyz[2] = ctx->bg_depth;
 
   /* 4th vertex isn't supplied, fill it out automatically */
@@ -900,13 +900,13 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
   /* fudge so z isn't mapped to exactly 0.0 and 1.0 */
   float zdepth = (znear - zfar) * 1.1f;
 
-  rctx->projection[0] = 2.0f / (float)ctx->rb_width;
+  rctx->projection[0] = 2.0f / (float)ctx->video_width;
   rctx->projection[4] = 0.0f;
   rctx->projection[8] = 0.0f;
   rctx->projection[12] = -1.0f;
 
   rctx->projection[1] = 0.0f;
-  rctx->projection[5] = -2.0f / (float)ctx->rb_height;
+  rctx->projection[5] = -2.0f / (float)ctx->video_height;
   rctx->projection[9] = 0.0f;
   rctx->projection[13] = 1.0f;
 

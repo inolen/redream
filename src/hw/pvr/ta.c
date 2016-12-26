@@ -1,7 +1,6 @@
 #include "hw/pvr/ta.h"
 #include "core/list.h"
 #include "core/profiler.h"
-#include "core/rb_tree.h"
 #include "core/string.h"
 #include "hw/holly/holly.h"
 #include "hw/pvr/pixel_convert.h"
@@ -55,18 +54,14 @@ struct ta {
      are in a tree ordered by the context's guest address */
   struct tile_ctx contexts[TA_MAX_CONTEXTS];
   struct list free_contexts;
-  struct rb_tree live_contexts;
+  struct list live_contexts;
+  struct tile_ctx *next_context;
 
   /* the pending context is the last context requested to be rendered by the
      emulation thread. a mutex is used to synchronize access with the graphics
      thread */
   mutex_t pending_mutex;
   struct tile_ctx *pending_context;
-
-  /* buffers used by the tile contexts. allocating here instead of inside each
-     tile_ctx to avoid blowing the stack when a tile_ctx is needed temporarily
-     on the stack for searching */
-  uint8_t params[TA_MAX_CONTEXTS * TA_MAX_PARAMS];
 
   /* debug info */
   int frame;
@@ -106,22 +101,7 @@ static int ta_entry_cmp(const struct rb_node *rb_lhs,
   }
 }
 
-static int ta_context_cmp(const struct rb_node *rb_lhs,
-                          const struct rb_node *rb_rhs) {
-  const struct tile_ctx *lhs = rb_entry(rb_lhs, const struct tile_ctx, live_it);
-  const struct tile_ctx *rhs = rb_entry(rb_rhs, const struct tile_ctx, live_it);
-
-  if (lhs->addr < rhs->addr) {
-    return -1;
-  } else if (lhs->addr > rhs->addr) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
 static struct rb_callbacks ta_entry_cb = {&ta_entry_cmp, NULL, NULL};
-static struct rb_callbacks ta_context_cb = {&ta_context_cmp, NULL, NULL};
 
 /* See "57.1.1.2 Parameter Combinations" for information on the poly types. */
 static int ta_get_poly_type_raw(union pcw pcw) {
@@ -322,67 +302,66 @@ static void ta_palette_invalidated(const struct exception *ex, void *data) {
 }
 
 static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
-  struct tile_ctx search;
-  search.addr = addr;
-
-  return rb_find_entry(&ta->live_contexts, &search, struct tile_ctx, live_it,
-                       &ta_context_cb);
+  list_for_each_entry(ctx, &ta->live_contexts, struct tile_ctx, it) {
+    if (ctx->addr == addr) {
+      return ctx;
+    }
+  }
+  return NULL;
 }
 
 static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {
   /* remove from free list */
   struct tile_ctx *ctx =
-      list_first_entry(&ta->free_contexts, struct tile_ctx, free_it);
+      list_first_entry(&ta->free_contexts, struct tile_ctx, it);
   CHECK_NOTNULL(ctx);
-  list_remove(&ta->free_contexts, &ctx->free_it);
+  list_remove(&ta->free_contexts, &ctx->it);
 
   /* reset context */
-  uint8_t *params = ctx->params;
-  memset(ctx, 0, sizeof(*ctx));
   ctx->addr = addr;
-  ctx->params = params;
+  ctx->cursor = 0;
+  ctx->size = 0;
+  ctx->list_type = 0;
+  ctx->vertex_type = 0;
 
   /* add to live tree */
-  rb_insert(&ta->live_contexts, &ctx->live_it, &ta_context_cb);
+  list_add(&ta->live_contexts, &ctx->it);
 
   return ctx;
 }
 
 static void ta_unlink_context(struct ta *ta, struct tile_ctx *ctx) {
-  rb_unlink(&ta->live_contexts, &ctx->live_it, &ta_context_cb);
+  list_remove(&ta->live_contexts, &ctx->it);
 }
 
 static void ta_free_context(struct ta *ta, struct tile_ctx *ctx) {
-  list_add(&ta->free_contexts, &ctx->free_it);
+  list_add(&ta->free_contexts, &ctx->it);
 }
 
-static void ta_cont_context(struct ta *ta, uint32_t addr) {
-  struct tile_ctx *ctx = ta_get_context(ta, addr);
-  CHECK_NOTNULL(ctx);
-
-  ctx->list_type = TA_NUM_LISTS;
-  ctx->vertex_type = TA_NUM_VERTS;
-}
-
-static void ta_init_context(struct ta *ta, uint32_t addr) {
+static struct tile_ctx *ta_demand_context(struct ta *ta, uint32_t addr) {
   struct tile_ctx *ctx = ta_get_context(ta, addr);
 
   if (!ctx) {
     ctx = ta_alloc_context(ta, addr);
   }
 
-  ctx->addr = addr;
+  return ctx;
+}
+
+static void ta_cont_context(struct ta *ta, struct tile_ctx *ctx) {
+  ctx->list_type = TA_NUM_LISTS;
+  ctx->vertex_type = TA_NUM_VERTS;
+}
+
+static void ta_init_context(struct ta *ta, struct tile_ctx *ctx) {
   ctx->cursor = 0;
   ctx->size = 0;
   ctx->list_type = TA_NUM_LISTS;
   ctx->vertex_type = TA_NUM_VERTS;
 }
 
-static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
+static void ta_write_context(struct ta *ta, struct tile_ctx *ctx, void *ptr,
                              int size) {
-  struct tile_ctx *ctx = ta_get_context(ta, addr);
-  CHECK_NOTNULL(ctx);
-
   CHECK_LT(ctx->size + size, TA_MAX_PARAMS);
   memcpy(&ctx->params[ctx->size], ptr, size);
   ctx->size += size;
@@ -578,11 +557,11 @@ static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
   if (pvr->SPG_CONTROL->interlace ||
       (!pvr->SPG_CONTROL->NTSC && !pvr->SPG_CONTROL->PAL)) {
     /* interlaced and VGA mode both render at full resolution */
-    ctx->rb_width = 640;
-    ctx->rb_height = 480;
+    ctx->video_width = 640;
+    ctx->video_height = 480;
   } else {
-    ctx->rb_width = 320;
-    ctx->rb_height = 240;
+    ctx->video_width = 320;
+    ctx->video_height = 240;
   }
 
   /* according to the hardware docs, this is the correct calculation of the
@@ -650,10 +629,7 @@ static void ta_render_timer(void *data) {
   ta_end_render(ta);
 }
 
-static void ta_start_render(struct ta *ta, uint32_t addr) {
-  struct tile_ctx *ctx = ta_get_context(ta, addr);
-  CHECK_NOTNULL(ctx);
-
+static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
   /* save off required register state that may be modified by the time the
      context is rendered */
   ta_save_register_state(ta, ctx);
@@ -811,7 +787,7 @@ static void ta_poly_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
   uint8_t *src = ptr;
   uint8_t *end = src + size;
   while (src < end) {
-    ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, src, 32);
+    ta_write_context(ta, ta->next_context, src, 32);
     src += 32;
   }
 
@@ -861,10 +837,7 @@ static bool ta_init(struct device *dev) {
 
   for (int i = 0; i < array_size(ta->contexts); i++) {
     struct tile_ctx *ctx = &ta->contexts[i];
-
-    ctx->params = ta->params + (TA_MAX_PARAMS * i);
-
-    list_add(&ta->free_contexts, &ctx->free_it);
+    list_add(&ta->free_contexts, &ctx->it);
   }
 
   return true;
@@ -1024,7 +997,9 @@ REG_W32(pvr_cb, STARTRENDER) {
     return;
   }
 
-  ta_start_render(ta, ta->pvr->PARAM_BASE->base_address);
+  struct tile_ctx *ctx = ta_get_context(ta, ta->pvr->PARAM_BASE->base_address);
+  CHECK_NOTNULL(ctx);
+  ta_start_render(ta, ctx);
 }
 
 REG_W32(pvr_cb, TA_LIST_INIT) {
@@ -1034,7 +1009,9 @@ REG_W32(pvr_cb, TA_LIST_INIT) {
     return;
   }
 
-  ta_init_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  struct tile_ctx *ctx = ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  ta_init_context(ta, ctx);
+  ta->next_context = ctx;
 }
 
 REG_W32(pvr_cb, TA_LIST_CONT) {
@@ -1044,7 +1021,10 @@ REG_W32(pvr_cb, TA_LIST_CONT) {
     return;
   }
 
-  ta_cont_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  struct tile_ctx *ctx = ta_get_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  CHECK_NOTNULL(ctx);
+  ta_cont_context(ta, ctx);
+  ta->next_context = ctx;
 }
 
 REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
