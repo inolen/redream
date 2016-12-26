@@ -445,8 +445,8 @@ struct tile_ctx {
   bool autosort;
   int stride;
   int pal_pxl_format;
-  int rb_width;
-  int rb_height;
+  int video_width;
+  int video_height;
   union isp bg_isp;
   union tsp bg_tsp;
   union tcw bg_tcw;
@@ -454,7 +454,7 @@ struct tile_ctx {
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
   /* parameter buffer */
-  uint8_t *params;
+  uint8_t params[TA_MAX_PARAMS];
   int cursor;
   int size;
 
@@ -462,8 +462,7 @@ struct tile_ctx {
   int list_type;
   int vertex_type;
 
-  struct list_node free_it;
-  struct rb_node live_it;
+  struct list_node it;
 };
 
 #endif

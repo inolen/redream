@@ -177,8 +177,8 @@ static void tracer_copy_command(const struct trace_cmd *cmd,
   ctx->bg_tsp = cmd->context.bg_tsp;
   ctx->bg_tcw = cmd->context.bg_tcw;
   ctx->bg_depth = cmd->context.bg_depth;
-  ctx->rb_width = cmd->context.rb_width;
-  ctx->rb_height = cmd->context.rb_height;
+  ctx->video_width = cmd->context.video_width;
+  ctx->video_height = cmd->context.video_height;
   memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
          cmd->context.bg_vertices_size);
   memcpy(ctx->params, cmd->context.params, cmd->context.params_size);
@@ -886,9 +886,6 @@ struct tracer *tracer_create(struct window *window) {
   tracer->tr = tr_create(tracer->rb, &tracer->provider);
 
   win_add_listener(tracer->window, &tracer->listener);
-
-  /* setup tile context buffers */
-  tracer->ctx.params = tracer->params;
 
   /* setup render context buffers */
   tracer->rctx.surfs = tracer->surfs;

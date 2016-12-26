@@ -175,8 +175,8 @@ void trace_writer_render_context(struct trace_writer *writer,
   cmd.context.autosort = ctx->autosort;
   cmd.context.stride = ctx->stride;
   cmd.context.pal_pxl_format = ctx->pal_pxl_format;
-  cmd.context.rb_width = ctx->rb_width;
-  cmd.context.rb_height = ctx->rb_height;
+  cmd.context.video_width = ctx->video_width;
+  cmd.context.video_height = ctx->video_height;
   cmd.context.bg_isp = ctx->bg_isp;
   cmd.context.bg_tsp = ctx->bg_tsp;
   cmd.context.bg_tcw = ctx->bg_tcw;
