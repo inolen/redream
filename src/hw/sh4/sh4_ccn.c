@@ -79,8 +79,12 @@ REG_W32(sh4_cb, MMUCR) {
 
 REG_W32(sh4_cb, CCR) {
   struct sh4 *sh4 = dc->sh4;
+
   sh4->CCR->full = value;
+
   if (sh4->CCR->ICI) {
+    /* ICI is read-only */
+    sh4->CCR->ICI = 0;
     sh4_ccn_reset(sh4);
   }
 }
