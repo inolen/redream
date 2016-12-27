@@ -4,7 +4,9 @@
 #include "jit/frontend/jit_frontend.h"
 #include "jit/jit.h"
 
-enum armv3_block_flags { PC_SET = 0x1 };
+enum armv3_block_flags {
+  PC_SET = 0x1,
+};
 
 struct armv3_frontend {
   struct jit_frontend;
@@ -17,7 +19,7 @@ struct armv3_frontend {
   void (*software_interrupt)(void *);
 };
 
-struct jit_frontend *armv3_frontend_create(struct jit *jit);
-void armv3_frontend_destroy(struct jit_frontend *frontend);
+struct armv3_frontend *armv3_frontend_create(struct jit *jit);
+void armv3_frontend_destroy(struct armv3_frontend *frontend);
 
 #endif

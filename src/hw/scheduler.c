@@ -24,7 +24,9 @@ struct scheduler {
 };
 
 void scheduler_cancel_timer(struct scheduler *sch, struct timer *timer) {
-  CHECK_EQ(timer->active, 1);
+  if (!timer->active) {
+    return;
+  }
 
   timer->active = 0;
   list_remove(&sch->live_timers, &timer->it);

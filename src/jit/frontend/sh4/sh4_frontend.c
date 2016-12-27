@@ -52,17 +52,16 @@ static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
   }
 }
 
-struct jit_frontend *sh4_frontend_create(struct jit *jit) {
+void sh4_frontend_destroy(struct sh4_frontend *frontend) {
+  free(frontend);
+}
+
+struct sh4_frontend *sh4_frontend_create(struct jit *jit) {
   struct sh4_frontend *frontend = calloc(1, sizeof(struct sh4_frontend));
 
   frontend->jit = jit;
   frontend->translate_code = &sh4_frontend_translate_code;
   frontend->dump_code = &sh4_frontend_dump_code;
 
-  return (struct jit_frontend *)frontend;
-}
-
-void sh4_frontend_destroy(struct jit_frontend *base) {
-  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  free(frontend);
+  return frontend;
 }

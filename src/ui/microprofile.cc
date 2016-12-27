@@ -290,10 +290,9 @@ struct microprofile *mp_create(struct window *window) {
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
 
   /* register the font texture */
-  mp->font_texture =
-      rb_create_texture(rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
-                        WRAP_CLAMP_TO_EDGE, 0, FONT_WIDTH, FONT_HEIGHT,
-                        reinterpret_cast<const uint8_t *>(s_font_data));
+  mp->font_texture = rb_create_texture(
+      rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE, WRAP_CLAMP_TO_EDGE, 0,
+      FONT_WIDTH, FONT_HEIGHT, reinterpret_cast<const uint8_t *>(s_font_data));
 
   return mp;
 }
