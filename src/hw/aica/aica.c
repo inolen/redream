@@ -545,7 +545,7 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
     case 0xa0:
     case 0xa1: { /* SCIPD */
       /* only AICA_INT_DATA can be written to */
-      CHECK(DATA_SIZE() == 2 && addr == 0xa0);
+      CHECK(DATA_SIZE() >= 2 && addr == 0xa0);
       aica->common_data->SCIPD = old_data | (data & (1 << AICA_INT_DATA));
       aica_update_arm(aica);
     } break;
@@ -561,7 +561,7 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
     case 0xb8:
     case 0xb9: { /* MCIPD */
       /* only AICA_INT_DATA can be written to */
-      CHECK(DATA_SIZE() == 2 && addr == 0xb8);
+      CHECK(DATA_SIZE() >= 2 && addr == 0xb8);
       aica->common_data->MCIPD = old_data | (data & (1 << AICA_INT_DATA));
       aica_update_sh(aica);
     } break;
