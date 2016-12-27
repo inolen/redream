@@ -3,6 +3,7 @@
 
 #define XBYAK_NO_OP_NAMES
 #include <xbyak/xbyak.h>
+#include <xbyak/xbyak_util.h>
 
 extern "C" {
 #include "core/profiler.h"
@@ -1643,9 +1644,7 @@ EMITTER(CALL_FALLBACK) {
 
 EMITTER(DEBUG_INFO) {}
 
-void x64_backend_destroy(struct jit_backend *jit_backend) {
-  struct x64_backend *backend = (struct x64_backend *)jit_backend;
-
+void x64_backend_destroy(struct x64_backend *backend) {
   cs_close(&backend->capstone_handle);
 
   delete backend->codegen;
@@ -1653,8 +1652,16 @@ void x64_backend_destroy(struct jit_backend *jit_backend) {
   free(backend);
 }
 
-struct jit_backend *x64_backend_create(struct jit *jit, void *code,
+struct x64_backend *x64_backend_create(struct jit *jit, void *code,
                                        int code_size, int stack_size) {
+  /* AVX is used instead of SSE purely because its 3 argument instructions
+     are easier to emit for */
+  Xbyak::util::Cpu cpu;
+  if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
+    LOG_WARNING("Failed to create x64 backend, CPU does not support AVX");
+    return NULL;
+  }
+
   struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
       calloc(1, sizeof(struct x64_backend)));
 
@@ -1677,5 +1684,5 @@ struct jit_backend *x64_backend_create(struct jit *jit, void *code,
   /* do an initial reset to emit constants and thunks */
   x64_backend_reset((jit_backend *)backend);
 
-  return (struct jit_backend *)backend;
+  return backend;
 }

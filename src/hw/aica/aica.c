@@ -201,18 +201,6 @@ static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
       scheduler_start_timer(aica->scheduler, timer_cbs[n], aica, remaining);
 }
 
-static void aica_timer_shutdown(struct aica *aica) {
-  for (int i = 0; i < 3; i++) {
-    scheduler_cancel_timer(aica->scheduler, aica->timers[i]);
-  }
-}
-
-static void aica_timer_init(struct aica *aica) {
-  for (int i = 0; i < 3; i++) {
-    aica_timer_reschedule(aica, i, AICA_TIMER_PERIOD);
-  }
-}
-
 static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
                                   uint32_t data_mask) {
   switch (addr) {
@@ -254,23 +242,6 @@ static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
 static void aica_rtc_timer(void *data) {
   struct aica *aica = data;
   aica->rtc++;
-  aica->rtc_timer =
-      scheduler_start_timer(aica->scheduler, &aica_rtc_timer, aica, NS_PER_SEC);
-}
-
-static void aica_rtc_shutdown(struct aica *aica) {
-  scheduler_cancel_timer(aica->scheduler, aica->rtc_timer);
-
-  /* persist clock */
-  OPTION_rtc = *(int *)&aica->rtc;
-}
-
-static void aica_rtc_init(struct aica *aica) {
-  /* seed clock from persistant options */
-  CHECK(sizeof(aica->rtc) <= sizeof(OPTION_rtc));
-  aica->rtc = *(uint32_t *)&OPTION_rtc;
-
-  /* increment clock every second */
   aica->rtc_timer =
       scheduler_start_timer(aica->scheduler, &aica_rtc_timer, aica, NS_PER_SEC);
 }
@@ -675,28 +646,66 @@ static int aica_init(struct device *dev) {
 
   aica->wave_ram = memory_translate(aica->memory, "aica wave ram", 0x00000000);
 
-  /* setup channel data aliases */
-  for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
-    struct aica_channel *ch = &aica->channels[i];
-    ch->data =
-        (struct channel_data *)(aica->reg + sizeof(struct channel_data) * i);
+  /* init channels */
+  {
+    for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
+      struct aica_channel *ch = &aica->channels[i];
+      ch->data =
+          (struct channel_data *)(aica->reg + sizeof(struct channel_data) * i);
+    }
+    aica->common_data = (struct common_data *)(aica->reg + 0x2800);
+    aica->sample_timer =
+        scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
+                              HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
   }
-  aica->common_data = (struct common_data *)(aica->reg + 0x2800);
 
-  aica_timer_init(aica);
-  aica_rtc_init(aica);
+  /* init timers */
+  {
+    for (int i = 0; i < 3; i++) {
+      aica_timer_reschedule(aica, i, AICA_TIMER_PERIOD);
+    }
+  }
 
-  aica->sample_timer =
-      scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
-                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
+  /* init rtc */
+  {
+    /* seed clock from persistant options */
+    CHECK(sizeof(aica->rtc) <= sizeof(OPTION_rtc));
+    aica->rtc = *(uint32_t *)&OPTION_rtc;
+
+    /* increment clock every second */
+    aica->rtc_timer = scheduler_start_timer(aica->scheduler, &aica_rtc_timer,
+                                            aica, NS_PER_SEC);
+  }
 
   return 1;
 }
 
 void aica_destroy(struct aica *aica) {
-  scheduler_cancel_timer(aica->scheduler, aica->sample_timer);
-  aica_rtc_shutdown(aica);
-  aica_timer_shutdown(aica);
+  /* shutdown rtc */
+  {
+    if (aica->rtc_timer) {
+      scheduler_cancel_timer(aica->scheduler, aica->rtc_timer);
+    }
+
+    /* persist clock */
+    OPTION_rtc = *(int *)&aica->rtc;
+  }
+
+  /* shutdown timers */
+  {
+    for (int i = 0; i < 3; i++) {
+      if (aica->timers[i]) {
+        scheduler_cancel_timer(aica->scheduler, aica->timers[i]);
+      }
+    }
+  }
+
+  /* shutdown channels */
+  {
+    if (aica->sample_timer) {
+      scheduler_cancel_timer(aica->scheduler, aica->sample_timer);
+    }
+  }
 
   ringbuf_destroy(aica->frames);
   dc_destroy_window_interface(aica->window_if);

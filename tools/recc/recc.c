@@ -176,10 +176,10 @@ int main(int argc, char **argv) {
   guest.w16 = (void *)code;
   guest.w32 = (void *)code;
 
-  struct jit_backend *backend =
+  struct x64_backend *backend =
       x64_backend_create(jit, code, code_size, stack_size);
 
-  CHECK(jit_init(jit, &guest, NULL, backend));
+  CHECK(jit_init(jit, &guest, NULL, (struct jit_backend *)backend));
 
   if (fs_isfile(path)) {
     process_file(jit, path, 0);

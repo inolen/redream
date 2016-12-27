@@ -70,12 +70,10 @@ void dc_suspend(struct dreamcast *dc) {
 
 int dc_init(struct dreamcast *dc) {
   if (dc->debugger && !debugger_init(dc->debugger)) {
-    dc_destroy(dc);
     return 0;
   }
 
   if (!memory_init(dc->memory)) {
-    dc_destroy(dc);
     return 0;
   }
 
@@ -97,8 +95,6 @@ int dc_init(struct dreamcast *dc) {
     dev->ta = dc->ta;
 
     if (!dev->init(dev)) {
-      LOG_INFO("Device \"%s\" failed to initialize", dev->name);
-      dc_destroy(dc);
       return 0;
     }
   }

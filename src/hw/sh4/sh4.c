@@ -167,8 +167,7 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
       i += 2;
     }
 
-    sh4_emit_instr((struct sh4_frontend *)sh4->frontend, ir, as.flags, &instr,
-                   &delay_instr);
+    sh4_emit_instr(sh4->frontend, ir, as.flags, &instr, &delay_instr);
   }
 
   /* if the block terminates before a branch, fallthrough to the next pc */
@@ -290,39 +289,51 @@ static int sh4_init(struct device *dev) {
   /* initialize jit and its interfaces */
   sh4->jit = jit_create("sh4");
 
-  sh4_dispatch_init(sh4, sh4->jit, &sh4->ctx, sh4->memory_if->space->base);
+  { sh4_dispatch_init(sh4, sh4->jit, &sh4->ctx, sh4->memory_if->space->base); }
 
-  struct jit_guest *guest = &sh4->guest;
-  guest->ctx = &sh4->ctx;
-  guest->mem = sh4->memory_if->space->base;
-  guest->space = sh4->memory_if->space;
-  guest->lookup_code = &sh4_dispatch_lookup_code;
-  guest->cache_code = &sh4_dispatch_cache_code;
-  guest->invalidate_code = &sh4_dispatch_invalidate_code;
-  guest->patch_edge = &sh4_dispatch_patch_edge;
-  guest->restore_edge = &sh4_dispatch_restore_edge;
-  guest->r8 = &as_read8;
-  guest->r16 = &as_read16;
-  guest->r32 = &as_read32;
-  guest->w8 = &as_write8;
-  guest->w16 = &as_write16;
-  guest->w32 = &as_write32;
+  {
+    sh4->guest.ctx = &sh4->ctx;
+    sh4->guest.mem = sh4->memory_if->space->base;
+    sh4->guest.space = sh4->memory_if->space;
+    sh4->guest.lookup_code = &sh4_dispatch_lookup_code;
+    sh4->guest.cache_code = &sh4_dispatch_cache_code;
+    sh4->guest.invalidate_code = &sh4_dispatch_invalidate_code;
+    sh4->guest.patch_edge = &sh4_dispatch_patch_edge;
+    sh4->guest.restore_edge = &sh4_dispatch_restore_edge;
+    sh4->guest.r8 = &as_read8;
+    sh4->guest.r16 = &as_read16;
+    sh4->guest.r32 = &as_read32;
+    sh4->guest.w8 = &as_write8;
+    sh4->guest.w16 = &as_write16;
+    sh4->guest.w32 = &as_write32;
+  }
 
-  struct sh4_frontend *frontend =
-      (struct sh4_frontend *)sh4_frontend_create(sh4->jit);
-  frontend->data = sh4;
-  frontend->translate = &sh4_translate;
-  frontend->invalid_instr = &sh4_invalid_instr;
-  frontend->sq_prefetch = &sh4_ccn_sq_prefetch;
-  frontend->sr_updated = &sh4_sr_updated;
-  frontend->fpscr_updated = &sh4_fpscr_updated;
-  sh4->frontend = (struct jit_frontend *)frontend;
+  {
+    sh4->frontend = sh4_frontend_create(sh4->jit);
 
-  struct jit_backend *backend =
-      x64_backend_create(sh4->jit, sh4_code, sh4_code_size, sh4_stack_size);
-  sh4->backend = backend;
+    if (!sh4->frontend) {
+      return 0;
+    }
 
-  if (!jit_init(sh4->jit, &sh4->guest, sh4->frontend, sh4->backend)) {
+    sh4->frontend->data = sh4;
+    sh4->frontend->translate = &sh4_translate;
+    sh4->frontend->invalid_instr = &sh4_invalid_instr;
+    sh4->frontend->sq_prefetch = &sh4_ccn_sq_prefetch;
+    sh4->frontend->sr_updated = &sh4_sr_updated;
+    sh4->frontend->fpscr_updated = &sh4_fpscr_updated;
+  }
+
+  {
+    sh4->backend =
+        x64_backend_create(sh4->jit, sh4_code, sh4_code_size, sh4_stack_size);
+
+    if (!sh4->backend) {
+      return 0;
+    }
+  }
+
+  if (!jit_init(sh4->jit, &sh4->guest, (struct jit_frontend *)sh4->frontend,
+                (struct jit_backend *)sh4->backend)) {
     return 0;
   }
 

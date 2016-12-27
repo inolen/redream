@@ -403,7 +403,9 @@ void jit_destroy(struct jit *jit) {
     }
   }
 
-  jit_free_blocks(jit);
+  if (jit->backend) {
+    jit_free_blocks(jit);
+  }
 
   if (jit->exc_handler) {
     exception_handler_remove(jit->exc_handler);

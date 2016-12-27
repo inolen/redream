@@ -234,7 +234,7 @@ static void rb_print_shader_log(GLuint shader) {
 }
 
 static int rb_compile_shader(const char *source, GLenum shader_type,
-                              GLuint *shader) {
+                             GLuint *shader) {
   size_t sourceLength = strlen(source);
 
   *shader = glCreateShader(shader_type);
@@ -267,8 +267,8 @@ static void rb_destroy_program(struct shader_program *program) {
 }
 
 static int rb_compile_program(struct shader_program *program,
-                               const char *header, const char *vertex_source,
-                               const char *fragment_source) {
+                              const char *header, const char *vertex_source,
+                              const char *fragment_source) {
   char buffer[16384] = {0};
 
   memset(program, 0, sizeof(*program));
