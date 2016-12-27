@@ -15,8 +15,8 @@
 #include "ui/window.h"
 #include "video/render_backend.h"
 
-#define NK_MAX_VERTICES 4096
-#define NK_MAX_ELEMENTS 16384
+#define NK_MAX_VERTICES 16384
+#define NK_MAX_ELEMENTS (NK_MAX_VERTICES * 4)
 
 struct nuklear {
   struct window *window;

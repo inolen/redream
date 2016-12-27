@@ -72,8 +72,8 @@ struct tracer {
   struct tr *tr;
 
   /* ui state */
-  int show_params[TA_NUM_PARAMS];
-  bool running;
+  int hide_params[TA_NUM_PARAMS];
+  int running;
 
   /* trace state */
   struct trace *trace;
@@ -185,8 +185,8 @@ static void tracer_copy_context(const struct trace_cmd *cmd,
   ctx->size = cmd->context.params_size;
 }
 
-static inline bool tracer_param_hidden(struct tracer *tracer, union pcw pcw) {
-  return !tracer->show_params[pcw.para_type];
+static inline int tracer_param_hidden(struct tracer *tracer, union pcw pcw) {
+  return tracer->hide_params[pcw.para_type];
 }
 
 static void tracer_prev_param(struct tracer *tracer) {
@@ -327,7 +327,7 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
     nk_size frame = tracer->ctx.frame - tracer->trace->first_frame;
     nk_size max_frames = tracer->trace->last_frame - tracer->trace->first_frame;
 
-    if (nk_progress(ctx, &frame, max_frames - 1, true)) {
+    if (nk_progress(ctx, &frame, max_frames - 1, 1)) {
       int delta = tracer->trace->first_frame + (int)frame - tracer->ctx.frame;
 
       for (int i = 0; i < ABS(delta); i++) {
@@ -349,9 +349,6 @@ static void tracer_param_tooltip(struct tracer *tracer,
   if (nk_tooltip_begin(ctx, 300.0f)) {
     nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
 
-    nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", list_names[rp->list_type]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", rp->surf - tracer->rc.surfs);
-
     /* find sorted position */
     int sort = 0;
     for (int i = 0; i < tracer->rc.num_surfs; i++) {
@@ -363,17 +360,20 @@ static void tracer_param_tooltip(struct tracer *tracer,
         break;
       }
     }
-    nk_labelf(ctx, NK_TEXT_LEFT, "sort: %d", sort);
 
     /* render source TA information */
     union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
+
+    nk_labelf(ctx, NK_TEXT_LEFT, "pcw: 0x%x", pcw.full);
+    nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", list_names[rp->list_type]);
+    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", rp->surf - tracer->rc.surfs);
+    nk_labelf(ctx, NK_TEXT_LEFT, "sort: %d", sort);
 
     if (pcw.para_type == TA_PARAM_POLY_OR_VOL ||
         pcw.para_type == TA_PARAM_SPRITE) {
       const union poly_param *param =
           (const union poly_param *)(tracer->ctx.params + rp->offset);
 
-      nk_labelf(ctx, NK_TEXT_LEFT, "pcw: 0x%x", param->type0.pcw.full);
       nk_labelf(ctx, NK_TEXT_LEFT, "isp_tsp: 0x%x", param->type0.isp_tsp.full);
       nk_labelf(ctx, NK_TEXT_LEFT, "tsp: 0x%x", param->type0.tsp.full);
       nk_labelf(ctx, NK_TEXT_LEFT, "tcw: 0x%x", param->type0.tcw.full);
@@ -470,11 +470,12 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 4:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
-                    param->type4.xyz[0], param->type4.xyz[1],
-                    param->type4.xyz[2]);
-          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type4.uv[0],
-                    param->type4.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {0x%x, 0x%x, 0x%x}",
+                    *(uint32_t *)(float *)&param->type4.xyz[0],
+                    *(uint32_t *)(float *)&param->type4.xyz[1],
+                    *(uint32_t *)(float *)&param->type4.xyz[2]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type4.vu[1],
+                    param->type4.vu[0]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_color: 0x%x",
                     param->type4.base_color);
           nk_labelf(ctx, NK_TEXT_LEFT, "offset_color: 0x%x",
@@ -509,8 +510,8 @@ static void tracer_param_tooltip(struct tracer *tracer,
           nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
                     param->type6.xyz[0], param->type6.xyz[1],
                     param->type6.xyz[2]);
-          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type6.uv[0],
-                    param->type6.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type6.vu[1],
+                    param->type6.vu[0]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_color_a: %.2f",
                     param->type6.base_color_a);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_color_r: %.2f",
@@ -545,8 +546,8 @@ static void tracer_param_tooltip(struct tracer *tracer,
           nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
                     param->type8.xyz[0], param->type8.xyz[1],
                     param->type8.xyz[2]);
-          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type8.uv[0],
-                    param->type8.uv[1]);
+          nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type8.vu[1],
+                    param->type8.vu[0]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_intensity: %.2f",
                     param->type8.base_intensity);
           nk_labelf(ctx, NK_TEXT_LEFT, "offset_intensity: %.2f",
@@ -587,6 +588,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
 
       /* TODO separator */
 
+      nk_labelf(ctx, NK_TEXT_LEFT, "vert: %d", rp->vert - tracer->rc.verts);
       nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}", vert->xyz[0],
                 vert->xyz[1], vert->xyz[2]);
       nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", vert->uv[0],
@@ -623,9 +625,9 @@ static void tracer_render_side_menu(struct tracer *tracer) {
       /* param filters */
       if (nk_tree_push(ctx, NK_TREE_TAB, "filters", NK_MINIMIZED)) {
         for (int i = 0; i < TA_NUM_PARAMS; i++) {
-          snprintf(label, sizeof(label), "Show %s", param_names[i]);
+          snprintf(label, sizeof(label), "Hide %s", param_names[i]);
           nk_checkbox_text(ctx, label, (int)strlen(label),
-                           &tracer->show_params[i]);
+                           &tracer->hide_params[i]);
         }
 
         nk_tree_pop(ctx);
@@ -804,10 +806,10 @@ static void tracer_keydown(void *data, int device_index, enum keycode code,
 static void tracer_close(void *data) {
   struct tracer *tracer = data;
 
-  tracer->running = false;
+  tracer->running = 0;
 }
 
-static bool tracer_parse(struct tracer *tracer, const char *path) {
+static int tracer_parse(struct tracer *tracer, const char *path) {
   if (tracer->trace) {
     trace_destroy(tracer->trace);
     tracer->trace = NULL;
@@ -817,12 +819,12 @@ static bool tracer_parse(struct tracer *tracer, const char *path) {
 
   if (!tracer->trace) {
     LOG_WARNING("Failed to parse %s", path);
-    return false;
+    return 0;
   }
 
   tracer_reset_context(tracer);
 
-  return true;
+  return 1;
 }
 
 void tracer_run(struct tracer *tracer, const char *path) {
@@ -830,7 +832,7 @@ void tracer_run(struct tracer *tracer, const char *path) {
     return;
   }
 
-  tracer->running = true;
+  tracer->running = 1;
 
   while (tracer->running) {
     win_pump_events(tracer->window);
@@ -878,16 +880,6 @@ struct tracer *tracer_create(struct window *window) {
     struct tracer_texture_entry *entry = &tracer->textures[i];
     list_add(&tracer->free_textures, &entry->free_it);
   }
-
-  /* initial param filters */
-  tracer->show_params[TA_PARAM_END_OF_LIST] = 1;
-  tracer->show_params[TA_PARAM_USER_TILE_CLIP] = 1;
-  tracer->show_params[TA_PARAM_OBJ_LIST_SET] = 1;
-  tracer->show_params[TA_PARAM_RESERVED0] = 1;
-  tracer->show_params[TA_PARAM_POLY_OR_VOL] = 1;
-  tracer->show_params[TA_PARAM_SPRITE] = 1;
-  tracer->show_params[TA_PARAM_RESERVED1] = 1;
-  tracer->show_params[TA_PARAM_VERTEX] = false;
 
   return tracer;
 }

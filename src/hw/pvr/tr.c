@@ -1,4 +1,5 @@
 #include <float.h>
+#include <math.h>
 #include <string.h>
 #include "hw/pvr/tr.h"
 #include "core/assert.h"
@@ -687,8 +688,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
       vert->xyz[2] = param->type4.xyz[2];
       tr_parse_color(tr, param->type4.base_color, &vert->color);
       tr_parse_offset_color(tr, param->type4.offset_color, &vert->offset_color);
-      uint32_t u = param->type4.uv[0] << 16;
-      uint32_t v = param->type4.uv[0] << 16;
+      uint32_t u = param->type4.vu[1] << 16;
+      uint32_t v = param->type4.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
       vert->uv[1] = *(float *)&v;
     } break;
@@ -721,8 +722,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
           tr, param->type6.offset_color_r, param->type6.offset_color_g,
           param->type6.offset_color_b, param->type6.offset_color_a,
           &vert->offset_color);
-      uint32_t u = param->type6.uv[0] << 16;
-      uint32_t v = param->type6.uv[0] << 16;
+      uint32_t u = param->type6.vu[1] << 16;
+      uint32_t v = param->type6.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
       vert->uv[1] = *(float *)&v;
     } break;
@@ -747,8 +748,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
       tr_parse_color_intensity(tr, param->type8.base_intensity, &vert->color);
       tr_parse_offset_color_intensity(tr, param->type8.offset_intensity,
                                       &vert->offset_color);
-      uint32_t u = param->type8.uv[0] << 16;
-      uint32_t v = param->type8.uv[0] << 16;
+      uint32_t u = param->type8.vu[1] << 16;
+      uint32_t v = param->type8.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
       vert->uv[1] = *(float *)&v;
     } break;
@@ -876,11 +877,16 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
      TA are in window space, while the z component is 1/w with +z headed into
      the screen. these coordinates need to be scaled back into ndc space, and
      z needs to be flipped so that -z is headed into the screen */
+
+  /* TODO track this while parsing vertices */
   float znear = -FLT_MAX;
   float zfar = FLT_MAX;
 
   for (int i = 0; i < rc->num_verts; i++) {
     struct vertex *v = &rc->verts[i];
+    if (!isfinite(v->xyz[2])) {
+      continue;
+    }
     if (v->xyz[2] > znear) {
       znear = v->xyz[2];
     }
