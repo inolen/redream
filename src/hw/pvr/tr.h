@@ -26,7 +26,6 @@ struct texture_entry {
   enum filter_mode filter;
   enum wrap_mode wrap_u;
   enum wrap_mode wrap_v;
-  bool mipmaps;
   int width;
   int height;
   texture_handle_t handle;

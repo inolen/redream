@@ -87,7 +87,7 @@ struct tracer {
   struct surface surfs[TA_MAX_SURFS];
   struct vertex verts[TA_MAX_VERTS];
   int sorted_surfs[TA_MAX_SURFS];
-  struct render_param params[TA_MAX_PARAMS / 32];
+  struct render_param params[TA_MAX_PARAMS];
 
   struct tracer_texture_entry textures[1024];
   struct rb_tree live_textures;
@@ -128,32 +128,6 @@ static struct tracer_texture_entry *tracer_find_texture(struct tracer *tracer,
                        &tracer_texture_cb);
 }
 
-static void tracer_add_texture(struct tracer *tracer, union tsp tsp,
-                               union tcw tcw, int frame, const uint8_t *palette,
-                               const uint8_t *texture) {
-  struct tracer_texture_entry *entry = tracer_find_texture(tracer, tsp, tcw);
-  int new_entry = 0;
-
-  if (!entry) {
-    entry = list_first_entry(&tracer->free_textures,
-                             struct tracer_texture_entry, free_it);
-    CHECK_NOTNULL(entry);
-    list_remove(&tracer->free_textures, &entry->free_it);
-
-    entry->tsp = tsp;
-    entry->tcw = tcw;
-
-    rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
-
-    new_entry = 1;
-  }
-
-  entry->frame = frame;
-  entry->dirty = new_entry ? 0 : 1;
-  entry->palette = palette;
-  entry->texture = texture;
-}
-
 static struct texture_entry *tracer_texture_provider_find_texture(
     void *data, union tsp tsp, union tcw tcw) {
   struct tracer *tracer = data;
@@ -164,9 +138,35 @@ static struct texture_entry *tracer_texture_provider_find_texture(
   return (struct texture_entry *)entry;
 }
 
-static void tracer_copy_command(const struct trace_cmd *cmd,
+static void tracer_add_texture(struct tracer *tracer,
+                               const struct trace_cmd *cmd) {
+  CHECK_EQ(cmd->type, TRACE_CMD_TEXTURE);
+
+  struct tracer_texture_entry *entry =
+      tracer_find_texture(tracer, cmd->texture.tsp, cmd->texture.tcw);
+
+  if (!entry) {
+    entry = list_first_entry(&tracer->free_textures,
+                             struct tracer_texture_entry, free_it);
+    CHECK_NOTNULL(entry);
+    list_remove(&tracer->free_textures, &entry->free_it);
+
+    entry->tsp = cmd->texture.tsp;
+    entry->tcw = cmd->texture.tcw;
+
+    rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
+  }
+
+  entry->frame = cmd->texture.frame;
+  entry->dirty = 1;
+  entry->texture = cmd->texture.texture;
+  entry->texture_size = cmd->texture.texture_size;
+  entry->palette = cmd->texture.palette;
+  entry->palette_size = cmd->texture.palette_size;
+}
+
+static void tracer_copy_context(const struct trace_cmd *cmd,
                                 struct tile_ctx *ctx) {
-  /* copy TRACE_CMD_CONTEXT to the current context being rendered */
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
   ctx->frame = cmd->context.frame;
@@ -194,7 +194,7 @@ static void tracer_prev_param(struct tracer *tracer) {
 
   while (i--) {
     struct render_param *rp = &tracer->rc.params[i];
-    union pcw pcw = *(const union pcw *)(tracer->params + rp->offset);
+    union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
 
     /* found the next visible param */
     if (!tracer_param_hidden(tracer, pcw)) {
@@ -210,7 +210,7 @@ static void tracer_next_param(struct tracer *tracer) {
 
   while (++i < tracer->rc.num_params) {
     struct render_param *rp = &tracer->rc.params[i];
-    union pcw pcw = *(const union pcw *)(tracer->params + rp->offset);
+    union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
 
     /* found the next visible param */
     if (!tracer_param_hidden(tracer, pcw)) {
@@ -247,11 +247,7 @@ static void tracer_prev_context(struct tracer *tracer) {
       struct trace_cmd * override = curr->override;
 
       if (override) {
-        CHECK_EQ(override->type, TRACE_CMD_TEXTURE);
-
-        tracer_add_texture(tracer, override->texture.tsp, override->texture.tcw,
-                           override->texture.frame, override->texture.palette,
-                           override->texture.texture);
+        tracer_add_texture(tracer, override);
       }
     }
 
@@ -261,7 +257,7 @@ static void tracer_prev_context(struct tracer *tracer) {
   tracer->current_cmd = prev;
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
-  tracer_copy_command(tracer->current_cmd, &tracer->ctx);
+  tracer_copy_context(tracer->current_cmd, &tracer->ctx);
   tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rc);
 }
 
@@ -289,9 +285,7 @@ static void tracer_next_context(struct tracer *tracer) {
 
   while (curr != next) {
     if (curr->type == TRACE_CMD_TEXTURE) {
-      tracer_add_texture(tracer, curr->texture.tsp, curr->texture.tcw,
-                         curr->texture.frame, curr->texture.palette,
-                         curr->texture.texture);
+      tracer_add_texture(tracer, curr);
     }
 
     curr = curr->next;
@@ -300,7 +294,7 @@ static void tracer_next_context(struct tracer *tracer) {
   tracer->current_cmd = next;
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
-  tracer_copy_command(tracer->current_cmd, &tracer->ctx);
+  tracer_copy_context(tracer->current_cmd, &tracer->ctx);
   tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rc);
 }
 
@@ -372,12 +366,12 @@ static void tracer_param_tooltip(struct tracer *tracer,
     nk_labelf(ctx, NK_TEXT_LEFT, "sort: %d", sort);
 
     /* render source TA information */
-    union pcw pcw = *(const union pcw *)(tracer->params + rp->offset);
+    union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
 
     if (pcw.para_type == TA_PARAM_POLY_OR_VOL ||
         pcw.para_type == TA_PARAM_SPRITE) {
       const union poly_param *param =
-          (const union poly_param *)(tracer->params + rp->offset);
+          (const union poly_param *)(tracer->ctx.params + rp->offset);
 
       nk_labelf(ctx, NK_TEXT_LEFT, "pcw: 0x%x", param->type0.pcw.full);
       nk_labelf(ctx, NK_TEXT_LEFT, "isp_tsp: 0x%x", param->type0.isp_tsp.full);
@@ -428,7 +422,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
       }
     } else if (pcw.para_type == TA_PARAM_VERTEX) {
       const union vert_param *param =
-          (const union vert_param *)(tracer->params + rp->offset);
+          (const union vert_param *)(tracer->ctx.params + rp->offset);
 
       nk_labelf(ctx, NK_TEXT_LEFT, "vert type: %d", rp->vertex_type);
 
@@ -641,7 +635,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
       if (nk_tree_push(ctx, NK_TREE_TAB, "params", 0)) {
         for (int i = 0; i < tracer->rc.num_params; i++) {
           struct render_param *rp = &tracer->rc.params[i];
-          union pcw pcw = *(const union pcw *)(tracer->params + rp->offset);
+          union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
 
           int selected = (i == tracer->current_param);
 
@@ -717,7 +711,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
               if (nk_group_begin(ctx, "texture info", NK_WINDOW_NO_SCROLLBAR)) {
                 nk_layout_row_static(ctx, ctx->style.font->height, 184, 1);
                 nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
-                          entry->tcw.texture_addr << 3);
+                          ta_texture_addr(entry->tcw));
                 nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
                           pxl_names[entry->format]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
@@ -726,9 +720,16 @@ static void tracer_render_side_menu(struct tracer *tracer) {
                           wrap_names[entry->wrap_u]);
                 nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
                           wrap_names[entry->wrap_v]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d", entry->mipmaps);
+                nk_labelf(ctx, NK_TEXT_LEFT, "twiddled: %d",
+                          ta_texture_twiddled(entry->tcw));
+                nk_labelf(ctx, NK_TEXT_LEFT, "compressed: %d",
+                          ta_texture_compressed(entry->tcw));
+                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d",
+                          ta_texture_mipmaps(entry->tcw));
                 nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->width);
                 nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->height);
+                nk_labelf(ctx, NK_TEXT_LEFT, "texture_size: %d",
+                          entry->texture_size);
                 nk_group_end(ctx);
               }
 

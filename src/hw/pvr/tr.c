@@ -146,13 +146,13 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 
   /* textures are either twiddled and vq compressed, twiddled and uncompressed
      or planar */
-  bool twiddled = !tcw.scan_order;
-  bool compressed = tcw.vq_compressed;
-  bool mip_mapped = !tcw.scan_order && tcw.mip_mapped;
+  int twiddled = ta_texture_twiddled(tcw);
+  int compressed = ta_texture_compressed(tcw);
+  int mipmaps = ta_texture_mipmaps(tcw);
 
   /* get texture dimensions */
-  int width = 8 << tsp.texture_u_size;
-  int height = mip_mapped ? width : 8 << tsp.texture_v_size;
+  int width = ta_texture_width(tsp, tcw);
+  int height = ta_texture_height(tsp, tcw);
   int stride = width;
   if (!twiddled && tcw.stride_select) {
     stride = ctx->stride;
@@ -160,7 +160,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 
   /* mipmap textures contain data for 1 x 1 up to width x height. skip to the
      highest res and let the renderer backend generate its own mipmaps */
-  if (mip_mapped) {
+  if (mipmaps) {
     if (compressed) {
       /* for vq compressed textures the offset is only for the index data, the
          codebook is the same for all levels */
@@ -175,9 +175,8 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
   }
 
   /* used by vq compressed textures */
-  static const int codebook_size = 256 * 8;
   const uint8_t *codebook = texture;
-  const uint8_t *index = input + codebook_size;
+  const uint8_t *index = input + TA_CODEBOOK_SIZE;
 
   enum pxl_format pixel_fmt = PXL_INVALID;
   switch (tcw.pixel_format) {
@@ -295,12 +294,11 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
                   : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
   entry->handle = rb_create_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v,
-                                    mip_mapped, width, height, output);
+                                    mipmaps, width, height, output);
   entry->format = pixel_fmt;
   entry->filter = filter;
   entry->wrap_u = wrap_u;
   entry->wrap_v = wrap_v;
-  entry->mipmaps = mip_mapped;
   entry->width = width;
   entry->height = height;
   entry->dirty = 0;
@@ -309,7 +307,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 }
 
 static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
-                                     bool copy_from_prev) {
+                                     int copy_from_prev) {
   CHECK_LT(rc->num_surfs, rc->surfs_size);
   int id = rc->num_surfs++;
   struct surface *surf = &rc->surfs[id];
@@ -449,7 +447,7 @@ static int tr_parse_bg_vert(const struct tile_ctx *ctx, int offset,
 static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
                         struct render_context *rc) {
   /* translate the surface */
-  struct surface *surf = tr_alloc_surf(tr, rc, false);
+  struct surface *surf = tr_alloc_surf(tr, rc, 0);
 
   surf->texture = 0;
   surf->depth_write = !ctx->bg_isp.z_write_disable;
@@ -553,7 +551,7 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   }
 
   /* setup the new surface */
-  struct surface *surf = tr_alloc_surf(tr, rc, false);
+  struct surface *surf = tr_alloc_surf(tr, rc, 0);
   surf->depth_write = !param->type0.isp_tsp.z_write_disable;
   surf->depth_func =
       translate_depth_func(param->type0.isp_tsp.depth_compare_mode);
@@ -631,7 +629,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
      for the next polygon may be input immediately after inputting a Vertex
      Parameter for which "End of Strip" was specified */
   if (tr->last_vertex && tr->last_vertex->type0.pcw.end_of_strip) {
-    tr_alloc_surf(tr, rc, true);
+    tr_alloc_surf(tr, rc, 1);
   }
   tr->last_vertex = param;
 
@@ -982,6 +980,7 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
 
     /* keep track of the surf / vert counts at each parameter offset */
     if (rc->params) {
+      CHECK_LT(rc->num_params, rc->params_size);
       struct render_param *rp = &rc->params[rc->num_params++];
       rp->offset = data - ctx->params;
       rp->list_type = tr->list_type;
