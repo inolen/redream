@@ -557,10 +557,10 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   /* texture palette pixel format */
   ctx->pal_pxl_format = pvr->PAL_RAM_CTRL->pixel_format;
 
-  /* write out video width to help with unprojecting the screen space
+  /* save out video width / height in order to unproject the screen space
      coordinates */
-  if (pvr->SPG_CONTROL->interlace ||
-      (!pvr->SPG_CONTROL->NTSC && !pvr->SPG_CONTROL->PAL)) {
+  if (!(pvr->SPG_CONTROL->NTSC || pvr->SPG_CONTROL->PAL) ||
+      pvr->SPG_CONTROL->interlace) {
     /* interlaced and VGA mode both render at full resolution */
     ctx->video_width = 640;
     ctx->video_height = 480;
@@ -568,6 +568,15 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
     ctx->video_width = 320;
     ctx->video_height = 240;
   }
+
+  /* scale_x signals to scale the image down by half */
+  if (pvr->SCALER_CTL->scale_x) {
+    ctx->video_width *= 2;
+  }
+
+  /* scale_y is a fixed-point scaler, with 6-bits in the integer and 10-bits
+     in the decimal */
+  ctx->video_height = (ctx->video_height * pvr->SCALER_CTL->scale_y) >> 10;
 
   /* according to the hardware docs, this is the correct calculation of the
      background ISP address. however, in practice, the second TA buffer's ISP
