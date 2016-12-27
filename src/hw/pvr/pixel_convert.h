@@ -96,7 +96,7 @@ static inline void UYVY422_read(UYVY422_type px, uint8_t *r, uint8_t *g,
 
 static inline void UYVY422_write(UYVY422_type *dst, uint8_t r, uint8_t g,
                                  uint8_t b, uint8_t a) {
-  CHECK(false);
+  LOG_FATAL("UYVY422_write unsupported");
 }
 
 /* ARGB4444 */

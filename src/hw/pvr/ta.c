@@ -839,7 +839,7 @@ static void ta_texture_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
   PROF_LEAVE();
 }
 
-static bool ta_init(struct device *dev) {
+static int ta_init(struct device *dev) {
   struct ta *ta = (struct ta *)dev;
   struct dreamcast *dc = ta->dc;
 
@@ -855,7 +855,7 @@ static bool ta_init(struct device *dev) {
     list_add(&ta->free_contexts, &ctx->it);
   }
 
-  return true;
+  return 1;
 }
 
 static void ta_toggle_tracing(struct ta *ta) {
@@ -917,13 +917,13 @@ static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
 }
 
 void ta_build_tables() {
-  static bool initialized = false;
+  static int initialized = 0;
 
   if (initialized) {
     return;
   }
 
-  initialized = true;
+  initialized = 1;
 
   for (int i = 0; i < 0x100; i++) {
     union pcw pcw = *(union pcw *)&i;

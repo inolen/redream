@@ -223,7 +223,7 @@ static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
     case 0x8:
       return 0;
     default:
-      CHECK(false);
+      LOG_FATAL("Unexpected rtc address");
       return 0;
   }
 }
@@ -246,7 +246,7 @@ static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
       aica->rtc_write = data & 1;
       break;
     default:
-      CHECK(false);
+      LOG_FATAL("Unexpected rtc address");
       break;
   }
 }
@@ -670,7 +670,7 @@ static void aica_debug_menu(struct device *dev, struct nk_context *ctx) {
   }
 }
 
-static bool aica_init(struct device *dev) {
+static int aica_init(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
 
   aica->wave_ram = memory_translate(aica->memory, "aica wave ram", 0x00000000);
@@ -690,7 +690,7 @@ static bool aica_init(struct device *dev) {
       scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
                             HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
 
-  return true;
+  return 1;
 }
 
 void aica_destroy(struct aica *aica) {

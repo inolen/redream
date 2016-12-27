@@ -62,7 +62,7 @@ void sh4_intc_reprioritize(struct sh4 *sh4) {
         continue;
       }
 
-      bool was_requested = old & sh4->sort_id[j];
+      int was_requested = old & sh4->sort_id[j];
 
       sh4->sorted_interrupts[n] = j;
       sh4->sort_id[j] = (uint64_t)1 << n;

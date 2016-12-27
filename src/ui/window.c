@@ -895,7 +895,7 @@ static void win_pump_sdl(struct window *win) {
   }
 }
 
-void win_enable_text_input(struct window *win, bool active) {
+void win_enable_text_input(struct window *win, int active) {
   win->text_input = active;
 
   if (win->text_input) {
@@ -905,7 +905,7 @@ void win_enable_text_input(struct window *win, bool active) {
   }
 }
 
-void win_enable_debug_menu(struct window *win, bool active) {
+void win_enable_debug_menu(struct window *win, int active) {
   win->debug_menu = active;
 }
 

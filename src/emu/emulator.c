@@ -36,10 +36,10 @@ struct emu {
   int sorted_surfs[TA_MAX_SURFS];
 };
 
-static bool emu_launch_bin(struct emu *emu, const char *path) {
+static int emu_launch_bin(struct emu *emu, const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
-    return false;
+    return 0;
   }
 
   fseek(fp, 0, SEEK_END);
@@ -53,27 +53,27 @@ static bool emu_launch_bin(struct emu *emu, const char *path) {
 
   if (n != size) {
     LOG_WARNING("BIN read failed");
-    return false;
+    return 0;
   }
 
   sh4_reset(emu->dc->sh4, 0x0c010000);
   dc_resume(emu->dc);
 
-  return true;
+  return 1;
 }
 
-static bool emu_launch_gdi(struct emu *emu, const char *path) {
+static int emu_launch_gdi(struct emu *emu, const char *path) {
   struct disc *disc = disc_create_gdi(path);
 
   if (!disc) {
-    return false;
+    return 0;
   }
 
   gdrom_set_disc(emu->dc->gdrom, disc);
   sh4_reset(emu->dc->sh4, 0xa0000000);
   dc_resume(emu->dc);
 
-  return true;
+  return 1;
 }
 
 static void emu_paint(void *data) {

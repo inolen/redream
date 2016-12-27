@@ -283,7 +283,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
   PROF_LEAVE();
 }
 
-static bool sh4_init(struct device *dev) {
+static int sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
@@ -323,10 +323,10 @@ static bool sh4_init(struct device *dev) {
   sh4->backend = backend;
 
   if (!jit_init(sh4->jit, &sh4->guest, sh4->frontend, sh4->backend)) {
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 void sh4_destroy(struct sh4 *sh4) {

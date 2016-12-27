@@ -211,7 +211,7 @@ static void pvr_vram_interleaved_write_string(struct pvr *pvr, uint32_t dst,
   }
 }
 
-static bool pvr_init(struct device *dev) {
+static int pvr_init(struct device *dev) {
   struct pvr *pvr = (struct pvr *)dev;
   struct dreamcast *dc = pvr->dc;
 
@@ -228,7 +228,7 @@ static bool pvr_init(struct device *dev) {
   /* configure initial vsync interval */
   pvr_reconfigure_spg(pvr);
 
-  return true;
+  return 1;
 }
 
 void pvr_destroy(struct pvr *pvr) {

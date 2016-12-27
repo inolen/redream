@@ -196,15 +196,15 @@ static void flash_rom_write(struct flash *flash, uint32_t addr, uint32_t data,
   }
 }
 
-static bool flash_init(struct device *dev) {
+static int flash_init(struct device *dev) {
   struct flash *flash = (struct flash *)dev;
 
   if (!flash_init_bin()) {
     LOG_WARNING("Failed to load flash rom");
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 void flash_destroy(struct flash *flash) {

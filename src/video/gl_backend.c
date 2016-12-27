@@ -46,11 +46,11 @@ struct render_backend {
   GLuint ui_vao;
   GLuint ui_vbo;
   GLuint ui_ibo;
-  bool ui_use_ibo;
+  int ui_use_ibo;
 
   /* current gl state */
-  bool scissor_test;
-  bool depth_mask;
+  int scissor_test;
+  int depth_mask;
   enum depth_func depth_func;
   enum cull_face cull_face;
   enum blend_func src_blend;
@@ -116,7 +116,7 @@ static GLenum prim_types[] = {
     GL_LINES,     /* PRIM_LINES */
 };
 
-static void rb_set_scissor_test(struct render_backend *rb, bool enabled) {
+static void rb_set_scissor_test(struct render_backend *rb, int enabled) {
   if (rb->scissor_test == enabled) {
     return;
   }
@@ -135,7 +135,7 @@ static void rb_set_scissor_clip(struct render_backend *rb, int x, int y,
   glScissor(x, y, width, height);
 }
 
-static void rb_set_depth_mask(struct render_backend *rb, bool enabled) {
+static void rb_set_depth_mask(struct render_backend *rb, int enabled) {
   if (rb->depth_mask == enabled) {
     return;
   }
@@ -233,7 +233,7 @@ static void rb_print_shader_log(GLuint shader) {
   free(info_log);
 }
 
-static bool rb_compile_shader(const char *source, GLenum shader_type,
+static int rb_compile_shader(const char *source, GLenum shader_type,
                               GLuint *shader) {
   size_t sourceLength = strlen(source);
 
@@ -248,10 +248,10 @@ static bool rb_compile_shader(const char *source, GLenum shader_type,
   if (!compiled) {
     rb_print_shader_log(*shader);
     glDeleteShader(*shader);
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 static void rb_destroy_program(struct shader_program *program) {
@@ -266,7 +266,7 @@ static void rb_destroy_program(struct shader_program *program) {
   glDeleteProgram(program->program);
 }
 
-static bool rb_compile_program(struct shader_program *program,
+static int rb_compile_program(struct shader_program *program,
                                const char *header, const char *vertex_source,
                                const char *fragment_source) {
   char buffer[16384] = {0};
@@ -281,7 +281,7 @@ static bool rb_compile_program(struct shader_program *program,
 
     if (!rb_compile_shader(buffer, GL_VERTEX_SHADER, &program->vertex_shader)) {
       rb_destroy_program(program);
-      return false;
+      return 0;
     }
 
     glAttachShader(program->program, program->vertex_shader);
@@ -295,7 +295,7 @@ static bool rb_compile_program(struct shader_program *program,
     if (!rb_compile_shader(buffer, GL_FRAGMENT_SHADER,
                            &program->fragment_shader)) {
       rb_destroy_program(program);
-      return false;
+      return 0;
     }
 
     glAttachShader(program->program, program->fragment_shader);
@@ -308,7 +308,7 @@ static bool rb_compile_program(struct shader_program *program,
 
   if (!linked) {
     rb_destroy_program(program);
-    return false;
+    return 0;
   }
 
   for (int i = 0; i < UNIFORM_NUM_UNIFORMS; i++) {
@@ -316,7 +316,7 @@ static bool rb_compile_program(struct shader_program *program,
         glGetUniformLocation(program->program, uniform_names[i]);
   }
 
-  return true;
+  return 1;
 }
 
 static void rb_destroy_context(struct render_backend *rb) {
@@ -328,7 +328,7 @@ static void rb_destroy_context(struct render_backend *rb) {
   rb->ctx = NULL;
 }
 
-static bool rb_init_context(struct render_backend *rb) {
+static int rb_init_context(struct render_backend *rb) {
   /* need at least a 3.3 core context for our shaders */
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -337,7 +337,7 @@ static bool rb_init_context(struct render_backend *rb) {
   rb->ctx = SDL_GL_CreateContext(rb->window->handle);
   if (!rb->ctx) {
     LOG_WARNING("OpenGL context creation failed: %s", SDL_GetError());
-    return false;
+    return 0;
   }
 
   /* link in gl functions at runtime */
@@ -345,13 +345,13 @@ static bool rb_init_context(struct render_backend *rb) {
   GLenum err = glewInit();
   if (err != GLEW_OK) {
     LOG_WARNING("GLEW initialization failed: %s", glewGetErrorString(err));
-    return false;
+    return 0;
   }
 
   /* enable vsync */
   SDL_GL_SetSwapInterval(1);
 
-  return true;
+  return 1;
 }
 
 static void rb_destroy_textures(struct render_backend *rb) {
@@ -482,7 +482,7 @@ static void rb_create_vertex_buffers(struct render_backend *rb) {
 }
 
 static void rb_set_initial_state(struct render_backend *rb) {
-  rb_set_depth_mask(rb, true);
+  rb_set_depth_mask(rb, 1);
   rb_set_depth_func(rb, DEPTH_NONE);
   rb_set_cull_face(rb, CULL_BACK);
   rb_set_blend_func(rb, BLEND_NONE, BLEND_NONE);
@@ -541,12 +541,12 @@ void rb_end_surfaces2d(struct render_backend *rb) {}
 void rb_draw_surface2d(struct render_backend *rb,
                        const struct surface2d *surf) {
   if (surf->scissor) {
-    rb_set_scissor_test(rb, true);
+    rb_set_scissor_test(rb, 1);
     rb_set_scissor_clip(rb, (int)surf->scissor_rect[0],
                         (int)surf->scissor_rect[1], (int)surf->scissor_rect[2],
                         (int)surf->scissor_rect[3]);
   } else {
-    rb_set_scissor_test(rb, false);
+    rb_set_scissor_test(rb, 0);
   }
 
   rb_set_blend_func(rb, surf->src_blend, surf->dst_blend);
@@ -574,15 +574,15 @@ void rb_begin_surfaces2d(struct render_backend *rb,
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rb->ui_ibo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices,
                  indices, GL_DYNAMIC_DRAW);
-    rb->ui_use_ibo = true;
+    rb->ui_use_ibo = 1;
   } else {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, -1);
-    rb->ui_use_ibo = false;
+    rb->ui_use_ibo = 0;
   }
 }
 
 void rb_end_ortho(struct render_backend *rb) {
-  rb_set_scissor_test(rb, false);
+  rb_set_scissor_test(rb, 0);
 }
 
 void rb_begin_ortho(struct render_backend *rb) {
@@ -608,7 +608,7 @@ void rb_begin_ortho(struct render_backend *rb) {
   ortho[11] = 0.0f;
   ortho[15] = 1.0f;
 
-  rb_set_depth_mask(rb, false);
+  rb_set_depth_mask(rb, 0);
   rb_set_depth_func(rb, DEPTH_NONE);
   rb_set_cull_face(rb, CULL_NONE);
 
@@ -624,7 +624,7 @@ void rb_end_frame(struct render_backend *rb) {
 }
 
 void rb_begin_frame(struct render_backend *rb) {
-  rb_set_depth_mask(rb, true);
+  rb_set_depth_mask(rb, 1);
 
   glViewport(0, 0, rb->window->width, rb->window->height);
 
@@ -642,7 +642,7 @@ texture_handle_t rb_create_texture(struct render_backend *rb,
                                    enum pxl_format format,
                                    enum filter_mode filter,
                                    enum wrap_mode wrap_u, enum wrap_mode wrap_v,
-                                   bool mipmaps, int width, int height,
+                                   int mipmaps, int width, int height,
                                    const uint8_t *buffer) {
   /* find next open texture handle */
   texture_handle_t handle;
