@@ -447,14 +447,9 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
 
   /* set texture address */
   if (!entry->texture) {
-    uint32_t texture_addr = tcw.texture_addr << 3;
-    int width = 8 << tsp.texture_u_size;
-    int height = 8 << tsp.texture_v_size;
-    int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
-                                ? 8
-                                : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
+    uint32_t texture_addr = ta_texture_addr(tcw);
     entry->texture = &ta->video_ram[texture_addr];
-    entry->texture_size = (width * height * element_size_bits) >> 3;
+    entry->texture_size = ta_texture_size(tsp, tcw);
   }
 
   /* set palette address */
@@ -902,6 +897,10 @@ static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
       ta_toggle_tracing(ta);
     } else if (ta->trace_writer && nk_button_label(ctx, "stop trace")) {
       ta_toggle_tracing(ta);
+    }
+
+    if (nk_button_label(ctx, "clear texture cache")) {
+      ta_clear_textures(ta);
     }
 
     nk_menu_end(ctx);
