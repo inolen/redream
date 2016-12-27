@@ -1,7 +1,6 @@
 #ifndef SYSTEM_H
 #define SYSTEM_H
 
-#include <stdbool.h>
 #include <stdint.h>
 #include "core/list.h"
 #include "ui/keycode.h"
@@ -52,8 +51,8 @@ struct window {
   int width;
   int height;
   int fullscreen;
-  bool debug_menu;
-  bool text_input;
+  int debug_menu;
+  int text_input;
 
   /* private state */
   struct list listeners;
@@ -71,7 +70,7 @@ void win_remove_listener(struct window *win, struct window_listener *listener);
 void win_pump_events(struct window *win);
 
 void win_set_status(struct window *win, const char *status);
-void win_enable_debug_menu(struct window *win, bool active);
-void win_enable_text_input(struct window *win, bool active);
+void win_enable_debug_menu(struct window *win, int active);
+void win_enable_text_input(struct window *win, int active);
 
 #endif

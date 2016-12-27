@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <stdio.h>
 #include "hw/arm7/arm7.h"
 #include "core/log.h"
@@ -208,7 +207,7 @@ static void arm7_run(struct device *dev, int64_t ns) {
   PROF_LEAVE();
 }
 
-static bool arm7_init(struct device *dev) {
+static int arm7_init(struct device *dev) {
   struct arm7 *arm = (struct arm7 *)dev;
   struct dreamcast *dc = arm->dc;
 
@@ -247,12 +246,12 @@ static bool arm7_init(struct device *dev) {
   arm->backend = backend;
 
   if (!jit_init(arm->jit, &arm->guest, arm->frontend, arm->backend)) {
-    return false;
+    return 0;
   }
 
   arm->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x00000000);
 
-  return true;
+  return 1;
 }
 
 void arm7_destroy(struct arm7 *arm) {

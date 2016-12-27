@@ -68,15 +68,15 @@ void dc_suspend(struct dreamcast *dc) {
   dc->running = 0;
 }
 
-bool dc_init(struct dreamcast *dc) {
+int dc_init(struct dreamcast *dc) {
   if (dc->debugger && !debugger_init(dc->debugger)) {
     dc_destroy(dc);
-    return false;
+    return 0;
   }
 
   if (!memory_init(dc->memory)) {
     dc_destroy(dc);
-    return false;
+    return 0;
   }
 
   /* initialize each device */
@@ -99,11 +99,11 @@ bool dc_init(struct dreamcast *dc) {
     if (!dev->init(dev)) {
       LOG_INFO("Device \"%s\" failed to initialize", dev->name);
       dc_destroy(dc);
-      return false;
+      return 0;
     }
   }
 
-  return true;
+  return 1;
 }
 
 void dc_destroy_window_interface(struct window_interface *window) {
@@ -163,7 +163,7 @@ struct device *dc_get_device(struct dreamcast *dc, const char *name) {
 }
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       bool (*init)(struct device *dev)) {
+                       int (*init)(struct device *dev)) {
   struct device *dev = calloc(1, size);
 
   dev->dc = dc;

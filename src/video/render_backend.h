@@ -1,7 +1,6 @@
 #ifndef RENDER_BACKEND_H
 #define RENDER_BACKEND_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 struct window;
@@ -87,13 +86,13 @@ struct vertex {
 
 struct surface {
   texture_handle_t texture;
-  bool depth_write;
+  int depth_write;
   enum depth_func depth_func;
   enum cull_face cull;
   enum blend_func src_blend;
   enum blend_func dst_blend;
   enum shade_mode shade;
-  bool ignore_tex_alpha;
+  int ignore_tex_alpha;
   int first_vert;
   int num_verts;
 };
@@ -109,7 +108,7 @@ struct surface2d {
   texture_handle_t texture;
   enum blend_func src_blend;
   enum blend_func dst_blend;
-  bool scissor;
+  int scissor;
   float scissor_rect[4];
   int first_vert;
   int num_verts;
@@ -124,7 +123,7 @@ texture_handle_t rb_create_texture(struct render_backend *rb,
                                    enum pxl_format format,
                                    enum filter_mode filter,
                                    enum wrap_mode wrap_u, enum wrap_mode wrap_v,
-                                   bool mipmaps, int width, int height,
+                                   int mipmaps, int width, int height,
                                    const uint8_t *buffer);
 void rb_destroy_texture(struct render_backend *rb, texture_handle_t handle);
 

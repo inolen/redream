@@ -1,7 +1,6 @@
 #ifndef TA_TYPES_H
 #define TA_TYPES_H
 
-#include <stdbool.h>
 #include "core/list.h"
 #include "core/rb_tree.h"
 
@@ -443,7 +442,7 @@ struct tile_ctx {
 
   /* pvr / ta state */
   int frame;
-  bool autosort;
+  int autosort;
   int stride;
   int pal_pxl_format;
   int video_width;

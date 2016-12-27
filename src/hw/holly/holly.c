@@ -302,9 +302,9 @@ static void holly_debug_menu(struct device *dev, struct nk_context *ctx) {
   }
 }
 
-static bool holly_init(struct device *dev) {
+static int holly_init(struct device *dev) {
   struct holly *hl = (struct holly *)dev;
-  return true;
+  return 1;
 }
 
 void holly_destroy(struct holly *hl) {

@@ -38,7 +38,7 @@ enum gd_state {
 };
 
 struct cdread {
-  bool dma;
+  int dma;
   enum gd_secfmt sector_fmt;
   enum gd_secmask sector_mask;
   int first_sector;
@@ -70,7 +70,7 @@ struct gdrom {
 static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
                         intptr_t arg1);
 
-static int gdrom_get_fad(uint8_t a, uint8_t b, uint8_t c, bool msf) {
+static int gdrom_get_fad(uint8_t a, uint8_t b, uint8_t c, int msf) {
   if (msf) {
     /* MSF mode
        Byte 2 - Start time: minutes (binary 0 - 255)
@@ -273,7 +273,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
     } break;
 
     case SPI_CD_READ: {
-      bool msf = (data[1] & 0x1);
+      int msf = (data[1] & 0x1);
 
       gd->req.dma = gd->features.dma;
       gd->req.sector_fmt = (enum gd_secfmt)((data[1] & 0xe) >> 1);
@@ -347,7 +347,7 @@ static int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
       total += 2048;
       fad++;
     } else {
-      CHECK(false);
+      LOG_FATAL("Unsupported sector format");
     }
   }
 
@@ -521,12 +521,12 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
            gd->state);
 }
 
-static bool gdrom_init(struct device *dev) {
+static int gdrom_init(struct device *dev) {
   struct gdrom *gd = (struct gdrom *)dev;
 
   gdrom_set_disc(gd, NULL);
 
-  return true;
+  return 1;
 }
 
 void gdrom_dma_end(struct gdrom *gd) {
