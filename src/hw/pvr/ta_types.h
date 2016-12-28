@@ -79,7 +79,7 @@ union pcw {
 /* Image Synthesis Processor parameters */
 union isp {
   struct {
-    uint32_t reserved : 20;
+    uint32_t : 20;
     uint32_t dcalc_ctrl : 1;
     uint32_t cache_bypass : 1;
     uint32_t uv_16bit : 1;
