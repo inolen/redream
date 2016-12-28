@@ -53,10 +53,6 @@ struct aica {
   /* reset state */
   int arm_resetting;
 
-  /* interrupts */
-  uint32_t arm_irq_l;
-  uint32_t arm_irq_m;
-
   /* timers */
   struct timer *timers[3];
 
@@ -110,18 +106,21 @@ static void aica_update_arm(struct aica *aica) {
   uint32_t enabled_intr = aica->common_data->SCIEB;
   uint32_t pending_intr = aica->common_data->SCIPD & enabled_intr;
 
-  aica->arm_irq_l = 0;
+  /* avoid reentering FIQ handler if it hasn't completed */
+  if (aica->common_data->L) {
+    return;
+  }
 
   if (pending_intr) {
     for (uint32_t i = 0; i < NUM_AICA_INT; i++) {
       if (pending_intr & (1 << i)) {
-        aica->arm_irq_l = aica_encode_arm_irq_l(aica, i);
+        aica->common_data->L = aica_encode_arm_irq_l(aica, i);
         break;
       }
     }
   }
 
-  if (aica->arm_irq_l) {
+  if (aica->common_data->L) {
     /* FIQ handler will load L from common data to check interrupt type */
     arm7_raise_interrupt(aica->arm, ARM7_INT_FIQ);
   }
@@ -202,18 +201,6 @@ static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
       scheduler_start_timer(aica->scheduler, timer_cbs[n], aica, remaining);
 }
 
-static void aica_timer_shutdown(struct aica *aica) {
-  for (int i = 0; i < 3; i++) {
-    scheduler_cancel_timer(aica->scheduler, aica->timers[i]);
-  }
-}
-
-static void aica_timer_init(struct aica *aica) {
-  for (int i = 0; i < 3; i++) {
-    aica_timer_reschedule(aica, i, AICA_TIMER_PERIOD);
-  }
-}
-
 static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
                                   uint32_t data_mask) {
   switch (addr) {
@@ -224,7 +211,7 @@ static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
     case 0x8:
       return 0;
     default:
-      CHECK(false);
+      LOG_FATAL("Unexpected rtc address");
       return 0;
   }
 }
@@ -247,7 +234,7 @@ static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
       aica->rtc_write = data & 1;
       break;
     default:
-      CHECK(false);
+      LOG_FATAL("Unexpected rtc address");
       break;
   }
 }
@@ -255,23 +242,6 @@ static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
 static void aica_rtc_timer(void *data) {
   struct aica *aica = data;
   aica->rtc++;
-  aica->rtc_timer =
-      scheduler_start_timer(aica->scheduler, &aica_rtc_timer, aica, NS_PER_SEC);
-}
-
-static void aica_rtc_shutdown(struct aica *aica) {
-  scheduler_cancel_timer(aica->scheduler, aica->rtc_timer);
-
-  /* persist clock */
-  OPTION_rtc = *(int *)&aica->rtc;
-}
-
-static void aica_rtc_init(struct aica *aica) {
-  /* seed clock from persistant options */
-  CHECK(sizeof(aica->rtc) <= sizeof(OPTION_rtc));
-  aica->rtc = *(uint32_t *)&OPTION_rtc;
-
-  /* increment clock every second */
   aica->rtc_timer =
       scheduler_start_timer(aica->scheduler, &aica_rtc_timer, aica, NS_PER_SEC);
 }
@@ -367,6 +337,10 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
       prev = samples[pos] << 8;
       next = samples[pos] << 8;
     } break;
+
+    default:
+      /* LOG_WARNING("Unsupported PCMS %d", ch->data->PCMS); */
+      break;
   }
 
   /* interpolate sample */
@@ -490,9 +464,10 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
   switch (addr) {
     case 0x10:
     case 0x11: { /* EG, SGC, LP */
-      if ((DATA_SIZE() == 2 && addr == 0x10) ||
-          (DATA_SIZE() == 1 && addr == 0x11)) {
-        struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
+      struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
+
+      if ((addr == 0x10 && DATA_SIZE() == 2) ||
+          (addr == 0x11 && DATA_SIZE() == 1)) {
         aica->common_data->LP = ch->looped;
         ch->looped = 0;
       }
@@ -513,12 +488,6 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
       aica->common_data->TIMC =
           (aica_timer_tctl(aica, 2) << 8) | aica_timer_tcnt(aica, 2);
     } break;
-    case 0x500: { /* L0-9 */
-      aica->common_data->L = aica->arm_irq_l;
-    } break;
-    case 0x504: { /* M0-9 */
-      aica->common_data->M = aica->arm_irq_m;
-    } break;
   }
 
   return READ_DATA((uint8_t *)aica->common_data + addr);
@@ -526,6 +495,8 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
 
 static void aica_common_reg_write(struct aica *aica, uint32_t addr,
                                   uint32_t data, uint32_t data_mask) {
+  uint32_t old_data = READ_DATA((uint8_t *)aica->common_data + addr);
+
   WRITE_DATA((uint8_t *)aica->common_data + addr);
 
   switch (addr) {
@@ -539,27 +510,35 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
       aica_timer_reschedule(aica, 2, AICA_TIMER_PERIOD - data);
     } break;
     case 0x9c:
-    case 0x9d:
+    case 0x9d: { /* SCIEB */
+      aica_update_arm(aica);
+    } break;
     case 0xa0:
-    case 0xa1: { /* SCIEB, SCIPD */
+    case 0xa1: { /* SCIPD */
+      /* only AICA_INT_DATA can be written to */
+      CHECK(DATA_SIZE() >= 2 && addr == 0xa0);
+      aica->common_data->SCIPD = old_data | (data & (1 << AICA_INT_DATA));
       aica_update_arm(aica);
     } break;
     case 0xa4:
     case 0xa5: { /* SCIRE */
       aica->common_data->SCIPD &= ~aica->common_data->SCIRE;
-      aica->common_data->SCIRE = 0;
       aica_update_arm(aica);
     } break;
     case 0xb4:
-    case 0xb5:
+    case 0xb5: { /* MCIEB */
+      aica_update_sh(aica);
+    } break;
     case 0xb8:
-    case 0xb9: { /* MCIEB, MCIPD */
+    case 0xb9: { /* MCIPD */
+      /* only AICA_INT_DATA can be written to */
+      CHECK(DATA_SIZE() >= 2 && addr == 0xb8);
+      aica->common_data->MCIPD = old_data | (data & (1 << AICA_INT_DATA));
       aica_update_sh(aica);
     } break;
     case 0xbc:
     case 0xbd: { /* MCIRE */
       aica->common_data->MCIPD &= ~aica->common_data->MCIRE;
-      aica->common_data->MCIRE = 0;
       aica_update_sh(aica);
     } break;
     case 0x400: { /* ARMRST */
@@ -574,11 +553,13 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
       }
     } break;
     case 0x500: { /* L0-9 */
-      /* nop */
+      LOG_FATAL("L0-9 assumed to be read-only");
     } break;
     case 0x504: { /* M0-9 */
-      /* TODO run interrupt callbacks? */
-      aica->arm_irq_m = data;
+      /* M is written to signal that the interrupt previously raised has
+         finished processing */
+      aica->common_data->L = 0;
+      aica_update_arm(aica);
     } break;
   }
 }
@@ -660,33 +641,71 @@ static void aica_debug_menu(struct device *dev, struct nk_context *ctx) {
   }
 }
 
-static bool aica_init(struct device *dev) {
+static int aica_init(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
 
   aica->wave_ram = memory_translate(aica->memory, "aica wave ram", 0x00000000);
 
-  /* setup channel data aliases */
-  for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
-    struct aica_channel *ch = &aica->channels[i];
-    ch->data =
-        (struct channel_data *)(aica->reg + sizeof(struct channel_data) * i);
+  /* init channels */
+  {
+    for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
+      struct aica_channel *ch = &aica->channels[i];
+      ch->data =
+          (struct channel_data *)(aica->reg + sizeof(struct channel_data) * i);
+    }
+    aica->common_data = (struct common_data *)(aica->reg + 0x2800);
+    aica->sample_timer =
+        scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
+                              HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
   }
-  aica->common_data = (struct common_data *)(aica->reg + 0x2800);
 
-  aica_timer_init(aica);
-  aica_rtc_init(aica);
+  /* init timers */
+  {
+    for (int i = 0; i < 3; i++) {
+      aica_timer_reschedule(aica, i, AICA_TIMER_PERIOD);
+    }
+  }
 
-  aica->sample_timer =
-      scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
-                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
+  /* init rtc */
+  {
+    /* seed clock from persistant options */
+    CHECK(sizeof(aica->rtc) <= sizeof(OPTION_rtc));
+    aica->rtc = *(uint32_t *)&OPTION_rtc;
 
-  return true;
+    /* increment clock every second */
+    aica->rtc_timer = scheduler_start_timer(aica->scheduler, &aica_rtc_timer,
+                                            aica, NS_PER_SEC);
+  }
+
+  return 1;
 }
 
 void aica_destroy(struct aica *aica) {
-  scheduler_cancel_timer(aica->scheduler, aica->sample_timer);
-  aica_rtc_shutdown(aica);
-  aica_timer_shutdown(aica);
+  /* shutdown rtc */
+  {
+    if (aica->rtc_timer) {
+      scheduler_cancel_timer(aica->scheduler, aica->rtc_timer);
+    }
+
+    /* persist clock */
+    OPTION_rtc = *(int *)&aica->rtc;
+  }
+
+  /* shutdown timers */
+  {
+    for (int i = 0; i < 3; i++) {
+      if (aica->timers[i]) {
+        scheduler_cancel_timer(aica->scheduler, aica->timers[i]);
+      }
+    }
+  }
+
+  /* shutdown channels */
+  {
+    if (aica->sample_timer) {
+      scheduler_cancel_timer(aica->scheduler, aica->sample_timer);
+    }
+  }
 
   ringbuf_destroy(aica->frames);
   dc_destroy_window_interface(aica->window_if);

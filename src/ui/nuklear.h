@@ -1,8 +1,6 @@
 #ifndef NUKLEAR_H
 #define NUKLEAR_H
 
-#include <stdbool.h>
-
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
 #define NK_INCLUDE_STANDARD_VARARGS
@@ -15,8 +13,8 @@
 #include "ui/window.h"
 #include "video/render_backend.h"
 
-#define NK_MAX_VERTICES 4096
-#define NK_MAX_ELEMENTS 16384
+#define NK_MAX_VERTICES 16384
+#define NK_MAX_ELEMENTS (NK_MAX_VERTICES * 4)
 
 struct nuklear {
   struct window *window;
@@ -35,10 +33,10 @@ struct nuklear {
   /* input state */
   int mousex, mousey;
   int mouse_wheel;
-  bool mouse_down[3];
-  bool alt[2];
-  bool ctrl[2];
-  bool shift[2];
+  int mouse_down[3];
+  int alt[2];
+  int ctrl[2];
+  int shift[2];
 };
 
 struct nuklear *nk_create(struct window *window);

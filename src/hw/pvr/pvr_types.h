@@ -156,6 +156,17 @@ union text_control {
   };
 };
 
+union scaler_ctl {
+  uint32_t full;
+  struct {
+    uint32_t scale_y : 16;
+    uint32_t scale_x : 1;
+    uint32_t interlace : 1;
+    uint32_t field_select : 1;
+    uint32_t : 13;
+  };
+};
+
 union pal_ram_ctrl {
   uint32_t full;
   struct {
@@ -219,7 +230,7 @@ enum {
   name = (addr - 0x005f8000) >> 2,
 #include "hw/pvr/pvr_regs.inc"
 #undef PVR_REG
-  NUM_PVR_REGS = 0x00002000 >> 2,
+  PVR_NUM_REGS = 0x00002000 >> 2,
 };
 
 #endif

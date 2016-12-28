@@ -346,10 +346,11 @@ EMITTER(MOVBP) {
   v = ir_sext(ir, v, VALUE_I32);
   store_gpr(i->Rn, v);
 
-  /* increase Rm by 1 */
-  /* FIXME if rm != rn??? */
-  addr = ir_add(ir, addr, ir_alloc_i32(ir, 1));
-  store_gpr(i->Rm, addr);
+  /* post-increment Rm by 1, ignore if rm == rn as store would overwrite */
+  if (i->Rm != i->Rn) {
+    addr = ir_add(ir, addr, ir_alloc_i32(ir, 1));
+    store_gpr(i->Rm, addr);
+  }
 }
 
 // MOV.W   @Rm+,Rn
@@ -360,10 +361,11 @@ EMITTER(MOVWP) {
   v = ir_sext(ir, v, VALUE_I32);
   store_gpr(i->Rn, v);
 
-  /* increase Rm by 2 */
-  /* FIXME if rm != rn??? */
-  addr = ir_add(ir, addr, ir_alloc_i32(ir, 2));
-  store_gpr(i->Rm, addr);
+  /* post-increment Rm by 2, ignore if rm == rn as store would overwrite */
+  if (i->Rm != i->Rn) {
+    addr = ir_add(ir, addr, ir_alloc_i32(ir, 2));
+    store_gpr(i->Rm, addr);
+  }
 }
 
 // MOV.L   @Rm+,Rn
@@ -373,10 +375,11 @@ EMITTER(MOVLP) {
   struct ir_value *v = load_guest(addr, VALUE_I32);
   store_gpr(i->Rn, v);
 
-  /* increase Rm by 2 */
-  /* FIXME if rm != rn??? */
-  addr = ir_add(ir, addr, ir_alloc_i32(ir, 4));
-  store_gpr(i->Rm, addr);
+  /* post-increment Rm by 4, ignore if rm == rn as store would overwrite */
+  if (i->Rm != i->Rn) {
+    addr = ir_add(ir, addr, ir_alloc_i32(ir, 4));
+    store_gpr(i->Rm, addr);
+  }
 }
 
 // MOV.B   R0,@(disp,Rn)

@@ -1,15 +1,8 @@
 #ifndef CONSTANT_PROPAGATION_PASS_H
 #define CONSTANT_PROPAGATION_PASS_H
 
-class ConstantPropagationPass : public Pass {
- public:
-  static const char *NAME = "constprop";
+struct ir;
 
-  const char *name() {
-    return NAME;
-  }
-
-  void Run(struct ir *ir);
-};
+void cprop_run(struct ir *ir);
 
 #endif

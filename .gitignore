@@ -1,6 +1,5 @@
-.
-/build
-debug
-Makefile
+.*
+build/
 *.swo
 *.swp
+Makefile

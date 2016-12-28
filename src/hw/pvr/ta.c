@@ -1,7 +1,6 @@
 #include "hw/pvr/ta.h"
 #include "core/list.h"
 #include "core/profiler.h"
-#include "core/rb_tree.h"
 #include "core/string.h"
 #include "hw/holly/holly.h"
 #include "hw/pvr/pixel_convert.h"
@@ -14,6 +13,8 @@
 #include "sys/filesystem.h"
 #include "sys/thread.h"
 #include "ui/nuklear.h"
+
+DEFINE_AGGREGATE_COUNTER(ta_data);
 
 #define TA_MAX_CONTEXTS 8
 #define TA_YUV420_MACROBLOCK_SIZE 384
@@ -32,7 +33,7 @@ struct ta_texture_entry {
 struct ta {
   struct device;
   struct texture_provider provider;
-  uint8_t *rb_ram;
+  uint8_t *video_ram;
 
   /* yuv data converter state */
   uint8_t *yuv_data;
@@ -53,18 +54,14 @@ struct ta {
      are in a tree ordered by the context's guest address */
   struct tile_ctx contexts[TA_MAX_CONTEXTS];
   struct list free_contexts;
-  struct rb_tree live_contexts;
+  struct list live_contexts;
+  struct tile_ctx *next_context;
 
   /* the pending context is the last context requested to be rendered by the
      emulation thread. a mutex is used to synchronize access with the graphics
      thread */
   mutex_t pending_mutex;
   struct tile_ctx *pending_context;
-
-  /* buffers used by the tile contexts. allocating here instead of inside each
-     tile_ctx to avoid blowing the stack when a tile_ctx is needed temporarily
-     on the stack for searching */
-  uint8_t params[TA_MAX_CONTEXTS * TA_MAX_PARAMS];
 
   /* debug info */
   int frame;
@@ -104,22 +101,7 @@ static int ta_entry_cmp(const struct rb_node *rb_lhs,
   }
 }
 
-static int ta_context_cmp(const struct rb_node *rb_lhs,
-                          const struct rb_node *rb_rhs) {
-  const struct tile_ctx *lhs = rb_entry(rb_lhs, const struct tile_ctx, live_it);
-  const struct tile_ctx *rhs = rb_entry(rb_rhs, const struct tile_ctx, live_it);
-
-  if (lhs->addr < rhs->addr) {
-    return -1;
-  } else if (lhs->addr > rhs->addr) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
 static struct rb_callbacks ta_entry_cb = {&ta_entry_cmp, NULL, NULL};
-static struct rb_callbacks ta_context_cb = {&ta_context_cmp, NULL, NULL};
 
 /* See "57.1.1.2 Parameter Combinations" for information on the poly types. */
 static int ta_get_poly_type_raw(union pcw pcw) {
@@ -281,10 +263,18 @@ static struct ta_texture_entry *ta_find_texture(struct ta *ta, union tsp tsp,
 static struct texture_entry *ta_texture_provider_find_texture(void *data,
                                                               union tsp tsp,
                                                               union tcw tcw) {
-  struct ta_texture_entry *entry = ta_find_texture(data, tsp, tcw);
+  struct ta *ta = (struct ta *)data;
+  struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
 
   if (!entry) {
     return NULL;
+  }
+
+  if (entry->dirty) {
+    /* sanity check that the texture source is valid for the current context.
+       video ram will be modified between frames, if these values don't match
+       something is broken in the thread synchronization */
+    CHECK_EQ(entry->frame, ta->frame);
   }
 
   return (struct texture_entry *)entry;
@@ -320,62 +310,72 @@ static void ta_palette_invalidated(const struct exception *ex, void *data) {
 }
 
 static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
-  struct tile_ctx search;
-  search.addr = addr;
-
-  return rb_find_entry(&ta->live_contexts, &search, struct tile_ctx, live_it,
-                       &ta_context_cb);
+  list_for_each_entry(ctx, &ta->live_contexts, struct tile_ctx, it) {
+    if (ctx->addr == addr) {
+      return ctx;
+    }
+  }
+  return NULL;
 }
 
 static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {
   /* remove from free list */
   struct tile_ctx *ctx =
-      list_first_entry(&ta->free_contexts, struct tile_ctx, free_it);
+      list_first_entry(&ta->free_contexts, struct tile_ctx, it);
   CHECK_NOTNULL(ctx);
-  list_remove(&ta->free_contexts, &ctx->free_it);
+  list_remove(&ta->free_contexts, &ctx->it);
 
   /* reset context */
-  uint8_t *params = ctx->params;
-  memset(ctx, 0, sizeof(*ctx));
   ctx->addr = addr;
-  ctx->params = params;
+  ctx->cursor = 0;
+  ctx->size = 0;
+  ctx->list_type = 0;
+  ctx->vertex_type = 0;
 
   /* add to live tree */
-  rb_insert(&ta->live_contexts, &ctx->live_it, &ta_context_cb);
+  list_add(&ta->live_contexts, &ctx->it);
 
   return ctx;
 }
 
 static void ta_unlink_context(struct ta *ta, struct tile_ctx *ctx) {
-  rb_unlink(&ta->live_contexts, &ctx->live_it, &ta_context_cb);
+  list_remove(&ta->live_contexts, &ctx->it);
 }
 
 static void ta_free_context(struct ta *ta, struct tile_ctx *ctx) {
-  list_add(&ta->free_contexts, &ctx->free_it);
+  list_add(&ta->free_contexts, &ctx->it);
 }
 
-static void ta_init_context(struct ta *ta, uint32_t addr) {
+static struct tile_ctx *ta_demand_context(struct ta *ta, uint32_t addr) {
   struct tile_ctx *ctx = ta_get_context(ta, addr);
 
   if (!ctx) {
     ctx = ta_alloc_context(ta, addr);
   }
 
-  ctx->addr = addr;
+  return ctx;
+}
+
+static void ta_cont_context(struct ta *ta, struct tile_ctx *ctx) {
+  ctx->list_type = TA_NUM_LISTS;
+  ctx->vertex_type = TA_NUM_VERTS;
+}
+
+static void ta_init_context(struct ta *ta, struct tile_ctx *ctx) {
   ctx->cursor = 0;
   ctx->size = 0;
   ctx->list_type = TA_NUM_LISTS;
   ctx->vertex_type = TA_NUM_VERTS;
 }
 
-static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
+static void ta_write_context(struct ta *ta, struct tile_ctx *ctx, void *ptr,
                              int size) {
-  struct tile_ctx *ctx = ta_get_context(ta, addr);
-  CHECK_NOTNULL(ctx);
-
   CHECK_LT(ctx->size + size, TA_MAX_PARAMS);
   memcpy(&ctx->params[ctx->size], ptr, size);
   ctx->size += size;
+
+  /* track how much TA data is written per second */
+  prof_counter_add(COUNTER_ta_data, size);
 
   /* each TA command is either 32 or 64 bytes, with the pcw being in the first
      32 bytes always. check every 32 bytes to see if the command has been
@@ -392,31 +392,42 @@ static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
       return;
     }
 
-    if (pcw.para_type == TA_PARAM_END_OF_LIST) {
-      /* it's common that a TA_PARAM_END_OF_LIST is sent before a
-       * valid list has been initialized */
-      if (ctx->list_type != TA_NUM_LISTS) {
-        holly_raise_interrupt(ta->holly, list_interrupts[ctx->list_type]);
-      }
-
-      /* reset list state */
-      ctx->list_type = TA_NUM_LISTS;
-      ctx->vertex_type = TA_NUM_VERTS;
-    } else if (pcw.para_type == TA_PARAM_OBJ_LIST_SET) {
-      LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
-    } else if (pcw.para_type == TA_PARAM_POLY_OR_VOL) {
-      ctx->vertex_type = ta_get_vert_type(pcw);
-    } else if (pcw.para_type == TA_PARAM_SPRITE) {
-      ctx->vertex_type = ta_get_vert_type(pcw);
+    if (ta_pcw_list_type_valid(pcw, ctx->list_type)) {
+      ctx->list_type = pcw.list_type;
     }
 
-    /* pcw.list_type is only valid for the first global parameter / object
-       list set after TA_LIST_INIT or a previous TA_PARAM_END_OF_LIST */
-    if ((pcw.para_type == TA_PARAM_OBJ_LIST_SET ||
-         pcw.para_type == TA_PARAM_POLY_OR_VOL ||
-         pcw.para_type == TA_PARAM_SPRITE) &&
-        ctx->list_type == TA_NUM_LISTS) {
-      ctx->list_type = pcw.list_type;
+    switch (pcw.para_type) {
+      /* control params */
+      case TA_PARAM_END_OF_LIST:
+        /* it's common that a TA_PARAM_END_OF_LIST is sent before a valid list
+           type has been set */
+        if (ctx->list_type != TA_NUM_LISTS) {
+          holly_raise_interrupt(ta->holly, list_interrupts[ctx->list_type]);
+        }
+        ctx->list_type = TA_NUM_LISTS;
+        ctx->vertex_type = TA_NUM_VERTS;
+        break;
+
+      case TA_PARAM_USER_TILE_CLIP:
+        break;
+
+      case TA_PARAM_OBJ_LIST_SET:
+        LOG_FATAL("TA_PARAM_OBJ_LIST_SET unsupported");
+        break;
+
+      /* global params */
+      case TA_PARAM_POLY_OR_VOL:
+      case TA_PARAM_SPRITE:
+        ctx->vertex_type = ta_get_vert_type(pcw);
+        break;
+
+      /* vertex params */
+      case TA_PARAM_VERTEX:
+        break;
+
+      default:
+        LOG_FATAL("Unsupported TA parameter %d", pcw.para_type);
+        break;
     }
 
     ctx->cursor += recv;
@@ -425,11 +436,10 @@ static void ta_write_context(struct ta *ta, uint32_t addr, void *ptr,
 
 static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
   struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
-  int new_entry = 0;
 
   if (!entry) {
     entry = ta_alloc_texture(ta, tsp, tcw);
-    new_entry = 1;
+    entry->dirty = 1;
   }
 
   /* mark texture source valid for the current frame */
@@ -437,14 +447,9 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
 
   /* set texture address */
   if (!entry->texture) {
-    uint32_t texture_addr = tcw.texture_addr << 3;
-    int width = 8 << tsp.texture_u_size;
-    int height = 8 << tsp.texture_v_size;
-    int element_size_bits = tcw.pixel_format == TA_PIXEL_8BPP
-                                ? 8
-                                : tcw.pixel_format == TA_PIXEL_4BPP ? 4 : 16;
-    entry->texture = &ta->rb_ram[texture_addr];
-    entry->texture_size = (width * height * element_size_bits) >> 3;
+    uint32_t texture_addr = ta_texture_addr(tcw);
+    entry->texture = &ta->video_ram[texture_addr];
+    entry->texture_size = ta_texture_size(tsp, tcw);
   }
 
   /* set palette address */
@@ -491,10 +496,10 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
 #endif
 
   /* add modified entries to the trace */
-  if (ta->trace_writer && (new_entry || entry->dirty)) {
-    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->palette,
-                                entry->palette_size, entry->texture,
-                                entry->texture_size);
+  if (ta->trace_writer && entry->dirty) {
+    trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->frame,
+                                entry->palette, entry->palette_size,
+                                entry->texture, entry->texture_size);
   }
 }
 
@@ -531,9 +536,12 @@ static void ta_register_textures(struct ta *ta, struct tile_ctx *ctx,
   }
 }
 
-static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   struct pvr *pvr = ta->pvr;
   struct address_space *space = ta->sh4->memory_if->space;
+
+  /* mark context valid for the current frame */
+  ctx->frame = ta->frame;
 
   /* autosort */
   if (!pvr->FPU_PARAM_CFG->region_header_type) {
@@ -549,17 +557,26 @@ static void ta_save_register_state(struct ta *ta, struct tile_ctx *ctx) {
   /* texture palette pixel format */
   ctx->pal_pxl_format = pvr->PAL_RAM_CTRL->pixel_format;
 
-  /* write out video width to help with unprojecting the screen space
+  /* save out video width / height in order to unproject the screen space
      coordinates */
-  if (pvr->SPG_CONTROL->interlace ||
-      (!pvr->SPG_CONTROL->NTSC && !pvr->SPG_CONTROL->PAL)) {
+  if (!(pvr->SPG_CONTROL->NTSC || pvr->SPG_CONTROL->PAL) ||
+      pvr->SPG_CONTROL->interlace) {
     /* interlaced and VGA mode both render at full resolution */
-    ctx->rb_width = 640;
-    ctx->rb_height = 480;
+    ctx->video_width = 640;
+    ctx->video_height = 480;
   } else {
-    ctx->rb_width = 320;
-    ctx->rb_height = 240;
+    ctx->video_width = 320;
+    ctx->video_height = 240;
   }
+
+  /* scale_x signals to scale the image down by half */
+  if (pvr->SCALER_CTL->scale_x) {
+    ctx->video_width *= 2;
+  }
+
+  /* scale_y is a fixed-point scaler, with 6-bits in the integer and 10-bits
+     in the decimal */
+  ctx->video_height = (ctx->video_height * pvr->SCALER_CTL->scale_y) >> 10;
 
   /* according to the hardware docs, this is the correct calculation of the
      background ISP address. however, in practice, the second TA buffer's ISP
@@ -626,14 +643,7 @@ static void ta_render_timer(void *data) {
   ta_end_render(ta);
 }
 
-static void ta_start_render(struct ta *ta, uint32_t addr) {
-  struct tile_ctx *ctx = ta_get_context(ta, addr);
-  CHECK_NOTNULL(ctx);
-
-  /* save off required register state that may be modified by the time the
-     context is rendered */
-  ta_save_register_state(ta, ctx);
-
+static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
   /* if the graphics thread is still parsing the previous context, skip this
      one */
   if (!mutex_trylock(ta->pending_mutex)) {
@@ -654,9 +664,14 @@ static void ta_start_render(struct ta *ta, uint32_t addr) {
   ta_unlink_context(ta, ctx);
   ta->pending_context = ctx;
 
-  /* increment internal frame number. this frame number is assigned to each
-     texture source registered by this context */
+  /* increment internal frame number. this frame number is assigned to the
+     context and each texture source it registers to assert synchronization
+     between the emulator and graphics thread is working as expected */
   ta->frame++;
+
+  /* save off required state that may be modified by the time the context is
+     rendered */
+  ta_save_state(ta, ctx);
 
   /* register the source of each texture referenced by the context with the
      tile renderer. note, the process of actually uploading the texture to the
@@ -695,7 +710,7 @@ static void ta_yuv_init(struct ta *ta) {
   int v_size = pvr->TA_YUV_TEX_CTRL->v_size + 1;
 
   /* setup internal state for the data conversion */
-  ta->yuv_data = &ta->rb_ram[pvr->TA_YUV_TEX_BASE->base_address];
+  ta->yuv_data = &ta->video_ram[pvr->TA_YUV_TEX_BASE->base_address];
   ta->yuv_width = u_size * 16;
   ta->yuv_height = v_size * 16;
   ta->yuv_macroblock_size = TA_YUV420_MACROBLOCK_SIZE;
@@ -787,7 +802,7 @@ static void ta_poly_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
   uint8_t *src = ptr;
   uint8_t *end = src + size;
   while (src < end) {
-    ta_write_context(ta, ta->pvr->TA_ISP_BASE->base_address, src, 32);
+    ta_write_context(ta, ta->next_context, src, 32);
     src += 32;
   }
 
@@ -819,16 +834,16 @@ static void ta_texture_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
 
   uint8_t *src = ptr;
   dst &= 0xeeffffff;
-  memcpy(&ta->rb_ram[dst], src, size);
+  memcpy(&ta->video_ram[dst], src, size);
 
   PROF_LEAVE();
 }
 
-static bool ta_init(struct device *dev) {
+static int ta_init(struct device *dev) {
   struct ta *ta = (struct ta *)dev;
   struct dreamcast *dc = ta->dc;
 
-  ta->rb_ram = memory_translate(dc->memory, "video ram", 0x00000000);
+  ta->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
     struct ta_texture_entry *entry = &ta->entries[i];
@@ -837,16 +852,19 @@ static bool ta_init(struct device *dev) {
 
   for (int i = 0; i < array_size(ta->contexts); i++) {
     struct tile_ctx *ctx = &ta->contexts[i];
-
-    ctx->params = ta->params + (TA_MAX_PARAMS * i);
-
-    list_add(&ta->free_contexts, &ctx->free_it);
+    list_add(&ta->free_contexts, &ctx->it);
   }
 
-  return true;
+  return 1;
 }
 
 static void ta_toggle_tracing(struct ta *ta) {
+  /* this is called from the UI thread, need to take the context lock
+     as the graphics / emulation thread may be rendering a context.
+     this prevents partial frames being written to the trace, as well
+     as texture cache corruptions */
+  mutex_lock(ta->pending_mutex);
+
   if (!ta->trace_writer) {
     char filename[PATH_MAX];
     get_next_trace_filename(filename, sizeof(filename));
@@ -869,6 +887,8 @@ static void ta_toggle_tracing(struct ta *ta) {
 
     LOG_INFO("End tracing");
   }
+
+  mutex_unlock(ta->pending_mutex);
 }
 
 static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
@@ -888,18 +908,22 @@ static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
       ta_toggle_tracing(ta);
     }
 
+    if (nk_button_label(ctx, "clear texture cache")) {
+      ta_clear_textures(ta);
+    }
+
     nk_menu_end(ctx);
   }
 }
 
 void ta_build_tables() {
-  static bool initialized = false;
+  static int initialized = 0;
 
   if (initialized) {
     return;
   }
 
-  initialized = true;
+  initialized = 1;
 
   for (int i = 0; i < 0x100; i++) {
     union pcw pcw = *(union pcw *)&i;
@@ -939,8 +963,7 @@ void ta_unlock_pending_context(struct ta *ta) {
   mutex_unlock(ta->pending_mutex);
 }
 
-int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
-                            int *pending_frame) {
+int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx) {
   mutex_lock(ta->pending_mutex);
 
   if (!ta->pending_context) {
@@ -948,8 +971,11 @@ int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
     return 0;
   }
 
+  /* ensure that the pending context is still valid */
+  CHECK_EQ(ta->pending_context->frame, ta->frame);
+
   *pending_ctx = ta->pending_context;
-  *pending_frame = ta->frame;
+
   return 1;
 }
 
@@ -992,7 +1018,9 @@ REG_W32(pvr_cb, STARTRENDER) {
     return;
   }
 
-  ta_start_render(ta, ta->pvr->PARAM_BASE->base_address);
+  struct tile_ctx *ctx = ta_get_context(ta, ta->pvr->PARAM_BASE->base_address);
+  CHECK_NOTNULL(ctx);
+  ta_start_render(ta, ctx);
 }
 
 REG_W32(pvr_cb, TA_LIST_INIT) {
@@ -1002,15 +1030,23 @@ REG_W32(pvr_cb, TA_LIST_INIT) {
     return;
   }
 
-  ta_init_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  struct tile_ctx *ctx =
+      ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  ta_init_context(ta, ctx);
+  ta->next_context = ctx;
 }
 
 REG_W32(pvr_cb, TA_LIST_CONT) {
+  struct ta *ta = dc->ta;
+
   if (!(value & 0x80000000)) {
     return;
   }
 
-  LOG_FATAL("Unsupported TA_LIST_CONT");
+  struct tile_ctx *ctx = ta_get_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  CHECK_NOTNULL(ctx);
+  ta_cont_context(ta, ctx);
+  ta->next_context = ctx;
 }
 
 REG_W32(pvr_cb, TA_YUV_TEX_BASE) {

@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <stdio.h>
 #include "hw/arm7/arm7.h"
 #include "core/log.h"
@@ -26,8 +25,8 @@ struct arm7 {
   /* jit */
   struct jit *jit;
   struct jit_guest guest;
-  struct jit_frontend *frontend;
-  struct jit_backend *backend;
+  struct armv3_frontend *frontend;
+  struct x64_backend *backend;
 
   /* interrupts */
   uint32_t requested_interrupts;
@@ -149,8 +148,8 @@ void arm7_suspend(struct arm7 *arm) {
   arm->execute_if->running = 0;
 }
 
-static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
-                           int flags) {
+static void arm7_translate(void *data, uint32_t addr, struct ir *ir, int flags,
+                           int *out_size) {
   struct arm7 *arm = data;
 
   int size;
@@ -188,6 +187,9 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir,
   }
 
   ir_branch(ir, ir_alloc_ptr(ir, arm7_dispatch_dynamic));
+
+  /* return size */
+  *out_size = size;
 }
 
 static void arm7_run(struct device *dev, int64_t ns) {
@@ -205,51 +207,59 @@ static void arm7_run(struct device *dev, int64_t ns) {
   PROF_LEAVE();
 }
 
-static bool arm7_init(struct device *dev) {
+static int arm7_init(struct device *dev) {
   struct arm7 *arm = (struct arm7 *)dev;
   struct dreamcast *dc = arm->dc;
 
   /* initialize jit and its interfaces */
   arm->jit = jit_create("arm7");
 
-  arm7_dispatch_init(arm, arm->jit, &arm->ctx, arm->memory_if->space->base);
+  { arm7_dispatch_init(arm, arm->jit, &arm->ctx, arm->memory_if->space->base); }
 
-  struct jit_guest *guest = &arm->guest;
-  guest->ctx = &arm->ctx;
-  guest->mem = arm->memory_if->space->base;
-  guest->space = arm->memory_if->space;
-  guest->lookup_code = &arm7_dispatch_lookup_code;
-  guest->cache_code = &arm7_dispatch_cache_code;
-  guest->invalidate_code = &arm7_dispatch_invalidate_code;
-  guest->patch_edge = &arm7_dispatch_patch_edge;
-  guest->restore_edge = &arm7_dispatch_restore_edge;
-  guest->r8 = &as_read8;
-  guest->r16 = &as_read16;
-  guest->r32 = &as_read32;
-  guest->w8 = &as_write8;
-  guest->w16 = &as_write16;
-  guest->w32 = &as_write32;
+  {
+    arm->guest.ctx = &arm->ctx;
+    arm->guest.mem = arm->memory_if->space->base;
+    arm->guest.space = arm->memory_if->space;
+    arm->guest.lookup_code = &arm7_dispatch_lookup_code;
+    arm->guest.cache_code = &arm7_dispatch_cache_code;
+    arm->guest.invalidate_code = &arm7_dispatch_invalidate_code;
+    arm->guest.patch_edge = &arm7_dispatch_patch_edge;
+    arm->guest.restore_edge = &arm7_dispatch_restore_edge;
+    arm->guest.r8 = &as_read8;
+    arm->guest.r16 = &as_read16;
+    arm->guest.r32 = &as_read32;
+    arm->guest.w8 = &as_write8;
+    arm->guest.w16 = &as_write16;
+    arm->guest.w32 = &as_write32;
+  }
 
-  struct armv3_frontend *frontend =
-      (struct armv3_frontend *)armv3_frontend_create(arm->jit);
-  frontend->data = arm;
-  frontend->translate = &arm7_translate;
-  frontend->switch_mode = &arm7_switch_mode;
-  frontend->restore_mode = &arm7_restore_mode;
-  frontend->software_interrupt = &arm7_software_interrupt;
-  arm->frontend = (struct jit_frontend *)frontend;
+  {
+    arm->frontend = armv3_frontend_create(arm->jit);
 
-  struct jit_backend *backend =
-      x64_backend_create(arm->jit, arm7_code, arm7_code_size, arm7_stack_size);
-  arm->backend = backend;
+    if (!arm->frontend) {
+      return 0;
+    }
 
-  if (!jit_init(arm->jit, &arm->guest, arm->frontend, arm->backend)) {
-    return false;
+    arm->frontend->data = arm;
+    arm->frontend->translate = &arm7_translate;
+    arm->frontend->switch_mode = &arm7_switch_mode;
+    arm->frontend->restore_mode = &arm7_restore_mode;
+    arm->frontend->software_interrupt = &arm7_software_interrupt;
+  }
+
+  {
+    arm->backend = x64_backend_create(arm->jit, arm7_code, arm7_code_size,
+                                      arm7_stack_size);
+  }
+
+  if (!jit_init(arm->jit, &arm->guest, (struct jit_frontend *)arm->frontend,
+                (struct jit_backend *)arm->backend)) {
+    return 0;
   }
 
   arm->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x00000000);
 
-  return true;
+  return 1;
 }
 
 void arm7_destroy(struct arm7 *arm) {

@@ -7,8 +7,9 @@
 #include "sys/time.h"
 
 DEFINE_AGGREGATE_COUNTER(pvr_vblanks);
+DEFINE_AGGREGATE_COUNTER(pvr_vram_data);
 
-struct reg_cb pvr_cb[NUM_PVR_REGS];
+struct reg_cb pvr_cb[PVR_NUM_REGS];
 
 static void pvr_next_scanline(void *data) {
   struct pvr *pvr = data;
@@ -130,36 +131,52 @@ static void pvr_palette_write(struct pvr *pvr, uint32_t addr, uint32_t data,
 }
 
 static uint32_t MAP64(uint32_t addr) {
-  /*
-   * the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
-   * accessing it:
-   * 0x04000000 -> 0x047fffff, 32-bit sequential access
-   * 0x05000000 -> 0x057fffff, 64-bit interleaved access
-   *
-   * in 64-bit interleaved mode, the addresses map like so:
-   * 0x05000000 = 0x0400000
-   * 0x05400000 = 0x0400004
-   * 0x05400002 = 0x0400006
-   * 0x05000004 = 0x0400008
-   * 0x05000006 = 0x040000a
-   * 0x05400004 = 0x040000c
-   * 0x05000008 = 0x0400010
-   * 0x05400008 = 0x0400014
-   * 0x0500000c = 0x0400018
-   * 0x0540000c = 0x040001c
-   */
+  /* the dreamcast has 8MB of vram, split into two 4MB banks, with two ways of
+     accessing it:
+     0x04000000 -> 0x047fffff, 32-bit sequential access
+     0x05000000 -> 0x057fffff, 64-bit interleaved access
+
+     in 64-bit interleaved mode, the addresses map like so:
+     0x05000000 = 0x0400000
+     0x05400000 = 0x0400004
+     0x05400002 = 0x0400006
+     0x05000004 = 0x0400008
+     0x05000006 = 0x040000a
+     0x05400004 = 0x040000c
+     0x05000008 = 0x0400010
+     0x05400008 = 0x0400014
+     0x0500000c = 0x0400018
+     0x0540000c = 0x040001c */
   return (((addr & 0x003ffffc) << 1) + ((addr & 0x00400000) >> 20) +
           (addr & 0x3));
 }
 
+static uint32_t pvr_vram_read(struct pvr *pvr, uint32_t addr,
+                              uint32_t data_mask) {
+  prof_counter_add(COUNTER_pvr_vram_data, DATA_SIZE());
+
+  return READ_DATA(&pvr->video_ram[addr]);
+}
+
+static void pvr_vram_write(struct pvr *pvr, uint32_t addr, uint32_t data,
+                           uint32_t data_mask) {
+  prof_counter_add(COUNTER_pvr_vram_data, DATA_SIZE());
+
+  WRITE_DATA(&pvr->video_ram[addr]);
+}
+
 static uint32_t pvr_vram_interleaved_read(struct pvr *pvr, uint32_t addr,
                                           uint32_t data_mask) {
+  prof_counter_add(COUNTER_pvr_vram_data, DATA_SIZE());
+
   addr = MAP64(addr);
   return READ_DATA(&pvr->video_ram[addr]);
 }
 
 static void pvr_vram_interleaved_write(struct pvr *pvr, uint32_t addr,
                                        uint32_t data, uint32_t data_mask) {
+  prof_counter_add(COUNTER_pvr_vram_data, DATA_SIZE());
+
   addr = MAP64(addr);
   WRITE_DATA(&pvr->video_ram[addr]);
 }
@@ -167,6 +184,8 @@ static void pvr_vram_interleaved_write(struct pvr *pvr, uint32_t addr,
 static void pvr_vram_interleaved_read_string(struct pvr *pvr, void *ptr,
                                              uint32_t src, int size) {
   CHECK(size % 4 == 0);
+
+  prof_counter_add(COUNTER_pvr_vram_data, size);
 
   uint8_t *dst = ptr;
   uint8_t *end = dst + size;
@@ -181,6 +200,8 @@ static void pvr_vram_interleaved_write_string(struct pvr *pvr, uint32_t dst,
                                               void *ptr, int size) {
   CHECK(size % 4 == 0);
 
+  prof_counter_add(COUNTER_pvr_vram_data, size);
+
   uint8_t *src = ptr;
   uint8_t *end = src + size;
   while (src < end) {
@@ -190,7 +211,7 @@ static void pvr_vram_interleaved_write_string(struct pvr *pvr, uint32_t dst,
   }
 }
 
-static bool pvr_init(struct device *dev) {
+static int pvr_init(struct device *dev) {
   struct pvr *pvr = (struct pvr *)dev;
   struct dreamcast *dc = pvr->dc;
 
@@ -207,7 +228,7 @@ static bool pvr_init(struct device *dev) {
   /* configure initial vsync interval */
   pvr_reconfigure_spg(pvr);
 
-  return true;
+  return 1;
 }
 
 void pvr_destroy(struct pvr *pvr) {
@@ -246,6 +267,11 @@ AM_END();
 
 AM_BEGIN(struct pvr, pvr_vram_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("video ram")
+  AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("video ram sequential",
+                                             (mmio_read_cb)&pvr_vram_read,
+                                             (mmio_write_cb)&pvr_vram_write,
+                                             NULL,
+                                             NULL)
   AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE("video ram interleaved",
                                              (mmio_read_cb)&pvr_vram_interleaved_read,
                                              (mmio_write_cb)&pvr_vram_interleaved_write,

@@ -11,8 +11,8 @@
 struct dreamcast;
 struct jit;
 struct jit_guest;
-struct jit_frontend;
-struct jit_backend;
+struct sh4_frontend;
+struct x64_backend;
 
 #define SH4_CLOCK_FREQ INT64_C(200000000)
 
@@ -44,8 +44,8 @@ struct sh4 {
   /* jit */
   struct jit *jit;
   struct jit_guest guest;
-  struct jit_frontend *frontend;
-  struct jit_backend *backend;
+  struct sh4_frontend *frontend;
+  struct x64_backend *backend;
 
   /* intc */
   enum sh4_interrupt sorted_interrupts[NUM_SH_INTERRUPTS];

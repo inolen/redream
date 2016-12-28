@@ -25,7 +25,7 @@ struct sh4_frontend {
   void (*fpscr_updated)(void *, uint32_t);
 };
 
-struct jit_frontend *sh4_frontend_create(struct jit *jit);
-void sh4_frontend_destroy(struct jit_frontend *frontend);
+struct sh4_frontend *sh4_frontend_create(struct jit *jit);
+void sh4_frontend_destroy(struct sh4_frontend *frontend);
 
 #endif

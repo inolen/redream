@@ -45,15 +45,15 @@ static int boot_load_rom(struct boot *boot, const char *path) {
   return 1;
 }
 
-static bool boot_init(struct device *dev) {
+static int boot_init(struct device *dev) {
   struct boot *boot = (struct boot *)dev;
 
   if (!boot_load_rom(boot, OPTION_bios)) {
     LOG_WARNING("Failed to load boot rom");
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 void boot_destroy(struct boot *boot) {

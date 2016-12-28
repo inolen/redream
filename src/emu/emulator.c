@@ -36,10 +36,10 @@ struct emu {
   int sorted_surfs[TA_MAX_SURFS];
 };
 
-static bool emu_launch_bin(struct emu *emu, const char *path) {
+static int emu_launch_bin(struct emu *emu, const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
-    return false;
+    return 0;
   }
 
   fseek(fp, 0, SEEK_END);
@@ -53,27 +53,27 @@ static bool emu_launch_bin(struct emu *emu, const char *path) {
 
   if (n != size) {
     LOG_WARNING("BIN read failed");
-    return false;
+    return 0;
   }
 
   sh4_reset(emu->dc->sh4, 0x0c010000);
   dc_resume(emu->dc);
 
-  return true;
+  return 1;
 }
 
-static bool emu_launch_gdi(struct emu *emu, const char *path) {
+static int emu_launch_gdi(struct emu *emu, const char *path) {
   struct disc *disc = disc_create_gdi(path);
 
   if (!disc) {
-    return false;
+    return 0;
   }
 
   gdrom_set_disc(emu->dc->gdrom, disc);
   sh4_reset(emu->dc->sh4, 0xa0000000);
   dc_resume(emu->dc);
 
-  return true;
+  return 1;
 }
 
 static void emu_paint(void *data) {
@@ -82,16 +82,15 @@ static void emu_paint(void *data) {
   /* render latest ta context */
   struct render_context *render_ctx = &emu->render_ctx;
   struct tile_ctx *pending_ctx = NULL;
-  int pending_frame = 0;
 
-  if (ta_lock_pending_context(emu->dc->ta, &pending_ctx, &pending_frame)) {
+  if (ta_lock_pending_context(emu->dc->ta, &pending_ctx)) {
     render_ctx->surfs = emu->surfs;
     render_ctx->surfs_size = array_size(emu->surfs);
     render_ctx->verts = emu->verts;
     render_ctx->verts_size = array_size(emu->verts);
     render_ctx->sorted_surfs = emu->sorted_surfs;
     render_ctx->sorted_surfs_size = array_size(emu->sorted_surfs);
-    tr_parse_context(emu->tr, pending_ctx, pending_frame, render_ctx);
+    tr_parse_context(emu->tr, pending_ctx, render_ctx);
 
     ta_unlock_pending_context(emu->dc->ta);
   }
@@ -283,6 +282,9 @@ struct emu *emu_create(struct window *window) {
                                            &emu_close,
                                            {0}};
   win_add_listener(emu->window, &emu->listener);
+
+  /* enable debug menu by default */
+  win_enable_debug_menu(emu->window, 1);
 
   return emu;
 }

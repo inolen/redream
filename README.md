@@ -3,70 +3,20 @@
 [![Build status](https://travis-ci.org/inolen/redream.svg?branch=master)](https://travis-ci.org/inolen/redream)
 [![Slack status](http://slack.redream.io/badge.svg)](http://slack.redream.io)
 
-redream is a work in progress emulator for the SEGA Dreamcast.
+[redream](http://redream.io) is a work-in-progress SEGA Dreamcast emulator written in C for Mac, Linux and Windows.
 
-<p align="center">
-<a href="http://www.youtube.com/watch?v=kDBAweW9hD0"><img src="http://share.gifyoutube.com/vMZXGb.gif" /></a>
-</p>
+redream is licensed under the [MIT license](https://github.com/inolen/redream/blob/master/LICENSE).
 
-## Getting started
+Ask questions and help answer them on [our Slack group](http://slack.redream.io).
 
-Start by cloning the repository and setting up a build directory.
-```shell
-git clone https://github.com/inolen/redream.git
-mkdir redream_build
-cd redream_build
-```
+## Building
 
-Next, generate a makefile or project file for your IDE of choice. For more info on the supported IDEs, checkout the [CMake documentation](http://www.cmake.org/cmake/help/latest/manual/cmake-generators.7.html).
-```shell
-# Makefile
-cmake -DCMAKE_BUILD_TYPE=RELEASE ../redream
+To build the latest binaries, checkout out the [building](http://redream.io/docs/building) docs.
 
-# Xcode project
-cmake -G "Xcode" ../redream
+## Downloading
 
-# Visual Studio project
-cmake -G "Visual Studio 14 Win64" ../redream
-```
+The latest pre-built binaries can be found on the [downloads](http://redream.io/download) page.
 
-Finally, you can either run `make` from the command line if you've generated a Makefile or load up the project file and compile the code from inside of your IDE.
+## Reporting bugs
 
-The build has been tested on OSX 10.10 with clang 3.6, Ubuntu 14.04 with GCC 4.9 and Windows 8.1 with Visual Studio 2015.
-
-## Running
-```
-redream --bios=path/to/dc_boot.bin --flash=path/to/dc_flash.bin <bin or gdi file>
-```
-
-Command line flags are loaded from and saved to `$HOME/.redream/flags` each run. This means that bios and flash path, etc. only need to be set on the first run.
-
-### All options
-```
-       --bios  Path to BIOS                                            [default: dc_boot.bin]
-      --flash  Path to flash ROM                                       [default: dc_flash.bin]
- --controller  Path to controller profile
-   --throttle  Throttle emulation speed to match the original hardware [default: 1]
-    --verbose  Enable debug logging                                    [default: 0]
-       --perf  Write perf-compatible maps for generated code           [default: 0]
-        --gdb  Start GDB debug server                                  [default: 0]
-```
-
-### Debugging
-
-If ran with `--debug`, a server is setup on port `24690` for remote debugging of the guest SH4 code with GDB.
-
-The server can be connected to with GDB like so:
-```
-set architecture sh4
-target remote localhost:24690
-```
-
-## Running tests
-```shell
-retest
-```
-
-## Community
-
-Ask questions and help answer them on [Slack](http://slack.redream.io).
+Report bugs via the [GitHub issue queue](https://github.com/inolen/redream/issues).

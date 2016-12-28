@@ -6,6 +6,7 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 #include "jit/pass_stats.h"
+#include "jit/passes/constant_propagation_pass.h"
 #include "jit/passes/conversion_elimination_pass.h"
 #include "jit/passes/dead_code_elimination_pass.h"
 #include "jit/passes/expression_simplification_pass.h"
@@ -14,7 +15,7 @@
 #include "sys/filesystem.h"
 
 DEFINE_OPTION_INT(help, 0, "Show help");
-DEFINE_OPTION_STRING(pass, "lse,cve,esimp,dce,ra",
+DEFINE_OPTION_STRING(pass, "lse,cprop,cve,esimp,dce,ra",
                      "Comma-separated list of passes to run");
 
 DEFINE_STAT(ir_instrs_total, "total ir instructions");
@@ -77,6 +78,8 @@ static void process_file(struct jit *jit, const char *filename,
   while (name) {
     if (!strcmp(name, "lse")) {
       lse_run(&ir);
+    } else if (!strcmp(name, "cprop")) {
+      cprop_run(&ir);
     } else if (!strcmp(name, "cve")) {
       cve_run(&ir);
     } else if (!strcmp(name, "dce")) {
@@ -173,10 +176,10 @@ int main(int argc, char **argv) {
   guest.w16 = (void *)code;
   guest.w32 = (void *)code;
 
-  struct jit_backend *backend =
+  struct x64_backend *backend =
       x64_backend_create(jit, code, code_size, stack_size);
 
-  CHECK(jit_init(jit, &guest, NULL, backend));
+  CHECK(jit_init(jit, &guest, NULL, (struct jit_backend *)backend));
 
   if (fs_isfile(path)) {
     process_file(jit, path, 0);

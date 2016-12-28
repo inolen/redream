@@ -1,7 +1,6 @@
 #ifndef DREAMCAST_H
 #define DREAMCAST_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "core/list.h"
@@ -76,7 +75,7 @@ typedef void (*device_run_cb)(struct device *, int64_t);
 
 struct execute_interface {
   device_run_cb run;
-  bool running;
+  int running;
 };
 
 /* memory interface */
@@ -104,7 +103,7 @@ struct window_interface {
 struct device {
   struct dreamcast *dc;
   const char *name;
-  bool (*init)(struct device *dev);
+  int (*init)(struct device *dev);
 
   /* optional interfaces */
   struct debug_interface *debug_if;
@@ -155,7 +154,7 @@ struct dreamcast *dc_create();
 void dc_destroy(struct dreamcast *dc);
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       bool (*init)(struct device *dev));
+                       int (*init)(struct device *dev));
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
@@ -172,7 +171,7 @@ struct window_interface *dc_create_window_interface(
     device_joy_add_cb joy_add, device_joy_remove_cb joy_remove);
 void dc_destroy_window_interface(struct window_interface *window);
 
-bool dc_init(struct dreamcast *dc);
+int dc_init(struct dreamcast *dc);
 void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);

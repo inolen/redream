@@ -56,7 +56,7 @@ static void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
   *value = v;
 }
 
-bool debugger_init(struct debugger *dbg) {
+int debugger_init(struct debugger *dbg) {
   // use the first device found with a debug interface
   list_for_each_entry(dev, &dbg->dc->devices, struct device, it) {
     if (dev->debug_if) {
@@ -67,7 +67,7 @@ bool debugger_init(struct debugger *dbg) {
 
   // didn't find a debuggable device
   if (!dbg->dev) {
-    return false;
+    return 0;
   }
 
   // create the gdb server
@@ -87,10 +87,10 @@ bool debugger_init(struct debugger *dbg) {
   dbg->sv = gdb_server_create(&target, 24690);
   if (!dbg->sv) {
     LOG_WARNING("Failed to create GDB server");
-    return false;
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 void debugger_trap(struct debugger *dbg) {

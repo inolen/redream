@@ -3,6 +3,7 @@
 
 #define XBYAK_NO_OP_NAMES
 #include <xbyak/xbyak.h>
+#include <xbyak/xbyak_util.h>
 
 extern "C" {
 #include "core/profiler.h"
@@ -16,9 +17,9 @@ extern "C" {
 #include "sys/memory.h"
 }
 
-//
-// x64 stack layout
-//
+/*
+ * x64 stack layout
+ */
 
 #if PLATFORM_WINDOWS
 static const int STACK_SHADOW_SPACE = 32;
@@ -27,37 +28,37 @@ static const int STACK_SHADOW_SPACE = 0;
 #endif
 static const int STACK_OFFSET_LOCALS = STACK_SHADOW_SPACE + 8;
 
-//
-// x64 register layout
-//
+/*
+ * x64 register layout
+ */
 
-// %rax %eax %ax %al      <-- both: temporary
-// %rcx %ecx %cx %cl      <-- both: argument
-// %rdx %edx %dx %dl      <-- both: argument
-// %rbx %ebx %bx %bl      <-- both: available (callee saved)
-// %rsp %esp %sp %spl     <-- both: reserved
-// %rbp %ebp %bp %bpl     <-- both: available (callee saved)
-// %rsi %esi %si %sil     <-- msvc: available (callee saved), amd64: argument
-// %rdi %edi %di %dil     <-- msvc: available (callee saved), amd64: argument
-// %r8 %r8d %r8w %r8b     <-- both: argument
-// %r9 %r9d %r9w %r9b     <-- both: argument
-// %r10 %r10d %r10w %r10b <-- both: available (not callee saved)
-// %r11 %r11d %r11w %r11b <-- both: available (not callee saved)
-// %r12 %r12d %r12w %r12b <-- both: available (callee saved)
-// %r13 %r13d %r13w %r13b <-- both: available (callee saved)
-// %r14 %r14d %r14w %r14b <-- both: available (callee saved)
-// %r15 %r15d %r15w %r15b <-- both: available (callee saved)
+/* %rax %eax %ax %al      <-- both: temporary
+   %rcx %ecx %cx %cl      <-- both: argument
+   %rdx %edx %dx %dl      <-- both: argument
+   %rbx %ebx %bx %bl      <-- both: available (callee saved)
+   %rsp %esp %sp %spl     <-- both: reserved
+   %rbp %ebp %bp %bpl     <-- both: available (callee saved)
+   %rsi %esi %si %sil     <-- msvc: available (callee saved), amd64: argument
+   %rdi %edi %di %dil     <-- msvc: available (callee saved), amd64: argument
+   %r8 %r8d %r8w %r8b     <-- both: argument
+   %r9 %r9d %r9w %r9b     <-- both: argument
+   %r10 %r10d %r10w %r10b <-- both: available (not callee saved)
+   %r11 %r11d %r11w %r11b <-- both: available (not callee saved)
+   %r12 %r12d %r12w %r12b <-- both: available (callee saved)
+   %r13 %r13d %r13w %r13b <-- both: available (callee saved)
+   %r14 %r14d %r14w %r14b <-- both: available (callee saved)
+   %r15 %r15d %r15w %r15b <-- both: available (callee saved)
 
-// msvc calling convention uses rcx, rdx, r8, r9 for arguments
-// amd64 calling convention uses rdi, rsi, rdx, rcx, r8, r9 for arguments
-// both use the same xmm registers for floating point arguments
-// our largest function call uses only 3 arguments
-// msvc is left with rax, rdi, rsi, r9-r11,
-// amd64 is left with rax, rcx, r8-r11 available on amd64
+   msvc calling convention uses rcx, rdx, r8, r9 for arguments
+   amd64 calling convention uses rdi, rsi, rdx, rcx, r8, r9 for arguments
+   both use the same xmm registers for floating point arguments
+   our largest function call uses only 3 arguments
+   msvc is left with rax, rdi, rsi, r9-r11,
+   amd64 is left with rax, rcx, r8-r11 available on amd64
 
-// rax is used as a scratch register
-// r10, r11, xmm1 are used for constant not eliminated by const propagation
-// r14, r15 are reserved for the context and memory pointers
+   rax is used as a scratch register
+   r10, r11, xmm1 are used for constant not eliminated by const propagation
+   r14, r15 are reserved for the context and memory pointers */
 
 #if PLATFORM_WINDOWS
 const int x64_arg0_idx = Xbyak::Operand::RCX;
@@ -81,14 +82,12 @@ const Xbyak::Reg64 tmp0(x64_tmp0_idx);
 const Xbyak::Reg64 tmp1(x64_tmp1_idx);
 
 const struct jit_register x64_registers[] = {
-    {"rbx", VALUE_INT_MASK, reinterpret_cast<const void *>(&Xbyak::util::rbx)},
-    {"rbp", VALUE_INT_MASK, reinterpret_cast<const void *>(&Xbyak::util::rbp)},
-    {"r12", VALUE_INT_MASK, reinterpret_cast<const void *>(&Xbyak::util::r12)},
-    {"r13", VALUE_INT_MASK, reinterpret_cast<const void *>(&Xbyak::util::r13)},
-    // {"r14", VALUE_INT_MASK,
-    //  reinterpret_cast<const void *>(&Xbyak::util::r14)},
-    // {"r15", VALUE_INT_MASK,
-    //  reinterpret_cast<const void *>(&Xbyak::util::r15)},
+    {"rbx", VALUE_INT_MASK, (const void *)&Xbyak::util::rbx},
+    {"rbp", VALUE_INT_MASK, (const void *)&Xbyak::util::rbp},
+    {"r12", VALUE_INT_MASK, (const void *)&Xbyak::util::r12},
+    {"r13", VALUE_INT_MASK, (const void *)&Xbyak::util::r13},
+    /* {"r14", VALUE_INT_MASK, (const void *)&Xbyak::util::r14},
+       {"r15", VALUE_INT_MASK, (const void *)&Xbyak::util::r15}, */
     {"xmm6", VALUE_FLOAT_MASK,
      reinterpret_cast<const void *>(&Xbyak::util::xmm6)},
     {"xmm7", VALUE_FLOAT_MASK,
@@ -113,9 +112,9 @@ const struct jit_register x64_registers[] = {
 const int x64_num_registers =
     sizeof(x64_registers) / sizeof(struct jit_register);
 
-//
-// x64 emitters for each ir op
-//
+/*
+ * x64 emitters for each ir op
+ */
 struct x64_backend;
 
 typedef void (*x64_emit_cb)(struct x64_backend *, Xbyak::CodeGenerator &,
@@ -134,11 +133,9 @@ static x64_emit_cb x64_backend_emitters[NUM_OPS];
   void x64_emit_##op(struct x64_backend *backend, Xbyak::CodeGenerator &e, \
                      const struct ir_instr *instr)
 
-//
-// xmm constants. SSE / AVX provides no support for loading a constant into an
-// xmm register, so instead frequently used constants are emitted to the code
-// buffer and used as memory operands
-//
+/* xmm constants. SSE / AVX provides no support for loading a constant into an
+   xmm register, so instead frequently used constants are emitted to the code
+   buffer and used as memory operand */
 enum xmm_constant {
   XMM_CONST_ABS_MASK_PS,
   XMM_CONST_ABS_MASK_PD,
@@ -169,8 +166,8 @@ static const Xbyak::Reg x64_backend_register(struct x64_backend *backend,
                                              const struct ir_value *v) {
   auto &e = *backend->codegen;
 
-  // if the value is a local or constant, copy it to a tempory register, else
-  // return the register allocated for it
+  /* if the value is a local or constant, copy it to a tempory register, else
+     return the register allocated for it */
   if (ir_is_constant(v)) {
     CHECK_LT(backend->num_temps, 2);
 
@@ -187,14 +184,14 @@ static const Xbyak::Reg x64_backend_register(struct x64_backend *backend,
         tmp = tmp.cvt32();
         break;
       case VALUE_I64:
-        // no conversion needed
+        /* no conversion needed */
         break;
       default:
         LOG_FATAL("Unexpected value type");
         break;
     }
 
-    // copy value to the temporary register
+    /* copy value to the temporary register */
     e.mov(tmp, ir_zext_constant(v));
 
     return tmp;
@@ -226,10 +223,10 @@ static const Xbyak::Xmm x64_backend_xmm_register(struct x64_backend *backend,
                                                  const struct ir_value *v) {
   auto &e = *backend->codegen;
 
-  // if the value isn't allocated a XMM register copy it to a temporary XMM,
-  // register, else return the XMM register allocated for it
+  /* if the value isn't allocated a XMM register copy it to a temporary XMM,
+     register, else return the XMM register allocated for it */
   if (ir_is_constant(v)) {
-    // copy value to the temporary register
+    /* copy value to the temporary register */
     if (v->type == VALUE_F32) {
       float val = v->f32;
       e.mov(e.eax, *(int32_t *)&val);
@@ -410,37 +407,37 @@ static int x64_backend_handle_exception(struct jit_backend *base,
 
   const uint8_t *data = reinterpret_cast<const uint8_t *>(ex->thread_state.rip);
 
-  // it's assumed a mov has triggered the exception
+  /* it's assumed a mov has triggered the exception */
   struct x64_mov mov;
   if (!x64_decode_mov(data, &mov)) {
     return 0;
   }
 
-  // figure out the guest address that was being accessed
+  /* figure out the guest address that was being accessed */
   const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex->fault_addr);
   const uint8_t *protected_start =
       reinterpret_cast<const uint8_t *>(ex->thread_state.r15);
   uint32_t guest_addr = static_cast<uint32_t>(fault_addr - protected_start);
 
-  // instead of handling the dynamic callback from inside of the exception
-  // handler, force rip to the beginning of a thunk which will invoke the
-  // callback once the exception handler has exited. this frees the callbacks
-  // from any restrictions imposed by an exception handler, and also prevents
-  // a possible recursive exceptions
+  /* instead of handling the dynamic callback from inside of the exception
+     handler, force rip to the beginning of a thunk which will invoke the
+     callback once the exception handler has exited. this frees the callbacks
+     from any restrictions imposed by an exception handler, and also prevents
+     a possible recursive exceptions
 
-  // push the return address (the next instruction after the current mov) to
-  // the stack. also, adjust the stack for the return address, with an extra
-  // 8 bytes to keep it aligned
+     push the return address (the next instruction after the current mov) to
+     the stack. also, adjust the stack for the return address, with an extra
+     8 bytes to keep it aligned */
   *(uintptr_t *)(ex->thread_state.rsp - 8) = ex->thread_state.rip + mov.length;
   ex->thread_state.rsp -= STACK_SHADOW_SPACE + 8 + 8;
   CHECK(ex->thread_state.rsp % 16 == 0);
 
   if (mov.is_load) {
-    // prep argument registers (memory object, guest_addr) for read function
+    /* prep argument registers (memory object, guest_addr) for read function */
     ex->thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(guest->space);
     ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
 
-    // prep function call address for thunk
+    /* prep function call address for thunk */
     switch (mov.operand_size) {
       case 1:
         ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r8);
@@ -456,17 +453,17 @@ static int x64_backend_handle_exception(struct jit_backend *base,
         break;
     }
 
-    // resume execution in the thunk once the exception handler exits
+    /* resume execution in the thunk once the exception handler exits */
     ex->thread_state.rip =
         reinterpret_cast<uint64_t>(backend->load_thunk[mov.reg]);
   } else {
-    // prep argument registers (memory object, guest_addr, value) for write
-    // function
+    /* prep argument registers (memory object, guest_addr, value) for write
+       function */
     ex->thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(guest->space);
     ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
     ex->thread_state.r[x64_arg2_idx] = ex->thread_state.r[mov.reg];
 
-    // prep function call address for thunk
+    /* prep function call address for thunk */
     switch (mov.operand_size) {
       case 1:
         ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w8);
@@ -482,7 +479,7 @@ static int x64_backend_handle_exception(struct jit_backend *base,
         break;
     }
 
-    // resume execution in the thunk once the exception handler exits
+    /* resume execution in the thunk once the exception handler exits */
     ex->thread_state.rip = reinterpret_cast<uint64_t>(backend->store_thunk);
   }
 
@@ -512,8 +509,8 @@ static void *x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
 
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
 
-  // try to generate the x64 code. if the code buffer overflows let the backend
-  // know so it can reset the cache and try again
+  /* try to generate the x64 code. if the code buffer overflows let the backend
+     know so it can reset the cache and try again */
   void *code = NULL;
 
   try {
@@ -995,7 +992,7 @@ EMITTER(SEXT) {
   const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (a == result) {
-    // already the correct width
+    /* already the correct width */
     return;
   }
 
@@ -1011,12 +1008,12 @@ EMITTER(ZEXT) {
   const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (a == result) {
-    // already the correct width
+    /* already the correct width */
     return;
   }
 
   if (result.isBit(64) && a.isBit(32)) {
-    // mov will automatically zero fill the upper 32-bits
+    /* mov will automatically zero fill the upper 32-bits */
     e.mov(result.cvt32(), a);
   } else {
     e.movzx(result, a);
@@ -1028,8 +1025,8 @@ EMITTER(TRUNC) {
   const Xbyak::Reg a = x64_backend_register(backend, instr->arg[0]);
 
   if (result.getIdx() == a.getIdx()) {
-    // noop if already the same register. note, this means the high order bits
-    // of the result won't be cleared, but I believe that is fine
+    /* noop if already the same register. note, this means the high order bits
+       of the result won't be cleared, but I believe that is fine */
     return;
   }
 
@@ -1049,7 +1046,7 @@ EMITTER(TRUNC) {
   }
 
   if (truncated.isBit(32)) {
-    // mov will automatically zero fill the upper 32-bits
+    /* mov will automatically zero fill the upper 32-bits */
     e.mov(result, truncated);
   } else {
     e.movzx(result.cvt32(), truncated);
@@ -1076,7 +1073,7 @@ EMITTER(SELECT) {
   const Xbyak::Reg b = x64_backend_register(backend, instr->arg[1]);
   const Xbyak::Reg cond = x64_backend_register(backend, instr->arg[2]);
 
-  // convert result to Reg32e to please xbyak
+  /* convert result to Reg32e to please xbyak */
   CHECK_GE(result.getBit(), 32);
   Xbyak::Reg32e result_32e(result.getIdx(), result.getBit());
 
@@ -1262,9 +1259,9 @@ EMITTER(NEG) {
 
 EMITTER(ABS) {
   LOG_FATAL("Unsupported");
-  // e.mov(e.rax, *result);
-  // e.neg(e.rax);
-  // e.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), e.rax);
+  /* e.mov(e.rax, *result);
+     e.neg(e.rax);
+     e.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), e.rax); */
 }
 
 EMITTER(FADD) {
@@ -1504,16 +1501,16 @@ EMITTER(ASHD) {
     e.mov(result, v);
   }
 
-  // check if we're shifting left or right
+  /* check if we're shifting left or right */
   e.test(n, 0x80000000);
   e.jnz(".shr");
 
-  // perform shift left
+  /* perform shift left */
   e.mov(e.cl, n);
   e.sal(result, e.cl);
   e.jmp(".end");
 
-  // perform right shift
+  /* perform right shift */
   e.L(".shr");
   e.test(n, 0x1f);
   e.jz(".shr_overflow");
@@ -1522,11 +1519,11 @@ EMITTER(ASHD) {
   e.sar(result, e.cl);
   e.jmp(".end");
 
-  // right shift overflowed
+  /* right shift overflowed */
   e.L(".shr_overflow");
   e.sar(result, 31);
 
-  // shift is done
+  /* shift is done */
   e.L(".end");
 
   e.outLocalLabel();
@@ -1543,16 +1540,16 @@ EMITTER(LSHD) {
     e.mov(result, v);
   }
 
-  // check if we're shifting left or right
+  /* check if we're shifting left or right */
   e.test(n, 0x80000000);
   e.jnz(".shr");
 
-  // perform shift left
+  /* perform shift left */
   e.mov(e.cl, n);
   e.shl(result, e.cl);
   e.jmp(".end");
 
-  // perform right shift
+  /* perform right shift */
   e.L(".shr");
   e.test(n, 0x1f);
   e.jz(".shr_overflow");
@@ -1561,11 +1558,11 @@ EMITTER(LSHD) {
   e.shr(result, e.cl);
   e.jmp(".end");
 
-  // right shift overflowed
+  /* right shift overflowed */
   e.L(".shr_overflow");
   e.mov(result, 0x0);
 
-  // shift is done
+  /* shift is done */
   e.L(".end");
 
   e.outLocalLabel();
@@ -1647,9 +1644,7 @@ EMITTER(CALL_FALLBACK) {
 
 EMITTER(DEBUG_INFO) {}
 
-void x64_backend_destroy(struct jit_backend *jit_backend) {
-  struct x64_backend *backend = (struct x64_backend *)jit_backend;
-
+void x64_backend_destroy(struct x64_backend *backend) {
   cs_close(&backend->capstone_handle);
 
   delete backend->codegen;
@@ -1657,8 +1652,16 @@ void x64_backend_destroy(struct jit_backend *jit_backend) {
   free(backend);
 }
 
-struct jit_backend *x64_backend_create(struct jit *jit, void *code,
+struct x64_backend *x64_backend_create(struct jit *jit, void *code,
                                        int code_size, int stack_size) {
+  /* AVX is used instead of SSE purely because its 3 argument instructions
+     are easier to emit for */
+  Xbyak::util::Cpu cpu;
+  if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
+    LOG_WARNING("Failed to create x64 backend, CPU does not support AVX");
+    return NULL;
+  }
+
   struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
       calloc(1, sizeof(struct x64_backend)));
 
@@ -1678,8 +1681,8 @@ struct jit_backend *x64_backend_create(struct jit *jit, void *code,
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
 
-  // do an initial reset to emit constants and thunks
+  /* do an initial reset to emit constants and thunks */
   x64_backend_reset((jit_backend *)backend);
 
-  return (struct jit_backend *)backend;
+  return backend;
 }
