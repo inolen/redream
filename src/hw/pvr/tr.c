@@ -240,11 +240,33 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
       CHECK(!compressed);
       output = converted;
       switch (ctx->pal_pxl_format) {
+        case TA_PAL_ARGB1555:
+          pixel_fmt = PXL_RGBA5551;
+          convert_pal4_ARGB1555_RGBA5551(input, (uint16_t *)converted,
+                                         (const uint32_t *)palette, width,
+                                         height);
+          break;
+
+        case TA_PAL_RGB565:
+          pixel_fmt = PXL_RGB565;
+          convert_pal4_RGB565_RGB565(input, (uint16_t *)converted,
+                                     (const uint32_t *)palette, width,
+                                     height);
+          break;
+
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           convert_pal4_ARGB4444_RGBA4444(input, (uint16_t *)converted,
                                          (const uint32_t *)palette, width,
                                          height);
+          break;
+
+        case TA_PAL_ARGB8888:
+          pixel_fmt = PXL_RGBA8888;
+          convert_pal4_ARGB8888_RGBA8888(input, (uint32_t *)converted,
+                                         (const uint32_t *)palette, width,
+                                         height);
+
           break;
 
         default:
