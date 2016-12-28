@@ -285,6 +285,8 @@ define_convert_pal4(RGB565, RGB565);
 define_convert_pal4(ARGB4444, RGBA4444);
 define_convert_pal4(ARGB8888, RGBA8888);
 
+define_convert_pal8(ARGB1555, RGBA5551);
+define_convert_pal8(RGB565, RGB565);
 define_convert_pal8(ARGB4444, RGBA4444);
 define_convert_pal8(ARGB8888, RGBA8888);
 
