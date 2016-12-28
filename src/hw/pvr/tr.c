@@ -250,8 +250,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
         case TA_PAL_RGB565:
           pixel_fmt = PXL_RGB565;
           convert_pal4_RGB565_RGB565(input, (uint16_t *)converted,
-                                     (const uint32_t *)palette, width,
-                                     height);
+                                     (const uint32_t *)palette, width, height);
           break;
 
         case TA_PAL_ARGB4444:
@@ -290,8 +289,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
         case TA_PAL_RGB565:
           pixel_fmt = PXL_RGB565;
           convert_pal8_RGB565_RGB565(input, (uint16_t *)converted,
-                                     (const uint32_t *)palette, width,
-                                     height);
+                                     (const uint32_t *)palette, width, height);
           break;
 
         case TA_PAL_ARGB4444:
@@ -388,15 +386,14 @@ static void tr_discard_incomplete_surf(struct tr *tr,
 
 /* FIXME offload this to the GPU, generating shader for different combinations
    of ISP/TSP parameters once the logic is ironed out */
-/* FIXME honor use alpha */
-/* FIXME honor ignore tex alpha */
 static void tr_parse_color(struct tr *tr, uint32_t base_color,
                            uint32_t *color) {
   *color = abgr_to_rgba(base_color);
+}
 
-  /*if (!tr->last_poly->type0.tsp.use_alpha) {
-    color[3] = 1.0f;
-  }*/
+static void tr_parse_color_rgba(struct tr *tr, float r, float g, float b,
+                                float a, uint32_t *color) {
+  *color = float_to_rgba(r, g, b, a);
 }
 
 static void tr_parse_color_intensity(struct tr *tr, float base_intensity,
@@ -404,50 +401,25 @@ static void tr_parse_color_intensity(struct tr *tr, float base_intensity,
   *color = float_to_rgba(tr->face_color[0] * base_intensity,
                          tr->face_color[1] * base_intensity,
                          tr->face_color[2] * base_intensity, tr->face_color[3]);
-
-  /*if (!tr->last_poly->type0.tsp.use_alpha) {
-    color[3] = 1.0f;
-  }*/
-}
-
-static void tr_parse_color_rgba(struct tr *tr, float r, float g, float b,
-                                float a, uint32_t *color) {
-  *color = float_to_rgba(r, g, b, a);
-
-  /*if (!tr->last_poly->type0.tsp.use_alpha) {
-    color[3] = 1.0f;
-  }*/
 }
 
 static void tr_parse_offset_color(struct tr *tr, uint32_t offset_color,
                                   uint32_t *color) {
-  if (!tr->last_poly->type0.isp_tsp.offset) {
-    *color = 0;
-  } else {
-    *color = abgr_to_rgba(offset_color);
-  }
+  *color = abgr_to_rgba(offset_color);
 }
 
 static void tr_parse_offset_color_rgba(struct tr *tr, float r, float g, float b,
                                        float a, uint32_t *color) {
-  if (!tr->last_poly->type0.isp_tsp.offset) {
-    *color = 0;
-  } else {
-    *color = float_to_rgba(r, g, b, a);
-  }
+  *color = float_to_rgba(r, g, b, a);
 }
 
 static void tr_parse_offset_color_intensity(struct tr *tr,
                                             float offset_intensity,
                                             uint32_t *color) {
-  if (!tr->last_poly->type0.isp_tsp.offset) {
-    *color = 0;
-  } else {
-    *color = float_to_rgba(tr->face_offset_color[0] * offset_intensity,
-                           tr->face_offset_color[1] * offset_intensity,
-                           tr->face_offset_color[2] * offset_intensity,
-                           tr->face_offset_color[3]);
-  }
+  *color = float_to_rgba(tr->face_offset_color[0] * offset_intensity,
+                         tr->face_offset_color[1] * offset_intensity,
+                         tr->face_offset_color[2] * offset_intensity,
+                         tr->face_offset_color[3]);
 }
 
 static int tr_parse_bg_vert(const struct tile_ctx *ctx, int offset,
@@ -596,7 +568,9 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   surf->src_blend = translate_src_blend_func(param->type0.tsp.src_alpha_instr);
   surf->dst_blend = translate_dst_blend_func(param->type0.tsp.dst_alpha_instr);
   surf->shade = translate_shade_mode(param->type0.tsp.texture_shading_instr);
-  surf->ignore_tex_alpha = param->type0.tsp.ignore_tex_alpha;
+  surf->ignore_alpha = !param->type0.tsp.use_alpha;
+  surf->ignore_texture_alpha = param->type0.tsp.ignore_tex_alpha;
+  surf->offset_color = param->type0.isp_tsp.offset;
 
   /* override a few surface parameters based on the list type */
   if (tr->list_type != TA_LIST_TRANSLUCENT &&

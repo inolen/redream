@@ -563,8 +563,10 @@ static void tracer_param_tooltip(struct tracer *tracer,
 
       /* TODO separator */
 
-      nk_layout_row_static(ctx, 40.0f, 40, 1);
-      nk_image(ctx, nk_image_id((int)surf->texture));
+      if (surf->texture) {
+        nk_layout_row_static(ctx, 40.0f, 40, 1);
+        nk_image(ctx, nk_image_id((int)surf->texture));
+      }
 
       nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
       nk_labelf(ctx, NK_TEXT_LEFT, "depth_write: %d", surf->depth_write);
@@ -576,8 +578,10 @@ static void tracer_param_tooltip(struct tracer *tracer,
       nk_labelf(ctx, NK_TEXT_LEFT, "dst_blend: %s",
                 blendfunc_names[surf->dst_blend]);
       nk_labelf(ctx, NK_TEXT_LEFT, "shade: %s", shademode_names[surf->shade]);
-      nk_labelf(ctx, NK_TEXT_LEFT, "ignore_tex_alpha: %d",
-                surf->ignore_tex_alpha);
+      nk_labelf(ctx, NK_TEXT_LEFT, "ignore_alpha: %d", surf->ignore_alpha);
+      nk_labelf(ctx, NK_TEXT_LEFT, "ignore_texture_alpha: %d",
+                surf->ignore_texture_alpha);
+      nk_labelf(ctx, NK_TEXT_LEFT, "offset_color: %d", surf->offset_color);
       nk_labelf(ctx, NK_TEXT_LEFT, "first_vert: %d", surf->first_vert);
       nk_labelf(ctx, NK_TEXT_LEFT, "num_verts: %d", surf->num_verts);
     }

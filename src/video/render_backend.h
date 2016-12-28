@@ -91,8 +91,12 @@ struct surface {
   enum cull_face cull;
   enum blend_func src_blend;
   enum blend_func dst_blend;
+
   enum shade_mode shade;
-  int ignore_tex_alpha;
+  int ignore_alpha;
+  int ignore_texture_alpha;
+  int offset_color;
+
   int first_vert;
   int num_verts;
 };
