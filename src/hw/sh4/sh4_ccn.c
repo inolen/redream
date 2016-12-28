@@ -83,8 +83,10 @@ REG_W32(sh4_cb, CCR) {
   sh4->CCR->full = value;
 
   if (sh4->CCR->ICI) {
-    /* ICI is read-only */
-    sh4->CCR->ICI = 0;
     sh4_ccn_reset(sh4);
   }
+
+  /* ICI / OCI is read-only */
+  sh4->CCR->ICI = 0;
+  sh4->CCR->OCI = 0;
 }
