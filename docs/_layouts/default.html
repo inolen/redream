@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{% if page.title %}{{ page.title | escape }}{% else %}{{ site.title | escape }}{% endif %}</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans|Roboto:400,900"> 
+    <link rel="stylesheet" href="http://yandex.st/highlightjs/8.0/styles/github.min.css"></link>
+    <link rel="stylesheet" href="{{ site.github.url }}/css/main.css"></link>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="{{ site.github.url }}/favicon.ico" type="image/x-icon">
+  </head>
+  <body>
+    <div id="header">
+      <div class="container">
+        <div id="banner">
+          <a href="{{ site.github.url }}/"><img src="{{ site.github.url }}/img/logo.png" /></a>
+        </div>
+        <div id="navbar">
+          <a href="{{ site.github.url }}/download">Download</a>
+          <a href="{{ site.github.url }}/media">Media</a>
+          <a href="{{ site.github.url }}/docs">Docs</a>
+          <a class="slack" href="http://slack.redream.io"><img src="http://slack.redream.io/badge.svg"></a>
+        </div>
+      </div>
+    </div>
+
+    <div id="content" class="container">
+      <div>
+        {{ content }}
+      </div>
+    </div>
+  </body>
+</html>

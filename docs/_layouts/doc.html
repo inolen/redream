@@ -1,0 +1,36 @@
+---
+layout: default
+---
+
+<ul id="docs">
+  <ul>
+    <li><a {% if page.url.end_with? '/docs' %} class="current"{% endif %} href="{{ site.github.url }}/docs">About</a></li>
+  </ul>
+  <hr>
+  <ul>
+    <li><a {% if page.url.end_with? '/docs/building' %} class="current"{% endif %} href="{{ site.github.url }}/docs/building">Building</a></li>
+    <li><a {% if page.url.end_with? '/docs/running' %} class="current"{% endif %} href="{{ site.github.url }}/docs/running">Running</a></li>
+    <li><a {% if page.url.end_with? '/docs/testing' %} class="current"{% endif %} href="{{ site.github.url }}/docs/testing">Testing</a></li>
+    <li>
+  </ul>
+  <hr>
+  <ul>
+    <li><a {% if page.url.end_with? '/docs/directory-structure' %} class="current"{% endif %} href="{{ site.github.url }}/docs/directory-structure">Directory structure</a></li>
+    <li><a {% if page.url.end_with? '/docs/memory-access' %} class="current"{% endif %} href="{{ site.github.url }}/docs/memory-access">Memory access</a></li>
+    <li><a {% if page.url.end_with? '/docs/cpu-design' %} class="current"{% endif %} href="{{ site.github.url }}/docs/cpu-design">CPU design</a></li>
+  </ul>
+  <hr>
+  <ul>
+    <li><a {% if page.url.end_with? '/docs/contributing' %} class="current"{% endif %} href="{{ site.github.url }}/docs/contributing">Contributing</a></li>
+  </ul>
+</ul>
+
+<article class="article doc">
+  <header>
+    <h1>{{ page.title | escape }}</h1>
+  </header>
+
+  <div class="article-content">
+    {{ content }}
+  </div>
+</article>

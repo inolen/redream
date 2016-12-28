@@ -64,7 +64,7 @@ static void mirror_iterator_init(struct mirror_iterator *it, uint32_t addr,
   it->first = 1;
 }
 
-static bool mirror_iterator_next(struct mirror_iterator *it) {
+static int mirror_iterator_next(struct mirror_iterator *it) {
   /* first iteration just returns base */
   if (it->first) {
     it->first = 0;
@@ -92,7 +92,7 @@ static bool mirror_iterator_next(struct mirror_iterator *it) {
   return 1;
 }
 
-static bool reserve_address_space(uint8_t **base) {
+static int reserve_address_space(uint8_t **base) {
   /* find a contiguous (1 << 32) chunk of memory to map an address space to */
   int i = 64;
 

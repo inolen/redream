@@ -1,7 +1,6 @@
 #ifndef TA_TYPES_H
 #define TA_TYPES_H
 
-#include <stdbool.h>
 #include "core/list.h"
 #include "core/rb_tree.h"
 
@@ -277,7 +276,7 @@ union vert_param {
   struct {
     union pcw pcw;
     float xyz[3];
-    uint16_t uv[2];
+    uint16_t vu[2];
     uint32_t ignore_0;
     uint32_t base_color;
     uint32_t offset_color;
@@ -302,7 +301,7 @@ union vert_param {
   struct {
     union pcw pcw;
     float xyz[3];
-    uint16_t uv[2];
+    uint16_t vu[2];
     uint32_t ignore_0;
     uint32_t ignore_1;
     uint32_t ignore_2;
@@ -327,7 +326,7 @@ union vert_param {
   struct {
     union pcw pcw;
     float xyz[3];
-    uint16_t uv[2];
+    uint16_t vu[2];
     uint32_t ignore_0;
     float base_intensity;
     float offset_intensity;
@@ -442,11 +441,12 @@ struct tile_ctx {
   uint32_t addr;
 
   /* pvr / ta state */
-  bool autosort;
+  int frame;
+  int autosort;
   int stride;
   int pal_pxl_format;
-  int rb_width;
-  int rb_height;
+  int video_width;
+  int video_height;
   union isp bg_isp;
   union tsp bg_tsp;
   union tcw bg_tcw;
@@ -454,7 +454,7 @@ struct tile_ctx {
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
   /* parameter buffer */
-  uint8_t *params;
+  uint8_t params[TA_MAX_PARAMS];
   int cursor;
   int size;
 
@@ -462,8 +462,7 @@ struct tile_ctx {
   int list_type;
   int vertex_type;
 
-  struct list_node free_it;
-  struct rb_node live_it;
+  struct list_node it;
 };
 
 #endif

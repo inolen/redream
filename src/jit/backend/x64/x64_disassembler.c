@@ -1,13 +1,13 @@
 #include "jit/backend/x64/x64_disassembler.h"
 
-bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
+int x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   const uint8_t *start = data;
 
   // test for operand size prefix
-  bool has_opprefix = false;
+  int has_opprefix = 0;
 
   if (*data == 0x66) {
-    has_opprefix = true;
+    has_opprefix = 1;
     data++;
   }
 
@@ -30,8 +30,8 @@ bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
 
   // test for MOV opcode
   // http://x86.renejeschke.de/html/file_module_x86_id_176.html
-  bool is_load = false;
-  bool has_imm = false;
+  int is_load = 0;
+  int has_imm = 0;
   int operand_size = 0;
 
   // MOV r8,r/m8
@@ -39,8 +39,8 @@ bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   // MOV r32,r/m32
   // MOV r64,r/m64
   if (*data == 0x8a || *data == 0x8b) {
-    is_load = true;
-    has_imm = false;
+    is_load = 1;
+    has_imm = 0;
     operand_size = *data == 0x8a ? 1 : (has_opprefix ? 2 : (rex_w ? 8 : 4));
     data++;
   }
@@ -49,8 +49,8 @@ bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   // MOV r/m32,r32
   // MOV r/m64,r64
   else if (*data == 0x88 || *data == 0x89) {
-    is_load = false;
-    has_imm = false;
+    is_load = 0;
+    has_imm = 0;
     operand_size = *data == 0x88 ? 1 : (has_opprefix ? 2 : (rex_w ? 8 : 4));
     data++;
   }
@@ -58,8 +58,8 @@ bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   // MOV r16,imm16
   // MOV r32,imm32
   else if (*data == 0xb0 || *data == 0xb8) {
-    is_load = true;
-    has_imm = true;
+    is_load = 1;
+    has_imm = 1;
     operand_size = *data == 0xb0 ? 1 : (has_opprefix ? 2 : 4);
     data++;
   }
@@ -67,14 +67,14 @@ bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   // MOV r/m16,imm16
   // MOV r/m32,imm32
   else if (*data == 0xc6 || *data == 0xc7) {
-    is_load = false;
-    has_imm = true;
+    is_load = 0;
+    has_imm = 1;
     operand_size = *data == 0xc6 ? 1 : (has_opprefix ? 2 : 4);
     data++;
   }
   // not a supported MOV instruction
   else {
-    return false;
+    return 0;
   }
 
   // process ModR/M byte
@@ -87,8 +87,8 @@ bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   mov->is_load = is_load;
   mov->is_indirect = (modrm_mod != 0b11);
   mov->has_imm = has_imm;
-  mov->has_base = false;
-  mov->has_index = false;
+  mov->has_base = 0;
+  mov->has_index = 0;
   mov->operand_size = operand_size;
   mov->reg = modrm_reg + (rex_r ? 8 : 0);
   mov->base = 0;
@@ -111,7 +111,7 @@ bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
     mov->index = sib_index + (rex_x ? 8 : 0);
     mov->scale = sib_scale;
   } else {
-    mov->has_base = true;
+    mov->has_base = 1;
     mov->base = modrm_rm + (rex_b ? 8 : 0);
   }
 
@@ -164,5 +164,5 @@ bool x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   // calculate total instruction length
   mov->length = (int)(data - start);
 
-  return true;
+  return 1;
 }

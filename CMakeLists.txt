@@ -194,7 +194,7 @@ set(REDREAM_SOURCES
   src/jit/ir/ir.c
   src/jit/ir/ir_read.c
   src/jit/ir/ir_write.c
-  #src/jit/passes/constant_propagation_pass.c
+  src/jit/passes/constant_propagation_pass.c
   src/jit/passes/conversion_elimination_pass.c
   src/jit/passes/dead_code_elimination_pass.c
   src/jit/passes/expression_simplification_pass.c
@@ -249,6 +249,9 @@ if(COMPILER_GCC OR COMPILER_CLANG)
   if(COMPILER_GCC)
     # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
     list(APPEND REDREAM_FLAGS ${REDREAM_FLAGS} -D__STDC_FORMAT_MACROS)
+
+    # nuklear triggers this due to some of its asserts
+    list(APPEND REDREAM_FLAGS -Wno-unused-but-set-variable)
   elseif(COMPILER_CLANG)
     # clang will warn on '{0}' as -Wmissing-field-initializers even in C code
     # https://llvm.org/bugs/show_bug.cgi?id=21689

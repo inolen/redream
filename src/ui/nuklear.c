@@ -100,7 +100,7 @@ void nk_end_frame(struct nuklear *nk) {
   surf.prim_type = PRIM_TRIANGLES;
   surf.src_blend = BLEND_SRC_ALPHA;
   surf.dst_blend = BLEND_ONE_MINUS_SRC_ALPHA;
-  surf.scissor = true;
+  surf.scissor = 1;
 
   nk_draw_foreach(cmd, &nk->ctx, &nk->cmds) {
     if (!cmd->elem_count) {
@@ -134,6 +134,7 @@ void nk_begin_frame(struct nuklear *nk) {
   nk_input_begin(&nk->ctx);
 
   nk_input_motion(&nk->ctx, nk->mousex, nk->mousey);
+  nk_input_scroll(&nk->ctx, nk->mouse_wheel);
   nk_input_button(&nk->ctx, NK_BUTTON_LEFT, nk->mousex, nk->mousey,
                   nk->mouse_down[0]);
   nk_input_button(&nk->ctx, NK_BUTTON_MIDDLE, nk->mousex, nk->mousey,
@@ -174,7 +175,7 @@ struct nuklear *nk_create(struct window *window) {
       &nk->atlas, &font_width, &font_height, NK_FONT_ATLAS_RGBA32);
   nk->font_texture =
       rb_create_texture(nk->window->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
-                        WRAP_REPEAT, false, font_width, font_height, font_data);
+                        WRAP_REPEAT, 0, font_width, font_height, font_data);
   nk_font_atlas_end(&nk->atlas, nk_handle_id((int)nk->font_texture), &nk->null);
 
   /* initialize nuklear context */

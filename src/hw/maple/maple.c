@@ -157,8 +157,8 @@ int maple_handle_command(struct maple *mp, struct maple_frame *frame,
   return 1;
 }
 
-static bool maple_init(struct device *dev) {
-  return true;
+static int maple_init(struct device *dev) {
+  return 1;
 }
 
 void maple_destroy(struct maple *mp) {

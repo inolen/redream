@@ -8,7 +8,7 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
                                           int flags, int *size) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
 
-  frontend->translate(frontend->data, addr, ir, flags);
+  frontend->translate(frontend->data, addr, ir, flags, size);
 }
 
 static void armv3_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
@@ -28,18 +28,16 @@ static void armv3_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
   }
 }
 
-struct jit_frontend *armv3_frontend_create(struct jit *jit) {
+void armv3_frontend_destroy(struct armv3_frontend *frontend) {
+  free(frontend);
+}
+
+struct armv3_frontend *armv3_frontend_create(struct jit *jit) {
   struct armv3_frontend *frontend = calloc(1, sizeof(struct armv3_frontend));
 
   frontend->jit = jit;
   frontend->translate_code = &armv3_frontend_translate_code;
   frontend->dump_code = &armv3_frontend_dump_code;
 
-  return (struct jit_frontend *)frontend;
-}
-
-void armv3_frontend_destroy(struct jit_frontend *jit_frontend) {
-  struct armv3_frontend *frontend = (struct armv3_frontend *)jit_frontend;
-
-  free(frontend);
+  return frontend;
 }

@@ -22,7 +22,7 @@ static void options_parse_value(struct option *opt, const char *value) {
     case OPT_INT: {
       if (!strcmp(value, "false")) {
         *(int *)opt->storage = 0;
-      } else if (!strcmp(value, "true")) {
+      } else if (!strcmp(value, "true") || !value[0]) {
         *(int *)opt->storage = 1;
       } else {
         *(int *)opt->storage = atoi(value);

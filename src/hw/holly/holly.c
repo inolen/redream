@@ -3,6 +3,7 @@
 #include "hw/gdrom/gdrom.h"
 #include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
+#include "ui/nuklear.h"
 
 struct reg_cb holly_cb[NUM_HOLLY_REGS];
 
@@ -276,18 +277,47 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   }
 }
 
-static bool holly_init(struct device *dev) {
+static void holly_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct holly *hl = (struct holly *)dev;
-  return true;
+
+  nk_layout_row_push(ctx, 44.0f);
+
+  if (nk_menu_begin_label(ctx, "HOLLY", NK_TEXT_LEFT,
+                          nk_vec2(200.0f, 200.0f))) {
+    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+    if (nk_button_label(ctx, "raise all HOLLY_INTC_NRM")) {
+      for (int i = 0; i < 22; i++) {
+        holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INTC_NRM, 1 << i));
+      }
+    }
+
+    if (nk_button_label(ctx, "raise all HOLLY_INTC_EXT")) {
+      for (int i = 0; i < 4; i++) {
+        holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INTC_EXT, 1 << i));
+      }
+    }
+
+    nk_menu_end(ctx);
+  }
+}
+
+static int holly_init(struct device *dev) {
+  struct holly *hl = (struct holly *)dev;
+  return 1;
 }
 
 void holly_destroy(struct holly *hl) {
+  dc_destroy_window_interface(hl->window_if);
   dc_destroy_device((struct device *)hl);
 }
 
 struct holly *holly_create(struct dreamcast *dc) {
   struct holly *hl =
       dc_create_device(dc, sizeof(struct holly), "holly", &holly_init);
+
+  hl->window_if =
+      dc_create_window_interface(&holly_debug_menu, NULL, NULL, NULL);
 
 /* init registers */
 #define HOLLY_REG(addr, name, default, type) \
