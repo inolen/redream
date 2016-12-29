@@ -1,5 +1,5 @@
 static const char *ui_vp =
-"layout(location = 0) uniform mat4 u_mvp;\n"
+"uniform mat4 u_mvp;\n"
 
 "layout(location = 0) in vec2 attr_xy;\n"
 "layout(location = 1) in vec2 attr_texcoord;\n"
@@ -15,7 +15,7 @@ static const char *ui_vp =
 "}";
 
 static const char *ui_fp =
-"layout(location = 1) uniform sampler2D u_diffuse;\n"
+"uniform sampler2D u_diffuse;\n"
 
 "in vec4 var_color;\n"
 "in vec2 var_texcoord;\n"

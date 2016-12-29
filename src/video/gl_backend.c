@@ -17,6 +17,11 @@ enum texture_map {
 enum uniform_attr {
   UNIFORM_MVP = 0,
   UNIFORM_DIFFUSE = 1,
+  UNIFORM_NUM_UNIFORMS = 2,
+};
+
+static const char *uniform_names[] = {
+    "u_mvp", "u_diffuse",
 };
 
 enum shader_attr {
@@ -38,6 +43,7 @@ struct shader_program {
   GLuint program;
   GLuint vertex_shader;
   GLuint fragment_shader;
+  GLint uniforms[UNIFORM_NUM_UNIFORMS];
   uint64_t uniform_token;
 };
 
@@ -232,6 +238,10 @@ void rb_bind_texture(struct render_backend *rb, enum texture_map map,
   glBindTexture(GL_TEXTURE_2D, tex);
 }
 
+static GLint rb_get_uniform(struct render_backend *rb, enum uniform_attr attr) {
+  return rb->current_program->uniforms[attr];
+}
+
 static void rb_print_shader_log(GLuint shader) {
   int max_length, length;
   glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &max_length);
@@ -275,7 +285,8 @@ static void rb_destroy_program(struct shader_program *program) {
   glDeleteProgram(program->program);
 }
 
-static int rb_compile_program(struct shader_program *program,
+static int rb_compile_program(struct render_backend *rb,
+                              struct shader_program *program,
                               const char *header, const char *vertex_source,
                               const char *fragment_source) {
   char buffer[16384] = {0};
@@ -286,7 +297,6 @@ static int rb_compile_program(struct shader_program *program,
   if (vertex_source) {
     snprintf(buffer, sizeof(buffer) - 1,
              "#version 330\n"
-             "#extension GL_ARB_explicit_uniform_location : require\n"
              "%s%s",
              header ? header : "", vertex_source);
     buffer[sizeof(buffer) - 1] = 0;
@@ -302,7 +312,6 @@ static int rb_compile_program(struct shader_program *program,
   if (fragment_source) {
     snprintf(buffer, sizeof(buffer) - 1,
              "#version 330\n"
-             "#extension GL_ARB_explicit_uniform_location : require\n"
              "%s%s",
              header ? header : "", fragment_source);
     buffer[sizeof(buffer) - 1] = 0;
@@ -326,10 +335,15 @@ static int rb_compile_program(struct shader_program *program,
     return 0;
   }
 
+  for (int i = 0; i < UNIFORM_NUM_UNIFORMS; i++) {
+    program->uniforms[i] =
+        glGetUniformLocation(program->program, uniform_names[i]);
+  }
+
   /* bind diffuse sampler once after compile, this currently never changes */
-  glUseProgram(program->program);
-  glUniform1i(UNIFORM_DIFFUSE, MAP_DIFFUSE);
-  glUseProgram(0);
+  rb_bind_program(rb, program);
+  glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSE), MAP_DIFFUSE);
+  rb_bind_program(rb, NULL);
 
   return 1;
 }
@@ -418,43 +432,43 @@ static void rb_create_shaders(struct render_backend *rb) {
     header[0] = 0;
 
     if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_DECAL) {
-      strcat(header, "#define SHADE_DECAL 1\n");
+      strcat(header, "#define SHADE_DECAL\n");
     }
 
     if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_MODULATE) {
-      strcat(header, "#define SHADE_MODULATE 1\n");
+      strcat(header, "#define SHADE_MODULATE\n");
     }
 
     if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_DECAL_ALPHA) {
-      strcat(header, "#define SHADE_DECAL_ALPHA 1\n");
+      strcat(header, "#define SHADE_DECAL_ALPHA\n");
     }
 
     if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_MODULATE_ALPHA) {
-      strcat(header, "#define SHADE_MODULATE_ALPHA 1\n");
+      strcat(header, "#define SHADE_MODULATE_ALPHA\n");
     }
 
     if (i & ATTR_TEXTURE) {
-      strcat(header, "#define TEXTURE 1\n");
+      strcat(header, "#define TEXTURE\n");
     }
 
     if (i & ATTR_IGNORE_ALPHA) {
-      strcat(header, "#define IGNORE_ALPHA 1\n");
+      strcat(header, "#define IGNORE_ALPHA\n");
     }
 
     if (i & ATTR_IGNORE_TEXTURE_ALPHA) {
-      strcat(header, "#define USE_IGNORE_TEXTURE_ALPHA 1\n");
+      strcat(header, "#define IGNORE_TEXTURE_ALPHA\n");
     }
 
     if (i & ATTR_OFFSET_COLOR) {
-      strcat(header, "#define OFFSET_COLOR 1\n");
+      strcat(header, "#define OFFSET_COLOR\n");
     }
 
-    if (!rb_compile_program(program, header, ta_vp, ta_fp)) {
+    if (!rb_compile_program(rb, program, header, ta_vp, ta_fp)) {
       LOG_FATAL("Failed to compile ta shader.");
     }
   }
 
-  if (!rb_compile_program(&rb->ui_program, NULL, ui_vp, ui_fp)) {
+  if (!rb_compile_program(rb, &rb->ui_program, NULL, ui_vp, ui_fp)) {
     LOG_FATAL("Failed to compile ui shader.");
   }
 }
@@ -596,7 +610,8 @@ void rb_draw_surface(struct render_backend *rb, const struct surface *surf) {
 
   /* if uniforms have yet to be bound for this program, do so now */
   if (program->uniform_token != rb->uniform_token) {
-    glUniformMatrix4fv(UNIFORM_MVP, 1, GL_FALSE, rb->uniform_mvp);
+    glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MVP), 1, GL_FALSE,
+                       rb->uniform_mvp);
     program->uniform_token = rb->uniform_token;
   }
 
@@ -702,7 +717,7 @@ void rb_begin_ortho(struct render_backend *rb) {
 
   rb_bind_vao(rb, rb->ui_vao);
   rb_bind_program(rb, &rb->ui_program);
-  glUniformMatrix4fv(UNIFORM_MVP, 1, GL_FALSE, ortho);
+  glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MVP), 1, GL_FALSE, ortho);
 }
 
 void rb_end_frame(struct render_backend *rb) {
