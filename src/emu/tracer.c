@@ -72,7 +72,6 @@ struct tracer {
   struct tr *tr;
 
   /* ui state */
-  int hide_params[TA_NUM_PARAMS];
   int running;
 
   /* trace state */
@@ -185,23 +184,13 @@ static void tracer_copy_context(const struct trace_cmd *cmd,
   ctx->size = cmd->context.params_size;
 }
 
-static inline int tracer_param_hidden(struct tracer *tracer, union pcw pcw) {
-  return tracer->hide_params[pcw.para_type];
-}
-
 static void tracer_prev_param(struct tracer *tracer) {
   int i = tracer->current_param;
 
   while (i--) {
-    struct render_param *rp = &tracer->rc.params[i];
-    union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
-
-    /* found the next visible param */
-    if (!tracer_param_hidden(tracer, pcw)) {
-      tracer->current_param = i;
-      tracer->scroll_to_param = 1;
-      break;
-    }
+    tracer->current_param = i;
+    tracer->scroll_to_param = 1;
+    break;
   }
 }
 
@@ -209,15 +198,9 @@ static void tracer_next_param(struct tracer *tracer) {
   int i = tracer->current_param;
 
   while (++i < tracer->rc.num_params) {
-    struct render_param *rp = &tracer->rc.params[i];
-    union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
-
-    /* found the next visible param */
-    if (!tracer_param_hidden(tracer, pcw)) {
-      tracer->current_param = i;
-      tracer->scroll_to_param = 1;
-      break;
-    }
+    tracer->current_param = i;
+    tracer->scroll_to_param = 1;
+    break;
   }
 }
 
@@ -320,8 +303,6 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   nk_flags flags = NK_WINDOW_NO_SCROLLBAR;
 
   if (nk_begin(ctx, "context scrubber", bounds, flags)) {
-    nk_window_set_bounds(ctx, bounds);
-
     nk_layout_row_dynamic(ctx, SCRUBBER_WINDOW_HEIGHT, 1);
 
     nk_size frame = tracer->ctx.frame - tracer->trace->first_frame;
@@ -608,146 +589,145 @@ static void tracer_param_tooltip(struct tracer *tracer,
 static void tracer_render_side_menu(struct tracer *tracer) {
   struct nk_context *ctx = &tracer->window->nk->ctx;
 
-  nk_style_default(ctx);
-
   /* transparent menu backgrounds / selectables */
-  ctx->style.window.fixed_background.data.color.a = 0;
-  ctx->style.selectable.normal.data.color.a = 0;
 
   {
     struct nk_rect bounds = {0.0f, 0.0, 240.0f,
                              tracer->window->height - SCRUBBER_WINDOW_HEIGHT};
 
-    char label[128];
+    nk_style_default(ctx);
 
-    if (nk_begin(ctx, "side menu", bounds, 0)) {
-      nk_window_set_bounds(ctx, bounds);
+    ctx->style.window.fixed_background.data.color.a = 128;
+    ctx->style.selectable.normal.data.color.a = 0;
+    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
 
-      struct nk_window *win = ctx->current;
-      struct nk_panel *layout = win->layout;
+    if (nk_begin(ctx, "params", bounds, NK_WINDOW_MINIMIZABLE |
+                                            NK_WINDOW_NO_SCROLLBAR |
+                                            NK_WINDOW_TITLE)) {
+      /* fill entire panel */
+      struct nk_vec2 region = nk_window_get_content_region_size(ctx);
+      nk_layout_row_dynamic(ctx, region.y, 1);
 
-      /* param filters */
-      if (nk_tree_push(ctx, NK_TREE_TAB, "filters", NK_MINIMIZED)) {
-        for (int i = 0; i < TA_NUM_PARAMS; i++) {
-          snprintf(label, sizeof(label), "Hide %s", param_names[i]);
-          nk_checkbox_text(ctx, label, (int)strlen(label),
-                           &tracer->hide_params[i]);
-        }
+      /* "disable" backgrounds for children elements to avoid blending
+         with the partially transparent parent panel */
+      ctx->style.window.fixed_background.data.color.a = 0;
 
-        nk_tree_pop(ctx);
-      }
+      struct nk_list_view view;
+      int param_height = 15;
+      int num_params = tracer->rc.num_params;
+      char label[128];
 
-      /* context parameters */
-      if (nk_tree_push(ctx, NK_TREE_TAB, "params", 0)) {
-        for (int i = 0; i < tracer->rc.num_params; i++) {
+      if (nk_list_view_begin(ctx, &view, "params list", 0, param_height,
+                             num_params)) {
+        nk_layout_row_dynamic(ctx, param_height, 1);
+
+        for (int i = view.begin; i < view.end && i < num_params; i++) {
           struct render_param *rp = &tracer->rc.params[i];
           union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
 
           int selected = (i == tracer->current_param);
 
-          if (!tracer_param_hidden(tracer, pcw)) {
-            struct nk_rect bounds = nk_widget_bounds(ctx);
-
-            snprintf(label, sizeof(label), "0x%04x %s", rp->offset,
-                     param_names[pcw.para_type]);
-            nk_selectable_label(ctx, label, NK_TEXT_LEFT, &selected);
-
-            switch (pcw.para_type) {
-              case TA_PARAM_POLY_OR_VOL:
-              case TA_PARAM_SPRITE:
-                if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-                  tracer_param_tooltip(tracer, rp);
-                }
-                break;
-
-              case TA_PARAM_VERTEX:
-                if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-                  tracer_param_tooltip(tracer, rp);
-                }
-                break;
-            }
-
-            if (selected) {
-              tracer->current_param = i;
-
-              /* scroll to parameter if not visible */
-              if (tracer->scroll_to_param) {
-                float at_y = layout->at_y;
-                float min_visible_y = layout->offset->y;
-                float max_visible_y = layout->offset->y + layout->bounds.h;
-
-                if (at_y < min_visible_y || at_y >= max_visible_y) {
-                  layout->offset->y = at_y;
-                }
-
-                tracer->scroll_to_param = 0;
-              }
-            }
-          }
-        }
-
-        nk_tree_pop(ctx);
-      }
-
-      /* texture menu */
-      if (nk_tree_push(ctx, NK_TREE_TAB, "textures", 0)) {
-        nk_layout_row_static(ctx, 40.0f, 40, 4);
-
-        rb_for_each_entry(entry, &tracer->live_textures,
-                          struct tracer_texture_entry, live_it) {
           struct nk_rect bounds = nk_widget_bounds(ctx);
+          snprintf(label, sizeof(label), "0x%04x %s", rp->offset,
+                   param_names[pcw.para_type]);
+          nk_selectable_label(ctx, label, NK_TEXT_LEFT, &selected);
 
-          nk_image(ctx, nk_image_id((int)entry->handle));
-
-          if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-            /* disable spacing for tooltip */
-            struct nk_vec2 original_spacing = ctx->style.window.spacing;
-            ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
-
-            if (nk_tooltip_begin(ctx, 380.0f)) {
-              nk_layout_row_static(ctx, 184.0f, 184, 2);
-
-              if (nk_group_begin(ctx, "texture preview",
-                                 NK_WINDOW_NO_SCROLLBAR)) {
-                nk_layout_row_static(ctx, 184.0f, 184, 1);
-                nk_image(ctx, nk_image_id((int)entry->handle));
-                nk_group_end(ctx);
+          switch (pcw.para_type) {
+            case TA_PARAM_POLY_OR_VOL:
+            case TA_PARAM_SPRITE:
+              if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+                tracer_param_tooltip(tracer, rp);
               }
+              break;
 
-              if (nk_group_begin(ctx, "texture info", NK_WINDOW_NO_SCROLLBAR)) {
-                nk_layout_row_static(ctx, ctx->style.font->height, 184, 1);
-                nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
-                          ta_texture_addr(entry->tcw));
-                nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
-                          pxl_names[entry->format]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
-                          filter_names[entry->filter]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
-                          wrap_names[entry->wrap_u]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
-                          wrap_names[entry->wrap_v]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "twiddled: %d",
-                          ta_texture_twiddled(entry->tcw));
-                nk_labelf(ctx, NK_TEXT_LEFT, "compressed: %d",
-                          ta_texture_compressed(entry->tcw));
-                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d",
-                          ta_texture_mipmaps(entry->tcw));
-                nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->width);
-                nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->height);
-                nk_labelf(ctx, NK_TEXT_LEFT, "texture_size: %d",
-                          entry->texture_size);
-                nk_group_end(ctx);
+            case TA_PARAM_VERTEX:
+              if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+                tracer_param_tooltip(tracer, rp);
               }
+              break;
+          }
 
-              nk_tooltip_end(ctx);
-            }
-
-            /* restore spacing */
-            ctx->style.window.spacing = original_spacing;
+          if (selected) {
+            tracer->current_param = i;
           }
         }
 
-        nk_tree_pop(ctx);
+        /* scroll to parameter if not visible */
+        if (tracer->scroll_to_param) {
+          struct nk_window *win = ctx->current;
+          struct nk_panel *layout = win->layout;
+
+          if (tracer->current_param < view.begin) {
+            layout->offset->y -= layout->bounds.h;
+          } else if (tracer->current_param >= view.end) {
+            layout->offset->y += layout->bounds.h;
+          }
+
+          tracer->scroll_to_param = 0;
+        }
+
+        nk_list_view_end(&view);
+      }
+    }
+
+    nk_end(ctx);
+  }
+
+  {
+    struct nk_rect bounds = {tracer->window->width - 240.0f, 0.0, 240.0f,
+                             tracer->window->height - SCRUBBER_WINDOW_HEIGHT};
+
+    nk_style_default(ctx);
+
+    ctx->style.window.fixed_background.data.color.a = 0;
+
+    if (nk_begin(ctx, "textures", bounds,
+                 NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
+      nk_layout_row_static(ctx, 40.0f, 40, 5);
+
+      rb_for_each_entry(entry, &tracer->live_textures,
+                        struct tracer_texture_entry, live_it) {
+        struct nk_rect bounds = nk_widget_bounds(ctx);
+
+        nk_image(ctx, nk_image_id((int)entry->handle));
+
+        if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+          /* disable spacing for tooltip */
+          struct nk_vec2 original_spacing = ctx->style.window.spacing;
+          ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
+
+          if (nk_tooltip_begin(ctx, 184.0f)) {
+            nk_layout_row_static(ctx, 184.0f, 184, 1);
+            nk_image(ctx, nk_image_id((int)entry->handle));
+
+            nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
+            nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
+                      ta_texture_addr(entry->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
+                      pxl_names[entry->format]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
+                      filter_names[entry->filter]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
+                      wrap_names[entry->wrap_u]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
+                      wrap_names[entry->wrap_v]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "twiddled: %d",
+                      ta_texture_twiddled(entry->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "compressed: %d",
+                      ta_texture_compressed(entry->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d",
+                      ta_texture_mipmaps(entry->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->width);
+            nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->height);
+            nk_labelf(ctx, NK_TEXT_LEFT, "texture_size: %d",
+                      entry->texture_size);
+
+            nk_tooltip_end(ctx);
+          }
+
+          /* restore spacing */
+          ctx->style.window.spacing = original_spacing;
+        }
       }
     }
 

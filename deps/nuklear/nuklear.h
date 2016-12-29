@@ -17226,6 +17226,8 @@ nk_begin_titled(struct nk_context *ctx, const char *name, const char *title,
         /* update window */
         win->flags &= ~(nk_flags)(NK_WINDOW_PRIVATE-1);
         win->flags |= flags;
+        if (!(win->flags & (NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE)))
+          win->bounds = bounds;
         NK_ASSERT(win->seq != ctx->seq && "if this triggers you probably have two windows with same name!");
         win->seq = ctx->seq;
         if (!ctx->active)
