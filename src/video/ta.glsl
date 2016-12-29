@@ -1,5 +1,5 @@
 static const char *ta_vp =
-"layout(location = 0) uniform mat4 u_mvp;\n"
+"uniform mat4 u_mvp;\n"
 
 "layout(location = 0) in vec3 attr_xyz;\n"
 "layout(location = 1) in vec2 attr_texcoord;\n"
@@ -26,7 +26,7 @@ static const char *ta_vp =
 "}";
 
 static const char *ta_fp =
-"layout(location = 1) uniform sampler2D u_diffuse;\n"
+"uniform sampler2D u_diffuse;\n"
 
 "in vec4 var_color;\n"
 "in vec4 var_offset_color;\n"
@@ -36,32 +36,32 @@ static const char *ta_fp =
 
 "void main() {\n"
 "  vec4 col = var_color;\n"
-"  #if IGNORE_ALPHA\n"
+"  #ifdef IGNORE_ALPHA\n"
 "    col.a = 1.0;\n"
 "  #endif\n"
-"  #if TEXTURE\n"
+"  #ifdef TEXTURE\n"
 "    vec4 tex = texture(u_diffuse, var_texcoord);\n"
-"    #if IGNORE_TEXTURE_ALPHA\n"
+"    #ifdef IGNORE_TEXTURE_ALPHA\n"
 "      tex.a = 1.0;\n"
 "    #endif\n"
-"    #if SHADE_DECAL\n"
+"    #ifdef SHADE_DECAL\n"
 "      fragcolor = tex;\n"
 "    #endif\n"
-"    #if SHADE_MODULATE\n"
+"    #ifdef SHADE_MODULATE\n"
 "      fragcolor.rgb = tex.rgb * col.rgb;\n"
 "      fragcolor.a = tex.a;\n"
 "    #endif\n"
-"    #if SHADE_DECAL_ALPHA\n"
+"    #ifdef SHADE_DECAL_ALPHA\n"
 "      fragcolor.rgb = tex.rgb * tex.a + col.rgb * (1 - tex.a);\n"
 "      fragcolor.a = col.a;\n"
 "    #endif\n"
-"    #if SHADE_MODULATE_ALPHA\n"
+"    #ifdef SHADE_MODULATE_ALPHA\n"
 "      fragcolor = tex * col;\n"
 "    #endif\n"
 "  #else\n"
 "    fragcolor = col;\n"
 "  #endif\n"
-"  #if OFFSET_COLOR\n"
+"  #ifdef OFFSET_COLOR\n"
 "    fragcolor.rgb += var_offset_color.rgb;\n"
 "  #endif\n"
 "}";
