@@ -1591,6 +1591,18 @@ EMITTER(CALL_FALLBACK) {
 
 EMITTER(DEBUG_INFO) {}
 
+EMITTER(ASSERT_LT) {
+  const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
+  const Xbyak::Reg b = x64_backend_reg(backend, instr->arg[1]);
+
+  e.inLocalLabel();
+  e.cmp(a, b);
+  e.jl(".skip");
+  e.db(0xcc);
+  e.L(".skip");
+  e.outLocalLabel();
+}
+
 void x64_backend_destroy(struct x64_backend *backend) {
   cs_close(&backend->capstone_handle);
 
