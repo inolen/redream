@@ -12,9 +12,9 @@ static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
 };
 
 void sh4_intc_update_pending(struct sh4 *sh4) {
-  int min_priority = (sh4->ctx.sr & I) >> 4;
+  int min_priority = (sh4->ctx.sr & I_MASK) >> I_BIT;
   uint64_t priority_mask =
-      (sh4->ctx.sr & BL) ? 0 : ~sh4->priority_mask[min_priority];
+      (sh4->ctx.sr & BL_MASK) ? 0 : ~sh4->priority_mask[min_priority];
   sh4->ctx.pending_interrupts = sh4->requested_interrupts & priority_mask;
 }
 
@@ -28,11 +28,14 @@ int sh4_intc_check_pending(struct sh4 *sh4) {
   enum sh4_interrupt intr = sh4->sorted_interrupts[n];
   struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
 
+  /* ensure sr is up to date */
+  sh4_implode_sr(sh4);
+
   *sh4->INTEVT = int_info->intevt;
   sh4->ctx.ssr = sh4->ctx.sr;
   sh4->ctx.spc = sh4->ctx.pc;
   sh4->ctx.sgr = sh4->ctx.r[15];
-  sh4->ctx.sr |= (BL | MD | RB);
+  sh4->ctx.sr |= (BL_MASK | MD_MASK | RB_MASK);
   sh4->ctx.pc = sh4->ctx.vbr + 0x600;
   sh4_sr_updated(sh4, sh4->ctx.ssr);
 
