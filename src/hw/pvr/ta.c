@@ -370,7 +370,7 @@ static void ta_init_context(struct ta *ta, struct tile_ctx *ctx) {
 
 static void ta_write_context(struct ta *ta, struct tile_ctx *ctx, void *ptr,
                              int size) {
-  CHECK_LT(ctx->size + size, TA_MAX_PARAMS);
+  CHECK_LT(ctx->size + size, (int)sizeof(ctx->params));
   memcpy(&ctx->params[ctx->size], ptr, size);
   ctx->size += size;
 
