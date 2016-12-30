@@ -83,6 +83,8 @@ void sh4_destroy(struct sh4 *sh);
 void sh4_reset(struct sh4 *sh4, uint32_t pc);
 void sh4_raise_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
 void sh4_clear_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
+void sh4_explode_sr(struct sh4 *sh4);
+void sh4_implode_sr(struct sh4 *sh4);
 void sh4_sr_updated(void *data, uint32_t old_sr);
 void sh4_fpscr_updated(void *data, uint32_t old_fpscr);
 
