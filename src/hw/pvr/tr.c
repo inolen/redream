@@ -13,13 +13,13 @@ struct tr {
   struct texture_provider *provider;
 
   /* current global state */
+  struct render_param *current_param;
   const union poly_param *last_poly;
   const union vert_param *last_vertex;
   int list_type;
   int vertex_type;
   float face_color[4];
   float face_offset_color[4];
-  int last_sorted_surf;
 };
 
 static int compressed_mipmap_offsets[] = {
@@ -343,7 +343,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 
 static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
                                      int copy_from_prev) {
-  CHECK_LT(rc->num_surfs, rc->surfs_size);
+  CHECK_LT(rc->num_surfs, array_size(rc->surfs));
   int id = rc->num_surfs++;
   struct surface *surf = &rc->surfs[id];
 
@@ -353,18 +353,24 @@ static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
     memset(surf, 0, sizeof(*surf));
   }
 
-  /* start verts at the end */
   surf->first_vert = rc->num_verts;
   surf->num_verts = 0;
 
   /* default sort the surface */
-  rc->sorted_surfs[id] = id;
+  struct render_list *list = &rc->lists[tr->list_type];
+  list->surfs[list->num_surfs] = id;
+  list->num_surfs++;
+
+  /* track first surf generated for each parameter for tracer debugging */
+  if (tr->current_param && tr->current_param->surf < 0) {
+    tr->current_param->surf = id;
+  }
 
   return surf;
 }
 
 static struct vertex *tr_alloc_vert(struct tr *tr, struct render_context *rc) {
-  CHECK_LT(rc->num_verts, rc->verts_size);
+  CHECK_LT(rc->num_verts, array_size(rc->verts));
   int id = rc->num_verts++;
   struct vertex *v = &rc->verts[id];
   memset(v, 0, sizeof(*v));
@@ -372,6 +378,11 @@ static struct vertex *tr_alloc_vert(struct tr *tr, struct render_context *rc) {
   /* update vertex count on the current surface */
   struct surface *surf = &rc->surfs[rc->num_surfs - 1];
   surf->num_verts++;
+
+  /* track first vertex generated for each parameter for tracer debugging */
+  if (tr->current_param && tr->current_param->vert < 0) {
+    tr->current_param->vert = id;
+  }
 
   return v;
 }
@@ -455,9 +466,10 @@ static int tr_parse_bg_vert(const struct tile_ctx *ctx, int offset,
 
 static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
                         struct render_context *rc) {
+  tr->list_type = TA_LIST_OPAQUE;
+
   /* translate the surface */
   struct surface *surf = tr_alloc_surf(tr, rc, 0);
-
   surf->texture = 0;
   surf->depth_write = !ctx->bg_isp.z_write_disable;
   surf->depth_func = translate_depth_func(ctx->bg_isp.depth_compare_mode);
@@ -496,6 +508,8 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
   v3->offset_color = v0->offset_color;
   v3->uv[0] = v2->uv[0];
   v3->uv[1] = v1->uv[1];
+
+  tr->list_type = TA_NUM_LISTS;
 }
 
 /* this offset color implementation is not correct at all, see the
@@ -798,6 +812,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
 
 static float tr_cmp_surf(struct render_context *rc, const struct surface *a,
                          const struct surface *b) {
+  /* sort transparent polys by their z value, from back to front. in dreamcast
+     coordinates the z componemt is actually 1/w so smaller values are
+     further away from the camera */
   float minza = FLT_MAX;
   for (int i = 0, n = a->num_verts; i < n; i++) {
     struct vertex *v = &rc->verts[a->first_vert + i];
@@ -850,35 +867,26 @@ static void tr_merge_surfs(struct render_context *rc, int *low, int *mid,
   memcpy(low, tmp, (k - tmp) * sizeof(tmp[0]));
 }
 
-static void tr_sort_surfs(struct render_context *rc, int low, int high) {
+static void tr_sort_surfs(struct render_context *rc, struct render_list *list,
+                          int low, int high) {
   if (low >= high) {
     return;
   }
 
   int mid = (low + high) / 2;
-  tr_sort_surfs(rc, low, mid);
-  tr_sort_surfs(rc, mid + 1, high);
-  tr_merge_surfs(rc, &rc->sorted_surfs[low], &rc->sorted_surfs[mid],
-                 &rc->sorted_surfs[high]);
+  tr_sort_surfs(rc, list, low, mid);
+  tr_sort_surfs(rc, list, mid + 1, high);
+  tr_merge_surfs(rc, &list->surfs[low], &list->surfs[mid], &list->surfs[high]);
 }
 
 static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
                          struct render_context *rc, const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rc);
 
-  /* sort transparent polys by their z value, from back to front. remember, in
-     dreamcast coordinates smaller z values are further away from the camera */
-  if ((tr->list_type == TA_LIST_TRANSLUCENT ||
-       tr->list_type == TA_LIST_TRANSLUCENT_MODVOL) &&
-      ctx->autosort) {
-    tr_sort_surfs(rc, tr->last_sorted_surf, rc->num_surfs - 1);
-  }
-
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
   tr->vertex_type = TA_NUM_VERTS;
-  tr->last_sorted_surf = rc->num_surfs;
 }
 
 static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
@@ -930,17 +938,15 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
 }
 
 static void tr_reset(struct tr *tr, struct render_context *rc) {
-  /* reset render state */
-  rc->num_surfs = 0;
-  rc->num_verts = 0;
-  rc->num_params = 0;
-
   /* reset global state */
+  tr->current_param = NULL;
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
   tr->vertex_type = TA_NUM_VERTS;
-  tr->last_sorted_surf = 0;
+
+  /* reset render context state */
+  memset(rc, 0, sizeof(*rc));
 }
 
 void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
@@ -957,10 +963,11 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
 
-    /* FIXME if Vertex Parameters with the "End of Strip" specification were
-       not input, but parameters other than the Vertex Parameters were input,
-       the polygon data in question is ignored and an interrupt signal is
-       output */
+    /* track info about the parse state for tracer debugging */
+    tr->current_param = &rc->params[rc->num_params++];
+    tr->current_param->offset = data - ctx->params;
+    tr->current_param->surf = -1;
+    tr->current_param->vert = -1;
 
     if (ta_pcw_list_type_valid(pcw, tr->list_type)) {
       tr->list_type = pcw.list_type;
@@ -994,18 +1001,20 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
         break;
     }
 
-    /* keep track of the surf / vert counts at each parameter offset */
-    if (rc->params) {
-      CHECK_LT(rc->num_params, rc->params_size);
-      struct render_param *rp = &rc->params[rc->num_params++];
-      rp->offset = data - ctx->params;
-      rp->list_type = tr->list_type;
-      rp->vertex_type = tr->vertex_type;
-      rp->surf = rc->num_surfs ? &rc->surfs[rc->num_surfs - 1] : NULL;
-      rp->vert = rc->num_verts ? &rc->verts[rc->num_verts - 1] : NULL;
-    }
+    /* each param handler may update the global stae, so store afterwards */
+    tr->current_param->list_type = tr->list_type;
+    tr->current_param->vertex_type = tr->list_type;
 
     data += ta_get_param_size(pcw, tr->vertex_type);
+  }
+
+  /* sort blended surface lists if requested */
+  if (ctx->autosort) {
+    struct render_list *list_tr = &rc->lists[TA_LIST_TRANSLUCENT];
+    tr_sort_surfs(rc, list_tr, 0, list_tr->num_surfs);
+
+    struct render_list *list_pt = &rc->lists[TA_LIST_PUNCH_THROUGH];
+    tr_sort_surfs(rc, list_pt, 0, list_pt->num_surfs);
   }
 
   tr_proj_mat(tr, ctx, rc);
@@ -1013,17 +1022,26 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
   PROF_LEAVE();
 }
 
+static void tr_render_list(struct tr *tr, const struct render_context *rc,
+                           int list_type) {
+  const struct render_list *list = &rc->lists[list_type];
+  const int *sorted_surf = list->surfs;
+  const int *sorted_surf_end = list->surfs + list->num_surfs;
+
+  while (sorted_surf < sorted_surf_end) {
+    rb_draw_surface(tr->rb, &rc->surfs[*sorted_surf]);
+    sorted_surf++;
+  }
+}
+
 void tr_render_context(struct tr *tr, const struct render_context *rc) {
   PROF_ENTER("gpu", "tr_render_context");
 
   rb_begin_surfaces(tr->rb, rc->projection, rc->verts, rc->num_verts);
 
-  const int *sorted_surf = rc->sorted_surfs;
-  const int *sorted_surf_end = rc->sorted_surfs + rc->num_surfs;
-  while (sorted_surf < sorted_surf_end) {
-    rb_draw_surface(tr->rb, &rc->surfs[*sorted_surf]);
-    sorted_surf++;
-  }
+  tr_render_list(tr, rc, TA_LIST_OPAQUE);
+  tr_render_list(tr, rc, TA_LIST_PUNCH_THROUGH);
+  tr_render_list(tr, rc, TA_LIST_TRANSLUCENT);
 
   rb_end_surfaces(tr->rb);
 
