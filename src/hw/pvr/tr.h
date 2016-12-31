@@ -48,9 +48,9 @@ struct render_param {
   /* global list and vertex types at time of parsing */
   int list_type;
   int vertex_type;
-  /* first surf / vert generated for the param */
-  int surf;
-  int vert;
+  /* last surf / vert generated for the param */
+  int last_surf;
+  int last_vert;
 };
 
 struct render_list {

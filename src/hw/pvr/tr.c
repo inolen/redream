@@ -13,7 +13,6 @@ struct tr {
   struct texture_provider *provider;
 
   /* current global state */
-  struct render_param *current_param;
   const union poly_param *last_poly;
   const union vert_param *last_vertex;
   int list_type;
@@ -366,11 +365,6 @@ static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
   list->surfs[list->num_surfs] = id;
   list->num_surfs++;
 
-  /* track first surf generated for each parameter for tracer debugging */
-  if (tr->current_param && tr->current_param->surf < 0) {
-    tr->current_param->surf = id;
-  }
-
   return surf;
 }
 
@@ -383,11 +377,6 @@ static struct vertex *tr_alloc_vert(struct tr *tr, struct render_context *rc) {
   /* update vertex count on the current surface */
   struct surface *surf = &rc->surfs[rc->num_surfs - 1];
   surf->num_verts++;
-
-  /* track first vertex generated for each parameter for tracer debugging */
-  if (tr->current_param && tr->current_param->vert < 0) {
-    tr->current_param->vert = id;
-  }
 
   return v;
 }
@@ -815,7 +804,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
   /* FIXME is this true for sprites which come through this path as well? */
 }
 
-static float tr_cmp_surf(struct render_context *rc, const struct surface *a,
+static int tr_cmp_surf(struct render_context *rc, const struct surface *a,
                          const struct surface *b) {
   /* sort transparent polys by their z value, from back to front. in dreamcast
      coordinates the z componemt is actually 1/w so smaller values are
@@ -838,7 +827,7 @@ static float tr_cmp_surf(struct render_context *rc, const struct surface *a,
     }
   }
 
-  return minza - minzb;
+  return minza <= minzb;
 }
 
 static void tr_merge_surfs(struct render_context *rc, int *low, int *mid,
@@ -852,7 +841,7 @@ static void tr_merge_surfs(struct render_context *rc, int *low, int *mid,
 
   while (i <= mid && j <= high) {
     DCHECK_LT(k, end);
-    if (tr_cmp_surf(rc, &rc->surfs[*i], &rc->surfs[*j]) <= 0.0f) {
+    if (tr_cmp_surf(rc, &rc->surfs[*i], &rc->surfs[*j])) {
       *(k++) = *(i++);
     } else {
       *(k++) = *(j++);
@@ -944,7 +933,6 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
 
 static void tr_reset(struct tr *tr, struct render_context *rc) {
   /* reset global state */
-  tr->current_param = NULL;
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
@@ -967,12 +955,6 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
 
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
-
-    /* track info about the parse state for tracer debugging */
-    tr->current_param = &rc->params[rc->num_params++];
-    tr->current_param->offset = data - ctx->params;
-    tr->current_param->surf = -1;
-    tr->current_param->vert = -1;
 
     if (ta_pcw_list_type_valid(pcw, tr->list_type)) {
       tr->list_type = pcw.list_type;
@@ -1006,9 +988,18 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
         break;
     }
 
-    /* each param handler may update the global stae, so store afterwards */
-    tr->current_param->list_type = tr->list_type;
-    tr->current_param->vertex_type = tr->list_type;
+    /* track info about the parse state for tracer debugging */
+
+    /* FIXME remove this hack to ignore TA_PARAM_VERTEX once
+       https://github.com/vurtun/nuklear/issues/269 is resolved */
+    if (pcw.para_type != TA_PARAM_VERTEX) {
+      struct render_param *rp = &rc->params[rc->num_params++];
+      rp->offset = data - ctx->params;
+      rp->list_type = tr->list_type;
+      rp->vertex_type = tr->list_type;
+      rp->last_surf = rc->num_surfs - 1;
+      rp->last_vert = rc->num_verts - 1;
+    }
 
     data += ta_get_param_size(pcw, tr->vertex_type);
   }
