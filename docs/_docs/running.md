@@ -13,6 +13,7 @@ Command line flags are loaded from and saved to `$HOME/.redream/flags` each run.
 ```
        --bios  Path to BIOS                                            [default: dc_boot.bin]
       --flash  Path to flash ROM                                       [default: dc_flash.bin]
+    --latency  Set preferred audio latency in MS                       [default: 100]
  --controller  Path to controller profile
    --throttle  Throttle emulation speed to match the original hardware [default: 1]
     --verbose  Enable debug logging                                    [default: 0]
