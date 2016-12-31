@@ -2,6 +2,8 @@
 #include "audio/audio_backend.h"
 #include "hw/aica/aica.h"
 
+DEFINE_OPTION_INT(latency, 100, "Set preferred audio latency in MS");
+
 struct audio_backend {
   struct aica *aica;
   struct SoundIo *soundio;
@@ -141,6 +143,7 @@ struct audio_backend *audio_create(struct aica *aica) {
     audio->outstream->userdata = audio;
     audio->outstream->write_callback = &audio_write_callback;
     audio->outstream->underflow_callback = &audio_underflow_callback;
+    audio->outstream->software_latency = OPTION_latency / 1000.0;
 
     if ((err = soundio_outstream_open(audio->outstream))) {
       LOG_WARNING("Error opening audio device: %s", soundio_strerror(err));
