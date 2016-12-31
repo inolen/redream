@@ -213,10 +213,16 @@ void emu_run(struct emu *emu, const char *path) {
 
   /* load gdi / bin if specified */
   if (path) {
+    int launched = 0;
+
     LOG_INFO("Launching %s", path);
 
-    if ((strstr(path, ".bin") && !emu_launch_bin(emu, path)) ||
-        (strstr(path, ".gdi") && !emu_launch_gdi(emu, path))) {
+    if ((strstr(path, ".bin") && emu_launch_bin(emu, path)) ||
+        (strstr(path, ".gdi") && emu_launch_gdi(emu, path))) {
+      launched = 1;
+    }
+
+    if (!launched) {
       LOG_WARNING("Failed to launch %s", path);
       return;
     }
