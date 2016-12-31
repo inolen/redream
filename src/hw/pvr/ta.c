@@ -569,14 +569,18 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
     ctx->video_height = 240;
   }
 
-  /* scale_x signals to scale the image down by half */
+  /* scale_x signals to scale the framebuffer down by half. do so by scaling
+     up the width used by the projection matrix */
   if (pvr->SCALER_CTL->scale_x) {
     ctx->video_width *= 2;
   }
 
   /* scale_y is a fixed-point scaler, with 6-bits in the integer and 10-bits
-     in the decimal */
-  ctx->video_height = (ctx->video_height * pvr->SCALER_CTL->scale_y) >> 10;
+     in the decimal. this scale value is ignored when used for interlacing
+     which is not emulated */
+  if (!pvr->SCALER_CTL->interlace) {
+    ctx->video_height = (ctx->video_height * pvr->SCALER_CTL->scale_y) >> 10;
+  }
 
   /* according to the hardware docs, this is the correct calculation of the
      background ISP address. however, in practice, the second TA buffer's ISP
