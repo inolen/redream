@@ -987,17 +987,12 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
     }
 
     /* track info about the parse state for tracer debugging */
-
-    /* FIXME remove this hack to ignore TA_PARAM_VERTEX once
-       https://github.com/vurtun/nuklear/issues/269 is resolved */
-    if (pcw.para_type != TA_PARAM_VERTEX) {
-      struct render_param *rp = &rc->params[rc->num_params++];
-      rp->offset = data - ctx->params;
-      rp->list_type = tr->list_type;
-      rp->vertex_type = tr->list_type;
-      rp->last_surf = rc->num_surfs - 1;
-      rp->last_vert = rc->num_verts - 1;
-    }
+    struct render_param *rp = &rc->params[rc->num_params++];
+    rp->offset = data - ctx->params;
+    rp->list_type = tr->list_type;
+    rp->vertex_type = tr->list_type;
+    rp->last_surf = rc->num_surfs - 1;
+    rp->last_vert = rc->num_verts - 1;
 
     data += ta_get_param_size(pcw, tr->vertex_type);
   }

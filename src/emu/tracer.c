@@ -640,9 +640,9 @@ static void tracer_render_side_menu(struct tracer *tracer) {
           struct nk_panel *layout = win->layout;
 
           if (tracer->current_param < view.begin) {
-            layout->offset->y -= layout->bounds.h;
+            *layout->offset_y -= layout->bounds.h;
           } else if (tracer->current_param >= view.end) {
-            layout->offset->y += layout->bounds.h;
+            *layout->offset_y += layout->bounds.h;
           }
 
           tracer->scroll_to_param = 0;
