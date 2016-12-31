@@ -544,11 +544,13 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   ctx->frame = ta->frame;
 
   /* autosort */
-  if (!pvr->FPU_PARAM_CFG->region_header_type) {
-    ctx->autosort = !pvr->ISP_FEED_CFG->presort;
-  } else {
+  if (pvr->FPU_PARAM_CFG->region_header_type) {
+    /* region array data type 2 */
     uint32_t region_data = as_read32(space, 0x05000000 + *pvr->REGION_BASE);
     ctx->autosort = !(region_data & 0x20000000);
+  } else {
+    /* region array data type 1 */
+    ctx->autosort = !pvr->ISP_FEED_CFG->presort;
   }
 
   /* texture stride */

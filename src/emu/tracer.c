@@ -330,7 +330,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
 
     nk_labelf(ctx, NK_TEXT_LEFT, "pcw: 0x%x", pcw.full);
     nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", list_names[rp->list_type]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", rp->surf);
+    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", rp->last_surf);
 
     if (pcw.para_type == TA_PARAM_POLY_OR_VOL ||
         pcw.para_type == TA_PARAM_SPRITE) {
@@ -391,7 +391,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
 
       switch (rp->vertex_type) {
         case 0:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type0.xyz[0], param->type0.xyz[1],
                     param->type0.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_color: 0x%x",
@@ -399,7 +399,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 1:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type1.xyz[0], param->type1.xyz[1],
                     param->type1.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_color_a: %.2f",
@@ -413,7 +413,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 2:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type2.xyz[0], param->type2.xyz[1],
                     param->type2.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_intensity: %.2f",
@@ -421,7 +421,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 3:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type3.xyz[0], param->type3.xyz[1],
                     param->type3.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type3.uv[0],
@@ -446,7 +446,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 5:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type5.xyz[0], param->type5.xyz[1],
                     param->type5.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type5.uv[0],
@@ -470,7 +470,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 6:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type6.xyz[0], param->type6.xyz[1],
                     param->type6.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type6.vu[1],
@@ -494,7 +494,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 7:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type7.xyz[0], param->type7.xyz[1],
                     param->type7.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type7.uv[0],
@@ -506,7 +506,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 8:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type8.xyz[0], param->type8.xyz[1],
                     param->type8.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type8.vu[1],
@@ -521,8 +521,8 @@ static void tracer_param_tooltip(struct tracer *tracer,
 
     /* always render translated surface information. new surfaces can be created
        without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE */
-    if (rp->surf >= 0) {
-      struct surface *surf = &tracer->rc.surfs[rp->surf];
+    if (rp->last_surf >= 0) {
+      struct surface *surf = &tracer->rc.surfs[rp->last_surf];
 
       /* TODO separator */
 
@@ -550,13 +550,13 @@ static void tracer_param_tooltip(struct tracer *tracer,
     }
 
     /* render translated vert only when rendering a vertex tooltip */
-    if (rp->vert >= 0) {
-      struct vertex *vert = &tracer->rc.verts[rp->vert];
+    if (rp->last_vert >= 0) {
+      struct vertex *vert = &tracer->rc.verts[rp->last_vert];
 
       /* TODO separator */
 
-      nk_labelf(ctx, NK_TEXT_LEFT, "vert: %d", rp->vert);
-      nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}", vert->xyz[0],
+      nk_labelf(ctx, NK_TEXT_LEFT, "vert: %d", rp->last_vert);
+      nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}", vert->xyz[0],
                 vert->xyz[1], vert->xyz[2]);
       nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", vert->uv[0],
                 vert->uv[1]);
@@ -731,12 +731,12 @@ static void tracer_render_list(struct tracer *tracer,
   while (sorted_surf < sorted_surf_end) {
     int idx = *(sorted_surf++);
 
+    rb_draw_surface(tracer->rb, &tracer->rc.surfs[idx]);
+
     if (idx == end) {
       *stopped = 1;
       break;
     }
-
-    rb_draw_surface(tracer->rb, &tracer->rc.surfs[idx]);
   }
 }
 
@@ -754,7 +754,7 @@ static void tracer_paint(void *data) {
 
   if (tracer->current_param >= 0) {
     struct render_param *rp = &rc->params[tracer->current_param];
-    end = rp->surf;
+    end = rp->last_surf;
   }
 
   rb_begin_surfaces(tracer->rb, rc->projection, rc->verts, rc->num_verts);
