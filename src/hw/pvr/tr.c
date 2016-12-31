@@ -230,10 +230,15 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
     case TA_PIXEL_YUV422:
       output = converted;
       pixel_fmt = PXL_RGB565;
-      CHECK(!compressed && !twiddled);
-      convert_packed_UYVY422_RGB565((const uint32_t *)input,
-                                    (uint16_t *)converted, width, height,
-                                    stride);
+      CHECK(!compressed);
+      if (twiddled) {
+        convert_twiddled_UYVY422_RGB565((const uint16_t *)input,
+                                        (uint16_t *)converted, width, height);
+
+      } else {
+        convert_UYVY422_RGB565((const uint16_t *)input, (uint16_t *)converted,
+                               width, height, stride);
+      }
       break;
 
     case TA_PIXEL_4BPP:
