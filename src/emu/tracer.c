@@ -661,7 +661,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
     nk_style_default(ctx);
 
-    ctx->style.window.fixed_background.data.color.a = 0;
+    ctx->style.window.fixed_background.data.color.a = 128;
 
     if (nk_begin(ctx, "textures", bounds,
                  NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
