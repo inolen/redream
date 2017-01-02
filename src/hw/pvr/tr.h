@@ -13,12 +13,13 @@ struct tr;
 typedef uint64_t texture_key_t;
 
 struct texture_entry {
+  /* cache info */
   union tsp tsp;
   union tcw tcw;
+  unsigned frame;
+  int dirty;
 
   /* source info */
-  int frame;
-  int dirty;
   const uint8_t *texture;
   int texture_size;
   const uint8_t *palette;
