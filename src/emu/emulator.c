@@ -19,7 +19,6 @@
 
 DEFINE_OPTION_INT(throttle, 1,
                   "Throttle emulation speed to match the original hardware");
-
 DEFINE_AGGREGATE_COUNTER(frames);
 
 struct emu {
@@ -76,16 +75,20 @@ static int emu_launch_gdi(struct emu *emu, const char *path) {
 static void emu_paint(void *data) {
   struct emu *emu = data;
 
-  /* render latest ta context */
+  /* wait for the next ta context */
   struct render_context *rc = &emu->rc;
   struct tile_ctx *pending_ctx = NULL;
 
-  if (ta_lock_pending_context(emu->dc->ta, &pending_ctx)) {
-    tr_parse_context(emu->tr, pending_ctx, rc);
-    ta_unlock_pending_context(emu->dc->ta);
+  while (emu->running) {
+    if (ta_lock_pending_context(emu->dc->ta, &pending_ctx, 1000)) {
+      tr_parse_context(emu->tr, pending_ctx, rc);
+      ta_unlock_pending_context(emu->dc->ta);
+      break;
+    }
   }
 
   tr_render_context(emu->tr, rc);
+
   prof_counter_add(COUNTER_frames, 1);
 
   prof_flip();

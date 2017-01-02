@@ -21,6 +21,14 @@ void mutex_lock(mutex_t mutex);
 void mutex_unlock(mutex_t mutex);
 void mutex_destroy(mutex_t mutex);
 
+typedef void *cond_t;
+
+cond_t cond_create();
+void cond_wait(cond_t cond, mutex_t mutex);
+int cond_timedwait(cond_t cond, mutex_t mutex, int ms);
+void cond_signal(cond_t cond);
+void cond_destroy(cond_t cond);
+
 /*
  * sleeping
  */
