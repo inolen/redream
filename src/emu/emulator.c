@@ -30,10 +30,7 @@ struct emu {
 
   /* render state */
   struct tr *tr;
-  struct render_context render_ctx;
-  struct surface surfs[TA_MAX_SURFS];
-  struct vertex verts[TA_MAX_VERTS];
-  int sorted_surfs[TA_MAX_SURFS];
+  struct render_context rc;
 };
 
 static int emu_launch_bin(struct emu *emu, const char *path) {
@@ -80,22 +77,15 @@ static void emu_paint(void *data) {
   struct emu *emu = data;
 
   /* render latest ta context */
-  struct render_context *render_ctx = &emu->render_ctx;
+  struct render_context *rc = &emu->rc;
   struct tile_ctx *pending_ctx = NULL;
 
   if (ta_lock_pending_context(emu->dc->ta, &pending_ctx)) {
-    render_ctx->surfs = emu->surfs;
-    render_ctx->surfs_size = array_size(emu->surfs);
-    render_ctx->verts = emu->verts;
-    render_ctx->verts_size = array_size(emu->verts);
-    render_ctx->sorted_surfs = emu->sorted_surfs;
-    render_ctx->sorted_surfs_size = array_size(emu->sorted_surfs);
-    tr_parse_context(emu->tr, pending_ctx, render_ctx);
-
+    tr_parse_context(emu->tr, pending_ctx, rc);
     ta_unlock_pending_context(emu->dc->ta);
   }
 
-  tr_render_context(emu->tr, render_ctx);
+  tr_render_context(emu->tr, rc);
   prof_counter_add(COUNTER_frames, 1);
 
   prof_flip();
@@ -223,10 +213,16 @@ void emu_run(struct emu *emu, const char *path) {
 
   /* load gdi / bin if specified */
   if (path) {
+    int launched = 0;
+
     LOG_INFO("Launching %s", path);
 
-    if ((strstr(path, ".bin") && !emu_launch_bin(emu, path)) ||
-        (strstr(path, ".gdi") && !emu_launch_gdi(emu, path))) {
+    if ((strstr(path, ".bin") && emu_launch_bin(emu, path)) ||
+        (strstr(path, ".gdi") && emu_launch_gdi(emu, path))) {
+      launched = 1;
+    }
+
+    if (!launched) {
       LOG_WARNING("Failed to launch %s", path);
       return;
     }

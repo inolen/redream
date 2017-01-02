@@ -63,11 +63,12 @@ void sh4_sr_updated(void *data, uint32_t old_sr) {
 
   prof_counter_add(COUNTER_sh4_sr_updates, 1);
 
-  if ((ctx->sr & RB) != (old_sr & RB)) {
+  if ((ctx->sr & RB_MASK) != (old_sr & RB_MASK)) {
     sh4_swap_gpr_bank(sh4);
   }
 
-  if ((ctx->sr & I) != (old_sr & I) || (ctx->sr & BL) != (old_sr & BL)) {
+  if ((ctx->sr & I_MASK) != (old_sr & I_MASK) ||
+      (ctx->sr & BL_MASK) != (old_sr & BL_MASK)) {
     sh4_intc_update_pending(sh4);
   }
 }
@@ -203,6 +204,16 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
 
   /* return size */
   *size = as.size;
+}
+
+void sh4_implode_sr(struct sh4 *sh4) {
+  sh4->ctx.sr &= ~(S_MASK | T_MASK);
+  sh4->ctx.sr |= (sh4->ctx.sr_s << S_BIT) | (sh4->ctx.sr_t << T_BIT);
+}
+
+void sh4_explode_sr(struct sh4 *sh4) {
+  sh4->ctx.sr_t = (sh4->ctx.sr & T_MASK) >> T_BIT;
+  sh4->ctx.sr_s = (sh4->ctx.sr & S_MASK) >> S_BIT;
 }
 
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {

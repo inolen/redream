@@ -370,7 +370,7 @@ static void ta_init_context(struct ta *ta, struct tile_ctx *ctx) {
 
 static void ta_write_context(struct ta *ta, struct tile_ctx *ctx, void *ptr,
                              int size) {
-  CHECK_LT(ctx->size + size, TA_MAX_PARAMS);
+  CHECK_LT(ctx->size + size, (int)sizeof(ctx->params));
   memcpy(&ctx->params[ctx->size], ptr, size);
   ctx->size += size;
 
@@ -544,11 +544,13 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   ctx->frame = ta->frame;
 
   /* autosort */
-  if (!pvr->FPU_PARAM_CFG->region_header_type) {
-    ctx->autosort = !pvr->ISP_FEED_CFG->presort;
-  } else {
+  if (pvr->FPU_PARAM_CFG->region_header_type) {
+    /* region array data type 2 */
     uint32_t region_data = as_read32(space, 0x05000000 + *pvr->REGION_BASE);
     ctx->autosort = !(region_data & 0x20000000);
+  } else {
+    /* region array data type 1 */
+    ctx->autosort = !pvr->ISP_FEED_CFG->presort;
   }
 
   /* texture stride */
@@ -569,14 +571,18 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
     ctx->video_height = 240;
   }
 
-  /* scale_x signals to scale the image down by half */
+  /* scale_x signals to scale the framebuffer down by half. do so by scaling
+     up the width used by the projection matrix */
   if (pvr->SCALER_CTL->scale_x) {
     ctx->video_width *= 2;
   }
 
   /* scale_y is a fixed-point scaler, with 6-bits in the integer and 10-bits
-     in the decimal */
-  ctx->video_height = (ctx->video_height * pvr->SCALER_CTL->scale_y) >> 10;
+     in the decimal. this scale value is ignored when used for interlacing
+     which is not emulated */
+  if (!pvr->SCALER_CTL->interlace) {
+    ctx->video_height = (ctx->video_height * pvr->SCALER_CTL->scale_y) >> 10;
+  }
 
   /* according to the hardware docs, this is the correct calculation of the
      background ISP address. however, in practice, the second TA buffer's ISP
