@@ -101,12 +101,13 @@ static void emu_debug_menu(void *data, struct nk_context *ctx) {
   char status[128];
 
   int frames = (int)prof_counter_load(COUNTER_frames);
+  int ta_renders = (int)prof_counter_load(COUNTER_ta_renders);
   int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
   int sh4_instrs = (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
   int arm7_instrs = (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
 
-  snprintf(status, sizeof(status), "%3d FPS %3d VBS %4d SH4 %d ARM", frames,
-           pvr_vblanks, sh4_instrs, arm7_instrs);
+  snprintf(status, sizeof(status), "%3d FPS %3d RPS %3d VBS %4d SH4 %d ARM",
+           frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
   win_set_status(emu->window, status);
 
   /* add drop down menus */

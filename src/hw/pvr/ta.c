@@ -1,6 +1,5 @@
 #include "hw/pvr/ta.h"
 #include "core/list.h"
-#include "core/profiler.h"
 #include "core/string.h"
 #include "hw/holly/holly.h"
 #include "hw/pvr/pixel_convert.h"
@@ -15,6 +14,7 @@
 #include "ui/nuklear.h"
 
 DEFINE_AGGREGATE_COUNTER(ta_data);
+DEFINE_AGGREGATE_COUNTER(ta_renders);
 
 #define TA_MAX_CONTEXTS 8
 #define TA_YUV420_MACROBLOCK_SIZE 384
@@ -683,6 +683,8 @@ static void ta_render_timer(void *data) {
 }
 
 static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
+  prof_counter_add(COUNTER_ta_renders, 1);
+
   mutex_lock(ta->pending_mutex);
 
   /* remove context from pool */
