@@ -96,6 +96,8 @@ struct surface {
   int ignore_alpha;
   int ignore_texture_alpha;
   int offset_color;
+  int pt_alpha_test;
+  float pt_alpha_ref;
 
   int first_vert;
   int num_verts;
