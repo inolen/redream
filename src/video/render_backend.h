@@ -66,7 +66,11 @@ enum shade_mode {
   SHADE_DECAL_ALPHA,
   SHADE_MODULATE_ALPHA,
 };
-
+enum polygon_type {
+  POLY_OPAQUE,
+  POLY_TRANSLUCENT,
+  POLY_PUNCH_THROUGH
+};
 enum box_type {
   BOX_BAR,
   BOX_FLAT,
@@ -93,9 +97,11 @@ struct surface {
   enum blend_func dst_blend;
 
   enum shade_mode shade;
+  enum polygon_type poly_type;
   int ignore_alpha;
   int ignore_texture_alpha;
   int offset_color;
+  float pt_alpha;
 
   int first_vert;
   int num_verts;

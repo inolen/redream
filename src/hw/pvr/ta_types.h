@@ -451,6 +451,7 @@ struct tile_ctx {
   union tsp bg_tsp;
   union tcw bg_tcw;
   float bg_depth;
+  uint32_t pt_alpha_ref;
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
   /* parameter buffer */

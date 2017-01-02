@@ -583,6 +583,7 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   surf->ignore_alpha = !param->type0.tsp.use_alpha;
   surf->ignore_texture_alpha = param->type0.tsp.ignore_tex_alpha;
   surf->offset_color = param->type0.isp_tsp.offset;
+  surf->pt_alpha = (float)ctx->pt_alpha_ref / 0xff;
 
   /* override a few surface parameters based on the list type */
   if (tr->list_type != TA_LIST_TRANSLUCENT &&
@@ -596,6 +597,14 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   } else if (tr->list_type == TA_LIST_PUNCH_THROUGH) {
     surf->depth_func = DEPTH_GEQUAL;
   }
+
+  /* pass polygon type to surface */
+  if(tr->list_type == TA_LIST_OPAQUE || tr->list_type == TA_LIST_OPAQUE_MODVOL)
+    surf->poly_type = POLY_OPAQUE;
+  else if (tr->list_type == TA_LIST_TRANSLUCENT || tr->list_type == TA_LIST_TRANSLUCENT_MODVOL)
+    surf->poly_type = POLY_TRANSLUCENT;
+  else if(tr->list_type == TA_LIST_PUNCH_THROUGH)
+    surf->poly_type = POLY_PUNCH_THROUGH;
 
   if (param->type0.pcw.texture) {
     surf->texture =
