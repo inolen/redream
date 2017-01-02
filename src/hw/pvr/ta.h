@@ -1,6 +1,7 @@
-#ifndef TILE_ACCELERATOR_H
-#define TILE_ACCELERATOR_H
+#ifndef TA_H
+#define TA_H
 
+#include "core/profiler.h"
 #include "hw/memory.h"
 #include "hw/pvr/ta_types.h"
 
@@ -96,6 +97,8 @@ static inline int ta_texture_size(union tsp tsp, union tcw tcw) {
 struct ta;
 
 void ta_build_tables();
+
+DECLARE_COUNTER(ta_renders);
 
 AM_DECLARE(ta_fifo_map);
 
