@@ -56,7 +56,7 @@ void trace_writer_render_context(struct trace_writer *writer,
 }
 
 void trace_writer_insert_texture(struct trace_writer *writer, union tsp tsp,
-                                 union tcw tcw, int frame,
+                                 union tcw tcw, unsigned frame,
                                  const uint8_t *palette, int palette_size,
                                  const uint8_t *texture, int texture_size) {
   struct trace_cmd cmd = {0};
@@ -207,8 +207,8 @@ struct trace *trace_parse(const char *filename) {
   {
     struct trace_cmd *cmd = trace->cmds;
 
-    trace->first_frame = INT_MAX;
-    trace->last_frame = INT_MIN;
+    trace->first_frame = UINT_MAX;
+    trace->last_frame = 0;
 
     while (cmd) {
       if (cmd->type == TRACE_CMD_CONTEXT) {

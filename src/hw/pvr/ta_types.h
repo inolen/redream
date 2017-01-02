@@ -441,7 +441,7 @@ struct tile_ctx {
   uint32_t addr;
 
   /* pvr / ta state */
-  int frame;
+  unsigned frame;
   int autosort;
   int stride;
   int pal_pxl_format;

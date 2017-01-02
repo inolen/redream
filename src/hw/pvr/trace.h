@@ -24,7 +24,7 @@ struct trace_cmd {
     struct {
       union tsp tsp;
       union tcw tcw;
-      int32_t frame;
+      uint32_t frame;
       uint32_t palette_size;
       const uint8_t *palette;
       uint32_t texture_size;
@@ -34,7 +34,7 @@ struct trace_cmd {
     /* slimmed down version of the tile_ctx structure, will need to be in
        sync */
     struct {
-      int32_t frame;
+      uint32_t frame;
       int8_t autosort;
       uint32_t stride;
       uint32_t pal_pxl_format;
@@ -54,8 +54,8 @@ struct trace_cmd {
 
 struct trace {
   struct trace_cmd *cmds;
-  int first_frame;
-  int last_frame;
+  unsigned first_frame;
+  unsigned last_frame;
 };
 
 struct trace_writer {
@@ -68,7 +68,7 @@ void trace_writer_close(struct trace_writer *writer);
 void trace_writer_render_context(struct trace_writer *writer,
                                  struct tile_ctx *ctx);
 void trace_writer_insert_texture(struct trace_writer *writer, union tsp tsp,
-                                 union tcw tcw, int frame,
+                                 union tcw tcw, unsigned frame,
                                  const uint8_t *palette, int palette_size,
                                  const uint8_t *texture, int texture_size);
 struct trace_writer *trace_writer_open(const char *filename);

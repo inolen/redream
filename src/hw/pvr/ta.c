@@ -65,7 +65,7 @@ struct ta {
   struct tile_ctx *pending_context;
 
   /* debug info */
-  int frame;
+  unsigned frame;
   int frames_skipped;
   int num_textures;
   struct trace_writer *trace_writer;
@@ -230,6 +230,35 @@ static void ta_soft_reset(struct ta *ta) {
   /* FIXME what are we supposed to do here? */
 }
 
+static void ta_clear_textures(struct ta *ta) {
+  LOG_INFO("Texture cache cleared");
+
+  struct rb_node *it = rb_first(&ta->live_entries);
+
+  while (it) {
+    struct rb_node *next = rb_next(it);
+
+    struct ta_texture_entry *entry =
+        rb_entry(it, struct ta_texture_entry, live_it);
+
+    entry->dirty = 1;
+
+    it = next;
+  }
+}
+
+static void ta_texture_invalidated(const struct exception *ex, void *data) {
+  struct ta_texture_entry *entry = data;
+  entry->texture_watch = NULL;
+  entry->dirty = 1;
+}
+
+static void ta_palette_invalidated(const struct exception *ex, void *data) {
+  struct ta_texture_entry *entry = data;
+  entry->palette_watch = NULL;
+  entry->dirty = 1;
+}
+
 static struct ta_texture_entry *ta_alloc_texture(struct ta *ta, union tsp tsp,
                                                  union tcw tcw) {
   /* remove from free list */
@@ -271,43 +300,35 @@ static struct texture_entry *ta_texture_provider_find_texture(void *data,
     return NULL;
   }
 
-  if (entry->dirty) {
-    /* sanity check that the texture source is valid for the current context.
-       video ram will be modified between frames, if these values don't match
-       something is broken in the thread synchronization */
-    CHECK_EQ(entry->frame, ta->frame);
+  /* sanity check that the texture source is valid for the current frame. video
+     ram will be modified between frames, if these values don't match something
+     is broken in the thread synchronization */
+  CHECK_EQ(entry->frame, ta->frame);
+
+#ifdef NDEBUG
+  /* this function is called by the tile renderer right before it submits a
+     texture to the gpu and caches the returned handle. in order to provide the
+     gpu new versions of the texture as it is updated, add a memory watch for
+     the texture's memory which will dirty it once it is written to.
+
+     note, it's very important the watch is added here, immediately before the
+     texture is submitted, as opposed to when it is first registered inside of
+     ta_register_texture_source. some games will actually write to the texture
+     between the start and end render events. if the watch is added during the
+     start render event, and dirtied before getting here, a texture will exist
+     in the cache that's not being watched for updates */
+  if (!entry->texture_watch) {
+    entry->texture_watch = add_single_write_watch(
+        entry->texture, entry->texture_size, &ta_texture_invalidated, entry);
   }
+
+  if (entry->palette && !entry->palette_watch) {
+    entry->palette_watch = add_single_write_watch(
+        entry->palette, entry->palette_size, &ta_palette_invalidated, entry);
+  }
+#endif
 
   return (struct texture_entry *)entry;
-}
-
-static void ta_clear_textures(struct ta *ta) {
-  LOG_INFO("Texture cache cleared");
-
-  struct rb_node *it = rb_first(&ta->live_entries);
-
-  while (it) {
-    struct rb_node *next = rb_next(it);
-
-    struct ta_texture_entry *entry =
-        rb_entry(it, struct ta_texture_entry, live_it);
-
-    entry->dirty = 1;
-
-    it = next;
-  }
-}
-
-static void ta_texture_invalidated(const struct exception *ex, void *data) {
-  struct ta_texture_entry *entry = data;
-  entry->texture_watch = NULL;
-  entry->dirty = 1;
-}
-
-static void ta_palette_invalidated(const struct exception *ex, void *data) {
-  struct ta_texture_entry *entry = data;
-  entry->palette_watch = NULL;
-  entry->dirty = 1;
 }
 
 static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
@@ -435,7 +456,8 @@ static void ta_write_context(struct ta *ta, struct tile_ctx *ctx, void *ptr,
   }
 }
 
-static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
+static void ta_register_texture_source(struct ta *ta, union tsp tsp,
+                                       union tcw tcw) {
   struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
 
   if (!entry) {
@@ -443,7 +465,19 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
     entry->dirty = 1;
   }
 
+#ifdef NDEBUG
+  /* sanity check that valid textures are being watched for updates */
+  if (!entry->dirty) {
+    CHECK(entry->texture_watch);
+
+    if (entry->palette_size) {
+      CHECK(entry->palette_watch);
+    }
+  }
+#endif
+
   /* mark texture source valid for the current frame */
+  int first_registration_this_frame = entry->frame != ta->frame;
   entry->frame = ta->frame;
 
   /* set texture address */
@@ -469,7 +503,7 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
         palette_addr = (tcw.p.palette_selector << 4) * 4;
         palette_size = (1 << 4) * 4;
       } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
-        /* in 4bpp mode, the palette selector represents the upper 2 bits of the
+        /* in 8bpp mode, the palette selector represents the upper 2 bits of the
            palette index, with the remaining 8 bits being filled in by the
            texture */
         palette_addr = ((tcw.p.palette_selector & 0x30) << 4) * 4;
@@ -481,31 +515,16 @@ static void ta_register_texture(struct ta *ta, union tsp tsp, union tcw tcw) {
     }
   }
 
-/* add write callback in order to invalidate on future writes. the callback
-   address will be page aligned, therefore it will be triggered falsely in
-   some cases. over invalidate in these cases */
-#ifdef NDEBUG
-  if (!entry->texture_watch) {
-    entry->texture_watch = add_single_write_watch(
-        entry->texture, entry->texture_size, &ta_texture_invalidated, entry);
-  }
-
-  if (entry->palette && !entry->palette_watch) {
-    entry->palette_watch = add_single_write_watch(
-        entry->palette, entry->palette_size, &ta_palette_invalidated, entry);
-  }
-#endif
-
-  /* add modified entries to the trace */
-  if (ta->trace_writer && entry->dirty) {
+  /* add dirty textures to the trace */
+  if (ta->trace_writer && entry->dirty && first_registration_this_frame) {
     trace_writer_insert_texture(ta->trace_writer, tsp, tcw, entry->frame,
                                 entry->palette, entry->palette_size,
                                 entry->texture, entry->texture_size);
   }
 }
 
-static void ta_register_textures(struct ta *ta, struct tile_ctx *ctx,
-                                 int *num_polys) {
+static void ta_register_texture_sources(struct ta *ta, struct tile_ctx *ctx,
+                                        int *num_polys) {
   const uint8_t *data = ctx->params;
   const uint8_t *end = ctx->params + ctx->size;
   int vertex_type = 0;
@@ -523,7 +542,7 @@ static void ta_register_textures(struct ta *ta, struct tile_ctx *ctx,
         vertex_type = ta_get_vert_type(param->type0.pcw);
 
         if (param->type0.pcw.texture) {
-          ta_register_texture(ta, param->type0.tsp, param->type0.tcw);
+          ta_register_texture_source(ta, param->type0.tsp, param->type0.tcw);
         }
 
         (*num_polys)++;
@@ -654,6 +673,10 @@ static void ta_render_timer(void *data) {
     ta->frames_skipped++;
   }
 
+  /* texture entries are only valid between each start / end render, increment
+     frame number again to invalidate */
+  ta->frame++;
+
   mutex_unlock(ta->pending_mutex);
 
   ta_end_render(ta);
@@ -680,7 +703,7 @@ static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
      backend operations on the same thread). this registration just lets the
      backend know where the texture's source data is */
   int num_polys = 0;
-  ta_register_textures(ta, ctx, &num_polys);
+  ta_register_texture_sources(ta, ctx, &num_polys);
 
   /* supposedly, the dreamcast can push around ~3 million polygons per second
      through the TA / PVR. with that in mind, a very poor estimate can be made
@@ -863,12 +886,6 @@ static int ta_init(struct device *dev) {
 }
 
 static void ta_toggle_tracing(struct ta *ta) {
-  /* this is called from the UI thread, need to take the context lock
-     as the graphics / emulation thread may be rendering a context.
-     this prevents partial frames being written to the trace, as well
-     as texture cache corruptions */
-  mutex_lock(ta->pending_mutex);
-
   if (!ta->trace_writer) {
     char filename[PATH_MAX];
     get_next_trace_filename(filename, sizeof(filename));
@@ -891,7 +908,20 @@ static void ta_toggle_tracing(struct ta *ta) {
 
     LOG_INFO("End tracing");
   }
+}
 
+static void ta_debug_menu_toggle_tracing(struct ta *ta) {
+  /* this is called from the graphics thread. need to take the context lock as
+     the emulation thread may be modifying the pending context, registering
+     textures for it, etc. */
+  mutex_lock(ta->pending_mutex);
+  ta_toggle_tracing(ta);
+  mutex_unlock(ta->pending_mutex);
+}
+
+static void ta_debug_menu_clear_textures(struct ta *ta) {
+  mutex_lock(ta->pending_mutex);
+  ta_clear_textures(ta);
   mutex_unlock(ta->pending_mutex);
 }
 
@@ -907,13 +937,13 @@ static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
     nk_value_int(ctx, "num textures", ta->num_textures);
 
     if (!ta->trace_writer && nk_button_label(ctx, "start trace")) {
-      ta_toggle_tracing(ta);
+      ta_debug_menu_toggle_tracing(ta);
     } else if (ta->trace_writer && nk_button_label(ctx, "stop trace")) {
-      ta_toggle_tracing(ta);
+      ta_debug_menu_toggle_tracing(ta);
     }
 
     if (nk_button_label(ctx, "clear texture cache")) {
-      ta_clear_textures(ta);
+      ta_debug_menu_clear_textures(ta);
     }
 
     nk_menu_end(ctx);
@@ -982,6 +1012,9 @@ int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
       return 0;
     }
   }
+
+  /* sanity check the context is from the current frame */
+  CHECK_EQ(ta->pending_context->frame, ta->frame);
 
   *pending_ctx = ta->pending_context;
 
