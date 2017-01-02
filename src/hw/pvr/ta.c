@@ -61,6 +61,7 @@ struct ta {
      emulation thread. a mutex is used to synchronize access with the graphics
      thread */
   mutex_t pending_mutex;
+  cond_t pending_cond;
   struct tile_ctx *pending_context;
 
   /* debug info */
@@ -644,31 +645,25 @@ static void ta_render_timer(void *data) {
      finished, the emulation thread must be paused to avoid altering
      the yet-to-be-uploaded texture memory */
   mutex_lock(ta->pending_mutex);
+
+  /* if the graphics thread didn't actually attempt to parse the frame, which
+     often happens when running unthrottled, skip it */
+  if (ta->pending_context) {
+    ta_free_context(ta, ta->pending_context);
+    ta->pending_context = NULL;
+    ta->frames_skipped++;
+  }
+
   mutex_unlock(ta->pending_mutex);
 
   ta_end_render(ta);
 }
 
 static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
-  /* if the graphics thread is still parsing the previous context, skip this
-     one */
-  if (!mutex_trylock(ta->pending_mutex)) {
-    ta_unlink_context(ta, ctx);
-    ta_free_context(ta, ctx);
-    ta_end_render(ta);
-    ta->frames_skipped++;
-    return;
-  }
+  mutex_lock(ta->pending_mutex);
 
-  /* free the previous pending context if it wasn't rendered */
-  if (ta->pending_context) {
-    ta_free_context(ta, ta->pending_context);
-    ta->pending_context = NULL;
-  }
-
-  /* set the new pending context */
+  /* remove context from pool */
   ta_unlink_context(ta, ctx);
-  ta->pending_context = ctx;
 
   /* increment internal frame number. this frame number is assigned to the
      context and each texture source it registers to assert synchronization
@@ -685,7 +680,7 @@ static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
      backend operations on the same thread). this registration just lets the
      backend know where the texture's source data is */
   int num_polys = 0;
-  ta_register_textures(ta, ta->pending_context, &num_polys);
+  ta_register_textures(ta, ctx, &num_polys);
 
   /* supposedly, the dreamcast can push around ~3 million polygons per second
      through the TA / PVR. with that in mind, a very poor estimate can be made
@@ -695,11 +690,14 @@ static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
   scheduler_start_timer(ta->scheduler, &ta_render_timer, ta, ns);
 
   if (ta->trace_writer) {
-    trace_writer_render_context(ta->trace_writer, ta->pending_context);
+    trace_writer_render_context(ta->trace_writer, ctx);
   }
 
-  /* unlock the mutex, enabling the graphics thread to start parsing the
-     pending context */
+  /* signal to the graphics thread that a new frame is available to be parsed */
+  CHECK(ta->pending_context == NULL);
+  ta->pending_context = ctx;
+
+  cond_signal(ta->pending_cond);
   mutex_unlock(ta->pending_mutex);
 }
 
@@ -963,22 +961,27 @@ void ta_build_tables() {
 }
 
 void ta_unlock_pending_context(struct ta *ta) {
+  /* after the pending mutex is released, this context is no longer valid
+     as the emulation thread will resume */
   ta_free_context(ta, ta->pending_context);
   ta->pending_context = NULL;
 
   mutex_unlock(ta->pending_mutex);
 }
 
-int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx) {
+int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
+                            int wait_ms) {
   mutex_lock(ta->pending_mutex);
 
+  /* wait for the next available context */
   if (!ta->pending_context) {
-    mutex_unlock(ta->pending_mutex);
-    return 0;
-  }
+    int res = cond_timedwait(ta->pending_cond, ta->pending_mutex, wait_ms);
 
-  /* ensure that the pending context is still valid */
-  CHECK_EQ(ta->pending_context->frame, ta->frame);
+    if (!res || !ta->pending_context) {
+      mutex_unlock(ta->pending_mutex);
+      return 0;
+    }
+  }
 
   *pending_ctx = ta->pending_context;
 
@@ -990,6 +993,7 @@ struct texture_provider *ta_texture_provider(struct ta *ta) {
 }
 
 void ta_destroy(struct ta *ta) {
+  cond_destroy(ta->pending_cond);
   mutex_destroy(ta->pending_mutex);
   dc_destroy_window_interface(ta->window_if);
   dc_destroy_device((struct device *)ta);
@@ -1003,6 +1007,7 @@ struct ta *ta_create(struct dreamcast *dc) {
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
   ta->pending_mutex = mutex_create();
+  ta->pending_cond = cond_create();
 
   return ta;
 }
