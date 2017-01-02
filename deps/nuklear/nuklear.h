@@ -16677,7 +16677,7 @@ nk_panel_end(struct nk_context *ctx)
             scroll.w = scrollbar_size.x;
             scroll.h = layout->bounds.h;
 
-            scroll_offset = *layout->offset_y;
+            scroll_offset = (float)*layout->offset_y;
             scroll_step = scroll.h * 0.10f;
             scroll_inc = scroll.h * 0.01f;
             scroll_target = (float)(int)(layout->at_y - scroll.y);
@@ -16735,7 +16735,7 @@ nk_panel_end(struct nk_context *ctx)
             scroll.w = layout->bounds.w;
             scroll.h = scrollbar_size.y;
 
-            scroll_offset = *layout->offset_x;
+            scroll_offset = (float)*layout->offset_x;
             scroll_target = (float)(int)(layout->max_x - scroll.x);
             scroll_step = layout->max_x * 0.05f;
             scroll_inc = layout->max_x * 0.005f;
