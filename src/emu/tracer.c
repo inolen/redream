@@ -601,7 +601,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
       if (nk_list_view_begin(ctx, &view, "params list", 0, param_height,
                              num_params)) {
-        nk_layout_row_dynamic(ctx, param_height, 1);
+        nk_layout_row_dynamic(ctx, (float)param_height, 1);
 
         for (int i = view.begin; i < view.end && i < num_params; i++) {
           struct render_param *rp = &tracer->rc.params[i];
@@ -640,9 +640,9 @@ static void tracer_render_side_menu(struct tracer *tracer) {
           struct nk_panel *layout = win->layout;
 
           if (tracer->current_param < view.begin) {
-            *layout->offset_y -= layout->bounds.h;
+            *layout->offset_y -= (nk_uint)layout->bounds.h;
           } else if (tracer->current_param >= view.end) {
-            *layout->offset_y += layout->bounds.h;
+            *layout->offset_y += (nk_uint)layout->bounds.h;
           }
 
           tracer->scroll_to_param = 0;

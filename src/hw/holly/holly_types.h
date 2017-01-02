@@ -12,9 +12,9 @@ enum {
 };
 
 /* interrupts */
-#define HOLLY_INTERRUPT(type, irq) (((uint64_t)type << 32) | irq)
-#define HOLLY_INTERRUPT_TYPE(intr) (intr >> 32)
-#define HOLLY_INTERRUPT_IRQ(intr) ((uint32_t)intr)
+#define HOLLY_INTERRUPT(type, irq) (((uint64_t)(type) << 32) | (uint64_t)(irq))
+#define HOLLY_INTERRUPT_TYPE(intr) ((intr) >> 32)
+#define HOLLY_INTERRUPT_IRQ(intr) ((uint32_t)(intr))
 
 enum holly_interrupt_type {
   HOLLY_INTC_NRM = 0x1,

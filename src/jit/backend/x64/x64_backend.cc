@@ -414,7 +414,7 @@ static void x64_backend_emit_stats(struct x64_backend *backend,
     cs_free(insns, count);
 
     const char *desc = backend->last_op->arg[0]->str;
-    emit_stats_add(desc, count);
+    emit_stats_add(desc, (int)count);
   }
 
   backend->last_op = op;

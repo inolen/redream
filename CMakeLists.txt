@@ -102,6 +102,7 @@ set(BUILD_UTILS OFF CACHE BOOL "")
 add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/glew-1.13.0/include)
 list(APPEND REDREAM_LIBS glew_s)
+list(APPEND REDREAM_DEFS GLEW_STATIC)
 
 # inih
 add_library(inih STATIC deps/inih/ini.c)
@@ -115,6 +116,7 @@ set(BUILD_TEST OFF CACHE BOOL "")
 add_subdirectory(deps/libsoundio EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/libsoundio)
 list(APPEND REDREAM_LIBS libsoundio_static)
+list(APPEND REDREAM_DEFS SOUNDIO_STATIC_LIBRARY)
 
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
