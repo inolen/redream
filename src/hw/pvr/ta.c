@@ -24,10 +24,14 @@ DEFINE_AGGREGATE_COUNTER(ta_renders);
 
 struct ta_texture_entry {
   struct texture_entry;
-  struct memory_watch *texture_watch;
-  struct memory_watch *palette_watch;
+  struct ta *ta;
   struct list_node free_it;
   struct rb_node live_it;
+
+  struct memory_watch *texture_watch;
+  struct memory_watch *palette_watch;
+  struct list_node invalid_it;
+  int invalidated;
 };
 
 struct ta {
@@ -42,27 +46,42 @@ struct ta {
   int yuv_macroblock_size;
   int yuv_macroblock_count;
 
-  /* texture cache entry pool. free entries are in a linked list, live entries
-     are in a tree ordered by texture key, textures queued for invalidation are
-     in the the invalid_entries linked list */
-  struct ta_texture_entry entries[8192];
-  struct list free_entries;
-  struct rb_tree live_entries;
-  int num_invalidated;
-
-  /* tile context pool. free contexts are in a linked list, live contexts are
-     are in a tree ordered by the context's guest address */
+  /* tile context pool */
   struct tile_ctx contexts[TA_MAX_CONTEXTS];
   struct list free_contexts;
   struct list live_contexts;
-  struct tile_ctx *next_context;
+  struct tile_ctx *curr_context;
 
-  /* the pending context is the last context requested to be rendered by the
-     emulation thread. a mutex is used to synchronize access with the graphics
-     thread */
+  /* texture cache entry pool */
+  struct ta_texture_entry entries[8192];
+  struct list free_entries;
+  struct rb_tree live_entries;
+
+  /* each time the STARTRENDER register is written to, the current TA param
+     buffer and PVR register state required to render the params is saved to
+     this "pending context". the pending context is not actually rendered on
+     the emulation thread, instead it's made available to the graphics thread
+     through ta_lock_pending_context and ta_unlock_pending_context functions.
+     please read through the comments there, as well as the comments in
+     ta_start_render, ta_render_timer and ta_end_render to understand how
+     access to this context as well as the texture data it depends on is
+     synchronized */
+  struct tile_ctx *pending_context;
+
+  /* textures for the pending context are uploaded to the render backend by
+     the graphics thread in parallel to the main emulation thread executing,
+     which may erroneously write to a texture before receiving the end of
+     render interrupts. in order to avoid race conditions around the texture's
+     dirty state in these situations, textures are not immediately marked dirty
+     by the emulation thread. instead, they are added to this invalidated list
+     which will be processed the next time the two threads are synchronized */
+  struct list invalidated_entries;
+  int num_invalidated;
+
+  /* primitives used for synchronizing access to the pending context and any
+     invalidated textures between the graphics and emulation threads */
   mutex_t pending_mutex;
   cond_t pending_cond;
-  struct tile_ctx *pending_context;
 
   /* debug info */
   unsigned frame;
@@ -247,16 +266,34 @@ static void ta_clear_textures(struct ta *ta) {
   }
 }
 
+static void ta_dirty_invalidated_textures(struct ta *ta) {
+  list_for_each_entry(entry, &ta->invalidated_entries, struct ta_texture_entry,
+                      invalid_it) {
+    entry->dirty = 1;
+    entry->invalidated = 0;
+  }
+
+  list_clear(&ta->invalidated_entries);
+}
+
 static void ta_texture_invalidated(const struct exception *ex, void *data) {
   struct ta_texture_entry *entry = data;
   entry->texture_watch = NULL;
-  entry->dirty = 1;
+
+  if (!entry->invalidated) {
+    list_add(&entry->ta->invalidated_entries, &entry->invalid_it);
+    entry->invalidated = 1;
+  }
 }
 
 static void ta_palette_invalidated(const struct exception *ex, void *data) {
   struct ta_texture_entry *entry = data;
   entry->palette_watch = NULL;
-  entry->dirty = 1;
+
+  if (!entry->invalidated) {
+    list_add(&entry->ta->invalidated_entries, &entry->invalid_it);
+    entry->invalidated = 1;
+  }
 }
 
 static struct ta_texture_entry *ta_alloc_texture(struct ta *ta, union tsp tsp,
@@ -269,6 +306,7 @@ static struct ta_texture_entry *ta_alloc_texture(struct ta *ta, union tsp tsp,
 
   /* reset entry */
   memset(entry, 0, sizeof(*entry));
+  entry->ta = ta;
   entry->tsp = tsp;
   entry->tcw = tcw;
 
@@ -304,29 +342,6 @@ static struct texture_entry *ta_texture_provider_find_texture(void *data,
      ram will be modified between frames, if these values don't match something
      is broken in the thread synchronization */
   CHECK_EQ(entry->frame, ta->frame);
-
-#ifdef NDEBUG
-  /* this function is called by the tile renderer right before it submits a
-     texture to the gpu and caches the returned handle. in order to provide the
-     gpu new versions of the texture as it is updated, add a memory watch for
-     the texture's memory which will dirty it once it is written to.
-
-     note, it's very important the watch is added here, immediately before the
-     texture is submitted, as opposed to when it is first registered inside of
-     ta_register_texture_source. some games will actually write to the texture
-     between the start and end render events. if the watch is added during the
-     start render event, and dirtied before getting here, a texture will exist
-     in the cache that's not being watched for updates */
-  if (!entry->texture_watch) {
-    entry->texture_watch = add_single_write_watch(
-        entry->texture, entry->texture_size, &ta_texture_invalidated, entry);
-  }
-
-  if (entry->palette && !entry->palette_watch) {
-    entry->palette_watch = add_single_write_watch(
-        entry->palette, entry->palette_size, &ta_palette_invalidated, entry);
-  }
-#endif
 
   return (struct texture_entry *)entry;
 }
@@ -465,17 +480,6 @@ static void ta_register_texture_source(struct ta *ta, union tsp tsp,
     entry->dirty = 1;
   }
 
-#ifdef NDEBUG
-  /* sanity check that valid textures are being watched for updates */
-  if (!entry->dirty) {
-    CHECK(entry->texture_watch);
-
-    if (entry->palette_size) {
-      CHECK(entry->palette_watch);
-    }
-  }
-#endif
-
   /* mark texture source valid for the current frame */
   int first_registration_this_frame = entry->frame != ta->frame;
   entry->frame = ta->frame;
@@ -514,6 +518,21 @@ static void ta_register_texture_source(struct ta *ta, union tsp tsp,
       entry->palette_size = palette_size;
     }
   }
+
+#ifdef NDEBUG
+  /* add write callback in order to invalidate on future writes. the callback
+     address will be page aligned, therefore it will be triggered falsely in
+     some cases. over invalidate in these cases */
+  if (!entry->texture_watch) {
+    entry->texture_watch = add_single_write_watch(
+        entry->texture, entry->texture_size, &ta_texture_invalidated, entry);
+  }
+
+  if (entry->palette && !entry->palette_watch) {
+    entry->palette_watch = add_single_write_watch(
+        entry->palette, entry->palette_size, &ta_palette_invalidated, entry);
+  }
+#endif
 
   /* add dirty textures to the trace */
   if (ta->trace_writer && entry->dirty && first_registration_this_frame) {
@@ -687,6 +706,10 @@ static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
 
   mutex_lock(ta->pending_mutex);
 
+  /* now that access to texture data is locked, mark any textures dirty
+     that were invalidated by a memory watch on the emulation thread */
+  ta_dirty_invalidated_textures(ta);
+
   /* remove context from pool */
   ta_unlink_context(ta, ctx);
 
@@ -831,7 +854,7 @@ static void ta_poly_fifo_write(struct ta *ta, uint32_t dst, void *ptr,
   uint8_t *src = ptr;
   uint8_t *end = src + size;
   while (src < end) {
-    ta_write_context(ta, ta->next_context, src, 32);
+    ta_write_context(ta, ta->curr_context, src, 32);
     src += 32;
   }
 
@@ -1079,7 +1102,7 @@ REG_W32(pvr_cb, TA_LIST_INIT) {
   struct tile_ctx *ctx =
       ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
   ta_init_context(ta, ctx);
-  ta->next_context = ctx;
+  ta->curr_context = ctx;
 }
 
 REG_W32(pvr_cb, TA_LIST_CONT) {
@@ -1092,7 +1115,7 @@ REG_W32(pvr_cb, TA_LIST_CONT) {
   struct tile_ctx *ctx = ta_get_context(ta, ta->pvr->TA_ISP_BASE->base_address);
   CHECK_NOTNULL(ctx);
   ta_cont_context(ta, ctx);
-  ta->next_context = ctx;
+  ta->curr_context = ctx;
 }
 
 REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
