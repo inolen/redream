@@ -17,12 +17,12 @@ enum texture_map {
 enum uniform_attr {
   UNIFORM_MVP = 0,
   UNIFORM_DIFFUSE = 1,
-  UNIFORM_PUNCH_THROUGH_ALPHA = 2,
+  UNIFORM_PT_ALPHA_REF = 2,
   UNIFORM_NUM_UNIFORMS = 3
 };
 
 static const char *uniform_names[] = {
-    "u_mvp", "u_diffuse", "u_pt_alpha",
+    "u_mvp", "u_diffuse", "u_pt_alpha_ref",
 };
 
 enum shader_attr {
@@ -37,7 +37,7 @@ enum shader_attr {
   ATTR_IGNORE_ALPHA = 0x8,
   ATTR_IGNORE_TEXTURE_ALPHA = 0x10,
   ATTR_OFFSET_COLOR = 0x20,
-  ATTR_PUNCH_THROUGH = 0x40,
+  ATTR_PT_ALPHA_TEST = 0x40,
   ATTR_COUNT = 0x80
 
 };
@@ -467,8 +467,8 @@ static void rb_create_shaders(struct render_backend *rb) {
     if (i & ATTR_OFFSET_COLOR) {
       strcat(header, "#define OFFSET_COLOR\n");
     }
-    if (i & ATTR_PUNCH_THROUGH) {
-      strcat(header, "#define PUNCH_THROUGH\n");
+    if (i & ATTR_PT_ALPHA_TEST) {
+      strcat(header, "#define PT_ALPHA_TEST\n");
     }
 
     if (!rb_compile_program(rb, program, header, ta_vp, ta_fp)) {
@@ -596,8 +596,8 @@ static struct shader_program *rb_get_ta_program(struct render_backend *rb,
   if (surf->offset_color) {
     idx |= ATTR_OFFSET_COLOR;
   }
-  if(surf->poly_type == POLY_PUNCH_THROUGH) {
-    idx |= ATTR_PUNCH_THROUGH;
+  if(surf->pt_alpha_test) {
+    idx |= ATTR_PT_ALPHA_TEST;
   }
   struct shader_program *program = &rb->ta_programs[idx];
   CHECK_NOTNULL(program);
@@ -623,7 +623,7 @@ void rb_draw_surface(struct render_backend *rb, const struct surface *surf) {
   if (program->uniform_token != rb->uniform_token) {
     glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MVP), 1, GL_FALSE,
                        rb->uniform_mvp);
-    glUniform1f(rb_get_uniform(rb, UNIFORM_PUNCH_THROUGH_ALPHA), surf->pt_alpha);
+    glUniform1f(rb_get_uniform(rb, UNIFORM_PT_ALPHA_REF), surf->pt_alpha_ref);
     program->uniform_token = rb->uniform_token;
   }
 

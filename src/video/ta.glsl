@@ -27,7 +27,7 @@ static const char *ta_vp =
 
 static const char *ta_fp =
 "uniform sampler2D u_diffuse;\n"
-"uniform float u_pt_alpha;\n"
+"uniform float u_pt_alpha_ref;\n"
 
 "in vec4 var_color;\n"
 "in vec4 var_offset_color;\n"
@@ -45,8 +45,8 @@ static const char *ta_fp =
 "    #ifdef IGNORE_TEXTURE_ALPHA\n"
 "      tex.a = 1.0;\n"
 "    #endif\n"
-"    #ifdef PUNCH_THROUGH\n"
-"      if(tex.a < u_pt_alpha)\n"
+"    #ifdef PT_ALPHA_TEST\n"
+"      if(tex.a < u_pt_alpha_ref)\n"
 "        discard;\n"
 "      else\n"
 "        fragcolor.a = 1.0f;\n"
