@@ -642,6 +642,9 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   /* get the background depth */
   ctx->bg_depth = *(float *)pvr->ISP_BACKGND_D;
 
+  /* get the punch through polygon alpha test value */
+  ctx->pt_alpha_ref = *pvr->PT_ALPHA_REF;
+
   /* get the byte size for each vertex. normally, the byte size is
      ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in
      effect and the shadow bit is 1, then the byte size is
