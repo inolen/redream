@@ -13,7 +13,6 @@ struct tr;
 typedef uint64_t texture_key_t;
 
 struct texture_entry {
-  /* cache info */
   union tsp tsp;
   union tcw tcw;
   unsigned frame;
