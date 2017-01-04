@@ -310,7 +310,7 @@ void MD5_Final(char *result, MD5_CTX *ctx)
 	  if(result[i] > 9 && result[i] < 16)
 	    result[i] += 87;
       else
-	    result[i] += 48;
+        result[i] += 48;
 	}
     result[32] = 0;
 
