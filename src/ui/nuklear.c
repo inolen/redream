@@ -134,7 +134,7 @@ void nk_begin_frame(struct nuklear *nk) {
   nk_input_begin(&nk->ctx);
 
   nk_input_motion(&nk->ctx, nk->mousex, nk->mousey);
-  nk_input_scroll(&nk->ctx, nk->mouse_wheel);
+  nk_input_scroll(&nk->ctx, (float)nk->mouse_wheel);
   nk_input_button(&nk->ctx, NK_BUTTON_LEFT, nk->mousex, nk->mousey,
                   nk->mouse_down[0]);
   nk_input_button(&nk->ctx, NK_BUTTON_MIDDLE, nk->mousex, nk->mousey,

@@ -15,16 +15,41 @@ enum texture_map {
 };
 
 enum uniform_attr {
-  UNIFORM_MODELVIEWPROJECTIONMATRIX,
-  UNIFORM_DIFFUSEMAP,
-  UNIFORM_NUM_UNIFORMS
+  UNIFORM_MVP = 0,
+  UNIFORM_DIFFUSE = 1,
+  UNIFORM_PT_ALPHA_REF = 2,
+  UNIFORM_NUM_UNIFORMS = 3
 };
+
+static const char *uniform_names[] = {
+    "u_mvp", "u_diffuse", "u_pt_alpha_ref",
+};
+
+enum shader_attr {
+  /* shade attributes are mutually exclusive, so they don't use unique bits */
+  ATTR_SHADE_DECAL = 0x0,
+  ATTR_SHADE_MODULATE = 0x1,
+  ATTR_SHADE_DECAL_ALPHA = 0x2,
+  ATTR_SHADE_MODULATE_ALPHA = 0x3,
+  ATTR_SHADE_MASK = 0x3,
+  /* remaining attributes can all be combined together */
+  ATTR_TEXTURE = 0x4,
+  ATTR_IGNORE_ALPHA = 0x8,
+  ATTR_IGNORE_TEXTURE_ALPHA = 0x10,
+  ATTR_OFFSET_COLOR = 0x20,
+  ATTR_PT_ALPHA_TEST = 0x40,
+  ATTR_COUNT = 0x80
+
+};
+
+
 
 struct shader_program {
   GLuint program;
   GLuint vertex_shader;
   GLuint fragment_shader;
   GLint uniforms[UNIFORM_NUM_UNIFORMS];
+  uint64_t uniform_token;
 };
 
 struct render_backend {
@@ -38,7 +63,7 @@ struct render_backend {
   GLuint textures[MAX_TEXTURES];
   GLuint white_tex;
 
-  struct shader_program ta_program;
+  struct shader_program ta_programs[ATTR_COUNT];
   struct shader_program ui_program;
 
   GLuint ta_vao;
@@ -47,6 +72,10 @@ struct render_backend {
   GLuint ui_vbo;
   GLuint ui_ibo;
   int ui_use_ibo;
+
+  /* begin_surfaces / draw_surfaces / end_surfaces uniform state */
+  uint64_t uniform_token;
+  const float *uniform_mvp;
 
   /* current gl state */
   int scissor_test;
@@ -62,11 +91,6 @@ struct render_backend {
 
 #include "video/ta.glsl"
 #include "video/ui.glsl"
-
-static const int GLSL_VERSION = 330;
-
-/* must match order of enum uniform_attr */
-static const char *uniform_names[] = {"u_mvp", "u_diffuse_map"};
 
 static GLenum filter_funcs[] = {
     GL_NEAREST,               /* FILTER_NEAREST */
@@ -266,7 +290,8 @@ static void rb_destroy_program(struct shader_program *program) {
   glDeleteProgram(program->program);
 }
 
-static int rb_compile_program(struct shader_program *program,
+static int rb_compile_program(struct render_backend *rb,
+                              struct shader_program *program,
                               const char *header, const char *vertex_source,
                               const char *fragment_source) {
   char buffer[16384] = {0};
@@ -275,7 +300,9 @@ static int rb_compile_program(struct shader_program *program,
   program->program = glCreateProgram();
 
   if (vertex_source) {
-    snprintf(buffer, sizeof(buffer) - 1, "#version %d\n%s%s", GLSL_VERSION,
+    snprintf(buffer, sizeof(buffer) - 1,
+             "#version 330\n"
+             "%s%s",
              header ? header : "", vertex_source);
     buffer[sizeof(buffer) - 1] = 0;
 
@@ -288,7 +315,9 @@ static int rb_compile_program(struct shader_program *program,
   }
 
   if (fragment_source) {
-    snprintf(buffer, sizeof(buffer) - 1, "#version %d\n%s%s", GLSL_VERSION,
+    snprintf(buffer, sizeof(buffer) - 1,
+             "#version 330\n"
+             "%s%s",
              header ? header : "", fragment_source);
     buffer[sizeof(buffer) - 1] = 0;
 
@@ -315,6 +344,11 @@ static int rb_compile_program(struct shader_program *program,
     program->uniforms[i] =
         glGetUniformLocation(program->program, uniform_names[i]);
   }
+
+  /* bind diffuse sampler once after compile, this currently never changes */
+  rb_bind_program(rb, program);
+  glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSE), MAP_DIFFUSE);
+  rb_bind_program(rb, NULL);
 
   return 1;
 }
@@ -371,6 +405,7 @@ static void rb_destroy_textures(struct render_backend *rb) {
 
 static void rb_create_textures(struct render_backend *rb) {
   uint8_t pixels[64 * 64 * 4];
+
   memset(pixels, 0xff, sizeof(pixels));
   glGenTextures(1, &rb->white_tex);
   glBindTexture(GL_TEXTURE_2D, rb->white_tex);
@@ -386,16 +421,62 @@ static void rb_destroy_shaders(struct render_backend *rb) {
     return;
   }
 
-  rb_destroy_program(&rb->ta_program);
+  for (int i = 0; i < ATTR_COUNT; i++) {
+    rb_destroy_program(&rb->ta_programs[i]);
+  }
+
   rb_destroy_program(&rb->ui_program);
 }
 
 static void rb_create_shaders(struct render_backend *rb) {
-  if (!rb_compile_program(&rb->ta_program, NULL, ta_vp, ta_fp)) {
-    LOG_FATAL("Failed to compile ta shader.");
+  char header[1024];
+
+  for (int i = 0; i < ATTR_COUNT; i++) {
+    struct shader_program *program = &rb->ta_programs[i];
+
+    header[0] = 0;
+
+    if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_DECAL) {
+      strcat(header, "#define SHADE_DECAL\n");
+    }
+
+    if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_MODULATE) {
+      strcat(header, "#define SHADE_MODULATE\n");
+    }
+
+    if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_DECAL_ALPHA) {
+      strcat(header, "#define SHADE_DECAL_ALPHA\n");
+    }
+
+    if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_MODULATE_ALPHA) {
+      strcat(header, "#define SHADE_MODULATE_ALPHA\n");
+    }
+
+    if (i & ATTR_TEXTURE) {
+      strcat(header, "#define TEXTURE\n");
+    }
+
+    if (i & ATTR_IGNORE_ALPHA) {
+      strcat(header, "#define IGNORE_ALPHA\n");
+    }
+
+    if (i & ATTR_IGNORE_TEXTURE_ALPHA) {
+      strcat(header, "#define IGNORE_TEXTURE_ALPHA\n");
+    }
+
+    if (i & ATTR_OFFSET_COLOR) {
+      strcat(header, "#define OFFSET_COLOR\n");
+    }
+    if (i & ATTR_PT_ALPHA_TEST) {
+      strcat(header, "#define PT_ALPHA_TEST\n");
+    }
+
+    if (!rb_compile_program(rb, program, header, ta_vp, ta_fp)) {
+      LOG_FATAL("Failed to compile ta shader.");
+    }
   }
 
-  if (!rb_compile_program(&rb->ui_program, NULL, ui_vp, ui_fp)) {
+  if (!rb_compile_program(rb, &rb->ui_program, NULL, ui_vp, ui_fp)) {
     LOG_FATAL("Failed to compile ui shader.");
   }
 }
@@ -500,6 +581,29 @@ static void rb_debug_menu(void *data, struct nk_context *ctx) {
   }
 }
 
+static struct shader_program *rb_get_ta_program(struct render_backend *rb,
+                                                const struct surface *surf) {
+  int idx = surf->shade;
+  if (surf->texture) {
+    idx |= ATTR_TEXTURE;
+  }
+  if (surf->ignore_alpha) {
+    idx |= ATTR_IGNORE_ALPHA;
+  }
+  if (surf->ignore_texture_alpha) {
+    idx |= ATTR_IGNORE_TEXTURE_ALPHA;
+  }
+  if (surf->offset_color) {
+    idx |= ATTR_OFFSET_COLOR;
+  }
+  if(surf->pt_alpha_test) {
+    idx |= ATTR_PT_ALPHA_TEST;
+  }
+  struct shader_program *program = &rb->ta_programs[idx];
+  CHECK_NOTNULL(program);
+  return program;
+}
+
 void rb_end_surfaces(struct render_backend *rb) {
   if (rb->debug_wireframe) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -512,24 +616,35 @@ void rb_draw_surface(struct render_backend *rb, const struct surface *surf) {
   rb_set_cull_face(rb, surf->cull);
   rb_set_blend_func(rb, surf->src_blend, surf->dst_blend);
 
-  /* TODO use surf->shade to select correct shader */
+  struct shader_program *program = rb_get_ta_program(rb, surf);
+  rb_bind_program(rb, program);
 
-  rb_bind_texture(rb, MAP_DIFFUSE,
-                  surf->texture ? rb->textures[surf->texture] : rb->white_tex);
+  /* if uniforms have yet to be bound for this program, do so now */
+  if (program->uniform_token != rb->uniform_token) {
+    glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MVP), 1, GL_FALSE,
+                       rb->uniform_mvp);
+    glUniform1f(rb_get_uniform(rb, UNIFORM_PT_ALPHA_REF), surf->pt_alpha_ref);
+    program->uniform_token = rb->uniform_token;
+  }
+
+  if (surf->texture) {
+    rb_bind_texture(rb, MAP_DIFFUSE, rb->textures[surf->texture]);
+  }
+
   glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
 }
 
 void rb_begin_surfaces(struct render_backend *rb, const float *projection,
                        const struct vertex *verts, int num_verts) {
+  /* uniforms will be lazily bound for each program inside of rb_draw_surface */
+  rb->uniform_token++;
+  rb->uniform_mvp = projection;
+
   glBindBuffer(GL_ARRAY_BUFFER, rb->ta_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex) * num_verts, verts,
                GL_DYNAMIC_DRAW);
 
   rb_bind_vao(rb, rb->ta_vao);
-  rb_bind_program(rb, &rb->ta_program);
-  glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MODELVIEWPROJECTIONMATRIX), 1,
-                     GL_FALSE, projection);
-  glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
 
   if (rb->debug_wireframe) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -614,9 +729,7 @@ void rb_begin_ortho(struct render_backend *rb) {
 
   rb_bind_vao(rb, rb->ui_vao);
   rb_bind_program(rb, &rb->ui_program);
-  glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MODELVIEWPROJECTIONMATRIX), 1,
-                     GL_FALSE, ortho);
-  glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSEMAP), MAP_DIFFUSE);
+  glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MVP), 1, GL_FALSE, ortho);
 }
 
 void rb_end_frame(struct render_backend *rb) {

@@ -72,7 +72,6 @@ struct tracer {
   struct tr *tr;
 
   /* ui state */
-  int hide_params[TA_NUM_PARAMS];
   int running;
 
   /* trace state */
@@ -84,11 +83,6 @@ struct tracer {
 
   /* render state */
   struct render_context rc;
-  struct surface surfs[TA_MAX_SURFS];
-  struct vertex verts[TA_MAX_VERTS];
-  int sorted_surfs[TA_MAX_SURFS];
-  struct render_param params[TA_MAX_PARAMS];
-
   struct tracer_texture_entry textures[1024];
   struct rb_tree live_textures;
   struct list free_textures;
@@ -185,23 +179,13 @@ static void tracer_copy_context(const struct trace_cmd *cmd,
   ctx->size = cmd->context.params_size;
 }
 
-static inline int tracer_param_hidden(struct tracer *tracer, union pcw pcw) {
-  return tracer->hide_params[pcw.para_type];
-}
-
 static void tracer_prev_param(struct tracer *tracer) {
   int i = tracer->current_param;
 
   while (i--) {
-    struct render_param *rp = &tracer->rc.params[i];
-    union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
-
-    /* found the next visible param */
-    if (!tracer_param_hidden(tracer, pcw)) {
-      tracer->current_param = i;
-      tracer->scroll_to_param = 1;
-      break;
-    }
+    tracer->current_param = i;
+    tracer->scroll_to_param = 1;
+    break;
   }
 }
 
@@ -209,15 +193,9 @@ static void tracer_next_param(struct tracer *tracer) {
   int i = tracer->current_param;
 
   while (++i < tracer->rc.num_params) {
-    struct render_param *rp = &tracer->rc.params[i];
-    union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
-
-    /* found the next visible param */
-    if (!tracer_param_hidden(tracer, pcw)) {
-      tracer->current_param = i;
-      tracer->scroll_to_param = 1;
-      break;
-    }
+    tracer->current_param = i;
+    tracer->scroll_to_param = 1;
+    break;
   }
 }
 
@@ -320,8 +298,6 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   nk_flags flags = NK_WINDOW_NO_SCROLLBAR;
 
   if (nk_begin(ctx, "context scrubber", bounds, flags)) {
-    nk_window_set_bounds(ctx, bounds);
-
     nk_layout_row_dynamic(ctx, SCRUBBER_WINDOW_HEIGHT, 1);
 
     nk_size frame = tracer->ctx.frame - tracer->trace->first_frame;
@@ -349,25 +325,12 @@ static void tracer_param_tooltip(struct tracer *tracer,
   if (nk_tooltip_begin(ctx, 300.0f)) {
     nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
 
-    /* find sorted position */
-    int sort = 0;
-    for (int i = 0; i < tracer->rc.num_surfs; i++) {
-      int idx = tracer->rc.sorted_surfs[i];
-      struct surface *surf = &tracer->rc.surfs[idx];
-
-      if (surf == rp->surf) {
-        sort = i;
-        break;
-      }
-    }
-
     /* render source TA information */
     union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
 
     nk_labelf(ctx, NK_TEXT_LEFT, "pcw: 0x%x", pcw.full);
     nk_labelf(ctx, NK_TEXT_LEFT, "list type: %s", list_names[rp->list_type]);
-    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", rp->surf - tracer->rc.surfs);
-    nk_labelf(ctx, NK_TEXT_LEFT, "sort: %d", sort);
+    nk_labelf(ctx, NK_TEXT_LEFT, "surf: %d", rp->last_surf);
 
     if (pcw.para_type == TA_PARAM_POLY_OR_VOL ||
         pcw.para_type == TA_PARAM_SPRITE) {
@@ -428,7 +391,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
 
       switch (rp->vertex_type) {
         case 0:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type0.xyz[0], param->type0.xyz[1],
                     param->type0.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_color: 0x%x",
@@ -436,7 +399,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 1:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type1.xyz[0], param->type1.xyz[1],
                     param->type1.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_color_a: %.2f",
@@ -450,7 +413,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 2:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type2.xyz[0], param->type2.xyz[1],
                     param->type2.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "base_intensity: %.2f",
@@ -458,7 +421,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 3:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type3.xyz[0], param->type3.xyz[1],
                     param->type3.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type3.uv[0],
@@ -483,7 +446,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 5:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type5.xyz[0], param->type5.xyz[1],
                     param->type5.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type5.uv[0],
@@ -507,7 +470,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 6:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type6.xyz[0], param->type6.xyz[1],
                     param->type6.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type6.vu[1],
@@ -531,7 +494,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 7:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type7.xyz[0], param->type7.xyz[1],
                     param->type7.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", param->type7.uv[0],
@@ -543,7 +506,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
           break;
 
         case 8:
-          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}",
+          nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}",
                     param->type8.xyz[0], param->type8.xyz[1],
                     param->type8.xyz[2]);
           nk_labelf(ctx, NK_TEXT_LEFT, "uv: {0x%x, 0x%x}", param->type8.vu[1],
@@ -558,13 +521,15 @@ static void tracer_param_tooltip(struct tracer *tracer,
 
     /* always render translated surface information. new surfaces can be created
        without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE */
-    if (rp->surf) {
-      struct surface *surf = rp->surf;
+    if (rp->last_surf >= 0) {
+      struct surface *surf = &tracer->rc.surfs[rp->last_surf];
 
       /* TODO separator */
 
-      nk_layout_row_static(ctx, 40.0f, 40, 1);
-      nk_image(ctx, nk_image_id((int)surf->texture));
+      if (surf->texture) {
+        nk_layout_row_static(ctx, 40.0f, 40, 1);
+        nk_image(ctx, nk_image_id((int)surf->texture));
+      }
 
       nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
       nk_labelf(ctx, NK_TEXT_LEFT, "depth_write: %d", surf->depth_write);
@@ -576,20 +541,22 @@ static void tracer_param_tooltip(struct tracer *tracer,
       nk_labelf(ctx, NK_TEXT_LEFT, "dst_blend: %s",
                 blendfunc_names[surf->dst_blend]);
       nk_labelf(ctx, NK_TEXT_LEFT, "shade: %s", shademode_names[surf->shade]);
-      nk_labelf(ctx, NK_TEXT_LEFT, "ignore_tex_alpha: %d",
-                surf->ignore_tex_alpha);
+      nk_labelf(ctx, NK_TEXT_LEFT, "ignore_alpha: %d", surf->ignore_alpha);
+      nk_labelf(ctx, NK_TEXT_LEFT, "ignore_texture_alpha: %d",
+                surf->ignore_texture_alpha);
+      nk_labelf(ctx, NK_TEXT_LEFT, "offset_color: %d", surf->offset_color);
       nk_labelf(ctx, NK_TEXT_LEFT, "first_vert: %d", surf->first_vert);
       nk_labelf(ctx, NK_TEXT_LEFT, "num_verts: %d", surf->num_verts);
     }
 
     /* render translated vert only when rendering a vertex tooltip */
-    if (rp->vert) {
-      struct vertex *vert = rp->vert;
+    if (rp->last_vert >= 0) {
+      struct vertex *vert = &tracer->rc.verts[rp->last_vert];
 
       /* TODO separator */
 
-      nk_labelf(ctx, NK_TEXT_LEFT, "vert: %d", rp->vert - tracer->rc.verts);
-      nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %.2f}", vert->xyz[0],
+      nk_labelf(ctx, NK_TEXT_LEFT, "vert: %d", rp->last_vert);
+      nk_labelf(ctx, NK_TEXT_LEFT, "xyz: {%.2f, %.2f, %f}", vert->xyz[0],
                 vert->xyz[1], vert->xyz[2]);
       nk_labelf(ctx, NK_TEXT_LEFT, "uv: {%.2f, %.2f}", vert->uv[0],
                 vert->uv[1]);
@@ -604,150 +571,172 @@ static void tracer_param_tooltip(struct tracer *tracer,
 static void tracer_render_side_menu(struct tracer *tracer) {
   struct nk_context *ctx = &tracer->window->nk->ctx;
 
-  nk_style_default(ctx);
-
   /* transparent menu backgrounds / selectables */
-  ctx->style.window.fixed_background.data.color.a = 0;
-  ctx->style.selectable.normal.data.color.a = 0;
 
   {
     struct nk_rect bounds = {0.0f, 0.0, 240.0f,
                              tracer->window->height - SCRUBBER_WINDOW_HEIGHT};
 
-    char label[128];
+    nk_style_default(ctx);
 
-    if (nk_begin(ctx, "side menu", bounds, 0)) {
-      nk_window_set_bounds(ctx, bounds);
+    ctx->style.window.fixed_background.data.color.a = 128;
+    ctx->style.selectable.normal.data.color.a = 0;
+    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
 
-      struct nk_window *win = ctx->current;
-      struct nk_panel *layout = win->layout;
+    if (nk_begin(ctx, "params", bounds, NK_WINDOW_MINIMIZABLE |
+                                            NK_WINDOW_NO_SCROLLBAR |
+                                            NK_WINDOW_TITLE)) {
+      /* fill entire panel */
+      struct nk_vec2 region = nk_window_get_content_region_size(ctx);
+      nk_layout_row_dynamic(ctx, region.y, 1);
 
-      /* param filters */
-      if (nk_tree_push(ctx, NK_TREE_TAB, "filters", NK_MINIMIZED)) {
-        for (int i = 0; i < TA_NUM_PARAMS; i++) {
-          snprintf(label, sizeof(label), "Hide %s", param_names[i]);
-          nk_checkbox_text(ctx, label, (int)strlen(label),
-                           &tracer->hide_params[i]);
-        }
+      /* "disable" backgrounds for children elements to avoid blending
+         with the partially transparent parent panel */
+      ctx->style.window.fixed_background.data.color.a = 0;
 
-        nk_tree_pop(ctx);
-      }
+      struct nk_list_view view;
+      int param_height = 15;
+      int num_params = tracer->rc.num_params;
+      char label[128];
 
-      /* context parameters */
-      if (nk_tree_push(ctx, NK_TREE_TAB, "params", 0)) {
-        for (int i = 0; i < tracer->rc.num_params; i++) {
+      if (nk_list_view_begin(ctx, &view, "params list", 0, param_height,
+                             num_params)) {
+        nk_layout_row_dynamic(ctx, (float)param_height, 1);
+
+        for (int i = view.begin; i < view.end && i < num_params; i++) {
           struct render_param *rp = &tracer->rc.params[i];
           union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
 
           int selected = (i == tracer->current_param);
 
-          if (!tracer_param_hidden(tracer, pcw)) {
-            struct nk_rect bounds = nk_widget_bounds(ctx);
-
-            snprintf(label, sizeof(label), "0x%04x %s", rp->offset,
-                     param_names[pcw.para_type]);
-            nk_selectable_label(ctx, label, NK_TEXT_LEFT, &selected);
-
-            switch (pcw.para_type) {
-              case TA_PARAM_POLY_OR_VOL:
-              case TA_PARAM_SPRITE:
-                if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-                  tracer_param_tooltip(tracer, rp);
-                }
-                break;
-
-              case TA_PARAM_VERTEX:
-                if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-                  tracer_param_tooltip(tracer, rp);
-                }
-                break;
-            }
-
-            if (selected) {
-              tracer->current_param = i;
-
-              /* scroll to parameter if not visible */
-              if (tracer->scroll_to_param) {
-                float at_y = layout->at_y;
-                float min_visible_y = layout->offset->y;
-                float max_visible_y = layout->offset->y + layout->bounds.h;
-
-                if (at_y < min_visible_y || at_y >= max_visible_y) {
-                  layout->offset->y = at_y;
-                }
-
-                tracer->scroll_to_param = 0;
-              }
-            }
-          }
-        }
-
-        nk_tree_pop(ctx);
-      }
-
-      /* texture menu */
-      if (nk_tree_push(ctx, NK_TREE_TAB, "textures", 0)) {
-        nk_layout_row_static(ctx, 40.0f, 40, 4);
-
-        rb_for_each_entry(entry, &tracer->live_textures,
-                          struct tracer_texture_entry, live_it) {
           struct nk_rect bounds = nk_widget_bounds(ctx);
+          snprintf(label, sizeof(label), "0x%04x %s", rp->offset,
+                   param_names[pcw.para_type]);
+          nk_selectable_label(ctx, label, NK_TEXT_LEFT, &selected);
 
-          nk_image(ctx, nk_image_id((int)entry->handle));
-
-          if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
-            /* disable spacing for tooltip */
-            struct nk_vec2 original_spacing = ctx->style.window.spacing;
-            ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
-
-            if (nk_tooltip_begin(ctx, 380.0f)) {
-              nk_layout_row_static(ctx, 184.0f, 184, 2);
-
-              if (nk_group_begin(ctx, "texture preview",
-                                 NK_WINDOW_NO_SCROLLBAR)) {
-                nk_layout_row_static(ctx, 184.0f, 184, 1);
-                nk_image(ctx, nk_image_id((int)entry->handle));
-                nk_group_end(ctx);
+          switch (pcw.para_type) {
+            case TA_PARAM_POLY_OR_VOL:
+            case TA_PARAM_SPRITE:
+              if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+                tracer_param_tooltip(tracer, rp);
               }
+              break;
 
-              if (nk_group_begin(ctx, "texture info", NK_WINDOW_NO_SCROLLBAR)) {
-                nk_layout_row_static(ctx, ctx->style.font->height, 184, 1);
-                nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
-                          ta_texture_addr(entry->tcw));
-                nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
-                          pxl_names[entry->format]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
-                          filter_names[entry->filter]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
-                          wrap_names[entry->wrap_u]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
-                          wrap_names[entry->wrap_v]);
-                nk_labelf(ctx, NK_TEXT_LEFT, "twiddled: %d",
-                          ta_texture_twiddled(entry->tcw));
-                nk_labelf(ctx, NK_TEXT_LEFT, "compressed: %d",
-                          ta_texture_compressed(entry->tcw));
-                nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d",
-                          ta_texture_mipmaps(entry->tcw));
-                nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->width);
-                nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->height);
-                nk_labelf(ctx, NK_TEXT_LEFT, "texture_size: %d",
-                          entry->texture_size);
-                nk_group_end(ctx);
+            case TA_PARAM_VERTEX:
+              if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+                tracer_param_tooltip(tracer, rp);
               }
+              break;
+          }
 
-              nk_tooltip_end(ctx);
-            }
-
-            /* restore spacing */
-            ctx->style.window.spacing = original_spacing;
+          if (selected) {
+            tracer->current_param = i;
           }
         }
 
-        nk_tree_pop(ctx);
+        /* scroll to parameter if not visible */
+        if (tracer->scroll_to_param) {
+          struct nk_window *win = ctx->current;
+          struct nk_panel *layout = win->layout;
+
+          if (tracer->current_param < view.begin) {
+            *layout->offset_y -= (nk_uint)layout->bounds.h;
+          } else if (tracer->current_param >= view.end) {
+            *layout->offset_y += (nk_uint)layout->bounds.h;
+          }
+
+          tracer->scroll_to_param = 0;
+        }
+
+        nk_list_view_end(&view);
       }
     }
 
     nk_end(ctx);
+  }
+
+  {
+    struct nk_rect bounds = {tracer->window->width - 240.0f, 0.0, 240.0f,
+                             tracer->window->height - SCRUBBER_WINDOW_HEIGHT};
+
+    nk_style_default(ctx);
+
+    ctx->style.window.fixed_background.data.color.a = 128;
+
+    if (nk_begin(ctx, "textures", bounds,
+                 NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
+      nk_layout_row_static(ctx, 40.0f, 40, 5);
+
+      rb_for_each_entry(entry, &tracer->live_textures,
+                        struct tracer_texture_entry, live_it) {
+        struct nk_rect bounds = nk_widget_bounds(ctx);
+
+        nk_image(ctx, nk_image_id((int)entry->handle));
+
+        if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
+          /* disable spacing for tooltip */
+          struct nk_vec2 original_spacing = ctx->style.window.spacing;
+          ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
+
+          if (nk_tooltip_begin(ctx, 184.0f)) {
+            nk_layout_row_static(ctx, 184.0f, 184, 1);
+            nk_image(ctx, nk_image_id((int)entry->handle));
+
+            nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
+            nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
+                      ta_texture_addr(entry->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
+                      pxl_names[entry->format]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
+                      filter_names[entry->filter]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
+                      wrap_names[entry->wrap_u]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
+                      wrap_names[entry->wrap_v]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "twiddled: %d",
+                      ta_texture_twiddled(entry->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "compressed: %d",
+                      ta_texture_compressed(entry->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d",
+                      ta_texture_mipmaps(entry->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->width);
+            nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->height);
+            nk_labelf(ctx, NK_TEXT_LEFT, "texture_size: %d",
+                      entry->texture_size);
+
+            nk_tooltip_end(ctx);
+          }
+
+          /* restore spacing */
+          ctx->style.window.spacing = original_spacing;
+        }
+      }
+    }
+
+    nk_end(ctx);
+  }
+}
+
+static void tracer_render_list(struct tracer *tracer,
+                               const struct render_context *rc, int list_type,
+                               int end, int *stopped) {
+  if (*stopped) {
+    return;
+  }
+
+  const struct render_list *list = &tracer->rc.lists[list_type];
+  const int *sorted_surf = list->surfs;
+  const int *sorted_surf_end = list->surfs + list->num_surfs;
+
+  while (sorted_surf < sorted_surf_end) {
+    int idx = *(sorted_surf++);
+
+    rb_draw_surface(tracer->rb, &tracer->rc.surfs[idx]);
+
+    if (idx == end) {
+      *stopped = 1;
+      break;
+    }
   }
 }
 
@@ -758,28 +747,21 @@ static void tracer_paint(void *data) {
   tracer_render_side_menu(tracer);
   tracer_render_scrubber_menu(tracer);
 
-  /* only render up to the surface of the currently selected param */
-  int num_surfs = tracer->rc.num_surfs;
-  int last_surf = num_surfs - 1;
+  /* render context up to the surface of the currently selected param */
+  struct render_context *rc = &tracer->rc;
+  int stopped = 0;
+  int end = -1;
 
   if (tracer->current_param >= 0) {
-    const struct render_param *rp = &tracer->rc.params[tracer->current_param];
-    last_surf = rp->surf - tracer->rc.surfs;
+    struct render_param *rp = &rc->params[tracer->current_param];
+    end = rp->last_surf;
   }
 
-  /* render the context */
-  rb_begin_surfaces(tracer->rb, tracer->rc.projection, tracer->rc.verts,
-                    tracer->rc.num_verts);
+  rb_begin_surfaces(tracer->rb, rc->projection, rc->verts, rc->num_verts);
 
-  for (int i = 0; i < num_surfs; i++) {
-    int idx = tracer->rc.sorted_surfs[i];
-
-    if (idx > last_surf) {
-      continue;
-    }
-
-    rb_draw_surface(tracer->rb, &tracer->rc.surfs[idx]);
-  }
+  tracer_render_list(tracer, rc, TA_LIST_OPAQUE, end, &stopped);
+  tracer_render_list(tracer, rc, TA_LIST_PUNCH_THROUGH, end, &stopped);
+  tracer_render_list(tracer, rc, TA_LIST_TRANSLUCENT, end, &stopped);
 
   rb_end_surfaces(tracer->rb);
 }
@@ -864,16 +846,6 @@ struct tracer *tracer_create(struct window *window) {
   tracer->tr = tr_create(tracer->rb, &tracer->provider);
 
   win_add_listener(tracer->window, &tracer->listener);
-
-  /* setup render context buffers */
-  tracer->rc.surfs = tracer->surfs;
-  tracer->rc.surfs_size = array_size(tracer->surfs);
-  tracer->rc.verts = tracer->verts;
-  tracer->rc.verts_size = array_size(tracer->verts);
-  tracer->rc.sorted_surfs = tracer->sorted_surfs;
-  tracer->rc.sorted_surfs_size = array_size(tracer->sorted_surfs);
-  tracer->rc.params = tracer->params;
-  tracer->rc.params_size = array_size(tracer->params);
 
   /* add all textures to free list */
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {

@@ -107,6 +107,9 @@ static void run_sh4_test(struct dreamcast *dc, const struct sh4_test *test) {
     dc_tick(dc, 1);
   }
 
+  /* ensure sh4 sr is up to date before testing against it */
+  sh4_implode_sr(dc->sh4);
+
   /* validate out registers */
   for (int i = 0; i < sh4_num_test_regs; i++) {
     struct sh4_test_reg *reg = &sh4_test_regs[i];
@@ -138,7 +141,7 @@ TEST(sh4_x64) {
     {0},                                                                                         \
     {fr1, fr0, fr3,  fr2,  fr5,  fr4,  fr7,  fr6, fr9, fr8, fr11, fr10, fr13, fr12, fr15, fr14}, \
     {xf1, xf0, xf3,  xf2,  xf5,  xf4,  xf7,  xf6, xf9, xf8, xf11, xf10, xf13, xf12, xf15, xf14}, \
-    0, 0, 0, 0, fpscr,                                                                           \
+    0, 0, 0, 0, 0, 0, fpscr,                                                                     \
     0, 0, 0,                                                                                     \
     0, 0, 0,                                                                                     \
     0, 0, 0,                                                                                     \

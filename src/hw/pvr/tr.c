@@ -19,7 +19,10 @@ struct tr {
   int vertex_type;
   float face_color[4];
   float face_offset_color[4];
-  int last_sorted_surf;
+
+  /* scratch buffers used when sorting surfaces */
+  int merged[TA_MAX_SURFS];
+  float minz[TA_MAX_SURFS];
 };
 
 static int compressed_mipmap_offsets[] = {
@@ -230,21 +233,47 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
     case TA_PIXEL_YUV422:
       output = converted;
       pixel_fmt = PXL_RGB565;
-      CHECK(!compressed && !twiddled);
-      convert_packed_UYVY422_RGB565((const uint32_t *)input,
-                                    (uint16_t *)converted, width, height,
-                                    stride);
+      CHECK(!compressed);
+      if (twiddled) {
+        convert_twiddled_UYVY422_RGB565((const uint16_t *)input,
+                                        (uint16_t *)converted, width, height);
+
+      } else {
+        convert_UYVY422_RGB565((const uint16_t *)input, (uint16_t *)converted,
+                               width, height, stride);
+      }
       break;
 
     case TA_PIXEL_4BPP:
       CHECK(!compressed);
       output = converted;
       switch (ctx->pal_pxl_format) {
+        case TA_PAL_ARGB1555:
+          pixel_fmt = PXL_RGBA5551;
+          convert_pal4_ARGB1555_RGBA5551(input, (uint16_t *)converted,
+                                         (const uint32_t *)palette, width,
+                                         height);
+          break;
+
+        case TA_PAL_RGB565:
+          pixel_fmt = PXL_RGB565;
+          convert_pal4_RGB565_RGB565(input, (uint16_t *)converted,
+                                     (const uint32_t *)palette, width, height);
+          break;
+
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           convert_pal4_ARGB4444_RGBA4444(input, (uint16_t *)converted,
                                          (const uint32_t *)palette, width,
                                          height);
+          break;
+
+        case TA_PAL_ARGB8888:
+          pixel_fmt = PXL_RGBA8888;
+          convert_pal4_ARGB8888_RGBA8888(input, (uint32_t *)converted,
+                                         (const uint32_t *)palette, width,
+                                         height);
+
           break;
 
         default:
@@ -258,6 +287,19 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
       CHECK(!compressed);
       output = converted;
       switch (ctx->pal_pxl_format) {
+        case TA_PAL_ARGB1555:
+          pixel_fmt = PXL_RGBA5551;
+          convert_pal8_ARGB1555_RGBA5551(input, (uint16_t *)converted,
+                                         (const uint32_t *)palette, width,
+                                         height);
+          break;
+
+        case TA_PAL_RGB565:
+          pixel_fmt = PXL_RGB565;
+          convert_pal8_RGB565_RGB565(input, (uint16_t *)converted,
+                                     (const uint32_t *)palette, width, height);
+          break;
+
         case TA_PAL_ARGB4444:
           pixel_fmt = PXL_RGBA4444;
           convert_pal8_ARGB4444_RGBA4444(input, (uint16_t *)converted,
@@ -309,7 +351,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 
 static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
                                      int copy_from_prev) {
-  CHECK_LT(rc->num_surfs, rc->surfs_size);
+  CHECK_LT(rc->num_surfs, array_size(rc->surfs));
   int id = rc->num_surfs++;
   struct surface *surf = &rc->surfs[id];
 
@@ -319,18 +361,19 @@ static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
     memset(surf, 0, sizeof(*surf));
   }
 
-  /* start verts at the end */
   surf->first_vert = rc->num_verts;
   surf->num_verts = 0;
 
   /* default sort the surface */
-  rc->sorted_surfs[id] = id;
+  struct render_list *list = &rc->lists[tr->list_type];
+  list->surfs[list->num_surfs] = id;
+  list->num_surfs++;
 
   return surf;
 }
 
 static struct vertex *tr_alloc_vert(struct tr *tr, struct render_context *rc) {
-  CHECK_LT(rc->num_verts, rc->verts_size);
+  CHECK_LT(rc->num_verts, array_size(rc->verts));
   int id = rc->num_verts++;
   struct vertex *v = &rc->verts[id];
   memset(v, 0, sizeof(*v));
@@ -352,15 +395,14 @@ static void tr_discard_incomplete_surf(struct tr *tr,
 
 /* FIXME offload this to the GPU, generating shader for different combinations
    of ISP/TSP parameters once the logic is ironed out */
-/* FIXME honor use alpha */
-/* FIXME honor ignore tex alpha */
 static void tr_parse_color(struct tr *tr, uint32_t base_color,
                            uint32_t *color) {
   *color = abgr_to_rgba(base_color);
+}
 
-  /*if (!tr->last_poly->type0.tsp.use_alpha) {
-    color[3] = 1.0f;
-  }*/
+static void tr_parse_color_rgba(struct tr *tr, float r, float g, float b,
+                                float a, uint32_t *color) {
+  *color = float_to_rgba(r, g, b, a);
 }
 
 static void tr_parse_color_intensity(struct tr *tr, float base_intensity,
@@ -368,50 +410,25 @@ static void tr_parse_color_intensity(struct tr *tr, float base_intensity,
   *color = float_to_rgba(tr->face_color[0] * base_intensity,
                          tr->face_color[1] * base_intensity,
                          tr->face_color[2] * base_intensity, tr->face_color[3]);
-
-  /*if (!tr->last_poly->type0.tsp.use_alpha) {
-    color[3] = 1.0f;
-  }*/
-}
-
-static void tr_parse_color_rgba(struct tr *tr, float r, float g, float b,
-                                float a, uint32_t *color) {
-  *color = float_to_rgba(r, g, b, a);
-
-  /*if (!tr->last_poly->type0.tsp.use_alpha) {
-    color[3] = 1.0f;
-  }*/
 }
 
 static void tr_parse_offset_color(struct tr *tr, uint32_t offset_color,
                                   uint32_t *color) {
-  if (!tr->last_poly->type0.isp_tsp.offset) {
-    *color = 0;
-  } else {
-    *color = abgr_to_rgba(offset_color);
-  }
+  *color = abgr_to_rgba(offset_color);
 }
 
 static void tr_parse_offset_color_rgba(struct tr *tr, float r, float g, float b,
                                        float a, uint32_t *color) {
-  if (!tr->last_poly->type0.isp_tsp.offset) {
-    *color = 0;
-  } else {
-    *color = float_to_rgba(r, g, b, a);
-  }
+  *color = float_to_rgba(r, g, b, a);
 }
 
 static void tr_parse_offset_color_intensity(struct tr *tr,
                                             float offset_intensity,
                                             uint32_t *color) {
-  if (!tr->last_poly->type0.isp_tsp.offset) {
-    *color = 0;
-  } else {
-    *color = float_to_rgba(tr->face_offset_color[0] * offset_intensity,
-                           tr->face_offset_color[1] * offset_intensity,
-                           tr->face_offset_color[2] * offset_intensity,
-                           tr->face_offset_color[3]);
-  }
+  *color = float_to_rgba(tr->face_offset_color[0] * offset_intensity,
+                         tr->face_offset_color[1] * offset_intensity,
+                         tr->face_offset_color[2] * offset_intensity,
+                         tr->face_offset_color[3]);
 }
 
 static int tr_parse_bg_vert(const struct tile_ctx *ctx, int offset,
@@ -447,9 +464,10 @@ static int tr_parse_bg_vert(const struct tile_ctx *ctx, int offset,
 
 static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
                         struct render_context *rc) {
+  tr->list_type = TA_LIST_OPAQUE;
+
   /* translate the surface */
   struct surface *surf = tr_alloc_surf(tr, rc, 0);
-
   surf->texture = 0;
   surf->depth_write = !ctx->bg_isp.z_write_disable;
   surf->depth_func = translate_depth_func(ctx->bg_isp.depth_compare_mode);
@@ -488,6 +506,8 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
   v3->offset_color = v0->offset_color;
   v3->uv[0] = v2->uv[0];
   v3->uv[1] = v1->uv[1];
+
+  tr->list_type = TA_NUM_LISTS;
 }
 
 /* this offset color implementation is not correct at all, see the
@@ -560,7 +580,11 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   surf->src_blend = translate_src_blend_func(param->type0.tsp.src_alpha_instr);
   surf->dst_blend = translate_dst_blend_func(param->type0.tsp.dst_alpha_instr);
   surf->shade = translate_shade_mode(param->type0.tsp.texture_shading_instr);
-  surf->ignore_tex_alpha = param->type0.tsp.ignore_tex_alpha;
+  surf->ignore_alpha = !param->type0.tsp.use_alpha;
+  surf->ignore_texture_alpha = param->type0.tsp.ignore_tex_alpha;
+  surf->offset_color = param->type0.isp_tsp.offset;
+  surf->pt_alpha_test = tr->list_type == TA_LIST_PUNCH_THROUGH;
+  surf->pt_alpha_ref = (float)ctx->pt_alpha_ref / 0xff;
 
   /* override a few surface parameters based on the list type */
   if (tr->list_type != TA_LIST_TRANSLUCENT &&
@@ -786,41 +810,15 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
   /* FIXME is this true for sprites which come through this path as well? */
 }
 
-static float tr_cmp_surf(struct render_context *rc, const struct surface *a,
-                         const struct surface *b) {
-  float minza = FLT_MAX;
-  for (int i = 0, n = a->num_verts; i < n; i++) {
-    struct vertex *v = &rc->verts[a->first_vert + i];
-
-    if (v->xyz[2] < minza) {
-      minza = v->xyz[2];
-    }
-  }
-
-  float minzb = FLT_MAX;
-  for (int i = 0, n = b->num_verts; i < n; i++) {
-    struct vertex *v = &rc->verts[b->first_vert + i];
-
-    if (v->xyz[2] < minzb) {
-      minzb = v->xyz[2];
-    }
-  }
-
-  return minza - minzb;
-}
-
-static void tr_merge_surfs(struct render_context *rc, int *low, int *mid,
-                           int *high) {
-  static int tmp[16384];
-
+static void tr_merge_surfs(struct tr *tr, int *low, int *mid, int *high) {
   int *i = low;
   int *j = mid + 1;
-  int *k = tmp;
-  int *end = tmp + array_size(tmp);
+  int *k = tr->merged;
+  int *end = tr->merged + array_size(tr->merged);
 
   while (i <= mid && j <= high) {
     DCHECK_LT(k, end);
-    if (tr_cmp_surf(rc, &rc->surfs[*i], &rc->surfs[*j]) <= 0.0f) {
+    if (tr->minz[*i] <= tr->minz[*j]) {
       *(k++) = *(i++);
     } else {
       *(k++) = *(j++);
@@ -837,38 +835,52 @@ static void tr_merge_surfs(struct render_context *rc, int *low, int *mid,
     *(k++) = *(j++);
   }
 
-  memcpy(low, tmp, (k - tmp) * sizeof(tmp[0]));
+  memcpy(low, tr->merged, (k - tr->merged) * sizeof(tr->merged[0]));
 }
 
-static void tr_sort_surfs(struct render_context *rc, int low, int high) {
+static void tr_sort_surfs(struct tr *tr, struct render_list *list, int low,
+                          int high) {
   if (low >= high) {
     return;
   }
 
   int mid = (low + high) / 2;
-  tr_sort_surfs(rc, low, mid);
-  tr_sort_surfs(rc, mid + 1, high);
-  tr_merge_surfs(rc, &rc->sorted_surfs[low], &rc->sorted_surfs[mid],
-                 &rc->sorted_surfs[high]);
+  tr_sort_surfs(tr, list, low, mid);
+  tr_sort_surfs(tr, list, mid + 1, high);
+  tr_merge_surfs(tr, &list->surfs[low], &list->surfs[mid], &list->surfs[high]);
+}
+
+static void tr_sort_render_list(struct tr *tr, struct render_context *rc,
+                                int list_type) {
+  struct render_list *list = &rc->lists[list_type];
+
+  for (int i = 0; i < list->num_surfs; i++) {
+    int idx = list->surfs[i];
+    struct surface *surf = &rc->surfs[idx];
+    float *minz = &tr->minz[idx];
+
+    /* the surf coordinates have 1/w for z, so smaller values are
+      further away from the camera */
+    *minz = FLT_MAX;
+
+    for (int j = 0; j < surf->num_verts; j++) {
+      struct vertex *v = &rc->verts[surf->first_vert + j];
+      *minz = MIN(*minz, v->xyz[2]);
+    }
+  }
+
+  /* sort each surface from back to front based on its minz */
+  tr_sort_surfs(tr, list, 0, list->num_surfs);
 }
 
 static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
                          struct render_context *rc, const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rc);
 
-  /* sort transparent polys by their z value, from back to front. remember, in
-     dreamcast coordinates smaller z values are further away from the camera */
-  if ((tr->list_type == TA_LIST_TRANSLUCENT ||
-       tr->list_type == TA_LIST_TRANSLUCENT_MODVOL) &&
-      ctx->autosort) {
-    tr_sort_surfs(rc, tr->last_sorted_surf, rc->num_surfs - 1);
-  }
-
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
   tr->vertex_type = TA_NUM_VERTS;
-  tr->last_sorted_surf = rc->num_surfs;
 }
 
 static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
@@ -920,17 +932,14 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
 }
 
 static void tr_reset(struct tr *tr, struct render_context *rc) {
-  /* reset render state */
-  rc->num_surfs = 0;
-  rc->num_verts = 0;
-  rc->num_params = 0;
-
   /* reset global state */
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
   tr->vertex_type = TA_NUM_VERTS;
-  tr->last_sorted_surf = 0;
+
+  /* reset render context state */
+  memset(rc, 0, sizeof(*rc));
 }
 
 void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
@@ -946,11 +955,6 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
 
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
-
-    /* FIXME if Vertex Parameters with the "End of Strip" specification were
-       not input, but parameters other than the Vertex Parameters were input,
-       the polygon data in question is ignored and an interrupt signal is
-       output */
 
     if (ta_pcw_list_type_valid(pcw, tr->list_type)) {
       tr->list_type = pcw.list_type;
@@ -984,18 +988,21 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
         break;
     }
 
-    /* keep track of the surf / vert counts at each parameter offset */
-    if (rc->params) {
-      CHECK_LT(rc->num_params, rc->params_size);
-      struct render_param *rp = &rc->params[rc->num_params++];
-      rp->offset = data - ctx->params;
-      rp->list_type = tr->list_type;
-      rp->vertex_type = tr->vertex_type;
-      rp->surf = rc->num_surfs ? &rc->surfs[rc->num_surfs - 1] : NULL;
-      rp->vert = rc->num_verts ? &rc->verts[rc->num_verts - 1] : NULL;
-    }
+    /* track info about the parse state for tracer debugging */
+    struct render_param *rp = &rc->params[rc->num_params++];
+    rp->offset = (int)(data - ctx->params);
+    rp->list_type = tr->list_type;
+    rp->vertex_type = tr->list_type;
+    rp->last_surf = rc->num_surfs - 1;
+    rp->last_vert = rc->num_verts - 1;
 
     data += ta_get_param_size(pcw, tr->vertex_type);
+  }
+
+  /* sort blended surface lists if requested */
+  if (ctx->autosort) {
+    tr_sort_render_list(tr, rc, TA_LIST_TRANSLUCENT);
+    tr_sort_render_list(tr, rc, TA_LIST_PUNCH_THROUGH);
   }
 
   tr_proj_mat(tr, ctx, rc);
@@ -1003,17 +1010,26 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
   PROF_LEAVE();
 }
 
+static void tr_render_list(struct tr *tr, const struct render_context *rc,
+                           int list_type) {
+  const struct render_list *list = &rc->lists[list_type];
+  const int *sorted_surf = list->surfs;
+  const int *sorted_surf_end = list->surfs + list->num_surfs;
+
+  while (sorted_surf < sorted_surf_end) {
+    rb_draw_surface(tr->rb, &rc->surfs[*sorted_surf]);
+    sorted_surf++;
+  }
+}
+
 void tr_render_context(struct tr *tr, const struct render_context *rc) {
   PROF_ENTER("gpu", "tr_render_context");
 
   rb_begin_surfaces(tr->rb, rc->projection, rc->verts, rc->num_verts);
 
-  const int *sorted_surf = rc->sorted_surfs;
-  const int *sorted_surf_end = rc->sorted_surfs + rc->num_surfs;
-  while (sorted_surf < sorted_surf_end) {
-    rb_draw_surface(tr->rb, &rc->surfs[*sorted_surf]);
-    sorted_surf++;
-  }
+  tr_render_list(tr, rc, TA_LIST_OPAQUE);
+  tr_render_list(tr, rc, TA_LIST_PUNCH_THROUGH);
+  tr_render_list(tr, rc, TA_LIST_TRANSLUCENT);
 
   rb_end_surfaces(tr->rb);
 

@@ -6,6 +6,12 @@
 #include "hw/gdrom/gdrom_types.h"
 #include "hw/holly/holly.h"
 
+#if 0
+#define LOG_GDROM LOG_INFO
+#else
+#define LOG_GDROM(...)
+#endif
+
 #define SWAP_24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
@@ -167,7 +173,7 @@ static void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
 }
 
 static void gdrom_ata_cmd(struct gdrom *gd, enum gd_ata_cmd cmd) {
-  LOG_INFO("gdrom_ata_cmd 0x%x", cmd);
+  LOG_GDROM("gdrom_ata_cmd 0x%x", cmd);
 
   gd->status.DRDY = 0;
   gd->status.BSY = 1;
@@ -213,7 +219,7 @@ static void gdrom_ata_cmd(struct gdrom *gd, enum gd_ata_cmd cmd) {
 static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
   enum gd_spi_cmd cmd = (enum gd_spi_cmd)data[0];
 
-  LOG_INFO("gdrom_spi_cmd 0x%x", cmd);
+  LOG_GDROM("gdrom_spi_cmd 0x%x", cmd);
 
   gd->status.DRQ = 0;
   gd->status.BSY = 1;
@@ -334,7 +340,7 @@ static int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
   int total = 0;
   char data[SECTOR_SIZE];
 
-  LOG_INFO("gdrom_read_sectors [%d, %d)", fad, fad + num_sectors);
+  LOG_GDROM("gdrom_read_sectors [%d, %d)", fad, fad + num_sectors);
 
   for (int i = 0; i < num_sectors; i++) {
     int r = disc_read_sector(gd->disc, fad, data);
@@ -517,8 +523,8 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
     } break;
   }
 
-  LOG_INFO("gdrom_event %d, old_state %d, new_state %d", ev, old_state,
-           gd->state);
+  LOG_GDROM("gdrom_event %d, old_state %d, new_state %d", ev, old_state,
+            gd->state);
 }
 
 static int gdrom_init(struct device *dev) {
@@ -588,7 +594,7 @@ REG_R32(holly_cb, GD_ALTSTAT_DEVCTRL) {
 }
 
 REG_W32(holly_cb, GD_ALTSTAT_DEVCTRL) {
-  /* LOG_INFO("GD_DEVCTRL 0x%x", (uint32_t)value); */
+  LOG_GDROM("GD_DEVCTRL 0x%x", (uint32_t)value);
 }
 
 REG_R32(holly_cb, GD_DATA) {
@@ -614,7 +620,7 @@ REG_W32(holly_cb, GD_DATA) {
 }
 
 REG_R32(holly_cb, GD_ERROR_FEATURES) {
-  /* LOG_INFO("GD_ERROR"); */
+  LOG_GDROM("GD_ERROR");
   return 0;
 }
 

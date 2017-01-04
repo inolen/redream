@@ -1,6 +1,7 @@
-#ifndef TILE_ACCELERATOR_H
-#define TILE_ACCELERATOR_H
+#ifndef TA_H
+#define TA_H
 
+#include "core/profiler.h"
 #include "hw/memory.h"
 #include "hw/pvr/ta_types.h"
 
@@ -97,13 +98,16 @@ struct ta;
 
 void ta_build_tables();
 
+DECLARE_COUNTER(ta_renders);
+
 AM_DECLARE(ta_fifo_map);
 
 struct ta *ta_create(struct dreamcast *dc);
 void ta_destroy(struct ta *ta);
 
 struct texture_provider *ta_texture_provider(struct ta *ta);
-int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx);
+int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
+                            int wait_ms);
 void ta_unlock_pending_context(struct ta *ta);
 
 #endif

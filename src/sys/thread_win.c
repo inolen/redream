@@ -43,31 +43,70 @@ void thread_join(thread_t thread, void **result) {
 }
 
 mutex_t mutex_create() {
-  HANDLE wmutex = CreateMutex(NULL, FALSE, NULL);
+  CRITICAL_SECTION *wmutex = calloc(1, sizeof(CRITICAL_SECTION));
+
+  InitializeCriticalSection(wmutex);
 
   return (mutex_t)wmutex;
 }
 
 int mutex_trylock(mutex_t mutex) {
-  HANDLE wmutex = (HANDLE)mutex;
+  CRITICAL_SECTION *wmutex = (CRITICAL_SECTION *)mutex;
 
-  return WaitForSingleObject(wmutex, 0) == WAIT_OBJECT_0;
+  BOOL res = TryEnterCriticalSection(wmutex);
+  return res;
 }
 
 void mutex_lock(mutex_t mutex) {
-  HANDLE wmutex = (HANDLE)mutex;
+  CRITICAL_SECTION *wmutex = (CRITICAL_SECTION *)mutex;
 
-  CHECK_EQ(WaitForSingleObject(wmutex, INFINITE), WAIT_OBJECT_0);
+  EnterCriticalSection(wmutex);
 }
 
 void mutex_unlock(mutex_t mutex) {
-  HANDLE wmutex = (HANDLE)mutex;
+  CRITICAL_SECTION *wmutex = (CRITICAL_SECTION *)mutex;
 
-  CHECK_NE(ReleaseMutex(wmutex), 0);
+  LeaveCriticalSection(wmutex);
 }
 
 void mutex_destroy(mutex_t mutex) {
-  HANDLE wmutex = (HANDLE)mutex;
+  CRITICAL_SECTION *wmutex = (CRITICAL_SECTION *)mutex;
 
-  CloseHandle(wmutex);
+  DeleteCriticalSection(wmutex);
+}
+
+cond_t cond_create() {
+  CONDITION_VARIABLE *wcond = calloc(1, sizeof(CONDITION_VARIABLE));
+
+  InitializeConditionVariable(wcond);
+
+  return (cond_t)wcond;
+}
+
+void cond_wait(cond_t cond, mutex_t mutex) {
+  CONDITION_VARIABLE *wcond = (CONDITION_VARIABLE *)cond;
+  CRITICAL_SECTION *wmutex = (CRITICAL_SECTION *)mutex;
+
+  BOOL res = SleepConditionVariableCS(wcond, wmutex, INFINITE);
+  CHECK_NE(res, 0);
+}
+
+int cond_timedwait(cond_t cond, mutex_t mutex, int ms) {
+  CONDITION_VARIABLE *wcond = (CONDITION_VARIABLE *)cond;
+  CRITICAL_SECTION *wmutex = (CRITICAL_SECTION *)mutex;
+
+  BOOL res = SleepConditionVariableCS(wcond, wmutex, ms);
+  return res;
+}
+
+void cond_signal(cond_t cond) {
+  CONDITION_VARIABLE *wcond = (CONDITION_VARIABLE *)cond;
+
+  WakeConditionVariable(wcond);
+}
+
+void cond_destroy(cond_t cond) {
+  CONDITION_VARIABLE *wcond = (CONDITION_VARIABLE *)cond;
+
+  free(wcond);
 }

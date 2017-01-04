@@ -79,7 +79,7 @@ union pcw {
 /* Image Synthesis Processor parameters */
 union isp {
   struct {
-    uint32_t reserved : 20;
+    uint32_t : 20;
     uint32_t dcalc_ctrl : 1;
     uint32_t cache_bypass : 1;
     uint32_t uv_16bit : 1;
@@ -432,7 +432,7 @@ union vert_param {
 /* shared by tracer */
 #define TA_MAX_SURFS (1024 * 16)
 #define TA_MAX_VERTS (1024 * 64)
-#define TA_MAX_PARAMS 0x200000
+#define TA_MAX_PARAMS 0x10000
 
 /* worst case background vertex size, see ISP_BACKGND_T field */
 #define BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
@@ -441,7 +441,7 @@ struct tile_ctx {
   uint32_t addr;
 
   /* pvr / ta state */
-  int frame;
+  unsigned frame;
   int autosort;
   int stride;
   int pal_pxl_format;
@@ -451,10 +451,11 @@ struct tile_ctx {
   union tsp bg_tsp;
   union tcw bg_tcw;
   float bg_depth;
+  uint32_t pt_alpha_ref;
   uint8_t bg_vertices[BG_VERTEX_SIZE];
 
   /* parameter buffer */
-  uint8_t params[TA_MAX_PARAMS];
+  uint8_t params[TA_MAX_PARAMS * 32];
   int cursor;
   int size;
 
