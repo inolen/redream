@@ -391,6 +391,16 @@ static void aica_write_frames(struct aica *aica, const void *frames,
   }
 }
 
+int aica_skip_frames(struct aica *aica, int num_frames) {
+  int available = ringbuf_available(aica->frames);
+  int size = MIN(available, num_frames * 4);
+  CHECK_EQ(size % 4, 0);
+
+  ringbuf_advance_read_ptr(aica->frames, size);
+
+  return size / 4;
+}
+
 int aica_read_frames(struct aica *aica, void *frames, int num_frames) {
   int available = ringbuf_available(aica->frames);
   int size = MIN(available, num_frames * 4);
