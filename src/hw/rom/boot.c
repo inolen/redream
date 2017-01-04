@@ -9,10 +9,13 @@ DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to boot rom");
 #define BIOS_SIZE 0x00200000
 
 /* Known valid bios md5's */
-#define BIOS_CHINESE_MD5 "a5c6a00818f97c5e3e91569ee22416dc"
-#define BIOS_JP_MD5 "37c921eb47532cae8fb70e5d987ce91c"
-#define BIOS_NO_MILCD_MD5 "f2cd29d09f3e29984bcea22ab2e006fe"
-#define BIOS_US_EU_MD5 "e10c53c2f8b90bab96ead2d368858623"
+static const char *valid_bios_md5[] = {
+    "a5c6a00818f97c5e3e91569ee22416dc", /* chinese bios */
+    "37c921eb47532cae8fb70e5d987ce91c", /* japanese bios */
+    "f2cd29d09f3e29984bcea22ab2e006fe", /* revised bios w/o MIL-CD */
+    "e10c53c2f8b90bab96ead2d368858623"  /* original US/EU bios */
+};
+static const int num_bios_md5 = 4;
 
 struct boot {
   struct device;
@@ -38,14 +41,13 @@ static int boot_validate(struct boot *boot) {
   char result[33];
   MD5_Final(result, &md5_ctx);
 
-  if(strcmp(result, BIOS_US_EU_MD5) == 0 ||
-     strcmp(result, BIOS_NO_MILCD_MD5) == 0 ||
-     strcmp(result, BIOS_JP_MD5) == 0 ||
-     strcmp(result, BIOS_CHINESE_MD5) == 0)
-    return 1;
-  else
-    return 0;
+  for(int i = 0; i < num_bios_md5; ++i) {
+    if(strcmp(result, valid_bios_md5[i]) == 0) {
+      return 1;
+    }
+  }
 
+  return 0;
 }
 
 static int boot_load_rom(struct boot *boot, const char *path) {
@@ -69,8 +71,9 @@ static int boot_load_rom(struct boot *boot, const char *path) {
   fclose(fp);
 
   /* check for a valid bootrom */
-  if(!boot_validate(boot))
+  if(!boot_validate(boot)) {
     LOG_FATAL("Invalid BIOS file");
+  }
 
 
   return 1;
