@@ -151,6 +151,7 @@ set(REDREAM_SOURCES
   src/core/interval_tree.c
   src/core/list.c
   src/core/log.c
+  src/core/md5.c
   src/core/option.c
   src/core/profiler.cc
   src/core/ringbuf.cc

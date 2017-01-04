@@ -1,11 +1,18 @@
 #include <stdio.h>
 #include "hw/rom/boot.h"
+#include "core/md5.h"
 #include "core/option.h"
 #include "hw/dreamcast.h"
 
 DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to boot rom");
 
 #define BIOS_SIZE 0x00200000
+
+/* Known valid bios md5's */
+#define BIOS_CHINESE_MD5 "a5c6a00818f97c5e3e91569ee22416dc"
+#define BIOS_JP_MD5 "37c921eb47532cae8fb70e5d987ce91c"
+#define BIOS_NO_MILCD_MD5 "f2cd29d09f3e29984bcea22ab2e006fe"
+#define BIOS_US_EU_MD5 "e10c53c2f8b90bab96ead2d368858623"
 
 struct boot {
   struct device;
@@ -20,6 +27,25 @@ static uint32_t boot_rom_read(struct boot *boot, uint32_t addr,
 static void boot_rom_write(struct boot *boot, uint32_t addr, uint32_t data,
                            uint32_t data_mask) {
   LOG_FATAL("Can't write to boot rom");
+}
+
+static int boot_validate(struct boot *boot) {
+
+  /* Validate bootroom using md5 */
+  MD5_CTX md5_ctx;
+  MD5_Init(&md5_ctx);
+  MD5_Update(&md5_ctx, boot->rom, BIOS_SIZE);
+  char result[33];
+  MD5_Final(result, &md5_ctx);
+
+  if(strcmp(result, BIOS_US_EU_MD5) == 0 ||
+     strcmp(result, BIOS_NO_MILCD_MD5) == 0 ||
+     strcmp(result, BIOS_JP_MD5) == 0 ||
+     strcmp(result, BIOS_CHINESE_MD5) == 0)
+    return 1;
+  else
+    return 0;
+
 }
 
 static int boot_load_rom(struct boot *boot, const char *path) {
@@ -41,6 +67,11 @@ static int boot_load_rom(struct boot *boot, const char *path) {
   int n = (int)fread(boot->rom, sizeof(uint8_t), size, fp);
   CHECK_EQ(n, size);
   fclose(fp);
+
+  /* check for a valid bootrom */
+  if(!boot_validate(boot))
+    LOG_FATAL("Invalid BIOS file");
+
 
   return 1;
 }
