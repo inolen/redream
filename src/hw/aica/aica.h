@@ -14,6 +14,7 @@ struct aica *aica_create(struct dreamcast *dc);
 void aica_destroy(struct aica *aica);
 
 int aica_available_frames(struct aica *aica);
-int aica_read_frames(struct aica *aica, void *buffer, int size);
+int aica_skip_frames(struct aica *aica, int num_frames);
+int aica_read_frames(struct aica *aica, void *buffer, int num_frames);
 
 #endif

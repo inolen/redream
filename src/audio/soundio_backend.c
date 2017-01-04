@@ -9,6 +9,7 @@ struct audio_backend {
   struct SoundIo *soundio;
   struct SoundIoDevice *device;
   struct SoundIoOutStream *outstream;
+  int frames_silenced;
 };
 
 static void audio_write_callback(struct SoundIoOutStream *outstream,
@@ -18,11 +19,21 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
   struct SoundIoChannelArea *areas;
   int err;
 
+  /* if any frames were silenced previously in order to prevent an underflow,
+     discard the same number of incoming aica frames to keep the audio time
+     domain in sync with the emulator */
+  while (audio->frames_silenced) {
+    int skipped = aica_skip_frames(audio->aica, audio->frames_silenced);
+    if (!skipped) {
+      break;
+    }
+    audio->frames_silenced -= skipped;
+  }
+
   uint32_t frames[10];
   int16_t *samples = (int16_t *)frames;
+  int frames_remaining = frame_count_max;
   int frames_available = aica_available_frames(audio->aica);
-  int frames_remaining = MIN(frames_available, frame_count_max);
-  int frames_silence = frame_count_max - frames_remaining;
 
   while (frames_remaining > 0) {
     int frame_count = frames_remaining;
@@ -38,22 +49,29 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
     }
 
     for (int frame = 0; frame < frame_count;) {
-      /* batch read frames from aica */
       int n = MIN(frame_count - frame, array_size(frames));
-      int read = aica_read_frames(audio->aica, frames, n);
-      CHECK_EQ(read, n);
+
+      if (frames_available > 0) {
+        /* batch read frames from aica */
+        n = aica_read_frames(audio->aica, frames, n);
+        frames_available -= n;
+      } else {
+        /* write out silence */
+        memset(frames, 0, sizeof(frames));
+        audio->frames_silenced += n;
+      }
 
       /* copy frames to output stream */
       for (int channel = 0; channel < layout->channel_count; channel++) {
         struct SoundIoChannelArea *area = &areas[channel];
 
-        for (int i = 0; i < read; i++) {
+        for (int i = 0; i < n; i++) {
           int16_t *ptr = (int16_t *)(area->ptr + area->step * (frame + i));
           *ptr = samples[channel + 2 * i];
         }
       }
 
-      frame += read;
+      frame += n;
     }
 
     if ((err = soundio_outstream_end_write(outstream))) {
@@ -63,35 +81,6 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
 
     frames_remaining -= frame_count;
   }
-
-  while (frames_silence > 0) {
-    int frame_count = frames_silence;
-
-    if ((err = soundio_outstream_begin_write(outstream, &areas, &frame_count))) {
-      LOG_WARNING("Error writing to output stream: %s", soundio_strerror(err));
-      return;
-    }
-
-    if (!frame_count) {
-      break;
-    }
-
-    for (int channel = 0; channel < layout->channel_count; channel++) {
-      struct SoundIoChannelArea *area = &areas[channel];
-
-      for (int i = 0; i < frame_count; i++) {
-        int16_t *ptr = (int16_t *)(area->ptr + area->step * i);
-        *ptr = 0;
-      }
-    }
-
-    if ((err = soundio_outstream_end_write(outstream))) {
-      LOG_WARNING("Error writing to output stream: %s", soundio_strerror(err));
-      return;
-    }
-
-    frames_silence -= frame_count;
-  }
 }
 
 void audio_underflow_callback(struct SoundIoOutStream *outstream) {
@@ -100,6 +89,11 @@ void audio_underflow_callback(struct SoundIoOutStream *outstream) {
 
 void audio_pump_events(struct audio_backend *audio) {
   soundio_flush_events(audio->soundio);
+}
+
+int audio_buffer_low(struct audio_backend *audio) {
+  int low_water_mark = (int)(44100.0f * (OPTION_latency / 1000.0f));
+  return aica_available_frames(audio->aica) <= low_water_mark;
 }
 
 void audio_destroy(struct audio_backend *audio) {
