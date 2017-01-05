@@ -733,11 +733,9 @@ static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
   int num_polys = 0;
   ta_register_texture_sources(ta, ctx, &num_polys);
 
-  /* supposedly, the dreamcast can push around ~3 million polygons per second
-     through the TA / PVR. with that in mind, a very poor estimate can be made
-     for how long the TA would take to render a frame based on the number of
-     polys pushed: 1,000,000,000 / 3,000,000 = 333 nanoseconds per polygon */
-  int64_t ns = num_polys * INT64_C(333);
+  /* give each frame 10 ms to finish rendering
+     TODO figure out a heuristic involving the number of polygons rendered */
+  int64_t ns = INT64_C(10000000);
   scheduler_start_timer(ta->scheduler, &ta_render_timer, ta, ns);
 
   if (ta->trace_writer) {
