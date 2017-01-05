@@ -9,7 +9,7 @@ struct audio_backend {
   struct SoundIo *soundio;
   struct SoundIoDevice *device;
   struct SoundIoOutStream *outstream;
-  int frames_silenced;
+  uint32_t frames[AICA_SAMPLE_FREQ];
 };
 
 static void audio_write_callback(struct SoundIoOutStream *outstream,
@@ -19,21 +19,10 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
   struct SoundIoChannelArea *areas;
   int err;
 
-  /* if any frames were silenced previously in order to prevent an underflow,
-     discard the same number of incoming aica frames to keep the audio time
-     domain in sync with the emulator */
-  while (audio->frames_silenced) {
-    int skipped = aica_skip_frames(audio->aica, audio->frames_silenced);
-    if (!skipped) {
-      break;
-    }
-    audio->frames_silenced -= skipped;
-  }
-
-  uint32_t frames[10];
-  int16_t *samples = (int16_t *)frames;
-  int frames_remaining = frame_count_max;
+  int16_t *samples = (int16_t *)audio->frames;
   int frames_available = aica_available_frames(audio->aica);
+  int frames_silence = frame_count_max - frames_available;
+  int frames_remaining = frames_available + frames_silence;
 
   while (frames_remaining > 0) {
     int frame_count = frames_remaining;
@@ -49,16 +38,15 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
     }
 
     for (int frame = 0; frame < frame_count;) {
-      int n = MIN(frame_count - frame, array_size(frames));
+      int n = MIN(frame_count - frame, array_size(audio->frames));
 
       if (frames_available > 0) {
         /* batch read frames from aica */
-        n = aica_read_frames(audio->aica, frames, n);
+        n = aica_read_frames(audio->aica, audio->frames, n);
         frames_available -= n;
       } else {
         /* write out silence */
-        memset(frames, 0, sizeof(frames));
-        audio->frames_silenced += n;
+        memset(audio->frames, 0, n * 4);
       }
 
       /* copy frames to output stream */
@@ -92,7 +80,7 @@ void audio_pump_events(struct audio_backend *audio) {
 }
 
 int audio_buffer_low(struct audio_backend *audio) {
-  int low_water_mark = (int)(44100.0f * (OPTION_latency / 1000.0f));
+  int low_water_mark = (int)((float)AICA_SAMPLE_FREQ * (OPTION_latency / 1000.0f));
   return aica_available_frames(audio->aica) <= low_water_mark;
 }
 
@@ -163,7 +151,7 @@ struct audio_backend *audio_create(struct aica *aica) {
   {
     audio->outstream = soundio_outstream_create(audio->device);
     audio->outstream->format = SoundIoFormatS16NE;
-    audio->outstream->sample_rate = 44100;
+    audio->outstream->sample_rate = AICA_SAMPLE_FREQ;
     audio->outstream->userdata = audio;
     audio->outstream->write_callback = &audio_write_callback;
     audio->outstream->underflow_callback = &audio_underflow_callback;

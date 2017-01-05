@@ -214,13 +214,13 @@ static void *emu_core_thread(void *data) {
   int64_t next_pump_time = 0;
 
   while (emu->running) {
-    current_time = time_nanoseconds();
-
     while (audio_buffer_low(audio)) {
       dc_tick(emu->dc, MACHINE_STEP);
     }
 
     /* audio events are just for device connections, check infrequently */
+    current_time = time_nanoseconds();
+
     if (current_time > next_pump_time) {
       audio_pump_events(audio);
       next_pump_time = current_time + NS_PER_SEC;
