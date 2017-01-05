@@ -103,6 +103,8 @@ void sh4_dispatch_init(void *sh4, void *jit, void *ctx, void *mem) {
   e.reset();
 
   {
+    /* called after a dynamic branch instruction stores the next pc to the
+       context. looks up the host block for it jumps to it */
     e.align(32);
 
     sh4_dispatch_dynamic = e.getCurr<void *>();
@@ -114,6 +116,12 @@ void sh4_dispatch_init(void *sh4, void *jit, void *ctx, void *mem) {
   }
 
   {
+    /* called after a static branch instruction stores the next pc to the
+       context. the thunk calls jit_add_edge which adds an edge between the
+       calling block and the branch destination block, and then falls through
+       to the above dynamic branch thunk. on the second run through this code
+       jit_add_edge will call sh4_dispatch_patch_edge, patching the caller to
+       directly jump to the destination block */
     e.align(32);
 
     sh4_dispatch_static = e.getCurr<void *>();
@@ -131,6 +139,8 @@ void sh4_dispatch_init(void *sh4, void *jit, void *ctx, void *mem) {
   }
 
   {
+    /* default cache entry for all blocks. compiles the desired pc before
+       jumping to the block through the dynamic dispatch thunk */
     e.align(32);
 
     sh4_dispatch_compile = e.getCurr<void *>();
@@ -142,6 +152,8 @@ void sh4_dispatch_init(void *sh4, void *jit, void *ctx, void *mem) {
   }
 
   {
+    /* processes the pending interrupt request, and then jumps to the new pc
+       through the dynamic dispatch thunk */
     e.align(32);
 
     sh4_dispatch_interrupt = e.getCurr<void *>();
@@ -152,6 +164,9 @@ void sh4_dispatch_init(void *sh4, void *jit, void *ctx, void *mem) {
   }
 
   {
+    /* entry point to the compiled sh4 code. sets up the stack frame, sets up
+       fixed registers (context and memory base) and then jumps to the current
+       pc through the dynamic dispatch thunk */
     e.align(32);
 
     sh4_dispatch_enter = e.getCurr<void (*)()>();
@@ -173,6 +188,8 @@ void sh4_dispatch_init(void *sh4, void *jit, void *ctx, void *mem) {
   }
 
   {
+    /* exit point for the compiled sh4 code, tears down the stack frame and
+       returns */
     e.align(32);
 
     sh4_dispatch_leave = e.getCurr<void *>();
