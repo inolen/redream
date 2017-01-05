@@ -46,7 +46,7 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
         frames_available -= n;
       } else {
         /* write out silence */
-        memset(audio->frames, 0, n * 4);
+        memset(audio->frames, 0, n * sizeof(audio->frames[0]));
       }
 
       /* copy frames to output stream */
@@ -80,7 +80,8 @@ void audio_pump_events(struct audio_backend *audio) {
 }
 
 int audio_buffer_low(struct audio_backend *audio) {
-  int low_water_mark = (int)((float)AICA_SAMPLE_FREQ * (OPTION_latency / 1000.0f));
+  int low_water_mark =
+      (int)((float)AICA_SAMPLE_FREQ * (OPTION_latency / 1000.0f));
   return aica_available_frames(audio->aica) <= low_water_mark;
 }
 

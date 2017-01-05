@@ -8,7 +8,7 @@ DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to boot rom");
 
 #define BIOS_SIZE 0x00200000
 
-/* Known valid bios md5's */
+/* known valid bios md5's */
 static const char *valid_bios_md5[] = {
     "a5c6a00818f97c5e3e91569ee22416dc", /* chinese bios */
     "37c921eb47532cae8fb70e5d987ce91c", /* japanese bios */
@@ -33,16 +33,15 @@ static void boot_rom_write(struct boot *boot, uint32_t addr, uint32_t data,
 }
 
 static int boot_validate(struct boot *boot) {
-
-  /* Validate bootroom using md5 */
+  /* compare the rom's md5 against known good bios roms */
   MD5_CTX md5_ctx;
   MD5_Init(&md5_ctx);
   MD5_Update(&md5_ctx, boot->rom, BIOS_SIZE);
   char result[33];
   MD5_Final(result, &md5_ctx);
 
-  for(int i = 0; i < num_bios_md5; ++i) {
-    if(strcmp(result, valid_bios_md5[i]) == 0) {
+  for (int i = 0; i < num_bios_md5; ++i) {
+    if (strcmp(result, valid_bios_md5[i]) == 0) {
       return 1;
     }
   }
@@ -70,11 +69,10 @@ static int boot_load_rom(struct boot *boot, const char *path) {
   CHECK_EQ(n, size);
   fclose(fp);
 
-  /* check for a valid bootrom */
-  if(!boot_validate(boot)) {
-    LOG_FATAL("Invalid BIOS file");
+  if (!boot_validate(boot)) {
+    LOG_WARNING("Invalid BIOS file");
+    return 0;
   }
-
 
   return 1;
 }

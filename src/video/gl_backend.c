@@ -42,8 +42,6 @@ enum shader_attr {
 
 };
 
-
-
 struct shader_program {
   GLuint program;
   GLuint vertex_shader;
@@ -596,7 +594,7 @@ static struct shader_program *rb_get_ta_program(struct render_backend *rb,
   if (surf->offset_color) {
     idx |= ATTR_OFFSET_COLOR;
   }
-  if(surf->pt_alpha_test) {
+  if (surf->pt_alpha_test) {
     idx |= ATTR_PT_ALPHA_TEST;
   }
   struct shader_program *program = &rb->ta_programs[idx];
