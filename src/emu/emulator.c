@@ -152,63 +152,6 @@ static void *emu_core_thread(void *data) {
     return 0;
   }
 
-  /* main emulation loop
-
-     unlike the real machine which runs multiple hardware devices in parallel,
-     all of the emulated hardware in redream is ran synchronously, in a
-     cooperative multitasking fashion. this removes numerous complexities in
-     the c code, as well as the runtime generated code.
-
-     on creation, each hardware device registers itself with the scheduler
-     interface. this scheduler interface is used by dc_tick to run each device
-     for the specified slice of guest time. baring in mind that each device is
-     ran synchronously, this slice should be low enough that devices waiting on
-     interrupts from eachother are serviced regularly, but high enough that
-     there's not too much context switching. please note, it's extremely
-     important that this slice is constant to keep emulation deterministic
-     between runs.
-
-     the next issue tackled by this loop is, when should dc_tick be called to
-     execute this constant slice of time. the answer really depends on what
-     the goal of emulation is.
-
-     when the goal is to run completely unthrottled, it should be called as much
-     as possible, e.g.:
-
-       while (1) {
-         dc_tick(slice);
-       }
-
-     when the goal is to run at the same speed as the original dreamcast, the
-     answer is a bit more involved. at first it may seem desirable to use the
-     host machine's clock to schedule each slice, e.g.:
-
-       while (1) {
-         current_time = time();
-         delta_time = next_time - current_time;
-
-         if (delta_time < 0) {
-           dc_tick(slice);
-           next_time = current_time + delta_time + slice;
-         }
-       }
-
-     this will, in general, run the emulator at the same rate as the original
-     dreamcast. when performance hiccups, the host's time domain will move
-     forward, while the emulator's time domain will fall behind. the emulator
-     will then speed up temporarily due to the delta_time offset, eventually
-     synchronizing it's view of time with the host as delta_time approaches 0.
-
-     the downsides to this approach are audio, and video to some degree, are
-     not presented well when performance hiccups. imagine the scenario that
-     performance grinds to a complete halt for 5 seconds. in this case, host
-     time is 5 seconds ahead of guest time, the loop will run 5 seconds worth
-     of emulator time in say, 1 second of host time, again synchronizing the
-     time domains. the problem being that, now 5 seconds of audio and video
-     have been generated for something the user has experienced for only 1
-     second. skipping video frames in this case isn't the worst experience
-     but crackling and distorted audio can be awful. */
-
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
   int64_t current_time = 0;
   int64_t next_pump_time = 0;
