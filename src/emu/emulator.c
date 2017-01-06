@@ -159,17 +159,17 @@ static void *emu_core_thread(void *data) {
   while (emu->running) {
     while (audio_buffer_low(audio)) {
       dc_tick(emu->dc, MACHINE_STEP);
+
+      current_time = time_nanoseconds();
+
+      prof_update(current_time);
+
+      /* audio events are just for device connections, check infrequently */
+      if (current_time > next_pump_time) {
+        audio_pump_events(audio);
+        next_pump_time = current_time + NS_PER_SEC;
+      }
     }
-
-    /* audio events are just for device connections, check infrequently */
-    current_time = time_nanoseconds();
-
-    if (current_time > next_pump_time) {
-      audio_pump_events(audio);
-      next_pump_time = current_time + NS_PER_SEC;
-    }
-
-    prof_update(current_time);
   }
 
   audio_destroy(audio);
