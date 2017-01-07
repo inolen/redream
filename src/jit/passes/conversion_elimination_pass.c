@@ -6,8 +6,8 @@ DEFINE_STAT(sext_removed, "sign extends eliminated");
 DEFINE_STAT(zext_removed, "zero extends eliminated");
 DEFINE_STAT(trunc_removed, "truncations eliminated");
 
-void cve_run(struct ir *ir) {
-  list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
+static void cve_run_block(struct ir *ir, struct ir_block *block) {
+  list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
     /* eliminate unnecessary sext / zext operations */
     if (instr->op == OP_LOAD || instr->op == OP_LOAD_FAST ||
         instr->op == OP_LOAD_SLOW || instr->op == OP_LOAD_CONTEXT) {
@@ -60,5 +60,11 @@ void cve_run(struct ir *ir) {
         STAT_trunc_removed++;
       }
     }
+  }
+}
+
+void cve_run(struct ir *ir) {
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    cve_run_block(ir, block);
   }
 }

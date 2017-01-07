@@ -39,11 +39,106 @@ static void ir_remove_use(struct ir_value *v, struct ir_use *use) {
   list_remove(&v->uses, &use->it);
 }
 
+struct ir_insert_point ir_get_insert_point(struct ir *ir) {
+  return ir->cursor;
+}
+
+void ir_set_insert_point(struct ir *ir, struct ir_insert_point *point) {
+  ir->cursor = *point;
+}
+
+void ir_set_current_block(struct ir *ir, struct ir_block *block) {
+  ir->cursor.block = block;
+  ir->cursor.instr = NULL;
+}
+
+void ir_set_current_instr(struct ir *ir, struct ir_instr *instr) {
+  ir->cursor.block = instr->block;
+  ir->cursor.instr = instr;
+}
+
+struct ir_block *ir_insert_block(struct ir *ir, struct ir_block *after) {
+  struct ir_block *block = ir_calloc(ir, sizeof(struct ir_block));
+
+  list_add_after_entry(&ir->blocks, after, block, it);
+
+  return block;
+}
+
+struct ir_block *ir_append_block(struct ir *ir) {
+  struct ir_block *last_block =
+      list_last_entry(&ir->blocks, struct ir_block, it);
+  return ir_insert_block(ir, last_block);
+}
+
+void ir_set_block_label(struct ir *ir, struct ir_block *block,
+                        const char *format, ...) {
+  va_list args;
+
+  va_start(args, format);
+  int label_len = vsnprintf(0, 0, format, args);
+  int label_size = label_len + 1;
+  CHECK_LE(label_size, MAX_LABEL_SIZE);
+  char *label = ir_calloc(ir, label_size);
+  va_end(args);
+
+  va_start(args, format);
+  vsnprintf(label, label_size, format, args);
+  va_end(args);
+
+  block->label = label;
+}
+
+void ir_remove_block(struct ir *ir, struct ir_block *block) {
+  /* update current position */
+  if (ir->cursor.block == block) {
+    if (block->it.next) {
+      ir->cursor.block = list_next_entry(block, struct ir_block, it);
+    } else {
+      ir->cursor.block = list_prev_entry(block, struct ir_block, it);
+    }
+
+    ir->cursor.instr =
+        list_last_entry(&ir->cursor.block->instrs, struct ir_instr, it);
+  }
+
+  /* remove all instructions */
+  list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
+    ir_remove_instr(ir, instr);
+  }
+
+  /* remove from block list */
+  list_remove_entry(&ir->blocks, block, it);
+}
+
+void ir_add_edge(struct ir *ir, struct ir_block *src, struct ir_block *dst) {
+  CHECK_NE(src, dst);
+
+  /* linked list data is intrusive, need to allocate two edge objects */
+  {
+    struct ir_edge *edge = ir_calloc(ir, sizeof(struct ir_edge));
+    edge->src = src;
+    edge->dst = dst;
+    list_add(&src->outgoing, &edge->it);
+  }
+  {
+    struct ir_edge *edge = ir_calloc(ir, sizeof(struct ir_edge));
+    edge->src = src;
+    edge->dst = dst;
+    list_add(&dst->incoming, &edge->it);
+  }
+}
+
 struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
                                  enum ir_type result_type) {
+  if (!ir->cursor.block) {
+    ir->cursor.block = ir_insert_block(ir, ir->cursor.block);
+    ir->cursor.instr = NULL;
+  }
+
+  /* allocate instruction and its result if needed */
   struct ir_instr *instr = ir_alloc_instr(ir, op);
 
-  /* allocate result if needed */
   if (result_type != VALUE_V) {
     struct ir_value *result = ir_calloc(ir, sizeof(struct ir_value));
     result->type = result_type;
@@ -52,11 +147,32 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
     instr->result = result;
   }
 
-  list_add_after_entry(&ir->instrs, ir->current_instr, it, instr);
+  /* append to the current block */
+  instr->block = ir->cursor.block;
+  list_add_after_entry(&instr->block->instrs, ir->cursor.instr, instr, it);
 
-  ir->current_instr = instr;
+  /* update current position */
+  ir->cursor.instr = instr;
 
   return instr;
+}
+
+void ir_set_instr_label(struct ir *ir, struct ir_instr *instr,
+                        const char *format, ...) {
+  va_list args;
+
+  va_start(args, format);
+  int label_len = vsnprintf(0, 0, format, args);
+  int label_size = label_len + 1;
+  CHECK_LE(label_size, MAX_LABEL_SIZE);
+  char *label = ir_calloc(ir, label_size);
+  va_end(args);
+
+  va_start(args, format);
+  vsnprintf(label, label_size, format, args);
+  va_end(args);
+
+  instr->label = label;
 }
 
 void ir_remove_instr(struct ir *ir, struct ir_instr *instr) {
@@ -69,7 +185,9 @@ void ir_remove_instr(struct ir *ir, struct ir_instr *instr) {
     }
   }
 
-  list_remove(&ir->instrs, &instr->it);
+  /* remove from block */
+  list_remove(&instr->block->instrs, &instr->it);
+  instr->block = NULL;
 }
 
 struct ir_value *ir_alloc_int(struct ir *ir, int64_t c, enum ir_type type) {
@@ -168,6 +286,14 @@ struct ir_value *ir_alloc_str(struct ir *ir, const char *format, ...) {
 
 struct ir_value *ir_alloc_ptr(struct ir *ir, void *c) {
   return ir_alloc_i64(ir, (uint64_t)c);
+}
+
+struct ir_value *ir_alloc_block(struct ir *ir, struct ir_block *block) {
+  struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
+  v->type = VALUE_BLOCK;
+  v->blk = block;
+  v->reg = NO_REGISTER;
+  return v;
 }
 
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type) {

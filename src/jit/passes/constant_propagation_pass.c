@@ -6,8 +6,9 @@ DEFINE_STAT(constants_folded, "constant operations folded");
 DEFINE_STAT(could_optimize_binary_op, "constant binary operations possible");
 DEFINE_STAT(could_optimize_unary_op, "constant unary operations possible");
 
-void cprop_run(struct cprop *cprop, struct ir *ir) {
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
+static void cprop_run_block(struct cprop *cprop, struct ir *ir,
+                            struct ir_block *block) {
+  list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
     /* fold constant binary ops */
     if (instr->arg[0] && ir_is_constant(instr->arg[0]) && instr->arg[1] &&
         ir_is_constant(instr->arg[1]) && instr->result) {
@@ -83,6 +84,12 @@ void cprop_run(struct cprop *cprop, struct ir *ir) {
         STAT_constants_folded++;
       }
     }
+  }
+}
+
+void cprop_run(struct cprop *cprop, struct ir *ir) {
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    cprop_run_block(cprop, ir, block);
   }
 }
 

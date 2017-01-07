@@ -29,26 +29,30 @@ static int stack_size = 1024;
 static int get_num_instrs(const struct ir *ir) {
   int n = 0;
 
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
-    ((void)instr);
-    n++;
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+      ((void)instr);
+      n++;
+    }
   }
 
   return n;
 }
 
 static void sanitize_ir(struct ir *ir) {
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
-    if (instr->op != OP_BRANCH && instr->op != OP_BRANCH_FALSE &&
-        instr->op != OP_BRANCH_TRUE && instr->op != OP_CALL &&
-        instr->op != OP_CALL_FALLBACK) {
-      continue;
-    }
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+      if (instr->op != OP_BRANCH && instr->op != OP_BRANCH_FALSE &&
+          instr->op != OP_BRANCH_TRUE && instr->op != OP_CALL &&
+          instr->op != OP_CALL_FALLBACK) {
+        continue;
+      }
 
-    /* ensure that address are within 2 GB of the code buffer */
-    uint64_t addr = instr->arg[0]->i64;
-    addr = (uint64_t)code | (addr & 0x7fffffff);
-    ir_set_arg0(ir, instr, ir_alloc_i64(ir, addr));
+      /* ensure that address are within 2 GB of the code buffer */
+      uint64_t addr = instr->arg[0]->i64;
+      addr = (uint64_t)code | (addr & 0x7fffffff);
+      ir_set_arg0(ir, instr, ir_alloc_i64(ir, addr));
+    }
   }
 }
 

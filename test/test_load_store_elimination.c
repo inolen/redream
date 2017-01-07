@@ -5,7 +5,7 @@
 static uint8_t ir_buffer[1024 * 1024];
 static char scratch_buffer[1024 * 1024];
 
-TEST(load_store_elimination) {
+/*TEST(load_store_elimination) {
   static const char input_str[] =
       "store_context i32 0x104, i32 0x0\n"
       "store_context i32 0x100, i32 0x0\n"
@@ -78,4 +78,4 @@ TEST(load_store_elimination) {
   CHECK_NE(n, 0u);
 
   CHECK_STREQ(scratch_buffer, output_str);
-}
+}*/

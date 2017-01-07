@@ -83,7 +83,7 @@ static const struct jit_register *ra_alloc_blocked_register(
 
   /* the register's value needs to be filled back from from the stack before
      its next use */
-  struct ir_instr *insert_point = ir->current_instr;
+  struct ir_insert_point insert_point = ir_get_insert_point(ir);
   struct ir_use *next_use = interval->next;
   struct ir_use *prev_use = list_prev_entry(next_use, struct ir_use, it);
   CHECK(next_use,
@@ -105,7 +105,9 @@ static const struct jit_register *ra_alloc_blocked_register(
   }
 
   /* insert load before next use */
-  ir->current_instr = list_prev_entry(next_use->instr, struct ir_instr, it);
+  struct ir_instr *next_use_instr =
+      list_prev_entry(next_use->instr, struct ir_instr, it);
+  ir_set_current_instr(ir, next_use_instr);
   struct ir_value *load_value = ir_load_local(ir, local);
   struct ir_instr *load_instr = load_value->def;
 
@@ -147,7 +149,7 @@ static const struct jit_register *ra_alloc_blocked_register(
       after = interval->instr;
     }
 
-    ir->current_instr = after;
+    ir_set_current_instr(ir, after);
     ir_store_local(ir, local, interval->instr->result);
   }
 
@@ -161,7 +163,7 @@ static const struct jit_register *ra_alloc_blocked_register(
   ra_add_live_interval(ra, interval);
 
   /* reset insert point */
-  ir->current_instr = insert_point;
+  ir_set_insert_point(ir, &insert_point);
 
   if (ir_is_int(instr->result->type)) {
     STAT_gprs_spilled++;
@@ -269,12 +271,12 @@ static int ra_use_cmp(const struct list_node *a_it,
   return ra_get_ordinal(a->instr) - ra_get_ordinal(b->instr);
 }
 
-static void ra_assign_ordinals(struct ir *ir) {
+static void ra_assign_ordinals(struct ir_block *block) {
   /* assign each instruction an ordinal. these ordinals are used to describe
      the live range of a particular value */
   int ordinal = 0;
 
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
+  list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
     ra_set_ordinal(instr, ordinal);
 
     /* space out ordinals to leave available values for instructions inserted
@@ -296,12 +298,10 @@ static void ra_reset(struct ra *ra) {
   }
 }
 
-void ra_run(struct ra *ra, struct ir *ir) {
-  ra_reset(ra);
+static void ra_run_block(struct ra *ra, struct ir *ir, struct ir_block *block) {
+  ra_assign_ordinals(block);
 
-  ra_assign_ordinals(ir);
-
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
+  list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
     struct ir_value *result = instr->result;
 
     /* only allocate registers for results, assume constants can always be
@@ -330,6 +330,14 @@ void ra_run(struct ra *ra, struct ir *ir) {
 
     CHECK_NOTNULL(reg, "Failed to allocate register");
     result->reg = (int)(reg - ra->registers);
+  }
+}
+
+void ra_run(struct ra *ra, struct ir *ir) {
+  ra_reset(ra);
+
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    ra_run_block(ra, ir, block);
   }
 }
 

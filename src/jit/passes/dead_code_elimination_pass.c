@@ -4,10 +4,11 @@
 
 DEFINE_STAT(dead_removed, "dead instructions eliminated");
 
-void dce_run(struct dce *dce, struct ir *ir) {
+static void dce_run_block(struct dce *dce, struct ir *ir,
+                          struct ir_block *block) {
   /* iterate in reverse in order to remove groups of dead instructions that
      only use eachother */
-  list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
+  list_for_each_entry_safe_reverse(instr, &block->instrs, struct ir_instr, it) {
     struct ir_value *result = instr->result;
 
     if (!result) {
@@ -19,6 +20,12 @@ void dce_run(struct dce *dce, struct ir *ir) {
 
       STAT_dead_removed++;
     }
+  }
+}
+
+void dce_run(struct dce *dce, struct ir *ir) {
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    dce_run_block(dce, ir, block);
   }
 }
 

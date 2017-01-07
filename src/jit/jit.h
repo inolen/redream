@@ -45,6 +45,7 @@ struct jit {
   struct exception_handler *exc_handler;
 
   /* passes */
+  struct cfa *cfa;
   struct lse *lse;
   struct cprop *cprop;
   struct esimp *esimp;
