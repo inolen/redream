@@ -383,6 +383,11 @@ static const Xbyak::Address x64_backend_xmm_constant(
   return e.ptr[e.rip + backend->xmm_const[c]];
 }
 
+static void x64_backend_block_label(char *name, size_t size,
+                                    struct ir_block *block) {
+  snprintf(name, size, ".%p", block);
+}
+
 static void x64_backend_label_name(char *name, size_t size,
                                    struct ir_value *v) {
   /* all ir labels are local labels */
@@ -430,19 +435,26 @@ static void *x64_backend_emit(struct x64_backend *backend, struct ir *ir,
 
   e.inLocalLabel();
 
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
-    x64_emit_cb emit = x64_backend_emitters[instr->op];
-    CHECK_NOTNULL(emit);
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    char block_label[128];
+    x64_backend_block_label(block_label, sizeof(block_label), block);
 
-    /* track stats for each guest op */
-    if (instr->op == OP_DEBUG_INFO) {
-      x64_backend_emit_stats(backend, instr);
+    e.L(block_label);
+
+    list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+      x64_emit_cb emit = x64_backend_emitters[instr->op];
+      CHECK_NOTNULL(emit);
+
+      /* track stats for each guest op */
+      if (instr->op == OP_DEBUG_INFO) {
+        x64_backend_emit_stats(backend, instr);
+      }
+
+      /* reset temp count used by x64_backend_get_register */
+      backend->num_temps = 0;
+
+      emit(backend, *backend->codegen, instr);
     }
-
-    /* reset temp count used by x64_backend_get_register */
-    backend->num_temps = 0;
-
-    emit(backend, *backend->codegen, instr);
   }
 
   e.outLocalLabel();
@@ -1522,7 +1534,11 @@ EMITTER(LABEL) {
 }
 
 EMITTER(BRANCH) {
-  if (instr->arg[0]->type == VALUE_STRING) {
+  if (instr->arg[0]->type == VALUE_BLOCK) {
+    char name[128];
+    x64_backend_block_label(name, sizeof(name), instr->arg[0]->blk);
+    e.jmp(name);
+  } else if (instr->arg[0]->type == VALUE_STRING) {
     char name[128];
     x64_backend_label_name(name, sizeof(name), instr->arg[0]);
     e.jmp(name);

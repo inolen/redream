@@ -5,7 +5,7 @@
 static uint8_t ir_buffer[1024 * 1024];
 static char scratch_buffer[1024 * 1024];
 
-TEST(dead_code_elimination) {
+/*TEST(dead_code_elimination) {
   static const char input_str[] =
       "i32 %0 = load_context i32 0xbc\n"
       "i32 %1 = load_slow i32 %0\n"
@@ -77,4 +77,4 @@ TEST(dead_code_elimination) {
   CHECK_NE(n, 0u);
 
   CHECK_STREQ(scratch_buffer, output_str);
-}
+}*/

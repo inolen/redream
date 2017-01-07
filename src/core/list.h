@@ -31,8 +31,10 @@ void list_sort(struct list *list, list_node_cmp cmp);
 
 #define list_entry(n, type, member) container_of_safe(n, type, member)
 
-#define list_add_after_entry(list, after, member, n) \
+#define list_add_after_entry(list, after, n, member) \
   list_add_after(list, (after) ? &(after)->member : NULL, &(n)->member)
+
+#define list_remove_entry(list, n, member) list_remove(list, &(n)->member)
 
 #define list_first_entry(list, type, member) \
   list_entry((list)->head, type, member)

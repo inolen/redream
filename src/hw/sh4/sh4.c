@@ -121,6 +121,9 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
   }
   sh4_analyze_block(sh4->jit, &as);
 
+  /* return the size */
+  *size = as.size;
+
   /* yield control once remaining cycles are executed */
   struct ir_value *remaining_cycles = ir_load_context(
       ir, offsetof(struct sh4_ctx, remaining_cycles), VALUE_I32);
@@ -172,8 +175,10 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
   }
 
   /* if the block terminates before a branch, fallthrough to the next pc */
+  struct ir_block *tail_block =
+      list_last_entry(&ir->blocks, struct ir_block, it);
   struct ir_instr *tail_instr =
-      list_last_entry(&ir->instrs, struct ir_instr, it);
+      list_last_entry(&tail_block->instrs, struct ir_instr, it);
 
   if (tail_instr->op != OP_STORE_CONTEXT ||
       tail_instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
@@ -184,26 +189,26 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
   /* the default emitters won't actually insert calls / branches to the
      appropriate dispatch routines (as how each is invoked is specific
      to the particular dispatch backend) */
-  list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
-    if (instr->op != OP_STORE_CONTEXT ||
-        instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
-      continue;
-    }
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    list_for_each_entry_safe_reverse(instr, &block->instrs, struct ir_instr,
+                                     it) {
+      if (instr->op != OP_STORE_CONTEXT ||
+          instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
+        continue;
+      }
 
-    int direct = ir_is_constant(instr->arg[1]);
+      int direct = ir_is_constant(instr->arg[1]);
 
-    /* insert dispatch call immediately after pc store */
-    ir->current_instr = instr;
+      /* insert dispatch call immediately after pc store */
+      ir_set_current_instr(ir, instr);
 
-    if (direct) {
-      ir_call(ir, ir_alloc_ptr(ir, sh4_dispatch_static));
-    } else {
-      ir_branch(ir, ir_alloc_ptr(ir, sh4_dispatch_dynamic));
+      if (direct) {
+        ir_call(ir, ir_alloc_ptr(ir, sh4_dispatch_static));
+      } else {
+        ir_branch(ir, ir_alloc_ptr(ir, sh4_dispatch_dynamic));
+      }
     }
   }
-
-  /* return size */
-  *size = as.size;
 }
 
 void sh4_implode_sr(struct sh4 *sh4) {

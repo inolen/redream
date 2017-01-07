@@ -203,6 +203,7 @@ set(REDREAM_SOURCES
   src/jit/ir/ir_read.c
   src/jit/ir/ir_write.c
   src/jit/passes/constant_propagation_pass.c
+  src/jit/passes/control_flow_analysis_pass.c
   src/jit/passes/conversion_elimination_pass.c
   src/jit/passes/dead_code_elimination_pass.c
   src/jit/passes/expression_simplification_pass.c

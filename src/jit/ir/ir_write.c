@@ -28,6 +28,9 @@ static void ir_write_type(enum ir_type type, FILE *output) {
     case VALUE_STRING:
       fprintf(output, "str");
       break;
+    case VALUE_BLOCK:
+      fprintf(output, "blk");
+      break;
     default:
       LOG_FATAL("Unexpected value type");
       break;
@@ -72,14 +75,17 @@ static void ir_write_value(const struct ir_value *value, FILE *output) {
         fprintf(output, "0x%" PRIx64, *(uint64_t *)&v);
       } break;
       case VALUE_STRING: {
-        fprintf(output, "%s", value->str);
+        fprintf(output, "'%s'", value->str);
       } break;
+      case VALUE_BLOCK:
+        fprintf(output, "%%%s", value->blk->label);
+        break;
       default:
         LOG_FATAL("Unexpected value type");
         break;
     }
   } else {
-    fprintf(output, "%%%d", (int)value->def->tag);
+    fprintf(output, "%%%s", value->def->label);
   }
 }
 
@@ -115,29 +121,42 @@ static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
   }
 
 #if 0
-  fprintf(output, "[tag %" PRId64 ", reg %d]", instr->tag, instr->reg);
+  fprintf(output, " [tag %" PRId64 ", reg %d]", instr->tag, instr->result ? instr->result->reg : -1);
 #endif
 
   fprintf(output, "\n");
 }
 
-static void ir_assign_slots(struct ir *ir) {
-  int next_slot = 0;
+static void ir_write_block(const struct ir_block *block, FILE *output) {
+  fprintf(output, "%%%s:\n", block->label);
 
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
-    /* don't assign a slot to instructions without a return value */
-    if (!instr->result) {
-      continue;
+  list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+    ir_write_instr(instr, output);
+  }
+
+  fprintf(output, "\n");
+}
+
+static void ir_assign_default_labels(struct ir *ir) {
+  int id = 0;
+
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    if (!block->label) {
+      ir_set_block_label(ir, block, "%d", id++);
     }
 
-    instr->tag = next_slot++;
+    list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+      if (!instr->label) {
+        ir_set_instr_label(ir, instr, "%d", id++);
+      }
+    }
   }
 }
 
 void ir_write(struct ir *ir, FILE *output) {
-  ir_assign_slots(ir);
+  ir_assign_default_labels(ir);
 
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
-    ir_write_instr(instr, output);
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    ir_write_block(block, output);
   }
 }

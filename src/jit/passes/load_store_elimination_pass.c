@@ -80,12 +80,12 @@ static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
   }
 }
 
-void lse_run(struct lse *lse, struct ir *ir) {
+void lse_run_block(struct lse *lse, struct ir *ir, struct ir_block *block) {
   /* eliminate redundant loads */
   {
     lse_clear_available(lse);
 
-    list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
+    list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
       if (instr->op == OP_LABEL) {
         lse_clear_available(lse);
       } else if (instr->op == OP_LOAD_CONTEXT) {
@@ -117,7 +117,8 @@ void lse_run(struct lse *lse, struct ir *ir) {
   {
     lse_clear_available(lse);
 
-    list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
+    list_for_each_entry_safe_reverse(instr, &block->instrs, struct ir_instr,
+                                     it) {
       if (instr->op == OP_LABEL) {
         lse_clear_available(lse);
       } else if (instr->op == OP_LOAD_CONTEXT) {
@@ -144,6 +145,12 @@ void lse_run(struct lse *lse, struct ir *ir) {
         lse_set_available(lse, offset, instr->arg[1]);
       }
     }
+  }
+}
+
+void lse_run(struct lse *lse, struct ir *ir) {
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    lse_run_block(lse, ir, block);
   }
 }
 
