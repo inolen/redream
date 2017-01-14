@@ -837,3 +837,9 @@ void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,
   ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
   ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
 }
+
+void ir_assert_lt(struct ir *ir, struct ir_value *a, struct ir_value *b) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_ASSERT_LT, VALUE_V);
+  ir_set_arg0(ir, instr, a);
+  ir_set_arg1(ir, instr, b);
+}

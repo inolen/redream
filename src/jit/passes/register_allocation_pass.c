@@ -209,14 +209,14 @@ static const struct jit_register *ra_reuse_arg_register(
     return NULL;
   }
 
-  int prefered = instr->arg[0]->reg;
-  if (prefered == NO_REGISTER) {
+  int preferred = instr->arg[0]->reg;
+  if (preferred == NO_REGISTER) {
     return NULL;
   }
 
   /* if the argument's register is used after this instruction, it's not
      trivial to reuse */
-  struct interval *interval = &ra->intervals[prefered];
+  struct interval *interval = &ra->intervals[preferred];
   if (list_next_entry(interval->next, struct ir_use, it)) {
     return NULL;
   }

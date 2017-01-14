@@ -53,9 +53,11 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 #define load_xfr(n, type) ir_load_xfr(ir, n, type)
 #define store_xfr(n, v) ir_store_xfr(ir, n, v)
 #define load_sr() ir_load_sr(ir)
-#define store_sr(v, update) ir_store_sr(frontend, ir, v, update)
+#define store_sr(v) ir_store_sr(frontend, ir, v)
 #define load_t() ir_load_t(ir)
 #define store_t(v) ir_store_t(frontend, ir, v)
+#define load_s() ir_load_s(ir)
+#define store_s(v) ir_store_s(frontend, ir, v)
 #define load_gbr() ir_load_gbr(ir)
 #define store_gbr(v) ir_store_gbr(ir, v)
 #define load_fpscr() ir_load_fpscr(ir)
@@ -120,41 +122,63 @@ static void ir_store_xfr(struct ir *ir, int n, struct ir_value *v) {
 }
 
 static struct ir_value *ir_load_sr(struct ir *ir) {
-  return ir_load_context(ir, offsetof(struct sh4_ctx, sr), VALUE_I32);
+  struct ir_value *sr =
+      ir_load_context(ir, offsetof(struct sh4_ctx, sr), VALUE_I32);
+
+  /* inlined version of sh4_implode_sr */
+  struct ir_value *sr_t =
+      ir_load_context(ir, offsetof(struct sh4_ctx, sr_t), VALUE_I32);
+  struct ir_value *sr_s =
+      ir_load_context(ir, offsetof(struct sh4_ctx, sr_s), VALUE_I32);
+  sr = ir_and(ir, sr, ir_alloc_i32(ir, ~(S_MASK | T_MASK)));
+  sr = ir_or(ir, sr, sr_t);
+  sr = ir_or(ir, sr, ir_shli(ir, sr_s, S_BIT));
+
+  return sr;
 }
 
 static void ir_store_sr(struct sh4_frontend *frontend, struct ir *ir,
-                        struct ir_value *v, int update) {
-  CHECK_EQ(v->type, VALUE_I32);
+                        struct ir_value *sr) {
+  CHECK_EQ(sr->type, VALUE_I32);
 
-  struct ir_value *sr_updated = NULL;
-  struct ir_value *data = NULL;
-  struct ir_value *old_sr = NULL;
+  struct ir_value *sr_updated = ir_alloc_ptr(ir, frontend->sr_updated);
+  struct ir_value *data = ir_alloc_ptr(ir, frontend->data);
+  struct ir_value *old_sr = load_sr();
 
-  if (update) {
-    sr_updated = ir_alloc_ptr(ir, frontend->sr_updated);
-    data = ir_alloc_ptr(ir, frontend->data);
-    old_sr = load_sr();
-  }
+  ir_store_context(ir, offsetof(struct sh4_ctx, sr), sr);
 
-  ir_store_context(ir, offsetof(struct sh4_ctx, sr), v);
+  /* inline version of sh4_explode_sr */
+  struct ir_value *sr_t = ir_and(ir, sr, ir_alloc_i32(ir, T_MASK));
+  struct ir_value *sr_s =
+      ir_lshri(ir, ir_and(ir, sr, ir_alloc_i32(ir, S_MASK)), S_BIT);
+  ir_store_context(ir, offsetof(struct sh4_ctx, sr_t), sr_t);
+  ir_store_context(ir, offsetof(struct sh4_ctx, sr_s), sr_s);
 
-  if (update) {
-    ir_call_2(ir, sr_updated, data, old_sr);
-  }
+  /* TODO inline the check to see if RB, I or BL bits changed */
+  ir_call_2(ir, sr_updated, data, old_sr);
 }
 
 static struct ir_value *ir_load_t(struct ir *ir) {
-  return ir_and(ir, load_sr(), ir_alloc_i32(ir, T));
+  return ir_load_context(ir, offsetof(struct sh4_ctx, sr_t), VALUE_I32);
 }
 
 static void ir_store_t(struct sh4_frontend *frontend, struct ir *ir,
                        struct ir_value *v) {
-  struct ir_value *sr = load_sr();
-  struct ir_value *sr_t = ir_or(ir, sr, ir_alloc_i32(ir, T));
-  struct ir_value *sr_not = ir_and(ir, sr, ir_alloc_i32(ir, ~T));
-  struct ir_value *res = ir_select(ir, v, sr_t, sr_not);
-  store_sr(res, 0);
+  /* zext the results of ir_cmp_* */
+  if (v->type != VALUE_I32) {
+    v = ir_zext(ir, v, VALUE_I32);
+  }
+  ir_store_context(ir, offsetof(struct sh4_ctx, sr_t), v);
+}
+
+static struct ir_value *ir_load_s(struct ir *ir) {
+  return ir_load_context(ir, offsetof(struct sh4_ctx, sr_s), VALUE_I32);
+}
+
+static void ir_store_s(struct sh4_frontend *frontend, struct ir *ir,
+                       struct ir_value *v) {
+  CHECK_EQ(v->type, VALUE_I32);
+  ir_store_context(ir, offsetof(struct sh4_ctx, sr_s), v);
 }
 
 static struct ir_value *ir_load_gbr(struct ir *ir) {
@@ -609,6 +633,7 @@ EMITTER(ADDC) {
   struct ir_value *not_v = ir_not(ir, v);
   struct ir_value *carry = ir_and(ir, or_rnrm, not_v);
   carry = ir_or(ir, and_rnrm, carry);
+  carry = ir_lshri(ir, carry, 31);
   store_t(carry);
 }
 
@@ -624,7 +649,8 @@ EMITTER(ADDV) {
   /* compute overflow flag, taken from Hacker's Delight */
   struct ir_value *xor_vrn = ir_xor(ir, v, rn);
   struct ir_value *xor_vrm = ir_xor(ir, v, rm);
-  struct ir_value *overflow = ir_lshri(ir, ir_and(ir, xor_vrn, xor_vrm), 31);
+  struct ir_value *overflow = ir_and(ir, xor_vrn, xor_vrm);
+  overflow = ir_lshri(ir, overflow, 31);
   store_t(overflow);
 }
 
@@ -731,7 +757,8 @@ EMITTER(DIV0S) {
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_qm), ir_not(ir, qm));
 
   /* msb of Q ^ M -> T */
-  store_t(ir_lshri(ir, qm, 31));
+  struct ir_value *t = ir_lshri(ir, qm, 31);
+  store_t(t);
 }
 
 // code                 cycles  t-bit
@@ -740,8 +767,7 @@ EMITTER(DIV0S) {
 EMITTER(DIV0U) {
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_qm),
                    ir_alloc_i32(ir, 0x80000000));
-
-  store_sr(ir_and(ir, load_sr(), ir_alloc_i32(ir, ~T)), 0);
+  store_t(ir_alloc_i32(ir, 0));
 }
 
 // code                 cycles  t-bit
@@ -780,7 +806,8 @@ EMITTER(DIV1) {
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_qm), qm);
 
   /* set T to output bit (which happens to be Q == M) */
-  store_t(ir_lshri(ir, qm, 31));
+  struct ir_value *t = ir_lshri(ir, qm, 31);
+  store_t(t);
 }
 
 // DMULS.L Rm,Rn
@@ -893,6 +920,7 @@ EMITTER(NEGC) {
   struct ir_value *v = ir_sub(ir, ir_neg(ir, rm), t);
   store_gpr(i->Rn, v);
   struct ir_value *carry = ir_or(ir, t, rm);
+  carry = ir_lshri(ir, carry, 31);
   store_t(carry);
 }
 
@@ -916,6 +944,7 @@ EMITTER(SUBC) {
   struct ir_value *l = ir_and(ir, ir_not(ir, rn), rm);
   struct ir_value *r = ir_and(ir, ir_or(ir, ir_not(ir, rn), rm), v);
   struct ir_value *carry = ir_or(ir, l, r);
+  carry = ir_lshri(ir, carry, 31);
   store_t(carry);
 }
 
@@ -929,7 +958,8 @@ EMITTER(SUBV) {
   // compute overflow flag, taken from Hacker's Delight
   struct ir_value *xor_rnrm = ir_xor(ir, rn, rm);
   struct ir_value *xor_vrn = ir_xor(ir, v, rn);
-  struct ir_value *overflow = ir_lshri(ir, ir_and(ir, xor_rnrm, xor_vrn), 31);
+  struct ir_value *overflow = ir_and(ir, xor_rnrm, xor_vrn);
+  overflow = ir_lshri(ir, overflow, 31);
   store_t(overflow);
 }
 
@@ -1319,9 +1349,7 @@ EMITTER(CLRMAC) {
 }
 
 EMITTER(CLRS) {
-  struct ir_value *sr = load_sr();
-  sr = ir_and(ir, sr, ir_alloc_i32(ir, ~S));
-  store_sr(sr, 1);
+  store_s(ir_alloc_i32(ir, 0));
 }
 
 // code                 cycles  t-bit
@@ -1334,7 +1362,7 @@ EMITTER(CLRT) {
 // LDC     Rm,SR
 EMITTER(LDCSR) {
   struct ir_value *rm = load_gpr(i->Rm, VALUE_I32);
-  store_sr(rm, 1);
+  store_sr(rm);
 }
 
 // LDC     Rm,GBR
@@ -1378,7 +1406,7 @@ EMITTER(LDCRBANK) {
 EMITTER(LDCMSR) {
   struct ir_value *addr = load_gpr(i->Rm, VALUE_I32);
   struct ir_value *v = load_guest(addr, VALUE_I32);
-  store_sr(v, 1);
+  store_sr(v);
   /* reload Rm, sr store could have swapped banks */
   addr = load_gpr(i->Rm, VALUE_I32);
   addr = ir_add(ir, addr, ir_alloc_i32(ir, 4));
@@ -1524,15 +1552,14 @@ EMITTER(RTE) {
       ir_load_context(ir, offsetof(struct sh4_ctx, spc), VALUE_I32);
   struct ir_value *ssr =
       ir_load_context(ir, offsetof(struct sh4_ctx, ssr), VALUE_I32);
-  store_sr(ssr, 1);
+  store_sr(ssr);
   emit_delay_instr();
   branch(spc);
 }
 
 // SETS
 EMITTER(SETS) {
-  struct ir_value *sr = ir_or(ir, load_sr(), ir_alloc_i32(ir, S));
-  store_sr(sr, 1);
+  store_s(ir_alloc_i32(ir, 1));
 }
 
 // SETT

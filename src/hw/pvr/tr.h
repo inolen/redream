@@ -1,6 +1,9 @@
 #ifndef TR_H
 #define TR_H
 
+/* tile renderer code. responsible for parsing a raw tile_context into
+   draw commands to be passed to the supplied render backend */
+
 #include "core/rb_tree.h"
 #include "hw/pvr/ta_types.h"
 #include "video/render_backend.h"
@@ -12,10 +15,10 @@ typedef uint64_t texture_key_t;
 struct texture_entry {
   union tsp tsp;
   union tcw tcw;
+  unsigned frame;
+  int dirty;
 
   /* source info */
-  int frame;
-  int dirty;
   const uint8_t *texture;
   int texture_size;
   const uint8_t *palette;
@@ -39,40 +42,38 @@ struct texture_provider {
   struct texture_entry *(*find_texture)(void *, union tsp, union tcw);
 };
 
-/* debug structure which represents an individual tile parameter from a
-   tile_context. used to scrub through a frame param by param in the
-   tracer */
 struct render_param {
-  /* offset of parameter in input tile_context params */
+  /* offset of parameter in tile_context param stream */
   int offset;
   /* global list and vertex types at time of parsing */
   int list_type;
   int vertex_type;
-  /* surf and vert in output render_context */
-  struct surface *surf;
-  struct vertex *vert;
+  /* last surf / vert generated for the param */
+  int last_surf;
+  int last_vert;
 };
 
-/* represents a tile_context parsed into appropriate structures for the render
-   backend */
-struct render_context {
-  /* input / output buffers supplied by caller */
-  struct surface *surfs;
-  int surfs_size;
-
-  struct vertex *verts;
-  int verts_size;
-
-  int *sorted_surfs;
-  int sorted_surfs_size;
-
-  struct render_param *params;
-  int params_size;
-
-  /* output */
-  float projection[16];
+struct render_list {
+  int surfs[TA_MAX_SURFS];
   int num_surfs;
+};
+
+struct render_context {
+  /* transforms incoming windows space coordinates to ndc space */
+  float projection[16];
+
+  /* parsed surfaces and vertices, ready to be passed to the render backend */
+  struct surface surfs[TA_MAX_SURFS];
+  int num_surfs;
+
+  struct vertex verts[TA_MAX_VERTS];
   int num_verts;
+
+  /* sorted list of surfaces corresponding to each of the ta's polygon lists */
+  struct render_list lists[TA_NUM_LISTS];
+
+  /* debug structures for stepping through the param stream in the tracer */
+  struct render_param params[TA_MAX_PARAMS];
   int num_params;
 };
 
