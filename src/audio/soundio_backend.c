@@ -2,11 +2,14 @@
 #include "audio/audio_backend.h"
 #include "hw/aica/aica.h"
 
+DEFINE_OPTION_INT(latency, 100, "Set preferred audio latency in MS");
+
 struct audio_backend {
   struct aica *aica;
   struct SoundIo *soundio;
   struct SoundIoDevice *device;
   struct SoundIoOutStream *outstream;
+  uint32_t frames[AICA_SAMPLE_FREQ];
 };
 
 static void audio_write_callback(struct SoundIoOutStream *outstream,
@@ -16,10 +19,10 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
   struct SoundIoChannelArea *areas;
   int err;
 
-  uint32_t frames[10];
-  int16_t *samples = (int16_t *)frames;
+  int16_t *samples = (int16_t *)audio->frames;
   int frames_available = aica_available_frames(audio->aica);
-  int frames_remaining = MIN(frames_available, frame_count_max);
+  int frames_silence = frame_count_max - frames_available;
+  int frames_remaining = frames_available + frames_silence;
 
   while (frames_remaining > 0) {
     int frame_count = frames_remaining;
@@ -35,22 +38,28 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
     }
 
     for (int frame = 0; frame < frame_count;) {
-      /* batch read frames from aica */
-      int n = MIN(frame_count - frame, array_size(frames));
-      int read = aica_read_frames(audio->aica, frames, n);
-      CHECK_EQ(read, n);
+      int n = MIN(frame_count - frame, array_size(audio->frames));
+
+      if (frames_available > 0) {
+        /* batch read frames from aica */
+        n = aica_read_frames(audio->aica, audio->frames, n);
+        frames_available -= n;
+      } else {
+        /* write out silence */
+        memset(audio->frames, 0, n * sizeof(audio->frames[0]));
+      }
 
       /* copy frames to output stream */
       for (int channel = 0; channel < layout->channel_count; channel++) {
         struct SoundIoChannelArea *area = &areas[channel];
 
-        for (int i = 0; i < read; i++) {
+        for (int i = 0; i < n; i++) {
           int16_t *ptr = (int16_t *)(area->ptr + area->step * (frame + i));
           *ptr = samples[channel + 2 * i];
         }
       }
 
-      frame += read;
+      frame += n;
     }
 
     if ((err = soundio_outstream_end_write(outstream))) {
@@ -68,6 +77,12 @@ void audio_underflow_callback(struct SoundIoOutStream *outstream) {
 
 void audio_pump_events(struct audio_backend *audio) {
   soundio_flush_events(audio->soundio);
+}
+
+int audio_buffer_low(struct audio_backend *audio) {
+  int low_water_mark =
+      (int)((float)AICA_SAMPLE_FREQ * (OPTION_latency / 1000.0f));
+  return aica_available_frames(audio->aica) <= low_water_mark;
 }
 
 void audio_destroy(struct audio_backend *audio) {
@@ -137,10 +152,11 @@ struct audio_backend *audio_create(struct aica *aica) {
   {
     audio->outstream = soundio_outstream_create(audio->device);
     audio->outstream->format = SoundIoFormatS16NE;
-    audio->outstream->sample_rate = 44100;
+    audio->outstream->sample_rate = AICA_SAMPLE_FREQ;
     audio->outstream->userdata = audio;
     audio->outstream->write_callback = &audio_write_callback;
     audio->outstream->underflow_callback = &audio_underflow_callback;
+    audio->outstream->software_latency = OPTION_latency / 1000.0;
 
     if ((err = soundio_outstream_open(audio->outstream))) {
       LOG_WARNING("Error opening audio device: %s", soundio_strerror(err));

@@ -289,6 +289,9 @@ struct microprofile *mp_create(struct window *window) {
   /* render time / average time bars by default */
   g_MicroProfile.nBars |= MP_DRAW_TIMERS | MP_DRAW_AVERAGE | MP_DRAW_CALL_COUNT;
 
+  /* aggregate stats every 120 frames by default */
+  g_MicroProfile.nAggregateFlip = 120;
+
   /* register the font texture */
   mp->font_texture = rb_create_texture(
       rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE, WRAP_CLAMP_TO_EDGE, 0,

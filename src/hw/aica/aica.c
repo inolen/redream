@@ -14,10 +14,14 @@
 #include "ui/nuklear.h"
 
 DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
-
 DEFINE_AGGREGATE_COUNTER(aica_samples);
 
-#define AICA_SAMPLE_FREQ 44100
+#if 0
+#define LOG_AICA LOG_INFO
+#else
+#define LOG_AICA(...)
+#endif
+
 #define AICA_SAMPLE_BATCH 10
 #define AICA_NUM_CHANNELS 64
 
@@ -273,7 +277,7 @@ static void aica_channel_stop(struct aica *aica, struct aica_channel *ch) {
 
   ch->active = 0;
 
-  LOG_INFO("aica_channel_stop %d", ch - aica->channels);
+  LOG_AICA("aica_channel_stop %d", ch - aica->channels);
 }
 
 static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
@@ -287,7 +291,7 @@ static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
   ch->step = aica_channel_step(ch);
   ch->offset = 0;
 
-  LOG_INFO("aica_channel_start %d", ch - aica->channels);
+  LOG_AICA("aica_channel_start %d", ch - aica->channels);
 }
 
 static void aica_channel_update_key_state(struct aica *aica,
@@ -355,7 +359,7 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   if (pos > ch->data->LEA) {
     if (ch->data->LPCTL) {
       /* restart channel at LSA */
-      LOG_INFO("aica_channel_step %d restart", ch - aica->channels);
+      LOG_AICA("aica_channel_step %d restart", ch - aica->channels);
       ch->offset = ch->data->LSA << AICA_FNS_BITS;
       ch->looped = 1;
     } else {
