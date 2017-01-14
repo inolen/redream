@@ -40,7 +40,7 @@ const char *flash_bin_path() {
 
 static void flash_read_bin(int offset, void *buffer, int size) {
   const char *flash_path = flash_bin_path();
-  FILE *file = fopen(flash_path, "r");
+  FILE *file = fopen(flash_path, "rb");
   CHECK_NOTNULL(file, "Failed to open %s", flash_path);
   int r = fseek(file, offset, SEEK_SET);
   CHECK_NE(r, -1);
@@ -51,7 +51,7 @@ static void flash_read_bin(int offset, void *buffer, int size) {
 
 static void flash_write_bin(int offset, const void *buffer, int size) {
   const char *flash_path = flash_bin_path();
-  FILE *file = fopen(flash_path, "r+");
+  FILE *file = fopen(flash_path, "r+b");
   CHECK_NOTNULL(file, "Failed to open %s", flash_path);
   int r = fseek(file, offset, SEEK_SET);
   CHECK_NE(r, -1);
@@ -72,7 +72,7 @@ static int flash_init_bin() {
 
   LOG_INFO("Initializing flash rom from %s", OPTION_flash);
 
-  FILE *src = fopen(OPTION_flash, "r");
+  FILE *src = fopen(OPTION_flash, "rb");
   if (!src) {
     LOG_WARNING("Failed to load %s", OPTION_flash);
     return 0;
@@ -93,7 +93,7 @@ static int flash_init_bin() {
   fclose(src);
 
   /* and copy it to the app directory */
-  FILE *dst = fopen(flash_path, "w");
+  FILE *dst = fopen(flash_path, "wb");
   CHECK_NOTNULL("Failed to open %s", flash_path);
   int r = (int)fwrite(rom, 1, size, dst);
   CHECK_EQ(r, size);
