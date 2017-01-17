@@ -343,6 +343,7 @@ void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
 /* debug */
 void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,
                    uint32_t instr);
+void ir_debug_break(struct ir *ir);
 void ir_assert_lt(struct ir *ir, struct ir_value *a, struct ir_value *b);
 
 #endif
