@@ -1591,6 +1591,10 @@ EMITTER(CALL_FALLBACK) {
 
 EMITTER(DEBUG_INFO) {}
 
+EMITTER(DEBUG_BREAK) {
+  e.db(0xcc);
+}
+
 EMITTER(ASSERT_LT) {
   const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
   const Xbyak::Reg b = x64_backend_reg(backend, instr->arg[1]);
