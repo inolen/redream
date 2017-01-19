@@ -104,7 +104,17 @@ static int controller_input(struct maple_device *dev, enum keycode key,
   int button = ctrl->map[key];
 
   /* scale incoming int16_t -> uint8_t */
-  uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
+  uint8_t scaled;
+  /* Special case for keyboard triggers */
+  if ( (key == 'o') || (key == 'p') ) {
+    if( value == 0 ) {
+      scaled = 0;
+    } else {
+      scaled = 255;
+    }
+  } else {
+    scaled = ((int32_t)value - INT16_MIN) >> 8;
+  }
 
   if (!button) {
     return 0;
@@ -121,6 +131,7 @@ static int controller_input(struct maple_device *dev, enum keycode key,
   } else if (button == CONT_JOYY) {
     ctrl->cnd.joyy = scaled;
   } else if (button == CONT_LTRIG) {
+    LOG_INFO("Scaled=%i",scaled);
     ctrl->cnd.ltrig = scaled;
   } else if (button == CONT_RTRIG) {
     ctrl->cnd.rtrig = scaled;
@@ -191,6 +202,8 @@ struct maple_device *controller_create(int port, int unit) {
   ctrl->map['l'] = CONT_B;
   ctrl->map['j'] = CONT_X;
   ctrl->map['i'] = CONT_Y;
+  ctrl->map['o'] = CONT_LTRIG;
+  ctrl->map['p'] = CONT_RTRIG;
   ctrl->map['w'] = CONT_DPAD_UP;
   ctrl->map['s'] = CONT_DPAD_DOWN;
   ctrl->map['a'] = CONT_DPAD_LEFT;
