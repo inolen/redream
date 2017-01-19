@@ -215,7 +215,8 @@ int memory_init(struct memory *memory) {
   list_for_each_entry(dev, &memory->dc->devices, struct device, it) {
     if (dev->memory_if) {
       /* create the actual address map */
-      struct address_map map = {0};
+      struct address_map map;
+      memset(&map,0,sizeof(struct address_map));
       dev->memory_if->mapper(dev, memory->dc, &map);
 
       /* apply the map to create the address space */
@@ -497,7 +498,8 @@ static void as_merge_map(struct address_space *space,
         } break;
 
         case MAP_ENTRY_DEVICE: {
-          struct address_map device_map = {0};
+          struct address_map device_map;
+          memset(&device_map,0,sizeof(struct address_map));
           entry->device.mapper(entry->device.device, space->dc, &device_map);
 
           as_merge_map(space, &device_map, addr);
