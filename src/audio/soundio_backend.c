@@ -81,7 +81,7 @@ void audio_pump_events(struct audio_backend *audio) {
 
 int audio_buffer_low(struct audio_backend *audio) {
   int low_water_mark =
-      (int)((float)AICA_SAMPLE_FREQ * (OPTION_latency / 1000.0f));
+      (int)((float)AICA_SAMPLE_FREQ * (audio->outstream->software_latency));
   return aica_available_frames(audio->aica) <= low_water_mark;
 }
 
