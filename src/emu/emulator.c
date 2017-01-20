@@ -23,7 +23,7 @@ struct emu {
   struct window *window;
   struct window_listener listener;
   struct dreamcast *dc;
-  int running;
+  volatile int running;
 
   /* render state */
   struct tr *tr;
@@ -149,6 +149,7 @@ static void *emu_core_thread(void *data) {
 
   if (!audio) {
     LOG_WARNING("Audio backend creation failed");
+    emu->running = 0;
     return 0;
   }
 
@@ -157,7 +158,7 @@ static void *emu_core_thread(void *data) {
   int64_t next_pump_time = 0;
 
   while (emu->running) {
-    while (audio_buffer_low(audio)) {
+    while (audio_buffer_low(audio) && emu->running) {
       dc_tick(emu->dc, MACHINE_STEP);
 
       current_time = time_nanoseconds();
@@ -173,6 +174,8 @@ static void *emu_core_thread(void *data) {
   }
 
   audio_destroy(audio);
+
+  emu->running = 0;
 
   return 0;
 }
