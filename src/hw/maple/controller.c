@@ -111,7 +111,7 @@ static int controller_input(struct maple_device *dev, enum keycode key,
   }
 
   if (button <= CONT_DPAD2_RIGHT) {
-    if (value) {
+    if (value > 0) {
       ctrl->cnd.buttons &= ~button;
     } else {
       ctrl->cnd.buttons |= button;
@@ -191,6 +191,8 @@ struct maple_device *controller_create(int port, int unit) {
   ctrl->map['l'] = CONT_B;
   ctrl->map['j'] = CONT_X;
   ctrl->map['i'] = CONT_Y;
+  ctrl->map['o'] = CONT_LTRIG;
+  ctrl->map['p'] = CONT_RTRIG;
   ctrl->map['w'] = CONT_DPAD_UP;
   ctrl->map['s'] = CONT_DPAD_DOWN;
   ctrl->map['a'] = CONT_DPAD_LEFT;
