@@ -263,6 +263,16 @@ enum keycode {
   K_AXIS13,
   K_AXIS14,
   K_AXIS15,
+  K_AXIS16,
+  K_AXIS17,
+  K_AXIS18,
+  K_AXIS19,
+  K_AXIS20,
+  K_AXIS21,
+  K_AXIS22,
+  K_AXIS23,
+  K_AXIS24,
+  K_AXIS25,
 
   K_NUM_KEYS
 };

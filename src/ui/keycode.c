@@ -316,7 +316,17 @@ static struct key keys[] = {{K_UNKNOWN, "unknown"},
                             {K_AXIS12, "axis12"},
                             {K_AXIS13, "axis13"},
                             {K_AXIS14, "axis14"},
-                            {K_AXIS15, "axis15"}};
+                            {K_AXIS15, "axis15"},
+                            {K_AXIS16, "axis16"},
+                            {K_AXIS17, "axis17"},
+                            {K_AXIS18, "axis18"},
+                            {K_AXIS19, "axis19"},
+                            {K_AXIS20, "axis20"},
+                            {K_AXIS21, "axis21"},
+                            {K_AXIS22, "axis22"},
+                            {K_AXIS23, "axis23"},
+                            {K_AXIS24, "axis24"},
+                            {K_AXIS25, "axis25"}};
 
 enum keycode get_key_by_name(const char *keyname) {
   char buffer[256] = {0};
