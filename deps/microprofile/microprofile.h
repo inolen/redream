@@ -531,7 +531,7 @@ typedef int MpSocket;
 #if defined(__APPLE__) || defined(__linux__)
 typedef pthread_t MicroProfileThread;
 #elif defined(_WIN32)
-#if _MSC_VER == 1900
+#if _MSC_VER >= 1900
 typedef void * HANDLE;
 #endif
 
