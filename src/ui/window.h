@@ -22,7 +22,7 @@ struct SDL_Window;
 
 #define MAX_JOYSTICKS 4
 
-#define NUM_JOYSTICK_AXES ((K_AXIS15 - K_AXIS0) + 1)
+#define NUM_JOYSTICK_AXES ((K_AXIS25 - K_AXIS0) + 1)
 #define NUM_JOYSTICK_KEYS ((K_JOY31 - K_JOY0) + 1)
 #define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
 
