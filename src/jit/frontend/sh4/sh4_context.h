@@ -79,7 +79,6 @@ struct sh4_ctx {
   uint32_t fpul, mach, macl;
   uint32_t sgr, spc, ssr;
   uint64_t pending_interrupts;
-  uint8_t cache[0x2000];
   uint32_t sq[2][8];
 
   /* the main dispatch loop is ran until remaining_cycles is <= 0 */
@@ -87,6 +86,8 @@ struct sh4_ctx {
 
   /* debug information */
   int64_t ran_instrs;
+
+  uint8_t cache[0x2000];
 };
 
 #endif
