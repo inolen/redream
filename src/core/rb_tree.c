@@ -1,20 +1,20 @@
 #include "core/rb_tree.h"
 #include "core/assert.h"
 
-//#define VERIFY_TREE 1
+#define VERIFY_TREE 0
 
 static enum rb_color rb_color(struct rb_node *n) {
   return n ? n->color : RB_BLACK;
 }
 
 static struct rb_node *rb_grandparent(struct rb_node *n) {
-  CHECK_NOTNULL(n->parent);          // not the root node
-  CHECK_NOTNULL(n->parent->parent);  // not child of root
+  CHECK_NOTNULL(n->parent, "not the root node");
+  CHECK_NOTNULL(n->parent->parent, "not child of root");
   return n->parent->parent;
 }
 
 static struct rb_node *rb_sibling(struct rb_node *n) {
-  CHECK_NOTNULL(n->parent);  // root node has no sibling
+  CHECK_NOTNULL(n->parent, "root node has no sibling");
   if (n == n->parent->left) {
     return n->parent->right;
   } else {
@@ -23,8 +23,8 @@ static struct rb_node *rb_sibling(struct rb_node *n) {
 }
 
 static struct rb_node *rb_uncle(struct rb_node *n) {
-  CHECK_NOTNULL(n->parent);          // root node has no uncle
-  CHECK_NOTNULL(n->parent->parent);  // children of root have no uncle
+  CHECK_NOTNULL(n->parent, "root node has no uncle");
+  CHECK_NOTNULL(n->parent->parent, "children of root have no uncle");
   return rb_sibling(n->parent);
 }
 
@@ -42,11 +42,11 @@ static struct rb_node *rb_max(struct rb_node *n) {
   return n;
 }
 
-// All paths from any given node to its leaf nodes contain the same number of
-// black nodes. This one is the trickiest to verify; we do it by traversing
-// the tree, incrementing a black node count as we go. The first time we reach
-// a leaf we save the count. We return the count so that when we subsequently
-// reach other leaves, we compare the count to the saved count.
+/* All paths from any given node to its leaf nodes contain the same number of
+   black nodes. This one is the trickiest to verify; we do it by traversing
+   the tree, incrementing a black node count as we go. The first time we reach
+   a leaf we save the count. We return the count so that when we subsequently
+   reach other leaves, we compare the count to the saved count. */
 static int rb_verify_3(struct rb_node *n, int black_count,
                        int path_black_count) {
   if (rb_color(n) == RB_BLACK) {
@@ -68,8 +68,8 @@ static int rb_verify_3(struct rb_node *n, int black_count,
   return path_black_count;
 }
 
-// Every red node has two children, and both are black (or equivalently, the
-// parent of every red node is black).
+/* Every red node has two children, and both are black (or equivalently, the
+   parent of every red node is black). */
 static void rb_verify_2(struct rb_node *n) {
   if (!n) {
     return;
@@ -116,12 +116,12 @@ static void rb_swap_node(struct rb_tree *t, struct rb_node *a,
                          struct rb_node *b) {
   struct rb_node tmp = *a;
 
-  // note, swapping pointers is complicated by the case where a parent is
-  // being swapped with its child, for example:
-  //   a  ->    b
-  // b        a
-  // in this case, swap(a, b) would result in a->parent == a, when it
-  // should be b
+  /* note, swapping pointers is complicated by the case where a parent is
+     being swapped with its child, for example:
+       a  ->    b
+     b        a
+     in this case, swap(a, b) would result in a->parent == a, when it
+     should be b */
   if ((a->parent = b->parent == a ? b : b->parent)) {
     if (a->parent->left == b) {
       a->parent->left = a;
@@ -157,9 +157,9 @@ static void rb_swap_node(struct rb_tree *t, struct rb_node *a,
   b->color = tmp.color;
 }
 
-//  n          r
-//    r  ->  n
-//  l          l
+/*  n          r
+      r  ->  n
+    l          l */
 static void rb_rotate_left(struct rb_tree *t, struct rb_node *n,
                            struct rb_callbacks *cb) {
   struct rb_node *r = n->right;
@@ -176,9 +176,9 @@ static void rb_rotate_left(struct rb_tree *t, struct rb_node *n,
   }
 }
 
-//   n         l
-// l      ->     n
-//   r         r
+/*   n         l
+   l      ->     n
+     r         r */
 static void rb_rotate_right(struct rb_tree *t, struct rb_node *n,
                             struct rb_callbacks *cb) {
   struct rb_node *l = n->left;
@@ -196,15 +196,15 @@ static void rb_rotate_right(struct rb_tree *t, struct rb_node *n,
   }
 }
 
-// In this final case, we deal with two cases that are mirror images of one
-// another:
-// * The new node is the left child of its parent and the parent is the left
-// child of the grandparent. In this case we rotate right about the
-// grandparent.
-// * The new node is the right child of its parent and the parent is the right
-// child of the grandparent. In this case we rotate left about the
-// grandparent.
-// Now the properties are satisfied and all cases have been covered.
+/* In this final case, we deal with two cases that are mirror images of one
+   another:
+   * The new node is the left child of its parent and the parent is the left
+   child of the grandparent. In this case we rotate right about the
+   grandparent.
+   * The new node is the right child of its parent and the parent is the right
+   child of the grandparent. In this case we rotate left about the
+   grandparent.
+   Now the properties are satisfied and all cases have been covered. */
 static void rb_link_5(struct rb_tree *t, struct rb_node *n,
                       struct rb_callbacks *cb) {
   n->parent->color = RB_BLACK;
@@ -217,13 +217,13 @@ static void rb_link_5(struct rb_tree *t, struct rb_node *n,
   }
 }
 
-// In this case, we deal with two cases that are mirror images of one another:
-// * The new node is the right child of its parent and the parent is the left
-// child of the grandparent. In this case we rotate left about the parent.
-// * The new node is the left child of its parent and the parent is the right
-// child of the grandparent. In this case we rotate right about the parent.
-// Neither of these fixes the properties, but they put the tree in the correct
-// form to apply case 5.
+/* In this case, we deal with two cases that are mirror images of one another:
+   * The new node is the right child of its parent and the parent is the left
+   child of the grandparent. In this case we rotate left about the parent.
+   * The new node is the left child of its parent and the parent is the right
+   child of the grandparent. In this case we rotate right about the parent.
+   Neither of these fixes the properties, but they put the tree in the correct
+   form to apply case 5. */
 static void rb_link_4(struct rb_tree *t, struct rb_node *n,
                       struct rb_callbacks *cb) {
   if (n == n->parent->right && n->parent == rb_grandparent(n)->left) {
@@ -237,10 +237,10 @@ static void rb_link_4(struct rb_tree *t, struct rb_node *n,
   rb_link_5(t, n, cb);
 }
 
-// In this case, the uncle node is red. We recolor the parent and uncle black
-// and the grandparent red. However, the red grandparent node may now violate
-// the red-black tree properties; we recursively invoke this procedure on it
-// from case 1 to deal with this.
+/* In this case, the uncle node is red. We recolor the parent and uncle black
+   and the grandparent red. However, the red grandparent node may now violate
+   the red-black tree properties; we recursively invoke this procedure on it
+   from case 1 to deal with this. */
 static void rb_link_1(struct rb_tree *t, struct rb_node *n,
                       struct rb_callbacks *cb);
 
@@ -257,21 +257,22 @@ static void rb_link_3(struct rb_tree *t, struct rb_node *n,
   rb_link_4(t, n, cb);
 }
 
-// In this case, the new node has a black parent. All the properties are still
-// satisfied and we return.
+/* In this case, the new node has a black parent. All the properties are still
+   satisfied and we return. */
 static void rb_link_2(struct rb_tree *t, struct rb_node *n,
                       struct rb_callbacks *cb) {
   if (rb_color(n->parent) == RB_BLACK) {
-    return;  // tree is still valid
+    /* tree is still valid */
+    return;
   }
 
   rb_link_3(t, n, cb);
 }
 
-// In this case, the new node is now the root node of the tree. Since the root
-// node must be black, and changing its color adds the same number of black
-// nodes to every path, we simply recolor it black. Because only the root node
-// has no parent, we can assume henceforth that the node has a parent.
+/* In this case, the new node is now the root node of the tree. Since the root
+   node must be black, and changing its color adds the same number of black
+   nodes to every path, we simply recolor it black. Because only the root node
+   has no parent, we can assume henceforth that the node has a parent. */
 static void rb_link_1(struct rb_tree *t, struct rb_node *n,
                       struct rb_callbacks *cb) {
   if (!n->parent) {
@@ -281,24 +282,24 @@ static void rb_link_1(struct rb_tree *t, struct rb_node *n,
   rb_link_2(t, n, cb);
 }
 
-// There are two cases handled here which are mirror images of one another:
-// * N's sibling S is black, S's right child is red, and N is the left child
-// of its parent. We exchange the colors of N's parent and sibling, make S's
-// right child black, then rotate left at N's parent.
-// * N's sibling S is black, S's left child is red, and N is the right child
-// of its parent. We exchange the colors of N's parent and sibling, make S's
-// left child black, then rotate right at N's parent.
-//
-// This accomplishes three things at once:
-// * We add a black node to all paths through N, either by adding a black S to
-// those paths or by recoloring N's parent black.
-// * We remove a black node from all paths through S's red child, either by
-// removing P from those paths or by recoloring S.
-// * We recolor S's red child black, adding a black node back to all paths
-// through S's red child.
-//
-// S's left child has become a child of N's parent during the rotation and so
-// is unaffected.
+/* There are two cases handled here which are mirror images of one another:
+   * N's sibling S is black, S's right child is red, and N is the left child
+   of its parent. We exchange the colors of N's parent and sibling, make S's
+   right child black, then rotate left at N's parent.
+   * N's sibling S is black, S's left child is red, and N is the right child
+   of its parent. We exchange the colors of N's parent and sibling, make S's
+   left child black, then rotate right at N's parent.
+
+   This accomplishes three things at once:
+   * We add a black node to all paths through N, either by adding a black S to
+   those paths or by recoloring N's parent black.
+   * We remove a black node from all paths through S's red child, either by
+   removing P from those paths or by recoloring S.
+   * We recolor S's red child black, adding a black node back to all paths
+   through S's red child.
+
+   S's left child has become a child of N's parent during the rotation and so
+   is unaffected. */
 static void rb_unlink_6(struct rb_tree *t, struct rb_node *n,
                         struct rb_callbacks *cb) {
   rb_sibling(n)->color = rb_color(n->parent);
@@ -314,14 +315,14 @@ static void rb_unlink_6(struct rb_tree *t, struct rb_node *n,
   }
 }
 
-// There are two cases handled here which are mirror images of one another:
-// * N's sibling S is black, S's left child is red, S's right child is black,
-// and N is the left child of its parent. We exchange the colors of S and its
-// left sibling and rotate right at S.
-// * N's sibling S is black, S's right child is red, S's left child is black,
-// and N is the right child of its parent. We exchange the colors of S and its
-// right sibling and rotate left at S.
-// Both of these function to reduce us to the situation described in case 6.
+/* There are two cases handled here which are mirror images of one another:
+   * N's sibling S is black, S's left child is red, S's right child is black,
+   and N is the left child of its parent. We exchange the colors of S and its
+   left sibling and rotate right at S.
+   * N's sibling S is black, S's right child is red, S's left child is black,
+   and N is the right child of its parent. We exchange the colors of S and its
+   right sibling and rotate left at S.
+   Both of these function to reduce us to the situation described in case 6. */
 static void rb_unlink_5(struct rb_tree *t, struct rb_node *n,
                         struct rb_callbacks *cb) {
   if (n == n->parent->left && rb_color(rb_sibling(n)) == RB_BLACK &&
@@ -341,9 +342,9 @@ static void rb_unlink_5(struct rb_tree *t, struct rb_node *n,
   rb_unlink_6(t, n, cb);
 }
 
-// N's sibling and sibling's children are black, but its parent is red. We
-// exchange the colors of the sibling and parent; this restores the tree
-// properties.
+/* N's sibling and sibling's children are black, but its parent is red. We
+   exchange the colors of the sibling and parent; this restores the tree
+   properties. */
 static void rb_unlink_4(struct rb_tree *t, struct rb_node *n,
                         struct rb_callbacks *cb) {
   if (rb_color(n->parent) == RB_RED && rb_color(rb_sibling(n)) == RB_BLACK &&
@@ -357,10 +358,10 @@ static void rb_unlink_4(struct rb_tree *t, struct rb_node *n,
   rb_unlink_5(t, n, cb);
 }
 
-// In this case N's parent, sibling, and sibling's children are black. In this
-// case we paint the sibling red. Now all paths passing through N's parent
-// have one less black node than before the deletion, so we must recursively
-// run this procedure from case 1 on N's parent.
+/* In this case N's parent, sibling, and sibling's children are black. In this
+   case we paint the sibling red. Now all paths passing through N's parent
+   have one less black node than before the deletion, so we must recursively
+   run this procedure from case 1 on N's parent. */
 static void rb_unlink_1(struct rb_tree *t, struct rb_node *n,
                         struct rb_callbacks *cb);
 
@@ -377,10 +378,10 @@ static void rb_unlink_3(struct rb_tree *t, struct rb_node *n,
   rb_unlink_4(t, n, cb);
 }
 
-// N has a red sibling. In this case we exchange the colors of the parent and
-// sibling, then rotate about the parent so that the sibling becomes the
-// parent of its former parent. This does not restore the tree properties, but
-// reduces the problem to one of the remaining cases.
+/* N has a red sibling. In this case we exchange the colors of the parent and
+   sibling, then rotate about the parent so that the sibling becomes the
+   parent of its former parent. This does not restore the tree properties, but
+   reduces the problem to one of the remaining cases. */
 static void rb_unlink_2(struct rb_tree *t, struct rb_node *n,
                         struct rb_callbacks *cb) {
   if (rb_color(rb_sibling(n)) == RB_RED) {
@@ -396,8 +397,8 @@ static void rb_unlink_2(struct rb_tree *t, struct rb_node *n,
   rb_unlink_3(t, n, cb);
 }
 
-// In this case, N has become the root node. The deletion removed one black
-// node from every path, so no properties are violated.
+/* In this case, N has become the root node. The deletion removed one black
+   node from every path, so no properties are violated. */
 static void rb_unlink_1(struct rb_tree *t, struct rb_node *n,
                         struct rb_callbacks *cb) {
   if (!n->parent) {
@@ -408,45 +409,47 @@ static void rb_unlink_1(struct rb_tree *t, struct rb_node *n,
 }
 
 void rb_link(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {
-  // reset internal node state
+  /* reset node state other than the parent the node is to be linked to */
   n->left = NULL;
   n->right = NULL;
   n->color = RB_RED;
 
-  // set initial root
+  /* set initial root */
   if (!t->root) {
     t->root = n;
   }
 
-  // adjust tree, starting at the newly inserted node, to satisfy the
-  // properties of a valid red-black tree
+  /* adjust tree, starting at the newly inserted node, to satisfy the
+     properties of a valid red-black tree */
   rb_link_1(t, n, cb);
 
-  // force root to black
+  /* force root to black */
   t->root->color = RB_BLACK;
 
-  // fix up each node in the chain
+  /* fix up each node in the chain */
   if (cb && cb->propagate) {
     cb->propagate(t, n);
   }
 
-#ifdef VERIFY_TREE
+#if VERIFY_TREE
   rb_verify(t->root);
 #endif
 }
 
 void rb_unlink(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {
-  // when deleting a node with two non-leaf children, we swap the node with
-  // its in-order predecessor (the maximum or rightmost element in the left
-  // subtree), and then delete the original node which now has only one
-  // non-leaf child
+  CHECK(!rb_empty_node(n));
+
+  /* when deleting a node with two non-leaf children, we swap the node with
+     its in-order predecessor (the maximum or rightmost element in the left
+     subtree), and then delete the original node which now has only one
+     non-leaf child */
   if (n->left && n->right) {
     struct rb_node *pred = rb_max(n->left);
     rb_swap_node(t, n, pred);
   }
 
-  // a node with at most one non-leaf child can simply be replaced with its
-  // non-leaf child
+  /* a node with at most one non-leaf child can simply be replaced with its
+     non-leaf child */
   CHECK(!n->left || !n->right);
   struct rb_node *child = n->right ? n->right : n->left;
   if (rb_color(n) == RB_BLACK) {
@@ -454,24 +457,27 @@ void rb_unlink(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {
   }
   rb_replace_node(t, n, child);
 
-  // force root to black
+  /* force root to black */
   if (t->root) {
     t->root->color = RB_BLACK;
   }
 
-  // fix up each node in the parent chain
+  /* fix up each node in the parent chain */
   if (cb && cb->propagate) {
     cb->propagate(t, n->parent);
   }
 
-#ifdef VERIFY_TREE
+  /* clear node state to support rb_empty_node */
+  memset(n, 0, sizeof(*n));
+
+#if VERIFY_TREE
   rb_verify(t->root);
 #endif
 }
 
 void rb_insert(struct rb_tree *t, struct rb_node *n, struct rb_callbacks *cb) {
-  // insert node into the correct location in the tree, then link it in to
-  // recolor the tree
+  /* insert node into the correct location in the tree, then link it in to
+     recolor the tree */
   struct rb_node *parent = t->root;
 
   while (parent) {
@@ -549,11 +555,11 @@ struct rb_node *rb_prev(struct rb_node *n) {
   }
 
   if (n->left) {
-    // prev element is the largest element in the left subtree
+    /* prev element is the largest element in the left subtree */
     n = rb_max(n->left);
   } else {
-    // prev element is the next smallest element upwards. walk up
-    // until we go left
+    /* prev element is the next smallest element upwards. walk up
+       until we go left */
     struct rb_node *last = n;
 
     n = n->parent;
@@ -573,11 +579,11 @@ struct rb_node *rb_next(struct rb_node *n) {
   }
 
   if (n->right) {
-    // next element is the the smallest element in the right subtree
+    /* next element is the the smallest element in the right subtree */
     n = rb_min(n->right);
   } else {
-    // next element is the next largest element upwards. walk up until
-    // we go right
+    /* next element is the next largest element upwards. walk up until
+       we go right */
     struct rb_node *last = n;
 
     n = n->parent;
