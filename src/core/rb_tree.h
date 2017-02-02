@@ -41,6 +41,9 @@ struct rb_node *rb_last(struct rb_tree *t);
 struct rb_node *rb_prev(struct rb_node *n);
 struct rb_node *rb_next(struct rb_node *n);
 
+#define rb_empty_node(n) \
+  (!(n)->parent && (n)->color != RB_BLACK)
+
 #define rb_for_each(it, t) \
   for (struct rb_node *it = rb_first((t)); it; it = rb_next(it))
 
