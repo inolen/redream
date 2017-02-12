@@ -149,8 +149,6 @@ static void *emu_core_thread(void *data) {
 
   if (!audio) {
     LOG_WARNING("Audio backend creation failed");
-    emu->running = 0;
-    return 0;
   }
 
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
@@ -167,13 +165,13 @@ static void *emu_core_thread(void *data) {
 
       /* audio events are just for device connections, check infrequently */
       if (current_time > next_pump_time) {
-        audio_pump_events(audio);
+        if (audio != NULL) audio_pump_events(audio);
         next_pump_time = current_time + NS_PER_SEC;
       }
     }
   }
 
-  audio_destroy(audio);
+  if (audio != NULL) audio_destroy(audio);
 
   emu->running = 0;
 
