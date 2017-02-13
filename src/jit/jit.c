@@ -337,11 +337,11 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   }
 
   /* run optimization passes */
-  lse_run(&ir);
-  cprop_run(&ir);
-  esimp_run(&ir);
-  dce_run(&ir);
-  ra_run(&ir, jit->backend->registers, jit->backend->num_registers);
+  lse_run(jit->lse, &ir);
+  cprop_run(jit->cprop, &ir);
+  esimp_run(jit->esimp, &ir);
+  dce_run(jit->dce, &ir);
+  ra_run(jit->ra, &ir);
 
   /* assemble the ir into native code */
   int host_size = 0;
@@ -399,6 +399,12 @@ int jit_init(struct jit *jit, struct jit_guest *guest,
   jit->backend = backend;
   jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
 
+  jit->lse = lse_create();
+  jit->cprop = cprop_create();
+  jit->esimp = esimp_create();
+  jit->dce = dce_create();
+  jit->ra = ra_create(jit->backend->registers, jit->backend->num_registers);
+
   /* open perf map if enabled */
   if (OPTION_perf) {
 #if PLATFORM_DARWIN || PLATFORM_LINUX
@@ -422,6 +428,22 @@ void jit_destroy(struct jit *jit) {
 
   if (jit->backend) {
     jit_free_blocks(jit);
+  }
+
+  if (jit->dce) {
+    dce_destroy(jit->dce);
+  }
+
+  if (jit->esimp) {
+    esimp_destroy(jit->esimp);
+  }
+
+  if (jit->cprop) {
+    cprop_destroy(jit->cprop);
+  }
+
+  if (jit->lse) {
+    lse_destroy(jit->lse);
   }
 
   if (jit->exc_handler) {

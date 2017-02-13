@@ -80,21 +80,19 @@ static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
   }
 }
 
-void lse_run(struct ir *ir) {
-  struct lse lse;
-
+void lse_run(struct lse *lse, struct ir *ir) {
   /* eliminate redundant loads */
   {
-    lse_clear_available(&lse);
+    lse_clear_available(lse);
 
     list_for_each_entry_safe(instr, &ir->instrs, struct ir_instr, it) {
       if (instr->op == OP_LABEL) {
-        lse_clear_available(&lse);
+        lse_clear_available(lse);
       } else if (instr->op == OP_LOAD_CONTEXT) {
         /* if there is already a value available for this offset, reuse it and
            remove this redundant load */
         int offset = instr->arg[0]->i32;
-        struct ir_value *available = lse_get_available(&lse, offset);
+        struct ir_value *available = lse_get_available(lse, offset);
 
         if (available && available->type == instr->result->type) {
           ir_replace_uses(instr->result, available);
@@ -105,33 +103,33 @@ void lse_run(struct ir *ir) {
           continue;
         }
 
-        lse_set_available(&lse, offset, instr->result);
+        lse_set_available(lse, offset, instr->result);
       } else if (instr->op == OP_STORE_CONTEXT) {
         int offset = instr->arg[0]->i32;
 
         /* mark the value being stored as available */
-        lse_set_available(&lse, offset, instr->arg[1]);
+        lse_set_available(lse, offset, instr->arg[1]);
       }
     }
   }
 
   /* eliminate dead stores */
   {
-    lse_clear_available(&lse);
+    lse_clear_available(lse);
 
     list_for_each_entry_safe_reverse(instr, &ir->instrs, struct ir_instr, it) {
       if (instr->op == OP_LABEL) {
-        lse_clear_available(&lse);
+        lse_clear_available(lse);
       } else if (instr->op == OP_LOAD_CONTEXT) {
         int offset = instr->arg[0]->i32;
         int size = ir_type_size(instr->result->type);
 
-        lse_erase_available(&lse, offset, size);
+        lse_erase_available(lse, offset, size);
       } else if (instr->op == OP_STORE_CONTEXT) {
         /* if subsequent stores have been made for this offset that would
            overwrite it completely, mark instruction as dead */
         int offset = instr->arg[0]->i32;
-        struct ir_value *available = lse_get_available(&lse, offset);
+        struct ir_value *available = lse_get_available(lse, offset);
         int available_size = available ? ir_type_size(available->type) : 0;
         int store_size = ir_type_size(instr->arg[1]->type);
 
@@ -143,8 +141,17 @@ void lse_run(struct ir *ir) {
           continue;
         }
 
-        lse_set_available(&lse, offset, instr->arg[1]);
+        lse_set_available(lse, offset, instr->arg[1]);
       }
     }
   }
+}
+
+void lse_destroy(struct lse *lse) {
+  free(lse);
+}
+
+struct lse *lse_create() {
+  struct lse *lse = calloc(1, sizeof(struct lse));
+  return lse;
 }

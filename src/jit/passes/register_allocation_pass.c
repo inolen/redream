@@ -284,10 +284,9 @@ static void ra_assign_ordinals(struct ir *ir) {
   }
 }
 
-static void ra_reset(struct ra *ra, const struct jit_register *registers,
-                     int num_registers) {
-  ra->registers = registers;
-  ra->num_registers = num_registers;
+static void ra_reset(struct ra *ra) {
+  list_clear(&ra->dead_intervals);
+  list_clear(&ra->live_intervals);
 
   /* add a dead interval for each available register */
   for (int i = 0; i < ra->num_registers; i++) {
@@ -297,11 +296,9 @@ static void ra_reset(struct ra *ra, const struct jit_register *registers,
   }
 }
 
-void ra_run(struct ir *ir, const struct jit_register *registers,
-            int num_registers) {
-  struct ra ra = {0};
+void ra_run(struct ra *ra, struct ir *ir) {
+  ra_reset(ra);
 
-  ra_reset(&ra, registers, num_registers);
   ra_assign_ordinals(ir);
 
   list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
@@ -318,20 +315,33 @@ void ra_run(struct ir *ir, const struct jit_register *registers,
     list_sort(&result->uses, &ra_use_cmp);
 
     /* expire any old intervals, freeing up the registers they claimed */
-    ra_expire_intervals(&ra, instr);
+    ra_expire_intervals(ra, instr);
 
     /* first, try and reuse the register of one of the incoming arguments */
-    const struct jit_register *reg = ra_reuse_arg_register(&ra, ir, instr);
+    const struct jit_register *reg = ra_reuse_arg_register(ra, ir, instr);
     if (!reg) {
       /* else, allocate a new register for the result */
-      reg = ra_alloc_free_register(&ra, instr);
+      reg = ra_alloc_free_register(ra, instr);
       if (!reg) {
         /* if a register couldn't be allocated, spill and try again */
-        reg = ra_alloc_blocked_register(&ra, ir, instr);
+        reg = ra_alloc_blocked_register(ra, ir, instr);
       }
     }
 
     CHECK_NOTNULL(reg, "Failed to allocate register");
-    result->reg = (int)(reg - ra.registers);
+    result->reg = (int)(reg - ra->registers);
   }
+}
+
+void ra_destroy(struct ra *ra) {
+  free(ra);
+}
+
+struct ra *ra_create(const struct jit_register *registers, int num_registers) {
+  struct ra *ra = calloc(1, sizeof(struct ra));
+
+  ra->registers = registers;
+  ra->num_registers = num_registers;
+
+  return ra;
 }

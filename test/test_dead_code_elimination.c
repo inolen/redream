@@ -65,7 +65,9 @@ TEST(dead_code_elimination) {
   fclose(input);
   CHECK(res);
 
-  dce_run(&ir);
+  struct dce *dce = dce_create();
+  dce_run(dce, &ir);
+  dce_destroy(dce);
 
   FILE *output = tmpfile();
   ir_write(&ir, output);
