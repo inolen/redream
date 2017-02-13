@@ -7,7 +7,7 @@ DEFINE_STAT(zero_properties_removed, "zero properties removed");
 DEFINE_STAT(zero_identities_removed, "zero identities removed");
 DEFINE_STAT(one_identities_removed, "one identities removed");
 
-void esimp_run(struct ir *ir) {
+void esimp_run(struct esimp *esimp, struct ir *ir) {
   list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
     /* simplify bitwise identities with identical inputs */
     if (instr->op == OP_XOR && instr->arg[0] == instr->arg[1]) {
@@ -55,4 +55,10 @@ void esimp_run(struct ir *ir) {
       }
     }
   }
+}
+
+void esimp_destroy(struct esimp *esimp) {}
+
+struct esimp *esimp_create() {
+  return NULL;
 }

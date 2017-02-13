@@ -2,7 +2,10 @@
 #define LOAD_STORE_ELIMINATION_PASS_H
 
 struct ir;
+struct lse;
 
-void lse_run(struct ir *ir);
+struct lse *lse_create();
+void lse_destroy(struct lse *lse);
+void lse_run(struct lse *lse, struct ir *ir);
 
 #endif

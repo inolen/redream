@@ -66,7 +66,9 @@ TEST(load_store_elimination) {
   fclose(input);
   CHECK(res);
 
-  lse_run(&ir);
+  struct lse *lse = lse_create();
+  lse_run(lse, &ir);
+  lse_destroy(lse);
 
   FILE *output = tmpfile();
   ir_write(&ir, output);

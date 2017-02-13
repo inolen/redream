@@ -6,7 +6,13 @@
 #include "core/rb_tree.h"
 
 struct address_space;
+struct cfa;
+struct cprop;
+struct dce;
 struct ir;
+struct lse;
+struct ra;
+struct val;
 
 struct jit_guest {
   /* memory interface */
@@ -37,6 +43,13 @@ struct jit {
   struct jit_frontend *frontend;
   struct jit_backend *backend;
   struct exception_handler *exc_handler;
+
+  /* passes */
+  struct lse *lse;
+  struct cprop *cprop;
+  struct esimp *esimp;
+  struct dce *dce;
+  struct ra *ra;
 
   /* scratch compilation buffer */
   uint8_t ir_buffer[1024 * 1024];

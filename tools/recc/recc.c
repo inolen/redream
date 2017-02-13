@@ -77,17 +77,25 @@ static void process_file(struct jit *jit, const char *filename,
   char *name = strtok(passes, ",");
   while (name) {
     if (!strcmp(name, "lse")) {
-      lse_run(&ir);
+      struct lse *lse = lse_create();
+      lse_run(lse, &ir);
+      lse_destroy(lse);
     } else if (!strcmp(name, "cprop")) {
-      cprop_run(&ir);
-    } else if (!strcmp(name, "cve")) {
-      cve_run(&ir);
+      struct cprop *cprop = cprop_create();
+      cprop_run(cprop, &ir);
+      cprop_destroy(cprop);
     } else if (!strcmp(name, "dce")) {
-      dce_run(&ir);
+      struct dce *dce = dce_create();
+      dce_run(dce, &ir);
+      dce_destroy(dce);
     } else if (!strcmp(name, "esimp")) {
-      esimp_run(&ir);
+      struct esimp *esimp = esimp_create();
+      esimp_run(esimp, &ir);
+      esimp_destroy(esimp);
     } else if (!strcmp(name, "ra")) {
-      ra_run(&ir, x64_registers, x64_num_registers);
+      struct ra *ra = ra_create(x64_registers, x64_num_registers);
+      ra_run(ra, &ir);
+      ra_destroy(ra);
     } else {
       LOG_WARNING("Unknown pass %s", name);
     }
