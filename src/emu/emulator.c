@@ -19,6 +19,8 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
+DEFINE_OPTION_INT(audio, 1, "Enable audio");
+
 struct emu {
   struct window *window;
   struct window_listener listener;
@@ -145,12 +147,15 @@ static void emu_close(void *data) {
 
 static void *emu_core_thread(void *data) {
   struct emu *emu = data;
-  struct audio_backend *audio = audio_create(emu->dc->aica);
+  struct audio_backend *audio = NULL;
 
-  if (!audio) {
-    LOG_WARNING("Audio backend creation failed");
-    emu->running = 0;
-    return 0;
+  if (OPTION_audio) {
+    audio = audio_create(emu->dc->aica);
+
+    if (!audio) {
+      LOG_WARNING("Audio backend creation failed");
+      goto exit;
+    }
   }
 
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
@@ -158,22 +163,29 @@ static void *emu_core_thread(void *data) {
   int64_t next_pump_time = 0;
 
   while (emu->running) {
-    while (audio_buffer_low(audio) && emu->running) {
+    /* run a slice of dreamcast time if the available audio is running low. this
+       effectively synchronizes the emulation speed with the host audio clock.
+       note however, if audio is disabled, the emulator will run as fast as
+       possible */
+    if (!audio || audio_buffer_low(audio)) {
       dc_tick(emu->dc, MACHINE_STEP);
+    }
 
-      current_time = time_nanoseconds();
+    /* update profiler stats */
+    current_time = time_nanoseconds();
+    prof_update(current_time);
 
-      prof_update(current_time);
-
-      /* audio events are just for device connections, check infrequently */
-      if (current_time > next_pump_time) {
-        audio_pump_events(audio);
-        next_pump_time = current_time + NS_PER_SEC;
-      }
+    /* check audio events (device connect / disconnect, etc.) infrequently */
+    if (audio && current_time > next_pump_time) {
+      audio_pump_events(audio);
+      next_pump_time = current_time + NS_PER_SEC;
     }
   }
 
-  audio_destroy(audio);
+exit:
+  if (audio) {
+    audio_destroy(audio);
+  }
 
   emu->running = 0;
 
