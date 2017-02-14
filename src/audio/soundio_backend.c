@@ -2,7 +2,7 @@
 #include "audio/audio_backend.h"
 #include "hw/aica/aica.h"
 
-DEFINE_OPTION_INT(latency, 100, "Set preferred audio latency in MS");
+DEFINE_OPTION_INT(latency, 100, "Preferred audio latency in MS");
 
 struct audio_backend {
   struct aica *aica;
