@@ -760,8 +760,8 @@ static void win_pump_sdl(struct window *win) {
       case SDL_KEYDOWN: {
         enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
-        if (keycode != K_UNKNOWN) {
-          win_handle_keydown(win, 0, keycode, 1);
+        if ( (keycode != K_UNKNOWN) && (ev.key.repeat == 0) ) {
+          win_handle_keydown(win, 0, keycode, INT16_MAX);
         }
       } break;
 
@@ -769,7 +769,7 @@ static void win_pump_sdl(struct window *win) {
         enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          win_handle_keydown(win, 0, keycode, 0);
+          win_handle_keydown(win, 0, keycode, INT16_MIN);
         }
       } break;
 
