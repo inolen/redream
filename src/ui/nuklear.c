@@ -24,11 +24,11 @@ static void nk_keydown(void *data, int device_index, enum keycode code,
   } else if (code == K_MWHEELDOWN) {
     nk->mouse_wheel = -1;
   } else if (code == K_MOUSE1) {
-    nk->mouse_down[0] = !!value;
+    nk->mouse_down[0] = value > 0;
   } else if (code == K_MOUSE2) {
-    nk->mouse_down[1] = !!value;
+    nk->mouse_down[1] = value > 0;
   } else if (code == K_MOUSE3) {
-    nk->mouse_down[2] = !!value;
+    nk->mouse_down[2] = value > 0;
   } else if (code == K_LALT || code == K_RALT) {
     /*nk->alt[code == K_LALT ? 0 : 1] = !!value;
     io.KeyAlt = nk->alt[0] || nk->alt[1];*/
@@ -39,7 +39,7 @@ static void nk_keydown(void *data, int device_index, enum keycode code,
     /*nk->shift[code == K_LSHIFT ? 0 : 1] = !!value;
     io.KeyShift = nk->shift[0] || nk->shift[1];*/
   } else {
-    /*io.KeysDown[code] = !!value;*/
+    /*io.KeysDown[code] = value > 0;*/
   }
 }
 

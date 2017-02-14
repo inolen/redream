@@ -771,16 +771,16 @@ static void tracer_keydown(void *data, int device_index, enum keycode code,
   struct tracer *tracer = data;
 
   if (code == K_F1) {
-    if (value) {
+    if (value > 0) {
       win_enable_debug_menu(tracer->window, !tracer->window->debug_menu);
     }
-  } else if (code == K_LEFT && value) {
+  } else if (code == K_LEFT && value > 0) {
     tracer_prev_context(tracer);
-  } else if (code == K_RIGHT && value) {
+  } else if (code == K_RIGHT && value > 0) {
     tracer_next_context(tracer);
-  } else if (code == K_UP && value) {
+  } else if (code == K_UP && value > 0) {
     tracer_prev_param(tracer);
-  } else if (code == K_DOWN && value) {
+  } else if (code == K_DOWN && value > 0) {
     tracer_next_param(tracer);
   }
 }
