@@ -48,13 +48,15 @@ static struct microprofile *s_mp;
 static void mp_keydown(void *data, int device_index, enum keycode code,
                        int16_t value) {
   if (code == K_F2) {
-    if (value) {
+    if (value > 0) {
       MicroProfileToggleDisplayMode();
     }
   } else if (code == K_MOUSE1) {
-    MicroProfileMouseButton(value, 0);
+    int down = value > 0;
+    MicroProfileMouseButton(down, 0);
   } else if (code == K_MOUSE2) {
-    MicroProfileMouseButton(0, value);
+    int down = value > 0;
+    MicroProfileMouseButton(0, down);
   }
 }
 

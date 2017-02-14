@@ -118,7 +118,7 @@ static void emu_keydown(void *data, int device_index, enum keycode code,
   struct emu *emu = data;
 
   if (code == K_F1) {
-    if (value) {
+    if (value > 0) {
       win_enable_debug_menu(emu->window, !emu->window->debug_menu);
     }
     return;

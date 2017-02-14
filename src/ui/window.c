@@ -10,6 +10,9 @@
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
 
+#define KEY_UP INT16_MIN
+#define KEY_DOWN INT16_MAX
+
 static void win_destroy_joystick(struct window *win, SDL_Joystick *del) {
   for (int i = 0; i < MAX_JOYSTICKS; i++) {
     SDL_Joystick **joy = &win->joysticks[i];
@@ -761,7 +764,7 @@ static void win_pump_sdl(struct window *win) {
         enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          win_handle_keydown(win, 0, keycode, 1);
+          win_handle_keydown(win, 0, keycode, KEY_DOWN);
         }
       } break;
 
@@ -769,7 +772,7 @@ static void win_pump_sdl(struct window *win) {
         enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          win_handle_keydown(win, 0, keycode, 0);
+          win_handle_keydown(win, 0, keycode, KEY_UP);
         }
       } break;
 
@@ -803,18 +806,18 @@ static void win_pump_sdl(struct window *win) {
         }
 
         if (keycode != K_UNKNOWN) {
-          win_handle_keydown(win, 0, keycode,
-                             ev.type == SDL_MOUSEBUTTONDOWN ? 1 : 0);
+          int16_t value = ev.type == SDL_MOUSEBUTTONDOWN ? KEY_DOWN : KEY_UP;
+          win_handle_keydown(win, 0, keycode, value);
         }
       } break;
 
       case SDL_MOUSEWHEEL:
         if (ev.wheel.y > 0) {
-          win_handle_keydown(win, 0, K_MWHEELUP, 1);
-          win_handle_keydown(win, 0, K_MWHEELUP, 0);
+          win_handle_keydown(win, 0, K_MWHEELUP, KEY_DOWN);
+          win_handle_keydown(win, 0, K_MWHEELUP, KEY_UP);
         } else {
-          win_handle_keydown(win, 0, K_MWHEELDOWN, 1);
-          win_handle_keydown(win, 0, K_MWHEELDOWN, 0);
+          win_handle_keydown(win, 0, K_MWHEELDOWN, KEY_DOWN);
+          win_handle_keydown(win, 0, K_MWHEELDOWN, KEY_UP);
         }
         break;
 
@@ -849,11 +852,11 @@ static void win_pump_sdl(struct window *win) {
 
           if (ev.jhat.value != *state) {
             /* old key is up */
-            win_handle_hatdown(win, device_index, ev.jhat.hat, *state, 0);
+            win_handle_hatdown(win, device_index, ev.jhat.hat, *state, KEY_UP);
 
             /* new key is down */
             win_handle_hatdown(win, device_index, ev.jhat.hat, ev.jhat.value,
-                               1);
+                               KEY_DOWN);
           }
 
           *state = ev.jhat.value;
@@ -868,9 +871,9 @@ static void win_pump_sdl(struct window *win) {
       case SDL_JOYBUTTONUP:
         if (ev.jbutton.button < NUM_JOYSTICK_KEYS) {
           int device_index = win_device_index(win, ev.jbutton.which);
+          int16_t value = ev.type == SDL_JOYBUTTONDOWN ? KEY_DOWN : KEY_UP;
           win_handle_keydown(win, device_index,
-                             (enum keycode)(K_JOY1 + ev.jbutton.button),
-                             ev.type == SDL_JOYBUTTONDOWN ? 1 : 0);
+                             (enum keycode)(K_JOY1 + ev.jbutton.button), value);
         } else {
           LOG_WARNING("Joystick button ignored, button %d >= NUM_JOYSTICK_KEYS",
                       ev.jbutton.button);
