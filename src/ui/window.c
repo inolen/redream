@@ -95,6 +95,8 @@ static void win_debug_menu(struct window *win) {
 
   nk_style_default(ctx);
 
+  ctx->style.window.border = 0.0f;
+  ctx->style.window.menu_border = 0.0f;
   ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
   ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
 

@@ -78,9 +78,6 @@ void nk_end_frame(struct nuklear *nk) {
   config.vertex_size = sizeof(struct vertex2d);
   config.vertex_alignment = NK_ALIGNOF(struct vertex2d);
   config.null = nk->null;
-  config.circle_segment_count = 22;
-  config.curve_segment_count = 22;
-  config.arc_segment_count = 22;
   config.global_alpha = 1.0f;
   config.shape_AA = NK_ANTI_ALIASING_OFF;
   config.line_AA = NK_ANTI_ALIASING_OFF;
