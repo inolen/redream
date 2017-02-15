@@ -291,16 +291,27 @@ static void jit_dump_block(struct jit *jit, uint32_t guest_addr,
 void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   PROF_ENTER("cpu", "jit_compile_block");
 
-  int fastmem = 1;
-
 #if 0
   LOG_INFO("jit_compile_block %s 0x%08x", jit->tag, guest_addr);
+#endif
+
+  /* for debug builds, fastmem can be troublesome when running under gdb or
+     lldb. when doing so, SIGSEGV handling can be completely disabled with:
+     handle SIGSEGV nostop noprint pass
+     however, then legitimate SIGSEGV will also not be handled by the debugger.
+     as of this writing, there is no way to configure the debugger to ignore the
+     signal initially, letting us try to handle it, and then handling it in the
+     case that we do not (e.g. because it was not a fastmem-related segfault).
+     because of this, fastmem is default disabled for debug builds to cause less
+     headaches */
+  int fastmem = 1;
+#ifndef NDEBUG
+  fastmem = 0;
 #endif
 
   /* if the block being compiled had previously been invalidated by a fastmem
      exception, finish removing it at this time and disable fastmem opts */
   struct jit_block *existing = jit_get_block(jit, guest_addr);
-
   if (existing) {
     jit_free_block(jit, existing);
     fastmem = 0;
