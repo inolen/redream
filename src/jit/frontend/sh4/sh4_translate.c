@@ -71,22 +71,18 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 static struct ir_value *ir_load_guest(struct ir *ir, int flags,
                                       struct ir_value *addr,
                                       enum ir_type type) {
-#ifdef NDEBUG
   if (flags & SH4_FASTMEM) {
     return ir_load_fast(ir, addr, type);
   }
-#endif
   return ir_load_slow(ir, addr, type);
 }
 
 static void ir_store_guest(struct ir *ir, int flags, struct ir_value *addr,
                            struct ir_value *v) {
-#ifdef NDEBUG
   if (flags & SH4_FASTMEM) {
     ir_store_fast(ir, addr, v);
     return;
   }
-#endif
   ir_store_slow(ir, addr, v);
 }
 
