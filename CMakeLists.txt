@@ -16,6 +16,11 @@ set(CMAKE_CXX_STANDARD 11)
 # configuration options
 #--------------------------------------------------
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
+      "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif()
+
 option(BUILD_TOOLS "Build tools" ON)
 option(BUILD_TESTS "Build tests" ON)
 
