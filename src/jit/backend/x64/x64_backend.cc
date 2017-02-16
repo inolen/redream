@@ -1633,7 +1633,7 @@ struct x64_backend *x64_backend_create(struct jit *jit, void *code,
   backend->code_size = code_size;
   backend->stack_size = stack_size;
   backend->codegen = new Xbyak::CodeGenerator(code_size, code);
-  backend->use_avx = cpu.has(Xbyak::util::Cpu::tAVX);
+  backend->use_avx = cpu.has(Xbyak::util::Cpu::tAVX2);
 
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
