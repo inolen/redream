@@ -35,6 +35,8 @@ struct jit_block {
   /* lookup map iterators */
   struct rb_node it;
   struct rb_node rit;
+
+  uint8_t fastmem;
 };
 
 struct jit_edge {
@@ -208,6 +210,7 @@ static struct jit_block *jit_alloc_block(struct jit *jit, uint32_t guest_addr,
   block->guest_addr = guest_addr;
   block->host_addr = host_addr;
   block->host_size = host_size;
+  block->fastmem = 1;
 
   rb_insert(&jit->blocks, &block->it, &block_map_cb);
   rb_insert(&jit->reverse_blocks, &block->rit, &reverse_block_map_cb);
@@ -302,8 +305,15 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   struct jit_block *existing = jit_get_block(jit, guest_addr);
 
   if (existing) {
-    jit_free_block(jit, existing);
-    fastmem = 0;
+	  fastmem = existing->fastmem;
+	  jit_free_block(jit, existing);
+  }
+
+  if (!fastmem) {
+	  // printf("DISABLE FASTMEM FOR: %08X\n", guest_addr);
+  }
+  else {
+	  // printf("ENABLE FASTMEM FOR: %08X\n", guest_addr);
   }
 
   /* translate the source machine code into ir */
@@ -366,10 +376,13 @@ static int jit_handle_exception(void *data, struct exception *ex) {
     return 0;
   }
 
+  printf("INVALIDATE BLOCK: %08X\n", block->guest_addr);
+
   /* invalidate the block so it's recompiled without fastmem optimizations
      on the next access. note, the block can't be removed from the lookup
      maps at this point because it's still executing and may raise more
      exceptions */
+  block->fastmem = 0;
   jit_invalidate_block(jit, block);
 
   return 1;

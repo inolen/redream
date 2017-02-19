@@ -519,7 +519,7 @@ static void ta_register_texture_source(struct ta *ta, union tsp tsp,
     }
   }
 
-#ifdef NDEBUG
+#if 0
   /* add write callback in order to invalidate on future writes. the callback
      address will be page aligned, therefore it will be triggered falsely in
      some cases. over invalidate in these cases */

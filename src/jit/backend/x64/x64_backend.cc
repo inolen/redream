@@ -539,6 +539,9 @@ static int x64_backend_handle_exception(struct jit_backend *base,
   ex->thread_state.rsp -= STACK_SHADOW_SPACE + 8 + 8;
   CHECK(ex->thread_state.rsp % 16 == 0);
 
+  printf("Guest access: %08X\n", guest_addr);
+
+
   if (mov.is_load) {
     /* prep argument registers (memory object, guest_addr) for read function */
     ex->thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(guest->space);
@@ -1633,7 +1636,7 @@ struct x64_backend *x64_backend_create(struct jit *jit, void *code,
   backend->code_size = code_size;
   backend->stack_size = stack_size;
   backend->codegen = new Xbyak::CodeGenerator(code_size, code);
-  backend->use_avx = cpu.has(Xbyak::util::Cpu::tAVX);
+  backend->use_avx = cpu.has(Xbyak::util::Cpu::tAVX) && cpu.has(Xbyak::util::Cpu::tAVX2);
 
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);

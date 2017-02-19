@@ -939,7 +939,11 @@ static void tr_reset(struct tr *tr, struct render_context *rc) {
   tr->vertex_type = TA_NUM_VERTS;
 
   /* reset render context state */
-  memset(rc, 0, sizeof(*rc));
+  //memset(rc, 0, sizeof(*rc));
+  rc->num_params = 0;
+  rc->num_surfs = 0;
+  rc->num_verts = 0;
+  memset(rc->lists, 0, sizeof(rc->lists));
 }
 
 void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
