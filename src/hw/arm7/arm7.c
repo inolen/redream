@@ -167,7 +167,7 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir, int flags,
   ir_branch_true(ir, ir_alloc_ptr(ir, arm7_dispatch_interrupt), pending_intr);
 
   /* update remaining cycles */
-  int cycles = (size / 4);
+  int cycles = (size / 4) * 12;
   remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, cycles));
   ir_store_context(ir, offsetof(struct armv3_context, remaining_cycles),
                    remaining_cycles);
