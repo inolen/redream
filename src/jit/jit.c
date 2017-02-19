@@ -28,6 +28,9 @@ struct jit_block {
   void *host_addr;
   int host_size;
 
+  /* compile with fastmem support */
+  int fastmem;
+
   /* edges to other blocks */
   struct list in_edges;
   struct list out_edges;
@@ -203,11 +206,13 @@ static void jit_free_block(struct jit *jit, struct jit_block *block) {
 }
 
 static struct jit_block *jit_alloc_block(struct jit *jit, uint32_t guest_addr,
-                                         void *host_addr, int host_size) {
+                                         void *host_addr, int host_size,
+                                         int fastmem) {
   struct jit_block *block = calloc(1, sizeof(struct jit_block));
   block->guest_addr = guest_addr;
   block->host_addr = host_addr;
   block->host_size = host_size;
+  block->fastmem = fastmem;
 
   rb_insert(&jit->blocks, &block->it, &block_map_cb);
   rb_insert(&jit->reverse_blocks, &block->rit, &reverse_block_map_cb);
@@ -313,8 +318,8 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
      exception, finish removing it at this time and disable fastmem opts */
   struct jit_block *existing = jit_get_block(jit, guest_addr);
   if (existing) {
+    fastmem = existing->fastmem;
     jit_free_block(jit, existing);
-    fastmem = 0;
   }
 
   /* translate the source machine code into ir */
@@ -346,7 +351,7 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   if (host_addr) {
     /* cache the compiled code */
     struct jit_block *block =
-        jit_alloc_block(jit, guest_addr, host_addr, host_size);
+        jit_alloc_block(jit, guest_addr, host_addr, host_size, fastmem);
 
     if (OPTION_perf) {
       fprintf(jit->perf_map, "%" PRIxPTR " %x %s_0x%08x\n",
@@ -381,6 +386,7 @@ static int jit_handle_exception(void *data, struct exception *ex) {
      on the next access. note, the block can't be removed from the lookup
      maps at this point because it's still executing and may raise more
      exceptions */
+  block->fastmem = 0;
   jit_invalidate_block(jit, block);
 
   return 1;
