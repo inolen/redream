@@ -2,7 +2,7 @@
 #include "core/assert.h"
 #include "core/string.h"
 
-static struct sh4_opdef *sh4_opdef_lookup[UINT16_MAX];
+static struct sh4_opdef *sh4_opdef_lookup[UINT16_MAX + 1];
 
 struct sh4_opdef sh4_opdefs[NUM_SH4_OPS] = {
 #define SH4_INSTR(name, desc, sig, cycles, flags) \
@@ -56,23 +56,15 @@ static void sh4_init_opdefs() {
   }
 
   /* initialize lookup table */
-  for (int w = 0; w < 0x10000; w += 0x1000) {
-    for (int x = 0; x < 0x1000; x += 0x100) {
-      for (int y = 0; y < 0x100; y += 0x10) {
-        for (int z = 0; z < 0x10; z++) {
-          uint16_t value = w + x + y + z;
+  for (int value = 0; value <= UINT16_MAX; value++) {
+    for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
+      struct sh4_opdef *def = &sh4_opdefs[i];
+      uint16_t arg_mask =
+          def->imm_mask | def->disp_mask | def->rm_mask | def->rn_mask;
 
-          for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
-            struct sh4_opdef *def = &sh4_opdefs[i];
-            uint16_t arg_mask =
-                def->imm_mask | def->disp_mask | def->rm_mask | def->rn_mask;
-
-            if ((value & ~arg_mask) == def->opcode_mask) {
-              sh4_opdef_lookup[value] = def;
-              break;
-            }
-          }
-        }
+      if ((value & ~arg_mask) == def->opcode_mask) {
+        sh4_opdef_lookup[value] = def;
+        break;
       }
     }
   }
