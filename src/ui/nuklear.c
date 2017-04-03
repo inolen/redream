@@ -73,7 +73,8 @@ void nk_end_frame(struct nuklear *nk) {
   nk_buffer_init_fixed(&vbuf, nk->vertices, sizeof(nk->vertices));
   nk_buffer_init_fixed(&ebuf, nk->elements, sizeof(nk->elements));
 
-  struct nk_convert_config config = {0};
+  struct nk_convert_config config;
+  memset(&config,0,sizeof(struct nk_convert_config));
   config.vertex_layout = vertex_layout;
   config.vertex_size = sizeof(struct vertex2d);
   config.vertex_alignment = NK_ALIGNOF(struct vertex2d);

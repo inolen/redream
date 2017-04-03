@@ -273,9 +273,10 @@ struct microprofile *mp_create(struct window *window) {
       calloc(1, sizeof(struct microprofile)));
 
   mp->window = window;
-  mp->listener = {mp,          NULL, NULL,          NULL, NULL,
-                  &mp_keydown, NULL, &mp_mousemove, NULL, {}};
-
+  mp->listener.data = mp;
+  mp->listener.keydown = mp_keydown;
+  mp->listener.mousemove = mp_mousemove;
+  mp->listener.it = { .prev = 0, .next = 0 };
   win_add_listener(mp->window, &mp->listener);
 
   /* init microprofile */
