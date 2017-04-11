@@ -162,8 +162,6 @@ set(REDREAM_SOURCES
   src/core/ringbuf.cc
   src/core/rb_tree.c
   src/core/string.c
-  src/emu/emulator.c
-  src/emu/tracer.c
   src/hw/aica/aica.c
   src/hw/arm7/arm7.c
   src/hw/gdrom/disc.c
@@ -219,7 +217,9 @@ set(REDREAM_SOURCES
   src/ui/keycode.c
   src/ui/nuklear.c
   src/ui/window.c
-  src/video/gl_backend.c)
+  src/video/gl_backend.c
+  src/emulator.c
+  src/tracer.c)
 
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)

@@ -1,4 +1,4 @@
-#include "emu/emulator.h"
+#include "emulator.h"
 #include "audio/audio_backend.h"
 #include "core/option.h"
 #include "core/profiler.h"

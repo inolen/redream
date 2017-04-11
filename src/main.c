@@ -1,9 +1,9 @@
 #include "core/log.h"
 #include "core/option.h"
 #include "core/profiler.h"
-#include "emu/emulator.h"
-#include "emu/tracer.h"
+#include "emulator.h"
 #include "sys/filesystem.h"
+#include "tracer.h"
 #include "ui/window.h"
 
 DEFINE_OPTION_INT(help, 0, "Show help");
