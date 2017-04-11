@@ -252,15 +252,6 @@ exit:
 }
 
 void emu_run(struct emu *emu, const char *path) {
-  emu->dc = dc_create();
-
-  if (!emu->dc) {
-    return;
-  }
-
-  /* create tile renderer */
-  emu->tr = tr_create(emu->rb, ta_texture_provider(emu->dc->ta));
-
   /* load gdi / bin if specified */
   if (path) {
     int launched = 0;
@@ -302,25 +293,11 @@ void emu_run(struct emu *emu, const char *path) {
 }
 
 void emu_destroy(struct emu *emu) {
-  if (emu->tr) {
-    tr_destroy(emu->tr);
-  }
-
-  if (emu->dc) {
-    dc_destroy(emu->dc);
-  }
-
-  if (emu->nk) {
-    nk_destroy(emu->nk);
-  }
-
-  if (emu->mp) {
-    mp_destroy(emu->mp);
-  }
-
-  if (emu->rb) {
-    rb_destroy(emu->rb);
-  }
+  tr_destroy(emu->tr);
+  nk_destroy(emu->nk);
+  mp_destroy(emu->mp);
+  rb_destroy(emu->rb);
+  dc_destroy(emu->dc);
 
   win_remove_listener(emu->window, &emu->listener);
 
@@ -338,29 +315,14 @@ struct emu *emu_create(struct window *window) {
       &emu_keydown, NULL, &emu_close,   {0}};
   win_add_listener(emu->window, &emu->listener);
 
+  /* setup dreamcast */
+  emu->dc = dc_create();
+
   /* setup render backend */
   emu->rb = rb_create(emu->window);
-  if (!emu->rb) {
-    LOG_WARNING("Render backend creation failed");
-    emu_destroy(emu);
-    return NULL;
-  }
-
-  /* setup microprofile */
   emu->mp = mp_create(emu->window, emu->rb);
-  if (!emu->mp) {
-    LOG_WARNING("MicroProfile creation failed");
-    emu_destroy(emu);
-    return NULL;
-  }
-
-  /* setup nuklear */
   emu->nk = nk_create(emu->window, emu->rb);
-  if (!emu->nk) {
-    LOG_WARNING("Nuklear creation failed");
-    emu_destroy(emu);
-    return NULL;
-  }
+  emu->tr = tr_create(emu->rb, ta_texture_provider(emu->dc->ta));
 
   /* debug menu enabled by default */
   emu->debug_menu = 1;

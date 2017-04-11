@@ -769,22 +769,18 @@ void rb_destroy(struct render_backend *rb) {
   rb_destroy_shaders(rb);
   rb_destroy_textures(rb);
 
-  if (rb->ctx) {
-    win_gl_destroy_context(rb->window, rb->ctx);
-  }
+  win_gl_destroy_context(rb->window, rb->ctx);
 
   free(rb);
 }
 
 struct render_backend *rb_create(struct window *window) {
   struct render_backend *rb = calloc(1, sizeof(struct render_backend));
+
   rb->window = window;
 
+  /* setup gl context */
   rb->ctx = win_gl_create_context(rb->window);
-  if (!rb->ctx) {
-    rb_destroy(rb);
-    return NULL;
-  }
 
   rb_create_textures(rb);
   rb_create_shaders(rb);

@@ -209,10 +209,8 @@ struct dreamcast *dc_create() {
   dc->pvr = pvr_create(dc);
   dc->ta = ta_create(dc);
 
-  if (!dc_init(dc)) {
-    dc_destroy(dc);
-    return NULL;
-  }
+  int res = dc_init(dc);
+  CHECK(res);
 
   return dc;
 }
