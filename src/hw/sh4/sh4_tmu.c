@@ -1,5 +1,5 @@
-#include "hw/sh4/sh4.h"
 #include "hw/scheduler.h"
+#include "hw/sh4/sh4.h"
 
 static const int64_t PERIPHERAL_CLOCK_FREQ = SH4_CLOCK_FREQ >> 2;
 static const int PERIPHERAL_SCALE[] = {2, 4, 6, 8, 10, 0, 0, 0};
@@ -84,8 +84,8 @@ static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
     *timer = NULL;
   }
 
-  timer_cb cb = (n == 0 ? &sh4_tmu_expire_0 : n == 1 ? &sh4_tmu_expire_1
-                                                     : &sh4_tmu_expire_2);
+  timer_cb cb = (n == 0 ? &sh4_tmu_expire_0
+                        : n == 1 ? &sh4_tmu_expire_1 : &sh4_tmu_expire_2);
   *timer = scheduler_start_timer(sh4->scheduler, cb, sh4, remaining);
 }
 

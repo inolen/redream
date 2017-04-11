@@ -1,5 +1,5 @@
-#include "jit/ir/ir.h"
 #include "core/string.h"
+#include "jit/ir/ir.h"
 
 enum ir_token {
   TOK_EOF,

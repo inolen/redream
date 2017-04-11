@@ -26,7 +26,7 @@ struct SDL_Window;
 #define NUM_JOYSTICK_KEYS ((K_JOY31 - K_JOY0) + 1)
 #define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
 
-typedef void* glcontext_t;
+typedef void *glcontext_t;
 
 struct window_listener {
   void *data;
@@ -36,7 +36,6 @@ struct window_listener {
   void (*joy_remove)(void *data, int joystick_index);
   void (*keydown)(void *data, int device_index, enum keycode code,
                   int16_t value);
-  void (*textinput)(void *data, const char *text);
   void (*mousemove)(void *data, int x, int y);
   void (*close)(void *data);
   struct list_node it;
@@ -54,7 +53,6 @@ struct window {
   int height;
   int fullscreen;
   int debug_menu;
-  int text_input;
 
   /* private state */
   struct list listeners;
@@ -77,6 +75,5 @@ void win_pump_events(struct window *win);
 
 void win_set_status(struct window *win, const char *status);
 void win_enable_debug_menu(struct window *win, int active);
-void win_enable_text_input(struct window *win, int active);
 
 #endif

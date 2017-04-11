@@ -838,8 +838,8 @@ struct tracer *tracer_create(struct window *window) {
 
   tracer->window = window;
   tracer->listener = (struct window_listener){
-      tracer,          &tracer_paint, NULL, NULL,          NULL,
-      &tracer_keydown, NULL,          NULL, &tracer_close, {0}};
+      tracer,          &tracer_paint, NULL,          NULL, NULL,
+      &tracer_keydown, NULL,          &tracer_close, {0}};
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
   tracer->rb = window->rb;

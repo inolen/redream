@@ -1,6 +1,6 @@
 #include <inttypes.h>
-#include "jit/ir/ir.h"
 #include "core/string.h"
+#include "jit/ir/ir.h"
 
 static void ir_write_type(enum ir_type type, FILE *output) {
   switch (type) {
