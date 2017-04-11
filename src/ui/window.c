@@ -5,9 +5,6 @@
 #include "ui/window.h"
 #include "core/assert.h"
 #include "core/list.h"
-#include "ui/microprofile.h"
-#include "ui/nuklear.h"
-#include "video/render_backend.h"
 
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
@@ -79,82 +76,6 @@ static int win_device_index(struct window *win, SDL_JoystickID which) {
   }
 
   return 0;
-}
-
-static void win_set_fullscreen(struct window *win, int fullscreen) {
-  win->fullscreen = fullscreen;
-
-  SDL_SetWindowFullscreen(win->handle, fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
-}
-
-static void win_debug_menu(struct window *win) {
-  if (!win->debug_menu) {
-    return;
-  }
-
-  struct nk_context *ctx = &win->nk->ctx;
-  struct nk_rect bounds = {0.0f, 0.0f, (float)win->width, DEBUG_MENU_HEIGHT};
-
-  nk_style_default(ctx);
-
-  ctx->style.window.border = 0.0f;
-  ctx->style.window.menu_border = 0.0f;
-  ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
-  ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
-
-  if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
-    nk_menubar_begin(ctx);
-    nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT,
-                        MAX_WINDOW_LISTENERS + 2);
-
-    /* add our own debug menu */
-    nk_layout_row_push(ctx, 50.0f);
-    if (nk_menu_begin_label(ctx, "WINDOW", NK_TEXT_LEFT,
-                            nk_vec2(140.0f, 200.0f))) {
-      nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
-
-      int fullscreen = win->fullscreen;
-      if (nk_checkbox_label(ctx, "fullscreen", &fullscreen)) {
-        win_set_fullscreen(win, fullscreen);
-      }
-
-      nk_menu_end(ctx);
-    }
-
-    /* add each listener's debug menu */
-    list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
-      if (listener->debug_menu) {
-        listener->debug_menu(listener->data, ctx);
-      }
-    }
-
-    /* fill up remaining space with status */
-    nk_layout_row_push(
-        ctx, (float)win->width - ctx->current->layout->row.item_offset);
-    nk_label(ctx, win->status, NK_TEXT_RIGHT);
-
-    nk_layout_row_end(ctx);
-    nk_menubar_end(ctx);
-  }
-  nk_end(ctx);
-}
-
-static void win_handle_paint(struct window *win) {
-  rb_begin_frame(win->rb);
-  nk_begin_frame(win->nk);
-  mp_begin_frame(win->mp);
-
-  list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
-    if (listener->paint) {
-      listener->paint(listener->data);
-    }
-  }
-
-  win_debug_menu(win);
-
-  mp_end_frame(win->mp);
-  nk_end_frame(win->nk);
-  rb_end_frame(win->rb);
 }
 
 static void win_handle_keydown(struct window *win, int device_index,
@@ -888,19 +809,14 @@ static void win_pump_sdl(struct window *win) {
   }
 }
 
-void win_enable_debug_menu(struct window *win, int active) {
-  win->debug_menu = active;
-}
-
-void win_set_status(struct window *win, const char *status) {
-  strncpy(win->status, status, sizeof(win->status));
-}
-
 void win_pump_events(struct window *win) {
   win_pump_sdl(win);
+}
 
-  /* trigger a paint event after draining all other window-related events */
-  win_handle_paint(win);
+void win_set_fullscreen(struct window *win, int fullscreen) {
+  win->fullscreen = fullscreen;
+
+  SDL_SetWindowFullscreen(win->handle, fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
 }
 
 void win_remove_listener(struct window *win, struct window_listener *listener) {
@@ -946,18 +862,6 @@ glcontext_t win_gl_create_context(struct window *win) {
 }
 
 void win_destroy(struct window *win) {
-  if (win->mp) {
-    mp_destroy(win->mp);
-  }
-
-  if (win->nk) {
-    nk_destroy(win->nk);
-  }
-
-  if (win->rb) {
-    rb_destroy(win->rb);
-  }
-
   if (win->handle) {
     SDL_DestroyWindow(win->handle);
   }
@@ -992,30 +896,6 @@ struct window *win_create() {
       win->height, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   if (!win->handle) {
     LOG_WARNING("Window creation failed: %s", SDL_GetError());
-    win_destroy(win);
-    return NULL;
-  }
-
-  /* setup video backend */
-  win->rb = rb_create(win);
-  if (!win->rb) {
-    LOG_WARNING("Render backend creation failed");
-    win_destroy(win);
-    return NULL;
-  }
-
-  /* setup nuklear */
-  win->nk = nk_create(win);
-  if (!win->nk) {
-    LOG_WARNING("Nuklear creation failed");
-    win_destroy(win);
-    return NULL;
-  }
-
-  /* setup microprofile */
-  win->mp = mp_create(win);
-  if (!win->mp) {
-    LOG_WARNING("MicroProfile creation failed");
     win_destroy(win);
     return NULL;
   }

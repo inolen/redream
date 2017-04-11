@@ -14,8 +14,10 @@
 #include "hw/sh4/sh4.h"
 #include "sys/thread.h"
 #include "sys/time.h"
+#include "ui/microprofile.h"
 #include "ui/nuklear.h"
 #include "ui/window.h"
+#include "video/render_backend.h"
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
@@ -26,6 +28,12 @@ struct emu {
   struct window_listener listener;
   struct dreamcast *dc;
   volatile int running;
+
+  int debug_menu;
+
+  struct render_backend *rb;
+  struct microprofile *mp;
+  struct nuklear *nk;
 
   /* render state */
   struct tr *tr;
@@ -72,45 +80,96 @@ static int emu_launch_gdi(struct emu *emu, const char *path) {
   return 1;
 }
 
-static void emu_paint(void *data) {
-  struct emu *emu = data;
+static void emu_paint(struct emu *emu) {
+  rb_begin_frame(emu->rb);
+  nk_begin_frame(emu->nk);
+  mp_begin_frame(emu->mp);
 
-  /* wait for the next ta context */
-  struct render_context *rc = &emu->rc;
-  struct tile_ctx *pending_ctx = NULL;
+  /* render the next ta context */
+  {
+    struct render_context *rc = &emu->rc;
+    struct tile_ctx *pending_ctx = NULL;
 
-  while (emu->running) {
-    if (ta_lock_pending_context(emu->dc->ta, &pending_ctx, 1000)) {
-      tr_parse_context(emu->tr, pending_ctx, rc);
-      ta_unlock_pending_context(emu->dc->ta);
-      break;
+    while (emu->running) {
+      if (ta_lock_pending_context(emu->dc->ta, &pending_ctx, 1000)) {
+        tr_parse_context(emu->tr, pending_ctx, rc);
+        ta_unlock_pending_context(emu->dc->ta);
+        break;
+      }
+    }
+
+    tr_render_context(emu->tr, rc);
+  }
+
+  /* render debug menus */
+  {
+    if (emu->debug_menu) {
+      struct nk_context *ctx = &emu->nk->ctx;
+      struct nk_rect bounds = {0.0f, 0.0f, (float)emu->window->width,
+                               DEBUG_MENU_HEIGHT};
+
+      nk_style_default(ctx);
+
+      ctx->style.window.border = 0.0f;
+      ctx->style.window.menu_border = 0.0f;
+      ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
+      ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
+
+      if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
+        nk_menubar_begin(ctx);
+        nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT,
+                            MAX_WINDOW_LISTENERS + 2);
+
+        /* add our own debug menu */
+        nk_layout_row_push(ctx, 30.0f);
+        if (nk_menu_begin_label(ctx, "EMU", NK_TEXT_LEFT,
+                                nk_vec2(140.0f, 200.0f))) {
+          nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+          int fullscreen = emu->window->fullscreen;
+          if (nk_checkbox_label(ctx, "fullscreen", &fullscreen)) {
+            win_set_fullscreen(emu->window, fullscreen);
+          }
+
+          nk_menu_end(ctx);
+        }
+
+        /* add each devices's debug menu */
+        dc_debug_menu(emu->dc, ctx);
+
+        /* fill up remaining space with status */
+        char status[128];
+
+        int frames = (int)prof_counter_load(COUNTER_frames);
+        int ta_renders = (int)prof_counter_load(COUNTER_ta_renders);
+        int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
+        int sh4_instrs =
+            (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
+        int arm7_instrs =
+            (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
+
+        snprintf(status, sizeof(status),
+                 "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d", frames, ta_renders,
+                 pvr_vblanks, sh4_instrs, arm7_instrs);
+
+        nk_layout_row_push(ctx, (float)emu->window->width -
+                                    ctx->current->layout->row.item_offset);
+        nk_label(ctx, status, NK_TEXT_RIGHT);
+
+        nk_layout_row_end(ctx);
+        nk_menubar_end(ctx);
+      }
+      nk_end(ctx);
     }
   }
 
-  tr_render_context(emu->tr, rc);
-
+  /* update profiler stats */
   prof_counter_add(COUNTER_frames, 1);
-
   prof_flip();
-}
 
-static void emu_debug_menu(void *data, struct nk_context *ctx) {
-  struct emu *emu = data;
-
-  /* set status string */
-  char status[128];
-
-  int frames = (int)prof_counter_load(COUNTER_frames);
-  int ta_renders = (int)prof_counter_load(COUNTER_ta_renders);
-  int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
-  int sh4_instrs = (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
-  int arm7_instrs = (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
-
-  snprintf(status, sizeof(status), "%3d FPS %3d RPS %3d VBS %4d SH4 %d ARM",
-           frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
-  win_set_status(emu->window, status);
-
-  dc_debug_menu(emu->dc, ctx);
+  mp_end_frame(emu->mp);
+  nk_end_frame(emu->nk);
+  rb_end_frame(emu->rb);
 }
 
 static void emu_keydown(void *data, int device_index, enum keycode code,
@@ -119,7 +178,7 @@ static void emu_keydown(void *data, int device_index, enum keycode code,
 
   if (code == K_F1) {
     if (value > 0) {
-      win_enable_debug_menu(emu->window, !emu->window->debug_menu);
+      emu->debug_menu = emu->debug_menu ? 0 : 1;
     }
     return;
   }
@@ -200,7 +259,7 @@ void emu_run(struct emu *emu, const char *path) {
   }
 
   /* create tile renderer */
-  emu->tr = tr_create(emu->window->rb, ta_texture_provider(emu->dc->ta));
+  emu->tr = tr_create(emu->rb, ta_texture_provider(emu->dc->ta));
 
   /* load gdi / bin if specified */
   if (path) {
@@ -234,6 +293,7 @@ void emu_run(struct emu *emu, const char *path) {
 
   while (emu->running) {
     win_pump_events(emu->window);
+    emu_paint(emu);
   }
 
   /* wait for the core thread to exit */
@@ -245,10 +305,25 @@ void emu_destroy(struct emu *emu) {
   if (emu->tr) {
     tr_destroy(emu->tr);
   }
+
   if (emu->dc) {
     dc_destroy(emu->dc);
   }
+
+  if (emu->nk) {
+    nk_destroy(emu->nk);
+  }
+
+  if (emu->mp) {
+    mp_destroy(emu->mp);
+  }
+
+  if (emu->rb) {
+    rb_destroy(emu->rb);
+  }
+
   win_remove_listener(emu->window, &emu->listener);
+
   free(emu);
 }
 
@@ -256,13 +331,39 @@ struct emu *emu_create(struct window *window) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
   emu->window = window;
+
+  /* add window input listeners */
   emu->listener = (struct window_listener){
-      emu,          &emu_paint, &emu_debug_menu, &emu_joy_add, &emu_joy_remove,
-      &emu_keydown, NULL,       &emu_close,      {0}};
+      emu,          NULL, &emu_joy_add, &emu_joy_remove,
+      &emu_keydown, NULL, &emu_close,   {0}};
   win_add_listener(emu->window, &emu->listener);
 
-  /* enable debug menu by default */
-  win_enable_debug_menu(emu->window, 1);
+  /* setup render backend */
+  emu->rb = rb_create(emu->window);
+  if (!emu->rb) {
+    LOG_WARNING("Render backend creation failed");
+    emu_destroy(emu);
+    return NULL;
+  }
+
+  /* setup microprofile */
+  emu->mp = mp_create(emu->window, emu->rb);
+  if (!emu->mp) {
+    LOG_WARNING("MicroProfile creation failed");
+    emu_destroy(emu);
+    return NULL;
+  }
+
+  /* setup nuklear */
+  emu->nk = nk_create(emu->window, emu->rb);
+  if (!emu->nk) {
+    LOG_WARNING("Nuklear creation failed");
+    emu_destroy(emu);
+    return NULL;
+  }
+
+  /* debug menu enabled by default */
+  emu->debug_menu = 1;
 
   return emu;
 }

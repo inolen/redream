@@ -66,10 +66,11 @@ struct tracer_texture_entry {
 
 struct tracer {
   struct window *window;
+  struct render_backend *rb;
+  struct nuklear *nk;
+  struct tr *tr;
   struct window_listener listener;
   struct texture_provider provider;
-  struct render_backend *rb;
-  struct tr *tr;
 
   /* ui state */
   int running;
@@ -284,7 +285,7 @@ static void tracer_reset_context(struct tracer *tracer) {
 static const float SCRUBBER_WINDOW_HEIGHT = 20.0f;
 
 static void tracer_render_scrubber_menu(struct tracer *tracer) {
-  struct nk_context *ctx = &tracer->window->nk->ctx;
+  struct nk_context *ctx = &tracer->nk->ctx;
 
   nk_style_default(ctx);
 
@@ -320,7 +321,7 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
 
 static void tracer_param_tooltip(struct tracer *tracer,
                                  struct render_param *rp) {
-  struct nk_context *ctx = &tracer->window->nk->ctx;
+  struct nk_context *ctx = &tracer->nk->ctx;
 
   if (nk_tooltip_begin(ctx, 300.0f)) {
     nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
@@ -569,7 +570,7 @@ static void tracer_param_tooltip(struct tracer *tracer,
 }
 
 static void tracer_render_side_menu(struct tracer *tracer) {
-  struct nk_context *ctx = &tracer->window->nk->ctx;
+  struct nk_context *ctx = &tracer->nk->ctx;
 
   /* transparent menu backgrounds / selectables */
 
@@ -740,41 +741,43 @@ static void tracer_render_list(struct tracer *tracer,
   }
 }
 
-static void tracer_paint(void *data) {
-  struct tracer *tracer = data;
+static void tracer_paint(struct tracer *tracer) {
+  rb_begin_frame(tracer->rb);
+  nk_begin_frame(tracer->nk);
 
   /* render ui */
   tracer_render_side_menu(tracer);
   tracer_render_scrubber_menu(tracer);
 
   /* render context up to the surface of the currently selected param */
-  struct render_context *rc = &tracer->rc;
-  int stopped = 0;
-  int end = -1;
+  {
+    struct render_context *rc = &tracer->rc;
+    int stopped = 0;
+    int end = -1;
 
-  if (tracer->current_param >= 0) {
-    struct render_param *rp = &rc->params[tracer->current_param];
-    end = rp->last_surf;
+    if (tracer->current_param >= 0) {
+      struct render_param *rp = &rc->params[tracer->current_param];
+      end = rp->last_surf;
+    }
+
+    rb_begin_surfaces(tracer->rb, rc->projection, rc->verts, rc->num_verts);
+
+    tracer_render_list(tracer, rc, TA_LIST_OPAQUE, end, &stopped);
+    tracer_render_list(tracer, rc, TA_LIST_PUNCH_THROUGH, end, &stopped);
+    tracer_render_list(tracer, rc, TA_LIST_TRANSLUCENT, end, &stopped);
+
+    rb_end_surfaces(tracer->rb);
   }
 
-  rb_begin_surfaces(tracer->rb, rc->projection, rc->verts, rc->num_verts);
-
-  tracer_render_list(tracer, rc, TA_LIST_OPAQUE, end, &stopped);
-  tracer_render_list(tracer, rc, TA_LIST_PUNCH_THROUGH, end, &stopped);
-  tracer_render_list(tracer, rc, TA_LIST_TRANSLUCENT, end, &stopped);
-
-  rb_end_surfaces(tracer->rb);
+  nk_end_frame(tracer->nk);
+  rb_end_frame(tracer->rb);
 }
 
 static void tracer_keydown(void *data, int device_index, enum keycode code,
                            int16_t value) {
   struct tracer *tracer = data;
 
-  if (code == K_F1) {
-    if (value > 0) {
-      win_enable_debug_menu(tracer->window, !tracer->window->debug_menu);
-    }
-  } else if (code == K_LEFT && value > 0) {
+  if (code == K_LEFT && value > 0) {
     tracer_prev_context(tracer);
   } else if (code == K_RIGHT && value > 0) {
     tracer_next_context(tracer);
@@ -818,6 +821,7 @@ void tracer_run(struct tracer *tracer, const char *path) {
 
   while (tracer->running) {
     win_pump_events(tracer->window);
+    tracer_paint(tracer);
   }
 }
 
@@ -825,8 +829,21 @@ void tracer_destroy(struct tracer *tracer) {
   if (tracer->trace) {
     trace_destroy(tracer->trace);
   }
+
+  if (tracer->tr) {
+    tr_destroy(tracer->tr);
+  }
+
+  if (tracer->nk) {
+    nk_destroy(tracer->nk);
+  }
+
+  if (tracer->rb) {
+    rb_destroy(tracer->rb);
+  }
+
   win_remove_listener(tracer->window, &tracer->listener);
-  tr_destroy(tracer->tr);
+
   free(tracer);
 }
 
@@ -837,15 +854,32 @@ struct tracer *tracer_create(struct window *window) {
   struct tracer *tracer = calloc(1, sizeof(struct tracer));
 
   tracer->window = window;
+
+  /* add window input listeners */
   tracer->listener = (struct window_listener){
-      tracer,          &tracer_paint, NULL,          NULL, NULL,
-      &tracer_keydown, NULL,          &tracer_close, {0}};
+      tracer, NULL, NULL, NULL, &tracer_keydown, NULL, &tracer_close, {0}};
+  win_add_listener(tracer->window, &tracer->listener);
+
+  /* setup render backend */
+  tracer->rb = rb_create(tracer->window);
+  if (!tracer->rb) {
+    LOG_WARNING("Render backend creation failed");
+    tracer_destroy(tracer);
+    return NULL;
+  }
+
+  /* setup nuklear */
+  tracer->nk = nk_create(tracer->window, tracer->rb);
+  if (!tracer->nk) {
+    LOG_WARNING("Nuklear creation failed");
+    tracer_destroy(tracer);
+    return NULL;
+  }
+
+  /* setup tile renderer */
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
-  tracer->rb = window->rb;
   tracer->tr = tr_create(tracer->rb, &tracer->provider);
-
-  win_add_listener(tracer->window, &tracer->listener);
 
   /* add all textures to free list */
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {

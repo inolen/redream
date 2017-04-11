@@ -51,8 +51,6 @@ static void nk_mousemove(void *data, int x, int y) {
 }
 
 void nk_end_frame(struct nuklear *nk) {
-  struct render_backend *rb = nk->window->rb;
-
   /* convert draw list into vertex / element buffers */
   static const struct nk_draw_vertex_layout_element vertex_layout[] = {
       {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(struct vertex2d, xy)},
@@ -77,8 +75,8 @@ void nk_end_frame(struct nuklear *nk) {
   nk_convert(&nk->ctx, &nk->cmds, &vbuf, &ebuf, &config);
 
   /* bind buffers */
-  rb_begin_ortho(rb);
-  rb_begin_surfaces2d(rb, nk->vertices, nk->ctx.draw_list.vertex_count,
+  rb_begin_ortho(nk->rb);
+  rb_begin_surfaces2d(nk->rb, nk->vertices, nk->ctx.draw_list.vertex_count,
                       nk->elements, nk->ctx.draw_list.element_count);
 
   /* pass each draw command off to the render backend */
@@ -105,14 +103,14 @@ void nk_end_frame(struct nuklear *nk) {
     surf.first_vert = offset;
     surf.num_verts = cmd->elem_count;
 
-    rb_draw_surface2d(rb, &surf);
+    rb_draw_surface2d(nk->rb, &surf);
 
     offset += cmd->elem_count;
   }
   nk_clear(&nk->ctx);
 
-  rb_end_surfaces2d(rb);
-  rb_end_ortho(rb);
+  rb_end_surfaces2d(nk->rb);
+  rb_end_ortho(nk->rb);
 
   /* reset mouse wheel state as it won't be reset through any event */
   nk->mouse_wheel = 0;
@@ -139,19 +137,22 @@ void nk_destroy(struct nuklear *nk) {
   nk_font_atlas_clear(&nk->atlas);
   nk_free(&nk->ctx);
 
-  rb_destroy_texture(nk->window->rb, nk->font_texture);
+  rb_destroy_texture(nk->rb, nk->font_texture);
 
   win_remove_listener(nk->window, &nk->listener);
 
   free(nk);
 }
 
-struct nuklear *nk_create(struct window *window) {
+struct nuklear *nk_create(struct window *window, struct render_backend *rb) {
   struct nuklear *nk = calloc(1, sizeof(struct nuklear));
-  nk->window = window;
-  nk->listener = (struct window_listener){
-      nk, NULL, NULL, NULL, NULL, &nk_keydown, &nk_mousemove, NULL, {0}};
 
+  nk->window = window;
+  nk->rb = rb;
+
+  /* add input event listeners */
+  nk->listener = (struct window_listener){
+      nk, NULL, NULL, NULL, &nk_keydown, &nk_mousemove, NULL, {0}};
   win_add_listener(nk->window, &nk->listener);
 
   /* create default font texture */
@@ -162,7 +163,7 @@ struct nuklear *nk_create(struct window *window) {
   const void *font_data = nk_font_atlas_bake(
       &nk->atlas, &font_width, &font_height, NK_FONT_ATLAS_RGBA32);
   nk->font_texture =
-      rb_create_texture(nk->window->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
+      rb_create_texture(nk->rb, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
                         WRAP_REPEAT, 0, font_width, font_height, font_data);
   nk_font_atlas_end(&nk->atlas, nk_handle_id((int)nk->font_texture), &nk->null);
 

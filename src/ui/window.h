@@ -31,7 +31,6 @@ typedef void *glcontext_t;
 struct window_listener {
   void *data;
   void (*paint)(void *data);
-  void (*debug_menu)(void *data, struct nk_context *ctx);
   void (*joy_add)(void *data, int joystick_index);
   void (*joy_remove)(void *data, int joystick_index);
   void (*keydown)(void *data, int device_index, enum keycode code,
@@ -44,15 +43,11 @@ struct window_listener {
 struct window {
   /* public */
   struct SDL_Window *handle;
-  struct render_backend *rb;
-  struct nuklear *nk;
-  struct microprofile *mp;
 
   /* read only */
   int width;
   int height;
   int fullscreen;
-  int debug_menu;
 
   /* private state */
   struct list listeners;
@@ -71,9 +66,8 @@ void win_gl_destroy_context(struct window *win, glcontext_t ctx);
 void win_add_listener(struct window *win, struct window_listener *listener);
 void win_remove_listener(struct window *win, struct window_listener *listener);
 
-void win_pump_events(struct window *win);
+void win_set_fullscreen(struct window *win, int fullscreen);
 
-void win_set_status(struct window *win, const char *status);
-void win_enable_debug_menu(struct window *win, int active);
+void win_pump_events(struct window *win);
 
 #endif
