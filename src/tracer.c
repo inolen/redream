@@ -1,4 +1,4 @@
-#include "emu/tracer.h"
+#include "tracer.h"
 #include "core/math.h"
 #include "hw/pvr/ta.h"
 #include "hw/pvr/tr.h"
