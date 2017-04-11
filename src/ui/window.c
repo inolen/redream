@@ -842,18 +842,13 @@ glcontext_t win_gl_create_context(struct window *win) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
   SDL_GLContext ctx = SDL_GL_CreateContext(win->handle);
-  if (!ctx) {
-    LOG_WARNING("OpenGL context creation failed: %s", SDL_GetError());
-    return NULL;
-  }
+  CHECK_NOTNULL(ctx, "OpenGL context creation failed: %s", SDL_GetError());
 
   /* link in gl functions at runtime */
   glewExperimental = GL_TRUE;
   GLenum err = glewInit();
-  if (err != GLEW_OK) {
-    LOG_WARNING("GLEW initialization failed: %s", glewGetErrorString(err));
-    return NULL;
-  }
+  CHECK_EQ(err, GLEW_OK, "GLEW initialization failed: %s",
+           glewGetErrorString(err));
 
   /* enable vsync */
   SDL_GL_SetSwapInterval(1);
@@ -884,21 +879,14 @@ struct window *win_create() {
   win->height = DEFAULT_HEIGHT;
 
   /* initialize window */
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {
-    LOG_WARNING("SDL initialization failed: %s", SDL_GetError());
-    win_destroy(win);
-    return NULL;
-  }
+  int res = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
+  CHECK_GE(res, 0, "SDL initialization failed: %s", SDL_GetError());
 
   /* setup native window */
   win->handle = SDL_CreateWindow(
       "redream", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, win->width,
       win->height, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
-  if (!win->handle) {
-    LOG_WARNING("Window creation failed: %s", SDL_GetError());
-    win_destroy(win);
-    return NULL;
-  }
+  CHECK_NOTNULL(win->handle, "Window creation failed: %s", SDL_GetError());
 
   return win;
 }

@@ -830,17 +830,9 @@ void tracer_destroy(struct tracer *tracer) {
     trace_destroy(tracer->trace);
   }
 
-  if (tracer->tr) {
-    tr_destroy(tracer->tr);
-  }
-
-  if (tracer->nk) {
-    nk_destroy(tracer->nk);
-  }
-
-  if (tracer->rb) {
-    rb_destroy(tracer->rb);
-  }
+  tr_destroy(tracer->tr);
+  nk_destroy(tracer->nk);
+  rb_destroy(tracer->rb);
 
   win_remove_listener(tracer->window, &tracer->listener);
 
@@ -862,21 +854,8 @@ struct tracer *tracer_create(struct window *window) {
 
   /* setup render backend */
   tracer->rb = rb_create(tracer->window);
-  if (!tracer->rb) {
-    LOG_WARNING("Render backend creation failed");
-    tracer_destroy(tracer);
-    return NULL;
-  }
-
-  /* setup nuklear */
   tracer->nk = nk_create(tracer->window, tracer->rb);
-  if (!tracer->nk) {
-    LOG_WARNING("Nuklear creation failed");
-    tracer_destroy(tracer);
-    return NULL;
-  }
 
-  /* setup tile renderer */
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
   tracer->tr = tr_create(tracer->rb, &tracer->provider);

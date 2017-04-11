@@ -108,7 +108,7 @@ struct debugger *debugger_create(struct dreamcast *dc) {
 
   dbg->dc = dc;
 
-  return NULL;
+  return dbg;
 }
 
 void debugger_destroy(struct debugger *dbg) {
