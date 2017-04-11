@@ -26,6 +26,8 @@ struct SDL_Window;
 #define NUM_JOYSTICK_KEYS ((K_JOY31 - K_JOY0) + 1)
 #define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
 
+typedef void* glcontext_t;
+
 struct window_listener {
   void *data;
   void (*paint)(void *data);
@@ -63,6 +65,10 @@ struct window {
 
 struct window *win_create();
 void win_destroy(struct window *win);
+
+glcontext_t win_gl_create_context(struct window *win);
+void win_gl_make_current(struct window *win, glcontext_t ctx);
+void win_gl_destroy_context(struct window *win, glcontext_t ctx);
 
 void win_add_listener(struct window *win, struct window_listener *listener);
 void win_remove_listener(struct window *win, struct window_listener *listener);

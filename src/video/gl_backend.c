@@ -54,7 +54,7 @@ struct render_backend {
   struct window *window;
   struct window_listener listener;
 
-  SDL_GLContext ctx;
+  glcontext_t ctx;
   int debug_wireframe;
 
   /* resources */
@@ -347,41 +347,6 @@ static int rb_compile_program(struct render_backend *rb,
   rb_bind_program(rb, program);
   glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSE), MAP_DIFFUSE);
   rb_bind_program(rb, NULL);
-
-  return 1;
-}
-
-static void rb_destroy_context(struct render_backend *rb) {
-  if (!rb->ctx) {
-    return;
-  }
-
-  SDL_GL_DeleteContext(rb->ctx);
-  rb->ctx = NULL;
-}
-
-static int rb_init_context(struct render_backend *rb) {
-  /* need at least a 3.3 core context for our shaders */
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
-  rb->ctx = SDL_GL_CreateContext(rb->window->handle);
-  if (!rb->ctx) {
-    LOG_WARNING("OpenGL context creation failed: %s", SDL_GetError());
-    return 0;
-  }
-
-  /* link in gl functions at runtime */
-  glewExperimental = GL_TRUE;
-  GLenum err = glewInit();
-  if (err != GLEW_OK) {
-    LOG_WARNING("GLEW initialization failed: %s", glewGetErrorString(err));
-    return 0;
-  }
-
-  /* enable vsync */
-  SDL_GL_SetSwapInterval(1);
 
   return 1;
 }
@@ -816,20 +781,26 @@ void rb_destroy(struct render_backend *rb) {
   rb_destroy_vertex_buffers(rb);
   rb_destroy_shaders(rb);
   rb_destroy_textures(rb);
-  rb_destroy_context(rb);
+
+  if (rb->ctx) {
+    win_gl_destroy_context(rb->window, rb->ctx);
+  }
+
   win_remove_listener(rb->window, &rb->listener);
+
   free(rb);
 }
 
 struct render_backend *rb_create(struct window *window) {
   struct render_backend *rb = calloc(1, sizeof(struct render_backend));
   rb->window = window;
+
   rb->listener = (struct window_listener){
       rb, NULL, &rb_debug_menu, NULL, NULL, NULL, NULL, NULL, NULL, {0}};
-
   win_add_listener(rb->window, &rb->listener);
 
-  if (!rb_init_context(rb)) {
+  rb->ctx = win_gl_create_context(rb->window);
+  if (!rb->ctx) {
     rb_destroy(rb);
     return NULL;
   }
