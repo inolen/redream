@@ -43,14 +43,6 @@ static void nk_keydown(void *data, int device_index, enum keycode code,
   }
 }
 
-static void nk_textinput(void *data, const char *text) {
-  struct nuklear *nk = data;
-
-  nk_glyph glyph;
-  memcpy(glyph, text, NK_UTF_SIZE);
-  nk_input_glyph(&nk->ctx, glyph);
-}
-
 static void nk_mousemove(void *data, int x, int y) {
   struct nuklear *nk = data;
 
@@ -158,8 +150,7 @@ struct nuklear *nk_create(struct window *window) {
   struct nuklear *nk = calloc(1, sizeof(struct nuklear));
   nk->window = window;
   nk->listener = (struct window_listener){
-      nk,          NULL,          NULL,          NULL, NULL,
-      &nk_keydown, &nk_textinput, &nk_mousemove, NULL, {0}};
+      nk, NULL, NULL, NULL, NULL, &nk_keydown, &nk_mousemove, NULL, {0}};
 
   win_add_listener(nk->window, &nk->listener);
 

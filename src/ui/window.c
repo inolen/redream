@@ -207,14 +207,6 @@ static void win_handle_hatdown(struct window *win, int device_index, int hat,
   }
 }
 
-static void win_handle_textinput(struct window *win, const char *text) {
-  list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
-    if (listener->textinput) {
-      listener->textinput(listener->data, text);
-    }
-  }
-}
-
 static void win_handle_mousemove(struct window *win, int x, int y) {
   list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
     if (listener->mousemove) {
@@ -780,10 +772,6 @@ static void win_pump_sdl(struct window *win) {
         }
       } break;
 
-      case SDL_TEXTINPUT: {
-        win_handle_textinput(win, ev.text.text);
-      } break;
-
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP: {
         enum keycode keycode;
@@ -897,16 +885,6 @@ static void win_pump_sdl(struct window *win) {
         win_handle_close(win);
         break;
     }
-  }
-}
-
-void win_enable_text_input(struct window *win, int active) {
-  win->text_input = active;
-
-  if (win->text_input) {
-    SDL_StartTextInput();
-  } else {
-    SDL_StopTextInput();
   }
 }
 

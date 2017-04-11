@@ -1,8 +1,8 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
-#include "sys/thread.h"
 #include "core/assert.h"
+#include "sys/thread.h"
 
 static void thread_destroy(pthread_t *pthread) {
   free(pthread);

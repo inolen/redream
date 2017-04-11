@@ -52,7 +52,6 @@ struct shader_program {
 
 struct render_backend {
   struct window *window;
-  struct window_listener listener;
 
   glcontext_t ctx;
   int debug_wireframe;
@@ -532,18 +531,6 @@ static void rb_set_initial_state(struct render_backend *rb) {
   rb_set_blend_func(rb, BLEND_NONE, BLEND_NONE);
 }
 
-static void rb_debug_menu(void *data, struct nk_context *ctx) {
-  struct render_backend *rb = data;
-
-  nk_layout_row_push(ctx, 50.0f);
-  if (nk_menu_begin_label(ctx, "RENDER", NK_TEXT_LEFT,
-                          nk_vec2(140.0f, 200.0f))) {
-    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
-    nk_checkbox_label(ctx, "wireframe", &rb->debug_wireframe);
-    nk_menu_end(ctx);
-  }
-}
-
 static struct shader_program *rb_get_ta_program(struct render_backend *rb,
                                                 const struct surface *surf) {
   int idx = surf->shade;
@@ -786,18 +773,12 @@ void rb_destroy(struct render_backend *rb) {
     win_gl_destroy_context(rb->window, rb->ctx);
   }
 
-  win_remove_listener(rb->window, &rb->listener);
-
   free(rb);
 }
 
 struct render_backend *rb_create(struct window *window) {
   struct render_backend *rb = calloc(1, sizeof(struct render_backend));
   rb->window = window;
-
-  rb->listener = (struct window_listener){
-      rb, NULL, &rb_debug_menu, NULL, NULL, NULL, NULL, NULL, NULL, {0}};
-  win_add_listener(rb->window, &rb->listener);
 
   rb->ctx = win_gl_create_context(rb->window);
   if (!rb->ctx) {

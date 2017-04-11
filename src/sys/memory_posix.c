@@ -2,11 +2,11 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "sys/memory.h"
 #include "core/assert.h"
 #include "core/list.h"
 #include "core/string.h"
 #include "sys/filesystem.h"
+#include "sys/memory.h"
 
 #define MAX_SHMEM 128
 

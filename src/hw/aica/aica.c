@@ -167,16 +167,16 @@ static void aica_timer_expire_2(void *data) {
 }
 
 static uint32_t aica_timer_tctl(struct aica *aica, int n) {
-  return n == 0 ? aica->common_data->TACTL : n == 1 ? aica->common_data->TBCTL
-                                                    : aica->common_data->TCCTL;
+  return n == 0 ? aica->common_data->TACTL
+                : n == 1 ? aica->common_data->TBCTL : aica->common_data->TCCTL;
 }
 
 static uint32_t aica_timer_tcnt(struct aica *aica, int n) {
   struct timer *timer = aica->timers[n];
   if (!timer) {
     /* if no timer has been created, return the raw value */
-    return n == 0 ? aica->common_data->TIMA : n == 1 ? aica->common_data->TIMB
-                                                     : aica->common_data->TIMC;
+    return n == 0 ? aica->common_data->TIMA
+                  : n == 1 ? aica->common_data->TIMB : aica->common_data->TIMC;
   }
 
   /* else, dynamically compute the value based on the timer's remaining time */
