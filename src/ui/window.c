@@ -1,4 +1,6 @@
+#include <GL/glew.h>
 #include <SDL.h>
+#include <SDL_opengl.h>
 #include <stdlib.h>
 #include "ui/window.h"
 #include "core/assert.h"
@@ -929,6 +931,40 @@ void win_remove_listener(struct window *win, struct window_listener *listener) {
 
 void win_add_listener(struct window *win, struct window_listener *listener) {
   list_add(&win->listeners, &listener->it);
+}
+
+void win_gl_destroy_context(struct window *win, glcontext_t ctx) {
+  SDL_GL_DeleteContext(ctx);
+}
+
+void win_gl_make_current(struct window *win, glcontext_t ctx) {
+  SDL_GL_MakeCurrent(win->handle, ctx);
+}
+
+glcontext_t win_gl_create_context(struct window *win) {
+  /* need at least a 3.3 core context for our shaders */
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+  SDL_GLContext ctx = SDL_GL_CreateContext(win->handle);
+  if (!ctx) {
+    LOG_WARNING("OpenGL context creation failed: %s", SDL_GetError());
+    return NULL;
+  }
+
+  /* link in gl functions at runtime */
+  glewExperimental = GL_TRUE;
+  GLenum err = glewInit();
+  if (err != GLEW_OK) {
+    LOG_WARNING("GLEW initialization failed: %s", glewGetErrorString(err));
+    return NULL;
+  }
+
+  /* enable vsync */
+  SDL_GL_SetSwapInterval(1);
+
+  return ctx;
 }
 
 void win_destroy(struct window *win) {
