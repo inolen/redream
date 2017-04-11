@@ -16,8 +16,11 @@
 #define NK_MAX_VERTICES 16384
 #define NK_MAX_ELEMENTS (NK_MAX_VERTICES * 4)
 
+struct render_backend;
+
 struct nuklear {
   struct window *window;
+  struct render_backend *rb;
   struct window_listener listener;
 
   struct nk_context ctx;
@@ -39,7 +42,7 @@ struct nuklear {
   int shift[2];
 };
 
-struct nuklear *nk_create(struct window *window);
+struct nuklear *nk_create(struct window *window, struct render_backend *rb);
 void nk_destroy(struct nuklear *nk);
 
 void nk_begin_frame(struct nuklear *nk);

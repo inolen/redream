@@ -26,6 +26,7 @@ static const int MAX_2D_SURFACES = 256;
 
 struct microprofile {
   struct window *window;
+  struct render_backend *rb;
   struct window_listener listener;
   texture_handle_t font_texture;
   struct surface2d surfs[MAX_2D_SURFACES];
@@ -240,18 +241,16 @@ void mp_end_frame(struct microprofile *mp) {
   MicroProfileDraw(mp->window->width, mp->window->height);
 
   /* render the surfaces */
-  struct render_backend *rb = mp->window->rb;
-
-  rb_begin_ortho(rb);
-  rb_begin_surfaces2d(rb, mp->verts, mp->num_verts, nullptr, 0);
+  rb_begin_ortho(mp->rb);
+  rb_begin_surfaces2d(mp->rb, mp->verts, mp->num_verts, nullptr, 0);
 
   for (int i = 0; i < mp->num_surfs; i++) {
     struct surface2d *surf = &mp->surfs[i];
-    rb_draw_surface2d(rb, surf);
+    rb_draw_surface2d(mp->rb, surf);
   }
 
-  rb_end_surfaces2d(rb);
-  rb_end_ortho(rb);
+  rb_end_surfaces2d(mp->rb);
+  rb_end_ortho(mp->rb);
 
   /* reset surfaces */
   mp->num_surfs = 0;
@@ -261,25 +260,24 @@ void mp_end_frame(struct microprofile *mp) {
 void mp_begin_frame(struct microprofile *mp) {}
 
 void mp_destroy(struct microprofile *mp) {
-  rb_destroy_texture(mp->window->rb, mp->font_texture);
+  rb_destroy_texture(mp->rb, mp->font_texture);
 
   win_remove_listener(mp->window, &mp->listener);
 
   free(mp);
 }
 
-struct microprofile *mp_create(struct window *window) {
+struct microprofile *mp_create(struct window *window,
+                               struct render_backend *rb) {
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));
 
   mp->window = window;
-  mp->listener = {mp,          NULL,          NULL, NULL, NULL,
-                  &mp_keydown, &mp_mousemove, NULL, {}};
+  mp->rb = rb;
 
+  /* add input event listeners */
+  mp->listener = {mp, NULL, NULL, NULL, &mp_keydown, &mp_mousemove, NULL, {}};
   win_add_listener(mp->window, &mp->listener);
-
-  /* init microprofile */
-  struct render_backend *rb = mp->window->rb;
 
   /* register and enable cpu and gpu groups by default */
   uint16_t cpu_group = MicroProfileGetGroup("cpu", MicroProfileTokenTypeCpu);
@@ -295,9 +293,10 @@ struct microprofile *mp_create(struct window *window) {
   g_MicroProfile.nAggregateFlip = 120;
 
   /* register the font texture */
-  mp->font_texture = rb_create_texture(
-      rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE, WRAP_CLAMP_TO_EDGE, 0,
-      FONT_WIDTH, FONT_HEIGHT, reinterpret_cast<const uint8_t *>(s_font_data));
+  mp->font_texture =
+      rb_create_texture(mp->rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
+                        WRAP_CLAMP_TO_EDGE, 0, FONT_WIDTH, FONT_HEIGHT,
+                        reinterpret_cast<const uint8_t *>(s_font_data));
 
   return mp;
 }
