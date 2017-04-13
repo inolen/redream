@@ -276,7 +276,7 @@ struct microprofile *mp_create(struct window *window,
   mp->rb = rb;
 
   /* add input event listeners */
-  mp->listener = {mp, NULL, NULL, NULL, &mp_keydown, &mp_mousemove, NULL, {}};
+  mp->listener = {mp, NULL, NULL, &mp_keydown, &mp_mousemove, NULL, {}};
   win_add_listener(mp->window, &mp->listener);
 
   /* register and enable cpu and gpu groups by default */

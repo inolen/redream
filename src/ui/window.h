@@ -30,7 +30,6 @@ typedef void *glcontext_t;
 
 struct window_listener {
   void *data;
-  void (*paint)(void *data);
   void (*joy_add)(void *data, int joystick_index);
   void (*joy_remove)(void *data, int joystick_index);
   void (*keydown)(void *data, int device_index, enum keycode code,
@@ -43,6 +42,7 @@ struct window_listener {
 struct window {
   /* public */
   struct SDL_Window *handle;
+  glcontext_t default_ctx;
 
   /* read only */
   int width;

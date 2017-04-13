@@ -849,7 +849,7 @@ struct tracer *tracer_create(struct window *window) {
 
   /* add window input listeners */
   tracer->listener = (struct window_listener){
-      tracer, NULL, NULL, NULL, &tracer_keydown, NULL, &tracer_close, {0}};
+      tracer, NULL, NULL, &tracer_keydown, NULL, &tracer_close, {0}};
   win_add_listener(tracer->window, &tracer->listener);
 
   /* setup render backend */
