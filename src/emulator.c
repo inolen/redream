@@ -311,8 +311,7 @@ struct emu *emu_create(struct window *window) {
 
   /* add window input listeners */
   emu->listener = (struct window_listener){
-      emu,          NULL, &emu_joy_add, &emu_joy_remove,
-      &emu_keydown, NULL, &emu_close,   {0}};
+      emu, &emu_joy_add, &emu_joy_remove, &emu_keydown, NULL, &emu_close, {0}};
   win_add_listener(emu->window, &emu->listener);
 
   /* setup dreamcast */

@@ -152,7 +152,7 @@ struct nuklear *nk_create(struct window *window, struct render_backend *rb) {
 
   /* add input event listeners */
   nk->listener = (struct window_listener){
-      nk, NULL, NULL, NULL, &nk_keydown, &nk_mousemove, NULL, {0}};
+      nk, NULL, NULL, &nk_keydown, &nk_mousemove, NULL, {0}};
   win_add_listener(nk->window, &nk->listener);
 
   /* create default font texture */
