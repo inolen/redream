@@ -64,7 +64,6 @@ struct render_backend {
   struct window *window;
 
   glcontext_t ctx;
-  int debug_wireframe;
 
   /* resources */
   struct framebuffer framebuffers[MAX_FRAMEBUFFERS];
@@ -569,9 +568,6 @@ static struct shader_program *rb_get_ta_program(struct render_backend *rb,
 }
 
 void rb_end_surfaces(struct render_backend *rb) {
-  if (rb->debug_wireframe) {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-  }
 }
 
 void rb_draw_surface(struct render_backend *rb, const struct surface *surf) {
@@ -610,10 +606,6 @@ void rb_begin_surfaces(struct render_backend *rb, const float *projection,
                GL_DYNAMIC_DRAW);
 
   rb_bind_vao(rb, rb->ta_vao);
-
-  if (rb->debug_wireframe) {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  }
 }
 
 void rb_end_surfaces2(struct render_backend *rb) {}
