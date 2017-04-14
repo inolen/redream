@@ -5,7 +5,9 @@
 
 struct window;
 
+typedef int framebuffer_handle_t;
 typedef int texture_handle_t;
+typedef void *sync_handle_t;
 
 enum pxl_format {
   PXL_INVALID,
@@ -103,19 +105,24 @@ struct surface {
   int num_verts;
 };
 
-struct vertex2d {
+struct vertex2 {
   float xy[2];
   float uv[2];
   uint32_t color;
 };
 
-struct surface2d {
+struct surface2 {
   enum prim_type prim_type;
+
+  framebuffer_handle_t framebuffer;
   texture_handle_t texture;
+
   enum blend_func src_blend;
   enum blend_func dst_blend;
+
   int scissor;
   float scissor_rect[4];
+
   int first_vert;
   int num_verts;
 };
@@ -125,6 +132,12 @@ struct render_backend;
 struct render_backend *rb_create(struct window *window);
 void rb_destroy(struct render_backend *rb);
 
+framebuffer_handle_t rb_create_framebuffer(struct render_backend *rb);
+void rb_bind_framebuffer(struct render_backend *rb,
+                         framebuffer_handle_t handle);
+void rb_destroy_framebuffer(struct render_backend *rb,
+                            framebuffer_handle_t handle);
+
 texture_handle_t rb_create_texture(struct render_backend *rb,
                                    enum pxl_format format,
                                    enum filter_mode filter,
@@ -132,6 +145,9 @@ texture_handle_t rb_create_texture(struct render_backend *rb,
                                    int mipmaps, int width, int height,
                                    const uint8_t *buffer);
 void rb_destroy_texture(struct render_backend *rb, texture_handle_t handle);
+
+sync_handle_t rb_sync(struct render_backend *rb);
+void rb_wait(sync_handle_t on);
 
 void rb_begin_frame(struct render_backend *rb);
 void rb_end_frame(struct render_backend *rb);
@@ -144,10 +160,9 @@ void rb_begin_surfaces(struct render_backend *rb, const float *projection,
 void rb_draw_surface(struct render_backend *rb, const struct surface *surf);
 void rb_end_surfaces(struct render_backend *rb);
 
-void rb_begin_surfaces2d(struct render_backend *rb,
-                         const struct vertex2d *verts, int num_verts,
-                         uint16_t *indices, int num_indices);
-void rb_draw_surface2d(struct render_backend *rb, const struct surface2d *surf);
-void rb_end_surfaces2d(struct render_backend *rb);
+void rb_begin_surfaces2(struct render_backend *rb, const struct vertex2 *verts,
+                        int num_verts, uint16_t *indices, int num_indices);
+void rb_draw_surface2(struct render_backend *rb, const struct surface2 *surf);
+void rb_end_surfaces2(struct render_backend *rb);
 
 #endif
