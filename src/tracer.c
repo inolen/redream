@@ -83,7 +83,7 @@ struct tracer {
   int scroll_to_param;
 
   /* render state */
-  struct render_context rc;
+  struct tile_render_context rc;
   struct tracer_texture_entry textures[1024];
   struct rb_tree live_textures;
   struct list free_textures;
@@ -320,7 +320,7 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
 }
 
 static void tracer_param_tooltip(struct tracer *tracer,
-                                 struct render_param *rp) {
+                                 struct tile_render_param *rp) {
   struct nk_context *ctx = &tracer->nk->ctx;
 
   if (nk_tooltip_begin(ctx, 300.0f)) {
@@ -605,7 +605,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
         nk_layout_row_dynamic(ctx, (float)param_height, 1);
 
         for (int i = view.begin; i < view.end && i < num_params; i++) {
-          struct render_param *rp = &tracer->rc.params[i];
+          struct tile_render_param *rp = &tracer->rc.params[i];
           union pcw pcw = *(const union pcw *)(tracer->ctx.params + rp->offset);
 
           int selected = (i == tracer->current_param);
@@ -719,13 +719,13 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 }
 
 static void tracer_render_list(struct tracer *tracer,
-                               const struct render_context *rc, int list_type,
-                               int end, int *stopped) {
+                               const struct tile_render_context *rc,
+                               int list_type, int end, int *stopped) {
   if (*stopped) {
     return;
   }
 
-  const struct render_list *list = &tracer->rc.lists[list_type];
+  const struct tile_render_list *list = &tracer->rc.lists[list_type];
   const int *sorted_surf = list->surfs;
   const int *sorted_surf_end = list->surfs + list->num_surfs;
 
@@ -751,12 +751,12 @@ static void tracer_paint(struct tracer *tracer) {
 
   /* render context up to the surface of the currently selected param */
   {
-    struct render_context *rc = &tracer->rc;
+    struct tile_render_context *rc = &tracer->rc;
     int stopped = 0;
     int end = -1;
 
     if (tracer->current_param >= 0) {
-      struct render_param *rp = &rc->params[tracer->current_param];
+      struct tile_render_param *rp = &rc->params[tracer->current_param];
       end = rp->last_surf;
     }
 

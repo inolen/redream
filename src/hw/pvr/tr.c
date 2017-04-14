@@ -349,7 +349,8 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
   return entry->handle;
 }
 
-static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
+static struct surface *tr_alloc_surf(struct tr *tr,
+                                     struct tile_render_context *rc,
                                      int copy_from_prev) {
   CHECK_LT(rc->num_surfs, array_size(rc->surfs));
   int id = rc->num_surfs++;
@@ -365,14 +366,15 @@ static struct surface *tr_alloc_surf(struct tr *tr, struct render_context *rc,
   surf->num_verts = 0;
 
   /* default sort the surface */
-  struct render_list *list = &rc->lists[tr->list_type];
+  struct tile_render_list *list = &rc->lists[tr->list_type];
   list->surfs[list->num_surfs] = id;
   list->num_surfs++;
 
   return surf;
 }
 
-static struct vertex *tr_alloc_vert(struct tr *tr, struct render_context *rc) {
+static struct vertex *tr_alloc_vert(struct tr *tr,
+                                    struct tile_render_context *rc) {
   CHECK_LT(rc->num_verts, array_size(rc->verts));
   int id = rc->num_verts++;
   struct vertex *v = &rc->verts[id];
@@ -386,7 +388,7 @@ static struct vertex *tr_alloc_vert(struct tr *tr, struct render_context *rc) {
 }
 
 static void tr_discard_incomplete_surf(struct tr *tr,
-                                       struct render_context *rc) {
+                                       struct tile_render_context *rc) {
   /* free up the last surface if it wasn't finished */
   if (tr->last_vertex && !tr->last_vertex->type0.pcw.end_of_strip) {
     rc->num_surfs--;
@@ -463,7 +465,7 @@ static int tr_parse_bg_vert(const struct tile_ctx *ctx, int offset,
 }
 
 static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
-                        struct render_context *rc) {
+                        struct tile_render_context *rc) {
   tr->list_type = TA_LIST_OPAQUE;
 
   /* translate the surface */
@@ -513,7 +515,7 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
 /* this offset color implementation is not correct at all, see the
    Texture/Shading Instruction in the union tsp instruction word */
 static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
-                                struct render_context *rc,
+                                struct tile_render_context *rc,
                                 const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rc);
 
@@ -647,7 +649,7 @@ static void tr_parse_spriteb_vert(struct tr *tr, const union vert_param *param,
 }
 
 static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
-                                struct render_context *rc,
+                                struct tile_render_context *rc,
                                 const uint8_t *data) {
   const union vert_param *param = (const union vert_param *)data;
   /* if there is no need to change the Global Parameters, a Vertex Parameter
@@ -838,7 +840,7 @@ static void tr_merge_surfs(struct tr *tr, int *low, int *mid, int *high) {
   memcpy(low, tr->merged, (k - tr->merged) * sizeof(tr->merged[0]));
 }
 
-static void tr_sort_surfs(struct tr *tr, struct render_list *list, int low,
+static void tr_sort_surfs(struct tr *tr, struct tile_render_list *list, int low,
                           int high) {
   if (low >= high) {
     return;
@@ -850,9 +852,9 @@ static void tr_sort_surfs(struct tr *tr, struct render_list *list, int low,
   tr_merge_surfs(tr, &list->surfs[low], &list->surfs[mid], &list->surfs[high]);
 }
 
-static void tr_sort_render_list(struct tr *tr, struct render_context *rc,
+static void tr_sort_render_list(struct tr *tr, struct tile_render_context *rc,
                                 int list_type) {
-  struct render_list *list = &rc->lists[list_type];
+  struct tile_render_list *list = &rc->lists[list_type];
 
   for (int i = 0; i < list->num_surfs; i++) {
     int idx = list->surfs[i];
@@ -874,7 +876,7 @@ static void tr_sort_render_list(struct tr *tr, struct render_context *rc,
 }
 
 static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
-                         struct render_context *rc, const uint8_t *data) {
+                         struct tile_render_context *rc, const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rc);
 
   tr->last_poly = NULL;
@@ -884,7 +886,7 @@ static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
 }
 
 static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
-                        struct render_context *rc) {
+                        struct tile_render_context *rc) {
   /* this isn't a traditional projection matrix. xy components coming into the
      TA are in window space, while the z component is 1/w with +z headed into
      the screen. these coordinates need to be scaled back into ndc space, and
@@ -931,7 +933,7 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
   rc->projection[15] = 1.0f;
 }
 
-static void tr_reset(struct tr *tr, struct render_context *rc) {
+static void tr_reset(struct tr *tr, struct tile_render_context *rc) {
   /* reset global state */
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
@@ -943,13 +945,13 @@ static void tr_reset(struct tr *tr, struct render_context *rc) {
   rc->num_surfs = 0;
   rc->num_verts = 0;
   for (int i = 0; i < TA_NUM_LISTS; i++) {
-    struct render_list *list = &rc->lists[i];
+    struct tile_render_list *list = &rc->lists[i];
     list->num_surfs = 0;
   }
 }
 
 void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
-                      struct render_context *rc) {
+                      struct tile_render_context *rc) {
   PROF_ENTER("gpu", "tr_parse_context");
 
   const uint8_t *data = ctx->params;
@@ -995,7 +997,7 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
     }
 
     /* track info about the parse state for tracer debugging */
-    struct render_param *rp = &rc->params[rc->num_params++];
+    struct tile_render_param *rp = &rc->params[rc->num_params++];
     rp->offset = (int)(data - ctx->params);
     rp->list_type = tr->list_type;
     rp->vertex_type = tr->list_type;
@@ -1016,9 +1018,9 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
   PROF_LEAVE();
 }
 
-static void tr_render_list(struct tr *tr, const struct render_context *rc,
+static void tr_render_list(struct tr *tr, const struct tile_render_context *rc,
                            int list_type) {
-  const struct render_list *list = &rc->lists[list_type];
+  const struct tile_render_list *list = &rc->lists[list_type];
   const int *sorted_surf = list->surfs;
   const int *sorted_surf_end = list->surfs + list->num_surfs;
 
@@ -1028,7 +1030,7 @@ static void tr_render_list(struct tr *tr, const struct render_context *rc,
   }
 }
 
-void tr_render_context(struct tr *tr, const struct render_context *rc) {
+void tr_render_context(struct tr *tr, const struct tile_render_context *rc) {
   PROF_ENTER("gpu", "tr_render_context");
 
   rb_begin_surfaces(tr->rb, rc->projection, rc->verts, rc->num_verts);
