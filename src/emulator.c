@@ -37,7 +37,7 @@ struct emu {
 
   /* render state */
   struct tr *tr;
-  struct render_context rc;
+  struct tile_render_context rc;
 };
 
 static int emu_launch_bin(struct emu *emu, const char *path) {
@@ -87,7 +87,7 @@ static void emu_paint(struct emu *emu) {
 
   /* render the next ta context */
   {
-    struct render_context *rc = &emu->rc;
+    struct tile_render_context *rc = &emu->rc;
     struct tile_ctx *pending_ctx = NULL;
 
     while (emu->running) {

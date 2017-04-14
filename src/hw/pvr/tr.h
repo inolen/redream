@@ -42,7 +42,7 @@ struct texture_provider {
   struct texture_entry *(*find_texture)(void *, union tsp, union tcw);
 };
 
-struct render_param {
+struct tile_render_param {
   /* offset of parameter in tile_context param stream */
   int offset;
   /* global list and vertex types at time of parsing */
@@ -53,12 +53,12 @@ struct render_param {
   int last_vert;
 };
 
-struct render_list {
+struct tile_render_list {
   int surfs[TA_MAX_SURFS];
   int num_surfs;
 };
 
-struct render_context {
+struct tile_render_context {
   /* transforms incoming windows space coordinates to ndc space */
   float projection[16];
 
@@ -70,10 +70,10 @@ struct render_context {
   int num_verts;
 
   /* sorted list of surfaces corresponding to each of the ta's polygon lists */
-  struct render_list lists[TA_NUM_LISTS];
+  struct tile_render_list lists[TA_NUM_LISTS];
 
   /* debug structures for stepping through the param stream in the tracer */
-  struct render_param params[TA_MAX_PARAMS];
+  struct tile_render_param params[TA_MAX_PARAMS];
   int num_params;
 };
 
@@ -86,7 +86,7 @@ struct tr *tr_create(struct render_backend *rb,
 void tr_destroy(struct tr *tr);
 
 void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
-                      struct render_context *rc);
-void tr_render_context(struct tr *tr, const struct render_context *rc);
+                      struct tile_render_context *rc);
+void tr_render_context(struct tr *tr, const struct tile_render_context *rc);
 
 #endif
