@@ -53,10 +53,9 @@ static void nk_mousemove(void *data, int x, int y) {
 void nk_end_frame(struct nuklear *nk) {
   /* convert draw list into vertex / element buffers */
   static const struct nk_draw_vertex_layout_element vertex_layout[] = {
-      {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(struct vertex2d, xy)},
-      {NK_VERTEX_TEXCOORD, NK_FORMAT_FLOAT, NK_OFFSETOF(struct vertex2d, uv)},
-      {NK_VERTEX_COLOR, NK_FORMAT_R8G8B8A8,
-       NK_OFFSETOF(struct vertex2d, color)},
+      {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(struct vertex2, xy)},
+      {NK_VERTEX_TEXCOORD, NK_FORMAT_FLOAT, NK_OFFSETOF(struct vertex2, uv)},
+      {NK_VERTEX_COLOR, NK_FORMAT_R8G8B8A8, NK_OFFSETOF(struct vertex2, color)},
       {NK_VERTEX_LAYOUT_END}};
 
   struct nk_buffer vbuf, ebuf;
@@ -65,8 +64,8 @@ void nk_end_frame(struct nuklear *nk) {
 
   struct nk_convert_config config = {0};
   config.vertex_layout = vertex_layout;
-  config.vertex_size = sizeof(struct vertex2d);
-  config.vertex_alignment = NK_ALIGNOF(struct vertex2d);
+  config.vertex_size = sizeof(struct vertex2);
+  config.vertex_alignment = NK_ALIGNOF(struct vertex2);
   config.null = nk->null;
   config.global_alpha = 1.0f;
   config.shape_AA = NK_ANTI_ALIASING_OFF;
@@ -76,14 +75,14 @@ void nk_end_frame(struct nuklear *nk) {
 
   /* bind buffers */
   rb_begin_ortho(nk->rb);
-  rb_begin_surfaces2d(nk->rb, nk->vertices, nk->ctx.draw_list.vertex_count,
-                      nk->elements, nk->ctx.draw_list.element_count);
+  rb_begin_surfaces2(nk->rb, nk->vertices, nk->ctx.draw_list.vertex_count,
+                     nk->elements, nk->ctx.draw_list.element_count);
 
   /* pass each draw command off to the render backend */
   const struct nk_draw_command *cmd = NULL;
   int offset = 0;
 
-  struct surface2d surf = {0};
+  struct surface2 surf = {0};
   surf.prim_type = PRIM_TRIANGLES;
   surf.src_blend = BLEND_SRC_ALPHA;
   surf.dst_blend = BLEND_ONE_MINUS_SRC_ALPHA;
@@ -103,13 +102,13 @@ void nk_end_frame(struct nuklear *nk) {
     surf.first_vert = offset;
     surf.num_verts = cmd->elem_count;
 
-    rb_draw_surface2d(nk->rb, &surf);
+    rb_draw_surface2(nk->rb, &surf);
 
     offset += cmd->elem_count;
   }
   nk_clear(&nk->ctx);
 
-  rb_end_surfaces2d(nk->rb);
+  rb_end_surfaces2(nk->rb);
   rb_end_ortho(nk->rb);
 
   /* reset mouse wheel state as it won't be reset through any event */

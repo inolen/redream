@@ -30,7 +30,7 @@ struct nuklear {
   texture_handle_t font_texture;
 
   /* render buffers */
-  struct vertex2d vertices[NK_MAX_VERTICES];
+  struct vertex2 vertices[NK_MAX_VERTICES];
   uint16_t elements[NK_MAX_ELEMENTS];
 
   /* input state */

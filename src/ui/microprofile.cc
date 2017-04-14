@@ -29,9 +29,9 @@ struct microprofile {
   struct render_backend *rb;
   struct window_listener listener;
   texture_handle_t font_texture;
-  struct surface2d surfs[MAX_2D_SURFACES];
+  struct surface2 surfs[MAX_2D_SURFACES];
   int num_surfs;
-  struct vertex2d verts[MAX_2D_VERTICES];
+  struct vertex2 verts[MAX_2D_VERTICES];
   int num_verts;
 };
 
@@ -65,16 +65,15 @@ static void mp_mousemove(void *data, int x, int y) {
   MicroProfileMousePosition(x, y, 0);
 }
 
-static struct vertex2d *mp_alloc_verts(struct microprofile *mp,
-                                       const struct surface2d &desc,
-                                       int count) {
+static struct vertex2 *mp_alloc_verts(struct microprofile *mp,
+                                      const struct surface2 &desc, int count) {
   CHECK(mp->num_verts + count <= MAX_2D_VERTICES);
   uint32_t first_vert = mp->num_verts;
   mp->num_verts += count;
 
   /* try to batch with the last surface if possible */
   if (mp->num_surfs) {
-    struct surface2d &last_surf = mp->surfs[mp->num_surfs - 1];
+    struct surface2 &last_surf = mp->surfs[mp->num_surfs - 1];
 
     if (last_surf.prim_type == desc.prim_type &&
         last_surf.texture == desc.texture &&
@@ -87,7 +86,7 @@ static struct vertex2d *mp_alloc_verts(struct microprofile *mp,
 
   /* else, allocate a new surface */
   CHECK(mp->num_surfs < MAX_2D_SURFACES);
-  struct surface2d &next_surf = mp->surfs[mp->num_surfs];
+  struct surface2 &next_surf = mp->surfs[mp->num_surfs];
   next_surf.prim_type = desc.prim_type;
   next_surf.texture = desc.texture;
   next_surf.src_blend = desc.src_blend;
@@ -106,15 +105,16 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
   float fy2 = fy + (MICROPROFILE_TEXT_HEIGHT + 1);
   int text_len = static_cast<int>(strlen(text));
 
-  struct vertex2d *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                                mp->font_texture,
-                                                BLEND_SRC_ALPHA,
-                                                BLEND_ONE_MINUS_SRC_ALPHA,
-                                                false,
-                                                {0.0f, 0.0f, 0.0f, 0.0f},
-                                                0,
-                                                0},
-                                           6 * text_len);
+  struct vertex2 *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
+                                               0,
+                                               mp->font_texture,
+                                               BLEND_SRC_ALPHA,
+                                               BLEND_ONE_MINUS_SRC_ALPHA,
+                                               false,
+                                               {0.0f, 0.0f, 0.0f, 0.0f},
+                                               0,
+                                               0},
+                                          6 * text_len);
 
   for (int i = 0; i < text_len; i++) {
     float fx2 = fx + MICROPROFILE_TEXT_WIDTH;
@@ -154,15 +154,16 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
 
 static void mp_draw_box(struct microprofile *mp, int x0, int y0, int x1, int y1,
                         uint32_t color, enum box_type type) {
-  struct vertex2d *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                                0,
-                                                BLEND_SRC_ALPHA,
-                                                BLEND_ONE_MINUS_SRC_ALPHA,
-                                                false,
-                                                {0.0f, 0.0f, 0.0f, 0.0f},
-                                                0,
-                                                0},
-                                           6);
+  struct vertex2 *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
+                                               0,
+                                               0,
+                                               BLEND_SRC_ALPHA,
+                                               BLEND_ONE_MINUS_SRC_ALPHA,
+                                               false,
+                                               {0.0f, 0.0f, 0.0f, 0.0f},
+                                               0,
+                                               0},
+                                          6);
 
   if (type == BOX_FLAT) {
     Q0(vertex, xy[0], (float)x0);
@@ -213,15 +214,16 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
                          uint32_t color) {
   CHECK(num_verts);
 
-  struct vertex2d *vertex = mp_alloc_verts(mp, {PRIM_LINES,
-                                                0,
-                                                BLEND_SRC_ALPHA,
-                                                BLEND_ONE_MINUS_SRC_ALPHA,
-                                                false,
-                                                {0.0f, 0.0f, 0.0f, 0.0f},
-                                                0,
-                                                0},
-                                           2 * (num_verts - 1));
+  struct vertex2 *vertex = mp_alloc_verts(mp, {PRIM_LINES,
+                                               0,
+                                               0,
+                                               BLEND_SRC_ALPHA,
+                                               BLEND_ONE_MINUS_SRC_ALPHA,
+                                               false,
+                                               {0.0f, 0.0f, 0.0f, 0.0f},
+                                               0,
+                                               0},
+                                          2 * (num_verts - 1));
 
   for (int i = 0; i < num_verts - 1; ++i) {
     vertex[0].xy[0] = verts[i * 2];
@@ -242,14 +244,14 @@ void mp_end_frame(struct microprofile *mp) {
 
   /* render the surfaces */
   rb_begin_ortho(mp->rb);
-  rb_begin_surfaces2d(mp->rb, mp->verts, mp->num_verts, nullptr, 0);
+  rb_begin_surfaces2(mp->rb, mp->verts, mp->num_verts, nullptr, 0);
 
   for (int i = 0; i < mp->num_surfs; i++) {
-    struct surface2d *surf = &mp->surfs[i];
-    rb_draw_surface2d(mp->rb, surf);
+    struct surface2 *surf = &mp->surfs[i];
+    rb_draw_surface2(mp->rb, surf);
   }
 
-  rb_end_surfaces2d(mp->rb);
+  rb_end_surfaces2(mp->rb);
   rb_end_ortho(mp->rb);
 
   /* reset surfaces */
