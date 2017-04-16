@@ -42,7 +42,6 @@ struct window_listener {
 struct window {
   /* public */
   struct SDL_Window *handle;
-  glcontext_t default_ctx;
 
   /* read only */
   int width;
@@ -60,6 +59,7 @@ struct window *win_create();
 void win_destroy(struct window *win);
 
 glcontext_t win_gl_create_context(struct window *win);
+glcontext_t win_gl_create_context_from(struct window *win, glcontext_t other);
 void win_gl_make_current(struct window *win, glcontext_t ctx);
 void win_gl_destroy_context(struct window *win, glcontext_t ctx);
 

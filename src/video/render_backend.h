@@ -5,8 +5,8 @@
 
 struct window;
 
-typedef int framebuffer_handle_t;
-typedef int texture_handle_t;
+typedef unsigned framebuffer_handle_t;
+typedef unsigned texture_handle_t;
 typedef void *sync_handle_t;
 
 enum pxl_format {
@@ -114,7 +114,6 @@ struct vertex2 {
 struct surface2 {
   enum prim_type prim_type;
 
-  framebuffer_handle_t framebuffer;
   texture_handle_t texture;
 
   enum blend_func src_blend;
@@ -130,9 +129,11 @@ struct surface2 {
 struct render_backend;
 
 struct render_backend *r_create(struct window *window);
-void r_destroy(struct render_backend *r);
+struct render_backend *r_create_from(struct render_backend *other);
+void r_destroy(struct render_backend *rc);
 
-framebuffer_handle_t r_create_framebuffer(struct render_backend *r);
+framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
+                                          texture_handle_t *color_componet);
 void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle);
 void r_destroy_framebuffer(struct render_backend *r,
                            framebuffer_handle_t handle);

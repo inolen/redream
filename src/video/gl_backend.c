@@ -4,6 +4,7 @@
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "core/string.h"
+#include "sys/thread.h"
 #include "ui/nuklear.h"
 #include "ui/window.h"
 #include "video/render_backend.h"
@@ -61,28 +62,36 @@ struct texture {
 };
 
 struct render_backend {
-  struct window *window;
-
+  struct window *win;
   glcontext_t ctx;
 
-  /* resources */
-  struct framebuffer framebuffers[MAX_FRAMEBUFFERS];
-  struct texture textures[MAX_TEXTURES];
-  struct texture white;
-
+  /* default assets created during intitialization */
+  GLuint white_texture;
   struct shader_program ta_programs[ATTR_COUNT];
   struct shader_program ui_program;
 
+  /* note, in this backend framebuffer_handle_t and texture_handle_t are the
+     OpenGL object handles, not indexes into these arrays. this lets OpenGL
+     handle generating unique IDs across multiple contexts, with no additional
+     synchronization on our part. however, to delete an object a reverse lookup
+     must be performed to match the handle to an index in these arrays
+
+     note note, due to this dumbed down design, textures can be shared across
+     multiple backends for rendering purposes, but can only be deleted on the
+     backend that created them
+
+     TODO the textures / framebuffers arrays exist purely for cleanup purposes,
+     it'd be nice to replace with a hashtable to avoid O(n) reverse lookup */
+  struct texture textures[MAX_TEXTURES];
+  struct framebuffer framebuffers[MAX_FRAMEBUFFERS];
+
+  /* surface render state */
   GLuint ta_vao;
   GLuint ta_vbo;
   GLuint ui_vao;
   GLuint ui_vbo;
   GLuint ui_ibo;
   int ui_use_ibo;
-
-  /* begin_surfaces / draw_surfaces / end_surfaces uniform state */
-  uint64_t uniform_token;
-  const float *uniform_mvp;
 
   /* current gl state */
   int scissor_test;
@@ -92,8 +101,9 @@ struct render_backend {
   enum blend_func src_blend;
   enum blend_func dst_blend;
   GLuint current_vao;
-  int vertex_attribs;
   struct shader_program *current_program;
+  uint64_t uniform_token;
+  const float *uniform_mvp;
 };
 
 #include "video/ta.glsl"
@@ -360,42 +370,7 @@ static int r_compile_program(struct render_backend *r,
   return 1;
 }
 
-static void r_destroy_textures(struct render_backend *r) {
-  if (!r->ctx) {
-    return;
-  }
-
-  glDeleteTextures(1, &r->white.texture);
-
-  for (int i = 1; i < MAX_TEXTURES; i++) {
-    struct texture *tex = &r->textures[i];
-
-    if (!tex->texture) {
-      continue;
-    }
-
-    glDeleteTextures(1, &tex->texture);
-  }
-}
-
-static void r_create_textures(struct render_backend *r) {
-  uint8_t pixels[64 * 64 * 4];
-
-  memset(pixels, 0xff, sizeof(pixels));
-  glGenTextures(1, &r->white.texture);
-  glBindTexture(GL_TEXTURE_2D, r->white.texture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-               pixels);
-  glBindTexture(GL_TEXTURE_2D, 0);
-}
-
 static void r_destroy_shaders(struct render_backend *r) {
-  if (!r->ctx) {
-    return;
-  }
-
   for (int i = 0; i < ATTR_COUNT; i++) {
     r_destroy_program(&r->ta_programs[i]);
   }
@@ -456,11 +431,35 @@ static void r_create_shaders(struct render_backend *r) {
   }
 }
 
-static void r_destroy_vertex_buffers(struct render_backend *r) {
-  if (!r->ctx) {
-    return;
-  }
+static void r_destroy_textures(struct render_backend *r) {
+  glDeleteTextures(1, &r->white_texture);
 
+  for (int i = 0; i < MAX_TEXTURES; i++) {
+    struct texture *tex = &r->textures[i];
+
+    if (!tex->texture) {
+      continue;
+    }
+
+    glDeleteTextures(1, &tex->texture);
+  }
+}
+
+static void r_create_textures(struct render_backend *r) {
+  /* create default all white texture */
+  uint8_t pixels[64 * 64 * 4];
+  memset(pixels, 0xff, sizeof(pixels));
+
+  glGenTextures(1, &r->white_texture);
+  glBindTexture(GL_TEXTURE_2D, r->white_texture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               pixels);
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+static void r_destroy_vertex_arrays(struct render_backend *r) {
   glDeleteBuffers(1, &r->ui_ibo);
   glDeleteBuffers(1, &r->ui_vbo);
   glDeleteVertexArrays(1, &r->ui_vao);
@@ -469,7 +468,7 @@ static void r_destroy_vertex_buffers(struct render_backend *r) {
   glDeleteVertexArrays(1, &r->ta_vao);
 }
 
-static void r_create_vertex_buffers(struct render_backend *r) {
+static void r_create_vertex_arrays(struct render_backend *r) {
   /* ui vao */
   {
     glGenVertexArrays(1, &r->ui_vao);
@@ -587,8 +586,7 @@ void r_draw_surface(struct render_backend *r, const struct surface *surf) {
   }
 
   if (surf->texture) {
-    struct texture *tex = &r->textures[surf->texture];
-    r_bind_texture(r, MAP_DIFFUSE, tex->texture);
+    r_bind_texture(r, MAP_DIFFUSE, surf->texture);
   }
 
   glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
@@ -621,14 +619,10 @@ void r_draw_surface2(struct render_backend *r, const struct surface2 *surf) {
 
   r_set_blend_func(r, surf->src_blend, surf->dst_blend);
 
-  if (surf->framebuffer) {
-    struct framebuffer *fb = &r->framebuffers[surf->framebuffer];
-    r_bind_texture(r, MAP_DIFFUSE, fb->color_component);
-  } else if (surf->texture) {
-    struct texture *tex = &r->textures[surf->texture];
-    r_bind_texture(r, MAP_DIFFUSE, tex->texture);
+  if (surf->texture) {
+    r_bind_texture(r, MAP_DIFFUSE, surf->texture);
   } else {
-    r_bind_texture(r, MAP_DIFFUSE, r->white.texture);
+    r_bind_texture(r, MAP_DIFFUSE, r->white_texture);
   }
 
   if (r->ui_use_ibo) {
@@ -665,13 +659,13 @@ void r_end_ortho(struct render_backend *r) {
 void r_begin_ortho(struct render_backend *r) {
   float ortho[16];
 
-  ortho[0] = 2.0f / (float)r->window->width;
+  ortho[0] = 2.0f / (float)r->win->width;
   ortho[4] = 0.0f;
   ortho[8] = 0.0f;
   ortho[12] = -1.0f;
 
   ortho[1] = 0.0f;
-  ortho[5] = -2.0f / (float)r->window->height;
+  ortho[5] = -2.0f / (float)r->win->height;
   ortho[9] = 0.0f;
   ortho[13] = 1.0f;
 
@@ -695,13 +689,13 @@ void r_begin_ortho(struct render_backend *r) {
 }
 
 void r_end_frame(struct render_backend *r) {
-  SDL_GL_SwapWindow(r->window->handle);
+  SDL_GL_SwapWindow(r->win->handle);
 }
 
 void r_begin_frame(struct render_backend *r) {
   r_set_depth_mask(r, 1);
 
-  glViewport(0, 0, r->window->width, r->window->height);
+  glViewport(0, 0, r->win->width, r->win->height);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -722,7 +716,17 @@ sync_handle_t r_sync(struct render_backend *r) {
 }
 
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle) {
-  struct texture *tex = &r->textures[handle];
+  /* lookup texture entry */
+  int entry;
+  for (entry = 0; entry < MAX_TEXTURES; entry++) {
+    struct texture *tex = &r->textures[entry];
+    if (tex->texture == handle) {
+      break;
+    }
+  }
+  CHECK_LT(entry, MAX_TEXTURES);
+
+  struct texture *tex = &r->textures[entry];
   glDeleteTextures(1, &tex->texture);
   tex->texture = 0;
 }
@@ -733,15 +737,15 @@ texture_handle_t r_create_texture(struct render_backend *r,
                                   enum wrap_mode wrap_u, enum wrap_mode wrap_v,
                                   int mipmaps, int width, int height,
                                   const uint8_t *buffer) {
-  /* find next open texture handle */
-  texture_handle_t handle;
-  for (handle = 1; handle < MAX_TEXTURES; handle++) {
-    struct texture *tex = &r->textures[handle];
+  /* find next open texture entry */
+  int entry;
+  for (entry = 0; entry < MAX_TEXTURES; entry++) {
+    struct texture *tex = &r->textures[entry];
     if (!tex->texture) {
       break;
     }
   }
-  CHECK_LT(handle, MAX_TEXTURES);
+  CHECK_LT(entry, MAX_TEXTURES);
 
   GLuint internal_fmt;
   GLuint pixel_fmt;
@@ -771,7 +775,7 @@ texture_handle_t r_create_texture(struct render_backend *r,
       break;
   }
 
-  struct texture *tex = &r->textures[handle];
+  struct texture *tex = &r->textures[entry];
   glGenTextures(1, &tex->texture);
   glBindTexture(GL_TEXTURE_2D, tex->texture);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
@@ -788,12 +792,22 @@ texture_handle_t r_create_texture(struct render_backend *r,
 
   glBindTexture(GL_TEXTURE_2D, 0);
 
-  return handle;
+  return tex->texture;
 }
 
 void r_destroy_framebuffer(struct render_backend *r,
                            framebuffer_handle_t handle) {
-  struct framebuffer *fb = &r->framebuffers[handle];
+  /* lookup framebuffer entry */
+  int entry;
+  for (entry = 0; entry < MAX_FRAMEBUFFERS; entry++) {
+    struct framebuffer *fb = &r->framebuffers[entry];
+    if (fb->fbo == handle) {
+      break;
+    }
+  }
+  CHECK_LT(entry, MAX_FRAMEBUFFERS);
+
+  struct framebuffer *fb = &r->framebuffers[entry];
 
   glDeleteTextures(1, &fb->color_component);
   fb->color_component = 0;
@@ -806,29 +820,28 @@ void r_destroy_framebuffer(struct render_backend *r,
 }
 
 void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle) {
-  struct framebuffer *fb = &r->framebuffers[handle];
-
-  glBindFramebuffer(GL_FRAMEBUFFER, fb->fbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, handle);
 }
 
-framebuffer_handle_t r_create_framebuffer(struct render_backend *r) {
+framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
+                                          texture_handle_t *color_component) {
   /* find next open framebuffer handle */
-  framebuffer_handle_t handle;
-  for (handle = 1; handle < MAX_FRAMEBUFFERS; handle++) {
-    struct framebuffer *fb = &r->framebuffers[handle];
+  int entry;
+  for (entry = 0; entry < MAX_FRAMEBUFFERS; entry++) {
+    struct framebuffer *fb = &r->framebuffers[entry];
     if (!fb->fbo) {
       break;
     }
   }
-  CHECK_LT(handle, MAX_FRAMEBUFFERS);
+  CHECK_LT(entry, MAX_FRAMEBUFFERS);
 
-  struct framebuffer *fb = &r->framebuffers[handle];
+  struct framebuffer *fb = &r->framebuffers[entry];
 
   /* create color component */
   glGenTextures(1, &fb->color_component);
   glBindTexture(GL_TEXTURE_2D, fb->color_component);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, r->window->width, r->window->height,
-               0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, r->win->width, r->win->height, 0,
+               GL_RGBA, GL_UNSIGNED_BYTE, 0);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glBindTexture(GL_TEXTURE_2D, 0);
@@ -836,8 +849,8 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r) {
   /* create depth component */
   glGenRenderbuffers(1, &fb->depth_component);
   glBindRenderbuffer(GL_RENDERBUFFER, fb->depth_component);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, r->window->width,
-                        r->window->height);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, r->win->width,
+                        r->win->height);
   glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
   /* create fbo */
@@ -854,30 +867,58 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r) {
   /* switch back to default framebuffer */
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-  return handle;
+  *color_component = fb->color_component;
+
+  return fb->fbo;
+}
+
+static void r_check_one_per_thread() {
+  /* to keep things simple, don't allow more than one gl backend per thread.
+     this avoids providing interfaces to manage the current gl context */
+  static _Thread_local int initialized;
+  CHECK_EQ(initialized, 0);
+  initialized = 1;
 }
 
 void r_destroy(struct render_backend *r) {
-  r_destroy_vertex_buffers(r);
+  r_destroy_vertex_arrays(r);
   r_destroy_shaders(r);
   r_destroy_textures(r);
 
-  win_gl_destroy_context(r->window, r->ctx);
+  win_gl_destroy_context(r->win, r->ctx);
 
   free(r);
 }
 
-struct render_backend *r_create(struct window *window) {
+struct render_backend *r_create_from(struct render_backend *from) {
+  r_check_one_per_thread();
+
   struct render_backend *r = calloc(1, sizeof(struct render_backend));
 
-  r->window = window;
-
-  /* setup gl context */
-  r->ctx = win_gl_create_context(r->window);
+  r->win = from->win;
+  r->ctx = win_gl_create_context_from(r->win, from->ctx);
 
   r_create_textures(r);
   r_create_shaders(r);
-  r_create_vertex_buffers(r);
+  r_create_vertex_arrays(r);
+
+  r_set_initial_state(r);
+
+  return r;
+}
+
+struct render_backend *r_create(struct window *win) {
+  r_check_one_per_thread();
+
+  struct render_backend *r = calloc(1, sizeof(struct render_backend));
+
+  r->win = win;
+  r->ctx = win_gl_create_context(win);
+
+  r_create_textures(r);
+  r_create_shaders(r);
+  r_create_vertex_arrays(r);
+
   r_set_initial_state(r);
 
   return r;

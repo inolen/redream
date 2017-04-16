@@ -106,7 +106,6 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
   int text_len = static_cast<int>(strlen(text));
 
   struct vertex2 *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                               0,
                                                mp->font_texture,
                                                BLEND_SRC_ALPHA,
                                                BLEND_ONE_MINUS_SRC_ALPHA,
@@ -155,7 +154,6 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
 static void mp_draw_box(struct microprofile *mp, int x0, int y0, int x1, int y1,
                         uint32_t color, enum box_type type) {
   struct vertex2 *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                               0,
                                                0,
                                                BLEND_SRC_ALPHA,
                                                BLEND_ONE_MINUS_SRC_ALPHA,
@@ -215,7 +213,6 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
   CHECK(num_verts);
 
   struct vertex2 *vertex = mp_alloc_verts(mp, {PRIM_LINES,
-                                               0,
                                                0,
                                                BLEND_SRC_ALPHA,
                                                BLEND_ONE_MINUS_SRC_ALPHA,
