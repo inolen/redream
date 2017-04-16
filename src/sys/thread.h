@@ -30,6 +30,15 @@ void cond_signal(cond_t cond);
 void cond_destroy(cond_t cond);
 
 /*
+ * tls
+ */
+#if PLATFORM_WINDOWS
+#define _Thread_local __declspec(thread)
+#else
+#define _Thread_local __thread
+#endif
+
+/*
  * sleeping
  */
 #if PLATFORM_WINDOWS

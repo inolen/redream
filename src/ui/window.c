@@ -835,26 +835,23 @@ void win_gl_make_current(struct window *win, glcontext_t ctx) {
   SDL_GL_MakeCurrent(win->handle, ctx);
 }
 
+glcontext_t win_gl_create_context_from(struct window *win, glcontext_t from) {
+  /* bind default context at this point to make sure a context is available to
+     be shared from */
+  SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
+  SDL_GL_MakeCurrent(win->handle, from);
+
+  return win_gl_create_context(win);
+}
+
 glcontext_t win_gl_create_context(struct window *win) {
   /* need at least a 3.3 core context for our shaders */
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-  /* bind default context at this point to make sure a context is available to
-     be shared from */
-  if (win->default_ctx) {
-    SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
-    SDL_GL_MakeCurrent(win->handle, win->default_ctx);
-  }
-
   SDL_GLContext ctx = SDL_GL_CreateContext(win->handle);
   CHECK_NOTNULL(ctx, "OpenGL context creation failed: %s", SDL_GetError());
-
-  /* track default context for future sharing */
-  if (!win->default_ctx) {
-    win->default_ctx = ctx;
-  }
 
   /* link in gl functions at runtime */
   glewExperimental = GL_TRUE;
