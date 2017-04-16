@@ -147,12 +147,12 @@ static GLenum prim_types[] = {
     GL_LINES,     /* PRIM_LINES */
 };
 
-static void rb_set_scissor_test(struct render_backend *rb, int enabled) {
-  if (rb->scissor_test == enabled) {
+static void r_set_scissor_test(struct render_backend *r, int enabled) {
+  if (r->scissor_test == enabled) {
     return;
   }
 
-  rb->scissor_test = enabled;
+  r->scissor_test = enabled;
 
   if (enabled) {
     glEnable(GL_SCISSOR_TEST);
@@ -161,27 +161,27 @@ static void rb_set_scissor_test(struct render_backend *rb, int enabled) {
   }
 }
 
-static void rb_set_scissor_clip(struct render_backend *rb, int x, int y,
-                                int width, int height) {
+static void r_set_scissor_clip(struct render_backend *r, int x, int y,
+                               int width, int height) {
   glScissor(x, y, width, height);
 }
 
-static void rb_set_depth_mask(struct render_backend *rb, int enabled) {
-  if (rb->depth_mask == enabled) {
+static void r_set_depth_mask(struct render_backend *r, int enabled) {
+  if (r->depth_mask == enabled) {
     return;
   }
 
-  rb->depth_mask = enabled;
+  r->depth_mask = enabled;
 
   glDepthMask(enabled ? 1 : 0);
 }
 
-static void rb_set_depth_func(struct render_backend *rb, enum depth_func fn) {
-  if (rb->depth_func == fn) {
+static void r_set_depth_func(struct render_backend *r, enum depth_func fn) {
+  if (r->depth_func == fn) {
     return;
   }
 
-  rb->depth_func = fn;
+  r->depth_func = fn;
 
   if (fn == DEPTH_NONE) {
     glDisable(GL_DEPTH_TEST);
@@ -191,12 +191,12 @@ static void rb_set_depth_func(struct render_backend *rb, enum depth_func fn) {
   }
 }
 
-static void rb_set_cull_face(struct render_backend *rb, enum cull_face fn) {
-  if (rb->cull_face == fn) {
+static void r_set_cull_face(struct render_backend *r, enum cull_face fn) {
+  if (r->cull_face == fn) {
     return;
   }
 
-  rb->cull_face = fn;
+  r->cull_face = fn;
 
   if (fn == CULL_NONE) {
     glDisable(GL_CULL_FACE);
@@ -206,14 +206,14 @@ static void rb_set_cull_face(struct render_backend *rb, enum cull_face fn) {
   }
 }
 
-static void rb_set_blend_func(struct render_backend *rb, enum blend_func src_fn,
-                              enum blend_func dst_fn) {
-  if (rb->src_blend == src_fn && rb->dst_blend == dst_fn) {
+static void r_set_blend_func(struct render_backend *r, enum blend_func src_fn,
+                             enum blend_func dst_fn) {
+  if (r->src_blend == src_fn && r->dst_blend == dst_fn) {
     return;
   }
 
-  rb->src_blend = src_fn;
-  rb->dst_blend = dst_fn;
+  r->src_blend = src_fn;
+  r->dst_blend = dst_fn;
 
   if (src_fn == BLEND_NONE || dst_fn == BLEND_NONE) {
     glDisable(GL_BLEND);
@@ -223,38 +223,38 @@ static void rb_set_blend_func(struct render_backend *rb, enum blend_func src_fn,
   }
 }
 
-static void rb_bind_vao(struct render_backend *rb, GLuint vao) {
-  if (rb->current_vao == vao) {
+static void r_bind_vao(struct render_backend *r, GLuint vao) {
+  if (r->current_vao == vao) {
     return;
   }
 
-  rb->current_vao = vao;
+  r->current_vao = vao;
 
   glBindVertexArray(vao);
 }
 
-static void rb_bind_program(struct render_backend *rb,
-                            struct shader_program *program) {
-  if (rb->current_program == program) {
+static void r_bind_program(struct render_backend *r,
+                           struct shader_program *program) {
+  if (r->current_program == program) {
     return;
   }
 
-  rb->current_program = program;
+  r->current_program = program;
 
   glUseProgram(program ? program->program : 0);
 }
 
-void rb_bind_texture(struct render_backend *rb, enum texture_map map,
-                     GLuint tex) {
+void r_bind_texture(struct render_backend *r, enum texture_map map,
+                    GLuint tex) {
   glActiveTexture(GL_TEXTURE0 + map);
   glBindTexture(GL_TEXTURE_2D, tex);
 }
 
-static GLint rb_get_uniform(struct render_backend *rb, enum uniform_attr attr) {
-  return rb->current_program->uniforms[attr];
+static GLint r_get_uniform(struct render_backend *r, enum uniform_attr attr) {
+  return r->current_program->uniforms[attr];
 }
 
-static void rb_print_shader_log(GLuint shader) {
+static void r_print_shader_log(GLuint shader) {
   int max_length, length;
   glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &max_length);
 
@@ -264,8 +264,8 @@ static void rb_print_shader_log(GLuint shader) {
   free(info_log);
 }
 
-static int rb_compile_shader(const char *source, GLenum shader_type,
-                             GLuint *shader) {
+static int r_compile_shader(const char *source, GLenum shader_type,
+                            GLuint *shader) {
   size_t sourceLength = strlen(source);
 
   *shader = glCreateShader(shader_type);
@@ -277,7 +277,7 @@ static int rb_compile_shader(const char *source, GLenum shader_type,
   glGetShaderiv(*shader, GL_COMPILE_STATUS, &compiled);
 
   if (!compiled) {
-    rb_print_shader_log(*shader);
+    r_print_shader_log(*shader);
     glDeleteShader(*shader);
     return 0;
   }
@@ -285,7 +285,7 @@ static int rb_compile_shader(const char *source, GLenum shader_type,
   return 1;
 }
 
-static void rb_destroy_program(struct shader_program *program) {
+static void r_destroy_program(struct shader_program *program) {
   if (program->vertex_shader > 0) {
     glDeleteShader(program->vertex_shader);
   }
@@ -297,10 +297,10 @@ static void rb_destroy_program(struct shader_program *program) {
   glDeleteProgram(program->program);
 }
 
-static int rb_compile_program(struct render_backend *rb,
-                              struct shader_program *program,
-                              const char *header, const char *vertex_source,
-                              const char *fragment_source) {
+static int r_compile_program(struct render_backend *r,
+                             struct shader_program *program, const char *header,
+                             const char *vertex_source,
+                             const char *fragment_source) {
   char buffer[16384] = {0};
 
   memset(program, 0, sizeof(*program));
@@ -313,8 +313,8 @@ static int rb_compile_program(struct render_backend *rb,
              header ? header : "", vertex_source);
     buffer[sizeof(buffer) - 1] = 0;
 
-    if (!rb_compile_shader(buffer, GL_VERTEX_SHADER, &program->vertex_shader)) {
-      rb_destroy_program(program);
+    if (!r_compile_shader(buffer, GL_VERTEX_SHADER, &program->vertex_shader)) {
+      r_destroy_program(program);
       return 0;
     }
 
@@ -328,9 +328,9 @@ static int rb_compile_program(struct render_backend *rb,
              header ? header : "", fragment_source);
     buffer[sizeof(buffer) - 1] = 0;
 
-    if (!rb_compile_shader(buffer, GL_FRAGMENT_SHADER,
-                           &program->fragment_shader)) {
-      rb_destroy_program(program);
+    if (!r_compile_shader(buffer, GL_FRAGMENT_SHADER,
+                          &program->fragment_shader)) {
+      r_destroy_program(program);
       return 0;
     }
 
@@ -343,7 +343,7 @@ static int rb_compile_program(struct render_backend *rb,
   glGetProgramiv(program->program, GL_LINK_STATUS, &linked);
 
   if (!linked) {
-    rb_destroy_program(program);
+    r_destroy_program(program);
     return 0;
   }
 
@@ -353,22 +353,22 @@ static int rb_compile_program(struct render_backend *rb,
   }
 
   /* bind diffuse sampler once after compile, this currently never changes */
-  rb_bind_program(rb, program);
-  glUniform1i(rb_get_uniform(rb, UNIFORM_DIFFUSE), MAP_DIFFUSE);
-  rb_bind_program(rb, NULL);
+  r_bind_program(r, program);
+  glUniform1i(r_get_uniform(r, UNIFORM_DIFFUSE), MAP_DIFFUSE);
+  r_bind_program(r, NULL);
 
   return 1;
 }
 
-static void rb_destroy_textures(struct render_backend *rb) {
-  if (!rb->ctx) {
+static void r_destroy_textures(struct render_backend *r) {
+  if (!r->ctx) {
     return;
   }
 
-  glDeleteTextures(1, &rb->white.texture);
+  glDeleteTextures(1, &r->white.texture);
 
   for (int i = 1; i < MAX_TEXTURES; i++) {
-    struct texture *tex = &rb->textures[i];
+    struct texture *tex = &r->textures[i];
 
     if (!tex->texture) {
       continue;
@@ -378,12 +378,12 @@ static void rb_destroy_textures(struct render_backend *rb) {
   }
 }
 
-static void rb_create_textures(struct render_backend *rb) {
+static void r_create_textures(struct render_backend *r) {
   uint8_t pixels[64 * 64 * 4];
 
   memset(pixels, 0xff, sizeof(pixels));
-  glGenTextures(1, &rb->white.texture);
-  glBindTexture(GL_TEXTURE_2D, rb->white.texture);
+  glGenTextures(1, &r->white.texture);
+  glBindTexture(GL_TEXTURE_2D, r->white.texture);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE,
@@ -391,23 +391,23 @@ static void rb_create_textures(struct render_backend *rb) {
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-static void rb_destroy_shaders(struct render_backend *rb) {
-  if (!rb->ctx) {
+static void r_destroy_shaders(struct render_backend *r) {
+  if (!r->ctx) {
     return;
   }
 
   for (int i = 0; i < ATTR_COUNT; i++) {
-    rb_destroy_program(&rb->ta_programs[i]);
+    r_destroy_program(&r->ta_programs[i]);
   }
 
-  rb_destroy_program(&rb->ui_program);
+  r_destroy_program(&r->ui_program);
 }
 
-static void rb_create_shaders(struct render_backend *rb) {
+static void r_create_shaders(struct render_backend *r) {
   char header[1024];
 
   for (int i = 0; i < ATTR_COUNT; i++) {
-    struct shader_program *program = &rb->ta_programs[i];
+    struct shader_program *program = &r->ta_programs[i];
 
     header[0] = 0;
 
@@ -446,40 +446,40 @@ static void rb_create_shaders(struct render_backend *rb) {
       strcat(header, "#define PT_ALPHA_TEST\n");
     }
 
-    if (!rb_compile_program(rb, program, header, ta_vp, ta_fp)) {
+    if (!r_compile_program(r, program, header, ta_vp, ta_fp)) {
       LOG_FATAL("Failed to compile ta shader.");
     }
   }
 
-  if (!rb_compile_program(rb, &rb->ui_program, NULL, ui_vp, ui_fp)) {
+  if (!r_compile_program(r, &r->ui_program, NULL, ui_vp, ui_fp)) {
     LOG_FATAL("Failed to compile ui shader.");
   }
 }
 
-static void rb_destroy_vertex_buffers(struct render_backend *rb) {
-  if (!rb->ctx) {
+static void r_destroy_vertex_buffers(struct render_backend *r) {
+  if (!r->ctx) {
     return;
   }
 
-  glDeleteBuffers(1, &rb->ui_ibo);
-  glDeleteBuffers(1, &rb->ui_vbo);
-  glDeleteVertexArrays(1, &rb->ui_vao);
+  glDeleteBuffers(1, &r->ui_ibo);
+  glDeleteBuffers(1, &r->ui_vbo);
+  glDeleteVertexArrays(1, &r->ui_vao);
 
-  glDeleteBuffers(1, &rb->ta_vbo);
-  glDeleteVertexArrays(1, &rb->ta_vao);
+  glDeleteBuffers(1, &r->ta_vbo);
+  glDeleteVertexArrays(1, &r->ta_vao);
 }
 
-static void rb_create_vertex_buffers(struct render_backend *rb) {
+static void r_create_vertex_buffers(struct render_backend *r) {
   /* ui vao */
   {
-    glGenVertexArrays(1, &rb->ui_vao);
-    glBindVertexArray(rb->ui_vao);
+    glGenVertexArrays(1, &r->ui_vao);
+    glBindVertexArray(r->ui_vao);
 
-    glGenBuffers(1, &rb->ui_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, rb->ui_vbo);
+    glGenBuffers(1, &r->ui_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, r->ui_vbo);
 
-    glGenBuffers(1, &rb->ui_ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rb->ui_ibo);
+    glGenBuffers(1, &r->ui_ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->ui_ibo);
 
     /* xy */
     glEnableVertexAttribArray(0);
@@ -503,11 +503,11 @@ static void rb_create_vertex_buffers(struct render_backend *rb) {
 
   /* ta vao */
   {
-    glGenVertexArrays(1, &rb->ta_vao);
-    glBindVertexArray(rb->ta_vao);
+    glGenVertexArrays(1, &r->ta_vao);
+    glBindVertexArray(r->ta_vao);
 
-    glGenBuffers(1, &rb->ta_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, rb->ta_vbo);
+    glGenBuffers(1, &r->ta_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
 
     /* xyz */
     glEnableVertexAttribArray(0);
@@ -537,15 +537,15 @@ static void rb_create_vertex_buffers(struct render_backend *rb) {
   }
 }
 
-static void rb_set_initial_state(struct render_backend *rb) {
-  rb_set_depth_mask(rb, 1);
-  rb_set_depth_func(rb, DEPTH_NONE);
-  rb_set_cull_face(rb, CULL_BACK);
-  rb_set_blend_func(rb, BLEND_NONE, BLEND_NONE);
+static void r_set_initial_state(struct render_backend *r) {
+  r_set_depth_mask(r, 1);
+  r_set_depth_func(r, DEPTH_NONE);
+  r_set_cull_face(r, CULL_BACK);
+  r_set_blend_func(r, BLEND_NONE, BLEND_NONE);
 }
 
-static struct shader_program *rb_get_ta_program(struct render_backend *rb,
-                                                const struct surface *surf) {
+static struct shader_program *r_get_ta_program(struct render_backend *r,
+                                               const struct surface *surf) {
   int idx = surf->shade;
   if (surf->texture) {
     idx |= ATTR_TEXTURE;
@@ -562,77 +562,76 @@ static struct shader_program *rb_get_ta_program(struct render_backend *rb,
   if (surf->pt_alpha_test) {
     idx |= ATTR_PT_ALPHA_TEST;
   }
-  struct shader_program *program = &rb->ta_programs[idx];
+  struct shader_program *program = &r->ta_programs[idx];
   CHECK_NOTNULL(program);
   return program;
 }
 
-void rb_end_surfaces(struct render_backend *rb) {
-}
+void r_end_surfaces(struct render_backend *r) {}
 
-void rb_draw_surface(struct render_backend *rb, const struct surface *surf) {
-  rb_set_depth_mask(rb, surf->depth_write);
-  rb_set_depth_func(rb, surf->depth_func);
-  rb_set_cull_face(rb, surf->cull);
-  rb_set_blend_func(rb, surf->src_blend, surf->dst_blend);
+void r_draw_surface(struct render_backend *r, const struct surface *surf) {
+  r_set_depth_mask(r, surf->depth_write);
+  r_set_depth_func(r, surf->depth_func);
+  r_set_cull_face(r, surf->cull);
+  r_set_blend_func(r, surf->src_blend, surf->dst_blend);
 
-  struct shader_program *program = rb_get_ta_program(rb, surf);
-  rb_bind_program(rb, program);
+  struct shader_program *program = r_get_ta_program(r, surf);
+  r_bind_program(r, program);
 
   /* if uniforms have yet to be bound for this program, do so now */
-  if (program->uniform_token != rb->uniform_token) {
-    glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MVP), 1, GL_FALSE,
-                       rb->uniform_mvp);
-    glUniform1f(rb_get_uniform(rb, UNIFORM_PT_ALPHA_REF), surf->pt_alpha_ref);
-    program->uniform_token = rb->uniform_token;
+  if (program->uniform_token != r->uniform_token) {
+    glUniformMatrix4fv(r_get_uniform(r, UNIFORM_MVP), 1, GL_FALSE,
+                       r->uniform_mvp);
+    glUniform1f(r_get_uniform(r, UNIFORM_PT_ALPHA_REF), surf->pt_alpha_ref);
+    program->uniform_token = r->uniform_token;
   }
 
   if (surf->texture) {
-    struct texture *tex = &rb->textures[surf->texture];
-    rb_bind_texture(rb, MAP_DIFFUSE, tex->texture);
+    struct texture *tex = &r->textures[surf->texture];
+    r_bind_texture(r, MAP_DIFFUSE, tex->texture);
   }
 
   glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
 }
 
-void rb_begin_surfaces(struct render_backend *rb, const float *projection,
-                       const struct vertex *verts, int num_verts) {
-  /* uniforms will be lazily bound for each program inside of rb_draw_surface */
-  rb->uniform_token++;
-  rb->uniform_mvp = projection;
+void r_begin_surfaces(struct render_backend *r, const float *projection,
+                      const struct vertex *verts, int num_verts) {
+  /* uniforms will be lazily bound for each program inside of r_draw_surface */
+  r->uniform_token++;
+  r->uniform_mvp = projection;
 
-  glBindBuffer(GL_ARRAY_BUFFER, rb->ta_vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex) * num_verts, verts,
                GL_DYNAMIC_DRAW);
 
-  rb_bind_vao(rb, rb->ta_vao);
+  r_bind_vao(r, r->ta_vao);
 }
 
-void rb_end_surfaces2(struct render_backend *rb) {}
+void r_end_surfaces2(struct render_backend *r) {}
 
-void rb_draw_surface2(struct render_backend *rb, const struct surface2 *surf) {
+void r_draw_surface2(struct render_backend *r, const struct surface2 *surf) {
   if (surf->scissor) {
-    rb_set_scissor_test(rb, 1);
-    rb_set_scissor_clip(rb, (int)surf->scissor_rect[0],
-                        (int)surf->scissor_rect[1], (int)surf->scissor_rect[2],
-                        (int)surf->scissor_rect[3]);
+    r_set_scissor_test(r, 1);
+    r_set_scissor_clip(r, (int)surf->scissor_rect[0],
+                       (int)surf->scissor_rect[1], (int)surf->scissor_rect[2],
+                       (int)surf->scissor_rect[3]);
   } else {
-    rb_set_scissor_test(rb, 0);
+    r_set_scissor_test(r, 0);
   }
 
-  rb_set_blend_func(rb, surf->src_blend, surf->dst_blend);
+  r_set_blend_func(r, surf->src_blend, surf->dst_blend);
 
   if (surf->framebuffer) {
-    struct framebuffer *fb = &rb->framebuffers[surf->framebuffer];
-    rb_bind_texture(rb, MAP_DIFFUSE, fb->color_component);
+    struct framebuffer *fb = &r->framebuffers[surf->framebuffer];
+    r_bind_texture(r, MAP_DIFFUSE, fb->color_component);
   } else if (surf->texture) {
-    struct texture *tex = &rb->textures[surf->texture];
-    rb_bind_texture(rb, MAP_DIFFUSE, tex->texture);
+    struct texture *tex = &r->textures[surf->texture];
+    r_bind_texture(r, MAP_DIFFUSE, tex->texture);
   } else {
-    rb_bind_texture(rb, MAP_DIFFUSE, rb->white.texture);
+    r_bind_texture(r, MAP_DIFFUSE, r->white.texture);
   }
 
-  if (rb->ui_use_ibo) {
+  if (r->ui_use_ibo) {
     glDrawElements(prim_types[surf->prim_type], surf->num_verts,
                    GL_UNSIGNED_SHORT,
                    (void *)(intptr_t)(sizeof(uint16_t) * surf->first_vert));
@@ -642,37 +641,37 @@ void rb_draw_surface2(struct render_backend *rb, const struct surface2 *surf) {
   }
 }
 
-void rb_begin_surfaces2(struct render_backend *rb, const struct vertex2 *verts,
-                        int num_verts, uint16_t *indices, int num_indices) {
-  glBindBuffer(GL_ARRAY_BUFFER, rb->ui_vbo);
+void r_begin_surfaces2(struct render_backend *r, const struct vertex2 *verts,
+                       int num_verts, uint16_t *indices, int num_indices) {
+  glBindBuffer(GL_ARRAY_BUFFER, r->ui_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex2) * num_verts, verts,
                GL_DYNAMIC_DRAW);
 
   if (indices) {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rb->ui_ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->ui_ibo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices,
                  indices, GL_DYNAMIC_DRAW);
-    rb->ui_use_ibo = 1;
+    r->ui_use_ibo = 1;
   } else {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, -1);
-    rb->ui_use_ibo = 0;
+    r->ui_use_ibo = 0;
   }
 }
 
-void rb_end_ortho(struct render_backend *rb) {
-  rb_set_scissor_test(rb, 0);
+void r_end_ortho(struct render_backend *r) {
+  r_set_scissor_test(r, 0);
 }
 
-void rb_begin_ortho(struct render_backend *rb) {
+void r_begin_ortho(struct render_backend *r) {
   float ortho[16];
 
-  ortho[0] = 2.0f / (float)rb->window->width;
+  ortho[0] = 2.0f / (float)r->window->width;
   ortho[4] = 0.0f;
   ortho[8] = 0.0f;
   ortho[12] = -1.0f;
 
   ortho[1] = 0.0f;
-  ortho[5] = -2.0f / (float)rb->window->height;
+  ortho[5] = -2.0f / (float)r->window->height;
   ortho[9] = 0.0f;
   ortho[13] = 1.0f;
 
@@ -686,28 +685,28 @@ void rb_begin_ortho(struct render_backend *rb) {
   ortho[11] = 0.0f;
   ortho[15] = 1.0f;
 
-  rb_set_depth_mask(rb, 0);
-  rb_set_depth_func(rb, DEPTH_NONE);
-  rb_set_cull_face(rb, CULL_NONE);
+  r_set_depth_mask(r, 0);
+  r_set_depth_func(r, DEPTH_NONE);
+  r_set_cull_face(r, CULL_NONE);
 
-  rb_bind_vao(rb, rb->ui_vao);
-  rb_bind_program(rb, &rb->ui_program);
-  glUniformMatrix4fv(rb_get_uniform(rb, UNIFORM_MVP), 1, GL_FALSE, ortho);
+  r_bind_vao(r, r->ui_vao);
+  r_bind_program(r, &r->ui_program);
+  glUniformMatrix4fv(r_get_uniform(r, UNIFORM_MVP), 1, GL_FALSE, ortho);
 }
 
-void rb_end_frame(struct render_backend *rb) {
-  SDL_GL_SwapWindow(rb->window->handle);
+void r_end_frame(struct render_backend *r) {
+  SDL_GL_SwapWindow(r->window->handle);
 }
 
-void rb_begin_frame(struct render_backend *rb) {
-  rb_set_depth_mask(rb, 1);
+void r_begin_frame(struct render_backend *r) {
+  r_set_depth_mask(r, 1);
 
-  glViewport(0, 0, rb->window->width, rb->window->height);
+  glViewport(0, 0, r->window->width, r->window->height);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void rb_wait(sync_handle_t on) {
+void r_wait(sync_handle_t on) {
   GLsync sync = on;
   CHECK(glIsSync(sync));
 
@@ -716,28 +715,28 @@ void rb_wait(sync_handle_t on) {
   glDeleteSync(sync);
 }
 
-sync_handle_t rb_sync(struct render_backend *rb) {
+sync_handle_t r_sync(struct render_backend *r) {
   GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
   glFlush();
   return sync;
 }
 
-void rb_destroy_texture(struct render_backend *rb, texture_handle_t handle) {
-  struct texture *tex = &rb->textures[handle];
+void r_destroy_texture(struct render_backend *r, texture_handle_t handle) {
+  struct texture *tex = &r->textures[handle];
   glDeleteTextures(1, &tex->texture);
   tex->texture = 0;
 }
 
-texture_handle_t rb_create_texture(struct render_backend *rb,
-                                   enum pxl_format format,
-                                   enum filter_mode filter,
-                                   enum wrap_mode wrap_u, enum wrap_mode wrap_v,
-                                   int mipmaps, int width, int height,
-                                   const uint8_t *buffer) {
+texture_handle_t r_create_texture(struct render_backend *r,
+                                  enum pxl_format format,
+                                  enum filter_mode filter,
+                                  enum wrap_mode wrap_u, enum wrap_mode wrap_v,
+                                  int mipmaps, int width, int height,
+                                  const uint8_t *buffer) {
   /* find next open texture handle */
   texture_handle_t handle;
   for (handle = 1; handle < MAX_TEXTURES; handle++) {
-    struct texture *tex = &rb->textures[handle];
+    struct texture *tex = &r->textures[handle];
     if (!tex->texture) {
       break;
     }
@@ -772,7 +771,7 @@ texture_handle_t rb_create_texture(struct render_backend *rb,
       break;
   }
 
-  struct texture *tex = &rb->textures[handle];
+  struct texture *tex = &r->textures[handle];
   glGenTextures(1, &tex->texture);
   glBindTexture(GL_TEXTURE_2D, tex->texture);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
@@ -792,9 +791,9 @@ texture_handle_t rb_create_texture(struct render_backend *rb,
   return handle;
 }
 
-void rb_destroy_framebuffer(struct render_backend *rb,
-                            framebuffer_handle_t handle) {
-  struct framebuffer *fb = &rb->framebuffers[handle];
+void r_destroy_framebuffer(struct render_backend *r,
+                           framebuffer_handle_t handle) {
+  struct framebuffer *fb = &r->framebuffers[handle];
 
   glDeleteTextures(1, &fb->color_component);
   fb->color_component = 0;
@@ -806,30 +805,29 @@ void rb_destroy_framebuffer(struct render_backend *rb,
   fb->fbo = 0;
 }
 
-void rb_bind_framebuffer(struct render_backend *rb,
-                         framebuffer_handle_t handle) {
-  struct framebuffer *fb = &rb->framebuffers[handle];
+void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle) {
+  struct framebuffer *fb = &r->framebuffers[handle];
 
   glBindFramebuffer(GL_FRAMEBUFFER, fb->fbo);
 }
 
-framebuffer_handle_t rb_create_framebuffer(struct render_backend *rb) {
+framebuffer_handle_t r_create_framebuffer(struct render_backend *r) {
   /* find next open framebuffer handle */
   framebuffer_handle_t handle;
   for (handle = 1; handle < MAX_FRAMEBUFFERS; handle++) {
-    struct framebuffer *fb = &rb->framebuffers[handle];
+    struct framebuffer *fb = &r->framebuffers[handle];
     if (!fb->fbo) {
       break;
     }
   }
   CHECK_LT(handle, MAX_FRAMEBUFFERS);
 
-  struct framebuffer *fb = &rb->framebuffers[handle];
+  struct framebuffer *fb = &r->framebuffers[handle];
 
   /* create color component */
   glGenTextures(1, &fb->color_component);
   glBindTexture(GL_TEXTURE_2D, fb->color_component);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rb->window->width, rb->window->height,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, r->window->width, r->window->height,
                0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -838,8 +836,8 @@ framebuffer_handle_t rb_create_framebuffer(struct render_backend *rb) {
   /* create depth component */
   glGenRenderbuffers(1, &fb->depth_component);
   glBindRenderbuffer(GL_RENDERBUFFER, fb->depth_component);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, rb->window->width,
-                        rb->window->height);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, r->window->width,
+                        r->window->height);
   glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
   /* create fbo */
@@ -859,28 +857,28 @@ framebuffer_handle_t rb_create_framebuffer(struct render_backend *rb) {
   return handle;
 }
 
-void rb_destroy(struct render_backend *rb) {
-  rb_destroy_vertex_buffers(rb);
-  rb_destroy_shaders(rb);
-  rb_destroy_textures(rb);
+void r_destroy(struct render_backend *r) {
+  r_destroy_vertex_buffers(r);
+  r_destroy_shaders(r);
+  r_destroy_textures(r);
 
-  win_gl_destroy_context(rb->window, rb->ctx);
+  win_gl_destroy_context(r->window, r->ctx);
 
-  free(rb);
+  free(r);
 }
 
-struct render_backend *rb_create(struct window *window) {
-  struct render_backend *rb = calloc(1, sizeof(struct render_backend));
+struct render_backend *r_create(struct window *window) {
+  struct render_backend *r = calloc(1, sizeof(struct render_backend));
 
-  rb->window = window;
+  r->window = window;
 
   /* setup gl context */
-  rb->ctx = win_gl_create_context(rb->window);
+  r->ctx = win_gl_create_context(r->window);
 
-  rb_create_textures(rb);
-  rb_create_shaders(rb);
-  rb_create_vertex_buffers(rb);
-  rb_set_initial_state(rb);
+  r_create_textures(r);
+  r_create_shaders(r);
+  r_create_vertex_buffers(r);
+  r_set_initial_state(r);
 
-  return rb;
+  return r;
 }

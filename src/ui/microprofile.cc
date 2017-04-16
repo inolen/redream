@@ -26,7 +26,7 @@ static const int MAX_2D_SURFACES = 256;
 
 struct microprofile {
   struct window *window;
-  struct render_backend *rb;
+  struct render_backend *r;
   struct window_listener listener;
   texture_handle_t font_texture;
   struct surface2 surfs[MAX_2D_SURFACES];
@@ -243,16 +243,16 @@ void mp_end_frame(struct microprofile *mp) {
   MicroProfileDraw(mp->window->width, mp->window->height);
 
   /* render the surfaces */
-  rb_begin_ortho(mp->rb);
-  rb_begin_surfaces2(mp->rb, mp->verts, mp->num_verts, nullptr, 0);
+  r_begin_ortho(mp->r);
+  r_begin_surfaces2(mp->r, mp->verts, mp->num_verts, nullptr, 0);
 
   for (int i = 0; i < mp->num_surfs; i++) {
     struct surface2 *surf = &mp->surfs[i];
-    rb_draw_surface2(mp->rb, surf);
+    r_draw_surface2(mp->r, surf);
   }
 
-  rb_end_surfaces2(mp->rb);
-  rb_end_ortho(mp->rb);
+  r_end_surfaces2(mp->r);
+  r_end_ortho(mp->r);
 
   /* reset surfaces */
   mp->num_surfs = 0;
@@ -262,7 +262,7 @@ void mp_end_frame(struct microprofile *mp) {
 void mp_begin_frame(struct microprofile *mp) {}
 
 void mp_destroy(struct microprofile *mp) {
-  rb_destroy_texture(mp->rb, mp->font_texture);
+  r_destroy_texture(mp->r, mp->font_texture);
 
   win_remove_listener(mp->window, &mp->listener);
 
@@ -270,12 +270,12 @@ void mp_destroy(struct microprofile *mp) {
 }
 
 struct microprofile *mp_create(struct window *window,
-                               struct render_backend *rb) {
+                               struct render_backend *r) {
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));
 
   mp->window = window;
-  mp->rb = rb;
+  mp->r = r;
 
   /* add input event listeners */
   mp->listener = {mp, NULL, NULL, &mp_keydown, &mp_mousemove, NULL, {}};
@@ -296,9 +296,9 @@ struct microprofile *mp_create(struct window *window,
 
   /* register the font texture */
   mp->font_texture =
-      rb_create_texture(mp->rb, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
-                        WRAP_CLAMP_TO_EDGE, 0, FONT_WIDTH, FONT_HEIGHT,
-                        reinterpret_cast<const uint8_t *>(s_font_data));
+      r_create_texture(mp->r, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
+                       WRAP_CLAMP_TO_EDGE, 0, FONT_WIDTH, FONT_HEIGHT,
+                       reinterpret_cast<const uint8_t *>(s_font_data));
 
   return mp;
 }

@@ -129,40 +129,39 @@ struct surface2 {
 
 struct render_backend;
 
-struct render_backend *rb_create(struct window *window);
-void rb_destroy(struct render_backend *rb);
+struct render_backend *r_create(struct window *window);
+void r_destroy(struct render_backend *r);
 
-framebuffer_handle_t rb_create_framebuffer(struct render_backend *rb);
-void rb_bind_framebuffer(struct render_backend *rb,
-                         framebuffer_handle_t handle);
-void rb_destroy_framebuffer(struct render_backend *rb,
-                            framebuffer_handle_t handle);
+framebuffer_handle_t r_create_framebuffer(struct render_backend *r);
+void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle);
+void r_destroy_framebuffer(struct render_backend *r,
+                           framebuffer_handle_t handle);
 
-texture_handle_t rb_create_texture(struct render_backend *rb,
-                                   enum pxl_format format,
-                                   enum filter_mode filter,
-                                   enum wrap_mode wrap_u, enum wrap_mode wrap_v,
-                                   int mipmaps, int width, int height,
-                                   const uint8_t *buffer);
-void rb_destroy_texture(struct render_backend *rb, texture_handle_t handle);
+texture_handle_t r_create_texture(struct render_backend *r,
+                                  enum pxl_format format,
+                                  enum filter_mode filter,
+                                  enum wrap_mode wrap_u, enum wrap_mode wrap_v,
+                                  int mipmaps, int width, int height,
+                                  const uint8_t *buffer);
+void r_destroy_texture(struct render_backend *r, texture_handle_t handle);
 
-sync_handle_t rb_sync(struct render_backend *rb);
-void rb_wait(sync_handle_t on);
+sync_handle_t r_sync(struct render_backend *r);
+void r_wait(sync_handle_t on);
 
-void rb_begin_frame(struct render_backend *rb);
-void rb_end_frame(struct render_backend *rb);
+void r_begin_frame(struct render_backend *r);
+void r_end_frame(struct render_backend *r);
 
-void rb_begin_ortho(struct render_backend *rb);
-void rb_end_ortho(struct render_backend *rb);
+void r_begin_ortho(struct render_backend *r);
+void r_end_ortho(struct render_backend *r);
 
-void rb_begin_surfaces(struct render_backend *rb, const float *projection,
-                       const struct vertex *verts, int num_verts);
-void rb_draw_surface(struct render_backend *rb, const struct surface *surf);
-void rb_end_surfaces(struct render_backend *rb);
+void r_begin_surfaces(struct render_backend *r, const float *projection,
+                      const struct vertex *verts, int num_verts);
+void r_draw_surface(struct render_backend *r, const struct surface *surf);
+void r_end_surfaces(struct render_backend *r);
 
-void rb_begin_surfaces2(struct render_backend *rb, const struct vertex2 *verts,
-                        int num_verts, uint16_t *indices, int num_indices);
-void rb_draw_surface2(struct render_backend *rb, const struct surface2 *surf);
-void rb_end_surfaces2(struct render_backend *rb);
+void r_begin_surfaces2(struct render_backend *r, const struct vertex2 *verts,
+                       int num_verts, uint16_t *indices, int num_indices);
+void r_draw_surface2(struct render_backend *r, const struct surface2 *surf);
+void r_end_surfaces2(struct render_backend *r);
 
 #endif
