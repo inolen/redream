@@ -24,14 +24,14 @@ DEFINE_AGGREGATE_COUNTER(frames);
 DEFINE_OPTION_INT(audio, 1, "Enable audio");
 
 struct emu {
-  struct window *window;
+  struct window *win;
   struct window_listener listener;
   struct dreamcast *dc;
   volatile int running;
 
   int debug_menu;
 
-  struct render_backend *rb;
+  struct render_backend *r;
   struct microprofile *mp;
   struct nuklear *nk;
 
@@ -81,7 +81,7 @@ static int emu_launch_gdi(struct emu *emu, const char *path) {
 }
 
 static void emu_paint(struct emu *emu) {
-  rb_begin_frame(emu->rb);
+  r_begin_frame(emu->r);
   nk_begin_frame(emu->nk);
   mp_begin_frame(emu->mp);
 
@@ -105,7 +105,7 @@ static void emu_paint(struct emu *emu) {
   {
     if (emu->debug_menu) {
       struct nk_context *ctx = &emu->nk->ctx;
-      struct nk_rect bounds = {0.0f, 0.0f, (float)emu->window->width,
+      struct nk_rect bounds = {0.0f, 0.0f, (float)emu->win->width,
                                DEBUG_MENU_HEIGHT};
 
       nk_style_default(ctx);
@@ -126,9 +126,9 @@ static void emu_paint(struct emu *emu) {
                                 nk_vec2(140.0f, 200.0f))) {
           nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
 
-          int fullscreen = emu->window->fullscreen;
+          int fullscreen = emu->win->fullscreen;
           if (nk_checkbox_label(ctx, "fullscreen", &fullscreen)) {
-            win_set_fullscreen(emu->window, fullscreen);
+            win_set_fullscreen(emu->win, fullscreen);
           }
 
           nk_menu_end(ctx);
@@ -152,7 +152,7 @@ static void emu_paint(struct emu *emu) {
                  "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d", frames, ta_renders,
                  pvr_vblanks, sh4_instrs, arm7_instrs);
 
-        nk_layout_row_push(ctx, (float)emu->window->width -
+        nk_layout_row_push(ctx, (float)emu->win->width -
                                     ctx->current->layout->row.item_offset);
         nk_label(ctx, status, NK_TEXT_RIGHT);
 
@@ -169,7 +169,7 @@ static void emu_paint(struct emu *emu) {
 
   mp_end_frame(emu->mp);
   nk_end_frame(emu->nk);
-  rb_end_frame(emu->rb);
+  r_end_frame(emu->r);
 }
 
 static void emu_keydown(void *data, int device_index, enum keycode code,
@@ -283,7 +283,7 @@ void emu_run(struct emu *emu, const char *path) {
   thread_t core_thread = thread_create(&emu_core_thread, NULL, emu);
 
   while (emu->running) {
-    win_pump_events(emu->window);
+    win_pump_events(emu->win);
     emu_paint(emu);
   }
 
@@ -296,32 +296,32 @@ void emu_destroy(struct emu *emu) {
   tr_destroy(emu->tr);
   nk_destroy(emu->nk);
   mp_destroy(emu->mp);
-  rb_destroy(emu->rb);
+  r_destroy(emu->r);
   dc_destroy(emu->dc);
 
-  win_remove_listener(emu->window, &emu->listener);
+  win_remove_listener(emu->win, &emu->listener);
 
   free(emu);
 }
 
-struct emu *emu_create(struct window *window) {
+struct emu *emu_create(struct window *win) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
-  emu->window = window;
+  emu->win = win;
 
   /* add window input listeners */
   emu->listener = (struct window_listener){
       emu, &emu_joy_add, &emu_joy_remove, &emu_keydown, NULL, &emu_close, {0}};
-  win_add_listener(emu->window, &emu->listener);
+  win_add_listener(emu->win, &emu->listener);
 
   /* setup dreamcast */
   emu->dc = dc_create();
 
   /* setup render backend */
-  emu->rb = rb_create(emu->window);
-  emu->mp = mp_create(emu->window, emu->rb);
-  emu->nk = nk_create(emu->window, emu->rb);
-  emu->tr = tr_create(emu->rb, ta_texture_provider(emu->dc->ta));
+  emu->r = r_create(emu->win);
+  emu->mp = mp_create(emu->win, emu->r);
+  emu->nk = nk_create(emu->win, emu->r);
+  emu->tr = tr_create(emu->r, ta_texture_provider(emu->dc->ta));
 
   /* debug menu enabled by default */
   emu->debug_menu = 1;

@@ -20,7 +20,7 @@ struct render_backend;
 
 struct nuklear {
   struct window *window;
-  struct render_backend *rb;
+  struct render_backend *r;
   struct window_listener listener;
 
   struct nk_context ctx;
@@ -42,7 +42,7 @@ struct nuklear {
   int shift[2];
 };
 
-struct nuklear *nk_create(struct window *window, struct render_backend *rb);
+struct nuklear *nk_create(struct window *window, struct render_backend *r);
 void nk_destroy(struct nuklear *nk);
 
 void nk_begin_frame(struct nuklear *nk);

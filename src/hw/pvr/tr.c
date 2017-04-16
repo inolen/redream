@@ -9,7 +9,7 @@
 #include "hw/pvr/ta.h"
 
 struct tr {
-  struct render_backend *rb;
+  struct render_backend *r;
   struct texture_provider *provider;
 
   /* current global state */
@@ -138,7 +138,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 
   /* if there's a dirty handle, destroy it before creating the new one */
   if (entry->handle && entry->dirty) {
-    rb_destroy_texture(tr->rb, entry->handle);
+    r_destroy_texture(tr->r, entry->handle);
     entry->handle = 0;
   }
 
@@ -336,8 +336,8 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
       tsp.clamp_v ? WRAP_CLAMP_TO_EDGE
                   : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
-  entry->handle = rb_create_texture(tr->rb, pixel_fmt, filter, wrap_u, wrap_v,
-                                    mipmaps, width, height, output);
+  entry->handle = r_create_texture(tr->r, pixel_fmt, filter, wrap_u, wrap_v,
+                                   mipmaps, width, height, output);
   entry->format = pixel_fmt;
   entry->filter = filter;
   entry->wrap_u = wrap_u;
@@ -1025,7 +1025,7 @@ static void tr_render_list(struct tr *tr, const struct tile_render_context *rc,
   const int *sorted_surf_end = list->surfs + list->num_surfs;
 
   while (sorted_surf < sorted_surf_end) {
-    rb_draw_surface(tr->rb, &rc->surfs[*sorted_surf]);
+    r_draw_surface(tr->r, &rc->surfs[*sorted_surf]);
     sorted_surf++;
   }
 }
@@ -1033,13 +1033,13 @@ static void tr_render_list(struct tr *tr, const struct tile_render_context *rc,
 void tr_render_context(struct tr *tr, const struct tile_render_context *rc) {
   PROF_ENTER("gpu", "tr_render_context");
 
-  rb_begin_surfaces(tr->rb, rc->projection, rc->verts, rc->num_verts);
+  r_begin_surfaces(tr->r, rc->projection, rc->verts, rc->num_verts);
 
   tr_render_list(tr, rc, TA_LIST_OPAQUE);
   tr_render_list(tr, rc, TA_LIST_PUNCH_THROUGH);
   tr_render_list(tr, rc, TA_LIST_TRANSLUCENT);
 
-  rb_end_surfaces(tr->rb);
+  r_end_surfaces(tr->r);
 
   PROF_LEAVE();
 }
@@ -1048,11 +1048,11 @@ void tr_destroy(struct tr *tr) {
   free(tr);
 }
 
-struct tr *tr_create(struct render_backend *rb,
+struct tr *tr_create(struct render_backend *r,
                      struct texture_provider *provider) {
   struct tr *tr = calloc(1, sizeof(struct tr));
 
-  tr->rb = rb;
+  tr->r = r;
   tr->provider = provider;
 
   return tr;

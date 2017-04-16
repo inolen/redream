@@ -65,8 +65,8 @@ struct tracer_texture_entry {
 };
 
 struct tracer {
-  struct window *window;
-  struct render_backend *rb;
+  struct window *win;
+  struct render_backend *r;
   struct nuklear *nk;
   struct tr *tr;
   struct window_listener listener;
@@ -293,9 +293,9 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
   ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
-  struct nk_rect bounds = {
-      0.0f, (float)tracer->window->height - SCRUBBER_WINDOW_HEIGHT,
-      (float)tracer->window->width, SCRUBBER_WINDOW_HEIGHT};
+  struct nk_rect bounds = {0.0f,
+                           (float)tracer->win->height - SCRUBBER_WINDOW_HEIGHT,
+                           (float)tracer->win->width, SCRUBBER_WINDOW_HEIGHT};
   nk_flags flags = NK_WINDOW_NO_SCROLLBAR;
 
   if (nk_begin(ctx, "context scrubber", bounds, flags)) {
@@ -576,7 +576,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
   {
     struct nk_rect bounds = {0.0f, 0.0, 240.0f,
-                             tracer->window->height - SCRUBBER_WINDOW_HEIGHT};
+                             tracer->win->height - SCRUBBER_WINDOW_HEIGHT};
 
     nk_style_default(ctx);
 
@@ -657,8 +657,8 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   }
 
   {
-    struct nk_rect bounds = {tracer->window->width - 240.0f, 0.0, 240.0f,
-                             tracer->window->height - SCRUBBER_WINDOW_HEIGHT};
+    struct nk_rect bounds = {tracer->win->width - 240.0f, 0.0, 240.0f,
+                             tracer->win->height - SCRUBBER_WINDOW_HEIGHT};
 
     nk_style_default(ctx);
 
@@ -732,7 +732,7 @@ static void tracer_render_list(struct tracer *tracer,
   while (sorted_surf < sorted_surf_end) {
     int idx = *(sorted_surf++);
 
-    rb_draw_surface(tracer->rb, &tracer->rc.surfs[idx]);
+    r_draw_surface(tracer->r, &tracer->rc.surfs[idx]);
 
     if (idx == end) {
       *stopped = 1;
@@ -742,7 +742,7 @@ static void tracer_render_list(struct tracer *tracer,
 }
 
 static void tracer_paint(struct tracer *tracer) {
-  rb_begin_frame(tracer->rb);
+  r_begin_frame(tracer->r);
   nk_begin_frame(tracer->nk);
 
   /* render ui */
@@ -760,17 +760,17 @@ static void tracer_paint(struct tracer *tracer) {
       end = rp->last_surf;
     }
 
-    rb_begin_surfaces(tracer->rb, rc->projection, rc->verts, rc->num_verts);
+    r_begin_surfaces(tracer->r, rc->projection, rc->verts, rc->num_verts);
 
     tracer_render_list(tracer, rc, TA_LIST_OPAQUE, end, &stopped);
     tracer_render_list(tracer, rc, TA_LIST_PUNCH_THROUGH, end, &stopped);
     tracer_render_list(tracer, rc, TA_LIST_TRANSLUCENT, end, &stopped);
 
-    rb_end_surfaces(tracer->rb);
+    r_end_surfaces(tracer->r);
   }
 
   nk_end_frame(tracer->nk);
-  rb_end_frame(tracer->rb);
+  r_end_frame(tracer->r);
 }
 
 static void tracer_keydown(void *data, int device_index, enum keycode code,
@@ -820,7 +820,7 @@ void tracer_run(struct tracer *tracer, const char *path) {
   tracer->running = 1;
 
   while (tracer->running) {
-    win_pump_events(tracer->window);
+    win_pump_events(tracer->win);
     tracer_paint(tracer);
   }
 }
@@ -832,33 +832,33 @@ void tracer_destroy(struct tracer *tracer) {
 
   tr_destroy(tracer->tr);
   nk_destroy(tracer->nk);
-  rb_destroy(tracer->rb);
+  r_destroy(tracer->r);
 
-  win_remove_listener(tracer->window, &tracer->listener);
+  win_remove_listener(tracer->win, &tracer->listener);
 
   free(tracer);
 }
 
-struct tracer *tracer_create(struct window *window) {
+struct tracer *tracer_create(struct window *win) {
   /* ensure param / poly / vertex size LUTs are generated */
   ta_build_tables();
 
   struct tracer *tracer = calloc(1, sizeof(struct tracer));
 
-  tracer->window = window;
+  tracer->win = win;
 
   /* add window input listeners */
   tracer->listener = (struct window_listener){
       tracer, NULL, NULL, &tracer_keydown, NULL, &tracer_close, {0}};
-  win_add_listener(tracer->window, &tracer->listener);
+  win_add_listener(tracer->win, &tracer->listener);
 
   /* setup render backend */
-  tracer->rb = rb_create(tracer->window);
-  tracer->nk = nk_create(tracer->window, tracer->rb);
+  tracer->r = r_create(tracer->win);
+  tracer->nk = nk_create(tracer->win, tracer->r);
 
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
-  tracer->tr = tr_create(tracer->rb, &tracer->provider);
+  tracer->tr = tr_create(tracer->r, &tracer->provider);
 
   /* add all textures to free list */
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
