@@ -742,8 +742,9 @@ static void tracer_render_list(struct tracer *tracer,
 }
 
 static void tracer_paint(struct tracer *tracer) {
-  r_begin_frame(tracer->r);
-  nk_begin_frame(tracer->nk);
+  r_clear_viewport(tracer->r);
+
+  nk_update_input(tracer->nk);
 
   /* render ui */
   tracer_render_side_menu(tracer);
@@ -769,8 +770,9 @@ static void tracer_paint(struct tracer *tracer) {
     r_end_surfaces(tracer->r);
   }
 
-  nk_end_frame(tracer->nk);
-  r_end_frame(tracer->r);
+  nk_render(tracer->nk);
+
+  r_swap_buffers(tracer->r);
 }
 
 static void tracer_keydown(void *data, int device_index, enum keycode code,

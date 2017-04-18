@@ -688,11 +688,11 @@ void r_begin_ortho(struct render_backend *r) {
   glUniformMatrix4fv(r_get_uniform(r, UNIFORM_MVP), 1, GL_FALSE, ortho);
 }
 
-void r_end_frame(struct render_backend *r) {
+void r_swap_buffers(struct render_backend *r) {
   SDL_GL_SwapWindow(r->win->handle);
 }
 
-void r_begin_frame(struct render_backend *r) {
+void r_clear_viewport(struct render_backend *r) {
   r_set_depth_mask(r, 1);
 
   glViewport(0, 0, r->win->width, r->win->height);
@@ -700,16 +700,21 @@ void r_begin_frame(struct render_backend *r) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void r_wait(sync_handle_t on) {
-  GLsync sync = on;
-  CHECK(glIsSync(sync));
+void r_destroy_sync(struct render_backend *r, sync_handle_t handle) {
+  GLsync sync = handle;
+  DCHECK(glIsSync(sync));
 
-  GLenum res = glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, UINT64_MAX);
-  CHECK(res == GL_ALREADY_SIGNALED || res == GL_CONDITION_SATISFIED);
   glDeleteSync(sync);
 }
 
-sync_handle_t r_sync(struct render_backend *r) {
+void r_wait_sync(struct render_backend *r, sync_handle_t handle) {
+  GLsync sync = handle;
+  DCHECK(glIsSync(sync));
+
+  glWaitSync(sync, 0, GL_TIMEOUT_IGNORED);
+}
+
+sync_handle_t r_insert_sync(struct render_backend *r) {
   GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
   glFlush();
   return sync;

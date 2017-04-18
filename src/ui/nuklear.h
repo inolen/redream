@@ -45,7 +45,7 @@ struct nuklear {
 struct nuklear *nk_create(struct window *window, struct render_backend *r);
 void nk_destroy(struct nuklear *nk);
 
-void nk_begin_frame(struct nuklear *nk);
-void nk_end_frame(struct nuklear *nk);
+void nk_update_input(struct nuklear *nk);
+void nk_render(struct nuklear *nk);
 
 #endif

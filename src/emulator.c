@@ -81,9 +81,11 @@ static int emu_launch_gdi(struct emu *emu, const char *path) {
 }
 
 static void emu_paint(struct emu *emu) {
-  r_begin_frame(emu->r);
-  nk_begin_frame(emu->nk);
-  mp_begin_frame(emu->mp);
+  prof_counter_add(COUNTER_frames, 1);
+
+  r_clear_viewport(emu->r);
+
+  nk_update_input(emu->nk);
 
   /* render the next ta context */
   {
@@ -163,13 +165,13 @@ static void emu_paint(struct emu *emu) {
     }
   }
 
-  /* update profiler stats */
-  prof_counter_add(COUNTER_frames, 1);
+  /* update frame-based profiler stats */
   prof_flip();
 
-  mp_end_frame(emu->mp);
-  nk_end_frame(emu->nk);
-  r_end_frame(emu->r);
+  mp_render(emu->mp);
+  nk_render(emu->nk);
+
+  r_swap_buffers(emu->r);
 }
 
 static void emu_keydown(void *data, int device_index, enum keycode code,
