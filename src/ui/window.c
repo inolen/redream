@@ -853,6 +853,9 @@ glcontext_t win_gl_create_context(struct window *win) {
   SDL_GLContext ctx = SDL_GL_CreateContext(win->handle);
   CHECK_NOTNULL(ctx, "OpenGL context creation failed: %s", SDL_GetError());
 
+  /* disable vsync */
+  SDL_GL_SetSwapInterval(0);
+
   /* link in gl functions at runtime */
   glewExperimental = GL_TRUE;
   GLenum err = glewInit();
