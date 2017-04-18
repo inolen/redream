@@ -50,7 +50,7 @@ static void nk_mousemove(void *data, int x, int y) {
   nk->mousey = y;
 }
 
-void nk_end_frame(struct nuklear *nk) {
+void nk_render(struct nuklear *nk) {
   /* convert draw list into vertex / element buffers */
   static const struct nk_draw_vertex_layout_element vertex_layout[] = {
       {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(struct vertex2, xy)},
@@ -111,12 +111,12 @@ void nk_end_frame(struct nuklear *nk) {
   r_end_surfaces2(nk->r);
   r_end_ortho(nk->r);
 
-  /* reset mouse wheel state as it won't be reset through any event */
+  /* reset mouse wheel state at this point as it won't be reset through an
+     actual input event */
   nk->mouse_wheel = 0;
 }
 
-void nk_begin_frame(struct nuklear *nk) {
-  /* update input state for the frame */
+void nk_update_input(struct nuklear *nk) {
   nk_input_begin(&nk->ctx);
 
   nk_input_motion(&nk->ctx, nk->mousex, nk->mousey);

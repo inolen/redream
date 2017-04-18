@@ -233,7 +233,7 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
   }
 }
 
-void mp_end_frame(struct microprofile *mp) {
+void mp_render(struct microprofile *mp) {
   s_mp = mp;
 
   /* update draw surfaces */
@@ -255,8 +255,6 @@ void mp_end_frame(struct microprofile *mp) {
   mp->num_surfs = 0;
   mp->num_verts = 0;
 }
-
-void mp_begin_frame(struct microprofile *mp) {}
 
 void mp_destroy(struct microprofile *mp) {
   r_destroy_texture(mp->r, mp->font_texture);

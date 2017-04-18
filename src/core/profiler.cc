@@ -103,6 +103,11 @@ prof_token_t prof_get_aggregate_token(const char *name) {
   return tok;
 }
 
+void prof_flip() {
+  /* flip frame-based profile zones at the end of every frame */
+  MicroProfileFlip();
+}
+
 void prof_update(int64_t now) {
   /* update time-based aggregate counters every second */
   int64_t next_aggregation = prof.last_aggregation + NS_PER_SEC;
@@ -119,11 +124,6 @@ void prof_update(int64_t now) {
 
     prof.last_aggregation = now;
   }
-}
-
-void prof_flip() {
-  /* flip frame-based profile zones at the end of every frame */
-  MicroProfileFlip();
 }
 
 void prof_counter_set(prof_token_t tok, int64_t count) {

@@ -146,11 +146,12 @@ texture_handle_t r_create_texture(struct render_backend *r,
                                   const uint8_t *buffer);
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle);
 
-sync_handle_t r_sync(struct render_backend *r);
-void r_wait(sync_handle_t on);
+sync_handle_t r_insert_sync(struct render_backend *r);
+void r_wait_sync(struct render_backend *r, sync_handle_t handle);
+void r_destroy_sync(struct render_backend *r, sync_handle_t handle);
 
-void r_begin_frame(struct render_backend *r);
-void r_end_frame(struct render_backend *r);
+void r_clear_viewport(struct render_backend *r);
+void r_swap_buffers(struct render_backend *r);
 
 void r_begin_ortho(struct render_backend *r);
 void r_end_ortho(struct render_backend *r);

@@ -8,7 +8,6 @@ struct window;
 struct microprofile *mp_create(struct window *window, struct render_backend *r);
 void mp_destroy(struct microprofile *mp);
 
-void mp_begin_frame(struct microprofile *mp);
-void mp_end_frame(struct microprofile *mp);
+void mp_render(struct microprofile *mp);
 
 #endif
