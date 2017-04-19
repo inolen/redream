@@ -339,7 +339,7 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
     case 1: {
       int8_t *samples = (int8_t *)ch->base;
       prev = samples[pos] << 8;
-      next = samples[pos] << 8;
+      next = samples[pos + 1] << 8;
     } break;
 
     default:
