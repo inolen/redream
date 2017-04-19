@@ -5,6 +5,7 @@
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define CLAMP(x, lo, hi) MAX((lo), MIN((hi), (x)))
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
 #define align_up(v, alignment) (((v) + (alignment)-1) & ~((alignment)-1))
