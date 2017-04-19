@@ -107,6 +107,7 @@ static int controller_input(struct maple_device *dev, enum keycode key,
   uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
 
   if (!button) {
+    LOG_DEBUG("Unhandled key %s", get_name_by_key(key));
     return 0;
   }
 
