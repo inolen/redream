@@ -97,10 +97,11 @@ struct ra {
 
 #define ra_get_packed(b) \
   ((b)->tmp_idx == NO_TMP ? NULL : &ra->state->tmps[(b)->tmp_idx])
-#define ra_set_packed(b, t) (b)->tmp_idx = (t) ? (t)-ra->state->tmps : NO_TMP
+#define ra_set_packed(b, t) \
+  (b)->tmp_idx = (t) ? (int)((t)-ra->state->tmps) : NO_TMP
 
 #define ra_get_tmp(v) (&ra->state->tmps[(v)->tag])
-#define ra_set_tmp(v, t) (v)->tag = (t)-ra->state->tmps
+#define ra_set_tmp(v, t) (v)->tag = (int)((t)-ra->state->tmps)
 
 static int ra_reg_can_store(const struct jit_register *reg,
                             const struct ir_value *v) {
