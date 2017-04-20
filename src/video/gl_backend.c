@@ -1,6 +1,4 @@
 #include <GL/glew.h>
-#include <SDL.h>
-#include <SDL_opengl.h>
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "core/string.h"
@@ -689,7 +687,7 @@ void r_begin_ortho(struct render_backend *r) {
 }
 
 void r_swap_buffers(struct render_backend *r) {
-  SDL_GL_SwapWindow(r->win->handle);
+  win_gl_swap_buffers(r->win);
 }
 
 void r_clear_viewport(struct render_backend *r) {

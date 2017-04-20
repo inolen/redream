@@ -61,6 +61,7 @@ void win_destroy(struct window *win);
 glcontext_t win_gl_create_context(struct window *win);
 glcontext_t win_gl_create_context_from(struct window *win, glcontext_t other);
 void win_gl_make_current(struct window *win, glcontext_t ctx);
+void win_gl_swap_buffers(struct window *win);
 void win_gl_destroy_context(struct window *win, glcontext_t ctx);
 
 void win_add_listener(struct window *win, struct window_listener *listener);
