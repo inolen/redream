@@ -831,6 +831,10 @@ void win_gl_destroy_context(struct window *win, glcontext_t ctx) {
   SDL_GL_DeleteContext(ctx);
 }
 
+void win_gl_swap_buffers(struct window *win) {
+  SDL_GL_SwapWindow(win->handle);
+}
+
 void win_gl_make_current(struct window *win, glcontext_t ctx) {
   SDL_GL_MakeCurrent(win->handle, ctx);
 }
