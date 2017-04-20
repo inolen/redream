@@ -216,7 +216,7 @@ set(REDREAM_SOURCES
   src/ui/microprofile.cc
   src/ui/keycode.c
   src/ui/nuklear.c
-  src/ui/window.c
+  src/ui/window_sdl.c
   src/video/gl_backend.c
   src/emulator.c
   src/tracer.c)
