@@ -381,8 +381,8 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
 
   CHECK_NOTNULL(ch->base);
 
-  int pos = AICA_OFFSET_POS(ch->offset);
-  int frac = AICA_OFFSET_FRAC(ch->offset);
+  uint32_t pos = AICA_OFFSET_POS(ch->offset);
+  uint32_t frac = AICA_OFFSET_FRAC(ch->offset);
   int32_t next_sample = 0;
   int32_t next_quant = 0;
 

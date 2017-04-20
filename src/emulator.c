@@ -150,6 +150,7 @@ static struct frame *emu_alloc_frame(struct emu *emu,
 
   if (frame->fb_sync) {
     r_destroy_sync(r, frame->fb_sync);
+    frame->fb_sync = 0;
   }
 
   return frame;
@@ -220,8 +221,8 @@ static void emu_paint(struct emu *emu) {
   struct frame *frame = emu_pop_frame(emu);
 
   if (frame) {
-    float w = emu->win->width;
-    float h = emu->win->height;
+    float w = (float)emu->win->width;
+    float h = (float)emu->win->height;
 
     struct vertex2 verts[6] = {
         /* triangle 1, top left  */
@@ -340,7 +341,7 @@ static void *emu_video_thread(void *data) {
   struct tr *tr = tr_create(r, ta_texture_provider(emu->dc->ta));
 
   struct tile_ctx *pending_ctx;
-  struct tile_render_context rc;
+  struct tile_render_context *rc = malloc(sizeof(struct tile_render_context));
 
   emu_create_frames(emu, r);
 
@@ -351,7 +352,7 @@ static void *emu_video_thread(void *data) {
     }
 
     /* parse the context, uploading textures it uses to the render backend */
-    tr_parse_context(tr, pending_ctx, &rc);
+    tr_parse_context(tr, pending_ctx, rc);
 
     /* after uploading the textures, unlock to let the main thread resume */
     ta_unlock_pending_context(emu->dc->ta);
@@ -360,7 +361,7 @@ static void *emu_video_thread(void *data) {
     struct frame *frame = emu_alloc_frame(emu, r);
     r_bind_framebuffer(r, frame->fb);
     r_clear_viewport(r);
-    tr_render_context(tr, &rc);
+    tr_render_context(tr, rc);
 
     /* insert fence for main thread to synchronize on in order to ensure that
        the context has completely rendered */
@@ -374,6 +375,8 @@ static void *emu_video_thread(void *data) {
   }
 
   emu_destroy_frames(emu, r);
+
+  free(rc);
 
   tr_destroy(tr);
   r_destroy(r);

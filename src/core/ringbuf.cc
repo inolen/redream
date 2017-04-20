@@ -109,7 +109,11 @@ struct ringbuf *ringbuf_create(int size) {
   rb->data = (uint8_t *)reserve_pages(NULL, rb->size * 2);
   CHECK_NOTNULL(rb->data);
 
-  int res = map_shared_memory(rb->shmem, 0, rb->data, rb->size, ACC_READWRITE);
+  /* release pages and hope nothing maps to them before subsequent map */
+  int res = release_pages(rb->data, rb->size * 2);
+  CHECK_EQ(res, 1);
+
+  res = map_shared_memory(rb->shmem, 0, rb->data, rb->size, ACC_READWRITE);
   CHECK_EQ(res, 1);
 
   res = map_shared_memory(rb->shmem, 0, rb->data + rb->size, rb->size,

@@ -872,7 +872,7 @@ static void tr_sort_render_list(struct tr *tr, struct tile_render_context *rc,
   }
 
   /* sort each surface from back to front based on its minz */
-  tr_sort_surfs(tr, list, 0, list->num_surfs);
+  tr_sort_surfs(tr, list, 0, list->num_surfs - 1);
 }
 
 static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
