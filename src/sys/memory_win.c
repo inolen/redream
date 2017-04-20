@@ -43,9 +43,21 @@ int protect_pages(void *ptr, size_t size, enum page_access access) {
   return VirtualProtect(ptr, size, new_protect, &old_protect) != 0;
 }
 
-int reserve_pages(void *ptr, size_t size) {
+void *reserve_pages(void *ptr, size_t size) {
   void *res = VirtualAlloc(ptr, size, MEM_RESERVE, PAGE_NOACCESS);
-  return res && res == ptr;
+
+  if (!res) {
+    return NULL;
+  }
+
+  if (ptr && res != ptr) {
+    /* mapping was successful, however it was made at a different address than
+       requested */
+    VirtualFree(ptr, 0, MEM_RELEASE);
+    return NULL;
+  }
+
+  return res;
 }
 
 int release_pages(void *ptr, size_t size) {
