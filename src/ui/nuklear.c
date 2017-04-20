@@ -51,6 +51,8 @@ static void nk_mousemove(void *data, int x, int y) {
 }
 
 void nk_render(struct nuklear *nk) {
+  float height = (float)win_height(nk->win);
+
   /* convert draw list into vertex / element buffers */
   static const struct nk_draw_vertex_layout_element vertex_layout[] = {
       {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(struct vertex2, xy)},
@@ -95,8 +97,7 @@ void nk_render(struct nuklear *nk) {
 
     surf.texture = (texture_handle_t)cmd->texture.id;
     surf.scissor_rect[0] = cmd->clip_rect.x;
-    surf.scissor_rect[1] =
-        nk->window->height - (cmd->clip_rect.y + cmd->clip_rect.h);
+    surf.scissor_rect[1] = height - (cmd->clip_rect.y + cmd->clip_rect.h);
     surf.scissor_rect[2] = cmd->clip_rect.w;
     surf.scissor_rect[3] = cmd->clip_rect.h;
     surf.first_vert = offset;
@@ -138,21 +139,21 @@ void nk_destroy(struct nuklear *nk) {
 
   r_destroy_texture(nk->r, nk->font_texture);
 
-  win_remove_listener(nk->window, &nk->listener);
+  win_remove_listener(nk->win, &nk->listener);
 
   free(nk);
 }
 
-struct nuklear *nk_create(struct window *window, struct render_backend *r) {
+struct nuklear *nk_create(struct window *win, struct render_backend *r) {
   struct nuklear *nk = calloc(1, sizeof(struct nuklear));
 
-  nk->window = window;
+  nk->win = win;
   nk->r = r;
 
   /* add input event listeners */
   nk->listener = (struct window_listener){
       nk, NULL, NULL, &nk_keydown, &nk_mousemove, NULL, {0}};
-  win_add_listener(nk->window, &nk->listener);
+  win_add_listener(nk->win, &nk->listener);
 
   /* create default font texture */
   nk_font_atlas_init_default(&nk->atlas);

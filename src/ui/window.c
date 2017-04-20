@@ -9,8 +9,28 @@
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
 
+#define MAX_WINDOW_LISTENERS 8
+#define MAX_JOYSTICKS 4
+
+#define NUM_JOYSTICK_AXES ((K_AXIS25 - K_AXIS0) + 1)
+#define NUM_JOYSTICK_KEYS ((K_JOY31 - K_JOY0) + 1)
+#define NUM_JOYSTICK_HATS (((K_HAT15 - K_HAT0) + 1) / 4) /* 4 keys per hat */
+
 #define KEY_UP INT16_MIN
 #define KEY_DOWN INT16_MAX
+
+struct window {
+  struct SDL_Window *handle;
+
+  int width;
+  int height;
+  int fullscreen;
+
+  struct list listeners;
+  char status[256];
+  struct _SDL_Joystick *joysticks[MAX_JOYSTICKS];
+  uint8_t hat_state[MAX_JOYSTICKS][NUM_JOYSTICK_HATS];
+};
 
 static void win_destroy_joystick(struct window *win, SDL_Joystick *del) {
   for (int i = 0; i < MAX_JOYSTICKS; i++) {
@@ -811,6 +831,18 @@ static void win_pump_sdl(struct window *win) {
 
 void win_pump_events(struct window *win) {
   win_pump_sdl(win);
+}
+
+int win_width(struct window *win) {
+  return win->width;
+}
+
+int win_height(struct window *win) {
+  return win->height;
+}
+
+int win_fullscreen(struct window *win) {
+  return win->fullscreen;
 }
 
 void win_set_fullscreen(struct window *win, int fullscreen) {

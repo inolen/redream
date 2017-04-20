@@ -655,15 +655,17 @@ void r_end_ortho(struct render_backend *r) {
 }
 
 void r_begin_ortho(struct render_backend *r) {
-  float ortho[16];
+  int width = win_width(r->win);
+  int height = win_height(r->win);
 
-  ortho[0] = 2.0f / (float)r->win->width;
+  float ortho[16];
+  ortho[0] = 2.0f / (float)width;
   ortho[4] = 0.0f;
   ortho[8] = 0.0f;
   ortho[12] = -1.0f;
 
   ortho[1] = 0.0f;
-  ortho[5] = -2.0f / (float)r->win->height;
+  ortho[5] = -2.0f / (float)height;
   ortho[9] = 0.0f;
   ortho[13] = 1.0f;
 
@@ -691,9 +693,12 @@ void r_swap_buffers(struct render_backend *r) {
 }
 
 void r_clear_viewport(struct render_backend *r) {
+  int width = win_width(r->win);
+  int height = win_height(r->win);
+
   r_set_depth_mask(r, 1);
 
-  glViewport(0, 0, r->win->width, r->win->height);
+  glViewport(0, 0, width, height);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -828,6 +833,9 @@ void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle) {
 
 framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
                                           texture_handle_t *color_component) {
+  int width = win_width(r->win);
+  int height = win_height(r->win);
+
   /* find next open framebuffer handle */
   int entry;
   for (entry = 0; entry < MAX_FRAMEBUFFERS; entry++) {
@@ -843,8 +851,8 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
   /* create color component */
   glGenTextures(1, &fb->color_component);
   glBindTexture(GL_TEXTURE_2D, fb->color_component);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, r->win->width, r->win->height, 0,
-               GL_RGBA, GL_UNSIGNED_BYTE, 0);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+               GL_UNSIGNED_BYTE, 0);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glBindTexture(GL_TEXTURE_2D, 0);
@@ -852,8 +860,7 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
   /* create depth component */
   glGenRenderbuffers(1, &fb->depth_component);
   glBindRenderbuffer(GL_RENDERBUFFER, fb->depth_component);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, r->win->width,
-                        r->win->height);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
   glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
   /* create fbo */
