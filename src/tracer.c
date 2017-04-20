@@ -286,6 +286,8 @@ static const float SCRUBBER_WINDOW_HEIGHT = 20.0f;
 
 static void tracer_render_scrubber_menu(struct tracer *tracer) {
   struct nk_context *ctx = &tracer->nk->ctx;
+  float width = (float)win_width(tracer->win);
+  float height = (float)win_height(tracer->win);
 
   nk_style_default(ctx);
 
@@ -293,9 +295,8 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
   ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
-  struct nk_rect bounds = {0.0f,
-                           (float)tracer->win->height - SCRUBBER_WINDOW_HEIGHT,
-                           (float)tracer->win->width, SCRUBBER_WINDOW_HEIGHT};
+  struct nk_rect bounds = {0.0f, height - SCRUBBER_WINDOW_HEIGHT, width,
+                           SCRUBBER_WINDOW_HEIGHT};
   nk_flags flags = NK_WINDOW_NO_SCROLLBAR;
 
   if (nk_begin(ctx, "context scrubber", bounds, flags)) {
@@ -571,12 +572,14 @@ static void tracer_param_tooltip(struct tracer *tracer,
 
 static void tracer_render_side_menu(struct tracer *tracer) {
   struct nk_context *ctx = &tracer->nk->ctx;
+  float width = (float)win_width(tracer->win);
+  float height = (float)win_height(tracer->win);
 
   /* transparent menu backgrounds / selectables */
 
   {
     struct nk_rect bounds = {0.0f, 0.0, 240.0f,
-                             tracer->win->height - SCRUBBER_WINDOW_HEIGHT};
+                             height - SCRUBBER_WINDOW_HEIGHT};
 
     nk_style_default(ctx);
 
@@ -657,8 +660,8 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   }
 
   {
-    struct nk_rect bounds = {tracer->win->width - 240.0f, 0.0, 240.0f,
-                             tracer->win->height - SCRUBBER_WINDOW_HEIGHT};
+    struct nk_rect bounds = {width - 240.0f, 0.0, 240.0f,
+                             height - SCRUBBER_WINDOW_HEIGHT};
 
     nk_style_default(ctx);
 

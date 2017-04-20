@@ -211,6 +211,9 @@ static void emu_close(void *data) {
 }
 
 static void emu_paint(struct emu *emu) {
+  float w = (float)win_width(emu->win);
+  float h = (float)win_height(emu->win);
+
   prof_counter_add(COUNTER_frames, 1);
 
   r_clear_viewport(emu->r);
@@ -221,9 +224,6 @@ static void emu_paint(struct emu *emu) {
   struct frame *frame = emu_pop_frame(emu);
 
   if (frame) {
-    float w = (float)emu->win->width;
-    float h = (float)emu->win->height;
-
     struct vertex2 verts[6] = {
         /* triangle 1, top left  */
         {{0.0f, 0.0f}, {0.0f, 1.0f}, 0xffffffff},
@@ -264,8 +264,7 @@ static void emu_paint(struct emu *emu) {
   /* render debug menus */
   if (emu->debug_menu) {
     struct nk_context *ctx = &emu->nk->ctx;
-    struct nk_rect bounds = {0.0f, 0.0f, (float)emu->win->width,
-                             DEBUG_MENU_HEIGHT};
+    struct nk_rect bounds = {0.0f, 0.0f, w, DEBUG_MENU_HEIGHT};
 
     nk_style_default(ctx);
 
@@ -275,9 +274,10 @@ static void emu_paint(struct emu *emu) {
     ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
 
     if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
+      static int max_debug_menus = 32;
+
       nk_menubar_begin(ctx);
-      nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT,
-                          MAX_WINDOW_LISTENERS + 2);
+      nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT, max_debug_menus);
 
       /* add our own debug menu */
       nk_layout_row_push(ctx, 30.0f);
@@ -285,7 +285,7 @@ static void emu_paint(struct emu *emu) {
                               nk_vec2(140.0f, 200.0f))) {
         nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
 
-        int fullscreen = emu->win->fullscreen;
+        int fullscreen = win_fullscreen(emu->win);
         if (nk_checkbox_label(ctx, "fullscreen", &fullscreen)) {
           win_set_fullscreen(emu->win, fullscreen);
         }
@@ -310,8 +310,7 @@ static void emu_paint(struct emu *emu) {
       snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
                frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
 
-      nk_layout_row_push(
-          ctx, (float)emu->win->width - ctx->current->layout->row.item_offset);
+      nk_layout_row_push(ctx, w - ctx->current->layout->row.item_offset);
       nk_label(ctx, status, NK_TEXT_RIGHT);
 
       nk_layout_row_end(ctx);

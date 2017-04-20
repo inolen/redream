@@ -25,7 +25,7 @@ static const int MAX_2D_VERTICES = 32768;
 static const int MAX_2D_SURFACES = 256;
 
 struct microprofile {
-  struct window *window;
+  struct window *win;
   struct render_backend *r;
   struct window_listener listener;
   texture_handle_t font_texture;
@@ -236,8 +236,11 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
 void mp_render(struct microprofile *mp) {
   s_mp = mp;
 
+  int width = win_width(mp->win);
+  int height = win_height(mp->win);
+
   /* update draw surfaces */
-  MicroProfileDraw(mp->window->width, mp->window->height);
+  MicroProfileDraw(width, height);
 
   /* render the surfaces */
   r_begin_ortho(mp->r);
@@ -259,22 +262,21 @@ void mp_render(struct microprofile *mp) {
 void mp_destroy(struct microprofile *mp) {
   r_destroy_texture(mp->r, mp->font_texture);
 
-  win_remove_listener(mp->window, &mp->listener);
+  win_remove_listener(mp->win, &mp->listener);
 
   free(mp);
 }
 
-struct microprofile *mp_create(struct window *window,
-                               struct render_backend *r) {
+struct microprofile *mp_create(struct window *win, struct render_backend *r) {
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));
 
-  mp->window = window;
+  mp->win = win;
   mp->r = r;
 
   /* add input event listeners */
   mp->listener = {mp, NULL, NULL, &mp_keydown, &mp_mousemove, NULL, {}};
-  win_add_listener(mp->window, &mp->listener);
+  win_add_listener(mp->win, &mp->listener);
 
   /* register and enable cpu and gpu groups by default */
   uint16_t cpu_group = MicroProfileGetGroup("cpu", MicroProfileTokenTypeCpu);
