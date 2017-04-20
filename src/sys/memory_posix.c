@@ -68,7 +68,7 @@ int protect_pages(void *ptr, size_t size, enum page_access access) {
   return mprotect(ptr, size, prot) == 0;
 }
 
-int reserve_pages(void *ptr, size_t size) {
+void *reserve_pages(void *ptr, size_t size) {
   /* NOTE mmap with MAP_FIXED will overwrite existing mappings, making it hard
      to detect that a section of memory has already been mmap'd. however, mmap
      without MAP_FIXED will obey the address parameter only if an existing
@@ -79,17 +79,17 @@ int reserve_pages(void *ptr, size_t size) {
       mmap(ptr, size, PROT_NONE, MAP_SHARED | MAP_ANON | MAP_NORESERVE, -1, 0);
 
   if (res == MAP_FAILED) {
-    return 0;
+    return NULL;
   }
 
-  if (res != ptr) {
+  if (ptr && res != ptr) {
     /* mapping was successful. however, it was made at a different address
        than requested, meaning the requested address has already been mapped */
     munmap(res, size);
-    return 0;
+    return NULL;
   }
 
-  return 1;
+  return res;
 }
 
 int release_pages(void *ptr, size_t size) {

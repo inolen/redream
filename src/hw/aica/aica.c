@@ -439,10 +439,6 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   return result;
 }
 
-static void aica_clear_frames(struct aica *aica) {
-  ringbuf_clear(aica->frames);
-}
-
 static void aica_write_frames(struct aica *aica, const void *frames,
                               int num_frames) {
   int remaining = ringbuf_remaining(aica->frames);
@@ -450,8 +446,8 @@ static void aica_write_frames(struct aica *aica, const void *frames,
   CHECK_EQ(size % 4, 0);
 
   void *write_ptr = ringbuf_write_ptr(aica->frames);
-  ringbuf_advance_write_ptr(aica->frames, size);
   memcpy(write_ptr, frames, size);
+  ringbuf_advance_write_ptr(aica->frames, size);
 
   /* save raw audio out while recording */
   if (aica->recording) {
@@ -699,10 +695,6 @@ static void aica_debug_menu(struct device *dev, struct nk_context *ctx) {
 
   if (nk_menu_begin_label(ctx, "AICA", NK_TEXT_LEFT, nk_vec2(140.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
-
-    if (nk_button_label(ctx, "clear frames")) {
-      aica_clear_frames(aica);
-    }
 
     if (!aica->recording && nk_button_label(ctx, "stard recording")) {
       aica_toggle_recording(aica);

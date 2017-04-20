@@ -18,7 +18,7 @@ enum page_access {
 size_t get_page_size();
 size_t get_allocation_granularity();
 int protect_pages(void *ptr, size_t size, enum page_access access);
-int reserve_pages(void *ptr, size_t size);
+void *reserve_pages(void *ptr, size_t size);
 int release_pages(void *ptr, size_t size);
 
 /*
