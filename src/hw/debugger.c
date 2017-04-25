@@ -57,7 +57,7 @@ static void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
 }
 
 int debugger_init(struct debugger *dbg) {
-  // use the first device found with a debug interface
+  /* use the first device found with a debug interface */
   list_for_each_entry(dev, &dbg->dc->devices, struct device, it) {
     if (dev->debug_if) {
       dbg->dev = dev;
@@ -65,12 +65,12 @@ int debugger_init(struct debugger *dbg) {
     }
   }
 
-  // didn't find a debuggable device
+  /* didn't find a debuggable device */
   if (!dbg->dev) {
     return 0;
   }
 
-  // create the gdb server
+  /* create the gdb server */
   gdb_target_t target;
   target.ctx = dbg;
   target.endian = GDB_LITTLE_ENDIAN;
