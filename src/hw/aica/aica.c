@@ -773,16 +773,13 @@ void aica_destroy(struct aica *aica) {
   }
 
   ringbuf_destroy(aica->frames);
-  dc_destroy_window_interface(aica->window_if);
   dc_destroy_device((struct device *)aica);
 }
 
 struct aica *aica_create(struct dreamcast *dc) {
-  struct aica *aica =
-      dc_create_device(dc, sizeof(struct aica), "aica", &aica_init);
+  struct aica *aica = dc_create_device(dc, sizeof(struct aica), "aica",
+                                       &aica_init, &aica_debug_menu);
 
-  aica->window_if =
-      dc_create_window_interface(&aica_debug_menu, NULL, NULL, NULL);
   aica->frames = ringbuf_create(AICA_SAMPLE_FREQ * 4);
 
   return aica;

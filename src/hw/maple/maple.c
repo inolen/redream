@@ -174,9 +174,9 @@ void maple_destroy(struct maple *mp) {
 
 struct maple *maple_create(struct dreamcast *dc) {
   struct maple *mp =
-      dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
-  mp->window_if = dc_create_window_interface(NULL, &maple_keydown,
-                                             &maple_joy_add, &maple_joy_remove);
+      dc_create_device(dc, sizeof(struct maple), "maple", &maple_init, NULL);
+  mp->window_if = dc_create_window_interface(&maple_keydown, &maple_joy_add,
+                                             &maple_joy_remove);
 
   /* add one controller and vmu by default */
   maple_register_device(mp, "controller", 0, 0);

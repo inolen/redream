@@ -86,13 +86,11 @@ struct memory_interface {
 };
 
 /* window interface */
-typedef void (*device_debug_menu_cb)(struct device *, struct nk_context *);
 typedef void (*device_keydown_cb)(struct device *, int, enum keycode, int16_t);
 typedef void (*device_joy_add_cb)(struct device *, int);
 typedef void (*device_joy_remove_cb)(struct device *, int);
 
 struct window_interface {
-  device_debug_menu_cb debug_menu;
   device_keydown_cb keydown;
   device_joy_add_cb joy_add;
   device_joy_remove_cb joy_remove;
@@ -104,7 +102,8 @@ struct window_interface {
 struct device {
   struct dreamcast *dc;
   const char *name;
-  int (*init)(struct device *dev);
+  int (*init)(struct device *);
+  void (*debug_menu)(struct device *, struct nk_context *);
 
   /* optional interfaces */
   struct debug_interface *debug_if;
@@ -165,7 +164,9 @@ struct dreamcast *dc_create(const struct dreamcast_client *client);
 void dc_destroy(struct dreamcast *dc);
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       int (*init)(struct device *dev));
+                       int (*init)(struct device *),
+                       void (*debug_menu)(struct device *,
+                                          struct nk_context *));
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
@@ -178,8 +179,8 @@ struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
 void dc_destroy_memory_interface(struct memory_interface *memory);
 
 struct window_interface *dc_create_window_interface(
-    device_debug_menu_cb debug_menu, device_keydown_cb keydown,
-    device_joy_add_cb joy_add, device_joy_remove_cb joy_remove);
+    device_keydown_cb keydown, device_joy_add_cb joy_add,
+    device_joy_remove_cb joy_remove);
 void dc_destroy_window_interface(struct window_interface *window);
 
 int dc_init(struct dreamcast *dc);

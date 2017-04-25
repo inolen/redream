@@ -369,18 +369,16 @@ void sh4_destroy(struct sh4 *sh4) {
     sh4_frontend_destroy(sh4->frontend);
   }
 
-  dc_destroy_window_interface(sh4->window_if);
   dc_destroy_memory_interface(sh4->memory_if);
   dc_destroy_execute_interface(sh4->execute_if);
   dc_destroy_device((struct device *)sh4);
 }
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
-  struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
+  struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init,
+                                     &sh4_debug_menu);
   sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
   sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
-  sh4->window_if =
-      dc_create_window_interface(&sh4_debug_menu, NULL, NULL, NULL);
 
   return sh4;
 }
