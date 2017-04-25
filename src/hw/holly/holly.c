@@ -308,16 +308,12 @@ static int holly_init(struct device *dev) {
 }
 
 void holly_destroy(struct holly *hl) {
-  dc_destroy_window_interface(hl->window_if);
   dc_destroy_device((struct device *)hl);
 }
 
 struct holly *holly_create(struct dreamcast *dc) {
-  struct holly *hl =
-      dc_create_device(dc, sizeof(struct holly), "holly", &holly_init);
-
-  hl->window_if =
-      dc_create_window_interface(&holly_debug_menu, NULL, NULL, NULL);
+  struct holly *hl = dc_create_device(dc, sizeof(struct holly), "holly",
+                                      &holly_init, &holly_debug_menu);
 
 /* init registers */
 #define HOLLY_REG(addr, name, default, type) \

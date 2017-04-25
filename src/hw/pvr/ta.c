@@ -965,15 +965,14 @@ struct texture_provider *ta_texture_provider(struct ta *ta) {
 }
 
 void ta_destroy(struct ta *ta) {
-  dc_destroy_window_interface(ta->window_if);
   dc_destroy_device((struct device *)ta);
 }
 
 struct ta *ta_create(struct dreamcast *dc) {
   ta_build_tables();
 
-  struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
-  ta->window_if = dc_create_window_interface(&ta_debug_menu, NULL, NULL, NULL);
+  struct ta *ta =
+      dc_create_device(dc, sizeof(struct ta), "ta", &ta_init, &ta_debug_menu);
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
 

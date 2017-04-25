@@ -2,9 +2,9 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <stdlib.h>
-#include "ui/window.h"
 #include "core/assert.h"
 #include "core/list.h"
+#include "ui/window.h"
 
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
