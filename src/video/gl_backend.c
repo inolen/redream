@@ -42,17 +42,17 @@ enum shader_attr {
 };
 
 struct shader_program {
-  GLuint program;
+  GLuint prog;
   GLuint vertex_shader;
   GLuint fragment_shader;
-  GLint uniforms[UNIFORM_NUM_UNIFORMS];
+  GLint loc[UNIFORM_NUM_UNIFORMS];
   uint64_t uniform_token;
 };
 
 struct framebuffer {
   GLuint fbo;
-  GLuint color_component;
-  GLuint depth_component;
+  GLuint color_texture;
+  GLuint depth_buffer;
 };
 
 struct texture {
@@ -92,14 +92,6 @@ struct render_backend {
   int ui_use_ibo;
 
   /* current gl state */
-  int scissor_test;
-  int depth_mask;
-  enum depth_func depth_func;
-  enum cull_face cull_face;
-  enum blend_func src_blend;
-  enum blend_func dst_blend;
-  GLuint current_vao;
-  struct shader_program *current_program;
   uint64_t uniform_token;
   const float *uniform_mvp;
 };
@@ -155,111 +147,10 @@ static GLenum prim_types[] = {
     GL_LINES,     /* PRIM_LINES */
 };
 
-static void r_set_scissor_test(struct render_backend *r, int enabled) {
-  if (r->scissor_test == enabled) {
-    return;
-  }
-
-  r->scissor_test = enabled;
-
-  if (enabled) {
-    glEnable(GL_SCISSOR_TEST);
-  } else {
-    glDisable(GL_SCISSOR_TEST);
-  }
-}
-
-static void r_set_scissor_clip(struct render_backend *r, int x, int y,
-                               int width, int height) {
-  glScissor(x, y, width, height);
-}
-
-static void r_set_depth_mask(struct render_backend *r, int enabled) {
-  if (r->depth_mask == enabled) {
-    return;
-  }
-
-  r->depth_mask = enabled;
-
-  glDepthMask(enabled ? 1 : 0);
-}
-
-static void r_set_depth_func(struct render_backend *r, enum depth_func fn) {
-  if (r->depth_func == fn) {
-    return;
-  }
-
-  r->depth_func = fn;
-
-  if (fn == DEPTH_NONE) {
-    glDisable(GL_DEPTH_TEST);
-  } else {
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(depth_funcs[fn]);
-  }
-}
-
-static void r_set_cull_face(struct render_backend *r, enum cull_face fn) {
-  if (r->cull_face == fn) {
-    return;
-  }
-
-  r->cull_face = fn;
-
-  if (fn == CULL_NONE) {
-    glDisable(GL_CULL_FACE);
-  } else {
-    glEnable(GL_CULL_FACE);
-    glCullFace(cull_face[fn]);
-  }
-}
-
-static void r_set_blend_func(struct render_backend *r, enum blend_func src_fn,
-                             enum blend_func dst_fn) {
-  if (r->src_blend == src_fn && r->dst_blend == dst_fn) {
-    return;
-  }
-
-  r->src_blend = src_fn;
-  r->dst_blend = dst_fn;
-
-  if (src_fn == BLEND_NONE || dst_fn == BLEND_NONE) {
-    glDisable(GL_BLEND);
-  } else {
-    glEnable(GL_BLEND);
-    glBlendFunc(blend_funcs[src_fn], blend_funcs[dst_fn]);
-  }
-}
-
-static void r_bind_vao(struct render_backend *r, GLuint vao) {
-  if (r->current_vao == vao) {
-    return;
-  }
-
-  r->current_vao = vao;
-
-  glBindVertexArray(vao);
-}
-
-static void r_bind_program(struct render_backend *r,
-                           struct shader_program *program) {
-  if (r->current_program == program) {
-    return;
-  }
-
-  r->current_program = program;
-
-  glUseProgram(program ? program->program : 0);
-}
-
-void r_bind_texture(struct render_backend *r, enum texture_map map,
-                    GLuint tex) {
+static inline void r_bind_texture(struct render_backend *r,
+                                  enum texture_map map, GLuint tex) {
   glActiveTexture(GL_TEXTURE0 + map);
   glBindTexture(GL_TEXTURE_2D, tex);
-}
-
-static GLint r_get_uniform(struct render_backend *r, enum uniform_attr attr) {
-  return r->current_program->uniforms[attr];
 }
 
 static void r_print_shader_log(GLuint shader) {
@@ -302,7 +193,7 @@ static void r_destroy_program(struct shader_program *program) {
     glDeleteShader(program->fragment_shader);
   }
 
-  glDeleteProgram(program->program);
+  glDeleteProgram(program->prog);
 }
 
 static int r_compile_program(struct render_backend *r,
@@ -312,7 +203,7 @@ static int r_compile_program(struct render_backend *r,
   char buffer[16384] = {0};
 
   memset(program, 0, sizeof(*program));
-  program->program = glCreateProgram();
+  program->prog = glCreateProgram();
 
   if (vertex_source) {
     snprintf(buffer, sizeof(buffer) - 1,
@@ -326,7 +217,7 @@ static int r_compile_program(struct render_backend *r,
       return 0;
     }
 
-    glAttachShader(program->program, program->vertex_shader);
+    glAttachShader(program->prog, program->vertex_shader);
   }
 
   if (fragment_source) {
@@ -342,13 +233,13 @@ static int r_compile_program(struct render_backend *r,
       return 0;
     }
 
-    glAttachShader(program->program, program->fragment_shader);
+    glAttachShader(program->prog, program->fragment_shader);
   }
 
-  glLinkProgram(program->program);
+  glLinkProgram(program->prog);
 
   GLint linked;
-  glGetProgramiv(program->program, GL_LINK_STATUS, &linked);
+  glGetProgramiv(program->prog, GL_LINK_STATUS, &linked);
 
   if (!linked) {
     r_destroy_program(program);
@@ -356,14 +247,13 @@ static int r_compile_program(struct render_backend *r,
   }
 
   for (int i = 0; i < UNIFORM_NUM_UNIFORMS; i++) {
-    program->uniforms[i] =
-        glGetUniformLocation(program->program, uniform_names[i]);
+    program->loc[i] = glGetUniformLocation(program->prog, uniform_names[i]);
   }
 
   /* bind diffuse sampler once after compile, this currently never changes */
-  r_bind_program(r, program);
-  glUniform1i(r_get_uniform(r, UNIFORM_DIFFUSE), MAP_DIFFUSE);
-  r_bind_program(r, NULL);
+  glUseProgram(program->prog);
+  glUniform1i(program->loc[UNIFORM_DIFFUSE], MAP_DIFFUSE);
+  glUseProgram(0);
 
   return 1;
 }
@@ -535,10 +425,13 @@ static void r_create_vertex_arrays(struct render_backend *r) {
 }
 
 static void r_set_initial_state(struct render_backend *r) {
-  r_set_depth_mask(r, 1);
-  r_set_depth_func(r, DEPTH_NONE);
-  r_set_cull_face(r, CULL_BACK);
-  r_set_blend_func(r, BLEND_NONE, BLEND_NONE);
+  glDepthMask(1);
+  glDisable(GL_DEPTH_TEST);
+
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+
+  glDisable(GL_BLEND);
 }
 
 static struct shader_program *r_get_ta_program(struct render_backend *r,
@@ -567,19 +460,37 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
 void r_end_surfaces(struct render_backend *r) {}
 
 void r_draw_surface(struct render_backend *r, const struct surface *surf) {
-  r_set_depth_mask(r, surf->depth_write);
-  r_set_depth_func(r, surf->depth_func);
-  r_set_cull_face(r, surf->cull);
-  r_set_blend_func(r, surf->src_blend, surf->dst_blend);
+  glDepthMask(!!surf->depth_write);
+
+  if (surf->depth_func == DEPTH_NONE) {
+    glDisable(GL_DEPTH_TEST);
+  } else {
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(depth_funcs[surf->depth_func]);
+  }
+
+  if (surf->cull == CULL_NONE) {
+    glDisable(GL_CULL_FACE);
+  } else {
+    glEnable(GL_CULL_FACE);
+    glCullFace(cull_face[surf->cull]);
+  }
+
+  if (surf->src_blend == BLEND_NONE || surf->dst_blend == BLEND_NONE) {
+    glDisable(GL_BLEND);
+  } else {
+    glEnable(GL_BLEND);
+    glBlendFunc(blend_funcs[surf->src_blend], blend_funcs[surf->dst_blend]);
+  }
 
   struct shader_program *program = r_get_ta_program(r, surf);
-  r_bind_program(r, program);
+
+  glUseProgram(program->prog);
 
   /* if uniforms have yet to be bound for this program, do so now */
   if (program->uniform_token != r->uniform_token) {
-    glUniformMatrix4fv(r_get_uniform(r, UNIFORM_MVP), 1, GL_FALSE,
-                       r->uniform_mvp);
-    glUniform1f(r_get_uniform(r, UNIFORM_PT_ALPHA_REF), surf->pt_alpha_ref);
+    glUniformMatrix4fv(program->loc[UNIFORM_MVP], 1, GL_FALSE, r->uniform_mvp);
+    glUniform1f(program->loc[UNIFORM_PT_ALPHA_REF], surf->pt_alpha_ref);
     program->uniform_token = r->uniform_token;
   }
 
@@ -599,23 +510,26 @@ void r_begin_surfaces(struct render_backend *r, const float *projection,
   glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex) * num_verts, verts,
                GL_DYNAMIC_DRAW);
-
-  r_bind_vao(r, r->ta_vao);
+  glBindVertexArray(r->ta_vao);
 }
 
 void r_end_surfaces2(struct render_backend *r) {}
 
 void r_draw_surface2(struct render_backend *r, const struct surface2 *surf) {
   if (surf->scissor) {
-    r_set_scissor_test(r, 1);
-    r_set_scissor_clip(r, (int)surf->scissor_rect[0],
-                       (int)surf->scissor_rect[1], (int)surf->scissor_rect[2],
-                       (int)surf->scissor_rect[3]);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor((int)surf->scissor_rect[0], (int)surf->scissor_rect[1],
+              (int)surf->scissor_rect[2], (int)surf->scissor_rect[3]);
   } else {
-    r_set_scissor_test(r, 0);
+    glDisable(GL_SCISSOR_TEST);
   }
 
-  r_set_blend_func(r, surf->src_blend, surf->dst_blend);
+  if (surf->src_blend == BLEND_NONE || surf->dst_blend == BLEND_NONE) {
+    glDisable(GL_BLEND);
+  } else {
+    glEnable(GL_BLEND);
+    glBlendFunc(blend_funcs[surf->src_blend], blend_funcs[surf->dst_blend]);
+  }
 
   if (surf->texture) {
     r_bind_texture(r, MAP_DIFFUSE, surf->texture);
@@ -651,7 +565,7 @@ void r_begin_surfaces2(struct render_backend *r, const struct vertex2 *verts,
 }
 
 void r_end_ortho(struct render_backend *r) {
-  r_set_scissor_test(r, 0);
+  glDisable(GL_SCISSOR_TEST);
 }
 
 void r_begin_ortho(struct render_backend *r) {
@@ -679,13 +593,14 @@ void r_begin_ortho(struct render_backend *r) {
   ortho[11] = 0.0f;
   ortho[15] = 1.0f;
 
-  r_set_depth_mask(r, 0);
-  r_set_depth_func(r, DEPTH_NONE);
-  r_set_cull_face(r, CULL_NONE);
+  glDepthMask(0);
+  glDisable(GL_DEPTH_TEST);
+  glDisable(GL_CULL_FACE);
 
-  r_bind_vao(r, r->ui_vao);
-  r_bind_program(r, &r->ui_program);
-  glUniformMatrix4fv(r_get_uniform(r, UNIFORM_MVP), 1, GL_FALSE, ortho);
+  struct shader_program *program = &r->ui_program;
+  glBindVertexArray(r->ui_vao);
+  glUseProgram(program->prog);
+  glUniformMatrix4fv(program->loc[UNIFORM_MVP], 1, GL_FALSE, ortho);
 }
 
 void r_swap_buffers(struct render_backend *r) {
@@ -696,7 +611,7 @@ void r_clear_viewport(struct render_backend *r) {
   int width = win_width(r->win);
   int height = win_height(r->win);
 
-  r_set_depth_mask(r, 1);
+  glDepthMask(1);
 
   glViewport(0, 0, width, height);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -818,11 +733,11 @@ void r_destroy_framebuffer(struct render_backend *r,
 
   struct framebuffer *fb = &r->framebuffers[entry];
 
-  glDeleteTextures(1, &fb->color_component);
-  fb->color_component = 0;
+  glDeleteTextures(1, &fb->color_texture);
+  fb->color_texture = 0;
 
-  glDeleteRenderbuffers(1, &fb->depth_component);
-  fb->depth_component = 0;
+  glDeleteRenderbuffers(1, &fb->depth_buffer);
+  fb->depth_buffer = 0;
 
   glDeleteFramebuffers(1, &fb->fbo);
   fb->fbo = 0;
@@ -833,7 +748,7 @@ void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle) {
 }
 
 framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
-                                          texture_handle_t *color_component) {
+                                          texture_handle_t *color_texture) {
   int width = win_width(r->win);
   int height = win_height(r->win);
 
@@ -850,8 +765,8 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
   struct framebuffer *fb = &r->framebuffers[entry];
 
   /* create color component */
-  glGenTextures(1, &fb->color_component);
-  glBindTexture(GL_TEXTURE_2D, fb->color_component);
+  glGenTextures(1, &fb->color_texture);
+  glBindTexture(GL_TEXTURE_2D, fb->color_texture);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
                GL_UNSIGNED_BYTE, 0);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -859,8 +774,8 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
   glBindTexture(GL_TEXTURE_2D, 0);
 
   /* create depth component */
-  glGenRenderbuffers(1, &fb->depth_component);
-  glBindRenderbuffer(GL_RENDERBUFFER, fb->depth_component);
+  glGenRenderbuffers(1, &fb->depth_buffer);
+  glBindRenderbuffer(GL_RENDERBUFFER, fb->depth_buffer);
   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
   glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
@@ -868,9 +783,9 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
   glGenFramebuffers(1, &fb->fbo);
   glBindFramebuffer(GL_FRAMEBUFFER, fb->fbo);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         fb->color_component, 0);
+                         fb->color_texture, 0);
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                            GL_RENDERBUFFER, fb->depth_component);
+                            GL_RENDERBUFFER, fb->depth_buffer);
 
   GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   CHECK_EQ(status, GL_FRAMEBUFFER_COMPLETE);
@@ -878,7 +793,7 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
   /* switch back to default framebuffer */
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-  *color_component = fb->color_component;
+  *color_texture = fb->color_texture;
 
   return fb->fbo;
 }
