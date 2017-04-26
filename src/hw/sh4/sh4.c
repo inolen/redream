@@ -231,34 +231,6 @@ void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
   sh4_intc_update_pending(sh4);
 }
 
-static void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
-  struct sh4 *sh4 = (struct sh4 *)dev;
-
-  nk_layout_row_push(ctx, 30.0f);
-
-  if (nk_menu_begin_label(ctx, "SH4", NK_TEXT_LEFT, nk_vec2(200.0f, 200.0f))) {
-    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
-
-    if (nk_button_label(ctx, "clear cache")) {
-      jit_invalidate_blocks(sh4->jit);
-    }
-
-    struct jit *jit = sh4->jit;
-    if (!jit->dump_blocks) {
-      if (nk_button_label(ctx, "start dumping blocks")) {
-        jit->dump_blocks = 1;
-        jit_invalidate_blocks(jit);
-      }
-    } else {
-      if (nk_button_label(ctx, "stop dumping blocks")) {
-        jit->dump_blocks = 0;
-      }
-    }
-
-    nk_menu_end(ctx);
-  }
-}
-
 void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   jit_free_blocks(sh4->jit);
 
@@ -296,6 +268,34 @@ static void sh4_run(struct device *dev, int64_t ns) {
   prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 
   PROF_LEAVE();
+}
+
+static void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
+  struct sh4 *sh4 = (struct sh4 *)dev;
+
+  nk_layout_row_push(ctx, 30.0f);
+
+  if (nk_menu_begin_label(ctx, "SH4", NK_TEXT_LEFT, nk_vec2(200.0f, 200.0f))) {
+    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+    if (nk_button_label(ctx, "clear cache")) {
+      jit_invalidate_blocks(sh4->jit);
+    }
+
+    struct jit *jit = sh4->jit;
+    if (!jit->dump_blocks) {
+      if (nk_button_label(ctx, "start dumping blocks")) {
+        jit->dump_blocks = 1;
+        jit_invalidate_blocks(jit);
+      }
+    } else {
+      if (nk_button_label(ctx, "stop dumping blocks")) {
+        jit->dump_blocks = 0;
+      }
+    }
+
+    nk_menu_end(ctx);
+  }
 }
 
 static int sh4_init(struct device *dev) {
