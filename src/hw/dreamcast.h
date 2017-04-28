@@ -184,6 +184,7 @@ struct window_interface *dc_create_window_interface(
 void dc_destroy_window_interface(struct window_interface *window);
 
 int dc_init(struct dreamcast *dc);
+int dc_load(struct dreamcast *dc, const char *path);
 void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);

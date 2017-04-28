@@ -80,6 +80,65 @@ void dc_suspend(struct dreamcast *dc) {
   dc->running = 0;
 }
 
+static int dc_load_gdi(struct dreamcast *dc, const char *path) {
+  struct disc *disc = disc_create_gdi(path);
+
+  if (!disc) {
+    return 0;
+  }
+
+  gdrom_set_disc(dc->gdrom, disc);
+  sh4_reset(dc->sh4, 0xa0000000);
+  dc_resume(dc);
+
+  return 1;
+}
+
+static int dc_load_bin(struct dreamcast *dc, const char *path) {
+  FILE *fp = fopen(path, "rb");
+  if (!fp) {
+    return 0;
+  }
+
+  fseek(fp, 0, SEEK_END);
+  int size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  /* load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to */
+  uint8_t *data = memory_translate(dc->memory, "system ram", 0x00010000);
+  int n = (int)fread(data, sizeof(uint8_t), size, fp);
+  fclose(fp);
+
+  if (n != size) {
+    LOG_WARNING("BIN read failed");
+    return 0;
+  }
+
+  sh4_reset(dc->sh4, 0x0c010000);
+  dc_resume(dc);
+
+  return 1;
+}
+
+int dc_load(struct dreamcast *dc, const char *path) {
+  if (!path) {
+    /* boot to main menu of no path specified */
+    sh4_reset(dc->sh4, 0xa0000000);
+    dc_resume(dc);
+    return 1;
+  }
+
+  LOG_INFO("Loading %s", path);
+
+  if ((strstr(path, ".bin") && dc_load_bin(dc, path)) ||
+      (strstr(path, ".gdi") && dc_load_gdi(dc, path))) {
+    return 1;  
+  }
+
+  LOG_WARNING("Failed to load %s", path);
+  return 0;
+}
+
 int dc_init(struct dreamcast *dc) {
   if (dc->debugger && !debugger_init(dc->debugger)) {
     return 0;

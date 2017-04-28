@@ -61,46 +61,6 @@ struct emu {
   struct list live_frames;
 };
 
-static int emu_launch_bin(struct emu *emu, const char *path) {
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    return 0;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  int size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  /* load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to */
-  uint8_t *data = memory_translate(emu->dc->memory, "system ram", 0x00010000);
-  int n = (int)fread(data, sizeof(uint8_t), size, fp);
-  fclose(fp);
-
-  if (n != size) {
-    LOG_WARNING("BIN read failed");
-    return 0;
-  }
-
-  sh4_reset(emu->dc->sh4, 0x0c010000);
-  dc_resume(emu->dc);
-
-  return 1;
-}
-
-static int emu_launch_gdi(struct emu *emu, const char *path) {
-  struct disc *disc = disc_create_gdi(path);
-
-  if (!disc) {
-    return 0;
-  }
-
-  gdrom_set_disc(emu->dc->gdrom, disc);
-  sh4_reset(emu->dc->sh4, 0xa0000000);
-  dc_resume(emu->dc);
-
-  return 1;
-}
-
 /*
  * multithreaded, offscreen video rendering
  */
@@ -434,26 +394,8 @@ static void emu_paint(struct emu *emu) {
 }
 
 void emu_run(struct emu *emu, const char *path) {
-  /* load gdi / bin if specified */
-  if (path) {
-    int launched = 0;
-
-    LOG_INFO("Launching %s", path);
-
-    if ((strstr(path, ".bin") && emu_launch_bin(emu, path)) ||
-        (strstr(path, ".gdi") && emu_launch_gdi(emu, path))) {
-      launched = 1;
-    }
-
-    if (!launched) {
-      LOG_WARNING("Failed to launch %s", path);
-      return;
-    }
-  }
-  /* else, boot to main menu */
-  else {
-    sh4_reset(emu->dc->sh4, 0xa0000000);
-    dc_resume(emu->dc);
+  if (!dc_load(emu->dc, path)) {
+    return;
   }
 
   /* emulator, audio and video all run on their own threads. the high-level
