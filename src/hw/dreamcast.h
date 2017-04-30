@@ -132,11 +132,13 @@ struct device {
 /*
  * machine
  */
+typedef void (*push_audio_cb)(void *, const int16_t *, int);
 typedef void (*start_render_cb)(void *, struct tile_ctx *);
 typedef void (*finish_render_cb)(void *);
 
 struct dreamcast_client {
   void *userdata;
+  push_audio_cb push_audio;
   start_render_cb start_render;
   finish_render_cb finish_render;
 };
@@ -188,11 +190,14 @@ int dc_load(struct dreamcast *dc, const char *path);
 void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
+
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
                 int16_t value);
 void dc_joy_add(struct dreamcast *dc, int joystick_index);
 void dc_joy_remove(struct dreamcast *dc, int joystick_index);
+
+void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);
 void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx);
 void dc_finish_render(struct dreamcast *dc);
 

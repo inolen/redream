@@ -1,16 +1,35 @@
 #include <soundio/soundio.h>
 #include "audio/audio_backend.h"
+#include "core/option.h"
+#include "core/ringbuf.h"
 #include "hw/aica/aica.h"
 
 DEFINE_OPTION_INT(latency, 100, "Preferred audio latency in MS");
 
 struct audio_backend {
-  struct aica *aica;
+  struct ringbuf *buffer;
   struct SoundIo *soundio;
   struct SoundIoDevice *device;
   struct SoundIoOutStream *outstream;
   uint32_t frames[AICA_SAMPLE_FREQ];
 };
+
+int audio_read_frames(struct audio_backend *audio, void *data, int frames) {
+  int available = ringbuf_available(audio->buffer);
+  int size = MIN(available, frames * 4);
+  CHECK_EQ(size % 4, 0);
+
+  void *read_ptr = ringbuf_read_ptr(audio->buffer);
+  memcpy(data, read_ptr, size);
+  ringbuf_advance_read_ptr(audio->buffer, size);
+
+  return size / 4;
+}
+
+int audio_available_frames(struct audio_backend *audio) {
+  int available = ringbuf_available(audio->buffer);
+  return available / 4;
+}
 
 static void audio_write_callback(struct SoundIoOutStream *outstream,
                                  int frame_count_min, int frame_count_max) {
@@ -20,7 +39,7 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
   int err;
 
   int16_t *samples = (int16_t *)audio->frames;
-  int frames_available = aica_available_frames(audio->aica);
+  int frames_available = audio_available_frames(audio);
   int frames_silence = frame_count_max - frames_available;
   int frames_remaining = frames_available + frames_silence;
 
@@ -42,7 +61,7 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
 
       if (frames_available > 0) {
         /* batch read frames from aica */
-        n = aica_read_frames(audio->aica, audio->frames, n);
+        n = audio_read_frames(audio, audio->frames, n);
         frames_available -= n;
       } else {
         /* write out silence */
@@ -82,7 +101,7 @@ void audio_pump_events(struct audio_backend *audio) {
 int audio_buffer_low(struct audio_backend *audio) {
   int low_water_mark =
       (int)((float)AICA_SAMPLE_FREQ * (audio->outstream->software_latency));
-  return aica_available_frames(audio->aica) <= low_water_mark;
+  return audio_available_frames(audio) <= low_water_mark;
 }
 
 void audio_destroy(struct audio_backend *audio) {
@@ -101,11 +120,11 @@ void audio_destroy(struct audio_backend *audio) {
   free(audio);
 }
 
-struct audio_backend *audio_create(struct aica *aica) {
+struct audio_backend *audio_create(struct ringbuf *buffer) {
   int err;
 
   struct audio_backend *audio = calloc(1, sizeof(struct audio_backend));
-  audio->aica = aica;
+  audio->buffer = buffer;
 
   /* connect to a soundio backend */
   {

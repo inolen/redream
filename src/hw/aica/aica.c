@@ -2,7 +2,6 @@
 #include "core/log.h"
 #include "core/option.h"
 #include "core/profiler.h"
-#include "core/ringbuf.h"
 #include "hw/aica/aica_types.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
@@ -76,7 +75,6 @@ struct aica {
   struct common_data *common_data;
   struct aica_channel channels[AICA_NUM_CHANNELS];
   struct timer *sample_timer;
-  struct ringbuf *frames;
 
   /* raw audio recording */
   FILE *recording;
@@ -439,44 +437,13 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   return result;
 }
 
-static void aica_write_frames(struct aica *aica, const void *frames,
-                              int num_frames) {
-  int remaining = ringbuf_remaining(aica->frames);
-  int size = MIN(remaining, num_frames * 4);
-  CHECK_EQ(size % 4, 0);
-
-  void *write_ptr = ringbuf_write_ptr(aica->frames);
-  memcpy(write_ptr, frames, size);
-  ringbuf_advance_write_ptr(aica->frames, size);
-
-  /* save raw audio out while recording */
-  if (aica->recording) {
-    fwrite(frames, 1, size, aica->recording);
-  }
-}
-
-int aica_read_frames(struct aica *aica, void *frames, int num_frames) {
-  int available = ringbuf_available(aica->frames);
-  int size = MIN(available, num_frames * 4);
-  CHECK_EQ(size % 4, 0);
-
-  void *read_ptr = ringbuf_read_ptr(aica->frames);
-  memcpy(frames, read_ptr, size);
-  ringbuf_advance_read_ptr(aica->frames, size);
-
-  return size / 4;
-}
-
-int aica_available_frames(struct aica *aica) {
-  int available = ringbuf_available(aica->frames);
-  return available / 4;
-}
-
 static void aica_generate_frames(struct aica *aica, int num_frames) {
-  int32_t frames[10];
+  static int MAX_FRAMES = 10;
+  struct dreamcast *dc = aica->dc;
+  int16_t buffer[MAX_FRAMES * 2];
 
   for (int frame = 0; frame < num_frames;) {
-    int n = MIN(num_frames - frame, array_size(frames));
+    int n = MIN(num_frames - frame, MAX_FRAMES);
 
     for (int i = 0; i < n; i++) {
       int32_t l = 0;
@@ -489,17 +456,20 @@ static void aica_generate_frames(struct aica *aica, int num_frames) {
         r += s;
       }
 
-      l = CLAMP(l, INT16_MIN, INT16_MAX);
-      r = CLAMP(r, INT16_MIN, INT16_MAX);
-
-      frames[i] = (r << 16) | l;
+      buffer[i * 2 + 0] = CLAMP(l, INT16_MIN, INT16_MAX);
+      buffer[i * 2 + 1] = CLAMP(r, INT16_MIN, INT16_MAX);
     }
 
-    aica_write_frames(aica, &frames, n);
-    prof_counter_add(COUNTER_aica_samples, n);
-
+    dc_push_audio(dc, buffer, n);
     frame += n;
+
+    /* save raw audio out while recording */
+    if (aica->recording) {
+      fwrite(buffer, 4, n, aica->recording);
+    }
   }
+
+  prof_counter_add(COUNTER_aica_samples, num_frames);
 }
 
 static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
@@ -772,16 +742,12 @@ void aica_destroy(struct aica *aica) {
     }
   }
 
-  ringbuf_destroy(aica->frames);
   dc_destroy_device((struct device *)aica);
 }
 
 struct aica *aica_create(struct dreamcast *dc) {
   struct aica *aica = dc_create_device(dc, sizeof(struct aica), "aica",
                                        &aica_init, &aica_debug_menu);
-
-  aica->frames = ringbuf_create(AICA_SAMPLE_FREQ * 4);
-
   return aica;
 }
 

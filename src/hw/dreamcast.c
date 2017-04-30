@@ -29,6 +29,12 @@ void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx) {
   }
 }
 
+void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames) {
+  if (dc->client.push_audio) {
+    dc->client.push_audio(dc->client.userdata, data, frames);
+  }
+}
+
 void dc_joy_remove(struct dreamcast *dc, int joystick_index) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->window_if && dev->window_if->joy_remove) {
@@ -132,7 +138,7 @@ int dc_load(struct dreamcast *dc, const char *path) {
 
   if ((strstr(path, ".bin") && dc_load_bin(dc, path)) ||
       (strstr(path, ".gdi") && dc_load_gdi(dc, path))) {
-    return 1;  
+    return 1;
   }
 
   LOG_WARNING("Failed to load %s", path);
