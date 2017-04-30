@@ -45,13 +45,6 @@ static void win_destroy_joystick(struct window *win, SDL_Joystick *del) {
     SDL_JoystickClose(*joy);
     *joy = NULL;
 
-    /* inform listeners */
-    list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
-      if (listener->joy_remove) {
-        listener->joy_remove(listener->data, i);
-      }
-    }
-
     break;
   }
 }
@@ -74,13 +67,6 @@ static void win_create_joystick(struct window *win, int joystick_index) {
 
     /* reset state */
     memset(win->hat_state[i], 0, sizeof(win->hat_state[i]));
-
-    /* inform listeners */
-    list_for_each_entry(listener, &win->listeners, struct window_listener, it) {
-      if (listener->joy_add) {
-        listener->joy_add(listener->data, joystick_index);
-      }
-    }
 
     break;
   }

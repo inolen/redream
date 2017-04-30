@@ -3,9 +3,6 @@
 #include "hw/holly/holly.h"
 #include "hw/sh4/sh4.h"
 
-#define MAPLE_NUM_PORTS 4
-#define MAPLE_MAX_UNITS 6
-
 struct maple {
   struct device;
   struct maple_device *devices[MAPLE_NUM_PORTS][MAPLE_MAX_UNITS];
@@ -27,61 +24,18 @@ static void maple_unregister_device(struct maple *mp, int port, int unit) {
 
 static void maple_register_device(struct maple *mp, const char *device_type,
                                   int port, int unit) {
+  struct dreamcast *dc = mp->dc;
+
   CHECK(!mp->devices[port][unit],
         "Device already registered for port %d, unit %d", port, unit);
   struct maple_device **dev = &mp->devices[port][unit];
 
   if (!strcmp(device_type, "controller")) {
-    *dev = controller_create(port, unit);
+    *dev = controller_create(dc, port, unit);
   } else if (!strcmp(device_type, "vmu")) {
-    *dev = vmu_create(port, unit);
+    *dev = vmu_create(dc, port, unit);
   } else {
     LOG_WARNING("Unsupported device type: %s", device_type);
-  }
-}
-
-void maple_joy_add(struct device *data, int joystick_index) {
-  struct maple *mp = (struct maple *)data;
-
-  /* ignore out of range events or events for the default controller which is
-     always connected */
-  if (joystick_index <= 0 || joystick_index >= MAPLE_NUM_PORTS) {
-    return;
-  }
-
-  /* attach joystick to the corresponding maple port */
-  maple_register_device(mp, "controller", joystick_index, 0);
-}
-
-void maple_joy_remove(struct device *data, int joystick_index) {
-  struct maple *mp = (struct maple *)data;
-
-  /* ignore out of range events or events for the default controller which is
-     always connected */
-  if (joystick_index <= 0 || joystick_index >= MAPLE_NUM_PORTS) {
-    return;
-  }
-
-  /* remove all units from the corresponding maple port */
-  for (int i = 0; i < MAPLE_MAX_UNITS; i++) {
-    maple_unregister_device(mp, joystick_index, i);
-  }
-}
-
-static void maple_keydown(struct device *d, int device_index, enum keycode key,
-                          int16_t value) {
-  if (device_index >= MAPLE_NUM_PORTS) {
-    return;
-  }
-
-  struct maple *mp = (struct maple *)d;
-
-  for (int i = 0; i < MAPLE_MAX_UNITS; i++) {
-    struct maple_device *dev = mp->devices[device_index][i];
-
-    if (dev && dev->input) {
-      dev->input(dev, key, value);
-    }
   }
 }
 
@@ -168,19 +122,18 @@ void maple_destroy(struct maple *mp) {
     }
   }
 
-  dc_destroy_window_interface(mp->window_if);
   dc_destroy_device((struct device *)mp);
 }
 
 struct maple *maple_create(struct dreamcast *dc) {
   struct maple *mp =
       dc_create_device(dc, sizeof(struct maple), "maple", &maple_init, NULL);
-  mp->window_if = dc_create_window_interface(&maple_keydown, &maple_joy_add,
-                                             &maple_joy_remove);
 
-  /* add one controller and vmu by default */
-  maple_register_device(mp, "controller", 0, 0);
-  maple_register_device(mp, "vmu", 0, 1);
+  /* register a controller and vmu for all ports by default */
+  for (int i = 0; i < MAPLE_NUM_PORTS; i++) {
+    maple_register_device(mp, "controller", i, 0);
+    maple_register_device(mp, "vmu", i, 1);
+  }
 
   return mp;
 }

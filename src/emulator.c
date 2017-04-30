@@ -65,16 +65,8 @@ struct emu {
   struct list live_frames;
 };
 
-/*
- * multithreaded, offscreen video rendering
- */
-static void emu_cancel_render(struct emu *emu) {
-  mutex_lock(emu->pending_mutex);
-
-  emu->pending_ctx = NULL;
-  cond_signal(emu->pending_cond);
-
-  mutex_unlock(emu->pending_mutex);
+static int16_t emu_get_input(void *userdata, int port, int button) {
+  return 0;
 }
 
 static void emu_finish_render(void *userdata) {
@@ -116,6 +108,18 @@ static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
   void *write_ptr = ringbuf_write_ptr(emu->audio_buffer);
   memcpy(write_ptr, data, size);
   ringbuf_advance_write_ptr(emu->audio_buffer, size);
+}
+
+/*
+ * multithreaded, offscreen video rendering
+ */
+static void emu_cancel_render(struct emu *emu) {
+  mutex_lock(emu->pending_mutex);
+
+  emu->pending_ctx = NULL;
+  cond_signal(emu->pending_cond);
+
+  mutex_unlock(emu->pending_mutex);
 }
 
 static struct frame *emu_pop_frame(struct emu *emu) {
@@ -272,18 +276,6 @@ static void emu_keydown(void *data, int device_index, enum keycode code,
   }
 
   dc_keydown(emu->dc, device_index, code, value);
-}
-
-static void emu_joy_add(void *data, int joystick_index) {
-  struct emu *emu = data;
-
-  dc_joy_add(emu->dc, joystick_index);
-}
-
-static void emu_joy_remove(void *data, int joystick_index) {
-  struct emu *emu = data;
-
-  dc_joy_remove(emu->dc, joystick_index);
 }
 
 static void emu_close(void *data) {
@@ -510,8 +502,8 @@ struct emu *emu_create(struct window *win) {
   emu->win = win;
 
   /* add window input listeners */
-  emu->listener = (struct window_listener){
-      emu, &emu_joy_add, &emu_joy_remove, &emu_keydown, NULL, &emu_close, {0}};
+  emu->listener =
+      (struct window_listener){emu, &emu_keydown, NULL, &emu_close, {0}};
   win_add_listener(emu->win, &emu->listener);
 
   /* create dreamcast */
@@ -520,6 +512,8 @@ struct emu *emu_create(struct window *win) {
   client.push_audio = &emu_push_audio;
   client.start_render = &emu_start_render;
   client.finish_render = &emu_finish_render;
+  client.poll_input = NULL;
+  client.get_input = &emu_get_input;
   emu->dc = dc_create(&client);
 
   /* create render backend */

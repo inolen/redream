@@ -1,6 +1,9 @@
 #ifndef MAPLE_TYPES_H
 #define MAPLE_TYPES_H
 
+#define MAPLE_NUM_PORTS 4
+#define MAPLE_MAX_UNITS 6
+
 /* maple pattern codes. indicate how to process the incoming instruction */
 enum maple_pattern {
   MAPLE_PATTERN_NORMAL = 0x0,
@@ -131,6 +134,32 @@ struct maple_blockread {
   uint32_t function;
   uint32_t block;
   uint32_t data[];
+};
+
+/* controller buttons */
+enum {
+  CONT_C,
+  CONT_B,
+  CONT_A,
+  CONT_START,
+  CONT_DPAD_UP,
+  CONT_DPAD_DOWN,
+  CONT_DPAD_LEFT,
+  CONT_DPAD_RIGHT,
+  CONT_Z,
+  CONT_Y,
+  CONT_X,
+  CONT_D,
+  CONT_DPAD2_UP,
+  CONT_DPAD2_DOWN,
+  CONT_DPAD2_LEFT,
+  CONT_DPAD2_RIGHT,
+  /* only used by internal button map */
+  CONT_JOYX,
+  CONT_JOYY,
+  CONT_LTRIG,
+  CONT_RTRIG,
+  NUM_CONTROLS,
 };
 
 #endif
