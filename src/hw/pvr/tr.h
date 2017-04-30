@@ -38,7 +38,7 @@ struct texture_entry {
    emulating the actual ta, textures will be provided from guest memory, but
    when playing back traces the textures will come from the trace itself */
 struct texture_provider {
-  void *data;
+  void *userdata;
   struct texture_entry *(*find_texture)(void *, union tsp, union tcw);
 };
 

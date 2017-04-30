@@ -127,7 +127,7 @@ static void run_sh4_test(struct dreamcast *dc, const struct sh4_test *test) {
 }
 
 TEST(sh4_x64) {
-  struct dreamcast *dc = dc_create();
+  struct dreamcast *dc = dc_create(NULL);
   CHECK_NOTNULL(dc);
 
 /* clang-format off */

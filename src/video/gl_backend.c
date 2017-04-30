@@ -724,7 +724,8 @@ sync_handle_t r_insert_sync(struct render_backend *r) {
 }
 
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle) {
-  /* lookup texture entry */
+  /* lookup texture entry
+     FIXME need common hashtable */
   int entry;
   for (entry = 0; entry < MAX_TEXTURES; entry++) {
     struct texture *tex = &r->textures[entry];

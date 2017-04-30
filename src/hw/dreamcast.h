@@ -23,6 +23,7 @@ struct pvr;
 struct scheduler;
 struct sh4;
 struct ta;
+struct tile_ctx;
 
 /*
  * register callbacks
@@ -132,7 +133,17 @@ struct device {
 /*
  * machine
  */
+typedef void (*start_render_cb)(void *, struct tile_ctx *);
+typedef void (*finish_render_cb)(void *);
+
+struct dreamcast_client {
+  void *userdata;
+  start_render_cb start_render;
+  finish_render_cb finish_render;
+};
+
 struct dreamcast {
+  struct dreamcast_client client;
   struct debugger *debugger;
   struct memory *memory;
   struct scheduler *scheduler;
@@ -150,7 +161,7 @@ struct dreamcast {
   struct list devices;
 };
 
-struct dreamcast *dc_create();
+struct dreamcast *dc_create(const struct dreamcast_client *client);
 void dc_destroy(struct dreamcast *dc);
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
@@ -180,5 +191,7 @@ void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
                 int16_t value);
 void dc_joy_add(struct dreamcast *dc, int joystick_index);
 void dc_joy_remove(struct dreamcast *dc, int joystick_index);
+void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx);
+void dc_finish_render(struct dreamcast *dc);
 
 #endif

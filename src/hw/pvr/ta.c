@@ -10,7 +10,6 @@
 #include "hw/sh4/sh4.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
-#include "sys/thread.h"
 #include "ui/nuklear.h"
 
 DEFINE_AGGREGATE_COUNTER(ta_data);
@@ -38,6 +37,7 @@ struct ta {
   struct device;
   struct texture_provider provider;
   uint8_t *video_ram;
+  struct trace_writer *trace_writer;
 
   /* yuv data converter state */
   uint8_t *yuv_data;
@@ -52,24 +52,12 @@ struct ta {
   struct list live_contexts;
   struct tile_ctx *curr_context;
 
-  /* texture cache entry pool */
-  struct ta_texture_entry entries[8192];
-  struct list free_entries;
-  struct rb_tree live_entries;
+  /* texture cache state */
+  unsigned frame;
+  int num_textures;
 
-  /* each time the STARTRENDER register is written to, the current TA param
-     buffer and PVR register state required to render the params is saved to
-     this "pending context". the pending context is not actually rendered on
-     the emulation thread, instead it's made available to the graphics thread
-     through ta_lock_pending_context and ta_unlock_pending_context functions.
-     please read through the comments there, as well as the comments in
-     ta_start_render, ta_render_timer and ta_end_render to understand how
-     access to this context as well as the texture data it depends on is
-     synchronized */
-  struct tile_ctx *pending_context;
-
-  /* textures for the pending context are uploaded to the render backend by
-     the graphics thread in parallel to the main emulation thread executing,
+  /* textures for the current context are uploaded to the render backend by
+     the video thread in parallel to the main emulation thread executing,
      which may erroneously write to a texture before receiving the end of
      render interrupts. in order to avoid race conditions around the texture's
      dirty state in these situations, textures are not immediately marked dirty
@@ -78,16 +66,9 @@ struct ta {
   struct list invalidated_entries;
   int num_invalidated;
 
-  /* primitives used for synchronizing access to the pending context and any
-     invalidated textures between the graphics and emulation threads */
-  mutex_t pending_mutex;
-  cond_t pending_cond;
-
-  /* debug info */
-  unsigned frame;
-  int frames_skipped;
-  int num_textures;
-  struct trace_writer *trace_writer;
+  struct ta_texture_entry entries[8192];
+  struct list free_entries;
+  struct rb_tree live_entries;
 };
 
 int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERTS];
@@ -328,24 +309,6 @@ static struct ta_texture_entry *ta_find_texture(struct ta *ta, union tsp tsp,
                        live_it, &ta_entry_cb);
 }
 
-static struct texture_entry *ta_texture_provider_find_texture(void *data,
-                                                              union tsp tsp,
-                                                              union tcw tcw) {
-  struct ta *ta = (struct ta *)data;
-  struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
-
-  if (!entry) {
-    return NULL;
-  }
-
-  /* sanity check that the texture source is valid for the current frame. video
-     ram will be modified between frames, if these values don't match something
-     is broken in the thread synchronization */
-  CHECK_EQ(entry->frame, ta->frame);
-
-  return (struct texture_entry *)entry;
-}
-
 static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
   list_for_each_entry(ctx, &ta->live_contexts, struct tile_ctx, it) {
     if (ctx->addr == addr) {
@@ -542,13 +505,10 @@ static void ta_register_texture_source(struct ta *ta, union tsp tsp,
   }
 }
 
-static void ta_register_texture_sources(struct ta *ta, struct tile_ctx *ctx,
-                                        int *num_polys) {
+static void ta_register_texture_sources(struct ta *ta, struct tile_ctx *ctx) {
   const uint8_t *data = ctx->params;
   const uint8_t *end = ctx->params + ctx->size;
   int vertex_type = 0;
-
-  *num_polys = 0;
 
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
@@ -563,8 +523,6 @@ static void ta_register_texture_sources(struct ta *ta, struct tile_ctx *ctx,
         if (param->type0.pcw.texture) {
           ta_register_texture_source(ta, param->type0.tsp, param->type0.tcw);
         }
-
-        (*num_polys)++;
       } break;
 
       default:
@@ -671,83 +629,63 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   }
 }
 
-static void ta_end_render(struct ta *ta) {
+static void ta_finish_render(void *data) {
+  struct tile_ctx *ctx = data;
+  struct ta *ta = ctx->userdata;
+
+  /* ensure the client has finished rendering */
+  dc_finish_render(ta->dc);
+
+  /* texture entries are only valid between each start / finish render pair,
+     increment frame number again to invalidate */
+  ta->frame++;
+
+  /* return context back to pool */
+  ta_free_context(ta, ctx);
+
   /* let the game know rendering is complete */
   holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOVINT);
   holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOIINT);
   holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOTINT);
 }
 
-static void ta_render_timer(void *data) {
-  struct ta *ta = data;
-
-  /* ideally, the graphics thread has parsed the pending context, uploaded its
-     textures, etc. during the estimated render time. however, if it hasn't
-     finished, the emulation thread must be paused to avoid altering
-     the yet-to-be-uploaded texture memory */
-  mutex_lock(ta->pending_mutex);
-
-  /* if the graphics thread didn't actually attempt to parse the frame, which
-     often happens when running unthrottled, skip it */
-  if (ta->pending_context) {
-    ta_free_context(ta, ta->pending_context);
-    ta->pending_context = NULL;
-    ta->frames_skipped++;
-  }
-
-  /* texture entries are only valid between each start / end render, increment
-     frame number again to invalidate */
-  ta->frame++;
-
-  mutex_unlock(ta->pending_mutex);
-
-  ta_end_render(ta);
-}
-
 static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
   prof_counter_add(COUNTER_ta_renders, 1);
-
-  mutex_lock(ta->pending_mutex);
-
-  /* now that access to texture data is locked, mark any textures dirty
-     that were invalidated by a memory watch on the emulation thread */
-  ta_dirty_invalidated_textures(ta);
 
   /* remove context from pool */
   ta_unlink_context(ta, ctx);
 
-  /* increment internal frame number. this frame number is assigned to the
+  /* incement internal frame number. this frame number is assigned to the
      context and each texture source it registers to assert synchronization
-     between the emulator and graphics thread is working as expected */
+     between the emulator and video thread is working as expected */
   ta->frame++;
+
+  /* now that the video thread is sure to not be accessing the texture data,
+     mark any textures dirty that were invalidated by a memory watch */
+  ta_dirty_invalidated_textures(ta);
+
+  /* register the source of each texture referenced by the context with the
+     tile renderer. note, uploading the texture to the render backend happens
+     lazily while rendering the context. this registration just lets the
+     backend know where the texture's source data is */
+  ta_register_texture_sources(ta, ctx);
 
   /* save off required state that may be modified by the time the context is
      rendered */
   ta_save_state(ta, ctx);
 
-  /* register the source of each texture referenced by the context with the
-     tile renderer. note, the process of actually uploading the texture to the
-     render backend happens lazily while rendering the context (keeping all
-     backend operations on the same thread). this registration just lets the
-     backend know where the texture's source data is */
-  int num_polys = 0;
-  ta_register_texture_sources(ta, ctx, &num_polys);
+  /* let the client know to start rendering the context */
+  dc_start_render(ta->dc, ctx);
 
   /* give each frame 10 ms to finish rendering
      TODO figure out a heuristic involving the number of polygons rendered */
-  int64_t ns = INT64_C(10000000);
-  scheduler_start_timer(ta->scheduler, &ta_render_timer, ta, ns);
+  int64_t end = INT64_C(10000000);
+  ctx->userdata = ta;
+  scheduler_start_timer(ta->scheduler, &ta_finish_render, ctx, end);
 
   if (ta->trace_writer) {
     trace_writer_render_context(ta->trace_writer, ctx);
   }
-
-  /* signal to the graphics thread that a new frame is available to be parsed */
-  CHECK(ta->pending_context == NULL);
-  ta->pending_context = ctx;
-
-  cond_signal(ta->pending_cond);
-  mutex_unlock(ta->pending_mutex);
 }
 
 static void ta_yuv_init(struct ta *ta) {
@@ -936,21 +874,6 @@ static void ta_toggle_tracing(struct ta *ta) {
   }
 }
 
-static void ta_debug_menu_toggle_tracing(struct ta *ta) {
-  /* this is called from the graphics thread. need to take the context lock as
-     the emulation thread may be modifying the pending context, registering
-     textures for it, etc. */
-  mutex_lock(ta->pending_mutex);
-  ta_toggle_tracing(ta);
-  mutex_unlock(ta->pending_mutex);
-}
-
-static void ta_debug_menu_clear_textures(struct ta *ta) {
-  mutex_lock(ta->pending_mutex);
-  ta_clear_textures(ta);
-  mutex_unlock(ta->pending_mutex);
-}
-
 static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct ta *ta = (struct ta *)dev;
 
@@ -959,17 +882,16 @@ static void ta_debug_menu(struct device *dev, struct nk_context *ctx) {
   if (nk_menu_begin_label(ctx, "TA", NK_TEXT_LEFT, nk_vec2(140.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
 
-    nk_value_int(ctx, "frames skipped", ta->frames_skipped);
     nk_value_int(ctx, "num textures", ta->num_textures);
 
     if (!ta->trace_writer && nk_button_label(ctx, "start trace")) {
-      ta_debug_menu_toggle_tracing(ta);
+      ta_toggle_tracing(ta);
     } else if (ta->trace_writer && nk_button_label(ctx, "stop trace")) {
-      ta_debug_menu_toggle_tracing(ta);
+      ta_toggle_tracing(ta);
     }
 
     if (nk_button_label(ctx, "clear texture cache")) {
-      ta_debug_menu_clear_textures(ta);
+      ta_clear_textures(ta);
     }
 
     nk_menu_end(ctx);
@@ -1016,44 +938,33 @@ void ta_build_tables() {
   }
 }
 
-void ta_unlock_pending_context(struct ta *ta) {
-  /* after the pending mutex is released, this context is no longer valid
-     as the emulation thread will resume */
-  ta_free_context(ta, ta->pending_context);
-  ta->pending_context = NULL;
+static struct texture_entry *ta_texture_provider_find_texture(void *data,
+                                                              union tsp tsp,
+                                                              union tcw tcw) {
+  struct ta *ta = (struct ta *)data;
+  struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
 
-  mutex_unlock(ta->pending_mutex);
-}
-
-int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
-                            int wait_ms) {
-  mutex_lock(ta->pending_mutex);
-
-  /* wait for the next available context */
-  if (!ta->pending_context) {
-    int res = cond_timedwait(ta->pending_cond, ta->pending_mutex, wait_ms);
-
-    if (!res || !ta->pending_context) {
-      mutex_unlock(ta->pending_mutex);
-      return 0;
-    }
+  if (!entry) {
+    return NULL;
   }
 
-  /* sanity check the context is from the current frame */
-  CHECK_EQ(ta->pending_context->frame, ta->frame);
+  /* sanity check that the texture source is valid for the current frame. video
+     ram will be modified between frames, if these values don't match something
+     is broken in the thread synchronization */
+  CHECK_EQ(entry->frame, ta->frame);
 
-  *pending_ctx = ta->pending_context;
-
-  return 1;
+  return (struct texture_entry *)entry;
 }
 
 struct texture_provider *ta_texture_provider(struct ta *ta) {
+  if (!ta->provider.userdata) {
+    ta->provider.userdata = ta;
+    ta->provider.find_texture = &ta_texture_provider_find_texture;
+  }
   return &ta->provider;
 }
 
 void ta_destroy(struct ta *ta) {
-  cond_destroy(ta->pending_cond);
-  mutex_destroy(ta->pending_mutex);
   dc_destroy_window_interface(ta->window_if);
   dc_destroy_device((struct device *)ta);
 }
@@ -1065,8 +976,6 @@ struct ta *ta_create(struct dreamcast *dc) {
   ta->window_if = dc_create_window_interface(&ta_debug_menu, NULL, NULL, NULL);
   ta->provider =
       (struct texture_provider){ta, &ta_texture_provider_find_texture};
-  ta->pending_mutex = mutex_create();
-  ta->pending_cond = cond_create();
 
   return ta;
 }
