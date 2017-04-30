@@ -92,8 +92,6 @@ typedef void (*device_joy_remove_cb)(struct device *, int);
 
 struct window_interface {
   device_keydown_cb keydown;
-  device_joy_add_cb joy_add;
-  device_joy_remove_cb joy_remove;
 };
 
 /*
@@ -135,12 +133,16 @@ struct device {
 typedef void (*push_audio_cb)(void *, const int16_t *, int);
 typedef void (*start_render_cb)(void *, struct tile_ctx *);
 typedef void (*finish_render_cb)(void *);
+typedef void (*poll_input_cb)(void *);
+typedef int16_t (*get_input_cb)(void *, int, int);
 
 struct dreamcast_client {
   void *userdata;
   push_audio_cb push_audio;
   start_render_cb start_render;
   finish_render_cb finish_render;
+  poll_input_cb poll_input;
+  get_input_cb get_input;
 };
 
 struct dreamcast {
@@ -180,9 +182,7 @@ struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
                                                     address_map_cb mapper);
 void dc_destroy_memory_interface(struct memory_interface *memory);
 
-struct window_interface *dc_create_window_interface(
-    device_keydown_cb keydown, device_joy_add_cb joy_add,
-    device_joy_remove_cb joy_remove);
+struct window_interface *dc_create_window_interface(device_keydown_cb keydown);
 void dc_destroy_window_interface(struct window_interface *window);
 
 int dc_init(struct dreamcast *dc);
@@ -194,11 +194,12 @@ void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
                 int16_t value);
-void dc_joy_add(struct dreamcast *dc, int joystick_index);
-void dc_joy_remove(struct dreamcast *dc, int joystick_index);
 
+/* client functionality */
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);
 void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx);
 void dc_finish_render(struct dreamcast *dc);
+void dc_poll_input(struct dreamcast *dc);
+int16_t dc_get_input(struct dreamcast *dc, int port, int button);
 
 #endif

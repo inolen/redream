@@ -17,38 +17,44 @@
 
 DEFINE_OPTION_INT(gdb, 0, "Run gdb debug server");
 
-void dc_finish_render(struct dreamcast *dc) {
-  if (dc->client.finish_render) {
-    dc->client.finish_render(dc->client.userdata);
+int16_t dc_get_input(struct dreamcast *dc, int port, int button) {
+  if (!dc->client.get_input) {
+    return 0;
   }
+
+  return dc->client.get_input(dc->client.userdata, port, button);
+}
+
+void dc_poll_input(struct dreamcast *dc) {
+  if (!dc->client.poll_input) {
+    return;
+  }
+
+  dc->client.poll_input(dc->client.userdata);
+}
+
+void dc_finish_render(struct dreamcast *dc) {
+  if (!dc->client.finish_render) {
+    return;
+  }
+
+  dc->client.finish_render(dc->client.userdata);
 }
 
 void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx) {
-  if (dc->client.start_render) {
-    dc->client.start_render(dc->client.userdata, ctx);
+  if (!dc->client.start_render) {
+    return;
   }
+
+  dc->client.start_render(dc->client.userdata, ctx);
 }
 
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames) {
-  if (dc->client.push_audio) {
-    dc->client.push_audio(dc->client.userdata, data, frames);
+  if (!dc->client.push_audio) {
+    return;
   }
-}
 
-void dc_joy_remove(struct dreamcast *dc, int joystick_index) {
-  list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window_if && dev->window_if->joy_remove) {
-      dev->window_if->joy_remove(dev, joystick_index);
-    }
-  }
-}
-
-void dc_joy_add(struct dreamcast *dc, int joystick_index) {
-  list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window_if && dev->window_if->joy_add) {
-      dev->window_if->joy_add(dev, joystick_index);
-    }
-  }
+  dc->client.push_audio(dc->client.userdata, data, frames);
 }
 
 void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
@@ -183,13 +189,9 @@ void dc_destroy_window_interface(struct window_interface *window) {
   free(window);
 }
 
-struct window_interface *dc_create_window_interface(
-    device_keydown_cb keydown, device_joy_add_cb joy_add,
-    device_joy_remove_cb joy_remove) {
+struct window_interface *dc_create_window_interface(device_keydown_cb keydown) {
   struct window_interface *window = calloc(1, sizeof(struct window_interface));
   window->keydown = keydown;
-  window->joy_add = joy_add;
-  window->joy_remove = joy_remove;
   return window;
 }
 

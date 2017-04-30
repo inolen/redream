@@ -12,8 +12,6 @@ typedef void *glcontext_t;
 
 struct window_listener {
   void *data;
-  void (*joy_add)(void *data, int joystick_index);
-  void (*joy_remove)(void *data, int joystick_index);
   void (*keydown)(void *data, int device_index, enum keycode code,
                   int16_t value);
   void (*mousemove)(void *data, int x, int y);
