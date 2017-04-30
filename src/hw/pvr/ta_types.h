@@ -439,6 +439,7 @@ union vert_param {
 
 struct tile_ctx {
   uint32_t addr;
+  void *userdata;
 
   /* pvr / ta state */
   unsigned frame;

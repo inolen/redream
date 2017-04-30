@@ -49,6 +49,11 @@ struct emu {
   volatile int running;
   int debug_menu;
 
+  /* last tile context submitted by the dreamcast to be rendered */
+  mutex_t pending_mutex;
+  cond_t pending_cond;
+  struct tile_ctx *pending_ctx;
+
   /* pool of offscreen framebuffers used for rendering the video display */
   mutex_t frames_mutex;
   struct frame frames[MAX_FRAMES];
@@ -94,6 +99,43 @@ static int emu_launch_gdi(struct emu *emu, const char *path) {
   dc_resume(emu->dc);
 
   return 1;
+}
+
+/*
+ * multithreaded, offscreen video rendering
+ */
+static void emu_cancel_render(struct emu *emu) {
+  mutex_lock(emu->pending_mutex);
+
+  emu->pending_ctx = NULL;
+  cond_signal(emu->pending_cond);
+
+  mutex_unlock(emu->pending_mutex);
+}
+
+static void emu_finish_render(void *userdata) {
+  struct emu *emu = userdata;
+
+  /* ideally, the video thread has parsed the pending context, uploaded its
+     textures, etc. during the estimated render time. however, if it hasn't
+     finished, the emulation thread must be paused to avoid altering
+     the yet-to-be-uploaded texture memory */
+  mutex_lock(emu->pending_mutex);
+
+  emu->pending_ctx = NULL;
+
+  mutex_unlock(emu->pending_mutex);
+}
+
+static void emu_start_render(void *userdata, struct tile_ctx *ctx) {
+  struct emu *emu = userdata;
+
+  mutex_lock(emu->pending_mutex);
+
+  emu->pending_ctx = ctx;
+  cond_signal(emu->pending_cond);
+
+  mutex_unlock(emu->pending_mutex);
 }
 
 static struct frame *emu_pop_frame(struct emu *emu) {
@@ -176,6 +218,66 @@ static void emu_create_frames(struct emu *emu, struct render_backend *r) {
 
     list_add(&emu->free_frames, &frame->it);
   }
+}
+
+static void *emu_video_thread(void *data) {
+  struct emu *emu = data;
+
+  /* create additional renderer on this thread for rendering the tile contexts
+     to offscreen framebuffers */
+  struct render_backend *r = r_create_from(emu->r);
+  struct tr *tr = tr_create(r, ta_texture_provider(emu->dc->ta));
+
+  struct tile_ctx *pending_ctx;
+  struct tile_render_context *rc = malloc(sizeof(struct tile_render_context));
+
+  emu_create_frames(emu, r);
+
+  while (emu->running) {
+    /* wait for the next tile context provided by emu_start_render */
+    mutex_lock(emu->pending_mutex);
+
+    if (!emu->pending_ctx) {
+      cond_wait(emu->pending_cond, emu->pending_mutex);
+
+      /* exit thread if shutting down */
+      if (!emu->pending_ctx) {
+        continue;
+      }
+    }
+
+    /* parse the context, uploading its textures to the render backend */
+    tr_parse_context(tr, emu->pending_ctx, rc);
+
+    /* after the context has been parsed, release the mutex to let
+       emu_finish_render complete */
+    mutex_unlock(emu->pending_mutex);
+
+    /* render the context to the first free framebuffer */
+    struct frame *frame = emu_alloc_frame(emu, r);
+    r_bind_framebuffer(r, frame->fb);
+    r_clear_viewport(r);
+    tr_render_context(tr, rc);
+
+    /* insert fence for main thread to synchronize on in order to ensure that
+       the context has completely rendered */
+    frame->fb_sync = r_insert_sync(r);
+
+    /* push frame to the presentation queue for the main thread */
+    emu_push_front_frame(emu, frame);
+
+    /* update frame-based profiler stats */
+    prof_flip();
+  }
+
+  emu_destroy_frames(emu, r);
+
+  free(rc);
+
+  tr_destroy(tr);
+  r_destroy(r);
+
+  return NULL;
 }
 
 static void emu_keydown(void *data, int device_index, enum keycode code,
@@ -331,58 +433,6 @@ static void emu_paint(struct emu *emu) {
   }
 }
 
-static void *emu_video_thread(void *data) {
-  struct emu *emu = data;
-
-  /* create additional renderer on this thread for rendering the tile contexts
-     to offscreen framebuffers */
-  struct render_backend *r = r_create_from(emu->r);
-  struct tr *tr = tr_create(r, ta_texture_provider(emu->dc->ta));
-
-  struct tile_ctx *pending_ctx;
-  struct tile_render_context *rc = malloc(sizeof(struct tile_render_context));
-
-  emu_create_frames(emu, r);
-
-  while (emu->running) {
-    /* wait for the main thread to publish the next ta context to be rendered */
-    if (!ta_lock_pending_context(emu->dc->ta, &pending_ctx, 1000)) {
-      continue;
-    }
-
-    /* parse the context, uploading textures it uses to the render backend */
-    tr_parse_context(tr, pending_ctx, rc);
-
-    /* after uploading the textures, unlock to let the main thread resume */
-    ta_unlock_pending_context(emu->dc->ta);
-
-    /* render the context to the first free framebuffer */
-    struct frame *frame = emu_alloc_frame(emu, r);
-    r_bind_framebuffer(r, frame->fb);
-    r_clear_viewport(r);
-    tr_render_context(tr, rc);
-
-    /* insert fence for main thread to synchronize on in order to ensure that
-       the context has completely rendered */
-    frame->fb_sync = r_insert_sync(r);
-
-    /* push frame to the presentation queue for the main thread */
-    emu_push_front_frame(emu, frame);
-
-    /* update frame-based profiler stats */
-    prof_flip();
-  }
-
-  emu_destroy_frames(emu, r);
-
-  free(rc);
-
-  tr_destroy(tr);
-  r_destroy(r);
-
-  return NULL;
-}
-
 void emu_run(struct emu *emu, const char *path) {
   /* load gdi / bin if specified */
   if (path) {
@@ -460,6 +510,7 @@ void emu_run(struct emu *emu, const char *path) {
 
   /* wait for video thread to exit */
   void *result;
+  emu_cancel_render(emu);
   thread_join(video_thread, &result);
 }
 
@@ -474,6 +525,8 @@ void emu_destroy(struct emu *emu) {
   /* destroy render backend */
   {
     mutex_destroy(emu->frames_mutex);
+    cond_destroy(emu->pending_cond);
+    mutex_destroy(emu->pending_mutex);
     nk_destroy(emu->nk);
     mp_destroy(emu->mp);
     r_destroy(emu->r);
@@ -498,13 +551,19 @@ struct emu *emu_create(struct window *win) {
   win_add_listener(emu->win, &emu->listener);
 
   /* create dreamcast */
-  emu->dc = dc_create();
+  struct dreamcast_client client;
+  client.userdata = emu;
+  client.start_render = &emu_start_render;
+  client.finish_render = &emu_finish_render;
+  emu->dc = dc_create(&client);
 
   /* create render backend */
   {
     emu->r = r_create(emu->win);
     emu->mp = mp_create(emu->win, emu->r);
     emu->nk = nk_create(emu->win, emu->r);
+    emu->pending_mutex = mutex_create();
+    emu->pending_cond = cond_create();
     emu->frames_mutex = mutex_create();
   }
 

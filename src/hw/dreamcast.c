@@ -17,6 +17,18 @@
 
 DEFINE_OPTION_INT(gdb, 0, "Run gdb debug server");
 
+void dc_finish_render(struct dreamcast *dc) {
+  if (dc->client.finish_render) {
+    dc->client.finish_render(dc->client.userdata);
+  }
+}
+
+void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx) {
+  if (dc->client.start_render) {
+    dc->client.start_render(dc->client.userdata, ctx);
+  }
+}
+
 void dc_joy_remove(struct dreamcast *dc, int joystick_index) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->window_if && dev->window_if->joy_remove) {
@@ -192,8 +204,12 @@ void dc_destroy(struct dreamcast *dc) {
   free(dc);
 }
 
-struct dreamcast *dc_create() {
+struct dreamcast *dc_create(const struct dreamcast_client *client) {
   struct dreamcast *dc = calloc(1, sizeof(struct dreamcast));
+
+  if (client) {
+    dc->client = *client;
+  }
 
   dc->debugger = OPTION_gdb ? debugger_create(dc) : NULL;
   dc->memory = memory_create(dc);

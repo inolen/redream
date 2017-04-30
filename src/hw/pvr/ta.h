@@ -6,13 +6,23 @@
 #include "hw/pvr/ta_types.h"
 
 struct dreamcast;
+struct ta;
 struct texture_provider;
+
+DECLARE_COUNTER(ta_renders);
+
+AM_DECLARE(ta_fifo_map);
 
 #define TA_CODEBOOK_SIZE (256 * 8)
 
 extern int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERTS];
 extern int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 extern int g_vertex_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
+
+void ta_build_tables();
+
+struct ta *ta_create(struct dreamcast *dc);
+void ta_destroy(struct ta *ta);
 
 static inline int ta_get_param_size(union pcw pcw, int vertex_type) {
   return g_param_sizes[pcw.obj_control * TA_NUM_PARAMS * TA_NUM_VERTS +
@@ -94,20 +104,6 @@ static inline int ta_texture_size(union tsp tsp, union tcw tcw) {
   return texture_size;
 }
 
-struct ta;
-
-void ta_build_tables();
-
-DECLARE_COUNTER(ta_renders);
-
-AM_DECLARE(ta_fifo_map);
-
-struct ta *ta_create(struct dreamcast *dc);
-void ta_destroy(struct ta *ta);
-
 struct texture_provider *ta_texture_provider(struct ta *ta);
-int ta_lock_pending_context(struct ta *ta, struct tile_ctx **pending_ctx,
-                            int wait_ms);
-void ta_unlock_pending_context(struct ta *ta);
 
 #endif

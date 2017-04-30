@@ -128,7 +128,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
      texture generation */
 
   struct texture_entry *entry =
-      tr->provider->find_texture(tr->provider->data, tsp, tcw);
+      tr->provider->find_texture(tr->provider->userdata, tsp, tcw);
   CHECK_NOTNULL(entry);
 
   /* if there's a non-dirty handle, return it */
