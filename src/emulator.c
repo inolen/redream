@@ -2,6 +2,7 @@
 #include "audio/audio_backend.h"
 #include "core/option.h"
 #include "core/profiler.h"
+#include "core/ringbuf.h"
 #include "hw/aica/aica.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
@@ -48,6 +49,9 @@ struct emu {
 
   volatile int running;
   int debug_menu;
+
+  /* audio ringbuffer */
+  struct ringbuf *audio_buffer;
 
   /* last tile context submitted by the dreamcast to be rendered */
   mutex_t pending_mutex;
@@ -96,6 +100,22 @@ static void emu_start_render(void *userdata, struct tile_ctx *ctx) {
   cond_signal(emu->pending_cond);
 
   mutex_unlock(emu->pending_mutex);
+}
+
+static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
+  struct emu *emu = userdata;
+
+  if (!emu->audio) {
+    return;
+  }
+
+  int remaining = ringbuf_remaining(emu->audio_buffer);
+  int size = MIN(remaining, frames * 4);
+  CHECK_EQ(size % 4, 0);
+
+  void *write_ptr = ringbuf_write_ptr(emu->audio_buffer);
+  memcpy(write_ptr, data, size);
+  ringbuf_advance_write_ptr(emu->audio_buffer, size);
 }
 
 static struct frame *emu_pop_frame(struct emu *emu) {
@@ -462,17 +482,19 @@ void emu_destroy(struct emu *emu) {
     if (emu->audio) {
       audio_destroy(emu->audio);
     }
+
+    if (emu->audio_buffer) {
+      ringbuf_destroy(emu->audio_buffer);
+    }
   }
 
   /* destroy render backend */
-  {
-    mutex_destroy(emu->frames_mutex);
-    cond_destroy(emu->pending_cond);
-    mutex_destroy(emu->pending_mutex);
-    nk_destroy(emu->nk);
-    mp_destroy(emu->mp);
-    r_destroy(emu->r);
-  }
+  mutex_destroy(emu->frames_mutex);
+  cond_destroy(emu->pending_cond);
+  mutex_destroy(emu->pending_mutex);
+  nk_destroy(emu->nk);
+  mp_destroy(emu->mp);
+  r_destroy(emu->r);
 
   /* destroy dreamcast */
   dc_destroy(emu->dc);
@@ -495,24 +517,24 @@ struct emu *emu_create(struct window *win) {
   /* create dreamcast */
   struct dreamcast_client client;
   client.userdata = emu;
+  client.push_audio = &emu_push_audio;
   client.start_render = &emu_start_render;
   client.finish_render = &emu_finish_render;
   emu->dc = dc_create(&client);
 
   /* create render backend */
-  {
-    emu->r = r_create(emu->win);
-    emu->mp = mp_create(emu->win, emu->r);
-    emu->nk = nk_create(emu->win, emu->r);
-    emu->pending_mutex = mutex_create();
-    emu->pending_cond = cond_create();
-    emu->frames_mutex = mutex_create();
-  }
+  emu->r = r_create(emu->win);
+  emu->mp = mp_create(emu->win, emu->r);
+  emu->nk = nk_create(emu->win, emu->r);
+  emu->pending_mutex = mutex_create();
+  emu->pending_cond = cond_create();
+  emu->frames_mutex = mutex_create();
 
   /* create audio backend */
   {
     if (OPTION_audio) {
-      emu->audio = audio_create(emu->dc->aica);
+      emu->audio_buffer = ringbuf_create(AICA_SAMPLE_FREQ * 4);
+      emu->audio = audio_create(emu->audio_buffer);
     }
   }
 
