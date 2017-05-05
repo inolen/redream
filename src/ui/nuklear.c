@@ -3,7 +3,8 @@
 #include "core/core.h"
 #include "core/log.h"
 #include "core/string.h"
-#include "ui/window.h"
+#include "host.h"
+#include "keycode.h"
 
 #define NK_IMPLEMENTATION
 #if defined(_MSC_VER)
@@ -15,43 +16,8 @@
 #pragma warning(pop)
 #endif
 
-static void nk_keydown(void *data, int device_index, enum keycode code,
-                       int16_t value) {
-  struct nuklear *nk = data;
-
-  if (code == K_MWHEELUP) {
-    nk->mouse_wheel = 1;
-  } else if (code == K_MWHEELDOWN) {
-    nk->mouse_wheel = -1;
-  } else if (code == K_MOUSE1) {
-    nk->mouse_down[0] = value > 0;
-  } else if (code == K_MOUSE2) {
-    nk->mouse_down[1] = value > 0;
-  } else if (code == K_MOUSE3) {
-    nk->mouse_down[2] = value > 0;
-  } else if (code == K_LALT || code == K_RALT) {
-    /*nk->alt[code == K_LALT ? 0 : 1] = !!value;
-    io.KeyAlt = nk->alt[0] || nk->alt[1];*/
-  } else if (code == K_LCTRL || code == K_RCTRL) {
-    /*nk->ctrl[code == K_LCTRL ? 0 : 1] = !!value;
-    io.KeyCtrl = nk->ctrl[0] || nk->ctrl[1];*/
-  } else if (code == K_LSHIFT || code == K_RSHIFT) {
-    /*nk->shift[code == K_LSHIFT ? 0 : 1] = !!value;
-    io.KeyShift = nk->shift[0] || nk->shift[1];*/
-  } else {
-    /*io.KeysDown[code] = value > 0;*/
-  }
-}
-
-static void nk_mousemove(void *data, int x, int y) {
-  struct nuklear *nk = data;
-
-  nk->mousex = x;
-  nk->mousey = y;
-}
-
 void nk_render(struct nuklear *nk) {
-  float height = (float)win_height(nk->win);
+  float height = (float)r_video_height(nk->r);
 
   /* convert draw list into vertex / element buffers */
   static const struct nk_draw_vertex_layout_element vertex_layout[] = {
@@ -132,28 +98,56 @@ void nk_update_input(struct nuklear *nk) {
   nk_input_end(&nk->ctx);
 }
 
+void nk_mousemove(void *data, int x, int y) {
+  struct nuklear *nk = data;
+
+  nk->mousex = x;
+  nk->mousey = y;
+}
+
+void nk_keydown(void *data, enum keycode key, int16_t value) {
+  struct nuklear *nk = data;
+
+  if (key == K_MWHEELUP) {
+    nk->mouse_wheel = 1;
+  } else if (key == K_MWHEELDOWN) {
+    nk->mouse_wheel = -1;
+  } else if (key == K_MOUSE1) {
+    nk->mouse_down[0] = value > 0;
+  } else if (key == K_MOUSE2) {
+    nk->mouse_down[1] = value > 0;
+  } else if (key == K_MOUSE3) {
+    nk->mouse_down[2] = value > 0;
+  } else if (key == K_LALT || key == K_RALT) {
+    /*nk->alt[key == K_LALT ? 0 : 1] = !!value;
+    io.KeyAlt = nk->alt[0] || nk->alt[1];*/
+  } else if (key == K_LCTRL || key == K_RCTRL) {
+    /*nk->ctrl[key == K_LCTRL ? 0 : 1] = !!value;
+    io.KeyCtrl = nk->ctrl[0] || nk->ctrl[1];*/
+  } else if (key == K_LSHIFT || key == K_RSHIFT) {
+    /*nk->shift[key == K_LSHIFT ? 0 : 1] = !!value;
+    io.KeyShift = nk->shift[0] || nk->shift[1];*/
+  } else {
+    /*io.KeysDown[key] = value > 0;*/
+  }
+}
+
 void nk_destroy(struct nuklear *nk) {
-  nk_buffer_free(&nk->cmds);
-  nk_font_atlas_clear(&nk->atlas);
-  nk_free(&nk->ctx);
-
+  /* clean up font texture */
   r_destroy_texture(nk->r, nk->font_texture);
+  nk_font_atlas_clear(&nk->atlas);
 
-  win_remove_listener(nk->win, &nk->listener);
+  /* destroy nuklear context */
+  nk_buffer_free(&nk->cmds);
+  nk_free(&nk->ctx);
 
   free(nk);
 }
 
-struct nuklear *nk_create(struct window *win, struct render_backend *r) {
+struct nuklear *nk_create(struct render_backend *r) {
   struct nuklear *nk = calloc(1, sizeof(struct nuklear));
 
-  nk->win = win;
   nk->r = r;
-
-  /* add input event listeners */
-  nk->listener =
-      (struct window_listener){nk, &nk_keydown, &nk_mousemove, NULL, {0}};
-  win_add_listener(nk->win, &nk->listener);
 
   /* create default font texture */
   nk_font_atlas_init_default(&nk->atlas);

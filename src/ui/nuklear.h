@@ -10,18 +10,18 @@
 #define NK_INCLUDE_DEFAULT_FONT
 #include <nuklear.h>
 
-#include "ui/window.h"
+#include "keycode.h"
 #include "video/render_backend.h"
 
 #define NK_MAX_VERTICES 16384
 #define NK_MAX_ELEMENTS (NK_MAX_VERTICES * 4)
 
+#define DEBUG_MENU_HEIGHT 23.0f
+
 struct render_backend;
 
 struct nuklear {
-  struct window *win;
   struct render_backend *r;
-  struct window_listener listener;
 
   struct nk_context ctx;
   struct nk_buffer cmds;
@@ -42,8 +42,11 @@ struct nuklear {
   int shift[2];
 };
 
-struct nuklear *nk_create(struct window *win, struct render_backend *r);
+struct nuklear *nk_create(struct render_backend *r);
 void nk_destroy(struct nuklear *nk);
+
+void nk_mousemove(void *data, int x, int y);
+void nk_keydown(void *data, enum keycode key, int16_t value);
 
 void nk_update_input(struct nuklear *nk);
 void nk_render(struct nuklear *nk);

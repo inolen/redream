@@ -132,6 +132,9 @@ struct render_backend *r_create(struct window *window);
 struct render_backend *r_create_from(struct render_backend *other);
 void r_destroy(struct render_backend *rc);
 
+int r_video_width(struct render_backend *r);
+int r_video_height(struct render_backend *r);
+
 framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
                                           texture_handle_t *color_componet);
 void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle);

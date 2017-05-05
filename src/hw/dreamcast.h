@@ -85,15 +85,6 @@ struct memory_interface {
   struct address_space *space;
 };
 
-/* window interface */
-typedef void (*device_keydown_cb)(struct device *, int, enum keycode, int16_t);
-typedef void (*device_joy_add_cb)(struct device *, int);
-typedef void (*device_joy_remove_cb)(struct device *, int);
-
-struct window_interface {
-  device_keydown_cb keydown;
-};
-
 /*
  * device
  */
@@ -107,7 +98,6 @@ struct device {
   struct debug_interface *debug_if;
   struct execute_interface *execute_if;
   struct memory_interface *memory_if;
-  struct window_interface *window_if;
 
   /* cached references to other devices */
   struct debugger *debugger;
@@ -181,9 +171,6 @@ void dc_destroy_execute_interface(struct execute_interface *execute);
 struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
                                                     address_map_cb mapper);
 void dc_destroy_memory_interface(struct memory_interface *memory);
-
-struct window_interface *dc_create_window_interface(device_keydown_cb keydown);
-void dc_destroy_window_interface(struct window_interface *window);
 
 int dc_init(struct dreamcast *dc);
 int dc_load(struct dreamcast *dc, const char *path);

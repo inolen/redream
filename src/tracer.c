@@ -859,7 +859,7 @@ struct tracer *tracer_create(struct window *win) {
 
   /* setup render backend */
   tracer->r = r_create(tracer->win);
-  tracer->nk = nk_create(tracer->win, tracer->r);
+  tracer->nk = nk_create(tracer->r);
 
   tracer->provider =
       (struct texture_provider){tracer, &tracer_texture_provider_find_texture};
