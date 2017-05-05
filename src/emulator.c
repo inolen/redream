@@ -1,5 +1,4 @@
 #include "emulator.h"
-#include "audio/audio_backend.h"
 #include "core/option.h"
 #include "core/profiler.h"
 #include "core/ringbuf.h"
@@ -22,8 +21,6 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
-DEFINE_OPTION_INT(audio, 1, "Enable audio");
-
 #define MAX_FRAMES 8
 
 struct frame {
@@ -43,15 +40,11 @@ struct emu {
   struct dreamcast *dc;
 
   struct render_backend *r;
-  struct audio_backend *audio;
   struct microprofile *mp;
   struct nuklear *nk;
 
   volatile int running;
   int debug_menu;
-
-  /* audio ringbuffer */
-  struct ringbuf *audio_buffer;
 
   /* last tile context submitted by the dreamcast to be rendered */
   mutex_t pending_mutex;
@@ -92,22 +85,6 @@ static void emu_start_render(void *userdata, struct tile_ctx *ctx) {
   cond_signal(emu->pending_cond);
 
   mutex_unlock(emu->pending_mutex);
-}
-
-static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
-  struct emu *emu = userdata;
-
-  if (!emu->audio) {
-    return;
-  }
-
-  int remaining = ringbuf_remaining(emu->audio_buffer);
-  int size = MIN(remaining, frames * 4);
-  CHECK_EQ(size % 4, 0);
-
-  void *write_ptr = ringbuf_write_ptr(emu->audio_buffer);
-  memcpy(write_ptr, data, size);
-  ringbuf_advance_write_ptr(emu->audio_buffer, size);
 }
 
 /*
@@ -428,9 +405,7 @@ void emu_run(struct emu *emu, const char *path) {
        effectively synchronizes the emulation speed with the host audio clock.
        note however, if audio is disabled, the emulator will run as fast as
        possible */
-    if (!emu->audio || audio_buffer_low(emu->audio)) {
-      dc_tick(emu->dc, MACHINE_STEP);
-    }
+    dc_tick(emu->dc, MACHINE_STEP);
 
     /* FIXME this needs to be refactored:
        - profile stats do need to be updated in a similar fashion. however,
@@ -450,10 +425,6 @@ void emu_run(struct emu *emu, const char *path) {
     if (current_time > next_pump_time) {
       prof_update(current_time);
 
-      if (emu->audio) {
-        audio_pump_events(emu->audio);
-      }
-
       win_pump_events(emu->win);
 
       emu_paint(emu);
@@ -469,17 +440,6 @@ void emu_run(struct emu *emu, const char *path) {
 }
 
 void emu_destroy(struct emu *emu) {
-  /* destroy audio backend */
-  {
-    if (emu->audio) {
-      audio_destroy(emu->audio);
-    }
-
-    if (emu->audio_buffer) {
-      ringbuf_destroy(emu->audio_buffer);
-    }
-  }
-
   /* destroy render backend */
   mutex_destroy(emu->frames_mutex);
   cond_destroy(emu->pending_cond);
@@ -509,7 +469,7 @@ struct emu *emu_create(struct window *win) {
   /* create dreamcast */
   struct dreamcast_client client;
   client.userdata = emu;
-  client.push_audio = &emu_push_audio;
+  client.push_audio = NULL;
   client.start_render = &emu_start_render;
   client.finish_render = &emu_finish_render;
   client.poll_input = NULL;
@@ -523,14 +483,6 @@ struct emu *emu_create(struct window *win) {
   emu->pending_mutex = mutex_create();
   emu->pending_cond = cond_create();
   emu->frames_mutex = mutex_create();
-
-  /* create audio backend */
-  {
-    if (OPTION_audio) {
-      emu->audio_buffer = ringbuf_create(AICA_SAMPLE_FREQ * 4);
-      emu->audio = audio_create(emu->audio_buffer);
-    }
-  }
 
   /* debug menu enabled by default */
   emu->debug_menu = 1;
