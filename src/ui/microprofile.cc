@@ -12,8 +12,8 @@
 extern "C" {
 #include "core/assert.h"
 #include "core/math.h"
+#include "keycode.h"
 #include "ui/microprofile.h"
-#include "ui/window.h"
 #include "video/render_backend.h"
 }
 
@@ -25,9 +25,8 @@ static const int MAX_2D_VERTICES = 32768;
 static const int MAX_2D_SURFACES = 256;
 
 struct microprofile {
-  struct window *win;
   struct render_backend *r;
-  struct window_listener listener;
+
   texture_handle_t font_texture;
   struct surface2 surfs[MAX_2D_SURFACES];
   int num_surfs;
@@ -45,25 +44,6 @@ static struct microprofile *s_mp;
 #define Q3(d, member, v) \
   d[2].member = v;       \
   d[5].member = v
-
-static void mp_keydown(void *data, int device_index, enum keycode code,
-                       int16_t value) {
-  if (code == K_F2) {
-    if (value > 0) {
-      MicroProfileToggleDisplayMode();
-    }
-  } else if (code == K_MOUSE1) {
-    int down = value > 0;
-    MicroProfileMouseButton(down, 0);
-  } else if (code == K_MOUSE2) {
-    int down = value > 0;
-    MicroProfileMouseButton(0, down);
-  }
-}
-
-static void mp_mousemove(void *data, int x, int y) {
-  MicroProfileMousePosition(x, y, 0);
-}
 
 static struct vertex2 *mp_alloc_verts(struct microprofile *mp,
                                       const struct surface2 &desc, int count) {
@@ -236,8 +216,8 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
 void mp_render(struct microprofile *mp) {
   s_mp = mp;
 
-  int width = win_width(mp->win);
-  int height = win_height(mp->win);
+  int width = r_video_width(mp->r);
+  int height = r_video_height(mp->r);
 
   /* update draw surfaces */
   MicroProfileDraw(width, height);
@@ -259,24 +239,35 @@ void mp_render(struct microprofile *mp) {
   mp->num_verts = 0;
 }
 
+void mp_mousemove(struct microprofile *mp, int x, int y) {
+  MicroProfileMousePosition(x, y, 0);
+}
+
+void mp_keydown(struct microprofile *mp, enum keycode key, int16_t value) {
+  if (key == K_F2) {
+    if (value > 0) {
+      MicroProfileToggleDisplayMode();
+    }
+  } else if (key == K_MOUSE1) {
+    int down = value > 0;
+    MicroProfileMouseButton(down, 0);
+  } else if (key == K_MOUSE2) {
+    int down = value > 0;
+    MicroProfileMouseButton(0, down);
+  }
+}
+
 void mp_destroy(struct microprofile *mp) {
   r_destroy_texture(mp->r, mp->font_texture);
-
-  win_remove_listener(mp->win, &mp->listener);
 
   free(mp);
 }
 
-struct microprofile *mp_create(struct window *win, struct render_backend *r) {
+struct microprofile *mp_create(struct render_backend *r) {
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));
 
-  mp->win = win;
   mp->r = r;
-
-  /* add input event listeners */
-  mp->listener = {mp, &mp_keydown, &mp_mousemove, NULL, {}};
-  win_add_listener(mp->win, &mp->listener);
 
   /* register and enable cpu and gpu groups by default */
   uint16_t cpu_group = MicroProfileGetGroup("cpu", MicroProfileTokenTypeCpu);

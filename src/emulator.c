@@ -251,8 +251,6 @@ static void emu_keydown(void *data, int device_index, enum keycode code,
     }
     return;
   }
-
-  dc_keydown(emu->dc, device_index, code, value);
 }
 
 static void emu_close(void *data) {
@@ -478,8 +476,8 @@ struct emu *emu_create(struct window *win) {
 
   /* create render backend */
   emu->r = r_create(emu->win);
-  emu->mp = mp_create(emu->win, emu->r);
-  emu->nk = nk_create(emu->win, emu->r);
+  emu->mp = mp_create(emu->r);
+  emu->nk = nk_create(emu->r);
   emu->pending_mutex = mutex_create();
   emu->pending_cond = cond_create();
   emu->frames_mutex = mutex_create();

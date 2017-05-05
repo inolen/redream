@@ -57,15 +57,6 @@ void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames) {
   dc->client.push_audio(dc->client.userdata, data, frames);
 }
 
-void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
-                int16_t value) {
-  list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->window_if && dev->window_if->keydown) {
-      dev->window_if->keydown(dev, device_index, code, value);
-    }
-  }
-}
-
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->debug_menu) {
@@ -183,16 +174,6 @@ int dc_init(struct dreamcast *dc) {
   }
 
   return 1;
-}
-
-void dc_destroy_window_interface(struct window_interface *window) {
-  free(window);
-}
-
-struct window_interface *dc_create_window_interface(device_keydown_cb keydown) {
-  struct window_interface *window = calloc(1, sizeof(struct window_interface));
-  window->keydown = keydown;
-  return window;
 }
 
 void dc_destroy_memory_interface(struct memory_interface *memory) {

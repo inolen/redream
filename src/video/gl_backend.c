@@ -798,6 +798,14 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
   return fb->fbo;
 }
 
+int r_video_height(struct render_backend *r) {
+  return win_height(r->win);
+}
+
+int r_video_width(struct render_backend *r) {
+  return win_width(r->win);
+}
+
 static void r_check_one_per_thread() {
   /* to keep things simple, don't allow more than one gl backend per thread.
      this avoids providing interfaces to manage the current gl context */
