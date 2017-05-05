@@ -438,6 +438,7 @@ union vert_param {
 #define BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
 
 struct tile_ctx {
+  void *user;
   uint32_t addr;
   void *userdata;
 

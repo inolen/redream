@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include "core/list.h"
 #include "hw/memory.h"
-#include "ui/keycode.h"
+#include "keycode.h"
 
 struct aica;
 struct arm7;
@@ -88,11 +88,14 @@ struct memory_interface {
 /*
  * device
  */
+typedef int (*device_init_cb)(struct device *);
+typedef void (*device_debug_menu_cb)(struct device *, struct nk_context *);
+
 struct device {
   struct dreamcast *dc;
   const char *name;
-  int (*init)(struct device *);
-  void (*debug_menu)(struct device *, struct nk_context *);
+  device_init_cb init;
+  device_debug_menu_cb debug_menu;
 
   /* optional interfaces */
   struct debug_interface *debug_if;
@@ -124,22 +127,16 @@ typedef void (*push_audio_cb)(void *, const int16_t *, int);
 typedef void (*start_render_cb)(void *, struct tile_ctx *);
 typedef void (*finish_render_cb)(void *);
 typedef void (*poll_input_cb)(void *);
-typedef int16_t (*get_input_cb)(void *, int, int);
-
-struct dreamcast_client {
-  void *userdata;
-  push_audio_cb push_audio;
-  start_render_cb start_render;
-  finish_render_cb finish_render;
-  poll_input_cb poll_input;
-  get_input_cb get_input;
-};
 
 struct dreamcast {
-  struct dreamcast_client client;
+  int running;
+
+  /* systems */
   struct debugger *debugger;
   struct memory *memory;
   struct scheduler *scheduler;
+
+  /* devices */
   struct sh4 *sh4;
   struct arm7 *arm;
   struct aica *aica;
@@ -150,17 +147,21 @@ struct dreamcast {
   struct maple *maple;
   struct pvr *pvr;
   struct ta *ta;
-  int running;
   struct list devices;
+
+  /* client callbacks */
+  void *userdata;
+  push_audio_cb push_audio;
+  start_render_cb start_render;
+  finish_render_cb finish_render;
+  poll_input_cb poll_input;
 };
 
-struct dreamcast *dc_create(const struct dreamcast_client *client);
+struct dreamcast *dc_create();
 void dc_destroy(struct dreamcast *dc);
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       int (*init)(struct device *),
-                       void (*debug_menu)(struct device *,
-                                          struct nk_context *));
+                       device_init_cb init, device_debug_menu_cb debug_menu);
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
@@ -177,16 +178,13 @@ int dc_load(struct dreamcast *dc, const char *path);
 void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
-
+void dc_input(struct dreamcast *dc, int port, int button, int16_t value);
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
-void dc_keydown(struct dreamcast *dc, int device_index, enum keycode code,
-                int16_t value);
 
 /* client functionality */
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);
 void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx);
 void dc_finish_render(struct dreamcast *dc);
 void dc_poll_input(struct dreamcast *dc);
-int16_t dc_get_input(struct dreamcast *dc, int port, int button);
 
 #endif

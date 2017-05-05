@@ -45,8 +45,8 @@ struct nuklear {
 struct nuklear *nk_create(struct render_backend *r);
 void nk_destroy(struct nuklear *nk);
 
-void nk_mousemove(void *data, int x, int y);
-void nk_keydown(void *data, enum keycode key, int16_t value);
+void nk_mousemove(struct nuklear *nk, int x, int y);
+void nk_keydown(struct nuklear *nk, enum keycode key, int16_t value);
 
 void nk_update_input(struct nuklear *nk);
 void nk_render(struct nuklear *nk);

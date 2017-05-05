@@ -938,10 +938,14 @@ void ta_build_tables() {
   }
 }
 
-static struct texture_entry *ta_texture_provider_find_texture(void *data,
-                                                              union tsp tsp,
-                                                              union tcw tcw) {
-  struct ta *ta = (struct ta *)data;
+static void ta_provider_clear_textures(void *data) {
+  struct ta *ta = data;
+  ta_clear_textures(ta);
+}
+
+static struct texture_entry *ta_provider_find_texture(void *data, union tsp tsp,
+                                                      union tcw tcw) {
+  struct ta *ta = data;
   struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
 
   if (!entry) {
@@ -959,7 +963,8 @@ static struct texture_entry *ta_texture_provider_find_texture(void *data,
 struct texture_provider *ta_texture_provider(struct ta *ta) {
   if (!ta->provider.userdata) {
     ta->provider.userdata = ta;
-    ta->provider.find_texture = &ta_texture_provider_find_texture;
+    ta->provider.clear_textures = &ta_provider_clear_textures;
+    ta->provider.find_texture = &ta_provider_find_texture;
   }
   return &ta->provider;
 }
@@ -973,8 +978,6 @@ struct ta *ta_create(struct dreamcast *dc) {
 
   struct ta *ta =
       dc_create_device(dc, sizeof(struct ta), "ta", &ta_init, &ta_debug_menu);
-  ta->provider =
-      (struct texture_provider){ta, &ta_texture_provider_find_texture};
 
   return ta;
 }

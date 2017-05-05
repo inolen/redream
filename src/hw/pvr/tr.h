@@ -39,6 +39,7 @@ struct texture_entry {
    when playing back traces the textures will come from the trace itself */
 struct texture_provider {
   void *userdata;
+  void (*clear_textures)(void *);
   struct texture_entry *(*find_texture)(void *, union tsp, union tcw);
 };
 

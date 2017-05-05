@@ -17,44 +17,36 @@
 
 DEFINE_OPTION_INT(gdb, 0, "Run gdb debug server");
 
-int16_t dc_get_input(struct dreamcast *dc, int port, int button) {
-  if (!dc->client.get_input) {
-    return 0;
-  }
-
-  return dc->client.get_input(dc->client.userdata, port, button);
-}
-
 void dc_poll_input(struct dreamcast *dc) {
-  if (!dc->client.poll_input) {
+  if (!dc->poll_input) {
     return;
   }
 
-  dc->client.poll_input(dc->client.userdata);
+  dc->poll_input(dc->userdata);
 }
 
 void dc_finish_render(struct dreamcast *dc) {
-  if (!dc->client.finish_render) {
+  if (!dc->finish_render) {
     return;
   }
 
-  dc->client.finish_render(dc->client.userdata);
+  dc->finish_render(dc->userdata);
 }
 
 void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx) {
-  if (!dc->client.start_render) {
+  if (!dc->start_render) {
     return;
   }
 
-  dc->client.start_render(dc->client.userdata, ctx);
+  dc->start_render(dc->userdata, ctx);
 }
 
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames) {
-  if (!dc->client.push_audio) {
+  if (!dc->push_audio) {
     return;
   }
 
-  dc->client.push_audio(dc->client.userdata, data, frames);
+  dc->push_audio(dc->userdata, data, frames);
 }
 
 void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
@@ -63,6 +55,10 @@ void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
       dev->debug_menu(dev, ctx);
     }
   }
+}
+
+void dc_input(struct dreamcast *dc, int port, int button, int16_t value) {
+  maple_handle_input(dc->maple, port, button, value);
 }
 
 void dc_tick(struct dreamcast *dc, int64_t ns) {
@@ -218,9 +214,7 @@ struct device *dc_get_device(struct dreamcast *dc, const char *name) {
 }
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       int (*init)(struct device *),
-                       void (*debug_menu)(struct device *,
-                                          struct nk_context *)) {
+                       device_init_cb init, device_debug_menu_cb debug_menu) {
   struct device *dev = calloc(1, size);
 
   dev->dc = dc;
@@ -246,7 +240,6 @@ void dc_destroy(struct dreamcast *dc) {
   sh4_destroy(dc->sh4);
   scheduler_destroy(dc->scheduler);
   memory_destroy(dc->memory);
-
   if (dc->debugger) {
     debugger_destroy(dc->debugger);
   }
@@ -254,12 +247,8 @@ void dc_destroy(struct dreamcast *dc) {
   free(dc);
 }
 
-struct dreamcast *dc_create(const struct dreamcast_client *client) {
+struct dreamcast *dc_create() {
   struct dreamcast *dc = calloc(1, sizeof(struct dreamcast));
-
-  if (client) {
-    dc->client = *client;
-  }
 
   dc->debugger = OPTION_gdb ? debugger_create(dc) : NULL;
   dc->memory = memory_create(dc);

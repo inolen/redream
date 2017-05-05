@@ -1,6 +1,8 @@
 #ifndef MAPLE_TYPES_H
 #define MAPLE_TYPES_H
 
+#include <stdint.h>
+
 #define MAPLE_NUM_PORTS 4
 #define MAPLE_MAX_UNITS 6
 
