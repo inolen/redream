@@ -111,6 +111,18 @@ int maple_handle_command(struct maple *mp, struct maple_frame *frame,
   return 1;
 }
 
+void maple_handle_input(struct maple *mp, int port, int button, int16_t value) {
+  CHECK_LT(port, MAPLE_NUM_PORTS);
+
+  for (int i = 0; i < MAPLE_MAX_UNITS; i++) {
+    struct maple_device *dev = mp->devices[port][i];
+
+    if (dev && dev->input) {
+      dev->input(dev, button, value);
+    }
+  }
+}
+
 static int maple_init(struct device *dev) {
   return 1;
 }

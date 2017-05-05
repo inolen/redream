@@ -8,31 +8,35 @@ struct controller {
 };
 
 static void controller_update(struct controller *ctrl) {
+  /* dc_poll_input will call into controller_input if new values are
+     available */
   dc_poll_input(ctrl->dc);
+}
 
-  for (int button = 0; button < NUM_CONTROLS; button++) {
-    int button_mask = 1 << button;
+static int controller_input(struct maple_device *dev, int button,
+                            int16_t value) {
+  struct controller *ctrl = (struct controller *)dev;
 
-    /* scale incoming int16_t -> uint8_t */
-    int16_t value = dc_get_input(ctrl->dc, ctrl->port, button);
-    uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
+  /* scale incoming int16_t -> uint8_t */
+  uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
 
-    if (button <= CONT_DPAD2_RIGHT) {
-      if (value > 0) {
-        ctrl->cnd.buttons &= ~button_mask;
-      } else {
-        ctrl->cnd.buttons |= button_mask;
-      }
-    } else if (button == CONT_JOYX) {
-      ctrl->cnd.joyx = scaled;
-    } else if (button == CONT_JOYY) {
-      ctrl->cnd.joyy = scaled;
-    } else if (button == CONT_LTRIG) {
-      ctrl->cnd.ltrig = scaled;
-    } else if (button == CONT_RTRIG) {
-      ctrl->cnd.rtrig = scaled;
+  if (button <= CONT_DPAD2_RIGHT) {
+    if (value > 0) {
+      ctrl->cnd.buttons &= ~(1 << button);
+    } else {
+      ctrl->cnd.buttons |= (1 << button);
     }
+  } else if (button == CONT_JOYX) {
+    ctrl->cnd.joyx = scaled;
+  } else if (button == CONT_JOYY) {
+    ctrl->cnd.joyy = scaled;
+  } else if (button == CONT_LTRIG) {
+    ctrl->cnd.ltrig = scaled;
+  } else if (button == CONT_RTRIG) {
+    ctrl->cnd.rtrig = scaled;
   }
+
+  return 1;
 }
 
 static int controller_frame(struct maple_device *dev,
@@ -87,6 +91,7 @@ struct maple_device *controller_create(struct dreamcast *dc, int port,
   ctrl->port = port;
   ctrl->unit = unit;
   ctrl->destroy = &controller_destroy;
+  ctrl->input = &controller_input;
   ctrl->frame = &controller_frame;
 
   /* default state */

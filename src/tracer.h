@@ -1,12 +1,13 @@
 #ifndef TRACER_H
 #define TRACER_H
 
+struct host;
 struct tracer;
-struct window;
 
-struct tracer *tracer_create(struct window *window);
+struct tracer *tracer_create(struct host *host);
 void tracer_destroy(struct tracer *tracer);
 
-void tracer_run(struct tracer *tracer, const char *path);
+int tracer_load(struct tracer *tracer, const char *path);
+void tracer_run(struct tracer *tracer);
 
 #endif

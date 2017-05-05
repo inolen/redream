@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-struct window;
+struct host;
 
 typedef unsigned framebuffer_handle_t;
 typedef unsigned texture_handle_t;
@@ -128,18 +128,21 @@ struct surface2 {
 
 struct render_backend;
 
-struct render_backend *r_create(struct window *window);
+struct render_backend *r_create(struct host *host);
 struct render_backend *r_create_from(struct render_backend *other);
 void r_destroy(struct render_backend *rc);
+
+void r_make_current(struct render_backend *r);
 
 int r_video_width(struct render_backend *r);
 int r_video_height(struct render_backend *r);
 
 framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
                                           texture_handle_t *color_componet);
-void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle);
 void r_destroy_framebuffer(struct render_backend *r,
                            framebuffer_handle_t handle);
+framebuffer_handle_t r_get_framebuffer(struct render_backend *r);
+void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle);
 
 texture_handle_t r_create_texture(struct render_backend *r,
                                   enum pxl_format format,
@@ -154,7 +157,6 @@ void r_wait_sync(struct render_backend *r, sync_handle_t handle);
 void r_destroy_sync(struct render_backend *r, sync_handle_t handle);
 
 void r_clear_viewport(struct render_backend *r);
-void r_swap_buffers(struct render_backend *r);
 
 void r_begin_ortho(struct render_backend *r);
 void r_end_ortho(struct render_backend *r);

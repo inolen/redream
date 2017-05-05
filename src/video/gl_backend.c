@@ -2,9 +2,9 @@
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "core/string.h"
+#include "host.h"
 #include "sys/thread.h"
 #include "ui/nuklear.h"
-#include "ui/window.h"
 #include "video/render_backend.h"
 
 #define MAX_FRAMEBUFFERS 8
@@ -59,9 +59,11 @@ struct texture {
   GLuint texture;
 };
 
+#define MAX_LISTENERS 8
+
 struct render_backend {
-  struct window *win;
-  glcontext_t ctx;
+  struct host *host;
+  gl_context_t ctx;
 
   /* default assets created during intitialization */
   GLuint white_texture;
@@ -569,8 +571,8 @@ void r_end_ortho(struct render_backend *r) {
 }
 
 void r_begin_ortho(struct render_backend *r) {
-  int width = win_width(r->win);
-  int height = win_height(r->win);
+  int width = video_width(r->host);
+  int height = video_height(r->host);
 
   float ortho[16];
   ortho[0] = 2.0f / (float)width;
@@ -603,13 +605,9 @@ void r_begin_ortho(struct render_backend *r) {
   glUniformMatrix4fv(program->loc[UNIFORM_MVP], 1, GL_FALSE, ortho);
 }
 
-void r_swap_buffers(struct render_backend *r) {
-  win_gl_swap_buffers(r->win);
-}
-
 void r_clear_viewport(struct render_backend *r) {
-  int width = win_width(r->win);
-  int height = win_height(r->win);
+  int width = video_width(r->host);
+  int height = video_height(r->host);
 
   glDepthMask(1);
 
@@ -747,10 +745,16 @@ void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle) {
   glBindFramebuffer(GL_FRAMEBUFFER, handle);
 }
 
+framebuffer_handle_t r_get_framebuffer(struct render_backend *r) {
+  GLint result;
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &result);
+  return result;
+}
+
 framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
                                           texture_handle_t *color_texture) {
-  int width = win_width(r->win);
-  int height = win_height(r->win);
+  int width = video_width(r->host);
+  int height = video_height(r->host);
 
   /* find next open framebuffer handle */
   int entry;
@@ -799,19 +803,15 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
 }
 
 int r_video_height(struct render_backend *r) {
-  return win_height(r->win);
+  return video_height(r->host);
 }
 
 int r_video_width(struct render_backend *r) {
-  return win_width(r->win);
+  return video_width(r->host);
 }
 
-static void r_check_one_per_thread() {
-  /* to keep things simple, don't allow more than one gl backend per thread.
-     this avoids providing interfaces to manage the current gl context */
-  static _Thread_local int initialized;
-  CHECK_EQ(initialized, 0);
-  initialized = 1;
+void r_make_current(struct render_backend *r) {
+  video_gl_make_current(r->host, r->ctx);
 }
 
 void r_destroy(struct render_backend *r) {
@@ -819,40 +819,34 @@ void r_destroy(struct render_backend *r) {
   r_destroy_shaders(r);
   r_destroy_textures(r);
 
-  win_gl_destroy_context(r->win, r->ctx);
+  video_gl_destroy_context(r->host, r->ctx);
 
   free(r);
 }
 
 struct render_backend *r_create_from(struct render_backend *from) {
-  r_check_one_per_thread();
-
   struct render_backend *r = calloc(1, sizeof(struct render_backend));
 
-  r->win = from->win;
-  r->ctx = win_gl_create_context_from(r->win, from->ctx);
+  r->host = from->host;
+  r->ctx = video_gl_create_context_from(from->host, from->ctx);
 
   r_create_textures(r);
   r_create_shaders(r);
   r_create_vertex_arrays(r);
-
   r_set_initial_state(r);
 
   return r;
 }
 
-struct render_backend *r_create(struct window *win) {
-  r_check_one_per_thread();
-
+struct render_backend *r_create(struct host *host) {
   struct render_backend *r = calloc(1, sizeof(struct render_backend));
 
-  r->win = win;
-  r->ctx = win_gl_create_context(win);
+  r->host = host;
+  r->ctx = video_gl_create_context(host);
 
   r_create_textures(r);
   r_create_shaders(r);
   r_create_vertex_arrays(r);
-
   r_set_initial_state(r);
 
   return r;

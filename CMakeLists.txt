@@ -21,6 +21,7 @@ if(NOT CMAKE_BUILD_TYPE)
       "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif()
 
+option(BUILD_LIBRETRO "Build libretro core" OFF)
 option(BUILD_TOOLS "Build tools" ON)
 option(BUILD_TESTS "Build tests" ON)
 
@@ -41,6 +42,11 @@ elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
 endif()
 
 set(ARCH_X64 TRUE)
+
+if(BUILD_LIBRETRO)
+  # building the libretro core requires PIC code for all object files
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 
 #--------------------------------------------------
 # config file
@@ -66,24 +72,6 @@ list(APPEND REDREAM_LIBS ${OPENGL_LIBRARIES})
 # static libs
 #--------------------------------------------------
 
-# sdl2
-set(DIRECTX OFF CACHE BOOL "")
-set(RENDER_D3D OFF CACHE BOOL "")
-set(SDL_ATOMIC OFF CACHE BOOL "")
-set(SDL_CPUINFO OFF CACHE BOOL "")
-set(SDL_FILESYSTEM OFF CACHE BOOL "")
-set(SDL_HAPTIC OFF CACHE BOOL "")
-set(SDL_POWER OFF CACHE BOOL "")
-set(SDL_RENDER OFF CACHE BOOL "")
-set(SDL_SHARED OFF CACHE BOOL "")
-set(SDL_STATIC ON CACHE BOOL "")
-if(APPLE)
-  set(SDL_FRAMEWORK_CARBON 1)
-endif()
-add_subdirectory(deps/sdl2-2.0.4 EXCLUDE_FROM_ALL)
-list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.4/include)
-list(APPEND REDREAM_LIBS SDL2main SDL2-static)
-
 # capstone
 add_subdirectory(deps/capstone EXCLUDE_FROM_ALL)
 set(CAPSTONE_ARM_SUPPORT OFF CACHE BOOL "")
@@ -108,6 +96,14 @@ add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/glew-1.13.0/include)
 list(APPEND REDREAM_LIBS glew_s)
 list(APPEND REDREAM_DEFS GLEW_STATIC)
+
+# glfw
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "")
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "")
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "")
+add_subdirectory(deps/glfw EXCLUDE_FROM_ALL)
+list(APPEND REDREAM_INCLUDE_DIRS deps/glfw/include)
+list(APPEND REDREAM_LIBS glfw)
 
 # inih
 add_library(inih STATIC deps/inih/ini.c)
@@ -213,12 +209,12 @@ set(REDREAM_SOURCES
   src/sys/filesystem.c
   src/sys/memory.c
   src/ui/microprofile.cc
-  src/ui/keycode.c
   src/ui/nuklear.c
-  src/ui/window_sdl.c
   src/video/gl_backend.c
   src/emulator.c
-  src/tracer.c)
+  src/keycode.c
+  src/tracer.c
+)
 
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
@@ -283,6 +279,33 @@ target_compile_definitions(relib PRIVATE ${REDREAM_DEFS})
 target_compile_options(relib PRIVATE ${REDREAM_FLAGS})
 
 #--------------------------------------------------
+# redream_libretro
+#--------------------------------------------------
+
+if(BUILD_LIBRETRO)
+
+add_library(redream_libretro SHARED $<TARGET_OBJECTS:relib> src/main_libretro.c)
+set_target_properties(redream_libretro PROPERTIES PREFIX "")
+set_target_properties(redream_libretro PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+target_include_directories(redream_libretro SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS} deps/libretro/include)
+target_include_directories(redream_libretro PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(redream_libretro ${REDREAM_LIBS})
+target_compile_definitions(redream_libretro PRIVATE ${REDREAM_DEFS})
+target_compile_options(redream_libretro PRIVATE ${REDREAM_FLAGS})
+
+# early out, libretro core build shouldn't also build regular binaries as it
+# requires PIC code
+return()
+
+else()
+
+if(CMAKE_POSITION_INDEPENDENT_CODE)
+  message(FATAL "Only the libretro core build should use PIC code")
+endif()
+
+endif()
+
+#--------------------------------------------------
 # redream
 #--------------------------------------------------
 
@@ -299,12 +322,12 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 if(BUILD_TOOLS)
 
-add_executable(recc $<TARGET_OBJECTS:relib> tools/recc/recc.c)
-target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(recc ${REDREAM_LIBS})
-target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
-target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
+#add_executable(recc $<TARGET_OBJECTS:relib> tools/recc/recc.c)
+#target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+#target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+#target_link_libraries(recc ${REDREAM_LIBS})
+#target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+#target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 
 endif()
 
@@ -423,10 +446,10 @@ set(RETEST_SOURCES
   ${asm_inc}
   test/retest.c)
 
-add_executable(retest $<TARGET_OBJECTS:relib> ${RETEST_SOURCES})
-target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
-target_link_libraries(retest ${REDREAM_LIBS})
-target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
-target_compile_options(retest PRIVATE ${REDREAM_FLAGS})
+#add_executable(retest $<TARGET_OBJECTS:relib> ${RETEST_SOURCES})
+#target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
+#target_link_libraries(retest ${REDREAM_LIBS})
+#target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
+#target_compile_options(retest PRIVATE ${REDREAM_FLAGS})
 
 endif()
