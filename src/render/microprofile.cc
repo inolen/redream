@@ -13,13 +13,13 @@ extern "C" {
 #include "core/assert.h"
 #include "core/math.h"
 #include "keycode.h"
-#include "ui/microprofile.h"
-#include "video/render_backend.h"
+#include "render/microprofile.h"
+#include "render/render_backend.h"
 }
 
 static const int FONT_WIDTH = 1024;
 static const int FONT_HEIGHT = 9;
-#include "ui/microprofile_font.inc"
+#include "render/microprofile_font.inc"
 
 static const int MAX_2D_VERTICES = 32768;
 static const int MAX_2D_SURFACES = 256;

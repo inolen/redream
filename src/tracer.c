@@ -4,7 +4,7 @@
 #include "hw/pvr/ta.h"
 #include "hw/pvr/tr.h"
 #include "hw/pvr/trace.h"
-#include "ui/nuklear.h"
+#include "render/nuklear.h"
 
 static const char *param_names[] = {
     "TA_PARAM_END_OF_LIST", "TA_PARAM_USER_TILE_CLIP", "TA_PARAM_OBJ_LIST_SET",

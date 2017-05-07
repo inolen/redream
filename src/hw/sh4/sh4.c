@@ -19,8 +19,8 @@
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+#include "render/nuklear.h"
 #include "sys/time.h"
-#include "ui/nuklear.h"
 
 DEFINE_AGGREGATE_COUNTER(sh4_instrs);
 DEFINE_AGGREGATE_COUNTER(sh4_sr_updates);
