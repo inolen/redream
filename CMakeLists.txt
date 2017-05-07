@@ -103,7 +103,6 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "")
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "")
 add_subdirectory(deps/glfw EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/glfw/include)
-list(APPEND REDREAM_LIBS glfw)
 
 # inih
 add_library(inih STATIC deps/inih/ini.c)
@@ -284,7 +283,7 @@ target_compile_options(relib PRIVATE ${REDREAM_FLAGS})
 
 if(BUILD_LIBRETRO)
 
-add_library(redream_libretro SHARED $<TARGET_OBJECTS:relib> src/main_libretro.c)
+add_library(redream_libretro SHARED $<TARGET_OBJECTS:relib> src/libretro.c)
 set_target_properties(redream_libretro PROPERTIES PREFIX "")
 set_target_properties(redream_libretro PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(redream_libretro SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS} deps/libretro/include)
@@ -312,7 +311,7 @@ endif()
 add_executable(redream $<TARGET_OBJECTS:relib> src/main.c)
 target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(redream ${REDREAM_LIBS})
+target_link_libraries(redream ${REDREAM_LIBS} glfw)
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
