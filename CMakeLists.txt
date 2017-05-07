@@ -283,7 +283,7 @@ target_compile_options(relib PRIVATE ${REDREAM_FLAGS})
 
 if(BUILD_LIBRETRO)
 
-add_library(redream_libretro SHARED $<TARGET_OBJECTS:relib> src/libretro.c)
+add_library(redream_libretro SHARED $<TARGET_OBJECTS:relib> src/retro_host.c)
 set_target_properties(redream_libretro PROPERTIES PREFIX "")
 set_target_properties(redream_libretro PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(redream_libretro SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS} deps/libretro/include)
@@ -308,7 +308,7 @@ endif()
 # redream
 #--------------------------------------------------
 
-add_executable(redream $<TARGET_OBJECTS:relib> src/main.c)
+add_executable(redream $<TARGET_OBJECTS:relib> src/glfw_host.c)
 target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream ${REDREAM_LIBS} glfw)
@@ -321,12 +321,12 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 if(BUILD_TOOLS)
 
-#add_executable(recc $<TARGET_OBJECTS:relib> tools/recc/recc.c)
-#target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-#target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-#target_link_libraries(recc ${REDREAM_LIBS})
-#target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
-#target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
+add_executable(recc $<TARGET_OBJECTS:relib> src/null_host.c tools/recc/recc.c)
+target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(recc ${REDREAM_LIBS})
+target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 
 endif()
 
@@ -437,6 +437,7 @@ endif()
 
 # build test binary
 set(RETEST_SOURCES
+  src/null_host.c
   test/test_dead_code_elimination.c
   test/test_interval_tree.c
   test/test_list.c
@@ -445,10 +446,10 @@ set(RETEST_SOURCES
   ${asm_inc}
   test/retest.c)
 
-#add_executable(retest $<TARGET_OBJECTS:relib> ${RETEST_SOURCES})
-#target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
-#target_link_libraries(retest ${REDREAM_LIBS})
-#target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
-#target_compile_options(retest PRIVATE ${REDREAM_FLAGS})
+add_executable(retest $<TARGET_OBJECTS:relib> ${RETEST_SOURCES})
+target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
+target_link_libraries(retest ${REDREAM_LIBS})
+target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
+target_compile_options(retest PRIVATE ${REDREAM_FLAGS})
 
 endif()
