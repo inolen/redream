@@ -205,12 +205,12 @@ set(REDREAM_SOURCES
   src/jit/emit_stats.c
   src/jit/jit.c
   src/jit/pass_stats.c
+  src/render/gl_backend.c
+  src/render/microprofile.cc
+  src/render/nuklear.c
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c
-  src/ui/microprofile.cc
-  src/ui/nuklear.c
-  src/video/gl_backend.c
   src/emulator.c
   src/keycode.c
   src/tracer.c

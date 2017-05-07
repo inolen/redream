@@ -3,9 +3,9 @@
 #include "core/profiler.h"
 #include "core/string.h"
 #include "host.h"
+#include "render/nuklear.h"
+#include "render/render_backend.h"
 #include "sys/thread.h"
-#include "ui/nuklear.h"
-#include "video/render_backend.h"
 
 #define MAX_FRAMEBUFFERS 8
 #define MAX_TEXTURES 8192
@@ -98,8 +98,8 @@ struct render_backend {
   const float *uniform_mvp;
 };
 
-#include "video/ta.glsl"
-#include "video/ui.glsl"
+#include "render/ta.glsl"
+#include "render/ui.glsl"
 
 static GLenum filter_funcs[] = {
     GL_NEAREST,               /* FILTER_NEAREST */

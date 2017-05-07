@@ -9,8 +9,8 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
+#include "render/nuklear.h"
 #include "sys/filesystem.h"
-#include "ui/nuklear.h"
 
 DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
 DEFINE_AGGREGATE_COUNTER(aica_samples);

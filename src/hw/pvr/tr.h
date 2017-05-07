@@ -6,7 +6,7 @@
 
 #include "core/rb_tree.h"
 #include "hw/pvr/ta_types.h"
-#include "video/render_backend.h"
+#include "render/render_backend.h"
 
 struct tr;
 

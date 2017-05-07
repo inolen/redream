@@ -3,7 +3,7 @@
 #include "hw/gdrom/gdrom.h"
 #include "hw/maple/maple.h"
 #include "hw/sh4/sh4.h"
-#include "ui/nuklear.h"
+#include "render/nuklear.h"
 
 struct reg_cb holly_cb[NUM_HOLLY_REGS];
 

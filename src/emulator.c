@@ -13,11 +13,11 @@
 #include "hw/pvr/tr.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
+#include "render/microprofile.h"
+#include "render/nuklear.h"
+#include "render/render_backend.h"
 #include "sys/thread.h"
 #include "sys/time.h"
-#include "ui/microprofile.h"
-#include "ui/nuklear.h"
-#include "video/render_backend.h"
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
