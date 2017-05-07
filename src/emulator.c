@@ -165,15 +165,18 @@ static void *emu_video_thread(void *data) {
     mutex_lock(emu->pending_mutex);
 
     /* wait for the next tile context provided by emu_start_render */
-    cond_wait(emu->pending_cond, emu->pending_mutex);
+    while (!emu->pending_ctx) {
+      /* check for shutdown */
+      if (!emu->running) {
+        break;
+      }
 
-    /* shutting down */
-    if (!emu->pending_ctx) {
-      continue;
+      cond_wait(emu->pending_cond, emu->pending_mutex);
     }
 
     /* parse the context, uploading its textures to the render backend */
     tr_parse_context(emu->tr, emu->pending_ctx, &emu->rc);
+    emu->pending_ctx = NULL;
 
     /* after the context has been parsed, release the mutex to let
        emu_finish_render complete */
@@ -309,6 +312,8 @@ static void emu_finish_render(void *userdata) {
        the yet-to-be-uploaded texture memory */
     mutex_lock(emu->pending_mutex);
 
+    /* ensure the pending context is removed in the case that the video thread
+       skipped it */
     emu->pending_ctx = NULL;
 
     mutex_unlock(emu->pending_mutex);
@@ -376,11 +381,12 @@ static void emu_video_context_destroyed(void *userdata) {
     return;
   }
 
+  emu->running = 0;
+
   /* destroy the video thread */
   if (emu->multi_threaded) {
     /* signal to break out of its loop */
     mutex_lock(emu->pending_mutex);
-    emu->pending_ctx = NULL;
     cond_signal(emu->pending_cond);
     mutex_unlock(emu->pending_mutex);
 
@@ -428,6 +434,8 @@ static void emu_video_context_reset(void *userdata) {
   struct texture_provider *provider = ta_texture_provider(emu->dc->ta);
 
   emu_video_context_destroyed(userdata);
+
+  emu->running = 1;
 
   emu->r = r_create(emu->host);
   emu->mp = mp_create(emu->r);
@@ -488,8 +496,6 @@ int emu_load_game(struct emu *emu, const char *path) {
 }
 
 void emu_destroy(struct emu *emu) {
-  emu->running = 0;
-
   /* destroy dreamcast */
   dc_destroy(emu->dc);
 
@@ -498,8 +504,6 @@ void emu_destroy(struct emu *emu) {
 
 struct emu *emu_create(struct host *host) {
   struct emu *emu = calloc(1, sizeof(struct emu));
-
-  emu->running = 1;
 
   /* setup host, bind event callbacks */
   emu->host = host;

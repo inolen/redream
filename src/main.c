@@ -172,10 +172,16 @@ static void audio_shutdown(struct glfw_host *host) {
     soundio_destroy(host->soundio);
   }
 
-  ringbuf_destroy(host->audio_frames);
+  if (host->audio_frames) {
+    ringbuf_destroy(host->audio_frames);
+  }
 }
 
 static int audio_init(struct glfw_host *host) {
+  if (!OPTION_audio) {
+    return 1;
+  }
+
   int err;
 
   host->audio_frames = ringbuf_create(AUDIO_FREQ * 4);
@@ -554,11 +560,9 @@ struct glfw_host *host_create(struct GLFWwindow *win) {
 
   host->win = win;
 
-  if (OPTION_audio) {
-    if (!audio_init(host)) {
-      host_destroy(host);
-      return NULL;
-    }
+  if (!audio_init(host)) {
+    host_destroy(host);
+    return NULL;
   }
 
   if (!video_init(host)) {
