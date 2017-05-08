@@ -26,6 +26,7 @@ DEFINE_AGGREGATE_COUNTER(aica_samples);
 #define AICA_NUM_CHANNELS 64
 
 #define AICA_FNS_BITS 10
+#define AICA_STEP_SAMPLE (1 << AICA_FNS_BITS)
 #define AICA_OFFSET_POS(s) (s >> AICA_FNS_BITS)
 #define AICA_OFFSET_FRAC(s) (s & ((1 << AICA_FNS_BITS) - 1))
 
@@ -384,7 +385,7 @@ static void aica_rtc_timer(void *data) {
 
 static uint32_t aica_channel_step(struct aica_channel *ch) {
   /* by default, step the stream a single sample at a time */
-  uint32_t step = 1 << AICA_FNS_BITS;
+  uint32_t step = AICA_STEP_SAMPLE;
 
   /* FNS represents the fractional portion of a step, used to linearly
      interpolate between samples */
@@ -419,6 +420,7 @@ static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
 
   uint32_t start_addr = (ch->data->SA_hi << 16) | ch->data->SA_lo;
   ch->active = 1;
+  ch->looped = 0;
   ch->base = &aica->wave_ram[start_addr];
   ch->step = aica_channel_step(ch);
   ch->offset = 0;
@@ -456,61 +458,70 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
 
   CHECK_NOTNULL(ch->base);
 
-  uint32_t pos = AICA_OFFSET_POS(ch->offset);
-  uint32_t frac = AICA_OFFSET_FRAC(ch->offset);
-
   /* the data returned is a signed 16-bit PCM data, but signed 32-bit values are
      used intermediately to avoid dealing with overflows until the end */
   int32_t next_sample = 0;
   int32_t next_quant = 0;
 
-  switch (ch->data->PCMS) {
-    /* 16-bit signed PCM */
-    case 0: {
-      next_sample = *(int16_t *)&ch->base[pos << 1];
-    } break;
+  /* note, a step may skip more than one sample. for ADPCM channels at least,
+     each of these intermediate samples must be processed due to its delta-
+     based decoding */
+  uint32_t next_offset = ch->offset + ch->step;
+  uint32_t next_pos = AICA_OFFSET_POS(next_offset);
+  uint32_t next_frac = AICA_OFFSET_FRAC(next_offset);
+  uint32_t pos = AICA_OFFSET_POS(ch->offset);
 
-    /* 8-bit signed PCM */
-    case 1: {
-      next_sample = *(int8_t *)&ch->base[pos] << 8;
-    } break;
+  while (pos < next_pos) {
+    switch (ch->data->PCMS) {
+      case AICA_PCM_S16: {
+        next_sample = *(int16_t *)&ch->base[pos << 1];
+      } break;
 
-    /* 4-bit ADPCM */
-    case 2:
-    case 3: {
-      int shift = (pos & 1) << 2;
-      int32_t data = (ch->base[pos >> 1] >> shift) & 0xf;
-      aica_decode_adpcm(data, ch->prev_sample, ch->prev_quant, &next_sample,
-                        &next_quant);
-    } break;
+      case AICA_PCM_S8: {
+        next_sample = *(int8_t *)&ch->base[pos] << 8;
+      } break;
 
-    default:
-      LOG_WARNING("Unsupported PCMS %d", ch->data->PCMS);
-      break;
+      case AICA_ADPCM:
+      case AICA_ADPCM_STREAM: {
+        int shift = (pos & 1) << 2;
+        int32_t data = (ch->base[pos >> 1] >> shift) & 0xf;
+        aica_decode_adpcm(data, ch->prev_sample, ch->prev_quant, &next_sample,
+                          &next_quant);
+      } break;
+
+      default:
+        LOG_WARNING("Unsupported PCMS %d", ch->data->PCMS);
+        break;
+    }
+
+    ch->prev_sample = next_sample;
+    ch->prev_quant = next_quant;
+    pos++;
   }
 
-  /* interpolate sample */
-  int32_t result = ch->prev_sample * ((1 << AICA_FNS_BITS) - frac);
-  result += next_sample * frac;
-  result >>= AICA_FNS_BITS;
+  ch->offset = next_offset;
 
-  /* step forward */
-  ch->offset += ch->step;
-  ch->prev_sample = next_sample;
-  ch->prev_quant = next_quant;
+  /* interpolate sample */
+  int32_t result = ch->prev_sample * (AICA_STEP_SAMPLE - next_frac);
+  result += next_sample * next_frac;
+  result >>= AICA_FNS_BITS;
 
   /* check if the current position in the sound source has passed the loop end
      position */
-  if (pos > ch->data->LEA) {
-    if (ch->data->LPCTL) {
-      /* restart channel at LSA */
-      LOG_AICA("aica_channel_step %d restart", ch - aica->channels);
-      ch->offset = ch->data->LSA << AICA_FNS_BITS;
-      ch->prev_sample = 0;
-      ch->prev_quant = ADPCM_QUANT_MIN;
-      ch->looped = 1;
-    } else {
-      aica_channel_stop(aica, ch);
+  if (next_pos > ch->data->LEA) {
+    switch (ch->data->LPCTL) {
+      case AICA_LOOP_NONE: {
+        aica_channel_stop(aica, ch);
+      } break;
+
+      case AICA_LOOP_FORWARD: {
+        /* restart channel at LSA */
+        LOG_AICA("aica_channel_step %d restart", ch - aica->channels);
+        ch->looped = 1;
+        ch->offset = ch->data->LSA << AICA_FNS_BITS;
+        ch->prev_sample = 0;
+        ch->prev_quant = ADPCM_QUANT_MIN;
+      } break;
     }
   }
 
