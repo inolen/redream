@@ -1,3 +1,4 @@
+#include <math.h>
 #include "hw/aica/aica.h"
 #include "core/log.h"
 #include "core/option.h"
@@ -79,6 +80,82 @@ struct aica {
   /* raw audio recording */
   FILE *recording;
 };
+
+static int32_t mvol_scale[16];
+static int32_t tl_scale[256];
+
+static void aica_init_tables() {
+  static int initialized = 0;
+
+  if (initialized) {
+    return;
+  }
+
+  initialized = 1;
+
+  /* the MVOL register adjusts the output level based on the table:
+
+     MVOL       ∆level
+     ----------------
+     0         -MAX db
+     1         -42 db
+     2         -39 db
+     ...
+     n         -42 + (n-1) db
+
+     sound pressure level is defined as:
+     ∆level = 20 * log10(out / in)
+
+     out can therefor be calculated as:
+     out = in * pow(10, ∆level / 20)
+
+     this can be approximated using MVOL instead of ∆level as:
+     out = in / pow(2, (MVOL - i) / 2) */
+
+  for (int i = 0; i < 16; i++) {
+    /* 0 is a special case that mutes the output */
+    if (i == 0) {
+      continue;
+    }
+
+    /* a 32-bit int is used for the scale, leaving 15 bits for the fraction */
+    mvol_scale[i] = (1 << 15) / pow(2.0f, (15 - i) / 2.0f);
+  }
+
+  /* each channel's TL register adjusts the output level based on the table:
+
+     TL          ∆level
+     --------------
+     bit 0      -0.4 db
+     bit 1      -0.8 db
+     bit 2      -1.5 db
+     bit 3      -3.0 db
+     bit 4      -6.0 db
+     bit 5      -12.0 db
+     bit 6      -24.0 db
+     bit 7      -48.0 db
+
+     this can be approximated using TL as:
+     out = in / pow(2, TL / 16) */
+
+  for (int i = 0; i < 256; i++) {
+    /* a 32-bit int is used for the scale, leaving 15 bits for the fraction */
+    tl_scale[i] = (1 << 15) / pow(2.0f, i / 16.0f);
+  }
+}
+
+static inline int32_t aica_adjust_master_volume(struct aica *aica, int32_t in) {
+  int32_t y = mvol_scale[aica->common_data->MVOL];
+  /* truncate fraction */
+  return (in * y) >> 15;
+}
+
+static inline int32_t aica_adjust_channel_volume(struct aica_channel *ch,
+                                                 int32_t in) {
+  int32_t y = tl_scale[ch->data->TL];
+  /* truncate fraction */
+  return (in * y) >> 15;
+}
 
 static void aica_decode_adpcm(int32_t data, int32_t prev, int32_t prev_quant,
                               int32_t *next, int32_t *next_quant) {
@@ -381,6 +458,9 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
 
   uint32_t pos = AICA_OFFSET_POS(ch->offset);
   uint32_t frac = AICA_OFFSET_FRAC(ch->offset);
+
+  /* the data returned is a signed 16-bit PCM data, but signed 32-bit values are
+     used intermediately to avoid dealing with overflows until the end */
   int32_t next_sample = 0;
   int32_t next_quant = 0;
 
@@ -452,9 +532,12 @@ static void aica_generate_frames(struct aica *aica, int num_frames) {
       for (int j = 0; j < AICA_NUM_CHANNELS; j++) {
         struct aica_channel *ch = &aica->channels[j];
         int32_t s = aica_channel_update(aica, ch);
-        l += s;
-        r += s;
+        l += aica_adjust_channel_volume(ch, s);
+        r += aica_adjust_channel_volume(ch, s);
       }
+
+      l = aica_adjust_master_volume(aica, l);
+      r = aica_adjust_master_volume(aica, r);
 
       buffer[i * 2 + 0] = CLAMP(l, INT16_MIN, INT16_MAX);
       buffer[i * 2 + 1] = CLAMP(r, INT16_MIN, INT16_MAX);
@@ -746,6 +829,8 @@ void aica_destroy(struct aica *aica) {
 }
 
 struct aica *aica_create(struct dreamcast *dc) {
+  aica_init_tables();
+
   struct aica *aica = dc_create_device(dc, sizeof(struct aica), "aica",
                                        &aica_init, &aica_debug_menu);
   return aica;
