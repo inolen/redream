@@ -70,8 +70,7 @@ static inline int armv3_fallback_cond_check(struct armv3_context *ctx,
       return Z_CLEAR(ctx->r[CPSR]) &&
              N_SET(ctx->r[CPSR]) == V_SET(ctx->r[CPSR]);
     case COND_LE:
-      return Z_CLEAR(ctx->r[CPSR]) ||
-             N_SET(ctx->r[CPSR]) != V_SET(ctx->r[CPSR]);
+      return Z_SET(ctx->r[CPSR]) || N_SET(ctx->r[CPSR]) != V_SET(ctx->r[CPSR]);
     case COND_AL:
       return 1;
     case COND_NV:
