@@ -84,6 +84,16 @@ struct aica {
 
 static int32_t mvol_scale[16];
 static int32_t tl_scale[256];
+static char *aica_fmt_names[] = {
+    "PCMS16",       /* AICA_FMT_PCMS16 */
+    "PCMS8",        /* AICA_FMT_PCMS8 */
+    "ADPCM",        /* AICA_FMT_ADPCM */
+    "ADPCM_STREAM", /* AICA_FMT_ADPCM_STREAM */
+};
+static char *aica_loop_names[] = {
+    "LOOP_NONE",    /* AICA_LOOP_NONE */
+    "LOOP_FORWARD", /* AICA_LOOP_FORWARD */
+};
 
 static void aica_init_tables() {
   static int initialized = 0;
@@ -410,7 +420,7 @@ static void aica_channel_stop(struct aica *aica, struct aica_channel *ch) {
 
   ch->active = 0;
 
-  LOG_AICA("aica_channel_stop %d", ch - aica->channels);
+  LOG_AICA("aica_channel_stop [%d]", ch - aica->channels);
 }
 
 static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
@@ -427,7 +437,12 @@ static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
   ch->prev_sample = 0;
   ch->prev_quant = ADPCM_QUANT_MIN;
 
-  LOG_AICA("aica_channel_start %d", ch - aica->channels);
+  float hz = (AICA_SAMPLE_FREQ * ch->step) / (float)AICA_STEP_SAMPLE;
+  float duration = ch->data->LEA / hz;
+
+  LOG_AICA("aica_channel_start [%d] %s, %s, %.2f hz, %.2f sec",
+           ch - aica->channels, aica_fmt_names[ch->data->PCMS],
+           aica_loop_names[ch->data->LPCTL], hz, duration);
 }
 
 static void aica_channel_update_key_state(struct aica *aica,
@@ -473,16 +488,16 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
 
   while (pos < next_pos) {
     switch (ch->data->PCMS) {
-      case AICA_PCM_S16: {
+      case AICA_FMT_PCMS16: {
         next_sample = *(int16_t *)&ch->base[pos << 1];
       } break;
 
-      case AICA_PCM_S8: {
+      case AICA_FMT_PCMS8: {
         next_sample = *(int8_t *)&ch->base[pos] << 8;
       } break;
 
-      case AICA_ADPCM:
-      case AICA_ADPCM_STREAM: {
+      case AICA_FMT_ADPCM:
+      case AICA_FMT_ADPCM_STREAM: {
         int shift = (pos & 1) << 2;
         int32_t data = (ch->base[pos >> 1] >> shift) & 0xf;
         aica_decode_adpcm(data, ch->prev_sample, ch->prev_quant, &next_sample,
@@ -515,8 +530,7 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
       } break;
 
       case AICA_LOOP_FORWARD: {
-        /* restart channel at LSA */
-        LOG_AICA("aica_channel_step %d restart", ch - aica->channels);
+        /* restart channel at loop start address */
         ch->looped = 1;
         ch->offset = ch->data->LSA << AICA_FNS_BITS;
         ch->prev_sample = 0;
