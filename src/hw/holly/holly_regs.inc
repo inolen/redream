@@ -33,7 +33,7 @@ HOLLY_REG(0x005f6940, SB_PDTNRM,            0x00000000, uint32_t)
 HOLLY_REG(0x005f6944, SB_PDTEXT,            0x00000000, uint32_t)
 HOLLY_REG(0x005f6950, SB_G2DTNRM,           0x00000000, uint32_t)
 HOLLY_REG(0x005f6954, SB_G2DTEXT,           0x00000000, uint32_t)
-// maple
+/* maple */
 HOLLY_REG(0x005f6c04, SB_MDSTAR,            0x00000000, uint32_t)
 HOLLY_REG(0x005f6c10, SB_MDTSEL,            0x00000000, uint32_t)
 HOLLY_REG(0x005f6c14, SB_MDEN,              0x00000000, uint32_t)
@@ -46,17 +46,18 @@ HOLLY_REG(0x005f6ce8, SB_MMSEL,             0x00000001, uint32_t)
 HOLLY_REG(0x005f6cf4, SB_MTXDAD,            0x00000000, uint32_t)
 HOLLY_REG(0x005f6cf8, SB_MRXDAD,            0x00000000, uint32_t)
 HOLLY_REG(0x005f6cfc, SB_MRXDBD,            0x00000000, uint32_t)
-// gdrom
+/* gdrom. note, some of these registers have multiple names as they serve two
+   different purposes based on if they're being read from or written to */
 HOLLY_REG(0x005f7018, GD_ALTSTAT_DEVCTRL,   0x00000000, uint32_t)
 HOLLY_REG(0x005f7080, GD_DATA,              0x00000000, uint32_t)
 HOLLY_REG(0x005f7084, GD_ERROR_FEATURES,    0x00000000, uint32_t)
-HOLLY_REG(0x005f7088, GD_INTREASON_SECTCNT, 0x00000000, uint32_t)
+HOLLY_REG(0x005f7088, GD_INTREASON,         0x00000000, uint32_t)
 HOLLY_REG(0x005f708c, GD_SECTNUM,           0x00000000, uint32_t)
 HOLLY_REG(0x005f7090, GD_BYCTLLO,           0x00000000, uint32_t)
 HOLLY_REG(0x005f7094, GD_BYCTLHI,           0x00000000, uint32_t)
 HOLLY_REG(0x005f7098, GD_DRVSEL,            0x00000000, uint32_t)
 HOLLY_REG(0x005f709c, GD_STATUS_COMMAND,    0x00000000, uint32_t)
-// G1 bus
+/* g1 bus */
 HOLLY_REG(0x005f7404, SB_GDSTAR,            0x00000000, uint32_t)
 HOLLY_REG(0x005f7408, SB_GDLEN,             0x00000000, uint32_t)
 HOLLY_REG(0x005f740c, SB_GDDIR,             0x00000000, uint32_t)
@@ -75,7 +76,7 @@ HOLLY_REG(0x005f74b4, SB_G1CRDYC,           0x00000001, uint32_t)
 HOLLY_REG(0x005f74b8, SB_GDAPRO,            0x00007f00, uint32_t)
 HOLLY_REG(0x005f74f4, SB_GDSTARD,           0x00000000, uint32_t)
 HOLLY_REG(0x005f74f8, SB_GDLEND,            0x00000000, uint32_t)
-// G2 bus
+/* g2 bus */
 HOLLY_REG(0x005f7800, SB_ADSTAG,            0x00000000, uint32_t)
 HOLLY_REG(0x005f7804, SB_ADSTAR,            0x00000000, uint32_t)
 HOLLY_REG(0x005f7808, SB_ADLEN,             0x00000000, uint32_t)

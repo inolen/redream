@@ -318,11 +318,15 @@ static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
       gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
       break;
 
+    /* 0x70 and 0x71 appear to be a part of some kind of security check that has
+       yet to be properly reverse engineered. be a lemming and reply / set state
+       as expected by various games */
     case SPI_UNKNOWN_70:
       gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
       break;
 
     case SPI_UNKNOWN_71:
+      gd->sectnum.status = DST_PAUSE;
       gdrom_event(gd, EV_SPI_WRITE_START, (intptr_t)reply_71, sizeof(reply_71));
       break;
 
@@ -590,25 +594,34 @@ REG_R32(holly_cb, GD_ALTSTAT_DEVCTRL) {
   struct gdrom *gd = dc->gdrom;
   /* this register is the same as the status register, but it does not
      clear DMA status information when it is accessed */
-  return gd->status.full;
+  uint16_t value = gd->status.full;
+  LOG_GDROM("read GD_ALTSTAT 0x%x", value);
+  return value;
 }
 
 REG_W32(holly_cb, GD_ALTSTAT_DEVCTRL) {
-  LOG_GDROM("GD_DEVCTRL 0x%x", (uint32_t)value);
+  LOG_GDROM("write GD_DEVCTRL 0x%x [unimplemented]", value);
 }
 
 REG_R32(holly_cb, GD_DATA) {
   struct gdrom *gd = dc->gdrom;
-  uint16_t v = *(uint16_t *)&gd->pio_buffer[gd->pio_head];
+  uint16_t value = *(uint16_t *)&gd->pio_buffer[gd->pio_head];
+
+  LOG_GDROM("read GD_DATA 0x%x", value);
+
   gd->pio_head += 2;
   if (gd->pio_head == gd->pio_size) {
     gdrom_event(gd, EV_SPI_WRITE_END, 0, 0);
   }
-  return v;
+
+  return value;
 }
 
 REG_W32(holly_cb, GD_DATA) {
   struct gdrom *gd = dc->gdrom;
+
+  LOG_GDROM("write GD_DATA 0x%x", value);
+
   *(uint16_t *)&gd->pio_buffer[gd->pio_head] = (uint16_t)(value & 0xffff);
   gd->pio_head += 2;
 
@@ -620,68 +633,85 @@ REG_W32(holly_cb, GD_DATA) {
 }
 
 REG_R32(holly_cb, GD_ERROR_FEATURES) {
-  LOG_GDROM("GD_ERROR");
-  return 0;
+  uint16_t value = 0;
+  LOG_GDROM("read GD_ERROR 0x%x [unimplemented]", value);
+  return value;
 }
 
 REG_W32(holly_cb, GD_ERROR_FEATURES) {
   struct gdrom *gd = dc->gdrom;
+  LOG_GDROM("write GD_FEATURES 0x%x", value);
   gd->features.full = value;
 }
 
-REG_R32(holly_cb, GD_INTREASON_SECTCNT) {
+REG_R32(holly_cb, GD_INTREASON) {
   struct gdrom *gd = dc->gdrom;
-  return gd->ireason.full;
+  uint16_t value = gd->ireason.full;
+  LOG_GDROM("read GD_INTREASON 0x%x", value);
+  return value;
 }
 
-REG_W32(holly_cb, GD_INTREASON_SECTCNT) {
-  struct gdrom *gd = dc->gdrom;
-  gd->ireason.full = value;
+REG_W32(holly_cb, GD_INTREASON) {
+  LOG_FATAL("invalid write to GD_INTREASON");
 }
 
 REG_R32(holly_cb, GD_SECTNUM) {
   struct gdrom *gd = dc->gdrom;
-  return gd->sectnum.full;
+  uint16_t value = gd->sectnum.full;
+  LOG_GDROM("read GD_SECTNUM 0x%x", value);
+  return value;
 }
 
 REG_W32(holly_cb, GD_SECTNUM) {
-  struct gdrom *gd = dc->gdrom;
-  gd->sectnum.full = value;
+  LOG_FATAL("invalid write to GD_SECTNUM");
 }
 
 REG_R32(holly_cb, GD_BYCTLLO) {
   struct gdrom *gd = dc->gdrom;
-  return gd->byte_count.lo;
+  uint16_t value = gd->byte_count.lo;
+  LOG_GDROM("read GD_BYCTLLO 0x%x", value);
+  return value;
 }
 
 REG_W32(holly_cb, GD_BYCTLLO) {
   struct gdrom *gd = dc->gdrom;
+  LOG_GDROM("write GD_BYCTLLO 0x%x", value);
   gd->byte_count.lo = value;
 }
 
 REG_R32(holly_cb, GD_BYCTLHI) {
   struct gdrom *gd = dc->gdrom;
-  return gd->byte_count.hi;
+  uint16_t value = gd->byte_count.hi;
+  LOG_GDROM("read GD_BYCTLHI 0x%x", value);
+  return value;
 }
 
 REG_W32(holly_cb, GD_BYCTLHI) {
   struct gdrom *gd = dc->gdrom;
+  LOG_GDROM("write GD_BYCTLHI 0x%x", value);
   gd->byte_count.hi = value;
 }
 
 REG_R32(holly_cb, GD_DRVSEL) {
-  return 0;
+  uint16_t value = 0;
+  LOG_GDROM("read GD_DRVSEL 0x%x [unimplemented]", value);
+  return value;
 }
 
-REG_W32(holly_cb, GD_DRVSEL) {}
+REG_W32(holly_cb, GD_DRVSEL) {
+  LOG_GDROM("write GD_DRVSEL 0x%x [unimplemented]", value);
+}
 
 REG_R32(holly_cb, GD_STATUS_COMMAND) {
   struct gdrom *gd = dc->gdrom;
+  uint16_t value = gd->status.full;
+  LOG_GDROM("read GD_STATUS_COMMAND 0x%x", value);
   holly_clear_interrupt(gd->holly, HOLLY_INTC_G1GDINT);
-  return gd->status.full;
+  return value;
 }
 
 REG_W32(holly_cb, GD_STATUS_COMMAND) {
   struct gdrom *gd = dc->gdrom;
+  LOG_GDROM("write GD_STATUS_COMMAND 0x%x", value);
   gdrom_ata_cmd(gd, (enum gd_ata_cmd)value);
 }
