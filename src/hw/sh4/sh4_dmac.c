@@ -26,18 +26,19 @@ static void sh4_dmac_check(struct sh4 *sh4, int channel) {
 }
 
 void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
+  /* FIXME this should be made asynchronous, at which point the significance
+     of the registers / interrupts should be more obvious */
+
   if (dtr->data) {
     /* single address mode transfer */
-    if (dtr->rw) {
+    if (dtr->dir == SH4_DMA_FROM_ADDR) {
+      as_memcpy_to_host(sh4->memory_if->space, dtr->data, dtr->addr, dtr->size);
+    } else {
       as_memcpy_to_guest(sh4->memory_if->space, dtr->addr, dtr->data,
                          dtr->size);
-    } else {
-      as_memcpy_to_host(sh4->memory_if->space, dtr->data, dtr->addr, dtr->size);
     }
   } else {
     /* dual address mode transfer */
-    /* FIXME this should be made asynchronous, at which point the significance
-       of the registers / interrupts should be more obvious */
     uint32_t *sar;
     uint32_t *dar;
     uint32_t *dmatcr;
@@ -78,8 +79,8 @@ void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
         break;
     }
 
-    uint32_t src = dtr->rw ? dtr->addr : *sar;
-    uint32_t dst = dtr->rw ? *dar : dtr->addr;
+    uint32_t src = dtr->dir == SH4_DMA_FROM_ADDR ? dtr->addr : *sar;
+    uint32_t dst = dtr->dir == SH4_DMA_FROM_ADDR ? *dar : dtr->addr;
     int size = *dmatcr * 32;
     as_memcpy(sh4->memory_if->space, dst, src, size);
 

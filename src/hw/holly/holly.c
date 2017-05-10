@@ -8,11 +8,14 @@
 
 struct reg_cb holly_cb[NUM_HOLLY_REGS];
 
+/*
+ * ch2 dma
+ */
 static void holly_ch2_dma(struct holly *hl) {
   /* FIXME what are SB_LMMODE0 / SB_LMMODE1 */
   struct sh4_dtr dtr = {0};
   dtr.channel = 2;
-  dtr.rw = 0;
+  dtr.dir = SH4_DMA_TO_ADDR;
   dtr.addr = *hl->SB_C2DSTAT;
   sh4_dmac_ddt(hl->sh4, &dtr);
 
@@ -21,6 +24,9 @@ static void holly_ch2_dma(struct holly *hl) {
   holly_raise_interrupt(hl, HOLLY_INTC_DTDE2INT);
 }
 
+/*
+ * gdrom dma
+ */
 static void holly_gdrom_dma(struct holly *hl) {
   if (!*hl->SB_GDEN) {
     return;
@@ -39,13 +45,15 @@ static void holly_gdrom_dma(struct holly *hl) {
 
   gdrom_dma_begin(gd);
 
+  /* TODO give callback to ddt interface to call instead of data? */
+
   while (remaining) {
     /* read a single sector at a time from the gdrom */
     int n = gdrom_dma_read(gd, sector_data, sizeof(sector_data));
 
     struct sh4_dtr dtr = {0};
     dtr.channel = 0;
-    dtr.rw = 1;
+    dtr.dir = SH4_DMA_TO_ADDR;
     dtr.data = sector_data;
     dtr.addr = addr;
     dtr.size = n;
@@ -62,6 +70,76 @@ static void holly_gdrom_dma(struct holly *hl) {
   *hl->SB_GDST = 0;
   holly_raise_interrupt(hl, HOLLY_INTC_G1DEINT);
 }
+
+/*
+ * maple dma
+ */
+static void holly_maple_dma(struct holly *hl) {
+  if (!*hl->SB_MDEN) {
+    return;
+  }
+
+  struct maple *mp = hl->maple;
+  struct address_space *space = hl->sh4->memory_if->space;
+  uint32_t addr = *hl->SB_MDSTAR;
+
+  while (1) {
+    union maple_transfer desc;
+    desc.full = as_read32(space, addr);
+    addr += 4;
+
+    switch (desc.pattern) {
+      case MAPLE_PATTERN_NORMAL: {
+        uint32_t result_addr = as_read32(space, addr);
+        addr += 4;
+
+        /* read message */
+        struct maple_frame frame, res;
+        frame.header.full = as_read32(space, addr);
+        addr += 4;
+
+        for (uint32_t i = 0; i < frame.header.num_words; i++) {
+          frame.params[i] = as_read32(space, addr);
+          addr += 4;
+        }
+
+        /* process message */
+        int handled = maple_handle_command(mp, &frame, &res);
+
+        /* write response */
+        if (handled) {
+          as_write32(space, result_addr, res.header.full);
+          result_addr += 4;
+
+          for (uint32_t i = 0; i < res.header.num_words; i++) {
+            as_write32(space, result_addr, res.params[i]);
+            result_addr += 4;
+          }
+        } else {
+          as_write32(space, result_addr, 0xffffffff);
+        }
+      } break;
+
+      case MAPLE_PATTERN_NOP:
+        break;
+
+      default:
+        LOG_FATAL("Unhandled maple pattern 0x%x", desc.pattern);
+        break;
+    }
+
+    if (desc.last) {
+      break;
+    }
+  }
+
+  *hl->SB_MDST = 0;
+  holly_raise_interrupt(hl, HOLLY_INTC_MDEINT);
+}
+
+/*
+ * g2 dma
+ */
 
 /* clang-format off */
 struct g2_channel_desc {
@@ -130,71 +208,10 @@ static void holly_g2_dma(struct holly *hl, int channel) {
     dst += 4;
   }
 
+  /* TODO read data into staging buffer from devices? */
+
   int64_t end = CYCLES_TO_NANO(transfer_size / 2, UINT64_C(25000000));
   scheduler_start_timer(hl->scheduler, g2_timers[channel], hl, end);
-}
-
-static void holly_maple_dma(struct holly *hl) {
-  if (!*hl->SB_MDEN) {
-    return;
-  }
-
-  struct maple *mp = hl->maple;
-  struct address_space *space = hl->sh4->memory_if->space;
-  uint32_t addr = *hl->SB_MDSTAR;
-
-  while (1) {
-    union maple_transfer desc;
-    desc.full = as_read32(space, addr);
-    addr += 4;
-
-    switch (desc.pattern) {
-      case MAPLE_PATTERN_NORMAL: {
-        uint32_t result_addr = as_read32(space, addr);
-        addr += 4;
-
-        /* read message */
-        struct maple_frame frame, res;
-        frame.header.full = as_read32(space, addr);
-        addr += 4;
-
-        for (uint32_t i = 0; i < frame.header.num_words; i++) {
-          frame.params[i] = as_read32(space, addr);
-          addr += 4;
-        }
-
-        /* process message */
-        int handled = maple_handle_command(mp, &frame, &res);
-
-        /* write response */
-        if (handled) {
-          as_write32(space, result_addr, res.header.full);
-          result_addr += 4;
-
-          for (uint32_t i = 0; i < res.header.num_words; i++) {
-            as_write32(space, result_addr, res.params[i]);
-            result_addr += 4;
-          }
-        } else {
-          as_write32(space, result_addr, 0xffffffff);
-        }
-      } break;
-
-      case MAPLE_PATTERN_NOP:
-        break;
-
-      default:
-        LOG_FATAL("Unhandled maple pattern 0x%x", desc.pattern);
-        break;
-    }
-
-    if (desc.last) {
-      break;
-    }
-  }
-
-  *hl->SB_MDST = 0;
-  holly_raise_interrupt(hl, HOLLY_INTC_MDEINT);
 }
 
 static void holly_update_interrupts(struct holly *hl) {
