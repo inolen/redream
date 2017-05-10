@@ -959,6 +959,9 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
 
   tr_reset(tr, rc);
 
+  rc->width = ctx->video_width;
+  rc->height = ctx->video_height;
+
   tr_parse_bg(tr, ctx, rc);
 
   while (data < end) {
@@ -1032,6 +1035,8 @@ static void tr_render_list(struct tr *tr, const struct tile_render_context *rc,
 
 void tr_render_context(struct tr *tr, const struct tile_render_context *rc) {
   PROF_ENTER("gpu", "tr_render_context");
+
+  r_clear_viewport(tr->r, rc->width, rc->height);
 
   r_begin_surfaces(tr->r, rc->projection, rc->verts, rc->num_verts);
 

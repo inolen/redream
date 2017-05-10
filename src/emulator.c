@@ -21,7 +21,9 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
-#define MAX_VIDEO_FRAMES 4
+#define FRAME_MAX_WIDTH 640
+#define FRAME_MAX_HEIGHT 480
+#define FRAME_MAX 4
 
 struct video_frame {
   /* framebuffer handle */
@@ -55,7 +57,7 @@ struct emu {
 
   /* pool of offscreen framebuffers */
   mutex_t frames_mutex;
-  struct video_frame frames[MAX_VIDEO_FRAMES];
+  struct video_frame frames[FRAME_MAX];
   struct list free_frames;
   struct list live_frames;
 
@@ -138,7 +140,6 @@ static void emu_render_frame(struct emu *emu) {
   struct video_frame *frame = emu_alloc_frame(emu, fb_rb);
   framebuffer_handle_t original = r_get_framebuffer(fb_rb);
   r_bind_framebuffer(fb_rb, frame->fb);
-  r_clear_viewport(fb_rb);
   tr_render_context(emu->tr, &emu->rc);
   r_bind_framebuffer(fb_rb, original);
 
@@ -194,12 +195,14 @@ static void *emu_video_thread(void *data) {
 }
 
 static void emu_paint(struct emu *emu) {
-  float w = (float)video_width(emu->host);
-  float h = (float)video_height(emu->host);
+  int width = video_width(emu->host);
+  int height = video_height(emu->host);
+  float fw = (float)width;
+  float fh = (float)height;
 
   nk_update_input(emu->nk);
 
-  r_clear_viewport(emu->r);
+  r_clear_viewport(emu->r, width, height);
 
   /* present the latest frame from the video thread */
   struct video_frame *frame = emu_pop_frame(emu);
@@ -209,15 +212,15 @@ static void emu_paint(struct emu *emu) {
         /* triangle 1, top left  */
         {{0.0f, 0.0f}, {0.0f, 1.0f}, 0xffffffff},
         /* triangle 1, top right */
-        {{w, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
+        {{fw, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
         /* triangle 1, bottom left */
-        {{0.0f, h}, {0.0f, 0.0f}, 0xffffffff},
+        {{0.0f, fh}, {0.0f, 0.0f}, 0xffffffff},
         /* triangle 2, top right */
-        {{w, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
+        {{fw, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
         /* triangle 2, bottom right */
-        {{w, h}, {1.0f, 0.0f}, 0xffffffff},
+        {{fw, fh}, {1.0f, 0.0f}, 0xffffffff},
         /* triangle 2, bottom left */
-        {{0.0f, h}, {0.0f, 0.0f}, 0xffffffff},
+        {{0.0f, fh}, {0.0f, 0.0f}, 0xffffffff},
     };
 
     struct surface2 quad = {0};
@@ -245,7 +248,7 @@ static void emu_paint(struct emu *emu) {
   /* render debug menus */
   if (emu->debug_menu) {
     struct nk_context *ctx = &emu->nk->ctx;
-    struct nk_rect bounds = {0.0f, -1.0f, w, DEBUG_MENU_HEIGHT};
+    struct nk_rect bounds = {0.0f, -1.0f, fw, DEBUG_MENU_HEIGHT};
 
     nk_style_default(ctx);
     ctx->style.window.border = 0.0f;
@@ -279,7 +282,7 @@ static void emu_paint(struct emu *emu) {
       snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
                frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
 
-      nk_layout_row_push(ctx, w - ctx->current->layout->row.item_offset);
+      nk_layout_row_push(ctx, fw - ctx->current->layout->row.item_offset);
       nk_label(ctx, status, NK_TEXT_RIGHT);
 
       nk_layout_row_end(ctx);
@@ -406,7 +409,7 @@ static void emu_video_context_destroyed(void *userdata) {
 
   r_make_current(fb_rb);
 
-  for (int i = 0; i < MAX_VIDEO_FRAMES; i++) {
+  for (int i = 0; i < FRAME_MAX; i++) {
     struct video_frame *frame = &emu->frames[i];
 
     r_destroy_framebuffer(fb_rb, frame->fb);
@@ -457,9 +460,10 @@ static void emu_video_context_reset(void *userdata) {
 
   emu->frames_mutex = mutex_create();
 
-  for (int i = 0; i < MAX_VIDEO_FRAMES; i++) {
+  for (int i = 0; i < FRAME_MAX; i++) {
     struct video_frame *frame = &emu->frames[i];
-    frame->fb = r_create_framebuffer(fb_rb, &frame->fb_tex);
+    frame->fb = r_create_framebuffer(fb_rb, FRAME_MAX_WIDTH, FRAME_MAX_HEIGHT,
+                                     &frame->fb_tex);
     list_add(&emu->free_frames, &frame->it);
   }
 

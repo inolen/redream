@@ -60,6 +60,9 @@ struct tile_render_list {
 };
 
 struct tile_render_context {
+  int width;
+  int height;
+
   /* transforms incoming windows space coordinates to ndc space */
   float projection[16];
 

@@ -764,7 +764,10 @@ static void tracer_input_keyboard(void *data, enum keycode key, int16_t value) {
 }
 
 void tracer_run(struct tracer *tracer) {
-  r_clear_viewport(tracer->r);
+  int width = video_width(tracer->host);
+  int height = video_height(tracer->host);
+
+  r_clear_viewport(tracer->r, width, height);
 
   nk_update_input(tracer->nk);
 

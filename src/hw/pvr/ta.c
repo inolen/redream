@@ -558,7 +558,8 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
 
   /* save out video width / height in order to unproject the screen space
      coaordinates */
-  if ((pvr->SPG_CONTROL->NTSC || pvr->SPG_CONTROL->PAL) && !pvr->SPG_CONTROL->interlace) {
+  if ((pvr->SPG_CONTROL->NTSC || pvr->SPG_CONTROL->PAL) &&
+      !pvr->SPG_CONTROL->interlace) {
     ctx->video_width = 640;
     ctx->video_height = 240;
   } else {
