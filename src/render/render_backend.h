@@ -137,12 +137,13 @@ void r_make_current(struct render_backend *r);
 int r_video_width(struct render_backend *r);
 int r_video_height(struct render_backend *r);
 
-framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
+framebuffer_handle_t r_get_framebuffer(struct render_backend *r);
+framebuffer_handle_t r_create_framebuffer(struct render_backend *r, int width,
+                                          int height,
                                           texture_handle_t *color_componet);
+void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle);
 void r_destroy_framebuffer(struct render_backend *r,
                            framebuffer_handle_t handle);
-framebuffer_handle_t r_get_framebuffer(struct render_backend *r);
-void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle);
 
 texture_handle_t r_create_texture(struct render_backend *r,
                                   enum pxl_format format,
@@ -156,7 +157,7 @@ sync_handle_t r_insert_sync(struct render_backend *r);
 void r_wait_sync(struct render_backend *r, sync_handle_t handle);
 void r_destroy_sync(struct render_backend *r, sync_handle_t handle);
 
-void r_clear_viewport(struct render_backend *r);
+void r_clear_viewport(struct render_backend *r, int width, int height);
 
 void r_begin_ortho(struct render_backend *r);
 void r_end_ortho(struct render_backend *r);

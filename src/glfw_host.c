@@ -18,8 +18,8 @@ DEFINE_OPTION_STRING(profile, "profiles/ps4.ini", "Controller profile");
 DEFINE_OPTION_INT(help, 0, "Show help");
 
 #define AUDIO_FREQ 44100
-#define VIDEO_WIDTH 640
-#define VIDEO_HEIGHT 480
+#define VIDEO_DEFAULT_WIDTH 640
+#define VIDEO_DEFAULT_HEIGHT 480
 
 /*
  * glfw host implementation
@@ -28,6 +28,8 @@ struct glfw_host {
   struct host;
 
   struct GLFWwindow *win;
+  int video_width;
+  int video_height;
 
   struct SoundIo *soundio;
   struct SoundIoDevice *soundio_device;
@@ -291,8 +293,7 @@ gl_context_t video_gl_create_context_from(struct host *base,
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
 
-  GLFWwindow *win =
-      glfwCreateWindow(VIDEO_WIDTH, VIDEO_HEIGHT, "", NULL, (GLFWwindow *)from);
+  GLFWwindow *win = glfwCreateWindow(1, 1, "", NULL, (GLFWwindow *)from);
   CHECK_NOTNULL(win, "Failed to create window");
 
   glfwMakeContextCurrent(win);
@@ -310,11 +311,13 @@ int video_gl_supports_multiple_contexts(struct host *base) {
 }
 
 int video_height(struct host *base) {
-  return VIDEO_HEIGHT;
+  struct glfw_host *host = (struct glfw_host *)base;
+  return host->video_height;
 }
 
 int video_width(struct host *base) {
-  return VIDEO_WIDTH;
+  struct glfw_host *host = (struct glfw_host *)base;
+  return host->video_width;
 }
 
 static void video_shutdown(struct glfw_host *host) {}
@@ -545,42 +548,6 @@ static int input_init(struct glfw_host *host) {
   return 1;
 }
 
-void host_destroy(struct glfw_host *host) {
-  input_shutdown(host);
-
-  video_shutdown(host);
-
-  audio_shutdown(host);
-
-  free(host);
-}
-
-struct glfw_host *host_create(struct GLFWwindow *win) {
-  struct glfw_host *host = calloc(1, sizeof(struct glfw_host));
-
-  host->win = win;
-
-  if (!audio_init(host)) {
-    host_destroy(host);
-    return NULL;
-  }
-
-  if (!video_init(host)) {
-    host_destroy(host);
-    return NULL;
-  }
-
-  if (!input_init(host)) {
-    host_destroy(host);
-    return NULL;
-  }
-
-  return host;
-}
-
-/*
- * core
- */
 static void mouse_button_callback(GLFWwindow *win, int button, int action,
                                   int mods) {
   enum keycode key = K_UNKNOWN;
@@ -617,6 +584,74 @@ static void key_callback(GLFWwindow *win, int key, int scancode, int action,
   input_handle_key(0, key, value);
 }
 
+void framebuffer_size_callback(GLFWwindow *win, int width, int height) {
+  g_host->video_width = width;
+  g_host->video_height = height;
+}
+
+void host_destroy(struct glfw_host *host) {
+  input_shutdown(host);
+
+  video_shutdown(host);
+
+  audio_shutdown(host);
+
+  /* destroy glfw */
+  glfwDestroyWindow(host->win);
+  glfwTerminate();
+
+  free(host);
+}
+
+struct glfw_host *host_create() {
+  struct glfw_host *host = calloc(1, sizeof(struct glfw_host));
+
+  /* init glfw window and context */
+  int res = glfwInit();
+  CHECK(res, "Failed to initialize GLFW");
+
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+
+  host->video_width = VIDEO_DEFAULT_WIDTH;
+  host->video_height = VIDEO_DEFAULT_HEIGHT;
+  host->win = glfwCreateWindow(host->video_width, host->video_height, "redream",
+                               NULL, NULL);
+  CHECK_NOTNULL(host->win, "Failed to create window");
+
+  glfwMakeContextCurrent(host->win);
+  glfwSwapInterval(0);
+
+  /* bind window input callbacks */
+  glfwSetFramebufferSizeCallback(host->win, framebuffer_size_callback);
+  glfwSetKeyCallback(host->win, key_callback);
+  glfwSetCursorPosCallback(host->win, mouse_move_callback);
+  glfwSetMouseButtonCallback(host->win, mouse_button_callback);
+
+  /* link in gl functions at runtime */
+  glewExperimental = GL_TRUE;
+  GLenum err = glewInit();
+  CHECK_EQ(err, GLEW_OK, "GLEW initialization failed: %s",
+           glewGetErrorString(err));
+
+  if (!audio_init(host)) {
+    host_destroy(host);
+    return NULL;
+  }
+
+  if (!video_init(host)) {
+    host_destroy(host);
+    return NULL;
+  }
+
+  if (!input_init(host)) {
+    host_destroy(host);
+    return NULL;
+  }
+
+  return host;
+}
+
 int main(int argc, char **argv) {
   const char *appdir = fs_appdir();
   if (!fs_mkdir(appdir)) {
@@ -636,32 +671,8 @@ int main(int argc, char **argv) {
     return EXIT_SUCCESS;
   }
 
-  /* init glfw window and context */
-  int res = glfwInit();
-  CHECK(res, "Failed to initialize GLFW");
-
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-  GLFWwindow *win =
-      glfwCreateWindow(VIDEO_WIDTH, VIDEO_HEIGHT, "redream", NULL, NULL);
-  CHECK_NOTNULL(win, "Failed to create window");
-
-  glfwMakeContextCurrent(win);
-  glfwSwapInterval(0);
-
-  /* bind window input callbacks */
-  glfwSetKeyCallback(win, key_callback);
-  glfwSetCursorPosCallback(win, mouse_move_callback);
-  glfwSetMouseButtonCallback(win, mouse_button_callback);
-
-  /* link in gl functions at runtime */
-  glewExperimental = GL_TRUE;
-  GLenum err = glewInit();
-  CHECK_EQ(err, GLEW_OK, "GLEW initialization failed: %s",
-           glewGetErrorString(err));
-
   /* init host audio, video and input systems */
-  g_host = host_create(win);
+  g_host = host_create();
   if (!g_host) {
     return EXIT_FAILURE;
   }
@@ -673,7 +684,7 @@ int main(int argc, char **argv) {
 
     if (tracer_load(tracer, load)) {
       while (1) {
-        if (glfwWindowShouldClose(win)) {
+        if (glfwWindowShouldClose(g_host->win)) {
           break;
         }
 
@@ -681,7 +692,7 @@ int main(int argc, char **argv) {
 
         tracer_run(tracer);
 
-        glfwSwapBuffers(win);
+        glfwSwapBuffers(g_host->win);
       }
     }
 
@@ -694,7 +705,7 @@ int main(int argc, char **argv) {
 
     if (emu_load_game(emu, load)) {
       while (1) {
-        if (glfwWindowShouldClose(win)) {
+        if (glfwWindowShouldClose(g_host->win)) {
           break;
         }
 
@@ -710,7 +721,7 @@ int main(int argc, char **argv) {
           emu_run(emu);
         }
 
-        glfwSwapBuffers(win);
+        glfwSwapBuffers(g_host->win);
       }
     }
 
@@ -720,10 +731,6 @@ int main(int argc, char **argv) {
   }
 
   host_destroy(g_host);
-
-  /* destroy glfw */
-  glfwDestroyWindow(win);
-  glfwTerminate();
 
   /* persist options for next run */
   options_write(config);

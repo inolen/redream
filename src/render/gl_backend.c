@@ -605,12 +605,8 @@ void r_begin_ortho(struct render_backend *r) {
   glUniformMatrix4fv(program->loc[UNIFORM_MVP], 1, GL_FALSE, ortho);
 }
 
-void r_clear_viewport(struct render_backend *r) {
-  int width = video_width(r->host);
-  int height = video_height(r->host);
-
+void r_clear_viewport(struct render_backend *r, int width, int height) {
   glDepthMask(1);
-
   glViewport(0, 0, width, height);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -745,17 +741,9 @@ void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle) {
   glBindFramebuffer(GL_FRAMEBUFFER, handle);
 }
 
-framebuffer_handle_t r_get_framebuffer(struct render_backend *r) {
-  GLint result;
-  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &result);
-  return result;
-}
-
-framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
+framebuffer_handle_t r_create_framebuffer(struct render_backend *r, int width,
+                                          int height,
                                           texture_handle_t *color_texture) {
-  int width = video_width(r->host);
-  int height = video_height(r->host);
-
   /* find next open framebuffer handle */
   int entry;
   for (entry = 0; entry < MAX_FRAMEBUFFERS; entry++) {
@@ -800,6 +788,12 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r,
   *color_texture = fb->color_texture;
 
   return fb->fbo;
+}
+
+framebuffer_handle_t r_get_framebuffer(struct render_backend *r) {
+  GLint result;
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &result);
+  return result;
 }
 
 int r_video_height(struct render_backend *r) {
