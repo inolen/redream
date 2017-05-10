@@ -248,7 +248,6 @@ static void emu_paint(struct emu *emu) {
     struct nk_rect bounds = {0.0f, -1.0f, w, DEBUG_MENU_HEIGHT};
 
     nk_style_default(ctx);
-
     ctx->style.window.border = 0.0f;
     ctx->style.window.menu_border = 0.0f;
     ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
@@ -256,6 +255,9 @@ static void emu_paint(struct emu *emu) {
 
     if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
       static int max_debug_menus = 32;
+
+      nk_style_default(ctx);
+      ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
 
       nk_menubar_begin(ctx);
       nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT, max_debug_menus);
