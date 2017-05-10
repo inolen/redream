@@ -2,6 +2,7 @@
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/maple/maple.h"
+#include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 #include "render/nuklear.h"
 
@@ -62,45 +63,66 @@ static void holly_gdrom_dma(struct holly *hl) {
   holly_raise_interrupt(hl, HOLLY_INTC_G1DEINT);
 }
 
+/* clang-format off */
+struct g2_channel_desc {
+  int STAG, STAR, LEN, DIR, TSEL, EN, ST, SUSP;
+  holly_interrupt_t INTR;
+};
+
+static struct g2_channel_desc g2_channels[] = {
+    {SB_ADSTAG, SB_ADSTAR, SB_ADLEN, SB_ADDIR, SB_ADTSEL, SB_ADEN, SB_ADST, SB_ADSUSP, HOLLY_INTC_G2DEAINT},
+    {SB_E1STAG, SB_E1STAR, SB_E1LEN, SB_E1DIR, SB_E1TSEL, SB_E1EN, SB_E1ST, SB_E1SUSP, HOLLY_INTC_G2DE1INT},
+    {SB_E2STAG, SB_E2STAR, SB_E2LEN, SB_E2DIR, SB_E2TSEL, SB_E2EN, SB_E2ST, SB_E2SUSP, HOLLY_INTC_G2DE2INT},
+    {SB_DDSTAG, SB_DDSTAR, SB_DDLEN, SB_DDDIR, SB_DDTSEL, SB_DDEN, SB_DDST, SB_DDSUSP, HOLLY_INTC_G2DEDINT},
+};
+
+#define DEFINE_G2_DMA_TIMER(channel)                       \
+  static void holly_g2_dma_timer_ch##channel(void *data) { \
+    struct holly *hl = data;                               \
+    struct g2_channel_desc *desc = &g2_channels[channel];  \
+    uint32_t len = hl->reg[desc->LEN];                     \
+    int restart = len >> 31;                               \
+    hl->reg[desc->LEN] = 0;                                \
+    hl->reg[desc->EN] = restart;                           \
+    hl->reg[desc->ST] = 0;                                 \
+    holly_raise_interrupt(hl, desc->INTR);                 \
+  }
+
+DEFINE_G2_DMA_TIMER(0);
+DEFINE_G2_DMA_TIMER(1);
+DEFINE_G2_DMA_TIMER(2);
+DEFINE_G2_DMA_TIMER(3);
+
+static void (*g2_timers[])(void *) = {
+  &holly_g2_dma_timer_ch0,
+  &holly_g2_dma_timer_ch1,
+  &holly_g2_dma_timer_ch2,
+  &holly_g2_dma_timer_ch3,
+};
+/* clang-format on */
+
 static void holly_g2_dma(struct holly *hl, int channel) {
-  /* clang-format off */
-  struct g2_channel_desc {
-    int STAG, STAR, LEN, DIR, TSEL, EN, ST, SUSP;
-    holly_interrupt_t INTR;
-  };
-  static struct g2_channel_desc channel_descs[] = {
-      {SB_ADSTAG, SB_ADSTAR, SB_ADLEN, SB_ADDIR, SB_ADTSEL, SB_ADEN, SB_ADST, SB_ADSUSP, HOLLY_INTC_G2DEAINT},
-      {SB_E1STAG, SB_E1STAR, SB_E1LEN, SB_E1DIR, SB_E1TSEL, SB_E1EN, SB_E1ST, SB_E1SUSP, HOLLY_INTC_G2DE1INT},
-      {SB_E2STAG, SB_E2STAR, SB_E2LEN, SB_E2DIR, SB_E2TSEL, SB_E2EN, SB_E2ST, SB_E2SUSP, HOLLY_INTC_G2DE2INT},
-      {SB_DDSTAG, SB_DDSTAR, SB_DDLEN, SB_DDDIR, SB_DDTSEL, SB_DDEN, SB_DDST, SB_DDSUSP, HOLLY_INTC_G2DEDINT},
-  };
-  /* clang-format on */
+  struct g2_channel_desc *desc = &g2_channels[channel];
 
-  struct g2_channel_desc *desc = &channel_descs[channel];
-  uint32_t *STAG = &hl->reg[desc->STAG];
-  uint32_t *STAR = &hl->reg[desc->STAR];
-  uint32_t *LEN = &hl->reg[desc->LEN];
-  uint32_t *DIR = &hl->reg[desc->DIR];
-  uint32_t *TSEL = &hl->reg[desc->TSEL];
-  uint32_t *EN = &hl->reg[desc->EN];
-  uint32_t *ST = &hl->reg[desc->ST];
-  uint32_t *SUSP = &hl->reg[desc->SUSP];
-  holly_interrupt_t INTR = desc->INTR;
-
-  if (!*EN) {
+  if (!hl->reg[desc->EN]) {
     return;
   }
 
   struct address_space *space = hl->sh4->memory_if->space;
-  int transfer_size = *LEN & 0x7fffffff;
-  int enable = *LEN >> 31;
+  uint32_t len = hl->reg[desc->LEN];
+  int transfer_size = len & 0x7fffffff;
+  int restart = len >> 31;
   int remaining = transfer_size;
-  uint32_t src = *STAR;
-  uint32_t dst = *STAG;
+  uint32_t src = hl->reg[desc->STAR];
+  uint32_t dst = hl->reg[desc->STAG];
 
   /* only sh4 -> g2 supported for now */
-  CHECK_EQ(*DIR, 0);
+  CHECK_EQ(hl->reg[desc->DIR], 0);
 
+  /* perform the DMA instantly, but don't update the DMA status registers or
+     raise the end of DMA interrupt until the DMA should actually end. this
+     hopefully fixes issues in games which break when DMAs end immediately,
+     without having to actually emulate the 16-bit x 25mhz g2 bus transfer */
   while (remaining) {
     as_write32(space, dst, as_read32(space, src));
     remaining -= 4;
@@ -108,12 +130,8 @@ static void holly_g2_dma(struct holly *hl, int channel) {
     dst += 4;
   }
 
-  *STAR = src;
-  *STAG = dst;
-  *LEN = 0;
-  *EN = enable ? 1 : *EN;
-  *ST = 0;
-  holly_raise_interrupt(hl, INTR);
+  int64_t end = CYCLES_TO_NANO(transfer_size / 2, UINT64_C(25000000));
+  scheduler_start_timer(hl->scheduler, g2_timers[channel], hl, end);
 }
 
 static void holly_maple_dma(struct holly *hl) {
