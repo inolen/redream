@@ -557,15 +557,14 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
   ctx->pal_pxl_format = pvr->PAL_RAM_CTRL->pixel_format;
 
   /* save out video width / height in order to unproject the screen space
-     coordinates */
-  if (!(pvr->SPG_CONTROL->NTSC || pvr->SPG_CONTROL->PAL) ||
-      pvr->SPG_CONTROL->interlace) {
-    /* interlaced and VGA mode both render at full resolution */
+     coaordinates */
+  if ((pvr->SPG_CONTROL->NTSC || pvr->SPG_CONTROL->PAL) && !pvr->SPG_CONTROL->interlace) {
+    ctx->video_width = 640;
+    ctx->video_height = 240;
+  } else {
+    /* VGA and interlaced mode both render at full resolution */
     ctx->video_width = 640;
     ctx->video_height = 480;
-  } else {
-    ctx->video_width = 320;
-    ctx->video_height = 240;
   }
 
   /* scale_x signals to scale the framebuffer down by half. do so by scaling
