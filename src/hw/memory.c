@@ -117,6 +117,27 @@ static int reserve_address_space(uint8_t **base) {
   return 0;
 }
 
+static uint32_t default_mmio_read(void *userdata, uint32_t addr,
+                                  uint32_t data_mask) {
+  LOG_WARNING("Unexpected read from 0x%08x", addr);
+  return 0;
+}
+
+static void default_mmio_write(void *userdata, uint32_t addr, uint32_t data,
+                               uint32_t data_mask) {
+  LOG_WARNING("Unexpected write to 0x%08x", addr);
+}
+
+static void default_mmio_read_string(void *userdata, void *ptr, uint32_t src,
+                                     int size) {
+  LOG_WARNING("Unexpected string read from 0x%08x", src);
+}
+
+static void default_mmio_write_string(void *userdata, uint32_t dst,
+                                      const void *ptr, int size) {
+  LOG_WARNING("Unexpected string write to 0x%08x", dst);
+}
+
 struct memory_region *memory_get_region(struct memory *memory,
                                         const char *name) {
   for (int i = 1; i < memory->num_regions; i++) {
@@ -171,10 +192,14 @@ struct memory_region *memory_create_mmio_region(
     region->name = name;
     region->size = size;
     region->mmio.data = data;
-    region->mmio.read = read;
-    region->mmio.write = write;
-    region->mmio.read_string = read_string;
-    region->mmio.write_string = write_string;
+
+    /* bind default handlers if a valid one isn't specified */
+    region->mmio.read = read ? read : &default_mmio_read;
+    region->mmio.write = write ? write : &default_mmio_write;
+    region->mmio.read_string =
+        read_string ? read_string : &default_mmio_read_string;
+    region->mmio.write_string =
+        write_string ? write_string : &default_mmio_write_string;
   }
 
   return region;
@@ -316,30 +341,18 @@ void as_memcpy(struct address_space *space, uint32_t dst, uint32_t src,
   if (dst_region->type == REGION_PHYSICAL &&
       src_region->type == REGION_PHYSICAL) {
     memcpy(space->base + dst, space->base + src, size);
-  } else if (dst_region->type == REGION_PHYSICAL &&
-             src_region->mmio.read_string) {
+  } else if (dst_region->type == REGION_PHYSICAL) {
     src_region->mmio.read_string(src_region->mmio.data, space->base + dst,
                                  src_offset, size);
-  } else if (src_region->type == REGION_PHYSICAL &&
-             dst_region->mmio.write_string) {
+  } else if (src_region->type == REGION_PHYSICAL) {
     dst_region->mmio.write_string(dst_region->mmio.data, dst_offset,
                                   space->base + src, size);
   } else {
     /* the case where both regions are MMIO and both support read_string /
        write_string could be further optimized with a fixed buffer, but it
        currently never occurs */
-    CHECK(!src_region->mmio.read_string || !dst_region->mmio.write_string);
-
-#if 0
-    uint32_t end = dst + size;
-    while (dst < end) {
-      as_write32(space, dst, as_read32(space, src));
-      src += 4;
-      dst += 4;
-    }
-#else
-    LOG_FATAL("Hit as_memcpy slow path, implement string callbacks");
-#endif
+    CHECK(
+        "as_memcpy doesn't currently support copying between two MMIO regions");
   }
 }
 
@@ -355,20 +368,8 @@ void as_memcpy_to_host(struct address_space *space, void *ptr, uint32_t src,
      cross multiple regions */
   if (src_region->type == REGION_PHYSICAL) {
     memcpy(ptr, space->base + src, size);
-  } else if (src_region->mmio.read_string) {
-    src_region->mmio.read_string(src_region->mmio.data, ptr, src_offset, size);
   } else {
-#if 0
-    uint8_t *dst = ptr;
-    uint8_t *end = dst + size;
-    while (dst < end) {
-      *(uint32_t *)dst = as_read32(space, src);
-      src += 4;
-      dst += 4;
-    }
-#else
-    LOG_FATAL("Hit as_memcpy_to_host slow path, implement string callbacks");
-#endif
+    src_region->mmio.read_string(src_region->mmio.data, ptr, src_offset, size);
   }
 }
 
@@ -384,20 +385,8 @@ void as_memcpy_to_guest(struct address_space *space, uint32_t dst,
      cross multiple regions */
   if (dst_region->type == REGION_PHYSICAL) {
     memcpy(space->base + dst, ptr, size);
-  } else if (dst_region->mmio.write_string) {
-    dst_region->mmio.write_string(dst_region->mmio.data, dst_offset, ptr, size);
   } else {
-#if 0
-    const uint8_t *src = ptr;
-    uint32_t end = dst + size;
-    while (dst < end) {
-      as_write32(space, dst, *(uint32_t *)src);
-      dst += 4;
-      src += 4;
-    }
-#else
-    LOG_FATAL("Hit as_memcpy_to_guest slow path, implement string callbacks");
-#endif
+    dst_region->mmio.write_string(dst_region->mmio.data, dst_offset, ptr, size);
   }
 }
 
