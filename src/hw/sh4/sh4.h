@@ -16,13 +16,17 @@ struct x64_backend;
 
 #define SH4_CLOCK_FREQ INT64_C(200000000)
 
+enum {
+  SH4_DMA_FROM_ADDR,
+  SH4_DMA_TO_ADDR,
+};
+
 struct sh4_dtr {
   int channel;
-  /* when rw is true, addr is the dst address
-     when rw is false, addr is the src address */
-  int rw;
+  int dir;
   /* when data is non-null, a single address mode transfer is performed between
-     the external device memory at data, and the memory at addr for
+     the external device memory at data, and the memory at addr
+
      when data is null, a dual address mode transfer is performed between addr
      and SARn / DARn */
   uint8_t *data;

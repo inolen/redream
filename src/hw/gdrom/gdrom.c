@@ -551,6 +551,7 @@ int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int data_size) {
   int remaining = gd->dma_size - gd->dma_head;
   CHECK(remaining > 0);
   int n = MIN(remaining, data_size);
+  /*LOG_GDROM("gdrom_dma_read %d/%d bytes", gd->dma_head + n, gd->dma_size);*/
   memcpy(data, &gd->dma_buffer[gd->dma_head], n);
   gd->dma_head += n;
   return n;
