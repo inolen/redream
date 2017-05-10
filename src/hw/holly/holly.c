@@ -35,12 +35,12 @@ static void holly_gdrom_dma(struct holly *hl) {
   int transfer_size = *hl->SB_GDLEN;
   int remaining = transfer_size;
   uint32_t addr = *hl->SB_GDSTAR;
+  uint8_t sector_data[SECTOR_SIZE];
 
   gdrom_dma_begin(gd);
 
   while (remaining) {
     /* read a single sector at a time from the gdrom */
-    uint8_t sector_data[SECTOR_SIZE];
     int n = gdrom_dma_read(gd, sector_data, sizeof(sector_data));
 
     struct sh4_dtr dtr = {0};
