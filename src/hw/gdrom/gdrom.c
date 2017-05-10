@@ -549,13 +549,16 @@ void gdrom_dma_end(struct gdrom *gd) {
 
 int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int data_size) {
   int remaining = gd->dma_size - gd->dma_head;
+  CHECK(remaining > 0);
   int n = MIN(remaining, data_size);
   memcpy(data, &gd->dma_buffer[gd->dma_head], n);
   gd->dma_head += n;
   return n;
 }
 
-void gdrom_dma_begin(struct gdrom *gd) {}
+void gdrom_dma_begin(struct gdrom *gd) {
+  CHECK(gd->dma_size);
+}
 
 void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   if (gd->disc != disc) {
