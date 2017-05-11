@@ -133,7 +133,9 @@ static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
 static void lse_eliminate_loads_r(struct lse *lse, struct ir *ir,
                                   struct ir_block *block) {
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
-    if (instr->op == OP_LABEL) {
+    if (instr->op == OP_FALLBACK) {
+      lse_clear_available(lse);
+    } else if (instr->op == OP_LABEL) {
       lse_clear_available(lse);
     } else if (instr->op == OP_BRANCH) {
       if (instr->arg[0]->type != VALUE_BLOCK) {
@@ -215,7 +217,9 @@ static void lse_eliminate_stores_r(struct lse *lse, struct ir *ir,
   }
 
   list_for_each_entry_safe_reverse(instr, &block->instrs, struct ir_instr, it) {
-    if (instr->op == OP_LABEL) {
+    if (instr->op == OP_FALLBACK) {
+      lse_clear_available(lse);
+    } else if (instr->op == OP_LABEL) {
       lse_clear_available(lse);
     } else if (instr->op == OP_BRANCH) {
       if (instr->arg[0]->type != VALUE_BLOCK) {
