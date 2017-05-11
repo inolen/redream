@@ -90,13 +90,21 @@ struct maple_frame {
 
 /* response to MAPLE_REQ_DEVINFO */
 struct maple_device_info {
-  uint32_t function;
-  uint32_t function_data[3];
-  uint8_t area_code;
-  uint8_t connector_direction;
-  char product_name[30];
-  char product_license[60];
+  /* function codes supported by this peripheral */
+  uint32_t func;
+  /* additional data for the function codes (3 max) */
+  uint32_t data[3];
+  /* region code of peripheral */
+  uint8_t region;
+  /* physical orientation of bus connection */
+  uint8_t direction;
+  /* name of peripheral */
+  char name[30];
+  /* license statement */
+  char license[60];
+  /* standby power consumption */
   uint16_t standby_power;
+  /* max power consumption */
   uint16_t max_power;
 };
 

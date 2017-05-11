@@ -82,21 +82,23 @@ static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
 
   switch (frame->header.command) {
     case MAPLE_REQ_DEVINFO: {
-      static struct maple_device_info vmu_devinfo = {
-          MAPLE_FUNC_MEMORYCARD,
-          {0x00410f00, 0x0, 0x0},
-          0xff,
-          0x0,
-          "Visual Memory",
-          "Produced By or Under License From SEGA ENTERPRISES,LTD.",
-          0x007c,
-          0x0082};
+      /* based on captured result of real Dreamcast VMU */
+      struct maple_device_info info;
+      info.func = MAPLE_FUNC_MEMORYCARD;
+      info.data[0] = 0x00410f00;
+      info.region = 0xff;
+      maple_strncpy(info.name, "Visual Memory", sizeof(info.name));
+      maple_strncpy(info.license,
+                    "Produced By or Under License From SEGA ENTERPRISES,LTD.",
+                    sizeof(info.license));
+      info.standby_power = 0x007c;
+      info.max_power = 0x0082;
 
       res->header.command = MAPLE_RES_DEVINFO;
       res->header.recv_addr = frame->header.send_addr;
       res->header.send_addr = frame->header.recv_addr;
-      res->header.num_words = sizeof(vmu_devinfo) >> 2;
-      memcpy(res->params, &vmu_devinfo, sizeof(vmu_devinfo));
+      res->header.num_words = sizeof(info) >> 2;
+      memcpy(res->params, &info, sizeof(info));
       return 1;
     }
 

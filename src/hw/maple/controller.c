@@ -46,23 +46,25 @@ static int controller_frame(struct maple_device *dev,
 
   switch (frame->header.command) {
     case MAPLE_REQ_DEVINFO: {
-      static struct maple_device_info controller_devinfo = {
-          MAPLE_FUNC_CONTROLLER,
-          {0xfe060f00, 0x0, 0x0},
-          0xff,
-          0,
-          "Dreamcast Controller",
-          "Produced By or Under License From SEGA ENTERPRISES,LTD.",
-          0x01ae,
-          0x01f4};
+      /* based on captured result of real Dreamcast controller */
+      struct maple_device_info info = {0};
+      info.func = MAPLE_FUNC_CONTROLLER;
+      info.data[0] = 0xfe060f00;
+      info.region = 0xff;
+      maple_strncpy(info.name, "Dreamcast Controller", sizeof(info.name));
+      maple_strncpy(info.license,
+                    "Produced By or Under License From SEGA ENTERPRISES,LTD.",
+                    sizeof(info.license));
+      info.standby_power = 0x01ae;
+      info.max_power = 0x01f4;
 
       res->header.command = MAPLE_RES_DEVINFO;
       res->header.recv_addr = frame->header.send_addr;
       res->header.send_addr = frame->header.recv_addr;
-      res->header.num_words = sizeof(controller_devinfo) >> 2;
-      memcpy(res->params, &controller_devinfo, sizeof(controller_devinfo));
-    }
+      res->header.num_words = sizeof(info) >> 2;
+      memcpy(res->params, &info, sizeof(info));
       return 1;
+    }
 
     case MAPLE_REQ_GETCOND: {
       controller_update(ctrl);
@@ -72,8 +74,8 @@ static int controller_frame(struct maple_device *dev,
       res->header.send_addr = frame->header.recv_addr;
       res->header.num_words = sizeof(ctrl->cnd) >> 2;
       memcpy(res->params, &ctrl->cnd, sizeof(ctrl->cnd));
-    }
       return 1;
+    }
   }
 
   return 0;
