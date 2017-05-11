@@ -27,11 +27,6 @@ static uint32_t boot_rom_read(struct boot *boot, uint32_t addr,
   return READ_DATA(&boot->rom[addr]);
 }
 
-static void boot_rom_write(struct boot *boot, uint32_t addr, uint32_t data,
-                           uint32_t data_mask) {
-  LOG_FATAL("Can't write to boot rom");
-}
-
 static int boot_validate(struct boot *boot) {
   /* compare the rom's md5 against known good bios roms */
   MD5_CTX md5_ctx;
@@ -102,7 +97,7 @@ struct boot *boot_create(struct dreamcast *dc) {
 AM_BEGIN(struct boot, boot_rom_map);
   AM_RANGE(0x00000000, 0x001fffff) AM_HANDLE("boot rom",
                                              (mmio_read_cb)&boot_rom_read,
-                                             (mmio_write_cb)&boot_rom_write,
+                                             NULL,
                                              NULL, NULL)
 AM_END();
 /* clang-format on */
