@@ -15,11 +15,7 @@ void sh4_analyze_block(const struct jit *jit, struct sh4_analysis *as) {
     instr.addr = as->addr + as->size;
     instr.opcode = guest->r16(guest->space, instr.addr);
 
-    /* end block on invalid instruction */
-    if (!sh4_disasm(&instr)) {
-      break;
-    }
-
+    int valid = sh4_disasm(&instr);
     as->size += 2;
     as->cycles += instr.cycles;
 
@@ -28,11 +24,17 @@ void sh4_analyze_block(const struct jit *jit, struct sh4_analysis *as) {
       delay_instr.addr = as->addr + as->size;
       delay_instr.opcode = guest->r16(guest->space, delay_instr.addr);
 
-      CHECK(sh4_disasm(&delay_instr));
-      CHECK(!(delay_instr.flags & SH4_FLAG_DELAYED));
-
+      valid = sh4_disasm(&delay_instr);
       as->size += 2;
       as->cycles += delay_instr.cycles;
+
+      /* delay slots can't have another delay slot */
+      CHECK(!(delay_instr.flags & SH4_FLAG_DELAYED));
+    }
+
+    /* end block on invalid instruction */
+    if (!valid) {
+      break;
     }
 
     /* stop emitting once a branch has been hit. in addition, if fpscr has
@@ -41,11 +43,6 @@ void sh4_analyze_block(const struct jit *jit, struct sh4_analysis *as) {
        need to be handled */
     if (instr.flags &
         (SH4_FLAG_BRANCH | SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
-      break;
-    }
-
-    /* used by debugger when stepping through instructions */
-    if (as->flags & SH4_SINGLE_INSTR) {
       break;
     }
   }
