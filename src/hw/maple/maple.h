@@ -18,6 +18,19 @@ struct maple_device {
                struct maple_frame *);
 };
 
+/* strings passed as responses to maple queries are not null-terminated, and
+   instead padded with spaces to their maximum width */
+static inline void maple_strncpy(char *dst, const char *str, int size) {
+  int len = strlen(str);
+  size -= len;
+  while (len--) {
+    *(dst++) = *(str++);
+  }
+  while (size--) {
+    *(dst++) = ' ';
+  }
+}
+
 struct maple *maple_create(struct dreamcast *dc);
 void maple_destroy(struct maple *mp);
 
