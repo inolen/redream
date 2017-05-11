@@ -49,7 +49,8 @@ static void holly_gdrom_dma(struct holly *hl) {
 
   while (remaining) {
     /* read a single sector at a time from the gdrom */
-    int n = gdrom_dma_read(gd, sector_data, sizeof(sector_data));
+    int n = MIN(remaining, (int)sizeof(sector_data));
+    n = gdrom_dma_read(gd, sector_data, n);
 
     struct sh4_dtr dtr = {0};
     dtr.channel = 0;

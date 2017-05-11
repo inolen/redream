@@ -540,18 +540,19 @@ static int gdrom_init(struct device *dev) {
 }
 
 void gdrom_dma_end(struct gdrom *gd) {
-  /* reset DMA write state */
-  gd->dma_size = 0;
+  if (gd->dma_head < gd->dma_size) {
+    return;
+  }
 
   /* CD_READ command is now done */
   gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
 }
 
-int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int data_size) {
+int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int n) {
   int remaining = gd->dma_size - gd->dma_head;
-  CHECK(remaining > 0);
-  int n = MIN(remaining, data_size);
-  /*LOG_GDROM("gdrom_dma_read %d/%d bytes", gd->dma_head + n, gd->dma_size);*/
+  n = MIN(n, remaining);
+  CHECK_GT(n, 0);
+  LOG_GDROM("gdrom_dma_read %d / %d bytes", gd->dma_head + n, gd->dma_size);
   memcpy(data, &gd->dma_buffer[gd->dma_head], n);
   gd->dma_head += n;
   return n;
