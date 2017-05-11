@@ -160,13 +160,7 @@ static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
     if (instr.flags & SH4_FLAG_DELAYED) {
       delay_instr.addr = addr + i;
       delay_instr.opcode = as_read16(sh4->memory_if->space, delay_instr.addr);
-
-      /* instruction must be valid, breakpoints on delay instructions aren't
-         currently supported */
-      CHECK(sh4_disasm(&delay_instr));
-
-      /* delay instruction itself should never have a delay instr */
-      CHECK(!(delay_instr.flags & SH4_FLAG_DELAYED));
+      sh4_disasm(&delay_instr);
 
       i += 2;
     }
