@@ -373,6 +373,16 @@ uint64_t ir_zext_constant(const struct ir_value *v) {
   }
 }
 
+void ir_fallback(struct ir *ir, void *fallback, uint32_t addr,
+                      uint32_t raw_instr) {
+  CHECK(fallback);
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_FALLBACK, VALUE_V);
+  ir_set_arg0(ir, instr, ir_alloc_ptr(ir, fallback));
+  ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
+  ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
+}
+
 struct ir_value *ir_load(struct ir *ir, struct ir_value *addr,
                          enum ir_type type) {
   CHECK_EQ(VALUE_I64, addr->type);
@@ -944,16 +954,6 @@ void ir_call_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
   ir_set_arg0(ir, instr, fn);
   ir_set_arg1(ir, instr, arg0);
   ir_set_arg2(ir, instr, arg1);
-}
-
-void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
-                      uint32_t raw_instr) {
-  CHECK(fallback);
-
-  struct ir_instr *instr = ir_append_instr(ir, OP_CALL_FALLBACK, VALUE_V);
-  ir_set_arg0(ir, instr, ir_alloc_ptr(ir, fallback));
-  ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
-  ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
 }
 
 void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,

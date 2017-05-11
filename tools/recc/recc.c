@@ -44,7 +44,7 @@ static void sanitize_ir(struct ir *ir) {
     list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
       if (instr->op != OP_BRANCH && instr->op != OP_BRANCH_FALSE &&
           instr->op != OP_BRANCH_TRUE && instr->op != OP_CALL &&
-          instr->op != OP_CALL_FALLBACK) {
+          instr->op != OP_FALLBACK) {
         continue;
       }
 

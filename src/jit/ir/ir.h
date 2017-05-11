@@ -266,6 +266,10 @@ void ir_replace_uses(struct ir_value *v, struct ir_value *other);
 
 uint64_t ir_zext_constant(const struct ir_value *v);
 
+/* call into interpeter fallback */
+void ir_fallback(struct ir *ir, void *fallback, uint32_t addr,
+                      uint32_t raw_instr);
+
 /* direct access to host memory */
 struct ir_value *ir_load(struct ir *ir, struct ir_value *addr,
                          enum ir_type type);
@@ -394,8 +398,6 @@ void ir_call(struct ir *ir, struct ir_value *fn);
 void ir_call_1(struct ir *ir, struct ir_value *fn, struct ir_value *arg0);
 void ir_call_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
                struct ir_value *arg1);
-void ir_call_fallback(struct ir *ir, void *fallback, uint32_t addr,
-                      uint32_t raw_instr);
 
 /* debug */
 void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,

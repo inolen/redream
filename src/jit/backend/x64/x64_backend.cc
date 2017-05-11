@@ -654,6 +654,17 @@ static void x64_backend_reset(struct jit_backend *base) {
   x64_backend_emit_constants(backend);
 }
 
+EMITTER(FALLBACK) {
+  void *fallback = (void *)instr->arg[0]->i64;
+  uint32_t addr = instr->arg[1]->i32;
+  uint32_t raw_instr = instr->arg[2]->i32;
+
+  e.mov(arg0, reinterpret_cast<uint64_t>(backend->base.jit));
+  e.mov(arg1, addr);
+  e.mov(arg2, raw_instr);
+  e.call(fallback);
+}
+
 EMITTER(LOAD) {
   const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
 
@@ -1592,17 +1603,6 @@ EMITTER(CALL) {
     const Xbyak::Reg addr = x64_backend_reg(backend, instr->arg[0]);
     e.call(addr);
   }
-}
-
-EMITTER(CALL_FALLBACK) {
-  void *fallback = (void *)instr->arg[0]->i64;
-  uint32_t addr = instr->arg[1]->i32;
-  uint32_t raw_instr = instr->arg[2]->i32;
-
-  e.mov(arg0, reinterpret_cast<uint64_t>(backend->base.jit));
-  e.mov(arg1, addr);
-  e.mov(arg2, raw_instr);
-  e.call(fallback);
 }
 
 EMITTER(DEBUG_INFO) {}
