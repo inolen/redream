@@ -336,6 +336,10 @@ void ir_set_arg2(struct ir *ir, struct ir_instr *instr, struct ir_value *v) {
   ir_set_arg(ir, instr, 2, v);
 }
 
+void ir_set_arg3(struct ir *ir, struct ir_instr *instr, struct ir_value *v) {
+  ir_set_arg(ir, instr, 3, v);
+}
+
 void ir_replace_use(struct ir_use *use, struct ir_value *other) {
   if (*use->parg) {
     ir_remove_use(*use->parg, use);
@@ -782,23 +786,23 @@ struct ir_value *ir_vadd(struct ir *ir, struct ir_value *a, struct ir_value *b,
   return instr->result;
 }
 
-struct ir_value *ir_vdot(struct ir *ir, struct ir_value *a, struct ir_value *b,
-                         enum ir_type el_type) {
-  CHECK(ir_is_vector(a->type) && ir_is_vector(b->type));
-  CHECK_EQ(el_type, VALUE_F32);
-
-  struct ir_instr *instr = ir_append_instr(ir, OP_VDOT, el_type);
-  ir_set_arg0(ir, instr, a);
-  ir_set_arg1(ir, instr, b);
-  return instr->result;
-}
-
 struct ir_value *ir_vmul(struct ir *ir, struct ir_value *a, struct ir_value *b,
                          enum ir_type el_type) {
   CHECK(ir_is_vector(a->type) && ir_is_vector(b->type));
   CHECK_EQ(el_type, VALUE_F32);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_VMUL, a->type);
+  ir_set_arg0(ir, instr, a);
+  ir_set_arg1(ir, instr, b);
+  return instr->result;
+}
+
+struct ir_value *ir_vdot(struct ir *ir, struct ir_value *a, struct ir_value *b,
+                         enum ir_type el_type) {
+  CHECK(ir_is_vector(a->type) && ir_is_vector(b->type));
+  CHECK_EQ(el_type, VALUE_F32);
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_VDOT, el_type);
   ir_set_arg0(ir, instr, a);
   ir_set_arg1(ir, instr, b);
   return instr->result;
@@ -947,6 +951,34 @@ void ir_call_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
   ir_set_arg0(ir, instr, fn);
   ir_set_arg1(ir, instr, arg0);
   ir_set_arg2(ir, instr, arg1);
+}
+
+void ir_call_cond(struct ir *ir, struct ir_value *cond, struct ir_value *fn) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_CALL_COND, VALUE_V);
+  ir_set_arg0(ir, instr, fn);
+  ir_set_arg1(ir, instr, cond);
+}
+
+void ir_call_cond_1(struct ir *ir, struct ir_value *cond, struct ir_value *fn,
+                    struct ir_value *arg0) {
+  CHECK(ir_is_int(arg0->type));
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_CALL_COND, VALUE_V);
+  ir_set_arg0(ir, instr, fn);
+  ir_set_arg1(ir, instr, cond);
+  ir_set_arg2(ir, instr, arg0);
+}
+
+void ir_call_cond_2(struct ir *ir, struct ir_value *cond, struct ir_value *fn,
+                    struct ir_value *arg0, struct ir_value *arg1) {
+  CHECK(ir_is_int(arg0->type));
+  CHECK(ir_is_int(arg1->type));
+
+  struct ir_instr *instr = ir_append_instr(ir, OP_CALL_COND, VALUE_V);
+  ir_set_arg0(ir, instr, fn);
+  ir_set_arg1(ir, instr, cond);
+  ir_set_arg2(ir, instr, arg0);
+  ir_set_arg3(ir, instr, arg1);
 }
 
 void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,

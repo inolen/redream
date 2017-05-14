@@ -1615,6 +1615,34 @@ EMITTER(CALL) {
   }
 }
 
+EMITTER(CALL_COND) {
+  e.inLocalLabel();
+
+  const Xbyak::Reg cond = x64_backend_reg(backend, instr->arg[1]);
+
+  e.test(cond, cond);
+
+  e.jz(".skip");
+
+  if (instr->arg[2]) {
+    x64_backend_mov_value(backend, arg0, instr->arg[2]);
+  }
+  if (instr->arg[3]) {
+    x64_backend_mov_value(backend, arg1, instr->arg[3]);
+  }
+
+  if (ir_is_constant(instr->arg[0])) {
+    e.call((void *)instr->arg[0]->i64);
+  } else {
+    const Xbyak::Reg addr = x64_backend_reg(backend, instr->arg[0]);
+    e.call(addr);
+  }
+
+  e.L(".skip");
+
+  e.outLocalLabel();
+}
+
 EMITTER(DEBUG_INFO) {}
 
 EMITTER(DEBUG_BREAK) {
