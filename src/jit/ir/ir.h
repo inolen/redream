@@ -6,7 +6,7 @@
 #include "core/list.h"
 
 #define MAX_LABEL_SIZE 128
-#define MAX_INSTR_ARGS 3
+#define MAX_INSTR_ARGS 4
 
 enum ir_op {
 #define IR_OP(name) OP_##name,
@@ -260,6 +260,7 @@ void ir_set_arg(struct ir *ir, struct ir_instr *instr, int n,
 void ir_set_arg0(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
 void ir_set_arg1(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
 void ir_set_arg2(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
+void ir_set_arg3(struct ir *ir, struct ir_instr *instr, struct ir_value *v);
 
 void ir_replace_use(struct ir_use *use, struct ir_value *other);
 void ir_replace_uses(struct ir_value *v, struct ir_value *other);
@@ -367,9 +368,9 @@ struct ir_value *ir_sqrt(struct ir *ir, struct ir_value *a);
 struct ir_value *ir_vbroadcast(struct ir *ir, struct ir_value *a);
 struct ir_value *ir_vadd(struct ir *ir, struct ir_value *a, struct ir_value *b,
                          enum ir_type el_type);
-struct ir_value *ir_vdot(struct ir *ir, struct ir_value *a, struct ir_value *b,
-                         enum ir_type el_type);
 struct ir_value *ir_vmul(struct ir *ir, struct ir_value *a, struct ir_value *b,
+                         enum ir_type el_type);
+struct ir_value *ir_vdot(struct ir *ir, struct ir_value *a, struct ir_value *b,
                          enum ir_type el_type);
 
 /* bitwise operations */
@@ -397,6 +398,12 @@ void ir_call(struct ir *ir, struct ir_value *fn);
 void ir_call_1(struct ir *ir, struct ir_value *fn, struct ir_value *arg0);
 void ir_call_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
                struct ir_value *arg1);
+
+void ir_call_cond(struct ir *ir, struct ir_value *fn, struct ir_value *cond);
+void ir_call_cond_1(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
+                    struct ir_value *cond);
+void ir_call_cond_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
+                    struct ir_value *arg1, struct ir_value *cond);
 
 /* debug */
 void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,

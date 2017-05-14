@@ -11,7 +11,7 @@ struct armv3_frontend {
 };
 
 static void armv3_analyze_block(const struct armv3_guest *guest,
-                         struct jit_block *block) {
+                                struct jit_block *block) {
   uint32_t addr = block->guest_addr;
 
   block->guest_size = 0;

@@ -19,7 +19,8 @@ struct sh4_frontend {
   struct jit_frontend;
 };
 
-static void sh4_analyze_block(const struct sh4_guest *guest, struct jit_block *block) {
+static void sh4_analyze_block(const struct sh4_guest *guest,
+                              struct jit_block *block) {
   uint32_t addr = block->guest_addr;
 
   block->guest_size = 0;
