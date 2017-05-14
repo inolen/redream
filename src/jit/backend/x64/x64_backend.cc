@@ -645,11 +645,10 @@ static int x64_backend_assemble_code(struct jit_backend *base,
 static void x64_backend_reset(struct jit_backend *base) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
 
-  backend->codegen->reset();
-
-  x64_dispatch_emit_thunks(backend);
-  x64_backend_emit_thunks(backend);
-  x64_backend_emit_constants(backend);
+  /* avoid reemitting thunks and resetting dispatch cache by just resetting
+     the size to a safe spot after the thunks */
+  /*backend->codegen->reset();*/
+  backend->codegen->setSize(X64_THUNK_SIZE);
 }
 
 EMITTER(FALLBACK) {
@@ -1665,6 +1664,13 @@ static void x64_backend_init(struct jit_backend *base) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
 
   x64_dispatch_init(backend);
+
+  /* emit thunks into a fixed amount of space to speed up cache resets */
+  x64_dispatch_emit_thunks(backend);
+  x64_backend_emit_thunks(backend);
+  x64_backend_emit_constants(backend);
+  CHECK_LT(backend->codegen->getSize(), X64_THUNK_SIZE);
+  x64_backend_reset(base);
 }
 
 void x64_backend_destroy(struct x64_backend *backend) {

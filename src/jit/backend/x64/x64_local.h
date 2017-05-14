@@ -13,6 +13,7 @@ extern "C" {
 }
 
 #define X64_STACK_SIZE 1024
+#define X64_THUNK_SIZE 1024
 
 enum xmm_constant {
   XMM_CONST_ABS_MASK_PS,

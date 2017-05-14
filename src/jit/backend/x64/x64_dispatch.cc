@@ -191,7 +191,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     e.ret();
   }
 
-  /* reset cache entries */
+  /* reset cache entries to point to the new compile thunk */
   for (int i = 0; i < backend->cache_size; i++) {
     backend->cache[i] = backend->dispatch_compile;
   }
