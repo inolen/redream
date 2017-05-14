@@ -7,7 +7,6 @@ struct armv3_guest {
   struct jit_guest;
 
   /* runtime interface */
-  void *data;
   void (*switch_mode)(void *, uint32_t);
   void (*restore_mode)(void *);
   void (*software_interrupt)(void *);

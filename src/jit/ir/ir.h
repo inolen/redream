@@ -268,7 +268,7 @@ uint64_t ir_zext_constant(const struct ir_value *v);
 
 /* call into interpeter fallback */
 void ir_fallback(struct ir *ir, void *fallback, uint32_t addr,
-                      uint32_t raw_instr);
+                 uint32_t raw_instr);
 
 /* direct access to host memory */
 struct ir_value *ir_load(struct ir *ir, struct ir_value *addr,
@@ -387,11 +387,10 @@ struct ir_value *ir_ashd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 
 /* branches */
-void ir_label(struct ir *ir, struct ir_value *lbl);
 void ir_branch(struct ir *ir, struct ir_value *dst);
-void ir_branch_false(struct ir *ir, struct ir_value *dst,
-                     struct ir_value *cond);
-void ir_branch_true(struct ir *ir, struct ir_value *dst, struct ir_value *cond);
+void ir_branch_false(struct ir *ir, struct ir_value *cond,
+                     struct ir_value *dst);
+void ir_branch_true(struct ir *ir, struct ir_value *cond, struct ir_value *dst);
 
 /* calls */
 void ir_call(struct ir *ir, struct ir_value *fn);

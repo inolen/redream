@@ -374,7 +374,7 @@ uint64_t ir_zext_constant(const struct ir_value *v) {
 }
 
 void ir_fallback(struct ir *ir, void *fallback, uint32_t addr,
-                      uint32_t raw_instr) {
+                 uint32_t raw_instr) {
   CHECK(fallback);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_FALLBACK, VALUE_V);
@@ -900,32 +900,25 @@ struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a,
   return instr->result;
 }
 
-void ir_label(struct ir *ir, struct ir_value *lbl) {
-  CHECK(lbl->type == VALUE_STRING);
-
-  struct ir_instr *instr = ir_append_instr(ir, OP_LABEL, VALUE_V);
-  ir_set_arg0(ir, instr, lbl);
-}
-
 void ir_branch(struct ir *ir, struct ir_value *dst) {
-  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
+  CHECK(dst->type == VALUE_I32);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH, VALUE_V);
   ir_set_arg0(ir, instr, dst);
 }
 
-void ir_branch_false(struct ir *ir, struct ir_value *dst,
-                     struct ir_value *cond) {
-  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
+void ir_branch_false(struct ir *ir, struct ir_value *cond,
+                     struct ir_value *dst) {
+  CHECK(dst->type == VALUE_I32);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_FALSE, VALUE_V);
   ir_set_arg0(ir, instr, dst);
   ir_set_arg1(ir, instr, cond);
 }
 
-void ir_branch_true(struct ir *ir, struct ir_value *dst,
-                    struct ir_value *cond) {
-  CHECK(dst->type == VALUE_STRING || dst->type == VALUE_I64);
+void ir_branch_true(struct ir *ir, struct ir_value *cond,
+                    struct ir_value *dst) {
+  CHECK(dst->type == VALUE_I32);
 
   struct ir_instr *instr = ir_append_instr(ir, OP_BRANCH_TRUE, VALUE_V);
   ir_set_arg0(ir, instr, dst);

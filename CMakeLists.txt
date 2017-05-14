@@ -181,13 +181,11 @@ set(REDREAM_SOURCES
   src/hw/scheduler.c
   src/jit/backend/x64/x64_backend.cc
   src/jit/backend/x64/x64_disassembler.c
-  src/jit/frontend/armv3/armv3_analyze.c
+  src/jit/backend/x64/x64_dispatch.cc
   src/jit/frontend/armv3/armv3_context.c
   src/jit/frontend/armv3/armv3_disasm.c
   src/jit/frontend/armv3/armv3_fallback.c
   src/jit/frontend/armv3/armv3_frontend.c
-  src/jit/frontend/armv3/armv3_translate.c
-  src/jit/frontend/sh4/sh4_analyze.c
   src/jit/frontend/sh4/sh4_disasm.c
   src/jit/frontend/sh4/sh4_frontend.c
   src/jit/frontend/sh4/sh4_translate.c
@@ -236,11 +234,6 @@ elseif(PLATFORM_LINUX)
   list(APPEND REDREAM_SOURCES src/sys/memory_posix.c)
   list(APPEND REDREAM_SOURCES src/sys/thread_posix.c)
   list(APPEND REDREAM_SOURCES src/sys/time_linux.c)
-endif()
-
-if(ARCH_X64)
-  list(APPEND REDREAM_SOURCES src/hw/arm7/x64/arm7_dispatch.cc)
-  list(APPEND REDREAM_SOURCES src/hw/sh4/x64/sh4_dispatch.cc)
 endif()
 
 # assign source groups for visual studio projects
@@ -321,12 +314,12 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 if(BUILD_TOOLS)
 
-add_executable(recc $<TARGET_OBJECTS:relib> src/null_host.c tools/recc/recc.c)
-target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(recc ${REDREAM_LIBS})
-target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
-target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
+#add_executable(recc $<TARGET_OBJECTS:relib> src/null_host.c tools/recc/recc.c)
+#target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+#target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+#target_link_libraries(recc ${REDREAM_LIBS})
+#target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+#target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 
 endif()
 

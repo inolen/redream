@@ -11,13 +11,9 @@
 #include "hw/rom/boot.h"
 #include "hw/rom/flash.h"
 #include "hw/scheduler.h"
-#include "hw/sh4/x64/sh4_dispatch.h"
 #include "jit/backend/x64/x64_backend.h"
-#include "jit/frontend/sh4/sh4_analyze.h"
-#include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_guest.h"
-#include "jit/frontend/sh4/sh4_translate.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 #include "render/nuklear.h"
@@ -104,109 +100,6 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   sh4->reg[offset] = data;
 }
 
-static void sh4_translate(void *data, uint32_t addr, struct ir *ir, int fastmem,
-                          int *size) {
-  struct sh4 *sh4 = data;
-
-  /* analyze the guest block to get its size, cycle count, etc. */
-  struct sh4_analysis as = {0};
-  as.addr = addr;
-  if (fastmem) {
-    as.flags |= SH4_FASTMEM;
-  }
-  if (sh4->ctx.fpscr & PR_MASK) {
-    as.flags |= SH4_DOUBLE_PR;
-  }
-  if (sh4->ctx.fpscr & SZ_MASK) {
-    as.flags |= SH4_DOUBLE_SZ;
-  }
-  sh4_analyze_block(sh4->jit, &as);
-
-  /* return the size */
-  *size = as.size;
-
-  /* yield control once remaining cycles are executed */
-  struct ir_value *remaining_cycles = ir_load_context(
-      ir, offsetof(struct sh4_ctx, remaining_cycles), VALUE_I32);
-  struct ir_value *done = ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
-  ir_branch_true(ir, ir_alloc_ptr(ir, sh4_dispatch_leave), done);
-
-  /* handle pending interrupts */
-  struct ir_value *pending_intr = ir_load_context(
-      ir, offsetof(struct sh4_ctx, pending_interrupts), VALUE_I64);
-  ir_branch_true(ir, ir_alloc_ptr(ir, sh4_dispatch_interrupt), pending_intr);
-
-  /* update remaining cycles */
-  remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, as.cycles));
-  ir_store_context(ir, offsetof(struct sh4_ctx, remaining_cycles),
-                   remaining_cycles);
-
-  /* update instruction run count */
-  struct ir_value *ran_instrs =
-      ir_load_context(ir, offsetof(struct sh4_ctx, ran_instrs), VALUE_I64);
-  ran_instrs = ir_add(ir, ran_instrs, ir_alloc_i64(ir, as.size / 2));
-  ir_store_context(ir, offsetof(struct sh4_ctx, ran_instrs), ran_instrs);
-
-  /* translate the actual block */
-  for (int i = 0; i < as.size;) {
-    struct sh4_instr instr = {0};
-    struct sh4_instr delay_instr = {0};
-
-    instr.addr = addr + i;
-    instr.opcode = as_read16(sh4->memory_if->space, instr.addr);
-    sh4_disasm(&instr);
-
-    i += 2;
-
-    if (instr.flags & SH4_FLAG_DELAYED) {
-      delay_instr.addr = addr + i;
-      delay_instr.opcode = as_read16(sh4->memory_if->space, delay_instr.addr);
-      sh4_disasm(&delay_instr);
-
-      i += 2;
-    }
-
-    sh4_emit_instr(sh4->guest, ir, as.flags, &instr, &delay_instr);
-  }
-
-  /* if the block terminates before a branch, fallthrough to the next pc */
-  struct ir_block *tail_block =
-      list_last_entry(&ir->blocks, struct ir_block, it);
-  struct ir_instr *tail_instr =
-      list_last_entry(&tail_block->instrs, struct ir_instr, it);
-
-  if (tail_instr->op != OP_STORE_CONTEXT ||
-      tail_instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
-    ir_store_context(ir, offsetof(struct sh4_ctx, pc),
-                     ir_alloc_i32(ir, addr + as.size));
-  }
-
-  /* the default emitters won't actually insert calls / branches to the
-     appropriate dispatch routines (as how each is invoked is specific
-     to the particular dispatch backend) */
-  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
-    list_for_each_entry_safe_reverse(instr, &block->instrs, struct ir_instr,
-                                     it) {
-      if (instr->op != OP_STORE_CONTEXT ||
-          instr->arg[0]->i32 != offsetof(struct sh4_ctx, pc)) {
-        continue;
-      }
-
-      int direct =
-          instr->op == OP_STORE_CONTEXT && ir_is_constant(instr->arg[1]);
-
-      /* insert dispatch call immediately after pc store */
-      ir_set_current_instr(ir, instr);
-
-      if (direct) {
-        ir_call(ir, ir_alloc_ptr(ir, sh4_dispatch_static));
-      } else {
-        ir_branch(ir, ir_alloc_ptr(ir, sh4_dispatch_dynamic));
-      }
-    }
-  }
-}
-
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
   sh4->requested_interrupts &= ~sh4->sort_id[intr];
   sh4_intc_update_pending(sh4);
@@ -245,12 +138,11 @@ static void sh4_run(struct device *dev, int64_t ns) {
   PROF_ENTER("cpu", "sh4_run");
 
   struct sh4 *sh4 = (struct sh4 *)dev;
+  struct jit *jit = sh4->jit;
 
   int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
   cycles = MAX(cycles, INT64_C(1));
-  sh4->ctx.remaining_cycles = (int)cycles;
-  sh4->ctx.ran_instrs = 0;
-  sh4_dispatch_enter();
+  jit_run(sh4->jit, cycles);
   prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 
   PROF_LEAVE();
@@ -288,26 +180,33 @@ static int sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
-  /* initialize jit and its interfaces */
-  sh4->jit = jit_create("sh4");
+  /* place code buffer in data segment (as opposed to allocating on the heap) to
+     keep it within 2 GB of the code segment, enabling the x64 backend to use
+     RIP-relative offsets when calling functions */
+  static uint8_t sh4_code[0x800000];
 
-  { sh4_dispatch_init(sh4, sh4->jit, &sh4->ctx, sh4->memory_if->space->base); }
+  sh4->jit = jit_create("sh4");
 
   {
     sh4->guest = sh4_guest_create();
+
+    sh4->guest->addr_mask = 0x00fffffe;
+
     sh4->guest->data = sh4;
+    sh4->guest->offset_pc = offsetof(struct sh4_ctx, pc);
+    sh4->guest->offset_cycles = offsetof(struct sh4_ctx, run_cycles);
+    sh4->guest->offset_instrs = offsetof(struct sh4_ctx, ran_instrs);
+    sh4->guest->offset_interrupts =
+        offsetof(struct sh4_ctx, pending_interrupts);
+    sh4->guest->interrupt_check = &sh4_intc_check_pending;
+
+    sh4->guest->ctx = &sh4->ctx;
+    sh4->guest->mem = sh4->memory_if->space->base;
+    sh4->guest->space = sh4->memory_if->space;
     sh4->guest->invalid_instr = &sh4_invalid_instr;
     sh4->guest->sq_prefetch = &sh4_ccn_sq_prefetch;
     sh4->guest->sr_updated = &sh4_sr_updated;
     sh4->guest->fpscr_updated = &sh4_fpscr_updated;
-    sh4->guest->ctx = &sh4->ctx;
-    sh4->guest->mem = sh4->memory_if->space->base;
-    sh4->guest->space = sh4->memory_if->space;
-    sh4->guest->lookup_code = &sh4_dispatch_lookup_code;
-    sh4->guest->cache_code = &sh4_dispatch_cache_code;
-    sh4->guest->invalidate_code = &sh4_dispatch_invalidate_code;
-    sh4->guest->patch_edge = &sh4_dispatch_patch_edge;
-    sh4->guest->restore_edge = &sh4_dispatch_restore_edge;
     sh4->guest->r8 = &as_read8;
     sh4->guest->r16 = &as_read16;
     sh4->guest->r32 = &as_read32;
@@ -316,16 +215,8 @@ static int sh4_init(struct device *dev) {
     sh4->guest->w32 = &as_write32;
   }
 
-  {
-    sh4->frontend = sh4_frontend_create(sh4->jit);
-    sh4->frontend->data = sh4;
-    sh4->frontend->translate = &sh4_translate;
-  }
-
-  {
-    sh4->backend =
-        x64_backend_create(sh4->jit, sh4_code, sh4_code_size, sh4_stack_size);
-  }
+  sh4->frontend = sh4_frontend_create(sh4->jit);
+  sh4->backend = x64_backend_create(sh4->jit, sh4_code, sizeof(sh4_code));
 
   if (!jit_init(sh4->jit, (struct jit_guest *)sh4->guest,
                 (struct jit_frontend *)sh4->frontend,

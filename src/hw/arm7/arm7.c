@@ -2,16 +2,12 @@
 #include "hw/arm7/arm7.h"
 #include "core/log.h"
 #include "hw/aica/aica.h"
-#include "hw/arm7/x64/arm7_dispatch.h"
 #include "hw/dreamcast.h"
 #include "hw/scheduler.h"
 #include "jit/backend/x64/x64_backend.h"
-#include "jit/frontend/armv3/armv3_analyze.h"
 #include "jit/frontend/armv3/armv3_context.h"
-#include "jit/frontend/armv3/armv3_disasm.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
 #include "jit/frontend/armv3/armv3_guest.h"
-#include "jit/frontend/armv3/armv3_translate.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
@@ -107,7 +103,9 @@ static void arm7_update_pending_interrupts(struct arm7 *arm) {
   arm->ctx.pending_interrupts = arm->requested_interrupts & interrupt_mask;
 }
 
-void arm7_check_pending_interrupts(struct arm7 *arm) {
+void arm7_check_pending_interrupts(void *data) {
+  struct arm7 *arm = data;
+
   if (!arm->ctx.pending_interrupts) {
     return;
   }
@@ -149,60 +147,15 @@ void arm7_suspend(struct arm7 *arm) {
   arm->execute_if->running = 0;
 }
 
-static void arm7_translate(void *data, uint32_t addr, struct ir *ir, int flags,
-                           int *out_size) {
-  struct arm7 *arm = data;
-
-  int size;
-  armv3_analyze_block(arm->guest, addr, &flags, &size);
-
-  /* cycle check */
-  struct ir_value *remaining_cycles = ir_load_context(
-      ir, offsetof(struct armv3_context, remaining_cycles), VALUE_I32);
-  struct ir_value *done = ir_cmp_sle(ir, remaining_cycles, ir_alloc_i32(ir, 0));
-  ir_branch_true(ir, ir_alloc_ptr(ir, arm7_dispatch_leave), done);
-
-  /* interrupt check */
-  struct ir_value *pending_intr = ir_load_context(
-      ir, offsetof(struct armv3_context, pending_interrupts), VALUE_I32);
-  ir_branch_true(ir, ir_alloc_ptr(ir, arm7_dispatch_interrupt), pending_intr);
-
-  /* update remaining cycles */
-  int cycles = (size / 4) * 12;
-  remaining_cycles = ir_sub(ir, remaining_cycles, ir_alloc_i32(ir, cycles));
-  ir_store_context(ir, offsetof(struct armv3_context, remaining_cycles),
-                   remaining_cycles);
-  CHECK(cycles && size);
-
-  /* update instruction run count */
-  struct ir_value *ran_instrs = ir_load_context(
-      ir, offsetof(struct armv3_context, ran_instrs), VALUE_I64);
-  ran_instrs = ir_add(ir, ran_instrs, ir_alloc_i64(ir, size / 4));
-  ir_store_context(ir, offsetof(struct armv3_context, ran_instrs), ran_instrs);
-
-  /* emit fallbacks */
-  for (int i = 0; i < size; i += 4) {
-    uint32_t data = as_read32(arm->memory_if->space, addr + i);
-    armv3_emit_instr((struct armv3_frontend *)arm->frontend, ir, 0, addr + i,
-                     data);
-  }
-
-  ir_branch(ir, ir_alloc_ptr(ir, arm7_dispatch_dynamic));
-
-  /* return size */
-  *out_size = size;
-}
-
 static void arm7_run(struct device *dev, int64_t ns) {
   PROF_ENTER("cpu", "arm7_run");
 
   struct arm7 *arm = (struct arm7 *)dev;
+  struct jit *jit = arm->jit;
 
   static int64_t ARM7_CLOCK_FREQ = INT64_C(20000000);
   int64_t cycles = NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ);
-  arm->ctx.remaining_cycles = (int)cycles;
-  arm->ctx.ran_instrs = 0;
-  arm7_dispatch_enter(arm, &arm->ctx, arm->memory_if->space->base);
+  jit_run(arm->jit, cycles);
   prof_counter_add(COUNTER_arm7_instrs, arm->ctx.ran_instrs);
 
   PROF_LEAVE();
@@ -212,25 +165,32 @@ static int arm7_init(struct device *dev) {
   struct arm7 *arm = (struct arm7 *)dev;
   struct dreamcast *dc = arm->dc;
 
+  /* place code buffer in data segment (as opposed to allocating on the heap) to
+     keep it within 2 GB of the code segment, enabling the x64 backend to use
+     RIP-relative offsets when calling functions */
+  static uint8_t arm7_code[0x800000];
+
   /* initialize jit and its interfaces */
   arm->jit = jit_create("arm7");
 
-  { arm7_dispatch_init(arm, arm->jit, &arm->ctx, arm->memory_if->space->base); }
-
   {
     arm->guest = armv3_guest_create();
+
+    arm->guest->addr_mask = 0x007ffffc;
+    arm->guest->offset_pc = offsetof(struct armv3_context, r[15]);
+    arm->guest->offset_cycles = offsetof(struct armv3_context, run_cycles);
+    arm->guest->offset_instrs = offsetof(struct armv3_context, ran_instrs);
+    arm->guest->offset_interrupts =
+        offsetof(struct armv3_context, pending_interrupts);
     arm->guest->data = arm;
-    arm->guest->switch_mode = &arm7_switch_mode;
-    arm->guest->restore_mode = &arm7_restore_mode;
-    arm->guest->software_interrupt = &arm7_software_interrupt;
+    arm->guest->interrupt_check = &arm7_check_pending_interrupts;
+
     arm->guest->ctx = &arm->ctx;
     arm->guest->mem = arm->memory_if->space->base;
     arm->guest->space = arm->memory_if->space;
-    arm->guest->lookup_code = &arm7_dispatch_lookup_code;
-    arm->guest->cache_code = &arm7_dispatch_cache_code;
-    arm->guest->invalidate_code = &arm7_dispatch_invalidate_code;
-    arm->guest->patch_edge = &arm7_dispatch_patch_edge;
-    arm->guest->restore_edge = &arm7_dispatch_restore_edge;
+    arm->guest->switch_mode = &arm7_switch_mode;
+    arm->guest->restore_mode = &arm7_restore_mode;
+    arm->guest->software_interrupt = &arm7_software_interrupt;
     arm->guest->r8 = &as_read8;
     arm->guest->r16 = &as_read16;
     arm->guest->r32 = &as_read32;
@@ -239,18 +199,11 @@ static int arm7_init(struct device *dev) {
     arm->guest->w32 = &as_write32;
   }
 
-  {
-    arm->frontend = armv3_frontend_create(arm->jit);
-    arm->frontend->data = arm;
-    arm->frontend->translate = &arm7_translate;
-  }
+  arm->frontend = armv3_frontend_create(arm->jit);
+  arm->backend = x64_backend_create(arm->jit, arm7_code, sizeof(arm7_code));
 
-  {
-    arm->backend = x64_backend_create(arm->jit, arm7_code, arm7_code_size,
-                                      arm7_stack_size);
-  }
-
-  if (!jit_init(arm->jit, (struct jit_guest *)arm->guest, (struct jit_frontend *)arm->frontend,
+  if (!jit_init(arm->jit, (struct jit_guest *)arm->guest,
+                (struct jit_frontend *)arm->frontend,
                 (struct jit_backend *)arm->backend)) {
     return 0;
   }

@@ -1,7 +1,6 @@
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "core/assert.h"
 #include "core/profiler.h"
-#include "jit/frontend/sh4/sh4_analyze.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
@@ -22,9 +21,9 @@ static uint32_t s_fsca_table[0x20000] = {
 typedef void (*emit_cb)(struct sh4_guest *guest, struct ir *, int,
                         const struct sh4_instr *, const struct sh4_instr *);
 
-#define EMITTER(name)                                                   \
-  void sh4_emit_OP_##name(struct sh4_guest *guest, struct ir *ir, \
-                          int flags, const struct sh4_instr *i,         \
+#define EMITTER(name)                                                        \
+  void sh4_emit_OP_##name(struct sh4_guest *guest, struct ir *ir, int flags, \
+                          const struct sh4_instr *i,                         \
                           const struct sh4_instr *delay)
 
 #define SH4_INSTR(name, desc, instr_code, cycles, flags) static EMITTER(name);
@@ -66,8 +65,8 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 #define load_pr() ir_load_pr(ir)
 #define store_pr(v) ir_store_pr(ir, v)
 #define branch(addr) ir_branch_guest(guest, ir, addr)
-#define branch_false(addr, cond) ir_branch_false_guest(guest, ir, addr, cond)
-#define branch_true(addr, cond) ir_branch_true_guest(guest, ir, addr, cond)
+#define branch_false(cond, dst) ir_branch_false_guest(guest, ir, cond, dst)
+#define branch_true(cond, dst) ir_branch_true_guest(guest, ir, cond, dst)
 
 static struct ir_value *ir_load_guest(struct ir *ir, int flags,
                                       struct ir_value *addr,
@@ -215,24 +214,17 @@ static void ir_store_pr(struct ir *ir, struct ir_value *v) {
 
 static void ir_branch_guest(struct sh4_guest *guest, struct ir *ir,
                             struct ir_value *addr) {
-  ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
+  ir_branch(ir, addr);
 }
 
 static void ir_branch_false_guest(struct sh4_guest *guest, struct ir *ir,
-                                  struct ir_value *addr,
-                                  struct ir_value *cond) {
-  struct ir_value *skip = ir_alloc_str(ir, "skip_%p", addr);
-  ir_branch_true(ir, skip, cond);
-  ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
-  ir_label(ir, skip);
+                                  struct ir_value *cond, struct ir_value *dst) {
+  ir_branch_false(ir, cond, dst);
 }
 
 static void ir_branch_true_guest(struct sh4_guest *guest, struct ir *ir,
-                                 struct ir_value *addr, struct ir_value *cond) {
-  struct ir_value *skip = ir_alloc_str(ir, "skip_%p", addr);
-  ir_branch_false(ir, skip, cond);
-  ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
-  ir_label(ir, skip);
+                                 struct ir_value *cond, struct ir_value *dst) {
+  ir_branch_true(ir, cond, dst);
 }
 
 void sh4_emit_instr(struct sh4_guest *guest, struct ir *ir, int flags,
@@ -1238,7 +1230,7 @@ EMITTER(SHLR16) {
 EMITTER(BF) {
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
   struct ir_value *cond = load_t();
-  branch_false(ir_alloc_i32(ir, dest_addr), cond);
+  branch_false(cond, ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1248,7 +1240,7 @@ EMITTER(BFS) {
   struct ir_value *cond = load_t();
   emit_delay_instr();
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
-  branch_false(ir_alloc_i32(ir, dest_addr), cond);
+  branch_false(cond, ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1257,7 +1249,7 @@ EMITTER(BFS) {
 EMITTER(BT) {
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
   struct ir_value *cond = load_t();
-  branch_true(ir_alloc_i32(ir, dest_addr), cond);
+  branch_true(cond, ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1267,7 +1259,7 @@ EMITTER(BTS) {
   struct ir_value *cond = load_t();
   emit_delay_instr();
   uint32_t dest_addr = ((int8_t)i->disp * 2) + i->addr + 4;
-  branch_true(ir_alloc_i32(ir, dest_addr), cond);
+  branch_true(cond, ir_alloc_i32(ir, dest_addr));
 }
 
 // code                 cycles  t-bit
@@ -1532,17 +1524,10 @@ EMITTER(OCBWB) {}
 
 // PREF     @Rn
 EMITTER(PREF) {
-  /* check that the address is between 0xe0000000 and 0xe3ffffff */
   struct ir_value *addr = load_gpr(i->Rn, VALUE_I32);
-  struct ir_value *cond = ir_lshr(ir, addr, ir_alloc_i32(ir, 26));
-  cond = ir_cmp_ne(ir, cond, ir_alloc_i32(ir, 0x38));
-  struct ir_value *skip = ir_alloc_str(ir, "skip_%p", cond);
-  ir_branch_true(ir, skip, cond);
-
   struct ir_value *data = ir_alloc_ptr(ir, guest->data);
   struct ir_value *sq_prefetch = ir_alloc_ptr(ir, guest->sq_prefetch);
   ir_call_2(ir, sq_prefetch, data, addr);
-  ir_label(ir, skip);
 }
 
 // RTE
