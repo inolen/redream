@@ -655,11 +655,12 @@ static void x64_backend_reset(struct jit_backend *base) {
 }
 
 EMITTER(FALLBACK) {
+  struct jit_guest *guest = backend->base.jit->guest;
   void *fallback = (void *)instr->arg[0]->i64;
   uint32_t addr = instr->arg[1]->i32;
   uint32_t raw_instr = instr->arg[2]->i32;
 
-  e.mov(arg0, reinterpret_cast<uint64_t>(backend->base.jit));
+  e.mov(arg0, (uint64_t)guest);
   e.mov(arg1, addr);
   e.mov(arg2, raw_instr);
   e.call(fallback);

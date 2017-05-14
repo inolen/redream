@@ -35,13 +35,21 @@
 #define MD_MASK (1u << MD_BIT)
 
 /* FPSCR bits */
-enum {
-  RM = 0x00000003,
-  DN = 0x00040000,
-  PR = 0x00080000,
-  SZ = 0x00100000,
-  FR = 0x00200000
-};
+
+/* denormalization mode */
+#define DN_BIT 18
+/* precision mode */
+#define PR_BIT 19
+/* transfer size mode */
+#define SZ_BIT 20
+/* floating-point register bank */
+#define FR_BIT 21
+
+#define RM_MASK 0x3
+#define DN_MASK (1u << DN_BIT)
+#define PR_MASK (1u << PR_BIT)
+#define SZ_MASK (1u << SZ_BIT)
+#define FR_MASK (1u << FR_BIT)
 
 struct sh4_ctx {
   /* there are 24 32-bit general registers, r0_bank0-r7_bank0, r0_bank1-r7_bank1
@@ -89,5 +97,15 @@ struct sh4_ctx {
 
   uint8_t cache[0x2000];
 };
+
+static inline void sh4_implode_sr(struct sh4_ctx *ctx) {
+  ctx->sr &= ~(S_MASK | T_MASK);
+  ctx->sr |= (ctx->sr_s << S_BIT) | (ctx->sr_t << T_BIT);
+}
+
+static inline void sh4_explode_sr(struct sh4_ctx *ctx) {
+  ctx->sr_t = (ctx->sr & T_MASK) >> T_BIT;
+  ctx->sr_s = (ctx->sr & S_MASK) >> S_BIT;
+}
 
 #endif

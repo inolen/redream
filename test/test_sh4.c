@@ -108,7 +108,7 @@ static void run_sh4_test(struct dreamcast *dc, const struct sh4_test *test) {
   }
 
   /* ensure sh4 sr is up to date before testing against it */
-  sh4_implode_sr(dc->sh4);
+  sh4_implode_sr(&dc->sh4->ctx);
 
   /* validate out registers */
   for (int i = 0; i < sh4_num_test_regs; i++) {

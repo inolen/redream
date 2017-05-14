@@ -3,11 +3,10 @@
 #include "core/log.h"
 #include "jit/frontend/armv3/armv3_disasm.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
+#include "jit/frontend/armv3/armv3_guest.h"
 
-void armv3_analyze_block(const struct jit *jit, uint32_t addr, int *flags,
+void armv3_analyze_block(const struct armv3_guest *guest, uint32_t addr, int *flags,
                          int *size) {
-  const struct jit_guest *guest = jit->guest;
-
   *size = 0;
 
   while (1) {
