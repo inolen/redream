@@ -5,12 +5,15 @@
 
 struct ir;
 struct jit;
+struct jit_block;
 struct jit_frontend;
 
 struct jit_frontend {
   struct jit *jit;
-  void (*translate_code)(struct jit_frontend *base, uint32_t addr,
-                         struct ir *ir, int fastmem, int *size);
+
+  void (*init)(struct jit_frontend *base);
+  void (*translate_code)(struct jit_frontend *base, struct jit_block *block,
+                         struct ir *ir);
   void (*dump_code)(struct jit_frontend *base, uint32_t addr, int size);
 };
 

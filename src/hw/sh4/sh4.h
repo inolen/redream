@@ -79,7 +79,7 @@ void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 void sh4_dmac_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
 
 void sh4_intc_update_pending(struct sh4 *sh4);
-int sh4_intc_check_pending(struct sh4 *sh4);
+void sh4_intc_check_pending(void *data);
 void sh4_intc_reprioritize(struct sh4 *sh4);
 
 struct sh4 *sh4_create(struct dreamcast *dc);

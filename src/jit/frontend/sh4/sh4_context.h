@@ -90,10 +90,10 @@ struct sh4_ctx {
   uint32_t sq[2][8];
 
   /* the main dispatch loop is ran until remaining_cycles is <= 0 */
-  int32_t remaining_cycles;
+  int32_t run_cycles;
 
   /* debug information */
-  int64_t ran_instrs;
+  int32_t ran_instrs;
 
   uint8_t cache[0x2000];
 };

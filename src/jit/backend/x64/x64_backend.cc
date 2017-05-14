@@ -1,9 +1,4 @@
-#include <capstone.h>
-#include <inttypes.h>
-
-#define XBYAK_NO_OP_NAMES
-#include <xbyak/xbyak.h>
-#include <xbyak/xbyak_util.h>
+#include "jit/backend/x64/x64_local.h"
 
 extern "C" {
 #include "core/profiler.h"
@@ -134,38 +129,6 @@ static x64_emit_cb x64_backend_emitters[NUM_OPS];
                      const struct ir_instr *instr)
 
 #define USE_AVX backend->use_avx
-
-/* xmm constants. SSE / AVX provides no support for loading a constant into an
-   xmm register, so instead frequently used constants are emitted to the code
-   buffer and used as memory operand */
-enum xmm_constant {
-  XMM_CONST_ABS_MASK_PS,
-  XMM_CONST_ABS_MASK_PD,
-  XMM_CONST_SIGN_MASK_PS,
-  XMM_CONST_SIGN_MASK_PD,
-  NUM_XMM_CONST,
-};
-
-struct x64_backend {
-  struct jit_backend base;
-
-  void *code;
-  int code_size;
-  int stack_size;
-  Xbyak::CodeGenerator *codegen;
-
-  int use_avx;
-
-  Xbyak::Label xmm_const[NUM_XMM_CONST];
-  void (*load_thunk[16])();
-  void (*store_thunk)();
-  int num_temps;
-
-  /* debug stats */
-  csh capstone_handle;
-  struct ir_instr *last_op;
-  void *last_op_begin;
-};
 
 static const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
                                         const struct ir_value *v) {
@@ -426,14 +389,41 @@ static void x64_backend_emit_stats(struct x64_backend *backend,
   backend->last_op_begin = curr;
 }
 
-static void *x64_backend_emit(struct x64_backend *backend, struct ir *ir,
-                              int *size) {
+static void x64_backend_emit_epilogue(struct x64_backend *backend,
+                                      struct jit_block *block) {}
+
+static void x64_backend_emit_prologue(struct x64_backend *backend,
+                                      struct jit_block *block) {
+  struct jit *jit = backend->base.jit;
+  struct jit_guest *guest = jit->guest;
+
+  auto &e = *backend->codegen;
+
+  /* yield control once remaining cycles are executed */
+  e.mov(e.eax, e.dword[e.r14 + guest->offset_cycles]);
+  e.test(e.eax, e.eax);
+  e.js(backend->dispatch_exit);
+
+  /* handle pending interrupts */
+  e.mov(e.rax, e.qword[e.r14 + guest->offset_interrupts]);
+  e.test(e.rax, e.rax);
+  e.jnz(backend->dispatch_interrupt);
+
+  /* update run counts */
+  e.sub(e.dword[e.r14 + guest->offset_cycles], block->num_cycles);
+  e.add(e.dword[e.r14 + guest->offset_instrs], block->num_instrs);
+}
+
+static void *x64_backend_emit(struct x64_backend *backend,
+                              struct jit_block *block, struct ir *ir) {
   auto &e = *backend->codegen;
   void *code = (void *)backend->codegen->getCurr();
 
-  CHECK_LT(ir->locals_size, backend->stack_size);
+  CHECK_LT(ir->locals_size, X64_STACK_SIZE);
 
   e.inLocalLabel();
+
+  x64_backend_emit_prologue(backend, block);
 
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
     char block_label[128];
@@ -457,9 +447,12 @@ static void *x64_backend_emit(struct x64_backend *backend, struct ir *ir,
     }
   }
 
+  x64_backend_emit_epilogue(backend, block);
+
   e.outLocalLabel();
 
-  *size = (int)((uint8_t *)backend->codegen->getCurr() - (uint8_t *)code);
+  block->host_size =
+      (int)((uint8_t *)backend->codegen->getCurr() - (uint8_t *)code);
 
   /* flush stats for last op */
   x64_backend_emit_stats(backend, NULL);
@@ -497,6 +490,10 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
 static void x64_backend_emit_constants(struct x64_backend *backend) {
   auto &e = *backend->codegen;
+
+  /* xmm constants. SSE / AVX provides no support for loading a constant into an
+     xmm register, so instead frequently used constants are emitted to the code
+     buffer and used as memory operands */
 
   e.align(32);
   e.L(backend->xmm_const[XMM_CONST_ABS_MASK_PS]);
@@ -622,27 +619,27 @@ static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *code,
   cs_free(insns, count);
 }
 
-static void *x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
-                                       int *size) {
+static int x64_backend_assemble_code(struct jit_backend *base,
+                                     struct jit_block *block, struct ir *ir) {
   PROF_ENTER("cpu", "x64_backend_assemble_code");
 
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
+  int res = 1;
 
   /* try to generate the x64 code. if the code buffer overflows let the backend
      know so it can reset the cache and try again */
-  void *code = NULL;
-
   try {
-    code = x64_backend_emit(backend, ir, size);
+    block->host_addr = x64_backend_emit(backend, block, ir);
   } catch (const Xbyak::Error &e) {
     if (e != Xbyak::ERR_CODE_IS_TOO_BIG) {
       LOG_FATAL("X64 codegen failure, %s", e.what());
     }
+    res = 0;
   }
 
   PROF_LEAVE();
 
-  return code;
+  return res;
 }
 
 static void x64_backend_reset(struct jit_backend *base) {
@@ -650,6 +647,7 @@ static void x64_backend_reset(struct jit_backend *base) {
 
   backend->codegen->reset();
 
+  x64_dispatch_emit_thunks(backend);
   x64_backend_emit_thunks(backend);
   x64_backend_emit_constants(backend);
 }
@@ -1539,55 +1537,66 @@ EMITTER(LSHD) {
   e.outLocalLabel();
 }
 
-EMITTER(LABEL) {
-  char name[128];
-  x64_backend_label_name(name, sizeof(name), instr->arg[0]);
-  e.L(name);
-}
-
 EMITTER(BRANCH) {
-  if (instr->arg[0]->type == VALUE_BLOCK) {
-    char name[128];
-    x64_backend_block_label(name, sizeof(name), instr->arg[0]->blk);
-    e.jmp(name);
-  } else if (instr->arg[0]->type == VALUE_STRING) {
-    char name[128];
-    x64_backend_label_name(name, sizeof(name), instr->arg[0]);
-    e.jmp(name);
+  struct jit_guest *guest = backend->base.jit->guest;
+
+  if (ir_is_constant(instr->arg[0])) {
+    uint32_t branch_addr = instr->arg[0]->i32;
+    e.mov(e.dword[e.r14 + guest->offset_pc], branch_addr);
+    e.call(backend->dispatch_static);
   } else {
-    void *dst = (void *)instr->arg[0]->i64;
-    e.jmp(dst);
+    const Xbyak::Reg branch_addr = x64_backend_reg(backend, instr->arg[0]);
+    e.mov(e.dword[e.r14 + guest->offset_pc], branch_addr);
+    e.jmp(backend->dispatch_dynamic);
   }
 }
 
 EMITTER(BRANCH_FALSE) {
+  struct jit_guest *guest = backend->base.jit->guest;
+
+  e.inLocalLabel();
+
   const Xbyak::Reg cond = x64_backend_reg(backend, instr->arg[1]);
-
   e.test(cond, cond);
+  e.jnz(".next");
 
-  if (instr->arg[0]->type == VALUE_STRING) {
-    char name[128];
-    x64_backend_label_name(name, sizeof(name), instr->arg[0]);
-    e.jz(name);
+  if (ir_is_constant(instr->arg[0])) {
+    uint32_t branch_addr = instr->arg[0]->i32;
+    e.mov(e.dword[e.r14 + guest->offset_pc], branch_addr);
+    e.call(backend->dispatch_static);
   } else {
-    void *dst = (void *)instr->arg[0]->i64;
-    e.jz(dst);
+    const Xbyak::Reg branch_addr = x64_backend_reg(backend, instr->arg[0]);
+    e.mov(e.dword[e.r14 + guest->offset_pc], branch_addr);
+    e.jmp(backend->dispatch_dynamic);
   }
+
+  e.L(".next");
+
+  e.outLocalLabel();
 }
 
 EMITTER(BRANCH_TRUE) {
+  struct jit_guest *guest = backend->base.jit->guest;
+
+  e.inLocalLabel();
+
   const Xbyak::Reg cond = x64_backend_reg(backend, instr->arg[1]);
-
   e.test(cond, cond);
+  e.jz(".next");
 
-  if (instr->arg[0]->type == VALUE_STRING) {
-    char name[128];
-    x64_backend_label_name(name, sizeof(name), instr->arg[0]);
-    e.jnz(name);
+  if (ir_is_constant(instr->arg[0])) {
+    uint32_t branch_addr = instr->arg[0]->i32;
+    e.mov(e.dword[e.r14 + guest->offset_pc], branch_addr);
+    e.call(backend->dispatch_static);
   } else {
-    void *dst = (void *)instr->arg[0]->i64;
-    e.jnz(dst);
+    const Xbyak::Reg branch_addr = x64_backend_reg(backend, instr->arg[0]);
+    e.mov(e.dword[e.r14 + guest->offset_pc], branch_addr);
+    e.jmp(backend->dispatch_dynamic);
   }
+
+  e.L(".next");
+
+  e.outLocalLabel();
 }
 
 EMITTER(CALL) {
@@ -1624,21 +1633,34 @@ EMITTER(ASSERT_LT) {
   e.outLocalLabel();
 }
 
+static void x64_backend_init(struct jit_backend *base) {
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
+  x64_dispatch_init(backend);
+}
+
 void x64_backend_destroy(struct x64_backend *backend) {
   cs_close(&backend->capstone_handle);
 
   delete backend->codegen;
 
+  x64_dispatch_shutdown(backend);
+
   free(backend);
 }
 
 struct x64_backend *x64_backend_create(struct jit *jit, void *code,
-                                       int code_size, int stack_size) {
+                                       int code_size) {
   struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
       calloc(1, sizeof(struct x64_backend)));
   Xbyak::util::Cpu cpu;
 
+  CHECK(Xbyak::CodeArray::protect(code, code_size, true));
+
   backend->base.jit = jit;
+  backend->base.init = &x64_backend_init;
+
+  /* compile interface */
   backend->base.registers = x64_registers;
   backend->base.num_registers = array_size(x64_registers);
   backend->base.reset = &x64_backend_reset;
@@ -1646,17 +1668,19 @@ struct x64_backend *x64_backend_create(struct jit *jit, void *code,
   backend->base.dump_code = &x64_backend_dump_code;
   backend->base.handle_exception = &x64_backend_handle_exception;
 
-  backend->code = code;
-  backend->code_size = code_size;
-  backend->stack_size = stack_size;
+  /* dispatch interface */
+  backend->base.run_code = &x64_dispatch_run_code;
+  backend->base.lookup_code = &x64_dispatch_lookup_code;
+  backend->base.cache_code = &x64_dispatch_cache_code;
+  backend->base.invalidate_code = &x64_dispatch_invalidate_code;
+  backend->base.patch_edge = &x64_dispatch_patch_edge;
+  backend->base.restore_edge = &x64_dispatch_restore_edge;
+
   backend->codegen = new Xbyak::CodeGenerator(code_size, code);
   backend->use_avx = cpu.has(Xbyak::util::Cpu::tAVX2);
 
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
-
-  /* do an initial reset to emit constants and thunks */
-  x64_backend_reset((jit_backend *)backend);
 
   return backend;
 }

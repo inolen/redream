@@ -18,9 +18,11 @@ void sh4_intc_update_pending(struct sh4 *sh4) {
   sh4->ctx.pending_interrupts = sh4->requested_interrupts & priority_mask;
 }
 
-int sh4_intc_check_pending(struct sh4 *sh4) {
+void sh4_intc_check_pending(void *data) {
+  struct sh4 *sh4 = data;
+
   if (!sh4->ctx.pending_interrupts) {
-    return 0;
+    return;
   }
 
   /* process the highest priority in the pending vector */
@@ -38,8 +40,6 @@ int sh4_intc_check_pending(struct sh4 *sh4) {
   sh4->ctx.sr |= (BL_MASK | MD_MASK | RB_MASK);
   sh4->ctx.pc = sh4->ctx.vbr + 0x600;
   sh4_sr_updated(sh4, sh4->ctx.ssr);
-
-  return 1;
 }
 
 /* generate a sorted set of interrupts based on their priority. these sorted

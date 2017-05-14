@@ -20,41 +20,6 @@
 
 DEFINE_OPTION_INT(perf, 0, "Generate perf-compatible maps for genrated code");
 
-struct jit_block {
-  /* address of source block in guest memory */
-  uint32_t guest_addr;
-
-  /* address of compiled block in host memory */
-  void *host_addr;
-  int host_size;
-
-  /* compile with fastmem support */
-  int fastmem;
-
-  /* edges to other blocks */
-  struct list in_edges;
-  struct list out_edges;
-
-  /* lookup map iterators */
-  struct rb_node it;
-  struct rb_node rit;
-};
-
-struct jit_edge {
-  struct jit_block *src;
-  struct jit_block *dst;
-
-  /* location of branch instruction in host memory */
-  void *branch;
-
-  /* has this branch been patched */
-  int patched;
-
-  /* iterators for edge lists */
-  struct list_node in_it;
-  struct list_node out_it;
-};
-
 static int block_map_cmp(const struct rb_node *rb_lhs,
                          const struct rb_node *rb_rhs) {
   const struct jit_block *lhs =
@@ -130,7 +95,7 @@ static struct jit_block *jit_lookup_block_reverse(struct jit *jit,
 }
 
 static int jit_is_stale(struct jit *jit, struct jit_block *block) {
-  void *code = jit->guest->lookup_code(block->guest_addr);
+  void *code = jit->backend->lookup_code(jit->backend, block->guest_addr);
   return code != block->host_addr;
 }
 
@@ -142,7 +107,8 @@ static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
   list_for_each_entry(edge, &block->in_edges, struct jit_edge, in_it) {
     if (!edge->patched) {
       edge->patched = 1;
-      jit->guest->patch_edge(edge->branch, edge->dst->host_addr);
+      jit->backend->patch_edge(jit->backend, edge->branch,
+                               edge->dst->host_addr);
     }
   }
 
@@ -150,7 +116,8 @@ static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
   list_for_each_entry(edge, &block->out_edges, struct jit_edge, out_it) {
     if (!edge->patched) {
       edge->patched = 1;
-      jit->guest->patch_edge(edge->branch, edge->dst->host_addr);
+      jit->backend->patch_edge(jit->backend, edge->branch,
+                               edge->dst->host_addr);
     }
   }
 
@@ -164,7 +131,8 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
   list_for_each_entry(edge, &block->in_edges, struct jit_edge, in_it) {
     if (edge->patched) {
       edge->patched = 0;
-      jit->guest->restore_edge(edge->branch, edge->dst->guest_addr);
+      jit->backend->restore_edge(jit->backend, edge->branch,
+                                 edge->dst->guest_addr);
     }
   }
 
@@ -172,7 +140,7 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_invalidate_block(struct jit *jit, struct jit_block *block) {
-  jit->guest->invalidate_code(block->guest_addr);
+  jit->backend->invalidate_code(jit->backend, block->guest_addr);
 
   jit_restore_edges(jit, block);
 
@@ -190,7 +158,7 @@ static void jit_invalidate_block(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_cache_block(struct jit *jit, struct jit_block *block) {
-  jit->guest->cache_code(block->guest_addr, block->host_addr);
+  jit->backend->cache_code(jit->backend, block->guest_addr, block->host_addr);
 
   CHECK(list_empty(&block->in_edges));
   CHECK(list_empty(&block->out_edges));
@@ -205,20 +173,27 @@ static void jit_free_block(struct jit *jit, struct jit_block *block) {
   free(block);
 }
 
-static struct jit_block *jit_alloc_block(struct jit *jit, uint32_t guest_addr,
-                                         void *host_addr, int host_size,
-                                         int fastmem) {
-  struct jit_block *block = calloc(1, sizeof(struct jit_block));
-  block->guest_addr = guest_addr;
-  block->host_addr = host_addr;
-  block->host_size = host_size;
-  block->fastmem = fastmem;
+static void jit_finalize_block(struct jit *jit, struct jit_block *block) {
+  CHECK(list_empty(&block->in_edges) && list_empty(&block->out_edges),
+        "code shouldn't have any existing edges");
+  CHECK(rb_empty_node(&block->it) && rb_empty_node(&block->rit),
+        "code was already inserted in lookup tables");
+
+  jit_cache_block(jit, block);
 
   rb_insert(&jit->blocks, &block->it, &block_map_cb);
   rb_insert(&jit->reverse_blocks, &block->rit, &reverse_block_map_cb);
 
-  jit_cache_block(jit, block);
+  /* write out to perf map if enabled */
+  if (OPTION_perf) {
+    fprintf(jit->perf_map, "%" PRIxPTR " %x %s_0x%08x\n",
+            (uintptr_t)block->host_addr, block->host_size, jit->tag,
+            block->guest_addr);
+  }
+}
 
+static struct jit_block *jit_alloc_block(struct jit *jit) {
+  struct jit_block *block = calloc(1, sizeof(struct jit_block));
   return block;
 }
 
@@ -322,14 +297,15 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
     jit_free_block(jit, existing);
   }
 
+  struct jit_block *block = jit_alloc_block(jit);
+  block->guest_addr = guest_addr;
+  block->fastmem = fastmem;
+
   /* translate the source machine code into ir */
   struct ir ir = {0};
   ir.buffer = jit->ir_buffer;
   ir.capacity = sizeof(jit->ir_buffer);
-
-  int guest_size;
-  jit->frontend->translate_code(jit->frontend, guest_addr, &ir, fastmem,
-                                &guest_size);
+  jit->frontend->translate_code(jit->frontend, block, &ir);
 
   /* dump unoptimized block */
   if (jit->dump_blocks) {
@@ -344,19 +320,10 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   ra_run(jit->ra, &ir);
 
   /* assemble the ir into native code */
-  int host_size = 0;
-  uint8_t *host_addr =
-      jit->backend->assemble_code(jit->backend, &ir, &host_size);
+  int res = jit->backend->assemble_code(jit->backend, block, &ir);
 
-  if (host_addr) {
-    /* cache the compiled code */
-    struct jit_block *block =
-        jit_alloc_block(jit, guest_addr, host_addr, host_size, fastmem);
-
-    if (OPTION_perf) {
-      fprintf(jit->perf_map, "%" PRIxPTR " %x %s_0x%08x\n",
-              (uintptr_t)host_addr, host_size, jit->tag, guest_addr);
-    }
+  if (res) {
+    jit_finalize_block(jit, block);
   } else {
     /* if the backend overflowed, completely free the cache and let dispatch
        try to compile again */
@@ -392,6 +359,10 @@ static int jit_handle_exception(void *data, struct exception *ex) {
   return 1;
 }
 
+void jit_run(struct jit *jit, int32_t cycles) {
+  jit->backend->run_code(jit->backend, cycles);
+}
+
 int jit_init(struct jit *jit, struct jit_guest *guest,
              struct jit_frontend *frontend, struct jit_backend *backend) {
   jit->guest = guest;
@@ -415,6 +386,9 @@ int jit_init(struct jit *jit, struct jit_guest *guest,
     CHECK_NOTNULL(jit->perf_map);
 #endif
   }
+
+  jit->frontend->init(jit->frontend);
+  jit->backend->init(jit->backend);
 
   return 1;
 }
