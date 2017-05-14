@@ -10,6 +10,7 @@
 #include "jit/frontend/armv3/armv3_context.h"
 #include "jit/frontend/armv3/armv3_disasm.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
+#include "jit/frontend/armv3/armv3_guest.h"
 #include "jit/frontend/armv3/armv3_translate.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
@@ -24,7 +25,7 @@ struct arm7 {
 
   /* jit */
   struct jit *jit;
-  struct jit_guest guest;
+  struct armv3_guest *guest;
   struct armv3_frontend *frontend;
   struct x64_backend *backend;
 
@@ -153,7 +154,7 @@ static void arm7_translate(void *data, uint32_t addr, struct ir *ir, int flags,
   struct arm7 *arm = data;
 
   int size;
-  armv3_analyze_block(arm->jit, addr, &flags, &size);
+  armv3_analyze_block(arm->guest, addr, &flags, &size);
 
   /* cycle check */
   struct ir_value *remaining_cycles = ir_load_context(
@@ -217,34 +218,31 @@ static int arm7_init(struct device *dev) {
   { arm7_dispatch_init(arm, arm->jit, &arm->ctx, arm->memory_if->space->base); }
 
   {
-    arm->guest.ctx = &arm->ctx;
-    arm->guest.mem = arm->memory_if->space->base;
-    arm->guest.space = arm->memory_if->space;
-    arm->guest.lookup_code = &arm7_dispatch_lookup_code;
-    arm->guest.cache_code = &arm7_dispatch_cache_code;
-    arm->guest.invalidate_code = &arm7_dispatch_invalidate_code;
-    arm->guest.patch_edge = &arm7_dispatch_patch_edge;
-    arm->guest.restore_edge = &arm7_dispatch_restore_edge;
-    arm->guest.r8 = &as_read8;
-    arm->guest.r16 = &as_read16;
-    arm->guest.r32 = &as_read32;
-    arm->guest.w8 = &as_write8;
-    arm->guest.w16 = &as_write16;
-    arm->guest.w32 = &as_write32;
+    arm->guest = armv3_guest_create();
+    arm->guest->data = arm;
+    arm->guest->switch_mode = &arm7_switch_mode;
+    arm->guest->restore_mode = &arm7_restore_mode;
+    arm->guest->software_interrupt = &arm7_software_interrupt;
+    arm->guest->ctx = &arm->ctx;
+    arm->guest->mem = arm->memory_if->space->base;
+    arm->guest->space = arm->memory_if->space;
+    arm->guest->lookup_code = &arm7_dispatch_lookup_code;
+    arm->guest->cache_code = &arm7_dispatch_cache_code;
+    arm->guest->invalidate_code = &arm7_dispatch_invalidate_code;
+    arm->guest->patch_edge = &arm7_dispatch_patch_edge;
+    arm->guest->restore_edge = &arm7_dispatch_restore_edge;
+    arm->guest->r8 = &as_read8;
+    arm->guest->r16 = &as_read16;
+    arm->guest->r32 = &as_read32;
+    arm->guest->w8 = &as_write8;
+    arm->guest->w16 = &as_write16;
+    arm->guest->w32 = &as_write32;
   }
 
   {
     arm->frontend = armv3_frontend_create(arm->jit);
-
-    if (!arm->frontend) {
-      return 0;
-    }
-
     arm->frontend->data = arm;
     arm->frontend->translate = &arm7_translate;
-    arm->frontend->switch_mode = &arm7_switch_mode;
-    arm->frontend->restore_mode = &arm7_restore_mode;
-    arm->frontend->software_interrupt = &arm7_software_interrupt;
   }
 
   {
@@ -252,7 +250,7 @@ static int arm7_init(struct device *dev) {
                                       arm7_stack_size);
   }
 
-  if (!jit_init(arm->jit, &arm->guest, (struct jit_frontend *)arm->frontend,
+  if (!jit_init(arm->jit, (struct jit_guest *)arm->guest, (struct jit_frontend *)arm->frontend,
                 (struct jit_backend *)arm->backend)) {
     return 0;
   }
@@ -263,17 +261,10 @@ static int arm7_init(struct device *dev) {
 }
 
 void arm7_destroy(struct arm7 *arm) {
-  if (arm->jit) {
-    jit_destroy(arm->jit);
-  }
-
-  if (arm->backend) {
-    x64_backend_destroy(arm->backend);
-  }
-
-  if (arm->frontend) {
-    armv3_frontend_destroy(arm->frontend);
-  }
+  jit_destroy(arm->jit);
+  armv3_frontend_destroy(arm->frontend);
+  x64_backend_destroy(arm->backend);
+  armv3_guest_destroy(arm->guest);
 
   dc_destroy_memory_interface(arm->memory_if);
   dc_destroy_execute_interface(arm->execute_if);

@@ -7,6 +7,13 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
+/*
+ * fsca estimate lookup table, used by the jit and interpreter
+ */
+uint32_t sh4_fsca_table[0x20000] = {
+#include "jit/frontend/sh4/sh4_fsca.inc"
+};
+
 static void sh4_frontend_translate_code(struct jit_frontend *base,
                                         uint32_t addr, struct ir *ir,
                                         int fastmem, int *size) {

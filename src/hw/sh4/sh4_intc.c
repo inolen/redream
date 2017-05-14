@@ -29,7 +29,7 @@ int sh4_intc_check_pending(struct sh4 *sh4) {
   struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
 
   /* ensure sr is up to date */
-  sh4_implode_sr(sh4);
+  sh4_implode_sr(&sh4->ctx);
 
   *sh4->INTEVT = int_info->intevt;
   sh4->ctx.ssr = sh4->ctx.sr;

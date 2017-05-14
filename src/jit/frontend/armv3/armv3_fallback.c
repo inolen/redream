@@ -4,11 +4,11 @@
 #include "core/math.h"
 #include "jit/frontend/armv3/armv3_context.h"
 #include "jit/frontend/armv3/armv3_disasm.h"
-#include "jit/frontend/armv3/armv3_frontend.h"
+#include "jit/frontend/armv3/armv3_guest.h"
 
 /* forward declare each fallback */
-#define ARMV3_INSTR(name, desc, sig, cycles, flags)                 \
-  static void armv3_fallback_##name(struct jit *jit, uint32_t addr, \
+#define ARMV3_INSTR(name, desc, sig, cycles, flags)                           \
+  static void armv3_fallback_##name(struct armv3_guest *guest, uint32_t addr, \
                                     union armv3_instr i);
 #include "armv3_instr.inc"
 #undef ARMV3_INSTR
@@ -22,11 +22,11 @@ void *fallbacks[NUM_ARMV3_OPS] = {
 };
 
 /* helper functions / macros for writing fallbacks */
-#define FALLBACK(op) \
-  void armv3_fallback_##op(struct jit *jit, uint32_t addr, union armv3_instr i)
+#define FALLBACK(op)                                                 \
+  void armv3_fallback_##op(struct armv3_guest *guest, uint32_t addr, \
+                           union armv3_instr i)
 
-#define CTX ((struct armv3_context *)jit->guest->ctx)
-#define FRONTEND ((struct armv3_frontend *)jit->frontend)
+#define CTX ((struct armv3_context *)guest->ctx)
 #define REG(n) (CTX->r[n])
 #define MODE() (CTX->r[CPSR] & M_MASK)
 
@@ -235,7 +235,7 @@ FALLBACK(BL) {
   if (i.data.s) {                                         \
     armv3_fallback_update_flags_logical(CTX, res, carry); \
     if (i.data.rd == 15) {                                \
-      FRONTEND->restore_mode(FRONTEND->data);             \
+      guest->restore_mode(guest->data);                   \
     }                                                     \
   }
 
@@ -243,7 +243,7 @@ FALLBACK(BL) {
   if (i.data.s) {                                        \
     armv3_fallback_update_flags_sub(CTX, lhs, rhs, res); \
     if (i.data.rd == 15) {                               \
-      FRONTEND->restore_mode(FRONTEND->data);            \
+      guest->restore_mode(guest->data);                  \
     }                                                    \
   }
 
@@ -251,7 +251,7 @@ FALLBACK(BL) {
   if (i.data.s) {                                        \
     armv3_fallback_update_flags_add(CTX, lhs, rhs, res); \
     if (i.data.rd == 15) {                               \
-      FRONTEND->restore_mode(FRONTEND->data);            \
+      guest->restore_mode(guest->data);                  \
     }                                                    \
   }
 
@@ -555,7 +555,7 @@ FALLBACK(MSR) {
       newsr = (newsr & 0xf0000000) | (oldsr & 0x0fffffff);
     }
 
-    FRONTEND->switch_mode(FRONTEND->data, newsr);
+    guest->switch_mode(guest->data, newsr);
   }
 
   REG(15) = addr + 4;
@@ -607,10 +607,8 @@ FALLBACK(MLA) {
 /*
  * single data transfer
  */
-static inline void armv3_fallback_memop(struct jit *jit, uint32_t addr,
-                                        union armv3_instr i) {
-  struct jit_guest *guest = jit->guest;
-
+static inline void armv3_fallback_memop(struct armv3_guest *guest,
+                                        uint32_t addr, union armv3_instr i) {
   CHECK_COND();
 
   /* parse offset */
@@ -660,19 +658,17 @@ static inline void armv3_fallback_memop(struct jit *jit, uint32_t addr,
 }
 
 FALLBACK(LDR) {
-  armv3_fallback_memop(jit, addr, i);
+  armv3_fallback_memop(guest, addr, i);
 }
 
 FALLBACK(STR) {
-  armv3_fallback_memop(jit, addr, i);
+  armv3_fallback_memop(guest, addr, i);
 }
 
 /*
  * block data transfer
  */
 FALLBACK(LDM) {
-  struct jit_guest *guest = jit->guest;
-
   CHECK_COND();
 
   uint32_t base = LOAD_RN(i.blk.rn);
@@ -716,13 +712,11 @@ FALLBACK(LDM) {
 
   if ((i.blk.rlist & 0x8000) && i.blk.s) {
     /* move SPSR into CPSR */
-    FRONTEND->restore_mode(FRONTEND->data);
+    guest->restore_mode(guest->data);
   }
 }
 
 FALLBACK(STM) {
-  struct jit_guest *guest = jit->guest;
-
   CHECK_COND();
 
   uint32_t base = LOAD_RN(i.blk.rn);
@@ -778,8 +772,6 @@ FALLBACK(STM) {
  * single data swap
  */
 FALLBACK(SWP) {
-  struct jit_guest *guest = jit->guest;
-
   CHECK_COND();
 
   uint32_t ea = REG(i.swp.rn);
@@ -806,7 +798,7 @@ FALLBACK(SWI) {
   CHECK_COND();
 
   REG(15) = addr + 4;
-  FRONTEND->software_interrupt(FRONTEND->data);
+  guest->software_interrupt(guest->data);
 }
 
 void *armv3_fallback(uint32_t instr) {

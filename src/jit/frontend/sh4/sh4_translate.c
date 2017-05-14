@@ -5,6 +5,7 @@
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
+#include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
@@ -18,11 +19,11 @@ static uint32_t s_fsca_table[0x20000] = {
 /*
  * callbacks for translating each sh4 op
  */
-typedef void (*emit_cb)(struct sh4_frontend *frontend, struct ir *, int,
+typedef void (*emit_cb)(struct sh4_guest *guest, struct ir *, int,
                         const struct sh4_instr *, const struct sh4_instr *);
 
 #define EMITTER(name)                                                   \
-  void sh4_emit_OP_##name(struct sh4_frontend *frontend, struct ir *ir, \
+  void sh4_emit_OP_##name(struct sh4_guest *guest, struct ir *ir, \
                           int flags, const struct sh4_instr *i,         \
                           const struct sh4_instr *delay)
 
@@ -43,7 +44,7 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 /* swizzle 32-bit fp loads, see notes in sh4_context.h */
 #define swizzle_fpr(n, type) (ir_type_size(type) == 4 ? ((n) ^ 1) : (n))
 
-#define emit_delay_instr() sh4_emit_instr(frontend, ir, flags, delay, NULL)
+#define emit_delay_instr() sh4_emit_instr(guest, ir, flags, delay, NULL)
 #define load_guest(addr, type) ir_load_guest(ir, flags, addr, type)
 #define store_guest(addr, v) ir_store_guest(ir, flags, addr, v)
 #define load_gpr(n, type) ir_load_gpr(ir, n, type)
@@ -53,20 +54,20 @@ static emit_cb emit_callbacks[NUM_SH4_OPS] = {
 #define load_xfr(n, type) ir_load_xfr(ir, n, type)
 #define store_xfr(n, v) ir_store_xfr(ir, n, v)
 #define load_sr() ir_load_sr(ir)
-#define store_sr(v) ir_store_sr(frontend, ir, v)
+#define store_sr(v) ir_store_sr(guest, ir, v)
 #define load_t() ir_load_t(ir)
-#define store_t(v) ir_store_t(frontend, ir, v)
+#define store_t(v) ir_store_t(guest, ir, v)
 #define load_s() ir_load_s(ir)
-#define store_s(v) ir_store_s(frontend, ir, v)
+#define store_s(v) ir_store_s(guest, ir, v)
 #define load_gbr() ir_load_gbr(ir)
 #define store_gbr(v) ir_store_gbr(ir, v)
 #define load_fpscr() ir_load_fpscr(ir)
-#define store_fpscr(v) ir_store_fpscr(frontend, ir, v)
+#define store_fpscr(v) ir_store_fpscr(guest, ir, v)
 #define load_pr() ir_load_pr(ir)
 #define store_pr(v) ir_store_pr(ir, v)
-#define branch(addr) ir_branch_guest(frontend, ir, addr)
-#define branch_false(addr, cond) ir_branch_false_guest(frontend, ir, addr, cond)
-#define branch_true(addr, cond) ir_branch_true_guest(frontend, ir, addr, cond)
+#define branch(addr) ir_branch_guest(guest, ir, addr)
+#define branch_false(addr, cond) ir_branch_false_guest(guest, ir, addr, cond)
+#define branch_true(addr, cond) ir_branch_true_guest(guest, ir, addr, cond)
 
 static struct ir_value *ir_load_guest(struct ir *ir, int flags,
                                       struct ir_value *addr,
@@ -133,12 +134,12 @@ static struct ir_value *ir_load_sr(struct ir *ir) {
   return sr;
 }
 
-static void ir_store_sr(struct sh4_frontend *frontend, struct ir *ir,
+static void ir_store_sr(struct sh4_guest *guest, struct ir *ir,
                         struct ir_value *sr) {
   CHECK_EQ(sr->type, VALUE_I32);
 
-  struct ir_value *sr_updated = ir_alloc_ptr(ir, frontend->sr_updated);
-  struct ir_value *data = ir_alloc_ptr(ir, frontend->data);
+  struct ir_value *sr_updated = ir_alloc_ptr(ir, guest->sr_updated);
+  struct ir_value *data = ir_alloc_ptr(ir, guest->data);
   struct ir_value *old_sr = load_sr();
 
   ir_store_context(ir, offsetof(struct sh4_ctx, sr), sr);
@@ -158,7 +159,7 @@ static struct ir_value *ir_load_t(struct ir *ir) {
   return ir_load_context(ir, offsetof(struct sh4_ctx, sr_t), VALUE_I32);
 }
 
-static void ir_store_t(struct sh4_frontend *frontend, struct ir *ir,
+static void ir_store_t(struct sh4_guest *guest, struct ir *ir,
                        struct ir_value *v) {
   /* zext the results of ir_cmp_* */
   if (v->type != VALUE_I32) {
@@ -171,7 +172,7 @@ static struct ir_value *ir_load_s(struct ir *ir) {
   return ir_load_context(ir, offsetof(struct sh4_ctx, sr_s), VALUE_I32);
 }
 
-static void ir_store_s(struct sh4_frontend *frontend, struct ir *ir,
+static void ir_store_s(struct sh4_guest *guest, struct ir *ir,
                        struct ir_value *v) {
   CHECK_EQ(v->type, VALUE_I32);
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_s), v);
@@ -191,13 +192,13 @@ static struct ir_value *ir_load_fpscr(struct ir *ir) {
   return ir_and(ir, fpscr, ir_alloc_i32(ir, 0x003fffff));
 }
 
-static void ir_store_fpscr(struct sh4_frontend *frontend, struct ir *ir,
+static void ir_store_fpscr(struct sh4_guest *guest, struct ir *ir,
                            struct ir_value *v) {
   CHECK_EQ(v->type, VALUE_I32);
   v = ir_and(ir, v, ir_alloc_i32(ir, 0x003fffff));
 
-  struct ir_value *fpscr_updated = ir_alloc_ptr(ir, frontend->fpscr_updated);
-  struct ir_value *data = ir_alloc_ptr(ir, frontend->data);
+  struct ir_value *fpscr_updated = ir_alloc_ptr(ir, guest->fpscr_updated);
+  struct ir_value *data = ir_alloc_ptr(ir, guest->data);
   struct ir_value *old_fpscr = load_fpscr();
   ir_store_context(ir, offsetof(struct sh4_ctx, fpscr), v);
   ir_call_2(ir, fpscr_updated, data, old_fpscr);
@@ -212,12 +213,12 @@ static void ir_store_pr(struct ir *ir, struct ir_value *v) {
   ir_store_context(ir, offsetof(struct sh4_ctx, pr), v);
 }
 
-static void ir_branch_guest(struct sh4_frontend *frontend, struct ir *ir,
+static void ir_branch_guest(struct sh4_guest *guest, struct ir *ir,
                             struct ir_value *addr) {
   ir_store_context(ir, offsetof(struct sh4_ctx, pc), addr);
 }
 
-static void ir_branch_false_guest(struct sh4_frontend *frontend, struct ir *ir,
+static void ir_branch_false_guest(struct sh4_guest *guest, struct ir *ir,
                                   struct ir_value *addr,
                                   struct ir_value *cond) {
   struct ir_value *skip = ir_alloc_str(ir, "skip_%p", addr);
@@ -226,7 +227,7 @@ static void ir_branch_false_guest(struct sh4_frontend *frontend, struct ir *ir,
   ir_label(ir, skip);
 }
 
-static void ir_branch_true_guest(struct sh4_frontend *frontend, struct ir *ir,
+static void ir_branch_true_guest(struct sh4_guest *guest, struct ir *ir,
                                  struct ir_value *addr, struct ir_value *cond) {
   struct ir_value *skip = ir_alloc_str(ir, "skip_%p", addr);
   ir_branch_false(ir, skip, cond);
@@ -234,22 +235,24 @@ static void ir_branch_true_guest(struct sh4_frontend *frontend, struct ir *ir,
   ir_label(ir, skip);
 }
 
-void sh4_emit_instr(struct sh4_frontend *frontend, struct ir *ir, int flags,
+void sh4_emit_instr(struct sh4_guest *guest, struct ir *ir, int flags,
                     const struct sh4_instr *instr,
                     const struct sh4_instr *delay) {
+#if 0
   /* emit extra debug info for recc */
-  if (frontend->jit->dump_blocks) {
+  if (guest->jit->dump_blocks) {
     const char *name = sh4_opdefs[instr->op].name;
     ir_debug_info(ir, name, instr->addr, instr->opcode);
   }
+#endif
 
-  (emit_callbacks[instr->op])(frontend, ir, flags, instr, delay);
+  (emit_callbacks[instr->op])(guest, ir, flags, instr, delay);
 }
 
 // INVALID
 EMITTER(INVALID) {
-  struct ir_value *invalid_instr = ir_alloc_ptr(ir, frontend->invalid_instr);
-  struct ir_value *data = ir_alloc_ptr(ir, frontend->data);
+  struct ir_value *invalid_instr = ir_alloc_ptr(ir, guest->invalid_instr);
+  struct ir_value *data = ir_alloc_ptr(ir, guest->data);
 
   ir_call_2(ir, invalid_instr, data, ir_alloc_i32(ir, i->addr));
 }
@@ -1536,8 +1539,8 @@ EMITTER(PREF) {
   struct ir_value *skip = ir_alloc_str(ir, "skip_%p", cond);
   ir_branch_true(ir, skip, cond);
 
-  struct ir_value *data = ir_alloc_ptr(ir, frontend->data);
-  struct ir_value *sq_prefetch = ir_alloc_ptr(ir, frontend->sq_prefetch);
+  struct ir_value *data = ir_alloc_ptr(ir, guest->data);
+  struct ir_value *sq_prefetch = ir_alloc_ptr(ir, guest->sq_prefetch);
   ir_call_2(ir, sq_prefetch, data, addr);
   ir_label(ir, skip);
 }
@@ -2288,13 +2291,13 @@ EMITTER(FTRV) {
 // FRCHG 1111101111111101
 EMITTER(FRCHG) {
   struct ir_value *fpscr = load_fpscr();
-  struct ir_value *v = ir_xor(ir, fpscr, ir_alloc_i32(ir, FR));
+  struct ir_value *v = ir_xor(ir, fpscr, ir_alloc_i32(ir, FR_MASK));
   store_fpscr(v);
 }
 
 // FSCHG 1111001111111101
 EMITTER(FSCHG) {
   struct ir_value *fpscr = load_fpscr();
-  struct ir_value *v = ir_xor(ir, fpscr, ir_alloc_i32(ir, SZ));
+  struct ir_value *v = ir_xor(ir, fpscr, ir_alloc_i32(ir, SZ_MASK));
   store_fpscr(v);
 }
