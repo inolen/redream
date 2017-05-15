@@ -12,6 +12,7 @@
 #include "hw/rom/flash.h"
 #include "hw/scheduler.h"
 #include "jit/backend/x64/x64_backend.h"
+#include "jit/frontend/sh4/sh4_fallbacks.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/ir/ir.h"
@@ -138,11 +139,33 @@ static void sh4_run(struct device *dev, int64_t ns) {
   PROF_ENTER("cpu", "sh4_run");
 
   struct sh4 *sh4 = (struct sh4 *)dev;
+  struct sh4_ctx *ctx = &sh4->ctx;
   struct jit *jit = sh4->jit;
 
   int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
   cycles = MAX(cycles, INT64_C(1));
-  jit_run(sh4->jit, cycles);
+
+  int cache_enabled = sh4->CCR->ICE;
+
+  if (cache_enabled) {
+    jit_run(sh4->jit, cycles);
+  } else {
+    ctx->run_cycles = cycles;
+    ctx->ran_instrs = 0;
+
+    while (ctx->run_cycles-- > 0) {
+      sh4_intc_check_pending(sh4);
+
+      uint16_t data = as_read16(sh4->memory_if->space, ctx->pc);
+      union sh4_instr instr = {data};
+      sh4_fallback_cb cb = sh4_get_fallback(data);
+
+      cb(sh4->guest, ctx->pc, instr);
+
+      ctx->ran_instrs++;
+    }
+  }
+
   prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 
   PROF_LEAVE();

@@ -981,6 +981,10 @@ void ir_call_cond_2(struct ir *ir, struct ir_value *cond, struct ir_value *fn,
   ir_set_arg3(ir, instr, arg1);
 }
 
+void ir_flush_context(struct ir *ir) {
+  ir_append_instr(ir, OP_FLUSH_CONTEXT, VALUE_V);
+}
+
 void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,
                    uint32_t raw_instr) {
   struct ir_instr *instr = ir_append_instr(ir, OP_DEBUG_INFO, VALUE_V);

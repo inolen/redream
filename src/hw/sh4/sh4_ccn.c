@@ -25,13 +25,10 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
 void sh4_ccn_sq_prefetch(void *data, uint32_t addr) {
   PROF_ENTER("cpu", "sh4_ccn_sq_prefetch");
 
-  struct sh4 *sh4 = data;
-
   /* make sure this is a sq related prefetch */
-  // DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
-  if (!(addr >= 0xe0000000 && addr <= 0xe3ffffff))
-    return;
+  DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
 
+  struct sh4 *sh4 = data;
   uint32_t dst = addr & 0x03ffffe0;
   uint32_t sqi = (addr & 0x20) >> 5;
   if (sqi) {
@@ -82,6 +79,8 @@ REG_W32(sh4_cb, MMUCR) {
 REG_W32(sh4_cb, CCR) {
   struct sh4 *sh4 = dc->sh4;
 
+  /* TODO check for cache toggle
+  union ccr CCR_OLD = *sh4->CCR;*/
   sh4->CCR->full = value;
 
   if (sh4->CCR->ICI) {

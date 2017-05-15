@@ -405,6 +405,8 @@ void ir_call_cond_1(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
 void ir_call_cond_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
                     struct ir_value *arg1, struct ir_value *cond);
 
+void ir_flush_context(struct ir *ir);
+
 /* debug */
 void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,
                    uint32_t instr);
