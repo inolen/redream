@@ -12,7 +12,7 @@ typedef void (*sh4_translate_cb)(struct sh4_guest *, struct ir *, int, uint32_t,
 extern sh4_translate_cb sh4_translators[NUM_SH4_OPS];
 
 static inline sh4_translate_cb sh4_get_translator(uint16_t instr) {
-  return sh4_translators[sh4_op(instr)];
+  return sh4_translators[sh4_get_op(instr)];
 }
 
 #endif

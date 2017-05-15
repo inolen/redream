@@ -52,9 +52,9 @@ static void sh4_init_op_table() {
 
 void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
                 size_t buffer_size) {
-  struct sh4_opdef *def = sh4_opdef(i.raw);
+  struct sh4_opdef *def = sh4_get_opdef(i.raw);
 
-  if (!def) {
+  if (def->flags & SH4_FLAG_INVALID) {
     snprintf(buffer, buffer_size, "%08x  .word 0x%04x", addr, i.raw);
     return;
   }

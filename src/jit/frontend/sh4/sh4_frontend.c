@@ -30,22 +30,22 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
 
   while (1) {
     uint32_t data = guest->r16(guest->space, addr);
-    struct sh4_opdef *def = sh4_opdef(data);
-    int valid = def != NULL;
+    struct sh4_opdef *def = sh4_get_opdef(data);
+    int invalid = (def->flags & SH4_FLAG_INVALID) == SH4_FLAG_INVALID;
 
     addr += 2;
     block->guest_size += 2;
-    block->num_cycles += def ? def->cycles : 0;
+    block->num_cycles += def->cycles;
     block->num_instrs++;
 
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_data = guest->r16(guest->space, addr);
-      struct sh4_opdef *delay_def = sh4_opdef(delay_data);
-      valid |= delay_def != NULL;
+      struct sh4_opdef *delay_def = sh4_get_opdef(delay_data);
+      invalid |= (delay_def->flags & SH4_FLAG_INVALID) == SH4_FLAG_INVALID;
 
       addr += 2;
       block->guest_size += 2;
-      block->num_cycles += delay_def ? delay_def->cycles : 0;
+      block->num_cycles += delay_def->cycles;
       block->num_instrs++;
 
       /* delay slots can't have another delay slot */
@@ -53,7 +53,7 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
     }
 
     /* end block on invalid instruction */
-    if (!valid) {
+    if (invalid) {
       break;
     }
 
@@ -96,7 +96,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   while (addr < end) {
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
-    struct sh4_opdef *def = sh4_opdef(data);
+    struct sh4_opdef *def = sh4_get_opdef(data);
     sh4_translate_cb cb = sh4_get_translator(data);
 
     cb(guest, ir, flags, addr, instr);
@@ -126,9 +126,9 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   int ends_in_branch = tail_instr->op == OP_BRANCH;
 
   if (tail_instr->op == OP_FALLBACK) {
-    struct sh4_opdef *opdef = sh4_opdef(tail_instr->arg[2]->i32);
+    struct sh4_opdef *def = sh4_get_opdef(tail_instr->arg[2]->i32);
 
-    if (opdef->flags & SH4_FLAG_BRANCH) {
+    if (def->flags & SH4_FLAG_BRANCH) {
       ends_in_branch = 1;
     }
   }
@@ -153,7 +153,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
   while (addr < end) {
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
-    struct sh4_opdef *def = sh4_opdef(data);
+    struct sh4_opdef *def = sh4_get_opdef(data);
 
     sh4_format(addr, instr, buffer, sizeof(buffer));
     LOG_INFO(buffer);

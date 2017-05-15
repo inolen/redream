@@ -5,13 +5,14 @@
 #include <stdint.h>
 
 enum {
-  SH4_FLAG_LOAD = 0x1,
-  SH4_FLAG_STORE = 0x2,
-  SH4_FLAG_BRANCH = 0x4,
-  SH4_FLAG_CONDITIONAL = 0x8,
-  SH4_FLAG_DELAYED = 0x10,
-  SH4_FLAG_SET_FPSCR = 0x20,
-  SH4_FLAG_SET_SR = 0x40,
+  SH4_FLAG_INVALID = 0x1,
+  SH4_FLAG_LOAD = 0x2,
+  SH4_FLAG_STORE = 0x4,
+  SH4_FLAG_BRANCH = 0x8,
+  SH4_FLAG_CONDITIONAL = 0x10,
+  SH4_FLAG_DELAYED = 0x20,
+  SH4_FLAG_SET_FPSCR = 0x40,
+  SH4_FLAG_SET_SR = 0x80,
 };
 
 enum sh4_op {
@@ -66,12 +67,12 @@ union sh4_instr {
 extern int sh4_optable[UINT16_MAX + 1];
 extern struct sh4_opdef sh4_opdefs[NUM_SH4_OPS];
 
-static inline int sh4_op(uint16_t instr) {
+static inline int sh4_get_op(uint16_t instr) {
   return sh4_optable[instr];
 }
 
-static struct sh4_opdef *sh4_opdef(uint16_t instr) {
-  return &sh4_opdefs[sh4_op(instr)];
+static struct sh4_opdef *sh4_get_opdef(uint16_t instr) {
+  return &sh4_opdefs[sh4_get_op(instr)];
 }
 
 void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
