@@ -2,7 +2,7 @@
 //         NAME      DESC                            INSTR_CODE        CYCLES FLAGS
 //
 
-SH4_INSTR(INVALID,   "invalid",                      0000000000000000, 1, 0)
+SH4_INSTR(INVALID,   "invalid",                      0000000000000000, 1, SH4_FLAG_INVALID)
 
 // fixed-point transfer instructions
 SH4_INSTR(MOVI,      "mov     #imm8, rn",            1110nnnniiiiiiii, 1, 0)

@@ -153,15 +153,17 @@ static void sh4_run(struct device *dev, int64_t ns) {
     ctx->run_cycles = cycles;
     ctx->ran_instrs = 0;
 
-    while (ctx->run_cycles-- > 0) {
+    while (ctx->run_cycles > 0) {
       sh4_intc_check_pending(sh4);
 
       uint16_t data = as_read16(sh4->memory_if->space, ctx->pc);
       union sh4_instr instr = {data};
+      struct sh4_opdef *def = sh4_get_opdef(data);
       sh4_fallback_cb cb = sh4_get_fallback(data);
 
       cb(sh4->guest, ctx->pc, instr);
 
+      ctx->run_cycles -= def->cycles;
       ctx->ran_instrs++;
     }
   }
