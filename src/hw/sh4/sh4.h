@@ -51,6 +51,9 @@ struct sh4 {
   struct sh4_frontend *frontend;
   struct x64_backend *backend;
 
+  /* dbg */
+  struct list breakpoints;
+
   /* intc */
   enum sh4_interrupt sorted_interrupts[NUM_SH_INTERRUPTS];
   uint64_t sort_id[NUM_SH_INTERRUPTS];
@@ -75,6 +78,16 @@ void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 uint32_t sh4_ccn_sq_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
 void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                       uint32_t data_mask);
+
+int sh4_dbg_num_registers(struct device *dev);
+void sh4_dbg_step(struct device *dev);
+void sh4_dbg_add_breakpoint(struct device *dev, int type, uint32_t addr);
+void sh4_dbg_remove_breakpoint(struct device *dev, int type, uint32_t addr);
+void sh4_dbg_read_memory(struct device *dev, uint32_t addr, uint8_t *buffer,
+                         int size);
+void sh4_dbg_read_register(struct device *dev, int n, uint64_t *value,
+                           int *size);
+void sh4_dbg_invalid_instr(void *data, uint32_t addr);
 
 void sh4_dmac_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
 

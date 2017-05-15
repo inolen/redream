@@ -540,7 +540,8 @@ static int gdrom_init(struct device *dev) {
 }
 
 void gdrom_dma_end(struct gdrom *gd) {
-  LOG_GDROM("gd_dma_end, %d / %d read from dma buffer", gd->dma_head, gd->dma_size);
+  LOG_GDROM("gd_dma_end, %d / %d read from dma buffer", gd->dma_head,
+            gd->dma_size);
 
   if (gd->dma_head < gd->dma_size) {
     return;

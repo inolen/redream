@@ -41,19 +41,6 @@ static void sh4_swap_fpr_bank(struct sh4 *sh4) {
   }
 }
 
-static void sh4_invalid_instr(void *data, uint32_t addr) {
-  /*struct sh4 *self = reinterpret_cast<SH4 *>(ctx->sh4);
-
-  auto it = self->breakpoints.find(addr);
-  CHECK_NE(it, self->breakpoints.end());
-
-  // force the main loop to break
-  self->ctx.num_cycles = 0;
-
-  // let the debugger know execution has stopped
-  self->dc->debugger->Trap();*/
-}
-
 void sh4_sr_updated(void *data, uint32_t old_sr) {
   struct sh4 *sh4 = data;
   struct sh4_ctx *ctx = &sh4->ctx;
@@ -227,7 +214,7 @@ static int sh4_init(struct device *dev) {
     sh4->guest->ctx = &sh4->ctx;
     sh4->guest->mem = sh4->memory_if->space->base;
     sh4->guest->space = sh4->memory_if->space;
-    sh4->guest->invalid_instr = &sh4_invalid_instr;
+    sh4->guest->invalid_instr = &sh4_dbg_invalid_instr;
     sh4->guest->sq_prefetch = &sh4_ccn_sq_prefetch;
     sh4->guest->sr_updated = &sh4_sr_updated;
     sh4->guest->fpscr_updated = &sh4_fpscr_updated;
@@ -259,12 +246,16 @@ void sh4_destroy(struct sh4 *sh4) {
 
   dc_destroy_memory_interface(sh4->memory_if);
   dc_destroy_execute_interface(sh4->execute_if);
+  dc_destroy_debug_interface(sh4->debug_if);
   dc_destroy_device((struct device *)sh4);
 }
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init,
                                      &sh4_debug_menu);
+  sh4->debug_if = dc_create_debug_interface(
+      &sh4_dbg_num_registers, &sh4_dbg_step, &sh4_dbg_add_breakpoint,
+      &sh4_dbg_remove_breakpoint, &sh4_dbg_read_memory, &sh4_dbg_read_register);
   sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
   sh4->memory_if = dc_create_memory_interface(dc, &sh4_data_map);
 

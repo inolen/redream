@@ -172,6 +172,7 @@ set(REDREAM_SOURCES
   src/hw/rom/flash.c
   src/hw/sh4/sh4.c
   src/hw/sh4/sh4_ccn.c
+  src/hw/sh4/sh4_dbg.c
   src/hw/sh4/sh4_dmac.c
   src/hw/sh4/sh4_intc.c
   src/hw/sh4/sh4_tmu.c

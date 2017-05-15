@@ -15,8 +15,6 @@
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 
-DEFINE_OPTION_INT(gdb, 0, "Run gdb debug server");
-
 void dc_poll_input(struct dreamcast *dc) {
   if (!dc->poll_input) {
     return;
@@ -198,6 +196,26 @@ struct execute_interface *dc_create_execute_interface(device_run_cb run,
   return execute;
 }
 
+void dc_destroy_debug_interface(struct debug_interface *dbg) {
+  free(dbg);
+}
+
+struct debug_interface *dc_create_debug_interface(device_num_regs_cb num_regs,
+                                                  device_step_cb step,
+                                                  device_add_bp_cb add_bp,
+                                                  device_rem_bp_cb rem_bp,
+                                                  device_read_mem_cb read_mem,
+                                                  device_read_reg_cb read_reg) {
+  struct debug_interface *dbg = calloc(1, sizeof(struct debug_interface));
+  dbg->num_regs = num_regs;
+  dbg->step = step;
+  dbg->add_bp = add_bp;
+  dbg->rem_bp = rem_bp;
+  dbg->read_mem = read_mem;
+  dbg->read_reg = read_reg;
+  return dbg;
+}
+
 void dc_destroy_device(struct device *dev) {
   list_remove(&dev->dc->devices, &dev->it);
 
@@ -250,7 +268,9 @@ void dc_destroy(struct dreamcast *dc) {
 struct dreamcast *dc_create() {
   struct dreamcast *dc = calloc(1, sizeof(struct dreamcast));
 
-  dc->debugger = OPTION_gdb ? debugger_create(dc) : NULL;
+#ifndef NDEBUG
+  dc->debugger = debugger_create(dc);
+#endif
   dc->memory = memory_create(dc);
   dc->scheduler = scheduler_create(dc);
   dc->sh4 = sh4_create(dc);

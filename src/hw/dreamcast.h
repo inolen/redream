@@ -165,6 +165,14 @@ void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
+struct debug_interface *dc_create_debug_interface(device_num_regs_cb num_regs,
+                                                  device_step_cb step,
+                                                  device_add_bp_cb add_bp,
+                                                  device_rem_bp_cb rem_bp,
+                                                  device_read_mem_cb read_mem,
+                                                  device_read_reg_cb read_reg);
+void dc_destroy_debug_interface(struct debug_interface *dbg);
+
 struct execute_interface *dc_create_execute_interface(device_run_cb run,
                                                       int running);
 void dc_destroy_execute_interface(struct execute_interface *execute);
