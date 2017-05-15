@@ -21,7 +21,7 @@ static void armv3_analyze_block(const struct armv3_guest *guest,
   while (1) {
     uint32_t data = guest->r32(guest->space, addr);
     union armv3_instr i = {data};
-    struct armv3_desc *desc = armv3_disasm(i.raw);
+    struct armv3_desc *desc = armv3_get_opdesc(i.raw);
 
     addr += 4;
     block->guest_size += 4;
@@ -60,7 +60,7 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
   while (addr < end) {
     uint32_t instr = guest->r32(guest->space, addr);
 
-    void *fallback = armv3_fallback(instr);
+    armv3_fallback_cb fallback = armv3_get_fallback(instr);
     ir_fallback(ir, fallback, addr, instr);
 
     addr += 4;
