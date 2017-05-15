@@ -12,7 +12,7 @@ struct sh4_opdef sh4_opdefs[NUM_SH4_OPS] = {
 #undef SH4_INSTR
 };
 
-static void sh4_init_op_table() {
+static void sh4_disasm_init_lookup() {
   static int initialized = 0;
 
   if (initialized) {
@@ -153,5 +153,5 @@ void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
 }
 
 CONSTRUCTOR(sh4_disasm_init) {
-  sh4_init_op_table();
+  sh4_disasm_init_lookup();
 }

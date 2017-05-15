@@ -1,5 +1,5 @@
-#ifndef SH4_FALLBACKS_H
-#define SH4_FALLBACKS_H
+#ifndef SH4_FALLBACK_H
+#define SH4_FALLBACK_H
 
 #include "jit/frontend/sh4/sh4_disasm.h"
 

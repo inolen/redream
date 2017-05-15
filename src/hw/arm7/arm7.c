@@ -6,6 +6,7 @@
 #include "hw/scheduler.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/armv3/armv3_context.h"
+#include "jit/frontend/armv3/armv3_fallback.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
 #include "jit/frontend/armv3/armv3_guest.h"
 #include "jit/ir/ir.h"
@@ -151,11 +152,32 @@ static void arm7_run(struct device *dev, int64_t ns) {
   PROF_ENTER("cpu", "arm7_run");
 
   struct arm7 *arm = (struct arm7 *)dev;
+  struct armv3_context *ctx = &arm->ctx;
   struct jit *jit = arm->jit;
 
   static int64_t ARM7_CLOCK_FREQ = INT64_C(20000000);
   int64_t cycles = NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ);
-  jit_run(arm->jit, cycles);
+
+  if (1) {
+    jit_run(arm->jit, cycles);
+  } else {
+    ctx->run_cycles = cycles;
+    ctx->ran_instrs = 0;
+
+    while (ctx->run_cycles > 0) {
+      arm7_check_pending_interrupts(arm);
+
+      uint32_t data = as_read32(arm->memory_if->space, ctx->r[15]);
+      union armv3_instr instr = {data};
+      armv3_fallback_cb cb = armv3_get_fallback(data);
+
+      cb(arm->guest, ctx->r[15], instr);
+
+      ctx->run_cycles -= 8;
+      ctx->ran_instrs++;
+    }
+  }
+
   prof_counter_add(COUNTER_arm7_instrs, arm->ctx.ran_instrs);
 
   PROF_LEAVE();

@@ -14,7 +14,7 @@
 #undef ARMV3_INSTR
 
 /* generate fallback lookup table */
-void *fallbacks[NUM_ARMV3_OPS] = {
+armv3_fallback_cb armv3_fallbacks[NUM_ARMV3_OPS] = {
     NULL,
 #define ARMV3_INSTR(name, desc, sig, cycles, flags) &armv3_fallback_##name,
 #include "armv3_instr.inc"
@@ -802,6 +802,5 @@ FALLBACK(SWI) {
 }
 
 void *armv3_fallback(uint32_t instr) {
-  struct armv3_desc *desc = armv3_disasm(instr);
-  return fallbacks[desc->op];
+  return armv3_fallbacks[armv3_get_op(instr)];
 }

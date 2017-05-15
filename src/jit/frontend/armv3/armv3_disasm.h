@@ -244,7 +244,29 @@ struct armv3_desc {
   int flags;
 };
 
-struct armv3_desc *armv3_disasm(uint32_t instr);
+/* most armv3 operations can be identified from bits 20-27 of the instruction.
+   however, some operations share the same encoding in these upper bits (e.g.
+   and & mul) differentiating only by the flags in the lower bits. because of
+   this, bits 4-7 and 16-27 are needed to uniquely identify all operations */
+#define ARMV3_LOOKUP_MASK 0x0fff00f0
+#define ARMV3_LOOKUP_SIZE 0x10000
+#define ARMV3_LOOKUP_SIZE_HI 0x1000
+#define ARMV3_LOOKUP_SIZE_LO 0x10
+#define ARMV3_LOOKUP_INSTR(hi, lo) ((hi << 16) | (lo << 4))
+#define ARMV3_LOOKUP_INDEX(instr) \
+  (((instr & 0x0fff0000) >> 12) | ((instr & 0xf0) >> 4))
+
+extern int armv3_optable[ARMV3_LOOKUP_SIZE];
+extern struct armv3_desc armv3_opdescs[NUM_ARMV3_OPS];
+
+static inline int armv3_get_op(uint32_t instr) {
+  return armv3_optable[ARMV3_LOOKUP_INDEX(instr)];
+}
+
+static struct armv3_desc *armv3_get_opdesc(uint32_t instr) {
+  return &armv3_opdescs[armv3_get_op(instr)];
+}
+
 int32_t armv3_disasm_offset(uint32_t offset);
 void armv3_disasm_shift(uint32_t shift, enum armv3_shift_source *src,
                         enum armv3_shift_type *type, uint32_t *n);

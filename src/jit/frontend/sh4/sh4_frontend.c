@@ -3,7 +3,7 @@
 #include "jit/frontend/jit_frontend.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
-#include "jit/frontend/sh4/sh4_fallbacks.h"
+#include "jit/frontend/sh4/sh4_fallback.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "jit/ir/ir.h"

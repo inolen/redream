@@ -1,5 +1,5 @@
 #include <math.h>
-#include "jit/frontend/sh4/sh4_fallbacks.h"
+#include "jit/frontend/sh4/sh4_fallback.h"
 #include "core/assert.h"
 #include "core/log.h"
 #include "jit/frontend/sh4/sh4_context.h"
