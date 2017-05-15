@@ -1,38 +1,18 @@
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "core/assert.h"
+#include "core/constructor.h"
 #include "core/string.h"
 
-static struct sh4_opdef *sh4_opdef_lookup[UINT16_MAX + 1];
+int sh4_optable[UINT16_MAX + 1];
 
 struct sh4_opdef sh4_opdefs[NUM_SH4_OPS] = {
 #define SH4_INSTR(name, desc, sig, cycles, flags) \
-  {SH4_OP_##name, #name, desc, #sig, cycles, flags, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {SH4_OP_##name, #name, desc, #sig, cycles, flags},
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
 
-static void sh4_arg_mask(const char *instr_code, char c, uint16_t *mask,
-                         uint16_t *shift) {
-  size_t len = strlen(instr_code);
-  if (mask) {
-    *mask = 0;
-  }
-  if (shift) {
-    *shift = 0;
-  }
-  for (size_t i = 0; i < len; i++) {
-    if ((!c && instr_code[i] == '1') || (c && instr_code[i] == c)) {
-      if (mask) {
-        *mask |= (1 << (len - i - 1));
-      }
-      if (shift) {
-        *shift = (uint16_t)(len - i - 1);
-      }
-    }
-  }
-}
-
-static void sh4_init_opdefs() {
+static void sh4_init_op_table() {
   static int initialized = 0;
 
   if (initialized) {
@@ -41,61 +21,41 @@ static void sh4_init_opdefs() {
 
   initialized = 1;
 
-  /*
-   * finalize type information by extracting argument encoding information
-   * from signatures
-   */
-  for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
-    struct sh4_opdef *def = &sh4_opdefs[i];
+  uint16_t opcodes[NUM_SH4_OPS] = {0};
+  uint16_t opcode_masks[NUM_SH4_OPS] = {0};
 
-    sh4_arg_mask(def->sig, 'i', &def->imm_mask, &def->imm_shift);
-    sh4_arg_mask(def->sig, 'd', &def->disp_mask, &def->disp_shift);
-    sh4_arg_mask(def->sig, 'm', &def->rm_mask, &def->rm_shift);
-    sh4_arg_mask(def->sig, 'n', &def->rn_mask, &def->rn_shift);
-    sh4_arg_mask(def->sig, 0, &def->opcode_mask, NULL);
+  for (int i = 1; i < NUM_SH4_OPS; i++) {
+    struct sh4_opdef *def = &sh4_opdefs[i];
+    size_t len = strlen(def->sig);
+
+    /* 0 or 1 represents part of the opcode, anything else is a flag */
+    for (size_t j = 0; j < len; j++) {
+      char c = def->sig[len - j - 1];
+
+      if (c == '0' || c == '1') {
+        opcodes[i] |= (uint32_t)(c - '0') << j;
+        opcode_masks[i] |= (uint32_t)1 << j;
+      }
+    }
   }
 
   /* initialize lookup table */
   for (int value = 0; value <= UINT16_MAX; value++) {
     for (int i = 1 /* skip SH4_OP_INVALID */; i < NUM_SH4_OPS; i++) {
-      struct sh4_opdef *def = &sh4_opdefs[i];
-      uint16_t arg_mask =
-          def->imm_mask | def->disp_mask | def->rm_mask | def->rn_mask;
-
-      if ((value & ~arg_mask) == def->opcode_mask) {
-        sh4_opdef_lookup[value] = def;
+      if ((value & opcode_masks[i]) == opcodes[i]) {
+        sh4_optable[value] = i;
         break;
       }
     }
   }
 }
 
-int sh4_disasm(struct sh4_instr *i) {
-  sh4_init_opdefs();
-
-  struct sh4_opdef *def = sh4_opdef_lookup[i->opcode];
+void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
+                size_t buffer_size) {
+  struct sh4_opdef *def = sh4_opdef(i.raw);
 
   if (!def) {
-    i->op = SH4_OP_INVALID;
-    return 0;
-  }
-
-  i->op = def->op;
-  i->cycles = def->cycles;
-  i->flags = def->flags;
-  i->Rm = (i->opcode & def->rm_mask) >> def->rm_shift;
-  i->Rn = (i->opcode & def->rn_mask) >> def->rn_shift;
-  i->disp = (i->opcode & def->disp_mask) >> def->disp_shift;
-  i->imm = (i->opcode & def->imm_mask) >> def->imm_shift;
-
-  return 1;
-}
-
-void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size) {
-  sh4_init_opdefs();
-
-  if (i->op == SH4_OP_INVALID) {
-    snprintf(buffer, buffer_size, "%08x  .word 0x%04x", i->addr, i->opcode);
+    snprintf(buffer, buffer_size, "%08x  .word 0x%04x", addr, i.raw);
     return;
   }
 
@@ -105,7 +65,7 @@ void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size) {
   uint32_t pcmask;
 
   /* copy initial formatted description */
-  snprintf(buffer, buffer_size, "%08x  %s", i->addr, sh4_opdefs[i->op].desc);
+  snprintf(buffer, buffer_size, "%08x  %s", addr, def->desc);
 
   /* used by mov operators with displacements */
   if (strnstr(buffer, ".b", buffer_size)) {
@@ -123,70 +83,75 @@ void sh4_format(const struct sh4_instr *i, char *buffer, size_t buffer_size) {
   }
 
   /* (disp:4,rn) */
-  value_len = snprintf(value, sizeof(value), "(0x%x,rn)", i->disp * movsize);
+  value_len = snprintf(value, sizeof(value), "(0x%x,rn)", i.def.disp * movsize);
   CHECK_EQ(strnrep(buffer, buffer_size, "(disp:4,rn)", 11, value, value_len),
            0);
 
   /* (disp:4,rm) */
-  value_len = snprintf(value, sizeof(value), "(0x%x,rm)", i->disp * movsize);
+  value_len = snprintf(value, sizeof(value), "(0x%x,rm)", i.def.disp * movsize);
   CHECK_EQ(strnrep(buffer, buffer_size, "(disp:4,rm)", 11, value, value_len),
            0);
 
   /* (disp:8,gbr) */
-  value_len = snprintf(value, sizeof(value), "(0x%x,gbr)", i->disp * movsize);
+  value_len =
+      snprintf(value, sizeof(value), "(0x%x,gbr)", i.disp_8.disp * movsize);
   CHECK_EQ(strnrep(buffer, buffer_size, "(disp:8,gbr)", 12, value, value_len),
            0);
 
   /* (disp:8,pc) */
   value_len = snprintf(value, sizeof(value), "(0x%08x)",
-                       (i->disp * movsize) + (i->addr & pcmask) + 4);
+                       (i.disp_8.disp * movsize) + (addr & pcmask) + 4);
   CHECK_EQ(strnrep(buffer, buffer_size, "(disp:8,pc)", 11, value, value_len),
            0);
 
   /* disp:8 */
   value_len = snprintf(value, sizeof(value), "0x%08x",
-                       ((int8_t)i->disp * 2) + i->addr + 4);
+                       ((int8_t)i.disp_8.disp * 2) + addr + 4);
   CHECK_EQ(strnrep(buffer, buffer_size, "disp:8", 6, value, value_len), 0);
 
   /* disp:12 */
-  value_len =
-      snprintf(value, sizeof(value), "0x%08x",
-               ((((int32_t)(i->disp & 0xfff) << 20) >> 20) * 2) + i->addr + 4);
+  value_len = snprintf(
+      value, sizeof(value), "0x%08x",
+      ((((int32_t)(i.disp_12.disp & 0xfff) << 20) >> 20) * 2) + addr + 4);
   CHECK_EQ(strnrep(buffer, buffer_size, "disp:12", 7, value, value_len), 0);
 
   /* drm */
-  value_len = snprintf(value, sizeof(value), "dr%d", i->Rm);
+  value_len = snprintf(value, sizeof(value), "dr%d", i.def.rm);
   CHECK_EQ(strnrep(buffer, buffer_size, "drm", 3, value, value_len), 0);
 
   /* drn */
-  value_len = snprintf(value, sizeof(value), "dr%d", i->Rn);
+  value_len = snprintf(value, sizeof(value), "dr%d", i.def.rn);
   CHECK_EQ(strnrep(buffer, buffer_size, "drn", 3, value, value_len), 0);
 
   /* frm */
-  value_len = snprintf(value, sizeof(value), "fr%d", i->Rm);
+  value_len = snprintf(value, sizeof(value), "fr%d", i.def.rm);
   CHECK_EQ(strnrep(buffer, buffer_size, "frm", 3, value, value_len), 0);
 
   /* frn */
-  value_len = snprintf(value, sizeof(value), "fr%d", i->Rn);
+  value_len = snprintf(value, sizeof(value), "fr%d", i.def.rn);
   CHECK_EQ(strnrep(buffer, buffer_size, "frn", 3, value, value_len), 0);
 
   /* fvm */
-  value_len = snprintf(value, sizeof(value), "fv%d", i->Rm);
+  value_len = snprintf(value, sizeof(value), "fv%d", (i.def.rm & 0x3) << 2);
   CHECK_EQ(strnrep(buffer, buffer_size, "fvm", 3, value, value_len), 0);
 
   /* fvn */
-  value_len = snprintf(value, sizeof(value), "fv%d", i->Rn);
+  value_len = snprintf(value, sizeof(value), "fv%d", (i.def.rm & 0xc));
   CHECK_EQ(strnrep(buffer, buffer_size, "fvn", 3, value, value_len), 0);
 
   /* rm */
-  value_len = snprintf(value, sizeof(value), "r%d", i->Rm);
+  value_len = snprintf(value, sizeof(value), "r%d", i.def.rm);
   CHECK_EQ(strnrep(buffer, buffer_size, "rm", 2, value, value_len), 0);
 
   /* rn */
-  value_len = snprintf(value, sizeof(value), "r%d", i->Rn);
+  value_len = snprintf(value, sizeof(value), "r%d", i.def.rn);
   CHECK_EQ(strnrep(buffer, buffer_size, "rn", 2, value, value_len), 0);
 
   /* #imm8 */
-  value_len = snprintf(value, sizeof(value), "0x%02x", i->imm);
+  value_len = snprintf(value, sizeof(value), "0x%02x", i.imm.imm);
   CHECK_EQ(strnrep(buffer, buffer_size, "#imm8", 5, value, value_len), 0);
+}
+
+CONSTRUCTOR(sh4_disasm_init) {
+  sh4_init_op_table();
 }

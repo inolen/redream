@@ -19,7 +19,6 @@ test_ldcl_stcl_sr:
   # r0 in alt bank should have been post-incremented by 4
   mov.l .ALT_SR, r1
   stc r0_bank, r4
-  sub r1, r4
   # r1 in alt bank should have been pre-decremented by 4
   mov.l .DATA_ADDR, r1
   stc r1_bank, r5

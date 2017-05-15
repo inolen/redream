@@ -3,6 +3,7 @@
 #include "jit/frontend/jit_frontend.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
+#include "jit/frontend/sh4/sh4_fallbacks.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "jit/ir/ir.h"
@@ -28,29 +29,27 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
   block->num_instrs = 0;
 
   while (1) {
-    struct sh4_instr instr = {0};
-    instr.addr = addr;
-    instr.opcode = guest->r16(guest->space, instr.addr);
+    uint32_t data = guest->r16(guest->space, addr);
+    struct sh4_opdef *def = sh4_opdef(data);
+    int valid = def != NULL;
 
-    int valid = sh4_disasm(&instr);
     addr += 2;
     block->guest_size += 2;
-    block->num_cycles += instr.cycles;
+    block->num_cycles += def ? def->cycles : 0;
     block->num_instrs++;
 
-    if (instr.flags & SH4_FLAG_DELAYED) {
-      struct sh4_instr delay_instr = {0};
-      delay_instr.addr = addr;
-      delay_instr.opcode = guest->r16(guest->space, delay_instr.addr);
+    if (def->flags & SH4_FLAG_DELAYED) {
+      uint32_t delay_data = guest->r16(guest->space, addr);
+      struct sh4_opdef *delay_def = sh4_opdef(delay_data);
+      valid |= delay_def != NULL;
 
-      valid = sh4_disasm(&delay_instr);
       addr += 2;
       block->guest_size += 2;
-      block->num_cycles += delay_instr.cycles;
+      block->num_cycles += delay_def ? delay_def->cycles : 0;
       block->num_instrs++;
 
       /* delay slots can't have another delay slot */
-      CHECK(!(delay_instr.flags & SH4_FLAG_DELAYED));
+      CHECK(!(delay_def->flags & SH4_FLAG_DELAYED));
     }
 
     /* end block on invalid instruction */
@@ -62,8 +61,7 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
        changed, stop emitting since the fpu state is invalidated. also, if
        sr has changed, stop emitting as there are interrupts that possibly
        need to be handled */
-    if (instr.flags &
-        (SH4_FLAG_BRANCH | SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
+    if (def->flags & (SH4_FLAG_BRANCH | SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
       break;
     }
   }
@@ -96,24 +94,26 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   uint32_t end = block->guest_addr + block->guest_size;
 
   while (addr < end) {
-    struct sh4_instr instr = {0};
-    struct sh4_instr delay_instr = {0};
+    uint16_t data = guest->r16(guest->space, addr);
+    union sh4_instr instr = {data};
+    struct sh4_opdef *def = sh4_opdef(data);
+    sh4_translate_cb cb = sh4_get_translator(data);
 
-    instr.addr = addr;
-    instr.opcode = guest->r16(guest->space, instr.addr);
-    sh4_disasm(&instr);
+    cb(guest, ir, flags, addr, instr);
 
-    addr += 2;
-
-    if (instr.flags & SH4_FLAG_DELAYED) {
-      delay_instr.addr = addr;
-      delay_instr.opcode = guest->r16(guest->space, delay_instr.addr);
-      sh4_disasm(&delay_instr);
-
+    if (def->flags & SH4_FLAG_DELAYED) {
+      addr += 4;
+    } else {
       addr += 2;
     }
 
-    sh4_emit_instr(guest, ir, flags, &instr, &delay_instr);
+#if 0
+    /* emit extra debug info for recc */
+    if (guest->jit->dump_blocks) {
+      const char *name = sh4_opdefs[instr->op].name;
+      ir_debug_info(ir, name, instr->addr, instr->opcode);
+    }
+#endif
   }
 
   /* if the block terminates in something other than an unconditional branch,
@@ -123,7 +123,17 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   struct ir_instr *tail_instr =
       list_last_entry(&tail_block->instrs, struct ir_instr, it);
 
-  if (tail_instr->op != OP_BRANCH) {
+  int ends_in_branch = tail_instr->op == OP_BRANCH;
+
+  if (tail_instr->op == OP_FALLBACK) {
+    struct sh4_opdef *opdef = sh4_opdef(tail_instr->arg[2]->i32);
+
+    if (opdef->flags & SH4_FLAG_BRANCH) {
+      ends_in_branch = 1;
+    }
+  }
+
+  if (!ends_in_branch) {
     ir_set_current_instr(ir, tail_instr);
     ir_branch(ir, ir_alloc_i32(ir, addr));
   }
@@ -138,29 +148,26 @@ static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
 
   char buffer[128];
 
-  int i = 0;
+  uint32_t end = addr + size / 2;
 
-  while (i < size) {
-    struct sh4_instr instr = {0};
-    instr.addr = addr + i;
-    instr.opcode = guest->r16(guest->space, instr.addr);
-    sh4_disasm(&instr);
+  while (addr < end) {
+    uint16_t data = guest->r16(guest->space, addr);
+    union sh4_instr instr = {data};
+    struct sh4_opdef *def = sh4_opdef(data);
 
-    sh4_format(&instr, buffer, sizeof(buffer));
+    sh4_format(addr, instr, buffer, sizeof(buffer));
     LOG_INFO(buffer);
 
-    i += 2;
+    addr += 2;
 
-    if (instr.flags & SH4_FLAG_DELAYED) {
-      struct sh4_instr delay = {0};
-      delay.addr = addr + i;
-      delay.opcode = guest->r16(guest->space, delay.addr);
-      sh4_disasm(&delay);
+    if (def->flags & SH4_FLAG_DELAYED) {
+      uint16_t delay_data = guest->r16(guest->space, addr);
+      union sh4_instr delay_instr = {delay_data};
 
-      sh4_format(&delay, buffer, sizeof(buffer));
+      sh4_format(addr, delay_instr, buffer, sizeof(buffer));
       LOG_INFO(buffer);
 
-      i += 2;
+      addr += 2;
     }
   }
 }
