@@ -13,8 +13,13 @@ static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
 
 void sh4_intc_update_pending(struct sh4 *sh4) {
   int min_priority = (sh4->ctx.sr & I_MASK) >> I_BIT;
-  uint64_t priority_mask =
-      (sh4->ctx.sr & BL_MASK) ? 0 : ~sh4->priority_mask[min_priority];
+  uint64_t priority_mask = ~sh4->priority_mask[min_priority];
+
+  /* mask all interrupts if interrupt block bit is set */
+  if (sh4->ctx.sr & BL_MASK) {
+    priority_mask = 0;
+  }
+
   sh4->ctx.pending_interrupts = sh4->requested_interrupts & priority_mask;
 }
 
@@ -49,8 +54,11 @@ void sh4_intc_reprioritize(struct sh4 *sh4) {
   uint64_t old = sh4->requested_interrupts;
   sh4->requested_interrupts = 0;
 
-  for (int level = 0, n = 0; level < 16; level++) {
-    /* for even priorities, give precedence to lower id interrupts */
+  int n = 0;
+
+  for (int level = 0; level < 16; level++) {
+    /* iterate backwards, giving priority to lower id interrupts when the
+       priorities are equal */
     for (int i = NUM_SH_INTERRUPTS - 1; i >= 0; i--) {
       struct sh4_interrupt_info *int_info = &sh4_interrupts[i];
 

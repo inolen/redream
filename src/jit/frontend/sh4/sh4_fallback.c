@@ -15,19 +15,19 @@ static uint32_t load_sr(struct sh4_ctx *ctx) {
 static void store_sr(struct sh4_guest *guest, struct sh4_ctx *ctx,
                      uint32_t new_sr) {
   uint32_t old_sr = load_sr(ctx);
-  ctx->sr = new_sr;
+  ctx->sr = new_sr & SR_MASK;
   sh4_explode_sr(ctx);
   guest->sr_updated(guest->data, old_sr);
 }
 
 static uint32_t load_fpscr(struct sh4_ctx *ctx) {
-  return ctx->fpscr & 0x003fffff;
+  return ctx->fpscr;
 }
 
 static void store_fpscr(struct sh4_guest *guest, struct sh4_ctx *ctx,
                         uint32_t new_fpscr) {
   uint32_t old_fpscr = load_fpscr(ctx);
-  ctx->fpscr = new_fpscr & 0x003fffff;
+  ctx->fpscr = new_fpscr & FPSCR_MASK;
   guest->fpscr_updated(guest->data, old_fpscr);
 }
 
@@ -109,7 +109,7 @@ typedef int32_t int128_t[4];
 
 #define LOAD_T_I32()                (CTX->sr_t)
 #define STORE_T_I8(v)               (CTX->sr_t = v)
-#define STORE_T_I32(v)              STORE_T_I8(v);
+#define STORE_T_I32(v)              STORE_T_I8(v)
 #define STORE_T_IMM_I32(v)          STORE_T_I8(v)
 
 #define LOAD_S_I32()                (CTX->sr_s)
@@ -378,6 +378,8 @@ typedef int32_t int128_t[4];
 #define BRANCH_IMM_I32              BRANCH_I32
 #define BRANCH_TRUE_IMM_I32(c, d)   if (c) { CTX->pc = d; return; }
 #define BRANCH_FALSE_IMM_I32(c, d)  if (!c) { CTX->pc = d; return; }
+
+#define INVALID_INSTR()             guest->invalid_instr(guest->data, addr)
 
 #define PREF_SQ_COND(c, addr)       if (c) { guest->sq_prefetch(guest->data, addr); }
 /* clang-format on */

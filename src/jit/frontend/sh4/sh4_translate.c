@@ -42,19 +42,20 @@ static struct ir_value *ir_load_sr(struct ir *ir) {
 }
 
 static void ir_store_sr(struct sh4_guest *guest, struct ir *ir,
-                        struct ir_value *sr) {
-  CHECK_EQ(sr->type, VALUE_I32);
+                        struct ir_value *v) {
+  CHECK_EQ(v->type, VALUE_I32);
+  v = ir_and(ir, v, ir_alloc_i32(ir, SR_MASK));
 
   struct ir_value *sr_updated = ir_alloc_ptr(ir, guest->sr_updated);
   struct ir_value *data = ir_alloc_ptr(ir, guest->data);
   struct ir_value *old_sr = ir_load_sr(ir);
 
-  ir_store_context(ir, offsetof(struct sh4_ctx, sr), sr);
+  ir_store_context(ir, offsetof(struct sh4_ctx, sr), v);
 
   /* inline version of sh4_explode_sr */
-  struct ir_value *sr_t = ir_and(ir, sr, ir_alloc_i32(ir, T_MASK));
+  struct ir_value *sr_t = ir_and(ir, v, ir_alloc_i32(ir, T_MASK));
   struct ir_value *sr_s =
-      ir_lshri(ir, ir_and(ir, sr, ir_alloc_i32(ir, S_MASK)), S_BIT);
+      ir_lshri(ir, ir_and(ir, v, ir_alloc_i32(ir, S_MASK)), S_BIT);
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_t), sr_t);
   ir_store_context(ir, offsetof(struct sh4_ctx, sr_s), sr_s);
 
@@ -67,13 +68,13 @@ static void ir_store_sr(struct sh4_guest *guest, struct ir *ir,
 static struct ir_value *ir_load_fpscr(struct ir *ir) {
   struct ir_value *fpscr =
       ir_load_context(ir, offsetof(struct sh4_ctx, fpscr), VALUE_I32);
-  return ir_and(ir, fpscr, ir_alloc_i32(ir, 0x003fffff));
+  return fpscr;
 }
 
 static void ir_store_fpscr(struct sh4_guest *guest, struct ir *ir,
                            struct ir_value *v) {
   CHECK_EQ(v->type, VALUE_I32);
-  v = ir_and(ir, v, ir_alloc_i32(ir, 0x003fffff));
+  v = ir_and(ir, v, ir_alloc_i32(ir, FPSCR_MASK));
 
   struct ir_value *fpscr_updated = ir_alloc_ptr(ir, guest->fpscr_updated);
   struct ir_value *data = ir_alloc_ptr(ir, guest->data);
@@ -422,6 +423,12 @@ static void ir_store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define BRANCH_IMM_I32(d)           BRANCH_I32(ir_alloc_i32(ir, d))
 #define BRANCH_TRUE_IMM_I32(c, d)   ir_branch_true(ir, c, ir_alloc_i32(ir, d))
 #define BRANCH_FALSE_IMM_I32(c, d)  ir_branch_false(ir, c, ir_alloc_i32(ir, d))
+
+#define INVALID_INSTR()             {                                                                                    \
+                                      struct ir_value *invalid_instr = ir_alloc_i64(ir, (uint64_t)guest->invalid_instr); \
+                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);                   \
+                                      ir_call_2(ir, invalid_instr, data, ir_alloc_i32(ir, addr));                        \
+                                    }
 
 #define PREF_SQ_COND(c, addr)       {                                                                                \
                                       struct ir_value *sq_prefetch = ir_alloc_i64(ir, (uint64_t)guest->sq_prefetch); \

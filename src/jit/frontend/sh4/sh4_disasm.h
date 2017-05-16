@@ -49,12 +49,6 @@ union sh4_instr {
 
   struct {
     uint32_t disp : 8;
-    uint32_t rn : 4;
-    uint32_t : 4;
-  } disp_pc;
-
-  struct {
-    uint32_t disp : 8;
     uint32_t : 8;
   } disp_8;
 
