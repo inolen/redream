@@ -34,6 +34,10 @@
 #define RB_MASK (1u << RB_BIT)
 #define MD_MASK (1u << MD_BIT)
 
+#define SR_MASK                                                                \
+  (MD_MASK | RB_MASK | BL_MASK | FD_MASK | M_MASK | Q_MASK | I_MASK | S_MASK | \
+   T_MASK)
+
 /* FPSCR bits */
 
 /* denormalization mode */
@@ -46,10 +50,17 @@
 #define FR_BIT 21
 
 #define RM_MASK 0x3
+#define FLAG_MASK 0x7c
+#define ENABLE_MASK 0xf80
+#define CAUSE_MASK 0x3f000
 #define DN_MASK (1u << DN_BIT)
 #define PR_MASK (1u << PR_BIT)
 #define SZ_MASK (1u << SZ_BIT)
 #define FR_MASK (1u << FR_BIT)
+
+#define FPSCR_MASK                                                      \
+  (RM_MASK | FLAG_MASK | ENABLE_MASK | CAUSE_MASK | DN_MASK | PR_MASK | \
+   SZ_MASK | FR_MASK)
 
 struct sh4_ctx {
   /* there are 24 32-bit general registers, r0_bank0-r7_bank0, r0_bank1-r7_bank1

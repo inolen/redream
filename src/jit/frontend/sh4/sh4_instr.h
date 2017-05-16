@@ -1,6 +1,5 @@
 INSTR(INVALID) {
-  __asm__("int $3");
-  LOG_FATAL("INVALID unsupported");
+  INVALID_INSTR();
 }
 
 /* MOV     #imm,Rn */
@@ -12,18 +11,17 @@ INSTR(MOVI) {
 
 /* MOV.W   @(disp,PC),Rn */
 INSTR(MOVWLPC) {
-  uint32_t ea = (i.disp_pc.disp * 2) + addr + 4;
-  I32 v = LOAD_IMM_I16(ea);
-  v = SEXT_I16_I32(v);
-  STORE_GPR_I32(i.disp_pc.rn, v);
+  uint32_t ea = (i.imm.imm * 2) + addr + 4;
+  I32 v = SEXT_I16_I32(LOAD_IMM_I16(ea));
+  STORE_GPR_I32(i.imm.rn, v);
   NEXT_INSTR();
 }
 
 /* MOV.L   @(disp,PC),Rn */
 INSTR(MOVLLPC) {
-  uint32_t ea = (i.disp_pc.disp * 4) + (addr & ~3) + 4;
+  uint32_t ea = (i.imm.imm * 4) + (addr & ~3) + 4;
   I32 v = LOAD_IMM_I32(ea);
-  STORE_GPR_I32(i.disp_pc.rn, v);
+  STORE_GPR_I32(i.imm.rn, v);
   NEXT_INSTR();
 }
 
@@ -699,8 +697,11 @@ INSTR(NEGC) {
   I32 rm = LOAD_GPR_I32(i.def.rm);
   I32 v = SUB_I32(NEG_I32(rm), t);
   STORE_GPR_I32(i.def.rn, v);
-  I32 c = OR_I32(t, rm);
-  STORE_T_I32(c);
+
+  /* compute carry flag, taken from Hacker's Delight */
+  I32 carry = LSHR_IMM_I32(OR_I32(rm, v), 31);
+  STORE_T_I32(carry);
+
   NEXT_INSTR();
 }
 
