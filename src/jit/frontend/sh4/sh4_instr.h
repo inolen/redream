@@ -1052,8 +1052,10 @@ INSTR(BT) {
 
 /* BTS     disp */
 INSTR(BTS) {
+  /* 8-bit displacement must be sign extended */
+  int32_t disp = (int32_t)(int8_t)i.disp_8.disp;
+  uint32_t dest_addr = (disp * 2) + addr + 4;
   I32 cond = LOAD_T_I32();
-  uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
   DELAY_INSTR();
   BRANCH_TRUE_IMM_I32(cond, dest_addr);
   NEXT_NEXT_INSTR();
@@ -1062,7 +1064,7 @@ INSTR(BTS) {
 /* BRA     disp */
 INSTR(BRA) {
   /* 12-bit displacement must be sign extended */
-  int32_t disp = ((i.disp_12.disp & 0xfff) << 20) >> 20;
+  int32_t disp = (((int32_t)i.disp_12.disp & 0xfff) << 20) >> 20;
   uint32_t dest_addr = (disp * 2) + addr + 4;
   DELAY_INSTR();
   BRANCH_IMM_I32(dest_addr);
@@ -1079,7 +1081,7 @@ INSTR(BRAF) {
 /* BSR     disp */
 INSTR(BSR) {
   /* 12-bit displacement must be sign extended */
-  int32_t disp = ((i.disp_12.disp & 0xfff) << 20) >> 20;
+  int32_t disp = (((int32_t)i.disp_12.disp & 0xfff) << 20) >> 20;
   uint32_t ret_addr = addr + 4;
   uint32_t dest_addr = ret_addr + disp * 2;
   DELAY_INSTR();

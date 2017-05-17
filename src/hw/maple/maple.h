@@ -21,7 +21,7 @@ struct maple_device {
 /* strings passed as responses to maple queries are not null-terminated, and
    instead padded with spaces to their maximum width */
 static inline void maple_strncpy(char *dst, const char *str, int size) {
-  int len = strlen(str);
+  int len = (int)strlen(str);
   size -= len;
   while (len--) {
     *(dst++) = *(str++);
