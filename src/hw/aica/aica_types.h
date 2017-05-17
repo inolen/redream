@@ -31,6 +31,13 @@ enum {
   AICA_LOOP_FORWARD,
 };
 
+enum {
+  AICA_EG_ATTACK,
+  AICA_EG_DECAY1,
+  AICA_EG_DECAY2,
+  AICA_EG_RELEASE,
+};
+
 struct channel_data {
   /* 0x0 */
   uint32_t SA_hi : 7;
