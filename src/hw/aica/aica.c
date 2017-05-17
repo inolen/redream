@@ -130,7 +130,7 @@ static void aica_init_tables() {
     }
 
     /* a 32-bit int is used for the scale, leaving 15 bits for the fraction */
-    mvol_scale[i] = (1 << 15) / pow(2.0f, (15 - i) / 2.0f);
+    mvol_scale[i] = (int32_t)((1 << 15) / pow(2.0f, (15 - i) / 2.0f));
   }
 
   /* each channel's TL register adjusts the output level based on the table:
@@ -151,7 +151,7 @@ static void aica_init_tables() {
 
   for (int i = 0; i < 256; i++) {
     /* a 32-bit int is used for the scale, leaving 15 bits for the fraction */
-    tl_scale[i] = (1 << 15) / pow(2.0f, i / 16.0f);
+    tl_scale[i] = (int32_t)((1 << 15) / pow(2.0f, i / 16.0f));
   }
 }
 
@@ -543,7 +543,7 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
 }
 
 static void aica_generate_frames(struct aica *aica, int num_frames) {
-  static int MAX_FRAMES = 10;
+  #define MAX_FRAMES 10
   struct dreamcast *dc = aica->dc;
   int16_t buffer[MAX_FRAMES * 2];
 

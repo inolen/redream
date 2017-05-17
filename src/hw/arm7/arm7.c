@@ -156,7 +156,7 @@ static void arm7_run(struct device *dev, int64_t ns) {
   struct jit *jit = arm->jit;
 
   static int64_t ARM7_CLOCK_FREQ = INT64_C(20000000);
-  int64_t cycles = NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ);
+  int cycles = (int)NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ);
 
   if (1) {
     jit_run(arm->jit, cycles);
@@ -199,11 +199,11 @@ static int arm7_init(struct device *dev) {
     arm->guest = armv3_guest_create();
 
     arm->guest->addr_mask = 0x007ffffc;
-    arm->guest->offset_pc = offsetof(struct armv3_context, r[15]);
-    arm->guest->offset_cycles = offsetof(struct armv3_context, run_cycles);
-    arm->guest->offset_instrs = offsetof(struct armv3_context, ran_instrs);
+    arm->guest->offset_pc = (int)offsetof(struct armv3_context, r[15]);
+    arm->guest->offset_cycles = (int)offsetof(struct armv3_context, run_cycles);
+    arm->guest->offset_instrs = (int)offsetof(struct armv3_context, ran_instrs);
     arm->guest->offset_interrupts =
-        offsetof(struct armv3_context, pending_interrupts);
+        (int)offsetof(struct armv3_context, pending_interrupts);
     arm->guest->data = arm;
     arm->guest->interrupt_check = &arm7_check_pending_interrupts;
 

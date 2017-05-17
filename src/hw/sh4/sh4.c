@@ -128,7 +128,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
   struct sh4_ctx *ctx = &sh4->ctx;
   struct jit *jit = sh4->jit;
 
-  int64_t cycles = NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
+  int cycles = (int)NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
   cycles = MAX(cycles, INT64_C(1));
 
   int cache_enabled = sh4->CCR->ICE;
@@ -204,11 +204,11 @@ static int sh4_init(struct device *dev) {
     sh4->guest->addr_mask = 0x00fffffe;
 
     sh4->guest->data = sh4;
-    sh4->guest->offset_pc = offsetof(struct sh4_ctx, pc);
-    sh4->guest->offset_cycles = offsetof(struct sh4_ctx, run_cycles);
-    sh4->guest->offset_instrs = offsetof(struct sh4_ctx, ran_instrs);
+    sh4->guest->offset_pc = (int)offsetof(struct sh4_ctx, pc);
+    sh4->guest->offset_cycles = (int)offsetof(struct sh4_ctx, run_cycles);
+    sh4->guest->offset_instrs = (int)offsetof(struct sh4_ctx, ran_instrs);
     sh4->guest->offset_interrupts =
-        offsetof(struct sh4_ctx, pending_interrupts);
+        (int)offsetof(struct sh4_ctx, pending_interrupts);
     sh4->guest->interrupt_check = &sh4_intc_check_pending;
 
     sh4->guest->ctx = &sh4->ctx;

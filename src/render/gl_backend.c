@@ -5,7 +5,6 @@
 #include "host.h"
 #include "render/nuklear.h"
 #include "render/render_backend.h"
-#include "sys/thread.h"
 
 #define MAX_FRAMEBUFFERS 8
 #define MAX_TEXTURES 8192
