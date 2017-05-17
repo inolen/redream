@@ -72,6 +72,25 @@ list(APPEND REDREAM_LIBS ${OPENGL_LIBRARIES})
 # static libs
 #--------------------------------------------------
 
+# sdl2
+if(NOT BUILD_LIBRETRO)
+set(DIRECTX OFF CACHE BOOL "")
+set(RENDER_D3D OFF CACHE BOOL "")
+set(SDL_ATOMIC OFF CACHE BOOL "")
+set(SDL_CPUINFO OFF CACHE BOOL "")
+set(SDL_FILESYSTEM OFF CACHE BOOL "")
+set(SDL_HAPTIC OFF CACHE BOOL "")
+set(SDL_POWER OFF CACHE BOOL "")
+set(SDL_RENDER OFF CACHE BOOL "")
+set(SDL_SHARED OFF CACHE BOOL "")
+set(SDL_STATIC ON CACHE BOOL "")
+if(APPLE)
+  set(SDL_FRAMEWORK_CARBON 1)
+endif()
+add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
+list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.5/include)
+endif()
+
 # capstone
 add_subdirectory(deps/capstone EXCLUDE_FROM_ALL)
 set(CAPSTONE_ARM_SUPPORT OFF CACHE BOOL "")
@@ -96,13 +115,6 @@ add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/glew-1.13.0/include)
 list(APPEND REDREAM_LIBS glew_s)
 list(APPEND REDREAM_DEFS GLEW_STATIC)
-
-# glfw
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "")
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "")
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "")
-add_subdirectory(deps/glfw EXCLUDE_FROM_ALL)
-list(APPEND REDREAM_INCLUDE_DIRS deps/glfw/include)
 
 # inih
 add_library(inih STATIC deps/inih/ini.c)
@@ -303,10 +315,10 @@ endif()
 # redream
 #--------------------------------------------------
 
-add_executable(redream $<TARGET_OBJECTS:relib> src/glfw_host.c)
+add_executable(redream $<TARGET_OBJECTS:relib> src/sdl_host.c)
 target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(redream ${REDREAM_LIBS} glfw)
+target_link_libraries(redream ${REDREAM_LIBS} SDL2main SDL2-static)
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 

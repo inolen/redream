@@ -2,6 +2,31 @@
 #include "core/string.h"
 #include "hw/maple/maple.h"
 
+enum {
+  CONT_C,
+  CONT_B,
+  CONT_A,
+  CONT_START,
+  CONT_DPAD_UP,
+  CONT_DPAD_DOWN,
+  CONT_DPAD_LEFT,
+  CONT_DPAD_RIGHT,
+  CONT_Z,
+  CONT_Y,
+  CONT_X,
+  CONT_D,
+  CONT_DPAD2_UP,
+  CONT_DPAD2_DOWN,
+  CONT_DPAD2_LEFT,
+  CONT_DPAD2_RIGHT,
+  /* only used internally, not by the real controller state */
+  CONT_JOYX,
+  CONT_JOYY,
+  CONT_LTRIG,
+  CONT_RTRIG,
+  NUM_CONTROLS,
+};
+
 struct controller {
   struct maple_device;
   struct maple_cond cnd;

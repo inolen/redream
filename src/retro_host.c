@@ -43,19 +43,19 @@ static retro_input_state_t input_state_cb;
   { port, RETRO_DEVICE_JOYPAD, 0,                              RETRO_DEVICE_ID_JOYPAD_R2,    "R" }
 
 #define CONTROLLER_BUTTONS(port) \
-  CONT_B,                        \
-  CONT_A,                        \
-  CONT_START,                    \
-  CONT_DPAD_UP,                  \
-  CONT_DPAD_DOWN,                \
-  CONT_DPAD_LEFT,                \
-  CONT_DPAD_RIGHT,               \
-  CONT_Y,                        \
-  CONT_X,                        \
-  CONT_JOYX,                     \
-  CONT_JOYY,                     \
-  CONT_LTRIG,                    \
-  CONT_RTRIG
+  K_CONT_B,                      \
+  K_CONT_A,                      \
+  K_CONT_START,                  \
+  K_CONT_DPAD_UP,                \
+  K_CONT_DPAD_DOWN,              \
+  K_CONT_DPAD_LEFT,              \
+  K_CONT_DPAD_RIGHT,             \
+  K_CONT_Y,                      \
+  K_CONT_X,                      \
+  K_CONT_JOYX,                   \
+  K_CONT_JOYY,                   \
+  K_CONT_LTRIG,                  \
+  K_CONT_RTRIG
 
 static struct retro_input_descriptor controller_desc[] = {
   CONTROLLER_DESC(0),
@@ -140,9 +140,9 @@ void input_poll(struct host *base) {
       continue;
     }
 
-    if (g_host->input_controller) {
+    if (g_host->input_keydown) {
       int button = controller_buttons[i];
-      g_host->input_controller(g_host->userdata, desc->port, button, value);
+      g_host->input_keydown(g_host->userdata, desc->port, button, value);
     }
 
     g_host->controller_state[i] = value;
@@ -272,7 +272,7 @@ void retro_run() {
   uintptr_t fb = hw_render.get_current_framebuffer();
   glBindFramebuffer(GL_FRAMEBUFFER, fb);
 
-  emu_run(g_emu);
+  emu_run_frame(g_emu);
 
   /* call back into retroarch, letting it know a frame has been rendered */
   video_cb(RETRO_HW_FRAME_BUFFER_VALID, VIDEO_WIDTH, VIDEO_HEIGHT, 0);

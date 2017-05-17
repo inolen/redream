@@ -114,14 +114,14 @@ void nk_keydown(struct nuklear *nk, enum keycode key, int16_t value) {
     nk->mouse_down[1] = value > 0;
   } else if (key == K_MOUSE3) {
     nk->mouse_down[2] = value > 0;
-  } else if (key == K_LEFT_ALT || key == K_RIGHT_ALT) {
-    /*nk->alt[key == K_LEFT_ALT ? 0 : 1] = !!value;
+  } else if (key == K_LALT || key == K_RALT) {
+    /*nk->alt[key == K_LALT ? 0 : 1] = !!value;
     io.KeyAlt = nk->alt[0] || nk->alt[1];*/
-  } else if (key == K_LEFT_CONTROL || key == K_RIGHT_CONTROL) {
-    /*nk->ctrl[key == K_LEFT_CONTROL ? 0 : 1] = !!value;
+  } else if (key == K_LCTRL || key == K_RCTRL) {
+    /*nk->ctrl[key == K_LCTRL ? 0 : 1] = !!value;
     io.KeyCtrl = nk->ctrl[0] || nk->ctrl[1];*/
-  } else if (key == K_LEFT_SHIFT || key == K_RIGHT_SHIFT) {
-    /*nk->shift[key == K_LEFT_SHIFT ? 0 : 1] = !!value;
+  } else if (key == K_LSHIFT || key == K_RSHIFT) {
+    /*nk->shift[key == K_LSHIFT ? 0 : 1] = !!value;
     io.KeyShift = nk->shift[0] || nk->shift[1];*/
   } else {
     /*io.KeysDown[key] = value > 0;*/
