@@ -122,6 +122,8 @@ static void audio_write_callback(struct SoundIoOutStream *outstream,
       } else {
         /* write out silence */
         memset(tmp, 0, n * sizeof(tmp[0]));
+
+        LOG_WARNING("wrote out %d frames of silence", n);
       }
 
       /* copy frames to output stream */
