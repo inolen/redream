@@ -22,7 +22,7 @@ DEFINE_AGGREGATE_COUNTER(aica_samples);
 #define LOG_AICA(...)
 #endif
 
-#define AICA_SAMPLE_BATCH 10
+#define AICA_BATCH_SIZE 10
 #define AICA_NUM_CHANNELS 64
 
 #define AICA_FNS_BITS 10
@@ -35,13 +35,21 @@ DEFINE_AGGREGATE_COUNTER(aica_samples);
 #define ADPCM_QUANT_MIN 0x7f
 #define ADPCM_QUANT_MAX 0x6000
 
+/* amplitude / frequency envelope generator state */
+struct aica_eg_state {
+  int state;
+
+  int attack_rate;
+  int decay1_rate;
+  int decay2_rate;
+  int release_rate;
+  int decay_level;
+};
+
 struct aica_channel {
   struct channel_data *data;
 
   int active;
-
-  /* signals the the current channel has looped */
-  int looped;
 
   /* base address in host memory of sound data */
   uint8_t *base;
@@ -52,9 +60,15 @@ struct aica_channel {
   /* current position in the sound source */
   uint32_t offset;
 
+  /* signals the the current channel has looped */
+  int looped;
+
   /* previous sample state */
   int32_t prev_sample;
   int32_t prev_quant;
+
+  /*struct aica_eg_state aeg;
+  struct aica_eg_state feg;*/
 };
 
 struct aica {
@@ -73,23 +87,29 @@ struct aica {
   int rtc_write;
   uint32_t rtc;
 
-  /* channels */
-  struct common_data *common_data;
+  /* there are 64 channels, each with 32 x 16-bit registers arranged on 32-bit
+     boundaries. the arm7 will perform either 32-bit or 8-bit accesses to the
+     registers, while the sh4 will only perform 32-bit accesses as they must
+     go through the g2 bus's fifo buffer */
   struct aica_channel channels[AICA_NUM_CHANNELS];
+  struct common_data *common_data;
   struct timer *sample_timer;
 
   /* raw audio recording */
   FILE *recording;
 };
 
+/* approximated lookup tables for MVOL / TL scaling */
 static int32_t mvol_scale[16];
 static int32_t tl_scale[256];
+
 static char *aica_fmt_names[] = {
     "PCMS16",       /* AICA_FMT_PCMS16 */
     "PCMS8",        /* AICA_FMT_PCMS8 */
     "ADPCM",        /* AICA_FMT_ADPCM */
     "ADPCM_STREAM", /* AICA_FMT_ADPCM_STREAM */
 };
+
 static char *aica_loop_names[] = {
     "LOOP_NONE",    /* AICA_LOOP_NONE */
     "LOOP_FORWARD", /* AICA_LOOP_FORWARD */
@@ -420,6 +440,10 @@ static void aica_channel_stop(struct aica *aica, struct aica_channel *ch) {
 
   ch->active = 0;
 
+  /* this will already be cleared if the channel is stopped due to a key event.
+     however, it will not be set when a non-looping channel is stopped */
+  ch->data->KYONB = 0;
+
   LOG_AICA("aica_channel_stop [%d]", ch - aica->channels);
 }
 
@@ -430,16 +454,17 @@ static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
 
   uint32_t start_addr = (ch->data->SA_hi << 16) | ch->data->SA_lo;
   ch->active = 1;
-  ch->looped = 0;
+
   ch->base = &aica->wave_ram[start_addr];
   ch->step = aica_channel_step(ch);
   ch->offset = 0;
+  ch->looped = 0;
+
   ch->prev_sample = 0;
   ch->prev_quant = ADPCM_QUANT_MIN;
 
   float hz = (AICA_SAMPLE_FREQ * ch->step) / (float)AICA_STEP_SAMPLE;
   float duration = ch->data->LEA / hz;
-
   LOG_AICA("aica_channel_start [%d] %s, %s, %.2f hz, %.2f sec",
            ch - aica->channels, aica_fmt_names[ch->data->PCMS],
            aica_loop_names[ch->data->LPCTL], hz, duration);
@@ -524,6 +549,10 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   /* check if the current position in the sound source has passed the loop end
      position */
   if (next_pos > ch->data->LEA) {
+    ch->looped = 1;
+
+    LOG_AICA("aica_channel_update [%d] looped", ch - aica->channels);
+
     switch (ch->data->LPCTL) {
       case AICA_LOOP_NONE: {
         aica_channel_stop(aica, ch);
@@ -531,7 +560,6 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
 
       case AICA_LOOP_FORWARD: {
         /* restart channel at loop start address */
-        ch->looped = 1;
         ch->offset = ch->data->LSA << AICA_FNS_BITS;
         ch->prev_sample = 0;
         ch->prev_quant = ADPCM_QUANT_MIN;
@@ -542,42 +570,36 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   return result;
 }
 
-static void aica_generate_frames(struct aica *aica, int num_frames) {
-  #define MAX_FRAMES 10
+static void aica_generate_frames(struct aica *aica) {
   struct dreamcast *dc = aica->dc;
-  int16_t buffer[MAX_FRAMES * 2];
+  int16_t buffer[AICA_BATCH_SIZE * 2];
 
-  for (int frame = 0; frame < num_frames;) {
-    int n = MIN(num_frames - frame, MAX_FRAMES);
+  for (int frame = 0; frame < AICA_BATCH_SIZE; frame++) {
+    int32_t l = 0;
+    int32_t r = 0;
 
-    for (int i = 0; i < n; i++) {
-      int32_t l = 0;
-      int32_t r = 0;
-
-      for (int j = 0; j < AICA_NUM_CHANNELS; j++) {
-        struct aica_channel *ch = &aica->channels[j];
-        int32_t s = aica_channel_update(aica, ch);
-        l += aica_adjust_channel_volume(ch, s);
-        r += aica_adjust_channel_volume(ch, s);
-      }
-
-      l = aica_adjust_master_volume(aica, l);
-      r = aica_adjust_master_volume(aica, r);
-
-      buffer[i * 2 + 0] = CLAMP(l, INT16_MIN, INT16_MAX);
-      buffer[i * 2 + 1] = CLAMP(r, INT16_MIN, INT16_MAX);
+    for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
+      struct aica_channel *ch = &aica->channels[i];
+      int32_t s = aica_channel_update(aica, ch);
+      l += aica_adjust_channel_volume(ch, s);
+      r += aica_adjust_channel_volume(ch, s);
     }
 
-    dc_push_audio(dc, buffer, n);
-    frame += n;
+    l = aica_adjust_master_volume(aica, l);
+    r = aica_adjust_master_volume(aica, r);
 
-    /* save raw audio out while recording */
-    if (aica->recording) {
-      fwrite(buffer, 4, n, aica->recording);
-    }
+    buffer[frame * 2 + 0] = CLAMP(l, INT16_MIN, INT16_MAX);
+    buffer[frame * 2 + 1] = CLAMP(r, INT16_MIN, INT16_MAX);
   }
 
-  prof_counter_add(COUNTER_aica_samples, num_frames);
+  dc_push_audio(dc, buffer, AICA_BATCH_SIZE);
+
+  /* save raw audio out while recording */
+  if (aica->recording) {
+    fwrite(buffer, 4, AICA_BATCH_SIZE, aica->recording);
+  }
+
+  prof_counter_add(COUNTER_aica_samples, AICA_BATCH_SIZE);
 }
 
 static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
@@ -611,13 +633,18 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
   switch (addr) {
     case 0x10:
     case 0x11: { /* EG, SGC, LP */
+      /* reads the current EG / SGC / LP params from the stream specified by
+         MSLC */
       struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
 
-      if ((addr == 0x10 && DATA_SIZE() == 2) ||
-          (addr == 0x11 && DATA_SIZE() == 1)) {
-        aica->common_data->LP = ch->looped;
-        ch->looped = 0;
+      if (aica->common_data->AFSEL) {
+        /* read FEG status */
+      } else {
+        /* read AEG status */
       }
+
+      aica->common_data->LP = ch->looped;
+      ch->looped = 0;
     } break;
     case 0x14: { /* CA */
       struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
@@ -741,7 +768,7 @@ void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
 static void aica_next_sample(void *data) {
   struct aica *aica = data;
 
-  aica_generate_frames(aica, AICA_SAMPLE_BATCH);
+  aica_generate_frames(aica);
   aica_raise_interrupt(aica, AICA_INT_SAMPLE);
   aica_update_arm(aica);
   aica_update_sh(aica);
@@ -749,7 +776,7 @@ static void aica_next_sample(void *data) {
   /* reschedule */
   aica->sample_timer =
       scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
-                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
+                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_BATCH_SIZE));
 }
 
 static void aica_toggle_recording(struct aica *aica) {
@@ -799,7 +826,7 @@ static int aica_init(struct device *dev) {
     aica->common_data = (struct common_data *)(aica->reg + 0x2800);
     aica->sample_timer =
         scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
-                              HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_SAMPLE_BATCH));
+                              HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_BATCH_SIZE));
   }
 
   /* init timers */

@@ -24,7 +24,11 @@ DEFINE_AGGREGATE_COUNTER(frames);
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
 
-enum { FRAME_WAITING, FRAME_RENDERING, FRAME_RENDERED, };
+enum {
+  FRAME_WAITING,
+  FRAME_RENDERING,
+  FRAME_RENDERED,
+};
 
 struct emu {
   int multi_threaded;
