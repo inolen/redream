@@ -741,13 +741,14 @@ static void tracer_render_list(struct tracer *tracer,
   }
 }
 
-static void tracer_input_mouse(void *data, int x, int y) {
+static void tracer_input_mousemove(void *data, int port, int x, int y) {
   struct tracer *tracer = data;
 
   nk_mousemove(tracer->nk, x, y);
 }
 
-static void tracer_input_keyboard(void *data, enum keycode key, int16_t value) {
+static void tracer_input_keydown(void *data, int port, enum keycode key,
+                                 int16_t value) {
   struct tracer *tracer = data;
 
   if (key == K_LEFT && value > 0) {
@@ -763,7 +764,7 @@ static void tracer_input_keyboard(void *data, enum keycode key, int16_t value) {
   }
 }
 
-void tracer_run(struct tracer *tracer) {
+void tracer_run_frame(struct tracer *tracer) {
   int width = video_width(tracer->host);
   int height = video_height(tracer->host);
 
@@ -837,8 +838,8 @@ struct tracer *tracer_create(struct host *host) {
   /* setup host, bind event callbacks */
   tracer->host = host;
   tracer->host->userdata = tracer;
-  tracer->host->input_keyboard = &tracer_input_keyboard;
-  tracer->host->input_mouse = &tracer_input_mouse;
+  tracer->host->input_keydown = &tracer_input_keydown;
+  tracer->host->input_mousemove = &tracer_input_mousemove;
 
   /* setup render backend */
   tracer->r = r_create(tracer->host);

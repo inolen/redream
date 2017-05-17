@@ -1,14 +1,12 @@
 #ifndef HOST_H
 #define HOST_H
 
-#include "hw/maple/maple_types.h"
 #include "keycode.h"
 
 typedef void (*video_context_reset_cb)(void *);
 typedef void (*video_context_destroyed_cb)(void *);
-typedef void (*input_keyboard_cb)(void *, enum keycode, int16_t);
-typedef void (*input_mouse_cb)(void *, int, int);
-typedef void (*input_controller_cb)(void *, int, int, int16_t);
+typedef void (*input_keydown_cb)(void *, int, enum keycode, int16_t);
+typedef void (*input_mousemove_cb)(void *, int, int, int);
 
 typedef void *gl_context_t;
 
@@ -17,9 +15,8 @@ struct host {
   void *userdata;
   video_context_reset_cb video_context_reset;
   video_context_destroyed_cb video_context_destroyed;
-  input_keyboard_cb input_keyboard;
-  input_mouse_cb input_mouse;
-  input_controller_cb input_controller;
+  input_keydown_cb input_keydown;
+  input_mousemove_cb input_mousemove;
 };
 
 /* audio */

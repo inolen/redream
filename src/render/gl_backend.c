@@ -561,7 +561,7 @@ void r_begin_surfaces2(struct render_backend *r, const struct vertex2 *verts,
                  indices, GL_DYNAMIC_DRAW);
     r->ui_use_ibo = 1;
   } else {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, -1);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     r->ui_use_ibo = 0;
   }
 }

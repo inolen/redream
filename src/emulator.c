@@ -21,139 +21,60 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
-#define FRAME_MAX_WIDTH 640
-#define FRAME_MAX_HEIGHT 480
-#define FRAME_MAX 4
+#define FRAME_WIDTH 640
+#define FRAME_HEIGHT 480
 
-struct video_frame {
-  /* framebuffer handle */
-  framebuffer_handle_t fb;
-
-  /* texture handle for the framebuffer's color component */
-  texture_handle_t fb_tex;
-
-  /* fence to ensure framebuffer has finished rendering before presenting */
-  sync_handle_t fb_sync;
-
-  struct list_node it;
-};
+enum { FRAME_WAITING, FRAME_RENDERING, FRAME_RENDERED, };
 
 struct emu {
   int multi_threaded;
   struct host *host;
   struct dreamcast *dc;
   volatile int running;
-  volatile int rendered;
   int debug_menu;
-  int initialized;
 
-  /* render state */
   struct render_backend *r, *r2;
-  struct audio_backend *audio;
   struct microprofile *mp;
   struct nuklear *nk;
   struct tr *tr;
-  struct tile_render_context rc;
 
-  /* pool of offscreen framebuffers */
-  mutex_t frames_mutex;
-  struct video_frame frames[FRAME_MAX];
-  struct list free_frames;
-  struct list live_frames;
-
-  /* video thread state */
+  /* video state */
   thread_t video_thread;
+
   mutex_t pending_mutex;
   cond_t pending_cond;
   struct tile_ctx *pending_ctx;
+
+  struct tile_render_context video_ctx;
+  framebuffer_handle_t video_fb;
+  texture_handle_t video_tex;
+  sync_handle_t video_sync;
+  volatile int video_state;
 };
-
-static struct video_frame *emu_pop_frame(struct emu *emu) {
-  mutex_lock(emu->frames_mutex);
-
-  /* return the newest frame that's ready to be presented */
-  struct video_frame *frame =
-      list_first_entry(&emu->live_frames, struct video_frame, it);
-
-  if (frame) {
-    list_remove_entry(&emu->live_frames, frame, it);
-  }
-
-  mutex_unlock(emu->frames_mutex);
-
-  return frame;
-}
-
-static void emu_push_front_frame(struct emu *emu, struct video_frame *frame) {
-  /* called from the video thread when it's done rendering a frame. at this
-     point, free any frames that were previously queued for presentation */
-  mutex_lock(emu->frames_mutex);
-
-  while (!list_empty(&emu->live_frames)) {
-    struct video_frame *head =
-        list_first_entry(&emu->live_frames, struct video_frame, it);
-    list_remove(&emu->live_frames, &head->it);
-    list_add(&emu->free_frames, &head->it);
-  }
-
-  list_add_after(&emu->live_frames, NULL, &frame->it);
-
-  mutex_unlock(emu->frames_mutex);
-}
-
-static void emu_push_back_frame(struct emu *emu, struct video_frame *frame) {
-  /* called from the main thread when it's done presenting a frame */
-  mutex_lock(emu->frames_mutex);
-
-  list_add(&emu->live_frames, &frame->it);
-
-  mutex_unlock(emu->frames_mutex);
-}
-
-static struct video_frame *emu_alloc_frame(struct emu *emu,
-                                           struct render_backend *r) {
-  /* return the first free frame to be rendered to. note, the free list should
-     only be modified by the video thread, so there's no need to lock */
-  struct video_frame *frame =
-      list_first_entry(&emu->free_frames, struct video_frame, it);
-  CHECK_NOTNULL(frame);
-  list_remove_entry(&emu->free_frames, frame, it);
-
-  /* reset frame state */
-  CHECK_NOTNULL(frame->fb);
-  CHECK_NOTNULL(frame->fb_tex);
-
-  if (frame->fb_sync) {
-    r_destroy_sync(r, frame->fb_sync);
-    frame->fb_sync = 0;
-  }
-
-  return frame;
-}
 
 static void emu_render_frame(struct emu *emu) {
   struct render_backend *fb_rb = emu->multi_threaded ? emu->r2 : emu->r;
 
   prof_counter_add(COUNTER_frames, 1);
 
-  /* render the current render context to the first free framebuffer */
-  struct video_frame *frame = emu_alloc_frame(emu, fb_rb);
+  emu->video_state = FRAME_RENDERING;
+
+  /* render the current render context to the video framebuffer */
   framebuffer_handle_t original = r_get_framebuffer(fb_rb);
-  r_bind_framebuffer(fb_rb, frame->fb);
-  tr_render_context(emu->tr, &emu->rc);
+  r_bind_framebuffer(fb_rb, emu->video_fb);
+  tr_render_context(emu->tr, &emu->video_ctx);
   r_bind_framebuffer(fb_rb, original);
 
   /* insert fence for main thread to synchronize on in order to ensure that
      the context has completely rendered */
   if (emu->multi_threaded) {
-    frame->fb_sync = r_insert_sync(fb_rb);
+    emu->video_sync = r_insert_sync(fb_rb);
   }
-
-  /* push frame to the presentation queue for the main thread */
-  emu_push_front_frame(emu, frame);
 
   /* update frame-based profiler stats */
   prof_flip();
+
+  emu->video_state = FRAME_RENDERED;
 }
 
 static void *emu_video_thread(void *data) {
@@ -176,7 +97,7 @@ static void *emu_video_thread(void *data) {
     }
 
     /* parse the context, uploading its textures to the render backend */
-    tr_parse_context(emu->tr, emu->pending_ctx, &emu->rc);
+    tr_parse_context(emu->tr, emu->pending_ctx, &emu->video_ctx);
     emu->pending_ctx = NULL;
 
     /* after the context has been parsed, release the mutex to let
@@ -205,9 +126,7 @@ static void emu_paint(struct emu *emu) {
   r_clear_viewport(emu->r, width, height);
 
   /* present the latest frame from the video thread */
-  struct video_frame *frame = emu_pop_frame(emu);
-
-  if (frame) {
+  {
     struct vertex2 verts[6] = {
         /* triangle 1, top left  */
         {{0.0f, 0.0f}, {0.0f, 1.0f}, 0xffffffff},
@@ -225,17 +144,17 @@ static void emu_paint(struct emu *emu) {
 
     struct surface2 quad = {0};
     quad.prim_type = PRIM_TRIANGLES;
-    quad.texture = frame->fb_tex;
+    quad.texture = emu->video_tex;
     quad.src_blend = BLEND_NONE;
     quad.dst_blend = BLEND_NONE;
     quad.first_vert = 0;
     quad.num_verts = 6;
 
     /* wait for the frame to finish rendering */
-    if (frame->fb_sync) {
-      r_wait_sync(emu->r, frame->fb_sync);
-      r_destroy_sync(emu->r, frame->fb_sync);
-      frame->fb_sync = 0;
+    if (emu->video_sync) {
+      r_wait_sync(emu->r, emu->video_sync);
+      r_destroy_sync(emu->r, emu->video_sync);
+      emu->video_sync = 0;
     }
 
     r_begin_ortho(emu->r);
@@ -293,12 +212,6 @@ static void emu_paint(struct emu *emu) {
 
   mp_render(emu->mp);
   nk_render(emu->nk);
-
-  if (frame) {
-    /* after buffers have been swapped, the frame has been completely
-       rendered and can safely be reused */
-    emu_push_back_frame(emu, frame);
-  }
 }
 
 static void emu_poll_input(void *userdata) {
@@ -317,19 +230,19 @@ static void emu_finish_render(void *userdata) {
        the yet-to-be-uploaded texture memory */
     mutex_lock(emu->pending_mutex);
 
-    /* ensure the pending context is removed in the case that the video thread
-       skipped it */
     emu->pending_ctx = NULL;
 
     mutex_unlock(emu->pending_mutex);
   }
-
-  /* let the main thread know a frame has been rendered */
-  emu->rendered = 1;
 }
 
 static void emu_start_render(void *userdata, struct tile_ctx *ctx) {
   struct emu *emu = userdata;
+
+  if (emu->video_state != FRAME_WAITING) {
+    /* skip this frame if one is already rendering / rendered */
+    return;
+  }
 
   if (emu->multi_threaded) {
     /* save off context and notify video thread that it's available */
@@ -341,7 +254,7 @@ static void emu_start_render(void *userdata, struct tile_ctx *ctx) {
     mutex_unlock(emu->pending_mutex);
   } else {
     /* parse the context and immediately render it */
-    tr_parse_context(emu->tr, ctx, &emu->rc);
+    tr_parse_context(emu->tr, ctx, &emu->video_ctx);
 
     emu_render_frame(emu);
   }
@@ -352,22 +265,15 @@ static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
   audio_push(emu->host, data, frames);
 }
 
-static void emu_input_controller(void *userdata, int port, int button,
-                                 int16_t value) {
-  struct emu *emu = userdata;
-
-  dc_input(emu->dc, port, button, value);
-}
-
-static void emu_input_mouse(void *userdata, int x, int y) {
+static void emu_input_mousemove(void *userdata, int port, int x, int y) {
   struct emu *emu = userdata;
 
   mp_mousemove(emu->mp, x, y);
   nk_mousemove(emu->nk, x, y);
 }
 
-static void emu_input_keyboard(void *userdata, enum keycode key,
-                               int16_t value) {
+static void emu_input_keydown(void *userdata, int port, enum keycode key,
+                              int16_t value) {
   struct emu *emu = userdata;
 
   if (key == K_F1 && value > 0) {
@@ -376,13 +282,17 @@ static void emu_input_keyboard(void *userdata, enum keycode key,
     mp_keydown(emu->mp, key, value);
     nk_keydown(emu->nk, key, value);
   }
+
+  if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
+    dc_input(emu->dc, port, key - K_CONT_C, value);
+  }
 }
 
 static void emu_video_context_destroyed(void *userdata) {
   struct emu *emu = userdata;
   struct texture_provider *provider = ta_texture_provider(emu->dc->ta);
 
-  if (!emu->initialized) {
+  if (!emu->running) {
     return;
   }
 
@@ -390,12 +300,10 @@ static void emu_video_context_destroyed(void *userdata) {
 
   /* destroy the video thread */
   if (emu->multi_threaded) {
-    /* signal to break out of its loop */
     mutex_lock(emu->pending_mutex);
     cond_signal(emu->pending_cond);
     mutex_unlock(emu->pending_mutex);
 
-    /* wait for it to exit */
     void *result;
     thread_join(emu->video_thread, &result);
   }
@@ -404,23 +312,14 @@ static void emu_video_context_destroyed(void *userdata) {
      TODO this feels kind of wrong, should we be managing the texture cache? */
   provider->clear_textures(provider->userdata);
 
-  /* destroy offscreen framebuffer pool */
+  /* destroy video framebuffer */
   struct render_backend *fb_rb = emu->multi_threaded ? emu->r2 : emu->r;
-
   r_make_current(fb_rb);
 
-  for (int i = 0; i < FRAME_MAX; i++) {
-    struct video_frame *frame = &emu->frames[i];
-
-    r_destroy_framebuffer(fb_rb, frame->fb);
-
-    if (frame->fb_sync) {
-      r_destroy_sync(fb_rb, frame->fb_sync);
-    }
+  r_destroy_framebuffer(fb_rb, emu->video_fb);
+  if (emu->video_sync) {
+    r_destroy_sync(fb_rb, emu->video_sync);
   }
-
-  mutex_destroy(emu->frames_mutex);
-
   tr_destroy(emu->tr);
 
   if (emu->multi_threaded) {
@@ -428,6 +327,9 @@ static void emu_video_context_destroyed(void *userdata) {
     cond_destroy(emu->pending_cond);
     mutex_destroy(emu->pending_mutex);
   }
+
+  /* make primary renderer active for the current thread */
+  r_make_current(emu->r);
 
   nk_destroy(emu->nk);
   mp_destroy(emu->mp);
@@ -452,37 +354,30 @@ static void emu_video_context_reset(void *userdata) {
     emu->r2 = r_create_from(emu->r);
   }
 
-  /* create pool of offscreen framebuffers */
+  /* create video framebuffer */
   struct render_backend *fb_rb = emu->multi_threaded ? emu->r2 : emu->r;
-  emu->tr = tr_create(fb_rb, provider);
-
   r_make_current(fb_rb);
 
-  emu->frames_mutex = mutex_create();
-
-  for (int i = 0; i < FRAME_MAX; i++) {
-    struct video_frame *frame = &emu->frames[i];
-    frame->fb = r_create_framebuffer(fb_rb, FRAME_MAX_WIDTH, FRAME_MAX_HEIGHT,
-                                     &frame->fb_tex);
-    list_add(&emu->free_frames, &frame->it);
-  }
-
-  /* make primary renderer active for the current thread */
-  r_make_current(emu->r);
+  emu->tr = tr_create(fb_rb, provider);
+  emu->video_fb =
+      r_create_framebuffer(fb_rb, FRAME_WIDTH, FRAME_HEIGHT, &emu->video_tex);
 
   /* startup video thread */
   if (emu->multi_threaded) {
     emu->video_thread = thread_create(&emu_video_thread, NULL, emu);
     CHECK_NOTNULL(emu->video_thread);
   }
+
+  /* make primary renderer active for the current thread */
+  r_make_current(emu->r);
 }
 
-void emu_run(struct emu *emu) {
+void emu_run_frame(struct emu *emu) {
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
 
-  emu->rendered = 0;
+  emu->video_state = FRAME_WAITING;
 
-  while (!emu->rendered) {
+  while (emu->video_state != FRAME_RENDERED) {
     dc_tick(emu->dc, MACHINE_STEP);
   }
 
@@ -502,7 +397,6 @@ int emu_load_game(struct emu *emu, const char *path) {
 }
 
 void emu_destroy(struct emu *emu) {
-  /* destroy dreamcast */
   dc_destroy(emu->dc);
 
   free(emu);
@@ -516,9 +410,8 @@ struct emu *emu_create(struct host *host) {
   emu->host->userdata = emu;
   emu->host->video_context_reset = &emu_video_context_reset;
   emu->host->video_context_destroyed = &emu_video_context_destroyed;
-  emu->host->input_keyboard = &emu_input_keyboard;
-  emu->host->input_mouse = &emu_input_mouse;
-  emu->host->input_controller = &emu_input_controller;
+  emu->host->input_keydown = &emu_input_keydown;
+  emu->host->input_mousemove = &emu_input_mousemove;
 
   /* create dreamcast, bind client callbacks */
   emu->dc = dc_create();
