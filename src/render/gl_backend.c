@@ -45,6 +45,8 @@ struct shader_program {
   GLuint vertex_shader;
   GLuint fragment_shader;
   GLint loc[UNIFORM_NUM_UNIFORMS];
+
+  /* the last global uniforms bound to this program */
   uint64_t uniform_token;
 };
 
@@ -92,7 +94,8 @@ struct render_backend {
   GLuint ui_ibo;
   int ui_use_ibo;
 
-  /* current gl state */
+  /* global uniforms that are constant for every surface rendered between a call
+     to begin_surfaces and end_surfaces */
   uint64_t uniform_token;
   const float *uniform_mvp;
 };
@@ -488,12 +491,14 @@ void r_draw_surface(struct render_backend *r, const struct surface *surf) {
 
   glUseProgram(program->prog);
 
-  /* if uniforms have yet to be bound for this program, do so now */
+  /* bind global uniforms if they've changed */
   if (program->uniform_token != r->uniform_token) {
     glUniformMatrix4fv(program->loc[UNIFORM_MVP], 1, GL_FALSE, r->uniform_mvp);
-    glUniform1f(program->loc[UNIFORM_PT_ALPHA_REF], surf->pt_alpha_ref);
     program->uniform_token = r->uniform_token;
   }
+
+  /* bind non-global uniforms every time */
+  glUniform1f(program->loc[UNIFORM_PT_ALPHA_REF], surf->pt_alpha_ref);
 
   if (surf->texture) {
     r_bind_texture(r, MAP_DIFFUSE, surf->texture);
