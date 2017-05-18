@@ -554,7 +554,8 @@ void r_draw_surface2(struct render_backend *r, const struct surface2 *surf) {
 }
 
 void r_begin_surfaces2(struct render_backend *r, const struct vertex2 *verts,
-                       int num_verts, uint16_t *indices, int num_indices) {
+                       int num_verts, const uint16_t *indices,
+                       int num_indices) {
   glBindBuffer(GL_ARRAY_BUFFER, r->ui_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex2) * num_verts, verts,
                GL_DYNAMIC_DRAW);

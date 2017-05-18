@@ -168,7 +168,7 @@ void r_draw_surface(struct render_backend *r, const struct surface *surf);
 void r_end_surfaces(struct render_backend *r);
 
 void r_begin_surfaces2(struct render_backend *r, const struct vertex2 *verts,
-                       int num_verts, uint16_t *indices, int num_indices);
+                       int num_verts, const uint16_t *indices, int num_indices);
 void r_draw_surface2(struct render_backend *r, const struct surface2 *surf);
 void r_end_surfaces2(struct render_backend *r);
 

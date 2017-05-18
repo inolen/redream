@@ -13,9 +13,6 @@
 #include "keycode.h"
 #include "render/render_backend.h"
 
-#define NK_MAX_VERTICES 16384
-#define NK_MAX_ELEMENTS (NK_MAX_VERTICES * 4)
-
 #define DEBUG_MENU_HEIGHT 23.0f
 
 struct render_backend;
@@ -25,13 +22,11 @@ struct nuklear {
 
   struct nk_context ctx;
   struct nk_buffer cmds;
+  struct nk_buffer vbuf;
+  struct nk_buffer ebuf;
   struct nk_font_atlas atlas;
   struct nk_draw_null_texture null;
   texture_handle_t font_texture;
-
-  /* render buffers */
-  struct vertex2 vertices[NK_MAX_VERTICES];
-  uint16_t elements[NK_MAX_ELEMENTS];
 
   /* input state */
   int mousex, mousey;

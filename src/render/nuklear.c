@@ -26,10 +26,6 @@ void nk_render(struct nuklear *nk) {
       {NK_VERTEX_COLOR, NK_FORMAT_R8G8B8A8, NK_OFFSETOF(struct vertex2, color)},
       {NK_VERTEX_LAYOUT_END}};
 
-  struct nk_buffer vbuf, ebuf;
-  nk_buffer_init_fixed(&vbuf, nk->vertices, sizeof(nk->vertices));
-  nk_buffer_init_fixed(&ebuf, nk->elements, sizeof(nk->elements));
-
   struct nk_convert_config config = {0};
   config.vertex_layout = vertex_layout;
   config.vertex_size = sizeof(struct vertex2);
@@ -39,12 +35,14 @@ void nk_render(struct nuklear *nk) {
   config.shape_AA = NK_ANTI_ALIASING_OFF;
   config.line_AA = NK_ANTI_ALIASING_OFF;
 
-  nk_convert(&nk->ctx, &nk->cmds, &vbuf, &ebuf, &config);
+  nk_convert(&nk->ctx, &nk->cmds, &nk->vbuf, &nk->ebuf, &config);
 
   /* bind buffers */
+  const void *vertices = nk_buffer_memory_const(&nk->vbuf);
+  const void *elements = nk_buffer_memory_const(&nk->ebuf);
   r_begin_ortho(nk->r);
-  r_begin_surfaces2(nk->r, nk->vertices, nk->ctx.draw_list.vertex_count,
-                    nk->elements, nk->ctx.draw_list.element_count);
+  r_begin_surfaces2(nk->r, vertices, nk->ctx.draw_list.vertex_count, elements,
+                    nk->ctx.draw_list.element_count);
 
   /* pass each draw command off to the render backend */
   const struct nk_draw_command *cmd = NULL;
@@ -134,6 +132,8 @@ void nk_destroy(struct nuklear *nk) {
   nk_font_atlas_clear(&nk->atlas);
 
   /* destroy nuklear context */
+  nk_buffer_free(&nk->ebuf);
+  nk_buffer_free(&nk->vbuf);
   nk_buffer_free(&nk->cmds);
   nk_free(&nk->ctx);
 
@@ -160,6 +160,8 @@ struct nuklear *nk_create(struct render_backend *r) {
   /* initialize nuklear context */
   nk_init_default(&nk->ctx, &font->handle);
   nk_buffer_init_default(&nk->cmds);
+  nk_buffer_init_default(&nk->vbuf);
+  nk_buffer_init_default(&nk->ebuf);
 
   return nk;
 }
