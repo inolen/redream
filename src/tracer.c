@@ -841,11 +841,11 @@ struct tracer *tracer_create(struct host *host) {
   tracer->host->input_keydown = &tracer_input_keydown;
   tracer->host->input_mousemove = &tracer_input_mousemove;
 
-  /* setup render backend */
+  /* setup renderer */
+  tracer->provider.userdata = tracer;
+  tracer->provider.find_texture = &tracer_provider_find_texture;
   tracer->r = r_create(tracer->host);
   tracer->nk = nk_create(tracer->r);
-
-  tracer->provider.find_texture = &tracer_provider_find_texture;
   tracer->tr = tr_create(tracer->r, &tracer->provider);
 
   /* add all textures to free list */
