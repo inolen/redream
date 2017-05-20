@@ -15,8 +15,6 @@ Command line flags are loaded from and saved to `$HOME/.redream/flags` each run.
       --flash  Path to flash ROM                                       [default: dc_flash.bin]
       --audio  Enable audio                                            [default: 1]
     --latency  Preferred audio latency in MS                           [default: 100]
-    --profile  Path to controller profile
     --verbose  Enable debug logging                                    [default: 0]
        --perf  Write perf-compatible maps for generated code           [default: 0]
-        --gdb  Start GDB debug server                                  [default: 0]
 ```
