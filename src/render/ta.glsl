@@ -70,4 +70,7 @@ static const char *ta_fp =
 "  #ifdef OFFSET_COLOR\n"
 "    fragcolor.rgb += var_offset_color.rgb;\n"
 "  #endif\n"
+"  #ifdef DEBUG_DEPTH_BUFFER\n"
+"    fragcolor.rgb = vec3(gl_FragCoord.z);\n"
+"  #endif\n"
 "}";

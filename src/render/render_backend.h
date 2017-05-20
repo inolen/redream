@@ -79,6 +79,10 @@ enum prim_type {
   PRIM_LINES,
 };
 
+enum debug_flags {
+  DEBUG_DEPTH_BUFFER = 0x1,
+};
+
 struct vertex {
   float xyz[3];
   float uv[2];
@@ -136,6 +140,10 @@ void r_make_current(struct render_backend *r);
 
 int r_video_width(struct render_backend *r);
 int r_video_height(struct render_backend *r);
+
+void r_set_debug_flag(struct render_backend *r, int flag);
+int r_get_debug_flag(struct render_backend *r, int flag);
+void r_clear_debug_flag(struct render_backend *r, int flag);
 
 framebuffer_handle_t r_get_framebuffer(struct render_backend *r);
 framebuffer_handle_t r_create_framebuffer(struct render_backend *r, int width,
