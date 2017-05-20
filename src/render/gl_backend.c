@@ -79,7 +79,7 @@ struct render_backend {
      synchronization on our part. however, to delete an object a reverse lookup
      must be performed to match the handle to an index in these arrays
 
-     note note, due to this dumbed down design, textures can be shared across
+     note note, due to this dumbed down design, the handles can be shared across
      multiple backends for rendering purposes, but can only be deleted on the
      backend that created them
 
@@ -191,15 +191,17 @@ static int r_compile_shader(const char *source, GLenum shader_type,
 }
 
 static void r_destroy_program(struct shader_program *program) {
-  if (program->vertex_shader > 0) {
+  if (program->vertex_shader) {
     glDeleteShader(program->vertex_shader);
   }
 
-  if (program->fragment_shader > 0) {
+  if (program->fragment_shader) {
     glDeleteShader(program->fragment_shader);
   }
 
-  glDeleteProgram(program->prog);
+  if (program->prog) {
+    glDeleteProgram(program->prog);
+  }
 }
 
 static int r_compile_program(struct render_backend *r,
@@ -273,57 +275,7 @@ static void r_destroy_shaders(struct render_backend *r) {
 }
 
 static void r_create_shaders(struct render_backend *r) {
-  char header[1024];
-
-  for (int i = 0; i < ATTR_COUNT; i++) {
-    struct shader_program *program = &r->ta_programs[i];
-
-    header[0] = 0;
-
-    if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_DECAL) {
-      strcat(header, "#define SHADE_DECAL\n");
-    }
-
-    if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_MODULATE) {
-      strcat(header, "#define SHADE_MODULATE\n");
-    }
-
-    if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_DECAL_ALPHA) {
-      strcat(header, "#define SHADE_DECAL_ALPHA\n");
-    }
-
-    if ((i & ATTR_SHADE_MASK) == ATTR_SHADE_MODULATE_ALPHA) {
-      strcat(header, "#define SHADE_MODULATE_ALPHA\n");
-    }
-
-    if (i & ATTR_TEXTURE) {
-      strcat(header, "#define TEXTURE\n");
-    }
-
-    if (i & ATTR_IGNORE_ALPHA) {
-      strcat(header, "#define IGNORE_ALPHA\n");
-    }
-
-    if (i & ATTR_IGNORE_TEXTURE_ALPHA) {
-      strcat(header, "#define IGNORE_TEXTURE_ALPHA\n");
-    }
-
-    if (i & ATTR_OFFSET_COLOR) {
-      strcat(header, "#define OFFSET_COLOR\n");
-    }
-
-    if (i & ATTR_PT_ALPHA_TEST) {
-      strcat(header, "#define PT_ALPHA_TEST\n");
-    }
-
-    if (i & ATTR_DEBUG_DEPTH_BUFFER) {
-      strcat(header, "#define DEBUG_DEPTH_BUFFER\n");
-    }
-
-    if (!r_compile_program(r, program, header, ta_vp, ta_fp)) {
-      LOG_FATAL("Failed to compile ta shader.");
-    }
-  }
+  /* ta shaders are lazy-compiled in r_get_ta_program to improve startup time */
 
   if (!r_compile_program(r, &r->ui_program, NULL, ui_vp, ui_fp)) {
     LOG_FATAL("Failed to compile ui shader.");
@@ -466,8 +418,48 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
   if (r->debug_flags & DEBUG_DEPTH_BUFFER) {
     idx |= ATTR_DEBUG_DEPTH_BUFFER;
   }
+
   struct shader_program *program = &r->ta_programs[idx];
-  CHECK_NOTNULL(program);
+
+  /* lazy-compile the ta programs */
+  if (!program->prog) {
+    char header[1024];
+
+    header[0] = 0;
+
+    if ((idx & ATTR_SHADE_MASK) == ATTR_SHADE_DECAL) {
+      strcat(header, "#define SHADE_DECAL\n");
+    } else if ((idx & ATTR_SHADE_MASK) == ATTR_SHADE_MODULATE) {
+      strcat(header, "#define SHADE_MODULATE\n");
+    } else if ((idx & ATTR_SHADE_MASK) == ATTR_SHADE_DECAL_ALPHA) {
+      strcat(header, "#define SHADE_DECAL_ALPHA\n");
+    } else if ((idx & ATTR_SHADE_MASK) == ATTR_SHADE_MODULATE_ALPHA) {
+      strcat(header, "#define SHADE_MODULATE_ALPHA\n");
+    }
+
+    if (idx & ATTR_TEXTURE) {
+      strcat(header, "#define TEXTURE\n");
+    }
+    if (idx & ATTR_IGNORE_ALPHA) {
+      strcat(header, "#define IGNORE_ALPHA\n");
+    }
+    if (idx & ATTR_IGNORE_TEXTURE_ALPHA) {
+      strcat(header, "#define IGNORE_TEXTURE_ALPHA\n");
+    }
+    if (idx & ATTR_OFFSET_COLOR) {
+      strcat(header, "#define OFFSET_COLOR\n");
+    }
+    if (idx & ATTR_PT_ALPHA_TEST) {
+      strcat(header, "#define PT_ALPHA_TEST\n");
+    }
+    if (idx & ATTR_DEBUG_DEPTH_BUFFER) {
+      strcat(header, "#define DEBUG_DEPTH_BUFFER\n");
+    }
+
+    int res = r_compile_program(r, program, header, ta_vp, ta_fp);
+    CHECK(res, "Failed to compile ta shader.");
+  }
+
   return program;
 }
 
