@@ -395,49 +395,54 @@ static void tr_discard_incomplete_surf(struct tr *tr,
   }
 }
 
-/* FIXME offload this to the GPU, generating shader for different combinations
-   of ISP/TSP parameters once the logic is ironed out */
-static void tr_parse_color(struct tr *tr, uint32_t base_color,
-                           uint32_t *color) {
-  *color = abgr_to_rgba(base_color);
-}
+/*
+* polygon parsing helpers
+*/
+#define PARSE_XYZ(x, y, z, xyz)         \
+  {                                     \
+    xyz[0] = (x);                       \
+    xyz[1] = (y);                       \
+    xyz[2] = (z);                       \
+    if (isfinite(z)) {                  \
+      rc->minz = MIN(rc->minz, xyz[2]); \
+      rc->maxz = MAX(rc->maxz, xyz[2]); \
+    }                                   \
+  }
 
-static void tr_parse_color_rgba(struct tr *tr, float r, float g, float b,
-                                float a, uint32_t *color) {
-  *color = float_to_rgba(r, g, b, a);
-}
+#define PARSE_COLOR(base_color, color) \
+  { *color = abgr_to_rgba(base_color); }
 
-static void tr_parse_color_intensity(struct tr *tr, float base_intensity,
-                                     uint32_t *color) {
-  *color = float_to_rgba(tr->face_color[0] * base_intensity,
-                         tr->face_color[1] * base_intensity,
-                         tr->face_color[2] * base_intensity, tr->face_color[3]);
-}
+#define PARSE_COLOR_RGBA(r, g, b, a, color) \
+  { *color = float_to_rgba(r, g, b, a); }
 
-static void tr_parse_offset_color(struct tr *tr, uint32_t offset_color,
-                                  uint32_t *color) {
-  *color = abgr_to_rgba(offset_color);
-}
+#define PARSE_COLOR_INTENSITY(base_intensity, color)                          \
+  {                                                                           \
+    *color =                                                                  \
+        float_to_rgba(tr->face_color[0] * base_intensity,                     \
+                      tr->face_color[1] * base_intensity,                     \
+                      tr->face_color[2] * base_intensity, tr->face_color[3]); \
+  }
 
-static void tr_parse_offset_color_rgba(struct tr *tr, float r, float g, float b,
-                                       float a, uint32_t *color) {
-  *color = float_to_rgba(r, g, b, a);
-}
+#define PARSE_OFFSET_COLOR(offset_color, color) \
+  { *color = abgr_to_rgba(offset_color); }
 
-static void tr_parse_offset_color_intensity(struct tr *tr,
-                                            float offset_intensity,
-                                            uint32_t *color) {
-  *color = float_to_rgba(tr->face_offset_color[0] * offset_intensity,
-                         tr->face_offset_color[1] * offset_intensity,
-                         tr->face_offset_color[2] * offset_intensity,
-                         tr->face_offset_color[3]);
-}
+#define PARSE_OFFSET_COLOR_RGBA(r, g, b, a, color) \
+  { *color = float_to_rgba(r, g, b, a); }
 
-static int tr_parse_bg_vert(const struct tile_ctx *ctx, int offset,
+#define PARSE_OFFSET_COLOR_INTENSITY(offset_intensity, color)           \
+  {                                                                     \
+    *color = float_to_rgba(tr->face_offset_color[0] * offset_intensity, \
+                           tr->face_offset_color[1] * offset_intensity, \
+                           tr->face_offset_color[2] * offset_intensity, \
+                           tr->face_offset_color[3]);                   \
+  }
+
+static int tr_parse_bg_vert(const struct tile_ctx *ctx,
+                            struct tile_render_context *rc, int offset,
                             struct vertex *v) {
-  v->xyz[0] = *(float *)&ctx->bg_vertices[offset];
-  v->xyz[1] = *(float *)&ctx->bg_vertices[offset + 4];
-  v->xyz[2] = *(float *)&ctx->bg_vertices[offset + 8];
+  PARSE_XYZ(*(float *)&ctx->bg_vertices[offset],
+            *(float *)&ctx->bg_vertices[offset + 4],
+            *(float *)&ctx->bg_vertices[offset + 8], v->xyz);
   offset += 12;
 
   if (ctx->bg_isp.texture) {
@@ -484,26 +489,19 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
   struct vertex *v3 = tr_alloc_vert(tr, rc);
 
   int offset = 0;
-  offset = tr_parse_bg_vert(ctx, offset, v0);
-  offset = tr_parse_bg_vert(ctx, offset, v1);
-  offset = tr_parse_bg_vert(ctx, offset, v2);
+  offset = tr_parse_bg_vert(ctx, rc, offset, v0);
+  offset = tr_parse_bg_vert(ctx, rc, offset, v1);
+  offset = tr_parse_bg_vert(ctx, rc, offset, v2);
 
   /* override xyz values supplied by ISP_BACKGND_T. while the hardware docs act
      like they should be correct, they're most definitely not in most cases */
-  v0->xyz[0] = 0.0f;
-  v0->xyz[1] = (float)ctx->video_height;
-  v0->xyz[2] = ctx->bg_depth;
-  v1->xyz[0] = 0.0f;
-  v1->xyz[1] = 0.0f;
-  v1->xyz[2] = ctx->bg_depth;
-  v2->xyz[0] = (float)ctx->video_width;
-  v2->xyz[1] = (float)ctx->video_height;
-  v2->xyz[2] = ctx->bg_depth;
+  PARSE_XYZ(0.0f, (float)ctx->video_height, ctx->bg_depth, v0->xyz);
+  PARSE_XYZ(0.0f, 0.0f, ctx->bg_depth, v1->xyz);
+  PARSE_XYZ((float)ctx->video_width, (float)ctx->video_height, ctx->bg_depth,
+            v2->xyz);
 
   /* 4th vertex isn't supplied, fill it out automatically */
-  v3->xyz[0] = v2->xyz[0];
-  v3->xyz[1] = v1->xyz[1];
-  v3->xyz[2] = ctx->bg_depth;
+  PARSE_XYZ(v2->xyz[0], v1->xyz[1], ctx->bg_depth, v3->xyz);
   v3->color = v0->color;
   v3->offset_color = v0->offset_color;
   v3->uv[0] = v2->uv[0];
@@ -609,45 +607,6 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   }
 }
 
-static void tr_parse_spritea_vert(struct tr *tr, const union vert_param *param,
-                                  int i, struct vertex *vert) {
-  /* FIXME this is assuming all sprites are billboards */
-  vert->xyz[0] = param->sprite0.xyz[i][0];
-  vert->xyz[1] = param->sprite0.xyz[i][1];
-  /* z isn't specified for i == 3 */
-  vert->xyz[2] = param->sprite0.xyz[0][2];
-
-  tr_parse_color_rgba(tr, tr->face_color[0], tr->face_color[1],
-                      tr->face_color[2], tr->face_color[3], &vert->color);
-  tr_parse_offset_color_rgba(tr, tr->face_offset_color[0],
-                             tr->face_offset_color[1], tr->face_offset_color[2],
-                             tr->face_offset_color[3], &vert->offset_color);
-};
-
-static void tr_parse_spriteb_vert(struct tr *tr, const union vert_param *param,
-                                  int i, struct vertex *vert) {
-  /* FIXME this is assuming all sprites are billboards */
-  vert->xyz[0] = param->sprite1.xyz[i][0];
-  vert->xyz[1] = param->sprite1.xyz[i][1];
-  /* z isn't specified for i == 3 */
-  vert->xyz[2] = param->sprite1.xyz[0][2];
-  tr_parse_color_rgba(tr, tr->face_color[0], tr->face_color[1],
-                      tr->face_color[2], tr->face_color[3], &vert->color);
-  tr_parse_offset_color_rgba(tr, tr->face_offset_color[0],
-                             tr->face_offset_color[1], tr->face_offset_color[2],
-                             tr->face_offset_color[3], &vert->offset_color);
-  uint32_t u, v;
-  if (i == 3) {
-    u = (param->sprite1.uv[0] & 0xffff0000);
-    v = (param->sprite1.uv[2] & 0x0000ffff) << 16;
-  } else {
-    u = (param->sprite1.uv[i] & 0xffff0000);
-    v = (param->sprite1.uv[i] & 0x0000ffff) << 16;
-  }
-  vert->uv[0] = *(float *)&u;
-  vert->uv[1] = *(float *)&v;
-}
-
 static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
                                 struct tile_render_context *rc,
                                 const uint8_t *data) {
@@ -663,10 +622,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
   switch (tr->vertex_type) {
     case 0: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type0.xyz[0];
-      vert->xyz[1] = param->type0.xyz[1];
-      vert->xyz[2] = param->type0.xyz[2];
-      tr_parse_color(tr, param->type0.base_color, &vert->color);
+      PARSE_XYZ(param->type0.xyz[0], param->type0.xyz[1], param->type0.xyz[2],
+                vert->xyz);
+      PARSE_COLOR(param->type0.base_color, &vert->color);
       vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
@@ -674,12 +632,11 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
 
     case 1: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type1.xyz[0];
-      vert->xyz[1] = param->type1.xyz[1];
-      vert->xyz[2] = param->type1.xyz[2];
-      tr_parse_color_rgba(tr, param->type1.base_color_r,
-                          param->type1.base_color_g, param->type1.base_color_b,
-                          param->type1.base_color_a, &vert->color);
+      PARSE_XYZ(param->type1.xyz[0], param->type1.xyz[1], param->type1.xyz[2],
+                vert->xyz);
+      PARSE_COLOR_RGBA(param->type1.base_color_r, param->type1.base_color_g,
+                       param->type1.base_color_b, param->type1.base_color_a,
+                       &vert->color);
       vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
@@ -687,10 +644,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
 
     case 2: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type2.xyz[0];
-      vert->xyz[1] = param->type2.xyz[1];
-      vert->xyz[2] = param->type2.xyz[2];
-      tr_parse_color_intensity(tr, param->type2.base_intensity, &vert->color);
+      PARSE_XYZ(param->type2.xyz[0], param->type2.xyz[1], param->type2.xyz[2],
+                vert->xyz);
+      PARSE_COLOR_INTENSITY(param->type2.base_intensity, &vert->color);
       vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
@@ -698,22 +654,20 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
 
     case 3: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type3.xyz[0];
-      vert->xyz[1] = param->type3.xyz[1];
-      vert->xyz[2] = param->type3.xyz[2];
-      tr_parse_color(tr, param->type3.base_color, &vert->color);
-      tr_parse_offset_color(tr, param->type3.offset_color, &vert->offset_color);
+      PARSE_XYZ(param->type3.xyz[0], param->type3.xyz[1], param->type3.xyz[2],
+                vert->xyz);
+      PARSE_COLOR(param->type3.base_color, &vert->color);
+      PARSE_OFFSET_COLOR(param->type3.offset_color, &vert->offset_color);
       vert->uv[0] = param->type3.uv[0];
       vert->uv[1] = param->type3.uv[1];
     } break;
 
     case 4: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type4.xyz[0];
-      vert->xyz[1] = param->type4.xyz[1];
-      vert->xyz[2] = param->type4.xyz[2];
-      tr_parse_color(tr, param->type4.base_color, &vert->color);
-      tr_parse_offset_color(tr, param->type4.offset_color, &vert->offset_color);
+      PARSE_XYZ(param->type4.xyz[0], param->type4.xyz[1], param->type4.xyz[2],
+                vert->xyz);
+      PARSE_COLOR(param->type4.base_color, &vert->color);
+      PARSE_OFFSET_COLOR(param->type4.offset_color, &vert->offset_color);
       uint32_t u = param->type4.vu[1] << 16;
       uint32_t v = param->type4.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
@@ -722,32 +676,30 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
 
     case 5: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type5.xyz[0];
-      vert->xyz[1] = param->type5.xyz[1];
-      vert->xyz[2] = param->type5.xyz[2];
-      tr_parse_color_rgba(tr, param->type5.base_color_r,
-                          param->type5.base_color_g, param->type5.base_color_b,
-                          param->type5.base_color_a, &vert->color);
-      tr_parse_offset_color_rgba(
-          tr, param->type5.offset_color_r, param->type5.offset_color_g,
-          param->type5.offset_color_b, param->type5.offset_color_a,
-          &vert->offset_color);
+      PARSE_XYZ(param->type5.xyz[0], param->type5.xyz[1], param->type5.xyz[2],
+                vert->xyz);
+      PARSE_COLOR_RGBA(param->type5.base_color_r, param->type5.base_color_g,
+                       param->type5.base_color_b, param->type5.base_color_a,
+                       &vert->color);
+      PARSE_OFFSET_COLOR_RGBA(param->type5.offset_color_r,
+                              param->type5.offset_color_g,
+                              param->type5.offset_color_b,
+                              param->type5.offset_color_a, &vert->offset_color);
       vert->uv[0] = param->type5.uv[0];
       vert->uv[1] = param->type5.uv[1];
     } break;
 
     case 6: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type6.xyz[0];
-      vert->xyz[1] = param->type6.xyz[1];
-      vert->xyz[2] = param->type6.xyz[2];
-      tr_parse_color_rgba(tr, param->type6.base_color_r,
-                          param->type6.base_color_g, param->type6.base_color_b,
-                          param->type6.base_color_a, &vert->color);
-      tr_parse_offset_color_rgba(
-          tr, param->type6.offset_color_r, param->type6.offset_color_g,
-          param->type6.offset_color_b, param->type6.offset_color_a,
-          &vert->offset_color);
+      PARSE_XYZ(param->type6.xyz[0], param->type6.xyz[1], param->type6.xyz[2],
+                vert->xyz);
+      PARSE_COLOR_RGBA(param->type6.base_color_r, param->type6.base_color_g,
+                       param->type6.base_color_b, param->type6.base_color_a,
+                       &vert->color);
+      PARSE_OFFSET_COLOR_RGBA(param->type6.offset_color_r,
+                              param->type6.offset_color_g,
+                              param->type6.offset_color_b,
+                              param->type6.offset_color_a, &vert->offset_color);
       uint32_t u = param->type6.vu[1] << 16;
       uint32_t v = param->type6.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
@@ -756,24 +708,22 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
 
     case 7: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type7.xyz[0];
-      vert->xyz[1] = param->type7.xyz[1];
-      vert->xyz[2] = param->type7.xyz[2];
-      tr_parse_color_intensity(tr, param->type7.base_intensity, &vert->color);
-      tr_parse_offset_color_intensity(tr, param->type7.offset_intensity,
-                                      &vert->offset_color);
+      PARSE_XYZ(param->type7.xyz[0], param->type7.xyz[1], param->type7.xyz[2],
+                vert->xyz);
+      PARSE_COLOR_INTENSITY(param->type7.base_intensity, &vert->color);
+      PARSE_OFFSET_COLOR_INTENSITY(param->type7.offset_intensity,
+                                   &vert->offset_color);
       vert->uv[0] = param->type7.uv[0];
       vert->uv[1] = param->type7.uv[1];
     } break;
 
     case 8: {
       struct vertex *vert = tr_alloc_vert(tr, rc);
-      vert->xyz[0] = param->type8.xyz[0];
-      vert->xyz[1] = param->type8.xyz[1];
-      vert->xyz[2] = param->type8.xyz[2];
-      tr_parse_color_intensity(tr, param->type8.base_intensity, &vert->color);
-      tr_parse_offset_color_intensity(tr, param->type8.offset_intensity,
-                                      &vert->offset_color);
+      PARSE_XYZ(param->type8.xyz[0], param->type8.xyz[1], param->type8.xyz[2],
+                vert->xyz);
+      PARSE_COLOR_INTENSITY(param->type8.base_intensity, &vert->color);
+      PARSE_OFFSET_COLOR_INTENSITY(param->type8.offset_intensity,
+                                   &vert->offset_color);
       uint32_t u = param->type8.vu[1] << 16;
       uint32_t v = param->type8.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
@@ -781,17 +731,51 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
     } break;
 
     case 15: {
-      tr_parse_spritea_vert(tr, param, 0, tr_alloc_vert(tr, rc));
-      tr_parse_spritea_vert(tr, param, 1, tr_alloc_vert(tr, rc));
-      tr_parse_spritea_vert(tr, param, 3, tr_alloc_vert(tr, rc));
-      tr_parse_spritea_vert(tr, param, 2, tr_alloc_vert(tr, rc));
+      static const int indices[] = {0, 1, 3, 2};
+
+      for (int i = 0, l = array_size(indices); i < l; i++) {
+        int idx = indices[i];
+        struct vertex *vert = tr_alloc_vert(tr, rc);
+
+        /* FIXME this is assuming all sprites are billboards */
+        PARSE_XYZ(param->sprite0.xyz[idx][0], param->sprite0.xyz[idx][1],
+                  param->sprite0.xyz[0][2], vert->xyz);
+        PARSE_COLOR_RGBA(tr->face_color[0], tr->face_color[1],
+                         tr->face_color[2], tr->face_color[3], &vert->color);
+        PARSE_OFFSET_COLOR_RGBA(tr->face_offset_color[0],
+                                tr->face_offset_color[1],
+                                tr->face_offset_color[2],
+                                tr->face_offset_color[3], &vert->offset_color);
+      }
     } break;
 
     case 16: {
-      tr_parse_spriteb_vert(tr, param, 0, tr_alloc_vert(tr, rc));
-      tr_parse_spriteb_vert(tr, param, 1, tr_alloc_vert(tr, rc));
-      tr_parse_spriteb_vert(tr, param, 3, tr_alloc_vert(tr, rc));
-      tr_parse_spriteb_vert(tr, param, 2, tr_alloc_vert(tr, rc));
+      static const int indices[] = {0, 1, 3, 2};
+
+      for (int i = 0, l = array_size(indices); i < l; i++) {
+        int idx = indices[i];
+        struct vertex *vert = tr_alloc_vert(tr, rc);
+
+        /* FIXME this is assuming all sprites are billboards */
+        PARSE_XYZ(param->sprite1.xyz[idx][0], param->sprite1.xyz[idx][1],
+                  param->sprite1.xyz[0][2], vert->xyz);
+        PARSE_COLOR_RGBA(tr->face_color[0], tr->face_color[1],
+                         tr->face_color[2], tr->face_color[3], &vert->color);
+        PARSE_OFFSET_COLOR_RGBA(tr->face_offset_color[0],
+                                tr->face_offset_color[1],
+                                tr->face_offset_color[2],
+                                tr->face_offset_color[3], &vert->offset_color);
+        uint32_t u, v;
+        if (idx == 3) {
+          u = (param->sprite1.uv[0] & 0xffff0000);
+          v = (param->sprite1.uv[2] & 0x0000ffff) << 16;
+        } else {
+          u = (param->sprite1.uv[idx] & 0xffff0000);
+          v = (param->sprite1.uv[idx] & 0x0000ffff) << 16;
+        }
+        vert->uv[0] = *(float *)&u;
+        vert->uv[1] = *(float *)&v;
+      }
     } break;
 
     case 17: {
@@ -892,25 +876,8 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
      the screen. these coordinates need to be scaled back into ndc space, and
      z needs to be flipped so that -z is headed into the screen */
 
-  /* TODO track this while parsing vertices */
-  float znear = -FLT_MAX;
-  float zfar = FLT_MAX;
-
-  for (int i = 0; i < rc->num_verts; i++) {
-    struct vertex *v = &rc->verts[i];
-    if (!isfinite(v->xyz[2])) {
-      continue;
-    }
-    if (v->xyz[2] > znear) {
-      znear = v->xyz[2];
-    }
-    if (v->xyz[2] < zfar) {
-      zfar = v->xyz[2];
-    }
-  }
-
   /* fudge so z isn't mapped to exactly 0.0 and 1.0 */
-  float zdepth = (znear - zfar) * 1.2f;
+  float zdepth = (rc->maxz - rc->minz) * 1.2f;
 
   rc->projection[0] = 2.0f / (float)ctx->video_width;
   rc->projection[4] = 0.0f;
@@ -925,7 +892,7 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
   rc->projection[2] = 0.0f;
   rc->projection[6] = 0.0f;
   rc->projection[10] = 2.0f / -zdepth;
-  rc->projection[14] = -2.0f * (znear / -zdepth) - 1.0f;
+  rc->projection[14] = -2.0f * (rc->maxz / -zdepth) - 1.0f;
 
   rc->projection[3] = 0.0f;
   rc->projection[7] = 0.0f;
@@ -941,6 +908,8 @@ static void tr_reset(struct tr *tr, struct tile_render_context *rc) {
   tr->vertex_type = TA_NUM_VERTS;
 
   /* reset render context state */
+  rc->minz = FLT_MAX;
+  rc->maxz = -FLT_MAX;
   rc->num_params = 0;
   rc->num_surfs = 0;
   rc->num_verts = 0;
