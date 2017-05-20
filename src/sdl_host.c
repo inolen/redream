@@ -250,7 +250,7 @@ static int audio_init(struct sdl_host *host) {
     }
   }
 
-  LOG_INFO("Audio backend created, latency %.2f",
+  LOG_INFO("audio backend created, latency %.2f",
            host->soundio_stream->software_latency);
 
   return 1;
@@ -273,6 +273,14 @@ static void video_context_reset(struct sdl_host *host) {
   }
 
   host->video_context_reset(host->userdata);
+}
+
+static void video_resized(struct sdl_host *host) {
+  if (!host->video_resized) {
+    return;
+  }
+
+  host->video_resized(host->userdata);
 }
 
 void video_gl_make_current(struct host *base, gl_context_t ctx) {
@@ -759,6 +767,7 @@ static void host_poll_events(struct sdl_host *host) {
           case SDL_WINDOWEVENT_RESIZED: {
             host->video_width = ev.window.data1;
             host->video_height = ev.window.data2;
+            video_resized(host);
           } break;
         }
         break;

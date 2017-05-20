@@ -21,9 +21,6 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
-#define FRAME_WIDTH 640
-#define FRAME_HEIGHT 480
-
 enum {
   FRAME_WAITING,
   FRAME_RENDERING,
@@ -49,30 +46,53 @@ struct emu {
   cond_t pending_cond;
   struct tile_ctx *pending_ctx;
 
+  volatile int video_state;
+  volatile int video_width;
+  volatile int video_height;
+
   struct tile_render_context video_ctx;
+  int video_fb_width;
+  int video_fb_height;
   framebuffer_handle_t video_fb;
   texture_handle_t video_tex;
   sync_handle_t video_sync;
-  volatile int video_state;
 };
 
+static struct render_backend *emu_video_renderer(struct emu *emu) {
+  /* when using multi-threaded rendering, the video thread has its own render
+     backend instance */
+  return emu->multi_threaded ? emu->r2 : emu->r;
+}
+
 static void emu_render_frame(struct emu *emu) {
-  struct render_backend *fb_rb = emu->multi_threaded ? emu->r2 : emu->r;
+  struct render_backend *r2 = emu_video_renderer(emu);
 
   prof_counter_add(COUNTER_frames, 1);
 
   emu->video_state = FRAME_RENDERING;
 
+  /* resize the framebuffer at this time if the output size has changed */
+  if (emu->video_fb_width != emu->video_width ||
+      emu->video_fb_height != emu->video_height) {
+    r_destroy_framebuffer(r2, emu->video_fb);
+
+    emu->video_fb_width = emu->video_width;
+    emu->video_fb_height = emu->video_height;
+    emu->video_fb = r_create_framebuffer(r2, emu->video_fb_width,
+                                         emu->video_fb_height, &emu->video_tex);
+  }
+
   /* render the current render context to the video framebuffer */
-  framebuffer_handle_t original = r_get_framebuffer(fb_rb);
-  r_bind_framebuffer(fb_rb, emu->video_fb);
-  tr_render_context(emu->tr, &emu->video_ctx);
-  r_bind_framebuffer(fb_rb, original);
+  framebuffer_handle_t original = r_get_framebuffer(r2);
+  r_bind_framebuffer(r2, emu->video_fb);
+  tr_render_context(emu->tr, &emu->video_ctx, emu->video_fb_width,
+                    emu->video_fb_height);
+  r_bind_framebuffer(r2, original);
 
   /* insert fence for main thread to synchronize on in order to ensure that
      the context has completely rendered */
   if (emu->multi_threaded) {
-    emu->video_sync = r_insert_sync(fb_rb);
+    emu->video_sync = r_insert_sync(r2);
   }
 
   /* update frame-based profiler stats */
@@ -120,10 +140,10 @@ static void *emu_video_thread(void *data) {
 }
 
 static void emu_paint(struct emu *emu) {
-  int width = video_width(emu->host);
-  int height = video_height(emu->host);
-  float fw = (float)width;
-  float fh = (float)height;
+  int width = emu->video_width;
+  int height = emu->video_height;
+  float fwidth = (float)emu->video_width;
+  float fheight = (float)emu->video_height;
 
   nk_update_input(emu->nk);
 
@@ -135,15 +155,15 @@ static void emu_paint(struct emu *emu) {
         /* triangle 1, top left  */
         {{0.0f, 0.0f}, {0.0f, 1.0f}, 0xffffffff},
         /* triangle 1, top right */
-        {{fw, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
+        {{fwidth, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
         /* triangle 1, bottom left */
-        {{0.0f, fh}, {0.0f, 0.0f}, 0xffffffff},
+        {{0.0f, fheight}, {0.0f, 0.0f}, 0xffffffff},
         /* triangle 2, top right */
-        {{fw, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
+        {{fwidth, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
         /* triangle 2, bottom right */
-        {{fw, fh}, {1.0f, 0.0f}, 0xffffffff},
+        {{fwidth, fheight}, {1.0f, 0.0f}, 0xffffffff},
         /* triangle 2, bottom left */
-        {{0.0f, fh}, {0.0f, 0.0f}, 0xffffffff},
+        {{0.0f, fheight}, {0.0f, 0.0f}, 0xffffffff},
     };
 
     struct surface2 quad = {0};
@@ -171,7 +191,7 @@ static void emu_paint(struct emu *emu) {
   /* render debug menus */
   if (emu->debug_menu) {
     struct nk_context *ctx = &emu->nk->ctx;
-    struct nk_rect bounds = {0.0f, -1.0f, fw, DEBUG_MENU_HEIGHT + 1.0f};
+    struct nk_rect bounds = {0.0f, -1.0f, fwidth, DEBUG_MENU_HEIGHT + 1.0f};
 
     nk_style_default(ctx);
     ctx->style.window.border = 0.0f;
@@ -205,7 +225,7 @@ static void emu_paint(struct emu *emu) {
       snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
                frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
 
-      nk_layout_row_push(ctx, fw - ctx->current->layout->row.item_offset);
+      nk_layout_row_push(ctx, fwidth - ctx->current->layout->row.item_offset);
       nk_label(ctx, status, NK_TEXT_RIGHT);
 
       nk_layout_row_end(ctx);
@@ -316,13 +336,14 @@ static void emu_video_context_destroyed(void *userdata) {
      TODO this feels kind of wrong, should we be managing the texture cache? */
   provider->clear_textures(provider->userdata);
 
-  /* destroy video framebuffer */
-  struct render_backend *fb_rb = emu->multi_threaded ? emu->r2 : emu->r;
-  r_make_current(fb_rb);
+  /* destroy video renderer state */
+  struct render_backend *r2 = emu_video_renderer(emu);
 
-  r_destroy_framebuffer(fb_rb, emu->video_fb);
+  r_make_current(r2);
+
+  r_destroy_framebuffer(r2, emu->video_fb);
   if (emu->video_sync) {
-    r_destroy_sync(fb_rb, emu->video_sync);
+    r_destroy_sync(r2, emu->video_sync);
   }
   tr_destroy(emu->tr);
 
@@ -332,7 +353,7 @@ static void emu_video_context_destroyed(void *userdata) {
     mutex_destroy(emu->pending_mutex);
   }
 
-  /* make primary renderer active for the current thread */
+  /* destroy primary renderer state */
   r_make_current(emu->r);
 
   nk_destroy(emu->nk);
@@ -348,23 +369,28 @@ static void emu_video_context_reset(void *userdata) {
 
   emu->running = 1;
 
+  /* create primary renderer */
   emu->r = r_create(emu->host);
   emu->mp = mp_create(emu->r);
   emu->nk = nk_create(emu->r);
 
+  /* create video renderer */
   if (emu->multi_threaded) {
     emu->pending_mutex = mutex_create();
     emu->pending_cond = cond_create();
     emu->r2 = r_create_from(emu->r);
   }
 
-  /* create video framebuffer */
-  struct render_backend *fb_rb = emu->multi_threaded ? emu->r2 : emu->r;
-  r_make_current(fb_rb);
+  struct render_backend *r2 = emu_video_renderer(emu);
 
-  emu->tr = tr_create(fb_rb, provider);
-  emu->video_fb =
-      r_create_framebuffer(fb_rb, FRAME_WIDTH, FRAME_HEIGHT, &emu->video_tex);
+  r_make_current(r2);
+
+  emu->tr = tr_create(r2, provider);
+
+  emu->video_fb_width = emu->video_width;
+  emu->video_fb_height = emu->video_height;
+  emu->video_fb = r_create_framebuffer(r2, emu->video_fb_width,
+                                       emu->video_fb_height, &emu->video_tex);
 
   /* startup video thread */
   if (emu->multi_threaded) {
@@ -374,6 +400,13 @@ static void emu_video_context_reset(void *userdata) {
 
   /* make primary renderer active for the current thread */
   r_make_current(emu->r);
+}
+
+static void emu_video_resized(void *userdata) {
+  struct emu *emu = userdata;
+
+  emu->video_width = video_width(emu->host);
+  emu->video_height = video_height(emu->host);
 }
 
 void emu_run_frame(struct emu *emu) {
@@ -409,9 +442,14 @@ void emu_destroy(struct emu *emu) {
 struct emu *emu_create(struct host *host) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
+  /* save off initial video size */
+  emu->video_width = video_width(host);
+  emu->video_height = video_height(host);
+
   /* setup host, bind event callbacks */
   emu->host = host;
   emu->host->userdata = emu;
+  emu->host->video_resized = &emu_video_resized;
   emu->host->video_context_reset = &emu_video_context_reset;
   emu->host->video_context_destroyed = &emu_video_context_destroyed;
   emu->host->input_keydown = &emu_input_keydown;

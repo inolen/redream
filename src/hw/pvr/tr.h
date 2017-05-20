@@ -60,8 +60,6 @@ struct tile_render_list {
 };
 
 struct tile_render_context {
-  int width, height;
-
   /* transforms incoming windows space coordinates to ndc space */
   float minz, maxz;
   float projection[16];
@@ -91,6 +89,7 @@ void tr_destroy(struct tr *tr);
 
 void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
                       struct tile_render_context *rc);
-void tr_render_context(struct tr *tr, const struct tile_render_context *rc);
+void tr_render_context(struct tr *tr, const struct tile_render_context *rc,
+                       int video_width, int video_height);
 
 #endif
