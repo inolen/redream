@@ -60,10 +60,10 @@ struct tile_render_list {
 };
 
 struct tile_render_context {
-  int width;
-  int height;
+  int width, height;
 
   /* transforms incoming windows space coordinates to ndc space */
+  float minz, maxz;
   float projection[16];
 
   /* parsed surfaces and vertices, ready to be passed to the render backend */
