@@ -171,7 +171,7 @@ static void emu_paint(struct emu *emu) {
   /* render debug menus */
   if (emu->debug_menu) {
     struct nk_context *ctx = &emu->nk->ctx;
-    struct nk_rect bounds = {0.0f, -1.0f, fw, DEBUG_MENU_HEIGHT};
+    struct nk_rect bounds = {0.0f, -1.0f, fw, DEBUG_MENU_HEIGHT + 1.0f};
 
     nk_style_default(ctx);
     ctx->style.window.border = 0.0f;

@@ -14,10 +14,10 @@ enum texture_map {
 };
 
 enum uniform_attr {
-  UNIFORM_MVP = 0,
-  UNIFORM_DIFFUSE = 1,
-  UNIFORM_PT_ALPHA_REF = 2,
-  UNIFORM_NUM_UNIFORMS = 3
+  UNIFORM_MVP,
+  UNIFORM_DIFFUSE,
+  UNIFORM_PT_ALPHA_REF,
+  UNIFORM_NUM_UNIFORMS,
 };
 
 static const char *uniform_names[] = {
@@ -37,7 +37,8 @@ enum shader_attr {
   ATTR_IGNORE_TEXTURE_ALPHA = 0x10,
   ATTR_OFFSET_COLOR = 0x20,
   ATTR_PT_ALPHA_TEST = 0x40,
-  ATTR_COUNT = 0x80
+  ATTR_DEBUG_DEPTH_BUFFER = 0x80,
+  ATTR_COUNT = 0x100
 };
 
 struct shader_program {
@@ -65,6 +66,7 @@ struct texture {
 struct render_backend {
   struct host *host;
   gl_context_t ctx;
+  int debug_flags;
 
   /* default assets created during intitialization */
   GLuint white_texture;
@@ -309,8 +311,13 @@ static void r_create_shaders(struct render_backend *r) {
     if (i & ATTR_OFFSET_COLOR) {
       strcat(header, "#define OFFSET_COLOR\n");
     }
+
     if (i & ATTR_PT_ALPHA_TEST) {
       strcat(header, "#define PT_ALPHA_TEST\n");
+    }
+
+    if (i & ATTR_DEBUG_DEPTH_BUFFER) {
+      strcat(header, "#define DEBUG_DEPTH_BUFFER\n");
     }
 
     if (!r_compile_program(r, program, header, ta_vp, ta_fp)) {
@@ -455,6 +462,9 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
   }
   if (surf->pt_alpha_test) {
     idx |= ATTR_PT_ALPHA_TEST;
+  }
+  if (r->debug_flags & DEBUG_DEPTH_BUFFER) {
+    idx |= ATTR_DEBUG_DEPTH_BUFFER;
   }
   struct shader_program *program = &r->ta_programs[idx];
   CHECK_NOTNULL(program);
@@ -799,6 +809,18 @@ framebuffer_handle_t r_get_framebuffer(struct render_backend *r) {
   GLint result;
   glGetIntegerv(GL_FRAMEBUFFER_BINDING, &result);
   return result;
+}
+
+void r_clear_debug_flag(struct render_backend *r, int flag) {
+  r->debug_flags &= ~flag;
+}
+
+int r_get_debug_flag(struct render_backend *r, int flag) {
+  return (r->debug_flags & flag) == flag;
+}
+
+void r_set_debug_flag(struct render_backend *r, int flag) {
+  r->debug_flags |= flag;
 }
 
 int r_video_height(struct render_backend *r) {

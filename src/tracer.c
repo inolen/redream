@@ -6,6 +6,8 @@
 #include "hw/pvr/trace.h"
 #include "render/nuklear.h"
 
+#define SCRUBBER_WINDOW_HEIGHT 20.0f
+
 static const char *param_names[] = {
     "TA_PARAM_END_OF_LIST", "TA_PARAM_USER_TILE_CLIP", "TA_PARAM_OBJ_LIST_SET",
     "TA_PARAM_RESERVED0",   "TA_PARAM_POLY_OR_VOL",    "TA_PARAM_SPRITE",
@@ -279,7 +281,49 @@ static void tracer_reset_context(struct tracer *tracer) {
   tracer_next_context(tracer);
 }
 
-static const float SCRUBBER_WINDOW_HEIGHT = 20.0f;
+static void tracer_render_debug_menu(struct tracer *tracer) {
+  struct nk_context *ctx = &tracer->nk->ctx;
+
+  float fw = (float)video_width(tracer->host);
+  struct nk_rect bounds = {0.0f, -1.0f, fw, DEBUG_MENU_HEIGHT + 1.0f};
+
+  nk_style_default(ctx);
+  ctx->style.window.border = 0.0f;
+  ctx->style.window.menu_border = 0.0f;
+  ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
+  ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
+
+  if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
+    nk_style_default(ctx);
+    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
+
+    nk_menubar_begin(ctx);
+    nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT, 1);
+
+    {
+      nk_layout_row_push(ctx, 40.0f);
+
+      if (nk_menu_begin_label(ctx, "DEBUG", NK_TEXT_LEFT,
+                              nk_vec2(140.0f, 200.0f))) {
+        nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+        int debug_depth = r_get_debug_flag(tracer->r, DEBUG_DEPTH_BUFFER);
+        nk_checkbox_label(ctx, "depth buffer", &debug_depth);
+        if (debug_depth) {
+          r_set_debug_flag(tracer->r, DEBUG_DEPTH_BUFFER);
+        } else {
+          r_clear_debug_flag(tracer->r, DEBUG_DEPTH_BUFFER);
+        }
+
+        nk_menu_end(ctx);
+      }
+    }
+
+    nk_layout_row_end(ctx);
+    nk_menubar_end(ctx);
+  }
+  nk_end(ctx);
+}
 
 static void tracer_render_scrubber_menu(struct tracer *tracer) {
   struct nk_context *ctx = &tracer->nk->ctx;
@@ -575,8 +619,9 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   /* transparent menu backgrounds / selectables */
 
   {
-    struct nk_rect bounds = {0.0f, 0.0, 240.0f,
-                             height - SCRUBBER_WINDOW_HEIGHT};
+    struct nk_rect bounds = {
+        0.0f, DEBUG_MENU_HEIGHT, 240.0f,
+        height - DEBUG_MENU_HEIGHT - SCRUBBER_WINDOW_HEIGHT};
 
     nk_style_default(ctx);
 
@@ -657,8 +702,9 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   }
 
   {
-    struct nk_rect bounds = {width - 240.0f, 0.0, 240.0f,
-                             height - SCRUBBER_WINDOW_HEIGHT};
+    struct nk_rect bounds = {
+        width - 240.0f, DEBUG_MENU_HEIGHT, 240.0f,
+        height - DEBUG_MENU_HEIGHT - SCRUBBER_WINDOW_HEIGHT};
 
     nk_style_default(ctx);
 
@@ -775,6 +821,7 @@ void tracer_run_frame(struct tracer *tracer) {
   /* render ui */
   tracer_render_side_menu(tracer);
   tracer_render_scrubber_menu(tracer);
+  tracer_render_debug_menu(tracer);
 
   /* render context up to the surface of the currently selected param */
   {
