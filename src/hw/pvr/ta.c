@@ -231,7 +231,7 @@ static void ta_soft_reset(struct ta *ta) {
 }
 
 static void ta_clear_textures(struct ta *ta) {
-  LOG_INFO("Texture cache cleared");
+  LOG_INFO("ta_clear_textures");
 
   struct rb_node *it = rb_first(&ta->live_entries);
 

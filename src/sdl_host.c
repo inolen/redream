@@ -547,7 +547,7 @@ static void input_handle_controller_removed(struct sdl_host *host, int port) {
     return;
   }
 
-  LOG_INFO("controller %s removed from port %d", SDL_GameControllerName(ctrl),
+  LOG_INFO("controller '%s' removed from port %d", SDL_GameControllerName(ctrl),
            port);
   SDL_GameControllerClose(ctrl);
   host->controllers[port] = NULL;
@@ -563,14 +563,14 @@ static void input_handle_controller_added(struct sdl_host *host,
     }
   }
   if (port >= INPUT_MAX_CONTROLLERS) {
-    LOG_WARNING("No open ports to bind controller to");
+    LOG_WARNING("no open ports to bind controller to");
     return;
   }
 
   SDL_GameController *ctrl = SDL_GameControllerOpen(device_id);
   host->controllers[port] = ctrl;
 
-  LOG_INFO("controller %s added on port %d", SDL_GameControllerName(ctrl),
+  LOG_INFO("controller '%s' added on port %d", SDL_GameControllerName(ctrl),
            port);
 }
 

@@ -107,17 +107,18 @@ static void *emu_video_thread(void *data) {
   /* make secondary context active for this thread */
   r_make_current(emu->r2);
 
-  while (emu->running) {
+  while (1) {
     mutex_lock(emu->pending_mutex);
 
     /* wait for the next tile context provided by emu_start_render */
     while (!emu->pending_ctx) {
-      /* check for shutdown */
-      if (!emu->running) {
-        break;
-      }
-
       cond_wait(emu->pending_cond, emu->pending_mutex);
+    }
+
+    /* check for shutdown */
+    if (!emu->running) {
+      mutex_unlock(emu->pending_mutex);
+      break;
     }
 
     /* parse the context, uploading its textures to the render backend */
@@ -325,6 +326,7 @@ static void emu_video_context_destroyed(void *userdata) {
   /* destroy the video thread */
   if (emu->multi_threaded) {
     mutex_lock(emu->pending_mutex);
+    emu->pending_ctx = (struct tile_ctx *)0xdeadbeef;
     cond_signal(emu->pending_cond);
     mutex_unlock(emu->pending_mutex);
 
