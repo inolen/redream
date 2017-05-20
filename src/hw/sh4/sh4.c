@@ -129,30 +129,36 @@ static void sh4_run(struct device *dev, int64_t ns) {
   struct jit *jit = sh4->jit;
 
   int cycles = (int)NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
-  cycles = MAX(cycles, INT64_C(1));
+  cycles = MAX(cycles, 1);
 
-  int cache_enabled = sh4->CCR->ICE;
+#if 1
+  jit_run(sh4->jit, cycles);
+#else
+  ctx->run_cycles = cycles;
+  ctx->ran_instrs = 0;
 
-  if (cache_enabled) {
-    jit_run(sh4->jit, cycles);
-  } else {
-    ctx->run_cycles = cycles;
-    ctx->ran_instrs = 0;
+  while (ctx->run_cycles > 0) {
+    static int RUN_SLICE = 64;
+    int ran_cycles = 0;
+    int ran_instrs = 0;
 
-    while (ctx->run_cycles > 0) {
-      sh4_intc_check_pending(sh4);
-
+    do {
       uint16_t data = as_read16(sh4->memory_if->space, ctx->pc);
       union sh4_instr instr = {data};
       struct sh4_opdef *def = sh4_get_opdef(data);
       sh4_fallback_cb cb = sh4_get_fallback(data);
-
       cb(sh4->guest, ctx->pc, instr);
 
-      ctx->run_cycles -= def->cycles;
-      ctx->ran_instrs++;
-    }
+      ran_cycles += def->cycles;
+      ran_instrs++;
+    } while (ran_cycles < RUN_SLICE);
+
+    ctx->run_cycles -= ran_cycles;
+    ctx->ran_instrs += ran_instrs;
+
+    sh4_intc_check_pending(sh4);
   }
+#endif
 
   prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 

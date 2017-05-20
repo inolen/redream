@@ -158,25 +158,33 @@ static void arm7_run(struct device *dev, int64_t ns) {
   static int64_t ARM7_CLOCK_FREQ = INT64_C(20000000);
   int cycles = (int)NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ);
 
-  if (1) {
-    jit_run(arm->jit, cycles);
-  } else {
-    ctx->run_cycles = cycles;
-    ctx->ran_instrs = 0;
+#if 1
+  jit_run(arm->jit, cycles);
+#else
+  ctx->run_cycles = cycles;
+  ctx->ran_instrs = 0;
 
-    while (ctx->run_cycles > 0) {
-      arm7_check_pending_interrupts(arm);
+  while (ctx->run_cycles > 0) {
+    static int RUN_SLICE = 64;
+    int ran_cycles = 0;
+    int ran_instrs = 0;
 
+    do {
       uint32_t data = as_read32(arm->memory_if->space, ctx->r[15]);
       union armv3_instr instr = {data};
       armv3_fallback_cb cb = armv3_get_fallback(data);
-
       cb(arm->guest, ctx->r[15], instr);
 
-      ctx->run_cycles -= 8;
-      ctx->ran_instrs++;
-    }
+      ran_cycles += 8;
+      ran_instrs++;
+    } while (ran_cycles < RUN_SLICE);
+
+    ctx->run_cycles -= ran_cycles;
+    ctx->ran_instrs += ran_instrs;
+
+    arm7_check_pending_interrupts(arm);
   }
+#endif
 
   prof_counter_add(COUNTER_arm7_instrs, arm->ctx.ran_instrs);
 
