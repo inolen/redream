@@ -13,7 +13,7 @@
 #include "tracer.h"
 
 DEFINE_OPTION_INT(audio, 1, "Enable audio");
-DEFINE_OPTION_INT(latency, 100, "Preferred audio latency in ms");
+DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 DEFINE_OPTION_INT(help, 0, "Show help");
 
 #define AUDIO_FREQ 44100
