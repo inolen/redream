@@ -207,6 +207,6 @@ void x64_dispatch_init(struct x64_backend *backend) {
   /* initialize code cache, one entry per possible block begin */
   backend->cache_mask = jit->guest->addr_mask;
   backend->cache_shift = ctz32(jit->guest->addr_mask);
-  backend->cache_size = (backend->cache_mask + 1) >> backend->cache_shift;
+  backend->cache_size = (backend->cache_mask >> backend->cache_shift) + 1;
   backend->cache = (void **)malloc(backend->cache_size * sizeof(void *));
 }
