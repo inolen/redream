@@ -748,29 +748,6 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   }
 }
 
-static void tracer_render_list(struct tracer *tracer,
-                               const struct tr_context *rc, int list_type,
-                               int end, int *stopped) {
-  if (*stopped) {
-    return;
-  }
-
-  const struct tr_list *list = &tracer->rc.lists[list_type];
-  const int *sorted_surf = list->surfs;
-  const int *sorted_surf_end = list->surfs + list->num_surfs;
-
-  while (sorted_surf < sorted_surf_end) {
-    int idx = *(sorted_surf++);
-
-    r_draw_ta_surface(tracer->r, &tracer->rc.surfs[idx]);
-
-    if (idx == end) {
-      *stopped = 1;
-      break;
-    }
-  }
-}
-
 static void tracer_input_mousemove(void *data, int port, int x, int y) {
   struct tracer *tracer = data;
 
@@ -802,31 +779,23 @@ void tracer_run_frame(struct tracer *tracer) {
 
   nk_update_input(tracer->nk);
 
-  /* render ui */
+  /* build ui */
   tracer_render_side_menu(tracer);
   tracer_render_scrubber_menu(tracer);
   tracer_render_debug_menu(tracer);
 
   /* render context up to the surface of the currently selected param */
-  {
-    struct tr_context *rc = &tracer->rc;
-    int stopped = 0;
-    int end = -1;
+  struct tr_context *rc = &tracer->rc;
+  int end_surf = -1;
 
-    if (tracer->current_param >= 0) {
-      struct tr_param *rp = &rc->params[tracer->current_param];
-      end = rp->last_surf;
-    }
-
-    r_begin_ta_surfaces(tracer->r, rc->projection, rc->verts, rc->num_verts);
-
-    tracer_render_list(tracer, rc, TA_LIST_OPAQUE, end, &stopped);
-    tracer_render_list(tracer, rc, TA_LIST_PUNCH_THROUGH, end, &stopped);
-    tracer_render_list(tracer, rc, TA_LIST_TRANSLUCENT, end, &stopped);
-
-    r_end_ta_surfaces(tracer->r);
+  if (tracer->current_param >= 0) {
+    struct tr_param *rp = &rc->params[tracer->current_param];
+    end_surf = rp->last_surf;
   }
 
+  tr_render_context_until(tracer->r, rc, end_surf);
+
+  /* render ui */
   nk_render(tracer->nk);
 }
 

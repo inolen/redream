@@ -1,5 +1,5 @@
 static const char *ta_vp =
-"uniform mat4 u_mvp;\n"
+"uniform vec4 u_video_scale;\n"
 
 "layout(location = 0) in vec3 attr_xyz;\n"
 "layout(location = 1) in vec2 attr_texcoord;\n"
@@ -15,14 +15,17 @@ static const char *ta_vp =
 "  var_offset_color = attr_offset_color;\n"
 "  var_texcoord = attr_texcoord;\n"
 
-"  // convert from window space back into ndc space\n"
-"  gl_Position = u_mvp * vec4(attr_xyz, 1.0);\n"
+"  // scale x from [0,640] -> [-1,1] and y from [0,480] to [-1,1]\n"
+"  gl_Position.xy = attr_xyz.xy * u_video_scale.xz + u_video_scale.yw;\n"
 
-"  // specify w so OpenGL applies perspective corrected texture mapping, but\n"
-"  // cancel the perspective divide on the xyz, they're already in ndc space\n"
-"  float w = 1.0 / attr_xyz.z;\n"
-"  gl_Position.xyz *= w;\n"
-"  gl_Position.w = w;\n"
+"  // the z coordinate is actually 1/w, convert to w. note, there is no\n"
+"  // actual z coordinate provided to the ta, just 1/w. due to this, we set\n"
+"  // z = w in the vertex shader such that the clip test always passes, and\n"
+"  // then gl_FragDepth is manually set to w in the fragment shader\n"
+"  gl_Position.zw = 1.0f / attr_xyz.zz;\n"
+
+"  // cancel the perspective divide on the xy, they're already in ndc space\n"
+"  gl_Position.xy *= gl_Position.w;\n"
 "}";
 
 static const char *ta_fp =
@@ -70,7 +73,29 @@ static const char *ta_fp =
 "  #ifdef OFFSET_COLOR\n"
 "    fragcolor.rgb += var_offset_color.rgb;\n"
 "  #endif\n"
+
+"  // gl_FragCoord.w is 1/clip.w aka the original 1/w passed to the TA,\n"
+"  // interpolated in screen space. this value is normally between [0,1],\n"
+"  // however, values very close to the near plane often raise to 10-100000\n"
+
+"  // unfortunately, there doesn't seem to exist a full 32-bit floating-point\n"
+"  // depth buffer. because of this, the depth value written out here must be\n"
+"  // normalized to [0,1] to satisfy OpenGL, which will then subsequently\n"
+"  // quantize it to a 24-bit integer\n"
+
+"  // if this value is normalized by (w - wmin) / (wmax - wmin), too much\n"
+"  // precision is ultimately lost in small w values by the time the value is\n"
+"  // written to the depth buffer. seeing that most values are between [0,1],\n"
+"  // with only a few outliers being > 1, writing out log2(w) / log2(wmax)\n"
+"  // works out well to preserve the precision in these smaller w values\n"
+
+"  // note, 2^17 was chosen as ~100000 was largest value i'd seen passed as\n"
+"  // the w component at the time this was written\n"
+
+"  float w = 1.0 / gl_FragCoord.w;\n"
+"  gl_FragDepth = log2(1.0 + w) / 17.0;\n"
+
 "  #ifdef DEBUG_DEPTH_BUFFER\n"
-"    fragcolor.rgb = vec3(gl_FragCoord.z);\n"
+"    fragcolor.rgb = vec3(gl_FragDepth);\n"
 "  #endif\n"
 "}";

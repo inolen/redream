@@ -52,9 +52,9 @@ struct tr_list {
 };
 
 struct tr_context {
-  /* transforms incoming windows space coordinates to ndc space */
-  float minz, maxz;
-  float projection[16];
+  /* original video dimensions, needed to project surfaces correctly */
+  int width;
+  int height;
 
   /* parsed surfaces and vertices, ready to be passed to the render backend */
   struct ta_surface surfs[TA_MAX_SURFS];
@@ -81,5 +81,7 @@ void tr_convert_context(struct render_backend *r, void *userdata,
                         tr_find_texture_cb find_texture,
                         const struct tile_context *ctx, struct tr_context *rc);
 void tr_render_context(struct render_backend *r, const struct tr_context *rc);
+void tr_render_context_until(struct render_backend *r,
+                             const struct tr_context *rc, int end_surf);
 
 #endif

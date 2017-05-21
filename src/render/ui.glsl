@@ -1,5 +1,5 @@
 static const char *ui_vp =
-"uniform mat4 u_mvp;\n"
+"uniform mat4 u_proj;\n"
 
 "layout(location = 0) in vec2 attr_xy;\n"
 "layout(location = 1) in vec2 attr_texcoord;\n"
@@ -11,7 +11,7 @@ static const char *ui_vp =
 "void main() {\n"
 "  var_color = attr_color;\n"
 "  var_texcoord = attr_texcoord;\n"
-"  gl_Position = u_mvp * vec4(attr_xy, 0.0, 1.0);\n"
+"  gl_Position = u_proj * vec4(attr_xy, 0.0, 1.0);\n"
 "}";
 
 static const char *ui_fp =
