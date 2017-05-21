@@ -166,8 +166,9 @@ void r_viewport(struct render_backend *r, int width, int height);
 int r_viewport_width(struct render_backend *r);
 int r_viewport_height(struct render_backend *r);
 
-void r_begin_ta_surfaces(struct render_backend *r, const float *projection,
-                         const struct ta_vertex *verts, int num_verts);
+void r_begin_ta_surfaces(struct render_backend *r, int video_width,
+                         int video_height, const struct ta_vertex *verts,
+                         int num_verts);
 void r_draw_ta_surface(struct render_backend *r, const struct ta_surface *surf);
 void r_end_ta_surfaces(struct render_backend *r);
 

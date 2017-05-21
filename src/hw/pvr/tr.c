@@ -395,15 +395,11 @@ static void tr_discard_incomplete_surf(struct tr *tr, struct tr_context *rc) {
 /*
 * polygon parsing helpers
 */
-#define PARSE_XYZ(x, y, z, xyz)         \
-  {                                     \
-    xyz[0] = (x);                       \
-    xyz[1] = (y);                       \
-    xyz[2] = (z);                       \
-    if (isfinite(z)) {                  \
-      rc->minz = MIN(rc->minz, xyz[2]); \
-      rc->maxz = MAX(rc->maxz, xyz[2]); \
-    }                                   \
+#define PARSE_XYZ(x, y, z, xyz) \
+  {                             \
+    xyz[0] = (x);               \
+    xyz[1] = (y);               \
+    xyz[2] = (z);               \
   }
 
 #define PARSE_COLOR(base_color, color) \
@@ -872,37 +868,6 @@ static void tr_parse_eol(struct tr *tr, const struct tile_context *ctx,
   tr->vertex_type = TA_NUM_VERTS;
 }
 
-static void tr_proj_mat(struct tr *tr, const struct tile_context *ctx,
-                        struct tr_context *rc) {
-  /* this isn't a traditional projection matrix. xy components coming into the
-     TA are in window space, while the z component is 1/w with +z headed into
-     the screen. these coordinates need to be scaled back into ndc space, and
-     z needs to be flipped so that -z is headed into the screen */
-
-  /* fudge so z isn't mapped to exactly 0.0 and 1.0 */
-  float zdepth = (rc->maxz - rc->minz) * 1.2f;
-
-  rc->projection[0] = 2.0f / (float)ctx->video_width;
-  rc->projection[4] = 0.0f;
-  rc->projection[8] = 0.0f;
-  rc->projection[12] = -1.0f;
-
-  rc->projection[1] = 0.0f;
-  rc->projection[5] = -2.0f / (float)ctx->video_height;
-  rc->projection[9] = 0.0f;
-  rc->projection[13] = 1.0f;
-
-  rc->projection[2] = 0.0f;
-  rc->projection[6] = 0.0f;
-  rc->projection[10] = 2.0f / -zdepth;
-  rc->projection[14] = -2.0f * (rc->maxz / -zdepth) - 1.0f;
-
-  rc->projection[3] = 0.0f;
-  rc->projection[7] = 0.0f;
-  rc->projection[11] = 0.0f;
-  rc->projection[15] = 1.0f;
-}
-
 static void tr_reset(struct tr *tr, struct tr_context *rc) {
   /* reset global state */
   tr->last_poly = NULL;
@@ -911,8 +876,6 @@ static void tr_reset(struct tr *tr, struct tr_context *rc) {
   tr->vertex_type = TA_NUM_VERTS;
 
   /* reset render context state */
-  rc->minz = FLT_MAX;
-  rc->maxz = -FLT_MAX;
   rc->num_params = 0;
   rc->num_surfs = 0;
   rc->num_verts = 0;
@@ -923,29 +886,45 @@ static void tr_reset(struct tr *tr, struct tr_context *rc) {
 }
 
 static void tr_render_list(struct render_backend *r,
-                           const struct tr_context *rc, int list_type) {
+                           const struct tr_context *rc, int list_type, int end_surf, int *stopped) {
+  if (*stopped) {
+    return;
+  }
+
   const struct tr_list *list = &rc->lists[list_type];
   const int *sorted_surf = list->surfs;
   const int *sorted_surf_end = list->surfs + list->num_surfs;
 
   while (sorted_surf < sorted_surf_end) {
-    r_draw_ta_surface(r, &rc->surfs[*sorted_surf]);
-    sorted_surf++;
+    int surf = *(sorted_surf++);
+
+    r_draw_ta_surface(r, &rc->surfs[surf]);
+
+    if (surf == end_surf) {
+      *stopped = 1;
+      break;
+    }
   }
 }
 
-void tr_render_context(struct render_backend *r, const struct tr_context *rc) {
-  PROF_ENTER("gpu", "tr_render_context");
+void tr_render_context_until(struct render_backend *r, const struct tr_context *rc, int end_surf) {
+  PROF_ENTER("gpu", "tr_render_context_until");
 
-  r_begin_ta_surfaces(r, rc->projection, rc->verts, rc->num_verts);
+  int stopped = 0;
 
-  tr_render_list(r, rc, TA_LIST_OPAQUE);
-  tr_render_list(r, rc, TA_LIST_PUNCH_THROUGH);
-  tr_render_list(r, rc, TA_LIST_TRANSLUCENT);
+  r_begin_ta_surfaces(r, rc->width, rc->height, rc->verts, rc->num_verts);
+
+  tr_render_list(r, rc, TA_LIST_OPAQUE, end_surf, &stopped);
+  tr_render_list(r, rc, TA_LIST_PUNCH_THROUGH, end_surf, &stopped);
+  tr_render_list(r, rc, TA_LIST_TRANSLUCENT, end_surf, &stopped);
 
   r_end_ta_surfaces(r);
 
   PROF_LEAVE();
+}
+
+void tr_render_context(struct render_backend *r, const struct tr_context *rc) {
+  tr_render_context_until(r, rc, -1);
 }
 
 void tr_convert_context(struct render_backend *r, void *userdata,
@@ -962,7 +941,12 @@ void tr_convert_context(struct render_backend *r, void *userdata,
   const uint8_t *end = ctx->params + ctx->size;
 
   ta_init_tables();
+
   tr_reset(&tr, rc);
+
+  rc->width = ctx->video_width;
+  rc->height = ctx->video_height;
+
   tr_parse_bg(&tr, ctx, rc);
 
   while (data < end) {
@@ -1013,8 +997,6 @@ void tr_convert_context(struct render_backend *r, void *userdata,
     tr_sort_render_list(&tr, rc, TA_LIST_TRANSLUCENT);
     tr_sort_render_list(&tr, rc, TA_LIST_PUNCH_THROUGH);
   }
-
-  tr_proj_mat(&tr, ctx, rc);
 
   PROF_LEAVE();
 }

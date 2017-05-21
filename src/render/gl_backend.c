@@ -14,14 +14,15 @@ enum texture_map {
 };
 
 enum uniform_attr {
-  UNIFORM_MVP,
+  UNIFORM_PROJ,
   UNIFORM_DIFFUSE,
+  UNIFORM_VIDEO_SCALE,
   UNIFORM_PT_ALPHA_REF,
   UNIFORM_NUM_UNIFORMS,
 };
 
 static const char *uniform_names[] = {
-    "u_mvp", "u_diffuse", "u_pt_alpha_ref",
+    "u_proj", "u_diffuse", "u_video_scale", "u_pt_alpha_ref",
 };
 
 enum shader_attr {
@@ -101,7 +102,7 @@ struct render_backend {
   /* global uniforms that are constant for every surface rendered between a call
      to begin_surfaces and end_surfaces */
   uint64_t uniform_token;
-  const float *uniform_mvp;
+  float uniform_video_scale[4];
 };
 
 #include "render/ta.glsl"
@@ -498,7 +499,7 @@ void r_draw_ta_surface(struct render_backend *r,
 
   /* bind global uniforms if they've changed */
   if (program->uniform_token != r->uniform_token) {
-    glUniformMatrix4fv(program->loc[UNIFORM_MVP], 1, GL_FALSE, r->uniform_mvp);
+    glUniform4fv(program->loc[UNIFORM_VIDEO_SCALE], 1, r->uniform_video_scale);
     program->uniform_token = r->uniform_token;
   }
 
@@ -512,11 +513,15 @@ void r_draw_ta_surface(struct render_backend *r,
   glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
 }
 
-void r_begin_ta_surfaces(struct render_backend *r, const float *projection,
-                         const struct ta_vertex *verts, int num_verts) {
+void r_begin_ta_surfaces(struct render_backend *r, int video_width,
+                         int video_height, const struct ta_vertex *verts,
+                         int num_verts) {
   /* uniforms will be lazily bound for each program inside of r_draw_surface */
   r->uniform_token++;
-  r->uniform_mvp = projection;
+  r->uniform_video_scale[0] = 2.0f / (float)video_width;
+  r->uniform_video_scale[1] = -1.0f;
+  r->uniform_video_scale[2] = -2.0f / (float)video_height;
+  r->uniform_video_scale[3] = 1.0f;
 
   glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct ta_vertex) * num_verts, verts,
@@ -593,7 +598,7 @@ void r_begin_ui_surfaces(struct render_backend *r,
   struct shader_program *program = &r->ui_program;
   glBindVertexArray(r->ui_vao);
   glUseProgram(program->prog);
-  glUniformMatrix4fv(program->loc[UNIFORM_MVP], 1, GL_FALSE, ortho);
+  glUniformMatrix4fv(program->loc[UNIFORM_PROJ], 1, GL_FALSE, ortho);
 
   /* bind buffers */
   glBindBuffer(GL_ARRAY_BUFFER, r->ui_vbo);
