@@ -14,6 +14,9 @@ struct lse;
 struct ra;
 struct val;
 
+typedef uint32_t (*mem_read_cb)(void *, uint32_t, uint32_t);
+typedef void (*mem_write_cb)(void *, uint32_t, uint32_t, uint32_t);
+
 struct jit_block {
   /* address of source block in guest memory */
   uint32_t guest_addr;
@@ -73,6 +76,8 @@ struct jit_guest {
   void *ctx;
   void *mem;
   struct address_space *space;
+  void (*lookup)(struct address_space *, uint32_t, void **, void **,
+                 mem_read_cb *, mem_write_cb *, uint32_t *);
   uint8_t (*r8)(struct address_space *, uint32_t);
   uint16_t (*r16)(struct address_space *, uint32_t);
   uint32_t (*r32)(struct address_space *, uint32_t);

@@ -7,25 +7,24 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
-static struct ir_value *ir_load_guest(struct ir *ir, int flags,
-                                      struct ir_value *addr,
-                                      enum ir_type type) {
+static struct ir_value *load_guest(struct ir *ir, int flags,
+                                   struct ir_value *addr, enum ir_type type) {
   if (flags & SH4_FASTMEM) {
     return ir_load_fast(ir, addr, type);
   }
-  return ir_load_slow(ir, addr, type);
+  return ir_load_guest(ir, addr, type);
 }
 
-static void ir_store_guest(struct ir *ir, int flags, struct ir_value *addr,
-                           struct ir_value *v) {
+static void store_guest(struct ir *ir, int flags, struct ir_value *addr,
+                        struct ir_value *v) {
   if (flags & SH4_FASTMEM) {
     ir_store_fast(ir, addr, v);
     return;
   }
-  ir_store_slow(ir, addr, v);
+  ir_store_guest(ir, addr, v);
 }
 
-static struct ir_value *ir_load_sr(struct ir *ir) {
+static struct ir_value *load_sr(struct ir *ir) {
   struct ir_value *sr =
       ir_load_context(ir, offsetof(struct sh4_ctx, sr), VALUE_I32);
 
@@ -41,14 +40,14 @@ static struct ir_value *ir_load_sr(struct ir *ir) {
   return sr;
 }
 
-static void ir_store_sr(struct sh4_guest *guest, struct ir *ir,
-                        struct ir_value *v) {
+static void store_sr(struct sh4_guest *guest, struct ir *ir,
+                     struct ir_value *v) {
   CHECK_EQ(v->type, VALUE_I32);
   v = ir_and(ir, v, ir_alloc_i32(ir, SR_MASK));
 
   struct ir_value *sr_updated = ir_alloc_ptr(ir, guest->sr_updated);
   struct ir_value *data = ir_alloc_ptr(ir, guest->data);
-  struct ir_value *old_sr = ir_load_sr(ir);
+  struct ir_value *old_sr = load_sr(ir);
 
   ir_store_context(ir, offsetof(struct sh4_ctx, sr), v);
 
@@ -65,20 +64,20 @@ static void ir_store_sr(struct sh4_guest *guest, struct ir *ir,
   ir_flush_context(ir);
 }
 
-static struct ir_value *ir_load_fpscr(struct ir *ir) {
+static struct ir_value *load_fpscr(struct ir *ir) {
   struct ir_value *fpscr =
       ir_load_context(ir, offsetof(struct sh4_ctx, fpscr), VALUE_I32);
   return fpscr;
 }
 
-static void ir_store_fpscr(struct sh4_guest *guest, struct ir *ir,
-                           struct ir_value *v) {
+static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
+                        struct ir_value *v) {
   CHECK_EQ(v->type, VALUE_I32);
   v = ir_and(ir, v, ir_alloc_i32(ir, FPSCR_MASK));
 
   struct ir_value *fpscr_updated = ir_alloc_ptr(ir, guest->fpscr_updated);
   struct ir_value *data = ir_alloc_ptr(ir, guest->data);
-  struct ir_value *old_fpscr = ir_load_fpscr(ir);
+  struct ir_value *old_fpscr = load_fpscr(ir);
   ir_store_context(ir, offsetof(struct sh4_ctx, fpscr), v);
   ir_call_2(ir, fpscr_updated, data, old_fpscr);
 }
@@ -153,8 +152,8 @@ static void ir_store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define STORE_PR_I32(v)             STORE_CTX_I32(pr, v)
 #define STORE_PR_IMM_I32(v)         STORE_CTX_IMM_I32(pr, v)
 
-#define LOAD_SR_I32()               ir_load_sr(ir)
-#define STORE_SR_I32(v)             ir_store_sr(guest, ir, v)
+#define LOAD_SR_I32()               load_sr(ir)
+#define STORE_SR_I32(v)             store_sr(guest, ir, v)
 #define STORE_SR_IMM_I32            STORE_SR_I32(ir_alloc_i32(ir, v))
 
 #define LOAD_T_I32()                LOAD_CTX_I32(sr_t)
@@ -170,8 +169,8 @@ static void ir_store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define STORE_QM_I32(v)             STORE_CTX_I32(sr_qm, v)
 #define STORE_QM_IMM_I32(v)         STORE_CTX_IMM_I32(sr_qm, v)
 
-#define LOAD_FPSCR_I32()            ir_load_fpscr(ir)
-#define STORE_FPSCR_I32(v)          ir_store_fpscr(guest, ir, v)
+#define LOAD_FPSCR_I32()            load_fpscr(ir)
+#define STORE_FPSCR_I32(v)          store_fpscr(guest, ir, v)
 #define STORE_FPSCSR_IMM_I32        STORE_FPSCSR_I32(ir_alloc_i32(ir, v))
 
 #define LOAD_DBR_I32()              LOAD_CTX_I32(dbr)
@@ -213,22 +212,22 @@ static void ir_store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define STORE_SSR_I32(v)            STORE_CTX_I32(ssr, v)
 #define STORE_SSR_IMM_I32(v)        STORE_CTX_IMM_I32(ssr, v)
 
-#define LOAD_I8(addr)               ir_load_guest(ir, flags, addr, VALUE_I8)
-#define LOAD_I16(addr)              ir_load_guest(ir, flags, addr, VALUE_I16)
-#define LOAD_I32(addr)              ir_load_guest(ir, flags, addr, VALUE_I32)
-#define LOAD_I64(addr)              ir_load_guest(ir, flags, addr, VALUE_I64)
+#define LOAD_I8(addr)               load_guest(ir, flags, addr, VALUE_I8)
+#define LOAD_I16(addr)              load_guest(ir, flags, addr, VALUE_I16)
+#define LOAD_I32(addr)              load_guest(ir, flags, addr, VALUE_I32)
+#define LOAD_I64(addr)              load_guest(ir, flags, addr, VALUE_I64)
 #define LOAD_IMM_I8(addr)           LOAD_I8(ir_alloc_i32(ir, addr))
 #define LOAD_IMM_I16(addr)          LOAD_I16(ir_alloc_i32(ir, addr))
 #define LOAD_IMM_I32(addr)          LOAD_I32(ir_alloc_i32(ir, addr))
 #define LOAD_IMM_I64(addr)          LOAD_I64(ir_alloc_i32(ir, addr))
 
-#define STORE_I8(addr, v)           ir_store_guest(ir, flags, addr, v)
+#define STORE_I8(addr, v)           store_guest(ir, flags, addr, v)
 #define STORE_I16                   STORE_I8
 #define STORE_I32                   STORE_I8
 #define STORE_I64                   STORE_I8
 
-#define LOAD_HOST_F32(addr)         ir_load(ir, addr, VALUE_F32)
-#define LOAD_HOST_F64(addr)         ir_load(ir, addr, VALUE_F64)
+#define LOAD_HOST_F32(addr)         ir_load_host(ir, addr, VALUE_F32)
+#define LOAD_HOST_F64(addr)         ir_load_host(ir, addr, VALUE_F64)
 
 #define FTOI_I32(v)                 ir_ftoi(ir, v, VALUE_I32)
 #define FTOI_I64(v)                 ir_ftoi(ir, v, VALUE_I64)

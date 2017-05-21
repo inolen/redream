@@ -218,12 +218,13 @@ static int sh4_init(struct device *dev) {
     sh4->guest->interrupt_check = &sh4_intc_check_pending;
 
     sh4->guest->ctx = &sh4->ctx;
-    sh4->guest->mem = sh4->memory_if->space->base;
+    sh4->guest->mem = as_translate(sh4->memory_if->space, 0x0);
     sh4->guest->space = sh4->memory_if->space;
     sh4->guest->invalid_instr = &sh4_dbg_invalid_instr;
     sh4->guest->sq_prefetch = &sh4_ccn_sq_prefetch;
     sh4->guest->sr_updated = &sh4_sr_updated;
     sh4->guest->fpscr_updated = &sh4_fpscr_updated;
+    sh4->guest->lookup = &as_lookup;
     sh4->guest->r8 = &as_read8;
     sh4->guest->r16 = &as_read16;
     sh4->guest->r32 = &as_read32;

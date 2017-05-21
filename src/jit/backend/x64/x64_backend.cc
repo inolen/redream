@@ -523,19 +523,27 @@ static int x64_backend_handle_exception(struct jit_backend *base,
 
   const uint8_t *data = reinterpret_cast<const uint8_t *>(ex->thread_state.rip);
 
-  /* it's assumed a mov has triggered the exception */
-  struct x64_mov mov;
-  if (!x64_decode_mov(data, &mov)) {
-    return 0;
-  }
-
   /* figure out the guest address that was being accessed */
   const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex->fault_addr);
   const uint8_t *protected_start =
       reinterpret_cast<const uint8_t *>(ex->thread_state.r15);
   uint32_t guest_addr = static_cast<uint32_t>(fault_addr - protected_start);
 
-  /* instead of handling the dynamic callback from inside of the exception
+  /* ensure it was an MMIO address that caused the exception */
+  void *ptr;
+  guest->lookup(guest->space, guest_addr, &ptr, NULL, NULL, NULL, NULL);
+
+  if (ptr) {
+    return 0;
+  }
+
+  /* it's assumed a mov has triggered the exception */
+  struct x64_mov mov;
+  if (!x64_decode_mov(data, &mov)) {
+    return 0;
+  }
+
+  /* instead of handling the MMIO callback from inside of the exception
      handler, force rip to the beginning of a thunk which will invoke the
      callback once the exception handler has exited. this frees the callbacks
      from any restrictions imposed by an exception handler, and also prevents
@@ -663,16 +671,133 @@ EMITTER(FALLBACK) {
   e.call(fallback);
 }
 
-EMITTER(LOAD) {
+EMITTER(LOAD_HOST) {
   const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
 
   x64_backend_load_mem(backend, instr->result, a);
 }
 
-EMITTER(STORE) {
+EMITTER(STORE_HOST) {
   const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
 
   x64_backend_store_mem(backend, a, instr->arg[1]);
+}
+
+EMITTER(LOAD_GUEST) {
+  struct jit_guest *guest = backend->base.jit->guest;
+  struct ir_value *result = instr->result;
+  struct ir_value *addr = instr->arg[0];
+  const Xbyak::Reg d = x64_backend_reg(backend, result);
+
+  if (ir_is_constant(addr)) {
+    /* try to either use fastmem or directly invoke the MMIO callback */
+    void *ptr;
+    void *userdata;
+    mem_read_cb read;
+    uint32_t offset;
+    guest->lookup(guest->space, addr->i32, &ptr, &userdata, &read, NULL,
+                  &offset);
+
+    if (ptr) {
+      const Xbyak::Reg a = x64_backend_reg(backend, addr);
+
+      x64_backend_load_mem(backend, result, a.cvt64() + e.r15);
+    } else {
+      int data_size = ir_type_size(result->type);
+      uint32_t data_mask = (1 << (data_size * 8)) - 1;
+
+      e.mov(arg0, reinterpret_cast<uint64_t>(userdata));
+      e.mov(arg1, offset);
+      e.mov(arg2, data_mask);
+      e.call(reinterpret_cast<void *>(read));
+      e.mov(d, e.rax);
+    }
+  } else {
+    const Xbyak::Reg a = x64_backend_reg(backend, addr);
+
+    void *fn = nullptr;
+    switch (result->type) {
+      case VALUE_I8:
+        fn = reinterpret_cast<void *>(guest->r8);
+        break;
+      case VALUE_I16:
+        fn = reinterpret_cast<void *>(guest->r16);
+        break;
+      case VALUE_I32:
+        fn = reinterpret_cast<void *>(guest->r32);
+        break;
+      case VALUE_I64:
+        fn = reinterpret_cast<void *>(guest->r64);
+        break;
+      default:
+        LOG_FATAL("Unexpected load result type");
+        break;
+    }
+
+    e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
+    e.mov(arg1, a);
+    e.call(reinterpret_cast<void *>(fn));
+    e.mov(d, e.rax);
+  }
+}
+
+EMITTER(STORE_GUEST) {
+  struct jit_guest *guest = backend->base.jit->guest;
+  struct ir_value *addr = instr->arg[0];
+  struct ir_value *data = instr->arg[1];
+
+  if (ir_is_constant(addr)) {
+    /* try to either use fastmem or directly invoke the MMIO callback */
+    void *ptr;
+    void *userdata;
+    mem_write_cb write;
+    uint32_t offset;
+    guest->lookup(guest->space, addr->i32, &ptr, &userdata, NULL, &write,
+                  &offset);
+
+    if (ptr) {
+      const Xbyak::Reg a = x64_backend_reg(backend, addr);
+
+      x64_backend_store_mem(backend, a.cvt64() + e.r15, data);
+    } else {
+      const Xbyak::Reg b = x64_backend_reg(backend, data);
+      int data_size = ir_type_size(data->type);
+      uint32_t data_mask = (1 << (data_size * 8)) - 1;
+
+      e.mov(arg0, reinterpret_cast<uint64_t>(userdata));
+      e.mov(arg1, offset);
+      e.mov(arg2, b);
+      e.mov(arg3, data_mask);
+      e.call(reinterpret_cast<void *>(write));
+    }
+  } else {
+    const Xbyak::Reg a = x64_backend_reg(backend, addr);
+    const Xbyak::Reg b = x64_backend_reg(backend, data);
+
+    void *fn = nullptr;
+    switch (data->type) {
+      case VALUE_I8:
+        fn = reinterpret_cast<void *>(guest->w8);
+        break;
+      case VALUE_I16:
+        fn = reinterpret_cast<void *>(guest->w16);
+        break;
+      case VALUE_I32:
+        fn = reinterpret_cast<void *>(guest->w32);
+        break;
+      case VALUE_I64:
+        fn = reinterpret_cast<void *>(guest->w64);
+        break;
+      default:
+        LOG_FATAL("Unexpected store value type");
+        break;
+    }
+
+    e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
+    e.mov(arg1, a);
+    e.mov(arg2, b);
+    e.call(reinterpret_cast<void *>(fn));
+  }
 }
 
 EMITTER(LOAD_FAST) {
@@ -685,66 +810,6 @@ EMITTER(STORE_FAST) {
   const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
 
   x64_backend_store_mem(backend, a.cvt64() + e.r15, instr->arg[1]);
-}
-
-EMITTER(LOAD_SLOW) {
-  struct jit_guest *guest = backend->base.jit->guest;
-  const Xbyak::Reg result = x64_backend_reg(backend, instr->result);
-  const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
-
-  void *fn = nullptr;
-  switch (instr->result->type) {
-    case VALUE_I8:
-      fn = reinterpret_cast<void *>(guest->r8);
-      break;
-    case VALUE_I16:
-      fn = reinterpret_cast<void *>(guest->r16);
-      break;
-    case VALUE_I32:
-      fn = reinterpret_cast<void *>(guest->r32);
-      break;
-    case VALUE_I64:
-      fn = reinterpret_cast<void *>(guest->r64);
-      break;
-    default:
-      LOG_FATAL("Unexpected load result type");
-      break;
-  }
-
-  e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
-  e.mov(arg1, a);
-  e.call(reinterpret_cast<void *>(fn));
-  e.mov(result, e.rax);
-}
-
-EMITTER(STORE_SLOW) {
-  struct jit_guest *guest = backend->base.jit->guest;
-  const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
-  const Xbyak::Reg b = x64_backend_reg(backend, instr->arg[1]);
-
-  void *fn = nullptr;
-  switch (instr->arg[1]->type) {
-    case VALUE_I8:
-      fn = reinterpret_cast<void *>(guest->w8);
-      break;
-    case VALUE_I16:
-      fn = reinterpret_cast<void *>(guest->w16);
-      break;
-    case VALUE_I32:
-      fn = reinterpret_cast<void *>(guest->w32);
-      break;
-    case VALUE_I64:
-      fn = reinterpret_cast<void *>(guest->w64);
-      break;
-    default:
-      LOG_FATAL("Unexpected store value type");
-      break;
-  }
-
-  e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
-  e.mov(arg1, a);
-  e.mov(arg2, b);
-  e.call(reinterpret_cast<void *>(fn));
 }
 
 EMITTER(LOAD_CONTEXT) {
