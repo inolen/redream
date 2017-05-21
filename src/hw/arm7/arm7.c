@@ -216,11 +216,12 @@ static int arm7_init(struct device *dev) {
     arm->guest->interrupt_check = &arm7_check_pending_interrupts;
 
     arm->guest->ctx = &arm->ctx;
-    arm->guest->mem = arm->memory_if->space->base;
+    arm->guest->mem = as_translate(arm->memory_if->space, 0x0);
     arm->guest->space = arm->memory_if->space;
     arm->guest->switch_mode = &arm7_switch_mode;
     arm->guest->restore_mode = &arm7_restore_mode;
     arm->guest->software_interrupt = &arm7_software_interrupt;
+    arm->guest->lookup = &as_lookup;
     arm->guest->r8 = &as_read8;
     arm->guest->r16 = &as_read16;
     arm->guest->r32 = &as_read32;
