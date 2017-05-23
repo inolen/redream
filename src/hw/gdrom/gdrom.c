@@ -67,8 +67,7 @@ struct gdrom {
   int pio_size;
   int pio_read;
   /* dma state */
-  uint8_t *dma_buffer;
-  int dma_capacity;
+  uint8_t dma_buffer[4096 * SECTOR_SIZE];
   int dma_head;
   int dma_size;
 };
@@ -455,17 +454,12 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
 
       if (gd->req.dma) {
         int max_dma_size = gd->req.num_sectors * SECTOR_SIZE;
-
-        /* reserve the worst case size */
-        if (max_dma_size > gd->dma_capacity) {
-          gd->dma_buffer = realloc(gd->dma_buffer, max_dma_size);
-          gd->dma_capacity = max_dma_size;
-        }
+        CHECK_LT(max_dma_size, (int)sizeof(gd->dma_buffer));
 
         /* read to DMA buffer */
         gd->dma_size = gdrom_read_sectors(
             gd, gd->req.first_sector, gd->req.sector_fmt, gd->req.sector_mask,
-            gd->req.num_sectors, gd->dma_buffer, gd->dma_capacity);
+            gd->req.num_sectors, gd->dma_buffer, sizeof(gd->dma_buffer));
         gd->dma_head = 0;
 
         /* gdrom state won't be updated until DMA transfer is completed */
