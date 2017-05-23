@@ -175,6 +175,24 @@ void trace_destroy(struct trace *trace) {
   free(trace);
 }
 
+void trace_copy_context(const struct trace_cmd *cmd, struct tile_context *ctx) {
+  CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
+
+  ctx->autosort = cmd->context.autosort;
+  ctx->stride = cmd->context.stride;
+  ctx->pal_pxl_format = cmd->context.pal_pxl_format;
+  ctx->bg_isp = cmd->context.bg_isp;
+  ctx->bg_tsp = cmd->context.bg_tsp;
+  ctx->bg_tcw = cmd->context.bg_tcw;
+  ctx->bg_depth = cmd->context.bg_depth;
+  ctx->video_width = cmd->context.video_width;
+  ctx->video_height = cmd->context.video_height;
+  memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
+         cmd->context.bg_vertices_size);
+  memcpy(ctx->params, cmd->context.params, cmd->context.params_size);
+  ctx->size = cmd->context.params_size;
+}
+
 struct trace *trace_parse(const char *filename) {
   struct trace *trace = calloc(1, sizeof(struct trace));
 
