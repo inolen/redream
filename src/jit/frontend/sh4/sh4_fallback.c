@@ -7,12 +7,12 @@
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/jit.h"
 
-static uint32_t load_sr(struct sh4_ctx *ctx) {
+static uint32_t load_sr(struct sh4_context *ctx) {
   sh4_implode_sr(ctx);
   return ctx->sr;
 }
 
-static void store_sr(struct sh4_guest *guest, struct sh4_ctx *ctx,
+static void store_sr(struct sh4_guest *guest, struct sh4_context *ctx,
                      uint32_t new_sr) {
   uint32_t old_sr = load_sr(ctx);
   ctx->sr = new_sr & SR_MASK;
@@ -20,11 +20,11 @@ static void store_sr(struct sh4_guest *guest, struct sh4_ctx *ctx,
   guest->sr_updated(guest->data, old_sr);
 }
 
-static uint32_t load_fpscr(struct sh4_ctx *ctx) {
+static uint32_t load_fpscr(struct sh4_context *ctx) {
   return ctx->fpscr;
 }
 
-static void store_fpscr(struct sh4_guest *guest, struct sh4_ctx *ctx,
+static void store_fpscr(struct sh4_guest *guest, struct sh4_context *ctx,
                         uint32_t new_fpscr) {
   uint32_t old_fpscr = load_fpscr(ctx);
   ctx->fpscr = new_fpscr & FPSCR_MASK;
@@ -57,7 +57,7 @@ typedef int32_t int128_t[4];
 #define F64                         double
 #define V128                        int128_t
 
-#define CTX                         ((struct sh4_ctx *)guest->ctx)
+#define CTX                         ((struct sh4_context *)guest->ctx)
 #define FPU_DOUBLE_PR               (CTX->fpscr & PR_MASK)
 #define FPU_DOUBLE_SZ               (CTX->fpscr & SZ_MASK)
 

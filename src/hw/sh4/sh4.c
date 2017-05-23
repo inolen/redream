@@ -43,7 +43,7 @@ static void sh4_swap_fpr_bank(struct sh4 *sh4) {
 
 void sh4_sr_updated(void *data, uint32_t old_sr) {
   struct sh4 *sh4 = data;
-  struct sh4_ctx *ctx = &sh4->ctx;
+  struct sh4_context *ctx = &sh4->ctx;
 
   prof_counter_add(COUNTER_sh4_sr_updates, 1);
 
@@ -59,7 +59,7 @@ void sh4_sr_updated(void *data, uint32_t old_sr) {
 
 void sh4_fpscr_updated(void *data, uint32_t old_fpscr) {
   struct sh4 *sh4 = data;
-  struct sh4_ctx *ctx = &sh4->ctx;
+  struct sh4_context *ctx = &sh4->ctx;
 
   if ((ctx->fpscr & FR_MASK) != (old_fpscr & FR_MASK)) {
     sh4_swap_fpr_bank(sh4);
@@ -125,7 +125,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
   PROF_ENTER("cpu", "sh4_run");
 
   struct sh4 *sh4 = (struct sh4 *)dev;
-  struct sh4_ctx *ctx = &sh4->ctx;
+  struct sh4_context *ctx = &sh4->ctx;
   struct jit *jit = sh4->jit;
 
   int cycles = (int)NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
@@ -210,11 +210,11 @@ static int sh4_init(struct device *dev) {
     sh4->guest->addr_mask = 0x00fffffe;
 
     sh4->guest->data = sh4;
-    sh4->guest->offset_pc = (int)offsetof(struct sh4_ctx, pc);
-    sh4->guest->offset_cycles = (int)offsetof(struct sh4_ctx, run_cycles);
-    sh4->guest->offset_instrs = (int)offsetof(struct sh4_ctx, ran_instrs);
+    sh4->guest->offset_pc = (int)offsetof(struct sh4_context, pc);
+    sh4->guest->offset_cycles = (int)offsetof(struct sh4_context, run_cycles);
+    sh4->guest->offset_instrs = (int)offsetof(struct sh4_context, ran_instrs);
     sh4->guest->offset_interrupts =
-        (int)offsetof(struct sh4_ctx, pending_interrupts);
+        (int)offsetof(struct sh4_context, pending_interrupts);
     sh4->guest->interrupt_check = &sh4_intc_check_pending;
 
     sh4->guest->ctx = &sh4->ctx;
