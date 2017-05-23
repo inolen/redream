@@ -1,0 +1,46 @@
+#include <stdlib.h>
+#include <string.h>
+#include "core/sort.h"
+
+static void merge(void *in, void *out, size_t size, int l, int m, int r,
+                  sort_cmp cmp) {
+  int i = l;
+  int j = m;
+  int k = l;
+
+  while (k < r) {
+    if ((i < m && cmp(in + i * size, in + j * size)) || j >= r) {
+      memcpy(out + k * size, in + i * size, size);
+      k++;
+      i++;
+    } else {
+      memcpy(out + k * size, in + j * size, size);
+      k++;
+      j++;
+    }
+  }
+}
+
+static void mergesort_r(void *in, void *out, size_t size, int l, int r,
+                        sort_cmp cmp) {
+  if ((r - l) < 2) {
+    return;
+  }
+
+  int m = (l + r) / 2;
+  mergesort_r(out, in, size, l, m, cmp);
+  mergesort_r(out, in, size, m, r, cmp);
+  merge(in, out, size, l, m, r, cmp);
+}
+
+void mergesort_fixed(void *data, void *tmp, int num, size_t size,
+                     sort_cmp cmp) {
+  memcpy(tmp, data, num * size);
+  mergesort_r(tmp, data, size, 0, num, cmp);
+}
+
+void mergesort(void *data, int num, size_t size, sort_cmp cmp) {
+  void *tmp = malloc(num * size);
+  mergesort_fixed(data, tmp, num, size, cmp);
+  free(tmp);
+}

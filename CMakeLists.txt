@@ -167,6 +167,7 @@ set(REDREAM_SOURCES
   src/core/profiler.cc
   src/core/ringbuf.cc
   src/core/rb_tree.c
+  src/core/sort.c
   src/core/string.c
   src/hw/aica/aica.c
   src/hw/arm7/arm7.c
@@ -334,6 +335,16 @@ target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(recc ${REDREAM_LIBS})
 target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
 target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
+
+add_executable(retrace $<TARGET_OBJECTS:relib>
+  src/null_host.c
+  tools/retrace/depth.c
+  tools/retrace/main.c)
+target_include_directories(retrace SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(retrace PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(retrace ${REDREAM_LIBS})
+target_compile_definitions(retrace PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_options(retrace PRIVATE ${REDREAM_FLAGS})
 
 endif()
 

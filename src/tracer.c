@@ -149,25 +149,6 @@ static void tracer_add_texture(struct tracer *tracer,
   tex->palette_size = cmd->texture.palette_size;
 }
 
-static void tracer_copy_context(const struct trace_cmd *cmd,
-                                struct tile_context *ctx) {
-  CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
-
-  ctx->autosort = cmd->context.autosort;
-  ctx->stride = cmd->context.stride;
-  ctx->pal_pxl_format = cmd->context.pal_pxl_format;
-  ctx->bg_isp = cmd->context.bg_isp;
-  ctx->bg_tsp = cmd->context.bg_tsp;
-  ctx->bg_tcw = cmd->context.bg_tcw;
-  ctx->bg_depth = cmd->context.bg_depth;
-  ctx->video_width = cmd->context.video_width;
-  ctx->video_height = cmd->context.video_height;
-  memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
-         cmd->context.bg_vertices_size);
-  memcpy(ctx->params, cmd->context.params, cmd->context.params_size);
-  ctx->size = cmd->context.params_size;
-}
-
 static void tracer_prev_param(struct tracer *tracer) {
   int i = tracer->current_param;
 
@@ -225,7 +206,7 @@ static void tracer_prev_context(struct tracer *tracer) {
   tracer->current_cmd = prev;
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
-  tracer_copy_context(tracer->current_cmd, &tracer->ctx);
+  trace_copy_context(tracer->current_cmd, &tracer->ctx);
   tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
                      &tracer->rc);
 }
@@ -264,7 +245,7 @@ static void tracer_next_context(struct tracer *tracer) {
   tracer->current_cmd = next;
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
-  tracer_copy_context(tracer->current_cmd, &tracer->ctx);
+  trace_copy_context(tracer->current_cmd, &tracer->ctx);
   tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
                      &tracer->rc);
 }
