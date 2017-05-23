@@ -563,7 +563,7 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
     /* always render translated surface information. new surfaces can be created
        without receiving a new TA_PARAM_POLY_OR_VOL / TA_PARAM_SPRITE */
     if (rp->last_surf >= 0) {
-      struct surface *surf = &tracer->rc.surfs[rp->last_surf];
+      struct ta_surface *surf = &tracer->rc.surfs[rp->last_surf];
 
       /* TODO separator */
 
@@ -592,7 +592,7 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
 
     /* render translated vert only when rendering a vertex tooltip */
     if (rp->last_vert >= 0) {
-      struct vertex *vert = &tracer->rc.verts[rp->last_vert];
+      struct ta_vertex *vert = &tracer->rc.verts[rp->last_vert];
 
       /* TODO separator */
 
@@ -776,7 +776,7 @@ static void tracer_render_list(struct tracer *tracer,
   while (sorted_surf < sorted_surf_end) {
     int idx = *(sorted_surf++);
 
-    r_draw_surface(tracer->r, &tracer->rc.surfs[idx]);
+    r_draw_ta_surface(tracer->r, &tracer->rc.surfs[idx]);
 
     if (idx == end) {
       *stopped = 1;
@@ -832,13 +832,13 @@ void tracer_run_frame(struct tracer *tracer) {
       end = rp->last_surf;
     }
 
-    r_begin_surfaces(tracer->r, rc->projection, rc->verts, rc->num_verts);
+    r_begin_ta_surfaces(tracer->r, rc->projection, rc->verts, rc->num_verts);
 
     tracer_render_list(tracer, rc, TA_LIST_OPAQUE, end, &stopped);
     tracer_render_list(tracer, rc, TA_LIST_PUNCH_THROUGH, end, &stopped);
     tracer_render_list(tracer, rc, TA_LIST_TRANSLUCENT, end, &stopped);
 
-    r_end_surfaces(tracer->r);
+    r_end_ta_surfaces(tracer->r);
   }
 
   nk_render(tracer->nk);

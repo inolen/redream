@@ -65,10 +65,10 @@ struct tr_context {
   float projection[16];
 
   /* parsed surfaces and vertices, ready to be passed to the render backend */
-  struct surface surfs[TA_MAX_SURFS];
+  struct ta_surface surfs[TA_MAX_SURFS];
   int num_surfs;
 
-  struct vertex verts[TA_MAX_VERTS];
+  struct ta_vertex verts[TA_MAX_VERTS];
   int num_verts;
 
   /* sorted list of surfaces corresponding to each of the ta's polygon lists */

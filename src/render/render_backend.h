@@ -83,14 +83,14 @@ enum debug_flags {
   DEBUG_DEPTH_BUFFER = 0x1,
 };
 
-struct vertex {
+struct ta_vertex {
   float xyz[3];
   float uv[2];
   uint32_t color;
   uint32_t offset_color;
 };
 
-struct surface {
+struct ta_surface {
   texture_handle_t texture;
   int depth_write;
   enum depth_func depth_func;
@@ -109,13 +109,13 @@ struct surface {
   int num_verts;
 };
 
-struct vertex2 {
+struct ui_vertex {
   float xy[2];
   float uv[2];
   uint32_t color;
 };
 
-struct surface2 {
+struct ui_surface {
   enum prim_type prim_type;
 
   texture_handle_t texture;
@@ -167,17 +167,15 @@ void r_destroy_sync(struct render_backend *r, sync_handle_t handle);
 
 void r_clear_viewport(struct render_backend *r, int width, int height);
 
-void r_begin_ortho(struct render_backend *r);
-void r_end_ortho(struct render_backend *r);
+void r_begin_ta_surfaces(struct render_backend *r, const float *projection,
+                         const struct ta_vertex *verts, int num_verts);
+void r_draw_ta_surface(struct render_backend *r, const struct ta_surface *surf);
+void r_end_ta_surfaces(struct render_backend *r);
 
-void r_begin_surfaces(struct render_backend *r, const float *projection,
-                      const struct vertex *verts, int num_verts);
-void r_draw_surface(struct render_backend *r, const struct surface *surf);
-void r_end_surfaces(struct render_backend *r);
-
-void r_begin_surfaces2(struct render_backend *r, const struct vertex2 *verts,
-                       int num_verts, const uint16_t *indices, int num_indices);
-void r_draw_surface2(struct render_backend *r, const struct surface2 *surf);
-void r_end_surfaces2(struct render_backend *r);
+void r_begin_ui_surfaces(struct render_backend *r,
+                         const struct ui_vertex *verts, int num_verts,
+                         const uint16_t *indices, int num_indices);
+void r_draw_ui_surface(struct render_backend *r, const struct ui_surface *surf);
+void r_end_ui_surfaces(struct render_backend *r);
 
 #endif
