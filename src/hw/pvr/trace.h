@@ -31,7 +31,7 @@ struct trace_cmd {
       const uint8_t *texture;
     } texture;
 
-    /* slimmed down version of the tile_ctx structure, will need to be in
+    /* slimmed down version of the tile_context structure, will need to be in
        sync */
     struct {
       uint32_t frame;
@@ -66,7 +66,7 @@ void get_next_trace_filename(char *filename, size_t size);
 
 void trace_writer_close(struct trace_writer *writer);
 void trace_writer_render_context(struct trace_writer *writer,
-                                 struct tile_ctx *ctx);
+                                 struct tile_context *ctx);
 void trace_writer_insert_texture(struct trace_writer *writer, union tsp tsp,
                                  union tcw tcw, unsigned frame,
                                  const uint8_t *palette, int palette_size,

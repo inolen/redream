@@ -44,13 +44,13 @@ struct emu {
 
   mutex_t pending_mutex;
   cond_t pending_cond;
-  struct tile_ctx *pending_ctx;
+  struct tile_context *pending_ctx;
 
   volatile int video_state;
   volatile int video_width;
   volatile int video_height;
 
-  struct tile_render_context video_ctx;
+  struct tr_context video_ctx;
   int video_fb_width;
   int video_fb_height;
   framebuffer_handle_t video_fb;
@@ -261,7 +261,7 @@ static void emu_finish_render(void *userdata) {
   }
 }
 
-static void emu_start_render(void *userdata, struct tile_ctx *ctx) {
+static void emu_start_render(void *userdata, struct tile_context *ctx) {
   struct emu *emu = userdata;
 
   if (emu->video_state != FRAME_WAITING) {
@@ -315,7 +315,7 @@ static void emu_input_keydown(void *userdata, int port, enum keycode key,
 
 static void emu_video_context_destroyed(void *userdata) {
   struct emu *emu = userdata;
-  struct texture_provider *provider = ta_texture_provider(emu->dc->ta);
+  struct tr_provider *provider = ta_texture_provider(emu->dc->ta);
 
   if (!emu->running) {
     return;
@@ -326,7 +326,7 @@ static void emu_video_context_destroyed(void *userdata) {
   /* destroy the video thread */
   if (emu->multi_threaded) {
     mutex_lock(emu->pending_mutex);
-    emu->pending_ctx = (struct tile_ctx *)0xdeadbeef;
+    emu->pending_ctx = (struct tile_context *)0xdeadbeef;
     cond_signal(emu->pending_cond);
     mutex_unlock(emu->pending_mutex);
 
@@ -365,7 +365,7 @@ static void emu_video_context_destroyed(void *userdata) {
 
 static void emu_video_context_reset(void *userdata) {
   struct emu *emu = userdata;
-  struct texture_provider *provider = ta_texture_provider(emu->dc->ta);
+  struct tr_provider *provider = ta_texture_provider(emu->dc->ta);
 
   emu_video_context_destroyed(userdata);
 

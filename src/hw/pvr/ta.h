@@ -7,7 +7,7 @@
 
 struct dreamcast;
 struct ta;
-struct texture_provider;
+struct tr_provider;
 
 DECLARE_COUNTER(ta_renders);
 
@@ -104,6 +104,6 @@ static inline int ta_texture_size(union tsp tsp, union tcw tcw) {
   return texture_size;
 }
 
-struct texture_provider *ta_texture_provider(struct ta *ta);
+struct tr_provider *ta_texture_provider(struct ta *ta);
 
 #endif

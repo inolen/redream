@@ -21,8 +21,8 @@ DEFINE_AGGREGATE_COUNTER(ta_renders);
 #define TA_MAX_MACROBLOCK_SIZE \
   MAX(TA_YUV420_MACROBLOCK_SIZE, TA_YUV422_MACROBLOCK_SIZE)
 
-struct ta_texture_entry {
-  struct texture_entry;
+struct ta_texture {
+  struct tr_texture;
   struct ta *ta;
   struct list_node free_it;
   struct rb_node live_it;
@@ -35,7 +35,7 @@ struct ta_texture_entry {
 
 struct ta {
   struct device;
-  struct texture_provider provider;
+  struct tr_provider provider;
   uint8_t *video_ram;
   struct trace_writer *trace_writer;
 
@@ -47,10 +47,10 @@ struct ta {
   int yuv_macroblock_count;
 
   /* tile context pool */
-  struct tile_ctx contexts[TA_MAX_CONTEXTS];
+  struct tile_context contexts[TA_MAX_CONTEXTS];
   struct list free_contexts;
   struct list live_contexts;
-  struct tile_ctx *curr_context;
+  struct tile_context *curr_context;
 
   /* texture cache state */
   unsigned frame;
@@ -66,7 +66,7 @@ struct ta {
   struct list invalidated_entries;
   int num_invalidated;
 
-  struct ta_texture_entry entries[8192];
+  struct ta_texture entries[8192];
   struct list free_entries;
   struct rb_tree live_entries;
 };
@@ -85,13 +85,13 @@ static holly_interrupt_t list_interrupts[] = {
 
 static int ta_entry_cmp(const struct rb_node *rb_lhs,
                         const struct rb_node *rb_rhs) {
-  const struct ta_texture_entry *lhs =
-      rb_entry(rb_lhs, const struct ta_texture_entry, live_it);
-  texture_key_t lhs_key = tr_texture_key(lhs->tsp, lhs->tcw);
+  const struct ta_texture *lhs =
+      rb_entry(rb_lhs, const struct ta_texture, live_it);
+  tr_texture_key_t lhs_key = tr_texture_key(lhs->tsp, lhs->tcw);
 
-  const struct ta_texture_entry *rhs =
-      rb_entry(rb_rhs, const struct ta_texture_entry, live_it);
-  texture_key_t rhs_key = tr_texture_key(rhs->tsp, rhs->tcw);
+  const struct ta_texture *rhs =
+      rb_entry(rb_rhs, const struct ta_texture, live_it);
+  tr_texture_key_t rhs_key = tr_texture_key(rhs->tsp, rhs->tcw);
 
   if (lhs_key < rhs_key) {
     return -1;
@@ -238,8 +238,7 @@ static void ta_clear_textures(struct ta *ta) {
   while (it) {
     struct rb_node *next = rb_next(it);
 
-    struct ta_texture_entry *entry =
-        rb_entry(it, struct ta_texture_entry, live_it);
+    struct ta_texture *entry = rb_entry(it, struct ta_texture, live_it);
 
     entry->dirty = 1;
 
@@ -248,7 +247,7 @@ static void ta_clear_textures(struct ta *ta) {
 }
 
 static void ta_dirty_invalidated_textures(struct ta *ta) {
-  list_for_each_entry(entry, &ta->invalidated_entries, struct ta_texture_entry,
+  list_for_each_entry(entry, &ta->invalidated_entries, struct ta_texture,
                       invalid_it) {
     entry->dirty = 1;
     entry->invalidated = 0;
@@ -258,7 +257,7 @@ static void ta_dirty_invalidated_textures(struct ta *ta) {
 }
 
 static void ta_texture_invalidated(const struct exception *ex, void *data) {
-  struct ta_texture_entry *entry = data;
+  struct ta_texture *entry = data;
   entry->texture_watch = NULL;
 
   if (!entry->invalidated) {
@@ -268,7 +267,7 @@ static void ta_texture_invalidated(const struct exception *ex, void *data) {
 }
 
 static void ta_palette_invalidated(const struct exception *ex, void *data) {
-  struct ta_texture_entry *entry = data;
+  struct ta_texture *entry = data;
   entry->palette_watch = NULL;
 
   if (!entry->invalidated) {
@@ -277,11 +276,11 @@ static void ta_palette_invalidated(const struct exception *ex, void *data) {
   }
 }
 
-static struct ta_texture_entry *ta_alloc_texture(struct ta *ta, union tsp tsp,
-                                                 union tcw tcw) {
+static struct ta_texture *ta_alloc_texture(struct ta *ta, union tsp tsp,
+                                           union tcw tcw) {
   /* remove from free list */
-  struct ta_texture_entry *entry =
-      list_first_entry(&ta->free_entries, struct ta_texture_entry, free_it);
+  struct ta_texture *entry =
+      list_first_entry(&ta->free_entries, struct ta_texture, free_it);
   CHECK_NOTNULL(entry);
   list_remove(&ta->free_entries, &entry->free_it);
 
@@ -299,18 +298,18 @@ static struct ta_texture_entry *ta_alloc_texture(struct ta *ta, union tsp tsp,
   return entry;
 }
 
-static struct ta_texture_entry *ta_find_texture(struct ta *ta, union tsp tsp,
-                                                union tcw tcw) {
-  struct ta_texture_entry search;
+static struct ta_texture *ta_find_texture(struct ta *ta, union tsp tsp,
+                                          union tcw tcw) {
+  struct ta_texture search;
   search.tsp = tsp;
   search.tcw = tcw;
 
-  return rb_find_entry(&ta->live_entries, &search, struct ta_texture_entry,
-                       live_it, &ta_entry_cb);
+  return rb_find_entry(&ta->live_entries, &search, struct ta_texture, live_it,
+                       &ta_entry_cb);
 }
 
-static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
-  list_for_each_entry(ctx, &ta->live_contexts, struct tile_ctx, it) {
+static struct tile_context *ta_get_context(struct ta *ta, uint32_t addr) {
+  list_for_each_entry(ctx, &ta->live_contexts, struct tile_context, it) {
     if (ctx->addr == addr) {
       return ctx;
     }
@@ -318,10 +317,10 @@ static struct tile_ctx *ta_get_context(struct ta *ta, uint32_t addr) {
   return NULL;
 }
 
-static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {
+static struct tile_context *ta_alloc_context(struct ta *ta, uint32_t addr) {
   /* remove from free list */
-  struct tile_ctx *ctx =
-      list_first_entry(&ta->free_contexts, struct tile_ctx, it);
+  struct tile_context *ctx =
+      list_first_entry(&ta->free_contexts, struct tile_context, it);
   CHECK_NOTNULL(ctx);
   list_remove(&ta->free_contexts, &ctx->it);
 
@@ -338,16 +337,16 @@ static struct tile_ctx *ta_alloc_context(struct ta *ta, uint32_t addr) {
   return ctx;
 }
 
-static void ta_unlink_context(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_unlink_context(struct ta *ta, struct tile_context *ctx) {
   list_remove(&ta->live_contexts, &ctx->it);
 }
 
-static void ta_free_context(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_free_context(struct ta *ta, struct tile_context *ctx) {
   list_add(&ta->free_contexts, &ctx->it);
 }
 
-static struct tile_ctx *ta_demand_context(struct ta *ta, uint32_t addr) {
-  struct tile_ctx *ctx = ta_get_context(ta, addr);
+static struct tile_context *ta_demand_context(struct ta *ta, uint32_t addr) {
+  struct tile_context *ctx = ta_get_context(ta, addr);
 
   if (!ctx) {
     ctx = ta_alloc_context(ta, addr);
@@ -356,19 +355,19 @@ static struct tile_ctx *ta_demand_context(struct ta *ta, uint32_t addr) {
   return ctx;
 }
 
-static void ta_cont_context(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_cont_context(struct ta *ta, struct tile_context *ctx) {
   ctx->list_type = TA_NUM_LISTS;
   ctx->vertex_type = TA_NUM_VERTS;
 }
 
-static void ta_init_context(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_init_context(struct ta *ta, struct tile_context *ctx) {
   ctx->cursor = 0;
   ctx->size = 0;
   ctx->list_type = TA_NUM_LISTS;
   ctx->vertex_type = TA_NUM_VERTS;
 }
 
-static void ta_write_context(struct ta *ta, struct tile_ctx *ctx, void *ptr,
+static void ta_write_context(struct ta *ta, struct tile_context *ctx, void *ptr,
                              int size) {
   CHECK_LT(ctx->size + size, (int)sizeof(ctx->params));
   memcpy(&ctx->params[ctx->size], ptr, size);
@@ -436,7 +435,7 @@ static void ta_write_context(struct ta *ta, struct tile_ctx *ctx, void *ptr,
 
 static void ta_register_texture_source(struct ta *ta, union tsp tsp,
                                        union tcw tcw) {
-  struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
+  struct ta_texture *entry = ta_find_texture(ta, tsp, tcw);
 
   if (!entry) {
     entry = ta_alloc_texture(ta, tsp, tcw);
@@ -505,7 +504,8 @@ static void ta_register_texture_source(struct ta *ta, union tsp tsp,
   }
 }
 
-static void ta_register_texture_sources(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_register_texture_sources(struct ta *ta,
+                                        struct tile_context *ctx) {
   const uint8_t *data = ctx->params;
   const uint8_t *end = ctx->params + ctx->size;
   int vertex_type = 0;
@@ -533,7 +533,7 @@ static void ta_register_texture_sources(struct ta *ta, struct tile_ctx *ctx) {
   }
 }
 
-static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_save_state(struct ta *ta, struct tile_context *ctx) {
   struct pvr *pvr = ta->pvr;
   struct address_space *space = ta->sh4->memory_if->space;
 
@@ -630,7 +630,7 @@ static void ta_save_state(struct ta *ta, struct tile_ctx *ctx) {
 }
 
 static void ta_finish_render(void *data) {
-  struct tile_ctx *ctx = data;
+  struct tile_context *ctx = data;
   struct ta *ta = ctx->userdata;
 
   /* ensure the client has finished rendering */
@@ -649,7 +649,7 @@ static void ta_finish_render(void *data) {
   holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOTINT);
 }
 
-static void ta_start_render(struct ta *ta, struct tile_ctx *ctx) {
+static void ta_start_render(struct ta *ta, struct tile_context *ctx) {
   prof_counter_add(COUNTER_ta_renders, 1);
 
   /* remove context from pool */
@@ -837,12 +837,12 @@ static int ta_init(struct device *dev) {
   ta->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
 
   for (int i = 0; i < array_size(ta->entries); i++) {
-    struct ta_texture_entry *entry = &ta->entries[i];
+    struct ta_texture *entry = &ta->entries[i];
     list_add(&ta->free_entries, &entry->free_it);
   }
 
   for (int i = 0; i < array_size(ta->contexts); i++) {
-    struct tile_ctx *ctx = &ta->contexts[i];
+    struct tile_context *ctx = &ta->contexts[i];
     list_add(&ta->free_contexts, &ctx->it);
   }
 
@@ -943,10 +943,10 @@ static void ta_provider_clear_textures(void *data) {
   ta_clear_textures(ta);
 }
 
-static struct texture_entry *ta_provider_find_texture(void *data, union tsp tsp,
-                                                      union tcw tcw) {
+static struct tr_texture *ta_provider_find_texture(void *data, union tsp tsp,
+                                                   union tcw tcw) {
   struct ta *ta = data;
-  struct ta_texture_entry *entry = ta_find_texture(ta, tsp, tcw);
+  struct ta_texture *entry = ta_find_texture(ta, tsp, tcw);
 
   if (!entry) {
     return NULL;
@@ -957,10 +957,10 @@ static struct texture_entry *ta_provider_find_texture(void *data, union tsp tsp,
      is broken in the thread synchronization */
   CHECK_EQ(entry->frame, ta->frame);
 
-  return (struct texture_entry *)entry;
+  return (struct tr_texture *)entry;
 }
 
-struct texture_provider *ta_texture_provider(struct ta *ta) {
+struct tr_provider *ta_texture_provider(struct ta *ta) {
   if (!ta->provider.userdata) {
     ta->provider.userdata = ta;
     ta->provider.clear_textures = &ta_provider_clear_textures;
@@ -999,7 +999,8 @@ REG_W32(pvr_cb, STARTRENDER) {
     return;
   }
 
-  struct tile_ctx *ctx = ta_get_context(ta, ta->pvr->PARAM_BASE->base_address);
+  struct tile_context *ctx =
+      ta_get_context(ta, ta->pvr->PARAM_BASE->base_address);
   CHECK_NOTNULL(ctx);
   ta_start_render(ta, ctx);
 }
@@ -1011,7 +1012,7 @@ REG_W32(pvr_cb, TA_LIST_INIT) {
     return;
   }
 
-  struct tile_ctx *ctx =
+  struct tile_context *ctx =
       ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
   ta_init_context(ta, ctx);
   ta->curr_context = ctx;
@@ -1024,7 +1025,8 @@ REG_W32(pvr_cb, TA_LIST_CONT) {
     return;
   }
 
-  struct tile_ctx *ctx = ta_get_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  struct tile_context *ctx =
+      ta_get_context(ta, ta->pvr->TA_ISP_BASE->base_address);
   CHECK_NOTNULL(ctx);
   ta_cont_context(ta, ctx);
   ta->curr_context = ctx;

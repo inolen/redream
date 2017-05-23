@@ -9,7 +9,7 @@
 
 struct tr {
   struct render_backend *r;
-  struct texture_provider *provider;
+  struct tr_provider *provider;
 
   /* current global state */
   const union poly_param *last_poly;
@@ -120,13 +120,18 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
 }
 
 static texture_handle_t tr_demand_texture(struct tr *tr,
-                                          const struct tile_ctx *ctx,
+                                          const struct tile_context *ctx,
                                           union tsp tsp, union tcw tcw) {
+  /* allow headless tile renderer */
+  if (!tr->provider) {
+    return 0;
+  }
+
   /* TODO it's bad that textures are only cached based off tsp / tcw yet the
      TEXT_CONTROL registers and PAL_RAM_CTRL registers are used here to control
      texture generation */
 
-  struct texture_entry *entry =
+  struct tr_texture *entry =
       tr->provider->find_texture(tr->provider->userdata, tsp, tcw);
   CHECK_NOTNULL(entry);
 
@@ -348,8 +353,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
   return entry->handle;
 }
 
-static struct surface *tr_alloc_surf(struct tr *tr,
-                                     struct tile_render_context *rc,
+static struct surface *tr_alloc_surf(struct tr *tr, struct tr_context *rc,
                                      int copy_from_prev) {
   CHECK_LT(rc->num_surfs, array_size(rc->surfs));
   int id = rc->num_surfs++;
@@ -365,15 +369,14 @@ static struct surface *tr_alloc_surf(struct tr *tr,
   surf->num_verts = 0;
 
   /* default sort the surface */
-  struct tile_render_list *list = &rc->lists[tr->list_type];
+  struct tr_list *list = &rc->lists[tr->list_type];
   list->surfs[list->num_surfs] = id;
   list->num_surfs++;
 
   return surf;
 }
 
-static struct vertex *tr_alloc_vert(struct tr *tr,
-                                    struct tile_render_context *rc) {
+static struct vertex *tr_alloc_vert(struct tr *tr, struct tr_context *rc) {
   CHECK_LT(rc->num_verts, array_size(rc->verts));
   int id = rc->num_verts++;
   struct vertex *v = &rc->verts[id];
@@ -386,8 +389,7 @@ static struct vertex *tr_alloc_vert(struct tr *tr,
   return v;
 }
 
-static void tr_discard_incomplete_surf(struct tr *tr,
-                                       struct tile_render_context *rc) {
+static void tr_discard_incomplete_surf(struct tr *tr, struct tr_context *rc) {
   /* free up the last surface if it wasn't finished */
   if (tr->last_vertex && !tr->last_vertex->type0.pcw.end_of_strip) {
     rc->num_surfs--;
@@ -436,8 +438,8 @@ static void tr_discard_incomplete_surf(struct tr *tr,
                            tr->face_offset_color[3]);                   \
   }
 
-static int tr_parse_bg_vert(const struct tile_ctx *ctx,
-                            struct tile_render_context *rc, int offset,
+static int tr_parse_bg_vert(const struct tile_context *ctx,
+                            struct tr_context *rc, int offset,
                             struct vertex *v) {
   PARSE_XYZ(*(float *)&ctx->bg_vertices[offset],
             *(float *)&ctx->bg_vertices[offset + 4],
@@ -468,8 +470,8 @@ static int tr_parse_bg_vert(const struct tile_ctx *ctx,
   return offset;
 }
 
-static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
-                        struct tile_render_context *rc) {
+static void tr_parse_bg(struct tr *tr, const struct tile_context *ctx,
+                        struct tr_context *rc) {
   tr->list_type = TA_LIST_OPAQUE;
 
   /* translate the surface */
@@ -511,9 +513,8 @@ static void tr_parse_bg(struct tr *tr, const struct tile_ctx *ctx,
 
 /* this offset color implementation is not correct at all, see the
    Texture/Shading Instruction in the union tsp instruction word */
-static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
-                                struct tile_render_context *rc,
-                                const uint8_t *data) {
+static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
+                                struct tr_context *rc, const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rc);
 
   const union poly_param *param = (const union poly_param *)data;
@@ -606,9 +607,8 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_ctx *ctx,
   }
 }
 
-static void tr_parse_vert_param(struct tr *tr, const struct tile_ctx *ctx,
-                                struct tile_render_context *rc,
-                                const uint8_t *data) {
+static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
+                                struct tr_context *rc, const uint8_t *data) {
   const union vert_param *param = (const union vert_param *)data;
   /* if there is no need to change the Global Parameters, a Vertex Parameter
      for the next polygon may be input immediately after inputting a Vertex
@@ -823,7 +823,7 @@ static void tr_merge_surfs(struct tr *tr, int *low, int *mid, int *high) {
   memcpy(low, tr->merged, (k - tr->merged) * sizeof(tr->merged[0]));
 }
 
-static void tr_sort_surfs(struct tr *tr, struct tile_render_list *list, int low,
+static void tr_sort_surfs(struct tr *tr, struct tr_list *list, int low,
                           int high) {
   if (low >= high) {
     return;
@@ -835,9 +835,9 @@ static void tr_sort_surfs(struct tr *tr, struct tile_render_list *list, int low,
   tr_merge_surfs(tr, &list->surfs[low], &list->surfs[mid], &list->surfs[high]);
 }
 
-static void tr_sort_render_list(struct tr *tr, struct tile_render_context *rc,
+static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
                                 int list_type) {
-  struct tile_render_list *list = &rc->lists[list_type];
+  struct tr_list *list = &rc->lists[list_type];
 
   for (int i = 0; i < list->num_surfs; i++) {
     int idx = list->surfs[i];
@@ -858,8 +858,8 @@ static void tr_sort_render_list(struct tr *tr, struct tile_render_context *rc,
   tr_sort_surfs(tr, list, 0, list->num_surfs - 1);
 }
 
-static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
-                         struct tile_render_context *rc, const uint8_t *data) {
+static void tr_parse_eol(struct tr *tr, const struct tile_context *ctx,
+                         struct tr_context *rc, const uint8_t *data) {
   tr_discard_incomplete_surf(tr, rc);
 
   tr->last_poly = NULL;
@@ -868,8 +868,8 @@ static void tr_parse_eol(struct tr *tr, const struct tile_ctx *ctx,
   tr->vertex_type = TA_NUM_VERTS;
 }
 
-static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
-                        struct tile_render_context *rc) {
+static void tr_proj_mat(struct tr *tr, const struct tile_context *ctx,
+                        struct tr_context *rc) {
   /* this isn't a traditional projection matrix. xy components coming into the
      TA are in window space, while the z component is 1/w with +z headed into
      the screen. these coordinates need to be scaled back into ndc space, and
@@ -899,7 +899,7 @@ static void tr_proj_mat(struct tr *tr, const struct tile_ctx *ctx,
   rc->projection[15] = 1.0f;
 }
 
-static void tr_reset(struct tr *tr, struct tile_render_context *rc) {
+static void tr_reset(struct tr *tr, struct tr_context *rc) {
   /* reset global state */
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
@@ -913,13 +913,42 @@ static void tr_reset(struct tr *tr, struct tile_render_context *rc) {
   rc->num_surfs = 0;
   rc->num_verts = 0;
   for (int i = 0; i < TA_NUM_LISTS; i++) {
-    struct tile_render_list *list = &rc->lists[i];
+    struct tr_list *list = &rc->lists[i];
     list->num_surfs = 0;
   }
 }
 
-void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
-                      struct tile_render_context *rc) {
+static void tr_render_list(struct tr *tr, const struct tr_context *rc,
+                           int list_type) {
+  const struct tr_list *list = &rc->lists[list_type];
+  const int *sorted_surf = list->surfs;
+  const int *sorted_surf_end = list->surfs + list->num_surfs;
+
+  while (sorted_surf < sorted_surf_end) {
+    r_draw_surface(tr->r, &rc->surfs[*sorted_surf]);
+    sorted_surf++;
+  }
+}
+
+void tr_render_context(struct tr *tr, const struct tr_context *rc,
+                       int video_width, int video_height) {
+  PROF_ENTER("gpu", "tr_render_context");
+
+  r_clear_viewport(tr->r, video_width, video_height);
+
+  r_begin_surfaces(tr->r, rc->projection, rc->verts, rc->num_verts);
+
+  tr_render_list(tr, rc, TA_LIST_OPAQUE);
+  tr_render_list(tr, rc, TA_LIST_PUNCH_THROUGH);
+  tr_render_list(tr, rc, TA_LIST_TRANSLUCENT);
+
+  r_end_surfaces(tr->r);
+
+  PROF_LEAVE();
+}
+
+void tr_parse_context(struct tr *tr, const struct tile_context *ctx,
+                      struct tr_context *rc) {
   PROF_ENTER("gpu", "tr_parse_context");
 
   const uint8_t *data = ctx->params;
@@ -965,7 +994,7 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
     }
 
     /* track info about the parse state for tracer debugging */
-    struct tile_render_param *rp = &rc->params[rc->num_params++];
+    struct tr_param *rp = &rc->params[rc->num_params++];
     rp->offset = (int)(data - ctx->params);
     rp->list_type = tr->list_type;
     rp->vertex_type = tr->list_type;
@@ -986,41 +1015,14 @@ void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
   PROF_LEAVE();
 }
 
-static void tr_render_list(struct tr *tr, const struct tile_render_context *rc,
-                           int list_type) {
-  const struct tile_render_list *list = &rc->lists[list_type];
-  const int *sorted_surf = list->surfs;
-  const int *sorted_surf_end = list->surfs + list->num_surfs;
-
-  while (sorted_surf < sorted_surf_end) {
-    r_draw_surface(tr->r, &rc->surfs[*sorted_surf]);
-    sorted_surf++;
-  }
-}
-
-void tr_render_context(struct tr *tr, const struct tile_render_context *rc,
-                       int video_width, int video_height) {
-  PROF_ENTER("gpu", "tr_render_context");
-
-  r_clear_viewport(tr->r, video_width, video_height);
-
-  r_begin_surfaces(tr->r, rc->projection, rc->verts, rc->num_verts);
-
-  tr_render_list(tr, rc, TA_LIST_OPAQUE);
-  tr_render_list(tr, rc, TA_LIST_PUNCH_THROUGH);
-  tr_render_list(tr, rc, TA_LIST_TRANSLUCENT);
-
-  r_end_surfaces(tr->r);
-
-  PROF_LEAVE();
-}
-
 void tr_destroy(struct tr *tr) {
   free(tr);
 }
 
-struct tr *tr_create(struct render_backend *r,
-                     struct texture_provider *provider) {
+struct tr *tr_create(struct render_backend *r, struct tr_provider *provider) {
+  /* ensure param / poly / vertex size LUTs are generated */
+  ta_build_tables();
+
   struct tr *tr = calloc(1, sizeof(struct tr));
 
   tr->r = r;
