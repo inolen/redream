@@ -170,8 +170,8 @@ void r_clear_viewport(struct render_backend *r, int width, int height);
 void r_begin_ortho(struct render_backend *r);
 void r_end_ortho(struct render_backend *r);
 
-void r_begin_surfaces(struct render_backend *r, const float *projection,
-                      const struct vertex *verts, int num_verts);
+void r_begin_surfaces(struct render_backend *r, const float *projection, const struct vertex *verts,
+                         int num_verts);
 void r_draw_surface(struct render_backend *r, const struct surface *surf);
 void r_end_surfaces(struct render_backend *r);
 

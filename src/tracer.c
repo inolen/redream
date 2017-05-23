@@ -834,7 +834,8 @@ void tracer_run_frame(struct tracer *tracer) {
       end = rp->last_surf;
     }
 
-    r_begin_surfaces(tracer->r, rc->projection, rc->verts, rc->num_verts);
+    r_begin_surfaces(tracer->r, rc->projection, rc->verts,
+                        rc->num_verts);
 
     tracer_render_list(tracer, rc, TA_LIST_OPAQUE, end, &stopped);
     tracer_render_list(tracer, rc, TA_LIST_PUNCH_THROUGH, end, &stopped);
