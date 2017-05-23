@@ -72,7 +72,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                                         struct ir *ir) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct sh4_guest *guest = (struct sh4_guest *)frontend->jit->guest;
-  struct sh4_ctx *ctx = (struct sh4_ctx *)guest->ctx;
+  struct sh4_context *ctx = (struct sh4_context *)guest->ctx;
 
   PROF_ENTER("cpu", "sh4_frontend_translate_code");
 

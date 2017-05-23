@@ -62,7 +62,7 @@
   (RM_MASK | FLAG_MASK | ENABLE_MASK | CAUSE_MASK | DN_MASK | PR_MASK | \
    SZ_MASK | FR_MASK)
 
-struct sh4_ctx {
+struct sh4_context {
   /* there are 24 32-bit general registers, r0_bank0-r7_bank0, r0_bank1-r7_bank1
      and r8-r15. r contains the active bank's r0-r7 as well as r8-r15. ralt
      contains the inactive bank's r0-r7 and is swapped in when the processor
@@ -109,12 +109,12 @@ struct sh4_ctx {
   uint8_t cache[0x2000];
 };
 
-static inline void sh4_implode_sr(struct sh4_ctx *ctx) {
+static inline void sh4_implode_sr(struct sh4_context *ctx) {
   ctx->sr &= ~(S_MASK | T_MASK);
   ctx->sr |= (ctx->sr_s << S_BIT) | (ctx->sr_t << T_BIT);
 }
 
-static inline void sh4_explode_sr(struct sh4_ctx *ctx) {
+static inline void sh4_explode_sr(struct sh4_context *ctx) {
   ctx->sr_t = (ctx->sr & T_MASK) >> T_BIT;
   ctx->sr_s = (ctx->sr & S_MASK) >> S_BIT;
 }

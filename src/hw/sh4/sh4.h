@@ -39,7 +39,7 @@ struct sh4_dtr {
 struct sh4 {
   struct device;
 
-  struct sh4_ctx ctx;
+  struct sh4_context ctx;
   uint32_t reg[NUM_SH4_REGS];
 #define SH4_REG(addr, name, default, type) type *name;
 #include "hw/sh4/sh4_regs.inc"

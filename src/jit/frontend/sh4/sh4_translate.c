@@ -26,13 +26,13 @@ static void store_guest(struct ir *ir, int flags, struct ir_value *addr,
 
 static struct ir_value *load_sr(struct ir *ir) {
   struct ir_value *sr =
-      ir_load_context(ir, offsetof(struct sh4_ctx, sr), VALUE_I32);
+      ir_load_context(ir, offsetof(struct sh4_context, sr), VALUE_I32);
 
   /* inlined version of sh4_implode_sr */
   struct ir_value *sr_t =
-      ir_load_context(ir, offsetof(struct sh4_ctx, sr_t), VALUE_I32);
+      ir_load_context(ir, offsetof(struct sh4_context, sr_t), VALUE_I32);
   struct ir_value *sr_s =
-      ir_load_context(ir, offsetof(struct sh4_ctx, sr_s), VALUE_I32);
+      ir_load_context(ir, offsetof(struct sh4_context, sr_s), VALUE_I32);
   sr = ir_and(ir, sr, ir_alloc_i32(ir, ~(S_MASK | T_MASK)));
   sr = ir_or(ir, sr, sr_t);
   sr = ir_or(ir, sr, ir_shli(ir, sr_s, S_BIT));
@@ -49,14 +49,14 @@ static void store_sr(struct sh4_guest *guest, struct ir *ir,
   struct ir_value *data = ir_alloc_ptr(ir, guest->data);
   struct ir_value *old_sr = load_sr(ir);
 
-  ir_store_context(ir, offsetof(struct sh4_ctx, sr), v);
+  ir_store_context(ir, offsetof(struct sh4_context, sr), v);
 
   /* inline version of sh4_explode_sr */
   struct ir_value *sr_t = ir_and(ir, v, ir_alloc_i32(ir, T_MASK));
   struct ir_value *sr_s =
       ir_lshri(ir, ir_and(ir, v, ir_alloc_i32(ir, S_MASK)), S_BIT);
-  ir_store_context(ir, offsetof(struct sh4_ctx, sr_t), sr_t);
-  ir_store_context(ir, offsetof(struct sh4_ctx, sr_s), sr_s);
+  ir_store_context(ir, offsetof(struct sh4_context, sr_t), sr_t);
+  ir_store_context(ir, offsetof(struct sh4_context, sr_s), sr_s);
 
   ir_call_2(ir, sr_updated, data, old_sr);
 
@@ -66,7 +66,7 @@ static void store_sr(struct sh4_guest *guest, struct ir *ir,
 
 static struct ir_value *load_fpscr(struct ir *ir) {
   struct ir_value *fpscr =
-      ir_load_context(ir, offsetof(struct sh4_ctx, fpscr), VALUE_I32);
+      ir_load_context(ir, offsetof(struct sh4_context, fpscr), VALUE_I32);
   return fpscr;
 }
 
@@ -78,7 +78,7 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
   struct ir_value *fpscr_updated = ir_alloc_ptr(ir, guest->fpscr_updated);
   struct ir_value *data = ir_alloc_ptr(ir, guest->data);
   struct ir_value *old_fpscr = load_fpscr(ir);
-  ir_store_context(ir, offsetof(struct sh4_ctx, fpscr), v);
+  ir_store_context(ir, offsetof(struct sh4_context, fpscr), v);
   ir_call_2(ir, fpscr_updated, data, old_fpscr);
 }
 
@@ -91,7 +91,7 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define F64                         struct ir_value*
 #define V128                        struct ir_value*
 
-#define CTX                         ((struct sh4_ctx *)jit->guest->ctx)
+#define CTX                         ((struct sh4_context *)jit->guest->ctx)
 #define FPU_DOUBLE_PR               (flags & SH4_DOUBLE_PR)
 #define FPU_DOUBLE_SZ               (flags & SH4_DOUBLE_SZ)
 
@@ -106,18 +106,18 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define NEXT_INSTR()               
 #define NEXT_NEXT_INSTR()               
 
-#define LOAD_CTX_I8(m)              ir_load_context(ir, offsetof(struct sh4_ctx, m), VALUE_I8)
-#define LOAD_CTX_I16(m)             ir_load_context(ir, offsetof(struct sh4_ctx, m), VALUE_I16)
-#define LOAD_CTX_I32(m)             ir_load_context(ir, offsetof(struct sh4_ctx, m), VALUE_I32)
-#define LOAD_CTX_I64(m)             ir_load_context(ir, offsetof(struct sh4_ctx, m), VALUE_I64)
-#define LOAD_CTX_F32(m)             ir_load_context(ir, offsetof(struct sh4_ctx, m), VALUE_F32)
-#define LOAD_CTX_F64(m)             ir_load_context(ir, offsetof(struct sh4_ctx, m), VALUE_F64)
-#define LOAD_CTX_V128(m)            ir_load_context(ir, offsetof(struct sh4_ctx, m), VALUE_V128)
-#define STORE_CTX_I32(m, v)         { CHECK_EQ(v->type, VALUE_I32); ir_store_context(ir, offsetof(struct sh4_ctx, m), v); }
-#define STORE_CTX_I64(m, v)         { CHECK_EQ(v->type, VALUE_I64); ir_store_context(ir, offsetof(struct sh4_ctx, m), v); }
-#define STORE_CTX_F32(m, v)         { CHECK_EQ(v->type, VALUE_F32); ir_store_context(ir, offsetof(struct sh4_ctx, m), v); }
-#define STORE_CTX_F64(m, v)         { CHECK_EQ(v->type, VALUE_F64); ir_store_context(ir, offsetof(struct sh4_ctx, m), v); }
-#define STORE_CTX_V128(m, v)        { CHECK_EQ(v->type, VALUE_V128); ir_store_context(ir, offsetof(struct sh4_ctx, m), v); }
+#define LOAD_CTX_I8(m)              ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_I8)
+#define LOAD_CTX_I16(m)             ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_I16)
+#define LOAD_CTX_I32(m)             ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_I32)
+#define LOAD_CTX_I64(m)             ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_I64)
+#define LOAD_CTX_F32(m)             ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_F32)
+#define LOAD_CTX_F64(m)             ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_F64)
+#define LOAD_CTX_V128(m)            ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_V128)
+#define STORE_CTX_I32(m, v)         { CHECK_EQ(v->type, VALUE_I32); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
+#define STORE_CTX_I64(m, v)         { CHECK_EQ(v->type, VALUE_I64); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
+#define STORE_CTX_F32(m, v)         { CHECK_EQ(v->type, VALUE_F32); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
+#define STORE_CTX_F64(m, v)         { CHECK_EQ(v->type, VALUE_F64); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
+#define STORE_CTX_V128(m, v)        { CHECK_EQ(v->type, VALUE_V128); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
 #define STORE_CTX_IMM_I32(m, v)     STORE_CTX_I32(m, ir_alloc_i32(ir, v))
 
 #define LOAD_GPR_I8(n)              LOAD_CTX_I8(r[n])
