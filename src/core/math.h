@@ -1,6 +1,7 @@
 #ifndef REDREAM_MATH_H
 #define REDREAM_MATH_H
 
+#include <float.h>
 #include <stdint.h>
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))

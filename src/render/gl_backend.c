@@ -509,8 +509,8 @@ void r_draw_surface(struct render_backend *r, const struct surface *surf) {
   glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
 }
 
-void r_begin_surfaces(struct render_backend *r, const float *projection,
-                      const struct vertex *verts, int num_verts) {
+void r_begin_surfaces(struct render_backend *r, const float *projection, const struct vertex *verts,
+                         int num_verts) {
   /* uniforms will be lazily bound for each program inside of r_draw_surface */
   r->uniform_token++;
   r->uniform_mvp = projection;

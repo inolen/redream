@@ -328,12 +328,12 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 if(BUILD_TOOLS)
 
-#add_executable(recc $<TARGET_OBJECTS:relib> src/null_host.c tools/recc/recc.c)
-#target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-#target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-#target_link_libraries(recc ${REDREAM_LIBS})
-#target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
-#target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
+add_executable(recc $<TARGET_OBJECTS:relib> src/null_host.c tools/recc/main.c)
+target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(recc ${REDREAM_LIBS})
+target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 
 endif()
 

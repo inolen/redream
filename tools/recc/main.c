@@ -24,7 +24,6 @@ DEFINE_STAT(ir_instrs_removed, "removed ir instructions");
 static uint8_t ir_buffer[1024 * 1024];
 static uint8_t code[1024 * 1024];
 static int code_size = sizeof(code);
-static int stack_size = 1024;
 
 static int get_num_instrs(const struct ir *ir) {
   int n = 0;
@@ -119,17 +118,17 @@ static void process_file(struct jit *jit, const char *filename,
   int num_instrs_after = get_num_instrs(&ir);
 
   /* assemble backend code */
-  int host_size = 0;
-  uint8_t *host_code = NULL;
+  struct jit_block block;
 
   jit->backend->reset(jit->backend);
-  host_code = jit->backend->assemble_code(jit->backend, &ir, &host_size);
+  int res = jit->backend->assemble_code(jit->backend, &block, &ir);
+  CHECK(res);
 
   if (!disable_dumps) {
     LOG_INFO("===-----------------------------------------------------===");
     LOG_INFO("X64 code");
     LOG_INFO("===-----------------------------------------------------===");
-    jit->backend->dump_code(jit->backend, host_code, host_size);
+    jit->backend->dump_code(jit->backend, block.host_addr, block.host_size);
     LOG_INFO("");
   }
 
@@ -188,8 +187,7 @@ int main(int argc, char **argv) {
   guest.w16 = (void *)code;
   guest.w32 = (void *)code;
 
-  struct x64_backend *backend =
-      x64_backend_create(jit, code, code_size, stack_size);
+  struct x64_backend *backend = x64_backend_create(jit, code, code_size);
 
   CHECK(jit_init(jit, &guest, NULL, (struct jit_backend *)backend));
 

@@ -1,4 +1,3 @@
-#include <float.h>
 #include <math.h>
 #include <string.h>
 #include "hw/pvr/tr.h"
