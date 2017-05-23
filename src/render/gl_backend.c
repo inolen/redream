@@ -333,19 +333,19 @@ static void r_create_vertex_arrays(struct render_backend *r) {
 
     /* xy */
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex2),
-                          (void *)offsetof(struct vertex2, xy));
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(struct ui_vertex),
+                          (void *)offsetof(struct ui_vertex, xy));
 
     /* texcoord */
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex2),
-                          (void *)offsetof(struct vertex2, uv));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct ui_vertex),
+                          (void *)offsetof(struct ui_vertex, uv));
 
     /* color */
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE,
-                          sizeof(struct vertex2),
-                          (void *)offsetof(struct vertex2, color));
+                          sizeof(struct ui_vertex),
+                          (void *)offsetof(struct ui_vertex, color));
 
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -361,25 +361,25 @@ static void r_create_vertex_arrays(struct render_backend *r) {
 
     /* xyz */
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
-                          (void *)offsetof(struct vertex, xyz));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct ta_vertex),
+                          (void *)offsetof(struct ta_vertex, xyz));
 
     /* texcoord */
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
-                          (void *)offsetof(struct vertex, uv));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct ta_vertex),
+                          (void *)offsetof(struct ta_vertex, uv));
 
     /* color */
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE,
-                          sizeof(struct vertex),
-                          (void *)offsetof(struct vertex, color));
+                          sizeof(struct ta_vertex),
+                          (void *)offsetof(struct ta_vertex, color));
 
     /* offset color */
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE,
-                          sizeof(struct vertex),
-                          (void *)offsetof(struct vertex, offset_color));
+                          sizeof(struct ta_vertex),
+                          (void *)offsetof(struct ta_vertex, offset_color));
 
     glBindVertexArray(0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -398,7 +398,7 @@ static void r_set_initial_state(struct render_backend *r) {
 }
 
 static struct shader_program *r_get_ta_program(struct render_backend *r,
-                                               const struct surface *surf) {
+                                               const struct ta_surface *surf) {
   int idx = surf->shade;
   if (surf->texture) {
     idx |= ATTR_TEXTURE;
@@ -463,9 +463,10 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
   return program;
 }
 
-void r_end_surfaces(struct render_backend *r) {}
+void r_end_ta_surfaces(struct render_backend *r) {}
 
-void r_draw_surface(struct render_backend *r, const struct surface *surf) {
+void r_draw_ta_surface(struct render_backend *r,
+                       const struct ta_surface *surf) {
   glDepthMask(!!surf->depth_write);
 
   if (surf->depth_func == DEPTH_NONE) {
@@ -509,21 +510,24 @@ void r_draw_surface(struct render_backend *r, const struct surface *surf) {
   glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
 }
 
-void r_begin_surfaces(struct render_backend *r, const float *projection,
-                      const struct vertex *verts, int num_verts) {
+void r_begin_ta_surfaces(struct render_backend *r, const float *projection,
+                         const struct ta_vertex *verts, int num_verts) {
   /* uniforms will be lazily bound for each program inside of r_draw_surface */
   r->uniform_token++;
   r->uniform_mvp = projection;
 
   glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex) * num_verts, verts,
+  glBufferData(GL_ARRAY_BUFFER, sizeof(struct ta_vertex) * num_verts, verts,
                GL_DYNAMIC_DRAW);
   glBindVertexArray(r->ta_vao);
 }
 
-void r_end_surfaces2(struct render_backend *r) {}
+void r_end_ui_surfaces(struct render_backend *r) {
+  glDisable(GL_SCISSOR_TEST);
+}
 
-void r_draw_surface2(struct render_backend *r, const struct surface2 *surf) {
+void r_draw_ui_surface(struct render_backend *r,
+                       const struct ui_surface *surf) {
   if (surf->scissor) {
     glEnable(GL_SCISSOR_TEST);
     glScissor((int)surf->scissor_rect[0], (int)surf->scissor_rect[1],
@@ -555,29 +559,10 @@ void r_draw_surface2(struct render_backend *r, const struct surface2 *surf) {
   }
 }
 
-void r_begin_surfaces2(struct render_backend *r, const struct vertex2 *verts,
-                       int num_verts, const uint16_t *indices,
-                       int num_indices) {
-  glBindBuffer(GL_ARRAY_BUFFER, r->ui_vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex2) * num_verts, verts,
-               GL_DYNAMIC_DRAW);
-
-  if (indices) {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->ui_ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices,
-                 indices, GL_DYNAMIC_DRAW);
-    r->ui_use_ibo = 1;
-  } else {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    r->ui_use_ibo = 0;
-  }
-}
-
-void r_end_ortho(struct render_backend *r) {
-  glDisable(GL_SCISSOR_TEST);
-}
-
-void r_begin_ortho(struct render_backend *r) {
+void r_begin_ui_surfaces(struct render_backend *r,
+                         const struct ui_vertex *verts, int num_verts,
+                         const uint16_t *indices, int num_indices) {
+  /* setup projection matrix */
   int width = video_width(r->host);
   int height = video_height(r->host);
 
@@ -610,6 +595,21 @@ void r_begin_ortho(struct render_backend *r) {
   glBindVertexArray(r->ui_vao);
   glUseProgram(program->prog);
   glUniformMatrix4fv(program->loc[UNIFORM_MVP], 1, GL_FALSE, ortho);
+
+  /* bind buffers */
+  glBindBuffer(GL_ARRAY_BUFFER, r->ui_vbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(struct ui_vertex) * num_verts, verts,
+               GL_DYNAMIC_DRAW);
+
+  if (indices) {
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->ui_ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices,
+                 indices, GL_DYNAMIC_DRAW);
+    r->ui_use_ibo = 1;
+  } else {
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    r->ui_use_ibo = 0;
+  }
 }
 
 void r_clear_viewport(struct render_backend *r, int width, int height) {

@@ -50,7 +50,7 @@ struct emu {
   volatile int video_width;
   volatile int video_height;
 
-  struct tr_context video_ctx;
+  struct tr_context video_rc;
   int video_fb_width;
   int video_fb_height;
   framebuffer_handle_t video_fb;
@@ -85,7 +85,7 @@ static void emu_render_frame(struct emu *emu) {
   /* render the current render context to the video framebuffer */
   framebuffer_handle_t original = r_get_framebuffer(r2);
   r_bind_framebuffer(r2, emu->video_fb);
-  tr_render_context(emu->tr, &emu->video_ctx, emu->video_fb_width,
+  tr_render_context(emu->tr, &emu->video_rc, emu->video_fb_width,
                     emu->video_fb_height);
   r_bind_framebuffer(r2, original);
 
@@ -122,7 +122,7 @@ static void *emu_video_thread(void *data) {
     }
 
     /* parse the context, uploading its textures to the render backend */
-    tr_parse_context(emu->tr, emu->pending_ctx, &emu->video_ctx);
+    tr_parse_context(emu->tr, emu->pending_ctx, &emu->video_rc);
     emu->pending_ctx = NULL;
 
     /* after the context has been parsed, release the mutex to let
@@ -152,7 +152,7 @@ static void emu_paint(struct emu *emu) {
 
   /* present the latest frame from the video thread */
   {
-    struct vertex2 verts[6] = {
+    struct ui_vertex verts[6] = {
         /* triangle 1, top left  */
         {{0.0f, 0.0f}, {0.0f, 1.0f}, 0xffffffff},
         /* triangle 1, top right */
@@ -167,7 +167,7 @@ static void emu_paint(struct emu *emu) {
         {{0.0f, fheight}, {0.0f, 0.0f}, 0xffffffff},
     };
 
-    struct surface2 quad = {0};
+    struct ui_surface quad = {0};
     quad.prim_type = PRIM_TRIANGLES;
     quad.texture = emu->video_tex;
     quad.src_blend = BLEND_NONE;
@@ -182,11 +182,9 @@ static void emu_paint(struct emu *emu) {
       emu->video_sync = 0;
     }
 
-    r_begin_ortho(emu->r);
-    r_begin_surfaces2(emu->r, verts, 6, NULL, 0);
-    r_draw_surface2(emu->r, &quad);
-    r_end_surfaces2(emu->r);
-    r_end_ortho(emu->r);
+    r_begin_ui_surfaces(emu->r, verts, 6, NULL, 0);
+    r_draw_ui_surface(emu->r, &quad);
+    r_end_ui_surfaces(emu->r);
   }
 
   /* render debug menus */
@@ -279,7 +277,7 @@ static void emu_start_render(void *userdata, struct tile_context *ctx) {
     mutex_unlock(emu->pending_mutex);
   } else {
     /* parse the context and immediately render it */
-    tr_parse_context(emu->tr, ctx, &emu->video_ctx);
+    tr_parse_context(emu->tr, ctx, &emu->video_rc);
 
     emu_render_frame(emu);
   }
