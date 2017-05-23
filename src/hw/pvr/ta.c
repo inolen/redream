@@ -317,10 +317,15 @@ static struct tile_context *ta_get_context(struct ta *ta, uint32_t addr) {
   return NULL;
 }
 
-static struct tile_context *ta_alloc_context(struct ta *ta, uint32_t addr) {
-  /* remove from free list */
-  struct tile_context *ctx =
-      list_first_entry(&ta->free_contexts, struct tile_context, it);
+static struct tile_context *ta_demand_context(struct ta *ta, uint32_t addr) {
+  struct tile_context *ctx = ta_get_context(ta, addr);
+
+  if (ctx) {
+    return ctx;
+  }
+
+  /* remove from the object pool */
+  ctx = list_first_entry(&ta->free_contexts, struct tile_context, it);
   CHECK_NOTNULL(ctx);
   list_remove(&ta->free_contexts, &ctx->it);
 
@@ -331,28 +336,20 @@ static struct tile_context *ta_alloc_context(struct ta *ta, uint32_t addr) {
   ctx->list_type = 0;
   ctx->vertex_type = 0;
 
-  /* add to live tree */
+  /* add to live list */
   list_add(&ta->live_contexts, &ctx->it);
 
   return ctx;
 }
 
 static void ta_unlink_context(struct ta *ta, struct tile_context *ctx) {
+  /* remove from live list, but don't add back to object pool */
   list_remove(&ta->live_contexts, &ctx->it);
 }
 
 static void ta_free_context(struct ta *ta, struct tile_context *ctx) {
+  /* add back to object pool */
   list_add(&ta->free_contexts, &ctx->it);
-}
-
-static struct tile_context *ta_demand_context(struct ta *ta, uint32_t addr) {
-  struct tile_context *ctx = ta_get_context(ta, addr);
-
-  if (!ctx) {
-    ctx = ta_alloc_context(ta, addr);
-  }
-
-  return ctx;
 }
 
 static void ta_cont_context(struct ta *ta, struct tile_context *ctx) {
