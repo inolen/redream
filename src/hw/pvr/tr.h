@@ -10,9 +10,9 @@
 
 struct tr;
 
-typedef uint64_t texture_key_t;
+typedef uint64_t tr_texture_key_t;
 
-struct texture_entry {
+struct tr_texture {
   union tsp tsp;
   union tcw tcw;
   unsigned frame;
@@ -37,13 +37,13 @@ struct texture_entry {
 /* provides abstraction around providing texture data to the renderer. when
    emulating the actual ta, textures will be provided from guest memory, but
    when playing back traces the textures will come from the trace itself */
-struct texture_provider {
+struct tr_provider {
   void *userdata;
   void (*clear_textures)(void *);
-  struct texture_entry *(*find_texture)(void *, union tsp, union tcw);
+  struct tr_texture *(*find_texture)(void *, union tsp, union tcw);
 };
 
-struct tile_render_param {
+struct tr_param {
   /* offset of parameter in tile_context param stream */
   int offset;
   /* global list and vertex types at time of parsing */
@@ -54,12 +54,12 @@ struct tile_render_param {
   int last_vert;
 };
 
-struct tile_render_list {
+struct tr_list {
   int surfs[TA_MAX_SURFS];
   int num_surfs;
 };
 
-struct tile_render_context {
+struct tr_context {
   /* transforms incoming windows space coordinates to ndc space */
   float minz, maxz;
   float projection[16];
@@ -72,24 +72,23 @@ struct tile_render_context {
   int num_verts;
 
   /* sorted list of surfaces corresponding to each of the ta's polygon lists */
-  struct tile_render_list lists[TA_NUM_LISTS];
+  struct tr_list lists[TA_NUM_LISTS];
 
   /* debug structures for stepping through the param stream in the tracer */
-  struct tile_render_param params[TA_MAX_PARAMS];
+  struct tr_param params[TA_MAX_PARAMS];
   int num_params;
 };
 
-static inline texture_key_t tr_texture_key(union tsp tsp, union tcw tcw) {
+static inline tr_texture_key_t tr_texture_key(union tsp tsp, union tcw tcw) {
   return ((uint64_t)tsp.full << 32) | tcw.full;
 }
 
-struct tr *tr_create(struct render_backend *rb,
-                     struct texture_provider *provider);
+struct tr *tr_create(struct render_backend *rb, struct tr_provider *provider);
 void tr_destroy(struct tr *tr);
 
-void tr_parse_context(struct tr *tr, const struct tile_ctx *ctx,
-                      struct tile_render_context *rc);
-void tr_render_context(struct tr *tr, const struct tile_render_context *rc,
+void tr_parse_context(struct tr *tr, const struct tile_context *ctx,
+                      struct tr_context *rc);
+void tr_render_context(struct tr *tr, const struct tr_context *rc,
                        int video_width, int video_height);
 
 #endif

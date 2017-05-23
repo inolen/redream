@@ -28,7 +28,7 @@ void trace_writer_close(struct trace_writer *writer) {
 }
 
 void trace_writer_render_context(struct trace_writer *writer,
-                                 struct tile_ctx *ctx) {
+                                 struct tile_context *ctx) {
   struct trace_cmd cmd = {0};
   cmd.type = TRACE_CMD_CONTEXT;
   cmd.context.frame = ctx->frame;
@@ -97,7 +97,7 @@ struct trace_writer *trace_writer_open(const char *filename) {
 static int trace_patch_overrides(struct trace_cmd *cmd) {
   while (cmd) {
     if (cmd->type == TRACE_CMD_TEXTURE) {
-      texture_key_t texture_key =
+      tr_texture_key_t texture_key =
           tr_texture_key(cmd->texture.tsp, cmd->texture.tcw);
 
       /* walk backwards and see if this texture overrode a previous command
@@ -106,7 +106,7 @@ static int trace_patch_overrides(struct trace_cmd *cmd) {
 
       while (prev) {
         if (prev->type == TRACE_CMD_TEXTURE) {
-          texture_key_t prev_texture_key =
+          tr_texture_key_t prev_texture_key =
               tr_texture_key(prev->texture.tsp, prev->texture.tcw);
 
           if (prev_texture_key == texture_key) {

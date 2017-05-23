@@ -23,7 +23,7 @@ struct pvr;
 struct scheduler;
 struct sh4;
 struct ta;
-struct tile_ctx;
+struct tile_context;
 
 /*
  * register callbacks
@@ -124,7 +124,7 @@ struct device {
  * machine
  */
 typedef void (*push_audio_cb)(void *, const int16_t *, int);
-typedef void (*start_render_cb)(void *, struct tile_ctx *);
+typedef void (*start_render_cb)(void *, struct tile_context *);
 typedef void (*finish_render_cb)(void *);
 typedef void (*poll_input_cb)(void *);
 
@@ -191,7 +191,7 @@ void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
 
 /* client functionality */
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);
-void dc_start_render(struct dreamcast *dc, struct tile_ctx *ctx);
+void dc_start_render(struct dreamcast *dc, struct tile_context *ctx);
 void dc_finish_render(struct dreamcast *dc);
 void dc_poll_input(struct dreamcast *dc);
 

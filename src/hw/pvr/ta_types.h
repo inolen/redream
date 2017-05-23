@@ -437,7 +437,7 @@ union vert_param {
 /* worst case background vertex size, see ISP_BACKGND_T field */
 #define BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
 
-struct tile_ctx {
+struct tile_context {
   void *user;
   uint32_t addr;
   void *userdata;
