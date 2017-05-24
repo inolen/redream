@@ -122,8 +122,11 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
 static texture_handle_t tr_demand_texture(struct tr *tr,
                                           const struct tile_context *ctx,
                                           union tsp tsp, union tcw tcw) {
+  PROF_ENTER("gpu", "tr_demand_texture");
+
   /* allow headless tile renderer */
   if (!tr->provider) {
+    PROF_LEAVE();
     return 0;
   }
 
@@ -137,6 +140,7 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
 
   /* if there's a non-dirty handle, return it */
   if (entry->handle && !entry->dirty) {
+    PROF_LEAVE();
     return entry->handle;
   }
 
@@ -349,6 +353,8 @@ static texture_handle_t tr_demand_texture(struct tr *tr,
   entry->width = width;
   entry->height = height;
   entry->dirty = 0;
+
+  PROF_LEAVE();
 
   return entry->handle;
 }
@@ -837,6 +843,8 @@ static void tr_sort_surfs(struct tr *tr, struct tr_list *list, int low,
 
 static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
                                 int list_type) {
+  PROF_ENTER("gpu", "tr_sort_render_list");
+
   struct tr_list *list = &rc->lists[list_type];
 
   for (int i = 0; i < list->num_surfs; i++) {
@@ -856,6 +864,8 @@ static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
 
   /* sort each surface from back to front based on its minz */
   tr_sort_surfs(tr, list, 0, list->num_surfs - 1);
+
+  PROF_LEAVE();
 }
 
 static void tr_parse_eol(struct tr *tr, const struct tile_context *ctx,
