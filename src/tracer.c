@@ -808,7 +808,7 @@ void tracer_run_frame(struct tracer *tracer) {
   int width = video_width(tracer->host);
   int height = video_height(tracer->host);
 
-  r_clear_viewport(tracer->r, width, height);
+  r_viewport(tracer->r, width, height);
 
   nk_update_input(tracer->nk);
 

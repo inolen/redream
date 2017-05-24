@@ -217,8 +217,8 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
 void mp_render(struct microprofile *mp) {
   s_mp = mp;
 
-  int width = r_video_width(mp->r);
-  int height = r_video_height(mp->r);
+  int width = r_viewport_width(mp->r);
+  int height = r_viewport_height(mp->r);
 
   /* update draw surfaces */
   MicroProfileDraw(width, height);

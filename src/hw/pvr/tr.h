@@ -88,7 +88,6 @@ void tr_destroy(struct tr *tr);
 
 void tr_parse_context(struct tr *tr, const struct tile_context *ctx,
                       struct tr_context *rc);
-void tr_render_context(struct tr *tr, const struct tr_context *rc,
-                       int video_width, int video_height);
+void tr_render_context(struct tr *tr, const struct tr_context *rc);
 
 #endif
