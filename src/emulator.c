@@ -1,3 +1,16 @@
+/*
+ * client code for the dreamcast machine
+ *
+ * acts as a middle man between the dreamcast guest and local host. the host
+ * interface provides callbacks for user input events, window resize events,
+ * etc. that need to be passed to the dreamcast, while the dreamcast interface
+ * provides callbacks that push frames of video and audio data to be presented
+ * on the host
+ *
+ * this code encapsulates the logic that would otherwise need to be duplicated
+ * for each of the multiple host implementations (sdl, libretro, etc.)
+ */
+
 #include "emulator.h"
 #include "core/option.h"
 #include "core/profiler.h"
@@ -28,31 +41,36 @@ enum {
 };
 
 struct emu {
-  int multi_threaded;
   struct host *host;
   struct dreamcast *dc;
-  volatile int running;
   int debug_menu;
+  volatile int running;
+  volatile int video_width;
+  volatile int video_height;
+  volatile int video_resized;
 
   struct render_backend *r, *r2;
   struct microprofile *mp;
   struct nuklear *nk;
   struct tr *tr;
 
-  /* video state */
+  /* hosts which support creating multiple gl contexts will render video on
+     a second thread. the original hardware rendered asynchronously as well,
+     so many games use this time to perform additional cpu work. on many
+     games this upwards of doubles the performance */
+  int multi_threaded;
   thread_t video_thread;
 
+  /* latest context from the dreamcast, ready to be converted and presented */
   mutex_t pending_mutex;
   cond_t pending_cond;
   struct tile_context *pending_ctx;
 
+  /* latest context converted into render commands to be presented locally */
   volatile int video_state;
-  volatile int video_width;
-  volatile int video_height;
-
   struct tr_context video_rc;
-  int video_fb_width;
-  int video_fb_height;
+
+  /* offscreen framebuffer the video output is rendered to */
   framebuffer_handle_t video_fb;
   texture_handle_t video_tex;
   sync_handle_t video_sync;
@@ -72,20 +90,18 @@ static void emu_render_frame(struct emu *emu) {
   emu->video_state = FRAME_RENDERING;
 
   /* resize the framebuffer at this time if the output size has changed */
-  if (emu->video_fb_width != emu->video_width ||
-      emu->video_fb_height != emu->video_height) {
+  if (emu->video_resized) {
     r_destroy_framebuffer(r2, emu->video_fb);
 
-    emu->video_fb_width = emu->video_width;
-    emu->video_fb_height = emu->video_height;
-    emu->video_fb = r_create_framebuffer(r2, emu->video_fb_width,
-                                         emu->video_fb_height, &emu->video_tex);
+    emu->video_fb = r_create_framebuffer(r2, emu->video_width,
+                                         emu->video_height, &emu->video_tex);
+    emu->video_resized = 0;
   }
 
   /* render the current render context to the video framebuffer */
   framebuffer_handle_t original = r_get_framebuffer(r2);
   r_bind_framebuffer(r2, emu->video_fb);
-  r_viewport(emu->r, emu->video_fb_width, emu->video_fb_height);
+  r_viewport(emu->r, emu->video_width, emu->video_height);
   tr_render_context(emu->tr, &emu->video_rc);
   r_bind_framebuffer(r2, original);
 
@@ -237,13 +253,16 @@ static void emu_paint(struct emu *emu) {
   nk_render(emu->nk);
 }
 
-static void emu_poll_input(void *userdata) {
+/*
+ * dreamcast guest interface
+ */
+static void emu_guest_poll_input(void *userdata) {
   struct emu *emu = userdata;
 
   input_poll(emu->host);
 }
 
-static void emu_finish_render(void *userdata) {
+static void emu_guest_finish_render(void *userdata) {
   struct emu *emu = userdata;
 
   if (emu->multi_threaded) {
@@ -259,7 +278,7 @@ static void emu_finish_render(void *userdata) {
   }
 }
 
-static void emu_start_render(void *userdata, struct tile_context *ctx) {
+static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
   struct emu *emu = userdata;
 
   if (emu->video_state != FRAME_WAITING) {
@@ -283,20 +302,24 @@ static void emu_start_render(void *userdata, struct tile_context *ctx) {
   }
 }
 
-static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
+static void emu_guest_push_audio(void *userdata, const int16_t *data,
+                                 int frames) {
   struct emu *emu = userdata;
   audio_push(emu->host, data, frames);
 }
 
-static void emu_input_mousemove(void *userdata, int port, int x, int y) {
+/*
+ * local host interface
+ */
+static void emu_host_mousemove(void *userdata, int port, int x, int y) {
   struct emu *emu = userdata;
 
   mp_mousemove(emu->mp, x, y);
   nk_mousemove(emu->nk, x, y);
 }
 
-static void emu_input_keydown(void *userdata, int port, enum keycode key,
-                              int16_t value) {
+static void emu_host_keydown(void *userdata, int port, enum keycode key,
+                             int16_t value) {
   struct emu *emu = userdata;
 
   if (key == K_F1 && value > 0) {
@@ -311,7 +334,7 @@ static void emu_input_keydown(void *userdata, int port, enum keycode key,
   }
 }
 
-static void emu_video_context_destroyed(void *userdata) {
+static void emu_host_context_destroyed(void *userdata) {
   struct emu *emu = userdata;
   struct tr_provider *provider = ta_texture_provider(emu->dc->ta);
 
@@ -361,11 +384,11 @@ static void emu_video_context_destroyed(void *userdata) {
   r_destroy(emu->r);
 }
 
-static void emu_video_context_reset(void *userdata) {
+static void emu_host_context_reset(void *userdata) {
   struct emu *emu = userdata;
   struct tr_provider *provider = ta_texture_provider(emu->dc->ta);
 
-  emu_video_context_destroyed(userdata);
+  emu_host_context_destroyed(userdata);
 
   emu->running = 1;
 
@@ -387,10 +410,8 @@ static void emu_video_context_reset(void *userdata) {
 
   emu->tr = tr_create(r2, provider);
 
-  emu->video_fb_width = emu->video_width;
-  emu->video_fb_height = emu->video_height;
-  emu->video_fb = r_create_framebuffer(r2, emu->video_fb_width,
-                                       emu->video_fb_height, &emu->video_tex);
+  emu->video_fb = r_create_framebuffer(r2, emu->video_width, emu->video_height,
+                                       &emu->video_tex);
 
   /* startup video thread */
   if (emu->multi_threaded) {
@@ -402,11 +423,12 @@ static void emu_video_context_reset(void *userdata) {
   r_make_current(emu->r);
 }
 
-static void emu_video_resized(void *userdata) {
+static void emu_host_resized(void *userdata) {
   struct emu *emu = userdata;
 
   emu->video_width = video_width(emu->host);
   emu->video_height = video_height(emu->host);
+  emu->video_resized = 1;
 }
 
 void emu_run_frame(struct emu *emu) {
@@ -449,19 +471,19 @@ struct emu *emu_create(struct host *host) {
   /* setup host, bind event callbacks */
   emu->host = host;
   emu->host->userdata = emu;
-  emu->host->video_resized = &emu_video_resized;
-  emu->host->video_context_reset = &emu_video_context_reset;
-  emu->host->video_context_destroyed = &emu_video_context_destroyed;
-  emu->host->input_keydown = &emu_input_keydown;
-  emu->host->input_mousemove = &emu_input_mousemove;
+  emu->host->video_resized = &emu_host_resized;
+  emu->host->video_context_reset = &emu_host_context_reset;
+  emu->host->video_context_destroyed = &emu_host_context_destroyed;
+  emu->host->input_keydown = &emu_host_keydown;
+  emu->host->input_mousemove = &emu_host_mousemove;
 
   /* create dreamcast, bind client callbacks */
   emu->dc = dc_create();
   emu->dc->userdata = emu;
-  emu->dc->push_audio = &emu_push_audio;
-  emu->dc->start_render = &emu_start_render;
-  emu->dc->finish_render = &emu_finish_render;
-  emu->dc->poll_input = &emu_poll_input;
+  emu->dc->push_audio = &emu_guest_push_audio;
+  emu->dc->start_render = &emu_guest_start_render;
+  emu->dc->finish_render = &emu_guest_finish_render;
+  emu->dc->poll_input = &emu_guest_poll_input;
 
   /* start up the video thread */
   emu->multi_threaded = video_gl_supports_multiple_contexts(emu->host);

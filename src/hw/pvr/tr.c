@@ -18,10 +18,6 @@ struct tr {
   int vertex_type;
   float face_color[4];
   float face_offset_color[4];
-
-  /* scratch buffers used when sorting surfaces */
-  int merged[TA_MAX_SURFS];
-  float minz[TA_MAX_SURFS];
 };
 
 static int compressed_mipmap_offsets[] = {
@@ -119,10 +115,10 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
          (float_to_u8(g) << 8) | float_to_u8(r);
 }
 
-static texture_handle_t tr_demand_texture(struct tr *tr,
-                                          const struct tile_context *ctx,
-                                          union tsp tsp, union tcw tcw) {
-  PROF_ENTER("gpu", "tr_demand_texture");
+static texture_handle_t tr_convert_texture(struct tr *tr,
+                                           const struct tile_context *ctx,
+                                           union tsp tsp, union tcw tcw) {
+  PROF_ENTER("gpu", "tr_convert_texture");
 
   /* allow headless tile renderer */
   if (!tr->provider) {
@@ -607,7 +603,7 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
 
   if (param->type0.pcw.texture) {
     surf->texture =
-        tr_demand_texture(tr, ctx, param->type0.tsp, param->type0.tcw);
+        tr_convert_texture(tr, ctx, param->type0.tsp, param->type0.tcw);
   } else {
     surf->texture = 0;
   }
@@ -801,15 +797,19 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
   /* FIXME is this true for sprites which come through this path as well? */
 }
 
+/* scratch buffers used by surface merge sort */
+static int sort_tmp[TA_MAX_SURFS];
+static float sort_minz[TA_MAX_SURFS];
+
 static void tr_merge_surfs(struct tr *tr, int *low, int *mid, int *high) {
   int *i = low;
   int *j = mid + 1;
-  int *k = tr->merged;
-  int *end = tr->merged + array_size(tr->merged);
+  int *k = sort_tmp;
+  int *end = sort_tmp + array_size(sort_tmp);
 
   while (i <= mid && j <= high) {
     DCHECK_LT(k, end);
-    if (tr->minz[*i] <= tr->minz[*j]) {
+    if (sort_minz[*i] <= sort_minz[*j]) {
       *(k++) = *(i++);
     } else {
       *(k++) = *(j++);
@@ -826,7 +826,7 @@ static void tr_merge_surfs(struct tr *tr, int *low, int *mid, int *high) {
     *(k++) = *(j++);
   }
 
-  memcpy(low, tr->merged, (k - tr->merged) * sizeof(tr->merged[0]));
+  memcpy(low, sort_tmp, (k - sort_tmp) * sizeof(sort_tmp[0]));
 }
 
 static void tr_sort_surfs(struct tr *tr, struct tr_list *list, int low,
@@ -850,7 +850,7 @@ static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
   for (int i = 0; i < list->num_surfs; i++) {
     int idx = list->surfs[i];
     struct ta_surface *surf = &rc->surfs[idx];
-    float *minz = &tr->minz[idx];
+    float *minz = &sort_minz[idx];
 
     /* the surf coordinates have 1/w for z, so smaller values are
       further away from the camera */
@@ -955,7 +955,7 @@ void tr_render_context(struct tr *tr, const struct tr_context *rc) {
 }
 
 void tr_convert_context(struct tr *tr, const struct tile_context *ctx,
-                      struct tr_context *rc) {
+                        struct tr_context *rc) {
   PROF_ENTER("gpu", "tr_convert_context");
 
   const uint8_t *data = ctx->params;
@@ -987,9 +987,6 @@ void tr_convert_context(struct tr *tr, const struct tile_context *ctx,
 
       /* global params */
       case TA_PARAM_POLY_OR_VOL:
-        tr_parse_poly_param(tr, ctx, rc, data);
-        break;
-
       case TA_PARAM_SPRITE:
         tr_parse_poly_param(tr, ctx, rc, data);
         break;
