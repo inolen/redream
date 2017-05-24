@@ -435,7 +435,7 @@ union vert_param {
 #define TA_MAX_PARAMS 0x10000
 
 /* worst case background vertex size, see ISP_BACKGND_T field */
-#define BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
+#define TA_BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
 
 struct tile_context {
   void *user;
@@ -454,7 +454,7 @@ struct tile_context {
   union tcw bg_tcw;
   float bg_depth;
   uint32_t pt_alpha_ref;
-  uint8_t bg_vertices[BG_VERTEX_SIZE];
+  uint8_t bg_vertices[TA_BG_VERTEX_SIZE];
 
   /* parameter buffer */
   uint8_t params[TA_MAX_PARAMS * 32];
