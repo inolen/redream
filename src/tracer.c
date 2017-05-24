@@ -125,37 +125,37 @@ static struct tr_texture *tracer_provider_find_texture(void *data,
                                                        union tcw tcw) {
   struct tracer *tracer = data;
 
-  struct tracer_texture *entry = tracer_find_texture(tracer, tsp, tcw);
-  CHECK_NOTNULL(entry, "Texture wasn't available in cache");
+  struct tracer_texture *tex = tracer_find_texture(tracer, tsp, tcw);
+  CHECK_NOTNULL(tex, "Texture wasn't available in cache");
 
-  return (struct tr_texture *)entry;
+  return (struct tr_texture *)tex;
 }
 
 static void tracer_add_texture(struct tracer *tracer,
                                const struct trace_cmd *cmd) {
   CHECK_EQ(cmd->type, TRACE_CMD_TEXTURE);
 
-  struct tracer_texture *entry =
+  struct tracer_texture *tex =
       tracer_find_texture(tracer, cmd->texture.tsp, cmd->texture.tcw);
 
-  if (!entry) {
-    entry = list_first_entry(&tracer->free_textures, struct tracer_texture,
-                             free_it);
-    CHECK_NOTNULL(entry);
-    list_remove(&tracer->free_textures, &entry->free_it);
+  if (!tex) {
+    tex = list_first_entry(&tracer->free_textures, struct tracer_texture,
+                           free_it);
+    CHECK_NOTNULL(tex);
+    list_remove(&tracer->free_textures, &tex->free_it);
 
-    entry->tsp = cmd->texture.tsp;
-    entry->tcw = cmd->texture.tcw;
+    tex->tsp = cmd->texture.tsp;
+    tex->tcw = cmd->texture.tcw;
 
-    rb_insert(&tracer->live_textures, &entry->live_it, &tracer_texture_cb);
+    rb_insert(&tracer->live_textures, &tex->live_it, &tracer_texture_cb);
   }
 
-  entry->frame = cmd->texture.frame;
-  entry->dirty = 1;
-  entry->texture = cmd->texture.texture;
-  entry->texture_size = cmd->texture.texture_size;
-  entry->palette = cmd->texture.palette;
-  entry->palette_size = cmd->texture.palette_size;
+  tex->frame = cmd->texture.frame;
+  tex->dirty = 1;
+  tex->texture = cmd->texture.texture;
+  tex->texture_size = cmd->texture.texture_size;
+  tex->palette = cmd->texture.palette;
+  tex->palette_size = cmd->texture.palette_size;
 }
 
 static void tracer_copy_context(const struct trace_cmd *cmd,
@@ -712,11 +712,11 @@ static void tracer_render_side_menu(struct tracer *tracer) {
                  NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
       nk_layout_row_static(ctx, 40.0f, 40, 5);
 
-      rb_for_each_entry(entry, &tracer->live_textures, struct tracer_texture,
+      rb_for_each_entry(tex, &tracer->live_textures, struct tracer_texture,
                         live_it) {
         struct nk_rect bounds = nk_widget_bounds(ctx);
 
-        nk_image(ctx, nk_image_id((int)entry->handle));
+        nk_image(ctx, nk_image_id((int)tex->handle));
 
         if (nk_input_is_mouse_hovering_rect(&ctx->input, bounds)) {
           /* disable spacing for tooltip */
@@ -725,29 +725,25 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
           if (nk_tooltip_begin(ctx, 184.0f)) {
             nk_layout_row_static(ctx, 184.0f, 184, 1);
-            nk_image(ctx, nk_image_id((int)entry->handle));
+            nk_image(ctx, nk_image_id((int)tex->handle));
 
             nk_layout_row_dynamic(ctx, ctx->style.font->height, 1);
             nk_labelf(ctx, NK_TEXT_LEFT, "addr: 0x%08x",
-                      ta_texture_addr(entry->tcw));
-            nk_labelf(ctx, NK_TEXT_LEFT, "format: %s",
-                      pxl_names[entry->format]);
+                      ta_texture_addr(tex->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "format: %s", pxl_names[tex->format]);
             nk_labelf(ctx, NK_TEXT_LEFT, "filter: %s",
-                      filter_names[entry->filter]);
-            nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s",
-                      wrap_names[entry->wrap_u]);
-            nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s",
-                      wrap_names[entry->wrap_v]);
+                      filter_names[tex->filter]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "wrap_u: %s", wrap_names[tex->wrap_u]);
+            nk_labelf(ctx, NK_TEXT_LEFT, "wrap_v: %s", wrap_names[tex->wrap_v]);
             nk_labelf(ctx, NK_TEXT_LEFT, "twiddled: %d",
-                      ta_texture_twiddled(entry->tcw));
+                      ta_texture_twiddled(tex->tcw));
             nk_labelf(ctx, NK_TEXT_LEFT, "compressed: %d",
-                      ta_texture_compressed(entry->tcw));
+                      ta_texture_compressed(tex->tcw));
             nk_labelf(ctx, NK_TEXT_LEFT, "mipmaps: %d",
-                      ta_texture_mipmaps(entry->tcw));
-            nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", entry->width);
-            nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", entry->height);
-            nk_labelf(ctx, NK_TEXT_LEFT, "texture_size: %d",
-                      entry->texture_size);
+                      ta_texture_mipmaps(tex->tcw));
+            nk_labelf(ctx, NK_TEXT_LEFT, "width: %d", tex->width);
+            nk_labelf(ctx, NK_TEXT_LEFT, "height: %d", tex->height);
+            nk_labelf(ctx, NK_TEXT_LEFT, "texture_size: %d", tex->texture_size);
 
             nk_tooltip_end(ctx);
           }
@@ -892,8 +888,8 @@ struct tracer *tracer_create(struct host *host) {
 
   /* add all textures to free list */
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
-    struct tracer_texture *entry = &tracer->textures[i];
-    list_add(&tracer->free_textures, &entry->free_it);
+    struct tracer_texture *tex = &tracer->textures[i];
+    list_add(&tracer->free_textures, &tex->free_it);
   }
 
   return tracer;

@@ -336,7 +336,7 @@ static void emu_video_context_destroyed(void *userdata) {
      TODO this feels kind of wrong, should we be managing the texture cache? */
   provider->clear_textures(provider->userdata);
 
-  /* destroy video renderer state */
+  /* destroy video renderer */
   struct render_backend *r2 = emu_video_renderer(emu);
 
   r_make_current(r2);
@@ -353,7 +353,7 @@ static void emu_video_context_destroyed(void *userdata) {
     mutex_destroy(emu->pending_mutex);
   }
 
-  /* destroy primary renderer state */
+  /* destroy primary renderer */
   r_make_current(emu->r);
 
   nk_destroy(emu->nk);
