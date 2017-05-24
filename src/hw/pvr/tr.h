@@ -86,7 +86,7 @@ static inline tr_texture_key_t tr_texture_key(union tsp tsp, union tcw tcw) {
 struct tr *tr_create(struct render_backend *rb, struct tr_provider *provider);
 void tr_destroy(struct tr *tr);
 
-void tr_parse_context(struct tr *tr, const struct tile_context *ctx,
+void tr_convert_context(struct tr *tr, const struct tile_context *ctx,
                       struct tr_context *rc);
 void tr_render_context(struct tr *tr, const struct tr_context *rc);
 

@@ -121,8 +121,8 @@ static void *emu_video_thread(void *data) {
       break;
     }
 
-    /* parse the context, uploading its textures to the render backend */
-    tr_parse_context(emu->tr, emu->pending_ctx, &emu->video_rc);
+    /* convert the context, uploading its textures to the render backend */
+    tr_convert_context(emu->tr, emu->pending_ctx, &emu->video_rc);
     emu->pending_ctx = NULL;
 
     /* after the context has been parsed, release the mutex to let
@@ -276,8 +276,8 @@ static void emu_start_render(void *userdata, struct tile_context *ctx) {
 
     mutex_unlock(emu->pending_mutex);
   } else {
-    /* parse the context and immediately render it */
-    tr_parse_context(emu->tr, ctx, &emu->video_rc);
+    /* convert the context and immediately render it */
+    tr_convert_context(emu->tr, ctx, &emu->video_rc);
 
     emu_render_frame(emu);
   }
