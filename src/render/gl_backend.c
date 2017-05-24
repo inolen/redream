@@ -66,6 +66,8 @@ struct texture {
 struct render_backend {
   struct host *host;
   gl_context_t ctx;
+  int viewport_width;
+  int viewport_height;
   int debug_flags;
 
   /* default assets created during intitialization */
@@ -563,17 +565,14 @@ void r_begin_ui_surfaces(struct render_backend *r,
                          const struct ui_vertex *verts, int num_verts,
                          const uint16_t *indices, int num_indices) {
   /* setup projection matrix */
-  int width = video_width(r->host);
-  int height = video_height(r->host);
-
   float ortho[16];
-  ortho[0] = 2.0f / (float)width;
+  ortho[0] = 2.0f / (float)r->viewport_width;
   ortho[4] = 0.0f;
   ortho[8] = 0.0f;
   ortho[12] = -1.0f;
 
   ortho[1] = 0.0f;
-  ortho[5] = -2.0f / (float)height;
+  ortho[5] = -2.0f / (float)r->viewport_height;
   ortho[9] = 0.0f;
   ortho[13] = 1.0f;
 
@@ -612,9 +611,20 @@ void r_begin_ui_surfaces(struct render_backend *r,
   }
 }
 
-void r_clear_viewport(struct render_backend *r, int width, int height) {
+int r_viewport_height(struct render_backend *r) {
+  return r->viewport_height;
+}
+
+int r_viewport_width(struct render_backend *r) {
+  return r->viewport_width;
+}
+
+void r_viewport(struct render_backend *r, int width, int height) {
+  r->viewport_width = width;
+  r->viewport_height = height;
+
   glDepthMask(1);
-  glViewport(0, 0, width, height);
+  glViewport(0, 0, r->viewport_width, r->viewport_height);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -813,14 +823,6 @@ int r_get_debug_flag(struct render_backend *r, int flag) {
 
 void r_set_debug_flag(struct render_backend *r, int flag) {
   r->debug_flags |= flag;
-}
-
-int r_video_height(struct render_backend *r) {
-  return video_height(r->host);
-}
-
-int r_video_width(struct render_backend *r) {
-  return video_width(r->host);
 }
 
 void r_make_current(struct render_backend *r) {

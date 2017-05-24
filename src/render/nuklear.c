@@ -17,7 +17,7 @@
 #endif
 
 void nk_render(struct nuklear *nk) {
-  float height = (float)r_video_height(nk->r);
+  float height = (float)r_viewport_height(nk->r);
 
   /* convert draw list into vertex / element buffers */
   static const struct nk_draw_vertex_layout_element vertex_layout[] = {

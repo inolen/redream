@@ -138,9 +138,6 @@ void r_destroy(struct render_backend *rc);
 
 void r_make_current(struct render_backend *r);
 
-int r_video_width(struct render_backend *r);
-int r_video_height(struct render_backend *r);
-
 void r_set_debug_flag(struct render_backend *r, int flag);
 int r_get_debug_flag(struct render_backend *r, int flag);
 void r_clear_debug_flag(struct render_backend *r, int flag);
@@ -165,7 +162,9 @@ sync_handle_t r_insert_sync(struct render_backend *r);
 void r_wait_sync(struct render_backend *r, sync_handle_t handle);
 void r_destroy_sync(struct render_backend *r, sync_handle_t handle);
 
-void r_clear_viewport(struct render_backend *r, int width, int height);
+void r_viewport(struct render_backend *r, int width, int height);
+int r_viewport_width(struct render_backend *r);
+int r_viewport_height(struct render_backend *r);
 
 void r_begin_ta_surfaces(struct render_backend *r, const float *projection,
                          const struct ta_vertex *verts, int num_verts);

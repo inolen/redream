@@ -85,8 +85,8 @@ static void emu_render_frame(struct emu *emu) {
   /* render the current render context to the video framebuffer */
   framebuffer_handle_t original = r_get_framebuffer(r2);
   r_bind_framebuffer(r2, emu->video_fb);
-  tr_render_context(emu->tr, &emu->video_rc, emu->video_fb_width,
-                    emu->video_fb_height);
+  r_viewport(emu->r, emu->video_fb_width, emu->video_fb_height);
+  tr_render_context(emu->tr, &emu->video_rc);
   r_bind_framebuffer(r2, original);
 
   /* insert fence for main thread to synchronize on in order to ensure that
@@ -148,7 +148,7 @@ static void emu_paint(struct emu *emu) {
 
   nk_update_input(emu->nk);
 
-  r_clear_viewport(emu->r, width, height);
+  r_viewport(emu->r, emu->video_width, emu->video_height);
 
   /* present the latest frame from the video thread */
   {

@@ -930,11 +930,8 @@ static void tr_render_list(struct tr *tr, const struct tr_context *rc,
   }
 }
 
-void tr_render_context(struct tr *tr, const struct tr_context *rc,
-                       int video_width, int video_height) {
+void tr_render_context(struct tr *tr, const struct tr_context *rc) {
   PROF_ENTER("gpu", "tr_render_context");
-
-  r_clear_viewport(tr->r, video_width, video_height);
 
   r_begin_ta_surfaces(tr->r, rc->projection, rc->verts, rc->num_verts);
 
