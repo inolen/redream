@@ -235,7 +235,7 @@ static void tracer_prev_context(struct tracer *tracer) {
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
   tracer_copy_context(tracer->current_cmd, &tracer->ctx);
-  tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rc);
+  tr_convert_context(tracer->tr, &tracer->ctx, &tracer->rc);
 }
 
 static void tracer_next_context(struct tracer *tracer) {
@@ -272,7 +272,7 @@ static void tracer_next_context(struct tracer *tracer) {
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
   tracer_copy_context(tracer->current_cmd, &tracer->ctx);
-  tr_parse_context(tracer->tr, &tracer->ctx, &tracer->rc);
+  tr_convert_context(tracer->tr, &tracer->ctx, &tracer->rc);
 }
 
 static void tracer_reset_context(struct tracer *tracer) {

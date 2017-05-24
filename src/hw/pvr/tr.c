@@ -954,9 +954,9 @@ void tr_render_context(struct tr *tr, const struct tr_context *rc) {
   PROF_LEAVE();
 }
 
-void tr_parse_context(struct tr *tr, const struct tile_context *ctx,
+void tr_convert_context(struct tr *tr, const struct tile_context *ctx,
                       struct tr_context *rc) {
-  PROF_ENTER("gpu", "tr_parse_context");
+  PROF_ENTER("gpu", "tr_convert_context");
 
   const uint8_t *data = ctx->params;
   const uint8_t *end = ctx->params + ctx->size;
