@@ -19,11 +19,6 @@ extern int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERTS];
 extern int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 extern int g_vertex_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 
-void ta_build_tables();
-
-struct ta *ta_create(struct dreamcast *dc);
-void ta_destroy(struct ta *ta);
-
 static inline int ta_get_param_size(union pcw pcw, int vertex_type) {
   return g_param_sizes[pcw.obj_control * TA_NUM_PARAMS * TA_NUM_VERTS +
                        pcw.para_type * TA_NUM_VERTS + vertex_type];
@@ -104,6 +99,13 @@ static inline int ta_texture_size(union tsp tsp, union tcw tcw) {
   return texture_size;
 }
 
-struct tr_provider *ta_texture_provider(struct ta *ta);
+void ta_init_tables();
+
+struct ta *ta_create(struct dreamcast *dc);
+void ta_destroy(struct ta *ta);
+
+void ta_texture_info(struct ta *ta, union tsp tsp, union tcw tcw,
+                     const uint8_t **texture, int *texture_size,
+                     const uint8_t **palette, int *palette_size);
 
 #endif

@@ -13,15 +13,6 @@ struct tr_texture;
 
 typedef uint64_t tr_texture_key_t;
 
-/* provides abstraction around providing texture data to the renderer. when
-   emulating the actual ta, textures will be provided from guest memory, but
-   when playing back traces the textures will come from the trace itself */
-struct tr_provider {
-  void *userdata;
-  void (*clear_textures)(void *);
-  struct tr_texture *(*find_texture)(void *, union tsp, union tcw);
-};
-
 struct tr_texture {
   union tsp tsp;
   union tcw tcw;
@@ -84,11 +75,11 @@ static inline tr_texture_key_t tr_texture_key(union tsp tsp, union tcw tcw) {
   return ((uint64_t)tsp.full << 32) | tcw.full;
 }
 
-struct tr *tr_create(struct render_backend *rb, struct tr_provider *provider);
-void tr_destroy(struct tr *tr);
+typedef struct tr_texture *(*tr_find_texture_cb)(void *, union tsp, union tcw);
 
-void tr_convert_context(struct tr *tr, const struct tile_context *ctx,
-                        struct tr_context *rc);
-void tr_render_context(struct tr *tr, const struct tr_context *rc);
+void tr_convert_context(struct render_backend *r, void *userdata,
+                        tr_find_texture_cb find_texture,
+                        const struct tile_context *ctx, struct tr_context *rc);
+void tr_render_context(struct render_backend *r, const struct tr_context *rc);
 
 #endif

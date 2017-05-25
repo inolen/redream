@@ -443,7 +443,6 @@ struct tile_context {
   void *userdata;
 
   /* pvr / ta state */
-  unsigned frame;
   int autosort;
   int stride;
   int pal_pxl_format;

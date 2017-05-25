@@ -24,6 +24,7 @@
 #include "hw/pvr/pvr.h"
 #include "hw/pvr/ta.h"
 #include "hw/pvr/tr.h"
+#include "hw/pvr/trace.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 #include "render/microprofile.h"
@@ -40,9 +41,22 @@ enum {
   FRAME_RENDERED,
 };
 
+struct emu_texture {
+  struct tr_texture;
+  struct emu *emu;
+  struct list_node free_it;
+  struct rb_node live_it;
+
+  struct memory_watch *texture_watch;
+  struct memory_watch *palette_watch;
+  struct list_node modified_it;
+  int modified;
+};
+
 struct emu {
   struct host *host;
   struct dreamcast *dc;
+
   int debug_menu;
   volatile int running;
   volatile int video_width;
@@ -52,7 +66,7 @@ struct emu {
   struct render_backend *r, *r2;
   struct microprofile *mp;
   struct nuklear *nk;
-  struct tr *tr;
+  struct trace_writer *trace_writer;
 
   /* hosts which support creating multiple gl contexts will render video on
      a second thread. the original hardware rendered asynchronously as well,
@@ -61,12 +75,12 @@ struct emu {
   int multi_threaded;
   thread_t video_thread;
 
-  /* latest context from the dreamcast, ready to be converted and presented */
+  /* latest raw context from the dreamcast, ready to be converted */
   mutex_t pending_mutex;
   cond_t pending_cond;
   struct tile_context *pending_ctx;
 
-  /* latest context converted into render commands to be presented locally */
+  /* latest converted context ready to be presented locally */
   volatile int video_state;
   struct tr_context video_rc;
 
@@ -74,8 +88,244 @@ struct emu {
   framebuffer_handle_t video_fb;
   texture_handle_t video_tex;
   sync_handle_t video_sync;
+
+  /* unique id for the current video frame, used to assert synchronization
+     between the video and main thread */
+  unsigned frame;
+
+  /* texture cache. the dreamcast interface calls into us when new contexts are
+     available to be rendered. parsing the contexts, uploading their textures to
+     the render backend, and managing the texture cache is our responsibility */
+  struct emu_texture textures[8192];
+  struct list free_textures;
+  struct rb_tree live_textures;
+
+  /* textures for the current context are uploaded to the render backend by the
+     video thread in parallel to the main thread executing. this is normally
+     safe, as the real hardware rendered asynchronously as well.  unfortunately,
+     some games will be naughty and modify a texture before receiving the end of
+     render interrupt. in order to avoid race conditions around accessing the
+     texture's dirty state, textures are not immediately marked dirty by the
+     emulation thread when modified. instead, they are added to this modified
+     list which will be processed the next time the threads are synchronized */
+  struct list modified_textures;
 };
 
+/*
+ * texture cache
+ */
+static int emu_texture_cmp(const struct rb_node *rb_lhs,
+                           const struct rb_node *rb_rhs) {
+  const struct emu_texture *lhs =
+      rb_entry(rb_lhs, const struct emu_texture, live_it);
+  tr_texture_key_t lhs_key = tr_texture_key(lhs->tsp, lhs->tcw);
+
+  const struct emu_texture *rhs =
+      rb_entry(rb_rhs, const struct emu_texture, live_it);
+  tr_texture_key_t rhs_key = tr_texture_key(rhs->tsp, rhs->tcw);
+
+  if (lhs_key < rhs_key) {
+    return -1;
+  } else if (lhs_key > rhs_key) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static struct rb_callbacks emu_texture_cb = {&emu_texture_cmp, NULL, NULL};
+
+static void emu_clear_textures(struct emu *emu) {
+  LOG_INFO("emu_clear_textures");
+
+  struct rb_node *it = rb_first(&emu->live_textures);
+
+  while (it) {
+    struct rb_node *next = rb_next(it);
+    struct emu_texture *tex = rb_entry(it, struct emu_texture, live_it);
+
+    tex->dirty = 1;
+
+    it = next;
+  }
+}
+
+static void emu_dirty_modified_textures(struct emu *emu) {
+  list_for_each_entry(tex, &emu->modified_textures, struct emu_texture,
+                      modified_it) {
+    tex->dirty = 1;
+    tex->modified = 0;
+  }
+
+  list_clear(&emu->modified_textures);
+}
+
+static void emu_texture_modified(const struct exception *ex, void *data) {
+  struct emu_texture *tex = data;
+  tex->texture_watch = NULL;
+
+  if (!tex->modified) {
+    list_add(&tex->emu->modified_textures, &tex->modified_it);
+    tex->modified = 1;
+  }
+}
+
+static void emu_palette_modified(const struct exception *ex, void *data) {
+  struct emu_texture *tex = data;
+  tex->palette_watch = NULL;
+
+  if (!tex->modified) {
+    list_add(&tex->emu->modified_textures, &tex->modified_it);
+    tex->modified = 1;
+  }
+}
+
+static struct emu_texture *emu_alloc_texture(struct emu *emu, union tsp tsp,
+                                             union tcw tcw) {
+  /* remove from free list */
+  struct emu_texture *tex =
+      list_first_entry(&emu->free_textures, struct emu_texture, free_it);
+  CHECK_NOTNULL(tex);
+  list_remove(&emu->free_textures, &tex->free_it);
+
+  /* reset tex */
+  memset(tex, 0, sizeof(*tex));
+  tex->emu = emu;
+  tex->tsp = tsp;
+  tex->tcw = tcw;
+
+  /* add to live tree */
+  rb_insert(&emu->live_textures, &tex->live_it, &emu_texture_cb);
+
+  return tex;
+}
+
+static struct tr_texture *emu_find_texture(void *userdata, union tsp tsp,
+                                           union tcw tcw) {
+  struct emu *emu = userdata;
+
+  struct emu_texture search;
+  search.tsp = tsp;
+  search.tcw = tcw;
+
+  struct emu_texture *tex =
+      rb_find_entry(&emu->live_textures, &search, struct emu_texture, live_it,
+                    &emu_texture_cb);
+  return (struct tr_texture *)tex;
+}
+
+static void emu_register_texture_source(struct emu *emu, union tsp tsp,
+                                        union tcw tcw) {
+  struct emu_texture *entry =
+      (struct emu_texture *)emu_find_texture(emu, tsp, tcw);
+
+  if (!entry) {
+    entry = emu_alloc_texture(emu, tsp, tcw);
+    entry->dirty = 1;
+  }
+
+  /* mark texture source valid for the current frame */
+  int first_registration_this_frame = entry->frame != emu->frame;
+  entry->frame = emu->frame;
+
+  /* set texture address */
+  if (!entry->texture || !entry->palette) {
+    ta_texture_info(emu->dc->ta, tsp, tcw, &entry->texture,
+                    &entry->texture_size, &entry->palette,
+                    &entry->palette_size);
+  }
+
+#ifdef NDEBUG
+  /* add write callback in order to invalidate on future writes. the callback
+     address will be page aligned, therefore it will be triggered falsely in
+     some cases. over invalidate in these cases */
+  if (!entry->texture_watch) {
+    entry->texture_watch = add_single_write_watch(
+        entry->texture, entry->texture_size, &emu_texture_modified, entry);
+  }
+
+  if (entry->palette && !entry->palette_watch) {
+    entry->palette_watch = add_single_write_watch(
+        entry->palette, entry->palette_size, &emu_palette_modified, entry);
+  }
+#endif
+
+  if (emu->trace_writer && entry->dirty && first_registration_this_frame) {
+    trace_writer_insert_texture(emu->trace_writer, tsp, tcw, entry->frame,
+                                entry->palette, entry->palette_size,
+                                entry->texture, entry->texture_size);
+  }
+}
+
+static void emu_register_texture_sources(struct emu *emu,
+                                         struct tile_context *ctx) {
+  const uint8_t *data = ctx->params;
+  const uint8_t *end = ctx->params + ctx->size;
+  int vertex_type = 0;
+
+  while (data < end) {
+    union pcw pcw = *(union pcw *)data;
+
+    switch (pcw.para_type) {
+      case TA_PARAM_POLY_OR_VOL:
+      case TA_PARAM_SPRITE: {
+        const union poly_param *param = (const union poly_param *)data;
+
+        vertex_type = ta_get_vert_type(param->type0.pcw);
+
+        if (param->type0.pcw.texture) {
+          emu_register_texture_source(emu, param->type0.tsp, param->type0.tcw);
+        }
+      } break;
+
+      default:
+        break;
+    }
+
+    data += ta_get_param_size(pcw, vertex_type);
+  }
+}
+
+static void emu_init_textures(struct emu *emu) {
+  for (int i = 0; i < array_size(emu->textures); i++) {
+    struct emu_texture *tex = &emu->textures[i];
+    list_add(&emu->free_textures, &tex->free_it);
+  }
+}
+
+/*
+ * trace recording
+ */
+static void emu_toggle_tracing(struct emu *emu) {
+  if (!emu->trace_writer) {
+    char filename[PATH_MAX];
+    get_next_trace_filename(filename, sizeof(filename));
+
+    emu->trace_writer = trace_writer_open(filename);
+
+    if (!emu->trace_writer) {
+      LOG_INFO("Failed to start tracing");
+      return;
+    }
+
+    /* clear texture cache in order to generate insert events for all
+       textures referenced while tracing */
+    emu_clear_textures(emu);
+
+    LOG_INFO("Begin tracing to %s", filename);
+  } else {
+    trace_writer_close(emu->trace_writer);
+    emu->trace_writer = NULL;
+
+    LOG_INFO("End tracing");
+  }
+}
+
+/*
+ * video rendering. responsible for dequeuing the latest raw tile_context from
+ * the dreamcast, converting it into a renderable tr_context, and then rendering
+ * and presenting it
+ */
 static struct render_backend *emu_video_renderer(struct emu *emu) {
   /* when using multi-threaded rendering, the video thread has its own render
      backend instance */
@@ -102,7 +352,7 @@ static void emu_render_frame(struct emu *emu) {
   framebuffer_handle_t original = r_get_framebuffer(r2);
   r_bind_framebuffer(r2, emu->video_fb);
   r_viewport(emu->r, emu->video_width, emu->video_height);
-  tr_render_context(emu->tr, &emu->video_rc);
+  tr_render_context(r2, &emu->video_rc);
   r_bind_framebuffer(r2, original);
 
   /* insert fence for main thread to synchronize on in order to ensure that
@@ -138,7 +388,8 @@ static void *emu_video_thread(void *data) {
     }
 
     /* convert the context, uploading its textures to the render backend */
-    tr_convert_context(emu->tr, emu->pending_ctx, &emu->video_rc);
+    tr_convert_context(emu->r2, emu, &emu_find_texture, emu->pending_ctx,
+                       &emu->video_rc);
     emu->pending_ctx = NULL;
 
     /* after the context has been parsed, release the mutex to let
@@ -223,6 +474,25 @@ static void emu_paint(struct emu *emu) {
       nk_menubar_begin(ctx);
       nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT, max_debug_menus);
 
+      /* add our own debug menu */
+      nk_layout_row_push(ctx, 50.0f);
+      if (nk_menu_begin_label(ctx, "DEBUG", NK_TEXT_LEFT,
+                              nk_vec2(160.0f, 200.0f))) {
+        nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+        if (!emu->trace_writer && nk_button_label(ctx, "start trace")) {
+          emu_toggle_tracing(emu);
+        } else if (emu->trace_writer && nk_button_label(ctx, "stop trace")) {
+          emu_toggle_tracing(emu);
+        }
+
+        if (nk_button_label(ctx, "clear texture cache")) {
+          emu_clear_textures(emu);
+        }
+
+        nk_menu_end(ctx);
+      }
+
       /* add each devices's debug menu */
       dc_debug_menu(emu->dc, ctx);
 
@@ -240,7 +510,9 @@ static void emu_paint(struct emu *emu) {
       snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
                frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
 
-      nk_layout_row_push(ctx, fwidth - ctx->current->layout->row.item_offset);
+      int remaining_width = fwidth - ctx->current->layout->row.item_offset -
+                            ctx->style.window.spacing.x;
+      nk_layout_row_push(ctx, remaining_width);
       nk_label(ctx, status, NK_TEXT_RIGHT);
 
       nk_layout_row_end(ctx);
@@ -276,6 +548,10 @@ static void emu_guest_finish_render(void *userdata) {
 
     mutex_unlock(emu->pending_mutex);
   }
+
+  /* texture entries are only valid between each start / finish render pair,
+     increment frame number again to invalidate */
+  emu->frame++;
 }
 
 static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
@@ -284,6 +560,25 @@ static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
   if (emu->video_state != FRAME_WAITING) {
     /* skip this frame if one is already rendering / rendered */
     return;
+  }
+
+  /* incement internal frame number. this frame number is assigned to the
+     context and each texture source it registers to assert synchronization
+     between the emulator and video thread is working as expected */
+  emu->frame++;
+
+  /* now that the video thread is sure to not be accessing the texture data,
+     mark any textures dirty that were invalidated by a memory watch */
+  emu_dirty_modified_textures(emu);
+
+  /* register the source of each texture referenced by the context with the
+     tile renderer. note, uploading the texture to the render backend happens
+     lazily while converting the context. this registration just lets the
+     backend know where the texture's source data is */
+  emu_register_texture_sources(emu, ctx);
+
+  if (emu->trace_writer) {
+    trace_writer_render_context(emu->trace_writer, ctx);
   }
 
   if (emu->multi_threaded) {
@@ -296,7 +591,7 @@ static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
     mutex_unlock(emu->pending_mutex);
   } else {
     /* convert the context and immediately render it */
-    tr_convert_context(emu->tr, ctx, &emu->video_rc);
+    tr_convert_context(emu->r, emu, &emu_find_texture, ctx, &emu->video_rc);
 
     emu_render_frame(emu);
   }
@@ -336,7 +631,6 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
 
 static void emu_host_context_destroyed(void *userdata) {
   struct emu *emu = userdata;
-  struct tr_provider *provider = ta_texture_provider(emu->dc->ta);
 
   if (!emu->running) {
     return;
@@ -355,9 +649,8 @@ static void emu_host_context_destroyed(void *userdata) {
     thread_join(emu->video_thread, &result);
   }
 
-  /* reset texture cache
-     TODO this feels kind of wrong, should we be managing the texture cache? */
-  provider->clear_textures(provider->userdata);
+  /* reset texture cache */
+  emu_clear_textures(emu);
 
   /* destroy video renderer */
   struct render_backend *r2 = emu_video_renderer(emu);
@@ -368,7 +661,6 @@ static void emu_host_context_destroyed(void *userdata) {
   if (emu->video_sync) {
     r_destroy_sync(r2, emu->video_sync);
   }
-  tr_destroy(emu->tr);
 
   if (emu->multi_threaded) {
     r_destroy(emu->r2);
@@ -386,7 +678,6 @@ static void emu_host_context_destroyed(void *userdata) {
 
 static void emu_host_context_reset(void *userdata) {
   struct emu *emu = userdata;
-  struct tr_provider *provider = ta_texture_provider(emu->dc->ta);
 
   emu_host_context_destroyed(userdata);
 
@@ -407,8 +698,6 @@ static void emu_host_context_reset(void *userdata) {
   struct render_backend *r2 = emu_video_renderer(emu);
 
   r_make_current(r2);
-
-  emu->tr = tr_create(r2, provider);
 
   emu->video_fb = r_create_framebuffer(r2, emu->video_width, emu->video_height,
                                        &emu->video_tex);
@@ -490,6 +779,8 @@ struct emu *emu_create(struct host *host) {
 
   /* enable debug menu by default */
   emu->debug_menu = 1;
+
+  emu_init_textures(emu);
 
   return emu;
 }
