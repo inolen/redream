@@ -67,7 +67,7 @@ struct gdrom {
   int pio_size;
   int pio_read;
   /* dma state */
-  uint8_t dma_buffer[4096 * SECTOR_SIZE];
+  uint8_t dma_buffer[8192 * SECTOR_SIZE];
   int dma_head;
   int dma_size;
 };
