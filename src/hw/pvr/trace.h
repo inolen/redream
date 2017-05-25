@@ -54,8 +54,7 @@ struct trace_cmd {
 
 struct trace {
   struct trace_cmd *cmds;
-  unsigned first_frame;
-  unsigned last_frame;
+  int num_frames;
 };
 
 struct trace_writer {

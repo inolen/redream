@@ -801,7 +801,7 @@ static void aica_debug_menu(struct device *dev, struct nk_context *ctx) {
   if (nk_menu_begin_label(ctx, "AICA", NK_TEXT_LEFT, nk_vec2(140.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
 
-    if (!aica->recording && nk_button_label(ctx, "stard recording")) {
+    if (!aica->recording && nk_button_label(ctx, "start recording")) {
       aica_toggle_recording(aica);
     } else if (aica->recording && nk_button_label(ctx, "stop recording")) {
       aica_toggle_recording(aica);

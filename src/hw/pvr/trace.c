@@ -31,7 +31,6 @@ void trace_writer_render_context(struct trace_writer *writer,
                                  struct tile_context *ctx) {
   struct trace_cmd cmd = {0};
   cmd.type = TRACE_CMD_CONTEXT;
-  cmd.context.frame = ctx->frame;
   cmd.context.autosort = ctx->autosort;
   cmd.context.stride = ctx->stride;
   cmd.context.pal_pxl_format = ctx->pal_pxl_format;
@@ -203,17 +202,13 @@ struct trace *trace_parse(const char *filename) {
     return NULL;
   }
 
-  /* count frame span */
+  /* count max frames */
   {
     struct trace_cmd *cmd = trace->cmds;
 
-    trace->first_frame = UINT_MAX;
-    trace->last_frame = 0;
-
     while (cmd) {
       if (cmd->type == TRACE_CMD_CONTEXT) {
-        trace->first_frame = MIN(trace->first_frame, cmd->context.frame);
-        trace->last_frame = MAX(trace->last_frame, cmd->context.frame);
+        trace->num_frames++;
       }
 
       cmd = cmd->next;

@@ -9,7 +9,8 @@
 
 struct tr {
   struct render_backend *r;
-  struct tr_provider *provider;
+  void *userdata;
+  tr_find_texture_cb find_texture;
 
   /* current global state */
   const union poly_param *last_poly;
@@ -120,18 +121,11 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
                                            union tsp tsp, union tcw tcw) {
   PROF_ENTER("gpu", "tr_convert_texture");
 
-  /* allow headless tile renderer */
-  if (!tr->provider) {
-    PROF_LEAVE();
-    return 0;
-  }
-
   /* TODO it's bad that textures are only cached based off tsp / tcw yet the
      TEXT_CONTROL registers and PAL_RAM_CTRL registers are used here to control
      texture generation */
 
-  struct tr_texture *entry =
-      tr->provider->find_texture(tr->provider->userdata, tsp, tcw);
+  struct tr_texture *entry = tr->find_texture(tr->userdata, tsp, tcw);
   CHECK_NOTNULL(entry);
 
   /* if there's a non-dirty handle, return it */
@@ -928,54 +922,60 @@ static void tr_reset(struct tr *tr, struct tr_context *rc) {
   }
 }
 
-static void tr_render_list(struct tr *tr, const struct tr_context *rc,
-                           int list_type) {
+static void tr_render_list(struct render_backend *r,
+                           const struct tr_context *rc, int list_type) {
   const struct tr_list *list = &rc->lists[list_type];
   const int *sorted_surf = list->surfs;
   const int *sorted_surf_end = list->surfs + list->num_surfs;
 
   while (sorted_surf < sorted_surf_end) {
-    r_draw_ta_surface(tr->r, &rc->surfs[*sorted_surf]);
+    r_draw_ta_surface(r, &rc->surfs[*sorted_surf]);
     sorted_surf++;
   }
 }
 
-void tr_render_context(struct tr *tr, const struct tr_context *rc) {
+void tr_render_context(struct render_backend *r, const struct tr_context *rc) {
   PROF_ENTER("gpu", "tr_render_context");
 
-  r_begin_ta_surfaces(tr->r, rc->projection, rc->verts, rc->num_verts);
+  r_begin_ta_surfaces(r, rc->projection, rc->verts, rc->num_verts);
 
-  tr_render_list(tr, rc, TA_LIST_OPAQUE);
-  tr_render_list(tr, rc, TA_LIST_PUNCH_THROUGH);
-  tr_render_list(tr, rc, TA_LIST_TRANSLUCENT);
+  tr_render_list(r, rc, TA_LIST_OPAQUE);
+  tr_render_list(r, rc, TA_LIST_PUNCH_THROUGH);
+  tr_render_list(r, rc, TA_LIST_TRANSLUCENT);
 
-  r_end_ta_surfaces(tr->r);
+  r_end_ta_surfaces(r);
 
   PROF_LEAVE();
 }
 
-void tr_convert_context(struct tr *tr, const struct tile_context *ctx,
-                        struct tr_context *rc) {
+void tr_convert_context(struct render_backend *r, void *userdata,
+                        tr_find_texture_cb find_texture,
+                        const struct tile_context *ctx, struct tr_context *rc) {
   PROF_ENTER("gpu", "tr_convert_context");
+
+  struct tr tr;
+  tr.r = r;
+  tr.userdata = userdata;
+  tr.find_texture = find_texture;
 
   const uint8_t *data = ctx->params;
   const uint8_t *end = ctx->params + ctx->size;
 
-  tr_reset(tr, rc);
-
-  tr_parse_bg(tr, ctx, rc);
+  ta_init_tables();
+  tr_reset(&tr, rc);
+  tr_parse_bg(&tr, ctx, rc);
 
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
 
-    if (ta_pcw_list_type_valid(pcw, tr->list_type)) {
-      tr->list_type = pcw.list_type;
+    if (ta_pcw_list_type_valid(pcw, tr.list_type)) {
+      tr.list_type = pcw.list_type;
     }
 
     switch (pcw.para_type) {
       /* control params */
       case TA_PARAM_END_OF_LIST:
-        tr_parse_eol(tr, ctx, rc, data);
+        tr_parse_eol(&tr, ctx, rc, data);
         break;
 
       case TA_PARAM_USER_TILE_CLIP:
@@ -988,49 +988,33 @@ void tr_convert_context(struct tr *tr, const struct tile_context *ctx,
       /* global params */
       case TA_PARAM_POLY_OR_VOL:
       case TA_PARAM_SPRITE:
-        tr_parse_poly_param(tr, ctx, rc, data);
+        tr_parse_poly_param(&tr, ctx, rc, data);
         break;
 
       /* vertex params */
       case TA_PARAM_VERTEX:
-        tr_parse_vert_param(tr, ctx, rc, data);
+        tr_parse_vert_param(&tr, ctx, rc, data);
         break;
     }
 
     /* track info about the parse state for tracer debugging */
     struct tr_param *rp = &rc->params[rc->num_params++];
     rp->offset = (int)(data - ctx->params);
-    rp->list_type = tr->list_type;
-    rp->vertex_type = tr->list_type;
+    rp->list_type = tr.list_type;
+    rp->vertex_type = tr.list_type;
     rp->last_surf = rc->num_surfs - 1;
     rp->last_vert = rc->num_verts - 1;
 
-    data += ta_get_param_size(pcw, tr->vertex_type);
+    data += ta_get_param_size(pcw, tr.vertex_type);
   }
 
   /* sort blended surface lists if requested */
   if (ctx->autosort) {
-    tr_sort_render_list(tr, rc, TA_LIST_TRANSLUCENT);
-    tr_sort_render_list(tr, rc, TA_LIST_PUNCH_THROUGH);
+    tr_sort_render_list(&tr, rc, TA_LIST_TRANSLUCENT);
+    tr_sort_render_list(&tr, rc, TA_LIST_PUNCH_THROUGH);
   }
 
-  tr_proj_mat(tr, ctx, rc);
+  tr_proj_mat(&tr, ctx, rc);
 
   PROF_LEAVE();
-}
-
-void tr_destroy(struct tr *tr) {
-  free(tr);
-}
-
-struct tr *tr_create(struct render_backend *r, struct tr_provider *provider) {
-  /* ensure param / poly / vertex size LUTs are generated */
-  ta_build_tables();
-
-  struct tr *tr = calloc(1, sizeof(struct tr));
-
-  tr->r = r;
-  tr->provider = provider;
-
-  return tr;
 }

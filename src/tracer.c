@@ -70,13 +70,12 @@ struct tracer {
   struct host *host;
   struct render_backend *r;
   struct nuklear *nk;
-  struct tr *tr;
-  struct tr_provider provider;
 
   /* trace state */
   struct trace *trace;
   struct tile_context ctx;
   struct trace_cmd *current_cmd;
+  int frame;
   int current_param;
   int scroll_to_param;
 
@@ -109,25 +108,17 @@ static int tracer_texture_cmp(const struct rb_node *rb_lhs,
 static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,
                                                 NULL};
 
-static struct tracer_texture *tracer_find_texture(struct tracer *tracer,
-                                                  union tsp tsp,
-                                                  union tcw tcw) {
+static struct tr_texture *tracer_find_texture(void *userdata, union tsp tsp,
+                                              union tcw tcw) {
+  struct tracer *tracer = userdata;
+
   struct tracer_texture search;
   search.tsp = tsp;
   search.tcw = tcw;
 
-  return rb_find_entry(&tracer->live_textures, &search, struct tracer_texture,
-                       live_it, &tracer_texture_cb);
-}
-
-static struct tr_texture *tracer_provider_find_texture(void *data,
-                                                       union tsp tsp,
-                                                       union tcw tcw) {
-  struct tracer *tracer = data;
-
-  struct tracer_texture *tex = tracer_find_texture(tracer, tsp, tcw);
-  CHECK_NOTNULL(tex, "Texture wasn't available in cache");
-
+  struct tracer_texture *tex =
+      rb_find_entry(&tracer->live_textures, &search, struct tracer_texture,
+                    live_it, &tracer_texture_cb);
   return (struct tr_texture *)tex;
 }
 
@@ -135,8 +126,8 @@ static void tracer_add_texture(struct tracer *tracer,
                                const struct trace_cmd *cmd) {
   CHECK_EQ(cmd->type, TRACE_CMD_TEXTURE);
 
-  struct tracer_texture *tex =
-      tracer_find_texture(tracer, cmd->texture.tsp, cmd->texture.tcw);
+  struct tracer_texture *tex = (struct tracer_texture *)tracer_find_texture(
+      tracer, cmd->texture.tsp, cmd->texture.tcw);
 
   if (!tex) {
     tex = list_first_entry(&tracer->free_textures, struct tracer_texture,
@@ -162,7 +153,6 @@ static void tracer_copy_context(const struct trace_cmd *cmd,
                                 struct tile_context *ctx) {
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
-  ctx->frame = cmd->context.frame;
   ctx->autosort = cmd->context.autosort;
   ctx->stride = cmd->context.stride;
   ctx->pal_pxl_format = cmd->context.pal_pxl_format;
@@ -231,11 +221,13 @@ static void tracer_prev_context(struct tracer *tracer) {
     curr = curr->prev;
   }
 
+  tracer->frame = MAX(tracer->frame - 1, 0);
   tracer->current_cmd = prev;
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
   tracer_copy_context(tracer->current_cmd, &tracer->ctx);
-  tr_convert_context(tracer->tr, &tracer->ctx, &tracer->rc);
+  tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
+                     &tracer->rc);
 }
 
 static void tracer_next_context(struct tracer *tracer) {
@@ -268,11 +260,13 @@ static void tracer_next_context(struct tracer *tracer) {
     curr = curr->next;
   }
 
+  tracer->frame = MIN(tracer->frame + 1, tracer->trace->num_frames - 1);
   tracer->current_cmd = next;
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
   tracer_copy_context(tracer->current_cmd, &tracer->ctx);
-  tr_convert_context(tracer->tr, &tracer->ctx, &tracer->rc);
+  tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
+                     &tracer->rc);
 }
 
 static void tracer_reset_context(struct tracer *tracer) {
@@ -330,8 +324,6 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   float height = (float)video_height(tracer->host);
 
   nk_style_default(ctx);
-
-  /* disable spacing / padding */
   ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
   ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
 
@@ -342,14 +334,12 @@ static void tracer_render_scrubber_menu(struct tracer *tracer) {
   if (nk_begin(ctx, "context scrubber", bounds, flags)) {
     nk_layout_row_dynamic(ctx, SCRUBBER_WINDOW_HEIGHT, 1);
 
-    nk_size frame = tracer->ctx.frame - tracer->trace->first_frame;
-    nk_size max_frames = tracer->trace->last_frame - tracer->trace->first_frame;
+    nk_size frame = tracer->frame;
+    nk_size num_frames = tracer->trace->num_frames;
 
-    if (nk_progress(ctx, &frame, max_frames - 1, 1)) {
-      int delta = tracer->trace->first_frame + (int)frame - tracer->ctx.frame;
-
-      for (int i = 0; i < ABS(delta); i++) {
-        if (delta > 0) {
+    if (nk_progress(ctx, &frame, num_frames - 1, 1)) {
+      while (tracer->frame != (int)frame) {
+        if (tracer->frame < (int)frame) {
           tracer_next_context(tracer);
         } else {
           tracer_prev_context(tracer);
@@ -863,7 +853,6 @@ void tracer_destroy(struct tracer *tracer) {
     trace_destroy(tracer->trace);
   }
 
-  tr_destroy(tracer->tr);
   nk_destroy(tracer->nk);
   r_destroy(tracer->r);
 
@@ -880,11 +869,8 @@ struct tracer *tracer_create(struct host *host) {
   tracer->host->input_mousemove = &tracer_input_mousemove;
 
   /* setup renderer */
-  tracer->provider.userdata = tracer;
-  tracer->provider.find_texture = &tracer_provider_find_texture;
   tracer->r = r_create(tracer->host);
   tracer->nk = nk_create(tracer->r);
-  tracer->tr = tr_create(tracer->r, &tracer->provider);
 
   /* add all textures to free list */
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
