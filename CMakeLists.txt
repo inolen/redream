@@ -77,7 +77,7 @@ if(NOT BUILD_LIBRETRO)
 set(DIRECTX OFF CACHE BOOL "")
 set(RENDER_D3D OFF CACHE BOOL "")
 set(SDL_ATOMIC OFF CACHE BOOL "")
-set(SDL_CPUINFO OFF CACHE BOOL "")
+set(SDL_CPUINFO ON CACHE BOOL "")
 set(SDL_FILESYSTEM OFF CACHE BOOL "")
 set(SDL_HAPTIC OFF CACHE BOOL "")
 set(SDL_POWER OFF CACHE BOOL "")
@@ -120,15 +120,6 @@ list(APPEND REDREAM_DEFS GLEW_STATIC)
 add_library(inih STATIC deps/inih/ini.c)
 list(APPEND REDREAM_INCLUDE_DIRS deps/inih)
 list(APPEND REDREAM_LIBS inih)
-
-# libsoundio
-set(BUILD_DYNAMIC_LIBS OFF CACHE BOOL "")
-set(BUILD_EXAMPLE_PROGRAMS OFF CACHE BOOL "")
-set(BUILD_TEST OFF CACHE BOOL "")
-add_subdirectory(deps/libsoundio EXCLUDE_FROM_ALL)
-list(APPEND REDREAM_INCLUDE_DIRS deps/libsoundio)
-list(APPEND REDREAM_LIBS libsoundio_static)
-list(APPEND REDREAM_DEFS SOUNDIO_STATIC_LIBRARY)
 
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
@@ -255,7 +246,7 @@ endif()
 source_group_by_dir(REDREAM_SOURCES)
 
 if(COMPILER_GCC OR COMPILER_CLANG)
-  list(APPEND REDREAM_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+  list(APPEND REDREAM_FLAGS -pthread -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
   if(COMPILER_GCC)
     # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
@@ -268,6 +259,8 @@ if(COMPILER_GCC OR COMPILER_CLANG)
     # https://llvm.org/bugs/show_bug.cgi?id=21689
     list(APPEND REDREAM_FLAGS -Wno-missing-field-initializers -Wno-missing-braces -Wno-microsoft-anon-tag)
   endif()
+
+  list(APPEND REDREAM_LIBS pthread)
 
   # used by shm_open / shm_unlink on linux
   if(PLATFORM_LINUX)
