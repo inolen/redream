@@ -4,6 +4,7 @@
 #include "core/assert.h"
 #include "core/core.h"
 #include "core/profiler.h"
+#include "core/sort.h"
 #include "hw/pvr/pixel_convert.h"
 #include "hw/pvr/ta.h"
 
@@ -791,50 +792,17 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
 static int sort_tmp[TA_MAX_SURFS];
 static float sort_minz[TA_MAX_SURFS];
 
-static void tr_merge_surfs(struct tr *tr, int *low, int *mid, int *high) {
-  int *i = low;
-  int *j = mid + 1;
-  int *k = sort_tmp;
-  int *end = sort_tmp + array_size(sort_tmp);
-
-  while (i <= mid && j <= high) {
-    DCHECK_LT(k, end);
-    if (sort_minz[*i] <= sort_minz[*j]) {
-      *(k++) = *(i++);
-    } else {
-      *(k++) = *(j++);
-    }
-  }
-
-  while (i <= mid) {
-    DCHECK_LT(k, end);
-    *(k++) = *(i++);
-  }
-
-  while (j <= high) {
-    DCHECK_LT(k, end);
-    *(k++) = *(j++);
-  }
-
-  memcpy(low, sort_tmp, (k - sort_tmp) * sizeof(sort_tmp[0]));
-}
-
-static void tr_sort_surfs(struct tr *tr, struct tr_list *list, int low,
-                          int high) {
-  if (low >= high) {
-    return;
-  }
-
-  int mid = (low + high) / 2;
-  tr_sort_surfs(tr, list, low, mid);
-  tr_sort_surfs(tr, list, mid + 1, high);
-  tr_merge_surfs(tr, &list->surfs[low], &list->surfs[mid], &list->surfs[high]);
+static int tr_compare_surf(const void *a, const void *b) {
+  int i = *(const int *)a;
+  int j = *(const int *)b;
+  return sort_minz[i] <= sort_minz[j];
 }
 
 static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
                                 int list_type) {
   PROF_ENTER("gpu", "tr_sort_render_list");
 
+  /* sort each surface from back to front based on its minz */
   struct tr_list *list = &rc->lists[list_type];
 
   for (int i = 0; i < list->num_surfs; i++) {
@@ -852,8 +820,8 @@ static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
     }
   }
 
-  /* sort each surface from back to front based on its minz */
-  tr_sort_surfs(tr, list, 0, list->num_surfs - 1);
+  msort_noalloc(list->surfs, sort_tmp, list->num_surfs, sizeof(int),
+                &tr_compare_surf);
 
   PROF_LEAVE();
 }
@@ -886,7 +854,8 @@ static void tr_reset(struct tr *tr, struct tr_context *rc) {
 }
 
 static void tr_render_list(struct render_backend *r,
-                           const struct tr_context *rc, int list_type, int end_surf, int *stopped) {
+                           const struct tr_context *rc, int list_type,
+                           int end_surf, int *stopped) {
   if (*stopped) {
     return;
   }
@@ -907,7 +876,8 @@ static void tr_render_list(struct render_backend *r,
   }
 }
 
-void tr_render_context_until(struct render_backend *r, const struct tr_context *rc, int end_surf) {
+void tr_render_context_until(struct render_backend *r,
+                             const struct tr_context *rc, int end_surf) {
   PROF_ENTER("gpu", "tr_render_context_until");
 
   int stopped = 0;

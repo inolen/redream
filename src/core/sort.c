@@ -21,26 +21,25 @@ static void merge(void *in, void *out, size_t size, int l, int m, int r,
   }
 }
 
-static void mergesort_r(void *in, void *out, size_t size, int l, int r,
-                        sort_cmp cmp) {
+static void msort_r(void *in, void *out, size_t size, int l, int r,
+                    sort_cmp cmp) {
   if ((r - l) < 2) {
     return;
   }
 
   int m = (l + r) / 2;
-  mergesort_r(out, in, size, l, m, cmp);
-  mergesort_r(out, in, size, m, r, cmp);
+  msort_r(out, in, size, l, m, cmp);
+  msort_r(out, in, size, m, r, cmp);
   merge(in, out, size, l, m, r, cmp);
 }
 
-void mergesort_fixed(void *data, void *tmp, int num, size_t size,
-                     sort_cmp cmp) {
+void msort_noalloc(void *data, void *tmp, int num, size_t size, sort_cmp cmp) {
   memcpy(tmp, data, num * size);
-  mergesort_r(tmp, data, size, 0, num, cmp);
+  msort_r(tmp, data, size, 0, num, cmp);
 }
 
-void mergesort(void *data, int num, size_t size, sort_cmp cmp) {
+void msort(void *data, int num, size_t size, sort_cmp cmp) {
   void *tmp = malloc(num * size);
-  mergesort_fixed(data, tmp, num, size, cmp);
+  msort_noalloc(data, tmp, num, size, cmp);
   free(tmp);
 }
