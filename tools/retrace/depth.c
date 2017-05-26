@@ -74,7 +74,7 @@ static void test_context(struct trace_cmd *cmd, struct test *tests,
     maxw = MAX(maxw, entry->d.f);
   }
 
-  mergesort(original, rc->num_verts, sizeof(struct depth_entry), &depth_cmpf);
+  msort(original, rc->num_verts, sizeof(struct depth_entry), &depth_cmpf);
 
   for (int i = 0; i < num_tests; i++) {
     struct test *test = &tests[i];
@@ -90,7 +90,7 @@ static void test_context(struct trace_cmd *cmd, struct test *tests,
     }
 
     /* sort the vertices based on the depth value */
-    mergesort(tmp, rc->num_verts, sizeof(struct depth_entry), test->cmp);
+    msort(tmp, rc->num_verts, sizeof(struct depth_entry), test->cmp);
 
     /* compare sorted results with original results */
     for (int j = 0; j < rc->num_verts; j++) {
