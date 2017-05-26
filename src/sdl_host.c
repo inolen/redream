@@ -1,7 +1,6 @@
 #include <GL/glew.h>
 #include <SDL.h>
 #include <SDL_opengl.h>
-#include <soundio/soundio.h>
 #include "core/assert.h"
 #include "core/log.h"
 #include "core/option.h"
@@ -21,6 +20,9 @@ DEFINE_OPTION_INT(help, 0, "Show help");
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
 
+#define AUDIO_FRAMES_TO_MS(frames) (int)(((float)frames / AUDIO_FREQ) * 1000.0)
+#define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
+
 /*
  * sdl host implementation
  */
@@ -32,9 +34,8 @@ struct sdl_host {
   int video_width;
   int video_height;
 
-  struct SoundIo *soundio;
-  struct SoundIoDevice *soundio_device;
-  struct SoundIoOutStream *soundio_stream;
+  SDL_AudioDeviceID audio_dev;
+  SDL_AudioSpec audio_spec;
   struct ringbuf *audio_frames;
 
   int key_map[K_NUM_KEYS];
@@ -78,86 +79,41 @@ static int audio_available_frames(struct sdl_host *host) {
 }
 
 static int audio_buffer_low(struct sdl_host *host) {
-  if (!host->soundio) {
-    return 0;
+  if (!host->audio_dev) {
+    /* lie and say the audio buffer is low, forcing the emulator to run as fast
+       as possible */
+    return 1;
   }
 
-  int low_water_mark =
-      (int)((float)AUDIO_FREQ * (host->soundio_stream->software_latency));
+  int low_water_mark = host->audio_spec.samples;
   return audio_available_frames(host) <= low_water_mark;
 }
 
-static void audio_write_callback(struct SoundIoOutStream *outstream,
-                                 int frame_count_min, int frame_count_max) {
-  struct sdl_host *host = outstream->userdata;
-  const struct SoundIoChannelLayout *layout = &outstream->layout;
-  struct SoundIoChannelArea *areas;
-  int err;
+static void audio_write_callback(void *userdata, Uint8 *stream, int len) {
+  static const int frame_size = 2 * 2;
+  struct sdl_host *host = userdata;
+  Sint32 *buf = (Sint32 *)stream;
+  int frame_count_max = len / frame_size;
 
   static uint32_t tmp[AUDIO_FREQ];
   int frames_available = audio_available_frames(host);
-  int frames_silence = frame_count_max - frames_available;
-  int frames_remaining = frames_available + frames_silence;
+  int frames_remaining = MIN(frames_available, frame_count_max);
 
   while (frames_remaining > 0) {
-    int frame_count = frames_remaining;
+    /* batch read frames from ring buffer */
+    int n = MIN(frames_remaining, array_size(tmp));
+    n = audio_read_frames(host, tmp, n);
+    frames_remaining -= n;
 
-    if ((err =
-             soundio_outstream_begin_write(outstream, &areas, &frame_count))) {
-      LOG_WARNING("Error writing to output stream: %s", soundio_strerror(err));
-      break;
-    }
-
-    if (!frame_count) {
-      break;
-    }
-
-    for (int frame = 0; frame < frame_count;) {
-      int n = MIN(frame_count - frame, array_size(tmp));
-
-      if (frames_available > 0) {
-        /* batch read frames from ring buffer */
-        n = audio_read_frames(host, tmp, n);
-        frames_available -= n;
-      } else {
-        /* write out silence */
-        memset(tmp, 0, n * sizeof(tmp[0]));
-
-        LOG_WARNING("wrote out %d frames of silence", n);
-      }
-
-      /* copy frames to output stream */
-      int16_t *samples = (int16_t *)tmp;
-
-      for (int channel = 0; channel < layout->channel_count; channel++) {
-        struct SoundIoChannelArea *area = &areas[channel];
-
-        for (int i = 0; i < n; i++) {
-          int16_t *ptr = (int16_t *)(area->ptr + area->step * (frame + i));
-          *ptr = samples[channel + 2 * i];
-        }
-      }
-
-      frame += n;
-    }
-
-    if ((err = soundio_outstream_end_write(outstream))) {
-      LOG_WARNING("Error writing to output stream: %s", soundio_strerror(err));
-      break;
-    }
-
-    frames_remaining -= frame_count;
+    /* copy frames to output stream */
+    memcpy(buf, tmp, n * frame_size);
   }
-}
-
-static void audio_underflow_callback(struct SoundIoOutStream *outstream) {
-  LOG_WARNING("audio_underflow_callback");
 }
 
 void audio_push(struct host *base, const int16_t *data, int num_frames) {
   struct sdl_host *host = (struct sdl_host *)base;
 
-  if (!host->soundio) {
+  if (!host->audio_dev) {
     return;
   }
 
@@ -165,18 +121,10 @@ void audio_push(struct host *base, const int16_t *data, int num_frames) {
 }
 
 static void audio_shutdown(struct sdl_host *host) {
-  if (host->soundio_stream) {
-    soundio_outstream_destroy(host->soundio_stream);
+  if (host->audio_dev) {
+    SDL_CloseAudioDevice(host->audio_dev);
   }
-
-  if (host->soundio_device) {
-    soundio_device_unref(host->soundio_device);
-  }
-
-  if (host->soundio) {
-    soundio_destroy(host->soundio);
-  }
-
+ 
   if (host->audio_frames) {
     ringbuf_destroy(host->audio_frames);
   }
@@ -187,71 +135,29 @@ static int audio_init(struct sdl_host *host) {
     return 1;
   }
 
-  int err;
+  /* match AICA output format */
+  SDL_AudioSpec want;
+  SDL_zero(want);
+  want.freq = AUDIO_FREQ;
+  want.format = AUDIO_S16LSB;
+  want.channels = 2;
+  want.samples = MS_TO_AUDIO_FRAMES(OPTION_latency);
+  want.userdata = host;
+  want.callback = audio_write_callback;
 
-  host->audio_frames = ringbuf_create(AUDIO_FREQ * 4);
-
-  /* connect to a soundio backend */
-  {
-    struct SoundIo *soundio = host->soundio = soundio_create();
-
-    if (!soundio) {
-      LOG_WARNING("Error creating soundio instance");
-      return 0;
-    }
-
-    if ((err = soundio_connect(soundio))) {
-      LOG_WARNING("Error connecting soundio: %s", soundio_strerror(err));
-      return 0;
-    }
-
-    soundio_flush_events(soundio);
+  host->audio_dev = SDL_OpenAudioDevice(NULL, 0, &want, &host->audio_spec, 0);
+  if (!host->audio_dev) {
+    LOG_WARNING("failed to open SDL audio device: %s", SDL_GetError());
+    return 0;
   }
 
-  /* connect to an output device */
-  {
-    int default_out_device_index =
-        soundio_default_output_device_index(host->soundio);
+  /* create ringbuffer to store data coming in from AICA */
+  host->audio_frames = ringbuf_create(host->audio_spec.samples * 4);
 
-    if (default_out_device_index < 0) {
-      LOG_WARNING("Error finding audio output device");
-      return 0;
-    }
+  /* resume device */
+  SDL_PauseAudioDevice(host->audio_dev, 0);
 
-    struct SoundIoDevice *device = host->soundio_device =
-        soundio_get_output_device(host->soundio, default_out_device_index);
-
-    if (!device) {
-      LOG_WARNING("Error creating output device instance");
-      return 0;
-    }
-  }
-
-  /* create an output stream that matches the AICA output format
-     44.1 khz, 2 channel, S16 LE */
-  {
-    struct SoundIoOutStream *outstream = host->soundio_stream =
-        soundio_outstream_create(host->soundio_device);
-    outstream->userdata = host;
-    outstream->format = SoundIoFormatS16NE;
-    outstream->sample_rate = AUDIO_FREQ;
-    outstream->write_callback = &audio_write_callback;
-    outstream->underflow_callback = &audio_underflow_callback;
-    outstream->software_latency = OPTION_latency / 1000.0;
-
-    if ((err = soundio_outstream_open(outstream))) {
-      LOG_WARNING("Error opening audio device: %s", soundio_strerror(err));
-      return 0;
-    }
-
-    if ((err = soundio_outstream_start(outstream))) {
-      LOG_WARNING("Error starting device: %s", soundio_strerror(err));
-      return 0;
-    }
-  }
-
-  LOG_INFO("audio backend created, latency %.2f",
-           host->soundio_stream->software_latency);
+  LOG_INFO("audio backend created, %d ms latency", AUDIO_FRAMES_TO_MS(host->audio_spec.samples));
 
   return 1;
 }
@@ -799,7 +705,7 @@ struct sdl_host *host_create() {
   struct sdl_host *host = calloc(1, sizeof(struct sdl_host));
 
   /* init sdl and create window */
-  int res = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
+  int res = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
   CHECK_GE(res, 0, "SDL initialization failed: %s", SDL_GetError());
 
   host->video_width = VIDEO_DEFAULT_WIDTH;
@@ -886,7 +792,7 @@ int main(int argc, char **argv) {
         /* only run a frame if the available audio is running low. this syncs
            the emulation speed with the host audio clock. note however, if
            audio is disabled, the emulator will run completely unthrottled */
-        if (OPTION_audio && !audio_buffer_low(g_host)) {
+        if (!audio_buffer_low(g_host)) {
           continue;
         }
 
