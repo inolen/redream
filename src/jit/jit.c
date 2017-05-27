@@ -363,36 +363,6 @@ void jit_run(struct jit *jit, int32_t cycles) {
   jit->backend->run_code(jit->backend, cycles);
 }
 
-int jit_init(struct jit *jit, struct jit_guest *guest,
-             struct jit_frontend *frontend, struct jit_backend *backend) {
-  jit->guest = guest;
-  jit->frontend = frontend;
-  jit->backend = backend;
-  jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
-
-  jit->lse = lse_create();
-  jit->cprop = cprop_create();
-  jit->esimp = esimp_create();
-  jit->dce = dce_create();
-  jit->ra = ra_create(jit->backend->registers, jit->backend->num_registers);
-
-  /* open perf map if enabled */
-  if (OPTION_perf) {
-#if PLATFORM_DARWIN || PLATFORM_LINUX
-    char perf_map_path[PATH_MAX];
-    snprintf(perf_map_path, sizeof(perf_map_path), "/tmp/perf-%d.map",
-             getpid());
-    jit->perf_map = fopen(perf_map_path, "a");
-    CHECK_NOTNULL(jit->perf_map);
-#endif
-  }
-
-  jit->frontend->init(jit->frontend);
-  jit->backend->init(jit->backend);
-
-  return 1;
-}
-
 void jit_destroy(struct jit *jit) {
   if (OPTION_perf) {
     if (jit->perf_map) {
@@ -427,10 +397,43 @@ void jit_destroy(struct jit *jit) {
   free(jit);
 }
 
-struct jit *jit_create(const char *tag) {
+struct jit *jit_create(const char *tag, struct jit_frontend *frontend,
+                       struct jit_backend *backend, struct jit_guest *guest) {
   struct jit *jit = calloc(1, sizeof(struct jit));
 
   strncpy(jit->tag, tag, sizeof(jit->tag));
+
+  jit->frontend = frontend;
+  frontend->jit = jit;
+
+  jit->backend = backend;
+  backend->jit = jit;
+
+  jit->guest = guest;
+
+  /* setup exception handler to deal with self-modifying code and fastmem
+     related exceptions */
+  jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
+
+  jit->lse = lse_create();
+  jit->cprop = cprop_create();
+  jit->esimp = esimp_create();
+  jit->dce = dce_create();
+  jit->ra = ra_create(jit->backend->registers, jit->backend->num_registers);
+
+  /* open perf map if enabled */
+  if (OPTION_perf) {
+#if PLATFORM_DARWIN || PLATFORM_LINUX
+    char perf_map_path[PATH_MAX];
+    snprintf(perf_map_path, sizeof(perf_map_path), "/tmp/perf-%d.map",
+             getpid());
+    jit->perf_map = fopen(perf_map_path, "a");
+    CHECK_NOTNULL(jit->perf_map);
+#endif
+  }
+
+  jit->frontend->init(jit->frontend);
+  jit->backend->init(jit->backend);
 
   return jit;
 }

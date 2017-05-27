@@ -91,9 +91,9 @@ struct jit_guest {
 struct jit {
   char tag[32];
 
-  struct jit_guest *guest;
   struct jit_frontend *frontend;
   struct jit_backend *backend;
+  struct jit_guest *guest;
   struct exception_handler *exc_handler;
 
   /* passes */
@@ -121,11 +121,9 @@ struct jit {
   int emit_stats;
 };
 
-struct jit *jit_create(const char *tag);
+struct jit *jit_create(const char *tag, struct jit_frontend *frontend,
+                       struct jit_backend *backend, struct jit_guest *guest);
 void jit_destroy(struct jit *jit);
-
-int jit_init(struct jit *jit, struct jit_guest *guest,
-             struct jit_frontend *frontend, struct jit_backend *backend);
 
 void jit_run(struct jit *jit, int cycles);
 

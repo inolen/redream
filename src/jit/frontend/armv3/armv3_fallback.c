@@ -6,21 +6,6 @@
 #include "jit/frontend/armv3/armv3_disasm.h"
 #include "jit/frontend/armv3/armv3_guest.h"
 
-/* forward declare each fallback */
-#define ARMV3_INSTR(name, desc, sig, cycles, flags)                           \
-  static void armv3_fallback_##name(struct armv3_guest *guest, uint32_t addr, \
-                                    union armv3_instr i);
-#include "armv3_instr.inc"
-#undef ARMV3_INSTR
-
-/* generate fallback lookup table */
-armv3_fallback_cb armv3_fallbacks[NUM_ARMV3_OPS] = {
-    NULL,
-#define ARMV3_INSTR(name, desc, sig, cycles, flags) &armv3_fallback_##name,
-#include "armv3_instr.inc"
-#undef ARMV3_INSTR
-};
-
 /* helper functions / macros for writing fallbacks */
 #define FALLBACK(op)                                                 \
   void armv3_fallback_##op(struct armv3_guest *guest, uint32_t addr, \
@@ -799,8 +784,4 @@ FALLBACK(SWI) {
 
   REG(15) = addr + 4;
   guest->software_interrupt(guest->data);
-}
-
-void *armv3_fallback(uint32_t instr) {
-  return armv3_fallbacks[armv3_get_op(instr)];
 }

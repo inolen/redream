@@ -1,16 +1,20 @@
-#include <stdio.h>
 #include "hw/arm7/arm7.h"
 #include "core/log.h"
 #include "hw/aica/aica.h"
 #include "hw/dreamcast.h"
 #include "hw/scheduler.h"
-#include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/armv3/armv3_context.h"
 #include "jit/frontend/armv3/armv3_fallback.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
 #include "jit/frontend/armv3/armv3_guest.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+
+#if ARCH_X64
+#include "jit/backend/x64/x64_backend.h"
+#else
+#include "jit/backend/interp/interp_backend.h"
+#endif
 
 DEFINE_AGGREGATE_COUNTER(arm7_instrs);
 
@@ -23,8 +27,8 @@ struct arm7 {
   /* jit */
   struct jit *jit;
   struct armv3_guest *guest;
-  struct armv3_frontend *frontend;
-  struct x64_backend *backend;
+  struct jit_frontend *frontend;
+  struct jit_backend *backend;
 
   /* interrupts */
   uint32_t requested_interrupts;
@@ -158,33 +162,7 @@ static void arm7_run(struct device *dev, int64_t ns) {
   static int64_t ARM7_CLOCK_FREQ = INT64_C(20000000);
   int cycles = (int)NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ);
 
-#if 1
   jit_run(arm->jit, cycles);
-#else
-  ctx->run_cycles = cycles;
-  ctx->ran_instrs = 0;
-
-  while (ctx->run_cycles > 0) {
-    static int RUN_SLICE = 64;
-    int ran_cycles = 0;
-    int ran_instrs = 0;
-
-    do {
-      uint32_t data = as_read32(arm->memory_if->space, ctx->r[15]);
-      union armv3_instr instr = {data};
-      armv3_fallback_cb cb = armv3_get_fallback(data);
-      cb(arm->guest, ctx->r[15], instr);
-
-      ran_cycles += 8;
-      ran_instrs++;
-    } while (ran_cycles < RUN_SLICE);
-
-    ctx->run_cycles -= ran_cycles;
-    ctx->ran_instrs += ran_instrs;
-
-    arm7_check_pending_interrupts(arm);
-  }
-#endif
 
   prof_counter_add(COUNTER_arm7_instrs, arm->ctx.ran_instrs);
 
@@ -201,7 +179,13 @@ static int arm7_init(struct device *dev) {
   static uint8_t arm7_code[0x800000];
 
   /* initialize jit and its interfaces */
-  arm->jit = jit_create("arm7");
+  arm->frontend = armv3_frontend_create();
+
+#if ARCH_X64
+  arm->backend = x64_backend_create(arm7_code, sizeof(arm7_code));
+#else
+  arm->backend = interp_backend_create();
+#endif
 
   {
     arm->guest = armv3_guest_create();
@@ -230,14 +214,8 @@ static int arm7_init(struct device *dev) {
     arm->guest->w32 = &as_write32;
   }
 
-  arm->frontend = armv3_frontend_create(arm->jit);
-  arm->backend = x64_backend_create(arm->jit, arm7_code, sizeof(arm7_code));
-
-  if (!jit_init(arm->jit, (struct jit_guest *)arm->guest,
-                (struct jit_frontend *)arm->frontend,
-                (struct jit_backend *)arm->backend)) {
-    return 0;
-  }
+  arm->jit = jit_create("arm7", arm->frontend, arm->backend,
+                        (struct jit_guest *)arm->guest);
 
   arm->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x00000000);
 
@@ -246,9 +224,9 @@ static int arm7_init(struct device *dev) {
 
 void arm7_destroy(struct arm7 *arm) {
   jit_destroy(arm->jit);
-  armv3_frontend_destroy(arm->frontend);
-  x64_backend_destroy(arm->backend);
   armv3_guest_destroy(arm->guest);
+  arm->frontend->destroy(arm->frontend);
+  arm->backend->destroy(arm->backend);
 
   dc_destroy_memory_interface(arm->memory_if);
   dc_destroy_execute_interface(arm->execute_if);

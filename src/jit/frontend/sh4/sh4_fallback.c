@@ -61,13 +61,11 @@ typedef int32_t int128_t[4];
 #define FPU_DOUBLE_PR               (CTX->fpscr & PR_MASK)
 #define FPU_DOUBLE_SZ               (CTX->fpscr & SZ_MASK)
 
-#define DELAY_INSTR()               {                                                             \
-                                      uint32_t delay_addr = addr + 2;                             \
-                                      uint16_t delay_data = guest->r16(guest->space, delay_addr); \
-                                      union sh4_instr delay_instr = {delay_data};                 \
-                                      sh4_fallback_cb cb = sh4_get_fallback(delay_data);          \
-                                      CHECK_NOTNULL(cb);                                          \
-                                      cb(guest, delay_addr, delay_instr);                         \
+#define DELAY_INSTR()               {                                                                   \
+                                      uint32_t delay_addr = addr + 2;                                   \
+                                      uint16_t delay_data = guest->r16(guest->space, delay_addr);       \
+                                      const struct jit_opdef *def = sh4_get_opdef(delay_data);          \
+                                      def->fallback((struct jit_guest *)guest, delay_addr, delay_data); \
                                     }
 #define NEXT_INSTR()                (CTX->pc = addr + 2)
 #define NEXT_NEXT_INSTR()           (CTX->pc = addr + 4)
@@ -389,9 +387,3 @@ typedef int32_t int128_t[4];
                            union sh4_instr i)
 #include "jit/frontend/sh4/sh4_instr.h"
 #undef INSTR
-
-sh4_fallback_cb sh4_fallbacks[NUM_SH4_OPS] = {
-#define SH4_INSTR(name, desc, sig, cycles, flags) &sh4_fallback_##name,
-#include "jit/frontend/sh4/sh4_instr.inc"
-#undef SH4_INSTR
-};

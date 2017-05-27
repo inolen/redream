@@ -67,6 +67,42 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
   }
 }
 
+static const struct jit_opdef *sh4_frontend_lookup_op(struct jit_frontend *base,
+                                                      const void *instr) {
+  return sh4_get_opdef(*(const uint16_t *)instr);
+}
+
+static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
+                                   int size) {
+  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
+  struct jit_guest *guest = frontend->jit->guest;
+
+  char buffer[128];
+
+  uint32_t end = addr + size / 2;
+
+  while (addr < end) {
+    uint16_t data = guest->r16(guest->space, addr);
+    union sh4_instr instr = {data};
+    struct jit_opdef *def = sh4_get_opdef(data);
+
+    sh4_format(addr, instr, buffer, sizeof(buffer));
+    LOG_INFO(buffer);
+
+    addr += 2;
+
+    if (def->flags & SH4_FLAG_DELAYED) {
+      uint16_t delay_data = guest->r16(guest->space, addr);
+      union sh4_instr delay_instr = {delay_data};
+
+      sh4_format(addr, delay_instr, buffer, sizeof(buffer));
+      LOG_INFO(buffer);
+
+      addr += 2;
+    }
+  }
+}
+
 static void sh4_frontend_translate_code(struct jit_frontend *base,
                                         struct jit_block *block,
                                         struct ir *ir) {
@@ -95,9 +131,9 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 
   while (addr < end) {
     uint16_t data = guest->r16(guest->space, addr);
-    union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
     sh4_translate_cb cb = sh4_get_translator(data);
+    union sh4_instr instr = {data};
 
     cb(guest, ir, flags, addr, instr);
 
@@ -141,50 +177,22 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   PROF_LEAVE();
 }
 
-static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
-                                   int size) {
+static void sh4_frontend_destroy(struct jit_frontend *base) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  struct jit_guest *guest = frontend->jit->guest;
 
-  char buffer[128];
-
-  uint32_t end = addr + size / 2;
-
-  while (addr < end) {
-    uint16_t data = guest->r16(guest->space, addr);
-    union sh4_instr instr = {data};
-    struct jit_opdef *def = sh4_get_opdef(data);
-
-    sh4_format(addr, instr, buffer, sizeof(buffer));
-    LOG_INFO(buffer);
-
-    addr += 2;
-
-    if (def->flags & SH4_FLAG_DELAYED) {
-      uint16_t delay_data = guest->r16(guest->space, addr);
-      union sh4_instr delay_instr = {delay_data};
-
-      sh4_format(addr, delay_instr, buffer, sizeof(buffer));
-      LOG_INFO(buffer);
-
-      addr += 2;
-    }
-  }
+  free(frontend);
 }
 
 static void sh4_frontend_init(struct jit_frontend *base) {}
 
-void sh4_frontend_destroy(struct sh4_frontend *frontend) {
-  free(frontend);
-}
-
-struct sh4_frontend *sh4_frontend_create(struct jit *jit) {
+struct jit_frontend *sh4_frontend_create() {
   struct sh4_frontend *frontend = calloc(1, sizeof(struct sh4_frontend));
 
-  frontend->jit = jit;
   frontend->init = &sh4_frontend_init;
+  frontend->destroy = &sh4_frontend_destroy;
   frontend->translate_code = &sh4_frontend_translate_code;
   frontend->dump_code = &sh4_frontend_dump_code;
+  frontend->lookup_op = &sh4_frontend_lookup_op;
 
-  return frontend;
+  return (struct jit_frontend *)frontend;
 }

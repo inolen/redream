@@ -6,7 +6,10 @@
 struct ir;
 struct jit;
 struct jit_block;
+struct jit_guest;
 struct jit_frontend;
+
+typedef void (*jit_fallback)(struct jit_guest *, uint32_t, uint32_t);
 
 struct jit_opdef {
   int op;
@@ -14,15 +17,20 @@ struct jit_opdef {
   const char *sig;
   int cycles;
   int flags;
+  jit_fallback fallback;
 };
 
 struct jit_frontend {
   struct jit *jit;
 
-  void (*init)(struct jit_frontend *base);
-  void (*translate_code)(struct jit_frontend *base, struct jit_block *block,
-                         struct ir *ir);
-  void (*dump_code)(struct jit_frontend *base, uint32_t addr, int size);
+  void (*init)(struct jit_frontend *);
+  void (*destroy)(struct jit_frontend *);
+
+  void (*translate_code)(struct jit_frontend *, struct jit_block *,
+                         struct ir *);
+  void (*dump_code)(struct jit_frontend *, uint32_t, int);
+
+  const struct jit_opdef *(*lookup_op)(struct jit_frontend *, const void *);
 };
 
 #endif

@@ -10,7 +10,6 @@
 #include "hw/rom/boot.h"
 #include "hw/rom/flash.h"
 #include "hw/scheduler.h"
-#include "jit/backend/x64/x64_backend.h"
 #include "jit/frontend/sh4/sh4_fallback.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_guest.h"
@@ -18,6 +17,12 @@
 #include "jit/jit.h"
 #include "render/nuklear.h"
 #include "sys/time.h"
+
+#if ARCH_X64
+#include "jit/backend/x64/x64_backend.h"
+#else
+#include "jit/backend/interp/interp_backend.h"
+#endif
 
 DEFINE_AGGREGATE_COUNTER(sh4_instrs);
 DEFINE_AGGREGATE_COUNTER(sh4_sr_updates);
@@ -131,34 +136,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
   int cycles = (int)NANO_TO_CYCLES(ns, SH4_CLOCK_FREQ);
   cycles = MAX(cycles, 1);
 
-#if 1
   jit_run(sh4->jit, cycles);
-#else
-  ctx->run_cycles = cycles;
-  ctx->ran_instrs = 0;
-
-  while (ctx->run_cycles > 0) {
-    static int RUN_SLICE = 64;
-    int ran_cycles = 0;
-    int ran_instrs = 0;
-
-    do {
-      uint16_t data = as_read16(sh4->memory_if->space, ctx->pc);
-      union sh4_instr instr = {data};
-      struct jit_opdef *def = sh4_get_opdef(data);
-      sh4_fallback_cb cb = sh4_get_fallback(data);
-      cb(sh4->guest, ctx->pc, instr);
-
-      ran_cycles += def->cycles;
-      ran_instrs++;
-    } while (ran_cycles < RUN_SLICE);
-
-    ctx->run_cycles -= ran_cycles;
-    ctx->ran_instrs += ran_instrs;
-
-    sh4_intc_check_pending(sh4);
-  }
-#endif
 
   prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 
@@ -202,7 +180,13 @@ static int sh4_init(struct device *dev) {
      RIP-relative offsets when calling functions */
   static uint8_t sh4_code[0x800000];
 
-  sh4->jit = jit_create("sh4");
+  sh4->frontend = sh4_frontend_create();
+
+#if ARCH_X64
+  sh4->backend = x64_backend_create(sh4_code, sizeof(sh4_code));
+#else
+  sh4->backend = interp_backend_create();
+#endif
 
   {
     sh4->guest = sh4_guest_create();
@@ -233,23 +217,17 @@ static int sh4_init(struct device *dev) {
     sh4->guest->w32 = &as_write32;
   }
 
-  sh4->frontend = sh4_frontend_create(sh4->jit);
-  sh4->backend = x64_backend_create(sh4->jit, sh4_code, sizeof(sh4_code));
-
-  if (!jit_init(sh4->jit, (struct jit_guest *)sh4->guest,
-                (struct jit_frontend *)sh4->frontend,
-                (struct jit_backend *)sh4->backend)) {
-    return 0;
-  }
+  sh4->jit = jit_create("sh4", sh4->frontend, sh4->backend,
+                        (struct jit_guest *)sh4->guest);
 
   return 1;
 }
 
 void sh4_destroy(struct sh4 *sh4) {
   jit_destroy(sh4->jit);
-  sh4_frontend_destroy(sh4->frontend);
-  x64_backend_destroy(sh4->backend);
   sh4_guest_destroy(sh4->guest);
+  sh4->frontend->destroy(sh4->frontend);
+  sh4->backend->destroy(sh4->backend);
 
   dc_destroy_memory_interface(sh4->memory_if);
   dc_destroy_execute_interface(sh4->execute_if);

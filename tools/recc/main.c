@@ -96,7 +96,8 @@ static void process_file(struct jit *jit, const char *filename,
       esimp_run(esimp, &ir);
       esimp_destroy(esimp);
     } else if (!strcmp(name, "ra")) {
-      struct ra *ra = ra_create(x64_registers, x64_num_registers);
+      struct ra *ra =
+          ra_create(jit->backend->registers, jit->backend->num_registers);
       ra_run(ra, &ir);
       ra_destroy(ra);
     } else {
@@ -174,11 +175,6 @@ int main(int argc, char **argv) {
 
   const char *path = argv[1];
 
-  /* initailize jit, stubbing out guest interfaces that are used during
-     assembly to a valid address */
-  struct jit *jit = jit_create("recc");
-  jit->emit_stats = 1;
-
   struct jit_guest guest = {0};
   guest.r8 = (void *)code;
   guest.r16 = (void *)code;
@@ -187,9 +183,12 @@ int main(int argc, char **argv) {
   guest.w16 = (void *)code;
   guest.w32 = (void *)code;
 
-  struct x64_backend *backend = x64_backend_create(jit, code, code_size);
+  struct jit_backend *backend = x64_backend_create(code, code_size);
 
-  CHECK(jit_init(jit, &guest, NULL, (struct jit_backend *)backend));
+  /* initailize jit, stubbing out guest interfaces that are used during
+     assembly to a valid address */
+  struct jit *jit = jit_create("recc", NULL, backend, &guest);
+  jit->emit_stats = 1;
 
   if (fs_isfile(path)) {
     process_file(jit, path, 0);
@@ -202,7 +201,7 @@ int main(int argc, char **argv) {
   pass_stats_dump();
 
   jit_destroy(jit);
-  x64_backend_destroy(backend);
+  backend->destroy(backend);
 
   return EXIT_SUCCESS;
 }
