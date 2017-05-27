@@ -116,9 +116,6 @@ struct jit {
 
   /* dump ir to application directory as blocks compile */
   int dump_blocks;
-
-  /* track emitter stats as blocks compile */
-  int emit_stats;
 };
 
 struct jit *jit_create(const char *tag, struct jit_frontend *frontend,

@@ -1,7 +1,6 @@
 #include "core/log.h"
 #include "core/option.h"
 #include "jit/backend/x64/x64_backend.h"
-#include "jit/emit_stats.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
@@ -188,7 +187,6 @@ int main(int argc, char **argv) {
   /* initailize jit, stubbing out guest interfaces that are used during
      assembly to a valid address */
   struct jit *jit = jit_create("recc", NULL, backend, &guest);
-  jit->emit_stats = 1;
 
   if (fs_isfile(path)) {
     process_file(jit, path, 0);
@@ -197,7 +195,6 @@ int main(int argc, char **argv) {
   }
 
   LOG_INFO("");
-  emit_stats_dump();
   pass_stats_dump();
 
   jit_destroy(jit);
