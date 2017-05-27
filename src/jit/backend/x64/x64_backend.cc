@@ -5,7 +5,6 @@ extern "C" {
 #include "jit/backend/jit_backend.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"
-#include "jit/emit_stats.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 #include "sys/exception_handler.h"
@@ -365,30 +364,6 @@ static int x64_backend_can_encode_imm(const struct ir_value *v) {
   return v->type <= VALUE_I32;
 }
 
-static void x64_backend_emit_stats(struct x64_backend *backend,
-                                   struct ir_instr *op) {
-  if (!backend->base.jit->emit_stats) {
-    return;
-  }
-
-  void *curr = backend->codegen->getCurr<void *>();
-
-  if (backend->last_op) {
-    cs_insn *insns;
-    size_t size = (int)((uint8_t *)curr - (uint8_t *)backend->last_op_begin);
-    size_t count =
-        cs_disasm(backend->capstone_handle, (uint8_t *)backend->last_op_begin,
-                  size, 0, 0, &insns);
-    cs_free(insns, count);
-
-    const char *desc = backend->last_op->arg[0]->str;
-    emit_stats_add(desc, (int)count);
-  }
-
-  backend->last_op = op;
-  backend->last_op_begin = curr;
-}
-
 static void x64_backend_emit_epilogue(struct x64_backend *backend,
                                       struct jit_block *block) {}
 
@@ -435,11 +410,6 @@ static void *x64_backend_emit(struct x64_backend *backend,
       x64_emit_cb emit = x64_backend_emitters[instr->op];
       CHECK_NOTNULL(emit);
 
-      /* track stats for each guest op */
-      if (instr->op == OP_DEBUG_INFO) {
-        x64_backend_emit_stats(backend, instr);
-      }
-
       /* reset temp count used by x64_backend_get_register */
       backend->num_temps = 0;
 
@@ -453,9 +423,6 @@ static void *x64_backend_emit(struct x64_backend *backend,
 
   block->host_size =
       (int)((uint8_t *)backend->codegen->getCurr() - (uint8_t *)code);
-
-  /* flush stats for last op */
-  x64_backend_emit_stats(backend, NULL);
 
   return code;
 }
@@ -1708,8 +1675,6 @@ EMITTER(CALL_COND) {
 }
 
 EMITTER(FLUSH_CONTEXT) {}
-
-EMITTER(DEBUG_INFO) {}
 
 EMITTER(DEBUG_BREAK) {
   e.db(0xcc);

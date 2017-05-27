@@ -203,7 +203,6 @@ set(REDREAM_SOURCES
   src/jit/passes/expression_simplification_pass.c
   src/jit/passes/load_store_elimination_pass.c
   src/jit/passes/register_allocation_pass.c
-  src/jit/emit_stats.c
   src/jit/jit.c
   src/jit/pass_stats.c
   src/render/gl_backend.c

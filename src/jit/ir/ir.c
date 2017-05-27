@@ -985,14 +985,6 @@ void ir_flush_context(struct ir *ir) {
   ir_append_instr(ir, OP_FLUSH_CONTEXT, VALUE_V);
 }
 
-void ir_debug_info(struct ir *ir, const char *desc, uint32_t addr,
-                   uint32_t raw_instr) {
-  struct ir_instr *instr = ir_append_instr(ir, OP_DEBUG_INFO, VALUE_V);
-  ir_set_arg0(ir, instr, ir_alloc_str(ir, desc));
-  ir_set_arg1(ir, instr, ir_alloc_i32(ir, addr));
-  ir_set_arg2(ir, instr, ir_alloc_i32(ir, raw_instr));
-}
-
 void ir_debug_break(struct ir *ir) {
   ir_append_instr(ir, OP_DEBUG_BREAK, VALUE_V);
 }

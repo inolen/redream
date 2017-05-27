@@ -48,8 +48,6 @@ struct x64_backend {
 
   /* debug stats */
   csh capstone_handle;
-  struct ir_instr *last_op;
-  void *last_op_begin;
 };
 
 extern const Xbyak::Reg64 arg0;

@@ -142,14 +142,6 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     } else {
       addr += 2;
     }
-
-#if 0
-    /* emit extra debug info for recc */
-    if (guest->jit->dump_blocks) {
-      const char *name = jit_opdefs[instr->op].name;
-      ir_debug_info(ir, name, instr->addr, instr->opcode);
-    }
-#endif
   }
 
   /* if the block terminates in something other than an unconditional branch,
