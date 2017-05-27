@@ -5,9 +5,9 @@
 
 int sh4_optable[UINT16_MAX + 1];
 
-struct sh4_opdef sh4_opdefs[NUM_SH4_OPS] = {
+struct jit_opdef sh4_opdefs[NUM_SH4_OPS] = {
 #define SH4_INSTR(name, desc, sig, cycles, flags) \
-  {SH4_OP_##name, #name, desc, #sig, cycles, flags},
+  {SH4_OP_##name, desc, #sig, cycles, flags},
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
@@ -25,7 +25,7 @@ static void sh4_disasm_init_lookup() {
   uint16_t opcode_masks[NUM_SH4_OPS] = {0};
 
   for (int i = 1; i < NUM_SH4_OPS; i++) {
-    struct sh4_opdef *def = &sh4_opdefs[i];
+    struct jit_opdef *def = &sh4_opdefs[i];
     size_t len = strlen(def->sig);
 
     /* 0 or 1 represents part of the opcode, anything else is a flag */
@@ -52,7 +52,7 @@ static void sh4_disasm_init_lookup() {
 
 void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
                 size_t buffer_size) {
-  struct sh4_opdef *def = sh4_get_opdef(i.raw);
+  struct jit_opdef *def = sh4_get_opdef(i.raw);
 
   if (def->flags & SH4_FLAG_INVALID) {
     snprintf(buffer, buffer_size, "%08x  .word 0x%04x", addr, i.raw);

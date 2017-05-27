@@ -30,7 +30,7 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
 
   while (1) {
     uint32_t data = guest->r16(guest->space, addr);
-    struct sh4_opdef *def = sh4_get_opdef(data);
+    struct jit_opdef *def = sh4_get_opdef(data);
     int invalid = (def->flags & SH4_FLAG_INVALID) == SH4_FLAG_INVALID;
 
     addr += 2;
@@ -40,7 +40,7 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
 
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_data = guest->r16(guest->space, addr);
-      struct sh4_opdef *delay_def = sh4_get_opdef(delay_data);
+      struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
       invalid |= (delay_def->flags & SH4_FLAG_INVALID) == SH4_FLAG_INVALID;
 
       addr += 2;
@@ -96,7 +96,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   while (addr < end) {
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
-    struct sh4_opdef *def = sh4_get_opdef(data);
+    struct jit_opdef *def = sh4_get_opdef(data);
     sh4_translate_cb cb = sh4_get_translator(data);
 
     cb(guest, ir, flags, addr, instr);
@@ -110,7 +110,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 #if 0
     /* emit extra debug info for recc */
     if (guest->jit->dump_blocks) {
-      const char *name = sh4_opdefs[instr->op].name;
+      const char *name = jit_opdefs[instr->op].name;
       ir_debug_info(ir, name, instr->addr, instr->opcode);
     }
 #endif
@@ -126,7 +126,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   int ends_in_branch = tail_instr->op == OP_BRANCH;
 
   if (tail_instr->op == OP_FALLBACK) {
-    struct sh4_opdef *def = sh4_get_opdef(tail_instr->arg[2]->i32);
+    struct jit_opdef *def = sh4_get_opdef(tail_instr->arg[2]->i32);
 
     if (def->flags & SH4_FLAG_BRANCH) {
       ends_in_branch = 1;
@@ -153,7 +153,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
   while (addr < end) {
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
-    struct sh4_opdef *def = sh4_get_opdef(data);
+    struct jit_opdef *def = sh4_get_opdef(data);
 
     sh4_format(addr, instr, buffer, sizeof(buffer));
     LOG_INFO(buffer);

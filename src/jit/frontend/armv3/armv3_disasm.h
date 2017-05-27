@@ -2,7 +2,7 @@
 #define ARMV3_DISASM_H
 
 #include <stddef.h>
-#include <stdint.h>
+#include "jit/frontend/jit_frontend.h"
 
 enum armv3_op_flag {
   FLAG_BRANCH = 0x1,
@@ -257,14 +257,14 @@ struct armv3_desc {
   (((instr & 0x0fff0000) >> 12) | ((instr & 0xf0) >> 4))
 
 extern int armv3_optable[ARMV3_LOOKUP_SIZE];
-extern struct armv3_desc armv3_opdescs[NUM_ARMV3_OPS];
+extern struct jit_opdef armv3_opdefs[NUM_ARMV3_OPS];
 
 static inline int armv3_get_op(uint32_t instr) {
   return armv3_optable[ARMV3_LOOKUP_INDEX(instr)];
 }
 
-static struct armv3_desc *armv3_get_opdesc(uint32_t instr) {
-  return &armv3_opdescs[armv3_get_op(instr)];
+static struct jit_opdef *armv3_get_opdef(uint32_t instr) {
+  return &armv3_opdefs[armv3_get_op(instr)];
 }
 
 int32_t armv3_disasm_offset(uint32_t offset);

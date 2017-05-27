@@ -145,7 +145,7 @@ static void sh4_run(struct device *dev, int64_t ns) {
     do {
       uint16_t data = as_read16(sh4->memory_if->space, ctx->pc);
       union sh4_instr instr = {data};
-      struct sh4_opdef *def = sh4_get_opdef(data);
+      struct jit_opdef *def = sh4_get_opdef(data);
       sh4_fallback_cb cb = sh4_get_fallback(data);
       cb(sh4->guest, ctx->pc, instr);
 

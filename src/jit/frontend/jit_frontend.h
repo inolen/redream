@@ -8,6 +8,14 @@ struct jit;
 struct jit_block;
 struct jit_frontend;
 
+struct jit_opdef {
+  int op;
+  const char *desc;
+  const char *sig;
+  int cycles;
+  int flags;
+};
+
 struct jit_frontend {
   struct jit *jit;
 
