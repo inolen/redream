@@ -20,22 +20,22 @@ struct jit_backend {
   const struct jit_register *registers;
   int num_registers;
 
-  void (*init)(struct jit_backend *base);
+  void (*init)(struct jit_backend *);
+  void (*destroy)(struct jit_backend *);
 
   /* compile interface */
-  void (*reset)(struct jit_backend *base);
-  int (*assemble_code)(struct jit_backend *base, struct jit_block *block,
-                       struct ir *ir);
-  void (*dump_code)(struct jit_backend *base, const uint8_t *code, int size);
-  int (*handle_exception)(struct jit_backend *base, struct exception *ex);
+  void (*reset)(struct jit_backend *);
+  int (*assemble_code)(struct jit_backend *, struct jit_block *, struct ir *);
+  void (*dump_code)(struct jit_backend *, const uint8_t *, int);
+  int (*handle_exception)(struct jit_backend *, struct exception *);
 
   /* dispatch interface */
-  void (*run_code)(struct jit_backend *base, int cycles);
-  void *(*lookup_code)(struct jit_backend *base, uint32_t);
-  void (*cache_code)(struct jit_backend *base, uint32_t, void *);
-  void (*invalidate_code)(struct jit_backend *base, uint32_t);
-  void (*patch_edge)(struct jit_backend *base, void *, void *);
-  void (*restore_edge)(struct jit_backend *base, void *, uint32_t);
+  void (*run_code)(struct jit_backend *, int);
+  void *(*lookup_code)(struct jit_backend *, uint32_t);
+  void (*cache_code)(struct jit_backend *, uint32_t, void *);
+  void (*invalidate_code)(struct jit_backend *, uint32_t);
+  void (*patch_edge)(struct jit_backend *, void *, void *);
+  void (*restore_edge)(struct jit_backend *, void *, uint32_t);
 };
 
 #endif

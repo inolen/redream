@@ -184,9 +184,7 @@ set(REDREAM_SOURCES
   src/hw/dreamcast.c
   src/hw/memory.c
   src/hw/scheduler.c
-  src/jit/backend/x64/x64_backend.cc
-  src/jit/backend/x64/x64_disassembler.c
-  src/jit/backend/x64/x64_dispatch.cc
+  src/jit/backend/interp/interp_backend.c
   src/jit/frontend/armv3/armv3_context.c
   src/jit/frontend/armv3/armv3_disasm.c
   src/jit/frontend/armv3/armv3_fallback.c
@@ -221,25 +219,36 @@ set(REDREAM_SOURCES
 
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
-  list(APPEND REDREAM_SOURCES src/sys/exception_handler_win.c)
-  list(APPEND REDREAM_SOURCES src/sys/filesystem_win.c)
-  list(APPEND REDREAM_SOURCES src/sys/memory_win.c)
-  list(APPEND REDREAM_SOURCES src/sys/thread_win.c)
-  list(APPEND REDREAM_SOURCES src/sys/time_win.c)
+  list(APPEND REDREAM_SOURCES
+    src/sys/exception_handler_win.c
+    src/sys/filesystem_win.c
+    src/sys/memory_win.c
+    src/sys/thread_win.c
+    src/sys/time_win.c)
 elseif(PLATFORM_DARWIN)
   list(APPEND REDREAM_DEFS PLATFORM_DARWIN=1)
-  list(APPEND REDREAM_SOURCES src/sys/exception_handler_mac.c)
-  list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.c)
-  list(APPEND REDREAM_SOURCES src/sys/memory_posix.c)
-  list(APPEND REDREAM_SOURCES src/sys/thread_posix.c)
-  list(APPEND REDREAM_SOURCES src/sys/time_mac.c)
+  list(APPEND REDREAM_SOURCES
+    src/sys/exception_handler_mac.c
+    src/sys/filesystem_posix.c
+    src/sys/memory_posix.c
+    src/sys/thread_posix.c
+    src/sys/time_mac.c)
 elseif(PLATFORM_LINUX)
   list(APPEND REDREAM_DEFS PLATFORM_LINUX=1)
-  list(APPEND REDREAM_SOURCES src/sys/exception_handler_linux.c)
-  list(APPEND REDREAM_SOURCES src/sys/filesystem_posix.c)
-  list(APPEND REDREAM_SOURCES src/sys/memory_posix.c)
-  list(APPEND REDREAM_SOURCES src/sys/thread_posix.c)
-  list(APPEND REDREAM_SOURCES src/sys/time_linux.c)
+  list(APPEND REDREAM_SOURCES
+    src/sys/exception_handler_linux.c
+    src/sys/filesystem_posix.c
+    src/sys/memory_posix.c
+    src/sys/thread_posix.c
+    src/sys/time_linux.c)
+endif()
+
+if(ARCH_X64)
+  list(APPEND REDREAM_DEFS ARCH_X64=1)
+  list(APPEND REDREAM_SOURCES
+    src/jit/backend/x64/x64_backend.cc
+    src/jit/backend/x64/x64_disassembler.c
+    src/jit/backend/x64/x64_dispatch.cc)
 endif()
 
 # assign source groups for visual studio projects
@@ -322,12 +331,14 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 if(BUILD_TOOLS)
 
+if(ARCH_X64)
 add_executable(recc $<TARGET_OBJECTS:relib> src/null_host.c tools/recc/main.c)
 target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(recc ${REDREAM_LIBS})
 target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
 target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
+endif()
 
 add_executable(retrace $<TARGET_OBJECTS:relib>
   src/null_host.c

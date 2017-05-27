@@ -10,9 +10,9 @@
 
 struct dreamcast;
 struct jit;
-struct sh4_frontend;
+struct jit_backend;
+struct jit_frontend;
 struct sh4_guest;
-struct x64_backend;
 
 #define SH4_CLOCK_FREQ INT64_C(200000000)
 
@@ -48,8 +48,8 @@ struct sh4 {
   /* jit */
   struct jit *jit;
   struct sh4_guest *guest;
-  struct sh4_frontend *frontend;
-  struct x64_backend *backend;
+  struct jit_frontend *frontend;
+  struct jit_backend *backend;
 
   /* dbg */
   struct list breakpoints;

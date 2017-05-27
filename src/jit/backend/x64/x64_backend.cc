@@ -1727,6 +1727,18 @@ EMITTER(ASSERT_LT) {
   e.outLocalLabel();
 }
 
+static void x64_backend_destroy(struct jit_backend *base) {
+  struct x64_backend *backend = container_of(base, struct x64_backend, base);
+
+  cs_close(&backend->capstone_handle);
+
+  delete backend->codegen;
+
+  x64_dispatch_shutdown(backend);
+
+  free(backend);
+}
+
 static void x64_backend_init(struct jit_backend *base) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
 
@@ -1740,26 +1752,15 @@ static void x64_backend_init(struct jit_backend *base) {
   x64_backend_reset(base);
 }
 
-void x64_backend_destroy(struct x64_backend *backend) {
-  cs_close(&backend->capstone_handle);
-
-  delete backend->codegen;
-
-  x64_dispatch_shutdown(backend);
-
-  free(backend);
-}
-
-struct x64_backend *x64_backend_create(struct jit *jit, void *code,
-                                       int code_size) {
+struct jit_backend *x64_backend_create(void *code, int code_size) {
   struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
       calloc(1, sizeof(struct x64_backend)));
   Xbyak::util::Cpu cpu;
 
   CHECK(Xbyak::CodeArray::protect(code, code_size, true));
 
-  backend->base.jit = jit;
   backend->base.init = &x64_backend_init;
+  backend->base.destroy = &x64_backend_destroy;
 
   /* compile interface */
   backend->base.registers = x64_registers;
@@ -1783,5 +1784,5 @@ struct x64_backend *x64_backend_create(struct jit *jit, void *code,
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
 
-  return backend;
+  return &backend->base;
 }
