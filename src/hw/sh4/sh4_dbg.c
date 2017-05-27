@@ -130,7 +130,7 @@ void sh4_dbg_step(struct device *dev) {
   /* run the fallback handler for the current pc */
   uint16_t data = as_read16(sh4->memory_if->space, sh4->ctx.pc);
   union sh4_instr instr = {data};
-  struct sh4_opdef *def = sh4_get_opdef(data);
+  struct jit_opdef *def = sh4_get_opdef(data);
   sh4_fallback_cb cb = sh4_get_fallback(data);
   cb(sh4->guest, sh4->ctx.pc, instr);
 

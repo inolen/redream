@@ -21,7 +21,7 @@ static void armv3_analyze_block(const struct armv3_guest *guest,
   while (1) {
     uint32_t data = guest->r32(guest->space, addr);
     union armv3_instr i = {data};
-    struct armv3_desc *desc = armv3_get_opdesc(i.raw);
+    struct jit_opdef *def = armv3_get_opdef(i.raw);
 
     addr += 4;
     block->guest_size += 4;
@@ -29,17 +29,17 @@ static void armv3_analyze_block(const struct armv3_guest *guest,
     block->num_instrs++;
 
     /* end block on invalid instruction */
-    if (desc->op == ARMV3_OP_INVALID) {
+    if (def->op == ARMV3_OP_INVALID) {
       break;
     }
 
     /* stop emitting when pc is changed */
-    if ((desc->flags & FLAG_BRANCH) ||
-        ((desc->flags & FLAG_DATA) && i.data.rd == 15) ||
-        (desc->flags & FLAG_PSR) ||
-        ((desc->flags & FLAG_XFR) && i.xfr.rd == 15) ||
-        ((desc->flags & FLAG_BLK) && i.blk.rlist & (1 << 15)) ||
-        (desc->flags & FLAG_SWI)) {
+    if ((def->flags & FLAG_BRANCH) ||
+        ((def->flags & FLAG_DATA) && i.data.rd == 15) ||
+        (def->flags & FLAG_PSR) ||
+        ((def->flags & FLAG_XFR) && i.xfr.rd == 15) ||
+        ((def->flags & FLAG_BLK) && i.blk.rlist & (1 << 15)) ||
+        (def->flags & FLAG_SWI)) {
       break;
     }
   }

@@ -2,7 +2,7 @@
 #define SH4_DISASM_H
 
 #include <stddef.h>
-#include <stdint.h>
+#include "jit/frontend/jit_frontend.h"
 
 enum {
   SH4_FLAG_INVALID = 0x1,
@@ -20,15 +20,6 @@ enum sh4_op {
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
   NUM_SH4_OPS,
-};
-
-struct sh4_opdef {
-  enum sh4_op op;
-  const char *name;
-  const char *desc;
-  const char *sig;
-  int cycles;
-  int flags;
 };
 
 union sh4_instr {
@@ -59,13 +50,13 @@ union sh4_instr {
 };
 
 extern int sh4_optable[UINT16_MAX + 1];
-extern struct sh4_opdef sh4_opdefs[NUM_SH4_OPS];
+extern struct jit_opdef sh4_opdefs[NUM_SH4_OPS];
 
 static inline int sh4_get_op(uint16_t instr) {
   return sh4_optable[instr];
 }
 
-static struct sh4_opdef *sh4_get_opdef(uint16_t instr) {
+static struct jit_opdef *sh4_get_opdef(uint16_t instr) {
   return &sh4_opdefs[sh4_get_op(instr)];
 }
 

@@ -5,7 +5,7 @@
 
 int armv3_optable[ARMV3_LOOKUP_SIZE];
 
-struct armv3_desc armv3_opdescs[NUM_ARMV3_OPS] = {
+struct jit_opdef armv3_opdefs[NUM_ARMV3_OPS] = {
     {ARMV3_OP_INVALID, NULL, NULL, 0, 0},
 #define ARMV3_INSTR(name, desc, sig, cycles, flags) \
   {ARMV3_OP_##name, desc, #sig, cycles, flags},
@@ -27,13 +27,13 @@ static void armv3_disasm_init_lookup() {
   uint32_t opcode_masks[NUM_ARMV3_OPS] = {0};
 
   for (int i = 1; i < NUM_ARMV3_OPS; i++) {
-    struct armv3_desc *desc = &armv3_opdescs[i];
+    struct jit_opdef *def = &armv3_opdefs[i];
 
-    size_t len = strlen(desc->sig);
+    size_t len = strlen(def->sig);
 
     /* 0 or 1 represents part of the opcode, anything else is a flag */
     for (size_t j = 0; j < len; j++) {
-      char c = desc->sig[len - j - 1];
+      char c = def->sig[len - j - 1];
 
       if (c == '0' || c == '1') {
         opcodes[i] |= (uint32_t)(c - '0') << j;
@@ -125,21 +125,21 @@ static const char *armv3_format_psr[] = {"CPSR", "SPSR"};
 
 void armv3_format(uint32_t addr, uint32_t instr, char *buffer,
                   size_t buffer_size) {
-  struct armv3_desc *desc = armv3_get_opdesc(instr);
+  struct jit_opdef *def = armv3_get_opdef(instr);
   union armv3_instr i = {instr};
 
   char value[128];
   size_t value_len;
 
   /* copy initial formatted description */
-  snprintf(buffer, buffer_size, "%4x: %08x  %s", addr, i.raw, desc->desc);
+  snprintf(buffer, buffer_size, "%4x: %08x  %s", addr, i.raw, def->desc);
 
   /* cond */
   int cond = i.raw >> 28;
   value_len = snprintf(value, sizeof(value), "%s", armv3_format_cond[cond]);
   strnrep(buffer, buffer_size, "{cond}", 6, value, value_len);
 
-  if (desc->flags & FLAG_BRANCH) {
+  if (def->flags & FLAG_BRANCH) {
     /* expr */
     int32_t offset = armv3_disasm_offset(i.branch.offset);
     uint32_t dest = addr + 8 /* account for prefetch */ + offset;
@@ -147,7 +147,7 @@ void armv3_format(uint32_t addr, uint32_t instr, char *buffer,
     strnrep(buffer, buffer_size, "{expr}", 6, value, value_len);
   }
 
-  if (desc->flags & FLAG_DATA) {
+  if (def->flags & FLAG_DATA) {
     /* s */
     value_len = snprintf(value, sizeof(value), "%s", i.data.s ? "s" : "");
     strnrep(buffer, buffer_size, "{s}", 3, value, value_len);
@@ -193,8 +193,8 @@ void armv3_format(uint32_t addr, uint32_t instr, char *buffer,
     strnrep(buffer, buffer_size, "{expr}", 6, value, value_len);
   }
 
-  if (desc->flags & FLAG_PSR) {
-    if (desc->op == ARMV3_OP_MRS) {
+  if (def->flags & FLAG_PSR) {
+    if (def->op == ARMV3_OP_MRS) {
       /* rd */
       value_len =
           snprintf(value, sizeof(value), "%s", armv3_format_reg[i.mrs.rd]);
@@ -227,11 +227,11 @@ void armv3_format(uint32_t addr, uint32_t instr, char *buffer,
     }
   }
 
-  if (desc->flags & FLAG_MUL) {
+  if (def->flags & FLAG_MUL) {
     /* TODO */
   }
 
-  if (desc->flags & FLAG_XFR) {
+  if (def->flags & FLAG_XFR) {
     /* b */
     value_len = snprintf(value, sizeof(value), "%s", i.xfr.b ? "b" : "");
     strnrep(buffer, buffer_size, "{b}", 3, value, value_len);
@@ -308,15 +308,15 @@ void armv3_format(uint32_t addr, uint32_t instr, char *buffer,
     }
   }
 
-  if (desc->flags & FLAG_BLK) {
+  if (def->flags & FLAG_BLK) {
     /* TODO */
   }
 
-  if (desc->flags & FLAG_SWP) {
+  if (def->flags & FLAG_SWP) {
     /* TODO */
   }
 
-  if (desc->flags & FLAG_SWI) {
+  if (def->flags & FLAG_SWI) {
     /* TODO */
   }
 }
