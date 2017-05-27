@@ -35,12 +35,6 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
-enum {
-  FRAME_WAITING,
-  FRAME_RENDERING,
-  FRAME_RENDERED,
-};
-
 struct emu_texture {
   struct tr_texture;
   struct emu *emu;
@@ -75,23 +69,19 @@ struct emu {
   int multi_threaded;
   thread_t video_thread;
 
-  /* latest raw context from the dreamcast, ready to be converted */
+  /* latest context from the dreamcast, ready to be presented */
   mutex_t pending_mutex;
   cond_t pending_cond;
+  unsigned pending_id;
   struct tile_context *pending_ctx;
-
-  /* latest converted context ready to be presented locally */
-  volatile int video_state;
-  struct tr_context video_rc;
+  struct tr_context pending_rc;
 
   /* offscreen framebuffer the video output is rendered to */
   framebuffer_handle_t video_fb;
   texture_handle_t video_tex;
   sync_handle_t video_sync;
-
-  /* unique id for the current video frame, used to assert synchronization
-     between the video and main thread */
-  unsigned frame;
+  volatile unsigned video_id;
+  volatile unsigned last_video_id;
 
   /* texture cache. the dreamcast interface calls into us when new contexts are
      available to be rendered. parsing the contexts, uploading their textures to
@@ -224,9 +214,9 @@ static void emu_register_texture_source(struct emu *emu, union tsp tsp,
     entry->dirty = 1;
   }
 
-  /* mark texture source valid for the current frame */
-  int first_registration_this_frame = entry->frame != emu->frame;
-  entry->frame = emu->frame;
+  /* mark texture source valid for the current pending frame */
+  int first_registration_this_frame = entry->frame != emu->pending_id;
+  entry->frame = emu->pending_id;
 
   /* set texture address */
   if (!entry->texture || !entry->palette) {
@@ -337,8 +327,6 @@ static void emu_render_frame(struct emu *emu) {
 
   prof_counter_add(COUNTER_frames, 1);
 
-  emu->video_state = FRAME_RENDERING;
-
   /* resize the framebuffer at this time if the output size has changed */
   if (emu->video_resized) {
     r_destroy_framebuffer(r2, emu->video_fb);
@@ -352,7 +340,7 @@ static void emu_render_frame(struct emu *emu) {
   framebuffer_handle_t original = r_get_framebuffer(r2);
   r_bind_framebuffer(r2, emu->video_fb);
   r_viewport(emu->r, emu->video_width, emu->video_height);
-  tr_render_context(r2, &emu->video_rc);
+  tr_render_context(r2, &emu->pending_rc);
   r_bind_framebuffer(r2, original);
 
   /* insert fence for main thread to synchronize on in order to ensure that
@@ -361,10 +349,11 @@ static void emu_render_frame(struct emu *emu) {
     emu->video_sync = r_insert_sync(r2);
   }
 
+  /* mark the currently available frame for emu_run_frame */
+  emu->video_id = emu->pending_id;
+
   /* update frame-based profiler stats */
   prof_flip();
-
-  emu->video_state = FRAME_RENDERED;
 }
 
 static void *emu_video_thread(void *data) {
@@ -389,19 +378,23 @@ static void *emu_video_thread(void *data) {
 
     /* convert the context, uploading its textures to the render backend */
     tr_convert_context(emu->r2, emu, &emu_find_texture, emu->pending_ctx,
-                       &emu->video_rc);
+                       &emu->pending_rc);
     emu->pending_ctx = NULL;
-
-    /* after the context has been parsed, release the mutex to let
-       emu_finish_render complete */
-    mutex_unlock(emu->pending_mutex);
-
-    /* note, during this window of time (after releasing the mutex, and before
-       emu_render_frame ends), a frame could be processed by emu_start_render /
-       emu_finish_rendered that is skipped */
 
     /* render the parsed context to an offscreen framebuffer */
     emu_render_frame(emu);
+
+    /* after the context has been rendered, release the mutex to unblock
+       emu_guest_finish_render
+
+       note, the main purpose of this mutex is to prevent the cpu from writing
+       to texture memory before it's been uploaded to the render backend. from
+       that perspective, this mutex could be released after tr_convert_context
+       and before emu_render_frame, enabling the frame to take more time to
+       render on the host than estimated by emu_guest_finish_render. however,
+       then multiple framebuffers would have to be managed and synchronized in
+       order to allow emu_render_frame and emu_paint to run in parallel */
+    mutex_unlock(emu->pending_mutex);
   }
 
   return NULL;
@@ -523,6 +516,9 @@ static void emu_paint(struct emu *emu) {
 
   mp_render(emu->mp);
   nk_render(emu->nk);
+
+  /* mark the last rendered video id for emu_run_frame */
+  emu->last_video_id = emu->video_id;
 }
 
 /*
@@ -544,28 +540,24 @@ static void emu_guest_finish_render(void *userdata) {
        the yet-to-be-uploaded texture memory */
     mutex_lock(emu->pending_mutex);
 
+    /* if pending_ctx is non-NULL here, a frame is being skipped */
     emu->pending_ctx = NULL;
 
     mutex_unlock(emu->pending_mutex);
   }
-
-  /* texture entries are only valid between each start / finish render pair,
-     increment frame number again to invalidate */
-  emu->frame++;
 }
 
 static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
   struct emu *emu = userdata;
 
-  if (emu->video_state != FRAME_WAITING) {
-    /* skip this frame if one is already rendering / rendered */
-    return;
-  }
+  /* note, while the video thread is guaranteed to not to be touching texture
+     memory from the previous frame at this point, it could still be actually
+     rendering the previous frame */
 
-  /* incement internal frame number. this frame number is assigned to the
-     context and each texture source it registers to assert synchronization
-     between the emulator and video thread is working as expected */
-  emu->frame++;
+  /* incement internal frame number. this frame number is assigned to the each
+     texture source registered to assert synchronization between the emulator
+     and video thread is working as expected */
+  emu->pending_id++;
 
   /* now that the video thread is sure to not be accessing the texture data,
      mark any textures dirty that were invalidated by a memory watch */
@@ -591,7 +583,7 @@ static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
     mutex_unlock(emu->pending_mutex);
   } else {
     /* convert the context and immediately render it */
-    tr_convert_context(emu->r, emu, &emu_find_texture, ctx, &emu->video_rc);
+    tr_convert_context(emu->r, emu, &emu_find_texture, ctx, &emu->pending_rc);
 
     emu_render_frame(emu);
   }
@@ -723,9 +715,7 @@ static void emu_host_resized(void *userdata) {
 void emu_run_frame(struct emu *emu) {
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
 
-  emu->video_state = FRAME_WAITING;
-
-  while (emu->video_state != FRAME_RENDERED) {
+  while (emu->video_id <= emu->last_video_id) {
     dc_tick(emu->dc, MACHINE_STEP);
   }
 
