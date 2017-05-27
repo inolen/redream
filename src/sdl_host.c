@@ -124,7 +124,7 @@ static void audio_shutdown(struct sdl_host *host) {
   if (host->audio_dev) {
     SDL_CloseAudioDevice(host->audio_dev);
   }
- 
+
   if (host->audio_frames) {
     ringbuf_destroy(host->audio_frames);
   }
@@ -157,7 +157,8 @@ static int audio_init(struct sdl_host *host) {
   /* resume device */
   SDL_PauseAudioDevice(host->audio_dev, 0);
 
-  LOG_INFO("audio backend created, %d ms latency", AUDIO_FRAMES_TO_MS(host->audio_spec.samples));
+  LOG_INFO("audio backend created, %d ms latency",
+           AUDIO_FRAMES_TO_MS(host->audio_spec.samples));
 
   return 1;
 }
