@@ -53,6 +53,10 @@ struct cdread {
 
 struct gdrom {
   struct device;
+
+  /* hardware information accessed at runtime through REQ_MODE and SET_MODE */
+  struct gd_hw_info hw_info;
+
   enum gd_state state;
   struct disc *disc;
   union gd_features features;
@@ -60,6 +64,7 @@ struct gdrom {
   union gd_sectnum sectnum;
   union gd_bytect byte_count;
   union gd_status status;
+  /* current CD_READ state */
   struct cdread req;
   /* pio state */
   uint8_t pio_buffer[0x10000];
@@ -93,7 +98,7 @@ static int gdrom_get_fad(uint8_t a, uint8_t b, uint8_t c, int msf) {
 
 static void gdrom_set_mode(struct gdrom *gd, int offset, uint8_t *data,
                            int data_size) {
-  memcpy((uint8_t *)&reply_11[offset >> 1], data, data_size);
+  memcpy((void *)&gd->hw_info + offset, data, data_size);
 
   gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
 }
@@ -245,9 +250,10 @@ static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
     } break;
 
     case SPI_REQ_MODE: {
-      int addr = data[2];
+      int offset = data[2];
       int sz = data[4];
-      gdrom_event(gd, EV_SPI_WRITE_START, (intptr_t)&reply_11[addr >> 1], sz);
+      gdrom_event(gd, EV_SPI_WRITE_START,
+                  (intptr_t)((void *)&gd->hw_info + offset), sz);
     } break;
 
     /*case SPI_REQ_ERROR:
@@ -528,6 +534,18 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, intptr_t arg0,
 static int gdrom_init(struct device *dev) {
   struct gdrom *gd = (struct gdrom *)dev;
 
+  /* set default hardware information */
+  gd->hw_info.speed = 0x0;
+  gd->hw_info.standby_hi = 0x00;
+  gd->hw_info.standby_lo = 0xb4;
+  gd->hw_info.read_flags = 0x19;
+  gd->hw_info.read_retry = 0x08;
+  strncpy_spaces(gd->hw_info.drive_info, "SE", sizeof(gd->hw_info.drive_info));
+  strncpy_spaces(gd->hw_info.system_version, "Rev 6.43",
+                 sizeof(gd->hw_info.system_version));
+  strncpy_spaces(gd->hw_info.system_date, "990408",
+                 sizeof(gd->hw_info.system_date));
+
   gdrom_set_disc(gd, NULL);
 
   return 1;
@@ -578,6 +596,14 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   gd->status.full = 0;
   gd->status.DRDY = 1;
   gd->status.BSY = 0;
+}
+
+int gdrom_disk_format(struct gdrom *gd) {
+  return gd->sectnum.format;
+}
+
+int gdrom_drive_status(struct gdrom *gd) {
+  return gd->sectnum.status;
 }
 
 void gdrom_destroy(struct gdrom *gd) {

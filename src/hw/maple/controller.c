@@ -76,10 +76,10 @@ static int controller_frame(struct maple_device *dev,
       info.func = MAPLE_FUNC_CONTROLLER;
       info.data[0] = 0xfe060f00;
       info.region = 0xff;
-      maple_strncpy(info.name, "Dreamcast Controller", sizeof(info.name));
-      maple_strncpy(info.license,
-                    "Produced By or Under License From SEGA ENTERPRISES,LTD.",
-                    sizeof(info.license));
+      strncpy_spaces(info.name, "Dreamcast Controller", sizeof(info.name));
+      strncpy_spaces(info.license,
+                     "Produced By or Under License From SEGA ENTERPRISES,LTD.",
+                     sizeof(info.license));
       info.standby_power = 0x01ae;
       info.max_power = 0x01f4;
 

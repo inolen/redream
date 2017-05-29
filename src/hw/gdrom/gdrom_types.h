@@ -2,25 +2,24 @@
 #define GDROM_TYPES_H
 
 enum gd_drive_status {
-  DST_BUSY,    /* State transition */
-  DST_PAUSE,   /* Pause */
-  DST_STANDBY, /* Standby (drive stop) */
-  DST_PLAY,    /* CD playback */
-  DST_SEEK,    /* Seeking */
-  DST_SCAN,    /* Scanning */
-  DST_OPEN,    /* Tray is open */
-  DST_NODISC,  /* No disc */
-  DST_RETRY,   /* Read retry in progress (option) */
-  DST_ERROR,   /* Reading of disc TOC failed (state does not allow access) */
+  DST_BUSY = 0x00,    /* State transition */
+  DST_PAUSE = 0x01,   /* Pause */
+  DST_STANDBY = 0x02, /* Standby (drive stop) */
+  DST_PLAY = 0x03,    /* CD playback */
+  DST_SEEK = 0x04,    /* Seeking */
+  DST_SCAN = 0x05,    /* Scanning */
+  DST_OPEN = 0x06,    /* Tray is open */
+  DST_NODISC = 0x07,  /* No disc */
+  DST_RETRY = 0x08,   /* Read retry in progress */
+  DST_ERROR = 0x09,   /* Reading of disc TOC failed */
 };
 
 enum gd_disc {
   DISC_CDDA = 0x00,
   DISC_CDROM = 0x01,
   DISC_CDROM_XA = 0x02,
-  DISC_CDROM_EX = 0x03,
-  DISC_CDROM_CDI = 0x04,
-  DISC_GDROM = 0x08
+  DISC_CDROM_CDI = 0x03,
+  DISC_GDROM = 0x08,
 };
 
 /* ata / spi commands */
@@ -161,6 +160,20 @@ union gd_bytect {
     uint32_t hi : 8;
     uint32_t reserved : 16;
   };
+};
+
+struct gd_hw_info {
+  uint8_t padding0[2];
+  uint8_t speed;
+  uint8_t padding1;
+  uint8_t standby_hi;
+  uint8_t standby_lo;
+  uint8_t read_flags;
+  uint8_t padding2[2];
+  uint8_t read_retry;
+  char drive_info[8];
+  char system_version[8];
+  char system_date[6];
 };
 
 #endif
