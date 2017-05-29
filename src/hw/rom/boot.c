@@ -8,15 +8,6 @@ DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to boot rom");
 
 #define BIOS_SIZE 0x00200000
 
-/* known valid bios md5's */
-static const char *valid_bios_md5[] = {
-    "a5c6a00818f97c5e3e91569ee22416dc", /* chinese bios */
-    "37c921eb47532cae8fb70e5d987ce91c", /* japanese bios */
-    "f2cd29d09f3e29984bcea22ab2e006fe", /* revised bios w/o MIL-CD */
-    "e10c53c2f8b90bab96ead2d368858623"  /* original US/EU bios */
-};
-static const int num_bios_md5 = 4;
-
 struct boot {
   struct device;
   uint8_t rom[BIOS_SIZE];
@@ -28,6 +19,13 @@ static uint32_t boot_rom_read(struct boot *boot, uint32_t addr,
 }
 
 static int boot_validate(struct boot *boot) {
+  static const char *valid_bios_md5[] = {
+      "a5c6a00818f97c5e3e91569ee22416dc", /* chinese bios */
+      "37c921eb47532cae8fb70e5d987ce91c", /* japanese bios */
+      "f2cd29d09f3e29984bcea22ab2e006fe", /* revised bios w/o MIL-CD */
+      "e10c53c2f8b90bab96ead2d368858623"  /* original US/EU bios */
+  };
+
   /* compare the rom's md5 against known good bios roms */
   MD5_CTX md5_ctx;
   MD5_Init(&md5_ctx);
@@ -35,7 +33,7 @@ static int boot_validate(struct boot *boot) {
   char result[33];
   MD5_Final(result, &md5_ctx);
 
-  for (int i = 0; i < num_bios_md5; ++i) {
+  for (int i = 0; i < array_size(valid_bios_md5); ++i) {
     if (strcmp(result, valid_bios_md5[i]) == 0) {
       return 1;
     }
@@ -72,6 +70,10 @@ static int boot_load_rom(struct boot *boot, const char *path) {
   return 1;
 }
 
+void boot_destroy(struct boot *boot) {
+  dc_destroy_device((struct device *)boot);
+}
+
 static int boot_init(struct device *dev) {
   struct boot *boot = (struct boot *)dev;
 
@@ -81,10 +83,6 @@ static int boot_init(struct device *dev) {
   }
 
   return 1;
-}
-
-void boot_destroy(struct boot *boot) {
-  dc_destroy_device((struct device *)boot);
 }
 
 struct boot *boot_create(struct dreamcast *dc) {

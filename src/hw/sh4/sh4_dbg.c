@@ -32,18 +32,23 @@ static struct breakpoint *create_breakpoint(struct sh4 *sh4, uint32_t addr,
   return bp;
 }
 
-void sh4_dbg_invalid_instr(void *data, uint32_t addr) {
-  struct sh4 *sh4 = data;
+int sh4_dbg_invalid_instr(struct sh4 *sh4) {
+  uint32_t pc = sh4->ctx.pc;
 
   /* ensure a breakpoint exists for this address */
-  struct breakpoint *bp = lookup_breakpoint(sh4, addr);
-  CHECK_NOTNULL(bp);
+  struct breakpoint *bp = lookup_breakpoint(sh4, pc);
+
+  if (!bp) {
+    return 0;
+  }
 
   /* force a break from dispatch */
   sh4->ctx.run_cycles = 0;
 
   /* let the debugger know execution has stopped */
   debugger_trap(sh4->dc->debugger);
+
+  return 1;
 }
 
 void sh4_dbg_read_register(struct device *dev, int n, uint64_t *value,

@@ -92,6 +92,16 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   sh4->reg[offset] = data;
 }
 
+static void sh4_invalid_instr(void *data) {
+  struct sh4 *sh4 = data;
+
+  if (sh4_dbg_invalid_instr(sh4)) {
+    return;
+  }
+
+  LOG_FATAL("Unhandled invalid instruction at 0x%08x", sh4->ctx.pc);
+}
+
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
   sh4->requested_interrupts &= ~sh4->sort_id[intr];
   sh4_intc_update_pending(sh4);
@@ -204,7 +214,7 @@ static int sh4_init(struct device *dev) {
     sh4->guest->ctx = &sh4->ctx;
     sh4->guest->mem = as_translate(sh4->memory_if->space, 0x0);
     sh4->guest->space = sh4->memory_if->space;
-    sh4->guest->invalid_instr = &sh4_dbg_invalid_instr;
+    sh4->guest->invalid_instr = &sh4_invalid_instr;
     sh4->guest->sq_prefetch = &sh4_ccn_sq_prefetch;
     sh4->guest->sr_updated = &sh4_sr_updated;
     sh4->guest->fpscr_updated = &sh4_fpscr_updated;

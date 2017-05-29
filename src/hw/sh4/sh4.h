@@ -87,7 +87,7 @@ void sh4_dbg_read_memory(struct device *dev, uint32_t addr, uint8_t *buffer,
                          int size);
 void sh4_dbg_read_register(struct device *dev, int n, uint64_t *value,
                            int *size);
-void sh4_dbg_invalid_instr(void *data, uint32_t addr);
+int sh4_dbg_invalid_instr(struct sh4 *sh4);
 
 void sh4_dmac_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
 
