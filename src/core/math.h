@@ -30,6 +30,10 @@ static inline int ctz64(uint64_t v) {
   return __builtin_ctzll(v);
 }
 
+static inline uint32_t bswap32(uint32_t v) {
+  return __builtin_bswap32(v);
+}
+
 #else
 
 #include <intrin.h>
@@ -56,6 +60,10 @@ static inline int ctz64(uint64_t v) {
   unsigned long r = 0;
   _BitScanForward64(&r, v);
   return r;
+}
+
+static inline uint32_t bswap32(uint32_t v) {
+  return _byteswap_ulong(v);
 }
 
 #endif
