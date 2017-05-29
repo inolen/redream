@@ -1,6 +1,8 @@
 #ifndef GDROM_TYPES_H
 #define GDROM_TYPES_H
 
+#define GD_MAX_SUBCODE_SIZE 100
+
 enum gd_drive_status {
   DST_BUSY = 0x00,    /* State transition */
   DST_PAUSE = 0x01,   /* Pause */
@@ -66,10 +68,10 @@ enum gd_audio_status {
 };
 
 enum gd_secmask {
-  MASK_HEADER = 0x8,
-  MASK_SUBHEADER = 0x4,
+  MASK_OTHER = 0x1,
   MASK_DATA = 0x2,
-  MASK_OTHER = 0x1
+  MASK_SUBHEADER = 0x4,
+  MASK_HEADER = 0x8,
 };
 
 enum gd_secfmt {
@@ -79,7 +81,7 @@ enum gd_secfmt {
   SECTOR_M2,
   SECTOR_M2F1,
   SECTOR_M2F2,
-  SECTOR_M2_NOXA
+  SECTOR_M2_NOXA,
 };
 
 union gd_tocentry {

@@ -1,3 +1,6 @@
+/* there doesn't seem to be any documentation on the flash rom used by the
+   dreamcast, but it appears to implement the JEDEC CFI standard */
+
 #include <stdio.h>
 #include "hw/rom/flash.h"
 #include "core/option.h"
@@ -6,11 +9,6 @@
 
 DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash rom");
 
-/* there doesn't seem to be any documentation on the flash rom used by thae
-   dreamcast. however, several people have replaced it with the MX29LV160TMC-90
-   successfully. the implementation of the command parsing here is based on its
-   datasheet. note, the dreamcast seems to only use the word mode command
-   sequences, so that is all that is implemented */
 #define FLASH_SIZE 0x00020000
 #define FLASH_SECTOR_SIZE 0x4000
 #define FLASH_CMD_NONE 0x0
@@ -217,11 +215,11 @@ struct flash *flash_create(struct dreamcast *dc) {
   return flash;
 }
 
-// clang-format off
+/* clang-format off */
 AM_BEGIN(struct flash, flash_rom_map);
   AM_RANGE(0x00000000, 0x0001ffff) AM_HANDLE("flash rom",
                                              (mmio_read_cb)&flash_rom_read,
                                              (mmio_write_cb)&flash_rom_write,
                                              NULL, NULL)
 AM_END();
-// clang-format on
+/* clang-format on */

@@ -16,7 +16,6 @@
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
 #define SPI_CMD_SIZE 12
-#define SUBCODE_SIZE 100
 
 /* internal gdrom state machine */
 enum gd_event {
@@ -103,8 +102,38 @@ static void gdrom_set_mode(struct gdrom *gd, int offset, uint8_t *data,
   gdrom_event(gd, EV_SPI_CMD_DONE, 0, 0);
 }
 
-static void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
-                          struct gd_toc *toc) {
+void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
+  CHECK(gd->disc);
+
+  /* FIXME implement */
+  memset(data, 0, GD_MAX_SUBCODE_SIZE);
+  data[1] = AST_NOSTATUS;
+
+  LOG_INFO("GetSubcode not fully implemented");
+}
+
+void gdrom_get_session(struct gdrom *gd, int session, struct gd_session *ses) {
+  CHECK(gd->disc);
+
+  if (!session) {
+    /* session values have a different meaning for session == 0 */
+
+    /* TODO start_fad for non GD-Roms I guess is 0x4650 */
+    if (1 /* is gd-rom */) {
+      ses->first_track = 2;              /* num sessions */
+      ses->start_fad = SWAP_24(0x861b4); /* end fad */
+    }
+  } else if (session == 1) {
+    ses->first_track = 1;
+    ses->start_fad = SWAP_24(disc_get_track(gd->disc, 0)->fad);
+  } else if (session == 2) {
+    ses->first_track = 3;
+    ses->start_fad = SWAP_24(disc_get_track(gd->disc, 2)->fad);
+  }
+}
+
+void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
+                   struct gd_toc *toc) {
   CHECK(gd->disc);
 
   /* for GD-ROMs, the single density area contains tracks 1 and 2, while the
@@ -126,6 +155,7 @@ static void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
   const struct track *end_track = disc_get_track(gd->disc, last_track_num);
   int leadout_fad = area_type == AREA_SINGLE ? 0x4650 : 0x861b4;
 
+  /* data is returned in big endian format */
   memset(toc, 0, sizeof(*toc));
   for (int i = first_track_num; i <= last_track_num; i++) {
     union gd_tocentry *entry = &toc->entries[i];
@@ -143,37 +173,6 @@ static void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
   toc->leadout.ctrl = 0;
   toc->leadout.adr = 0;
   toc->leadout.fad = SWAP_24(leadout_fad);
-}
-
-static void gdrom_get_session(struct gdrom *gd, int session,
-                              struct gd_session *ses) {
-  CHECK(gd->disc);
-
-  if (!session) {
-    /* session values have a different meaning for session == 0 */
-
-    /* TODO start_fad for non GD-Roms I guess is 0x4650 */
-    if (1 /* is gd-rom */) {
-      ses->first_track = 2;              /* num sessions */
-      ses->start_fad = SWAP_24(0x861b4); /* end fad */
-    }
-  } else if (session == 1) {
-    ses->first_track = 1;
-    ses->start_fad = SWAP_24(disc_get_track(gd->disc, 0)->fad);
-  } else if (session == 2) {
-    ses->first_track = 3;
-    ses->start_fad = SWAP_24(disc_get_track(gd->disc, 2)->fad);
-  }
-}
-
-static void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
-  CHECK(gd->disc);
-
-  /* FIXME implement */
-  memset(data, 0, SUBCODE_SIZE);
-  data[1] = AST_NOSTATUS;
-
-  LOG_INFO("GetSubcode not fully implemented");
 }
 
 static void gdrom_ata_cmd(struct gdrom *gd, enum gd_ata_cmd cmd) {
@@ -276,9 +275,9 @@ static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
     } break;
 
     case SPI_GET_SCD: {
-      int format = data[1] & 0xffff;
+      int format = data[1] & 0xf;
       int size = (data[3] << 8) | data[4];
-      uint8_t scd[SUBCODE_SIZE];
+      uint8_t scd[GD_MAX_SUBCODE_SIZE];
       gdrom_get_subcode(gd, format, scd);
       gdrom_event(gd, EV_SPI_WRITE_START, (intptr_t)scd, size);
     } break;
@@ -341,9 +340,9 @@ static void gdrom_spi_cmd(struct gdrom *gd, uint8_t *data) {
   }
 }
 
-static int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
-                              enum gd_secmask mask, int num_sectors,
-                              uint8_t *dst, int dst_size) {
+int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
+                       enum gd_secmask mask, int num_sectors, uint8_t *dst,
+                       int dst_size) {
   CHECK(gd->disc);
 
   int total = 0;
@@ -356,7 +355,7 @@ static int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
     CHECK_EQ(r, 1);
 
     if (fmt == SECTOR_M1 && mask == MASK_DATA) {
-      CHECK_LT(total + 2048, dst_size);
+      CHECK_LE(total + 2048, dst_size);
       memcpy(dst, data + 16, 2048);
       dst += 2048;
       total += 2048;
@@ -535,6 +534,7 @@ static int gdrom_init(struct device *dev) {
   struct gdrom *gd = (struct gdrom *)dev;
 
   /* set default hardware information */
+  memset(&gd->hw_info, 0, sizeof(gd->hw_info));
   gd->hw_info.speed = 0x0;
   gd->hw_info.standby_hi = 0x00;
   gd->hw_info.standby_lo = 0xb4;
@@ -604,6 +604,14 @@ int gdrom_disk_format(struct gdrom *gd) {
 
 int gdrom_drive_status(struct gdrom *gd) {
   return gd->sectnum.status;
+}
+
+void gdrom_set_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
+  gd->hw_info = *info;
+}
+
+void gdrom_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
+  *info = gd->hw_info;
 }
 
 void gdrom_destroy(struct gdrom *gd) {

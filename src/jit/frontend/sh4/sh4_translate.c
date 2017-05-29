@@ -426,7 +426,7 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define INVALID_INSTR()             {                                                                                    \
                                       struct ir_value *invalid_instr = ir_alloc_i64(ir, (uint64_t)guest->invalid_instr); \
                                       struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);                   \
-                                      ir_call_2(ir, invalid_instr, data, ir_alloc_i32(ir, addr));                        \
+                                      ir_call_1(ir, invalid_instr, data);                                                \
                                     }
 
 #define PREF_SQ_COND(c, addr)       {                                                                                \

@@ -377,7 +377,7 @@ typedef int32_t int128_t[4];
 #define BRANCH_TRUE_IMM_I32(c, d)   if (c) { CTX->pc = d; return; }
 #define BRANCH_FALSE_IMM_I32(c, d)  if (!c) { CTX->pc = d; return; }
 
-#define INVALID_INSTR()             guest->invalid_instr(guest->data, addr)
+#define INVALID_INSTR()             guest->invalid_instr(guest->data)
 
 #define PREF_SQ_COND(c, addr)       if (c) { guest->sq_prefetch(guest->data, addr); }
 /* clang-format on */
