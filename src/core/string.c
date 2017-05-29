@@ -29,6 +29,17 @@ size_t strnlen(const char *s, size_t max_len) {
 }
 #endif
 
+void strncpy_spaces(char *dst, const char *str, int size) {
+  int len = (int)strlen(str);
+  size -= len;
+  while (len--) {
+    *(dst++) = *(str++);
+  }
+  while (size--) {
+    *(dst++) = ' ';
+  }
+}
+
 int strnrep(char *dst, size_t dst_size, const char *token, size_t token_len,
             const char *value, size_t value_len) {
   char *end = dst + dst_size;
