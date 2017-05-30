@@ -12,7 +12,7 @@
 #define LOG_GDROM(...)
 #endif
 
-#define SWAP_24(fad) \
+#define bswap24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
 #define SPI_CMD_SIZE 12
@@ -332,15 +332,16 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       gdrom_spi_end(gd);
     } break;
 
-    /* 0x70 and 0x71 appear to be a part of some kind of security check that has
-       yet to be properly reverse engineered. be a lemming and reply / set state
-       as expected by various games */
-    case SPI_UNKNOWN_70: {
+    /* SPI_CHK_SECU / SPI_REQ_SECU are part of an undocumented security check
+       that has yet to be fully reverse engineered. the check doesn't seem to
+       have any side effects other than setting the drive to the PAUSE state,
+       and a valid, canned response is sent when the results are requested */
+    case SPI_CHK_SECU: {
+      gd->sectnum.status = DST_PAUSE;
       gdrom_spi_end(gd);
     } break;
 
-    case SPI_UNKNOWN_71: {
-      gd->sectnum.status = DST_PAUSE;
+    case SPI_REQ_SECU: {
       gdrom_spi_write(gd, (uint8_t *)reply_71, sizeof(reply_71));
     } break;
 
@@ -414,7 +415,6 @@ static void gdrom_ata_cmd(struct gdrom *gd, int arg) {
 
 static void gdrom_event(struct gdrom *gd, enum gd_event ev, int arg) {
   gd_event_cb cb = gd_transitions[gd->state][ev];
-  LOG_INFO("state %d, ev %d, cb %p", gd->state, ev, cb);
   CHECK(cb);
   cb(gd, arg);
 }
@@ -426,26 +426,33 @@ void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
   memset(data, 0, GD_MAX_SUBCODE_SIZE);
   data[1] = AST_NOSTATUS;
 
-  LOG_INFO("gdrom_get_subcode not fully implemented");
+  LOG_GDROM("gdrom_get_subcode not fully implemented");
 }
 
 void gdrom_get_session(struct gdrom *gd, int session, struct gd_session *ses) {
   CHECK(gd->disc);
 
-  if (!session) {
-    /* session values have a different meaning for session == 0 */
-
-    /* TODO start_fad for non GD-Roms I guess is 0x4650 */
+  /* note, mutli-byte values need to be swapped to big-endian */
+  if (session == 0) {
+    /* when session is 0, the "fad" field contains the lead-out fad, while the
+       "track" field contains the total number of sessions */
     if (1 /* is gd-rom */) {
-      ses->first_track = 2;              /* num sessions */
-      ses->start_fad = SWAP_24(0x861b4); /* end fad */
+      ses->track = 2;
+      ses->fad = bswap24(0x861b4);
     }
-  } else if (session == 1) {
-    ses->first_track = 1;
-    ses->start_fad = SWAP_24(disc_get_track(gd->disc, 0)->fad);
-  } else if (session == 2) {
-    ses->first_track = 3;
-    ses->start_fad = SWAP_24(disc_get_track(gd->disc, 2)->fad);
+  } else {
+    /* when session is non-0, the "fad" field contains contains the starting fad
+       of the specified session, while the "track" field contains the first
+       track of the session */
+    if (session == 1) {
+      struct track *trk = disc_get_track(gd->disc, 0);
+      ses->track = 1;
+      ses->fad = bswap24(trk->fad);
+    } else if (session == 2) {
+      struct track *trk = disc_get_track(gd->disc, 2);
+      ses->track = 3;
+      ses->fad = bswap24(trk->fad);
+    }
   }
 }
 
@@ -472,7 +479,7 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
   const struct track *end_track = disc_get_track(gd->disc, last_track_num);
   int leadout_fad = area_type == AREA_SINGLE ? 0x4650 : 0x861b4;
 
-  /* data is returned in big endian format */
+  /* note, mutli-byte values need to be swapped to big-endian */
   memset(toc, 0, sizeof(*toc));
   for (int i = first_track_num; i <= last_track_num; i++) {
     union gd_tocentry *entry = &toc->entries[i];
@@ -483,13 +490,13 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
   }
   toc->start.ctrl = start_track->ctrl;
   toc->start.adr = start_track->adr;
-  toc->start.fad = SWAP_24(end_track->fad);
+  toc->start.fad = bswap24(end_track->fad);
   toc->end.ctrl = end_track->ctrl;
   toc->end.adr = end_track->adr;
-  toc->end.fad = SWAP_24(end_track->fad);
+  toc->end.fad = bswap24(end_track->fad);
   toc->leadout.ctrl = 0;
   toc->leadout.adr = 0;
-  toc->leadout.fad = SWAP_24(leadout_fad);
+  toc->leadout.fad = bswap24(leadout_fad);
 }
 
 int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
