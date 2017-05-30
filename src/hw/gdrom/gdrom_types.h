@@ -29,7 +29,7 @@ enum gd_ata_cmd {
   ATA_NOP = 0x00,
   ATA_SOFT_RESET = 0x08,
   ATA_EXEC_DIAG = 0x90,
-  ATA_PACKET = 0xa0,
+  ATA_PACKET_CMD = 0xa0,
   ATA_IDENTIFY_DEV = 0xa1,
   ATA_SET_FEATURES = 0xef,
 };
@@ -107,11 +107,23 @@ struct gd_session {
   uint32_t start_fad : 24;
 };
 
+union gd_error {
+  uint32_t full;
+  struct {
+    uint32_t ILI : 1;
+    uint32_t EOMF : 1;
+    uint32_t ABRT : 1;
+    uint32_t MCR : 1;
+    uint32_t sense_key : 4;
+    uint32_t : 24;
+  };
+};
+
 union gd_features {
   uint32_t full;
   struct {
     uint32_t dma : 1;
-    uint32_t reserved : 31;
+    uint32_t : 31;
   };
 };
 
