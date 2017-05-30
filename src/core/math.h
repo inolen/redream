@@ -17,6 +17,7 @@
 static inline int popcnt32(uint32_t v) {
   return __builtin_popcount(v);
 }
+
 static inline int clz32(uint32_t v) {
   return __builtin_clz(v);
 }
@@ -30,6 +31,9 @@ static inline int ctz64(uint64_t v) {
   return __builtin_ctzll(v);
 }
 
+static inline uint16_t bswap16(uint16_t v) {
+  return __builtin_bswap16(v);
+}
 static inline uint32_t bswap32(uint32_t v) {
   return __builtin_bswap32(v);
 }
@@ -41,6 +45,7 @@ static inline uint32_t bswap32(uint32_t v) {
 static inline int popcnt32(uint32_t v) {
   return __popcnt(v);
 }
+
 static inline int clz32(uint32_t v) {
   unsigned long r = 0;
   _BitScanReverse(&r, v);
@@ -62,6 +67,9 @@ static inline int ctz64(uint64_t v) {
   return r;
 }
 
+static inline uint16_t bswap16(uint16_t v) {
+  return _byteswap_ushort(v);
+}
 static inline uint32_t bswap32(uint32_t v) {
   return _byteswap_ulong(v);
 }

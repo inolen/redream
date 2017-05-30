@@ -49,8 +49,8 @@ enum gd_spi_cmd {
   SPI_CD_READ = 0x30,   /* Read CD */
   SPI_CD_READ2 = 0x31,  /* CD read (pre-read position) */
   SPI_GET_SCD = 0x40,   /* Get subcode */
-  SPI_UNKNOWN_70 = 0x70,
-  SPI_UNKNOWN_71 = 0x71,
+  SPI_CHK_SECU = 0x70,  /* Perform disk security check */
+  SPI_REQ_SECU = 0x71,  /* Get security check result */
 };
 
 enum gd_area {
@@ -102,9 +102,9 @@ struct gd_toc {
 
 struct gd_session {
   uint8_t status : 8;
-  uint8_t reserved : 8;
-  uint8_t first_track : 8;
-  uint32_t start_fad : 24;
+  uint8_t : 8;
+  uint8_t track : 8;
+  uint32_t fad : 24;
 };
 
 union gd_error {
@@ -133,7 +133,7 @@ union gd_intreason {
     uint32_t CoD : 1; /* "0" indicates data and "1" indicates a command. */
     uint32_t IO : 1;  /* "1" indicates transfer from device to host, and "0"
                          from host to device. */
-    uint32_t reserved : 30;
+    uint32_t : 30;
   };
 };
 
@@ -142,7 +142,7 @@ union gd_sectnum {
   struct {
     uint32_t status : 4;
     uint32_t format : 4;
-    uint32_t reserved : 24;
+    uint32_t : 24;
   };
 };
 
@@ -163,7 +163,7 @@ union gd_status {
                            ATA command. */
     uint32_t BSY : 1;   /* BSY is always set to "1" when the drive accesses the
                            command block. */
-    uint32_t reserved : 24;
+    uint32_t : 24;
   };
 };
 
@@ -172,7 +172,7 @@ union gd_bytect {
   struct {
     uint32_t lo : 8;
     uint32_t hi : 8;
-    uint32_t reserved : 16;
+    uint32_t : 16;
   };
 };
 
