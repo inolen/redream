@@ -59,9 +59,6 @@ static void store_sr(struct sh4_guest *guest, struct ir *ir,
   ir_store_context(ir, offsetof(struct sh4_context, sr_s), sr_s);
 
   ir_call_2(ir, sr_updated, data, old_sr);
-
-  /* force a context flush in case the SR change swaps the GPR banks */
-  ir_flush_context(ir);
 }
 
 static struct ir_value *load_fpscr(struct ir *ir) {

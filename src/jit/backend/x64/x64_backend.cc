@@ -1674,8 +1674,6 @@ EMITTER(CALL_COND) {
   e.outLocalLabel();
 }
 
-EMITTER(FLUSH_CONTEXT) {}
-
 EMITTER(DEBUG_BREAK) {
   e.db(0xcc);
 }
