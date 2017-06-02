@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "hw/rom/boot.h"
+#include "hw/rom/bios.h"
 #include "core/md5.h"
 #include "core/option.h"
 #include "hw/dreamcast.h"
@@ -8,17 +8,17 @@ DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to boot rom");
 
 #define BIOS_SIZE 0x00200000
 
-struct boot {
+struct bios {
   struct device;
   uint8_t rom[BIOS_SIZE];
 };
 
-static uint32_t boot_rom_read(struct boot *boot, uint32_t addr,
+static uint32_t bios_rom_read(struct bios *bios, uint32_t addr,
                               uint32_t data_mask) {
-  return READ_DATA(&boot->rom[addr]);
+  return READ_DATA(&bios->rom[addr]);
 }
 
-static int boot_validate(struct boot *boot) {
+static int bios_validate(struct bios *bios) {
   static const char *valid_bios_md5[] = {
       "a5c6a00818f97c5e3e91569ee22416dc", /* chinese bios */
       "37c921eb47532cae8fb70e5d987ce91c", /* japanese bios */
@@ -29,7 +29,7 @@ static int boot_validate(struct boot *boot) {
   /* compare the rom's md5 against known good bios roms */
   MD5_CTX md5_ctx;
   MD5_Init(&md5_ctx);
-  MD5_Update(&md5_ctx, boot->rom, BIOS_SIZE);
+  MD5_Update(&md5_ctx, bios->rom, BIOS_SIZE);
   char result[33];
   MD5_Final(result, &md5_ctx);
 
@@ -42,7 +42,7 @@ static int boot_validate(struct boot *boot) {
   return 0;
 }
 
-static int boot_load_rom(struct boot *boot, const char *path) {
+static int bios_load_rom(struct bios *bios, const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
     return 0;
@@ -58,11 +58,11 @@ static int boot_load_rom(struct boot *boot, const char *path) {
     return 0;
   }
 
-  int n = (int)fread(boot->rom, sizeof(uint8_t), size, fp);
+  int n = (int)fread(bios->rom, sizeof(uint8_t), size, fp);
   CHECK_EQ(n, size);
   fclose(fp);
 
-  if (!boot_validate(boot)) {
+  if (!bios_validate(bios)) {
     LOG_WARNING("Invalid BIOS file");
     return 0;
   }
@@ -70,14 +70,14 @@ static int boot_load_rom(struct boot *boot, const char *path) {
   return 1;
 }
 
-void boot_destroy(struct boot *boot) {
-  dc_destroy_device((struct device *)boot);
+void bios_destroy(struct bios *bios) {
+  dc_destroy_device((struct device *)bios);
 }
 
-static int boot_init(struct device *dev) {
-  struct boot *boot = (struct boot *)dev;
+static int bios_init(struct device *dev) {
+  struct bios *bios = (struct bios *)dev;
 
-  if (!boot_load_rom(boot, OPTION_bios)) {
+  if (!bios_load_rom(bios, OPTION_bios)) {
     LOG_WARNING("Failed to load boot rom");
     return 0;
   }
@@ -85,16 +85,17 @@ static int boot_init(struct device *dev) {
   return 1;
 }
 
-struct boot *boot_create(struct dreamcast *dc) {
-  struct boot *boot =
-      dc_create_device(dc, sizeof(struct boot), "boot", &boot_init, NULL);
-  return boot;
+struct bios *bios_create(struct dreamcast *dc) {
+  struct bios *bios =
+      dc_create_device(dc, sizeof(struct bios), "bios", &bios_init, NULL);
+  return bios;
+  ;
 }
 
 /* clang-format off */
-AM_BEGIN(struct boot, boot_rom_map);
+AM_BEGIN(struct bios, boot_rom_map);
   AM_RANGE(0x00000000, 0x001fffff) AM_HANDLE("boot rom",
-                                             (mmio_read_cb)&boot_rom_read,
+                                             (mmio_read_cb)&bios_rom_read,
                                              NULL,
                                              NULL, NULL)
 AM_END();
