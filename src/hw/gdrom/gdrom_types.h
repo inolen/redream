@@ -1,8 +1,6 @@
 #ifndef GDROM_TYPES_H
 #define GDROM_TYPES_H
 
-#define GD_MAX_SUBCODE_SIZE 100
-
 enum gd_drive_status {
   DST_BUSY = 0x00,    /* State transition */
   DST_PAUSE = 0x01,   /* Pause */
@@ -53,6 +51,14 @@ enum gd_spi_cmd {
   SPI_REQ_SECU = 0x71,  /* Get security check result */
 };
 
+enum {
+  SPI_CMD_SIZE = 12,
+  SPI_TOC_SIZE = 408,
+  SPI_SES_SIZE = 6,
+  SPI_STAT_SIZE = 10,
+  SPI_SCD_SIZE = 100,
+};
+
 enum gd_area {
   AREA_SINGLE,
   AREA_DOUBLE,
@@ -84,29 +90,7 @@ enum gd_secfmt {
   SECTOR_M2_NOXA,
 };
 
-union gd_tocentry {
-  uint32_t full;
-  struct {
-    uint32_t adr : 4;
-    uint32_t ctrl : 4;
-    uint32_t fad : 24;
-  };
-};
-
-struct gd_toc {
-  union gd_tocentry entries[99];
-  union gd_tocentry start;
-  union gd_tocentry end;
-  union gd_tocentry leadout;
-};
-
-struct gd_session {
-  uint8_t status : 8;
-  uint8_t : 8;
-  uint8_t track : 8;
-  uint32_t fad : 24;
-};
-
+/* internal registers accessed through holly */
 union gd_error {
   uint32_t full;
   struct {
@@ -176,6 +160,7 @@ union gd_bytect {
   };
 };
 
+/* hardware information modified through REQ_MODE / SET_MODE */
 struct gd_hw_info {
   uint8_t padding0[2];
   uint8_t speed;
