@@ -15,8 +15,6 @@
 #define bswap24(fad) \
   (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
 
-#define SPI_CMD_SIZE 12
-
 /* internal gdrom state machine */
 enum gd_event {
   EVENT_ATA_CMD,
@@ -32,6 +30,7 @@ enum gd_state {
   STATE_READ_ATA_DATA,
   STATE_READ_SPI_DATA,
   STATE_WRITE_SPI_DATA,
+  STATE_WRITE_DMA_DATA,
   MAX_STATES,
 };
 
@@ -49,6 +48,7 @@ gd_event_cb gd_transitions[MAX_STATES][MAX_EVENTS] = {
   { &gdrom_ata_cmd, NULL,             NULL,           NULL,            NULL,            },
   { NULL,           &gdrom_pio_write, &gdrom_spi_cmd, NULL,            NULL,            },
   { NULL,           &gdrom_pio_write, NULL,           NULL,            &gdrom_spi_data, },
+  { NULL,           NULL,             NULL,           &gdrom_pio_read, NULL,            },
   { NULL,           NULL,             NULL,           &gdrom_pio_read, NULL,            },
 };
 /* clang-format on */
@@ -131,6 +131,7 @@ static void gdrom_spi_cdread(struct gdrom *gd) {
     gd->cdr_num_sectors -= num_sectors;
 
     /* gdrom state won't be updated until DMA transfer is completed */
+    gd->state = STATE_WRITE_DMA_DATA;
   } else {
     int max_pio_sectors = sizeof(gd->pio_buffer) / SECTOR_SIZE;
 
@@ -153,6 +154,8 @@ static void gdrom_spi_cdread(struct gdrom *gd) {
     gd->status.BSY = 0;
 
     holly_raise_interrupt(gd->holly, HOLLY_INTC_G1GDINT);
+
+    gd->state = STATE_WRITE_SPI_DATA;
   }
 }
 
@@ -196,6 +199,7 @@ static void gdrom_spi_write(struct gdrom *gd, void *data, int size) {
 static void gdrom_ata_end(struct gdrom *gd) {
   gd->status.DRDY = 1;
   gd->status.BSY = 0;
+
   holly_raise_interrupt(gd->holly, HOLLY_INTC_G1GDINT);
 
   gd->state = STATE_READ_ATA_CMD;
@@ -238,17 +242,8 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       int offset = data[2];
       int size = data[4];
 
-      uint8_t stat[10];
-      stat[0] = gd->sectnum.status;
-      stat[1] = gd->sectnum.format << 4;
-      stat[2] = 0x4;
-      stat[3] = 2;
-      stat[4] = 0;
-      stat[5] = 0;
-      stat[6] = 0;
-      stat[7] = 0;
-      stat[8] = 0;
-      stat[9] = 0;
+      uint8_t stat[SPI_STAT_SIZE];
+      gdrom_get_status(gd, stat, (int)sizeof(stat));
 
       gdrom_spi_write(gd, stat + offset, size);
     } break;
@@ -267,27 +262,27 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       enum gd_area area_type = (enum gd_area)(data[1] & 0x1);
       int size = (data[3] << 8) | data[4];
 
-      struct gd_toc toc;
-      gdrom_get_toc(gd, area_type, &toc);
+      uint8_t toc[SPI_TOC_SIZE];
+      gdrom_get_toc(gd, area_type, toc, (int)sizeof(toc));
 
-      gdrom_spi_write(gd, &toc, size);
+      gdrom_spi_write(gd, toc, size);
     } break;
 
     case SPI_REQ_SES: {
       int session = data[2];
       int size = data[4];
 
-      struct gd_session ses;
-      gdrom_get_session(gd, session, &ses);
+      uint8_t ses[SPI_SES_SIZE];
+      gdrom_get_session(gd, session, ses, (int)sizeof(ses));
 
-      gdrom_spi_write(gd, &ses, sizeof(ses));
+      gdrom_spi_write(gd, ses, (int)sizeof(ses));
     } break;
 
     case SPI_GET_SCD: {
       int format = data[1] & 0xf;
       int size = (data[3] << 8) | data[4];
 
-      uint8_t scd[GD_MAX_SUBCODE_SIZE];
+      uint8_t scd[SPI_SCD_SIZE];
       gdrom_get_subcode(gd, format, scd);
 
       gdrom_spi_write(gd, scd, size);
@@ -338,6 +333,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
        and a valid, canned response is sent when the results are requested */
     case SPI_CHK_SECU: {
       gd->sectnum.status = DST_PAUSE;
+
       gdrom_spi_end(gd);
     } break;
 
@@ -346,7 +342,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
     } break;
 
     default:
-      LOG_FATAL("Unsupported SPI command %d", cmd);
+      LOG_FATAL("unsupported SPI command %d", cmd);
       break;
   }
 }
@@ -379,7 +375,7 @@ static void gdrom_ata_cmd(struct gdrom *gd, int arg) {
     } break;
 
     /*case ATA_EXEC_DIAG: {
-      LOG_FATAL("Unhandled");
+      LOG_FATAL("unhandled");
     } break;*/
 
     case ATA_PACKET_CMD: {
@@ -387,7 +383,7 @@ static void gdrom_ata_cmd(struct gdrom *gd, int arg) {
     } break;
 
     /*case ATA_IDENTIFY_DEV: {
-      LOG_FATAL("Unhandled");
+      LOG_FATAL("unhandled");
     } break;*/
 
     case ATA_SET_FEATURES: {
@@ -395,7 +391,7 @@ static void gdrom_ata_cmd(struct gdrom *gd, int arg) {
     } break;
 
     default:
-      LOG_FATAL("Unsupported ATA command %d", cmd);
+      LOG_FATAL("unsupported ATA command %d", cmd);
       break;
   }
 
@@ -419,86 +415,6 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, int arg) {
   cb(gd, arg);
 }
 
-void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
-  CHECK(gd->disc);
-
-  /* FIXME implement */
-  memset(data, 0, GD_MAX_SUBCODE_SIZE);
-  data[1] = AST_NOSTATUS;
-
-  LOG_GDROM("gdrom_get_subcode not fully implemented");
-}
-
-void gdrom_get_session(struct gdrom *gd, int session, struct gd_session *ses) {
-  CHECK(gd->disc);
-
-  /* note, mutli-byte values need to be swapped to big-endian */
-  if (session == 0) {
-    /* when session is 0, the "fad" field contains the lead-out fad, while the
-       "track" field contains the total number of sessions */
-    if (1 /* is gd-rom */) {
-      ses->track = 2;
-      ses->fad = bswap24(0x861b4);
-    }
-  } else {
-    /* when session is non-0, the "fad" field contains contains the starting fad
-       of the specified session, while the "track" field contains the first
-       track of the session */
-    if (session == 1) {
-      struct track *trk = disc_get_track(gd->disc, 0);
-      ses->track = 1;
-      ses->fad = bswap24(trk->fad);
-    } else if (session == 2) {
-      struct track *trk = disc_get_track(gd->disc, 2);
-      ses->track = 3;
-      ses->fad = bswap24(trk->fad);
-    }
-  }
-}
-
-void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type,
-                   struct gd_toc *toc) {
-  CHECK(gd->disc);
-
-  /* for GD-ROMs, the single density area contains tracks 1 and 2, while the
-     dual density area contains tracks 3 - num_tracks */
-  int first_track_num = 0;
-  int last_track_num = disc_get_num_tracks(gd->disc) - 1;
-
-  /* TODO conditionally check disc to make sure it's a GD-ROM once
-     CD-ROMs are supported */
-  if (1 /* is gd-rom */) {
-    if (area_type == AREA_SINGLE) {
-      last_track_num = 1;
-    } else {
-      first_track_num = 2;
-    }
-  }
-
-  const struct track *start_track = disc_get_track(gd->disc, first_track_num);
-  const struct track *end_track = disc_get_track(gd->disc, last_track_num);
-  int leadout_fad = area_type == AREA_SINGLE ? 0x4650 : 0x861b4;
-
-  /* note, mutli-byte values need to be swapped to big-endian */
-  memset(toc, 0, sizeof(*toc));
-  for (int i = first_track_num; i <= last_track_num; i++) {
-    union gd_tocentry *entry = &toc->entries[i];
-    const struct track *track = disc_get_track(gd->disc, i);
-    entry->ctrl = track->ctrl;
-    entry->adr = track->adr;
-    entry->fad = track->num;
-  }
-  toc->start.ctrl = start_track->ctrl;
-  toc->start.adr = start_track->adr;
-  toc->start.fad = bswap24(end_track->fad);
-  toc->end.ctrl = end_track->ctrl;
-  toc->end.adr = end_track->adr;
-  toc->end.fad = bswap24(end_track->fad);
-  toc->leadout.ctrl = 0;
-  toc->leadout.adr = 0;
-  toc->leadout.fad = bswap24(leadout_fad);
-}
-
 int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
                        enum gd_secmask mask, int num_sectors, uint8_t *dst,
                        int dst_size) {
@@ -520,11 +436,192 @@ int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
       total += 2048;
       fad++;
     } else {
-      LOG_FATAL("Unsupported sector format");
+      LOG_FATAL("unsupported sector format");
     }
   }
 
   return total;
+}
+
+void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
+  CHECK(gd->disc);
+
+  /* FIXME implement */
+  memset(data, 0, SPI_SCD_SIZE);
+  data[1] = AST_NOSTATUS;
+
+  LOG_GDROM("gdrom_get_subcode not fully implemented");
+}
+
+void gdrom_get_session(struct gdrom *gd, int session, uint8_t *data, int size) {
+  CHECK_GE(size, SPI_SES_SIZE);
+
+  CHECK(gd->disc);
+
+  /* session response layout:
+
+     bit  |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+     byte |     |     |     |     |     |     |     |
+     -----------------------------------------------------
+     0    |  0  |  0  |  0  |  0  |  status
+     -----------------------------------------------------
+     1    |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+     -----------------------------------------------------
+     2    |  number of sessions / starting track
+     -----------------------------------------------------
+     3    |  lead out fad (msb) / starting fad (msb)
+     -----------------------------------------------------
+     4    |  lead out fad / starting fad
+     -----------------------------------------------------
+     5    |  lead out fad (lsb) / starting fad (lsb) */
+
+  uint8_t status = gd->sectnum.status;
+  uint8_t track = 0;
+  uint32_t fad = 0;
+
+  if (session == 0) {
+    /* when session is 0, the "fad" field contains the lead-out fad, while the
+       "track" field contains the total number of sessions */
+    if (1 /* is gd-rom */) {
+      track = 2;
+      fad = 0x861b4;
+    }
+  } else {
+    /* when session is non-0, the "fad" field contains contains the starting fad
+       of the specified session, while the "track" field contains the first
+       track of the session */
+    if (session == 1) {
+      struct track *trk = disc_get_track(gd->disc, 0);
+      track = 1;
+      fad = trk->fad;
+    } else if (session == 2) {
+      struct track *trk = disc_get_track(gd->disc, 2);
+      track = 3;
+      fad = trk->fad;
+    }
+  }
+
+  /* fad is written out big-endian */
+  fad = bswap24(fad);
+
+  data[0] = status;
+  data[1] = 0;
+  memcpy(&data[2], &fad, 3);
+  data[5] = track;
+}
+
+void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
+                   int size) {
+  CHECK_GE(size, SPI_TOC_SIZE);
+  CHECK(gd->disc);
+
+  /* toc response layout:
+
+     bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+     byte  |     |     |     |     |     |     |     |
+     ------------------------------------------------------
+     n*4+0 | track n control       | track n adr
+     a-----------------------------------------------------
+     n*4*1 | track n fad (msb)
+     ------------------------------------------------------
+     n*4+2 | track n fad
+     ------------------------------------------------------
+     n*4+3 | track n fad (lsb)
+     ------------------------------------------------------
+     396   | start track control   | start track adr
+     ------------------------------------------------------
+     397   | start track number
+     ------------------------------------------------------
+     398   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+     ------------------------------------------------------
+     399   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+     ------------------------------------------------------
+     400   | end track control     | end track adr
+     ------------------------------------------------------
+     401   | end track number
+     ------------------------------------------------------
+     402   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+     ------------------------------------------------------
+     403   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+     ------------------------------------------------------
+     404   | lead-out track ctrl   | lead-out track adr
+     ------------------------------------------------------
+     405   | lead-out track fad (msb)
+     ------------------------------------------------------
+     406   | lead-out track fad
+     ------------------------------------------------------
+     407   | lead-out track fad (lsb) */
+
+  /* for GD-ROMs, the single density area contains tracks 1 and 2, while the
+     dual density area contains tracks 3 - num_tracks */
+  int start_track_num = 0;
+  int end_track_num = disc_get_num_tracks(gd->disc) - 1;
+
+  /* TODO conditionally check disc to make sure it's a GD-ROM once
+     CD-ROMs are supported */
+  if (1 /* is gd-rom */) {
+    if (area_type == AREA_SINGLE) {
+      end_track_num = 1;
+    } else {
+      start_track_num = 2;
+    }
+  }
+
+  uint32_t *entry = (uint32_t *)data;
+  const struct track *start = disc_get_track(gd->disc, start_track_num);
+  const struct track *end = disc_get_track(gd->disc, end_track_num);
+  int leadout_fad = area_type == AREA_SINGLE ? 0x4650 : 0x861b4;
+
+  /* write out entries for each track */
+  for (int i = start_track_num; i <= end_track_num; i++) {
+    const struct track *track = disc_get_track(gd->disc, i);
+    *(entry++) = (bswap24(track->fad) << 8) | (track->ctrl << 4) | track->adr;
+  }
+
+  /* write out start, end and lead-out track */
+  *(entry++) = (start_track_num << 8) | (start->ctrl << 4) | start->adr;
+  *(entry++) = (end_track_num << 8) | (end->ctrl << 4) | end->adr;
+  *(entry++) = (bswap24(leadout_fad) << 8);
+}
+
+void gdrom_get_status(struct gdrom *gd, uint8_t *data, int size) {
+  CHECK_GE(size, SPI_STAT_SIZE);
+
+  /* cd status information response layout:
+
+     bit  |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+     byte |     |     |     |     |     |     |     |
+     -----------------------------------------------------
+     0    |  0  |  0  |  0  |  0  |  status
+     -----------------------------------------------------
+     1    |  disc format          |  repeat count
+     -----------------------------------------------------
+     2    |  address              |  control
+     -----------------------------------------------------
+     3    |  subcode q track number
+     -----------------------------------------------------
+     4    |  subcode q index number
+     -----------------------------------------------------
+     5    |  fad (msb)
+     -----------------------------------------------------
+     6    |  fad
+     -----------------------------------------------------
+     7    |  fad (lsb)
+     -----------------------------------------------------
+     8    |  max read retry time
+     -----------------------------------------------------
+     9   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0 */
+
+  uint32_t fad = bswap24(0x0);
+
+  data[0] = gd->sectnum.status;
+  data[1] = (gd->sectnum.format << 4) | 0;
+  data[2] = 0x4;
+  data[3] = 2;
+  data[4] = 0;
+  memcpy(&data[5], &fad, 3);
+  data[8] = 0;
+  data[9] = 0;
 }
 
 static int gdrom_init(struct device *dev) {
@@ -548,16 +645,15 @@ static int gdrom_init(struct device *dev) {
   return 1;
 }
 
-void gdrom_dma_end(struct gdrom *gd) {
-  LOG_GDROM("gd_dma_end, %d / %d read from dma buffer", gd->dma_head,
-            gd->dma_size);
-
-  if (gd->dma_head >= gd->dma_size) {
-    /* CD_READ command is now done */
-    gdrom_spi_end(gd);
-    return;
-  }
+void gdrom_set_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
+  gd->hw_info = *info;
 }
+
+void gdrom_get_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
+  *info = gd->hw_info;
+}
+
+void gdrom_dma_end(struct gdrom *gd) {}
 
 int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int n) {
   /* try to read more if the current dma buffer has been completely read */
@@ -572,6 +668,11 @@ int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int n) {
   LOG_GDROM("gdrom_dma_read %d / %d bytes", gd->dma_head + n, gd->dma_size);
   memcpy(data, &gd->dma_buffer[gd->dma_head], n);
   gd->dma_head += n;
+
+  if (gd->dma_head >= gd->dma_size) {
+    /* CD_READ command is now done */
+    gdrom_spi_end(gd);
+  }
 
   return n;
 }
@@ -603,22 +704,6 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   gd->sectnum.format = DISC_GDROM;
 
   /* TODO how do GD_FEATURES, GD_INTREASON, GD_BYCTLLO and GD_BYCTLHI behave */
-}
-
-int gdrom_disk_format(struct gdrom *gd) {
-  return gd->sectnum.format;
-}
-
-int gdrom_drive_status(struct gdrom *gd) {
-  return gd->sectnum.status;
-}
-
-void gdrom_set_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
-  gd->hw_info = *info;
-}
-
-void gdrom_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
-  *info = gd->hw_info;
 }
 
 void gdrom_destroy(struct gdrom *gd) {
