@@ -503,8 +503,9 @@ static void emu_paint(struct emu *emu) {
       snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
                frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
 
-      int remaining_width = fwidth - ctx->current->layout->row.item_offset -
-                            ctx->style.window.spacing.x;
+      int remaining_width = ctx->current->layout->bounds.w -
+                            ctx->current->layout->row.item_offset -
+                            ctx->style.window.spacing.x * 4.0f;
       nk_layout_row_push(ctx, remaining_width);
       nk_label(ctx, status, NK_TEXT_RIGHT);
 
