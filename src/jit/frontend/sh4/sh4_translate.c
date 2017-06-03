@@ -110,11 +110,11 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define LOAD_CTX_F32(m)             ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_F32)
 #define LOAD_CTX_F64(m)             ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_F64)
 #define LOAD_CTX_V128(m)            ir_load_context(ir, offsetof(struct sh4_context, m), VALUE_V128)
-#define STORE_CTX_I32(m, v)         { CHECK_EQ(v->type, VALUE_I32); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
-#define STORE_CTX_I64(m, v)         { CHECK_EQ(v->type, VALUE_I64); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
-#define STORE_CTX_F32(m, v)         { CHECK_EQ(v->type, VALUE_F32); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
-#define STORE_CTX_F64(m, v)         { CHECK_EQ(v->type, VALUE_F64); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
-#define STORE_CTX_V128(m, v)        { CHECK_EQ(v->type, VALUE_V128); ir_store_context(ir, offsetof(struct sh4_context, m), v); }
+#define STORE_CTX_I32(m, v)         ir_store_context(ir, offsetof(struct sh4_context, m), v);
+#define STORE_CTX_I64(m, v)         ir_store_context(ir, offsetof(struct sh4_context, m), v);
+#define STORE_CTX_F32(m, v)         ir_store_context(ir, offsetof(struct sh4_context, m), v);
+#define STORE_CTX_F64(m, v)         ir_store_context(ir, offsetof(struct sh4_context, m), v);
+#define STORE_CTX_V128(m, v)        ir_store_context(ir, offsetof(struct sh4_context, m), v);
 #define STORE_CTX_IMM_I32(m, v)     STORE_CTX_I32(m, ir_alloc_i32(ir, v))
 
 #define LOAD_GPR_I8(n)              LOAD_CTX_I8(r[n])

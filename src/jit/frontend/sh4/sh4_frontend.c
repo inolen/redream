@@ -31,7 +31,6 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
   while (1) {
     uint32_t data = guest->r16(guest->space, addr);
     struct jit_opdef *def = sh4_get_opdef(data);
-    int invalid = (def->flags & SH4_FLAG_INVALID) == SH4_FLAG_INVALID;
 
     addr += 2;
     block->guest_size += 2;
@@ -41,7 +40,6 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_data = guest->r16(guest->space, addr);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
-      invalid |= (delay_def->flags & SH4_FLAG_INVALID) == SH4_FLAG_INVALID;
 
       addr += 2;
       block->guest_size += 2;
@@ -52,16 +50,11 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
       CHECK(!(delay_def->flags & SH4_FLAG_DELAYED));
     }
 
-    /* end block on invalid instruction */
-    if (invalid) {
-      break;
-    }
-
     /* stop emitting once a branch has been hit. in addition, if fpscr has
        changed, stop emitting since the fpu state is invalidated. also, if
        sr has changed, stop emitting as there are interrupts that possibly
        need to be handled */
-    if (def->flags & (SH4_FLAG_BRANCH | SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
+    if (def->flags & (SH4_FLAG_SET_PC | SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
       break;
     }
   }
@@ -128,6 +121,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   /* translate the actual block */
   uint32_t addr = block->guest_addr;
   uint32_t end = block->guest_addr + block->guest_size;
+  int end_flags = 0;
 
   while (addr < end) {
     uint16_t data = guest->r16(guest->space, addr);
@@ -142,26 +136,29 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     } else {
       addr += 2;
     }
+
+    end_flags = def->flags;
   }
 
-  /* if the block terminates in something other than an unconditional branch,
-     fallthrough to the next pc */
-  struct ir_block *tail_block =
-      list_last_entry(&ir->blocks, struct ir_block, it);
-  struct ir_instr *tail_instr =
-      list_last_entry(&tail_block->instrs, struct ir_instr, it);
+  /* there are 3 possible block endings:
 
-  int ends_in_branch = tail_instr->op == OP_BRANCH;
+     a.) the block terminates due to an unconditional branch; nothing needs to
+         be done
 
-  if (tail_instr->op == OP_FALLBACK) {
-    struct jit_opdef *def = sh4_get_opdef(tail_instr->arg[2]->i32);
+     b.) the block terminates due to an instruction which doesn't set the pc; an
+         unconditional branch to the next address needs to be added
 
-    if (def->flags & SH4_FLAG_BRANCH) {
-      ends_in_branch = 1;
-    }
-  }
+     c.) the block terminates due to an instruction which sets the pc but is not
+         a branch (e.g. an invalid instruction trap); nothing needs to be done,
+         the backend will always implicitly branch to the next pc */
 
-  if (!ends_in_branch) {
+  /* if the final instruction doesn't unconditionally set the pc, insert a
+     branch to the next instruction */
+  if ((end_flags & (SH4_FLAG_SET_PC | SH4_FLAG_COND)) != SH4_FLAG_SET_PC) {
+    struct ir_block *tail_block =
+        list_last_entry(&ir->blocks, struct ir_block, it);
+    struct ir_instr *tail_instr =
+        list_last_entry(&tail_block->instrs, struct ir_instr, it);
     ir_set_current_instr(ir, tail_instr);
     ir_branch(ir, ir_alloc_i32(ir, addr));
   }

@@ -365,7 +365,12 @@ static int x64_backend_can_encode_imm(const struct ir_value *v) {
 }
 
 static void x64_backend_emit_epilogue(struct x64_backend *backend,
-                                      struct jit_block *block) {}
+                                      struct jit_block *block) {
+  auto &e = *backend->codegen;
+
+  /* catch blocks that haven't been terminated */
+  e.db(0xcc);
+}
 
 static void x64_backend_emit_prologue(struct x64_backend *backend,
                                       struct jit_block *block) {
@@ -406,6 +411,8 @@ static void *x64_backend_emit(struct x64_backend *backend,
 
     e.L(block_label);
 
+    int terminated = 0;
+
     list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
       x64_emit_cb emit = x64_backend_emitters[instr->op];
       CHECK_NOTNULL(emit);
@@ -414,6 +421,15 @@ static void *x64_backend_emit(struct x64_backend *backend,
       backend->num_temps = 0;
 
       emit(backend, *backend->codegen, instr);
+
+      terminated = (instr->op == OP_BRANCH);
+    }
+
+    /* if the block doesn't terminate in an unconditional branch, dispatch to
+       the next pc, which has ideally been set by a non-branch operation such
+       as a fallback handler */
+    if (!terminated) {
+      e.jmp(backend->dispatch_dynamic);
     }
   }
 
