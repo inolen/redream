@@ -87,11 +87,6 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
 
     addr += 4;
   }
-
-  /* branch to the current pc */
-  struct ir_value *pc =
-      ir_load_context(ir, offsetof(struct armv3_context, r[15]), VALUE_I32);
-  ir_branch(ir, pc);
 }
 
 void armv3_frontend_destroy(struct jit_frontend *base) {
