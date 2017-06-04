@@ -93,7 +93,17 @@ struct sh4_context {
      used (FIPR and FTRV) this doesn't actually affect the results */
   uint32_t fr[16], xf[16];
 
-  uint32_t pc, pr, sr, sr_t, sr_s, sr_qm, fpscr;
+  /* sr_t and sr_s are the S and T bits from the status register, they are
+     kept in their own unique context slots to avoid excessive shifting and
+     masking to load / store them
+
+     sr_m and sr_qm are a similar story. sr_m stores the M bit from the status
+     register, while sr_qm stores a value that repsresents if Q == M, which is
+     all that's needed to emulate div1. these two values can be used to derive
+     the real QM bits when building the status register in sh4_implode_sr */
+  uint32_t pc, pr, sr, sr_t, sr_s, sr_m, sr_qm;
+
+  uint32_t fpscr;
   uint32_t dbr, gbr, vbr;
   uint32_t fpul, mach, macl;
   uint32_t sgr, spc, ssr;
@@ -110,13 +120,20 @@ struct sh4_context {
 };
 
 static inline void sh4_implode_sr(struct sh4_context *ctx) {
-  ctx->sr &= ~(S_MASK | T_MASK);
-  ctx->sr |= (ctx->sr_s << S_BIT) | (ctx->sr_t << T_BIT);
+  uint32_t sr_q = (ctx->sr_qm >> 31) == ctx->sr_m;
+
+  ctx->sr &= ~(M_MASK | Q_MASK | S_MASK | T_MASK);
+  ctx->sr |= (ctx->sr_m << M_BIT) | (sr_q << Q_BIT) | (ctx->sr_s << S_BIT) |
+             (ctx->sr_t << T_BIT);
 }
 
 static inline void sh4_explode_sr(struct sh4_context *ctx) {
   ctx->sr_t = (ctx->sr & T_MASK) >> T_BIT;
   ctx->sr_s = (ctx->sr & S_MASK) >> S_BIT;
+  ctx->sr_m = (ctx->sr & M_MASK) >> M_BIT;
+
+  uint32_t sr_q = (ctx->sr & Q_MASK) >> Q_BIT;
+  ctx->sr_qm = (sr_q == ctx->sr_m) << 31;
 }
 
 #endif

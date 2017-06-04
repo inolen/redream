@@ -162,6 +162,10 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define STORE_S_I32(v)              STORE_CTX_I32(sr_s, v)
 #define STORE_S_IMM_I32(v)          STORE_CTX_IMM_I32(sr_s, v)
 
+#define LOAD_M_I32()                LOAD_CTX_I32(sr_m)
+#define STORE_M_I32(v)              STORE_CTX_I32(sr_m, v)
+#define STORE_M_IMM_I32(v)          STORE_CTX_IMM_I32(sr_m, v)
+
 #define LOAD_QM_I32()               LOAD_CTX_I32(sr_qm)
 #define STORE_QM_I32(v)             STORE_CTX_I32(sr_qm, v)
 #define STORE_QM_IMM_I32(v)         STORE_CTX_IMM_I32(sr_qm, v)

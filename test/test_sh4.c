@@ -138,7 +138,7 @@ TEST(sh4_x64) {
     {0},                                                                                         \
     {fr1, fr0, fr3,  fr2,  fr5,  fr4,  fr7,  fr6, fr9, fr8, fr11, fr10, fr13, fr12, fr15, fr14}, \
     {xf1, xf0, xf3,  xf2,  xf5,  xf4,  xf7,  xf6, xf9, xf8, xf11, xf10, xf13, xf12, xf15, xf14}, \
-    0, 0, 0, 0, 0, 0, fpscr,                                                                     \
+    0, 0, 0, 0, 0, 0, 0, fpscr,                                                                  \
     0, 0, 0,                                                                                     \
     0, 0, 0,                                                                                     \
     0, 0, 0,                                                                                     \
