@@ -20,7 +20,7 @@ static void interp_backend_run_code(struct jit_backend *base, int cycles) {
   *ran_instrs = 0;
 
   while (*run_cycles > 0) {
-    static int RUN_SLICE = 64;
+    int RUN_SLICE = MIN(*run_cycles, 64);
     int cycles = 0;
     int instrs = 0;
 
