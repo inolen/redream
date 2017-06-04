@@ -523,19 +523,25 @@ INSTR(CMPSTR) {
 INSTR(DIV0S) {
   I32 rm = LOAD_GPR_I32(i.def.rm);
   I32 rn = LOAD_GPR_I32(i.def.rn);
-  I32 qm = XOR_I32(rn, rm);
+  I32 qnotm = XOR_I32(rn, rm);
+
+  /* save off M */
+  I32 m = LSHR_IMM_I32(rm, 31);
+  STORE_M_I32(m);
 
   /* update Q == M flag */
-  STORE_QM_I32(NOT_I32(qm));
+  I32 qm = NOT_I32(qnotm);
+  STORE_QM_I32(qm);
 
   /* msb of Q ^ M -> T */
-  I32 r = LSHR_IMM_I32(qm, 31);
+  I32 r = LSHR_IMM_I32(qnotm, 31);
   STORE_T_I32(r);
   NEXT_INSTR();
 }
 
 /* DIV0U */
 INSTR(DIV0U) {
+  STORE_M_IMM_I32(0);
   STORE_QM_IMM_I32((int32_t)0x80000000);
   STORE_T_IMM_I32(0);
   NEXT_INSTR();

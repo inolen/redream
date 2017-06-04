@@ -114,6 +114,10 @@ typedef int32_t int128_t[4];
 #define STORE_S_I32(v)              (CTX->sr_s = v)
 #define STORE_S_IMM_I32(v)          STORE_S_I32(v)
 
+#define LOAD_M_I32()                (CTX->sr_m)
+#define STORE_M_I32(v)              (CTX->sr_m = v)
+#define STORE_M_IMM_I32(v)          STORE_M_I32(v)
+
 #define LOAD_QM_I32()               (CTX->sr_qm)
 #define STORE_QM_I32(v)             (CTX->sr_qm = v)
 #define STORE_QM_IMM_I32(v)         STORE_QM_I32(v)
