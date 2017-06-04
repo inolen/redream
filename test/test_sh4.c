@@ -77,12 +77,9 @@ int sh4_num_test_regs = (int)(sizeof(sh4_test_regs) / sizeof(sh4_test_regs[0]));
 static void run_sh4_test(struct dreamcast *dc, const struct sh4_test *test) {
   LOG_INFO("running %s..", test->name);
 
-  /* load binary. note, as_memcpy_to_guest only support 4 byte aligned sizes */
-  int aligned_size = align_up(test->buffer_size, 4);
-  uint8_t *aligned_buffer = alloca(aligned_size);
-  memcpy(aligned_buffer, test->buffer, test->buffer_size);
-  as_memcpy_to_guest(dc->sh4->memory_if->space, 0x8c010000, aligned_buffer,
-                     aligned_size);
+  /* load binary */
+  as_memcpy_to_guest(dc->sh4->memory_if->space, 0x8c010000, test->buffer,
+                     test->buffer_size);
 
   /* skip to the test's offset */
   sh4_reset(dc->sh4, 0x8c010000 + test->buffer_offset);
