@@ -1,7 +1,6 @@
 #ifndef MAPLE_H
 #define MAPLE_H
 
-#include "hw/dreamcast.h"
 #include "hw/maple/maple_types.h"
 
 struct dreamcast;
