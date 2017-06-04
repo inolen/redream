@@ -1,4 +1,4 @@
-#include "core/log.h"
+#include "core/assert.h"
 #include "core/string.h"
 #include "hw/maple/maple.h"
 #include "hw/maple/vmu_default.inc"
