@@ -359,7 +359,7 @@ static int jit_handle_exception(void *data, struct exception *ex) {
   return 1;
 }
 
-void jit_run(struct jit *jit, int32_t cycles) {
+void jit_run(struct jit *jit, int cycles) {
   jit->backend->run_code(jit->backend, cycles);
 }
 

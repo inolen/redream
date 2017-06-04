@@ -18,6 +18,9 @@ struct holly {
 #define HOLLY_REG(offset, name, default, type) type *name;
 #include "hw/holly/holly_regs.inc"
 #undef HOLLY_REG
+
+  /* debug */
+  int log_reg_access;
 };
 
 AM_DECLARE(holly_reg_map);
