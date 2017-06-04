@@ -214,30 +214,31 @@ static int reserve_address_space(uint8_t **base) {
     return 1;
   }
 
-  LOG_WARNING("Failed to reserve address space");
+  LOG_WARNING("failed to reserve address space");
 
   return 0;
 }
 
 static uint32_t default_mmio_read(void *userdata, uint32_t addr,
                                   uint32_t data_mask) {
-  LOG_WARNING("Unexpected read from 0x%08x", addr);
+  LOG_WARNING("unexpected read from 0x%08x", addr);
   return 0;
 }
 
 static void default_mmio_write(void *userdata, uint32_t addr, uint32_t data,
                                uint32_t data_mask) {
-  LOG_WARNING("Unexpected write to 0x%08x", addr);
+  LOG_WARNING("unexpected write to 0x%08x", addr);
 }
 
 static void default_mmio_read_string(void *userdata, void *ptr, uint32_t src,
                                      int size) {
-  LOG_WARNING("Unexpected string read from 0x%08x", src);
+  LOG_WARNING("unexpected string read from 0x%08x", src);
 }
 
 static void default_mmio_write_string(void *userdata, uint32_t dst,
                                       const void *ptr, int size) {
-  LOG_WARNING("Unexpected string write to 0x%08x", dst);
+  LOG_WARNING("unexpected string write to 0x%08x", dst);
+  exit(1);
 }
 
 struct memory_region *memory_get_region(struct memory *memory,
@@ -320,7 +321,7 @@ static int memory_create_shmem(struct memory *memory) {
       create_shared_memory("/redream", ADDRESS_SPACE_SIZE, ACC_READWRITE);
 
   if (memory->shmem == SHMEM_INVALID) {
-    LOG_WARNING("Failed to create shared memory object");
+    LOG_WARNING("failed to create shared memory object");
     return 0;
   }
 

@@ -190,7 +190,6 @@ static void holly_g2_dma(struct holly *hl, int channel) {
   struct address_space *space = hl->sh4->memory_if->space;
   uint32_t len = hl->reg[desc->LEN];
   int transfer_size = len & 0x7fffffff;
-  int restart = len >> 31;
   int remaining = transfer_size;
   uint32_t src = hl->reg[desc->STAR];
   uint32_t dst = hl->reg[desc->STAG];
@@ -254,6 +253,10 @@ static void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
   uint32_t offset = addr >> 2;
   reg_write_cb write = holly_cb[offset].write;
 
+  if (hl->log_reg_access) {
+    LOG_INFO("holly_reg_write 0x%08x : 0x%x", addr, data & data_mask);
+  }
+
   if (write) {
     write(hl->dc, data);
     return;
@@ -266,6 +269,10 @@ static uint32_t holly_reg_read(struct holly *hl, uint32_t addr,
                                uint32_t data_mask) {
   uint32_t offset = addr >> 2;
   reg_read_cb read = holly_cb[offset].read;
+
+  if (hl->log_reg_access) {
+    LOG_INFO("holly_reg_read 0x%08x", addr);
+  }
 
   if (read) {
     return read(hl->dc);
@@ -321,6 +328,10 @@ static void holly_debug_menu(struct device *dev, struct nk_context *ctx) {
   if (nk_menu_begin_label(ctx, "HOLLY", NK_TEXT_LEFT,
                           nk_vec2(200.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+
+    if (nk_button_label(ctx, "log reg access")) {
+      hl->log_reg_access = !hl->log_reg_access;
+    }
 
     if (nk_button_label(ctx, "raise all HOLLY_INTC_NRM")) {
       for (int i = 0; i < 22; i++) {

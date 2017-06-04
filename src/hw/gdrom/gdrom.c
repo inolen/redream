@@ -572,6 +572,8 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
   const struct track *end = disc_get_track(gd->disc, end_track_num);
   int leadout_fad = area_type == AREA_SINGLE ? 0x4650 : 0x861b4;
 
+  memset(data, 0, SPI_TOC_SIZE);
+
   /* write out entries for each track */
   for (int i = start_track_num; i <= end_track_num; i++) {
     const struct track *track = disc_get_track(gd->disc, i);
@@ -670,6 +672,8 @@ int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int n) {
   gd->dma_head += n;
 
   if (gd->dma_head >= gd->dma_size) {
+    LOG_GDROM("gdrom_dma cd_read complete");
+
     /* CD_READ command is now done */
     gdrom_spi_end(gd);
   }
