@@ -21,7 +21,7 @@ static void holly_ch2_dma(struct holly *hl) {
 
   *hl->SB_C2DLEN = 0;
   *hl->SB_C2DST = 0;
-  holly_raise_interrupt(hl, HOLLY_INTC_DTDE2INT);
+  holly_raise_interrupt(hl, HOLLY_INT_DTDE2INT);
 }
 
 /*
@@ -69,7 +69,7 @@ static void holly_gdrom_dma(struct holly *hl) {
   *hl->SB_GDSTARD = addr;
   *hl->SB_GDLEND = transfer_size;
   *hl->SB_GDST = 0;
-  holly_raise_interrupt(hl, HOLLY_INTC_G1DEINT);
+  holly_raise_interrupt(hl, HOLLY_INT_G1DEINT);
 }
 
 /*
@@ -135,7 +135,7 @@ static void holly_maple_dma(struct holly *hl) {
   }
 
   *hl->SB_MDST = 0;
-  holly_raise_interrupt(hl, HOLLY_INTC_MDEINT);
+  holly_raise_interrupt(hl, HOLLY_INT_MDEINT);
 }
 
 /*
@@ -149,10 +149,10 @@ struct g2_channel_desc {
 };
 
 static struct g2_channel_desc g2_channels[] = {
-    {SB_ADSTAG, SB_ADSTAR, SB_ADLEN, SB_ADDIR, SB_ADTSEL, SB_ADEN, SB_ADST, SB_ADSUSP, HOLLY_INTC_G2DEAINT},
-    {SB_E1STAG, SB_E1STAR, SB_E1LEN, SB_E1DIR, SB_E1TSEL, SB_E1EN, SB_E1ST, SB_E1SUSP, HOLLY_INTC_G2DE1INT},
-    {SB_E2STAG, SB_E2STAR, SB_E2LEN, SB_E2DIR, SB_E2TSEL, SB_E2EN, SB_E2ST, SB_E2SUSP, HOLLY_INTC_G2DE2INT},
-    {SB_DDSTAG, SB_DDSTAR, SB_DDLEN, SB_DDDIR, SB_DDTSEL, SB_DDEN, SB_DDST, SB_DDSUSP, HOLLY_INTC_G2DEDINT},
+    {SB_ADSTAG, SB_ADSTAR, SB_ADLEN, SB_ADDIR, SB_ADTSEL, SB_ADEN, SB_ADST, SB_ADSUSP, HOLLY_INT_G2DEAINT},
+    {SB_E1STAG, SB_E1STAR, SB_E1LEN, SB_E1DIR, SB_E1TSEL, SB_E1EN, SB_E1ST, SB_E1SUSP, HOLLY_INT_G2DE1INT},
+    {SB_E2STAG, SB_E2STAR, SB_E2LEN, SB_E2DIR, SB_E2TSEL, SB_E2EN, SB_E2ST, SB_E2SUSP, HOLLY_INT_G2DE2INT},
+    {SB_DDSTAG, SB_DDSTAR, SB_DDLEN, SB_DDDIR, SB_DDTSEL, SB_DDEN, SB_DDST, SB_DDSUSP, HOLLY_INT_G2DEDINT},
 };
 
 #define DEFINE_G2_DMA_TIMER(channel)                       \
@@ -221,9 +221,9 @@ static void holly_update_interrupts(struct holly *hl) {
     if ((*hl->SB_ISTNRM & *hl->SB_IML6NRM) ||
         (*hl->SB_ISTERR & *hl->SB_IML6ERR) ||
         (*hl->SB_ISTEXT & *hl->SB_IML6EXT)) {
-      sh4_raise_interrupt(hl->sh4, SH4_INTC_IRL_9);
+      sh4_raise_interrupt(hl->sh4, SH4_INT_IRL_9);
     } else {
-      sh4_clear_interrupt(hl->sh4, SH4_INTC_IRL_9);
+      sh4_clear_interrupt(hl->sh4, SH4_INT_IRL_9);
     }
   }
 
@@ -231,9 +231,9 @@ static void holly_update_interrupts(struct holly *hl) {
     if ((*hl->SB_ISTNRM & *hl->SB_IML4NRM) ||
         (*hl->SB_ISTERR & *hl->SB_IML4ERR) ||
         (*hl->SB_ISTEXT & *hl->SB_IML4EXT)) {
-      sh4_raise_interrupt(hl->sh4, SH4_INTC_IRL_11);
+      sh4_raise_interrupt(hl->sh4, SH4_INT_IRL_11);
     } else {
-      sh4_clear_interrupt(hl->sh4, SH4_INTC_IRL_11);
+      sh4_clear_interrupt(hl->sh4, SH4_INT_IRL_11);
     }
   }
 
@@ -241,9 +241,9 @@ static void holly_update_interrupts(struct holly *hl) {
     if ((*hl->SB_ISTNRM & *hl->SB_IML2NRM) ||
         (*hl->SB_ISTERR & *hl->SB_IML2ERR) ||
         (*hl->SB_ISTEXT & *hl->SB_IML2EXT)) {
-      sh4_raise_interrupt(hl->sh4, SH4_INTC_IRL_13);
+      sh4_raise_interrupt(hl->sh4, SH4_INT_IRL_13);
     } else {
-      sh4_clear_interrupt(hl->sh4, SH4_INTC_IRL_13);
+      sh4_clear_interrupt(hl->sh4, SH4_INT_IRL_13);
     }
   }
 }
@@ -284,11 +284,11 @@ static uint32_t holly_reg_read(struct holly *hl, uint32_t addr,
 static uint32_t *holly_interrupt_status(struct holly *hl,
                                         enum holly_interrupt_type type) {
   switch (type) {
-    case HOLLY_INTC_NRM:
+    case HOLLY_INT_NRM:
       return hl->SB_ISTNRM;
-    case HOLLY_INTC_EXT:
+    case HOLLY_INT_EXT:
       return hl->SB_ISTEXT;
-    case HOLLY_INTC_ERR:
+    case HOLLY_INT_ERR:
       return hl->SB_ISTERR;
     default:
       LOG_FATAL("Invalid interrupt type");
@@ -315,7 +315,7 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   holly_update_interrupts(hl);
 
   /* check for hardware dma initiation */
-  if (intr == HOLLY_INTC_PCVOINT && *hl->SB_MDTSEL && *hl->SB_MDEN) {
+  if (intr == HOLLY_INT_PCVOINT && *hl->SB_MDTSEL && *hl->SB_MDEN) {
     holly_maple_dma(hl);
   }
 }
@@ -333,15 +333,15 @@ static void holly_debug_menu(struct device *dev, struct nk_context *ctx) {
       hl->log_reg_access = !hl->log_reg_access;
     }
 
-    if (nk_button_label(ctx, "raise all HOLLY_INTC_NRM")) {
+    if (nk_button_label(ctx, "raise all HOLLY_INT_NRM")) {
       for (int i = 0; i < 22; i++) {
-        holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INTC_NRM, 1 << i));
+        holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_NRM, 1 << i));
       }
     }
 
-    if (nk_button_label(ctx, "raise all HOLLY_INTC_EXT")) {
+    if (nk_button_label(ctx, "raise all HOLLY_INT_EXT")) {
       for (int i = 0; i < 4; i++) {
-        holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INTC_EXT, 1 << i));
+        holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_EXT, 1 << i));
       }
     }
 

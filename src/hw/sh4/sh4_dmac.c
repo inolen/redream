@@ -51,28 +51,28 @@ void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
         dar = sh4->DAR0;
         dmatcr = sh4->DMATCR0;
         chcr = sh4->CHCR0;
-        dmte = SH4_INTC_DMTE0;
+        dmte = SH4_INT_DMTE0;
         break;
       case 1:
         sar = sh4->SAR1;
         dar = sh4->DAR1;
         dmatcr = sh4->DMATCR1;
         chcr = sh4->CHCR1;
-        dmte = SH4_INTC_DMTE1;
+        dmte = SH4_INT_DMTE1;
         break;
       case 2:
         sar = sh4->SAR2;
         dar = sh4->DAR2;
         dmatcr = sh4->DMATCR2;
         chcr = sh4->CHCR2;
-        dmte = SH4_INTC_DMTE2;
+        dmte = SH4_INT_DMTE2;
         break;
       case 3:
         sar = sh4->SAR3;
         dar = sh4->DAR3;
         dmatcr = sh4->DMATCR3;
         chcr = sh4->CHCR3;
-        dmte = SH4_INTC_DMTE3;
+        dmte = SH4_INT_DMTE3;
         break;
       default:
         LOG_FATAL("Unexpected DMA channel");
