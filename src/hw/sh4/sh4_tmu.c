@@ -9,7 +9,7 @@ static const int PERIPHERAL_SCALE[] = {2, 4, 6, 8, 10, 0, 0, 0};
 #define TCNT(n) (n == 0 ? sh4->TCNT0 : n == 1 ? sh4->TCNT1 : sh4->TCNT2)
 #define TCR(n) (n == 0 ? sh4->TCR0 : n == 1 ? sh4->TCR1 : sh4->TCR2)
 #define TUNI(n) \
-  (n == 0 ? SH4_INTC_TUNI0 : n == 1 ? SH4_INTC_TUNI1 : SH4_INTC_TUNI2)
+  (n == 0 ? SH4_INT_TUNI0 : n == 1 ? SH4_INT_TUNI1 : SH4_INT_TUNI2)
 
 static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
                                uint32_t tcr);

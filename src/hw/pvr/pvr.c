@@ -21,16 +21,16 @@ static void pvr_next_scanline(void *data) {
 
   /* vblank in */
   if (pvr->current_line == pvr->SPG_VBLANK_INT->vblank_in_line_number) {
-    holly_raise_interrupt(pvr->holly, HOLLY_INTC_PCVIINT);
+    holly_raise_interrupt(pvr->holly, HOLLY_INT_PCVIINT);
   }
 
   /* vblank out */
   if (pvr->current_line == pvr->SPG_VBLANK_INT->vblank_out_line_number) {
-    holly_raise_interrupt(pvr->holly, HOLLY_INTC_PCVOINT);
+    holly_raise_interrupt(pvr->holly, HOLLY_INT_PCVOINT);
   }
 
   /* hblank in */
-  holly_raise_interrupt(pvr->holly, HOLLY_INTC_PCHIINT);
+  holly_raise_interrupt(pvr->holly, HOLLY_INT_PCHIINT);
 
   int was_vsync = pvr->SPG_STATUS->vsync;
   if (pvr->SPG_VBLANK->vbstart < pvr->SPG_VBLANK->vbend) {

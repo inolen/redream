@@ -78,7 +78,7 @@ enum {
 };
 
 enum sh4_interrupt {
-#define SH4_INT(name, intevt, pri, ipr, ipr_shift) SH4_INTC_##name,
+#define SH4_INT(name, intevt, pri, ipr, ipr_shift) SH4_INT_##name,
 #include "hw/sh4/sh4_int.inc"
 #undef SH4_INT
   NUM_SH_INTERRUPTS

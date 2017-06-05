@@ -55,11 +55,11 @@ int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 int g_vertex_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
 
 static holly_interrupt_t list_interrupts[] = {
-    HOLLY_INTC_TAEOINT,  /* TA_LIST_OPAQUE */
-    HOLLY_INTC_TAEOMINT, /* TA_LIST_OPAQUE_MODVOL */
-    HOLLY_INTC_TAETINT,  /* TA_LIST_TRANSLUCENT */
-    HOLLY_INTC_TAETMINT, /* TA_LIST_TRANSLUCENT_MODVOL */
-    HOLLY_INTC_TAEPTIN   /* TA_LIST_PUNCH_THROUGH */
+    HOLLY_INT_TAEOINT,  /* TA_LIST_OPAQUE */
+    HOLLY_INT_TAEOMINT, /* TA_LIST_OPAQUE_MODVOL */
+    HOLLY_INT_TAETINT,  /* TA_LIST_TRANSLUCENT */
+    HOLLY_INT_TAETMINT, /* TA_LIST_TRANSLUCENT_MODVOL */
+    HOLLY_INT_TAEPTIN   /* TA_LIST_PUNCH_THROUGH */
 };
 
 /* See "57.1.1.2 Parameter Combinations" for information on the poly types. */
@@ -447,9 +447,9 @@ static void ta_finish_render(void *data) {
   ta_free_context(ta, ctx);
 
   /* let the game know rendering is complete */
-  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOVINT);
-  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOIINT);
-  holly_raise_interrupt(ta->holly, HOLLY_INTC_PCEOTINT);
+  holly_raise_interrupt(ta->holly, HOLLY_INT_PCEOVINT);
+  holly_raise_interrupt(ta->holly, HOLLY_INT_PCEOIINT);
+  holly_raise_interrupt(ta->holly, HOLLY_INT_PCEOTINT);
 }
 
 static void ta_start_render(struct ta *ta, struct tile_context *ctx) {
@@ -564,7 +564,7 @@ static void ta_yuv_process_macroblock(struct ta *ta, void *data) {
     ta_yuv_init(ta);
 
     /* raise DMA end interrupt */
-    holly_raise_interrupt(ta->holly, HOLLY_INTC_TAYUVINT);
+    holly_raise_interrupt(ta->holly, HOLLY_INT_TAYUVINT);
   }
 }
 

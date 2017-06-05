@@ -298,9 +298,9 @@ static void aica_update_sh(struct aica *aica) {
   uint32_t pending_intr = aica->common_data->MCIPD & enabled_intr;
 
   if (pending_intr) {
-    holly_raise_interrupt(aica->holly, HOLLY_INTC_G2AICINT);
+    holly_raise_interrupt(aica->holly, HOLLY_INT_G2AICINT);
   } else {
-    holly_clear_interrupt(aica->holly, HOLLY_INTC_G2AICINT);
+    holly_clear_interrupt(aica->holly, HOLLY_INT_G2AICINT);
   }
 }
 
