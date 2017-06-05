@@ -12,6 +12,10 @@
 #define align_up(v, alignment) (((v) + (alignment)-1) & ~((alignment)-1))
 #define align_down(v, alignment) ((v) & ~((alignment)-1))
 
+static inline uint32_t bswap24(uint32_t v) {
+  return ((v & 0xff) << 16) | (v & 0x00ff00) | ((v & 0xff0000) >> 16);
+}
+
 #if PLATFORM_LINUX || PLATFORM_DARWIN
 
 static inline int popcnt32(uint32_t v) {

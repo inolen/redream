@@ -12,9 +12,6 @@
 #define LOG_GDROM(...)
 #endif
 
-#define bswap24(fad) \
-  (((fad & 0xff) << 16) | (fad & 0x00ff00) | ((fad & 0xff0000) >> 16))
-
 /* internal gdrom state machine */
 enum gd_event {
   EVENT_ATA_CMD,
@@ -283,7 +280,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       int size = (data[3] << 8) | data[4];
 
       uint8_t scd[SPI_SCD_SIZE];
-      gdrom_get_subcode(gd, format, scd);
+      gdrom_get_subcode(gd, format, scd, (int)sizeof(scd));
 
       gdrom_spi_write(gd, scd, size);
     } break;
@@ -418,8 +415,6 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, int arg) {
 int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
                        enum gd_secmask mask, int num_sectors, uint8_t *dst,
                        int dst_size) {
-  CHECK(gd->disc);
-
   int total = 0;
   char data[SECTOR_SIZE];
 
@@ -429,7 +424,7 @@ int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
     int r = disc_read_sector(gd->disc, fad, data);
     CHECK_EQ(r, 1);
 
-    if (fmt == SECTOR_M1 && mask == MASK_DATA) {
+    if ((fmt == SECTOR_ANY || fmt == SECTOR_M1) && mask == MASK_DATA) {
       CHECK_LE(total + 2048, dst_size);
       memcpy(dst, data + 16, 2048);
       dst += 2048;
@@ -443,8 +438,8 @@ int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
   return total;
 }
 
-void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
-  CHECK(gd->disc);
+void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
+  CHECK_GE(size, SPI_SCD_SIZE);
 
   /* FIXME implement */
   memset(data, 0, SPI_SCD_SIZE);
@@ -455,8 +450,6 @@ void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data) {
 
 void gdrom_get_session(struct gdrom *gd, int session, uint8_t *data, int size) {
   CHECK_GE(size, SPI_SES_SIZE);
-
-  CHECK(gd->disc);
 
   /* session response layout:
 
@@ -513,7 +506,6 @@ void gdrom_get_session(struct gdrom *gd, int session, uint8_t *data, int size) {
 void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
                    int size) {
   CHECK_GE(size, SPI_TOC_SIZE);
-  CHECK(gd->disc);
 
   /* toc response layout:
 
