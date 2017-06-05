@@ -105,7 +105,7 @@ struct jit {
   struct ra *ra;
 
   /* scratch compilation buffer */
-  uint8_t ir_buffer[1024 * 1024];
+  uint8_t ir_buffer[1024 * 1024 * 2];
 
   /* compiled blocks */
   struct rb_tree blocks;
