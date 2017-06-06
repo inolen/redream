@@ -61,7 +61,7 @@ enum {
 
 enum gd_area {
   AREA_SINGLE,
-  AREA_DOUBLE,
+  AREA_HIGH,
 };
 
 enum gd_audio_status {

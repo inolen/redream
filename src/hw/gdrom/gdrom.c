@@ -445,10 +445,22 @@ void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
   memset(data, 0, SPI_SCD_SIZE);
   data[1] = AST_NOSTATUS;
 
+  switch (format) {
+    case 0:
+      data[2] = 0x0;
+      data[3] = 0x64;
+      break;
+    case 1:
+      data[2] = 0x0;
+      data[3] = 0xe;
+      break;
+  }
+
   LOG_GDROM("gdrom_get_subcode not fully implemented");
 }
 
-void gdrom_get_session(struct gdrom *gd, int session, uint8_t *data, int size) {
+void gdrom_get_session(struct gdrom *gd, int session_num, uint8_t *data,
+                       int size) {
   CHECK_GE(size, SPI_SES_SIZE);
 
   /* session response layout:
@@ -469,29 +481,31 @@ void gdrom_get_session(struct gdrom *gd, int session, uint8_t *data, int size) {
      5    |  lead out fad (lsb) / starting fad (lsb) */
 
   uint8_t status = gd->sectnum.status;
-  uint8_t track = 0;
+  uint8_t track_num = 0;
   uint32_t fad = 0;
 
-  if (session == 0) {
-    /* when session is 0, the "fad" field contains the lead-out fad, while the
-       "track" field contains the total number of sessions */
-    if (1 /* is gd-rom */) {
-      track = 2;
-      fad = 0x861b4;
+  /* when session is 0 the "track_num" field contains the total number of
+     sessions, while the "fad" field contains the lead-out fad
+
+     when session is non-0, the "track_num" field contains the first track of
+     the session, while the "fad" field contains contains the starting fad of
+     the specified session */
+
+  if (gd->sectnum.format == DISC_GDROM) {
+    if (session_num == 0) {
+      int num_sessions = disc_get_num_sessions(gd->disc);
+      struct session *last_session =
+          disc_get_session(gd->disc, num_sessions - 1);
+      track_num = num_sessions;
+      fad = last_session->leadout_fad;
+    } else {
+      struct session *session = disc_get_session(gd->disc, session_num - 1);
+      struct track *first_track = session->first_track;
+      track_num = first_track->num;
+      fad = first_track->fad;
     }
   } else {
-    /* when session is non-0, the "fad" field contains contains the starting fad
-       of the specified session, while the "track" field contains the first
-       track of the session */
-    if (session == 1) {
-      struct track *trk = disc_get_track(gd->disc, 0);
-      track = 1;
-      fad = trk->fad;
-    } else if (session == 2) {
-      struct track *trk = disc_get_track(gd->disc, 2);
-      track = 3;
-      fad = trk->fad;
-    }
+    LOG_FATAL("unsupported disc type");
   }
 
   /* fad is written out big-endian */
@@ -500,7 +514,7 @@ void gdrom_get_session(struct gdrom *gd, int session, uint8_t *data, int size) {
   data[0] = status;
   data[1] = 0;
   memcpy(&data[2], &fad, 3);
-  data[5] = track;
+  data[5] = track_num;
 }
 
 void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
@@ -544,38 +558,23 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
      ------------------------------------------------------
      407   | lead-out track fad (lsb) */
 
-  /* for GD-ROMs, the single density area contains tracks 1 and 2, while the
-     dual density area contains tracks 3 - num_tracks */
-  int start_track_num = 0;
-  int end_track_num = disc_get_num_tracks(gd->disc) - 1;
-
-  /* TODO conditionally check disc to make sure it's a GD-ROM once
-     CD-ROMs are supported */
-  if (1 /* is gd-rom */) {
-    if (area_type == AREA_SINGLE) {
-      end_track_num = 1;
-    } else {
-      start_track_num = 2;
-    }
-  }
-
   uint32_t *entry = (uint32_t *)data;
-  const struct track *start = disc_get_track(gd->disc, start_track_num);
-  const struct track *end = disc_get_track(gd->disc, end_track_num);
-  int leadout_fad = area_type == AREA_SINGLE ? 0x4650 : 0x861b4;
+  const struct session *session = disc_get_session(gd->disc, area_type);
+  const struct track *first = session->first_track;
+  const struct track *last = session->last_track;
 
   memset(data, 0, SPI_TOC_SIZE);
 
   /* write out entries for each track */
-  for (int i = start_track_num; i <= end_track_num; i++) {
-    const struct track *track = disc_get_track(gd->disc, i);
+  for (int i = first->num; i <= last->num; i++) {
+    const struct track *track = disc_get_track(gd->disc, i - 1);
     *(entry++) = (bswap24(track->fad) << 8) | (track->ctrl << 4) | track->adr;
   }
 
   /* write out start, end and lead-out track */
-  *(entry++) = (start_track_num << 8) | (start->ctrl << 4) | start->adr;
-  *(entry++) = (end_track_num << 8) | (end->ctrl << 4) | end->adr;
-  *(entry++) = (bswap24(leadout_fad) << 8);
+  *(entry++) = (first->num << 8) | (first->ctrl << 4) | first->adr;
+  *(entry++) = (last->num << 8) | (last->ctrl << 4) | last->adr;
+  *(entry++) = (bswap24(session->leadout_fad) << 8);
 }
 
 void gdrom_get_status(struct gdrom *gd, uint8_t *data, int size) {
