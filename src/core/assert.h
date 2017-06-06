@@ -1,7 +1,6 @@
 #ifndef REDREAM_ASSERT_H
 #define REDREAM_ASSERT_H
 
-#include "core/debug_break.h"
 #include "core/log.h"
 
 /* CHECK_* macros are usually true, hint this to the compiler if possible */
