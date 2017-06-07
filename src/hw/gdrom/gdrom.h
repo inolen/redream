@@ -19,6 +19,7 @@ void gdrom_dma_end(struct gdrom *gd);
 void gdrom_get_drive_mode(struct gdrom *gd, struct gd_hw_info *info);
 void gdrom_set_drive_mode(struct gdrom *gd, struct gd_hw_info *info);
 void gdrom_get_status(struct gdrom *gd, uint8_t *data, int size);
+void gdrom_get_error(struct gdrom *gd, uint8_t *data, int size);
 void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
                    int size);
 void gdrom_get_session(struct gdrom *gd, int session, uint8_t *data, int size);

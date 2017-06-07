@@ -41,7 +41,7 @@ static void holly_gdrom_dma(struct holly *hl) {
   int transfer_size = *hl->SB_GDLEN;
   int remaining = transfer_size;
   uint32_t addr = *hl->SB_GDSTAR;
-  uint8_t sector_data[SECTOR_SIZE];
+  uint8_t sector_data[DISC_MAX_SECTOR_SIZE];
 
   gdrom_dma_begin(gd);
 

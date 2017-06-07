@@ -43,10 +43,10 @@ static void gdrom_spi_data(struct gdrom *gd, int arg);
 /* clang-format off */
 gd_event_cb gd_transitions[MAX_STATES][MAX_EVENTS] = {
   { &gdrom_ata_cmd, NULL,             NULL,           NULL,            NULL,            },
-  { NULL,           &gdrom_pio_write, &gdrom_spi_cmd, NULL,            NULL,            },
-  { NULL,           &gdrom_pio_write, NULL,           NULL,            &gdrom_spi_data, },
-  { NULL,           NULL,             NULL,           &gdrom_pio_read, NULL,            },
-  { NULL,           NULL,             NULL,           &gdrom_pio_read, NULL,            },
+  { &gdrom_ata_cmd, &gdrom_pio_write, &gdrom_spi_cmd, NULL,            NULL,            },
+  { &gdrom_ata_cmd, &gdrom_pio_write, NULL,           NULL,            &gdrom_spi_data, },
+  { &gdrom_ata_cmd, NULL,             NULL,           &gdrom_pio_read, NULL,            },
+  { &gdrom_ata_cmd, NULL,             NULL,           &gdrom_pio_read, NULL,            },
 };
 /* clang-format on */
 
@@ -114,7 +114,7 @@ static void gdrom_spi_end(struct gdrom *gd) {
 
 static void gdrom_spi_cdread(struct gdrom *gd) {
   if (gd->cdr_dma) {
-    int max_dma_sectors = sizeof(gd->dma_buffer) / SECTOR_SIZE;
+    int max_dma_sectors = sizeof(gd->dma_buffer) / DISC_MAX_SECTOR_SIZE;
 
     /* fill DMA buffer with as many sectors as possible */
     int num_sectors = MIN(gd->cdr_num_sectors, max_dma_sectors);
@@ -130,7 +130,7 @@ static void gdrom_spi_cdread(struct gdrom *gd) {
     /* gdrom state won't be updated until DMA transfer is completed */
     gd->state = STATE_WRITE_DMA_DATA;
   } else {
-    int max_pio_sectors = sizeof(gd->pio_buffer) / SECTOR_SIZE;
+    int max_pio_sectors = sizeof(gd->pio_buffer) / DISC_MAX_SECTOR_SIZE;
 
     /* fill PIO buffer with as many sectors as possible */
     int num_sectors = MIN(gd->cdr_num_sectors, max_pio_sectors);
@@ -252,15 +252,21 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       gdrom_spi_write(gd, (void *)&gd->hw_info + offset, size);
     } break;
 
-    /*case SPI_REQ_ERROR: {
-    } break;*/
+    case SPI_REQ_ERROR: {
+      int size = data[4];
+
+      uint8_t err[SPI_ERR_SIZE];
+      gdrom_get_error(gd, err, (int)sizeof(err));
+
+      gdrom_spi_write(gd, err, size);
+    } break;
 
     case SPI_GET_TOC: {
-      enum gd_area area_type = (enum gd_area)(data[1] & 0x1);
+      enum gd_area area = (enum gd_area)(data[1] & 0x1);
       int size = (data[3] << 8) | data[4];
 
       uint8_t toc[SPI_TOC_SIZE];
-      gdrom_get_toc(gd, area_type, toc, (int)sizeof(toc));
+      gdrom_get_toc(gd, area, toc, (int)sizeof(toc));
 
       gdrom_spi_write(gd, toc, size);
     } break;
@@ -297,8 +303,9 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       gdrom_spi_cdread(gd);
     } break;
 
-    /*case SPI_CD_READ2: {
-    } break;*/
+    case SPI_CD_READ2: {
+      LOG_FATAL("SPI_CD_READ2");
+    } break;
 
     /*
      * packet command flow for pio data from host
@@ -358,30 +365,36 @@ static void gdrom_ata_cmd(struct gdrom *gd, int arg) {
 
   LOG_GDROM("gdrom_ata_cmd 0x%x", cmd);
 
-  gd->error.ABRT = 0;
   gd->status.DRDY = 0;
   gd->status.BSY = 1;
 
+  /* error bits represent the status of the most recent command, clear before
+    processing a new command */
+  gd->error.full = 0;
+  gd->status.CHECK = 0;
+
   switch (cmd) {
     case ATA_NOP: {
+      /* terminates the current command */
       gd->error.ABRT = 1;
+      gd->status.CHECK = 1;
     } break;
 
     case ATA_SOFT_RESET: {
       gdrom_set_disc(gd, gd->disc);
     } break;
 
-    /*case ATA_EXEC_DIAG: {
-      LOG_FATAL("unhandled");
-    } break;*/
+    case ATA_EXEC_DIAG: {
+      LOG_FATAL("ATA_EXEC_DIAG");
+    } break;
 
     case ATA_PACKET_CMD: {
       read_data = 1;
     } break;
 
-    /*case ATA_IDENTIFY_DEV: {
-      LOG_FATAL("unhandled");
-    } break;*/
+    case ATA_IDENTIFY_DEV: {
+      LOG_FATAL("ATA_IDENTIFY_DEV");
+    } break;
 
     case ATA_SET_FEATURES: {
       /* transfer mode settings are ignored */
@@ -416,23 +429,15 @@ int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
                        enum gd_secmask mask, int num_sectors, uint8_t *dst,
                        int dst_size) {
   int total = 0;
-  char data[SECTOR_SIZE];
+  uint8_t data[DISC_MAX_SECTOR_SIZE];
 
   LOG_GDROM("gdrom_read_sectors [%d, %d)", fad, fad + num_sectors);
 
   for (int i = 0; i < num_sectors; i++) {
-    int r = disc_read_sector(gd->disc, fad, data);
-    CHECK_EQ(r, 1);
-
-    if ((fmt == SECTOR_ANY || fmt == SECTOR_M1) && mask == MASK_DATA) {
-      CHECK_LE(total + 2048, dst_size);
-      memcpy(dst, data + 16, 2048);
-      dst += 2048;
-      total += 2048;
-      fad++;
-    } else {
-      LOG_FATAL("unsupported sector format");
-    }
+    int r = disc_read_sector(gd->disc, fad, fmt, mask, data);
+    memcpy(dst + total, data, r);
+    total += r;
+    fad++;
   }
 
   return total;
@@ -491,21 +496,16 @@ void gdrom_get_session(struct gdrom *gd, int session_num, uint8_t *data,
      the session, while the "fad" field contains contains the starting fad of
      the specified session */
 
-  if (gd->sectnum.format == DISC_GDROM) {
-    if (session_num == 0) {
-      int num_sessions = disc_get_num_sessions(gd->disc);
-      struct session *last_session =
-          disc_get_session(gd->disc, num_sessions - 1);
-      track_num = num_sessions;
-      fad = last_session->leadout_fad;
-    } else {
-      struct session *session = disc_get_session(gd->disc, session_num - 1);
-      struct track *first_track = session->first_track;
-      track_num = first_track->num;
-      fad = first_track->fad;
-    }
+  if (session_num == 0) {
+    int num_sessions = disc_get_num_sessions(gd->disc);
+    struct session *last_session = disc_get_session(gd->disc, num_sessions - 1);
+    track_num = num_sessions;
+    fad = last_session->leadout_fad;
   } else {
-    LOG_FATAL("unsupported disc type");
+    struct session *session = disc_get_session(gd->disc, session_num - 1);
+    struct track *first_track = disc_get_track(gd->disc, session->first_track);
+    track_num = first_track->num;
+    fad = first_track->fad;
   }
 
   /* fad is written out big-endian */
@@ -513,11 +513,11 @@ void gdrom_get_session(struct gdrom *gd, int session_num, uint8_t *data,
 
   data[0] = status;
   data[1] = 0;
-  memcpy(&data[2], &fad, 3);
-  data[5] = track_num;
+  data[2] = track_num;
+  memcpy(&data[3], &fad, 3);
 }
 
-void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
+void gdrom_get_toc(struct gdrom *gd, enum gd_area area, uint8_t *data,
                    int size) {
   CHECK_GE(size, SPI_TOC_SIZE);
 
@@ -558,23 +558,65 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
      ------------------------------------------------------
      407   | lead-out track fad (lsb) */
 
-  uint32_t *entry = (uint32_t *)data;
-  const struct session *session = disc_get_session(gd->disc, area_type);
-  const struct track *first = session->first_track;
-  const struct track *last = session->last_track;
+  int num_sessions = disc_get_num_sessions(gd->disc);
+  struct session *session = disc_get_session(gd->disc, area);
+  struct session *last_session = disc_get_session(gd->disc, num_sessions - 1);
+  struct track *first_track = disc_get_track(gd->disc, session->first_track);
+  struct track *last_track = disc_get_track(gd->disc, session->last_track);
 
-  memset(data, 0, SPI_TOC_SIZE);
+  /* 0xffffffff represents an invalid track */
+  memset(data, 0xff, SPI_TOC_SIZE);
 
   /* write out entries for each track */
-  for (int i = first->num; i <= last->num; i++) {
-    const struct track *track = disc_get_track(gd->disc, i - 1);
+  uint32_t *entry = (uint32_t *)data;
+
+  for (int i = first_track->num; i <= last_track->num; i++) {
+    struct track *track = disc_get_track(gd->disc, i - 1);
     *(entry++) = (bswap24(track->fad) << 8) | (track->ctrl << 4) | track->adr;
   }
 
-  /* write out start, end and lead-out track */
-  *(entry++) = (first->num << 8) | (first->ctrl << 4) | first->adr;
-  *(entry++) = (last->num << 8) | (last->ctrl << 4) | last->adr;
-  *(entry++) = (bswap24(session->leadout_fad) << 8);
+  /* write out first, last and lead-out track */
+  *(entry++) =
+      (first_track->num << 8) | (first_track->ctrl << 4) | first_track->adr;
+  *(entry++) =
+      (last_track->num << 8) | (last_track->ctrl << 4) | last_track->adr;
+  *(entry++) = (bswap24(last_session->leadout_fad) << 8);
+}
+
+void gdrom_get_error(struct gdrom *gd, uint8_t *data, int size) {
+  CHECK_GE(size, SPI_ERR_SIZE);
+
+  /* cd status information response layout:
+
+     bit  |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+     byte |     |     |     |     |     |     |     |
+     -----------------------------------------------------
+     0    |  1  |  1  |  1  |  1  |  0  |  0  |  0  |  0
+     -----------------------------------------------------
+     1    |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+     -----------------------------------------------------
+     2    |  0  |  0  |  0  |  0  |  sense key
+     -----------------------------------------------------
+     3    |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+     -----------------------------------------------------
+     4-7  |  cmd specific information
+     -----------------------------------------------------
+     8    |  additional sense code
+     -----------------------------------------------------
+     9    |  additional sense code qualifier */
+
+  /* TODO implement the sense key / code information */
+
+  data[0] = 0xf0;
+  data[1] = 0;
+  data[2] = 0;
+  data[3] = 0;
+  data[4] = 0;
+  data[5] = 0;
+  data[6] = 0;
+  data[7] = 0;
+  data[8] = 0;
+  data[9] = 0;
 }
 
 void gdrom_get_status(struct gdrom *gd, uint8_t *data, int size) {
@@ -603,7 +645,7 @@ void gdrom_get_status(struct gdrom *gd, uint8_t *data, int size) {
      -----------------------------------------------------
      8    |  max read retry time
      -----------------------------------------------------
-     9   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0 */
+     9    |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0 */
 
   uint32_t fad = bswap24(0x0);
 
@@ -646,7 +688,9 @@ void gdrom_get_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
   *info = gd->hw_info;
 }
 
-void gdrom_dma_end(struct gdrom *gd) {}
+void gdrom_dma_end(struct gdrom *gd) {
+  LOG_GDROM("gd_dma_end");
+}
 
 int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int n) {
   /* try to read more if the current dma buffer has been completely read */
@@ -695,8 +739,12 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   gd->status.BSY = 0;
 
   gd->sectnum.full = 0;
-  gd->sectnum.status = gd->disc ? DST_STANDBY : DST_NODISC;
-  gd->sectnum.format = DISC_GDROM;
+  if (gd->disc) {
+    gd->sectnum.status = DST_STANDBY;
+    gd->sectnum.format = disc_get_format(disc);
+  } else {
+    gd->sectnum.status = DST_NODISC;
+  }
 
   /* TODO how do GD_FEATURES, GD_INTREASON, GD_BYCTLLO and GD_BYCTLHI behave */
 }
@@ -755,7 +803,7 @@ REG_W32(holly_cb, GD_DATA) {
 REG_R32(holly_cb, GD_ERROR_FEATURES) {
   struct gdrom *gd = dc->gdrom;
   uint16_t value = gd->error.full;
-  LOG_FATAL("read GD_ERROR 0x%x", value);
+  LOG_GDROM("read GD_ERROR 0x%x", value);
   return value;
 }
 
