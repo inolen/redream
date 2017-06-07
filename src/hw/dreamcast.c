@@ -77,20 +77,6 @@ void dc_suspend(struct dreamcast *dc) {
   dc->running = 0;
 }
 
-static int dc_load_gdi(struct dreamcast *dc, const char *path) {
-  struct disc *disc = disc_create_gdi(path);
-
-  if (!disc) {
-    return 0;
-  }
-
-  gdrom_set_disc(dc->gdrom, disc);
-  sh4_reset(dc->sh4, 0xa0000000);
-  dc_resume(dc);
-
-  return 1;
-}
-
 static int dc_load_bin(struct dreamcast *dc, const char *path) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
@@ -107,11 +93,25 @@ static int dc_load_bin(struct dreamcast *dc, const char *path) {
   fclose(fp);
 
   if (n != size) {
-    LOG_WARNING("BIN read failed");
+    LOG_WARNING("failed to read %s", path);
     return 0;
   }
 
   sh4_reset(dc->sh4, 0x0c010000);
+  dc_resume(dc);
+
+  return 1;
+}
+
+static int dc_load_disc(struct dreamcast *dc, const char *path) {
+  struct disc *disc = disc_create(path);
+
+  if (!disc) {
+    return 0;
+  }
+
+  gdrom_set_disc(dc->gdrom, disc);
+  sh4_reset(dc->sh4, 0xa0000000);
   dc_resume(dc);
 
   return 1;
@@ -125,14 +125,14 @@ int dc_load(struct dreamcast *dc, const char *path) {
     return 1;
   }
 
-  LOG_INFO("Loading %s", path);
+  LOG_INFO("loading %s", path);
 
-  if ((strstr(path, ".bin") && dc_load_bin(dc, path)) ||
-      (strstr(path, ".gdi") && dc_load_gdi(dc, path))) {
+  if (dc_load_disc(dc, path) || dc_load_bin(dc, path)) {
     return 1;
   }
 
-  LOG_WARNING("Failed to load %s", path);
+  LOG_WARNING("failed to load %s", path);
+
   return 0;
 }
 

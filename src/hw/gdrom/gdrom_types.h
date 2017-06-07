@@ -1,6 +1,10 @@
 #ifndef GDROM_TYPES_H
 #define GDROM_TYPES_H
 
+#include <stdint.h>
+
+#define GDROM_PREGAP 150
+
 enum gd_drive_status {
   DST_BUSY = 0x00,    /* State transition */
   DST_PAUSE = 0x01,   /* Pause */
@@ -53,6 +57,7 @@ enum gd_spi_cmd {
 
 enum {
   SPI_CMD_SIZE = 12,
+  SPI_ERR_SIZE = 10,
   SPI_TOC_SIZE = 408,
   SPI_SES_SIZE = 6,
   SPI_STAT_SIZE = 10,
