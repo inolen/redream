@@ -469,7 +469,8 @@ static void emu_paint(struct emu *emu) {
 
       /* add our own debug menu */
       nk_layout_row_push(ctx, 50.0f);
-      if (nk_menu_begin_label(ctx, "DEBUG", NK_TEXT_LEFT,
+
+      if (nk_menu_begin_label(ctx, "DEBUG", NK_TEXT_CENTERED,
                               nk_vec2(160.0f, 200.0f))) {
         nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
 
@@ -503,9 +504,10 @@ static void emu_paint(struct emu *emu) {
       snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
                frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
 
-      int remaining_width = ctx->current->layout->bounds.w -
-                            ctx->current->layout->row.item_offset -
-                            ctx->style.window.spacing.x * 4.0f;
+      int remaining_width =
+          ctx->current->layout->bounds.w -
+          ctx->current->layout->row.item_offset -
+          ctx->current->layout->row.index * ctx->style.window.spacing.x - 4.0f;
       nk_layout_row_push(ctx, remaining_width);
       nk_label(ctx, status, NK_TEXT_RIGHT);
 
