@@ -7,7 +7,6 @@
 #include "hw/pvr/tr.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
-#include "render/nuklear.h"
 #include "sys/exception_handler.h"
 #include "sys/filesystem.h"
 
