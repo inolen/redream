@@ -136,9 +136,6 @@ list(APPEND REDREAM_LIBS inih)
 # microprofile
 list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
 
-# nuklear
-list(APPEND REDREAM_INCLUDE_DIRS deps/nuklear)
-
 # xbyak
 list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
 
@@ -222,7 +219,6 @@ set(REDREAM_SOURCES
   src/render/gl_backend.c
   src/render/imgui.cc
   src/render/microprofile.cc
-  src/render/nuklear.c
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c
@@ -274,9 +270,6 @@ if(COMPILER_GCC OR COMPILER_CLANG)
   if(COMPILER_GCC)
     # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
     list(APPEND REDREAM_FLAGS ${REDREAM_FLAGS} -D__STDC_FORMAT_MACROS)
-
-    # nuklear triggers this due to some of its asserts
-    list(APPEND REDREAM_FLAGS -Wno-unused-but-set-variable)
   elseif(COMPILER_CLANG)
     # clang will warn on '{0}' as -Wmissing-field-initializers even in C code
     # https://llvm.org/bugs/show_bug.cgi?id=21689
