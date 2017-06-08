@@ -323,9 +323,9 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
 static void holly_debug_menu(struct device *dev, struct nk_context *ctx) {
   struct holly *hl = (struct holly *)dev;
 
-  nk_layout_row_push(ctx, 44.0f);
+  nk_layout_row_push(ctx, 50.0f);
 
-  if (nk_menu_begin_label(ctx, "HOLLY", NK_TEXT_LEFT,
+  if (nk_menu_begin_label(ctx, "HOLLY", NK_TEXT_CENTERED,
                           nk_vec2(200.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
 

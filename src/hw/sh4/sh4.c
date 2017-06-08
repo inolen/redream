@@ -158,7 +158,8 @@ static void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
 
   nk_layout_row_push(ctx, 30.0f);
 
-  if (nk_menu_begin_label(ctx, "SH4", NK_TEXT_LEFT, nk_vec2(200.0f, 200.0f))) {
+  if (nk_menu_begin_label(ctx, "SH4", NK_TEXT_CENTERED,
+                          nk_vec2(200.0f, 200.0f))) {
     nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
 
     if (nk_button_label(ctx, "clear cache")) {
