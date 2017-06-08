@@ -1,6 +1,8 @@
 #ifndef IMGUI_H
 #define IMGUI_H
 
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#include <cimgui/cimgui.h>
 #include "keycode.h"
 
 struct imgui;

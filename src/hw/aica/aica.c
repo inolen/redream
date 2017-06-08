@@ -10,7 +10,7 @@
 #include "hw/memory.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
-#include "render/nuklear.h"
+#include "render/imgui.h"
 #include "sys/filesystem.h"
 
 DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
@@ -787,28 +787,32 @@ static void aica_toggle_recording(struct aica *aica) {
 
     aica->recording = fopen(filename, "w");
     CHECK_NOTNULL(aica->recording, "Failed to open %s", filename);
+
+    LOG_INFO("started recording audio to %s", filename);
   } else {
     fclose(aica->recording);
     aica->recording = NULL;
+
+    LOG_INFO("stopped recording audio");
   }
 }
 
-static void aica_debug_menu(struct device *dev, struct nk_context *ctx) {
+static void aica_debug_menu(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
 
-  nk_layout_row_push(ctx, 40.0f);
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("AICA", 1)) {
+      const char *recording_label =
+          aica->recording ? "stop recording" : "start recording";
 
-  if (nk_menu_begin_label(ctx, "AICA", NK_TEXT_CENTERED,
-                          nk_vec2(140.0f, 200.0f))) {
-    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+      if (igMenuItem(recording_label, NULL, aica->recording, 1)) {
+        aica_toggle_recording(aica);
+      }
 
-    if (!aica->recording && nk_button_label(ctx, "start recording")) {
-      aica_toggle_recording(aica);
-    } else if (aica->recording && nk_button_label(ctx, "stop recording")) {
-      aica_toggle_recording(aica);
+      igEndMenu();
     }
 
-    nk_menu_end(ctx);
+    igEndMainMenuBar();
   }
 }
 

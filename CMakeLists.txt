@@ -119,6 +119,7 @@ list(APPEND REDREAM_DEFS GLEW_STATIC)
 # imgui
 add_library(imgui STATIC
   deps/cimgui/imgui/imgui.cpp
+  deps/cimgui/imgui/imgui_demo.cpp
   deps/cimgui/imgui/imgui_draw.cpp
   deps/cimgui/cimgui/cimgui.cpp
   deps/cimgui/cimgui/drawList.cpp

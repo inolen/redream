@@ -47,10 +47,10 @@ void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames) {
   dc->push_audio(dc->userdata, data, frames);
 }
 
-void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx) {
+void dc_debug_menu(struct dreamcast *dc) {
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (dev->debug_menu) {
-      dev->debug_menu(dev, ctx);
+      dev->debug_menu(dev);
     }
   }
 }

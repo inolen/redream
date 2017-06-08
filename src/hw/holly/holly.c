@@ -4,7 +4,7 @@
 #include "hw/maple/maple.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
-#include "render/nuklear.h"
+#include "render/imgui.h"
 
 struct reg_cb holly_cb[NUM_HOLLY_REGS];
 
@@ -320,32 +320,31 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   }
 }
 
-static void holly_debug_menu(struct device *dev, struct nk_context *ctx) {
+static void holly_debug_menu(struct device *dev) {
   struct holly *hl = (struct holly *)dev;
 
-  nk_layout_row_push(ctx, 50.0f);
-
-  if (nk_menu_begin_label(ctx, "HOLLY", NK_TEXT_CENTERED,
-                          nk_vec2(200.0f, 200.0f))) {
-    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
-
-    if (nk_button_label(ctx, "log reg access")) {
-      hl->log_reg_access = !hl->log_reg_access;
-    }
-
-    if (nk_button_label(ctx, "raise all HOLLY_INT_NRM")) {
-      for (int i = 0; i < 22; i++) {
-        holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_NRM, 1 << i));
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("HOLLY", 1)) {
+      if (igMenuItem("log reg access", NULL, hl->log_reg_access, 1)) {
+        hl->log_reg_access = !hl->log_reg_access;
       }
-    }
 
-    if (nk_button_label(ctx, "raise all HOLLY_INT_EXT")) {
-      for (int i = 0; i < 4; i++) {
-        holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_EXT, 1 << i));
+      if (igMenuItem("raise all HOLLY_INT_NRM", NULL, 0, 1)) {
+        for (int i = 0; i < 22; i++) {
+          holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_NRM, 1 << i));
+        }
       }
+
+      if (igMenuItem("raise all HOLLY_INT_EXT", NULL, 0, 1)) {
+        for (int i = 0; i < 4; i++) {
+          holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_EXT, 1 << i));
+        }
+      }
+
+      igEndMenu();
     }
 
-    nk_menu_end(ctx);
+    igEndMainMenuBar();
   }
 }
 

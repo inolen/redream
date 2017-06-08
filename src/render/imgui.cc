@@ -2,7 +2,7 @@
 
 extern "C" {
 #include "core/assert.h"
-#include "render/imgui.h"
+#include "keycode.h"
 #include "render/render_backend.h"
 }
 
@@ -13,7 +13,7 @@ struct imgui {
   bool shift[2];
 };
 
-void imgui_render(struct imgui *imgui) {
+extern "C" void imgui_render(struct imgui *imgui) {
   ImGuiIO &io = ImGui::GetIO();
 
   /* update draw batches. note, this doesn't _actually_ render anything because
@@ -63,7 +63,7 @@ void imgui_render(struct imgui *imgui) {
   }
 }
 
-void imgui_update_input(struct imgui *imgui) {
+extern "C" void imgui_update_input(struct imgui *imgui) {
   ImGuiIO &io = ImGui::GetIO();
 
   int width = r_viewport_width(imgui->r);
@@ -77,7 +77,8 @@ void imgui_update_input(struct imgui *imgui) {
   io.MouseWheel = 0.0;
 }
 
-void imgui_keydown(struct imgui *imgui, enum keycode code, int16_t value) {
+extern "C" void imgui_keydown(struct imgui *imgui, enum keycode code,
+                              int16_t value) {
   ImGuiIO &io = ImGui::GetIO();
 
   if (code == K_MWHEELUP) {
@@ -105,19 +106,19 @@ void imgui_keydown(struct imgui *imgui, enum keycode code, int16_t value) {
   }
 }
 
-void imgui_mousemove(struct imgui *imgui, int x, int y) {
+extern "C" void imgui_mousemove(struct imgui *imgui, int x, int y) {
   ImGuiIO &io = ImGui::GetIO();
 
   io.MousePos = ImVec2((float)x, (float)y);
 }
 
-void imgui_destroy(struct imgui *imgui) {
+extern "C" void imgui_destroy(struct imgui *imgui) {
   ImGui::Shutdown();
 
   free(imgui);
 }
 
-struct imgui *imgui_create(struct render_backend *r) {
+extern "C" struct imgui *imgui_create(struct render_backend *r) {
   struct imgui *imgui =
       reinterpret_cast<struct imgui *>(calloc(1, sizeof(struct imgui)));
 
@@ -130,7 +131,7 @@ struct imgui *imgui_create(struct render_backend *r) {
   io.DeltaTime = 1.0f / 60.0f;
 
   /* don't save settings */
-  io.IniSavingRate = 0.0f;
+  io.IniFilename = NULL;
 
   /* setup key mapping */
   io.KeyMap[ImGuiKey_Tab] = K_TAB;
