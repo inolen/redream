@@ -27,6 +27,7 @@
 #include "hw/pvr/trace.h"
 #include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
+#include "render/imgui.h"
 #include "render/microprofile.h"
 #include "render/nuklear.h"
 #include "render/render_backend.h"
@@ -58,6 +59,7 @@ struct emu {
   volatile int video_resized;
 
   struct render_backend *r, *r2;
+  struct imgui *imgui;
   struct microprofile *mp;
   struct nuklear *nk;
   struct trace_writer *trace_writer;
@@ -406,6 +408,7 @@ static void emu_paint(struct emu *emu) {
   float fwidth = (float)emu->video_width;
   float fheight = (float)emu->video_height;
 
+  imgui_update_input(emu->imgui);
   nk_update_input(emu->nk);
 
   r_viewport(emu->r, emu->video_width, emu->video_height);
@@ -517,6 +520,7 @@ static void emu_paint(struct emu *emu) {
     nk_end(ctx);
   }
 
+  imgui_render(emu->imgui);
   mp_render(emu->mp);
   nk_render(emu->nk);
 
@@ -604,6 +608,7 @@ static void emu_guest_push_audio(void *userdata, const int16_t *data,
 static void emu_host_mousemove(void *userdata, int port, int x, int y) {
   struct emu *emu = userdata;
 
+  imgui_mousemove(emu->imgui, x, y);
   mp_mousemove(emu->mp, x, y);
   nk_mousemove(emu->nk, x, y);
 }
@@ -615,6 +620,7 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
   if (key == K_F1 && value > 0) {
     emu->debug_menu = emu->debug_menu ? 0 : 1;
   } else {
+    imgui_keydown(emu->imgui, key, value);
     mp_keydown(emu->mp, key, value);
     nk_keydown(emu->nk, key, value);
   }
@@ -668,6 +674,7 @@ static void emu_host_context_destroyed(void *userdata) {
 
   nk_destroy(emu->nk);
   mp_destroy(emu->mp);
+  imgui_destroy(emu->imgui);
   r_destroy(emu->r);
 }
 
@@ -680,6 +687,7 @@ static void emu_host_context_reset(void *userdata) {
 
   /* create primary renderer */
   emu->r = r_create(emu->host);
+  emu->imgui = imgui_create(emu->r);
   emu->mp = mp_create(emu->r);
   emu->nk = nk_create(emu->r);
 

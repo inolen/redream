@@ -116,6 +116,17 @@ list(APPEND REDREAM_INCLUDE_DIRS deps/glew-1.13.0/include)
 list(APPEND REDREAM_LIBS glew_s)
 list(APPEND REDREAM_DEFS GLEW_STATIC)
 
+# imgui
+add_library(imgui STATIC
+  deps/cimgui/imgui/imgui.cpp
+  deps/cimgui/imgui/imgui_draw.cpp
+  deps/cimgui/cimgui/cimgui.cpp
+  deps/cimgui/cimgui/drawList.cpp
+  deps/cimgui/cimgui/fontAtlas.cpp
+  deps/cimgui/cimgui/listClipper.cpp)
+list(APPEND REDREAM_INCLUDE_DIRS deps/cimgui)
+list(APPEND REDREAM_LIBS imgui)
+
 # inih
 add_library(inih STATIC deps/inih/ini.c)
 list(APPEND REDREAM_INCLUDE_DIRS deps/inih)
@@ -208,6 +219,7 @@ set(REDREAM_SOURCES
   src/jit/jit.c
   src/jit/pass_stats.c
   src/render/gl_backend.c
+  src/render/imgui.cc
   src/render/microprofile.cc
   src/render/nuklear.c
   src/sys/exception_handler.c
