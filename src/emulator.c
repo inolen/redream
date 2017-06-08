@@ -29,7 +29,6 @@
 #include "hw/sh4/sh4.h"
 #include "render/imgui.h"
 #include "render/microprofile.h"
-#include "render/nuklear.h"
 #include "render/render_backend.h"
 #include "sys/thread.h"
 #include "sys/time.h"
@@ -61,7 +60,6 @@ struct emu {
   struct render_backend *r, *r2;
   struct imgui *imgui;
   struct microprofile *mp;
-  struct nuklear *nk;
   struct trace_writer *trace_writer;
 
   /* hosts which support creating multiple gl contexts will render video on
@@ -409,7 +407,6 @@ static void emu_paint(struct emu *emu) {
   float fheight = (float)emu->video_height;
 
   imgui_update_input(emu->imgui);
-  nk_update_input(emu->nk);
 
   r_viewport(emu->r, emu->video_width, emu->video_height);
 
@@ -450,52 +447,32 @@ static void emu_paint(struct emu *emu) {
     r_end_ui_surfaces(emu->r);
   }
 
-  /* render debug menus */
   if (emu->debug_menu) {
-    struct nk_context *ctx = &emu->nk->ctx;
-    struct nk_rect bounds = {0.0f, -1.0f, fwidth, DEBUG_MENU_HEIGHT + 1.0f};
+    if (igBeginMainMenuBar()) {
+      if (igBeginMenu("DEBUG", 1)) {
+        int tracing = emu->trace_writer ? 1 : 0;
+        const char *tracing_label = tracing ? "stop trace" : "start trace";
 
-    nk_style_default(ctx);
-    ctx->style.window.border = 0.0f;
-    ctx->style.window.menu_border = 0.0f;
-    ctx->style.window.spacing = nk_vec2(0.0f, 0.0f);
-    ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
-
-    if (nk_begin(ctx, "debug menu", bounds, NK_WINDOW_NO_SCROLLBAR)) {
-      static int max_debug_menus = 32;
-
-      nk_style_default(ctx);
-      ctx->style.window.padding = nk_vec2(0.0f, 0.0f);
-
-      nk_menubar_begin(ctx);
-      nk_layout_row_begin(ctx, NK_STATIC, DEBUG_MENU_HEIGHT, max_debug_menus);
-
-      /* add our own debug menu */
-      nk_layout_row_push(ctx, 50.0f);
-
-      if (nk_menu_begin_label(ctx, "DEBUG", NK_TEXT_CENTERED,
-                              nk_vec2(160.0f, 200.0f))) {
-        nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
-
-        if (!emu->trace_writer && nk_button_label(ctx, "start trace")) {
-          emu_toggle_tracing(emu);
-        } else if (emu->trace_writer && nk_button_label(ctx, "stop trace")) {
+        if (igMenuItem(tracing_label, NULL, tracing, 1)) {
           emu_toggle_tracing(emu);
         }
 
-        if (nk_button_label(ctx, "clear texture cache")) {
+        if (igMenuItem("clear texture cache", NULL, 0, 1)) {
           emu_clear_textures(emu);
         }
 
-        nk_menu_end(ctx);
+        igEndMenu();
       }
 
-      /* add each devices's debug menu */
-      dc_debug_menu(emu->dc, ctx);
+      igEndMainMenuBar();
+    }
 
-      /* fill up remaining space with status */
+    /* add each devices's debug menu */
+    dc_debug_menu(emu->dc);
+
+    /* add status */
+    if (igBeginMainMenuBar()) {
       char status[128];
-
       int frames = (int)prof_counter_load(COUNTER_frames);
       int ta_renders = (int)prof_counter_load(COUNTER_ta_renders);
       int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
@@ -507,22 +484,20 @@ static void emu_paint(struct emu *emu) {
       snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
                frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
 
-      int remaining_width =
-          ctx->current->layout->bounds.w -
-          ctx->current->layout->row.item_offset -
-          ctx->current->layout->row.index * ctx->style.window.spacing.x - 4.0f;
-      nk_layout_row_push(ctx, remaining_width);
-      nk_label(ctx, status, NK_TEXT_RIGHT);
+      /* right align */
+      struct ImVec2 content;
+      struct ImVec2 size;
+      igGetContentRegionMax(&content);
+      igCalcTextSize(&size, status, NULL, 0, 0.0f);
+      igSetCursorPosX(content.x - size.x);
+      igText(status);
 
-      nk_layout_row_end(ctx);
-      nk_menubar_end(ctx);
+      igEndMainMenuBar();
     }
-    nk_end(ctx);
   }
 
   imgui_render(emu->imgui);
   mp_render(emu->mp);
-  nk_render(emu->nk);
 
   /* mark the last rendered video id for emu_run_frame */
   emu->last_video_id = emu->video_id;
@@ -610,7 +585,6 @@ static void emu_host_mousemove(void *userdata, int port, int x, int y) {
 
   imgui_mousemove(emu->imgui, x, y);
   mp_mousemove(emu->mp, x, y);
-  nk_mousemove(emu->nk, x, y);
 }
 
 static void emu_host_keydown(void *userdata, int port, enum keycode key,
@@ -622,7 +596,6 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
   } else {
     imgui_keydown(emu->imgui, key, value);
     mp_keydown(emu->mp, key, value);
-    nk_keydown(emu->nk, key, value);
   }
 
   if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
@@ -672,7 +645,6 @@ static void emu_host_context_destroyed(void *userdata) {
   /* destroy primary renderer */
   r_make_current(emu->r);
 
-  nk_destroy(emu->nk);
   mp_destroy(emu->mp);
   imgui_destroy(emu->imgui);
   r_destroy(emu->r);
@@ -689,7 +661,6 @@ static void emu_host_context_reset(void *userdata) {
   emu->r = r_create(emu->host);
   emu->imgui = imgui_create(emu->r);
   emu->mp = mp_create(emu->r);
-  emu->nk = nk_create(emu->r);
 
   /* create video renderer */
   if (emu->multi_threaded) {

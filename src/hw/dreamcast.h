@@ -18,7 +18,6 @@ struct gdrom;
 struct holly;
 struct maple;
 struct memory;
-struct nk_context;
 struct pvr;
 struct scheduler;
 struct sh4;
@@ -89,7 +88,7 @@ struct memory_interface {
  * device
  */
 typedef int (*device_init_cb)(struct device *);
-typedef void (*device_debug_menu_cb)(struct device *, struct nk_context *);
+typedef void (*device_debug_menu_cb)(struct device *);
 
 struct device {
   struct dreamcast *dc;
@@ -188,7 +187,7 @@ void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_input(struct dreamcast *dc, int port, int button, int16_t value);
-void dc_debug_menu(struct dreamcast *dc, struct nk_context *ctx);
+void dc_debug_menu(struct dreamcast *dc);
 
 /* client functionality */
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);

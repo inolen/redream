@@ -15,7 +15,7 @@
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
-#include "render/nuklear.h"
+#include "render/imgui.h"
 #include "sys/time.h"
 
 #if ARCH_X64
@@ -153,32 +153,31 @@ static void sh4_run(struct device *dev, int64_t ns) {
   PROF_LEAVE();
 }
 
-static void sh4_debug_menu(struct device *dev, struct nk_context *ctx) {
+static void sh4_debug_menu(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
+  struct jit *jit = sh4->jit;
 
-  nk_layout_row_push(ctx, 30.0f);
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("SH4", 1)) {
+      if (igMenuItem("clear cache", NULL, 0, 1)) {
+        jit_invalidate_blocks(sh4->jit);
+      }
 
-  if (nk_menu_begin_label(ctx, "SH4", NK_TEXT_CENTERED,
-                          nk_vec2(200.0f, 200.0f))) {
-    nk_layout_row_dynamic(ctx, DEBUG_MENU_HEIGHT, 1);
+      if (!jit->dump_blocks) {
+        if (igMenuItem("start dumping blocks", NULL, 0, 1)) {
+          jit->dump_blocks = 1;
+          jit_invalidate_blocks(jit);
+        }
+      } else {
+        if (igMenuItem("stop dumping blocks", NULL, 1, 1)) {
+          jit->dump_blocks = 0;
+        }
+      }
 
-    if (nk_button_label(ctx, "clear cache")) {
-      jit_invalidate_blocks(sh4->jit);
+      igEndMenu();
     }
 
-    struct jit *jit = sh4->jit;
-    if (!jit->dump_blocks) {
-      if (nk_button_label(ctx, "start dumping blocks")) {
-        jit->dump_blocks = 1;
-        jit_invalidate_blocks(jit);
-      }
-    } else {
-      if (nk_button_label(ctx, "stop dumping blocks")) {
-        jit->dump_blocks = 0;
-      }
-    }
-
-    nk_menu_end(ctx);
+    igEndMainMenuBar();
   }
 }
 
