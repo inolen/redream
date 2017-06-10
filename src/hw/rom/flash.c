@@ -211,7 +211,7 @@ void flash_destroy(struct flash *flash) {
 
 struct flash *flash_create(struct dreamcast *dc) {
   struct flash *flash =
-      dc_create_device(dc, sizeof(struct flash), "flash", &flash_init, NULL);
+      dc_create_device(dc, sizeof(struct flash), "flash", &flash_init);
   return flash;
 }
 

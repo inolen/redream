@@ -759,7 +759,7 @@ void gdrom_destroy(struct gdrom *gd) {
 
 struct gdrom *gdrom_create(struct dreamcast *dc) {
   struct gdrom *gd =
-      dc_create_device(dc, sizeof(struct gdrom), "gdrom", &gdrom_init, NULL);
+      dc_create_device(dc, sizeof(struct gdrom), "gdrom", &gdrom_init);
   return gd;
 }
 

@@ -34,6 +34,8 @@ extern struct reg_cb holly_cb[NUM_HOLLY_REGS];
 struct holly *holly_create(struct dreamcast *dc);
 void holly_destroy(struct holly *hl);
 
+void holly_debug_menu(struct holly *hl);
+
 void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr);
 void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr);
 

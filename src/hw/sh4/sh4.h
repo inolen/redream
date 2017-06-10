@@ -96,10 +96,11 @@ void sh4_intc_check_pending(void *data);
 void sh4_intc_reprioritize(struct sh4 *sh4);
 
 struct sh4 *sh4_create(struct dreamcast *dc);
-void sh4_destroy(struct sh4 *sh);
+void sh4_destroy(struct sh4 *sh4);
+void sh4_debug_menu(struct sh4 *sh4);
 void sh4_reset(struct sh4 *sh4, uint32_t pc);
-void sh4_raise_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
-void sh4_clear_interrupt(struct sh4 *sh, enum sh4_interrupt intr);
+void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr);
+void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr);
 void sh4_sr_updated(void *data, uint32_t old_sr);
 void sh4_fpscr_updated(void *data, uint32_t old_fpscr);
 

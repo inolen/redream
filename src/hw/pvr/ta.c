@@ -674,7 +674,7 @@ void ta_destroy(struct ta *ta) {
 struct ta *ta_create(struct dreamcast *dc) {
   ta_init_tables();
 
-  struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init, NULL);
+  struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init);
 
   return ta;
 }

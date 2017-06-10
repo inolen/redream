@@ -88,13 +88,11 @@ struct memory_interface {
  * device
  */
 typedef int (*device_init_cb)(struct device *);
-typedef void (*device_debug_menu_cb)(struct device *);
 
 struct device {
   struct dreamcast *dc;
   const char *name;
   device_init_cb init;
-  device_debug_menu_cb debug_menu;
 
   /* optional interfaces */
   struct debug_interface *debug_if;
@@ -161,7 +159,7 @@ struct dreamcast *dc_create();
 void dc_destroy(struct dreamcast *dc);
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       device_init_cb init, device_debug_menu_cb debug_menu);
+                       device_init_cb init);
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
@@ -187,7 +185,6 @@ void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_input(struct dreamcast *dc, int port, int button, int16_t value);
-void dc_debug_menu(struct dreamcast *dc);
 
 /* client functionality */
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);

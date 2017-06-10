@@ -235,7 +235,7 @@ void arm7_destroy(struct arm7 *arm) {
 
 struct arm7 *arm7_create(struct dreamcast *dc) {
   struct arm7 *arm =
-      dc_create_device(dc, sizeof(struct arm7), "arm", &arm7_init, NULL);
+      dc_create_device(dc, sizeof(struct arm7), "arm", &arm7_init);
   arm->execute_if = dc_create_execute_interface(&arm7_run, 0);
   arm->memory_if = dc_create_memory_interface(dc, &arm7_data_map);
 

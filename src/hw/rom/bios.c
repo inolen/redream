@@ -87,7 +87,7 @@ static int bios_init(struct device *dev) {
 
 struct bios *bios_create(struct dreamcast *dc) {
   struct bios *bios =
-      dc_create_device(dc, sizeof(struct bios), "bios", &bios_init, NULL);
+      dc_create_device(dc, sizeof(struct bios), "bios", &bios_init);
   return bios;
   ;
 }
