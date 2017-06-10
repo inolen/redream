@@ -43,23 +43,30 @@ static int controller_input(struct maple_device *dev, int button,
                             int16_t value) {
   struct controller *ctrl = (struct controller *)dev;
 
-  /* scale incoming int16_t -> uint8_t */
-  uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
-
   if (button <= CONT_DPAD2_RIGHT) {
     if (value > 0) {
       ctrl->cnd.buttons &= ~(1 << button);
     } else {
       ctrl->cnd.buttons |= (1 << button);
     }
-  } else if (button == CONT_JOYX) {
-    ctrl->cnd.joyx = scaled;
-  } else if (button == CONT_JOYY) {
-    ctrl->cnd.joyy = scaled;
-  } else if (button == CONT_LTRIG) {
-    ctrl->cnd.ltrig = scaled;
-  } else if (button == CONT_RTRIG) {
-    ctrl->cnd.rtrig = scaled;
+  } else if (button == CONT_JOYX || button == CONT_JOYX) {
+    /* scale value from [INT16_MIN, INT16_MAX] to [0, UINT8_MAX] */
+    uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
+
+    if (button == CONT_JOYX) {
+      ctrl->cnd.joyx = scaled;
+    } else {
+      ctrl->cnd.joyy = scaled;
+    }
+  } else if (button == CONT_LTRIG || button == CONT_RTRIG) {
+    /* scale value from [0, INT16_MAX] to [0, UINT8_MAX] */
+    uint8_t scaled = (int32_t)value >> 7;
+
+    if (button == CONT_LTRIG) {
+      ctrl->cnd.ltrig = scaled;
+    } else {
+      ctrl->cnd.rtrig = scaled;
+    }
   }
 
   return 1;
