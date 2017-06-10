@@ -19,6 +19,7 @@
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"
 #include "hw/gdrom/gdrom.h"
+#include "hw/holly/holly.h"
 #include "hw/maple/maple.h"
 #include "hw/memory.h"
 #include "hw/pvr/pvr.h"
@@ -467,8 +468,9 @@ static void emu_paint(struct emu *emu) {
       igEndMainMenuBar();
     }
 
-    /* add each devices's debug menu */
-    dc_debug_menu(emu->dc);
+    holly_debug_menu(emu->dc->holly);
+    aica_debug_menu(emu->dc->aica);
+    sh4_debug_menu(emu->dc->sh4);
 
     /* add status */
     if (igBeginMainMenuBar()) {

@@ -47,14 +47,6 @@ void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames) {
   dc->push_audio(dc->userdata, data, frames);
 }
 
-void dc_debug_menu(struct dreamcast *dc) {
-  list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (dev->debug_menu) {
-      dev->debug_menu(dev);
-    }
-  }
-}
-
 void dc_input(struct dreamcast *dc, int port, int button, int16_t value) {
   maple_handle_input(dc->maple, port, button, value);
 }
@@ -232,13 +224,12 @@ struct device *dc_get_device(struct dreamcast *dc, const char *name) {
 }
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       device_init_cb init, device_debug_menu_cb debug_menu) {
+                       device_init_cb init) {
   struct device *dev = calloc(1, size);
 
   dev->dc = dc;
   dev->name = name;
   dev->init = init;
-  dev->debug_menu = debug_menu;
 
   list_add(&dc->devices, &dev->it);
 

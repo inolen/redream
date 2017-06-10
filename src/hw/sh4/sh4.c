@@ -102,40 +102,6 @@ static void sh4_invalid_instr(void *data) {
   LOG_FATAL("Unhandled invalid instruction at 0x%08x", sh4->ctx.pc);
 }
 
-void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
-  sh4->requested_interrupts &= ~sh4->sort_id[intr];
-  sh4_intc_update_pending(sh4);
-}
-
-void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
-  sh4->requested_interrupts |= sh4->sort_id[intr];
-  sh4_intc_update_pending(sh4);
-}
-
-void sh4_reset(struct sh4 *sh4, uint32_t pc) {
-  jit_free_blocks(sh4->jit);
-
-  /* reset context */
-  memset(&sh4->ctx, 0, sizeof(sh4->ctx));
-  sh4->ctx.pc = pc;
-  sh4->ctx.r[15] = 0x8d000000;
-  sh4->ctx.pr = 0x0;
-  sh4->ctx.sr = 0x700000f0;
-  sh4->ctx.fpscr = 0x00040001;
-
-/* initialize registers */
-#define SH4_REG(addr, name, default, type) \
-  sh4->reg[name] = default;                \
-  sh4->name = (type *)&sh4->reg[name];
-#include "hw/sh4/sh4_regs.inc"
-#undef SH4_REG
-
-  /* reset interrupts */
-  sh4_intc_reprioritize(sh4);
-
-  sh4->execute_if->running = 1;
-}
-
 static void sh4_run(struct device *dev, int64_t ns) {
   PROF_ENTER("cpu", "sh4_run");
 
@@ -151,34 +117,6 @@ static void sh4_run(struct device *dev, int64_t ns) {
   prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
 
   PROF_LEAVE();
-}
-
-static void sh4_debug_menu(struct device *dev) {
-  struct sh4 *sh4 = (struct sh4 *)dev;
-  struct jit *jit = sh4->jit;
-
-  if (igBeginMainMenuBar()) {
-    if (igBeginMenu("SH4", 1)) {
-      if (igMenuItem("clear cache", NULL, 0, 1)) {
-        jit_invalidate_blocks(sh4->jit);
-      }
-
-      if (!jit->dump_blocks) {
-        if (igMenuItem("start dumping blocks", NULL, 0, 1)) {
-          jit->dump_blocks = 1;
-          jit_invalidate_blocks(jit);
-        }
-      } else {
-        if (igMenuItem("stop dumping blocks", NULL, 1, 1)) {
-          jit->dump_blocks = 0;
-        }
-      }
-
-      igEndMenu();
-    }
-
-    igEndMainMenuBar();
-  }
 }
 
 static int sh4_init(struct device *dev) {
@@ -233,6 +171,67 @@ static int sh4_init(struct device *dev) {
   return 1;
 }
 
+void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
+  sh4->requested_interrupts &= ~sh4->sort_id[intr];
+  sh4_intc_update_pending(sh4);
+}
+
+void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
+  sh4->requested_interrupts |= sh4->sort_id[intr];
+  sh4_intc_update_pending(sh4);
+}
+
+void sh4_reset(struct sh4 *sh4, uint32_t pc) {
+  jit_free_blocks(sh4->jit);
+
+  /* reset context */
+  memset(&sh4->ctx, 0, sizeof(sh4->ctx));
+  sh4->ctx.pc = pc;
+  sh4->ctx.r[15] = 0x8d000000;
+  sh4->ctx.pr = 0x0;
+  sh4->ctx.sr = 0x700000f0;
+  sh4->ctx.fpscr = 0x00040001;
+
+/* initialize registers */
+#define SH4_REG(addr, name, default, type) \
+  sh4->reg[name] = default;                \
+  sh4->name = (type *)&sh4->reg[name];
+#include "hw/sh4/sh4_regs.inc"
+#undef SH4_REG
+
+  /* reset interrupts */
+  sh4_intc_reprioritize(sh4);
+
+  sh4->execute_if->running = 1;
+}
+
+void sh4_debug_menu(struct sh4 *sh4) {
+  struct jit *jit = sh4->jit;
+
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("SH4", 1)) {
+      if (igMenuItem("clear cache", NULL, 0, 1)) {
+        jit_invalidate_blocks(sh4->jit);
+      }
+
+      if (!jit->dump_blocks) {
+        if (igMenuItem("start dumping blocks", NULL, 0, 1)) {
+          jit->dump_blocks = 1;
+          jit_invalidate_blocks(jit);
+        }
+      } else {
+        if (igMenuItem("stop dumping blocks", NULL, 1, 1)) {
+          jit->dump_blocks = 0;
+        }
+      }
+
+      igEndMenu();
+    }
+
+    igEndMainMenuBar();
+  }
+}
+
 void sh4_destroy(struct sh4 *sh4) {
   jit_destroy(sh4->jit);
   sh4_guest_destroy(sh4->guest);
@@ -246,8 +245,7 @@ void sh4_destroy(struct sh4 *sh4) {
 }
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
-  struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init,
-                                     &sh4_debug_menu);
+  struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
   sh4->debug_if = dc_create_debug_interface(
       &sh4_dbg_num_registers, &sh4_dbg_step, &sh4_dbg_add_breakpoint,
       &sh4_dbg_remove_breakpoint, &sh4_dbg_read_memory, &sh4_dbg_read_register);

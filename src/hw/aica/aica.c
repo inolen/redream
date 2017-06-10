@@ -797,25 +797,6 @@ static void aica_toggle_recording(struct aica *aica) {
   }
 }
 
-static void aica_debug_menu(struct device *dev) {
-  struct aica *aica = (struct aica *)dev;
-
-  if (igBeginMainMenuBar()) {
-    if (igBeginMenu("AICA", 1)) {
-      const char *recording_label =
-          aica->recording ? "stop recording" : "start recording";
-
-      if (igMenuItem(recording_label, NULL, aica->recording, 1)) {
-        aica_toggle_recording(aica);
-      }
-
-      igEndMenu();
-    }
-
-    igEndMainMenuBar();
-  }
-}
-
 static int aica_init(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
 
@@ -855,6 +836,23 @@ static int aica_init(struct device *dev) {
   return 1;
 }
 
+void aica_debug_menu(struct aica *aica) {
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("AICA", 1)) {
+      const char *recording_label =
+          aica->recording ? "stop recording" : "start recording";
+
+      if (igMenuItem(recording_label, NULL, aica->recording, 1)) {
+        aica_toggle_recording(aica);
+      }
+
+      igEndMenu();
+    }
+
+    igEndMainMenuBar();
+  }
+}
+
 void aica_destroy(struct aica *aica) {
   /* shutdown rtc */
   {
@@ -888,8 +886,8 @@ void aica_destroy(struct aica *aica) {
 struct aica *aica_create(struct dreamcast *dc) {
   aica_init_tables();
 
-  struct aica *aica = dc_create_device(dc, sizeof(struct aica), "aica",
-                                       &aica_init, &aica_debug_menu);
+  struct aica *aica =
+      dc_create_device(dc, sizeof(struct aica), "aica", &aica_init);
   return aica;
 }
 

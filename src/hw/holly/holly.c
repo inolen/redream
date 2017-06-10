@@ -295,6 +295,11 @@ static uint32_t *holly_interrupt_status(struct holly *hl,
   }
 }
 
+static int holly_init(struct device *dev) {
+  struct holly *hl = (struct holly *)dev;
+  return 1;
+}
+
 void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr) {
   enum holly_interrupt_type type = HOLLY_INTERRUPT_TYPE(intr);
   uint32_t irq = HOLLY_INTERRUPT_IRQ(intr);
@@ -320,9 +325,7 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   }
 }
 
-static void holly_debug_menu(struct device *dev) {
-  struct holly *hl = (struct holly *)dev;
-
+void holly_debug_menu(struct holly *hl) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("HOLLY", 1)) {
       if (igMenuItem("log reg access", NULL, hl->log_reg_access, 1)) {
@@ -348,18 +351,13 @@ static void holly_debug_menu(struct device *dev) {
   }
 }
 
-static int holly_init(struct device *dev) {
-  struct holly *hl = (struct holly *)dev;
-  return 1;
-}
-
 void holly_destroy(struct holly *hl) {
   dc_destroy_device((struct device *)hl);
 }
 
 struct holly *holly_create(struct dreamcast *dc) {
-  struct holly *hl = dc_create_device(dc, sizeof(struct holly), "holly",
-                                      &holly_init, &holly_debug_menu);
+  struct holly *hl =
+      dc_create_device(dc, sizeof(struct holly), "holly", &holly_init);
 
 /* init registers */
 #define HOLLY_REG(addr, name, default, type) \
