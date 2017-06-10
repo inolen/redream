@@ -9,7 +9,7 @@
    or KEY_UP constant, and for analog inputs is in the range of INT16_MIN to
    INT16_MAX */
 #define KEY_DOWN INT16_MAX
-#define KEY_UP INT16_MIN
+#define KEY_UP 0
 
 enum keycode {
   K_UNKNOWN,
