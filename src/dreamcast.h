@@ -9,7 +9,7 @@
 
 struct aica;
 struct arm7;
-struct bios;
+struct boot;
 struct debugger;
 struct device;
 struct dreamcast;
@@ -106,7 +106,7 @@ struct device {
   struct sh4 *sh4;
   struct arm7 *arm;
   struct aica *aica;
-  struct bios *bios;
+  struct boot *boot;
   struct flash *flash;
   struct gdrom *gdrom;
   struct holly *holly;
@@ -137,7 +137,6 @@ struct dreamcast {
   struct sh4 *sh4;
   struct arm7 *arm;
   struct aica *aica;
-  struct bios *bios;
   struct boot *boot;
   struct flash *flash;
   struct gdrom *gdrom;

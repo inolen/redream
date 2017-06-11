@@ -9,7 +9,7 @@
 #include "hw/maple/maple.h"
 #include "hw/pvr/pvr.h"
 #include "hw/pvr/ta.h"
-#include "hw/rom/bios.h"
+#include "hw/rom/boot.h"
 #include "hw/rom/flash.h"
 #include "hw/sh4/sh4.h"
 #include "memory.h"
@@ -146,7 +146,7 @@ int dc_init(struct dreamcast *dc) {
     dev->sh4 = dc->sh4;
     dev->arm = dc->arm;
     dev->aica = dc->aica;
-    dev->bios = dc->bios;
+    dev->boot = dc->boot;
     dev->flash = dc->flash;
     dev->gdrom = dc->gdrom;
     dev->holly = dc->holly;
@@ -243,7 +243,7 @@ void dc_destroy(struct dreamcast *dc) {
   holly_destroy(dc->holly);
   gdrom_destroy(dc->gdrom);
   flash_destroy(dc->flash);
-  bios_destroy(dc->bios);
+  boot_destroy(dc->boot);
   aica_destroy(dc->aica);
   arm7_destroy(dc->arm);
   sh4_destroy(dc->sh4);
@@ -267,7 +267,7 @@ struct dreamcast *dc_create() {
   dc->sh4 = sh4_create(dc);
   dc->arm = arm7_create(dc);
   dc->aica = aica_create(dc);
-  dc->bios = bios_create(dc);
+  dc->boot = boot_create(dc);
   dc->flash = flash_create(dc);
   dc->gdrom = gdrom_create(dc);
   dc->holly = holly_create(dc);

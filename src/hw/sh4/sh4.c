@@ -7,7 +7,7 @@
 #include "hw/holly/holly.h"
 #include "hw/pvr/pvr.h"
 #include "hw/pvr/ta.h"
-#include "hw/rom/bios.h"
+#include "hw/rom/boot.h"
 #include "hw/rom/flash.h"
 #include "jit/frontend/sh4/sh4_fallback.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
@@ -302,7 +302,7 @@ REG_R32(sh4_cb, PDTRA) {
 
 /* clang-format off */
 AM_BEGIN(struct sh4, sh4_data_map)
-  AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("bios", boot_rom_map)
+  AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("boot", boot_rom_map)
   AM_RANGE(0x00200000, 0x0021ffff) AM_DEVICE("flash", flash_rom_map)
   AM_RANGE(0x0c000000, 0x0cffffff) AM_MOUNT("system ram")
 
