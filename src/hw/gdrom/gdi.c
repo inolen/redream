@@ -15,11 +15,10 @@ static int gdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
                            enum gd_secmask mask, void *dst) {
   struct gdi *gdi = (struct gdi *)disc;
 
-  CHECK(fmt == SECTOR_ANY || fmt == SECTOR_M1);
-  CHECK(mask == MASK_DATA);
-
   struct track *track = disc_lookup_track(disc, fad);
   CHECK_NOTNULL(track);
+  CHECK(fmt == SECTOR_ANY || fmt == track->sector_fmt);
+  CHECK(mask == MASK_DATA);
 
   /* open the file backing the track */
   int n = track - gdi->tracks;
@@ -122,6 +121,7 @@ static int gdi_parse(struct disc *disc, const char *filename) {
     track->fad = lba + GDROM_PREGAP;
     track->ctrl = ctrl;
     track->sector_size = sector_size;
+    track->sector_fmt = SECTOR_M1;
     track->file_offset = file_offset - track->fad * track->sector_size;
     snprintf(track->filename, sizeof(track->filename), "%s" PATH_SEPARATOR "%s",
              dirname, filename);

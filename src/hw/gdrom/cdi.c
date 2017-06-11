@@ -13,8 +13,17 @@ static const char *cdi_version_names[] = {
     "2", "3", "3.5",
 };
 
-static const uint8_t cdi_start_mark[] = {0, 0, 1, 0, 0, 0, 255, 255, 255, 255};
 static const int cdi_sector_sizes[] = {2048, 2336, 2352};
+
+static const enum gd_secfmt cdi_sector_formats[] = {
+    SECTOR_CDDA, 0, SECTOR_M2F1,
+};
+
+static const char *cdi_modes[] = {
+    "CDDA", "???", "M2F1",
+};
+
+static const uint8_t cdi_start_mark[] = {0, 0, 1, 0, 0, 0, 255, 255, 255, 255};
 
 struct cdi {
   struct disc;
@@ -29,11 +38,10 @@ static int cdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
                            enum gd_secmask mask, void *dst) {
   struct cdi *cdi = (struct cdi *)disc;
 
-  CHECK(fmt == SECTOR_ANY || fmt == SECTOR_M2F1);
-  CHECK(mask == MASK_DATA);
-
   struct track *track = disc_lookup_track(disc, fad);
   CHECK_NOTNULL(track);
+  CHECK(fmt == SECTOR_ANY || fmt == track->sector_fmt);
+  CHECK(mask == MASK_DATA);
 
   /* read the user data portion of the sector */
   int offset = track->file_offset + fad * track->sector_size + 8;
@@ -159,8 +167,8 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
     return 0;
   }
 
-  if (mode != 2) {
-    LOG_WARNING("cdi_parse unsupported track mode 0x%x", mode);
+  if (mode != 0 && mode != 2) {
+    LOG_WARNING("cdi_parse unsupported track mode %d", mode);
     return 0;
   }
 
@@ -174,11 +182,12 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
   track->adr = 0;  /* no subq channel mode info */
   track->ctrl = 4; /* data track */
   track->sector_size = sector_size;
+  track->sector_fmt = cdi_sector_formats[mode];
   track->file_offset = *track_offset + pregap_length * sector_size -
                        track->fad * track->sector_size;
 
-  LOG_INFO("cdi_parse_track track=%d fad=%d secsz=%d mode=%d", track->num,
-           track->fad, track->sector_size, mode);
+  LOG_INFO("cdi_parse_track track=%d fad=%d mode=%s/%d", track->num, track->fad,
+           cdi_modes[mode], track->sector_size);
 
   *track_offset += total_length * sector_size;
   *leadout_fad = track->fad + total_length;

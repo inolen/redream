@@ -14,6 +14,7 @@ struct track {
   int adr;
   int ctrl;
   int sector_size;
+  enum gd_secfmt sector_fmt;
   char filename[PATH_MAX];
   int file_offset;
 };
