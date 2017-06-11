@@ -3,10 +3,10 @@
 
 #include <stdint.h>
 
-struct exception;
+struct exception_state;
 struct exception_handler;
 
-typedef int (*exception_handler_cb)(void *data, struct exception *ex);
+typedef int (*exception_handler_cb)(void *, struct exception_state *);
 
 enum exception_type {
   EX_ACCESS_VIOLATION,
@@ -21,7 +21,7 @@ union thread_state {
   uint64_t r[17];
 };
 
-struct exception {
+struct exception_state {
   enum exception_type type;
   uintptr_t fault_addr;
   uintptr_t pc;
@@ -34,6 +34,6 @@ void exception_handler_uninstall_platform();
 struct exception_handler *exception_handler_add(void *data,
                                                 exception_handler_cb cb);
 void exception_handler_remove(struct exception_handler *handler);
-int exception_handler_handle(struct exception *ex);
+int exception_handler_handle(struct exception_state *ex);
 
 #endif

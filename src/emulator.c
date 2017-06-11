@@ -151,7 +151,7 @@ static void emu_dirty_modified_textures(struct emu *emu) {
   list_clear(&emu->modified_textures);
 }
 
-static void emu_texture_modified(const struct exception *ex, void *data) {
+static void emu_texture_modified(const struct exception_state *ex, void *data) {
   struct emu_texture *tex = data;
   tex->texture_watch = NULL;
 
@@ -161,7 +161,7 @@ static void emu_texture_modified(const struct exception *ex, void *data) {
   }
 }
 
-static void emu_palette_modified(const struct exception *ex, void *data) {
+static void emu_palette_modified(const struct exception_state *ex, void *data) {
   struct emu_texture *tex = data;
   tex->palette_watch = NULL;
 

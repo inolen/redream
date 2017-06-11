@@ -49,7 +49,7 @@ static void signal_handler(int signo, siginfo_t *info, void *ctx) {
   ucontext_t *uctx = ctx;
 
   /* convert signal to internal exception */
-  struct exception ex;
+  struct exception_state ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
   ex.fault_addr = (uintptr_t)info->si_addr;
   ex.pc = uctx->uc_mcontext.gregs[REG_RIP];

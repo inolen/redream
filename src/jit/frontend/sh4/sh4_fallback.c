@@ -1,7 +1,7 @@
-#include <math.h>
 #include "jit/frontend/sh4/sh4_fallback.h"
 #include "core/assert.h"
 #include "core/log.h"
+#include "core/math.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_guest.h"

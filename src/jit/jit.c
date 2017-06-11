@@ -334,7 +334,7 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   PROF_LEAVE();
 }
 
-static int jit_handle_exception(void *data, struct exception *ex) {
+static int jit_handle_exception(void *data, struct exception_state *ex) {
   struct jit *jit = data;
 
   /* see if there is a cached block corresponding to the current pc */
