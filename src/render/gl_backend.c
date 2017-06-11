@@ -2,7 +2,7 @@
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "core/string.h"
-#include "host.h"
+#include "host/host.h"
 #include "render/render_backend.h"
 
 #define MAX_FRAMEBUFFERS 8

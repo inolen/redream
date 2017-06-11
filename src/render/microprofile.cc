@@ -12,7 +12,6 @@
 extern "C" {
 #include "core/assert.h"
 #include "core/math.h"
-#include "keycode.h"
 #include "render/microprofile.h"
 #include "render/render_backend.h"
 }
