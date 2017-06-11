@@ -1,5 +1,5 @@
-#include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
+#include "scheduler.h"
 
 static const int64_t PERIPHERAL_CLOCK_FREQ = SH4_CLOCK_FREQ >> 2;
 static const int PERIPHERAL_SCALE[] = {2, 4, 6, 8, 10, 0, 0, 0};

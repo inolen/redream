@@ -2,11 +2,11 @@
 #define SH4_H
 
 #include "core/profiler.h"
-#include "hw/dreamcast.h"
-#include "hw/memory.h"
+#include "dreamcast.h"
 #include "hw/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_context.h"
 #include "jit/jit.h"
+#include "memory.h"
 
 struct dreamcast;
 struct jit;

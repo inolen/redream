@@ -1,6 +1,7 @@
 #ifndef TA_TYPES_H
 #define TA_TYPES_H
 
+#include <stdint.h>
 #include "core/list.h"
 #include "core/rb_tree.h"
 

@@ -1,5 +1,5 @@
 #include "hw/maple/maple.h"
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 #include "hw/holly/holly.h"
 #include "hw/sh4/sh4.h"
 

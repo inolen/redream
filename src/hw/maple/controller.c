@@ -1,6 +1,6 @@
 #include "core/option.h"
 #include "core/string.h"
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 #include "hw/maple/maple.h"
 
 enum {

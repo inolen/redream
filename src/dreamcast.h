@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include "core/list.h"
 #include "host/keycode.h"
-#include "hw/memory.h"
+#include "memory.h"
 
 struct aica;
 struct arm7;

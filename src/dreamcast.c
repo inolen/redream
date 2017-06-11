@@ -1,19 +1,19 @@
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 #include "core/option.h"
 #include "core/string.h"
+#include "debugger.h"
 #include "hw/aica/aica.h"
 #include "hw/arm7/arm7.h"
-#include "hw/debugger.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/holly/holly.h"
 #include "hw/maple/maple.h"
-#include "hw/memory.h"
 #include "hw/pvr/pvr.h"
 #include "hw/pvr/ta.h"
 #include "hw/rom/bios.h"
 #include "hw/rom/flash.h"
-#include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
+#include "memory.h"
+#include "scheduler.h"
 
 void dc_poll_input(struct dreamcast *dc) {
   if (!dc->poll_input) {

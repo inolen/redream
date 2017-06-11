@@ -1,10 +1,10 @@
 #include "hw/holly/holly.h"
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 #include "hw/gdrom/gdrom.h"
 #include "hw/maple/maple.h"
-#include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
 #include "render/imgui.h"
+#include "scheduler.h"
 
 struct reg_cb holly_cb[NUM_HOLLY_REGS];
 

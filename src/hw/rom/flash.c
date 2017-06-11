@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "hw/rom/flash.h"
 #include "core/option.h"
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 #include "sys/filesystem.h"
 
 DEFINE_OPTION_STRING(flash, "dc_flash.bin", "Path to flash rom");

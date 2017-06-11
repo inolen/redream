@@ -1,14 +1,14 @@
 #include "hw/arm7/arm7.h"
 #include "core/log.h"
+#include "dreamcast.h"
 #include "hw/aica/aica.h"
-#include "hw/dreamcast.h"
-#include "hw/scheduler.h"
 #include "jit/frontend/armv3/armv3_context.h"
 #include "jit/frontend/armv3/armv3_fallback.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
 #include "jit/frontend/armv3/armv3_guest.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+#include "scheduler.h"
 
 #if ARCH_X64
 #include "jit/backend/x64/x64_backend.h"

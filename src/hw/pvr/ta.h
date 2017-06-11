@@ -2,8 +2,8 @@
 #define TA_H
 
 #include "core/profiler.h"
-#include "hw/memory.h"
 #include "hw/pvr/ta_types.h"
+#include "memory.h"
 
 struct dreamcast;
 struct ta;

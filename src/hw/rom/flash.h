@@ -1,7 +1,7 @@
 #ifndef FLASH_H
 #define FLASH_H
 
-#include "hw/memory.h"
+#include "memory.h"
 
 struct dreamcast;
 struct flash;
