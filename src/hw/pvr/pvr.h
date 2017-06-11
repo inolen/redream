@@ -1,11 +1,10 @@
 #ifndef PVR_H
 #define PVR_H
 
-#include <stdint.h>
 #include "core/profiler.h"
-#include "hw/dreamcast.h"
-#include "hw/memory.h"
+#include "dreamcast.h"
 #include "hw/pvr/pvr_types.h"
+#include "memory.h"
 
 struct dreamcast;
 struct holly;

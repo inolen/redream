@@ -1,7 +1,7 @@
 #include "hw/gdrom/gdrom.h"
 #include "core/math.h"
 #include "core/string.h"
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 #include "hw/gdrom/gdrom_replies.inc"
 #include "hw/gdrom/gdrom_types.h"
 #include "hw/holly/holly.h"

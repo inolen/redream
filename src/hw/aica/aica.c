@@ -3,14 +3,14 @@
 #include "core/log.h"
 #include "core/option.h"
 #include "core/profiler.h"
+#include "dreamcast.h"
 #include "hw/aica/aica_types.h"
 #include "hw/arm7/arm7.h"
-#include "hw/dreamcast.h"
 #include "hw/holly/holly.h"
-#include "hw/memory.h"
-#include "hw/scheduler.h"
 #include "hw/sh4/sh4.h"
+#include "memory.h"
 #include "render/imgui.h"
+#include "scheduler.h"
 #include "sys/filesystem.h"
 
 DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);

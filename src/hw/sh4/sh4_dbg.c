@@ -1,4 +1,4 @@
-#include "hw/debugger.h"
+#include "debugger.h"
 #include "hw/sh4/sh4.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_fallback.h"

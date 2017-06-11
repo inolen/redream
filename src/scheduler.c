@@ -1,9 +1,9 @@
 #include <stdio.h>
-#include "hw/scheduler.h"
+#include "scheduler.h"
 #include "core/assert.h"
 #include "core/core.h"
 #include "core/list.h"
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 
 #define MAX_TIMERS 128
 

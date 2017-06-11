@@ -1,7 +1,6 @@
 #ifndef GDROM_H
 #define GDROM_H
 
-#include <stdint.h>
 #include "hw/gdrom/disc.h"
 #include "hw/gdrom/gdrom_types.h"
 

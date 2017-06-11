@@ -1,12 +1,10 @@
 #ifndef HOLLY_H
 #define HOLLY_H
 
-#include <stdint.h>
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 #include "hw/holly/holly_types.h"
-#include "hw/memory.h"
+#include "memory.h"
 
-struct dreamcast;
 struct gdrom;
 struct maple;
 struct sh4;

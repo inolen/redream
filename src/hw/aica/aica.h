@@ -1,8 +1,7 @@
 #ifndef AICA_H
 #define AICA_H
 
-#include <stdint.h>
-#include "hw/memory.h"
+#include "memory.h"
 
 struct aica;
 struct dreamcast;

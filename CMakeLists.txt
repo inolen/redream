@@ -192,10 +192,6 @@ set(REDREAM_SOURCES
   src/hw/sh4/sh4_dmac.c
   src/hw/sh4/sh4_intc.c
   src/hw/sh4/sh4_tmu.c
-  src/hw/debugger.c
-  src/hw/dreamcast.c
-  src/hw/memory.c
-  src/hw/scheduler.c
   src/jit/backend/interp/interp_backend.c
   src/jit/frontend/armv3/armv3_context.c
   src/jit/frontend/armv3/armv3_disasm.c
@@ -223,9 +219,12 @@ set(REDREAM_SOURCES
   src/sys/exception_handler.c
   src/sys/filesystem.c
   src/sys/memory.c
+  src/debugger.c
+  src/dreamcast.c
   src/emulator.c
-  src/tracer.c
-)
+  src/memory.c
+  src/scheduler.c
+  src/tracer.c)
 
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)

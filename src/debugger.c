@@ -3,8 +3,8 @@
 #include "gdb/gdb_server.h"
 
 #include "core/log.h"
-#include "hw/debugger.h"
-#include "hw/dreamcast.h"
+#include "debugger.h"
+#include "dreamcast.h"
 
 struct debugger {
   struct dreamcast *dc;

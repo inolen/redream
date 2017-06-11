@@ -2,7 +2,7 @@
 #define ARM7_H
 
 #include "core/profiler.h"
-#include "hw/memory.h"
+#include "memory.h"
 
 struct arm7;
 struct dreamcast;

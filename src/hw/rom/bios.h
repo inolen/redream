@@ -1,7 +1,7 @@
 #ifndef BIOS_H
 #define BIOS_H
 
-#include "hw/memory.h"
+#include "memory.h"
 
 struct dreamcast;
 struct bios;

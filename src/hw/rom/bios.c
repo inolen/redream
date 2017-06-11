@@ -2,7 +2,7 @@
 #include "hw/rom/bios.h"
 #include "core/md5.h"
 #include "core/option.h"
-#include "hw/dreamcast.h"
+#include "dreamcast.h"
 
 DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to boot rom");
 
