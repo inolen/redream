@@ -1,9 +1,9 @@
 #include <limits.h>
 #include "hw/pvr/trace.h"
 #include "core/assert.h"
+#include "core/filesystem.h"
 #include "core/math.h"
 #include "hw/pvr/tr.h"
-#include "sys/filesystem.h"
 
 void get_next_trace_filename(char *filename, size_t size) {
   const char *appdir = fs_appdir();

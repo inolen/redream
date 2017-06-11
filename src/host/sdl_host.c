@@ -2,13 +2,13 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include "core/assert.h"
+#include "core/filesystem.h"
 #include "core/log.h"
 #include "core/option.h"
 #include "core/profiler.h"
 #include "core/ringbuf.h"
 #include "emulator.h"
 #include "host/host.h"
-#include "sys/filesystem.h"
 #include "tracer.h"
 
 DEFINE_OPTION_INT(audio, 1, "Enable audio");

@@ -1,6 +1,8 @@
 #include <inttypes.h>
 #include "jit/jit.h"
 #include "core/core.h"
+#include "core/exception_handler.h"
+#include "core/filesystem.h"
 #include "core/option.h"
 #include "core/profiler.h"
 #include "jit/backend/jit_backend.h"
@@ -11,8 +13,6 @@
 #include "jit/passes/expression_simplification_pass.h"
 #include "jit/passes/load_store_elimination_pass.h"
 #include "jit/passes/register_allocation_pass.h"
-#include "sys/exception_handler.h"
-#include "sys/filesystem.h"
 
 #if PLATFORM_DARWIN || PLATFORM_LINUX
 #include <unistd.h>

@@ -1,5 +1,5 @@
 #include <time.h>
-#include "sys/time.h"
+#include "core/time.h"
 
 int64_t time_nanoseconds() {
   struct timespec tp;

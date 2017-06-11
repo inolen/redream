@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "sys/filesystem.h"
+#include "core/filesystem.h"
 
 int fs_userdir(char *userdir, size_t size) {
   const char *home = getenv("HOME");

@@ -3,7 +3,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <userenv.h>
-#include "sys/filesystem.h"
+#include "core/filesystem.h"
 
 int fs_userdir(char *userdir, size_t size) {
   HANDLE accessToken = NULL;

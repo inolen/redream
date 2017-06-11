@@ -3,7 +3,7 @@
 
 #include "core/assert.h"
 #include "core/math.h"
-#include "sys/memory.h"
+#include "core/memory.h"
 
 struct address_map;
 struct address_space;

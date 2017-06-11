@@ -1,8 +1,8 @@
 #include "core/assert.h"
+#include "core/filesystem.h"
 #include "core/string.h"
 #include "hw/maple/maple.h"
 #include "hw/maple/vmu_default.inc"
-#include "sys/filesystem.h"
 
 #define VMU_BLOCK_SIZE 512
 #define VMU_BLOCK_WORDS (512 >> 2)

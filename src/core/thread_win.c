@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <windows.h>
 #include "core/assert.h"
-#include "sys/thread.h"
+#include "core/thread.h"
 
 struct thread_wrapper {
   thread_fn fn;

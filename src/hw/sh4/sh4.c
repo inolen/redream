@@ -1,6 +1,7 @@
 #include "hw/sh4/sh4.h"
 #include "core/math.h"
 #include "core/string.h"
+#include "core/time.h"
 #include "dreamcast.h"
 #include "hw/aica/aica.h"
 #include "hw/holly/holly.h"
@@ -16,7 +17,6 @@
 #include "memory.h"
 #include "render/imgui.h"
 #include "scheduler.h"
-#include "sys/time.h"
 
 #if ARCH_X64
 #include "jit/backend/x64/x64_backend.h"

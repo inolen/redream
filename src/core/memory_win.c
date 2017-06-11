@@ -1,5 +1,5 @@
 #include <windows.h>
-#include "sys/memory.h"
+#include "core/memory.h"
 
 static DWORD access_to_file_flags(enum page_access access) {
   switch (access) {

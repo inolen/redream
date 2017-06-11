@@ -159,10 +159,13 @@ endif()
 
 set(REDREAM_SOURCES
   src/core/assert.c
+  src/core/exception_handler.c
+  src/core/filesystem.c
   src/core/interval_tree.c
   src/core/list.c
   src/core/log.c
   src/core/md5.c
+  src/core/memory.c
   src/core/option.c
   src/core/profiler.cc
   src/core/ringbuf.cc
@@ -216,9 +219,6 @@ set(REDREAM_SOURCES
   src/render/gl_backend.c
   src/render/imgui.cc
   src/render/microprofile.cc
-  src/sys/exception_handler.c
-  src/sys/filesystem.c
-  src/sys/memory.c
   src/debugger.c
   src/dreamcast.c
   src/emulator.c
@@ -229,27 +229,27 @@ set(REDREAM_SOURCES
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
   list(APPEND REDREAM_SOURCES
-    src/sys/exception_handler_win.c
-    src/sys/filesystem_win.c
-    src/sys/memory_win.c
-    src/sys/thread_win.c
-    src/sys/time_win.c)
+    src/core/exception_handler_win.c
+    src/core/filesystem_win.c
+    src/core/memory_win.c
+    src/core/thread_win.c
+    src/core/time_win.c)
 elseif(PLATFORM_DARWIN)
   list(APPEND REDREAM_DEFS PLATFORM_DARWIN=1)
   list(APPEND REDREAM_SOURCES
-    src/sys/exception_handler_mac.c
-    src/sys/filesystem_posix.c
-    src/sys/memory_posix.c
-    src/sys/thread_posix.c
-    src/sys/time_mac.c)
+    src/core/exception_handler_mac.c
+    src/core/filesystem_posix.c
+    src/core/memory_posix.c
+    src/core/thread_posix.c
+    src/core/time_mac.c)
 elseif(PLATFORM_LINUX)
   list(APPEND REDREAM_DEFS PLATFORM_LINUX=1)
   list(APPEND REDREAM_SOURCES
-    src/sys/exception_handler_linux.c
-    src/sys/filesystem_posix.c
-    src/sys/memory_posix.c
-    src/sys/thread_posix.c
-    src/sys/time_linux.c)
+    src/core/exception_handler_linux.c
+    src/core/filesystem_posix.c
+    src/core/memory_posix.c
+    src/core/thread_posix.c
+    src/core/time_linux.c)
 endif()
 
 if(ARCH_X64)
