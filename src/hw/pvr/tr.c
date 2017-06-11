@@ -1,8 +1,7 @@
-#include <math.h>
-#include <string.h>
 #include "hw/pvr/tr.h"
 #include "core/assert.h"
 #include "core/core.h"
+#include "core/math.h"
 #include "core/profiler.h"
 #include "core/sort.h"
 #include "hw/pvr/pixel_convert.h"

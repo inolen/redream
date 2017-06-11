@@ -42,7 +42,7 @@ static void interp_backend_run_code(struct jit_backend *base, int cycles) {
 }
 
 static int interp_backend_handle_exception(struct jit_backend *base,
-                                           struct exception *ex) {
+                                           struct exception_state *ex) {
   return 0;
 }
 

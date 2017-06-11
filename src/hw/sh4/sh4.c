@@ -12,7 +12,6 @@
 #include "jit/frontend/sh4/sh4_fallback.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_guest.h"
-#include "jit/ir/ir.h"
 #include "jit/jit.h"
 #include "memory.h"
 #include "render/imgui.h"

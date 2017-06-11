@@ -1,7 +1,7 @@
-#include <math.h>
 #include "hw/aica/aica.h"
 #include "core/filesystem.h"
 #include "core/log.h"
+#include "core/math.h"
 #include "core/option.h"
 #include "core/profiler.h"
 #include "dreamcast.h"

@@ -57,7 +57,7 @@ void exception_handler_remove(struct exception_handler *handler) {
   }
 }
 
-int exception_handler_handle(struct exception *ex) {
+int exception_handler_handle(struct exception_state *ex) {
   list_for_each_entry(handler, &live_handlers, struct exception_handler, it) {
     if (handler->cb(handler->data, ex)) {
       return 1;

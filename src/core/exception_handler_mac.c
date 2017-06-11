@@ -86,7 +86,7 @@ kern_return_t catch_exception_raise(mach_port_t exception_port,
   }
 
   /* convert mach exception to internal exception */
-  struct exception ex;
+  struct exception_state ex;
   ex.type = exception == EXC_BAD_ACCESS ? EX_ACCESS_VIOLATION
                                         : EX_INVALID_INSTRUCTION;
   ex.fault_addr = exc_state.__faultvaddr;

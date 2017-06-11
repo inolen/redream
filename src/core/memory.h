@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-struct exception;
+struct exception_state;
 
 /*
  * page protection
@@ -43,7 +43,7 @@ enum memory_watch_type {
   WATCH_SINGLE_WRITE,
 };
 
-typedef void (*memory_watch_cb)(const struct exception *, void *);
+typedef void (*memory_watch_cb)(const struct exception_state *, void *);
 
 struct memory_watch *add_single_write_watch(const void *ptr, size_t size,
                                             memory_watch_cb cb, void *data);

@@ -48,7 +48,7 @@ static LONG CALLBACK exception_handler(PEXCEPTION_POINTERS ex_info) {
   }
 
   /* convert signal to internal exception */
-  struct exception ex;
+  struct exception_state ex;
   ex.type = code == STATUS_ACCESS_VIOLATION ? EX_ACCESS_VIOLATION
                                             : EX_INVALID_INSTRUCTION;
   ex.fault_addr = ex_info->ExceptionRecord->ExceptionInformation[1];

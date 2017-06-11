@@ -500,7 +500,7 @@ static void x64_backend_emit_constants(struct x64_backend *backend) {
 }
 
 static int x64_backend_handle_exception(struct jit_backend *base,
-                                        struct exception *ex) {
+                                        struct exception_state *ex) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
   struct jit_guest *guest = backend->base.jit->guest;
 

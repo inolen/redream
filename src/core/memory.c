@@ -26,7 +26,7 @@ struct memory_watcher {
 
 static struct memory_watcher *watcher;
 
-static int watcher_handle_exception(void *ctx, struct exception *ex);
+static int watcher_handle_exception(void *ctx, struct exception_state *ex);
 
 static void watcher_create() {
   watcher = calloc(1, sizeof(struct memory_watcher));
@@ -47,7 +47,7 @@ static void watcher_destroy() {
   watcher = NULL;
 }
 
-static int watcher_handle_exception(void *ctx, struct exception *ex) {
+static int watcher_handle_exception(void *ctx, struct exception_state *ex) {
   int handled = 0;
 
   struct interval_tree_it it;
