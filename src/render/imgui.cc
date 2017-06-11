@@ -2,7 +2,7 @@
 
 extern "C" {
 #include "core/assert.h"
-#include "keycode.h"
+#include "host/keycode.h"
 #include "render/render_backend.h"
 }
 

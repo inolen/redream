@@ -5,7 +5,7 @@
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "emulator.h"
-#include "host.h"
+#include "host/host.h"
 #include "sys/filesystem.h"
 
 #define AUDIO_FREQ 44100

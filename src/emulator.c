@@ -14,7 +14,7 @@
 #include "emulator.h"
 #include "core/option.h"
 #include "core/profiler.h"
-#include "host.h"
+#include "host/host.h"
 #include "hw/aica/aica.h"
 #include "hw/arm7/arm7.h"
 #include "hw/dreamcast.h"

@@ -169,6 +169,7 @@ set(REDREAM_SOURCES
   src/core/rb_tree.c
   src/core/sort.c
   src/core/string.c
+  src/host/keycode.c
   src/hw/aica/aica.c
   src/hw/arm7/arm7.c
   src/hw/gdrom/cdi.c
@@ -223,7 +224,6 @@ set(REDREAM_SOURCES
   src/sys/filesystem.c
   src/sys/memory.c
   src/emulator.c
-  src/keycode.c
   src/tracer.c
 )
 
@@ -300,7 +300,7 @@ target_compile_options(relib PRIVATE ${REDREAM_FLAGS})
 
 if(BUILD_LIBRETRO)
 
-add_library(redream_libretro SHARED $<TARGET_OBJECTS:relib> src/retro_host.c)
+add_library(redream_libretro SHARED $<TARGET_OBJECTS:relib> src/host/retro_host.c)
 set_target_properties(redream_libretro PROPERTIES PREFIX "")
 set_target_properties(redream_libretro PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(redream_libretro SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS} deps/libretro/include)
@@ -325,7 +325,7 @@ endif()
 # redream
 #--------------------------------------------------
 
-add_executable(redream $<TARGET_OBJECTS:relib> src/sdl_host.c)
+add_executable(redream $<TARGET_OBJECTS:relib> src/host/sdl_host.c)
 target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream ${REDREAM_LIBS} SDL2main SDL2-static)
@@ -339,7 +339,7 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 if(BUILD_TOOLS)
 
 if(ARCH_X64)
-add_executable(recc $<TARGET_OBJECTS:relib> src/null_host.c tools/recc/main.c)
+add_executable(recc $<TARGET_OBJECTS:relib> src/host/null_host.c tools/recc/main.c)
 target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(recc ${REDREAM_LIBS})
@@ -348,7 +348,7 @@ target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 endif()
 
 add_executable(retrace $<TARGET_OBJECTS:relib>
-  src/null_host.c
+  src/host/null_host.c
   tools/retrace/depth.c
   tools/retrace/main.c)
 target_include_directories(retrace SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
@@ -466,7 +466,7 @@ endif()
 
 # build test binary
 set(RETEST_SOURCES
-  src/null_host.c
+  src/host/null_host.c
   test/test_dead_code_elimination.c
   test/test_interval_tree.c
   test/test_list.c

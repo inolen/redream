@@ -4,8 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "core/list.h"
+#include "host/keycode.h"
 #include "hw/memory.h"
-#include "keycode.h"
 
 struct aica;
 struct arm7;

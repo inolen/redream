@@ -7,7 +7,7 @@
 #include "core/profiler.h"
 #include "core/ringbuf.h"
 #include "emulator.h"
-#include "host.h"
+#include "host/host.h"
 #include "sys/filesystem.h"
 #include "tracer.h"
 

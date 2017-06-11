@@ -1,6 +1,6 @@
 #include "tracer.h"
 #include "core/math.h"
-#include "host.h"
+#include "host/host.h"
 #include "hw/pvr/ta.h"
 #include "hw/pvr/tr.h"
 #include "hw/pvr/trace.h"

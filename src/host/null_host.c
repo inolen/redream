@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include "host.h"
+#include "host/host.h"
 
 /*
  * audio

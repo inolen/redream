@@ -1,6 +1,8 @@
 #ifndef MICROPROFILE_IMPL_H
 #define MICROPROFILE_IMPL_H
 
+#include "host/keycode.h"
+
 struct microprofile;
 struct render_backend;
 
