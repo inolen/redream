@@ -18,7 +18,7 @@
 extern "C" {
 
 #include "core/profiler.h"
-#include "sys/time.h"
+#include "core/time.h"
 
 static struct {
   std::atomic<int64_t> counters[MICROPROFILE_MAX_COUNTERS];

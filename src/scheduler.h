@@ -2,7 +2,7 @@
 #define SCHEDULER_H
 
 #include <stdint.h>
-#include "sys/time.h"
+#include "core/time.h"
 
 struct dreamcast;
 struct timer;

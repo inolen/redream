@@ -1,5 +1,5 @@
 #include <windows.h>
-#include "sys/exception_handler.h"
+#include "core/exception_handler.h"
 
 static void copy_state_to(PCONTEXT src, union thread_state *dst) {
   dst->rax = src->Rax;

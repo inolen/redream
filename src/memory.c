@@ -1,8 +1,8 @@
 #include "memory.h"
+#include "core/exception_handler.h"
 #include "core/math.h"
 #include "core/string.h"
 #include "dreamcast.h"
-#include "sys/exception_handler.h"
 
 /*
  * address maps

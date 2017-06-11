@@ -1,10 +1,10 @@
 #include "hw/pvr/pvr.h"
+#include "core/time.h"
 #include "dreamcast.h"
 #include "hw/holly/holly.h"
 #include "hw/pvr/ta.h"
 #include "hw/sh4/sh4.h"
 #include "scheduler.h"
-#include "sys/time.h"
 
 DEFINE_AGGREGATE_COUNTER(pvr_vblanks);
 DEFINE_AGGREGATE_COUNTER(pvr_vram_data);

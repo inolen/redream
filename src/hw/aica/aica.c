@@ -1,5 +1,6 @@
 #include <math.h>
 #include "hw/aica/aica.h"
+#include "core/filesystem.h"
 #include "core/log.h"
 #include "core/option.h"
 #include "core/profiler.h"
@@ -11,7 +12,6 @@
 #include "memory.h"
 #include "render/imgui.h"
 #include "scheduler.h"
-#include "sys/filesystem.h"
 
 DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
 DEFINE_AGGREGATE_COUNTER(aica_samples);

@@ -1,4 +1,6 @@
 #include "hw/pvr/ta.h"
+#include "core/exception_handler.h"
+#include "core/filesystem.h"
 #include "core/list.h"
 #include "core/string.h"
 #include "hw/holly/holly.h"
@@ -7,8 +9,6 @@
 #include "hw/pvr/tr.h"
 #include "hw/sh4/sh4.h"
 #include "scheduler.h"
-#include "sys/exception_handler.h"
-#include "sys/filesystem.h"
 
 DEFINE_AGGREGATE_COUNTER(ta_data);
 DEFINE_AGGREGATE_COUNTER(ta_renders);

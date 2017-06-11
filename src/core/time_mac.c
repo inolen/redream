@@ -1,7 +1,7 @@
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 #include "core/assert.h"
-#include "sys/time.h"
+#include "core/time.h"
 
 int64_t time_nanoseconds() {
   uint64_t result = mach_absolute_time();

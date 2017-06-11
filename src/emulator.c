@@ -14,6 +14,8 @@
 #include "emulator.h"
 #include "core/option.h"
 #include "core/profiler.h"
+#include "core/thread.h"
+#include "core/time.h"
 #include "dreamcast.h"
 #include "host/host.h"
 #include "hw/aica/aica.h"
@@ -31,8 +33,6 @@
 #include "render/microprofile.h"
 #include "render/render_backend.h"
 #include "scheduler.h"
-#include "sys/thread.h"
-#include "sys/time.h"
 
 DEFINE_AGGREGATE_COUNTER(frames);
 

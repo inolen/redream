@@ -1,8 +1,8 @@
 #ifndef DISC_H
 #define DISC_H
 
+#include "core/filesystem.h"
 #include "hw/gdrom/gdrom_types.h"
-#include "sys/filesystem.h"
 
 #define DISC_MAX_SECTOR_SIZE 2352
 #define DISC_MAX_SESSIONS 2

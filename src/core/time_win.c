@@ -1,6 +1,6 @@
 #include <Windows.h>
 #include "core/assert.h"
-#include "sys/time.h"
+#include "core/time.h"
 
 int64_t time_nanoseconds() {
   static double scale = 0.0;

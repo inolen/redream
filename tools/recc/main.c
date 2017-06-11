@@ -1,3 +1,4 @@
+#include "core/filesystem.h"
 #include "core/log.h"
 #include "core/option.h"
 #include "jit/backend/x64/x64_backend.h"
@@ -11,7 +12,6 @@
 #include "jit/passes/expression_simplification_pass.h"
 #include "jit/passes/load_store_elimination_pass.h"
 #include "jit/passes/register_allocation_pass.h"
-#include "sys/filesystem.h"
 
 DEFINE_OPTION_INT(help, 0, "Show help");
 DEFINE_OPTION_STRING(pass, "lse,cprop,cve,esimp,dce,ra",

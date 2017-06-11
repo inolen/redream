@@ -2,9 +2,9 @@
 #include <atomic>
 extern "C" {
 #include "core/assert.h"
+#include "core/memory.h"
 #include "core/ringbuf.h"
 #include "core/string.h"
-#include "sys/memory.h"
 }
 
 /* single producer, single consumer ring buffer implementation */

@@ -1,14 +1,14 @@
 #include "jit/backend/x64/x64_local.h"
 
 extern "C" {
+#include "core/exception_handler.h"
+#include "core/memory.h"
 #include "core/profiler.h"
 #include "jit/backend/jit_backend.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
-#include "sys/exception_handler.h"
-#include "sys/memory.h"
 }
 
 /*
