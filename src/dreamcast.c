@@ -102,6 +102,9 @@ static int dc_load_disc(struct dreamcast *dc, const char *path) {
   if (!disc) {
     return 0;
   }
+  char uid[11];
+  disc->get_uid(disc, uid);
+  uid[10] = '\0';
 
   gdrom_set_disc(dc->gdrom, disc);
   sh4_reset(dc->sh4, 0xa0000000);
