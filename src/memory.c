@@ -440,7 +440,7 @@ static void as_lookup_region(struct address_space *space, uint32_t addr,
 }
 
 void as_memcpy(struct address_space *space, uint32_t dst, uint32_t src,
-               uint32_t size) {
+               int size) {
   struct memory_region *dst_region;
   uint32_t dst_offset;
   as_lookup_region(space, dst, &dst_region, &dst_offset);
@@ -468,7 +468,7 @@ void as_memcpy(struct address_space *space, uint32_t dst, uint32_t src,
 }
 
 void as_memcpy_to_host(struct address_space *space, void *ptr, uint32_t src,
-                       uint32_t size) {
+                       int size) {
   struct memory_region *src_region;
   uint32_t src_offset;
   as_lookup_region(space, src, &src_region, &src_offset);
@@ -483,7 +483,7 @@ void as_memcpy_to_host(struct address_space *space, void *ptr, uint32_t src,
 }
 
 void as_memcpy_to_guest(struct address_space *space, uint32_t dst,
-                        const void *ptr, uint32_t size) {
+                        const void *ptr, int size) {
   struct memory_region *dst_region;
   uint32_t dst_offset;
   as_lookup_region(space, dst, &dst_region, &dst_offset);
