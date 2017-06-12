@@ -9,6 +9,7 @@
 
 struct aica;
 struct arm7;
+struct bios;
 struct boot;
 struct debugger;
 struct device;
@@ -103,6 +104,7 @@ struct device {
   struct debugger *debugger;
   struct memory *memory;
   struct scheduler *scheduler;
+  struct bios *bios;
   struct sh4 *sh4;
   struct arm7 *arm;
   struct aica *aica;
@@ -134,6 +136,7 @@ struct dreamcast {
   struct scheduler *scheduler;
 
   /* devices */
+  struct bios *bios;
   struct sh4 *sh4;
   struct arm7 *arm;
   struct aica *aica;

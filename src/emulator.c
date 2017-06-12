@@ -12,6 +12,7 @@
  */
 
 #include "emulator.h"
+#include "bios/bios.h"
 #include "core/option.h"
 #include "core/profiler.h"
 #include "core/thread.h"
@@ -468,6 +469,7 @@ static void emu_paint(struct emu *emu) {
       igEndMainMenuBar();
     }
 
+    bios_debug_menu(emu->dc->bios);
     holly_debug_menu(emu->dc->holly);
     aica_debug_menu(emu->dc->aica);
     sh4_debug_menu(emu->dc->sh4);

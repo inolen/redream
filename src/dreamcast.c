@@ -1,4 +1,5 @@
 #include "dreamcast.h"
+#include "bios/bios.h"
 #include "core/option.h"
 #include "core/string.h"
 #include "debugger.h"
@@ -137,12 +138,12 @@ int dc_init(struct dreamcast *dc) {
     return 0;
   }
 
-  /* initialize each device */
+  /* cache references to other devices */
   list_for_each_entry(dev, &dc->devices, struct device, it) {
-    /* cache references to other devices */
     dev->debugger = dc->debugger;
     dev->memory = dc->memory;
     dev->scheduler = dc->scheduler;
+    dev->bios = dc->bios;
     dev->sh4 = dc->sh4;
     dev->arm = dc->arm;
     dev->aica = dc->aica;
@@ -153,10 +154,17 @@ int dc_init(struct dreamcast *dc) {
     dev->maple = dc->maple;
     dev->pvr = dc->pvr;
     dev->ta = dc->ta;
+  }
 
+  /* initialize each device */
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (!dev->init(dev)) {
       return 0;
     }
+  }
+
+  if (!bios_init(dc->bios)) {
+    return 0;
   }
 
   return 1;
@@ -247,6 +255,7 @@ void dc_destroy(struct dreamcast *dc) {
   aica_destroy(dc->aica);
   arm7_destroy(dc->arm);
   sh4_destroy(dc->sh4);
+  bios_destroy(dc->bios);
   scheduler_destroy(dc->scheduler);
   memory_destroy(dc->memory);
   if (dc->debugger) {
@@ -264,6 +273,7 @@ struct dreamcast *dc_create() {
 #endif
   dc->memory = memory_create(dc);
   dc->scheduler = scheduler_create(dc);
+  dc->bios = bios_create(dc);
   dc->sh4 = sh4_create(dc);
   dc->arm = arm7_create(dc);
   dc->aica = aica_create(dc);
