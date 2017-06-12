@@ -1,8 +1,9 @@
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "core/sort.h"
 
-static void merge(void *in, void *out, size_t size, int l, int m, int r,
+static void merge(uint8_t *in, uint8_t *out, size_t size, int l, int m, int r,
                   sort_cmp cmp) {
   int i = l;
   int j = m;
@@ -21,7 +22,7 @@ static void merge(void *in, void *out, size_t size, int l, int m, int r,
   }
 }
 
-static void msort_r(void *in, void *out, size_t size, int l, int r,
+static void msort_r(uint8_t *in, uint8_t *out, size_t size, int l, int r,
                     sort_cmp cmp) {
   if ((r - l) < 2) {
     return;

@@ -64,7 +64,7 @@ static int boot_load_rom(struct boot *boot) {
   fclose(fp);
 
   if (!boot_validate(boot)) {
-    LOG_WARNING("invalid BIOS file");
+    LOG_WARNING("failed to validate boot rom");
     return 0;
   }
 

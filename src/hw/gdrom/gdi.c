@@ -21,7 +21,7 @@ static int gdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
   CHECK(mask == MASK_DATA);
 
   /* open the file backing the track */
-  int n = track - gdi->tracks;
+  int n = (int)(track - gdi->tracks);
   FILE *fp = gdi->files[n];
 
   if (!fp) {

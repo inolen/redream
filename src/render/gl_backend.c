@@ -829,7 +829,11 @@ void r_set_debug_flag(struct render_backend *r, int flag) {
   r->debug_flags |= flag;
 }
 
-void r_make_current(struct render_backend *r) {
+void r_unbind_context(struct render_backend *r) {
+  video_gl_make_current(r->host, NULL);
+}
+
+void r_bind_context(struct render_backend *r) {
   video_gl_make_current(r->host, r->ctx);
 }
 

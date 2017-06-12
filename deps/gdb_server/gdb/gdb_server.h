@@ -303,6 +303,15 @@ gdb_server_t *gdb_server_create(gdb_target_t *target, int port) {
     return NULL;
   }
 
+#if PLATFORM_WINDOWS
+  WSADATA wsadata;
+  int r = WSAStartup(MAKEWORD(2, 2), &wsadata);
+  if (r) {
+    GDB_SERVER_LOG("Failed to initialize WinSock");
+    return NULL;
+  }
+#endif
+
   gdb_server_t *sv = (gdb_server_t *)GDB_SERVER_MALLOC(sizeof(gdb_server_t));
   memset(sv, 0, sizeof(*sv));
   sv->target = *target;
@@ -310,8 +319,8 @@ gdb_server_t *gdb_server_create(gdb_target_t *target, int port) {
   sv->client = INVALID_SOCKET;
 
   if (gdb_server_create_listen(sv, port) == -1) {
-    GDB_SERVER_FREE(sv);
-    sv = NULL;
+    gdb_server_destroy(sv);
+    return NULL;
   }
 
   return sv;
@@ -346,6 +355,11 @@ void gdb_server_destroy(gdb_server_t *sv) {
   gdb_server_destroy_listen(sv);
 
   GDB_SERVER_FREE(sv);
+
+#if PLATFORM_WINDOWS
+  int r = WSACleanup();
+  GDB_SERVER_ASSERT(r == 0);
+#endif
 }
 
 //
@@ -414,6 +428,10 @@ static int gdb_server_create_listen(gdb_server_t *sv, int port) {
 // destroy the listen server
 //
 static void gdb_server_destroy_listen(gdb_server_t *sv) {
+  if (sv->listen == INVALID_SOCKET) {
+    return;
+  }
+
   gdb_server_destroy_client(sv);
 
   shutdown(sv->listen, SHUT_RDWR);

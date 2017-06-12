@@ -131,10 +131,12 @@ int dc_load(struct dreamcast *dc, const char *path) {
 
 int dc_init(struct dreamcast *dc) {
   if (dc->debugger && !debugger_init(dc->debugger)) {
+    LOG_WARNING("failed to initialize debugger");
     return 0;
   }
 
   if (!memory_init(dc->memory)) {
+    LOG_WARNING("failed to initialize shared memory");
     return 0;
   }
 
@@ -159,11 +161,13 @@ int dc_init(struct dreamcast *dc) {
   /* initialize each device */
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (!dev->init(dev)) {
+      LOG_WARNING("failed to initialize device '%s'", dev->name);
       return 0;
     }
   }
 
   if (!bios_init(dc->bios)) {
+    LOG_WARNING("failed to initialize bios");
     return 0;
   }
 

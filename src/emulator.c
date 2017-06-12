@@ -362,7 +362,7 @@ static void *emu_video_thread(void *data) {
   struct emu *emu = data;
 
   /* make secondary context active for this thread */
-  r_make_current(emu->r2);
+  r_bind_context(emu->r2);
 
   while (1) {
     mutex_lock(emu->pending_mutex);
@@ -398,6 +398,10 @@ static void *emu_video_thread(void *data) {
        order to allow emu_render_frame and emu_paint to run in parallel */
     mutex_unlock(emu->pending_mutex);
   }
+
+  /* unbind context from this thread before it dies, otherwise the main thread
+     may not be able to bind it in order to clean it up */
+  r_unbind_context(emu->r2);
 
   return NULL;
 }
@@ -619,7 +623,7 @@ static void emu_host_context_destroyed(void *userdata) {
   /* destroy the video thread */
   if (emu->multi_threaded) {
     mutex_lock(emu->pending_mutex);
-    emu->pending_ctx = (struct tile_context *)0xdeadbeef;
+    emu->pending_ctx = (struct tile_context *)(intptr_t)0xdeadbeef;
     cond_signal(emu->pending_cond);
     mutex_unlock(emu->pending_mutex);
 
@@ -632,8 +636,7 @@ static void emu_host_context_destroyed(void *userdata) {
 
   /* destroy video renderer */
   struct render_backend *r2 = emu_video_renderer(emu);
-
-  r_make_current(r2);
+  r_bind_context(r2);
 
   r_destroy_framebuffer(r2, emu->video_fb);
   if (emu->video_sync) {
@@ -647,7 +650,7 @@ static void emu_host_context_destroyed(void *userdata) {
   }
 
   /* destroy primary renderer */
-  r_make_current(emu->r);
+  r_bind_context(emu->r);
 
   mp_destroy(emu->mp);
   imgui_destroy(emu->imgui);
@@ -674,20 +677,19 @@ static void emu_host_context_reset(void *userdata) {
   }
 
   struct render_backend *r2 = emu_video_renderer(emu);
-
-  r_make_current(r2);
+  r_bind_context(r2);
 
   emu->video_fb = r_create_framebuffer(r2, emu->video_width, emu->video_height,
                                        &emu->video_tex);
+
+  /* make primary renderer active for the current thread */
+  r_bind_context(emu->r);
 
   /* startup video thread */
   if (emu->multi_threaded) {
     emu->video_thread = thread_create(&emu_video_thread, NULL, emu);
     CHECK_NOTNULL(emu->video_thread);
   }
-
-  /* make primary renderer active for the current thread */
-  r_make_current(emu->r);
 }
 
 static void emu_host_resized(void *userdata) {
