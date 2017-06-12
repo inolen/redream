@@ -136,7 +136,8 @@ struct render_backend *r_create(struct host *host);
 struct render_backend *r_create_from(struct render_backend *other);
 void r_destroy(struct render_backend *rc);
 
-void r_make_current(struct render_backend *r);
+void r_bind_context(struct render_backend *r);
+void r_unbind_context(struct render_backend *r);
 
 void r_set_debug_flag(struct render_backend *r, int flag);
 int r_get_debug_flag(struct render_backend *r, int flag);

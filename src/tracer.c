@@ -559,7 +559,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
     igSetWindowPos(pos, ImGuiSetCond_Once);
 
     int i = 0;
-    int tex_per_row = MAX(igGetContentRegionAvailWidth() / 44, 1);
+    int tex_per_row = MAX((int)(igGetContentRegionAvailWidth() / 44.0f), 1);
 
     rb_for_each_entry(tex, &tracer->live_textures, struct tracer_texture,
                       live_it) {

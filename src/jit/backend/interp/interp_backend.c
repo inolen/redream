@@ -11,10 +11,10 @@ static void interp_backend_run_code(struct jit_backend *base, int cycles) {
   struct interp_backend *backend = (struct interp_backend *)base;
   struct jit *jit = backend->jit;
   struct jit_guest *guest = jit->guest;
-  void *ctx = guest->ctx;
-  uint32_t *pc = ctx + guest->offset_pc;
-  int32_t *run_cycles = ctx + guest->offset_cycles;
-  int32_t *ran_instrs = ctx + guest->offset_instrs;
+  uint8_t *ctx = guest->ctx;
+  uint32_t *pc = (uint32_t *)(ctx + guest->offset_pc);
+  int32_t *run_cycles = (int32_t *)(ctx + guest->offset_cycles);
+  int32_t *ran_instrs = (int32_t *)(ctx + guest->offset_instrs);
 
   *run_cycles = cycles;
   *ran_instrs = 0;
