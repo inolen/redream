@@ -29,6 +29,7 @@ struct session {
 struct disc {
   void (*destroy)(struct disc *);
   int (*get_format)(struct disc *);
+  void (*get_uid)(struct disc *, char* dst);
   int (*get_num_sessions)(struct disc *);
   struct session *(*get_session)(struct disc *, int);
   int (*get_num_tracks)(struct disc *);

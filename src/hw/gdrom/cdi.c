@@ -79,6 +79,12 @@ static int cdi_get_num_sessions(struct disc *disc) {
   return cdi->num_sessions;
 }
 
+static void cdi_get_uid(struct disc *disc, char* dst) {
+  char ip[2048];
+  cdi_read_sector(disc, 45150, SECTOR_ANY, MASK_DATA, ip);
+  strncpy(dst, &ip[0x40], 10);
+}
+
 static int cdi_get_format(struct disc *disc) {
   return DISC_CDROM_XA;
 }
@@ -329,6 +335,7 @@ struct disc *cdi_create(const char *filename) {
   cdi->destroy = &cdi_destroy;
   cdi->get_format = &cdi_get_format;
   cdi->get_num_sessions = &cdi_get_num_sessions;
+  cdi->get_uid = &cdi_get_uid;
   cdi->get_session = &cdi_get_session;
   cdi->get_num_tracks = &cdi_get_num_tracks;
   cdi->get_track = &cdi_get_track;

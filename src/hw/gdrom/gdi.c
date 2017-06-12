@@ -65,6 +65,12 @@ static int gdi_get_num_sessions(struct disc *disc) {
   return gdi->num_sessions;
 }
 
+static void gdi_get_uid(struct disc *disc, char* dst) {
+  char ip[2048];
+  gdi_read_sector(disc, 45150, SECTOR_ANY, MASK_DATA, ip);
+  strncpy(dst, &ip[0x40], 10);
+}
+
 static int gdi_get_format(struct disc *disc) {
   return DISC_GDROM;
 }
@@ -164,6 +170,7 @@ struct disc *gdi_create(const char *filename) {
   gdi->destroy = &gdi_destroy;
   gdi->get_format = &gdi_get_format;
   gdi->get_num_sessions = &gdi_get_num_sessions;
+  gdi->get_uid = &gdi_get_uid;
   gdi->get_session = &gdi_get_session;
   gdi->get_num_tracks = &gdi_get_num_tracks;
   gdi->get_track = &gdi_get_track;
