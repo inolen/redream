@@ -207,7 +207,7 @@ static void gdrom_spi_data(struct gdrom *gd, int arg) {
   int offset = gd->pio_offset;
   uint8_t *data = gd->pio_buffer;
   int size = gd->pio_size;
-  memcpy((void *)&gd->hw_info + offset, data, size);
+  memcpy((uint8_t *)&gd->hw_info + offset, data, size);
 
   gdrom_spi_end(gd);
 }
@@ -249,7 +249,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       int offset = data[2];
       int size = data[4];
 
-      gdrom_spi_write(gd, (void *)&gd->hw_info + offset, size);
+      gdrom_spi_write(gd, (uint8_t *)&gd->hw_info + offset, size);
     } break;
 
     case SPI_REQ_ERROR: {

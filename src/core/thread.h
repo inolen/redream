@@ -42,7 +42,7 @@ void cond_destroy(cond_t cond);
  * sleeping
  */
 #if PLATFORM_WINDOWS
-#include <Synchapi.h>
+#include <windows.h>
 #define sleep Sleep
 #else
 #include <unistd.h>
