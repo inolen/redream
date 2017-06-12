@@ -170,18 +170,20 @@ static void flash_rom_write(struct flash *flash, uint32_t addr, uint32_t data,
 static int flash_init(struct device *dev) {
   struct flash *flash = (struct flash *)dev;
 
-  if (!flash_load_rom(flash)) {
-    return 0;
-  }
+  /* attempt to load the flash rom, if this fails the bios should reset the
+     flash to a valid state */
+  flash_load_rom(flash);
 
   return 1;
 }
 
 void flash_write(struct flash *flash, int offset, const void *data, int size) {
+  CHECK(offset >= 0 && (offset + size) <= (int)sizeof(flash->rom));
   memcpy(&flash->rom[offset], data, size);
 }
 
 void flash_read(struct flash *flash, int offset, void *data, int size) {
+  CHECK(offset >= 0 && (offset + size) <= (int)sizeof(flash->rom));
   memcpy(data, &flash->rom[offset], size);
 }
 

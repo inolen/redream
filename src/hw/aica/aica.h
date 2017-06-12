@@ -16,4 +16,6 @@ void aica_destroy(struct aica *aica);
 
 void aica_debug_menu(struct aica *aica);
 
+void aica_set_clock(struct aica *aica, uint32_t time);
+
 #endif

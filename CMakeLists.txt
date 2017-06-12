@@ -158,6 +158,8 @@ endif()
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
+  src/bios/bios.c
+  src/bios/flash.c
   src/core/assert.c
   src/core/exception_handler.c
   src/core/filesystem.c
@@ -224,7 +226,8 @@ set(REDREAM_SOURCES
   src/emulator.c
   src/memory.c
   src/scheduler.c
-  src/tracer.c)
+  src/tracer.c
+)
 
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
