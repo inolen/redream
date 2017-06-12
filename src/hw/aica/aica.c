@@ -13,7 +13,6 @@
 #include "render/imgui.h"
 #include "scheduler.h"
 
-DEFINE_OPTION_INT(rtc, 0, OPTION_HIDDEN);
 DEFINE_AGGREGATE_COUNTER(aica_samples);
 
 #if 0
@@ -824,16 +823,16 @@ static int aica_init(struct device *dev) {
 
   /* init rtc */
   {
-    /* seed clock from persistant options */
-    CHECK(sizeof(aica->rtc) <= sizeof(OPTION_rtc));
-    aica->rtc = *(uint32_t *)&OPTION_rtc;
-
     /* increment clock every second */
     aica->rtc_timer = scheduler_start_timer(aica->scheduler, &aica_rtc_timer,
                                             aica, NS_PER_SEC);
   }
 
   return 1;
+}
+
+void aica_set_clock(struct aica *aica, uint32_t time) {
+  aica->rtc = time;
 }
 
 void aica_debug_menu(struct aica *aica) {
@@ -859,9 +858,6 @@ void aica_destroy(struct aica *aica) {
     if (aica->rtc_timer) {
       scheduler_cancel_timer(aica->scheduler, aica->rtc_timer);
     }
-
-    /* persist clock */
-    OPTION_rtc = *(int *)&aica->rtc;
   }
 
   /* shutdown timers */
