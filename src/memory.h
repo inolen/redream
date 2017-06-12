@@ -114,10 +114,10 @@ void as_write16(struct address_space *space, uint32_t addr, uint16_t data);
 void as_write32(struct address_space *space, uint32_t addr, uint32_t data);
 
 void as_memcpy_to_guest(struct address_space *space, uint32_t virtual_dest,
-                        const void *ptr, uint32_t size);
+                        const void *ptr, int size);
 void as_memcpy_to_host(struct address_space *space, void *ptr,
-                       uint32_t virtual_src, uint32_t size);
+                       uint32_t virtual_src, int size);
 void as_memcpy(struct address_space *space, uint32_t virtual_dest,
-               uint32_t virtual_src, uint32_t size);
+               uint32_t virtual_src, int size);
 
 #endif
