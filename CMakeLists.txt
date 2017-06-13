@@ -158,8 +158,6 @@ endif()
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
-  src/bios/bios.c
-  src/bios/flash.c
   src/core/assert.c
   src/core/exception_handler.c
   src/core/filesystem.c
@@ -174,29 +172,35 @@ set(REDREAM_SOURCES
   src/core/rb_tree.c
   src/core/sort.c
   src/core/string.c
+  src/guest/aica/aica.c
+  src/guest/arm7/arm7.c
+  src/guest/bios/bios.c
+  src/guest/bios/flash.c
+  src/guest/gdrom/cdi.c
+  src/guest/gdrom/disc.c
+  src/guest/gdrom/gdi.c
+  src/guest/gdrom/gdrom.c
+  src/guest/holly/holly.c
+  src/guest/maple/controller.c
+  src/guest/maple/maple.c
+  src/guest/maple/vmu.c
+  src/guest/pvr/pvr.c
+  src/guest/pvr/ta.c
+  src/guest/pvr/tr.c
+  src/guest/pvr/trace.c
+  src/guest/rom/boot.c
+  src/guest/rom/flash.c
+  src/guest/sh4/sh4.c
+  src/guest/sh4/sh4_ccn.c
+  src/guest/sh4/sh4_dbg.c
+  src/guest/sh4/sh4_dmac.c
+  src/guest/sh4/sh4_intc.c
+  src/guest/sh4/sh4_tmu.c
+  src/guest/debugger.c
+  src/guest/dreamcast.c
+  src/guest/memory.c
+  src/guest/scheduler.c
   src/host/keycode.c
-  src/hw/aica/aica.c
-  src/hw/arm7/arm7.c
-  src/hw/gdrom/cdi.c
-  src/hw/gdrom/disc.c
-  src/hw/gdrom/gdi.c
-  src/hw/gdrom/gdrom.c
-  src/hw/holly/holly.c
-  src/hw/maple/controller.c
-  src/hw/maple/maple.c
-  src/hw/maple/vmu.c
-  src/hw/pvr/pvr.c
-  src/hw/pvr/ta.c
-  src/hw/pvr/tr.c
-  src/hw/pvr/trace.c
-  src/hw/rom/boot.c
-  src/hw/rom/flash.c
-  src/hw/sh4/sh4.c
-  src/hw/sh4/sh4_ccn.c
-  src/hw/sh4/sh4_dbg.c
-  src/hw/sh4/sh4_dmac.c
-  src/hw/sh4/sh4_intc.c
-  src/hw/sh4/sh4_tmu.c
   src/jit/backend/interp/interp_backend.c
   src/jit/frontend/armv3/armv3_context.c
   src/jit/frontend/armv3/armv3_disasm.c
@@ -221,11 +225,7 @@ set(REDREAM_SOURCES
   src/render/gl_backend.c
   src/render/imgui.cc
   src/render/microprofile.cc
-  src/debugger.c
-  src/dreamcast.c
   src/emulator.c
-  src/memory.c
-  src/scheduler.c
   src/tracer.c
 )
 

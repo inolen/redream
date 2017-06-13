@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include "core/assert.h"
 #include "core/sort.h"
-#include "hw/pvr/tr.h"
-#include "hw/pvr/trace.h"
+#include "guest/pvr/tr.h"
+#include "guest/pvr/trace.h"
 
 struct depth_entry {
   /* vertex index */
