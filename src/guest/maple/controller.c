@@ -49,7 +49,7 @@ static int controller_input(struct maple_device *dev, int button,
     } else {
       ctrl->cnd.buttons |= (1 << button);
     }
-  } else if (button == CONT_JOYX || button == CONT_JOYX) {
+  } else if (button == CONT_JOYX || button == CONT_JOYY) {
     /* scale value from [INT16_MIN, INT16_MAX] to [0, UINT8_MAX] */
     uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
 
