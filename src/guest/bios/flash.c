@@ -36,6 +36,10 @@ static int flash_crc_block(struct flash_user_block *block) {
   return (~n) & 0xffff;
 }
 
+static int flash_validate_crc(struct flash_user_block *user) {
+  return user->crc == flash_crc_block(user);
+}
+
 static inline int flash_num_physical_blocks(int size) {
   return size / FLASH_BLOCK_SIZE;
 }
@@ -58,16 +62,16 @@ static inline void flash_set_allocated(uint8_t *bitmap, int phys_id) {
   bitmap[index / 8] &= ~(0x80 >> (index % 8));
 }
 
+static void flash_write_physical_block(struct flash *flash, int offset,
+                                       int phys_id, const void *data) {
+  flash_write(flash, offset + phys_id * FLASH_BLOCK_SIZE, data,
+              FLASH_BLOCK_SIZE);
+}
+
 static void flash_read_physical_block(struct flash *flash, int offset,
                                       int phys_id, void *data) {
   flash_read(flash, offset + phys_id * FLASH_BLOCK_SIZE, data,
              FLASH_BLOCK_SIZE);
-}
-
-static void flash_write_physical_block(struct flash *flash, int offset,
-                                       int phys_id, void *data) {
-  flash_write(flash, offset + phys_id * FLASH_BLOCK_SIZE, data,
-              FLASH_BLOCK_SIZE);
 }
 
 static int flash_validate_header(struct flash *flash, int offset, int part_id) {
@@ -85,16 +89,9 @@ static int flash_validate_header(struct flash *flash, int offset, int part_id) {
   return 1;
 }
 
-static int flash_validate_crc(struct flash_user_block *user) {
-  return user->crc == flash_crc_block(user);
-}
-
-static int flash_alloc_block(struct flash *flash, int part_id) {
-  int offset, size, blocks;
-  flash_partition_info(part_id, &offset, &size, &blocks);
-  CHECK(blocks);
-
+static int flash_alloc_block(struct flash *flash, int offset, int size) {
   uint8_t bitmap[FLASH_BLOCK_SIZE];
+  int blocks = flash_num_user_blocks(size);
   int bitmap_id = blocks;
   int phys_id = 1;
   int phys_end = 1 + blocks;
@@ -122,11 +119,10 @@ static int flash_alloc_block(struct flash *flash, int part_id) {
   return phys_id;
 }
 
-static int flash_lookup_block(struct flash *flash, int part_id, int block_id) {
-  int offset, size, blocks;
-  flash_partition_info(part_id, &offset, &size, &blocks);
-
+static int flash_lookup_block(struct flash *flash, int offset, int size,
+                              int block_id) {
   uint8_t bitmap[FLASH_BLOCK_SIZE];
+  int blocks = flash_num_user_blocks(size);
   int bitmap_id = 1 + blocks;
   int phys_id = 1;
   int phys_end = bitmap_id;
@@ -167,11 +163,10 @@ static int flash_lookup_block(struct flash *flash, int part_id, int block_id) {
 }
 
 int flash_write_block(struct flash *flash, int part_id, int block_id,
-                      void *data) {
-  int offset, size, blocks;
-  flash_partition_info(part_id, &offset, &size, &blocks);
+                      const void *data) {
+  int offset, size;
+  flash_partition_info(part_id, &offset, &size);
 
-  /* ensure this is a block-allocated partition */
   if (!flash_validate_header(flash, offset, part_id)) {
     return 0;
   }
@@ -186,9 +181,9 @@ int flash_write_block(struct flash *flash, int part_id, int block_id,
 
      this limitation of the original hardware isn't a problem for us, so try and
      just update an existing logical block if it exists */
-  int phys_id = flash_lookup_block(flash, part_id, block_id);
+  int phys_id = flash_lookup_block(flash, offset, size, block_id);
   if (!phys_id) {
-    phys_id = flash_alloc_block(flash, part_id);
+    phys_id = flash_alloc_block(flash, offset, size);
 
     if (!phys_id) {
       return 0;
@@ -200,6 +195,7 @@ int flash_write_block(struct flash *flash, int part_id, int block_id,
   memcpy(&user, data, sizeof(user));
   user.block_id = block_id;
   user.crc = flash_crc_block(&user);
+
   flash_write_physical_block(flash, offset, phys_id, &user);
 
   return 1;
@@ -207,14 +203,14 @@ int flash_write_block(struct flash *flash, int part_id, int block_id,
 
 int flash_read_block(struct flash *flash, int part_id, int block_id,
                      void *data) {
-  int offset, size, blocks;
-  flash_partition_info(part_id, &offset, &size, &blocks);
+  int offset, size;
+  flash_partition_info(part_id, &offset, &size);
 
   if (!flash_validate_header(flash, offset, part_id)) {
     return 0;
   }
 
-  int phys_id = flash_lookup_block(flash, part_id, block_id);
+  int phys_id = flash_lookup_block(flash, offset, size, block_id);
   if (!phys_id) {
     return 0;
   }
@@ -224,32 +220,34 @@ int flash_read_block(struct flash *flash, int part_id, int block_id,
   return 1;
 }
 
-void flash_erase_partition(struct flash *flash, int part_id) {
-  int offset, size, blocks;
-  flash_partition_info(part_id, &offset, &size, &blocks);
+void flash_write_header(struct flash *flash, int part_id) {
+  int offset, size;
+  flash_partition_info(part_id, &offset, &size);
 
-  /* clear the entire partition to 0xff */
-  uint32_t value = 0xffffffff;
+  struct flash_header_block header;
+  memset(&header, 0xff, sizeof(header));
+  memcpy(header.magic, FLASH_MAGIC_COOKIE, sizeof(header.magic));
+  header.part_id = part_id;
+  header.version = 0;
 
-  for (int i = 0; i < size; i += 4) {
-    flash_write(flash, offset + i, &value, 4);
-  }
-
-  /* write out a valid header for block-allocated partitions */
-  if (blocks) {
-    struct flash_header_block header;
-    memset(&header, 0xff, sizeof(header));
-    memcpy(header.magic, FLASH_MAGIC_COOKIE, sizeof(header.magic));
-    header.part_id = part_id;
-    header.version = 0;
-
-    flash_write_physical_block(flash, offset, 0, &header);
-  }
+  flash_write_physical_block(flash, offset, 0, &header);
 }
 
-void flash_partition_info(int part_id, int *offset, int *size, int *blocks) {
-  int block_allocated = 0;
+int flash_check_header(struct flash *flash, int part_id) {
+  int offset, size;
+  flash_partition_info(part_id, &offset, &size);
 
+  return flash_validate_header(flash, offset, part_id);
+}
+
+void flash_erase_partition(struct flash *flash, int part_id) {
+  int offset, size;
+  flash_partition_info(part_id, &offset, &size);
+
+  flash_erase(flash, offset, size);
+}
+
+void flash_partition_info(int part_id, int *offset, int *size) {
   switch (part_id) {
     case FLASH_PT_FACTORY:
       *offset = 0x1a000;
@@ -262,26 +260,17 @@ void flash_partition_info(int part_id, int *offset, int *size, int *blocks) {
     case FLASH_PT_USER:
       *offset = 0x1c000;
       *size = 16 * 1024;
-      block_allocated = 1;
       break;
     case FLASH_PT_GAME:
       *offset = 0x10000;
       *size = 32 * 1024;
-      block_allocated = 1;
       break;
     case FLASH_PT_UNKNOWN:
       *offset = 0x00000;
       *size = 64 * 1024;
-      block_allocated = 1;
       break;
     default:
-      LOG_FATAL("unknown flash partition %d", part_id);
+      LOG_FATAL("unknown partiton %d", part_id);
       break;
-  }
-
-  if (block_allocated) {
-    *blocks = flash_num_user_blocks(*size);
-  } else {
-    *blocks = 0;
   }
 }

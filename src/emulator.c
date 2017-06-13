@@ -296,7 +296,7 @@ static void emu_toggle_tracing(struct emu *emu) {
     emu->trace_writer = trace_writer_open(filename);
 
     if (!emu->trace_writer) {
-      LOG_INFO("Failed to start tracing");
+      LOG_INFO("failed to start tracing");
       return;
     }
 
@@ -304,12 +304,12 @@ static void emu_toggle_tracing(struct emu *emu) {
        textures referenced while tracing */
     emu_clear_textures(emu);
 
-    LOG_INFO("Begin tracing to %s", filename);
+    LOG_INFO("begin tracing to %s", filename);
   } else {
     trace_writer_close(emu->trace_writer);
     emu->trace_writer = NULL;
 
-    LOG_INFO("End tracing");
+    LOG_INFO("end tracing");
   }
 }
 

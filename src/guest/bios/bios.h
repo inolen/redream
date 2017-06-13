@@ -8,6 +8,7 @@ struct bios *bios_create(struct dreamcast *dc);
 void bios_destroy(struct bios *bios);
 
 int bios_init(struct bios *bios);
+
 void bios_debug_menu(struct bios *bios);
 
 #endif

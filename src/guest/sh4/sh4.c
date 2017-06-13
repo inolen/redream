@@ -3,6 +3,7 @@
 #include "core/string.h"
 #include "core/time.h"
 #include "guest/aica/aica.h"
+#include "guest/bios/bios.h"
 #include "guest/dreamcast.h"
 #include "guest/holly/holly.h"
 #include "guest/memory.h"
