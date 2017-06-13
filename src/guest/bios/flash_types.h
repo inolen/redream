@@ -9,6 +9,7 @@
 #define FLASH_PT_USER 2
 #define FLASH_PT_GAME 3
 #define FLASH_PT_UNKNOWN 4
+#define FLASH_PT_NUM 5
 
 /* flash logical blocks */
 #define FLASH_USER_SYSCFG 0x05

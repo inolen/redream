@@ -134,9 +134,9 @@ static void gdrom_spi_cdread(struct gdrom *gd) {
 
     /* fill PIO buffer with as many sectors as possible */
     int num_sectors = MIN(gd->cdr_num_sectors, max_pio_sectors);
-    gd->pio_size = gdrom_read_sectors(
-        gd, gd->cdr_first_sector, gd->cdr_secfmt, gd->cdr_secmask, num_sectors,
-        gd->pio_buffer, (int)sizeof(gd->pio_buffer));
+    gd->pio_size = gdrom_read_sectors(gd, gd->cdr_first_sector, gd->cdr_secfmt,
+                                      gd->cdr_secmask, num_sectors,
+                                      gd->pio_buffer, sizeof(gd->pio_buffer));
     gd->pio_head = 0;
 
     /* update sector read state */
@@ -240,7 +240,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       int size = data[4];
 
       uint8_t stat[SPI_STAT_SIZE];
-      gdrom_get_status(gd, stat, (int)sizeof(stat));
+      gdrom_get_status(gd, stat, sizeof(stat));
 
       gdrom_spi_write(gd, stat + offset, size);
     } break;
@@ -256,7 +256,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       int size = data[4];
 
       uint8_t err[SPI_ERR_SIZE];
-      gdrom_get_error(gd, err, (int)sizeof(err));
+      gdrom_get_error(gd, err, sizeof(err));
 
       gdrom_spi_write(gd, err, size);
     } break;
@@ -266,7 +266,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       int size = (data[3] << 8) | data[4];
 
       uint8_t toc[SPI_TOC_SIZE];
-      gdrom_get_toc(gd, area, toc, (int)sizeof(toc));
+      gdrom_get_toc(gd, area, toc, sizeof(toc));
 
       gdrom_spi_write(gd, toc, size);
     } break;
@@ -276,9 +276,9 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       int size = data[4];
 
       uint8_t ses[SPI_SES_SIZE];
-      gdrom_get_session(gd, session, ses, (int)sizeof(ses));
+      gdrom_get_session(gd, session, ses, sizeof(ses));
 
-      gdrom_spi_write(gd, ses, (int)sizeof(ses));
+      gdrom_spi_write(gd, ses, sizeof(ses));
     } break;
 
     case SPI_GET_SCD: {
@@ -286,7 +286,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       int size = (data[3] << 8) | data[4];
 
       uint8_t scd[SPI_SCD_SIZE];
-      gdrom_get_subcode(gd, format, scd, (int)sizeof(scd));
+      gdrom_get_subcode(gd, format, scd, sizeof(scd));
 
       gdrom_spi_write(gd, scd, size);
     } break;

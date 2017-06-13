@@ -86,7 +86,6 @@ static int dc_load_bin(struct dreamcast *dc, const char *path) {
   fclose(fp);
 
   if (n != size) {
-    LOG_WARNING("failed to read %s", path);
     return 0;
   }
 

@@ -1,10 +1,7 @@
-#include <stdio.h>
 #include "guest/rom/flash.h"
 #include "core/filesystem.h"
-#include "core/option.h"
 #include "guest/dreamcast.h"
 
-#define FLASH_SIZE 0x00020000
 #define FLASH_SECTOR_SIZE 0x4000
 
 /* there doesn't seem to be any documentation on the flash rom used by the
@@ -18,7 +15,7 @@
 struct flash {
   struct device;
 
-  uint8_t rom[FLASH_SIZE];
+  uint8_t rom[0x00020000];
 
   /* cmd parsing state */
   int cmd;
@@ -37,14 +34,6 @@ static const char *flash_bin_path() {
   return filename;
 }
 
-static uint32_t flash_cmd_read(struct flash *flash, uint32_t addr,
-                               uint32_t data_mask) {
-  int size = DATA_SIZE();
-  uint32_t mem;
-  flash_read(flash, addr, &mem, size);
-  return mem & data_mask;
-}
-
 static void flash_save_rom(struct flash *flash) {
   const char *filename = flash_bin_path();
 
@@ -59,7 +48,7 @@ static int flash_load_rom(struct flash *flash) {
 
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
-    LOG_WARNING("failed to load %s", filename);
+    LOG_WARNING("failed to open flash rom '%s'", filename);
     return 0;
   }
 
@@ -81,31 +70,30 @@ static int flash_load_rom(struct flash *flash) {
   return 1;
 }
 
-static void flash_cmd_program(struct flash *flash, uint32_t addr, uint32_t data,
-                              uint32_t data_mask) {
-  /* programming can only clear bits to 0 */
+static uint32_t flash_cmd_read(struct flash *flash, uint32_t addr,
+                               uint32_t data_mask) {
   int size = DATA_SIZE();
   uint32_t mem;
   flash_read(flash, addr, &mem, size);
-  mem &= data;
-  flash_write(flash, addr, &mem, size);
+  return mem;
+}
+
+static void flash_cmd_program(struct flash *flash, uint32_t addr, uint32_t data,
+                              uint32_t data_mask) {
+  int size = DATA_SIZE();
+  flash_program(flash, addr, &data, size);
 }
 
 static void flash_cmd_erase_chip(struct flash *flash) {
-  /* erasing resets bits to 1 */
-  uint8_t empty_chip[FLASH_SIZE];
-  memset(empty_chip, 0xff, sizeof(empty_chip));
-  flash_write(flash, 0, empty_chip, sizeof(empty_chip));
+  int size = sizeof(flash->rom);
+  flash_erase(flash, 0, size);
 }
 
 static void flash_cmd_erase_sector(struct flash *flash, uint32_t addr) {
   /* round address down to the nearest sector start */
   addr &= ~(FLASH_SECTOR_SIZE - 1);
 
-  /* erasing resets bits to 1 */
-  uint8_t empty_sector[FLASH_SECTOR_SIZE];
-  memset(empty_sector, 0xff, sizeof(empty_sector));
-  flash_write(flash, addr, empty_sector, sizeof(empty_sector));
+  flash_erase(flash, addr, FLASH_SECTOR_SIZE);
 }
 
 static uint32_t flash_rom_read(struct flash *flash, uint32_t addr,
@@ -170,21 +158,40 @@ static void flash_rom_write(struct flash *flash, uint32_t addr, uint32_t data,
 static int flash_init(struct device *dev) {
   struct flash *flash = (struct flash *)dev;
 
-  /* attempt to load the flash rom, if this fails the bios should reset the
-     flash to a valid state */
+  /* attempt to load the flash rom, if this fails the bios will reset it */
   flash_load_rom(flash);
 
   return 1;
 }
 
-void flash_write(struct flash *flash, int offset, const void *data, int size) {
-  CHECK(offset >= 0 && (offset + size) <= (int)sizeof(flash->rom));
-  memcpy(&flash->rom[offset], data, size);
+void flash_erase(struct flash *flash, int offset, int n) {
+  CHECK(offset >= 0 && (offset + n) <= (int)sizeof(flash->rom));
+
+  /* erasing resets bits to 1 */
+  memset(&flash->rom[offset], 0xff, n);
 }
 
-void flash_read(struct flash *flash, int offset, void *data, int size) {
-  CHECK(offset >= 0 && (offset + size) <= (int)sizeof(flash->rom));
-  memcpy(data, &flash->rom[offset], size);
+void flash_program(struct flash *flash, int offset, const void *data, int n) {
+  CHECK(offset >= 0 && (offset + n) <= (int)sizeof(flash->rom));
+
+  const uint8_t *bytes = data;
+
+  /* programming can only clear bits to 0 */
+  for (int i = 0; i < n; i++) {
+    flash->rom[offset + i] &= bytes[i];
+  }
+}
+
+void flash_write(struct flash *flash, int offset, const void *data, int n) {
+  CHECK(offset >= 0 && (offset + n) <= (int)sizeof(flash->rom));
+
+  memcpy(&flash->rom[offset], data, n);
+}
+
+void flash_read(struct flash *flash, int offset, void *data, int n) {
+  CHECK(offset >= 0 && (offset + n) <= (int)sizeof(flash->rom));
+
+  memcpy(data, &flash->rom[offset], n);
 }
 
 void flash_destroy(struct flash *flash) {

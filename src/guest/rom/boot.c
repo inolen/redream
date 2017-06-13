@@ -45,7 +45,7 @@ static int boot_load_rom(struct boot *boot) {
 
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
-    LOG_WARNING("failed to open %s", filename);
+    LOG_WARNING("failed to open boot rom '%s'", filename);
     return 0;
   }
 
@@ -80,6 +80,18 @@ static int boot_init(struct device *dev) {
   }
 
   return 1;
+}
+
+void boot_write(struct boot *boot, int offset, const void *data, int n) {
+  CHECK(offset >= 0 && (offset + n) <= (int)sizeof(boot->rom));
+
+  memcpy(&boot->rom[offset], data, n);
+}
+
+void boot_read(struct boot *boot, int offset, void *data, int n) {
+  CHECK(offset >= 0 && (offset + n) <= (int)sizeof(boot->rom));
+
+  memcpy(data, &boot->rom[offset], n);
 }
 
 void boot_destroy(struct boot *boot) {

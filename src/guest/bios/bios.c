@@ -98,7 +98,16 @@ static void bios_override_flash_settings(struct bios *bios) {
   /* overwrite user flash settings */
   struct flash_syscfg_block syscfg;
   int res = flash_read_block(flash, FLASH_PT_USER, FLASH_USER_SYSCFG, &syscfg);
-  CHECK_EQ(res, 1);
+
+  if (!res) {
+    /* write out default settings */
+    memset(&syscfg, 0xff, sizeof(syscfg));
+    syscfg.time_lo = 0;
+    syscfg.time_hi = 0;
+    syscfg.lang = 0;
+    syscfg.mono = 0;
+    syscfg.autostart = 1;
+  }
 
   syscfg.time_lo = time & 0xffff;
   syscfg.time_hi = (time & 0xffff0000) >> 16;
@@ -117,47 +126,61 @@ static void bios_validate_flash(struct bios *bios) {
   struct flash_header_block header;
 
   /* validate partition 0 (factory settings) */
-  char sysinfo[2][16];
-  flash_read(flash, 0x1a000, sysinfo[0], sizeof(sysinfo[0]));
-  flash_read(flash, 0x1a0a0, sysinfo[1], sizeof(sysinfo[1]));
+  {
+    int valid = 1;
+    char sysinfo[16];
 
-  /* write out default sysinfo if missing */
-  if (memcmp(&sysinfo[0][5], "Dreamcast  ", 11) != 0 ||
-      memcmp(&sysinfo[1][5], "Dreamcast  ", 11) != 0) {
-    memcpy(sysinfo[0], "00000Dreamcast  ", sizeof(sysinfo[0]));
-    flash_write(flash, 0x1a000, sysinfo[0], sizeof(sysinfo[0]));
-    flash_write(flash, 0x1a0a0, sysinfo[0], sizeof(sysinfo[0]));
+    flash_read(flash, 0x1a000, sysinfo, sizeof(sysinfo));
+    valid &= memcmp(&sysinfo[5], "Dreamcast  ", 11) == 0;
+
+    flash_read(flash, 0x1a0a0, sysinfo, sizeof(sysinfo));
+    valid &= memcmp(&sysinfo[5], "Dreamcast  ", 11) == 0;
+
+    if (!valid) {
+      LOG_INFO("bios_validate_flash resetting FLASH_PT_FACTORY");
+
+      memcpy(sysinfo, "00000Dreamcast  ", sizeof(sysinfo));
+      flash_erase_partition(flash, FLASH_PT_FACTORY);
+      flash_write(flash, 0x1a000, sysinfo, sizeof(sysinfo));
+      flash_write(flash, 0x1a0a0, sysinfo, sizeof(sysinfo));
+    }
   }
 
   /* validate partition 1 (reserved) */
-  flash_erase_partition(flash, FLASH_PT_RESERVED);
+  {
+    LOG_INFO("bios_validate_flash resetting FLASH_PT_RESERVED");
+
+    flash_erase_partition(flash, FLASH_PT_RESERVED);
+  }
 
   /* validate partition 2 (user settings, block allocated) */
-  if (!flash_read_block(flash, FLASH_PT_USER, 0, &header)) {
-    flash_erase_partition(flash, FLASH_PT_USER);
+  {
+    if (!flash_check_header(flash, FLASH_PT_USER)) {
+      LOG_INFO("bios_validate_flash resetting FLASH_PT_USER");
 
-    /* write out default user settings */
-    struct flash_syscfg_block syscfg;
-    memset(&syscfg, 0xff, sizeof(syscfg));
-    syscfg.time_lo = 0;
-    syscfg.time_hi = 0;
-    syscfg.lang = 0;
-    syscfg.mono = 0;
-    syscfg.autostart = 1;
-
-    int res =
-        flash_write_block(flash, FLASH_PT_USER, FLASH_USER_SYSCFG, &syscfg);
-    CHECK_EQ(res, 1);
+      flash_erase_partition(flash, FLASH_PT_USER);
+      flash_write_header(flash, FLASH_PT_USER);
+    }
   }
 
   /* validate partition 3 (game settings, block allocated) */
-  if (!flash_read_block(flash, FLASH_PT_GAME, 0, &header)) {
-    flash_erase_partition(flash, FLASH_PT_GAME);
+  {
+    if (!flash_check_header(flash, FLASH_PT_GAME)) {
+      LOG_INFO("bios_validate_flash resetting FLASH_PT_GAME");
+
+      flash_erase_partition(flash, FLASH_PT_GAME);
+      flash_write_header(flash, FLASH_PT_GAME);
+    }
   }
 
   /* validate partition 4 (unknown, block allocated) */
-  if (!flash_read_block(flash, FLASH_PT_UNKNOWN, 0, &header)) {
-    flash_erase_partition(flash, FLASH_PT_UNKNOWN);
+  {
+    if (!flash_check_header(flash, FLASH_PT_UNKNOWN)) {
+      LOG_INFO("bios_validate_flash resetting FLASH_PT_UNKNOWN");
+
+      flash_erase_partition(flash, FLASH_PT_UNKNOWN);
+      flash_write_header(flash, FLASH_PT_UNKNOWN);
+    }
   }
 }
 
