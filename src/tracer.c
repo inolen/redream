@@ -1,9 +1,9 @@
 #include "tracer.h"
 #include "core/math.h"
+#include "guest/pvr/ta.h"
+#include "guest/pvr/tr.h"
+#include "guest/pvr/trace.h"
 #include "host/host.h"
-#include "hw/pvr/ta.h"
-#include "hw/pvr/tr.h"
-#include "hw/pvr/trace.h"
 #include "render/imgui.h"
 
 #define SCRUBBER_WINDOW_HEIGHT 20.0f

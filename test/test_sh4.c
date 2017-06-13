@@ -1,6 +1,6 @@
 #include "core/math.h"
-#include "dreamcast.h"
-#include "hw/sh4/sh4.h"
+#include "guest/dreamcast.h"
+#include "guest/sh4/sh4.h"
 #include "retest.h"
 
 static const uint32_t UNINITIALIZED_REG = 0xbaadf00d;
