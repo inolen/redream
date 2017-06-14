@@ -669,11 +669,12 @@ static int gdrom_init(struct device *dev) {
   gd->hw_info.standby_lo = 0xb4;
   gd->hw_info.read_flags = 0x19;
   gd->hw_info.read_retry = 0x08;
-  strncpy_spaces(gd->hw_info.drive_info, "SE", sizeof(gd->hw_info.drive_info));
-  strncpy_spaces(gd->hw_info.system_version, "Rev 6.43",
-                 sizeof(gd->hw_info.system_version));
-  strncpy_spaces(gd->hw_info.system_date, "990408",
-                 sizeof(gd->hw_info.system_date));
+  strncpy_pad_spaces(gd->hw_info.drive_info, "SE",
+                     sizeof(gd->hw_info.drive_info));
+  strncpy_pad_spaces(gd->hw_info.system_version, "Rev 6.43",
+                     sizeof(gd->hw_info.system_version));
+  strncpy_pad_spaces(gd->hw_info.system_date, "990408",
+                     sizeof(gd->hw_info.system_date));
 
   gdrom_set_disc(gd, NULL);
 
@@ -729,6 +730,18 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
     }
 
     gd->disc = disc;
+
+    /* print meta info */
+    struct disc_meta meta;
+    disc_get_meta(gd->disc, &meta);
+
+    char name[256];
+    char version[16];
+    char id[16];
+    strncpy_trim_spaces(name, meta.name, sizeof(meta.name));
+    strncpy_trim_spaces(version, meta.version, sizeof(meta.version));
+    strncpy_trim_spaces(id, meta.id, sizeof(meta.id));
+    LOG_INFO("gdrom_set_disc %s %s - %s", name, version, id);
   }
 
   /* perform "soft reset" of internal state */

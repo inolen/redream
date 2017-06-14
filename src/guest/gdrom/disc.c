@@ -1,4 +1,5 @@
 #include "guest/gdrom/disc.h"
+#include "core/assert.h"
 #include "core/string.h"
 #include "guest/gdrom/cdi.h"
 #include "guest/gdrom/gdi.h"
@@ -54,6 +55,16 @@ void disc_destroy(struct disc *disc) {
 
 int disc_get_format(struct disc *disc) {
   return disc->get_format(disc);
+}
+
+void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
+  struct session *session = disc_get_session(disc, 1);
+  CHECK_EQ(session->leadin_fad, 45150);
+
+  uint8_t tmp[DISC_MAX_SECTOR_SIZE];
+  disc_read_sector(disc, session->leadin_fad, SECTOR_ANY, MASK_DATA, tmp);
+
+  memcpy(meta, tmp, sizeof(*meta));
 }
 
 struct disc *disc_create(const char *filename) {

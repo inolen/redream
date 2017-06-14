@@ -22,21 +22,37 @@ char *strnstr(const char *big, const char *little, size_t n) {
 
 #ifndef HAVE_STRNLEN
 size_t strnlen(const char *s, size_t max_len) {
-  size_t n;
-  for (n = 0; *s && n < max_len; s++, n++)
-    ;
+  size_t n = 0;
+  while (*s && n < max_len) {
+    s++;
+    n++;
+  }
   return n;
 }
 #endif
 
-void strncpy_spaces(char *dst, const char *str, int size) {
-  int len = (int)strlen(str);
+void strncpy_pad_spaces(char *dst, const char *src, int size) {
+  int len = (int)strlen(src);
   size -= len;
   while (len--) {
-    *(dst++) = *(str++);
+    *(dst++) = *(src++);
   }
   while (size--) {
     *(dst++) = ' ';
+  }
+}
+
+void strncpy_trim_spaces(char *dst, const char *src, int size) {
+  char mask = 0x0;
+  dst += size - 1;
+  src += size - 1;
+  (*dst) = 0;
+  while (size--) {
+    /* mask off until a valid letter is hit */
+    if (*src != ' ') {
+      mask = 0xff;
+    }
+    *(dst--) = *(src--) & mask;
   }
 }
 

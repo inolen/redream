@@ -88,10 +88,11 @@ static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
       info.func = MAPLE_FUNC_MEMORYCARD;
       info.data[0] = 0x00410f00;
       info.region = 0xff;
-      strncpy_spaces(info.name, "Visual Memory", sizeof(info.name));
-      strncpy_spaces(info.license,
-                     "Produced By or Under License From SEGA ENTERPRISES,LTD.",
-                     sizeof(info.license));
+      strncpy_pad_spaces(info.name, "Visual Memory", sizeof(info.name));
+      strncpy_pad_spaces(
+          info.license,
+          "Produced By or Under License From SEGA ENTERPRISES,LTD.",
+          sizeof(info.license));
       info.standby_power = 0x007c;
       info.max_power = 0x0082;
 
