@@ -17,33 +17,7 @@ static inline uint32_t bswap24(uint32_t v) {
   return ((v & 0xff) << 16) | (v & 0x00ff00) | ((v & 0xff0000) >> 16);
 }
 
-#if PLATFORM_LINUX || PLATFORM_DARWIN
-
-static inline int popcnt32(uint32_t v) {
-  return __builtin_popcount(v);
-}
-
-static inline int clz32(uint32_t v) {
-  return __builtin_clz(v);
-}
-static inline int clz64(uint64_t v) {
-  return __builtin_clzll(v);
-}
-static inline int ctz32(uint32_t v) {
-  return __builtin_ctz(v);
-}
-static inline int ctz64(uint64_t v) {
-  return __builtin_ctzll(v);
-}
-
-static inline uint16_t bswap16(uint16_t v) {
-  return __builtin_bswap16(v);
-}
-static inline uint32_t bswap32(uint32_t v) {
-  return __builtin_bswap32(v);
-}
-
-#else
+#if COMPILER_MSVC
 
 #include <intrin.h>
 
@@ -77,6 +51,32 @@ static inline uint16_t bswap16(uint16_t v) {
 }
 static inline uint32_t bswap32(uint32_t v) {
   return _byteswap_ulong(v);
+}
+
+#else
+
+static inline int popcnt32(uint32_t v) {
+  return __builtin_popcount(v);
+}
+
+static inline int clz32(uint32_t v) {
+  return __builtin_clz(v);
+}
+static inline int clz64(uint64_t v) {
+  return __builtin_clzll(v);
+}
+static inline int ctz32(uint32_t v) {
+  return __builtin_ctz(v);
+}
+static inline int ctz64(uint64_t v) {
+  return __builtin_ctzll(v);
+}
+
+static inline uint16_t bswap16(uint16_t v) {
+  return __builtin_bswap16(v);
+}
+static inline uint32_t bswap32(uint32_t v) {
+  return __builtin_bswap32(v);
 }
 
 #endif

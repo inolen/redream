@@ -25,7 +25,7 @@ option(BUILD_LIBRETRO "Build libretro core" OFF)
 option(BUILD_TOOLS "Build tools" ON)
 option(BUILD_TESTS "Build tests" ON)
 
-if(WIN32)
+if(WIN32 OR MINGW)
   set(PLATFORM_WINDOWS TRUE)
 elseif(APPLE)
   set(PLATFORM_DARWIN TRUE)
@@ -76,6 +76,7 @@ list(APPEND REDREAM_LIBS ${OPENGL_LIBRARIES})
 if(NOT BUILD_LIBRETRO)
 set(DIRECTX OFF CACHE BOOL "")
 set(RENDER_D3D OFF CACHE BOOL "")
+set(VIDEO_OPENGLES OFF CACHE BOOL "")
 set(SDL_ATOMIC OFF CACHE BOOL "")
 set(SDL_CPUINFO ON CACHE BOOL "")
 set(SDL_FILESYSTEM OFF CACHE BOOL "")
@@ -89,10 +90,13 @@ if(APPLE)
 endif()
 add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.5/include)
+if(MINGW)
+  list(APPEND SDL_LIBS mingw32)
+endif()
+list(APPEND SDL_LIBS SDL2main SDL2-static)
 endif()
 
 # capstone
-add_subdirectory(deps/capstone EXCLUDE_FROM_ALL)
 set(CAPSTONE_ARM_SUPPORT OFF CACHE BOOL "")
 set(CAPSTONE_ARM64_SUPPORT OFF CACHE BOOL "")
 set(CAPSTONE_MIPS_SUPPORT OFF CACHE BOOL "")
@@ -100,6 +104,7 @@ set(CAPSTONE_PPC_SUPPORT OFF CACHE BOOL "")
 set(CAPSTONE_SPARC_SUPPORT OFF CACHE BOOL "")
 set(CAPSTONE_SYSZ_SUPPORT OFF CACHE BOOL "")
 set(CAPSTONE_XCORE_SUPPORT OFF CACHE BOOL "")
+add_subdirectory(deps/capstone EXCLUDE_FROM_ALL)
 list(APPEND REDREAM_INCLUDE_DIRS deps/capstone/include)
 list(APPEND REDREAM_LIBS capstone-static)
 
@@ -236,8 +241,12 @@ if(PLATFORM_WINDOWS)
     src/core/exception_handler_win.c
     src/core/filesystem_win.c
     src/core/memory_win.c
-    src/core/thread_win.c
     src/core/time_win.c)
+  if(MINGW)
+    list(APPEND REDREAM_SOURCES src/core/thread_posix.c)
+  else()
+    list(APPEND REDREAM_SOURCES src/core/thread_win.c)
+  endif()
 elseif(PLATFORM_DARWIN)
   list(APPEND REDREAM_DEFS PLATFORM_DARWIN=1)
   list(APPEND REDREAM_SOURCES
@@ -280,14 +289,14 @@ if(COMPILER_GCC OR COMPILER_CLANG)
   endif()
 
   list(APPEND REDREAM_LIBS pthread)
-
-  # used by shm_open / shm_unlink on linux
-  if(PLATFORM_LINUX)
-    list(APPEND REDREAM_LIBS rt)
-  endif()
 elseif(COMPILER_MSVC)
   list(APPEND REDREAM_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+endif()
 
+if(PLATFORM_LINUX)
+  # used by shm_open / shm_unlink on linux
+  list(APPEND REDREAM_LIBS rt)
+elseif(PLATFORM_WINDOWS)
   list(APPEND REDREAM_LIBS userenv ws2_32)
 endif()
 
@@ -331,7 +340,7 @@ endif()
 add_executable(redream $<TARGET_OBJECTS:relib> src/host/sdl_host.c)
 target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(redream ${REDREAM_LIBS} SDL2main SDL2-static)
+target_link_libraries(redream ${REDREAM_LIBS} ${SDL_LIBS})
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 

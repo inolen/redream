@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <time.h>
 #include "core/assert.h"
 #include "core/thread.h"
 
