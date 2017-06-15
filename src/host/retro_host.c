@@ -223,7 +223,7 @@ unsigned retro_api_version() {
 void retro_get_system_info(struct retro_system_info *info) {
   info->library_name = "redream";
   info->library_version = "0.0";
-  info->valid_extensions = "gdi";
+  info->valid_extensions = "gdi|cdi";
   info->need_fullpath = true;
   info->block_extract = false;
 }
