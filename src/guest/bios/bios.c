@@ -388,6 +388,8 @@ int bios_invalid_instr(struct bios *bios) {
   struct sh4_context *ctx = &dc->sh4->ctx;
   uint32_t pc = ctx->pc & 0x1cffffff;
 
+  /* if an actual boot rom wasn't loaded into memory, a valid instruction won't
+     exist at 0x0, causing an immediate trap on start */
   if (pc == 0x0) {
     return bios_boot(bios);
   }

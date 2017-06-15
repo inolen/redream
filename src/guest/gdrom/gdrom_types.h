@@ -95,6 +95,13 @@ enum gd_secfmt {
   SECTOR_M2_NOXA,
 };
 
+enum gd_seek_type {
+  SEEK_FAD = 0x1,
+  SEEK_MSF = 0x2,
+  SEEK_STOP = 0x3,
+  SEEK_PAUSE = 0x4,
+};
+
 /* internal registers accessed through holly */
 union gd_error {
   uint32_t full;
