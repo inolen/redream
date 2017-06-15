@@ -6,7 +6,7 @@
 #if PLATFORM_LINUX || PLATFORM_DARWIN
 
 #if PLATFORM_LINUX
-#include <linux/limits.h>
+#include <limits.h>
 #else
 #include <sys/syslimits.h>
 #endif
@@ -21,7 +21,11 @@
 #include <windows.h>
 
 #define PATH_SEPARATOR "\\"
+
+/* careful, MinGW may have defined this */
+#ifndef PATH_MAX
 #define PATH_MAX MAX_PATH
+#endif
 
 #endif
 

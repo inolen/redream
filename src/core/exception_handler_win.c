@@ -42,7 +42,7 @@ static void copy_state_from(union thread_state *src, PCONTEXT dst) {
 }
 
 static LONG CALLBACK exception_handler(PEXCEPTION_POINTERS ex_info) {
-  auto code = ex_info->ExceptionRecord->ExceptionCode;
+  DWORD code = ex_info->ExceptionRecord->ExceptionCode;
   if (code != STATUS_ACCESS_VIOLATION && code != STATUS_ILLEGAL_INSTRUCTION) {
     return EXCEPTION_CONTINUE_SEARCH;
   }

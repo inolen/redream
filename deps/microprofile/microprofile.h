@@ -531,7 +531,7 @@ typedef int MpSocket;
 #if defined(__APPLE__) || defined(__linux__)
 typedef pthread_t MicroProfileThread;
 #elif defined(_WIN32)
-#if _MSC_VER >= 1900
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
 typedef void * HANDLE;
 #endif
 
@@ -993,7 +993,7 @@ DWORD _stdcall ThreadTrampoline(void* pFunc)
 
 void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {	
-    *pThread = CreateThread(0, 0, ThreadTrampoline, Func, 0, 0);
+    *pThread = CreateThread(0, 0, ThreadTrampoline, (LPVOID)Func, 0, 0);
 }
 void MicroProfileThreadJoin(MicroProfileThread* pThread)
 {
