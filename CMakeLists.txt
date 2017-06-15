@@ -176,6 +176,7 @@ set(REDREAM_SOURCES
   src/guest/arm7/arm7.c
   src/guest/bios/bios.c
   src/guest/bios/flash.c
+  src/guest/bios/syscalls.c
   src/guest/gdrom/cdi.c
   src/guest/gdrom/disc.c
   src/guest/gdrom/gdi.c

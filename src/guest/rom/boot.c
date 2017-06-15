@@ -45,7 +45,6 @@ static int boot_load_rom(struct boot *boot) {
 
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
-    LOG_WARNING("failed to open boot rom '%s'", filename);
     return 0;
   }
 
@@ -69,15 +68,16 @@ static int boot_load_rom(struct boot *boot) {
     return 0;
   }
 
+  LOG_INFO("boot_load_rom loaded '%s'", filename);
+
   return 1;
 }
 
 static int boot_init(struct device *dev) {
   struct boot *boot = (struct boot *)dev;
 
-  if (!boot_load_rom(boot)) {
-    return 0;
-  }
+  /* attempt to load the boot rom, if this fails, the bios code will hle it */
+  boot_load_rom(boot);
 
   return 1;
 }
