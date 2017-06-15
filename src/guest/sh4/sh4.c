@@ -95,6 +95,10 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 static void sh4_invalid_instr(void *data) {
   struct sh4 *sh4 = data;
 
+  if (bios_invalid_instr(sh4->bios)) {
+    return;
+  }
+
   if (sh4_dbg_invalid_instr(sh4)) {
     return;
   }

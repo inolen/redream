@@ -425,25 +425,51 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, int arg) {
   cb(gd, arg);
 }
 
+int gdrom_copy_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
+                       enum gd_secmask mask, int num_sectors,
+                       struct address_space *space, uint32_t dst) {
+  if (!gd->disc) {
+    LOG_WARNING("gdrom_copy_sectors failed, no disc");
+    return 0;
+  }
+
+  int read = 0;
+  uint8_t tmp[DISC_MAX_SECTOR_SIZE];
+
+  for (int i = fad; i < fad + num_sectors; i++) {
+    int n = gdrom_read_sectors(gd, i, fmt, mask, 1, tmp, sizeof(tmp));
+    as_memcpy_to_guest(space, dst + read, tmp, n);
+    read += n;
+  }
+
+  return read;
+}
+
 int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
                        enum gd_secmask mask, int num_sectors, uint8_t *dst,
                        int dst_size) {
-  int total = 0;
+  if (!gd->disc) {
+    LOG_WARNING("gdrom_read_sectors failed, no disc");
+    return 0;
+  }
+
+  int read = 0;
   uint8_t data[DISC_MAX_SECTOR_SIZE];
 
   LOG_GDROM("gdrom_read_sectors [%d, %d)", fad, fad + num_sectors);
 
-  for (int i = 0; i < num_sectors; i++) {
-    int r = disc_read_sector(gd->disc, fad, fmt, mask, data);
-    memcpy(dst + total, data, r);
-    total += r;
-    fad++;
+  for (int i = fad; i < fad + num_sectors; i++) {
+    int n = disc_read_sector(gd->disc, i, fmt, mask, data);
+    CHECK_LE(read + n, dst_size);
+    memcpy(dst + read, data, n);
+    read += n;
   }
 
-  return total;
+  return read;
 }
 
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
+  CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, SPI_SCD_SIZE);
 
   /* FIXME implement */
@@ -466,6 +492,7 @@ void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
 
 void gdrom_get_session(struct gdrom *gd, int session_num, uint8_t *data,
                        int size) {
+  CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, SPI_SES_SIZE);
 
   /* session response layout:
@@ -519,6 +546,7 @@ void gdrom_get_session(struct gdrom *gd, int session_num, uint8_t *data,
 
 void gdrom_get_toc(struct gdrom *gd, enum gd_area area, uint8_t *data,
                    int size) {
+  CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, SPI_TOC_SIZE);
 
   /* toc response layout:
@@ -584,6 +612,7 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area, uint8_t *data,
 }
 
 void gdrom_get_error(struct gdrom *gd, uint8_t *data, int size) {
+  CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, SPI_ERR_SIZE);
 
   /* cd status information response layout:
@@ -620,6 +649,7 @@ void gdrom_get_error(struct gdrom *gd, uint8_t *data, int size) {
 }
 
 void gdrom_get_status(struct gdrom *gd, uint8_t *data, int size) {
+  CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, SPI_STAT_SIZE);
 
   /* cd status information response layout:

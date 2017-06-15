@@ -73,9 +73,8 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
   }
 
   LOG_INFO(
-      "pvr_reconfigure_spg mode %s, pixel_clock %d, line_clock %d, vcount %d, "
-      "hcount %d"
-      ", interlace %d, vbstart %d, vbend %d",
+      "pvr_reconfigure_spg mode=%s pixel_clock=%d line_clock=%d vcount=%d "
+      "hcount=%d interlace=%d vbstart=%d vbend=%d",
       mode, pixel_clock, pvr->line_clock, pvr->SPG_LOAD->vcount,
       pvr->SPG_LOAD->hcount, pvr->SPG_CONTROL->interlace,
       pvr->SPG_VBLANK->vbstart, pvr->SPG_VBLANK->vbend);

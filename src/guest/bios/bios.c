@@ -3,15 +3,21 @@
 #include "core/math.h"
 #include "core/option.h"
 #include "guest/aica/aica.h"
+#include "guest/bios/bios.h"
 #include "guest/bios/flash.h"
+#include "guest/bios/syscalls.h"
 #include "guest/dreamcast.h"
+#include "guest/gdrom/gdrom.h"
+#include "guest/gdrom/iso.h"
 #include "guest/rom/flash.h"
+#include "guest/sh4/sh4.h"
 #include "render/imgui.h"
 
 DEFINE_OPTION_STRING(region, "america", "System region");
 DEFINE_OPTION_STRING(language, "english", "System language");
 DEFINE_OPTION_STRING(broadcast, "ntsc", "System broadcast mode");
 
+/* system settings */
 static const char *regions[] = {
     "japan", "america", "europe",
 };
@@ -24,8 +30,22 @@ static const char *broadcasts[] = {
     "ntsc", "pal", "pal_m", "pal_n",
 };
 
-struct bios {
-  struct dreamcast *dc;
+/* address of syscall vectors */
+enum {
+  VECTOR_SYSINFO = 0x0c0000b0,
+  VECTOR_FONTROM = 0x0c0000b4,
+  VECTOR_FLASHROM = 0x0c0000b8,
+  VECTOR_GDROM = 0x0c0000bc,
+  VECTOR_MENU = 0x0c0000e0,
+};
+
+/* address of syscall entrypoints */
+enum {
+  SYSCALL_SYSINFO = 0x0c003c00,
+  SYSCALL_FONTROM = 0x0c003b80,
+  SYSCALL_FLASHROM = 0x0c003d00,
+  SYSCALL_GDROM = 0x0c001000,
+  SYSCALL_MENU = 0x0c000800,
 };
 
 static uint32_t bios_local_time() {
@@ -148,7 +168,7 @@ static void bios_validate_flash(struct bios *bios) {
 
   /* validate partition 1 (reserved) */
   {
-    LOG_INFO("bios_validate_flash resetting FLASH_PT_RESERVED");
+    /* LOG_INFO("bios_validate_flash resetting FLASH_PT_RESERVED"); */
 
     flash_erase_partition(flash, FLASH_PT_RESERVED);
   }
@@ -182,6 +202,131 @@ static void bios_validate_flash(struct bios *bios) {
       flash_write_header(flash, FLASH_PT_UNKNOWN);
     }
   }
+}
+
+static int bios_boot(struct bios *bios) {
+  struct dreamcast *dc = bios->dc;
+  struct flash *flash = dc->flash;
+  struct gdrom *gd = dc->gdrom;
+  struct sh4 *sh4 = dc->sh4;
+  struct sh4_context *ctx = &sh4->ctx;
+  struct address_space *space = sh4->memory_if->space;
+
+  const uint32_t BOOT1_ADDR = 0x8c008000;
+  const uint32_t BOOT2_ADDR = 0x8c010000;
+  const uint32_t SYSINFO_ADDR = 0x8c000068;
+  const enum gd_secfmt secfmt = SECTOR_ANY;
+  const enum gd_secmask secmask = MASK_DATA;
+  const int secsz = 2048;
+  uint8_t tmp[0x10000];
+
+  LOG_INFO("bios_boot using hle bootstrap");
+
+  /* load ip.bin bootstrap */
+  {
+    int fad = 45150;
+    int n = 16;
+    int r = gdrom_read_sectors(gd, fad, secfmt, secmask, n, tmp, sizeof(tmp));
+    if (!r) {
+      return 0;
+    }
+    as_memcpy_to_guest(space, BOOT1_ADDR, tmp, r);
+  }
+
+  /* load 1st_read.bin into ram */
+  {
+    static const char *bootfile = "1ST_READ.BIN";
+
+    /* read primary volume descriptor */
+    int fad = 45150 + ISO_PVD_SECTOR;
+    int n = 1;
+    int r = gdrom_read_sectors(gd, fad, secfmt, secmask, n, tmp, sizeof(tmp));
+    if (!r) {
+      return 0;
+    }
+
+    struct iso_pvd *pvd = (struct iso_pvd *)tmp;
+    CHECK(pvd->type == 1);
+    CHECK(memcmp(pvd->id, "CD001", 5) == 0);
+    CHECK(pvd->version == 1);
+
+    /* check root directory for the bootfile */
+    struct iso_dir *root = &pvd->root_directory_record;
+    int len = align_up(root->size.le, secsz);
+    fad = GDROM_PREGAP + root->extent.le;
+    n = len / secsz;
+    r = gdrom_read_sectors(gd, fad, secfmt, secmask, n, tmp, sizeof(tmp));
+    if (!r) {
+      return 0;
+    }
+
+    uint8_t *ptr = tmp;
+    uint8_t *end = tmp + len;
+
+    while (ptr < end) {
+      struct iso_dir *dir = (struct iso_dir *)ptr;
+      const char *filename = (const char *)(ptr + sizeof(*dir));
+
+      if (memcmp(filename, bootfile, strlen(bootfile)) == 0) {
+        break;
+      }
+
+      /* dir entries always begin on an even byte */
+      ptr = (uint8_t *)filename + dir->name_len;
+      ptr = (uint8_t *)align_up((intptr_t)ptr, (intptr_t)2);
+    }
+
+    if (ptr == end) {
+      LOG_WARNING("bios_boot failed to find '%s'", bootfile);
+      return 0;
+    }
+
+    /* copy the bootfile into ram */
+    struct iso_dir *dir = (struct iso_dir *)ptr;
+    fad = GDROM_PREGAP + dir->extent.le;
+    n = align_up(dir->size.le, secsz) / secsz;
+    r = gdrom_copy_sectors(gd, fad, secfmt, secmask, n, space, BOOT2_ADDR);
+    if (!r) {
+      return 0;
+    }
+
+    LOG_INFO("bios_boot found '%s' at fad=%d size=%d", bootfile, fad,
+             dir->size.le);
+  }
+
+  /* write system info */
+  {
+    uint8_t data[24] = {0};
+
+    /* read system id from 0x0001a056 */
+    flash_read(flash, 0x1a056, &data[0], 8);
+
+    /* read system properties from 0x0001a000 */
+    flash_read(flash, 0x1a000, &data[8], 5);
+
+    /* read system settings */
+    struct flash_syscfg_block syscfg;
+    int r = flash_read_block(flash, FLASH_PT_USER, FLASH_USER_SYSCFG, &syscfg);
+    CHECK_EQ(r, 1);
+
+    memcpy(&data[16], &syscfg.time_lo, 8);
+
+    as_memcpy_to_guest(space, SYSINFO_ADDR, data, sizeof(data));
+  }
+
+  /* write out syscall addresses to vectors */
+  {
+    as_write32(space, VECTOR_FONTROM, SYSCALL_FONTROM);
+    as_write32(space, VECTOR_SYSINFO, SYSCALL_SYSINFO);
+    as_write32(space, VECTOR_FLASHROM, SYSCALL_FLASHROM);
+    as_write32(space, VECTOR_GDROM, SYSCALL_GDROM);
+    as_write32(space, VECTOR_MENU, SYSCALL_MENU);
+  }
+
+  /* start executing at license screen code inside of ip.bin */
+  ctx->pc = 0xac008300;
+
+  return 1;
 }
 
 void bios_debug_menu(struct bios *bios) {
@@ -238,10 +383,68 @@ void bios_debug_menu(struct bios *bios) {
   }
 }
 
+int bios_invalid_instr(struct bios *bios) {
+  struct dreamcast *dc = bios->dc;
+  struct sh4_context *ctx = &dc->sh4->ctx;
+  uint32_t pc = ctx->pc & 0x1cffffff;
+
+  if (pc == 0x0) {
+    return bios_boot(bios);
+  }
+
+  int handled = 1;
+
+  switch (pc) {
+    case SYSCALL_FONTROM:
+      bios_fontrom_vector(bios);
+      break;
+
+    case SYSCALL_SYSINFO:
+      bios_sysinfo_vector(bios);
+      break;
+
+    case SYSCALL_FLASHROM:
+      bios_flashrom_vector(bios);
+      break;
+
+    case SYSCALL_GDROM:
+      bios_gdrom_vector(bios);
+      break;
+
+    case SYSCALL_MENU:
+      bios_menu_vector(bios);
+      break;
+
+    default:
+      handled = 0;
+      break;
+  }
+
+  return handled;
+}
+
 int bios_init(struct bios *bios) {
   bios_validate_flash(bios);
 
   bios_override_flash_settings(bios);
+
+/* this code enables a "hybrid" hle mode. in this mode, syscalls are patched
+   to trap into their hle handlers, but the real bios can still be ran to
+   test if bugs exist in the syscall emulation or bootstrap emulation */
+#if 0
+  /* write out invalid instructions at syscall entry points. note, the boot rom
+     does a bootstrap on startup which copies the boot rom into system ram. due
+     to this, the invalid instructions are written to the original rom, not the
+     system ram (or else, they would be overwritten by the bootstrap process) */
+  struct boot *boot = bios->dc->boot;
+  uint16_t invalid = 0x0;
+
+  boot_write(boot, SYSCALL_FONTROM, &invalid, 2);
+  boot_write(boot, SYSCALL_SYSINFO, &invalid, 2);
+  boot_write(boot, SYSCALL_FLASHROM, &invalid, 2);
+  boot_write(boot, SYSCALL_GDROM, &invalid, 2);
+  /*boot_write(boot, SYSCALL_MENU, &invalid, 2);*/
+#endif
 
   return 1;
 }

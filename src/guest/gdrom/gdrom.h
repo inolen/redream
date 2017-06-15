@@ -4,6 +4,7 @@
 #include "guest/gdrom/disc.h"
 #include "guest/gdrom/gdrom_types.h"
 
+struct address_space;
 struct dreamcast;
 struct gdrom;
 
@@ -24,7 +25,9 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area_type, uint8_t *data,
 void gdrom_get_session(struct gdrom *gd, int session, uint8_t *data, int size);
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size);
 int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
-                       enum gd_secmask mask, int num_sectors, uint8_t *dst,
-                       int dst_size);
+                       enum gd_secmask mask, int n, uint8_t *dst, int dst_size);
+int gdrom_copy_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
+                       enum gd_secmask mask, int num_sectors,
+                       struct address_space *space, uint32_t dst);
 
 #endif
