@@ -141,8 +141,8 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       enum gd_secfmt fmt = SECTOR_ANY;
       enum gd_secmask mask = MASK_DATA;
 
-      LOG_SYSCALL("GDC_DMAREAD fad=0x%x n=0x%x dst=0x%x unknown=0x%x",
-                  fad, n, dst, unknown);
+      LOG_SYSCALL("GDC_DMAREAD fad=0x%x n=0x%x dst=0x%x unknown=0x%x", fad, n,
+                  dst, unknown);
 
       /* dma read functionality changes somehow when this in non-zero */
       CHECK_EQ(unknown, 0);
@@ -253,6 +253,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
 
     case GDC_STOP: {
       LOG_FATAL("GDC_STOP");
+      /* TODO same as SPI_CD_SEEK with parameter type = stop playback */
     } break;
 
     case GDC_GET_SCD: {

@@ -324,20 +324,50 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       gdrom_spi_end(gd);
     } break;
 
-    case SPI_CD_OPEN:
-    case SPI_CD_PLAY:
-    case SPI_CD_SEEK:
+    case SPI_CD_OPEN: {
+      LOG_FATAL("SPI_CD_OPEN");
+    } break;
+
+    case SPI_CD_PLAY: {
+      LOG_WARNING("ignoring SPI_CD_PLAY");
+
+      gd->sectnum.status = DST_PAUSE;
+
+      gdrom_spi_end(gd);
+    } break;
+
+    case SPI_CD_SEEK: {
+      enum gd_seek_type param_type = (enum gd_seek_type)(data[1] & 0xf);
+
+      LOG_WARNING("ignoring SPI_CD_SEEK");
+
+      switch (param_type) {
+        case SEEK_FAD:
+        case SEEK_MSF:
+        case SEEK_PAUSE:
+          gd->sectnum.status = DST_PAUSE;
+          break;
+        case SEEK_STOP:
+          gd->sectnum.status = DST_STANDBY;
+          break;
+      }
+
+      gdrom_spi_end(gd);
+    } break;
+
     case SPI_CD_SCAN: {
+      LOG_WARNING("ignoring SPI_CD_SCAN");
+
+      gd->sectnum.status = DST_PAUSE;
+
       gdrom_spi_end(gd);
     } break;
 
     /* SPI_CHK_SECU / SPI_REQ_SECU are part of an undocumented security check
        that has yet to be fully reverse engineered. the check doesn't seem to
-       have any side effects other than setting the drive to the PAUSE state,
-       and a valid, canned response is sent when the results are requested */
+       have any side effects, a canned response is sent when the results are
+       requested */
     case SPI_CHK_SECU: {
-      gd->sectnum.status = DST_PAUSE;
-
       gdrom_spi_end(gd);
     } break;
 
@@ -783,7 +813,7 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
 
   gd->sectnum.full = 0;
   if (gd->disc) {
-    gd->sectnum.status = DST_STANDBY;
+    gd->sectnum.status = DST_PAUSE;
     gd->sectnum.format = disc_get_format(disc);
   } else {
     gd->sectnum.status = DST_NODISC;
