@@ -5,6 +5,7 @@
 
 struct host;
 
+typedef void *video_context_t;
 typedef unsigned framebuffer_handle_t;
 typedef unsigned texture_handle_t;
 typedef void *sync_handle_t;
@@ -79,10 +80,6 @@ enum prim_type {
   PRIM_LINES,
 };
 
-enum debug_flags {
-  DEBUG_DEPTH_BUFFER = 0x1,
-};
-
 struct ta_vertex {
   float xyz[3];
   float uv[2];
@@ -104,6 +101,7 @@ struct ta_surface {
   int offset_color;
   int pt_alpha_test;
   float pt_alpha_ref;
+  int debug_depth;
 
   int first_vert;
   int num_verts;
@@ -132,16 +130,10 @@ struct ui_surface {
 
 struct render_backend;
 
-struct render_backend *r_create(struct host *host);
-struct render_backend *r_create_from(struct render_backend *other);
-void r_destroy(struct render_backend *rc);
+struct render_backend *r_create(video_context_t ctx);
+void r_destroy(struct render_backend *r);
 
-void r_bind_context(struct render_backend *r);
-void r_unbind_context(struct render_backend *r);
-
-void r_set_debug_flag(struct render_backend *r, int flag);
-int r_get_debug_flag(struct render_backend *r, int flag);
-void r_clear_debug_flag(struct render_backend *r, int flag);
+video_context_t r_context(struct render_backend *r);
 
 framebuffer_handle_t r_get_framebuffer(struct render_backend *r);
 framebuffer_handle_t r_create_framebuffer(struct render_backend *r, int width,

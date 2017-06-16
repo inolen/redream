@@ -85,6 +85,7 @@ struct tracer {
 
   /* render state */
   struct tr_context rc;
+  int debug_depth;
   struct tracer_texture textures[1024];
   struct rb_tree live_textures;
   struct list free_textures;
@@ -262,14 +263,8 @@ static void tracer_reset_context(struct tracer *tracer) {
 static void tracer_render_debug_menu(struct tracer *tracer) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("DEBUG", 1)) {
-      int debug_depth = r_get_debug_flag(tracer->r, DEBUG_DEPTH_BUFFER);
-
-      if (igMenuItem("depth buffer", NULL, debug_depth, 1)) {
-        if (debug_depth) {
-          r_clear_debug_flag(tracer->r, DEBUG_DEPTH_BUFFER);
-        } else {
-          r_set_debug_flag(tracer->r, DEBUG_DEPTH_BUFFER);
-        }
+      if (igMenuItem("depth buffer", NULL, tracer->debug_depth, 1)) {
+        tracer->debug_depth = !tracer->debug_depth;
       }
 
       igEndMenu();
@@ -656,6 +651,11 @@ void tracer_run_frame(struct tracer *tracer) {
     end_surf = rp->last_surf;
   }
 
+  for (int i = 0; i < rc->num_surfs; i++) {
+    struct ta_surface *surf = &rc->surfs[i];
+    surf->debug_depth = tracer->debug_depth;
+  }
+
   tr_render_context_until(tracer->r, rc, end_surf);
 
   /* render ui */
@@ -686,7 +686,8 @@ void tracer_destroy(struct tracer *tracer) {
   }
 
   imgui_destroy(tracer->imgui);
-  r_destroy(tracer->r);
+
+  video_destroy_renderer(tracer->host, tracer->r);
 
   free(tracer);
 }
@@ -701,7 +702,7 @@ struct tracer *tracer_create(struct host *host) {
   tracer->host->input_mousemove = &tracer_input_mousemove;
 
   /* setup renderer */
-  tracer->r = r_create(tracer->host);
+  tracer->r = video_create_renderer(tracer->host);
   tracer->imgui = imgui_create(tracer->r);
 
   /* add all textures to free list */

@@ -9,6 +9,7 @@
 #include "core/ringbuf.h"
 #include "emulator.h"
 #include "host/host.h"
+#include "render/render_backend.h"
 #include "tracer.h"
 
 DEFINE_OPTION_INT(audio, 1, "Enable audio");
@@ -190,30 +191,11 @@ static void video_resized(struct sdl_host *host) {
   host->video_resized(host->userdata);
 }
 
-void video_gl_make_current(struct host *base, gl_context_t ctx) {
-  struct sdl_host *host = (struct sdl_host *)base;
-  int res = SDL_GL_MakeCurrent(host->win, ctx);
-  CHECK_EQ(res, 0);
-}
-
-void video_gl_destroy_context(struct host *base, gl_context_t ctx) {
+static void video_gl_destroy_context(struct host *base, video_context_t ctx) {
   SDL_GL_DeleteContext(ctx);
 }
 
-gl_context_t video_gl_create_context_from(struct host *base,
-                                          gl_context_t from) {
-  struct sdl_host *host = (struct sdl_host *)base;
-
-  SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
-  int res = SDL_GL_MakeCurrent(host->win, from);
-  CHECK_EQ(res, 0);
-
-  return video_gl_create_context(base);
-}
-
-gl_context_t video_gl_create_context(struct host *base) {
-  struct sdl_host *host = (struct sdl_host *)base;
-
+static video_context_t video_gl_create_context(struct sdl_host *host) {
   /* need at least a 3.3 core context for our shaders */
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -233,10 +215,53 @@ gl_context_t video_gl_create_context(struct host *base) {
            glewGetErrorString(err));
   glGetError();
 
-  return (gl_context_t)ctx;
+  return (video_context_t)ctx;
 }
 
-int video_gl_supports_multiple_contexts(struct host *base) {
+static video_context_t video_gl_create_context_from(struct sdl_host *host,
+                                                    video_context_t from) {
+  int res = SDL_GL_MakeCurrent(host->win, from);
+  CHECK_EQ(res, 0);
+
+  SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
+
+  return video_gl_create_context(host);
+}
+
+void video_unbind_context(struct host *base) {
+  struct sdl_host *host = (struct sdl_host *)base;
+  int res = SDL_GL_MakeCurrent(host->win, NULL);
+  CHECK_EQ(res, 0);
+}
+
+void video_bind_context(struct host *base, struct render_backend *r) {
+  struct sdl_host *host = (struct sdl_host *)base;
+  video_context_t ctx = r_context(r);
+  int res = SDL_GL_MakeCurrent(host->win, ctx);
+  CHECK_EQ(res, 0);
+}
+
+void video_destroy_renderer(struct host *base, struct render_backend *r) {
+  video_context_t ctx = r_context(r);
+  r_destroy(r);
+  video_gl_destroy_context(base, ctx);
+}
+
+struct render_backend *video_create_renderer_from(struct host *base,
+                                                  struct render_backend *from) {
+  struct sdl_host *host = (struct sdl_host *)base;
+  video_context_t from_ctx = r_context(from);
+  video_context_t ctx = video_gl_create_context_from(host, from_ctx);
+  return r_create(ctx);
+}
+
+struct render_backend *video_create_renderer(struct host *base) {
+  struct sdl_host *host = (struct sdl_host *)base;
+  video_context_t ctx = video_gl_create_context(host);
+  return r_create(ctx);
+}
+
+int video_supports_multiple_contexts(struct host *host) {
   return 1;
 }
 

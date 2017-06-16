@@ -7,6 +7,7 @@
 #include "core/profiler.h"
 #include "emulator.h"
 #include "host/host.h"
+#include "render/render_backend.h"
 
 #define AUDIO_FREQ 44100
 #define VIDEO_WIDTH 640
@@ -92,25 +93,29 @@ void audio_push(struct host *base, const int16_t *data, int frames) {
 /*
  * video
  */
-void video_gl_make_current(struct host *host, gl_context_t ctx) {
+void video_unbind_context(struct host *host) {
+  CHECK(0);
+}
+
+void video_bind_context(struct host *base, struct render_backend *r) {
+  video_context_t ctx = r_context(r);
   CHECK_EQ(ctx, NULL);
 }
 
-void video_gl_destroy_context(struct host *base, gl_context_t ctx) {
-  CHECK_EQ(ctx, NULL);
+void video_destroy_renderer(struct host *base, struct render_backend *r) {
+  r_destroy(r);
 }
 
-gl_context_t video_gl_create_context_from(struct host *base, gl_context_t ctx) {
-  LOG_FATAL("Multiple gl contexts is not supported");
-  return NULL;
+struct render_backend *video_create_renderer_from(struct host *base,
+                                                  struct render_backend *from) {
+  CHECK(0);
 }
 
-gl_context_t video_gl_create_context(struct host *base) {
-  /* nothing to do */
-  return NULL;
+struct render_backend *video_create_renderer(struct host *base) {
+  return r_create(NULL);
 }
 
-int video_gl_supports_multiple_contexts(struct host *base) {
+int video_supports_multiple_contexts(struct host *base) {
   return 0;
 }
 

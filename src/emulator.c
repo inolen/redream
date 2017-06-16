@@ -368,7 +368,7 @@ static void *emu_video_thread(void *data) {
   struct emu *emu = data;
 
   /* make secondary context active for this thread */
-  r_bind_context(emu->r2);
+  video_bind_context(emu->host, emu->r2);
 
   while (1) {
     mutex_lock(emu->pending_mutex);
@@ -407,7 +407,7 @@ static void *emu_video_thread(void *data) {
 
   /* unbind context from this thread before it dies, otherwise the main thread
      may not be able to bind it in order to clean it up */
-  r_unbind_context(emu->r2);
+  video_unbind_context(emu->host);
 
   return NULL;
 }
@@ -675,7 +675,7 @@ static void emu_host_context_destroyed(void *userdata) {
 
   /* destroy video renderer */
   struct render_backend *r2 = emu_video_renderer(emu);
-  r_bind_context(r2);
+  video_bind_context(emu->host, r2);
 
   r_destroy_framebuffer(r2, emu->video_fb);
   if (emu->video_sync) {
@@ -689,7 +689,7 @@ static void emu_host_context_destroyed(void *userdata) {
   }
 
   /* destroy primary renderer */
-  r_bind_context(emu->r);
+  video_bind_context(emu->host, emu->r);
 
   mp_destroy(emu->mp);
   imgui_destroy(emu->imgui);
@@ -704,7 +704,7 @@ static void emu_host_context_reset(void *userdata) {
   emu->running = 1;
 
   /* create primary renderer */
-  emu->r = r_create(emu->host);
+  emu->r = video_create_renderer(emu->host);
   emu->imgui = imgui_create(emu->r);
   emu->mp = mp_create(emu->r);
 
@@ -712,17 +712,17 @@ static void emu_host_context_reset(void *userdata) {
   if (emu->multi_threaded) {
     emu->pending_mutex = mutex_create();
     emu->pending_cond = cond_create();
-    emu->r2 = r_create_from(emu->r);
+    emu->r2 = video_create_renderer_from(emu->host, emu->r);
   }
 
   struct render_backend *r2 = emu_video_renderer(emu);
-  r_bind_context(r2);
+  video_bind_context(emu->host, r2);
 
   emu->video_fb = r_create_framebuffer(r2, emu->video_width, emu->video_height,
                                        &emu->video_tex);
 
   /* make primary renderer active for the current thread */
-  r_bind_context(emu->r);
+  video_bind_context(emu->host, emu->r);
 
   /* startup video thread */
   if (emu->multi_threaded) {
@@ -802,7 +802,7 @@ struct emu *emu_create(struct host *host) {
   emu->dc->poll_input = &emu_guest_poll_input;
 
   /* start up the video thread */
-  emu->multi_threaded = video_gl_supports_multiple_contexts(emu->host);
+  emu->multi_threaded = video_supports_multiple_contexts(emu->host);
 
   /* enable debug menu by default */
   emu->debug_menu = 1;

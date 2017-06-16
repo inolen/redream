@@ -65,10 +65,9 @@ struct texture {
 
 struct render_backend {
   struct host *host;
-  gl_context_t ctx;
+  video_context_t ctx;
   int viewport_width;
   int viewport_height;
-  int debug_flags;
 
   /* default assets created during intitialization */
   GLuint white_texture;
@@ -417,7 +416,7 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
   if (surf->pt_alpha_test) {
     idx |= ATTR_PT_ALPHA_TEST;
   }
-  if (r->debug_flags & DEBUG_DEPTH_BUFFER) {
+  if (surf->debug_depth) {
     idx |= ATTR_DEBUG_DEPTH_BUFFER;
   }
 
@@ -817,24 +816,8 @@ framebuffer_handle_t r_get_framebuffer(struct render_backend *r) {
   return result;
 }
 
-void r_clear_debug_flag(struct render_backend *r, int flag) {
-  r->debug_flags &= ~flag;
-}
-
-int r_get_debug_flag(struct render_backend *r, int flag) {
-  return (r->debug_flags & flag) == flag;
-}
-
-void r_set_debug_flag(struct render_backend *r, int flag) {
-  r->debug_flags |= flag;
-}
-
-void r_unbind_context(struct render_backend *r) {
-  video_gl_make_current(r->host, NULL);
-}
-
-void r_bind_context(struct render_backend *r) {
-  video_gl_make_current(r->host, r->ctx);
+video_context_t r_context(struct render_backend *r) {
+  return r->ctx;
 }
 
 void r_destroy(struct render_backend *r) {
@@ -842,30 +825,13 @@ void r_destroy(struct render_backend *r) {
   r_destroy_shaders(r);
   r_destroy_textures(r);
 
-  video_gl_destroy_context(r->host, r->ctx);
-
   free(r);
 }
 
-struct render_backend *r_create_from(struct render_backend *from) {
+struct render_backend *r_create(video_context_t ctx) {
   struct render_backend *r = calloc(1, sizeof(struct render_backend));
 
-  r->host = from->host;
-  r->ctx = video_gl_create_context_from(from->host, from->ctx);
-
-  r_create_textures(r);
-  r_create_shaders(r);
-  r_create_vertex_arrays(r);
-  r_set_initial_state(r);
-
-  return r;
-}
-
-struct render_backend *r_create(struct host *host) {
-  struct render_backend *r = calloc(1, sizeof(struct render_backend));
-
-  r->host = host;
-  r->ctx = video_gl_create_context(host);
+  r->ctx = ctx;
 
   r_create_textures(r);
   r_create_shaders(r);
