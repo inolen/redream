@@ -4,16 +4,21 @@
 #include "core/option.h"
 #include "guest/dreamcast.h"
 
-DEFINE_OPTION_STRING(bios, "dc_boot.bin", "Path to boot rom");
-
 struct boot {
   struct device;
   uint8_t rom[0x00200000];
 };
 
-static uint32_t boot_rom_read(struct boot *boot, uint32_t addr,
-                              uint32_t data_mask) {
-  return READ_DATA(&boot->rom[addr]);
+static const char *boot_bin_path() {
+  static char filename[PATH_MAX];
+
+  if (!filename[0]) {
+    const char *appdir = fs_appdir();
+    snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "boot.bin",
+             appdir);
+  }
+
+  return filename;
 }
 
 static int boot_validate(struct boot *boot) {
@@ -41,10 +46,11 @@ static int boot_validate(struct boot *boot) {
 }
 
 static int boot_load_rom(struct boot *boot) {
-  const char *filename = OPTION_bios;
+  const char *filename = boot_bin_path();
 
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
+    LOG_WARNING("failed to load '%s'", filename);
     return 0;
   }
 
@@ -71,6 +77,11 @@ static int boot_load_rom(struct boot *boot) {
   LOG_INFO("boot_load_rom loaded '%s'", filename);
 
   return 1;
+}
+
+static uint32_t boot_rom_read(struct boot *boot, uint32_t addr,
+                              uint32_t data_mask) {
+  return READ_DATA(&boot->rom[addr]);
 }
 
 static int boot_init(struct device *dev) {
