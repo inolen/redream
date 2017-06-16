@@ -17,13 +17,14 @@ set(CMAKE_CXX_STANDARD 11)
 #--------------------------------------------------
 
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
-      "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
+    "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif()
 
 option(BUILD_LIBRETRO "Build libretro core" OFF)
-option(BUILD_TOOLS "Build tools" ON)
-option(BUILD_TESTS "Build tests" ON)
+option(BUILD_TOOLS "Build tools" OFF)
+option(BUILD_TESTS "Build tests" OFF)
+option(ENABLE_MICROPROFILE "Enable MicroProfile" ON)
 
 if(WIN32 OR MINGW)
   set(PLATFORM_WINDOWS TRUE)
@@ -57,7 +58,7 @@ check_function_exists(strcasecmp HAVE_STRCASECMP)
 check_function_exists(strnlen HAVE_STRNLEN)
 check_function_exists(strnstr HAVE_STRNSTR)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/core/config.h)
-list(APPEND REDREAM_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/src)
+list(APPEND REDREAM_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/src)
 
 #--------------------------------------------------
 # dynamic libs
@@ -65,11 +66,63 @@ list(APPEND REDREAM_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/src)
 
 # opengl
 find_package(OpenGL REQUIRED)
-list(APPEND REDREAM_INCLUDE_DIRS ${OPENGL_INCLUDE_DIR})
+list(APPEND REDREAM_INCLUDES ${OPENGL_INCLUDE_DIR})
 list(APPEND REDREAM_LIBS ${OPENGL_LIBRARIES})
 
 #--------------------------------------------------
 # static libs
+#--------------------------------------------------
+
+# capstone
+set(CAPSTONE_ARM_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_ARM64_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_MIPS_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_PPC_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_SPARC_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_SYSZ_SUPPORT OFF CACHE BOOL "")
+set(CAPSTONE_XCORE_SUPPORT OFF CACHE BOOL "")
+add_subdirectory(deps/capstone EXCLUDE_FROM_ALL)
+list(APPEND REDREAM_INCLUDES deps/capstone/include)
+list(APPEND REDREAM_LIBS capstone-static)
+
+# dirent
+list(APPEND REDREAM_INCLUDES deps/dirent-1.21)
+
+# gdb_server
+list(APPEND REDREAM_INCLUDES deps/gdb_server)
+
+# glew
+set(BUILD_UTILS OFF CACHE BOOL "")
+add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
+list(APPEND REDREAM_INCLUDES deps/glew-1.13.0/include)
+list(APPEND REDREAM_LIBS glew_s)
+list(APPEND REDREAM_DEFS GLEW_STATIC)
+
+# imgui
+add_library(imgui STATIC
+  deps/cimgui/imgui/imgui.cpp
+  deps/cimgui/imgui/imgui_demo.cpp
+  deps/cimgui/imgui/imgui_draw.cpp
+  deps/cimgui/cimgui/cimgui.cpp
+  deps/cimgui/cimgui/drawList.cpp
+  deps/cimgui/cimgui/fontAtlas.cpp
+  deps/cimgui/cimgui/listClipper.cpp)
+list(APPEND REDREAM_INCLUDES deps/cimgui)
+list(APPEND REDREAM_LIBS imgui)
+
+# inih
+add_library(inih STATIC deps/inih/ini.c)
+list(APPEND REDREAM_INCLUDES deps/inih)
+list(APPEND REDREAM_LIBS inih)
+
+# microprofile
+list(APPEND MICROPROFILE_INCLUDES deps/microprofile)
+
+# xbyak
+list(APPEND REDREAM_INCLUDES deps/xbyak-4.901)
+
+#--------------------------------------------------
+# optional libs
 #--------------------------------------------------
 
 # sdl2
@@ -89,61 +142,12 @@ if(APPLE)
   set(SDL_FRAMEWORK_CARBON 1)
 endif()
 add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
-list(APPEND REDREAM_INCLUDE_DIRS deps/sdl2-2.0.5/include)
+list(APPEND SDL_INCLUDE_DIRS deps/sdl2-2.0.5/include)
 if(MINGW)
   list(APPEND SDL_LIBS mingw32)
 endif()
 list(APPEND SDL_LIBS SDL2main SDL2-static)
 endif()
-
-# capstone
-set(CAPSTONE_ARM_SUPPORT OFF CACHE BOOL "")
-set(CAPSTONE_ARM64_SUPPORT OFF CACHE BOOL "")
-set(CAPSTONE_MIPS_SUPPORT OFF CACHE BOOL "")
-set(CAPSTONE_PPC_SUPPORT OFF CACHE BOOL "")
-set(CAPSTONE_SPARC_SUPPORT OFF CACHE BOOL "")
-set(CAPSTONE_SYSZ_SUPPORT OFF CACHE BOOL "")
-set(CAPSTONE_XCORE_SUPPORT OFF CACHE BOOL "")
-add_subdirectory(deps/capstone EXCLUDE_FROM_ALL)
-list(APPEND REDREAM_INCLUDE_DIRS deps/capstone/include)
-list(APPEND REDREAM_LIBS capstone-static)
-
-# dirent
-list(APPEND REDREAM_INCLUDE_DIRS deps/dirent-1.21)
-
-# gdb_server
-list(APPEND REDREAM_INCLUDE_DIRS deps/gdb_server)
-
-# glew
-set(BUILD_UTILS OFF CACHE BOOL "")
-add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
-list(APPEND REDREAM_INCLUDE_DIRS deps/glew-1.13.0/include)
-list(APPEND REDREAM_LIBS glew_s)
-list(APPEND REDREAM_DEFS GLEW_STATIC)
-
-# imgui
-add_library(imgui STATIC
-  deps/cimgui/imgui/imgui.cpp
-  deps/cimgui/imgui/imgui_demo.cpp
-  deps/cimgui/imgui/imgui_draw.cpp
-  deps/cimgui/cimgui/cimgui.cpp
-  deps/cimgui/cimgui/drawList.cpp
-  deps/cimgui/cimgui/fontAtlas.cpp
-  deps/cimgui/cimgui/listClipper.cpp)
-list(APPEND REDREAM_INCLUDE_DIRS deps/cimgui)
-list(APPEND REDREAM_LIBS imgui)
-
-# inih
-add_library(inih STATIC deps/inih/ini.c)
-list(APPEND REDREAM_INCLUDE_DIRS deps/inih)
-list(APPEND REDREAM_LIBS inih)
-
-# microprofile
-list(APPEND REDREAM_INCLUDE_DIRS deps/microprofile)
-
-# xbyak
-list(APPEND REDREAM_INCLUDE_DIRS deps/xbyak-4.901)
-
 
 #--------------------------------------------------
 # format
@@ -158,8 +162,7 @@ endif()
 
 
 #--------------------------------------------------
-# relib
-# intermediate "object library" to speed up recc / retest compiles
+# redream sources, includes and libs, common to multiple projects
 #--------------------------------------------------
 
 set(REDREAM_SOURCES
@@ -230,10 +233,7 @@ set(REDREAM_SOURCES
   src/jit/pass_stats.c
   src/render/gl_backend.c
   src/render/imgui.cc
-  src/render/microprofile.cc
-  src/emulator.c
-  src/tracer.c
-)
+  src/render/microprofile.cc)
 
 if(PLATFORM_WINDOWS)
   list(APPEND REDREAM_DEFS PLATFORM_WINDOWS=1)
@@ -273,9 +273,6 @@ if(ARCH_X64)
     src/jit/backend/x64/x64_dispatch.cc)
 endif()
 
-# assign source groups for visual studio projects
-source_group_by_dir(REDREAM_SOURCES)
-
 if(COMPILER_GCC OR COMPILER_CLANG)
   list(APPEND REDREAM_FLAGS -pthread -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
@@ -300,22 +297,21 @@ elseif(PLATFORM_WINDOWS)
   list(APPEND REDREAM_LIBS userenv ws2_32)
 endif()
 
-add_library(relib OBJECT ${REDREAM_SOURCES})
-target_include_directories(relib SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
-target_include_directories(relib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_compile_definitions(relib PRIVATE ${REDREAM_DEFS})
-target_compile_options(relib PRIVATE ${REDREAM_FLAGS})
-
 #--------------------------------------------------
 # redream_libretro
 #--------------------------------------------------
 
 if(BUILD_LIBRETRO)
 
-add_library(redream_libretro SHARED $<TARGET_OBJECTS:relib> src/host/retro_host.c)
+set(REDREAM_LIBRETRO_SOURCES
+  ${REDREAM_SOURCES}
+  src/host/retro_host.c
+  src/emulator.c)
+source_group_by_dir(REDREAM_LIBRETRO_SOURCES)
+
+add_library(redream_libretro SHARED ${REDREAM_LIBRETRO_SOURCES})
 set_target_properties(redream_libretro PROPERTIES PREFIX "")
-set_target_properties(redream_libretro PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
-target_include_directories(redream_libretro SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS} deps/libretro/include)
+target_include_directories(redream_libretro SYSTEM PUBLIC ${REDREAM_INCLUDES} deps/libretro/include)
 target_include_directories(redream_libretro PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream_libretro ${REDREAM_LIBS})
 target_compile_definitions(redream_libretro PRIVATE ${REDREAM_DEFS})
@@ -337,12 +333,23 @@ endif()
 # redream
 #--------------------------------------------------
 
-add_executable(redream $<TARGET_OBJECTS:relib> src/host/sdl_host.c)
-target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+set(REDREAM_SDL_SOURCES
+  ${REDREAM_SOURCES}
+  src/host/sdl_host.c
+  src/emulator.c
+  src/tracer.c)
+source_group_by_dir(REDREAM_SDL_SOURCES)
+
+add_executable(redream ${REDREAM_SDL_SOURCES})
+target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDES} ${MICROPROFILE_INCLUDE_DIRS} ${SDL_INCLUDE_DIRS})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream ${REDREAM_LIBS} ${SDL_LIBS})
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
+
+if(ENABLE_MICROPROFILE)
+  target_compile_definitions(redream PRIVATE ENABLE_MICROPROFILE=1)
+endif()
 
 #--------------------------------------------------
 # recc
@@ -351,22 +358,34 @@ target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 if(BUILD_TOOLS)
 
 if(ARCH_X64)
-add_executable(recc $<TARGET_OBJECTS:relib> src/host/null_host.c tools/recc/main.c)
-target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+
+set(RECC_SOURCES
+  ${REDREAM_SOURCES}
+  src/host/null_host.c
+  tools/recc/main.c)
+source_group_by_dir(RECC_SOURCES)
+
+add_executable(recc ${RECC_SOURCES})
+target_include_directories(recc SYSTEM PUBLIC ${REDREAM_INCLUDES})
 target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(recc ${REDREAM_LIBS})
-target_compile_definitions(recc PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_definitions(recc PRIVATE ${REDREAM_DEFS})
 target_compile_options(recc PRIVATE ${REDREAM_FLAGS})
 endif()
 
-add_executable(retrace $<TARGET_OBJECTS:relib>
+
+set(RETRACE_SOURCES
+  ${REDREAM_SOURCES}
   src/host/null_host.c
   tools/retrace/depth.c
   tools/retrace/main.c)
-target_include_directories(retrace SYSTEM PUBLIC ${REDREAM_INCLUDE_DIRS})
+source_group_by_dir(RETRACE_SOURCES)
+
+add_executable(retrace ${RETRACE_SOURCES})
+target_include_directories(retrace SYSTEM PUBLIC ${REDREAM_INCLUDES})
 target_include_directories(retrace PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(retrace ${REDREAM_LIBS})
-target_compile_definitions(retrace PRIVATE ${REDREAM_DEFS} MICROPROFILE_ENABLED=0)
+target_compile_definitions(retrace PRIVATE ${REDREAM_DEFS})
 target_compile_options(retrace PRIVATE ${REDREAM_FLAGS})
 
 endif()
@@ -478,6 +497,7 @@ endif()
 
 # build test binary
 set(RETEST_SOURCES
+  ${REDREAM_SOURCES}
   src/host/null_host.c
   test/test_dead_code_elimination.c
   test/test_interval_tree.c
@@ -486,9 +506,10 @@ set(RETEST_SOURCES
   test/test_sh4.c
   ${asm_inc}
   test/retest.c)
+source_group_by_dir(RETEST_SOURCES)
 
-add_executable(retest $<TARGET_OBJECTS:relib> ${RETEST_SOURCES})
-target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDE_DIRS})
+add_executable(retest ${RETEST_SOURCES})
+target_include_directories(retest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/test ${REDREAM_INCLUDES})
 target_link_libraries(retest ${REDREAM_LIBS})
 target_compile_definitions(retest PRIVATE ${REDREAM_DEFS})
 target_compile_options(retest PRIVATE ${REDREAM_FLAGS})
