@@ -53,7 +53,6 @@ struct emu {
   struct host *host;
   struct dreamcast *dc;
 
-  int debug_menu;
   volatile int running;
   volatile int video_width;
   volatile int video_height;
@@ -101,6 +100,13 @@ struct emu {
      emulation thread when modified. instead, they are added to this modified
      list which will be processed the next time the threads are synchronized */
   struct list modified_textures;
+
+  /* debug stats */
+  int debug_menu;
+  int frame_stats;
+  int frame_seq;
+  float frame_times[360];
+  int64_t last_paint;
 };
 
 /*
@@ -457,10 +463,12 @@ static void emu_paint(struct emu *emu) {
   if (emu->debug_menu) {
     if (igBeginMainMenuBar()) {
       if (igBeginMenu("DEBUG", 1)) {
-        int tracing = emu->trace_writer ? 1 : 0;
-        const char *tracing_label = tracing ? "stop trace" : "start trace";
+        if (igMenuItem("frame stats", NULL, emu->frame_stats, 1)) {
+          emu->frame_stats = !emu->frame_stats;
+        }
 
-        if (igMenuItem(tracing_label, NULL, tracing, 1)) {
+        if ((!emu->trace_writer && igMenuItem("start trace", NULL, 0, 1)) ||
+            (emu->trace_writer && igMenuItem("stop trace", NULL, 1, 1))) {
           emu_toggle_tracing(emu);
         }
 
@@ -502,6 +510,35 @@ static void emu_paint(struct emu *emu) {
       igText(status);
 
       igEndMainMenuBar();
+    }
+
+    if (emu->frame_stats) {
+      if (igBegin("frame stats", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        /* frame times */
+        {
+          struct ImVec2 graph_size = {300.0f, 50.0f};
+          int num_frame_times = array_size(emu->frame_times);
+
+          float min_time = FLT_MAX;
+          float max_time = -FLT_MAX;
+          float avg_time = 0.0f;
+          for (int i = 0; i < num_frame_times; i++) {
+            float time = emu->frame_times[i];
+            min_time = MIN(min_time, time);
+            max_time = MAX(max_time, time);
+            avg_time += time;
+          }
+          avg_time /= num_frame_times;
+
+          igValueFloat("min time", min_time, "%.2f");
+          igValueFloat("max time", max_time, "%.2f");
+          igValueFloat("avg time", avg_time, "%.2f");
+          igPlotLines("", emu->frame_times, num_frame_times, emu->frame_seq,
+                      NULL, 0.0f, 60.0f, graph_size, sizeof(float));
+        }
+
+        igEnd();
+      }
     }
   }
 #endif
@@ -709,9 +746,19 @@ void emu_run_frame(struct emu *emu) {
     dc_tick(emu->dc, MACHINE_STEP);
   }
 
-  prof_update(time_nanoseconds());
+  int64_t now = time_nanoseconds();
 
+  prof_update(now);
   emu_paint(emu);
+
+  if (emu->last_paint) {
+    float frame_time_ms = (float)(now - emu->last_paint) / 1000000.0f;
+    int num_frame_times = array_size(emu->frame_times);
+    emu->frame_times[emu->frame_seq] = frame_time_ms;
+    emu->frame_seq = (emu->frame_seq + 1) % num_frame_times;
+  }
+
+  emu->last_paint = now;
 }
 
 int emu_load_game(struct emu *emu, const char *path) {
