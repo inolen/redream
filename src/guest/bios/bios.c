@@ -1,7 +1,7 @@
-#include <time.h>
 #include "guest/bios/bios.h"
 #include "core/math.h"
 #include "core/option.h"
+#include "core/time.h"
 #include "guest/aica/aica.h"
 #include "guest/bios/bios.h"
 #include "guest/bios/flash.h"
