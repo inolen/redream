@@ -737,10 +737,13 @@ struct sdl_host *host_create() {
 }
 
 int main(int argc, char **argv) {
-  const char *appdir = fs_appdir();
-  if (!fs_mkdir(appdir)) {
-    LOG_FATAL("Failed to create app directory %s", appdir);
-  }
+  /* set application directory */
+  char appdir[PATH_MAX];
+  char userdir[PATH_MAX];
+  int r = fs_userdir(userdir, sizeof(userdir));
+  CHECK(r);
+  snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR ".redream", userdir);
+  fs_set_appdir(appdir);
 
   /* load base options from config */
   char config[PATH_MAX] = {0};

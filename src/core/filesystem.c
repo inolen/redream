@@ -1,28 +1,25 @@
 #include <errno.h>
-#include <stdlib.h>
 #include "core/filesystem.h"
-#include "core/debug_break.h"
 #include "core/log.h"
-#include "core/math.h"
 #include "core/string.h"
 
-const char *fs_appdir() {
-  static char appdir[PATH_MAX];
+static char appdir[PATH_MAX];
 
-  if (appdir[0]) {
-    return appdir;
+void fs_basename(const char *path, char *base, size_t size) {
+  if (!path || !*path) {
+    strncpy(base, ".", size);
+    return;
   }
-
-  // get the user's home directory
-  char userdir[PATH_MAX];
-  if (!fs_userdir(userdir, sizeof(userdir))) {
-    LOG_FATAL("Failed to locate user directory");
+  size_t len = strlen(path);
+  size_t i = len - 1;
+  for (; i && path[i] == PATH_SEPARATOR[0]; i--) {
+    len = i;
   }
-
-  // setup our own subdirectory inside of it
-  snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR ".redream", userdir);
-
-  return appdir;
+  for (; i && path[i - 1] != PATH_SEPARATOR[0]; i--) {
+  }
+  size_t n = MIN(len - i, size - 1);
+  strncpy(base, path + i, n);
+  base[n] = 0;
 }
 
 void fs_dirname(const char *path, char *dir, size_t size) {
@@ -54,19 +51,14 @@ void fs_dirname(const char *path, char *dir, size_t size) {
   dir[n] = 0;
 }
 
-void fs_basename(const char *path, char *base, size_t size) {
-  if (!path || !*path) {
-    strncpy(base, ".", size);
-    return;
+void fs_set_appdir(const char *path) {
+  strncpy(appdir, path, sizeof(appdir));
+
+  if (!fs_mkdir(appdir)) {
+    LOG_FATAL("fs_set_appdir failed to create app directory %s", appdir);
   }
-  size_t len = strlen(path);
-  size_t i = len - 1;
-  for (; i && path[i] == PATH_SEPARATOR[0]; i--) {
-    len = i;
-  }
-  for (; i && path[i - 1] != PATH_SEPARATOR[0]; i--) {
-  }
-  size_t n = MIN(len - i, size - 1);
-  strncpy(base, path + i, n);
-  base[n] = 0;
+}
+
+const char *fs_appdir() {
+  return appdir;
 }
