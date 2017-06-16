@@ -453,6 +453,7 @@ static void emu_paint(struct emu *emu) {
     r_end_ui_surfaces(emu->r);
   }
 
+#if ENABLE_IMGUI
   if (emu->debug_menu) {
     if (igBeginMainMenuBar()) {
       if (igBeginMenu("DEBUG", 1)) {
@@ -503,6 +504,7 @@ static void emu_paint(struct emu *emu) {
       igEndMainMenuBar();
     }
   }
+#endif
 
   imgui_render(emu->imgui);
   mp_render(emu->mp);

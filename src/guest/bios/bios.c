@@ -329,6 +329,7 @@ static int bios_boot(struct bios *bios) {
   return 1;
 }
 
+#if ENABLE_IMGUI
 void bios_debug_menu(struct bios *bios) {
   int changed = 0;
 
@@ -382,6 +383,7 @@ void bios_debug_menu(struct bios *bios) {
     LOG_WARNING("bios settings changed, restart for changes to take effect");
   }
 }
+#endif
 
 int bios_invalid_instr(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
