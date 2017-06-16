@@ -207,6 +207,12 @@ struct retro_host *host_create() {
  * libretro core implementation
  */
 void retro_init() {
+  /* set application directory */
+  const char *sysdir = NULL;
+  if (env_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &sysdir)) {
+    fs_set_appdir(sysdir);
+  }
+
   /* load base options from config */
   const char *appdir = fs_appdir();
   char config[PATH_MAX] = {0};
