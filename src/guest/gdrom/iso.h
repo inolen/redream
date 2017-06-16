@@ -40,7 +40,6 @@ typedef struct iso733 {
   uint32_t be;
 } iso733_t;
 
-
 /* iso 9660 data structures */
 #pragma pack(push, 1)
 

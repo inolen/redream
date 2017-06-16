@@ -1,3 +1,4 @@
+#if ENABLE_MICROPROFILE
 #define MICROPROFILE_WEBSERVER 0
 #define MICROPROFILE_GPU_TIMERS 0
 #define MICROPROFILE_ENABLED 1
@@ -8,6 +9,7 @@
 #define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
 #include <microprofile.h>
 #include <microprofileui.h>
+#endif
 
 extern "C" {
 #include "core/assert.h"
@@ -47,6 +49,7 @@ static struct microprofile *s_mp;
 static struct ui_vertex *mp_alloc_verts(struct microprofile *mp,
                                         const struct ui_surface &desc,
                                         int count) {
+#if ENABLE_MICROPROFILE
   CHECK(mp->num_verts + count <= MAX_2D_VERTICES);
   uint32_t first_vert = mp->num_verts;
   mp->num_verts += count;
@@ -76,10 +79,13 @@ static struct ui_vertex *mp_alloc_verts(struct microprofile *mp,
   next_surf.num_verts = count;
   mp->num_surfs++;
   return &mp->verts[first_vert];
+#endif
+  return NULL;
 }
 
 static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
                          const char *text) {
+#if ENABLE_MICROPROFILE
   float fx = static_cast<float>(x);
   float fy = static_cast<float>(y);
   float fy2 = fy + (MICROPROFILE_TEXT_HEIGHT + 1);
@@ -129,10 +135,12 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
 
     vertex += 6;
   }
+#endif
 }
 
 static void mp_draw_box(struct microprofile *mp, int x0, int y0, int x1, int y1,
                         uint32_t color, enum box_type type) {
+#if ENABLE_MICROPROFILE
   struct ui_vertex *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
                                                  0,
                                                  BLEND_SRC_ALPHA,
@@ -186,10 +194,12 @@ static void mp_draw_box(struct microprofile *mp, int x0, int y0, int x1, int y1,
     Q3(vertex, xy[1], (float)y1);
     Q3(vertex, color, color1);
   }
+#endif
 }
 
 static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
                          uint32_t color) {
+#if ENABLE_MICROPROFILE
   CHECK(num_verts);
 
   struct ui_vertex *vertex = mp_alloc_verts(mp, {PRIM_LINES,
@@ -211,9 +221,11 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
     vertex[1].color = color;
     vertex += 2;
   }
+#endif
 }
 
 void mp_render(struct microprofile *mp) {
+#if ENABLE_MICROPROFILE
   s_mp = mp;
 
   int width = r_viewport_width(mp->r);
@@ -235,13 +247,17 @@ void mp_render(struct microprofile *mp) {
   /* reset surfaces */
   mp->num_surfs = 0;
   mp->num_verts = 0;
+#endif
 }
 
 void mp_mousemove(struct microprofile *mp, int x, int y) {
+#if ENABLE_MICROPROFILE
   MicroProfileMousePosition(x, y, 0);
+#endif
 }
 
 void mp_keydown(struct microprofile *mp, enum keycode key, int16_t value) {
+#if ENABLE_MICROPROFILE
   if (key == K_F2) {
     if (value > 0) {
       MicroProfileToggleDisplayMode();
@@ -253,10 +269,13 @@ void mp_keydown(struct microprofile *mp, enum keycode key, int16_t value) {
     int down = value > 0;
     MicroProfileMouseButton(0, down);
   }
+#endif
 }
 
 void mp_destroy(struct microprofile *mp) {
+#if ENABLE_MICROPROFILE
   r_destroy_texture(mp->r, mp->font_texture);
+#endif
 
   free(mp);
 }
@@ -265,6 +284,7 @@ struct microprofile *mp_create(struct render_backend *r) {
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));
 
+#if ENABLE_MICROPROFILE
   mp->r = r;
 
   /* register and enable cpu and gpu groups by default */
@@ -285,12 +305,14 @@ struct microprofile *mp_create(struct render_backend *r) {
       r_create_texture(mp->r, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
                        WRAP_CLAMP_TO_EDGE, 0, FONT_WIDTH, FONT_HEIGHT,
                        reinterpret_cast<const uint8_t *>(s_font_data));
+#endif
 
   return mp;
 }
 
 /* microprofile expects the following three functions to be defined, they're
    called during MicroProfileDraw */
+#if ENABLE_MICROPROFILE
 void MicroProfileDrawText(int x, int y, uint32_t color, const char *text,
                           uint32_t len) {
   /* microprofile provides 24-bit rgb values for text color */
@@ -323,3 +345,4 @@ void MicroProfileDrawLine2D(uint32_t num_vertices, float *vertices,
 
   mp_draw_line(s_mp, vertices, num_vertices, color);
 }
+#endif

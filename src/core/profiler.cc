@@ -1,19 +1,8 @@
-#include <microprofile.h>
 #include <atomic>
 
-/* clang-format off */
-#if MICROPROFILE_ENABLED == 0
-#define MICROPROFILE_MAX_COUNTERS 1
-#define MicroProfileInit() do{}while(0)
-#define MicroProfileGetToken(group, name, color, type) 0
-#define MicroProfileGetCounterToken(name) 0
-#define MicroProfileEnter(tok) 0
-#define MicroProfileLeave(tok, tick) do{}while(0)
-#define MicroProfileCounterAdd(tok, v) do{}while(0)
-#define MicroProfileCounterSet(tok, v) do{}while(0)
-#define MicroProfileCounterLoad(tok) 0
+#if ENABLE_MICROPROFILE
+#include <microprofile.h>
 #endif
-/* clang-format on */
 
 extern "C" {
 
@@ -21,9 +10,11 @@ extern "C" {
 #include "core/time.h"
 
 static struct {
+#if ENABLE_MICROPROFILE
   std::atomic<int64_t> counters[MICROPROFILE_MAX_COUNTERS];
   int aggregate[MICROPROFILE_MAX_COUNTERS];
   int64_t last_aggregation;
+#endif
 } prof;
 
 static inline float hue_to_rgb(float p, float q, float t) {
@@ -85,31 +76,48 @@ static uint32_t prof_scope_color(const char *name) {
 
 prof_token_t prof_get_token(const char *group, const char *name) {
   prof_init();
+
+#if ENABLE_MICROPROFILE
   uint32_t color = prof_scope_color(name);
   return MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu);
+#else
+  return 0;
+#endif
 }
 
 prof_token_t prof_get_counter_token(const char *name) {
   prof_init();
+
+#if ENABLE_MICROPROFILE
   prof_token_t tok = MicroProfileGetCounterToken(name);
   prof.aggregate[tok] = 0;
   return tok;
+#else
+  return 0;
+#endif
 }
 
 prof_token_t prof_get_aggregate_token(const char *name) {
   prof_init();
+#if ENABLE_MICROPROFILE
   prof_token_t tok = MicroProfileGetCounterToken(name);
   prof.aggregate[tok] = 1;
   return tok;
+#else
+  return 0;
+#endif
 }
 
 void prof_flip() {
-  /* flip frame-based profile zones at the end of every frame */
+/* flip frame-based profile zones at the end of every frame */
+#if ENABLE_MICROPROFILE
   MicroProfileFlip();
+#endif
 }
 
 void prof_update(int64_t now) {
-  /* update time-based aggregate counters every second */
+/* update time-based aggregate counters every second */
+#if ENABLE_MICROPROFILE
   int64_t next_aggregation = prof.last_aggregation + NS_PER_SEC;
 
   if (now > next_aggregation) {
@@ -124,41 +132,60 @@ void prof_update(int64_t now) {
 
     prof.last_aggregation = now;
   }
+#endif
 }
 
 void prof_counter_set(prof_token_t tok, int64_t count) {
+#if ENABLE_MICROPROFILE
   if (prof.aggregate[tok]) {
     prof.counters[tok].store(count);
   } else {
     MicroProfileCounterSet(tok, count);
   }
+#endif
 }
 
 void prof_counter_add(prof_token_t tok, int64_t count) {
+#if ENABLE_MICROPROFILE
   if (prof.aggregate[tok]) {
     prof.counters[tok].fetch_add(count);
   } else {
     MicroProfileCounterAdd(tok, count);
   }
+#endif
 }
 
 int64_t prof_counter_load(prof_token_t tok) {
+#if ENABLE_MICROPROFILE
   return MicroProfileCounterLoad(tok);
+#else
+  return 0;
+#endif
 }
 
 void prof_leave(prof_token_t tok, uint64_t tick) {
+#if ENABLE_MICROPROFILE
   MicroProfileLeave(tok, tick);
+#endif
 }
 
 uint64_t prof_enter(prof_token_t tok) {
+#if ENABLE_MICROPROFILE
   return MicroProfileEnter(tok);
+#else
+  return 0;
+#endif
 }
 
 void prof_shutdown() {
+#if ENABLE_MICROPROFILE
   MicroProfileShutdown();
+#endif
 }
 
 void prof_init() {
+#if ENABLE_MICROPROFILE
   MicroProfileInit();
+#endif
 }
 }
