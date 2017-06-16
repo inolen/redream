@@ -209,6 +209,7 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   sh4->execute_if->running = 1;
 }
 
+#if ENABLE_IMGUI
 void sh4_debug_menu(struct sh4 *sh4) {
   struct jit *jit = sh4->jit;
 
@@ -235,6 +236,7 @@ void sh4_debug_menu(struct sh4 *sh4) {
     igEndMainMenuBar();
   }
 }
+#endif
 
 void sh4_destroy(struct sh4 *sh4) {
   jit_destroy(sh4->jit);

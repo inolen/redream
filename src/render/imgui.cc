@@ -1,4 +1,6 @@
+#if ENABLE_IMGUI
 #include <imgui/imgui.h>
+#endif
 
 extern "C" {
 #include "core/assert.h"
@@ -14,6 +16,7 @@ struct imgui {
 };
 
 extern "C" void imgui_render(struct imgui *imgui) {
+#if ENABLE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   /* update draw batches. note, this doesn't _actually_ render anything because
@@ -61,9 +64,11 @@ extern "C" void imgui_render(struct imgui *imgui) {
 
     r_end_ui_surfaces(imgui->r);
   }
+#endif
 }
 
 extern "C" void imgui_update_input(struct imgui *imgui) {
+#if ENABLE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   int width = r_viewport_width(imgui->r);
@@ -75,10 +80,12 @@ extern "C" void imgui_update_input(struct imgui *imgui) {
 
   /* reset mouse scroll state */
   io.MouseWheel = 0.0;
+#endif
 }
 
 extern "C" void imgui_keydown(struct imgui *imgui, enum keycode code,
                               int16_t value) {
+#if ENABLE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   if (code == K_MWHEELUP) {
@@ -91,7 +98,6 @@ extern "C" void imgui_keydown(struct imgui *imgui, enum keycode code,
     io.MouseDown[1] = value > 0;
   } else if (code == K_MOUSE3) {
     io.MouseDown[2] = value > 0;
-    ;
   } else if (code == K_LALT || code == K_RALT) {
     imgui->alt[code == K_LALT ? 0 : 1] = !!value;
     io.KeyAlt = imgui->alt[0] || imgui->alt[1];
@@ -104,21 +110,27 @@ extern "C" void imgui_keydown(struct imgui *imgui, enum keycode code,
   } else {
     io.KeysDown[code] = value > 0;
   }
+#endif
 }
 
 extern "C" void imgui_mousemove(struct imgui *imgui, int x, int y) {
+#if ENABLE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   io.MousePos = ImVec2((float)x, (float)y);
+#endif
 }
 
 extern "C" void imgui_destroy(struct imgui *imgui) {
+#if ENABLE_IMGUI
   ImGui::Shutdown();
 
   free(imgui);
+#endif
 }
 
 extern "C" struct imgui *imgui_create(struct render_backend *r) {
+#if ENABLE_IMGUI
   struct imgui *imgui =
       reinterpret_cast<struct imgui *>(calloc(1, sizeof(struct imgui)));
 
@@ -168,4 +180,7 @@ extern "C" struct imgui *imgui_create(struct render_backend *r) {
   io.Fonts->TexID = reinterpret_cast<void *>(static_cast<intptr_t>(handle));
 
   return imgui;
+#else
+  return NULL;
+#endif
 }

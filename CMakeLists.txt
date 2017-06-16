@@ -24,7 +24,6 @@ endif()
 option(BUILD_LIBRETRO "Build libretro core" OFF)
 option(BUILD_TOOLS "Build tools" OFF)
 option(BUILD_TESTS "Build tests" OFF)
-option(ENABLE_MICROPROFILE "Enable MicroProfile" ON)
 
 if(WIN32 OR MINGW)
   set(PLATFORM_WINDOWS TRUE)
@@ -98,6 +97,18 @@ list(APPEND REDREAM_INCLUDES deps/glew-1.13.0/include)
 list(APPEND REDREAM_LIBS glew_s)
 list(APPEND REDREAM_DEFS GLEW_STATIC)
 
+# inih
+add_library(inih STATIC deps/inih/ini.c)
+list(APPEND REDREAM_INCLUDES deps/inih)
+list(APPEND REDREAM_LIBS inih)
+
+# xbyak
+list(APPEND REDREAM_INCLUDES deps/xbyak-4.901)
+
+#--------------------------------------------------
+# optional libs
+#--------------------------------------------------
+
 # imgui
 add_library(imgui STATIC
   deps/cimgui/imgui/imgui.cpp
@@ -108,22 +119,10 @@ add_library(imgui STATIC
   deps/cimgui/cimgui/fontAtlas.cpp
   deps/cimgui/cimgui/listClipper.cpp)
 list(APPEND REDREAM_INCLUDES deps/cimgui)
-list(APPEND REDREAM_LIBS imgui)
-
-# inih
-add_library(inih STATIC deps/inih/ini.c)
-list(APPEND REDREAM_INCLUDES deps/inih)
-list(APPEND REDREAM_LIBS inih)
+list(APPEND IMGUI_LIBS imgui)
 
 # microprofile
-list(APPEND MICROPROFILE_INCLUDES deps/microprofile)
-
-# xbyak
-list(APPEND REDREAM_INCLUDES deps/xbyak-4.901)
-
-#--------------------------------------------------
-# optional libs
-#--------------------------------------------------
+list(APPEND REDREAM_INCLUDES deps/microprofile)
 
 # sdl2
 if(NOT BUILD_LIBRETRO)
@@ -142,7 +141,7 @@ if(APPLE)
   set(SDL_FRAMEWORK_CARBON 1)
 endif()
 add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
-list(APPEND SDL_INCLUDE_DIRS deps/sdl2-2.0.5/include)
+list(APPEND REDREAM_INCLUDES deps/sdl2-2.0.5/include)
 if(MINGW)
   list(APPEND SDL_LIBS mingw32)
 endif()
@@ -341,15 +340,18 @@ set(REDREAM_SDL_SOURCES
 source_group_by_dir(REDREAM_SDL_SOURCES)
 
 add_executable(redream ${REDREAM_SDL_SOURCES})
-target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDES} ${MICROPROFILE_INCLUDE_DIRS} ${SDL_INCLUDE_DIRS})
+target_include_directories(redream SYSTEM PUBLIC ${REDREAM_INCLUDES})
 target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(redream ${REDREAM_LIBS} ${SDL_LIBS})
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
-if(ENABLE_MICROPROFILE)
-  target_compile_definitions(redream PRIVATE ENABLE_MICROPROFILE=1)
-endif()
+# enable imgui
+target_link_libraries(redream ${IMGUI_LIBS})
+target_compile_definitions(redream PRIVATE ENABLE_IMGUI=1)
+
+# enable microprofile
+target_compile_definitions(redream PRIVATE ENABLE_MICROPROFILE=1)
 
 #--------------------------------------------------
 # recc

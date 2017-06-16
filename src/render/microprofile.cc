@@ -275,16 +275,16 @@ void mp_keydown(struct microprofile *mp, enum keycode key, int16_t value) {
 void mp_destroy(struct microprofile *mp) {
 #if ENABLE_MICROPROFILE
   r_destroy_texture(mp->r, mp->font_texture);
-#endif
 
   free(mp);
+#endif
 }
 
 struct microprofile *mp_create(struct render_backend *r) {
+#if ENABLE_MICROPROFILE
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));
 
-#if ENABLE_MICROPROFILE
   mp->r = r;
 
   /* register and enable cpu and gpu groups by default */
@@ -305,9 +305,11 @@ struct microprofile *mp_create(struct render_backend *r) {
       r_create_texture(mp->r, PXL_RGBA, FILTER_NEAREST, WRAP_CLAMP_TO_EDGE,
                        WRAP_CLAMP_TO_EDGE, 0, FONT_WIDTH, FONT_HEIGHT,
                        reinterpret_cast<const uint8_t *>(s_font_data));
-#endif
 
   return mp;
+#else
+  return NULL;
+#endif
 }
 
 /* microprofile expects the following three functions to be defined, they're

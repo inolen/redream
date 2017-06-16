@@ -1,9 +1,12 @@
 #ifndef IMGUI_H
 #define IMGUI_H
 
+#include "host/keycode.h"
+
+#if ENABLE_IMGUI
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include <cimgui/cimgui.h>
-#include "host/keycode.h"
+#endif
 
 struct imgui;
 struct render_backend;
