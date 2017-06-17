@@ -4,7 +4,7 @@
 #include "core/log.h"
 
 /* CHECK_* macros are usually true, hint this to the compiler if possible */
-#if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
+#if PLATFORM_DARWIN || PLATFORM_LINUX
 #define CHECK_EXPECT_TRUE(expr) (__builtin_expect(!!(expr), 1))
 #else
 #define CHECK_EXPECT_TRUE(expr) (expr)

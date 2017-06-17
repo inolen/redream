@@ -23,7 +23,7 @@ void log_line(enum log_level level, const char *format, ...) {
   vsnprintf(buffer, buffer_size, format, args);
   va_end(args);
 
-#if defined(PLATFORM_LINUX) || defined(PLATFORM_DARWIN)
+#if PLATFORM_DARWIN || PLATFORM_LINUX
   switch (level) {
     case LOG_LEVEL_DEBUG:
     case LOG_LEVEL_INFO:

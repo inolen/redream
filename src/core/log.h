@@ -2,7 +2,6 @@
 #define REDREAM_LOG_H
 
 #include <stdlib.h>
-#include "core/debug_break.h"
 #include "core/option.h"
 
 DECLARE_OPTION_INT(verbose);
@@ -24,6 +23,16 @@ enum log_level {
 
 void log_line(enum log_level level, const char *format, ...);
 
+#ifndef NDEBUG
+#if COMPILER_MSVC
+#define DEBUGBREAK() __debugbreak()
+#else
+#define DEBUGBREAK() __builtin_trap()
+#endif
+#else
+#define DEBUGBREAK()
+#endif
+
 #define LOG_DEBUG(...)                        \
   if (OPTION_verbose) {                       \
     log_line(LOG_LEVEL_DEBUG, ##__VA_ARGS__); \
@@ -39,19 +48,11 @@ void log_line(enum log_level level, const char *format, ...);
     log_line(LOG_LEVEL_WARNING, ##__VA_ARGS__); \
   } while (0)
 
-#ifndef NDEBUG
 #define LOG_FATAL(...)                        \
   do {                                        \
     log_line(LOG_LEVEL_FATAL, ##__VA_ARGS__); \
-    debug_break();                            \
+    DEBUGBREAK();                             \
     exit(1);                                  \
   } while (0)
-#else
-#define LOG_FATAL(...)                        \
-  do {                                        \
-    log_line(LOG_LEVEL_FATAL, ##__VA_ARGS__); \
-    exit(1);                                  \
-  } while (0)
-#endif
 
 #endif
