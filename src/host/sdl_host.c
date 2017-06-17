@@ -13,7 +13,7 @@
 #include "tracer.h"
 
 DEFINE_OPTION_INT(audio, 1, "Enable audio");
-DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
+DEFINE_OPTION_INT(latency, 20, "Preferred audio latency in ms");
 DEFINE_OPTION_INT(help, 0, "Show help");
 
 #define AUDIO_FREQ 44100
@@ -21,7 +21,7 @@ DEFINE_OPTION_INT(help, 0, "Show help");
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
 
-#define AUDIO_FRAMES_TO_MS(frames) (int)(((float)frames / AUDIO_FREQ) * 1000.0)
+#define AUDIO_FRAMES_TO_MS(frames) (int)(((float)frames * 1000.0f) / (float)AUDIO_FREQ)
 #define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
 
 /*
@@ -158,8 +158,9 @@ static int audio_init(struct sdl_host *host) {
   /* resume device */
   SDL_PauseAudioDevice(host->audio_dev, 0);
 
-  LOG_INFO("audio backend created, %d ms latency",
-           AUDIO_FRAMES_TO_MS(host->audio_spec.samples));
+  LOG_INFO("audio backend created, %d ms / %d frames latency",
+           AUDIO_FRAMES_TO_MS(host->audio_spec.samples),
+           host->audio_spec.samples);
 
   return 1;
 }
@@ -818,9 +819,9 @@ int main(int argc, char **argv) {
            close event is received */
         host_poll_events(g_host);
 
-        /* only run a frame if the available audio is running low. this syncs
-           the emulation speed with the host audio clock. note however, if
-           audio is disabled, the emulator will run completely unthrottled */
+        /* only step the emulator if the available audio is running low. this
+           syncs the emulation speed with the host audio clock. note however,
+           if audio is disabled, the emulator will run unthrottled */
         if (!audio_buffer_low(g_host)) {
           continue;
         }
