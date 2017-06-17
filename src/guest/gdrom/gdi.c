@@ -106,10 +106,27 @@ static int gdi_parse(struct disc *disc, const char *filename) {
     int num, lba, ctrl, sector_size, file_offset;
     char filename[PATH_MAX];
 
-    n = fscanf(fp, "%d %d %d %d %s %d", &num, &lba, &ctrl, &sector_size,
-               filename, &file_offset);
+    /* parse track information, including filenames which may include single or
+       double quotes */
+    int parse_err = 0;
 
-    if (n != 6) {
+    n = fscanf(fp, "%d %d %d %d", &num, &lba, &ctrl, &sector_size);
+    parse_err |= (n != 4);
+
+    n = fscanf(fp, " \"%[^\"]\"", filename);
+    if (n != 1) {
+      n = fscanf(fp, " '%[^']'", filename);
+      if (n != 1) {
+        n = fscanf(fp, " %s", filename);
+        parse_err |= (n != 1);
+      }
+    }
+
+    n = fscanf(fp, " %d", &file_offset);
+    parse_err |= (n != 1);
+
+    if (parse_err) {
+      LOG_WARNING("gdi_parse failed to parse track information");
       fclose(fp);
       return 0;
     }
@@ -129,8 +146,8 @@ static int gdi_parse(struct disc *disc, const char *filename) {
     /* sanity check */
     CHECK_EQ(num, track->num);
 
-    LOG_INFO("gdi_parse_track track=%d fad=%d secsz=%d", track->num, track->fad,
-             track->sector_size);
+    LOG_INFO("gdi_parse track=%d filename='%s' fad=%d secsz=%d", track->num,
+             track->filename, track->fad, track->sector_size);
   }
 
   /* gdroms contains two sessions, one for the single density area (tracks 0-1)
