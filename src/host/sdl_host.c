@@ -21,7 +21,8 @@ DEFINE_OPTION_INT(help, 0, "Show help");
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
 
-#define AUDIO_FRAMES_TO_MS(frames) (int)(((float)frames * 1000.0f) / (float)AUDIO_FREQ)
+#define AUDIO_FRAMES_TO_MS(frames) \
+  (int)(((float)frames * 1000.0f) / (float)AUDIO_FREQ)
 #define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
 
 /*
