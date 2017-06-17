@@ -133,8 +133,8 @@ static int emu_texture_cmp(const struct rb_node *rb_lhs,
 
 static struct rb_callbacks emu_texture_cb = {&emu_texture_cmp, NULL, NULL};
 
-static void emu_clear_textures(struct emu *emu) {
-  LOG_INFO("emu_clear_textures");
+static void emu_dirty_textures(struct emu *emu) {
+  LOG_INFO("emu_dirty_textures");
 
   struct rb_node *it = rb_first(&emu->live_textures);
 
@@ -176,6 +176,14 @@ static void emu_palette_modified(const struct exception_state *ex, void *data) {
     list_add(&tex->emu->modified_textures, &tex->modified_it);
     tex->modified = 1;
   }
+}
+
+static void emu_free_texture(struct emu *emu, struct emu_texture *tex) {
+  /* remove from live tree */
+  rb_unlink(&emu->live_textures, &tex->live_it, &emu_texture_cb);
+
+  /* add back to free list */
+  list_add(&emu->free_textures, &tex->free_it);
 }
 
 static struct emu_texture *emu_alloc_texture(struct emu *emu, union tsp tsp,
@@ -308,7 +316,7 @@ static void emu_toggle_tracing(struct emu *emu) {
 
     /* clear texture cache in order to generate insert events for all
        textures referenced while tracing */
-    emu_clear_textures(emu);
+    emu_dirty_textures(emu);
 
     LOG_INFO("begin tracing to %s", filename);
   } else {
@@ -473,7 +481,7 @@ static void emu_paint(struct emu *emu) {
         }
 
         if (igMenuItem("clear texture cache", NULL, 0, 1)) {
-          emu_clear_textures(emu);
+          emu_dirty_textures(emu);
         }
 
         igEndMenu();
@@ -670,14 +678,18 @@ static void emu_host_context_destroyed(void *userdata) {
     thread_join(emu->video_thread, &result);
   }
 
-  /* reset texture cache */
-  emu_clear_textures(emu);
-
-  /* destroy video renderer */
+  /* destroy video renderer objects */
   struct render_backend *r2 = emu_video_renderer(emu);
   video_bind_context(emu->host, r2);
 
+  rb_for_each_entry_safe(tex, &emu->live_textures, struct emu_texture,
+                         live_it) {
+    r_destroy_texture(r2, tex->handle);
+    emu_free_texture(emu, tex);
+  }
+
   r_destroy_framebuffer(r2, emu->video_fb);
+
   if (emu->video_sync) {
     r_destroy_sync(r2, emu->video_sync);
   }
