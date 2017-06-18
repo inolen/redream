@@ -72,7 +72,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
 
   char buffer[128];
 
-  uint32_t end = addr + size / 2;
+  uint32_t end = addr + size;
 
   while (addr < end) {
     uint16_t data = guest->r16(guest->space, addr);
