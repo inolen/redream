@@ -593,9 +593,11 @@ static int x64_backend_handle_exception(struct jit_backend *base,
   return 1;
 }
 
-static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *code,
-                                  int size) {
+static void x64_backend_dump_code(struct jit_backend *base,
+                                  const struct jit_block *block) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
+  const uint8_t *code = (const uint8_t *)block->host_addr;
+  int size = block->host_size;
 
   cs_insn *insns;
   size_t count = cs_disasm(backend->capstone_handle, code, size, 0, 0, &insns);

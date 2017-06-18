@@ -47,7 +47,7 @@ static int interp_backend_handle_exception(struct jit_backend *base,
 }
 
 static void interp_backend_dump_code(struct jit_backend *base,
-                                     const uint8_t *code, int size) {}
+                                     const struct jit_block *block) {}
 
 static void interp_backend_reset(struct jit_backend *base) {}
 

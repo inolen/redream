@@ -28,18 +28,17 @@ static void armv3_analyze_block(const struct armv3_guest *guest,
     block->num_cycles += 12;
     block->num_instrs++;
 
-    /* end block on invalid instruction */
-    if (def->op == ARMV3_OP_INVALID) {
-      break;
-    }
-
     /* stop emitting when pc is changed */
-    if ((def->flags & FLAG_BRANCH) ||
-        ((def->flags & FLAG_DATA) && i.data.rd == 15) ||
-        (def->flags & FLAG_PSR) ||
-        ((def->flags & FLAG_XFR) && i.xfr.rd == 15) ||
-        ((def->flags & FLAG_BLK) && i.blk.rlist & (1 << 15)) ||
-        (def->flags & FLAG_SWI)) {
+    int mov_to_pc = 0;
+
+    mov_to_pc |= (def->flags & FLAG_SET_PC);
+    mov_to_pc |= (def->flags & FLAG_DATA) && i.data.rd == 15;
+    mov_to_pc |= (def->flags & FLAG_PSR);
+    mov_to_pc |= (def->flags & FLAG_XFR) && i.xfr.rd == 15;
+    mov_to_pc |= (def->flags & FLAG_BLK) && (i.blk.rlist & (1 << 15));
+    mov_to_pc |= (def->flags & FLAG_SWI);
+
+    if (mov_to_pc) {
       break;
     }
   }
@@ -50,14 +49,15 @@ static const struct jit_opdef *armv3_frontend_lookup_op(
   return armv3_get_opdef(*(const uint32_t *)instr);
 }
 
-static void armv3_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
-                                     int size) {
+static void armv3_frontend_dump_code(struct jit_frontend *base,
+                                     const struct jit_block *block) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
   struct jit_guest *guest = frontend->jit->guest;
 
   char buffer[128];
 
-  for (int i = 0; i < size; i += 4) {
+  for (int offset = 0; offset < block->guest_size; offset += 4) {
+    uint32_t addr = block->guest_addr + offset;
     uint32_t data = guest->r32(guest->space, addr);
 
     armv3_format(addr, data, buffer, sizeof(buffer));
@@ -75,17 +75,12 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
 
   armv3_analyze_block(guest, block);
 
-  /* emit fallbacks */
-  uint32_t addr = block->guest_addr;
-  uint32_t end = block->guest_addr + block->guest_size;
-
-  while (addr < end) {
+  for (int offset = 0; offset < block->guest_size; offset += 4) {
+    uint32_t addr = block->guest_addr + offset;
     uint32_t data = guest->r32(guest->space, addr);
     struct jit_opdef *def = armv3_get_opdef(data);
 
     ir_fallback(ir, def->fallback, addr, data);
-
-    addr += 4;
   }
 }
 

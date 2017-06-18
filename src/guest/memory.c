@@ -374,8 +374,9 @@ struct memory *memory_create(struct dreamcast *dc) {
 
   memory->dc = dc;
   memory->shmem = SHMEM_INVALID;
-  /* 0 page is reserved, meaning all valid page entries must be non-zero */
-  memory->num_regions = 1;
+
+  /* create default region for unmapped pages */
+  memory_create_mmio_region(memory, "default", 0, NULL, NULL, NULL, NULL, NULL);
 
   return memory;
 }
@@ -500,7 +501,6 @@ void as_memcpy_to_guest(struct address_space *space, uint32_t dst,
 #define define_read_bytes(name, data_type)                                     \
   data_type as_##name(struct address_space *space, uint32_t addr) {            \
     page_entry_t page = space->pages[get_page_index(addr)];                    \
-    DCHECK(page);                                                              \
     int region_handle = get_region_handle(page);                               \
     struct memory_region *region = &space->dc->memory->regions[region_handle]; \
     if (region->type == REGION_PHYSICAL) {                                     \
@@ -520,7 +520,6 @@ define_read_bytes(read32, uint32_t);
 #define define_write_bytes(name, data_type)                                    \
   void as_##name(struct address_space *space, uint32_t addr, data_type data) { \
     page_entry_t page = space->pages[get_page_index(addr)];                    \
-    DCHECK(page);                                                              \
     int region_handle = get_region_handle(page);                               \
     struct memory_region *region = &space->dc->memory->regions[region_handle]; \
     if (region->type == REGION_PHYSICAL) {                                     \

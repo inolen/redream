@@ -5,7 +5,7 @@
 #include "jit/frontend/jit_frontend.h"
 
 enum armv3_op_flag {
-  FLAG_BRANCH = 0x1,
+  FLAG_SET_PC = 0x1,
   FLAG_DATA = 0x2,
   FLAG_PSR = 0x4,
   FLAG_MUL = 0x8,
@@ -229,7 +229,6 @@ union armv3_instr {
 };
 
 enum armv3_op {
-  ARMV3_OP_INVALID,
 #define ARMV3_INSTR(name, desc, instr_code, cycles, flags) ARMV3_OP_##name,
 #include "armv3_instr.inc"
 #undef ARMV3_INSTR
