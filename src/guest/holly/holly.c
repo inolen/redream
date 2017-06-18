@@ -254,7 +254,7 @@ static void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
   reg_write_cb write = holly_cb[offset].write;
 
   if (hl->log_reg_access) {
-    LOG_INFO("holly_reg_write 0x%08x : 0x%x", addr, data & data_mask);
+    LOG_INFO("holly_reg_write addr=0x%08x data=0x%x", addr, data & data_mask);
   }
 
   if (write) {
@@ -270,15 +270,18 @@ static uint32_t holly_reg_read(struct holly *hl, uint32_t addr,
   uint32_t offset = addr >> 2;
   reg_read_cb read = holly_cb[offset].read;
 
-  if (hl->log_reg_access) {
-    LOG_INFO("holly_reg_read 0x%08x", addr);
-  }
-
+  uint32_t data;
   if (read) {
-    return read(hl->dc);
+    data = read(hl->dc);
+  } else {
+    data = hl->reg[offset];
   }
 
-  return hl->reg[offset];
+  if (hl->log_reg_access) {
+    LOG_INFO("holly_reg_read addr=0x%08x data=0x%x", addr, data);
+  }
+
+  return data;
 }
 
 static uint32_t *holly_interrupt_status(struct holly *hl,
@@ -338,10 +341,20 @@ void holly_debug_menu(struct holly *hl) {
           holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_NRM, 1 << i));
         }
       }
+      if (igMenuItem("clear all HOLLY_INT_NRM", NULL, 0, 1)) {
+        for (int i = 0; i < 22; i++) {
+          holly_clear_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_NRM, 1 << i));
+        }
+      }
 
       if (igMenuItem("raise all HOLLY_INT_EXT", NULL, 0, 1)) {
         for (int i = 0; i < 4; i++) {
           holly_raise_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_EXT, 1 << i));
+        }
+      }
+      if (igMenuItem("clear all HOLLY_INT_EXT", NULL, 0, 1)) {
+        for (int i = 0; i < 4; i++) {
+          holly_clear_interrupt(hl, HOLLY_INTERRUPT(HOLLY_INT_EXT, 1 << i));
         }
       }
 
@@ -394,13 +407,14 @@ REG_W32(holly_cb, SB_ISTNRM) {
 }
 
 REG_W32(holly_cb, SB_ISTEXT) {
-  struct holly *hl = dc->holly;
-  *hl->SB_ISTEXT &= ~value;
-  holly_update_interrupts(hl);
+  /* this register is used to confirm external interrupts. these interrupts can
+     only be cancelled by the external device itself, they cannot be cancelled
+     through this register */
 }
 
 REG_W32(holly_cb, SB_ISTERR) {
   struct holly *hl = dc->holly;
+  /* writing a 1 clears the interrupt */
   *hl->SB_ISTERR &= ~value;
   holly_update_interrupts(hl);
 }
