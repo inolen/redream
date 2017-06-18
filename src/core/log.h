@@ -1,6 +1,7 @@
 #ifndef REDREAM_LOG_H
 #define REDREAM_LOG_H
 
+#include <stdio.h>
 #include <stdlib.h>
 #include "core/option.h"
 
@@ -51,6 +52,7 @@ void log_line(enum log_level level, const char *format, ...);
 #define LOG_FATAL(...)                        \
   do {                                        \
     log_line(LOG_LEVEL_FATAL, ##__VA_ARGS__); \
+    fflush(stdout);                           \
     DEBUGBREAK();                             \
     exit(1);                                  \
   } while (0)
