@@ -65,16 +65,15 @@ static const struct jit_opdef *sh4_frontend_lookup_op(struct jit_frontend *base,
   return sh4_get_opdef(*(const uint16_t *)instr);
 }
 
-static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
-                                   int size) {
+static void sh4_frontend_dump_code(struct jit_frontend *base,
+                                   const struct jit_block *block) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct jit_guest *guest = frontend->jit->guest;
 
   char buffer[128];
 
-  uint32_t end = addr + size;
-
-  while (addr < end) {
+  for (int offset = 0; offset < block->guest_size; offset += 2) {
+    uint32_t addr = block->guest_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
@@ -82,16 +81,15 @@ static void sh4_frontend_dump_code(struct jit_frontend *base, uint32_t addr,
     sh4_format(addr, instr, buffer, sizeof(buffer));
     LOG_INFO(buffer);
 
-    addr += 2;
-
     if (def->flags & SH4_FLAG_DELAYED) {
-      uint16_t delay_data = guest->r16(guest->space, addr);
+      uint32_t delay_addr = addr + 2;
+      uint16_t delay_data = guest->r16(guest->space, delay_addr);
       union sh4_instr delay_instr = {delay_data};
 
       sh4_format(addr, delay_instr, buffer, sizeof(buffer));
       LOG_INFO(buffer);
 
-      addr += 2;
+      offset += 2;
     }
   }
 }
@@ -119,11 +117,10 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   sh4_analyze_block(guest, block);
 
   /* translate the actual block */
-  uint32_t addr = block->guest_addr;
-  uint32_t end = block->guest_addr + block->guest_size;
   int end_flags = 0;
 
-  while (addr < end) {
+  for (int offset = 0; offset < block->guest_size; offset += 2) {
+    uint32_t addr = block->guest_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     struct jit_opdef *def = sh4_get_opdef(data);
     sh4_translate_cb cb = sh4_get_translator(data);
@@ -132,9 +129,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     cb(guest, ir, flags, addr, instr);
 
     if (def->flags & SH4_FLAG_DELAYED) {
-      addr += 4;
-    } else {
-      addr += 2;
+      offset += 2;
     }
 
     end_flags = def->flags;
@@ -160,7 +155,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     struct ir_instr *tail_instr =
         list_last_entry(&tail_block->instrs, struct ir_instr, it);
     ir_set_current_instr(ir, tail_instr);
-    ir_branch(ir, ir_alloc_i32(ir, addr));
+    ir_branch(ir, ir_alloc_i32(ir, block->guest_addr + block->guest_size));
   }
 
   PROF_LEAVE();

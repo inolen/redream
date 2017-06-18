@@ -293,6 +293,8 @@ static inline void armv3_fallback_update_flags_add(struct armv3_context *ctx,
   ctx->r[CPSR] = MAKE_CPSR(ctx->r[CPSR], n, z, c, v);
 }
 
+FALLBACK(INVALID) {}
+
 FALLBACK(AND) {
   CHECK_COND();
 

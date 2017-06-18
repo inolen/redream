@@ -190,7 +190,7 @@ static int arm7_init(struct device *dev) {
   {
     arm->guest = armv3_guest_create();
 
-    arm->guest->addr_mask = 0x007ffffc;
+    arm->guest->addr_mask = 0x001ffffc;
     arm->guest->offset_pc = (int)offsetof(struct armv3_context, r[15]);
     arm->guest->offset_cycles = (int)offsetof(struct armv3_context, run_cycles);
     arm->guest->offset_instrs = (int)offsetof(struct armv3_context, ran_instrs);
@@ -244,7 +244,7 @@ struct arm7 *arm7_create(struct dreamcast *dc) {
 
 /* clang-format off */
 AM_BEGIN(struct arm7, arm7_data_map);
-  AM_RANGE(0x00000000, 0x007fffff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_data_map)
-  AM_RANGE(0x00800000, 0x00810fff) AM_MASK(0x00ffffff) AM_DEVICE("aica", aica_reg_map)
+  AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("aica", aica_data_map)
+  AM_RANGE(0x00800000, 0x00810fff) AM_DEVICE("aica", aica_reg_map)
 AM_END();
 /* clang-format on */

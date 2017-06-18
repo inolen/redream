@@ -7,7 +7,6 @@
 int armv3_optable[ARMV3_LOOKUP_SIZE];
 
 struct jit_opdef armv3_opdefs[NUM_ARMV3_OPS] = {
-    {ARMV3_OP_INVALID, NULL, NULL, 0, 0, NULL},
 #define ARMV3_INSTR(name, desc, sig, cycles, flags) \
   {ARMV3_OP_##name, desc,  #sig,                    \
    cycles,          flags, (jit_fallback)&armv3_fallback_##name},
@@ -141,7 +140,7 @@ void armv3_format(uint32_t addr, uint32_t instr, char *buffer,
   value_len = snprintf(value, sizeof(value), "%s", armv3_format_cond[cond]);
   strnrep(buffer, buffer_size, "{cond}", 6, value, value_len);
 
-  if (def->flags & FLAG_BRANCH) {
+  if (def->flags & FLAG_SET_PC) {
     /* expr */
     int32_t offset = armv3_disasm_offset(i.branch.offset);
     uint32_t dest = addr + 8 /* account for prefetch */ + offset;
