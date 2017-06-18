@@ -44,9 +44,19 @@ static int cdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
   CHECK(mask == MASK_DATA);
 
   /* read the user data portion of the sector */
-  int offset = track->file_offset + fad * track->sector_size + 8;
-  int size = track->sector_size - 288;
-  CHECK_EQ(size, 2048);
+  int offset, size;
+
+  if (track->sector_fmt == SECTOR_CDDA) {
+    offset = track->file_offset + fad * track->sector_size;
+    size = track->sector_size;
+    CHECK_EQ(size, 2352);
+  } else if (track->sector_fmt == SECTOR_M2F1) {
+    offset = track->file_offset + fad * track->sector_size + 8;
+    size = track->sector_size - 288;
+    CHECK_EQ(size, 2048);
+  } else {
+    CHECK(0);
+  }
 
   int res = fseek(cdi->fp, offset, SEEK_SET);
   CHECK_EQ(res, 0);
@@ -157,11 +167,6 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
   r = fread(&sector_type, 4, 1, fp);
   CHECK_EQ(r, 1);
 
-  if (pregap_length != GDROM_PREGAP) {
-    LOG_WARNING("cdi_parse non-standard pregap size %u", pregap_length);
-    return 0;
-  }
-
   if (total_length != (pregap_length + track_length)) {
     LOG_WARNING("cdi_parse track length is invalid");
     return 0;
@@ -200,9 +205,6 @@ static int cdi_parse_session(struct disc *disc, uint32_t version,
   struct cdi *cdi = (struct cdi *)disc;
   FILE *fp = cdi->fp;
 
-  int first_track = cdi->num_tracks;
-  int leadout_fad = 0;
-
   /* parse tracks for the session */
   uint16_t num_tracks;
   size_t r = fread(&num_tracks, 2, 1, fp);
@@ -212,6 +214,10 @@ static int cdi_parse_session(struct disc *disc, uint32_t version,
     LOG_WARNING("cdi_parse_session session contains no tracks");
     return 0;
   }
+
+  int first_track_num = cdi->num_tracks;
+  int last_track_num = 0;
+  int leadout_fad = 0;
 
   while (num_tracks--) {
     if (!cdi_parse_track(disc, version, track_offset, &leadout_fad)) {
@@ -236,12 +242,15 @@ static int cdi_parse_session(struct disc *disc, uint32_t version,
     }
   }
 
+  last_track_num = cdi->num_tracks - 1;
+
   /* add session */
+  struct track *first_track = &cdi->tracks[first_track_num];
   struct session *session = &cdi->sessions[cdi->num_sessions++];
-  session->leadin_fad = 0x0;
+  session->leadin_fad = first_track->fad;
   session->leadout_fad = leadout_fad;
-  session->first_track = first_track;
-  session->last_track = cdi->num_tracks - 1;
+  session->first_track = first_track_num;
+  session->last_track = last_track_num;
 
   return 1;
 }
