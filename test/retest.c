@@ -10,18 +10,13 @@ void test_register(struct test *test) {
 }
 
 int main(int argc, char **argv) {
-  const char *appdir = fs_appdir();
-  if (!fs_mkdir(appdir)) {
-    LOG_FATAL("Failed to create app directory %s", appdir);
-  }
-
-  /* load base options from config */
-  char config[PATH_MAX] = {0};
-  snprintf(config, sizeof(config), "%s" PATH_SEPARATOR "config", appdir);
-  options_read(config);
-
-  /* override options from the command line */
-  options_parse(&argc, &argv);
+  /* set application directory */
+  char appdir[PATH_MAX];
+  char userdir[PATH_MAX];
+  int r = fs_userdir(userdir, sizeof(userdir));
+  CHECK(r);
+  snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR ".redream", userdir);
+  fs_set_appdir(appdir);
 
   list_for_each_entry(test, &tests, struct test, it) {
     LOG_INFO("===-----------------------------------------------------===");
