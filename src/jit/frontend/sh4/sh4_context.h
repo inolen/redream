@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 
-/* SR bits */
+/*
+ * SR bits
+ */
 
 /* true / false condition or carry/borrow bit */
 #define T_BIT 0
@@ -38,7 +40,9 @@
   (MD_MASK | RB_MASK | BL_MASK | FD_MASK | M_MASK | Q_MASK | I_MASK | S_MASK | \
    T_MASK)
 
-/* FPSCR bits */
+/*
+ * FPSCR bits
+ */
 
 /* denormalization mode */
 #define DN_BIT 18
@@ -109,6 +113,9 @@ struct sh4_context {
   uint32_t sgr, spc, ssr;
   uint64_t pending_interrupts;
   uint32_t sq[2][8];
+
+  /* processor sleep state */
+  uint32_t sleep_mode;
 
   /* the main dispatch loop is ran until remaining_cycles is <= 0 */
   int32_t run_cycles;

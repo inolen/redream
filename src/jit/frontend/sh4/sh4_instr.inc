@@ -167,7 +167,7 @@ SH4_INSTR(PREF,      "pref    @rn",                  0000nnnn10000011, 1, SH4_FL
 SH4_INSTR(RTE,       "rte",                          0000000000101011, 5, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED | SH4_FLAG_SET_SR)
 SH4_INSTR(SETS,      "sets",                         0000000001011000, 1, 0)
 SH4_INSTR(SETT,      "sett",                         0000000000011000, 1, 0)
-SH4_INSTR(SLEEP,     "sleep",                        0000000000011011, 4, 0)
+SH4_INSTR(SLEEP,     "sleep",                        0000000000011011, 4, SH4_FLAG_SET_PC)
 SH4_INSTR(STCSR,     "stc     sr, rn",               0000nnnn00000010, 2, 0)
 SH4_INSTR(STCGBR,    "stc     gbr, rn",              0000nnnn00010010, 2, 0)
 SH4_INSTR(STCVBR,    "stc     vbr, rn",              0000nnnn00100010, 2, 0)

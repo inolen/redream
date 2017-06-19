@@ -435,6 +435,13 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
                                       struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);               \
                                       ir_call_cond_2(ir, c, sq_prefetch, data, addr);                                \
                                     }
+
+#define SLEEP()                     {                                                                    \
+                                      struct ir_value *sleep = ir_alloc_i64(ir, (uint64_t)guest->sleep); \
+                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);   \
+                                      ir_call_1(ir, sleep, data);                                        \
+                                    }
+
 /* clang-format on */
 
 #define INSTR(name)                                                            \

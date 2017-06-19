@@ -64,6 +64,30 @@ union dmaor {
   };
 };
 
+union stbcr {
+  uint32_t full;
+  struct {
+    uint32_t MSTP0 : 1;
+    uint32_t MSTP1 : 1;
+    uint32_t MSTP2 : 1;
+    uint32_t MSTP3 : 1;
+    uint32_t MSTP4 : 1;
+    uint32_t PPU : 1;
+    uint32_t PHZ : 1;
+    uint32_t STBY : 1;
+    uint32_t : 24;
+  };
+};
+
+union stbcr2 {
+  uint32_t full;
+  struct {
+    uint32_t : 7;
+    uint32_t DSLP : 1;
+    uint32_t : 24;
+  };
+};
+
 /* control register area (0xfc000000 - 0xffffffff) contains only 16kb of
    physical memory. this memory is mapped as 64 x 256 byte blocks, with the
    block index being encoded in bits 17-24 of the address, and the block
