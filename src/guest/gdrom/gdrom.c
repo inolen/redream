@@ -616,11 +616,12 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area, uint8_t *data,
      ------------------------------------------------------
      407   | lead-out track fad (lsb) */
 
-  int num_sessions = disc_get_num_sessions(gd->disc);
-  struct session *session = disc_get_session(gd->disc, area);
-  struct session *last_session = disc_get_session(gd->disc, num_sessions - 1);
-  struct track *first_track = disc_get_track(gd->disc, session->first_track);
-  struct track *last_track = disc_get_track(gd->disc, session->last_track);
+  struct track *first_track = NULL;
+  struct track *last_track = NULL;
+  int leadin_fad = 0;
+  int leadout_fad = 0;
+  disc_get_toc(gd->disc, area, &first_track, &last_track, &leadin_fad,
+               &leadout_fad);
 
   /* 0xffffffff represents an invalid track */
   memset(data, 0xff, SPI_TOC_SIZE);
@@ -630,15 +631,15 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area, uint8_t *data,
 
   for (int i = first_track->num; i <= last_track->num; i++) {
     struct track *track = disc_get_track(gd->disc, i - 1);
-    *(entry++) = (bswap24(track->fad) << 8) | (track->ctrl << 4) | track->adr;
+    entry[i - 1] = (bswap24(track->fad) << 8) | (track->ctrl << 4) | track->adr;
   }
 
   /* write out first, last and lead-out track */
-  *(entry++) =
+  entry[99] =
       (first_track->num << 8) | (first_track->ctrl << 4) | first_track->adr;
-  *(entry++) =
+  entry[100] =
       (last_track->num << 8) | (last_track->ctrl << 4) | last_track->adr;
-  *(entry++) = (bswap24(last_session->leadout_fad) << 8);
+  entry[101] = (bswap24(leadout_fad) << 8);
 }
 
 void gdrom_get_error(struct gdrom *gd, uint8_t *data, int size) {
@@ -947,13 +948,13 @@ REG_W32(holly_cb, GD_DRVSEL) {
 REG_R32(holly_cb, GD_STATUS_COMMAND) {
   struct gdrom *gd = dc->gdrom;
   uint16_t value = gd->status.full;
-  LOG_GDROM("read GD_STATUS_COMMAND 0x%x", value);
+  LOG_GDROM("read GD_STATUS 0x%x", value);
   holly_clear_interrupt(gd->holly, HOLLY_INT_G1GDINT);
   return value;
 }
 
 REG_W32(holly_cb, GD_STATUS_COMMAND) {
   struct gdrom *gd = dc->gdrom;
-  LOG_GDROM("write GD_STATUS_COMMAND 0x%x", value);
+  LOG_GDROM("write GD_COMMAND 0x%x", value);
   gdrom_event(gd, EVENT_ATA_CMD, value);
 }
