@@ -172,6 +172,62 @@ union gd_bytect {
   };
 };
 
+/* spi cmd response types */
+#pragma pack(push, 1)
+
+struct gd_spi_status {
+  uint32_t status : 8;
+  uint32_t repeat : 4;
+  uint32_t format : 4;
+  uint32_t control : 4;
+  uint32_t address : 4;
+  uint32_t scd_track : 8;
+  uint32_t scd_index : 8;
+  uint32_t fad : 24;
+  uint32_t read_retry : 8;
+  uint32_t : 8;
+};
+
+struct gd_spi_error {
+  uint32_t : 4;
+  uint32_t one : 4;
+  uint32_t : 8;
+  uint32_t sense_key : 4;
+  uint32_t : 12;
+  uint32_t info;
+  uint32_t sense_code : 8;
+  uint32_t sense_code_qualifier : 8;
+};
+
+struct gd_spi_toc_entry {
+  uint32_t adr : 4;
+  uint32_t ctrl : 4;
+  uint32_t fad : 24;
+};
+
+struct gd_spi_toc_entry2 {
+  uint32_t adr : 4;
+  uint32_t ctrl : 4;
+  uint32_t track_num : 8;
+  uint32_t : 16;
+};
+
+struct gd_spi_toc {
+  struct gd_spi_toc_entry entries[99];
+  struct gd_spi_toc_entry2 first;
+  struct gd_spi_toc_entry2 last;
+  struct gd_spi_toc_entry leadout;
+};
+
+struct gd_spi_session {
+  uint32_t status : 8;
+  uint32_t : 8;
+  uint32_t track : 8;
+  uint32_t fad : 24;
+};
+
+#pragma pack(pop)
+
 /* hardware information modified through REQ_MODE / SET_MODE */
 struct gd_hw_info {
   uint8_t padding0[2];

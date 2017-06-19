@@ -23,7 +23,7 @@ void bios_menu_vector(struct bios *bios) {
 
   LOG_SYSCALL("MENU 0x%x", fn);
 
-  /* FIXME returning 0 is totally broken, some games (e.g. Virtua Fighter 3b)
+  /* TODO returning 0 is totally broken, some games (e.g. Virtua Fighter 3b)
      seem to use these functions to soft reset the machine or something */
 
   /* nop, branch to the return address */
@@ -166,16 +166,11 @@ static void bios_gdrom_mainloop(struct bios *bios) {
 
       LOG_SYSCALL("GDC_GETTOC2 0=0x%x 1=0x%x", area, dst);
 
-      uint8_t toc[GD_SPI_TOC_SIZE];
-      gdrom_get_toc(gd, area, toc, sizeof(toc));
+      struct gd_spi_toc toc;
+      gdrom_get_toc(gd, area, &toc);
 
-      /* byte swap to little endian */
-      uint8_t *bytes = (uint8_t *)toc;
-      for (int i = 0; i < (int)sizeof(toc); i += 4) {
-        *(uint32_t *)(bytes + i) = bswap32(*(uint32_t *)(bytes + i));
-      }
-
-      as_memcpy_to_guest(space, dst, toc, sizeof(toc));
+      /* TODO check that this format is correct */
+      as_memcpy_to_guest(space, dst, &toc, sizeof(toc));
 
       /* record size transferred */
       bios->result[2] = sizeof(toc);
@@ -281,19 +276,14 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     case GDC_REQ_STAT: {
       LOG_SYSCALL("GDC_REQ_STAT");
 
-      uint8_t status[GD_SPI_STAT_SIZE];
-      gdrom_get_status(gd, status, sizeof(status));
+      struct gd_spi_status stat;
+      gdrom_get_status(gd, &stat);
 
-      uint32_t drive_status = status[0];
-      uint32_t repeat_count = status[1] & 0xf;
-      uint32_t scd_track = status[3];
-      uint32_t scd_index = status[4];
-      uint32_t fad = bswap24(*(uint32_t *)&status[5] & 0xffffff);
-
-      bios->result[0] = (repeat_count << 8) | drive_status;
-      bios->result[1] = scd_track;
-      bios->result[2] = fad;
-      bios->result[3] = scd_index;
+      /* TODO verify this format */
+      bios->result[0] = (stat.repeat << 8) | stat.status;
+      bios->result[1] = stat.scd_track;
+      bios->result[2] = stat.fad;
+      bios->result[3] = stat.scd_index;
     } break;
 
     case GDC_GET_VER: {
@@ -472,12 +462,12 @@ void bios_gdrom_vector(struct bios *bios) {
 
         LOG_SYSCALL("GDROM_CHECK_DRIVE 0x%x", result);
 
-        uint8_t status[GD_SPI_STAT_SIZE];
-        gdrom_get_status(gd, status, sizeof(status));
+        struct gd_spi_status stat;
+        gdrom_get_status(gd, &stat);
 
         uint32_t cond[2];
-        cond[0] = status[0] & 0xf;  /* drive status */
-        cond[1] = status[1] & 0xf0; /* disk format */
+        cond[0] = stat.status;
+        cond[1] = stat.format << 4;
 
         as_memcpy_to_guest(space, result, cond, sizeof(cond));
 
@@ -744,7 +734,7 @@ void bios_fontrom_vector(struct bios *bios) {
     case 0: {
       LOG_SYSCALL("FONTROM_ADDRESS");
 
-      /* FIXME embed a valid font and return the address to it here */
+      /* TODO embed a valid font and return the address to it here */
       ctx->r[0] = 0;
     } break;
 
