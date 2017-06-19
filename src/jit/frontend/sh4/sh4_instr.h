@@ -1370,7 +1370,7 @@ INSTR(SETT) {
 
 /* SLEEP */
 INSTR(SLEEP) {
-  LOG_FATAL("SLEEP not implemented");
+  SLEEP();
 }
 
 /* STC     SR,Rn */

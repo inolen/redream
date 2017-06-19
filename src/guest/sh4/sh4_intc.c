@@ -13,14 +13,20 @@ static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
 
 void sh4_intc_update_pending(struct sh4 *sh4) {
   int min_priority = (sh4->ctx.sr & I_MASK) >> I_BIT;
-  uint64_t priority_mask = ~sh4->priority_mask[min_priority];
+  uint64_t mask = ~sh4->priority_mask[min_priority];
+  int block = (sh4->ctx.sr & BL_MASK) == BL_MASK;
 
-  /* mask all interrupts if interrupt block bit is set */
-  if (sh4->ctx.sr & BL_MASK) {
-    priority_mask = 0;
+  /* ignore block bit when sleeping */
+  if (sh4->ctx.sleep_mode) {
+    block = 0;
   }
 
-  sh4->ctx.pending_interrupts = sh4->requested_interrupts & priority_mask;
+  /* mask all interrupts if interrupt block bit is set */
+  if (block) {
+    mask = 0;
+  }
+
+  sh4->ctx.pending_interrupts = sh4->requested_interrupts & mask;
 }
 
 void sh4_intc_check_pending(void *data) {
@@ -44,6 +50,7 @@ void sh4_intc_check_pending(void *data) {
   sh4->ctx.sgr = sh4->ctx.r[15];
   sh4->ctx.sr |= (BL_MASK | MD_MASK | RB_MASK);
   sh4->ctx.pc = sh4->ctx.vbr + 0x600;
+  sh4->ctx.sleep_mode = 0;
   sh4_sr_updated(sh4, sh4->ctx.ssr);
 }
 

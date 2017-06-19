@@ -384,6 +384,9 @@ typedef int32_t int128_t[4];
 #define INVALID_INSTR()             guest->invalid_instr(guest->data)
 
 #define PREF_SQ_COND(c, addr)       if (c) { guest->sq_prefetch(guest->data, addr); }
+
+#define SLEEP()                     guest->sleep(guest->data)
+
 /* clang-format on */
 
 #define INSTR(name)                                                \

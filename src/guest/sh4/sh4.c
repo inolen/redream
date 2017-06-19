@@ -92,6 +92,17 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   sh4->reg[offset] = data;
 }
 
+static void sh4_sleep(void *data) {
+  struct sh4 *sh4 = data;
+
+  /* standby / deep sleep mode are not currently supported */
+  CHECK_EQ(sh4->STBCR->STBY, 0);
+  CHECK_EQ(sh4->STBCR2->DSLP, 0);
+
+  /* do nothing but spin on the current pc until an interrupt is raised */
+  sh4->ctx.sleep_mode = 1;
+}
+
 static void sh4_invalid_instr(void *data) {
   struct sh4 *sh4 = data;
 
@@ -158,6 +169,7 @@ static int sh4_init(struct device *dev) {
     sh4->guest->space = sh4->memory_if->space;
     sh4->guest->invalid_instr = &sh4_invalid_instr;
     sh4->guest->sq_prefetch = &sh4_ccn_sq_prefetch;
+    sh4->guest->sleep = &sh4_sleep;
     sh4->guest->sr_updated = &sh4_sr_updated;
     sh4->guest->fpscr_updated = &sh4_fpscr_updated;
     sh4->guest->lookup = &as_lookup;
