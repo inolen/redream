@@ -156,6 +156,21 @@ union text_control {
   };
 };
 
+union vo_control {
+  uint32_t full;
+  struct {
+    uint32_t hsync_pol : 1;
+    uint32_t vsync_pol : 1;
+    uint32_t blank_pol : 1;
+    uint32_t blank_video : 1;
+    uint32_t field_mode : 4;
+    uint32_t pixel_double : 1;
+    uint32_t : 7;
+    uint32_t pclk_delay : 6;
+    uint32_t : 10;
+  };
+};
+
 union scaler_ctl {
   uint32_t full;
   struct {

@@ -15,7 +15,7 @@ static struct {
   int aggregate[MICROPROFILE_MAX_COUNTERS];
   int64_t last_aggregation;
 #else
-/* avoid having an empty struct in c (only valid through GCC extension) */
+  /* avoid having an empty struct in c (only valid through GCC extension) */
   int dummy;
 #endif
 } prof;
