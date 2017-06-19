@@ -67,6 +67,24 @@ static int cdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
   return res;
 }
 
+static void cdi_get_toc(struct disc *disc, enum gd_area area,
+                        struct track **first_track, struct track **last_track,
+                        int *leadin_fad, int *leadout_fad) {
+  struct cdi *cdi = (struct cdi *)disc;
+
+  /* cdi's have no high-density area */
+  CHECK_EQ(area, AREA_SINGLE);
+
+  /* the toc on cdi's represents all tracks / sessions */
+  struct session *first_session = &cdi->sessions[0];
+  struct session *last_session = &cdi->sessions[cdi->num_sessions - 1];
+
+  *first_track = &cdi->tracks[0];
+  *last_track = &cdi->tracks[cdi->num_tracks - 1];
+  *leadin_fad = first_session->leadin_fad;
+  *leadout_fad = last_session->leadout_fad;
+}
+
 static struct track *cdi_get_track(struct disc *disc, int n) {
   struct cdi *cdi = (struct cdi *)disc;
   CHECK_LT(n, cdi->num_tracks);
@@ -183,19 +201,21 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
   }
 
   int sector_size = cdi_sector_sizes[sector_type];
+  enum gd_secfmt sector_fmt = cdi_sector_formats[mode];
+  int data_offset = *track_offset + pregap_length * sector_size;
+
   track->fad = pregap_length + lba;
-  track->adr = 0;  /* no subq channel mode info */
-  track->ctrl = 4; /* data track */
+  track->adr = 0;
+  track->ctrl = sector_fmt == SECTOR_CDDA ? 0 : 4;
   track->sector_size = sector_size;
   track->sector_fmt = cdi_sector_formats[mode];
-  track->file_offset = *track_offset + pregap_length * sector_size -
-                       track->fad * track->sector_size;
+  track->file_offset = data_offset - track->fad * track->sector_size;
 
-  LOG_INFO("cdi_parse_track track=%d fad=%d mode=%s/%d", track->num, track->fad,
-           cdi_modes[mode], track->sector_size);
+  LOG_INFO("cdi_parse_track track=%d fad=%d off=%d mode=%s/%d", track->num,
+           track->fad, data_offset, cdi_modes[mode], track->sector_size);
 
   *track_offset += total_length * sector_size;
-  *leadout_fad = track->fad + total_length;
+  *leadout_fad = track->fad + track_length;
 
   return 1;
 }
@@ -341,6 +361,7 @@ struct disc *cdi_create(const char *filename) {
   cdi->get_session = &cdi_get_session;
   cdi->get_num_tracks = &cdi_get_num_tracks;
   cdi->get_track = &cdi_get_track;
+  cdi->get_toc = &cdi_get_toc;
   cdi->read_sector = &cdi_read_sector;
 
   struct disc *disc = (struct disc *)cdi;

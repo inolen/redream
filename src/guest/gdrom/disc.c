@@ -33,6 +33,12 @@ int disc_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
   return disc->read_sector(disc, fad, fmt, mask, dst);
 }
 
+void disc_get_toc(struct disc *disc, enum gd_area area,
+                  struct track **first_track, struct track **last_track,
+                  int *leadin_fad, int *leadout_fad) {
+  disc->get_toc(disc, area, first_track, last_track, leadin_fad, leadout_fad);
+}
+
 struct track *disc_get_track(struct disc *disc, int n) {
   return disc->get_track(disc, n);
 }

@@ -43,6 +43,20 @@ static int gdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
   return res;
 }
 
+static void gdi_get_toc(struct disc *disc, enum gd_area area,
+                        struct track **first_track, struct track **last_track,
+                        int *leadin_fad, int *leadout_fad) {
+  struct gdi *gdi = (struct gdi *)disc;
+
+  /* gdi's have one toc per area, and there is one session per area */
+  struct session *session = &gdi->sessions[area];
+
+  *first_track = &gdi->tracks[session->first_track];
+  *last_track = &gdi->tracks[session->last_track];
+  *leadin_fad = session->leadin_fad;
+  *leadout_fad = session->leadout_fad;
+}
+
 static struct track *gdi_get_track(struct disc *disc, int n) {
   struct gdi *gdi = (struct gdi *)disc;
   CHECK_LT(n, gdi->num_tracks);
@@ -184,6 +198,7 @@ struct disc *gdi_create(const char *filename) {
   gdi->get_session = &gdi_get_session;
   gdi->get_num_tracks = &gdi_get_num_tracks;
   gdi->get_track = &gdi_get_track;
+  gdi->get_toc = &gdi_get_toc;
   gdi->read_sector = &gdi_read_sector;
 
   struct disc *disc = (struct disc *)gdi;

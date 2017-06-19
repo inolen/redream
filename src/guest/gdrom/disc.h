@@ -43,11 +43,17 @@ struct disc_meta {
 
 struct disc {
   void (*destroy)(struct disc *);
+
   int (*get_format)(struct disc *);
+
   int (*get_num_sessions)(struct disc *);
   struct session *(*get_session)(struct disc *, int);
+
   int (*get_num_tracks)(struct disc *);
   struct track *(*get_track)(struct disc *, int);
+
+  void (*get_toc)(struct disc *, enum gd_area, struct track **, struct track **,
+                  int *, int *);
   int (*read_sector)(struct disc *, int, enum gd_secfmt, enum gd_secmask,
                      void *);
 };
@@ -61,6 +67,9 @@ int disc_get_num_sessions(struct disc *disc);
 struct session *disc_get_session(struct disc *disc, int n);
 int disc_get_num_tracks(struct disc *disc);
 struct track *disc_get_track(struct disc *disc, int n);
+void disc_get_toc(struct disc *disc, enum gd_area area,
+                  struct track **first_track, struct track **last_track,
+                  int *leadin_fad, int *leadout_fad);
 int disc_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
                      enum gd_secmask mask, void *dst);
 struct track *disc_lookup_track(struct disc *disc, int fad);

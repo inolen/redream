@@ -144,7 +144,7 @@ TEST(sh4_x64) {
     0, 0, 0,                                                                                     \
     0,                                                                                           \
     {{0}, {0}},                                                                                  \
-    0, 0,                                                                                        \
+    0, 0, 0,                                                                                     \
     {0},                                                                                         \
   }
 #define TEST_SH4(name, buffer, buffer_size, buffer_offset,                                                                                                                 \
