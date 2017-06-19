@@ -5,101 +5,101 @@
 
 #define GDROM_PREGAP 150
 
-enum gd_drive_status {
-  DST_BUSY = 0x00,    /* State transition */
-  DST_PAUSE = 0x01,   /* Pause */
-  DST_STANDBY = 0x02, /* Standby (drive stop) */
-  DST_PLAY = 0x03,    /* CD playback */
-  DST_SEEK = 0x04,    /* Seeking */
-  DST_SCAN = 0x05,    /* Scanning */
-  DST_OPEN = 0x06,    /* Tray is open */
-  DST_NODISC = 0x07,  /* No disc */
-  DST_RETRY = 0x08,   /* Read retry in progress */
-  DST_ERROR = 0x09,   /* Reading of disc TOC failed */
-};
-
-enum gd_disc {
-  DISC_CDDA = 0x00,
-  DISC_CDROM = 0x01,
-  DISC_CDROM_XA = 0x02,
-  DISC_CDROM_CDI = 0x03,
-  DISC_GDROM = 0x08,
-};
-
-/* ata / spi commands */
-enum gd_ata_cmd {
-  ATA_NOP = 0x00,
-  ATA_SOFT_RESET = 0x08,
-  ATA_EXEC_DIAG = 0x90,
-  ATA_PACKET_CMD = 0xa0,
-  ATA_IDENTIFY_DEV = 0xa1,
-  ATA_SET_FEATURES = 0xef,
-};
-
-enum gd_spi_cmd {
-  SPI_TEST_UNIT = 0x00, /* Verify access readiness */
-  SPI_REQ_STAT = 0x10,  /* Get CD status */
-  SPI_REQ_MODE = 0x11,  /* Get various settings */
-  SPI_SET_MODE = 0x12,  /* Make various settings */
-  SPI_REQ_ERROR = 0x13, /* Get error details */
-  SPI_GET_TOC = 0x14,   /* Get all TOC data */
-  SPI_REQ_SES = 0x15,   /* Get specified session data */
-  SPI_CD_OPEN = 0x16,   /* Open tray */
-  SPI_CD_PLAY = 0x20,   /* Play CD */
-  SPI_CD_SEEK = 0x21,   /* Seek for playback position */
-  SPI_CD_SCAN = 0x22,   /* Perform scan */
-  SPI_CD_READ = 0x30,   /* Read CD */
-  SPI_CD_READ2 = 0x31,  /* CD read (pre-read position) */
-  SPI_GET_SCD = 0x40,   /* Get subcode */
-  SPI_CHK_SECU = 0x70,  /* Perform disk security check */
-  SPI_REQ_SECU = 0x71,  /* Get security check result */
+enum {
+  GD_STATUS_BUSY = 0x00,    /* State transition */
+  GD_STATUS_PAUSE = 0x01,   /* Pause */
+  GD_STATUS_STANDBY = 0x02, /* Standby (drive stop) */
+  GD_STATUS_PLAY = 0x03,    /* CD playback */
+  GD_STATUS_SEEK = 0x04,    /* Seeking */
+  GD_STATUS_SCAN = 0x05,    /* Scanning */
+  GD_STATUS_OPEN = 0x06,    /* Tray is open */
+  GD_STATUS_NODISC = 0x07,  /* No disc */
+  GD_STATUS_RETRY = 0x08,   /* Read retry in progress */
+  GD_STATUS_ERROR = 0x09,   /* Reading of disc TOC failed */
 };
 
 enum {
-  SPI_CMD_SIZE = 12,
-  SPI_ERR_SIZE = 10,
-  SPI_TOC_SIZE = 408,
-  SPI_SES_SIZE = 6,
-  SPI_STAT_SIZE = 10,
-  SPI_SCD_SIZE = 100,
+  GD_DISC_CDDA = 0x00,
+  GD_DISC_CDROM = 0x01,
+  GD_DISC_CDROM_XA = 0x02,
+  GD_DISC_CDROM_CDI = 0x03,
+  GD_DISC_GDROM = 0x08,
 };
 
-enum gd_area {
-  AREA_SINGLE,
-  AREA_HIGH,
+/* ata / spi commands */
+enum {
+  GD_ATA_NOP = 0x00,
+  GD_ATA_SOFT_RESET = 0x08,
+  GD_ATA_EXEC_DIAG = 0x90,
+  GD_ATA_PACKET_CMD = 0xa0,
+  GD_ATA_IDENTIFY_DEV = 0xa1,
+  GD_ATA_SET_FEATURES = 0xef,
 };
 
-enum gd_audio_status {
-  AST_INVALID = 0x00,
-  AST_INPROGRESS = 0x11,
-  AST_PAUSED = 0x12,
-  AST_ENDED = 0x13,
-  AST_ERROR = 0x14,
-  AST_NOSTATUS = 0x15,
+enum {
+  GD_SPI_TEST_UNIT = 0x00, /* Verify access readiness */
+  GD_SPI_REQ_STAT = 0x10,  /* Get CD status */
+  GD_SPI_REQ_MODE = 0x11,  /* Get various settings */
+  GD_SPI_SET_MODE = 0x12,  /* Make various settings */
+  GD_SPI_REQ_ERROR = 0x13, /* Get error details */
+  GD_SPI_GET_TOC = 0x14,   /* Get all TOC data */
+  GD_SPI_REQ_SES = 0x15,   /* Get specified session data */
+  GD_SPI_CD_OPEN = 0x16,   /* Open tray */
+  GD_SPI_CD_PLAY = 0x20,   /* Play CD */
+  GD_SPI_CD_SEEK = 0x21,   /* Seek for playback position */
+  GD_SPI_CD_SCAN = 0x22,   /* Perform scan */
+  GD_SPI_CD_READ = 0x30,   /* Read CD */
+  GD_SPI_CD_READ2 = 0x31,  /* CD read (pre-read position) */
+  GD_SPI_GET_SCD = 0x40,   /* Get subcode */
+  GD_SPI_CHK_SECU = 0x70,  /* Perform disk security check */
+  GD_SPI_REQ_SECU = 0x71,  /* Get security check result */
 };
 
-enum gd_secmask {
-  MASK_OTHER = 0x1,
-  MASK_DATA = 0x2,
-  MASK_SUBHEADER = 0x4,
-  MASK_HEADER = 0x8,
+enum {
+  GD_SPI_CMD_SIZE = 12,
+  GD_SPI_ERR_SIZE = 10,
+  GD_SPI_TOC_SIZE = 408,
+  GD_SPI_SES_SIZE = 6,
+  GD_SPI_STAT_SIZE = 10,
+  GD_SPI_SCD_SIZE = 100,
 };
 
-enum gd_secfmt {
-  SECTOR_ANY,
-  SECTOR_CDDA,
-  SECTOR_M1,
-  SECTOR_M2,
-  SECTOR_M2F1,
-  SECTOR_M2F2,
-  SECTOR_M2_NOXA,
+enum {
+  GD_AREA_SINGLE,
+  GD_AREA_HIGH,
 };
 
-enum gd_seek_type {
-  SEEK_FAD = 0x1,
-  SEEK_MSF = 0x2,
-  SEEK_STOP = 0x3,
-  SEEK_PAUSE = 0x4,
+enum {
+  GD_AUDIO_INVALID = 0x00,
+  GD_AUDIO_INPROGRESS = 0x11,
+  GD_AUDIO_PAUSED = 0x12,
+  GD_AUDIO_ENDED = 0x13,
+  GD_AUDIO_ERROR = 0x14,
+  GD_AUDIO_NOSTATUS = 0x15,
+};
+
+enum {
+  GD_MASK_OTHER = 0x1,
+  GD_MASK_DATA = 0x2,
+  GD_MASK_SUBHEADER = 0x4,
+  GD_MASK_HEADER = 0x8,
+};
+
+enum {
+  GD_SECTOR_ANY,
+  GD_SECTOR_CDDA,
+  GD_SECTOR_M1,
+  GD_SECTOR_M2,
+  GD_SECTOR_M2F1,
+  GD_SECTOR_M2F2,
+  GD_SECTOR_M2_NOXA,
+};
+
+enum {
+  GD_SEEK_FAD = 0x1,
+  GD_SEEK_MSF = 0x2,
+  GD_SEEK_STOP = 0x3,
+  GD_SEEK_PAUSE = 0x4,
 };
 
 /* internal registers accessed through holly */

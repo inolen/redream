@@ -13,8 +13,8 @@ struct track {
   int fad;
   int adr;
   int ctrl;
+  int sector_fmt;
   int sector_size;
-  enum gd_secfmt sector_fmt;
   char filename[PATH_MAX];
   int file_offset;
 };
@@ -52,10 +52,9 @@ struct disc {
   int (*get_num_tracks)(struct disc *);
   struct track *(*get_track)(struct disc *, int);
 
-  void (*get_toc)(struct disc *, enum gd_area, struct track **, struct track **,
-                  int *, int *);
-  int (*read_sector)(struct disc *, int, enum gd_secfmt, enum gd_secmask,
-                     void *);
+  void (*get_toc)(struct disc *, int, struct track **, struct track **, int *,
+                  int *);
+  int (*read_sector)(struct disc *, int, int, int, void *);
 };
 
 struct disc *disc_create(const char *filename);
@@ -67,11 +66,10 @@ int disc_get_num_sessions(struct disc *disc);
 struct session *disc_get_session(struct disc *disc, int n);
 int disc_get_num_tracks(struct disc *disc);
 struct track *disc_get_track(struct disc *disc, int n);
-void disc_get_toc(struct disc *disc, enum gd_area area,
-                  struct track **first_track, struct track **last_track,
-                  int *leadin_fad, int *leadout_fad);
-int disc_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
-                     enum gd_secmask mask, void *dst);
+void disc_get_toc(struct disc *disc, int area, struct track **first_track,
+                  struct track **last_track, int *leadin_fad, int *leadout_fad);
+int disc_read_sector(struct disc *disc, int fad, int sector_fmt,
+                     int sector_mask, void *dst);
 struct track *disc_lookup_track(struct disc *disc, int fad);
 
 #endif

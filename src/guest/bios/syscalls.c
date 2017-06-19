@@ -138,8 +138,8 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       uint32_t n = bios->params[1];
       uint32_t dst = bios->params[2];
       uint32_t unknown = bios->params[3];
-      enum gd_secfmt fmt = SECTOR_ANY;
-      enum gd_secmask mask = MASK_DATA;
+      int fmt = GD_SECTOR_ANY;
+      int mask = GD_MASK_DATA;
 
       LOG_SYSCALL("GDC_DMAREAD fad=0x%x n=0x%x dst=0x%x unknown=0x%x", fad, n,
                   dst, unknown);
@@ -166,7 +166,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
 
       LOG_SYSCALL("GDC_GETTOC2 0=0x%x 1=0x%x", area, dst);
 
-      uint8_t toc[SPI_TOC_SIZE];
+      uint8_t toc[GD_SPI_TOC_SIZE];
       gdrom_get_toc(gd, area, toc, sizeof(toc));
 
       /* byte swap to little endian */
@@ -263,7 +263,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
 
       LOG_SYSCALL("GDC_GET_SCD 0x%x 0x%x 0x%x", format, size, dst);
 
-      uint8_t scd[SPI_SCD_SIZE];
+      uint8_t scd[GD_SPI_SCD_SIZE];
       gdrom_get_subcode(gd, format, scd, sizeof(scd));
 
       CHECK_EQ(scd[3], size);
@@ -281,7 +281,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     case GDC_REQ_STAT: {
       LOG_SYSCALL("GDC_REQ_STAT");
 
-      uint8_t status[SPI_STAT_SIZE];
+      uint8_t status[GD_SPI_STAT_SIZE];
       gdrom_get_status(gd, status, sizeof(status));
 
       uint32_t drive_status = status[0];
@@ -472,7 +472,7 @@ void bios_gdrom_vector(struct bios *bios) {
 
         LOG_SYSCALL("GDROM_CHECK_DRIVE 0x%x", result);
 
-        uint8_t status[SPI_STAT_SIZE];
+        uint8_t status[GD_SPI_STAT_SIZE];
         gdrom_get_status(gd, status, sizeof(status));
 
         uint32_t cond[2];

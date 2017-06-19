@@ -11,14 +11,14 @@ struct gdi {
   int num_tracks;
 };
 
-static int gdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
-                           enum gd_secmask mask, void *dst) {
+static int gdi_read_sector(struct disc *disc, int fad, int sector_fmt,
+                           int sector_mask, void *dst) {
   struct gdi *gdi = (struct gdi *)disc;
 
   struct track *track = disc_lookup_track(disc, fad);
   CHECK_NOTNULL(track);
-  CHECK(fmt == SECTOR_ANY || fmt == track->sector_fmt);
-  CHECK(mask == MASK_DATA);
+  CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
+  CHECK(sector_mask == GD_MASK_DATA);
 
   /* open the file backing the track */
   int n = (int)(track - gdi->tracks);
@@ -43,9 +43,9 @@ static int gdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
   return res;
 }
 
-static void gdi_get_toc(struct disc *disc, enum gd_area area,
-                        struct track **first_track, struct track **last_track,
-                        int *leadin_fad, int *leadout_fad) {
+static void gdi_get_toc(struct disc *disc, int area, struct track **first_track,
+                        struct track **last_track, int *leadin_fad,
+                        int *leadout_fad) {
   struct gdi *gdi = (struct gdi *)disc;
 
   /* gdi's have one toc per area, and there is one session per area */
@@ -80,7 +80,7 @@ static int gdi_get_num_sessions(struct disc *disc) {
 }
 
 static int gdi_get_format(struct disc *disc) {
-  return DISC_GDROM;
+  return GD_DISC_GDROM;
 }
 
 static void gdi_destroy(struct disc *disc) {
@@ -151,8 +151,8 @@ static int gdi_parse(struct disc *disc, const char *filename) {
     track->num = gdi->num_tracks;
     track->fad = lba + GDROM_PREGAP;
     track->ctrl = ctrl;
+    track->sector_fmt = GD_SECTOR_M1;
     track->sector_size = sector_size;
-    track->sector_fmt = SECTOR_M1;
     track->file_offset = file_offset - track->fad * track->sector_size;
     snprintf(track->filename, sizeof(track->filename), "%s" PATH_SEPARATOR "%s",
              dirname, filename);

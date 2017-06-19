@@ -215,9 +215,9 @@ static int bios_boot(struct bios *bios) {
   const uint32_t BOOT1_ADDR = 0x8c008000;
   const uint32_t BOOT2_ADDR = 0x8c010000;
   const uint32_t SYSINFO_ADDR = 0x8c000068;
-  const enum gd_secfmt secfmt = SECTOR_ANY;
-  const enum gd_secmask secmask = MASK_DATA;
-  const int secsz = 2048;
+  const int sector_fmt = GD_SECTOR_ANY;
+  const int sector_mask = GD_MASK_DATA;
+  const int sector_size = 2048;
   uint8_t tmp[0x10000];
 
   LOG_INFO("bios_boot using hle bootstrap");
@@ -226,7 +226,8 @@ static int bios_boot(struct bios *bios) {
   {
     int fad = 45150;
     int n = 16;
-    int r = gdrom_read_sectors(gd, fad, secfmt, secmask, n, tmp, sizeof(tmp));
+    int r = gdrom_read_sectors(gd, fad, sector_fmt, sector_mask, n, tmp,
+                               sizeof(tmp));
     if (!r) {
       return 0;
     }
@@ -240,7 +241,8 @@ static int bios_boot(struct bios *bios) {
     /* read primary volume descriptor */
     int fad = 45150 + ISO_PVD_SECTOR;
     int n = 1;
-    int r = gdrom_read_sectors(gd, fad, secfmt, secmask, n, tmp, sizeof(tmp));
+    int r = gdrom_read_sectors(gd, fad, sector_fmt, sector_mask, n, tmp,
+                               sizeof(tmp));
     if (!r) {
       return 0;
     }
@@ -252,10 +254,11 @@ static int bios_boot(struct bios *bios) {
 
     /* check root directory for the bootfile */
     struct iso_dir *root = &pvd->root_directory_record;
-    int len = align_up(root->size.le, secsz);
+    int len = align_up(root->size.le, sector_size);
     fad = GDROM_PREGAP + root->extent.le;
-    n = len / secsz;
-    r = gdrom_read_sectors(gd, fad, secfmt, secmask, n, tmp, sizeof(tmp));
+    n = len / sector_size;
+    r = gdrom_read_sectors(gd, fad, sector_fmt, sector_mask, n, tmp,
+                           sizeof(tmp));
     if (!r) {
       return 0;
     }
@@ -284,8 +287,9 @@ static int bios_boot(struct bios *bios) {
     /* copy the bootfile into ram */
     struct iso_dir *dir = (struct iso_dir *)ptr;
     fad = GDROM_PREGAP + dir->extent.le;
-    n = align_up(dir->size.le, secsz) / secsz;
-    r = gdrom_copy_sectors(gd, fad, secfmt, secmask, n, space, BOOT2_ADDR);
+    n = align_up(dir->size.le, sector_size) / sector_size;
+    r = gdrom_copy_sectors(gd, fad, sector_fmt, sector_mask, n, space,
+                           BOOT2_ADDR);
     if (!r) {
       return 0;
     }

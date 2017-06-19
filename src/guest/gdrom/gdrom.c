@@ -67,8 +67,8 @@ struct gdrom {
 
   /* cdread state */
   int cdr_dma;
-  enum gd_secfmt cdr_secfmt;
-  enum gd_secmask cdr_secmask;
+  int cdr_secfmt;
+  int cdr_secmask;
   int cdr_first_sector;
   int cdr_num_sectors;
 
@@ -224,7 +224,7 @@ static void gdrom_pio_read(struct gdrom *gd, int arg) {
 
 static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
   uint8_t *data = gd->pio_buffer;
-  enum gd_spi_cmd cmd = (enum gd_spi_cmd)data[0];
+  int cmd = data[0];
 
   LOG_GDROM("gdrom_spi_cmd 0x%x", cmd);
 
@@ -235,82 +235,82 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
     /*
      * packet command flow for pio data to host
      */
-    case SPI_REQ_STAT: {
+    case GD_SPI_REQ_STAT: {
       int offset = data[2];
       int size = data[4];
 
-      uint8_t stat[SPI_STAT_SIZE];
+      uint8_t stat[GD_SPI_STAT_SIZE];
       gdrom_get_status(gd, stat, sizeof(stat));
 
       gdrom_spi_write(gd, stat + offset, size);
     } break;
 
-    case SPI_REQ_MODE: {
+    case GD_SPI_REQ_MODE: {
       int offset = data[2];
       int size = data[4];
 
       gdrom_spi_write(gd, (uint8_t *)&gd->hw_info + offset, size);
     } break;
 
-    case SPI_REQ_ERROR: {
+    case GD_SPI_REQ_ERROR: {
       int size = data[4];
 
-      uint8_t err[SPI_ERR_SIZE];
+      uint8_t err[GD_SPI_ERR_SIZE];
       gdrom_get_error(gd, err, sizeof(err));
 
       gdrom_spi_write(gd, err, size);
     } break;
 
-    case SPI_GET_TOC: {
-      enum gd_area area = (enum gd_area)(data[1] & 0x1);
+    case GD_SPI_GET_TOC: {
+      int area = (data[1] & 0x1);
       int size = (data[3] << 8) | data[4];
 
-      uint8_t toc[SPI_TOC_SIZE];
+      uint8_t toc[GD_SPI_TOC_SIZE];
       gdrom_get_toc(gd, area, toc, sizeof(toc));
 
       gdrom_spi_write(gd, toc, size);
     } break;
 
-    case SPI_REQ_SES: {
+    case GD_SPI_REQ_SES: {
       int session = data[2];
       int size = data[4];
 
-      uint8_t ses[SPI_SES_SIZE];
+      uint8_t ses[GD_SPI_SES_SIZE];
       gdrom_get_session(gd, session, ses, sizeof(ses));
 
       gdrom_spi_write(gd, ses, sizeof(ses));
     } break;
 
-    case SPI_GET_SCD: {
+    case GD_SPI_GET_SCD: {
       int format = data[1] & 0xf;
       int size = (data[3] << 8) | data[4];
 
-      uint8_t scd[SPI_SCD_SIZE];
+      uint8_t scd[GD_SPI_SCD_SIZE];
       gdrom_get_subcode(gd, format, scd, sizeof(scd));
 
       gdrom_spi_write(gd, scd, size);
     } break;
 
-    case SPI_CD_READ: {
+    case GD_SPI_CD_READ: {
       int msf = (data[1] & 0x1);
 
       gd->cdr_dma = gd->features.dma;
-      gd->cdr_secfmt = (enum gd_secfmt)((data[1] & 0xe) >> 1);
-      gd->cdr_secmask = (enum gd_secmask)((data[1] >> 4) & 0xff);
+      gd->cdr_secfmt = (data[1] & 0xe) >> 1;
+      gd->cdr_secmask = (data[1] >> 4) & 0xff;
       gd->cdr_first_sector = gdrom_get_fad(data[2], data[3], data[4], msf);
       gd->cdr_num_sectors = (data[8] << 16) | (data[9] << 8) | data[10];
 
       gdrom_spi_cdread(gd);
     } break;
 
-    case SPI_CD_READ2: {
-      LOG_FATAL("SPI_CD_READ2");
+    case GD_SPI_CD_READ2: {
+      LOG_FATAL("GD_SPI_CD_READ2");
     } break;
 
     /*
      * packet command flow for pio data from host
      */
-    case SPI_SET_MODE: {
+    case GD_SPI_SET_MODE: {
       int offset = data[2];
       int size = data[4];
 
@@ -320,58 +320,58 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
     /*
      * non-data command flow
      */
-    case SPI_TEST_UNIT: {
+    case GD_SPI_TEST_UNIT: {
       gdrom_spi_end(gd);
     } break;
 
-    case SPI_CD_OPEN: {
-      LOG_FATAL("SPI_CD_OPEN");
+    case GD_SPI_CD_OPEN: {
+      LOG_FATAL("GD_SPI_CD_OPEN");
     } break;
 
-    case SPI_CD_PLAY: {
-      LOG_WARNING("ignoring SPI_CD_PLAY");
+    case GD_SPI_CD_PLAY: {
+      LOG_WARNING("ignoring GD_SPI_CD_PLAY");
 
-      gd->sectnum.status = DST_PAUSE;
+      gd->sectnum.status = GD_STATUS_PAUSE;
 
       gdrom_spi_end(gd);
     } break;
 
-    case SPI_CD_SEEK: {
-      enum gd_seek_type param_type = (enum gd_seek_type)(data[1] & 0xf);
+    case GD_SPI_CD_SEEK: {
+      int param_type = data[1] & 0xf;
 
-      LOG_WARNING("ignoring SPI_CD_SEEK");
+      LOG_WARNING("ignoring GD_SPI_CD_SEEK");
 
       switch (param_type) {
-        case SEEK_FAD:
-        case SEEK_MSF:
-        case SEEK_PAUSE:
-          gd->sectnum.status = DST_PAUSE;
+        case GD_SEEK_FAD:
+        case GD_SEEK_MSF:
+        case GD_SEEK_PAUSE:
+          gd->sectnum.status = GD_STATUS_PAUSE;
           break;
-        case SEEK_STOP:
-          gd->sectnum.status = DST_STANDBY;
+        case GD_SEEK_STOP:
+          gd->sectnum.status = GD_STATUS_STANDBY;
           break;
       }
 
       gdrom_spi_end(gd);
     } break;
 
-    case SPI_CD_SCAN: {
-      LOG_WARNING("ignoring SPI_CD_SCAN");
+    case GD_SPI_CD_SCAN: {
+      LOG_WARNING("ignoring GD_SPI_CD_SCAN");
 
-      gd->sectnum.status = DST_PAUSE;
+      gd->sectnum.status = GD_STATUS_PAUSE;
 
       gdrom_spi_end(gd);
     } break;
 
-    /* SPI_CHK_SECU / SPI_REQ_SECU are part of an undocumented security check
-       that has yet to be fully reverse engineered. the check doesn't seem to
-       have any side effects, a canned response is sent when the results are
+    /* GD_SPI_CHK_SECU and GD_SPI_REQ_SECU are part of an undocumented security
+       check that has yet to be fully reverse engineered. the check doesn't seem
+       to have any side effects, a canned response is sent when the results are
        requested */
-    case SPI_CHK_SECU: {
+    case GD_SPI_CHK_SECU: {
       gdrom_spi_end(gd);
     } break;
 
-    case SPI_REQ_SECU: {
+    case GD_SPI_REQ_SECU: {
       gdrom_spi_write(gd, (uint8_t *)reply_71, sizeof(reply_71));
     } break;
 
@@ -382,15 +382,14 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
 }
 
 static void gdrom_pio_write(struct gdrom *gd, int arg) {
-  if (gd->state == STATE_READ_ATA_DATA && gd->pio_head == SPI_CMD_SIZE) {
+  if (gd->state == STATE_READ_ATA_DATA && gd->pio_head == GD_SPI_CMD_SIZE) {
     gdrom_event(gd, EVENT_SPI_CMD, 0);
   } else if (gd->state == STATE_READ_SPI_DATA && gd->pio_head == gd->pio_size) {
     gdrom_event(gd, EVENT_SPI_DATA, 0);
   }
 }
 
-static void gdrom_ata_cmd(struct gdrom *gd, int arg) {
-  enum gd_ata_cmd cmd = (enum gd_ata_cmd)arg;
+static void gdrom_ata_cmd(struct gdrom *gd, int cmd) {
   int read_data = 0;
 
   LOG_GDROM("gdrom_ata_cmd 0x%x", cmd);
@@ -404,29 +403,29 @@ static void gdrom_ata_cmd(struct gdrom *gd, int arg) {
   gd->status.CHECK = 0;
 
   switch (cmd) {
-    case ATA_NOP: {
+    case GD_ATA_NOP: {
       /* terminates the current command */
       gd->error.ABRT = 1;
       gd->status.CHECK = 1;
     } break;
 
-    case ATA_SOFT_RESET: {
+    case GD_ATA_SOFT_RESET: {
       gdrom_set_disc(gd, gd->disc);
     } break;
 
-    case ATA_EXEC_DIAG: {
-      LOG_FATAL("ATA_EXEC_DIAG");
+    case GD_ATA_EXEC_DIAG: {
+      LOG_FATAL("GD_ATA_EXEC_DIAG");
     } break;
 
-    case ATA_PACKET_CMD: {
+    case GD_ATA_PACKET_CMD: {
       read_data = 1;
     } break;
 
-    case ATA_IDENTIFY_DEV: {
-      LOG_FATAL("ATA_IDENTIFY_DEV");
+    case GD_ATA_IDENTIFY_DEV: {
+      LOG_FATAL("GD_ATA_IDENTIFY_DEV");
     } break;
 
-    case ATA_SET_FEATURES: {
+    case GD_ATA_SET_FEATURES: {
       /* transfer mode settings are ignored */
     } break;
 
@@ -455,9 +454,9 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, int arg) {
   cb(gd, arg);
 }
 
-int gdrom_copy_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
-                       enum gd_secmask mask, int num_sectors,
-                       struct address_space *space, uint32_t dst) {
+int gdrom_copy_sectors(struct gdrom *gd, int fad, int fmt, int mask,
+                       int num_sectors, struct address_space *space,
+                       uint32_t dst) {
   if (!gd->disc) {
     LOG_WARNING("gdrom_copy_sectors failed, no disc");
     return 0;
@@ -475,9 +474,8 @@ int gdrom_copy_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
   return read;
 }
 
-int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
-                       enum gd_secmask mask, int num_sectors, uint8_t *dst,
-                       int dst_size) {
+int gdrom_read_sectors(struct gdrom *gd, int fad, int fmt, int mask,
+                       int num_sectors, uint8_t *dst, int dst_size) {
   if (!gd->disc) {
     LOG_WARNING("gdrom_read_sectors failed, no disc");
     return 0;
@@ -500,11 +498,11 @@ int gdrom_read_sectors(struct gdrom *gd, int fad, enum gd_secfmt fmt,
 
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
   CHECK_NOTNULL(gd->disc);
-  CHECK_GE(size, SPI_SCD_SIZE);
+  CHECK_GE(size, GD_SPI_SCD_SIZE);
 
   /* FIXME implement */
-  memset(data, 0, SPI_SCD_SIZE);
-  data[1] = AST_NOSTATUS;
+  memset(data, 0, GD_SPI_SCD_SIZE);
+  data[1] = GD_AUDIO_NOSTATUS;
 
   switch (format) {
     case 0:
@@ -523,7 +521,7 @@ void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
 void gdrom_get_session(struct gdrom *gd, int session_num, uint8_t *data,
                        int size) {
   CHECK_NOTNULL(gd->disc);
-  CHECK_GE(size, SPI_SES_SIZE);
+  CHECK_GE(size, GD_SPI_SES_SIZE);
 
   /* session response layout:
 
@@ -574,10 +572,9 @@ void gdrom_get_session(struct gdrom *gd, int session_num, uint8_t *data,
   memcpy(&data[3], &fad, 3);
 }
 
-void gdrom_get_toc(struct gdrom *gd, enum gd_area area, uint8_t *data,
-                   int size) {
+void gdrom_get_toc(struct gdrom *gd, int area, uint8_t *data, int size) {
   CHECK_NOTNULL(gd->disc);
-  CHECK_GE(size, SPI_TOC_SIZE);
+  CHECK_GE(size, GD_SPI_TOC_SIZE);
 
   /* toc response layout:
 
@@ -624,7 +621,7 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area, uint8_t *data,
                &leadout_fad);
 
   /* 0xffffffff represents an invalid track */
-  memset(data, 0xff, SPI_TOC_SIZE);
+  memset(data, 0xff, GD_SPI_TOC_SIZE);
 
   /* write out entries for each track */
   uint32_t *entry = (uint32_t *)data;
@@ -644,7 +641,7 @@ void gdrom_get_toc(struct gdrom *gd, enum gd_area area, uint8_t *data,
 
 void gdrom_get_error(struct gdrom *gd, uint8_t *data, int size) {
   CHECK_NOTNULL(gd->disc);
-  CHECK_GE(size, SPI_ERR_SIZE);
+  CHECK_GE(size, GD_SPI_ERR_SIZE);
 
   /* cd status information response layout:
 
@@ -681,7 +678,7 @@ void gdrom_get_error(struct gdrom *gd, uint8_t *data, int size) {
 
 void gdrom_get_status(struct gdrom *gd, uint8_t *data, int size) {
   CHECK_NOTNULL(gd->disc);
-  CHECK_GE(size, SPI_STAT_SIZE);
+  CHECK_GE(size, GD_SPI_STAT_SIZE);
 
   /* cd status information response layout:
 
@@ -814,10 +811,10 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
 
   gd->sectnum.full = 0;
   if (gd->disc) {
-    gd->sectnum.status = DST_PAUSE;
+    gd->sectnum.status = GD_STATUS_PAUSE;
     gd->sectnum.format = disc_get_format(disc);
   } else {
-    gd->sectnum.status = DST_NODISC;
+    gd->sectnum.status = GD_STATUS_NODISC;
   }
 
   /* TODO how do GD_FEATURES, GD_INTREASON, GD_BYCTLLO and GD_BYCTLHI behave */

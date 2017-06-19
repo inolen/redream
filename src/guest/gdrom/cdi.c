@@ -15,8 +15,8 @@ static const char *cdi_version_names[] = {
 
 static const int cdi_sector_sizes[] = {2048, 2336, 2352};
 
-static const enum gd_secfmt cdi_sector_formats[] = {
-    SECTOR_CDDA, 0, SECTOR_M2F1,
+static const int cdi_sector_formats[] = {
+    GD_SECTOR_CDDA, 0, GD_SECTOR_M2F1,
 };
 
 static const char *cdi_modes[] = {
@@ -34,23 +34,23 @@ struct cdi {
   int num_tracks;
 };
 
-static int cdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
-                           enum gd_secmask mask, void *dst) {
+static int cdi_read_sector(struct disc *disc, int fad, int sector_fmt,
+                           int sector_mask, void *dst) {
   struct cdi *cdi = (struct cdi *)disc;
 
   struct track *track = disc_lookup_track(disc, fad);
   CHECK_NOTNULL(track);
-  CHECK(fmt == SECTOR_ANY || fmt == track->sector_fmt);
-  CHECK(mask == MASK_DATA);
+  CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
+  CHECK(sector_mask == GD_MASK_DATA);
 
   /* read the user data portion of the sector */
   int offset, size;
 
-  if (track->sector_fmt == SECTOR_CDDA) {
+  if (track->sector_fmt == GD_SECTOR_CDDA) {
     offset = track->file_offset + fad * track->sector_size;
     size = track->sector_size;
     CHECK_EQ(size, 2352);
-  } else if (track->sector_fmt == SECTOR_M2F1) {
+  } else if (track->sector_fmt == GD_SECTOR_M2F1) {
     offset = track->file_offset + fad * track->sector_size + 8;
     size = track->sector_size - 288;
     CHECK_EQ(size, 2048);
@@ -67,13 +67,13 @@ static int cdi_read_sector(struct disc *disc, int fad, enum gd_secfmt fmt,
   return res;
 }
 
-static void cdi_get_toc(struct disc *disc, enum gd_area area,
-                        struct track **first_track, struct track **last_track,
-                        int *leadin_fad, int *leadout_fad) {
+static void cdi_get_toc(struct disc *disc, int area, struct track **first_track,
+                        struct track **last_track, int *leadin_fad,
+                        int *leadout_fad) {
   struct cdi *cdi = (struct cdi *)disc;
 
   /* cdi's have no high-density area */
-  CHECK_EQ(area, AREA_SINGLE);
+  CHECK_EQ(area, GD_AREA_SINGLE);
 
   /* the toc on cdi's represents all tracks / sessions */
   struct session *first_session = &cdi->sessions[0];
@@ -108,7 +108,7 @@ static int cdi_get_num_sessions(struct disc *disc) {
 }
 
 static int cdi_get_format(struct disc *disc) {
-  return DISC_CDROM_XA;
+  return GD_DISC_CDROM_XA;
 }
 
 static void cdi_destroy(struct disc *disc) {
@@ -200,15 +200,15 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
     return 0;
   }
 
+  int sector_fmt = cdi_sector_formats[mode];
   int sector_size = cdi_sector_sizes[sector_type];
-  enum gd_secfmt sector_fmt = cdi_sector_formats[mode];
   int data_offset = *track_offset + pregap_length * sector_size;
 
   track->fad = pregap_length + lba;
   track->adr = 0;
-  track->ctrl = sector_fmt == SECTOR_CDDA ? 0 : 4;
-  track->sector_size = sector_size;
+  track->ctrl = sector_fmt == GD_SECTOR_CDDA ? 0 : 4;
   track->sector_fmt = cdi_sector_formats[mode];
+  track->sector_size = sector_size;
   track->file_offset = data_offset - track->fad * track->sector_size;
 
   LOG_INFO("cdi_parse_track track=%d fad=%d off=%d mode=%s/%d", track->num,
