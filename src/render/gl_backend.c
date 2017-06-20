@@ -211,13 +211,19 @@ static int r_compile_program(struct render_backend *r,
                              const char *fragment_source) {
   char buffer[16384] = {0};
 
+#if PLATFORM_ANDROID
+#define GLSL_VERSION "310 es"
+#else
+#define GLSL_VERSION "330 core"
+#endif
+
   memset(program, 0, sizeof(*program));
   program->prog = glCreateProgram();
 
   if (vertex_source) {
-    snprintf(buffer, sizeof(buffer) - 1,
-             "#version 330\n"
-             "%s%s",
+    snprintf(buffer, sizeof(buffer) - 1, "#version " GLSL_VERSION
+                                         "\n"
+                                         "%s%s",
              header ? header : "", vertex_source);
     buffer[sizeof(buffer) - 1] = 0;
 
@@ -230,9 +236,9 @@ static int r_compile_program(struct render_backend *r,
   }
 
   if (fragment_source) {
-    snprintf(buffer, sizeof(buffer) - 1,
-             "#version 330\n"
-             "%s%s",
+    snprintf(buffer, sizeof(buffer) - 1, "#version " GLSL_VERSION
+                                         "\n"
+                                         "%s%s",
              header ? header : "", fragment_source);
     buffer[sizeof(buffer) - 1] = 0;
 
@@ -279,7 +285,7 @@ static void r_create_shaders(struct render_backend *r) {
   /* ta shaders are lazy-compiled in r_get_ta_program to improve startup time */
 
   if (!r_compile_program(r, &r->ui_program, NULL, ui_vp, ui_fp)) {
-    LOG_FATAL("Failed to compile ui shader.");
+    LOG_FATAL("failed to compile ui shader");
   }
 }
 
@@ -458,7 +464,7 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
     }
 
     int res = r_compile_program(r, program, header, ta_vp, ta_fp);
-    CHECK(res, "Failed to compile ta shader.");
+    CHECK(res, "failed to compile ta shader");
   }
 
   return program;
@@ -704,10 +710,6 @@ texture_handle_t r_create_texture(struct render_backend *r,
       internal_fmt = GL_RGBA;
       pixel_fmt = GL_UNSIGNED_SHORT_4_4_4_4;
       break;
-    case PXL_RGBA8888:
-      internal_fmt = GL_RGBA;
-      pixel_fmt = GL_UNSIGNED_INT_8_8_8_8;
-      break;
     default:
       LOG_FATAL("Unexpected pixel format %d", format);
       break;
@@ -788,7 +790,7 @@ framebuffer_handle_t r_create_framebuffer(struct render_backend *r, int width,
   /* create depth component */
   glGenRenderbuffers(1, &fb->depth_buffer);
   glBindRenderbuffer(GL_RENDERBUFFER, fb->depth_buffer);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
   glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
   /* create fbo */

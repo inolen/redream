@@ -3,12 +3,12 @@
 
 #include <stdio.h>
 
-#if PLATFORM_LINUX || PLATFORM_DARWIN
+#if PLATFORM_ANDROID || PLATFORM_DARWIN || PLATFORM_LINUX
 
-#if PLATFORM_LINUX
-#include <limits.h>
-#else
+#if PLATFORM_DARWIN
 #include <sys/syslimits.h>
+#else
+#include <limits.h>
 #endif
 #include <dirent.h>
 

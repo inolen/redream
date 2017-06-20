@@ -27,6 +27,8 @@ option(BUILD_TESTS "Build tests" OFF)
 
 if(WIN32 OR MINGW)
   set(PLATFORM_WINDOWS TRUE)
+elseif(ANDROID)
+  set(PLATFORM_ANDROID TRUE)
 elseif(APPLE)
   set(PLATFORM_DARWIN TRUE)
 elseif(UNIX)
@@ -41,7 +43,11 @@ elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
   set(COMPILER_GCC TRUE)
 endif()
 
-set(ARCH_X64 TRUE)
+if(PLATFORM_ANDROID)
+  set(ARCH_ARM64 TRUE)
+else()
+  set(ARCH_X64 TRUE)
+endif()
 
 if(BUILD_LIBRETRO)
   # building the libretro core requires PIC code for all object files
@@ -59,14 +65,6 @@ check_function_exists(strnstr HAVE_STRNSTR)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/core/config.h)
 list(APPEND RELIB_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/src)
 
-#--------------------------------------------------
-# dynamic libs
-#--------------------------------------------------
-
-# opengl
-find_package(OpenGL REQUIRED)
-list(APPEND RELIB_INCLUDES ${OPENGL_INCLUDE_DIR})
-list(APPEND RELIB_LIBS ${OPENGL_LIBRARIES})
 
 #--------------------------------------------------
 # static libs
@@ -135,11 +133,14 @@ set(SDL_POWER OFF CACHE BOOL "")
 set(SDL_RENDER OFF CACHE BOOL "")
 set(SDL_SHARED OFF CACHE BOOL "")
 set(SDL_STATIC ON CACHE BOOL "")
-if(APPLE)
+
+if(PLATFORM_DARWIN)
   set(SDL_FRAMEWORK_CARBON 1)
 endif()
+
 add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
 list(APPEND RELIB_INCLUDES deps/sdl2-2.0.5/include)
+
 if(MINGW)
   list(APPEND SDL_LIBS mingw32)
 endif()
@@ -232,18 +233,14 @@ set(RELIB_SOURCES
   src/render/imgui.cc
   src/render/microprofile.cc)
 
-if(PLATFORM_WINDOWS)
-  list(APPEND RELIB_DEFS PLATFORM_WINDOWS=1)
+if(PLATFORM_ANDROID)
+  list(APPEND RELIB_DEFS PLATFORM_ANDROID=1)
   list(APPEND RELIB_SOURCES
-    src/core/exception_handler_win.c
-    src/core/filesystem_win.c
-    src/core/memory_win.c
-    src/core/time_win.c)
-  if(MINGW)
-    list(APPEND RELIB_SOURCES src/core/thread_posix.c)
-  else()
-    list(APPEND RELIB_SOURCES src/core/thread_win.c)
-  endif()
+    src/core/exception_handler_linux.c
+    src/core/filesystem_posix.c
+    src/core/memory_posix.c
+    src/core/thread_posix.c
+    src/core/time_linux.c)
 elseif(PLATFORM_DARWIN)
   list(APPEND RELIB_DEFS PLATFORM_DARWIN=1)
   list(APPEND RELIB_SOURCES
@@ -260,6 +257,18 @@ elseif(PLATFORM_LINUX)
     src/core/memory_posix.c
     src/core/thread_posix.c
     src/core/time_linux.c)
+elseif(PLATFORM_WINDOWS)
+  list(APPEND RELIB_DEFS PLATFORM_WINDOWS=1)
+  list(APPEND RELIB_SOURCES
+    src/core/exception_handler_win.c
+    src/core/filesystem_win.c
+    src/core/memory_win.c
+    src/core/time_win.c)
+  if(MINGW)
+    list(APPEND RELIB_SOURCES src/core/thread_posix.c)
+  else()
+    list(APPEND RELIB_SOURCES src/core/thread_win.c)
+  endif()
 endif()
 
 if(ARCH_X64)
@@ -268,26 +277,40 @@ if(ARCH_X64)
     src/jit/backend/x64/x64_backend.cc
     src/jit/backend/x64/x64_disassembler.c
     src/jit/backend/x64/x64_dispatch.cc)
+elseif(ARCH_ARM64)
+  list(APPEND RELIB_DEFS ARCH_ARM64=1)
 endif()
 
 if(COMPILER_GCC OR COMPILER_CLANG)
-  list(APPEND RELIB_FLAGS -pthread -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+  list(APPEND RELIB_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 
   if(COMPILER_GCC)
     # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
-    list(APPEND RELIB_FLAGS ${RELIB_FLAGS} -D__STDC_FORMAT_MACROS)
+    list(APPEND RELIB_FLAGS -D__STDC_FORMAT_MACROS)
   elseif(COMPILER_CLANG)
     # clang will warn on '{0}' as -Wmissing-field-initializers even in C code
     # https://llvm.org/bugs/show_bug.cgi?id=21689
     list(APPEND RELIB_FLAGS -Wno-missing-field-initializers -Wno-missing-braces -Wno-microsoft-anon-tag)
   endif()
 
-  list(APPEND RELIB_LIBS pthread)
+  if(NOT PLATFORM_ANDROID)
+    # the android libc provides built-in support for pthreads, so no
+    # additional linking or compile flags are necessary
+    list(APPEND RELIB_FLAGS -pthread)
+    list(APPEND RELIB_LIBS pthread)
+  endif()
 elseif(COMPILER_MSVC)
   list(APPEND RELIB_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 endif()
 
-if(PLATFORM_LINUX)
+if(PLATFORM_ANDROID)
+  # this is an awful hack for the gcc provided by the android-ndk-r15, which
+  # complains about zero-initializing multi-dimensional arrays using foo = {0}
+  list(APPEND RELIB_FLAGS -Wno-missing-field-initializers -Wno-missing-braces)
+  list(APPEND RELIB_LIBS android log)
+elseif(PLATFORM_LINUX)
+  # used by glad / sdl
+  list(APPEND RELIB_LIBS dl)
   # used by shm_open / shm_unlink on linux
   list(APPEND RELIB_LIBS rt)
 elseif(PLATFORM_WINDOWS)
@@ -295,54 +318,35 @@ elseif(PLATFORM_WINDOWS)
 endif()
 
 #--------------------------------------------------
-# redream_libretro
-#--------------------------------------------------
-
-if(BUILD_LIBRETRO)
-
-set(RELIB_LIBRETRO_SOURCES
-  ${RELIB_SOURCES}
-  src/host/retro_host.c
-  src/emulator.c)
-source_group_by_dir(RELIB_LIBRETRO_SOURCES)
-
-add_library(redream_libretro SHARED ${RELIB_LIBRETRO_SOURCES})
-set_target_properties(redream_libretro PROPERTIES PREFIX "")
-target_include_directories(redream_libretro SYSTEM PUBLIC ${RELIB_INCLUDES} deps/libretro/include)
-target_include_directories(redream_libretro PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(redream_libretro ${RELIB_LIBS})
-target_compile_definitions(redream_libretro PRIVATE ${RELIB_DEFS})
-target_compile_options(redream_libretro PRIVATE ${RELIB_FLAGS})
-
-# early out, libretro core build shouldn't also build regular binaries as it
-# requires PIC code
-return()
-
-else()
-
-if(CMAKE_POSITION_INDEPENDENT_CODE)
-  message(FATAL "Only the libretro core build should use PIC code")
-endif()
-
-endif()
-
-#--------------------------------------------------
 # redream
 #--------------------------------------------------
 
-set(RELIB_SDL_SOURCES
-  ${RELIB_SOURCES}
-  src/host/sdl_host.c
-  src/emulator.c
-  src/tracer.c)
-source_group_by_dir(RELIB_SDL_SOURCES)
+if(BUILD_LIBRETRO)
+  set(REDREAM_SOURCES ${RELIB_SOURCES} src/host/retro_host.c src/emulator.c)
+  set(REDREAM_INCLUDES ${RELIB_INCLUDES} deps/libretro/include)
+  set(REDREAM_LIBS ${RELIB_LIBS})
+  set(REDREAM_DEFS ${RELIB_DEFS})
+  set(REDREAM_FLAGS ${RELIB_FLAGS})
+else()
+  set(REDREAM_SOURCES ${RELIB_SOURCES} src/host/sdl_host.c src/emulator.c src/tracer.c)
+  set(REDREAM_INCLUDES ${RELIB_INCLUDES})
+  set(REDREAM_LIBS ${RELIB_LIBS} ${SDL_LIBS})
+  set(REDREAM_DEFS ${RELIB_DEFS})
+  set(REDREAM_FLAGS ${RELIB_FLAGS})
+endif()
 
-add_executable(redream ${RELIB_SDL_SOURCES})
-target_include_directories(redream SYSTEM PUBLIC ${RELIB_INCLUDES})
-target_include_directories(redream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(redream ${RELIB_LIBS} ${SDL_LIBS})
-target_compile_definitions(redream PRIVATE ${RELIB_DEFS})
-target_compile_options(redream PRIVATE ${RELIB_FLAGS})
+source_group_by_dir(REDREAM_SOURCES)
+
+if(BUILD_LIBRETRO OR ANDROID)
+  add_library(redream SHARED ${REDREAM_SOURCES})
+else()
+  add_executable(redream ${REDREAM_SOURCES})
+endif()
+
+target_include_directories(redream PUBLIC ${REDREAM_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(redream ${REDREAM_LIBS})
+target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
+target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 # enable imgui
 target_link_libraries(redream ${IMGUI_LIBS})
@@ -366,8 +370,7 @@ set(RECC_SOURCES
 source_group_by_dir(RECC_SOURCES)
 
 add_executable(recc ${RECC_SOURCES})
-target_include_directories(recc SYSTEM PUBLIC ${RELIB_INCLUDES})
-target_include_directories(recc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(recc PUBLIC ${RELIB_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(recc ${RELIB_LIBS})
 target_compile_definitions(recc PRIVATE ${RELIB_DEFS})
 target_compile_options(recc PRIVATE ${RELIB_FLAGS})
@@ -382,8 +385,7 @@ set(RETRACE_SOURCES
 source_group_by_dir(RETRACE_SOURCES)
 
 add_executable(retrace ${RETRACE_SOURCES})
-target_include_directories(retrace SYSTEM PUBLIC ${RELIB_INCLUDES})
-target_include_directories(retrace PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(retrace PUBLIC ${RELIB_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(retrace ${RELIB_LIBS})
 target_compile_definitions(retrace PRIVATE ${RELIB_DEFS})
 target_compile_options(retrace PRIVATE ${RELIB_FLAGS})

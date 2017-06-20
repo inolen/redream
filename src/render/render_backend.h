@@ -16,7 +16,6 @@ enum pxl_format {
   PXL_RGBA5551,
   PXL_RGB565,
   PXL_RGBA4444,
-  PXL_RGBA8888,
 };
 
 enum filter_mode {

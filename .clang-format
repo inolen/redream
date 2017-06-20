@@ -6,6 +6,8 @@ AllowShortIfStatementsOnASingleLine: false
 DerivePointerAlignment: false
 PointerAlignment: Right
 IncludeCategories: 
+  - Regex:           '^<glad.*\.h>'
+    Priority:        -3
   - Regex:           '^<.*\.h>'
     Priority:        -2
   - Regex:           '^<.*'

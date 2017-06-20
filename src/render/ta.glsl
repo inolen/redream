@@ -30,21 +30,21 @@ static const char *ta_vp =
 
 static const char *ta_fp =
 "uniform sampler2D u_diffuse;\n"
-"uniform float u_pt_alpha_ref;\n"
+"uniform mediump float u_pt_alpha_ref;\n"
 
-"in vec4 var_color;\n"
-"in vec4 var_offset_color;\n"
-"in vec2 var_texcoord;\n"
+"in mediump vec4 var_color;\n"
+"in mediump vec4 var_offset_color;\n"
+"in mediump vec2 var_texcoord;\n"
 
-"layout(location = 0) out vec4 fragcolor;\n"
+"layout(location = 0) out mediump vec4 fragcolor;\n"
 
 "void main() {\n"
-"  vec4 col = var_color;\n"
+"  mediump vec4 col = var_color;\n"
 "  #ifdef IGNORE_ALPHA\n"
 "    col.a = 1.0;\n"
 "  #endif\n"
 "  #ifdef TEXTURE\n"
-"    vec4 tex = texture(u_diffuse, var_texcoord);\n"
+"    mediump vec4 tex = texture(u_diffuse, var_texcoord);\n"
 "    #ifdef IGNORE_TEXTURE_ALPHA\n"
 "      tex.a = 1.0;\n"
 "    #endif\n"
@@ -92,7 +92,7 @@ static const char *ta_fp =
 "  // note, 2^17 was chosen as ~100000 was largest value i'd seen passed as\n"
 "  // the w component at the time this was written\n"
 
-"  float w = 1.0 / gl_FragCoord.w;\n"
+"  mediump float w = 1.0 / gl_FragCoord.w;\n"
 "  gl_FragDepth = log2(1.0 + w) / 17.0;\n"
 
 "  #ifdef DEBUG_DEPTH_BUFFER\n"

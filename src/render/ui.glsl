@@ -17,13 +17,13 @@ static const char *ui_vp =
 static const char *ui_fp =
 "uniform sampler2D u_diffuse;\n"
 
-"in vec4 var_color;\n"
-"in vec2 var_texcoord;\n"
+"in mediump vec4 var_color;\n"
+"in mediump vec2 var_texcoord;\n"
 
-"layout(location = 0) out vec4 fragcolor;\n"
+"layout(location = 0) out mediump vec4 fragcolor;\n"
 
 "void main() {\n"
-"  vec4 color = var_color;\n"
+"  mediump vec4 color = var_color;\n"
 "  color *= texture(u_diffuse, var_texcoord);\n"
 "  fragcolor = color;\n"
 "}";

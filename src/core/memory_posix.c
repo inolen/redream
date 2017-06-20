@@ -8,6 +8,10 @@
 #include "core/memory.h"
 #include "core/string.h"
 
+#if PLATFORM_ANDROID
+#include <linux/ashmem.h>
+#endif
+
 #define MAX_SHMEM 128
 
 struct shmem {
@@ -23,9 +27,9 @@ static struct list free_shmem;
 static mode_t access_to_mode_flags(enum page_access access) {
   switch (access) {
     case ACC_READONLY:
-      return S_IREAD;
+      return S_IRUSR;
     case ACC_READWRITE:
-      return S_IREAD | S_IWRITE;
+      return S_IRUSR | S_IWUSR;
     default:
       return 0;
   }
@@ -55,17 +59,8 @@ static int access_to_protect_flags(enum page_access access) {
   }
 }
 
-size_t get_page_size() {
-  return getpagesize();
-}
-
-size_t get_allocation_granularity() {
-  return get_page_size();
-}
-
-int protect_pages(void *ptr, size_t size, enum page_access access) {
-  int prot = access_to_protect_flags(access);
-  return mprotect(ptr, size, prot) == 0;
+int release_pages(void *ptr, size_t size) {
+  return munmap(ptr, size) == 0;
 }
 
 void *reserve_pages(void *ptr, size_t size) {
@@ -92,8 +87,17 @@ void *reserve_pages(void *ptr, size_t size) {
   return res;
 }
 
-int release_pages(void *ptr, size_t size) {
-  return munmap(ptr, size) == 0;
+int protect_pages(void *ptr, size_t size, enum page_access access) {
+  int prot = access_to_protect_flags(access);
+  return mprotect(ptr, size, prot) == 0;
+}
+
+size_t get_allocation_granularity() {
+  return get_page_size();
+}
+
+size_t get_page_size() {
+  return getpagesize();
 }
 
 static void init_shared_memory_entries() {
@@ -110,6 +114,43 @@ static void init_shared_memory_entries() {
   }
 }
 
+int destroy_shared_memory(shmem_handle_t handle) {
+  init_shared_memory_entries();
+
+  struct shmem *shmem = (struct shmem *)handle;
+  int res = 0;
+
+#if PLATFORM_ANDROID
+  res = close(shmem->handle);
+#else
+  int res1 = close(shmem->handle);
+  int res2 = shm_unlink(shmem->filename);
+  res = res1 == 0 && res2 == 0;
+#endif
+
+  /* add back to free list */
+  list_add(&free_shmem, &shmem->free_it);
+
+  return res;
+}
+
+int unmap_shared_memory(shmem_handle_t handle, void *start, size_t size) {
+  return munmap(start, size) == 0;
+}
+
+int map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
+                      size_t size, enum page_access access) {
+  init_shared_memory_entries();
+
+  struct shmem *shmem = (struct shmem *)handle;
+
+  int prot = access_to_protect_flags(access);
+  void *ptr =
+      mmap(start, size, prot, MAP_SHARED | MAP_FIXED, shmem->handle, offset);
+
+  return ptr != MAP_FAILED;
+}
+
 shmem_handle_t create_shared_memory(const char *filename, size_t size,
                                     enum page_access access) {
   init_shared_memory_entries();
@@ -119,6 +160,26 @@ shmem_handle_t create_shared_memory(const char *filename, size_t size,
   struct shmem *shmem = list_first_entry(&free_shmem, struct shmem, free_it);
   CHECK_NOTNULL(shmem);
 
+#if PLATFORM_ANDROID
+  int oflag = access_to_open_flags(access);
+
+  int handle = open("/" ASHMEM_NAME_DEF, oflag);
+  if (handle < 0) {
+    return NULL;
+  }
+
+  int ret = ioctl(handle, ASHMEM_SET_NAME, filename);
+  if (ret < 0) {
+    close(handle);
+    return NULL;
+  }
+
+  ret = ioctl(handle, ASHMEM_SET_SIZE, size);
+  if (ret < 0) {
+    close(handle);
+    return NULL;
+  }
+#else
   /* make sure the shared memory object doesn't already exist */
   shm_unlink(filename);
 
@@ -136,6 +197,7 @@ shmem_handle_t create_shared_memory(const char *filename, size_t size,
     shm_unlink(filename);
     return NULL;
   }
+#endif
 
   /* update entry, remove from free list */
   strncpy(shmem->filename, filename, sizeof(shmem->filename));
@@ -143,35 +205,4 @@ shmem_handle_t create_shared_memory(const char *filename, size_t size,
   list_remove(&free_shmem, &shmem->free_it);
 
   return (shmem_handle_t)shmem;
-}
-
-int map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
-                      size_t size, enum page_access access) {
-  init_shared_memory_entries();
-
-  struct shmem *shmem = (struct shmem *)handle;
-
-  int prot = access_to_protect_flags(access);
-  void *ptr =
-      mmap(start, size, prot, MAP_SHARED | MAP_FIXED, shmem->handle, offset);
-
-  return ptr != MAP_FAILED;
-}
-
-int unmap_shared_memory(shmem_handle_t handle, void *start, size_t size) {
-  return munmap(start, size) == 0;
-}
-
-int destroy_shared_memory(shmem_handle_t handle) {
-  init_shared_memory_entries();
-
-  struct shmem *shmem = (struct shmem *)handle;
-
-  int res1 = close(shmem->handle);
-  int res2 = shm_unlink(shmem->filename);
-
-  /* add back to free list */
-  list_add(&free_shmem, &shmem->free_it);
-
-  return res1 == 0 && res2 == 0;
 }

@@ -53,23 +53,23 @@ struct address_map {
  */
 
 /* helpers for extracting page information out of a virtual address */
-#define PAGE_BITS 20
-#define PAGE_OFFSET_BITS (32 - PAGE_BITS)
-#define PAGE_SIZE (1 << PAGE_OFFSET_BITS)
-#define PAGE_OFFSET_MASK (uint32_t)(PAGE_SIZE - 1)
-#define PAGE_INDEX_MASK (uint32_t)(~PAGE_OFFSET_MASK)
-#define NUM_PAGES (1 << PAGE_BITS)
+#define VIRT_PAGE_BITS 20
+#define VIRT_PAGE_OFFSET_BITS (32 - VIRT_PAGE_BITS)
+#define VIRT_PAGE_SIZE (1 << VIRT_PAGE_OFFSET_BITS)
+#define VIRT_PAGE_OFFSET_MASK (uint32_t)(VIRT_PAGE_SIZE - 1)
+#define VIRT_PAGE_INDEX_MASK (uint32_t)(~VIRT_PAGE_OFFSET_MASK)
+#define NUM_VIRT_PAGES (1 << VIRT_PAGE_BITS)
 
 /* helpers for region information out of a page table entry */
 #define REGION_HANDLE_MASK (page_entry_t)(MAX_REGIONS - 1)
 #define REGION_OFFSET_MASK (page_entry_t)(~REGION_HANDLE_MASK)
-#define MAX_REGIONS (1 << PAGE_OFFSET_BITS)
+#define MAX_REGIONS (1 << VIRT_PAGE_OFFSET_BITS)
 
 typedef uint32_t page_entry_t;
 
 struct address_space {
   struct dreamcast *dc;
-  page_entry_t pages[NUM_PAGES];
+  page_entry_t pages[NUM_VIRT_PAGES];
   uint8_t *base;
 };
 
@@ -117,21 +117,21 @@ struct memory {
 };
 
 static inline int is_page_aligned(uint32_t start, uint32_t size) {
-  return (start & ((1 << PAGE_OFFSET_BITS) - 1)) == 0 &&
-         ((start + size) & ((1 << PAGE_OFFSET_BITS) - 1)) == 0;
+  return (start & ((1 << VIRT_PAGE_OFFSET_BITS) - 1)) == 0 &&
+         ((start + size) & ((1 << VIRT_PAGE_OFFSET_BITS) - 1)) == 0;
 }
 
 static inline uint32_t get_total_page_size(int num_pages) {
-  return (uint32_t)num_pages * PAGE_SIZE;
+  return (uint32_t)num_pages * VIRT_PAGE_SIZE;
 }
 
 /* map virtual addresses to pages */
 static inline int get_page_index(uint32_t addr) {
-  return addr >> PAGE_OFFSET_BITS;
+  return addr >> VIRT_PAGE_OFFSET_BITS;
 }
 
 static inline uint32_t get_page_offset(uint32_t addr) {
-  return addr & PAGE_OFFSET_MASK;
+  return addr & VIRT_PAGE_OFFSET_MASK;
 }
 
 /* pack and unpack page entry bitstrings */
@@ -601,7 +601,7 @@ static void as_merge_map(struct address_space *space,
       CHECK(is_page_aligned(addr, size));
 
       int first_page = get_page_index(addr);
-      int num_pages = size >> PAGE_OFFSET_BITS;
+      int num_pages = size >> VIRT_PAGE_OFFSET_BITS;
 
       switch (entry->type) {
         case MAP_ENTRY_PHYSICAL: {
@@ -653,7 +653,7 @@ static void as_merge_map(struct address_space *space,
 static int as_num_adj_pages(struct address_space *space, int first_page_index) {
   int i;
 
-  for (i = first_page_index; i < NUM_PAGES - 1; i++) {
+  for (i = first_page_index; i < NUM_VIRT_PAGES - 1; i++) {
     page_entry_t page = space->pages[i];
     page_entry_t next_page = space->pages[i + 1];
 
@@ -676,7 +676,7 @@ static int as_num_adj_pages(struct address_space *space, int first_page_index) {
           (next_region->physical.shmem_offset + next_region_offset) -
           (region->physical.shmem_offset + region_offset);
 
-      if (page_delta != PAGE_SIZE) {
+      if (page_delta != VIRT_PAGE_SIZE) {
         break;
       }
     }
@@ -686,7 +686,7 @@ static int as_num_adj_pages(struct address_space *space, int first_page_index) {
 }
 
 void as_unmap(struct address_space *space) {
-  for (int page_index = 0; page_index < NUM_PAGES;) {
+  for (int page_index = 0; page_index < NUM_VIRT_PAGES;) {
     page_entry_t page = space->pages[page_index];
 
     if (!page) {
@@ -722,7 +722,7 @@ int as_map(struct address_space *space, const char *name,
   }
 
   /* iterate the virtual page table, mapping it to the reserved address space */
-  for (int page_index = 0; page_index < NUM_PAGES;) {
+  for (int page_index = 0; page_index < NUM_VIRT_PAGES;) {
     page_entry_t page = space->pages[page_index];
 
     if (!page) {

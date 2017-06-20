@@ -267,8 +267,8 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
           break;
 
         case TA_PAL_ARGB8888:
-          pixel_fmt = PXL_RGBA8888;
-          convert_pal4_ARGB8888_RGBA8888(input, (uint32_t *)converted,
+          pixel_fmt = PXL_RGBA4444;
+          convert_pal4_ARGB8888_RGBA4444(input, (uint16_t *)converted,
                                          (const uint32_t *)palette, width,
                                          height);
 
@@ -306,8 +306,8 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
           break;
 
         case TA_PAL_ARGB8888:
-          pixel_fmt = PXL_RGBA8888;
-          convert_pal8_ARGB8888_RGBA8888(input, (uint32_t *)converted,
+          pixel_fmt = PXL_RGBA4444;
+          convert_pal8_ARGB8888_RGBA4444(input, (uint16_t *)converted,
                                          (const uint32_t *)palette, width,
                                          height);
           break;

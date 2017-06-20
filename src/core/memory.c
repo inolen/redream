@@ -82,6 +82,21 @@ static int watcher_handle_exception(void *ctx, struct exception_state *ex) {
   return handled;
 }
 
+void remove_memory_watch(struct memory_watch *watch) {
+  /* remove from interval tree */
+  interval_tree_remove(&watcher->tree, &watch->tree_it);
+
+  /* remove from live list */
+  list_remove(&watcher->live_watches, &watch->list_it);
+
+  /* add to free list */
+  list_add(&watcher->free_watches, &watch->list_it);
+
+  if (!watcher->tree.root) {
+    watcher_destroy();
+  }
+}
+
 struct memory_watch *add_single_write_watch(const void *ptr, size_t size,
                                             memory_watch_cb cb, void *data) {
   if (!watcher) {
@@ -118,19 +133,4 @@ struct memory_watch *add_single_write_watch(const void *ptr, size_t size,
   interval_tree_insert(&watcher->tree, &watch->tree_it);
 
   return watch;
-}
-
-void remove_memory_watch(struct memory_watch *watch) {
-  /* remove from interval tree */
-  interval_tree_remove(&watcher->tree, &watch->tree_it);
-
-  /* remove from live list */
-  list_remove(&watcher->live_watches, &watch->list_it);
-
-  /* add to free list */
-  list_add(&watcher->free_watches, &watch->list_it);
-
-  if (!watcher->tree.root) {
-    watcher_destroy();
-  }
 }

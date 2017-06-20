@@ -6,6 +6,7 @@ static struct sigaction old_sigsegv;
 static struct sigaction old_sigill;
 
 static void copy_state_to(mcontext_t *src, union thread_state *dst) {
+#if ARCH_X64
   dst->rax = src->gregs[REG_RAX];
   dst->rcx = src->gregs[REG_RCX];
   dst->rdx = src->gregs[REG_RDX];
@@ -23,9 +24,11 @@ static void copy_state_to(mcontext_t *src, union thread_state *dst) {
   dst->r14 = src->gregs[REG_R14];
   dst->r15 = src->gregs[REG_R15];
   dst->rip = src->gregs[REG_RIP];
+#endif
 }
 
 static void copy_state_from(union thread_state *src, mcontext_t *dst) {
+#if ARCH_X64
   dst->gregs[REG_RAX] = src->rax;
   dst->gregs[REG_RCX] = src->rcx;
   dst->gregs[REG_RDX] = src->rdx;
@@ -43,6 +46,7 @@ static void copy_state_from(union thread_state *src, mcontext_t *dst) {
   dst->gregs[REG_R14] = src->r14;
   dst->gregs[REG_R15] = src->r15;
   dst->gregs[REG_RIP] = src->rip;
+#endif
 }
 
 static void signal_handler(int signo, siginfo_t *info, void *ctx) {
@@ -52,7 +56,9 @@ static void signal_handler(int signo, siginfo_t *info, void *ctx) {
   struct exception_state ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
   ex.fault_addr = (uintptr_t)info->si_addr;
+#if ARCH_X64
   ex.pc = uctx->uc_mcontext.gregs[REG_RIP];
+#endif
   copy_state_to(&uctx->uc_mcontext, &ex.thread_state);
 
   /* call exception handler, letting it potentially update the thread state */

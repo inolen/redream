@@ -25,22 +25,8 @@ static DWORD access_to_protection_flags(enum page_access access) {
   }
 }
 
-size_t get_page_size() {
-  SYSTEM_INFO si;
-  GetSystemInfo(&si);
-  return si.dwPageSize;
-}
-
-size_t get_allocation_granularity() {
-  SYSTEM_INFO si;
-  GetSystemInfo(&si);
-  return si.dwAllocationGranularity;
-}
-
-int protect_pages(void *ptr, size_t size, enum page_access access) {
-  DWORD new_protect = access_to_protection_flags(access);
-  DWORD old_protect;
-  return VirtualProtect(ptr, size, new_protect, &old_protect) != 0;
+int release_pages(void *ptr, size_t size) {
+  return VirtualFree(ptr, 0, MEM_RELEASE) != 0;
 }
 
 void *reserve_pages(void *ptr, size_t size) {
@@ -60,15 +46,30 @@ void *reserve_pages(void *ptr, size_t size) {
   return res;
 }
 
-int release_pages(void *ptr, size_t size) {
-  return VirtualFree(ptr, 0, MEM_RELEASE) != 0;
+int protect_pages(void *ptr, size_t size, enum page_access access) {
+  DWORD new_protect = access_to_protection_flags(access);
+  DWORD old_protect;
+  return VirtualProtect(ptr, size, new_protect, &old_protect) != 0;
 }
 
-shmem_handle_t create_shared_memory(const char *filename, size_t size,
-                                    enum page_access access) {
-  DWORD protect = access_to_protection_flags(access);
-  return CreateFileMapping(INVALID_HANDLE_VALUE, NULL, protect | SEC_COMMIT,
-                           (DWORD)(size >> 32), (DWORD)(size), filename);
+size_t get_allocation_granularity() {
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+  return si.dwAllocationGranularity;
+}
+
+size_t get_page_size() {
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+  return si.dwPageSize;
+}
+
+int destroy_shared_memory(shmem_handle_t handle) {
+  return CloseHandle(handle) != 0;
+}
+
+int unmap_shared_memory(shmem_handle_t handle, void *start, size_t size) {
+  return UnmapViewOfFile(start) != 0;
 }
 
 int map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
@@ -79,10 +80,9 @@ int map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
   return ptr == start;
 }
 
-int unmap_shared_memory(shmem_handle_t handle, void *start, size_t size) {
-  return UnmapViewOfFile(start) != 0;
-}
-
-int destroy_shared_memory(shmem_handle_t handle) {
-  return CloseHandle(handle) != 0;
+shmem_handle_t create_shared_memory(const char *filename, size_t size,
+                                    enum page_access access) {
+  DWORD protect = access_to_protection_flags(access);
+  return CreateFileMapping(INVALID_HANDLE_VALUE, NULL, protect | SEC_COMMIT,
+                           (DWORD)(size >> 32), (DWORD)(size), filename);
 }

@@ -1,4 +1,5 @@
 .*
+android/
 build/
 *.swo
 *.swp

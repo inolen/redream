@@ -198,10 +198,15 @@ static void video_gl_destroy_context(struct host *base, video_context_t ctx) {
 }
 
 static video_context_t video_gl_create_context(struct sdl_host *host) {
-  /* need at least a 3.3 core context for our shaders */
+#if PLATFORM_ANDROID
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+#else
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
 
   SDL_GLContext ctx = SDL_GL_CreateContext(host->win);
   CHECK_NOTNULL(ctx, "OpenGL context creation failed: %s", SDL_GetError());
