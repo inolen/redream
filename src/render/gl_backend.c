@@ -1,4 +1,4 @@
-#include <GL/glew.h>
+#include <glad/glad.h>
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "core/string.h"

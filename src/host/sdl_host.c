@@ -1,4 +1,4 @@
-#include <GL/glew.h>
+#include <glad/glad.h>
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include "core/assert.h"
@@ -211,11 +211,8 @@ static video_context_t video_gl_create_context(struct sdl_host *host) {
   CHECK_EQ(res, 0, "Failed to disable vsync");
 
   /* link in gl functions at runtime */
-  glewExperimental = GL_TRUE;
-  GLenum err = glewInit();
-  CHECK_EQ(err, GLEW_OK, "GLEW initialization failed: %s",
-           glewGetErrorString(err));
-  glGetError();
+  res = gladLoadGL();
+  CHECK_EQ(res, 1, "GL initialization failed");
 
   return (video_context_t)ctx;
 }

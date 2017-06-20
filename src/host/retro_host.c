@@ -1,4 +1,4 @@
-#include <GL/glew.h>
+#include <glad/glad.h>
 #include <libretro.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -167,10 +167,8 @@ static void video_context_destroyed() {
 
 static void video_context_reset() {
   /* link in gl functions at runtime */
-  glewExperimental = GL_TRUE;
-  GLenum err = glewInit();
-  CHECK_EQ(err, GLEW_OK, "GLEW initialization failed: %s",
-           glewGetErrorString(err));
+  res = gladLoadGL();
+  CHECK_EQ(res, 1, "GL initialization failed");
 
   if (!g_host->video_context_reset) {
     return;

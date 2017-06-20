@@ -90,12 +90,11 @@ list(APPEND RELIB_INCLUDES deps/dirent-1.21)
 # gdb_server
 list(APPEND RELIB_INCLUDES deps/gdb_server)
 
-# glew
-set(BUILD_UTILS OFF CACHE BOOL "")
-add_subdirectory(deps/glew-1.13.0/build/cmake EXCLUDE_FROM_ALL)
-list(APPEND RELIB_INCLUDES deps/glew-1.13.0/include)
-list(APPEND RELIB_LIBS glew_s)
-list(APPEND RELIB_DEFS GLEW_STATIC)
+# glad
+add_library(glad STATIC deps/glad/src/glad.c)
+target_include_directories(glad SYSTEM PUBLIC deps/glad/include)
+list(APPEND RELIB_INCLUDES deps/glad/include)
+list(APPEND RELIB_LIBS glad)
 
 # inih
 add_library(inih STATIC deps/inih/ini.c)
