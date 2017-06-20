@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include "core/log.h"
 
-DEFINE_OPTION_INT(verbose, 0, "Enable debug logging");
+#if PLATFORM_ANDROID
+#include <android/log.h>
+#endif
 
 void log_line(enum log_level level, const char *format, ...) {
   static char sbuffer[0x1000];
@@ -23,9 +25,22 @@ void log_line(enum log_level level, const char *format, ...) {
   vsnprintf(buffer, buffer_size, format, args);
   va_end(args);
 
-#if PLATFORM_DARWIN || PLATFORM_LINUX
+#if PLATFORM_ANDROID
+  static const char *LOG_TAG = "redream";
+
   switch (level) {
-    case LOG_LEVEL_DEBUG:
+    case LOG_LEVEL_INFO:
+      __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "%s\n", buffer);
+      break;
+    case LOG_LEVEL_WARNING:
+      __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "%s\n", buffer);
+      break;
+    case LOG_LEVEL_FATAL:
+      __android_log_print(ANDROID_LOG_FATAL, LOG_TAG, "%s\n", buffer);
+      break;
+  }
+#elif PLATFORM_DARWIN || PLATFORM_LINUX
+  switch (level) {
     case LOG_LEVEL_INFO:
       printf("%s\n", buffer);
       break;

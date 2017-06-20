@@ -5,10 +5,7 @@
 #include <stdlib.h>
 #include "core/option.h"
 
-DECLARE_OPTION_INT(verbose);
-
 enum log_level {
-  LOG_LEVEL_DEBUG,
   LOG_LEVEL_INFO,
   LOG_LEVEL_WARNING,
   LOG_LEVEL_FATAL,
@@ -33,11 +30,6 @@ void log_line(enum log_level level, const char *format, ...);
 #else
 #define DEBUGBREAK()
 #endif
-
-#define LOG_DEBUG(...)                        \
-  if (OPTION_verbose) {                       \
-    log_line(LOG_LEVEL_DEBUG, ##__VA_ARGS__); \
-  }
 
 #define LOG_INFO(...)                        \
   do {                                       \
