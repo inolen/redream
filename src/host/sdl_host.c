@@ -216,9 +216,8 @@ static video_context_t video_gl_create_context(struct sdl_host *host) {
   CHECK_EQ(res, 0, "Failed to disable vsync");
 
   /* link in gl functions at runtime */
-  res = gladLoadGL();
+  res = gladLoadGLLoader((GLADloadproc)&SDL_GL_GetProcAddress);
   CHECK_EQ(res, 1, "GL initialization failed");
-
   return (video_context_t)ctx;
 }
 
@@ -266,7 +265,11 @@ struct render_backend *video_create_renderer(struct host *base) {
 }
 
 int video_supports_multiple_contexts(struct host *host) {
+#if PLATFORM_ANDROID
+  return 0;
+#else
   return 1;
+#endif
 }
 
 int video_height(struct host *base) {
@@ -738,14 +741,15 @@ struct sdl_host *host_create() {
   int res = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
   CHECK_GE(res, 0, "SDL initialization failed: %s", SDL_GetError());
 
-  host->video_width = VIDEO_DEFAULT_WIDTH;
-  host->video_height = VIDEO_DEFAULT_HEIGHT;
-
   host->win = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
-                               SDL_WINDOWPOS_UNDEFINED, host->video_width,
-                               host->video_height,
+                               SDL_WINDOWPOS_UNDEFINED, VIDEO_DEFAULT_WIDTH,
+                               VIDEO_DEFAULT_HEIGHT,
                                SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   CHECK_NOTNULL(host->win, "Window creation failed: %s", SDL_GetError());
+
+  /* immediately poll window size for platforms like Android where the window
+     starts fullscreen, ignoring the default width and height */
+  SDL_GetWindowSize(host->win, &host->video_width, &host->video_height);
 
   if (!audio_init(host)) {
     host_destroy(host);
@@ -766,13 +770,19 @@ struct sdl_host *host_create() {
 }
 
 int main(int argc, char **argv) {
-  /* set application directory */
-  char appdir[PATH_MAX];
+/* set application directory */
+#if PLATFORM_ANDROID
+  const char *appdir = SDL_AndroidGetExternalStoragePath();
+  fs_set_appdir(appdir);
+#else
   char userdir[PATH_MAX];
   int r = fs_userdir(userdir, sizeof(userdir));
   CHECK(r);
+
+  char appdir[PATH_MAX];
   snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR ".redream", userdir);
   fs_set_appdir(appdir);
+#endif
 
   /* load base options from config */
   char config[PATH_MAX] = {0};
