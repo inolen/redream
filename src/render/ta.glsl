@@ -92,7 +92,7 @@ static const char *ta_fp =
 "  // note, 2^17 was chosen as ~100000 was largest value i'd seen passed as\n"
 "  // the w component at the time this was written\n"
 
-"  mediump float w = 1.0 / gl_FragCoord.w;\n"
+"  highp float w = 1.0 / gl_FragCoord.w;\n"
 "  gl_FragDepth = log2(1.0 + w) / 17.0;\n"
 
 "  #ifdef DEBUG_DEPTH_BUFFER\n"

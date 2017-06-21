@@ -711,7 +711,7 @@ texture_handle_t r_create_texture(struct render_backend *r,
       pixel_fmt = GL_UNSIGNED_SHORT_4_4_4_4;
       break;
     default:
-      LOG_FATAL("Unexpected pixel format %d", format);
+      LOG_FATAL("unexpected pixel format %d", format);
       break;
   }
 

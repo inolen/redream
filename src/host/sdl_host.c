@@ -208,6 +208,11 @@ static video_context_t video_gl_create_context(struct sdl_host *host) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 #endif
 
+  /* SDL defaults to allocating a 16-bit depth buffer, raise this to at least
+     24-bits to help with the depth precision lost when converting from PVR
+     coordinates to OpenGL */
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
   SDL_GLContext ctx = SDL_GL_CreateContext(host->win);
   CHECK_NOTNULL(ctx, "OpenGL context creation failed: %s", SDL_GetError());
 
