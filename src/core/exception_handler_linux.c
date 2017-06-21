@@ -1,12 +1,32 @@
 #include <signal.h>
 #include <stdlib.h>
+#include "core/assert.h"
 #include "core/exception_handler.h"
 
 static struct sigaction old_sigsegv;
 static struct sigaction old_sigill;
 
-static void copy_state_to(mcontext_t *src, union thread_state *dst) {
-#if ARCH_X64
+static inline void copy_state_to(mcontext_t *src, struct thread_state *dst) {
+#if ARCH_ARM64
+  struct fpsimd_context *simd = (struct fpsimd_context *)&src->__reserved;
+  CHECK_EQ(simd->head.magic, FPSIMD_MAGIC);
+  CHECK_EQ(simd->head.size, sizeof(struct fpsimd_context));
+
+  for (int i = 0; i < array_size(dst->r); i++) {
+    dst->r[i] = src->regs[i];
+  }
+
+  dst->sp = src->sp;
+  dst->pc = src->pc;
+  dst->pstate = src->pstate;
+
+  for (int i = 0; i < array_size(dst->v); i++) {
+    dst->v[i] = simd->vregs[i];
+  }
+
+  dst->fpsr = simd->fpsr;
+  dst->fpcr = simd->fpcr;
+#elif ARCH_X64
   dst->rax = src->gregs[REG_RAX];
   dst->rcx = src->gregs[REG_RCX];
   dst->rdx = src->gregs[REG_RDX];
@@ -27,8 +47,27 @@ static void copy_state_to(mcontext_t *src, union thread_state *dst) {
 #endif
 }
 
-static void copy_state_from(union thread_state *src, mcontext_t *dst) {
-#if ARCH_X64
+static inline void copy_state_from(struct thread_state *src, mcontext_t *dst) {
+#if ARCH_ARM64
+  struct fpsimd_context *simd = (struct fpsimd_context *)&dst->__reserved;
+  CHECK_EQ(simd->head.magic, FPSIMD_MAGIC);
+  CHECK_EQ(simd->head.size, sizeof(struct fpsimd_context));
+
+  for (int i = 0; i < array_size(src->r); i++) {
+    dst->regs[i] = src->r[i];
+  }
+
+  dst->sp = src->sp;
+  dst->pc = src->pc;
+  dst->pstate = src->pstate;
+
+  for (int i = 0; i < array_size(src->v); i++) {
+    simd->vregs[i] = src->v[i];
+  }
+
+  simd->fpsr = src->fpsr;
+  simd->fpcr = src->fpcr;
+#elif ARCH_X64
   dst->gregs[REG_RAX] = src->rax;
   dst->gregs[REG_RCX] = src->rcx;
   dst->gregs[REG_RDX] = src->rdx;
@@ -56,7 +95,9 @@ static void signal_handler(int signo, siginfo_t *info, void *ctx) {
   struct exception_state ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
   ex.fault_addr = (uintptr_t)info->si_addr;
-#if ARCH_X64
+#if ARCH_ARM64
+  ex.pc = uctx->uc_mcontext.pc;
+#elif ARCH_X64
   ex.pc = uctx->uc_mcontext.gregs[REG_RIP];
 #endif
   copy_state_to(&uctx->uc_mcontext, &ex.thread_state);

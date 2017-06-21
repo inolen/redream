@@ -15,7 +15,7 @@ static const exception_mask_t exception_mask =
 static int installed;
 static mach_port_t listen_port;
 
-static void copy_state_to(x86_thread_state64_t *src, union thread_state *dst) {
+static void copy_state_to(x86_thread_state64_t *src, struct thread_state *dst) {
   dst->rax = src->__rax;
   dst->rcx = src->__rcx;
   dst->rdx = src->__rdx;
@@ -35,7 +35,7 @@ static void copy_state_to(x86_thread_state64_t *src, union thread_state *dst) {
   dst->rip = src->__rip;
 }
 
-static void copy_state_from(union thread_state *src,
+static void copy_state_from(struct thread_state *src,
                             x86_thread_state64_t *dst) {
   dst->__rax = src->rax;
   dst->__rcx = src->rcx;

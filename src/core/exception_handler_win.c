@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "core/exception_handler.h"
 
-static void copy_state_to(PCONTEXT src, union thread_state *dst) {
+static void copy_state_to(PCONTEXT src, struct thread_state *dst) {
   dst->rax = src->Rax;
   dst->rcx = src->Rcx;
   dst->rdx = src->Rdx;
@@ -21,7 +21,7 @@ static void copy_state_to(PCONTEXT src, union thread_state *dst) {
   dst->rip = src->Rip;
 }
 
-static void copy_state_from(union thread_state *src, PCONTEXT dst) {
+static void copy_state_from(struct thread_state *src, PCONTEXT dst) {
   dst->Rax = src->rax;
   dst->Rcx = src->rcx;
   dst->Rdx = src->rdx;
