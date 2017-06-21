@@ -123,16 +123,22 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     uint32_t addr = block->guest_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     struct jit_opdef *def = sh4_get_opdef(data);
+
+#if 0
+    /* emit a call to the interpreter fallback for each instruction. this can
+       be used to bisect and find bad ir op implementations */
+    ir_fallback(ir, def->fallback, addr, data);
+    end_flags = SH4_FLAG_SET_PC;
+#else
     sh4_translate_cb cb = sh4_get_translator(data);
     union sh4_instr instr = {data};
-
     cb(guest, ir, flags, addr, instr);
+    end_flags = def->flags;
+#endif
 
     if (def->flags & SH4_FLAG_DELAYED) {
       offset += 2;
     }
-
-    end_flags = def->flags;
   }
 
   /* there are 3 possible block endings:
