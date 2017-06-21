@@ -349,14 +349,15 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
   return entry->handle;
 }
 
-static struct ta_surface *tr_alloc_surf(struct tr *tr, struct tr_context *rc,
-                                        int copy_from_prev) {
+static struct ta_surface *tr_reserve_surf(struct tr *tr, struct tr_context *rc,
+                                          int copy_from_prev) {
   CHECK_LT(rc->num_surfs, array_size(rc->surfs));
-  int id = rc->num_surfs++;
-  struct ta_surface *surf = &rc->surfs[id];
+
+  struct ta_surface *surf = &rc->surfs[rc->num_surfs];
 
   if (copy_from_prev) {
-    *surf = rc->surfs[id - 1];
+    CHECK(rc->num_surfs);
+    *surf = rc->surfs[rc->num_surfs - 1];
   } else {
     memset(surf, 0, sizeof(*surf));
   }
@@ -364,32 +365,32 @@ static struct ta_surface *tr_alloc_surf(struct tr *tr, struct tr_context *rc,
   surf->first_vert = rc->num_verts;
   surf->num_verts = 0;
 
-  /* default sort the surface */
-  struct tr_list *list = &rc->lists[tr->list_type];
-  list->surfs[list->num_surfs] = id;
-  list->num_surfs++;
-
   return surf;
 }
 
-static struct ta_vertex *tr_alloc_vert(struct tr *tr, struct tr_context *rc) {
-  CHECK_LT(rc->num_verts, array_size(rc->verts));
-  int id = rc->num_verts++;
-  struct ta_vertex *v = &rc->verts[id];
-  memset(v, 0, sizeof(*v));
+static struct ta_vertex *tr_reserve_vert(struct tr *tr, struct tr_context *rc) {
+  struct ta_surface *curr_surf = &rc->surfs[rc->num_surfs];
+  int idx = curr_surf->first_vert + curr_surf->num_verts;
 
-  /* update vertex count on the current surface */
-  struct ta_surface *surf = &rc->surfs[rc->num_surfs - 1];
-  surf->num_verts++;
+  CHECK_LT(idx, array_size(rc->verts));
+  struct ta_vertex *vert = &rc->verts[idx];
+  memset(vert, 0, sizeof(*vert));
 
-  return v;
+  curr_surf->num_verts++;
+
+  return vert;
 }
 
-static void tr_discard_incomplete_surf(struct tr *tr, struct tr_context *rc) {
-  /* free up the last surface if it wasn't finished */
-  if (tr->last_vertex && !tr->last_vertex->type0.pcw.end_of_strip) {
-    rc->num_surfs--;
-  }
+static void tr_commit_surf(struct tr *tr, struct tr_context *rc) {
+  /* default sort the current surface */
+  struct tr_list *list = &rc->lists[tr->list_type];
+  list->surfs[list->num_surfs] = rc->num_surfs;
+  list->num_surfs++;
+
+  /* commit the current surface */
+  struct ta_surface *curr_surf = &rc->surfs[rc->num_surfs];
+  rc->num_verts += curr_surf->num_verts;
+  rc->num_surfs++;
 }
 
 /*
@@ -467,7 +468,7 @@ static void tr_parse_bg(struct tr *tr, const struct tile_context *ctx,
   tr->list_type = TA_LIST_OPAQUE;
 
   /* translate the surface */
-  struct ta_surface *surf = tr_alloc_surf(tr, rc, 0);
+  struct ta_surface *surf = tr_reserve_surf(tr, rc, 0);
   surf->texture = 0;
   surf->depth_write = !ctx->bg_isp.z_write_disable;
   surf->depth_func = translate_depth_func(ctx->bg_isp.depth_compare_mode);
@@ -476,10 +477,10 @@ static void tr_parse_bg(struct tr *tr, const struct tile_context *ctx,
   surf->dst_blend = BLEND_NONE;
 
   /* translate the first 3 vertices */
-  struct ta_vertex *v0 = tr_alloc_vert(tr, rc);
-  struct ta_vertex *v1 = tr_alloc_vert(tr, rc);
-  struct ta_vertex *v2 = tr_alloc_vert(tr, rc);
-  struct ta_vertex *v3 = tr_alloc_vert(tr, rc);
+  struct ta_vertex *v0 = tr_reserve_vert(tr, rc);
+  struct ta_vertex *v1 = tr_reserve_vert(tr, rc);
+  struct ta_vertex *v2 = tr_reserve_vert(tr, rc);
+  struct ta_vertex *v3 = tr_reserve_vert(tr, rc);
 
   int offset = 0;
   offset = tr_parse_bg_vert(ctx, rc, offset, v0);
@@ -500,6 +501,8 @@ static void tr_parse_bg(struct tr *tr, const struct tile_context *ctx,
   v3->uv[0] = v2->uv[0];
   v3->uv[1] = v1->uv[1];
 
+  tr_commit_surf(tr, rc);
+
   tr->list_type = TA_NUM_LISTS;
 }
 
@@ -507,10 +510,9 @@ static void tr_parse_bg(struct tr *tr, const struct tile_context *ctx,
    Texture/Shading Instruction in the union tsp instruction word */
 static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
                                 struct tr_context *rc, const uint8_t *data) {
-  tr_discard_incomplete_surf(tr, rc);
-
   const union poly_param *param = (const union poly_param *)data;
 
+  /* reset state */
   tr->last_poly = param;
   tr->last_vertex = NULL;
   tr->vertex_type = ta_get_vert_type(param->type0.pcw);
@@ -564,7 +566,7 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
   }
 
   /* setup the new surface */
-  struct ta_surface *surf = tr_alloc_surf(tr, rc, 0);
+  struct ta_surface *surf = tr_reserve_surf(tr, rc, 0);
   surf->depth_write = !param->type0.isp_tsp.z_write_disable;
   surf->depth_func =
       translate_depth_func(param->type0.isp_tsp.depth_compare_mode);
@@ -602,17 +604,18 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
 static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
                                 struct tr_context *rc, const uint8_t *data) {
   const union vert_param *param = (const union vert_param *)data;
+
   /* if there is no need to change the Global Parameters, a Vertex Parameter
      for the next polygon may be input immediately after inputting a Vertex
      Parameter for which "End of Strip" was specified */
   if (tr->last_vertex && tr->last_vertex->type0.pcw.end_of_strip) {
-    tr_alloc_surf(tr, rc, 1);
+    tr_reserve_surf(tr, rc, 1);
   }
   tr->last_vertex = param;
 
   switch (tr->vertex_type) {
     case 0: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type0.xyz[0], param->type0.xyz[1], param->type0.xyz[2],
                 vert->xyz);
       PARSE_COLOR(param->type0.base_color, &vert->color);
@@ -622,7 +625,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 1: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type1.xyz[0], param->type1.xyz[1], param->type1.xyz[2],
                 vert->xyz);
       PARSE_COLOR_RGBA(param->type1.base_color_r, param->type1.base_color_g,
@@ -634,7 +637,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 2: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type2.xyz[0], param->type2.xyz[1], param->type2.xyz[2],
                 vert->xyz);
       PARSE_COLOR_INTENSITY(param->type2.base_intensity, &vert->color);
@@ -644,7 +647,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 3: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type3.xyz[0], param->type3.xyz[1], param->type3.xyz[2],
                 vert->xyz);
       PARSE_COLOR(param->type3.base_color, &vert->color);
@@ -654,7 +657,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 4: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type4.xyz[0], param->type4.xyz[1], param->type4.xyz[2],
                 vert->xyz);
       PARSE_COLOR(param->type4.base_color, &vert->color);
@@ -666,7 +669,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 5: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type5.xyz[0], param->type5.xyz[1], param->type5.xyz[2],
                 vert->xyz);
       PARSE_COLOR_RGBA(param->type5.base_color_r, param->type5.base_color_g,
@@ -681,7 +684,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 6: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type6.xyz[0], param->type6.xyz[1], param->type6.xyz[2],
                 vert->xyz);
       PARSE_COLOR_RGBA(param->type6.base_color_r, param->type6.base_color_g,
@@ -698,7 +701,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 7: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type7.xyz[0], param->type7.xyz[1], param->type7.xyz[2],
                 vert->xyz);
       PARSE_COLOR_INTENSITY(param->type7.base_intensity, &vert->color);
@@ -709,7 +712,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 8: {
-      struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+      struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type8.xyz[0], param->type8.xyz[1], param->type8.xyz[2],
                 vert->xyz);
       PARSE_COLOR_INTENSITY(param->type8.base_intensity, &vert->color);
@@ -726,7 +729,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
 
       for (int i = 0, l = array_size(indices); i < l; i++) {
         int idx = indices[i];
-        struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+        struct ta_vertex *vert = tr_reserve_vert(tr, rc);
 
         /* FIXME this is assuming all sprites are billboards */
         PARSE_XYZ(param->sprite0.xyz[idx][0], param->sprite0.xyz[idx][1],
@@ -745,7 +748,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
 
       for (int i = 0, l = array_size(indices); i < l; i++) {
         int idx = indices[i];
-        struct ta_vertex *vert = tr_alloc_vert(tr, rc);
+        struct ta_vertex *vert = tr_reserve_vert(tr, rc);
 
         /* FIXME this is assuming all sprites are billboards */
         PARSE_XYZ(param->sprite1.xyz[idx][0], param->sprite1.xyz[idx][1],
@@ -783,8 +786,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
      Strip" specification were not input, but parameters other than the Vertex
      Parameters were input, the polygon data in question is ignored and
      an interrupt signal is output */
-
-  /* FIXME is this true for sprites which come through this path as well? */
+  if (param->type0.pcw.end_of_strip) {
+    tr_commit_surf(tr, rc);
+  }
 }
 
 /* scratch buffers used by surface merge sort */
@@ -827,8 +831,6 @@ static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
 
 static void tr_parse_eol(struct tr *tr, const struct tile_context *ctx,
                          struct tr_context *rc, const uint8_t *data) {
-  tr_discard_incomplete_surf(tr, rc);
-
   tr->last_poly = NULL;
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
