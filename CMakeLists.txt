@@ -99,8 +99,19 @@ add_library(inih STATIC deps/inih/ini.c)
 list(APPEND RELIB_INCLUDES deps/inih)
 list(APPEND RELIB_LIBS inih)
 
+# vixl
+if(ARCH_A64)
+  file(GLOB VIXL_SOURCES deps/vixl/src/*.cc deps/vixl/src/aarch64/*.cc)
+  add_library(vixl STATIC ${VIXL_SOURCES})
+  target_compile_definitions(vixl PRIVATE -DVIXL_CODE_BUFFER_MALLOC)
+  list(APPEND RELIB_INCLUDES deps/vixl/src)
+  list(APPEND RELIB_LIBS vixl)
+endif()
+
 # xbyak
-list(APPEND RELIB_INCLUDES deps/xbyak-4.901)
+if(ARCH_X64)
+  list(APPEND RELIB_INCLUDES deps/xbyak-4.901)
+endif()
 
 #--------------------------------------------------
 # optional libs
@@ -123,28 +134,28 @@ list(APPEND RELIB_INCLUDES deps/microprofile)
 
 # sdl2
 if(NOT BUILD_LIBRETRO)
-set(DIRECTX OFF CACHE BOOL "")
-set(RENDER_D3D OFF CACHE BOOL "")
-set(SDL_ATOMIC OFF CACHE BOOL "")
-set(SDL_CPUINFO ON CACHE BOOL "")
-set(SDL_FILESYSTEM OFF CACHE BOOL "")
-set(SDL_HAPTIC OFF CACHE BOOL "")
-set(SDL_POWER OFF CACHE BOOL "")
-set(SDL_RENDER OFF CACHE BOOL "")
-set(SDL_SHARED OFF CACHE BOOL "")
-set(SDL_STATIC ON CACHE BOOL "")
+  set(DIRECTX OFF CACHE BOOL "")
+  set(RENDER_D3D OFF CACHE BOOL "")
+  set(SDL_ATOMIC OFF CACHE BOOL "")
+  set(SDL_CPUINFO ON CACHE BOOL "")
+  set(SDL_FILESYSTEM OFF CACHE BOOL "")
+  set(SDL_HAPTIC OFF CACHE BOOL "")
+  set(SDL_POWER OFF CACHE BOOL "")
+  set(SDL_RENDER OFF CACHE BOOL "")
+  set(SDL_SHARED OFF CACHE BOOL "")
+  set(SDL_STATIC ON CACHE BOOL "")
 
-if(PLATFORM_DARWIN)
-  set(SDL_FRAMEWORK_CARBON 1)
-endif()
+  if(PLATFORM_DARWIN)
+    set(SDL_FRAMEWORK_CARBON 1)
+  endif()
 
-add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
-list(APPEND RELIB_INCLUDES deps/sdl2-2.0.5/include)
+  add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
+  list(APPEND RELIB_INCLUDES deps/sdl2-2.0.5/include)
 
-if(MINGW)
-  list(APPEND SDL_LIBS mingw32)
-endif()
-list(APPEND SDL_LIBS SDL2main SDL2-static)
+  if(MINGW)
+    list(APPEND SDL_LIBS mingw32)
+  endif()
+  list(APPEND SDL_LIBS SDL2main SDL2-static)
 endif()
 
 #--------------------------------------------------
@@ -157,7 +168,6 @@ if(CLANG_FORMAT_FOUND)
 file(GLOB_RECURSE CLANG_FORMAT_ARGS "src/*.c" "src/*.cc" "src/*.h" "test/*.c" "test/*.cc" "test/*.h" "tools/*.c" "tools/*.cc" "tools/*.h")
 add_custom_target(format ${CLANG_FORMAT_EXECUTABLE} -i ${CLANG_FORMAT_ARGS})
 endif()
-
 
 #--------------------------------------------------
 # redream sources, includes and libs, common to multiple projects
