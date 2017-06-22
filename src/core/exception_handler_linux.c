@@ -7,7 +7,7 @@ static struct sigaction old_sigsegv;
 static struct sigaction old_sigill;
 
 static inline void copy_state_to(mcontext_t *src, struct thread_state *dst) {
-#if ARCH_ARM64
+#if ARCH_A64
   struct fpsimd_context *simd = (struct fpsimd_context *)&src->__reserved;
   CHECK_EQ(simd->head.magic, FPSIMD_MAGIC);
   CHECK_EQ(simd->head.size, sizeof(struct fpsimd_context));
@@ -48,7 +48,7 @@ static inline void copy_state_to(mcontext_t *src, struct thread_state *dst) {
 }
 
 static inline void copy_state_from(struct thread_state *src, mcontext_t *dst) {
-#if ARCH_ARM64
+#if ARCH_A64
   struct fpsimd_context *simd = (struct fpsimd_context *)&dst->__reserved;
   CHECK_EQ(simd->head.magic, FPSIMD_MAGIC);
   CHECK_EQ(simd->head.size, sizeof(struct fpsimd_context));
@@ -95,7 +95,7 @@ static void signal_handler(int signo, siginfo_t *info, void *ctx) {
   struct exception_state ex;
   ex.type = signo == SIGSEGV ? EX_ACCESS_VIOLATION : EX_INVALID_INSTRUCTION;
   ex.fault_addr = (uintptr_t)info->si_addr;
-#if ARCH_ARM64
+#if ARCH_A64
   ex.pc = uctx->uc_mcontext.pc;
 #elif ARCH_X64
   ex.pc = uctx->uc_mcontext.gregs[REG_RIP];

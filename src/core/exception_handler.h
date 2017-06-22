@@ -14,7 +14,7 @@ enum exception_type {
 };
 
 struct thread_state {
-#if ARCH_ARM64
+#if ARCH_A64
   union {
     struct {
       uint64_t r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14,

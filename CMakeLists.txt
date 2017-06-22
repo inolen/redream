@@ -44,7 +44,7 @@ elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
 endif()
 
 if(PLATFORM_ANDROID)
-  set(ARCH_ARM64 TRUE)
+  set(ARCH_A64 TRUE)
 else()
   set(ARCH_X64 TRUE)
 endif()
@@ -277,8 +277,8 @@ if(ARCH_X64)
     src/jit/backend/x64/x64_backend.cc
     src/jit/backend/x64/x64_disassembler.c
     src/jit/backend/x64/x64_dispatch.cc)
-elseif(ARCH_ARM64)
-  list(APPEND RELIB_DEFS ARCH_ARM64=1)
+elseif(ARCH_A64)
+  list(APPEND RELIB_DEFS ARCH_A64=1)
 endif()
 
 if(COMPILER_GCC OR COMPILER_CLANG)
