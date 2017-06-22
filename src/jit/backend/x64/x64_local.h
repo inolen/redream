@@ -12,9 +12,6 @@ extern "C" {
 #include "jit/backend/jit_backend.h"
 }
 
-#define X64_STACK_SIZE 1024
-#define X64_THUNK_SIZE 1024
-
 enum xmm_constant {
   XMM_CONST_ABS_MASK_PS,
   XMM_CONST_ABS_MASK_PD,
@@ -56,7 +53,43 @@ extern const Xbyak::Reg64 arg2;
 extern const Xbyak::Reg64 arg3;
 extern const Xbyak::Reg64 tmp0;
 extern const Xbyak::Reg64 tmp1;
+extern const Xbyak::Reg64 guestctx;
+extern const Xbyak::Reg64 membase;
 
+/*
+ * backend functionality used by emitters
+ */
+#if PLATFORM_WINDOWS
+#define X64_STACK_SHADOW_SPACE 32
+#else
+#define X64_STACK_SHADOW_SPACE 0
+#endif
+#define X64_STACK_OFFSET_LOCALS (X64_STACK_SHADOW_SPACE + 8)
+#define X64_STACK_SIZE 1024
+
+#define X64_USE_AVX backend->use_avx
+
+struct ir_value;
+
+const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
+                                 const struct ir_value *v);
+const Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
+                                 const struct ir_value *v);
+void x64_backend_load_mem(struct x64_backend *backend,
+                          const struct ir_value *dst,
+                          const Xbyak::RegExp &srcExp);
+void x64_backend_store_mem(struct x64_backend *backend,
+                           const Xbyak::RegExp &dstExp,
+                           const struct ir_value *src);
+void x64_backend_mov_value(struct x64_backend *backend, Xbyak::Reg dst,
+                           const struct ir_value *v);
+const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
+                                              enum xmm_constant c);
+int x64_backend_can_encode_imm(const struct ir_value *v);
+
+/*
+ * dispatch
+ */
 void x64_dispatch_init(struct x64_backend *backend);
 void x64_dispatch_shutdown(struct x64_backend *backend);
 void x64_dispatch_emit_thunks(struct x64_backend *backend);
@@ -68,5 +101,12 @@ void x64_dispatch_invalidate_code(struct jit_backend *base, uint32_t addr);
 void x64_dispatch_patch_edge(struct jit_backend *base, void *code, void *dst);
 void x64_dispatch_restore_edge(struct jit_backend *base, void *code,
                                uint32_t dst);
+
+/*
+ * emitters
+ */
+typedef void (*x64_emit_cb)(struct x64_backend *, Xbyak::CodeGenerator &,
+                            const struct ir_instr *);
+extern x64_emit_cb x64_backend_emitters[];
 
 #endif

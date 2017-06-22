@@ -286,7 +286,8 @@ if(ARCH_X64)
   list(APPEND RELIB_SOURCES
     src/jit/backend/x64/x64_backend.cc
     src/jit/backend/x64/x64_disassembler.c
-    src/jit/backend/x64/x64_dispatch.cc)
+    src/jit/backend/x64/x64_dispatch.cc
+    src/jit/backend/x64/x64_emitters.cc)
 elseif(ARCH_A64)
   list(APPEND RELIB_DEFS ARCH_A64=1)
 endif()
