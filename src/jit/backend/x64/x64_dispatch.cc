@@ -82,13 +82,13 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     backend->dispatch_dynamic = e.getCurr<void *>();
 
 #if LOG_DISPATCH_EVERY_N
-    e.mov(arg0, e.r14);
+    e.mov(arg0, guestctx);
     e.call(&x64_dispatch_log);
 #endif
 
     /* invasively look into the jit's cache */
     e.mov(e.rax, (uint64_t)backend->cache);
-    e.mov(e.ecx, e.dword[e.r14 + jit->guest->offset_pc]);
+    e.mov(e.ecx, e.dword[guestctx + jit->guest->offset_pc]);
     e.and_(e.ecx, backend->cache_mask);
     e.jmp(e.qword[e.rax + e.rcx * (sizeof(void *) >> backend->cache_shift)]);
   }
@@ -108,7 +108,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     e.mov(arg0, (uint64_t)jit);
     e.pop(arg1);
     e.sub(arg1, 5 /* sizeof jmp instr */);
-    e.mov(arg2, e.qword[e.r14 + jit->guest->offset_pc]);
+    e.mov(arg2, e.qword[guestctx + jit->guest->offset_pc]);
     e.call(&jit_add_edge);
 #else
     e.pop(arg1);
@@ -124,7 +124,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     backend->dispatch_compile = e.getCurr<void *>();
 
     e.mov(arg0, (uint64_t)jit);
-    e.mov(arg1, e.dword[e.r14 + jit->guest->offset_pc]);
+    e.mov(arg1, e.dword[guestctx + jit->guest->offset_pc]);
     e.call(&jit_compile_block);
     e.jmp(backend->dispatch_dynamic);
   }
@@ -149,6 +149,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
 
     backend->dispatch_enter = e.getCurr<void (*)(int)>();
 
+    /* create stack frame */
     e.push(e.rbx);
     e.push(e.rbp);
 #if PLATFORM_WINDOWS
@@ -160,12 +161,14 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     e.push(e.r14);
     e.push(e.r15);
     e.sub(e.rsp, X64_STACK_SIZE + 8);
-    e.mov(e.r14, (uint64_t)jit->guest->ctx);
-    e.mov(e.r15, (uint64_t)jit->guest->mem);
+
+    /* assign fixed registers */
+    e.mov(guestctx, (uint64_t)jit->guest->ctx);
+    e.mov(guestmem, (uint64_t)jit->guest->mem);
 
     /* reset run state */
-    e.mov(e.dword[e.r14 + jit->guest->offset_cycles], arg0);
-    e.mov(e.dword[e.r14 + jit->guest->offset_instrs], 0);
+    e.mov(e.dword[guestctx + jit->guest->offset_cycles], arg0);
+    e.mov(e.dword[guestctx + jit->guest->offset_instrs], 0);
 
     e.jmp(backend->dispatch_dynamic);
   }
@@ -177,6 +180,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
 
     backend->dispatch_exit = e.getCurr<void *>();
 
+    /* destroy stack frame */
     e.add(e.rsp, X64_STACK_SIZE + 8);
     e.pop(e.r15);
     e.pop(e.r14);

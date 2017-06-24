@@ -67,7 +67,7 @@ const Xbyak::Reg64 arg3(x64_arg3_idx);
 const Xbyak::Reg64 tmp0(x64_tmp0_idx);
 const Xbyak::Reg64 tmp1(x64_tmp1_idx);
 const Xbyak::Reg64 guestctx(Xbyak::Operand::R14);
-const Xbyak::Reg64 membase(Xbyak::Operand::R15);
+const Xbyak::Reg64 guestmem(Xbyak::Operand::R15);
 
 const struct jit_register x64_registers[] = {
     {"rbx", VALUE_INT_MASK, (const void *)&Xbyak::util::rbx},
@@ -493,7 +493,7 @@ static int x64_backend_handle_exception(struct jit_backend *base,
      push the return address (the next instruction after the current mov) to
      the stack. also, adjust the stack for the return address, with an extra
      8 bytes to keep it aligned */
-  *(uintptr_t *)(ex->thread_state.rsp - 8) = ex->thread_state.rip + mov.length;
+  *(uint64_t *)(ex->thread_state.rsp - 8) = ex->thread_state.rip + mov.length;
   ex->thread_state.rsp -= X64_STACK_SHADOW_SPACE + 8 + 8;
   CHECK(ex->thread_state.rsp % 16 == 0);
 

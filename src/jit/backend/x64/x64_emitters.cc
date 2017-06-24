@@ -60,7 +60,7 @@ EMITTER(LOAD_GUEST) {
     if (ptr) {
       const Xbyak::Reg a = x64_backend_reg(backend, addr);
 
-      x64_backend_load_mem(backend, result, a.cvt64() + membase);
+      x64_backend_load_mem(backend, result, a.cvt64() + guestmem);
     } else {
       int data_size = ir_type_size(result->type);
       uint32_t data_mask = (1 << (data_size * 8)) - 1;
@@ -117,7 +117,7 @@ EMITTER(STORE_GUEST) {
     if (ptr) {
       const Xbyak::Reg a = x64_backend_reg(backend, addr);
 
-      x64_backend_store_mem(backend, a.cvt64() + membase, data);
+      x64_backend_store_mem(backend, a.cvt64() + guestmem, data);
     } else {
       const Xbyak::Reg b = x64_backend_reg(backend, data);
       int data_size = ir_type_size(data->type);
@@ -162,13 +162,13 @@ EMITTER(STORE_GUEST) {
 EMITTER(LOAD_FAST) {
   const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
 
-  x64_backend_load_mem(backend, instr->result, a.cvt64() + membase);
+  x64_backend_load_mem(backend, instr->result, a.cvt64() + guestmem);
 }
 
 EMITTER(STORE_FAST) {
   const Xbyak::Reg a = x64_backend_reg(backend, instr->arg[0]);
 
-  x64_backend_store_mem(backend, a.cvt64() + membase, instr->arg[1]);
+  x64_backend_store_mem(backend, a.cvt64() + guestmem, instr->arg[1]);
 }
 
 EMITTER(LOAD_CONTEXT) {

@@ -47,15 +47,6 @@ struct x64_backend {
   csh capstone_handle;
 };
 
-extern const Xbyak::Reg64 arg0;
-extern const Xbyak::Reg64 arg1;
-extern const Xbyak::Reg64 arg2;
-extern const Xbyak::Reg64 arg3;
-extern const Xbyak::Reg64 tmp0;
-extern const Xbyak::Reg64 tmp1;
-extern const Xbyak::Reg64 guestctx;
-extern const Xbyak::Reg64 membase;
-
 /*
  * backend functionality used by emitters
  */
@@ -70,6 +61,15 @@ extern const Xbyak::Reg64 membase;
 #define X64_USE_AVX backend->use_avx
 
 struct ir_value;
+
+extern const Xbyak::Reg64 arg0;
+extern const Xbyak::Reg64 arg1;
+extern const Xbyak::Reg64 arg2;
+extern const Xbyak::Reg64 arg3;
+extern const Xbyak::Reg64 tmp0;
+extern const Xbyak::Reg64 tmp1;
+extern const Xbyak::Reg64 guestctx;
+extern const Xbyak::Reg64 guestmem;
 
 const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
                                  const struct ir_value *v);
