@@ -28,11 +28,14 @@ extern "C" {
 #include <sys/mman.h>
 }
 
+#ifdef VIXL_CODE_BUFFER_STATIC
+#include <stdexcept>
+#endif
+
 #include "code-buffer-vixl.h"
 #include "utils-vixl.h"
 
 namespace vixl {
-
 
 CodeBuffer::CodeBuffer(size_t capacity)
     : buffer_(NULL),
@@ -52,6 +55,8 @@ CodeBuffer::CodeBuffer(size_t capacity)
                                          MAP_PRIVATE | MAP_ANONYMOUS,
                                          -1,
                                          0));
+#elif defined(VIXL_CODE_BUFFER_STATIC)
+  VIXL_ABORT_WITH_MSG("Can't use managed code buffer with static allocator.");
 #else
 #error Unknown code buffer allocator.
 #endif
@@ -81,8 +86,6 @@ CodeBuffer::~CodeBuffer() {
     free(buffer_);
 #elif defined(VIXL_CODE_BUFFER_MMAP)
     munmap(buffer_, capacity_);
-#else
-#error Unknown code buffer allocator.
 #endif
   }
 }
@@ -166,6 +169,8 @@ void CodeBuffer::Grow(size_t new_capacity) {
   buffer_ = static_cast<byte*>(
       mremap(buffer_, capacity_, new_capacity, MREMAP_MAYMOVE));
   VIXL_CHECK(buffer_ != MAP_FAILED);
+#elif defined(VIXL_CODE_BUFFER_STATIC)
+  throw std::runtime_error("Code buffer is out of space");
 #else
 #error Unknown code buffer allocator.
 #endif
