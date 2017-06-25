@@ -1,8 +1,8 @@
 #include "tracer.h"
 #include "core/math.h"
+#include "file/trace.h"
 #include "guest/pvr/ta.h"
 #include "guest/pvr/tr.h"
-#include "guest/pvr/trace.h"
 #include "host/host.h"
 #include "render/imgui.h"
 

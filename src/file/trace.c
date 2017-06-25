@@ -1,5 +1,5 @@
 #include <limits.h>
-#include "guest/pvr/trace.h"
+#include "file/trace.h"
 #include "core/assert.h"
 #include "core/filesystem.h"
 #include "core/math.h"

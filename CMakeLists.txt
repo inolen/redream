@@ -188,6 +188,7 @@ set(RELIB_SOURCES
   src/core/rb_tree.c
   src/core/sort.c
   src/core/string.c
+  src/file/trace.c
   src/guest/aica/aica.c
   src/guest/arm7/arm7.c
   src/guest/bios/bios.c
@@ -204,7 +205,6 @@ set(RELIB_SOURCES
   src/guest/pvr/pvr.c
   src/guest/pvr/ta.c
   src/guest/pvr/tr.c
-  src/guest/pvr/trace.c
   src/guest/rom/boot.c
   src/guest/rom/flash.c
   src/guest/sh4/sh4.c
