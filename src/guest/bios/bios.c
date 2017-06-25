@@ -13,9 +13,9 @@
 #include "guest/sh4/sh4.h"
 #include "render/imgui.h"
 
-DEFINE_OPTION_STRING(region, "america", "System region");
-DEFINE_OPTION_STRING(language, "english", "System language");
-DEFINE_OPTION_STRING(broadcast, "ntsc", "System broadcast mode");
+DEFINE_PERSISTENT_OPTION_STRING(region, "america", "System region");
+DEFINE_PERSISTENT_OPTION_STRING(language, "english", "System language");
+DEFINE_PERSISTENT_OPTION_STRING(broadcast, "ntsc", "System broadcast mode");
 
 /* system settings */
 static const char *regions[] = {

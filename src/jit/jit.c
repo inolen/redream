@@ -18,7 +18,7 @@
 #include <unistd.h>
 #endif
 
-DEFINE_OPTION_INT(perf, 0, "Generate perf-compatible maps for genrated code");
+DEFINE_OPTION_INT(perf, 0, "Create maps for compiled code for use with perf");
 
 static int block_map_cmp(const struct rb_node *rb_lhs,
                          const struct rb_node *rb_rhs) {

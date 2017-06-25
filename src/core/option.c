@@ -7,6 +7,8 @@
 
 static struct list s_options;
 
+DEFINE_OPTION_INT(help, 0, "Show help");
+
 static struct option *options_find(const char *name) {
   list_for_each_entry(opt, &s_options, struct option, it) {
     if (!strcmp(opt->name, name)) {
@@ -19,7 +21,7 @@ static struct option *options_find(const char *name) {
 
 static void options_parse_value(struct option *opt, const char *value) {
   switch (opt->type) {
-    case OPT_INT: {
+    case OPTION_INT: {
       if (!strcmp(value, "false")) {
         *(int *)opt->storage = 0;
       } else if (!strcmp(value, "true") || !value[0]) {
@@ -29,36 +31,87 @@ static void options_parse_value(struct option *opt, const char *value) {
       }
     } break;
 
-    case OPT_STRING:
-      strncpy((char *)opt->storage, value, MAX_OPTION_LENGTH);
+    case OPTION_STRING:
+      strncpy((char *)opt->storage, value, OPTION_MAX_LENGTH);
       break;
   }
 }
 
 static const char *options_format_value(struct option *opt) {
-  static char value[MAX_OPTION_LENGTH];
+  static char value[OPTION_MAX_LENGTH];
 
   switch (opt->type) {
-    case OPT_INT:
+    case OPTION_INT:
       snprintf(value, sizeof(value), "%d", *(int *)opt->storage);
       return value;
 
-    case OPT_STRING:
+    case OPTION_STRING:
       return (char *)opt->storage;
   }
 
   return NULL;
 }
 
-void options_register(struct option *option) {
-  list_add(&s_options, &option->it);
+static int options_ini_handler(void *user, const char *section,
+                               const char *name, const char *value) {
+  struct option *opt = options_find(name);
+
+  if (opt) {
+    options_parse_value(opt, value);
+  }
+
+  return 0;
 }
 
-void options_unregister(struct option *option) {
-  list_remove(&s_options, &option->it);
+static void options_print_help() {
+  int max_name_width = 0;
+  int max_desc_width = 0;
+
+  list_for_each_entry(opt, &s_options, struct option, it) {
+    if (!opt->desc) {
+      continue;
+    }
+
+    int l = (int)strlen(opt->name);
+    max_name_width = MAX(l, max_name_width);
+
+    l = (int)strlen(opt->desc);
+    max_desc_width = MAX(l, max_desc_width);
+  }
+
+  list_for_each_entry(opt, &s_options, struct option, it) {
+    if (!opt->desc) {
+      continue;
+    }
+
+    LOG_INFO("--%-*s  %-*s  %s", max_name_width, opt->name, max_desc_width,
+             opt->desc, options_format_value(opt));
+  }
 }
 
-void options_parse(int *argc, char ***argv) {
+int options_write(const char *filename) {
+  FILE *output = fopen(filename, "wt");
+
+  if (!output) {
+    return 0;
+  }
+
+  list_for_each_entry(opt, &s_options, struct option, it) {
+    if (opt->flags & OPTION_PERSIST) {
+      fprintf(output, "%s: %s\n", opt->name, options_format_value(opt));
+    }
+  }
+
+  fclose(output);
+
+  return 1;
+}
+
+int options_read(const char *filename) {
+  return ini_parse(filename, options_ini_handler, NULL) >= 0;
+}
+
+int options_parse(int *argc, char ***argv) {
   int end = *argc;
 
   for (int i = 1; i < end;) {
@@ -100,61 +153,19 @@ void options_parse(int *argc, char ***argv) {
 
   *argc -= end - 1;
   *argv += end - 1;
-}
 
-static int options_ini_handler(void *user, const char *section,
-                               const char *name, const char *value) {
-  struct option *opt = options_find(name);
-
-  if (opt) {
-    options_parse_value(opt, value);
-  }
-
-  return 0;
-}
-
-int options_read(const char *filename) {
-  return ini_parse(filename, options_ini_handler, NULL) >= 0;
-}
-
-int options_write(const char *filename) {
-  FILE *output = fopen(filename, "wt");
-
-  if (!output) {
+  if (OPTION_help) {
+    options_print_help();
     return 0;
   }
-
-  list_for_each_entry(opt, &s_options, struct option, it) {
-    fprintf(output, "%s: %s\n", opt->name, options_format_value(opt));
-  }
-
-  fclose(output);
 
   return 1;
 }
 
-void options_print_help() {
-  int max_name_width = 0;
-  int max_desc_width = 0;
+void options_unregister(struct option *option) {
+  list_remove(&s_options, &option->it);
+}
 
-  list_for_each_entry(opt, &s_options, struct option, it) {
-    if (opt->desc == OPTION_HIDDEN) {
-      continue;
-    }
-
-    int l = (int)strlen(opt->name);
-    max_name_width = MAX(l, max_name_width);
-
-    l = (int)strlen(opt->desc);
-    max_desc_width = MAX(l, max_desc_width);
-  }
-
-  list_for_each_entry(opt, &s_options, struct option, it) {
-    if (opt->desc == OPTION_HIDDEN) {
-      continue;
-    }
-
-    LOG_INFO("--%-*s  %-*s  %s", max_name_width, opt->name, max_desc_width,
-             opt->desc, options_format_value(opt));
-  }
+void options_register(struct option *option) {
+  list_add(&s_options, &option->it);
 }

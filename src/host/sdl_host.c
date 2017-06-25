@@ -14,7 +14,6 @@
 
 DEFINE_OPTION_INT(audio, 1, "Enable audio");
 DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
-DEFINE_OPTION_INT(help, 0, "Show help");
 
 #define AUDIO_FREQ 44100
 #define VIDEO_DEFAULT_WIDTH 640
@@ -795,11 +794,8 @@ int main(int argc, char **argv) {
   options_read(config);
 
   /* override options from the command line */
-  options_parse(&argc, &argv);
-
-  if (OPTION_help) {
-    options_print_help();
-    return EXIT_SUCCESS;
+  if (!options_parse(&argc, &argv)) {
+    return EXIT_FAILURE;
   }
 
   /* init host audio, video and input systems */
