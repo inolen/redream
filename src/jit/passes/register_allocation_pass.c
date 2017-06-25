@@ -57,138 +57,40 @@ struct ra_use {
   int next_idx;
 };
 
-/* register allocation works over extended basic blocks by recursively iterating
-   each path in the control flow tree, passing the output state of each block as
-   the input state of each of its successor blocks. all state that is passed in
-   this way is encapsulated inside of the ra_state struct, which is pushed and
-   popped to a stack while iterating through ra_push_state / ra_pop_state */
-struct ra_state {
+struct ra {
+  const struct jit_register *regs;
+  int num_regs;
+
   struct ra_bin *bins;
 
   struct ra_tmp *tmps;
   int num_tmps;
   int max_tmps;
 
-  struct list_node it;
-};
-
-struct ra {
-  const struct jit_register *regs;
-  int num_regs;
-
-  /* uses are constant throughout allocation, no need to push / pop as part of
-     ra_state struct */
   struct ra_use *uses;
   int num_uses;
   int max_uses;
-
-  struct list live_state;
-  struct list free_state;
-  struct ra_state *state;
 };
 
 #define NO_TMP -1
 #define NO_USE -1
 
-#define ra_get_bin(i) &ra->state->bins[(i)]
+#define ra_get_bin(i) &ra->bins[(i)]
 
 #define ra_get_ordinal(i) ((int)(i)->tag)
 #define ra_set_ordinal(i, ord) (i)->tag = (intptr_t)(ord)
 
 #define ra_get_packed(b) \
-  ((b)->tmp_idx == NO_TMP ? NULL : &ra->state->tmps[(b)->tmp_idx])
-#define ra_set_packed(b, t) \
-  (b)->tmp_idx = (t) ? (int)((t)-ra->state->tmps) : NO_TMP
+  ((b)->tmp_idx == NO_TMP ? NULL : &ra->tmps[(b)->tmp_idx])
+#define ra_set_packed(b, t) (b)->tmp_idx = (t) ? (int)((t)-ra->tmps) : NO_TMP
 
-#define ra_get_tmp(v) (&ra->state->tmps[(v)->tag])
-#define ra_set_tmp(v, t) (v)->tag = (int)((t)-ra->state->tmps)
+#define ra_get_tmp(v) (&ra->tmps[(v)->tag])
+#define ra_set_tmp(v, t) (v)->tag = (int)((t)-ra->tmps)
 
 static int ra_reg_can_store(const struct jit_register *reg,
                             const struct ir_value *v) {
   int mask = 1 << v->type;
   return (reg->value_types & mask) == mask;
-}
-
-static void ra_reset_state(struct ra *ra, struct ra_state *state) {
-  for (int i = 0; i < ra->num_regs; i++) {
-    struct ra_bin *bin = &state->bins[i];
-    bin->tmp_idx = NO_TMP;
-  }
-
-  state->num_tmps = 0;
-}
-
-static void ra_copy_state(struct ra *ra, struct ra_state *dst,
-                          struct ra_state *src) {
-  if (src->num_tmps > dst->max_tmps) {
-    dst->max_tmps = src->max_tmps;
-    dst->tmps = realloc(dst->tmps, dst->max_tmps * sizeof(struct ra_tmp));
-  }
-
-  memcpy(dst->bins, src->bins, ra->num_regs * sizeof(struct ra_bin));
-  memcpy(dst->tmps, src->tmps, src->num_tmps * sizeof(struct ra_tmp));
-  dst->num_tmps = src->num_tmps;
-}
-
-static void ra_destroy_state(struct ra *ra, struct ra_state *state) {
-  free(state->tmps);
-  free(state->bins);
-  free(state);
-}
-
-static struct ra_state *ra_create_state(struct ra *ra) {
-  struct ra_state *state = calloc(1, sizeof(struct ra_state));
-
-  state->bins = calloc(ra->num_regs, sizeof(struct ra_bin));
-
-  for (int i = 0; i < ra->num_regs; i++) {
-    struct ra_bin *bin = &state->bins[i];
-    bin->reg = &ra->regs[i];
-  }
-
-  return state;
-}
-
-static void ra_pop_state(struct ra *ra) {
-  /* pop top state from live list */
-  struct ra_state *state =
-      list_last_entry(&ra->live_state, struct ra_state, it);
-  CHECK_NOTNULL(state);
-  list_remove(&ra->live_state, &state->it);
-
-  /* push state back to free list */
-  list_add(&ra->free_state, &state->it);
-
-  /* cache off latest state */
-  state = list_last_entry(&ra->live_state, struct ra_state, it);
-
-  ra->state = state;
-}
-
-static void ra_push_state(struct ra *ra) {
-  struct ra_state *state =
-      list_first_entry(&ra->free_state, struct ra_state, it);
-
-  if (state) {
-    /* remove from the free list */
-    list_remove(&ra->free_state, &state->it);
-  } else {
-    /* allocate new state if one wasn't available on the free list */
-    state = ra_create_state(ra);
-  }
-
-  /* push state to live list */
-  list_add(&ra->live_state, &state->it);
-
-  /* copy previous state into new state */
-  if (ra->state) {
-    ra_copy_state(ra, state, ra->state);
-  } else {
-    ra_reset_state(ra, state);
-  }
-
-  /* cache off latest state */
-  ra->state = state;
 }
 
 static void ra_add_use(struct ra *ra, struct ra_tmp *tmp, int ordinal) {
@@ -223,41 +125,34 @@ static void ra_add_use(struct ra *ra, struct ra_tmp *tmp, int ordinal) {
 }
 
 static struct ra_tmp *ra_create_tmp(struct ra *ra, struct ir_value *value) {
-  if (ra->state->num_tmps >= ra->state->max_tmps) {
+  if (ra->num_tmps >= ra->max_tmps) {
     /* grow array */
-    int old_max = ra->state->max_tmps;
-    ra->state->max_tmps = MAX(32, ra->state->max_tmps * 2);
-    ra->state->tmps =
-        realloc(ra->state->tmps, ra->state->max_tmps * sizeof(struct ra_tmp));
+    int old_max = ra->max_tmps;
+    ra->max_tmps = MAX(32, ra->max_tmps * 2);
+    ra->tmps = realloc(ra->tmps, ra->max_tmps * sizeof(struct ra_tmp));
 
     /* initialize the new entries */
-    memset(ra->state->tmps + old_max, 0,
-           (ra->state->max_tmps - old_max) * sizeof(struct ra_tmp));
+    memset(ra->tmps + old_max, 0,
+           (ra->max_tmps - old_max) * sizeof(struct ra_tmp));
   }
 
   /* reset the temporary's state, reusing the previously allocated uses array */
-  struct ra_tmp *tmp = &ra->state->tmps[ra->state->num_tmps];
+  struct ra_tmp *tmp = &ra->tmps[ra->num_tmps];
   tmp->next_use_idx = NO_USE;
   tmp->last_use_idx = NO_USE;
   tmp->value = NULL;
   tmp->slot = NULL;
 
   /* assign the temporary to the value */
-  value->tag = ra->state->num_tmps++;
+  value->tag = ra->num_tmps++;
 
   return tmp;
 }
 
-static void ra_validate_r(struct ra *ra, struct ir *ir, struct ir_block *block,
-                          struct ir_value **active_in) {
+static void ra_validate(struct ra *ra, struct ir *ir, struct ir_block *block) {
   size_t active_size = sizeof(struct ir_value *) * ra->num_regs;
   struct ir_value **active = alloca(active_size);
-
-  if (active_in) {
-    memcpy(active, active_in, active_size);
-  } else {
-    memset(active, 0, active_size);
-  }
+  memset(active, 0, active_size);
 
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
     for (int i = 0; i < MAX_INSTR_ARGS; i++) {
@@ -275,16 +170,6 @@ static void ra_validate_r(struct ra *ra, struct ir *ir, struct ir_block *block,
       active[instr->result->reg] = instr->result;
     }
   }
-
-  list_for_each_entry(edge, &block->outgoing, struct ir_edge, it) {
-    ra_validate_r(ra, ir, edge->dst, active);
-  }
-}
-
-static void ra_validate(struct ra *ra, struct ir *ir) {
-  struct ir_block *head_block =
-      list_first_entry(&ir->blocks, struct ir_block, it);
-  ra_validate_r(ra, ir, head_block, NULL);
 }
 
 static void ra_pack_bin(struct ra *ra, struct ra_bin *bin,
@@ -506,7 +391,7 @@ static void ra_expire_tmps(struct ra *ra, struct ir *ir,
   }
 }
 
-static void ra_visit_r(struct ra *ra, struct ir *ir, struct ir_block *block) {
+static void ra_visit(struct ra *ra, struct ir *ir, struct ir_block *block) {
   /* use safe iterator to avoid iterating over fills inserted
      when rewriting arguments */
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
@@ -518,24 +403,10 @@ static void ra_visit_r(struct ra *ra, struct ir *ir, struct ir_block *block) {
 
     ra_alloc(ra, ir, instr->result);
   }
-
-  list_for_each_entry(edge, &block->outgoing, struct ir_edge, it) {
-    ra_push_state(ra);
-
-    ra_visit_r(ra, ir, edge->dst);
-
-    ra_pop_state(ra);
-  }
 }
 
-static void ra_visit(struct ra *ra, struct ir *ir) {
-  struct ir_block *head_block =
-      list_first_entry(&ir->blocks, struct ir_block, it);
-  ra_visit_r(ra, ir, head_block);
-}
-
-static void ra_create_temporaries_r(struct ra *ra, struct ir *ir,
-                                    struct ir_block *block) {
+static void ra_create_temporaries(struct ra *ra, struct ir *ir,
+                                  struct ir_block *block) {
   list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
     int ordinal = ra_get_ordinal(instr);
 
@@ -555,69 +426,50 @@ static void ra_create_temporaries_r(struct ra *ra, struct ir *ir,
       ra_add_use(ra, tmp, ordinal);
     }
   }
-
-  list_for_each_entry(edge, &block->outgoing, struct ir_edge, it) {
-    ra_create_temporaries_r(ra, ir, edge->dst);
-  }
 }
 
-static void ra_create_temporaries(struct ra *ra, struct ir *ir) {
-  struct ir_block *head_block =
-      list_first_entry(&ir->blocks, struct ir_block, it);
-  ra_create_temporaries_r(ra, ir, head_block);
-}
+static void ra_assign_ordinals(struct ra *ra, struct ir *ir,
+                               struct ir_block *block) {
+  int ordinal = 0;
 
-static void ra_assign_ordinals_r(struct ra *ra, struct ir *ir,
-                                 struct ir_block *block, int *ordinal) {
   /* assign each instruction an ordinal. these ordinals are used to describe
      the live range of a particular value */
   list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
-    ra_set_ordinal(instr, *ordinal);
+    ra_set_ordinal(instr, ordinal);
 
     /* each instruction could fill up to MAX_INSTR_ARGS, space out ordinals
        enough to allow for this */
-    (*ordinal) += 1 + MAX_INSTR_ARGS;
+    ordinal += 1 + MAX_INSTR_ARGS;
   }
-
-  list_for_each_entry(edge, &block->outgoing, struct ir_edge, it) {
-    ra_assign_ordinals_r(ra, ir, edge->dst, ordinal);
-  }
-}
-
-static void ra_assign_ordinals(struct ra *ra, struct ir *ir) {
-  int ordinal = 0;
-  struct ir_block *head_block =
-      list_first_entry(&ir->blocks, struct ir_block, it);
-  ra_assign_ordinals_r(ra, ir, head_block, &ordinal);
 }
 
 static void ra_reset(struct ra *ra, struct ir *ir) {
+  for (int i = 0; i < ra->num_regs; i++) {
+    struct ra_bin *bin = &ra->bins[i];
+    bin->tmp_idx = NO_TMP;
+  }
+
+  ra->num_tmps = 0;
   ra->num_uses = 0;
 }
 
 void ra_run(struct ra *ra, struct ir *ir) {
-  ra_reset(ra, ir);
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    ra_reset(ra, ir);
 
-  ra_push_state(ra);
-
-  ra_assign_ordinals(ra, ir);
-  ra_create_temporaries(ra, ir);
-  ra_visit(ra, ir);
-#if 0
-  ra_validate(ra, ir);
+    ra_assign_ordinals(ra, ir, block);
+    ra_create_temporaries(ra, ir, block);
+    ra_visit(ra, ir, block);
+#if 1
+    ra_validate(ra, ir, block);
 #endif
-
-  ra_pop_state(ra);
+  }
 }
 
 void ra_destroy(struct ra *ra) {
-  CHECK(list_empty(&ra->live_state));
-
-  list_for_each_entry_safe(state, &ra->free_state, struct ra_state, it) {
-    ra_destroy_state(ra, state);
-  }
-
   free(ra->uses);
+  free(ra->tmps);
+  free(ra->bins);
   free(ra);
 }
 
@@ -626,6 +478,13 @@ struct ra *ra_create(const struct jit_register *regs, int num_regs) {
 
   ra->regs = regs;
   ra->num_regs = num_regs;
+
+  ra->bins = calloc(ra->num_regs, sizeof(struct ra_bin));
+
+  for (int i = 0; i < ra->num_regs; i++) {
+    struct ra_bin *bin = &ra->bins[i];
+    bin->reg = &ra->regs[i];
+  }
 
   return ra;
 }

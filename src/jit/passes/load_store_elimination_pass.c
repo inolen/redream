@@ -8,67 +8,24 @@ DEFINE_STAT(stores_removed, "context stores eliminated");
 #define MAX_OFFSET 512
 
 struct lse_entry {
+  /* cache token when this entry was added */
+  uint64_t token;
+
   int offset;
   struct ir_value *value;
 };
 
-struct lse_state {
-  struct lse_entry available[MAX_OFFSET];
-  struct list_node it;
-};
-
 struct lse {
-  struct list live_state;
-  struct list free_state;
+  /* current cache token */
+  uint64_t token;
 
-  /* points to the available state at the top of the live stack */
-  struct lse_entry *available;
+  struct lse_entry available[MAX_OFFSET];
 };
-
-static void lse_pop_state(struct lse *lse) {
-  /* pop top state from live list */
-  struct lse_state *state =
-      list_last_entry(&lse->live_state, struct lse_state, it);
-  CHECK_NOTNULL(state);
-  list_remove(&lse->live_state, &state->it);
-
-  /* push state back to free list */
-  list_add(&lse->free_state, &state->it);
-
-  /* cache off current state's available member */
-  state = list_last_entry(&lse->live_state, struct lse_state, it);
-  lse->available = state ? state->available : NULL;
-}
-
-static void lse_push_state(struct lse *lse, int copy_from_prev) {
-  struct lse_state *state =
-      list_first_entry(&lse->free_state, struct lse_state, it);
-
-  if (state) {
-    /* remove from the free list */
-    list_remove(&lse->free_state, &state->it);
-  } else {
-    /* allocate new state if one wasn't available on the free list */
-    state = calloc(1, sizeof(struct lse_state));
-  }
-
-  /* push state to live list */
-  list_add(&lse->live_state, &state->it);
-
-  /* copy previous state into new state */
-  if (copy_from_prev && lse->available) {
-    memcpy(state->available, lse->available, sizeof(state->available));
-  } else {
-    memset(state->available, 0, sizeof(state->available));
-  }
-
-  /* cache off current state's available member */
-  lse->available = state->available;
-}
 
 static void lse_clear_available(struct lse *lse) {
-  CHECK_NOTNULL(lse->available);
-  memset(lse->available, 0, sizeof(struct lse_entry) * MAX_OFFSET);
+  do {
+    lse->token++;
+  } while (lse->token == 0);
 }
 
 static void lse_erase_available(struct lse *lse, int offset, int size) {
@@ -82,16 +39,17 @@ static void lse_erase_available(struct lse *lse, int offset, int size) {
   struct lse_entry *begin_entry = &lse->available[begin];
   struct lse_entry *end_entry = &lse->available[end];
 
-  if (begin_entry->value) {
+  if (begin_entry->token == lse->token) {
     begin = begin_entry->offset;
   }
 
-  if (end_entry->value) {
+  if (end_entry->token == lse->token) {
     end = end_entry->offset + ir_type_size(end_entry->value->type) - 1;
   }
 
   for (; begin <= end; begin++) {
     struct lse_entry *entry = &lse->available[begin];
+    entry->token = 0;
     entry->offset = 0;
     entry->value = NULL;
   }
@@ -101,6 +59,11 @@ static struct ir_value *lse_get_available(struct lse *lse, int offset) {
   CHECK_LT(offset, MAX_OFFSET);
 
   struct lse_entry *entry = &lse->available[offset];
+
+  /* make sure entry isn't stale */
+  if (entry->token != lse->token) {
+    return NULL;
+  }
 
   /* entries are added for the entire range of an available value to help with
      invalidation. if this entry doesn't start at the requested offset, it's
@@ -125,13 +88,16 @@ static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
      entry where offset == entry.offset is valid for reuse */
   for (; begin <= end; begin++) {
     struct lse_entry *entry = &lse->available[begin];
+    entry->token = lse->token;
     entry->offset = offset;
     entry->value = v;
   }
 }
 
-static void lse_eliminate_loads_r(struct lse *lse, struct ir *ir,
-                                  struct ir_block *block) {
+static void lse_eliminate_loads(struct lse *lse, struct ir *ir,
+                                struct ir_block *block) {
+  lse_clear_available(lse);
+
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
     if (instr->op == OP_FALLBACK || instr->op == OP_CALL) {
       lse_clear_available(lse);
@@ -166,53 +132,11 @@ static void lse_eliminate_loads_r(struct lse *lse, struct ir *ir,
       lse_set_available(lse, offset, instr->arg[1]);
     }
   }
-
-  list_for_each_entry(edge, &block->outgoing, struct ir_edge, it) {
-    lse_push_state(lse, 1);
-
-    lse_eliminate_loads_r(lse, ir, edge->dst);
-
-    lse_pop_state(lse);
-  }
 }
 
-static void lse_eliminate_loads(struct lse *lse, struct ir *ir) {
-  lse_push_state(lse, 0);
-
-  struct ir_block *head_block =
-      list_first_entry(&ir->blocks, struct ir_block, it);
-  lse_eliminate_loads_r(lse, ir, head_block);
-
-  lse_pop_state(lse);
-
-  CHECK(list_empty(&lse->live_state));
-}
-
-static void lse_eliminate_stores_r(struct lse *lse, struct ir *ir,
-                                   struct ir_block *block) {
-  struct lse_entry *parent_entries = lse->available;
-
-  list_for_each_entry(edge, &block->outgoing, struct ir_edge, it) {
-    lse_push_state(lse, 0);
-
-    lse_eliminate_stores_r(lse, ir, edge->dst);
-
-    /* union results from children */
-    int first = !list_prev_entry(edge, struct ir_edge, it);
-
-    for (int i = 0; i < MAX_OFFSET; i++) {
-      struct lse_entry *existing = &parent_entries[i];
-      struct lse_entry *child = &lse->available[i];
-
-      if (first) {
-        *existing = *child;
-      } else if (memcmp(existing, child, sizeof(*existing))) {
-        memset(existing, 0, sizeof(*existing));
-      }
-    }
-
-    lse_pop_state(lse);
-  }
+static void lse_eliminate_stores(struct lse *lse, struct ir *ir,
+                                 struct ir_block *block) {
+  lse_clear_available(lse);
 
   list_for_each_entry_safe_reverse(instr, &block->instrs, struct ir_instr, it) {
     if (instr->op == OP_FALLBACK || instr->op == OP_CALL) {
@@ -249,28 +173,17 @@ static void lse_eliminate_stores_r(struct lse *lse, struct ir *ir,
   }
 }
 
-static void lse_eliminate_stores(struct lse *lse, struct ir *ir) {
-  lse_push_state(lse, 0);
-
-  struct ir_block *head_block =
-      list_first_entry(&ir->blocks, struct ir_block, it);
-  lse_eliminate_stores_r(lse, ir, head_block);
-
-  lse_pop_state(lse);
-}
-
 void lse_run(struct lse *lse, struct ir *ir) {
-  lse_eliminate_loads(lse, ir);
-  lse_eliminate_stores(lse, ir);
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    lse_eliminate_loads(lse, ir, block);
+  }
+
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    lse_eliminate_stores(lse, ir, block);
+  }
 }
 
 void lse_destroy(struct lse *lse) {
-  CHECK(list_empty(&lse->live_state));
-
-  list_for_each_entry_safe(state, &lse->free_state, struct lse_state, it) {
-    free(state);
-  }
-
   free(lse);
 }
 
