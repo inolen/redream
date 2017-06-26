@@ -50,6 +50,8 @@ struct x64_backend {
 /*
  * backend functionality used by emitters
  */
+#define X64_THUNK_SIZE 1024
+
 #if PLATFORM_WINDOWS
 #define X64_STACK_SHADOW_SPACE 32
 #else

@@ -327,6 +327,10 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   int res = jit->backend->assemble_code(jit->backend, block, &ir);
 
   if (res) {
+#if 0
+    jit->backend->dump_code(jit->backend, block);
+#endif
+
     jit_finalize_block(jit, block);
   } else {
     /* if the backend overflowed, completely free the cache and let dispatch

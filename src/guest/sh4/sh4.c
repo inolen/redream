@@ -138,14 +138,11 @@ static int sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
-  /* place code buffer in data segment (as opposed to allocating on the heap) to
-     keep it within 2 GB of the code segment, enabling the x64 backend to use
-     RIP-relative offsets when calling functions */
-  static uint8_t sh4_code[0x800000];
-
+  /* initialize jit and its interfaces */
   sh4->frontend = sh4_frontend_create();
 
 #if ARCH_X64
+  DEFINE_JIT_CODE_BUFFER(sh4_code);
   sh4->backend = x64_backend_create(sh4_code, sizeof(sh4_code));
 #else
   sh4->backend = interp_backend_create();

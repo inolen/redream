@@ -5,8 +5,8 @@
 #include "core/filesystem.h"
 #include "core/log.h"
 #include "core/option.h"
-#include "core/profiler.h"
 #include "core/ringbuf.h"
+#include "core/time.h"
 #include "emulator.h"
 #include "host/host.h"
 #include "render/render_backend.h"
@@ -23,6 +23,7 @@ DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 #define AUDIO_FRAMES_TO_MS(frames) \
   (int)(((float)frames * 1000.0f) / (float)AUDIO_FREQ)
 #define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
+#define NS_TO_AUDIO_FRAMES(ns) (int)(((float)(ns) / NS_PER_SEC) * AUDIO_FREQ)
 
 /*
  * sdl host implementation
@@ -38,6 +39,7 @@ struct sdl_host {
   SDL_AudioDeviceID audio_dev;
   SDL_AudioSpec audio_spec;
   struct ringbuf *audio_frames;
+  volatile int64_t audio_last_callback;
 
   int key_map[K_NUM_KEYS];
   SDL_GameController *controllers[INPUT_MAX_CONTROLLERS];
@@ -86,8 +88,30 @@ static int audio_buffer_low(struct sdl_host *host) {
     return 1;
   }
 
+  /* SDL's write callback is called very coarsely, seemingly, only each time
+     its buffered data has completely drained
+
+     since the main loop is designed to synchronize speed based on the amount
+     of buffered audio data, with larger buffer sizes (due to a larger latency
+     setting) this can result in the callback being called only one time for
+     multiple video frames
+
+     this creates a situation where multiple video frames are immediately ran
+     when the callback fires in order to push enough audio data to avoid an
+     underflow, and then multiple vblanks occur on the host where no new frame
+     is presented as the main loop again blocks waiting for another write
+     callback to decrease the amount of buffered audio data
+
+     in order to smooth out the video frame timings when the audio latency is
+     high, the host clock is used to interpolate the amount of available audio
+     data between callbacks */
+  int64_t now = time_nanoseconds();
+  int64_t since_last_callback = now - host->audio_last_callback;
+  int frames_available = audio_available_frames(host);
+  frames_available -= NS_TO_AUDIO_FRAMES(since_last_callback);
+
   int low_water_mark = host->audio_spec.samples;
-  return audio_available_frames(host) <= low_water_mark;
+  return frames_available <= low_water_mark;
 }
 
 static void audio_write_callback(void *userdata, Uint8 *stream, int len) {
@@ -109,6 +133,8 @@ static void audio_write_callback(void *userdata, Uint8 *stream, int len) {
     /* copy frames to output stream */
     memcpy(buf, tmp, n * frame_size);
   }
+
+  host->audio_last_callback = time_nanoseconds();
 }
 
 void audio_push(struct host *base, const int16_t *data, int num_frames) {
@@ -152,8 +178,12 @@ static int audio_init(struct sdl_host *host) {
     return 0;
   }
 
-  /* create ringbuffer to store data coming in from AICA */
-  host->audio_frames = ringbuf_create(host->audio_spec.samples * 4);
+  /* create ringbuffer to store data coming in from AICA. note, the buffer needs
+     to be at least two video frames in size, in order to handle the coarse
+     synchronization used by the main loop, where an entire guest video frame is
+     ran when the available audio data is deemed low */
+  static const int frame_size = 2 * 2;
+  host->audio_frames = ringbuf_create(AUDIO_FREQ * frame_size);
 
   /* resume device */
   SDL_PauseAudioDevice(host->audio_dev, 0);

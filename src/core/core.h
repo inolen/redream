@@ -7,6 +7,13 @@
 
 #define array_size(arr) (int)(sizeof(arr) / sizeof((arr)[0]))
 
+#if COMPILER_MSVC
+#define ALIGNED(x) __declspec(align(x))
+#else
+#define ALIGNED(x) __attribute__((aligned(x)))
+#endif
+
+/* macro for accessing the parent struct of a given pointer */
 #if PLATFORM_WINDOWS
 
 static inline void *container_of_(void *ptr, ptrdiff_t offset) {

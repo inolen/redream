@@ -11,9 +11,6 @@ extern "C" {
 #include "jit/jit.h"
 }
 
-/* size of codegen buffer reserved for thunks */
-#define X64_THUNK_SIZE 1024
-
 /*
  * x64 register layout
  */
@@ -353,8 +350,8 @@ static void x64_backend_emit_prologue(struct x64_backend *backend,
   e.add(e.dword[guestctx + guest->offset_instrs], block->num_instrs);
 }
 
-static void *x64_backend_emit(struct x64_backend *backend,
-                              struct jit_block *block, struct ir *ir) {
+static void x64_backend_emit(struct x64_backend *backend,
+                             struct jit_block *block, struct ir *ir) {
   auto &e = *backend->codegen;
   const uint8_t *code = backend->codegen->getCurr();
 
@@ -396,9 +393,8 @@ static void *x64_backend_emit(struct x64_backend *backend,
 
   e.outLocalLabel();
 
+  block->host_addr = (void *)code;
   block->host_size = (int)(backend->codegen->getCurr() - code);
-
-  return (void *)code;
 }
 
 static void x64_backend_emit_thunks(struct x64_backend *backend) {
@@ -580,7 +576,7 @@ static int x64_backend_assemble_code(struct jit_backend *base,
   /* try to generate the x64 code. if the code buffer overflows let the backend
      know so it can reset the cache and try again */
   try {
-    block->host_addr = x64_backend_emit(backend, block, ir);
+    x64_backend_emit(backend, block, ir);
   } catch (const Xbyak::Error &e) {
     if (e != Xbyak::ERR_CODE_IS_TOO_BIG) {
       LOG_FATAL("x64 codegen failure, %s", e.what());
@@ -630,7 +626,8 @@ struct jit_backend *x64_backend_create(void *code, int code_size) {
       calloc(1, sizeof(struct x64_backend)));
   Xbyak::util::Cpu cpu;
 
-  CHECK(Xbyak::CodeArray::protect(code, code_size, true));
+  int r = protect_pages(code, code_size, ACC_READWRITEEXEC);
+  CHECK(r);
 
   backend->base.init = &x64_backend_init;
   backend->base.destroy = &x64_backend_destroy;

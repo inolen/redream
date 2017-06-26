@@ -173,15 +173,11 @@ static int arm7_init(struct device *dev) {
   struct arm7 *arm = (struct arm7 *)dev;
   struct dreamcast *dc = arm->dc;
 
-  /* place code buffer in data segment (as opposed to allocating on the heap) to
-     keep it within 2 GB of the code segment, enabling the x64 backend to use
-     RIP-relative offsets when calling functions */
-  static uint8_t arm7_code[0x800000];
-
   /* initialize jit and its interfaces */
   arm->frontend = armv3_frontend_create();
 
 #if ARCH_X64
+  DEFINE_JIT_CODE_BUFFER(arm7_code);
   arm->backend = x64_backend_create(arm7_code, sizeof(arm7_code));
 #else
   arm->backend = interp_backend_create();
