@@ -5,20 +5,6 @@
 #include "core/math.h"
 #include "guest/pvr/tr.h"
 
-void get_next_trace_filename(char *filename, size_t size) {
-  const char *appdir = fs_appdir();
-
-  for (int i = 0; i < INT_MAX; i++) {
-    snprintf(filename, size, "%s" PATH_SEPARATOR "%d.trace", appdir, i);
-
-    if (!fs_exists(filename)) {
-      return;
-    }
-  }
-
-  LOG_FATAL("Unable to find available trace filename");
-}
-
 void trace_writer_close(struct trace_writer *writer) {
   if (writer->file) {
     fclose(writer->file);
@@ -234,4 +220,18 @@ struct trace *trace_parse(const char *filename) {
   }
 
   return trace;
+}
+
+void get_next_trace_filename(char *filename, size_t size) {
+  const char *appdir = fs_appdir();
+
+  for (int i = 0; i < INT_MAX; i++) {
+    snprintf(filename, size, "%s" PATH_SEPARATOR "%d.trace", appdir, i);
+
+    if (!fs_exists(filename)) {
+      return;
+    }
+  }
+
+  LOG_FATAL("unable to find available trace filename");
 }

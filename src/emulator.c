@@ -57,10 +57,12 @@ struct emu {
   volatile int video_width;
   volatile int video_height;
   volatile int video_resized;
+  unsigned frame;
 
   struct render_backend *r, *r2;
   struct imgui *imgui;
   struct microprofile *mp;
+
   struct trace_writer *trace_writer;
 
   /* hosts which support creating multiple gl contexts will render video on
@@ -104,7 +106,6 @@ struct emu {
   /* debug stats */
   int debug_menu;
   int frame_stats;
-  int frame_seq;
   float frame_times[360];
   int64_t last_paint;
 };
@@ -302,29 +303,37 @@ static void emu_init_textures(struct emu *emu) {
 /*
  * trace recording
  */
-static void emu_toggle_tracing(struct emu *emu) {
+static void emu_stop_tracing(struct emu *emu) {
   if (!emu->trace_writer) {
-    char filename[PATH_MAX];
-    get_next_trace_filename(filename, sizeof(filename));
-
-    emu->trace_writer = trace_writer_open(filename);
-
-    if (!emu->trace_writer) {
-      LOG_INFO("failed to start tracing");
-      return;
-    }
-
-    /* clear texture cache in order to generate insert events for all
-       textures referenced while tracing */
-    emu_dirty_textures(emu);
-
-    LOG_INFO("begin tracing to %s", filename);
-  } else {
-    trace_writer_close(emu->trace_writer);
-    emu->trace_writer = NULL;
-
-    LOG_INFO("end tracing");
+    return;
   }
+
+  trace_writer_close(emu->trace_writer);
+  emu->trace_writer = NULL;
+
+  LOG_INFO("end tracing");
+}
+
+static void emu_start_tracing(struct emu *emu) {
+  if (emu->trace_writer) {
+    return;
+  }
+
+  char filename[PATH_MAX];
+  get_next_trace_filename(filename, sizeof(filename));
+
+  emu->trace_writer = trace_writer_open(filename);
+
+  if (!emu->trace_writer) {
+    LOG_INFO("failed to start tracing");
+    return;
+  }
+
+  /* clear texture cache in order to generate insert events for all
+     textures referenced while tracing */
+  emu_dirty_textures(emu);
+
+  LOG_INFO("begin tracing to %s", filename);
 }
 
 /*
@@ -475,9 +484,11 @@ static void emu_paint(struct emu *emu) {
           emu->frame_stats = !emu->frame_stats;
         }
 
-        if ((!emu->trace_writer && igMenuItem("start trace", NULL, 0, 1)) ||
-            (emu->trace_writer && igMenuItem("stop trace", NULL, 1, 1))) {
-          emu_toggle_tracing(emu);
+        if (!emu->trace_writer && igMenuItem("start trace", NULL, 0, 1)) {
+          emu_start_tracing(emu);
+        }
+        if (emu->trace_writer && igMenuItem("stop trace", NULL, 1, 1)) {
+          emu_stop_tracing(emu);
         }
 
         if (igMenuItem("clear texture cache", NULL, 0, 1)) {
@@ -541,8 +552,9 @@ static void emu_paint(struct emu *emu) {
           igValueFloat("min time", min_time, "%.2f");
           igValueFloat("max time", max_time, "%.2f");
           igValueFloat("avg time", avg_time, "%.2f");
-          igPlotLines("", emu->frame_times, num_frame_times, emu->frame_seq,
-                      NULL, 0.0f, 60.0f, graph_size, sizeof(float));
+          igPlotLines("", emu->frame_times, num_frame_times,
+                      emu->frame % num_frame_times, NULL, 0.0f, 60.0f,
+                      graph_size, sizeof(float));
         }
 
         igEnd();
@@ -561,12 +573,6 @@ static void emu_paint(struct emu *emu) {
 /*
  * dreamcast guest interface
  */
-static void emu_guest_poll_input(void *userdata) {
-  struct emu *emu = userdata;
-
-  input_poll(emu->host);
-}
-
 static void emu_guest_finish_render(void *userdata) {
   struct emu *emu = userdata;
 
@@ -766,11 +772,11 @@ void emu_run_frame(struct emu *emu) {
   if (emu->last_paint) {
     float frame_time_ms = (float)(now - emu->last_paint) / 1000000.0f;
     int num_frame_times = array_size(emu->frame_times);
-    emu->frame_times[emu->frame_seq] = frame_time_ms;
-    emu->frame_seq = (emu->frame_seq + 1) % num_frame_times;
+    emu->frame_times[emu->frame % num_frame_times] = frame_time_ms;
   }
 
   emu->last_paint = now;
+  emu->frame++;
 }
 
 int emu_load_game(struct emu *emu, const char *path) {
@@ -784,6 +790,8 @@ int emu_load_game(struct emu *emu, const char *path) {
 }
 
 void emu_destroy(struct emu *emu) {
+  emu_stop_tracing(emu);
+
   dc_destroy(emu->dc);
 
   free(emu);
@@ -811,7 +819,6 @@ struct emu *emu_create(struct host *host) {
   emu->dc->push_audio = &emu_guest_push_audio;
   emu->dc->start_render = &emu_guest_start_render;
   emu->dc->finish_render = &emu_guest_finish_render;
-  emu->dc->poll_input = &emu_guest_poll_input;
 
   /* start up the video thread */
   emu->multi_threaded = video_supports_multiple_contexts(emu->host);

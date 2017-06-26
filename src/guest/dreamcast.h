@@ -125,7 +125,6 @@ struct device {
 typedef void (*push_audio_cb)(void *, const int16_t *, int);
 typedef void (*start_render_cb)(void *, struct tile_context *);
 typedef void (*finish_render_cb)(void *);
-typedef void (*poll_input_cb)(void *);
 
 struct dreamcast {
   int running;
@@ -154,7 +153,6 @@ struct dreamcast {
   push_audio_cb push_audio;
   start_render_cb start_render;
   finish_render_cb finish_render;
-  poll_input_cb poll_input;
 };
 
 struct dreamcast *dc_create();
@@ -192,6 +190,5 @@ void dc_input(struct dreamcast *dc, int port, int button, int16_t value);
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);
 void dc_start_render(struct dreamcast *dc, struct tile_context *ctx);
 void dc_finish_render(struct dreamcast *dc);
-void dc_poll_input(struct dreamcast *dc);
 
 #endif

@@ -828,9 +828,6 @@ int main(int argc, char **argv) {
 
     if (emu_load_game(emu, load)) {
       while (!g_host->closed) {
-        /* even though the emulator itself will poll for events when updating
-           controller input, the main loop needs to also poll to ensure the
-           close event is received */
         host_poll_events(g_host);
 
         /* only step the emulator if the available audio is running low. this
