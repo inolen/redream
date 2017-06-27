@@ -24,6 +24,26 @@ test_movwm:
   nop
   # REGISTER_OUT r2 -24
 
+test_movwm_rnisrm:
+  # test that reg is decremented
+  mov.l .L2, r0
+  add #2, r0
+  mov r0, r1
+  mov r1, r2
+  mov.w r1, @-r1
+  sub r1, r0
+  # test that reg was stored to .L2 before it was decremented
+  mov.w .L1, r1
+  mov #0xff, r3
+  shlr16 r3
+  and r3, r2
+  cmp/eq r2, r1
+  movt r1
+  rts
+  nop
+  # REGISTER_OUT r0 2
+  # REGISTER_OUT r1 1
+
 test_movwp:
   mov.l .L2, r0
   mov.w @r0+, r0

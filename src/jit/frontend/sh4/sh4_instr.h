@@ -84,39 +84,45 @@ INSTR(MOVLL) {
 
 /* MOV.B   Rm,@-Rn */
 INSTR(MOVBM) {
+  /* load Rm before decrementing Rn in case Rm == Rn */
+  I8 v = LOAD_GPR_I8(i.def.rm);
+
   /* decrease Rn by 1 */
   I32 ea = LOAD_GPR_I32(i.def.rn);
   ea = SUB_IMM_I32(ea, 1);
   STORE_GPR_I32(i.def.rn, ea);
 
   /* store Rm at (Rn) */
-  I8 v = LOAD_GPR_I8(i.def.rm);
   STORE_I8(ea, v);
   NEXT_INSTR();
 }
 
 /* MOV.W   Rm,@-Rn */
 INSTR(MOVWM) {
+  /* load Rm before decrementing Rn in case Rm == Rn */
+  I16 v = LOAD_GPR_I16(i.def.rm);
+
   /* decrease Rn by 2 */
   I32 ea = LOAD_GPR_I32(i.def.rn);
   ea = SUB_IMM_I32(ea, 2);
   STORE_GPR_I32(i.def.rn, ea);
 
   /* store Rm at (Rn) */
-  I16 v = LOAD_GPR_I16(i.def.rm);
   STORE_I16(ea, v);
   NEXT_INSTR();
 }
 
 /* MOV.L   Rm,@-Rn */
 INSTR(MOVLM) {
+  /* load Rm before decrementing Rn in case Rm == Rn */
+  I32 v = LOAD_GPR_I32(i.def.rm);
+
   /* decrease Rn by 4 */
   I32 ea = LOAD_GPR_I32(i.def.rn);
   ea = SUB_IMM_I32(ea, 4);
   STORE_GPR_I32(i.def.rn, ea);
 
   /* store Rm at (Rn) */
-  I32 v = LOAD_GPR_I32(i.def.rm);
   STORE_I32(ea, v);
   NEXT_INSTR();
 }
@@ -129,7 +135,7 @@ INSTR(MOVBP) {
   v = SEXT_I8_I32(v);
   STORE_GPR_I32(i.def.rn, v);
 
-  /* post-increment Rm by 1, ignore if rm == rn as store would overwrite */
+  /* post-increment Rm by 1, ignore if Rm == Rn as store would overwrite */
   if (i.def.rm != i.def.rn) {
     ea = ADD_IMM_I32(ea, 1);
     STORE_GPR_I32(i.def.rm, ea);
@@ -146,7 +152,7 @@ INSTR(MOVWP) {
   v = SEXT_I16_I32(v);
   STORE_GPR_I32(i.def.rn, v);
 
-  /* post-increment Rm by 2, ignore if rm == rn as store would overwrite */
+  /* post-increment Rm by 2, ignore if Rm == Rn as store would overwrite */
   if (i.def.rm != i.def.rn) {
     ea = ADD_IMM_I32(ea, 2);
     STORE_GPR_I32(i.def.rm, ea);
@@ -162,7 +168,7 @@ INSTR(MOVLP) {
   I32 v = LOAD_I32(ea);
   STORE_GPR_I32(i.def.rn, v);
 
-  /* post-increment Rm by 4, ignore if rm == rn as store would overwrite */
+  /* post-increment Rm by 4, ignore if Rm == Rn as store would overwrite */
   if (i.def.rm != i.def.rn) {
     ea = ADD_IMM_I32(ea, 4);
     STORE_GPR_I32(i.def.rm, ea);

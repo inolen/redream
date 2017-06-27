@@ -17,6 +17,25 @@ test_movbm:
   nop
   # REGISTER_OUT r2 -24
 
+test_movbm_rnisrm:
+  # test that reg is decremented
+  mov.l .L2, r1
+  add #1, r1
+  mov r1, r2
+  mov r1, r0
+  mov.b r2, @-r2
+  sub r2, r1
+  # test that reg was stored to .L2 before it was decremented
+  mov.l .L2, r2
+  mov.b @r2, r2
+  and #0xff, r0
+  cmp/eq r2, r0
+  movt r0
+  rts
+  nop
+  # REGISTER_OUT r0 1
+  # REGISTER_OUT r1 1
+
 test_movbp:
   mov.l .L2, r0
   mov.b @r0+, r0
