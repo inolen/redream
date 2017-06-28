@@ -93,7 +93,6 @@ struct ta_surface {
   enum cull_face cull;
   enum blend_func src_blend;
   enum blend_func dst_blend;
-
   enum shade_mode shade;
   int ignore_alpha;
   int ignore_texture_alpha;
@@ -114,12 +113,9 @@ struct ui_vertex {
 
 struct ui_surface {
   enum prim_type prim_type;
-
   texture_handle_t texture;
-
   enum blend_func src_blend;
   enum blend_func dst_blend;
-
   int scissor;
   float scissor_rect[4];
 
@@ -160,7 +156,8 @@ int r_viewport_height(struct render_backend *r);
 
 void r_begin_ta_surfaces(struct render_backend *r, int video_width,
                          int video_height, const struct ta_vertex *verts,
-                         int num_verts);
+                         int num_verts, const uint16_t *indices,
+                         int num_indices);
 void r_draw_ta_surface(struct render_backend *r, const struct ta_surface *surf);
 void r_end_ta_surfaces(struct render_backend *r);
 

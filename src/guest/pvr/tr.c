@@ -19,6 +19,7 @@ struct tr {
   int vertex_type;
   float face_color[4];
   float face_offset_color[4];
+  int merged_surfs;
 };
 
 static int compressed_mipmap_offsets[] = {
@@ -73,8 +74,8 @@ static inline enum depth_func translate_depth_func(uint32_t depth_func) {
 }
 
 static inline enum cull_face translate_cull(uint32_t cull_mode) {
-  static enum cull_face cull_modes[] = {CULL_NONE, CULL_NONE, CULL_FRONT,
-                                        CULL_BACK};
+  static enum cull_face cull_modes[] = {CULL_NONE, CULL_NONE, CULL_BACK,
+                                        CULL_FRONT};
   return cull_modes[cull_mode];
 }
 
@@ -275,7 +276,7 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
           break;
 
         default:
-          LOG_FATAL("Unsupported 4bpp palette pixel format %d",
+          LOG_FATAL("unsupported 4bpp palette pixel format %d",
                     ctx->pal_pxl_format);
           break;
       }
@@ -313,14 +314,14 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
           break;
 
         default:
-          LOG_FATAL("Unsupported 8bpp palette pixel format %d",
+          LOG_FATAL("unsupported 8bpp palette pixel format %d",
                     ctx->pal_pxl_format);
           break;
       }
       break;
 
     default:
-      LOG_FATAL("Unsupported tcw pixel format %d", tcw.pixel_format);
+      LOG_FATAL("unsupported tcw pixel format %d", tcw.pixel_format);
       break;
   }
 
@@ -351,9 +352,10 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
 
 static struct ta_surface *tr_reserve_surf(struct tr *tr, struct tr_context *rc,
                                           int copy_from_prev) {
-  CHECK_LT(rc->num_surfs, array_size(rc->surfs));
+  int surf_index = rc->num_surfs;
 
-  struct ta_surface *surf = &rc->surfs[rc->num_surfs];
+  CHECK_LT(surf_index, array_size(rc->surfs));
+  struct ta_surface *surf = &rc->surfs[surf_index];
 
   if (copy_from_prev) {
     CHECK(rc->num_surfs);
@@ -362,7 +364,7 @@ static struct ta_surface *tr_reserve_surf(struct tr *tr, struct tr_context *rc,
     memset(surf, 0, sizeof(*surf));
   }
 
-  surf->first_vert = rc->num_verts;
+  surf->first_vert = rc->num_indices;
   surf->num_verts = 0;
 
   return surf;
@@ -370,27 +372,90 @@ static struct ta_surface *tr_reserve_surf(struct tr *tr, struct tr_context *rc,
 
 static struct ta_vertex *tr_reserve_vert(struct tr *tr, struct tr_context *rc) {
   struct ta_surface *curr_surf = &rc->surfs[rc->num_surfs];
-  int idx = curr_surf->first_vert + curr_surf->num_verts;
+  int curr_surf_vert = curr_surf->num_verts / 3;
 
-  CHECK_LT(idx, array_size(rc->verts));
-  struct ta_vertex *vert = &rc->verts[idx];
+  int vert_index = rc->num_verts + curr_surf_vert;
+  CHECK_LT(vert_index, array_size(rc->verts));
+  struct ta_vertex *vert = &rc->verts[vert_index];
+
+  int index = rc->num_indices + curr_surf->num_verts;
+  CHECK_LT(index + 2, array_size(rc->indices));
+  uint16_t *indices = &rc->indices[index];
+
   memset(vert, 0, sizeof(*vert));
 
-  curr_surf->num_verts++;
+  /* polygons are fed to the TA as triangle strips, with the vertices being fed
+     in a CW order, so a given quad looks like:
+
+     1----3----5
+     |\   |\   |
+     | \  | \  |
+     |  \ |  \ |
+     |   \|   \|
+     0----2----4
+
+     convert from these triangle strips to triangles to make merging surfaces
+     easy in tr_commit_surf, and convert to CCW to match OpenGL defaults */
+  if (curr_surf_vert & 1) {
+    indices[0] = vert_index;
+    indices[1] = vert_index + 1;
+    indices[2] = vert_index + 2;
+  } else {
+    indices[0] = vert_index;
+    indices[1] = vert_index + 2;
+    indices[2] = vert_index + 1;
+  }
+
+  curr_surf->num_verts += 3;
 
   return vert;
 }
 
-static void tr_commit_surf(struct tr *tr, struct tr_context *rc) {
-  /* default sort the current surface */
-  struct tr_list *list = &rc->lists[tr->list_type];
-  list->surfs[list->num_surfs] = rc->num_surfs;
-  list->num_surfs++;
+static inline int tr_can_merge_surfs(struct ta_surface *a,
+                                     struct ta_surface *b) {
+  return a->texture == b->texture && a->depth_write == b->depth_write &&
+         a->depth_func == b->depth_func && a->cull == b->cull &&
+         a->src_blend == b->src_blend && a->dst_blend == b->dst_blend &&
+         a->shade == b->shade && a->ignore_alpha == b->ignore_alpha &&
+         a->ignore_texture_alpha == b->ignore_texture_alpha &&
+         a->offset_color == b->offset_color &&
+         a->pt_alpha_test == b->pt_alpha_test &&
+         a->pt_alpha_ref == b->pt_alpha_ref;
+}
 
-  /* commit the current surface */
-  struct ta_surface *curr_surf = &rc->surfs[rc->num_surfs];
-  rc->num_verts += curr_surf->num_verts;
-  rc->num_surfs++;
+static void tr_commit_surf(struct tr *tr, struct tr_context *rc) {
+  struct ta_surface *new_surf = &rc->surfs[rc->num_surfs];
+
+  /* tr_reserve_vert preemptively adds indices for the next two vertices when
+     converting the incoming triangle strips to triangles. this results in the
+     first 2 vertices adding 6 extra indices that don't exist */
+  new_surf->num_verts -= 6;
+
+  /* check to see if this surface can be merged with the previous surface */
+  struct ta_surface *prev_surf = NULL;
+
+  if (rc->num_surfs) {
+    prev_surf = &rc->surfs[rc->num_surfs - 1];
+  }
+
+  if (prev_surf && tr_can_merge_surfs(prev_surf, new_surf)) {
+    /* merge the new verts into the prev surface */
+    prev_surf->num_verts += new_surf->num_verts;
+
+    tr->merged_surfs++;
+  } else {
+    /* default sort the new surface */
+    struct tr_list *list = &rc->lists[tr->list_type];
+    list->surfs[list->num_surfs] = rc->num_surfs;
+    list->num_surfs++;
+
+    /* commit the new surface */
+    rc->num_surfs += 1;
+  }
+
+  /* commit the new verts and indices */
+  rc->num_verts += (new_surf->num_verts + 6) / 3;
+  rc->num_indices += new_surf->num_verts;
 }
 
 /*
@@ -440,7 +505,7 @@ static int tr_parse_bg_vert(const struct tile_context *ctx,
   offset += 12;
 
   if (ctx->bg_isp.texture) {
-    LOG_FATAL("Unsupported bg_isp.texture");
+    LOG_FATAL("unsupported bg_isp.texture");
     /*v->uv[0] = *(float *)(&ctx->bg_vertices[offset]);
     v->uv[1] = *(float *)(&ctx->bg_vertices[offset + 4]);
     offset += 8;*/
@@ -451,7 +516,7 @@ static int tr_parse_bg_vert(const struct tile_context *ctx,
   offset += 4;
 
   if (ctx->bg_isp.offset) {
-    LOG_FATAL("Unsupported bg_isp.offset");
+    LOG_FATAL("unsupported bg_isp.offset");
     /*uint32_t offset_color = *(uint32_t *)(&ctx->bg_vertices[offset]);
     v->offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
     v->offset_color[1] = ((offset_color >> 16) & 0xff) / 255.0f;
@@ -563,7 +628,7 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     default:
-      LOG_FATAL("Unsupported poly type %d", poly_type);
+      LOG_FATAL("unsupported poly type %d", poly_type);
       break;
   }
 
@@ -732,6 +797,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 15: {
+      CHECK(param->type0.pcw.end_of_strip);
+
       static const int indices[] = {0, 1, 3, 2};
 
       for (int i = 0, l = array_size(indices); i < l; i++) {
@@ -751,6 +818,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     case 16: {
+      CHECK(param->type0.pcw.end_of_strip);
+
       static const int indices[] = {0, 1, 3, 2};
 
       for (int i = 0, l = array_size(indices); i < l; i++) {
@@ -780,7 +849,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
     } break;
 
     default:
-      LOG_FATAL("Unsupported vertex type %d", tr->vertex_type);
+      LOG_FATAL("unsupported vertex type %d", tr->vertex_type);
       break;
   }
 
@@ -812,17 +881,18 @@ static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
   struct tr_list *list = &rc->lists[list_type];
 
   for (int i = 0; i < list->num_surfs; i++) {
-    int idx = list->surfs[i];
-    struct ta_surface *surf = &rc->surfs[idx];
-    float *minz = &sort_minz[idx];
+    int surf_index = list->surfs[i];
+    struct ta_surface *surf = &rc->surfs[surf_index];
+    float *minz = &sort_minz[surf_index];
 
     /* the surf coordinates have 1/w for z, so smaller values are
       further away from the camera */
     *minz = FLT_MAX;
 
     for (int j = 0; j < surf->num_verts; j++) {
-      struct ta_vertex *v = &rc->verts[surf->first_vert + j];
-      *minz = MIN(*minz, v->xyz[2]);
+      int vert_index = rc->indices[surf->first_vert + j];
+      struct ta_vertex *vert = &rc->verts[vert_index];
+      *minz = MIN(*minz, vert->xyz[2]);
     }
   }
 
@@ -846,11 +916,13 @@ static void tr_reset(struct tr *tr, struct tr_context *rc) {
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
   tr->vertex_type = TA_NUM_VERTS;
+  tr->merged_surfs = 0;
 
   /* reset render context state */
   rc->num_params = 0;
   rc->num_surfs = 0;
   rc->num_verts = 0;
+  rc->num_indices = 0;
   for (int i = 0; i < TA_NUM_LISTS; i++) {
     struct tr_list *list = &rc->lists[i];
     list->num_surfs = 0;
@@ -886,7 +958,8 @@ void tr_render_context_until(struct render_backend *r,
 
   int stopped = 0;
 
-  r_begin_ta_surfaces(r, rc->width, rc->height, rc->verts, rc->num_verts);
+  r_begin_ta_surfaces(r, rc->width, rc->height, rc->verts, rc->num_verts,
+                      rc->indices, rc->num_indices);
 
   tr_render_list(r, rc, TA_LIST_OPAQUE, end_surf, &stopped);
   tr_render_list(r, rc, TA_LIST_PUNCH_THROUGH, end_surf, &stopped);
@@ -971,6 +1044,11 @@ void tr_convert_context(struct render_backend *r, void *userdata,
     tr_sort_render_list(&tr, rc, TA_LIST_TRANSLUCENT);
     tr_sort_render_list(&tr, rc, TA_LIST_PUNCH_THROUGH);
   }
+
+#if 0
+  LOG_INFO("tr_convert_convext merged %d / %d surfaces", tr.merged_surfs,
+           tr.merged_surfs + rc->num_surfs);
+#endif
 
   PROF_LEAVE();
 }

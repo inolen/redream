@@ -92,6 +92,7 @@ struct render_backend {
   /* surface render state */
   GLuint ta_vao;
   GLuint ta_vbo;
+  GLuint ta_ibo;
   GLuint ui_vao;
   GLuint ui_vbo;
   GLuint ui_ibo;
@@ -322,6 +323,7 @@ static void r_destroy_vertex_arrays(struct render_backend *r) {
   glDeleteBuffers(1, &r->ui_vbo);
   glDeleteVertexArrays(1, &r->ui_vao);
 
+  glDeleteBuffers(1, &r->ta_ibo);
   glDeleteBuffers(1, &r->ta_vbo);
   glDeleteVertexArrays(1, &r->ta_vao);
 }
@@ -365,6 +367,9 @@ static void r_create_vertex_arrays(struct render_backend *r) {
 
     glGenBuffers(1, &r->ta_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
+
+    glGenBuffers(1, &r->ta_ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->ta_ibo);
 
     /* xyz */
     glEnableVertexAttribArray(0);
@@ -514,12 +519,14 @@ void r_draw_ta_surface(struct render_backend *r,
     r_bind_texture(r, MAP_DIFFUSE, surf->texture);
   }
 
-  glDrawArrays(GL_TRIANGLE_STRIP, surf->first_vert, surf->num_verts);
+  glDrawElements(GL_TRIANGLES, surf->num_verts, GL_UNSIGNED_SHORT,
+                 (void *)(intptr_t)(sizeof(uint16_t) * surf->first_vert));
 }
 
 void r_begin_ta_surfaces(struct render_backend *r, int video_width,
                          int video_height, const struct ta_vertex *verts,
-                         int num_verts) {
+                         int num_verts, const uint16_t *indices,
+                         int num_indices) {
   /* uniforms will be lazily bound for each program inside of r_draw_surface */
   r->uniform_token++;
   r->uniform_video_scale[0] = 2.0f / (float)video_width;
@@ -527,10 +534,15 @@ void r_begin_ta_surfaces(struct render_backend *r, int video_width,
   r->uniform_video_scale[2] = -2.0f / (float)video_height;
   r->uniform_video_scale[3] = 1.0f;
 
+  glBindVertexArray(r->ta_vao);
+
   glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(struct ta_vertex) * num_verts, verts,
                GL_DYNAMIC_DRAW);
-  glBindVertexArray(r->ta_vao);
+
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->ta_ibo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices, indices,
+               GL_DYNAMIC_DRAW);
 }
 
 void r_end_ui_surfaces(struct render_backend *r) {

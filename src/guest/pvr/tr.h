@@ -63,6 +63,9 @@ struct tr_context {
   struct ta_vertex verts[TA_MAX_VERTS];
   int num_verts;
 
+  uint16_t indices[TA_MAX_VERTS * 3];
+  int num_indices;
+
   /* sorted list of surfaces corresponding to each of the ta's polygon lists */
   struct tr_list lists[TA_NUM_LISTS];
 
