@@ -292,13 +292,19 @@ elseif(ARCH_A64)
   list(APPEND RELIB_DEFS ARCH_A64=1)
 endif()
 
-if(COMPILER_GCC OR COMPILER_CLANG)
-  list(APPEND RELIB_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+if(COMPILER_MSVC)
+  list(APPEND RELIB_DEFS COMPILER_MSVC=1)
 
+  list(APPEND RELIB_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+elseif(COMPILER_GCC OR COMPILER_CLANG)
   if(COMPILER_GCC)
+    list(APPEND RELIB_DEFS COMPILER_GCC=1)
+
     # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
     list(APPEND RELIB_FLAGS -D__STDC_FORMAT_MACROS)
   elseif(COMPILER_CLANG)
+    list(APPEND RELIB_DEFS COMPILER_CLANG=1)
+
     # clang will warn on '{0}' as -Wmissing-field-initializers even in C code
     # https://llvm.org/bugs/show_bug.cgi?id=21689
     list(APPEND RELIB_FLAGS -Wno-missing-field-initializers -Wno-missing-braces -Wno-microsoft-anon-tag)
@@ -310,8 +316,8 @@ if(COMPILER_GCC OR COMPILER_CLANG)
     list(APPEND RELIB_FLAGS -pthread)
     list(APPEND RELIB_LIBS pthread)
   endif()
-elseif(COMPILER_MSVC)
-  list(APPEND RELIB_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
+
+  list(APPEND RELIB_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 endif()
 
 if(PLATFORM_ANDROID)
