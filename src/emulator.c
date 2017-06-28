@@ -57,7 +57,7 @@ struct emu {
   volatile int video_width;
   volatile int video_height;
   volatile int video_resized;
-  unsigned frame;
+  volatile unsigned frame;
 
   struct render_backend *r, *r2;
   struct imgui *imgui;
@@ -83,8 +83,6 @@ struct emu {
   framebuffer_handle_t video_fb;
   texture_handle_t video_tex;
   sync_handle_t video_sync;
-  volatile unsigned video_id;
-  volatile unsigned last_video_id;
 
   /* texture cache. the dreamcast interface calls into us when new contexts are
      available to be rendered. parsing the contexts, uploading their textures to
@@ -374,9 +372,6 @@ static void emu_render_frame(struct emu *emu) {
     emu->video_sync = r_insert_sync(r2);
   }
 
-  /* mark the currently available frame for emu_run_frame */
-  emu->video_id = emu->pending_id;
-
   /* update frame-based profiler stats */
   prof_flip();
 }
@@ -565,14 +560,18 @@ static void emu_paint(struct emu *emu) {
 
   imgui_render(emu->imgui);
   mp_render(emu->mp);
-
-  /* mark the last rendered video id for emu_run_frame */
-  emu->last_video_id = emu->video_id;
 }
 
 /*
  * dreamcast guest interface
  */
+static void emu_guest_vertical_blank(void *userdata) {
+  struct emu *emu = userdata;
+
+  /* signal to emu_run_frame to break and present the latest frame */
+  emu->frame++;
+}
+
 static void emu_guest_finish_render(void *userdata) {
   struct emu *emu = userdata;
 
@@ -760,10 +759,19 @@ static void emu_host_resized(void *userdata) {
 void emu_run_frame(struct emu *emu) {
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
 
-  while (emu->video_id <= emu->last_video_id) {
+  /* run dreamcast up until its next vblank */
+  unsigned start_frame = emu->frame;
+  while (emu->frame == start_frame) {
     dc_tick(emu->dc, MACHINE_STEP);
   }
 
+  /* ensure the video thread is done rendering */
+  if (emu->multi_threaded) {
+    mutex_lock(emu->pending_mutex);
+    mutex_unlock(emu->pending_mutex);
+  }
+
+  /* render the latest frame */
   int64_t now = time_nanoseconds();
 
   prof_update(now);
@@ -776,7 +784,6 @@ void emu_run_frame(struct emu *emu) {
   }
 
   emu->last_paint = now;
-  emu->frame++;
 }
 
 int emu_load_game(struct emu *emu, const char *path) {
@@ -819,6 +826,7 @@ struct emu *emu_create(struct host *host) {
   emu->dc->push_audio = &emu_guest_push_audio;
   emu->dc->start_render = &emu_guest_start_render;
   emu->dc->finish_render = &emu_guest_finish_render;
+  emu->dc->vertical_blank = &emu_guest_vertical_blank;
 
   /* start up the video thread */
   emu->multi_threaded = video_supports_multiple_contexts(emu->host);

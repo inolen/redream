@@ -45,6 +45,7 @@ static void pvr_next_scanline(void *data) {
   /* FIXME toggle SPG_STATUS.fieldnum on vblank? */
   if (!was_vsync && pvr->SPG_STATUS->vsync) {
     prof_counter_add(COUNTER_pvr_vblanks, 1);
+    dc_vertical_blank(pvr->dc);
   }
 
   /* reschedule */
