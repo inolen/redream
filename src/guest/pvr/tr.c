@@ -518,6 +518,12 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
   tr->vertex_type = ta_get_vert_type(param->type0.pcw);
 
   int poly_type = ta_get_poly_type(param->type0.pcw);
+
+  if (poly_type == 6) {
+    /* FIXME handle modifier volumes */
+    return;
+  }
+
   switch (poly_type) {
     case 0: {
       /*uint32_t sdma_data_size;
@@ -555,10 +561,6 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
       tr->face_offset_color[3] =
           ((param->sprite.offset_color >> 24) & 0xff) / 255.0f;
     } break;
-
-    case 6:
-      /* don't do anything with modifier volume yet */
-      return;
 
     default:
       LOG_FATAL("Unsupported poly type %d", poly_type);
@@ -604,6 +606,11 @@ static void tr_parse_poly_param(struct tr *tr, const struct tile_context *ctx,
 static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
                                 struct tr_context *rc, const uint8_t *data) {
   const union vert_param *param = (const union vert_param *)data;
+
+  if (tr->vertex_type == 17) {
+    /* FIXME handle modifier volumes */
+    return;
+  }
 
   /* if there is no need to change the Global Parameters, a Vertex Parameter
      for the next polygon may be input immediately after inputting a Vertex
@@ -770,10 +777,6 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
         vert->uv[0] = *(float *)&u;
         vert->uv[1] = *(float *)&v;
       }
-    } break;
-
-    case 17: {
-      /* LOG_WARNING("Unhandled modvol triangle"); */
     } break;
 
     default:
