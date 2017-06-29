@@ -3,7 +3,7 @@
 #include "jit/ir/ir.h"
 #include "core/math.h"
 
-const char *ir_op_names[NUM_OPS] = {
+const char *ir_op_names[IR_NUM_OPS] = {
 #define IR_OP(name) #name,
 #include "jit/ir/ir_ops.inc"
 };
@@ -22,7 +22,7 @@ static struct ir_instr *ir_alloc_instr(struct ir *ir, enum ir_op op) {
   instr->op = op;
 
   /* initialize use links */
-  for (int i = 0; i < MAX_INSTR_ARGS; i++) {
+  for (int i = 0; i < IR_MAX_ARGS; i++) {
     struct ir_use *use = &instr->used[i];
     use->instr = instr;
     use->parg = &instr->arg[i];
@@ -78,7 +78,7 @@ void ir_set_block_label(struct ir *ir, struct ir_block *block,
   va_start(args, format);
   int label_len = vsnprintf(0, 0, format, args);
   int label_size = label_len + 1;
-  CHECK_LE(label_size, MAX_LABEL_SIZE);
+  CHECK_LE(label_size, IR_MAX_LABEL);
   char *label = ir_calloc(ir, label_size);
   va_end(args);
 
@@ -164,7 +164,7 @@ void ir_set_instr_label(struct ir *ir, struct ir_instr *instr,
   va_start(args, format);
   int label_len = vsnprintf(0, 0, format, args);
   int label_size = label_len + 1;
-  CHECK_LE(label_size, MAX_LABEL_SIZE);
+  CHECK_LE(label_size, IR_MAX_LABEL);
   char *label = ir_calloc(ir, label_size);
   va_end(args);
 
@@ -177,7 +177,7 @@ void ir_set_instr_label(struct ir *ir, struct ir_instr *instr,
 
 void ir_remove_instr(struct ir *ir, struct ir_instr *instr) {
   /* remove arguments from the use lists of their values */
-  for (int i = 0; i < MAX_INSTR_ARGS; i++) {
+  for (int i = 0; i < IR_MAX_ARGS; i++) {
     struct ir_value *value = instr->arg[i];
 
     if (value) {
@@ -317,6 +317,12 @@ struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
   l->offset = offset;
 
   return l;
+}
+
+struct ir_value *ir_copy(struct ir *ir, struct ir_value *a) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_COPY, a->type);
+  ir_set_arg0(ir, instr, a);
+  return instr->result;
 }
 
 void ir_set_arg(struct ir *ir, struct ir_instr *instr, int n,

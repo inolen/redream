@@ -16,7 +16,7 @@ struct ir_reference {
   struct ir_instr *instr;
   int arg;
   enum ir_type type;
-  char name[MAX_LABEL_SIZE];
+  char name[IR_MAX_LABEL];
   struct list_node it;
 };
 
@@ -142,7 +142,7 @@ static void ir_lex_next(struct ir_parser *p) {
   }
 
   /* test for op keyword */
-  for (int i = 0; i < NUM_OPS; i++) {
+  for (int i = 0; i < IR_NUM_OPS; i++) {
     const char *opname = ir_op_names[i];
 
     if (!strcasecmp(p->val.s, opname)) {
@@ -351,7 +351,7 @@ static int ir_parse_arg(struct ir_parser *p, struct ir *ir,
 
 static int ir_parse_instr(struct ir_parser *p, struct ir *ir) {
   enum ir_type type = VALUE_V;
-  char label[MAX_LABEL_SIZE] = {0};
+  char label[IR_MAX_LABEL] = {0};
 
   /* parse result type and label */
   if (p->tok == TOK_TYPE) {
@@ -379,7 +379,7 @@ static int ir_parse_instr(struct ir_parser *p, struct ir *ir) {
 
   /* parse arguments */
   if (p->tok == TOK_TYPE) {
-    for (int i = 0; i < MAX_INSTR_ARGS; i++) {
+    for (int i = 0; i < IR_MAX_ARGS; i++) {
       if (!ir_parse_arg(p, ir, instr, i)) {
         return 0;
       }
@@ -406,7 +406,7 @@ static int ir_parse_block(struct ir_parser *p, struct ir *ir) {
     return 0;
   }
 
-  char label[MAX_LABEL_SIZE];
+  char label[IR_MAX_LABEL];
   if (!ir_parse_label(p, ir, label)) {
     return 0;
   }

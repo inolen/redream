@@ -370,10 +370,11 @@ static void x64_backend_emit(struct x64_backend *backend,
     int terminated = 0;
 
     list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
-      x64_emit_cb emit = x64_backend_emitters[instr->op];
+      struct jit_emitter *emitter = &x64_emitters[instr->op];
+      x64_emit_cb emit = (x64_emit_cb)emitter->func;
       CHECK_NOTNULL(emit);
 
-      /* reset temp count used by x64_backend_get_register */
+      /* reset temp count used by x64_backend_reg */
       backend->num_temps = 0;
 
       emit(backend, *backend->codegen, instr);
@@ -635,6 +636,8 @@ struct jit_backend *x64_backend_create(void *code, int code_size) {
   /* compile interface */
   backend->base.registers = x64_registers;
   backend->base.num_registers = array_size(x64_registers);
+  backend->base.emitters = x64_emitters;
+  backend->base.num_emitters = array_size(x64_emitters);
   backend->base.reset = &x64_backend_reset;
   backend->base.assemble_code = &x64_backend_assemble_code;
   backend->base.dump_code = &x64_backend_dump_code;

@@ -427,7 +427,8 @@ struct jit *jit_create(const char *tag, struct jit_frontend *frontend,
   jit->cprop = cprop_create();
   jit->esimp = esimp_create();
   jit->dce = dce_create();
-  jit->ra = ra_create(jit->backend->registers, jit->backend->num_registers);
+  jit->ra = ra_create(jit->backend->registers, jit->backend->num_registers,
+                      jit->backend->emitters, jit->backend->num_emitters);
 
   /* open perf map if enabled */
   if (OPTION_perf) {

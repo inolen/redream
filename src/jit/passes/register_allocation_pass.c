@@ -58,15 +58,15 @@ struct ra_use {
 };
 
 struct ra {
-  const struct jit_register *regs;
-  int num_regs;
+  const struct jit_register *registers;
+  int num_registers;
+  const struct jit_emitter *emitters;
+  int num_emitters;
 
   struct ra_bin *bins;
-
   struct ra_tmp *tmps;
   int num_tmps;
   int max_tmps;
-
   struct ra_use *uses;
   int num_uses;
   int max_uses;
@@ -150,12 +150,12 @@ static struct ra_tmp *ra_create_tmp(struct ra *ra, struct ir_value *value) {
 }
 
 static void ra_validate(struct ra *ra, struct ir *ir, struct ir_block *block) {
-  size_t active_size = sizeof(struct ir_value *) * ra->num_regs;
+  size_t active_size = sizeof(struct ir_value *) * ra->num_registers;
   struct ir_value **active = alloca(active_size);
   memset(active, 0, active_size);
 
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
-    for (int i = 0; i < MAX_INSTR_ARGS; i++) {
+    for (int i = 0; i < IR_MAX_ARGS; i++) {
       struct ir_value *arg = instr->arg[i];
 
       if (!arg || ir_is_constant(arg)) {
@@ -183,7 +183,7 @@ static void ra_pack_bin(struct ra *ra, struct ra_bin *bin,
 
   if (new_tmp) {
     /* assign the bin's register to the new temporary */
-    int reg = (int)(bin->reg - ra->regs);
+    int reg = (int)(bin->reg - ra->registers);
     new_tmp->value->reg = reg;
   }
 
@@ -196,7 +196,7 @@ static int ra_alloc_blocked_reg(struct ra *ra, struct ir *ir,
   struct ra_bin *spill_bin = NULL;
   int furthest_use = INT_MIN;
 
-  for (int i = 0; i < ra->num_regs; i++) {
+  for (int i = 0; i < ra->num_registers; i++) {
     struct ra_bin *bin = ra_get_bin(i);
     struct ra_tmp *packed = ra_get_packed(bin);
 
@@ -250,7 +250,7 @@ static int ra_alloc_free_reg(struct ra *ra, struct ir *ir, struct ra_tmp *tmp) {
   /* find the first free register which can store the tmp's value */
   struct ra_bin *alloc_bin = NULL;
 
-  for (int i = 0; i < ra->num_regs; i++) {
+  for (int i = 0; i < ra->num_registers; i++) {
     struct ra_bin *bin = ra_get_bin(i);
     struct ra_tmp *packed = ra_get_packed(bin);
 
@@ -313,6 +313,8 @@ static void ra_alloc(struct ra *ra, struct ir *ir, struct ir_value *value) {
     return;
   }
 
+  struct ir_instr *instr = value->def;
+
   /* set initial value */
   struct ra_tmp *tmp = ra_get_tmp(value);
   tmp->value = value;
@@ -320,9 +322,24 @@ static void ra_alloc(struct ra *ra, struct ir *ir, struct ir_value *value) {
   if (!ra_reuse_arg_reg(ra, ir, tmp)) {
     if (!ra_alloc_free_reg(ra, ir, tmp)) {
       if (!ra_alloc_blocked_reg(ra, ir, tmp)) {
-        LOG_FATAL("Failed to allocate register");
+        LOG_FATAL("failed to allocate register");
       }
     }
+  }
+
+  /* if the emitter requires arg0 to be in the result register, but it wasn't
+     possible to reuse the same register for each, insert a copy from arg0 to
+     the result register */
+  const struct jit_emitter *emitter = &ra->emitters[instr->op];
+  int arg0_in_result = emitter->result_flags & JIT_CONSTRAINT_ARG0;
+
+  if (arg0_in_result && tmp->value->reg != instr->arg[0]->reg) {
+    struct ir_instr *copy_after = list_prev_entry(instr, struct ir_instr, it);
+    ir_set_current_instr(ir, copy_after);
+
+    /* allocate the copy the same register as the result being allocated for */
+    struct ir_value *copy = ir_copy(ir, instr->arg[0]);
+    copy->reg = tmp->value->reg;
   }
 }
 
@@ -347,7 +364,7 @@ static void ra_rewrite_arg(struct ra *ra, struct ir *ir, struct ir_instr *instr,
 
     struct ir_value *fill = ir_load_local(ir, tmp->slot);
     int ordinal = ra_get_ordinal(instr);
-    ra_set_ordinal(fill->def, ordinal - MAX_INSTR_ARGS + n);
+    ra_set_ordinal(fill->def, ordinal - IR_MAX_ARGS + n);
     fill->tag = value->tag;
     tmp->value = fill;
 
@@ -364,7 +381,7 @@ static void ra_expire_tmps(struct ra *ra, struct ir *ir,
   int current_ordinal = ra_get_ordinal(current);
 
   /* free up any bins which contain tmps that have now expired */
-  for (int i = 0; i < ra->num_regs; i++) {
+  for (int i = 0; i < ra->num_registers; i++) {
     struct ra_bin *bin = ra_get_bin(i);
     struct ra_tmp *packed = ra_get_packed(bin);
 
@@ -397,7 +414,7 @@ static void ra_visit(struct ra *ra, struct ir *ir, struct ir_block *block) {
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
     ra_expire_tmps(ra, ir, instr);
 
-    for (int i = 0; i < MAX_INSTR_ARGS; i++) {
+    for (int i = 0; i < IR_MAX_ARGS; i++) {
       ra_rewrite_arg(ra, ir, instr, i);
     }
 
@@ -415,7 +432,7 @@ static void ra_create_temporaries(struct ra *ra, struct ir *ir,
       ra_add_use(ra, tmp, ordinal);
     }
 
-    for (int i = 0; i < MAX_INSTR_ARGS; i++) {
+    for (int i = 0; i < IR_MAX_ARGS; i++) {
       struct ir_value *arg = instr->arg[i];
 
       if (!arg || ir_is_constant(arg)) {
@@ -437,14 +454,14 @@ static void ra_assign_ordinals(struct ra *ra, struct ir *ir,
   list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
     ra_set_ordinal(instr, ordinal);
 
-    /* each instruction could fill up to MAX_INSTR_ARGS, space out ordinals
+    /* each instruction could fill up to IR_MAX_ARGS, space out ordinals
        enough to allow for this */
-    ordinal += 1 + MAX_INSTR_ARGS;
+    ordinal += 1 + IR_MAX_ARGS;
   }
 }
 
 static void ra_reset(struct ra *ra, struct ir *ir) {
-  for (int i = 0; i < ra->num_regs; i++) {
+  for (int i = 0; i < ra->num_registers; i++) {
     struct ra_bin *bin = &ra->bins[i];
     bin->tmp_idx = NO_TMP;
   }
@@ -460,7 +477,7 @@ void ra_run(struct ra *ra, struct ir *ir) {
     ra_assign_ordinals(ra, ir, block);
     ra_create_temporaries(ra, ir, block);
     ra_visit(ra, ir, block);
-#if 1
+#if 0
     ra_validate(ra, ir, block);
 #endif
   }
@@ -473,17 +490,21 @@ void ra_destroy(struct ra *ra) {
   free(ra);
 }
 
-struct ra *ra_create(const struct jit_register *regs, int num_regs) {
+struct ra *ra_create(const struct jit_register *registers, int num_registers,
+                     const struct jit_emitter *emitters, int num_emitters) {
   struct ra *ra = calloc(1, sizeof(struct ra));
 
-  ra->regs = regs;
-  ra->num_regs = num_regs;
+  ra->registers = registers;
+  ra->num_registers = num_registers;
 
-  ra->bins = calloc(ra->num_regs, sizeof(struct ra_bin));
+  ra->emitters = emitters;
+  ra->num_emitters = num_emitters;
 
-  for (int i = 0; i < ra->num_regs; i++) {
+  ra->bins = calloc(ra->num_registers, sizeof(struct ra_bin));
+
+  for (int i = 0; i < ra->num_registers; i++) {
     struct ra_bin *bin = &ra->bins[i];
-    bin->reg = &ra->regs[i];
+    bin->reg = &ra->registers[i];
   }
 
   return ra;

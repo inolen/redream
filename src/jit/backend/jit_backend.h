@@ -2,17 +2,11 @@
 #define JIT_BACKEND_H
 
 #include <stdint.h>
+#include "jit/ir/ir.h"
 
 struct exception_state;
-struct ir;
 struct jit;
 struct jit_block;
-
-struct jit_register {
-  const char *name;
-  int value_types;
-  const void *data;
-};
 
 /* macro to help declare a code buffer for the backends to use
 
@@ -31,11 +25,41 @@ struct jit_register {
 #define DEFINE_JIT_CODE_BUFFER(name) static uint8_t name[0x800000] ALIGNED(4096)
 #endif
 
+enum {
+  JIT_CONSTRAINT_NONE = 0x0,
+  /* result must contain arg0. this signals the register allocator to insert a
+     copy from arg0 to result if it fails to reuse the same register for both.
+     this is required by several operations, namely binary arithmetic ops on
+     x64, which only take two operands */
+  JIT_CONSTRAINT_ARG0 = 0x1,
+  /* argument must be allocated a register */
+  JIT_CONSTRAINT_REG = 0x2,
+  /* argument must be an immediate */
+  JIT_CONSTRAINT_IMM32 = 0x4,
+};
+
+/* backend-specific register definition */
+struct jit_register {
+  const char *name;
+  int value_types;
+  const void *data;
+};
+
+/* backend-specific emitter definition */
+struct jit_emitter {
+  void *func;
+  int result_flags;
+  int arg_flags[IR_MAX_ARGS];
+};
+
 struct jit_backend {
   struct jit *jit;
 
   const struct jit_register *registers;
   int num_registers;
+
+  const struct jit_emitter *emitters;
+  int num_emitters;
 
   void (*init)(struct jit_backend *);
   void (*destroy)(struct jit_backend *);

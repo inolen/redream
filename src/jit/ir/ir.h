@@ -5,14 +5,14 @@
 #include "core/assert.h"
 #include "core/list.h"
 
-#define MAX_LABEL_SIZE 128
-#define MAX_INSTR_ARGS 4
+#define IR_MAX_LABEL 128
+#define IR_MAX_ARGS 4
 
 enum ir_op {
 #define IR_OP(name) OP_##name,
 #include "jit/ir/ir_ops.inc"
 #undef IR_OP
-  NUM_OPS
+  IR_NUM_OPS
 };
 
 enum ir_type {
@@ -96,8 +96,8 @@ struct ir_instr {
   /* values used by each argument. note, the argument / use is split into two
      separate members to ease reading the argument value (instr->arg[0] vs
      instr->arg[0].value) */
-  struct ir_value *arg[MAX_INSTR_ARGS];
-  struct ir_use used[MAX_INSTR_ARGS];
+  struct ir_value *arg[IR_MAX_ARGS];
+  struct ir_use used[IR_MAX_ARGS];
 
   /* result of the instruction. note, instruction results don't consider
      themselves users of the value (eases register allocation logic) */
@@ -164,7 +164,7 @@ struct ir {
   struct list blocks;
 };
 
-extern const char *ir_op_names[NUM_OPS];
+extern const char *ir_op_names[IR_NUM_OPS];
 
 #define VALUE_I8_MASK (1 << VALUE_I8)
 #define VALUE_I16_MASK (1 << VALUE_I16)
@@ -254,6 +254,7 @@ struct ir_value *ir_alloc_block(struct ir *ir, struct ir_block *block);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
 struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
                                 enum ir_type type);
+struct ir_value *ir_copy(struct ir *ir, struct ir_value *a);
 
 void ir_set_arg(struct ir *ir, struct ir_instr *instr, int n,
                 struct ir_value *v);
