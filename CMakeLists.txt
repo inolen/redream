@@ -297,6 +297,8 @@ if(COMPILER_MSVC)
 
   list(APPEND RELIB_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 elseif(COMPILER_GCC OR COMPILER_CLANG)
+  list(APPEND RELIB_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+
   if(COMPILER_GCC)
     list(APPEND RELIB_DEFS COMPILER_GCC=1)
 
@@ -316,8 +318,6 @@ elseif(COMPILER_GCC OR COMPILER_CLANG)
     list(APPEND RELIB_FLAGS -pthread)
     list(APPEND RELIB_LIBS pthread)
   endif()
-
-  list(APPEND RELIB_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
 endif()
 
 if(PLATFORM_ANDROID)
