@@ -11,6 +11,10 @@ struct reg_cb holly_cb[NUM_HOLLY_REGS];
 /*
  * ch2 dma
  */
+static void holly_ch2_dma_stop(struct holly *hl) {
+  /* nop as DMA is always performed synchronously */
+}
+
 static void holly_ch2_dma(struct holly *hl) {
   /* FIXME what are SB_LMMODE0 / SB_LMMODE1 */
   struct sh4_dtr dtr = {0};
@@ -29,6 +33,7 @@ static void holly_ch2_dma(struct holly *hl) {
  */
 static void holly_gdrom_dma(struct holly *hl) {
   if (!*hl->SB_GDEN) {
+    *hl->SB_GDST = 0;
     return;
   }
 
@@ -77,6 +82,7 @@ static void holly_gdrom_dma(struct holly *hl) {
  */
 static void holly_maple_dma(struct holly *hl) {
   if (!*hl->SB_MDEN) {
+    *hl->SB_MDST = 0;
     return;
   }
 
@@ -125,7 +131,7 @@ static void holly_maple_dma(struct holly *hl) {
         break;
 
       default:
-        LOG_FATAL("Unhandled maple pattern 0x%x", desc.pattern);
+        LOG_FATAL("unhandled maple pattern 0x%x", desc.pattern);
         break;
     }
 
@@ -159,11 +165,6 @@ static struct g2_channel_desc g2_channels[] = {
   static void holly_g2_dma_timer_ch##channel(void *data) { \
     struct holly *hl = data;                               \
     struct g2_channel_desc *desc = &g2_channels[channel];  \
-    uint32_t len = hl->reg[desc->LEN];                     \
-    int restart = len >> 31;                               \
-    hl->reg[desc->LEN] = 0;                                \
-    hl->reg[desc->EN] = restart;                           \
-    hl->reg[desc->ST] = 0;                                 \
     holly_raise_interrupt(hl, desc->INTR);                 \
   }
 
@@ -180,15 +181,27 @@ static void (*g2_timers[])(void *) = {
 };
 /* clang-format on */
 
+static void holly_g2_dma_suspend(struct holly *hl, int channel) {
+  struct g2_channel_desc *desc = &g2_channels[channel];
+
+  if (!hl->reg[desc->EN] || !hl->reg[desc->ST]) {
+    return;
+  }
+
+  LOG_FATAL("holly_g2_dma_suspend not supported");
+}
+
 static void holly_g2_dma(struct holly *hl, int channel) {
   struct g2_channel_desc *desc = &g2_channels[channel];
 
   if (!hl->reg[desc->EN]) {
+    hl->reg[desc->ST] = 0;
     return;
   }
 
   struct address_space *space = hl->sh4->memory_if->space;
   uint32_t len = hl->reg[desc->LEN];
+  int restart = (len >> 31) == 0;
   int transfer_size = len & 0x7fffffff;
   int remaining = transfer_size;
   uint32_t src = hl->reg[desc->STAR];
@@ -197,10 +210,10 @@ static void holly_g2_dma(struct holly *hl, int channel) {
   /* only sh4 -> g2 supported for now */
   CHECK_EQ(hl->reg[desc->DIR], 0);
 
-  /* perform the DMA instantly, but don't update the DMA status registers or
-     raise the end of DMA interrupt until the DMA should actually end. this
-     hopefully fixes issues in games which break when DMAs end immediately,
-     without having to actually emulate the 16-bit x 25mhz g2 bus transfer */
+  /* perform the DMA immediately, but don't raise the end of DMA interrupt until
+     the DMA should actually end. this hopefully fixes issues in games which
+     break when DMAs end immediately, without having to actually emulate the
+     16-bit x 25mhz g2 bus transfer */
   while (remaining) {
     as_write32(space, dst, as_read32(space, src));
     remaining -= 4;
@@ -208,7 +221,12 @@ static void holly_g2_dma(struct holly *hl, int channel) {
     dst += 4;
   }
 
-  /* TODO read data into staging buffer from devices? */
+  /* the status registers need to be updated immediately as well. if they're not
+     updated until the interrupt is raised, the DMA functions used by games will
+     try to suspend the transfer due to a lack of progress */
+  hl->reg[desc->LEN] = 0;
+  hl->reg[desc->EN] = restart;
+  hl->reg[desc->ST] = 0;
 
   int64_t end = CYCLES_TO_NANO(transfer_size / 2, UINT64_C(25000000));
   scheduler_start_timer(hl->scheduler, g2_timers[channel], hl, end);
@@ -294,7 +312,7 @@ static uint32_t *holly_interrupt_status(struct holly *hl,
     case HOLLY_INT_ERR:
       return hl->SB_ISTERR;
     default:
-      LOG_FATAL("Invalid interrupt type");
+      LOG_FATAL("invalid interrupt type");
   }
 }
 
@@ -475,94 +493,191 @@ REG_W32(holly_cb, SB_IML6ERR) {
 
 REG_W32(holly_cb, SB_C2DST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_C2DST = value)) {
+
+  *hl->SB_C2DST = value;
+
+  if (*hl->SB_C2DST) {
     holly_ch2_dma(hl);
+  } else {
+    holly_ch2_dma_stop(hl);
   }
 }
 
 REG_W32(holly_cb, SB_SDST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_SDST = value)) {
-    LOG_FATAL("Sort DMA not supported");
+
+  /* can't write 0 */
+  *hl->SB_SDST |= value;
+
+  if (*hl->SB_SDST) {
+    LOG_FATAL("sort DMA not supported");
   }
 }
 
 REG_W32(holly_cb, SB_MDST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_MDST = value)) {
+
+  /* can't write 0 */
+  *hl->SB_MDST |= value;
+
+  if (*hl->SB_MDST) {
     holly_maple_dma(hl);
   }
 }
 
 REG_W32(holly_cb, SB_GDST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_GDST = value)) {
+
+  /* can't write 0 */
+  *hl->SB_GDST |= value;
+
+  if (*hl->SB_GDST) {
     holly_gdrom_dma(hl);
   }
 }
 
 REG_W32(holly_cb, SB_ADST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_ADST = value)) {
+
+  /* can't write 0 */
+  *hl->SB_ADST |= value;
+
+  if (*hl->SB_ADST) {
     holly_g2_dma(hl, 0);
   }
 }
 
+REG_W32(holly_cb, SB_ADSUSP) {
+  struct holly *hl = dc->holly;
+
+  hl->SB_ADSUSP->full = value;
+
+  if (hl->SB_ADTSEL->susp && hl->SB_ADSUSP->susp) {
+    holly_g2_dma_suspend(hl, 0);
+  }
+}
+
 REG_W32(holly_cb, SB_ADTSEL) {
-  if ((value & 0x2) == 0x2) {
-    LOG_FATAL("Hardware DMA trigger not supported");
+  struct holly *hl = dc->holly;
+
+  hl->SB_ADTSEL->full = value;
+
+  if (hl->SB_ADTSEL->hw) {
+    LOG_FATAL("hardware DMA trigger not supported");
   }
 }
 
 REG_W32(holly_cb, SB_E1ST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_E1ST = value)) {
+
+  /* can't write 0 */
+  *hl->SB_E1ST |= value;
+
+  if (*hl->SB_E1ST) {
     holly_g2_dma(hl, 1);
   }
 }
 
+REG_W32(holly_cb, SB_E1SUSP) {
+  struct holly *hl = dc->holly;
+
+  hl->SB_E1SUSP->full = value;
+
+  if (hl->SB_E1TSEL->susp && hl->SB_E1SUSP->susp) {
+    holly_g2_dma_suspend(hl, 1);
+  }
+}
+
 REG_W32(holly_cb, SB_E1TSEL) {
-  if ((value & 0x2) == 0x2) {
-    LOG_FATAL("Hardware DMA trigger not supported");
+  struct holly *hl = dc->holly;
+
+  hl->SB_E1TSEL->full = value;
+
+  if (hl->SB_E1TSEL->hw) {
+    LOG_FATAL("hardware DMA trigger not supported");
   }
 }
 
 REG_W32(holly_cb, SB_E2ST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_E2ST = value)) {
+
+  /* can't write 0 */
+  *hl->SB_E2ST |= value;
+
+  if (*hl->SB_E2ST) {
     holly_g2_dma(hl, 2);
   }
 }
 
+REG_W32(holly_cb, SB_E2SUSP) {
+  struct holly *hl = dc->holly;
+
+  hl->SB_E2SUSP->full = value;
+
+  if (hl->SB_E2TSEL->susp && hl->SB_E2SUSP->susp) {
+    holly_g2_dma_suspend(hl, 2);
+  }
+}
+
 REG_W32(holly_cb, SB_E2TSEL) {
-  if ((value & 0x2) == 0x2) {
-    LOG_FATAL("Hardware DMA trigger not supported");
+  struct holly *hl = dc->holly;
+
+  hl->SB_E2TSEL->full = value;
+
+  if (hl->SB_E2TSEL->hw) {
+    LOG_FATAL("hardware DMA trigger not supported");
   }
 }
 
 REG_W32(holly_cb, SB_DDST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_DDST = value)) {
+
+  /* can't write 0 */
+  *hl->SB_DDST |= value;
+
+  if (*hl->SB_DDST) {
     holly_g2_dma(hl, 3);
   }
 }
 
+REG_W32(holly_cb, SB_DDSUSP) {
+  struct holly *hl = dc->holly;
+
+  hl->SB_DDSUSP->full = value;
+
+  if (hl->SB_DDTSEL->susp && hl->SB_DDSUSP->susp) {
+    holly_g2_dma_suspend(hl, 3);
+  }
+}
+
 REG_W32(holly_cb, SB_DDTSEL) {
-  if ((value & 0x2) == 0x2) {
-    LOG_FATAL("Hardware DMA trigger not supported");
+  struct holly *hl = dc->holly;
+
+  hl->SB_DDTSEL->full = value;
+
+  if (hl->SB_DDTSEL->hw) {
+    LOG_FATAL("hardware DMA trigger not supported");
   }
 }
 
 REG_W32(holly_cb, SB_PDST) {
   struct holly *hl = dc->holly;
-  if ((*hl->SB_PDST = value)) {
-    LOG_FATAL("PVR DMA not supported");
+
+  /* can't write 0 */
+  *hl->SB_PDST |= value;
+
+  if (*hl->SB_PDST) {
+    LOG_FATAL("pvr DMA not supported");
   }
 }
 
 REG_W32(holly_cb, SB_PDTSEL) {
-  if (value) {
-    LOG_FATAL("Hardware DMA trigger not supported");
+  struct holly *hl = dc->holly;
+
+  *hl->SB_PDTSEL = value;
+
+  if (*hl->SB_PDTSEL) {
+    LOG_FATAL("hardware DMA trigger not supported");
   }
 }
 

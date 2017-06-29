@@ -4,6 +4,27 @@
 #include <stdint.h>
 
 /* registers */
+union g2_tsel {
+  uint32_t full;
+  struct {
+    uint32_t ext : 1;
+    uint32_t hw : 1;
+    uint32_t susp : 1;
+    uint32_t : 29;
+  };
+};
+
+union g2_susp {
+  uint32_t full;
+  struct {
+    uint32_t susp : 1;
+    uint32_t : 3;
+    uint32_t transfer_state : 1;
+    uint32_t request_state : 1;
+    uint32_t : 26;
+  };
+};
+
 enum {
 #define HOLLY_REG(addr, name, flags, default) name = (addr - 0x005f0000) >> 2,
 #include "guest/holly/holly_regs.inc"
