@@ -27,15 +27,15 @@ struct jit_block;
 
 enum {
   JIT_CONSTRAINT_NONE = 0x0,
+  /* argument must be allocated a register */
+  JIT_CONSTRAINT_REG = 0x1,
+  /* argument must be an immediate */
+  JIT_CONSTRAINT_IMM32 = 0x2,
   /* result must contain arg0. this signals the register allocator to insert a
      copy from arg0 to result if it fails to reuse the same register for both.
      this is required by several operations, namely binary arithmetic ops on
      x64, which only take two operands */
-  JIT_CONSTRAINT_ARG0 = 0x1,
-  /* argument must be allocated a register */
-  JIT_CONSTRAINT_REG = 0x2,
-  /* argument must be an immediate */
-  JIT_CONSTRAINT_IMM32 = 0x4,
+  JIT_CONSTRAINT_RES_HAS_ARG0 = 0x4,
 };
 
 /* backend-specific register definition */

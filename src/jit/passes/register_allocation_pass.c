@@ -331,9 +331,9 @@ static void ra_alloc(struct ra *ra, struct ir *ir, struct ir_value *value) {
      possible to reuse the same register for each, insert a copy from arg0 to
      the result register */
   const struct jit_emitter *emitter = &ra->emitters[instr->op];
-  int arg0_in_result = emitter->result_flags & JIT_CONSTRAINT_ARG0;
+  int res_has_arg0 = emitter->result_flags & JIT_CONSTRAINT_RES_HAS_ARG0;
 
-  if (arg0_in_result && tmp->value->reg != instr->arg[0]->reg) {
+  if (res_has_arg0 && tmp->value->reg != instr->arg[0]->reg) {
     struct ir_instr *copy_after = list_prev_entry(instr, struct ir_instr, it);
     ir_set_current_instr(ir, copy_after);
 
