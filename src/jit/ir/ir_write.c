@@ -38,7 +38,8 @@ static void ir_write_type(enum ir_type type, FILE *output) {
 }
 
 static void ir_write_op(enum ir_op op, FILE *output) {
-  const char *name = ir_op_names[op];
+  const struct ir_opdef *def = &ir_opdefs[op];
+  const char *name = def->name;
 
   while (*name) {
     fprintf(output, "%c", tolower(*name));
@@ -121,7 +122,8 @@ static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
   }
 
 #if 0
-  fprintf(output, " [tag %" PRId64 ", reg %d]", instr->tag, instr->result ? instr->result->reg : -1);
+  fprintf(output, "\t# tag=%" PRId64 " reg=%d", instr->tag,
+          instr->result ? instr->result->reg : -1);
 #endif
 
   fprintf(output, "\n");

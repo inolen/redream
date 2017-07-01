@@ -143,9 +143,9 @@ static void ir_lex_next(struct ir_parser *p) {
 
   /* test for op keyword */
   for (int i = 0; i < IR_NUM_OPS; i++) {
-    const char *opname = ir_op_names[i];
+    const struct ir_opdef *def = &ir_opdefs[i];
 
-    if (!strcasecmp(p->val.s, opname)) {
+    if (!strcasecmp(p->val.s, def->name)) {
       p->val.op = i;
       p->tok = TOK_OP;
       return;

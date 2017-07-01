@@ -36,13 +36,14 @@ extern "C" {
    amd64 calling convention uses rdi, rsi, rdx, rcx, r8, r9 for arguments
    both use the same xmm registers for floating point arguments
    our largest function call uses only 3 arguments
-   msvc is left with rax, rdi, rsi, r9-r11,
-   amd64 is left with rax, rcx, r8-r11 available on amd64
+   msvc is left with rax, rsi, rdi, r10 and r11
+   amd64 is left with rax, r8, r9, r10 and r11
 
    rax is used as a scratch register
    r10, r11, xmm1 are used for constant not eliminated by const propagation
    r14, r15 are reserved for the context and memory pointers */
 
+/* clang-format off */
 #if PLATFORM_WINDOWS
 const int x64_arg0_idx = Xbyak::Operand::RCX;
 const int x64_arg1_idx = Xbyak::Operand::RDX;
@@ -67,23 +68,31 @@ const Xbyak::Reg64 guestctx(Xbyak::Operand::R14);
 const Xbyak::Reg64 guestmem(Xbyak::Operand::R15);
 
 const struct jit_register x64_registers[] = {
-    {"rbx", VALUE_INT_MASK, (const void *)&Xbyak::util::rbx},
-    {"rbp", VALUE_INT_MASK, (const void *)&Xbyak::util::rbp},
-    {"r12", VALUE_INT_MASK, (const void *)&Xbyak::util::r12},
-    {"r13", VALUE_INT_MASK, (const void *)&Xbyak::util::r13},
-    {"xmm6", VALUE_FLOAT_MASK, (const void *)&Xbyak::util::xmm6},
-    {"xmm7", VALUE_FLOAT_MASK, (const void *)&Xbyak::util::xmm7},
-    {"xmm8", VALUE_FLOAT_MASK, (const void *)&Xbyak::util::xmm8},
-    {"xmm9", VALUE_FLOAT_MASK, (const void *)&Xbyak::util::xmm9},
-    {"xmm10", VALUE_FLOAT_MASK, (const void *)&Xbyak::util::xmm10},
-    {"xmm11", VALUE_VECTOR_MASK, (const void *)&Xbyak::util::xmm11},
-    {"xmm12", VALUE_VECTOR_MASK, (const void *)&Xbyak::util::xmm12},
-    {"xmm13", VALUE_VECTOR_MASK, (const void *)&Xbyak::util::xmm13},
-    {"xmm14", VALUE_VECTOR_MASK, (const void *)&Xbyak::util::xmm14},
-    {"xmm15", VALUE_VECTOR_MASK, (const void *)&Xbyak::util::xmm15}};
+    {"rbx",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::rbx},
+    {"rbp",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::rbp},
+#if PLATFORM_WINDOWS
+    {"rsi",   VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::rsi},
+    {"rdi",   VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::rdi},
+#else
+    {"r8",    VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r8},
+    {"r9",    VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r9},
+#endif
+    {"r12",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::r12},
+    {"r13",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::r13},
+    {"xmm6",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm6},
+    {"xmm7",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm7},
+    {"xmm8",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm8},
+    {"xmm9",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm9},
+    {"xmm10", VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm10},
+    {"xmm11", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm11},
+    {"xmm12", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm12},
+    {"xmm13", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm13},
+    {"xmm14", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm14},
+    {"xmm15", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm15}
+};
 
-const int x64_num_registers =
-    sizeof(x64_registers) / sizeof(struct jit_register);
+const int x64_num_registers = array_size(x64_registers);
+/* clang-format on */
 
 const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
                                  const struct ir_value *v) {
@@ -403,14 +412,29 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
   {
     for (int i = 0; i < 16; i++) {
+      Xbyak::Reg64 dst(i);
+
       e.align(32);
 
       backend->load_thunk[i] = e.getCurr<void (*)()>();
 
-      Xbyak::Reg64 dst(i);
+      /* call the mmio handler */
       e.call(e.rax);
-      e.mov(dst, e.rax);
+
+      /* restore caller-saved registers */
       e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
+#if PLATFORM_WINDOWS
+      e.pop(e.rdi);
+      e.pop(e.rsi);
+#else
+      e.pop(e.r9);
+      e.pop(e.r8);
+#endif
+
+      /* save mmio handler result */
+      e.mov(dst, e.rax);
+
+      /* return to jit code */
       e.ret();
     }
   }
@@ -420,8 +444,20 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
     backend->store_thunk = e.getCurr<void (*)()>();
 
+    /* call the mmio handler */
     e.call(e.rax);
+
+    /* restore caller-saved registers */
     e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
+#if PLATFORM_WINDOWS
+    e.pop(e.rdi);
+    e.pop(e.rsi);
+#else
+    e.pop(e.r9);
+    e.pop(e.r8);
+#endif
+
+    /* return to jit code */
     e.ret();
   }
 }
@@ -467,7 +503,7 @@ static int x64_backend_handle_exception(struct jit_backend *base,
       reinterpret_cast<const uint8_t *>(ex->thread_state.r15);
   uint32_t guest_addr = static_cast<uint32_t>(fault_addr - protected_start);
 
-  /* ensure it was an MMIO address that caused the exception */
+  /* ensure it was an mmio address that caused the exception */
   void *ptr;
   guest->lookup(guest->space, guest_addr, &ptr, NULL, NULL, NULL, NULL);
 
@@ -481,17 +517,24 @@ static int x64_backend_handle_exception(struct jit_backend *base,
     return 0;
   }
 
-  /* instead of handling the MMIO callback from inside of the exception
-     handler, force rip to the beginning of a thunk which will invoke the
-     callback once the exception handler has exited. this frees the callbacks
-     from any restrictions imposed by an exception handler, and also prevents
-     a possible recursive exceptions
+/* instead of handling the mmio callback from inside of the exception
+   handler, force rip to the beginning of a thunk which will invoke the
+   callback once the exception handler has exited. this frees the callbacks
+   from any restrictions imposed by an exception handler, and also prevents
+   a possible recursive exception
 
-     push the return address (the next instruction after the current mov) to
-     the stack. also, adjust the stack for the return address, with an extra
-     8 bytes to keep it aligned */
+   push all of the caller saved registers used by the jit, as well as the
+   return address (the next instruction after the current mov) to the stack.
+   add an extra 8 bytes to keep the stack aligned */
+#if PLATFORM_WINDOWS
+  *(uint64_t *)(ex->thread_state.rsp - 24) = ex->thread_state.rdi;
+  *(uint64_t *)(ex->thread_state.rsp - 16) = ex->thread_state.rsi;
+#else
+  *(uint64_t *)(ex->thread_state.rsp - 24) = ex->thread_state.r9;
+  *(uint64_t *)(ex->thread_state.rsp - 16) = ex->thread_state.r8;
+#endif
   *(uint64_t *)(ex->thread_state.rsp - 8) = ex->thread_state.rip + mov.length;
-  ex->thread_state.rsp -= X64_STACK_SHADOW_SPACE + 8 + 8;
+  ex->thread_state.rsp -= X64_STACK_SHADOW_SPACE + 24 + 8;
   CHECK(ex->thread_state.rsp % 16 == 0);
 
   if (mov.is_load) {

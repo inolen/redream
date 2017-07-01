@@ -40,8 +40,9 @@ struct ra_bin {
    slot. slots are not reused by different temporaries, so once it has spilled
    once, it should not be spilled again */
 struct ra_tmp {
-  int next_use_idx;
+  int first_use_idx;
   int last_use_idx;
+  int next_use_idx;
 
   /* current location of temporary */
   struct ir_value *value;
@@ -111,11 +112,12 @@ static void ra_add_use(struct ra *ra, struct ra_tmp *tmp, int ordinal) {
 
   /* append use to temporary's list of uses */
   if (tmp->next_use_idx == NO_USE) {
-    CHECK_EQ(tmp->last_use_idx, NO_USE);
-    tmp->next_use_idx = ra->num_uses;
+    CHECK(tmp->first_use_idx == NO_USE && tmp->last_use_idx == NO_USE);
+    tmp->first_use_idx = ra->num_uses;
     tmp->last_use_idx = ra->num_uses;
+    tmp->next_use_idx = ra->num_uses;
   } else {
-    CHECK_NE(tmp->last_use_idx, NO_USE);
+    CHECK(tmp->first_use_idx != NO_USE && tmp->last_use_idx != NO_USE);
     struct ra_use *last_use = &ra->uses[tmp->last_use_idx];
     last_use->next_idx = ra->num_uses;
     tmp->last_use_idx = ra->num_uses;
@@ -138,8 +140,9 @@ static struct ra_tmp *ra_create_tmp(struct ra *ra, struct ir_value *value) {
 
   /* reset the temporary's state, reusing the previously allocated uses array */
   struct ra_tmp *tmp = &ra->tmps[ra->num_tmps];
-  tmp->next_use_idx = NO_USE;
+  tmp->first_use_idx = NO_USE;
   tmp->last_use_idx = NO_USE;
+  tmp->next_use_idx = NO_USE;
   tmp->value = NULL;
   tmp->slot = NULL;
 
@@ -166,6 +169,20 @@ static void ra_validate(struct ra *ra, struct ir *ir, struct ir_block *block) {
       CHECK_EQ(active[arg->reg], arg);
     }
 
+    /* reset caller-saved registers */
+    const struct ir_opdef *def = &ir_opdefs[instr->op];
+
+    if (def->flags & IR_FLAG_CALL) {
+      for (int i = 0; i < ra->num_registers; i++) {
+        const struct jit_register *reg = &ra->registers[i];
+
+        if (reg->flags & JIT_CALLER_SAVED) {
+          active[i] = NULL;
+        }
+      }
+    }
+
+    /* mark the current result active */
     if (instr->result) {
       active[instr->result->reg] = instr->result;
     }
@@ -188,6 +205,76 @@ static void ra_pack_bin(struct ra *ra, struct ra_bin *bin,
   }
 
   ra_set_packed(bin, new_tmp);
+}
+
+static void ra_spill_tmp(struct ra *ra, struct ir *ir, struct ra_tmp *tmp,
+                         struct ir_instr *before) {
+  if (!tmp->slot) {
+    struct ir_instr *after = list_prev_entry(before, struct ir_instr, it);
+    struct ir_insert_point point = {before->block, after};
+    ir_set_insert_point(ir, &point);
+
+    tmp->slot = ir_alloc_local(ir, tmp->value->type);
+    ir_store_local(ir, tmp->slot, tmp->value);
+
+    /* track spill stats */
+    if (ir_is_int(tmp->value->type)) {
+      STAT_gprs_spilled++;
+    } else {
+      STAT_fprs_spilled++;
+    }
+  }
+
+  tmp->value = NULL;
+}
+
+static void ra_spill_tmps(struct ra *ra, struct ir *ir,
+                          struct ir_instr *instr) {
+  const struct ir_opdef *def = &ir_opdefs[instr->op];
+
+  /* only spill at call sites */
+  if (!(def->flags & IR_FLAG_CALL)) {
+    return;
+  }
+
+  /* iterate over temporaries, spilling any that would be invalidated by this
+     call */
+  int current_ordinal = ra_get_ordinal(instr);
+
+  for (int i = 0; i < ra->num_tmps; i++) {
+    struct ra_tmp *tmp = &ra->tmps[i];
+
+    if (!tmp->value) {
+      continue;
+    }
+
+    /* only spill caller-saved regs */
+    struct ra_bin *bin = ra_get_bin(tmp->value->reg);
+
+    if (!(bin->reg->flags & JIT_CALLER_SAVED)) {
+      continue;
+    }
+
+    /* check that the temporary spans this call site */
+    struct ra_use *first_use = &ra->uses[tmp->first_use_idx];
+    struct ra_use *last_use = &ra->uses[tmp->last_use_idx];
+
+    /* if this call site produced the temporary, no need to spill */
+    if (first_use->ordinal >= current_ordinal) {
+      continue;
+    }
+
+    /* if this call site is the last use of the temporary, no need to spill */
+    if (last_use->ordinal <= current_ordinal) {
+      continue;
+    }
+
+    /* spill before current instr */
+    ra_spill_tmp(ra, ir, tmp, instr);
+
+    /* free up temporary's bin */
+    ra_pack_bin(ra, bin, NULL);
+  }
 }
 
 static int ra_alloc_blocked_reg(struct ra *ra, struct ir *ir,
@@ -220,27 +307,11 @@ static int ra_alloc_blocked_reg(struct ra *ra, struct ir *ir,
     return 0;
   }
 
-  /* spill the tmp if it wasn't previously spilled */
+  /* spill existing temporary right before the temporary being allocated for */
   struct ra_tmp *spill_tmp = ra_get_packed(spill_bin);
+  ra_spill_tmp(ra, ir, spill_tmp, tmp->value->def);
 
-  if (!spill_tmp->slot) {
-    struct ir_instr *spill_after =
-        list_prev_entry(tmp->value->def, struct ir_instr, it);
-    struct ir_insert_point point = {tmp->value->def->block, spill_after};
-    ir_set_insert_point(ir, &point);
-
-    spill_tmp->slot = ir_alloc_local(ir, spill_tmp->value->type);
-    ir_store_local(ir, spill_tmp->slot, spill_tmp->value);
-
-    /* track spill stats */
-    if (ir_is_int(spill_tmp->value->type)) {
-      STAT_gprs_spilled++;
-    } else {
-      STAT_fprs_spilled++;
-    }
-  }
-
-  /* assign temporary to spilled value's bin */
+  /* assign new temporary to spilled temporary's bin */
   ra_pack_bin(ra, spill_bin, tmp);
 
   return 1;
@@ -278,7 +349,6 @@ static int ra_alloc_free_reg(struct ra *ra, struct ir *ir, struct ra_tmp *tmp) {
 
 static int ra_reuse_arg_reg(struct ra *ra, struct ir *ir, struct ra_tmp *tmp) {
   struct ir_instr *instr = tmp->value->def;
-  int pos = ra_get_ordinal(instr);
 
   if (!instr->arg[0] || ir_is_constant(instr->arg[0])) {
     return 0;
@@ -344,8 +414,8 @@ static void ra_alloc(struct ra *ra, struct ir *ir, struct ir_value *value) {
 }
 
 static void ra_rewrite_arg(struct ra *ra, struct ir *ir, struct ir_instr *instr,
-                           int n) {
-  struct ir_use *use = &instr->used[n];
+                           int arg) {
+  struct ir_use *use = &instr->used[arg];
   struct ir_value *value = *use->parg;
 
   if (!value || ir_is_constant(value)) {
@@ -364,7 +434,7 @@ static void ra_rewrite_arg(struct ra *ra, struct ir *ir, struct ir_instr *instr,
 
     struct ir_value *fill = ir_load_local(ir, tmp->slot);
     int ordinal = ra_get_ordinal(instr);
-    ra_set_ordinal(fill->def, ordinal - IR_MAX_ARGS + n);
+    ra_set_ordinal(fill->def, ordinal - IR_MAX_ARGS + arg);
     fill->tag = value->tag;
     tmp->value = fill;
 
@@ -412,13 +482,24 @@ static void ra_visit(struct ra *ra, struct ir *ir, struct ir_block *block) {
   /* use safe iterator to avoid iterating over fills inserted
      when rewriting arguments */
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
+    /* expire temporaries that are no longer used, freeing up the bins they
+       occupied for allocation */
     ra_expire_tmps(ra, ir, instr);
 
+    /* rewrite arguments to use their temporary's latest value */
     for (int i = 0; i < IR_MAX_ARGS; i++) {
       ra_rewrite_arg(ra, ir, instr, i);
     }
 
+    /* allocate a bin for the result */
     ra_alloc(ra, ir, instr->result);
+
+    /* spill temporaries for caller-saved regs. note, this must come after args
+       have been rewritten and the result has been allocated for. if this came
+       before rewriting args, the temporaries wouldn't have a valid value to
+       rewrite with. if this came before allocation, the functionality of
+       ra_reuse_arg_reg would be lost */
+    ra_spill_tmps(ra, ir, instr);
   }
 }
 
@@ -477,7 +558,8 @@ void ra_run(struct ra *ra, struct ir *ir) {
     ra_assign_ordinals(ra, ir, block);
     ra_create_temporaries(ra, ir, block);
     ra_visit(ra, ir, block);
-#if 0
+
+#if 1
     ra_validate(ra, ir, block);
 #endif
   }

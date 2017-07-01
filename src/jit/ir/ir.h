@@ -9,10 +9,14 @@
 #define IR_MAX_ARGS 4
 
 enum ir_op {
-#define IR_OP(name) OP_##name,
+#define IR_OP(name, flags) OP_##name,
 #include "jit/ir/ir_ops.inc"
 #undef IR_OP
   IR_NUM_OPS
+};
+
+enum ir_flags {
+  IR_FLAG_CALL = 0x1,
 };
 
 enum ir_type {
@@ -45,6 +49,11 @@ enum ir_cmp {
 struct ir_block;
 struct ir_instr;
 struct ir_value;
+
+struct ir_opdef {
+  const char *name;
+  int flags;
+};
 
 /* use is a layer of indirection between an instruction and the values it uses
    as arguments. this indirection makes it possible to maintain a list for each
@@ -164,7 +173,7 @@ struct ir {
   struct list blocks;
 };
 
-extern const char *ir_op_names[IR_NUM_OPS];
+extern const struct ir_opdef ir_opdefs[IR_NUM_OPS];
 
 #define VALUE_I8_MASK (1 << VALUE_I8)
 #define VALUE_I16_MASK (1 << VALUE_I16)
@@ -254,7 +263,6 @@ struct ir_value *ir_alloc_block(struct ir *ir, struct ir_block *block);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
 struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
                                 enum ir_type type);
-struct ir_value *ir_copy(struct ir *ir, struct ir_value *a);
 
 void ir_set_arg(struct ir *ir, struct ir_instr *instr, int n,
                 struct ir_value *v);
@@ -409,5 +417,8 @@ void ir_call_cond_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
 /* debug */
 void ir_debug_break(struct ir *ir);
 void ir_assert_lt(struct ir *ir, struct ir_value *a, struct ir_value *b);
+
+/* low-level ir ops emitted by register allocation */
+struct ir_value *ir_copy(struct ir *ir, struct ir_value *a);
 
 #endif

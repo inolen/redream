@@ -3,8 +3,8 @@
 #include "jit/ir/ir.h"
 #include "core/math.h"
 
-const char *ir_op_names[IR_NUM_OPS] = {
-#define IR_OP(name) #name,
+const struct ir_opdef ir_opdefs[IR_NUM_OPS] = {
+#define IR_OP(name, flags) {#name, flags},
 #include "jit/ir/ir_ops.inc"
 };
 
@@ -317,12 +317,6 @@ struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
   l->offset = offset;
 
   return l;
-}
-
-struct ir_value *ir_copy(struct ir *ir, struct ir_value *a) {
-  struct ir_instr *instr = ir_append_instr(ir, OP_COPY, a->type);
-  ir_set_arg0(ir, instr, a);
-  return instr->result;
 }
 
 void ir_set_arg(struct ir *ir, struct ir_instr *instr, int n,
@@ -995,4 +989,10 @@ void ir_assert_lt(struct ir *ir, struct ir_value *a, struct ir_value *b) {
   struct ir_instr *instr = ir_append_instr(ir, OP_ASSERT_LT, VALUE_V);
   ir_set_arg0(ir, instr, a);
   ir_set_arg1(ir, instr, b);
+}
+
+struct ir_value *ir_copy(struct ir *ir, struct ir_value *a) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_COPY, a->type);
+  ir_set_arg0(ir, instr, a);
+  return instr->result;
 }

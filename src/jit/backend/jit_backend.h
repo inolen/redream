@@ -25,6 +25,20 @@ struct jit_block;
 #define DEFINE_JIT_CODE_BUFFER(name) static uint8_t name[0x800000] ALIGNED(4096)
 #endif
 
+/* backend-specific register definition */
+enum {
+  JIT_CALLEE_SAVED = 0x1,
+  JIT_CALLER_SAVED = 0x2,
+};
+
+struct jit_register {
+  const char *name;
+  int value_types;
+  int flags;
+  const void *data;
+};
+
+/* backend-specific emitter definition */
 enum {
   JIT_CONSTRAINT_NONE = 0x0,
   /* argument must be allocated a register */
@@ -38,14 +52,6 @@ enum {
   JIT_CONSTRAINT_RES_HAS_ARG0 = 0x4,
 };
 
-/* backend-specific register definition */
-struct jit_register {
-  const char *name;
-  int value_types;
-  const void *data;
-};
-
-/* backend-specific emitter definition */
 struct jit_emitter {
   void *func;
   int result_flags;
