@@ -478,7 +478,8 @@ static void ra_expire_tmps(struct ra *ra, struct ir *ir,
   }
 }
 
-static void ra_visit(struct ra *ra, struct ir *ir, struct ir_block *block) {
+static void ra_alloc_bins(struct ra *ra, struct ir *ir,
+                          struct ir_block *block) {
   /* use safe iterator to avoid iterating over fills inserted
      when rewriting arguments */
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
@@ -503,8 +504,8 @@ static void ra_visit(struct ra *ra, struct ir *ir, struct ir_block *block) {
   }
 }
 
-static void ra_create_temporaries(struct ra *ra, struct ir *ir,
-                                  struct ir_block *block) {
+static void ra_create_tmps(struct ra *ra, struct ir *ir,
+                           struct ir_block *block) {
   list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
     int ordinal = ra_get_ordinal(instr);
 
@@ -541,6 +542,47 @@ static void ra_assign_ordinals(struct ra *ra, struct ir *ir,
   }
 }
 
+static void ra_legalize_args(struct ra *ra, struct ir *ir,
+                             struct ir_block *block) {
+  struct ir_instr *prev = NULL;
+
+  list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
+    const struct jit_emitter *emitter = &ra->emitters[instr->op];
+
+    for (int i = 0; i < IR_MAX_ARGS; i++) {
+      struct ir_value *arg = instr->arg[i];
+      int arg_flags = emitter->arg_flags[i];
+
+      if (!arg) {
+        continue;
+      }
+
+      /* legalize constants */
+      if (ir_is_constant(arg)) {
+        int can_encode = 0;
+        can_encode |= (arg_flags & JIT_CONSTRAINT_IMM_I32) &&
+                      arg->type >= VALUE_I8 && arg->type <= VALUE_I32;
+        can_encode |= (arg_flags & JIT_CONSTRAINT_IMM_I64) &&
+                      arg->type >= VALUE_I8 && arg->type <= VALUE_I64;
+
+        /* if the emitter can't encode this argument as an immediate, create a
+           value for the constant and allocate a register for it */
+        if (!can_encode) {
+          struct ir_insert_point point = {block, prev};
+          ir_set_insert_point(ir, &point);
+
+          struct ir_value *copy = ir_copy(ir, arg);
+
+          struct ir_use *use = &instr->used[i];
+          ir_replace_use(use, copy);
+        }
+      }
+    }
+
+    prev = instr;
+  }
+}
+
 static void ra_reset(struct ra *ra, struct ir *ir) {
   for (int i = 0; i < ra->num_registers; i++) {
     struct ra_bin *bin = &ra->bins[i];
@@ -555,9 +597,10 @@ void ra_run(struct ra *ra, struct ir *ir) {
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
     ra_reset(ra, ir);
 
+    ra_legalize_args(ra, ir, block);
     ra_assign_ordinals(ra, ir, block);
-    ra_create_temporaries(ra, ir, block);
-    ra_visit(ra, ir, block);
+    ra_create_tmps(ra, ir, block);
+    ra_alloc_bins(ra, ir, block);
 
 #if 1
     ra_validate(ra, ir, block);

@@ -32,7 +32,6 @@ struct x64_backend {
   /* codegen state */
   Xbyak::CodeGenerator *codegen;
   int use_avx;
-  int num_temps;
   Xbyak::Label xmm_const[NUM_XMM_CONST];
   void *dispatch_dynamic;
   void *dispatch_static;
@@ -87,7 +86,6 @@ void x64_backend_mov_value(struct x64_backend *backend, Xbyak::Reg dst,
                            const struct ir_value *v);
 const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
                                               enum xmm_constant c);
-int x64_backend_can_encode_imm(const struct ir_value *v);
 
 /*
  * dispatch

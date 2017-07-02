@@ -41,10 +41,10 @@ struct jit_register {
 /* backend-specific emitter definition */
 enum {
   JIT_CONSTRAINT_NONE = 0x0,
-  /* argument must be allocated a register */
-  JIT_CONSTRAINT_REG = 0x1,
-  /* argument must be an immediate */
-  JIT_CONSTRAINT_IMM32 = 0x2,
+  /* argument must be a 32-bit immediate or less */
+  JIT_CONSTRAINT_IMM_I32 = 0x1,
+  /* argument must be a 64-bit immediate or less */
+  JIT_CONSTRAINT_IMM_I64 = 0x2,
   /* result must contain arg0. this signals the register allocator to insert a
      copy from arg0 to result if it fails to reuse the same register for both.
      this is required by several operations, namely binary arithmetic ops on

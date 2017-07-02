@@ -55,15 +55,11 @@ const int x64_arg1_idx = Xbyak::Operand::RSI;
 const int x64_arg2_idx = Xbyak::Operand::RDX;
 const int x64_arg3_idx = Xbyak::Operand::RCX;
 #endif
-const int x64_tmp0_idx = Xbyak::Operand::R10;
-const int x64_tmp1_idx = Xbyak::Operand::R11;
 
 const Xbyak::Reg64 arg0(x64_arg0_idx);
 const Xbyak::Reg64 arg1(x64_arg1_idx);
 const Xbyak::Reg64 arg2(x64_arg2_idx);
 const Xbyak::Reg64 arg3(x64_arg3_idx);
-const Xbyak::Reg64 tmp0(x64_tmp0_idx);
-const Xbyak::Reg64 tmp1(x64_tmp1_idx);
 const Xbyak::Reg64 guestctx(Xbyak::Operand::R14);
 const Xbyak::Reg64 guestmem(Xbyak::Operand::R15);
 
@@ -77,6 +73,8 @@ const struct jit_register x64_registers[] = {
     {"r8",    VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r8},
     {"r9",    VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r9},
 #endif
+    {"r10",   VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r10},
+    {"r11",   VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r11},
     {"r12",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::r12},
     {"r13",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::r13},
     {"xmm6",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm6},
@@ -98,86 +96,36 @@ const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
                                  const struct ir_value *v) {
   auto &e = *backend->codegen;
 
-  /* if the value is a local or constant, copy it to a tempory register, else
-     return the register allocated for it */
-  if (ir_is_constant(v)) {
-    CHECK_LT(backend->num_temps, 2);
-
-    Xbyak::Reg tmp = backend->num_temps++ ? tmp1 : tmp0;
-
-    switch (v->type) {
-      case VALUE_I8:
-        tmp = tmp.cvt8();
-        break;
-      case VALUE_I16:
-        tmp = tmp.cvt16();
-        break;
-      case VALUE_I32:
-        tmp = tmp.cvt32();
-        break;
-      case VALUE_I64:
-        /* no conversion needed */
-        break;
-      default:
-        LOG_FATAL("Unexpected value type");
-        break;
-    }
-
-    /* copy value to the temporary register */
-    e.mov(tmp, ir_zext_constant(v));
-
-    return tmp;
-  }
-
   int i = v->reg;
   CHECK_NE(i, NO_REGISTER);
 
-  const Xbyak::Reg &reg =
-      *reinterpret_cast<const Xbyak::Reg *>(x64_registers[i].data);
+  Xbyak::Reg reg = *reinterpret_cast<const Xbyak::Reg *>(x64_registers[i].data);
   CHECK(reg.isREG());
 
   switch (v->type) {
     case VALUE_I8:
-      return reg.cvt8();
+      reg = reg.cvt8();
+      break;
     case VALUE_I16:
-      return reg.cvt16();
+      reg = reg.cvt16();
+      break;
     case VALUE_I32:
-      return reg.cvt32();
+      reg = reg.cvt32();
+      break;
     case VALUE_I64:
-      return reg;
+      /* no conversion needed */
+      break;
     default:
       LOG_FATAL("Unexpected value type");
       break;
   }
+
+  return reg;
 }
 
 const Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
                                  const struct ir_value *v) {
   auto &e = *backend->codegen;
-
-  /* if the value isn't allocated a XMM register copy it to a temporary XMM,
-     register, else return the XMM register allocated for it */
-  if (ir_is_constant(v)) {
-    /* copy value to the temporary register */
-    if (v->type == VALUE_F32) {
-      float val = v->f32;
-      e.mov(e.eax, *(int32_t *)&val);
-      if (X64_USE_AVX) {
-        e.vmovd(e.xmm1, e.eax);
-      } else {
-        e.movd(e.xmm1, e.eax);
-      }
-    } else {
-      double val = v->f64;
-      e.mov(e.rax, *(int64_t *)&val);
-      if (X64_USE_AVX) {
-        e.vmovq(e.xmm1, e.rax);
-      } else {
-        e.movq(e.xmm1, e.rax);
-      }
-    }
-    return e.xmm1;
-  }
 
   int i = v->reg;
   CHECK_NE(i, NO_REGISTER);
@@ -310,14 +258,6 @@ const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
   return e.ptr[e.rip + backend->xmm_const[c]];
 }
 
-int x64_backend_can_encode_imm(const struct ir_value *v) {
-  if (!ir_is_constant(v)) {
-    return 0;
-  }
-
-  return v->type <= VALUE_I32;
-}
-
 static void x64_backend_block_label(char *name, size_t size,
                                     struct ir_block *block) {
   snprintf(name, size, ".%p", block);
@@ -383,9 +323,6 @@ static void x64_backend_emit(struct x64_backend *backend,
       x64_emit_cb emit = (x64_emit_cb)emitter->func;
       CHECK_NOTNULL(emit);
 
-      /* reset temp count used by x64_backend_reg */
-      backend->num_temps = 0;
-
       emit(backend, *backend->codegen, instr);
 
       terminated = (instr->op == OP_BRANCH);
@@ -423,6 +360,8 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
       /* restore caller-saved registers */
       e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
+      e.pop(e.r11);
+      e.pop(e.r10);
 #if PLATFORM_WINDOWS
       e.pop(e.rdi);
       e.pop(e.rsi);
@@ -449,6 +388,8 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
     /* restore caller-saved registers */
     e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
+    e.pop(e.r11);
+    e.pop(e.r10);
 #if PLATFORM_WINDOWS
     e.pop(e.rdi);
     e.pop(e.rsi);
@@ -517,15 +458,17 @@ static int x64_backend_handle_exception(struct jit_backend *base,
     return 0;
   }
 
-/* instead of handling the mmio callback from inside of the exception
-   handler, force rip to the beginning of a thunk which will invoke the
-   callback once the exception handler has exited. this frees the callbacks
-   from any restrictions imposed by an exception handler, and also prevents
-   a possible recursive exception
+  /* instead of handling the mmio callback from inside of the exception
+     handler, force rip to the beginning of a thunk which will invoke the
+     callback once the exception handler has exited. this frees the callbacks
+     from any restrictions imposed by an exception handler, and also prevents
+     a possible recursive exception
 
-   push all of the caller saved registers used by the jit, as well as the
-   return address (the next instruction after the current mov) to the stack.
-   add an extra 8 bytes to keep the stack aligned */
+     push all of the caller saved registers used by the jit, as well as the
+     return address (the next instruction after the current mov) to the stack.
+     add an extra 8 bytes to keep the stack aligned */
+  *(uint64_t *)(ex->thread_state.rsp - 40) = ex->thread_state.r11;
+  *(uint64_t *)(ex->thread_state.rsp - 32) = ex->thread_state.r10;
 #if PLATFORM_WINDOWS
   *(uint64_t *)(ex->thread_state.rsp - 24) = ex->thread_state.rdi;
   *(uint64_t *)(ex->thread_state.rsp - 16) = ex->thread_state.rsi;
@@ -534,7 +477,7 @@ static int x64_backend_handle_exception(struct jit_backend *base,
   *(uint64_t *)(ex->thread_state.rsp - 16) = ex->thread_state.r8;
 #endif
   *(uint64_t *)(ex->thread_state.rsp - 8) = ex->thread_state.rip + mov.length;
-  ex->thread_state.rsp -= X64_STACK_SHADOW_SPACE + 24 + 8;
+  ex->thread_state.rsp -= X64_STACK_SHADOW_SPACE + 40 + 8;
   CHECK(ex->thread_state.rsp % 16 == 0);
 
   if (mov.is_load) {
