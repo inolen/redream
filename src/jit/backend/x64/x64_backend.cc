@@ -64,29 +64,29 @@ const Xbyak::Reg64 guestctx(Xbyak::Operand::R14);
 const Xbyak::Reg64 guestmem(Xbyak::Operand::R15);
 
 const struct jit_register x64_registers[] = {
-    {"rbx",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::rbx},
-    {"rbp",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::rbp},
+    {"rbx",   JIT_REG_I64 | JIT_CALLEE_SAVED,                (const void *)&Xbyak::util::rbx},
+    {"rbp",   JIT_REG_I64 | JIT_CALLEE_SAVED,                (const void *)&Xbyak::util::rbp},
 #if PLATFORM_WINDOWS
-    {"rsi",   VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::rsi},
-    {"rdi",   VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::rdi},
+    {"rsi",   JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::rsi},
+    {"rdi",   JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::rdi},
 #else
-    {"r8",    VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r8},
-    {"r9",    VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r9},
+    {"r8",    JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::r8},
+    {"r9",    JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::r9},
 #endif
-    {"r10",   VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r10},
-    {"r11",   VALUE_INT_MASK,    JIT_CALLER_SAVED, (const void *)&Xbyak::util::r11},
-    {"r12",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::r12},
-    {"r13",   VALUE_INT_MASK,    JIT_CALLEE_SAVED, (const void *)&Xbyak::util::r13},
-    {"xmm6",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm6},
-    {"xmm7",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm7},
-    {"xmm8",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm8},
-    {"xmm9",  VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm9},
-    {"xmm10", VALUE_FLOAT_MASK,  JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm10},
-    {"xmm11", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm11},
-    {"xmm12", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm12},
-    {"xmm13", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm13},
-    {"xmm14", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm14},
-    {"xmm15", VALUE_VECTOR_MASK, JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm15}
+    {"r10",   JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::r10},
+    {"r11",   JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::r11},
+    {"r12",   JIT_REG_I64 | JIT_CALLEE_SAVED,                (const void *)&Xbyak::util::r12},
+    {"r13",   JIT_REG_I64 | JIT_CALLEE_SAVED,                (const void *)&Xbyak::util::r13},
+    {"xmm6",  JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm6},
+    {"xmm7",  JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm7},
+    {"xmm8",  JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm8},
+    {"xmm9",  JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm9},
+    {"xmm10", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm10},
+    {"xmm11", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm11},
+    {"xmm12", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm12},
+    {"xmm13", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm13},
+    {"xmm14", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm14},
+    {"xmm15", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm15}
 };
 
 const int x64_num_registers = array_size(x64_registers);
@@ -116,7 +116,7 @@ const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
       /* no conversion needed */
       break;
     default:
-      LOG_FATAL("Unexpected value type");
+      LOG_FATAL("unexpected value type");
       break;
   }
 
@@ -176,7 +176,7 @@ void x64_backend_load_mem(struct x64_backend *backend,
       }
       break;
     default:
-      LOG_FATAL("Unexpected load result type");
+      LOG_FATAL("unexpected load result type");
       break;
   }
 }
@@ -185,6 +185,29 @@ void x64_backend_store_mem(struct x64_backend *backend,
                            const Xbyak::RegExp &dstExp,
                            const struct ir_value *src) {
   auto &e = *backend->codegen;
+
+  if (ir_is_constant(src)) {
+    switch (src->type) {
+      case VALUE_I8:
+        e.mov(e.byte[dstExp], src->i8);
+        break;
+      case VALUE_I16:
+        e.mov(e.word[dstExp], src->i16);
+        break;
+      case VALUE_I32:
+      case VALUE_F32:
+        e.mov(e.dword[dstExp], src->i32);
+        break;
+      case VALUE_I64:
+      case VALUE_F64:
+        e.mov(e.qword[dstExp], src->i64);
+        break;
+      default:
+        LOG_FATAL("unexpected value type");
+        break;
+    }
+    return;
+  }
 
   switch (src->type) {
     case VALUE_I8:
@@ -221,7 +244,7 @@ void x64_backend_store_mem(struct x64_backend *backend,
       }
       break;
     default:
-      LOG_FATAL("Unexpected load result type");
+      LOG_FATAL("unexpected load result type");
       break;
   }
 }
@@ -230,23 +253,42 @@ void x64_backend_mov_value(struct x64_backend *backend, Xbyak::Reg dst,
                            const struct ir_value *v) {
   auto &e = *backend->codegen;
 
-  const Xbyak::Reg src = x64_backend_reg(backend, v);
+  if (ir_is_constant(v)) {
+    switch (v->type) {
+      case VALUE_I8:
+        e.mov(dst.cvt8(), v->i8);
+        break;
+      case VALUE_I16:
+        e.mov(dst.cvt16(), v->i16);
+        break;
+      case VALUE_I32:
+        e.mov(dst.cvt32(), v->i32);
+        break;
+      case VALUE_I64:
+        e.mov(dst.cvt64(), v->i64);
+        break;
+      default:
+        LOG_FATAL("unexpected value type");
+        break;
+    }
+    return;
+  }
 
   switch (v->type) {
     case VALUE_I8:
-      e.mov(dst.cvt8(), src);
+      e.mov(dst.cvt8(), x64_backend_reg(backend, v));
       break;
     case VALUE_I16:
-      e.mov(dst.cvt16(), src);
+      e.mov(dst.cvt16(), x64_backend_reg(backend, v));
       break;
     case VALUE_I32:
-      e.mov(dst.cvt32(), src);
+      e.mov(dst.cvt32(), x64_backend_reg(backend, v));
       break;
     case VALUE_I64:
-      e.mov(dst, src);
+      e.mov(dst, x64_backend_reg(backend, v));
       break;
     default:
-      LOG_FATAL("Unexpected value type");
+      LOG_FATAL("unexpected value type");
       break;
   }
 }
@@ -509,7 +551,8 @@ static int x64_backend_handle_exception(struct jit_backend *base,
        function */
     ex->thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(guest->space);
     ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
-    ex->thread_state.r[x64_arg2_idx] = ex->thread_state.r[mov.reg];
+    ex->thread_state.r[x64_arg2_idx] =
+        mov.has_imm ? mov.imm : ex->thread_state.r[mov.reg];
 
     /* prep function call address for thunk */
     switch (mov.operand_size) {

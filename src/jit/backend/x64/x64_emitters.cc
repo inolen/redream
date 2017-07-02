@@ -6,10 +6,21 @@ extern "C" {
 }
 
 enum {
-  NONE = JIT_CONSTRAINT_NONE,
-  IMM_I32 = JIT_CONSTRAINT_IMM_I32,
-  IMM_I64 = JIT_CONSTRAINT_IMM_I64,
-  RES_HAS_ARG0 = JIT_CONSTRAINT_RES_HAS_ARG0,
+  NONE = 0,
+  REG_ARG0 = JIT_REG_I64 | JIT_REUSE_ARG0,
+  REG_I64 = JIT_REG_I64,
+  REG_F64 = JIT_REG_F64,
+  REG_V128 = JIT_REG_V128,
+  REG_ALL = REG_I64 | REG_F64 | REG_V128,
+  IMM_I32 = JIT_IMM_I32,
+  IMM_I64 = JIT_IMM_I64,
+  IMM_F32 = JIT_IMM_F32,
+  IMM_F64 = JIT_IMM_F64,
+  IMM_ALL = IMM_I32 | IMM_I64 | IMM_F32 | IMM_F64,
+  VAL_I64 = REG_I64 | IMM_I64,
+  VAL_ALL = REG_ALL | IMM_ALL,
+  OPT = JIT_OPTIONAL,
+  OPT_I64 = OPT | VAL_I64,
 };
 
 struct jit_emitter x64_emitters[IR_NUM_OPS];
@@ -60,21 +71,21 @@ EMITTER(FALLBACK, CONSTRAINTS(NONE, IMM_I64, IMM_I32, IMM_I32)) {
   e.call(fallback);
 }
 
-EMITTER(LOAD_HOST, CONSTRAINTS(NONE, NONE)) {
+EMITTER(LOAD_HOST, CONSTRAINTS(REG_ALL, REG_I64)) {
   struct ir_value *dst = RES;
   Xbyak::Reg src = ARG0_REG;
 
   x64_backend_load_mem(backend, dst, src);
 }
 
-EMITTER(STORE_HOST, CONSTRAINTS(NONE, NONE, NONE)) {
+EMITTER(STORE_HOST, CONSTRAINTS(NONE, REG_I64, VAL_ALL)) {
   Xbyak::Reg dst = ARG0_REG;
   struct ir_value *data = ARG1;
 
   x64_backend_store_mem(backend, dst, data);
 }
 
-EMITTER(LOAD_GUEST, CONSTRAINTS(NONE, IMM_I32)) {
+EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
   struct jit_guest *guest = backend->base.jit->guest;
   Xbyak::Reg dst = RES_REG;
   struct ir_value *addr = ARG0;
@@ -131,12 +142,10 @@ EMITTER(LOAD_GUEST, CONSTRAINTS(NONE, IMM_I32)) {
   }
 }
 
-EMITTER(STORE_GUEST, CONSTRAINTS(NONE, IMM_I32, NONE)) {
+EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
   struct jit_guest *guest = backend->base.jit->guest;
   struct ir_value *addr = ARG0;
   struct ir_value *data = ARG1;
-
-  /* FIXME support IMM data */
 
   if (ir_is_constant(addr)) {
     /* peel away one layer of abstraction and directly access the backing
@@ -164,7 +173,6 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, IMM_I32, NONE)) {
     }
   } else {
     Xbyak::Reg ra = x64_backend_reg(backend, addr);
-    Xbyak::Reg rb = x64_backend_reg(backend, data);
 
     void *fn = nullptr;
     switch (data->type) {
@@ -187,78 +195,54 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, IMM_I32, NONE)) {
 
     e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
     e.mov(arg1, ra);
-    e.mov(arg2, rb);
+    x64_backend_mov_value(backend, arg2, data);
     e.call(reinterpret_cast<void *>(fn));
   }
 }
 
-EMITTER(LOAD_FAST, CONSTRAINTS(NONE, NONE)) {
+EMITTER(LOAD_FAST, CONSTRAINTS(REG_ALL, REG_I64)) {
   struct ir_value *dst = RES;
   Xbyak::Reg addr = ARG0_REG;
 
   x64_backend_load_mem(backend, dst, addr.cvt64() + guestmem);
 }
 
-EMITTER(STORE_FAST, CONSTRAINTS(NONE, NONE, NONE)) {
+EMITTER(STORE_FAST, CONSTRAINTS(NONE, REG_I64, VAL_ALL)) {
   Xbyak::Reg addr = ARG0_REG;
   struct ir_value *data = ARG1;
-
-  /* TODO support IMM data */
 
   x64_backend_store_mem(backend, addr.cvt64() + guestmem, data);
 }
 
-EMITTER(LOAD_CONTEXT, CONSTRAINTS(NONE, IMM_I32)) {
+EMITTER(LOAD_CONTEXT, CONSTRAINTS(REG_ALL, IMM_I32)) {
   struct ir_value *dst = RES;
   int offset = ARG0->i32;
 
   x64_backend_load_mem(backend, dst, guestctx + offset);
 }
 
-EMITTER(STORE_CONTEXT, CONSTRAINTS(NONE, IMM_I32, IMM_I64)) {
+EMITTER(STORE_CONTEXT, CONSTRAINTS(NONE, IMM_I32, VAL_ALL)) {
   int offset = ARG0->i32;
   struct ir_value *data = ARG1;
 
-  if (ir_is_constant(data)) {
-    switch (data->type) {
-      case VALUE_I8:
-        e.mov(e.byte[guestctx + offset], data->i8);
-        break;
-      case VALUE_I16:
-        e.mov(e.word[guestctx + offset], data->i16);
-        break;
-      case VALUE_I32:
-      case VALUE_F32:
-        e.mov(e.dword[guestctx + offset], data->i32);
-        break;
-      case VALUE_I64:
-      case VALUE_F64:
-        e.mov(e.qword[guestctx + offset], data->i64);
-        break;
-      default:
-        LOG_FATAL("Unexpected value type");
-        break;
-    }
-  } else {
-    x64_backend_store_mem(backend, guestctx + offset, data);
-  }
+  x64_backend_store_mem(backend, guestctx + offset, data);
 }
 
-EMITTER(LOAD_LOCAL, CONSTRAINTS(NONE, IMM_I32)) {
+EMITTER(LOAD_LOCAL, CONSTRAINTS(REG_ALL, IMM_I32)) {
   struct ir_value *dst = RES;
   int offset = X64_STACK_OFFSET_LOCALS + ARG0->i32;
 
   x64_backend_load_mem(backend, dst, e.rsp + offset);
 }
 
-EMITTER(STORE_LOCAL, CONSTRAINTS(NONE, IMM_I32, NONE)) {
+EMITTER(STORE_LOCAL, CONSTRAINTS(NONE, IMM_I32, VAL_ALL)) {
   int offset = X64_STACK_OFFSET_LOCALS + ARG0->i32;
   struct ir_value *data = ARG1;
 
   x64_backend_store_mem(backend, e.rsp + offset, data);
 }
 
-EMITTER(FTOI, CONSTRAINTS(NONE, NONE)) {
+EMITTER(FTOI, CONSTRAINTS(REG_I64, REG_F64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Xmm ra = ARG0_XMM;
 
@@ -277,7 +261,7 @@ EMITTER(FTOI, CONSTRAINTS(NONE, NONE)) {
   }
 }
 
-EMITTER(ITOF, CONSTRAINTS(NONE, NONE)) {
+EMITTER(ITOF, CONSTRAINTS(REG_F64, REG_I64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Reg ra = ARG0_REG;
 
@@ -296,7 +280,7 @@ EMITTER(ITOF, CONSTRAINTS(NONE, NONE)) {
   }
 }
 
-EMITTER(SEXT, CONSTRAINTS(NONE, NONE)) {
+EMITTER(SEXT, CONSTRAINTS(REG_I64, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg ra = ARG0_REG;
 
@@ -312,7 +296,7 @@ EMITTER(SEXT, CONSTRAINTS(NONE, NONE)) {
   }
 }
 
-EMITTER(ZEXT, CONSTRAINTS(NONE, NONE)) {
+EMITTER(ZEXT, CONSTRAINTS(REG_I64, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg ra = ARG0_REG;
 
@@ -329,7 +313,7 @@ EMITTER(ZEXT, CONSTRAINTS(NONE, NONE)) {
   }
 }
 
-EMITTER(TRUNC, CONSTRAINTS(NONE, NONE)) {
+EMITTER(TRUNC, CONSTRAINTS(REG_I64, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg ra = ARG0_REG;
 
@@ -361,21 +345,21 @@ EMITTER(TRUNC, CONSTRAINTS(NONE, NONE)) {
   }
 }
 
-EMITTER(FEXT, CONSTRAINTS(NONE, NONE)) {
+EMITTER(FEXT, CONSTRAINTS(REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
 
   e.cvtss2sd(rd, ra);
 }
 
-EMITTER(FTRUNC, CONSTRAINTS(NONE, NONE)) {
+EMITTER(FTRUNC, CONSTRAINTS(REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
 
   e.cvtsd2ss(rd, ra);
 }
 
-EMITTER(SELECT, CONSTRAINTS(NONE, NONE, NONE, NONE)) {
+EMITTER(SELECT, CONSTRAINTS(REG_I64, REG_I64, REG_I64, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg t = ARG0_REG;
   Xbyak::Reg f = ARG1_REG;
@@ -392,7 +376,7 @@ EMITTER(SELECT, CONSTRAINTS(NONE, NONE, NONE, NONE)) {
   e.cmovz(rd_32e, f);
 }
 
-EMITTER(CMP, CONSTRAINTS(NONE, NONE, IMM_I32, IMM_I32)) {
+EMITTER(CMP, CONSTRAINTS(REG_I64, REG_I64, REG_I64 | IMM_I32, IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg ra = ARG0_REG;
 
@@ -440,7 +424,7 @@ EMITTER(CMP, CONSTRAINTS(NONE, NONE, IMM_I32, IMM_I32)) {
   }
 }
 
-EMITTER(FCMP, CONSTRAINTS(NONE, NONE, NONE, IMM_I32)) {
+EMITTER(FCMP, CONSTRAINTS(REG_I64, REG_F64, REG_F64, IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Xmm ra = ARG0_XMM;
   Xbyak::Xmm rb = ARG1_XMM;
@@ -476,7 +460,7 @@ EMITTER(FCMP, CONSTRAINTS(NONE, NONE, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(ADD, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
+EMITTER(ADD, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64 | IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
 
   if (ir_is_constant(ARG1)) {
@@ -487,7 +471,7 @@ EMITTER(ADD, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(SUB, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
+EMITTER(SUB, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64 | IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
 
   if (ir_is_constant(ARG1)) {
@@ -498,14 +482,14 @@ EMITTER(SUB, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(SMUL, CONSTRAINTS(RES_HAS_ARG0, NONE, NONE)) {
+EMITTER(SMUL, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg rb = ARG1_REG;
 
   e.imul(rd, rb);
 }
 
-EMITTER(UMUL, CONSTRAINTS(RES_HAS_ARG0, NONE, NONE)) {
+EMITTER(UMUL, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg rb = ARG1_REG;
 
@@ -516,20 +500,17 @@ EMITTER(DIV, CONSTRAINTS(NONE)) {
   LOG_FATAL("unsupported");
 }
 
-EMITTER(NEG, CONSTRAINTS(RES_HAS_ARG0, NONE)) {
+EMITTER(NEG, CONSTRAINTS(REG_ARG0, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
 
   e.neg(rd);
 }
 
 EMITTER(ABS, CONSTRAINTS(NONE)) {
-  /* e.mov(e.rax, *result);
-     e.neg(e.rax);
-     e.cmovl(reinterpret_cast<const Xbyak::Reg *>(result)->cvt32(), e.rax); */
   LOG_FATAL("unsupported");
 }
 
-EMITTER(FADD, CONSTRAINTS(NONE, NONE, NONE)) {
+EMITTER(FADD, CONSTRAINTS(REG_F64, REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
   Xbyak::Xmm rb = ARG1_XMM;
@@ -555,7 +536,7 @@ EMITTER(FADD, CONSTRAINTS(NONE, NONE, NONE)) {
   }
 }
 
-EMITTER(FSUB, CONSTRAINTS(NONE, NONE, NONE)) {
+EMITTER(FSUB, CONSTRAINTS(REG_F64, REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
   Xbyak::Xmm rb = ARG1_XMM;
@@ -581,7 +562,7 @@ EMITTER(FSUB, CONSTRAINTS(NONE, NONE, NONE)) {
   }
 }
 
-EMITTER(FMUL, CONSTRAINTS(NONE)) {
+EMITTER(FMUL, CONSTRAINTS(REG_F64, REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
   Xbyak::Xmm rb = ARG1_XMM;
@@ -607,7 +588,7 @@ EMITTER(FMUL, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(FDIV, CONSTRAINTS(NONE)) {
+EMITTER(FDIV, CONSTRAINTS(REG_F64, REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
   Xbyak::Xmm rb = ARG1_XMM;
@@ -633,7 +614,7 @@ EMITTER(FDIV, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(FNEG, CONSTRAINTS(NONE)) {
+EMITTER(FNEG, CONSTRAINTS(REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
 
@@ -664,7 +645,7 @@ EMITTER(FNEG, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(FABS, CONSTRAINTS(NONE)) {
+EMITTER(FABS, CONSTRAINTS(REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
 
@@ -695,7 +676,7 @@ EMITTER(FABS, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(SQRT, CONSTRAINTS(NONE)) {
+EMITTER(SQRT, CONSTRAINTS(REG_F64, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
 
@@ -714,7 +695,7 @@ EMITTER(SQRT, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(VBROADCAST, CONSTRAINTS(NONE)) {
+EMITTER(VBROADCAST, CONSTRAINTS(REG_V128, REG_F64)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
 
@@ -726,7 +707,7 @@ EMITTER(VBROADCAST, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(VADD, CONSTRAINTS(NONE)) {
+EMITTER(VADD, CONSTRAINTS(REG_V128, REG_V128, REG_V128)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
   Xbyak::Xmm rb = ARG1_XMM;
@@ -741,7 +722,7 @@ EMITTER(VADD, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(VDOT, CONSTRAINTS(NONE)) {
+EMITTER(VDOT, CONSTRAINTS(REG_V128, REG_V128, REG_V128)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
   Xbyak::Xmm rb = ARG1_XMM;
@@ -758,7 +739,7 @@ EMITTER(VDOT, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(VMUL, CONSTRAINTS(NONE)) {
+EMITTER(VMUL, CONSTRAINTS(REG_V128, REG_V128, REG_V128)) {
   Xbyak::Xmm rd = RES_XMM;
   Xbyak::Xmm ra = ARG0_XMM;
   Xbyak::Xmm rb = ARG1_XMM;
@@ -773,7 +754,7 @@ EMITTER(VMUL, CONSTRAINTS(NONE)) {
   }
 }
 
-EMITTER(AND, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
+EMITTER(AND, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64 | IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
 
   if (ir_is_constant(ARG1)) {
@@ -784,7 +765,7 @@ EMITTER(AND, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(OR, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
+EMITTER(OR, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64 | IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
 
   if (ir_is_constant(ARG1)) {
@@ -795,7 +776,7 @@ EMITTER(OR, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(XOR, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
+EMITTER(XOR, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64 | IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
 
   if (ir_is_constant(ARG1)) {
@@ -806,13 +787,13 @@ EMITTER(XOR, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(NOT, CONSTRAINTS(RES_HAS_ARG0, NONE)) {
+EMITTER(NOT, CONSTRAINTS(REG_ARG0, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
 
   e.not_(rd);
 }
 
-EMITTER(SHL, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
+EMITTER(SHL, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64 | IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
 
   if (ir_is_constant(ARG1)) {
@@ -824,7 +805,7 @@ EMITTER(SHL, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(ASHR, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
+EMITTER(ASHR, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64 | IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
 
   if (ir_is_constant(ARG1)) {
@@ -836,7 +817,7 @@ EMITTER(ASHR, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(LSHR, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
+EMITTER(LSHR, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64 | IMM_I32)) {
   Xbyak::Reg rd = RES_REG;
 
   if (ir_is_constant(ARG1)) {
@@ -848,7 +829,7 @@ EMITTER(LSHR, CONSTRAINTS(RES_HAS_ARG0, NONE, IMM_I32)) {
   }
 }
 
-EMITTER(ASHD, CONSTRAINTS(RES_HAS_ARG0)) {
+EMITTER(ASHD, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg rb = ARG1_REG;
 
@@ -882,7 +863,7 @@ EMITTER(ASHD, CONSTRAINTS(RES_HAS_ARG0)) {
   e.outLocalLabel();
 }
 
-EMITTER(LSHD, CONSTRAINTS(RES_HAS_ARG0)) {
+EMITTER(LSHD, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64)) {
   Xbyak::Reg rd = RES_REG;
   Xbyak::Reg rb = ARG1_REG;
 
@@ -916,7 +897,7 @@ EMITTER(LSHD, CONSTRAINTS(RES_HAS_ARG0)) {
   e.outLocalLabel();
 }
 
-EMITTER(BRANCH, CONSTRAINTS(NONE, IMM_I32)) {
+EMITTER(BRANCH, CONSTRAINTS(NONE, REG_I64 | IMM_I32)) {
   struct jit_guest *guest = backend->base.jit->guest;
 
   if (ir_is_constant(ARG0)) {
@@ -930,7 +911,7 @@ EMITTER(BRANCH, CONSTRAINTS(NONE, IMM_I32)) {
   }
 }
 
-EMITTER(BRANCH_FALSE, CONSTRAINTS(NONE, IMM_I32)) {
+EMITTER(BRANCH_FALSE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
   struct jit_guest *guest = backend->base.jit->guest;
 
   e.inLocalLabel();
@@ -954,7 +935,7 @@ EMITTER(BRANCH_FALSE, CONSTRAINTS(NONE, IMM_I32)) {
   e.outLocalLabel();
 }
 
-EMITTER(BRANCH_TRUE, CONSTRAINTS(NONE, IMM_I32)) {
+EMITTER(BRANCH_TRUE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
   struct jit_guest *guest = backend->base.jit->guest;
 
   e.inLocalLabel();
@@ -978,7 +959,7 @@ EMITTER(BRANCH_TRUE, CONSTRAINTS(NONE, IMM_I32)) {
   e.outLocalLabel();
 }
 
-EMITTER(CALL, CONSTRAINTS(NONE, IMM_I64)) {
+EMITTER(CALL, CONSTRAINTS(NONE, VAL_I64, OPT_I64, OPT_I64)) {
   if (ARG1) {
     x64_backend_mov_value(backend, arg0, ARG1);
   }
@@ -995,7 +976,7 @@ EMITTER(CALL, CONSTRAINTS(NONE, IMM_I64)) {
   }
 }
 
-EMITTER(CALL_COND, CONSTRAINTS(NONE, IMM_I64)) {
+EMITTER(CALL_COND, CONSTRAINTS(NONE, VAL_I64, OPT_I64, OPT_I64, OPT_I64)) {
   e.inLocalLabel();
 
   Xbyak::Reg cond = ARG1_REG;
@@ -1028,7 +1009,7 @@ EMITTER(DEBUG_BREAK, CONSTRAINTS(NONE)) {
   e.db(0xcc);
 }
 
-EMITTER(ASSERT_LT, CONSTRAINTS(NONE)) {
+EMITTER(ASSERT_LT, CONSTRAINTS(NONE, REG_I64, REG_I64)) {
   Xbyak::Reg ra = ARG0_REG;
   Xbyak::Reg rb = ARG1_REG;
 
@@ -1040,7 +1021,7 @@ EMITTER(ASSERT_LT, CONSTRAINTS(NONE)) {
   e.outLocalLabel();
 }
 
-EMITTER(COPY, CONSTRAINTS(NONE, IMM_I64)) {
+EMITTER(COPY, CONSTRAINTS(REG_ALL, VAL_ALL)) {
   if (ir_is_float(RES->type)) {
     Xbyak::Xmm rd = RES_XMM;
 

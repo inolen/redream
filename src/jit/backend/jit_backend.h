@@ -25,36 +25,47 @@ struct jit_block;
 #define DEFINE_JIT_CODE_BUFFER(name) static uint8_t name[0x800000] ALIGNED(4096)
 #endif
 
-/* backend-specific register definition */
 enum {
+  /* register is callee-saved */
   JIT_CALLEE_SAVED = 0x1,
+  /* register is caller-saved */
   JIT_CALLER_SAVED = 0x2,
+  /* result must contain arg0. this signals the register allocator to insert a
+     copy from arg0 to result if it fails to reuse the same register for both.
+     this is required by several operations, namely binary arithmetic ops on
+     x64, which only take two operands */
+  JIT_REUSE_ARG0 = 0x4,
+  /* argument is optional */
+  JIT_OPTIONAL = 0x8,
+  /* argument can be in a 64-bit or less int register */
+  JIT_REG_I64 = 0x10,
+  /* argument can be in a 64-bit or less float register */
+  JIT_REG_F64 = 0x20,
+  /* argument can be in a 128-bit or less vector register */
+  JIT_REG_V128 = 0x40,
+  /* argument can be a 32-bit or less int immediate */
+  JIT_IMM_I32 = 0x80,
+  /* argument can be a 64-bit or less int immediate */
+  JIT_IMM_I64 = 0x100,
+  /* argument can be a 32-bit or less float immediate */
+  JIT_IMM_F32 = 0x200,
+  /* argument can be a 64-bit or less float immediate */
+  JIT_IMM_F64 = 0x400,
+  JIT_TYPE_MASK = JIT_REG_I64 | JIT_REG_F64 | JIT_REG_V128 | JIT_IMM_I32 |
+                  JIT_IMM_I64 | JIT_IMM_F32 | JIT_IMM_F64,
 };
 
+/* backend-specific register definition */
 struct jit_register {
   const char *name;
-  int value_types;
   int flags;
   const void *data;
 };
 
 /* backend-specific emitter definition */
-enum {
-  JIT_CONSTRAINT_NONE = 0x0,
-  /* argument must be a 32-bit immediate or less */
-  JIT_CONSTRAINT_IMM_I32 = 0x1,
-  /* argument must be a 64-bit immediate or less */
-  JIT_CONSTRAINT_IMM_I64 = 0x2,
-  /* result must contain arg0. this signals the register allocator to insert a
-     copy from arg0 to result if it fails to reuse the same register for both.
-     this is required by several operations, namely binary arithmetic ops on
-     x64, which only take two operands */
-  JIT_CONSTRAINT_RES_HAS_ARG0 = 0x4,
-};
-
 struct jit_emitter {
   void *func;
-  int result_flags;
+  int res_flags;
   int arg_flags[IR_MAX_ARGS];
 };
 

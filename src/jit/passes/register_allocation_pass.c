@@ -90,8 +90,14 @@ struct ra {
 
 static int ra_reg_can_store(const struct jit_register *reg,
                             const struct ir_value *v) {
-  int mask = 1 << v->type;
-  return (reg->value_types & mask) == mask;
+  if (ir_is_int(v->type) && v->type <= VALUE_I64) {
+    return reg->flags & JIT_REG_I64;
+  } else if (ir_is_float(v->type) && v->type <= VALUE_F64) {
+    return reg->flags & JIT_REG_F64;
+  } else if (ir_is_vector(v->type) && v->type <= VALUE_V128) {
+    return reg->flags & JIT_REG_V128;
+  }
+  return 0;
 }
 
 static void ra_add_use(struct ra *ra, struct ra_tmp *tmp, int ordinal) {
@@ -152,39 +158,93 @@ static struct ra_tmp *ra_create_tmp(struct ra *ra, struct ir_value *value) {
   return tmp;
 }
 
+static int ra_validate_value(struct ra *ra, struct ir_value *v, int flags) {
+  int valid = 0;
+
+  /* check that the allocated register or constant is valid for the emitter */
+  if (v) {
+    if (ir_is_constant(v)) {
+      if (v->type >= VALUE_I8 && v->type <= VALUE_I32) {
+        valid |= (flags & JIT_IMM_I32) == JIT_IMM_I32;
+      }
+      if (v->type >= VALUE_I8 && v->type <= VALUE_I64) {
+        valid |= (flags & JIT_IMM_I64) == JIT_IMM_I64;
+      }
+      if (v->type == VALUE_F32) {
+        valid |= (flags & JIT_IMM_F32) == JIT_IMM_F32;
+      }
+      if (v->type >= VALUE_F32 && v->type <= VALUE_F64) {
+        valid |= (flags & JIT_IMM_F64) == JIT_IMM_F64;
+      }
+    } else {
+      /* check that the register flags match at least one of the types supported
+         by the emitter */
+      const struct jit_register *reg = &ra->registers[v->reg];
+      valid |= ((flags & reg->flags) & JIT_TYPE_MASK) != 0;
+    }
+  } else {
+    /* no argument expected */
+    valid |= flags == 0;
+    /* argument is optional */
+    valid |= (flags & JIT_OPTIONAL) == JIT_OPTIONAL;
+  }
+
+  return valid;
+}
+
 static void ra_validate(struct ra *ra, struct ir *ir, struct ir_block *block) {
-  size_t active_size = sizeof(struct ir_value *) * ra->num_registers;
-  struct ir_value **active = alloca(active_size);
-  memset(active, 0, active_size);
+  /* validate that overlapping allocations weren't made */
+  {
+    size_t active_size = sizeof(struct ir_value *) * ra->num_registers;
+    struct ir_value **active = alloca(active_size);
+    memset(active, 0, active_size);
 
-  list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
-    for (int i = 0; i < IR_MAX_ARGS; i++) {
-      struct ir_value *arg = instr->arg[i];
+    list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
+      for (int i = 0; i < IR_MAX_ARGS; i++) {
+        struct ir_value *arg = instr->arg[i];
 
-      if (!arg || ir_is_constant(arg)) {
-        continue;
+        if (!arg || ir_is_constant(arg)) {
+          continue;
+        }
+
+        /* make sure the argument is the current value in the register */
+        CHECK_EQ(active[arg->reg], arg);
       }
 
-      /* make sure the argument is the current value in the register */
-      CHECK_EQ(active[arg->reg], arg);
-    }
+      /* reset caller-saved registers */
+      const struct ir_opdef *def = &ir_opdefs[instr->op];
 
-    /* reset caller-saved registers */
-    const struct ir_opdef *def = &ir_opdefs[instr->op];
+      if (def->flags & IR_FLAG_CALL) {
+        for (int i = 0; i < ra->num_registers; i++) {
+          const struct jit_register *reg = &ra->registers[i];
 
-    if (def->flags & IR_FLAG_CALL) {
-      for (int i = 0; i < ra->num_registers; i++) {
-        const struct jit_register *reg = &ra->registers[i];
-
-        if (reg->flags & JIT_CALLER_SAVED) {
-          active[i] = NULL;
+          if (reg->flags & JIT_CALLER_SAVED) {
+            active[i] = NULL;
+          }
         }
       }
-    }
 
-    /* mark the current result active */
-    if (instr->result) {
-      active[instr->result->reg] = instr->result;
+      /* mark the current result active */
+      if (instr->result) {
+        active[instr->result->reg] = instr->result;
+      }
+    }
+  }
+
+  /* validate allocation types */
+  {
+    list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
+      const struct jit_emitter *emitter = &ra->emitters[instr->op];
+      const struct ir_opdef *def = &ir_opdefs[instr->op];
+      int valid = 1;
+
+      for (int i = 0; i < IR_MAX_ARGS; i++) {
+        valid &= ra_validate_value(ra, instr->arg[i], emitter->arg_flags[i]);
+      }
+
+      valid &= ra_validate_value(ra, instr->result, emitter->res_flags);
+
+      CHECK(valid, "invalid allocation for %s", def->name);
     }
   }
 }
@@ -397,13 +457,13 @@ static void ra_alloc(struct ra *ra, struct ir *ir, struct ir_value *value) {
     }
   }
 
-  /* if the emitter requires arg0 to be in the result register, but it wasn't
+  /* if the emitter requires arg0 to share the result register, but it wasn't
      possible to reuse the same register for each, insert a copy from arg0 to
      the result register */
   const struct jit_emitter *emitter = &ra->emitters[instr->op];
-  int res_has_arg0 = emitter->result_flags & JIT_CONSTRAINT_RES_HAS_ARG0;
+  int reuse_arg0 = emitter->res_flags & JIT_REUSE_ARG0;
 
-  if (res_has_arg0 && tmp->value->reg != instr->arg[0]->reg) {
+  if (reuse_arg0 && tmp->value->reg != instr->arg[0]->reg) {
     struct ir_instr *copy_after = list_prev_entry(instr, struct ir_instr, it);
     ir_set_current_instr(ir, copy_after);
 
@@ -560,10 +620,13 @@ static void ra_legalize_args(struct ra *ra, struct ir *ir,
       /* legalize constants */
       if (ir_is_constant(arg)) {
         int can_encode = 0;
-        can_encode |= (arg_flags & JIT_CONSTRAINT_IMM_I32) &&
-                      arg->type >= VALUE_I8 && arg->type <= VALUE_I32;
-        can_encode |= (arg_flags & JIT_CONSTRAINT_IMM_I64) &&
-                      arg->type >= VALUE_I8 && arg->type <= VALUE_I64;
+        can_encode |= (arg_flags & JIT_IMM_I32) &&
+                      (arg->type >= VALUE_I8 && arg->type <= VALUE_I32);
+        can_encode |= (arg_flags & JIT_IMM_I64) &&
+                      (arg->type >= VALUE_I8 && arg->type <= VALUE_I64);
+        can_encode |= (arg_flags & JIT_IMM_F32) && arg->type == VALUE_F32;
+        can_encode |= (arg_flags & JIT_IMM_F64) &&
+                      (arg->type >= VALUE_F32 && arg->type <= VALUE_F64);
 
         /* if the emitter can't encode this argument as an immediate, create a
            value for the constant and allocate a register for it */

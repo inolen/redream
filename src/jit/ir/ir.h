@@ -7,6 +7,7 @@
 
 #define IR_MAX_LABEL 128
 #define IR_MAX_ARGS 4
+#define NO_REGISTER -1
 
 enum ir_op {
 #define IR_OP(name, flags) OP_##name,
@@ -174,21 +175,6 @@ struct ir {
 };
 
 extern const struct ir_opdef ir_opdefs[IR_NUM_OPS];
-
-#define VALUE_I8_MASK (1 << VALUE_I8)
-#define VALUE_I16_MASK (1 << VALUE_I16)
-#define VALUE_I32_MASK (1 << VALUE_I32)
-#define VALUE_I64_MASK (1 << VALUE_I64)
-#define VALUE_F32_MASK (1 << VALUE_F32)
-#define VALUE_F64_MASK (1 << VALUE_F64)
-#define VALUE_V128_MASK (1 << VALUE_V128)
-#define VALUE_INT_MASK \
-  (VALUE_I8_MASK | VALUE_I16_MASK | VALUE_I32_MASK | VALUE_I64_MASK)
-#define VALUE_FLOAT_MASK (VALUE_F32_MASK | VALUE_F64_MASK)
-#define VALUE_VECTOR_MASK (VALUE_V128_MASK)
-#define VALUE_ALL_MASK (VALUE_INT_MASK | VALUE_FLOAT_MASK)
-
-#define NO_REGISTER -1
 
 static inline int ir_type_size(enum ir_type type) {
   switch (type) {

@@ -3,7 +3,7 @@
 int x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   const uint8_t *start = data;
 
-  // test for operand size prefix
+  /* test for operand size prefix */
   int has_opprefix = 0;
 
   if (*data == 0x66) {
@@ -11,8 +11,8 @@ int x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
     data++;
   }
 
-  // test for REX prefix
-  // http://wiki.osdev.org/X86-64_Instruction_Encoding#Encoding
+  /* test for REX prefix
+     http://wiki.osdev.org/X86-64_Instruction_Encoding#Encoding */
   uint8_t rex = 0;
   uint8_t rex_w = 0;
   uint8_t rex_r = 0;
@@ -28,56 +28,56 @@ int x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
     data++;
   }
 
-  // test for MOV opcode
-  // http://x86.renejeschke.de/html/file_module_x86_id_176.html
+  /* test for MOV opcode
+     http://x86.renejeschke.de/html/file_module_x86_id_176.html */
   int is_load = 0;
   int has_imm = 0;
   int operand_size = 0;
 
-  // MOV r8,r/m8
-  // MOV r16,r/m16
-  // MOV r32,r/m32
-  // MOV r64,r/m64
+  /* MOV r8,r/m8
+     MOV r16,r/m16
+     MOV r32,r/m32
+     MOV r64,r/m64 */
   if (*data == 0x8a || *data == 0x8b) {
     is_load = 1;
     has_imm = 0;
     operand_size = *data == 0x8a ? 1 : (has_opprefix ? 2 : (rex_w ? 8 : 4));
     data++;
   }
-  // MOV r/m8,r8
-  // MOV r/m16,r16
-  // MOV r/m32,r32
-  // MOV r/m64,r64
+  /* MOV r/m8,r8
+     MOV r/m16,r16
+     MOV r/m32,r32
+     MOV r/m64,r64 */
   else if (*data == 0x88 || *data == 0x89) {
     is_load = 0;
     has_imm = 0;
     operand_size = *data == 0x88 ? 1 : (has_opprefix ? 2 : (rex_w ? 8 : 4));
     data++;
   }
-  // MOV r8,imm8
-  // MOV r16,imm16
-  // MOV r32,imm32
+  /* MOV r8,imm8
+     MOV r16,imm16
+     MOV r32,imm32 */
   else if (*data == 0xb0 || *data == 0xb8) {
     is_load = 1;
     has_imm = 1;
     operand_size = *data == 0xb0 ? 1 : (has_opprefix ? 2 : 4);
     data++;
   }
-  // MOV r/m8,imm8
-  // MOV r/m16,imm16
-  // MOV r/m32,imm32
+  /* MOV r/m8,imm8
+     MOV r/m16,imm16
+     MOV r/m32,imm32 */
   else if (*data == 0xc6 || *data == 0xc7) {
     is_load = 0;
     has_imm = 1;
     operand_size = *data == 0xc6 ? 1 : (has_opprefix ? 2 : 4);
     data++;
   }
-  // not a supported MOV instruction
+  /* not a supported MOV instruction */
   else {
     return 0;
   }
 
-  // process ModR/M byte
+  /* process ModR/M byte */
   uint8_t modrm = *data;
   uint8_t modrm_mod = (modrm & 0b11000000) >> 6;
   uint8_t modrm_reg = (modrm & 0b00111000) >> 3;
@@ -97,7 +97,7 @@ int x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
   mov->disp = 0;
   mov->imm = 0;
 
-  // process optional SIB byte
+  /* process optional SIB byte */
   if (modrm_rm == 0b100) {
     uint8_t sib = *data;
     uint8_t sib_scale = (sib & 0b11000000) >> 6;
@@ -115,10 +115,10 @@ int x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
     mov->base = modrm_rm + (rex_b ? 8 : 0);
   }
 
-  // process optional displacement
+  /* process optional displacement */
   switch (modrm_mod) {
     case 0b00: {
-      // RIP-relative
+      /* RIP-relative */
       if (modrm_rm == 0b101) {
         mov->disp = *(uint32_t *)data;
         data += 4;
@@ -136,7 +136,7 @@ int x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
     } break;
   }
 
-  // process optional immediate
+  /* process optional immediate */
   if (mov->has_imm) {
     switch (mov->operand_size) {
       case 1: {
@@ -161,7 +161,7 @@ int x64_decode_mov(const uint8_t *data, struct x64_mov *mov) {
     }
   }
 
-  // calculate total instruction length
+  /* calculate total instruction length */
   mov->length = (int)(data - start);
 
   return 1;
