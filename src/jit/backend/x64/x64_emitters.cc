@@ -5,26 +5,6 @@ extern "C" {
 #include "jit/jit.h"
 }
 
-enum {
-  NONE = 0,
-  REG_ARG0 = JIT_REG_I64 | JIT_REUSE_ARG0,
-  REG_I64 = JIT_REG_I64,
-  REG_F64 = JIT_REG_F64,
-  REG_V128 = JIT_REG_V128,
-  REG_ALL = REG_I64 | REG_F64 | REG_V128,
-  IMM_I32 = JIT_IMM_I32,
-  IMM_I64 = JIT_IMM_I64,
-  IMM_F32 = JIT_IMM_F32,
-  IMM_F64 = JIT_IMM_F64,
-  IMM_ALL = IMM_I32 | IMM_I64 | IMM_F32 | IMM_F64,
-  VAL_I64 = REG_I64 | IMM_I64,
-  VAL_ALL = REG_ALL | IMM_ALL,
-  OPT = JIT_OPTIONAL,
-  OPT_I64 = OPT | VAL_I64,
-};
-
-struct jit_emitter x64_emitters[IR_NUM_OPS];
-
 #define EMITTER(op, constraints)                                           \
   void x64_emit_##op(struct x64_backend *, Xbyak::CodeGenerator &,         \
                      const struct ir_instr *);                             \
@@ -58,6 +38,26 @@ struct jit_emitter x64_emitters[IR_NUM_OPS];
 #define ARG1_XMM x64_backend_xmm(backend, ARG1)
 #define ARG2_XMM x64_backend_xmm(backend, ARG2)
 #define ARG3_XMM x64_backend_xmm(backend, ARG3)
+
+enum {
+  NONE = 0,
+  REG_ARG0 = JIT_REG_I64 | JIT_REUSE_ARG0,
+  REG_I64 = JIT_REG_I64,
+  REG_F64 = JIT_REG_F64,
+  REG_V128 = JIT_REG_V128,
+  REG_ALL = REG_I64 | REG_F64 | REG_V128,
+  IMM_I32 = JIT_IMM_I32,
+  IMM_I64 = JIT_IMM_I64,
+  IMM_F32 = JIT_IMM_F32,
+  IMM_F64 = JIT_IMM_F64,
+  IMM_ALL = IMM_I32 | IMM_I64 | IMM_F32 | IMM_F64,
+  VAL_I64 = REG_I64 | IMM_I64,
+  VAL_ALL = REG_ALL | IMM_ALL,
+  OPT = JIT_OPTIONAL,
+  OPT_I64 = OPT | VAL_I64,
+};
+
+struct jit_emitter x64_emitters[IR_NUM_OPS];
 
 EMITTER(FALLBACK, CONSTRAINTS(NONE, IMM_I64, IMM_I32, IMM_I32)) {
   struct jit_guest *guest = backend->base.jit->guest;
@@ -107,10 +107,10 @@ EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
       int data_size = ir_type_size(RES->type);
       uint32_t data_mask = (1 << (data_size * 8)) - 1;
 
-      e.mov(arg0, reinterpret_cast<uint64_t>(userdata));
+      e.mov(arg0, (uint64_t)userdata);
       e.mov(arg1, offset);
       e.mov(arg2, data_mask);
-      e.call(reinterpret_cast<void *>(read));
+      e.call((void *)read);
       e.mov(dst, e.rax);
     }
   } else {
@@ -119,25 +119,25 @@ EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
     void *fn = nullptr;
     switch (RES->type) {
       case VALUE_I8:
-        fn = reinterpret_cast<void *>(guest->r8);
+        fn = (void *)guest->r8;
         break;
       case VALUE_I16:
-        fn = reinterpret_cast<void *>(guest->r16);
+        fn = (void *)guest->r16;
         break;
       case VALUE_I32:
-        fn = reinterpret_cast<void *>(guest->r32);
+        fn = (void *)guest->r32;
         break;
       case VALUE_I64:
-        fn = reinterpret_cast<void *>(guest->r64);
+        fn = (void *)guest->r64;
         break;
       default:
         LOG_FATAL("unexpected load result type");
         break;
     }
 
-    e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
+    e.mov(arg0, (uint64_t)guest->space);
     e.mov(arg1, ra);
-    e.call(reinterpret_cast<void *>(fn));
+    e.call((void *)fn);
     e.mov(dst, e.rax);
   }
 }
@@ -165,11 +165,11 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
       int data_size = ir_type_size(data->type);
       uint32_t data_mask = (1 << (data_size * 8)) - 1;
 
-      e.mov(arg0, reinterpret_cast<uint64_t>(userdata));
+      e.mov(arg0, (uint64_t)userdata);
       e.mov(arg1, offset);
       e.mov(arg2, rb);
       e.mov(arg3, data_mask);
-      e.call(reinterpret_cast<void *>(write));
+      e.call((void *)write);
     }
   } else {
     Xbyak::Reg ra = x64_backend_reg(backend, addr);
@@ -177,26 +177,26 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
     void *fn = nullptr;
     switch (data->type) {
       case VALUE_I8:
-        fn = reinterpret_cast<void *>(guest->w8);
+        fn = (void *)guest->w8;
         break;
       case VALUE_I16:
-        fn = reinterpret_cast<void *>(guest->w16);
+        fn = (void *)guest->w16;
         break;
       case VALUE_I32:
-        fn = reinterpret_cast<void *>(guest->w32);
+        fn = (void *)guest->w32;
         break;
       case VALUE_I64:
-        fn = reinterpret_cast<void *>(guest->w64);
+        fn = (void *)guest->w64;
         break;
       default:
-        LOG_FATAL("Unexpected store value type");
+        LOG_FATAL("unexpected store value type");
         break;
     }
 
-    e.mov(arg0, reinterpret_cast<uint64_t>(guest->space));
+    e.mov(arg0, (uint64_t)guest->space);
     e.mov(arg1, ra);
     x64_backend_mov_value(backend, arg2, data);
-    e.call(reinterpret_cast<void *>(fn));
+    e.call((void *)fn);
   }
 }
 
@@ -230,13 +230,13 @@ EMITTER(STORE_CONTEXT, CONSTRAINTS(NONE, IMM_I32, VAL_ALL)) {
 
 EMITTER(LOAD_LOCAL, CONSTRAINTS(REG_ALL, IMM_I32)) {
   struct ir_value *dst = RES;
-  int offset = X64_STACK_OFFSET_LOCALS + ARG0->i32;
+  int offset = X64_STACK_LOCALS + ARG0->i32;
 
   x64_backend_load_mem(backend, dst, e.rsp + offset);
 }
 
 EMITTER(STORE_LOCAL, CONSTRAINTS(NONE, IMM_I32, VAL_ALL)) {
-  int offset = X64_STACK_OFFSET_LOCALS + ARG0->i32;
+  int offset = X64_STACK_LOCALS + ARG0->i32;
   struct ir_value *data = ARG1;
 
   x64_backend_store_mem(backend, e.rsp + offset, data);
@@ -381,7 +381,7 @@ EMITTER(CMP, CONSTRAINTS(REG_I64, REG_I64, REG_I64 | IMM_I32, IMM_I32)) {
   Xbyak::Reg ra = ARG0_REG;
 
   if (ir_is_constant(ARG1)) {
-    e.cmp(ra, static_cast<uint32_t>(ir_zext_constant(ARG1)));
+    e.cmp(ra, (uint32_t)ir_zext_constant(ARG1));
   } else {
     Xbyak::Reg rb = ARG1_REG;
     e.cmp(ra, rb);

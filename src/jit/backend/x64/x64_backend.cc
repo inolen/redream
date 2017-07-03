@@ -94,12 +94,10 @@ const int x64_num_registers = array_size(x64_registers);
 
 const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
                                  const struct ir_value *v) {
-  auto &e = *backend->codegen;
-
   int i = v->reg;
   CHECK_NE(i, NO_REGISTER);
 
-  Xbyak::Reg reg = *reinterpret_cast<const Xbyak::Reg *>(x64_registers[i].data);
+  Xbyak::Reg reg = *(const Xbyak::Reg *)x64_registers[i].data;
   CHECK(reg.isREG());
 
   switch (v->type) {
@@ -125,8 +123,6 @@ const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
 
 const Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
                                  const struct ir_value *v) {
-  auto &e = *backend->codegen;
-
   int i = v->reg;
   CHECK_NE(i, NO_REGISTER);
 
@@ -138,41 +134,41 @@ const Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
 
 void x64_backend_load_mem(struct x64_backend *backend,
                           const struct ir_value *dst,
-                          const Xbyak::RegExp &srcExp) {
+                          const Xbyak::RegExp &src_exp) {
   auto &e = *backend->codegen;
 
   switch (dst->type) {
     case VALUE_I8:
-      e.mov(x64_backend_reg(backend, dst), e.byte[srcExp]);
+      e.mov(x64_backend_reg(backend, dst), e.byte[src_exp]);
       break;
     case VALUE_I16:
-      e.mov(x64_backend_reg(backend, dst), e.word[srcExp]);
+      e.mov(x64_backend_reg(backend, dst), e.word[src_exp]);
       break;
     case VALUE_I32:
-      e.mov(x64_backend_reg(backend, dst), e.dword[srcExp]);
+      e.mov(x64_backend_reg(backend, dst), e.dword[src_exp]);
       break;
     case VALUE_I64:
-      e.mov(x64_backend_reg(backend, dst), e.qword[srcExp]);
+      e.mov(x64_backend_reg(backend, dst), e.qword[src_exp]);
       break;
     case VALUE_F32:
       if (X64_USE_AVX) {
-        e.vmovss(x64_backend_xmm(backend, dst), e.dword[srcExp]);
+        e.vmovss(x64_backend_xmm(backend, dst), e.dword[src_exp]);
       } else {
-        e.movss(x64_backend_xmm(backend, dst), e.dword[srcExp]);
+        e.movss(x64_backend_xmm(backend, dst), e.dword[src_exp]);
       }
       break;
     case VALUE_F64:
       if (X64_USE_AVX) {
-        e.vmovsd(x64_backend_xmm(backend, dst), e.qword[srcExp]);
+        e.vmovsd(x64_backend_xmm(backend, dst), e.qword[src_exp]);
       } else {
-        e.movsd(x64_backend_xmm(backend, dst), e.qword[srcExp]);
+        e.movsd(x64_backend_xmm(backend, dst), e.qword[src_exp]);
       }
       break;
     case VALUE_V128:
       if (X64_USE_AVX) {
-        e.vmovups(x64_backend_xmm(backend, dst), e.ptr[srcExp]);
+        e.vmovups(x64_backend_xmm(backend, dst), e.ptr[src_exp]);
       } else {
-        e.movups(x64_backend_xmm(backend, dst), e.ptr[srcExp]);
+        e.movups(x64_backend_xmm(backend, dst), e.ptr[src_exp]);
       }
       break;
     default:
@@ -182,25 +178,25 @@ void x64_backend_load_mem(struct x64_backend *backend,
 }
 
 void x64_backend_store_mem(struct x64_backend *backend,
-                           const Xbyak::RegExp &dstExp,
+                           const Xbyak::RegExp &dst_exp,
                            const struct ir_value *src) {
   auto &e = *backend->codegen;
 
   if (ir_is_constant(src)) {
     switch (src->type) {
       case VALUE_I8:
-        e.mov(e.byte[dstExp], src->i8);
+        e.mov(e.byte[dst_exp], src->i8);
         break;
       case VALUE_I16:
-        e.mov(e.word[dstExp], src->i16);
+        e.mov(e.word[dst_exp], src->i16);
         break;
       case VALUE_I32:
       case VALUE_F32:
-        e.mov(e.dword[dstExp], src->i32);
+        e.mov(e.dword[dst_exp], src->i32);
         break;
       case VALUE_I64:
       case VALUE_F64:
-        e.mov(e.qword[dstExp], src->i64);
+        e.mov(e.qword[dst_exp], src->i64);
         break;
       default:
         LOG_FATAL("unexpected value type");
@@ -211,36 +207,36 @@ void x64_backend_store_mem(struct x64_backend *backend,
 
   switch (src->type) {
     case VALUE_I8:
-      e.mov(e.byte[dstExp], x64_backend_reg(backend, src));
+      e.mov(e.byte[dst_exp], x64_backend_reg(backend, src));
       break;
     case VALUE_I16:
-      e.mov(e.word[dstExp], x64_backend_reg(backend, src));
+      e.mov(e.word[dst_exp], x64_backend_reg(backend, src));
       break;
     case VALUE_I32:
-      e.mov(e.dword[dstExp], x64_backend_reg(backend, src));
+      e.mov(e.dword[dst_exp], x64_backend_reg(backend, src));
       break;
     case VALUE_I64:
-      e.mov(e.qword[dstExp], x64_backend_reg(backend, src));
+      e.mov(e.qword[dst_exp], x64_backend_reg(backend, src));
       break;
     case VALUE_F32:
       if (X64_USE_AVX) {
-        e.vmovss(e.dword[dstExp], x64_backend_xmm(backend, src));
+        e.vmovss(e.dword[dst_exp], x64_backend_xmm(backend, src));
       } else {
-        e.movss(e.dword[dstExp], x64_backend_xmm(backend, src));
+        e.movss(e.dword[dst_exp], x64_backend_xmm(backend, src));
       }
       break;
     case VALUE_F64:
       if (X64_USE_AVX) {
-        e.vmovsd(e.qword[dstExp], x64_backend_xmm(backend, src));
+        e.vmovsd(e.qword[dst_exp], x64_backend_xmm(backend, src));
       } else {
-        e.movsd(e.qword[dstExp], x64_backend_xmm(backend, src));
+        e.movsd(e.qword[dst_exp], x64_backend_xmm(backend, src));
       }
       break;
     case VALUE_V128:
       if (X64_USE_AVX) {
-        e.vmovups(e.ptr[dstExp], x64_backend_xmm(backend, src));
+        e.vmovups(e.ptr[dst_exp], x64_backend_xmm(backend, src));
       } else {
-        e.movups(e.ptr[dstExp], x64_backend_xmm(backend, src));
+        e.movups(e.ptr[dst_exp], x64_backend_xmm(backend, src));
       }
       break;
     default:

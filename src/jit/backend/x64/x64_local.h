@@ -50,14 +50,15 @@ struct x64_backend {
  * backend functionality used by emitters
  */
 #define X64_THUNK_SIZE 1024
+#define X64_STACK_SIZE 1024
 
 #if PLATFORM_WINDOWS
 #define X64_STACK_SHADOW_SPACE 32
 #else
 #define X64_STACK_SHADOW_SPACE 0
 #endif
-#define X64_STACK_OFFSET_LOCALS (X64_STACK_SHADOW_SPACE + 8)
-#define X64_STACK_SIZE 1024
+
+#define X64_STACK_LOCALS (X64_STACK_SHADOW_SPACE + 8)
 
 #define X64_USE_AVX backend->use_avx
 
@@ -78,9 +79,9 @@ const Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
                                  const struct ir_value *v);
 void x64_backend_load_mem(struct x64_backend *backend,
                           const struct ir_value *dst,
-                          const Xbyak::RegExp &srcExp);
+                          const Xbyak::RegExp &src_exp);
 void x64_backend_store_mem(struct x64_backend *backend,
-                           const Xbyak::RegExp &dstExp,
+                           const Xbyak::RegExp &dst_exp,
                            const struct ir_value *src);
 void x64_backend_mov_value(struct x64_backend *backend, Xbyak::Reg dst,
                            const struct ir_value *v);
