@@ -126,8 +126,7 @@ const Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
   int i = v->reg;
   CHECK_NE(i, NO_REGISTER);
 
-  const Xbyak::Xmm &xmm =
-      *reinterpret_cast<const Xbyak::Xmm *>(x64_registers[i].data);
+  const Xbyak::Xmm &xmm = *(const Xbyak::Xmm *)x64_registers[i].data;
   CHECK(xmm.isXMM());
   return xmm;
 }
@@ -393,11 +392,21 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
       backend->load_thunk[i] = e.getCurr<void (*)()>();
 
+/* save caller-saved registers */
+#if PLATFORM_WINDOWS
+      e.push(e.rsi);
+      e.push(e.rdi);
+#else
+      e.push(e.r8);
+      e.push(e.r9);
+#endif
+      e.push(e.r10);
+      e.push(e.r11);
+
       /* call the mmio handler */
       e.call(e.rax);
 
       /* restore caller-saved registers */
-      e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
       e.pop(e.r11);
       e.pop(e.r10);
 #if PLATFORM_WINDOWS
@@ -412,6 +421,7 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
       e.mov(dst, e.rax);
 
       /* return to jit code */
+      e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
       e.ret();
     }
   }
@@ -421,11 +431,21 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
     backend->store_thunk = e.getCurr<void (*)()>();
 
+/* save caller-saved registers */
+#if PLATFORM_WINDOWS
+    e.push(e.rsi);
+    e.push(e.rdi);
+#else
+    e.push(e.r8);
+    e.push(e.r9);
+#endif
+    e.push(e.r10);
+    e.push(e.r11);
+
     /* call the mmio handler */
     e.call(e.rax);
 
     /* restore caller-saved registers */
-    e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
     e.pop(e.r11);
     e.pop(e.r10);
 #if PLATFORM_WINDOWS
@@ -437,6 +457,7 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 #endif
 
     /* return to jit code */
+    e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
     e.ret();
   }
 }
@@ -474,13 +495,12 @@ static int x64_backend_handle_exception(struct jit_backend *base,
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
   struct jit_guest *guest = backend->base.jit->guest;
 
-  const uint8_t *data = reinterpret_cast<const uint8_t *>(ex->thread_state.rip);
+  const uint8_t *data = (const uint8_t *)ex->thread_state.rip;
 
   /* figure out the guest address that was being accessed */
-  const uint8_t *fault_addr = reinterpret_cast<const uint8_t *>(ex->fault_addr);
-  const uint8_t *protected_start =
-      reinterpret_cast<const uint8_t *>(ex->thread_state.r15);
-  uint32_t guest_addr = static_cast<uint32_t>(fault_addr - protected_start);
+  const uint8_t *fault_addr = (const uint8_t *)ex->fault_addr;
+  const uint8_t *protected_start = (const uint8_t *)ex->thread_state.r15;
+  uint32_t guest_addr = (uint32_t)(fault_addr - protected_start);
 
   /* ensure it was an mmio address that caused the exception */
   void *ptr;
@@ -502,72 +522,62 @@ static int x64_backend_handle_exception(struct jit_backend *base,
      from any restrictions imposed by an exception handler, and also prevents
      a possible recursive exception
 
-     push all of the caller saved registers used by the jit, as well as the
-     return address (the next instruction after the current mov) to the stack.
-     add an extra 8 bytes to keep the stack aligned */
-  *(uint64_t *)(ex->thread_state.rsp - 40) = ex->thread_state.r11;
-  *(uint64_t *)(ex->thread_state.rsp - 32) = ex->thread_state.r10;
-#if PLATFORM_WINDOWS
-  *(uint64_t *)(ex->thread_state.rsp - 24) = ex->thread_state.rdi;
-  *(uint64_t *)(ex->thread_state.rsp - 16) = ex->thread_state.rsi;
-#else
-  *(uint64_t *)(ex->thread_state.rsp - 24) = ex->thread_state.r9;
-  *(uint64_t *)(ex->thread_state.rsp - 16) = ex->thread_state.r8;
-#endif
+     push the return address (the next instruction after the current mov) to
+     the stack. also, adjust the stack for the return address, with an extra
+     8 bytes to keep it aligned */
   *(uint64_t *)(ex->thread_state.rsp - 8) = ex->thread_state.rip + mov.length;
-  ex->thread_state.rsp -= X64_STACK_SHADOW_SPACE + 40 + 8;
+  ex->thread_state.rsp -= X64_STACK_SHADOW_SPACE + 8 + 8;
   CHECK(ex->thread_state.rsp % 16 == 0);
 
   if (mov.is_load) {
     /* prep argument registers (memory object, guest_addr) for read function */
-    ex->thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(guest->space);
-    ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
+    ex->thread_state.r[x64_arg0_idx] = (uint64_t)guest->space;
+    ex->thread_state.r[x64_arg1_idx] = (uint64_t)guest_addr;
 
     /* prep function call address for thunk */
     switch (mov.operand_size) {
       case 1:
-        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r8);
+        ex->thread_state.rax = (uint64_t)guest->r8;
         break;
       case 2:
-        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r16);
+        ex->thread_state.rax = (uint64_t)guest->r16;
         break;
       case 4:
-        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r32);
+        ex->thread_state.rax = (uint64_t)guest->r32;
         break;
       case 8:
-        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->r64);
+        ex->thread_state.rax = (uint64_t)guest->r64;
         break;
     }
 
     /* resume execution in the thunk once the exception handler exits */
-    ex->thread_state.rip =
-        reinterpret_cast<uint64_t>(backend->load_thunk[mov.reg]);
+    ex->thread_state.rip = (uint64_t)backend->load_thunk[mov.reg];
   } else {
     /* prep argument registers (memory object, guest_addr, value) for write
        function */
-    ex->thread_state.r[x64_arg0_idx] = reinterpret_cast<uint64_t>(guest->space);
-    ex->thread_state.r[x64_arg1_idx] = static_cast<uint64_t>(guest_addr);
+    ex->thread_state.r[x64_arg0_idx] = (uint64_t)guest->space;
+    ex->thread_state.r[x64_arg1_idx] = (uint64_t)guest_addr;
     ex->thread_state.r[x64_arg2_idx] =
         mov.has_imm ? mov.imm : ex->thread_state.r[mov.reg];
 
     /* prep function call address for thunk */
     switch (mov.operand_size) {
       case 1:
-        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w8);
+        ex->thread_state.rax = (uint64_t)guest->w8;
         break;
       case 2:
-        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w16);
+        ex->thread_state.rax = (uint64_t)guest->w16;
         break;
       case 4:
-        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w32);
+        ex->thread_state.rax = (uint64_t)guest->w32;
         break;
       case 8:
-        ex->thread_state.rax = reinterpret_cast<uint64_t>(guest->w64);
+        ex->thread_state.rax = (uint64_t)guest->w64;
         break;
     }
 
     /* resume execution in the thunk once the exception handler exits */
-    ex->thread_state.rip = reinterpret_cast<uint64_t>(backend->store_thunk);
+    ex->thread_state.rip = (uint64_t)backend->store_thunk;
   }
 
   return 1;
@@ -648,8 +658,8 @@ static void x64_backend_init(struct jit_backend *base) {
 }
 
 struct jit_backend *x64_backend_create(void *code, int code_size) {
-  struct x64_backend *backend = reinterpret_cast<struct x64_backend *>(
-      calloc(1, sizeof(struct x64_backend)));
+  struct x64_backend *backend =
+      (struct x64_backend *)calloc(1, sizeof(struct x64_backend));
   Xbyak::util::Cpu cpu;
 
   int r = protect_pages(code, code_size, ACC_READWRITEEXEC);

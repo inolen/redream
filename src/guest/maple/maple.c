@@ -91,7 +91,7 @@ int maple_handle_command(struct maple *mp, struct maple_frame *frame,
   }
 
   if (!dev->frame(dev, frame, res)) {
-    LOG_INFO("Unhandled maple cmd %d for port %d, unit %d",
+    LOG_INFO("unhandled maple cmd %d for port %d, unit %d",
              frame->header.command, p, u);
     return 0;
   }
