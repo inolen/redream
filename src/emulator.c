@@ -62,7 +62,6 @@ struct emu {
   struct render_backend *r, *r2;
   struct imgui *imgui;
   struct microprofile *mp;
-
   struct trace_writer *trace_writer;
 
   /* hosts which support creating multiple gl contexts will render video on
@@ -565,6 +564,12 @@ static void emu_paint(struct emu *emu) {
 /*
  * dreamcast guest interface
  */
+static void emu_guest_poll_input(void *userdata) {
+  struct emu *emu = userdata;
+
+  input_poll(emu->host);
+}
+
 static void emu_guest_vertical_blank(void *userdata) {
   struct emu *emu = userdata;
 
@@ -827,6 +832,7 @@ struct emu *emu_create(struct host *host) {
   emu->dc->start_render = &emu_guest_start_render;
   emu->dc->finish_render = &emu_guest_finish_render;
   emu->dc->vertical_blank = &emu_guest_vertical_blank;
+  emu->dc->poll_input = &emu_guest_poll_input;
 
   /* start up the video thread */
   emu->multi_threaded = video_supports_multiple_contexts(emu->host);

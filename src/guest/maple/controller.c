@@ -33,6 +33,12 @@ struct controller {
   struct maple_cond cnd;
 };
 
+static void controller_update(struct controller *ctrl) {
+  /* dc_poll_input will call into controller_input if new values are
+     available */
+  dc_poll_input(ctrl->dc);
+}
+
 static int controller_input(struct maple_device *dev, int button,
                             int16_t value) {
   struct controller *ctrl = (struct controller *)dev;
@@ -95,6 +101,8 @@ static int controller_frame(struct maple_device *dev,
     }
 
     case MAPLE_REQ_GETCOND: {
+      controller_update(ctrl);
+
       res->header.command = MAPLE_RES_TRANSFER;
       res->header.recv_addr = frame->header.send_addr;
       res->header.send_addr = frame->header.recv_addr;

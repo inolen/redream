@@ -16,6 +16,14 @@
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
 
+void dc_poll_input(struct dreamcast *dc) {
+  if (!dc->poll_input) {
+    return;
+  }
+
+  dc->poll_input(dc->userdata);
+}
+
 void dc_vertical_blank(struct dreamcast *dc) {
   if (!dc->vertical_blank) {
     return;
