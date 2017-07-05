@@ -167,7 +167,7 @@ static void video_context_destroyed() {
 
 static void video_context_reset() {
   /* link in gl functions at runtime */
-  res = gladLoadGL();
+  int res = gladLoadGLLoader((GLADloadproc)hw_render.get_proc_address);
   CHECK_EQ(res, 1, "GL initialization failed");
 
   if (!g_host->video_context_reset) {
