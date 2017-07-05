@@ -244,7 +244,7 @@ void x64_backend_store_mem(struct x64_backend *backend,
   }
 }
 
-void x64_backend_mov_value(struct x64_backend *backend, Xbyak::Reg dst,
+void x64_backend_mov_value(struct x64_backend *backend, const Xbyak::Reg &dst,
                            const struct ir_value *v) {
   auto &e = *backend->codegen;
 
