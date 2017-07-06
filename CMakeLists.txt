@@ -133,30 +133,28 @@ list(APPEND IMGUI_LIBS imgui)
 list(APPEND RELIB_INCLUDES deps/microprofile)
 
 # sdl2
-if(NOT BUILD_LIBRETRO)
-  set(DIRECTX OFF CACHE BOOL "")
-  set(RENDER_D3D OFF CACHE BOOL "")
-  set(SDL_ATOMIC OFF CACHE BOOL "")
-  set(SDL_CPUINFO ON CACHE BOOL "")
-  set(SDL_FILESYSTEM OFF CACHE BOOL "")
-  set(SDL_HAPTIC OFF CACHE BOOL "")
-  set(SDL_POWER OFF CACHE BOOL "")
-  set(SDL_RENDER OFF CACHE BOOL "")
-  set(SDL_SHARED OFF CACHE BOOL "")
-  set(SDL_STATIC ON CACHE BOOL "")
+set(DIRECTX OFF CACHE BOOL "")
+set(RENDER_D3D OFF CACHE BOOL "")
+set(SDL_ATOMIC OFF CACHE BOOL "")
+set(SDL_CPUINFO ON CACHE BOOL "")
+set(SDL_FILESYSTEM OFF CACHE BOOL "")
+set(SDL_HAPTIC OFF CACHE BOOL "")
+set(SDL_POWER OFF CACHE BOOL "")
+set(SDL_RENDER OFF CACHE BOOL "")
+set(SDL_SHARED OFF CACHE BOOL "")
+set(SDL_STATIC ON CACHE BOOL "")
 
-  if(PLATFORM_DARWIN)
-    set(SDL_FRAMEWORK_CARBON 1)
-  endif()
-
-  add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
-  list(APPEND RELIB_INCLUDES deps/sdl2-2.0.5/include)
-
-  if(MINGW)
-    list(APPEND SDL_LIBS mingw32)
-  endif()
-  list(APPEND SDL_LIBS SDL2main SDL2-static)
+if(PLATFORM_DARWIN)
+  set(SDL_FRAMEWORK_CARBON 1)
 endif()
+
+add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
+list(APPEND RELIB_INCLUDES deps/sdl2-2.0.5/include)
+
+if(MINGW)
+  list(APPEND SDL_LIBS mingw32)
+endif()
+list(APPEND SDL_LIBS SDL2main SDL2-static)
 
 #--------------------------------------------------
 # format
@@ -347,8 +345,8 @@ if(BUILD_LIBRETRO)
 else()
   set(REDREAM_SOURCES ${RELIB_SOURCES} src/host/sdl_host.c src/emulator.c src/tracer.c)
   set(REDREAM_INCLUDES ${RELIB_INCLUDES})
-  set(REDREAM_LIBS ${RELIB_LIBS} ${SDL_LIBS})
-  set(REDREAM_DEFS ${RELIB_DEFS})
+  set(REDREAM_LIBS ${RELIB_LIBS} ${IMGUI_LIBS} ${SDL_LIBS})
+  set(REDREAM_DEFS ${RELIB_DEFS} ENABLE_IMGUI=1 ENABLE_MICROPROFILE=1)
   set(REDREAM_FLAGS ${RELIB_FLAGS})
 endif()
 
@@ -364,13 +362,6 @@ target_include_directories(redream PUBLIC ${REDREAM_INCLUDES} ${CMAKE_CURRENT_SO
 target_link_libraries(redream ${REDREAM_LIBS})
 target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
-
-# enable imgui
-target_link_libraries(redream ${IMGUI_LIBS})
-target_compile_definitions(redream PRIVATE ENABLE_IMGUI=1)
-
-# enable microprofile
-target_compile_definitions(redream PRIVATE ENABLE_MICROPROFILE=1)
 
 #--------------------------------------------------
 # recc
