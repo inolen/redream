@@ -4,6 +4,7 @@
 #include "guest/gdrom/cdi.h"
 #include "guest/gdrom/gdi.h"
 #include "guest/gdrom/iso.h"
+#include "guest/gdrom/chd.h"
 
 /* meta information found in the ip.bin */
 struct disc_meta {
@@ -124,6 +125,7 @@ void disc_get_toc(struct disc *disc, int area, struct track **first_track,
   disc->get_toc(disc, area, first_track, last_track, leadin_fad, leadout_fad);
 }
 
+
 struct track *disc_lookup_track(struct disc *disc, int fad) {
   int num_tracks = disc_get_num_tracks(disc);
 
@@ -198,6 +200,8 @@ struct disc *disc_create(const char *filename) {
     disc = cdi_create(filename);
   } else if (strstr(filename, ".gdi")) {
     disc = gdi_create(filename);
+  } else if (strstr(filename, ".chd")) {
+    disc = chd_create(filename);
   }
 
   if (disc) {

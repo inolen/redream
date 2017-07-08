@@ -109,6 +109,22 @@ if(ARCH_A64)
   list(APPEND RELIB_LIBS vixl)
 endif()
 
+# chdr
+file(GLOB CHDR_SOURCES deps/chdr/*.c)
+add_library(chdr STATIC ${CHDR_SOURCES})
+target_link_libraries(chdr crypto)
+list(APPEND RELIB_INCLUDES deps/chdr)
+list(APPEND RELIB_LIBS chdr)
+
+# crypto
+file(GLOB CRYPTO_SOURCES deps/crypto/*.c)
+add_library(crypto STATIC ${CRYPTO_SOURCES})
+list(APPEND RELIB_INCLUDES deps/crypto)
+list(APPEND RELIB_LIBS crypto)
+
+find_library(Z_LIB z)
+list(APPEND RELIB_LIBS ${Z_LIB})
+
 # xbyak
 if(ARCH_X64)
   list(APPEND RELIB_INCLUDES deps/xbyak-4.901)
@@ -194,6 +210,7 @@ set(RELIB_SOURCES
   src/guest/bios/flash.c
   src/guest/bios/syscalls.c
   src/guest/gdrom/cdi.c
+  src/guest/gdrom/chd.c
   src/guest/gdrom/disc.c
   src/guest/gdrom/gdi.c
   src/guest/gdrom/gdrom.c
