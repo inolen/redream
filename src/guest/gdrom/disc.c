@@ -3,6 +3,7 @@
 #include "core/string.h"
 #include "guest/gdrom/cdi.h"
 #include "guest/gdrom/gdi.h"
+#include "guest/gdrom/chd.h"
 
 struct track *disc_lookup_track(struct disc *disc, int fad) {
   int num_tracks = disc_get_num_tracks(disc);
@@ -77,9 +78,13 @@ struct disc *disc_create(const char *filename) {
     return cdi_create(filename);
   }
 
+  if (strstr(filename, ".chd")) {
+    return chd_create(filename);
+  }
+
   if (strstr(filename, ".gdi")) {
     return gdi_create(filename);
-  }
+  }  
 
   return NULL;
 }
