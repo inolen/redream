@@ -210,6 +210,7 @@ set(RELIB_SOURCES
   src/guest/sh4/sh4_dbg.c
   src/guest/sh4/sh4_dmac.c
   src/guest/sh4/sh4_intc.c
+  src/guest/sh4/sh4_mmu.c
   src/guest/sh4/sh4_tmu.c
   src/guest/debugger.c
   src/guest/dreamcast.c

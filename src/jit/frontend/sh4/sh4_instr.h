@@ -1379,6 +1379,11 @@ INSTR(SLEEP) {
   SLEEP();
 }
 
+/* LDTLB */
+INSTR(LDTLB) {
+  LDTLB();
+}
+
 /* STC     SR,Rn */
 INSTR(STCSR) {
   I32 v = LOAD_SR_I32();

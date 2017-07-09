@@ -143,7 +143,8 @@ void input_poll(struct host *base) {
 
     /* retroarch's API provides a binary [0, 1] value for the triggers. map from
        this to [0, INT16_MAX] as our host layer expects */
-    if (desc->id == RETRO_DEVICE_ID_JOYPAD_L2 || desc->id == RETRO_DEVICE_ID_JOYPAD_R2) {
+    if (desc->id == RETRO_DEVICE_ID_JOYPAD_L2 ||
+        desc->id == RETRO_DEVICE_ID_JOYPAD_R2) {
       value = value ? INT16_MAX : 0;
     }
 

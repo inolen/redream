@@ -1,6 +1,12 @@
 #include "guest/sh4/sh4.h"
 #include "jit/jit.h"
 
+#if 0
+#define LOG_CCN LOG_INFO
+#else
+#define LOG_CCN(...)
+#endif
+
 /* with OIX, bit 25, rather than bit 13, determines which 4kb bank to use */
 #define CACHE_OFFSET(addr, OIX) \
   ((OIX ? ((addr & 0x2000000) >> 13) : ((addr & 0x2000) >> 1)) | (addr & 0xfff))
@@ -29,12 +35,27 @@ void sh4_ccn_sq_prefetch(void *data, uint32_t addr) {
   DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
 
   struct sh4 *sh4 = data;
-  uint32_t dst = addr & 0x03ffffe0;
+
+  uint32_t dst = 0x0;
   uint32_t sqi = (addr & 0x20) >> 5;
-  if (sqi) {
-    dst |= (*sh4->QACR1 & 0x1c) << 24;
+
+  if (sh4->MMUCR->AT) {
+    /* get upper 12 bits from UTLB */
+    uint32_t vpn = addr >> 20;
+    dst = sh4->utlb_sq_map[vpn & 0x3f];
+
+    /* get lower 20 bits from original address */
+    dst |= addr & 0xfffe0;
   } else {
-    dst |= (*sh4->QACR0 & 0x1c) << 24;
+    /* get upper 6 bits from QACR* registers */
+    if (sqi) {
+      dst = (*sh4->QACR1 & 0x1c) << 24;
+    } else {
+      dst = (*sh4->QACR0 & 0x1c) << 24;
+    }
+
+    /* get lower 26 bits from original address */
+    dst |= addr & 0x3ffffe0;
   }
 
   as_memcpy_to_guest(sh4->memory_if->space, dst, sh4->ctx.sq[sqi], 32);
@@ -69,10 +90,43 @@ void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   sh4->ctx.sq[sqi][idx] = data;
 }
 
+uint32_t sh4_ccn_icache_read(struct sh4 *sh4, uint32_t addr,
+                             uint32_t data_mask) {
+  LOG_CCN("sh4_ccn_icache_read 0x%08x", addr);
+
+  /* return an invalid entry */
+  return 0;
+}
+
+void sh4_ccn_icache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                          uint32_t data_mask) {
+  LOG_CCN("sh4_ccn_icache_write 0x%08x", addr);
+
+  /* ignore */
+}
+
+uint32_t sh4_ccn_ocache_read(struct sh4 *sh4, uint32_t addr,
+                             uint32_t data_mask) {
+  LOG_CCN("sh4_ccn_ocache_read 0x%08x", addr);
+
+  /* return an invalid entry */
+  return 0;
+}
+
+void sh4_ccn_ocache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                          uint32_t data_mask) {
+  LOG_CCN("sh4_ccn_ocache_write 0x%08x", addr);
+
+  /* ignore */
+}
+
 REG_W32(sh4_cb, MMUCR) {
   struct sh4 *sh4 = dc->sh4;
-  if (value) {
-    LOG_FATAL("MMU not currently supported");
+
+  sh4->MMUCR->full = value;
+
+  if (sh4->MMUCR->AT) {
+    LOG_WARNING("MMU not fully supported");
   }
 }
 

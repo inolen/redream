@@ -165,6 +165,7 @@ static int sh4_init(struct device *dev) {
     sh4->guest->mem = as_translate(sh4->memory_if->space, 0x0);
     sh4->guest->space = sh4->memory_if->space;
     sh4->guest->invalid_instr = &sh4_invalid_instr;
+    sh4->guest->load_tlb = &sh4_mmu_load_tlb;
     sh4->guest->sq_prefetch = &sh4_ccn_sq_prefetch;
     sh4->guest->sleep = &sh4_sleep;
     sh4->guest->sr_updated = &sh4_sr_updated;
@@ -211,6 +212,10 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   sh4->name = (type *)&sh4->reg[name];
 #include "guest/sh4/sh4_regs.inc"
 #undef SH4_REG
+
+  /* reset tlb */
+  memset(sh4->utlb_sq_map, 0, sizeof(sh4->utlb_sq_map));
+  memset(sh4->utlb, 0, sizeof(sh4->utlb));
 
   /* reset interrupts */
   sh4_intc_reprioritize(sh4);
@@ -351,16 +356,37 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x80000000, 0x9fffffff) AM_MIRROR(0x00000000)  /* p1 */
   AM_RANGE(0xa0000000, 0xbfffffff) AM_MIRROR(0x00000000)  /* p2 */
   AM_RANGE(0xc0000000, 0xdfffffff) AM_MIRROR(0x00000000)  /* p3 */
-  AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  /* p4 */
 
-  /* internal cache and sq only accessible through p4 */
+  /* internal cache is only accessible through p0, not any of the mirrors */
   AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
                                              (mmio_read_cb)&sh4_ccn_cache_read,
                                              (mmio_write_cb)&sh4_ccn_cache_write,
                                              NULL, NULL)
+
+  /* p4 area */
   AM_RANGE(0xe0000000, 0xe3ffffff) AM_HANDLE("sh4 sq",
                                              (mmio_read_cb)&sh4_ccn_sq_read,
                                              (mmio_write_cb)&sh4_ccn_sq_write,
+                                             NULL, NULL)
+  AM_RANGE(0xf0000000, 0xf1ffffff) AM_HANDLE("sh4 icache",
+                                             (mmio_read_cb)&sh4_ccn_icache_read,
+                                             (mmio_write_cb)&sh4_ccn_icache_write,
+                                             NULL, NULL)
+  AM_RANGE(0xf2000000, 0xf3ffffff) AM_HANDLE("sh4 itlb",
+                                             (mmio_read_cb)&sh4_mmu_itlb_read,
+                                             (mmio_write_cb)&sh4_mmu_itlb_write,
+                                             NULL, NULL)
+  AM_RANGE(0xf4000000, 0xf5ffffff) AM_HANDLE("sh4 ocache",
+                                             (mmio_read_cb)&sh4_ccn_ocache_read,
+                                             (mmio_write_cb)&sh4_ccn_ocache_write,
+                                             NULL, NULL)
+  AM_RANGE(0xf6000000, 0xf7ffffff) AM_HANDLE("sh4 utlb",
+                                             (mmio_read_cb)&sh4_mmu_utlb_read,
+                                             (mmio_write_cb)&sh4_mmu_utlb_write,
+                                             NULL, NULL)
+  AM_RANGE(0xfc000000, 0xffffffff) AM_HANDLE("sh4 reg",
+                                             (mmio_read_cb)&sh4_reg_read,
+                                             (mmio_write_cb)&sh4_reg_write,
                                              NULL, NULL)
 AM_END();
 /* clang-format on */

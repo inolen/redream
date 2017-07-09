@@ -3,6 +3,47 @@
 
 #include <stdint.h>
 
+union pteh {
+  uint32_t full;
+  struct {
+    uint32_t ASID : 8;
+    uint32_t : 2;
+    uint32_t VPN : 22;
+  };
+};
+
+union ptel {
+  uint32_t full;
+  struct {
+    uint32_t WT : 1;
+    uint32_t SH : 1;
+    uint32_t D : 1;
+    uint32_t C : 1;
+    uint32_t SZ0 : 1;
+    uint32_t PR : 2;
+    uint32_t SZ1 : 1;
+    uint32_t V : 1;
+    uint32_t : 1;
+    uint32_t PPN : 19;
+    uint32_t : 3;
+  };
+};
+
+union mmucr {
+  uint32_t full;
+  struct {
+    uint32_t AT : 1;
+    uint32_t : 1;
+    uint32_t TI : 1;
+    uint32_t : 5;
+    uint32_t SV : 1;
+    uint32_t SQMD : 1;
+    uint32_t URC : 6;
+    uint32_t URB : 6;
+    uint32_t LRUI : 6;
+  };
+};
+
 union ccr {
   uint32_t full;
   struct {
@@ -10,16 +51,16 @@ union ccr {
     uint32_t WT : 1;
     uint32_t CB : 1;
     uint32_t OCI : 1;
-    uint32_t reserved : 1;
+    uint32_t : 1;
     uint32_t ORA : 1;
-    uint32_t reserved1 : 1;
+    uint32_t : 1;
     uint32_t OIX : 1;
     uint32_t ICE : 1;
-    uint32_t reserved2 : 2;
+    uint32_t : 2;
     uint32_t ICI : 1;
-    uint32_t reserved3 : 3;
+    uint32_t : 3;
     uint32_t IIX : 1;
-    uint32_t reserved4 : 15;
+    uint32_t : 15;
     uint32_t EMODE : 1;
   };
 };
@@ -40,7 +81,7 @@ union chcr {
     uint32_t AM : 1;
     uint32_t RL : 1;
     uint32_t DS : 1;
-    uint32_t reserved : 4;
+    uint32_t : 4;
     uint32_t DTC : 1;
     uint32_t DSA : 3;
     uint32_t STC : 1;
@@ -54,13 +95,13 @@ union dmaor {
     uint32_t DME : 1;
     uint32_t NMIF : 1;
     uint32_t AE : 1;
-    uint32_t reserved : 5;
+    uint32_t : 5;
     uint32_t PR0 : 1;
     uint32_t PR1 : 1;
-    uint32_t reserved1 : 4;
+    uint32_t : 4;
     uint32_t DBL : 1;
     uint32_t DDT : 1;
-    uint32_t reserved2 : 16;
+    uint32_t : 16;
   };
 };
 

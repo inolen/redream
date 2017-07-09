@@ -8,6 +8,7 @@ struct sh4_guest {
 
   /* runtime interface */
   void (*invalid_instr)(void *);
+  void (*load_tlb)(void *);
   void (*sq_prefetch)(void *, uint32_t);
   void (*sleep)(void *);
   void (*sr_updated)(void *, uint32_t);

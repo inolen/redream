@@ -135,6 +135,7 @@ SH4_INSTR(RTS,       "rts",                          0000000000001011, 2, SH4_FL
 
 
 // system control instructions
+SH4_INSTR(LDTLB,     "ldtlb",                        0000000000111000, 1, 0)
 SH4_INSTR(CLRMAC,    "clrmac",                       0000000000101000, 1, 0)
 SH4_INSTR(CLRS,      "clrs",                         0000000001001000, 1, 0)
 SH4_INSTR(CLRT,      "clrt",                         0000000000001000, 1, 0)

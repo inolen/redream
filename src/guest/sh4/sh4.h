@@ -36,6 +36,11 @@ struct sh4_dtr {
   int size;
 };
 
+struct sh4_tlb_entry {
+  union pteh hi;
+  union ptel lo;
+};
+
 struct sh4 {
   struct device;
 
@@ -61,6 +66,10 @@ struct sh4 {
   uint64_t requested_interrupts;
   /* pending interrupts moved to context for fast jit access */
 
+  /* mmu */
+  uint32_t utlb_sq_map[64];
+  struct sh4_tlb_entry utlb[64];
+
   /* tmu */
   struct timer *tmu_timers[3];
 };
@@ -71,6 +80,7 @@ DECLARE_COUNTER(sh4_instrs);
 
 AM_DECLARE(sh4_data_map);
 
+/* ccn */
 void sh4_ccn_sq_prefetch(void *data, uint32_t addr);
 uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
 void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
@@ -78,7 +88,16 @@ void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 uint32_t sh4_ccn_sq_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
 void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                       uint32_t data_mask);
+uint32_t sh4_ccn_icache_read(struct sh4 *sh4, uint32_t addr,
+                             uint32_t data_mask);
+void sh4_ccn_icache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                          uint32_t data_mask);
+uint32_t sh4_ccn_ocache_read(struct sh4 *sh4, uint32_t addr,
+                             uint32_t data_mask);
+void sh4_ccn_ocache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                          uint32_t data_mask);
 
+/* dbg */
 int sh4_dbg_num_registers(struct device *dev);
 void sh4_dbg_step(struct device *dev);
 void sh4_dbg_add_breakpoint(struct device *dev, int type, uint32_t addr);
@@ -91,9 +110,19 @@ int sh4_dbg_invalid_instr(struct sh4 *sh4);
 
 void sh4_dmac_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
 
+/* intc */
 void sh4_intc_update_pending(struct sh4 *sh4);
 void sh4_intc_check_pending(void *data);
 void sh4_intc_reprioritize(struct sh4 *sh4);
+
+/* mmu */
+void sh4_mmu_load_tlb(void *data);
+uint32_t sh4_mmu_itlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
+uint32_t sh4_mmu_utlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
+void sh4_mmu_itlb_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                        uint32_t data_mask);
+void sh4_mmu_utlb_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
+                        uint32_t data_mask);
 
 struct sh4 *sh4_create(struct dreamcast *dc);
 void sh4_destroy(struct sh4 *sh4);

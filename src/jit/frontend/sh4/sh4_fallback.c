@@ -387,6 +387,8 @@ typedef int32_t int128_t[4];
 
 #define SLEEP()                     guest->sleep(guest->data)
 
+#define LDTLB()                     guest->load_tlb(guest->data)
+
 /* clang-format on */
 
 #define INSTR(name)                                                \
