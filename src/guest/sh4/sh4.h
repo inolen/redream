@@ -45,6 +45,9 @@ struct sh4 {
 #include "guest/sh4/sh4_regs.inc"
 #undef SH4_REG
 
+  uint32_t sq_tlb_remaps[64];
+  struct { union pteh high; union ptel low; } utlb[64];
+  
   /* jit */
   struct jit *jit;
   struct sh4_guest *guest;

@@ -1,9 +1,9 @@
 /*      ADDR        NAME         DEFAULT     TYPE */
-SH4_REG(0xff000000, PTEH,        0x00000000, uint32_t)
-SH4_REG(0xff000004, PTEL,        0x00000000, uint32_t)
+SH4_REG(0xff000000, PTEH,        0x00000000, union pteh)
+SH4_REG(0xff000004, PTEL,        0x00000000, union ptel)
 SH4_REG(0xff000008, TTB,         0x00000000, uint32_t)
 SH4_REG(0xff00000c, TEA,         0x00000000, uint32_t)
-SH4_REG(0xff000010, MMUCR,       0x00000000, uint32_t)
+SH4_REG(0xff000010, MMUCR,       0x00000000, union mmucr)
 SH4_REG(0xff000014, BASRA,       0x00000000, uint32_t)
 SH4_REG(0xff000018, BASRB,       0x00000000, uint32_t)
 SH4_REG(0xff00001c, CCR,         0x00000000, union ccr)

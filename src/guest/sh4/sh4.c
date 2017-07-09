@@ -62,6 +62,28 @@ void sh4_sr_updated(void *data, uint32_t old_sr) {
   }
 }
 
+void sh4_utlb_sync(struct sh4 *sh4, uint32_t entry) {
+  if ((sh4->utlb[entry].high.VPN & (0xFC000000 >> 10)) == (0xE0000000 >> 10)) {
+		uint32_t vpn_sq = ((sh4->utlb[entry].high.VPN & 0x7FFFF) >> 10) & 0x3F;
+		sh4->sq_tlb_remaps[vpn_sq] = sh4->utlb[entry].low.PPN << 10;
+		printf("MMU: SQ remaping %d : 0x%X to 0x%X\n", entry, sh4->utlb[entry].high.VPN << 10, sh4->utlb[entry].low.PPN << 10);
+	}
+	else {
+    LOG_FATAL("MMU: Memory remaping not supported\n");
+  }  
+}
+
+void sh4_ldtlb(void *data) {
+  struct sh4 *sh4 = data;
+  
+  uint32_t entry = sh4->MMUCR->URC;
+  
+  sh4->utlb[entry].low = *sh4->PTEL;
+  sh4->utlb[entry].high = *sh4->PTEH;
+  
+  sh4_utlb_sync(sh4, entry);
+}
+
 void sh4_fpscr_updated(void *data, uint32_t old_fpscr) {
   struct sh4 *sh4 = data;
   struct sh4_context *ctx = &sh4->ctx;
@@ -167,6 +189,7 @@ static int sh4_init(struct device *dev) {
     sh4->guest->invalid_instr = &sh4_invalid_instr;
     sh4->guest->sq_prefetch = &sh4_ccn_sq_prefetch;
     sh4->guest->sleep = &sh4_sleep;
+    sh4->guest->ldtlb = &sh4_ldtlb;
     sh4->guest->sr_updated = &sh4_sr_updated;
     sh4->guest->fpscr_updated = &sh4_fpscr_updated;
     sh4->guest->lookup = &as_lookup;
@@ -212,6 +235,9 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
 #include "guest/sh4/sh4_regs.inc"
 #undef SH4_REG
 
+  memset(sh4->sq_tlb_remaps, 0, sizeof(sh4->sq_tlb_remaps));
+  memset(sh4->utlb, 0, sizeof(sh4->utlb));
+  
   /* reset interrupts */
   sh4_intc_reprioritize(sh4);
 
@@ -315,6 +341,129 @@ REG_R32(sh4_cb, PDTRA) {
   return v;
 }
 
+uint32_t sh4_p4_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
+  
+  switch((addr>>24)&0xFF)
+	{
+	case 0x10:
+		LOG_WARNING("sh4_p4_read IC Address Array %08X\n", addr);
+		return 0;
+
+	case 0x11:
+    LOG_WARNING("sh4_p4_read IC Data Array %08X\n", addr);
+		return 0;
+
+	case 0x12:
+    LOG_WARNING("sh4_p4_read ITLB Address Array %08X\n", addr);
+		return 0;
+  
+  case 0x13:
+    LOG_WARNING("sh4_p4_read ITLB Data Array %08X\n", addr);
+		return 0;
+
+	case 0x14:
+    // Read a lot, maybe for cache invalidation? Do not log
+    // LOG_WARNING("sh4_p4_read OC Address Array %08X\n", addr);
+		return 0;
+
+	case 0x15:
+    LOG_WARNING("sh4_p4_read OC Data Array %08X\n", addr);
+		return 0;
+
+	case 0x16:
+    LOG_WARNING("sh4_p4_read UTLB Address Array %08X\n", addr);
+		{
+			uint32_t entry = (addr>>8)&63;
+      
+			uint32_t rv = sh4->utlb[entry].high.full;
+      
+			rv |= sh4->utlb[entry].low.D<<9;
+			rv |= sh4->utlb[entry].low.V<<8;
+      
+			return rv;
+		}
+
+	case 0x17:
+    LOG_WARNING("sh4_p4_read UTLB Data Array %08X\n", addr);
+		{
+			uint32_t entry = (addr>>8)&63;
+      
+			return sh4->utlb[entry].low.full;
+		}
+    
+  default:
+    LOG_WARNING("sh4_p4_read %08X\n", addr);
+    return 0;
+	}
+}
+
+void sh4_p4_write(struct sh4 *sh4, uint32_t addr, uint32_t data, uint32_t data_mask) {
+  
+  switch((addr>>24)&0xFF)
+	{
+	case 0x10:
+		LOG_WARNING("sh4_p4_write IC Address Array %08X %08X\n", addr, data);
+		break;
+
+	case 0x11:
+    LOG_WARNING("sh4_p4_write IC Data Array %08X %08X\n", addr, data);
+		break;
+
+	case 0x12:
+    LOG_WARNING("sh4_p4_write ITLB Address Array %08X %08X\n", addr, data);
+		break;
+  
+  case 0x13:
+    LOG_WARNING("sh4_p4_write ITLB Data Array %08X %08X\n", addr, data);
+		break;
+
+	case 0x14:
+    // Written a lot, maybe for cache invalidation? Do not log
+    // LOG_WARNING("sh4_p4_write OC Address Array %08X %08X\n", addr, data);
+		break;
+
+	case 0x15:
+    LOG_WARNING("sh4_p4_write OC Data Array %08X %08X\n", addr, data);
+		break;
+
+	case 0x16:
+    if (addr & 0x80) {
+      LOG_FATAL("sh4_p4_write UTLB Address Array %08X %08X, Associative write\n", addr, data);
+    }
+    else {
+      LOG_WARNING("sh4_p4_write UTLB Address Array %08X %08X\n", addr, data);
+      
+      uint32_t entry = (addr>>8)&63;
+      
+      sh4->utlb[entry].high.full = data & 0xFFFFFCFF;
+      sh4->utlb[entry].low.D = (data>>9)&1;
+      sh4->utlb[entry].low.V = (data>>8)&1;
+      
+      sh4_utlb_sync(sh4, entry);
+    }
+		break;
+
+	case 0x17:
+    if (addr & 0x800000) {
+      LOG_WARNING("sh4_p4_write UTLB Data Array %08X %08X, Associative write\n", addr, data);
+    }
+    else {
+      LOG_WARNING("sh4_p4_write UTLB Data Array %08X %08X\n", addr, data);
+      
+      uint32_t entry = (addr>>8)&63;
+      
+      sh4->utlb[entry].low.full = data;
+      
+      sh4_utlb_sync(sh4, entry);
+    }
+    
+		break;
+    
+  default:
+    LOG_WARNING("sh4_p4_write %08X %08X\n", addr, data);
+	}
+}
+  
 /* clang-format off */
 AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("boot", boot_rom_map)
@@ -351,8 +500,13 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x80000000, 0x9fffffff) AM_MIRROR(0x00000000)  /* p1 */
   AM_RANGE(0xa0000000, 0xbfffffff) AM_MIRROR(0x00000000)  /* p2 */
   AM_RANGE(0xc0000000, 0xdfffffff) AM_MIRROR(0x00000000)  /* p3 */
-  AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  /* p4 */
+  //AM_RANGE(0xe0000000, 0xffffffff) AM_MIRROR(0x00000000)  /* p4 */
 
+  AM_RANGE(0xe0000000, 0xffffffff) AM_HANDLE("sh4 p4",
+                                             (mmio_read_cb)&sh4_p4_read,
+                                             (mmio_write_cb)&sh4_p4_write,
+                                             NULL, NULL)
+                                             
   /* internal cache and sq only accessible through p4 */
   AM_RANGE(0x7c000000, 0x7fffffff) AM_HANDLE("sh4 cache",
                                              (mmio_read_cb)&sh4_ccn_cache_read,
@@ -362,5 +516,8 @@ AM_BEGIN(struct sh4, sh4_data_map)
                                              (mmio_read_cb)&sh4_ccn_sq_read,
                                              (mmio_write_cb)&sh4_ccn_sq_write,
                                              NULL, NULL)
+
+  
+  AM_RANGE(0xfc000000, 0xffffffff) AM_MIRROR(0x1c000000)  /* p4, area 7 */
 AM_END();
 /* clang-format on */

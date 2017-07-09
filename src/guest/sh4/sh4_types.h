@@ -3,6 +3,52 @@
 
 #include <stdint.h>
 
+union pteh
+{
+  uint32_t full;
+	struct
+	{
+		uint32_t ASID : 8;
+		uint32_t reserved : 2;
+		uint32_t VPN : 22;
+	};
+};
+
+union ptel
+{
+  uint32_t full;
+	struct
+	{
+		uint32_t WT : 1;
+		uint32_t SH : 1;
+		uint32_t D : 1;
+		uint32_t C : 1;
+		uint32_t SZ0 : 1;
+		uint32_t PR : 2;
+		uint32_t SZ1 : 1;
+		uint32_t V : 1;
+		uint32_t reserved : 1;
+		uint32_t PPN : 19;
+		uint32_t reserved1 : 3;
+	};
+};
+
+union mmucr {
+  uint32_t full;
+  struct
+	{
+		uint32_t AT : 1;
+		uint32_t reserved : 1;
+		uint32_t TI : 1;
+		uint32_t reserved1 : 5;
+		uint32_t SV : 1;
+		uint32_t SQMD : 1;
+		uint32_t URC : 6;
+		uint32_t URB : 6;
+		uint32_t LRUI : 6;
+	};
+};
+
 union ccr {
   uint32_t full;
   struct {

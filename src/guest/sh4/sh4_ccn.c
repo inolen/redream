@@ -29,16 +29,24 @@ void sh4_ccn_sq_prefetch(void *data, uint32_t addr) {
   DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
 
   struct sh4 *sh4 = data;
-  uint32_t dst = addr & 0x03ffffe0;
+
+  uint32_t dst;
   uint32_t sqi = (addr & 0x20) >> 5;
-  if (sqi) {
-    dst |= (*sh4->QACR1 & 0x1c) << 24;
-  } else {
-    dst |= (*sh4->QACR0 & 0x1c) << 24;
+  
+  if (!sh4->MMUCR->AT) {
+    dst = addr & 0x03ffffe0;
+    if (sqi) {
+      dst |= (*sh4->QACR1 & 0x1c) << 24;
+    } else {
+      dst |= (*sh4->QACR0 & 0x1c) << 24;
+    }
   }
-
+  else {
+    dst = sh4->sq_tlb_remaps[(addr>>20)&0x3F] | (addr & 0xFFFE0);
+  }
+  
   as_memcpy_to_guest(sh4->memory_if->space, dst, sh4->ctx.sq[sqi], 32);
-
+  
   PROF_LEAVE();
 }
 
@@ -71,9 +79,13 @@ void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 
 REG_W32(sh4_cb, MMUCR) {
   struct sh4 *sh4 = dc->sh4;
-  if (value) {
-    LOG_FATAL("MMU not currently supported");
+  
+  sh4->MMUCR->full = value;
+    
+  if (sh4->MMUCR->AT) {
+    LOG_WARNING("MMU not fully supported");
   }
+  
 }
 
 REG_W32(sh4_cb, CCR) {
