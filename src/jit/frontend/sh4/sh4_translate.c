@@ -441,6 +441,12 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
                                       struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);   \
                                       ir_call_1(ir, sleep, data);                                        \
                                     }
+                                    
+#define LDTLB()                     {                                                                    \
+                                      struct ir_value *ldtlb = ir_alloc_i64(ir, (uint64_t)guest->ldtlb); \
+                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);   \
+                                      ir_call_1(ir, ldtlb, data);                                        \
+                                    }
 
 /* clang-format on */
 

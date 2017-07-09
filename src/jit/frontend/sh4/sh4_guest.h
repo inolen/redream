@@ -12,6 +12,7 @@ struct sh4_guest {
   void (*sleep)(void *);
   void (*sr_updated)(void *, uint32_t);
   void (*fpscr_updated)(void *, uint32_t);
+  void (*ldtlb)(void *);
 };
 
 static inline struct sh4_guest *sh4_guest_create() {
