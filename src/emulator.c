@@ -59,15 +59,16 @@ struct emu {
   volatile int video_resized;
   volatile unsigned frame;
 
-  struct render_backend *r, *r2;
+  struct render_backend *r;
   struct imgui *imgui;
   struct microprofile *mp;
   struct trace_writer *trace_writer;
 
-  /* hosts which support creating multiple gl contexts will render video on
-     a second thread. the original hardware rendered asynchronously as well,
-     so many games use this time to perform additional cpu work. on many
-     games this upwards of doubles the performance */
+  /* when running with multiple threads, rendering is done asynchronously on a
+     secondary video thread, to avoid blocking the emulated cpu. the original
+     hardware rendered asynchronously as well, so many games use this time to
+     perform additional cpu work. on some games this upwards of doubles the
+     performance */
   int multi_threaded;
   thread_t video_thread;
 
@@ -338,37 +339,29 @@ static void emu_start_tracing(struct emu *emu) {
  * the dreamcast, converting it into a renderable tr_context, and then rendering
  * and presenting it
  */
-static struct render_backend *emu_video_renderer(struct emu *emu) {
-  /* when using multi-threaded rendering, the video thread has its own render
-     backend instance */
-  return emu->multi_threaded ? emu->r2 : emu->r;
-}
-
 static void emu_render_frame(struct emu *emu) {
-  struct render_backend *r2 = emu_video_renderer(emu);
-
   prof_counter_add(COUNTER_frames, 1);
 
   /* resize the framebuffer at this time if the output size has changed */
   if (emu->video_resized) {
-    r_destroy_framebuffer(r2, emu->video_fb);
+    r_destroy_framebuffer(emu->r, emu->video_fb);
 
-    emu->video_fb = r_create_framebuffer(r2, emu->video_width,
+    emu->video_fb = r_create_framebuffer(emu->r, emu->video_width,
                                          emu->video_height, &emu->video_tex);
     emu->video_resized = 0;
   }
 
   /* render the current render context to the video framebuffer */
-  framebuffer_handle_t original = r_get_framebuffer(r2);
-  r_bind_framebuffer(r2, emu->video_fb);
+  framebuffer_handle_t original = r_get_framebuffer(emu->r);
+  r_bind_framebuffer(emu->r, emu->video_fb);
   r_viewport(emu->r, emu->video_width, emu->video_height);
-  tr_render_context(r2, &emu->pending_rc);
-  r_bind_framebuffer(r2, original);
+  tr_render_context(emu->r, &emu->pending_rc);
+  r_bind_framebuffer(emu->r, original);
 
   /* insert fence for main thread to synchronize on in order to ensure that
      the context has completely rendered */
   if (emu->multi_threaded) {
-    emu->video_sync = r_insert_sync(r2);
+    emu->video_sync = r_insert_sync(emu->r);
   }
 
   /* update frame-based profiler stats */
@@ -378,30 +371,33 @@ static void emu_render_frame(struct emu *emu) {
 static void *emu_video_thread(void *data) {
   struct emu *emu = data;
 
-  /* make secondary context active for this thread */
-  video_bind_context(emu->host, emu->r2);
-
   while (1) {
     mutex_lock(emu->pending_mutex);
 
     /* wait for the next tile context provided by emu_start_render */
-    while (!emu->pending_ctx) {
+    while (emu->running && !emu->pending_ctx) {
       cond_wait(emu->pending_cond, emu->pending_mutex);
     }
 
     /* check for shutdown */
     if (!emu->running) {
+      emu->pending_ctx = NULL;
       mutex_unlock(emu->pending_mutex);
       break;
     }
 
+    video_bind_context(emu->host, emu->r);
+
     /* convert the context, uploading its textures to the render backend */
-    tr_convert_context(emu->r2, emu, &emu_find_texture, emu->pending_ctx,
+    tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
                        &emu->pending_rc);
     emu->pending_ctx = NULL;
 
     /* render the parsed context to an offscreen framebuffer */
     emu_render_frame(emu);
+
+    /* release the context for the main thread to use */
+    video_unbind_context(emu->host);
 
     /* after the context has been rendered, release the mutex to unblock
        emu_guest_finish_render
@@ -415,10 +411,6 @@ static void *emu_video_thread(void *data) {
        order to allow emu_render_frame and emu_paint to run in parallel */
     mutex_unlock(emu->pending_mutex);
   }
-
-  /* unbind context from this thread before it dies, otherwise the main thread
-     may not be able to bind it in order to clean it up */
-  video_unbind_context(emu->host);
 
   return NULL;
 }
@@ -680,7 +672,6 @@ static void emu_host_context_destroyed(void *userdata) {
   /* destroy the video thread */
   if (emu->multi_threaded) {
     mutex_lock(emu->pending_mutex);
-    emu->pending_ctx = (struct tile_context *)(intptr_t)0xdeadbeef;
     cond_signal(emu->pending_cond);
     mutex_unlock(emu->pending_mutex);
 
@@ -689,29 +680,22 @@ static void emu_host_context_destroyed(void *userdata) {
   }
 
   /* destroy video renderer objects */
-  struct render_backend *r2 = emu_video_renderer(emu);
-  video_bind_context(emu->host, r2);
-
   rb_for_each_entry_safe(tex, &emu->live_textures, struct emu_texture,
                          live_it) {
-    r_destroy_texture(r2, tex->handle);
+    r_destroy_texture(emu->r, tex->handle);
     emu_free_texture(emu, tex);
   }
 
-  r_destroy_framebuffer(r2, emu->video_fb);
+  r_destroy_framebuffer(emu->r, emu->video_fb);
 
   if (emu->video_sync) {
-    r_destroy_sync(r2, emu->video_sync);
+    r_destroy_sync(emu->r, emu->video_sync);
   }
 
   if (emu->multi_threaded) {
-    r_destroy(emu->r2);
     cond_destroy(emu->pending_cond);
     mutex_destroy(emu->pending_mutex);
   }
-
-  /* destroy primary renderer */
-  video_bind_context(emu->host, emu->r);
 
   mp_destroy(emu->mp);
   imgui_destroy(emu->imgui);
@@ -734,17 +718,10 @@ static void emu_host_context_reset(void *userdata) {
   if (emu->multi_threaded) {
     emu->pending_mutex = mutex_create();
     emu->pending_cond = cond_create();
-    emu->r2 = video_create_renderer_from(emu->host, emu->r);
   }
 
-  struct render_backend *r2 = emu_video_renderer(emu);
-  video_bind_context(emu->host, r2);
-
-  emu->video_fb = r_create_framebuffer(r2, emu->video_width, emu->video_height,
-                                       &emu->video_tex);
-
-  /* make primary renderer active for the current thread */
-  video_bind_context(emu->host, emu->r);
+  emu->video_fb = r_create_framebuffer(emu->r, emu->video_width,
+                                       emu->video_height, &emu->video_tex);
 
   /* startup video thread */
   if (emu->multi_threaded) {
@@ -764,6 +741,11 @@ static void emu_host_resized(void *userdata) {
 void emu_run_frame(struct emu *emu) {
   static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
 
+  /* unbind the video context, making it available for the video thread */
+  if (emu->multi_threaded) {
+    video_unbind_context(emu->host);
+  }
+
   /* run dreamcast up until its next vblank */
   unsigned start_frame = emu->frame;
   while (emu->frame == start_frame) {
@@ -778,6 +760,10 @@ void emu_run_frame(struct emu *emu) {
 
   /* render the latest frame */
   int64_t now = time_nanoseconds();
+
+  if (emu->multi_threaded) {
+    video_bind_context(emu->host, emu->r);
+  }
 
   prof_update(now);
   emu_paint(emu);
@@ -834,8 +820,8 @@ struct emu *emu_create(struct host *host) {
   emu->dc->vertical_blank = &emu_guest_vertical_blank;
   emu->dc->poll_input = &emu_guest_poll_input;
 
-  /* start up the video thread */
-  emu->multi_threaded = video_supports_multiple_contexts(emu->host);
+  /* start up secondary video thread */
+  emu->multi_threaded = video_supports_multiple_threads(emu->host);
 
   /* enable debug menu by default */
   emu->debug_menu = 1;

@@ -8,7 +8,7 @@
 
 #define TLB_INDEX(addr) (((addr) >> 8) & 0x3f)
 
-#define PAGE_SIZE(entry) (((entry)->lo.SZ1 << 1) | (entry)->lo.SZ0)
+/*#define PAGE_SIZE(entry) (((entry)->lo.SZ1 << 1) | (entry)->lo.SZ0)*/
 
 enum {
   PAGE_SIZE_1KB,

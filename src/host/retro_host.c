@@ -98,24 +98,18 @@ void video_unbind_context(struct host *host) {
 }
 
 void video_bind_context(struct host *base, struct render_backend *r) {
-  video_context_t ctx = r_context(r);
-  CHECK_EQ(ctx, NULL);
+  CHECK(0);
 }
 
 void video_destroy_renderer(struct host *base, struct render_backend *r) {
   r_destroy(r);
 }
 
-struct render_backend *video_create_renderer_from(struct host *base,
-                                                  struct render_backend *from) {
-  CHECK(0);
-}
-
 struct render_backend *video_create_renderer(struct host *base) {
   return r_create(NULL);
 }
 
-int video_supports_multiple_contexts(struct host *base) {
+int video_supports_multiple_threads(struct host *host) {
   return 0;
 }
 

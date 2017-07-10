@@ -32,6 +32,7 @@ struct sdl_host {
   struct host;
 
   struct SDL_Window *win;
+
   int closed;
   int video_width;
   int video_height;
@@ -223,6 +224,12 @@ static void video_resized(struct sdl_host *host) {
 }
 
 static void video_gl_destroy_context(struct host *base, video_context_t ctx) {
+  struct sdl_host *host = (struct sdl_host *)base;
+
+  /* make sure the context is no longer active */
+  int res = SDL_GL_MakeCurrent(host->win, NULL);
+  CHECK_EQ(res, 0);
+
   SDL_GL_DeleteContext(ctx);
 }
 
@@ -243,39 +250,32 @@ static video_context_t video_gl_create_context(struct sdl_host *host) {
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
   SDL_GLContext ctx = SDL_GL_CreateContext(host->win);
-  CHECK_NOTNULL(ctx, "OpenGL context creation failed: %s", SDL_GetError());
+  CHECK_NOTNULL(ctx, "video_gl_create_context failed: %s", SDL_GetError());
 
   /* disable vsync */
   int res = SDL_GL_SetSwapInterval(0);
-  CHECK_EQ(res, 0, "Failed to disable vsync");
+  CHECK_EQ(res, 0, "video_gl_create_context failed to disable vsync");
 
   /* link in gl functions at runtime */
   res = gladLoadGLLoader((GLADloadproc)&SDL_GL_GetProcAddress);
-  CHECK_EQ(res, 1, "GL initialization failed");
+  CHECK_EQ(res, 1, "video_gl_create_context failed to link");
+
   return (video_context_t)ctx;
-}
-
-static video_context_t video_gl_create_context_from(struct sdl_host *host,
-                                                    video_context_t from) {
-  int res = SDL_GL_MakeCurrent(host->win, from);
-  CHECK_EQ(res, 0);
-
-  SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
-
-  return video_gl_create_context(host);
 }
 
 void video_unbind_context(struct host *base) {
   struct sdl_host *host = (struct sdl_host *)base;
+
   int res = SDL_GL_MakeCurrent(host->win, NULL);
-  CHECK_EQ(res, 0);
+  CHECK_EQ(res, 0, "video_unbind_context failed: %s", SDL_GetError());
 }
 
 void video_bind_context(struct host *base, struct render_backend *r) {
   struct sdl_host *host = (struct sdl_host *)base;
   video_context_t ctx = r_context(r);
+
   int res = SDL_GL_MakeCurrent(host->win, ctx);
-  CHECK_EQ(res, 0);
+  CHECK_EQ(res, 0, "video_bind_context failed: %s", SDL_GetError());
 }
 
 void video_destroy_renderer(struct host *base, struct render_backend *r) {
@@ -284,26 +284,14 @@ void video_destroy_renderer(struct host *base, struct render_backend *r) {
   video_gl_destroy_context(base, ctx);
 }
 
-struct render_backend *video_create_renderer_from(struct host *base,
-                                                  struct render_backend *from) {
-  struct sdl_host *host = (struct sdl_host *)base;
-  video_context_t from_ctx = r_context(from);
-  video_context_t ctx = video_gl_create_context_from(host, from_ctx);
-  return r_create(ctx);
-}
-
 struct render_backend *video_create_renderer(struct host *base) {
   struct sdl_host *host = (struct sdl_host *)base;
   video_context_t ctx = video_gl_create_context(host);
   return r_create(ctx);
 }
 
-int video_supports_multiple_contexts(struct host *host) {
-#if PLATFORM_ANDROID
-  return 0;
-#else
+int video_supports_multiple_threads(struct host *host) {
   return 1;
-#endif
 }
 
 int video_height(struct host *base) {
@@ -520,8 +508,9 @@ static void input_handle_controller_removed(struct sdl_host *host, int port) {
     return;
   }
 
-  LOG_INFO("controller '%s' removed from port %d", SDL_GameControllerName(ctrl),
-           port);
+  const char *name = SDL_GameControllerName(ctrl);
+  LOG_INFO("controller '%s' removed from port %d", name, port);
+
   SDL_GameControllerClose(ctrl);
   host->controllers[port] = NULL;
 }
@@ -773,13 +762,14 @@ struct sdl_host *host_create() {
 
   /* init sdl and create window */
   int res = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
-  CHECK_GE(res, 0, "SDL initialization failed: %s", SDL_GetError());
+  CHECK_GE(res, 0, "host_create sdl initialization failed: %s", SDL_GetError());
 
   host->win = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
                                SDL_WINDOWPOS_UNDEFINED, VIDEO_DEFAULT_WIDTH,
                                VIDEO_DEFAULT_HEIGHT,
                                SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
-  CHECK_NOTNULL(host->win, "Window creation failed: %s", SDL_GetError());
+  CHECK_NOTNULL(host->win, "host_create window creation failed: %s",
+                SDL_GetError());
 
   /* immediately poll window size for platforms like Android where the window
      starts fullscreen, ignoring the default width and height */
