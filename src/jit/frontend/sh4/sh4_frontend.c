@@ -22,26 +22,28 @@ struct sh4_frontend {
 
 static void sh4_analyze_block(const struct sh4_guest *guest,
                               struct jit_block *block) {
-  uint32_t addr = block->guest_addr;
+  uint32_t offset = 0;
 
   block->guest_size = 0;
   block->num_cycles = 0;
   block->num_instrs = 0;
 
   while (1) {
+    uint32_t addr = block->guest_addr + offset;
     uint32_t data = guest->r16(guest->space, addr);
+    union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
 
-    addr += 2;
+    offset += 2;
     block->guest_size += 2;
     block->num_cycles += def->cycles;
     block->num_instrs++;
 
     if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_data = guest->r16(guest->space, addr);
+      uint32_t delay_data = guest->r16(guest->space, addr + 2);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
-      addr += 2;
+      offset += 2;
       block->guest_size += 2;
       block->num_cycles += delay_def->cycles;
       block->num_instrs++;
@@ -50,11 +52,65 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
       CHECK(!(delay_def->flags & SH4_FLAG_DELAYED));
     }
 
-    /* stop emitting once a branch has been hit. in addition, if fpscr has
-       changed, stop emitting since the fpu state is invalidated. also, if
-       sr has changed, stop emitting as there are interrupts that possibly
-       need to be handled */
-    if (def->flags & (SH4_FLAG_SET_PC | SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
+    /* stop emitting once a branch is hit and save off branch information */
+    if (def->flags & SH4_FLAG_SET_PC) {
+      if (def->op == SH4_OP_BF) {
+        uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
+        block->branch_type = BRANCH_STATIC_FALSE;
+        block->branch_addr = dest_addr;
+        block->next_addr = addr + 4;
+      } else if (def->op == SH4_OP_BFS) {
+        uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
+        block->branch_type = BRANCH_STATIC_FALSE;
+        block->branch_addr = dest_addr;
+        block->next_addr = addr + 4;
+      } else if (def->op == SH4_OP_BT) {
+        uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
+        block->branch_type = BRANCH_STATIC_TRUE;
+        block->branch_addr = dest_addr;
+        block->next_addr = addr + 4;
+      } else if (def->op == SH4_OP_BTS) {
+        uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
+        block->branch_type = BRANCH_STATIC_TRUE;
+        block->branch_addr = dest_addr;
+        block->next_addr = addr + 4;
+      } else if (def->op == SH4_OP_BRA) {
+        /* 12-bit displacement must be sign extended */
+        int32_t disp = ((instr.disp_12.disp & 0xfff) << 20) >> 20;
+        uint32_t dest_addr = (disp * 2) + addr + 4;
+        block->branch_type = BRANCH_STATIC;
+        block->branch_addr = dest_addr;
+      } else if (def->op == SH4_OP_BRAF) {
+        block->branch_type = BRANCH_DYNAMIC;
+      } else if (def->op == SH4_OP_BSR) {
+        /* 12-bit displacement must be sign extended */
+        int32_t disp = ((instr.disp_12.disp & 0xfff) << 20) >> 20;
+        uint32_t ret_addr = addr + 4;
+        uint32_t dest_addr = ret_addr + disp * 2;
+        block->branch_type = BRANCH_STATIC;
+        block->branch_addr = dest_addr;
+      } else if (def->op == SH4_OP_BSRF) {
+        block->branch_type = BRANCH_DYNAMIC;
+      } else if (def->op == SH4_OP_JMP) {
+        block->branch_type = BRANCH_DYNAMIC;
+      } else if (def->op == SH4_OP_JSR) {
+        block->branch_type = BRANCH_DYNAMIC;
+      } else if (def->op == SH4_OP_RTS) {
+        block->branch_type = BRANCH_DYNAMIC;
+      } else if (def->op == SH4_OP_RTE) {
+        block->branch_type = BRANCH_DYNAMIC;
+      } else if (def->op == SH4_OP_TRAPA) {
+        block->branch_type = BRANCH_DYNAMIC;
+      } else {
+        LOG_FATAL("unexpected branch op");
+      }
+      break;
+    }
+
+    /* if fpscr has changed, stop emitting since the fpu state is invalidated.
+       also, if sr has changed, stop emitting as there are interrupts that
+       possibly need to be handled */
+    if (def->flags & (SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
       break;
     }
   }

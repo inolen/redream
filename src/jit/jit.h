@@ -17,6 +17,15 @@ struct val;
 typedef uint32_t (*mem_read_cb)(void *, uint32_t, uint32_t);
 typedef void (*mem_write_cb)(void *, uint32_t, uint32_t, uint32_t);
 
+enum {
+  BRANCH_STATIC,
+  BRANCH_STATIC_TRUE,
+  BRANCH_STATIC_FALSE,
+  BRANCH_DYNAMIC,
+  BRANCH_DYNAMIC_TRUE,
+  BRANCH_DYNAMIC_FALSE,
+};
+
 struct jit_block {
   /* address of source block in guest memory */
   uint32_t guest_addr;
@@ -28,6 +37,13 @@ struct jit_block {
 
   /* compile with fastmem support */
   int fastmem;
+
+  /* destination address of terminating branch */
+  int branch_type;
+  uint32_t branch_addr;
+
+  /* address of next instruction after branch */
+  uint32_t next_addr;
 
   /* number of guest instructions in block */
   int num_instrs;

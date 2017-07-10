@@ -135,7 +135,6 @@ SH4_INSTR(RTS,       "rts",                          0000000000001011, 2, SH4_FL
 
 
 // system control instructions
-SH4_INSTR(LDTLB,     "ldtlb",                        0000000000111000, 1, 0)
 SH4_INSTR(CLRMAC,    "clrmac",                       0000000000101000, 1, 0)
 SH4_INSTR(CLRS,      "clrs",                         0000000001001000, 1, 0)
 SH4_INSTR(CLRT,      "clrt",                         0000000000001000, 1, 0)
@@ -159,6 +158,7 @@ SH4_INSTR(LDSPR,     "lds     rn, pr",               0100mmmm00101010, 2, 0)
 SH4_INSTR(LDSMMACH,  "lds.l   @rn+, mach",           0100mmmm00000110, 1, SH4_FLAG_LOAD)
 SH4_INSTR(LDSMMACL,  "lds.l   @rn+, macl",           0100mmmm00010110, 1, SH4_FLAG_LOAD)
 SH4_INSTR(LDSMPR,    "lds.l   @rn+, pr",             0100mmmm00100110, 2, SH4_FLAG_LOAD)
+SH4_INSTR(LDTLB,     "ldtlb",                        0000000000111000, 1, 0)
 SH4_INSTR(MOVCAL,    "movca.l r0, @rn",              0000nnnn11000011, 1, SH4_FLAG_STORE)
 SH4_INSTR(NOP,       "nop",                          0000000000001001, 1, 0)
 SH4_INSTR(OCBI,      "ocbi",                         0000nnnn10010011, 1, 0)

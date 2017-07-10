@@ -1065,8 +1065,7 @@ INSTR(BT) {
 /* BTS     disp */
 INSTR(BTS) {
   /* 8-bit displacement must be sign extended */
-  int32_t disp = (int32_t)(int8_t)i.disp_8.disp;
-  uint32_t dest_addr = (disp * 2) + addr + 4;
+  uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
   I32 cond = LOAD_T_I32();
   DELAY_INSTR();
   BRANCH_TRUE_IMM_I32(cond, dest_addr);
@@ -1317,6 +1316,11 @@ INSTR(LDSMPR) {
   NEXT_INSTR();
 }
 
+/* LDTLB */
+INSTR(LDTLB) {
+  LDTLB();
+}
+
 /* MOVCA.L     R0,@Rn */
 INSTR(MOVCAL) {
   I32 ea = LOAD_GPR_I32(i.def.rn);
@@ -1377,11 +1381,6 @@ INSTR(SETT) {
 /* SLEEP */
 INSTR(SLEEP) {
   SLEEP();
-}
-
-/* LDTLB */
-INSTR(LDTLB) {
-  LDTLB();
 }
 
 /* STC     SR,Rn */
