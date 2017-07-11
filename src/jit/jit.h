@@ -45,6 +45,9 @@ struct jit_block {
   /* address of next instruction after branch */
   uint32_t next_addr;
 
+  /* is block an idle loop */
+  int idle_loop;
+
   /* number of guest instructions in block */
   int num_instrs;
 

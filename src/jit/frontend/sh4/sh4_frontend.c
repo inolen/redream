@@ -22,6 +22,9 @@ struct sh4_frontend {
 
 static void sh4_analyze_block(const struct sh4_guest *guest,
                               struct jit_block *block) {
+  static int IDLE_MASK = SH4_FLAG_LOAD | SH4_FLAG_COND | SH4_FLAG_CMP;
+  int idle_loop = 1;
+  int all_flags = 0;
   uint32_t offset = 0;
 
   block->guest_size = 0;
@@ -39,6 +42,10 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
     block->num_cycles += def->cycles;
     block->num_instrs++;
 
+    /* if the instruction has none of the IDLE_MASK flags, disqualify */
+    idle_loop &= (def->flags & IDLE_MASK) != 0;
+    all_flags |= def->flags;
+
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_data = guest->r16(guest->space, addr + 2);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
@@ -47,6 +54,10 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
       block->guest_size += 2;
       block->num_cycles += delay_def->cycles;
       block->num_instrs++;
+
+      /* if the instruction has none of the IDLE_MASK flags, disqualify */
+      idle_loop &= (delay_def->flags & IDLE_MASK) != 0;
+      all_flags |= delay_def->flags;
 
       /* delay slots can't have another delay slot */
       CHECK(!(delay_def->flags & SH4_FLAG_DELAYED));
@@ -104,6 +115,7 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
       } else {
         LOG_FATAL("unexpected branch op");
       }
+
       break;
     }
 
@@ -113,6 +125,26 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
     if (def->flags & (SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
       break;
     }
+  }
+
+  /* if there was no load, disqualify */
+  idle_loop &= (all_flags & SH4_FLAG_LOAD) != 0;
+
+  /* if the branch isn't a short back edge, disqualify */
+  idle_loop &= (block->guest_addr - block->branch_addr) <= 32;
+
+  /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
+     an interrupt such as vblank before it'll exit. scale the block's number of
+     cycles in order to yield execution faster, enabling the interrupt to
+     actually be generated */
+  if (idle_loop) {
+#if 0
+    LOG_INFO("sh4_analyze_block detected idle loop at 0x%08x",
+             block->guest_addr);
+#endif
+
+    block->idle_loop = 1;
+    block->num_cycles *= 10;
   }
 }
 

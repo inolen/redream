@@ -1,10 +1,10 @@
-//
-//         NAME      DESC                            INSTR_CODE        CYCLES FLAGS
-//
+/*
+ *         NAME      DESC                            INSTR_CODE        CYCLES FLAGS
+ */
 
 SH4_INSTR(INVALID,   "invalid",                      0000000000000000, 1, SH4_FLAG_SET_PC)
 
-// fixed-point transfer instructions
+/* fixed-point transfer instructions */
 SH4_INSTR(MOVI,      "mov     #imm8, rn",            1110nnnniiiiiiii, 1, 0)
 SH4_INSTR(MOVWLPC,   "mov.w   @(disp:8,pc), rn",     1001nnnndddddddd, 1, SH4_FLAG_LOAD)
 SH4_INSTR(MOVLLPC,   "mov.l   @(disp:8,pc), rn",     1101nnnndddddddd, 1, SH4_FLAG_LOAD)
@@ -46,20 +46,20 @@ SH4_INSTR(SWAPW,     "swap.w  rm, rn",               0110nnnnmmmm1001, 1, 0)
 SH4_INSTR(XTRCT,     "xtrct   rm, rn",               0010nnnnmmmm1101, 1, 0)
 
 
-// arithmetric operation instructions
+/* arithmetric operation instructions */
 SH4_INSTR(ADD,       "add     rm, rn",               0011nnnnmmmm1100, 1, 0)
 SH4_INSTR(ADDI,      "add     #imm8, rn",            0111nnnniiiiiiii, 1, 0)
 SH4_INSTR(ADDC,      "addc    rm, rn",               0011nnnnmmmm1110, 1, 0)
 SH4_INSTR(ADDV,      "addv    rm, rn",               0011nnnnmmmm1111, 1, 0)
-SH4_INSTR(CMPEQI,    "cmp/eq  #imm8, r0",            10001000iiiiiiii, 1, 0)
-SH4_INSTR(CMPEQ,     "cmp/eq  rm, rn",               0011nnnnmmmm0000, 1, 0)
-SH4_INSTR(CMPHS,     "cmp/hs  rm, rn",               0011nnnnmmmm0010, 1, 0)
-SH4_INSTR(CMPGE,     "cmp/ge  rm, rn",               0011nnnnmmmm0011, 1, 0)
-SH4_INSTR(CMPHI,     "cmp/hi  rm, rn",               0011nnnnmmmm0110, 1, 0)
-SH4_INSTR(CMPGT,     "cmp/gt  rm, rn",               0011nnnnmmmm0111, 1, 0)
-SH4_INSTR(CMPPZ,     "cmp/pz  rn",                   0100nnnn00010001, 1, 0)
-SH4_INSTR(CMPPL,     "cmp/pl  rn",                   0100nnnn00010101, 1, 0)
-SH4_INSTR(CMPSTR,    "cmp/str rm, rn",               0010nnnnmmmm1100, 1, 0)
+SH4_INSTR(CMPEQI,    "cmp/eq  #imm8, r0",            10001000iiiiiiii, 1, SH4_FLAG_CMP)
+SH4_INSTR(CMPEQ,     "cmp/eq  rm, rn",               0011nnnnmmmm0000, 1, SH4_FLAG_CMP)
+SH4_INSTR(CMPHS,     "cmp/hs  rm, rn",               0011nnnnmmmm0010, 1, SH4_FLAG_CMP)
+SH4_INSTR(CMPGE,     "cmp/ge  rm, rn",               0011nnnnmmmm0011, 1, SH4_FLAG_CMP)
+SH4_INSTR(CMPHI,     "cmp/hi  rm, rn",               0011nnnnmmmm0110, 1, SH4_FLAG_CMP)
+SH4_INSTR(CMPGT,     "cmp/gt  rm, rn",               0011nnnnmmmm0111, 1, SH4_FLAG_CMP)
+SH4_INSTR(CMPPZ,     "cmp/pz  rn",                   0100nnnn00010001, 1, SH4_FLAG_CMP)
+SH4_INSTR(CMPPL,     "cmp/pl  rn",                   0100nnnn00010101, 1, SH4_FLAG_CMP)
+SH4_INSTR(CMPSTR,    "cmp/str rm, rn",               0010nnnnmmmm1100, 1, SH4_FLAG_CMP)
 SH4_INSTR(DIV0S,     "div0s   rm, rn",               0010nnnnmmmm0111, 1, 0)
 SH4_INSTR(DIV0U,     "div0u",                        0000000000011001, 1, 0)
 SH4_INSTR(DIV1,      "div1    rm, rn",               0011nnnnmmmm0100, 1, 0)
@@ -82,7 +82,7 @@ SH4_INSTR(SUBC,      "subc    rm, rn",               0011nnnnmmmm1010, 1, 0)
 SH4_INSTR(SUBV,      "subv    rm, rn",               0011nnnnmmmm1011, 1, 0)
 
 
-// logic operation instructions
+/* logic operation instructions */
 SH4_INSTR(AND,       "and     rm, rn",               0010nnnnmmmm1001, 1, 0)
 SH4_INSTR(ANDI,      "and     #imm8, r0",            11001001iiiiiiii, 1, 0)
 SH4_INSTR(ANDB,      "and.b   #imm8, @(r0,gbr)",     11001101iiiiiiii, 4, SH4_FLAG_STORE)
@@ -90,16 +90,16 @@ SH4_INSTR(NOT,       "not     rm, rn",               0110nnnnmmmm0111, 1, 0)
 SH4_INSTR(OR,        "or      rm, rn",               0010nnnnmmmm1011, 1, 0)
 SH4_INSTR(ORI,       "or      #imm8, r0",            11001011iiiiiiii, 1, 0)
 SH4_INSTR(ORB,       "or.b    #imm8, @(r0,gbr)",     11001111iiiiiiii, 4, SH4_FLAG_STORE)
-SH4_INSTR(TAS,       "tas.b   @rn",                  0100nnnn00011011, 5, SH4_FLAG_LOAD)
-SH4_INSTR(TST,       "tst     rm, rn",               0010nnnnmmmm1000, 1, 0)
-SH4_INSTR(TSTI,      "tst     #imm8, r0",            11001000iiiiiiii, 1, 0)
-SH4_INSTR(TSTB,      "tst.b   #imm8, @(r0,gbr)",     11001100iiiiiiii, 3, SH4_FLAG_STORE)
+SH4_INSTR(TAS,       "tas.b   @rn",                  0100nnnn00011011, 5, SH4_FLAG_LOAD | SH4_FLAG_CMP)
+SH4_INSTR(TST,       "tst     rm, rn",               0010nnnnmmmm1000, 1, SH4_FLAG_CMP)
+SH4_INSTR(TSTI,      "tst     #imm8, r0",            11001000iiiiiiii, 1, SH4_FLAG_CMP)
+SH4_INSTR(TSTB,      "tst.b   #imm8, @(r0,gbr)",     11001100iiiiiiii, 3, SH4_FLAG_STORE | SH4_FLAG_CMP)
 SH4_INSTR(XOR,       "xor     rm, rn",               0010nnnnmmmm1010, 1, 0)
 SH4_INSTR(XORI,      "xor     #imm8, r0",            11001010iiiiiiii, 1, 0)
 SH4_INSTR(XORB,      "xor.b   #imm8, @(r0,gbr)",     11001110iiiiiiii, 4, SH4_FLAG_STORE)
 
 
-// shift instructions
+/* shift instructions */
 SH4_INSTR(ROTL,      "rotl    rn",                   0100nnnn00000100, 1, 0)
 SH4_INSTR(ROTR,      "rotr    rn",                   0100nnnn00000101, 1, 0)
 SH4_INSTR(ROTCL,     "rotcl   rn",                   0100nnnn00100100, 1, 0)
@@ -118,9 +118,7 @@ SH4_INSTR(SHLL16,    "shll16  rn",                   0100nnnn00101000, 1, 0)
 SH4_INSTR(SHLR16,    "shlr16  rn",                   0100nnnn00101001, 1, 0)
 
 
-// branch instructions
-// can we sign extend bdisp12 in sh4_instr code, not inside of sh4_builder
-// then, we can reuse some more of these disp* types
+/* branch instructions */
 SH4_INSTR(BF,        "bf      disp:8",               10001011dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_SET_PC)
 SH4_INSTR(BFS,       "bfs     disp:8",               10001111dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
 SH4_INSTR(BT,        "bt      disp:8",               10001001dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_SET_PC)
@@ -134,7 +132,7 @@ SH4_INSTR(JSR,       "jsr     @rn",                  0100nnnn00001011, 2, SH4_FL
 SH4_INSTR(RTS,       "rts",                          0000000000001011, 2, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
 
 
-// system control instructions
+/* system control instructions */
 SH4_INSTR(CLRMAC,    "clrmac",                       0000000000101000, 1, 0)
 SH4_INSTR(CLRS,      "clrs",                         0000000001001000, 1, 0)
 SH4_INSTR(CLRT,      "clrt",                         0000000000001000, 1, 0)
@@ -194,7 +192,7 @@ SH4_INSTR(STSMPR,    "sts.l   pr, @-rn",             0100nnnn00100010, 2, SH4_FL
 SH4_INSTR(TRAPA,     "trapa   #imm8",                11000011iiiiiiii, 7, SH4_FLAG_SET_PC)
 
 
-// floating-point single and double precision instructions
+/* floating-point single and double precision instructions */
 SH4_INSTR(FLDI0,            "fldi0   frn",           1111nnnn10001101, 1, 0)
 SH4_INSTR(FLDI1,            "fldi1   frn",           1111nnnn10011101, 1, 0)
 SH4_INSTR(FMOV,             "fmov    frm, frn",      1111nnnnmmmm1100, 1, 0)
@@ -209,8 +207,8 @@ SH4_INSTR(FSTS,             "fsts    fpul, frn",     1111nnnn00001101, 1, 0)
 SH4_INSTR(FABS,             "fabs    frn",           1111nnnn01011101, 1, 0)
 SH4_INSTR(FSRRA,            "fsrra   frn",           1111nnnn01111101, 1, 0)
 SH4_INSTR(FADD,             "fadd    frm, frn",      1111nnnnmmmm0000, 1, 0)
-SH4_INSTR(FCMPEQ,           "fcmp/eq frm, frn",      1111nnnnmmmm0100, 2, 0)
-SH4_INSTR(FCMPGT,           "fcmp/gt frm, frn",      1111nnnnmmmm0101, 2, 0)
+SH4_INSTR(FCMPEQ,           "fcmp/eq frm, frn",      1111nnnnmmmm0100, 2, SH4_FLAG_CMP)
+SH4_INSTR(FCMPGT,           "fcmp/gt frm, frn",      1111nnnnmmmm0101, 2, SH4_FLAG_CMP)
 SH4_INSTR(FDIV,             "fdiv    frm, frn",      1111nnnnmmmm0011, 1, 0)
 SH4_INSTR(FLOAT,            "float   fpul, frn",     1111nnnn00101101, 1, 0)
 SH4_INSTR(FMAC,             "fmac    fr0, frm, frn", 1111nnnnmmmm1110, 1, 0)
@@ -221,13 +219,13 @@ SH4_INSTR(FSUB,             "fsub    frm, frn",      1111nnnnmmmm0001, 1, 0)
 SH4_INSTR(FTRC,             "ftrc    frn, fpul",     1111mmmm00111101, 1, 0)
 
 
-// floating-point double precision instructions,
-// some merged with single precision instructions
+/* floating-point double precision instructions,
+   some merged with single precision instructions */
 SH4_INSTR(FCNVDS,    "fcnvds  drn, fpul",            1111mmmm10111101, 1, 0)
 SH4_INSTR(FCNVSD,    "fcnvsd  fpul, drn",            1111nnnn10101101, 1, 0)
 
 
-// floating-point control instructions
+/* floating-point control instructions */
 SH4_INSTR(LDSFPSCR,  "lds     rn, fpscr",            0100mmmm01101010, 1, SH4_FLAG_SET_FPSCR)
 SH4_INSTR(LDSFPUL,   "lds     rn, fpul",             0100mmmm01011010, 1, 0)
 SH4_INSTR(LDSMFPSCR, "lds.l   @rn+, fpscr",          0100mmmm01100110, 1, SH4_FLAG_LOAD | SH4_FLAG_SET_FPSCR)
@@ -238,8 +236,8 @@ SH4_INSTR(STSMFPSCR, "sts.l   fpscr, @-rn",          0100nnnn01100010, 1, SH4_FL
 SH4_INSTR(STSMFPUL,  "sts.l   fpul, @-rn",           0100nnnn01010010, 1, SH4_FLAG_STORE)
 
 
-// floating-point graphics acceleration instructions,
-// some merged with single precision instructions
+/* floating-point graphics acceleration instructions,
+   some merged with single precision instructions */
 SH4_INSTR(FIPR,      "fipr    fvm, fvn",             1111nnmm11101101, 1, 0)
 SH4_INSTR(FSCA,      "fsca    fpul, drn",            1111nnn011111101, 1, 0)
 SH4_INSTR(FTRV,      "ftrv    xmtrx, fvn",           1111nn0111111101, 1, 0)
