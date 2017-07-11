@@ -161,13 +161,12 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
       e.mov(e.rax, (uint64_t)ptr);
       x64_backend_store_mem(backend, e.rax, data);
     } else {
-      Xbyak::Reg rb = x64_backend_reg(backend, data);
       int data_size = ir_type_size(data->type);
       uint32_t data_mask = (1 << (data_size * 8)) - 1;
 
       e.mov(arg0, (uint64_t)userdata);
       e.mov(arg1, offset);
-      e.mov(arg2, rb);
+      x64_backend_mov_value(backend, arg2, data);
       e.mov(arg3, data_mask);
       e.call((void *)write);
     }
