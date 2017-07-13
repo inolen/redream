@@ -262,6 +262,9 @@ void ir_replace_uses(struct ir_value *v, struct ir_value *other);
 
 uint64_t ir_zext_constant(const struct ir_value *v);
 
+/* provides information to map guest instructions to host instructions */
+void ir_source_info(struct ir *ir, uint32_t addr, int index);
+
 /* call into interpeter fallback */
 void ir_fallback(struct ir *ir, void *fallback, uint32_t addr,
                  uint32_t raw_instr);

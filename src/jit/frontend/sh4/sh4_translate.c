@@ -94,11 +94,13 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 
 #define DELAY_INSTR()               {                                                             \
                                       uint32_t delay_addr = addr + 2;                             \
+                                      uint32_t delay_offset = delay_addr - block->guest_addr;     \
                                       uint16_t delay_data = guest->r16(guest->space, delay_addr); \
                                       union sh4_instr delay_instr = {delay_data};                 \
                                       sh4_translate_cb cb = sh4_get_translator(delay_data);       \
                                       CHECK_NOTNULL(cb);                                          \
-                                      cb(guest, ir, flags, delay_addr, delay_instr);              \
+                                      ir_source_info(ir, delay_addr, delay_offset / 2);           \
+                                      cb(guest, block, ir, flags, delay_addr, delay_instr);       \
                                     }
 #define NEXT_INSTR()               
 #define NEXT_NEXT_INSTR()               
@@ -450,9 +452,10 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 
 /* clang-format on */
 
-#define INSTR(name)                                                            \
-  void sh4_translate_##name(struct sh4_guest *guest, struct ir *ir, int flags, \
-                            uint32_t addr, union sh4_instr i)
+#define INSTR(name)                                                           \
+  void sh4_translate_##name(struct sh4_guest *guest, struct jit_block *block, \
+                            struct ir *ir, int flags, uint32_t addr,          \
+                            union sh4_instr i)
 #include "jit/frontend/sh4/sh4_instr.h"
 #undef INSTR
 

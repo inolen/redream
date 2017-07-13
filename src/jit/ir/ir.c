@@ -377,6 +377,12 @@ uint64_t ir_zext_constant(const struct ir_value *v) {
   }
 }
 
+void ir_source_info(struct ir *ir, uint32_t addr, int index) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_SOURCE_INFO, VALUE_V);
+  ir_set_arg0(ir, instr, ir_alloc_i32(ir, addr));
+  ir_set_arg1(ir, instr, ir_alloc_i32(ir, index));
+}
+
 void ir_fallback(struct ir *ir, void *fallback, uint32_t addr,
                  uint32_t raw_instr) {
   CHECK(fallback);

@@ -347,20 +347,20 @@ static void x64_backend_emit(struct x64_backend *backend,
 
   x64_backend_emit_prologue(backend, block);
 
-  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+  list_for_each_entry(blk, &ir->blocks, struct ir_block, it) {
     char block_label[128];
-    x64_backend_block_label(block_label, sizeof(block_label), block);
+    x64_backend_block_label(block_label, sizeof(block_label), blk);
 
     e.L(block_label);
 
     int terminated = 0;
 
-    list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+    list_for_each_entry(instr, &blk->instrs, struct ir_instr, it) {
       struct jit_emitter *emitter = &x64_emitters[instr->op];
       x64_emit_cb emit = (x64_emit_cb)emitter->func;
       CHECK_NOTNULL(emit);
 
-      emit(backend, *backend->codegen, instr);
+      emit(backend, *backend->codegen, block, instr);
 
       terminated = (instr->op == OP_BRANCH);
     }
