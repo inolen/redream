@@ -1362,7 +1362,19 @@ INSTR(PREF) {
 INSTR(RTE) {
   I32 ssr = LOAD_SSR_I32();
   I32 spc = LOAD_SPC_I32();
+
+  /* in an RTE delay slot, status register bits are referenced as follows. for
+     instruction access, the MD bit is used before modification, and for data
+     access, the MD bit is accessed after modification. for the instruction
+     execution, the other bits (S, T, M, Q, FD, BL, and RB) are used after
+     modification. the STC and STC.L SR instructions access all SR bits after
+     modification
+
+     note, since the MD bit isn't actually emulated, the SR is just set before
+     executing the delay slot */
   STORE_SR_I32(ssr);
+  DELAY_INSTR();
+
   BRANCH_I32(spc);
 }
 
