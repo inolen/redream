@@ -64,9 +64,6 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   PROF_ENTER("cpu", "sh4_frontend_translate_code");
 
   int flags = 0;
-  if (block->fastmem) {
-    flags |= SH4_FASTMEM;
-  }
   if (ctx->fpscr & PR_MASK) {
     flags |= SH4_DOUBLE_PR;
   }
@@ -93,7 +90,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     CHECK_NOTNULL(cb);
 
     ir_source_info(ir, addr, offset / 2);
-    cb(guest, block, ir, flags, addr, instr);
+    cb(guest, block, ir, addr, instr, flags);
 
     end_flags = def->flags;
 #endif

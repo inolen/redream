@@ -60,8 +60,9 @@ enum {
 struct jit_emitter x64_emitters[IR_NUM_OPS];
 
 EMITTER(SOURCE_INFO, CONSTRAINTS(NONE, IMM_I32, IMM_I32)) {
-  /*uint32_t addr = ARG0->i32;
-  int index = ARG1->i32;*/
+  /*uint32_t addr = ARG0->i32;*/
+  int index = ARG1->i32;
+  block->source_map[index] = e.getCurr<void *>();
 }
 
 EMITTER(FALLBACK, CONSTRAINTS(NONE, IMM_I64, IMM_I32, IMM_I32)) {

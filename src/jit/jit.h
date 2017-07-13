@@ -52,8 +52,11 @@ struct jit_block {
   /* estimated number of guest cycles to execute block */
   int num_cycles;
 
-  /* compile with fastmem support */
-  int fastmem;
+  /* maps guest instructions to host instructions */
+  void **source_map;
+
+  /* which guest instructions use fastmem */
+  int8_t *fastmem;
 
   /* address of compiled block in host memory */
   void *host_addr;
