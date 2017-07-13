@@ -10,8 +10,49 @@ struct armv3_frontend {
   struct jit_frontend;
 };
 
-static void armv3_analyze_block(const struct armv3_guest *guest,
-                                struct jit_block *block) {
+static const struct jit_opdef *armv3_frontend_lookup_op(
+    struct jit_frontend *base, const void *instr) {
+  return armv3_get_opdef(*(const uint32_t *)instr);
+}
+
+static void armv3_frontend_dump_code(struct jit_frontend *base,
+                                     const struct jit_block *block) {
+  struct armv3_frontend *frontend = (struct armv3_frontend *)base;
+  struct jit_guest *guest = frontend->jit->guest;
+
+  char buffer[128];
+
+  for (int offset = 0; offset < block->guest_size; offset += 4) {
+    uint32_t addr = block->guest_addr + offset;
+    uint32_t data = guest->r32(guest->space, addr);
+
+    armv3_format(addr, data, buffer, sizeof(buffer));
+    LOG_INFO(buffer);
+
+    addr += 4;
+  }
+}
+
+static void armv3_frontend_translate_code(struct jit_frontend *base,
+                                          struct jit_block *block,
+                                          struct ir *ir) {
+  struct armv3_frontend *frontend = (struct armv3_frontend *)base;
+  struct armv3_guest *guest = (struct armv3_guest *)frontend->jit->guest;
+
+  for (int offset = 0; offset < block->guest_size; offset += 4) {
+    uint32_t addr = block->guest_addr + offset;
+    uint32_t data = guest->r32(guest->space, addr);
+    struct jit_opdef *def = armv3_get_opdef(data);
+
+    ir_source_info(ir, addr, offset / 4);
+    ir_fallback(ir, def->fallback, addr, data);
+  }
+}
+
+static void armv3_frontend_analyze_code(struct jit_frontend *base,
+                                        struct jit_block *block) {
+  struct armv3_frontend *frontend = (struct armv3_frontend *)base;
+  struct armv3_guest *guest = (struct armv3_guest *)frontend->jit->guest;
   uint32_t addr = block->guest_addr;
 
   block->guest_size = 0;
@@ -44,47 +85,6 @@ static void armv3_analyze_block(const struct armv3_guest *guest,
   }
 }
 
-static const struct jit_opdef *armv3_frontend_lookup_op(
-    struct jit_frontend *base, const void *instr) {
-  return armv3_get_opdef(*(const uint32_t *)instr);
-}
-
-static void armv3_frontend_dump_code(struct jit_frontend *base,
-                                     const struct jit_block *block) {
-  struct armv3_frontend *frontend = (struct armv3_frontend *)base;
-  struct jit_guest *guest = frontend->jit->guest;
-
-  char buffer[128];
-
-  for (int offset = 0; offset < block->guest_size; offset += 4) {
-    uint32_t addr = block->guest_addr + offset;
-    uint32_t data = guest->r32(guest->space, addr);
-
-    armv3_format(addr, data, buffer, sizeof(buffer));
-    LOG_INFO(buffer);
-
-    addr += 4;
-  }
-}
-
-static void armv3_frontend_translate_code(struct jit_frontend *base,
-                                          struct jit_block *block,
-                                          struct ir *ir) {
-  struct armv3_frontend *frontend = (struct armv3_frontend *)base;
-  struct armv3_guest *guest = (struct armv3_guest *)frontend->jit->guest;
-
-  armv3_analyze_block(guest, block);
-
-  for (int offset = 0; offset < block->guest_size; offset += 4) {
-    uint32_t addr = block->guest_addr + offset;
-    uint32_t data = guest->r32(guest->space, addr);
-    struct jit_opdef *def = armv3_get_opdef(data);
-
-    ir_source_info(ir, addr, offset / 4);
-    ir_fallback(ir, def->fallback, addr, data);
-  }
-}
-
 void armv3_frontend_destroy(struct jit_frontend *base) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
 
@@ -98,6 +98,7 @@ struct jit_frontend *armv3_frontend_create() {
 
   frontend->init = &armv3_frontend_init;
   frontend->destroy = &armv3_frontend_destroy;
+  frontend->analyze_code = &armv3_frontend_analyze_code;
   frontend->translate_code = &armv3_frontend_translate_code;
   frontend->dump_code = &armv3_frontend_dump_code;
   frontend->lookup_op = &armv3_frontend_lookup_op;

@@ -20,8 +20,120 @@ struct sh4_frontend {
   struct jit_frontend;
 };
 
-static void sh4_analyze_block(const struct sh4_guest *guest,
-                              struct jit_block *block) {
+static const struct jit_opdef *sh4_frontend_lookup_op(struct jit_frontend *base,
+                                                      const void *instr) {
+  return sh4_get_opdef(*(const uint16_t *)instr);
+}
+
+static void sh4_frontend_dump_code(struct jit_frontend *base,
+                                   const struct jit_block *block) {
+  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
+  struct jit_guest *guest = frontend->jit->guest;
+
+  char buffer[128];
+
+  for (int offset = 0; offset < block->guest_size; offset += 2) {
+    uint32_t addr = block->guest_addr + offset;
+    uint16_t data = guest->r16(guest->space, addr);
+    union sh4_instr instr = {data};
+    struct jit_opdef *def = sh4_get_opdef(data);
+
+    sh4_format(addr, instr, buffer, sizeof(buffer));
+    LOG_INFO(buffer);
+
+    if (def->flags & SH4_FLAG_DELAYED) {
+      uint32_t delay_addr = addr + 2;
+      uint16_t delay_data = guest->r16(guest->space, delay_addr);
+      union sh4_instr delay_instr = {delay_data};
+
+      sh4_format(addr, delay_instr, buffer, sizeof(buffer));
+      LOG_INFO(buffer);
+
+      offset += 2;
+    }
+  }
+}
+
+static void sh4_frontend_translate_code(struct jit_frontend *base,
+                                        struct jit_block *block,
+                                        struct ir *ir) {
+  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
+  struct sh4_guest *guest = (struct sh4_guest *)frontend->jit->guest;
+  struct sh4_context *ctx = (struct sh4_context *)guest->ctx;
+
+  PROF_ENTER("cpu", "sh4_frontend_translate_code");
+
+  int flags = 0;
+  if (block->fastmem) {
+    flags |= SH4_FASTMEM;
+  }
+  if (ctx->fpscr & PR_MASK) {
+    flags |= SH4_DOUBLE_PR;
+  }
+  if (ctx->fpscr & SZ_MASK) {
+    flags |= SH4_DOUBLE_SZ;
+  }
+
+  /* translate the actual block */
+  int end_flags = 0;
+
+  for (int offset = 0; offset < block->guest_size; offset += 2) {
+    uint32_t addr = block->guest_addr + offset;
+    uint16_t data = guest->r16(guest->space, addr);
+    union sh4_instr instr = {data};
+    struct jit_opdef *def = sh4_get_opdef(data);
+
+#if 0
+    /* emit a call to the interpreter fallback for each instruction. this can
+       be used to bisect and find bad ir op implementations */
+    ir_fallback(ir, def->fallback, addr, data);
+    end_flags = SH4_FLAG_SET_PC;
+#else
+    sh4_translate_cb cb = sh4_get_translator(data);
+    CHECK_NOTNULL(cb);
+
+    ir_source_info(ir, addr, offset / 2);
+    cb(guest, block, ir, flags, addr, instr);
+
+    end_flags = def->flags;
+#endif
+
+    if (def->flags & SH4_FLAG_DELAYED) {
+      offset += 2;
+    }
+  }
+
+  /* there are 3 possible block endings:
+
+     a.) the block terminates due to an unconditional branch; nothing needs to
+         be done
+
+     b.) the block terminates due to an instruction which doesn't set the pc; an
+         unconditional branch to the next address needs to be added
+
+     c.) the block terminates due to an instruction which sets the pc but is not
+         a branch (e.g. an invalid instruction trap); nothing needs to be done,
+         the backend will always implicitly branch to the next pc */
+
+  /* if the final instruction doesn't unconditionally set the pc, insert a
+     branch to the next instruction */
+  if ((end_flags & (SH4_FLAG_SET_PC | SH4_FLAG_COND)) != SH4_FLAG_SET_PC) {
+    struct ir_block *tail_block =
+        list_last_entry(&ir->blocks, struct ir_block, it);
+    struct ir_instr *tail_instr =
+        list_last_entry(&tail_block->instrs, struct ir_instr, it);
+    ir_set_current_instr(ir, tail_instr);
+    ir_branch(ir, ir_alloc_i32(ir, block->guest_addr + block->guest_size));
+  }
+
+  PROF_LEAVE();
+}
+
+static void sh4_frontend_analyze_code(struct jit_frontend *base,
+                                      struct jit_block *block) {
+  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
+  struct sh4_guest *guest = (struct sh4_guest *)frontend->jit->guest;
+
   static int IDLE_MASK = SH4_FLAG_LOAD | SH4_FLAG_COND | SH4_FLAG_CMP;
   int idle_loop = 1;
   int all_flags = 0;
@@ -148,117 +260,6 @@ static void sh4_analyze_block(const struct sh4_guest *guest,
   }
 }
 
-static const struct jit_opdef *sh4_frontend_lookup_op(struct jit_frontend *base,
-                                                      const void *instr) {
-  return sh4_get_opdef(*(const uint16_t *)instr);
-}
-
-static void sh4_frontend_dump_code(struct jit_frontend *base,
-                                   const struct jit_block *block) {
-  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  struct jit_guest *guest = frontend->jit->guest;
-
-  char buffer[128];
-
-  for (int offset = 0; offset < block->guest_size; offset += 2) {
-    uint32_t addr = block->guest_addr + offset;
-    uint16_t data = guest->r16(guest->space, addr);
-    union sh4_instr instr = {data};
-    struct jit_opdef *def = sh4_get_opdef(data);
-
-    sh4_format(addr, instr, buffer, sizeof(buffer));
-    LOG_INFO(buffer);
-
-    if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_addr = addr + 2;
-      uint16_t delay_data = guest->r16(guest->space, delay_addr);
-      union sh4_instr delay_instr = {delay_data};
-
-      sh4_format(addr, delay_instr, buffer, sizeof(buffer));
-      LOG_INFO(buffer);
-
-      offset += 2;
-    }
-  }
-}
-
-static void sh4_frontend_translate_code(struct jit_frontend *base,
-                                        struct jit_block *block,
-                                        struct ir *ir) {
-  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  struct sh4_guest *guest = (struct sh4_guest *)frontend->jit->guest;
-  struct sh4_context *ctx = (struct sh4_context *)guest->ctx;
-
-  PROF_ENTER("cpu", "sh4_frontend_translate_code");
-
-  int flags = 0;
-  if (block->fastmem) {
-    flags |= SH4_FASTMEM;
-  }
-  if (ctx->fpscr & PR_MASK) {
-    flags |= SH4_DOUBLE_PR;
-  }
-  if (ctx->fpscr & SZ_MASK) {
-    flags |= SH4_DOUBLE_SZ;
-  }
-
-  sh4_analyze_block(guest, block);
-
-  /* translate the actual block */
-  int end_flags = 0;
-
-  for (int offset = 0; offset < block->guest_size; offset += 2) {
-    uint32_t addr = block->guest_addr + offset;
-    uint16_t data = guest->r16(guest->space, addr);
-    union sh4_instr instr = {data};
-    struct jit_opdef *def = sh4_get_opdef(data);
-
-#if 0
-    /* emit a call to the interpreter fallback for each instruction. this can
-       be used to bisect and find bad ir op implementations */
-    ir_fallback(ir, def->fallback, addr, data);
-    end_flags = SH4_FLAG_SET_PC;
-#else
-    sh4_translate_cb cb = sh4_get_translator(data);
-    CHECK_NOTNULL(cb);
-
-    ir_source_info(ir, addr, offset / 2);
-    cb(guest, block, ir, flags, addr, instr);
-
-    end_flags = def->flags;
-#endif
-
-    if (def->flags & SH4_FLAG_DELAYED) {
-      offset += 2;
-    }
-  }
-
-  /* there are 3 possible block endings:
-
-     a.) the block terminates due to an unconditional branch; nothing needs to
-         be done
-
-     b.) the block terminates due to an instruction which doesn't set the pc; an
-         unconditional branch to the next address needs to be added
-
-     c.) the block terminates due to an instruction which sets the pc but is not
-         a branch (e.g. an invalid instruction trap); nothing needs to be done,
-         the backend will always implicitly branch to the next pc */
-
-  /* if the final instruction doesn't unconditionally set the pc, insert a
-     branch to the next instruction */
-  if ((end_flags & (SH4_FLAG_SET_PC | SH4_FLAG_COND)) != SH4_FLAG_SET_PC) {
-    struct ir_block *tail_block =
-        list_last_entry(&ir->blocks, struct ir_block, it);
-    struct ir_instr *tail_instr =
-        list_last_entry(&tail_block->instrs, struct ir_instr, it);
-    ir_set_current_instr(ir, tail_instr);
-    ir_branch(ir, ir_alloc_i32(ir, block->guest_addr + block->guest_size));
-  }
-
-  PROF_LEAVE();
-}
-
 static void sh4_frontend_destroy(struct jit_frontend *base) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
 
@@ -272,6 +273,7 @@ struct jit_frontend *sh4_frontend_create() {
 
   frontend->init = &sh4_frontend_init;
   frontend->destroy = &sh4_frontend_destroy;
+  frontend->analyze_code = &sh4_frontend_analyze_code;
   frontend->translate_code = &sh4_frontend_translate_code;
   frontend->dump_code = &sh4_frontend_dump_code;
   frontend->lookup_op = &sh4_frontend_lookup_op;

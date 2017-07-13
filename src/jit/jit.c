@@ -301,6 +301,9 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   block->guest_addr = guest_addr;
   block->fastmem = fastmem;
 
+  /* analyze the code to get its extents */
+  jit->frontend->analyze_code(jit->frontend, block);
+
   /* translate the source machine code into ir */
   struct ir ir = {0};
   ir.buffer = jit->ir_buffer;
