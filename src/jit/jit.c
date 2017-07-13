@@ -139,7 +139,9 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
   PROF_LEAVE();
 }
 
-static void jit_invalidate_block(struct jit *jit, struct jit_block *block) {
+static void jit_invalidate_block(struct jit *jit, struct jit_block *block, int reason) {
+  block->invalidate_reason = reason;
+
   jit->backend->invalidate_code(jit->backend, block->guest_addr);
 
   jit_restore_edges(jit, block);
@@ -165,7 +167,7 @@ static void jit_cache_block(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_free_block(struct jit *jit, struct jit_block *block) {
-  jit_invalidate_block(jit, block);
+  jit_invalidate_block(jit, block, JIT_REASON_UNKNOWN);
 
   rb_unlink(&jit->blocks, &block->it, &block_map_cb);
   rb_unlink(&jit->reverse_blocks, &block->rit, &reverse_block_map_cb);
@@ -224,7 +226,7 @@ void jit_invalidate_blocks(struct jit *jit) {
     struct rb_node *next = rb_next(it);
 
     struct jit_block *block = container_of(it, struct jit_block, it);
-    jit_invalidate_block(jit, block);
+    jit_invalidate_block(jit, block, JIT_REASON_UNKNOWN);
 
     it = next;
   }
@@ -289,11 +291,15 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   fastmem = 0;
 #endif
 
-  /* if the block being compiled had previously been invalidated by a fastmem
-     exception, finish removing it at this time and disable fastmem opts */
+  /* if the block had previously been invalidated, finish removing it now */
   struct jit_block *existing = jit_get_block(jit, guest_addr);
   if (existing) {
-    fastmem = existing->fastmem;
+    /* if the block was invalidated due to a fastmem exception, persist its
+       fastmem state */
+    if (existing->invalidate_reason == JIT_REASON_FASTMEM) {
+      fastmem = existing->fastmem;
+    }
+
     jit_free_block(jit, existing);
   }
 
@@ -360,12 +366,11 @@ static int jit_handle_exception(void *data, struct exception_state *ex) {
     return 0;
   }
 
-  /* invalidate the block so it's recompiled without fastmem optimizations
-     on the next access. note, the block can't be removed from the lookup
-     maps at this point because it's still executing and may raise more
-     exceptions */
+  /* disable fastmem optimizations for this block on future compiles */
   block->fastmem = 0;
-  jit_invalidate_block(jit, block);
+
+  /* invalidate the block so it's recompiled on the next access */
+  jit_invalidate_block(jit, block, JIT_REASON_FASTMEM);
 
   return 1;
 }

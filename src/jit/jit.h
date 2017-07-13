@@ -18,25 +18,23 @@ typedef uint32_t (*mem_read_cb)(void *, uint32_t, uint32_t);
 typedef void (*mem_write_cb)(void *, uint32_t, uint32_t, uint32_t);
 
 enum {
-  BRANCH_STATIC,
-  BRANCH_STATIC_TRUE,
-  BRANCH_STATIC_FALSE,
-  BRANCH_DYNAMIC,
-  BRANCH_DYNAMIC_TRUE,
-  BRANCH_DYNAMIC_FALSE,
+  JIT_BRANCH_STATIC,
+  JIT_BRANCH_STATIC_TRUE,
+  JIT_BRANCH_STATIC_FALSE,
+  JIT_BRANCH_DYNAMIC,
+  JIT_BRANCH_DYNAMIC_TRUE,
+  JIT_BRANCH_DYNAMIC_FALSE,
+};
+
+enum {
+  JIT_REASON_UNKNOWN,
+  JIT_REASON_FASTMEM,
 };
 
 struct jit_block {
   /* address of source block in guest memory */
   uint32_t guest_addr;
   int guest_size;
-
-  /* address of compiled block in host memory */
-  void *host_addr;
-  int host_size;
-
-  /* compile with fastmem support */
-  int fastmem;
 
   /* destination address of terminating branch */
   int branch_type;
@@ -53,6 +51,16 @@ struct jit_block {
 
   /* estimated number of guest cycles to execute block */
   int num_cycles;
+
+  /* compile with fastmem support */
+  int fastmem;
+
+  /* address of compiled block in host memory */
+  void *host_addr;
+  int host_size;
+
+  /* reason the block was invalidated */
+  int invalidate_reason;
 
   /* edges to other blocks */
   struct list in_edges;

@@ -179,51 +179,51 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
     if (def->flags & SH4_FLAG_SET_PC) {
       if (def->op == SH4_OP_BF) {
         uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
-        block->branch_type = BRANCH_STATIC_FALSE;
+        block->branch_type = JIT_BRANCH_STATIC_FALSE;
         block->branch_addr = dest_addr;
         block->next_addr = addr + 4;
       } else if (def->op == SH4_OP_BFS) {
         uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
-        block->branch_type = BRANCH_STATIC_FALSE;
+        block->branch_type = JIT_BRANCH_STATIC_FALSE;
         block->branch_addr = dest_addr;
         block->next_addr = addr + 4;
       } else if (def->op == SH4_OP_BT) {
         uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
-        block->branch_type = BRANCH_STATIC_TRUE;
+        block->branch_type = JIT_BRANCH_STATIC_TRUE;
         block->branch_addr = dest_addr;
         block->next_addr = addr + 4;
       } else if (def->op == SH4_OP_BTS) {
         uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
-        block->branch_type = BRANCH_STATIC_TRUE;
+        block->branch_type = JIT_BRANCH_STATIC_TRUE;
         block->branch_addr = dest_addr;
         block->next_addr = addr + 4;
       } else if (def->op == SH4_OP_BRA) {
         /* 12-bit displacement must be sign extended */
         int32_t disp = ((instr.disp_12.disp & 0xfff) << 20) >> 20;
         uint32_t dest_addr = (disp * 2) + addr + 4;
-        block->branch_type = BRANCH_STATIC;
+        block->branch_type = JIT_BRANCH_STATIC;
         block->branch_addr = dest_addr;
       } else if (def->op == SH4_OP_BRAF) {
-        block->branch_type = BRANCH_DYNAMIC;
+        block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_BSR) {
         /* 12-bit displacement must be sign extended */
         int32_t disp = ((instr.disp_12.disp & 0xfff) << 20) >> 20;
         uint32_t ret_addr = addr + 4;
         uint32_t dest_addr = ret_addr + disp * 2;
-        block->branch_type = BRANCH_STATIC;
+        block->branch_type = JIT_BRANCH_STATIC;
         block->branch_addr = dest_addr;
       } else if (def->op == SH4_OP_BSRF) {
-        block->branch_type = BRANCH_DYNAMIC;
+        block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_JMP) {
-        block->branch_type = BRANCH_DYNAMIC;
+        block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_JSR) {
-        block->branch_type = BRANCH_DYNAMIC;
+        block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_RTS) {
-        block->branch_type = BRANCH_DYNAMIC;
+        block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_RTE) {
-        block->branch_type = BRANCH_DYNAMIC;
+        block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_TRAPA) {
-        block->branch_type = BRANCH_DYNAMIC;
+        block->branch_type = JIT_BRANCH_DYNAMIC;
       } else {
         LOG_FATAL("unexpected branch op");
       }
