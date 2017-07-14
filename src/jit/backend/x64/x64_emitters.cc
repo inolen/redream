@@ -254,7 +254,13 @@ EMITTER(FTOI, CONSTRAINTS(REG_I64, REG_F64)) {
   switch (RES->type) {
     case VALUE_I32:
       CHECK_EQ(ARG0->type, VALUE_F32);
-      e.cvttss2si(rd, ra);
+      // cvtt does not saturate if out of range, must saturate
+      // before conversion. This is not 100% accurate as sh4 will saturate
+      // to 0x7FFF_FFFF not 0x7FFF_FF80
+      // negative saturation works as expected
+      e.movss(e.xmm0, x64_backend_xmm_constant(backend, XMM_CONST_MAXINT32_PS));
+      e.minss(e.xmm0, ra);
+      e.cvttss2si(rd, e.xmm0);
       break;
     case VALUE_I64:
       CHECK_EQ(ARG0->type, VALUE_F64);

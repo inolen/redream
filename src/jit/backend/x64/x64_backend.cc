@@ -488,6 +488,11 @@ static void x64_backend_emit_constants(struct x64_backend *backend) {
   e.L(backend->xmm_const[XMM_CONST_SIGN_MASK_PD]);
   e.dq(INT64_C(0x8000000000000000));
   e.dq(INT64_C(0x8000000000000000));
+
+  e.align(32);
+  e.L(backend->xmm_const[XMM_CONST_MAXINT32_PS]);
+  e.dq(INT64_C(0x4effffff4effffff)); // Maximum encodable int32 value in f32 is 0x7FFFFF80 (0x4effffff in ieee format)
+  e.dq(INT64_C(0x4effffff4effffff));
 }
 
 static int x64_backend_handle_exception(struct jit_backend *base,
