@@ -7,7 +7,6 @@
 #include "guest/sh4/sh4.h"
 
 DEFINE_AGGREGATE_COUNTER(pvr_vblanks);
-DEFINE_AGGREGATE_COUNTER(pvr_vram_data);
 
 struct reg_cb pvr_cb[PVR_NUM_REGS];
 
@@ -151,32 +150,14 @@ static uint32_t MAP64(uint32_t addr) {
           (addr & 0x3));
 }
 
-static uint32_t pvr_vram_read(struct pvr *pvr, uint32_t addr,
-                              uint32_t data_mask) {
-  prof_counter_add(COUNTER_pvr_vram_data, DATA_SIZE());
-
-  return READ_DATA(&pvr->video_ram[addr]);
-}
-
-static void pvr_vram_write(struct pvr *pvr, uint32_t addr, uint32_t data,
-                           uint32_t data_mask) {
-  prof_counter_add(COUNTER_pvr_vram_data, DATA_SIZE());
-
-  WRITE_DATA(&pvr->video_ram[addr]);
-}
-
 static uint32_t pvr_vram_interleaved_read(struct pvr *pvr, uint32_t addr,
                                           uint32_t data_mask) {
-  prof_counter_add(COUNTER_pvr_vram_data, DATA_SIZE());
-
   addr = MAP64(addr);
   return READ_DATA(&pvr->video_ram[addr]);
 }
 
 static void pvr_vram_interleaved_write(struct pvr *pvr, uint32_t addr,
                                        uint32_t data, uint32_t data_mask) {
-  prof_counter_add(COUNTER_pvr_vram_data, DATA_SIZE());
-
   addr = MAP64(addr);
   WRITE_DATA(&pvr->video_ram[addr]);
 }
@@ -184,8 +165,6 @@ static void pvr_vram_interleaved_write(struct pvr *pvr, uint32_t addr,
 static void pvr_vram_interleaved_read_string(struct pvr *pvr, void *ptr,
                                              uint32_t src, int size) {
   CHECK(size % 4 == 0);
-
-  prof_counter_add(COUNTER_pvr_vram_data, size);
 
   uint8_t *dst = ptr;
   uint8_t *end = dst + size;
@@ -199,8 +178,6 @@ static void pvr_vram_interleaved_read_string(struct pvr *pvr, void *ptr,
 static void pvr_vram_interleaved_write_string(struct pvr *pvr, uint32_t dst,
                                               void *ptr, int size) {
   CHECK(size % 4 == 0);
-
-  prof_counter_add(COUNTER_pvr_vram_data, size);
 
   uint8_t *src = ptr;
   uint8_t *end = src + size;
@@ -267,11 +244,6 @@ AM_END();
 
 AM_BEGIN(struct pvr, pvr_vram_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("video ram")
-  AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("video ram sequential",
-                                             (mmio_read_cb)&pvr_vram_read,
-                                             (mmio_write_cb)&pvr_vram_write,
-                                             NULL,
-                                             NULL)
   AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE("video ram interleaved",
                                              (mmio_read_cb)&pvr_vram_interleaved_read,
                                              (mmio_write_cb)&pvr_vram_interleaved_write,

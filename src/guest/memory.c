@@ -238,7 +238,6 @@ static void default_mmio_read_string(void *userdata, void *ptr, uint32_t src,
 static void default_mmio_write_string(void *userdata, uint32_t dst,
                                       const void *ptr, int size) {
   LOG_WARNING("unexpected string write to 0x%08x", dst);
-  exit(1);
 }
 
 struct memory_region *memory_get_region(struct memory *memory,
