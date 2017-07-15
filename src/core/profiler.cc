@@ -111,16 +111,9 @@ prof_token_t prof_get_aggregate_token(const char *name) {
 #endif
 }
 
-void prof_flip() {
-/* flip frame-based profile zones at the end of every frame */
+void prof_flip(int64_t now) {
 #if ENABLE_MICROPROFILE
-  MicroProfileFlip();
-#endif
-}
-
-void prof_update(int64_t now) {
-/* update time-based aggregate counters every second */
-#if ENABLE_MICROPROFILE
+  /* update time-based aggregate counters every second */
   int64_t next_aggregation = prof.last_aggregation + NS_PER_SEC;
 
   if (now > next_aggregation) {
@@ -135,6 +128,9 @@ void prof_update(int64_t now) {
 
     prof.last_aggregation = now;
   }
+
+  /* flip frame-based profile zones at the end of every frame */
+  MicroProfileFlip();
 #endif
 }
 

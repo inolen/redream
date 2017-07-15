@@ -37,6 +37,13 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
+/* emulation thread state */
+enum {
+  EMU_SHUTDOWN,
+  EMU_WAITING,
+  EMU_RUNFRAME,
+};
+
 struct emu_texture {
   struct tr_texture;
   struct emu *emu;
@@ -53,10 +60,8 @@ struct emu {
   struct host *host;
   struct dreamcast *dc;
 
-  volatile int running;
   volatile int video_width;
   volatile int video_height;
-  volatile int video_resized;
   volatile unsigned frame;
 
   struct render_backend *r;
@@ -64,25 +69,25 @@ struct emu {
   struct microprofile *mp;
   struct trace_writer *trace_writer;
 
-  /* when running with multiple threads, rendering is done asynchronously on a
-     secondary video thread, to avoid blocking the emulated cpu. the original
-     hardware rendered asynchronously as well, so many games use this time to
-     perform additional cpu work. on some games this upwards of doubles the
-     performance */
+  /* when running with multiple threads, the dreamcast emulation is ran on a
+     secondary thread, in order to allow rendering to be done asynchronously on
+     the main thread. the original hardware rendered asynchronously, so many
+     games use this time to perform additional cpu work. on some games this
+     upwards of doubles the performance */
   int multi_threaded;
-  thread_t video_thread;
 
-  /* latest context from the dreamcast, ready to be presented */
-  mutex_t pending_mutex;
-  cond_t pending_cond;
-  unsigned pending_id;
+  /* emulation thread synchronization primitives */
+  volatile int state;
+  thread_t run_thread;
+  mutex_t run_mutex;
+  cond_t run_cond;
+  mutex_t frame_mutex;
+  cond_t frame_cond;
+
+  /* latest context from the dreamcast, ready to be rendered */
   struct tile_context *pending_ctx;
   struct tr_context pending_rc;
-
-  /* offscreen framebuffer the video output is rendered to */
-  framebuffer_handle_t video_fb;
-  texture_handle_t video_tex;
-  sync_handle_t video_sync;
+  unsigned pending_id;
 
   /* texture cache. the dreamcast interface calls into us when new contexts are
      available to be rendered. parsing the contexts, uploading their textures to
@@ -92,8 +97,8 @@ struct emu {
   struct rb_tree live_textures;
 
   /* textures for the current context are uploaded to the render backend by the
-     video thread in parallel to the main thread executing. this is normally
-     safe, as the real hardware rendered asynchronously as well.  unfortunately,
+     video thread in parallel to the emulation thread executing. normally, this
+     is safe as the real hardware also rendered asynchronously. unfortunately,
      some games will be naughty and modify a texture before receiving the end of
      render interrupt. in order to avoid race conditions around accessing the
      texture's dirty state, textures are not immediately marked dirty by the
@@ -291,13 +296,6 @@ static void emu_register_texture_sources(struct emu *emu,
   }
 }
 
-static void emu_init_textures(struct emu *emu) {
-  for (int i = 0; i < array_size(emu->textures); i++) {
-    struct emu_texture *tex = &emu->textures[i];
-    list_add(&emu->free_textures, &tex->free_it);
-  }
-}
-
 /*
  * trace recording
  */
@@ -335,225 +333,6 @@ static void emu_start_tracing(struct emu *emu) {
 }
 
 /*
- * video rendering. responsible for dequeuing the latest raw tile_context from
- * the dreamcast, converting it into a renderable tr_context, and then rendering
- * and presenting it
- */
-static void emu_render_frame(struct emu *emu) {
-  prof_counter_add(COUNTER_frames, 1);
-
-  /* resize the framebuffer at this time if the output size has changed */
-  if (emu->video_resized) {
-    r_destroy_framebuffer(emu->r, emu->video_fb);
-
-    emu->video_fb = r_create_framebuffer(emu->r, emu->video_width,
-                                         emu->video_height, &emu->video_tex);
-    emu->video_resized = 0;
-  }
-
-  /* render the current render context to the video framebuffer */
-  framebuffer_handle_t original = r_get_framebuffer(emu->r);
-  r_bind_framebuffer(emu->r, emu->video_fb);
-  r_viewport(emu->r, emu->video_width, emu->video_height);
-  tr_render_context(emu->r, &emu->pending_rc);
-  r_bind_framebuffer(emu->r, original);
-
-  /* insert fence for main thread to synchronize on in order to ensure that
-     the context has completely rendered */
-  if (emu->multi_threaded) {
-    emu->video_sync = r_insert_sync(emu->r);
-  }
-
-  /* update frame-based profiler stats */
-  prof_flip();
-}
-
-static void *emu_video_thread(void *data) {
-  struct emu *emu = data;
-
-  while (1) {
-    mutex_lock(emu->pending_mutex);
-
-    /* wait for the next tile context provided by emu_start_render */
-    while (emu->running && !emu->pending_ctx) {
-      cond_wait(emu->pending_cond, emu->pending_mutex);
-    }
-
-    /* check for shutdown */
-    if (!emu->running) {
-      emu->pending_ctx = NULL;
-      mutex_unlock(emu->pending_mutex);
-      break;
-    }
-
-    video_bind_context(emu->host, emu->r);
-
-    /* convert the context, uploading its textures to the render backend */
-    tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
-                       &emu->pending_rc);
-    emu->pending_ctx = NULL;
-
-    /* render the parsed context to an offscreen framebuffer */
-    emu_render_frame(emu);
-
-    /* release the context for the main thread to use */
-    video_unbind_context(emu->host);
-
-    /* after the context has been rendered, release the mutex to unblock
-       emu_guest_finish_render
-
-       note, the main purpose of this mutex is to prevent the cpu from writing
-       to texture memory before it's been uploaded to the render backend. from
-       that perspective, this mutex could be released after tr_convert_context
-       and before emu_render_frame, enabling the frame to take more time to
-       render on the host than estimated by emu_guest_finish_render. however,
-       then multiple framebuffers would have to be managed and synchronized in
-       order to allow emu_render_frame and emu_paint to run in parallel */
-    mutex_unlock(emu->pending_mutex);
-  }
-
-  return NULL;
-}
-
-static void emu_paint(struct emu *emu) {
-  int width = emu->video_width;
-  int height = emu->video_height;
-  float fwidth = (float)emu->video_width;
-  float fheight = (float)emu->video_height;
-
-  imgui_update_input(emu->imgui);
-
-  r_viewport(emu->r, emu->video_width, emu->video_height);
-
-  /* present the latest frame from the video thread */
-  {
-    struct ui_vertex verts[6] = {
-        /* triangle 1, top left  */
-        {{0.0f, 0.0f}, {0.0f, 1.0f}, 0xffffffff},
-        /* triangle 1, top right */
-        {{fwidth, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
-        /* triangle 1, bottom left */
-        {{0.0f, fheight}, {0.0f, 0.0f}, 0xffffffff},
-        /* triangle 2, top right */
-        {{fwidth, 0.0f}, {1.0f, 1.0f}, 0xffffffff},
-        /* triangle 2, bottom right */
-        {{fwidth, fheight}, {1.0f, 0.0f}, 0xffffffff},
-        /* triangle 2, bottom left */
-        {{0.0f, fheight}, {0.0f, 0.0f}, 0xffffffff},
-    };
-
-    struct ui_surface quad = {0};
-    quad.prim_type = PRIM_TRIANGLES;
-    quad.texture = emu->video_tex;
-    quad.src_blend = BLEND_NONE;
-    quad.dst_blend = BLEND_NONE;
-    quad.first_vert = 0;
-    quad.num_verts = 6;
-
-    /* wait for the frame to finish rendering */
-    if (emu->video_sync) {
-      r_wait_sync(emu->r, emu->video_sync);
-      r_destroy_sync(emu->r, emu->video_sync);
-      emu->video_sync = 0;
-    }
-
-    r_begin_ui_surfaces(emu->r, verts, 6, NULL, 0);
-    r_draw_ui_surface(emu->r, &quad);
-    r_end_ui_surfaces(emu->r);
-  }
-
-#if ENABLE_IMGUI
-  if (emu->debug_menu) {
-    if (igBeginMainMenuBar()) {
-      if (igBeginMenu("DEBUG", 1)) {
-        if (igMenuItem("frame stats", NULL, emu->frame_stats, 1)) {
-          emu->frame_stats = !emu->frame_stats;
-        }
-
-        if (!emu->trace_writer && igMenuItem("start trace", NULL, 0, 1)) {
-          emu_start_tracing(emu);
-        }
-        if (emu->trace_writer && igMenuItem("stop trace", NULL, 1, 1)) {
-          emu_stop_tracing(emu);
-        }
-
-        if (igMenuItem("clear texture cache", NULL, 0, 1)) {
-          emu_dirty_textures(emu);
-        }
-
-        igEndMenu();
-      }
-
-      igEndMainMenuBar();
-    }
-
-    bios_debug_menu(emu->dc->bios);
-    holly_debug_menu(emu->dc->holly);
-    aica_debug_menu(emu->dc->aica);
-    sh4_debug_menu(emu->dc->sh4);
-
-    /* add status */
-    if (igBeginMainMenuBar()) {
-      char status[128];
-      int frames = (int)prof_counter_load(COUNTER_frames);
-      int ta_renders = (int)prof_counter_load(COUNTER_ta_renders);
-      int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
-      int sh4_instrs =
-          (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
-      int arm7_instrs =
-          (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
-
-      snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
-               frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
-
-      /* right align */
-      struct ImVec2 content;
-      struct ImVec2 size;
-      igGetContentRegionMax(&content);
-      igCalcTextSize(&size, status, NULL, 0, 0.0f);
-      igSetCursorPosX(content.x - size.x);
-      igText(status);
-
-      igEndMainMenuBar();
-    }
-
-    if (emu->frame_stats) {
-      if (igBegin("frame stats", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-        /* frame times */
-        {
-          struct ImVec2 graph_size = {300.0f, 50.0f};
-          int num_frame_times = array_size(emu->frame_times);
-
-          float min_time = FLT_MAX;
-          float max_time = -FLT_MAX;
-          float avg_time = 0.0f;
-          for (int i = 0; i < num_frame_times; i++) {
-            float time = emu->frame_times[i];
-            min_time = MIN(min_time, time);
-            max_time = MAX(max_time, time);
-            avg_time += time;
-          }
-          avg_time /= num_frame_times;
-
-          igValueFloat("min time", min_time, "%.2f");
-          igValueFloat("max time", max_time, "%.2f");
-          igValueFloat("avg time", avg_time, "%.2f");
-          igPlotLines("", emu->frame_times, num_frame_times,
-                      emu->frame % num_frame_times, NULL, 0.0f, 60.0f,
-                      graph_size, sizeof(float));
-        }
-
-        igEnd();
-      }
-    }
-  }
-#endif
-
-  imgui_render(emu->imgui);
-  mp_render(emu->mp);
-}
-
-/*
  * dreamcast guest interface
  */
 static void emu_guest_poll_input(void *userdata) {
@@ -565,7 +344,6 @@ static void emu_guest_poll_input(void *userdata) {
 static void emu_guest_vertical_blank(void *userdata) {
   struct emu *emu = userdata;
 
-  /* signal to emu_run_frame to break and present the latest frame */
   emu->frame++;
 }
 
@@ -577,21 +355,18 @@ static void emu_guest_finish_render(void *userdata) {
        textures, etc. during the estimated render time. however, if it hasn't
        finished, the emulation thread must be paused to avoid altering
        the yet-to-be-uploaded texture memory */
-    mutex_lock(emu->pending_mutex);
+    mutex_lock(emu->frame_mutex);
 
     /* if pending_ctx is non-NULL here, a frame is being skipped */
     emu->pending_ctx = NULL;
+    cond_signal(emu->frame_cond);
 
-    mutex_unlock(emu->pending_mutex);
+    mutex_unlock(emu->frame_mutex);
   }
 }
 
 static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
   struct emu *emu = userdata;
-
-  /* note, while the video thread is guaranteed to not to be touching texture
-     memory from the previous frame at this point, it could still be actually
-     rendering the previous frame */
 
   /* incement internal frame number. this frame number is assigned to the each
      texture source registered to assert synchronization between the emulator
@@ -614,17 +389,16 @@ static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
 
   if (emu->multi_threaded) {
     /* save off context and notify video thread that it's available */
-    mutex_lock(emu->pending_mutex);
+    mutex_lock(emu->frame_mutex);
 
     emu->pending_ctx = ctx;
-    cond_signal(emu->pending_cond);
+    cond_signal(emu->frame_cond);
 
-    mutex_unlock(emu->pending_mutex);
+    mutex_unlock(emu->frame_mutex);
   } else {
     /* convert the context and immediately render it */
     tr_convert_context(emu->r, emu, &emu_find_texture, ctx, &emu->pending_rc);
-
-    emu_render_frame(emu);
+    tr_render_context(emu->r, &emu->pending_rc);
   }
 }
 
@@ -663,43 +437,26 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
 static void emu_host_context_destroyed(void *userdata) {
   struct emu *emu = userdata;
 
-  if (!emu->running) {
-    return;
-  }
-
-  emu->running = 0;
-
-  /* destroy the video thread */
-  if (emu->multi_threaded) {
-    mutex_lock(emu->pending_mutex);
-    cond_signal(emu->pending_cond);
-    mutex_unlock(emu->pending_mutex);
-
-    void *result;
-    thread_join(emu->video_thread, &result);
-  }
-
-  /* destroy video renderer objects */
   rb_for_each_entry_safe(tex, &emu->live_textures, struct emu_texture,
                          live_it) {
     r_destroy_texture(emu->r, tex->handle);
     emu_free_texture(emu, tex);
   }
 
-  r_destroy_framebuffer(emu->r, emu->video_fb);
-
-  if (emu->video_sync) {
-    r_destroy_sync(emu->r, emu->video_sync);
+  if (emu->mp) {
+    mp_destroy(emu->mp);
+    emu->mp = NULL;
   }
 
-  if (emu->multi_threaded) {
-    cond_destroy(emu->pending_cond);
-    mutex_destroy(emu->pending_mutex);
+  if (emu->imgui) {
+    imgui_destroy(emu->imgui);
+    emu->imgui = NULL;
   }
 
-  mp_destroy(emu->mp);
-  imgui_destroy(emu->imgui);
-  r_destroy(emu->r);
+  if (emu->r) {
+    r_destroy(emu->r);
+    emu->r = NULL;
+  }
 }
 
 static void emu_host_context_reset(void *userdata) {
@@ -707,27 +464,9 @@ static void emu_host_context_reset(void *userdata) {
 
   emu_host_context_destroyed(userdata);
 
-  emu->running = 1;
-
-  /* create primary renderer */
   emu->r = video_create_renderer(emu->host);
   emu->imgui = imgui_create(emu->r);
   emu->mp = mp_create(emu->r);
-
-  /* create video renderer */
-  if (emu->multi_threaded) {
-    emu->pending_mutex = mutex_create();
-    emu->pending_cond = cond_create();
-  }
-
-  emu->video_fb = r_create_framebuffer(emu->r, emu->video_width,
-                                       emu->video_height, &emu->video_tex);
-
-  /* startup video thread */
-  if (emu->multi_threaded) {
-    emu->video_thread = thread_create(&emu_video_thread, NULL, emu);
-    CHECK_NOTNULL(emu->video_thread);
-  }
 }
 
 static void emu_host_resized(void *userdata) {
@@ -735,45 +474,212 @@ static void emu_host_resized(void *userdata) {
 
   emu->video_width = video_width(emu->host);
   emu->video_height = video_height(emu->host);
-  emu->video_resized = 1;
 }
 
-void emu_run_frame(struct emu *emu) {
-  static const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
+/*
+ * frame running logic
+ */
+static void emu_run_frame(struct emu *emu);
 
-  /* unbind the video context, making it available for the video thread */
-  if (emu->multi_threaded) {
-    video_unbind_context(emu->host);
+static void *emu_run_thread(void *data) {
+  struct emu *emu = data;
+
+  while (1) {
+    /* wait for video thread to request a frame to be ran */
+    {
+      mutex_lock(emu->run_mutex);
+
+      while (emu->state == EMU_WAITING) {
+        cond_wait(emu->run_cond, emu->run_mutex);
+      }
+
+      if (emu->state == EMU_SHUTDOWN) {
+        break;
+      }
+
+      emu_run_frame(emu);
+
+      emu->state = EMU_WAITING;
+
+      mutex_unlock(emu->run_mutex);
+    }
+
+    /* in case no context was submitted before the frame end, signal the video
+       thread to continue, reusing the previous context */
+    {
+      mutex_lock(emu->frame_mutex);
+
+      cond_signal(emu->frame_cond);
+
+      mutex_unlock(emu->frame_mutex);
+    }
   }
 
-  /* run dreamcast up until its next vblank */
+  return NULL;
+}
+
+static void emu_debug_menu(struct emu *emu) {
+#if ENABLE_IMGUI
+  if (!emu->debug_menu) {
+    return;
+  }
+
+  imgui_begin_frame(emu->imgui);
+
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("DEBUG", 1)) {
+      if (igMenuItem("frame stats", NULL, emu->frame_stats, 1)) {
+        emu->frame_stats = !emu->frame_stats;
+      }
+
+      if (!emu->trace_writer && igMenuItem("start trace", NULL, 0, 1)) {
+        emu_start_tracing(emu);
+      }
+      if (emu->trace_writer && igMenuItem("stop trace", NULL, 1, 1)) {
+        emu_stop_tracing(emu);
+      }
+
+      if (igMenuItem("clear texture cache", NULL, 0, 1)) {
+        emu_dirty_textures(emu);
+      }
+
+      igEndMenu();
+    }
+
+    igEndMainMenuBar();
+  }
+
+  bios_debug_menu(emu->dc->bios);
+  holly_debug_menu(emu->dc->holly);
+  aica_debug_menu(emu->dc->aica);
+  sh4_debug_menu(emu->dc->sh4);
+
+  /* add status */
+  if (igBeginMainMenuBar()) {
+    char status[128];
+    int frames = (int)prof_counter_load(COUNTER_frames);
+    int ta_renders = (int)prof_counter_load(COUNTER_ta_renders);
+    int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
+    int sh4_instrs = (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
+    int arm7_instrs =
+        (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
+
+    snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
+             frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
+
+    /* right align */
+    struct ImVec2 content;
+    struct ImVec2 size;
+    igGetContentRegionMax(&content);
+    igCalcTextSize(&size, status, NULL, 0, 0.0f);
+    igSetCursorPosX(content.x - size.x);
+    igText(status);
+
+    igEndMainMenuBar();
+  }
+
+  if (emu->frame_stats) {
+    if (igBegin("frame stats", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+      /* frame times */
+      {
+        struct ImVec2 graph_size = {300.0f, 50.0f};
+        int num_frame_times = array_size(emu->frame_times);
+
+        float min_time = FLT_MAX;
+        float max_time = -FLT_MAX;
+        float avg_time = 0.0f;
+        for (int i = 0; i < num_frame_times; i++) {
+          float time = emu->frame_times[i];
+          min_time = MIN(min_time, time);
+          max_time = MAX(max_time, time);
+          avg_time += time;
+        }
+        avg_time /= num_frame_times;
+
+        igValueFloat("min time", min_time, "%.2f");
+        igValueFloat("max time", max_time, "%.2f");
+        igValueFloat("avg time", avg_time, "%.2f");
+        igPlotLines("", emu->frame_times, num_frame_times,
+                    emu->frame % num_frame_times, NULL, 0.0f, 60.0f, graph_size,
+                    sizeof(float));
+      }
+
+      igEnd();
+    }
+  }
+#endif
+}
+
+static void emu_run_frame(struct emu *emu) {
+  const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
   unsigned start_frame = emu->frame;
+
+  /* run up to the next vblank */
   while (emu->frame == start_frame) {
     dc_tick(emu->dc, MACHINE_STEP);
   }
+}
 
-  /* ensure the video thread is done rendering */
+void emu_render_frame(struct emu *emu) {
+  prof_counter_add(COUNTER_frames, 1);
+
+  r_viewport(emu->r, emu->video_width, emu->video_height);
+
   if (emu->multi_threaded) {
-    mutex_lock(emu->pending_mutex);
-    mutex_unlock(emu->pending_mutex);
+    /* tell the emulation thread to run the next frame */
+    {
+      mutex_lock(emu->run_mutex);
+
+      /* build the debug menus before running the frame, while the two threads
+         are synchronized */
+      emu_debug_menu(emu);
+
+      emu->state = EMU_RUNFRAME;
+      cond_signal(emu->run_cond);
+
+      mutex_unlock(emu->run_mutex);
+    }
+
+    /* wait for the emulation thread to submit a context */
+    {
+      mutex_lock(emu->frame_mutex);
+
+      while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
+        cond_wait(emu->frame_cond, emu->frame_mutex);
+      }
+
+      /* if a context was submitted before the vblank, convert it and upload
+         its textures to the render backend */
+      if (emu->pending_ctx) {
+        tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
+                           &emu->pending_rc);
+        emu->pending_ctx = NULL;
+      }
+
+      /* unblock the emulation thread */
+      mutex_unlock(emu->frame_mutex);
+    }
+
+    /* render the latest context. note, the emulation thread may still be
+       running at this time */
+    tr_render_context(emu->r, &emu->pending_rc);
+  } else {
+    emu_debug_menu(emu);
+    emu_run_frame(emu);
   }
 
-  /* render the latest frame */
+  /* render imgui / microprofile on top of the guest frame */
   int64_t now = time_nanoseconds();
 
-  if (emu->multi_threaded) {
-    video_bind_context(emu->host, emu->r);
-  }
-
-  prof_update(now);
-  emu_paint(emu);
+  prof_flip(now);
+  imgui_render(emu->imgui);
+  mp_render(emu->mp);
 
   if (emu->last_paint) {
     float frame_time_ms = (float)(now - emu->last_paint) / 1000000.0f;
     int num_frame_times = array_size(emu->frame_times);
     emu->frame_times[emu->frame % num_frame_times] = frame_time_ms;
   }
-
   emu->last_paint = now;
 }
 
@@ -788,6 +694,21 @@ int emu_load_game(struct emu *emu, const char *path) {
 }
 
 void emu_destroy(struct emu *emu) {
+  /* shutdown the emulation thread */
+  if (emu->multi_threaded) {
+    {
+      mutex_lock(emu->run_mutex);
+
+      emu->state = EMU_SHUTDOWN;
+      cond_signal(emu->run_cond);
+
+      mutex_unlock(emu->run_mutex);
+    }
+
+    void *result;
+    thread_join(emu->run_thread, &result);
+  }
+
   emu_stop_tracing(emu);
 
   dc_destroy(emu->dc);
@@ -805,7 +726,6 @@ struct emu *emu_create(struct host *host) {
   /* setup host, bind event callbacks */
   emu->host = host;
   emu->host->userdata = emu;
-  emu->host->video_resized = &emu_host_resized;
   emu->host->video_context_reset = &emu_host_context_reset;
   emu->host->video_context_destroyed = &emu_host_context_destroyed;
   emu->host->input_keydown = &emu_host_keydown;
@@ -820,13 +740,28 @@ struct emu *emu_create(struct host *host) {
   emu->dc->vertical_blank = &emu_guest_vertical_blank;
   emu->dc->poll_input = &emu_guest_poll_input;
 
-  /* start up secondary video thread */
-  emu->multi_threaded = video_supports_multiple_threads(emu->host);
+  /* add all textures to free list by default */
+  for (int i = 0; i < array_size(emu->textures); i++) {
+    struct emu_texture *tex = &emu->textures[i];
+    list_add(&emu->free_textures, &tex->free_it);
+  }
 
   /* enable debug menu by default */
   emu->debug_menu = 1;
 
-  emu_init_textures(emu);
+  /* enable the cpu / gpu to be emulated in parallel */
+  emu->multi_threaded = 1;
+
+  if (emu->multi_threaded) {
+    emu->state = EMU_WAITING;
+    emu->run_mutex = mutex_create();
+    emu->run_cond = cond_create();
+    emu->frame_mutex = mutex_create();
+    emu->frame_cond = cond_create();
+
+    emu->run_thread = thread_create(&emu_run_thread, NULL, emu);
+    CHECK_NOTNULL(emu->run_thread);
+  }
 
   return emu;
 }

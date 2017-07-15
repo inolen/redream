@@ -8,7 +8,6 @@ struct host;
 typedef void *video_context_t;
 typedef unsigned framebuffer_handle_t;
 typedef unsigned texture_handle_t;
-typedef void *sync_handle_t;
 
 enum pxl_format {
   PXL_INVALID,
@@ -130,14 +129,6 @@ void r_destroy(struct render_backend *r);
 
 video_context_t r_context(struct render_backend *r);
 
-framebuffer_handle_t r_get_framebuffer(struct render_backend *r);
-framebuffer_handle_t r_create_framebuffer(struct render_backend *r, int width,
-                                          int height,
-                                          texture_handle_t *color_componet);
-void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle);
-void r_destroy_framebuffer(struct render_backend *r,
-                           framebuffer_handle_t handle);
-
 texture_handle_t r_create_texture(struct render_backend *r,
                                   enum pxl_format format,
                                   enum filter_mode filter,
@@ -145,10 +136,6 @@ texture_handle_t r_create_texture(struct render_backend *r,
                                   int mipmaps, int width, int height,
                                   const uint8_t *buffer);
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle);
-
-sync_handle_t r_insert_sync(struct render_backend *r);
-void r_wait_sync(struct render_backend *r, sync_handle_t handle);
-void r_destroy_sync(struct render_backend *r, sync_handle_t handle);
 
 void r_viewport(struct render_backend *r, int width, int height);
 int r_viewport_width(struct render_backend *r);

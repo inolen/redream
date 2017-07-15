@@ -93,24 +93,12 @@ void audio_push(struct host *base, const int16_t *data, int frames) {
 /*
  * video
  */
-void video_unbind_context(struct host *host) {
-  CHECK(0);
-}
-
-void video_bind_context(struct host *base, struct render_backend *r) {
-  CHECK(0);
-}
-
 void video_destroy_renderer(struct host *base, struct render_backend *r) {
   r_destroy(r);
 }
 
 struct render_backend *video_create_renderer(struct host *base) {
   return r_create(NULL);
-}
-
-int video_supports_multiple_threads(struct host *host) {
-  return 0;
 }
 
 int video_height(struct host *base) {
@@ -282,7 +270,7 @@ void retro_run() {
   uintptr_t fb = hw_render.get_current_framebuffer();
   glBindFramebuffer(GL_FRAMEBUFFER, fb);
 
-  emu_run_frame(g_emu);
+  emu_render_frame(g_emu);
 
   /* call back into retroarch, letting it know a frame has been rendered */
   video_cb(RETRO_HW_FRAME_BUFFER_VALID, VIDEO_WIDTH, VIDEO_HEIGHT, 0);

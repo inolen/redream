@@ -263,21 +263,6 @@ static video_context_t video_gl_create_context(struct sdl_host *host) {
   return (video_context_t)ctx;
 }
 
-void video_unbind_context(struct host *base) {
-  struct sdl_host *host = (struct sdl_host *)base;
-
-  int res = SDL_GL_MakeCurrent(host->win, NULL);
-  CHECK_EQ(res, 0, "video_unbind_context failed: %s", SDL_GetError());
-}
-
-void video_bind_context(struct host *base, struct render_backend *r) {
-  struct sdl_host *host = (struct sdl_host *)base;
-  video_context_t ctx = r_context(r);
-
-  int res = SDL_GL_MakeCurrent(host->win, ctx);
-  CHECK_EQ(res, 0, "video_bind_context failed: %s", SDL_GetError());
-}
-
 void video_destroy_renderer(struct host *base, struct render_backend *r) {
   video_context_t ctx = r_context(r);
   r_destroy(r);
@@ -288,10 +273,6 @@ struct render_backend *video_create_renderer(struct host *base) {
   struct sdl_host *host = (struct sdl_host *)base;
   video_context_t ctx = video_gl_create_context(host);
   return r_create(ctx);
-}
-
-int video_supports_multiple_threads(struct host *host) {
-  return 1;
 }
 
 int video_height(struct host *base) {
@@ -833,7 +814,7 @@ int main(int argc, char **argv) {
       while (!g_host->closed) {
         host_poll_events(g_host);
 
-        tracer_run_frame(tracer);
+        tracer_render_frame(tracer);
 
         host_swap_window(g_host);
       }
@@ -860,7 +841,7 @@ int main(int argc, char **argv) {
           continue;
         }
 
-        emu_run_frame(emu);
+        emu_render_frame(emu);
 
         host_swap_window(g_host);
       }

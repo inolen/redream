@@ -629,13 +629,13 @@ static void tracer_input_keydown(void *data, int port, enum keycode key,
   }
 }
 
-void tracer_run_frame(struct tracer *tracer) {
+void tracer_render_frame(struct tracer *tracer) {
   int width = video_width(tracer->host);
   int height = video_height(tracer->host);
 
   r_viewport(tracer->r, width, height);
 
-  imgui_update_input(tracer->imgui);
+  imgui_begin_frame(tracer->imgui);
 
   /* build ui */
   tracer_render_side_menu(tracer);

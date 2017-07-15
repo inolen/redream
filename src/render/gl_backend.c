@@ -51,12 +51,6 @@ struct shader_program {
   uint64_t uniform_token;
 };
 
-struct framebuffer {
-  GLuint fbo;
-  GLuint color_texture;
-  GLuint depth_buffer;
-};
-
 struct texture {
   GLuint texture;
 };
@@ -87,7 +81,6 @@ struct render_backend {
      TODO the textures / framebuffers arrays exist purely for cleanup purposes,
      it'd be nice to replace with a hashtable to avoid O(n) reverse lookup */
   struct texture textures[MAX_TEXTURES];
-  struct framebuffer framebuffers[MAX_FRAMEBUFFERS];
 
   /* surface render state */
   GLuint ta_vao;
@@ -650,26 +643,6 @@ void r_viewport(struct render_backend *r, int width, int height) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void r_destroy_sync(struct render_backend *r, sync_handle_t handle) {
-  GLsync sync = handle;
-  DCHECK(glIsSync(sync));
-
-  glDeleteSync(sync);
-}
-
-void r_wait_sync(struct render_backend *r, sync_handle_t handle) {
-  GLsync sync = handle;
-  DCHECK(glIsSync(sync));
-
-  glWaitSync(sync, 0, GL_TIMEOUT_IGNORED);
-}
-
-sync_handle_t r_insert_sync(struct render_backend *r) {
-  GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-  glFlush();
-  return sync;
-}
-
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle) {
   /* lookup texture entry
      FIXME need common hashtable */
@@ -745,89 +718,6 @@ texture_handle_t r_create_texture(struct render_backend *r,
   glBindTexture(GL_TEXTURE_2D, 0);
 
   return tex->texture;
-}
-
-void r_destroy_framebuffer(struct render_backend *r,
-                           framebuffer_handle_t handle) {
-  /* lookup framebuffer entry */
-  int entry;
-  for (entry = 0; entry < MAX_FRAMEBUFFERS; entry++) {
-    struct framebuffer *fb = &r->framebuffers[entry];
-    if (fb->fbo == handle) {
-      break;
-    }
-  }
-  CHECK_LT(entry, MAX_FRAMEBUFFERS);
-
-  struct framebuffer *fb = &r->framebuffers[entry];
-
-  glDeleteTextures(1, &fb->color_texture);
-  fb->color_texture = 0;
-
-  glDeleteRenderbuffers(1, &fb->depth_buffer);
-  fb->depth_buffer = 0;
-
-  glDeleteFramebuffers(1, &fb->fbo);
-  fb->fbo = 0;
-}
-
-void r_bind_framebuffer(struct render_backend *r, framebuffer_handle_t handle) {
-  glBindFramebuffer(GL_FRAMEBUFFER, handle);
-}
-
-framebuffer_handle_t r_create_framebuffer(struct render_backend *r, int width,
-                                          int height,
-                                          texture_handle_t *color_texture) {
-  /* find next open framebuffer handle */
-  int entry;
-  for (entry = 0; entry < MAX_FRAMEBUFFERS; entry++) {
-    struct framebuffer *fb = &r->framebuffers[entry];
-    if (!fb->fbo) {
-      break;
-    }
-  }
-  CHECK_LT(entry, MAX_FRAMEBUFFERS);
-
-  struct framebuffer *fb = &r->framebuffers[entry];
-
-  /* create color component */
-  glGenTextures(1, &fb->color_texture);
-  glBindTexture(GL_TEXTURE_2D, fb->color_texture);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
-               GL_UNSIGNED_BYTE, 0);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  /* create depth component */
-  glGenRenderbuffers(1, &fb->depth_buffer);
-  glBindRenderbuffer(GL_RENDERBUFFER, fb->depth_buffer);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
-  glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-  /* create fbo */
-  glGenFramebuffers(1, &fb->fbo);
-  glBindFramebuffer(GL_FRAMEBUFFER, fb->fbo);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         fb->color_texture, 0);
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                            GL_RENDERBUFFER, fb->depth_buffer);
-
-  GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-  CHECK_EQ(status, GL_FRAMEBUFFER_COMPLETE);
-
-  /* switch back to default framebuffer */
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-  *color_texture = fb->color_texture;
-
-  return fb->fbo;
-}
-
-framebuffer_handle_t r_get_framebuffer(struct render_backend *r) {
-  GLint result;
-  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &result);
-  return result;
 }
 
 video_context_t r_context(struct render_backend *r) {

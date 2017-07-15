@@ -47,10 +47,6 @@ int64_t prof_counter_load(prof_token_t tok);
 void prof_counter_add(prof_token_t tok, int64_t count);
 void prof_counter_set(prof_token_t tok, int64_t count);
 
-/* called periodically to aggregate time-based aggregate counters */
-void prof_update(int64_t now);
-
-/* called at the end of every frame to aggregate frame-based profile zones */
-void prof_flip();
+void prof_flip(int64_t now);
 
 #endif

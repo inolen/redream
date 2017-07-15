@@ -67,7 +67,7 @@ extern "C" void imgui_render(struct imgui *imgui) {
 #endif
 }
 
-extern "C" void imgui_update_input(struct imgui *imgui) {
+extern "C" void imgui_begin_frame(struct imgui *imgui) {
 #if ENABLE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 

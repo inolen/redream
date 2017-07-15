@@ -26,13 +26,8 @@ void audio_push(struct host *host, const int16_t *data, int frames);
 int video_width(struct host *host);
 int video_height(struct host *host);
 
-int video_supports_multiple_threads(struct host *host);
-
 struct render_backend *video_create_renderer(struct host *host);
 void video_destroy_renderer(struct host *host, struct render_backend *r);
-
-void video_bind_context(struct host *host, struct render_backend *r);
-void video_unbind_context(struct host *host);
 
 /* input */
 void input_poll(struct host *host);
