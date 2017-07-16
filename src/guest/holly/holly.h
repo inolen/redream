@@ -9,6 +9,16 @@ struct gdrom;
 struct maple;
 struct sh4;
 
+#define HOLLY_G2_NUM_CHAN 4
+#define HOLLY_G2_NUM_REGS 8
+
+struct holly_g2_dma {
+  uint32_t dst;
+  uint32_t src;
+  int restart;
+  int len;
+};
+
 struct holly {
   struct device;
   uint32_t reg[NUM_HOLLY_REGS];
@@ -16,6 +26,8 @@ struct holly {
 #define HOLLY_REG(offset, name, default, type) type *name;
 #include "guest/holly/holly_regs.inc"
 #undef HOLLY_REG
+
+  struct holly_g2_dma dma[HOLLY_G2_NUM_CHAN];
 
   /* debug */
   int log_reg_access;

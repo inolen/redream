@@ -6,6 +6,12 @@
 #include "guest/sh4/sh4.h"
 #include "render/imgui.h"
 
+#if 0
+#define LOG_HOLLY LOG_INFO
+#else
+#define LOG_HOLLY(...)
+#endif
+
 struct reg_cb holly_cb[NUM_HOLLY_REGS];
 
 /*
@@ -148,24 +154,38 @@ static void holly_maple_dma(struct holly *hl) {
  * g2 dma
  */
 
-/* clang-format off */
-struct g2_channel_desc {
-  int STAG, STAR, LEN, DIR, TSEL, EN, ST, SUSP;
-  holly_interrupt_t INTR;
-};
+#define SB_STAG(ch) (hl->SB_ADSTAG + ((ch)*HOLLY_G2_NUM_REGS))
+#define SB_STAR(ch) (hl->SB_ADSTAR + ((ch)*HOLLY_G2_NUM_REGS))
+#define SB_LEN(ch) (hl->SB_ADLEN + ((ch)*HOLLY_G2_NUM_REGS))
+#define SB_DIR(ch) (hl->SB_ADDIR + ((ch)*HOLLY_G2_NUM_REGS))
+#define SB_TSEL(ch) (hl->SB_ADTSEL + ((ch)*HOLLY_G2_NUM_REGS))
+#define SB_EN(ch) (hl->SB_ADEN + ((ch)*HOLLY_G2_NUM_REGS))
+#define SB_ST(ch) (hl->SB_ADST + ((ch)*HOLLY_G2_NUM_REGS))
+#define SB_SUSP(ch) (hl->SB_ADSUSP + ((ch)*HOLLY_G2_NUM_REGS))
+#define HOLLY_INT_G2INT(ch) HOLLY_INTERRUPT(HOLLY_INT_NRM, (0x8000 << ch))
 
-static struct g2_channel_desc g2_channels[] = {
-    {SB_ADSTAG, SB_ADSTAR, SB_ADLEN, SB_ADDIR, SB_ADTSEL, SB_ADEN, SB_ADST, SB_ADSUSP, HOLLY_INT_G2DEAINT},
-    {SB_E1STAG, SB_E1STAR, SB_E1LEN, SB_E1DIR, SB_E1TSEL, SB_E1EN, SB_E1ST, SB_E1SUSP, HOLLY_INT_G2DE1INT},
-    {SB_E2STAG, SB_E2STAR, SB_E2LEN, SB_E2DIR, SB_E2TSEL, SB_E2EN, SB_E2ST, SB_E2SUSP, HOLLY_INT_G2DE2INT},
-    {SB_DDSTAG, SB_DDSTAR, SB_DDLEN, SB_DDDIR, SB_DDTSEL, SB_DDEN, SB_DDST, SB_DDSUSP, HOLLY_INT_G2DEDINT},
-};
+static void (*g2_timers[])(void *);
 
-#define DEFINE_G2_DMA_TIMER(channel)                       \
-  static void holly_g2_dma_timer_ch##channel(void *data) { \
-    struct holly *hl = data;                               \
-    struct g2_channel_desc *desc = &g2_channels[channel];  \
-    holly_raise_interrupt(hl, desc->INTR);                 \
+#define DEFINE_G2_DMA_TIMER(ch)                                       \
+  static void holly_g2_dma_timer_channel##ch(void *data) {            \
+    struct holly *hl = data;                                          \
+    struct holly_g2_dma *dma = &hl->dma[ch];                          \
+    struct address_space *space = hl->sh4->memory_if->space;          \
+    int chunk_size = 0x1000;                                          \
+    int n = MIN(dma->len, chunk_size);                                \
+    as_memcpy(space, dma->dst, dma->src, n);                          \
+    dma->dst += n;                                                    \
+    dma->src += n;                                                    \
+    dma->len -= n;                                                    \
+    if (!dma->len) {                                                  \
+      *SB_EN(ch) = dma->restart;                                      \
+      *SB_ST(ch) = 0;                                                 \
+      holly_raise_interrupt(hl, HOLLY_INT_G2INT(ch));                 \
+      return;                                                         \
+    }                                                                 \
+    /* g2 bus runs at 16-bits x 25mhz, loosely simulate this */       \
+    int64_t end = CYCLES_TO_NANO(chunk_size / 2, UINT64_C(25000000)); \
+    scheduler_start_timer(hl->scheduler, g2_timers[ch], hl, end);     \
   }
 
 DEFINE_G2_DMA_TIMER(0);
@@ -174,62 +194,42 @@ DEFINE_G2_DMA_TIMER(2);
 DEFINE_G2_DMA_TIMER(3);
 
 static void (*g2_timers[])(void *) = {
-  &holly_g2_dma_timer_ch0,
-  &holly_g2_dma_timer_ch1,
-  &holly_g2_dma_timer_ch2,
-  &holly_g2_dma_timer_ch3,
+    &holly_g2_dma_timer_channel0, &holly_g2_dma_timer_channel1,
+    &holly_g2_dma_timer_channel2, &holly_g2_dma_timer_channel3,
 };
-/* clang-format on */
 
-static void holly_g2_dma_suspend(struct holly *hl, int channel) {
-  struct g2_channel_desc *desc = &g2_channels[channel];
-
-  if (!hl->reg[desc->EN] || !hl->reg[desc->ST]) {
+static void holly_g2_dma_suspend(struct holly *hl, int ch) {
+  if (!*SB_EN(ch) || !*SB_ST(ch)) {
     return;
   }
 
-  LOG_FATAL("holly_g2_dma_suspend not supported");
+  /* FIXME this occurs because the scheduler code isn't accurate for timers
+     created in the middle of executing a time slice. ignoring them seems
+     safe for now */
+  LOG_HOLLY("holly_g2_dma_suspend ignored");
 }
 
-static void holly_g2_dma(struct holly *hl, int channel) {
-  struct g2_channel_desc *desc = &g2_channels[channel];
-
-  if (!hl->reg[desc->EN]) {
-    hl->reg[desc->ST] = 0;
+static void holly_g2_dma(struct holly *hl, int ch) {
+  if (!*SB_EN(ch)) {
+    *SB_ST(ch) = 0;
     return;
   }
 
-  struct address_space *space = hl->sh4->memory_if->space;
-  uint32_t len = hl->reg[desc->LEN];
-  int restart = (len >> 31) == 0;
-  int transfer_size = len & 0x7fffffff;
-  int remaining = transfer_size;
-  uint32_t src = hl->reg[desc->STAR];
-  uint32_t dst = hl->reg[desc->STAG];
-
   /* only sh4 -> g2 supported for now */
-  CHECK_EQ(hl->reg[desc->DIR], 0);
+  CHECK_EQ(*SB_DIR(ch), 0);
 
-  /* perform the DMA immediately, but don't raise the end of DMA interrupt until
-     the DMA should actually end. this hopefully fixes issues in games which
-     break when DMAs end immediately, without having to actually emulate the
-     16-bit x 25mhz g2 bus transfer */
-  while (remaining) {
-    as_write32(space, dst, as_read32(space, src));
-    remaining -= 4;
-    src += 4;
-    dst += 4;
-  }
+  /* latch register state */
+  struct holly_g2_dma *dma = &hl->dma[ch];
+  dma->dst = *SB_STAG(ch);
+  dma->src = *SB_STAR(ch);
+  dma->restart = (*SB_LEN(ch) & 0x80000000) == 0;
+  dma->len = (*SB_LEN(ch) & 0x7fffffff);
 
-  /* the status registers need to be updated immediately as well. if they're not
-     updated until the interrupt is raised, the DMA functions used by games will
-     try to suspend the transfer due to a lack of progress */
-  hl->reg[desc->LEN] = 0;
-  hl->reg[desc->EN] = restart;
-  hl->reg[desc->ST] = 0;
+  LOG_HOLLY("holly_g2_dma dst=0x%08x src=0x%08x len=0x%08x", dma->dst, dma->src,
+            dma->len);
 
-  int64_t end = CYCLES_TO_NANO(transfer_size / 2, UINT64_C(25000000));
-  scheduler_start_timer(hl->scheduler, g2_timers[channel], hl, end);
+  /* kick off async dma */
+  g2_timers[ch](hl);
 }
 
 static void holly_update_interrupts(struct holly *hl) {
@@ -550,9 +550,9 @@ REG_W32(holly_cb, SB_ADST) {
 REG_W32(holly_cb, SB_ADSUSP) {
   struct holly *hl = dc->holly;
 
-  hl->SB_ADSUSP->full = value;
+  int suspend = value & 0x1;
 
-  if (hl->SB_ADTSEL->susp && hl->SB_ADSUSP->susp) {
+  if (hl->SB_ADTSEL->susp && suspend) {
     holly_g2_dma_suspend(hl, 0);
   }
 }
@@ -565,6 +565,24 @@ REG_W32(holly_cb, SB_ADTSEL) {
   if (hl->SB_ADTSEL->hw) {
     LOG_FATAL("hardware DMA trigger not supported");
   }
+}
+
+REG_R32(holly_cb, SB_ADSTAGD) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[0];
+  return dma->dst;
+}
+
+REG_R32(holly_cb, SB_ADSTARD) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[0];
+  return dma->src;
+}
+
+REG_R32(holly_cb, SB_ADLEND) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[0];
+  return dma->len;
 }
 
 REG_W32(holly_cb, SB_E1ST) {
@@ -581,9 +599,9 @@ REG_W32(holly_cb, SB_E1ST) {
 REG_W32(holly_cb, SB_E1SUSP) {
   struct holly *hl = dc->holly;
 
-  hl->SB_E1SUSP->full = value;
+  int suspend = value & 0x1;
 
-  if (hl->SB_E1TSEL->susp && hl->SB_E1SUSP->susp) {
+  if (hl->SB_E1TSEL->susp && suspend) {
     holly_g2_dma_suspend(hl, 1);
   }
 }
@@ -596,6 +614,24 @@ REG_W32(holly_cb, SB_E1TSEL) {
   if (hl->SB_E1TSEL->hw) {
     LOG_FATAL("hardware DMA trigger not supported");
   }
+}
+
+REG_R32(holly_cb, SB_E1STAGD) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[1];
+  return dma->dst;
+}
+
+REG_R32(holly_cb, SB_E1STARD) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[1];
+  return dma->src;
+}
+
+REG_R32(holly_cb, SB_E1LEND) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[1];
+  return dma->len;
 }
 
 REG_W32(holly_cb, SB_E2ST) {
@@ -612,9 +648,9 @@ REG_W32(holly_cb, SB_E2ST) {
 REG_W32(holly_cb, SB_E2SUSP) {
   struct holly *hl = dc->holly;
 
-  hl->SB_E2SUSP->full = value;
+  int suspend = value & 0x1;
 
-  if (hl->SB_E2TSEL->susp && hl->SB_E2SUSP->susp) {
+  if (hl->SB_E2TSEL->susp && suspend) {
     holly_g2_dma_suspend(hl, 2);
   }
 }
@@ -627,6 +663,24 @@ REG_W32(holly_cb, SB_E2TSEL) {
   if (hl->SB_E2TSEL->hw) {
     LOG_FATAL("hardware DMA trigger not supported");
   }
+}
+
+REG_R32(holly_cb, SB_E2STAGD) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[2];
+  return dma->dst;
+}
+
+REG_R32(holly_cb, SB_E2STARD) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[2];
+  return dma->src;
+}
+
+REG_R32(holly_cb, SB_E2LEND) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[2];
+  return dma->len;
 }
 
 REG_W32(holly_cb, SB_DDST) {
@@ -643,9 +697,9 @@ REG_W32(holly_cb, SB_DDST) {
 REG_W32(holly_cb, SB_DDSUSP) {
   struct holly *hl = dc->holly;
 
-  hl->SB_DDSUSP->full = value;
+  int suspend = value & 0x1;
 
-  if (hl->SB_DDTSEL->susp && hl->SB_DDSUSP->susp) {
+  if (hl->SB_DDTSEL->susp && suspend) {
     holly_g2_dma_suspend(hl, 3);
   }
 }
@@ -658,6 +712,24 @@ REG_W32(holly_cb, SB_DDTSEL) {
   if (hl->SB_DDTSEL->hw) {
     LOG_FATAL("hardware DMA trigger not supported");
   }
+}
+
+REG_R32(holly_cb, SB_DDSTAGD) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[3];
+  return dma->dst;
+}
+
+REG_R32(holly_cb, SB_DDSTARD) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[3];
+  return dma->src;
+}
+
+REG_R32(holly_cb, SB_DDLEND) {
+  struct holly *hl = dc->holly;
+  struct holly_g2_dma *dma = &hl->dma[3];
+  return dma->len;
 }
 
 REG_W32(holly_cb, SB_PDST) {
