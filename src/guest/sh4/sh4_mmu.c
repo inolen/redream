@@ -31,7 +31,7 @@ static void sh4_mmu_utlb_sync(struct sh4 *sh4, struct sh4_tlb_entry *entry) {
 
     LOG_INFO("sh4_mmu_utlb_sync sq map (%d) 0x%x -> 0x%x", n, vpn, ppn);
   } else {
-    LOG_FATAL("sh4_mmu_utlb_sync memory mapping not supported");
+    LOG_WARNING("sh4_mmu_utlb_sync memory mapping not supported");
   }
 }
 
