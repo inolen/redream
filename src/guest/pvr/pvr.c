@@ -14,8 +14,21 @@ static void pvr_next_scanline(void *data) {
   struct pvr *pvr = data;
 
   uint32_t num_lines = pvr->SPG_LOAD->vcount + 1;
-  if (pvr->current_line > num_lines) {
-    pvr->current_line = 0;
+  pvr->current_line = (pvr->current_line + 1) % num_lines;
+
+  /* hblank in */
+  switch (pvr->SPG_HBLANK_INT->hblank_int_mode) {
+    case 0x0:
+      if (pvr->current_line == pvr->SPG_HBLANK_INT->line_comp_val) {
+        holly_raise_interrupt(pvr->holly, HOLLY_INT_PCHIINT);
+      }
+      break;
+    case 0x2:
+      holly_raise_interrupt(pvr->holly, HOLLY_INT_PCHIINT);
+      break;
+    default:
+      LOG_FATAL("unsupported hblank interrupt mode");
+      break;
   }
 
   /* vblank in */
@@ -28,9 +41,6 @@ static void pvr_next_scanline(void *data) {
     holly_raise_interrupt(pvr->holly, HOLLY_INT_PCVOINT);
   }
 
-  /* hblank in */
-  holly_raise_interrupt(pvr->holly, HOLLY_INT_PCHIINT);
-
   int was_vsync = pvr->SPG_STATUS->vsync;
   if (pvr->SPG_VBLANK->vbstart < pvr->SPG_VBLANK->vbend) {
     pvr->SPG_STATUS->vsync = pvr->current_line >= pvr->SPG_VBLANK->vbstart &&
@@ -39,7 +49,7 @@ static void pvr_next_scanline(void *data) {
     pvr->SPG_STATUS->vsync = pvr->current_line >= pvr->SPG_VBLANK->vbstart ||
                              pvr->current_line < pvr->SPG_VBLANK->vbend;
   }
-  pvr->SPG_STATUS->scanline = pvr->current_line++;
+  pvr->SPG_STATUS->scanline = pvr->current_line;
 
   /* FIXME toggle SPG_STATUS.fieldnum on vblank? */
   if (!was_vsync && pvr->SPG_STATUS->vsync) {
