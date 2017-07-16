@@ -706,12 +706,10 @@ static void host_poll_events(struct sdl_host *host) {
       } break;
 
       case SDL_WINDOWEVENT:
-        switch (ev.window.event) {
-          case SDL_WINDOWEVENT_RESIZED: {
-            host->video_width = ev.window.data1;
-            host->video_height = ev.window.data2;
-            video_resized(host);
-          } break;
+        if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
+          host->video_width = ev.window.data1;
+          host->video_height = ev.window.data2;
+          video_resized(host);
         }
         break;
 

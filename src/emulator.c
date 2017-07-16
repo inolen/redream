@@ -726,6 +726,7 @@ struct emu *emu_create(struct host *host) {
   /* setup host, bind event callbacks */
   emu->host = host;
   emu->host->userdata = emu;
+  emu->host->video_resized = &emu_host_resized;
   emu->host->video_context_reset = &emu_host_context_reset;
   emu->host->video_context_destroyed = &emu_host_context_destroyed;
   emu->host->input_keydown = &emu_host_keydown;
