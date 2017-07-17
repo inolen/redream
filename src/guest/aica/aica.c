@@ -85,6 +85,8 @@ struct aica {
   struct timer *rtc_timer;
   int rtc_write;
   uint32_t rtc;
+  
+  void (*dsp_step)(struct aica*);
 
   /* there are 64 channels, each with 32 x 16-bit registers arranged on 32-bit
      boundaries. the arm7 will perform either 32-bit or 8-bit accesses to the
@@ -405,6 +407,32 @@ static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
   }
 }
 
+static uint32_t aica_dsp_reg_read(struct aica *aica, uint32_t addr,
+                                  uint32_t data_mask) {
+  return READ_DATA(&aica->reg[addr]);
+}
+
+static void dsp_run(struct aica *aica) {
+
+}
+
+static void dsp_compile(struct aica *aica) {
+  aica->dsp_step = &dsp_run;
+  printf("Compiled DSP microcode\n");
+}
+
+static void aica_dsp_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
+                               uint32_t data_mask) {
+  //COEF : native
+  //MEMS : native
+  //MPRO : native
+  if (addr >= 0x3400 && addr < 0x3C00) {
+    aica->dsp_step = &dsp_compile;
+  }
+
+  WRITE_DATA(&aica->reg[addr]);
+}
+
 static void aica_rtc_timer(void *data) {
   struct aica *aica = data;
   aica->rtc++;
@@ -584,6 +612,9 @@ static void aica_generate_frames(struct aica *aica) {
       r += aica_adjust_channel_volume(ch, s);
     }
 
+    // DSP
+    aica->dsp_step(aica);
+
     l = aica_adjust_master_volume(aica, l);
     r = aica_adjust_master_volume(aica, r);
 
@@ -742,6 +773,8 @@ uint32_t aica_reg_read(struct aica *aica, uint32_t addr, uint32_t data_mask) {
     return aica_channel_reg_read(aica, addr, data_mask);
   } else if (addr >= 0x2800 && addr < 0x2d08) {
     return aica_common_reg_read(aica, addr - 0x2800, data_mask);
+  } else if (addr >= 0x3000 && addr < 0x8000) {
+    return aica_dsp_reg_read(aica, addr, data_mask);
   } else if (addr >= 0x10000 && addr < 0x1000c) {
     return aica_rtc_reg_read(aica, addr - 0x10000, data_mask);
   }
@@ -756,7 +789,11 @@ void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
   } else if (addr >= 0x2800 && addr < 0x2d08) {
     aica_common_reg_write(aica, addr - 0x2800, data, data_mask);
     return;
-  } else if (addr >= 0x10000 && addr < 0x1000c) {
+  } else if (addr >= 0x3000 && addr < 0x8000) {
+    aica_dsp_reg_write(aica, addr, data, data_mask);
+    return;
+  }
+    else if (addr >= 0x10000 && addr < 0x1000c) {
     aica_rtc_reg_write(aica, addr - 0x10000, data, data_mask);
     return;
   }
@@ -827,7 +864,10 @@ static int aica_init(struct device *dev) {
     aica->rtc_timer = scheduler_start_timer(aica->scheduler, &aica_rtc_timer,
                                             aica, NS_PER_SEC);
   }
+  
+  /* init dsp */
 
+  aica->dsp_step = &dsp_compile;
   return 1;
 }
 
