@@ -307,7 +307,7 @@ static void x64_backend_label_name(char *name, size_t size,
 }
 
 static void x64_backend_emit_dispatch_epilogue(struct x64_backend *backend,
-                                      struct jit_block *block) {
+                                               struct jit_block *block) {
   auto &e = *backend->codegen;
 
   /* catch blocks that haven't been terminated */
@@ -315,7 +315,7 @@ static void x64_backend_emit_dispatch_epilogue(struct x64_backend *backend,
 }
 
 static void x64_backend_emit_dispatch_prologue(struct x64_backend *backend,
-                                      struct jit_block *block) {
+                                               struct jit_block *block) {
   struct jit *jit = backend->base.jit;
   struct jit_guest *guest = jit->guest;
 
@@ -337,7 +337,7 @@ static void x64_backend_emit_dispatch_prologue(struct x64_backend *backend,
 }
 
 static void x64_backend_emit_function_epilogue(struct x64_backend *backend,
-                                      struct jit_block *block) {
+                                               struct jit_block *block) {
   auto &e = *backend->codegen;
 
   /* destroy stack frame */
@@ -360,7 +360,7 @@ static void x64_backend_emit_function_epilogue(struct x64_backend *backend,
 }
 
 static void x64_backend_emit_function_prologue(struct x64_backend *backend,
-                                      struct jit_block *block) {
+                                               struct jit_block *block) {
   auto &e = *backend->codegen;
 
   /* save registers */
@@ -377,7 +377,6 @@ static void x64_backend_emit_function_prologue(struct x64_backend *backend,
 
   /* allocate stack frame*/
   e.sub(e.rsp, X64_STACK_SIZE + 8);
-
 }
 
 static void x64_backend_emit(struct x64_backend *backend,
@@ -391,9 +390,8 @@ static void x64_backend_emit(struct x64_backend *backend,
 
   if (abi == JIT_ABI_DISPATCH) {
     x64_backend_emit_dispatch_prologue(backend, block);
-  }
-  else {
-    x64_backend_emit_function_prologue(backend, block); 
+  } else {
+    x64_backend_emit_function_prologue(backend, block);
   }
 
   list_for_each_entry(blk, &ir->blocks, struct ir_block, it) {
@@ -419,15 +417,14 @@ static void x64_backend_emit(struct x64_backend *backend,
          the next pc, which has ideally been set by a non-branch operation such
          as a fallback handler */
       if (!terminated) {
-          e.jmp(backend->dispatch_dynamic);
+        e.jmp(backend->dispatch_dynamic);
       }
     }
   }
 
   if (abi == JIT_ABI_DISPATCH) {
     x64_backend_emit_function_epilogue(backend, block);
-  }
-  else {
+  } else {
     x64_backend_emit_function_epilogue(backend, block);
   }
 
@@ -659,7 +656,8 @@ static void x64_backend_dump_code(struct jit_backend *base,
 }
 
 static int x64_backend_assemble_code(struct jit_backend *base,
-                                     struct jit_block *block, struct ir *ir, int abi) {
+                                     struct jit_block *block, struct ir *ir,
+                                     int abi) {
   PROF_ENTER("cpu", "x64_backend_assemble_code");
 
   struct x64_backend *backend = container_of(base, struct x64_backend, base);

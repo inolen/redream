@@ -776,8 +776,7 @@ void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
   } else if (addr >= 0x3000 && addr < 0x8000) {
     aica_dsp_reg_write(aica, addr, data, data_mask);
     return;
-  }
-    else if (addr >= 0x10000 && addr < 0x1000c) {
+  } else if (addr >= 0x10000 && addr < 0x1000c) {
     aica_rtc_reg_write(aica, addr - 0x10000, data, data_mask);
     return;
   }
@@ -831,7 +830,7 @@ static int aica_init(struct device *dev) {
     }
     aica->common_data = (struct common_data *)(aica->reg + 0x2800);
     aica->dsp_data = (struct dsp_data *)(aica->reg + 0x3000);
-    
+
     aica->sample_timer =
         scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
                               HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_BATCH_SIZE));
@@ -850,10 +849,10 @@ static int aica_init(struct device *dev) {
     aica->rtc_timer = scheduler_start_timer(aica->scheduler, &aica_rtc_timer,
                                             aica, NS_PER_SEC);
   }
-  
+
   /* init dsp */
   aica_dsp_init(aica);
-  
+
   return 1;
 }
 
@@ -928,6 +927,5 @@ AM_BEGIN(struct aica, aica_data_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("aica wave ram")
 AM_END();
 /* clang-format on */
-
 
 #include "dsp.inl"

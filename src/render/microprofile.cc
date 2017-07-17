@@ -91,14 +91,15 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
   float fy2 = fy + (MICROPROFILE_TEXT_HEIGHT + 1);
   int text_len = static_cast<int>(strlen(text));
 
-  struct ui_vertex *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                                 mp->font_texture,
-                                                 BLEND_SRC_ALPHA,
-                                                 BLEND_ONE_MINUS_SRC_ALPHA,
-                                                 false,
-                                                 {0.0f, 0.0f, 0.0f, 0.0f},
-                                                 0,
-                                                 0},
+  struct ui_vertex *vertex = mp_alloc_verts(mp,
+                                            {PRIM_TRIANGLES,
+                                             mp->font_texture,
+                                             BLEND_SRC_ALPHA,
+                                             BLEND_ONE_MINUS_SRC_ALPHA,
+                                             false,
+                                             {0.0f, 0.0f, 0.0f, 0.0f},
+                                             0,
+                                             0},
                                             6 * text_len);
 
   for (int i = 0; i < text_len; i++) {
@@ -141,14 +142,15 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
 static void mp_draw_box(struct microprofile *mp, int x0, int y0, int x1, int y1,
                         uint32_t color, enum box_type type) {
 #if ENABLE_MICROPROFILE
-  struct ui_vertex *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
-                                                 0,
-                                                 BLEND_SRC_ALPHA,
-                                                 BLEND_ONE_MINUS_SRC_ALPHA,
-                                                 false,
-                                                 {0.0f, 0.0f, 0.0f, 0.0f},
-                                                 0,
-                                                 0},
+  struct ui_vertex *vertex = mp_alloc_verts(mp,
+                                            {PRIM_TRIANGLES,
+                                             0,
+                                             BLEND_SRC_ALPHA,
+                                             BLEND_ONE_MINUS_SRC_ALPHA,
+                                             false,
+                                             {0.0f, 0.0f, 0.0f, 0.0f},
+                                             0,
+                                             0},
                                             6);
 
   if (type == BOX_FLAT) {
@@ -202,14 +204,15 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
 #if ENABLE_MICROPROFILE
   CHECK(num_verts);
 
-  struct ui_vertex *vertex = mp_alloc_verts(mp, {PRIM_LINES,
-                                                 0,
-                                                 BLEND_SRC_ALPHA,
-                                                 BLEND_ONE_MINUS_SRC_ALPHA,
-                                                 false,
-                                                 {0.0f, 0.0f, 0.0f, 0.0f},
-                                                 0,
-                                                 0},
+  struct ui_vertex *vertex = mp_alloc_verts(mp,
+                                            {PRIM_LINES,
+                                             0,
+                                             BLEND_SRC_ALPHA,
+                                             BLEND_ONE_MINUS_SRC_ALPHA,
+                                             false,
+                                             {0.0f, 0.0f, 0.0f, 0.0f},
+                                             0,
+                                             0},
                                             2 * (num_verts - 1));
 
   for (int i = 0; i < num_verts - 1; ++i) {
