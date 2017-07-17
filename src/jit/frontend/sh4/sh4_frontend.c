@@ -174,7 +174,9 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
 
     /* stop emitting once a branch is hit and save off branch information */
     if (def->flags & SH4_FLAG_SET_PC) {
-      if (def->op == SH4_OP_BF) {
+      if (def->op == SH4_OP_INVALID) {
+        block->branch_type = JIT_BRANCH_DYNAMIC;
+      } else if (def->op == SH4_OP_BF) {
         uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
         block->branch_type = JIT_BRANCH_STATIC_FALSE;
         block->branch_addr = dest_addr;
@@ -222,7 +224,7 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
       } else if (def->op == SH4_OP_TRAPA) {
         block->branch_type = JIT_BRANCH_DYNAMIC;
       } else {
-        LOG_FATAL("unexpected branch op");
+        LOG_FATAL("unexpected branch op %d", def->op);
       }
 
       break;

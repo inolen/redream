@@ -222,11 +222,15 @@ static int bios_boot(struct bios *bios) {
 
   LOG_INFO("bios_boot using hle bootstrap");
 
+  /* get the session for the main data track */
+  struct gd_spi_session data_session;
+  gdrom_get_session(gd, 2, &data_session);
+  int data_fad = data_session.fad;
+
   /* load ip.bin bootstrap */
   {
-    int fad = 45150;
     int n = 16;
-    int r = gdrom_read_sectors(gd, fad, sector_fmt, sector_mask, n, tmp,
+    int r = gdrom_read_sectors(gd, data_fad, sector_fmt, sector_mask, n, tmp,
                                sizeof(tmp));
     if (!r) {
       return 0;
@@ -239,10 +243,9 @@ static int bios_boot(struct bios *bios) {
     static const char *bootfile = "1ST_READ.BIN";
 
     /* read primary volume descriptor */
-    int fad = 45150 + ISO_PVD_SECTOR;
     int n = 1;
-    int r = gdrom_read_sectors(gd, fad, sector_fmt, sector_mask, n, tmp,
-                               sizeof(tmp));
+    int r = gdrom_read_sectors(gd, data_fad + ISO_PVD_SECTOR, sector_fmt,
+                               sector_mask, n, tmp, sizeof(tmp));
     if (!r) {
       return 0;
     }
@@ -255,7 +258,7 @@ static int bios_boot(struct bios *bios) {
     /* check root directory for the bootfile */
     struct iso_dir *root = &pvd->root_directory_record;
     int len = align_up(root->size.le, sector_size);
-    fad = GDROM_PREGAP + root->extent.le;
+    int fad = GDROM_PREGAP + root->extent.le;
     n = len / sector_size;
     r = gdrom_read_sectors(gd, fad, sector_fmt, sector_mask, n, tmp,
                            sizeof(tmp));
