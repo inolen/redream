@@ -524,8 +524,6 @@ static void emu_debug_menu(struct emu *emu) {
     return;
   }
 
-  imgui_begin_frame(emu->imgui);
-
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("DEBUG", 1)) {
       if (igMenuItem("frame stats", NULL, emu->frame_stats, 1)) {
@@ -623,64 +621,86 @@ static void emu_run_frame(struct emu *emu) {
 void emu_render_frame(struct emu *emu) {
   prof_counter_add(COUNTER_frames, 1);
 
-  r_viewport(emu->r, emu->video_width, emu->video_height);
+  int frame_height = emu->video_height;
+  int frame_width = frame_height * (4.0f / 3.0f);
+  int frame_x = (emu->video_width - frame_width) / 2.0f;
+  int frame_y = 0;
 
-  if (emu->multi_threaded) {
-    /* tell the emulation thread to run the next frame */
-    {
-      mutex_lock(emu->run_mutex);
+  int debug_height = emu->video_height;
+  int debug_width = emu->video_width;
+  int debug_x = 0;
+  int debug_y = 0;
 
-      /* build the debug menus before running the frame, while the two threads
-         are synchronized */
+  mp_begin_frame(emu->mp, debug_width, debug_height);
+  imgui_begin_frame(emu->imgui, debug_width, debug_height);
+
+  r_clear(emu->r);
+
+  /* render the dreamcast video */
+  {
+    r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
+
+    if (emu->multi_threaded) {
+      /* tell the emulation thread to run the next frame */
+      {
+        mutex_lock(emu->run_mutex);
+
+        /* build the debug menus before running the frame, while the two threads
+           are synchronized */
+        emu_debug_menu(emu);
+
+        emu->state = EMU_RUNFRAME;
+        cond_signal(emu->run_cond);
+
+        mutex_unlock(emu->run_mutex);
+      }
+
+      /* wait for the emulation thread to submit a context */
+      {
+        mutex_lock(emu->frame_mutex);
+
+        while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
+          cond_wait(emu->frame_cond, emu->frame_mutex);
+        }
+
+        /* if a context was submitted before the vblank, convert it and upload
+           its textures to the render backend */
+        if (emu->pending_ctx) {
+          tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
+                             &emu->pending_rc);
+          emu->pending_ctx = NULL;
+        }
+
+        /* unblock the emulation thread */
+        mutex_unlock(emu->frame_mutex);
+      }
+
+      /* render the latest context. note, the emulation thread may still be
+         running at this time */
+      tr_render_context(emu->r, &emu->pending_rc);
+    } else {
       emu_debug_menu(emu);
-
-      emu->state = EMU_RUNFRAME;
-      cond_signal(emu->run_cond);
-
-      mutex_unlock(emu->run_mutex);
+      emu_run_frame(emu);
     }
-
-    /* wait for the emulation thread to submit a context */
-    {
-      mutex_lock(emu->frame_mutex);
-
-      while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
-        cond_wait(emu->frame_cond, emu->frame_mutex);
-      }
-
-      /* if a context was submitted before the vblank, convert it and upload
-         its textures to the render backend */
-      if (emu->pending_ctx) {
-        tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
-                           &emu->pending_rc);
-        emu->pending_ctx = NULL;
-      }
-
-      /* unblock the emulation thread */
-      mutex_unlock(emu->frame_mutex);
-    }
-
-    /* render the latest context. note, the emulation thread may still be
-       running at this time */
-    tr_render_context(emu->r, &emu->pending_rc);
-  } else {
-    emu_debug_menu(emu);
-    emu_run_frame(emu);
   }
 
-  /* render imgui / microprofile on top of the guest frame */
-  int64_t now = time_nanoseconds();
+  /* render debug info */
+  {
+    int64_t now = time_nanoseconds();
+    prof_flip(now);
 
-  prof_flip(now);
-  imgui_render(emu->imgui);
-  mp_render(emu->mp);
+    r_viewport(emu->r, debug_x, debug_y, debug_width, debug_height);
+    imgui_render(emu->imgui);
+    mp_render(emu->mp);
 
-  if (emu->last_paint) {
-    float frame_time_ms = (float)(now - emu->last_paint) / 1000000.0f;
-    int num_frame_times = array_size(emu->frame_times);
-    emu->frame_times[emu->frame % num_frame_times] = frame_time_ms;
+    if (emu->last_paint) {
+      float frame_time_ms = (float)(now - emu->last_paint) / 1000000.0f;
+      int num_frame_times = array_size(emu->frame_times);
+      emu->frame_times[emu->frame % num_frame_times] = frame_time_ms;
+    }
+
+    emu->last_paint = now;
   }
-  emu->last_paint = now;
 }
 
 int emu_load_game(struct emu *emu, const char *path) {

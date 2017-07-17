@@ -28,6 +28,9 @@ static const int MAX_2D_SURFACES = 256;
 struct microprofile {
   struct render_backend *r;
 
+  int viewport_width;
+  int viewport_height;
+
   texture_handle_t font_texture;
   struct ui_surface surfs[MAX_2D_SURFACES];
   int num_surfs;
@@ -228,11 +231,8 @@ void mp_render(struct microprofile *mp) {
 #if ENABLE_MICROPROFILE
   s_mp = mp;
 
-  int width = r_viewport_width(mp->r);
-  int height = r_viewport_height(mp->r);
-
   /* update draw surfaces */
-  MicroProfileDraw(width, height);
+  MicroProfileDraw(mp->viewport_width, mp->viewport_height);
 
   /* render the surfaces */
   r_begin_ui_surfaces(mp->r, mp->verts, mp->num_verts, nullptr, 0);
@@ -248,6 +248,11 @@ void mp_render(struct microprofile *mp) {
   mp->num_surfs = 0;
   mp->num_verts = 0;
 #endif
+}
+
+void mp_begin_frame(struct microprofile *mp, int width, int height) {
+  mp->viewport_width = width;
+  mp->viewport_height = height;
 }
 
 void mp_mousemove(struct microprofile *mp, int x, int y) {

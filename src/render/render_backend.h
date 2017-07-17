@@ -137,9 +137,8 @@ texture_handle_t r_create_texture(struct render_backend *r,
                                   const uint8_t *buffer);
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle);
 
-void r_viewport(struct render_backend *r, int width, int height);
-int r_viewport_width(struct render_backend *r);
-int r_viewport_height(struct render_backend *r);
+void r_viewport(struct render_backend *r, int x, int y, int width, int height);
+void r_clear(struct render_backend *r);
 
 void r_begin_ta_surfaces(struct render_backend *r, int video_width,
                          int video_height, const struct ta_vertex *verts,

@@ -67,12 +67,10 @@ extern "C" void imgui_render(struct imgui *imgui) {
 #endif
 }
 
-extern "C" void imgui_begin_frame(struct imgui *imgui) {
+extern "C" void imgui_begin_frame(struct imgui *imgui, int width, int height) {
 #if ENABLE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
-  int width = r_viewport_width(imgui->r);
-  int height = r_viewport_height(imgui->r);
   io.DisplaySize =
       ImVec2(static_cast<float>(width), static_cast<float>(height));
 

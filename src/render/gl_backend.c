@@ -625,20 +625,15 @@ void r_begin_ui_surfaces(struct render_backend *r,
   }
 }
 
-int r_viewport_height(struct render_backend *r) {
-  return r->viewport_height;
-}
-
-int r_viewport_width(struct render_backend *r) {
-  return r->viewport_width;
-}
-
-void r_viewport(struct render_backend *r, int width, int height) {
+void r_viewport(struct render_backend *r, int x, int y, int width, int height) {
   r->viewport_width = width;
   r->viewport_height = height;
 
+  glViewport(x, y, r->viewport_width, r->viewport_height);
+}
+
+void r_clear(struct render_backend *r) {
   glDepthMask(1);
-  glViewport(0, 0, r->viewport_width, r->viewport_height);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
