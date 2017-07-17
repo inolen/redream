@@ -13,6 +13,8 @@
 #include "guest/sh4/sh4.h"
 #include "render/imgui.h"
 
+#include "guest/aica/dsp.h"
+
 DEFINE_AGGREGATE_COUNTER(aica_samples);
 
 #if 0
@@ -85,8 +87,9 @@ struct aica {
   struct timer *rtc_timer;
   int rtc_write;
   uint32_t rtc;
-  
-  void (*dsp_step)(struct aica*);
+
+  /* dsp */
+  struct dsp dsp;
 
   /* there are 64 channels, each with 32 x 16-bit registers arranged on 32-bit
      boundaries. the arm7 will perform either 32-bit or 8-bit accesses to the
@@ -94,6 +97,7 @@ struct aica {
      go through the g2 bus's fifo buffer */
   struct aica_channel channels[AICA_NUM_CHANNELS];
   struct common_data *common_data;
+  struct dsp_data *dsp_data;
   struct timer *sample_timer;
 
   /* raw audio recording */
@@ -407,32 +411,6 @@ static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
   }
 }
 
-static uint32_t aica_dsp_reg_read(struct aica *aica, uint32_t addr,
-                                  uint32_t data_mask) {
-  return READ_DATA(&aica->reg[addr]);
-}
-
-static void dsp_run(struct aica *aica) {
-
-}
-
-static void dsp_compile(struct aica *aica) {
-  aica->dsp_step = &dsp_run;
-  printf("Compiled DSP microcode\n");
-}
-
-static void aica_dsp_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
-                               uint32_t data_mask) {
-  //COEF : native
-  //MEMS : native
-  //MPRO : native
-  if (addr >= 0x3400 && addr < 0x3C00) {
-    aica->dsp_step = &dsp_compile;
-  }
-
-  WRITE_DATA(&aica->reg[addr]);
-}
-
 static void aica_rtc_timer(void *data) {
   struct aica *aica = data;
   aica->rtc++;
@@ -613,7 +591,7 @@ static void aica_generate_frames(struct aica *aica) {
     }
 
     // DSP
-    aica->dsp_step(aica);
+    aica->dsp.step(aica);
 
     l = aica_adjust_master_volume(aica, l);
     r = aica_adjust_master_volume(aica, r);
@@ -765,6 +743,12 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
       aica->common_data->L = 0;
       aica_update_arm(aica);
     } break;
+
+    // DSP
+    case 0x2804:
+    case 0x2805: {
+      aica_dsp_invalidate(aica);
+    }
   }
 }
 
@@ -846,6 +830,8 @@ static int aica_init(struct device *dev) {
           (struct channel_data *)(aica->reg + sizeof(struct channel_data) * i);
     }
     aica->common_data = (struct common_data *)(aica->reg + 0x2800);
+    aica->dsp_data = (struct dsp_data *)(aica->reg + 0x3000);
+    
     aica->sample_timer =
         scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
                               HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_BATCH_SIZE));
@@ -866,8 +852,8 @@ static int aica_init(struct device *dev) {
   }
   
   /* init dsp */
-
-  aica->dsp_step = &dsp_compile;
+  aica_dsp_init(aica);
+  
   return 1;
 }
 
@@ -942,3 +928,6 @@ AM_BEGIN(struct aica, aica_data_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("aica wave ram")
 AM_END();
 /* clang-format on */
+
+
+#include "dsp.inl"

@@ -312,4 +312,50 @@ struct common_data {
   uint32_t : 16;
 };
 
+struct dsp_data {
+  //+0x000
+  uint32_t COEF[128];    //15:3
+
+  //+0x200
+  uint32_t MADRS[64];    //15:0
+  
+  //+0x300
+  uint32_t padding0[0x100];
+
+  //+0x400
+  uint32_t MPRO[128*4];  //15:0
+  
+  //+0xC00
+  uint32_t padding1[0x400];
+
+  //+0x1000
+  struct 
+  { 
+    uint32_t l;      //7:0
+    uint32_t h;      //15:0 (23:8)
+  } 
+  TEMP[128];
+
+  //+0x1400
+  struct 
+  { 
+    uint32_t l;      //7:0
+    uint32_t h;      //15:0 (23:8)
+  } 
+  MEMS[32];
+  
+  //+0x1500
+  struct 
+  { 
+    uint32_t l;      //3:0
+    uint32_t h;      //15:0 (19:4)
+  } 
+  MIXS[16];
+
+  //+0x1580
+  uint32_t EFREG[16];    //15:0
+  
+  //+0x15C0
+  uint32_t EXTS[2];    //15:0
+};
 #endif

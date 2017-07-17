@@ -306,7 +306,7 @@ static void x64_backend_label_name(char *name, size_t size,
   snprintf(name, size, ".%s", v->str);
 }
 
-static void x64_backend_emit_epilogue(struct x64_backend *backend,
+static void x64_backend_emit_dispatch_epilogue(struct x64_backend *backend,
                                       struct jit_block *block) {
   auto &e = *backend->codegen;
 
@@ -314,7 +314,7 @@ static void x64_backend_emit_epilogue(struct x64_backend *backend,
   e.db(0xcc);
 }
 
-static void x64_backend_emit_prologue(struct x64_backend *backend,
+static void x64_backend_emit_dispatch_prologue(struct x64_backend *backend,
                                       struct jit_block *block) {
   struct jit *jit = backend->base.jit;
   struct jit_guest *guest = jit->guest;
@@ -336,8 +336,52 @@ static void x64_backend_emit_prologue(struct x64_backend *backend,
   e.add(e.dword[guestctx + guest->offset_instrs], block->num_instrs);
 }
 
+static void x64_backend_emit_function_epilogue(struct x64_backend *backend,
+                                      struct jit_block *block) {
+  auto &e = *backend->codegen;
+
+  /* destroy stack frame */
+  e.add(e.rsp, X64_STACK_SIZE + 8);
+
+  /* restore registers */
+  e.pop(e.r15);
+  e.pop(e.r14);
+  e.pop(e.r13);
+  e.pop(e.r12);
+#if PLATFORM_WINDOWS
+  e.pop(e.rsi);
+  e.pop(e.rdi);
+#endif
+  e.pop(e.rbp);
+  e.pop(e.rbx);
+
+  /* return */
+  e.ret();
+}
+
+static void x64_backend_emit_function_prologue(struct x64_backend *backend,
+                                      struct jit_block *block) {
+  auto &e = *backend->codegen;
+
+  /* save registers */
+  e.push(e.rbx);
+  e.push(e.rbp);
+#if PLATFORM_WINDOWS
+  e.push(e.rdi);
+  e.push(e.rsi);
+#endif
+  e.push(e.r12);
+  e.push(e.r13);
+  e.push(e.r14);
+  e.push(e.r15);
+
+  /* allocate stack frame*/
+  e.sub(e.rsp, X64_STACK_SIZE + 8);
+
+}
+
 static void x64_backend_emit(struct x64_backend *backend,
-                             struct jit_block *block, struct ir *ir) {
+                             struct jit_block *block, struct ir *ir, int abi) {
   auto &e = *backend->codegen;
   const uint8_t *code = backend->codegen->getCurr();
 
@@ -345,7 +389,12 @@ static void x64_backend_emit(struct x64_backend *backend,
 
   e.inLocalLabel();
 
-  x64_backend_emit_prologue(backend, block);
+  if (abi == JIT_ABI_DISPATCH) {
+    x64_backend_emit_dispatch_prologue(backend, block);
+  }
+  else {
+    x64_backend_emit_function_prologue(backend, block); 
+  }
 
   list_for_each_entry(blk, &ir->blocks, struct ir_block, it) {
     char block_label[128];
@@ -365,15 +414,22 @@ static void x64_backend_emit(struct x64_backend *backend,
       terminated = (instr->op == OP_BRANCH);
     }
 
-    /* if the block doesn't terminate in an unconditional branch, dispatch to
-       the next pc, which has ideally been set by a non-branch operation such
-       as a fallback handler */
-    if (!terminated) {
-      e.jmp(backend->dispatch_dynamic);
+    if (abi == JIT_ABI_DISPATCH) {
+      /* if the block doesn't terminate in an unconditional branch, dispatch to
+         the next pc, which has ideally been set by a non-branch operation such
+         as a fallback handler */
+      if (!terminated) {
+          e.jmp(backend->dispatch_dynamic);
+      }
     }
   }
 
-  x64_backend_emit_epilogue(backend, block);
+  if (abi == JIT_ABI_DISPATCH) {
+    x64_backend_emit_function_epilogue(backend, block);
+  }
+  else {
+    x64_backend_emit_function_epilogue(backend, block);
+  }
 
   e.outLocalLabel();
 
@@ -603,7 +659,7 @@ static void x64_backend_dump_code(struct jit_backend *base,
 }
 
 static int x64_backend_assemble_code(struct jit_backend *base,
-                                     struct jit_block *block, struct ir *ir) {
+                                     struct jit_block *block, struct ir *ir, int abi) {
   PROF_ENTER("cpu", "x64_backend_assemble_code");
 
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
@@ -612,7 +668,7 @@ static int x64_backend_assemble_code(struct jit_backend *base,
   /* try to generate the x64 code. if the code buffer overflows let the backend
      know so it can reset the cache and try again */
   try {
-    x64_backend_emit(backend, block, ir);
+    x64_backend_emit(backend, block, ir, abi);
   } catch (const Xbyak::Error &e) {
     if (e != Xbyak::ERR_CODE_IS_TOO_BIG) {
       LOG_FATAL("x64 codegen failure, %s", e.what());
