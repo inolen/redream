@@ -160,6 +160,29 @@ static uint32_t MAP64(uint32_t addr) {
           (addr & 0x3));
 }
 
+static uint32_t pvr_vram_read(struct pvr *pvr, uint32_t addr,
+                              uint32_t data_mask) {
+  /* note, the video ram can't be directly accessed through fastmem, or texture
+     cache invalidations will break. this is because textures cache entries
+     only watch the physical video ram address, not all of its mirrors */
+  return READ_DATA(&pvr->video_ram[addr]);
+}
+
+static void pvr_vram_write(struct pvr *pvr, uint32_t addr, uint32_t data,
+                           uint32_t data_mask) {
+  WRITE_DATA(&pvr->video_ram[addr]);
+}
+
+static void pvr_vram_read_string(struct pvr *pvr, void *ptr, uint32_t src,
+                                 int size) {
+  memcpy(ptr, &pvr->video_ram[src], size);
+}
+
+static void pvr_vram_write_string(struct pvr *pvr, uint32_t dst, void *ptr,
+                                  int size) {
+  memcpy(&pvr->video_ram[dst], ptr, size);
+}
+
 static uint32_t pvr_vram_interleaved_read(struct pvr *pvr, uint32_t addr,
                                           uint32_t data_mask) {
   addr = MAP64(addr);
@@ -254,6 +277,11 @@ AM_END();
 
 AM_BEGIN(struct pvr, pvr_vram_map);
   AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("video ram")
+  AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("video ram sequential",
+                                             (mmio_read_cb)&pvr_vram_read,
+                                             (mmio_write_cb)&pvr_vram_write,
+                                             (mmio_read_string_cb)&pvr_vram_read_string,
+                                             (mmio_write_string_cb)&pvr_vram_write_string)
   AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE("video ram interleaved",
                                              (mmio_read_cb)&pvr_vram_interleaved_read,
                                              (mmio_write_cb)&pvr_vram_interleaved_write,
