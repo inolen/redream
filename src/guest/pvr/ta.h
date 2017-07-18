@@ -48,7 +48,9 @@ static inline uint32_t ta_texture_addr(union tcw tcw) {
 }
 
 static inline int ta_texture_twiddled(union tcw tcw) {
-  return !tcw.scan_order;
+  return !tcw.scan_order ||
+         /* paletted textures are always twiddled */
+         tcw.pixel_format == TA_PIXEL_8BPP || tcw.pixel_format == TA_PIXEL_4BPP;
 }
 
 static inline int ta_texture_compressed(union tcw tcw) {
@@ -56,7 +58,7 @@ static inline int ta_texture_compressed(union tcw tcw) {
 }
 
 static inline int ta_texture_mipmaps(union tcw tcw) {
-  return !tcw.scan_order && tcw.mip_mapped;
+  return ta_texture_twiddled(tcw) && tcw.mip_mapped;
 }
 
 static inline int ta_texture_width(union tsp tsp, union tcw tcw) {

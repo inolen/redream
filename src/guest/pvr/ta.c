@@ -319,20 +319,20 @@ void ta_texture_info(struct ta *ta, union tsp tsp, union tcw tcw,
   if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
     uint32_t palette_addr = 0;
 
-    /* palette ram is 4096 bytes, with each palette tex being 4 bytes each,
+    /* palette ram is 4096 bytes, with each palette entry being 4 bytes each,
        resulting in 1 << 10 indexes */
     if (tcw.pixel_format == TA_PIXEL_4BPP) {
       /* in 4bpp mode, the palette selector represents the upper 6 bits of the
          palette index, with the remaining 4 bits being filled in by the
          texture */
-      palette_addr = (tcw.p.palette_selector << 4) * 4;
-      *palette_size = (1 << 4) * 4;
+      palette_addr = tcw.p.palette_selector << 6;
+      *palette_size = 1 << 6;
     } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
       /* in 8bpp mode, the palette selector represents the upper 2 bits of the
          palette index, with the remaining 8 bits being filled in by the
          texture */
-      palette_addr = ((tcw.p.palette_selector & 0x30) << 4) * 4;
-      *palette_size = (1 << 8) * 4;
+      palette_addr = (tcw.p.palette_selector >> 4) << 10;
+      *palette_size = 1 << 10;
     }
 
     *palette = &ta->pvr->palette_ram[palette_addr];
