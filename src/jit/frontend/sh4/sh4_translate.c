@@ -93,7 +93,6 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define F64                         struct ir_value*
 #define V128                        struct ir_value*
 
-#define CTX                         ((struct sh4_context *)jit->guest->ctx)
 #define FPU_DOUBLE_PR               (flags & SH4_DOUBLE_PR)
 #define FPU_DOUBLE_SZ               (flags & SH4_DOUBLE_SZ)
 
