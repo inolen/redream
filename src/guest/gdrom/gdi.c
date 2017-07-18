@@ -11,8 +11,9 @@ struct gdi {
   int num_tracks;
 };
 
-static int gdi_read_sector(struct disc *disc, int fad, int sector_fmt,
-                           int sector_mask, void *dst) {
+static int gdi_read_sectors(struct disc *disc, int fad, int num_sectors,
+                            int sector_fmt, int sector_mask, void *dst,
+                            int dst_size) {
   struct gdi *gdi = (struct gdi *)disc;
 
   struct track *track = disc_lookup_track(disc, fad);
@@ -29,18 +30,33 @@ static int gdi_read_sector(struct disc *disc, int fad, int sector_fmt,
     CHECK_NOTNULL(fp);
   }
 
-  /* read the user data portion of the sector */
-  int offset = track->file_offset + fad * track->sector_size + 16;
-  int size = track->sector_size - 304;
-  CHECK_EQ(size, 2048);
-
+  /* seek the to the starting fad */
+  int offset = track->file_offset + fad * track->sector_size;
   int res = fseek(fp, offset, SEEK_SET);
   CHECK_EQ(res, 0);
 
-  res = (int)fread(dst, 1, size, fp);
-  CHECK_EQ(res, size);
+  /* only read the data portion of the track */
+  int header_size = 16;
+  int error_size = 288;
+  int data_size = track->sector_size - header_size - error_size;
+  CHECK_EQ(data_size, 2048);
 
-  return res;
+  int read = 0;
+
+  for (int i = 0; i < num_sectors; i++) {
+    res = fseek(fp, header_size, SEEK_CUR);
+    CHECK_EQ(res, 0);
+
+    CHECK_LE(read + data_size, dst_size);
+    res = (int)fread(dst + read, 1, data_size, fp);
+    CHECK_EQ(res, data_size);
+    read += res;
+
+    res = fseek(fp, error_size, SEEK_CUR);
+    CHECK_EQ(res, 0);
+  }
+
+  return read;
 }
 
 static void gdi_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -199,7 +215,7 @@ struct disc *gdi_create(const char *filename) {
   gdi->get_num_tracks = &gdi_get_num_tracks;
   gdi->get_track = &gdi_get_track;
   gdi->get_toc = &gdi_get_toc;
-  gdi->read_sector = &gdi_read_sector;
+  gdi->read_sectors = &gdi_read_sectors;
 
   struct disc *disc = (struct disc *)gdi;
 

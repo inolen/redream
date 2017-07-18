@@ -24,8 +24,8 @@ void gdrom_get_toc(struct gdrom *gd, int area, struct gd_spi_toc *toc);
 void gdrom_get_session(struct gdrom *gd, int session,
                        struct gd_spi_session *ses);
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size);
-int gdrom_read_sectors(struct gdrom *gd, int fad, int fmt, int mask, int n,
-                       uint8_t *dst, int dst_size);
+int gdrom_read_sectors(struct gdrom *gd, int fad, int num_sectors, int fmt,
+                       int mask, uint8_t *dst, int dst_size);
 int gdrom_copy_sectors(struct gdrom *gd, int fad, int fmt, int mask,
                        int num_sectors, struct address_space *space,
                        uint32_t dst);

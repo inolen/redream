@@ -229,8 +229,7 @@ static int bios_boot(struct bios *bios) {
 
   /* load ip.bin bootstrap */
   {
-    int n = 16;
-    int r = gdrom_read_sectors(gd, data_fad, sector_fmt, sector_mask, n, tmp,
+    int r = gdrom_read_sectors(gd, data_fad, 16, sector_fmt, sector_mask, tmp,
                                sizeof(tmp));
     if (!r) {
       return 0;
@@ -243,9 +242,8 @@ static int bios_boot(struct bios *bios) {
     static const char *bootfile = "1ST_READ.BIN";
 
     /* read primary volume descriptor */
-    int n = 1;
-    int r = gdrom_read_sectors(gd, data_fad + ISO_PVD_SECTOR, sector_fmt,
-                               sector_mask, n, tmp, sizeof(tmp));
+    int r = gdrom_read_sectors(gd, data_fad + ISO_PVD_SECTOR, 1, sector_fmt,
+                               sector_mask, tmp, sizeof(tmp));
     if (!r) {
       return 0;
     }
@@ -259,8 +257,8 @@ static int bios_boot(struct bios *bios) {
     struct iso_dir *root = &pvd->root_directory_record;
     int len = align_up(root->size.le, sector_size);
     int fad = GDROM_PREGAP + root->extent.le;
-    n = len / sector_size;
-    r = gdrom_read_sectors(gd, fad, sector_fmt, sector_mask, n, tmp,
+    int n = len / sector_size;
+    r = gdrom_read_sectors(gd, fad, n, sector_fmt, sector_mask, tmp,
                            sizeof(tmp));
     if (!r) {
       return 0;

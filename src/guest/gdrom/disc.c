@@ -28,9 +28,11 @@ struct track *disc_lookup_track(struct disc *disc, int fad) {
   return NULL;
 }
 
-int disc_read_sector(struct disc *disc, int fad, int sector_fmt,
-                     int sector_mask, void *dst) {
-  return disc->read_sector(disc, fad, sector_fmt, sector_mask, dst);
+int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
+                      int sector_fmt, int sector_mask, void *dst,
+                      int dst_size) {
+  return disc->read_sectors(disc, fad, num_sectors, sector_fmt, sector_mask,
+                            dst, dst_size);
 }
 
 void disc_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -67,7 +69,8 @@ void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
   struct session *session = disc_get_session(disc, 1);
 
   uint8_t tmp[DISC_MAX_SECTOR_SIZE];
-  disc_read_sector(disc, session->leadin_fad, GD_SECTOR_ANY, GD_MASK_DATA, tmp);
+  disc_read_sectors(disc, session->leadin_fad, 1, GD_SECTOR_ANY, GD_MASK_DATA,
+                    tmp, sizeof(tmp));
 
   memcpy(meta, tmp, sizeof(*meta));
 }
