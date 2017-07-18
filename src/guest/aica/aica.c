@@ -186,11 +186,32 @@ static inline int32_t aica_adjust_master_volume(struct aica *aica, int32_t in) {
   return (in * y) >> 15;
 }
 
+static inline int32_t aica_adjust_channel_sendlevel(struct aica_channel *ch,
+                                                    int32_t in,
+                                                    uint32_t sendlevel) {
+  sendlevel = (~sendlevel) & 15;
+
+  int32_t y = tl_scale[sendlevel << 3];
+
+  if (sendlevel == 15)
+    y = 0;
+
+  return (in * y) >> 15;
+}
+
 static inline int32_t aica_adjust_channel_volume(struct aica_channel *ch,
                                                  int32_t in) {
-  int32_t y = tl_scale[ch->data->TL];
+  int32_t y1 = tl_scale[ch->data->TL];
+
   /* truncate fraction */
-  return (in * y) >> 15;
+  return (in * y1) >> 15;
+}
+
+static inline int32_t aica_adjust_channel_pan(struct aica_channel *ch,
+                                              int32_t in) {
+  uint32_t att = (~ch->data->DIPAN) & 15;
+
+  return aica_adjust_channel_sendlevel(ch, in, att);
 }
 
 static void aica_decode_adpcm(int32_t data, int32_t prev, int32_t prev_quant,
@@ -583,11 +604,31 @@ static void aica_generate_frames(struct aica *aica) {
     int32_t l = 0;
     int32_t r = 0;
 
+    memset(aica->dsp.buffered.MIXS, 0, sizeof(aica->dsp.buffered.MIXS));
+
     for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
       struct aica_channel *ch = &aica->channels[i];
       int32_t s = aica_channel_update(aica, ch);
-      l += aica_adjust_channel_volume(ch, s);
-      r += aica_adjust_channel_volume(ch, s);
+
+      if (s) {
+        s = aica_adjust_channel_volume(ch, s);
+
+        int32_t mix_f = aica_adjust_channel_sendlevel(ch, s, ch->data->DISDL);
+
+        int32_t mix_p = aica_adjust_channel_pan(ch, mix_f);
+
+        int32_t mix_dsp = aica_adjust_channel_sendlevel(ch, s, ch->data->IMXL);
+
+        if (ch->data->DIPAN & 0x10) {
+          l += mix_f;
+          r += mix_p;
+        } else {
+          l += mix_p;
+          r += mix_f;
+        }
+
+        aica->dsp.buffered.MIXS[ch->data->ISEL] += mix_dsp;
+      }
     }
 
     // DSP
