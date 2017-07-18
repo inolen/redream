@@ -221,10 +221,12 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
         block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_RTE) {
         block->branch_type = JIT_BRANCH_DYNAMIC;
+      } else if (def->op == SH4_OP_SLEEP) {
+        block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_TRAPA) {
         block->branch_type = JIT_BRANCH_DYNAMIC;
       } else {
-        LOG_FATAL("unexpected branch op %d", def->op);
+        LOG_FATAL("unexpected branch op %d", def->name);
       }
 
       break;

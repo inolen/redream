@@ -8,8 +8,13 @@ int armv3_optable[ARMV3_LOOKUP_SIZE];
 
 struct jit_opdef armv3_opdefs[NUM_ARMV3_OPS] = {
 #define ARMV3_INSTR(name, desc, sig, cycles, flags) \
-  {ARMV3_OP_##name, desc,  #sig,                    \
-   cycles,          flags, (jit_fallback)&armv3_fallback_##name},
+  {ARMV3_OP_##name,                                 \
+   #name,                                           \
+   desc,                                            \
+   #sig,                                            \
+   cycles,                                          \
+   flags,                                           \
+   (jit_fallback)&armv3_fallback_##name},
 #include "armv3_instr.inc"
 #undef ARMV3_INSTR
 };

@@ -8,8 +8,13 @@ int sh4_optable[UINT16_MAX + 1];
 
 struct jit_opdef sh4_opdefs[NUM_SH4_OPS] = {
 #define SH4_INSTR(name, desc, sig, cycles, flags) \
-  {SH4_OP_##name, desc,  #sig,                    \
-   cycles,        flags, (jit_fallback)&sh4_fallback_##name},
+  {SH4_OP_##name,                                 \
+   #name,                                         \
+   desc,                                          \
+   #sig,                                          \
+   cycles,                                        \
+   flags,                                         \
+   (jit_fallback)&sh4_fallback_##name},
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };

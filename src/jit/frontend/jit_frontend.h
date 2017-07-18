@@ -13,6 +13,7 @@ typedef void (*jit_fallback)(struct jit_guest *, uint32_t, uint32_t);
 
 struct jit_opdef {
   int op;
+  const char *name;
   const char *desc;
   const char *sig;
   int cycles;
