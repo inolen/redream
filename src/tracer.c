@@ -633,6 +633,7 @@ void tracer_render_frame(struct tracer *tracer) {
   int width = video_width(tracer->host);
   int height = video_height(tracer->host);
 
+  r_clear(tracer->r);
   r_viewport(tracer->r, 0, 0, width, height);
 
   imgui_begin_frame(tracer->imgui, width, height);
