@@ -30,7 +30,6 @@ struct render_backend *video_create_renderer(struct host *host);
 void video_destroy_renderer(struct host *host, struct render_backend *r);
 
 /* input */
-void input_poll(struct host *host);
 int16_t input_get(struct host *host, int port, int button);
 
 #endif

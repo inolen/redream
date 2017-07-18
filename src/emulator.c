@@ -335,12 +335,6 @@ static void emu_start_tracing(struct emu *emu) {
 /*
  * dreamcast guest interface
  */
-static void emu_guest_poll_input(void *userdata) {
-  struct emu *emu = userdata;
-
-  input_poll(emu->host);
-}
-
 static void emu_guest_vertical_blank(void *userdata) {
   struct emu *emu = userdata;
 
@@ -759,7 +753,6 @@ struct emu *emu_create(struct host *host) {
   emu->dc->start_render = &emu_guest_start_render;
   emu->dc->finish_render = &emu_guest_finish_render;
   emu->dc->vertical_blank = &emu_guest_vertical_blank;
-  emu->dc->poll_input = &emu_guest_poll_input;
 
   /* add all textures to free list by default */
   for (int i = 0; i < array_size(emu->textures); i++) {

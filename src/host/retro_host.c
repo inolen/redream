@@ -112,9 +112,7 @@ int video_width(struct host *base) {
 /*
  * input
  */
-void input_poll(struct host *base) {
-  struct retro_host *host = (struct retro_host *)base;
-
+static void input_poll(struct retro_host *host) {
   input_poll_cb();
 
   /* send updates for any inputs that've changed */
@@ -265,6 +263,8 @@ void retro_set_controller_port_device(unsigned port, unsigned device) {}
 void retro_reset() {}
 
 void retro_run() {
+  input_poll(g_host);
+
   /* bind the framebuffer provided by retroarch before calling into the
      emulator */
   uintptr_t fb = hw_render.get_current_framebuffer();
