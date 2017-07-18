@@ -344,7 +344,8 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
   ra_run(jit->ra, &ir);
 
   /* assemble the ir into native code */
-  int res = jit->backend->assemble_code(jit->backend, block, &ir);
+  int res =
+      jit->backend->assemble_code(jit->backend, block, &ir, JIT_ABI_DISPATCH);
 
   if (res) {
     /* validate the source map is sorted in ascending order */
