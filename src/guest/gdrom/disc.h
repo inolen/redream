@@ -66,10 +66,13 @@ int disc_get_num_sessions(struct disc *disc);
 struct session *disc_get_session(struct disc *disc, int n);
 int disc_get_num_tracks(struct disc *disc);
 struct track *disc_get_track(struct disc *disc, int n);
+struct track *disc_lookup_track(struct disc *disc, int fad);
+int disc_find_file(struct disc *disc, const char *filename, int *fad, int *len);
 void disc_get_toc(struct disc *disc, int area, struct track **first_track,
                   struct track **last_track, int *leadin_fad, int *leadout_fad);
 int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
                       int sector_fmt, int sector_mask, void *dst, int dst_size);
-struct track *disc_lookup_track(struct disc *disc, int fad);
+int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
+                    int dst_size);
 
 #endif

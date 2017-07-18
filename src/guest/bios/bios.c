@@ -8,7 +8,6 @@
 #include "guest/bios/syscalls.h"
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom.h"
-#include "guest/gdrom/iso.h"
 #include "guest/rom/flash.h"
 #include "guest/sh4/sh4.h"
 #include "render/imgui.h"
@@ -215,88 +214,51 @@ static int bios_boot(struct bios *bios) {
   const uint32_t BOOT1_ADDR = 0x8c008000;
   const uint32_t BOOT2_ADDR = 0x8c010000;
   const uint32_t SYSINFO_ADDR = 0x8c000068;
-  const int sector_fmt = GD_SECTOR_ANY;
-  const int sector_mask = GD_MASK_DATA;
-  const int sector_size = 2048;
-  uint8_t tmp[0x10000];
 
   LOG_INFO("bios_boot using hle bootstrap");
 
-  /* get the session for the main data track */
-  struct gd_spi_session data_session;
-  gdrom_get_session(gd, 2, &data_session);
-  int data_fad = data_session.fad;
-
   /* load ip.bin bootstrap */
   {
-    int r = gdrom_read_sectors(gd, data_fad, 16, sector_fmt, sector_mask, tmp,
-                               sizeof(tmp));
-    if (!r) {
+    /* bootstrap occupies the first 16 sectors of the data track */
+    struct gd_spi_session data_session;
+    gdrom_get_session(gd, 2, &data_session);
+
+    uint8_t tmp[DISC_MAX_SECTOR_SIZE * 16];
+    int read = gdrom_read_sectors(gd, data_session.fad, 16, GD_SECTOR_ANY,
+                                  GD_MASK_DATA, tmp, sizeof(tmp));
+    if (!read) {
+      LOG_WARNING("bios_boot failed to copy IP.BIN");
       return 0;
     }
-    as_memcpy_to_guest(space, BOOT1_ADDR, tmp, r);
+
+    as_memcpy_to_guest(space, BOOT1_ADDR, tmp, read);
   }
 
   /* load 1st_read.bin into ram */
   {
-    static const char *bootfile = "1ST_READ.BIN";
+    const char *bootfile = "1ST_READ.BIN";
 
-    /* read primary volume descriptor */
-    int r = gdrom_read_sectors(gd, data_fad + ISO_PVD_SECTOR, 1, sector_fmt,
-                               sector_mask, tmp, sizeof(tmp));
-    if (!r) {
-      return 0;
-    }
-
-    struct iso_pvd *pvd = (struct iso_pvd *)tmp;
-    CHECK(pvd->type == 1);
-    CHECK(memcmp(pvd->id, "CD001", 5) == 0);
-    CHECK(pvd->version == 1);
-
-    /* check root directory for the bootfile */
-    struct iso_dir *root = &pvd->root_directory_record;
-    int len = align_up(root->size.le, sector_size);
-    int fad = GDROM_PREGAP + root->extent.le;
-    int n = len / sector_size;
-    r = gdrom_read_sectors(gd, fad, n, sector_fmt, sector_mask, tmp,
-                           sizeof(tmp));
-    if (!r) {
-      return 0;
-    }
-
-    uint8_t *ptr = tmp;
-    uint8_t *end = tmp + len;
-
-    while (ptr < end) {
-      struct iso_dir *dir = (struct iso_dir *)ptr;
-      const char *filename = (const char *)(ptr + sizeof(*dir));
-
-      if (memcmp(filename, bootfile, strlen(bootfile)) == 0) {
-        break;
-      }
-
-      /* dir entries always begin on an even byte */
-      ptr = (uint8_t *)filename + dir->name_len;
-      ptr = (uint8_t *)align_up((intptr_t)ptr, (intptr_t)2);
-    }
-
-    if (ptr == end) {
-      LOG_WARNING("bios_boot failed to find '%s'", bootfile);
+    int fad;
+    int len;
+    int found = gdrom_find_file(gd, bootfile, &fad, &len);
+    if (!found) {
+      LOG_WARNING("bios_boot failed to find %s", bootfile);
       return 0;
     }
 
     /* copy the bootfile into ram */
-    struct iso_dir *dir = (struct iso_dir *)ptr;
-    fad = GDROM_PREGAP + dir->extent.le;
-    n = align_up(dir->size.le, sector_size) / sector_size;
-    r = gdrom_copy_sectors(gd, fad, sector_fmt, sector_mask, n, space,
-                           BOOT2_ADDR);
-    if (!r) {
+    uint8_t *tmp = malloc(len);
+    int read = gdrom_read_bytes(gd, fad, len, tmp, len);
+    if (read != len) {
+      LOG_WARNING("bios_boot failed to copied %s", bootfile);
+      free(tmp);
       return 0;
     }
 
-    LOG_INFO("bios_boot found '%s' at fad=%d size=%d", bootfile, fad,
-             dir->size.le);
+    as_memcpy_to_guest(space, BOOT2_ADDR, tmp, read);
+    free(tmp);
+
+    LOG_INFO("bios_boot found '%s' at fad=%d size=%d", bootfile, fad, len);
   }
 
   /* write system info */

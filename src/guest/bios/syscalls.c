@@ -134,20 +134,27 @@ static void bios_gdrom_mainloop(struct bios *bios) {
   switch (bios->cmd_code) {
     case GDC_PIOREAD:
     case GDC_DMAREAD: {
-      uint32_t fad = bios->params[0];
-      uint32_t n = bios->params[1];
+      int fad = bios->params[0];
+      int num_sectors = bios->params[1];
       uint32_t dst = bios->params[2];
       uint32_t unknown = bios->params[3];
       int fmt = GD_SECTOR_ANY;
       int mask = GD_MASK_DATA;
 
-      LOG_SYSCALL("GDC_DMAREAD fad=0x%x n=0x%x dst=0x%x unknown=0x%x", fad, n,
-                  dst, unknown);
+      LOG_SYSCALL("GDC_DMAREAD fad=0x%x n=0x%x dst=0x%x unknown=0x%x", fad,
+                  num_sectors, dst, unknown);
 
       /* dma read functionality changes somehow when this in non-zero */
       CHECK_EQ(unknown, 0);
 
-      int read = gdrom_copy_sectors(gd, fad, fmt, mask, n, space, dst);
+      int read = 0;
+      uint8_t tmp[DISC_MAX_SECTOR_SIZE];
+
+      for (int i = fad; i < fad + num_sectors; i++) {
+        int n = gdrom_read_sectors(gd, i, 1, fmt, mask, tmp, sizeof(tmp));
+        as_memcpy_to_guest(space, dst + read, tmp, n);
+        read += n;
+      }
 
       bios->result[2] = read;
       /* result[3] seems to signals if data is remaining, calculated by:
