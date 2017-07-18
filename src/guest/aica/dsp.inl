@@ -140,32 +140,26 @@ static void dsp_compile(struct aica *aica) {
 	dsp->backend->reset(dsp->backend);
 
   for(int step=0;step<128;++step) {
-  	#if 0
-		uint32_t* mpro=DSPData->MPRO+step*4;
-		uint32_t prev_step=(step-1)&127;
-		uint32_t* prev_mpro=DSPData->MPRO+prev_step*4;
-		//if its a nop just go to the next opcode
-		//No, don't really do that, we need to propage opcode bits :p
-		//if (mpro[0]==0 && mpro[1]==0 && mpro[2]== 0 && mpro[3]==0)
-		//	continue;
 
-		_INST op;
-		_INST prev_op;
+		uint32_t* mpro=aica->dsp_data->MPRO+step*4;
+
+		struct _INST op;
 		DecodeInst(mpro,&op);
-		DecodeInst(prev_mpro,&prev_op);
 
-		//printf("[%d] "
-		//	"TRA %d,TWT %d,TWA %d,XSEL %d,YSEL %d,IRA %d,IWT %d,IWA %d,TABLE %d,MWT %d,MRD %d,EWT %d,EWA %d,ADRL %d,FRCL %d,SHIFT %d,YRL %d,NEGB %d,ZERO %d,BSEL %d,NOFL %d,MASA %d,ADREB %d,NXADR %d\n"
-		//	,step
-		//	,op.TRA,op.TWT,op.TWA,op.XSEL,op.YSEL,op.IRA,op.IWT,op.IWA,op.TABLE,op.MWT,op.MRD,op.EWT,op.EWA,op.ADRL,op.FRCL,op.SHIFT,op.YRL,op.NEGB,op.ZERO,op.BSEL,op.NOFL,op.MASA,op.ADREB,op.NXADR);
+		printf("[%d] "
+			"TRA %d,TWT %d,TWA %d,XSEL %d,YSEL %d,IRA %d,IWT %d,IWA %d,TABLE %d,MWT %d,MRD %d,EWT %d,EWA %d,ADRL %d,FRCL %d,SHIFT %d,YRL %d,NEGB %d,ZERO %d,BSEL %d,NOFL %d,MASA %d,ADREB %d,NXADR %d\n"
+			,step
+			,op.TRA,op.TWT,op.TWA,op.XSEL,op.YSEL,op.IRA,op.IWT,op.IWA,op.TABLE,op.MWT,op.MRD,op.EWT,op.EWA,op.ADRL,op.FRCL,op.SHIFT,op.YRL,op.NEGB,op.ZERO,op.BSEL,op.NOFL,op.MASA,op.ADREB,op.NXADR);
 
+
+#if 0
 		//Dynarec !
 		_dsp_debug_step_start();
 		//DSP regs are on memory
 		//Wires stay on x86 regs, written to memory as fast as possible
 		
 		//EDI=MEM_RD_DATA_NV
-		dsp_rec_DRAM_CI(x86e,prev_op,step,EDI);
+		MEM_RD_DATA_NV = dsp_rec_DRAM_CI(x86e,prev_op,step);
 		
 		//;)
 		//Address Generation Unit ! nothing spectacular really ...
@@ -173,27 +167,25 @@ static void dsp_compile(struct aica *aica) {
 		
 		//Calculate INPUTS wire
 		//ESI : INPUTS
-		dsp_rec_INPUTS(x86e,op,ESI);
+		INPUTS = dsp_rec_INPUTS(x86e,op);
 		
 		//:o ?
 		//Write the MEMS register
-		dsp_rec_MEMS_WRITE(x86e,op,step,ESI);
+		dsp_rec_MEMS_WRITE(x86e,op,step,INPUTS);
 		
 		//Write the MEM_RD_DATA regiter
-		//Last use of MEM_RD_DATA_NV(EDI)
-		dsp_rec_MEM_RD_DATA_WRITE(x86e,op,step,EDI);
-		//EDI is now free :D
+		dsp_rec_MEM_RD_DATA_WRITE(x86e,op,step,MEM_RD_DATA_NV);
 		
 		//EDI is used for MAD_OUT_NV
 		//Mul-add
-		dsp_rec_MAD(x86e,op,step,ESI,EDI);
+		MAD_OUT_NV = dsp_rec_MAD(x86e,op,step, INPUTS);
 		
 		//Effect output/ Feedback
-		dsp_rec_EFO_FB(x86e,op,step,ESI);
+		dsp_rec_EFO_FB(x86e,op,step, INPUTS);
 
 		//Write MAD_OUT_NV
 		{
-			x86e.Emit(op_mov32,&dsp.regs.MAD_OUT,EDI);
+			x86e.Emit(op_mov32,&dsp.regs.MAD_OUT, MAD_OUT_NV);
 			wtn(MAD_OUT);
 		}
 		//These are implemented here :p
@@ -203,8 +195,8 @@ static void dsp_compile(struct aica *aica) {
 		{
 			if (op.YRL)
 			{
-				x86e.Emit(op_sar32,ESI,4);//[23:4]
-				x86e.Emit(op_mov32,&dsp.regs.Y_REG,ESI);
+				x86e.Emit(op_sar32,INPUTS,4);//[23:4]
+				x86e.Emit(op_mov32,&dsp.regs.Y_REG,INPUTS);
 
 			}
 			wtn(Y_REG);
@@ -234,7 +226,7 @@ static void dsp_compile(struct aica *aica) {
 		}
 
 		_dsp_debug_step_end();
-		#endif
+#endif
 	}
 
 	int res = dsp->backend->assemble_code(dsp->backend, &dsp_block, &ir, JIT_ABI_CDECL);
