@@ -16,8 +16,8 @@ DEFINE_OPTION_INT(audio, 1, "Enable audio");
 DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 
 #define AUDIO_FREQ 44100
-#define VIDEO_DEFAULT_WIDTH 640
-#define VIDEO_DEFAULT_HEIGHT 480
+#define VIDEO_DEFAULT_WIDTH 960
+#define VIDEO_DEFAULT_HEIGHT 540
 #define INPUT_MAX_CONTROLLERS 4
 
 #define AUDIO_FRAMES_TO_MS(frames) \

@@ -37,6 +37,13 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
+DEFINE_PERSISTENT_OPTION_STRING(aspect_ratio, "stretch", "Video aspect ratio");
+DEFINE_PERSISTENT_OPTION_INT(widescreen_hack, 1, "Enable widescreen hacks");
+
+static const char *aspect_ratios[] = {
+    "stretch", "4:3",
+};
+
 /* emulation thread state */
 enum {
   EMU_SHUTDOWN,
@@ -523,18 +530,39 @@ static void emu_debug_menu(struct emu *emu) {
       if (igMenuItem("frame stats", NULL, emu->frame_stats, 1)) {
         emu->frame_stats = !emu->frame_stats;
       }
-
       if (!emu->trace_writer && igMenuItem("start trace", NULL, 0, 1)) {
         emu_start_tracing(emu);
       }
       if (emu->trace_writer && igMenuItem("stop trace", NULL, 1, 1)) {
         emu_stop_tracing(emu);
       }
-
       if (igMenuItem("clear texture cache", NULL, 0, 1)) {
         emu_dirty_textures(emu);
       }
+      igEndMenu();
+    }
 
+    if (igBeginMenu("VIDEO", 1)) {
+      if (igBeginMenu("aspect ratio", 1)) {
+        for (int i = 0; i < array_size(aspect_ratios); i++) {
+          const char *aspect_ratio = aspect_ratios[i];
+          int selected = !strcmp(OPTION_aspect_ratio, aspect_ratio);
+
+          if (igMenuItem(aspect_ratio, NULL, selected, 1)) {
+            strncpy(OPTION_aspect_ratio, aspect_ratio,
+                    sizeof(OPTION_aspect_ratio));
+          }
+        }
+
+        igSeparator();
+
+        if (igMenuItem("widescreen hack", NULL, OPTION_widescreen_hack, 1)) {
+          OPTION_widescreen_hack = !OPTION_widescreen_hack;
+          LOG_WARNING("widescreen hack settings changed, restart to apply");
+        }
+
+        igEndMenu();
+      }
       igEndMenu();
     }
 
@@ -615,10 +643,22 @@ static void emu_run_frame(struct emu *emu) {
 void emu_render_frame(struct emu *emu) {
   prof_counter_add(COUNTER_frames, 1);
 
-  int frame_height = emu->video_height;
-  int frame_width = frame_height * (4.0f / 3.0f);
-  int frame_x = (emu->video_width - frame_width) / 2.0f;
-  int frame_y = 0;
+  int frame_height, frame_width;
+  int frame_x, frame_y;
+
+  if (!strcmp(OPTION_aspect_ratio, "stretch")) {
+    frame_height = emu->video_height;
+    frame_width = emu->video_width;
+    frame_x = 0;
+    frame_y = 0;
+  } else if (!strcmp(OPTION_aspect_ratio, "4:3")) {
+    frame_height = emu->video_height;
+    frame_width = frame_height * (4.0f / 3.0f);
+    frame_x = (emu->video_width - frame_width) / 2.0f;
+    frame_y = 0;
+  } else {
+    LOG_FATAL("unexpected aspect ratio %s", OPTION_aspect_ratio);
+  }
 
   int debug_height = emu->video_height;
   int debug_width = emu->video_width;
