@@ -500,6 +500,15 @@ int gdrom_find_file(struct gdrom *gd, const char *filename, int *fad,
   return disc_find_file(gd->disc, filename, fad, len);
 }
 
+void gdrom_get_meta(struct gdrom *gd, struct disc_meta *meta) {
+  if (!gd->disc) {
+    LOG_WARNING("gdrom_get_meta failed, no disc");
+    return;
+  }
+
+  return disc_get_meta(gd->disc, meta);
+}
+
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
   CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, GD_SPI_SCD_SIZE);
@@ -681,18 +690,6 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
     }
 
     gd->disc = disc;
-
-    /* print meta info */
-    struct disc_meta meta;
-    disc_get_meta(gd->disc, &meta);
-
-    char name[256];
-    char version[16];
-    char id[16];
-    strncpy_trim_spaces(name, meta.name, sizeof(meta.name));
-    strncpy_trim_spaces(version, meta.version, sizeof(meta.version));
-    strncpy_trim_spaces(id, meta.id, sizeof(meta.id));
-    LOG_INFO("gdrom_set_disc %s %s - %s", name, version, id);
   }
 
   /* perform "soft reset" of internal state */

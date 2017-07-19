@@ -5,6 +5,37 @@
 #include "guest/gdrom/gdi.h"
 #include "guest/gdrom/iso.h"
 
+int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
+                    int dst_size) {
+  CHECK_LE(len, dst_size);
+
+  uint8_t tmp[DISC_MAX_SECTOR_SIZE];
+  int rem = len;
+
+  while (rem) {
+    int n = disc->read_sectors(disc, fad, 1, GD_SECTOR_ANY, GD_MASK_DATA, tmp,
+                               sizeof(tmp));
+    CHECK(n);
+
+    /* don't overrun */
+    n = MIN(n, rem);
+    memcpy(dst, tmp, n);
+
+    rem -= n;
+    dst += n;
+    fad++;
+  }
+
+  return len;
+}
+
+int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
+                      int sector_fmt, int sector_mask, void *dst,
+                      int dst_size) {
+  return disc->read_sectors(disc, fad, num_sectors, sector_fmt, sector_mask,
+                            dst, dst_size);
+}
+
 int disc_find_file(struct disc *disc, const char *filename, int *fad,
                    int *len) {
   uint8_t tmp[0x10000];
@@ -60,37 +91,6 @@ int disc_find_file(struct disc *disc, const char *filename, int *fad,
   *len = dir->size.le;
 
   return 1;
-}
-
-int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
-                    int dst_size) {
-  CHECK_LE(len, dst_size);
-
-  uint8_t tmp[DISC_MAX_SECTOR_SIZE];
-  int rem = len;
-
-  while (rem) {
-    int n = disc->read_sectors(disc, fad, 1, GD_SECTOR_ANY, GD_MASK_DATA, tmp,
-                               sizeof(tmp));
-    CHECK(n);
-
-    /* don't overrun */
-    n = MIN(n, rem);
-    memcpy(dst, tmp, n);
-
-    rem -= n;
-    dst += n;
-    fad++;
-  }
-
-  return len;
-}
-
-int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
-                      int sector_fmt, int sector_mask, void *dst,
-                      int dst_size) {
-  return disc->read_sectors(disc, fad, num_sectors, sector_fmt, sector_mask,
-                            dst, dst_size);
 }
 
 void disc_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -158,13 +158,27 @@ void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
 }
 
 struct disc *disc_create(const char *filename) {
+  struct disc *disc = NULL;
+
   if (strstr(filename, ".cdi")) {
-    return cdi_create(filename);
+    disc = cdi_create(filename);
+  } else if (strstr(filename, ".gdi")) {
+    disc = gdi_create(filename);
   }
 
-  if (strstr(filename, ".gdi")) {
-    return gdi_create(filename);
+  if (disc) {
+    /* print meta info */
+    struct disc_meta meta;
+    disc_get_meta(disc, &meta);
+
+    char name[256];
+    char version[16];
+    char id[16];
+    strncpy_trim_spaces(name, meta.name, sizeof(meta.name));
+    strncpy_trim_spaces(version, meta.version, sizeof(meta.version));
+    strncpy_trim_spaces(id, meta.id, sizeof(meta.id));
+    LOG_INFO("disc_create %s %s - %s", name, version, id);
   }
 
-  return NULL;
+  return disc;
 }
