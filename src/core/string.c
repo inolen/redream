@@ -44,9 +44,9 @@ void strncpy_pad_spaces(char *dst, const char *src, int size) {
 
 void strncpy_trim_spaces(char *dst, const char *src, int size) {
   char mask = 0x0;
-  dst += size - 1;
   src += size - 1;
-  (*dst) = 0;
+  dst += size - 1;
+  *(dst + 1) = 0;
   while (size--) {
     /* mask off until a valid letter is hit */
     if (*src != ' ') {
