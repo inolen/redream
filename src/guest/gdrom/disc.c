@@ -5,6 +5,31 @@
 #include "guest/gdrom/gdi.h"
 #include "guest/gdrom/iso.h"
 
+/* meta information found in the ip.bin */
+struct disc_meta {
+  char hardware_id[16];
+  char marker_id[16];
+  char device_info[16];
+  char area_symbols[8];
+  char peripherals[8];
+  char product_number[10];
+  char product_version[6];
+  char release_date[16];
+  char bootname[16];
+  char producer[16];
+  char name[128];
+};
+
+static void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
+  struct session *session = disc_get_session(disc, 1);
+
+  uint8_t tmp[DISC_MAX_SECTOR_SIZE];
+  disc_read_sectors(disc, session->leadin_fad, 1, GD_SECTOR_ANY, GD_MASK_DATA,
+                    tmp, sizeof(tmp));
+
+  memcpy(meta, tmp, sizeof(*meta));
+}
+
 int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
                     int dst_size) {
   CHECK_LE(len, dst_size);
@@ -147,14 +172,23 @@ int disc_get_format(struct disc *disc) {
   return disc->get_format(disc);
 }
 
-void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
-  struct session *session = disc_get_session(disc, 1);
+void disc_get_id(struct disc *disc, char *id, int size) {
+  struct disc_meta meta;
+  disc_get_meta(disc, &meta);
 
-  uint8_t tmp[DISC_MAX_SECTOR_SIZE];
-  disc_read_sectors(disc, session->leadin_fad, 1, GD_SECTOR_ANY, GD_MASK_DATA,
-                    tmp, sizeof(tmp));
+  char device_info[17];
+  char product_number[11];
+  char product_version[7];
+  char name[129];
+  strncpy_trim_spaces(device_info, meta.device_info, sizeof(meta.device_info));
+  strncpy_trim_spaces(product_number, meta.product_number,
+                      sizeof(meta.product_number));
+  strncpy_trim_spaces(product_version, meta.product_version,
+                      sizeof(meta.product_version));
+  strncpy_trim_spaces(name, meta.name, sizeof(meta.name));
 
-  memcpy(meta, tmp, sizeof(*meta));
+  snprintf(id, size, "%s %s %s %s", name, product_number, product_version,
+           device_info);
 }
 
 struct disc *disc_create(const char *filename) {
@@ -167,17 +201,9 @@ struct disc *disc_create(const char *filename) {
   }
 
   if (disc) {
-    /* print meta info */
-    struct disc_meta meta;
-    disc_get_meta(disc, &meta);
-
-    char name[256];
-    char version[16];
-    char id[16];
-    strncpy_trim_spaces(name, meta.name, sizeof(meta.name));
-    strncpy_trim_spaces(version, meta.version, sizeof(meta.version));
-    strncpy_trim_spaces(id, meta.id, sizeof(meta.id));
-    LOG_INFO("disc_create %s %s - %s", name, version, id);
+    char id[DISC_MAX_ID_SIZE];
+    disc_get_id(disc, id, sizeof(id));
+    LOG_INFO("disc_create %s", id);
   }
 
   return disc;
