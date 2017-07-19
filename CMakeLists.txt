@@ -64,6 +64,7 @@ check_function_exists(strnlen HAVE_STRNLEN)
 check_function_exists(strnstr HAVE_STRNSTR)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/core/config.h)
 list(APPEND RELIB_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/src)
+list(APPEND RELIB_DEFS HAVE_CONFIG_H)
 
 
 #--------------------------------------------------
