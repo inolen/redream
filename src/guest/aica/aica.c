@@ -835,7 +835,7 @@ void aica_set_clock(struct aica *aica, uint32_t time) {
   aica->rtc = time;
 }
 
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
 void aica_debug_menu(struct aica *aica) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("AICA", 1)) {

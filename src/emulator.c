@@ -520,7 +520,7 @@ static void *emu_run_thread(void *data) {
 }
 
 static void emu_debug_menu(struct emu *emu) {
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
   if (!emu->debug_menu) {
     return;
   }

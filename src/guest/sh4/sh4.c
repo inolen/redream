@@ -223,7 +223,7 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   sh4->execute_if->running = 1;
 }
 
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
 void sh4_debug_menu(struct sh4 *sh4) {
   struct jit *jit = sh4->jit;
 

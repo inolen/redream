@@ -1,4 +1,4 @@
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
 #include <imgui/imgui.h>
 #endif
 
@@ -16,7 +16,7 @@ struct imgui {
 };
 
 extern "C" void imgui_render(struct imgui *imgui) {
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   /* update draw batches. note, this doesn't _actually_ render anything because
@@ -68,7 +68,7 @@ extern "C" void imgui_render(struct imgui *imgui) {
 }
 
 extern "C" void imgui_begin_frame(struct imgui *imgui, int width, int height) {
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   io.DisplaySize =
@@ -83,7 +83,7 @@ extern "C" void imgui_begin_frame(struct imgui *imgui, int width, int height) {
 
 extern "C" void imgui_keydown(struct imgui *imgui, enum keycode code,
                               int16_t value) {
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   if (code == K_MWHEELUP) {
@@ -112,7 +112,7 @@ extern "C" void imgui_keydown(struct imgui *imgui, enum keycode code,
 }
 
 extern "C" void imgui_mousemove(struct imgui *imgui, int x, int y) {
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   io.MousePos = ImVec2((float)x, (float)y);
@@ -120,7 +120,7 @@ extern "C" void imgui_mousemove(struct imgui *imgui, int x, int y) {
 }
 
 extern "C" void imgui_destroy(struct imgui *imgui) {
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
   ImGui::Shutdown();
 
   free(imgui);
@@ -128,7 +128,7 @@ extern "C" void imgui_destroy(struct imgui *imgui) {
 }
 
 extern "C" struct imgui *imgui_create(struct render_backend *r) {
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
   struct imgui *imgui =
       reinterpret_cast<struct imgui *>(calloc(1, sizeof(struct imgui)));
 

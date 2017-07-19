@@ -346,7 +346,7 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   }
 }
 
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
 void holly_debug_menu(struct holly *hl) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("HOLLY", 1)) {

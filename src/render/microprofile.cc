@@ -1,4 +1,4 @@
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
 #define MICROPROFILE_WEBSERVER 0
 #define MICROPROFILE_GPU_TIMERS 0
 #define MICROPROFILE_ENABLED 1
@@ -52,7 +52,7 @@ static struct microprofile *s_mp;
 static struct ui_vertex *mp_alloc_verts(struct microprofile *mp,
                                         const struct ui_surface &desc,
                                         int count) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   CHECK(mp->num_verts + count <= MAX_2D_VERTICES);
   uint32_t first_vert = mp->num_verts;
   mp->num_verts += count;
@@ -88,7 +88,7 @@ static struct ui_vertex *mp_alloc_verts(struct microprofile *mp,
 
 static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
                          const char *text) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   float fx = static_cast<float>(x);
   float fy = static_cast<float>(y);
   float fy2 = fy + (MICROPROFILE_TEXT_HEIGHT + 1);
@@ -143,7 +143,7 @@ static void mp_draw_text(struct microprofile *mp, int x, int y, uint32_t color,
 
 static void mp_draw_box(struct microprofile *mp, int x0, int y0, int x1, int y1,
                         uint32_t color, enum box_type type) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   struct ui_vertex *vertex = mp_alloc_verts(mp, {PRIM_TRIANGLES,
                                                  0,
                                                  BLEND_SRC_ALPHA,
@@ -202,7 +202,7 @@ static void mp_draw_box(struct microprofile *mp, int x0, int y0, int x1, int y1,
 
 static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
                          uint32_t color) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   CHECK(num_verts);
 
   struct ui_vertex *vertex = mp_alloc_verts(mp, {PRIM_LINES,
@@ -228,7 +228,7 @@ static void mp_draw_line(struct microprofile *mp, float *verts, int num_verts,
 }
 
 void mp_render(struct microprofile *mp) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   s_mp = mp;
 
   /* update draw surfaces */
@@ -256,13 +256,13 @@ void mp_begin_frame(struct microprofile *mp, int width, int height) {
 }
 
 void mp_mousemove(struct microprofile *mp, int x, int y) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   MicroProfileMousePosition(x, y, 0);
 #endif
 }
 
 void mp_keydown(struct microprofile *mp, enum keycode key, int16_t value) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   if (key == K_F2) {
     if (value > 0) {
       MicroProfileToggleDisplayMode();
@@ -278,7 +278,7 @@ void mp_keydown(struct microprofile *mp, enum keycode key, int16_t value) {
 }
 
 void mp_destroy(struct microprofile *mp) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   r_destroy_texture(mp->r, mp->font_texture);
 
   free(mp);
@@ -286,7 +286,7 @@ void mp_destroy(struct microprofile *mp) {
 }
 
 struct microprofile *mp_create(struct render_backend *r) {
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
   struct microprofile *mp = reinterpret_cast<struct microprofile *>(
       calloc(1, sizeof(struct microprofile)));
 
@@ -319,7 +319,7 @@ struct microprofile *mp_create(struct render_backend *r) {
 
 /* microprofile expects the following three functions to be defined, they're
    called during MicroProfileDraw */
-#if ENABLE_MICROPROFILE
+#ifdef HAVE_MICROPROFILE
 void MicroProfileDrawText(int x, int y, uint32_t color, const char *text,
                           uint32_t len) {
   /* microprofile provides 24-bit rgb values for text color */

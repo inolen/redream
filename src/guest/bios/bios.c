@@ -296,7 +296,7 @@ static int bios_boot(struct bios *bios) {
   return 1;
 }
 
-#if ENABLE_IMGUI
+#ifdef HAVE_IMGUI
 void bios_debug_menu(struct bios *bios) {
   int changed = 0;
 
