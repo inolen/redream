@@ -310,8 +310,8 @@ static void x64_backend_emit_epilogue(struct x64_backend *backend,
                                       struct jit_block *block) {
   auto &e = *backend->codegen;
 
-  /* catch blocks that haven't been terminated */
-  e.db(0xcc);
+  /* if the block didn't branch to another address, return to dispatch */
+  e.jmp(backend->dispatch_dynamic);
 }
 
 static void x64_backend_emit_prologue(struct x64_backend *backend,
@@ -353,23 +353,12 @@ static void x64_backend_emit(struct x64_backend *backend,
 
     e.L(block_label);
 
-    int terminated = 0;
-
     list_for_each_entry(instr, &blk->instrs, struct ir_instr, it) {
       struct jit_emitter *emitter = &x64_emitters[instr->op];
       x64_emit_cb emit = (x64_emit_cb)emitter->func;
       CHECK_NOTNULL(emit);
 
       emit(backend, *backend->codegen, block, instr);
-
-      terminated = (instr->op == OP_BRANCH);
-    }
-
-    /* if the block doesn't terminate in an unconditional branch, dispatch to
-       the next pc, which has ideally been set by a non-branch operation such
-       as a fallback handler */
-    if (!terminated) {
-      e.jmp(backend->dispatch_dynamic);
     }
   }
 

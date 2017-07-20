@@ -32,7 +32,9 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
 
   char buffer[128];
 
-  for (int offset = 0; offset < block->guest_size; offset += 2) {
+  int offset = 0;
+
+  while (offset < block->guest_size) {
     uint32_t addr = block->guest_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
@@ -41,8 +43,10 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
     sh4_format(addr, instr, buffer, sizeof(buffer));
     LOG_INFO(buffer);
 
+    offset += 2;
+
     if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_addr = addr + 2;
+      uint32_t delay_addr = block->guest_addr + offset;
       uint16_t delay_data = guest->r16(guest->space, delay_addr);
       union sh4_instr delay_instr = {delay_data};
 
@@ -72,30 +76,54 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   }
 
   /* translate the actual block */
-  int end_flags = 0;
+  int offset = 0;
+  struct jit_opdef *def = NULL;
+  struct ir_insert_point delay_point;
 
-  for (int offset = 0; offset < block->guest_size; offset += 2) {
+  while (offset < block->guest_size) {
     uint32_t addr = block->guest_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
-    struct jit_opdef *def = sh4_get_opdef(data);
-
-#if 0
-    /* emit a call to the interpreter fallback for each instruction. this can
-       be used to bisect and find bad ir op implementations */
-    ir_fallback(ir, def->fallback, addr, data);
-    end_flags = SH4_FLAG_SET_PC;
-#else
     sh4_translate_cb cb = sh4_get_translator(data);
-    CHECK_NOTNULL(cb);
+    def = sh4_get_opdef(data);
 
+    /* emit synthetic op responsible for mapping guest to host instructions */
     ir_source_info(ir, addr, offset / 2);
-    cb(guest, block, ir, addr, instr, flags);
 
-    end_flags = def->flags;
-#endif
+    /* the pc is normally only written to the context at the end of the block,
+       sync now for any instruction which needs to read the correct pc */
+    if (def->flags & SH4_FLAG_LOAD_PC) {
+      ir_store_context(ir, offsetof(struct sh4_context, pc),
+                       ir_alloc_i32(ir, addr));
+    }
+
+    cb(guest, block, ir, addr, instr, flags, &delay_point);
+
+    offset += 2;
 
     if (def->flags & SH4_FLAG_DELAYED) {
+      uint32_t delay_addr = block->guest_addr + offset;
+      uint32_t delay_data = guest->r16(guest->space, delay_addr);
+      union sh4_instr delay_instr = {delay_data};
+      sh4_translate_cb delay_cb = sh4_get_translator(delay_data);
+      struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
+
+      /* move insert point back to the middle of the last instruction */
+      struct ir_insert_point original = ir_get_insert_point(ir);
+      ir_set_insert_point(ir, &delay_point);
+
+      ir_source_info(ir, delay_addr, offset / 2);
+
+      if (delay_def->flags & SH4_FLAG_LOAD_PC) {
+        ir_store_context(ir, offsetof(struct sh4_context, pc),
+                         ir_alloc_i32(ir, delay_addr));
+      }
+
+      delay_cb(guest, block, ir, delay_addr, delay_instr, flags, NULL);
+
+      /* restore insert point */
+      ir_set_insert_point(ir, &original);
+
       offset += 2;
     }
   }
@@ -110,11 +138,11 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 
      c.) the block terminates due to an instruction which sets the pc but is not
          a branch (e.g. an invalid instruction trap); nothing needs to be done,
-         the backend will always implicitly branch to the next pc */
+         dispatch will always implicitly branch to the next pc */
 
   /* if the final instruction doesn't unconditionally set the pc, insert a
      branch to the next instruction */
-  if ((end_flags & (SH4_FLAG_SET_PC | SH4_FLAG_COND)) != SH4_FLAG_SET_PC) {
+  if ((def->flags & (SH4_FLAG_STORE_PC | SH4_FLAG_COND)) != SH4_FLAG_STORE_PC) {
     struct ir_block *tail_block =
         list_last_entry(&ir->blocks, struct ir_block, it);
     struct ir_instr *tail_instr =
@@ -156,7 +184,8 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
     all_flags |= def->flags;
 
     if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_data = guest->r16(guest->space, addr + 2);
+      uint32_t delay_addr = block->guest_addr + offset;
+      uint32_t delay_data = guest->r16(guest->space, delay_addr);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
       offset += 2;
@@ -164,7 +193,6 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
       block->num_cycles += delay_def->cycles;
       block->num_instrs++;
 
-      /* if the instruction has none of the IDLE_MASK flags, disqualify */
       idle_loop &= (delay_def->flags & IDLE_MASK) != 0;
       all_flags |= delay_def->flags;
 
@@ -173,7 +201,7 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
     }
 
     /* stop emitting once a branch is hit and save off branch information */
-    if (def->flags & SH4_FLAG_SET_PC) {
+    if (def->flags & SH4_FLAG_STORE_PC) {
       if (def->op == SH4_OP_INVALID) {
         block->branch_type = JIT_BRANCH_DYNAMIC;
       } else if (def->op == SH4_OP_BF) {
@@ -235,13 +263,13 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
     /* if fpscr has changed, stop emitting since the fpu state is invalidated.
        also, if sr has changed, stop emitting as there are interrupts that
        possibly need to be handled */
-    if (def->flags & (SH4_FLAG_SET_FPSCR | SH4_FLAG_SET_SR)) {
+    if (def->flags & (SH4_FLAG_STORE_FPSCR | SH4_FLAG_STORE_SR)) {
       break;
     }
   }
 
-  /* if there was no load, disqualify */
-  idle_loop &= (all_flags & SH4_FLAG_LOAD) != 0;
+  /* if the block doesn't contain the required flags, disqualify */
+  idle_loop &= (all_flags & IDLE_MASK) == IDLE_MASK;
 
   /* if the branch isn't a short back edge, disqualify */
   idle_loop &= (block->guest_addr - block->branch_addr) <= 32;

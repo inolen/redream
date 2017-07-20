@@ -114,7 +114,7 @@ static void sh4_invalid_instr(void *data) {
     return;
   }
 
-  LOG_FATAL("Unhandled invalid instruction at 0x%08x", sh4->ctx.pc);
+  LOG_FATAL("unhandled invalid instruction at 0x%08x", sh4->ctx.pc);
 }
 
 static void sh4_run(struct device *dev, int64_t ns) {

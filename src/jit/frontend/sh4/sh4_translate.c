@@ -96,16 +96,7 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define FPU_DOUBLE_PR               (flags & SH4_DOUBLE_PR)
 #define FPU_DOUBLE_SZ               (flags & SH4_DOUBLE_SZ)
 
-#define DELAY_INSTR()               {                                                             \
-                                      uint32_t delay_addr = addr + 2;                             \
-                                      uint32_t delay_offset = delay_addr - block->guest_addr;     \
-                                      uint16_t delay_data = guest->r16(guest->space, delay_addr); \
-                                      union sh4_instr delay_instr = {delay_data};                 \
-                                      sh4_translate_cb cb = sh4_get_translator(delay_data);       \
-                                      CHECK_NOTNULL(cb);                                          \
-                                      ir_source_info(ir, delay_addr, delay_offset / 2);           \
-                                      cb(guest, block, ir, delay_addr, delay_instr, flags);       \
-                                    }
+#define DELAY_INSTR()               *delay_point = ir_get_insert_point(ir);
 #define NEXT_INSTR()               
 #define NEXT_NEXT_INSTR()               
 
@@ -459,7 +450,7 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define INSTR(name)                                                           \
   void sh4_translate_##name(struct sh4_guest *guest, struct jit_block *block, \
                             struct ir *ir, uint32_t addr, union sh4_instr i,  \
-                            int flags)
+                            int flags, struct ir_insert_point *delay_point)
 #include "jit/frontend/sh4/sh4_instr.h"
 #undef INSTR
 
@@ -468,3 +459,9 @@ sh4_translate_cb sh4_translators[NUM_SH4_OPS] = {
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
+
+sh4_translate_cb sh4_get_translator(uint16_t instr) {
+  sh4_translate_cb cb = sh4_translators[sh4_get_op(instr)];
+  CHECK_NOTNULL(cb);
+  return cb;
+}

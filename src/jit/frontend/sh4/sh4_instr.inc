@@ -2,7 +2,7 @@
  *         NAME      DESC                            INSTR_CODE        CYCLES FLAGS
  */
 
-SH4_INSTR(INVALID,   "invalid",                      0000000000000000, 1, SH4_FLAG_SET_PC)
+SH4_INSTR(INVALID,   "invalid",                      0000000000000000, 1, SH4_FLAG_LOAD_PC | SH4_FLAG_STORE_PC)
 
 /* fixed-point transfer instructions */
 SH4_INSTR(MOVI,      "mov     #imm8, rn",            1110nnnniiiiiiii, 1, 0)
@@ -119,31 +119,31 @@ SH4_INSTR(SHLR16,    "shlr16  rn",                   0100nnnn00101001, 1, 0)
 
 
 /* branch instructions */
-SH4_INSTR(BF,        "bf      disp:8",               10001011dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_SET_PC)
-SH4_INSTR(BFS,       "bfs     disp:8",               10001111dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
-SH4_INSTR(BT,        "bt      disp:8",               10001001dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_SET_PC)
-SH4_INSTR(BTS,       "bts     disp:8",               10001101dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
-SH4_INSTR(BRA,       "bra     disp:12",              1010dddddddddddd, 1, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
-SH4_INSTR(BRAF,      "braf    rn",                   0000nnnn00100011, 2, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
-SH4_INSTR(BSR,       "bsr     disp:12",              1011dddddddddddd, 1, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
-SH4_INSTR(BSRF,      "bsrf    rn",                   0000nnnn00000011, 2, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
-SH4_INSTR(JMP,       "jmp     @rm",                  0100nnnn00101011, 2, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
-SH4_INSTR(JSR,       "jsr     @rn",                  0100nnnn00001011, 2, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
-SH4_INSTR(RTS,       "rts",                          0000000000001011, 2, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(BF,        "bf      disp:8",               10001011dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_STORE_PC)
+SH4_INSTR(BFS,       "bfs     disp:8",               10001111dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(BT,        "bt      disp:8",               10001001dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_STORE_PC)
+SH4_INSTR(BTS,       "bts     disp:8",               10001101dddddddd, 1, SH4_FLAG_COND | SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(BRA,       "bra     disp:12",              1010dddddddddddd, 1, SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(BRAF,      "braf    rn",                   0000nnnn00100011, 2, SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(BSR,       "bsr     disp:12",              1011dddddddddddd, 1, SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(BSRF,      "bsrf    rn",                   0000nnnn00000011, 2, SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(JMP,       "jmp     @rm",                  0100nnnn00101011, 2, SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(JSR,       "jsr     @rn",                  0100nnnn00001011, 2, SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
+SH4_INSTR(RTS,       "rts",                          0000000000001011, 2, SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED)
 
 
 /* system control instructions */
 SH4_INSTR(CLRMAC,    "clrmac",                       0000000000101000, 1, 0)
 SH4_INSTR(CLRS,      "clrs",                         0000000001001000, 1, 0)
 SH4_INSTR(CLRT,      "clrt",                         0000000000001000, 1, 0)
-SH4_INSTR(LDCSR,     "ldc     rn, sr",               0100mmmm00001110, 4, SH4_FLAG_SET_SR)
+SH4_INSTR(LDCSR,     "ldc     rn, sr",               0100mmmm00001110, 4, SH4_FLAG_STORE_SR)
 SH4_INSTR(LDCGBR,    "ldc     rn, gbr",              0100mmmm00011110, 3, 0)
 SH4_INSTR(LDCVBR,    "ldc     rn, vbr",              0100mmmm00101110, 1, 0)
 SH4_INSTR(LDCSSR,    "ldc     rn, ssr",              0100mmmm00111110, 1, 0)
 SH4_INSTR(LDCSPC,    "ldc     rn, spc",              0100mmmm01001110, 1, 0)
 SH4_INSTR(LDCDBR,    "ldc     rn, dbr",              0100mmmm11111010, 1, 0)
 SH4_INSTR(LDCRBANK,  "ldc.l   rn, rn_bank",          0100mmmm1nnn1110, 1, 0)
-SH4_INSTR(LDCMSR,    "ldc.l   @rn+, sr",             0100mmmm00000111, 4, SH4_FLAG_LOAD | SH4_FLAG_SET_SR)
+SH4_INSTR(LDCMSR,    "ldc.l   @rn+, sr",             0100mmmm00000111, 4, SH4_FLAG_LOAD | SH4_FLAG_STORE_SR)
 SH4_INSTR(LDCMGBR,   "ldc.l   @rn+, gbr",            0100mmmm00010111, 3, SH4_FLAG_LOAD)
 SH4_INSTR(LDCMVBR,   "ldc.l   @rn+, vbr",            0100mmmm00100111, 1, SH4_FLAG_LOAD)
 SH4_INSTR(LDCMSSR,   "ldc.l   @rn+, ssr",            0100mmmm00110111, 1, SH4_FLAG_LOAD)
@@ -163,10 +163,10 @@ SH4_INSTR(OCBI,      "ocbi",                         0000nnnn10010011, 1, 0)
 SH4_INSTR(OCBP,      "ocbp",                         0000nnnn10100011, 1, 0)
 SH4_INSTR(OCBWB,     "ocbwb",                        0000nnnn10110011, 1, 0)
 SH4_INSTR(PREF,      "pref    @rn",                  0000nnnn10000011, 1, SH4_FLAG_STORE)
-SH4_INSTR(RTE,       "rte",                          0000000000101011, 5, SH4_FLAG_SET_PC | SH4_FLAG_DELAYED | SH4_FLAG_SET_SR)
+SH4_INSTR(RTE,       "rte",                          0000000000101011, 5, SH4_FLAG_STORE_PC | SH4_FLAG_DELAYED | SH4_FLAG_STORE_SR)
 SH4_INSTR(SETS,      "sets",                         0000000001011000, 1, 0)
 SH4_INSTR(SETT,      "sett",                         0000000000011000, 1, 0)
-SH4_INSTR(SLEEP,     "sleep",                        0000000000011011, 4, SH4_FLAG_SET_PC)
+SH4_INSTR(SLEEP,     "sleep",                        0000000000011011, 4, SH4_FLAG_STORE_PC)
 SH4_INSTR(STCSR,     "stc     sr, rn",               0000nnnn00000010, 2, 0)
 SH4_INSTR(STCGBR,    "stc     gbr, rn",              0000nnnn00010010, 2, 0)
 SH4_INSTR(STCVBR,    "stc     vbr, rn",              0000nnnn00100010, 2, 0)
@@ -189,7 +189,7 @@ SH4_INSTR(STSPR,     "sts     pr, rn",               0000nnnn00101010, 2, 0)
 SH4_INSTR(STSMMACH,  "sts.l   mach, @-rn",           0100nnnn00000010, 1, SH4_FLAG_STORE)
 SH4_INSTR(STSMMACL,  "sts.l   macl, @-rn",           0100nnnn00010010, 1, SH4_FLAG_STORE)
 SH4_INSTR(STSMPR,    "sts.l   pr, @-rn",             0100nnnn00100010, 2, SH4_FLAG_STORE)
-SH4_INSTR(TRAPA,     "trapa   #imm8",                11000011iiiiiiii, 7, SH4_FLAG_SET_PC)
+SH4_INSTR(TRAPA,     "trapa   #imm8",                11000011iiiiiiii, 7, SH4_FLAG_STORE_PC)
 
 
 /* floating-point single and double precision instructions */
@@ -226,9 +226,9 @@ SH4_INSTR(FCNVSD,    "fcnvsd  fpul, drn",            1111nnnn10101101, 1, 0)
 
 
 /* floating-point control instructions */
-SH4_INSTR(LDSFPSCR,  "lds     rn, fpscr",            0100mmmm01101010, 1, SH4_FLAG_SET_FPSCR)
+SH4_INSTR(LDSFPSCR,  "lds     rn, fpscr",            0100mmmm01101010, 1, SH4_FLAG_STORE_FPSCR)
 SH4_INSTR(LDSFPUL,   "lds     rn, fpul",             0100mmmm01011010, 1, 0)
-SH4_INSTR(LDSMFPSCR, "lds.l   @rn+, fpscr",          0100mmmm01100110, 1, SH4_FLAG_LOAD | SH4_FLAG_SET_FPSCR)
+SH4_INSTR(LDSMFPSCR, "lds.l   @rn+, fpscr",          0100mmmm01100110, 1, SH4_FLAG_LOAD | SH4_FLAG_STORE_FPSCR)
 SH4_INSTR(LDSMFPUL,  "lds.l   @rn+, fpul",           0100mmmm01010110, 1, SH4_FLAG_LOAD)
 SH4_INSTR(STSFPSCR,  "sts     fpscr, rn",            0000nnnn01101010, 1, 0)
 SH4_INSTR(STSFPUL,   "sts     fpul, rn",             0000nnnn01011010, 1, 0)
@@ -241,5 +241,5 @@ SH4_INSTR(STSMFPUL,  "sts.l   fpul, @-rn",           0100nnnn01010010, 1, SH4_FL
 SH4_INSTR(FIPR,      "fipr    fvm, fvn",             1111nnmm11101101, 1, 0)
 SH4_INSTR(FSCA,      "fsca    fpul, drn",            1111nnn011111101, 1, 0)
 SH4_INSTR(FTRV,      "ftrv    xmtrx, fvn",           1111nn0111111101, 1, 0)
-SH4_INSTR(FRCHG,     "frchg",                        1111101111111101, 1, SH4_FLAG_SET_FPSCR)
-SH4_INSTR(FSCHG,     "fschg",                        1111001111111101, 1, SH4_FLAG_SET_FPSCR)
+SH4_INSTR(FRCHG,     "frchg",                        1111101111111101, 1, SH4_FLAG_STORE_FPSCR)
+SH4_INSTR(FSCHG,     "fschg",                        1111001111111101, 1, SH4_FLAG_STORE_FPSCR)
