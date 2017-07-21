@@ -197,6 +197,7 @@ set(RELIB_SOURCES
   src/guest/gdrom/disc.c
   src/guest/gdrom/gdi.c
   src/guest/gdrom/gdrom.c
+  src/guest/gdrom/patch.c
   src/guest/holly/holly.c
   src/guest/maple/controller.c
   src/guest/maple/maple.c

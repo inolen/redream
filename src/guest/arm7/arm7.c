@@ -213,7 +213,7 @@ static int arm7_init(struct device *dev) {
   arm->jit = jit_create("arm7", arm->frontend, arm->backend,
                         (struct jit_guest *)arm->guest);
 
-  arm->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x00000000);
+  arm->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x0);
 
   return 1;
 }

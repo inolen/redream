@@ -38,7 +38,6 @@
 DEFINE_AGGREGATE_COUNTER(frames);
 
 DEFINE_PERSISTENT_OPTION_STRING(aspect_ratio, "stretch", "Video aspect ratio");
-DEFINE_PERSISTENT_OPTION_INT(widescreen_hack, 1, "Enable widescreen hacks");
 
 static const char *aspect_ratios[] = {
     "stretch", "4:3",
@@ -554,13 +553,6 @@ static void emu_debug_menu(struct emu *emu) {
           }
         }
 
-        igSeparator();
-
-        if (igMenuItem("widescreen hack", NULL, OPTION_widescreen_hack, 1)) {
-          OPTION_widescreen_hack = !OPTION_widescreen_hack;
-          LOG_WARNING("widescreen hack settings changed, restart to apply");
-        }
-
         igEndMenu();
       }
       igEndMenu();
@@ -570,6 +562,7 @@ static void emu_debug_menu(struct emu *emu) {
   }
 
   bios_debug_menu(emu->dc->bios);
+  gdrom_debug_menu(emu->dc->gdrom);
   holly_debug_menu(emu->dc->holly);
   aica_debug_menu(emu->dc->aica);
   sh4_debug_menu(emu->dc->sh4);

@@ -11,15 +11,9 @@ struct gdi {
   int num_tracks;
 };
 
-static int gdi_read_sectors(struct disc *disc, int fad, int num_sectors,
-                            int sector_fmt, int sector_mask, void *dst,
-                            int dst_size) {
+static void gdi_read_sector(struct disc *disc, struct track *track, int fad,
+                            void *dst) {
   struct gdi *gdi = (struct gdi *)disc;
-
-  struct track *track = disc_lookup_track(disc, fad);
-  CHECK_NOTNULL(track);
-  CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
-  CHECK(sector_mask == GD_MASK_DATA);
 
   /* open the file backing the track */
   int n = (int)(track - gdi->tracks);
@@ -36,27 +30,14 @@ static int gdi_read_sectors(struct disc *disc, int fad, int num_sectors,
   CHECK_EQ(res, 0);
 
   /* only read the data portion of the track */
-  int header_size = 16;
-  int error_size = 288;
-  int data_size = track->sector_size - header_size - error_size;
-  CHECK_EQ(data_size, 2048);
+  res = fseek(fp, track->header_size, SEEK_CUR);
+  CHECK_EQ(res, 0);
 
-  int read = 0;
+  res = (int)fread(dst, 1, track->data_size, fp);
+  CHECK_EQ(res, track->data_size);
 
-  for (int i = 0; i < num_sectors; i++) {
-    res = fseek(fp, header_size, SEEK_CUR);
-    CHECK_EQ(res, 0);
-
-    CHECK_LE(read + data_size, dst_size);
-    res = (int)fread(dst + read, 1, data_size, fp);
-    CHECK_EQ(res, data_size);
-    read += res;
-
-    res = fseek(fp, error_size, SEEK_CUR);
-    CHECK_EQ(res, 0);
-  }
-
-  return read;
+  res = fseek(fp, track->error_size, SEEK_CUR);
+  CHECK_EQ(res, 0);
 }
 
 static void gdi_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -167,8 +148,14 @@ static int gdi_parse(struct disc *disc, const char *filename) {
     track->num = gdi->num_tracks;
     track->fad = lba + GDROM_PREGAP;
     track->ctrl = ctrl;
+
     track->sector_fmt = GD_SECTOR_M1;
     track->sector_size = sector_size;
+    track->header_size = 16;
+    track->error_size = 288;
+    track->data_size =
+        track->sector_size - track->header_size - track->error_size;
+
     track->file_offset = file_offset - track->fad * track->sector_size;
     snprintf(track->filename, sizeof(track->filename), "%s" PATH_SEPARATOR "%s",
              dirname, filename);
@@ -215,7 +202,7 @@ struct disc *gdi_create(const char *filename) {
   gdi->get_num_tracks = &gdi_get_num_tracks;
   gdi->get_track = &gdi_get_track;
   gdi->get_toc = &gdi_get_toc;
-  gdi->read_sectors = &gdi_read_sectors;
+  gdi->read_sector = &gdi_read_sector;
 
   struct disc *disc = (struct disc *)gdi;
 

@@ -4,7 +4,9 @@
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom_replies.inc"
 #include "guest/gdrom/gdrom_types.h"
+#include "guest/gdrom/patch.h"
 #include "guest/holly/holly.h"
+#include "render/imgui.h"
 
 #if 0
 #define LOG_GDROM LOG_INFO
@@ -490,16 +492,6 @@ int gdrom_read_sectors(struct gdrom *gd, int fad, int num_sectors, int fmt,
                            dst_size);
 }
 
-int gdrom_find_file(struct gdrom *gd, const char *filename, int *fad,
-                    int *len) {
-  if (!gd->disc) {
-    LOG_WARNING("gdrom_find_file failed, no disc");
-    return 0;
-  }
-
-  return disc_find_file(gd->disc, filename, fad, len);
-}
-
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
   CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, GD_SPI_SCD_SIZE);
@@ -640,12 +632,6 @@ void gdrom_get_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
   *info = gd->hw_info;
 }
 
-void gdrom_get_disc_id(struct gdrom *gd, char *id, int size) {
-  CHECK_NOTNULL(gd->disc);
-
-  disc_get_id(gd->disc, id, size);
-}
-
 void gdrom_dma_end(struct gdrom *gd) {
   LOG_GDROM("gd_dma_end");
 }
@@ -680,6 +666,20 @@ void gdrom_dma_begin(struct gdrom *gd) {
   LOG_GDROM("gd_dma_begin");
 }
 
+int gdrom_find_file(struct gdrom *gd, const char *filename, int *fad,
+                    int *len) {
+  CHECK_NOTNULL(gd->disc);
+
+  return disc_find_file(gd->disc, filename, fad, len);
+}
+
+void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len) {
+  CHECK_NOTNULL(gd->disc);
+
+  *fad = gd->disc->bootfad;
+  *len = gd->disc->bootlen;
+}
+
 void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   if (gd->disc != disc) {
     if (gd->disc) {
@@ -706,6 +706,20 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
 
   /* TODO how do GD_FEATURES, GD_INTREASON, GD_BYCTLLO and GD_BYCTLHI behave */
 }
+
+#ifdef HAVE_IMGUI
+void gdrom_debug_menu(struct gdrom *gd) {
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("GDROM", 1)) {
+      patch_debug_menu();
+
+      igEndMenu();
+    }
+
+    igEndMainMenuBar();
+  }
+}
+#endif
 
 void gdrom_destroy(struct gdrom *gd) {
   if (gd->disc) {

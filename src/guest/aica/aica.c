@@ -799,7 +799,7 @@ static void aica_toggle_recording(struct aica *aica) {
 static int aica_init(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
 
-  aica->wave_ram = memory_translate(aica->memory, "aica wave ram", 0x00000000);
+  aica->wave_ram = memory_translate(aica->memory, "aica wave ram", 0x0);
 
   /* init channels */
   {

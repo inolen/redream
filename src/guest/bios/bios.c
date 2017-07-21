@@ -217,7 +217,7 @@ static int bios_boot(struct bios *bios) {
 
   LOG_INFO("bios_boot using hle bootstrap");
 
-  /* load ip.bin bootstrap */
+  /* load IP.BIN bootstrap */
   {
     /* bootstrap occupies the first 16 sectors of the data track */
     struct gd_spi_session data_session;
@@ -234,31 +234,22 @@ static int bios_boot(struct bios *bios) {
     as_memcpy_to_guest(space, BOOT1_ADDR, tmp, read);
   }
 
-  /* load 1st_read.bin into ram */
+  /* load 1ST_READ.BIN into ram */
   {
-    const char *bootfile = "1ST_READ.BIN";
-
-    int fad;
-    int len;
-    int found = gdrom_find_file(gd, bootfile, &fad, &len);
-    if (!found) {
-      LOG_WARNING("bios_boot failed to find %s", bootfile);
-      return 0;
-    }
+    int fad, len;
+    gdrom_get_bootfile(gd, &fad, &len);
 
     /* copy the bootfile into ram */
     uint8_t *tmp = malloc(len);
     int read = gdrom_read_bytes(gd, fad, len, tmp, len);
     if (read != len) {
-      LOG_WARNING("bios_boot failed to copied %s", bootfile);
+      LOG_WARNING("bios_boot failed to copy bootfile");
       free(tmp);
       return 0;
     }
 
     as_memcpy_to_guest(space, BOOT2_ADDR, tmp, read);
     free(tmp);
-
-    LOG_INFO("bios_boot found '%s' at fad=%d size=%d", bootfile, fad, len);
   }
 
   /* write system info */

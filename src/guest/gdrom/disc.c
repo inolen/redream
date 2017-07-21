@@ -4,6 +4,7 @@
 #include "guest/gdrom/cdi.h"
 #include "guest/gdrom/gdi.h"
 #include "guest/gdrom/iso.h"
+#include "guest/gdrom/patch.h"
 
 /* meta information found in the ip.bin */
 struct disc_meta {
@@ -38,8 +39,8 @@ int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
   int rem = len;
 
   while (rem) {
-    int n = disc->read_sectors(disc, fad, 1, GD_SECTOR_ANY, GD_MASK_DATA, tmp,
-                               sizeof(tmp));
+    int n = disc_read_sectors(disc, fad, 1, GD_SECTOR_ANY, GD_MASK_DATA, tmp,
+                              sizeof(tmp));
     CHECK(n);
 
     /* don't overrun */
@@ -57,8 +58,29 @@ int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
 int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
                       int sector_fmt, int sector_mask, void *dst,
                       int dst_size) {
-  return disc->read_sectors(disc, fad, num_sectors, sector_fmt, sector_mask,
-                            dst, dst_size);
+  struct track *track = disc_lookup_track(disc, fad);
+  CHECK_NOTNULL(track);
+  CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
+  CHECK(sector_mask == GD_MASK_DATA);
+
+  int read = 0;
+  int endfad = fad + num_sectors;
+  int bootstart = disc->bootfad;
+  int bootend = disc->bootfad + (disc->bootlen / track->data_size);
+
+  for (int i = fad; i < endfad; i++) {
+    CHECK_LE(read + track->data_size, dst_size);
+    disc->read_sector(disc, track, i, dst + read);
+    read += track->data_size;
+  }
+
+  /* apply bootfile patches */
+  if (bootstart <= endfad && fad <= bootend) {
+    int offset = (fad - bootstart) * track->data_size;
+    patch_bootfile(disc->id, dst, offset, read);
+  }
+
+  return read;
 }
 
 int disc_find_file(struct disc *disc, const char *filename, int *fad,
@@ -67,10 +89,10 @@ int disc_find_file(struct disc *disc, const char *filename, int *fad,
 
   /* get the session for the main data track */
   struct session *session = disc_get_session(disc, 1);
-  struct track *data_track = disc_get_track(disc, session->first_track);
+  struct track *track = disc_get_track(disc, session->first_track);
 
   /* read primary volume descriptor */
-  int read = disc_read_sectors(disc, data_track->fad + ISO_PVD_SECTOR, 1,
+  int read = disc_read_sectors(disc, track->fad + ISO_PVD_SECTOR, 1,
                                GD_SECTOR_ANY, GD_MASK_DATA, tmp, sizeof(tmp));
   if (!read) {
     return 0;
@@ -164,31 +186,12 @@ int disc_get_num_sessions(struct disc *disc) {
   return disc->get_num_sessions(disc);
 }
 
-void disc_destroy(struct disc *disc) {
-  disc->destroy(disc);
-}
-
 int disc_get_format(struct disc *disc) {
   return disc->get_format(disc);
 }
 
-void disc_get_id(struct disc *disc, char *id, int size) {
-  struct disc_meta meta;
-  disc_get_meta(disc, &meta);
-
-  char device_info[17];
-  char product_number[11];
-  char product_version[7];
-  char name[129];
-  strncpy_trim_spaces(device_info, meta.device_info, sizeof(meta.device_info));
-  strncpy_trim_spaces(product_number, meta.product_number,
-                      sizeof(meta.product_number));
-  strncpy_trim_spaces(product_version, meta.product_version,
-                      sizeof(meta.product_version));
-  strncpy_trim_spaces(name, meta.name, sizeof(meta.name));
-
-  snprintf(id, size, "%s %s %s %s", name, product_number, product_version,
-           device_info);
+void disc_destroy(struct disc *disc) {
+  disc->destroy(disc);
 }
 
 struct disc *disc_create(const char *filename) {
@@ -200,11 +203,36 @@ struct disc *disc_create(const char *filename) {
     disc = gdi_create(filename);
   }
 
-  if (disc) {
-    char id[DISC_MAX_ID_SIZE];
-    disc_get_id(disc, id, sizeof(id));
-    LOG_INFO("disc_create %s", id);
+  if (!disc) {
+    return NULL;
   }
+
+  /* generate a unique id for the disc, and cache off info about the bootfile */
+  struct disc_meta meta;
+  disc_get_meta(disc, &meta);
+
+  char device_info[17];
+  char product_number[11];
+  char product_version[7];
+  char bootname[17];
+  char name[129];
+
+  strncpy_trim_spaces(device_info, meta.device_info, sizeof(meta.device_info));
+  strncpy_trim_spaces(product_number, meta.product_number,
+                      sizeof(meta.product_number));
+  strncpy_trim_spaces(product_version, meta.product_version,
+                      sizeof(meta.product_version));
+  strncpy_trim_spaces(bootname, meta.bootname, sizeof(meta.bootname));
+  strncpy_trim_spaces(name, meta.name, sizeof(meta.name));
+
+  snprintf(disc->id, sizeof(disc->id), "%s %s %s %s", name, product_number,
+           product_version, device_info);
+
+  int found = disc_find_file(disc, bootname, &disc->bootfad, &disc->bootlen);
+  CHECK(found);
+
+  LOG_INFO("disc_create %s bootfad=%d bootlen=%d", disc->id, disc->bootfad,
+           disc->bootlen);
 
   return disc;
 }
