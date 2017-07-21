@@ -122,8 +122,10 @@ add_library(crypto STATIC ${CRYPTO_SOURCES})
 list(APPEND RELIB_INCLUDES deps/crypto)
 list(APPEND RELIB_LIBS crypto)
 
-find_library(Z_LIB z)
-list(APPEND RELIB_LIBS ${Z_LIB})
+# zlib
+add_subdirectory(deps/zlib-1.2.11 EXCLUDE_FROM_ALL)
+list(APPEND RELIB_INCLUDES deps/zlib)
+list(APPEND RELIB_LIBS zlibstatic)
 
 # xbyak
 if(ARCH_X64)
