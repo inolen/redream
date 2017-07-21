@@ -20,9 +20,9 @@ struct jit_block;
    finally, the code buffer needs to be aligned to a 4kb page so it's easy to
    mprotect */
 #if ARCH_A64
-#define DEFINE_JIT_CODE_BUFFER(name) static uint8_t name[0x100000] ALIGNED(4096)
+#define DEFINE_JIT_CODE_BUFFER(name) static uint8_t ALIGNED(4096) name[0x100000]
 #else
-#define DEFINE_JIT_CODE_BUFFER(name) static uint8_t name[0x800000] ALIGNED(4096)
+#define DEFINE_JIT_CODE_BUFFER(name) static uint8_t ALIGNED(4096) name[0x800000]
 #endif
 
 enum {
