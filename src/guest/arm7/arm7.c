@@ -48,14 +48,19 @@ static void arm7_swap_registers(struct arm7 *arm, int old_mode, int new_mode) {
 
   /* write out active registers to the old mode's bank, and load the
      new mode's bank into the active registers */
-  for (int i = 0; i < 7; i++) {
-    int n = 8 + i;
-    int old_n = armv3_reg_table[old_mode][i];
-    int new_n = armv3_reg_table[new_mode][i];
+  for (int n = 0; n < 16; n++) {
+    int old_n = armv3_reg_table[old_mode][n];
+    int new_n = armv3_reg_table[new_mode][n];
     uint32_t tmp = arm->ctx.r[n];
     arm->ctx.r[n] = arm->ctx.r[old_n];
     arm->ctx.r[new_n] = arm->ctx.r[old_n];
     arm->ctx.r[old_n] = tmp;
+  }
+
+  /* save off pointers to the user bank for the LDM / STM instructions */
+  for (int n = 0; n < 16; n++) {
+    int new_n = armv3_reg_table[new_mode][n];
+    arm->ctx.rusr[n] = &arm->ctx.r[new_n];
   }
 
   /* load SPSR for the new mode to virtual SPSR */

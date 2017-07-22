@@ -12,8 +12,9 @@
                            union armv3_instr i)
 
 #define CTX ((struct armv3_context *)guest->ctx)
-#define REG(n) (CTX->r[n])
 #define MODE() (CTX->r[CPSR] & M_MASK)
+#define REG(n) (CTX->r[n])
+#define REG_USR(n) (*CTX->rusr[n])
 
 #define CHECK_COND()                                  \
   if (!armv3_fallback_cond_check(CTX, i.raw >> 28)) { \
@@ -685,7 +686,7 @@ FALLBACK(LDM) {
 
       /* user bank transfer */
       if (i.blk.s && (i.blk.rlist & 0x8000) == 0) {
-        reg = armv3_reg_table[MODE()][reg];
+        reg = REG_USR(reg);
       }
 
       REG(reg) = guest->r32(guest->space, ea);
@@ -726,7 +727,7 @@ FALLBACK(STM) {
 
       /* user bank transfer */
       if (i.blk.s) {
-        reg = armv3_reg_table[MODE()][reg];
+        reg = REG_USR(reg);
       }
 
       uint32_t data = LOAD_RD(reg);
