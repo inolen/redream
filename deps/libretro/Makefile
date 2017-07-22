@@ -425,7 +425,7 @@ endif
 COREFLAGS += -DCAPSTONE_USE_SYS_DYN_MEM
 COREFLAGS += -fms-extensions
 
-include Makefile.common
+include $(LIBRETRO_DIR)/Makefile.common
 
 ifeq ($(HAVE_NEON), 1)
    COREFLAGS += -DHAVE_NEON

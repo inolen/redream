@@ -1,11 +1,12 @@
 INCFLAGS += \
 	-I$(CORE_DIR)/src \
 	-I$(CORE_DIR)/deps/capstone/include \
-	-I$(CORE_DIR)/deps/inih \
 	-I$(CORE_DIR)/deps/dirent-1.21 \
-	-I$(CORE_DIR)/deps/xbyak-4.901 \
-	-I$(CORE_DIR)/deps/libretro/include \
 	-I$(CORE_DIR)/deps/glad/include \
+	-I$(CORE_DIR)/deps/gdb_server \
+	-I$(CORE_DIR)/deps/inih \
+	-I$(CORE_DIR)/deps/libretro/include \
+	-I$(CORE_DIR)/deps/xbyak-4.901 \
 	-I$(LIBRETRO_DIR)
 
 #SOURCES_CXX := $(CORE_DIR)/src/render/microprofile.cc
@@ -16,7 +17,6 @@ SOURCES_CPP :=
 
 ifeq ($(HAVE_IMGUI), 1)
 INCFLAGS += -I$(CORE_DIR)/deps/cimgui
-SOURCES_CXX += $(CORE_DIR)/src/render/imgui.cc \
 SOURCES_CPP += $(CORE_DIR)/deps/cimgui/cimgui/cimgui.cpp
 endif
 
@@ -41,6 +41,7 @@ SOURCES_C   := $(CORE_DIR)/src/core/assert.c \
 					$(CORE_DIR)/src/guest/gdrom/disc.c \
 					$(CORE_DIR)/src/guest/gdrom/gdi.c \
 					$(CORE_DIR)/src/guest/gdrom/gdrom.c \
+					$(CORE_DIR)/src/guest/gdrom/patch.c \
 					$(CORE_DIR)/src/guest/holly/holly.c \
 					$(CORE_DIR)/src/guest/maple/controller.c \
 					$(CORE_DIR)/src/guest/maple/maple.c \
@@ -59,6 +60,7 @@ SOURCES_C   := $(CORE_DIR)/src/core/assert.c \
 					$(CORE_DIR)/src/guest/sh4/sh4_intc.c \
 					$(CORE_DIR)/src/guest/sh4/sh4_mmu.c \
 					$(CORE_DIR)/src/guest/sh4/sh4_tmu.c \
+					$(CORE_DIR)/src/guest/debugger.c \
 					$(CORE_DIR)/src/guest/dreamcast.c \
 					$(CORE_DIR)/src/guest/memory.c \
 					$(CORE_DIR)/src/guest/scheduler.c \
@@ -88,11 +90,12 @@ SOURCES_C   := $(CORE_DIR)/src/core/assert.c \
 					$(CORE_DIR)/src/jit/jit.c \
 					$(CORE_DIR)/src/jit/pass_stats.c \
 					$(CORE_DIR)/src/emulator.c \
-					$(CORE_DIR)/src/tracer.c \
-					$(CORE_DIR)/src/guest/debugger.c \
 					$(CORE_DIR)/src/host/retro_host.c
 
-SOURCES_C 	+=	$(CORE_DIR)/src/render/gl_backend.c
+SOURCES_CXX += $(CORE_DIR)/src/render/imgui.cc \
+					$(CORE_DIR)/src/render/microprofile.cc
+
+SOURCES_C   += $(CORE_DIR)/src/render/gl_backend.c
 
 SOURCES_C   += $(CORE_DIR)/deps/capstone/cs.c \
 					$(CORE_DIR)/deps/capstone/utils.c \
@@ -184,6 +187,8 @@ SOURCES_C += $(CORE_DIR)/src/core/filesystem_win.c \
 				 $(CORE_DIR)/src/core/thread_win.c
 endif
 
+# work around glad using dlopen, etc. which are actually unused
+LDFLAGS += -Wl,--unresolved-symbols=ignore-all
 SOURCES_C += $(CORE_DIR)/deps/glad/src/glad.c
 
 ifdef WITH_DYNAREC
