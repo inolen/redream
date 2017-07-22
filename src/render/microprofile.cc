@@ -251,8 +251,10 @@ void mp_render(struct microprofile *mp) {
 }
 
 void mp_begin_frame(struct microprofile *mp, int width, int height) {
+#ifdef HAVE_MICROPROFILE
   mp->viewport_width = width;
   mp->viewport_height = height;
+#endif
 }
 
 void mp_mousemove(struct microprofile *mp, int x, int y) {
