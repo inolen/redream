@@ -35,11 +35,34 @@ static struct patch patches[] = {
 };
 static int num_patches = sizeof(patches) / sizeof(patches[0]);
 
+static int patch_should_apply(struct patch *patch) {
+  if (patch->flags & PATCH_WIDESCREEN) {
+    return OPTION_patch_widescreen;
+  }
+
+  return 0;
+}
+
+int patch_widescreen_enabled(const char *game) {
+  for (int i = 0; i < num_patches; i++) {
+    struct patch *patch = &patches[i];
+
+    if (strcmp(patch->game, game)) {
+      continue;
+    }
+
+    if (patch->flags & PATCH_WIDESCREEN) {
+      return patch_should_apply(patch);
+    }
+  }
+
+  return 0;
+}
+
 void patch_bootfile(const char *game, uint8_t *buffer, int offset, int size) {
   for (int i = 0; i < num_patches; i++) {
     struct patch *patch = &patches[i];
 
-    /* only apply patches for the current game */
     if (strcmp(patch->game, game)) {
       continue;
     }
@@ -48,7 +71,7 @@ void patch_bootfile(const char *game, uint8_t *buffer, int offset, int size) {
       continue;
     }
 
-    if ((patch->flags & PATCH_WIDESCREEN) && !OPTION_patch_widescreen) {
+    if (!patch_should_apply(patch)) {
       continue;
     }
 
@@ -72,12 +95,19 @@ void patch_bootfile(const char *game, uint8_t *buffer, int offset, int size) {
 
 #ifdef HAVE_IMGUI
 void patch_debug_menu() {
+  int changed = 0;
+
   if (igBeginMenu("patches", 1)) {
     if (igMenuItem("widescreen", NULL, OPTION_patch_widescreen, 1)) {
+      changed = 1;
       OPTION_patch_widescreen = !OPTION_patch_widescreen;
     }
 
     igEndMenu();
+  }
+
+  if (changed) {
+    LOG_WARNING("patch settings changed, restart to apply");
   }
 }
 #endif

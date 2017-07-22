@@ -39,6 +39,11 @@ DEFINE_AGGREGATE_COUNTER(frames);
 
 DEFINE_PERSISTENT_OPTION_STRING(aspect_ratio, "stretch", "Video aspect ratio");
 
+enum {
+  ASPECT_STRETCH,
+  ASPECT_4BY3,
+};
+
 static const char *aspect_ratios[] = {
     "stretch", "4:3",
 };
@@ -639,12 +644,12 @@ void emu_render_frame(struct emu *emu) {
   int frame_height, frame_width;
   int frame_x, frame_y;
 
-  if (!strcmp(OPTION_aspect_ratio, "stretch")) {
+  if (!strcmp(OPTION_aspect_ratio, aspect_ratios[ASPECT_STRETCH])) {
     frame_height = emu->video_height;
     frame_width = emu->video_width;
     frame_x = 0;
     frame_y = 0;
-  } else if (!strcmp(OPTION_aspect_ratio, "4:3")) {
+  } else if (!strcmp(OPTION_aspect_ratio, aspect_ratios[ASPECT_4BY3])) {
     frame_height = emu->video_height;
     frame_width = frame_height * (4.0f / 3.0f);
     frame_x = (emu->video_width - frame_width) / 2.0f;
@@ -733,6 +738,15 @@ void emu_render_frame(struct emu *emu) {
 int emu_load_game(struct emu *emu, const char *path) {
   if (!dc_load(emu->dc, path)) {
     return 0;
+  }
+
+  /* stretch to fill if the game has a widescreen hack enabled */
+  if (gdrom_widescreen_enabled(emu->dc->gdrom)) {
+    strncpy(OPTION_aspect_ratio, aspect_ratios[ASPECT_STRETCH],
+            sizeof(OPTION_aspect_ratio));
+  } else {
+    strncpy(OPTION_aspect_ratio, aspect_ratios[ASPECT_4BY3],
+            sizeof(OPTION_aspect_ratio));
   }
 
   dc_resume(emu->dc);

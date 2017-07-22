@@ -25,6 +25,9 @@ struct patch {
 };
 
 void patch_debug_menu();
+
+int patch_widescreen_enabled(const char *game);
+
 void patch_bootfile(const char *game, uint8_t *data, int offset, int size);
 
 #endif

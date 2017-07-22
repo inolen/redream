@@ -338,7 +338,7 @@ void bios_debug_menu(struct bios *bios) {
   }
 
   if (changed) {
-    LOG_WARNING("bios settings changed, restart for changes to take effect");
+    LOG_WARNING("bios settings changed, restart to apply");
   }
 }
 #endif
