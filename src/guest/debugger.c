@@ -1,11 +1,14 @@
+#ifdef HAVE_GDBSERVER
 #include "gdb/gdb_server.h"
 #define GDB_SERVER_IMPL
 #include "gdb/gdb_server.h"
+#endif
 
 #include "core/log.h"
 #include "guest/debugger.h"
 #include "guest/dreamcast.h"
 
+#ifdef HAVE_GDBSERVER
 struct debugger {
   struct dreamcast *dc;
   struct device *dev;
@@ -55,8 +58,10 @@ static void debugger_gdb_server_read_reg(void *data, int n, intmax_t *value,
   dbg->dev->debug_if->read_reg(dbg->dev, n, &v, size);
   *value = v;
 }
+#endif
 
 int debugger_init(struct debugger *dbg) {
+#ifdef HAVE_GDBSERVER
   /* use the first device found with a debug interface */
   list_for_each_entry(dev, &dbg->dc->devices, struct device, it) {
     if (dev->debug_if) {
@@ -86,32 +91,43 @@ int debugger_init(struct debugger *dbg) {
 
   dbg->sv = gdb_server_create(&target, 24690);
   if (!dbg->sv) {
-    LOG_WARNING("Failed to create GDB server");
+    LOG_WARNING("failed to create GDB server");
     return 0;
   }
+#endif
 
   return 1;
 }
 
 void debugger_trap(struct debugger *dbg) {
+#ifdef HAVE_GDBSERVER
   gdb_server_interrupt(dbg->sv, GDB_SIGNAL_TRAP);
 
   dc_suspend(dbg->dc);
+#endif
 }
 
 void debugger_tick(struct debugger *dbg) {
+#ifdef HAVE_GDBSERVER
   gdb_server_pump(dbg->sv);
+#endif
 }
 
 struct debugger *debugger_create(struct dreamcast *dc) {
+#ifdef HAVE_GDBSERVER
   struct debugger *dbg = calloc(1, sizeof(struct debugger));
 
   dbg->dc = dc;
 
   return dbg;
+#else
+  return NULL;
+#endif
 }
 
 void debugger_destroy(struct debugger *dbg) {
+#ifdef HAVE_GDBSERVER
   gdb_server_destroy(dbg->sv);
   free(dbg);
+#endif
 }
