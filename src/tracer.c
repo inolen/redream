@@ -4,7 +4,9 @@
 #include "guest/pvr/ta.h"
 #include "guest/pvr/tr.h"
 #include "host/host.h"
+#ifdef HAVE_IMGUI
 #include "render/imgui.h"
+#endif
 
 #define SCRUBBER_WINDOW_HEIGHT 20.0f
 
@@ -60,9 +62,11 @@ static const char *shademode_names[] = {
     "DECAL", "MODULATE", "DECAL_ALPHA", "MODULATE_ALPHA",
 };
 
+#ifdef HAVE_IMGUI
 static const struct ImVec2 zero_vec2 = {0.0f, 0.0f};
 static const struct ImVec4 one_vec4 = {1.0f, 1.0f, 1.0f, 1.0f};
 static const struct ImVec4 zero_vec4 = {0.0f, 0.0f, 0.0f, 0.0f};
+#endif
 
 struct tracer_texture {
   struct tr_texture;
@@ -73,7 +77,9 @@ struct tracer_texture {
 struct tracer {
   struct host *host;
   struct render_backend *r;
+#ifdef HAVE_IMGUI
   struct imgui *imgui;
+#endif
 
   /* trace state */
   struct trace *trace;
@@ -260,6 +266,7 @@ static void tracer_reset_context(struct tracer *tracer) {
   tracer_next_context(tracer);
 }
 
+#ifdef HAVE_IMGUI
 static void tracer_render_debug_menu(struct tracer *tracer) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("DEBUG", 1)) {
@@ -605,11 +612,14 @@ static void tracer_render_side_menu(struct tracer *tracer) {
     igEnd();
   }
 }
+#endif
 
 static void tracer_input_mousemove(void *data, int port, int x, int y) {
   struct tracer *tracer = data;
 
+#ifdef HAVE_IMGUI
   imgui_mousemove(tracer->imgui, x, y);
+#endif
 }
 
 static void tracer_input_keydown(void *data, int port, enum keycode key,
@@ -624,9 +634,11 @@ static void tracer_input_keydown(void *data, int port, enum keycode key,
     tracer_prev_param(tracer);
   } else if (key == K_DOWN && value > 0) {
     tracer_next_param(tracer);
-  } else {
-    imgui_keydown(tracer->imgui, key, value);
   }
+#ifdef HAVE_IMGUI
+  else
+    imgui_keydown(tracer->imgui, key, value);
+#endif
 }
 
 void tracer_render_frame(struct tracer *tracer) {
@@ -636,12 +648,13 @@ void tracer_render_frame(struct tracer *tracer) {
   r_clear(tracer->r);
   r_viewport(tracer->r, 0, 0, width, height);
 
+#ifdef HAVE_IMGUI
   imgui_begin_frame(tracer->imgui, width, height);
-
   /* build ui */
   tracer_render_side_menu(tracer);
   tracer_render_scrubber_menu(tracer);
   tracer_render_debug_menu(tracer);
+#endif
 
   /* render context up to the surface of the currently selected param */
   struct tr_context *rc = &tracer->rc;
@@ -659,8 +672,10 @@ void tracer_render_frame(struct tracer *tracer) {
 
   tr_render_context_until(tracer->r, rc, end_surf);
 
+#ifdef HAVE_IMGUI
   /* render ui */
   imgui_render(tracer->imgui);
+#endif
 }
 
 int tracer_load(struct tracer *tracer, const char *path) {
@@ -686,7 +701,9 @@ void tracer_destroy(struct tracer *tracer) {
     trace_destroy(tracer->trace);
   }
 
+#ifdef HAVE_IMGUI
   imgui_destroy(tracer->imgui);
+#endif
 
   video_destroy_renderer(tracer->host, tracer->r);
 
@@ -704,7 +721,9 @@ struct tracer *tracer_create(struct host *host) {
 
   /* setup renderer */
   tracer->r = video_create_renderer(tracer->host);
+#ifdef HAVE_IMGUI
   tracer->imgui = imgui_create(tracer->r);
+#endif
 
   /* add all textures to free list */
   for (int i = 0, n = array_size(tracer->textures); i < n; i++) {

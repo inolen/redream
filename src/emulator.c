@@ -31,7 +31,9 @@
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
 #include "host/host.h"
+#ifdef HAVE_IMGUI
 #include "render/imgui.h"
+#endif
 #include "render/microprofile.h"
 #include "render/render_backend.h"
 
@@ -71,7 +73,9 @@ struct emu {
   volatile unsigned frame;
 
   struct render_backend *r;
+#ifdef HAVE_IMGUI
   struct imgui *imgui;
+#endif
   struct microprofile *mp;
   struct trace_writer *trace_writer;
 
@@ -414,8 +418,12 @@ static void emu_guest_push_audio(void *userdata, const int16_t *data,
 static void emu_host_mousemove(void *userdata, int port, int x, int y) {
   struct emu *emu = userdata;
 
+#ifdef HAVE_IMGUI
   imgui_mousemove(emu->imgui, x, y);
+#endif
+#ifdef HAVE_MICROPROFILE
   mp_mousemove(emu->mp, x, y);
+#endif
 }
 
 static void emu_host_keydown(void *userdata, int port, enum keycode key,
@@ -425,8 +433,12 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
   if (key == K_F1 && value > 0) {
     emu->debug_menu = emu->debug_menu ? 0 : 1;
   } else {
+#ifdef HAVE_IMGUI
     imgui_keydown(emu->imgui, key, value);
+#endif
+#ifdef HAVE_MICROPROFILE
     mp_keydown(emu->mp, key, value);
+#endif
   }
 
   if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
@@ -443,15 +455,19 @@ static void emu_host_context_destroyed(void *userdata) {
     emu_free_texture(emu, tex);
   }
 
+#ifdef HAVE_MICROPROFILE
   if (emu->mp) {
     mp_destroy(emu->mp);
     emu->mp = NULL;
   }
+#endif
 
+#ifdef HAVE_IMGUI
   if (emu->imgui) {
     imgui_destroy(emu->imgui);
     emu->imgui = NULL;
   }
+#endif
 
   if (emu->r) {
     r_destroy(emu->r);
@@ -465,8 +481,12 @@ static void emu_host_context_reset(void *userdata) {
   emu_host_context_destroyed(userdata);
 
   emu->r = video_create_renderer(emu->host);
+#ifdef HAVE_IMGUI
   emu->imgui = imgui_create(emu->r);
+#endif
+#ifdef HAVE_MICROPROFILE
   emu->mp = mp_create(emu->r);
+#endif
 }
 
 static void emu_host_resized(void *userdata) {
@@ -658,8 +678,12 @@ void emu_render_frame(struct emu *emu) {
   int debug_x = 0;
   int debug_y = 0;
 
+#ifdef HAVE_MICROPROFILE
   mp_begin_frame(emu->mp, debug_width, debug_height);
+#endif
+#ifdef HAVE_IMGUI
   imgui_begin_frame(emu->imgui, debug_width, debug_height);
+#endif
 
   r_clear(emu->r);
 
@@ -717,8 +741,12 @@ void emu_render_frame(struct emu *emu) {
     prof_flip(now);
 
     r_viewport(emu->r, debug_x, debug_y, debug_width, debug_height);
+#ifdef HAVE_IMGUI
     imgui_render(emu->imgui);
+#endif
+#ifdef HAVE_MICROPROFILE
     mp_render(emu->mp);
+#endif
 
     if (emu->last_paint) {
       float frame_time_ms = (float)(now - emu->last_paint) / 1000000.0f;
