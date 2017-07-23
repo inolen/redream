@@ -188,7 +188,11 @@ SOURCES_C += $(CORE_DIR)/src/core/filesystem_win.c \
 endif
 
 # work around glad using dlopen, etc. which are actually unused
+ifneq ($(findstring Darwin,$(shell uname -a)),)
+LDFLAGS += -undefined dynamic_lookup
+else
 LDFLAGS += -Wl,--unresolved-symbols=ignore-all
+endif
 SOURCES_C += $(CORE_DIR)/deps/glad/src/glad.c
 
 ifdef WITH_DYNAREC
