@@ -41,11 +41,12 @@ DEFINE_PERSISTENT_OPTION_STRING(aspect_ratio, "stretch", "Video aspect ratio");
 
 enum {
   ASPECT_RATIO_STRETCH,
+  ASPECT_RATIO_16BY9,
   ASPECT_RATIO_4BY3,
 };
 
 static const char *aspect_ratios[] = {
-    "stretch", "4:3",
+    "stretch", "16:9", "4:3",
 };
 
 /* emulation thread state */
@@ -508,7 +509,7 @@ static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
 
   /* if a widescreen hack is enabled, force to stretch for the session */
   if (gdrom_widescreen_enabled(emu->dc->gdrom)) {
-    emu->aspect_ratio = ASPECT_RATIO_STRETCH;
+    emu->aspect_ratio = ASPECT_RATIO_16BY9;
   }
 }
 
@@ -679,6 +680,11 @@ void emu_render_frame(struct emu *emu) {
     frame_width = emu->video_width;
     frame_x = 0;
     frame_y = 0;
+  } else if (emu->aspect_ratio == ASPECT_RATIO_16BY9) {
+    frame_width = emu->video_width;
+    frame_height = frame_width * (9.0f / 16.0f);
+    frame_x = 0;
+    frame_y = (emu->video_height - frame_height) / 2.0f;
   } else if (emu->aspect_ratio == ASPECT_RATIO_4BY3) {
     frame_height = emu->video_height;
     frame_width = frame_height * (4.0f / 3.0f);
