@@ -108,7 +108,7 @@ After adding [support for loading CDI images](https://github.com/inolen/redream/
 
 During the next 2 months, the main priority is to improve the accuracy of the CPU emulation through more extensive unit testing, and automated video-based regression testing to catch newly introduced bugs fast.
 
-Additionally, an Android / AArch64 port is actively being worked on - new news should be available for that soon.
+Additionally, an Android / AArch64 port is actively being worked on - news should be available for that soon.
 
 As always, if you have any questions or are interested in contributing, drop by the [Slack group](http://slack.redream.io/).
 
