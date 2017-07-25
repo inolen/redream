@@ -21,14 +21,13 @@ struct chd {
 };
 
 
-static int chd_read_sector(struct disc *disc, int fad, int sector_fmt,
-                           int sector_mask, void *dst) {
+static void chd_read_sector(struct disc *disc, struct track *track, int fad, void *dst) {
   struct chd *chd = (struct chd *)disc;
 
-  struct track *track = disc_lookup_track(disc, fad);
+  //struct track *track = disc_lookup_track(disc, fad);
   CHECK_NOTNULL(track);
-  CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
-  CHECK(sector_mask == GD_MASK_DATA);
+  //CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
+  //CHECK(sector_mask == GD_MASK_DATA);
 
   int hunk, hunk_ofs;
   //if (chd_get_header(chd->chd)->version==5) {
@@ -50,22 +49,6 @@ static int chd_read_sector(struct disc *disc, int fad, int sector_fmt,
   memcpy(dst,chd->hunk_mem+hunk_ofs*(2352+96) + 16,2048);
   
   // CHECK_EQ(sector_fmt, GD_SECTOR_M1);
-    
-  return 2048;
-}
-
-static int chd_read_sectors(struct disc *disc, int fad, int num_sectors,
-                            int sector_fmt, int sector_mask, void *dst,
-                            int dst_size) {
-	int read = 0;
-	uint8_t* ptr = (uint8_t*)dst;
-  	for (int i = 0; i < num_sectors; i++) {
-		int r = chd_read_sector(disc, fad, sector_fmt, sector_mask, (void*)ptr);
-		ptr += r;
-		read += r;
-		fad++;
-	}
-	return read;
 }
 
 static void chd_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -192,6 +175,7 @@ static int chd_parse(struct disc *disc, const char *filename) {
     track->sector_size = strcmp(type,"MODE1") == 0 ? 2048:2352;
     track->frames = frames;
     track->extraframes = (4 - (frames % 4)) & 3;
+    track->data_size = (track->sector_fmt == GD_SECTOR_CDDA) ? 2352 : 2048;
     //track->file_offset = total_hunks;
     
     track->phyofs = physofs;
@@ -244,7 +228,7 @@ struct disc *chd_create(const char *filename) {
   chd->get_num_tracks = &chd_get_num_tracks;
   chd->get_track = &chd_get_track;
   chd->get_toc = &chd_get_toc;
-  chd->read_sectors = &chd_read_sectors;
+  chd->read_sector = &chd_read_sector;
 
   struct disc *disc = (struct disc *)chd;
 
