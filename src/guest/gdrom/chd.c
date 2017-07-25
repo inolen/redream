@@ -30,15 +30,22 @@ static int chd_read_sector(struct disc *disc, int fad, int sector_fmt,
   CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
   CHECK(sector_mask == GD_MASK_DATA);
 
+  int hunk, hunk_ofs;
+  //if (chd_get_header(chd->chd)->version==5) {
+    fad = fad - track->phyofs + track->chdofs;
+    hunk= fad/chd->sph;
+    hunk_ofs=fad%chd->sph;
+  /*}
+  else {
+    int fad_offs=fad-track->fad;
+    hunk=(fad_offs)/chd->sph + track->file_offset;
+    hunk_ofs=fad_offs%chd->sph;
+  }*/
 
-  int fad_offs=fad-track->fad;
-  int hunk=(fad_offs)/chd->sph + track->file_offset;
   if (chd->old_hunk!=hunk)
   {
     chd_read(chd->chd,hunk,chd->hunk_mem); //CHDERR_NONE
   }
-
-  int hunk_ofs=fad_offs%chd->sph;
 
   memcpy(dst,chd->hunk_mem+hunk_ofs*(2352+96) + 16,2048);
   
@@ -137,11 +144,13 @@ static int chd_parse(struct disc *disc, const char *filename) {
 	uint32_t temp_len;
 	uint32_t total_frames=150;
 
-	uint32_t total_secs=0;
-	uint32_t total_hunks=0;
+	//uint32_t total_secs=0;
+	//uint32_t total_hunks=0;
 
   chd->num_tracks = 0;
 
+  int physofs = total_frames;
+  int chdofs = 0;
 	for(;;)
 	{
 		char type[64],subtype[32]="NONE",pgtype[32],pgsub[32];
@@ -181,16 +190,24 @@ static int chd_parse(struct disc *disc, const char *filename) {
     track->ctrl = strcmp(type,"AUDIO")==0?0:4;
     track->sector_fmt = strcmp(type,"AUDIO") == 0 ? GD_SECTOR_CDDA:GD_SECTOR_M1;
     track->sector_size = strcmp(type,"MODE1") == 0 ? 2048:2352;
-    track->file_offset = total_hunks;
+    track->frames = frames;
+    track->extraframes = (4 - (frames % 4)) & 3;
+    //track->file_offset = total_hunks;
     
-    LOG_INFO("chd_parse '%s' track=%d filename='%s' fad=%d secsz=%d", temp, track->num,
-         track->filename, track->fad, track->sector_size);
+    track->phyofs = physofs;
+    track->chdofs = chdofs;
+    physofs += track->frames;
+    chdofs += track->frames+track->extraframes;
+
+    LOG_INFO("chd_parse '%s' track=%d filename='%s' fad=%d secsz=%d extraframes=%d", temp, track->num,
+         track->filename, track->fad, track->sector_size, track->extraframes);
              
     total_frames+=frames;
     
-    total_hunks+=frames/chd->sph;
-    if (frames%chd->sph)
-      total_hunks++;
+    /*total_hunks+=frames/chd->sph;
+    
+    if ((frames+track->extraframes)%chd->sph)
+      total_hunks++;*/
   
 	}
 

@@ -17,7 +17,11 @@ struct track {
   int sector_fmt;
   int sector_size;
   char filename[PATH_MAX];
+  int frames;
+  int extraframes;
   int file_offset;
+  int chdofs;
+  int phyofs;
 };
 
 struct session {

@@ -127,12 +127,25 @@ add_subdirectory(deps/zlib-1.2.11 EXCLUDE_FROM_ALL)
 list(APPEND RELIB_INCLUDES deps/zlib)
 list(APPEND RELIB_LIBS zlibstatic)
 
+# flac
+# Try to find FLAC libraries and include paths.
+# Once done this will define
+# FLAC_FOUND
+# FLAC_INCLUDE_DIR
+# FLAC_LIBRARY
+find_path(FLAC_INCLUDE_DIR FLAC/all.h)
+find_path(FLAC_INCLUDE_DIR FLAC/stream_decoder.h)
+find_library(FLAC_LIBRARY NAMES FLAC)
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(FLAC DEFAULT_MSG FLAC_LIBRARY FLAC_INCLUDE_DIR)
+mark_as_advanced(FLAC_INCLUDE_DIR FLAC_LIBRARY)
+
 # chdr
 file(GLOB CHDR_SOURCES deps/chdr/*.c)
 add_library(chdr STATIC ${CHDR_SOURCES})
 target_link_libraries(chdr crypto)
-list(APPEND RELIB_INCLUDES deps/chdr)
-list(APPEND RELIB_LIBS chdr)
+list(APPEND RELIB_INCLUDES deps/chdr ${FLAC_INCLUDE_DIR})
+list(APPEND RELIB_LIBS chdr ${FLAC_LIBRARY})
 
 # xbyak
 if(ARCH_X64)
