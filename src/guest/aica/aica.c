@@ -22,16 +22,8 @@ DEFINE_AGGREGATE_COUNTER(aica_samples);
 #endif
 
 #define AICA_NUM_CHANNELS 64
-
-#define AICA_FNS_BITS 10
-#define AICA_STEP_SAMPLE (1 << AICA_FNS_BITS)
-#define AICA_OFFSET_POS(s) (s >> AICA_FNS_BITS)
-#define AICA_OFFSET_FRAC(s) (s & ((1 << AICA_FNS_BITS) - 1))
-
-#define AICA_TIMER_PERIOD 0xff
-
-/* number of samples to batch per timer */
 #define AICA_BATCH_SIZE 10
+#define AICA_TIMER_PERIOD 0xff
 
 /* register access is performed with either 1 or 4 byte memory accesses. the
    physical registers however are only 2 bytes wide, with each one packing
@@ -39,8 +31,12 @@ DEFINE_AGGREGATE_COUNTER(aica_samples);
    use lo / hi bools to simplify the logic around figuring out which values
    are being accessed */
 #define AICA_REG_ALIGN(addr, mask) ((addr) & ~0x3)
-#define AICA_REG_LO(addr, mask) (((addr) & 0x3) == 0)
-#define AICA_REG_HI(addr, mask) ((((addr) & 0x3) != 0) || ((mask) != 0xff))
+#define AICA_REG_LO(addr, mask) (((addr)&0x3) == 0)
+#define AICA_REG_HI(addr, mask) ((((addr)&0x3) != 0) || ((mask) != 0xff))
+
+/* phase increment has 10 fractional bits */
+#define AICA_PHASE_FRC_BITS 10
+#define AICA_BASE_FREQ (1 << AICA_PHASE_FRC_BITS)
 
 /* ADPCM decoding constants */
 #define ADPCM_QUANT_MIN 0x7f
@@ -66,10 +62,12 @@ struct aica_channel {
   uint8_t *base;
 
   /* how much to step the sound source each sample */
-  uint32_t step;
+  uint32_t phaseinc;
 
-  /* current position in the sound source */
-  uint32_t offset;
+  /* fractional remainder after phase increment */
+  uint32_t phasefrc;
+
+  int pos;
 
   /* signals the the current channel has looped */
   int looped;
@@ -323,7 +321,7 @@ static void aica_timer_expire(struct aica *aica, int n) {
   aica->timers[n] = NULL;
   aica_timer_reschedule(aica, n, AICA_TIMER_PERIOD);
 
-  LOG_AICA("aica_timer_expire [%d]", n);
+  /*LOG_AICA("aica_timer_expire [%d]", n);*/
 
   /* raise timer interrupt */
   static int timer_intr[3] = {AICA_INT_TIMER_A, AICA_INT_TIMER_B,
@@ -428,7 +426,7 @@ static void aica_rtc_timer(void *data) {
 }
 
 static float aica_channel_hz(struct aica_channel *ch) {
-  return (AICA_SAMPLE_FREQ * ch->step) / (float)AICA_STEP_SAMPLE;
+  return (AICA_SAMPLE_FREQ * ch->phaseinc) / (float)AICA_BASE_FREQ;
 }
 
 static float aica_channel_duration(struct aica_channel *ch) {
@@ -436,24 +434,24 @@ static float aica_channel_duration(struct aica_channel *ch) {
   return ch->data->LEA / hz;
 }
 
-static uint32_t aica_channel_step(struct aica_channel *ch) {
-  /* by default, step the stream a single sample at a time */
-  uint32_t step = AICA_STEP_SAMPLE;
+static uint32_t aica_channel_phaseinc(struct aica_channel *ch) {
+  /* by default, step a single sample at a time */
+  uint32_t phaseinc = AICA_BASE_FREQ;
 
-  /* FNS represents the fractional portion of a step, used to linearly
+  /* FNS represents the fractional phase increment, used to linearly
      interpolate between samples */
-  step |= ch->data->FNS;
+  phaseinc |= ch->data->FNS;
 
   /* OCT represents a full octave pitch shift in two's complement, ranging
      from -8 to +7 */
   uint32_t oct = ch->data->OCT;
-  if (oct & 8) {
-    step >>= (16 - oct);
+  if (oct & 0x8) {
+    phaseinc >>= (16 - oct);
   } else {
-    step <<= oct;
+    phaseinc <<= oct;
   }
 
-  return step;
+  return phaseinc;
 }
 
 static uint8_t *aica_channel_base(struct aica *aica, struct aica_channel *ch) {
@@ -461,7 +459,7 @@ static uint8_t *aica_channel_base(struct aica *aica, struct aica_channel *ch) {
   return &aica->wave_ram[start_addr];
 }
 
-static void aica_channel_stop(struct aica *aica, struct aica_channel *ch) {
+static void aica_channel_key_off(struct aica *aica, struct aica_channel *ch) {
   if (!ch->active) {
     return;
   }
@@ -472,39 +470,30 @@ static void aica_channel_stop(struct aica *aica, struct aica_channel *ch) {
      however, it will not be set when a non-looping channel is stopped */
   ch->data->KYONB = 0;
 
-  LOG_AICA("aica_channel_stop [%d]", ch->id);
+  LOG_AICA("aica_channel_key_off [%d]", ch->id);
 }
 
-static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
+static void aica_channel_key_on(struct aica *aica, struct aica_channel *ch) {
   if (ch->active) {
     return;
   }
 
   ch->active = 1;
   ch->base = aica_channel_base(aica, ch);
-  ch->step = aica_channel_step(ch);
-  ch->offset = 0;
+  ch->phaseinc = aica_channel_phaseinc(ch);
+  ch->phasefrc = 0;
+  ch->pos = 0;
   ch->looped = 0;
   ch->prev_sample = 0;
   ch->prev_quant = ADPCM_QUANT_MIN;
 
-  LOG_AICA("aica_channel_start [%d] %s, %s, %.2f hz, %.2f sec", ch->id,
+  LOG_AICA("aica_channel_key_on [%d] %s, %s, %.2f hz, %.2f sec", ch->id,
            aica_fmt_names[ch->data->PCMS], aica_loop_names[ch->data->LPCTL],
            aica_channel_hz(ch), aica_channel_duration(ch));
 }
 
-/*static void aica_channel_update_base(struct aica *aica,
-                                     struct aica_channel *ch) {
-  ch->base = aica_channel_base(aica, ch);
-}
-
-static void aica_channel_update_step(struct aica *aica,
-                                     struct aica_channel *ch) {
-  ch->step = aica_channel_step(ch);
-}*/
-
-static void aica_channel_update_key_state(struct aica *aica,
-                                          struct aica_channel *ch) {
+static void aica_channel_key_on_execute(struct aica *aica,
+                                        struct aica_channel *ch) {
   if (!ch->data->KYONEX) {
     return;
   }
@@ -514,9 +503,9 @@ static void aica_channel_update_key_state(struct aica *aica,
     struct aica_channel *ch2 = &aica->channels[i];
 
     if (ch2->data->KYONB) {
-      aica_channel_start(aica, ch2);
+      aica_channel_key_on(aica, ch2);
     } else {
-      aica_channel_stop(aica, ch2);
+      aica_channel_key_off(aica, ch2);
     }
   }
 
@@ -524,7 +513,7 @@ static void aica_channel_update_key_state(struct aica *aica,
   ch->data->KYONEX = 0;
 }
 
-static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
+static int32_t aica_channel_step(struct aica *aica, struct aica_channel *ch) {
   if (!ch->active) {
     return 0;
   }
@@ -536,31 +525,26 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
   int32_t next_sample = 0;
   int32_t next_quant = 0;
 
-  /* note, a step may skip more than one sample. for ADPCM channels at least,
-     each of these intermediate samples must be processed due to its delta-
-     based decoding */
-  uint32_t next_offset = ch->offset + ch->step;
-  uint32_t next_pos = AICA_OFFSET_POS(next_offset);
-  uint32_t next_frac = AICA_OFFSET_FRAC(next_offset);
-  uint32_t pos = AICA_OFFSET_POS(ch->offset);
+  /* step the stream */
+  ch->phasefrc += ch->phaseinc;
 
-  while (pos < next_pos) {
+  while (ch->phasefrc >= AICA_BASE_FREQ) {
     if (ch->data->SSCTL) {
       LOG_WARNING("SSCTL input not supported");
     } else {
       switch (ch->data->PCMS) {
         case AICA_FMT_PCMS16: {
-          next_sample = *(int16_t *)&ch->base[pos << 1];
+          next_sample = *(int16_t *)&ch->base[ch->pos << 1];
         } break;
 
         case AICA_FMT_PCMS8: {
-          next_sample = *(int8_t *)&ch->base[pos] << 8;
+          next_sample = *(int8_t *)&ch->base[ch->pos] << 8;
         } break;
 
         case AICA_FMT_ADPCM:
         case AICA_FMT_ADPCM_STREAM: {
-          int shift = (pos & 1) << 2;
-          int32_t data = (ch->base[pos >> 1] >> shift) & 0xf;
+          int shift = (ch->pos & 1) << 2;
+          int32_t data = (ch->base[ch->pos >> 1] >> shift) & 0xf;
           aica_decode_adpcm(data, ch->prev_sample, ch->prev_quant, &next_sample,
                             &next_quant);
         } break;
@@ -573,36 +557,35 @@ static int32_t aica_channel_update(struct aica *aica, struct aica_channel *ch) {
 
     ch->prev_sample = next_sample;
     ch->prev_quant = next_quant;
-    pos++;
+    ch->phasefrc -= AICA_BASE_FREQ;
+    ch->pos++;
   }
 
-  ch->offset = next_offset;
-
   /* interpolate sample */
-  int32_t result = ch->prev_sample * (AICA_STEP_SAMPLE - next_frac);
-  result += next_sample * next_frac;
-  result >>= AICA_FNS_BITS;
+  int32_t result = ch->prev_sample * (AICA_BASE_FREQ - ch->phasefrc);
+  result += next_sample * ch->phasefrc;
+  result >>= AICA_PHASE_FRC_BITS;
 
   /* shift to DECAY1 once starting the loop */
-  if (ch->data->LPSLNK && next_pos > ch->data->LSA) {
+  if (ch->data->LPSLNK && ch->pos >= ch->data->LSA) {
     LOG_WARNING("EG not currently supported");
   }
 
   /* check if the current position in the sound source has passed the loop end
      position */
-  if (next_pos > ch->data->LEA) {
+  if (ch->pos >= ch->data->LEA) {
     ch->looped = 1;
 
-    LOG_AICA("aica_channel_update [%d] looped", ch->id);
+    LOG_AICA("aica_channel_step [%d] looped", ch->id);
 
     switch (ch->data->LPCTL) {
       case AICA_LOOP_NONE: {
-        aica_channel_stop(aica, ch);
+        aica_channel_key_off(aica, ch);
       } break;
 
       case AICA_LOOP_FORWARD: {
         /* restart channel at loop start address */
-        ch->offset = ch->data->LSA << AICA_FNS_BITS;
+        ch->pos = ch->data->LSA;
         ch->prev_sample = 0;
         ch->prev_quant = ADPCM_QUANT_MIN;
       } break;
@@ -622,7 +605,7 @@ static void aica_generate_frames(struct aica *aica) {
 
     for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
       struct aica_channel *ch = &aica->channels[i];
-      int32_t s = aica_channel_update(aica, ch);
+      int32_t s = aica_channel_step(aica, ch);
       l += aica_adjust_channel_volume(ch, s);
       r += aica_adjust_channel_volume(ch, s);
     }
@@ -650,7 +633,7 @@ static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
   int offset = addr & ((1 << 7) - 1);
   struct aica_channel *ch = &aica->channels[n];
 
-  LOG_AICA("aica_channel_reg_read [%d] 0x%x", ch->id, offset);
+  /*LOG_AICA("aica_channel_reg_read [%d] 0x%x", ch->id, offset);*/
 
   return READ_DATA((uint8_t *)ch->data + offset);
 }
@@ -661,7 +644,7 @@ static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
   int offset = addr & ((1 << 7) - 1);
   struct aica_channel *ch = &aica->channels[n];
 
-  LOG_AICA("aica_channel_reg_write [%d] 0x%x : 0x%x", ch->id, offset, data);
+  /*LOG_AICA("aica_channel_reg_write [%d] 0x%x : 0x%x", ch->id, offset, data);*/
   WRITE_DATA((uint8_t *)ch->data + offset);
 
   int aligned = AICA_REG_ALIGN(offset, data_mask);
@@ -671,19 +654,19 @@ static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
   switch (aligned) {
     case 0x0: { /* SA_hi, KYONB, KYONEX */
       if (lo) {
-        /*aica_channel_update_base(aica, ch);*/
+        ch->base = aica_channel_base(aica, ch);
       }
       if (hi) {
-        aica_channel_update_key_state(aica, ch);
+        aica_channel_key_on_execute(aica, ch);
       }
     } break;
 
     case 0x4: { /* SA_lo */
-      /*aica_channel_update_base(aica, ch);*/
+      ch->base = aica_channel_base(aica, ch);
     } break;
 
     case 0x18: { /* FNS, OCT */
-      /*aica_channel_update_step(aica, ch);*/
+      ch->phaseinc = aica_channel_phaseinc(ch);
     } break;
   }
 }
@@ -717,7 +700,7 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
 
     case 0x14: { /* CA */
       struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
-      aica->common_data->CA = AICA_OFFSET_POS(ch->offset);
+      aica->common_data->CA = ch->pos;
     } break;
 
     case 0x90: { /* TIMA, TACTL */
