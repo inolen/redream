@@ -586,8 +586,13 @@ static int32_t aica_channel_step(struct aica *aica, struct aica_channel *ch) {
       case AICA_LOOP_FORWARD: {
         /* restart channel at loop start address */
         ch->pos = ch->data->LSA;
-        ch->prev_sample = 0;
-        ch->prev_quant = ADPCM_QUANT_MIN;
+
+        /* in ADPCM streaming mode, the loop is a ring buffer. don't reset the
+           decoding state in this case */
+        if (ch->data->PCMS != AICA_FMT_ADPCM_STREAM) {
+          ch->prev_sample = 0;
+          ch->prev_quant = ADPCM_QUANT_MIN;
+        }
       } break;
     }
   }
