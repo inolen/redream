@@ -21,7 +21,6 @@ DEFINE_AGGREGATE_COUNTER(aica_samples);
 #define LOG_AICA(...)
 #endif
 
-#define AICA_BATCH_SIZE 10
 #define AICA_NUM_CHANNELS 64
 
 #define AICA_FNS_BITS 10
@@ -31,13 +30,25 @@ DEFINE_AGGREGATE_COUNTER(aica_samples);
 
 #define AICA_TIMER_PERIOD 0xff
 
+/* number of samples to batch per timer */
+#define AICA_BATCH_SIZE 10
+
+/* register access is performed with either 1 or 4 byte memory accesses. the
+   physical registers however are only 2 bytes wide, with each one packing
+   multiple values inside of it. align the offset to a 4 byte address and
+   use lo / hi bools to simplify the logic around figuring out which values
+   are being accessed */
+#define AICA_REG_ALIGN(addr, mask) ((addr) & ~0x3)
+#define AICA_REG_LO(addr, mask) (((addr) & 0x3) == 0)
+#define AICA_REG_HI(addr, mask) ((((addr) & 0x3) != 0) || ((mask) != 0xff))
+
+/* ADPCM decoding constants */
 #define ADPCM_QUANT_MIN 0x7f
 #define ADPCM_QUANT_MAX 0x6000
 
 /* amplitude / frequency envelope generator state */
 struct aica_eg_state {
   int state;
-
   int attack_rate;
   int decay1_rate;
   int decay2_rate;
@@ -482,6 +493,16 @@ static void aica_channel_start(struct aica *aica, struct aica_channel *ch) {
            aica_channel_hz(ch), aica_channel_duration(ch));
 }
 
+/*static void aica_channel_update_base(struct aica *aica,
+                                     struct aica_channel *ch) {
+  ch->base = aica_channel_base(aica, ch);
+}
+
+static void aica_channel_update_step(struct aica *aica,
+                                     struct aica_channel *ch) {
+  ch->step = aica_channel_step(ch);
+}*/
+
 static void aica_channel_update_key_state(struct aica *aica,
                                           struct aica_channel *ch) {
   if (!ch->data->KYONEX) {
@@ -626,68 +647,98 @@ static void aica_generate_frames(struct aica *aica) {
 static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
                                       uint32_t data_mask) {
   int n = addr >> 7;
-  addr &= 0x7f;
+  int offset = addr & ((1 << 7) - 1);
   struct aica_channel *ch = &aica->channels[n];
 
-  LOG_AICA("aica_channel_reg_read [%d] 0x%x", ch->id, addr);
+  LOG_AICA("aica_channel_reg_read [%d] 0x%x", ch->id, offset);
 
-  return READ_DATA((uint8_t *)ch->data + addr);
+  return READ_DATA((uint8_t *)ch->data + offset);
 }
 
 static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
                                    uint32_t data, uint32_t data_mask) {
   int n = addr >> 7;
-  addr &= 0x7f;
+  int offset = addr & ((1 << 7) - 1);
   struct aica_channel *ch = &aica->channels[n];
 
-  LOG_AICA("aica_channel_reg_write [%d] 0x%x : 0x%x", ch->id, addr, data);
+  LOG_AICA("aica_channel_reg_write [%d] 0x%x : 0x%x", ch->id, offset, data);
+  WRITE_DATA((uint8_t *)ch->data + offset);
 
-  WRITE_DATA((uint8_t *)ch->data + addr);
+  int aligned = AICA_REG_ALIGN(offset, data_mask);
+  int lo = AICA_REG_LO(offset, data_mask);
+  int hi = AICA_REG_HI(offset, data_mask);
 
-  switch (addr) {
-    case 0x0: /* SA_hi, KYONB, KYONEX */
-    case 0x1:
-    case 0x4: /* SA_lo */
-    case 0x5:
-      aica_channel_update_key_state(aica, ch);
-      break;
+  switch (aligned) {
+    case 0x0: { /* SA_hi, KYONB, KYONEX */
+      if (lo) {
+        /*aica_channel_update_base(aica, ch);*/
+      }
+      if (hi) {
+        aica_channel_update_key_state(aica, ch);
+      }
+    } break;
+
+    case 0x4: { /* SA_lo */
+      /*aica_channel_update_base(aica, ch);*/
+    } break;
+
+    case 0x18: { /* FNS, OCT */
+      /*aica_channel_update_step(aica, ch);*/
+    } break;
   }
 }
 
 static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
                                      uint32_t data_mask) {
-  switch (addr) {
-    case 0x10:
-    case 0x11: { /* EG, SGC, LP */
+  int aligned = AICA_REG_ALIGN(addr, data_mask);
+  int lo = AICA_REG_LO(addr, data_mask);
+  int hi = AICA_REG_HI(addr, data_mask);
+
+  switch (aligned) {
+    case 0x10: { /* EG, SGC, LP */
       /* reads the current EG / SGC / LP params from the stream specified by
          MSLC */
       struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
 
-      if (aica->common_data->AFSEL) {
-        /* read FEG status */
-      } else {
-        /* read AEG status */
+      /* EG straddles lo and hi bytes */
+      if (lo || hi) {
+        if (aica->common_data->AFSEL) {
+          /* read FEG status */
+        } else {
+          /* read AEG status */
+        }
       }
 
-      aica->common_data->LP = ch->looped;
-      ch->looped = 0;
+      if (hi) {
+        aica->common_data->LP = ch->looped;
+        ch->looped = 0;
+      }
     } break;
-    case 0x14:
-    case 0x15: { /* CA */
+
+    case 0x14: { /* CA */
       struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
       aica->common_data->CA = AICA_OFFSET_POS(ch->offset);
     } break;
-    case 0x90: { /* TIMA */
-      aica->common_data->TIMA =
-          (aica_timer_tctl(aica, 0) << 8) | aica_timer_tcnt(aica, 0);
+
+    case 0x90: { /* TIMA, TACTL */
+      if (lo) {
+        aica->common_data->TIMA =
+            (aica_timer_tctl(aica, 0) << 8) | aica_timer_tcnt(aica, 0);
+      }
     } break;
-    case 0x94: { /* TIMB */
-      aica->common_data->TIMB =
-          (aica_timer_tctl(aica, 1) << 8) | aica_timer_tcnt(aica, 1);
+
+    case 0x94: { /* TIMB, TBCTL */
+      if (lo) {
+        aica->common_data->TIMB =
+            (aica_timer_tctl(aica, 1) << 8) | aica_timer_tcnt(aica, 1);
+      }
     } break;
-    case 0x98: { /* TIMC */
-      aica->common_data->TIMC =
-          (aica_timer_tctl(aica, 2) << 8) | aica_timer_tcnt(aica, 2);
+
+    case 0x98: { /* TIMC, TCCTL */
+      if (lo) {
+        aica->common_data->TIMC =
+            (aica_timer_tctl(aica, 2) << 8) | aica_timer_tcnt(aica, 2);
+      }
     } break;
   }
 
@@ -697,73 +748,82 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
 static void aica_common_reg_write(struct aica *aica, uint32_t addr,
                                   uint32_t data, uint32_t data_mask) {
   uint32_t old_data = READ_DATA((uint8_t *)aica->common_data + addr);
-
   WRITE_DATA((uint8_t *)aica->common_data + addr);
 
-  switch (addr) {
-    case 0x90:
-    case 0x91: { /* TIMA */
+  int aligned = AICA_REG_ALIGN(addr, data_mask);
+  int lo = AICA_REG_LO(addr, data_mask);
+  int hi = AICA_REG_HI(addr, data_mask);
+
+  switch (aligned) {
+    case 0x90: { /* TIMA, TACTL */
       aica_timer_reschedule(aica, 0, AICA_TIMER_PERIOD - data);
     } break;
-    case 0x94:
-    case 0x95: { /* TIMB */
+
+    case 0x94: { /* TIMB, TBCTL */
       aica_timer_reschedule(aica, 1, AICA_TIMER_PERIOD - data);
     } break;
-    case 0x98:
-    case 0x99: { /* TIMC */
+
+    case 0x98: { /* TIMC, TCCTL */
       aica_timer_reschedule(aica, 2, AICA_TIMER_PERIOD - data);
     } break;
-    case 0x9c:
-    case 0x9d: { /* SCIEB */
+
+    case 0x9c: { /* SCIEB */
       aica_update_arm(aica);
     } break;
-    case 0xa0:
-    case 0xa1: { /* SCIPD */
+
+    case 0xa0: { /* SCIPD */
       /* only AICA_INT_DATA can be written to */
-      CHECK(DATA_SIZE() >= 2 && addr == 0xa0);
+      CHECK(lo && hi);
       aica->common_data->SCIPD = old_data | (data & (1 << AICA_INT_DATA));
       aica_update_arm(aica);
     } break;
-    case 0xa4:
-    case 0xa5: { /* SCIRE */
+
+    case 0xa4: { /* SCIRE */
       aica->common_data->SCIPD &= ~aica->common_data->SCIRE;
       aica_update_arm(aica);
     } break;
-    case 0xb4:
-    case 0xb5: { /* MCIEB */
+
+    case 0xb4: { /* MCIEB */
       aica_update_sh(aica);
     } break;
-    case 0xb8:
-    case 0xb9: { /* MCIPD */
+
+    case 0xb8: { /* MCIPD */
       /* only AICA_INT_DATA can be written to */
-      CHECK(DATA_SIZE() >= 2 && addr == 0xb8);
+      CHECK(lo && hi);
       aica->common_data->MCIPD = old_data | (data & (1 << AICA_INT_DATA));
       aica_update_sh(aica);
     } break;
-    case 0xbc:
-    case 0xbd: { /* MCIRE */
+
+    case 0xbc: { /* MCIRE */
       aica->common_data->MCIPD &= ~aica->common_data->MCIRE;
       aica_update_sh(aica);
     } break;
-    case 0x400: { /* ARMRST */
-      if (aica->common_data->ARMRST) {
-        /* suspend arm when reset is pulled low */
-        aica->arm_resetting = 1;
-        arm7_suspend(aica->arm);
-      } else if (aica->arm_resetting) {
-        /* reset and resume arm when reset is released */
-        aica->arm_resetting = 0;
-        arm7_reset(aica->arm);
+
+    case 0x400: { /* ARMRST, VREG */
+      if (lo) {
+        if (aica->common_data->ARMRST) {
+          /* suspend arm when reset is pulled low */
+          aica->arm_resetting = 1;
+          arm7_suspend(aica->arm);
+        } else if (aica->arm_resetting) {
+          /* reset and resume arm when reset is released */
+          aica->arm_resetting = 0;
+          arm7_reset(aica->arm);
+        }
       }
     } break;
+
     case 0x500: { /* L0-9 */
       LOG_FATAL("L0-9 assumed to be read-only");
     } break;
-    case 0x504: { /* M0-9 */
-      /* M is written to signal that the interrupt previously raised has
-         finished processing */
-      aica->common_data->L = 0;
-      aica_update_arm(aica);
+
+    case 0x504: { /* M0-9, RP */
+      if (lo) {
+        /* M is written to signal that the interrupt previously raised has
+           finished processing */
+        aica->common_data->L = 0;
+        aica_update_arm(aica);
+      }
     } break;
   }
 }
