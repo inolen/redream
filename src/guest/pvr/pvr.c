@@ -233,7 +233,7 @@ static int pvr_init(struct device *dev) {
 #undef PVR_REG
 
   pvr->palette_ram = (uint8_t *)pvr->PALETTE_RAM000;
-  pvr->video_ram = memory_translate(dc->memory, "video ram", 0x00000000);
+  pvr->video_ram = memory_translate(dc->memory, "video ram", 0x0);
 
   /* configure initial vsync interval */
   pvr_reconfigure_spg(pvr);

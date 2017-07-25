@@ -34,15 +34,9 @@ struct cdi {
   int num_tracks;
 };
 
-static int cdi_read_sectors(struct disc *disc, int fad, int num_sectors,
-                            int sector_fmt, int sector_mask, void *dst,
-                            int dst_size) {
+static void cdi_read_sector(struct disc *disc, struct track *track, int fad,
+                            void *dst) {
   struct cdi *cdi = (struct cdi *)disc;
-
-  struct track *track = disc_lookup_track(disc, fad);
-  CHECK_NOTNULL(track);
-  CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
-  CHECK(sector_mask == GD_MASK_DATA);
 
   /* seek the to the starting fad */
   int offset = track->file_offset + fad * track->sector_size;
@@ -50,38 +44,14 @@ static int cdi_read_sectors(struct disc *disc, int fad, int num_sectors,
   CHECK_EQ(res, 0);
 
   /* only read the data portion of the track */
-  int header_size, error_size, data_size;
+  res = fseek(cdi->fp, track->header_size, SEEK_CUR);
+  CHECK_EQ(res, 0);
 
-  if (track->sector_fmt == GD_SECTOR_CDDA) {
-    header_size = 0;
-    error_size = 0;
-    data_size = track->sector_size - header_size - error_size;
-    CHECK_EQ(data_size, 2352);
-  } else if (track->sector_fmt == GD_SECTOR_M2F1) {
-    header_size = 8;
-    error_size = 280;
-    data_size = track->sector_size - header_size - error_size;
-    CHECK_EQ(data_size, 2048);
-  } else {
-    CHECK(0);
-  }
+  res = (int)fread(dst, 1, track->data_size, cdi->fp);
+  CHECK_EQ(res, track->data_size);
 
-  int read = 0;
-
-  for (int i = 0; i < num_sectors; i++) {
-    res = fseek(cdi->fp, header_size, SEEK_CUR);
-    CHECK_EQ(res, 0);
-
-    CHECK_LE(read + data_size, dst_size);
-    res = (int)fread(dst + read, 1, data_size, cdi->fp);
-    CHECK_EQ(res, data_size);
-    read += res;
-
-    res = fseek(cdi->fp, error_size, SEEK_CUR);
-    CHECK_EQ(res, 0);
-  }
-
-  return read;
+  res = fseek(cdi->fp, track->error_size, SEEK_CUR);
+  CHECK_EQ(res, 0);
 }
 
 static void cdi_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -224,8 +194,25 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
   track->fad = pregap_length + lba;
   track->adr = 0;
   track->ctrl = sector_fmt == GD_SECTOR_CDDA ? 0 : 4;
+
   track->sector_fmt = cdi_sector_formats[mode];
   track->sector_size = sector_size;
+  if (track->sector_fmt == GD_SECTOR_CDDA) {
+    track->header_size = 0;
+    track->error_size = 0;
+    track->data_size =
+        track->sector_size - track->header_size - track->error_size;
+    CHECK_EQ(track->data_size, 2352);
+  } else if (track->sector_fmt == GD_SECTOR_M2F1) {
+    track->header_size = 8;
+    track->error_size = 280;
+    track->data_size =
+        track->sector_size - track->header_size - track->error_size;
+    CHECK_EQ(track->data_size, 2048);
+  } else {
+    LOG_FATAL("unexpected sector format %d", track->sector_fmt);
+  }
+
   track->file_offset = data_offset - track->fad * track->sector_size;
 
   LOG_INFO("cdi_parse_track track=%d fad=%d off=%d mode=%s/%d", track->num,
@@ -379,7 +366,7 @@ struct disc *cdi_create(const char *filename) {
   cdi->get_num_tracks = &cdi_get_num_tracks;
   cdi->get_track = &cdi_get_track;
   cdi->get_toc = &cdi_get_toc;
-  cdi->read_sectors = &cdi_read_sectors;
+  cdi->read_sector = &cdi_read_sector;
 
   struct disc *disc = (struct disc *)cdi;
 

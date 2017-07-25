@@ -1,0 +1,225 @@
+INCFLAGS += \
+	-I$(CORE_DIR)/src \
+	-I$(CORE_DIR)/deps/capstone/include \
+	-I$(CORE_DIR)/deps/dirent-1.21 \
+	-I$(CORE_DIR)/deps/glad/include \
+	-I$(CORE_DIR)/deps/gdb_server \
+	-I$(CORE_DIR)/deps/inih \
+	-I$(CORE_DIR)/deps/libretro/include \
+	-I$(CORE_DIR)/deps/xbyak-4.901 \
+	-I$(LIBRETRO_DIR)
+
+#SOURCES_CXX := $(CORE_DIR)/src/render/microprofile.cc
+#INCFLAGS += -I$(CORE_DIR)/deps/microprofile \
+
+SOURCES_CXX := 
+SOURCES_CPP :=
+
+ifeq ($(HAVE_IMGUI), 1)
+INCFLAGS += -I$(CORE_DIR)/deps/cimgui
+SOURCES_CPP += $(CORE_DIR)/deps/cimgui/cimgui/cimgui.cpp
+endif
+
+SOURCES_C   := $(CORE_DIR)/src/core/assert.c \
+					$(CORE_DIR)/src/file/trace.c \
+					$(CORE_DIR)/src/core/filesystem.c \
+					$(CORE_DIR)/src/core/interval_tree.c \
+					$(CORE_DIR)/src/core/exception_handler.c \
+					$(CORE_DIR)/src/core/list.c \
+					$(CORE_DIR)/src/core/log.c \
+					$(CORE_DIR)/src/core/md5.c \
+					$(CORE_DIR)/src/core/ringbuf.c \
+					$(CORE_DIR)/src/core/rb_tree.c \
+					$(CORE_DIR)/src/core/sort.c \
+					$(CORE_DIR)/src/core/profiler.c \
+					$(CORE_DIR)/src/core/string.c \
+					 \
+					$(CORE_DIR)/src/guest/bios/bios.c \
+					$(CORE_DIR)/src/guest/bios/flash.c \
+					$(CORE_DIR)/src/guest/bios/syscalls.c \
+					$(CORE_DIR)/src/guest/gdrom/cdi.c \
+					$(CORE_DIR)/src/guest/gdrom/disc.c \
+					$(CORE_DIR)/src/guest/gdrom/gdi.c \
+					$(CORE_DIR)/src/guest/gdrom/gdrom.c \
+					$(CORE_DIR)/src/guest/gdrom/patch.c \
+					$(CORE_DIR)/src/guest/holly/holly.c \
+					$(CORE_DIR)/src/guest/maple/controller.c \
+					$(CORE_DIR)/src/guest/maple/maple.c \
+					$(CORE_DIR)/src/guest/maple/vmu.c \
+					$(CORE_DIR)/src/guest/pvr/pvr.c \
+					$(CORE_DIR)/src/guest/pvr/ta.c \
+					$(CORE_DIR)/src/guest/pvr/tr.c \
+					$(CORE_DIR)/src/guest/aica/aica.c \
+					$(CORE_DIR)/src/guest/arm7/arm7.c \
+					$(CORE_DIR)/src/guest/rom/boot.c \
+					$(CORE_DIR)/src/guest/rom/flash.c \
+					$(CORE_DIR)/src/guest/sh4/sh4.c \
+					$(CORE_DIR)/src/guest/sh4/sh4_ccn.c \
+					$(CORE_DIR)/src/guest/sh4/sh4_dbg.c \
+					$(CORE_DIR)/src/guest/sh4/sh4_dmac.c \
+					$(CORE_DIR)/src/guest/sh4/sh4_intc.c \
+					$(CORE_DIR)/src/guest/sh4/sh4_mmu.c \
+					$(CORE_DIR)/src/guest/sh4/sh4_tmu.c \
+					$(CORE_DIR)/src/guest/debugger.c \
+					$(CORE_DIR)/src/guest/dreamcast.c \
+					$(CORE_DIR)/src/guest/memory.c \
+					$(CORE_DIR)/src/guest/scheduler.c \
+					$(CORE_DIR)/src/core/option.c \
+					$(CORE_DIR)/src/core/memory.c \
+					$(CORE_DIR)/deps/inih/ini.c \
+					$(CORE_DIR)/src/host/keycode.c \
+					$(CORE_DIR)/src/jit/backend/interp/interp_backend.c \
+					$(CORE_DIR)/src/jit/frontend/armv3/armv3_context.c \
+					$(CORE_DIR)/src/jit/frontend/armv3/armv3_disasm.c \
+					$(CORE_DIR)/src/jit/frontend/armv3/armv3_fallback.c \
+					$(CORE_DIR)/src/jit/frontend/armv3/armv3_frontend.c \
+					$(CORE_DIR)/src/jit/frontend/sh4/sh4_disasm.c \
+					$(CORE_DIR)/src/jit/frontend/sh4/sh4_fallback.c \
+					$(CORE_DIR)/src/jit/frontend/sh4/sh4_frontend.c \
+					$(CORE_DIR)/src/jit/frontend/sh4/sh4_translate.c \
+					$(CORE_DIR)/src/jit/ir/ir.c \
+					$(CORE_DIR)/src/jit/ir/ir_read.c \
+					$(CORE_DIR)/src/jit/ir/ir_write.c \
+					$(CORE_DIR)/src/jit/passes/constant_propagation_pass.c \
+					$(CORE_DIR)/src/jit/passes/control_flow_analysis_pass.c \
+					$(CORE_DIR)/src/jit/passes/conversion_elimination_pass.c \
+					$(CORE_DIR)/src/jit/passes/dead_code_elimination_pass.c \
+					$(CORE_DIR)/src/jit/passes/expression_simplification_pass.c \
+					$(CORE_DIR)/src/jit/passes/load_store_elimination_pass.c \
+					$(CORE_DIR)/src/jit/passes/register_allocation_pass.c \
+					$(CORE_DIR)/src/jit/jit.c \
+					$(CORE_DIR)/src/jit/pass_stats.c \
+					$(CORE_DIR)/src/emulator.c \
+					$(CORE_DIR)/src/host/retro_host.c
+
+SOURCES_CXX += $(CORE_DIR)/src/render/imgui.cc \
+					$(CORE_DIR)/src/render/microprofile.cc
+
+SOURCES_C   += $(CORE_DIR)/src/render/gl_backend.c
+
+SOURCES_C   += $(CORE_DIR)/deps/capstone/cs.c \
+					$(CORE_DIR)/deps/capstone/utils.c \
+					$(CORE_DIR)/deps/capstone/MCInst.c \
+					$(CORE_DIR)/deps/capstone/MCInstrDesc.c \
+					$(CORE_DIR)/deps/capstone/MCRegisterInfo.c \
+					$(CORE_DIR)/deps/capstone/SStream.c \
+
+ifeq ($(CAPSTONE_HAS_ARM), 1)
+					$(CORE_DIR)/deps/capstone/arch/ARM/ARMDisassembler.c \
+					$(CORE_DIR)/deps/capstone/arch/ARM/ARMInstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/ARM/ARMMapping.c \
+					$(CORE_DIR)/deps/capstone/arch/ARM/ARMModule.c
+endif
+
+ifeq ($(CAPSTONE_HAS_ARM64), 1)
+SOURCES_C += 	$(CORE_DIR)/deps/capstone/arch/AArch64/AArch64Disassembler.c \
+					$(CORE_DIR)/deps/capstone/arch/AArch64/AArch64InstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/AArch64/AArch64Mapping.c \
+					$(CORE_DIR)/deps/capstone/arch/AArch64/AArch64BaseInfo.c \
+					$(CORE_DIR)/deps/capstone/arch/AArch64/AArch64Module.c
+endif
+
+SOURCES_C +=	$(CORE_DIR)/deps/capstone/arch/Mips/MipsDisassembler.c \
+					$(CORE_DIR)/deps/capstone/arch/Mips/MipsInstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/Mips/MipsMapping.c \
+					$(CORE_DIR)/deps/capstone/arch/Mips/MipsModule.c
+
+ifeq ($(CAPSTONE_HAS_POWERPC), 1)
+SOURCES_C +=	$(CORE_DIR)/deps/capstone/arch/PowerPC/PPCDisassembler.c \
+					$(CORE_DIR)/deps/capstone/arch/PowerPC/PPCInstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/PowerPC/PPCMapping.c \
+					$(CORE_DIR)/deps/capstone/arch/PowerPC/PPCModule.c
+endif
+
+SOURCES_C +=	$(CORE_DIR)/deps/capstone/arch/X86/X86Disassembler.c \
+					$(CORE_DIR)/deps/capstone/arch/X86/X86DisassemblerDecoder.c \
+					$(CORE_DIR)/deps/capstone/arch/X86/X86ATTInstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/X86/X86IntelInstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/X86/X86Mapping.c \
+					$(CORE_DIR)/deps/capstone/arch/X86/X86Module.c
+
+ifeq ($(CAPSTONE_HAS_SPARC), 1)
+SOURCES_C +=	$(CORE_DIR)/deps/capstone/arch/Sparc/SparcDisassembler.c \
+					$(CORE_DIR)/deps/capstone/arch/Sparc/SparcInstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/Sparc/SparcMapping.c \
+					$(CORE_DIR)/deps/capstone/arch/Sparc/SparcModule.c
+endif
+
+ifeq ($(CAPSTONE_HAS_SYSTEMZ), 1)
+SOURCES_C +=	$(CORE_DIR)/deps/capstone/arch/SystemZ/SystemZDisassembler.c \
+					$(CORE_DIR)/deps/capstone/arch/SystemZ/SystemZInstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/SystemZ/SystemZMapping.c \
+					$(CORE_DIR)/deps/capstone/arch/SystemZ/SystemZMCTargetDesc.c \
+					$(CORE_DIR)/deps/capstone/arch/SystemZ/SystemZModule.c
+endif
+
+ifeq ($(CAPSTONE_HAS_XCORE), 1)
+SOURCES_C +=	$(CORE_DIR)/deps/capstone/arch/XCore/XCoreDisassembler.c \
+					$(CORE_DIR)/deps/capstone/arch/XCore/XCoreInstPrinter.c \
+					$(CORE_DIR)/deps/capstone/arch/XCore/XCoreMapping.c \
+					$(CORE_DIR)/deps/capstone/arch/XCore/XCoreModule.c
+endif
+
+ifeq ($(HAVE_LINUX), 1)
+SOURCES_C += $(CORE_DIR)/src/core/exception_handler_linux.c  \
+				 $(CORE_DIR)/src/core/time_linux.c 
+endif
+
+ifeq ($(HAVE_MAC), 1)
+SOURCES_C += $(CORE_DIR)/src/core/exception_handler_mac.c  \
+				 $(CORE_DIR)/src/core/time_mac.c 
+endif
+
+ifeq ($(HAVE_WINDOWS), 1)
+SOURCES_C += $(CORE_DIR)/src/core/exception_handler_win.c  \
+				 $(CORE_DIR)/src/core/time_win.c 
+endif
+
+ifeq ($(HAVE_POSIX), 1)
+SOURCES_C += $(CORE_DIR)/src/core/filesystem_posix.c \
+				 $(CORE_DIR)/src/core/memory_posix.c \
+				 $(CORE_DIR)/src/core/thread_posix.c
+endif
+
+ifeq ($(HAVE_WINDOWS), 1)
+SOURCES_C += $(CORE_DIR)/src/core/filesystem_win.c \
+				 $(CORE_DIR)/src/core/memory_win.c \
+				 $(CORE_DIR)/src/core/thread_win.c
+endif
+
+# work around glad using dlopen, etc. which are actually unused
+ifneq ($(findstring Darwin,$(shell uname -a)),)
+LDFLAGS += -undefined dynamic_lookup
+else
+LDFLAGS += -Wl,--unresolved-symbols=ignore-all
+endif
+SOURCES_C += $(CORE_DIR)/deps/glad/src/glad.c
+
+ifdef WITH_DYNAREC
+
+	ifeq ($(WITH_DYNAREC), arm)
+		DYNAFLAGS += -DNEW_DYNAREC=3
+	endif
+
+	ifeq ($(WITH_DYNAREC), x86)
+		DYNAFLAGS += -D_M_IX86
+	endif
+
+	ifeq ($(WITH_DYNAREC), $(filter $(WITH_DYNAREC), x86_64 x64))
+	   COREFLAGS += -DARCH_X64=1
+		DYNAFLAGS += -D_M_X64
+	endif
+
+ifeq ($(WITH_DYNAREC), arm)
+endif
+ifeq ($(WITH_DYNAREC), $(filter $(WITH_DYNAREC), x86_64 x64))
+		DYNAREC_USED = 1
+		CPUFLAGS += -msse -msse2
+		SOURCES_CXX += \
+			       $(CORE_DIR)/src/jit/backend/x64/x64_backend.cc \
+			       $(CORE_DIR)/src/jit/backend/x64/x64_dispatch.cc \
+			       $(CORE_DIR)/src/jit/backend/x64/x64_emitters.cc
+		SOURCES_C += $(CORE_DIR)/src/jit/backend/x64/x64_disassembler.c
+endif
+
+endif

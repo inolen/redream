@@ -3,4 +3,4 @@ android/
 build/
 *.swo
 *.swp
-Makefile
+./Makefile

@@ -90,6 +90,10 @@ enum {
 
 struct armv3_context {
   uint32_t r[NUM_ARMV3_REGS];
+
+  /* points directly to the user bank r0-15 no matter the mode */
+  uint32_t *rusr[16];
+
   uint64_t pending_interrupts;
 
   /* the main dispatch loop is ran until run_cycles is <= 0 */
@@ -100,7 +104,7 @@ struct armv3_context {
 };
 
 /* map mode to SPSR / register layout */
-extern const int armv3_spsr_table[0x100];
-extern const int armv3_reg_table[0x100][7];
+extern const int armv3_spsr_table[0x20];
+extern const int armv3_reg_table[0x20][16];
 
 #endif

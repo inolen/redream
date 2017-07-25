@@ -4,7 +4,9 @@
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom_replies.inc"
 #include "guest/gdrom/gdrom_types.h"
+#include "guest/gdrom/patch.h"
 #include "guest/holly/holly.h"
+#include "render/imgui.h"
 
 #if 0
 #define LOG_GDROM LOG_INFO
@@ -467,6 +469,28 @@ static void gdrom_event(struct gdrom *gd, enum gd_event ev, int arg) {
   cb(gd, arg);
 }
 
+static int gdrom_init(struct device *dev) {
+  struct gdrom *gd = (struct gdrom *)dev;
+
+  /* set default hardware information */
+  memset(&gd->hw_info, 0, sizeof(gd->hw_info));
+  gd->hw_info.speed = 0x0;
+  gd->hw_info.standby_hi = 0x00;
+  gd->hw_info.standby_lo = 0xb4;
+  gd->hw_info.read_flags = 0x19;
+  gd->hw_info.read_retry = 0x08;
+  strncpy_pad_spaces(gd->hw_info.drive_info, "SE",
+                     sizeof(gd->hw_info.drive_info));
+  strncpy_pad_spaces(gd->hw_info.system_version, "Rev 6.43",
+                     sizeof(gd->hw_info.system_version));
+  strncpy_pad_spaces(gd->hw_info.system_date, "990408",
+                     sizeof(gd->hw_info.system_date));
+
+  gdrom_set_disc(gd, NULL);
+
+  return 1;
+}
+
 int gdrom_read_bytes(struct gdrom *gd, int fad, int len, uint8_t *dst,
                      int dst_size) {
   if (!gd->disc) {
@@ -492,12 +516,16 @@ int gdrom_read_sectors(struct gdrom *gd, int fad, int num_sectors, int fmt,
 
 int gdrom_find_file(struct gdrom *gd, const char *filename, int *fad,
                     int *len) {
-  if (!gd->disc) {
-    LOG_WARNING("gdrom_find_file failed, no disc");
-    return 0;
-  }
+  CHECK_NOTNULL(gd->disc);
 
   return disc_find_file(gd->disc, filename, fad, len);
+}
+
+void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len) {
+  CHECK_NOTNULL(gd->disc);
+
+  *fad = gd->disc->bootfad;
+  *len = gd->disc->bootlen;
 }
 
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
@@ -610,40 +638,12 @@ void gdrom_get_status(struct gdrom *gd, struct gd_spi_status *stat) {
   stat->fad = 0x0;
 }
 
-static int gdrom_init(struct device *dev) {
-  struct gdrom *gd = (struct gdrom *)dev;
-
-  /* set default hardware information */
-  memset(&gd->hw_info, 0, sizeof(gd->hw_info));
-  gd->hw_info.speed = 0x0;
-  gd->hw_info.standby_hi = 0x00;
-  gd->hw_info.standby_lo = 0xb4;
-  gd->hw_info.read_flags = 0x19;
-  gd->hw_info.read_retry = 0x08;
-  strncpy_pad_spaces(gd->hw_info.drive_info, "SE",
-                     sizeof(gd->hw_info.drive_info));
-  strncpy_pad_spaces(gd->hw_info.system_version, "Rev 6.43",
-                     sizeof(gd->hw_info.system_version));
-  strncpy_pad_spaces(gd->hw_info.system_date, "990408",
-                     sizeof(gd->hw_info.system_date));
-
-  gdrom_set_disc(gd, NULL);
-
-  return 1;
-}
-
 void gdrom_set_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
   gd->hw_info = *info;
 }
 
 void gdrom_get_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
   *info = gd->hw_info;
-}
-
-void gdrom_get_disc_id(struct gdrom *gd, char *id, int size) {
-  CHECK_NOTNULL(gd->disc);
-
-  disc_get_id(gd->disc, id, size);
 }
 
 void gdrom_dma_end(struct gdrom *gd) {
@@ -680,6 +680,12 @@ void gdrom_dma_begin(struct gdrom *gd) {
   LOG_GDROM("gd_dma_begin");
 }
 
+int gdrom_widescreen_enabled(struct gdrom *gd) {
+  CHECK_NOTNULL(gd->disc);
+
+  return patch_widescreen_enabled(gd->disc->id);
+}
+
 void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   if (gd->disc != disc) {
     if (gd->disc) {
@@ -706,6 +712,20 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
 
   /* TODO how do GD_FEATURES, GD_INTREASON, GD_BYCTLLO and GD_BYCTLHI behave */
 }
+
+#ifdef HAVE_IMGUI
+void gdrom_debug_menu(struct gdrom *gd) {
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("GDROM", 1)) {
+      patch_debug_menu();
+
+      igEndMenu();
+    }
+
+    igEndMainMenuBar();
+  }
+}
+#endif
 
 void gdrom_destroy(struct gdrom *gd) {
   if (gd->disc) {

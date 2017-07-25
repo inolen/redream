@@ -140,6 +140,7 @@ int dc_init(struct dreamcast *dc) {
     }
   }
 
+  /* initialize after devices in order to manipulate the boot and flash roms */
   if (!bios_init(dc->bios)) {
     LOG_WARNING("failed to initialize bios");
     return 0;

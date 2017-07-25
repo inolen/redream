@@ -236,6 +236,7 @@ set(RELIB_SOURCES
   src/guest/gdrom/disc.c
   src/guest/gdrom/gdi.c
   src/guest/gdrom/gdrom.c
+  src/guest/gdrom/patch.c
   src/guest/holly/holly.c
   src/guest/maple/controller.c
   src/guest/maple/maple.c
@@ -387,7 +388,7 @@ else()
   set(REDREAM_SOURCES ${RELIB_SOURCES} src/host/sdl_host.c src/emulator.c src/tracer.c)
   set(REDREAM_INCLUDES ${RELIB_INCLUDES})
   set(REDREAM_LIBS ${RELIB_LIBS} ${IMGUI_LIBS} ${SDL_LIBS})
-  set(REDREAM_DEFS ${RELIB_DEFS} HAVE_IMGUI HAVE_MICROPROFILE)
+  set(REDREAM_DEFS ${RELIB_DEFS} HAVE_GDBSERVER HAVE_IMGUI HAVE_MICROPROFILE)
   set(REDREAM_FLAGS ${RELIB_FLAGS})
 endif()
 

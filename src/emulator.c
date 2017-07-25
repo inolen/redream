@@ -38,10 +38,15 @@
 DEFINE_AGGREGATE_COUNTER(frames);
 
 DEFINE_PERSISTENT_OPTION_STRING(aspect_ratio, "stretch", "Video aspect ratio");
-DEFINE_PERSISTENT_OPTION_INT(widescreen_hack, 1, "Enable widescreen hacks");
+
+enum {
+  ASPECT_RATIO_STRETCH,
+  ASPECT_RATIO_16BY9,
+  ASPECT_RATIO_4BY3,
+};
 
 static const char *aspect_ratios[] = {
-    "stretch", "4:3",
+    "stretch", "16:9", "4:3",
 };
 
 /* emulation thread state */
@@ -67,14 +72,14 @@ struct emu {
   struct host *host;
   struct dreamcast *dc;
 
-  volatile int video_width;
-  volatile int video_height;
-  volatile unsigned frame;
-
   struct render_backend *r;
   struct imgui *imgui;
   struct microprofile *mp;
   struct trace_writer *trace_writer;
+
+  int video_width;
+  int video_height;
+  int aspect_ratio;
 
   /* when running with multiple threads, the dreamcast emulation is ran on a
      secondary thread, in order to allow rendering to be done asynchronously on
@@ -85,6 +90,7 @@ struct emu {
 
   /* emulation thread synchronization primitives */
   volatile int state;
+  volatile unsigned frame;
   thread_t run_thread;
   mutex_t run_mutex;
   cond_t run_cond;
@@ -478,45 +484,33 @@ static void emu_host_resized(void *userdata) {
 }
 
 /*
- * frame running logic
+ * options
  */
-static void emu_run_frame(struct emu *emu);
+static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
+  int i;
+  int num_aspect_ratios = array_size(aspect_ratios);
 
-static void *emu_run_thread(void *data) {
-  struct emu *emu = data;
+  for (i = 0; i < num_aspect_ratios; i++) {
+    const char *aspect_ratio = aspect_ratios[i];
 
-  while (1) {
-    /* wait for video thread to request a frame to be ran */
-    {
-      mutex_lock(emu->run_mutex);
-
-      while (emu->state == EMU_WAITING) {
-        cond_wait(emu->run_cond, emu->run_mutex);
-      }
-
-      if (emu->state == EMU_SHUTDOWN) {
-        break;
-      }
-
-      emu_run_frame(emu);
-
-      emu->state = EMU_WAITING;
-
-      mutex_unlock(emu->run_mutex);
-    }
-
-    /* in case no context was submitted before the frame end, signal the video
-       thread to continue, reusing the previous context */
-    {
-      mutex_lock(emu->frame_mutex);
-
-      cond_signal(emu->frame_cond);
-
-      mutex_unlock(emu->frame_mutex);
+    if (!strcmp(aspect_ratio, new_ratio)) {
+      break;
     }
   }
 
-  return NULL;
+  /* force to stretch if the new ratio isn't a valid one */
+  if (i == num_aspect_ratios) {
+    i = ASPECT_RATIO_STRETCH;
+  }
+
+  /* update persistent option as well as this session's aspect ratio */
+  strncpy(OPTION_aspect_ratio, aspect_ratios[i], sizeof(OPTION_aspect_ratio));
+  emu->aspect_ratio = i;
+
+  /* if a widescreen hack is enabled, force to stretch for the session */
+  if (gdrom_widescreen_enabled(emu->dc->gdrom)) {
+    emu->aspect_ratio = ASPECT_RATIO_16BY9;
+  }
 }
 
 static void emu_debug_menu(struct emu *emu) {
@@ -549,16 +543,8 @@ static void emu_debug_menu(struct emu *emu) {
           int selected = !strcmp(OPTION_aspect_ratio, aspect_ratio);
 
           if (igMenuItem(aspect_ratio, NULL, selected, 1)) {
-            strncpy(OPTION_aspect_ratio, aspect_ratio,
-                    sizeof(OPTION_aspect_ratio));
+            emu_set_aspect_ratio(emu, aspect_ratio);
           }
-        }
-
-        igSeparator();
-
-        if (igMenuItem("widescreen hack", NULL, OPTION_widescreen_hack, 1)) {
-          OPTION_widescreen_hack = !OPTION_widescreen_hack;
-          LOG_WARNING("widescreen hack settings changed, restart to apply");
         }
 
         igEndMenu();
@@ -570,6 +556,7 @@ static void emu_debug_menu(struct emu *emu) {
   }
 
   bios_debug_menu(emu->dc->bios);
+  gdrom_debug_menu(emu->dc->gdrom);
   holly_debug_menu(emu->dc->holly);
   aica_debug_menu(emu->dc->aica);
   sh4_debug_menu(emu->dc->sh4);
@@ -630,6 +617,48 @@ static void emu_debug_menu(struct emu *emu) {
 #endif
 }
 
+/*
+ * frame running logic
+ */
+static void emu_run_frame(struct emu *emu);
+
+static void *emu_run_thread(void *data) {
+  struct emu *emu = data;
+
+  while (1) {
+    /* wait for video thread to request a frame to be ran */
+    {
+      mutex_lock(emu->run_mutex);
+
+      while (emu->state == EMU_WAITING) {
+        cond_wait(emu->run_cond, emu->run_mutex);
+      }
+
+      if (emu->state == EMU_SHUTDOWN) {
+        break;
+      }
+
+      emu_run_frame(emu);
+
+      emu->state = EMU_WAITING;
+
+      mutex_unlock(emu->run_mutex);
+    }
+
+    /* in case no context was submitted before the frame end, signal the video
+       thread to continue, reusing the previous context */
+    {
+      mutex_lock(emu->frame_mutex);
+
+      cond_signal(emu->frame_cond);
+
+      mutex_unlock(emu->frame_mutex);
+    }
+  }
+
+  return NULL;
+}
+
 static void emu_run_frame(struct emu *emu) {
   const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
   unsigned start_frame = emu->frame;
@@ -646,18 +675,23 @@ void emu_render_frame(struct emu *emu) {
   int frame_height, frame_width;
   int frame_x, frame_y;
 
-  if (!strcmp(OPTION_aspect_ratio, "stretch")) {
+  if (emu->aspect_ratio == ASPECT_RATIO_STRETCH) {
     frame_height = emu->video_height;
     frame_width = emu->video_width;
     frame_x = 0;
     frame_y = 0;
-  } else if (!strcmp(OPTION_aspect_ratio, "4:3")) {
+  } else if (emu->aspect_ratio == ASPECT_RATIO_16BY9) {
+    frame_width = emu->video_width;
+    frame_height = frame_width * (9.0f / 16.0f);
+    frame_x = 0;
+    frame_y = (emu->video_height - frame_height) / 2.0f;
+  } else if (emu->aspect_ratio == ASPECT_RATIO_4BY3) {
     frame_height = emu->video_height;
     frame_width = frame_height * (4.0f / 3.0f);
     frame_x = (emu->video_width - frame_width) / 2.0f;
     frame_y = 0;
   } else {
-    LOG_FATAL("unexpected aspect ratio %s", OPTION_aspect_ratio);
+    LOG_FATAL("unexpected aspect ratio %d", emu->aspect_ratio);
   }
 
   int debug_height = emu->video_height;
@@ -741,6 +775,8 @@ int emu_load_game(struct emu *emu, const char *path) {
   if (!dc_load(emu->dc, path)) {
     return 0;
   }
+
+  emu_set_aspect_ratio(emu, OPTION_aspect_ratio);
 
   dc_resume(emu->dc);
 
