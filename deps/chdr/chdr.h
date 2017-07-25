@@ -122,6 +122,49 @@
         0x00000001 - set if this drive has a parent
         0x00000002 - set if this drive allows writes
 
+   =========================================================================
+
+    V5 header:
+
+    [  0] char   tag[8];        // 'MComprHD'
+    [  8] uint32_t length;        // length of header (including tag and length fields)
+    [ 12] uint32_t version;       // drive format version
+    [ 16] uint32_t compressors[4];// which custom compressors are used?
+    [ 32] uint64_t logicalbytes;  // logical size of the data (in bytes)
+    [ 40] uint64_t mapoffset;     // offset to the map
+    [ 48] uint64_t metaoffset;    // offset to the first blob of metadata
+    [ 56] uint32_t hunkbytes;     // number of bytes per hunk (512k maximum)
+    [ 60] uint32_t unitbytes;     // number of bytes per unit within each hunk
+    [ 64] uint8_t  rawsha1[20];   // raw data SHA1
+    [ 84] uint8_t  sha1[20];      // combined raw+meta SHA1
+    [104] uint8_t  parentsha1[20];// combined raw+meta SHA1 of parent
+    [124] (V5 header length)
+
+    If parentsha1 != 0, we have a parent (no need for flags)
+    If compressors[0] == 0, we are uncompressed (including maps)
+
+    V5 uncompressed map format:
+
+    [  0] uint32_t offset;        // starting offset / hunk size
+
+    V5 compressed map format header:
+
+    [  0] uint32_t length;        // length of compressed map
+    [  4] UINT48 datastart;     // offset of first block
+    [ 10] uint16_t crc;           // crc-16 of the map
+    [ 12] uint8_t lengthbits;     // bits used to encode complength
+    [ 13] uint8_t hunkbits;       // bits used to encode self-refs
+    [ 14] uint8_t parentunitbits; // bits used to encode parent unit refs
+    [ 15] uint8_t reserved;       // future use
+    [ 16] (compressed header length)
+
+    Each compressed map entry, once expanded, looks like:
+
+    [  0] uint8_t compression;    // compression type
+    [  1] UINT24 complength;    // compressed length
+    [  4] UINT48 offset;        // offset
+    [ 10] uint16_t crc;           // crc-16 of the data
+
 ***************************************************************************/
 
 
@@ -130,12 +173,14 @@
 ***************************************************************************/
 
 /* header information */
-#define CHD_HEADER_VERSION			4
+#define CHD_HEADER_VERSION			5
 #define CHD_V1_HEADER_SIZE			76
 #define CHD_V2_HEADER_SIZE			80
 #define CHD_V3_HEADER_SIZE			120
 #define CHD_V4_HEADER_SIZE			108
-#define CHD_MAX_HEADER_SIZE			CHD_V4_HEADER_SIZE
+#define CHD_V5_HEADER_SIZE          124
+
+#define CHD_MAX_HEADER_SIZE			CHD_V5_HEADER_SIZE
 
 /* checksumming information */
 #define CHD_MD5_BYTES				16
@@ -182,6 +227,8 @@
 #define CDROM_TRACK_METADATA_FORMAT	"TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d"
 #define CDROM_TRACK_METADATA2_TAG	0x43485432	/* 'CHT2' */
 #define CDROM_TRACK_METADATA2_FORMAT	"TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d"
+#define GDROM_TRACK_METADATA_TAG	0x43484744	/* 'CHTD' */
+#define GDROM_TRACK_METADATA_FORMAT	"TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PAD:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d"
 
 /* standard A/V metadata */
 #define AV_METADATA_TAG				0x41564156	/* 'AVAV' */
@@ -245,16 +292,24 @@ struct _chd_header
 	UINT32		length;						/* length of header data */
 	UINT32		version;					/* drive format version */
 	UINT32		flags;						/* flags field */
-	UINT32		compression;				/* compression type */
+	UINT32		compression[4];				/* compression type */
 	UINT32		hunkbytes;					/* number of bytes per hunk */
 	UINT32		totalhunks;					/* total # of hunks represented */
 	UINT64		logicalbytes;				/* logical size of the data */
 	UINT64		metaoffset;					/* offset in file of first metadata */
+	UINT64		mapoffset;					/* TOOD V5 */
 	UINT8		md5[CHD_MD5_BYTES];			/* overall MD5 checksum */
 	UINT8		parentmd5[CHD_MD5_BYTES];	/* overall MD5 checksum of parent */
 	UINT8		sha1[CHD_SHA1_BYTES];		/* overall SHA1 checksum */
 	UINT8		rawsha1[CHD_SHA1_BYTES];	/* SHA1 checksum of raw data */
-	UINT8		parentsha1[CHD_SHA1_BYTES];	/* overall SHA1 checksum of parent */
+	UINT8		parentsha1[CHD_SHA1_BYTES];	/* overall SHA1 checksum of parent */	
+	UINT32		unitbytes;					/* TODO V5 */
+	UINT64		unitcount;					/* TODO V5 */	
+    UINT32      hunkcount;                  /* TODO V5 */
+
+    // map information
+    UINT32      mapentrybytes;              // length of each entry in a map (V5)
+    UINT8*      rawmap;                     // raw map data
 
 	UINT32		obsolete_cylinders;			/* obsolete field -- do not use! */
 	UINT32		obsolete_sectors;			/* obsolete field -- do not use! */
@@ -323,19 +378,6 @@ chd_error chd_read(chd_file *chd, UINT32 hunknum, void *buffer);
 /* get indexed metadata of a particular sort */
 chd_error chd_get_metadata(chd_file *chd, UINT32 searchtag, UINT32 searchindex, void *output, UINT32 outputlen, UINT32 *resultlen, UINT32 *resulttag, UINT8 *resultflags);
 
-
-
-
-/* ----- verification management ----- */
-
-/* begin verifying a CHD */
-chd_error chd_verify_begin(chd_file *chd);
-
-/* verify a single hunk of data */
-chd_error chd_verify_hunk(chd_file *chd);
-
-/* finish verifying a CHD, returning the computed MD5 and SHA1 */
-chd_error chd_verify_finish(chd_file *chd, chd_verify_result *result);
 
 
 

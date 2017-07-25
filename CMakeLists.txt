@@ -109,12 +109,12 @@ if(ARCH_A64)
   list(APPEND RELIB_LIBS vixl)
 endif()
 
-# chdr
-file(GLOB CHDR_SOURCES deps/chdr/*.c)
-add_library(chdr STATIC ${CHDR_SOURCES})
-target_link_libraries(chdr crypto)
-list(APPEND RELIB_INCLUDES deps/chdr)
-list(APPEND RELIB_LIBS chdr)
+# lzma
+file(GLOB LZMA_SOURCES deps/lzma1604/C/*.c)
+add_library(lzma STATIC ${LZMA_SOURCES})
+list(APPEND RELIB_INCLUDES deps/lzma1604/C)
+list(APPEND RELIB_LIBS lzma)
+target_compile_options(lzma PRIVATE -D_7ZIP_ST)
 
 # crypto
 file(GLOB CRYPTO_SOURCES deps/crypto/*.c)
@@ -126,6 +126,13 @@ list(APPEND RELIB_LIBS crypto)
 add_subdirectory(deps/zlib-1.2.11 EXCLUDE_FROM_ALL)
 list(APPEND RELIB_INCLUDES deps/zlib)
 list(APPEND RELIB_LIBS zlibstatic)
+
+# chdr
+file(GLOB CHDR_SOURCES deps/chdr/*.c)
+add_library(chdr STATIC ${CHDR_SOURCES})
+target_link_libraries(chdr crypto)
+list(APPEND RELIB_INCLUDES deps/chdr)
+list(APPEND RELIB_LIBS chdr)
 
 # xbyak
 if(ARCH_X64)

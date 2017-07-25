@@ -145,9 +145,14 @@ static int chd_parse(struct disc *disc, const char *filename) {
 	for(;;)
 	{
 		char type[64],subtype[32]="NONE",pgtype[32],pgsub[32];
-		int tkid,frames,pregap=0,postgap=0;
-		err=chd_get_metadata(chd->chd,CDROM_TRACK_METADATA2_TAG,chd->num_tracks,temp,sizeof(temp),&temp_len,&tag,&flags);
+		int tkid,frames,pregap=0,postgap=0,pad=0;
+		err=chd_get_metadata(chd->chd,GDROM_TRACK_METADATA_TAG,chd->num_tracks,temp,sizeof(temp),&temp_len,&tag,&flags);
 		if (err==CHDERR_NONE)
+		{
+			//"TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PAD:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d"
+			sscanf(temp,GDROM_TRACK_METADATA_FORMAT,&tkid,type,subtype,&frames,&pad,&pregap,pgtype,pgsub,&postgap);
+		}
+    else if (CHDERR_NONE== (err=chd_get_metadata(chd->chd,CDROM_TRACK_METADATA2_TAG,chd->num_tracks,temp,sizeof(temp),&temp_len,&tag,&flags)))
 		{
 			//"TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d"
 			sscanf(temp,CDROM_TRACK_METADATA2_FORMAT,&tkid,type,subtype,&frames,&pregap,pgtype,pgsub,&postgap);
