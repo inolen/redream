@@ -42,10 +42,10 @@
 #include "huffman.h"
 #include "flac.h"
 
-#include "../crypto/md5.h"
-#include "../crypto/sha1.h"
-#include "../lzma1604/C/LzmaEnc.h"
-#include "../lzma1604/C/LzmaDec.h"
+#include "md5.h"
+#include "sha1.h"
+#include "LzmaEnc.h"
+#include "LzmaDec.h"
 
 #include <string.h>
 #include <zlib.h>
