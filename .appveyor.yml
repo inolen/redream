@@ -1,0 +1,25 @@
+skip_tags: true
+
+image: Visual Studio 2015
+
+build_script:
+  - mkdir build
+  - cd build
+  - cmake -G "Visual Studio 14 Win64" ..
+  - msbuild.exe redream.sln /t:redream /p:Configuration=Release /p:Platform=x64
+
+#before_deploy:
+#  - BUILD_ARTIFACT=redream.$BUILD_ARCH-$BUILD_PLATFORM-HEAD.tar.gz
+#  - GIT_TAG=travis-ci-latest
+#  - tar -cvzf $BUILD_ARTIFACT redream
+#  - git config --global user.email "builds@travis-ci.com"
+#  - git config --global user.name "Travis CI"
+#  - git tag $GIT_TAG -f
+#  - git push --quiet --force https://$GITHUB_KEY@github.com/inolen/redream $GIT_TAG > /dev/null 2>&1
+
+#deploy:
+#  provider: GitHub
+#  prerelease: true
+#  api_key: $GITHUB_KEY
+#  file: $BUILD_ARTIFACT
+#  overwrite: true
