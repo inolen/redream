@@ -32,7 +32,7 @@ static void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
   memcpy(meta, tmp, sizeof(*meta));
 }
 
-int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
+int disc_read_bytes(struct disc *disc, int fad, int len, uint8_t *dst,
                     int dst_size) {
   CHECK_LE(len, dst_size);
 
@@ -57,7 +57,7 @@ int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
 }
 
 int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
-                      int sector_fmt, int sector_mask, void *dst,
+                      int sector_fmt, int sector_mask, uint8_t *dst,
                       int dst_size) {
   struct track *track = disc_lookup_track(disc, fad);
   CHECK_NOTNULL(track);
@@ -220,16 +220,18 @@ struct disc *disc_create(const char *filename) {
   char bootname[17];
   char name[129];
 
-  strncpy_trim_spaces(device_info, meta.device_info, sizeof(meta.device_info));
-  strncpy_trim_spaces(product_number, meta.product_number,
-                      sizeof(meta.product_number));
-  strncpy_trim_spaces(product_version, meta.product_version,
-                      sizeof(meta.product_version));
-  strncpy_trim_spaces(bootname, meta.bootname, sizeof(meta.bootname));
-  strncpy_trim_spaces(name, meta.name, sizeof(meta.name));
+  strncpy_trim_space(device_info, meta.device_info, sizeof(meta.device_info));
+  strncpy_trim_space(product_number, meta.product_number,
+                     sizeof(meta.product_number));
+  strncpy_trim_space(product_version, meta.product_version,
+                     sizeof(meta.product_version));
+  strncpy_trim_space(bootname, meta.bootname, sizeof(meta.bootname));
+  strncpy_trim_space(name, meta.name, sizeof(meta.name));
 
   snprintf(disc->id, sizeof(disc->id), "%s %s %s %s", name, product_number,
            product_version, device_info);
+
+  LOG_INFO("disc_create looking for bootfile %s", bootname);
 
   int found = disc_find_file(disc, bootname, &disc->bootfad, &disc->bootlen);
   CHECK(found);

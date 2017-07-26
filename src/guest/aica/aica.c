@@ -34,13 +34,17 @@ DEFINE_AGGREGATE_COUNTER(aica_samples);
 #define AICA_REG_LO(addr, mask) (((addr)&0x3) == 0)
 #define AICA_REG_HI(addr, mask) ((((addr)&0x3) != 0) || ((mask) != 0xff))
 
-/* phase increment has 10 fractional bits */
-#define AICA_PHASE_FRC_BITS 10
-#define AICA_BASE_FREQ (1 << AICA_PHASE_FRC_BITS)
+/* phase increment has 18 fractional bits */
+#define AICA_PHASE_FRAC_BITS 18
+#define AICA_PHASE_BASE (1 << AICA_PHASE_FRAC_BITS)
 
 /* ADPCM decoding constants */
 #define ADPCM_QUANT_MIN 0x7f
 #define ADPCM_QUANT_MAX 0x6000
+
+/* work with samples as 64-bit ints to avoid dealing with overflow issues
+   during intermediate steps */
+typedef int64_t sample_t;
 
 /* amplitude / frequency envelope generator state */
 struct aica_eg_state {
@@ -61,20 +65,20 @@ struct aica_channel {
   /* base address in host memory of sound data */
   uint8_t *base;
 
-  /* how much to step the sound source each sample */
-  uint32_t phaseinc;
-
+  /* current position in the sound source */
+  uint32_t phase;
   /* fractional remainder after phase increment */
   uint32_t phasefrc;
+  /* amount to step the sound source each sample */
+  uint32_t phaseinc;
 
-  int pos;
+  /* decoding state */
+  sample_t prev_sample, prev_quant;
+  sample_t next_sample, next_quant;
+  sample_t loop_sample, loop_quant;
 
   /* signals the the current channel has looped */
   int looped;
-
-  /* previous sample state */
-  int32_t prev_sample;
-  int32_t prev_quant;
 
   /*struct aica_eg_state aeg;
   struct aica_eg_state feg;*/
@@ -110,8 +114,8 @@ struct aica {
 };
 
 /* approximated lookup tables for MVOL / TL scaling */
-static int32_t mvol_scale[16];
-static int32_t tl_scale[256];
+static sample_t mvol_scale[16];
+static sample_t tl_scale[256];
 
 static char *aica_fmt_names[] = {
     "PCMS16",       /* AICA_FMT_PCMS16 */
@@ -160,7 +164,7 @@ static void aica_init_tables() {
     }
 
     /* a 32-bit int is used for the scale, leaving 15 bits for the fraction */
-    mvol_scale[i] = (int32_t)((1 << 15) / pow(2.0f, (15 - i) / 2.0f));
+    mvol_scale[i] = (sample_t)((1 << 15) / pow(2.0f, (15 - i) / 2.0f));
   }
 
   /* each channel's TL register adjusts the output level based on the table:
@@ -181,25 +185,26 @@ static void aica_init_tables() {
 
   for (int i = 0; i < 256; i++) {
     /* a 32-bit int is used for the scale, leaving 15 bits for the fraction */
-    tl_scale[i] = (int32_t)((1 << 15) / pow(2.0f, i / 16.0f));
+    tl_scale[i] = (sample_t)((1 << 15) / pow(2.0f, i / 16.0f));
   }
 }
 
-static inline int32_t aica_adjust_master_volume(struct aica *aica, int32_t in) {
-  int32_t y = mvol_scale[aica->common_data->MVOL];
+static inline sample_t aica_adjust_master_volume(struct aica *aica,
+                                                 sample_t in) {
+  sample_t y = mvol_scale[aica->common_data->MVOL];
   /* truncate fraction */
   return (in * y) >> 15;
 }
 
-static inline int32_t aica_adjust_channel_volume(struct aica_channel *ch,
-                                                 int32_t in) {
-  int32_t y = tl_scale[ch->data->TL];
+static inline sample_t aica_adjust_channel_volume(struct aica_channel *ch,
+                                                  sample_t in) {
+  sample_t y = tl_scale[ch->data->TL];
   /* truncate fraction */
   return (in * y) >> 15;
 }
 
-static void aica_decode_adpcm(int32_t data, int32_t prev, int32_t prev_quant,
-                              int32_t *next, int32_t *next_quant) {
+static void aica_decode_adpcm(uint8_t data, sample_t prev, sample_t prev_quant,
+                              sample_t *next, sample_t *next_quant) {
   /* the decoded value (n) = (1 - 2 * l4) * (l3 + l2/2 + l1/4 + 1/8) * quantized
      width (n) + decoded value (n - 1)
 
@@ -217,7 +222,7 @@ static void aica_decode_adpcm(int32_t data, int32_t prev, int32_t prev_quant,
      1   1   1   15
 
      the final value is a signed 16-bit value and must be clamped as such */
-  static int32_t adpcm_scale[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+  static sample_t adpcm_scale[8] = {1, 3, 5, 7, 9, 11, 13, 15};
 
   int l4 = data >> 3;
   int l321 = data & 0x7;
@@ -242,7 +247,7 @@ static void aica_decode_adpcm(int32_t data, int32_t prev, int32_t prev_quant,
      1   1   1   2.3984375   (614 / 256)
 
      the quantized width's min value is 127, and its max value is 24576 */
-  static int32_t adpcm_rate[8] = {230, 230, 230, 230, 307, 409, 512, 614};
+  static sample_t adpcm_rate[8] = {230, 230, 230, 230, 307, 409, 512, 614};
 
   *next_quant = (prev_quant * adpcm_rate[l321]) >> 8;
   *next_quant = CLAMP(*next_quant, ADPCM_QUANT_MIN, ADPCM_QUANT_MAX);
@@ -426,7 +431,7 @@ static void aica_rtc_timer(void *data) {
 }
 
 static float aica_channel_hz(struct aica_channel *ch) {
-  return (AICA_SAMPLE_FREQ * ch->phaseinc) / (float)AICA_BASE_FREQ;
+  return (AICA_SAMPLE_FREQ * (float)ch->phaseinc) / AICA_PHASE_BASE;
 }
 
 static float aica_channel_duration(struct aica_channel *ch) {
@@ -435,15 +440,17 @@ static float aica_channel_duration(struct aica_channel *ch) {
 }
 
 static uint32_t aica_channel_phaseinc(struct aica_channel *ch) {
-  /* by default, step a single sample at a time */
-  uint32_t phaseinc = AICA_BASE_FREQ;
+  /* by default, increment by one sample per step */
+  uint32_t phaseinc = AICA_PHASE_BASE;
 
-  /* FNS represents the fractional phase increment, used to linearly
-     interpolate between samples */
-  phaseinc |= ch->data->FNS;
+  /* FNS represents the fractional phase increment, used to linearly interpolate
+     between samples. note, the phase increment has 18 total fractional bits,
+     but FNS is only 10 bits enabling lowest octave (which causes a right shift
+     by 8) to still have 10 bits for interpolation */
+  phaseinc |= ch->data->FNS << 8;
 
-  /* OCT represents a full octave pitch shift in two's complement, ranging
-     from -8 to +7 */
+  /* OCT represents a full octave pitch shift in two's complement, ranging from
+     -8 to +7 */
   uint32_t oct = ch->data->OCT;
   if (oct & 0x8) {
     phaseinc >>= (16 - oct);
@@ -480,12 +487,16 @@ static void aica_channel_key_on(struct aica *aica, struct aica_channel *ch) {
 
   ch->active = 1;
   ch->base = aica_channel_base(aica, ch);
-  ch->phaseinc = aica_channel_phaseinc(ch);
+  ch->phase = 0;
   ch->phasefrc = 0;
-  ch->pos = 0;
+  ch->phaseinc = aica_channel_phaseinc(ch);
   ch->looped = 0;
   ch->prev_sample = 0;
   ch->prev_quant = ADPCM_QUANT_MIN;
+  ch->next_sample = 0;
+  ch->next_quant = ADPCM_QUANT_MIN;
+  ch->loop_sample = 0;
+  ch->loop_quant = ADPCM_QUANT_MIN;
 
   LOG_AICA("aica_channel_key_on [%d] %s, %s, %.2f hz, %.2f sec", ch->id,
            aica_fmt_names[ch->data->PCMS], aica_loop_names[ch->data->LPCTL],
@@ -513,67 +524,50 @@ static void aica_channel_key_on_execute(struct aica *aica,
   ch->data->KYONEX = 0;
 }
 
-static int32_t aica_channel_step(struct aica *aica, struct aica_channel *ch) {
-  if (!ch->active) {
-    return 0;
-  }
+static void aica_channel_step_one(struct aica *aica, struct aica_channel *ch) {
+  CHECK_GE(ch->phasefrc, AICA_PHASE_BASE);
 
-  CHECK_NOTNULL(ch->base);
+  /* decode the current sample */
+  if (ch->data->SSCTL) {
+    LOG_WARNING("SSCTL input not supported");
+  } else {
+    switch (ch->data->PCMS) {
+      case AICA_FMT_PCMS16: {
+        ch->next_sample = *(int16_t *)&ch->base[ch->phase << 1];
+      } break;
 
-  /* the data returned is a signed 16-bit PCM data, but signed 32-bit values are
-     used intermediately to avoid dealing with overflows until the end */
-  int32_t next_sample = 0;
-  int32_t next_quant = 0;
+      case AICA_FMT_PCMS8: {
+        ch->next_sample = *(int8_t *)&ch->base[ch->phase] << 8;
+      } break;
 
-  /* step the stream */
-  ch->phasefrc += ch->phaseinc;
+      case AICA_FMT_ADPCM:
+      case AICA_FMT_ADPCM_STREAM: {
+        int shift = (ch->phase & 1) << 2;
+        uint8_t data = (ch->base[ch->phase >> 1] >> shift) & 0xf;
+        aica_decode_adpcm(data, ch->prev_sample, ch->prev_quant,
+                          &ch->next_sample, &ch->next_quant);
+      } break;
 
-  while (ch->phasefrc >= AICA_BASE_FREQ) {
-    if (ch->data->SSCTL) {
-      LOG_WARNING("SSCTL input not supported");
-    } else {
-      switch (ch->data->PCMS) {
-        case AICA_FMT_PCMS16: {
-          next_sample = *(int16_t *)&ch->base[ch->pos << 1];
-        } break;
-
-        case AICA_FMT_PCMS8: {
-          next_sample = *(int8_t *)&ch->base[ch->pos] << 8;
-        } break;
-
-        case AICA_FMT_ADPCM:
-        case AICA_FMT_ADPCM_STREAM: {
-          int shift = (ch->pos & 1) << 2;
-          int32_t data = (ch->base[ch->pos >> 1] >> shift) & 0xf;
-          aica_decode_adpcm(data, ch->prev_sample, ch->prev_quant, &next_sample,
-                            &next_quant);
-        } break;
-
-        default:
-          LOG_WARNING("unsupported PCMS %d", ch->data->PCMS);
-          break;
-      }
+      default:
+        LOG_WARNING("unsupported PCMS %d", ch->data->PCMS);
+        break;
     }
-
-    ch->prev_sample = next_sample;
-    ch->prev_quant = next_quant;
-    ch->phasefrc -= AICA_BASE_FREQ;
-    ch->pos++;
   }
 
-  /* interpolate sample */
-  int32_t result = ch->prev_sample * (AICA_BASE_FREQ - ch->phasefrc);
-  result += next_sample * ch->phasefrc;
-  result >>= AICA_PHASE_FRC_BITS;
-
-  /* shift to DECAY1 once starting the loop */
-  if (ch->data->LPSLNK && ch->pos >= ch->data->LSA) {
-    LOG_WARNING("EG not currently supported");
+  /* preserve decoding state previous to LSA for loops */
+  if (ch->phase == ch->data->LSA) {
+    ch->loop_sample = ch->prev_sample;
+    ch->loop_quant = ch->prev_quant;
   }
 
-  /* check if the current position in the sound source has passed the loop end
-     position */
-  if (ch->pos >= ch->data->LEA) {
+  /* advance phase */
+  ch->prev_sample = ch->next_sample;
+  ch->prev_quant = ch->next_quant;
+  ch->phasefrc -= AICA_PHASE_BASE;
+  ch->phase++;
+
+  /* check if the channel has looped */
+  if (ch->phase >= ch->data->LEA) {
     ch->looped = 1;
 
     LOG_AICA("aica_channel_step [%d] looped", ch->id);
@@ -584,17 +578,41 @@ static int32_t aica_channel_step(struct aica *aica, struct aica_channel *ch) {
       } break;
 
       case AICA_LOOP_FORWARD: {
-        /* restart channel at loop start address */
-        ch->pos = ch->data->LSA;
+        /* restart channel */
+        ch->phase = ch->data->LSA;
 
         /* in ADPCM streaming mode, the loop is a ring buffer. don't reset the
-           decoding state in this case */
+           decoding state in this case
+
+           FIXME i'm not entirely sure this is accurate */
         if (ch->data->PCMS != AICA_FMT_ADPCM_STREAM) {
-          ch->prev_sample = 0;
-          ch->prev_quant = ADPCM_QUANT_MIN;
+          ch->prev_sample = ch->loop_sample;
+          ch->prev_quant = ch->loop_quant;
         }
       } break;
     }
+  }
+}
+
+static sample_t aica_channel_step(struct aica *aica, struct aica_channel *ch) {
+  if (!ch->active) {
+    return 0;
+  }
+
+  CHECK_NOTNULL(ch->base);
+
+  /* interpolate sample
+
+     FIXME is this correct for the first sample */
+  sample_t result = ch->prev_sample * (AICA_PHASE_BASE - ch->phasefrc);
+  result += ch->next_sample * ch->phasefrc;
+  result >>= AICA_PHASE_FRAC_BITS;
+
+  /* advance the stream one sample at a time */
+  ch->phasefrc += ch->phaseinc;
+
+  while (ch->phasefrc >= AICA_PHASE_BASE) {
+    aica_channel_step_one(aica, ch);
   }
 
   return result;
@@ -605,12 +623,12 @@ static void aica_generate_frames(struct aica *aica) {
   int16_t buffer[AICA_BATCH_SIZE * 2];
 
   for (int frame = 0; frame < AICA_BATCH_SIZE; frame++) {
-    int32_t l = 0;
-    int32_t r = 0;
+    sample_t l = 0;
+    sample_t r = 0;
 
     for (int i = 0; i < AICA_NUM_CHANNELS; i++) {
       struct aica_channel *ch = &aica->channels[i];
-      int32_t s = aica_channel_step(aica, ch);
+      sample_t s = aica_channel_step(aica, ch);
       l += aica_adjust_channel_volume(ch, s);
       r += aica_adjust_channel_volume(ch, s);
     }
@@ -618,8 +636,8 @@ static void aica_generate_frames(struct aica *aica) {
     l = aica_adjust_master_volume(aica, l);
     r = aica_adjust_master_volume(aica, r);
 
-    buffer[frame * 2 + 0] = CLAMP(l, INT16_MIN, INT16_MAX);
-    buffer[frame * 2 + 1] = CLAMP(r, INT16_MIN, INT16_MAX);
+    buffer[frame * 2 + 0] = (int16_t)CLAMP(l, INT16_MIN, INT16_MAX);
+    buffer[frame * 2 + 1] = (int16_t)CLAMP(r, INT16_MIN, INT16_MAX);
   }
 
   dc_push_audio(dc, buffer, AICA_BATCH_SIZE);
@@ -705,7 +723,7 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
 
     case 0x14: { /* CA */
       struct aica_channel *ch = &aica->channels[aica->common_data->MSLC];
-      aica->common_data->CA = ch->pos;
+      aica->common_data->CA = ch->phase;
     } break;
 
     case 0x90: { /* TIMA, TACTL */

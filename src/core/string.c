@@ -42,14 +42,14 @@ void strncpy_pad_spaces(char *dst, const char *src, int size) {
   }
 }
 
-void strncpy_trim_spaces(char *dst, const char *src, int size) {
+void strncpy_trim_space(char *dst, const char *src, int size) {
   char mask = 0x0;
   src += size - 1;
   dst += size - 1;
   *(dst + 1) = 0;
   while (size--) {
     /* mask off until a valid letter is hit */
-    if (*src != ' ') {
+    if (!isspace(*src)) {
       mask = 0xff;
     }
     *(dst--) = *(src--) & mask;

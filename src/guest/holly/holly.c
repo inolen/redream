@@ -164,7 +164,7 @@ static void holly_maple_dma(struct holly *hl) {
 #define SB_SUSP(ch) (hl->SB_ADSUSP + ((ch)*HOLLY_G2_NUM_REGS))
 #define HOLLY_INT_G2INT(ch) HOLLY_INTERRUPT(HOLLY_INT_NRM, (0x8000 << ch))
 
-static void (*g2_timers[])(void *);
+static void (*g2_timers[4])(void *);
 
 #define DEFINE_G2_DMA_TIMER(ch)                                       \
   static void holly_g2_dma_timer_channel##ch(void *data) {            \
@@ -193,7 +193,7 @@ DEFINE_G2_DMA_TIMER(1);
 DEFINE_G2_DMA_TIMER(2);
 DEFINE_G2_DMA_TIMER(3);
 
-static void (*g2_timers[])(void *) = {
+static void (*g2_timers[4])(void *) = {
     &holly_g2_dma_timer_channel0, &holly_g2_dma_timer_channel1,
     &holly_g2_dma_timer_channel2, &holly_g2_dma_timer_channel3,
 };

@@ -72,8 +72,9 @@ void disc_get_toc(struct disc *disc, int area, struct track **first_track,
 
 int disc_find_file(struct disc *disc, const char *filename, int *fad, int *len);
 int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
-                      int sector_fmt, int sector_mask, void *dst, int dst_size);
-int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
+                      int sector_fmt, int sector_mask, uint8_t *dst,
+                      int dst_size);
+int disc_read_bytes(struct disc *disc, int fad, int len, uint8_t *dst,
                     int dst_size);
 
 #endif
