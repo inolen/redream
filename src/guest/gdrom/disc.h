@@ -26,7 +26,6 @@ struct track {
   /* backing file */
   char filename[PATH_MAX];
   int frames;
-  int extraframes;
   int file_offset;
   int chdofs;
   int phyofs;

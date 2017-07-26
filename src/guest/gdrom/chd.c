@@ -4,6 +4,8 @@
 
 #include <chdr.h>
 
+#define CHD_CD_TRACK_PADDING 4  // Every track encoded in CHD is a multiple of CHD_CD_TRACK_PADDING sectors
+
 struct chd {
   struct disc;
   
@@ -24,31 +26,20 @@ struct chd {
 static void chd_read_sector(struct disc *disc, struct track *track, int fad, void *dst) {
   struct chd *chd = (struct chd *)disc;
 
-  //struct track *track = disc_lookup_track(disc, fad);
   CHECK_NOTNULL(track);
-  //CHECK(sector_fmt == GD_SECTOR_ANY || sector_fmt == track->sector_fmt);
-  //CHECK(sector_mask == GD_MASK_DATA);
 
-  int hunk, hunk_ofs;
-  //if (chd_get_header(chd->chd)->version==5) {
-    fad = fad - track->phyofs + track->chdofs;
-    hunk= fad/chd->sph;
-    hunk_ofs=fad%chd->sph;
-  /*}
-  else {
-    int fad_offs=fad-track->fad;
-    hunk=(fad_offs)/chd->sph + track->file_offset;
-    hunk_ofs=fad_offs%chd->sph;
-  }*/
+  fad = fad - track->file_offset;
+  int hunk= fad/chd->sph;
+  int hunk_ofs=fad%chd->sph;
 
   if (chd->old_hunk!=hunk)
   {
-    chd_read(chd->chd,hunk,chd->hunk_mem); //CHDERR_NONE
+    int err = chd_read(chd->chd,hunk,chd->hunk_mem);
+    if (err == CHDERR_NONE)
+      memcpy(dst,chd->hunk_mem+hunk_ofs*(2352+96) + 16,2048);
+    else
+      LOG_FATAL("Cannot read CHD data fad=%d\n", fad);
   }
-
-  memcpy(dst,chd->hunk_mem+hunk_ofs*(2352+96) + 16,2048);
-  
-  // CHECK_EQ(sector_fmt, GD_SECTOR_M1);
 }
 
 static void chd_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -127,12 +118,9 @@ static int chd_parse(struct disc *disc, const char *filename) {
 	uint32_t temp_len;
 	uint32_t total_frames=150;
 
-	//uint32_t total_secs=0;
-	//uint32_t total_hunks=0;
-
   chd->num_tracks = 0;
 
-  int physofs = total_frames;
+  int phyofs = total_frames;
   int chdofs = 0;
 	for(;;)
 	{
@@ -174,25 +162,16 @@ static int chd_parse(struct disc *disc, const char *filename) {
     track->sector_fmt = strcmp(type,"AUDIO") == 0 ? GD_SECTOR_CDDA:GD_SECTOR_M1;
     track->sector_size = strcmp(type,"MODE1") == 0 ? 2048:2352;
     track->frames = frames;
-    track->extraframes = (4 - (frames % 4)) & 3;
+    int extraframes = (CHD_CD_TRACK_PADDING - (frames % CHD_CD_TRACK_PADDING)) & (CHD_CD_TRACK_PADDING-1);
     track->data_size = (track->sector_fmt == GD_SECTOR_CDDA) ? 2352 : 2048;
-    //track->file_offset = total_hunks;
-    
-    track->phyofs = physofs;
-    track->chdofs = chdofs;
-    physofs += track->frames;
-    chdofs += track->frames+track->extraframes;
+    track->file_offset = phyofs - chdofs;
+    phyofs += track->frames;
+    chdofs += track->frames + extraframes;
 
     LOG_INFO("chd_parse '%s' track=%d filename='%s' fad=%d secsz=%d extraframes=%d", temp, track->num,
-         track->filename, track->fad, track->sector_size, track->extraframes);
+         track->filename, track->fad, track->sector_size, extraframes);
              
     total_frames+=frames;
-    
-    /*total_hunks+=frames/chd->sph;
-    
-    if ((frames+track->extraframes)%chd->sph)
-      total_hunks++;*/
-  
 	}
 
   /* gdroms contains two sessions, one for the single density area (tracks 0-1)
