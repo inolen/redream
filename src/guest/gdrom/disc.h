@@ -25,7 +25,10 @@ struct track {
   int data_size;
   /* backing file */
   char filename[PATH_MAX];
+  int frames;
   int file_offset;
+  int chdofs;
+  int phyofs;
 };
 
 struct session {

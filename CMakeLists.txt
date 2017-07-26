@@ -109,6 +109,44 @@ if(ARCH_A64)
   list(APPEND RELIB_LIBS vixl)
 endif()
 
+# lzma
+file(GLOB LZMA_SOURCES deps/lzma1604/C/*.c)
+add_library(lzma STATIC ${LZMA_SOURCES})
+list(APPEND RELIB_INCLUDES deps/lzma1604/C)
+list(APPEND RELIB_LIBS lzma)
+target_compile_options(lzma PRIVATE -D_7ZIP_ST)
+
+# crypto
+file(GLOB CRYPTO_SOURCES deps/crypto/*.c)
+add_library(crypto STATIC ${CRYPTO_SOURCES})
+list(APPEND RELIB_INCLUDES deps/crypto)
+list(APPEND RELIB_LIBS crypto)
+
+# zlib
+add_subdirectory(deps/zlib-1.2.11 EXCLUDE_FROM_ALL)
+list(APPEND RELIB_INCLUDES deps/zlib)
+list(APPEND RELIB_LIBS zlibstatic)
+
+# flac (wraps configure / make)
+include(ExternalProject)
+ExternalProject_Add(libflac
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/flac-1.3.2
+    CONFIGURE_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/deps/flac-1.3.2/configure --enable-static --disable-cpplibs --disable-xmms-plugin --disable-ogg --disable-shared --libdir=${CMAKE_CURRENT_BINARY_DIR}
+    BUILD_COMMAND ${MAKE})
+list(APPEND RELIB_LIBS FLAC)
+
+# chdr
+file(GLOB CHDR_SOURCES deps/chdr/*.c)
+add_library(chdr STATIC ${CHDR_SOURCES})
+add_dependencies(chdr crypto libflac)
+target_include_directories(chdr SYSTEM PUBLIC deps/flac-1.3.2/include)
+target_include_directories(chdr SYSTEM PUBLIC deps/crypto)
+target_include_directories(chdr SYSTEM PUBLIC deps/lzma1604/C)
+target_link_libraries(chdr crypto)
+list(APPEND RELIB_INCLUDES deps/chdr)
+list(APPEND RELIB_LIBS chdr)
+link_directories("${CMAKE_CURRENT_BINARY_DIR}")
+
 # xbyak
 if(ARCH_X64)
   list(APPEND RELIB_INCLUDES deps/xbyak-4.901)
@@ -194,6 +232,7 @@ set(RELIB_SOURCES
   src/guest/bios/flash.c
   src/guest/bios/syscalls.c
   src/guest/gdrom/cdi.c
+  src/guest/gdrom/chd.c
   src/guest/gdrom/disc.c
   src/guest/gdrom/gdi.c
   src/guest/gdrom/gdrom.c

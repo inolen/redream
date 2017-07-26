@@ -4,6 +4,7 @@
 #include "guest/gdrom/cdi.h"
 #include "guest/gdrom/gdi.h"
 #include "guest/gdrom/iso.h"
+#include "guest/gdrom/chd.h"
 #include "guest/gdrom/patch.h"
 
 /* meta information found in the ip.bin */
@@ -201,6 +202,8 @@ struct disc *disc_create(const char *filename) {
     disc = cdi_create(filename);
   } else if (strstr(filename, ".gdi")) {
     disc = gdi_create(filename);
+  } else if (strstr(filename, ".chd")) {
+    disc = chd_create(filename);
   }
 
   if (!disc) {
