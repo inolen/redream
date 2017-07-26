@@ -18,7 +18,7 @@ enum {
 };
 
 static void sh4_mmu_utlb_sync(struct sh4 *sh4, struct sh4_tlb_entry *entry) {
-  int n = entry - sh4->utlb;
+  int n = (int)(entry - sh4->utlb);
 
   /* check if entry maps to sq region [0xe0000000, 0xe3ffffff] */
   if ((entry->hi.VPN & (0xfc000000 >> 10)) == (0xe0000000 >> 10)) {

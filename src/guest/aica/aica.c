@@ -66,11 +66,11 @@ struct aica_channel {
   uint8_t *base;
 
   /* current position in the sound source */
-  int phase;
+  uint32_t phase;
   /* fractional remainder after phase increment */
-  int phasefrc;
+  uint32_t phasefrc;
   /* amount to step the sound source each sample */
-  int phaseinc;
+  uint32_t phaseinc;
 
   /* decoding state */
   sample_t prev_sample, prev_quant;
@@ -203,7 +203,7 @@ static inline sample_t aica_adjust_channel_volume(struct aica_channel *ch,
   return (in * y) >> 15;
 }
 
-static void aica_decode_adpcm(sample_t data, sample_t prev, sample_t prev_quant,
+static void aica_decode_adpcm(uint8_t data, sample_t prev, sample_t prev_quant,
                               sample_t *next, sample_t *next_quant) {
   /* the decoded value (n) = (1 - 2 * l4) * (l3 + l2/2 + l1/4 + 1/8) * quantized
      width (n) + decoded value (n - 1)
@@ -439,9 +439,9 @@ static float aica_channel_duration(struct aica_channel *ch) {
   return ch->data->LEA / hz;
 }
 
-static int aica_channel_phaseinc(struct aica_channel *ch) {
+static uint32_t aica_channel_phaseinc(struct aica_channel *ch) {
   /* by default, increment by one sample per step */
-  int phaseinc = AICA_PHASE_BASE;
+  uint32_t phaseinc = AICA_PHASE_BASE;
 
   /* FNS represents the fractional phase increment, used to linearly interpolate
      between samples. note, the phase increment has 18 total fractional bits,
@@ -543,7 +543,7 @@ static void aica_channel_step_one(struct aica *aica, struct aica_channel *ch) {
       case AICA_FMT_ADPCM:
       case AICA_FMT_ADPCM_STREAM: {
         int shift = (ch->phase & 1) << 2;
-        sample_t data = (ch->base[ch->phase >> 1] >> shift) & 0xf;
+        uint8_t data = (ch->base[ch->phase >> 1] >> shift) & 0xf;
         aica_decode_adpcm(data, ch->prev_sample, ch->prev_quant,
                           &ch->next_sample, &ch->next_quant);
       } break;
@@ -636,8 +636,8 @@ static void aica_generate_frames(struct aica *aica) {
     l = aica_adjust_master_volume(aica, l);
     r = aica_adjust_master_volume(aica, r);
 
-    buffer[frame * 2 + 0] = CLAMP(l, INT16_MIN, INT16_MAX);
-    buffer[frame * 2 + 1] = CLAMP(r, INT16_MIN, INT16_MAX);
+    buffer[frame * 2 + 0] = (int16_t)CLAMP(l, INT16_MIN, INT16_MAX);
+    buffer[frame * 2 + 1] = (int16_t)CLAMP(r, INT16_MIN, INT16_MAX);
   }
 
   dc_push_audio(dc, buffer, AICA_BATCH_SIZE);

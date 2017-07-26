@@ -142,7 +142,6 @@ static void bios_override_flash_settings(struct bios *bios) {
 static void bios_validate_flash(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct flash *flash = dc->flash;
-  struct flash_header_block header;
 
   /* validate partition 0 (factory settings) */
   {

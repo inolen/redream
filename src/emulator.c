@@ -682,13 +682,13 @@ void emu_render_frame(struct emu *emu) {
     frame_y = 0;
   } else if (emu->aspect_ratio == ASPECT_RATIO_16BY9) {
     frame_width = emu->video_width;
-    frame_height = frame_width * (9.0f / 16.0f);
+    frame_height = (int)(frame_width * (9.0f / 16.0f));
     frame_x = 0;
-    frame_y = (emu->video_height - frame_height) / 2.0f;
+    frame_y = (int)((emu->video_height - frame_height) / 2.0f);
   } else if (emu->aspect_ratio == ASPECT_RATIO_4BY3) {
     frame_height = emu->video_height;
-    frame_width = frame_height * (4.0f / 3.0f);
-    frame_x = (emu->video_width - frame_width) / 2.0f;
+    frame_width = (int)(frame_height * (4.0f / 3.0f));
+    frame_x = (int)((emu->video_width - frame_width) / 2.0f);
     frame_y = 0;
   } else {
     LOG_FATAL("unexpected aspect ratio %d", emu->aspect_ratio);

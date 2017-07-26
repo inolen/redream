@@ -299,7 +299,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       LOG_SYSCALL("GDC_GET_VER 0x%x", dst);
 
       const char *version = "GDC Version 1.10 1999-03-31";
-      const int len = strlen(version);
+      const int len = (int)strlen(version);
 
       as_memcpy_to_guest(space, dst, version, len);
 

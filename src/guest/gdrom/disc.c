@@ -31,7 +31,7 @@ static void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
   memcpy(meta, tmp, sizeof(*meta));
 }
 
-int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
+int disc_read_bytes(struct disc *disc, int fad, int len, uint8_t *dst,
                     int dst_size) {
   CHECK_LE(len, dst_size);
 
@@ -56,7 +56,7 @@ int disc_read_bytes(struct disc *disc, int fad, int len, void *dst,
 }
 
 int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
-                      int sector_fmt, int sector_mask, void *dst,
+                      int sector_fmt, int sector_mask, uint8_t *dst,
                       int dst_size) {
   struct track *track = disc_lookup_track(disc, fad);
   CHECK_NOTNULL(track);
