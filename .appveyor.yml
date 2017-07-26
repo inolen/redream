@@ -1,0 +1,29 @@
+skip_tags: true
+
+image: Visual Studio 2015
+
+environment:
+  GITHUB_KEY:
+    secure: /DCyflM6kjhQlQU5vryk97H/2/WGoFj8pMrxCrbQeMksunq9jnKaG05pP45WpTCX
+  GIT_TAG: ci-latest
+  BUILD_ARTIFACT: redream.x86_64-windows-HEAD.tar.gz
+
+build_script:
+  - mkdir build
+  - cd build
+  - cmake -G "Visual Studio 14 Win64" ..
+  - cd ..
+  - msbuild.exe build/redream.sln /t:redream /p:Configuration=Release /p:Platform=x64
+  - tar -cvzf %BUILD_ARTIFACT% -C build/Release redream.exe
+
+artifacts:
+  - path: $(BUILD_ARTIFACT)
+    name: archive
+
+deploy:
+  provider: GitHub
+  tag: $(GIT_TAG)
+  auth_token: $(GITHUB_KEY)
+  artifact: archive
+  prerelease: true
+  force_update: true

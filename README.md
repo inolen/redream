@@ -1,7 +1,8 @@
 # redream
 
-[![Build status](https://travis-ci.org/inolen/redream.svg?branch=master)](https://travis-ci.org/inolen/redream)
-[![Slack status](http://slack.redream.io/badge.svg)](http://slack.redream.io)
+[![travis-ci status](https://travis-ci.org/inolen/redream.svg?branch=master)](https://travis-ci.org/inolen/redream)
+[![appveyor status](https://ci.appveyor.com/api/projects/status/github/inolen/redream)](https://ci.appveyor.com/project/inolen/redream)
+[![slack status](http://slack.redream.io/badge.svg)](http://slack.redream.io)
 
 [redream](http://redream.io) is a work-in-progress SEGA Dreamcast emulator written in C for Mac, Linux and Windows.
 

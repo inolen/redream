@@ -37,7 +37,7 @@ script:
 
 before_deploy:
 - BUILD_ARTIFACT=redream.$BUILD_ARCH-$BUILD_PLATFORM-HEAD.tar.gz
-- GIT_TAG=travis-ci-latest
+- GIT_TAG=ci-latest
 - tar -cvzf $BUILD_ARTIFACT redream
 - git config --global user.email "builds@travis-ci.com"
 - git config --global user.name "Travis CI"
