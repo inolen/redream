@@ -6,7 +6,7 @@ build_script:
   - mkdir build
   - cd build
   - cmake -G "Visual Studio 14 Win64" ..
-  - msbuild.exe redream.sln /t:redream:Build/p:Configuration=Release
+  - msbuild.exe redream.sln /t:redream /p:Configuration=Release /p:Platform=x64
 
 #before_deploy:
 #  - BUILD_ARTIFACT=redream.$BUILD_ARCH-$BUILD_PLATFORM-HEAD.tar.gz
