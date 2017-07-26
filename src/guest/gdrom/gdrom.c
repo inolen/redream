@@ -681,7 +681,9 @@ void gdrom_dma_begin(struct gdrom *gd) {
 }
 
 int gdrom_widescreen_enabled(struct gdrom *gd) {
-  CHECK_NOTNULL(gd->disc);
+  if (!gd->disc) {
+    return 0;
+  }
 
   return patch_widescreen_enabled(gd->disc->id);
 }
