@@ -381,7 +381,8 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
       backend->load_thunk[i] = e.getCurr<void (*)()>();
 
-/* save caller-saved registers */
+/* save caller-saved registers and offset the stack an extra 8 bytes to
+   align it */
 #if PLATFORM_WINDOWS
       e.push(e.rsi);
       e.push(e.rdi);
@@ -391,11 +392,13 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 #endif
       e.push(e.r10);
       e.push(e.r11);
+      e.sub(e.rsp, X64_STACK_SHADOW_SPACE + 8);
 
       /* call the mmio handler */
       e.call(e.rax);
 
       /* restore caller-saved registers */
+      e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
       e.pop(e.r11);
       e.pop(e.r10);
 #if PLATFORM_WINDOWS
@@ -410,7 +413,6 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
       e.mov(dst, e.rax);
 
       /* return to jit code */
-      e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
       e.ret();
     }
   }
@@ -420,7 +422,8 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
     backend->store_thunk = e.getCurr<void (*)()>();
 
-/* save caller-saved registers */
+/* save caller-saved registers and offset the stack an extra 8 bytes to
+   align it */
 #if PLATFORM_WINDOWS
     e.push(e.rsi);
     e.push(e.rdi);
@@ -430,11 +433,13 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 #endif
     e.push(e.r10);
     e.push(e.r11);
+    e.sub(e.rsp, X64_STACK_SHADOW_SPACE + 8);
 
     /* call the mmio handler */
     e.call(e.rax);
 
     /* restore caller-saved registers */
+    e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
     e.pop(e.r11);
     e.pop(e.r10);
 #if PLATFORM_WINDOWS
@@ -446,7 +451,6 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 #endif
 
     /* return to jit code */
-    e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
     e.ret();
   }
 }
@@ -512,11 +516,11 @@ static int x64_backend_handle_exception(struct jit_backend *base,
      a possible recursive exception
 
      push the return address (the next instruction after the current mov) to
-     the stack. also, adjust the stack for the return address, with an extra
-     8 bytes to keep it aligned */
-  *(uint64_t *)(ex->thread_state.rsp - 8) = ex->thread_state.rip + mov.length;
-  ex->thread_state.rsp -= X64_STACK_SHADOW_SPACE + 8 + 8;
-  CHECK(ex->thread_state.rsp % 16 == 0);
+     the stack. each thunk will be responsible for pushing / popping caller-
+     saved registers */
+  ex->thread_state.rsp -= 8;
+  *(uint64_t *)(ex->thread_state.rsp) = ex->thread_state.rip + mov.length;
+  CHECK(ex->thread_state.rsp % 16 == 8);
 
   if (mov.is_load) {
     /* prep argument registers (memory object, guest_addr) for read function */
