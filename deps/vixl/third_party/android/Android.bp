@@ -1,0 +1,165 @@
+// Copyright (C) 2016 The Android Open Source Project
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+//  * Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+//  * Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in
+//    the documentation and/or other materials provided with the
+//    distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+// BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+// OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+// AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+// OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+// SUCH DAMAGE.
+//
+//
+// Copyright (c) 2016 VIXL authors
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. The name of the company may not be used to endorse or promote
+//    products derived from this software without specific prior written
+//    permission.
+//
+// THIS SOFTWARE IS PROVIDED BY ARM LTD ``AS IS'' AND ANY EXPRESS OR IMPLIED
+// WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+// IN NO EVENT SHALL ARM LTD BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+// TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+cc_defaults {
+    name: "vixl-common",
+    host_supported: true,
+    clang: true,
+    srcs: ["src/*.cc"],
+    clang_cflags: ["-Wimplicit-fallthrough"],
+    cppflags: [
+        "-DVIXL_GENERATE_SIMULATOR_INSTRUCTIONS_VALUE=0",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fdiagnostics-show-option",
+        "-Wredundant-decls",
+        "-Wunreachable-code",
+        "-Wmissing-noreturn",
+        "-pedantic",
+        "-std=c++11",
+
+        // Explicitly enable the write-strings warning. VIXL uses
+        // const correctly when handling string constants.
+        "-Wwrite-strings",
+    ],
+    local_include_dirs: ["src"],
+    native_coverage: false,
+    sanitize: {
+        recover: ["shift-exponent"],
+    },
+}
+
+cc_defaults {
+    name: "vixl-arm",
+    defaults: ["vixl-common"],
+    cppflags: [
+        "-DVIXL_CODE_BUFFER_MALLOC",
+        "-DVIXL_INCLUDE_TARGET_T32",
+        ],
+    srcs: ["src/aarch32/*.cc"],
+}
+
+cc_defaults {
+    name: "vixl-arm64",
+    defaults: ["vixl-common"],
+    cppflags: [
+        "-DVIXL_INCLUDE_SIMULATOR_AARCH64",
+        "-DVIXL_CODE_BUFFER_MMAP",
+        "-DVIXL_INCLUDE_TARGET_A64",
+        ],
+    srcs: ["src/aarch64/*.cc"],
+}
+
+cc_defaults {
+    name: "vixl-debug",
+    defaults: ["vixl-common"],
+    cppflags: [
+        "-DVIXL_DEBUG",
+        "-UNDEBUG",
+
+        "-O2",
+        "-ggdb3",
+    ],
+}
+
+cc_defaults {
+    name: "vixl-release",
+    defaults: ["vixl-common"],
+    cppflags: [
+        "-O3",
+    ],
+}
+
+cc_library {
+    name: "libvixl-arm64",
+    defaults: ["vixl-release", "vixl-arm64"],
+}
+
+cc_library {
+    name: "libvixld-arm64",
+    defaults: ["vixl-debug", "vixl-arm64"],
+}
+
+cc_library {
+    name: "libvixl-arm",
+    defaults: ["vixl-release", "vixl-arm"],
+}
+
+cc_library {
+    name: "libvixld-arm",
+    defaults: ["vixl-debug", "vixl-arm"],
+}
+
+//######## VIXL HOST TESTS #########
+//
+// We only support 64bit host builds for now.
+// To run all the tests: vixl-test-runner --run_all
+//
+cc_binary_host {
+    name: "vixl-test-runner",
+    static_executable: true,
+    defaults: ["vixl-debug", "vixl-arm", "vixl-arm64"],
+    local_include_dirs: ["test"],
+    srcs: [
+        "test/*.cc",
+        "test/aarch32/*.cc",
+        "test/aarch64/*.cc",
+    ],
+    enabled: false,
+    target: {
+        linux_x86_64: {
+            enabled: true,
+        },
+    },
+}
