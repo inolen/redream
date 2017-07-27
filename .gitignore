@@ -1,6 +1,6 @@
 .*
-android/
-build/
 *.swo
 *.swp
-./Makefile
+/android/
+/build/
+/Makefile
