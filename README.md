@@ -6,7 +6,7 @@
 
 [redream](http://redream.io) is a work-in-progress SEGA Dreamcast emulator written in C for Mac, Linux and Windows.
 
-redream is licensed under the GPLv3 license (see [LICENSE.txt](https://github.com/inolen/redream/blob/master/LICENSE.txt)) and uses third party libraries that are each distributed under their own terms (see each library's license in [deps/](https://github.com/inolen/redream/tree/master/deps)).
+redream is licensed under the GPLv3 license (see [LICENSE.txt](LICENSE.txt)) and uses third party libraries that are each distributed under their own terms (see each library's license in [deps/](deps/)).
 
 Ask questions and help answer them on [our Slack group](http://slack.redream.io).
 

@@ -13,6 +13,8 @@ View the [documentation](/docs/building) for instructions on building.
 
 The latest binaries built by our continuous integration are available below.
 
+View the [documentation](/docs/running) for instructions on running.
+
 ### Linux
 
 [redream.x86_64-linux-HEAD.tar.gz](https://github.com/inolen/redream/releases/download/ci-latest/redream.x86_64-linux-HEAD.tar.gz)
