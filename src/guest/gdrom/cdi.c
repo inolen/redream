@@ -49,9 +49,6 @@ static void cdi_read_sector(struct disc *disc, struct track *track, int fad,
 
   res = (int)fread(dst, 1, track->data_size, cdi->fp);
   CHECK_EQ(res, track->data_size);
-
-  res = fseek(cdi->fp, track->error_size, SEEK_CUR);
-  CHECK_EQ(res, 0);
 }
 
 static void cdi_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -194,25 +191,23 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
   track->fad = pregap_length + lba;
   track->adr = 0;
   track->ctrl = sector_fmt == GD_SECTOR_CDDA ? 0 : 4;
-
   track->sector_fmt = cdi_sector_formats[mode];
   track->sector_size = sector_size;
-  if (track->sector_fmt == GD_SECTOR_CDDA) {
-    track->header_size = 0;
-    track->error_size = 0;
-    track->data_size =
-        track->sector_size - track->header_size - track->error_size;
-    CHECK_EQ(track->data_size, 2352);
-  } else if (track->sector_fmt == GD_SECTOR_M2F1) {
-    track->header_size = 8;
-    track->error_size = 280;
-    track->data_size =
-        track->sector_size - track->header_size - track->error_size;
-    CHECK_EQ(track->data_size, 2048);
-  } else {
-    LOG_FATAL("unexpected sector format %d", track->sector_fmt);
+  switch (track->sector_fmt) {
+    case GD_SECTOR_CDDA:
+      track->header_size = 0;
+      track->error_size = 0;
+      track->data_size = 2352;
+      break;
+    case GD_SECTOR_M2F1:
+      track->header_size = 8;
+      track->error_size = 280;
+      track->data_size = 2048;
+      break;
+    default:
+      LOG_WARNING("cdi_parse unexpected sector format %d", track->sector_fmt);
+      return 0;
   }
-
   track->file_offset = data_offset - track->fad * track->sector_size;
 
   LOG_INFO("cdi_parse_track track=%d fad=%d off=%d mode=%s/%d", track->num,

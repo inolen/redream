@@ -71,6 +71,10 @@ void dc_suspend(struct dreamcast *dc) {
 }
 
 static int dc_load_bin(struct dreamcast *dc, const char *path) {
+  if (!strstr(path, ".bin")) {
+    return 0;
+  }
+
   FILE *fp = fopen(path, "rb");
   if (!fp) {
     return 0;
