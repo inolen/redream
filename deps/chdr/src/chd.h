@@ -42,6 +42,10 @@
 #ifndef __CHD_H__
 #define __CHD_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "coretypes.h"
 
 
@@ -388,5 +392,8 @@ chd_error chd_codec_config(chd_file *chd, int param, void *config);
 /* return a string description of a codec */
 const char *chd_get_codec_name(UINT32 codec);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __CHD_H__ */
