@@ -2,6 +2,7 @@
 #include "core/assert.h"
 #include "core/string.h"
 #include "guest/gdrom/cdi.h"
+#include "guest/gdrom/chd.h"
 #include "guest/gdrom/gdi.h"
 #include "guest/gdrom/iso.h"
 #include "guest/gdrom/patch.h"
@@ -199,6 +200,8 @@ struct disc *disc_create(const char *filename) {
 
   if (strstr(filename, ".cdi")) {
     disc = cdi_create(filename);
+  } else if (strstr(filename, ".chd")) {
+    disc = chd_create(filename);
   } else if (strstr(filename, ".gdi")) {
     disc = gdi_create(filename);
   }
