@@ -83,6 +83,11 @@ add_subdirectory(deps/capstone EXCLUDE_FROM_ALL)
 list(APPEND RELIB_INCLUDES deps/capstone/include)
 list(APPEND RELIB_LIBS capstone-static)
 
+# chdr
+add_subdirectory(deps/chdr EXCLUDE_FROM_ALL)
+list(APPEND RELIB_INCLUDES deps/chdr/src)
+list(APPEND RELIB_LIBS chdr-static)
+
 # dirent
 list(APPEND RELIB_INCLUDES deps/dirent-1.21)
 
@@ -90,23 +95,23 @@ list(APPEND RELIB_INCLUDES deps/dirent-1.21)
 list(APPEND RELIB_INCLUDES deps/gdb_server)
 
 # glad
-add_library(glad STATIC deps/glad/src/glad.c)
-target_include_directories(glad SYSTEM PUBLIC deps/glad/include)
+add_library(glad-static STATIC deps/glad/src/glad.c)
+target_include_directories(glad-static SYSTEM PUBLIC deps/glad/include)
 list(APPEND RELIB_INCLUDES deps/glad/include)
-list(APPEND RELIB_LIBS glad)
+list(APPEND RELIB_LIBS glad-static)
 
 # inih
-add_library(inih STATIC deps/inih/ini.c)
+add_library(inih-static STATIC deps/inih/ini.c)
 list(APPEND RELIB_INCLUDES deps/inih)
-list(APPEND RELIB_LIBS inih)
+list(APPEND RELIB_LIBS inih-static)
 
 # vixl
 if(ARCH_A64)
   file(GLOB VIXL_SOURCES deps/vixl/src/*.cc deps/vixl/src/aarch64/*.cc)
-  add_library(vixl STATIC ${VIXL_SOURCES})
-  target_compile_definitions(vixl PRIVATE VIXL_CODE_BUFFER_STATIC)
+  add_library(vixl-static STATIC ${VIXL_SOURCES})
+  target_compile_definitions(vixl-static PRIVATE VIXL_CODE_BUFFER_STATIC)
   list(APPEND RELIB_INCLUDES deps/vixl/src)
-  list(APPEND RELIB_LIBS vixl)
+  list(APPEND RELIB_LIBS vixl-static)
 endif()
 
 # xbyak
@@ -119,7 +124,7 @@ endif()
 #--------------------------------------------------
 
 # imgui
-add_library(imgui STATIC
+add_library(imgui-static STATIC
   deps/cimgui/imgui/imgui.cpp
   deps/cimgui/imgui/imgui_demo.cpp
   deps/cimgui/imgui/imgui_draw.cpp
@@ -128,7 +133,7 @@ add_library(imgui STATIC
   deps/cimgui/cimgui/fontAtlas.cpp
   deps/cimgui/cimgui/listClipper.cpp)
 list(APPEND RELIB_INCLUDES deps/cimgui)
-list(APPEND IMGUI_LIBS imgui)
+list(APPEND IMGUI_LIBS imgui-static)
 
 # microprofile
 list(APPEND RELIB_INCLUDES deps/microprofile)
@@ -194,6 +199,7 @@ set(RELIB_SOURCES
   src/guest/bios/flash.c
   src/guest/bios/syscalls.c
   src/guest/gdrom/cdi.c
+  src/guest/gdrom/chd.c
   src/guest/gdrom/disc.c
   src/guest/gdrom/gdi.c
   src/guest/gdrom/gdrom.c
