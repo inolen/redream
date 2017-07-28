@@ -89,7 +89,7 @@ list(APPEND RELIB_INCLUDES deps/chdr/src)
 list(APPEND RELIB_LIBS chdr-static)
 
 # dirent
-list(APPEND RELIB_INCLUDES deps/dirent-1.21)
+list(APPEND RELIB_INCLUDES deps/dirent)
 
 # gdb_server
 list(APPEND RELIB_INCLUDES deps/gdb_server)
@@ -116,7 +116,7 @@ endif()
 
 # xbyak
 if(ARCH_X64)
-  list(APPEND RELIB_INCLUDES deps/xbyak-4.901)
+  list(APPEND RELIB_INCLUDES deps/xbyak)
 endif()
 
 #--------------------------------------------------
@@ -154,8 +154,8 @@ if(PLATFORM_DARWIN)
   set(SDL_FRAMEWORK_CARBON 1)
 endif()
 
-add_subdirectory(deps/sdl2-2.0.5 EXCLUDE_FROM_ALL)
-list(APPEND RELIB_INCLUDES deps/sdl2-2.0.5/include)
+add_subdirectory(deps/sdl2 EXCLUDE_FROM_ALL)
+list(APPEND RELIB_INCLUDES deps/sdl2/include)
 
 if(MINGW)
   list(APPEND SDL_LIBS mingw32)
