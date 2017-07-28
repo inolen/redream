@@ -46,8 +46,7 @@ static void sh4_swap_fpr_bank(struct sh4 *sh4) {
   }
 }
 
-void sh4_sr_updated(void *data, uint32_t old_sr) {
-  struct sh4 *sh4 = data;
+void sh4_sr_updated(struct sh4 *sh4, uint32_t old_sr) {
   struct sh4_context *ctx = &sh4->ctx;
 
   prof_counter_add(COUNTER_sh4_sr_updates, 1);
@@ -62,8 +61,7 @@ void sh4_sr_updated(void *data, uint32_t old_sr) {
   }
 }
 
-void sh4_fpscr_updated(void *data, uint32_t old_fpscr) {
-  struct sh4 *sh4 = data;
+void sh4_fpscr_updated(struct sh4 *sh4, uint32_t old_fpscr) {
   struct sh4_context *ctx = &sh4->ctx;
 
   if ((ctx->fpscr & FR_MASK) != (old_fpscr & FR_MASK)) {
@@ -159,17 +157,18 @@ static int sh4_init(struct device *dev) {
     sh4->guest->offset_instrs = (int)offsetof(struct sh4_context, ran_instrs);
     sh4->guest->offset_interrupts =
         (int)offsetof(struct sh4_context, pending_interrupts);
-    sh4->guest->interrupt_check = &sh4_intc_check_pending;
+    sh4->guest->interrupt_check = (jit_interrupt_cb)&sh4_intc_check_pending;
 
     sh4->guest->ctx = &sh4->ctx;
     sh4->guest->mem = as_translate(sh4->memory_if->space, 0x0);
     sh4->guest->space = sh4->memory_if->space;
-    sh4->guest->invalid_instr = &sh4_invalid_instr;
-    sh4->guest->load_tlb = &sh4_mmu_load_tlb;
-    sh4->guest->sq_prefetch = &sh4_ccn_sq_prefetch;
-    sh4->guest->sleep = &sh4_sleep;
-    sh4->guest->sr_updated = &sh4_sr_updated;
-    sh4->guest->fpscr_updated = &sh4_fpscr_updated;
+    sh4->guest->invalid_instr = (sh4_invalid_instr_cb)&sh4_invalid_instr;
+    sh4->guest->trap = (sh4_trap_cb)&sh4_intc_trap;
+    sh4->guest->ltlb = (sh4_ltlb_cb)&sh4_mmu_ltlb;
+    sh4->guest->pref = (sh4_pref_cb)&sh4_ccn_pref;
+    sh4->guest->sleep = (sh4_sleep_cb)&sh4_sleep;
+    sh4->guest->sr_updated = (sh4_sr_updated_cb)&sh4_sr_updated;
+    sh4->guest->fpscr_updated = (sh4_fpscr_updated_cb)&sh4_fpscr_updated;
     sh4->guest->lookup = &as_lookup;
     sh4->guest->r8 = &as_read8;
     sh4->guest->r16 = &as_read16;

@@ -1354,7 +1354,7 @@ INSTR(PREF) {
   /* check that the address is between 0xe0000000 and 0xe3ffffff */
   I32 ea = LOAD_GPR_I32(i.def.rn);
   I32 cond = CMPEQ_IMM_I32(LSHR_IMM_I32(ea, 26), 0x38);
-  PREF_SQ_COND(cond, ea);
+  PREF_COND(cond, ea);
   NEXT_INSTR();
 }
 
@@ -1575,7 +1575,7 @@ INSTR(STSMPR) {
 
 /* TRAPA   #imm */
 INSTR(TRAPA) {
-  LOG_FATAL("TRAPA not implemented");
+  TRAP(i.imm.imm);
 }
 
 /* FLDI0  FRn 1111nnnn10001101 */

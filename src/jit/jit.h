@@ -14,6 +14,7 @@ struct lse;
 struct ra;
 struct val;
 
+typedef void (*jit_interrupt_cb)(void *);
 typedef uint32_t (*mem_read_cb)(void *, uint32_t, uint32_t);
 typedef void (*mem_write_cb)(void *, uint32_t, uint32_t, uint32_t);
 
@@ -100,7 +101,7 @@ struct jit_guest {
   int offset_cycles;
   int offset_instrs;
   int offset_interrupts;
-  void (*interrupt_check)(void *);
+  jit_interrupt_cb interrupt_check;
 
   /* memory interface */
   void *ctx;

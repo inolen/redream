@@ -427,22 +427,30 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
                                       ir_call_1(ir, invalid_instr, data);                                                \
                                     }
 
-#define PREF_SQ_COND(c, addr)       {                                                                                \
-                                      struct ir_value *sq_prefetch = ir_alloc_i64(ir, (uint64_t)guest->sq_prefetch); \
-                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);               \
-                                      ir_call_cond_2(ir, c, sq_prefetch, data, addr);                                \
+#define TRAP(num)                   {                                                                  \
+                                      struct ir_value *trap = ir_alloc_i64(ir, (uint64_t)guest->trap); \
+                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data); \
+                                      struct ir_value *imm = ir_alloc_i32(ir, num);                    \
+                                      ir_call_2(ir, trap, data, imm);                                  \
+                                    }
+
+#define LDTLB()                     {                                                                  \
+                                      struct ir_value *ltlb = ir_alloc_i64(ir, (uint64_t)guest->ltlb); \
+                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data); \
+                                      ir_call_1(ir, ltlb, data);                                       \
+                                    }
+
+
+#define PREF_COND(c, addr)          {                                                                  \
+                                      struct ir_value *pref = ir_alloc_i64(ir, (uint64_t)guest->pref); \
+                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data); \
+                                      ir_call_cond_2(ir, c, pref, data, addr);                         \
                                     }
 
 #define SLEEP()                     {                                                                    \
                                       struct ir_value *sleep = ir_alloc_i64(ir, (uint64_t)guest->sleep); \
                                       struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);   \
                                       ir_call_1(ir, sleep, data);                                        \
-                                    }
-                                    
-#define LDTLB()                     {                                                                          \
-                                      struct ir_value *load_tlb = ir_alloc_i64(ir, (uint64_t)guest->load_tlb); \
-                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);         \
-                                      ir_call_1(ir, load_tlb, data);                                           \
                                     }
 
 /* clang-format on */

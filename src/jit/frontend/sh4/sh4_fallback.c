@@ -383,11 +383,13 @@ typedef int32_t int128_t[4];
 
 #define INVALID_INSTR()             guest->invalid_instr(guest->data)
 
-#define PREF_SQ_COND(c, addr)       if (c) { guest->sq_prefetch(guest->data, addr); }
+#define TRAP(num)                   guest->trap(guest->data, num)
+
+#define LDTLB()                     guest->ltlb(guest->data)
+
+#define PREF_COND(c, addr)          if (c) { guest->pref(guest->data, addr); }
 
 #define SLEEP()                     guest->sleep(guest->data)
-
-#define LDTLB()                     guest->load_tlb(guest->data)
 
 /* clang-format on */
 

@@ -28,13 +28,11 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
   jit_invalidate_blocks(sh4->jit);
 }
 
-void sh4_ccn_sq_prefetch(void *data, uint32_t addr) {
-  PROF_ENTER("cpu", "sh4_ccn_sq_prefetch");
+void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
+  PROF_ENTER("cpu", "sh4_ccn_pref");
 
   /* make sure this is a sq related prefetch */
   DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
-
-  struct sh4 *sh4 = data;
 
   uint32_t dst = 0x0;
   uint32_t sqi = (addr & 0x20) >> 5;

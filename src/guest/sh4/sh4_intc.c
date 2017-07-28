@@ -11,47 +11,8 @@ static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
 #undef SH4_INT
 };
 
-void sh4_intc_update_pending(struct sh4 *sh4) {
-  int min_priority = (sh4->ctx.sr & I_MASK) >> I_BIT;
-  uint64_t mask = ~sh4->priority_mask[min_priority];
-  int block = (sh4->ctx.sr & BL_MASK) == BL_MASK;
-
-  /* ignore block bit when sleeping */
-  if (sh4->ctx.sleep_mode) {
-    block = 0;
-  }
-
-  /* mask all interrupts if interrupt block bit is set */
-  if (block) {
-    mask = 0;
-  }
-
-  sh4->ctx.pending_interrupts = sh4->requested_interrupts & mask;
-}
-
-void sh4_intc_check_pending(void *data) {
-  struct sh4 *sh4 = data;
-
-  if (!sh4->ctx.pending_interrupts) {
-    return;
-  }
-
-  /* process the highest priority in the pending vector */
-  int n = 63 - clz64(sh4->ctx.pending_interrupts);
-  enum sh4_interrupt intr = sh4->sorted_interrupts[n];
-  struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
-
-  /* ensure sr is up to date */
-  sh4_implode_sr(&sh4->ctx);
-
-  *sh4->INTEVT = int_info->intevt;
-  sh4->ctx.ssr = sh4->ctx.sr;
-  sh4->ctx.spc = sh4->ctx.pc;
-  sh4->ctx.sgr = sh4->ctx.r[15];
-  sh4->ctx.sr |= (BL_MASK | MD_MASK | RB_MASK);
-  sh4->ctx.pc = sh4->ctx.vbr + 0x600;
-  sh4->ctx.sleep_mode = 0;
-  sh4_sr_updated(sh4, sh4->ctx.ssr);
+void sh4_intc_trap(struct sh4 *sh4, uint32_t num) {
+  LOG_FATAL("sh4_intc_trap %d", num);
 }
 
 /* generate a sorted set of interrupts based on their priority. these sorted
@@ -98,6 +59,47 @@ void sh4_intc_reprioritize(struct sh4 *sh4) {
   }
 
   sh4_intc_update_pending(sh4);
+}
+
+void sh4_intc_check_pending(struct sh4 *sh4) {
+  if (!sh4->ctx.pending_interrupts) {
+    return;
+  }
+
+  /* process the highest priority in the pending vector */
+  int n = 63 - clz64(sh4->ctx.pending_interrupts);
+  enum sh4_interrupt intr = sh4->sorted_interrupts[n];
+  struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
+
+  /* ensure sr is up to date */
+  sh4_implode_sr(&sh4->ctx);
+
+  *sh4->INTEVT = int_info->intevt;
+  sh4->ctx.ssr = sh4->ctx.sr;
+  sh4->ctx.spc = sh4->ctx.pc;
+  sh4->ctx.sgr = sh4->ctx.r[15];
+  sh4->ctx.sr |= (BL_MASK | MD_MASK | RB_MASK);
+  sh4->ctx.pc = sh4->ctx.vbr + 0x600;
+  sh4->ctx.sleep_mode = 0;
+  sh4_sr_updated(sh4, sh4->ctx.ssr);
+}
+
+void sh4_intc_update_pending(struct sh4 *sh4) {
+  int min_priority = (sh4->ctx.sr & I_MASK) >> I_BIT;
+  uint64_t mask = ~sh4->priority_mask[min_priority];
+  int block = (sh4->ctx.sr & BL_MASK) == BL_MASK;
+
+  /* ignore block bit when sleeping */
+  if (sh4->ctx.sleep_mode) {
+    block = 0;
+  }
+
+  /* mask all interrupts if interrupt block bit is set */
+  if (block) {
+    mask = 0;
+  }
+
+  sh4->ctx.pending_interrupts = sh4->requested_interrupts & mask;
 }
 
 REG_W32(sh4_cb, IPRA) {

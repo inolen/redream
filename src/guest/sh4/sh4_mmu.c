@@ -37,9 +37,7 @@ static void sh4_mmu_utlb_sync(struct sh4 *sh4, struct sh4_tlb_entry *entry) {
 
 static void sh4_mmu_translate(struct sh4 *sh4, uint32_t addr) {}
 
-void sh4_mmu_load_tlb(void *data) {
-  struct sh4 *sh4 = data;
-
+void sh4_mmu_ltlb(struct sh4 *sh4) {
   uint32_t n = sh4->MMUCR->URC;
   struct sh4_tlb_entry *entry = &sh4->utlb[n];
   entry->lo = *sh4->PTEL;

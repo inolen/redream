@@ -81,7 +81,7 @@ DECLARE_COUNTER(sh4_instrs);
 AM_DECLARE(sh4_data_map);
 
 /* ccn */
-void sh4_ccn_sq_prefetch(void *data, uint32_t addr);
+void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr);
 uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
 void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                          uint32_t data_mask);
@@ -112,11 +112,12 @@ void sh4_dmac_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
 
 /* intc */
 void sh4_intc_update_pending(struct sh4 *sh4);
-void sh4_intc_check_pending(void *data);
+void sh4_intc_check_pending(struct sh4 *sh4);
 void sh4_intc_reprioritize(struct sh4 *sh4);
+void sh4_intc_trap(struct sh4 *sh4, uint32_t num);
 
 /* mmu */
-void sh4_mmu_load_tlb(void *data);
+void sh4_mmu_ltlb(struct sh4 *sh4);
 uint32_t sh4_mmu_itlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
 uint32_t sh4_mmu_utlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
 void sh4_mmu_itlb_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
@@ -130,7 +131,7 @@ void sh4_debug_menu(struct sh4 *sh4);
 void sh4_reset(struct sh4 *sh4, uint32_t pc);
 void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr);
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr);
-void sh4_sr_updated(void *data, uint32_t old_sr);
-void sh4_fpscr_updated(void *data, uint32_t old_fpscr);
+void sh4_sr_updated(struct sh4 *sh4, uint32_t old_sr);
+void sh4_fpscr_updated(struct sh4 *sh4, uint32_t old_fpscr);
 
 #endif
