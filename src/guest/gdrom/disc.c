@@ -116,27 +116,31 @@ int disc_find_file(struct disc *disc, const char *filename, int *fad,
 
   uint8_t *ptr = tmp;
   uint8_t *end = tmp + root_len;
+  struct iso_dir *found = NULL;
 
   while (ptr < end) {
     struct iso_dir *dir = (struct iso_dir *)ptr;
-    const char *name = (const char *)(ptr + sizeof(*dir));
 
-    if (memcmp(name, filename, strlen(filename)) == 0) {
+    if (!dir->length) {
+      /* no more entries */
       break;
     }
 
-    /* dir entries always begin on an even byte */
-    ptr = (uint8_t *)name + dir->name_len;
-    ptr = (uint8_t *)align_up((intptr_t)ptr, (intptr_t)2);
+    const char *name = (const char *)(ptr + sizeof(*dir));
+    if (memcmp(name, filename, strlen(filename)) == 0) {
+      found = dir;
+      break;
+    }
+
+    ptr += dir->length;
   }
 
-  if (ptr == end) {
+  if (!found) {
     return 0;
   }
 
-  struct iso_dir *dir = (struct iso_dir *)ptr;
-  *fad = GDROM_PREGAP + dir->extent.le;
-  *len = dir->size.le;
+  *fad = GDROM_PREGAP + found->extent.le;
+  *len = found->size.le;
 
   return 1;
 }
@@ -231,13 +235,11 @@ struct disc *disc_create(const char *filename) {
   snprintf(disc->id, sizeof(disc->id), "%s %s %s %s", name, product_number,
            product_version, device_info);
 
-  LOG_INFO("disc_create looking for bootfile %s", bootname);
-
   int found = disc_find_file(disc, bootname, &disc->bootfad, &disc->bootlen);
   CHECK(found);
 
-  LOG_INFO("disc_create %s bootfad=%d bootlen=%d", disc->id, disc->bootfad,
-           disc->bootlen);
+  LOG_INFO("disc_create id=%s bootfile=%s fad=%d len=%d", disc->id, bootname,
+           disc->bootfad, disc->bootlen, disc->id);
 
   return disc;
 }
