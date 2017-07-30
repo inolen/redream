@@ -2,7 +2,6 @@
 #include "core/assert.h"
 #include "core/log.h"
 #include "core/math.h"
-#include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/jit.h"
@@ -382,8 +381,6 @@ typedef int32_t int128_t[4];
 #define BRANCH_FALSE_IMM_I32(c, d)  if (!c) { CTX->pc = d; return; }
 
 #define INVALID_INSTR()             guest->invalid_instr(guest->data)
-
-#define TRAP(num)                   guest->trap(guest->data, num)
 
 #define LDTLB()                     guest->ltlb(guest->data)
 

@@ -1,7 +1,6 @@
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "core/assert.h"
 #include "core/log.h"
-#include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/ir/ir.h"
@@ -427,12 +426,6 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
                                       ir_call_1(ir, invalid_instr, data);                                                \
                                     }
 
-#define TRAP(num)                   {                                                                  \
-                                      struct ir_value *trap = ir_alloc_i64(ir, (uint64_t)guest->trap); \
-                                      struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data); \
-                                      struct ir_value *imm = ir_alloc_i32(ir, num);                    \
-                                      ir_call_2(ir, trap, data, imm);                                  \
-                                    }
 
 #define LDTLB()                     {                                                                  \
                                       struct ir_value *ltlb = ir_alloc_i64(ir, (uint64_t)guest->ltlb); \

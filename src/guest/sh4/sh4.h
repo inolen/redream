@@ -5,7 +5,7 @@
 #include "guest/dreamcast.h"
 #include "guest/memory.h"
 #include "guest/sh4/sh4_types.h"
-#include "jit/frontend/sh4/sh4_context.h"
+#include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/jit.h"
 
 struct dreamcast;
@@ -20,6 +20,8 @@ enum {
   SH4_DMA_FROM_ADDR,
   SH4_DMA_TO_ADDR,
 };
+
+typedef int (*sh4_exception_handler_cb)(void *, enum sh4_exception);
 
 struct sh4_dtr {
   int channel;
@@ -45,10 +47,14 @@ struct sh4 {
   struct device;
 
   struct sh4_context ctx;
-  uint32_t reg[NUM_SH4_REGS];
+  uint32_t reg[SH4_NUM_REGS];
 #define SH4_REG(addr, name, default, type) type *name;
 #include "guest/sh4/sh4_regs.inc"
 #undef SH4_REG
+
+  /* custom exception handler */
+  sh4_exception_handler_cb exc_handler;
+  void *exc_handler_data;
 
   /* jit */
   struct jit *jit;
@@ -60,8 +66,8 @@ struct sh4 {
   struct list breakpoints;
 
   /* intc */
-  enum sh4_interrupt sorted_interrupts[NUM_SH_INTERRUPTS];
-  uint64_t sort_id[NUM_SH_INTERRUPTS];
+  enum sh4_interrupt sorted_interrupts[SH4_NUM_INTERRUPTS];
+  uint64_t sort_id[SH4_NUM_INTERRUPTS];
   uint64_t priority_mask[16];
   uint64_t requested_interrupts;
   /* pending interrupts moved to context for fast jit access */
@@ -74,7 +80,9 @@ struct sh4 {
   struct timer *tmu_timers[3];
 };
 
-extern struct reg_cb sh4_cb[NUM_SH4_REGS];
+extern struct reg_cb sh4_cb[SH4_NUM_REGS];
+extern struct sh4_exception_info sh4_exceptions[SH4_NUM_EXCEPTIONS];
+extern struct sh4_interrupt_info sh4_interrupts[SH4_NUM_INTERRUPTS];
 
 DECLARE_COUNTER(sh4_instrs);
 
@@ -112,9 +120,7 @@ void sh4_dmac_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
 
 /* intc */
 void sh4_intc_update_pending(struct sh4 *sh4);
-void sh4_intc_check_pending(struct sh4 *sh4);
 void sh4_intc_reprioritize(struct sh4 *sh4);
-void sh4_intc_trap(struct sh4 *sh4, uint32_t num);
 
 /* mmu */
 void sh4_mmu_ltlb(struct sh4 *sh4);
@@ -129,9 +135,11 @@ struct sh4 *sh4_create(struct dreamcast *dc);
 void sh4_destroy(struct sh4 *sh4);
 void sh4_debug_menu(struct sh4 *sh4);
 void sh4_reset(struct sh4 *sh4, uint32_t pc);
+
+void sh4_set_exception_handler(struct sh4 *sh4,
+                               sh4_exception_handler_cb handler, void *data);
+
 void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr);
 void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr);
-void sh4_sr_updated(struct sh4 *sh4, uint32_t old_sr);
-void sh4_fpscr_updated(struct sh4 *sh4, uint32_t old_fpscr);
 
 #endif

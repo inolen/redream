@@ -147,7 +147,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     backend->dispatch_interrupt = e.getCurr<void *>();
 
     e.mov(arg0, (uint64_t)jit->guest->data);
-    e.call(jit->guest->interrupt_check);
+    e.call(jit->guest->check_interrupts);
     e.jmp(backend->dispatch_dynamic);
   }
 

@@ -139,14 +139,35 @@ enum {
 #define SH4_REG(addr, name, default, type) name = SH4_REG_OFFSET(addr),
 #include "guest/sh4/sh4_regs.inc"
 #undef SH4_REG
-  NUM_SH4_REGS = SH4_REG_OFFSET(0xffffffff) + 1
+  SH4_NUM_REGS = SH4_REG_OFFSET(0xffffffff) + 1
+};
+
+enum sh4_exception {
+#define SH4_EXC(name, expevt, offset, prilvl, priord) SH4_EXC_##name,
+#include "guest/sh4/sh4_exc.inc"
+#undef SH4_EXC
+  SH4_NUM_EXCEPTIONS
 };
 
 enum sh4_interrupt {
 #define SH4_INT(name, intevt, pri, ipr, ipr_shift) SH4_INT_##name,
 #include "guest/sh4/sh4_int.inc"
 #undef SH4_INT
-  NUM_SH_INTERRUPTS
+  SH4_NUM_INTERRUPTS
+};
+
+struct sh4_exception_info {
+  int expevt;
+  int offset;
+  int prilvl;
+  int priord;
+};
+
+struct sh4_interrupt_info {
+  int intevt;
+  int default_priority;
+  int ipr;
+  int ipr_shift;
 };
 
 #endif

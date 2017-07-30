@@ -1575,7 +1575,7 @@ INSTR(STSMPR) {
 
 /* TRAPA   #imm */
 INSTR(TRAPA) {
-  TRAP(i.imm.imm);
+  LOG_FATAL("unsupported TRAPA");
 }
 
 /* FLDI0  FRn 1111nnnn10001101 */

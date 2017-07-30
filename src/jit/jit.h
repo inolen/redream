@@ -101,7 +101,7 @@ struct jit_guest {
   int offset_cycles;
   int offset_instrs;
   int offset_interrupts;
-  jit_interrupt_cb interrupt_check;
+  jit_interrupt_cb check_interrupts;
 
   /* memory interface */
   void *ctx;

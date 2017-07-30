@@ -198,7 +198,7 @@ static int arm7_init(struct device *dev) {
     arm->guest->offset_interrupts =
         (int)offsetof(struct armv3_context, pending_interrupts);
     arm->guest->data = arm;
-    arm->guest->interrupt_check = &arm7_check_pending_interrupts;
+    arm->guest->check_interrupts = &arm7_check_pending_interrupts;
 
     arm->guest->ctx = &arm->ctx;
     arm->guest->mem = as_translate(arm->memory_if->space, 0x0);

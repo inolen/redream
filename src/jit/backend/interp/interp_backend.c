@@ -37,7 +37,7 @@ static void interp_backend_run_code(struct jit_backend *base, int cycles) {
     *run_cycles -= cycles;
     *ran_instrs += instrs;
 
-    guest->interrupt_check(guest->data);
+    guest->check_interrupts(guest->data);
   }
 }
 

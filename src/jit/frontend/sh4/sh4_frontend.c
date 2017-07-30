@@ -1,7 +1,6 @@
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "core/profiler.h"
 #include "jit/frontend/jit_frontend.h"
-#include "jit/frontend/sh4/sh4_context.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_fallback.h"
 #include "jit/frontend/sh4/sh4_guest.h"

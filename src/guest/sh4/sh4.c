@@ -28,31 +28,29 @@ DEFINE_AGGREGATE_COUNTER(sh4_instrs);
 DEFINE_AGGREGATE_COUNTER(sh4_sr_updates);
 
 /* callbacks to service sh4_reg_read / sh4_reg_write calls */
-struct reg_cb sh4_cb[NUM_SH4_REGS];
+struct reg_cb sh4_cb[SH4_NUM_REGS];
 
-static void sh4_swap_gpr_bank(struct sh4 *sh4) {
-  for (int s = 0; s < 8; s++) {
-    uint32_t tmp = sh4->ctx.r[s];
-    sh4->ctx.r[s] = sh4->ctx.ralt[s];
-    sh4->ctx.ralt[s] = tmp;
-  }
-}
+struct sh4_exception_info sh4_exceptions[SH4_NUM_EXCEPTIONS] = {
+#define SH4_EXC(name, expevt, offset, prilvl, priord) \
+  {expevt, offset, prilvl, priord},
+#include "guest/sh4/sh4_exc.inc"
+#undef SH4_EXC
+};
 
-static void sh4_swap_fpr_bank(struct sh4 *sh4) {
-  for (int s = 0; s <= 15; s++) {
-    uint32_t tmp = sh4->ctx.fr[s];
-    sh4->ctx.fr[s] = sh4->ctx.xf[s];
-    sh4->ctx.xf[s] = tmp;
-  }
-}
+struct sh4_interrupt_info sh4_interrupts[SH4_NUM_INTERRUPTS] = {
+#define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
+  {intevt, pri, ipr, ipr_shift},
+#include "guest/sh4/sh4_int.inc"
+#undef SH4_INT
+};
 
-void sh4_sr_updated(struct sh4 *sh4, uint32_t old_sr) {
+static void sh4_sr_updated(struct sh4 *sh4, uint32_t old_sr) {
   struct sh4_context *ctx = &sh4->ctx;
 
   prof_counter_add(COUNTER_sh4_sr_updates, 1);
 
   if ((ctx->sr & RB_MASK) != (old_sr & RB_MASK)) {
-    sh4_swap_gpr_bank(sh4);
+    sh4_swap_gpr_bank(ctx);
   }
 
   if ((ctx->sr & I_MASK) != (old_sr & I_MASK) ||
@@ -61,11 +59,11 @@ void sh4_sr_updated(struct sh4 *sh4, uint32_t old_sr) {
   }
 }
 
-void sh4_fpscr_updated(struct sh4 *sh4, uint32_t old_fpscr) {
+static void sh4_fpscr_updated(struct sh4 *sh4, uint32_t old_fpscr) {
   struct sh4_context *ctx = &sh4->ctx;
 
   if ((ctx->fpscr & FR_MASK) != (old_fpscr & FR_MASK)) {
-    sh4_swap_fpr_bank(sh4);
+    sh4_swap_fpr_bank(ctx);
   }
 }
 
@@ -101,18 +99,62 @@ static void sh4_sleep(void *data) {
   sh4->ctx.sleep_mode = 1;
 }
 
-static void sh4_invalid_instr(void *data) {
-  struct sh4 *sh4 = data;
+static void sh4_exception(struct sh4 *sh4, enum sh4_exception exc) {
+  struct sh4_exception_info *exc_info = &sh4_exceptions[exc];
 
-  if (bios_invalid_instr(sh4->bios)) {
+  /* let the custom exception handler have a first chance */
+  if (sh4->exc_handler && sh4->exc_handler(sh4->exc_handler_data, exc)) {
     return;
   }
 
-  if (sh4_dbg_invalid_instr(sh4)) {
+  /* let internal systems have a second chance for illegal instructions */
+  if (exc == SH4_EXC_ILLINSTR) {
+    if (bios_invalid_instr(sh4->bios)) {
+      return;
+    }
+
+    if (sh4_dbg_invalid_instr(sh4)) {
+      return;
+    }
+  }
+
+  /* ensure sr is up to date */
+  sh4_implode_sr(&sh4->ctx);
+
+  *sh4->EXPEVT = exc_info->expevt;
+  sh4->ctx.spc = sh4->ctx.pc;
+  sh4->ctx.ssr = sh4->ctx.sr;
+  sh4->ctx.sgr = sh4->ctx.r[15];
+  sh4->ctx.sr |= (BL_MASK | MD_MASK | RB_MASK);
+  sh4->ctx.pc = sh4->ctx.vbr + exc_info->offset;
+  sh4_sr_updated(sh4, sh4->ctx.ssr);
+}
+
+static void sh4_check_interrupts(struct sh4 *sh4) {
+  if (!sh4->ctx.pending_interrupts) {
     return;
   }
 
-  LOG_FATAL("unhandled invalid instruction at 0x%08x", sh4->ctx.pc);
+  /* process the highest priority in the pending vector */
+  int n = 63 - clz64(sh4->ctx.pending_interrupts);
+  enum sh4_interrupt intr = sh4->sorted_interrupts[n];
+  struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
+
+  /* ensure sr is up to date */
+  sh4_implode_sr(&sh4->ctx);
+
+  *sh4->INTEVT = int_info->intevt;
+  sh4->ctx.spc = sh4->ctx.pc;
+  sh4->ctx.ssr = sh4->ctx.sr;
+  sh4->ctx.sgr = sh4->ctx.r[15];
+  sh4->ctx.sr |= (BL_MASK | MD_MASK | RB_MASK);
+  sh4->ctx.pc = sh4->ctx.vbr + 0x600;
+  sh4->ctx.sleep_mode = 0;
+  sh4_sr_updated(sh4, sh4->ctx.ssr);
+}
+
+static void sh4_invalid_instr(struct sh4 *sh4) {
+  sh4_exception(sh4, SH4_EXC_ILLINSTR);
 }
 
 static void sh4_run(struct device *dev, int64_t ns) {
@@ -157,13 +199,12 @@ static int sh4_init(struct device *dev) {
     sh4->guest->offset_instrs = (int)offsetof(struct sh4_context, ran_instrs);
     sh4->guest->offset_interrupts =
         (int)offsetof(struct sh4_context, pending_interrupts);
-    sh4->guest->interrupt_check = (jit_interrupt_cb)&sh4_intc_check_pending;
+    sh4->guest->check_interrupts = (jit_interrupt_cb)&sh4_check_interrupts;
 
     sh4->guest->ctx = &sh4->ctx;
     sh4->guest->mem = as_translate(sh4->memory_if->space, 0x0);
     sh4->guest->space = sh4->memory_if->space;
     sh4->guest->invalid_instr = (sh4_invalid_instr_cb)&sh4_invalid_instr;
-    sh4->guest->trap = (sh4_trap_cb)&sh4_intc_trap;
     sh4->guest->ltlb = (sh4_ltlb_cb)&sh4_mmu_ltlb;
     sh4->guest->pref = (sh4_pref_cb)&sh4_ccn_pref;
     sh4->guest->sleep = (sh4_sleep_cb)&sh4_sleep;
@@ -192,6 +233,12 @@ void sh4_clear_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
 void sh4_raise_interrupt(struct sh4 *sh4, enum sh4_interrupt intr) {
   sh4->requested_interrupts |= sh4->sort_id[intr];
   sh4_intc_update_pending(sh4);
+}
+
+void sh4_set_exception_handler(struct sh4 *sh4,
+                               sh4_exception_handler_cb handler, void *data) {
+  sh4->exc_handler = handler;
+  sh4->exc_handler_data = data;
 }
 
 void sh4_reset(struct sh4 *sh4, uint32_t pc) {

@@ -1,20 +1,5 @@
 #include "guest/sh4/sh4.h"
 
-struct sh4_interrupt_info {
-  int intevt, default_priority, ipr, ipr_shift;
-};
-
-static struct sh4_interrupt_info sh4_interrupts[NUM_SH_INTERRUPTS] = {
-#define SH4_INT(name, intevt, pri, ipr, ipr_shift) \
-  {intevt, pri, ipr, ipr_shift},
-#include "guest/sh4/sh4_int.inc"
-#undef SH4_INT
-};
-
-void sh4_intc_trap(struct sh4 *sh4, uint32_t num) {
-  LOG_FATAL("sh4_intc_trap %d", num);
-}
-
 /* generate a sorted set of interrupts based on their priority. these sorted
    ids are used to represent all of the currently requested interrupts as a
    simple bitmask */
@@ -27,7 +12,7 @@ void sh4_intc_reprioritize(struct sh4 *sh4) {
   for (int level = 0; level < 16; level++) {
     /* iterate backwards, giving priority to lower id interrupts when the
        priorities are equal */
-    for (int i = NUM_SH_INTERRUPTS - 1; i >= 0; i--) {
+    for (int i = SH4_NUM_INTERRUPTS - 1; i >= 0; i--) {
       struct sh4_interrupt_info *int_info = &sh4_interrupts[i];
 
       /* get current priority for interrupt */
@@ -59,29 +44,6 @@ void sh4_intc_reprioritize(struct sh4 *sh4) {
   }
 
   sh4_intc_update_pending(sh4);
-}
-
-void sh4_intc_check_pending(struct sh4 *sh4) {
-  if (!sh4->ctx.pending_interrupts) {
-    return;
-  }
-
-  /* process the highest priority in the pending vector */
-  int n = 63 - clz64(sh4->ctx.pending_interrupts);
-  enum sh4_interrupt intr = sh4->sorted_interrupts[n];
-  struct sh4_interrupt_info *int_info = &sh4_interrupts[intr];
-
-  /* ensure sr is up to date */
-  sh4_implode_sr(&sh4->ctx);
-
-  *sh4->INTEVT = int_info->intevt;
-  sh4->ctx.ssr = sh4->ctx.sr;
-  sh4->ctx.spc = sh4->ctx.pc;
-  sh4->ctx.sgr = sh4->ctx.r[15];
-  sh4->ctx.sr |= (BL_MASK | MD_MASK | RB_MASK);
-  sh4->ctx.pc = sh4->ctx.vbr + 0x600;
-  sh4->ctx.sleep_mode = 0;
-  sh4_sr_updated(sh4, sh4->ctx.ssr);
 }
 
 void sh4_intc_update_pending(struct sh4 *sh4) {
