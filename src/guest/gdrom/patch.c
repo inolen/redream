@@ -4,7 +4,7 @@
 #include "guest/memory.h"
 #include "render/imgui.h"
 
-DEFINE_PERSISTENT_OPTION_INT(patch_widescreen, 1, "Apply widescreen patches");
+DEFINE_PERSISTENT_OPTION_INT(patch_widescreen, 0, "Apply widescreen patches");
 
 #if 0
 #define LOG_PATCH LOG_INFO
