@@ -26,7 +26,8 @@ static const struct jit_opdef *sh4_frontend_lookup_op(struct jit_frontend *base,
 }
 
 static void sh4_frontend_dump_code(struct jit_frontend *base,
-                                   const struct jit_block *block) {
+                                   const struct jit_block *block,
+                                   FILE *output) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct jit_guest *guest = frontend->guest;
 
@@ -41,7 +42,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
     struct jit_opdef *def = sh4_get_opdef(data);
 
     sh4_format(addr, instr, buffer, sizeof(buffer));
-    LOG_INFO(buffer);
+    fprintf(output, "# %s\n", buffer);
 
     offset += 2;
 
@@ -51,7 +52,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
       union sh4_instr delay_instr = {delay_data};
 
       sh4_format(addr, delay_instr, buffer, sizeof(buffer));
-      LOG_INFO(buffer);
+      fprintf(output, "# %s\n", buffer);
 
       offset += 2;
     }

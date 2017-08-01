@@ -570,7 +570,7 @@ static int x64_backend_handle_exception(struct jit_backend *base,
 }
 
 static void x64_backend_dump_code(struct jit_backend *base,
-                                  const struct jit_block *block) {
+                                  const struct jit_block *block, FILE *output) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
   const uint8_t *code = (const uint8_t *)block->host_addr;
   int size = block->host_size;
@@ -581,8 +581,8 @@ static void x64_backend_dump_code(struct jit_backend *base,
 
   for (size_t i = 0; i < count; i++) {
     cs_insn &insn = insns[i];
-    LOG_INFO("0x%" PRIx64 ":\t%s\t\t%s", insn.address, insn.mnemonic,
-             insn.op_str);
+    fprintf(output, "# 0x%" PRIx64 ":\t%s\t\t%s\n", insn.address, insn.mnemonic,
+            insn.op_str);
   }
 
   cs_free(insns, count);

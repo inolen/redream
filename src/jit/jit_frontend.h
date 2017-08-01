@@ -2,6 +2,7 @@
 #define JIT_FRONTEND_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 struct ir;
 struct jit_block;
@@ -28,7 +29,8 @@ struct jit_frontend {
   void (*analyze_code)(struct jit_frontend *, struct jit_block *);
   void (*translate_code)(struct jit_frontend *, struct jit_block *,
                          struct ir *);
-  void (*dump_code)(struct jit_frontend *, const struct jit_block *);
+  void (*dump_code)(struct jit_frontend *, const struct jit_block *,
+                    FILE *output);
 
   const struct jit_opdef *(*lookup_op)(struct jit_frontend *, const void *);
 };

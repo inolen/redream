@@ -17,7 +17,8 @@ static const struct jit_opdef *armv3_frontend_lookup_op(
 }
 
 static void armv3_frontend_dump_code(struct jit_frontend *base,
-                                     const struct jit_block *block) {
+                                     const struct jit_block *block,
+                                     FILE *output) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
   struct jit_guest *guest = frontend->guest;
 
@@ -28,7 +29,7 @@ static void armv3_frontend_dump_code(struct jit_frontend *base,
     uint32_t data = guest->r32(guest->space, addr);
 
     armv3_format(addr, data, buffer, sizeof(buffer));
-    LOG_INFO(buffer);
+    fprintf(output, "# %s\n", buffer);
 
     addr += 4;
   }

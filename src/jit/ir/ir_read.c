@@ -58,6 +58,18 @@ static void ir_lex_next(struct ir_parser *p) {
     next = ir_lex_get(p);
   } while (isspace(next) && next != '\n');
 
+  /* ignore comment lines */
+  if (next == '#') {
+    while (next != '\n') {
+      next = ir_lex_get(p);
+    }
+    next = ir_lex_get(p);
+
+    ir_lex_next(p);
+
+    return;
+  }
+
   /* test for end of file */
   if (next == EOF) {
     strncpy(p->val.s, "", sizeof(p->val.s));
