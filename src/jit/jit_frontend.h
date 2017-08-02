@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 struct ir;
-struct jit_block;
+struct jit_func;
 struct jit_guest;
 struct jit_frontend;
 

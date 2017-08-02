@@ -462,7 +462,7 @@ static int x64_backend_handle_exception(struct jit_backend *base,
   /* backpatch the call site to jump to the new trampoline */
   try {
     Xbyak::CodeGenerator e(X64_SLOWMEM_PATCH_SIZE, (void *)ex->pc);
-    uint8_t *begin = e.getCurr<uint8_t*>();
+    uint8_t *begin = e.getCurr<uint8_t *>();
     e.jmp(tramp);
 
     int padding = X64_SLOWMEM_PATCH_SIZE - (e.getCurr<uint8_t *>() - begin);

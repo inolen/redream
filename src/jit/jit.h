@@ -19,38 +19,18 @@ enum {
   JIT_STATE_INVALID,
 };
 
-struct jit_block {
-  int state;
-
-  /* address of source block in guest memory */
-  uint32_t guest_addr;
-  int guest_size;
-
-  /* maps guest instructions to host instructions */
-  void **source_map;
-
-  /* which guest instructions use fastmem */
-  int8_t *fastmem;
-
-  /* address of compiled block in host memory */
-  uint8_t *host_addr;
-  int host_size;
-
-  /* edges to other blocks */
-  struct list in_edges;
-  struct list out_edges;
-
-  /* lookup map iterators */
-  struct rb_node it;
-  struct rb_node rit;
-};
+struct jit_edge;
+struct jit_func;
 
 struct jit_edge {
-  struct jit_block *src;
-  struct jit_block *dst;
+  struct jit_func *src;
+  struct jit_func *dst;
 
   /* location of branch instruction in host memory */
   void *branch;
+
+  /* location of target instruction in guest memory */
+  uint32_t target;
 
   /* has this branch been patched */
   int patched;
@@ -58,6 +38,37 @@ struct jit_edge {
   /* iterators for edge lists */
   struct list_node in_it;
   struct list_node out_it;
+};
+
+/* translation information entry. maps guest blocks and instructions to their
+   location in memory */
+struct jit_tie {
+  uint8_t *block_addr;
+  uint8_t *instr_addr;
+};
+
+struct jit_func {
+  int state;
+
+  uint32_t guest_addr;
+  int guest_size;
+
+  uint8_t *host_addr;
+  int host_size;
+
+  /* temporary iterator used during compilation */
+  struct list_node invalid_it;
+
+  /* edges to other funcs */
+  struct list in_edges;
+  struct list out_edges;
+
+  /* lookup map iterators */
+  struct rb_node it;
+  struct rb_node rit;
+
+  /* map guest to host addresses */
+  struct jit_tie ties[];
 };
 
 struct jit {
@@ -78,10 +89,10 @@ struct jit {
   /* scratch compilation buffer */
   uint8_t ir_buffer[1024 * 1024 * 2];
 
-  /* compiled blocks */
-  struct jit_block *curr_block;
-  struct rb_tree blocks;
-  struct rb_tree reverse_blocks;
+  /* compiled funcs */
+  struct jit_func *curr_func;
+  struct rb_tree funcs;
+  struct rb_tree reverse_funcs;
 
   /* compiled block perf map */
   FILE *perf_map;

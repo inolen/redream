@@ -6,7 +6,6 @@
 #include "jit/ir/ir.h"
 
 struct exception_state;
-struct jit_block;
 struct jit_guest;
 
 /* macro to help declare a code buffer for the backends to use

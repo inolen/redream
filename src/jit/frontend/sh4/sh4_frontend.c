@@ -136,11 +136,11 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   PROF_ENTER("cpu", "sh4_frontend_translate_code");
 
   int offset = 0;
-  int use_fpscr = 0;
+  int in_block = 0;
+  int in_delay = 0;
   int was_delay = 0;
-
-  /* append inital block */
-  struct ir_block *block = ir_append_block(ir);
+  int use_fpscr = 0;
+  int cycle_scale = 0;
 
   /* generate code specialized for the current fpscr state */
   int flags = 0;
@@ -151,27 +151,28 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     flags |= SH4_DOUBLE_SZ;
   }
 
-  /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
-     an interrupt such as vblank before it'll exit. scale the block's number of
-     cycles in order to yield execution faster, enabling the interrupt to
-     actually be generated */
-  int idle_loop = sh4_frontend_is_idle_loop(frontend, begin_addr);
-  int cycle_scale = idle_loop ? 8 : 1;
+  /* append inital block */
+  struct ir_block *block = ir_append_block(ir);
 
   while (offset < size) {
-    /* if a branch instruction / delay slot was just emitted, rewind and emit
-       the delay slot as its own instruction */
-    if (was_delay) {
-      offset -= 2;
-      was_delay = 0;
-    }
-
     uint32_t addr = begin_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
 
     use_fpscr |= (def->flags & SH4_FLAG_USE_FPSCR) == SH4_FLAG_USE_FPSCR;
+    was_delay = in_delay;
+    in_delay = 0;
+
+    /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
+       an interrupt such as vblank before it'll exit. scale the block's number
+       of cycles in order to yield execution faster, enabling the interrupt to
+       actually be generated */
+    if (!in_block) {
+      int idle_loop = sh4_frontend_is_idle_loop(frontend, addr);
+      cycle_scale = idle_loop ? 10 : 1;
+      in_block = 1;
+    }
 
     /* emit meta information for the current guest instruction. this info is
        essential to the jit, and is used to map guest instructions to host
@@ -219,17 +220,24 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
       /* restore insert point */
       ir_set_insert_point(ir, &original);
 
-      offset += 2;
-      was_delay = 1;
+      /* no meta information is emitted for the delay slot, and the offset is
+         not incremented, resulting in the delay slot being emitted a second
+         time starting in a new block after the branch. the reason for this
+         being, if the delay slot is directly branched to, the preceding
+         instruction is never executed
+
+         note note, the preceding instruction should be a branch, or else it
+         wouldn't be valid to write out the delay slot a second time */
+      CHECK(def->flags & SH4_FLAG_STORE_PC);
+      in_delay = 1;
     }
 
     /* there are 3 possible block endings:
 
-       1.) the block terminates due to an unconditional branch; nothing needs to
-           be done
+       1.) the block terminates due to a branch; nothing needs to be done
 
        2.) the block terminates due to an instruction which doesn't set the pc;
-           an unconditional branch to the next address needs to be added
+           a branch to the next address needs to be added
 
        3.) the block terminates due to an instruction which sets the pc but is
            not a branch (e.g. an invalid instruction trap); nothing needs to be
@@ -238,6 +246,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     int end_of_block = sh4_frontend_is_terminator(def) || offset >= size;
 
     if (end_of_block) {
+      /* if the pc isn't set, branch to the next address */
       if (!store_pc) {
         struct ir_block *tail_block =
             list_last_entry(&ir->blocks, struct ir_block, it);
@@ -248,6 +257,23 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
         uint32_t next_addr = begin_addr + offset;
         ir_branch(ir, ir_alloc_i32(ir, next_addr));
       }
+
+      in_block = 0;
+    }
+
+    /* if the instruction being written was previously in a delay slot, end the
+       block, forcing an entry point to be created at the return address of the
+       original delayed branch. by doing this, the jit won't have to recompile
+       code when the call returns to an unknown entry point
+
+       0x100: bsr 0x200   <- delayed branch
+       0x102: nop         <- delay slot, end block here
+       0x104: add r0, r1  <- return address */
+    if (was_delay) {
+      uint32_t next_addr = begin_addr + offset;
+      ir_branch(ir, ir_alloc_i32(ir, next_addr));
+
+      in_block = 0;
     }
   }
 
