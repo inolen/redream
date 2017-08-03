@@ -288,8 +288,8 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   jit->frontend->analyze_code(jit->frontend, block);
 
   /* allocate meta data structs for the original guest code */
-  block->source_map = calloc(block->num_instrs, sizeof(void *));
-  block->fastmem = calloc(block->num_instrs, sizeof(int8_t));
+  block->source_map = calloc(block->guest_size, sizeof(void *));
+  block->fastmem = calloc(block->guest_size, sizeof(int8_t));
 
 /* for debug builds, fastmem can be troublesome when running under gdb or
    lldb. when doing so, SIGSEGV handling can be completely disabled with:
@@ -301,7 +301,7 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
    because of this, fastmem is default disabled for debug builds to cause less
    headaches */
 #ifdef NDEBUG
-  for (int i = 0; i < block->num_instrs; i++) {
+  for (int i = 0; i < block->guest_size; i++) {
     block->fastmem[i] = 1;
   }
 #endif
@@ -313,9 +313,9 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
     /* if the block was invalidated due to a fastmem exception, persist its
        fastmem state */
     if (existing->invalidate_reason == JIT_REASON_FASTMEM) {
-      CHECK_EQ(block->num_instrs, existing->num_instrs);
+      CHECK_EQ(block->guest_size, existing->guest_size);
       memcpy(block->fastmem, existing->fastmem,
-             block->num_instrs * sizeof(int8_t));
+             block->guest_size * sizeof(int8_t));
     }
 
     jit_free_block(jit, existing);
@@ -347,14 +347,6 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   int res = jit->backend->assemble_code(jit->backend, block, &ir);
 
   if (res) {
-    /* validate the source map is sorted in ascending order */
-    uintptr_t last = 0;
-    for (int i = 0; i < block->num_instrs; i++) {
-      uintptr_t entry = (uintptr_t)block->source_map[i];
-      CHECK_GE(entry, last);
-      last = entry;
-    }
-
 #if 0
     jit->backend->dump_code(jit->backend, block);
 #endif
@@ -385,22 +377,19 @@ static int jit_handle_exception(void *data, struct exception_state *ex) {
     return 0;
   }
 
-  /* do a binary search for the guest instruction responsible for the exception,
-     and disable fastmem optimizations for it on future compiles */
-  int lo = 0;
-  int hi = block->num_instrs;
-
-  while (lo < hi) {
-    int mid = (lo + hi) / 2;
-
-    if (ex->pc >= (uintptr_t)block->source_map[mid]) {
-      lo = mid + 1;
-    } else {
-      hi = mid;
+  /* disable fastmem optimizations for it on future compiles */
+  int found = 0;
+  for (int i = 0; i < block->guest_size; i++) {
+    /* ignore empty entries */
+    if (!block->source_map[i]) {
+      continue;
     }
+    if ((uintptr_t)block->source_map[i] > ex->pc) {
+      break;
+    }
+    found = i;
   }
-
-  block->fastmem[lo - 1] = 0;
+  block->fastmem[found] = 0;
 
   /* invalidate the block so it's recompiled on the next access */
   jit_invalidate_block(jit, block, JIT_REASON_FASTMEM);

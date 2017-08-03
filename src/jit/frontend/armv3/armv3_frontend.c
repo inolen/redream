@@ -46,7 +46,7 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
     uint32_t data = guest->r32(guest->space, addr);
     struct jit_opdef *def = armv3_get_opdef(data);
 
-    ir_source_info(ir, addr, offset / 4);
+    ir_source_info(ir, addr);
     ir_fallback(ir, def->fallback, addr, data);
   }
 }

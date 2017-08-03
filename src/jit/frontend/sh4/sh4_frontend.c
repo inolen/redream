@@ -89,7 +89,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     def = sh4_get_opdef(data);
 
     /* emit synthetic op responsible for mapping guest to host instructions */
-    ir_source_info(ir, addr, offset / 2);
+    ir_source_info(ir, addr);
 
     /* the pc is normally only written to the context at the end of the block,
        sync now for any instruction which needs to read the correct pc */
@@ -113,7 +113,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
       struct ir_insert_point original = ir_get_insert_point(ir);
       ir_set_insert_point(ir, &delay_point);
 
-      ir_source_info(ir, delay_addr, offset / 2);
+      ir_source_info(ir, delay_addr);
 
       if (delay_def->flags & SH4_FLAG_LOAD_PC) {
         ir_store_context(ir, offsetof(struct sh4_context, pc),

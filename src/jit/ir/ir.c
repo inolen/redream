@@ -404,10 +404,9 @@ void ir_set_meta(struct ir *ir, const void *obj, int kind,
   meta->value = value;
 }
 
-void ir_source_info(struct ir *ir, uint32_t addr, int index) {
+void ir_source_info(struct ir *ir, uint32_t addr) {
   struct ir_instr *instr = ir_append_instr(ir, OP_SOURCE_INFO, VALUE_V);
   ir_set_arg0(ir, instr, ir_alloc_i32(ir, addr));
-  ir_set_arg1(ir, instr, ir_alloc_i32(ir, index));
 }
 
 void ir_fallback(struct ir *ir, void *fallback, uint32_t addr,

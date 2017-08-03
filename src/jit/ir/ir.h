@@ -277,7 +277,7 @@ void ir_set_meta(struct ir *ir, const void *obj, int kind,
                  struct ir_value *value);
 
 /* provides information to map guest instructions to host instructions */
-void ir_source_info(struct ir *ir, uint32_t addr, int index);
+void ir_source_info(struct ir *ir, uint32_t addr);
 
 /* call into interpeter fallback */
 void ir_fallback(struct ir *ir, void *fallback, uint32_t addr,

@@ -7,8 +7,7 @@
 #include "jit/jit.h"
 
 static inline int use_fastmem(struct jit_block *block, uint32_t addr) {
-  int index = (addr - block->guest_addr) / 2;
-  return block->fastmem[index];
+  return block->fastmem[addr - block->guest_addr];
 }
 
 static struct ir_value *load_guest(struct ir *ir, struct ir_value *addr,
