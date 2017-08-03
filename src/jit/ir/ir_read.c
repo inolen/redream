@@ -355,9 +355,6 @@ static int ir_parse_arg(struct ir_parser *p, struct ir_instr *instr, int arg) {
         uint64_t v = (uint64_t)p->val.i;
         value = ir_alloc_f64(p->ir, *(double *)&v);
       } break;
-      case VALUE_STRING: {
-        value = ir_alloc_str(p->ir, p->val.s);
-      } break;
       default:
         LOG_FATAL("unexpected value type");
         break;

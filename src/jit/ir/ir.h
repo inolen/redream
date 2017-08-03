@@ -28,7 +28,6 @@ enum ir_type {
   VALUE_F32,
   VALUE_F64,
   VALUE_V128,
-  VALUE_STRING,
   VALUE_BLOCK,
   VALUE_NUM,
 };
@@ -80,7 +79,6 @@ struct ir_value {
     int64_t i64;
     float f32;
     double f64;
-    char *str;
     struct ir_block *blk;
   };
 
@@ -235,7 +233,6 @@ struct ir_value *ir_alloc_i32(struct ir *ir, int32_t c);
 struct ir_value *ir_alloc_i64(struct ir *ir, int64_t c);
 struct ir_value *ir_alloc_f32(struct ir *ir, float c);
 struct ir_value *ir_alloc_f64(struct ir *ir, double c);
-struct ir_value *ir_alloc_str(struct ir *ir, const char *format, ...);
 struct ir_value *ir_alloc_ptr(struct ir *ir, void *c);
 struct ir_value *ir_alloc_block_ref(struct ir *ir, struct ir_block *block);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);

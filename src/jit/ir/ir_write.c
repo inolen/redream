@@ -55,9 +55,6 @@ static void ir_write_type(struct ir_writer *w, enum ir_type type,
     case VALUE_V128:
       fprintf(output, "v128");
       break;
-    case VALUE_STRING:
-      fprintf(output, "str");
-      break;
     case VALUE_BLOCK:
       fprintf(output, "blk");
       break;
@@ -105,9 +102,6 @@ static void ir_write_value(struct ir_writer *w, const struct ir_value *value,
       case VALUE_F64: {
         double v = value->f64;
         fprintf(output, "0x%" PRIx64, *(uint64_t *)&v);
-      } break;
-      case VALUE_STRING: {
-        fprintf(output, "'%s'", value->str);
       } break;
       case VALUE_BLOCK:
         fprintf(output, "%%%d", ir_get_block_label(w, value->blk));

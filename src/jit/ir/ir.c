@@ -270,28 +270,6 @@ struct ir_value *ir_alloc_f64(struct ir *ir, double c) {
   return v;
 }
 
-struct ir_value *ir_alloc_str(struct ir *ir, const char *format, ...) {
-  struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
-
-  v->type = VALUE_STRING;
-  v->reg = NO_REGISTER;
-
-  /* format the string */
-  va_list args;
-
-  va_start(args, format);
-  int name_len = vsnprintf(0, 0, format, args);
-  int name_size = name_len + 1;
-  v->str = ir_calloc(ir, name_size);
-  va_end(args);
-
-  va_start(args, format);
-  vsnprintf(v->str, name_size, format, args);
-  va_end(args);
-
-  return v;
-}
-
 struct ir_value *ir_alloc_ptr(struct ir *ir, void *c) {
   return ir_alloc_i64(ir, (uint64_t)c);
 }
