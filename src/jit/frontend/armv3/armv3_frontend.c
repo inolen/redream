@@ -46,7 +46,7 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
     uint32_t data = guest->r32(guest->space, addr);
     struct jit_opdef *def = armv3_get_opdef(data);
 
-    ir_source_info(ir, addr);
+    ir_source_info(ir, addr, 12);
     ir_fallback(ir, def->fallback, addr, data);
   }
 }
@@ -58,8 +58,6 @@ static void armv3_frontend_analyze_code(struct jit_frontend *base,
   uint32_t addr = block->guest_addr;
 
   block->guest_size = 0;
-  block->num_cycles = 0;
-  block->num_instrs = 0;
 
   while (1) {
     uint32_t data = guest->r32(guest->space, addr);
@@ -68,8 +66,6 @@ static void armv3_frontend_analyze_code(struct jit_frontend *base,
 
     addr += 4;
     block->guest_size += 4;
-    block->num_cycles += 12;
-    block->num_instrs++;
 
     /* stop emitting when pc is changed */
     int mov_to_pc = 0;

@@ -9,6 +9,14 @@
 #include "jit/jit_frontend.h"
 #include "jit/jit_guest.h"
 
+/* cheap idle skip. in an idle loop, the block is just spinning, waiting for
+   an interrupt such as vblank before it'll exit. scale the block's number of
+   cycles in order to yield execution faster, enabling the interrupt to
+   actually be generated */
+#define IDLE_LOOP_CYCLE_SCALE 10
+#define SCALE_CYCLES(blk, cycles) \
+  ((blk)->idle_loop ? (cycles)*IDLE_LOOP_CYCLE_SCALE : (cycles))
+
 /*
  * fsca estimate lookup table, used by the jit and interpreter
  */
@@ -89,7 +97,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     def = sh4_get_opdef(data);
 
     /* emit synthetic op responsible for mapping guest to host instructions */
-    ir_source_info(ir, addr);
+    ir_source_info(ir, addr, SCALE_CYCLES(block, def->cycles));
 
     /* the pc is normally only written to the context at the end of the block,
        sync now for any instruction which needs to read the correct pc */
@@ -113,7 +121,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
       struct ir_insert_point original = ir_get_insert_point(ir);
       ir_set_insert_point(ir, &delay_point);
 
-      ir_source_info(ir, delay_addr);
+      ir_source_info(ir, delay_addr, SCALE_CYCLES(block, delay_def->cycles));
 
       if (delay_def->flags & SH4_FLAG_LOAD_PC) {
         ir_store_context(ir, offsetof(struct sh4_context, pc),
@@ -166,8 +174,6 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
   uint32_t offset = 0;
 
   block->guest_size = 0;
-  block->num_cycles = 0;
-  block->num_instrs = 0;
 
   while (1) {
     uint32_t addr = block->guest_addr + offset;
@@ -177,8 +183,6 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
 
     offset += 2;
     block->guest_size += 2;
-    block->num_cycles += def->cycles;
-    block->num_instrs++;
 
     /* if the instruction has none of the IDLE_MASK flags, disqualify */
     idle_loop &= (def->flags & IDLE_MASK) != 0;
@@ -191,8 +195,6 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
 
       offset += 2;
       block->guest_size += 2;
-      block->num_cycles += delay_def->cycles;
-      block->num_instrs++;
 
       idle_loop &= (delay_def->flags & IDLE_MASK) != 0;
       all_flags |= delay_def->flags;
@@ -275,10 +277,6 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
   /* if the branch isn't a short back edge, disqualify */
   idle_loop &= (block->guest_addr - block->branch_addr) <= 32;
 
-  /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
-     an interrupt such as vblank before it'll exit. scale the block's number of
-     cycles in order to yield execution faster, enabling the interrupt to
-     actually be generated */
   if (idle_loop) {
 #if 0
     LOG_INFO("sh4_analyze_block detected idle loop at 0x%08x",
@@ -286,7 +284,6 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
 #endif
 
     block->idle_loop = 1;
-    block->num_cycles *= 10;
   }
 }
 

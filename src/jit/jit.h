@@ -43,12 +43,6 @@ struct jit_block {
   /* is block an idle loop */
   int idle_loop;
 
-  /* number of guest instructions in block */
-  int num_instrs;
-
-  /* estimated number of guest cycles to execute block */
-  int num_cycles;
-
   /* maps guest instructions to host instructions */
   void **source_map;
 

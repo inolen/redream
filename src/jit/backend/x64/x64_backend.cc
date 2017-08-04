@@ -309,10 +309,22 @@ static void x64_backend_emit_epilogue(struct x64_backend *backend,
 }
 
 static void x64_backend_emit_prologue(struct x64_backend *backend,
-                                      struct jit_block *block) {
+                                      struct jit_block *block,
+                                      struct ir_block *ir) {
   struct jit_guest *guest = backend->base.guest;
 
   auto &e = *backend->codegen;
+
+  /* count number of instrs / cycles in the block */
+  int num_instrs = 0;
+  int num_cycles = 0;
+
+  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
+    if (instr->op == OP_SOURCE_INFO) {
+      num_instrs += 1;
+      num_cycles += instr->arg[1]->i32;
+    }
+  }
 
   /* yield control once remaining cycles are executed */
   e.mov(e.eax, e.dword[guestctx + guest->offset_cycles]);
@@ -325,8 +337,8 @@ static void x64_backend_emit_prologue(struct x64_backend *backend,
   e.jnz(backend->dispatch_interrupt);
 
   /* update run counts */
-  e.sub(e.dword[guestctx + guest->offset_cycles], block->num_cycles);
-  e.add(e.dword[guestctx + guest->offset_instrs], block->num_instrs);
+  e.sub(e.dword[guestctx + guest->offset_cycles], num_cycles);
+  e.add(e.dword[guestctx + guest->offset_instrs], num_instrs);
 }
 
 static void x64_backend_emit(struct x64_backend *backend,
@@ -338,13 +350,12 @@ static void x64_backend_emit(struct x64_backend *backend,
 
   e.inLocalLabel();
 
-  x64_backend_emit_prologue(backend, block);
-
   list_for_each_entry(blk, &ir->blocks, struct ir_block, it) {
     char block_label[128];
     x64_backend_block_label(block_label, sizeof(block_label), blk);
-
     e.L(block_label);
+
+    x64_backend_emit_prologue(backend, block, blk);
 
     list_for_each_entry(instr, &blk->instrs, struct ir_instr, it) {
       struct jit_emitter *emitter = &x64_emitters[instr->op];
@@ -353,9 +364,9 @@ static void x64_backend_emit(struct x64_backend *backend,
 
       emit(backend, *backend->codegen, block, instr);
     }
-  }
 
-  x64_backend_emit_epilogue(backend, block);
+    x64_backend_emit_epilogue(backend, block);
+  }
 
   e.outLocalLabel();
 
