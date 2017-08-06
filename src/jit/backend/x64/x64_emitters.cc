@@ -919,11 +919,10 @@ EMITTER(BRANCH, CONSTRAINTS(NONE, REG_I64 | IMM_I32)) {
 EMITTER(BRANCH_FALSE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
   struct jit_guest *guest = backend->base.jit->guest;
 
-  e.inLocalLabel();
-
   Xbyak::Reg cond = ARG1_REG;
+  Xbyak::Label next;
   e.test(cond, cond);
-  e.jnz(".next");
+  e.jnz(next);
 
   if (ir_is_constant(ARG0)) {
     uint32_t addr = ARG0->i32;
@@ -935,19 +934,16 @@ EMITTER(BRANCH_FALSE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
     e.jmp(backend->dispatch_dynamic);
   }
 
-  e.L(".next");
-
-  e.outLocalLabel();
+  e.L(next);
 }
 
 EMITTER(BRANCH_TRUE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
   struct jit_guest *guest = backend->base.jit->guest;
 
-  e.inLocalLabel();
-
-  const Xbyak::Reg cond = ARG1_REG;
+  Xbyak::Reg cond = ARG1_REG;
+  Xbyak::Label next;
   e.test(cond, cond);
-  e.jz(".next");
+  e.jz(next);
 
   if (ir_is_constant(ARG0)) {
     uint32_t addr = ARG0->i32;
@@ -959,9 +955,7 @@ EMITTER(BRANCH_TRUE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
     e.jmp(backend->dispatch_dynamic);
   }
 
-  e.L(".next");
-
-  e.outLocalLabel();
+  e.L(next);
 }
 
 EMITTER(CALL, CONSTRAINTS(NONE, VAL_I64, OPT_I64, OPT_I64)) {

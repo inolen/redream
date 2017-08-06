@@ -295,15 +295,8 @@ const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
   return e.ptr[e.rip + backend->xmm_const[c]];
 }
 
-static void x64_backend_block_label(char *name, size_t size,
-                                    struct ir_block *block) {
+void x64_backend_block_label(char *name, size_t size, struct ir_block *block) {
   snprintf(name, size, ".%p", block);
-}
-
-static void x64_backend_label_name(char *name, size_t size,
-                                   struct ir_value *v) {
-  /* all ir labels are local labels */
-  snprintf(name, size, ".%s", v->str);
 }
 
 static void x64_backend_emit_epilogue(struct x64_backend *backend,

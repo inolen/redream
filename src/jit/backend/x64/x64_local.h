@@ -87,6 +87,7 @@ void x64_backend_mov_value(struct x64_backend *backend, const Xbyak::Reg &dst,
                            const struct ir_value *v);
 const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
                                               enum xmm_constant c);
+void x64_backend_block_label(char *name, size_t size, struct ir_block *block);
 
 /*
  * dispatch
