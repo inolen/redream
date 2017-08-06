@@ -16,6 +16,11 @@ static void *ir_calloc(struct ir *ir, int size) {
   return ptr;
 }
 
+static struct ir_block *ir_alloc_block(struct ir *ir) {
+  struct ir_block *block = ir_calloc(ir, sizeof(struct ir_block));
+  return block;
+}
+
 static struct ir_instr *ir_alloc_instr(struct ir *ir, enum ir_op op) {
   struct ir_instr *instr = ir_calloc(ir, sizeof(struct ir_instr));
 
@@ -44,7 +49,11 @@ struct ir_insert_point ir_get_insert_point(struct ir *ir) {
 }
 
 void ir_set_insert_point(struct ir *ir, struct ir_insert_point *point) {
-  ir->cursor = *point;
+  if (point->instr) {
+    ir_set_current_instr(ir, point->instr);
+  } else {
+    ir_set_current_block(ir, point->block);
+  }
 }
 
 void ir_set_current_block(struct ir *ir, struct ir_block *block) {
@@ -53,12 +62,12 @@ void ir_set_current_block(struct ir *ir, struct ir_block *block) {
 }
 
 void ir_set_current_instr(struct ir *ir, struct ir_instr *instr) {
-  ir->cursor.block = instr->block;
+  ir->cursor.block = NULL;
   ir->cursor.instr = instr;
 }
 
 struct ir_block *ir_insert_block(struct ir *ir, struct ir_block *after) {
-  struct ir_block *block = ir_calloc(ir, sizeof(struct ir_block));
+  struct ir_block *block = ir_alloc_block(ir);
 
   list_add_after_entry(&ir->blocks, after, block, it);
 
@@ -66,9 +75,48 @@ struct ir_block *ir_insert_block(struct ir *ir, struct ir_block *after) {
 }
 
 struct ir_block *ir_append_block(struct ir *ir) {
-  struct ir_block *last_block =
-      list_last_entry(&ir->blocks, struct ir_block, it);
-  return ir_insert_block(ir, last_block);
+  struct ir_block *prev_block = NULL;
+
+  if (ir->cursor.block) {
+    prev_block = ir->cursor.block;
+  } else if (ir->cursor.instr) {
+    prev_block = ir->cursor.instr->block;
+  }
+
+  struct ir_block *block = ir_insert_block(ir, prev_block);
+  ir_set_current_block(ir, block);
+  return block;
+}
+
+struct ir_block *ir_split_block(struct ir *ir, struct ir_instr *before) {
+  /* if before is the first instruction in the block, nothing to split */
+  struct ir_instr *after = list_prev_entry(before, struct ir_instr, it);
+  if (!after) {
+    return before->block;
+  }
+
+  struct ir_block *old_block = before->block;
+  struct ir_block *new_block = ir_insert_block(ir, old_block);
+
+  /* TODO add list splice method */
+  struct ir_instr *instr = before;
+  after = NULL;
+
+  while (instr) {
+    struct ir_instr *next = list_next_entry(instr, struct ir_instr, it);
+
+    /* remove from old block */
+    list_remove_entry(&old_block->instrs, instr, it);
+
+    /* add to new block */
+    list_add_after_entry(&new_block->instrs, after, instr, it);
+    instr->block = new_block;
+
+    after = instr;
+    instr = next;
+  }
+
+  return new_block;
 }
 
 void ir_set_block_label(struct ir *ir, struct ir_block *block,
@@ -90,18 +138,6 @@ void ir_set_block_label(struct ir *ir, struct ir_block *block,
 }
 
 void ir_remove_block(struct ir *ir, struct ir_block *block) {
-  /* update current position */
-  if (ir->cursor.block == block) {
-    if (block->it.next) {
-      ir->cursor.block = list_next_entry(block, struct ir_block, it);
-    } else {
-      ir->cursor.block = list_prev_entry(block, struct ir_block, it);
-    }
-
-    ir->cursor.instr =
-        list_last_entry(&ir->cursor.block->instrs, struct ir_instr, it);
-  }
-
   /* remove all instructions */
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
     ir_remove_instr(ir, instr);
@@ -131,11 +167,6 @@ void ir_add_edge(struct ir *ir, struct ir_block *src, struct ir_block *dst) {
 
 struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
                                  enum ir_type result_type) {
-  if (!ir->cursor.block) {
-    ir->cursor.block = ir_insert_block(ir, ir->cursor.block);
-    ir->cursor.instr = NULL;
-  }
-
   /* allocate instruction and its result if needed */
   struct ir_instr *instr = ir_alloc_instr(ir, op);
 
@@ -147,12 +178,25 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
     instr->result = result;
   }
 
-  /* append to the current block */
-  instr->block = ir->cursor.block;
-  list_add_after_entry(&instr->block->instrs, ir->cursor.instr, instr, it);
+  /* append after the cursor */
+  struct ir_block *parent = NULL;
+  struct ir_instr *after = NULL;
+
+  if (ir->cursor.block) {
+    parent = ir->cursor.block;
+    after = NULL;
+  } else if (ir->cursor.instr) {
+    parent = ir->cursor.instr->block;
+    after = ir->cursor.instr;
+  } else {
+    parent = ir_insert_block(ir, NULL);
+  }
+
+  instr->block = parent;
+  list_add_after_entry(&parent->instrs, after, instr, it);
 
   /* update current position */
-  ir->cursor.instr = instr;
+  ir_set_current_instr(ir, instr);
 
   return instr;
 }
@@ -288,7 +332,7 @@ struct ir_value *ir_alloc_ptr(struct ir *ir, void *c) {
   return ir_alloc_i64(ir, (uint64_t)c);
 }
 
-struct ir_value *ir_alloc_block(struct ir *ir, struct ir_block *block) {
+struct ir_value *ir_alloc_block_ref(struct ir *ir, struct ir_block *block) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_BLOCK;
   v->blk = block;

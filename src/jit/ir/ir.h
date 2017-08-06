@@ -225,6 +225,7 @@ void ir_set_current_instr(struct ir *ir, struct ir_instr *instr);
 
 struct ir_block *ir_insert_block(struct ir *ir, struct ir_block *after);
 struct ir_block *ir_append_block(struct ir *ir);
+struct ir_block *ir_split_block(struct ir *ir, struct ir_instr *before);
 void ir_set_block_label(struct ir *ir, struct ir_block *block,
                         const char *format, ...);
 void ir_remove_block(struct ir *ir, struct ir_block *block);
@@ -245,7 +246,7 @@ struct ir_value *ir_alloc_f32(struct ir *ir, float c);
 struct ir_value *ir_alloc_f64(struct ir *ir, double c);
 struct ir_value *ir_alloc_str(struct ir *ir, const char *format, ...);
 struct ir_value *ir_alloc_ptr(struct ir *ir, void *c);
-struct ir_value *ir_alloc_block(struct ir *ir, struct ir_block *block);
+struct ir_value *ir_alloc_block_ref(struct ir *ir, struct ir_block *block);
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type);
 struct ir_local *ir_reuse_local(struct ir *ir, struct ir_value *offset,
                                 enum ir_type type);

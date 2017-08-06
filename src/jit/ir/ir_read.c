@@ -178,7 +178,7 @@ static int ir_resolve_references(struct ir_parser *p, struct ir *ir) {
         return 0;
       }
 
-      value = ir_alloc_block(ir, found);
+      value = ir_alloc_block_ref(ir, found);
     } else {
       struct ir_instr *found = NULL;
       list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
