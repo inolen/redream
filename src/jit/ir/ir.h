@@ -5,7 +5,6 @@
 #include "core/assert.h"
 #include "core/list.h"
 
-#define IR_MAX_LABEL 128
 #define IR_MAX_ARGS 4
 #define NO_REGISTER -1
 
@@ -99,8 +98,6 @@ struct ir_value {
 };
 
 struct ir_instr {
-  const char *label;
-
   enum ir_op op;
 
   /* values used by each argument. note, the argument / use is split into two
@@ -132,8 +129,6 @@ struct ir_edge {
 };
 
 struct ir_block {
-  const char *label;
-
   struct list instrs;
 
   /* edges between this block and others */
@@ -226,15 +221,11 @@ void ir_set_current_instr(struct ir *ir, struct ir_instr *instr);
 struct ir_block *ir_insert_block(struct ir *ir, struct ir_block *after);
 struct ir_block *ir_append_block(struct ir *ir);
 struct ir_block *ir_split_block(struct ir *ir, struct ir_instr *before);
-void ir_set_block_label(struct ir *ir, struct ir_block *block,
-                        const char *format, ...);
 void ir_remove_block(struct ir *ir, struct ir_block *block);
 void ir_add_edge(struct ir *ir, struct ir_block *src, struct ir_block *dst);
 
 struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
                                  enum ir_type result_type);
-void ir_set_instr_label(struct ir *ir, struct ir_instr *instr,
-                        const char *format, ...);
 void ir_remove_instr(struct ir *ir, struct ir_instr *instr);
 
 struct ir_value *ir_alloc_int(struct ir *ir, int64_t c, enum ir_type type);

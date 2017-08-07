@@ -2,7 +2,37 @@
 #include "core/string.h"
 #include "jit/ir/ir.h"
 
-static void ir_write_type(enum ir_type type, FILE *output) {
+struct ir_writer {
+  struct ir *ir;
+  int *labels;
+};
+
+static void ir_destroy_writer(struct ir_writer *w) {
+  free(w->labels);
+}
+
+static void ir_insert_block_label(struct ir_writer *w,
+                                  const struct ir_block *block, int label) {
+  w->labels[(uint8_t *)block - w->ir->buffer] = label;
+}
+
+static void ir_insert_instr_label(struct ir_writer *w,
+                                  const struct ir_instr *instr, int label) {
+  w->labels[(uint8_t *)instr - w->ir->buffer] = label;
+}
+
+static int ir_get_block_label(struct ir_writer *w,
+                              const struct ir_block *block) {
+  return w->labels[(uint8_t *)block - w->ir->buffer];
+}
+
+static int ir_get_instr_label(struct ir_writer *w,
+                              const struct ir_instr *instr) {
+  return w->labels[(uint8_t *)instr - w->ir->buffer];
+}
+
+static void ir_write_type(struct ir_writer *w, enum ir_type type,
+                          FILE *output) {
   switch (type) {
     case VALUE_I8:
       fprintf(output, "i8");
@@ -32,12 +62,12 @@ static void ir_write_type(enum ir_type type, FILE *output) {
       fprintf(output, "blk");
       break;
     default:
-      LOG_FATAL("Unexpected value type");
+      LOG_FATAL("unexpected value type");
       break;
   }
 }
 
-static void ir_write_op(enum ir_op op, FILE *output) {
+static void ir_write_op(struct ir_writer *w, enum ir_op op, FILE *output) {
   const struct ir_opdef *def = &ir_opdefs[op];
   const char *name = def->name;
 
@@ -47,8 +77,9 @@ static void ir_write_op(enum ir_op op, FILE *output) {
   }
 }
 
-static void ir_write_value(const struct ir_value *value, FILE *output) {
-  ir_write_type(value->type, output);
+static void ir_write_value(struct ir_writer *w, const struct ir_value *value,
+                           FILE *output) {
+  ir_write_type(w, value->type, output);
 
   fprintf(output, " ");
 
@@ -79,26 +110,27 @@ static void ir_write_value(const struct ir_value *value, FILE *output) {
         fprintf(output, "'%s'", value->str);
       } break;
       case VALUE_BLOCK:
-        fprintf(output, "%%%s", value->blk->label);
+        fprintf(output, "%%%d", ir_get_block_label(w, value->blk));
         break;
       default:
-        LOG_FATAL("Unexpected value type");
+        LOG_FATAL("unexpected value type");
         break;
     }
   } else {
-    fprintf(output, "%%%s", value->def->label);
+    fprintf(output, "%%%d", ir_get_instr_label(w, value->def));
   }
 }
 
-static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
+static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
+                           FILE *output) {
   /* print result value if it exists */
   if (instr->result) {
-    ir_write_value(instr->result, output);
+    ir_write_value(w, instr->result, output);
     fprintf(output, " = ");
   }
 
   /* print the actual op */
-  ir_write_op(instr->op, output);
+  ir_write_op(w, instr->op, output);
   fprintf(output, " ");
 
   /* print each argument */
@@ -116,7 +148,7 @@ static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
       need_comma = 0;
     }
 
-    ir_write_value(arg, output);
+    ir_write_value(w, arg, output);
 
     need_comma = 1;
   }
@@ -129,36 +161,40 @@ static void ir_write_instr(const struct ir_instr *instr, FILE *output) {
   fprintf(output, "\n");
 }
 
-static void ir_write_block(const struct ir_block *block, FILE *output) {
-  fprintf(output, "%%%s:\n", block->label);
+static void ir_write_block(struct ir_writer *w, const struct ir_block *block,
+                           FILE *output) {
+  fprintf(output, "%%%d:\n", ir_get_block_label(w, block));
 
   list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
-    ir_write_instr(instr, output);
+    ir_write_instr(w, instr, output);
   }
 
   fprintf(output, "\n");
 }
 
-static void ir_assign_default_labels(struct ir *ir) {
-  int id = 0;
+static void ir_assign_labels(struct ir_writer *w) {
+  int label = 0;
 
-  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
-    if (!block->label) {
-      ir_set_block_label(ir, block, "%d", id++);
-    }
+  w->labels = malloc(sizeof(int) * w->ir->capacity);
+
+  list_for_each_entry(block, &w->ir->blocks, struct ir_block, it) {
+    ir_insert_block_label(w, block, label++);
 
     list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
-      if (!instr->label) {
-        ir_set_instr_label(ir, instr, "%d", id++);
-      }
+      ir_insert_instr_label(w, instr, label++);
     }
   }
 }
 
 void ir_write(struct ir *ir, FILE *output) {
-  ir_assign_default_labels(ir);
+  struct ir_writer w = {0};
+  w.ir = ir;
+
+  ir_assign_labels(&w);
 
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
-    ir_write_block(block, output);
+    ir_write_block(&w, block, output);
   }
+
+  ir_destroy_writer(&w);
 }

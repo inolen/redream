@@ -119,24 +119,6 @@ struct ir_block *ir_split_block(struct ir *ir, struct ir_instr *before) {
   return new_block;
 }
 
-void ir_set_block_label(struct ir *ir, struct ir_block *block,
-                        const char *format, ...) {
-  va_list args;
-
-  va_start(args, format);
-  int label_len = vsnprintf(0, 0, format, args);
-  int label_size = label_len + 1;
-  CHECK_LE(label_size, IR_MAX_LABEL);
-  char *label = ir_calloc(ir, label_size);
-  va_end(args);
-
-  va_start(args, format);
-  vsnprintf(label, label_size, format, args);
-  va_end(args);
-
-  block->label = label;
-}
-
 void ir_remove_block(struct ir *ir, struct ir_block *block) {
   /* remove all instructions */
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
@@ -199,24 +181,6 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
   ir_set_current_instr(ir, instr);
 
   return instr;
-}
-
-void ir_set_instr_label(struct ir *ir, struct ir_instr *instr,
-                        const char *format, ...) {
-  va_list args;
-
-  va_start(args, format);
-  int label_len = vsnprintf(0, 0, format, args);
-  int label_size = label_len + 1;
-  CHECK_LE(label_size, IR_MAX_LABEL);
-  char *label = ir_calloc(ir, label_size);
-  va_end(args);
-
-  va_start(args, format);
-  vsnprintf(label, label_size, format, args);
-  va_end(args);
-
-  instr->label = label;
 }
 
 void ir_remove_instr(struct ir *ir, struct ir_instr *instr) {
