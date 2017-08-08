@@ -90,7 +90,7 @@ const struct jit_register x64_registers[] = {
     {"xmm15", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm15}
 };
 
-const int x64_num_registers = array_size(x64_registers);
+const int x64_num_registers = ARRAY_SIZE(x64_registers);
 /* clang-format on */
 
 const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
@@ -642,9 +642,9 @@ struct jit_backend *x64_backend_create(struct jit_guest *guest, void *code,
 
   /* compile interface */
   backend->base.registers = x64_registers;
-  backend->base.num_registers = array_size(x64_registers);
+  backend->base.num_registers = ARRAY_SIZE(x64_registers);
   backend->base.emitters = x64_emitters;
-  backend->base.num_emitters = array_size(x64_emitters);
+  backend->base.num_emitters = ARRAY_SIZE(x64_emitters);
   backend->base.reset = &x64_backend_reset;
   backend->base.assemble_code = &x64_backend_assemble_code;
   backend->base.dump_code = &x64_backend_dump_code;

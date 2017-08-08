@@ -179,7 +179,7 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
     return 0;
   }
 
-  if (sector_type >= array_size(cdi_sector_sizes)) {
+  if (sector_type >= ARRAY_SIZE(cdi_sector_sizes)) {
     LOG_WARNING("cdi_parse unsupported sector type 0x%x", sector_type);
     return 0;
   }
@@ -301,7 +301,7 @@ static int cdi_parse(struct disc *disc, const char *filename) {
   }
 
   int found = 0;
-  for (int i = 0; i < array_size(cdi_versions); i++) {
+  for (int i = 0; i < ARRAY_SIZE(cdi_versions); i++) {
     if (version == cdi_versions[i]) {
       LOG_INFO("cdi_parse version %s detected", cdi_version_names[i]);
       found = 1;

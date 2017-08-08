@@ -156,7 +156,7 @@ static int chd_parse(struct disc *disc, const char *filename) {
     }
 
     /* add track */
-    CHECK_LT(chd->num_tracks, array_size(chd->tracks));
+    CHECK_LT(chd->num_tracks, ARRAY_SIZE(chd->tracks));
     struct track *track = &chd->tracks[chd->num_tracks++];
     track->num = chd->num_tracks;
     track->fad = fad;

@@ -36,7 +36,7 @@ static int boot_validate(struct boot *boot) {
   char result[33];
   MD5_Final(result, &md5_ctx);
 
-  for (int i = 0; i < array_size(valid_bios_md5); ++i) {
+  for (int i = 0; i < ARRAY_SIZE(valid_bios_md5); ++i) {
     if (strcmp(result, valid_bios_md5[i]) == 0) {
       return 1;
     }

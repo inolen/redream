@@ -143,7 +143,7 @@ static int gdi_parse(struct disc *disc, const char *filename) {
     }
 
     /* add track */
-    CHECK_LT(gdi->num_tracks, array_size(gdi->tracks));
+    CHECK_LT(gdi->num_tracks, ARRAY_SIZE(gdi->tracks));
     struct track *track = &gdi->tracks[gdi->num_tracks++];
     track->num = gdi->num_tracks;
     track->fad = lba + GDROM_PREGAP;

@@ -707,7 +707,7 @@ struct tracer *tracer_create(struct host *host) {
   tracer->imgui = imgui_create(tracer->r);
 
   /* add all textures to free list */
-  for (int i = 0, n = array_size(tracer->textures); i < n; i++) {
+  for (int i = 0, n = ARRAY_SIZE(tracer->textures); i < n; i++) {
     struct tracer_texture *tex = &tracer->textures[i];
     list_add(&tracer->free_textures, &tex->free_it);
   }

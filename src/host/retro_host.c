@@ -26,7 +26,7 @@ static retro_input_state_t input_state_cb;
  */
 
 /* clang-format off */
-#define NUM_CONTROLLER_DESC          (array_size(controller_desc)-1)
+#define NUM_CONTROLLER_DESC          (ARRAY_SIZE(controller_desc)-1)
 
 #define CONTROLLER_DESC(port)                                                                                 \
   { port, RETRO_DEVICE_JOYPAD, 0,                              RETRO_DEVICE_ID_JOYPAD_A,     "B" },           \

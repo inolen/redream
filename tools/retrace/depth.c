@@ -144,7 +144,7 @@ int cmd_depth(int argc, const char **argv) {
       {"24-bit int using log2 w/ fixed max", &test_log2_fixed, &depth_cmp, 0,
        0},
   };
-  int num_tests = array_size(tests);
+  int num_tests = ARRAY_SIZE(tests);
 
   /* check each context in the trace */
   struct trace_cmd *next = trace->cmds;

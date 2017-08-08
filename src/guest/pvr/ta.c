@@ -627,7 +627,7 @@ static int ta_init(struct device *dev) {
 
   ta->video_ram = memory_translate(dc->memory, "video ram", 0x0);
 
-  for (int i = 0; i < array_size(ta->contexts); i++) {
+  for (int i = 0; i < ARRAY_SIZE(ta->contexts); i++) {
     struct tile_context *ctx = &ta->contexts[i];
     list_add(&ta->free_contexts, &ctx->it);
   }

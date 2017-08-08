@@ -12,7 +12,7 @@ static inline void copy_state_to(mcontext_t *src, struct thread_state *dst) {
   CHECK_EQ(simd->head.magic, FPSIMD_MAGIC);
   CHECK_EQ(simd->head.size, sizeof(struct fpsimd_context));
 
-  for (int i = 0; i < array_size(dst->r); i++) {
+  for (int i = 0; i < ARRAY_SIZE(dst->r); i++) {
     dst->r[i] = src->regs[i];
   }
 
@@ -20,7 +20,7 @@ static inline void copy_state_to(mcontext_t *src, struct thread_state *dst) {
   dst->pc = src->pc;
   dst->pstate = src->pstate;
 
-  for (int i = 0; i < array_size(dst->v); i++) {
+  for (int i = 0; i < ARRAY_SIZE(dst->v); i++) {
     dst->v[i] = simd->vregs[i];
   }
 
@@ -53,7 +53,7 @@ static inline void copy_state_from(struct thread_state *src, mcontext_t *dst) {
   CHECK_EQ(simd->head.magic, FPSIMD_MAGIC);
   CHECK_EQ(simd->head.size, sizeof(struct fpsimd_context));
 
-  for (int i = 0; i < array_size(src->r); i++) {
+  for (int i = 0; i < ARRAY_SIZE(src->r); i++) {
     dst->regs[i] = src->r[i];
   }
 
@@ -61,7 +61,7 @@ static inline void copy_state_from(struct thread_state *src, mcontext_t *dst) {
   dst->pc = src->pc;
   dst->pstate = src->pstate;
 
-  for (int i = 0; i < array_size(src->v); i++) {
+  for (int i = 0; i < ARRAY_SIZE(src->v); i++) {
     simd->vregs[i] = src->v[i];
   }
 

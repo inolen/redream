@@ -488,7 +488,7 @@ static void emu_host_resized(void *userdata) {
  */
 static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
   int i;
-  int num_aspect_ratios = array_size(aspect_ratios);
+  int num_aspect_ratios = ARRAY_SIZE(aspect_ratios);
 
   for (i = 0; i < num_aspect_ratios; i++) {
     const char *aspect_ratio = aspect_ratios[i];
@@ -538,7 +538,7 @@ static void emu_debug_menu(struct emu *emu) {
 
     if (igBeginMenu("VIDEO", 1)) {
       if (igBeginMenu("aspect ratio", 1)) {
-        for (int i = 0; i < array_size(aspect_ratios); i++) {
+        for (int i = 0; i < ARRAY_SIZE(aspect_ratios); i++) {
           const char *aspect_ratio = aspect_ratios[i];
           int selected = !strcmp(OPTION_aspect_ratio, aspect_ratio);
 
@@ -590,7 +590,7 @@ static void emu_debug_menu(struct emu *emu) {
       /* frame times */
       {
         struct ImVec2 graph_size = {300.0f, 50.0f};
-        int num_frame_times = array_size(emu->frame_times);
+        int num_frame_times = ARRAY_SIZE(emu->frame_times);
 
         float min_time = FLT_MAX;
         float max_time = -FLT_MAX;
@@ -763,7 +763,7 @@ void emu_render_frame(struct emu *emu) {
 
     if (emu->last_paint) {
       float frame_time_ms = (float)(now - emu->last_paint) / 1000000.0f;
-      int num_frame_times = array_size(emu->frame_times);
+      int num_frame_times = ARRAY_SIZE(emu->frame_times);
       emu->frame_times[emu->frame % num_frame_times] = frame_time_ms;
     }
 
@@ -831,7 +831,7 @@ struct emu *emu_create(struct host *host) {
   emu->dc->vertical_blank = &emu_guest_vertical_blank;
 
   /* add all textures to free list by default */
-  for (int i = 0; i < array_size(emu->textures); i++) {
+  for (int i = 0; i < ARRAY_SIZE(emu->textures); i++) {
     struct emu_texture *tex = &emu->textures[i];
     list_add(&emu->free_textures, &tex->free_it);
   }

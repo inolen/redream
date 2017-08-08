@@ -53,7 +53,7 @@ TEST(intrusive_list_append) {
   list_add(&people, &ccc.it);
 
   struct person *expected[] = {&aaa, &bbb, &ccc};
-  int num_expected = array_size(expected);
+  int num_expected = ARRAY_SIZE(expected);
   validate_people(&people, expected, num_expected);
 }
 
@@ -64,7 +64,7 @@ TEST(intrusive_list_prepend) {
   list_add_after(&people, NULL, &ccc.it);
 
   struct person *expected[] = {&ccc, &bbb, &aaa};
-  int num_expected = array_size(expected);
+  int num_expected = ARRAY_SIZE(expected);
   validate_people(&people, expected, num_expected);
 }
 
@@ -76,7 +76,7 @@ TEST(intrusive_list_remove_head) {
   list_remove(&people, &aaa.it);
 
   struct person *expected[] = {&bbb, &ccc};
-  int num_expected = array_size(expected);
+  int num_expected = ARRAY_SIZE(expected);
   validate_people(&people, expected, num_expected);
 }
 
@@ -87,7 +87,7 @@ TEST(intrusive_list_remove_middle) {
   list_remove(&people, &bbb.it);
 
   struct person *expected[] = {&aaa, &ccc};
-  int num_expected = array_size(expected);
+  int num_expected = ARRAY_SIZE(expected);
   validate_people(&people, expected, num_expected);
 }
 
@@ -98,7 +98,7 @@ TEST(intrusive_list_remove_tail) {
   list_remove(&people, &ccc.it);
 
   struct person *expected[] = {&aaa, &bbb};
-  int num_expected = array_size(expected);
+  int num_expected = ARRAY_SIZE(expected);
   validate_people(&people, expected, num_expected);
 }
 

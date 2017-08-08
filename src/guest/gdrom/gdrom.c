@@ -274,7 +274,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       gdrom_get_toc(gd, area, &toc);
 
       /* bswap multibyte values to BE */
-      for (int i = 0; i < array_size(toc.entries); i++) {
+      for (int i = 0; i < ARRAY_SIZE(toc.entries); i++) {
         struct gd_spi_toc_entry *entry = &toc.entries[i];
         entry->fad = bswap24(entry->fad);
       }

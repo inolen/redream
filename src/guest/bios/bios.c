@@ -72,21 +72,21 @@ static void bios_override_flash_settings(struct bios *bios) {
   int bcast = 0;
   uint32_t time = bios_local_time();
 
-  for (int i = 0; i < array_size(regions); i++) {
+  for (int i = 0; i < ARRAY_SIZE(regions); i++) {
     if (!strcmp(OPTION_region, regions[i])) {
       region = i;
       break;
     }
   }
 
-  for (int i = 0; i < array_size(languages); i++) {
+  for (int i = 0; i < ARRAY_SIZE(languages); i++) {
     if (!strcmp(OPTION_language, languages[i])) {
       lang = i;
       break;
     }
   }
 
-  for (int i = 0; i < array_size(broadcasts); i++) {
+  for (int i = 0; i < ARRAY_SIZE(broadcasts); i++) {
     if (!strcmp(OPTION_broadcast, broadcasts[i])) {
       bcast = i;
       break;
@@ -293,7 +293,7 @@ void bios_debug_menu(struct bios *bios) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("BIOS", 1)) {
       if (igBeginMenu("region", 1)) {
-        for (int i = 0; i < array_size(regions); i++) {
+        for (int i = 0; i < ARRAY_SIZE(regions); i++) {
           const char *region = regions[i];
           int selected = !strcmp(OPTION_region, region);
 
@@ -306,7 +306,7 @@ void bios_debug_menu(struct bios *bios) {
       }
 
       if (igBeginMenu("language", 1)) {
-        for (int i = 0; i < array_size(languages); i++) {
+        for (int i = 0; i < ARRAY_SIZE(languages); i++) {
           const char *language = languages[i];
           int selected = !strcmp(OPTION_language, language);
 
@@ -319,7 +319,7 @@ void bios_debug_menu(struct bios *bios) {
       }
 
       if (igBeginMenu("broadcast", 1)) {
-        for (int i = 0; i < array_size(broadcasts); i++) {
+        for (int i = 0; i < ARRAY_SIZE(broadcasts); i++) {
           const char *broadcast = broadcasts[i];
           int selected = !strcmp(OPTION_broadcast, broadcast);
 

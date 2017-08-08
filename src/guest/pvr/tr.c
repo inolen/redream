@@ -354,7 +354,7 @@ static struct ta_surface *tr_reserve_surf(struct tr *tr, struct tr_context *rc,
                                           int copy_from_prev) {
   int surf_index = rc->num_surfs;
 
-  CHECK_LT(surf_index, array_size(rc->surfs));
+  CHECK_LT(surf_index, ARRAY_SIZE(rc->surfs));
   struct ta_surface *surf = &rc->surfs[surf_index];
 
   if (copy_from_prev) {
@@ -375,11 +375,11 @@ static struct ta_vertex *tr_reserve_vert(struct tr *tr, struct tr_context *rc) {
   int curr_surf_vert = curr_surf->num_verts / 3;
 
   int vert_index = rc->num_verts + curr_surf_vert;
-  CHECK_LT(vert_index, array_size(rc->verts));
+  CHECK_LT(vert_index, ARRAY_SIZE(rc->verts));
   struct ta_vertex *vert = &rc->verts[vert_index];
 
   int index = rc->num_indices + curr_surf->num_verts;
-  CHECK_LT(index + 2, array_size(rc->indices));
+  CHECK_LT(index + 2, ARRAY_SIZE(rc->indices));
   uint16_t *indices = &rc->indices[index];
 
   memset(vert, 0, sizeof(*vert));
@@ -801,7 +801,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
 
       static const int indices[] = {0, 1, 3, 2};
 
-      for (int i = 0, l = array_size(indices); i < l; i++) {
+      for (int i = 0, l = ARRAY_SIZE(indices); i < l; i++) {
         int idx = indices[i];
         struct ta_vertex *vert = tr_reserve_vert(tr, rc);
 
@@ -822,7 +822,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct tile_context *ctx,
 
       static const int indices[] = {0, 1, 3, 2};
 
-      for (int i = 0, l = array_size(indices); i < l; i++) {
+      for (int i = 0, l = ARRAY_SIZE(indices); i < l; i++) {
         int idx = indices[i];
         struct ta_vertex *vert = tr_reserve_vert(tr, rc);
 

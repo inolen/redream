@@ -127,7 +127,7 @@ static void audio_write_callback(void *userdata, Uint8 *stream, int len) {
 
   while (frames_remaining > 0) {
     /* batch read frames from ring buffer */
-    int n = MIN(frames_remaining, array_size(tmp));
+    int n = MIN(frames_remaining, ARRAY_SIZE(tmp));
     n = audio_read_frames(host, tmp, n);
     frames_remaining -= n;
 
