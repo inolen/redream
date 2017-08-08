@@ -10,8 +10,8 @@
 #define CLAMP(x, lo, hi) MAX((lo), MIN((hi), (x)))
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
-#define align_up(v, alignment) (((v) + (alignment)-1) & ~((alignment)-1))
-#define align_down(v, alignment) ((v) & ~((alignment)-1))
+#define ALIGN_UP(v, alignment) (((v) + (alignment)-1) & ~((alignment)-1))
+#define ALIGN_DOWN(v, alignment) ((v) & ~((alignment)-1))
 
 static inline uint32_t bswap24(uint32_t v) {
   return ((v & 0xff) << 16) | (v & 0x00ff00) | ((v & 0xff0000) >> 16);

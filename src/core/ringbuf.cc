@@ -96,7 +96,7 @@ struct ringbuf *ringbuf_create(int size) {
 
   /* round up size to the next allocation granularity multiple */
   int page_size = (int)get_allocation_granularity();
-  rb->size = align_up(size, page_size);
+  rb->size = ALIGN_UP(size, page_size);
 
   /* create shared memory object that will back the buffer */
   char label[128];

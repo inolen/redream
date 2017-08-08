@@ -285,7 +285,7 @@ struct ir_value *ir_alloc_block_ref(struct ir *ir, struct ir_block *block) {
 struct ir_local *ir_alloc_local(struct ir *ir, enum ir_type type) {
   /* align local to natural size */
   int type_size = ir_type_size(type);
-  ir->locals_size = align_up(ir->locals_size, type_size);
+  ir->locals_size = ALIGN_UP(ir->locals_size, type_size);
 
   struct ir_local *l = ir_calloc(ir, sizeof(struct ir_local));
   l->type = type;

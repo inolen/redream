@@ -184,7 +184,7 @@ static int chd_parse(struct disc *disc, const char *filename) {
              track->fad, track->sector_size);
 
     /* chd block addresses are padded to a 4-frame boundary */
-    cad += align_up(frames, 4);
+    cad += ALIGN_UP(frames, 4);
     fad += frames;
   }
 

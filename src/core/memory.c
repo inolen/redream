@@ -105,8 +105,8 @@ struct memory_watch *add_single_write_watch(const void *ptr, size_t size,
 
   /* page align the range to be watched */
   size_t page_size = get_page_size();
-  uintptr_t aligned_begin = align_down((uintptr_t)ptr, page_size);
-  uintptr_t aligned_end = align_up((uintptr_t)ptr + size, page_size) - 1;
+  uintptr_t aligned_begin = ALIGN_DOWN((uintptr_t)ptr, page_size);
+  uintptr_t aligned_end = ALIGN_UP((uintptr_t)ptr + size, page_size) - 1;
   size_t aligned_size = (aligned_end - aligned_begin) + 1;
 
   /* disable writing to the pages */
