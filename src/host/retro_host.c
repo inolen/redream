@@ -200,6 +200,8 @@ void retro_init() {
   /* set application directory */
   const char *sysdir = NULL;
   if (env_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &sysdir)) {
+    char appdir[PATH_MAX];
+    snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR "dc", sysdir);
     fs_set_appdir(sysdir);
   }
 
@@ -219,7 +221,7 @@ unsigned retro_api_version() {
 void retro_get_system_info(struct retro_system_info *info) {
   info->library_name = "redream";
   info->library_version = "0.0";
-  info->valid_extensions = "gdi|cdi";
+  info->valid_extensions = "cdi|chd|gdi";
   info->need_fullpath = true;
   info->block_extract = false;
 }
