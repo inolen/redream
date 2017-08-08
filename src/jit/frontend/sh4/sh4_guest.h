@@ -2,7 +2,8 @@
 #define SH4_GUEST_H
 
 #include <stdint.h>
-#include "jit/jit.h"
+#include <stdlib.h>
+#include "jit/jit_guest.h"
 
 /*
  * sh4 guest context
@@ -180,13 +181,5 @@ struct sh4_guest {
   sh4_sr_updated_cb sr_updated;
   sh4_fpscr_updated_cb fpscr_updated;
 };
-
-static inline struct sh4_guest *sh4_guest_create() {
-  return calloc(1, sizeof(struct sh4_guest));
-}
-
-static inline void sh4_guest_destroy(struct sh4_guest *guest) {
-  free(guest);
-}
 
 #endif

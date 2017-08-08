@@ -111,7 +111,7 @@ void sh4_dbg_remove_breakpoint(struct device *dev, int type, uint32_t addr) {
   as_write16(sh4->memory_if->space, addr, bp->instr);
 
   /* free code cache to remove block containing the invalid instruction  */
-  jit_free_blocks(sh4->jit);
+  jit_free_code(sh4->jit);
 
   destroy_breakpoint(sh4, bp);
 }
@@ -126,7 +126,7 @@ void sh4_dbg_add_breakpoint(struct device *dev, int type, uint32_t addr) {
   as_write16(sh4->memory_if->space, addr, 0);
 
   /* free code cache to remove block containing the original instruction  */
-  jit_free_blocks(sh4->jit);
+  jit_free_code(sh4->jit);
 }
 
 void sh4_dbg_step(struct device *dev) {

@@ -9,7 +9,7 @@
 #include <xbyak/xbyak_util.h>
 
 extern "C" {
-#include "jit/backend/jit_backend.h"
+#include "jit/jit_backend.h"
 }
 
 enum xmm_constant {

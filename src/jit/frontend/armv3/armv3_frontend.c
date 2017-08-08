@@ -5,6 +5,7 @@
 #include "jit/frontend/armv3/armv3_guest.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+#include "jit/jit_guest.h"
 
 struct armv3_frontend {
   struct jit_frontend;
@@ -18,7 +19,7 @@ static const struct jit_opdef *armv3_frontend_lookup_op(
 static void armv3_frontend_dump_code(struct jit_frontend *base,
                                      const struct jit_block *block) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
-  struct jit_guest *guest = frontend->jit->guest;
+  struct jit_guest *guest = frontend->guest;
 
   char buffer[128];
 
@@ -37,7 +38,7 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
                                           struct jit_block *block,
                                           struct ir *ir) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
-  struct armv3_guest *guest = (struct armv3_guest *)frontend->jit->guest;
+  struct armv3_guest *guest = (struct armv3_guest *)frontend->guest;
 
   for (int offset = 0; offset < block->guest_size; offset += 4) {
     uint32_t addr = block->guest_addr + offset;
@@ -52,7 +53,7 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
 static void armv3_frontend_analyze_code(struct jit_frontend *base,
                                         struct jit_block *block) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
-  struct armv3_guest *guest = (struct armv3_guest *)frontend->jit->guest;
+  struct armv3_guest *guest = (struct armv3_guest *)frontend->guest;
   uint32_t addr = block->guest_addr;
 
   block->guest_size = 0;
@@ -91,12 +92,10 @@ void armv3_frontend_destroy(struct jit_frontend *base) {
   free(frontend);
 }
 
-static void armv3_frontend_init(struct jit_frontend *frontend) {}
-
-struct jit_frontend *armv3_frontend_create() {
+struct jit_frontend *armv3_frontend_create(struct jit_guest *guest) {
   struct armv3_frontend *frontend = calloc(1, sizeof(struct armv3_frontend));
 
-  frontend->init = &armv3_frontend_init;
+  frontend->guest = guest;
   frontend->destroy = &armv3_frontend_destroy;
   frontend->analyze_code = &armv3_frontend_analyze_code;
   frontend->translate_code = &armv3_frontend_translate_code;

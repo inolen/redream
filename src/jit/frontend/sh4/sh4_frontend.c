@@ -1,12 +1,13 @@
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "core/profiler.h"
-#include "jit/frontend/jit_frontend.h"
 #include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/frontend/sh4/sh4_fallback.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/frontend/sh4/sh4_translate.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+#include "jit/jit_frontend.h"
+#include "jit/jit_guest.h"
 
 /*
  * fsca estimate lookup table, used by the jit and interpreter
@@ -27,7 +28,7 @@ static const struct jit_opdef *sh4_frontend_lookup_op(struct jit_frontend *base,
 static void sh4_frontend_dump_code(struct jit_frontend *base,
                                    const struct jit_block *block) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  struct jit_guest *guest = frontend->jit->guest;
+  struct jit_guest *guest = frontend->guest;
 
   char buffer[128];
 
@@ -61,7 +62,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                                         struct jit_block *block,
                                         struct ir *ir) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  struct sh4_guest *guest = (struct sh4_guest *)frontend->jit->guest;
+  struct sh4_guest *guest = (struct sh4_guest *)frontend->guest;
   struct sh4_context *ctx = (struct sh4_context *)guest->ctx;
 
   PROF_ENTER("cpu", "sh4_frontend_translate_code");
@@ -156,7 +157,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 static void sh4_frontend_analyze_code(struct jit_frontend *base,
                                       struct jit_block *block) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  struct sh4_guest *guest = (struct sh4_guest *)frontend->jit->guest;
+  struct sh4_guest *guest = (struct sh4_guest *)frontend->guest;
 
   static int IDLE_MASK = SH4_FLAG_LOAD | SH4_FLAG_COND | SH4_FLAG_CMP;
   int idle_loop = 1;
@@ -294,12 +295,10 @@ static void sh4_frontend_destroy(struct jit_frontend *base) {
   free(frontend);
 }
 
-static void sh4_frontend_init(struct jit_frontend *base) {}
-
-struct jit_frontend *sh4_frontend_create() {
+struct jit_frontend *sh4_frontend_create(struct jit_guest *guest) {
   struct sh4_frontend *frontend = calloc(1, sizeof(struct sh4_frontend));
 
-  frontend->init = &sh4_frontend_init;
+  frontend->guest = guest;
   frontend->destroy = &sh4_frontend_destroy;
   frontend->analyze_code = &sh4_frontend_analyze_code;
   frontend->translate_code = &sh4_frontend_translate_code;

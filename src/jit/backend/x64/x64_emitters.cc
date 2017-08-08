@@ -3,6 +3,7 @@
 extern "C" {
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+#include "jit/jit_guest.h"
 }
 
 #define EMITTER(op, constraints)                                           \
@@ -62,11 +63,13 @@ struct jit_emitter x64_emitters[IR_NUM_OPS];
 EMITTER(SOURCE_INFO, CONSTRAINTS(NONE, IMM_I32, IMM_I32)) {
   /*uint32_t addr = ARG0->i32;*/
   int index = ARG1->i32;
-  block->source_map[index] = e.getCurr<void *>();
+  if (block->source_map) {
+    block->source_map[index] = e.getCurr<void *>();
+  }
 }
 
 EMITTER(FALLBACK, CONSTRAINTS(NONE, IMM_I64, IMM_I32, IMM_I32)) {
-  struct jit_guest *guest = backend->base.jit->guest;
+  struct jit_guest *guest = backend->base.guest;
   void *fallback = (void *)ARG0->i64;
   uint32_t addr = ARG1->i32;
   uint32_t raw_instr = ARG2->i32;
@@ -92,7 +95,7 @@ EMITTER(STORE_HOST, CONSTRAINTS(NONE, REG_I64, VAL_ALL)) {
 }
 
 EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
-  struct jit_guest *guest = backend->base.jit->guest;
+  struct jit_guest *guest = backend->base.guest;
   Xbyak::Reg dst = RES_REG;
   struct ir_value *addr = ARG0;
 
@@ -149,7 +152,7 @@ EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
 }
 
 EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
-  struct jit_guest *guest = backend->base.jit->guest;
+  struct jit_guest *guest = backend->base.guest;
   struct ir_value *addr = ARG0;
   struct ir_value *data = ARG1;
 
@@ -903,7 +906,7 @@ EMITTER(LSHD, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64)) {
 }
 
 EMITTER(BRANCH, CONSTRAINTS(NONE, REG_I64 | IMM_I32)) {
-  struct jit_guest *guest = backend->base.jit->guest;
+  struct jit_guest *guest = backend->base.guest;
 
   if (ir_is_constant(ARG0)) {
     uint32_t addr = ARG0->i32;
@@ -917,7 +920,7 @@ EMITTER(BRANCH, CONSTRAINTS(NONE, REG_I64 | IMM_I32)) {
 }
 
 EMITTER(BRANCH_FALSE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
-  struct jit_guest *guest = backend->base.jit->guest;
+  struct jit_guest *guest = backend->base.guest;
 
   Xbyak::Reg cond = ARG1_REG;
   Xbyak::Label next;
@@ -938,7 +941,7 @@ EMITTER(BRANCH_FALSE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
 }
 
 EMITTER(BRANCH_TRUE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
-  struct jit_guest *guest = backend->base.jit->guest;
+  struct jit_guest *guest = backend->base.guest;
 
   Xbyak::Reg cond = ARG1_REG;
   Xbyak::Label next;

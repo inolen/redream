@@ -15,7 +15,7 @@ void pass_stats_unregister(struct pass_stat *stat) {
 
 void pass_stats_dump() {
   LOG_INFO("===-----------------------------------------------------===");
-  LOG_INFO("Pass stats");
+  LOG_INFO("pass stats");
   LOG_INFO("===-----------------------------------------------------===");
 
   int w = 0;

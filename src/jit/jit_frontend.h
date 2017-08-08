@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 struct ir;
-struct jit;
 struct jit_block;
 struct jit_guest;
 struct jit_frontend;
@@ -22,9 +21,8 @@ struct jit_opdef {
 };
 
 struct jit_frontend {
-  struct jit *jit;
+  struct jit_guest *guest;
 
-  void (*init)(struct jit_frontend *);
   void (*destroy)(struct jit_frontend *);
 
   void (*analyze_code)(struct jit_frontend *, struct jit_block *);

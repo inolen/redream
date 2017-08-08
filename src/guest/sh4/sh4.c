@@ -153,6 +153,14 @@ static void sh4_check_interrupts(struct sh4 *sh4) {
   sh4_sr_updated(sh4, sh4->ctx.ssr);
 }
 
+static void sh4_link_code(struct sh4 *sh4, void *branch, uint32_t target) {
+  jit_link_code(sh4->jit, branch, target);
+}
+
+static void sh4_compile_code(struct sh4 *sh4, uint32_t addr) {
+  jit_compile_code(sh4->jit, addr);
+}
+
 static void sh4_invalid_instr(struct sh4 *sh4) {
   sh4_exception(sh4, SH4_EXC_ILLINSTR);
 }
@@ -174,53 +182,62 @@ static void sh4_run(struct device *dev, int64_t ns) {
   PROF_LEAVE();
 }
 
+static void sh4_guest_destroy(struct jit_guest *guest) {
+  free((struct sh4_guest *)guest);
+}
+
+static struct jit_guest *sh4_guest_create(struct sh4 *sh4) {
+  struct sh4_guest *guest = calloc(1, sizeof(struct sh4_guest));
+
+  /* dispatch cache */
+  guest->addr_mask = 0x00fffffe;
+
+  /* memory interface */
+  guest->ctx = &sh4->ctx;
+  guest->mem = as_translate(sh4->memory_if->space, 0x0);
+  guest->space = sh4->memory_if->space;
+  guest->lookup = &as_lookup;
+  guest->r8 = &as_read8;
+  guest->r16 = &as_read16;
+  guest->r32 = &as_read32;
+  guest->w8 = &as_write8;
+  guest->w16 = &as_write16;
+  guest->w32 = &as_write32;
+
+  /* runtime interface */
+  guest->data = sh4;
+  guest->offset_pc = (int)offsetof(struct sh4_context, pc);
+  guest->offset_cycles = (int)offsetof(struct sh4_context, run_cycles);
+  guest->offset_instrs = (int)offsetof(struct sh4_context, ran_instrs);
+  guest->offset_interrupts =
+      (int)offsetof(struct sh4_context, pending_interrupts);
+  guest->compile_code = (jit_compile_cb)&sh4_compile_code;
+  guest->link_code = (jit_link_cb)&sh4_link_code;
+  guest->check_interrupts = (jit_interrupt_cb)&sh4_check_interrupts;
+  guest->invalid_instr = (sh4_invalid_instr_cb)&sh4_invalid_instr;
+  guest->ltlb = (sh4_ltlb_cb)&sh4_mmu_ltlb;
+  guest->pref = (sh4_pref_cb)&sh4_ccn_pref;
+  guest->sleep = (sh4_sleep_cb)&sh4_sleep;
+  guest->sr_updated = (sh4_sr_updated_cb)&sh4_sr_updated;
+  guest->fpscr_updated = (sh4_fpscr_updated_cb)&sh4_fpscr_updated;
+
+  return (struct jit_guest *)guest;
+}
+
 static int sh4_init(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct dreamcast *dc = sh4->dc;
 
-  /* initialize jit and its interfaces */
-  sh4->frontend = sh4_frontend_create();
-
+  /* initialize jit */
+  sh4->guest = sh4_guest_create(sh4);
+  sh4->frontend = sh4_frontend_create(sh4->guest);
 #if ARCH_X64
   DEFINE_JIT_CODE_BUFFER(sh4_code);
-  sh4->backend = x64_backend_create(sh4_code, sizeof(sh4_code));
+  sh4->backend = x64_backend_create(sh4->guest, sh4_code, sizeof(sh4_code));
 #else
-  sh4->backend = interp_backend_create();
+  sh4->backend = interp_backend_create(sh4->guest, sh4->frontend);
 #endif
-
-  {
-    sh4->guest = sh4_guest_create();
-
-    sh4->guest->addr_mask = 0x00fffffe;
-
-    sh4->guest->data = sh4;
-    sh4->guest->offset_pc = (int)offsetof(struct sh4_context, pc);
-    sh4->guest->offset_cycles = (int)offsetof(struct sh4_context, run_cycles);
-    sh4->guest->offset_instrs = (int)offsetof(struct sh4_context, ran_instrs);
-    sh4->guest->offset_interrupts =
-        (int)offsetof(struct sh4_context, pending_interrupts);
-    sh4->guest->check_interrupts = (jit_interrupt_cb)&sh4_check_interrupts;
-
-    sh4->guest->ctx = &sh4->ctx;
-    sh4->guest->mem = as_translate(sh4->memory_if->space, 0x0);
-    sh4->guest->space = sh4->memory_if->space;
-    sh4->guest->invalid_instr = (sh4_invalid_instr_cb)&sh4_invalid_instr;
-    sh4->guest->ltlb = (sh4_ltlb_cb)&sh4_mmu_ltlb;
-    sh4->guest->pref = (sh4_pref_cb)&sh4_ccn_pref;
-    sh4->guest->sleep = (sh4_sleep_cb)&sh4_sleep;
-    sh4->guest->sr_updated = (sh4_sr_updated_cb)&sh4_sr_updated;
-    sh4->guest->fpscr_updated = (sh4_fpscr_updated_cb)&sh4_fpscr_updated;
-    sh4->guest->lookup = &as_lookup;
-    sh4->guest->r8 = &as_read8;
-    sh4->guest->r16 = &as_read16;
-    sh4->guest->r32 = &as_read32;
-    sh4->guest->w8 = &as_write8;
-    sh4->guest->w16 = &as_write16;
-    sh4->guest->w32 = &as_write32;
-  }
-
-  sh4->jit = jit_create("sh4", sh4->frontend, sh4->backend,
-                        (struct jit_guest *)sh4->guest);
+  sh4->jit = jit_create("sh4", sh4->frontend, sh4->backend);
 
   return 1;
 }
@@ -242,7 +259,7 @@ void sh4_set_exception_handler(struct sh4 *sh4,
 }
 
 void sh4_reset(struct sh4 *sh4, uint32_t pc) {
-  jit_free_blocks(sh4->jit);
+  jit_free_code(sh4->jit);
 
   /* reset context */
   memset(&sh4->ctx, 0, sizeof(sh4->ctx));
@@ -276,17 +293,17 @@ void sh4_debug_menu(struct sh4 *sh4) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("SH4", 1)) {
       if (igMenuItem("clear cache", NULL, 0, 1)) {
-        jit_invalidate_blocks(sh4->jit);
+        jit_invalidate_code(sh4->jit);
       }
 
-      if (!jit->dump_blocks) {
-        if (igMenuItem("start dumping blocks", NULL, 0, 1)) {
-          jit->dump_blocks = 1;
-          jit_invalidate_blocks(jit);
+      if (!jit->dump_code) {
+        if (igMenuItem("start dumping code", NULL, 0, 1)) {
+          jit->dump_code = 1;
+          jit_invalidate_code(jit);
         }
       } else {
-        if (igMenuItem("stop dumping blocks", NULL, 1, 1)) {
-          jit->dump_blocks = 0;
+        if (igMenuItem("stop dumping code", NULL, 1, 1)) {
+          jit->dump_code = 0;
         }
       }
 

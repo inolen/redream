@@ -2,7 +2,7 @@
 #define ARMV3_DISASM_H
 
 #include <stddef.h>
-#include "jit/frontend/jit_frontend.h"
+#include "jit/jit_frontend.h"
 
 enum armv3_op_flag {
   FLAG_SET_PC = 0x1,

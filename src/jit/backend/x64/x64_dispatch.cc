@@ -4,6 +4,7 @@ extern "C" {
 #include "core/assert.h"
 #include "core/profiler.h"
 #include "jit/jit.h"
+#include "jit/jit_guest.h"
 }
 
 DEFINE_COUNTER(edges_patched);
@@ -79,7 +80,7 @@ void x64_dispatch_run_code(struct jit_backend *base, int cycles) {
 }
 
 void x64_dispatch_emit_thunks(struct x64_backend *backend) {
-  struct jit *jit = backend->base.jit;
+  struct jit_guest *guest = backend->base.guest;
 
   auto &e = *backend->codegen;
 
@@ -98,7 +99,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
 
     /* invasively look into the jit's cache */
     e.mov(e.rax, (uint64_t)backend->cache);
-    e.mov(e.ecx, e.dword[guestctx + jit->guest->offset_pc]);
+    e.mov(e.ecx, e.dword[guestctx + guest->offset_pc]);
     e.and_(e.ecx, backend->cache_mask);
     e.jmp(e.qword[e.rax + e.rcx * (sizeof(void *) >> backend->cache_shift)]);
   }
@@ -115,11 +116,11 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     backend->dispatch_static = e.getCurr<void *>();
 
 #if LINK_STATIC_BRANCHES
-    e.mov(arg0, (uint64_t)jit);
+    e.mov(arg0, (uint64_t)guest->data);
     e.pop(arg1);
     e.sub(arg1, 5 /* sizeof jmp instr */);
-    e.mov(arg2, e.qword[guestctx + jit->guest->offset_pc]);
-    e.call(&jit_add_edge);
+    e.mov(arg2, e.qword[guestctx + guest->offset_pc]);
+    e.call(guest->link_code);
 #else
     e.pop(arg1);
 #endif
@@ -133,9 +134,9 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
 
     backend->dispatch_compile = e.getCurr<void *>();
 
-    e.mov(arg0, (uint64_t)jit);
-    e.mov(arg1, e.dword[guestctx + jit->guest->offset_pc]);
-    e.call(&jit_compile_block);
+    e.mov(arg0, (uint64_t)guest->data);
+    e.mov(arg1, e.dword[guestctx + guest->offset_pc]);
+    e.call(guest->compile_code);
     e.jmp(backend->dispatch_dynamic);
   }
 
@@ -146,8 +147,8 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
 
     backend->dispatch_interrupt = e.getCurr<void *>();
 
-    e.mov(arg0, (uint64_t)jit->guest->data);
-    e.call(jit->guest->check_interrupts);
+    e.mov(arg0, (uint64_t)guest->data);
+    e.call(guest->check_interrupts);
     e.jmp(backend->dispatch_dynamic);
   }
 
@@ -173,12 +174,12 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     e.sub(e.rsp, X64_STACK_SIZE + 8);
 
     /* assign fixed registers */
-    e.mov(guestctx, (uint64_t)jit->guest->ctx);
-    e.mov(guestmem, (uint64_t)jit->guest->mem);
+    e.mov(guestctx, (uint64_t)guest->ctx);
+    e.mov(guestmem, (uint64_t)guest->mem);
 
     /* reset run state */
-    e.mov(e.dword[guestctx + jit->guest->offset_cycles], arg0);
-    e.mov(e.dword[guestctx + jit->guest->offset_instrs], 0);
+    e.mov(e.dword[guestctx + guest->offset_cycles], arg0);
+    e.mov(e.dword[guestctx + guest->offset_instrs], 0);
 
     e.jmp(backend->dispatch_dynamic);
   }
@@ -216,11 +217,11 @@ void x64_dispatch_shutdown(struct x64_backend *backend) {
 }
 
 void x64_dispatch_init(struct x64_backend *backend) {
-  struct jit *jit = backend->base.jit;
+  struct jit_guest *guest = backend->base.guest;
 
   /* initialize code cache, one entry per possible block begin */
-  backend->cache_mask = jit->guest->addr_mask;
-  backend->cache_shift = ctz32(jit->guest->addr_mask);
+  backend->cache_mask = guest->addr_mask;
+  backend->cache_shift = ctz32(guest->addr_mask);
   backend->cache_size = (backend->cache_mask >> backend->cache_shift) + 1;
   backend->cache = (void **)malloc(backend->cache_size * sizeof(void *));
 }

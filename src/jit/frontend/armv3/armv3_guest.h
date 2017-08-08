@@ -1,23 +1,18 @@
 #ifndef ARMV3_GUEST_H
 #define ARMV3_GUEST_H
 
-#include "jit/jit.h"
+#include <stdlib.h>
+#include "jit/jit_guest.h"
+
+typedef void (*armv3_switch_mode_cb)(void *, uint32_t);
+typedef void (*armv3_restore_mode_cb)(void *);
 
 struct armv3_guest {
   struct jit_guest;
 
   /* runtime interface */
-  void (*switch_mode)(void *, uint32_t);
-  void (*restore_mode)(void *);
-  void (*software_interrupt)(void *);
+  armv3_switch_mode_cb switch_mode;
+  armv3_restore_mode_cb restore_mode;
 };
-
-static inline struct armv3_guest *armv3_guest_create() {
-  return calloc(1, sizeof(struct armv3_guest));
-}
-
-static inline void armv3_guest_destroy(struct armv3_guest *guest) {
-  free(guest);
-}
 
 #endif

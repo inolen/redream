@@ -781,10 +781,15 @@ FALLBACK(SWP) {
 /*
  * software interrupt
  */
-
 FALLBACK(SWI) {
   CHECK_COND();
 
-  REG(15) = addr + 4;
-  guest->software_interrupt(guest->data);
+  uint32_t oldsr = REG(CPSR);
+  uint32_t newsr = (oldsr & ~M_MASK) | I_MASK | MODE_SVC;
+
+  guest->switch_mode(guest->data, newsr);
+  REG(14) = addr + 4;
+  REG(15) = 0x8;
+
+  LOG_WARNING("SWI");
 }

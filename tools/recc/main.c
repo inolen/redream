@@ -2,27 +2,24 @@
 #include "core/log.h"
 #include "core/option.h"
 #include "jit/backend/x64/x64_backend.h"
-#include "jit/frontend/sh4/sh4_disasm.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+#include "jit/jit_guest.h"
 #include "jit/pass_stats.h"
 #include "jit/passes/constant_propagation_pass.h"
-#include "jit/passes/conversion_elimination_pass.h"
 #include "jit/passes/dead_code_elimination_pass.h"
 #include "jit/passes/expression_simplification_pass.h"
 #include "jit/passes/load_store_elimination_pass.h"
 #include "jit/passes/register_allocation_pass.h"
 
-DEFINE_OPTION_INT(help, 0, "Show help");
-DEFINE_OPTION_STRING(pass, "lse,cprop,cve,esimp,dce,ra",
+DEFINE_OPTION_STRING(pass, "lse,cprop,esimp,dce,ra",
                      "Comma-separated list of passes to run");
 
 DEFINE_STAT(ir_instrs_total, "total ir instructions");
 DEFINE_STAT(ir_instrs_removed, "removed ir instructions");
 
+DEFINE_JIT_CODE_BUFFER(code);
 static uint8_t ir_buffer[1024 * 1024];
-static uint8_t code[1024 * 1024];
-static int code_size = sizeof(code);
 
 static int get_num_instrs(const struct ir *ir) {
   int n = 0;
@@ -54,7 +51,7 @@ static void sanitize_ir(struct ir *ir) {
   }
 }
 
-static void process_file(struct jit *jit, const char *filename,
+static void process_file(struct jit_backend *backend, const char *filename,
                          int disable_dumps) {
   struct ir ir = {0};
   ir.buffer = ir_buffer;
@@ -71,7 +68,7 @@ static void process_file(struct jit *jit, const char *filename,
   sanitize_ir(&ir);
 
   /* run optimization passes */
-  char passes[MAX_OPTION_LENGTH];
+  char passes[OPTION_MAX_LENGTH];
   strncpy(passes, OPTION_pass, sizeof(passes));
 
   int num_instrs_before = get_num_instrs(&ir);
@@ -95,18 +92,18 @@ static void process_file(struct jit *jit, const char *filename,
       esimp_run(esimp, &ir);
       esimp_destroy(esimp);
     } else if (!strcmp(name, "ra")) {
-      struct ra *ra =
-          ra_create(jit->backend->registers, jit->backend->num_registers);
+      struct ra *ra = ra_create(backend->registers, backend->num_registers,
+                                backend->emitters, backend->num_emitters);
       ra_run(ra, &ir);
       ra_destroy(ra);
     } else {
-      LOG_WARNING("Unknown pass %s", name);
+      LOG_WARNING("unknown pass %s", name);
     }
 
     /* print ir after each pass if requested */
     if (!disable_dumps) {
       LOG_INFO("===-----------------------------------------------------===");
-      LOG_INFO("IR after %s", name);
+      LOG_INFO("ir after %s", name);
       LOG_INFO("===-----------------------------------------------------===");
       ir_write(&ir, stdout);
       LOG_INFO("");
@@ -118,17 +115,16 @@ static void process_file(struct jit *jit, const char *filename,
   int num_instrs_after = get_num_instrs(&ir);
 
   /* assemble backend code */
-  struct jit_block block;
-
-  jit->backend->reset(jit->backend);
-  int res = jit->backend->assemble_code(jit->backend, &block, &ir);
+  struct jit_block block = {0};
+  backend->reset(backend);
+  int res = backend->assemble_code(backend, &block, &ir);
   CHECK(res);
 
   if (!disable_dumps) {
     LOG_INFO("===-----------------------------------------------------===");
-    LOG_INFO("X64 code");
+    LOG_INFO("x64 code");
     LOG_INFO("===-----------------------------------------------------===");
-    jit->backend->dump_code(jit->backend, block.host_addr, block.host_size);
+    backend->dump_code(backend, &block);
     LOG_INFO("");
   }
 
@@ -137,11 +133,11 @@ static void process_file(struct jit *jit, const char *filename,
   STAT_ir_instrs_removed += num_instrs_before - num_instrs_after;
 }
 
-static void process_dir(struct jit *jit, const char *path) {
+static void process_dir(struct jit_backend *backend, const char *path) {
   DIR *dir = opendir(path);
 
   if (!dir) {
-    LOG_WARNING("Failed to open directory %s", path);
+    LOG_WARNING("failed to open directory %s", path);
     return;
   }
 
@@ -156,48 +152,35 @@ static void process_dir(struct jit *jit, const char *path) {
     snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "%s", path,
              ent->d_name);
 
-    LOG_INFO("Processing %s", filename);
+    LOG_INFO("processing %s", filename);
 
-    process_file(jit, filename, 1);
+    process_file(backend, filename, 1);
   }
 
   closedir(dir);
 }
 
 int main(int argc, char **argv) {
-  options_parse(&argc, &argv);
-
-  if (OPTION_help) {
-    options_print_help();
-    return EXIT_SUCCESS;
+  if (!options_parse(&argc, &argv)) {
+    return EXIT_FAILURE;
   }
 
   const char *path = argv[1];
 
   struct jit_guest guest = {0};
-  guest.r8 = (void *)code;
-  guest.r16 = (void *)code;
-  guest.r32 = (void *)code;
-  guest.w8 = (void *)code;
-  guest.w16 = (void *)code;
-  guest.w32 = (void *)code;
+  guest.addr_mask = 0xff;
 
-  struct jit_backend *backend = x64_backend_create(code, code_size);
-
-  /* initailize jit, stubbing out guest interfaces that are used during
-     assembly to a valid address */
-  struct jit *jit = jit_create("recc", NULL, backend, &guest);
+  struct jit_backend *backend = x64_backend_create(&guest, code, sizeof(code));
 
   if (fs_isfile(path)) {
-    process_file(jit, path, 0);
+    process_file(backend, path, 0);
   } else {
-    process_dir(jit, path);
+    process_dir(backend, path);
   }
 
   LOG_INFO("");
   pass_stats_dump();
 
-  jit_destroy(jit);
   backend->destroy(backend);
 
   return EXIT_SUCCESS;

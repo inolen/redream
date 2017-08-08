@@ -5,8 +5,8 @@
 #include "jit/ir/ir.h"
 
 struct exception_state;
-struct jit;
 struct jit_block;
+struct jit_guest;
 
 /* macro to help declare a code buffer for the backends to use
 
@@ -70,7 +70,7 @@ struct jit_emitter {
 };
 
 struct jit_backend {
-  struct jit *jit;
+  struct jit_guest *guest;
 
   const struct jit_register *registers;
   int num_registers;
@@ -78,7 +78,6 @@ struct jit_backend {
   const struct jit_emitter *emitters;
   int num_emitters;
 
-  void (*init)(struct jit_backend *);
   void (*destroy)(struct jit_backend *);
 
   /* compile interface */

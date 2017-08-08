@@ -25,7 +25,7 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
      end the block */
   LOG_INFO("sh4_ccn_reset");
 
-  jit_invalidate_blocks(sh4->jit);
+  jit_invalidate_code(sh4->jit);
 }
 
 void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {

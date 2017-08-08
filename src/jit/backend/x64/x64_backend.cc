@@ -4,11 +4,12 @@ extern "C" {
 #include "core/exception_handler.h"
 #include "core/memory.h"
 #include "core/profiler.h"
-#include "jit/backend/jit_backend.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/backend/x64/x64_disassembler.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+#include "jit/jit_backend.h"
+#include "jit/jit_guest.h"
 }
 
 /*
@@ -309,8 +310,7 @@ static void x64_backend_emit_epilogue(struct x64_backend *backend,
 
 static void x64_backend_emit_prologue(struct x64_backend *backend,
                                       struct jit_block *block) {
-  struct jit *jit = backend->base.jit;
-  struct jit_guest *guest = jit->guest;
+  struct jit_guest *guest = backend->base.guest;
 
   auto &e = *backend->codegen;
 
@@ -479,7 +479,7 @@ static void x64_backend_emit_constants(struct x64_backend *backend) {
 static int x64_backend_handle_exception(struct jit_backend *base,
                                         struct exception_state *ex) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
-  struct jit_guest *guest = backend->base.jit->guest;
+  struct jit_guest *guest = backend->base.guest;
 
   const uint8_t *data = (const uint8_t *)ex->thread_state.rip;
 
@@ -631,27 +631,13 @@ static void x64_backend_destroy(struct jit_backend *base) {
   free(backend);
 }
 
-static void x64_backend_init(struct jit_backend *base) {
-  struct x64_backend *backend = container_of(base, struct x64_backend, base);
-
-  x64_dispatch_init(backend);
-
-  /* emit thunks into a fixed amount of space to speed up resets */
-  x64_dispatch_emit_thunks(backend);
-  x64_backend_emit_thunks(backend);
-  x64_backend_emit_constants(backend);
-  CHECK_LT(backend->codegen->getSize(), X64_THUNK_SIZE);
-}
-
-struct jit_backend *x64_backend_create(void *code, int code_size) {
+struct jit_backend *x64_backend_create(struct jit_guest *guest, void *code,
+                                       int code_size) {
   struct x64_backend *backend =
       (struct x64_backend *)calloc(1, sizeof(struct x64_backend));
   Xbyak::util::Cpu cpu;
 
-  int r = protect_pages(code, code_size, ACC_READWRITEEXEC);
-  CHECK(r);
-
-  backend->base.init = &x64_backend_init;
+  backend->base.guest = guest;
   backend->base.destroy = &x64_backend_destroy;
 
   /* compile interface */
@@ -672,11 +658,23 @@ struct jit_backend *x64_backend_create(void *code, int code_size) {
   backend->base.patch_edge = &x64_dispatch_patch_edge;
   backend->base.restore_edge = &x64_dispatch_restore_edge;
 
+  /* setup codegen buffer */
+  int r = protect_pages(code, code_size, ACC_READWRITEEXEC);
+  CHECK(r);
+
   backend->codegen = new Xbyak::CodeGenerator(code_size, code);
   backend->use_avx = cpu.has(Xbyak::util::Cpu::tAVX2);
 
+  /* create disassembler */
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
   CHECK_EQ(res, CS_ERR_OK);
+
+  /* emit initial thunks */
+  x64_dispatch_init(backend);
+  x64_dispatch_emit_thunks(backend);
+  x64_backend_emit_thunks(backend);
+  x64_backend_emit_constants(backend);
+  CHECK_LT(backend->codegen->getSize(), X64_THUNK_SIZE);
 
   return &backend->base;
 }

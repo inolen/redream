@@ -5,9 +5,9 @@
 #include "core/filesystem.h"
 #include "core/option.h"
 #include "core/profiler.h"
-#include "jit/backend/jit_backend.h"
-#include "jit/frontend/jit_frontend.h"
 #include "jit/ir/ir.h"
+#include "jit/jit_backend.h"
+#include "jit/jit_frontend.h"
 #include "jit/passes/constant_propagation_pass.h"
 #include "jit/passes/dead_code_elimination_pass.h"
 #include "jit/passes/expression_simplification_pass.h"
@@ -203,7 +203,7 @@ static struct jit_block *jit_alloc_block(struct jit *jit) {
   return block;
 }
 
-void jit_free_blocks(struct jit *jit) {
+void jit_free_code(struct jit *jit) {
   /* invalidate code pointers and remove block entries from lookup maps. this
      is only safe to use when no code is currently executing */
   struct rb_node *it = rb_first(&jit->blocks);
@@ -221,7 +221,7 @@ void jit_free_blocks(struct jit *jit) {
   jit->backend->reset(jit->backend);
 }
 
-void jit_invalidate_blocks(struct jit *jit) {
+void jit_invalidate_code(struct jit *jit) {
   /* invalidate code pointers, but don't remove block entries from lookup maps.
      this is used when clearing the jit while code is currently executing */
   struct rb_node *it = rb_first(&jit->blocks);
@@ -238,7 +238,7 @@ void jit_invalidate_blocks(struct jit *jit) {
   /* don't reset backend code buffers, code is still running */
 }
 
-void jit_add_edge(struct jit *jit, void *branch, uint32_t addr) {
+void jit_link_code(struct jit *jit, void *branch, uint32_t addr) {
   struct jit_block *src = jit_lookup_block_reverse(jit, branch);
   struct jit_block *dst = jit_get_block(jit, addr);
 
@@ -274,7 +274,7 @@ static void jit_dump_block(struct jit *jit, uint32_t guest_addr,
   fclose(file);
 }
 
-void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
+void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   PROF_ENTER("cpu", "jit_compile_block");
 
 #if 0
@@ -332,7 +332,7 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
 #endif
 
   /* dump unoptimized block */
-  if (jit->dump_blocks) {
+  if (jit->dump_code) {
     jit_dump_block(jit, guest_addr, &ir);
   }
 
@@ -364,7 +364,7 @@ void jit_compile_block(struct jit *jit, uint32_t guest_addr) {
     /* if the backend overflowed, completely free the cache and let dispatch
        try to compile again */
     LOG_INFO("backend overflow, resetting code cache");
-    jit_free_blocks(jit);
+    jit_free_code(jit);
   }
 
   PROF_LEAVE();
@@ -420,7 +420,7 @@ void jit_destroy(struct jit *jit) {
   }
 
   if (jit->backend) {
-    jit_free_blocks(jit);
+    jit_free_code(jit);
   }
 
   if (jit->dce) {
@@ -447,29 +447,24 @@ void jit_destroy(struct jit *jit) {
 }
 
 struct jit *jit_create(const char *tag, struct jit_frontend *frontend,
-                       struct jit_backend *backend, struct jit_guest *guest) {
+                       struct jit_backend *backend) {
   struct jit *jit = calloc(1, sizeof(struct jit));
 
   strncpy(jit->tag, tag, sizeof(jit->tag));
-
   jit->frontend = frontend;
-  frontend->jit = jit;
-
   jit->backend = backend;
-  backend->jit = jit;
 
-  jit->guest = guest;
-
-  /* setup exception handler to deal with self-modifying code and fastmem
-     related exceptions */
-  jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
-
+  /* create optimization passes */
   jit->lse = lse_create();
   jit->cprop = cprop_create();
   jit->esimp = esimp_create();
   jit->dce = dce_create();
   jit->ra = ra_create(jit->backend->registers, jit->backend->num_registers,
                       jit->backend->emitters, jit->backend->num_emitters);
+
+  /* setup exception handler to deal with self-modifying code and fastmem
+     related exceptions */
+  jit->exc_handler = exception_handler_add(jit, &jit_handle_exception);
 
   /* open perf map if enabled */
   if (OPTION_perf) {
@@ -481,9 +476,6 @@ struct jit *jit_create(const char *tag, struct jit_frontend *frontend,
     CHECK_NOTNULL(jit->perf_map);
 #endif
   }
-
-  jit->frontend->init(jit->frontend);
-  jit->backend->init(jit->backend);
 
   return jit;
 }

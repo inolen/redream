@@ -2,7 +2,7 @@
 #define SH4_DISASM_H
 
 #include <stddef.h>
-#include "jit/frontend/jit_frontend.h"
+#include "jit/jit_frontend.h"
 
 enum {
   SH4_FLAG_INVALID = 0x1,
