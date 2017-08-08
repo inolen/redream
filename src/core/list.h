@@ -23,7 +23,6 @@ void list_add_after(struct list *list, struct list_node *after,
                     struct list_node *n);
 void list_remove(struct list *list, struct list_node *n);
 void list_clear(struct list *list);
-void list_sort(struct list *list, list_node_cmp cmp);
 
 #define list_for_each(list, it)                                                \
   for (struct list_node *it = (list)->head, *it##_next = it ? it->next : NULL; \

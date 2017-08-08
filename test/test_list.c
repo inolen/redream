@@ -114,31 +114,3 @@ TEST(intrusive_list_remove_clear) {
 
   CHECK(list_empty(&people));
 }
-
-/* sort tests */
-int person_sort(const struct list_node *list_lhs,
-                const struct list_node *list_rhs) {
-  const struct person *lhs = list_entry(list_lhs, const struct person, it);
-  const struct person *rhs = list_entry(list_rhs, const struct person, it);
-  /* sort in descending order */
-  return strcmp(rhs->name, lhs->name);
-}
-
-TEST(intrusive_list_empty_sort) {
-  struct list people = {0};
-
-  list_sort(&people, &person_sort);
-
-  CHECK(list_empty(&people));
-}
-
-TEST(intrusive_list_sort) {
-  struct list people = {0};
-  init_people(&people);
-
-  list_sort(&people, &person_sort);
-
-  struct person *expected[] = {&ccc, &bbb, &aaa};
-  int num_expected = array_size(expected);
-  validate_people(&people, expected, num_expected);
-}
