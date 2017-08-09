@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include "core/assert.h"
+#include "core/hash.h"
 #include "core/list.h"
 
 #define IR_MAX_ARGS 4
@@ -43,6 +44,14 @@ enum ir_cmp {
   CMP_SLT,
   CMP_ULE,
   CMP_ULT
+};
+
+enum ir_meta_type {
+  IR_META_ADDR,
+  IR_META_CYCLES,
+  IR_META_FASTMEM,
+  IR_META_REG,
+  IR_NUM_META,
 };
 
 struct ir_block;
@@ -95,6 +104,12 @@ struct ir_value {
   intptr_t tag;
 };
 
+struct ir_meta {
+  const void *key;
+  struct ir_value *value;
+  struct list_node it;
+};
+
 struct ir_instr {
   enum ir_op op;
 
@@ -117,7 +132,7 @@ struct ir_instr {
   struct list_node it;
 };
 
-/* blocks are collections of instructions, terminating in a single branch */
+/* control flow edge between blocks */
 struct ir_edge {
   struct ir_block *src;
   struct ir_block *dst;
@@ -126,6 +141,7 @@ struct ir_edge {
   struct list_node it;
 };
 
+/* blocks are collections of instructions, terminating in a single branch */
 struct ir_block {
   struct list instrs;
 
@@ -133,11 +149,10 @@ struct ir_block {
   struct list outgoing;
   struct list incoming;
 
-  /* intrusive iterator used by ir struct */
-  struct list_node it;
-
   /* generic meta data used by optimization passes */
   intptr_t tag;
+
+  struct list_node it;
 };
 
 /* locals are allocated for values that need to be spilled to the stack
@@ -153,21 +168,26 @@ struct ir_insert_point {
 };
 
 struct ir {
-  /* backing memory buffer used by all ir allocations */
+  /* backing memory buffer used by all allocations */
   uint8_t *buffer;
   int capacity;
   int used;
 
-  /* total size of locals allocated */
-  int locals_size;
-
   /* current insert point */
   struct ir_insert_point cursor;
 
+  /* current blocks in ir unit */
   struct list blocks;
+
+  /* total size of locals allocated */
+  int locals_size;
+
+  /* hashtables for each kind of meta data, keyed by each user's pointer */
+  DECLARE_HASHTABLE(meta[IR_NUM_META], 7);
 };
 
 extern const struct ir_opdef ir_opdefs[IR_NUM_OPS];
+extern const char *ir_meta_names[IR_NUM_META];
 
 static inline int ir_type_size(enum ir_type type) {
   switch (type) {
@@ -250,6 +270,11 @@ void ir_replace_use(struct ir_use *use, struct ir_value *other);
 void ir_replace_uses(struct ir_value *v, struct ir_value *other);
 
 uint64_t ir_zext_constant(const struct ir_value *v);
+
+/* attach meta data to instructions and blocks */
+struct ir_value *ir_get_meta(struct ir *ir, const void *obj, int kind);
+void ir_set_meta(struct ir *ir, const void *obj, int kind,
+                 struct ir_value *value);
 
 /* provides information to map guest instructions to host instructions */
 void ir_source_info(struct ir *ir, uint32_t addr, int index);

@@ -80,7 +80,7 @@ static void ir_lex_next(struct ir_parser *p) {
   }
 
   /* test for assignment operator */
-  if (next == ':' || next == ',' || next == '=') {
+  if (next == ':' || next == ',' || next == '=' || next == '!') {
     snprintf(p->val.s, sizeof(p->val.s), "%c", next);
     p->tok = TOK_OPERATOR;
     return;
@@ -307,6 +307,49 @@ static int ir_parse_label(struct ir_parser *p, int *label) {
   return 1;
 }
 
+static int ir_parse_constant(struct ir_parser *p, enum ir_type type,
+                             struct ir_value **value) {
+  if (p->tok != TOK_INTEGER) {
+    LOG_INFO("unexpected token %d when parsing constant", p->tok);
+    return 0;
+  }
+
+  switch (type) {
+    case VALUE_I8: {
+      uint8_t v = (uint8_t)p->val.i;
+      *value = ir_alloc_i8(p->ir, v);
+    } break;
+    case VALUE_I16: {
+      uint16_t v = (uint16_t)p->val.i;
+      *value = ir_alloc_i16(p->ir, v);
+    } break;
+    case VALUE_I32: {
+      uint32_t v = (uint32_t)p->val.i;
+      *value = ir_alloc_i32(p->ir, v);
+    } break;
+    case VALUE_I64: {
+      uint64_t v = (uint64_t)p->val.i;
+      *value = ir_alloc_i64(p->ir, v);
+    } break;
+    case VALUE_F32: {
+      uint32_t v = (uint32_t)p->val.i;
+      *value = ir_alloc_f32(p->ir, *(float *)&v);
+    } break;
+    case VALUE_F64: {
+      uint64_t v = (uint64_t)p->val.i;
+      *value = ir_alloc_f64(p->ir, *(double *)&v);
+    } break;
+    default:
+      LOG_FATAL("unexpected value type");
+      break;
+  }
+
+  /* eat token */
+  ir_lex_next(p);
+
+  return 1;
+}
+
 static int ir_parse_arg(struct ir_parser *p, struct ir_instr *instr, int arg) {
   /* parse value type */
   enum ir_type type;
@@ -327,47 +370,61 @@ static int ir_parse_arg(struct ir_parser *p, struct ir_instr *instr, int arg) {
        been parsed */
     int id = strtol(&ident[1], NULL, 10);
     ir_defer_reference(p, instr, arg, type, id);
-  } else if (p->tok == TOK_INTEGER || p->tok == TOK_STRING) {
-    struct ir_value *value = NULL;
 
-    switch (type) {
-      case VALUE_I8: {
-        uint8_t v = (uint8_t)p->val.i;
-        value = ir_alloc_i8(p->ir, v);
-      } break;
-      case VALUE_I16: {
-        uint16_t v = (uint16_t)p->val.i;
-        value = ir_alloc_i16(p->ir, v);
-      } break;
-      case VALUE_I32: {
-        uint32_t v = (uint32_t)p->val.i;
-        value = ir_alloc_i32(p->ir, v);
-      } break;
-      case VALUE_I64: {
-        uint64_t v = (uint64_t)p->val.i;
-        value = ir_alloc_i64(p->ir, v);
-      } break;
-      case VALUE_F32: {
-        uint32_t v = (uint32_t)p->val.i;
-        value = ir_alloc_f32(p->ir, *(float *)&v);
-      } break;
-      case VALUE_F64: {
-        uint64_t v = (uint64_t)p->val.i;
-        value = ir_alloc_f64(p->ir, *(double *)&v);
-      } break;
-      default:
-        LOG_FATAL("unexpected value type");
-        break;
+    /* eat token */
+    ir_lex_next(p);
+  } else {
+    struct ir_value *value = NULL;
+    if (!ir_parse_constant(p, type, &value)) {
+      return 0;
     }
 
     ir_set_arg(p->ir, instr, arg, value);
-  } else {
-    LOG_INFO("unexpected token %d when parsing value: %s", p->tok, p->val.s);
-    return 0;
   }
 
-  /* eat token */
+  return 1;
+}
+
+static int ir_parse_meta(struct ir_parser *p, void *obj) {
+  if (p->tok != TOK_OPERATOR || p->val.s[0] != '!') {
+    /* meta data is optional */
+    return 1;
+  }
   ir_lex_next(p);
+
+  while (p->tok == TOK_IDENTIFIER) {
+    for (int kind = 0; kind < IR_NUM_META; kind++) {
+      if (strcasecmp(p->val.s, ir_meta_names[kind])) {
+        continue;
+      }
+
+      /* eat name */
+      ir_lex_next(p);
+
+      /* parse value type */
+      enum ir_type type;
+      if (!ir_parse_type(p, &type)) {
+        return 0;
+      }
+
+      /* parse value */
+      struct ir_value *value = NULL;
+      if (!ir_parse_constant(p, type, &value)) {
+        return 0;
+      }
+
+      /* attach meta data to object */
+      ir_set_meta(p->ir, obj, kind, value);
+
+      /* break if no comma */
+      if (p->tok != TOK_OPERATOR) {
+        break;
+      }
+
+      /* eat comma and move onto the next argument */
+      ir_lex_next(p);
+    }
+  }
 
   return 1;
 }
@@ -407,6 +464,7 @@ static int ir_parse_instr(struct ir_parser *p) {
         return 0;
       }
 
+      /* break if no comma */
       if (p->tok != TOK_OPERATOR) {
         break;
       }
@@ -414,6 +472,10 @@ static int ir_parse_instr(struct ir_parser *p) {
       /* eat comma and move onto the next argument */
       ir_lex_next(p);
     }
+  }
+
+  if (!ir_parse_meta(p, instr)) {
+    return 0;
   }
 
   ir_insert_instr_label(p, instr, p->next_label++);
@@ -441,6 +503,10 @@ static int ir_parse_block(struct ir_parser *p) {
   struct ir_block *block = ir_append_block(p->ir);
   ir_insert_block_label(p, block, p->next_label++);
   ir_set_current_block(p->ir, block);
+
+  if (!ir_parse_meta(p, block)) {
+    return 0;
+  }
 
   return 1;
 }

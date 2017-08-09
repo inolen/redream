@@ -8,6 +8,10 @@ const struct ir_opdef ir_opdefs[IR_NUM_OPS] = {
 #include "jit/ir/ir_ops.inc"
 };
 
+const char *ir_meta_names[IR_NUM_META] = {
+    "addr", "cycles", "fastmem", "reg",
+};
+
 static void *ir_calloc(struct ir *ir, int size) {
   CHECK_LE(ir->used + size, ir->capacity);
   uint8_t *ptr = ir->buffer + ir->used;
@@ -215,7 +219,7 @@ struct ir_value *ir_alloc_int(struct ir *ir, int64_t c, enum ir_type type) {
       v->i64 = c;
       break;
     default:
-      LOG_FATAL("Unexpected value type");
+      LOG_FATAL("unexpected value type");
       break;
   }
   v->reg = NO_REGISTER;
@@ -358,9 +362,46 @@ uint64_t ir_zext_constant(const struct ir_value *v) {
     case VALUE_I64:
       return (uint64_t)v->i64;
     default:
-      LOG_FATAL("Unexpected value type");
+      LOG_FATAL("unexpected value type");
       break;
   }
+}
+
+struct ir_value *ir_get_meta(struct ir *ir, const void *obj, int kind) {
+  struct list *bkt = hash_bkt(ir->meta[kind], obj);
+
+  hash_bkt_for_each_entry(meta, bkt, struct ir_meta, it) {
+    if (meta->key == obj) {
+      CHECK(ir_is_constant(meta->value));
+      return meta->value;
+    }
+  }
+
+  return NULL;
+}
+
+void ir_set_meta(struct ir *ir, const void *obj, int kind,
+                 struct ir_value *value) {
+  struct list *bkt = hash_bkt(ir->meta[kind], obj);
+  struct ir_meta *meta = NULL;
+
+  CHECK(ir_is_constant(value));
+
+  /* reuse existing meta object if possible */
+  hash_bkt_for_each_entry(it, bkt, struct ir_meta, it) {
+    if (it->key == obj) {
+      meta = it;
+      break;
+    }
+  }
+
+  if (!meta) {
+    meta = ir_calloc(ir, sizeof(struct ir_meta));
+    meta->key = obj;
+    hash_add(bkt, &meta->it);
+  }
+
+  meta->value = value;
 }
 
 void ir_source_info(struct ir *ir, uint32_t addr, int index) {

@@ -115,6 +115,35 @@ static void ir_write_value(struct ir_writer *w, const struct ir_value *value,
   }
 }
 
+static void ir_write_meta(struct ir_writer *w, const void *obj, FILE *output) {
+  int need_exclamation = 1;
+  int need_comma = 0;
+
+  for (int kind = 0; kind < IR_NUM_META; kind++) {
+    struct ir_value *value = ir_get_meta(w->ir, obj, kind);
+
+    if (!value) {
+      continue;
+    }
+
+    if (need_exclamation) {
+      fprintf(output, " !");
+      need_exclamation = 0;
+    }
+
+    if (need_comma) {
+      fprintf(output, ", ");
+      need_comma = 0;
+    }
+
+    fprintf(output, "%s ", ir_meta_names[kind]);
+
+    ir_write_value(w, value, output);
+
+    need_comma = 1;
+  }
+}
+
 static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
                            FILE *output) {
   /* print result value if it exists */
@@ -125,9 +154,9 @@ static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
 
   /* print the actual op */
   ir_write_op(w, instr->op, output);
-  fprintf(output, " ");
 
   /* print each argument */
+  int need_space = 1;
   int need_comma = 0;
 
   for (int i = 0; i < 3; i++) {
@@ -135,6 +164,11 @@ static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
 
     if (!arg) {
       continue;
+    }
+
+    if (need_space) {
+      fprintf(output, " ");
+      need_space = 0;
     }
 
     if (need_comma) {
@@ -147,6 +181,8 @@ static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
     need_comma = 1;
   }
 
+  ir_write_meta(w, instr, output);
+
 #if 0
   fprintf(output, "\t# tag=%" PRId64 " reg=%d", instr->tag,
           instr->result ? instr->result->reg : -1);
@@ -157,7 +193,9 @@ static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
 
 static void ir_write_block(struct ir_writer *w, const struct ir_block *block,
                            FILE *output) {
-  fprintf(output, "%%%d:\n", ir_get_block_label(w, block));
+  fprintf(output, "%%%d:", ir_get_block_label(w, block));
+  ir_write_meta(w, block, output);
+  fprintf(output, "\n");
 
   list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
     ir_write_instr(w, instr, output);
