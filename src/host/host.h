@@ -25,6 +25,7 @@ void audio_push(struct host *host, const int16_t *data, int frames);
 /* video */
 int video_width(struct host *host);
 int video_height(struct host *host);
+void host_toggle_fullscreen(void);
 
 struct render_backend *video_create_renderer(struct host *host);
 void video_destroy_renderer(struct host *host, struct render_backend *r);

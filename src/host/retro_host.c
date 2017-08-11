@@ -40,6 +40,7 @@ static retro_input_state_t input_state_cb;
   { port, RETRO_DEVICE_JOYPAD, 0,                              RETRO_DEVICE_ID_JOYPAD_Y,     "X" },           \
   { port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X,     "Analog X" },    \
   { port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y,     "Analog Y" },    \
+  { port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y,     "Analog Y" },    \
   { port, RETRO_DEVICE_JOYPAD, 0,                              RETRO_DEVICE_ID_JOYPAD_L2,    "L" },           \
   { port, RETRO_DEVICE_JOYPAD, 0,                              RETRO_DEVICE_ID_JOYPAD_R2,    "R" }
 
@@ -107,6 +108,10 @@ int video_height(struct host *base) {
 
 int video_width(struct host *base) {
   return VIDEO_WIDTH;
+}
+
+void host_toggle_fullscreen(void){
+  return;
 }
 
 /*

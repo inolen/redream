@@ -20,6 +20,10 @@ DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
 
+DEFINE_PERSISTENT_OPTION_INT(v_width, VIDEO_DEFAULT_WIDTH, "Video Width");
+DEFINE_PERSISTENT_OPTION_INT(v_height, VIDEO_DEFAULT_HEIGHT, "Video Height");
+DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Fullscreen");
+
 #define AUDIO_FRAMES_TO_MS(frames) \
   (int)(((float)frames * 1000.0f) / (float)AUDIO_FREQ)
 #define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
@@ -744,8 +748,8 @@ struct sdl_host *host_create() {
   CHECK_GE(res, 0, "host_create sdl initialization failed: %s", SDL_GetError());
 
   host->win = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
-                               SDL_WINDOWPOS_UNDEFINED, VIDEO_DEFAULT_WIDTH,
-                               VIDEO_DEFAULT_HEIGHT,
+                               SDL_WINDOWPOS_UNDEFINED, OPTION_v_width,
+                               OPTION_v_height,
                                SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   CHECK_NOTNULL(host->win, "host_create window creation failed: %s",
                 SDL_GetError());
@@ -770,6 +774,18 @@ struct sdl_host *host_create() {
   }
 
   return host;
+}
+
+void host_toggle_fullscreen(void){
+  int IsFullscreen = SDL_GetWindowFlags(g_host->win) & SDL_WINDOW_FULLSCREEN_DESKTOP;
+  int status = SDL_SetWindowFullscreen(g_host->win, IsFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+
+  /* Check that SDL_SetWindowFullscreen returned success */
+  if(status == 0){
+    /* Update the persistent option
+       NOTE: The new mode is the inverse of the original feedback */
+    OPTION_fullscreen = !IsFullscreen;
+  }
 }
 
 int main(int argc, char **argv) {
@@ -801,6 +817,11 @@ int main(int argc, char **argv) {
   g_host = host_create();
   if (!g_host) {
     return EXIT_FAILURE;
+  }
+
+  /* Test for fullscreen flag and update accordingly */
+  if( OPTION_fullscreen ) {
+       SDL_SetWindowFullscreen(g_host->win, SDL_WINDOW_FULLSCREEN_DESKTOP);
   }
 
   const char *load = argc > 1 ? argv[1] : NULL;
