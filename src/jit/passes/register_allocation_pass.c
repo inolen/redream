@@ -73,6 +73,7 @@ struct ra {
   int max_uses;
 };
 
+#define NO_REGISTER -1
 #define NO_TMP -1
 #define NO_USE -1
 
@@ -646,7 +647,8 @@ static void ra_legalize_args(struct ra *ra, struct ir *ir,
   }
 }
 
-static void ra_reset(struct ra *ra, struct ir *ir) {
+static void ra_reset(struct ra *ra, struct ir *ir, struct ir_block *block) {
+  /* reset allocation state */
   for (int i = 0; i < ra->num_registers; i++) {
     struct ra_bin *bin = &ra->bins[i];
     bin->tmp_idx = NO_TMP;
@@ -654,17 +656,22 @@ static void ra_reset(struct ra *ra, struct ir *ir) {
 
   ra->num_tmps = 0;
   ra->num_uses = 0;
+
+  /* reset register state */
+  list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+    if (instr->result) {
+      instr->result->reg = NO_REGISTER;
+    }
+  }
 }
 
 void ra_run(struct ra *ra, struct ir *ir) {
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
-    ra_reset(ra, ir);
-
+    ra_reset(ra, ir, block);
     ra_legalize_args(ra, ir, block);
     ra_assign_ordinals(ra, ir, block);
     ra_create_tmps(ra, ir, block);
     ra_alloc_bins(ra, ir, block);
-
 #if 1
     ra_validate(ra, ir, block);
 #endif

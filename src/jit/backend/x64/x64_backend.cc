@@ -93,12 +93,10 @@ const struct jit_register x64_registers[] = {
 const int x64_num_registers = ARRAY_SIZE(x64_registers);
 /* clang-format on */
 
-const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
-                                 const struct ir_value *v) {
-  int i = v->reg;
-  CHECK_NE(i, NO_REGISTER);
-
-  Xbyak::Reg reg = *(const Xbyak::Reg *)x64_registers[i].data;
+Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
+                           const struct ir_value *v) {
+  CHECK(v->reg >= 0 && v->reg < x64_num_registers);
+  Xbyak::Reg reg = *(const Xbyak::Reg *)x64_registers[v->reg].data;
   CHECK(reg.isREG());
 
   switch (v->type) {
@@ -122,12 +120,10 @@ const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
   return reg;
 }
 
-const Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
-                                 const struct ir_value *v) {
-  int i = v->reg;
-  CHECK_NE(i, NO_REGISTER);
-
-  const Xbyak::Xmm &xmm = *(const Xbyak::Xmm *)x64_registers[i].data;
+Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
+                           const struct ir_value *v) {
+  CHECK(v->reg >= 0 && v->reg < x64_num_registers);
+  Xbyak::Xmm xmm = *(const Xbyak::Xmm *)x64_registers[v->reg].data;
   CHECK(xmm.isXMM());
   return xmm;
 }

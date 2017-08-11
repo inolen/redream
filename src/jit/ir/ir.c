@@ -160,7 +160,6 @@ struct ir_instr *ir_append_instr(struct ir *ir, enum ir_op op,
     struct ir_value *result = ir_calloc(ir, sizeof(struct ir_value));
     result->type = result_type;
     result->def = instr;
-    result->reg = NO_REGISTER;
     instr->result = result;
   }
 
@@ -222,7 +221,6 @@ struct ir_value *ir_alloc_int(struct ir *ir, int64_t c, enum ir_type type) {
       LOG_FATAL("unexpected value type");
       break;
   }
-  v->reg = NO_REGISTER;
   return v;
 }
 
@@ -230,7 +228,6 @@ struct ir_value *ir_alloc_i8(struct ir *ir, int8_t c) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_I8;
   v->i8 = c;
-  v->reg = NO_REGISTER;
   return v;
 }
 
@@ -238,7 +235,6 @@ struct ir_value *ir_alloc_i16(struct ir *ir, int16_t c) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_I16;
   v->i16 = c;
-  v->reg = NO_REGISTER;
   return v;
 }
 
@@ -246,7 +242,6 @@ struct ir_value *ir_alloc_i32(struct ir *ir, int32_t c) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_I32;
   v->i32 = c;
-  v->reg = NO_REGISTER;
   return v;
 }
 
@@ -254,7 +249,6 @@ struct ir_value *ir_alloc_i64(struct ir *ir, int64_t c) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_I64;
   v->i64 = c;
-  v->reg = NO_REGISTER;
   return v;
 }
 
@@ -262,7 +256,6 @@ struct ir_value *ir_alloc_f32(struct ir *ir, float c) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_F32;
   v->f32 = c;
-  v->reg = NO_REGISTER;
   return v;
 }
 
@@ -270,7 +263,6 @@ struct ir_value *ir_alloc_f64(struct ir *ir, double c) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_F64;
   v->f64 = c;
-  v->reg = NO_REGISTER;
   return v;
 }
 
@@ -282,7 +274,6 @@ struct ir_value *ir_alloc_block_ref(struct ir *ir, struct ir_block *block) {
   struct ir_value *v = ir_calloc(ir, sizeof(struct ir_value));
   v->type = VALUE_BLOCK;
   v->blk = block;
-  v->reg = NO_REGISTER;
   return v;
 }
 

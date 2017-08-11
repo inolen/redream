@@ -7,7 +7,6 @@
 #include "core/list.h"
 
 #define IR_MAX_ARGS 4
-#define NO_REGISTER -1
 
 enum ir_op {
 #define IR_OP(name, flags) OP_##name,

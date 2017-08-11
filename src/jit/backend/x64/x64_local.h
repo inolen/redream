@@ -73,10 +73,10 @@ extern const Xbyak::Reg64 tmp1;
 extern const Xbyak::Reg64 guestctx;
 extern const Xbyak::Reg64 guestmem;
 
-const Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
-                                 const struct ir_value *v);
-const Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
-                                 const struct ir_value *v);
+Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
+                           const struct ir_value *v);
+Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
+                           const struct ir_value *v);
 void x64_backend_load_mem(struct x64_backend *backend,
                           const struct ir_value *dst,
                           const Xbyak::RegExp &src_exp);
