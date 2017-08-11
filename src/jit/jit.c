@@ -300,11 +300,13 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   LOG_INFO("jit_compile_block %s 0x%08x", jit->tag, guest_addr);
 #endif
 
+  /* analyze the guest code to get its extents */
+  int guest_size;
+  jit->frontend->analyze_code(jit->frontend, guest_addr, &guest_size);
+
   struct jit_block *block = jit_alloc_block(jit);
   block->guest_addr = guest_addr;
-
-  /* analyze the guest code to get its extents */
-  jit->frontend->analyze_code(jit->frontend, block);
+  block->guest_size = guest_size;
 
   /* allocate meta data structs for the original guest code */
   block->source_map = calloc(block->guest_size, sizeof(void *));

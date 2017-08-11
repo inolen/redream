@@ -159,6 +159,66 @@ void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
   CHECK_EQ(strnrep(buffer, buffer_size, "#imm8", 5, value, value_len), 0);
 }
 
+void sh4_branch_info(uint32_t addr, union sh4_instr i, int *branch_type,
+                     uint32_t *branch_addr, uint32_t *next_addr) {
+  struct jit_opdef *def = sh4_get_opdef(i.raw);
+
+  if (def->op == SH4_OP_INVALID) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else if (def->op == SH4_OP_BF) {
+    uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
+    *branch_type = SH4_BRANCH_STATIC_FALSE;
+    *branch_addr = dest_addr;
+    *next_addr = addr + 4;
+  } else if (def->op == SH4_OP_BFS) {
+    uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
+    *branch_type = SH4_BRANCH_STATIC_FALSE;
+    *branch_addr = dest_addr;
+    *next_addr = addr + 4;
+  } else if (def->op == SH4_OP_BT) {
+    uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
+    *branch_type = SH4_BRANCH_STATIC_TRUE;
+    *branch_addr = dest_addr;
+    *next_addr = addr + 4;
+  } else if (def->op == SH4_OP_BTS) {
+    uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
+    *branch_type = SH4_BRANCH_STATIC_TRUE;
+    *branch_addr = dest_addr;
+    *next_addr = addr + 4;
+  } else if (def->op == SH4_OP_BRA) {
+    /* 12-bit displacement must be sign extended */
+    int32_t disp = ((i.disp_12.disp & 0xfff) << 20) >> 20;
+    uint32_t dest_addr = (disp * 2) + addr + 4;
+    *branch_type = SH4_BRANCH_STATIC;
+    *branch_addr = dest_addr;
+  } else if (def->op == SH4_OP_BRAF) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else if (def->op == SH4_OP_BSR) {
+    /* 12-bit displacement must be sign extended */
+    int32_t disp = ((i.disp_12.disp & 0xfff) << 20) >> 20;
+    uint32_t ret_addr = addr + 4;
+    uint32_t dest_addr = ret_addr + disp * 2;
+    *branch_type = SH4_BRANCH_STATIC;
+    *branch_addr = dest_addr;
+  } else if (def->op == SH4_OP_BSRF) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else if (def->op == SH4_OP_JMP) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else if (def->op == SH4_OP_JSR) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else if (def->op == SH4_OP_RTS) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else if (def->op == SH4_OP_RTE) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else if (def->op == SH4_OP_SLEEP) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else if (def->op == SH4_OP_TRAPA) {
+    *branch_type = SH4_BRANCH_DYNAMIC;
+  } else {
+    LOG_FATAL("unexpected branch op %s", def->name);
+  }
+}
+
 CONSTRUCTOR(sh4_disasm_init) {
   sh4_disasm_init_lookup();
 }

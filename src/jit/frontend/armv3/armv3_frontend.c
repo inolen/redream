@@ -52,20 +52,19 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
 }
 
 static void armv3_frontend_analyze_code(struct jit_frontend *base,
-                                        struct jit_block *block) {
+                                        uint32_t begin_addr, int *size) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
   struct armv3_guest *guest = (struct armv3_guest *)frontend->guest;
-  uint32_t addr = block->guest_addr;
 
-  block->guest_size = 0;
+  *size = 0;
 
   while (1) {
+    uint32_t addr = begin_addr + *size;
     uint32_t data = guest->r32(guest->space, addr);
     union armv3_instr i = {data};
     struct jit_opdef *def = armv3_get_opdef(i.raw);
 
-    addr += 4;
-    block->guest_size += 4;
+    *size += 4;
 
     /* stop emitting when pc is changed */
     int mov_to_pc = 0;

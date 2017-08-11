@@ -67,6 +67,78 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
   }
 }
 
+static int sh4_frontend_is_terminator(struct jit_opdef *def) {
+  /* stop emitting once a branch is hit */
+  if (def->flags & SH4_FLAG_STORE_PC) {
+    return 1;
+  }
+
+  /* if fpscr has changed, stop emitting since the fpu state is invalidated.
+     also, if sr has changed, stop emitting as there are interrupts that
+     possibly need to be handled */
+  if (def->flags & (SH4_FLAG_STORE_FPSCR | SH4_FLAG_STORE_SR)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
+                                     uint32_t begin_addr) {
+  struct sh4_guest *guest = (struct sh4_guest *)frontend->guest;
+
+  /* look ahead to see if the current basic block is an idle loop */
+  static int IDLE_MASK = SH4_FLAG_LOAD | SH4_FLAG_COND | SH4_FLAG_CMP;
+  int idle_loop = 1;
+  int all_flags = 0;
+
+  int offset = 0;
+
+  while (1) {
+    uint32_t addr = begin_addr + offset;
+    uint16_t data = guest->r16(guest->space, addr);
+    struct jit_opdef *def = sh4_get_opdef(data);
+
+    offset += 2;
+
+    /* if the instruction has none of the IDLE_MASK flags, disqualify */
+    idle_loop &= (def->flags & IDLE_MASK) != 0;
+    all_flags |= def->flags;
+
+    if (def->flags & SH4_FLAG_DELAYED) {
+      uint32_t delay_addr = begin_addr + offset;
+      uint32_t delay_data = guest->r16(guest->space, delay_addr);
+      struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
+
+      offset += 2;
+
+      idle_loop &= (delay_def->flags & IDLE_MASK) != 0;
+      all_flags |= delay_def->flags;
+    }
+
+    if (sh4_frontend_is_terminator(def)) {
+      /* if the block doesn't contain the required flags, disqualify */
+      idle_loop &= (all_flags & IDLE_MASK) == IDLE_MASK;
+
+      /* if the branch isn't a short back edge, disqualify */
+      if (def->flags & SH4_FLAG_STORE_PC) {
+        union sh4_instr instr = {data};
+
+        int branch_type;
+        uint32_t branch_addr;
+        uint32_t next_addr;
+        sh4_branch_info(addr, instr, &branch_type, &branch_addr, &next_addr);
+
+        idle_loop &= (begin_addr - branch_addr) <= 32;
+      }
+
+      break;
+    }
+  }
+
+  return idle_loop;
+}
+
 static void sh4_frontend_translate_code(struct jit_frontend *base,
                                         struct jit_block *block,
                                         struct ir *ir) {
@@ -76,6 +148,14 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 
   PROF_ENTER("cpu", "sh4_frontend_translate_code");
 
+  /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
+     an interrupt such as vblank before it'll exit. scale the block's number of
+     cycles in order to yield execution faster, enabling the interrupt to
+     actually be generated */
+  int idle_loop = sh4_frontend_is_idle_loop(frontend, block->guest_addr);
+  int cycle_scale = idle_loop ? 10 : 1;
+
+  /* generate code specialized for the current fpscr state */
   int flags = 0;
   if (ctx->fpscr & PR_MASK) {
     flags |= SH4_DOUBLE_PR;
@@ -97,7 +177,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     def = sh4_get_opdef(data);
 
     /* emit synthetic op responsible for mapping guest to host instructions */
-    ir_source_info(ir, addr, SCALE_CYCLES(block, def->cycles));
+    ir_source_info(ir, addr, def->cycles * cycle_scale);
 
     /* the pc is normally only written to the context at the end of the block,
        sync now for any instruction which needs to read the correct pc */
@@ -121,7 +201,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
       struct ir_insert_point original = ir_get_insert_point(ir);
       ir_set_insert_point(ir, &delay_point);
 
-      ir_source_info(ir, delay_addr, SCALE_CYCLES(block, delay_def->cycles));
+      ir_source_info(ir, delay_addr, delay_def->cycles * cycle_scale);
 
       if (delay_def->flags & SH4_FLAG_LOAD_PC) {
         ir_store_context(ir, offsetof(struct sh4_context, pc),
@@ -164,126 +244,33 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 }
 
 static void sh4_frontend_analyze_code(struct jit_frontend *base,
-                                      struct jit_block *block) {
+                                      uint32_t begin_addr, int *size) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct sh4_guest *guest = (struct sh4_guest *)frontend->guest;
 
-  static int IDLE_MASK = SH4_FLAG_LOAD | SH4_FLAG_COND | SH4_FLAG_CMP;
-  int idle_loop = 1;
-  int all_flags = 0;
-  uint32_t offset = 0;
-
-  block->guest_size = 0;
+  *size = 0;
 
   while (1) {
-    uint32_t addr = block->guest_addr + offset;
-    uint32_t data = guest->r16(guest->space, addr);
-    union sh4_instr instr = {data};
+    uint32_t addr = begin_addr + *size;
+    uint16_t data = guest->r16(guest->space, addr);
     struct jit_opdef *def = sh4_get_opdef(data);
 
-    offset += 2;
-    block->guest_size += 2;
-
-    /* if the instruction has none of the IDLE_MASK flags, disqualify */
-    idle_loop &= (def->flags & IDLE_MASK) != 0;
-    all_flags |= def->flags;
+    *size += 2;
 
     if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_addr = block->guest_addr + offset;
-      uint32_t delay_data = guest->r16(guest->space, delay_addr);
+      uint32_t delay_addr = begin_addr + *size;
+      uint16_t delay_data = guest->r16(guest->space, delay_addr);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
-      offset += 2;
-      block->guest_size += 2;
-
-      idle_loop &= (delay_def->flags & IDLE_MASK) != 0;
-      all_flags |= delay_def->flags;
+      *size += 2;
 
       /* delay slots can't have another delay slot */
       CHECK(!(delay_def->flags & SH4_FLAG_DELAYED));
     }
 
-    /* stop emitting once a branch is hit and save off branch information */
-    if (def->flags & SH4_FLAG_STORE_PC) {
-      if (def->op == SH4_OP_INVALID) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else if (def->op == SH4_OP_BF) {
-        uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
-        block->branch_type = JIT_BRANCH_STATIC_FALSE;
-        block->branch_addr = dest_addr;
-        block->next_addr = addr + 4;
-      } else if (def->op == SH4_OP_BFS) {
-        uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
-        block->branch_type = JIT_BRANCH_STATIC_FALSE;
-        block->branch_addr = dest_addr;
-        block->next_addr = addr + 4;
-      } else if (def->op == SH4_OP_BT) {
-        uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
-        block->branch_type = JIT_BRANCH_STATIC_TRUE;
-        block->branch_addr = dest_addr;
-        block->next_addr = addr + 4;
-      } else if (def->op == SH4_OP_BTS) {
-        uint32_t dest_addr = ((int8_t)instr.disp_8.disp * 2) + addr + 4;
-        block->branch_type = JIT_BRANCH_STATIC_TRUE;
-        block->branch_addr = dest_addr;
-        block->next_addr = addr + 4;
-      } else if (def->op == SH4_OP_BRA) {
-        /* 12-bit displacement must be sign extended */
-        int32_t disp = ((instr.disp_12.disp & 0xfff) << 20) >> 20;
-        uint32_t dest_addr = (disp * 2) + addr + 4;
-        block->branch_type = JIT_BRANCH_STATIC;
-        block->branch_addr = dest_addr;
-      } else if (def->op == SH4_OP_BRAF) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else if (def->op == SH4_OP_BSR) {
-        /* 12-bit displacement must be sign extended */
-        int32_t disp = ((instr.disp_12.disp & 0xfff) << 20) >> 20;
-        uint32_t ret_addr = addr + 4;
-        uint32_t dest_addr = ret_addr + disp * 2;
-        block->branch_type = JIT_BRANCH_STATIC;
-        block->branch_addr = dest_addr;
-      } else if (def->op == SH4_OP_BSRF) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else if (def->op == SH4_OP_JMP) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else if (def->op == SH4_OP_JSR) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else if (def->op == SH4_OP_RTS) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else if (def->op == SH4_OP_RTE) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else if (def->op == SH4_OP_SLEEP) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else if (def->op == SH4_OP_TRAPA) {
-        block->branch_type = JIT_BRANCH_DYNAMIC;
-      } else {
-        LOG_FATAL("unexpected branch op %d", def->name);
-      }
-
+    if (sh4_frontend_is_terminator(def)) {
       break;
     }
-
-    /* if fpscr has changed, stop emitting since the fpu state is invalidated.
-       also, if sr has changed, stop emitting as there are interrupts that
-       possibly need to be handled */
-    if (def->flags & (SH4_FLAG_STORE_FPSCR | SH4_FLAG_STORE_SR)) {
-      break;
-    }
-  }
-
-  /* if the block doesn't contain the required flags, disqualify */
-  idle_loop &= (all_flags & IDLE_MASK) == IDLE_MASK;
-
-  /* if the branch isn't a short back edge, disqualify */
-  idle_loop &= (block->guest_addr - block->branch_addr) <= 32;
-
-  if (idle_loop) {
-#if 0
-    LOG_INFO("sh4_analyze_block detected idle loop at 0x%08x",
-             block->guest_addr);
-#endif
-
-    block->idle_loop = 1;
   }
 }
 

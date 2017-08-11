@@ -15,15 +15,6 @@ struct ra;
 struct val;
 
 enum {
-  JIT_BRANCH_STATIC,
-  JIT_BRANCH_STATIC_TRUE,
-  JIT_BRANCH_STATIC_FALSE,
-  JIT_BRANCH_DYNAMIC,
-  JIT_BRANCH_DYNAMIC_TRUE,
-  JIT_BRANCH_DYNAMIC_FALSE,
-};
-
-enum {
   JIT_REASON_UNKNOWN,
   JIT_REASON_FASTMEM,
 };
@@ -32,16 +23,6 @@ struct jit_block {
   /* address of source block in guest memory */
   uint32_t guest_addr;
   int guest_size;
-
-  /* destination address of terminating branch */
-  int branch_type;
-  uint32_t branch_addr;
-
-  /* address of next instruction after branch */
-  uint32_t next_addr;
-
-  /* is block an idle loop */
-  int idle_loop;
 
   /* maps guest instructions to host instructions */
   void **source_map;
