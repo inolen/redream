@@ -20,6 +20,10 @@ DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
 
+DEFINE_PERSISTENT_OPTION_INT(v_width, VIDEO_DEFAULT_WIDTH, "Video Width");
+DEFINE_PERSISTENT_OPTION_INT(v_height, VIDEO_DEFAULT_HEIGHT, "Video Height");
+DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Fullscreen");
+
 #define AUDIO_FRAMES_TO_MS(frames) \
   (int)(((float)frames * 1000.0f) / (float)AUDIO_FREQ)
 #define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
@@ -289,6 +293,18 @@ static void video_shutdown(struct sdl_host *host) {}
 
 static int video_init(struct sdl_host *host) {
   return 1;
+}
+
+void video_toggle_fullscreen(void){
+  int IsFullscreen = SDL_GetWindowFlags(g_host->win) & SDL_WINDOW_FULLSCREEN_DESKTOP;
+  int status = SDL_SetWindowFullscreen(g_host->win, IsFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+
+  /* Check that SDL_SetWindowFullscreen returned success */
+  if(status == 0){
+    /* Update the persistent option
+       NOTE: The new mode is the inverse of the original feedback */
+    OPTION_fullscreen = !IsFullscreen;
+  }
 }
 
 /*
@@ -738,15 +754,23 @@ void host_destroy(struct sdl_host *host) {
 
 struct sdl_host *host_create() {
   struct sdl_host *host = calloc(1, sizeof(struct sdl_host));
+  int mode;
 
   /* init sdl and create window */
   int res = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
   CHECK_GE(res, 0, "host_create sdl initialization failed: %s", SDL_GetError());
 
+  /* Test for fullscreen flag and set mode accordingly */
+  if( OPTION_fullscreen ) {
+    mode = SDL_WINDOW_FULLSCREEN_DESKTOP;
+  }else{
+    mode = SDL_WINDOW_RESIZABLE;
+  }
+
   host->win = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
-                               SDL_WINDOWPOS_UNDEFINED, VIDEO_DEFAULT_WIDTH,
-                               VIDEO_DEFAULT_HEIGHT,
-                               SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+                               SDL_WINDOWPOS_UNDEFINED, OPTION_v_width,
+                               OPTION_v_height,
+                               SDL_WINDOW_OPENGL | mode);
   CHECK_NOTNULL(host->win, "host_create window creation failed: %s",
                 SDL_GetError());
 

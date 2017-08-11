@@ -36,6 +36,10 @@ int video_width(struct host *base) {
   return 0;
 }
 
+void video_toggle_fullscreen(void){
+  return;
+}
+
 /*
  * input
  */

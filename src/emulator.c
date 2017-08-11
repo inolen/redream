@@ -38,6 +38,7 @@
 DEFINE_AGGREGATE_COUNTER(frames);
 
 DEFINE_PERSISTENT_OPTION_STRING(aspect_ratio, "stretch", "Video aspect ratio");
+DEFINE_PERSISTENT_OPTION_INT(dbg_menu, 1, "Debug Menu Show");
 
 enum {
   ASPECT_RATIO_STRETCH,
@@ -431,6 +432,10 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
 
   if (key == K_F1 && value > 0) {
     emu->debug_menu = emu->debug_menu ? 0 : 1;
+    /* Update the Persistent Flag */
+    OPTION_dbg_menu = emu->debug_menu;
+  } else if (key == K_F12 && value > 0) {
+    video_toggle_fullscreen();
   } else {
     imgui_keydown(emu->imgui, key, value);
     mp_keydown(emu->mp, key, value);
@@ -837,7 +842,7 @@ struct emu *emu_create(struct host *host) {
   }
 
   /* enable debug menu by default */
-  emu->debug_menu = 1;
+  emu->debug_menu = OPTION_dbg_menu;
 
   /* enable the cpu / gpu to be emulated in parallel */
   emu->multi_threaded = 1;
