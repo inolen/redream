@@ -6,27 +6,6 @@
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
 
-static inline int use_fastmem(struct jit_block *block, uint32_t addr) {
-  return block->fastmem[addr - block->guest_addr];
-}
-
-static struct ir_value *load_guest(struct ir *ir, struct ir_value *addr,
-                                   enum ir_type type, int fastmem) {
-  if (fastmem) {
-    return ir_load_fast(ir, addr, type);
-  }
-  return ir_load_guest(ir, addr, type);
-}
-
-static void store_guest(struct ir *ir, struct ir_value *addr,
-                        struct ir_value *v, int fastmem) {
-  if (fastmem) {
-    ir_store_fast(ir, addr, v);
-    return;
-  }
-  ir_store_guest(ir, addr, v);
-}
-
 static struct ir_value *load_sr(struct ir *ir) {
   struct ir_value *sr =
       ir_load_context(ir, offsetof(struct sh4_context, sr), VALUE_I32);
@@ -208,16 +187,16 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define STORE_SSR_I32(v)            STORE_CTX_I32(ssr, v)
 #define STORE_SSR_IMM_I32(v)        STORE_CTX_IMM_I32(ssr, v)
 
-#define LOAD_I8(ea)                 load_guest(ir, ea, VALUE_I8, use_fastmem(block, addr))
-#define LOAD_I16(ea)                load_guest(ir, ea, VALUE_I16, use_fastmem(block, addr))
-#define LOAD_I32(ea)                load_guest(ir, ea, VALUE_I32, use_fastmem(block, addr))
-#define LOAD_I64(ea)                load_guest(ir, ea, VALUE_I64, use_fastmem(block, addr))
+#define LOAD_I8(ea)                 ir_load_guest(ir, ea, VALUE_I8)
+#define LOAD_I16(ea)                ir_load_guest(ir, ea, VALUE_I16)
+#define LOAD_I32(ea)                ir_load_guest(ir, ea, VALUE_I32)
+#define LOAD_I64(ea)                ir_load_guest(ir, ea, VALUE_I64)
 #define LOAD_IMM_I8(ea)             LOAD_I8(ir_alloc_i32(ir, ea))
 #define LOAD_IMM_I16(ea)            LOAD_I16(ir_alloc_i32(ir, ea))
 #define LOAD_IMM_I32(ea)            LOAD_I32(ir_alloc_i32(ir, ea))
 #define LOAD_IMM_I64(ea)            LOAD_I64(ir_alloc_i32(ir, ea))
 
-#define STORE_I8(ea, v)             store_guest(ir, ea, v, use_fastmem(block, addr))
+#define STORE_I8(ea, v)             ir_store_guest(ir, ea, v)
 #define STORE_I16                   STORE_I8
 #define STORE_I32                   STORE_I8
 #define STORE_I64                   STORE_I8
@@ -447,10 +426,10 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 
 /* clang-format on */
 
-#define INSTR(name)                                                           \
-  void sh4_translate_##name(struct sh4_guest *guest, struct jit_block *block, \
-                            struct ir *ir, uint32_t addr, union sh4_instr i,  \
-                            int flags, struct ir_insert_point *delay_point)
+#define INSTR(name)                                                      \
+  void sh4_translate_##name(struct sh4_guest *guest, struct ir *ir,      \
+                            uint32_t addr, union sh4_instr i, int flags, \
+                            struct ir_insert_point *delay_point)
 #include "jit/frontend/sh4/sh4_instr.h"
 #undef INSTR
 

@@ -274,6 +274,25 @@ static void jit_dump_block(struct jit *jit, uint32_t guest_addr,
   fclose(file);
 }
 
+static void jit_promote_fastmem(struct jit *jit, struct jit_block *block,
+                                struct ir *ir) {
+  uint32_t last_addr = block->guest_addr;
+
+  list_for_each_entry(blk, &ir->blocks, struct ir_block, it) {
+    list_for_each_entry_safe(instr, &blk->instrs, struct ir_instr, it) {
+      int fastmem = block->fastmem[last_addr - block->guest_addr];
+
+      if (instr->op == OP_SOURCE_INFO) {
+        last_addr = instr->arg[0]->i32;
+      } else if (instr->op == OP_LOAD_GUEST && fastmem) {
+        instr->op = OP_LOAD_FAST;
+      } else if (instr->op == OP_STORE_GUEST && fastmem) {
+        instr->op = OP_STORE_FAST;
+      }
+    }
+  }
+}
+
 void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   PROF_ENTER("cpu", "jit_compile_block");
 
@@ -337,6 +356,7 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   }
 
   /* run optimization passes */
+  jit_promote_fastmem(jit, block, &ir);
   lse_run(jit->lse, &ir);
   cprop_run(jit->cprop, &ir);
   esimp_run(jit->esimp, &ir);

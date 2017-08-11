@@ -106,7 +106,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                        ir_alloc_i32(ir, addr));
     }
 
-    cb(guest, block, ir, addr, instr, flags, &delay_point);
+    cb(guest, ir, addr, instr, flags, &delay_point);
 
     offset += 2;
 
@@ -128,7 +128,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                          ir_alloc_i32(ir, delay_addr));
       }
 
-      delay_cb(guest, block, ir, delay_addr, delay_instr, flags, NULL);
+      delay_cb(guest, ir, delay_addr, delay_instr, flags, NULL);
 
       /* restore insert point */
       ir_set_insert_point(ir, &original);
