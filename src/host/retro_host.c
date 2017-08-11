@@ -109,7 +109,7 @@ int video_width(struct host *base) {
   return VIDEO_WIDTH;
 }
 
-void host_toggle_fullscreen(void){
+void video_toggle_fullscreen(void){
   return;
 }
 

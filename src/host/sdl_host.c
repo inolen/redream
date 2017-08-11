@@ -295,6 +295,18 @@ static int video_init(struct sdl_host *host) {
   return 1;
 }
 
+void video_toggle_fullscreen(void){
+  int IsFullscreen = SDL_GetWindowFlags(g_host->win) & SDL_WINDOW_FULLSCREEN_DESKTOP;
+  int status = SDL_SetWindowFullscreen(g_host->win, IsFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+
+  /* Check that SDL_SetWindowFullscreen returned success */
+  if(status == 0){
+    /* Update the persistent option
+       NOTE: The new mode is the inverse of the original feedback */
+    OPTION_fullscreen = !IsFullscreen;
+  }
+}
+
 /*
  * input
  */
@@ -774,18 +786,6 @@ struct sdl_host *host_create() {
   }
 
   return host;
-}
-
-void host_toggle_fullscreen(void){
-  int IsFullscreen = SDL_GetWindowFlags(g_host->win) & SDL_WINDOW_FULLSCREEN_DESKTOP;
-  int status = SDL_SetWindowFullscreen(g_host->win, IsFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
-
-  /* Check that SDL_SetWindowFullscreen returned success */
-  if(status == 0){
-    /* Update the persistent option
-       NOTE: The new mode is the inverse of the original feedback */
-    OPTION_fullscreen = !IsFullscreen;
-  }
 }
 
 int main(int argc, char **argv) {

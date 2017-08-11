@@ -435,7 +435,7 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
     /* Update the Persistent Flag */
     OPTION_dbg_menu = emu->debug_menu;
   } else if (key == K_F12 && value > 0) {
-    host_toggle_fullscreen();
+    video_toggle_fullscreen();
   } else {
     imgui_keydown(emu->imgui, key, value);
     mp_keydown(emu->mp, key, value);
