@@ -754,15 +754,23 @@ void host_destroy(struct sdl_host *host) {
 
 struct sdl_host *host_create() {
   struct sdl_host *host = calloc(1, sizeof(struct sdl_host));
+  int mode;
 
   /* init sdl and create window */
   int res = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
   CHECK_GE(res, 0, "host_create sdl initialization failed: %s", SDL_GetError());
 
+  /* Test for fullscreen flag and set mode accordingly */
+  if( OPTION_fullscreen ) {
+    mode = SDL_WINDOW_FULLSCREEN_DESKTOP;
+  }else{
+    mode = SDL_WINDOW_RESIZABLE;
+  }
+
   host->win = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
                                SDL_WINDOWPOS_UNDEFINED, OPTION_v_width,
                                OPTION_v_height,
-                               SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+                               SDL_WINDOW_OPENGL | mode);
   CHECK_NOTNULL(host->win, "host_create window creation failed: %s",
                 SDL_GetError());
 
@@ -817,11 +825,6 @@ int main(int argc, char **argv) {
   g_host = host_create();
   if (!g_host) {
     return EXIT_FAILURE;
-  }
-
-  /* Test for fullscreen flag and update accordingly */
-  if( OPTION_fullscreen ) {
-       SDL_SetWindowFullscreen(g_host->win, SDL_WINDOW_FULLSCREEN_DESKTOP);
   }
 
   const char *load = argc > 1 ? argv[1] : NULL;
