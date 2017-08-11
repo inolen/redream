@@ -84,8 +84,7 @@ struct jit_backend {
   /* compile interface */
   void (*reset)(struct jit_backend *);
   int (*assemble_code)(struct jit_backend *, struct jit_block *, struct ir *);
-  void (*dump_code)(struct jit_backend *, const struct jit_block *,
-                    FILE *output);
+  void (*dump_code)(struct jit_backend *, const uint8_t *, int, FILE *);
   int (*handle_exception)(struct jit_backend *, struct exception_state *);
 
   /* dispatch interface */

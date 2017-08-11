@@ -342,14 +342,14 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
     jit_free_block(jit, existing);
   }
 
-  /* translate the source machine code into ir */
+  /* translate guest code into ir */
   struct ir ir = {0};
   ir.buffer = jit->ir_buffer;
   ir.capacity = sizeof(jit->ir_buffer);
-  jit->frontend->translate_code(jit->frontend, block, &ir);
+  jit->frontend->translate_code(jit->frontend, guest_addr, guest_size, &ir);
 
 #if 0
-  jit->frontend->dump_code(jit->frontend, block);
+  jit->frontend->dump_code(jit->frontend, guest_addr, guest_size);
 #endif
 
   /* dump unoptimized block */
