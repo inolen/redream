@@ -27,10 +27,8 @@ struct jit_frontend {
   void (*destroy)(struct jit_frontend *);
 
   void (*analyze_code)(struct jit_frontend *, uint32_t, int *);
-  void (*translate_code)(struct jit_frontend *, struct jit_block *,
-                         struct ir *);
-  void (*dump_code)(struct jit_frontend *, const struct jit_block *,
-                    FILE *output);
+  void (*translate_code)(struct jit_frontend *, uint32_t, int, struct ir *);
+  void (*dump_code)(struct jit_frontend *, uint32_t, int, FILE *output);
 
   const struct jit_opdef *(*lookup_op)(struct jit_frontend *, const void *);
 };

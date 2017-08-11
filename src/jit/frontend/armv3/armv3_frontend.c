@@ -17,15 +17,15 @@ static const struct jit_opdef *armv3_frontend_lookup_op(
 }
 
 static void armv3_frontend_dump_code(struct jit_frontend *base,
-                                     const struct jit_block *block,
+                                     uint32_t begin_addr, int size,
                                      FILE *output) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
   struct jit_guest *guest = frontend->guest;
 
   char buffer[128];
 
-  for (int offset = 0; offset < block->guest_size; offset += 4) {
-    uint32_t addr = block->guest_addr + offset;
+  for (int offset = 0; offset < size; offset += 4) {
+    uint32_t addr = begin_addr + offset;
     uint32_t data = guest->r32(guest->space, addr);
 
     armv3_format(addr, data, buffer, sizeof(buffer));
@@ -36,13 +36,13 @@ static void armv3_frontend_dump_code(struct jit_frontend *base,
 }
 
 static void armv3_frontend_translate_code(struct jit_frontend *base,
-                                          struct jit_block *block,
+                                          uint32_t begin_addr, int size,
                                           struct ir *ir) {
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
   struct armv3_guest *guest = (struct armv3_guest *)frontend->guest;
 
-  for (int offset = 0; offset < block->guest_size; offset += 4) {
-    uint32_t addr = block->guest_addr + offset;
+  for (int offset = 0; offset < size; offset += 4) {
+    uint32_t addr = begin_addr + offset;
     uint32_t data = guest->r32(guest->space, addr);
     struct jit_opdef *def = armv3_get_opdef(data);
 

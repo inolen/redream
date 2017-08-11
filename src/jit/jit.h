@@ -98,7 +98,6 @@ void jit_run(struct jit *jit, int cycles);
 
 void jit_compile_code(struct jit *jit, uint32_t guest_addr);
 void jit_link_code(struct jit *jit, void *code, uint32_t target);
-
 void jit_invalidate_code(struct jit *jit);
 void jit_free_code(struct jit *jit);
 

@@ -34,7 +34,7 @@ static const struct jit_opdef *sh4_frontend_lookup_op(struct jit_frontend *base,
 }
 
 static void sh4_frontend_dump_code(struct jit_frontend *base,
-                                   const struct jit_block *block,
+                                   uint32_t begin_addr, int size,
                                    FILE *output) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct jit_guest *guest = frontend->guest;
@@ -43,8 +43,8 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
 
   int offset = 0;
 
-  while (offset < block->guest_size) {
-    uint32_t addr = block->guest_addr + offset;
+  while (offset < size) {
+    uint32_t addr = begin_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
@@ -55,7 +55,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
     offset += 2;
 
     if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_addr = block->guest_addr + offset;
+      uint32_t delay_addr = begin_addr + offset;
       uint16_t delay_data = guest->r16(guest->space, delay_addr);
       union sh4_instr delay_instr = {delay_data};
 
@@ -140,7 +140,7 @@ static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
 }
 
 static void sh4_frontend_translate_code(struct jit_frontend *base,
-                                        struct jit_block *block,
+                                        uint32_t begin_addr, int size,
                                         struct ir *ir) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct sh4_guest *guest = (struct sh4_guest *)frontend->guest;
@@ -148,11 +148,15 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 
   PROF_ENTER("cpu", "sh4_frontend_translate_code");
 
+  int offset = 0;
+  struct jit_opdef *def = NULL;
+  struct ir_insert_point delay_point;
+
   /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
      an interrupt such as vblank before it'll exit. scale the block's number of
      cycles in order to yield execution faster, enabling the interrupt to
      actually be generated */
-  int idle_loop = sh4_frontend_is_idle_loop(frontend, block->guest_addr);
+  int idle_loop = sh4_frontend_is_idle_loop(frontend, begin_addr);
   int cycle_scale = idle_loop ? 10 : 1;
 
   /* generate code specialized for the current fpscr state */
@@ -164,13 +168,8 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     flags |= SH4_DOUBLE_SZ;
   }
 
-  /* translate the actual block */
-  int offset = 0;
-  struct jit_opdef *def = NULL;
-  struct ir_insert_point delay_point;
-
-  while (offset < block->guest_size) {
-    uint32_t addr = block->guest_addr + offset;
+  while (offset < size) {
+    uint32_t addr = begin_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
     sh4_translate_cb cb = sh4_get_translator(data);
@@ -191,7 +190,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     offset += 2;
 
     if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_addr = block->guest_addr + offset;
+      uint32_t delay_addr = begin_addr + offset;
       uint32_t delay_data = guest->r16(guest->space, delay_addr);
       union sh4_instr delay_instr = {delay_data};
       sh4_translate_cb delay_cb = sh4_get_translator(delay_data);
@@ -237,7 +236,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     struct ir_instr *tail_instr =
         list_last_entry(&tail_block->instrs, struct ir_instr, it);
     ir_set_current_instr(ir, tail_instr);
-    ir_branch(ir, ir_alloc_i32(ir, block->guest_addr + block->guest_size));
+    ir_branch(ir, ir_alloc_i32(ir, begin_addr + size));
   }
 
   PROF_LEAVE();
