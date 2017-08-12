@@ -37,7 +37,8 @@
 
 DEFINE_AGGREGATE_COUNTER(frames);
 
-DEFINE_PERSISTENT_OPTION_STRING(aspect_ratio, "stretch", "Video aspect ratio");
+DEFINE_PERSISTENT_OPTION_INT(debug, 1, "Show debug menu");
+DEFINE_PERSISTENT_OPTION_STRING(aspect, "stretch", "Video aspect ratio");
 
 enum {
   ASPECT_RATIO_STRETCH,
@@ -120,7 +121,6 @@ struct emu {
   struct list modified_textures;
 
   /* debug stats */
-  int debug_menu;
   int frame_stats;
   float frame_times[360];
   int64_t last_paint;
@@ -430,7 +430,7 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
   struct emu *emu = userdata;
 
   if (key == K_F1 && value > 0) {
-    emu->debug_menu = emu->debug_menu ? 0 : 1;
+    OPTION_debug = !OPTION_debug;
   } else {
     imgui_keydown(emu->imgui, key, value);
     mp_keydown(emu->mp, key, value);
@@ -504,7 +504,7 @@ static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
   }
 
   /* update persistent option as well as this session's aspect ratio */
-  strncpy(OPTION_aspect_ratio, aspect_ratios[i], sizeof(OPTION_aspect_ratio));
+  strncpy(OPTION_aspect, aspect_ratios[i], sizeof(OPTION_aspect));
   emu->aspect_ratio = i;
 
   /* if a widescreen hack is enabled, force to stretch for the session */
@@ -515,7 +515,7 @@ static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
 
 static void emu_debug_menu(struct emu *emu) {
 #ifdef HAVE_IMGUI
-  if (!emu->debug_menu) {
+  if (!OPTION_debug) {
     return;
   }
 
@@ -540,7 +540,7 @@ static void emu_debug_menu(struct emu *emu) {
       if (igBeginMenu("aspect ratio", 1)) {
         for (int i = 0; i < ARRAY_SIZE(aspect_ratios); i++) {
           const char *aspect_ratio = aspect_ratios[i];
-          int selected = !strcmp(OPTION_aspect_ratio, aspect_ratio);
+          int selected = !strcmp(OPTION_aspect, aspect_ratio);
 
           if (igMenuItem(aspect_ratio, NULL, selected, 1)) {
             emu_set_aspect_ratio(emu, aspect_ratio);
@@ -548,6 +548,12 @@ static void emu_debug_menu(struct emu *emu) {
         }
 
         igEndMenu();
+      }
+      if (video_can_fullscreen(emu->host)) {
+        int fullscreen = video_is_fullscreen(emu->host);
+        if (igMenuItem("fullscreen", NULL, fullscreen, 1)) {
+          video_set_fullscreen(emu->host, !fullscreen);
+        }
       }
       igEndMenu();
     }
@@ -776,7 +782,7 @@ int emu_load_game(struct emu *emu, const char *path) {
     return 0;
   }
 
-  emu_set_aspect_ratio(emu, OPTION_aspect_ratio);
+  emu_set_aspect_ratio(emu, OPTION_aspect);
 
   dc_resume(emu->dc);
 
@@ -835,9 +841,6 @@ struct emu *emu_create(struct host *host) {
     struct emu_texture *tex = &emu->textures[i];
     list_add(&emu->free_textures, &tex->free_it);
   }
-
-  /* enable debug menu by default */
-  emu->debug_menu = 1;
 
   /* enable the cpu / gpu to be emulated in parallel */
   emu->multi_threaded = 1;

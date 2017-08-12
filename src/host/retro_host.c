@@ -101,6 +101,16 @@ struct render_backend *video_create_renderer(struct host *base) {
   return r_create(NULL);
 }
 
+void video_set_fullscreen(struct host *base, int fullscreen) {}
+
+int video_is_fullscreen(struct host *base) {
+  return 0;
+}
+
+int video_can_fullscreen(struct host *base) {
+  return 0;
+}
+
 int video_height(struct host *base) {
   return VIDEO_HEIGHT;
 }

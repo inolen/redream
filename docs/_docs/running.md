@@ -11,12 +11,14 @@ Command line options are loaded from and saved to `$HOME/.redream/config` each r
 ### All options
 
 ```
+      --debug  Show debug menu                                     [default: 1]
+     --aspect  Video aspect ratio                                  [default: stretch, valid: stretch, 16:9, 4:3]
      --region  System region                                       [default: america, valid: japan, america, europe]
    --language  System language                                     [default: english, valid: japanese, english, german, french, spanish, italian]
   --broadcast  System broadcast mode                               [default: ntsc,    valid: ntsc, pal, pal_m, pal_n]
       --audio  Enable audio                                        [default: 1]
     --latency  Preferred audio latency in MS                       [default: 100]
-    --verbose  Enable debug logging                                [default: 0]
+ --fullscreen  Start window fullscreen                             [default: 0]
        --perf  Write perf-compatible maps for generated code       [default: 0]
 ```
 

@@ -14,6 +14,7 @@
 
 DEFINE_OPTION_INT(audio, 1, "Enable audio");
 DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
+DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
 
 #define AUDIO_FREQ 44100
 #define VIDEO_DEFAULT_WIDTH 640
@@ -273,6 +274,26 @@ struct render_backend *video_create_renderer(struct host *base) {
   struct sdl_host *host = (struct sdl_host *)base;
   video_context_t ctx = video_gl_create_context(host);
   return r_create(ctx);
+}
+
+void video_set_fullscreen(struct host *base, int fullscreen) {
+  struct sdl_host *host = (struct sdl_host *)base;
+  uint32_t flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
+  int res = SDL_SetWindowFullscreen(host->win, flags);
+  CHECK_EQ(res, 0);
+
+  /* persist the setting */
+  OPTION_fullscreen = fullscreen;
+}
+
+int video_is_fullscreen(struct host *base) {
+  struct sdl_host *host = (struct sdl_host *)base;
+  uint32_t flags = SDL_GetWindowFlags(host->win);
+  return flags & SDL_WINDOW_FULLSCREEN_DESKTOP;
+}
+
+int video_can_fullscreen(struct host *base) {
+  return 1;
 }
 
 int video_height(struct host *base) {
@@ -743,10 +764,14 @@ struct sdl_host *host_create() {
   int res = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
   CHECK_GE(res, 0, "host_create sdl initialization failed: %s", SDL_GetError());
 
+  uint32_t win_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
+  if (OPTION_fullscreen) {
+    win_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+  }
+
   host->win = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
                                SDL_WINDOWPOS_UNDEFINED, VIDEO_DEFAULT_WIDTH,
-                               VIDEO_DEFAULT_HEIGHT,
-                               SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+                               VIDEO_DEFAULT_HEIGHT, win_flags);
   CHECK_NOTNULL(host->win, "host_create window creation failed: %s",
                 SDL_GetError());
 
