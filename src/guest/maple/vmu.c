@@ -13,20 +13,19 @@ struct vmu {
   struct maple_device;
 };
 
-const char *vmu_bin_path() {
+const char *vmu_bin_path( struct vmu *target_vmu) {
   static char filename[PATH_MAX];
 
-  if (!filename[0]) {
-    const char *appdir = fs_appdir();
-    snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "vmu.bin", appdir);
-  }
+  //filename check removed here as it is no longer constant
+  const char *appdir = fs_appdir();
+  snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "vmu_%d_%d.bin", appdir, target_vmu->port, target_vmu->unit);
 
   return filename;
 }
 
 static void vmu_write_bin(int block, int phase, const void *buffer,
-                          int num_words) {
-  const char *vmu_path = vmu_bin_path();
+                          int num_words, struct vmu *target_vmu) {
+  const char *vmu_path = vmu_bin_path(target_vmu);
   int offset = VMU_BLOCK_OFFSET(block, phase);
   int size = num_words << 2;
 
@@ -39,8 +38,9 @@ static void vmu_write_bin(int block, int phase, const void *buffer,
   fclose(file);
 }
 
-static void vmu_read_bin(int block, int phase, void *buffer, int num_words) {
-  const char *vmu_path = vmu_bin_path();
+static void vmu_read_bin(int block, int phase, void *buffer, int num_words,
+                         struct vmu *target_vmu) {
+  const char *vmu_path = vmu_bin_path(target_vmu);
   int offset = VMU_BLOCK_OFFSET(block, phase);
   int size = num_words << 2;
 
@@ -53,8 +53,8 @@ static void vmu_read_bin(int block, int phase, void *buffer, int num_words) {
   fclose(file);
 }
 
-static void vmu_init_bin() {
-  const char *vmu_path = vmu_bin_path();
+static void vmu_init_bin( struct vmu *target_vmu ) {
+  const char *vmu_path = vmu_bin_path(target_vmu);
 
   if (fs_exists(vmu_path)) {
     return;
@@ -149,7 +149,7 @@ static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
       res->header.num_words = (sizeof(vmu_read) >> 2) + VMU_BLOCK_WORDS;
       memcpy(res->params, &vmu_read, sizeof(vmu_read));
       vmu_read_bin(block, phase, &res->params[sizeof(vmu_read) >> 2],
-                   VMU_BLOCK_WORDS);
+                   VMU_BLOCK_WORDS, vmu);
       return 1;
     }
 
@@ -162,7 +162,7 @@ static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
       CHECK_EQ(partition, 0);
 
       vmu_write_bin(block, phase, &frame->params[2],
-                    frame->header.num_words - 2);
+                    frame->header.num_words - 2, vmu);
 
       res->header.command = MAPLE_RES_ACK;
       res->header.recv_addr = frame->header.send_addr;
@@ -190,13 +190,14 @@ static void vmu_destroy(struct maple_device *dev) {
 
 struct maple_device *vmu_create(struct dreamcast *dc, int port, int unit) {
   struct vmu *vmu = calloc(1, sizeof(struct vmu));
+
   vmu->dc = dc;
   vmu->port = port;
   vmu->unit = unit;
   vmu->destroy = &vmu_destroy;
   vmu->frame = &vmu_frame;
 
-  vmu_init_bin();
+  vmu_init_bin(vmu);
 
   return (struct maple_device *)vmu;
 }
