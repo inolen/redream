@@ -56,6 +56,15 @@ enum {
                   JIT_IMM_I64 | JIT_IMM_F32 | JIT_IMM_F64,
 };
 
+/* the assemble_code function is passed this callback to map guest blocks and
+   instructions to host addresses */
+enum {
+  JIT_EMIT_BLOCK,
+  JIT_EMIT_INSTR,
+};
+
+typedef void (*jit_emit_cb)(void *, int, uint32_t, uint8_t *);
+
 /* backend-specific register definition */
 struct jit_register {
   const char *name;
@@ -83,7 +92,8 @@ struct jit_backend {
 
   /* compile interface */
   void (*reset)(struct jit_backend *);
-  int (*assemble_code)(struct jit_backend *, struct jit_block *, struct ir *);
+  int (*assemble_code)(struct jit_backend *, struct ir *, uint8_t **, int *,
+                       jit_emit_cb, void *);
   void (*dump_code)(struct jit_backend *, const uint8_t *, int, FILE *);
   int (*handle_exception)(struct jit_backend *, struct exception_state *);
 

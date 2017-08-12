@@ -108,7 +108,7 @@ void x64_dispatch_restore_edge(struct jit_backend *base, void *code,
  * emitters
  */
 typedef void (*x64_emit_cb)(struct x64_backend *, Xbyak::CodeGenerator &,
-                            struct jit_block *, const struct ir_instr *);
+                            const struct ir_instr *);
 extern struct jit_emitter x64_emitters[IR_NUM_OPS];
 
 #endif

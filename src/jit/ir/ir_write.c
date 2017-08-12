@@ -200,8 +200,6 @@ static void ir_write_block(struct ir_writer *w, const struct ir_block *block,
   list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
     ir_write_instr(w, instr, output);
   }
-
-  fprintf(output, "\n");
 }
 
 static void ir_assign_labels(struct ir_writer *w) {

@@ -9,14 +9,6 @@
 #include "jit/jit_frontend.h"
 #include "jit/jit_guest.h"
 
-/* cheap idle skip. in an idle loop, the block is just spinning, waiting for
-   an interrupt such as vblank before it'll exit. scale the block's number of
-   cycles in order to yield execution faster, enabling the interrupt to
-   actually be generated */
-#define IDLE_LOOP_CYCLE_SCALE 10
-#define SCALE_CYCLES(blk, cycles) \
-  ((blk)->idle_loop ? (cycles)*IDLE_LOOP_CYCLE_SCALE : (cycles))
-
 /*
  * fsca estimate lookup table, used by the jit and interpreter
  */
@@ -39,9 +31,12 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct jit_guest *guest = frontend->guest;
 
+  int offset = 0;
   char buffer[128];
 
-  int offset = 0;
+  fprintf(output, "#==--------------------------------------------------==#\n");
+  fprintf(output, "# sh4\n");
+  fprintf(output, "#==--------------------------------------------------==#\n");
 
   while (offset < size) {
     uint32_t addr = begin_addr + offset;
@@ -91,7 +86,6 @@ static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
   static int IDLE_MASK = SH4_FLAG_LOAD | SH4_FLAG_COND | SH4_FLAG_CMP;
   int idle_loop = 1;
   int all_flags = 0;
-
   int offset = 0;
 
   while (1) {
@@ -172,10 +166,9 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     uint32_t addr = begin_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
-    sh4_translate_cb cb = sh4_get_translator(data);
     def = sh4_get_opdef(data);
 
-    /* emit synthetic op responsible for mapping guest to host instructions */
+    /* emit meta information about the current guest instruction */
     ir_source_info(ir, addr, def->cycles * cycle_scale);
 
     /* the pc is normally only written to the context at the end of the block,
@@ -185,6 +178,8 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                        ir_alloc_i32(ir, addr));
     }
 
+    /* emit the translation */
+    sh4_translate_cb cb = sh4_get_translator(data);
     cb(guest, ir, addr, instr, flags, &delay_point);
 
     offset += 2;
@@ -193,7 +188,6 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
       uint32_t delay_addr = begin_addr + offset;
       uint32_t delay_data = guest->r16(guest->space, delay_addr);
       union sh4_instr delay_instr = {delay_data};
-      sh4_translate_cb delay_cb = sh4_get_translator(delay_data);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
       /* move insert point back to the middle of the last instruction */
@@ -207,6 +201,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                          ir_alloc_i32(ir, delay_addr));
       }
 
+      sh4_translate_cb delay_cb = sh4_get_translator(delay_data);
       delay_cb(guest, ir, delay_addr, delay_instr, flags, NULL);
 
       /* restore insert point */

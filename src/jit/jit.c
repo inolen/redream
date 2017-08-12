@@ -43,9 +43,9 @@ static int reverse_block_map_cmp(const struct rb_node *rb_lhs,
   const struct jit_block *rhs =
       container_of(rb_rhs, const struct jit_block, rit);
 
-  if ((uint8_t *)lhs->host_addr < (uint8_t *)rhs->host_addr) {
+  if (lhs->host_addr < rhs->host_addr) {
     return -1;
-  } else if ((uint8_t *)lhs->host_addr > (uint8_t *)rhs->host_addr) {
+  } else if (lhs->host_addr > rhs->host_addr) {
     return 1;
   } else {
     return 0;
@@ -189,17 +189,34 @@ static void jit_finalize_block(struct jit *jit, struct jit_block *block) {
 
   rb_insert(&jit->blocks, &block->it, &block_map_cb);
   rb_insert(&jit->reverse_blocks, &block->rit, &reverse_block_map_cb);
-
-  /* write out to perf map if enabled */
-  if (OPTION_perf) {
-    fprintf(jit->perf_map, "%" PRIxPTR " %x %s_0x%08x\n",
-            (uintptr_t)block->host_addr, block->host_size, jit->tag,
-            block->guest_addr);
-  }
 }
 
-static struct jit_block *jit_alloc_block(struct jit *jit) {
+static struct jit_block *jit_alloc_block(struct jit *jit, uint32_t guest_addr,
+                                         int guest_size) {
   struct jit_block *block = calloc(1, sizeof(struct jit_block));
+
+  block->guest_addr = guest_addr;
+  block->guest_size = guest_size;
+
+  /* allocate meta data structs for the original guest code */
+  block->source_map = calloc(block->guest_size, sizeof(void *));
+  block->fastmem = calloc(block->guest_size, sizeof(int8_t));
+
+/* for debug builds, fastmem can be troublesome when running under gdb or
+   lldb. when doing so, SIGSEGV handling can be completely disabled with:
+   handle SIGSEGV nostop noprint pass
+   however, then legitimate SIGSEGV will also not be handled by the debugger.
+   as of this writing, there is no way to configure the debugger to ignore the
+   signal initially, letting us try to handle it, and then handling it in the
+   case that we do not (e.g. because it was not a fastmem-related segfault).
+   because of this, fastmem is default disabled for debug builds to cause less
+   headaches */
+#ifdef NDEBUG
+  for (int i = 0; i < block->guest_size; i++) {
+    block->fastmem[i] = 1;
+  }
+#endif
+
   return block;
 }
 
@@ -256,7 +273,20 @@ void jit_link_code(struct jit *jit, void *branch, uint32_t addr) {
   jit_patch_edges(jit, src);
 }
 
-static void jit_dump_block(struct jit *jit, uint32_t guest_addr,
+static void jit_write_block(struct jit *jit, struct jit_block *block,
+                            struct ir *ir, FILE *output) {
+  jit->frontend->dump_code(jit->frontend, block->guest_addr, block->guest_size,
+                           output);
+  fprintf(output, "\n");
+
+  ir_write(ir, output);
+
+  fprintf(output, "\n");
+  jit->backend->dump_code(jit->backend, block->host_addr, block->host_size,
+                          output);
+}
+
+static void jit_dump_block(struct jit *jit, struct jit_block *block,
                            struct ir *ir) {
   const char *appdir = fs_appdir();
 
@@ -266,12 +296,23 @@ static void jit_dump_block(struct jit *jit, uint32_t guest_addr,
 
   char filename[PATH_MAX];
   snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "0x%08x.ir", irdir,
-           guest_addr);
+           block->guest_addr);
 
   FILE *file = fopen(filename, "w");
   CHECK_NOTNULL(file);
-  ir_write(ir, file);
+  jit_write_block(jit, block, ir, file);
   fclose(file);
+}
+
+static void jit_emit_callback(struct jit *jit, int type, uint32_t guest_addr,
+                              uint8_t *host_addr) {
+  struct jit_block *block = jit->curr_block;
+
+  switch (type) {
+    case JIT_EMIT_INSTR:
+      block->source_map[guest_addr - block->guest_addr] = host_addr;
+      break;
+  }
 }
 
 static void jit_promote_fastmem(struct jit *jit, struct jit_block *block,
@@ -304,28 +345,9 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   int guest_size;
   jit->frontend->analyze_code(jit->frontend, guest_addr, &guest_size);
 
-  struct jit_block *block = jit_alloc_block(jit);
-  block->guest_addr = guest_addr;
-  block->guest_size = guest_size;
-
-  /* allocate meta data structs for the original guest code */
-  block->source_map = calloc(block->guest_size, sizeof(void *));
-  block->fastmem = calloc(block->guest_size, sizeof(int8_t));
-
-/* for debug builds, fastmem can be troublesome when running under gdb or
-   lldb. when doing so, SIGSEGV handling can be completely disabled with:
-   handle SIGSEGV nostop noprint pass
-   however, then legitimate SIGSEGV will also not be handled by the debugger.
-   as of this writing, there is no way to configure the debugger to ignore the
-   signal initially, letting us try to handle it, and then handling it in the
-   case that we do not (e.g. because it was not a fastmem-related segfault).
-   because of this, fastmem is default disabled for debug builds to cause less
-   headaches */
-#ifdef NDEBUG
-  for (int i = 0; i < block->guest_size; i++) {
-    block->fastmem[i] = 1;
-  }
-#endif
+  /* create block */
+  struct jit_block *block = jit_alloc_block(jit, guest_addr, guest_size);
+  jit->curr_block = block;
 
   /* if the block had previously been invalidated, finish removing it now */
   struct jit_block *existing = jit_get_block(jit, guest_addr);
@@ -348,15 +370,6 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   ir.capacity = sizeof(jit->ir_buffer);
   jit->frontend->translate_code(jit->frontend, guest_addr, guest_size, &ir);
 
-#if 0
-  jit->frontend->dump_code(jit->frontend, guest_addr, guest_size);
-#endif
-
-  /* dump unoptimized block */
-  if (jit->dump_code) {
-    jit_dump_block(jit, guest_addr, &ir);
-  }
-
   /* run optimization passes */
   jit_promote_fastmem(jit, block, &ir);
   lse_run(jit->lse, &ir);
@@ -366,19 +379,32 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   ra_run(jit->ra, &ir);
 
   /* assemble the ir into native code */
-  int res = jit->backend->assemble_code(jit->backend, block, &ir);
+  int res = jit->backend->assemble_code(jit->backend, &ir, &block->host_addr,
+                                        &block->host_size,
+                                        (jit_emit_cb)jit_emit_callback, jit);
 
-  if (res) {
-#if 0
-    jit->backend->dump_code(jit->backend, block);
-#endif
-
-    jit_finalize_block(jit, block);
-  } else {
+  if (!res) {
     /* if the backend overflowed, completely free the cache and let dispatch
        try to compile again */
     LOG_INFO("backend overflow, resetting code cache");
     jit_free_code(jit);
+    PROF_LEAVE();
+    return;
+  }
+
+  /* finish by adding code to caches */
+  jit_finalize_block(jit, block);
+
+  /* dump compiled output */
+  if (jit->dump_code) {
+    jit_dump_block(jit, block, &ir);
+  }
+
+  /* write out to perf map if enabled */
+  if (OPTION_perf) {
+    fprintf(jit->perf_map, "%" PRIxPTR " %x %s_0x%08x\n",
+            (uintptr_t)block->host_addr, block->host_size, jit->tag,
+            block->guest_addr);
   }
 
   PROF_LEAVE();

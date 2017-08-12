@@ -31,7 +31,7 @@ struct jit_block {
   int8_t *fastmem;
 
   /* address of compiled block in host memory */
-  void *host_addr;
+  uint8_t *host_addr;
   int host_size;
 
   /* reason the block was invalidated */
@@ -80,6 +80,7 @@ struct jit {
   uint8_t ir_buffer[1024 * 1024 * 2];
 
   /* compiled blocks */
+  struct jit_block *curr_block;
   struct rb_tree blocks;
   struct rb_tree reverse_blocks;
 

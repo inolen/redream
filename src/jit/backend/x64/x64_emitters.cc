@@ -8,14 +8,14 @@ extern "C" {
 
 #define EMITTER(op, constraints)                                           \
   void x64_emit_##op(struct x64_backend *, Xbyak::CodeGenerator &,         \
-                     struct jit_block *, const struct ir_instr *);         \
+                     const struct ir_instr *);                             \
   static struct _x64_##op##_init {                                         \
     _x64_##op##_init() {                                                   \
       x64_emitters[OP_##op] = {(void *)&x64_emit_##op, constraints};       \
     }                                                                      \
   } x64_##op##_init;                                                       \
   void x64_emit_##op(struct x64_backend *backend, Xbyak::CodeGenerator &e, \
-                     struct jit_block *block, const struct ir_instr *instr)
+                     const struct ir_instr *instr)
 
 #define CONSTRAINTS(result_flags, ...) \
   result_flags, {                      \
@@ -60,12 +60,7 @@ enum {
 
 struct jit_emitter x64_emitters[IR_NUM_OPS];
 
-EMITTER(SOURCE_INFO, CONSTRAINTS(NONE, IMM_I32, IMM_I32)) {
-  if (block->source_map) {
-    uint32_t addr = ARG0->i32;
-    block->source_map[addr - block->guest_addr] = e.getCurr<void *>();
-  }
-}
+EMITTER(SOURCE_INFO, CONSTRAINTS(NONE, IMM_I32, IMM_I32)) {}
 
 EMITTER(FALLBACK, CONSTRAINTS(NONE, IMM_I64, IMM_I32, IMM_I32)) {
   struct jit_guest *guest = backend->base.guest;

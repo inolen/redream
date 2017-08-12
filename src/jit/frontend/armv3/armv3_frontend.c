@@ -22,16 +22,21 @@ static void armv3_frontend_dump_code(struct jit_frontend *base,
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
   struct jit_guest *guest = frontend->guest;
 
+  int offset = 0;
   char buffer[128];
 
-  for (int offset = 0; offset < size; offset += 4) {
+  fprintf(output, "#==--------------------------------------------------==#\n");
+  fprintf(output, "# armv3\n");
+  fprintf(output, "#==--------------------------------------------------==#\n");
+
+  while (offset < size) {
     uint32_t addr = begin_addr + offset;
     uint32_t data = guest->r32(guest->space, addr);
 
     armv3_format(addr, data, buffer, sizeof(buffer));
     fprintf(output, "# %s\n", buffer);
 
-    addr += 4;
+    offset += 4;
   }
 }
 
@@ -41,13 +46,17 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
   struct armv3_frontend *frontend = (struct armv3_frontend *)base;
   struct armv3_guest *guest = (struct armv3_guest *)frontend->guest;
 
-  for (int offset = 0; offset < size; offset += 4) {
+  int offset = 0;
+
+  while (offset < size) {
     uint32_t addr = begin_addr + offset;
     uint32_t data = guest->r32(guest->space, addr);
     struct jit_opdef *def = armv3_get_opdef(data);
 
     ir_source_info(ir, addr, 12);
     ir_fallback(ir, def->fallback, addr, data);
+
+    offset += 4;
   }
 }
 

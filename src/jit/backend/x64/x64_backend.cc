@@ -296,80 +296,6 @@ void x64_backend_block_label(char *name, size_t size, struct ir_block *block) {
   snprintf(name, size, ".%p", block);
 }
 
-static void x64_backend_emit_epilogue(struct x64_backend *backend,
-                                      struct jit_block *block) {
-  auto &e = *backend->codegen;
-
-  /* if the block didn't branch to another address, return to dispatch */
-  e.jmp(backend->dispatch_dynamic);
-}
-
-static void x64_backend_emit_prologue(struct x64_backend *backend,
-                                      struct jit_block *block,
-                                      struct ir_block *ir) {
-  struct jit_guest *guest = backend->base.guest;
-
-  auto &e = *backend->codegen;
-
-  /* count number of instrs / cycles in the block */
-  int num_instrs = 0;
-  int num_cycles = 0;
-
-  list_for_each_entry(instr, &ir->instrs, struct ir_instr, it) {
-    if (instr->op == OP_SOURCE_INFO) {
-      num_instrs += 1;
-      num_cycles += instr->arg[1]->i32;
-    }
-  }
-
-  /* yield control once remaining cycles are executed */
-  e.mov(e.eax, e.dword[guestctx + guest->offset_cycles]);
-  e.test(e.eax, e.eax);
-  e.js(backend->dispatch_exit);
-
-  /* handle pending interrupts */
-  e.mov(e.rax, e.qword[guestctx + guest->offset_interrupts]);
-  e.test(e.rax, e.rax);
-  e.jnz(backend->dispatch_interrupt);
-
-  /* update run counts */
-  e.sub(e.dword[guestctx + guest->offset_cycles], num_cycles);
-  e.add(e.dword[guestctx + guest->offset_instrs], num_instrs);
-}
-
-static void x64_backend_emit(struct x64_backend *backend,
-                             struct jit_block *block, struct ir *ir) {
-  auto &e = *backend->codegen;
-  const uint8_t *code = backend->codegen->getCurr();
-
-  CHECK_LT(ir->locals_size, X64_STACK_SIZE);
-
-  e.inLocalLabel();
-
-  list_for_each_entry(blk, &ir->blocks, struct ir_block, it) {
-    char block_label[128];
-    x64_backend_block_label(block_label, sizeof(block_label), blk);
-    e.L(block_label);
-
-    x64_backend_emit_prologue(backend, block, blk);
-
-    list_for_each_entry(instr, &blk->instrs, struct ir_instr, it) {
-      struct jit_emitter *emitter = &x64_emitters[instr->op];
-      x64_emit_cb emit = (x64_emit_cb)emitter->func;
-      CHECK_NOTNULL(emit);
-
-      emit(backend, *backend->codegen, block, instr);
-    }
-
-    x64_backend_emit_epilogue(backend, block);
-  }
-
-  e.outLocalLabel();
-
-  block->host_addr = (void *)code;
-  block->host_size = (int)(backend->codegen->getCurr() - code);
-}
-
 static void x64_backend_emit_thunks(struct x64_backend *backend) {
   auto &e = *backend->codegen;
 
@@ -584,6 +510,10 @@ static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *addr,
   size_t count = cs_disasm(backend->capstone_handle, addr, size, 0, 0, &insns);
   CHECK(count);
 
+  fprintf(output, "#==--------------------------------------------------==#\n");
+  fprintf(output, "# x64\n");
+  fprintf(output, "#==--------------------------------------------------==#\n");
+
   for (size_t i = 0; i < count; i++) {
     cs_insn &insn = insns[i];
     fprintf(output, "# 0x%" PRIx64 ":\t%s\t\t%s\n", insn.address, insn.mnemonic,
@@ -593,23 +523,119 @@ static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *addr,
   cs_free(insns, count);
 }
 
-static int x64_backend_assemble_code(struct jit_backend *base,
-                                     struct jit_block *block, struct ir *ir) {
+static void x64_backend_emit_epilog(struct x64_backend *backend,
+                                    struct ir_block *block) {
+  auto &e = *backend->codegen;
+
+  /* if the block didn't branch to another address, return to dispatch */
+  e.jmp(backend->dispatch_dynamic);
+}
+
+static void x64_backend_emit_prolog(struct x64_backend *backend,
+                                    struct ir_block *block) {
+  struct jit_guest *guest = backend->base.guest;
+
+  auto &e = *backend->codegen;
+
+  /* count number of instrs / cycles in the block */
+  int num_instrs = 0;
+  int num_cycles = 0;
+
+  list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+    if (instr->op == OP_SOURCE_INFO) {
+      num_instrs += 1;
+      num_cycles += instr->arg[1]->i32;
+    }
+  }
+
+  /* yield control once remaining cycles are executed */
+  e.mov(e.eax, e.dword[guestctx + guest->offset_cycles]);
+  e.test(e.eax, e.eax);
+  e.js(backend->dispatch_exit);
+
+  /* handle pending interrupts */
+  e.mov(e.rax, e.qword[guestctx + guest->offset_interrupts]);
+  e.test(e.rax, e.rax);
+  e.jnz(backend->dispatch_interrupt);
+
+  /* update run counts */
+  e.sub(e.dword[guestctx + guest->offset_cycles], num_cycles);
+  e.add(e.dword[guestctx + guest->offset_instrs], num_instrs);
+}
+
+static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
+                             jit_emit_cb emit_cb, void *emit_data) {
+  auto &e = *backend->codegen;
+
+  CHECK_LT(ir->locals_size, X64_STACK_SIZE);
+
+  list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
+    int first = 1;
+
+    /* label each block for local branches */
+    uint8_t *block_addr = e.getCurr<uint8_t *>();
+    char block_label[128];
+    x64_backend_block_label(block_label, sizeof(block_label), block);
+    e.L(block_label);
+
+    x64_backend_emit_prolog(backend, block);
+
+    list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+      /* call emit callback for each guest block / instruction enabling users
+         to map each to their corresponding host address */
+      if (instr->op == OP_SOURCE_INFO) {
+        uint32_t guest_addr = instr->arg[0]->i32;
+
+        if (first) {
+          emit_cb(emit_data, JIT_EMIT_BLOCK, guest_addr, block_addr);
+          first = 0;
+        }
+
+        uint8_t *instr_addr = e.getCurr<uint8_t *>();
+        emit_cb(emit_data, JIT_EMIT_INSTR, guest_addr, instr_addr);
+
+        continue;
+      }
+
+      struct jit_emitter *emitter = &x64_emitters[instr->op];
+      x64_emit_cb emit = (x64_emit_cb)emitter->func;
+      CHECK_NOTNULL(emit);
+      emit(backend, e, instr);
+    }
+
+    x64_backend_emit_epilog(backend, block);
+  }
+}
+
+static int x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
+                                     uint8_t **addr, int *size,
+                                     jit_emit_cb emit_cb, void *emit_data) {
   PROF_ENTER("cpu", "x64_backend_assemble_code");
 
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
+  auto &e = *backend->codegen;
+
   int res = 1;
+  uint8_t *code = e.getCurr<uint8_t *>();
 
   /* try to generate the x64 code. if the code buffer overflows let the backend
      know so it can reset the cache and try again */
+  e.inLocalLabel();
+
   try {
-    x64_backend_emit(backend, block, ir);
+    x64_backend_emit(backend, ir, emit_cb, emit_data);
   } catch (const Xbyak::Error &e) {
     if (e != Xbyak::ERR_CODE_IS_TOO_BIG) {
       LOG_FATAL("x64 codegen failure, %s", e.what());
     }
     res = 0;
   }
+
+  e.outLocalLabel();
+
+  /* return code address */
+  *addr = code;
+  *size = (int)(e.getCurr<uint8_t *>() - code);
 
   PROF_LEAVE();
 
