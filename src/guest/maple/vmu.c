@@ -13,7 +13,7 @@ struct vmu {
   struct maple_device;
 };
 
-const char *vmu_bin_path( vmu *target_vmu) {
+const char *vmu_bin_path( struct vmu *target_vmu) {
   static char filename[PATH_MAX];
 
   //filename check removed here as it is no longer constant
@@ -24,7 +24,7 @@ const char *vmu_bin_path( vmu *target_vmu) {
 }
 
 static void vmu_write_bin(int block, int phase, const void *buffer,
-                          int num_words, vmu *target_vmu) {
+                          int num_words, struct vmu *target_vmu) {
   const char *vmu_path = vmu_bin_path(target_vmu);
   int offset = VMU_BLOCK_OFFSET(block, phase);
   int size = num_words << 2;
@@ -39,7 +39,7 @@ static void vmu_write_bin(int block, int phase, const void *buffer,
 }
 
 static void vmu_read_bin(int block, int phase, void *buffer, int num_words,
-                         vmu *target_vmu) {
+                         struct vmu *target_vmu) {
   const char *vmu_path = vmu_bin_path(target_vmu);
   int offset = VMU_BLOCK_OFFSET(block, phase);
   int size = num_words << 2;
@@ -53,7 +53,7 @@ static void vmu_read_bin(int block, int phase, void *buffer, int num_words,
   fclose(file);
 }
 
-static void vmu_init_bin( vmu *target_vmu ) {
+static void vmu_init_bin( struct vmu *target_vmu ) {
   const char *vmu_path = vmu_bin_path(target_vmu);
 
   if (fs_exists(vmu_path)) {
