@@ -11,27 +11,19 @@
 
 struct vmu {
   struct maple_device;
+
+  /* note, a persistent file handle isn't kept open here, writes are instead
+     performed immediately to avoid corrupt saves in the event of a crash */
+  char filename[PATH_MAX];
 };
 
-const char *vmu_bin_path() {
-  static char filename[PATH_MAX];
-
-  if (!filename[0]) {
-    const char *appdir = fs_appdir();
-    snprintf(filename, sizeof(filename), "%s" PATH_SEPARATOR "vmu.bin", appdir);
-  }
-
-  return filename;
-}
-
-static void vmu_write_bin(int block, int phase, const void *buffer,
-                          int num_words) {
-  const char *vmu_path = vmu_bin_path();
+static void vmu_write_bin(struct vmu *vmu, int block, int phase,
+                          const void *buffer, int num_words) {
   int offset = VMU_BLOCK_OFFSET(block, phase);
   int size = num_words << 2;
 
-  FILE *file = fopen(vmu_path, "r+b");
-  CHECK_NOTNULL(file, "Failed to open %s", vmu_path);
+  FILE *file = fopen(vmu->filename, "r+b");
+  CHECK_NOTNULL(file, "failed to open %s", vmu->filename);
   int r = fseek(file, offset, SEEK_SET);
   CHECK_NE(r, -1);
   r = (int)fwrite(buffer, 1, size, file);
@@ -39,32 +31,17 @@ static void vmu_write_bin(int block, int phase, const void *buffer,
   fclose(file);
 }
 
-static void vmu_read_bin(int block, int phase, void *buffer, int num_words) {
-  const char *vmu_path = vmu_bin_path();
+static void vmu_read_bin(struct vmu *vmu, int block, int phase, void *buffer,
+                         int num_words) {
   int offset = VMU_BLOCK_OFFSET(block, phase);
   int size = num_words << 2;
 
-  FILE *file = fopen(vmu_path, "rb");
-  CHECK_NOTNULL(file, "Failed to open %s", vmu_path);
+  FILE *file = fopen(vmu->filename, "rb");
+  CHECK_NOTNULL(file, "failed to open %s", vmu->filename);
   int r = fseek(file, offset, SEEK_SET);
   CHECK_NE(r, -1);
   r = (int)fread(buffer, 1, size, file);
   CHECK_EQ(r, size);
-  fclose(file);
-}
-
-static void vmu_init_bin() {
-  const char *vmu_path = vmu_bin_path();
-
-  if (fs_exists(vmu_path)) {
-    return;
-  }
-
-  LOG_INFO("Initializing VMU at %s", vmu_path);
-
-  FILE *file = fopen(vmu_path, "wb");
-  CHECK_NOTNULL(file, "Failed to open %s", vmu_path);
-  fwrite(vmu_default, 1, sizeof(vmu_default), file);
   fclose(file);
 }
 
@@ -148,7 +125,7 @@ static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
       res->header.send_addr = frame->header.recv_addr;
       res->header.num_words = (sizeof(vmu_read) >> 2) + VMU_BLOCK_WORDS;
       memcpy(res->params, &vmu_read, sizeof(vmu_read));
-      vmu_read_bin(block, phase, &res->params[sizeof(vmu_read) >> 2],
+      vmu_read_bin(vmu, block, phase, &res->params[sizeof(vmu_read) >> 2],
                    VMU_BLOCK_WORDS);
       return 1;
     }
@@ -161,7 +138,7 @@ static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
       vmu_parse_block_param(frame->params[1], &partition, &block, &phase);
       CHECK_EQ(partition, 0);
 
-      vmu_write_bin(block, phase, &frame->params[2],
+      vmu_write_bin(vmu, block, phase, &frame->params[2],
                     frame->header.num_words - 2);
 
       res->header.command = MAPLE_RES_ACK;
@@ -190,13 +167,26 @@ static void vmu_destroy(struct maple_device *dev) {
 
 struct maple_device *vmu_create(struct dreamcast *dc, int port, int unit) {
   struct vmu *vmu = calloc(1, sizeof(struct vmu));
+
   vmu->dc = dc;
   vmu->port = port;
   vmu->unit = unit;
   vmu->destroy = &vmu_destroy;
   vmu->frame = &vmu_frame;
 
-  vmu_init_bin();
+  const char *appdir = fs_appdir();
+  snprintf(vmu->filename, sizeof(vmu->filename),
+           "%s" PATH_SEPARATOR "vmu_%d_%d.bin", appdir, vmu->port, vmu->unit);
+
+  /* intialize default vmu if one doesn't already exist */
+  if (!fs_exists(vmu->filename)) {
+    LOG_INFO("initializing vmu at %s", vmu->filename);
+
+    FILE *file = fopen(vmu->filename, "wb");
+    CHECK_NOTNULL(file, "failed to open %s", vmu->filename);
+    fwrite(vmu_default, 1, sizeof(vmu_default), file);
+    fclose(file);
+  }
 
   return (struct maple_device *)vmu;
 }
