@@ -61,9 +61,11 @@ static void interp_backend_destroy(struct jit_backend *base) {
   free(backend);
 }
 
-struct jit_backend *interp_backend_create(struct jit_frontend *frontend) {
+struct jit_backend *interp_backend_create(struct jit_guest *guest,
+                                          struct jit_frontend *frontend) {
   struct interp_backend *backend = calloc(1, sizeof(struct interp_backend));
 
+  backend->guest = guest;
   backend->frontend = frontend;
   backend->destroy = &interp_backend_destroy;
 
