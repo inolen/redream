@@ -60,7 +60,16 @@ enum {
 
 struct jit_emitter x64_emitters[IR_NUM_OPS];
 
-EMITTER(SOURCE_INFO, CONSTRAINTS(NONE, IMM_I32, IMM_I32)) {}
+EMITTER(SOURCE_INFO, CONSTRAINTS(NONE, IMM_I32, IMM_I32)) {
+#if 0
+  /* encode the guest address of each instruction in the generated code for
+     debugging purposes */
+  Xbyak::Label skip;
+  e.jmp(skip);
+  e.dd(ARG0->i32);
+  e.L(skip);
+#endif
+}
 
 EMITTER(FALLBACK, CONSTRAINTS(NONE, IMM_I64, IMM_I32, IMM_I32)) {
   struct jit_guest *guest = backend->base.guest;

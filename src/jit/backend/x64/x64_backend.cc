@@ -571,9 +571,9 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
 
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
     int first = 1;
+    uint8_t *block_addr = e.getCurr<uint8_t *>();
 
     /* label each block for local branches */
-    uint8_t *block_addr = e.getCurr<uint8_t *>();
     char block_label[128];
     x64_backend_block_label(block_label, sizeof(block_label), block);
     e.L(block_label);
@@ -593,8 +593,6 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
 
         uint8_t *instr_addr = e.getCurr<uint8_t *>();
         emit_cb(emit_data, JIT_EMIT_INSTR, guest_addr, instr_addr);
-
-        continue;
       }
 
       struct jit_emitter *emitter = &x64_emitters[instr->op];
