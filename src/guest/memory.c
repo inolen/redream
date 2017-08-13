@@ -75,7 +75,7 @@ struct address_space {
 
 /*
  * memory
- a*/
+ */
 #define ADDRESS_SPACE_SIZE (UINT64_C(1) << 32)
 
 enum region_type {

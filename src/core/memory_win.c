@@ -77,12 +77,24 @@ int map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
   DWORD file_flags = access_to_file_flags(access);
   void *ptr = MapViewOfFileEx(handle, file_flags, (DWORD)(offset >> 32),
                               (DWORD)offset, size, start);
-  return ptr == start;
+  if (ptr != start) {
+    return 0;
+  }
+
+  /* commit the pages backing the file mapping now */
+  DWORD protect = access_to_protection_flags(access);
+  ptr = VirtualAlloc(ptr, size, MEM_COMMIT, protect);
+  if (!ptr) {
+    return 0;
+  }
+
+  return 1;
 }
 
 shmem_handle_t create_shared_memory(const char *filename, size_t size,
                                     enum page_access access) {
   DWORD protect = access_to_protection_flags(access);
-  return CreateFileMapping(INVALID_HANDLE_VALUE, NULL, protect | SEC_COMMIT,
+  /* note, only reserve the pages for now */
+  return CreateFileMapping(INVALID_HANDLE_VALUE, NULL, protect | SEC_RESERVE,
                            (DWORD)(size >> 32), (DWORD)(size), filename);
 }
