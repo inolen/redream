@@ -102,13 +102,9 @@ static void lse_eliminate_loads(struct lse *lse, struct ir *ir,
     if (instr->op == OP_FALLBACK || instr->op == OP_CALL) {
       lse_clear_available(lse);
     } else if (instr->op == OP_BRANCH) {
-      if (instr->arg[0]->type != VALUE_BLOCK) {
-        lse_clear_available(lse);
-      }
+      lse_clear_available(lse);
     } else if (instr->op == OP_BRANCH_TRUE || instr->op == OP_BRANCH_FALSE) {
-      if (instr->arg[1]->type != VALUE_BLOCK) {
-        lse_clear_available(lse);
-      }
+      lse_clear_available(lse);
     } else if (instr->op == OP_LOAD_CONTEXT) {
       /* if there is already a value available for this offset, reuse it and
          remove this redundant load */;
@@ -142,13 +138,9 @@ static void lse_eliminate_stores(struct lse *lse, struct ir *ir,
     if (instr->op == OP_FALLBACK || instr->op == OP_CALL) {
       lse_clear_available(lse);
     } else if (instr->op == OP_BRANCH) {
-      if (instr->arg[0]->type != VALUE_BLOCK) {
-        lse_clear_available(lse);
-      }
+      lse_clear_available(lse);
     } else if (instr->op == OP_BRANCH_TRUE || instr->op == OP_BRANCH_FALSE) {
-      if (instr->arg[1]->type != VALUE_BLOCK) {
-        lse_clear_available(lse);
-      }
+      lse_clear_available(lse);
     } else if (instr->op == OP_LOAD_CONTEXT) {
       int offset = instr->arg[0]->i32;
       int size = ir_type_size(instr->result->type);
