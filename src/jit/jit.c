@@ -95,8 +95,7 @@ static struct jit_block *jit_lookup_block_reverse(struct jit *jit,
 }
 
 static int jit_is_stale(struct jit *jit, struct jit_block *block) {
-  void *code = jit->backend->lookup_code(jit->backend, block->guest_addr);
-  return code != block->host_addr;
+  return block->state != JIT_STATE_VALID;
 }
 
 static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
@@ -140,8 +139,10 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_invalidate_block(struct jit *jit, struct jit_block *block,
-                                 int reason) {
-  block->invalidate_reason = reason;
+                                 int fastmem) {
+  /* blocks that are invalidated due to a fastmem exception aren't invalid at
+     the guest level, they just need to be recompiled with different options */
+  block->state = fastmem ? JIT_STATE_RECOMPILE : JIT_STATE_INVALID;
 
   jit->backend->invalidate_code(jit->backend, block->guest_addr);
 
@@ -168,7 +169,7 @@ static void jit_cache_block(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_free_block(struct jit *jit, struct jit_block *block) {
-  jit_invalidate_block(jit, block, JIT_REASON_UNKNOWN);
+  jit_invalidate_block(jit, block, 0);
 
   free(block->source_map);
   free(block->fastmem);
@@ -247,7 +248,7 @@ void jit_invalidate_code(struct jit *jit) {
     struct rb_node *next = rb_next(it);
 
     struct jit_block *block = container_of(it, struct jit_block, it);
-    jit_invalidate_block(jit, block, JIT_REASON_UNKNOWN);
+    jit_invalidate_block(jit, block, 0);
 
     it = next;
   }
@@ -355,7 +356,7 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   if (existing) {
     /* if the block was invalidated due to a fastmem exception, persist its
        fastmem state */
-    if (existing->invalidate_reason == JIT_REASON_FASTMEM) {
+    if (existing->state != JIT_STATE_INVALID) {
       CHECK_EQ(block->guest_size, existing->guest_size);
       memcpy(block->fastmem, existing->fastmem,
              block->guest_size * sizeof(int8_t));
@@ -440,7 +441,7 @@ static int jit_handle_exception(void *data, struct exception_state *ex) {
   block->fastmem[found] = 0;
 
   /* invalidate the block so it's recompiled on the next access */
-  jit_invalidate_block(jit, block, JIT_REASON_FASTMEM);
+  jit_invalidate_block(jit, block, 1);
 
   return 1;
 }

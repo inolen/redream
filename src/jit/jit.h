@@ -15,11 +15,14 @@ struct ra;
 struct val;
 
 enum {
-  JIT_REASON_UNKNOWN,
-  JIT_REASON_FASTMEM,
+  JIT_STATE_VALID,
+  JIT_STATE_INVALID,
+  JIT_STATE_RECOMPILE,
 };
 
 struct jit_block {
+  int state;
+
   /* address of source block in guest memory */
   uint32_t guest_addr;
   int guest_size;
@@ -33,9 +36,6 @@ struct jit_block {
   /* address of compiled block in host memory */
   uint8_t *host_addr;
   int host_size;
-
-  /* reason the block was invalidated */
-  int invalidate_reason;
 
   /* edges to other blocks */
   struct list in_edges;
