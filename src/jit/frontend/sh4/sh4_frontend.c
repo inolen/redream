@@ -25,43 +25,6 @@ static const struct jit_opdef *sh4_frontend_lookup_op(struct jit_frontend *base,
   return sh4_get_opdef(*(const uint16_t *)instr);
 }
 
-static void sh4_frontend_dump_code(struct jit_frontend *base,
-                                   uint32_t begin_addr, int size,
-                                   FILE *output) {
-  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
-  struct jit_guest *guest = frontend->guest;
-
-  int offset = 0;
-  char buffer[128];
-
-  fprintf(output, "#==--------------------------------------------------==#\n");
-  fprintf(output, "# sh4\n");
-  fprintf(output, "#==--------------------------------------------------==#\n");
-
-  while (offset < size) {
-    uint32_t addr = begin_addr + offset;
-    uint16_t data = guest->r16(guest->space, addr);
-    union sh4_instr instr = {data};
-    struct jit_opdef *def = sh4_get_opdef(data);
-
-    sh4_format(addr, instr, buffer, sizeof(buffer));
-    fprintf(output, "# %s\n", buffer);
-
-    offset += 2;
-
-    if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_addr = begin_addr + offset;
-      uint16_t delay_data = guest->r16(guest->space, delay_addr);
-      union sh4_instr delay_instr = {delay_data};
-
-      sh4_format(addr, delay_instr, buffer, sizeof(buffer));
-      fprintf(output, "# %s\n", buffer);
-
-      offset += 2;
-    }
-  }
-}
-
 static int sh4_frontend_is_terminator(struct jit_opdef *def) {
   /* stop emitting once a branch is hit */
   if (def->flags & SH4_FLAG_STORE_PC) {
@@ -133,6 +96,43 @@ static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
   return idle_loop;
 }
 
+static void sh4_frontend_dump_code(struct jit_frontend *base,
+                                   uint32_t begin_addr, int size,
+                                   FILE *output) {
+  struct sh4_frontend *frontend = (struct sh4_frontend *)base;
+  struct jit_guest *guest = frontend->guest;
+
+  int offset = 0;
+  char buffer[128];
+
+  fprintf(output, "#==--------------------------------------------------==#\n");
+  fprintf(output, "# sh4\n");
+  fprintf(output, "#==--------------------------------------------------==#\n");
+
+  while (offset < size) {
+    uint32_t addr = begin_addr + offset;
+    uint16_t data = guest->r16(guest->space, addr);
+    union sh4_instr instr = {data};
+    struct jit_opdef *def = sh4_get_opdef(data);
+
+    sh4_format(addr, instr, buffer, sizeof(buffer));
+    fprintf(output, "# %s\n", buffer);
+
+    offset += 2;
+
+    if (def->flags & SH4_FLAG_DELAYED) {
+      uint32_t delay_addr = begin_addr + offset;
+      uint16_t delay_data = guest->r16(guest->space, delay_addr);
+      union sh4_instr delay_instr = {delay_data};
+
+      sh4_format(delay_addr, delay_instr, buffer, sizeof(buffer));
+      fprintf(output, "# %s\n", buffer);
+
+      offset += 2;
+    }
+  }
+}
+
 static void sh4_frontend_translate_code(struct jit_frontend *base,
                                         uint32_t begin_addr, int size,
                                         struct ir *ir) {
@@ -141,10 +141,6 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   struct sh4_context *ctx = (struct sh4_context *)guest->ctx;
 
   PROF_ENTER("cpu", "sh4_frontend_translate_code");
-
-  int offset = 0;
-  struct jit_opdef *def = NULL;
-  struct ir_insert_point delay_point;
 
   /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
      an interrupt such as vblank before it'll exit. scale the block's number of
@@ -162,13 +158,17 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     flags |= SH4_DOUBLE_SZ;
   }
 
+  int offset = 0;
+
   while (offset < size) {
     uint32_t addr = begin_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
-    def = sh4_get_opdef(data);
+    struct jit_opdef *def = sh4_get_opdef(data);
 
-    /* emit meta information about the current guest instruction */
+    /* emit meta information for the current guest instruction. this info is
+       essential to the jit, and is used to map guest instructions to host
+       addresses for branching and fastmem access */
     ir_source_info(ir, addr, def->cycles * cycle_scale);
 
     /* the pc is normally only written to the context at the end of the block,
@@ -178,23 +178,25 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                        ir_alloc_i32(ir, addr));
     }
 
-    /* emit the translation */
+    /* emit the instruction's translation. note, if the instruction has a delay
+       slot, delay_point is assigned where the slot's translation should be
+       emitted */
+    struct ir_insert_point delay_point;
     sh4_translate_cb cb = sh4_get_translator(data);
     cb(guest, ir, addr, instr, flags, &delay_point);
 
     offset += 2;
 
+    /* emit the delay slot's translation */
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_addr = begin_addr + offset;
       uint32_t delay_data = guest->r16(guest->space, delay_addr);
       union sh4_instr delay_instr = {delay_data};
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
-      /* move insert point back to the middle of the last instruction */
+      /* move insert point back to the middle of the preceding instruction */
       struct ir_insert_point original = ir_get_insert_point(ir);
       ir_set_insert_point(ir, &delay_point);
-
-      ir_source_info(ir, delay_addr, delay_def->cycles * cycle_scale);
 
       if (delay_def->flags & SH4_FLAG_LOAD_PC) {
         ir_store_context(ir, offsetof(struct sh4_context, pc),
@@ -207,31 +209,46 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
       /* restore insert point */
       ir_set_insert_point(ir, &original);
 
-      offset += 2;
+      /* note, no meta information is emitted for the delay slot, and the offset
+         is not incremented, resulting in the delay slot being emitted a second
+         time starting in a new block after the branch. the reason being, if the
+         delay slot is directly branched to, the preceding instruction is never
+         executed
+
+         note note, the preceding instruction should be a branch, or else it
+         wouldn't be valid to write out the delay slot a second time */
+      CHECK(def->flags & SH4_FLAG_STORE_PC);
     }
-  }
 
-  /* there are 3 possible block endings:
+    /* there are 3 possible block endings:
 
-     a.) the block terminates due to an unconditional branch; nothing needs to
-         be done
+       1.) the block terminates due to an unconditional branch; nothing needs to
+           be done
 
-     b.) the block terminates due to an instruction which doesn't set the pc; an
-         unconditional branch to the next address needs to be added
+       2.) the block terminates due to an instruction which doesn't set the pc;
+           an unconditional branch to the next address needs to be added
 
-     c.) the block terminates due to an instruction which sets the pc but is not
-         a branch (e.g. an invalid instruction trap); nothing needs to be done,
-         dispatch will always implicitly branch to the next pc */
+       3.) the block terminates due to an instruction which sets the pc but is
+           not a branch (e.g. an invalid instruction trap); nothing needs to be
+           done dispatch will always implicitly branch to the next pc */
+    int end_of_block = sh4_frontend_is_terminator(def) || offset >= size;
+    int store_pc = (def->flags & SH4_FLAG_STORE_PC) == SH4_FLAG_STORE_PC;
+    int cond_end = (def->flags & SH4_FLAG_COND) == SH4_FLAG_COND;
+    int delay_slot = (def->flags & SH4_FLAG_DELAYED) == SH4_FLAG_DELAYED;
 
-  /* if the final instruction doesn't unconditionally set the pc, insert a
-     branch to the next instruction */
-  if ((def->flags & (SH4_FLAG_STORE_PC | SH4_FLAG_COND)) != SH4_FLAG_STORE_PC) {
-    struct ir_block *tail_block =
-        list_last_entry(&ir->blocks, struct ir_block, it);
-    struct ir_instr *tail_instr =
-        list_last_entry(&tail_block->instrs, struct ir_instr, it);
-    ir_set_current_instr(ir, tail_instr);
-    ir_branch(ir, ir_alloc_i32(ir, begin_addr + size));
+    if (end_of_block) {
+      /* if the pc isn't set unconditionally, branch to the next address */
+      if (!store_pc || cond_end) {
+        struct ir_block *tail_block =
+            list_last_entry(&ir->blocks, struct ir_block, it);
+        struct ir_instr *tail_instr =
+            list_last_entry(&tail_block->instrs, struct ir_instr, it);
+        ir_set_current_instr(ir, tail_instr);
+
+        uint32_t next_addr = begin_addr + offset + delay_slot * 2;
+        ir_branch(ir, ir_alloc_i32(ir, next_addr));
+      }
+    }
   }
 
   PROF_LEAVE();
