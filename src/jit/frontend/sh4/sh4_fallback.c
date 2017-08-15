@@ -181,8 +181,12 @@ typedef int32_t int128_t[4];
 #define LOAD_HOST_F32(addr)         (*(float *)(uintptr_t)addr)
 #define LOAD_HOST_F64(addr)         (*(double *)(uintptr_t)addr)
 
-#define FTOI_I32(v)                 ((int32_t)(v))
-#define FTOI_I64(v)                 ((int64_t)(v))
+                                    // Force int32 saturation when out of range
+                                    // note 0x7FFFFF80 (2147483520) is the largest f32
+                                    // encodable value that fits in an int32
+                                    // Also, int32 0x7FFF_FFFF = 21474836487, 0x8000_0000 = -2147483648
+#define FTOI_I32(v)                 ((v>2147483520.f?2147483647:(v<-2147483648.f?-2147483648:(int32_t)v)))
+#define FTOI_I64(v)                 ((int64_t)v)
 
 #define ITOF_F32(v)                 ((float)(v))
 #define ITOF_F64(v)                 ((double)(v))
