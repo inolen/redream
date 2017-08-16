@@ -57,9 +57,6 @@ static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
     struct jit_opdef *def = sh4_get_opdef(data);
 
     offset += 2;
-
-    /* if the instruction has none of the IDLE_MASK flags, disqualify */
-    idle_loop &= (def->flags & IDLE_MASK) != 0;
     all_flags |= def->flags;
 
     if (def->flags & SH4_FLAG_DELAYED) {
@@ -68,8 +65,6 @@ static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
       offset += 2;
-
-      idle_loop &= (delay_def->flags & IDLE_MASK) != 0;
       all_flags |= delay_def->flags;
     }
 
@@ -158,7 +153,16 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     flags |= SH4_DOUBLE_SZ;
   }
 
+<<<<<<< Updated upstream
   int offset = 0;
+=======
+  /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
+     an interrupt such as vblank before it'll exit. scale the block's number of
+     cycles in order to yield execution faster, enabling the interrupt to
+     actually be generated */
+  int idle_loop = sh4_frontend_is_idle_loop(frontend, begin_addr);
+  int cycle_scale = idle_loop ? 8 : 1;
+>>>>>>> Stashed changes
 
   while (offset < size) {
     uint32_t addr = begin_addr + offset;
