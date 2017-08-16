@@ -660,12 +660,12 @@ INSTR(EXTUW) {
 
 /* MAC.L   @Rm+,@Rn+ */
 INSTR(MACL) {
-  LOG_FATAL("MACL not implemented");
+  INVALID_INSTR();
 }
 
 /* MAC.W   @Rm+,@Rn+ */
 INSTR(MACW) {
-  LOG_FATAL("MACW not implemented");
+  INVALID_INSTR();
 }
 
 /* MUL.L   Rm,Rn */
@@ -1571,7 +1571,7 @@ INSTR(STSMPR) {
 
 /* TRAPA   #imm */
 INSTR(TRAPA) {
-  LOG_FATAL("unsupported TRAPA");
+  INVALID_INSTR();
 }
 
 /* FLDI0  FRn 1111nnnn10001101 */
