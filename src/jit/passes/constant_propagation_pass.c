@@ -74,7 +74,6 @@ static void cprop_run_block(struct cprop *cprop, struct ir *ir,
         /* filter the load instructions out of the "could optimize" stats */
         case OP_LOAD_HOST:
         case OP_LOAD_GUEST:
-        case OP_LOAD_FAST:
         case OP_LOAD_CONTEXT:
         case OP_LOAD_LOCAL:
           break;

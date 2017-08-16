@@ -10,7 +10,7 @@ static void cve_run_block(struct ir *ir, struct ir_block *block) {
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
     /* eliminate unnecessary sext / zext operations */
     if (instr->op == OP_LOAD_HOST || instr->op == OP_LOAD_GUEST ||
-        instr->op == OP_LOAD_FAST || instr->op == OP_LOAD_CONTEXT) {
+        instr->op == OP_LOAD_CONTEXT) {
       enum ir_type memory_type = VALUE_V;
       int same_type = 1;
       int all_sext = 1;
@@ -49,7 +49,7 @@ static void cve_run_block(struct ir *ir, struct ir_block *block) {
         STAT_zext_removed++;
       }
     } else if (instr->op == OP_STORE_HOST || instr->op == OP_STORE_GUEST ||
-               instr->op == OP_STORE_FAST || instr->op == OP_STORE_CONTEXT) {
+               instr->op == OP_STORE_CONTEXT) {
       struct ir_value *store_value = instr->arg[1];
 
       if (store_value->def && store_value->def->op == OP_TRUNC) {

@@ -39,8 +39,6 @@ struct x64_backend {
   void *dispatch_interrupt;
   void (*dispatch_enter)(int32_t);
   void *dispatch_exit;
-  void (*load_thunk[16])();
-  void (*store_thunk)();
 
   /* debug stats */
   csh capstone_handle;
@@ -57,8 +55,9 @@ struct x64_backend {
 #else
 #define X64_STACK_SHADOW_SPACE 0
 #endif
-
 #define X64_STACK_LOCALS (X64_STACK_SHADOW_SPACE + 8)
+
+#define X64_SLOWMEM_PATCH_SIZE 6
 
 #define X64_USE_AVX backend->use_avx
 

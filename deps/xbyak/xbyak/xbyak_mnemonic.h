@@ -401,7 +401,6 @@ void cwd() { db(0x66); db(0x99); }
 void cwde() { db(0x98); }
 void lahf() { db(0x9F); }
 void lock() { db(0xF0); }
-void nop() { db(0x90); }
 void sahf() { db(0x9E); }
 void stc() { db(0xF9); }
 void std() { db(0xFD); }

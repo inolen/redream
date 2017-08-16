@@ -139,11 +139,8 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
   PROF_LEAVE();
 }
 
-static void jit_invalidate_block(struct jit *jit, struct jit_block *block,
-                                 int fastmem) {
-  /* blocks that are invalidated due to a fastmem exception aren't invalid at
-     the guest level, they just need to be recompiled with different options */
-  block->state = fastmem ? JIT_STATE_RECOMPILE : JIT_STATE_INVALID;
+static void jit_invalidate_block(struct jit *jit, struct jit_block *block) {
+  block->state = JIT_STATE_INVALID;
 
   jit->backend->invalidate_code(jit->backend, block->guest_addr);
 
@@ -170,7 +167,7 @@ static void jit_cache_block(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_free_block(struct jit *jit, struct jit_block *block) {
-  jit_invalidate_block(jit, block, 0);
+  jit_invalidate_block(jit, block);
 
   free(block->source_map);
   free(block->fastmem);
@@ -202,22 +199,6 @@ static struct jit_block *jit_alloc_block(struct jit *jit, uint32_t guest_addr,
 
   /* allocate meta data structs for the original guest code */
   block->source_map = calloc(block->guest_size, sizeof(void *));
-  block->fastmem = calloc(block->guest_size, sizeof(int8_t));
-
-/* for debug builds, fastmem can be troublesome when running under gdb or
-   lldb. when doing so, SIGSEGV handling can be completely disabled with:
-   handle SIGSEGV nostop noprint pass
-   however, then legitimate SIGSEGV will also not be handled by the debugger.
-   as of this writing, there is no way to configure the debugger to ignore the
-   signal initially, letting us try to handle it, and then handling it in the
-   case that we do not (e.g. because it was not a fastmem-related segfault).
-   because of this, fastmem is default disabled for debug builds to cause less
-   headaches */
-#ifdef NDEBUG
-  for (int i = 0; i < block->guest_size; i++) {
-    block->fastmem[i] = 1;
-  }
-#endif
 
   return block;
 }
@@ -249,7 +230,7 @@ void jit_invalidate_code(struct jit *jit) {
     struct rb_node *next = rb_next(it);
 
     struct jit_block *block = container_of(it, struct jit_block, it);
-    jit_invalidate_block(jit, block, 0);
+    jit_invalidate_block(jit, block);
 
     it = next;
   }
@@ -318,25 +299,6 @@ static void jit_emit_callback(struct jit *jit, int type, uint32_t guest_addr,
   }
 }
 
-static void jit_promote_fastmem(struct jit *jit, struct jit_block *block,
-                                struct ir *ir) {
-  uint32_t last_addr = block->guest_addr;
-
-  list_for_each_entry(blk, &ir->blocks, struct ir_block, it) {
-    list_for_each_entry_safe(instr, &blk->instrs, struct ir_instr, it) {
-      int fastmem = block->fastmem[last_addr - block->guest_addr];
-
-      if (instr->op == OP_SOURCE_INFO) {
-        last_addr = instr->arg[0]->i32;
-      } else if (instr->op == OP_LOAD_GUEST && fastmem) {
-        instr->op = OP_LOAD_FAST;
-      } else if (instr->op == OP_STORE_GUEST && fastmem) {
-        instr->op = OP_STORE_FAST;
-      }
-    }
-  }
-}
-
 void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   PROF_ENTER("cpu", "jit_compile_block");
 
@@ -379,7 +341,6 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   }
 
   /* run optimization passes */
-  jit_promote_fastmem(jit, block, &ir);
   cfa_run(jit->cfa, &ir);
   lse_run(jit->lse, &ir);
   cprop_run(jit->cprop, &ir);
@@ -433,23 +394,6 @@ static int jit_handle_exception(void *data, struct exception_state *ex) {
   if (!jit->backend->handle_exception(jit->backend, ex)) {
     return 0;
   }
-
-  /* disable fastmem optimizations for it on future compiles */
-  int found = 0;
-  for (int i = 0; i < block->guest_size; i++) {
-    /* ignore empty entries */
-    if (!block->source_map[i]) {
-      continue;
-    }
-    if ((uintptr_t)block->source_map[i] > ex->pc) {
-      break;
-    }
-    found = i;
-  }
-  block->fastmem[found] = 0;
-
-  /* invalidate the block so it's recompiled on the next access */
-  jit_invalidate_block(jit, block, 1);
 
   return 1;
 }

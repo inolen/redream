@@ -98,7 +98,18 @@ EMITTER(STORE_HOST, CONSTRAINTS(NONE, REG_I64, VAL_ALL)) {
   x64_backend_store_mem(backend, dst, data);
 }
 
-EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
+EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64)) {
+#ifdef HAVE_FASTMEM
+  struct ir_value *dst = RES;
+  Xbyak::Reg addr = ARG0_REG;
+
+  uint8_t *begin = e.getCurr<uint8_t *>();
+  x64_backend_load_mem(backend, dst, addr.cvt64() + guestmem);
+
+  int padding = X64_SLOWMEM_PATCH_SIZE - (e.getCurr<uint8_t *>() - begin);
+  CHECK_GE(padding, 0);
+  e.nop(padding);
+#else
   struct jit_guest *guest = backend->base.guest;
   Xbyak::Reg dst = RES_REG;
   struct ir_value *addr = ARG0;
@@ -153,9 +164,21 @@ EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
     e.call((void *)fn);
     e.mov(dst, e.rax);
   }
+#endif
 }
 
-EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
+EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64, REG_ALL)) {
+#ifdef HAVE_FASTMEM
+  Xbyak::Reg addr = ARG0_REG;
+  struct ir_value *data = ARG1;
+
+  uint8_t *begin = e.getCurr<uint8_t *>();
+  x64_backend_store_mem(backend, addr.cvt64() + guestmem, data);
+
+  int padding = X64_SLOWMEM_PATCH_SIZE - (e.getCurr<uint8_t *>() - begin);
+  CHECK_GE(padding, 0);
+  e.nop(padding);
+#else
   struct jit_guest *guest = backend->base.guest;
   struct ir_value *addr = ARG0;
   struct ir_value *data = ARG1;
@@ -210,20 +233,7 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
     x64_backend_mov_value(backend, arg2, data);
     e.call((void *)fn);
   }
-}
-
-EMITTER(LOAD_FAST, CONSTRAINTS(REG_ALL, REG_I64)) {
-  struct ir_value *dst = RES;
-  Xbyak::Reg addr = ARG0_REG;
-
-  x64_backend_load_mem(backend, dst, addr.cvt64() + guestmem);
-}
-
-EMITTER(STORE_FAST, CONSTRAINTS(NONE, REG_I64, VAL_ALL)) {
-  Xbyak::Reg addr = ARG0_REG;
-  struct ir_value *data = ARG1;
-
-  x64_backend_store_mem(backend, addr.cvt64() + guestmem, data);
+#endif
 }
 
 EMITTER(LOAD_CONTEXT, CONSTRAINTS(REG_ALL, IMM_I32)) {

@@ -17,7 +17,6 @@ struct val;
 enum {
   JIT_STATE_VALID,
   JIT_STATE_INVALID,
-  JIT_STATE_RECOMPILE,
 };
 
 struct jit_block {

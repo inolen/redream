@@ -360,6 +360,17 @@ else()
   set(REDREAM_FLAGS ${RELIB_FLAGS})
 endif()
 
+# fastmem can be troublesome when running under gdb or lldb. when doing so,
+# SIGSEGV handling can be completely disabled with:
+# handle SIGSEGV nostop noprint pass
+# however, then legitimate SIGSEGV will also not be handled by the debugger.
+# as of this writing, there is no way to configure the debugger to ignore the
+# signal initially, letting us try to handle it, and then handling it in the
+# case that we do not (e.g. because it was not a fastmem-related segfault).
+# because of this, fastmem is default disabled for debug builds to cause less
+# headaches
+list(APPEND REDREAM_DEFS $<$<NOT:$<CONFIG:Debug>>:HAVE_FASTMEM>)
+
 source_group_by_dir(REDREAM_SOURCES)
 
 if(BUILD_LIBRETRO OR ANDROID)

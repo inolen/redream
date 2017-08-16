@@ -291,10 +291,6 @@ struct ir_value *ir_load_guest(struct ir *ir, struct ir_value *addr,
                                enum ir_type type);
 void ir_store_guest(struct ir *ir, struct ir_value *addr, struct ir_value *v);
 
-struct ir_value *ir_load_fast(struct ir *ir, struct ir_value *addr,
-                              enum ir_type type);
-void ir_store_fast(struct ir *ir, struct ir_value *addr, struct ir_value *v);
-
 /* context operations */
 struct ir_value *ir_load_context(struct ir *ir, size_t offset,
                                  enum ir_type type);
