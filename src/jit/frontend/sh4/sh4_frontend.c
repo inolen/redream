@@ -347,8 +347,8 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
       /* for now, blocks that optimize based on the fpscr state must still be
          compiled individually */
       break;
-    } else if (def->op == SH4_OP_BF || def->op == SH4_OP_BFS || def->op == SH4_OP_BT ||
-        def->op == SH4_OP_BTS) {
+    } else if (def->op == SH4_OP_BF || def->op == SH4_OP_BFS ||
+               def->op == SH4_OP_BT || def->op == SH4_OP_BTS) {
       int branch_type;
       uint32_t branch_addr;
       uint32_t next_addr;

@@ -365,15 +365,21 @@ static struct ir_block *jit_create_entry_point(struct ir *ir, uint32_t addr) {
         /* split the block starting at addr */
         struct ir_block *old_block = instr->block;
         struct ir_block *new_block = ir_split_block(ir, instr);
-        if (new_block == old_block) {
-          return old_block;
+
+        /* make old block branch to new block if the old block doesn't end in an
+           unconditional branch already */
+        if (new_block != old_block) {
+          struct ir_instr *last_instr =
+              list_last_entry(&old_block->instrs, struct ir_instr, it);
+
+          if (last_instr->op != OP_BRANCH && last_instr->op != OP_BRANCH_COND) {
+            ir_set_current_instr(ir, last_instr);
+            ir_branch(ir, ir_alloc_i32(ir, addr));
+          }
         }
 
-        /* make old block branch to new block */
-        struct ir_instr *last_instr =
-            list_last_entry(&old_block->instrs, struct ir_instr, it);
-        ir_set_current_instr(ir, last_instr);
-        ir_branch(ir, ir_alloc_i32(ir, addr));
+        /* assign block address as meta data */
+        ir_set_meta(ir, new_block, IR_META_ADDR, ir_alloc_i32(ir, addr));
         return new_block;
       }
     }
@@ -417,7 +423,6 @@ static void jit_create_entry_points(struct jit *jit, struct ir *ir,
   struct ir_block *block = list_first_entry(&ir->blocks, struct ir_block, it);
 
   while (block) {
-    struct ir_block *next_block = list_next_entry(block, struct ir_block, it);
     struct ir_instr *instr =
         list_first_entry(&block->instrs, struct ir_instr, it);
 
@@ -426,14 +431,50 @@ static void jit_create_entry_points(struct jit *jit, struct ir *ir,
 
       if ((instr->op == OP_BRANCH || instr->op == OP_BRANCH_COND) &&
           next_instr) {
-        next_block = ir_split_block(ir, next_instr);
+        ir_split_block(ir, next_instr);
         break;
       }
 
       instr = next_instr;
     }
 
-    block = next_block;
+    block = list_next_entry(block, struct ir_block, it);
+  }
+
+  /* split blocks at each branch target */
+  block = list_first_entry(&ir->blocks, struct ir_block, it);
+
+  while (block) {
+    struct ir_instr *instr =
+        list_first_entry(&block->instrs, struct ir_instr, it);
+
+    while (instr) {
+      if (instr->op == OP_BRANCH) {
+        uint32_t target_addr = instr->arg[0]->i32;
+        struct ir_block *target_block = jit_create_entry_point(ir, target_addr);
+
+        /* directly branch to the block if it's available */
+        if (target_block) {
+          ir_set_arg0(ir, instr, ir_alloc_block_ref(ir, target_block));
+        }
+      } else if (instr->op == OP_BRANCH_COND) {
+        uint32_t true_addr = instr->arg[0]->i32;
+        struct ir_block *true_block = jit_create_entry_point(ir, true_addr);
+        if (true_block) {
+          ir_set_arg0(ir, instr, ir_alloc_block_ref(ir, true_block));
+        }
+
+        uint32_t false_addr = instr->arg[1]->i32;
+        struct ir_block *false_block = jit_create_entry_point(ir, false_addr);
+        if (false_block) {
+          ir_set_arg1(ir, instr, ir_alloc_block_ref(ir, false_block));
+        }
+      }
+
+      instr = list_next_entry(instr, struct ir_instr, it);
+    }
+
+    block = list_next_entry(block, struct ir_block, it);
   }
 }
 
