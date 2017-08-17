@@ -9,6 +9,12 @@
 #include "jit/jit_frontend.h"
 #include "jit/jit_guest.h"
 
+#if 0
+#define LOG_ANALYZE LOG_INFO
+#else
+#define LOG_ANALYZE(...)
+#endif
+
 /*
  * fsca estimate lookup table, used by the jit and interpreter
  */
@@ -305,31 +311,92 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
                                       uint32_t begin_addr, int *size) {
   struct sh4_frontend *frontend = (struct sh4_frontend *)base;
   struct sh4_guest *guest = (struct sh4_guest *)frontend->guest;
+  uint32_t furthest_target = begin_addr;
 
-  *size = 0;
+  int offset = 0;
+  int use_fpscr = 0;
 
   while (1) {
-    uint32_t addr = begin_addr + *size;
+    uint32_t addr = begin_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
+    union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
+    struct jit_opdef *delay_def = NULL;
 
-    *size += 2;
+    use_fpscr |= (def->flags & SH4_FLAG_USE_FPSCR) == SH4_FLAG_USE_FPSCR;
+    offset += 2;
 
     if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_addr = begin_addr + *size;
+      uint32_t delay_addr = begin_addr + offset;
       uint16_t delay_data = guest->r16(guest->space, delay_addr);
-      struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
+      delay_def = sh4_get_opdef(delay_data);
 
-      *size += 2;
+      use_fpscr |= (delay_def->flags & SH4_FLAG_USE_FPSCR) == SH4_FLAG_USE_FPSCR;
+      offset += 2;
 
       /* delay slots can't have another delay slot */
-      CHECK(!(delay_def->flags & SH4_FLAG_DELAYED));
+      if (delay_def->flags & SH4_FLAG_DELAYED) {
+        offset -= 4;
+        break;
+      }
     }
 
-    if (sh4_frontend_is_terminator(def)) {
+    int end_of_block = sh4_frontend_is_terminator(def);
+
+    if (end_of_block && use_fpscr) {
+      /* for now, blocks that optimize based on the fpscr state must still be
+         compiled individually */
+      break;
+    } else if (def->op == SH4_OP_BF || def->op == SH4_OP_BFS || def->op == SH4_OP_BT ||
+        def->op == SH4_OP_BTS) {
+      int branch_type;
+      uint32_t branch_addr;
+      uint32_t next_addr;
+      sh4_branch_info(addr, instr, &branch_type, &branch_addr, &next_addr);
+
+      furthest_target = MAX(furthest_target, branch_addr);
+
+      LOG_ANALYZE("cond branch at 0x%08x furthest=0x%08x", addr,
+                  furthest_target);
+    } else if (def->op == SH4_OP_BRA) {
+      int branch_type;
+      uint32_t branch_addr;
+      uint32_t next_addr;
+      sh4_branch_info(addr, instr, &branch_type, &branch_addr, &next_addr);
+
+      /* if the branch is back into the function, and there's no further target,
+         consider this the end */
+      if (branch_addr >= begin_addr && branch_addr < addr &&
+          furthest_target <= addr) {
+        LOG_ANALYZE("backwards uncond branch at 0x%08x furthest=0x%08x", addr,
+                    furthest_target);
+        break;
+      }
+
+      furthest_target = MAX(furthest_target, branch_addr);
+
+      LOG_ANALYZE("uncond branch at 0x%08x furthest=0x%08x", addr,
+                  furthest_target);
+    } else if (def->op == SH4_OP_BSR || def->op == SH4_OP_BSRF ||
+               def->op == SH4_OP_JSR) {
+      /* ignore */
+      LOG_ANALYZE("ignore BSR / BSRF / JSR at 0x%08x", addr);
+    } else if (def->op == SH4_OP_RTS || def->op == SH4_OP_RTE) {
+      /* nothing branches past this, this is the last return */
+      if (furthest_target <= addr) {
+        LOG_ANALYZE("caught function [0x%08x,0x%08x]", begin_addr, addr);
+        break;
+      }
+
+      LOG_ANALYZE("ignore RTS / RTE at 0x%08x furthest=0x%08x", addr,
+                  furthest_target);
+    } else if (end_of_block) {
+      /* some other terminator */
       break;
     }
   }
+
+  *size = offset;
 }
 
 static void sh4_frontend_destroy(struct jit_frontend *base) {
