@@ -179,6 +179,7 @@ endif()
 
 set(RELIB_SOURCES
   src/core/assert.c
+  src/core/bitmap.c
   src/core/exception_handler.c
   src/core/filesystem.c
   src/core/interval_tree.c

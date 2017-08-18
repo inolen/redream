@@ -1,6 +1,6 @@
 #include "core/list.h"
 
-int list_empty(struct list *list) {
+int list_empty(const struct list *list) {
   return !list->head;
 }
 

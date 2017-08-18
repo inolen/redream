@@ -17,7 +17,7 @@ struct list {
 typedef int (*list_node_cmp)(const struct list_node *a,
                              const struct list_node *b);
 
-int list_empty(struct list *list);
+int list_empty(const struct list *list);
 void list_add(struct list *list, struct list_node *n);
 void list_add_after(struct list *list, struct list_node *after,
                     struct list_node *n);
