@@ -31,19 +31,6 @@ static void lse_erase_available(struct lse *lse, int offset, int size) {
   int end = offset + size - 1;
   CHECK_LT(end, IR_MAX_CONTEXT);
 
-  /* if the invalidation range intersects with an entry, merge that entry into
-     the invalidation range */
-  struct lse_entry *begin_entry = &lse->available[begin];
-  struct lse_entry *end_entry = &lse->available[end];
-
-  if (begin_entry->token == lse->token) {
-    begin = begin_entry->offset;
-  }
-
-  if (end_entry->token == lse->token) {
-    end = end_entry->offset + ir_type_size(end_entry->value->type) - 1;
-  }
-
   for (; begin <= end; begin++) {
     struct lse_entry *entry = &lse->available[begin];
     entry->token = 0;
@@ -52,16 +39,13 @@ static void lse_erase_available(struct lse *lse, int offset, int size) {
   }
 }
 
-static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
+static void lse_set_available(struct lse *lse, int offset,
+                              struct ir_value *v) {
   int size = ir_type_size(v->type);
   int begin = offset;
   int end = offset + size - 1;
   CHECK_LT(end, IR_MAX_CONTEXT);
 
-  lse_erase_available(lse, offset, size);
-
-  /* add entries for the entire range to aid in invalidation. only the initial
-     entry where offset == entry.offset is valid for reuse */
   for (; begin <= end; begin++) {
     struct lse_entry *entry = &lse->available[begin];
     entry->token = lse->token;
@@ -87,7 +71,33 @@ static struct ir_value *lse_get_available(struct lse *lse, int offset) {
     return NULL;
   }
 
+  /* validate the entry hasn't been partially invalidated */
+  int size = ir_type_size(entry->value->type);
+
+  for (int i = 0; i < size; i++) {
+    struct lse_entry *entry2 = &lse->available[offset + i];
+    if (entry2->value != entry->value) {
+      return NULL;
+    }
+  }
+
   return entry->value;
+}
+
+static int lse_test_available(struct lse *lse, int offset, int size) {
+  int begin = offset;
+  int end = offset + size - 1;
+  CHECK_LT(end, IR_MAX_CONTEXT);
+
+  /* test if any combination of entries cover the entire range */
+  for (; begin <= end; begin++) {
+    struct lse_entry *entry = &lse->available[begin];
+    if (entry->token != lse->token) {
+      return 0;
+    }
+  }
+
+  return 1;
 }
 
 static void lse_eliminate_loads(struct lse *lse, struct ir *ir,
@@ -143,14 +153,12 @@ static void lse_eliminate_stores(struct lse *lse, struct ir *ir,
 
       lse_erase_available(lse, offset, size);
     } else if (instr->op == OP_STORE_CONTEXT) {
-      /* if subsequent stores have been made for this offset that would
-         overwrite it completely, mark instruction as dead */
+      /* if subsequent stores overwrite this completely, kill it */
       int offset = instr->arg[0]->i32;
-      struct ir_value *existing = lse_get_available(lse, offset);
-      int existing_size = existing ? ir_type_size(existing->type) : 0;
-      int store_size = ir_type_size(instr->arg[1]->type);
+      int size = ir_type_size(instr->arg[1]->type);
+      int overwritten = lse_test_available(lse, offset, size);
 
-      if (existing_size >= store_size) {
+      if (overwritten) {
         ir_remove_instr(ir, instr);
         STAT_stores_removed++;
         continue;
