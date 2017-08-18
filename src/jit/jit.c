@@ -9,6 +9,7 @@
 #include "jit/jit_backend.h"
 #include "jit/jit_frontend.h"
 #include "jit/passes/constant_propagation_pass.h"
+#include "jit/passes/control_flow_analysis_pass.h"
 #include "jit/passes/dead_code_elimination_pass.h"
 #include "jit/passes/expression_simplification_pass.h"
 #include "jit/passes/load_store_elimination_pass.h"
@@ -373,6 +374,7 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
 
   /* run optimization passes */
   jit_promote_fastmem(jit, block, &ir);
+  cfa_run(jit->cfa, &ir);
   lse_run(jit->lse, &ir);
   cprop_run(jit->cprop, &ir);
   esimp_run(jit->esimp, &ir);
@@ -477,6 +479,10 @@ void jit_destroy(struct jit *jit) {
     lse_destroy(jit->lse);
   }
 
+  if (jit->cfa) {
+    cfa_destroy(jit->cfa);
+  }
+
   if (jit->exc_handler) {
     exception_handler_remove(jit->exc_handler);
   }
@@ -493,6 +499,7 @@ struct jit *jit_create(const char *tag, struct jit_frontend *frontend,
   jit->backend = backend;
 
   /* create optimization passes */
+  jit->cfa = cfa_create();
   jit->lse = lse_create();
   jit->cprop = cprop_create();
   jit->esimp = esimp_create();

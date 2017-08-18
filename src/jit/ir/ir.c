@@ -134,8 +134,6 @@ void ir_remove_block(struct ir *ir, struct ir_block *block) {
 }
 
 void ir_add_edge(struct ir *ir, struct ir_block *src, struct ir_block *dst) {
-  CHECK_NE(src, dst);
-
   /* linked list data is intrusive, need to allocate two edge objects */
   {
     struct ir_edge *edge = ir_calloc(ir, sizeof(struct ir_edge));

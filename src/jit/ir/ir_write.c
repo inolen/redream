@@ -193,6 +193,20 @@ static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
 
 static void ir_write_block(struct ir_writer *w, const struct ir_block *block,
                            FILE *output) {
+  /* write out control flow information */
+  fprintf(output, "# predecessors ");
+  list_for_each_entry(edge, &block->incoming, struct ir_edge, it) {
+    fprintf(output, "%%%d ", ir_get_block_label(w, edge->src));
+  }
+  fprintf(output, "\n");
+
+  fprintf(output, "# successors ");
+  list_for_each_entry(edge, &block->outgoing, struct ir_edge, it) {
+    fprintf(output, "%%%d ", ir_get_block_label(w, edge->dst));
+  }
+  fprintf(output, "\n");
+
+  /* write out actual block */
   fprintf(output, "%%%d:", ir_get_block_label(w, block));
   ir_write_meta(w, block, output);
   fprintf(output, "\n");

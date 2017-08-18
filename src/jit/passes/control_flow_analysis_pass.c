@@ -8,7 +8,7 @@ void cfa_run(struct cfa *cfa, struct ir *ir) {
       /* add edges between blocks for easy traversing */
       if (instr->op == OP_BRANCH || instr->op == OP_BRANCH_FALSE ||
           instr->op == OP_BRANCH_TRUE) {
-        if (instr->arg[0]->blk) {
+        if (instr->arg[0]->type == VALUE_BLOCK) {
           ir_add_edge(ir, block, instr->arg[0]->blk);
         }
       }
