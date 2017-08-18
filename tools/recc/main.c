@@ -7,12 +7,13 @@
 #include "jit/jit_guest.h"
 #include "jit/pass_stats.h"
 #include "jit/passes/constant_propagation_pass.h"
+#include "jit/passes/control_flow_analysis_pass.h"
 #include "jit/passes/dead_code_elimination_pass.h"
 #include "jit/passes/expression_simplification_pass.h"
 #include "jit/passes/load_store_elimination_pass.h"
 #include "jit/passes/register_allocation_pass.h"
 
-DEFINE_OPTION_STRING(pass, "lse,cprop,esimp,dce,ra",
+DEFINE_OPTION_STRING(pass, "cfa,lse,cprop,esimp,dce,ra",
                      "Comma-separated list of passes to run");
 
 DEFINE_STAT(ir_instrs_total, "total ir instructions");
@@ -37,9 +38,7 @@ static int get_num_instrs(const struct ir *ir) {
 static void sanitize_ir(struct ir *ir) {
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
     list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
-      if (instr->op != OP_BRANCH && instr->op != OP_BRANCH_FALSE &&
-          instr->op != OP_BRANCH_TRUE && instr->op != OP_CALL &&
-          instr->op != OP_FALLBACK) {
+      if (instr->op != OP_CALL && instr->op != OP_FALLBACK) {
         continue;
       }
 
@@ -75,7 +74,11 @@ static void process_file(struct jit_backend *backend, const char *filename,
 
   char *name = strtok(passes, ",");
   while (name) {
-    if (!strcmp(name, "lse")) {
+    if (!strcmp(name, "cfa")) {
+      struct cfa *cfa = cfa_create();
+      cfa_run(cfa, &ir);
+      cfa_destroy(cfa);
+    } else if (!strcmp(name, "lse")) {
       struct lse *lse = lse_create();
       lse_run(lse, &ir);
       lse_destroy(lse);
@@ -115,16 +118,18 @@ static void process_file(struct jit_backend *backend, const char *filename,
   int num_instrs_after = get_num_instrs(&ir);
 
   /* assemble backend code */
-  struct jit_block block = {0};
   backend->reset(backend);
-  int res = backend->assemble_code(backend, &block, &ir);
+  uint8_t *host_addr = NULL;
+  int host_size = 0;
+  int res =
+      backend->assemble_code(backend, &ir, &host_addr, &host_size, NULL, NULL);
   CHECK(res);
 
   if (!disable_dumps) {
     LOG_INFO("===-----------------------------------------------------===");
     LOG_INFO("x64 code");
     LOG_INFO("===-----------------------------------------------------===");
-    backend->dump_code(backend, &block);
+    backend->dump_code(backend, host_addr, host_size, stdout);
     LOG_INFO("");
   }
 

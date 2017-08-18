@@ -508,7 +508,6 @@ static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *addr,
 
   cs_insn *insns;
   size_t count = cs_disasm(backend->capstone_handle, addr, size, 0, 0, &insns);
-  CHECK(count);
 
   fprintf(output, "#==--------------------------------------------------==#\n");
   fprintf(output, "# x64\n");
@@ -583,7 +582,7 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
     list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
       /* call emit callback for each guest block / instruction enabling users
          to map each to their corresponding host address */
-      if (instr->op == OP_SOURCE_INFO) {
+      if (emit_cb && instr->op == OP_SOURCE_INFO) {
         uint32_t guest_addr = instr->arg[0]->i32;
 
         if (first) {

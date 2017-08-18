@@ -277,23 +277,24 @@ void jit_link_code(struct jit *jit, void *branch, uint32_t addr) {
 
 static void jit_write_block(struct jit *jit, struct jit_block *block,
                             struct ir *ir, FILE *output) {
+  ir_write(ir, output);
+  fprintf(output, "\n");
+
   jit->frontend->dump_code(jit->frontend, block->guest_addr, block->guest_size,
                            output);
   fprintf(output, "\n");
 
-  ir_write(ir, output);
-
-  fprintf(output, "\n");
   jit->backend->dump_code(jit->backend, block->host_addr, block->host_size,
                           output);
 }
 
-static void jit_dump_block(struct jit *jit, struct jit_block *block,
-                           struct ir *ir) {
+static void jit_dump_block(struct jit *jit, const char *type,
+                           struct jit_block *block, struct ir *ir) {
   const char *appdir = fs_appdir();
 
   char irdir[PATH_MAX];
-  snprintf(irdir, sizeof(irdir), "%s" PATH_SEPARATOR "ir", appdir);
+  snprintf(irdir, sizeof(irdir), "%s" PATH_SEPARATOR "%s-%s-ir", appdir,
+           jit->tag, type);
   CHECK(fs_mkdir(irdir));
 
   char filename[PATH_MAX];
@@ -372,6 +373,11 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   ir.capacity = sizeof(jit->ir_buffer);
   jit->frontend->translate_code(jit->frontend, guest_addr, guest_size, &ir);
 
+  /* dump raw ir */
+  if (jit->dump_code) {
+    jit_dump_block(jit, "raw", block, &ir);
+  }
+
   /* run optimization passes */
   jit_promote_fastmem(jit, block, &ir);
   cfa_run(jit->cfa, &ir);
@@ -398,9 +404,9 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   /* finish by adding code to caches */
   jit_finalize_block(jit, block);
 
-  /* dump compiled output */
+  /* dump optimized ir */
   if (jit->dump_code) {
-    jit_dump_block(jit, block, &ir);
+    jit_dump_block(jit, "opt", block, &ir);
   }
 
   /* write out to perf map if enabled */

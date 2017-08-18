@@ -236,6 +236,10 @@ void ir_write(struct ir *ir, FILE *output) {
 
   ir_assign_labels(&w);
 
+  fprintf(output, "#==--------------------------------------------------==#\n");
+  fprintf(output, "# ir\n");
+  fprintf(output, "#==--------------------------------------------------==#\n");
+
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
     ir_write_block(&w, block, output);
   }

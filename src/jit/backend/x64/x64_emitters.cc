@@ -267,7 +267,7 @@ EMITTER(FTOI, CONSTRAINTS(REG_I64, REG_F64)) {
       e.cvttsd2si(rd, ra);
       break;
     default:
-      LOG_FATAL("Unexpected result type");
+      LOG_FATAL("unexpected result type");
       break;
   }
 }
@@ -286,7 +286,7 @@ EMITTER(ITOF, CONSTRAINTS(REG_F64, REG_I64)) {
       e.cvtsi2sd(rd, ra);
       break;
     default:
-      LOG_FATAL("Unexpected result type");
+      LOG_FATAL("unexpected result type");
       break;
   }
 }
@@ -345,7 +345,7 @@ EMITTER(TRUNC, CONSTRAINTS(REG_I64, REG_I64)) {
       ra = ra.cvt32();
       break;
     default:
-      LOG_FATAL("Unexpected value type");
+      LOG_FATAL("unexpected value type");
   }
 
   if (ra.isBit(32)) {

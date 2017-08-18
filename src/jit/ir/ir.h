@@ -206,7 +206,7 @@ static inline int ir_type_size(enum ir_type type) {
     case VALUE_V128:
       return 16;
     default:
-      LOG_FATAL("Unexpected value type");
+      LOG_FATAL("unexpected value type");
       break;
   }
 }

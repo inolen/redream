@@ -36,11 +36,10 @@ struct ir_parser {
   struct list refs;
 
   int *labels;
-  int next_label;
 };
 
 static const char *typenames[] = {"",    "i8",  "i16",  "i32", "i64",
-                                  "f32", "f64", "v128", "str", "blk"};
+                                  "f32", "f64", "v128", "blk"};
 static const int num_typenames = sizeof(typenames) / sizeof(typenames[0]);
 
 static int ir_lex_get(struct ir_parser *p) {
@@ -59,15 +58,11 @@ static void ir_lex_next(struct ir_parser *p) {
   } while (isspace(next) && next != '\n');
 
   /* ignore comment lines */
-  if (next == '#') {
+  while (next == '#') {
     while (next != '\n') {
       next = ir_lex_get(p);
     }
     next = ir_lex_get(p);
-
-    ir_lex_next(p);
-
-    return;
   }
 
   /* test for end of file */
@@ -380,8 +375,8 @@ static int ir_parse_arg(struct ir_parser *p, struct ir_instr *instr, int arg) {
 
     /* label reference, defer resolution until after all blocks / values have
        been parsed */
-    int id = strtol(&ident[1], NULL, 10);
-    ir_defer_reference(p, instr, arg, type, id);
+    int label = strtol(&ident[1], NULL, 10);
+    ir_defer_reference(p, instr, arg, type, label);
 
     /* eat token */
     ir_lex_next(p);
@@ -490,7 +485,7 @@ static int ir_parse_instr(struct ir_parser *p) {
     return 0;
   }
 
-  ir_insert_instr_label(p, instr, p->next_label++);
+  ir_insert_instr_label(p, instr, label);
 
   return 1;
 }
@@ -513,7 +508,7 @@ static int ir_parse_block(struct ir_parser *p) {
   ir_lex_next(p);
 
   struct ir_block *block = ir_append_block(p->ir);
-  ir_insert_block_label(p, block, p->next_label++);
+  ir_insert_block_label(p, block, label);
   ir_set_current_block(p->ir, block);
 
   if (!ir_parse_meta(p, block)) {
@@ -533,6 +528,10 @@ int ir_read(FILE *input, struct ir *ir) {
 
   while (1) {
     ir_lex_next(&p);
+
+    if (p.tok == TOK_EOL) {
+      continue;
+    }
 
     if (p.tok == TOK_EOF) {
       if (!ir_resolve_references(&p)) {
