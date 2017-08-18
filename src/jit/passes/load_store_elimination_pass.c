@@ -5,8 +5,6 @@
 DEFINE_STAT(loads_removed, "context loads eliminated");
 DEFINE_STAT(stores_removed, "context stores eliminated");
 
-#define MAX_OFFSET 512
-
 struct lse_entry {
   /* cache token when this entry was added */
   uint64_t token;
@@ -19,7 +17,7 @@ struct lse {
   /* current cache token */
   uint64_t token;
 
-  struct lse_entry available[MAX_OFFSET];
+  struct lse_entry available[IR_MAX_CONTEXT];
 };
 
 static void lse_clear_available(struct lse *lse) {
@@ -29,10 +27,9 @@ static void lse_clear_available(struct lse *lse) {
 }
 
 static void lse_erase_available(struct lse *lse, int offset, int size) {
-  CHECK_LT(offset + size, MAX_OFFSET);
-
   int begin = offset;
   int end = offset + size - 1;
+  CHECK_LT(end, IR_MAX_CONTEXT);
 
   /* if the invalidation range intersects with an entry, merge that entry into
      the invalidation range */
@@ -55,8 +52,26 @@ static void lse_erase_available(struct lse *lse, int offset, int size) {
   }
 }
 
+static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
+  int size = ir_type_size(v->type);
+  int begin = offset;
+  int end = offset + size - 1;
+  CHECK_LT(end, IR_MAX_CONTEXT);
+
+  lse_erase_available(lse, offset, size);
+
+  /* add entries for the entire range to aid in invalidation. only the initial
+     entry where offset == entry.offset is valid for reuse */
+  for (; begin <= end; begin++) {
+    struct lse_entry *entry = &lse->available[begin];
+    entry->token = lse->token;
+    entry->offset = offset;
+    entry->value = v;
+  }
+}
+
 static struct ir_value *lse_get_available(struct lse *lse, int offset) {
-  CHECK_LT(offset, MAX_OFFSET);
+  CHECK_LT(offset, IR_MAX_CONTEXT);
 
   struct lse_entry *entry = &lse->available[offset];
 
@@ -73,25 +88,6 @@ static struct ir_value *lse_get_available(struct lse *lse, int offset) {
   }
 
   return entry->value;
-}
-
-static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
-  int size = ir_type_size(v->type);
-  CHECK_LT(offset + size, MAX_OFFSET);
-
-  int begin = offset;
-  int end = offset + size - 1;
-
-  lse_erase_available(lse, offset, size);
-
-  /* add entries for the entire range to aid in invalidation. only the initial
-     entry where offset == entry.offset is valid for reuse */
-  for (; begin <= end; begin++) {
-    struct lse_entry *entry = &lse->available[begin];
-    entry->token = lse->token;
-    entry->offset = offset;
-    entry->value = v;
-  }
 }
 
 static void lse_eliminate_loads(struct lse *lse, struct ir *ir,

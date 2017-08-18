@@ -464,12 +464,16 @@ void ir_store_fast(struct ir *ir, struct ir_value *addr, struct ir_value *v) {
 
 struct ir_value *ir_load_context(struct ir *ir, size_t offset,
                                  enum ir_type type) {
+  CHECK_LE(offset + ir_type_size(type), IR_MAX_CONTEXT);
+
   struct ir_instr *instr = ir_append_instr(ir, OP_LOAD_CONTEXT, type);
   ir_set_arg0(ir, instr, ir_alloc_i32(ir, (int32_t)offset));
   return instr->result;
 }
 
 void ir_store_context(struct ir *ir, size_t offset, struct ir_value *v) {
+  CHECK_LE(offset + ir_type_size(v->type), IR_MAX_CONTEXT);
+
   struct ir_instr *instr = ir_append_instr(ir, OP_STORE_CONTEXT, VALUE_V);
   ir_set_arg0(ir, instr, ir_alloc_i32(ir, (int32_t)offset));
   ir_set_arg1(ir, instr, v);
