@@ -88,7 +88,7 @@ const Xbyak::Address x64_backend_xmm_constant(struct x64_backend *backend,
                                               enum xmm_constant c);
 void x64_backend_block_label(char *name, size_t size, struct ir_block *block);
 void x64_backend_emit_branch(struct x64_backend *backend, struct ir *ir,
-                             const ir_value *target);
+                             struct ir_block *block, struct ir_value *target);
 
 /*
  * dispatch

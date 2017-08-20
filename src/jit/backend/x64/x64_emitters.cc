@@ -244,9 +244,14 @@ EMITTER(LOAD_CONTEXT, CONSTRAINTS(REG_ALL, IMM_I32)) {
 }
 
 EMITTER(STORE_CONTEXT, CONSTRAINTS(NONE, IMM_I32, VAL_ALL)) {
+  /* don't emit if the store has been killed */
+  struct ir_value *meta_kill = ir_get_meta(ir, instr->block, IR_META_KILL);
+  if (meta_kill && meta_kill->i32) {
+    return;
+  }
+
   int offset = ARG0->i32;
   struct ir_value *data = ARG1;
-
   x64_backend_store_mem(backend, guestctx + offset, data);
 }
 
@@ -920,7 +925,7 @@ EMITTER(LSHD, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64)) {
 }
 
 EMITTER(BRANCH, CONSTRAINTS(NONE, REG_I64 | IMM_I32 | IMM_BLK)) {
-  x64_backend_emit_branch(backend, ir, ARG0);
+  x64_backend_emit_branch(backend, ir, instr->block, ARG0);
 }
 
 EMITTER(BRANCH_COND, CONSTRAINTS(NONE, REG_I64 | IMM_I32 | IMM_BLK,
@@ -931,9 +936,9 @@ EMITTER(BRANCH_COND, CONSTRAINTS(NONE, REG_I64 | IMM_I32 | IMM_BLK,
   Xbyak::Label next;
   e.test(cond, cond);
   e.jz(next);
-  x64_backend_emit_branch(backend, ir, ARG0);
+  x64_backend_emit_branch(backend, ir, instr->block, ARG0);
   e.L(next);
-  x64_backend_emit_branch(backend, ir, ARG1);
+  x64_backend_emit_branch(backend, ir, instr->block, ARG1);
 }
 
 EMITTER(CALL, CONSTRAINTS(NONE, VAL_I64, OPT_I64, OPT_I64)) {

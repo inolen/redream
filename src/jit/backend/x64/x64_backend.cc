@@ -498,7 +498,7 @@ static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *addr,
 }
 
 void x64_backend_emit_branch(struct x64_backend *backend, struct ir *ir,
-                             const ir_value *target) {
+                             struct ir_block *block, struct ir_value *target) {
   struct jit_guest *guest = backend->base.guest;
   auto &e = *backend->codegen;
 
@@ -528,7 +528,21 @@ void x64_backend_emit_branch(struct x64_backend *backend, struct ir *ir,
     dispatch_type = 2;
   }
 
-  /* jump directly to the block / to dispatch */
+  Xbyak::Label exit_thunk;
+
+  /* yield control once remaining cycles are executed */
+  e.mov(e.eax, e.dword[guestctx + guest->offset_cycles]);
+  e.test(e.eax, e.eax);
+  e.mov(e.rax, (uint64_t)backend->dispatch_exit);
+  e.js(exit_thunk);
+
+  /* yield control to any pending interrupts */
+  e.mov(e.rax, e.qword[guestctx + guest->offset_interrupts]);
+  e.test(e.rax, e.rax);
+  e.mov(e.rax, (uint64_t)backend->dispatch_interrupt);
+  e.jnz(exit_thunk);
+
+  /* jump directly to next block / dispatch */
   switch (dispatch_type) {
     case 0:
       e.jmp(block_label, Xbyak::CodeGenerator::T_NEAR);
@@ -540,6 +554,27 @@ void x64_backend_emit_branch(struct x64_backend *backend, struct ir *ir,
       e.jmp(backend->dispatch_dynamic);
       break;
   }
+
+  /* if yielding to an interrupt, perform context stores that were killed by
+     subsequent blocks on the pretense that they were actualy going to run */
+  e.L(exit_thunk);
+
+  list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+    if (instr->op != OP_STORE_CONTEXT) {
+      continue;
+    }
+
+    struct ir_value *meta_kill = ir_get_meta(ir, block, IR_META_KILL);
+    if (!meta_kill || !meta_kill->i32) {
+      continue;
+    }
+
+    int offset = instr->arg[0]->i32;
+    struct ir_value *data = instr->arg[1];
+    x64_backend_store_mem(backend, guestctx + offset, data);
+  }
+
+  e.jmp(e.rax);
 }
 
 static void x64_backend_emit_epilog(struct x64_backend *backend, struct ir *ir,
@@ -551,7 +586,7 @@ static void x64_backend_emit_epilog(struct x64_backend *backend, struct ir *ir,
       list_last_entry(&block->instrs, struct ir_instr, it);
 
   if (last_instr->op != OP_BRANCH && last_instr->op != OP_BRANCH_COND) {
-    x64_backend_emit_branch(backend, ir, NULL);
+    x64_backend_emit_branch(backend, ir, block, NULL);
   }
 }
 
@@ -572,17 +607,7 @@ static void x64_backend_emit_prolog(struct x64_backend *backend, struct ir *ir,
     }
   }
 
-  /* yield control once remaining cycles are executed */
-  e.mov(e.eax, e.dword[guestctx + guest->offset_cycles]);
-  e.test(e.eax, e.eax);
-  e.js(backend->dispatch_exit);
-
-  /* yield control to any pending interrupts */
-  e.mov(e.rax, e.qword[guestctx + guest->offset_interrupts]);
-  e.test(e.rax, e.rax);
-  e.jnz(backend->dispatch_interrupt);
-
-  /* update debug run counts */
+  /* update counts */
   e.sub(e.dword[guestctx + guest->offset_cycles], num_cycles);
   e.add(e.dword[guestctx + guest->offset_instrs], num_instrs);
 }
