@@ -39,8 +39,7 @@ static void lse_erase_available(struct lse *lse, int offset, int size) {
   }
 }
 
-static void lse_set_available(struct lse *lse, int offset,
-                              struct ir_value *v) {
+static void lse_set_available(struct lse *lse, int offset, struct ir_value *v) {
   int size = ir_type_size(v->type);
   int begin = offset;
   int end = offset + size - 1;
@@ -107,9 +106,7 @@ static void lse_eliminate_loads(struct lse *lse, struct ir *ir,
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
     if (instr->op == OP_FALLBACK || instr->op == OP_CALL) {
       lse_clear_available(lse);
-    } else if (instr->op == OP_BRANCH) {
-      lse_clear_available(lse);
-    } else if (instr->op == OP_BRANCH_TRUE || instr->op == OP_BRANCH_FALSE) {
+    } else if (instr->op == OP_BRANCH || instr->op == OP_BRANCH_COND) {
       lse_clear_available(lse);
     } else if (instr->op == OP_LOAD_CONTEXT) {
       /* if there is already a value available for this offset, reuse it and
@@ -143,9 +140,7 @@ static void lse_eliminate_stores(struct lse *lse, struct ir *ir,
   list_for_each_entry_safe_reverse(instr, &block->instrs, struct ir_instr, it) {
     if (instr->op == OP_FALLBACK || instr->op == OP_CALL) {
       lse_clear_available(lse);
-    } else if (instr->op == OP_BRANCH) {
-      lse_clear_available(lse);
-    } else if (instr->op == OP_BRANCH_TRUE || instr->op == OP_BRANCH_FALSE) {
+    } else if (instr->op == OP_BRANCH || instr->op == OP_BRANCH_COND) {
       lse_clear_available(lse);
     } else if (instr->op == OP_LOAD_CONTEXT) {
       int offset = instr->arg[0]->i32;

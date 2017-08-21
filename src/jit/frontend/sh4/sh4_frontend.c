@@ -234,13 +234,11 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
            not a branch (e.g. an invalid instruction trap); nothing needs to be
            done dispatch will always implicitly branch to the next pc */
     int store_pc = (def->flags & SH4_FLAG_STORE_PC) == SH4_FLAG_STORE_PC;
-    int cond_end = (def->flags & SH4_FLAG_COND) == SH4_FLAG_COND;
     int delay_slot = (def->flags & SH4_FLAG_DELAYED) == SH4_FLAG_DELAYED;
     int end_of_block = sh4_frontend_is_terminator(def) || offset >= size;
 
     if (end_of_block) {
-      /* if the pc isn't set unconditionally, branch to the next address */
-      if (!store_pc || cond_end) {
+      if (!store_pc) {
         struct ir_block *tail_block =
             list_last_entry(&ir->blocks, struct ir_block, it);
         struct ir_instr *tail_instr =

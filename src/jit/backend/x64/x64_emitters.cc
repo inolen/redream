@@ -8,14 +8,14 @@ extern "C" {
 
 #define EMITTER(op, constraints)                                           \
   void x64_emit_##op(struct x64_backend *, Xbyak::CodeGenerator &,         \
-                     const struct ir_instr *);                             \
+                     struct ir *, struct ir_instr *);                      \
   static struct _x64_##op##_init {                                         \
     _x64_##op##_init() {                                                   \
       x64_emitters[OP_##op] = {(void *)&x64_emit_##op, constraints};       \
     }                                                                      \
   } x64_##op##_init;                                                       \
   void x64_emit_##op(struct x64_backend *backend, Xbyak::CodeGenerator &e, \
-                     const struct ir_instr *instr)
+                     struct ir *ir, struct ir_instr *instr)
 
 #define CONSTRAINTS(result_flags, ...) \
   result_flags, {                      \
@@ -909,59 +909,20 @@ EMITTER(LSHD, CONSTRAINTS(REG_ARG0, REG_I64, REG_I64)) {
 }
 
 EMITTER(BRANCH, CONSTRAINTS(NONE, REG_I64 | IMM_I32)) {
-  struct jit_guest *guest = backend->base.guest;
-
-  if (ir_is_constant(ARG0)) {
-    uint32_t addr = ARG0->i32;
-    e.mov(e.dword[guestctx + guest->offset_pc], addr);
-    e.call(backend->dispatch_static);
-  } else {
-    Xbyak::Reg addr = ARG0_REG;
-    e.mov(e.dword[guestctx + guest->offset_pc], addr);
-    e.jmp(backend->dispatch_dynamic);
-  }
+  x64_backend_emit_branch(backend, ir, ARG0);
 }
 
-EMITTER(BRANCH_FALSE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
+EMITTER(BRANCH_COND,
+        CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64 | IMM_I32, REG_I64)) {
   struct jit_guest *guest = backend->base.guest;
 
-  Xbyak::Reg cond = ARG1_REG;
-  Xbyak::Label next;
-  e.test(cond, cond);
-  e.jnz(next);
-
-  if (ir_is_constant(ARG0)) {
-    uint32_t addr = ARG0->i32;
-    e.mov(e.dword[guestctx + guest->offset_pc], addr);
-    e.call(backend->dispatch_static);
-  } else {
-    Xbyak::Reg addr = ARG0_REG;
-    e.mov(e.dword[guestctx + guest->offset_pc], addr);
-    e.jmp(backend->dispatch_dynamic);
-  }
-
-  e.L(next);
-}
-
-EMITTER(BRANCH_TRUE, CONSTRAINTS(NONE, REG_I64 | IMM_I32, REG_I64)) {
-  struct jit_guest *guest = backend->base.guest;
-
-  Xbyak::Reg cond = ARG1_REG;
+  Xbyak::Reg cond = ARG2_REG;
   Xbyak::Label next;
   e.test(cond, cond);
   e.jz(next);
-
-  if (ir_is_constant(ARG0)) {
-    uint32_t addr = ARG0->i32;
-    e.mov(e.dword[guestctx + guest->offset_pc], addr);
-    e.call(backend->dispatch_static);
-  } else {
-    const Xbyak::Reg addr = ARG0_REG;
-    e.mov(e.dword[guestctx + guest->offset_pc], addr);
-    e.jmp(backend->dispatch_dynamic);
-  }
-
+  x64_backend_emit_branch(backend, ir, ARG0);
   e.L(next);
+  x64_backend_emit_branch(backend, ir, ARG1);
 }
 
 EMITTER(CALL, CONSTRAINTS(NONE, VAL_I64, OPT_I64, OPT_I64)) {

@@ -522,15 +522,65 @@ static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *addr,
   cs_free(insns, count);
 }
 
-static void x64_backend_emit_epilog(struct x64_backend *backend,
+void x64_backend_emit_branch(struct x64_backend *backend, struct ir *ir,
+                             const ir_value *target) {
+  struct jit_guest *guest = backend->base.guest;
+  auto &e = *backend->codegen;
+
+  char block_label[128];
+  int dispatch_type = 0;
+
+  /* update guest pc */
+  if (target) {
+    if (ir_is_constant(target)) {
+      if (target->type == VALUE_BLOCK) {
+        x64_backend_block_label(block_label, sizeof(block_label), target->blk);
+
+        struct ir_value *addr = ir_get_meta(ir, target->blk, IR_META_ADDR);
+        e.mov(e.dword[guestctx + guest->offset_pc], addr->i32);
+        dispatch_type = 0;
+      } else {
+        uint32_t addr = target->i32;
+        e.mov(e.dword[guestctx + guest->offset_pc], addr);
+        dispatch_type = 1;
+      }
+    } else {
+      Xbyak::Reg addr = x64_backend_reg(backend, target);
+      e.mov(e.dword[guestctx + guest->offset_pc], addr);
+      dispatch_type = 2;
+    }
+  } else {
+    dispatch_type = 2;
+  }
+
+  /* jump directly to the block / to dispatch */
+  switch (dispatch_type) {
+    case 0:
+      e.jmp(block_label, Xbyak::CodeGenerator::T_NEAR);
+      break;
+    case 1:
+      e.call(backend->dispatch_static);
+      break;
+    case 2:
+      e.jmp(backend->dispatch_dynamic);
+      break;
+  }
+}
+
+static void x64_backend_emit_epilog(struct x64_backend *backend, struct ir *ir,
                                     struct ir_block *block) {
   auto &e = *backend->codegen;
 
   /* if the block didn't branch to another address, return to dispatch */
-  e.jmp(backend->dispatch_dynamic);
+  struct ir_instr *last_instr =
+      list_last_entry(&block->instrs, struct ir_instr, it);
+
+  if (last_instr->op != OP_BRANCH && last_instr->op != OP_BRANCH_COND) {
+    x64_backend_emit_branch(backend, ir, NULL);
+  }
 }
 
-static void x64_backend_emit_prolog(struct x64_backend *backend,
+static void x64_backend_emit_prolog(struct x64_backend *backend, struct ir *ir,
                                     struct ir_block *block) {
   struct jit_guest *guest = backend->base.guest;
 
@@ -552,12 +602,12 @@ static void x64_backend_emit_prolog(struct x64_backend *backend,
   e.test(e.eax, e.eax);
   e.js(backend->dispatch_exit);
 
-  /* handle pending interrupts */
+  /* yield control to any pending interrupts */
   e.mov(e.rax, e.qword[guestctx + guest->offset_interrupts]);
   e.test(e.rax, e.rax);
   e.jnz(backend->dispatch_interrupt);
 
-  /* update run counts */
+  /* update debug run counts */
   e.sub(e.dword[guestctx + guest->offset_cycles], num_cycles);
   e.add(e.dword[guestctx + guest->offset_instrs], num_instrs);
 }
@@ -579,7 +629,7 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
     x64_backend_block_label(block_label, sizeof(block_label), block);
     e.L(block_label);
 
-    x64_backend_emit_prolog(backend, block);
+    x64_backend_emit_prolog(backend, ir, block);
 
     list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
       /* call emit callback for each guest block / instruction enabling users
@@ -599,10 +649,10 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
       struct jit_emitter *emitter = &x64_emitters[instr->op];
       x64_emit_cb emit = (x64_emit_cb)emitter->func;
       CHECK_NOTNULL(emit);
-      emit(backend, e, instr);
+      emit(backend, e, ir, instr);
     }
 
-    x64_backend_emit_epilog(backend, block);
+    x64_backend_emit_epilog(backend, ir, block);
   }
 
   e.outLocalLabel();

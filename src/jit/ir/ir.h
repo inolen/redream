@@ -401,6 +401,8 @@ struct ir_value *ir_lshd(struct ir *ir, struct ir_value *a, struct ir_value *n);
 
 /* branches */
 void ir_branch(struct ir *ir, struct ir_value *dst);
+void ir_branch_cond(struct ir *ir, struct ir_value *cond, struct ir_value *t,
+                    struct ir_value *f);
 void ir_branch_false(struct ir *ir, struct ir_value *cond,
                      struct ir_value *dst);
 void ir_branch_true(struct ir *ir, struct ir_value *cond, struct ir_value *dst);

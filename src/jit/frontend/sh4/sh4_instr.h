@@ -1041,8 +1041,7 @@ INSTR(SHLR16) {
 INSTR(BF) {
   I32 cond = LOAD_T_I32();
   uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
-  BRANCH_FALSE_IMM_I32(cond, dest_addr);
-  NEXT_INSTR();
+  BRANCH_COND_IMM_I32(cond, addr + 2, dest_addr);
 }
 
 /* BFS     disp */
@@ -1050,16 +1049,14 @@ INSTR(BFS) {
   I32 cond = LOAD_T_I32();
   uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
   DELAY_INSTR();
-  BRANCH_FALSE_IMM_I32(cond, dest_addr);
-  NEXT_NEXT_INSTR();
+  BRANCH_COND_IMM_I32(cond, addr + 4, dest_addr);
 }
 
 /* BT      disp */
 INSTR(BT) {
   I32 cond = LOAD_T_I32();
   uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
-  BRANCH_TRUE_IMM_I32(cond, dest_addr);
-  NEXT_INSTR();
+  BRANCH_COND_IMM_I32(cond, dest_addr, addr + 2);
 }
 
 /* BTS     disp */
@@ -1068,8 +1065,7 @@ INSTR(BTS) {
   uint32_t dest_addr = ((int8_t)i.disp_8.disp * 2) + addr + 4;
   I32 cond = LOAD_T_I32();
   DELAY_INSTR();
-  BRANCH_TRUE_IMM_I32(cond, dest_addr);
-  NEXT_NEXT_INSTR();
+  BRANCH_COND_IMM_I32(cond, dest_addr, addr + 4);
 }
 
 /* BRA     disp */
