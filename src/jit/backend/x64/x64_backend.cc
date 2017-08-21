@@ -568,6 +568,8 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
 
   CHECK_LT(ir->locals_size, X64_STACK_SIZE);
 
+  e.inLocalLabel();
+
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
     int first = 1;
     uint8_t *block_addr = e.getCurr<uint8_t *>();
@@ -602,6 +604,8 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
 
     x64_backend_emit_epilog(backend, block);
   }
+
+  e.outLocalLabel();
 }
 
 static int x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
@@ -617,8 +621,6 @@ static int x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
 
   /* try to generate the x64 code. if the code buffer overflows let the backend
      know so it can reset the cache and try again */
-  e.inLocalLabel();
-
   try {
     x64_backend_emit(backend, ir, emit_cb, emit_data);
   } catch (const Xbyak::Error &e) {
@@ -627,8 +629,6 @@ static int x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
     }
     res = 0;
   }
-
-  e.outLocalLabel();
 
   /* return code address */
   *addr = code;
