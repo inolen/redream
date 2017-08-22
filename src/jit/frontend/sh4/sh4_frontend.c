@@ -31,10 +31,8 @@ static int sh4_frontend_is_terminator(struct jit_opdef *def) {
     return 1;
   }
 
-  /* if fpscr has changed, stop emitting since the fpu state is invalidated.
-     also, if sr has changed, stop emitting as there are interrupts that
-     possibly need to be handled */
-  if (def->flags & (SH4_FLAG_STORE_FPSCR | SH4_FLAG_STORE_SR)) {
+  /* if fpscr changed, stop as the compile-time assumptions may be invalid */
+  if (def->flags & SH4_FLAG_STORE_FPSCR) {
     return 1;
   }
 
@@ -137,12 +135,11 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 
   PROF_ENTER("cpu", "sh4_frontend_translate_code");
 
-  /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
-     an interrupt such as vblank before it'll exit. scale the block's number of
-     cycles in order to yield execution faster, enabling the interrupt to
-     actually be generated */
-  int idle_loop = sh4_frontend_is_idle_loop(frontend, begin_addr);
-  int cycle_scale = idle_loop ? 10 : 1;
+  int offset = 0;
+  int use_fpscr = 0;
+
+  /* append inital block */
+  struct ir_block *block = ir_append_block(ir);
 
   /* generate code specialized for the current fpscr state */
   int flags = 0;
@@ -153,22 +150,20 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     flags |= SH4_DOUBLE_SZ;
   }
 
-<<<<<<< Updated upstream
-  int offset = 0;
-=======
   /* cheap idle skip. in an idle loop, the block is just spinning, waiting for
      an interrupt such as vblank before it'll exit. scale the block's number of
      cycles in order to yield execution faster, enabling the interrupt to
      actually be generated */
   int idle_loop = sh4_frontend_is_idle_loop(frontend, begin_addr);
   int cycle_scale = idle_loop ? 8 : 1;
->>>>>>> Stashed changes
 
   while (offset < size) {
     uint32_t addr = begin_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
+
+    use_fpscr |= (def->flags & SH4_FLAG_USE_FPSCR) == SH4_FLAG_USE_FPSCR;
 
     /* emit meta information for the current guest instruction. this info is
        essential to the jit, and is used to map guest instructions to host
@@ -197,6 +192,9 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
       uint32_t delay_data = guest->r16(guest->space, delay_addr);
       union sh4_instr delay_instr = {delay_data};
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
+
+      use_fpscr |=
+          (delay_def->flags & SH4_FLAG_USE_FPSCR) == SH4_FLAG_USE_FPSCR;
 
       /* move insert point back to the middle of the preceding instruction */
       struct ir_insert_point original = ir_get_insert_point(ir);
@@ -235,10 +233,10 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
        3.) the block terminates due to an instruction which sets the pc but is
            not a branch (e.g. an invalid instruction trap); nothing needs to be
            done dispatch will always implicitly branch to the next pc */
-    int end_of_block = sh4_frontend_is_terminator(def) || offset >= size;
     int store_pc = (def->flags & SH4_FLAG_STORE_PC) == SH4_FLAG_STORE_PC;
     int cond_end = (def->flags & SH4_FLAG_COND) == SH4_FLAG_COND;
     int delay_slot = (def->flags & SH4_FLAG_DELAYED) == SH4_FLAG_DELAYED;
+    int end_of_block = sh4_frontend_is_terminator(def) || offset >= size;
 
     if (end_of_block) {
       /* if the pc isn't set unconditionally, branch to the next address */
@@ -253,6 +251,27 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
         ir_branch(ir, ir_alloc_i32(ir, next_addr));
       }
     }
+  }
+
+  /* if the block makes optimizations based on the fpscr state, assert that the
+     run-time fpscr state matches the compile-time state */
+  if (use_fpscr) {
+    /* insert after the first guest marker */
+    struct ir_instr *after = NULL;
+    list_for_each_entry(instr, &block->instrs, struct ir_instr, it) {
+      if (instr->op == OP_SOURCE_INFO) {
+        after = instr;
+        break;
+      }
+    }
+    ir_set_current_instr(ir, after);
+
+    struct ir_value *actual =
+        ir_load_context(ir, offsetof(struct sh4_context, fpscr), VALUE_I32);
+    actual = ir_and(ir, actual, ir_alloc_i32(ir, PR_MASK | SZ_MASK));
+    struct ir_value *expected =
+        ir_alloc_i32(ir, ctx->fpscr & (PR_MASK | SZ_MASK));
+    ir_assert_eq(ir, actual, expected);
   }
 
   PROF_LEAVE();

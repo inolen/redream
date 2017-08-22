@@ -419,6 +419,7 @@ void ir_call_cond_2(struct ir *ir, struct ir_value *fn, struct ir_value *arg0,
 
 /* debug */
 void ir_debug_break(struct ir *ir);
+void ir_assert_eq(struct ir *ir, struct ir_value *a, struct ir_value *b);
 void ir_assert_lt(struct ir *ir, struct ir_value *a, struct ir_value *b);
 
 /* low-level ir ops emitted by register allocation */

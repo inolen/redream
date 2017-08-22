@@ -15,6 +15,7 @@ enum {
   SH4_FLAG_STORE_PC = 0x80,
   SH4_FLAG_STORE_FPSCR = 0x100,
   SH4_FLAG_STORE_SR = 0x200,
+  SH4_FLAG_USE_FPSCR = 0x400,
 };
 
 enum {

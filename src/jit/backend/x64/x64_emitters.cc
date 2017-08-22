@@ -1014,6 +1014,18 @@ EMITTER(DEBUG_BREAK, CONSTRAINTS(NONE)) {
   e.db(0xcc);
 }
 
+EMITTER(ASSERT_EQ, CONSTRAINTS(NONE, REG_I64, REG_I64)) {
+  Xbyak::Reg ra = ARG0_REG;
+  Xbyak::Reg rb = ARG1_REG;
+
+  e.inLocalLabel();
+  e.cmp(ra, rb);
+  e.je(".skip");
+  e.db(0xcc);
+  e.L(".skip");
+  e.outLocalLabel();
+}
+
 EMITTER(ASSERT_LT, CONSTRAINTS(NONE, REG_I64, REG_I64)) {
   Xbyak::Reg ra = ARG0_REG;
   Xbyak::Reg rb = ARG1_REG;

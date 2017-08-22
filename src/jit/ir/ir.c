@@ -61,11 +61,15 @@ void ir_set_insert_point(struct ir *ir, struct ir_insert_point *point) {
 }
 
 void ir_set_current_block(struct ir *ir, struct ir_block *block) {
+  CHECK_NOTNULL(block);
+
   ir->cursor.block = block;
   ir->cursor.instr = NULL;
 }
 
 void ir_set_current_instr(struct ir *ir, struct ir_instr *instr) {
+  CHECK_NOTNULL(instr);
+
   ir->cursor.block = NULL;
   ir->cursor.instr = instr;
 }
@@ -1009,6 +1013,12 @@ void ir_call_cond_2(struct ir *ir, struct ir_value *cond, struct ir_value *fn,
 
 void ir_debug_break(struct ir *ir) {
   ir_append_instr(ir, OP_DEBUG_BREAK, VALUE_V);
+}
+
+void ir_assert_eq(struct ir *ir, struct ir_value *a, struct ir_value *b) {
+  struct ir_instr *instr = ir_append_instr(ir, OP_ASSERT_EQ, VALUE_V);
+  ir_set_arg0(ir, instr, a);
+  ir_set_arg1(ir, instr, b);
 }
 
 void ir_assert_lt(struct ir *ir, struct ir_value *a, struct ir_value *b) {
