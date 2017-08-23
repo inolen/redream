@@ -49,8 +49,6 @@ enum ir_cmp {
 enum ir_meta_type {
   IR_META_ADDR,
   IR_META_CYCLES,
-  IR_META_FASTMEM,
-  IR_META_REG,
   IR_NUM_META,
 };
 

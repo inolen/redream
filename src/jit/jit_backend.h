@@ -52,8 +52,10 @@ enum {
   JIT_IMM_F32 = 0x200,
   /* argument can be a 64-bit or less float immediate */
   JIT_IMM_F64 = 0x400,
+  /* argument can be a block reference */
+  JIT_IMM_BLK = 0x800,
   JIT_TYPE_MASK = JIT_REG_I64 | JIT_REG_F64 | JIT_REG_V128 | JIT_IMM_I32 |
-                  JIT_IMM_I64 | JIT_IMM_F32 | JIT_IMM_F64,
+                  JIT_IMM_I64 | JIT_IMM_F32 | JIT_IMM_F64 | JIT_IMM_BLK,
 };
 
 /* the assemble_code function is passed this callback to map guest blocks and

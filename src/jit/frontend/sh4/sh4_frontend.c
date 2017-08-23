@@ -137,6 +137,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
 
   int offset = 0;
   int use_fpscr = 0;
+  int was_delay = 0;
 
   /* append inital block */
   struct ir_block *block = ir_append_block(ir);
@@ -158,6 +159,13 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   int cycle_scale = idle_loop ? 8 : 1;
 
   while (offset < size) {
+    /* if a branch instruction / delay slot was just emitted, rewind and emit
+       the delay slot as its own instruction */
+    if (was_delay) {
+      offset -= 2;
+      was_delay = 0;
+    }
+
     uint32_t addr = begin_addr + offset;
     uint16_t data = guest->r16(guest->space, addr);
     union sh4_instr instr = {data};
@@ -211,15 +219,8 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
       /* restore insert point */
       ir_set_insert_point(ir, &original);
 
-      /* note, no meta information is emitted for the delay slot, and the offset
-         is not incremented, resulting in the delay slot being emitted a second
-         time starting in a new block after the branch. the reason being, if the
-         delay slot is directly branched to, the preceding instruction is never
-         executed
-
-         note note, the preceding instruction should be a branch, or else it
-         wouldn't be valid to write out the delay slot a second time */
-      CHECK(def->flags & SH4_FLAG_STORE_PC);
+      offset += 2;
+      was_delay = 1;
     }
 
     /* there are 3 possible block endings:
@@ -234,7 +235,6 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
            not a branch (e.g. an invalid instruction trap); nothing needs to be
            done dispatch will always implicitly branch to the next pc */
     int store_pc = (def->flags & SH4_FLAG_STORE_PC) == SH4_FLAG_STORE_PC;
-    int delay_slot = (def->flags & SH4_FLAG_DELAYED) == SH4_FLAG_DELAYED;
     int end_of_block = sh4_frontend_is_terminator(def) || offset >= size;
 
     if (end_of_block) {
@@ -245,7 +245,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
             list_last_entry(&tail_block->instrs, struct ir_instr, it);
         ir_set_current_instr(ir, tail_instr);
 
-        uint32_t next_addr = begin_addr + offset + delay_slot * 2;
+        uint32_t next_addr = begin_addr + offset;
         ir_branch(ir, ir_alloc_i32(ir, next_addr));
       }
     }

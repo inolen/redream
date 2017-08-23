@@ -9,7 +9,7 @@ const struct ir_opdef ir_opdefs[IR_NUM_OPS] = {
 };
 
 const char *ir_meta_names[IR_NUM_META] = {
-    "addr", "cycles", "fastmem", "reg",
+    "addr", "cycles",
 };
 
 static void *ir_calloc(struct ir *ir, int size) {

@@ -177,6 +177,9 @@ static int ra_validate_value(struct ra *ra, struct ir_value *v, int flags) {
       if (v->type >= VALUE_F32 && v->type <= VALUE_F64) {
         valid |= (flags & JIT_IMM_F64) == JIT_IMM_F64;
       }
+      if (v->type == VALUE_BLOCK) {
+        valid |= (flags & JIT_IMM_BLK) == JIT_IMM_BLK;
+      }
     } else {
       /* check that the register flags match at least one of the types supported
          by the emitter */
@@ -628,6 +631,7 @@ static void ra_legalize_args(struct ra *ra, struct ir *ir,
         can_encode |= (arg_flags & JIT_IMM_F32) && arg->type == VALUE_F32;
         can_encode |= (arg_flags & JIT_IMM_F64) &&
                       (arg->type >= VALUE_F32 && arg->type <= VALUE_F64);
+        can_encode |= (arg_flags & JIT_IMM_BLK) && arg->type == VALUE_BLOCK;
 
         /* if the emitter can't encode this argument as an immediate, create a
            value for the constant and allocate a register for it */
