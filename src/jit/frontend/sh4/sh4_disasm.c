@@ -62,7 +62,7 @@ void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
   struct jit_opdef *def = sh4_get_opdef(i.raw);
 
   if (def->flags & SH4_FLAG_INVALID) {
-    snprintf(buffer, buffer_size, "%08x  .word 0x%04x", addr, i.raw);
+    snprintf(buffer, buffer_size, "0x%08x  .word 0x%04x", addr, i.raw);
     return;
   }
 
@@ -72,7 +72,7 @@ void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
   uint32_t pcmask;
 
   /* copy initial formatted description */
-  snprintf(buffer, buffer_size, "%08x  %s", addr, def->desc);
+  snprintf(buffer, buffer_size, "0x%08x  %s", addr, def->desc);
 
   /* used by mov operators with displacements */
   if (strnstr(buffer, ".b", buffer_size)) {

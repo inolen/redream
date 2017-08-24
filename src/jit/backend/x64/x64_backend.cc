@@ -513,10 +513,12 @@ static void x64_backend_dump_code(struct jit_backend *base, const uint8_t *addr,
   fprintf(output, "# x64\n");
   fprintf(output, "#==--------------------------------------------------==#\n");
 
+  const int max_mnemonic_width = 8;
+
   for (size_t i = 0; i < count; i++) {
     cs_insn &insn = insns[i];
-    fprintf(output, "# 0x%" PRIx64 ":\t%s\t\t%s\n", insn.address, insn.mnemonic,
-            insn.op_str);
+    fprintf(output, "# 0x%08" PRIx64 "  %-*s %s\n", insn.address,
+            max_mnemonic_width, insn.mnemonic, insn.op_str);
   }
 
   cs_free(insns, count);

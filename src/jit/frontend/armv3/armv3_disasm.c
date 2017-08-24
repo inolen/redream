@@ -138,7 +138,7 @@ void armv3_format(uint32_t addr, uint32_t instr, char *buffer,
   size_t value_len;
 
   /* copy initial formatted description */
-  snprintf(buffer, buffer_size, "%4x: %08x  %s", addr, i.raw, def->desc);
+  snprintf(buffer, buffer_size, "0x%08x  %s", addr, def->desc);
 
   /* cond */
   int cond = i.raw >> 28;
