@@ -913,8 +913,8 @@ EMITTER(BRANCH, CONSTRAINTS(NONE, REG_I64 | IMM_I32 | IMM_BLK)) {
   x64_backend_emit_branch(backend, ir, ARG0);
 }
 
-EMITTER(BRANCH_COND,
-        CONSTRAINTS(NONE, REG_I64 | IMM_I32 | IMM_BLK, REG_I64 | IMM_I32 | IMM_BLK, REG_I64)) {
+EMITTER(BRANCH_COND, CONSTRAINTS(NONE, REG_I64 | IMM_I32 | IMM_BLK,
+                                 REG_I64 | IMM_I32 | IMM_BLK, REG_I64)) {
   struct jit_guest *guest = backend->base.guest;
 
   Xbyak::Reg cond = ARG2_REG;

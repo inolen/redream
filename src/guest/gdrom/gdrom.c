@@ -528,6 +528,12 @@ void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len) {
   *len = gd->disc->bootlen;
 }
 
+int gdrom_get_regions(struct gdrom *gd) {
+  CHECK_NOTNULL(gd->disc);
+
+  return disc_get_regions(gd->disc);
+}
+
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
   CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, GD_SPI_SCD_SIZE);
@@ -713,6 +719,10 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   }
 
   /* TODO how do GD_FEATURES, GD_INTREASON, GD_BYCTLLO and GD_BYCTLHI behave */
+}
+
+int gdrom_has_disc(struct gdrom *gd) {
+  return gd->disc != NULL;
 }
 
 #ifdef HAVE_IMGUI

@@ -70,47 +70,41 @@ void dc_suspend(struct dreamcast *dc) {
   dc->running = 0;
 }
 
-static int dc_load_disc(struct dreamcast *dc, const char *path) {
-  struct disc *disc = disc_create(path);
+int dc_load(struct dreamcast *dc, const char *path) {
+  struct disc *disc = NULL;
 
-  if (!disc) {
-    return 0;
+  if (path) {
+    LOG_INFO("dc_load path=%s", path);
+
+    struct disc *disc = disc_create(path);
+    if (!disc) {
+      LOG_WARNING("dc_load failed");
+      return 0;
+    }
+
+    /* boot to bios bootstrap if disc is valid */
+    gdrom_set_disc(dc->gdrom, disc);
+    bios_preboot(dc->bios);
+    sh4_reset(dc->sh4, 0xa0000000);
+  } else {
+    /* boot to main menu of no path specified */
+    bios_preboot(dc->bios);
+    sh4_reset(dc->sh4, 0xa0000000);
   }
 
-  gdrom_set_disc(dc->gdrom, disc);
-  sh4_reset(dc->sh4, 0xa0000000);
   dc_resume(dc);
 
   return 1;
 }
 
-int dc_load(struct dreamcast *dc, const char *path) {
-  if (!path) {
-    /* boot to main menu of no path specified */
-    sh4_reset(dc->sh4, 0xa0000000);
-    dc_resume(dc);
-    return 1;
-  }
-
-  LOG_INFO("loading %s", path);
-
-  if (dc_load_disc(dc, path)) {
-    return 1;
-  }
-
-  LOG_WARNING("failed to load %s", path);
-
-  return 0;
-}
-
 int dc_init(struct dreamcast *dc) {
   if (dc->debugger && !debugger_init(dc->debugger)) {
-    LOG_WARNING("failed to initialize debugger");
+    LOG_WARNING("dc_init failed to initialize debugger");
     return 0;
   }
 
   if (!memory_init(dc->memory)) {
-    LOG_WARNING("failed to initialize shared memory");
+    LOG_WARNING("dc_init failed to initialize shared memory");
     return 0;
   }
 
@@ -123,6 +117,7 @@ int dc_init(struct dreamcast *dc) {
     dev->sh4 = dc->sh4;
     dev->arm = dc->arm;
     dev->aica = dc->aica;
+    dev->bios = dc->bios;
     dev->boot = dc->boot;
     dev->flash = dc->flash;
     dev->gdrom = dc->gdrom;
@@ -135,15 +130,9 @@ int dc_init(struct dreamcast *dc) {
   /* initialize each device */
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     if (!dev->init(dev)) {
-      LOG_WARNING("failed to initialize device '%s'", dev->name);
+      LOG_WARNING("dc_init failed to initialize device '%s'", dev->name);
       return 0;
     }
-  }
-
-  /* initialize after devices in order to manipulate the boot and flash roms */
-  if (!bios_init(dc->bios)) {
-    LOG_WARNING("failed to initialize bios");
-    return 0;
   }
 
   return 1;

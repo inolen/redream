@@ -12,13 +12,13 @@
 #include "guest/sh4/sh4.h"
 #include "render/imgui.h"
 
-DEFINE_PERSISTENT_OPTION_STRING(region, "america", "System region");
+DEFINE_PERSISTENT_OPTION_STRING(region, "auto", "System region");
 DEFINE_PERSISTENT_OPTION_STRING(language, "english", "System language");
 DEFINE_PERSISTENT_OPTION_STRING(broadcast, "ntsc", "System broadcast mode");
 
 /* system settings */
 static const char *regions[] = {
-    "japan", "america", "europe",
+    "japan", "america", "europe", "auto",
 };
 
 static const char *languages[] = {
@@ -63,9 +63,10 @@ static uint32_t bios_local_time() {
   return (uint32_t)delta;
 }
 
-static void bios_override_flash_settings(struct bios *bios) {
+static void bios_override_settings(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct flash *flash = dc->flash;
+  struct gdrom *gd = dc->gdrom;
 
   int region = 0;
   int lang = 0;
@@ -92,6 +93,18 @@ static void bios_override_flash_settings(struct bios *bios) {
       break;
     }
   }
+
+  /* if "auto" is specified, select first supported region */
+  if (region == ARRAY_SIZE(regions) - 1) {
+    int supported_regions = DISC_REGION_ALL;
+    if (gdrom_has_disc(gd)) {
+      supported_regions = gdrom_get_regions(gd);
+    }
+    region = ctz32((uint32_t)supported_regions);
+  }
+
+  LOG_INFO("bios_override_settings region=%s lang=%s bcast=%s", regions[region],
+           languages[lang], broadcasts[bcast]);
 
   /* the region, language and broadcast settings exist in two locations:
 
@@ -216,6 +229,11 @@ static int bios_boot(struct bios *bios) {
 
   LOG_INFO("bios_boot using hle bootstrap");
 
+  if (!gdrom_has_disc(gd)) {
+    LOG_WARNING("bios_boot failed, no disc is loaded");
+    return 0;
+  }
+
   /* load IP.BIN bootstrap */
   {
     /* bootstrap occupies the first 16 sectors of the data track */
@@ -283,6 +301,11 @@ static int bios_boot(struct bios *bios) {
   /* start executing at license screen code inside of ip.bin */
   ctx->pc = 0xac008300;
 
+  return 1;
+}
+
+static int bios_init(struct device *dev) {
+  struct bios *bios = (struct bios *)dev;
   return 1;
 }
 
@@ -384,10 +407,10 @@ int bios_invalid_instr(struct bios *bios) {
   return handled;
 }
 
-int bios_init(struct bios *bios) {
+int bios_preboot(struct bios *bios) {
   bios_validate_flash(bios);
 
-  bios_override_flash_settings(bios);
+  bios_override_settings(bios);
 
 /* this code enables a "hybrid" hle mode. in this mode, syscalls are patched
    to trap into their hle handlers, but the real bios can still be ran to
@@ -415,9 +438,7 @@ void bios_destroy(struct bios *bios) {
 }
 
 struct bios *bios_create(struct dreamcast *dc) {
-  struct bios *bios = calloc(1, sizeof(struct bios));
-
-  bios->dc = dc;
-
+  struct bios *bios =
+      dc_create_device(dc, sizeof(struct bios), "bios", &bios_init);
   return bios;
 }

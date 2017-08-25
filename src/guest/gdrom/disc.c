@@ -145,6 +145,23 @@ int disc_find_file(struct disc *disc, const char *filename, int *fad,
   return 1;
 }
 
+int disc_get_regions(struct disc *disc) {
+  struct disc_meta meta;
+  disc_get_meta(disc, &meta);
+
+  int regions = 0;
+  if (meta.area_symbols[0] == 'J') {
+    regions |= DISC_REGION_JAPAN;
+  }
+  if (meta.area_symbols[1] == 'U') {
+    regions |= DISC_REGION_AMERICA;
+  }
+  if (meta.area_symbols[2] == 'E') {
+    regions |= DISC_REGION_EUROPE;
+  }
+  return regions;
+}
+
 void disc_get_toc(struct disc *disc, int area, struct track **first_track,
                   struct track **last_track, int *leadin_fad,
                   int *leadout_fad) {
@@ -214,7 +231,7 @@ struct disc *disc_create(const char *filename) {
     return NULL;
   }
 
-  /* generate a unique id for the disc, and cache off info about the bootfile */
+  /* generate a unique id for the disc */
   struct disc_meta meta;
   disc_get_meta(disc, &meta);
 
@@ -235,11 +252,12 @@ struct disc *disc_create(const char *filename) {
   snprintf(disc->id, sizeof(disc->id), "%s %s %s %s", name, product_number,
            product_version, device_info);
 
+  /* cache off bootfile info */
   int found = disc_find_file(disc, bootname, &disc->bootfad, &disc->bootlen);
   CHECK(found);
 
   LOG_INFO("disc_create id=%s bootfile=%s fad=%d len=%d", disc->id, bootname,
-           disc->bootfad, disc->bootlen, disc->id);
+           disc->bootfad, disc->bootlen);
 
   return disc;
 }

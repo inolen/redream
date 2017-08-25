@@ -12,6 +12,7 @@ void gdrom_destroy(struct gdrom *gd);
 
 void gdrom_debug_menu(struct gdrom *gd);
 
+int gdrom_has_disc(struct gdrom *gd);
 void gdrom_set_disc(struct gdrom *gd, struct disc *disc);
 int gdrom_widescreen_enabled(struct gdrom *gd);
 
@@ -28,7 +29,9 @@ void gdrom_get_session(struct gdrom *gd, int session,
                        struct gd_spi_session *ses);
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size);
 
+int gdrom_get_regions(struct gdrom *gd);
 void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len);
+
 int gdrom_find_file(struct gdrom *gd, const char *filename, int *fad, int *len);
 int gdrom_read_sectors(struct gdrom *gd, int fad, int num_sectors, int fmt,
                        int mask, uint8_t *dst, int dst_size);

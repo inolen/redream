@@ -9,6 +9,13 @@
 #define DISC_MAX_TRACKS 64
 #define DISC_MAX_ID_SIZE 161
 
+enum {
+  DISC_REGION_JAPAN = 0x1,
+  DISC_REGION_AMERICA = 0x2,
+  DISC_REGION_EUROPE = 0x4,
+  DISC_REGION_ALL = 0x7,
+};
+
 struct track {
   int num;
   /* frame adddress, equal to lba + 150 */
@@ -66,6 +73,8 @@ struct track *disc_get_track(struct disc *disc, int n);
 struct track *disc_lookup_track(struct disc *disc, int fad);
 void disc_get_toc(struct disc *disc, int area, struct track **first_track,
                   struct track **last_track, int *leadin_fad, int *leadout_fad);
+
+int disc_get_regions(struct disc *disc);
 
 int disc_find_file(struct disc *disc, const char *filename, int *fad, int *len);
 int disc_read_sectors(struct disc *disc, int fad, int num_sectors,

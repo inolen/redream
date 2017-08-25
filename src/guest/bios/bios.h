@@ -2,11 +2,10 @@
 #define BIOS_H
 
 #include <stdint.h>
-
-struct dreamcast;
+#include "guest/dreamcast.h"
 
 struct bios {
-  struct dreamcast *dc;
+  struct device;
 
   /* gdrom state */
   uint32_t status;
@@ -19,7 +18,7 @@ struct bios {
 struct bios *bios_create(struct dreamcast *dc);
 void bios_destroy(struct bios *bios);
 
-int bios_init(struct bios *bios);
+int bios_preboot(struct bios *bios);
 int bios_invalid_instr(struct bios *bios);
 
 void bios_debug_menu(struct bios *bios);
