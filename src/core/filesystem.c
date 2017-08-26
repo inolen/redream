@@ -5,6 +5,17 @@
 
 static char appdir[PATH_MAX];
 
+static inline int fs_is_separator(char c) {
+#if PLATFORM_WINDOWS
+  /* it's not sufficient to compare against the platform-specific PATH_SEPARATOR
+     on Windows as paths may contain both separators, particularly when using
+     one of the Unix-like shell environments (e.g. msys or cygwin) */
+  return c == '\\' || c == '/';
+#else
+  return c == PATH_SEPARATOR[0];
+#endif
+}
+
 void fs_basename(const char *path, char *base, size_t size) {
   if (!path || !*path) {
     strncpy(base, ".", size);
@@ -12,10 +23,10 @@ void fs_basename(const char *path, char *base, size_t size) {
   }
   size_t len = strlen(path);
   size_t i = len - 1;
-  for (; i && path[i] == PATH_SEPARATOR[0]; i--) {
+  for (; i && fs_is_separator(path[i]); i--) {
     len = i;
   }
-  for (; i && path[i - 1] != PATH_SEPARATOR[0]; i--) {
+  for (; i && !fs_is_separator(path[i - 1]); i--) {
   }
   size_t n = MIN(len - i, size - 1);
   strncpy(base, path + i, n);
@@ -28,19 +39,19 @@ void fs_dirname(const char *path, char *dir, size_t size) {
     return;
   }
   size_t i = strlen(path) - 1;
-  for (; path[i] == PATH_SEPARATOR[0]; i--) {
+  for (; fs_is_separator(path[i]); i--) {
     if (!i) {
       strncpy(dir, PATH_SEPARATOR, size);
       return;
     }
   }
-  for (; path[i] != PATH_SEPARATOR[0]; i--) {
+  for (; !fs_is_separator(path[i]); i--) {
     if (!i) {
       strncpy(dir, ".", size);
       return;
     }
   }
-  for (; path[i] == PATH_SEPARATOR[0]; i--) {
+  for (; fs_is_separator(path[i]); i--) {
     if (!i) {
       strncpy(dir, PATH_SEPARATOR, size);
       return;
