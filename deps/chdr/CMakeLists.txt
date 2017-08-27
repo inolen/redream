@@ -51,7 +51,7 @@ if(WIN32)
   list(APPEND FLAC_SOURCES deps/flac-1.3.2/src/libFLAC/windows_unicode_filenames.c)
 endif()
 
-if(APPLE)
+if(APPLE OR UNIX)
   list(APPEND FLAC_DEFS HAVE_SYS_PARAM_H)
 endif()
 
