@@ -10,7 +10,7 @@
 /* meta information found in the ip.bin */
 struct disc_meta {
   char hardware_id[16];
-  char marker_id[16];
+  char manufacturer_id[16];
   char device_info[16];
   char area_symbols[8];
   char peripherals[8];
@@ -18,8 +18,8 @@ struct disc_meta {
   char product_version[6];
   char release_date[16];
   char bootname[16];
-  char producer[16];
-  char name[128];
+  char producer_name[16];
+  char product_name[128];
 };
 
 static void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
@@ -66,8 +66,6 @@ int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
 
   int read = 0;
   int endfad = fad + num_sectors;
-  int bootstart = disc->bootfad;
-  int bootend = disc->bootfad + (disc->bootlen / track->data_size);
 
   for (int i = fad; i < endfad; i++) {
     CHECK_LE(read + track->data_size, dst_size);
@@ -76,9 +74,12 @@ int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
   }
 
   /* apply bootfile patches */
+  int bootstart = disc->bootfad;
+  int bootend = disc->bootfad + (disc->bootlen / track->data_size);
+
   if (bootstart <= endfad && fad <= bootend) {
     int offset = (fad - bootstart) * track->data_size;
-    patch_bootfile(disc->id, dst, offset, read);
+    patch_bootfile(disc->uid, dst, offset, read);
   }
 
   return read;
@@ -143,23 +144,6 @@ int disc_find_file(struct disc *disc, const char *filename, int *fad,
   *len = found->size.le;
 
   return 1;
-}
-
-int disc_get_regions(struct disc *disc) {
-  struct disc_meta meta;
-  disc_get_meta(disc, &meta);
-
-  int regions = 0;
-  if (meta.area_symbols[0] == 'J') {
-    regions |= DISC_REGION_JAPAN;
-  }
-  if (meta.area_symbols[1] == 'U') {
-    regions |= DISC_REGION_USA;
-  }
-  if (meta.area_symbols[2] == 'E') {
-    regions |= DISC_REGION_EUROPE;
-  }
-  return regions;
 }
 
 void disc_get_toc(struct disc *disc, int area, struct track **first_track,
@@ -231,33 +215,44 @@ struct disc *disc_create(const char *filename) {
     return NULL;
   }
 
-  /* generate a unique id for the disc */
+  /* extract meta information from the IP.BIN */
   struct disc_meta meta;
   disc_get_meta(disc, &meta);
 
-  char device_info[17];
-  char product_number[11];
-  char product_version[7];
-  char bootname[17];
-  char name[129];
-
-  strncpy_trim_space(device_info, meta.device_info, sizeof(meta.device_info));
-  strncpy_trim_space(product_number, meta.product_number,
+  strncpy_trim_space(disc->product_name, meta.product_name,
+                     sizeof(meta.product_name));
+  strncpy_trim_space(disc->product_number, meta.product_number,
                      sizeof(meta.product_number));
-  strncpy_trim_space(product_version, meta.product_version,
+  strncpy_trim_space(disc->product_version, meta.product_version,
                      sizeof(meta.product_version));
-  strncpy_trim_space(bootname, meta.bootname, sizeof(meta.bootname));
-  strncpy_trim_space(name, meta.name, sizeof(meta.name));
+  strncpy_trim_space(disc->media_config, meta.device_info + 5,
+                     sizeof(meta.device_info) - 5);
+  strncpy_trim_space(disc->bootname, meta.bootname, sizeof(meta.bootname));
 
-  snprintf(disc->id, sizeof(disc->id), "%s %s %s %s", name, product_number,
-           product_version, device_info);
+  /* the area symbols array contains characters, which are either a space or a
+     specific character corresponding to a particular region the disc is valid
+     for. if the character for a particular region is a space, the disc is not
+     valid for that region */
+  if (meta.area_symbols[0] == 'J') {
+    disc->regions |= DISC_REGION_JAPAN;
+  }
+  if (meta.area_symbols[1] == 'U') {
+    disc->regions |= DISC_REGION_USA;
+  }
+  if (meta.area_symbols[2] == 'E') {
+    disc->regions |= DISC_REGION_EUROPE;
+  }
 
-  /* cache off bootfile info */
-  int found = disc_find_file(disc, bootname, &disc->bootfad, &disc->bootlen);
-  CHECK(found);
+  /* generate unique id for the disc */
+  snprintf(disc->uid, sizeof(disc->uid), "%s %s %s %s", disc->product_name,
+           disc->product_number, disc->product_version, disc->media_config);
 
-  LOG_INFO("disc_create id=%s bootfile=%s fad=%d len=%d", disc->id, bootname,
-           disc->bootfad, disc->bootlen);
+  /* cache off bootfile info in order to patch it in disc_read_sectors */
+  int rs = disc_find_file(disc, disc->bootname, &disc->bootfad, &disc->bootlen);
+  CHECK(rs);
+
+  LOG_INFO("disc_create id=%s bootfile=%s fad=%d len=%d", disc->uid,
+           disc->bootname, disc->bootfad, disc->bootlen);
 
   return disc;
 }

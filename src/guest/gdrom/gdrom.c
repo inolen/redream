@@ -531,7 +531,7 @@ void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len) {
 int gdrom_get_regions(struct gdrom *gd) {
   CHECK_NOTNULL(gd->disc);
 
-  return disc_get_regions(gd->disc);
+  return gd->disc->regions;
 }
 
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
@@ -691,7 +691,7 @@ int gdrom_widescreen_enabled(struct gdrom *gd) {
     return 0;
   }
 
-  return patch_widescreen_enabled(gd->disc->id);
+  return patch_widescreen_enabled(gd->disc->uid);
 }
 
 void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {

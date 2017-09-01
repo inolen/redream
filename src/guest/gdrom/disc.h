@@ -7,7 +7,7 @@
 #define DISC_MAX_SECTOR_SIZE 2352
 #define DISC_MAX_SESSIONS 2
 #define DISC_MAX_TRACKS 64
-#define DISC_MAX_ID_SIZE 161
+#define DISC_MAX_UID_SIZE 161
 
 enum {
   DISC_REGION_JAPAN = 0x1,
@@ -43,10 +43,18 @@ struct session {
 };
 
 struct disc {
-  char id[DISC_MAX_ID_SIZE];
+  /* meta information extracted from IP.BIN */
+  char uid[DISC_MAX_UID_SIZE];
+  char product_name[129];
+  char product_number[17];
+  char product_version[7];
+  char media_config[12];
+  char bootname[17];
+  int regions;
   int bootfad;
   int bootlen;
 
+  /* media-specific interface */
   void (*destroy)(struct disc *);
 
   int (*get_format)(struct disc *);
@@ -73,8 +81,6 @@ struct track *disc_get_track(struct disc *disc, int n);
 struct track *disc_lookup_track(struct disc *disc, int fad);
 void disc_get_toc(struct disc *disc, int area, struct track **first_track,
                   struct track **last_track, int *leadin_fad, int *leadout_fad);
-
-int disc_get_regions(struct disc *disc);
 
 int disc_find_file(struct disc *disc, const char *filename, int *fad, int *len);
 int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
