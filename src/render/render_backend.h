@@ -5,8 +5,6 @@
 
 struct host;
 
-typedef void *video_context_t;
-typedef unsigned framebuffer_handle_t;
 typedef unsigned texture_handle_t;
 
 enum pxl_format {
@@ -124,10 +122,8 @@ struct ui_surface {
 
 struct render_backend;
 
-struct render_backend *r_create(video_context_t ctx);
+struct render_backend *r_create();
 void r_destroy(struct render_backend *r);
-
-video_context_t r_context(struct render_backend *r);
 
 texture_handle_t r_create_texture(struct render_backend *r,
                                   enum pxl_format format,

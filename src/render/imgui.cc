@@ -15,9 +15,12 @@ struct imgui {
   bool shift[2];
 };
 
-extern "C" void imgui_render(struct imgui *imgui) {
+extern "C" void imgui_end_frame(struct imgui *imgui) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
+
+  int width = (int)io.DisplaySize.x;
+  int height = (int)io.DisplaySize.y;
 
   /* update draw batches. note, this doesn't _actually_ render anything because
      io.RenderDrawListsFn is null */
@@ -25,6 +28,8 @@ extern "C" void imgui_render(struct imgui *imgui) {
 
   /* get the latest draw batches, and pass them off out the render backend */
   ImDrawData *draw_data = ImGui::GetDrawData();
+
+  r_viewport(imgui->r, 0, 0, width, height);
 
   for (int i = 0; i < draw_data->CmdListsCount; ++i) {
     const auto cmd_list = draw_data->CmdLists[i];
@@ -71,13 +76,11 @@ extern "C" void imgui_begin_frame(struct imgui *imgui, int width, int height) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
-  io.DisplaySize =
-      ImVec2(static_cast<float>(width), static_cast<float>(height));
-
   ImGui::NewFrame();
 
-  /* reset mouse scroll state */
   io.MouseWheel = 0.0;
+  io.DisplaySize =
+      ImVec2(static_cast<float>(width), static_cast<float>(height));
 #endif
 }
 

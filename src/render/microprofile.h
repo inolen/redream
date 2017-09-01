@@ -12,7 +12,6 @@ void mp_destroy(struct microprofile *mp);
 void mp_keydown(struct microprofile *mp, enum keycode key, int16_t value);
 void mp_mousemove(struct microprofile *mp, int x, int y);
 
-void mp_begin_frame(struct microprofile *mp, int width, int height);
-void mp_render(struct microprofile *mp);
+void mp_render_frame(struct microprofile *mp, int width, int height);
 
 #endif

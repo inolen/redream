@@ -4,10 +4,13 @@
 #include "core/assert.h"
 #include "core/filesystem.h"
 #include "core/option.h"
+#include "core/profiler.h"
 #include "core/ringbuf.h"
 #include "core/time.h"
 #include "emulator.h"
 #include "host/host.h"
+#include "render/imgui.h"
+#include "render/microprofile.h"
 #include "render/render_backend.h"
 #include "tracer.h"
 
@@ -33,23 +36,28 @@ struct sdl_host {
   struct host;
 
   struct SDL_Window *win;
-
   int closed;
-  int video_width;
-  int video_height;
 
+  /* audio */
   SDL_AudioDeviceID audio_dev;
   SDL_AudioSpec audio_spec;
   struct ringbuf *audio_frames;
   volatile int64_t audio_last_callback;
 
+  /* video */
+  SDL_GLContext video_ctx;
+  struct render_backend *video_rb;
+  int video_width;
+  int video_height;
+  struct imgui *imgui;
+  struct microprofile *mp;
+
+  /* input */
   int key_map[K_NUM_KEYS];
   SDL_GameController *controllers[INPUT_MAX_CONTROLLERS];
 };
 
 static void host_poll_events(struct sdl_host *host);
-
-struct sdl_host *g_host;
 
 /*
  * audio
@@ -198,41 +206,15 @@ static int audio_init(struct sdl_host *host) {
 /*
  * video
  */
-static void video_context_destroyed(struct sdl_host *host) {
-  if (!host->video_context_destroyed) {
-    return;
-  }
-
-  host->video_context_destroyed(host->userdata);
-}
-
-static void video_context_reset(struct sdl_host *host) {
-  if (!host->video_context_reset) {
-    return;
-  }
-
-  host->video_context_reset(host->userdata);
-}
-
-static void video_resized(struct sdl_host *host) {
-  if (!host->video_resized) {
-    return;
-  }
-
-  host->video_resized(host->userdata);
-}
-
-static void video_gl_destroy_context(struct host *base, video_context_t ctx) {
-  struct sdl_host *host = (struct sdl_host *)base;
-
-  /* make sure the context is no longer active */
+static void video_destroy_context(struct sdl_host *host, SDL_GLContext ctx) {
+  /* make sure the context is no longer active before deleting */
   int res = SDL_GL_MakeCurrent(host->win, NULL);
   CHECK_EQ(res, 0);
 
   SDL_GL_DeleteContext(ctx);
 }
 
-static video_context_t video_gl_create_context(struct sdl_host *host) {
+static SDL_GLContext video_create_context(struct sdl_host *host) {
 #if PLATFORM_ANDROID
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
@@ -249,29 +231,17 @@ static video_context_t video_gl_create_context(struct sdl_host *host) {
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
   SDL_GLContext ctx = SDL_GL_CreateContext(host->win);
-  CHECK_NOTNULL(ctx, "video_gl_create_context failed: %s", SDL_GetError());
+  CHECK_NOTNULL(ctx, "video_create_context failed: %s", SDL_GetError());
 
   /* disable vsync */
   int res = SDL_GL_SetSwapInterval(0);
-  CHECK_EQ(res, 0, "video_gl_create_context failed to disable vsync");
+  CHECK_EQ(res, 0, "video_create_context failed to disable vsync");
 
   /* link in gl functions at runtime */
   res = gladLoadGLLoader((GLADloadproc)&SDL_GL_GetProcAddress);
-  CHECK_EQ(res, 1, "video_gl_create_context failed to link");
+  CHECK_EQ(res, 1, "video_create_context failed to link");
 
-  return (video_context_t)ctx;
-}
-
-void video_destroy_renderer(struct host *base, struct render_backend *r) {
-  video_context_t ctx = r_context(r);
-  r_destroy(r);
-  video_gl_destroy_context(base, ctx);
-}
-
-struct render_backend *video_create_renderer(struct host *base) {
-  struct sdl_host *host = (struct sdl_host *)base;
-  video_context_t ctx = video_gl_create_context(host);
-  return r_create(ctx);
+  return ctx;
 }
 
 void video_set_fullscreen(struct host *base, int fullscreen) {
@@ -294,19 +264,18 @@ int video_can_fullscreen(struct host *base) {
   return 1;
 }
 
-int video_height(struct host *base) {
-  struct sdl_host *host = (struct sdl_host *)base;
-  return host->video_height;
+static void video_shutdown(struct sdl_host *host) {
+  mp_destroy(host->mp);
+  imgui_destroy(host->imgui);
+  r_destroy(host->video_rb);
+  video_destroy_context(host, host->video_ctx);
 }
-
-int video_width(struct host *base) {
-  struct sdl_host *host = (struct sdl_host *)base;
-  return host->video_width;
-}
-
-static void video_shutdown(struct sdl_host *host) {}
 
 static int video_init(struct sdl_host *host) {
+  host->video_ctx = video_create_context(host);
+  host->video_rb = r_create();
+  host->imgui = imgui_create(host->video_rb);
+  host->mp = mp_create(host->video_rb);
   return 1;
 }
 
@@ -478,27 +447,29 @@ static int input_find_controller_port(struct sdl_host *host, int instance_id) {
 
 static void input_handle_mousemove(struct sdl_host *host, int port, int x,
                                    int y) {
-  if (!host->input_mousemove) {
-    return;
+  if (host->input_mousemove) {
+    host->input_mousemove(host->userdata, port, x, y);
   }
 
-  host->input_mousemove(host->userdata, port, x, y);
+  imgui_mousemove(host->imgui, x, y);
+  mp_mousemove(host->mp, x, y);
 }
 
 static void input_handle_keydown(struct sdl_host *host, int port,
                                  enum keycode key, int16_t value) {
-  if (!host->input_keydown) {
-    return;
+  if (host->input_keydown) {
+    host->input_keydown(host->userdata, port, key, value);
+
+    /* if the key is mapped to a controller button, send that event as well */
+    int button = host->key_map[key];
+
+    if (button) {
+      host->input_keydown(host->userdata, port, button, value);
+    }
   }
 
-  host->input_keydown(host->userdata, port, key, value);
-
-  /* if the key is mapped to a controller button, send that event as well */
-  int button = host->key_map[key];
-
-  if (button) {
-    host->input_keydown(host->userdata, port, button, value);
-  }
+  imgui_keydown(host->imgui, key, value);
+  mp_keydown(host->mp, key, value);
 }
 
 static void input_handle_controller_removed(struct sdl_host *host, int port) {
@@ -577,7 +548,11 @@ void input_poll(struct host *base) {
 }
 
 static void host_swap_window(struct sdl_host *host) {
-  SDL_GL_SwapWindow(g_host->win);
+  SDL_GL_SwapWindow(host->win);
+
+  if (host->video_swapped) {
+    host->video_swapped(host->userdata);
+  }
 }
 
 static void host_poll_events(struct sdl_host *host) {
@@ -728,7 +703,6 @@ static void host_poll_events(struct sdl_host *host) {
         if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
           host->video_width = ev.window.data1;
           host->video_height = ev.window.data2;
-          video_resized(host);
         }
         break;
 
@@ -821,59 +795,73 @@ int main(int argc, char **argv) {
   }
 
   /* init host audio, video and input systems */
-  g_host = host_create();
-  if (!g_host) {
+  struct sdl_host *host = host_create();
+  if (!host) {
     return EXIT_FAILURE;
   }
 
   const char *load = argc > 1 ? argv[1] : NULL;
 
   if (load && strstr(load, ".trace")) {
-    struct tracer *tracer = tracer_create((struct host *)g_host);
+    struct tracer *tracer = tracer_create((struct host *)host, host->video_rb);
 
     if (tracer_load(tracer, load)) {
-      while (!g_host->closed) {
-        host_poll_events(g_host);
+      while (!host->closed) {
+        host_poll_events(host);
 
-        tracer_render_frame(tracer);
+        /* reset vertex buffers */
+        imgui_begin_frame(host->imgui, host->video_width, host->video_height);
 
-        host_swap_window(g_host);
+        /* render tracer output first */
+        tracer_render_frame(tracer, host->video_width, host->video_height);
+
+        /* overlay user interface */
+        imgui_end_frame(host->imgui);
+
+        host_swap_window(host);
       }
     }
 
     tracer_destroy(tracer);
   } else {
-    struct emu *emu = emu_create((struct host *)g_host);
-
-    /* tell the emulator a valid video context is available */
-    video_context_reset(g_host);
+    struct emu *emu = emu_create((struct host *)host, host->video_rb);
 
     if (emu_load_game(emu, load)) {
-      while (!g_host->closed) {
+      while (!host->closed) {
         /* even though the emulator itself will poll for events when updating
            controller input, the main loop needs to also poll to ensure the
            close event is received */
-        host_poll_events(g_host);
+        host_poll_events(host);
 
         /* only step the emulator if the available audio is running low. this
            syncs the emulation speed with the host audio clock. note however,
            if audio is disabled, the emulator will run unthrottled */
-        if (!audio_buffer_low(g_host)) {
+        if (!audio_buffer_low(host)) {
           continue;
         }
 
-        emu_render_frame(emu);
+        /* reset vertex buffers */
+        imgui_begin_frame(host->imgui, host->video_width, host->video_height);
 
-        host_swap_window(g_host);
+        /* render emulator output first */
+        emu_render_frame(emu, host->video_width, host->video_height);
+
+        /* overlay user interface */
+        mp_render_frame(host->mp, host->video_width, host->video_height);
+        imgui_end_frame(host->imgui);
+
+        /* flip profiler at end of frame */
+        int64_t now = time_nanoseconds();
+        prof_flip(time_nanoseconds());
+
+        host_swap_window(host);
       }
     }
-
-    video_context_destroyed(g_host);
 
     emu_destroy(emu);
   }
 
-  host_destroy(g_host);
+  host_destroy(host);
 
   /* persist options for next run */
   options_write(config);

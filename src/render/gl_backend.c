@@ -59,7 +59,6 @@ struct texture {
 
 struct render_backend {
   struct host *host;
-  video_context_t ctx;
   int viewport_width;
   int viewport_height;
 
@@ -634,8 +633,12 @@ void r_viewport(struct render_backend *r, int x, int y, int width, int height) {
 
 void r_clear(struct render_backend *r) {
   glDepthMask(1);
+  glClear(GL_DEPTH_BUFFER_BIT);
+
+#if 0
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glClear(GL_COLOR_BUFFER_BIT);
+#endif
 }
 
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle) {
@@ -715,10 +718,6 @@ texture_handle_t r_create_texture(struct render_backend *r,
   return tex->texture;
 }
 
-video_context_t r_context(struct render_backend *r) {
-  return r->ctx;
-}
-
 void r_destroy(struct render_backend *r) {
   r_destroy_vertex_arrays(r);
   r_destroy_shaders(r);
@@ -727,10 +726,8 @@ void r_destroy(struct render_backend *r) {
   free(r);
 }
 
-struct render_backend *r_create(video_context_t ctx) {
+struct render_backend *r_create() {
   struct render_backend *r = calloc(1, sizeof(struct render_backend));
-
-  r->ctx = ctx;
 
   r_create_textures(r);
   r_create_shaders(r);

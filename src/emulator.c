@@ -32,7 +32,6 @@
 #include "guest/sh4/sh4.h"
 #include "host/host.h"
 #include "render/imgui.h"
-#include "render/microprofile.h"
 #include "render/render_backend.h"
 
 DEFINE_AGGREGATE_COUNTER(frames);
@@ -74,12 +73,7 @@ struct emu {
   struct dreamcast *dc;
 
   struct render_backend *r;
-  struct imgui *imgui;
-  struct microprofile *mp;
   struct trace_writer *trace_writer;
-
-  int video_width;
-  int video_height;
   int aspect_ratio;
 
   /* when running with multiple threads, the dreamcast emulation is ran on a
@@ -122,8 +116,8 @@ struct emu {
 
   /* debug stats */
   int frame_stats;
-  float frame_times[360];
-  int64_t last_paint;
+  float swap_times[360];
+  int64_t last_swap;
 };
 
 /*
@@ -418,22 +412,12 @@ static void emu_guest_push_audio(void *userdata, const int16_t *data,
 /*
  * local host interface
  */
-static void emu_host_mousemove(void *userdata, int port, int x, int y) {
-  struct emu *emu = userdata;
-
-  imgui_mousemove(emu->imgui, x, y);
-  mp_mousemove(emu->mp, x, y);
-}
-
 static void emu_host_keydown(void *userdata, int port, enum keycode key,
                              int16_t value) {
   struct emu *emu = userdata;
 
   if (key == K_F1 && value > 0) {
     OPTION_debug = !OPTION_debug;
-  } else {
-    imgui_keydown(emu->imgui, key, value);
-    mp_keydown(emu->mp, key, value);
   }
 
   if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
@@ -441,7 +425,22 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
   }
 }
 
-static void emu_host_context_destroyed(void *userdata) {
+static void emu_host_video_swapped(void *userdata) {
+  struct emu *emu = userdata;
+
+  /* keep track of the time between swaps */
+  int64_t now = time_nanoseconds();
+
+  if (emu->last_swap) {
+    float swap_time_ms = (float)(now - emu->last_swap) / 1000000.0f;
+    int num_swap_times = ARRAY_SIZE(emu->swap_times);
+    emu->swap_times[emu->frame % num_swap_times] = swap_time_ms;
+  }
+
+  emu->last_swap = now;
+}
+
+static void emu_host_video_destroyed(void *userdata) {
   struct emu *emu = userdata;
 
   rb_for_each_entry_safe(tex, &emu->live_textures, struct emu_texture,
@@ -450,37 +449,13 @@ static void emu_host_context_destroyed(void *userdata) {
     emu_free_texture(emu, tex);
   }
 
-  if (emu->mp) {
-    mp_destroy(emu->mp);
-    emu->mp = NULL;
-  }
-
-  if (emu->imgui) {
-    imgui_destroy(emu->imgui);
-    emu->imgui = NULL;
-  }
-
-  if (emu->r) {
-    r_destroy(emu->r);
-    emu->r = NULL;
-  }
+  emu->r = NULL;
 }
 
-static void emu_host_context_reset(void *userdata) {
+static void emu_host_video_created(void *userdata, struct render_backend *r) {
   struct emu *emu = userdata;
 
-  emu_host_context_destroyed(userdata);
-
-  emu->r = video_create_renderer(emu->host);
-  emu->imgui = imgui_create(emu->r);
-  emu->mp = mp_create(emu->r);
-}
-
-static void emu_host_resized(void *userdata) {
-  struct emu *emu = userdata;
-
-  emu->video_width = video_width(emu->host);
-  emu->video_height = video_height(emu->host);
+  emu->r = r;
 }
 
 /*
@@ -592,33 +567,36 @@ static void emu_debug_menu(struct emu *emu) {
   }
 
   if (emu->frame_stats) {
-    if (igBegin("frame stats", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-      /* frame times */
+    bool opened = true;
+
+    if (igBegin("frame stats", &opened, ImGuiWindowFlags_AlwaysAutoResize)) {
+      /* swap times */
       {
         struct ImVec2 graph_size = {300.0f, 50.0f};
-        int num_frame_times = ARRAY_SIZE(emu->frame_times);
+        int num_swap_times = ARRAY_SIZE(emu->swap_times);
 
         float min_time = FLT_MAX;
         float max_time = -FLT_MAX;
         float avg_time = 0.0f;
-        for (int i = 0; i < num_frame_times; i++) {
-          float time = emu->frame_times[i];
+        for (int i = 0; i < num_swap_times; i++) {
+          float time = emu->swap_times[i];
           min_time = MIN(min_time, time);
           max_time = MAX(max_time, time);
           avg_time += time;
         }
-        avg_time /= num_frame_times;
+        avg_time /= num_swap_times;
 
-        igValueFloat("min time", min_time, "%.2f");
-        igValueFloat("max time", max_time, "%.2f");
-        igValueFloat("avg time", avg_time, "%.2f");
-        igPlotLines("", emu->frame_times, num_frame_times,
-                    emu->frame % num_frame_times, NULL, 0.0f, 60.0f, graph_size,
+        igValueFloat("min swap time", min_time, "%.2f");
+        igValueFloat("max swap time", max_time, "%.2f");
+        igValueFloat("avg swap time", avg_time, "%.2f");
+        igPlotLines("", emu->swap_times, num_swap_times,
+                    emu->frame % num_swap_times, NULL, 0.0f, 60.0f, graph_size,
                     sizeof(float));
       }
-
-      igEnd();
     }
+    igEnd();
+
+    emu->frame_stats = (int)opened;
   }
 #endif
 }
@@ -675,105 +653,80 @@ static void emu_run_frame(struct emu *emu) {
   }
 }
 
-void emu_render_frame(struct emu *emu) {
+void emu_render_frame(struct emu *emu, int width, int height) {
   prof_counter_add(COUNTER_frames, 1);
 
+  /* check that we're not being called between calls to emu_host_video_destroyed
+     and emu_host_video_created */
+  CHECK_NOTNULL(emu->r);
+
+  /* adjust dreamcast viewport based on aspect ratio */
   int frame_height, frame_width;
   int frame_x, frame_y;
 
   if (emu->aspect_ratio == ASPECT_RATIO_STRETCH) {
-    frame_height = emu->video_height;
-    frame_width = emu->video_width;
+    frame_height = height;
+    frame_width = width;
     frame_x = 0;
     frame_y = 0;
   } else if (emu->aspect_ratio == ASPECT_RATIO_16BY9) {
-    frame_width = emu->video_width;
+    frame_width = width;
     frame_height = (int)(frame_width * (9.0f / 16.0f));
     frame_x = 0;
-    frame_y = (int)((emu->video_height - frame_height) / 2.0f);
+    frame_y = (int)((height - frame_height) / 2.0f);
   } else if (emu->aspect_ratio == ASPECT_RATIO_4BY3) {
-    frame_height = emu->video_height;
+    frame_height = height;
     frame_width = (int)(frame_height * (4.0f / 3.0f));
-    frame_x = (int)((emu->video_width - frame_width) / 2.0f);
+    frame_x = (int)((width - frame_width) / 2.0f);
     frame_y = 0;
   } else {
     LOG_FATAL("unexpected aspect ratio %d", emu->aspect_ratio);
   }
 
-  int debug_height = emu->video_height;
-  int debug_width = emu->video_width;
-  int debug_x = 0;
-  int debug_y = 0;
-
-  mp_begin_frame(emu->mp, debug_width, debug_height);
-  imgui_begin_frame(emu->imgui, debug_width, debug_height);
-
   r_clear(emu->r);
+  r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
 
-  /* render the dreamcast video */
-  {
-    r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
+  if (emu->multi_threaded) {
+    /* tell the emulation thread to run the next frame */
+    {
+      mutex_lock(emu->run_mutex);
 
-    if (emu->multi_threaded) {
-      /* tell the emulation thread to run the next frame */
-      {
-        mutex_lock(emu->run_mutex);
-
-        /* build the debug menus before running the frame, while the two threads
-           are synchronized */
-        emu_debug_menu(emu);
-
-        emu->state = EMU_RUNFRAME;
-        cond_signal(emu->run_cond);
-
-        mutex_unlock(emu->run_mutex);
-      }
-
-      /* wait for the emulation thread to submit a context */
-      {
-        mutex_lock(emu->frame_mutex);
-
-        while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
-          cond_wait(emu->frame_cond, emu->frame_mutex);
-        }
-
-        /* if a context was submitted before the vblank, convert it and upload
-           its textures to the render backend */
-        if (emu->pending_ctx) {
-          tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
-                             &emu->pending_rc);
-          emu->pending_ctx = NULL;
-        }
-
-        /* unblock the emulation thread */
-        mutex_unlock(emu->frame_mutex);
-      }
-
-      /* render the latest context. note, the emulation thread may still be
-         running at this time */
-      tr_render_context(emu->r, &emu->pending_rc);
-    } else {
+      /* build the debug menus before running the frame, while the two threads
+         are synchronized */
       emu_debug_menu(emu);
-      emu_run_frame(emu);
-    }
-  }
 
-  /* render debug info */
-  {
-    int64_t now = time_nanoseconds();
-    prof_flip(now);
+      emu->state = EMU_RUNFRAME;
+      cond_signal(emu->run_cond);
 
-    r_viewport(emu->r, debug_x, debug_y, debug_width, debug_height);
-    imgui_render(emu->imgui);
-    mp_render(emu->mp);
-
-    if (emu->last_paint) {
-      float frame_time_ms = (float)(now - emu->last_paint) / 1000000.0f;
-      int num_frame_times = ARRAY_SIZE(emu->frame_times);
-      emu->frame_times[emu->frame % num_frame_times] = frame_time_ms;
+      mutex_unlock(emu->run_mutex);
     }
 
-    emu->last_paint = now;
+    /* wait for the emulation thread to submit a context */
+    {
+      mutex_lock(emu->frame_mutex);
+
+      while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
+        cond_wait(emu->frame_cond, emu->frame_mutex);
+      }
+
+      /* if a context was submitted before the vblank, convert it and upload
+         its textures to the render backend */
+      if (emu->pending_ctx) {
+        tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
+                           &emu->pending_rc);
+        emu->pending_ctx = NULL;
+      }
+
+      /* unblock the emulation thread */
+      mutex_unlock(emu->frame_mutex);
+    }
+
+    /* render the latest context. note, the emulation thread may still be
+       running at this time */
+    tr_render_context(emu->r, &emu->pending_rc);
+  } else {
+    emu_debug_menu(emu);
+    emu_run_frame(emu);
   }
 }
 
@@ -812,21 +765,18 @@ void emu_destroy(struct emu *emu) {
   free(emu);
 }
 
-struct emu *emu_create(struct host *host) {
+struct emu *emu_create(struct host *host, struct render_backend *r) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
-  /* save off initial video size */
-  emu->video_width = video_width(host);
-  emu->video_height = video_height(host);
+  emu->r = r;
 
   /* setup host, bind event callbacks */
   emu->host = host;
   emu->host->userdata = emu;
-  emu->host->video_resized = &emu_host_resized;
-  emu->host->video_context_reset = &emu_host_context_reset;
-  emu->host->video_context_destroyed = &emu_host_context_destroyed;
+  emu->host->video_created = &emu_host_video_created;
+  emu->host->video_destroyed = &emu_host_video_destroyed;
+  emu->host->video_swapped = &emu_host_video_swapped;
   emu->host->input_keydown = &emu_host_keydown;
-  emu->host->input_mousemove = &emu_host_mousemove;
 
   /* create dreamcast, bind client callbacks */
   emu->dc = dc_create();

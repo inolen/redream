@@ -77,6 +77,10 @@ static int controller_buttons[] = {
 struct retro_host {
   struct host;
 
+  /* video */
+  struct render_backend *video_rb;
+
+  /* input */
   int16_t controller_state[NUM_CONTROLLER_DESC];
 };
 
@@ -93,14 +97,6 @@ void audio_push(struct host *base, const int16_t *data, int frames) {
 /*
  * video
  */
-void video_destroy_renderer(struct host *base, struct render_backend *r) {
-  r_destroy(r);
-}
-
-struct render_backend *video_create_renderer(struct host *base) {
-  return r_create(NULL);
-}
-
 void video_set_fullscreen(struct host *base, int fullscreen) {}
 
 int video_is_fullscreen(struct host *base) {
@@ -111,13 +107,13 @@ int video_can_fullscreen(struct host *base) {
   return 0;
 }
 
-int video_height(struct host *base) {
+/*int video_height(struct host *base) {
   return VIDEO_HEIGHT;
 }
 
 int video_width(struct host *base) {
   return VIDEO_WIDTH;
-}
+}*/
 
 /*
  * input
@@ -155,11 +151,14 @@ static void input_poll(struct retro_host *host) {
  * core
  */
 static void video_context_destroyed() {
-  if (!g_host->video_context_destroyed) {
-    return;
+  /* call user callback */
+  if (g_host->video_destroyed) {
+    g_host->video_destroyed(g_host->userdata);
   }
 
-  g_host->video_context_destroyed(g_host->userdata);
+  CHECK_NOTNULL(g_host->video_rb);
+  r_destroy(g_host->video_rb);
+  g_host->video_rb = NULL;
 }
 
 static void video_context_reset() {
@@ -167,11 +166,13 @@ static void video_context_reset() {
   int res = gladLoadGLLoader((GLADloadproc)hw_render.get_proc_address);
   CHECK_EQ(res, 1, "GL initialization failed");
 
-  if (!g_host->video_context_reset) {
-    return;
-  }
+  CHECK(!g_host->video_rb);
+  g_host->video_rb = r_create();
 
-  g_host->video_context_reset(g_host->userdata);
+  /* call user callback */
+  if (g_host->video_created) {
+    g_host->video_created(g_host->userdata, g_host->video_rb);
+  }
 }
 
 static void host_destroy(struct retro_host *host) {
@@ -282,7 +283,7 @@ void retro_run() {
   uintptr_t fb = hw_render.get_current_framebuffer();
   glBindFramebuffer(GL_FRAMEBUFFER, fb);
 
-  emu_render_frame(g_emu);
+  emu_render_frame(g_emu, VIDEO_WIDTH, VIDEO_HEIGHT);
 
   /* call back into retroarch, letting it know a frame has been rendered */
   video_cb(RETRO_HW_FRAME_BUFFER_VALID, VIDEO_WIDTH, VIDEO_HEIGHT, 0);
@@ -310,7 +311,7 @@ bool retro_load_game(const struct retro_game_info *info) {
     return false;
   }
 
-  g_emu = emu_create((struct host *)g_host);
+  g_emu = emu_create((struct host *)g_host, g_host->video_rb);
   if (!g_emu) {
     host_destroy(g_host);
     g_host = NULL;

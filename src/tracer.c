@@ -73,7 +73,6 @@ struct tracer_texture {
 struct tracer {
   struct host *host;
   struct render_backend *r;
-  struct imgui *imgui;
 
   /* trace state */
   struct trace *trace;
@@ -606,12 +605,6 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   }
 }
 
-static void tracer_input_mousemove(void *data, int port, int x, int y) {
-  struct tracer *tracer = data;
-
-  imgui_mousemove(tracer->imgui, x, y);
-}
-
 static void tracer_input_keydown(void *data, int port, enum keycode key,
                                  int16_t value) {
   struct tracer *tracer = data;
@@ -624,19 +617,11 @@ static void tracer_input_keydown(void *data, int port, enum keycode key,
     tracer_prev_param(tracer);
   } else if (key == K_DOWN && value > 0) {
     tracer_next_param(tracer);
-  } else {
-    imgui_keydown(tracer->imgui, key, value);
   }
 }
 
-void tracer_render_frame(struct tracer *tracer) {
-  int width = video_width(tracer->host);
-  int height = video_height(tracer->host);
-
+void tracer_render_frame(struct tracer *tracer, int width, int height) {
   r_clear(tracer->r);
-  r_viewport(tracer->r, 0, 0, width, height);
-
-  imgui_begin_frame(tracer->imgui, width, height);
 
   /* build ui */
   tracer_render_side_menu(tracer);
@@ -658,9 +643,6 @@ void tracer_render_frame(struct tracer *tracer) {
   }
 
   tr_render_context_until(tracer->r, rc, end_surf);
-
-  /* render ui */
-  imgui_render(tracer->imgui);
 }
 
 int tracer_load(struct tracer *tracer, const char *path) {
@@ -686,25 +668,19 @@ void tracer_destroy(struct tracer *tracer) {
     trace_destroy(tracer->trace);
   }
 
-  imgui_destroy(tracer->imgui);
-
-  video_destroy_renderer(tracer->host, tracer->r);
-
   free(tracer);
 }
 
-struct tracer *tracer_create(struct host *host) {
+struct tracer *tracer_create(struct host *host, struct render_backend *r) {
   struct tracer *tracer = calloc(1, sizeof(struct tracer));
+
+  tracer->r = r;
 
   /* setup host, bind event callbacks */
   tracer->host = host;
   tracer->host->userdata = tracer;
   tracer->host->input_keydown = &tracer_input_keydown;
-  tracer->host->input_mousemove = &tracer_input_mousemove;
-
-  /* setup renderer */
-  tracer->r = video_create_renderer(tracer->host);
-  tracer->imgui = imgui_create(tracer->r);
+  tracer->host->input_mousemove = NULL;
 
   /* add all textures to free list */
   for (int i = 0, n = ARRAY_SIZE(tracer->textures); i < n; i++) {
