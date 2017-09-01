@@ -18,7 +18,7 @@ DEFINE_PERSISTENT_OPTION_STRING(broadcast, "ntsc", "System broadcast mode");
 
 /* system settings */
 static const char *regions[] = {
-    "japan", "america", "europe", "auto",
+    "japan", "usa", "europe", "auto",
 };
 
 static const char *languages[] = {

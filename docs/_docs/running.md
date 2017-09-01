@@ -13,7 +13,7 @@ Command line options are loaded from and saved to `$HOME/.redream/config` each r
 ```
       --debug  Show debug menu                                     [default: 1]
      --aspect  Video aspect ratio                                  [default: stretch, valid: stretch, 16:9, 4:3]
-     --region  System region                                       [default: america, valid: japan, america, europe, auto]
+     --region  System region                                       [default: auto, valid: japan, usa, europe, auto]
    --language  System language                                     [default: english, valid: japanese, english, german, french, spanish, italian]
   --broadcast  System broadcast mode                               [default: ntsc,    valid: ntsc, pal, pal_m, pal_n]
       --audio  Enable audio                                        [default: 1]

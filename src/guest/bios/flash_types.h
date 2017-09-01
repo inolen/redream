@@ -16,7 +16,7 @@
 
 /* system region settings */
 #define FLASH_REGION_JAPAN 0
-#define FLASH_REGION_AMERICA 1
+#define FLASH_REGION_USA 1
 #define FLASH_REGION_EUROPE 2
 
 /* system language settings */

@@ -154,7 +154,7 @@ int disc_get_regions(struct disc *disc) {
     regions |= DISC_REGION_JAPAN;
   }
   if (meta.area_symbols[1] == 'U') {
-    regions |= DISC_REGION_AMERICA;
+    regions |= DISC_REGION_USA;
   }
   if (meta.area_symbols[2] == 'E') {
     regions |= DISC_REGION_EUROPE;
