@@ -3,7 +3,6 @@
 #include <SDL_opengl.h>
 #include "core/assert.h"
 #include "core/filesystem.h"
-#include "core/log.h"
 #include "core/option.h"
 #include "core/ringbuf.h"
 #include "core/time.h"
@@ -21,6 +20,7 @@ DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
 
+#define AUDIO_FRAME_SIZE 4 /* stereo / pcm16 */
 #define AUDIO_FRAMES_TO_MS(frames) \
   (int)(((float)frames * 1000.0f) / (float)AUDIO_FREQ)
 #define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
@@ -56,31 +56,31 @@ struct sdl_host *g_host;
  */
 static int audio_read_frames(struct sdl_host *host, void *data,
                              int num_frames) {
-  int available = ringbuf_available(host->audio_frames);
-  int size = MIN(available, num_frames * 4);
-  CHECK_EQ(size % 4, 0);
+  int buffered = ringbuf_available(host->audio_frames);
+  int size = MIN(buffered, num_frames * AUDIO_FRAME_SIZE);
+  CHECK_EQ(size % AUDIO_FRAME_SIZE, 0);
 
   void *read_ptr = ringbuf_read_ptr(host->audio_frames);
   memcpy(data, read_ptr, size);
   ringbuf_advance_read_ptr(host->audio_frames, size);
 
-  return size / 4;
+  return size / AUDIO_FRAME_SIZE;
 }
 
 static void audio_write_frames(struct sdl_host *host, const void *data,
                                int num_frames) {
   int remaining = ringbuf_remaining(host->audio_frames);
-  int size = MIN(remaining, num_frames * 4);
-  CHECK_EQ(size % 4, 0);
+  int size = MIN(remaining, num_frames * AUDIO_FRAME_SIZE);
+  CHECK_EQ(size % AUDIO_FRAME_SIZE, 0);
 
   void *write_ptr = ringbuf_write_ptr(host->audio_frames);
   memcpy(write_ptr, data, size);
   ringbuf_advance_write_ptr(host->audio_frames, size);
 }
 
-static int audio_available_frames(struct sdl_host *host) {
-  int available = ringbuf_available(host->audio_frames);
-  return available / 4;
+static int audio_buffered_frames(struct sdl_host *host) {
+  int buffered = ringbuf_available(host->audio_frames);
+  return buffered / AUDIO_FRAME_SIZE;
 }
 
 static int audio_buffer_low(struct sdl_host *host) {
@@ -105,26 +105,25 @@ static int audio_buffer_low(struct sdl_host *host) {
      callback to decrease the amount of buffered audio data
 
      in order to smooth out the video frame timings when the audio latency is
-     high, the host clock is used to interpolate the amount of available audio
+     high, the host clock is used to interpolate the amount of buffered audio
      data between callbacks */
   int64_t now = time_nanoseconds();
   int64_t since_last_callback = now - host->audio_last_callback;
-  int frames_available = audio_available_frames(host);
-  frames_available -= NS_TO_AUDIO_FRAMES(since_last_callback);
+  int frames_buffered = audio_buffered_frames(host);
+  frames_buffered -= NS_TO_AUDIO_FRAMES(since_last_callback);
 
-  int low_water_mark = host->audio_spec.samples;
-  return frames_available <= low_water_mark;
+  int low_water_mark = host->audio_spec.samples / 2;
+  return frames_buffered < low_water_mark;
 }
 
 static void audio_write_callback(void *userdata, Uint8 *stream, int len) {
-  static const int frame_size = 2 * 2;
   struct sdl_host *host = userdata;
   Sint32 *buf = (Sint32 *)stream;
-  int frame_count_max = len / frame_size;
+  int frame_count_max = len / AUDIO_FRAME_SIZE;
 
   static uint32_t tmp[AUDIO_FREQ];
-  int frames_available = audio_available_frames(host);
-  int frames_remaining = MIN(frames_available, frame_count_max);
+  int frames_buffered = audio_buffered_frames(host);
+  int frames_remaining = MIN(frames_buffered, frame_count_max);
 
   while (frames_remaining > 0) {
     /* batch read frames from ring buffer */
@@ -133,7 +132,7 @@ static void audio_write_callback(void *userdata, Uint8 *stream, int len) {
     frames_remaining -= n;
 
     /* copy frames to output stream */
-    memcpy(buf, tmp, n * frame_size);
+    memcpy(buf, tmp, n * AUDIO_FRAME_SIZE);
   }
 
   host->audio_last_callback = time_nanoseconds();
@@ -183,9 +182,8 @@ static int audio_init(struct sdl_host *host) {
   /* create ringbuffer to store data coming in from AICA. note, the buffer needs
      to be at least two video frames in size, in order to handle the coarse
      synchronization used by the main loop, where an entire guest video frame is
-     ran when the available audio data is deemed low */
-  static const int frame_size = 2 * 2;
-  host->audio_frames = ringbuf_create(AUDIO_FREQ * frame_size);
+     ran when the buffered audio data is deemed low */
+  host->audio_frames = ringbuf_create(AUDIO_FREQ * AUDIO_FRAME_SIZE);
 
   /* resume device */
   SDL_PauseAudioDevice(host->audio_dev, 0);
