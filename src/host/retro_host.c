@@ -327,11 +327,15 @@ bool retro_load_game_special(unsigned game_type,
 }
 
 void retro_unload_game() {
-  emu_destroy(g_emu);
-  g_emu = NULL;
+  if (g_emu) {
+    emu_destroy(g_emu);
+    g_emu = NULL;
+  }
 
-  host_destroy(g_host);
-  g_host = NULL;
+  if (g_host) {
+    host_destroy(g_host);
+    g_host = NULL;
+  }
 }
 
 unsigned retro_get_region() {
