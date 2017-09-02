@@ -498,8 +498,8 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   if (igBegin("params", NULL, 0)) {
     struct ImVec2 size = {220.0f, io->DisplaySize.y * 0.85f};
     struct ImVec2 pos = {0.0f, io->DisplaySize.y * 0.05f};
-    igSetWindowSize(size, ImGuiSetCond_Once);
-    igSetWindowPos(pos, ImGuiSetCond_Once);
+    igSetWindowSize(size, ImGuiCond_Once);
+    igSetWindowPos(pos, ImGuiCond_Once);
 
     /* render params */
     for (int i = 0; i < tracer->rc.num_params; i++) {
@@ -549,8 +549,8 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   if (igBegin("textures", NULL, 0)) {
     struct ImVec2 size = {220.0f, io->DisplaySize.y * 0.85f};
     struct ImVec2 pos = {io->DisplaySize.x - 220.0f, io->DisplaySize.y * 0.05f};
-    igSetWindowSize(size, ImGuiSetCond_Once);
-    igSetWindowPos(pos, ImGuiSetCond_Once);
+    igSetWindowSize(size, ImGuiCond_Once);
+    igSetWindowPos(pos, ImGuiCond_Once);
 
     int i = 0;
     int tex_per_row = MAX((int)(igGetContentRegionAvailWidth() / 44.0f), 1);
