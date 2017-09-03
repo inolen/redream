@@ -76,11 +76,11 @@ extern "C" void imgui_begin_frame(struct imgui *imgui, int width, int height) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
-  ImGui::NewFrame();
-
   io.MouseWheel = 0.0;
   io.DisplaySize =
       ImVec2(static_cast<float>(width), static_cast<float>(height));
+
+  ImGui::NewFrame();
 #endif
 }
 
