@@ -13,180 +13,244 @@
   (((TWIDTAB((x) & ((min)-1)) << 1) | TWIDTAB((y) & ((min)-1))) + \
    ((x) / (min) + (y) / (min)) * (min) * (min))
 
+/* texture data is loaded into CORE as 8-bit values for r, g, b and a
+
+   in the case of twiddled textures, the deficiency in bits is made up for by
+   appending the high-order bits of the color into the low-order bits to make
+   a complete 8 bit value. for example:
+
+   src color (6 bit):   internal color (8 bit):
+   --------------------------------------------
+   c5,c4,c3,c2,c1,c0    c5,c4,c3,c2,c1,c0,c5,c4
+
+   src color (5 bit):   internal color (8 bit):
+   --------------------------------------------
+   c4,c3,c2,c1,c0       c4,c3,c2,c1,c0,c4,c3,c2
+
+   src color (1 bit):   internal color (8 bit):
+   --------------------------------------------
+   c0                   c0,c0,c0,c0,c0,c0,c0,c0
+
+   in the case of non-twiddled textures, the colors are zero-extended to make a
+   complete 8 bit value. however, when there is only 1 bit the bit is repeated
+   in the same way it is for twiddled textures */
+#define COLOR_EXTEND_1(c) ((int8_t)(c) >> 7)
+#define COLOR_EXTEND_4(c) ((c) | ((c) >> 4))
+#define COLOR_EXTEND_5(c) ((c) | ((c) >> 5))
+#define COLOR_EXTEND_6(c) ((c) | ((c) >> 6))
+
+/*
+ * pixel formats
+ */
+
 /* ARGB1555 */
 typedef uint16_t ARGB1555_type;
 enum { ARGB1555_el = 1 };
 
-static inline void ARGB1555_read(const ARGB1555_type *px, uint8_t *r,
-                                 uint8_t *g, uint8_t *b, uint8_t *a) {
-  *a = (px[0] & 0b1000000000000000) >> 8;
-  *r = (px[0] & 0b0111110000000000) >> 7;
-  *g = (px[0] & 0b0000001111100000) >> 2;
-  *b = (px[0] & 0b0000000000011111) << 3;
+#define ARGB1555_UNPACK_A(px) (((px)&0b1000000000000000) >> 8)
+#define ARGB1555_UNPACK_R(px) (((px)&0b0111110000000000) >> 7)
+#define ARGB1555_UNPACK_G(px) (((px)&0b0000001111100000) >> 2)
+#define ARGB1555_UNPACK_B(px) (((px)&0b0000000000011111) << 3)
+
+static inline void ARGB1555_unpack(const ARGB1555_type *src, uint8_t *r,
+                                   uint8_t *g, uint8_t *b, uint8_t *a) {
+  *a = COLOR_EXTEND_1(ARGB1555_UNPACK_A(src[0]));
+  *r = ARGB1555_UNPACK_R(src[0]);
+  *g = ARGB1555_UNPACK_G(src[0]);
+  *b = ARGB1555_UNPACK_B(src[0]);
 }
 
-static inline void ARGB1555_write(ARGB1555_type *dst, uint8_t r, uint8_t g,
-                                  uint8_t b, uint8_t a) {
-  *dst = ((a >> 7) << 15) | ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+static inline void ARGB1555_extend(const ARGB1555_type *src, uint8_t *r,
+                                   uint8_t *g, uint8_t *b, uint8_t *a) {
+  *a = COLOR_EXTEND_1(ARGB1555_UNPACK_A(src[0]));
+  *r = COLOR_EXTEND_5(ARGB1555_UNPACK_R(src[0]));
+  *g = COLOR_EXTEND_5(ARGB1555_UNPACK_G(src[0]));
+  *b = COLOR_EXTEND_5(ARGB1555_UNPACK_B(src[0]));
 }
 
-/* RGBA5551 */
-typedef uint16_t RGBA5551_type;
-enum { RGBA5551_el = 1 };
-
-static inline void RGBA5551_read(const RGBA5551_type *px, uint8_t *r,
-                                 uint8_t *g, uint8_t *b, uint8_t *a) {
-  *r = (px[0] & 0b1111100000000000) >> 8;
-  *g = (px[0] & 0b0000011111000000) >> 3;
-  *b = (px[0] & 0b0000000000111110) << 2;
-  *a = (px[0] & 0b0000000000000001) << 7;
-}
-
-static inline void RGBA5551_write(RGBA5551_type *dst, uint8_t r, uint8_t g,
-                                  uint8_t b, uint8_t a) {
-  *dst = ((r >> 3) << 11) | ((g >> 3) << 6) | ((b >> 3) << 1) | (a >> 7);
+static inline void ARGB1555_pack(ARGB1555_type *dst, uint8_t r, uint8_t g,
+                                 uint8_t b, uint8_t a) {
+  LOG_FATAL("ARGB1555_pack unsupported");
 }
 
 /* RGB565 */
 typedef uint16_t RGB565_type;
 enum { RGB565_el = 1 };
 
-static inline void RGB565_read(const RGB565_type *px, uint8_t *r, uint8_t *g,
-                               uint8_t *b, uint8_t *a) {
-  *r = (px[0] & 0b1111100000000000) >> 8;
-  *g = (px[0] & 0b0000011111100000) >> 3;
-  *b = (px[0] & 0b0000000000011111) << 3;
+#define RGB565_UNPACK_R(px) (((px)&0b1111100000000000) >> 8)
+#define RGB565_UNPACK_G(px) (((px)&0b0000011111100000) >> 3)
+#define RGB565_UNPACK_B(px) (((px)&0b0000000000011111) << 3)
+
+static inline void RGB565_unpack(const RGB565_type *src, uint8_t *r, uint8_t *g,
+                                 uint8_t *b, uint8_t *a) {
+  *r = RGB565_UNPACK_R(src[0]);
+  *g = RGB565_UNPACK_G(src[0]);
+  *b = RGB565_UNPACK_B(src[0]);
   *a = 0xff;
 }
 
-static inline void RGB565_write(RGB565_type *dst, uint8_t r, uint8_t g,
-                                uint8_t b, uint8_t a) {
-  *dst = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+static inline void RGB565_extend(const RGB565_type *src, uint8_t *r, uint8_t *g,
+                                 uint8_t *b, uint8_t *a) {
+  *r = COLOR_EXTEND_5(RGB565_UNPACK_R(src[0]));
+  *g = COLOR_EXTEND_6(RGB565_UNPACK_G(src[0]));
+  *b = COLOR_EXTEND_5(RGB565_UNPACK_B(src[0]));
+  *a = 0xff;
+}
+
+static inline void RGB565_pack(RGB565_type *dst, uint8_t r, uint8_t g,
+                               uint8_t b, uint8_t a) {
+  LOG_FATAL("RGB565_pack unsupported");
 }
 
 /* UYVY422 */
 typedef uint16_t UYVY422_type;
 enum { UYVY422_el = 2 };
 
-static inline uint8_t yuv_to_r(int y, int u, int v) {
+static inline uint8_t UYVY422_UNPACK_R(int y, int u, int v) {
   int r = y + (11 * v) / 8;
   return MAX(0, MIN(255, r));
 }
 
-static inline uint8_t yuv_to_g(int y, int u, int v) {
+static inline uint8_t UYVY422_UNPACK_G(int y, int u, int v) {
   int g = y - (11 * u + 22 * v) / 32;
   return MAX(0, MIN(255, g));
 }
 
-static inline uint8_t yuv_to_b(int y, int u, int v) {
+static inline uint8_t UYVY422_UNPACK_B(int y, int u, int v) {
   int b = y + (55 * u) / 32;
   return MAX(0, MIN(255, b));
 }
 
-static inline void UYVY422_read(const UYVY422_type *px, uint8_t *r, uint8_t *g,
-                                uint8_t *b, uint8_t *a) {
-  int u = (int)(px[0] & 0xff) - 128;
-  int y0 = (int)((px[0] >> 8) & 0xff);
-  int v = (int)((px[1] & 0xff) & 0xff) - 128;
-  int y1 = (int)((px[1] >> 8) & 0xff);
-  r[0] = yuv_to_r(y0, u, v);
-  g[0] = yuv_to_g(y0, u, v);
-  b[0] = yuv_to_b(y0, u, v);
-  r[1] = yuv_to_r(y1, u, v);
-  g[1] = yuv_to_g(y1, u, v);
-  b[1] = yuv_to_b(y1, u, v);
+static inline void UYVY422_unpack(const UYVY422_type *src, uint8_t *r,
+                                  uint8_t *g, uint8_t *b, uint8_t *a) {
+  int u = (int)(src[0] & 0xff) - 128;
+  int y0 = (int)((src[0] >> 8) & 0xff);
+  int v = (int)((src[1] & 0xff) & 0xff) - 128;
+  int y1 = (int)((src[1] >> 8) & 0xff);
+  r[0] = UYVY422_UNPACK_R(y0, u, v);
+  g[0] = UYVY422_UNPACK_G(y0, u, v);
+  b[0] = UYVY422_UNPACK_B(y0, u, v);
+  a[0] = 0xff;
+  r[1] = UYVY422_UNPACK_R(y1, u, v);
+  g[1] = UYVY422_UNPACK_G(y1, u, v);
+  b[1] = UYVY422_UNPACK_B(y1, u, v);
+  a[1] = 0xff;
 }
 
-static inline void UYVY422_write(UYVY422_type *dst, uint8_t r, uint8_t g,
-                                 uint8_t b, uint8_t a) {
-  LOG_FATAL("UYVY422_write unsupported");
+static inline void UYVY422_extend(const UYVY422_type *src, uint8_t *r,
+                                  uint8_t *g, uint8_t *b, uint8_t *a) {
+  UYVY422_unpack(src, r, g, b, a);
+}
+
+static inline void UYVY422_pack(UYVY422_type *dst, uint8_t r, uint8_t g,
+                                uint8_t b, uint8_t a) {
+  LOG_FATAL("UYVY422_pack unsupported");
 }
 
 /* ARGB4444 */
 typedef uint16_t ARGB4444_type;
 enum { ARGB4444_el = 1 };
 
-static inline void ARGB4444_read(const ARGB4444_type *px, uint8_t *r,
-                                 uint8_t *g, uint8_t *b, uint8_t *a) {
-  *a = (px[0] & 0b1111000000000000) >> 8;
-  *r = (px[0] & 0b0000111100000000) >> 4;
-  *g = (px[0] & 0b0000000011110000) << 0;
-  *b = (px[0] & 0b0000000000001111) << 4;
+#define ARGB4444_UNPACK_A(px) (((px)&0b1111000000000000) >> 8)
+#define ARGB4444_UNPACK_R(px) (((px)&0b0000111100000000) >> 4)
+#define ARGB4444_UNPACK_G(px) (((px)&0b0000000011110000) << 0)
+#define ARGB4444_UNPACK_B(px) (((px)&0b0000000000001111) << 4)
+
+static inline void ARGB4444_unpack(const ARGB4444_type *src, uint8_t *r,
+                                   uint8_t *g, uint8_t *b, uint8_t *a) {
+  *a = ARGB4444_UNPACK_A(src[0]);
+  *r = ARGB4444_UNPACK_R(src[0]);
+  *g = ARGB4444_UNPACK_G(src[0]);
+  *b = ARGB4444_UNPACK_B(src[0]);
 }
 
-static inline void ARGB4444_write(ARGB4444_type *dst, uint8_t r, uint8_t g,
-                                  uint8_t b, uint8_t a) {
-  *dst = ((a >> 4) << 12) | ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+static inline void ARGB4444_extend(const ARGB4444_type *src, uint8_t *r,
+                                   uint8_t *g, uint8_t *b, uint8_t *a) {
+  *a = COLOR_EXTEND_4(ARGB4444_UNPACK_A(src[0]));
+  *r = COLOR_EXTEND_4(ARGB4444_UNPACK_R(src[0]));
+  *g = COLOR_EXTEND_4(ARGB4444_UNPACK_G(src[0]));
+  *b = COLOR_EXTEND_4(ARGB4444_UNPACK_B(src[0]));
 }
 
-/* RGBA4444 */
-typedef uint16_t RGBA4444_type;
-enum { RGBA4444_el = 1 };
-
-static inline void RGBA4444_read(const RGBA4444_type *px, uint8_t *r,
-                                 uint8_t *g, uint8_t *b, uint8_t *a) {
-  *r = (px[0] & 0b1111000000000000) >> 8;
-  *g = (px[0] & 0b0000111100000000) >> 4;
-  *b = (px[0] & 0b0000000011110000) << 0;
-  *a = (px[0] & 0b0000000000001111) << 4;
-}
-
-static inline void RGBA4444_write(RGBA4444_type *dst, uint8_t r, uint8_t g,
-                                  uint8_t b, uint8_t a) {
-  *dst = ((r >> 4) << 12) | ((g >> 4) << 8) | ((b >> 4) << 4) | (a >> 4);
+static inline void ARGB4444_pack(ARGB4444_type *dst, uint8_t r, uint8_t g,
+                                 uint8_t b, uint8_t a) {
+  LOG_FATAL("ARGB4444_pack unsupported");
 }
 
 /* ARGB8888 */
 typedef uint32_t ARGB8888_type;
 enum { ARGB8888_el = 1 };
 
-static inline void ARGB8888_read(const ARGB8888_type *px, uint8_t *r,
-                                 uint8_t *g, uint8_t *b, uint8_t *a) {
-  *a = (px[0] >> 24) & 0xff;
-  *r = (px[0] >> 16) & 0xff;
-  *g = (px[0] >> 8) & 0xff;
-  *b = px[0] & 0xff;
+#define ARGB8888_UNPACK_A(px) (((px) >> 24) & 0xff)
+#define ARGB8888_UNPACK_R(px) (((px) >> 16) & 0xff)
+#define ARGB8888_UNPACK_G(px) (((px) >> 8) & 0xff)
+#define ARGB8888_UNPACK_B(px) ((px)&0xff)
+
+static inline void ARGB8888_unpack(const ARGB8888_type *src, uint8_t *r,
+                                   uint8_t *g, uint8_t *b, uint8_t *a) {
+  *a = ARGB8888_UNPACK_A(src[0]);
+  *r = ARGB8888_UNPACK_R(src[0]);
+  *g = ARGB8888_UNPACK_G(src[0]);
+  *b = ARGB8888_UNPACK_B(src[0]);
 }
 
-static inline void ARGB8888_write(ARGB8888_type *dst, uint8_t r, uint8_t g,
-                                  uint8_t b, uint8_t a) {
-  *dst = (a << 24) | (r << 16) | (g << 8) | b;
+static inline void ARGB8888_extend(const ARGB8888_type *src, uint8_t *r,
+                                   uint8_t *g, uint8_t *b, uint8_t *a) {
+  ARGB8888_unpack(src, r, g, b, a);
 }
 
-/* RGBA8888 */
-typedef uint32_t RGBA8888_type;
-enum { RGBA8888_el = 1 };
-
-static inline void RGBA8888_read(const RGBA8888_type *px, uint8_t *r,
-                                 uint8_t *g, uint8_t *b, uint8_t *a) {
-  *r = (px[0] >> 24) & 0xff;
-  *g = (px[0] >> 16) & 0xff;
-  *b = (px[0] >> 8) & 0xff;
-  *a = px[0] & 0xff;
+static inline void ARGB8888_pack(ARGB8888_type *dst, uint8_t r, uint8_t g,
+                                 uint8_t b, uint8_t a) {
+  LOG_FATAL("ARGB8888_pack unsupported");
 }
 
-static inline void RGBA8888_write(RGBA8888_type *dst, uint8_t r, uint8_t g,
-                                  uint8_t b, uint8_t a) {
-  *dst = (r << 24) | (g << 16) | (b << 8) | a;
+/* RGBA */
+typedef uint32_t RGBA_type;
+enum { RGBA_el = 1 };
+
+static inline void RGBA_unpack(const RGBA_type *src, uint8_t *r, uint8_t *g,
+                               uint8_t *b, uint8_t *a) {
+  LOG_FATAL("RGBA_unpack unsupported");
 }
 
-#define define_convert(FROM, TO)                                       \
-  static inline void convert_##FROM##_##TO(const FROM##_type *src,     \
-                                           TO##_type *dst, int width,  \
-                                           int height, int stride) {   \
-    uint8_t r[FROM##_el];                                              \
-    uint8_t g[FROM##_el];                                              \
-    uint8_t b[FROM##_el];                                              \
-    uint8_t a[FROM##_el];                                              \
-                                                                       \
-    for (int y = 0; y < height; y++) {                                 \
-      for (int x = 0; x < stride; x += FROM##_el) {                    \
-        FROM##_read(&src[y * stride + x], r, g, b, a);                 \
-        for (int i = 0; i < FROM##_el; i++) {                          \
-          TO##_write(&dst[y * width + x + i], r[i], g[i], b[i], a[i]); \
-        }                                                              \
-      }                                                                \
-    }                                                                  \
+static inline void RGBA_extend(const RGBA_type *src, uint8_t *r, uint8_t *g,
+                               uint8_t *b, uint8_t *a) {
+  RGBA_unpack(src, r, g, b, a);
+}
+
+static inline void RGBA_pack(RGBA_type *dst, uint8_t r, uint8_t g, uint8_t b,
+                             uint8_t a) {
+  uint8_t *dst_arr = (uint8_t *)dst;
+  dst_arr[0] = r;
+  dst_arr[1] = g;
+  dst_arr[2] = b;
+  dst_arr[3] = a;
+}
+
+/*
+ * texture formats
+ */
+
+#define define_convert_planar(FROM, TO)                                      \
+  static inline void convert_planar_##FROM##_##TO(const FROM##_type *src,    \
+                                                  TO##_type *dst, int width, \
+                                                  int height, int stride) {  \
+    uint8_t r[FROM##_el];                                                    \
+    uint8_t g[FROM##_el];                                                    \
+    uint8_t b[FROM##_el];                                                    \
+    uint8_t a[FROM##_el];                                                    \
+                                                                             \
+    for (int y = 0; y < height; y++) {                                       \
+      const FROM##_type *end = src + stride;                                 \
+      while (src < end) {                                                    \
+        FROM##_unpack(src, r, g, b, a);                                      \
+        for (int i = 0; i < FROM##_el; i++) {                                \
+          TO##_pack(dst++, r[i], g[i], b[i], a[i]);                          \
+        }                                                                    \
+        src += FROM##_el;                                                    \
+      }                                                                      \
+      dst += (width - stride);                                               \
+    }                                                                        \
   }
 
 #define define_convert_twiddled(FROM, TO)                              \
@@ -207,9 +271,9 @@ static inline void RGBA8888_write(RGBA8888_type *dst, uint8_t r, uint8_t g,
         for (int i = 0; i < FROM##_el; i++) {                          \
           tmp[i] = src[TWIDIDX(x + i, y, min)];                        \
         }                                                              \
-        FROM##_read(tmp, r, g, b, a);                                  \
+        FROM##_extend(tmp, r, g, b, a);                                \
         for (int i = 0; i < FROM##_el; i++) {                          \
-          TO##_write(dst++, r[i], g[i], b[i], a[i]);                   \
+          TO##_pack(dst++, r[i], g[i], b[i], a[i]);                    \
         }                                                              \
       }                                                                \
     }                                                                  \
@@ -233,8 +297,8 @@ static inline void RGBA8888_write(RGBA8888_type *dst, uint8_t r, uint8_t g,
           pal_idx &= 0xf;                                                     \
         }                                                                     \
         const FROM##_type *entry = (const FROM##_type *)&palette[pal_idx];    \
-        FROM##_read(entry, &r, &g, &b, &a);                                   \
-        TO##_write(dst++, r, g, b, a);                                        \
+        FROM##_extend(entry, &r, &g, &b, &a);                                 \
+        TO##_pack(dst++, r, g, b, a);                                         \
       }                                                                       \
     }                                                                         \
   }
@@ -251,8 +315,8 @@ static inline void RGBA8888_write(RGBA8888_type *dst, uint8_t r, uint8_t g,
       for (int x = 0; x < width; x++) {                                       \
         int pal_idx = src[TWIDIDX(x, y, min)];                                \
         const FROM##_type *entry = (const FROM##_type *)&palette[pal_idx];    \
-        FROM##_read(entry, &r, &g, &b, &a);                                   \
-        TO##_write(dst++, r, g, b, a);                                        \
+        FROM##_extend(entry, &r, &g, &b, &a);                                 \
+        TO##_pack(dst++, r, g, b, a);                                         \
       }                                                                       \
     }                                                                         \
   }
@@ -270,34 +334,34 @@ static inline void RGBA8888_write(RGBA8888_type *dst, uint8_t r, uint8_t g,
         int twid_idx = TWIDIDX(x, y, min);                                  \
         int code_idx = index[twid_idx / 4] * 8 + ((twid_idx % 4) * 2);      \
         const FROM##_type *code = (const FROM##_type *)&codebook[code_idx]; \
-        FROM##_read(code, &r, &g, &b, &a);                                  \
-        TO##_write(dst++, r, g, b, a);                                      \
+        FROM##_extend(code, &r, &g, &b, &a);                                \
+        TO##_pack(dst++, r, g, b, a);                                       \
       }                                                                     \
     }                                                                       \
   }
 
-define_convert(ARGB1555, RGBA5551);
-define_convert(RGB565, RGB565);
-define_convert(UYVY422, RGB565);
-define_convert(ARGB4444, RGBA4444);
+define_convert_planar(ARGB1555, RGBA);
+define_convert_planar(RGB565, RGBA);
+define_convert_planar(UYVY422, RGBA);
+define_convert_planar(ARGB4444, RGBA);
 
-define_convert_twiddled(ARGB1555, RGBA5551);
-define_convert_twiddled(RGB565, RGB565);
-define_convert_twiddled(UYVY422, RGB565);
-define_convert_twiddled(ARGB4444, RGBA4444);
+define_convert_twiddled(ARGB1555, RGBA);
+define_convert_twiddled(RGB565, RGBA);
+define_convert_twiddled(UYVY422, RGBA);
+define_convert_twiddled(ARGB4444, RGBA);
 
-define_convert_pal4(ARGB1555, RGBA5551);
-define_convert_pal4(RGB565, RGB565);
-define_convert_pal4(ARGB4444, RGBA4444);
-define_convert_pal4(ARGB8888, RGBA4444);
+define_convert_pal4(ARGB1555, RGBA);
+define_convert_pal4(RGB565, RGBA);
+define_convert_pal4(ARGB4444, RGBA);
+define_convert_pal4(ARGB8888, RGBA);
 
-define_convert_pal8(ARGB1555, RGBA5551);
-define_convert_pal8(RGB565, RGB565);
-define_convert_pal8(ARGB4444, RGBA4444);
-define_convert_pal8(ARGB8888, RGBA4444);
+define_convert_pal8(ARGB1555, RGBA);
+define_convert_pal8(RGB565, RGBA);
+define_convert_pal8(ARGB4444, RGBA);
+define_convert_pal8(ARGB8888, RGBA);
 
-define_convert_vq(ARGB1555, RGBA5551);
-define_convert_vq(RGB565, RGB565);
-define_convert_vq(ARGB4444, RGBA4444);
+define_convert_vq(ARGB1555, RGBA);
+define_convert_vq(RGB565, RGBA);
+define_convert_vq(ARGB4444, RGBA);
 
 #endif

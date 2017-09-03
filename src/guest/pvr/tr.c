@@ -181,65 +181,64 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
   const uint8_t *codebook = texture;
   const uint8_t *index = input + TA_CODEBOOK_SIZE;
 
-  enum pxl_format pixel_fmt = PXL_INVALID;
   switch (tcw.pixel_format) {
     case TA_PIXEL_1555:
     case TA_PIXEL_RESERVED:
       output = converted;
-      pixel_fmt = PXL_RGBA5551;
       if (compressed) {
-        convert_vq_ARGB1555_RGBA5551(codebook, index, (uint16_t *)converted,
-                                     width, height);
+        convert_vq_ARGB1555_RGBA(codebook, index, (uint32_t *)converted, width,
+                                 height);
       } else if (twiddled) {
-        convert_twiddled_ARGB1555_RGBA5551(
-            (const uint16_t *)input, (uint16_t *)converted, width, height);
+        convert_twiddled_ARGB1555_RGBA((const uint16_t *)input,
+                                       (uint32_t *)converted, width, height);
       } else {
-        convert_ARGB1555_RGBA5551((const uint16_t *)input,
-                                  (uint16_t *)converted, width, height, stride);
+        convert_planar_ARGB1555_RGBA((const uint16_t *)input,
+                                     (uint32_t *)converted, width, height,
+                                     stride);
       }
       break;
 
     case TA_PIXEL_565:
       output = converted;
-      pixel_fmt = PXL_RGB565;
       if (compressed) {
-        convert_vq_RGB565_RGB565(codebook, index, (uint16_t *)converted, width,
-                                 height);
+        convert_vq_RGB565_RGBA(codebook, index, (uint32_t *)converted, width,
+                               height);
       } else if (twiddled) {
-        convert_twiddled_RGB565_RGB565((const uint16_t *)input,
-                                       (uint16_t *)converted, width, height);
+        convert_twiddled_RGB565_RGBA((const uint16_t *)input,
+                                     (uint32_t *)converted, width, height);
       } else {
-        convert_RGB565_RGB565((const uint16_t *)input, (uint16_t *)converted,
-                              width, height, stride);
+        convert_planar_RGB565_RGBA((const uint16_t *)input,
+                                   (uint32_t *)converted, width, height,
+                                   stride);
       }
       break;
 
     case TA_PIXEL_4444:
       output = converted;
-      pixel_fmt = PXL_RGBA4444;
       if (compressed) {
-        convert_vq_ARGB4444_RGBA4444(codebook, index, (uint16_t *)converted,
-                                     width, height);
+        convert_vq_ARGB4444_RGBA(codebook, index, (uint32_t *)converted, width,
+                                 height);
       } else if (twiddled) {
-        convert_twiddled_ARGB4444_RGBA4444(
-            (const uint16_t *)input, (uint16_t *)converted, width, height);
+        convert_twiddled_ARGB4444_RGBA((const uint16_t *)input,
+                                       (uint32_t *)converted, width, height);
       } else {
-        convert_ARGB4444_RGBA4444((const uint16_t *)input,
-                                  (uint16_t *)converted, width, height, stride);
+        convert_planar_ARGB4444_RGBA((const uint16_t *)input,
+                                     (uint32_t *)converted, width, height,
+                                     stride);
       }
       break;
 
     case TA_PIXEL_YUV422:
       output = converted;
-      pixel_fmt = PXL_RGB565;
       CHECK(!compressed);
       if (twiddled) {
-        convert_twiddled_UYVY422_RGB565((const uint16_t *)input,
-                                        (uint16_t *)converted, width, height);
+        convert_twiddled_UYVY422_RGBA((const uint16_t *)input,
+                                      (uint32_t *)converted, width, height);
 
       } else {
-        convert_UYVY422_RGB565((const uint16_t *)input, (uint16_t *)converted,
-                               width, height, stride);
+        convert_planar_UYVY422_RGBA((const uint16_t *)input,
+                                    (uint32_t *)converted, width, height,
+                                    stride);
       }
       break;
 
@@ -248,30 +247,23 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
       output = converted;
       switch (ctx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
-          pixel_fmt = PXL_RGBA5551;
-          convert_pal4_ARGB1555_RGBA5551(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
-          break;
-
-        case TA_PAL_RGB565:
-          pixel_fmt = PXL_RGB565;
-          convert_pal4_RGB565_RGB565(input, (uint16_t *)converted,
+          convert_pal4_ARGB1555_RGBA(input, (uint32_t *)converted,
                                      (const uint32_t *)palette, width, height);
           break;
 
+        case TA_PAL_RGB565:
+          convert_pal4_RGB565_RGBA(input, (uint32_t *)converted,
+                                   (const uint32_t *)palette, width, height);
+          break;
+
         case TA_PAL_ARGB4444:
-          pixel_fmt = PXL_RGBA4444;
-          convert_pal4_ARGB4444_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
+          convert_pal4_ARGB4444_RGBA(input, (uint32_t *)converted,
+                                     (const uint32_t *)palette, width, height);
           break;
 
         case TA_PAL_ARGB8888:
-          pixel_fmt = PXL_RGBA4444;
-          convert_pal4_ARGB8888_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
+          convert_pal4_ARGB8888_RGBA(input, (uint32_t *)converted,
+                                     (const uint32_t *)palette, width, height);
 
           break;
 
@@ -287,30 +279,23 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
       output = converted;
       switch (ctx->pal_pxl_format) {
         case TA_PAL_ARGB1555:
-          pixel_fmt = PXL_RGBA5551;
-          convert_pal8_ARGB1555_RGBA5551(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
-          break;
-
-        case TA_PAL_RGB565:
-          pixel_fmt = PXL_RGB565;
-          convert_pal8_RGB565_RGB565(input, (uint16_t *)converted,
+          convert_pal8_ARGB1555_RGBA(input, (uint32_t *)converted,
                                      (const uint32_t *)palette, width, height);
           break;
 
+        case TA_PAL_RGB565:
+          convert_pal8_RGB565_RGBA(input, (uint32_t *)converted,
+                                   (const uint32_t *)palette, width, height);
+          break;
+
         case TA_PAL_ARGB4444:
-          pixel_fmt = PXL_RGBA4444;
-          convert_pal8_ARGB4444_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
+          convert_pal8_ARGB4444_RGBA(input, (uint32_t *)converted,
+                                     (const uint32_t *)palette, width, height);
           break;
 
         case TA_PAL_ARGB8888:
-          pixel_fmt = PXL_RGBA4444;
-          convert_pal8_ARGB8888_RGBA4444(input, (uint16_t *)converted,
-                                         (const uint32_t *)palette, width,
-                                         height);
+          convert_pal8_ARGB8888_RGBA(input, (uint32_t *)converted,
+                                     (const uint32_t *)palette, width, height);
           break;
 
         default:
@@ -335,9 +320,9 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
       tsp.clamp_v ? WRAP_CLAMP_TO_EDGE
                   : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
-  entry->handle = r_create_texture(tr->r, pixel_fmt, filter, wrap_u, wrap_v,
+  entry->handle = r_create_texture(tr->r, PXL_RGBA, filter, wrap_u, wrap_v,
                                    mipmaps, width, height, output);
-  entry->format = pixel_fmt;
+  entry->format = PXL_RGBA;
   entry->filter = filter;
   entry->wrap_u = wrap_u;
   entry->wrap_v = wrap_v;
