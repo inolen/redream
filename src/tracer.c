@@ -21,8 +21,12 @@ static const char *list_names[] = {
 };
 
 static const char *pxl_names[] = {
-    "PXL_INVALID", "PXL_RGBA",     "PXL_RGBA5551",
-    "PXL_RGB565",  "PXL_RGBA4444", "PXL_RGBA8888",
+    "TA_PIXEL_1555",    "TA_PIXEL_565",  "TA_PIXEL_4444", "TA_PIXEL_YUV422",
+    "TA_PIXEL_BUMPMAP", "TA_PIXEL_4BPP", "TA_PIXEL_8BPP", "TA_PIXEL_RESERVED",
+};
+
+static const char *pal_pxl_names[] = {
+    "TA_PAL_ARGB1555", "TA_PAL_RGB565", "TA_PAL_ARGB4444", "TA_PAL_ARGB8888",
 };
 
 static const char *filter_names[] = {
@@ -582,7 +586,9 @@ static void tracer_render_side_menu(struct tracer *tracer) {
           igImage(handle_id, tex_size, tex_uv0, tex_uv1, one_vec4, zero_vec4);
           igSeparator();
           igText("addr; 0x%08x", tex->tcw.texture_addr << 3);
-          igText("format: %s", pxl_names[tex->format]);
+          igText("pixel_fmt: %s", pxl_names[tex->tcw.pixel_format]);
+          igText("pal_pixel_fmt: %s",
+                 pal_pxl_names[tracer->ctx.pal_pxl_format]);
           igText("filter: %s", filter_names[tex->filter]);
           igText("wrap_u: %s", wrap_names[tex->wrap_u]);
           igText("wrap_v: %s", wrap_names[tex->wrap_v]);
