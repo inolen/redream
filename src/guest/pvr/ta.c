@@ -4,7 +4,6 @@
 #include "core/list.h"
 #include "core/string.h"
 #include "guest/holly/holly.h"
-#include "guest/pvr/pixel_convert.h"
 #include "guest/pvr/pvr.h"
 #include "guest/pvr/tr.h"
 #include "guest/scheduler.h"

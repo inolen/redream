@@ -4,8 +4,8 @@
 #include "core/math.h"
 #include "core/profiler.h"
 #include "core/sort.h"
-#include "guest/pvr/pixel_convert.h"
 #include "guest/pvr/ta.h"
+#include "guest/pvr/tex.h"
 
 struct tr {
   struct render_backend *r;
@@ -186,13 +186,13 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
     case TA_PIXEL_RESERVED:
       output = converted;
       if (compressed) {
-        convert_vq_ARGB1555_RGBA(codebook, index, (uint32_t *)converted, width,
+        convert_vq_ARGB1555_RGBA(index, codebook, (uint32_t *)converted, width,
                                  height);
       } else if (twiddled) {
         convert_twiddled_ARGB1555_RGBA((const uint16_t *)input,
                                        (uint32_t *)converted, width, height);
       } else {
-        convert_planar_ARGB1555_RGBA((const uint16_t *)input,
+        convert_bitmap_ARGB1555_RGBA((const uint16_t *)input,
                                      (uint32_t *)converted, width, height,
                                      stride);
       }
@@ -201,13 +201,13 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
     case TA_PIXEL_565:
       output = converted;
       if (compressed) {
-        convert_vq_RGB565_RGBA(codebook, index, (uint32_t *)converted, width,
+        convert_vq_RGB565_RGBA(index, codebook, (uint32_t *)converted, width,
                                height);
       } else if (twiddled) {
         convert_twiddled_RGB565_RGBA((const uint16_t *)input,
                                      (uint32_t *)converted, width, height);
       } else {
-        convert_planar_RGB565_RGBA((const uint16_t *)input,
+        convert_bitmap_RGB565_RGBA((const uint16_t *)input,
                                    (uint32_t *)converted, width, height,
                                    stride);
       }
@@ -216,13 +216,13 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
     case TA_PIXEL_4444:
       output = converted;
       if (compressed) {
-        convert_vq_ARGB4444_RGBA(codebook, index, (uint32_t *)converted, width,
+        convert_vq_ARGB4444_RGBA(index, codebook, (uint32_t *)converted, width,
                                  height);
       } else if (twiddled) {
         convert_twiddled_ARGB4444_RGBA((const uint16_t *)input,
                                        (uint32_t *)converted, width, height);
       } else {
-        convert_planar_ARGB4444_RGBA((const uint16_t *)input,
+        convert_bitmap_ARGB4444_RGBA((const uint16_t *)input,
                                      (uint32_t *)converted, width, height,
                                      stride);
       }
@@ -236,7 +236,7 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
                                       (uint32_t *)converted, width, height);
 
       } else {
-        convert_planar_UYVY422_RGBA((const uint16_t *)input,
+        convert_bitmap_UYVY422_RGBA((const uint16_t *)input,
                                     (uint32_t *)converted, width, height,
                                     stride);
       }
@@ -322,7 +322,6 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
 
   entry->handle = r_create_texture(tr->r, PXL_RGBA, filter, wrap_u, wrap_v,
                                    mipmaps, width, height, output);
-  entry->format = PXL_RGBA;
   entry->filter = filter;
   entry->wrap_u = wrap_u;
   entry->wrap_v = wrap_v;

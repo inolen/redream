@@ -211,6 +211,7 @@ set(RELIB_SOURCES
   src/guest/maple/vmu.c
   src/guest/pvr/pvr.c
   src/guest/pvr/ta.c
+  src/guest/pvr/tex.c
   src/guest/pvr/tr.c
   src/guest/rom/boot.c
   src/guest/rom/flash.c

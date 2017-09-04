@@ -26,7 +26,6 @@ struct tr_texture {
   int palette_size;
 
   /* backend info */
-  enum pxl_format format;
   enum filter_mode filter;
   enum wrap_mode wrap_u;
   enum wrap_mode wrap_v;
