@@ -51,7 +51,7 @@ static void test_context(struct trace_cmd *cmd, struct test *tests,
                          int num_tests) {
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
-  struct tile_context *ctx = calloc(1, sizeof(struct tile_context));
+  struct ta_context *ctx = calloc(1, sizeof(struct ta_context));
   struct tr_context *rc = calloc(1, sizeof(struct tr_context));
 
   /* parse the context */

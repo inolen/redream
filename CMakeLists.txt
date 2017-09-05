@@ -375,13 +375,14 @@ target_compile_definitions(redream PRIVATE ${REDREAM_DEFS})
 target_compile_options(redream PRIVATE ${REDREAM_FLAGS})
 
 #--------------------------------------------------
-# recc
+# tools
 #--------------------------------------------------
 
 if(BUILD_TOOLS)
 
 if(ARCH_X64)
 
+# recc
 set(RECC_SOURCES
   ${RELIB_SOURCES}
   src/host/null_host.c
@@ -395,7 +396,20 @@ target_compile_definitions(recc PRIVATE ${RELIB_DEFS})
 target_compile_options(recc PRIVATE ${RELIB_FLAGS})
 endif()
 
+# retex
+set(RETEX_SOURCES
+  ${RELIB_SOURCES}
+  src/host/null_host.c
+  tools/retex/main.c)
+source_group_by_dir(RETEX_SOURCES)
 
+add_executable(retex ${RETEX_SOURCES})
+target_include_directories(retex PUBLIC ${RELIB_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(retex ${RELIB_LIBS})
+target_compile_definitions(retex PRIVATE ${RELIB_DEFS})
+target_compile_options(retex PRIVATE ${RELIB_FLAGS})
+
+# retrace
 set(RETRACE_SOURCES
   ${RELIB_SOURCES}
   src/host/null_host.c
