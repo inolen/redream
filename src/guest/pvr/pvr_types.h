@@ -185,7 +185,7 @@ union scaler_ctl {
 union pal_ram_ctrl {
   uint32_t full;
   struct {
-    uint32_t pixel_format : 2;
+    uint32_t pixel_fmt : 2;
     uint32_t reserved0 : 30;
   };
 };

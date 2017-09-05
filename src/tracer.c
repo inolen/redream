@@ -20,12 +20,12 @@ static const char *list_names[] = {
     "TA_LIST_PUNCH_THROUGH",
 };
 
-static const char *pxl_names[] = {
-    "TA_PIXEL_1555",    "TA_PIXEL_565",  "TA_PIXEL_4444", "TA_PIXEL_YUV422",
-    "TA_PIXEL_BUMPMAP", "TA_PIXEL_4BPP", "TA_PIXEL_8BPP", "TA_PIXEL_RESERVED",
+static const char *pixel_names[] = {
+    "TA_PXL_1555",    "TA_PXL_565",  "TA_PXL_4444", "TA_PXL_YUV422",
+    "TA_PXL_BUMPMAP", "TA_PXL_4BPP", "TA_PXL_8BPP", "TA_PXL_RESERVED",
 };
 
-static const char *pal_pxl_names[] = {
+static const char *palette_names[] = {
     "TA_PAL_ARGB1555", "TA_PAL_RGB565", "TA_PAL_ARGB4444", "TA_PAL_ARGB8888",
 };
 
@@ -586,9 +586,8 @@ static void tracer_render_side_menu(struct tracer *tracer) {
           igImage(handle_id, tex_size, tex_uv0, tex_uv1, one_vec4, zero_vec4);
           igSeparator();
           igText("addr; 0x%08x", tex->tcw.texture_addr << 3);
-          igText("pixel_fmt: %s", pxl_names[tex->tcw.pixel_format]);
-          igText("pal_pixel_fmt: %s",
-                 pal_pxl_names[tracer->ctx.pal_pxl_format]);
+          igText("pixel_fmt: %s", pixel_names[tex->tcw.pixel_fmt]);
+          igText("palette_fmt: %s", palette_names[tracer->ctx.palette_fmt]);
           igText("filter: %s", filter_names[tex->filter]);
           igText("wrap_u: %s", wrap_names[tex->wrap_u]);
           igText("wrap_v: %s", wrap_names[tex->wrap_v]);

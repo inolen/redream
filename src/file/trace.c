@@ -19,7 +19,7 @@ void trace_writer_render_context(struct trace_writer *writer,
   cmd.type = TRACE_CMD_CONTEXT;
   cmd.context.autosort = ctx->autosort;
   cmd.context.stride = ctx->stride;
-  cmd.context.pal_pxl_format = ctx->pal_pxl_format;
+  cmd.context.palette_fmt = ctx->palette_fmt;
   cmd.context.video_width = ctx->video_width;
   cmd.context.video_height = ctx->video_height;
   cmd.context.bg_isp = ctx->bg_isp;
@@ -166,7 +166,7 @@ void trace_copy_context(const struct trace_cmd *cmd, struct tile_context *ctx) {
 
   ctx->autosort = cmd->context.autosort;
   ctx->stride = cmd->context.stride;
-  ctx->pal_pxl_format = cmd->context.pal_pxl_format;
+  ctx->palette_fmt = cmd->context.palette_fmt;
   ctx->bg_isp = cmd->context.bg_isp;
   ctx->bg_tsp = cmd->context.bg_tsp;
   ctx->bg_tcw = cmd->context.bg_tcw;

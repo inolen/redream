@@ -315,18 +315,18 @@ void ta_texture_info(struct ta *ta, union tsp tsp, union tcw tcw,
   *texture = &ta->video_ram[texture_addr];
   *texture_size = ta_texture_size(tsp, tcw);
 
-  if (tcw.pixel_format == TA_PIXEL_4BPP || tcw.pixel_format == TA_PIXEL_8BPP) {
+  if (tcw.pixel_fmt == TA_PXL_4BPP || tcw.pixel_fmt == TA_PXL_8BPP) {
     uint32_t palette_addr = 0;
 
     /* palette ram is 4096 bytes, with each palette entry being 4 bytes each,
        resulting in 1 << 10 indexes */
-    if (tcw.pixel_format == TA_PIXEL_4BPP) {
+    if (tcw.pixel_fmt == TA_PXL_4BPP) {
       /* in 4bpp mode, the palette selector represents the upper 6 bits of the
          palette index, with the remaining 4 bits being filled in by the
          texture */
       palette_addr = tcw.p.palette_selector << 6;
       *palette_size = 1 << 6;
-    } else if (tcw.pixel_format == TA_PIXEL_8BPP) {
+    } else if (tcw.pixel_fmt == TA_PXL_8BPP) {
       /* in 8bpp mode, the palette selector represents the upper 2 bits of the
          palette index, with the remaining 8 bits being filled in by the
          texture */
@@ -359,7 +359,7 @@ static void ta_save_state(struct ta *ta, struct tile_context *ctx) {
   ctx->stride = pvr->TEXT_CONTROL->stride * 32;
 
   /* texture palette pixel format */
-  ctx->pal_pxl_format = pvr->PAL_RAM_CTRL->pixel_format;
+  ctx->palette_fmt = pvr->PAL_RAM_CTRL->pixel_fmt;
 
   /* save video resolution in order to unproject the screen space coordinates */
   int vga_mode = !pvr->SPG_CONTROL->NTSC && !pvr->SPG_CONTROL->PAL &&

@@ -34,14 +34,14 @@ enum {
 };
 
 enum {
-  TA_PIXEL_1555,
-  TA_PIXEL_565,
-  TA_PIXEL_4444,
-  TA_PIXEL_YUV422,
-  TA_PIXEL_BUMPMAP,
-  TA_PIXEL_4BPP,
-  TA_PIXEL_8BPP,
-  TA_PIXEL_RESERVED,
+  TA_PXL_1555,
+  TA_PXL_565,
+  TA_PXL_4444,
+  TA_PXL_YUV422,
+  TA_PXL_BUMPMAP,
+  TA_PXL_4BPP,
+  TA_PXL_8BPP,
+  TA_PXL_RESERVED,
 };
 
 enum {
@@ -127,7 +127,7 @@ union tcw {
     uint32_t reserved : 4;
     uint32_t stride_select : 1;
     uint32_t scan_order : 1;
-    uint32_t pixel_format : 3;
+    uint32_t pixel_fmt : 3;
     uint32_t vq_compressed : 1;
     uint32_t mip_mapped : 1;
   };
@@ -135,7 +135,7 @@ union tcw {
   struct {
     uint32_t texture_addr : 21;
     uint32_t palette_selector : 6;
-    uint32_t pixel_format : 3;
+    uint32_t pixel_fmt : 3;
     uint32_t vq_compressed : 1;
     uint32_t mip_mapped : 1;
   } p;
@@ -446,7 +446,7 @@ struct tile_context {
   /* pvr / ta state */
   int autosort;
   int stride;
-  int pal_pxl_format;
+  int palette_fmt;
   int video_width;
   int video_height;
   union isp bg_isp;
