@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+/*
+ * registers
+ */
+
 union pteh {
   uint32_t full;
   struct {
@@ -141,6 +145,10 @@ enum {
 #undef SH4_REG
   SH4_NUM_REGS = SH4_REG_OFFSET(0xffffffff) + 1
 };
+
+/*
+ * interrupts
+ */
 
 enum sh4_exception {
 #define SH4_EXC(name, expevt, offset, prilvl, priord) SH4_EXC_##name,

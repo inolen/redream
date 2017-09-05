@@ -29,6 +29,24 @@ static const char *palette_names[] = {
     "TA_PAL_ARGB1555", "TA_PAL_RGB565", "TA_PAL_ARGB4444", "TA_PAL_ARGB8888",
 };
 
+static const char *texture_fmt_names[] = {
+    "PVR_TEX_INVALID",
+    "PVR_TEX_TWIDDLED",
+    "PVR_TEX_TWIDDLED_MIPMAPS",
+    "PVR_TEX_VQ",
+    "PVR_TEX_VQ_MIPMAPS",
+    "PVR_TEX_PALETTE_4BPP",
+    "PVR_TEX_PALETTE_4BPP_MIPMAPS",
+    "PVR_TEX_PALETTE_8BPP",
+    "PVR_TEX_PALETTE_8BPP_MIPMAPS",
+    "PVR_TEX_BITMAP_RECT",
+    NULL,
+    NULL,
+    "PVR_TEX_BITMAP",
+    NULL,
+    "PVR_TEX_TWIDDLED_RECT",
+};
+
 static const char *filter_names[] = {
     "FILTER_NEAREST", "FILTER_BILINEAR",
 };
@@ -586,6 +604,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
           igImage(handle_id, tex_size, tex_uv0, tex_uv1, one_vec4, zero_vec4);
           igSeparator();
           igText("addr; 0x%08x", tex->tcw.texture_addr << 3);
+          igText("texture_fmt: %s", texture_fmt_names[tex->format]);
           igText("pixel_fmt: %s", pixel_names[tex->tcw.pixel_fmt]);
           igText("palette_fmt: %s", palette_names[tracer->ctx.palette_fmt]);
           igText("filter: %s", filter_names[tex->filter]);

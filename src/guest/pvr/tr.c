@@ -144,16 +144,11 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
   static uint8_t converted[1024 * 1024 * 4];
   const uint8_t *palette = entry->palette;
   const uint8_t *texture = entry->texture;
-  const uint8_t *input = texture;
-  const uint8_t *output = texture;
-
-  /* textures are either twiddled and vq compressed, twiddled and uncompressed
-     or planar */
-  int twiddled = ta_texture_twiddled(tcw);
-  int compressed = ta_texture_compressed(tcw);
-  int mipmaps = ta_texture_mipmaps(tcw);
 
   /* get texture dimensions */
+  int compressed = ta_texture_compressed(tcw);
+  int twiddled = ta_texture_twiddled(tcw);
+  int mipmaps = ta_texture_mipmaps(tcw);
   int width = ta_texture_width(tsp, tcw);
   int height = ta_texture_height(tsp, tcw);
   int stride = width;
@@ -161,154 +156,39 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
     stride = ctx->stride;
   }
 
-  /* mipmap textures contain data for 1 x 1 up to width x height. skip to the
-     highest res and let the renderer backend generate its own mipmaps */
-  if (mipmaps) {
-    if (compressed) {
-      /* for vq compressed textures the offset is only for the index data, the
-         codebook is the same for all levels */
-      input += compressed_mipmap_offsets[tsp.texture_u_size];
-    } else if (tcw.pixel_fmt == TA_PXL_4BPP) {
-      input += paletted_4bpp_mipmap_offsets[tsp.texture_u_size];
-    } else if (tcw.pixel_fmt == TA_PXL_8BPP) {
-      input += paletted_8bpp_mipmap_offsets[tsp.texture_u_size];
+  /* figure out the texture format */
+  int texture_fmt = PVR_TEX_INVALID;
+
+  if (compressed) {
+    if (mipmaps) {
+      texture_fmt = PVR_TEX_VQ_MIPMAPS;
     } else {
-      input += nonpaletted_mipmap_offsets[tsp.texture_u_size];
+      texture_fmt = PVR_TEX_VQ;
     }
+  } else if (tcw.pixel_fmt == TA_PXL_4BPP) {
+    if (mipmaps) {
+      texture_fmt = PVR_TEX_PALETTE_4BPP_MIPMAPS;
+    } else {
+      texture_fmt = PVR_TEX_PALETTE_4BPP;
+    }
+  } else if (tcw.pixel_fmt == TA_PXL_8BPP) {
+    if (mipmaps) {
+      texture_fmt = PVR_TEX_PALETTE_8BPP_MIPMAPS;
+    } else {
+      texture_fmt = PVR_TEX_PALETTE_8BPP;
+    }
+  } else if (twiddled) {
+    if (mipmaps) {
+      texture_fmt = PVR_TEX_TWIDDLED_MIPMAPS;
+    } else {
+      texture_fmt = PVR_TEX_TWIDDLED;
+    }
+  } else {
+    texture_fmt = PVR_TEX_BITMAP;
   }
 
-  /* used by vq compressed textures */
-  const uint8_t *codebook = texture;
-  const uint8_t *index = input + TA_CODEBOOK_SIZE;
-
-  switch (tcw.pixel_fmt) {
-    case TA_PXL_1555:
-    case TA_PXL_RESERVED:
-      output = converted;
-      if (compressed) {
-        convert_vq_ARGB1555_RGBA(index, codebook, (uint32_t *)converted, width,
-                                 height);
-      } else if (twiddled) {
-        convert_twiddled_ARGB1555_RGBA((const uint16_t *)input,
-                                       (uint32_t *)converted, width, height);
-      } else {
-        convert_bitmap_ARGB1555_RGBA((const uint16_t *)input,
-                                     (uint32_t *)converted, width, height,
-                                     stride);
-      }
-      break;
-
-    case TA_PXL_565:
-      output = converted;
-      if (compressed) {
-        convert_vq_RGB565_RGBA(index, codebook, (uint32_t *)converted, width,
-                               height);
-      } else if (twiddled) {
-        convert_twiddled_RGB565_RGBA((const uint16_t *)input,
-                                     (uint32_t *)converted, width, height);
-      } else {
-        convert_bitmap_RGB565_RGBA((const uint16_t *)input,
-                                   (uint32_t *)converted, width, height,
-                                   stride);
-      }
-      break;
-
-    case TA_PXL_4444:
-      output = converted;
-      if (compressed) {
-        convert_vq_ARGB4444_RGBA(index, codebook, (uint32_t *)converted, width,
-                                 height);
-      } else if (twiddled) {
-        convert_twiddled_ARGB4444_RGBA((const uint16_t *)input,
-                                       (uint32_t *)converted, width, height);
-      } else {
-        convert_bitmap_ARGB4444_RGBA((const uint16_t *)input,
-                                     (uint32_t *)converted, width, height,
-                                     stride);
-      }
-      break;
-
-    case TA_PXL_YUV422:
-      output = converted;
-      CHECK(!compressed);
-      if (twiddled) {
-        convert_twiddled_UYVY422_RGBA((const uint16_t *)input,
-                                      (uint32_t *)converted, width, height);
-
-      } else {
-        convert_bitmap_UYVY422_RGBA((const uint16_t *)input,
-                                    (uint32_t *)converted, width, height,
-                                    stride);
-      }
-      break;
-
-    case TA_PXL_4BPP:
-      CHECK(!compressed);
-      output = converted;
-      switch (ctx->palette_fmt) {
-        case TA_PAL_ARGB1555:
-          convert_pal4_ARGB1555_RGBA(input, (uint32_t *)converted,
-                                     (const uint32_t *)palette, width, height);
-          break;
-
-        case TA_PAL_RGB565:
-          convert_pal4_RGB565_RGBA(input, (uint32_t *)converted,
-                                   (const uint32_t *)palette, width, height);
-          break;
-
-        case TA_PAL_ARGB4444:
-          convert_pal4_ARGB4444_RGBA(input, (uint32_t *)converted,
-                                     (const uint32_t *)palette, width, height);
-          break;
-
-        case TA_PAL_ARGB8888:
-          convert_pal4_ARGB8888_RGBA(input, (uint32_t *)converted,
-                                     (const uint32_t *)palette, width, height);
-
-          break;
-
-        default:
-          LOG_FATAL("unsupported 4bpp palette pixel format %d",
-                    ctx->palette_fmt);
-          break;
-      }
-      break;
-
-    case TA_PXL_8BPP:
-      CHECK(!compressed);
-      output = converted;
-      switch (ctx->palette_fmt) {
-        case TA_PAL_ARGB1555:
-          convert_pal8_ARGB1555_RGBA(input, (uint32_t *)converted,
-                                     (const uint32_t *)palette, width, height);
-          break;
-
-        case TA_PAL_RGB565:
-          convert_pal8_RGB565_RGBA(input, (uint32_t *)converted,
-                                   (const uint32_t *)palette, width, height);
-          break;
-
-        case TA_PAL_ARGB4444:
-          convert_pal8_ARGB4444_RGBA(input, (uint32_t *)converted,
-                                     (const uint32_t *)palette, width, height);
-          break;
-
-        case TA_PAL_ARGB8888:
-          convert_pal8_ARGB8888_RGBA(input, (uint32_t *)converted,
-                                     (const uint32_t *)palette, width, height);
-          break;
-
-        default:
-          LOG_FATAL("unsupported 8bpp palette pixel format %d",
-                    ctx->palette_fmt);
-          break;
-      }
-      break;
-
-    default:
-      LOG_FATAL("unsupported tcw pixel format %d", tcw.pixel_fmt);
-      break;
-  }
+  pvr_tex_decode(texture, width, height, stride, texture_fmt, tcw.pixel_fmt,
+                 palette, ctx->palette_fmt, converted, sizeof(converted));
 
   /* ignore trilinear filtering for now */
   enum filter_mode filter =
@@ -321,10 +201,11 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
                   : (tsp.flip_v ? WRAP_MIRRORED_REPEAT : WRAP_REPEAT);
 
   entry->handle = r_create_texture(tr->r, PXL_RGBA, filter, wrap_u, wrap_v,
-                                   mipmaps, width, height, output);
+                                   mipmaps, width, height, converted);
   entry->filter = filter;
   entry->wrap_u = wrap_u;
   entry->wrap_v = wrap_v;
+  entry->format = texture_fmt;
   entry->width = width;
   entry->height = height;
   entry->dirty = 0;

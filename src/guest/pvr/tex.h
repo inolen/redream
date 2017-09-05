@@ -3,57 +3,76 @@
 
 #include <stdint.h>
 
-typedef uint16_t ARGB1555_type;
-typedef uint16_t RGB565_type;
-typedef uint16_t UYVY422_type;
-typedef uint16_t ARGB4444_type;
-typedef uint32_t ARGB8888_type;
-typedef uint32_t RGBA_type;
+enum pvr_texture_fmt {
+  PVR_TEX_INVALID = 0x0,
+  PVR_TEX_TWIDDLED = 0x1,
+  PVR_TEX_TWIDDLED_MIPMAPS = 0x2,
+  PVR_TEX_VQ = 0x3,
+  PVR_TEX_VQ_MIPMAPS = 0x4,
+  PVR_TEX_PALETTE_4BPP = 0x5,
+  PVR_TEX_PALETTE_4BPP_MIPMAPS = 0x6,
+  PVR_TEX_PALETTE_8BPP = 0x7,
+  PVR_TEX_PALETTE_8BPP_MIPMAPS = 0x8,
+  PVR_TEX_BITMAP_RECT = 0x9,
+  PVR_TEX_BITMAP = 0xb,
+  PVR_TEX_TWIDDLED_RECT = 0xd,
+};
 
-#define declare_convert_bitmap(FROM, TO)                                    \
-  void convert_bitmap_##FROM##_##TO(const FROM##_type *src, TO##_type *dst, \
-                                    int width, int height, int stride);
+enum pvr_pixel_fmt {
+  PVR_PXL_ARGB1555,
+  PVR_PXL_RGB565,
+  PVR_PXL_ARGB4444,
+  PVR_PXL_YUV422,
+  PVR_PXL_BUMPMAP,
+  PVR_PXL_4BPP,
+  PVR_PXL_8BPP,
+};
 
-#define declare_convert_twiddled(FROM, TO)                                    \
-  void convert_twiddled_##FROM##_##TO(const FROM##_type *src, TO##_type *dst, \
-                                      int width, int height);
+enum pvr_palette_fmt {
+  PVR_PAL_ARGB1555,
+  PVR_PAL_RGB565,
+  PVR_PAL_ARGB4444,
+  PVR_PAL_ARGB8888,
+};
 
-#define declare_convert_pal4(FROM, TO)                                \
-  void convert_pal4_##FROM##_##TO(const uint8_t *src, TO##_type *dst, \
-                                  const uint32_t *palette, int width, \
-                                  int height);
+#pragma pack(push, 1)
+struct pvr_tex_header {
+  uint32_t version;
+  uint32_t size;
+  uint8_t pixel_fmt;
+  uint8_t texture_fmt;
+  uint16_t padding;
+  uint16_t width;
+  uint16_t height;
+};
+#pragma pack(pop)
 
-#define declare_convert_pal8(FROM, TO)                                \
-  void convert_pal8_##FROM##_##TO(const uint8_t *src, TO##_type *dst, \
-                                  const uint32_t *palette, int width, \
-                                  int height);
+static inline int pvr_tex_twiddled(int texture_fmt) {
+  return texture_fmt == PVR_TEX_TWIDDLED ||
+         texture_fmt == PVR_TEX_TWIDDLED_MIPMAPS ||
+         texture_fmt == PVR_TEX_PALETTE_4BPP ||
+         texture_fmt == PVR_TEX_PALETTE_4BPP_MIPMAPS ||
+         texture_fmt == PVR_TEX_PALETTE_8BPP ||
+         texture_fmt == PVR_TEX_PALETTE_8BPP_MIPMAPS ||
+         texture_fmt == PVR_TEX_TWIDDLED_RECT;
+}
 
-#define declare_convert_vq(FROM, TO)                                         \
-  void convert_vq_##FROM##_##TO(const uint8_t *src, const uint8_t *codebook, \
-                                TO##_type *dst, int width, int height);
+static inline int pvr_tex_compressed(int texture_fmt) {
+  return texture_fmt == PVR_TEX_VQ || texture_fmt == PVR_TEX_VQ_MIPMAPS;
+}
 
-declare_convert_bitmap(ARGB1555, RGBA);
-declare_convert_bitmap(RGB565, RGBA);
-declare_convert_bitmap(UYVY422, RGBA);
-declare_convert_bitmap(ARGB4444, RGBA);
+static inline int pvr_tex_mipmaps(int texture_fmt) {
+  return texture_fmt == PVR_TEX_TWIDDLED_MIPMAPS ||
+         texture_fmt == PVR_TEX_VQ_MIPMAPS ||
+         texture_fmt == PVR_TEX_PALETTE_4BPP_MIPMAPS ||
+         texture_fmt == PVR_TEX_PALETTE_8BPP_MIPMAPS;
+}
 
-declare_convert_twiddled(ARGB1555, RGBA);
-declare_convert_twiddled(RGB565, RGBA);
-declare_convert_twiddled(UYVY422, RGBA);
-declare_convert_twiddled(ARGB4444, RGBA);
+const struct pvr_tex_header *pvr_tex_header(const uint8_t *src);
+const uint8_t *pvr_tex_data(const uint8_t *src);
 
-declare_convert_pal4(ARGB1555, RGBA);
-declare_convert_pal4(RGB565, RGBA);
-declare_convert_pal4(ARGB4444, RGBA);
-declare_convert_pal4(ARGB8888, RGBA);
-
-declare_convert_pal8(ARGB1555, RGBA);
-declare_convert_pal8(RGB565, RGBA);
-declare_convert_pal8(ARGB4444, RGBA);
-declare_convert_pal8(ARGB8888, RGBA);
-
-declare_convert_vq(ARGB1555, RGBA);
-declare_convert_vq(RGB565, RGBA);
-declare_convert_vq(ARGB4444, RGBA);
+void pvr_tex_decode(const uint8_t *data, int width, int height, int stride,
+                    int texture_fmt, int pixel_fmt, const uint8_t *palette,
+                    int pal_pixel_fmt, uint8_t *out, int size);
 
 #endif

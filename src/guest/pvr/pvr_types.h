@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+/*
+ * pvr registers
+ */
+
 union param_base {
   uint32_t full;
   struct {

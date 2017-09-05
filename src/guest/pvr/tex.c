@@ -1,5 +1,7 @@
 #include "guest/pvr/tex.h"
 #include "core/assert.h"
+#include "guest/pvr/ta.h"
+#include "render/render_backend.h"
 
 /*
  * pixel formats
@@ -46,7 +48,7 @@ static inline uint8_t COLOR_EXTEND_6(uint8_t c) {
 }
 
 /* ARGB1555 */
-// typedef uint16_t ARGB1555_type;
+typedef uint16_t ARGB1555_type;
 
 static inline void ARGB1555_unpack(ARGB1555_type src, uint8_t *rgba) {
   rgba[0] = COLOR_EXTEND_5((src & 0b0111110000000000) >> 7);
@@ -88,7 +90,7 @@ static inline void ARGB1555_unpack_pal8(const uint8_t *src, const uint32_t *pal,
 }
 
 /* RGB565 */
-// typedef uint16_t RGB565_type;
+typedef uint16_t RGB565_type;
 
 static inline void RGB565_unpack(const RGB565_type src, uint8_t *rgba) {
   rgba[0] = COLOR_EXTEND_5((src & 0b1111100000000000) >> 8);
@@ -129,7 +131,7 @@ static inline void RGB565_unpack_pal8(const uint8_t *src, const uint32_t *pal,
 }
 
 /* UYVY422 */
-// typedef uint16_t UYVY422_type;
+typedef uint16_t UYVY422_type;
 
 static inline uint8_t yuv_to_r(int y, int u, int v) {
   int r = y + (11 * v) / 8;
@@ -175,7 +177,7 @@ static inline void UYVY422_unpack_twiddled(const UYVY422_type *src,
 }
 
 /* ARGB4444 */
-// typedef uint16_t ARGB4444_type;
+typedef uint16_t ARGB4444_type;
 
 static inline void ARGB4444_unpack(const ARGB4444_type src, uint8_t *rgba) {
   rgba[0] = COLOR_EXTEND_4((src & 0b0000111100000000) >> 4);
@@ -217,7 +219,7 @@ static inline void ARGB4444_unpack_pal8(const uint8_t *src, const uint32_t *pal,
 }
 
 /* ARGB8888 */
-// typedef uint32_t ARGB8888_type;
+typedef uint32_t ARGB8888_type;
 
 static inline void ARGB8888_unpack(ARGB8888_type src, uint8_t *rgba) {
   rgba[0] = (src >> 16) & 0xff;
@@ -259,7 +261,7 @@ static inline void ARGB8888_unpack_pal8(const uint8_t *src, const uint32_t *pal,
 }
 
 /* RGBA */
-// typedef uint32_t RGBA_type;
+typedef uint32_t RGBA_type;
 
 static inline void RGBA_pack(RGBA_type *dst, uint8_t *rgba) {
   *(uint32_t *)dst = *(uint32_t *)rgba;
@@ -461,3 +463,246 @@ define_convert_pal8(ARGB8888, RGBA);
 define_convert_vq(ARGB1555, RGBA);
 define_convert_vq(RGB565, RGBA);
 define_convert_vq(ARGB4444, RGBA);
+
+/*
+ * texture loading
+ */
+static int compressed_mipmap_offsets[] = {
+    0x00000, /* 1 x 1 */
+    0x00001, /* 2 x 2 */
+    0x00002, /* 4 x 4 */
+    0x00006, /* 8 x 8 */
+    0x00016, /* 16 x 16 */
+    0x00056, /* 32 x 32 */
+    0x00156, /* 64 x 64 */
+    0x00556, /* 128 x 128 */
+    0x01556, /* 256 x 256 */
+    0x05556, /* 512 x 512 */
+    0x15556, /* 1024 x 1024 */
+};
+
+static int paletted_4bpp_mipmap_offsets[] = {
+    0x00003, /* 1 x 1 */
+    0x00004, /* 2 x 2 */
+    0x00008, /* 4 x 4 */
+    0x0000c, /* 8 x 8 */
+    0x0002c, /* 16 x 16 */
+    0x000ac, /* 32 x 32 */
+    0x002ac, /* 64 x 64 */
+    0x00aac, /* 128 x 128 */
+    0x02aac, /* 256 x 256 */
+    0x0aaac, /* 512 x 512 */
+    0x2aaac, /* 1024 x 1024 */
+};
+
+static int paletted_8bpp_mipmap_offsets[] = {
+    0x00003, /* 1 x 1 */
+    0x00004, /* 2 x 2 */
+    0x00008, /* 4 x 4 */
+    0x00018, /* 8 x 8 */
+    0x00058, /* 16 x 16 */
+    0x00158, /* 32 x 32 */
+    0x00558, /* 64 x 64 */
+    0x01558, /* 128 x 128 */
+    0x05558, /* 256 x 256 */
+    0x15558, /* 512 x 512 */
+    0x55558, /* 1024 x 1024 */
+};
+
+static int nonpaletted_mipmap_offsets[] = {
+    0x00006, /* 1 x 1 */
+    0x00008, /* 2 x 2 */
+    0x00010, /* 4 x 4 */
+    0x00030, /* 8 x 8 */
+    0x000b0, /* 16 x 16 */
+    0x002b0, /* 32 x 32 */
+    0x00ab0, /* 64 x 64 */
+    0x02ab0, /* 128 x 128 */
+    0x0aab0, /* 256 x 256 */
+    0x2aab0, /* 512 x 512 */
+    0xaaab0, /* 1024 x 1024 */
+};
+
+const struct pvr_tex_header *pvr_tex_header(const uint8_t *src) {
+  /* skip the optional global index header, no idea what this means */
+  uint32_t version;
+  memcpy(&version, src, 4);
+
+  if (memcmp((char *)&version, "GBIX", 4) == 0) {
+    src += 4;
+
+    uint32_t size;
+    memcpy(&size, src, 4);
+    src += 4;
+
+    uint64_t index;
+    CHECK_LE(size, sizeof(index));
+    memcpy(&index, src, size);
+    src += size;
+  }
+
+  /* skip the optional IMSZ header, again, no idea what this means */
+  if (memcmp((char *)&version, "IMSZ", 4) == 0) {
+    src += 4;
+
+    /* no idea what this data is */
+    src += 12;
+  }
+
+  /* validate header */
+  const struct pvr_tex_header *header = (const struct pvr_tex_header *)src;
+  if (memcmp((char *)&header->version, "PVRT", 4) != 0) {
+    return NULL;
+  }
+
+  return header;
+}
+
+const uint8_t *pvr_tex_data(const uint8_t *src) {
+  const struct pvr_tex_header *header = pvr_tex_header(src);
+  const uint8_t *data = (const uint8_t *)(header + 1);
+  int mipmaps = pvr_tex_mipmaps(header->texture_fmt);
+
+  /* textures with mipmaps have an extra 4 bytes written at the end of the
+     file. these extra 4 bytes appear to make the pvr loading code used by
+     games generate texture addresses that are 4 bytes less than addresses
+     of textures with mipmaps */
+  if (mipmaps) {
+    data -= 4;
+  }
+
+  return data;
+}
+
+void pvr_tex_decode(const uint8_t *src, int width, int height, int stride,
+                    int texture_fmt, int pixel_fmt, const uint8_t *palette,
+                    int palette_fmt, uint8_t *dst, int size) {
+  int twiddled = pvr_tex_twiddled(texture_fmt);
+  int compressed = pvr_tex_compressed(texture_fmt);
+  int mipmaps = pvr_tex_mipmaps(texture_fmt);
+
+  /* used by vq compressed textures */
+  const uint8_t *codebook = src;
+  const uint8_t *index = src + TA_CODEBOOK_SIZE;
+
+  /* mipmap textures contain data for 1 x 1 up to width x height. skip to the
+     highest res and let the renderer backend generate its own mipmaps */
+  if (mipmaps) {
+    int u_size = ctz32(width);
+
+    if (compressed) {
+      /* for vq compressed textures the offset is only for the index data, the
+         codebook is the same for all levels */
+      index += compressed_mipmap_offsets[u_size];
+    } else if (pixel_fmt == PVR_TEX_PALETTE_4BPP) {
+      src += paletted_4bpp_mipmap_offsets[u_size];
+    } else if (pixel_fmt == PVR_TEX_PALETTE_8BPP) {
+      src += paletted_8bpp_mipmap_offsets[u_size];
+    } else {
+      src += nonpaletted_mipmap_offsets[u_size];
+    }
+  }
+
+  /* aliases to cut down on copy and paste */
+  const uint16_t *src16 = (const uint16_t *)src;
+  const uint32_t *pal32 = (const uint32_t *)palette;
+  uint32_t *dst32 = (uint32_t *)dst;
+
+  switch (pixel_fmt) {
+    case PVR_PXL_ARGB1555:
+      if (compressed) {
+        convert_vq_ARGB1555_RGBA(index, codebook, dst32, width, height);
+      } else if (twiddled) {
+        convert_twiddled_ARGB1555_RGBA(src16, dst32, width, height);
+      } else {
+        convert_bitmap_ARGB1555_RGBA(src16, dst32, width, height, stride);
+      }
+      break;
+
+    case PVR_PXL_RGB565:
+      if (compressed) {
+        convert_vq_RGB565_RGBA(index, codebook, dst32, width, height);
+      } else if (twiddled) {
+        convert_twiddled_RGB565_RGBA(src16, dst32, width, height);
+      } else {
+        convert_bitmap_RGB565_RGBA(src16, dst32, width, height, stride);
+      }
+      break;
+
+    case PVR_PXL_ARGB4444:
+      if (compressed) {
+        convert_vq_ARGB4444_RGBA(index, codebook, dst32, width, height);
+      } else if (twiddled) {
+        convert_twiddled_ARGB4444_RGBA(src16, dst32, width, height);
+      } else {
+        convert_bitmap_ARGB4444_RGBA(src16, dst32, width, height, stride);
+      }
+      break;
+
+    case PVR_PXL_YUV422:
+      CHECK(!compressed);
+      if (twiddled) {
+        convert_twiddled_UYVY422_RGBA(src16, dst32, width, height);
+
+      } else {
+        convert_bitmap_UYVY422_RGBA(src16, dst32, width, height, stride);
+      }
+      break;
+
+    case PVR_PXL_4BPP:
+      CHECK(!compressed);
+      switch (palette_fmt) {
+        case PVR_PAL_ARGB1555:
+          convert_pal4_ARGB1555_RGBA(src, dst32, pal32, width, height);
+          break;
+
+        case PVR_PAL_RGB565:
+          convert_pal4_RGB565_RGBA(src, dst32, pal32, width, height);
+          break;
+
+        case PVR_PAL_ARGB4444:
+          convert_pal4_ARGB4444_RGBA(src, dst32, pal32, width, height);
+          break;
+
+        case PVR_PAL_ARGB8888:
+          convert_pal4_ARGB8888_RGBA(src, dst32, pal32, width, height);
+          break;
+
+        default:
+          LOG_FATAL("pvr_tex_decode unsupported 4bpp palette format %d",
+                    palette_fmt);
+          break;
+      }
+      break;
+
+    case PVR_PXL_8BPP:
+      CHECK(!compressed);
+      switch (palette_fmt) {
+        case PVR_PAL_ARGB1555:
+          convert_pal8_ARGB1555_RGBA(src, dst32, pal32, width, height);
+          break;
+
+        case PVR_PAL_RGB565:
+          convert_pal8_RGB565_RGBA(src, dst32, pal32, width, height);
+          break;
+
+        case PVR_PAL_ARGB4444:
+          convert_pal8_ARGB4444_RGBA(src, dst32, pal32, width, height);
+          break;
+
+        case PVR_PAL_ARGB8888:
+          convert_pal8_ARGB8888_RGBA(src, dst32, pal32, width, height);
+          break;
+
+        default:
+          LOG_FATAL("pvr_tex_decode unsupported 8bpp palette format %d",
+                    palette_fmt);
+          break;
+      }
+      break;
+
+    default:
+      LOG_FATAL("pvr_tex_decode unsupported pixel format %d", pixel_fmt);
+      break;
+  }
+}

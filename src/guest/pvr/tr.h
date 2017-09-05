@@ -29,6 +29,7 @@ struct tr_texture {
   enum filter_mode filter;
   enum wrap_mode wrap_u;
   enum wrap_mode wrap_v;
+  int format;
   int width;
   int height;
   texture_handle_t handle;
