@@ -1,6 +1,5 @@
 #include "guest/pvr/tex.h"
 #include "core/assert.h"
-#include "guest/pvr/ta.h"
 #include "render/render_backend.h"
 
 /*
@@ -583,7 +582,7 @@ void pvr_tex_decode(const uint8_t *src, int width, int height, int stride,
 
   /* used by vq compressed textures */
   const uint8_t *codebook = src;
-  const uint8_t *index = src + TA_CODEBOOK_SIZE;
+  const uint8_t *index = src + PVR_CODEBOOK_SIZE;
 
   /* mipmap textures contain data for 1 x 1 up to width x height. skip to the
      highest res and let the renderer backend generate its own mipmaps */

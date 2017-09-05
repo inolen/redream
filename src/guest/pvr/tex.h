@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define PVR_CODEBOOK_SIZE (256 * 8)
+
 enum pvr_texture_fmt {
   PVR_TEX_INVALID = 0x0,
   PVR_TEX_TWIDDLED = 0x1,

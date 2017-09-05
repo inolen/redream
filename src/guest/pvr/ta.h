@@ -4,6 +4,7 @@
 #include "core/profiler.h"
 #include "guest/memory.h"
 #include "guest/pvr/ta_types.h"
+#include "guest/pvr/tex.h"
 
 struct dreamcast;
 struct ta;
@@ -12,8 +13,6 @@ struct tr_provider;
 DECLARE_COUNTER(ta_renders);
 
 AM_DECLARE(ta_fifo_map);
-
-#define TA_CODEBOOK_SIZE (256 * 8)
 
 extern int g_param_sizes[0x100 * TA_NUM_PARAMS * TA_NUM_VERTS];
 extern int g_poly_types[0x100 * TA_NUM_PARAMS * TA_NUM_LISTS];
@@ -92,7 +91,7 @@ static inline int ta_texture_size(union tsp tsp, union tcw tcw) {
   int bpp = ta_texture_bpp(tcw);
   int texture_size = 0;
   if (compressed) {
-    texture_size += TA_CODEBOOK_SIZE;
+    texture_size += PVR_CODEBOOK_SIZE;
   }
   int min_width = mipmaps ? 1 : width;
   for (int i = width; i >= min_width; i /= 2) {

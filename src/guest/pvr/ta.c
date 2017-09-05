@@ -12,23 +12,10 @@
 DEFINE_AGGREGATE_COUNTER(ta_data);
 DEFINE_AGGREGATE_COUNTER(ta_renders);
 
-#define TA_MAX_CONTEXTS 8
 #define TA_YUV420_MACROBLOCK_SIZE 384
 #define TA_YUV422_MACROBLOCK_SIZE 512
 #define TA_MAX_MACROBLOCK_SIZE \
   MAX(TA_YUV420_MACROBLOCK_SIZE, TA_YUV422_MACROBLOCK_SIZE)
-
-struct ta_texture {
-  struct tr_texture;
-  struct ta *ta;
-  struct list_node free_it;
-  struct rb_node live_it;
-
-  struct memory_watch *texture_watch;
-  struct memory_watch *palette_watch;
-  struct list_node invalid_it;
-  int invalidated;
-};
 
 struct ta {
   struct device;
@@ -42,7 +29,7 @@ struct ta {
   int yuv_macroblock_count;
 
   /* tile context pool */
-  struct tile_context contexts[TA_MAX_CONTEXTS];
+  struct tile_context contexts[8];
   struct list free_contexts;
   struct list live_contexts;
   struct tile_context *curr_context;
