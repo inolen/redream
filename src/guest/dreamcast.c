@@ -32,7 +32,7 @@ void dc_finish_render(struct dreamcast *dc) {
   dc->finish_render(dc->userdata);
 }
 
-void dc_start_render(struct dreamcast *dc, struct tile_context *ctx) {
+void dc_start_render(struct dreamcast *dc, struct ta_context *ctx) {
   if (!dc->start_render) {
     return;
   }

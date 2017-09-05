@@ -31,7 +31,7 @@ struct trace_cmd {
       const uint8_t *texture;
     } texture;
 
-    /* slimmed down version of the tile_context structure, will need to be in
+    /* slimmed down version of the ta_context structure, will need to be in
        sync */
     struct {
       uint32_t frame;
@@ -64,7 +64,7 @@ struct trace_writer {
 void get_next_trace_filename(char *filename, size_t size);
 
 struct trace *trace_parse(const char *filename);
-void trace_copy_context(const struct trace_cmd *cmd, struct tile_context *ctx);
+void trace_copy_context(const struct trace_cmd *cmd, struct ta_context *ctx);
 void trace_destroy(struct trace *trace);
 
 struct trace_writer *trace_writer_open(const char *filename);
@@ -73,7 +73,7 @@ void trace_writer_insert_texture(struct trace_writer *writer, union tsp tsp,
                                  const uint8_t *palette, int palette_size,
                                  const uint8_t *texture, int texture_size);
 void trace_writer_render_context(struct trace_writer *writer,
-                                 struct tile_context *ctx);
+                                 struct ta_context *ctx);
 void trace_writer_close(struct trace_writer *writer);
 
 #endif

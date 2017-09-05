@@ -93,7 +93,7 @@ struct emu {
   cond_t frame_cond;
 
   /* latest context from the dreamcast, ready to be rendered */
-  struct tile_context *pending_ctx;
+  struct ta_context *pending_ctx;
   struct tr_context pending_rc;
   unsigned pending_id;
 
@@ -275,10 +275,10 @@ static void emu_register_texture_source(struct emu *emu, union tsp tsp,
 }
 
 static void emu_register_texture_sources(struct emu *emu,
-                                         struct tile_context *ctx) {
+                                         struct ta_context *ctx) {
   const uint8_t *data = ctx->params;
   const uint8_t *end = ctx->params + ctx->size;
-  int vertex_type = 0;
+  int vert_type = 0;
 
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
@@ -288,7 +288,7 @@ static void emu_register_texture_sources(struct emu *emu,
       case TA_PARAM_SPRITE: {
         const union poly_param *param = (const union poly_param *)data;
 
-        vertex_type = ta_get_vert_type(param->type0.pcw);
+        vert_type = ta_vert_type(param->type0.pcw);
 
         if (param->type0.pcw.texture) {
           emu_register_texture_source(emu, param->type0.tsp, param->type0.tcw);
@@ -299,7 +299,7 @@ static void emu_register_texture_sources(struct emu *emu,
         break;
     }
 
-    data += ta_get_param_size(pcw, vertex_type);
+    data += ta_param_size(pcw, vert_type);
   }
 }
 
@@ -366,7 +366,7 @@ static void emu_guest_finish_render(void *userdata) {
   }
 }
 
-static void emu_guest_start_render(void *userdata, struct tile_context *ctx) {
+static void emu_guest_start_render(void *userdata, struct ta_context *ctx) {
   struct emu *emu = userdata;
 
   /* incement internal frame number. this frame number is assigned to the each

@@ -23,7 +23,7 @@ struct pvr;
 struct scheduler;
 struct sh4;
 struct ta;
-struct tile_context;
+struct ta_context;
 
 /*
  * register callbacks
@@ -123,7 +123,7 @@ struct device {
  * machine
  */
 typedef void (*push_audio_cb)(void *, const int16_t *, int);
-typedef void (*start_render_cb)(void *, struct tile_context *);
+typedef void (*start_render_cb)(void *, struct ta_context *);
 typedef void (*finish_render_cb)(void *);
 typedef void (*vertical_blank_cb)(void *);
 
@@ -190,7 +190,7 @@ void dc_input(struct dreamcast *dc, int port, int button, int16_t value);
 
 /* client functionality */
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);
-void dc_start_render(struct dreamcast *dc, struct tile_context *ctx);
+void dc_start_render(struct dreamcast *dc, struct ta_context *ctx);
 void dc_finish_render(struct dreamcast *dc);
 void dc_vertical_blank(struct dreamcast *dc);
 

@@ -14,7 +14,7 @@ void trace_writer_close(struct trace_writer *writer) {
 }
 
 void trace_writer_render_context(struct trace_writer *writer,
-                                 struct tile_context *ctx) {
+                                 struct ta_context *ctx) {
   struct trace_cmd cmd = {0};
   cmd.type = TRACE_CMD_CONTEXT;
   cmd.context.autosort = ctx->autosort;
@@ -161,7 +161,7 @@ void trace_destroy(struct trace *trace) {
   free(trace);
 }
 
-void trace_copy_context(const struct trace_cmd *cmd, struct tile_context *ctx) {
+void trace_copy_context(const struct trace_cmd *cmd, struct ta_context *ctx) {
   CHECK_EQ(cmd->type, TRACE_CMD_CONTEXT);
 
   ctx->autosort = cmd->context.autosort;

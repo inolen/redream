@@ -1,5 +1,6 @@
 #include "tracer.h"
 #include "core/math.h"
+#include "core/rb_tree.h"
 #include "file/trace.h"
 #include "guest/pvr/ta.h"
 #include "guest/pvr/tr.h"
@@ -98,7 +99,7 @@ struct tracer {
 
   /* trace state */
   struct trace *trace;
-  struct tile_context ctx;
+  struct ta_context ctx;
   struct trace_cmd *current_cmd;
   int frame;
   int current_param;
@@ -346,7 +347,7 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
     igText("tsp: 0x%x", param->type0.tsp.full);
     igText("tcw: 0x%x", param->type0.tcw.full);
 
-    int poly_type = ta_get_poly_type(param->type0.pcw);
+    int poly_type = ta_poly_type(param->type0.pcw);
 
     igText("poly type: %d", poly_type);
 
@@ -378,9 +379,9 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
     const union vert_param *param =
         (const union vert_param *)(tracer->ctx.params + rp->offset);
 
-    igText("vert type: %d", rp->vertex_type);
+    igText("vert type: %d", rp->vert_type);
 
-    switch (rp->vertex_type) {
+    switch (rp->vert_type) {
       case 0:
         igText("xyz: {%.2f, %.2f, %f}", param->type0.xyz[0],
                param->type0.xyz[1], param->type0.xyz[2]);
@@ -610,9 +611,6 @@ static void tracer_render_side_menu(struct tracer *tracer) {
           igText("filter: %s", filter_names[tex->filter]);
           igText("wrap_u: %s", wrap_names[tex->wrap_u]);
           igText("wrap_v: %s", wrap_names[tex->wrap_v]);
-          igText("twiddled: %d", ta_texture_twiddled(tex->tcw));
-          igText("compressed: %d", ta_texture_compressed(tex->tcw));
-          igText("mipmaps: %d", ta_texture_mipmaps(tex->tcw));
           igText("width: %d", tex->width);
           igText("height: %d", tex->height);
 

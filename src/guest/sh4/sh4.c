@@ -403,7 +403,7 @@ AM_BEGIN(struct sh4, sh4_data_map)
   AM_RANGE(0x01000000, 0x01ffffff) AM_DEVICE("holly", holly_expansion0_map)
   AM_RANGE(0x02700000, 0x02ffffff) AM_DEVICE("holly", holly_expansion1_map)
   AM_RANGE(0x04000000, 0x057fffff) AM_DEVICE("pvr", pvr_vram_map)
-  AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_fifo_map)
+  AM_RANGE(0x10000000, 0x11ffffff) AM_DEVICE("ta", ta_data_map)
   AM_RANGE(0x14000000, 0x17ffffff) AM_DEVICE("holly", holly_expansion2_map)
 
   /* internal registers */

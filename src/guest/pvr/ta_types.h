@@ -3,7 +3,11 @@
 
 #include <stdint.h>
 #include "core/list.h"
-#include "core/rb_tree.h"
+
+#define TA_MAX_PARAMS 0x10000
+
+/* worst case background vertex size, see ISP_BACKGND_T field */
+#define TA_BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
 
 enum {
   /* control params */
@@ -33,24 +37,6 @@ enum {
   TA_NUM_LISTS,
 };
 
-enum {
-  TA_PXL_1555,
-  TA_PXL_565,
-  TA_PXL_4444,
-  TA_PXL_YUV422,
-  TA_PXL_BUMPMAP,
-  TA_PXL_4BPP,
-  TA_PXL_8BPP,
-  TA_PXL_RESERVED,
-};
-
-enum {
-  TA_PAL_ARGB1555,
-  TA_PAL_RGB565,
-  TA_PAL_ARGB4444,
-  TA_PAL_ARGB8888,
-};
-
 union pcw {
   struct {
     /* obj control */
@@ -77,7 +63,7 @@ union pcw {
   uint32_t full;
 };
 
-/* Image Synthesis Processor parameters */
+/* image synthesis processor parameters */
 union isp {
   struct {
     uint32_t : 20;
@@ -94,7 +80,7 @@ union isp {
   uint32_t full;
 };
 
-/* Texture and Shading Processor parameters */
+/* texture and shading processor parameters */
 union tsp {
   struct {
     uint32_t texture_v_size : 3;
@@ -119,7 +105,7 @@ union tsp {
   uint32_t full;
 };
 
-/* Texture parameters */
+/* texture parameters */
 union tcw {
   /* rgb, yuv and bumpmap textures */
   struct {
@@ -430,15 +416,7 @@ union vert_param {
   } sprite1;
 };
 
-/* shared by tracer */
-#define TA_MAX_SURFS (1024 * 16)
-#define TA_MAX_VERTS (1024 * 64)
-#define TA_MAX_PARAMS 0x10000
-
-/* worst case background vertex size, see ISP_BACKGND_T field */
-#define TA_BG_VERTEX_SIZE ((0b111 * 2 + 3) * 4 * 3)
-
-struct tile_context {
+struct ta_context {
   void *user;
   uint32_t addr;
   void *userdata;
@@ -463,7 +441,7 @@ struct tile_context {
 
   /* current global state */
   int list_type;
-  int vertex_type;
+  int vert_type;
 
   struct list_node it;
 };
