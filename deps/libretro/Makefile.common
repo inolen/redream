@@ -38,6 +38,7 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/guest/maple/vmu.c \
 	$(CORE_DIR)/src/guest/pvr/pvr.c \
 	$(CORE_DIR)/src/guest/pvr/ta.c \
+	$(CORE_DIR)/src/guest/pvr/tex.c \
 	$(CORE_DIR)/src/guest/pvr/tr.c \
 	$(CORE_DIR)/src/guest/aica/aica.c \
 	$(CORE_DIR)/src/guest/arm7/arm7.c \
