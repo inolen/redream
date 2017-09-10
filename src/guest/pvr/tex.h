@@ -28,6 +28,7 @@ enum pvr_pixel_fmt {
   PVR_PXL_BUMPMAP,
   PVR_PXL_4BPP,
   PVR_PXL_8BPP,
+  PVR_PXL_RESERVED, /* treated as ARGB1555 */
 };
 
 enum pvr_palette_fmt {

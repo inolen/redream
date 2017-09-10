@@ -609,6 +609,7 @@ void pvr_tex_decode(const uint8_t *src, int width, int height, int stride,
 
   switch (pixel_fmt) {
     case PVR_PXL_ARGB1555:
+    case PVR_PXL_RESERVED:
       if (compressed) {
         convert_vq_ARGB1555_RGBA(index, codebook, dst32, width, height);
       } else if (twiddled) {
