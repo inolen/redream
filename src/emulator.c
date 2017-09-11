@@ -31,7 +31,7 @@
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
 #include "host/host.h"
-#include "render/imgui.h"
+#include "imgui.h"
 #include "render/render_backend.h"
 
 DEFINE_AGGREGATE_COUNTER(frames);

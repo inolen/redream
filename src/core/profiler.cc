@@ -1,7 +1,7 @@
 #include <atomic>
 
 #ifdef HAVE_MICROPROFILE
-#include <microprofile.h>
+#include <microprofile/microprofile.h>
 #endif
 
 extern "C" {

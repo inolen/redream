@@ -10,7 +10,7 @@
 #include "guest/gdrom/gdrom.h"
 #include "guest/rom/flash.h"
 #include "guest/sh4/sh4.h"
-#include "render/imgui.h"
+#include "imgui.h"
 
 DEFINE_PERSISTENT_OPTION_STRING(region, "auto", "System region");
 DEFINE_PERSISTENT_OPTION_STRING(language, "english", "System language");

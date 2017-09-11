@@ -11,7 +11,7 @@
 #include "guest/memory.h"
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
-#include "render/imgui.h"
+#include "imgui.h"
 
 DEFINE_AGGREGATE_COUNTER(aica_samples);
 

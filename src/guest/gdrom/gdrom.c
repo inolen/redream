@@ -6,7 +6,7 @@
 #include "guest/gdrom/gdrom_types.h"
 #include "guest/gdrom/patch.h"
 #include "guest/holly/holly.h"
-#include "render/imgui.h"
+#include "imgui.h"
 
 #if 0
 #define LOG_GDROM LOG_INFO

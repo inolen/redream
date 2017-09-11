@@ -2,7 +2,7 @@
 #include "core/assert.h"
 #include "core/string.h"
 #include "guest/memory.h"
-#include "render/imgui.h"
+#include "imgui.h"
 
 DEFINE_PERSISTENT_OPTION_INT(patch_widescreen, 0, "Apply widescreen patches");
 

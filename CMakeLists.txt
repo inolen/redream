@@ -249,8 +249,8 @@ set(RELIB_SOURCES
   src/jit/jit.c
   src/jit/pass_stats.c
   src/render/gl_backend.c
-  src/render/imgui.cc
-  src/render/microprofile.cc)
+  src/imgui.cc
+  src/microprofile.cc)
 
 if(PLATFORM_ANDROID)
   list(APPEND RELIB_DEFS PLATFORM_ANDROID=1)

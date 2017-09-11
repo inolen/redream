@@ -4,7 +4,7 @@
 #include "guest/maple/maple.h"
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
-#include "render/imgui.h"
+#include "imgui.h"
 
 #if 0
 #define LOG_HOLLY LOG_INFO

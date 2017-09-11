@@ -7,20 +7,20 @@
 #define MICROPROFILEUI_IMPL 1
 #define MICROPROFILE_PER_THREAD_BUFFER_SIZE (1024 * 1024 * 20)
 #define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
-#include <microprofile.h>
-#include <microprofileui.h>
+#include <microprofile/microprofile.h>
+#include <microprofile/microprofileui.h>
 #endif
 
 extern "C" {
 #include "core/assert.h"
 #include "core/math.h"
-#include "render/microprofile.h"
+#include "microprofile.h"
 #include "render/render_backend.h"
 }
 
 static const int FONT_WIDTH = 1024;
 static const int FONT_HEIGHT = 9;
-#include "render/microprofile_font.inc"
+#include "microprofile_font.inc"
 
 static const int MAX_2D_VERTICES = 32768;
 static const int MAX_2D_SURFACES = 256;

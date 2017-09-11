@@ -5,7 +5,7 @@
 #include "guest/pvr/ta.h"
 #include "guest/pvr/tr.h"
 #include "host/host.h"
-#include "render/imgui.h"
+#include "imgui.h"
 
 #define SCRUBBER_WINDOW_HEIGHT 20.0f
 

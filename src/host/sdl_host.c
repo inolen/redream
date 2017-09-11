@@ -9,8 +9,8 @@
 #include "core/time.h"
 #include "emulator.h"
 #include "host/host.h"
-#include "render/imgui.h"
-#include "render/microprofile.h"
+#include "imgui.h"
+#include "microprofile.h"
 #include "render/render_backend.h"
 #include "tracer.h"
 
