@@ -25,7 +25,6 @@
 #endif
 
 DEFINE_AGGREGATE_COUNTER(sh4_instrs);
-DEFINE_AGGREGATE_COUNTER(sh4_sr_updates);
 
 /* callbacks to service sh4_reg_read / sh4_reg_write calls */
 struct reg_cb sh4_cb[SH4_NUM_REGS];
@@ -46,8 +45,6 @@ struct sh4_interrupt_info sh4_interrupts[SH4_NUM_INTERRUPTS] = {
 
 static void sh4_sr_updated(struct sh4 *sh4, uint32_t old_sr) {
   struct sh4_context *ctx = &sh4->ctx;
-
-  prof_counter_add(COUNTER_sh4_sr_updates, 1);
 
   if ((ctx->sr & RB_MASK) != (old_sr & RB_MASK)) {
     sh4_swap_gpr_bank(ctx);
@@ -166,8 +163,6 @@ static void sh4_invalid_instr(struct sh4 *sh4) {
 }
 
 static void sh4_run(struct device *dev, int64_t ns) {
-  PROF_ENTER("cpu", "sh4_run");
-
   struct sh4 *sh4 = (struct sh4 *)dev;
   struct sh4_context *ctx = &sh4->ctx;
   struct jit *jit = sh4->jit;
@@ -178,8 +173,6 @@ static void sh4_run(struct device *dev, int64_t ns) {
   jit_run(sh4->jit, cycles);
 
   prof_counter_add(COUNTER_sh4_instrs, sh4->ctx.ran_instrs);
-
-  PROF_LEAVE();
 }
 
 static void sh4_guest_destroy(struct jit_guest *guest) {

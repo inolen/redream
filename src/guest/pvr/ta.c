@@ -29,7 +29,6 @@
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
 
-DEFINE_AGGREGATE_COUNTER(ta_data);
 DEFINE_AGGREGATE_COUNTER(ta_renders);
 
 struct ta {
@@ -410,9 +409,6 @@ static void ta_write_context(struct ta *ta, struct ta_context *ctx, void *ptr,
   memcpy(&ctx->params[ctx->size], ptr, size);
   ctx->size += size;
 
-  /* track how much TA data is written per second */
-  prof_counter_add(COUNTER_ta_data, size);
-
   /* each TA command is either 32 or 64 bytes, with the pcw being in the first
      32 bytes always. check every 32 bytes to see if the command has been
      completely received or not */
@@ -731,8 +727,6 @@ static void ta_yuv_process_macroblock(struct ta *ta, void *data) {
  * 3.) texture data - data that is written directly to vram
  */
 static void ta_poly_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
-  PROF_ENTER("cpu", "ta_poly_write");
-
   CHECK(size % 32 == 0);
 
   uint8_t *src = ptr;
@@ -741,13 +735,9 @@ static void ta_poly_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
     ta_write_context(ta, ta->curr_context, src, 32);
     src += 32;
   }
-
-  PROF_LEAVE();
 }
 
 static void ta_yuv_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
-  PROF_ENTER("cpu", "ta_yuv_write");
-
   struct holly *holly = ta->holly;
   struct pvr *pvr = ta->pvr;
 
@@ -759,18 +749,12 @@ static void ta_yuv_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
     ta_yuv_process_macroblock(ta, src);
     src += ta->yuv_macroblock_size;
   }
-
-  PROF_LEAVE();
 }
 
 static void ta_texture_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
-  PROF_ENTER("cpu", "ta_texture_write");
-
   uint8_t *src = ptr;
   dst &= 0xeeffffff;
   memcpy(&ta->video_ram[dst], src, size);
-
-  PROF_LEAVE();
 }
 
 /*

@@ -2,13 +2,9 @@
 
 extern "C" {
 #include "core/assert.h"
-#include "core/profiler.h"
 #include "jit/jit.h"
 #include "jit/jit_guest.h"
 }
-
-DEFINE_COUNTER(edges_patched);
-DEFINE_COUNTER(edges_restored);
 
 /* log out pc each time dispatch is entered for debugging */
 #define LOG_DISPATCH_EVERY_N 0
@@ -39,16 +35,12 @@ void x64_dispatch_restore_edge(struct jit_backend *base, void *code,
                                uint32_t dst) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
 
-  prof_counter_add(COUNTER_edges_restored, 1);
-
   Xbyak::CodeGenerator e(32, code);
   e.call(backend->dispatch_static);
 }
 
 void x64_dispatch_patch_edge(struct jit_backend *base, void *code, void *dst) {
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
-
-  prof_counter_add(COUNTER_edges_patched, 1);
 
   Xbyak::CodeGenerator e(32, code);
   e.jmp(dst);

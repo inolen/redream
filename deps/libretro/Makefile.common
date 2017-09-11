@@ -84,8 +84,7 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/host/retro_host.c \
 	$(CORE_DIR)/src/render/gl_backend.c
 
-SOURCES_CXX += $(CORE_DIR)/src/render/imgui.cc \
-	$(CORE_DIR)/src/render/microprofile.cc
+SOURCES_CXX += $(CORE_DIR)/src/imgui.cc
 
 #==--------------------------------------------------------------------------==#
 # capstone

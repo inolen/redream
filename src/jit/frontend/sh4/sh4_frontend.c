@@ -133,8 +133,6 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
   struct sh4_guest *guest = (struct sh4_guest *)frontend->guest;
   struct sh4_context *ctx = (struct sh4_context *)guest->ctx;
 
-  PROF_ENTER("cpu", "sh4_frontend_translate_code");
-
   int offset = 0;
   int use_fpscr = 0;
   int was_delay = 0;
@@ -271,8 +269,6 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
         ir_alloc_i32(ir, ctx->fpscr & (PR_MASK | SZ_MASK));
     ir_assert_eq(ir, actual, expected);
   }
-
-  PROF_LEAVE();
 }
 
 static void sh4_frontend_analyze_code(struct jit_frontend *base,

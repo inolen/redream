@@ -100,8 +100,6 @@ static int jit_is_stale(struct jit *jit, struct jit_block *block) {
 }
 
 static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
-  PROF_ENTER("cpu", "jit_patch_edges");
-
   /* patch incoming edges to this block to directly jump to it instead of
      going through dispatch */
   list_for_each_entry(edge, &block->in_edges, struct jit_edge, in_it) {
@@ -120,13 +118,9 @@ static void jit_patch_edges(struct jit *jit, struct jit_block *block) {
                                edge->dst->host_addr);
     }
   }
-
-  PROF_LEAVE();
 }
 
 static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
-  PROF_ENTER("cpu", "jit_restore_edges");
-
   /* restore any patched branches to go back through dispatch */
   list_for_each_entry(edge, &block->in_edges, struct jit_edge, in_it) {
     if (edge->patched) {
@@ -135,8 +129,6 @@ static void jit_restore_edges(struct jit *jit, struct jit_block *block) {
                                  edge->dst->guest_addr);
     }
   }
-
-  PROF_LEAVE();
 }
 
 static void jit_invalidate_block(struct jit *jit, struct jit_block *block,
@@ -338,8 +330,6 @@ static void jit_promote_fastmem(struct jit *jit, struct jit_block *block,
 }
 
 void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
-  PROF_ENTER("cpu", "jit_compile_block");
-
 #if 0
   LOG_INFO("jit_compile_block %s 0x%08x", jit->tag, guest_addr);
 #endif
@@ -397,7 +387,6 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
        try to compile again */
     LOG_INFO("backend overflow, resetting code cache");
     jit_free_code(jit);
-    PROF_LEAVE();
     return;
   }
 
@@ -415,8 +404,6 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
             (uintptr_t)block->host_addr, block->host_size, jit->tag,
             block->guest_addr);
   }
-
-  PROF_LEAVE();
 }
 
 static int jit_handle_exception(void *data, struct exception_state *ex) {

@@ -127,8 +127,6 @@ static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
 static texture_handle_t tr_convert_texture(struct tr *tr,
                                            const struct ta_context *ctx,
                                            union tsp tsp, union tcw tcw) {
-  PROF_ENTER("gpu", "tr_convert_texture");
-
   /* TODO it's bad that textures are only cached based off tsp / tcw yet the
      TEXT_CONTROL registers and PAL_RAM_CTRL registers are used here to control
      texture generation */
@@ -138,7 +136,6 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
 
   /* if there's a non-dirty handle, return it */
   if (entry->handle && !entry->dirty) {
-    PROF_LEAVE();
     return entry->handle;
   }
 
@@ -182,8 +179,6 @@ static texture_handle_t tr_convert_texture(struct tr *tr,
   entry->width = width;
   entry->height = height;
   entry->dirty = 0;
-
-  PROF_LEAVE();
 
   return entry->handle;
 }
@@ -712,8 +707,6 @@ static int tr_compare_surf(const void *a, const void *b) {
 
 static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
                                 int list_type) {
-  PROF_ENTER("gpu", "tr_sort_render_list");
-
   /* sort each surface from back to front based on its minz */
   struct tr_list *list = &rc->lists[list_type];
 
@@ -735,8 +728,6 @@ static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
 
   msort_noalloc(list->surfs, sort_tmp, list->num_surfs, sizeof(int),
                 &tr_compare_surf);
-
-  PROF_LEAVE();
 }
 
 static void tr_parse_eol(struct tr *tr, const struct ta_context *ctx,
@@ -791,8 +782,6 @@ static void tr_render_list(struct render_backend *r,
 
 void tr_render_context_until(struct render_backend *r,
                              const struct tr_context *rc, int end_surf) {
-  PROF_ENTER("gpu", "tr_render_context_until");
-
   int stopped = 0;
 
   r_begin_ta_surfaces(r, rc->width, rc->height, rc->verts, rc->num_verts,
@@ -803,8 +792,6 @@ void tr_render_context_until(struct render_backend *r,
   tr_render_list(r, rc, TA_LIST_TRANSLUCENT, end_surf, &stopped);
 
   r_end_ta_surfaces(r);
-
-  PROF_LEAVE();
 }
 
 void tr_render_context(struct render_backend *r, const struct tr_context *rc) {
@@ -814,8 +801,6 @@ void tr_render_context(struct render_backend *r, const struct tr_context *rc) {
 void tr_convert_context(struct render_backend *r, void *userdata,
                         tr_find_texture_cb find_texture,
                         const struct ta_context *ctx, struct tr_context *rc) {
-  PROF_ENTER("gpu", "tr_convert_context");
-
   struct tr tr;
   tr.r = r;
   tr.userdata = userdata;
@@ -886,6 +871,4 @@ void tr_convert_context(struct render_backend *r, void *userdata,
   LOG_INFO("tr_convert_convext merged %d / %d surfaces", tr.merged_surfs,
            tr.merged_surfs + rc->num_surfs);
 #endif
-
-  PROF_LEAVE();
 }

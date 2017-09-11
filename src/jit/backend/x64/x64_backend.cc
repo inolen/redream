@@ -663,8 +663,6 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
 static int x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
                                      uint8_t **addr, int *size,
                                      jit_emit_cb emit_cb, void *emit_data) {
-  PROF_ENTER("cpu", "x64_backend_assemble_code");
-
   struct x64_backend *backend = container_of(base, struct x64_backend, base);
   auto &e = *backend->codegen;
 
@@ -685,8 +683,6 @@ static int x64_backend_assemble_code(struct jit_backend *base, struct ir *ir,
   /* return code address */
   *addr = code;
   *size = (int)(e.getCurr<uint8_t *>() - code);
-
-  PROF_LEAVE();
 
   return res;
 }

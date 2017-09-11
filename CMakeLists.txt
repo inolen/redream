@@ -135,9 +135,6 @@ add_library(imgui-static STATIC
 list(APPEND RELIB_INCLUDES deps/cimgui)
 list(APPEND IMGUI_LIBS imgui-static)
 
-# microprofile
-list(APPEND RELIB_INCLUDES deps/microprofile)
-
 # sdl2
 set(DIRECTX OFF CACHE BOOL "")
 set(RENDER_D3D OFF CACHE BOOL "")
@@ -188,7 +185,7 @@ set(RELIB_SOURCES
   src/core/md5.c
   src/core/memory.c
   src/core/option.c
-  src/core/profiler.cc
+  src/core/profiler.c
   src/core/ringbuf.cc
   src/core/rb_tree.c
   src/core/sort.c
@@ -249,8 +246,7 @@ set(RELIB_SOURCES
   src/jit/jit.c
   src/jit/pass_stats.c
   src/render/gl_backend.c
-  src/imgui.cc
-  src/microprofile.cc)
+  src/imgui.cc)
 
 if(PLATFORM_ANDROID)
   list(APPEND RELIB_DEFS PLATFORM_ANDROID=1)
@@ -357,7 +353,7 @@ else()
   set(REDREAM_SOURCES ${RELIB_SOURCES} src/host/sdl_host.c src/emulator.c src/tracer.c)
   set(REDREAM_INCLUDES ${RELIB_INCLUDES})
   set(REDREAM_LIBS ${RELIB_LIBS} ${IMGUI_LIBS} ${SDL_LIBS})
-  set(REDREAM_DEFS ${RELIB_DEFS} HAVE_GDBSERVER HAVE_IMGUI HAVE_MICROPROFILE)
+  set(REDREAM_DEFS ${RELIB_DEFS} HAVE_GDBSERVER HAVE_IMGUI)
   set(REDREAM_FLAGS ${RELIB_FLAGS})
 endif()
 

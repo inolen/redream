@@ -10,7 +10,6 @@
 #include "emulator.h"
 #include "host/host.h"
 #include "imgui.h"
-#include "microprofile.h"
 #include "render/render_backend.h"
 #include "tracer.h"
 
@@ -50,7 +49,6 @@ struct sdl_host {
   int video_width;
   int video_height;
   struct imgui *imgui;
-  struct microprofile *mp;
 
   /* input */
   int key_map[K_NUM_KEYS];
@@ -265,7 +263,6 @@ int video_can_fullscreen(struct host *base) {
 }
 
 static void video_shutdown(struct sdl_host *host) {
-  mp_destroy(host->mp);
   imgui_destroy(host->imgui);
   r_destroy(host->video_rb);
   video_destroy_context(host, host->video_ctx);
@@ -275,7 +272,6 @@ static int video_init(struct sdl_host *host) {
   host->video_ctx = video_create_context(host);
   host->video_rb = r_create();
   host->imgui = imgui_create(host->video_rb);
-  host->mp = mp_create(host->video_rb);
   return 1;
 }
 
@@ -452,7 +448,6 @@ static void input_handle_mousemove(struct sdl_host *host, int port, int x,
   }
 
   imgui_mousemove(host->imgui, x, y);
-  mp_mousemove(host->mp, x, y);
 }
 
 static void input_handle_keydown(struct sdl_host *host, int port,
@@ -469,7 +464,6 @@ static void input_handle_keydown(struct sdl_host *host, int port,
   }
 
   imgui_keydown(host->imgui, key, value);
-  mp_keydown(host->mp, key, value);
 }
 
 static void input_handle_controller_removed(struct sdl_host *host, int port) {
@@ -847,7 +841,6 @@ int main(int argc, char **argv) {
         emu_render_frame(emu, host->video_width, host->video_height);
 
         /* overlay user interface */
-        mp_render_frame(host->mp, host->video_width, host->video_height);
         imgui_end_frame(host->imgui);
 
         /* flip profiler at end of frame */

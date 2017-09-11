@@ -29,8 +29,6 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
 }
 
 void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
-  PROF_ENTER("cpu", "sh4_ccn_pref");
-
   /* make sure this is a sq related prefetch */
   DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
 
@@ -57,8 +55,6 @@ void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
   }
 
   as_memcpy_to_guest(sh4->memory_if->space, dst, sh4->ctx.sq[sqi], 32);
-
-  PROF_LEAVE();
 }
 
 uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr,

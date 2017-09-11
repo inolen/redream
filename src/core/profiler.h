@@ -5,7 +5,7 @@
 #include "core/constructor.h"
 #include "core/list.h"
 
-typedef uint64_t prof_token_t;
+typedef int prof_token_t;
 
 #define DECLARE_COUNTER(name) extern prof_token_t COUNTER_##name;
 
@@ -22,26 +22,9 @@ typedef uint64_t prof_token_t;
     COUNTER_##name = prof_get_aggregate_token(#name); \
   }
 
-#define PROF_ENTER(group, name)             \
-  static int prof_init = 0;                 \
-  static prof_token_t prof_tok;             \
-  if (!prof_init) {                         \
-    prof_tok = prof_get_token(group, name); \
-    prof_init = 1;                          \
-  }                                         \
-  uint64_t prof_tick = prof_enter(prof_tok)
-
-#define PROF_LEAVE() prof_leave(prof_tok, prof_tick)
-
 prof_token_t prof_get_token(const char *group, const char *name);
 prof_token_t prof_get_counter_token(const char *name);
 prof_token_t prof_get_aggregate_token(const char *name);
-
-void prof_init();
-void prof_shutdown();
-
-uint64_t prof_enter(prof_token_t tok);
-void prof_leave(prof_token_t tok, uint64_t tick);
 
 int64_t prof_counter_load(prof_token_t tok);
 void prof_counter_add(prof_token_t tok, int64_t count);

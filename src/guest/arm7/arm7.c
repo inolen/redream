@@ -155,8 +155,6 @@ void arm7_suspend(struct arm7 *arm) {
 }
 
 static void arm7_run(struct device *dev, int64_t ns) {
-  PROF_ENTER("cpu", "arm7_run");
-
   struct arm7 *arm = (struct arm7 *)dev;
   struct armv3_context *ctx = &arm->ctx;
   struct jit *jit = arm->jit;
@@ -167,8 +165,6 @@ static void arm7_run(struct device *dev, int64_t ns) {
   jit_run(arm->jit, cycles);
 
   prof_counter_add(COUNTER_arm7_instrs, arm->ctx.ran_instrs);
-
-  PROF_LEAVE();
 }
 
 static void arm7_guest_destroy(struct jit_guest *guest) {
