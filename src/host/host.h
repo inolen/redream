@@ -25,13 +25,46 @@ struct host {
 void audio_push(struct host *host, const int16_t *data, int frames);
 
 /* video */
-struct render_backend *video_renderer(struct host *host);
-
 int video_can_fullscreen(struct host *host);
 int video_is_fullscreen(struct host *host);
 void video_set_fullscreen(struct host *host, int fullscreen);
 
+#define on_video_created(host, r)             \
+  {                                           \
+    if (host->video_created) {                \
+      host->video_created(host->userdata, r); \
+    }                                         \
+  }
+
+#define on_video_destroyed(host)             \
+  {                                          \
+    if (host->video_destroyed) {             \
+      host->video_destroyed(host->userdata); \
+    }                                        \
+  }
+
+#define on_video_swapped(host)             \
+  {                                        \
+    if (host->video_swapped) {             \
+      host->video_swapped(host->userdata); \
+    }                                      \
+  }
+
 /* input */
 int16_t input_get(struct host *host, int port, int button);
+
+#define on_input_keydown(host, port, key, value)             \
+  {                                                          \
+    if (host->input_keydown) {                               \
+      host->input_keydown(host->userdata, port, key, value); \
+    }                                                        \
+  }
+
+#define on_input_mousemove(host, port, x, y)             \
+  {                                                      \
+    if (host->input_mousemove) {                         \
+      host->input_mousemove(host->userdata, port, x, y); \
+    }                                                    \
+  }
 
 #endif

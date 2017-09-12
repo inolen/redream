@@ -342,13 +342,13 @@ static void emu_start_tracing(struct emu *emu) {
 /*
  * dreamcast guest interface
  */
-static void emu_guest_vertical_blank(void *userdata) {
+static void emu_vertical_blank(void *userdata) {
   struct emu *emu = userdata;
 
   emu->frame++;
 }
 
-static void emu_guest_finish_render(void *userdata) {
+static void emu_finish_render(void *userdata) {
   struct emu *emu = userdata;
 
   if (emu->multi_threaded) {
@@ -366,7 +366,7 @@ static void emu_guest_finish_render(void *userdata) {
   }
 }
 
-static void emu_guest_start_render(void *userdata, struct ta_context *ctx) {
+static void emu_start_render(void *userdata, struct ta_context *ctx) {
   struct emu *emu = userdata;
 
   /* incement internal frame number. this frame number is assigned to the each
@@ -403,8 +403,7 @@ static void emu_guest_start_render(void *userdata, struct ta_context *ctx) {
   }
 }
 
-static void emu_guest_push_audio(void *userdata, const int16_t *data,
-                                 int frames) {
+static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
   struct emu *emu = userdata;
   audio_push(emu->host, data, frames);
 }
@@ -412,8 +411,8 @@ static void emu_guest_push_audio(void *userdata, const int16_t *data,
 /*
  * local host interface
  */
-static void emu_host_keydown(void *userdata, int port, enum keycode key,
-                             int16_t value) {
+static void emu_keydown(void *userdata, int port, enum keycode key,
+                        int16_t value) {
   struct emu *emu = userdata;
 
   if (key == K_F1 && value > 0) {
@@ -425,7 +424,7 @@ static void emu_host_keydown(void *userdata, int port, enum keycode key,
   }
 }
 
-static void emu_host_video_swapped(void *userdata) {
+static void emu_video_swapped(void *userdata) {
   struct emu *emu = userdata;
 
   /* keep track of the time between swaps */
@@ -440,7 +439,7 @@ static void emu_host_video_swapped(void *userdata) {
   emu->last_swap = now;
 }
 
-static void emu_host_video_destroyed(void *userdata) {
+static void emu_video_destroyed(void *userdata) {
   struct emu *emu = userdata;
 
   rb_for_each_entry_safe(tex, &emu->live_textures, struct emu_texture,
@@ -452,7 +451,7 @@ static void emu_host_video_destroyed(void *userdata) {
   emu->r = NULL;
 }
 
-static void emu_host_video_created(void *userdata, struct render_backend *r) {
+static void emu_video_created(void *userdata, struct render_backend *r) {
   struct emu *emu = userdata;
 
   emu->r = r;
@@ -656,8 +655,8 @@ static void emu_run_frame(struct emu *emu) {
 void emu_render_frame(struct emu *emu, int width, int height) {
   prof_counter_add(COUNTER_frames, 1);
 
-  /* check that we're not being called between calls to emu_host_video_destroyed
-     and emu_host_video_created */
+  /* check that we're not being called between calls to emu_video_destroyed
+     and emu_video_created */
   CHECK_NOTNULL(emu->r);
 
   /* adjust dreamcast viewport based on aspect ratio */
@@ -737,8 +736,6 @@ int emu_load_game(struct emu *emu, const char *path) {
 
   emu_set_aspect_ratio(emu, OPTION_aspect);
 
-  dc_resume(emu->dc);
-
   return 1;
 }
 
@@ -773,18 +770,18 @@ struct emu *emu_create(struct host *host, struct render_backend *r) {
   /* setup host, bind event callbacks */
   emu->host = host;
   emu->host->userdata = emu;
-  emu->host->video_created = &emu_host_video_created;
-  emu->host->video_destroyed = &emu_host_video_destroyed;
-  emu->host->video_swapped = &emu_host_video_swapped;
-  emu->host->input_keydown = &emu_host_keydown;
+  emu->host->video_created = &emu_video_created;
+  emu->host->video_destroyed = &emu_video_destroyed;
+  emu->host->video_swapped = &emu_video_swapped;
+  emu->host->input_keydown = &emu_keydown;
 
   /* create dreamcast, bind client callbacks */
   emu->dc = dc_create();
   emu->dc->userdata = emu;
-  emu->dc->push_audio = &emu_guest_push_audio;
-  emu->dc->start_render = &emu_guest_start_render;
-  emu->dc->finish_render = &emu_guest_finish_render;
-  emu->dc->vertical_blank = &emu_guest_vertical_blank;
+  emu->dc->push_audio = &emu_push_audio;
+  emu->dc->start_render = &emu_start_render;
+  emu->dc->finish_render = &emu_finish_render;
+  emu->dc->vertical_blank = &emu_vertical_blank;
 
   /* add all textures to free list by default */
   for (int i = 0; i < ARRAY_SIZE(emu->textures); i++) {

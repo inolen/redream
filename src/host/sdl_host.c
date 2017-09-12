@@ -17,6 +17,12 @@ DEFINE_OPTION_INT(audio, 1, "Enable audio");
 DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
 
+/*
+ * sdl host implementation
+ */
+#define BASE_HOST(h) ((struct host *)(h))
+#define SDL_HOST(h) ((struct sdl_host *)(h))
+
 #define AUDIO_FREQ 44100
 #define VIDEO_DEFAULT_WIDTH 640
 #define VIDEO_DEFAULT_HEIGHT 480
@@ -28,69 +34,67 @@ DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
 #define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
 #define NS_TO_AUDIO_FRAMES(ns) (int)(((float)(ns) / NS_PER_SEC) * AUDIO_FREQ)
 
-/*
- * sdl host implementation
- */
 struct sdl_host {
   struct host;
 
   struct SDL_Window *win;
   int closed;
 
-  /* audio */
-  SDL_AudioDeviceID audio_dev;
-  SDL_AudioSpec audio_spec;
-  struct ringbuf *audio_frames;
-  volatile int64_t audio_last_callback;
+  struct {
+    SDL_AudioDeviceID dev;
+    SDL_AudioSpec spec;
+    struct ringbuf *frames;
+    volatile int64_t last_cb;
+  } audio;
 
-  /* video */
-  SDL_GLContext video_ctx;
-  struct render_backend *video_rb;
-  int video_width;
-  int video_height;
-  struct imgui *imgui;
+  struct {
+    SDL_GLContext ctx;
+    struct render_backend *r;
+    struct imgui *imgui;
+    int width;
+    int height;
+  } video;
 
-  /* input */
-  int key_map[K_NUM_KEYS];
-  SDL_GameController *controllers[INPUT_MAX_CONTROLLERS];
+  struct {
+    int keymap[K_NUM_KEYS];
+    SDL_GameController *controllers[INPUT_MAX_CONTROLLERS];
+  } input;
 };
-
-static void host_poll_events(struct sdl_host *host);
 
 /*
  * audio
  */
 static int audio_read_frames(struct sdl_host *host, void *data,
                              int num_frames) {
-  int buffered = ringbuf_available(host->audio_frames);
+  int buffered = ringbuf_available(host->audio.frames);
   int size = MIN(buffered, num_frames * AUDIO_FRAME_SIZE);
   CHECK_EQ(size % AUDIO_FRAME_SIZE, 0);
 
-  void *read_ptr = ringbuf_read_ptr(host->audio_frames);
+  void *read_ptr = ringbuf_read_ptr(host->audio.frames);
   memcpy(data, read_ptr, size);
-  ringbuf_advance_read_ptr(host->audio_frames, size);
+  ringbuf_advance_read_ptr(host->audio.frames, size);
 
   return size / AUDIO_FRAME_SIZE;
 }
 
 static void audio_write_frames(struct sdl_host *host, const void *data,
                                int num_frames) {
-  int remaining = ringbuf_remaining(host->audio_frames);
+  int remaining = ringbuf_remaining(host->audio.frames);
   int size = MIN(remaining, num_frames * AUDIO_FRAME_SIZE);
   CHECK_EQ(size % AUDIO_FRAME_SIZE, 0);
 
-  void *write_ptr = ringbuf_write_ptr(host->audio_frames);
+  void *write_ptr = ringbuf_write_ptr(host->audio.frames);
   memcpy(write_ptr, data, size);
-  ringbuf_advance_write_ptr(host->audio_frames, size);
+  ringbuf_advance_write_ptr(host->audio.frames, size);
 }
 
 static int audio_buffered_frames(struct sdl_host *host) {
-  int buffered = ringbuf_available(host->audio_frames);
+  int buffered = ringbuf_available(host->audio.frames);
   return buffered / AUDIO_FRAME_SIZE;
 }
 
 static int audio_buffer_low(struct sdl_host *host) {
-  if (!host->audio_dev) {
+  if (!host->audio.dev) {
     /* lie and say the audio buffer is low, forcing the emulator to run as fast
        as possible */
     return 1;
@@ -114,15 +118,15 @@ static int audio_buffer_low(struct sdl_host *host) {
      high, the host clock is used to interpolate the amount of buffered audio
      data between callbacks */
   int64_t now = time_nanoseconds();
-  int64_t since_last_callback = now - host->audio_last_callback;
+  int64_t since_last_cb = now - host->audio.last_cb;
   int frames_buffered = audio_buffered_frames(host);
-  frames_buffered -= NS_TO_AUDIO_FRAMES(since_last_callback);
+  frames_buffered -= NS_TO_AUDIO_FRAMES(since_last_cb);
 
-  int low_water_mark = host->audio_spec.samples / 2;
+  int low_water_mark = host->audio.spec.samples / 2;
   return frames_buffered < low_water_mark;
 }
 
-static void audio_write_callback(void *userdata, Uint8 *stream, int len) {
+static void audio_write_cb(void *userdata, Uint8 *stream, int len) {
   struct sdl_host *host = userdata;
   Sint32 *buf = (Sint32 *)stream;
   int frame_count_max = len / AUDIO_FRAME_SIZE;
@@ -141,13 +145,13 @@ static void audio_write_callback(void *userdata, Uint8 *stream, int len) {
     memcpy(buf, tmp, n * AUDIO_FRAME_SIZE);
   }
 
-  host->audio_last_callback = time_nanoseconds();
+  host->audio.last_cb = time_nanoseconds();
 }
 
 void audio_push(struct host *base, const int16_t *data, int num_frames) {
-  struct sdl_host *host = (struct sdl_host *)base;
+  struct sdl_host *host = SDL_HOST(base);
 
-  if (!host->audio_dev) {
+  if (!host->audio.dev) {
     return;
   }
 
@@ -155,12 +159,12 @@ void audio_push(struct host *base, const int16_t *data, int num_frames) {
 }
 
 static void audio_shutdown(struct sdl_host *host) {
-  if (host->audio_dev) {
-    SDL_CloseAudioDevice(host->audio_dev);
+  if (host->audio.dev) {
+    SDL_CloseAudioDevice(host->audio.dev);
   }
 
-  if (host->audio_frames) {
-    ringbuf_destroy(host->audio_frames);
+  if (host->audio.frames) {
+    ringbuf_destroy(host->audio.frames);
   }
 }
 
@@ -177,10 +181,10 @@ static int audio_init(struct sdl_host *host) {
   want.channels = 2;
   want.samples = MS_TO_AUDIO_FRAMES(OPTION_latency);
   want.userdata = host;
-  want.callback = audio_write_callback;
+  want.callback = audio_write_cb;
 
-  host->audio_dev = SDL_OpenAudioDevice(NULL, 0, &want, &host->audio_spec, 0);
-  if (!host->audio_dev) {
+  host->audio.dev = SDL_OpenAudioDevice(NULL, 0, &want, &host->audio.spec, 0);
+  if (!host->audio.dev) {
     LOG_WARNING("failed to open SDL audio device: %s", SDL_GetError());
     return 0;
   }
@@ -189,14 +193,14 @@ static int audio_init(struct sdl_host *host) {
      to be at least two video frames in size, in order to handle the coarse
      synchronization used by the main loop, where an entire guest video frame is
      ran when the buffered audio data is deemed low */
-  host->audio_frames = ringbuf_create(AUDIO_FREQ * AUDIO_FRAME_SIZE);
+  host->audio.frames = ringbuf_create(AUDIO_FREQ * AUDIO_FRAME_SIZE);
 
   /* resume device */
-  SDL_PauseAudioDevice(host->audio_dev, 0);
+  SDL_PauseAudioDevice(host->audio.dev, 0);
 
-  LOG_INFO("audio backend created, %d ms / %d frames latency",
-           AUDIO_FRAMES_TO_MS(host->audio_spec.samples),
-           host->audio_spec.samples);
+  LOG_INFO("audio_init latency=%d ms/%d frames",
+           AUDIO_FRAMES_TO_MS(host->audio.spec.samples),
+           host->audio.spec.samples);
 
   return 1;
 }
@@ -243,7 +247,8 @@ static SDL_GLContext video_create_context(struct sdl_host *host) {
 }
 
 void video_set_fullscreen(struct host *base, int fullscreen) {
-  struct sdl_host *host = (struct sdl_host *)base;
+  struct sdl_host *host = SDL_HOST(base);
+
   uint32_t flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
   int res = SDL_SetWindowFullscreen(host->win, flags);
   CHECK_EQ(res, 0);
@@ -253,7 +258,8 @@ void video_set_fullscreen(struct host *base, int fullscreen) {
 }
 
 int video_is_fullscreen(struct host *base) {
-  struct sdl_host *host = (struct sdl_host *)base;
+  struct sdl_host *host = SDL_HOST(base);
+
   uint32_t flags = SDL_GetWindowFlags(host->win);
   return flags & SDL_WINDOW_FULLSCREEN_DESKTOP;
 }
@@ -263,21 +269,23 @@ int video_can_fullscreen(struct host *base) {
 }
 
 static void video_shutdown(struct sdl_host *host) {
-  imgui_destroy(host->imgui);
-  r_destroy(host->video_rb);
-  video_destroy_context(host, host->video_ctx);
+  imgui_destroy(host->video.imgui);
+  r_destroy(host->video.r);
+  video_destroy_context(host, host->video.ctx);
 }
 
 static int video_init(struct sdl_host *host) {
-  host->video_ctx = video_create_context(host);
-  host->video_rb = r_create();
-  host->imgui = imgui_create(host->video_rb);
+  host->video.ctx = video_create_context(host);
+  host->video.r = r_create();
+  host->video.imgui = imgui_create(host->video.r);
   return 1;
 }
 
 /*
  * input
  */
+static void host_poll_events(struct sdl_host *host);
+
 static enum keycode translate_sdl_key(SDL_Keysym keysym) {
   enum keycode out = K_UNKNOWN;
 
@@ -430,7 +438,7 @@ static enum keycode translate_sdl_key(SDL_Keysym keysym) {
 
 static int input_find_controller_port(struct sdl_host *host, int instance_id) {
   for (int port = 0; port < INPUT_MAX_CONTROLLERS; port++) {
-    SDL_GameController *ctrl = host->controllers[port];
+    SDL_GameController *ctrl = host->input.controllers[port];
     SDL_Joystick *joy = SDL_GameControllerGetJoystick(ctrl);
 
     if (SDL_JoystickInstanceID(joy) == instance_id) {
@@ -441,85 +449,78 @@ static int input_find_controller_port(struct sdl_host *host, int instance_id) {
   return -1;
 }
 
-static void input_handle_mousemove(struct sdl_host *host, int port, int x,
-                                   int y) {
-  if (host->input_mousemove) {
-    host->input_mousemove(host->userdata, port, x, y);
-  }
+static void input_mousemove(struct sdl_host *host, int port, int x, int y) {
+  on_input_mousemove(host, port, x, y);
 
-  imgui_mousemove(host->imgui, x, y);
+  imgui_mousemove(host->video.imgui, x, y);
 }
 
-static void input_handle_keydown(struct sdl_host *host, int port,
-                                 enum keycode key, int16_t value) {
-  if (host->input_keydown) {
-    host->input_keydown(host->userdata, port, key, value);
+static void input_keydown(struct sdl_host *host, int port, enum keycode key,
+                          int16_t value) {
+  on_input_keydown(host, port, key, value);
 
-    /* if the key is mapped to a controller button, send that event as well */
-    int button = host->key_map[key];
-
-    if (button) {
-      host->input_keydown(host->userdata, port, button, value);
-    }
+  /* if the key is mapped to a controller button, send that event as well */
+  int button = host->input.keymap[key];
+  if (button) {
+    on_input_keydown(host, port, button, value);
   }
 
-  imgui_keydown(host->imgui, key, value);
+  imgui_keydown(host->video.imgui, key, value);
 }
 
-static void input_handle_controller_removed(struct sdl_host *host, int port) {
-  SDL_GameController *ctrl = host->controllers[port];
+static void input_controller_removed(struct sdl_host *host, int port) {
+  SDL_GameController *ctrl = host->input.controllers[port];
 
   if (!ctrl) {
     return;
   }
 
   const char *name = SDL_GameControllerName(ctrl);
-  LOG_INFO("controller '%s' removed from port %d", name, port);
+  LOG_INFO("input_controller_removed port=%d name=%s", port, name);
 
   SDL_GameControllerClose(ctrl);
-  host->controllers[port] = NULL;
+  host->input.controllers[port] = NULL;
 }
 
-static void input_handle_controller_added(struct sdl_host *host,
-                                          int device_id) {
+static void input_controller_added(struct sdl_host *host, int device_id) {
   /* find the next open controller port */
   int port;
   for (port = 0; port < INPUT_MAX_CONTROLLERS; port++) {
-    if (!host->controllers[port]) {
+    if (!host->input.controllers[port]) {
       break;
     }
   }
   if (port >= INPUT_MAX_CONTROLLERS) {
-    LOG_WARNING("no open ports to bind controller to");
+    LOG_WARNING("input_controller_added no open ports");
     return;
   }
 
   SDL_GameController *ctrl = SDL_GameControllerOpen(device_id);
-  host->controllers[port] = ctrl;
+  host->input.controllers[port] = ctrl;
 
-  LOG_INFO("controller '%s' added on port %d", SDL_GameControllerName(ctrl),
-           port);
+  const char *name = SDL_GameControllerName(ctrl);
+  LOG_INFO("input_controller_added port=%d name=%s", port, name);
 }
 
 static void input_shutdown(struct sdl_host *host) {
   for (int i = 0; i < INPUT_MAX_CONTROLLERS; i++) {
-    input_handle_controller_removed(host, i);
+    input_controller_removed(host, i);
   }
 }
 
 static int input_init(struct sdl_host *host) {
   /* development key map */
-  host->key_map[K_SPACE] = K_CONT_START;
-  host->key_map['k'] = K_CONT_A;
-  host->key_map['l'] = K_CONT_B;
-  host->key_map['j'] = K_CONT_X;
-  host->key_map['i'] = K_CONT_Y;
-  host->key_map['w'] = K_CONT_DPAD_UP;
-  host->key_map['s'] = K_CONT_DPAD_DOWN;
-  host->key_map['a'] = K_CONT_DPAD_LEFT;
-  host->key_map['d'] = K_CONT_DPAD_RIGHT;
-  host->key_map['o'] = K_CONT_LTRIG;
-  host->key_map['p'] = K_CONT_RTRIG;
+  host->input.keymap[K_SPACE] = K_CONT_START;
+  host->input.keymap['k'] = K_CONT_A;
+  host->input.keymap['l'] = K_CONT_B;
+  host->input.keymap['j'] = K_CONT_X;
+  host->input.keymap['i'] = K_CONT_Y;
+  host->input.keymap['w'] = K_CONT_DPAD_UP;
+  host->input.keymap['s'] = K_CONT_DPAD_DOWN;
+  host->input.keymap['a'] = K_CONT_DPAD_LEFT;
+  host->input.keymap['d'] = K_CONT_DPAD_RIGHT;
+  host->input.keymap['o'] = K_CONT_LTRIG;
+  host->input.keymap['p'] = K_CONT_RTRIG;
 
   /* SDL won't push events for joysticks which are already connected at init */
   int num_joysticks = SDL_NumJoysticks();
@@ -529,24 +530,25 @@ static int input_init(struct sdl_host *host) {
       continue;
     }
 
-    input_handle_controller_added(host, device_id);
+    input_controller_added(host, device_id);
   }
 
   return 1;
 }
 
 void input_poll(struct host *base) {
-  struct sdl_host *host = (struct sdl_host *)base;
+  struct sdl_host *host = SDL_HOST(base);
 
   host_poll_events(host);
 }
 
+/*
+ * internal
+ */
 static void host_swap_window(struct sdl_host *host) {
   SDL_GL_SwapWindow(host->win);
 
-  if (host->video_swapped) {
-    host->video_swapped(host->userdata);
-  }
+  on_video_swapped(host);
 }
 
 static void host_poll_events(struct sdl_host *host) {
@@ -558,7 +560,7 @@ static void host_poll_events(struct sdl_host *host) {
         enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          input_handle_keydown(host, 0, keycode, KEY_DOWN);
+          input_keydown(host, 0, keycode, KEY_DOWN);
         }
       } break;
 
@@ -566,7 +568,7 @@ static void host_poll_events(struct sdl_host *host) {
         enum keycode keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
-          input_handle_keydown(host, 0, keycode, KEY_UP);
+          input_keydown(host, 0, keycode, KEY_UP);
         }
       } break;
 
@@ -597,33 +599,33 @@ static void host_poll_events(struct sdl_host *host) {
 
         if (keycode != K_UNKNOWN) {
           int16_t value = ev.type == SDL_MOUSEBUTTONDOWN ? KEY_DOWN : KEY_UP;
-          input_handle_keydown(host, 0, keycode, value);
+          input_keydown(host, 0, keycode, value);
         }
       } break;
 
       case SDL_MOUSEWHEEL:
         if (ev.wheel.y > 0) {
-          input_handle_keydown(host, 0, K_MWHEELUP, KEY_DOWN);
-          input_handle_keydown(host, 0, K_MWHEELUP, KEY_UP);
+          input_keydown(host, 0, K_MWHEELUP, KEY_DOWN);
+          input_keydown(host, 0, K_MWHEELUP, KEY_UP);
         } else {
-          input_handle_keydown(host, 0, K_MWHEELDOWN, KEY_DOWN);
-          input_handle_keydown(host, 0, K_MWHEELDOWN, KEY_UP);
+          input_keydown(host, 0, K_MWHEELDOWN, KEY_DOWN);
+          input_keydown(host, 0, K_MWHEELDOWN, KEY_UP);
         }
         break;
 
       case SDL_MOUSEMOTION:
-        input_handle_mousemove(host, 0, ev.motion.x, ev.motion.y);
+        input_mousemove(host, 0, ev.motion.x, ev.motion.y);
         break;
 
       case SDL_CONTROLLERDEVICEADDED: {
-        input_handle_controller_added(host, ev.cdevice.which);
+        input_controller_added(host, ev.cdevice.which);
       } break;
 
       case SDL_CONTROLLERDEVICEREMOVED: {
         int port = input_find_controller_port(host, ev.cdevice.which);
 
         if (port != -1) {
-          input_handle_controller_removed(host, port);
+          input_controller_removed(host, port);
         }
       } break;
 
@@ -648,7 +650,7 @@ static void host_poll_events(struct sdl_host *host) {
         }
 
         if (port != -1 && key != K_UNKNOWN) {
-          input_handle_keydown(host, port, key, value);
+          input_keydown(host, port, key, value);
         }
       } break;
 
@@ -689,14 +691,14 @@ static void host_poll_events(struct sdl_host *host) {
         }
 
         if (port != -1 && key != K_UNKNOWN) {
-          input_handle_keydown(host, port, key, value);
+          input_keydown(host, port, key, value);
         }
       } break;
 
       case SDL_WINDOWEVENT:
         if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
-          host->video_width = ev.window.data1;
-          host->video_height = ev.window.data2;
+          host->video.width = ev.window.data1;
+          host->video.height = ev.window.data2;
         }
         break;
 
@@ -743,7 +745,7 @@ struct sdl_host *host_create() {
 
   /* immediately poll window size for platforms like Android where the window
      starts fullscreen, ignoring the default width and height */
-  SDL_GetWindowSize(host->win, &host->video_width, &host->video_height);
+  SDL_GetWindowSize(host->win, &host->video.width, &host->video.height);
 
   if (!audio_init(host)) {
     host_destroy(host);
@@ -797,20 +799,21 @@ int main(int argc, char **argv) {
   const char *load = argc > 1 ? argv[1] : NULL;
 
   if (load && strstr(load, ".trace")) {
-    struct tracer *tracer = tracer_create((struct host *)host, host->video_rb);
+    struct tracer *tracer = tracer_create(BASE_HOST(host), host->video.r);
 
     if (tracer_load(tracer, load)) {
       while (!host->closed) {
         host_poll_events(host);
 
         /* reset vertex buffers */
-        imgui_begin_frame(host->imgui, host->video_width, host->video_height);
+        imgui_begin_frame(host->video.imgui, host->video.width,
+                          host->video.height);
 
         /* render tracer output first */
-        tracer_render_frame(tracer, host->video_width, host->video_height);
+        tracer_render_frame(tracer, host->video.width, host->video.height);
 
         /* overlay user interface */
-        imgui_end_frame(host->imgui);
+        imgui_end_frame(host->video.imgui);
 
         host_swap_window(host);
       }
@@ -818,7 +821,7 @@ int main(int argc, char **argv) {
 
     tracer_destroy(tracer);
   } else {
-    struct emu *emu = emu_create((struct host *)host, host->video_rb);
+    struct emu *emu = emu_create(BASE_HOST(host), host->video.r);
 
     if (emu_load_game(emu, load)) {
       while (!host->closed) {
@@ -835,13 +838,14 @@ int main(int argc, char **argv) {
         }
 
         /* reset vertex buffers */
-        imgui_begin_frame(host->imgui, host->video_width, host->video_height);
+        imgui_begin_frame(host->video.imgui, host->video.width,
+                          host->video.height);
 
-        /* render emulator output first */
-        emu_render_frame(emu, host->video_width, host->video_height);
+        /* render emulator output and build up imgui buffers */
+        emu_render_frame(emu, host->video.width, host->video.height);
 
-        /* overlay user interface */
-        imgui_end_frame(host->imgui);
+        /* overlay imgui */
+        imgui_end_frame(host->video.imgui);
 
         /* flip profiler at end of frame */
         int64_t now = time_nanoseconds();

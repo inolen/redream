@@ -25,6 +25,9 @@ static retro_input_state_t input_state_cb;
  * libretro host implementation
  */
 
+#define BASE_HOST(h) ((struct host *)(h))
+#define RETRO_HOST(h) ((struct retro_host *)(h))
+
 /* clang-format off */
 #define NUM_CONTROLLER_DESC          (ARRAY_SIZE(controller_desc)-1)
 
@@ -77,11 +80,13 @@ static int controller_buttons[] = {
 struct retro_host {
   struct host;
 
-  /* video */
-  struct render_backend *video_rb;
+  struct {
+    struct render_backend *r;
+  } video;
 
-  /* input */
-  int16_t controller_state[NUM_CONTROLLER_DESC];
+  struct {
+    int16_t state[NUM_CONTROLLER_DESC];
+  } input;
 };
 
 struct retro_host *g_host;
@@ -107,14 +112,6 @@ int video_can_fullscreen(struct host *base) {
   return 0;
 }
 
-/*int video_height(struct host *base) {
-  return VIDEO_HEIGHT;
-}
-
-int video_width(struct host *base) {
-  return VIDEO_WIDTH;
-}*/
-
 /*
  * input
  */
@@ -134,31 +131,26 @@ static void input_poll(struct retro_host *host) {
       value = value ? INT16_MAX : 0;
     }
 
-    if (g_host->controller_state[i] == value) {
+    if (host->input.state[i] == value) {
       continue;
     }
 
-    if (g_host->input_keydown) {
-      int button = controller_buttons[i];
-      g_host->input_keydown(g_host->userdata, desc->port, button, value);
-    }
+    int button = controller_buttons[i];
+    on_input_keydown(host, desc->port, button, value);
 
-    g_host->controller_state[i] = value;
+    host->input.state[i] = value;
   }
 }
 
 /*
- * core
+ * internal
  */
 static void video_context_destroyed() {
-  /* call user callback */
-  if (g_host->video_destroyed) {
-    g_host->video_destroyed(g_host->userdata);
-  }
+  on_video_destroyed(g_host);
 
-  CHECK_NOTNULL(g_host->video_rb);
-  r_destroy(g_host->video_rb);
-  g_host->video_rb = NULL;
+  CHECK_NOTNULL(g_host->video.r);
+  r_destroy(g_host->video.r);
+  g_host->video.r = NULL;
 }
 
 static void video_context_reset() {
@@ -166,13 +158,10 @@ static void video_context_reset() {
   int res = gladLoadGLLoader((GLADloadproc)hw_render.get_proc_address);
   CHECK_EQ(res, 1, "GL initialization failed");
 
-  CHECK(!g_host->video_rb);
-  g_host->video_rb = r_create();
+  CHECK(!g_host->video.r);
+  g_host->video.r = r_create();
 
-  /* call user callback */
-  if (g_host->video_created) {
-    g_host->video_created(g_host->userdata, g_host->video_rb);
-  }
+  on_video_created(g_host, g_host->video.r);
 }
 
 static void host_destroy(struct retro_host *host) {
@@ -311,7 +300,7 @@ bool retro_load_game(const struct retro_game_info *info) {
     return false;
   }
 
-  g_emu = emu_create((struct host *)g_host, g_host->video_rb);
+  g_emu = emu_create(BASE_HOST(g_host), g_host->video.r);
   if (!g_emu) {
     host_destroy(g_host);
     g_host = NULL;

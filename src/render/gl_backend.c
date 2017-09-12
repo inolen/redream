@@ -5,7 +5,6 @@
 #include "host/host.h"
 #include "render/render_backend.h"
 
-#define MAX_FRAMEBUFFERS 8
 #define MAX_TEXTURES 8192
 
 enum texture_map {
@@ -55,8 +54,6 @@ struct texture {
   GLuint texture;
 };
 
-#define MAX_LISTENERS 8
-
 struct render_backend {
   struct host *host;
   int viewport_width;
@@ -67,18 +64,7 @@ struct render_backend {
   struct shader_program ta_programs[ATTR_COUNT];
   struct shader_program ui_program;
 
-  /* note, in this backend framebuffer_handle_t and texture_handle_t are the
-     OpenGL object handles, not indexes into these arrays. this lets OpenGL
-     handle generating unique IDs across multiple contexts, with no additional
-     synchronization on our part. however, to delete an object a reverse lookup
-     must be performed to match the handle to an index in these arrays
-
-     note note, due to this dumbed down design, the handles can be shared across
-     multiple backends for rendering purposes, but can only be deleted on the
-     backend that created them
-
-     TODO the textures / framebuffers arrays exist purely for cleanup purposes,
-     it'd be nice to replace with a hashtable to avoid O(n) reverse lookup */
+  /* texture cache */
   struct texture textures[MAX_TEXTURES];
 
   /* surface render state */
@@ -467,76 +453,6 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
   return program;
 }
 
-void r_end_ta_surfaces(struct render_backend *r) {}
-
-void r_draw_ta_surface(struct render_backend *r,
-                       const struct ta_surface *surf) {
-  glDepthMask(!!surf->depth_write);
-
-  if (surf->depth_func == DEPTH_NONE) {
-    glDisable(GL_DEPTH_TEST);
-  } else {
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(depth_funcs[surf->depth_func]);
-  }
-
-  if (surf->cull == CULL_NONE) {
-    glDisable(GL_CULL_FACE);
-  } else {
-    glEnable(GL_CULL_FACE);
-    glCullFace(cull_face[surf->cull]);
-  }
-
-  if (surf->src_blend == BLEND_NONE || surf->dst_blend == BLEND_NONE) {
-    glDisable(GL_BLEND);
-  } else {
-    glEnable(GL_BLEND);
-    glBlendFunc(blend_funcs[surf->src_blend], blend_funcs[surf->dst_blend]);
-  }
-
-  struct shader_program *program = r_get_ta_program(r, surf);
-
-  glUseProgram(program->prog);
-
-  /* bind global uniforms if they've changed */
-  if (program->uniform_token != r->uniform_token) {
-    glUniform4fv(program->loc[UNIFORM_VIDEO_SCALE], 1, r->uniform_video_scale);
-    program->uniform_token = r->uniform_token;
-  }
-
-  /* bind non-global uniforms every time */
-  glUniform1f(program->loc[UNIFORM_PT_ALPHA_REF], surf->pt_alpha_ref);
-
-  if (surf->texture) {
-    r_bind_texture(r, MAP_DIFFUSE, surf->texture);
-  }
-
-  glDrawElements(GL_TRIANGLES, surf->num_verts, GL_UNSIGNED_SHORT,
-                 (void *)(intptr_t)(sizeof(uint16_t) * surf->first_vert));
-}
-
-void r_begin_ta_surfaces(struct render_backend *r, int video_width,
-                         int video_height, const struct ta_vertex *verts,
-                         int num_verts, const uint16_t *indices,
-                         int num_indices) {
-  /* uniforms will be lazily bound for each program inside of r_draw_surface */
-  r->uniform_token++;
-  r->uniform_video_scale[0] = 2.0f / (float)video_width;
-  r->uniform_video_scale[1] = -1.0f;
-  r->uniform_video_scale[2] = -2.0f / (float)video_height;
-  r->uniform_video_scale[3] = 1.0f;
-
-  glBindVertexArray(r->ta_vao);
-
-  glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(struct ta_vertex) * num_verts, verts,
-               GL_DYNAMIC_DRAW);
-
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->ta_ibo);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices, indices,
-               GL_DYNAMIC_DRAW);
-}
-
 void r_end_ui_surfaces(struct render_backend *r) {
   glDisable(GL_SCISSOR_TEST);
 }
@@ -559,7 +475,8 @@ void r_draw_ui_surface(struct render_backend *r,
   }
 
   if (surf->texture) {
-    r_bind_texture(r, MAP_DIFFUSE, surf->texture);
+    struct texture *tex = &r->textures[surf->texture];
+    r_bind_texture(r, MAP_DIFFUSE, tex->texture);
   } else {
     r_bind_texture(r, MAP_DIFFUSE, r->white_texture);
   }
@@ -624,6 +541,77 @@ void r_begin_ui_surfaces(struct render_backend *r,
   }
 }
 
+void r_end_ta_surfaces(struct render_backend *r) {}
+
+void r_draw_ta_surface(struct render_backend *r,
+                       const struct ta_surface *surf) {
+  glDepthMask(!!surf->depth_write);
+
+  if (surf->depth_func == DEPTH_NONE) {
+    glDisable(GL_DEPTH_TEST);
+  } else {
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(depth_funcs[surf->depth_func]);
+  }
+
+  if (surf->cull == CULL_NONE) {
+    glDisable(GL_CULL_FACE);
+  } else {
+    glEnable(GL_CULL_FACE);
+    glCullFace(cull_face[surf->cull]);
+  }
+
+  if (surf->src_blend == BLEND_NONE || surf->dst_blend == BLEND_NONE) {
+    glDisable(GL_BLEND);
+  } else {
+    glEnable(GL_BLEND);
+    glBlendFunc(blend_funcs[surf->src_blend], blend_funcs[surf->dst_blend]);
+  }
+
+  struct shader_program *program = r_get_ta_program(r, surf);
+
+  glUseProgram(program->prog);
+
+  /* bind global uniforms if they've changed */
+  if (program->uniform_token != r->uniform_token) {
+    glUniform4fv(program->loc[UNIFORM_VIDEO_SCALE], 1, r->uniform_video_scale);
+    program->uniform_token = r->uniform_token;
+  }
+
+  /* bind non-global uniforms every time */
+  glUniform1f(program->loc[UNIFORM_PT_ALPHA_REF], surf->pt_alpha_ref);
+
+  if (surf->texture) {
+    struct texture *tex = &r->textures[surf->texture];
+    r_bind_texture(r, MAP_DIFFUSE, tex->texture);
+  }
+
+  glDrawElements(GL_TRIANGLES, surf->num_verts, GL_UNSIGNED_SHORT,
+                 (void *)(intptr_t)(sizeof(uint16_t) * surf->first_vert));
+}
+
+void r_begin_ta_surfaces(struct render_backend *r, int video_width,
+                         int video_height, const struct ta_vertex *verts,
+                         int num_verts, const uint16_t *indices,
+                         int num_indices) {
+  /* uniforms will be lazily bound for each program inside of r_draw_surface */
+  r->uniform_token++;
+  r->uniform_video_scale[0] = 2.0f / (float)video_width;
+  r->uniform_video_scale[1] = -1.0f;
+  r->uniform_video_scale[2] = -2.0f / (float)video_height;
+  r->uniform_video_scale[3] = 1.0f;
+
+  glBindVertexArray(r->ta_vao);
+
+  glBindBuffer(GL_ARRAY_BUFFER, r->ta_vbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(struct ta_vertex) * num_verts, verts,
+               GL_DYNAMIC_DRAW);
+
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->ta_ibo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * num_indices, indices,
+               GL_DYNAMIC_DRAW);
+}
+
 void r_viewport(struct render_backend *r, int x, int y, int width, int height) {
   r->viewport_width = width;
   r->viewport_height = height;
@@ -633,27 +621,12 @@ void r_viewport(struct render_backend *r, int x, int y, int width, int height) {
 
 void r_clear(struct render_backend *r) {
   glDepthMask(1);
-  glClear(GL_DEPTH_BUFFER_BIT);
-
-#if 0
-  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT);
-#endif
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+  glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 }
 
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle) {
-  /* lookup texture entry
-     FIXME need common hashtable */
-  int entry;
-  for (entry = 0; entry < MAX_TEXTURES; entry++) {
-    struct texture *tex = &r->textures[entry];
-    if (tex->texture == handle) {
-      break;
-    }
-  }
-  CHECK_LT(entry, MAX_TEXTURES);
-
-  struct texture *tex = &r->textures[entry];
+  struct texture *tex = &r->textures[handle];
   glDeleteTextures(1, &tex->texture);
   tex->texture = 0;
 }
@@ -665,14 +638,14 @@ texture_handle_t r_create_texture(struct render_backend *r,
                                   int mipmaps, int width, int height,
                                   const uint8_t *buffer) {
   /* find next open texture entry */
-  int entry;
-  for (entry = 0; entry < MAX_TEXTURES; entry++) {
-    struct texture *tex = &r->textures[entry];
+  texture_handle_t handle;
+  for (handle = 1; handle < MAX_TEXTURES; handle++) {
+    struct texture *tex = &r->textures[handle];
     if (!tex->texture) {
       break;
     }
   }
-  CHECK_LT(entry, MAX_TEXTURES);
+  CHECK_LT(handle, MAX_TEXTURES);
 
   GLuint internal_fmt;
   GLuint pixel_fmt;
@@ -698,7 +671,7 @@ texture_handle_t r_create_texture(struct render_backend *r,
       break;
   }
 
-  struct texture *tex = &r->textures[entry];
+  struct texture *tex = &r->textures[handle];
   glGenTextures(1, &tex->texture);
   glBindTexture(GL_TEXTURE_2D, tex->texture);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
@@ -715,7 +688,7 @@ texture_handle_t r_create_texture(struct render_backend *r,
 
   glBindTexture(GL_TEXTURE_2D, 0);
 
-  return tex->texture;
+  return handle;
 }
 
 void r_destroy(struct render_backend *r) {
