@@ -56,6 +56,7 @@ struct texture {
 
 struct render_backend {
   struct host *host;
+  int width, height;
   int viewport_width;
   int viewport_height;
 
@@ -691,6 +692,14 @@ texture_handle_t r_create_texture(struct render_backend *r,
   return handle;
 }
 
+int r_height(struct render_backend *r) {
+  return r->height;
+}
+
+int r_width(struct render_backend *r) {
+  return r->width;
+}
+
 void r_destroy(struct render_backend *r) {
   r_destroy_vertex_arrays(r);
   r_destroy_shaders(r);
@@ -699,8 +708,11 @@ void r_destroy(struct render_backend *r) {
   free(r);
 }
 
-struct render_backend *r_create() {
+struct render_backend *r_create(int width, int height) {
   struct render_backend *r = calloc(1, sizeof(struct render_backend));
+
+  r->width = width;
+  r->height = height;
 
   r_create_textures(r);
   r_create_shaders(r);

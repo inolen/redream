@@ -135,6 +135,34 @@ static int tracer_texture_cmp(const struct rb_node *rb_lhs,
 static struct rb_callbacks tracer_texture_cb = {&tracer_texture_cmp, NULL,
                                                 NULL};
 
+static void tracer_free_texture(struct tracer *tracer,
+                                struct tracer_texture *tex) {
+  /* remove from live tree */
+  rb_unlink(&tracer->live_textures, &tex->live_it, &tracer_texture_cb);
+
+  /* add back to free list */
+  list_add(&tracer->free_textures, &tex->free_it);
+}
+
+static struct tracer_texture *tracer_alloc_texture(struct tracer *tracer,
+                                                   union tsp tsp,
+                                                   union tcw tcw) {
+  /* remove from free list */
+  struct tracer_texture *tex =
+      list_first_entry(&tracer->free_textures, struct tracer_texture, free_it);
+  CHECK_NOTNULL(tex);
+  list_remove(&tracer->free_textures, &tex->free_it);
+
+  /* reset tex */
+  memset(tex, 0, sizeof(*tex));
+  tex->tsp = tsp;
+  tex->tcw = tcw;
+
+  /* add to live tree */
+  rb_insert(&tracer->live_textures, &tex->live_it, &tracer_texture_cb);
+
+  return tex;
+}
 static struct tr_texture *tracer_find_texture(void *userdata, union tsp tsp,
                                               union tcw tcw) {
   struct tracer *tracer = userdata;
@@ -157,15 +185,7 @@ static void tracer_add_texture(struct tracer *tracer,
       tracer, cmd->texture.tsp, cmd->texture.tcw);
 
   if (!tex) {
-    tex = list_first_entry(&tracer->free_textures, struct tracer_texture,
-                           free_it);
-    CHECK_NOTNULL(tex);
-    list_remove(&tracer->free_textures, &tex->free_it);
-
-    tex->tsp = cmd->texture.tsp;
-    tex->tcw = cmd->texture.tcw;
-
-    rb_insert(&tracer->live_textures, &tex->live_it, &tracer_texture_cb);
+    tex = tracer_alloc_texture(tracer, cmd->texture.tsp, cmd->texture.tcw);
   }
 
   tex->frame = cmd->texture.frame;
@@ -627,22 +647,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
   }
 }
 
-static void tracer_input_keydown(void *data, int port, enum keycode key,
-                                 int16_t value) {
-  struct tracer *tracer = data;
-
-  if (key == K_LEFT && value > 0) {
-    tracer_prev_context(tracer);
-  } else if (key == K_RIGHT && value > 0) {
-    tracer_next_context(tracer);
-  } else if (key == K_UP && value > 0) {
-    tracer_prev_param(tracer);
-  } else if (key == K_DOWN && value > 0) {
-    tracer_next_param(tracer);
-  }
-}
-
-void tracer_render_frame(struct tracer *tracer, int width, int height) {
+void tracer_render_frame(struct tracer *tracer) {
   r_clear(tracer->r);
 
   /* build ui */
@@ -685,24 +690,46 @@ int tracer_load(struct tracer *tracer, const char *path) {
   return 1;
 }
 
+void tracer_keydown(struct tracer *tracer, enum keycode key, int16_t value) {
+  if (key == K_LEFT && value > 0) {
+    tracer_prev_context(tracer);
+  } else if (key == K_RIGHT && value > 0) {
+    tracer_next_context(tracer);
+  } else if (key == K_UP && value > 0) {
+    tracer_prev_param(tracer);
+  } else if (key == K_DOWN && value > 0) {
+    tracer_next_param(tracer);
+  }
+}
+
+void tracer_vid_destroyed(struct tracer *tracer) {
+  rb_for_each_entry_safe(tex, &tracer->live_textures, struct tracer_texture,
+                         live_it) {
+    r_destroy_texture(tracer->r, tex->handle);
+    tracer_free_texture(tracer, tex);
+  }
+
+  tracer->r = NULL;
+}
+
+void tracer_vid_created(struct tracer *tracer, struct render_backend *r) {
+  tracer->r = r;
+}
+
 void tracer_destroy(struct tracer *tracer) {
   if (tracer->trace) {
     trace_destroy(tracer->trace);
   }
 
+  tracer_vid_destroyed(tracer);
+
   free(tracer);
 }
 
-struct tracer *tracer_create(struct host *host, struct render_backend *r) {
+struct tracer *tracer_create(struct host *host) {
   struct tracer *tracer = calloc(1, sizeof(struct tracer));
 
-  tracer->r = r;
-
-  /* setup host, bind event callbacks */
   tracer->host = host;
-  tracer->host->userdata = tracer;
-  tracer->host->input_keydown = &tracer_input_keydown;
-  tracer->host->input_mousemove = NULL;
 
   /* add all textures to free list */
   for (int i = 0, n = ARRAY_SIZE(tracer->textures); i < n; i++) {

@@ -74,6 +74,7 @@ struct emu {
 
   struct render_backend *r;
   struct trace_writer *trace_writer;
+
   int aspect_ratio;
 
   /* when running with multiple threads, the dreamcast emulation is ran on a
@@ -409,55 +410,6 @@ static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
 }
 
 /*
- * local host interface
- */
-static void emu_keydown(void *userdata, int port, enum keycode key,
-                        int16_t value) {
-  struct emu *emu = userdata;
-
-  if (key == K_F1 && value > 0) {
-    OPTION_debug = !OPTION_debug;
-  }
-
-  if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
-    dc_input(emu->dc, port, key - K_CONT_C, value);
-  }
-}
-
-static void emu_video_swapped(void *userdata) {
-  struct emu *emu = userdata;
-
-  /* keep track of the time between swaps */
-  int64_t now = time_nanoseconds();
-
-  if (emu->last_swap) {
-    float swap_time_ms = (float)(now - emu->last_swap) / 1000000.0f;
-    int num_swap_times = ARRAY_SIZE(emu->swap_times);
-    emu->swap_times[emu->frame % num_swap_times] = swap_time_ms;
-  }
-
-  emu->last_swap = now;
-}
-
-static void emu_video_destroyed(void *userdata) {
-  struct emu *emu = userdata;
-
-  rb_for_each_entry_safe(tex, &emu->live_textures, struct emu_texture,
-                         live_it) {
-    r_destroy_texture(emu->r, tex->handle);
-    emu_free_texture(emu, tex);
-  }
-
-  emu->r = NULL;
-}
-
-static void emu_video_created(void *userdata, struct render_backend *r) {
-  struct emu *emu = userdata;
-
-  emu->r = r;
-}
-
-/*
  * options
  */
 static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
@@ -652,12 +604,15 @@ static void emu_run_frame(struct emu *emu) {
   }
 }
 
-void emu_render_frame(struct emu *emu, int width, int height) {
+void emu_render_frame(struct emu *emu) {
   prof_counter_add(COUNTER_frames, 1);
 
   /* check that we're not being called between calls to emu_video_destroyed
      and emu_video_created */
   CHECK_NOTNULL(emu->r);
+
+  int width = r_width(emu->r);
+  int height = r_height(emu->r);
 
   /* adjust dreamcast viewport based on aspect ratio */
   int frame_height, frame_width;
@@ -739,6 +694,43 @@ int emu_load_game(struct emu *emu, const char *path) {
   return 1;
 }
 
+void emu_keydown(struct emu *emu, int port, enum keycode key, int16_t value) {
+  if (key == K_F1 && value > 0) {
+    OPTION_debug = !OPTION_debug;
+  }
+
+  if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
+    dc_input(emu->dc, port, key - K_CONT_C, value);
+  }
+}
+
+void emu_vid_swapped(struct emu *emu) {
+  /* keep track of the time between swaps */
+  int64_t now = time_nanoseconds();
+
+  if (emu->last_swap) {
+    float swap_time_ms = (float)(now - emu->last_swap) / 1000000.0f;
+    int num_swap_times = ARRAY_SIZE(emu->swap_times);
+    emu->swap_times[emu->frame % num_swap_times] = swap_time_ms;
+  }
+
+  emu->last_swap = now;
+}
+
+void emu_vid_destroyed(struct emu *emu) {
+  rb_for_each_entry_safe(tex, &emu->live_textures, struct emu_texture,
+                         live_it) {
+    r_destroy_texture(emu->r, tex->handle);
+    emu_free_texture(emu, tex);
+  }
+
+  emu->r = NULL;
+}
+
+void emu_vid_created(struct emu *emu, struct render_backend *r) {
+  emu->r = r;
+}
+
 void emu_destroy(struct emu *emu) {
   /* shutdown the emulation thread */
   if (emu->multi_threaded) {
@@ -756,24 +748,15 @@ void emu_destroy(struct emu *emu) {
   }
 
   emu_stop_tracing(emu);
-
+  emu_vid_destroyed(emu);
   dc_destroy(emu->dc);
-
   free(emu);
 }
 
-struct emu *emu_create(struct host *host, struct render_backend *r) {
+struct emu *emu_create(struct host *host) {
   struct emu *emu = calloc(1, sizeof(struct emu));
 
-  emu->r = r;
-
-  /* setup host, bind event callbacks */
   emu->host = host;
-  emu->host->userdata = emu;
-  emu->host->video_created = &emu_video_created;
-  emu->host->video_destroyed = &emu_video_destroyed;
-  emu->host->video_swapped = &emu_video_swapped;
-  emu->host->input_keydown = &emu_keydown;
 
   /* create dreamcast, bind client callbacks */
   emu->dc = dc_create();

@@ -25,9 +25,6 @@ static retro_input_state_t input_state_cb;
  * libretro host implementation
  */
 
-#define BASE_HOST(h) ((struct host *)(h))
-#define RETRO_HOST(h) ((struct retro_host *)(h))
-
 /* clang-format off */
 #define NUM_CONTROLLER_DESC          (ARRAY_SIZE(controller_desc)-1)
 
@@ -77,8 +74,8 @@ static int controller_buttons[] = {
 };
 /* clang-format on */
 
-struct retro_host {
-  struct host;
+struct host {
+  struct emu *emu;
 
   struct {
     struct render_backend *r;
@@ -89,33 +86,32 @@ struct retro_host {
   } input;
 };
 
-struct retro_host *g_host;
-struct emu *g_emu;
+struct host *g_host;
 
 /*
  * audio
  */
-void audio_push(struct host *base, const int16_t *data, int frames) {
+void audio_push(struct host *host, const int16_t *data, int frames) {
   audio_batch_cb(data, frames);
 }
 
 /*
  * video
  */
-void video_set_fullscreen(struct host *base, int fullscreen) {}
+void video_set_fullscreen(struct host *host, int fullscreen) {}
 
-int video_is_fullscreen(struct host *base) {
+int video_is_fullscreen(struct host *host) {
   return 0;
 }
 
-int video_can_fullscreen(struct host *base) {
+int video_can_fullscreen(struct host *host) {
   return 0;
 }
 
 /*
  * input
  */
-static void input_poll(struct retro_host *host) {
+static void input_poll(struct host *host) {
   input_poll_cb();
 
   /* send updates for any inputs that've changed */
@@ -136,7 +132,10 @@ static void input_poll(struct retro_host *host) {
     }
 
     int button = controller_buttons[i];
-    on_input_keydown(host, desc->port, button, value);
+
+    if (host->emu) {
+      emu_keydown(host->emu, desc->port, button, value);
+    }
 
     host->input.state[i] = value;
   }
@@ -146,7 +145,9 @@ static void input_poll(struct retro_host *host) {
  * internal
  */
 static void video_context_destroyed() {
-  on_video_destroyed(g_host);
+  if (g_host->emu) {
+    emu_vid_destroyed(g_host->emu);
+  }
 
   CHECK_NOTNULL(g_host->video.r);
   r_destroy(g_host->video.r);
@@ -159,18 +160,14 @@ static void video_context_reset() {
   CHECK_EQ(res, 1, "GL initialization failed");
 
   CHECK(!g_host->video.r);
-  g_host->video.r = r_create();
+  g_host->video.r = r_create(VIDEO_WIDTH, VIDEO_HEIGHT);
 
-  on_video_created(g_host, g_host->video.r);
+  if (g_host->emu) {
+    emu_vid_created(g_host->emu, g_host->video.r);
+  }
 }
 
-static void host_destroy(struct retro_host *host) {
-  free(host);
-}
-
-struct retro_host *host_create() {
-  struct retro_host *host = calloc(1, sizeof(struct retro_host));
-
+static int host_init(struct host *host) {
   /* let retroarch know about our controller mappings */
   env_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, controller_desc);
 
@@ -185,11 +182,19 @@ struct retro_host *host_create() {
 
   bool ret = env_cb(RETRO_ENVIRONMENT_SET_HW_RENDER, &hw_render);
   if (!ret) {
-    LOG_WARNING("Failed to initialize hardware renderer");
-    host_destroy(host);
-    return NULL;
+    LOG_WARNING("host_init failed to initialize hardware renderer");
+    return 0;
   }
 
+  return 1;
+}
+
+static void host_destroy(struct host *host) {
+  free(host);
+}
+
+struct host *host_create() {
+  struct host *host = calloc(1, sizeof(struct host));
   return host;
 }
 
@@ -272,7 +277,7 @@ void retro_run() {
   uintptr_t fb = hw_render.get_current_framebuffer();
   glBindFramebuffer(GL_FRAMEBUFFER, fb);
 
-  emu_render_frame(g_emu, VIDEO_WIDTH, VIDEO_HEIGHT);
+  emu_render_frame(g_host->emu);
 
   /* call back into retroarch, letting it know a frame has been rendered */
   video_cb(RETRO_HW_FRAME_BUFFER_VALID, VIDEO_WIDTH, VIDEO_HEIGHT, 0);
@@ -296,18 +301,19 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code) {}
 
 bool retro_load_game(const struct retro_game_info *info) {
   g_host = host_create();
-  if (!g_host) {
-    return false;
-  }
+  g_host->emu = emu_create(g_host);
 
-  g_emu = emu_create(BASE_HOST(g_host), g_host->video.r);
-  if (!g_emu) {
+  if (!host_init(g_host)) {
+    emu_destroy(g_host->emu);
+    g_host->emu = NULL;
+
     host_destroy(g_host);
     g_host = NULL;
+
     return false;
   }
 
-  return emu_load_game(g_emu, info->path);
+  return emu_load_game(g_host->emu, info->path);
 }
 
 bool retro_load_game_special(unsigned game_type,
@@ -317,9 +323,9 @@ bool retro_load_game_special(unsigned game_type,
 }
 
 void retro_unload_game() {
-  if (g_emu) {
-    emu_destroy(g_emu);
-    g_emu = NULL;
+  if (g_host->emu) {
+    emu_destroy(g_host->emu);
+    g_host->emu = NULL;
   }
 
   if (g_host) {

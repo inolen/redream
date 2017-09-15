@@ -10,6 +10,7 @@ extern "C" {
 
 struct imgui {
   struct render_backend *r;
+
   bool alt[2];
   bool ctrl[2];
   bool shift[2];
@@ -72,13 +73,15 @@ extern "C" void imgui_end_frame(struct imgui *imgui) {
 #endif
 }
 
-extern "C" void imgui_begin_frame(struct imgui *imgui, int width, int height) {
+extern "C" void imgui_begin_frame(struct imgui *imgui) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
+  int width = r_width(imgui->r);
+  int height = r_height(imgui->r);
+
   io.MouseWheel = 0.0;
-  io.DisplaySize =
-      ImVec2(static_cast<float>(width), static_cast<float>(height));
+  io.DisplaySize = ImVec2((float)width, (float)height);
 
   ImGui::NewFrame();
 #endif
@@ -130,12 +133,40 @@ extern "C" void imgui_destroy(struct imgui *imgui) {
 #endif
 }
 
-extern "C" struct imgui *imgui_create(struct render_backend *r) {
+extern "C" void imgui_vid_destroyed(struct imgui *imgui) {
+#ifdef HAVE_IMGUI
+  ImGuiIO &io = ImGui::GetIO();
+
+  texture_handle_t handle = (texture_handle_t)(intptr_t)io.Fonts->TexID;
+  r_destroy_texture(imgui->r, handle);
+
+  imgui->r = NULL;
+#endif
+}
+
+extern "C" void imgui_vid_created(struct imgui *imgui,
+                                  struct render_backend *r) {
+#ifdef HAVE_IMGUI
+  ImGuiIO &io = ImGui::GetIO();
+
+  imgui->r = r;
+
+  /* register font */
+  uint8_t *pixels;
+  int width, height;
+  io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+  texture_handle_t handle =
+      r_create_texture(imgui->r, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
+                       WRAP_REPEAT, 0, width, height, pixels);
+  io.Fonts->TexID = (void *)(intptr_t)handle;
+#endif
+}
+
+extern "C" struct imgui *imgui_create() {
 #ifdef HAVE_IMGUI
   struct imgui *imgui =
       reinterpret_cast<struct imgui *>(calloc(1, sizeof(struct imgui)));
-
-  imgui->r = r;
 
   /* initialize imgui */
   ImGuiIO &io = ImGui::GetIO();
@@ -169,16 +200,6 @@ extern "C" struct imgui *imgui_create(struct render_backend *r) {
   io.RenderDrawListsFn = nullptr;
   io.SetClipboardTextFn = nullptr;
   io.GetClipboardTextFn = nullptr;
-
-  /* register font in backend */
-  uint8_t *pixels;
-  int width, height;
-  io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-
-  texture_handle_t handle =
-      r_create_texture(imgui->r, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
-                       WRAP_REPEAT, 0, width, height, pixels);
-  io.Fonts->TexID = reinterpret_cast<void *>(static_cast<intptr_t>(handle));
 
   return imgui;
 #else

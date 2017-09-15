@@ -11,13 +11,15 @@
 struct imgui;
 struct render_backend;
 
-struct imgui *imgui_create(struct render_backend *r);
+struct imgui *imgui_create();
 void imgui_destroy(struct imgui *imgui);
 
+void imgui_vid_created(struct imgui *imgui, struct render_backend *r);
+void imgui_vid_destroyed(struct imgui *imgui);
 void imgui_mousemove(struct imgui *imgui, int x, int y);
 void imgui_keydown(struct imgui *imgui, enum keycode key, int16_t value);
 
-void imgui_begin_frame(struct imgui *imgui, int width, int height);
+void imgui_begin_frame(struct imgui *imgui);
 void imgui_end_frame(struct imgui *imgui);
 
 #endif

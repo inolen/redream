@@ -20,9 +20,6 @@ DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
 /*
  * sdl host implementation
  */
-#define BASE_HOST(h) ((struct host *)(h))
-#define SDL_HOST(h) ((struct sdl_host *)(h))
-
 #define AUDIO_FREQ 44100
 #define VIDEO_DEFAULT_WIDTH 640
 #define VIDEO_DEFAULT_HEIGHT 480
@@ -34,11 +31,13 @@ DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
 #define MS_TO_AUDIO_FRAMES(ms) (int)(((float)(ms) / 1000.0f) * AUDIO_FREQ)
 #define NS_TO_AUDIO_FRAMES(ns) (int)(((float)(ns) / NS_PER_SEC) * AUDIO_FREQ)
 
-struct sdl_host {
-  struct host;
-
+struct host {
   struct SDL_Window *win;
   int closed;
+
+  struct emu *emu;
+  struct tracer *tracer;
+  struct imgui *imgui;
 
   struct {
     SDL_AudioDeviceID dev;
@@ -50,7 +49,6 @@ struct sdl_host {
   struct {
     SDL_GLContext ctx;
     struct render_backend *r;
-    struct imgui *imgui;
     int width;
     int height;
   } video;
@@ -64,8 +62,7 @@ struct sdl_host {
 /*
  * audio
  */
-static int audio_read_frames(struct sdl_host *host, void *data,
-                             int num_frames) {
+static int audio_read_frames(struct host *host, void *data, int num_frames) {
   int buffered = ringbuf_available(host->audio.frames);
   int size = MIN(buffered, num_frames * AUDIO_FRAME_SIZE);
   CHECK_EQ(size % AUDIO_FRAME_SIZE, 0);
@@ -77,7 +74,7 @@ static int audio_read_frames(struct sdl_host *host, void *data,
   return size / AUDIO_FRAME_SIZE;
 }
 
-static void audio_write_frames(struct sdl_host *host, const void *data,
+static void audio_write_frames(struct host *host, const void *data,
                                int num_frames) {
   int remaining = ringbuf_remaining(host->audio.frames);
   int size = MIN(remaining, num_frames * AUDIO_FRAME_SIZE);
@@ -88,12 +85,12 @@ static void audio_write_frames(struct sdl_host *host, const void *data,
   ringbuf_advance_write_ptr(host->audio.frames, size);
 }
 
-static int audio_buffered_frames(struct sdl_host *host) {
+static int audio_buffered_frames(struct host *host) {
   int buffered = ringbuf_available(host->audio.frames);
   return buffered / AUDIO_FRAME_SIZE;
 }
 
-static int audio_buffer_low(struct sdl_host *host) {
+static int audio_buffer_low(struct host *host) {
   if (!host->audio.dev) {
     /* lie and say the audio buffer is low, forcing the emulator to run as fast
        as possible */
@@ -127,7 +124,7 @@ static int audio_buffer_low(struct sdl_host *host) {
 }
 
 static void audio_write_cb(void *userdata, Uint8 *stream, int len) {
-  struct sdl_host *host = userdata;
+  struct host *host = userdata;
   Sint32 *buf = (Sint32 *)stream;
   int frame_count_max = len / AUDIO_FRAME_SIZE;
 
@@ -148,9 +145,7 @@ static void audio_write_cb(void *userdata, Uint8 *stream, int len) {
   host->audio.last_cb = time_nanoseconds();
 }
 
-void audio_push(struct host *base, const int16_t *data, int num_frames) {
-  struct sdl_host *host = SDL_HOST(base);
-
+void audio_push(struct host *host, const int16_t *data, int num_frames) {
   if (!host->audio.dev) {
     return;
   }
@@ -158,7 +153,7 @@ void audio_push(struct host *base, const int16_t *data, int num_frames) {
   audio_write_frames(host, data, num_frames);
 }
 
-static void audio_shutdown(struct sdl_host *host) {
+static void audio_shutdown(struct host *host) {
   if (host->audio.dev) {
     SDL_CloseAudioDevice(host->audio.dev);
   }
@@ -168,7 +163,7 @@ static void audio_shutdown(struct sdl_host *host) {
   }
 }
 
-static int audio_init(struct sdl_host *host) {
+static int audio_init(struct host *host) {
   if (!OPTION_audio) {
     return 1;
   }
@@ -208,7 +203,7 @@ static int audio_init(struct sdl_host *host) {
 /*
  * video
  */
-static void video_destroy_context(struct sdl_host *host, SDL_GLContext ctx) {
+static void video_destroy_context(struct host *host, SDL_GLContext ctx) {
   /* make sure the context is no longer active before deleting */
   int res = SDL_GL_MakeCurrent(host->win, NULL);
   CHECK_EQ(res, 0);
@@ -216,7 +211,7 @@ static void video_destroy_context(struct sdl_host *host, SDL_GLContext ctx) {
   SDL_GL_DeleteContext(ctx);
 }
 
-static SDL_GLContext video_create_context(struct sdl_host *host) {
+static SDL_GLContext video_create_context(struct host *host) {
 #if PLATFORM_ANDROID
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
@@ -246,9 +241,7 @@ static SDL_GLContext video_create_context(struct sdl_host *host) {
   return ctx;
 }
 
-void video_set_fullscreen(struct host *base, int fullscreen) {
-  struct sdl_host *host = SDL_HOST(base);
-
+void video_set_fullscreen(struct host *host, int fullscreen) {
   uint32_t flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
   int res = SDL_SetWindowFullscreen(host->win, flags);
   CHECK_EQ(res, 0);
@@ -257,34 +250,56 @@ void video_set_fullscreen(struct host *base, int fullscreen) {
   OPTION_fullscreen = fullscreen;
 }
 
-int video_is_fullscreen(struct host *base) {
-  struct sdl_host *host = SDL_HOST(base);
-
+int video_is_fullscreen(struct host *host) {
   uint32_t flags = SDL_GetWindowFlags(host->win);
   return flags & SDL_WINDOW_FULLSCREEN_DESKTOP;
 }
 
-int video_can_fullscreen(struct host *base) {
+int video_can_fullscreen(struct host *host) {
   return 1;
 }
 
-static void video_shutdown(struct sdl_host *host) {
-  imgui_destroy(host->video.imgui);
+static void video_shutdown(struct host *host) {
+  imgui_vid_destroyed(host->imgui);
+
+  if (host->tracer) {
+    tracer_vid_destroyed(host->tracer);
+  }
+
+  if (host->emu) {
+    emu_vid_destroyed(host->emu);
+  }
+
   r_destroy(host->video.r);
   video_destroy_context(host, host->video.ctx);
 }
 
-static int video_init(struct sdl_host *host) {
+static int video_init(struct host *host) {
   host->video.ctx = video_create_context(host);
-  host->video.r = r_create();
-  host->video.imgui = imgui_create(host->video.r);
+  host->video.r = r_create(host->video.width, host->video.height);
+
+  if (host->emu) {
+    emu_vid_created(host->emu, host->video.r);
+  }
+
+  if (host->tracer) {
+    tracer_vid_created(host->tracer, host->video.r);
+  }
+
+  imgui_vid_created(host->imgui, host->video.r);
+
   return 1;
+}
+
+static int video_restart(struct host *host) {
+  video_shutdown(host);
+  return video_init(host);
 }
 
 /*
  * input
  */
-static void host_poll_events(struct sdl_host *host);
+static void host_poll_events(struct host *host);
 
 static enum keycode translate_sdl_key(SDL_Keysym keysym) {
   enum keycode out = K_UNKNOWN;
@@ -436,7 +451,7 @@ static enum keycode translate_sdl_key(SDL_Keysym keysym) {
   return out;
 }
 
-static int input_find_controller_port(struct sdl_host *host, int instance_id) {
+static int input_find_controller_port(struct host *host, int instance_id) {
   for (int port = 0; port < INPUT_MAX_CONTROLLERS; port++) {
     SDL_GameController *ctrl = host->input.controllers[port];
     SDL_Joystick *joy = SDL_GameControllerGetJoystick(ctrl);
@@ -449,26 +464,35 @@ static int input_find_controller_port(struct sdl_host *host, int instance_id) {
   return -1;
 }
 
-static void input_mousemove(struct sdl_host *host, int port, int x, int y) {
-  on_input_mousemove(host, port, x, y);
-
-  imgui_mousemove(host->video.imgui, x, y);
+static void input_mousemove(struct host *host, int port, int x, int y) {
+  imgui_mousemove(host->imgui, x, y);
 }
 
-static void input_keydown(struct sdl_host *host, int port, enum keycode key,
+static void input_keydown(struct host *host, int port, enum keycode key,
                           int16_t value) {
-  on_input_keydown(host, port, key, value);
+  enum keycode keys[2] = {key, 0};
+  int num_keys = 1;
 
-  /* if the key is mapped to a controller button, send that event as well */
+  /* send an extra event for keys that map to a controller button */
   int button = host->input.keymap[key];
   if (button) {
-    on_input_keydown(host, port, button, value);
+    keys[num_keys++] = button;
   }
 
-  imgui_keydown(host->video.imgui, key, value);
+  for (int i = 0; i < num_keys; i++) {
+    if (host->emu) {
+      emu_keydown(host->emu, port, keys[i], value);
+    }
+
+    if (host->tracer) {
+      tracer_keydown(host->tracer, keys[i], value);
+    }
+
+    imgui_keydown(host->imgui, keys[i], value);
+  }
 }
 
-static void input_controller_removed(struct sdl_host *host, int port) {
+static void input_controller_removed(struct host *host, int port) {
   SDL_GameController *ctrl = host->input.controllers[port];
 
   if (!ctrl) {
@@ -482,7 +506,7 @@ static void input_controller_removed(struct sdl_host *host, int port) {
   host->input.controllers[port] = NULL;
 }
 
-static void input_controller_added(struct sdl_host *host, int device_id) {
+static void input_controller_added(struct host *host, int device_id) {
   /* find the next open controller port */
   int port;
   for (port = 0; port < INPUT_MAX_CONTROLLERS; port++) {
@@ -502,13 +526,13 @@ static void input_controller_added(struct sdl_host *host, int device_id) {
   LOG_INFO("input_controller_added port=%d name=%s", port, name);
 }
 
-static void input_shutdown(struct sdl_host *host) {
+static void input_shutdown(struct host *host) {
   for (int i = 0; i < INPUT_MAX_CONTROLLERS; i++) {
     input_controller_removed(host, i);
   }
 }
 
-static int input_init(struct sdl_host *host) {
+static int input_init(struct host *host) {
   /* development key map */
   host->input.keymap[K_SPACE] = K_CONT_START;
   host->input.keymap['k'] = K_CONT_A;
@@ -536,22 +560,22 @@ static int input_init(struct sdl_host *host) {
   return 1;
 }
 
-void input_poll(struct host *base) {
-  struct sdl_host *host = SDL_HOST(base);
-
+void input_poll(struct host *host) {
   host_poll_events(host);
 }
 
 /*
  * internal
  */
-static void host_swap_window(struct sdl_host *host) {
+static void host_swap_window(struct host *host) {
   SDL_GL_SwapWindow(host->win);
 
-  on_video_swapped(host);
+  if (host->emu) {
+    emu_vid_swapped(host->emu);
+  }
 }
 
-static void host_poll_events(struct sdl_host *host) {
+static void host_poll_events(struct host *host) {
   SDL_Event ev;
 
   while (SDL_PollEvent(&ev)) {
@@ -699,6 +723,8 @@ static void host_poll_events(struct sdl_host *host) {
         if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
           host->video.width = ev.window.data1;
           host->video.height = ev.window.data2;
+          int res = video_restart(host);
+          CHECK(res, "video_restart failed");
         }
         break;
 
@@ -709,25 +735,7 @@ static void host_poll_events(struct sdl_host *host) {
   }
 }
 
-void host_destroy(struct sdl_host *host) {
-  input_shutdown(host);
-
-  video_shutdown(host);
-
-  audio_shutdown(host);
-
-  if (host->win) {
-    SDL_DestroyWindow(host->win);
-  }
-
-  SDL_Quit();
-
-  free(host);
-}
-
-struct sdl_host *host_create() {
-  struct sdl_host *host = calloc(1, sizeof(struct sdl_host));
-
+static int host_init(struct host *host) {
   /* init sdl and create window */
   int res = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
   CHECK_GE(res, 0, "host_create sdl initialization failed: %s", SDL_GetError());
@@ -748,25 +756,42 @@ struct sdl_host *host_create() {
   SDL_GetWindowSize(host->win, &host->video.width, &host->video.height);
 
   if (!audio_init(host)) {
-    host_destroy(host);
-    return NULL;
+    return 0;
   }
 
   if (!video_init(host)) {
-    host_destroy(host);
-    return NULL;
+    return 0;
   }
 
   if (!input_init(host)) {
-    host_destroy(host);
-    return NULL;
+    return 0;
   }
 
+  return 1;
+}
+
+void host_destroy(struct host *host) {
+  input_shutdown(host);
+
+  video_shutdown(host);
+
+  audio_shutdown(host);
+
+  if (host->win) {
+    SDL_DestroyWindow(host->win);
+  }
+
+  SDL_Quit();
+
+  free(host);
+}
+
+struct host *host_create() {
+  struct host *host = calloc(1, sizeof(struct host));
   return host;
 }
 
 int main(int argc, char **argv) {
-/* set application directory */
 #if PLATFORM_ANDROID
   const char *appdir = SDL_AndroidGetExternalStoragePath();
   fs_set_appdir(appdir);
@@ -790,75 +815,84 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  /* init host audio, video and input systems */
-  struct sdl_host *host = host_create();
-  if (!host) {
-    return EXIT_FAILURE;
-  }
-
   const char *load = argc > 1 ? argv[1] : NULL;
+  struct host *host = host_create();
+
+  host->imgui = imgui_create();
 
   if (load && strstr(load, ".trace")) {
-    struct tracer *tracer = tracer_create(BASE_HOST(host), host->video.r);
-
-    if (tracer_load(tracer, load)) {
-      while (!host->closed) {
-        host_poll_events(host);
-
-        /* reset vertex buffers */
-        imgui_begin_frame(host->video.imgui, host->video.width,
-                          host->video.height);
-
-        /* render tracer output first */
-        tracer_render_frame(tracer, host->video.width, host->video.height);
-
-        /* overlay user interface */
-        imgui_end_frame(host->video.imgui);
-
-        host_swap_window(host);
-      }
-    }
-
-    tracer_destroy(tracer);
+    host->tracer = tracer_create(host);
   } else {
-    struct emu *emu = emu_create(BASE_HOST(host), host->video.r);
-
-    if (emu_load_game(emu, load)) {
-      while (!host->closed) {
-        /* even though the emulator itself will poll for events when updating
-           controller input, the main loop needs to also poll to ensure the
-           close event is received */
-        host_poll_events(host);
-
-        /* only step the emulator if the available audio is running low. this
-           syncs the emulation speed with the host audio clock. note however,
-           if audio is disabled, the emulator will run unthrottled */
-        if (!audio_buffer_low(host)) {
-          continue;
-        }
-
-        /* reset vertex buffers */
-        imgui_begin_frame(host->video.imgui, host->video.width,
-                          host->video.height);
-
-        /* render emulator output and build up imgui buffers */
-        emu_render_frame(emu, host->video.width, host->video.height);
-
-        /* overlay imgui */
-        imgui_end_frame(host->video.imgui);
-
-        /* flip profiler at end of frame */
-        int64_t now = time_nanoseconds();
-        prof_flip(time_nanoseconds());
-
-        host_swap_window(host);
-      }
-    }
-
-    emu_destroy(emu);
+    host->emu = emu_create(host);
   }
 
+  /* init host after creating emulator / tracer client, so host can notify them
+     them once the video context has been created */
+  if (host_init(host)) {
+    if (host->tracer) {
+      if (tracer_load(host->tracer, load)) {
+        while (!host->closed) {
+          host_poll_events(host);
+
+          /* reset vertex buffers */
+          imgui_begin_frame(host->imgui);
+
+          /* render tracer output first */
+          tracer_render_frame(host->tracer);
+
+          /* overlay user interface */
+          imgui_end_frame(host->imgui);
+
+          host_swap_window(host);
+        }
+      }
+    } else if (host->emu) {
+      if (emu_load_game(host->emu, load)) {
+        while (!host->closed) {
+          /* even though the emulator itself will poll for events when updating
+             controller input, the main loop needs to also poll to ensure the
+             close event is received */
+          host_poll_events(host);
+
+          /* only step the emulator if the available audio is running low. this
+             syncs the emulation speed with the host audio clock. note however,
+             if audio is disabled, the emulator will run unthrottled */
+          if (!audio_buffer_low(host)) {
+            continue;
+          }
+
+          /* reset vertex buffers */
+          imgui_begin_frame(host->imgui);
+
+          /* render emulator output and build up imgui buffers */
+          emu_render_frame(host->emu);
+
+          /* overlay imgui */
+          imgui_end_frame(host->imgui);
+
+          /* flip profiler at end of frame */
+          int64_t now = time_nanoseconds();
+          prof_flip(time_nanoseconds());
+
+          host_swap_window(host);
+        }
+      }
+    }
+  }
+
+  /* destroy host before the emulator / tracer so it can tell them the video
+     context was destroyed */
   host_destroy(host);
+
+  if (host->emu) {
+    emu_destroy(host->emu);
+  }
+
+  if (host->tracer) {
+    tracer_destroy(host->tracer);
+  }
+
+  imgui_destroy(host->imgui);
 
   /* persist options for next run */
   options_write(config);

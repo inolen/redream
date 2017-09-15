@@ -122,8 +122,11 @@ struct ui_surface {
 
 struct render_backend;
 
-struct render_backend *r_create();
+struct render_backend *r_create(int width, int height);
 void r_destroy(struct render_backend *r);
+
+int r_width(struct render_backend *r);
+int r_height(struct render_backend *r);
 
 texture_handle_t r_create_texture(struct render_backend *r,
                                   enum pxl_format format,
