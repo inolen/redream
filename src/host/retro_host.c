@@ -202,7 +202,7 @@ void retro_init() {
   if (env_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &sysdir)) {
     char appdir[PATH_MAX];
     snprintf(appdir, sizeof(appdir), "%s" PATH_SEPARATOR "dc", sysdir);
-    fs_set_appdir(sysdir);
+    fs_set_appdir(appdir);
   }
 
   /* load base options from config */
