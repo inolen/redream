@@ -92,7 +92,8 @@ enum {
     ImGuiWindowFlags_NoBringToFrontOnFocus  = 1 << 13,
     ImGuiWindowFlags_AlwaysVerticalScrollbar = 1 << 14,
     ImGuiWindowFlags_AlwaysHorizontalScrollbar = 1 << 15,
-    ImGuiWindowFlags_AlwaysUseWindowPadding = 1 << 16
+    ImGuiWindowFlags_AlwaysUseWindowPadding = 1 << 16,
+    ImGuiWindowFlags_NavFlattened = 1 << 19,
 };
 
 enum {
@@ -715,14 +716,17 @@ CIMGUI_API void             igPopClipRect();
 CIMGUI_API bool             igIsItemHovered();
 CIMGUI_API bool             igIsItemRectHovered();
 CIMGUI_API bool             igIsItemActive();
+CIMGUI_API bool             igIsItemFocused();
 CIMGUI_API bool             igIsItemClicked(int mouse_button);
 CIMGUI_API bool             igIsItemVisible();
 CIMGUI_API bool             igIsAnyItemHovered();
 CIMGUI_API bool             igIsAnyItemActive();
+CIMGUI_API bool             igIsAnyItemFocused();
 CIMGUI_API void             igGetItemRectMin(struct ImVec2* pOut);
 CIMGUI_API void             igGetItemRectMax(struct ImVec2* pOut);
 CIMGUI_API void             igGetItemRectSize(struct ImVec2* pOut);
 CIMGUI_API void             igSetItemAllowOverlap();
+CIMGUI_API void             igSetItemDefaultFocus();
 CIMGUI_API bool             igIsWindowFocused();
 CIMGUI_API bool             igIsWindowHovered();
 CIMGUI_API bool             igIsWindowRectHovered();
@@ -751,6 +755,7 @@ CIMGUI_API int              igGetKeyIndex(ImGuiKey imgui_key);
 CIMGUI_API bool             igIsKeyDown(int user_key_index);
 CIMGUI_API bool             igIsKeyPressed(int user_key_index, bool repeat);
 CIMGUI_API bool             igIsKeyReleased(int user_key_index);
+CIMGUI_API int              igGetKeyPressedAmount(int key_index, float repeat_delay, float rate);
 CIMGUI_API bool             igIsMouseDown(int button);
 CIMGUI_API bool             igIsMouseClicked(int button, bool repeat);
 CIMGUI_API bool             igIsMouseDoubleClicked(int button);

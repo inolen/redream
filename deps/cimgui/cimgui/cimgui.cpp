@@ -1309,6 +1309,11 @@ CIMGUI_API bool igIsItemActive()
     return ImGui::IsItemActive();
 }
 
+CIMGUI_API bool igIsItemFocused()
+{
+    return ImGui::IsItemFocused();
+}
+
 CIMGUI_API bool igIsItemClicked(int mouse_button)
 {
     return ImGui::IsItemClicked(mouse_button);
@@ -1329,6 +1334,11 @@ CIMGUI_API bool igIsAnyItemActive()
     return ImGui::IsAnyItemActive();
 }
 
+CIMGUI_API bool igIsAnyItemFocused()
+{
+    return ImGui::IsAnyItemFocused();
+}
+
 CIMGUI_API void igGetItemRectMin(ImVec2* pOut)
 {
     *pOut = ImGui::GetItemRectMin();
@@ -1347,6 +1357,11 @@ CIMGUI_API void igGetItemRectSize(ImVec2* pOut)
 CIMGUI_API void igSetItemAllowOverlap()
 {
     ImGui::SetItemAllowOverlap();
+}
+
+CIMGUI_API void igSetItemDefaultFocus()
+{
+    ImGui::SetItemDefaultFocus();
 }
 
 CIMGUI_API bool igIsWindowFocused()
@@ -1412,6 +1427,11 @@ CIMGUI_API bool igIsKeyPressed(int user_key_index, bool repeat)
 CIMGUI_API bool igIsKeyReleased(int user_key_index)
 {
     return ImGui::IsKeyReleased(user_key_index);
+}
+
+CIMGUI_API int igGetKeyPressedAmount(int key_index, float repeat_delay, float rate)
+{
+    return ImGui::GetKeyPressedAmount(key_index, repeat_delay, rate);
 }
 
 CIMGUI_API bool igIsMouseDown(int button)

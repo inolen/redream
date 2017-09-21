@@ -1,4 +1,4 @@
-// dear imgui, v1.51
+// dear imgui, v1.52 WIP
 // (drawing and font code)
 
 // Contains implementation for
@@ -21,10 +21,10 @@
 #if !defined(alloca)
 #ifdef _WIN32
 #include <malloc.h>     // alloca
-#elif (defined(__FreeBSD__) || defined(FreeBSD_kernel) || defined(__DragonFly__)) && !defined(__GLIBC__)
-#include <stdlib.h>     // alloca. FreeBSD uses stdlib.h unless GLIBC
-#else
+#elif defined(__GLIBC__) || defined(__sun)
 #include <alloca.h>     // alloca
+#else
+#include <stdlib.h>     // alloca
 #endif
 #endif
 
@@ -694,30 +694,30 @@ void ImDrawList::PathArcToFast(const ImVec2& centre, float radius, int a_min_of_
         circle_vtx_builds = true;
     }
 
-    if (a_min_of_12 > a_max_of_12) return;
-    if (radius == 0.0f)
+    if (radius == 0.0f || a_min_of_12 > a_max_of_12)
     {
         _Path.push_back(centre);
+        return;
     }
-    else
+    _Path.reserve(_Path.Size + (a_max_of_12 - a_min_of_12 + 1));
+    for (int a = a_min_of_12; a <= a_max_of_12; a++)
     {
-        _Path.reserve(_Path.Size + (a_max_of_12 - a_min_of_12 + 1));
-        for (int a = a_min_of_12; a <= a_max_of_12; a++)
-        {
-            const ImVec2& c = circle_vtx[a % circle_vtx_count];
-            _Path.push_back(ImVec2(centre.x + c.x * radius, centre.y + c.y * radius));
-        }
+        const ImVec2& c = circle_vtx[a % circle_vtx_count];
+        _Path.push_back(ImVec2(centre.x + c.x * radius, centre.y + c.y * radius));
     }
 }
 
-void ImDrawList::PathArcTo(const ImVec2& centre, float radius, float amin, float amax, int num_segments)
+void ImDrawList::PathArcTo(const ImVec2& centre, float radius, float a_min, float a_max, int num_segments)
 {
     if (radius == 0.0f)
+    {
         _Path.push_back(centre);
+        return;
+    }
     _Path.reserve(_Path.Size + (num_segments + 1));
     for (int i = 0; i <= num_segments; i++)
     {
-        const float a = amin + ((float)i / (float)num_segments) * (amax - amin);
+        const float a = a_min + ((float)i / (float)num_segments) * (a_max - a_min);
         _Path.push_back(ImVec2(centre.x + cosf(a) * radius, centre.y + sinf(a) * radius));
     }
 }
@@ -775,31 +775,30 @@ void ImDrawList::PathBezierCurveTo(const ImVec2& p2, const ImVec2& p3, const ImV
 void ImDrawList::PathRect(const ImVec2& a, const ImVec2& b, float rounding, int rounding_corners)
 {
     const int corners_top = ImGuiCorner_TopLeft | ImGuiCorner_TopRight;
-    const int corners_bottom = ImGuiCorner_BottomLeft | ImGuiCorner_BottomRight;
-    const int corners_left = ImGuiCorner_TopLeft | ImGuiCorner_BottomLeft;
-    const int corners_right = ImGuiCorner_TopRight | ImGuiCorner_BottomRight;
+    const int corners_bottom = ImGuiCorner_BotLeft | ImGuiCorner_BotRight;
+    const int corners_left = ImGuiCorner_TopLeft | ImGuiCorner_BotLeft;
+    const int corners_right = ImGuiCorner_TopRight | ImGuiCorner_BotRight;
 
-    float r = rounding;
-    r = ImMin(r, fabsf(b.x-a.x) * ( ((rounding_corners & corners_top)  == corners_top)  || ((rounding_corners & corners_bottom) == corners_bottom) ? 0.5f : 1.0f ) - 1.0f);
-    r = ImMin(r, fabsf(b.y-a.y) * ( ((rounding_corners & corners_left) == corners_left) || ((rounding_corners & corners_right)  == corners_right)  ? 0.5f : 1.0f ) - 1.0f);
+    rounding = ImMin(rounding, fabsf(b.x - a.x) * ( ((rounding_corners & corners_top)  == corners_top)  || ((rounding_corners & corners_bottom) == corners_bottom) ? 0.5f : 1.0f ) - 1.0f);
+    rounding = ImMin(rounding, fabsf(b.y - a.y) * ( ((rounding_corners & corners_left) == corners_left) || ((rounding_corners & corners_right)  == corners_right)  ? 0.5f : 1.0f ) - 1.0f);
 
-    if (r <= 0.0f || rounding_corners == 0)
+    if (rounding <= 0.0f || rounding_corners == 0)
     {
         PathLineTo(a);
-        PathLineTo(ImVec2(b.x,a.y));
+        PathLineTo(ImVec2(b.x, a.y));
         PathLineTo(b);
-        PathLineTo(ImVec2(a.x,b.y));
+        PathLineTo(ImVec2(a.x, b.y));
     }
     else
     {
-        const float r0 = (rounding_corners & ImGuiCorner_TopLeft) ? r : 0.0f;
-        const float r1 = (rounding_corners & ImGuiCorner_TopRight) ? r : 0.0f;
-        const float r2 = (rounding_corners & ImGuiCorner_BottomRight) ? r : 0.0f;
-        const float r3 = (rounding_corners & ImGuiCorner_BottomLeft) ? r : 0.0f;
-        PathArcToFast(ImVec2(a.x+r0,a.y+r0), r0, 6, 9);
-        PathArcToFast(ImVec2(b.x-r1,a.y+r1), r1, 9, 12);
-        PathArcToFast(ImVec2(b.x-r2,b.y-r2), r2, 0, 3);
-        PathArcToFast(ImVec2(a.x+r3,b.y-r3), r3, 3, 6);
+        const float rounding_tl = (rounding_corners & ImGuiCorner_TopLeft) ? rounding : 0.0f;
+        const float rounding_tr = (rounding_corners & ImGuiCorner_TopRight) ? rounding : 0.0f;
+        const float rounding_br = (rounding_corners & ImGuiCorner_BotRight) ? rounding : 0.0f;
+        const float rounding_bl = (rounding_corners & ImGuiCorner_BotLeft) ? rounding : 0.0f;
+        PathArcToFast(ImVec2(a.x + rounding_tl, a.y + rounding_tl), rounding_tl, 6, 9);
+        PathArcToFast(ImVec2(b.x - rounding_tr, a.y + rounding_tr), rounding_tr, 9, 12);
+        PathArcToFast(ImVec2(b.x - rounding_br, b.y - rounding_br), rounding_br, 0, 3);
+        PathArcToFast(ImVec2(a.x + rounding_bl, b.y - rounding_bl), rounding_bl, 3, 6);
     }
 }
 
@@ -1051,8 +1050,10 @@ ImFontConfig::ImFontConfig()
     GlyphOffset = ImVec2(0.0f, 0.0f);
     GlyphRanges = NULL;
     MergeMode = false;
-    DstFont = NULL;
+    RasterizerFlags = 0x00;
+    RasterizerMultiply = 1.0f;
     memset(Name, 0, sizeof(Name));
+    DstFont = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -1280,7 +1281,7 @@ ImFont* ImFontAtlas::AddFontFromFileTTF(const char* filename, float size_pixels,
     return AddFontFromMemoryTTF(data, data_size, size_pixels, &font_cfg, glyph_ranges);
 }
 
-// NBM Transfer ownership of 'ttf_data' to ImFontAtlas, unless font_cfg_template->FontDataOwnedByAtlas == false. Owned TTF buffer will be deleted after Build().
+// NB: Transfer ownership of 'ttf_data' to ImFontAtlas, unless font_cfg_template->FontDataOwnedByAtlas == false. Owned TTF buffer will be deleted after Build().
 ImFont* ImFontAtlas::AddFontFromMemoryTTF(void* ttf_data, int ttf_size, float size_pixels, const ImFontConfig* font_cfg_template, const ImWchar* glyph_ranges)
 {
     ImFontConfig font_cfg = font_cfg_template ? *font_cfg_template : ImFontConfig();
@@ -1340,6 +1341,23 @@ bool    ImFontAtlas::Build()
     return ImFontAtlasBuildWithStbTruetype(this);
 }
 
+void    ImFontAtlasBuildMultiplyCalcLookupTable(unsigned char out_table[256], float in_brighten_factor)
+{
+    for (unsigned int i = 0; i < 256; i++)
+    {
+        unsigned int value = (unsigned int)(i * in_brighten_factor);
+        out_table[i] = value > 255 ? 255 : (value & 0xFF);
+    }
+}
+
+void    ImFontAtlasBuildMultiplyRectAlpha8(const unsigned char table[256], unsigned char* pixels, int x, int y, int w, int h, int stride)
+{
+    unsigned char* data = pixels + x + y * stride;
+    for (int j = h; j > 0; j--, data += stride)
+        for (int i = 0; i < w; i++)
+            data[i] = table[data[i]];
+}
+
 bool    ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas)
 {
     IM_ASSERT(atlas->ConfigData.Size > 0);
@@ -1382,6 +1400,7 @@ bool    ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas)
     {
         stbtt_fontinfo      FontInfo;
         stbrp_rect*         Rects;
+        int                 RectsCount;
         stbtt_pack_range*   Ranges;
         int                 RangesCount;
     };
@@ -1434,6 +1453,7 @@ bool    ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas)
 
         // Pack
         tmp.Rects = buf_rects + buf_rects_n;
+        tmp.RectsCount = font_glyphs_count;
         buf_rects_n += font_glyphs_count;
         stbtt_PackSetOversampling(&spc, cfg.OversampleH, cfg.OversampleV);
         int n = stbtt_PackFontRangesGatherRects(&spc, &tmp.FontInfo, tmp.Ranges, tmp.RangesCount, tmp.Rects);
@@ -1463,6 +1483,14 @@ bool    ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas)
         ImFontTempBuildData& tmp = tmp_array[input_i];
         stbtt_PackSetOversampling(&spc, cfg.OversampleH, cfg.OversampleV);
         stbtt_PackFontRangesRenderIntoRects(&spc, &tmp.FontInfo, tmp.Ranges, tmp.RangesCount, tmp.Rects);
+        if (cfg.RasterizerMultiply != 1.0f)
+        {
+            unsigned char multiply_table[256];
+            ImFontAtlasBuildMultiplyCalcLookupTable(multiply_table, cfg.RasterizerMultiply);
+            for (const stbrp_rect* r = tmp.Rects; r != tmp.Rects + tmp.RectsCount; r++)
+                if (r->was_packed)
+                    ImFontAtlasBuildMultiplyRectAlpha8(multiply_table, spc.pixels, r->x, r->y, r->w, r->h, spc.stride_in_bytes);
+        }
         tmp.Rects = NULL;
     }
 
@@ -1478,15 +1506,15 @@ bool    ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas)
         ImFontTempBuildData& tmp = tmp_array[input_i];
         ImFont* dst_font = cfg.DstFont; // We can have multiple input fonts writing into a same destination font (when using MergeMode=true)
 
-        float font_scale = stbtt_ScaleForPixelHeight(&tmp.FontInfo, cfg.SizePixels);
+        const float font_scale = stbtt_ScaleForPixelHeight(&tmp.FontInfo, cfg.SizePixels);
         int unscaled_ascent, unscaled_descent, unscaled_line_gap;
         stbtt_GetFontVMetrics(&tmp.FontInfo, &unscaled_ascent, &unscaled_descent, &unscaled_line_gap);
 
-        float ascent = unscaled_ascent * font_scale;
-        float descent = unscaled_descent * font_scale;
+        const float ascent = unscaled_ascent * font_scale;
+        const float descent = unscaled_descent * font_scale;
         ImFontAtlasBuildSetupFont(atlas, dst_font, &cfg, ascent, descent);
-        float off_x = cfg.GlyphOffset.x;
-        float off_y = cfg.GlyphOffset.y + (float)(int)(dst_font->Ascent + 0.5f);
+        const float off_x = cfg.GlyphOffset.x;
+        const float off_y = cfg.GlyphOffset.y + (float)(int)(dst_font->Ascent + 0.5f);
 
         dst_font->FallbackGlyph = NULL; // Always clear fallback so FindGlyph can return NULL. It will be set again in BuildLookupTable()
         for (int i = 0; i < tmp.RangesCount; i++)
@@ -1675,7 +1703,10 @@ const ImWchar*  ImFontAtlas::GetGlyphRangesChinese()
 const ImWchar*  ImFontAtlas::GetGlyphRangesJapanese()
 {
     // Store the 1946 ideograms code points as successive offsets from the initial unicode codepoint 0x4E00. Each offset has an implicit +1.
-    // This encoding helps us reduce the source code size.
+    // This encoding is designed to helps us reduce the source code size.
+    // FIXME: Source a list of the revised 2136 joyo kanji list from 2010 and rebuild this.
+    // The current list was sourced from http://theinstructionlimit.com/author/renaudbedardrenaudbedard/page/3
+    // Note that you may use ImFontAtlas::GlyphRangesBuilder to create your own ranges, by merging existing ranges or adding new characters.
     static const short offsets_from_0x4E00[] =
     {
         -1,0,1,3,0,0,0,0,1,0,5,1,1,0,7,4,6,10,0,1,9,9,7,1,3,19,1,10,7,1,0,1,0,5,1,0,6,4,2,6,0,0,12,6,8,0,3,5,0,1,0,9,0,0,8,1,1,3,4,5,13,0,0,8,2,17,
@@ -1884,16 +1915,10 @@ void ImFont::SetFallbackChar(ImWchar c)
 void ImFont::GrowIndex(int new_size)
 {
     IM_ASSERT(IndexXAdvance.Size == IndexLookup.Size);
-    int old_size = IndexLookup.Size;
-    if (new_size <= old_size)
+    if (new_size <= IndexLookup.Size)
         return;
-    IndexXAdvance.resize(new_size);
-    IndexLookup.resize(new_size);
-    for (int i = old_size; i < new_size; i++)
-    {
-        IndexXAdvance[i] = -1.0f;
-        IndexLookup[i] = (unsigned short)-1;
-    }
+    IndexXAdvance.resize(new_size, -1.0f);
+    IndexLookup.resize(new_size, (unsigned short)-1);
 }
 
 void ImFont::AddRemapChar(ImWchar dst, ImWchar src, bool overwrite_dst)
@@ -2299,6 +2324,78 @@ void ImFont::RenderText(ImDrawList* draw_list, float size, ImVec2 pos, ImU32 col
     draw_list->_VtxWritePtr = vtx_write;
     draw_list->_IdxWritePtr = idx_write;
     draw_list->_VtxCurrentIdx = (unsigned int)draw_list->VtxBuffer.Size;
+}
+
+//-----------------------------------------------------------------------------
+// Internals Drawing Helpers
+//-----------------------------------------------------------------------------
+
+static inline float ImAcos01(float x)
+{
+    if (x <= 0.0f) return IM_PI * 0.5f;
+    if (x >= 1.0f) return 0.0f;
+    return acosf(x);
+    //return (-0.69813170079773212f * x * x - 0.87266462599716477f) * x + 1.5707963267948966f; // Cheap approximation, may be enough for what we do.
+}
+
+// FIXME: Cleanup and move code to ImDrawList.
+void ImGui::RenderRectFilledRangeH(ImDrawList* draw_list, const ImRect& rect, ImU32 col, float x_start_norm, float x_end_norm, float rounding)
+{
+    if (x_end_norm == x_start_norm)
+        return;
+    if (x_start_norm > x_end_norm)
+        ImSwap(x_start_norm, x_end_norm);
+
+    ImVec2 p0 = ImVec2(ImLerp(rect.Min.x, rect.Max.x, x_start_norm), rect.Min.y);
+    ImVec2 p1 = ImVec2(ImLerp(rect.Min.x, rect.Max.x, x_end_norm), rect.Max.y);
+    if (rounding == 0.0f)
+    {
+        draw_list->AddRectFilled(p0, p1, col, 0.0f);
+        return;
+    }
+
+    rounding = ImClamp(ImMin((rect.Max.x - rect.Min.x) * 0.5f, (rect.Max.y - rect.Min.y) * 0.5f) - 1.0f, 0.0f, rounding);
+    const float inv_rounding = 1.0f / rounding;
+    const float arc0_b = ImAcos01(1.0f - (p0.x - rect.Min.x) * inv_rounding);
+    const float arc0_e = ImAcos01(1.0f - (p1.x - rect.Min.x) * inv_rounding);
+    const float x0 = ImMax(p0.x, rect.Min.x + rounding);
+    if (arc0_b == arc0_e)
+    {
+        draw_list->PathLineTo(ImVec2(x0, p1.y));
+        draw_list->PathLineTo(ImVec2(x0, p0.y));
+    }
+    else if (arc0_b == 0.0f && arc0_e == IM_PI*0.5f)
+    {
+        draw_list->PathArcToFast(ImVec2(x0, p1.y - rounding), rounding, 3, 6); // BL
+        draw_list->PathArcToFast(ImVec2(x0, p0.y + rounding), rounding, 6, 9); // TR
+    }
+    else
+    {
+        draw_list->PathArcTo(ImVec2(x0, p1.y - rounding), rounding, IM_PI - arc0_e, IM_PI - arc0_b, 3); // BL
+        draw_list->PathArcTo(ImVec2(x0, p0.y + rounding), rounding, IM_PI + arc0_b, IM_PI + arc0_e, 3); // TR
+    }
+    if (p1.x > rect.Min.x + rounding)
+    {
+        const float arc1_b = ImAcos01(1.0f - (rect.Max.x - p1.x) * inv_rounding);
+        const float arc1_e = ImAcos01(1.0f - (rect.Max.x - p0.x) * inv_rounding);
+        const float x1 = ImMin(p1.x, rect.Max.x - rounding);
+        if (arc1_b == arc1_e)
+        {
+            draw_list->PathLineTo(ImVec2(x1, p0.y));
+            draw_list->PathLineTo(ImVec2(x1, p1.y));
+        }
+        else if (arc1_b == 0.0f && arc1_e == IM_PI*0.5f)
+        {
+            draw_list->PathArcToFast(ImVec2(x1, p0.y + rounding), rounding, 9, 12); // TR
+            draw_list->PathArcToFast(ImVec2(x1, p1.y - rounding), rounding, 0, 3);  // BR
+        }
+        else
+        {
+            draw_list->PathArcTo(ImVec2(x1, p0.y + rounding), rounding, -arc1_e, -arc1_b, 3); // TR
+            draw_list->PathArcTo(ImVec2(x1, p1.y - rounding), rounding, +arc1_b, +arc1_e, 3); // BR
+        }
+    }
+    draw_list->PathFillConvex(col);
 }
 
 //-----------------------------------------------------------------------------
