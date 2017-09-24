@@ -10,7 +10,7 @@ static void merge(uint8_t *in, uint8_t *out, size_t size, int l, int m, int r,
   int k = l;
 
   while (k < r) {
-    if ((i < m && cmp(in + i * size, in + j * size)) || j >= r) {
+    if (i < m && ((j >= r) || cmp(in + i * size, in + j * size))) {
       memcpy(out + k * size, in + i * size, size);
       k++;
       i++;
