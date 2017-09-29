@@ -52,8 +52,6 @@ struct disc {
   char media_config[12];
   char bootname[17];
   int regions;
-  int bootfad;
-  int bootlen;
 
   /* media-specific interface */
   void (*destroy)(struct disc *);

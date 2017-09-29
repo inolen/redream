@@ -5,7 +5,6 @@
 #include "guest/gdrom/chd.h"
 #include "guest/gdrom/gdi.h"
 #include "guest/gdrom/iso.h"
-#include "guest/gdrom/patch.h"
 
 /* meta information found in the ip.bin */
 struct disc_meta {
@@ -71,15 +70,6 @@ int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
     CHECK_LE(read + track->data_size, dst_size);
     disc->read_sector(disc, track, i, dst + read);
     read += track->data_size;
-  }
-
-  /* apply bootfile patches */
-  int bootstart = disc->bootfad;
-  int bootend = disc->bootfad + (disc->bootlen / track->data_size);
-
-  if (bootstart <= endfad && fad <= bootend) {
-    int offset = (fad - bootstart) * track->data_size;
-    patch_bootfile(disc->uid, dst, offset, read);
   }
 
   return read;
@@ -247,12 +237,7 @@ struct disc *disc_create(const char *filename) {
   snprintf(disc->uid, sizeof(disc->uid), "%s %s %s %s", disc->product_name,
            disc->product_number, disc->product_version, disc->media_config);
 
-  /* cache off bootfile info in order to patch it in disc_read_sectors */
-  int rs = disc_find_file(disc, disc->bootname, &disc->bootfad, &disc->bootlen);
-  CHECK(rs);
-
-  LOG_INFO("disc_create id=%s bootfile=%s fad=%d len=%d", disc->uid,
-           disc->bootname, disc->bootfad, disc->bootlen);
+  LOG_INFO("disc_create id=%s", disc->uid);
 
   return disc;
 }

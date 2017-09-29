@@ -432,11 +432,6 @@ static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
   /* update persistent option as well as this session's aspect ratio */
   strncpy(OPTION_aspect, aspect_ratios[i], sizeof(OPTION_aspect));
   emu->aspect_ratio = i;
-
-  /* if a widescreen hack is enabled, force to stretch for the session */
-  if (gdrom_widescreen_enabled(emu->dc->gdrom)) {
-    emu->aspect_ratio = ASPECT_RATIO_16BY9;
-  }
 }
 
 static void emu_debug_menu(struct emu *emu) {
@@ -488,7 +483,6 @@ static void emu_debug_menu(struct emu *emu) {
   }
 
   bios_debug_menu(emu->dc->bios);
-  gdrom_debug_menu(emu->dc->gdrom);
   holly_debug_menu(emu->dc->holly);
   aica_debug_menu(emu->dc->aica);
   sh4_debug_menu(emu->dc->sh4);
@@ -785,6 +779,9 @@ struct emu *emu_create(struct host *host) {
     emu->run_thread = thread_create(&emu_run_thread, NULL, emu);
     CHECK_NOTNULL(emu->run_thread);
   }
+
+  /* set initial aspect ratio */
+  emu_set_aspect_ratio(emu, OPTION_aspect);
 
   return emu;
 }

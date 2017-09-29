@@ -4,7 +4,6 @@
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom_replies.inc"
 #include "guest/gdrom/gdrom_types.h"
-#include "guest/gdrom/patch.h"
 #include "guest/holly/holly.h"
 #include "imgui.h"
 
@@ -524,8 +523,8 @@ int gdrom_find_file(struct gdrom *gd, const char *filename, int *fad,
 void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len) {
   CHECK_NOTNULL(gd->disc);
 
-  *fad = gd->disc->bootfad;
-  *len = gd->disc->bootlen;
+  int res = disc_find_file(gd->disc, gd->disc->bootname, fad, len);
+  CHECK(res);
 }
 
 int gdrom_get_regions(struct gdrom *gd) {
@@ -686,14 +685,6 @@ void gdrom_dma_begin(struct gdrom *gd) {
   LOG_GDROM("gd_dma_begin");
 }
 
-int gdrom_widescreen_enabled(struct gdrom *gd) {
-  if (!gd->disc) {
-    return 0;
-  }
-
-  return patch_widescreen_enabled(gd->disc->uid);
-}
-
 void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   if (gd->disc != disc) {
     if (gd->disc) {
@@ -724,20 +715,6 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
 int gdrom_has_disc(struct gdrom *gd) {
   return gd->disc != NULL;
 }
-
-#ifdef HAVE_IMGUI
-void gdrom_debug_menu(struct gdrom *gd) {
-  if (igBeginMainMenuBar()) {
-    if (igBeginMenu("GDROM", 1)) {
-      patch_debug_menu();
-
-      igEndMenu();
-    }
-
-    igEndMainMenuBar();
-  }
-}
-#endif
 
 void gdrom_destroy(struct gdrom *gd) {
   if (gd->disc) {
