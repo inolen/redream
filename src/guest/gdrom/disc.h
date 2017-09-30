@@ -53,10 +53,10 @@ struct disc {
   /* meta information extracted from IP.BIN */
   char uid[DISC_UID_SIZE];
   char product_name[DISC_STRING_SIZE];
-  char product_number[17];
-  char product_version[7];
-  char media_config[12];
-  char bootname[17];
+  char product_number[DISC_STRING_SIZE];
+  char product_version[DISC_STRING_SIZE];
+  char media_config[DISC_STRING_SIZE];
+  char bootname[DISC_STRING_SIZE];
 
   /* media-specific interface */
   void (*destroy)(struct disc *);
