@@ -627,6 +627,10 @@ void r_clear(struct render_backend *r) {
 }
 
 void r_destroy_texture(struct render_backend *r, texture_handle_t handle) {
+  if (!handle) {
+    return;
+  }
+
   struct texture *tex = &r->textures[handle];
   glDeleteTextures(1, &tex->texture);
   tex->texture = 0;
