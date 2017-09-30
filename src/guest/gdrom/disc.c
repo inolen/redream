@@ -6,6 +6,14 @@
 #include "guest/gdrom/gdi.h"
 #include "guest/gdrom/iso.h"
 
+/* ip.bin layout */
+#define IP_OFFSET_META 0x0000    /* meta information */
+#define IP_OFFSET_TOC 0x0100     /* table of contents */
+#define IP_OFFSET_LICENSE 0x0300 /* license screen code */
+#define IP_OFFSET_AREAS 0x3700   /* area protection symbols */
+#define IP_OFFSET_BOOT1 0x3800   /* bootstrap 1 */
+#define IP_OFFSET_BOOT2 0x6000   /* bootstrap 2 */
+
 /* meta information found in the ip.bin */
 struct disc_meta {
   char hardware_id[16];
@@ -29,6 +37,31 @@ static void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
                     tmp, sizeof(tmp));
 
   memcpy(meta, tmp, sizeof(*meta));
+}
+
+static void disc_patch_regions(struct disc *disc, int fad, uint8_t *data) {
+  /* patch discs to boot in all regions by patching data read from the disk. for
+     a disc to be boot for a region, the region must be enabled in two places:
+
+     1.) in the meta information section of the ip.bin
+     2.) in the area protection symbols section of the ip.bin */
+  if (fad == disc->meta_fad) {
+    /* the area symbols in the meta information contains 8 characters, each of
+       which is either a space, or the first letter of the area if supported */
+    struct disc_meta *meta = (struct disc_meta *)data;
+    strncpy_pad_spaces(meta->area_symbols, "JUE", sizeof(meta->area_symbols));
+  } else if (fad == disc->area_fad) {
+    /* the area protection symbols section contains 8 slots, each of which is
+       either spaces, or the name of the area if supported. note, each slot
+       has a 4-byte code prefix which jumps past it as part of the bootstrap
+       control flow */
+    char *slot0 = (char *)data;
+    char *slot1 = (char *)data + 32;
+    char *slot2 = (char *)data + 64;
+    strncpy_pad_spaces(slot0 + 4, "For JAPAN,TAIWAN,PHILIPINES.", 28);
+    strncpy_pad_spaces(slot1 + 4, "For USA and CANADA.", 28);
+    strncpy_pad_spaces(slot2 + 4, "For EUROPE.", 28);
+  }
 }
 
 int disc_read_bytes(struct disc *disc, int fad, int len, uint8_t *dst,
@@ -69,6 +102,7 @@ int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
   for (int i = fad; i < endfad; i++) {
     CHECK_LE(read + track->data_size, dst_size);
     disc->read_sector(disc, track, i, dst + read);
+    disc_patch_regions(disc, i, dst + read);
     read += track->data_size;
   }
 
@@ -205,6 +239,13 @@ struct disc *disc_create(const char *filename) {
     return NULL;
   }
 
+  /* cache off information about the IP.BIN file location for region patching */
+  struct session *session = disc_get_session(disc, 1);
+  struct track *first_track = disc_get_track(disc, session->first_track);
+  disc->meta_fad = first_track->fad;
+  disc->area_fad = first_track->fad + IP_OFFSET_AREAS / first_track->data_size;
+  disc->area_off = IP_OFFSET_AREAS % first_track->data_size;
+
   /* extract meta information from the IP.BIN */
   struct disc_meta meta;
   disc_get_meta(disc, &meta);
@@ -218,20 +259,6 @@ struct disc *disc_create(const char *filename) {
   strncpy_trim_space(disc->media_config, meta.device_info + 5,
                      sizeof(meta.device_info) - 5);
   strncpy_trim_space(disc->bootname, meta.bootname, sizeof(meta.bootname));
-
-  /* the area symbols array contains characters, which are either a space or a
-     specific character corresponding to a particular region the disc is valid
-     for. if the character for a particular region is a space, the disc is not
-     valid for that region */
-  if (meta.area_symbols[0] == 'J') {
-    disc->regions |= DISC_REGION_JAPAN;
-  }
-  if (meta.area_symbols[1] == 'U') {
-    disc->regions |= DISC_REGION_USA;
-  }
-  if (meta.area_symbols[2] == 'E') {
-    disc->regions |= DISC_REGION_EUROPE;
-  }
 
   /* generate unique id for the disc */
   snprintf(disc->uid, sizeof(disc->uid), "%s %s %s %s", disc->product_name,

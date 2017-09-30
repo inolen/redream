@@ -246,7 +246,8 @@ void pvr_destroy(struct pvr *pvr) {
 }
 
 struct pvr *pvr_create(struct dreamcast *dc) {
-  struct pvr *pvr = dc_create_device(dc, sizeof(struct pvr), "pvr", &pvr_init);
+  struct pvr *pvr =
+      dc_create_device(dc, sizeof(struct pvr), "pvr", &pvr_init, NULL);
 
   return pvr;
 }

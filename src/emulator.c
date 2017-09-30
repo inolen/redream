@@ -601,9 +601,11 @@ static void emu_run_frame(struct emu *emu) {
 void emu_render_frame(struct emu *emu) {
   prof_counter_add(COUNTER_frames, 1);
 
-  /* check that we're not being called between calls to emu_video_destroyed
-     and emu_video_created */
-  CHECK_NOTNULL(emu->r);
+  if (!dc_running(emu->dc)) {
+    /* not running, just build debug menu */
+    emu_debug_menu(emu);
+    return;
+  }
 
   int width = r_width(emu->r);
   int height = r_height(emu->r);

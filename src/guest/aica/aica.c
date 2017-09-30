@@ -1016,7 +1016,7 @@ struct aica *aica_create(struct dreamcast *dc) {
   aica_init_tables();
 
   struct aica *aica =
-      dc_create_device(dc, sizeof(struct aica), "aica", &aica_init);
+      dc_create_device(dc, sizeof(struct aica), "aica", &aica_init, NULL);
 
   /* assign ids */
   for (int i = 0; i < AICA_NUM_CHANNELS; i++) {

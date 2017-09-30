@@ -111,7 +111,7 @@ void boot_destroy(struct boot *boot) {
 
 struct boot *boot_create(struct dreamcast *dc) {
   struct boot *boot =
-      dc_create_device(dc, sizeof(struct boot), "boot", &boot_init);
+      dc_create_device(dc, sizeof(struct boot), "boot", &boot_init, NULL);
   return boot;
 }
 

@@ -12,13 +12,13 @@
 #include "guest/sh4/sh4.h"
 #include "imgui.h"
 
-DEFINE_PERSISTENT_OPTION_STRING(region, "auto", "System region");
+DEFINE_PERSISTENT_OPTION_STRING(region, "usa", "System region");
 DEFINE_PERSISTENT_OPTION_STRING(language, "english", "System language");
 DEFINE_PERSISTENT_OPTION_STRING(broadcast, "ntsc", "System broadcast mode");
 
 /* system settings */
 static const char *regions[] = {
-    "japan", "usa", "europe", "auto",
+    "japan", "usa", "europe",
 };
 
 static const char *languages[] = {
@@ -92,15 +92,6 @@ static void bios_override_settings(struct bios *bios) {
       bcast = i;
       break;
     }
-  }
-
-  /* if "auto" is specified, select first supported region */
-  if (region == ARRAY_SIZE(regions) - 1) {
-    int supported_regions = DISC_REGION_ALL;
-    if (gdrom_has_disc(gd)) {
-      supported_regions = gdrom_get_regions(gd);
-    }
-    region = ctz32((uint32_t)supported_regions);
   }
 
   LOG_INFO("bios_override_settings region=%s lang=%s bcast=%s", regions[region],
@@ -304,8 +295,31 @@ static int bios_boot(struct bios *bios) {
   return 1;
 }
 
-static int bios_init(struct device *dev) {
+static int bios_post_init(struct device *dev) {
   struct bios *bios = (struct bios *)dev;
+
+  bios_validate_flash(bios);
+
+  bios_override_settings(bios);
+
+/* this code enables a "hybrid" hle mode. in this mode, syscalls are patched
+   to trap into their hle handlers, but the real bios can still be ran to
+   test if bugs exist in the syscall emulation or bootstrap emulation */
+#if 0
+  /* write out invalid instructions at syscall entry points. note, the boot rom
+     does a bootstrap on startup which copies the boot rom into system ram. due
+     to this, the invalid instructions are written to the original rom, not the
+     system ram (or else, they would be overwritten by the bootstrap process) */
+  struct boot *boot = bios->dc->boot;
+  uint16_t invalid = 0x0;
+
+  boot_write(boot, SYSCALL_FONTROM, &invalid, 2);
+  boot_write(boot, SYSCALL_SYSINFO, &invalid, 2);
+  boot_write(boot, SYSCALL_FLASHROM, &invalid, 2);
+  boot_write(boot, SYSCALL_GDROM, &invalid, 2);
+  /*boot_write(boot, SYSCALL_MENU, &invalid, 2);*/
+#endif
+
   return 1;
 }
 
@@ -407,38 +421,12 @@ int bios_invalid_instr(struct bios *bios) {
   return handled;
 }
 
-int bios_preboot(struct bios *bios) {
-  bios_validate_flash(bios);
-
-  bios_override_settings(bios);
-
-/* this code enables a "hybrid" hle mode. in this mode, syscalls are patched
-   to trap into their hle handlers, but the real bios can still be ran to
-   test if bugs exist in the syscall emulation or bootstrap emulation */
-#if 0
-  /* write out invalid instructions at syscall entry points. note, the boot rom
-     does a bootstrap on startup which copies the boot rom into system ram. due
-     to this, the invalid instructions are written to the original rom, not the
-     system ram (or else, they would be overwritten by the bootstrap process) */
-  struct boot *boot = bios->dc->boot;
-  uint16_t invalid = 0x0;
-
-  boot_write(boot, SYSCALL_FONTROM, &invalid, 2);
-  boot_write(boot, SYSCALL_SYSINFO, &invalid, 2);
-  boot_write(boot, SYSCALL_FLASHROM, &invalid, 2);
-  boot_write(boot, SYSCALL_GDROM, &invalid, 2);
-  /*boot_write(boot, SYSCALL_MENU, &invalid, 2);*/
-#endif
-
-  return 1;
-}
-
 void bios_destroy(struct bios *bios) {
   free(bios);
 }
 
 struct bios *bios_create(struct dreamcast *dc) {
   struct bios *bios =
-      dc_create_device(dc, sizeof(struct bios), "bios", &bios_init);
+      dc_create_device(dc, sizeof(struct bios), "bios", NULL, &bios_post_init);
   return bios;
 }

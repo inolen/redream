@@ -390,7 +390,7 @@ void holly_destroy(struct holly *hl) {
 
 struct holly *holly_create(struct dreamcast *dc) {
   struct holly *hl =
-      dc_create_device(dc, sizeof(struct holly), "holly", &holly_init);
+      dc_create_device(dc, sizeof(struct holly), "holly", &holly_init, NULL);
 
 /* init registers */
 #define HOLLY_REG(addr, name, default, type) \

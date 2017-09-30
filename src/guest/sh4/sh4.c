@@ -321,7 +321,8 @@ void sh4_destroy(struct sh4 *sh4) {
 }
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
-  struct sh4 *sh4 = dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init);
+  struct sh4 *sh4 =
+      dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init, NULL);
   sh4->debug_if = dc_create_debug_interface(
       &sh4_dbg_num_registers, &sh4_dbg_step, &sh4_dbg_add_breakpoint,
       &sh4_dbg_remove_breakpoint, &sh4_dbg_read_memory, &sh4_dbg_read_register);

@@ -28,7 +28,6 @@ void gdrom_get_session(struct gdrom *gd, int session,
                        struct gd_spi_session *ses);
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size);
 
-int gdrom_get_regions(struct gdrom *gd);
 void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len);
 
 int gdrom_find_file(struct gdrom *gd, const char *filename, int *fad, int *len);

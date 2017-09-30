@@ -70,28 +70,28 @@ void dc_suspend(struct dreamcast *dc) {
   dc->running = 0;
 }
 
-int dc_load(struct dreamcast *dc, const char *path) {
-  struct disc *disc = NULL;
+int dc_running(struct dreamcast *dc) {
+  return dc->running;
+}
 
+int dc_load(struct dreamcast *dc, const char *path) {
   if (path) {
     LOG_INFO("dc_load path=%s", path);
 
     struct disc *disc = disc_create(path);
+
     if (!disc) {
-      LOG_WARNING("dc_load failed");
+      LOG_WARNING("dc_load_game failed");
       return 0;
     }
 
-    /* boot to bios bootstrap if disc is valid */
     gdrom_set_disc(dc->gdrom, disc);
-    bios_preboot(dc->bios);
-    sh4_reset(dc->sh4, 0xa0000000);
   } else {
-    /* boot to main menu of no path specified */
-    bios_preboot(dc->bios);
-    sh4_reset(dc->sh4, 0xa0000000);
+    LOG_INFO("dc_load no path supplied, loading bios");
   }
 
+  /* boot to bios bootstrap */
+  sh4_reset(dc->sh4, 0xa0000000);
   dc_resume(dc);
 
   return 1;
@@ -129,8 +129,15 @@ int dc_init(struct dreamcast *dc) {
 
   /* initialize each device */
   list_for_each_entry(dev, &dc->devices, struct device, it) {
-    if (!dev->init(dev)) {
-      LOG_WARNING("dc_init failed to initialize device '%s'", dev->name);
+    if (dev->init && !dev->init(dev)) {
+      LOG_WARNING("dc_init init callback failed for '%s'", dev->name);
+      return 0;
+    }
+  }
+
+  list_for_each_entry(dev, &dc->devices, struct device, it) {
+    if (dev->post_init && !dev->post_init(dev)) {
+      LOG_WARNING("dc_init post_init callback failed for '%s'", dev->name);
       return 0;
     }
   }
@@ -200,12 +207,13 @@ struct device *dc_get_device(struct dreamcast *dc, const char *name) {
 }
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       device_init_cb init) {
+                       device_init_cb init, device_post_init_cb post_init) {
   struct device *dev = calloc(1, size);
 
   dev->dc = dc;
   dev->name = name;
   dev->init = init;
+  dev->post_init = post_init;
 
   list_add(&dc->devices, &dev->it);
 

@@ -44,6 +44,12 @@ struct session {
 };
 
 struct disc {
+  /* information about the IP.BIN location on disc, cached to quickly patch
+     region information */
+  int meta_fad;
+  int area_fad;
+  int area_off;
+
   /* meta information extracted from IP.BIN */
   char uid[DISC_UID_SIZE];
   char product_name[DISC_STRING_SIZE];
@@ -51,7 +57,6 @@ struct disc {
   char product_version[7];
   char media_config[12];
   char bootname[17];
-  int regions;
 
   /* media-specific interface */
   void (*destroy)(struct disc *);

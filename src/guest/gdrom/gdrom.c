@@ -527,12 +527,6 @@ void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len) {
   CHECK(res);
 }
 
-int gdrom_get_regions(struct gdrom *gd) {
-  CHECK_NOTNULL(gd->disc);
-
-  return gd->disc->regions;
-}
-
 void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
   CHECK_NOTNULL(gd->disc);
   CHECK_GE(size, GD_SPI_SCD_SIZE);
@@ -726,7 +720,7 @@ void gdrom_destroy(struct gdrom *gd) {
 
 struct gdrom *gdrom_create(struct dreamcast *dc) {
   struct gdrom *gd =
-      dc_create_device(dc, sizeof(struct gdrom), "gdrom", &gdrom_init);
+      dc_create_device(dc, sizeof(struct gdrom), "gdrom", &gdrom_init, NULL);
   return gd;
 }
 

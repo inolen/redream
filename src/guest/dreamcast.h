@@ -89,11 +89,20 @@ struct memory_interface {
  * device
  */
 typedef int (*device_init_cb)(struct device *);
+typedef int (*device_post_init_cb)(struct device *);
 
 struct device {
   struct dreamcast *dc;
   const char *name;
+
+  /* called for each device during dc_init. at this point each device should
+     initialize their own state, but not depend on the state of others */
   device_init_cb init;
+
+  /* called for each device during dc_init, immediately after each device's
+     init callback has been called. devices should perform initialization
+     that depends on other device's state here */
+  device_post_init_cb post_init;
 
   /* optional interfaces */
   struct debug_interface *debug_if;
@@ -161,7 +170,7 @@ struct dreamcast *dc_create();
 void dc_destroy(struct dreamcast *dc);
 
 void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       device_init_cb init);
+                       device_init_cb init, device_post_init_cb post_init);
 struct device *dc_get_device(struct dreamcast *dc, const char *name);
 void dc_destroy_device(struct device *dev);
 
@@ -183,6 +192,7 @@ void dc_destroy_memory_interface(struct memory_interface *memory);
 
 int dc_init(struct dreamcast *dc);
 int dc_load(struct dreamcast *dc, const char *path);
+int dc_running(struct dreamcast *dc);
 void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);

@@ -139,7 +139,7 @@ void maple_destroy(struct maple *mp) {
 
 struct maple *maple_create(struct dreamcast *dc) {
   struct maple *mp =
-      dc_create_device(dc, sizeof(struct maple), "maple", &maple_init);
+      dc_create_device(dc, sizeof(struct maple), "maple", &maple_init, NULL);
 
   /* register a controller and vmu for all ports by default */
   for (int i = 0; i < MAPLE_NUM_PORTS; i++) {
