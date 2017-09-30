@@ -39,7 +39,7 @@ static void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
   memcpy(meta, tmp, sizeof(*meta));
 }
 
-static void disc_patch_regions(struct disc *disc, int fad, uint8_t *data) {
+static void disc_patch_sector(struct disc *disc, int fad, uint8_t *data) {
   /* patch discs to boot in all regions by patching data read from the disk. for
      a disc to be boot for a region, the region must be enabled in two places:
 
@@ -55,9 +55,9 @@ static void disc_patch_regions(struct disc *disc, int fad, uint8_t *data) {
        either spaces, or the name of the area if supported. note, each slot
        has a 4-byte code prefix which jumps past it as part of the bootstrap
        control flow */
-    char *slot0 = (char *)data;
-    char *slot1 = (char *)data + 32;
-    char *slot2 = (char *)data + 64;
+    char *slot0 = (char *)(data + disc->area_off);
+    char *slot1 = (char *)(data + disc->area_off + 32);
+    char *slot2 = (char *)(data + disc->area_off + 64);
     strncpy_pad_spaces(slot0 + 4, "For JAPAN,TAIWAN,PHILIPINES.", 28);
     strncpy_pad_spaces(slot1 + 4, "For USA and CANADA.", 28);
     strncpy_pad_spaces(slot2 + 4, "For EUROPE.", 28);
@@ -102,7 +102,9 @@ int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
   for (int i = fad; i < endfad; i++) {
     CHECK_LE(read + track->data_size, dst_size);
     disc->read_sector(disc, track, i, dst + read);
-    disc_patch_regions(disc, i, dst + read);
+
+    disc_patch_sector(disc, i, dst + read);
+
     read += track->data_size;
   }
 
