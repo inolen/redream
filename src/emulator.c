@@ -70,11 +70,9 @@ struct emu_texture {
 
 struct emu {
   struct host *host;
-  struct dreamcast *dc;
-
   struct render_backend *r;
-  struct trace_writer *trace_writer;
 
+  struct dreamcast *dc;
   int aspect_ratio;
 
   /* when running with multiple threads, the dreamcast emulation is ran on a
@@ -119,6 +117,9 @@ struct emu {
   int frame_stats;
   float swap_times[360];
   int64_t last_swap;
+
+  /* debug trace writer */
+  struct trace_writer *trace_writer;
 };
 
 /*
@@ -564,6 +565,7 @@ static void *emu_run_thread(void *data) {
       }
 
       if (emu->state == EMU_SHUTDOWN) {
+        mutex_unlock(emu->run_mutex);
         break;
       }
 
@@ -610,84 +612,85 @@ void emu_render_frame(struct emu *emu) {
   int width = r_width(emu->r);
   int height = r_height(emu->r);
 
-  /* adjust dreamcast viewport based on aspect ratio */
-  int frame_height, frame_width;
-  int frame_x, frame_y;
-
-  if (emu->aspect_ratio == ASPECT_RATIO_STRETCH) {
-    frame_height = height;
-    frame_width = width;
-    frame_x = 0;
-    frame_y = 0;
-  } else if (emu->aspect_ratio == ASPECT_RATIO_16BY9) {
-    frame_width = width;
-    frame_height = (int)(frame_width * (9.0f / 16.0f));
-    frame_x = 0;
-    frame_y = (int)((height - frame_height) / 2.0f);
-  } else if (emu->aspect_ratio == ASPECT_RATIO_4BY3) {
-    frame_height = height;
-    frame_width = (int)(frame_height * (4.0f / 3.0f));
-    frame_x = (int)((width - frame_width) / 2.0f);
-    frame_y = 0;
-  } else {
-    LOG_FATAL("unexpected aspect ratio %d", emu->aspect_ratio);
-  }
-
   r_clear(emu->r);
-  r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
 
-  if (emu->multi_threaded) {
-    /* tell the emulation thread to run the next frame */
-    {
-      mutex_lock(emu->run_mutex);
+  if (dc_running(emu->dc)) {
+    /* render dreamcast video */
+    int frame_height, frame_width;
+    int frame_x, frame_y;
 
-      /* build the debug menus before running the frame, while the two threads
-         are synchronized */
+    if (emu->aspect_ratio == ASPECT_RATIO_STRETCH) {
+      frame_height = height;
+      frame_width = width;
+      frame_x = 0;
+      frame_y = 0;
+    } else if (emu->aspect_ratio == ASPECT_RATIO_16BY9) {
+      frame_width = width;
+      frame_height = (int)(frame_width * (9.0f / 16.0f));
+      frame_x = 0;
+      frame_y = (int)((height - frame_height) / 2.0f);
+    } else if (emu->aspect_ratio == ASPECT_RATIO_4BY3) {
+      frame_height = height;
+      frame_width = (int)(frame_height * (4.0f / 3.0f));
+      frame_x = (int)((width - frame_width) / 2.0f);
+      frame_y = 0;
+    } else {
+      LOG_FATAL("unexpected aspect ratio %d", emu->aspect_ratio);
+    }
+
+    r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
+
+    if (emu->multi_threaded) {
+      /* tell the emulation thread to run the next frame */
+      {
+        mutex_lock(emu->run_mutex);
+
+        /* build the debug menus before running the frame, while the two threads
+           are synchronized */
+        emu_debug_menu(emu);
+
+        emu->state = EMU_RUNFRAME;
+        cond_signal(emu->run_cond);
+
+        mutex_unlock(emu->run_mutex);
+      }
+
+      /* wait for the emulation thread to submit a context */
+      {
+        mutex_lock(emu->frame_mutex);
+
+        while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
+          cond_wait(emu->frame_cond, emu->frame_mutex);
+        }
+
+        /* if a context was submitted before the vblank, convert it and upload
+           its textures to the render backend */
+        if (emu->pending_ctx) {
+          tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
+                             &emu->pending_rc);
+          emu->pending_ctx = NULL;
+        }
+
+        /* unblock the emulation thread */
+        mutex_unlock(emu->frame_mutex);
+      }
+
+      /* render the latest context. note, the emulation thread may still be
+         running at this time */
+      tr_render_context(emu->r, &emu->pending_rc);
+    } else {
       emu_debug_menu(emu);
 
-      emu->state = EMU_RUNFRAME;
-      cond_signal(emu->run_cond);
-
-      mutex_unlock(emu->run_mutex);
+      emu_run_frame(emu);
     }
-
-    /* wait for the emulation thread to submit a context */
-    {
-      mutex_lock(emu->frame_mutex);
-
-      while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
-        cond_wait(emu->frame_cond, emu->frame_mutex);
-      }
-
-      /* if a context was submitted before the vblank, convert it and upload
-         its textures to the render backend */
-      if (emu->pending_ctx) {
-        tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
-                           &emu->pending_rc);
-        emu->pending_ctx = NULL;
-      }
-
-      /* unblock the emulation thread */
-      mutex_unlock(emu->frame_mutex);
-    }
-
-    /* render the latest context. note, the emulation thread may still be
-       running at this time */
-    tr_render_context(emu->r, &emu->pending_rc);
   } else {
+    /* not running, just build debug menu */
     emu_debug_menu(emu);
-    emu_run_frame(emu);
   }
 }
 
-int emu_load_game(struct emu *emu, const char *path) {
-  if (!dc_load(emu->dc, path)) {
-    return 0;
-  }
-
-  emu_set_aspect_ratio(emu, OPTION_aspect);
-
-  return 1;
+int emu_load(struct emu *emu, const char *path) {
+  return dc_load(emu->dc, path);
 }
 
 void emu_keydown(struct emu *emu, int port, enum keycode key, int16_t value) {
@@ -730,17 +733,18 @@ void emu_vid_created(struct emu *emu, struct render_backend *r) {
 void emu_destroy(struct emu *emu) {
   /* shutdown the emulation thread */
   if (emu->multi_threaded) {
-    {
-      mutex_lock(emu->run_mutex);
-
-      emu->state = EMU_SHUTDOWN;
-      cond_signal(emu->run_cond);
-
-      mutex_unlock(emu->run_mutex);
-    }
+    mutex_lock(emu->run_mutex);
+    emu->state = EMU_SHUTDOWN;
+    cond_signal(emu->run_cond);
+    mutex_unlock(emu->run_mutex);
 
     void *result;
     thread_join(emu->run_thread, &result);
+
+    mutex_destroy(emu->run_mutex);
+    cond_destroy(emu->run_cond);
+    mutex_destroy(emu->frame_mutex);
+    cond_destroy(emu->frame_cond);
   }
 
   emu_stop_tracing(emu);

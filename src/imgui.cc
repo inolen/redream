@@ -1,22 +1,57 @@
 #ifdef HAVE_IMGUI
+#define IMGUI_IMPLEMENTATION
+#define IMGUI_DEFINE_MATH_OPERATORS
+#define IMGUI_DEFINE_PLACEMENT_NEW
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 #endif
 
 extern "C" {
 #include "core/assert.h"
+#include "core/time.h"
 #include "host/keycode.h"
+#include "imgui.h"
 #include "render/render_backend.h"
 }
 
 struct imgui {
   struct render_backend *r;
-
-  bool alt[2];
-  bool ctrl[2];
-  bool shift[2];
+  int64_t time;
+  int alt[2];
+  int ctrl[2];
+  int shift[2];
+  int16_t keys[K_NUM_KEYS];
 };
 
-extern "C" void imgui_end_frame(struct imgui *imgui) {
+static void imgui_update_font_tex(struct imgui *imgui) {
+#ifdef HAVE_IMGUI
+  ImGuiIO &io = ImGui::GetIO();
+
+  /* destroy old texture first */
+  texture_handle_t font_tex = (texture_handle_t)(intptr_t)io.Fonts->TexID;
+  if (font_tex) {
+    r_destroy_texture(imgui->r, font_tex);
+  }
+
+  /* create new texture if fonts have been added */
+  uint8_t *pixels;
+  int width;
+  int height;
+  io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+  if (!width || !height) {
+    return;
+  }
+
+  LOG_INFO("imgui_update_font_tex w=%d h=%d", width, height);
+
+  font_tex = r_create_texture(imgui->r, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
+                              WRAP_REPEAT, 0, width, height, pixels);
+  io.Fonts->TexID = (void *)(intptr_t)font_tex;
+#endif
+}
+
+void imgui_end_frame(struct imgui *imgui) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
@@ -35,8 +70,7 @@ extern "C" void imgui_end_frame(struct imgui *imgui) {
   for (int i = 0; i < draw_data->CmdListsCount; ++i) {
     const auto cmd_list = draw_data->CmdLists[i];
 
-    struct ui_vertex *verts =
-        reinterpret_cast<struct ui_vertex *>(cmd_list->VtxBuffer.Data);
+    struct ui_vertex *verts = (struct ui_vertex *)cmd_list->VtxBuffer.Data;
     int num_verts = cmd_list->VtxBuffer.size();
 
     uint16_t *indices = cmd_list->IdxBuffer.Data;
@@ -51,8 +85,7 @@ extern "C" void imgui_end_frame(struct imgui *imgui) {
 
       struct ui_surface surf;
       surf.prim_type = PRIM_TRIANGLES;
-      surf.texture = static_cast<texture_handle_t>(
-          reinterpret_cast<intptr_t>(cmd.TextureId));
+      surf.texture = (texture_handle_t)(intptr_t)cmd.TextureId;
       surf.src_blend = BLEND_SRC_ALPHA;
       surf.dst_blend = BLEND_ONE_MINUS_SRC_ALPHA;
       surf.scissor = true;
@@ -73,13 +106,18 @@ extern "C" void imgui_end_frame(struct imgui *imgui) {
 #endif
 }
 
-extern "C" void imgui_begin_frame(struct imgui *imgui) {
+void imgui_begin_frame(struct imgui *imgui) {
+  int64_t now = time_nanoseconds();
+  int64_t delta_time = now - imgui->time;
+  imgui->time = now;
+
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   int width = r_width(imgui->r);
   int height = r_height(imgui->r);
 
+  io.DeltaTime = delta_time / (float)NS_PER_SEC;
   io.MouseWheel = 0.0;
   io.DisplaySize = ImVec2((float)width, (float)height);
 
@@ -87,37 +125,38 @@ extern "C" void imgui_begin_frame(struct imgui *imgui) {
 #endif
 }
 
-extern "C" void imgui_keydown(struct imgui *imgui, enum keycode code,
-                              int16_t value) {
+void imgui_keydown(struct imgui *imgui, enum keycode code, int16_t value) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
+  int down = value > 0;
 
   if (code == K_MWHEELUP) {
     io.MouseWheel = 1.0f;
   } else if (code == K_MWHEELDOWN) {
     io.MouseWheel = -1.0f;
   } else if (code == K_MOUSE1) {
-    io.MouseDown[0] = value > 0;
+    io.MouseDown[0] = down;
   } else if (code == K_MOUSE2) {
-    io.MouseDown[1] = value > 0;
+    io.MouseDown[1] = down;
   } else if (code == K_MOUSE3) {
-    io.MouseDown[2] = value > 0;
+    io.MouseDown[2] = down;
   } else if (code == K_LALT || code == K_RALT) {
-    imgui->alt[code == K_LALT ? 0 : 1] = !!value;
+    imgui->alt[code == K_LALT ? 0 : 1] = down;
     io.KeyAlt = imgui->alt[0] || imgui->alt[1];
   } else if (code == K_LCTRL || code == K_RCTRL) {
-    imgui->ctrl[code == K_LCTRL ? 0 : 1] = !!value;
+    imgui->ctrl[code == K_LCTRL ? 0 : 1] = down;
     io.KeyCtrl = imgui->ctrl[0] || imgui->ctrl[1];
   } else if (code == K_LSHIFT || code == K_RSHIFT) {
-    imgui->shift[code == K_LSHIFT ? 0 : 1] = !!value;
+    imgui->shift[code == K_LSHIFT ? 0 : 1] = down;
     io.KeyShift = imgui->shift[0] || imgui->shift[1];
   } else {
-    io.KeysDown[code] = value > 0;
+    imgui->keys[code] = value;
+    io.KeysDown[code] = down;
   }
 #endif
 }
 
-extern "C" void imgui_mousemove(struct imgui *imgui, int x, int y) {
+void imgui_mousemove(struct imgui *imgui, int x, int y) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
@@ -125,7 +164,7 @@ extern "C" void imgui_mousemove(struct imgui *imgui, int x, int y) {
 #endif
 }
 
-extern "C" void imgui_destroy(struct imgui *imgui) {
+void imgui_destroy(struct imgui *imgui) {
 #ifdef HAVE_IMGUI
   ImGui::Shutdown();
 
@@ -133,37 +172,31 @@ extern "C" void imgui_destroy(struct imgui *imgui) {
 #endif
 }
 
-extern "C" void imgui_vid_destroyed(struct imgui *imgui) {
+void imgui_vid_destroyed(struct imgui *imgui) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
-  texture_handle_t handle = (texture_handle_t)(intptr_t)io.Fonts->TexID;
-  r_destroy_texture(imgui->r, handle);
+  /* free up cached font data */
+  io.Fonts->Clear();
+  imgui_update_font_tex(imgui);
 
   imgui->r = NULL;
 #endif
 }
 
-extern "C" void imgui_vid_created(struct imgui *imgui,
-                                  struct render_backend *r) {
+void imgui_vid_created(struct imgui *imgui, struct render_backend *r) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
 
   imgui->r = r;
 
-  /* register font */
-  uint8_t *pixels;
-  int width, height;
-  io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-
-  texture_handle_t handle =
-      r_create_texture(imgui->r, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
-                       WRAP_REPEAT, 0, width, height, pixels);
-  io.Fonts->TexID = (void *)(intptr_t)handle;
+  /* register default font */
+  io.Fonts->AddFontDefault();
+  imgui_update_font_tex(imgui);
 #endif
 }
 
-extern "C" struct imgui *imgui_create() {
+struct imgui *imgui_create() {
 #ifdef HAVE_IMGUI
   struct imgui *imgui =
       reinterpret_cast<struct imgui *>(calloc(1, sizeof(struct imgui)));
@@ -171,30 +204,8 @@ extern "C" struct imgui *imgui_create() {
   /* initialize imgui */
   ImGuiIO &io = ImGui::GetIO();
 
-  /* don't really care if this is accurate */
-  io.DeltaTime = 1.0f / 60.0f;
-
   /* don't save settings */
   io.IniFilename = NULL;
-
-  /* setup key mapping */
-  io.KeyMap[ImGuiKey_Tab] = K_TAB;
-  io.KeyMap[ImGuiKey_LeftArrow] = K_LEFT;
-  io.KeyMap[ImGuiKey_RightArrow] = K_RIGHT;
-  io.KeyMap[ImGuiKey_UpArrow] = K_UP;
-  io.KeyMap[ImGuiKey_DownArrow] = K_DOWN;
-  io.KeyMap[ImGuiKey_PageUp] = K_PAGEUP;
-  io.KeyMap[ImGuiKey_PageDown] = K_PAGEDOWN;
-  io.KeyMap[ImGuiKey_Delete] = K_DELETE;
-  io.KeyMap[ImGuiKey_Backspace] = K_BACKSPACE;
-  io.KeyMap[ImGuiKey_Enter] = K_RETURN;
-  io.KeyMap[ImGuiKey_Escape] = K_ESCAPE;
-  io.KeyMap[ImGuiKey_A] = 'a';
-  io.KeyMap[ImGuiKey_C] = 'c';
-  io.KeyMap[ImGuiKey_V] = 'v';
-  io.KeyMap[ImGuiKey_X] = 'x';
-  io.KeyMap[ImGuiKey_Y] = 'y';
-  io.KeyMap[ImGuiKey_Z] = 'z';
 
   /* setup misc callbacks ImGui relies on */
   io.RenderDrawListsFn = nullptr;

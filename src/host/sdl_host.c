@@ -847,7 +847,7 @@ int main(int argc, char **argv) {
         }
       }
     } else if (host->emu) {
-      if (emu_load_game(host->emu, load)) {
+      if (emu_load(host->emu, load)) {
         while (!host->closed) {
           /* even though the emulator itself will poll for events when updating
              controller input, the main loop needs to also poll to ensure the

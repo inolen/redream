@@ -4,8 +4,10 @@
 #include "host/keycode.h"
 
 #ifdef HAVE_IMGUI
+#ifndef IMGUI_IMPLEMENTATION
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include <cimgui/cimgui.h>
+#endif
 #endif
 
 struct imgui;
