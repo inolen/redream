@@ -1,15 +1,12 @@
 #ifndef TA_H
 #define TA_H
 
-#include "core/profiler.h"
 #include "guest/memory.h"
 #include "guest/pvr/ta_types.h"
 #include "guest/pvr/tex.h"
 
 struct dreamcast;
 struct ta;
-
-DECLARE_COUNTER(ta_renders);
 
 AM_DECLARE(ta_data_map);
 

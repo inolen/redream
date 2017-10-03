@@ -3,7 +3,6 @@
 #include "core/core.h"
 #include "core/exception_handler.h"
 #include "core/filesystem.h"
-#include "core/profiler.h"
 #include "jit/ir/ir.h"
 #include "jit/jit_backend.h"
 #include "jit/jit_frontend.h"

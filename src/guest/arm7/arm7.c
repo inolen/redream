@@ -9,14 +9,13 @@
 #include "jit/frontend/armv3/armv3_guest.h"
 #include "jit/ir/ir.h"
 #include "jit/jit.h"
+#include "stats.h"
 
 #if ARCH_X64
 #include "jit/backend/x64/x64_backend.h"
 #else
 #include "jit/backend/interp/interp_backend.h"
 #endif
-
-DEFINE_AGGREGATE_COUNTER(arm7_instrs);
 
 struct arm7 {
   struct device;

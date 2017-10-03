@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include "core/core.h"
 #include "core/filesystem.h"
-#include "core/profiler.h"
 #include "emulator.h"
 #include "host/host.h"
 #include "render/render_backend.h"

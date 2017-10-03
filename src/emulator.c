@@ -12,7 +12,6 @@
  */
 
 #include "emulator.h"
-#include "core/profiler.h"
 #include "core/thread.h"
 #include "core/time.h"
 #include "file/trace.h"
@@ -33,8 +32,7 @@
 #include "imgui.h"
 #include "options.h"
 #include "render/render_backend.h"
-
-DEFINE_AGGREGATE_COUNTER(frames);
+#include "stats.h"
 
 enum {
   ASPECT_RATIO_STRETCH,

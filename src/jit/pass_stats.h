@@ -4,7 +4,7 @@
 #include "core/constructor.h"
 #include "core/list.h"
 
-#define DEFINE_STAT(name, desc)                                             \
+#define DEFINE_PASS_STAT(name, desc)                                        \
   static int STAT_##name;                                                   \
   static struct pass_stat STAT_T_##name = {#name, desc, &STAT_##name, {0}}; \
   CONSTRUCTOR(STAT_REGISTER_##name) {                                       \

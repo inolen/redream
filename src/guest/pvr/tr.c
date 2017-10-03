@@ -7,7 +7,6 @@
 
 #include "guest/pvr/tr.h"
 #include "core/core.h"
-#include "core/profiler.h"
 #include "core/sort.h"
 #include "guest/pvr/ta.h"
 #include "guest/pvr/tex.h"

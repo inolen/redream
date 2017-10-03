@@ -2,9 +2,9 @@
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 
-DEFINE_STAT(constants_folded, "constant operations folded");
-DEFINE_STAT(could_optimize_binary_op, "constant binary operations possible");
-DEFINE_STAT(could_optimize_unary_op, "constant unary operations possible");
+DEFINE_PASS_STAT(constants_folded, "const operations folded");
+DEFINE_PASS_STAT(could_optimize_binary_op, "const binary operations possible");
+DEFINE_PASS_STAT(could_optimize_unary_op, "const unary operations possible");
 
 static void cprop_run_block(struct cprop *cprop, struct ir *ir,
                             struct ir_block *block) {

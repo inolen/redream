@@ -1,7 +1,6 @@
 #ifndef SH4_H
 #define SH4_H
 
-#include "core/profiler.h"
 #include "guest/dreamcast.h"
 #include "guest/memory.h"
 #include "guest/sh4/sh4_types.h"
@@ -83,8 +82,6 @@ struct sh4 {
 extern struct reg_cb sh4_cb[SH4_NUM_REGS];
 extern struct sh4_exception_info sh4_exceptions[SH4_NUM_EXCEPTIONS];
 extern struct sh4_interrupt_info sh4_interrupts[SH4_NUM_INTERRUPTS];
-
-DECLARE_COUNTER(sh4_instrs);
 
 AM_DECLARE(sh4_data_map);
 

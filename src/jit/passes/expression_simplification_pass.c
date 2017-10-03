@@ -2,10 +2,10 @@
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 
-DEFINE_STAT(bitwise_identities_removed, "bitwise identities removed");
-DEFINE_STAT(zero_properties_removed, "zero properties removed");
-DEFINE_STAT(zero_identities_removed, "zero identities removed");
-DEFINE_STAT(one_identities_removed, "one identities removed");
+DEFINE_PASS_STAT(bitwise_identities_removed, "bitwise identities removed");
+DEFINE_PASS_STAT(zero_properties_removed, "zero properties removed");
+DEFINE_PASS_STAT(zero_identities_removed, "zero identities removed");
+DEFINE_PASS_STAT(one_identities_removed, "one identities removed");
 
 static void esimp_run_block(struct esimp *esimp, struct ir *ir,
                             struct ir_block *block) {

@@ -1,6 +1,11 @@
 #ifndef REDREAM_CONFIG_H
 #define REDREAM_CONFIG_H
 
+#undef HAVE_STRINGS_H
+#undef HAVE_STRCASECMP
+#undef HAVE_STRNLEN
+#undef HAVE_STRNSTR
+
 #cmakedefine HAVE_STRINGS_H
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNLEN

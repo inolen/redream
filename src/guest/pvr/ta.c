@@ -28,8 +28,7 @@
 #include "guest/pvr/tr.h"
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
-
-DEFINE_AGGREGATE_COUNTER(ta_renders);
+#include "stats.h"
 
 struct ta {
   struct device;

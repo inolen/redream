@@ -1,7 +1,6 @@
 #ifndef PVR_H
 #define PVR_H
 
-#include "core/profiler.h"
 #include "guest/dreamcast.h"
 #include "guest/memory.h"
 #include "guest/pvr/pvr_types.h"
@@ -25,8 +24,6 @@ struct pvr {
 #include "guest/pvr/pvr_regs.inc"
 #undef PVR_REG
 };
-
-DECLARE_COUNTER(pvr_vblanks);
 
 AM_DECLARE(pvr_reg_map);
 AM_DECLARE(pvr_vram_map);

@@ -1,6 +1,5 @@
 #include <glad/glad.h>
 #include "core/core.h"
-#include "core/profiler.h"
 #include "host/host.h"
 #include "render/render_backend.h"
 

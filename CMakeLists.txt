@@ -246,7 +246,8 @@ set(RELIB_SOURCES
   src/jit/pass_stats.c
   src/render/gl_backend.c
   src/imgui.cc
-  src/options.c)
+  src/options.c
+  src/stats.c)
 
 if(PLATFORM_ANDROID)
   list(APPEND RELIB_DEFS PLATFORM_ANDROID=1)

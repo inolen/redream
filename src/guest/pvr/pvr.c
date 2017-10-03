@@ -5,8 +5,7 @@
 #include "guest/pvr/ta.h"
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
-
-DEFINE_AGGREGATE_COUNTER(pvr_vblanks);
+#include "stats.h"
 
 struct reg_cb pvr_cb[PVR_NUM_REGS];
 

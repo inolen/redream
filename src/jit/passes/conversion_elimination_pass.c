@@ -2,9 +2,9 @@
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 
-DEFINE_STAT(sext_removed, "sign extends eliminated");
-DEFINE_STAT(zext_removed, "zero extends eliminated");
-DEFINE_STAT(trunc_removed, "truncations eliminated");
+DEFINE_PASS_STAT(sext_removed, "sign extends eliminated");
+DEFINE_PASS_STAT(zext_removed, "zero extends eliminated");
+DEFINE_PASS_STAT(trunc_removed, "truncations eliminated");
 
 static void cve_run_block(struct ir *ir, struct ir_block *block) {
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {

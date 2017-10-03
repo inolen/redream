@@ -1,7 +1,6 @@
 #include "guest/aica/aica.h"
 #include "core/core.h"
 #include "core/filesystem.h"
-#include "core/profiler.h"
 #include "guest/aica/aica_types.h"
 #include "guest/arm7/arm7.h"
 #include "guest/dreamcast.h"
@@ -10,8 +9,7 @@
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
 #include "imgui.h"
-
-DEFINE_AGGREGATE_COUNTER(aica_samples);
+#include "stats.h"
 
 #if 0
 #define LOG_AICA LOG_INFO

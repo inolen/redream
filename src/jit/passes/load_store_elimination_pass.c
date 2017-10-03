@@ -2,8 +2,8 @@
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 
-DEFINE_STAT(loads_removed, "context loads eliminated");
-DEFINE_STAT(stores_removed, "context stores eliminated");
+DEFINE_PASS_STAT(loads_removed, "context loads eliminated");
+DEFINE_PASS_STAT(stores_removed, "context stores eliminated");
 
 struct lse_entry {
   /* cache token when this entry was added */

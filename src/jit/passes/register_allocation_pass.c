@@ -10,8 +10,8 @@
    and Speed in Linear-scan Register Allocation" by Omri Traub, Glenn Holloway
    and Michael D. Smith */
 
-DEFINE_STAT(gprs_spilled, "gprs spilled");
-DEFINE_STAT(fprs_spilled, "fprs spilled");
+DEFINE_PASS_STAT(gprs_spilled, "gprs spilled");
+DEFINE_PASS_STAT(fprs_spilled, "fprs spilled");
 
 struct ra_tmp;
 

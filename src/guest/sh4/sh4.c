@@ -16,14 +16,13 @@
 #include "jit/frontend/sh4/sh4_frontend.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/jit.h"
+#include "stats.h"
 
 #if ARCH_X64
 #include "jit/backend/x64/x64_backend.h"
 #else
 #include "jit/backend/interp/interp_backend.h"
 #endif
-
-DEFINE_AGGREGATE_COUNTER(sh4_instrs);
 
 /* callbacks to service sh4_reg_read / sh4_reg_write calls */
 struct reg_cb sh4_cb[SH4_NUM_REGS];

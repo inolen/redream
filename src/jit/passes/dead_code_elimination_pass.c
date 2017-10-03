@@ -2,7 +2,7 @@
 #include "jit/ir/ir.h"
 #include "jit/pass_stats.h"
 
-DEFINE_STAT(dead_removed, "dead instructions eliminated");
+DEFINE_PASS_STAT(dead_removed, "dead instructions eliminated");
 
 static void dce_run_block(struct dce *dce, struct ir *ir,
                           struct ir_block *block) {
