@@ -1,6 +1,5 @@
 #include "guest/sh4/sh4.h"
-#include "core/math.h"
-#include "core/string.h"
+#include "core/core.h"
 #include "core/time.h"
 #include "guest/aica/aica.h"
 #include "guest/bios/bios.h"

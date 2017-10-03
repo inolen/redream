@@ -6,9 +6,7 @@
  */
 
 #include "guest/pvr/tr.h"
-#include "core/assert.h"
 #include "core/core.h"
-#include "core/math.h"
 #include "core/profiler.h"
 #include "core/sort.h"
 #include "guest/pvr/ta.h"

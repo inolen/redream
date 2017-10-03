@@ -1,4 +1,4 @@
-#include "core/string.h"
+#include "core/core.h"
 #include "jit/ir/ir.h"
 
 enum ir_token {

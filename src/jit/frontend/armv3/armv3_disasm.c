@@ -1,7 +1,6 @@
 #include "jit/frontend/armv3/armv3_disasm.h"
-#include "core/assert.h"
 #include "core/constructor.h"
-#include "core/string.h"
+#include "core/core.h"
 #include "jit/frontend/armv3/armv3_fallback.h"
 
 int armv3_optable[ARMV3_LOOKUP_SIZE];

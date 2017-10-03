@@ -2,7 +2,7 @@
 #include <libretro.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/filesystem.h"
 #include "core/profiler.h"
 #include "emulator.h"

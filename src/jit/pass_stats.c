@@ -1,7 +1,5 @@
 #include "jit/pass_stats.h"
-#include "core/assert.h"
-#include "core/math.h"
-#include "core/string.h"
+#include "core/core.h"
 
 static struct list stats;
 

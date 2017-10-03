@@ -1,6 +1,5 @@
 #include "guest/bios/bios.h"
-#include "core/math.h"
-#include "core/option.h"
+#include "core/core.h"
 #include "core/time.h"
 #include "guest/aica/aica.h"
 #include "guest/bios/bios.h"
@@ -11,10 +10,7 @@
 #include "guest/rom/flash.h"
 #include "guest/sh4/sh4.h"
 #include "imgui.h"
-
-DEFINE_PERSISTENT_OPTION_STRING(region, "usa", "System region");
-DEFINE_PERSISTENT_OPTION_STRING(language, "english", "System language");
-DEFINE_PERSISTENT_OPTION_STRING(broadcast, "ntsc", "System broadcast mode");
+#include "options.h"
 
 /* system settings */
 static const char *regions[] = {

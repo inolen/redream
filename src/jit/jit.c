@@ -3,7 +3,6 @@
 #include "core/core.h"
 #include "core/exception_handler.h"
 #include "core/filesystem.h"
-#include "core/option.h"
 #include "core/profiler.h"
 #include "jit/ir/ir.h"
 #include "jit/jit_backend.h"
@@ -14,12 +13,11 @@
 #include "jit/passes/expression_simplification_pass.h"
 #include "jit/passes/load_store_elimination_pass.h"
 #include "jit/passes/register_allocation_pass.h"
+#include "options.h"
 
 #if PLATFORM_DARWIN || PLATFORM_LINUX
 #include <unistd.h>
 #endif
-
-DEFINE_OPTION_INT(perf, 0, "Create maps for compiled code for use with perf");
 
 static int block_map_cmp(const struct rb_node *rb_lhs,
                          const struct rb_node *rb_rhs) {

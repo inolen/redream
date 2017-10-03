@@ -1,5 +1,5 @@
 #include "core/exception_handler.h"
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/list.h"
 
 #define MAX_EXCEPTION_HANDLERS 32

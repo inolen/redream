@@ -1,7 +1,5 @@
 #include "jit/frontend/armv3/armv3_fallback.h"
-#include "core/assert.h"
-#include "core/log.h"
-#include "core/math.h"
+#include "core/core.h"
 #include "jit/frontend/armv3/armv3_context.h"
 #include "jit/frontend/armv3/armv3_disasm.h"
 #include "jit/frontend/armv3/armv3_guest.h"

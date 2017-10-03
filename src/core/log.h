@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "core/option.h"
 
 enum log_level {
   LOG_LEVEL_INFO,

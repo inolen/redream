@@ -1,5 +1,5 @@
 #include "guest/gdrom/gdi.h"
-#include "core/assert.h"
+#include "core/core.h"
 #include "guest/gdrom/disc.h"
 
 struct gdi {

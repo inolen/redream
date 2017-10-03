@@ -1,4 +1,4 @@
-#include "core/assert.h"
+#include "core/core.h"
 #include "guest/gdrom/disc.h"
 #include "guest/gdrom/gdrom_types.h"
 

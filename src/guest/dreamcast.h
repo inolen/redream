@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "core/constructor.h"
 #include "core/list.h"
 #include "guest/memory.h"
 #include "host/keycode.h"

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include "guest/scheduler.h"
-#include "core/assert.h"
 #include "core/core.h"
 #include "core/list.h"
 #include "guest/dreamcast.h"

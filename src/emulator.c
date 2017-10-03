@@ -12,7 +12,6 @@
  */
 
 #include "emulator.h"
-#include "core/option.h"
 #include "core/profiler.h"
 #include "core/thread.h"
 #include "core/time.h"
@@ -32,12 +31,10 @@
 #include "guest/sh4/sh4.h"
 #include "host/host.h"
 #include "imgui.h"
+#include "options.h"
 #include "render/render_backend.h"
 
 DEFINE_AGGREGATE_COUNTER(frames);
-
-DEFINE_PERSISTENT_OPTION_INT(debug, 1, "Show debug menu");
-DEFINE_PERSISTENT_OPTION_STRING(aspect, "stretch", "Video aspect ratio");
 
 enum {
   ASPECT_RATIO_STRETCH,

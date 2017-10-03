@@ -1,21 +1,17 @@
 #include <glad/glad.h>
 #include <SDL.h>
 #include <SDL_opengl.h>
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/filesystem.h"
-#include "core/option.h"
 #include "core/profiler.h"
 #include "core/ringbuf.h"
 #include "core/time.h"
 #include "emulator.h"
 #include "host/host.h"
 #include "imgui.h"
+#include "options.h"
 #include "render/render_backend.h"
 #include "tracer.h"
-
-DEFINE_OPTION_INT(audio, 1, "Enable audio");
-DEFINE_OPTION_INT(latency, 50, "Preferred audio latency in ms");
-DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
 
 /*
  * sdl host implementation

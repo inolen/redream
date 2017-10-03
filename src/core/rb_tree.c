@@ -1,5 +1,5 @@
 #include "core/rb_tree.h"
-#include "core/assert.h"
+#include "core/core.h"
 
 #define VERIFY_TREE 0
 

@@ -1,5 +1,5 @@
 #include "core/profiler.h"
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/time.h"
 
 #define PROFILER_MAX_COUNTERS 32

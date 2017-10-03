@@ -1,5 +1,5 @@
 #include <Windows.h>
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/time.h"
 
 int64_t time_nanoseconds() {

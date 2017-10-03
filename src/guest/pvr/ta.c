@@ -19,10 +19,10 @@
  */
 
 #include "guest/pvr/ta.h"
+#include "core/core.h"
 #include "core/exception_handler.h"
 #include "core/filesystem.h"
 #include "core/list.h"
-#include "core/string.h"
 #include "guest/holly/holly.h"
 #include "guest/pvr/pvr.h"
 #include "guest/pvr/tr.h"

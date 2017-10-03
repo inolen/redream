@@ -1,7 +1,6 @@
 #include "jit/frontend/sh4/sh4_disasm.h"
-#include "core/assert.h"
 #include "core/constructor.h"
-#include "core/string.h"
+#include "core/core.h"
 #include "jit/frontend/sh4/sh4_fallback.h"
 
 int sh4_optable[UINT16_MAX + 1];

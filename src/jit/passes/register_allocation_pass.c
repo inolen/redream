@@ -1,7 +1,7 @@
 #include <limits.h>
 #include "jit/passes/register_allocation_pass.h"
+#include "core/core.h"
 #include "core/list.h"
-#include "core/math.h"
 #include "jit/ir/ir.h"
 #include "jit/jit_backend.h"
 #include "jit/pass_stats.h"

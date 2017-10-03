@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include "core/interval_tree.h"
-#include "core/math.h"
+#include "core/core.h"
 
 static int interval_tree_cmp(const struct rb_node *lhs,
                              const struct rb_node *rhs);

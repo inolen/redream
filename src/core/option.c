@@ -1,9 +1,7 @@
 #include <ini.h>
 #include <stdlib.h>
 #include "core/option.h"
-#include "core/log.h"
-#include "core/math.h"
-#include "core/string.h"
+#include "core/core.h"
 
 static struct list s_options;
 

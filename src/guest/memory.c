@@ -1,7 +1,6 @@
 #include "guest/memory.h"
+#include "core/core.h"
 #include "core/exception_handler.h"
-#include "core/math.h"
-#include "core/string.h"
 #include "guest/dreamcast.h"
 
 /*

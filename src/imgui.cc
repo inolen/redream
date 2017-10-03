@@ -7,7 +7,7 @@
 #endif
 
 extern "C" {
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/time.h"
 #include "host/keycode.h"
 #include "imgui.h"

@@ -1,7 +1,6 @@
 #include "guest/rom/boot.h"
 #include "core/filesystem.h"
 #include "core/md5.h"
-#include "core/option.h"
 #include "guest/dreamcast.h"
 
 struct boot {

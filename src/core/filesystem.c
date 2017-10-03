@@ -1,7 +1,6 @@
 #include <errno.h>
 #include "core/filesystem.h"
-#include "core/log.h"
-#include "core/string.h"
+#include "core/core.h"
 
 static char appdir[PATH_MAX];
 

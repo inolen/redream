@@ -1,5 +1,4 @@
-#include "core/option.h"
-#include "core/string.h"
+#include "core/core.h"
 #include "guest/dreamcast.h"
 #include "guest/maple/maple.h"
 

@@ -1,5 +1,5 @@
 #include "guest/arm7/arm7.h"
-#include "core/log.h"
+#include "core/core.h"
 #include "guest/aica/aica.h"
 #include "guest/dreamcast.h"
 #include "guest/scheduler.h"

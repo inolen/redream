@@ -2,7 +2,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <time.h>
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/thread.h"
 
 static void thread_destroy(pthread_t *pthread) {

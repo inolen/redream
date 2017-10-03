@@ -1,7 +1,7 @@
 #include "jit/backend/x64/x64_local.h"
 
 extern "C" {
-#include "core/assert.h"
+#include "core/core.h"
 #include "jit/jit.h"
 #include "jit/jit_guest.h"
 }

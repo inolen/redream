@@ -4,7 +4,7 @@
 #include "gdb/gdb_server.h"
 #endif
 
-#include "core/log.h"
+#include "core/core.h"
 #include "guest/debugger.h"
 #include "guest/dreamcast.h"
 

@@ -1,5 +1,5 @@
 #include "guest/pvr/tex.h"
-#include "core/assert.h"
+#include "core/core.h"
 #include "render/render_backend.h"
 
 /*

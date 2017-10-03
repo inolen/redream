@@ -1,8 +1,7 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#include "core/assert.h"
-#include "core/math.h"
+#include <stdint.h>
 #include "core/memory.h"
 
 struct address_map;

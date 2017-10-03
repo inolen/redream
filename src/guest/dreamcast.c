@@ -1,6 +1,5 @@
 #include "guest/dreamcast.h"
-#include "core/option.h"
-#include "core/string.h"
+#include "core/core.h"
 #include "guest/aica/aica.h"
 #include "guest/arm7/arm7.h"
 #include "guest/bios/bios.h"

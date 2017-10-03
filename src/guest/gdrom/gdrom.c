@@ -1,6 +1,5 @@
 #include "guest/gdrom/gdrom.h"
-#include "core/math.h"
-#include "core/string.h"
+#include "core/core.h"
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom_replies.inc"
 #include "guest/gdrom/gdrom_types.h"

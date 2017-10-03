@@ -1,6 +1,5 @@
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/filesystem.h"
-#include "core/string.h"
 #include "guest/maple/maple.h"
 #include "guest/maple/vmu_default.inc"
 

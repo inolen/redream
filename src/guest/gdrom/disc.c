@@ -1,6 +1,5 @@
 #include "guest/gdrom/disc.h"
-#include "core/assert.h"
-#include "core/string.h"
+#include "core/core.h"
 #include "guest/gdrom/cdi.h"
 #include "guest/gdrom/chd.h"
 #include "guest/gdrom/gdi.h"

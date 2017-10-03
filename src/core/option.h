@@ -1,5 +1,5 @@
-#ifndef OPTIONS_H
-#define OPTIONS_H
+#ifndef REDREAM_OPTION_H
+#define REDREAM_OPTION_H
 
 #include <string.h>
 #include "core/constructor.h"

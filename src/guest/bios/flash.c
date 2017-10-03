@@ -3,7 +3,7 @@
  */
 
 #include "guest/bios/flash.h"
-#include "core/math.h"
+#include "core/core.h"
 #include "guest/rom/flash.h"
 
 #define FLASH_BLOCK_SIZE 0x40

@@ -2,7 +2,6 @@
 #define IR_BUILDER_H
 
 #include <stdio.h>
-#include "core/assert.h"
 #include "core/hash.h"
 #include "core/list.h"
 

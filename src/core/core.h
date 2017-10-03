@@ -3,7 +3,10 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "core/assert.h"
+#include "core/log.h"
 #include "core/math.h"
+#include "core/string.h"
 
 #define ARRAY_SIZE(arr) (int)(sizeof(arr) / sizeof((arr)[0]))
 

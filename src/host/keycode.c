@@ -1,5 +1,5 @@
 #include "keycode.h"
-#include "core/string.h"
+#include "core/core.h"
 
 struct key {
   enum keycode code;

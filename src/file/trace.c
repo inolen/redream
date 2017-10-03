@@ -1,8 +1,7 @@
 #include <limits.h>
 #include "file/trace.h"
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/filesystem.h"
-#include "core/math.h"
 #include "guest/pvr/tr.h"
 
 void trace_writer_close(struct trace_writer *writer) {

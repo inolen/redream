@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <windows.h>
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/thread.h"
 
 struct thread_wrapper {

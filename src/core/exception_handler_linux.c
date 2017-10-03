@@ -1,6 +1,6 @@
 #include <signal.h>
 #include <stdlib.h>
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/exception_handler.h"
 
 static struct sigaction old_sigsegv;

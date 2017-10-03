@@ -1,7 +1,7 @@
 #include <mach/mach.h>
 #include <pthread.h>
+#include "core/core.h"
 #include "core/exception_handler.h"
-#include "core/log.h"
 
 /* POSIX signal handlers, for whatever reason, don't seem to be invoked for
    segmentation faults on OSX when running the application under lldb / gdb.

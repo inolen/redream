@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "jit/ir/ir.h"
-#include "core/math.h"
+#include "core/core.h"
 
 const struct ir_opdef ir_opdefs[IR_NUM_OPS] = {
 #define IR_OP(name, flags) {#name, flags},

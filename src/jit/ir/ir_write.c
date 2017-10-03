@@ -1,5 +1,5 @@
 #include <inttypes.h>
-#include "core/string.h"
+#include "core/core.h"
 #include "jit/ir/ir.h"
 
 struct ir_writer {

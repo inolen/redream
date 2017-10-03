@@ -2,11 +2,10 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/filesystem.h"
 #include "core/list.h"
 #include "core/memory.h"
-#include "core/string.h"
 
 #if PLATFORM_ANDROID
 #include <linux/ashmem.h>
