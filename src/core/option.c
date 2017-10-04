@@ -21,16 +21,16 @@ static void options_parse_value(struct option *opt, const char *value) {
   switch (opt->type) {
     case OPTION_INT: {
       if (!strcmp(value, "false")) {
-        *(int *)opt->storage = 0;
+        *(int *)opt->value = 0;
       } else if (!strcmp(value, "true") || !value[0]) {
-        *(int *)opt->storage = 1;
+        *(int *)opt->value = 1;
       } else {
-        *(int *)opt->storage = atoi(value);
+        *(int *)opt->value = atoi(value);
       }
     } break;
 
     case OPTION_STRING:
-      strncpy((char *)opt->storage, value, OPTION_MAX_LENGTH);
+      strncpy((char *)opt->value, value, OPTION_MAX_LENGTH);
       break;
   }
 }
@@ -40,11 +40,11 @@ static const char *options_format_value(struct option *opt) {
 
   switch (opt->type) {
     case OPTION_INT:
-      snprintf(value, sizeof(value), "%d", *(int *)opt->storage);
+      snprintf(value, sizeof(value), "%d", *(int *)opt->value);
       return value;
 
     case OPTION_STRING:
-      return (char *)opt->storage;
+      return (char *)opt->value;
   }
 
   return NULL;
@@ -160,10 +160,10 @@ int options_parse(int *argc, char ***argv) {
   return 1;
 }
 
-void options_unregister(struct option *option) {
+void option_unregister(struct option *option) {
   list_remove(&s_options, &option->it);
 }
 
-void options_register(struct option *option) {
+void option_register(struct option *option) {
   list_add(&s_options, &option->it);
 }
