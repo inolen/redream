@@ -125,33 +125,33 @@ void imgui_begin_frame(struct imgui *imgui) {
 #endif
 }
 
-void imgui_keydown(struct imgui *imgui, enum keycode code, int16_t value) {
+void imgui_keydown(struct imgui *imgui, int key, int16_t value) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
   int down = value > 0;
 
-  if (code == K_MWHEELUP) {
+  if (key == K_MWHEELUP) {
     io.MouseWheel = 1.0f;
-  } else if (code == K_MWHEELDOWN) {
+  } else if (key == K_MWHEELDOWN) {
     io.MouseWheel = -1.0f;
-  } else if (code == K_MOUSE1) {
+  } else if (key == K_MOUSE1) {
     io.MouseDown[0] = down;
-  } else if (code == K_MOUSE2) {
+  } else if (key == K_MOUSE2) {
     io.MouseDown[1] = down;
-  } else if (code == K_MOUSE3) {
+  } else if (key == K_MOUSE3) {
     io.MouseDown[2] = down;
-  } else if (code == K_LALT || code == K_RALT) {
-    imgui->alt[code == K_LALT ? 0 : 1] = down;
+  } else if (key == K_LALT || key == K_RALT) {
+    imgui->alt[key == K_LALT ? 0 : 1] = down;
     io.KeyAlt = imgui->alt[0] || imgui->alt[1];
-  } else if (code == K_LCTRL || code == K_RCTRL) {
-    imgui->ctrl[code == K_LCTRL ? 0 : 1] = down;
+  } else if (key == K_LCTRL || key == K_RCTRL) {
+    imgui->ctrl[key == K_LCTRL ? 0 : 1] = down;
     io.KeyCtrl = imgui->ctrl[0] || imgui->ctrl[1];
-  } else if (code == K_LSHIFT || code == K_RSHIFT) {
-    imgui->shift[code == K_LSHIFT ? 0 : 1] = down;
+  } else if (key == K_LSHIFT || key == K_RSHIFT) {
+    imgui->shift[key == K_LSHIFT ? 0 : 1] = down;
     io.KeyShift = imgui->shift[0] || imgui->shift[1];
   } else {
-    imgui->keys[code] = value;
-    io.KeysDown[code] = down;
+    imgui->keys[key] = value;
+    io.KeysDown[key] = down;
   }
 #endif
 }

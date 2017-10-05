@@ -297,12 +297,12 @@ static int video_restart(struct host *host) {
  */
 static void host_poll_events(struct host *host);
 
-static enum keycode translate_sdl_key(SDL_Keysym keysym) {
-  enum keycode out = K_UNKNOWN;
+static int translate_sdl_key(SDL_Keysym keysym) {
+  int out = K_UNKNOWN;
 
   if (keysym.sym >= SDLK_SPACE && keysym.sym <= SDLK_z) {
     /* this range maps 1:1 with ASCII chars */
-    out = (enum keycode)keysym.sym;
+    out = keysym.sym;
   } else {
     switch (keysym.sym) {
       case SDLK_CAPSLOCK:
@@ -464,9 +464,8 @@ static void input_mousemove(struct host *host, int port, int x, int y) {
   imgui_mousemove(host->imgui, x, y);
 }
 
-static void input_keydown(struct host *host, int port, enum keycode key,
-                          int16_t value) {
-  enum keycode keys[2] = {key, 0};
+static void input_keydown(struct host *host, int port, int key, int16_t value) {
+  int keys[2] = {key, 0};
   int num_keys = 1;
 
   /* send an extra event for keys that map to a controller button */
@@ -577,7 +576,7 @@ static void host_poll_events(struct host *host) {
   while (SDL_PollEvent(&ev)) {
     switch (ev.type) {
       case SDL_KEYDOWN: {
-        enum keycode keycode = translate_sdl_key(ev.key.keysym);
+        int keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
           input_keydown(host, 0, keycode, KEY_DOWN);
@@ -585,7 +584,7 @@ static void host_poll_events(struct host *host) {
       } break;
 
       case SDL_KEYUP: {
-        enum keycode keycode = translate_sdl_key(ev.key.keysym);
+        int keycode = translate_sdl_key(ev.key.keysym);
 
         if (keycode != K_UNKNOWN) {
           input_keydown(host, 0, keycode, KEY_UP);
@@ -594,7 +593,7 @@ static void host_poll_events(struct host *host) {
 
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP: {
-        enum keycode keycode;
+        int keycode;
 
         switch (ev.button.button) {
           case SDL_BUTTON_LEFT:
@@ -651,7 +650,7 @@ static void host_poll_events(struct host *host) {
 
       case SDL_CONTROLLERAXISMOTION: {
         int port = input_find_controller_port(host, ev.caxis.which);
-        enum keycode key = K_UNKNOWN;
+        int key = K_UNKNOWN;
         int16_t value = ev.caxis.value;
 
         switch (ev.caxis.axis) {
@@ -677,7 +676,7 @@ static void host_poll_events(struct host *host) {
       case SDL_CONTROLLERBUTTONDOWN:
       case SDL_CONTROLLERBUTTONUP: {
         int port = input_find_controller_port(host, ev.cbutton.which);
-        enum keycode key = K_UNKNOWN;
+        int key = K_UNKNOWN;
         int16_t value = ev.type == SDL_CONTROLLERBUTTONDOWN ? KEY_DOWN : KEY_UP;
 
         switch (ev.cbutton.button) {

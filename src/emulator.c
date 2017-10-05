@@ -688,7 +688,7 @@ int emu_load(struct emu *emu, const char *path) {
   return dc_load(emu->dc, path);
 }
 
-void emu_keydown(struct emu *emu, int port, enum keycode key, int16_t value) {
+void emu_keydown(struct emu *emu, int port, int key, int16_t value) {
   if (key == K_F1 && value > 0) {
     OPTION_debug = !OPTION_debug;
   }

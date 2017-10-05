@@ -11,7 +11,7 @@
 #define KEY_DOWN INT16_MAX
 #define KEY_UP 0
 
-enum keycode {
+enum {
   K_UNKNOWN,
 
   K_SPACE = 32,
@@ -94,7 +94,7 @@ enum keycode {
   K_NUM_KEYS
 };
 
-enum keycode get_key_by_name(const char *keyname);
-const char *get_name_by_key(enum keycode keycode);
+int get_key_by_name(const char *keyname);
+const char *get_name_by_key(int key);
 
 #endif

@@ -690,14 +690,14 @@ int tracer_load(struct tracer *tracer, const char *path) {
   return 1;
 }
 
-void tracer_keydown(struct tracer *tracer, enum keycode key, int16_t value) {
-  if (key == K_LEFT && value > 0) {
+void tracer_keydown(struct tracer *tracer, int key, int16_t value) {
+  if (key == K_LEFT && value) {
     tracer_prev_context(tracer);
-  } else if (key == K_RIGHT && value > 0) {
+  } else if (key == K_RIGHT && value) {
     tracer_next_context(tracer);
-  } else if (key == K_UP && value > 0) {
+  } else if (key == K_UP && value) {
     tracer_prev_param(tracer);
-  } else if (key == K_DOWN && value > 0) {
+  } else if (key == K_DOWN && value) {
     tracer_next_param(tracer);
   }
 }
