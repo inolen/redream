@@ -37,7 +37,7 @@ static int controller_input(struct maple_device *dev, int button,
   struct controller *ctrl = (struct controller *)dev;
 
   if (button <= CONT_DPAD2_RIGHT) {
-    if (value > 0) {
+    if (value) {
       ctrl->cnd.buttons &= ~(1 << button);
     } else {
       ctrl->cnd.buttons |= (1 << button);

@@ -40,10 +40,6 @@ enum {
   ASPECT_RATIO_4BY3,
 };
 
-static const char *aspect_ratios[] = {
-    "stretch", "16:9", "4:3",
-};
-
 /* emulation thread state */
 enum {
   EMU_SHUTDOWN,
@@ -410,10 +406,9 @@ static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
  */
 static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
   int i;
-  int num_aspect_ratios = ARRAY_SIZE(aspect_ratios);
 
-  for (i = 0; i < num_aspect_ratios; i++) {
-    const char *aspect_ratio = aspect_ratios[i];
+  for (i = 0; i < NUM_ASPECT_RATIOS; i++) {
+    const char *aspect_ratio = ASPECT_RATIOS[i];
 
     if (!strcmp(aspect_ratio, new_ratio)) {
       break;
@@ -421,12 +416,12 @@ static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
   }
 
   /* force to stretch if the new ratio isn't a valid one */
-  if (i == num_aspect_ratios) {
+  if (i == NUM_ASPECT_RATIOS) {
     i = ASPECT_RATIO_STRETCH;
   }
 
   /* update persistent option as well as this session's aspect ratio */
-  strncpy(OPTION_aspect, aspect_ratios[i], sizeof(OPTION_aspect));
+  strncpy(OPTION_aspect, ASPECT_RATIOS[i], sizeof(OPTION_aspect));
   emu->aspect_ratio = i;
 }
 
@@ -437,7 +432,7 @@ static void emu_debug_menu(struct emu *emu) {
   }
 
   if (igBeginMainMenuBar()) {
-    if (igBeginMenu("DEBUG", 1)) {
+    if (igBeginMenu("EMU", 1)) {
       if (igMenuItem("frame stats", NULL, emu->frame_stats, 1)) {
         emu->frame_stats = !emu->frame_stats;
       }
@@ -453,32 +448,9 @@ static void emu_debug_menu(struct emu *emu) {
       igEndMenu();
     }
 
-    if (igBeginMenu("VIDEO", 1)) {
-      if (igBeginMenu("aspect ratio", 1)) {
-        for (int i = 0; i < ARRAY_SIZE(aspect_ratios); i++) {
-          const char *aspect_ratio = aspect_ratios[i];
-          int selected = !strcmp(OPTION_aspect, aspect_ratio);
-
-          if (igMenuItem(aspect_ratio, NULL, selected, 1)) {
-            emu_set_aspect_ratio(emu, aspect_ratio);
-          }
-        }
-
-        igEndMenu();
-      }
-      if (video_can_fullscreen(emu->host)) {
-        int fullscreen = video_is_fullscreen(emu->host);
-        if (igMenuItem("fullscreen", NULL, fullscreen, 1)) {
-          video_set_fullscreen(emu->host, !fullscreen);
-        }
-      }
-      igEndMenu();
-    }
-
     igEndMainMenuBar();
   }
 
-  bios_debug_menu(emu->dc->bios);
   holly_debug_menu(emu->dc->holly);
   aica_debug_menu(emu->dc->aica);
   sh4_debug_menu(emu->dc->sh4);
@@ -598,89 +570,88 @@ static void emu_run_frame(struct emu *emu) {
 void emu_render_frame(struct emu *emu) {
   prof_counter_add(COUNTER_frames, 1);
 
+  if (OPTION_aspect_dirty) {
+    emu_set_aspect_ratio(emu, OPTION_aspect);
+    OPTION_aspect_dirty = 0;
+  }
+
+  r_clear(emu->r);
+
   if (!dc_running(emu->dc)) {
-    /* not running, just build debug menu */
     emu_debug_menu(emu);
     return;
   }
 
   int width = r_width(emu->r);
   int height = r_height(emu->r);
+  int frame_width;
+  int frame_height;
+  int frame_x;
+  int frame_y;
 
-  r_clear(emu->r);
+  if (emu->aspect_ratio == ASPECT_RATIO_STRETCH) {
+    frame_height = height;
+    frame_width = width;
+    frame_x = 0;
+    frame_y = 0;
+  } else if (emu->aspect_ratio == ASPECT_RATIO_16BY9) {
+    frame_width = width;
+    frame_height = (int)(frame_width * (9.0f / 16.0f));
+    frame_x = 0;
+    frame_y = (int)((height - frame_height) / 2.0f);
+  } else if (emu->aspect_ratio == ASPECT_RATIO_4BY3) {
+    frame_height = height;
+    frame_width = (int)(frame_height * (4.0f / 3.0f));
+    frame_x = (int)((width - frame_width) / 2.0f);
+    frame_y = 0;
+  } else {
+    LOG_FATAL("unexpected aspect ratio %d", emu->aspect_ratio);
+  }
 
-  if (dc_running(emu->dc)) {
-    /* render dreamcast video */
-    int frame_height, frame_width;
-    int frame_x, frame_y;
+  r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
 
-    if (emu->aspect_ratio == ASPECT_RATIO_STRETCH) {
-      frame_height = height;
-      frame_width = width;
-      frame_x = 0;
-      frame_y = 0;
-    } else if (emu->aspect_ratio == ASPECT_RATIO_16BY9) {
-      frame_width = width;
-      frame_height = (int)(frame_width * (9.0f / 16.0f));
-      frame_x = 0;
-      frame_y = (int)((height - frame_height) / 2.0f);
-    } else if (emu->aspect_ratio == ASPECT_RATIO_4BY3) {
-      frame_height = height;
-      frame_width = (int)(frame_height * (4.0f / 3.0f));
-      frame_x = (int)((width - frame_width) / 2.0f);
-      frame_y = 0;
-    } else {
-      LOG_FATAL("unexpected aspect ratio %d", emu->aspect_ratio);
-    }
+  if (emu->multi_threaded) {
+    /* tell the emulation thread to run the next frame */
+    {
+      mutex_lock(emu->run_mutex);
 
-    r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
-
-    if (emu->multi_threaded) {
-      /* tell the emulation thread to run the next frame */
-      {
-        mutex_lock(emu->run_mutex);
-
-        /* build the debug menus before running the frame, while the two threads
-           are synchronized */
-        emu_debug_menu(emu);
-
-        emu->state = EMU_RUNFRAME;
-        cond_signal(emu->run_cond);
-
-        mutex_unlock(emu->run_mutex);
-      }
-
-      /* wait for the emulation thread to submit a context */
-      {
-        mutex_lock(emu->frame_mutex);
-
-        while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
-          cond_wait(emu->frame_cond, emu->frame_mutex);
-        }
-
-        /* if a context was submitted before the vblank, convert it and upload
-           its textures to the render backend */
-        if (emu->pending_ctx) {
-          tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
-                             &emu->pending_rc);
-          emu->pending_ctx = NULL;
-        }
-
-        /* unblock the emulation thread */
-        mutex_unlock(emu->frame_mutex);
-      }
-
-      /* render the latest context. note, the emulation thread may still be
-         running at this time */
-      tr_render_context(emu->r, &emu->pending_rc);
-    } else {
+      /* build the debug menus before running the frame, while the two threads
+         are synchronized */
       emu_debug_menu(emu);
 
-      emu_run_frame(emu);
+      emu->state = EMU_RUNFRAME;
+      cond_signal(emu->run_cond);
+
+      mutex_unlock(emu->run_mutex);
     }
+
+    /* wait for the emulation thread to submit a context */
+    {
+      mutex_lock(emu->frame_mutex);
+
+      while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
+        cond_wait(emu->frame_cond, emu->frame_mutex);
+      }
+
+      /* if a context was submitted before the vblank, convert it and upload
+         its textures to the render backend */
+      if (emu->pending_ctx) {
+        tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
+                           &emu->pending_rc);
+        emu->pending_ctx = NULL;
+      }
+
+      /* unblock the emulation thread */
+      mutex_unlock(emu->frame_mutex);
+    }
+
+    /* render the latest context. note, the emulation thread may still be
+       running at this time */
+    tr_render_context(emu->r, &emu->pending_rc);
   } else {
-    /* not running, just build debug menu */
     emu_debug_menu(emu);
+
+    emu_run_frame(emu);
   }
 }
 
@@ -688,14 +659,16 @@ int emu_load(struct emu *emu, const char *path) {
   return dc_load(emu->dc, path);
 }
 
-void emu_keydown(struct emu *emu, int port, int key, int16_t value) {
-  if (key == K_F1 && value > 0) {
+int emu_keydown(struct emu *emu, int port, int key, int16_t value) {
+  if (key == K_F1 && value) {
     OPTION_debug = !OPTION_debug;
   }
 
   if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
     dc_input(emu->dc, port, key - K_CONT_C, value);
   }
+
+  return 0;
 }
 
 void emu_vid_swapped(struct emu *emu) {

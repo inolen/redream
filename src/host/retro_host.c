@@ -6,6 +6,7 @@
 #include "core/filesystem.h"
 #include "emulator.h"
 #include "host/host.h"
+#include "options.h"
 #include "render/render_backend.h"
 
 #define AUDIO_FREQ 44100
@@ -92,19 +93,6 @@ struct host *g_host;
  */
 void audio_push(struct host *host, const int16_t *data, int frames) {
   audio_batch_cb(data, frames);
-}
-
-/*
- * video
- */
-void video_set_fullscreen(struct host *host, int fullscreen) {}
-
-int video_is_fullscreen(struct host *host) {
-  return 0;
-}
-
-int video_can_fullscreen(struct host *host) {
-  return 0;
 }
 
 /*
@@ -312,7 +300,7 @@ bool retro_load_game(const struct retro_game_info *info) {
     return false;
   }
 
-  return emu_load_game(g_host->emu, info->path);
+  return emu_load(g_host->emu, info->path);
 }
 
 bool retro_load_game_special(unsigned game_type,

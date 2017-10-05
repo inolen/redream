@@ -125,10 +125,10 @@ void imgui_begin_frame(struct imgui *imgui) {
 #endif
 }
 
-void imgui_keydown(struct imgui *imgui, int key, int16_t value) {
+int imgui_keydown(struct imgui *imgui, int key, int16_t value) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
-  int down = value > 0;
+  int down = !!value;
 
   if (key == K_MWHEELUP) {
     io.MouseWheel = 1.0f;
@@ -154,6 +154,7 @@ void imgui_keydown(struct imgui *imgui, int key, int16_t value) {
     io.KeysDown[key] = down;
   }
 #endif
+  return 0;
 }
 
 void imgui_mousemove(struct imgui *imgui, int x, int y) {

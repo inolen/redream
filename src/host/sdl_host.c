@@ -141,6 +141,49 @@ static void audio_write_cb(void *userdata, Uint8 *stream, int len) {
   host->audio.last_cb = time_nanoseconds();
 }
 
+static void audio_destroy_device(struct host *host) {
+  if (!host->audio.dev) {
+    return;
+  }
+
+  SDL_CloseAudioDevice(host->audio.dev);
+  host->audio.dev = 0;
+}
+
+static int audio_create_device(struct host *host) {
+  /* match AICA output format */
+  SDL_AudioSpec want;
+  SDL_zero(want);
+  want.freq = AUDIO_FREQ;
+  want.format = AUDIO_S16LSB;
+  want.channels = 2;
+  want.samples = MS_TO_AUDIO_FRAMES(OPTION_latency);
+  want.userdata = host;
+  want.callback = audio_write_cb;
+
+  host->audio.dev = SDL_OpenAudioDevice(NULL, 0, &want, &host->audio.spec, 0);
+  if (!host->audio.dev) {
+    LOG_WARNING("audio_create_device failed to open device: %s",
+                SDL_GetError());
+    return 0;
+  }
+
+  LOG_INFO("audio_create_device latency=%d ms/%d frames",
+           AUDIO_FRAMES_TO_MS(host->audio.spec.samples),
+           host->audio.spec.samples);
+
+  /* resume device */
+  SDL_PauseAudioDevice(host->audio.dev, 0);
+
+  return 1;
+}
+
+static void audio_set_latency(struct host *host, int latency) {
+  audio_destroy_device(host);
+  int res = audio_create_device(host);
+  CHECK(res);
+}
+
 void audio_push(struct host *host, const int16_t *data, int num_frames) {
   if (!host->audio.dev) {
     return;
@@ -164,34 +207,17 @@ static int audio_init(struct host *host) {
     return 1;
   }
 
-  /* match AICA output format */
-  SDL_AudioSpec want;
-  SDL_zero(want);
-  want.freq = AUDIO_FREQ;
-  want.format = AUDIO_S16LSB;
-  want.channels = 2;
-  want.samples = MS_TO_AUDIO_FRAMES(OPTION_latency);
-  want.userdata = host;
-  want.callback = audio_write_cb;
-
-  host->audio.dev = SDL_OpenAudioDevice(NULL, 0, &want, &host->audio.spec, 0);
-  if (!host->audio.dev) {
-    LOG_WARNING("failed to open SDL audio device: %s", SDL_GetError());
-    return 0;
-  }
-
   /* create ringbuffer to store data coming in from AICA. note, the buffer needs
      to be at least two video frames in size, in order to handle the coarse
      synchronization used by the main loop, where an entire guest video frame is
      ran when the buffered audio data is deemed low */
   host->audio.frames = ringbuf_create(AUDIO_FREQ * AUDIO_FRAME_SIZE);
 
-  /* resume device */
-  SDL_PauseAudioDevice(host->audio.dev, 0);
-
-  LOG_INFO("audio_init latency=%d ms/%d frames",
-           AUDIO_FRAMES_TO_MS(host->audio.spec.samples),
-           host->audio.spec.samples);
+  int success = audio_create_device(host);
+  if (!success) {
+    LOG_WARNING("audio_init failed to open audio device: %s", SDL_GetError());
+    return 0;
+  }
 
   return 1;
 }
@@ -237,22 +263,10 @@ static SDL_GLContext video_create_context(struct host *host) {
   return ctx;
 }
 
-void video_set_fullscreen(struct host *host, int fullscreen) {
+static void video_set_fullscreen(struct host *host, int fullscreen) {
   uint32_t flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
   int res = SDL_SetWindowFullscreen(host->win, flags);
   CHECK_EQ(res, 0);
-
-  /* persist the setting */
-  OPTION_fullscreen = fullscreen;
-}
-
-int video_is_fullscreen(struct host *host) {
-  uint32_t flags = SDL_GetWindowFlags(host->win);
-  return flags & SDL_WINDOW_FULLSCREEN_DESKTOP;
-}
-
-int video_can_fullscreen(struct host *host) {
-  return 1;
 }
 
 static void video_shutdown(struct host *host) {
@@ -460,30 +474,43 @@ static int input_find_controller_port(struct host *host, int instance_id) {
   return -1;
 }
 
+static void input_update_keymap(struct host *host) {
+  memset(host->input.keymap, 0, sizeof(host->input.keymap));
+
+  for (int i = 0; i < NUM_BUTTONS; i++) {
+    struct button_map *btnmap = &BUTTONS[i];
+
+    if (btnmap->key) {
+      host->input.keymap[*btnmap->key] = K_CONT_C + i;
+    }
+  }
+}
+
 static void input_mousemove(struct host *host, int port, int x, int y) {
   imgui_mousemove(host->imgui, x, y);
 }
 
 static void input_keydown(struct host *host, int port, int key, int16_t value) {
-  int keys[2] = {key, 0};
-  int num_keys = 1;
+  /* send event for both the original key as well as the mapped button, if a
+     mapping is available */
+  int mapping = host->input.keymap[key];
 
-  /* send an extra event for keys that map to a controller button */
-  int button = host->input.keymap[key];
-  if (button) {
-    keys[num_keys++] = button;
-  }
-
-  for (int i = 0; i < num_keys; i++) {
-    if (host->emu) {
-      emu_keydown(host->emu, port, keys[i], value);
+  for (int i = 0; i < 2; i++) {
+    if (key == K_UNKNOWN) {
+      break;
     }
 
-    if (host->tracer) {
-      tracer_keydown(host->tracer, keys[i], value);
+    if (host->emu && emu_keydown(host->emu, port, key, value)) {
+      continue;
     }
 
-    imgui_keydown(host->imgui, keys[i], value);
+    if (host->tracer && tracer_keydown(host->tracer, key, value)) {
+      continue;
+    }
+
+    imgui_keydown(host->imgui, key, value);
+
+    key = mapping;
   }
 }
 
@@ -528,19 +555,6 @@ static void input_shutdown(struct host *host) {
 }
 
 static int input_init(struct host *host) {
-  /* development key map */
-  host->input.keymap[K_SPACE] = K_CONT_START;
-  host->input.keymap['k'] = K_CONT_A;
-  host->input.keymap['l'] = K_CONT_B;
-  host->input.keymap['j'] = K_CONT_X;
-  host->input.keymap['i'] = K_CONT_Y;
-  host->input.keymap['w'] = K_CONT_DPAD_UP;
-  host->input.keymap['s'] = K_CONT_DPAD_DOWN;
-  host->input.keymap['a'] = K_CONT_DPAD_LEFT;
-  host->input.keymap['d'] = K_CONT_DPAD_RIGHT;
-  host->input.keymap['o'] = K_CONT_LTRIG;
-  host->input.keymap['p'] = K_CONT_RTRIG;
-
   /* SDL won't push events for joysticks which are already connected at init */
   int num_joysticks = SDL_NumJoysticks();
 
@@ -552,11 +566,9 @@ static int input_init(struct host *host) {
     input_controller_added(host, device_id);
   }
 
-  return 1;
-}
+  input_update_keymap(host);
 
-void input_poll(struct host *host) {
-  host_poll_events(host);
+  return 1;
 }
 
 /*
@@ -718,6 +730,7 @@ static void host_poll_events(struct host *host) {
         if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
           host->video.width = ev.window.data1;
           host->video.height = ev.window.data2;
+
           int res = video_restart(host);
           CHECK(res, "video_restart failed");
         }
@@ -727,6 +740,37 @@ static void host_poll_events(struct host *host) {
         host->closed = 1;
         break;
     }
+  }
+
+  /* check for option changes at this time as well */
+  if (OPTION_latency_dirty) {
+    audio_set_latency(host, OPTION_latency);
+    OPTION_latency_dirty = 0;
+  }
+
+  if (OPTION_fullscreen_dirty) {
+    video_set_fullscreen(host, OPTION_fullscreen);
+    OPTION_fullscreen_dirty = 0;
+  }
+
+  /* update reverse button map when optionsc hange */
+  int dirty_map = 0;
+
+  for (int i = 0; i < NUM_BUTTONS; i++) {
+    struct button_map *btnmap = &BUTTONS[i];
+
+    if (!btnmap->desc) {
+      continue;
+    }
+
+    if (*btnmap->dirty) {
+      dirty_map = 1;
+      *btnmap->dirty = 0;
+    }
+  }
+
+  if (dirty_map) {
+    input_update_keymap(host);
   }
 }
 
@@ -881,6 +925,7 @@ int main(int argc, char **argv) {
 
   if (host->emu) {
     emu_destroy(host->emu);
+    host->emu = NULL;
   }
 
   if (host->tracer) {

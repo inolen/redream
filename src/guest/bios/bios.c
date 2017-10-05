@@ -9,7 +9,6 @@
 #include "guest/gdrom/gdrom.h"
 #include "guest/rom/flash.h"
 #include "guest/sh4/sh4.h"
-#include "imgui.h"
 #include "options.h"
 
 /* system settings */
@@ -318,62 +317,6 @@ static int bios_post_init(struct device *dev) {
 
   return 1;
 }
-
-#ifdef HAVE_IMGUI
-void bios_debug_menu(struct bios *bios) {
-  int changed = 0;
-
-  if (igBeginMainMenuBar()) {
-    if (igBeginMenu("BIOS", 1)) {
-      if (igBeginMenu("region", 1)) {
-        for (int i = 0; i < ARRAY_SIZE(regions); i++) {
-          const char *region = regions[i];
-          int selected = !strcmp(OPTION_region, region);
-
-          if (igMenuItem(region, NULL, selected, 1)) {
-            changed = 1;
-            strncpy(OPTION_region, region, sizeof(OPTION_region));
-          }
-        }
-        igEndMenu();
-      }
-
-      if (igBeginMenu("language", 1)) {
-        for (int i = 0; i < ARRAY_SIZE(languages); i++) {
-          const char *language = languages[i];
-          int selected = !strcmp(OPTION_language, language);
-
-          if (igMenuItem(language, NULL, selected, 1)) {
-            changed = 1;
-            strncpy(OPTION_language, language, sizeof(OPTION_language));
-          }
-        }
-        igEndMenu();
-      }
-
-      if (igBeginMenu("broadcast", 1)) {
-        for (int i = 0; i < ARRAY_SIZE(broadcasts); i++) {
-          const char *broadcast = broadcasts[i];
-          int selected = !strcmp(OPTION_broadcast, broadcast);
-
-          if (igMenuItem(broadcast, NULL, selected, 1)) {
-            changed = 1;
-            strncpy(OPTION_broadcast, broadcast, sizeof(OPTION_broadcast));
-          }
-        }
-        igEndMenu();
-      }
-
-      igEndMenu();
-    }
-    igEndMainMenuBar();
-  }
-
-  if (changed) {
-    LOG_WARNING("bios settings changed, restart to apply");
-  }
-}
-#endif
 
 int bios_invalid_instr(struct bios *bios) {
   struct dreamcast *dc = bios->dc;

@@ -690,7 +690,7 @@ int tracer_load(struct tracer *tracer, const char *path) {
   return 1;
 }
 
-void tracer_keydown(struct tracer *tracer, int key, int16_t value) {
+int tracer_keydown(struct tracer *tracer, int key, int16_t value) {
   if (key == K_LEFT && value) {
     tracer_prev_context(tracer);
   } else if (key == K_RIGHT && value) {
@@ -700,6 +700,8 @@ void tracer_keydown(struct tracer *tracer, int key, int16_t value) {
   } else if (key == K_DOWN && value) {
     tracer_next_param(tracer);
   }
+
+  return 0;
 }
 
 void tracer_vid_destroyed(struct tracer *tracer) {
