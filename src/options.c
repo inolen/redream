@@ -53,7 +53,6 @@ DEFINE_PERSISTENT_OPTION_INT(key_ltrig, 'o', "Left trigger mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_rtrig, 'p', "Right trigger mapping");
 
 /* emulator */
-DEFINE_PERSISTENT_OPTION_INT(debug, 1, "Show debug menu");
 DEFINE_PERSISTENT_OPTION_STRING(aspect, "stretch", "Video aspect ratio");
 
 /* bios */

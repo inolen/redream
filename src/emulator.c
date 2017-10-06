@@ -109,7 +109,8 @@ struct emu {
   float swap_times[360];
   int64_t last_swap;
 
-  /* debug trace writer */
+  /* debugging */
+  int debug_menu;
   struct trace_writer *trace_writer;
 };
 
@@ -427,7 +428,7 @@ static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
 
 static void emu_debug_menu(struct emu *emu) {
 #ifdef HAVE_IMGUI
-  if (!OPTION_debug) {
+  if (!emu->debug_menu) {
     return;
   }
 
@@ -661,7 +662,7 @@ int emu_load(struct emu *emu, const char *path) {
 
 int emu_keydown(struct emu *emu, int port, int key, int16_t value) {
   if (key == K_F1 && value) {
-    OPTION_debug = !OPTION_debug;
+    emu->debug_menu = !emu->debug_menu;
   }
 
   if (key >= K_CONT_C && key <= K_CONT_RTRIG) {

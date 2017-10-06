@@ -36,7 +36,6 @@ DECLARE_OPTION_INT(key_ltrig);
 DECLARE_OPTION_INT(key_rtrig);
 
 /* emulator */
-DECLARE_OPTION_INT(debug);
 DECLARE_OPTION_STRING(aspect);
 
 /* bios */
