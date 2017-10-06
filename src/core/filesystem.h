@@ -33,9 +33,11 @@ const char *fs_appdir();
 void fs_set_appdir(const char *path);
 
 int fs_userdir(char *userdir, size_t size);
+int fs_mediadirs(char *dirs, int num, size_t size);
 
 void fs_dirname(const char *path, char *dir, size_t size);
 void fs_basename(const char *path, char *base, size_t size);
+void fs_realpath(const char *path, char *resolved, size_t size);
 
 int fs_exists(const char *path);
 int fs_isdir(const char *path);

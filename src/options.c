@@ -37,6 +37,7 @@ struct button_map BUTTONS[] = {
 const int NUM_BUTTONS = ARRAY_SIZE(BUTTONS);
 
 /* host */
+DEFINE_OPTION_INT(bios, 0, "Boot to bios");
 DEFINE_OPTION_INT(audio, 1, "Enable audio");
 DEFINE_PERSISTENT_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");

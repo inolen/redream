@@ -119,6 +119,9 @@ if(ARCH_X64)
   list(APPEND RELIB_INCLUDES deps/xbyak)
 endif()
 
+# zlib, reused from libchdr
+list(APPEND RELIB_INCLUDES deps/chdr/deps/zlib-1.2.11)
+
 #--------------------------------------------------
 # optional libs
 #--------------------------------------------------
@@ -351,8 +354,8 @@ if(BUILD_LIBRETRO)
   set(REDREAM_DEFS ${RELIB_DEFS})
   set(REDREAM_FLAGS ${RELIB_FLAGS})
 else()
-  set(REDREAM_SOURCES ${RELIB_SOURCES} src/host/sdl_host.c src/emulator.c src/tracer.c)
-  set(REDREAM_INCLUDES ${RELIB_INCLUDES})
+  set(REDREAM_SOURCES ${RELIB_SOURCES} src/host/sdl_host.c src/emulator.c src/tracer.c src/ui.c)
+  set(REDREAM_INCLUDES ${RELIB_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR})
   set(REDREAM_LIBS ${RELIB_LIBS} ${IMGUI_LIBS} ${SDL_LIBS})
   set(REDREAM_DEFS ${RELIB_DEFS} HAVE_GDBSERVER HAVE_IMGUI)
   set(REDREAM_FLAGS ${RELIB_FLAGS})
