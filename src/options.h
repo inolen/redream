@@ -18,6 +18,7 @@ extern struct button_map BUTTONS[];
 extern const int NUM_BUTTONS;
 
 /* host */
+DECLARE_OPTION_INT(bios);
 DECLARE_OPTION_INT(audio);
 DECLARE_OPTION_INT(latency);
 DECLARE_OPTION_INT(fullscreen);

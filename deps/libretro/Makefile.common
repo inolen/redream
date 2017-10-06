@@ -84,7 +84,7 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/options.c \
 	$(CORE_DIR)/src/stats.c
 
-SOURCES_CXX := $(CORE_DIR)/src/imgui.cc
+SOURCES_CXX :=
 
 SOURCES_CPP :=
 

@@ -12,12 +12,13 @@
 #include "options.h"
 #include "render/render_backend.h"
 #include "tracer.h"
+#include "ui.h"
 
 /*
  * sdl host implementation
  */
 #define AUDIO_FREQ 44100
-#define VIDEO_DEFAULT_WIDTH 640
+#define VIDEO_DEFAULT_WIDTH 853
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
 
@@ -31,6 +32,7 @@ struct host {
   struct SDL_Window *win;
   int closed;
 
+  struct ui *ui;
   struct emu *emu;
   struct tracer *tracer;
   struct imgui *imgui;
@@ -284,6 +286,10 @@ static void video_shutdown(struct host *host) {
     emu_vid_destroyed(host->emu);
   }
 
+  if (host->ui) {
+    ui_vid_destroyed(host->ui);
+  }
+
   r_destroy(host->video.r);
   video_destroy_context(host, host->video.ctx);
 }
@@ -291,6 +297,10 @@ static void video_shutdown(struct host *host) {
 static int video_init(struct host *host) {
   host->video.ctx = video_create_context(host);
   host->video.r = r_create(host->video.width, host->video.height);
+
+  if (host->ui) {
+    ui_vid_created(host->ui, host->video.r);
+  }
 
   if (host->emu) {
     emu_vid_created(host->emu, host->video.r);
@@ -505,6 +515,10 @@ static void input_keydown(struct host *host, int port, int key,
       break;
     }
 
+    if (host->ui && ui_keydown(host->ui, key, value)) {
+      continue;
+    }
+
     if (host->emu && emu_keydown(host->emu, port, key, value)) {
       continue;
     }
@@ -574,6 +588,28 @@ static int input_init(struct host *host) {
   input_update_keymap(host);
 
   return 1;
+}
+
+int input_max_controllers(struct host *host) {
+  return INPUT_MAX_CONTROLLERS;
+}
+
+const char *input_controller_name(struct host *host, int port) {
+  CHECK(port >= 0 && port < INPUT_MAX_CONTROLLERS);
+
+  SDL_GameController *ctrl = host->input.controllers[port];
+  return SDL_GameControllerName(ctrl);
+}
+
+/*
+ * ui
+ */
+void ui_closed(struct host *host) {}
+
+void ui_opened(struct host *host) {}
+
+int ui_load_game(struct host *host, const char *path) {
+  return emu_load(host->emu, path);
 }
 
 /*
@@ -874,6 +910,7 @@ int main(int argc, char **argv) {
   if (load && strstr(load, ".trace")) {
     host->tracer = tracer_create(host);
   } else {
+    host->ui = ui_create(host);
     host->emu = emu_create(host);
   }
 
@@ -898,40 +935,55 @@ int main(int argc, char **argv) {
         }
       }
     } else if (host->emu) {
-      if (emu_load(host->emu, load)) {
-        while (!host->closed) {
-          /* even though the emulator itself will poll for events when updating
-             controller input, the main loop needs to also poll to ensure the
-             close event is received */
-          host_poll_events(host);
+      int success = 0;
 
-          /* only step the emulator if the available audio is running low. this
-             syncs the emulation speed with the host audio clock. note however,
-             if audio is disabled, the emulator will run unthrottled */
-          if (!audio_buffer_low(host)) {
-            continue;
-          }
+      if (load || OPTION_bios) {
+        success = emu_load(host->emu, load);
+      }
 
-          /* reset vertex buffers */
-          imgui_begin_frame(host->imgui);
+      if (!success) {
+        /* if nothing is loaded, open the game select ui */
+        ui_set_page(host->ui, UI_PAGE_GAMES);
+      }
 
-          /* render emulator output and build up imgui buffers */
-          emu_render_frame(host->emu);
+      while (!host->closed) {
+        /* even though the emulator itself will poll for events when updating
+           controller input, the main loop needs to also poll to ensure the
+           close event is received */
+        host_poll_events(host);
 
-          /* overlay imgui */
-          imgui_end_frame(host->imgui);
-
-          /* flip profiler at end of frame */
-          int64_t now = time_nanoseconds();
-          prof_flip(time_nanoseconds());
-
-          host_swap_window(host);
+        /* only step the emulator if the available audio is running low. this
+           syncs the emulation speed with the host audio clock. note however,
+           if audio is disabled, the emulator will run unthrottled */
+        if (!audio_buffer_low(host)) {
+          continue;
         }
+
+        /* reset vertex buffers */
+        imgui_begin_frame(host->imgui);
+
+        /* render emulator output and build up imgui buffers */
+        emu_render_frame(host->emu);
+        ui_build_menus(host->ui);
+
+        /* overlay imgui */
+        imgui_end_frame(host->imgui);
+
+        /* flip profiler at end of frame */
+        int64_t now = time_nanoseconds();
+        prof_flip(time_nanoseconds());
+
+        host_swap_window(host);
       }
     }
   }
 
   host_shutdown(host);
+
+  if (host->ui) {
+    ui_destroy(host->ui);
+    host->ui = NULL;
+  }
 
   if (host->emu) {
     emu_destroy(host->emu);
