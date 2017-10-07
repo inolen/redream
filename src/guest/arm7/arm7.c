@@ -3,6 +3,7 @@
 #include "guest/aica/aica.h"
 #include "guest/dreamcast.h"
 #include "guest/scheduler.h"
+#include "imgui.h"
 #include "jit/frontend/armv3/armv3_context.h"
 #include "jit/frontend/armv3/armv3_fallback.h"
 #include "jit/frontend/armv3/armv3_frontend.h"
@@ -223,6 +224,22 @@ static int arm7_init(struct device *dev) {
 
   return 1;
 }
+
+#ifdef HAVE_IMGUI
+void arm7_debug_menu(struct arm7 *arm) {
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("ARM7", 1)) {
+      if (igMenuItem("clear cache", NULL, 0, 1)) {
+        jit_invalidate_code(arm->jit);
+      }
+
+      igEndMenu();
+    }
+
+    igEndMainMenuBar();
+  }
+}
+#endif
 
 void arm7_destroy(struct arm7 *arm) {
   jit_destroy(arm->jit);

@@ -284,7 +284,7 @@ void sh4_debug_menu(struct sh4 *sh4) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("SH4", 1)) {
       if (igMenuItem("clear cache", NULL, 0, 1)) {
-        jit_invalidate_code(sh4->jit);
+        jit_invalidate_code(jit);
       }
 
       if (!jit->dump_code) {

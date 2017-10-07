@@ -454,6 +454,7 @@ static void emu_debug_menu(struct emu *emu) {
 
   holly_debug_menu(emu->dc->holly);
   aica_debug_menu(emu->dc->aica);
+  arm7_debug_menu(emu->dc->arm);
   sh4_debug_menu(emu->dc->sh4);
 
   /* add status */
