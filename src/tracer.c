@@ -254,8 +254,6 @@ static void tracer_prev_context(struct tracer *tracer) {
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
   trace_copy_context(tracer->current_cmd, &tracer->ctx);
-  tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
-                     &tracer->rc);
 }
 
 static void tracer_next_context(struct tracer *tracer) {
@@ -293,8 +291,6 @@ static void tracer_next_context(struct tracer *tracer) {
   tracer->current_param = -1;
   tracer->scroll_to_param = 0;
   trace_copy_context(tracer->current_cmd, &tracer->ctx);
-  tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
-                     &tracer->rc);
 }
 
 static void tracer_reset_context(struct tracer *tracer) {
@@ -669,6 +665,8 @@ void tracer_render_frame(struct tracer *tracer) {
     surf->debug_depth = tracer->debug_depth;
   }
 
+  tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
+                     &tracer->rc);
   tr_render_context_until(tracer->r, rc, end_surf);
 }
 
@@ -708,7 +706,7 @@ void tracer_vid_destroyed(struct tracer *tracer) {
   rb_for_each_entry_safe(tex, &tracer->live_textures, struct tracer_texture,
                          live_it) {
     r_destroy_texture(tracer->r, tex->handle);
-    tracer_free_texture(tracer, tex);
+    tex->handle = 0;
   }
 
   tracer->r = NULL;
