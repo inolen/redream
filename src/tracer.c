@@ -42,7 +42,6 @@ static const char *texture_fmt_names[] = {
     "PVR_TEX_PALETTE_8BPP_MIPMAPS",
     "PVR_TEX_BITMAP_RECT",
     NULL,
-    NULL,
     "PVR_TEX_BITMAP",
     NULL,
     "PVR_TEX_TWIDDLED_RECT",

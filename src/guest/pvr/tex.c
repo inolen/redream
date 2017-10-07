@@ -593,9 +593,9 @@ void pvr_tex_decode(const uint8_t *src, int width, int height, int stride,
       /* for vq compressed textures the offset is only for the index data, the
          codebook is the same for all levels */
       index += compressed_mipmap_offsets[u_size];
-    } else if (pixel_fmt == PVR_TEX_PALETTE_4BPP) {
+    } else if (pixel_fmt == PVR_PXL_4BPP) {
       src += paletted_4bpp_mipmap_offsets[u_size];
-    } else if (pixel_fmt == PVR_TEX_PALETTE_8BPP) {
+    } else if (pixel_fmt == PVR_PXL_8BPP) {
       src += paletted_8bpp_mipmap_offsets[u_size];
     } else {
       src += nonpaletted_mipmap_offsets[u_size];
