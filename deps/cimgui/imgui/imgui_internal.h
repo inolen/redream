@@ -51,6 +51,7 @@ typedef int ImGuiTreeNodeFlags;   // enum ImGuiTreeNodeFlags_
 typedef int ImGuiSliderFlags;     // enum ImGuiSliderFlags_
 typedef int ImGuiSeparatorFlags;  // enum ImGuiSeparatorFlags_
 typedef int ImGuiItemFlags;       // enum ImGuiItemFlags_
+typedef int ImGuiNavHighlightFlags;
 
 //-------------------------------------------------------------------------
 // STB libraries
@@ -201,8 +202,8 @@ enum ImGuiColumnsFlags_
 enum ImGuiSelectableFlagsPrivate_
 {
     // NB: need to be in sync with last value of ImGuiSelectableFlags_
-    ImGuiSelectableFlags_Menu               = 1 << 3,
-    ImGuiSelectableFlags_MenuItem           = 1 << 4,
+    ImGuiSelectableFlags_Menu               = 1 << 3,   // -> PressedOnClick
+    ImGuiSelectableFlags_MenuItem           = 1 << 4,   // -> PressedOnRelease
     ImGuiSelectableFlags_Disabled           = 1 << 5,
     ImGuiSelectableFlags_DrawFillAvailWidth = 1 << 6
 };
@@ -248,6 +249,13 @@ enum ImGuiDir
     ImGuiDir_Right   = 1,
     ImGuiDir_Up      = 2,
     ImGuiDir_Down    = 3
+};
+
+enum ImGuiNavHighlightFlags_
+{
+    ImGuiNavHighlightFlags_TypeDefault  = 1 << 0,
+    ImGuiNavHighlightFlags_TypeThin     = 1 << 1,
+    ImGuiNavHighlightFlags_AlwaysRender = 1 << 2
 };
 
 enum ImGuiCorner
@@ -457,8 +465,11 @@ struct ImGuiContext
     // Navigation data (for gamepad/keyboard)
     ImGuiWindow*            NavWindow;                          // Nav/focused window for navigation
     ImGuiID                 NavId;                              // Nav/focused item for navigation
-    ImGuiID                 NavActivateId, NavInputId;          // ~~ IsKeyPressedMap(ImGuiKey_NavActive) ? NavId : 0, etc. (to make widget code terser)
-    ImGuiID                 NavTabbedId;                        // 
+    ImGuiID                 NavActivateId, NavActivateDownId;   // ~~ IsNavInputPressed(ImGuiNavInput_PadActivate) ? NavId : 0, etc.
+    ImGuiID                 NavInputId;                         // ~~ IsNavInputPressed(ImGuiNavInput_PadInput) ? NavId : 0, etc.
+    ImGuiID                 NavJustTabbedId;                    // Just tabbed to this id.
+    ImGuiID                 NavJustNavigatedId;                 // Just navigated to this id (result of a successfully MoveRequest)
+    ImGuiID                 NavNextActivateId;                  // Set by ActivateItem(), queued until next frame
     ImRect                  NavScoringRectScreen;               // Rectangle used for scoring, in screen space. Based of window->DC.NavRefRectRel[], modified for directional navigation scoring.
     ImGuiWindow*            NavWindowingTarget;
     float                   NavWindowingDisplayAlpha;
@@ -469,16 +480,18 @@ struct ImGuiContext
     bool                    NavMousePosDirty;
     bool                    NavDisableHighlight;                // When user starts using mouse, we hide gamepad/keyboard highlight (nb: but they are still available, which is why NavDisableHighlight isn't always != NavDisableMouseHover)
     bool                    NavDisableMouseHover;               // When user starts using gamepad/keyboard, we hide mouse hovering highlight until mouse is touched again.
-    bool                    NavInitDefaultRequest;              // Init request for appearing window to select first item
-    ImGuiID                 NavInitDefaultResultId;
-    ImRect                  NavInitDefaultResultRectRel;
-    bool                    NavInitDefaultResultExplicit;       // Whether the result was explicitly requested with SetItemDefaultFocus()
+    bool                    NavAnyRequest;                      // ~~ NavMoveRequest || NavInitRequest
+    bool                    NavInitRequest;                     // Init request for appearing window to select first item
+    ImGuiID                 NavInitResultId;
+    ImRect                  NavInitResultRectRel;
+    bool                    NavInitResultExplicit;              // Whether the result was explicitly requested with SetItemDefaultFocus()
     bool                    NavMoveFromClampedRefRect;          // Set by manual scrolling, if we scroll to a point where NavId isn't visible we reset navigation from visible items
     bool                    NavMoveRequest;                     // Move request for this frame
-    int                     NavMoveRequestForwardStep;          // 0: no forward, 1: forward request, 2: forward result
-    ImGuiDir                NavMoveDir;                         // West/East/North/South
-    ImGuiDir                NavMoveDirLast;                     //
+    int                     NavMoveRequestForwardStep;          // 0: no forward, 1: forward request, 2: forward result (this is used to navigate sibling parent menus from a child menu)
+    ImGuiDir                NavMoveDir;                         // Direction of the move request (left/right/up/down)
+    ImGuiDir                NavMoveDirLast;                     // Direction of the previous move request
     ImGuiID                 NavMoveResultId;                    // Best move request candidate
+    ImGuiID                 NavMoveResultParentId;              //
     float                   NavMoveResultDistBox;               // Best move request candidate box distance to current NavId
     float                   NavMoveResultDistCenter;            // Best move request candidate center distance to current NavId
     float                   NavMoveResultDistAxial;
@@ -563,6 +576,7 @@ struct ImGuiContext
         ActiveIdIsAlive = false;
         ActiveIdIsJustActivated = false;
         ActiveIdAllowOverlap = false;
+        ActiveIdAllowNavDirFlags = 0;
         ActiveIdClickOffset = ImVec2(-1,-1);
         ActiveIdWindow = NULL;
         ActiveIdSource = ImGuiInputSource_None;
@@ -571,24 +585,28 @@ struct ImGuiContext
         SettingsDirtyTimer = 0.0f;
 
         NavWindow = NULL;
-        NavId = NavActivateId = NavInputId = NavTabbedId = 0;
+        NavId = NavActivateId = NavActivateDownId = NavInputId = 0;
+        NavJustTabbedId = NavJustNavigatedId = NavNextActivateId = 0;
         NavScoringRectScreen = ImRect();
         NavWindowingTarget = NULL;
         NavWindowingDisplayAlpha = 0.0f;
         NavWindowingToggleLayer = false;
+        NavLayer = 0;
         NavIdTabCounter = INT_MAX;
         NavIdIsAlive = false;
         NavMousePosDirty = false;
         NavDisableHighlight = true;
         NavDisableMouseHover = false;
-        NavInitDefaultRequest = false;
-        NavInitDefaultResultId = 0;
-        NavInitDefaultResultExplicit = false;
+        NavAnyRequest = false;
+        NavInitRequest = false;
+        NavInitResultId = 0;
+        NavInitResultExplicit = false;
         NavMoveFromClampedRefRect = false;
         NavMoveRequest = false;
         NavMoveRequestForwardStep = 0;
         NavMoveDir = NavMoveDirLast = ImGuiDir_None;
         NavMoveResultId = 0;
+        NavMoveResultParentId = 0;
         NavMoveResultDistBox = NavMoveResultDistCenter = NavMoveResultDistAxial = 0.0f;
 
         SetNextWindowPosVal = ImVec2(0.0f, 0.0f);
@@ -667,6 +685,7 @@ struct IMGUI_API ImGuiDrawContext
     bool                    LastItemRectHoveredRect;
     bool                    NavHasScroll;           // Set when scrolling can be used (ScrollMax > 0.0f)
     int                     NavLayerCurrent;        // Current layer, 0..31 (we currently only use 0..1)
+    int                     NavLayerCurrentMask;    // = (1 << NavLayerCurrent) used by ItemAdd prior to clipping.
     int                     NavLayerActiveMask;     // Which layer have been written to (result from previous frame)
     int                     NavLayerActiveMaskNext; // Which layer have been written to (buffer for current frame)
     bool                    MenuBarAppending;       // FIXME: Remove this
@@ -714,6 +733,7 @@ struct IMGUI_API ImGuiDrawContext
         NavHasScroll = false;
         NavLayerActiveMask = NavLayerActiveMaskNext = 0x00;
         NavLayerCurrent = 0;
+        NavLayerCurrentMask = 1 << 0;
         MenuBarAppending = false;
         MenuBarOffsetX = 0.0f;
         StateStorage = NULL;
@@ -852,9 +872,9 @@ namespace ImGui
 
     IMGUI_API void          ItemSize(const ImVec2& size, float text_offset_y = 0.0f);
     IMGUI_API void          ItemSize(const ImRect& bb, float text_offset_y = 0.0f);
-    IMGUI_API bool          ItemAdd(const ImRect& bb, const ImGuiID* id, const ImRect* nav_bb = NULL);
-    IMGUI_API bool          IsClippedEx(const ImRect& bb, const ImGuiID* id, bool clip_even_when_logged);
+    IMGUI_API bool          ItemAdd(const ImRect& bb, ImGuiID id, const ImRect* nav_bb = NULL);
     IMGUI_API bool          ItemHoverable(const ImRect& bb, ImGuiID id);
+    IMGUI_API bool          IsClippedEx(const ImRect& bb, ImGuiID id, bool clip_even_when_logged);
     IMGUI_API bool          FocusableItemRegister(ImGuiWindow* window, ImGuiID id, bool tab_stop = true);      // Return true if focus is requested
     IMGUI_API void          FocusableItemUnregister(ImGuiWindow* window);
     IMGUI_API ImVec2        CalcItemSize(ImVec2 size, float default_x, float default_y);
@@ -892,7 +912,7 @@ namespace ImGui
     IMGUI_API void          RenderCollapseTriangle(ImVec2 pos, bool is_open, float scale = 1.0f);
     IMGUI_API void          RenderBullet(ImVec2 pos);
     IMGUI_API void          RenderCheckMark(ImVec2 pos, ImU32 col);
-    IMGUI_API void          RenderNavHighlight(const ImRect& bb, ImGuiID id);                   // Navigation highlight
+    IMGUI_API void          RenderNavHighlight(const ImRect& bb, ImGuiID id, ImGuiNavHighlightFlags flags = ImGuiNavHighlightFlags_TypeDefault); // Navigation highlight
     IMGUI_API void          RenderRectFilledRangeH(ImDrawList* draw_list, const ImRect& rect, ImU32 col, float x_start_norm, float x_end_norm, float rounding);
     IMGUI_API const char*   FindRenderedTextEnd(const char* text, const char* text_end = NULL); // Find the optional ## from which we stop displaying text.
 

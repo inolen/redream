@@ -69,18 +69,18 @@ typedef unsigned int ImU32;         // 32-bit unsigned integer (typically used t
 typedef unsigned int ImGuiID;       // unique ID used by widgets (typically hashed from a stack of string)
 typedef unsigned short ImWchar;     // character for keyboard input/display
 typedef void* ImTextureID;          // user data to identify a texture (this is whatever to you want it to be! read the FAQ about ImTextureID in imgui.cpp)
-typedef int ImGuiCol;               // a color identifier for styling       // enum ImGuiCol_
-typedef int ImGuiStyleVar;          // a variable identifier for styling    // enum ImGuiStyleVar_
-typedef int ImGuiKey;               // a key identifier (ImGui-side enum)   // enum ImGuiKey_
-typedef int ImGuiNavInput;          // an input identifier for gamepad nav  // enum ImGuiNavInput_
-typedef int ImGuiColorEditFlags;    // color edit flags for Color*()        // enum ImGuiColorEditFlags_
-typedef int ImGuiMouseCursor;       // a mouse cursor identifier            // enum ImGuiMouseCursor_
-typedef int ImGuiWindowFlags;       // window flags for Begin*()            // enum ImGuiWindowFlags_
-typedef int ImGuiCond;              // condition flags for Set*()           // enum ImGuiCond_
-typedef int ImGuiColumnsFlags;      // flags for *Columns*()                // enum ImGuiColumnsFlags_
-typedef int ImGuiInputTextFlags;    // flags for InputText*()               // enum ImGuiInputTextFlags_
-typedef int ImGuiSelectableFlags;   // flags for Selectable()               // enum ImGuiSelectableFlags_
-typedef int ImGuiTreeNodeFlags;     // flags for TreeNode*(), Collapsing*() // enum ImGuiTreeNodeFlags_
+typedef int ImGuiCol;               // enum: a color identifier for styling     // enum ImGuiCol_
+typedef int ImGuiStyleVar;          // enum: a variable identifier for styling  // enum ImGuiStyleVar_
+typedef int ImGuiKey;               // enum: a key identifier (ImGui-side enum) // enum ImGuiKey_
+typedef int ImGuiNavInput;          // enum: an input identifier for navigation // enum ImGuiNavInput_
+typedef int ImGuiMouseCursor;       // enum: a mouse cursor identifier          // enum ImGuiMouseCursor_
+typedef int ImGuiCond;              // enum: a condition for Set*()             // enum ImGuiCond_
+typedef int ImGuiColorEditFlags;    // flags: color edit flags for Color*()     // enum ImGuiColorEditFlags_
+typedef int ImGuiWindowFlags;       // flags: window flags for Begin*()         // enum ImGuiWindowFlags_
+typedef int ImGuiColumnsFlags;      // flags: for *Columns*()                   // enum ImGuiColumnsFlags_
+typedef int ImGuiInputTextFlags;    // flags: for InputText*()                  // enum ImGuiInputTextFlags_
+typedef int ImGuiSelectableFlags;   // flags: for Selectable()                  // enum ImGuiSelectableFlags_
+typedef int ImGuiTreeNodeFlags;     // flags: for TreeNode*(), Collapsing*()    // enum ImGuiTreeNodeFlags_
 typedef int (*ImGuiTextEditCallback)(ImGuiTextEditCallbackData *data);
 typedef void (*ImGuiSizeConstraintCallback)(ImGuiSizeConstraintCallbackData* data);
 #ifdef _MSC_VER
@@ -177,7 +177,6 @@ namespace ImGui
     IMGUI_API void          SetScrollY(float scroll_y);                                         // set scrolling amount [0..GetScrollMaxY()]
     IMGUI_API void          SetScrollHere(float center_y_ratio = 0.5f);                         // adjust scrolling amount to make current cursor position visible. center_y_ratio=0.0: top, 0.5: center, 1.0: bottom.
     IMGUI_API void          SetScrollFromPosY(float pos_y, float center_y_ratio = 0.5f);        // adjust scrolling amount to make given position valid. use GetCursorPos() or GetCursorStartPos()+offset to get valid positions.
-    IMGUI_API void          SetKeyboardFocusHere(int offset = 0);  // FIXME-NAVIGATION          // focus keyboard on the next widget. Use positive 'offset' to access sub components of a multiple component widget. Use negative 'offset' to access previous widgets.
     IMGUI_API void          SetStateStorage(ImGuiStorage* tree);                                // replace tree state storage with our own (if you want to manipulate it yourself, typically clear subsection of it)
     IMGUI_API ImGuiStorage* GetStateStorage();
 
@@ -416,6 +415,12 @@ namespace ImGui
     // Styles
     IMGUI_API void          StyleColorsClassic(ImGuiStyle* dst = NULL);
 
+    // Focus, Activation
+    IMGUI_API void          ActivateItem(ImGuiID id);                                           // remotely activate a button, checkbox, tree node etc. given its unique ID. activation is queued and processed on the next frame when the item is encountered again.
+    IMGUI_API ImGuiID       GetItemID();                                                        // get id of previous item, generally ~GetID(label)
+    IMGUI_API void          SetKeyboardFocusHere(int offset = 0);  // FIXME-NAVIGATION          // focus keyboard on the next widget. Use positive 'offset' to access sub components of a multiple component widget. Use -1 to access previous widget.
+    IMGUI_API void          SetItemDefaultFocus(); // FIXME-NAVIGATION                          // make last item the default focused item of a window
+
     // Utilities
     IMGUI_API bool          IsItemHovered();                                                    // is the last item hovered by mouse (and usable)? or we are currently using Nav and the item is focused.
     IMGUI_API bool          IsItemRectHovered();                                                // is the last item hovered by mouse? even if another item is active or window is blocked by popup while we are hovering this
@@ -430,7 +435,6 @@ namespace ImGui
     IMGUI_API ImVec2        GetItemRectMax();                                                   // "
     IMGUI_API ImVec2        GetItemRectSize();                                                  // "
     IMGUI_API void          SetItemAllowOverlap();                                              // allow last item to be overlapped by a subsequent item. sometimes useful with invisible buttons, selectables, etc. to catch unused area.
-    IMGUI_API void          SetItemDefaultFocus();                                              // make last item the default focused item of a window
     IMGUI_API bool          IsWindowFocused();                                                  // is current window focused
     IMGUI_API bool          IsWindowHovered();                                                  // is current window hovered and hoverable (not blocked by a popup) (differentiate child windows from each others)
     IMGUI_API bool          IsWindowRectHovered();                                              // is current window rectangle hovered, disregarding of any consideration of being blocked by a popup. (unlike IsWindowHovered() this will return true even if the window is blocked because of a popup)
@@ -763,14 +767,14 @@ enum ImGuiMouseCursor_
     ImGuiMouseCursor_Count_
 };
 
-// Condition flags for ImGui::SetWindow***(), SetNextWindow***(), SetNextTreeNode***() functions
-// All those functions treat 0 as a shortcut to ImGuiCond_Always
+// Condition for ImGui::SetWindow***(), SetNextWindow***(), SetNextTreeNode***() functions
+// All those functions treat 0 as a shortcut to ImGuiCond_Always. From the point of view of the user use this as an enum (don't combine multiple values into flags).
 enum ImGuiCond_
 {
-    ImGuiCond_Always        = 1 << 0, // Set the variable
-    ImGuiCond_Once          = 1 << 1, // Set the variable once per runtime session (only the first call with succeed)
-    ImGuiCond_FirstUseEver  = 1 << 2, // Set the variable if the window has no saved data (if doesn't exist in the .ini file)
-    ImGuiCond_Appearing     = 1 << 3  // Set the variable if the window is appearing after being hidden/inactive (or the first time)
+    ImGuiCond_Always        = 1 << 0,   // Set the variable
+    ImGuiCond_Once          = 1 << 1,   // Set the variable once per runtime session (only the first call with succeed)
+    ImGuiCond_FirstUseEver  = 1 << 2,   // Set the variable if the window has no saved data (if doesn't exist in the .ini file)
+    ImGuiCond_Appearing     = 1 << 3    // Set the variable if the window is appearing after being hidden/inactive (or the first time)
 
     // Obsolete names (will be removed)
 #ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
@@ -806,6 +810,7 @@ struct ImGuiStyle
     ImVec4      Colors[ImGuiCol_COUNT];
 
     IMGUI_API ImGuiStyle();
+    IMGUI_API void ScaleAllSizes(float scale_factor);
 };
 
 // This is where your app communicate with ImGui. Access via ImGui::GetIO().
