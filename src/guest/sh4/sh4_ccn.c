@@ -59,13 +59,24 @@ void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
 
 uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr,
                             uint32_t data_mask) {
-  CHECK_EQ(sh4->CCR->ORA, 1u);
+  if (!sh4->CCR->ORA) {
+    LOG_WARNING("sh4_ccn_cache_read while on-chip RAM is disabled");
+    /* need to write a test for this, but I'm guessing garbage is returned in
+       this case */
+    return 0x0;
+  }
+
   addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
   return READ_DATA(&sh4->ctx.cache[addr]);
 }
 
 void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                          uint32_t data_mask) {
+  if (!sh4->CCR->ORA) {
+    LOG_WARNING("sh4_ccn_cache_write while on-chip RAM is disabled");
+    return;
+  }
+
   CHECK_EQ(sh4->CCR->ORA, 1u);
   addr = CACHE_OFFSET(addr, sh4->CCR->OIX);
   WRITE_DATA(&sh4->ctx.cache[addr]);
