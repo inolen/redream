@@ -774,6 +774,14 @@ static void host_poll_events(struct host *host) {
   }
 }
 
+static void host_shutdown(struct host *host) {
+  input_shutdown(host);
+
+  video_shutdown(host);
+
+  audio_shutdown(host);
+}
+
 static int host_init(struct host *host) {
   /* init sdl and create window */
   int res = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
@@ -810,12 +818,6 @@ static int host_init(struct host *host) {
 }
 
 void host_destroy(struct host *host) {
-  input_shutdown(host);
-
-  video_shutdown(host);
-
-  audio_shutdown(host);
-
   if (host->win) {
     SDL_DestroyWindow(host->win);
   }
@@ -866,7 +868,7 @@ int main(int argc, char **argv) {
   }
 
   /* init host after creating emulator / tracer client, so host can notify them
-     them once the video context has been created */
+     them that the audio / video / input subsystems have been initialized */
   if (host_init(host)) {
     if (host->tracer) {
       if (tracer_load(host->tracer, load)) {
@@ -919,13 +921,10 @@ int main(int argc, char **argv) {
     }
   }
 
-  /* destroy host before the emulator / tracer so it can tell them the video
-     context was destroyed */
-  host_destroy(host);
+  host_shutdown(host);
 
   if (host->emu) {
     emu_destroy(host->emu);
-    host->emu = NULL;
   }
 
   if (host->tracer) {
@@ -933,6 +932,8 @@ int main(int argc, char **argv) {
   }
 
   imgui_destroy(host->imgui);
+
+  host_destroy(host);
 
   /* persist options for next run */
   options_write(config);

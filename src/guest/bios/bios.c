@@ -43,19 +43,15 @@ enum {
 };
 
 static uint32_t bios_local_time() {
-  /* dreamcast system time is relative to 1/1/1950 00:00 */
-  struct tm timeinfo;
-  timeinfo.tm_year = 50;
-  timeinfo.tm_mon = 0;
-  timeinfo.tm_mday = 1;
-  timeinfo.tm_hour = 0;
-  timeinfo.tm_min = 0;
-  timeinfo.tm_sec = 0;
-
-  time_t base_time = mktime(&timeinfo);
-  time_t curr_time = time(NULL);
-  double delta = difftime(curr_time, base_time);
-  return (uint32_t)delta;
+  /* dreamcast system time is relative to 1/1/1950 00:00 UTC, while the libc
+     time functions are relative to 1/1/1970 00:00 UTC. subtract 20 years and
+     5 leap days from the current time to match them up. note, mktime / difftime
+     can't be used here with a tm struct filled out for 1950 as not all libc
+     implementations support negative timestamps */
+  time_t curr_time_local = time(NULL);
+  time_t curr_time_utc = mktime(gmtime(&curr_time_local));
+  time_t base_time_utc = -(20 * 365 + 5) * (24 * 60 * 60);
+  return (uint32_t)(curr_time_utc - base_time_utc);
 }
 
 static void bios_override_settings(struct bios *bios) {
