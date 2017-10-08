@@ -89,8 +89,8 @@ static void bios_override_settings(struct bios *bios) {
     }
   }
 
-  LOG_INFO("bios_override_settings region=%s lang=%s bcast=%s", regions[region],
-           languages[lang], broadcasts[bcast]);
+  LOG_INFO("bios_override_settings region=%s lang=%s bcast=%s time=0x%08x",
+           regions[region], languages[lang], broadcasts[bcast], time);
 
   /* the region, language and broadcast settings exist in two locations:
 
