@@ -66,20 +66,35 @@ static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr,
                              uint32_t data_mask) {
   uint32_t offset = SH4_REG_OFFSET(addr);
   reg_read_cb read = sh4_cb[offset].read;
+
+  uint32_t data;
   if (read) {
-    return read(sh4->dc);
+    data = read(sh4->dc);
+  } else {
+    data = sh4->reg[offset];
   }
-  return sh4->reg[offset];
+
+  if (sh4->log_reg_access) {
+    LOG_INFO("sh4_reg_read addr=0x%08x data=0x%x", addr, data);
+  }
+
+  return data;
 }
 
 static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                           uint32_t data_mask) {
   uint32_t offset = SH4_REG_OFFSET(addr);
   reg_write_cb write = sh4_cb[offset].write;
+
+  if (sh4->log_reg_access) {
+    LOG_INFO("sh4_reg_write addr=0x%08x data=0x%x", addr, data & data_mask);
+  }
+
   if (write) {
     write(sh4->dc, data);
     return;
   }
+
   sh4->reg[offset] = data;
 }
 
@@ -157,6 +172,24 @@ static void sh4_compile_code(struct sh4 *sh4, uint32_t addr) {
 }
 
 static void sh4_invalid_instr(struct sh4 *sh4) {
+  uint32_t pc = sh4->ctx.pc;
+  uint16_t data = as_read16(sh4->memory_if->space, pc);
+  struct jit_opdef *def = sh4_get_opdef(data);
+
+  /* op may be valid if the delay slot raised this */
+  if (def->op != SH4_OP_INVALID) {
+    data = as_read16(sh4->memory_if->space, pc + 2);
+    def = sh4_get_opdef(data);
+  }
+
+  /* TODO write tests to confirm if any other instructions generate illegal
+     instruction exceptions */
+  if (data != 0xfffd) {
+    return;
+  }
+
+  CHECK_EQ(def->op, SH4_OP_INVALID);
+
   sh4_exception(sh4, SH4_EXC_ILLINSTR);
 }
 
@@ -296,6 +329,10 @@ void sh4_debug_menu(struct sh4 *sh4) {
         if (igMenuItem("stop dumping code", NULL, 1, 1)) {
           jit->dump_code = 0;
         }
+      }
+
+      if (igMenuItem("log reg access", NULL, sh4->log_reg_access, 1)) {
+        sh4->log_reg_access = !sh4->log_reg_access;
       }
 
       igEndMenu();

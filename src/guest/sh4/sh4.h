@@ -62,6 +62,7 @@ struct sh4 {
   struct jit_backend *backend;
 
   /* dbg */
+  int log_reg_access;
   struct list breakpoints;
 
   /* intc */

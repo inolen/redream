@@ -58,7 +58,7 @@ static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
 
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_addr = begin_addr + offset;
-      uint32_t delay_data = guest->r16(guest->space, delay_addr);
+      uint16_t delay_data = guest->r16(guest->space, delay_addr);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
       offset += 2;
