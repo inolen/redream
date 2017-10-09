@@ -1,5 +1,5 @@
+#include "core/core.h"
 #include "core/filesystem.h"
-#include "core/log.h"
 #include "core/option.h"
 #include "jit/backend/x64/x64_backend.h"
 #include "jit/ir/ir.h"
@@ -16,8 +16,8 @@
 DEFINE_OPTION_STRING(pass, "cfa,lse,cprop,esimp,dce,ra",
                      "Comma-separated list of passes to run");
 
-DEFINE_STAT(ir_instrs_total, "total ir instructions");
-DEFINE_STAT(ir_instrs_removed, "removed ir instructions");
+DEFINE_PASS_STAT(ir_instrs_total, "total ir instructions");
+DEFINE_PASS_STAT(ir_instrs_removed, "removed ir instructions");
 
 DEFINE_JIT_CODE_BUFFER(code);
 static uint8_t ir_buffer[1024 * 1024];

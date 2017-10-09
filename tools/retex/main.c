@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "core/assert.h"
+#include "core/core.h"
 #include "core/filesystem.h"
 #include "guest/pvr/tex.h"
 

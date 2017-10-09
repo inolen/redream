@@ -1,4 +1,4 @@
-#include "core/log.h"
+#include "core/core.h"
 
 extern int cmd_depth(int argc, const char **argv);
 
