@@ -9,6 +9,7 @@ typedef unsigned texture_handle_t;
 
 enum pxl_format {
   PXL_INVALID,
+  PXL_RGB,
   PXL_RGBA,
   PXL_RGBA5551,
   PXL_RGB565,
@@ -138,6 +139,9 @@ void r_destroy_texture(struct render_backend *r, texture_handle_t handle);
 
 void r_clear(struct render_backend *r);
 void r_viewport(struct render_backend *r, int x, int y, int width, int height);
+
+void r_draw_pixels(struct render_backend *r, const uint8_t *pixels, int x,
+                   int y, int width, int height);
 
 void r_begin_ta_surfaces(struct render_backend *r, int video_width,
                          int video_height, const struct ta_vertex *verts,

@@ -45,6 +45,15 @@ enum {
   EMU_SHUTDOWN,
   EMU_WAITING,
   EMU_RUNFRAME,
+  EMU_DRAWFRAME,
+  EMU_ENDFRAME,
+};
+
+enum {
+  EMU_DRAW_INVALID,
+  EMU_DRAW_PIXELS,
+  EMU_DRAW_CONTEXT,
+  EMU_DRAW_DISABLED,
 };
 
 struct emu_texture {
@@ -77,15 +86,22 @@ struct emu {
   volatile int state;
   volatile unsigned frame;
   thread_t run_thread;
-  mutex_t run_mutex;
-  cond_t run_cond;
-  mutex_t frame_mutex;
-  cond_t frame_cond;
+  mutex_t req_mutex;
+  cond_t req_cond;
+  mutex_t res_mutex;
+  cond_t res_cond;
 
-  /* latest context from the dreamcast, ready to be rendered */
+  /* latest video state pushed by the dreamcast */
+  volatile int latest;
+  struct {
+    uint8_t pixels[PVR_FRAMEBUFFER_SIZE];
+    int width;
+    int height;
+  } latest_fb;
+  struct tr_context latest_rc;
+
+  /* latest context submitted to emu_start_render */
   struct ta_context *pending_ctx;
-  struct tr_context pending_rc;
-  unsigned pending_id;
 
   /* texture cache. the dreamcast interface calls into us when new contexts are
      available to be rendered. parsing the contexts, uploading their textures to
@@ -236,8 +252,8 @@ static void emu_register_texture_source(struct emu *emu, union tsp tsp,
   }
 
   /* mark texture source valid for the current pending frame */
-  int first_registration_this_frame = entry->frame != emu->pending_id;
-  entry->frame = emu->pending_id;
+  int first_registration_this_frame = entry->frame != emu->frame;
+  entry->frame = emu->frame;
 
   /* set texture address */
   if (!entry->texture || !entry->palette) {
@@ -336,12 +352,29 @@ static void emu_start_tracing(struct emu *emu) {
 /*
  * dreamcast guest interface
  */
-static void emu_vblank_in(void *userdata) {}
+static void emu_vblank_in(void *userdata, int video_disabled) {
+  struct emu *emu = userdata;
+
+  if (emu->multi_threaded) {
+    mutex_lock(emu->res_mutex);
+  }
+
+  if (video_disabled) {
+    emu->latest = EMU_DRAW_DISABLED;
+  }
+
+  emu->state = EMU_DRAWFRAME;
+
+  if (emu->multi_threaded) {
+    cond_signal(emu->res_cond);
+    mutex_unlock(emu->res_mutex);
+  }
+}
 
 static void emu_vblank_out(void *userdata) {
   struct emu *emu = userdata;
 
-  emu->frame++;
+  emu->state = EMU_ENDFRAME;
 }
 
 static void emu_finish_render(void *userdata) {
@@ -352,13 +385,13 @@ static void emu_finish_render(void *userdata) {
        textures, etc. during the estimated render time. however, if it hasn't
        finished, the emulation thread must be paused to avoid altering
        the yet-to-be-uploaded texture memory */
-    mutex_lock(emu->frame_mutex);
+    mutex_lock(emu->res_mutex);
 
     /* if pending_ctx is non-NULL here, a frame is being skipped */
     emu->pending_ctx = NULL;
-    cond_signal(emu->frame_cond);
+    cond_signal(emu->res_cond);
 
-    mutex_unlock(emu->frame_mutex);
+    mutex_unlock(emu->res_mutex);
   }
 }
 
@@ -368,7 +401,7 @@ static void emu_start_render(void *userdata, struct ta_context *ctx) {
   /* incement internal frame number. this frame number is assigned to the each
      texture source registered to assert synchronization between the emulator
      and video thread is working as expected */
-  emu->pending_id++;
+  emu->frame++;
 
   /* now that the video thread is sure to not be accessing the texture data,
      mark any textures dirty that were invalidated by a memory watch */
@@ -386,16 +419,25 @@ static void emu_start_render(void *userdata, struct ta_context *ctx) {
 
   if (emu->multi_threaded) {
     /* save off context and notify video thread that it's available */
-    mutex_lock(emu->frame_mutex);
+    mutex_lock(emu->res_mutex);
 
     emu->pending_ctx = ctx;
-    cond_signal(emu->frame_cond);
+    cond_signal(emu->res_cond);
 
-    mutex_unlock(emu->frame_mutex);
+    mutex_unlock(emu->res_mutex);
   } else {
-    /* convert the context immediately */
-    tr_convert_context(emu->r, emu, &emu_find_texture, ctx, &emu->pending_rc);
+    emu->pending_ctx = ctx;
   }
+}
+
+static void emu_push_pixels(void *userdata, const uint8_t *data, int w, int h) {
+  struct emu *emu = userdata;
+
+  emu->latest = EMU_DRAW_PIXELS;
+
+  memcpy(emu->latest_fb.pixels, data, w * h * 4);
+  emu->latest_fb.width = w;
+  emu->latest_fb.height = h;
 }
 
 static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
@@ -520,52 +562,40 @@ static void emu_debug_menu(struct emu *emu) {
 /*
  * frame running logic
  */
-static void emu_run_frame(struct emu *emu);
+static void emu_run_until_vblank(struct emu *emu);
 
 static void *emu_run_thread(void *data) {
   struct emu *emu = data;
 
   while (1) {
     /* wait for video thread to request a frame to be ran */
-    {
-      mutex_lock(emu->run_mutex);
+    mutex_lock(emu->req_mutex);
 
-      while (emu->state == EMU_WAITING) {
-        cond_wait(emu->run_cond, emu->run_mutex);
-      }
-
-      if (emu->state == EMU_SHUTDOWN) {
-        mutex_unlock(emu->run_mutex);
-        break;
-      }
-
-      emu_run_frame(emu);
-
-      emu->state = EMU_WAITING;
-
-      mutex_unlock(emu->run_mutex);
+    while (emu->state == EMU_WAITING) {
+      cond_wait(emu->req_cond, emu->req_mutex);
     }
 
-    /* in case no context was submitted before the frame end, signal the video
-       thread to continue, reusing the previous context */
-    {
-      mutex_lock(emu->frame_mutex);
-
-      cond_signal(emu->frame_cond);
-
-      mutex_unlock(emu->frame_mutex);
+    if (emu->state == EMU_SHUTDOWN) {
+      mutex_unlock(emu->req_mutex);
+      break;
     }
+
+    emu_run_until_vblank(emu);
+
+    emu->state = EMU_WAITING;
+
+    mutex_unlock(emu->req_mutex);
   }
 
   return NULL;
 }
 
-static void emu_run_frame(struct emu *emu) {
+static void emu_run_until_vblank(struct emu *emu) {
   const int64_t MACHINE_STEP = HZ_TO_NANO(1000);
-  unsigned start_frame = emu->frame;
 
-  /* run up to the next vblank */
-  while (emu->frame == start_frame) {
+  emu->state = EMU_RUNFRAME;
+
+  while (emu->state == EMU_RUNFRAME || emu->state == EMU_DRAWFRAME) {
     dc_tick(emu->dc, MACHINE_STEP);
   }
 }
@@ -613,51 +643,92 @@ void emu_render_frame(struct emu *emu) {
 
   r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
 
+  /* an overview of each frames lifecycle looks like:
+
+     main thread                        | emulation thread
+     ---------------------------------------------------------------------------
+     set EMU_RUNFRAME                   |
+     ---------------------------------------------------------------------------
+                                        | see EMU_RUNFRAME, start running frame
+     ---------------------------------------------------------------------------
+     wait for EMU_DRAWFRAME / or for    |
+     pending_ctx to be set              |
+     ---------------------------------------------------------------------------
+                                        | emu_start_render sets pending_ctx or
+                                        | emu_push_pixels copies off framebuffer
+     ---------------------------------------------------------------------------
+     convert pending_ctx if set         |
+     ---------------------------------------------------------------------------
+                                        | emu_vblank_in sets EMU_DRAWFRAME
+     ---------------------------------------------------------------------------
+     see EMU_DRAWFRAME, start drawing   |
+     ---------------------------------------------------------------------------
+                                        | emu_vblank_out sets EMU_ENDFRAME */
+
+  /* ensure the emulation thread isn't still executing a previous frame */
   if (emu->multi_threaded) {
-    /* tell the emulation thread to run the next frame */
-    {
-      mutex_lock(emu->run_mutex);
-
-      /* build the debug menus before running the frame, while the two threads
-         are synchronized */
-      emu_debug_menu(emu);
-
-      emu->state = EMU_RUNFRAME;
-      cond_signal(emu->run_cond);
-
-      mutex_unlock(emu->run_mutex);
-    }
-
-    /* wait for the emulation thread to submit a context */
-    {
-      mutex_lock(emu->frame_mutex);
-
-      while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
-        cond_wait(emu->frame_cond, emu->frame_mutex);
-      }
-
-      /* if a context was submitted before the vblank, convert it and upload
-         its textures to the render backend */
-      if (emu->pending_ctx) {
-        tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
-                           &emu->pending_rc);
-        emu->pending_ctx = NULL;
-      }
-
-      /* unblock the emulation thread */
-      mutex_unlock(emu->frame_mutex);
-    }
-
-    /* note, the emulation thread may still be running at this point, but the
-       latest context has been converted and is available in pending_rc */
-  } else {
-    emu_debug_menu(emu);
-
-    emu_run_frame(emu);
+    mutex_lock(emu->req_mutex);
+    mutex_unlock(emu->req_mutex);
   }
 
-  /* render the latest context */
-  tr_render_context(emu->r, &emu->pending_rc);
+  /* build the debug menus before running the frame, while the two threads
+     are synchronized */
+  emu_debug_menu(emu);
+
+  /* request a frame to be ran */
+  if (emu->multi_threaded) {
+    mutex_lock(emu->req_mutex);
+
+    emu->state = EMU_RUNFRAME;
+    cond_signal(emu->req_cond);
+
+    mutex_unlock(emu->req_mutex);
+  } else {
+    emu_run_until_vblank(emu);
+  }
+
+  /* process any context submitted during the frame */
+  if (emu->multi_threaded) {
+    mutex_lock(emu->res_mutex);
+
+    while (emu->state == EMU_RUNFRAME && !emu->pending_ctx) {
+      cond_wait(emu->res_cond, emu->res_mutex);
+    }
+  }
+
+  if (emu->pending_ctx) {
+    emu->latest = EMU_DRAW_CONTEXT;
+
+    tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
+                       &emu->latest_rc);
+    emu->pending_ctx = NULL;
+  }
+
+  if (emu->multi_threaded) {
+    mutex_unlock(emu->res_mutex);
+  }
+
+  /* wait for vblank_in */
+  if (emu->multi_threaded) {
+    mutex_lock(emu->res_mutex);
+
+    while (emu->state == EMU_RUNFRAME) {
+      cond_wait(emu->res_cond, emu->res_mutex);
+    }
+
+    mutex_unlock(emu->res_mutex);
+  }
+
+  /* render the latest framebuffer or context */
+  if (emu->latest == EMU_DRAW_PIXELS) {
+    r_draw_pixels(emu->r, emu->latest_fb.pixels, 0, 0, emu->latest_fb.width,
+                  emu->latest_fb.height);
+  } else if (emu->latest == EMU_DRAW_CONTEXT) {
+    tr_render_context(emu->r, &emu->latest_rc);
+  }
+
+  /* note, the emulation thread may still be running the code between vblank_in
+     and vblank_out at this point, but there's no need to wait for it */
 }
 
 int emu_load(struct emu *emu, const char *path) {
@@ -706,18 +777,18 @@ void emu_vid_created(struct emu *emu, struct render_backend *r) {
 void emu_destroy(struct emu *emu) {
   /* shutdown the emulation thread */
   if (emu->multi_threaded) {
-    mutex_lock(emu->run_mutex);
+    mutex_lock(emu->req_mutex);
     emu->state = EMU_SHUTDOWN;
-    cond_signal(emu->run_cond);
-    mutex_unlock(emu->run_mutex);
+    cond_signal(emu->req_cond);
+    mutex_unlock(emu->req_mutex);
 
     void *result;
     thread_join(emu->run_thread, &result);
 
-    mutex_destroy(emu->run_mutex);
-    cond_destroy(emu->run_cond);
-    mutex_destroy(emu->frame_mutex);
-    cond_destroy(emu->frame_cond);
+    mutex_destroy(emu->req_mutex);
+    cond_destroy(emu->req_cond);
+    mutex_destroy(emu->res_mutex);
+    cond_destroy(emu->res_cond);
   }
 
   emu_stop_tracing(emu);
@@ -735,6 +806,7 @@ struct emu *emu_create(struct host *host) {
   emu->dc = dc_create();
   emu->dc->userdata = emu;
   emu->dc->push_audio = &emu_push_audio;
+  emu->dc->push_pixels = &emu_push_pixels;
   emu->dc->start_render = &emu_start_render;
   emu->dc->finish_render = &emu_finish_render;
   emu->dc->vblank_in = &emu_vblank_in;
@@ -751,10 +823,10 @@ struct emu *emu_create(struct host *host) {
 
   if (emu->multi_threaded) {
     emu->state = EMU_WAITING;
-    emu->run_mutex = mutex_create();
-    emu->run_cond = cond_create();
-    emu->frame_mutex = mutex_create();
-    emu->frame_cond = cond_create();
+    emu->req_mutex = mutex_create();
+    emu->req_cond = cond_create();
+    emu->res_mutex = mutex_create();
+    emu->res_cond = cond_create();
 
     emu->run_thread = thread_create(&emu_run_thread, NULL, emu);
     CHECK_NOTNULL(emu->run_thread);

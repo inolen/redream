@@ -133,9 +133,11 @@ struct device {
  * machine
  */
 typedef void (*push_audio_cb)(void *, const int16_t *, int);
+typedef void (*push_pixels_cb)(void *, const uint8_t *, int, int);
 typedef void (*start_render_cb)(void *, struct ta_context *);
 typedef void (*finish_render_cb)(void *);
-typedef void (*vblank_cb)(void *);
+typedef void (*vblank_in_cb)(void *, int);
+typedef void (*vblank_out_cb)(void *);
 
 struct dreamcast {
   int running;
@@ -162,10 +164,11 @@ struct dreamcast {
   /* client callbacks */
   void *userdata;
   push_audio_cb push_audio;
+  push_pixels_cb push_pixels;
   start_render_cb start_render;
   finish_render_cb finish_render;
-  vblank_cb vblank_in;
-  vblank_cb vblank_out;
+  vblank_in_cb vblank_in;
+  vblank_out_cb vblank_out;
 };
 
 struct dreamcast *dc_create();
@@ -202,9 +205,10 @@ void dc_input(struct dreamcast *dc, int port, int button, int16_t value);
 
 /* client functionality */
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);
+void dc_push_pixels(struct dreamcast *dc, const uint8_t *data, int w, int h);
 void dc_start_render(struct dreamcast *dc, struct ta_context *ctx);
 void dc_finish_render(struct dreamcast *dc);
-void dc_vblank_in(struct dreamcast *dc);
+void dc_vblank_in(struct dreamcast *dc, int video_disabled);
 void dc_vblank_out(struct dreamcast *dc);
 
 #endif

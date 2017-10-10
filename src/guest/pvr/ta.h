@@ -13,6 +13,11 @@ AM_DECLARE(ta_data_map);
 struct ta *ta_create(struct dreamcast *dc);
 void ta_destroy(struct ta *ta);
 
+void ta_soft_reset(struct ta *ta);
+void ta_start_render(struct ta *ta);
+void ta_list_init(struct ta *ta);
+void ta_list_cont(struct ta *ta);
+void ta_yuv_init(struct ta *ta);
 void ta_texture_info(struct ta *ta, union tsp tsp, union tcw tcw,
                      const uint8_t **texture, int *texture_size,
                      const uint8_t **palette, int *palette_size);

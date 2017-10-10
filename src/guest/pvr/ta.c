@@ -312,10 +312,6 @@ static int ta_param_size_raw(union pcw pcw, int vert_type) {
   }
 }
 
-static void ta_soft_reset(struct ta *ta) {
-  /* FIXME what are we supposed to do here? */
-}
-
 /*
  * ta parameter handling
  *
@@ -498,37 +494,7 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
   ctx->palette_fmt = pvr->PAL_RAM_CTRL->pixel_fmt;
 
   /* save video resolution in order to unproject the screen space coordinates */
-  int vga_mode = !pvr->SPG_CONTROL->NTSC && !pvr->SPG_CONTROL->PAL &&
-                 !pvr->SPG_CONTROL->interlace;
-
-  if (vga_mode) {
-    ctx->video_width = 640;
-    ctx->video_height = 480;
-  } else {
-    ctx->video_width = 320;
-    ctx->video_height = 240;
-  }
-
-  if (pvr->SPG_CONTROL->interlace) {
-    ctx->video_height *= 2;
-  }
-
-  if (!pvr->VO_CONTROL->pixel_double) {
-    ctx->video_width *= 2;
-  }
-
-  /* scale_x signals to scale the framebuffer down by half. do so by scaling
-     up the width used by the projection matrix */
-  if (pvr->SCALER_CTL->scale_x) {
-    ctx->video_width *= 2;
-  }
-
-  /* scale_y is a fixed-point scaler, with 6-bits in the integer and 10-bits
-     in the decimal. this scale value is ignored when used for interlacing
-     which is not emulated */
-  if (!pvr->SCALER_CTL->interlace) {
-    ctx->video_height = (ctx->video_height * pvr->SCALER_CTL->scale_y) >> 10;
-  }
+  pvr_video_size(pvr, &ctx->video_width, &ctx->video_height);
 
   /* according to the hardware docs, this is the correct calculation of the
      background ISP address. however, in practice, the second TA buffer's ISP
@@ -578,7 +544,7 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
   }
 }
 
-static void ta_finish_render(void *data) {
+static void ta_render_context_end(void *data) {
   struct ta_context *ctx = data;
   struct ta *ta = ctx->userdata;
 
@@ -594,7 +560,7 @@ static void ta_finish_render(void *data) {
   holly_raise_interrupt(ta->holly, HOLLY_INT_PCEOTINT);
 }
 
-static void ta_start_render(struct ta *ta, struct ta_context *ctx) {
+static void ta_render_context(struct ta *ta, struct ta_context *ctx) {
   prof_counter_add(COUNTER_ta_renders, 1);
 
   /* remove context from pool */
@@ -611,7 +577,7 @@ static void ta_start_render(struct ta *ta, struct ta_context *ctx) {
      TODO figure out a heuristic involving the number of polygons rendered */
   int64_t end = INT64_C(10000000);
   ctx->userdata = ta;
-  scheduler_start_timer(ta->scheduler, &ta_finish_render, ctx, end);
+  scheduler_start_timer(ta->scheduler, &ta_render_context_end, ctx, end);
 }
 
 /*
@@ -622,7 +588,7 @@ static void ta_start_render(struct ta *ta, struct ta_context *ctx) {
 #define TA_MAX_MACROBLOCK_SIZE \
   MAX(TA_YUV420_MACROBLOCK_SIZE, TA_YUV422_MACROBLOCK_SIZE)
 
-static void ta_yuv_init(struct ta *ta) {
+static void ta_yuv_reset(struct ta *ta) {
   struct pvr *pvr = ta->pvr;
 
   /* FIXME only YUV420 -> YUV422 supported for now */
@@ -711,7 +677,7 @@ static void ta_yuv_process_macroblock(struct ta *ta, void *data) {
   pvr->TA_YUV_TEX_CNT->num++;
 
   if ((int)pvr->TA_YUV_TEX_CNT->num >= ta->yuv_macroblock_count) {
-    ta_yuv_init(ta);
+    ta_yuv_reset(ta);
 
     /* raise DMA end interrupt */
     holly_raise_interrupt(ta->holly, HOLLY_INT_TAYUVINT);
@@ -824,6 +790,36 @@ void ta_texture_info(struct ta *ta, union tsp tsp, union tcw tcw,
   *palette = *palette_size ? &ta->pvr->palette_ram[palette_addr] : NULL;
 }
 
+void ta_yuv_init(struct ta *ta) {
+  ta_yuv_reset(ta);
+}
+
+void ta_list_cont(struct ta *ta) {
+  struct ta_context *ctx =
+      ta_get_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  CHECK_NOTNULL(ctx);
+  ta_cont_context(ta, ctx);
+  ta->curr_context = ctx;
+}
+
+void ta_list_init(struct ta *ta) {
+  struct ta_context *ctx =
+      ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  ta_init_context(ta, ctx);
+  ta->curr_context = ctx;
+}
+
+void ta_start_render(struct ta *ta) {
+  struct ta_context *ctx =
+      ta_get_context(ta, ta->pvr->PARAM_BASE->base_address);
+  CHECK_NOTNULL(ctx);
+  ta_render_context(ta, ctx);
+}
+
+void ta_soft_reset(struct ta *ta) {
+  /* FIXME what are we supposed to do here? */
+}
+
 void ta_destroy(struct ta *ta) {
   dc_destroy_device((struct device *)ta);
 }
@@ -834,68 +830,6 @@ struct ta *ta_create(struct dreamcast *dc) {
   struct ta *ta = dc_create_device(dc, sizeof(struct ta), "ta", &ta_init, NULL);
 
   return ta;
-}
-
-/*
- * ta mmio registers
- */
-REG_W32(pvr_cb, SOFTRESET) {
-  struct ta *ta = dc->ta;
-
-  if (!(value & 0x1)) {
-    return;
-  }
-
-  ta_soft_reset(ta);
-}
-
-REG_W32(pvr_cb, STARTRENDER) {
-  struct ta *ta = dc->ta;
-
-  if (!value) {
-    return;
-  }
-
-  struct ta_context *ctx =
-      ta_get_context(ta, ta->pvr->PARAM_BASE->base_address);
-  CHECK_NOTNULL(ctx);
-  ta_start_render(ta, ctx);
-}
-
-REG_W32(pvr_cb, TA_LIST_INIT) {
-  struct ta *ta = dc->ta;
-
-  if (!(value & 0x80000000)) {
-    return;
-  }
-
-  struct ta_context *ctx =
-      ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
-  ta_init_context(ta, ctx);
-  ta->curr_context = ctx;
-}
-
-REG_W32(pvr_cb, TA_LIST_CONT) {
-  struct ta *ta = dc->ta;
-
-  if (!(value & 0x80000000)) {
-    return;
-  }
-
-  struct ta_context *ctx =
-      ta_get_context(ta, ta->pvr->TA_ISP_BASE->base_address);
-  CHECK_NOTNULL(ctx);
-  ta_cont_context(ta, ctx);
-  ta->curr_context = ctx;
-}
-
-REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
-  struct ta *ta = dc->ta;
-  struct pvr *pvr = dc->pvr;
-
-  pvr->TA_YUV_TEX_BASE->full = value;
-
-  ta_yuv_init(ta);
 }
 
 /* clang-format off */

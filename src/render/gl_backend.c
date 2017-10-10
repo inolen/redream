@@ -52,16 +52,25 @@ struct texture {
   GLuint texture;
 };
 
+struct viewport {
+  int x, y, w, h;
+};
+
 struct render_backend {
   struct host *host;
   int width, height;
-  int viewport_width;
-  int viewport_height;
+
+  /* current viewport */
+  struct viewport viewport;
 
   /* default assets created during intitialization */
   GLuint white_texture;
   struct shader_program ta_programs[ATTR_COUNT];
   struct shader_program ui_program;
+
+  /* offscreen framebuffer for blitting raw pixels */
+  GLuint pixel_fbo;
+  GLuint pixel_texture;
 
   /* texture cache */
   struct texture textures[MAX_TEXTURES];
@@ -130,6 +139,24 @@ static GLenum blend_funcs[] = {GL_NONE,
 static GLenum prim_types[] = {
     GL_TRIANGLES, /* PRIM_TRIANGLES */
     GL_LINES,     /* PRIM_LINES */
+};
+
+static GLuint internal_formats[] = {
+    GL_NONE, /* PXL_INVALID */
+    GL_RGB,  /* PXL_RGB */
+    GL_RGBA, /* PXL_RGBA */
+    GL_RGBA, /* PXL_RGBA5551 */
+    GL_RGB,  /* PXL_RGB565 */
+    GL_RGBA, /* PXL_RGBA4444 */
+};
+
+static GLuint pixel_formats[] = {
+    GL_NONE,                   /* PXL_INVALID */
+    GL_UNSIGNED_BYTE,          /* PXL_RGB */
+    GL_UNSIGNED_BYTE,          /* PXL_RGBA */
+    GL_UNSIGNED_SHORT_5_5_5_1, /* PXL_RGBA5551 */
+    GL_UNSIGNED_SHORT_5_6_5,   /* PXL_RGB565 */
+    GL_UNSIGNED_SHORT_4_4_4_4, /* PXL_RGBA4444 */
 };
 
 static inline void r_bind_texture(struct render_backend *r,
@@ -270,6 +297,9 @@ static void r_create_shaders(struct render_backend *r) {
 static void r_destroy_textures(struct render_backend *r) {
   glDeleteTextures(1, &r->white_texture);
 
+  glDeleteFramebuffers(1, &r->pixel_fbo);
+  glDeleteTextures(1, &r->pixel_texture);
+
   for (int i = 0; i < MAX_TEXTURES; i++) {
     struct texture *tex = &r->textures[i];
 
@@ -293,6 +323,31 @@ static void r_create_textures(struct render_backend *r) {
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                pixels);
   glBindTexture(GL_TEXTURE_2D, 0);
+
+  /* create fbo for blitting raw framebuffers to */
+  glGenFramebuffers(1, &r->pixel_fbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, r->pixel_fbo);
+
+  glGenTextures(1, &r->pixel_texture);
+  glBindTexture(GL_TEXTURE_2D, r->pixel_texture);
+
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB,
+               GL_UNSIGNED_SHORT_5_6_5, 0);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+  GLenum buffers[] = {GL_COLOR_ATTACHMENT0};
+  glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, r->pixel_texture,
+                       0);
+  glDrawBuffers(ARRAY_SIZE(buffers), buffers);
+
+  GLenum res = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+  CHECK_EQ(res, GL_FRAMEBUFFER_COMPLETE);
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 static void r_destroy_vertex_arrays(struct render_backend *r) {
@@ -495,13 +550,13 @@ void r_begin_ui_surfaces(struct render_backend *r,
                          const uint16_t *indices, int num_indices) {
   /* setup projection matrix */
   float ortho[16];
-  ortho[0] = 2.0f / (float)r->viewport_width;
+  ortho[0] = 2.0f / (float)r->viewport.w;
   ortho[4] = 0.0f;
   ortho[8] = 0.0f;
   ortho[12] = -1.0f;
 
   ortho[1] = 0.0f;
-  ortho[5] = -2.0f / (float)r->viewport_height;
+  ortho[5] = -2.0f / (float)r->viewport.h;
   ortho[9] = 0.0f;
   ortho[13] = 1.0f;
 
@@ -611,11 +666,29 @@ void r_begin_ta_surfaces(struct render_backend *r, int video_width,
                GL_DYNAMIC_DRAW);
 }
 
-void r_viewport(struct render_backend *r, int x, int y, int width, int height) {
-  r->viewport_width = width;
-  r->viewport_height = height;
+void r_draw_pixels(struct render_backend *r, const uint8_t *pixels, int x,
+                   int y, int width, int height) {
+  glBindTexture(GL_TEXTURE_2D, r->pixel_texture);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB,
+               GL_UNSIGNED_BYTE, pixels);
+  glBindTexture(GL_TEXTURE_2D, 0);
 
-  glViewport(x, y, r->viewport_width, r->viewport_height);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, r->pixel_fbo);
+  glReadBuffer(GL_COLOR_ATTACHMENT0);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+  glBlitFramebuffer(x, y + height, x + width, y, r->viewport.x, r->viewport.y,
+                    r->viewport.x + r->viewport.w,
+                    r->viewport.y + r->viewport.h, GL_COLOR_BUFFER_BIT,
+                    GL_LINEAR);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void r_viewport(struct render_backend *r, int x, int y, int width, int height) {
+  r->viewport.x = x;
+  r->viewport.y = y;
+  r->viewport.w = width;
+  r->viewport.h = height;
+  glViewport(r->viewport.x, r->viewport.y, r->viewport.w, r->viewport.h);
 }
 
 void r_clear(struct render_backend *r) {
@@ -650,29 +723,8 @@ texture_handle_t r_create_texture(struct render_backend *r,
   }
   CHECK_LT(handle, MAX_TEXTURES);
 
-  GLuint internal_fmt;
-  GLuint pixel_fmt;
-  switch (format) {
-    case PXL_RGBA:
-      internal_fmt = GL_RGBA;
-      pixel_fmt = GL_UNSIGNED_BYTE;
-      break;
-    case PXL_RGBA5551:
-      internal_fmt = GL_RGBA;
-      pixel_fmt = GL_UNSIGNED_SHORT_5_5_5_1;
-      break;
-    case PXL_RGB565:
-      internal_fmt = GL_RGB;
-      pixel_fmt = GL_UNSIGNED_SHORT_5_6_5;
-      break;
-    case PXL_RGBA4444:
-      internal_fmt = GL_RGBA;
-      pixel_fmt = GL_UNSIGNED_SHORT_4_4_4_4;
-      break;
-    default:
-      LOG_FATAL("unexpected pixel format %d", format);
-      break;
-  }
+  GLuint internal_fmt = internal_formats[format];
+  GLuint pixel_fmt = pixel_formats[format];
 
   struct texture *tex = &r->textures[handle];
   glGenTextures(1, &tex->texture);

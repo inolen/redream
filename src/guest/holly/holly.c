@@ -22,7 +22,9 @@ static void holly_ch2_dma_stop(struct holly *hl) {
 }
 
 static void holly_ch2_dma(struct holly *hl) {
-  /* FIXME what are SB_LMMODE0 / SB_LMMODE1 */
+  /* the ta mmio handlers assume the 64-bit access path will be used */
+  CHECK(*hl->SB_LMMODE0 == 0 && *hl->SB_LMMODE1 == 0);
+
   struct sh4_dtr dtr = {0};
   dtr.channel = 2;
   dtr.dir = SH4_DMA_TO_ADDR;

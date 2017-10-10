@@ -23,12 +23,12 @@ void dc_vblank_out(struct dreamcast *dc) {
   dc->vblank_out(dc->userdata);
 }
 
-void dc_vblank_in(struct dreamcast *dc) {
+void dc_vblank_in(struct dreamcast *dc, int video_disabled) {
   if (!dc->vblank_in) {
     return;
   }
 
-  dc->vblank_in(dc->userdata);
+  dc->vblank_in(dc->userdata, video_disabled);
 }
 
 void dc_finish_render(struct dreamcast *dc) {
@@ -45,6 +45,14 @@ void dc_start_render(struct dreamcast *dc, struct ta_context *ctx) {
   }
 
   dc->start_render(dc->userdata, ctx);
+}
+
+void dc_push_pixels(struct dreamcast *dc, const uint8_t *data, int w, int h) {
+  if (!dc->push_pixels) {
+    return;
+  }
+
+  dc->push_pixels(dc->userdata, data, w, h);
 }
 
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames) {
@@ -81,27 +89,61 @@ int dc_running(struct dreamcast *dc) {
   return dc->running;
 }
 
-int dc_load(struct dreamcast *dc, const char *path) {
-  if (path) {
-    LOG_INFO("dc_load path=%s", path);
+static int dc_load_bin(struct dreamcast *dc, const char *path) {
+  FILE *fp = fopen(path, "rb");
+  if (!fp) {
+    return 0;
+  }
 
-    struct disc *disc = disc_create(path);
+  fseek(fp, 0, SEEK_END);
+  int size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
 
-    if (!disc) {
-      LOG_WARNING("dc_load_game failed");
-      return 0;
-    }
+  /* load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to */
+  uint8_t *data = memory_translate(dc->memory, "system ram", 0x00010000);
+  int n = (int)fread(data, sizeof(uint8_t), size, fp);
+  fclose(fp);
 
-    gdrom_set_disc(dc->gdrom, disc);
-  } else {
-    LOG_INFO("dc_load no path supplied, loading bios");
+  if (n != size) {
+    LOG_WARNING("failed to read %s", path);
+    return 0;
   }
 
   /* boot to bios bootstrap */
+  sh4_reset(dc->sh4, 0x0c010000);
+  dc_resume(dc);
+
+  return 1;
+}
+
+static int dc_load_disc(struct dreamcast *dc, const char *path) {
+  struct disc *disc = disc_create(path);
+
+  if (!disc) {
+    return 0;
+  }
+
+  /* boot to bios bootstrap */
+  gdrom_set_disc(dc->gdrom, disc);
   sh4_reset(dc->sh4, 0xa0000000);
   dc_resume(dc);
 
   return 1;
+}
+
+int dc_load(struct dreamcast *dc, const char *path) {
+  if (!path) {
+    LOG_INFO("dc_load no path supplied, loading bios");
+
+    /* boot to bios bootstrap */
+    sh4_reset(dc->sh4, 0xa0000000);
+    dc_resume(dc);
+    return 1;
+  }
+
+  LOG_INFO("dc_load path=%s", path);
+
+  return dc_load_disc(dc, path) || dc_load_bin(dc, path);
 }
 
 int dc_init(struct dreamcast *dc) {

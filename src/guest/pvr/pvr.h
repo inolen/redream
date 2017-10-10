@@ -9,6 +9,8 @@ struct dreamcast;
 struct holly;
 struct timer;
 
+#define PVR_FRAMEBUFFER_SIZE 640 * 640 * 4
+
 struct pvr {
   struct device;
   uint8_t *palette_ram;
@@ -20,6 +22,14 @@ struct pvr {
   int line_clock;
   uint32_t current_line;
 
+  /* copy of deinterlaced framebuffer from texture memory */
+  uint8_t framebuffer[PVR_FRAMEBUFFER_SIZE];
+  int framebuffer_w;
+  int framebuffer_h;
+
+  /* tracks if a STARTRENDER was received for the current frame */
+  int got_startrender;
+
 #define PVR_REG(offset, name, default, type) type *name;
 #include "guest/pvr/pvr_regs.inc"
 #undef PVR_REG
@@ -28,9 +38,9 @@ struct pvr {
 AM_DECLARE(pvr_reg_map);
 AM_DECLARE(pvr_vram_map);
 
-extern struct reg_cb pvr_cb[PVR_NUM_REGS];
-
 struct pvr *pvr_create(struct dreamcast *dc);
 void pvr_destroy(struct pvr *pvr);
+
+void pvr_video_size(struct pvr *pvr, int *video_width, int *video_height);
 
 #endif
