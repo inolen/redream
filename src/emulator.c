@@ -391,9 +391,8 @@ static void emu_start_render(void *userdata, struct ta_context *ctx) {
 
     mutex_unlock(emu->frame_mutex);
   } else {
-    /* convert the context and immediately render it */
+    /* convert the context immediately */
     tr_convert_context(emu->r, emu, &emu_find_texture, ctx, &emu->pending_rc);
-    tr_render_context(emu->r, &emu->pending_rc);
   }
 }
 
@@ -607,7 +606,7 @@ void emu_render_frame(struct emu *emu) {
     frame_x = (int)((width - frame_width) / 2.0f);
     frame_y = 0;
   } else {
-    LOG_FATAL("unexpected aspect ratio %d", emu->aspect_ratio);
+    LOG_FATAL("emu_render_frame unexpected aspect ratio %d", emu->aspect_ratio);
   }
 
   r_viewport(emu->r, frame_x, frame_y, frame_width, frame_height);
@@ -647,14 +646,16 @@ void emu_render_frame(struct emu *emu) {
       mutex_unlock(emu->frame_mutex);
     }
 
-    /* render the latest context. note, the emulation thread may still be
-       running at this time */
-    tr_render_context(emu->r, &emu->pending_rc);
+    /* note, the emulation thread may still be running at this point, but the
+       latest context has been converted and is available in pending_rc */
   } else {
     emu_debug_menu(emu);
 
     emu_run_frame(emu);
   }
+
+  /* render the latest context */
+  tr_render_context(emu->r, &emu->pending_rc);
 }
 
 int emu_load(struct emu *emu, const char *path) {
