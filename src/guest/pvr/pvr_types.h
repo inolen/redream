@@ -43,6 +43,16 @@ union fb_w_ctrl {
   };
 };
 
+union fb_r_size {
+  uint32_t full;
+  struct {
+    uint32_t x : 10;
+    uint32_t y : 10;
+    uint32_t mod : 10;
+    uint32_t : 2;
+  };
+};
+
 union fpu_shad_scale {
   uint32_t full;
   struct {
