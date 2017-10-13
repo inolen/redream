@@ -15,12 +15,20 @@
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
 
-void dc_vertical_blank(struct dreamcast *dc) {
-  if (!dc->vertical_blank) {
+void dc_vblank_out(struct dreamcast *dc) {
+  if (!dc->vblank_out) {
     return;
   }
 
-  dc->vertical_blank(dc->userdata);
+  dc->vblank_out(dc->userdata);
+}
+
+void dc_vblank_in(struct dreamcast *dc) {
+  if (!dc->vblank_in) {
+    return;
+  }
+
+  dc->vblank_in(dc->userdata);
 }
 
 void dc_finish_render(struct dreamcast *dc) {

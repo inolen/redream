@@ -336,7 +336,9 @@ static void emu_start_tracing(struct emu *emu) {
 /*
  * dreamcast guest interface
  */
-static void emu_vertical_blank(void *userdata) {
+static void emu_vblank_in(void *userdata) {}
+
+static void emu_vblank_out(void *userdata) {
   struct emu *emu = userdata;
 
   emu->frame++;
@@ -735,7 +737,8 @@ struct emu *emu_create(struct host *host) {
   emu->dc->push_audio = &emu_push_audio;
   emu->dc->start_render = &emu_start_render;
   emu->dc->finish_render = &emu_finish_render;
-  emu->dc->vertical_blank = &emu_vertical_blank;
+  emu->dc->vblank_in = &emu_vblank_in;
+  emu->dc->vblank_out = &emu_vblank_out;
 
   /* add all textures to free list by default */
   for (int i = 0; i < ARRAY_SIZE(emu->textures); i++) {
