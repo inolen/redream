@@ -692,6 +692,9 @@ static void ta_yuv_process_macroblock(struct ta *ta, void *data) {
  * 3.) texture data - data that is written directly to vram
  */
 static void ta_poly_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
+  struct holly *holly = ta->holly;
+
+  CHECK(*holly->SB_LMMODE0 == 0);
   CHECK(size % 32 == 0);
 
   uint8_t *src = ptr;
@@ -706,6 +709,7 @@ static void ta_yuv_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
   struct holly *holly = ta->holly;
   struct pvr *pvr = ta->pvr;
 
+  CHECK(*holly->SB_LMMODE0 == 0);
   CHECK(size % ta->yuv_macroblock_size == 0);
 
   uint8_t *src = ptr;
@@ -717,6 +721,10 @@ static void ta_yuv_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
 }
 
 static void ta_texture_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
+  struct holly *holly = ta->holly;
+
+  CHECK(*holly->SB_LMMODE0 == 0);
+
   uint8_t *src = ptr;
   dst &= 0xeeffffff;
   memcpy(&ta->video_ram[dst], src, size);
