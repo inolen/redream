@@ -133,6 +133,83 @@ union stbcr2 {
   };
 };
 
+union scsmr2 {
+  uint32_t full;
+  struct {
+    uint32_t CKS : 2;
+    uint32_t : 1;
+    uint32_t STOP : 1;
+    uint32_t OE : 1;
+    uint32_t PE : 1;
+    uint32_t CHR : 1;
+    uint32_t : 25;
+  };
+};
+
+union scscr2 {
+  uint32_t full;
+  struct {
+    uint32_t : 1;
+    uint32_t CKE1 : 1;
+    uint32_t : 1;
+    uint32_t REIE : 1;
+    uint32_t RE : 1;
+    uint32_t TE : 1;
+    uint32_t RIE : 1;
+    uint32_t TIE : 1;
+    uint32_t : 24;
+  };
+};
+
+union scfsr2 {
+  uint32_t full;
+  struct {
+    uint32_t DR : 1;
+    uint32_t RDF : 1;
+    uint32_t PER : 1;
+    uint32_t FER : 1;
+    uint32_t BRK : 1;
+    uint32_t TDFE : 1;
+    uint32_t TEND : 1;
+    uint32_t ER : 1;
+    uint32_t FER0 : 1;
+    uint32_t FER1 : 1;
+    uint32_t FER2 : 1;
+    uint32_t FER3 : 1;
+    uint32_t PER0 : 1;
+    uint32_t PER1 : 1;
+    uint32_t PER2 : 1;
+    uint32_t PER3 : 1;
+    uint32_t : 16;
+  };
+};
+
+union scfcr2 {
+  uint32_t full;
+  struct {
+    uint32_t LOOP : 1;
+    uint32_t RFRST : 1;
+    uint32_t TFRST : 1;
+    uint32_t MCE : 1;
+    uint32_t TTRG0 : 1;
+    uint32_t TTRG1 : 1;
+    uint32_t RTRG0 : 1;
+    uint32_t RTRG1 : 1;
+    uint32_t RSTRG0 : 1;
+    uint32_t RSTRG1 : 1;
+    uint32_t RSTRG2 : 1;
+    uint32_t : 21;
+  };
+};
+
+union sclsr2 {
+  uint32_t full;
+  struct {
+    uint32_t ORER : 1;
+    uint32_t : 31;
+  };
+};
+
 /* control register area (0xfc000000 - 0xffffffff) contains only 16kb of
    physical memory. this memory is mapped as 64 x 256 byte blocks, with the
    block index being encoded in bits 17-24 of the address, and the block
