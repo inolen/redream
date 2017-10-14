@@ -48,10 +48,19 @@ static uint32_t bios_local_time() {
      5 leap days from the current time to match them up. note, mktime / difftime
      can't be used here with a tm struct filled out for 1950 as not all libc
      implementations support negative timestamps */
-  time_t curr_time_local = time(NULL);
-  time_t curr_time_utc = mktime(gmtime(&curr_time_local));
-  time_t base_time_utc = -(20 * 365 + 5) * (24 * 60 * 60);
-  return (uint32_t)(curr_time_utc - base_time_utc);
+  time_t rawtime = time(NULL);
+  struct tm localinfo = *localtime(&rawtime);
+  struct tm gmtinfo = *gmtime(&rawtime);
+
+  /* gmtime will set tm_isdst to 0. set to -1 to force mktime to check if the
+     timestamp is in dst or not */
+  gmtinfo.tm_isdst = -1;
+
+  time_t localtime = mktime(&localinfo);
+  time_t gmttime = mktime(&gmtinfo);
+  double gmtdelta = difftime(gmttime, localtime);
+  double gmtoffset = (20 * 365 + 5) * (24 * 60 * 60);
+  return (uint32_t)(localtime - gmtdelta + gmtoffset);
 }
 
 static void bios_override_settings(struct bios *bios) {
