@@ -3,6 +3,11 @@
 
 #include "guest/dreamcast.h"
 #include "guest/memory.h"
+#include "guest/sh4/sh4_ccn.h"
+#include "guest/sh4/sh4_dbg.h"
+#include "guest/sh4/sh4_dmac.h"
+#include "guest/sh4/sh4_intc.h"
+#include "guest/sh4/sh4_mmu.h"
 #include "guest/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/jit.h"
@@ -15,32 +20,7 @@ struct jit_guest;
 
 #define SH4_CLOCK_FREQ INT64_C(200000000)
 
-enum {
-  SH4_DMA_FROM_ADDR,
-  SH4_DMA_TO_ADDR,
-};
-
 typedef int (*sh4_exception_handler_cb)(void *, enum sh4_exception);
-
-struct sh4_dtr {
-  int channel;
-  int dir;
-  /* when data is non-null, a single address mode transfer is performed between
-     the external device memory at data, and the memory at addr
-
-     when data is null, a dual address mode transfer is performed between addr
-     and SARn / DARn */
-  uint8_t *data;
-  uint32_t addr;
-  /* size is only valid for single address mode transfers, dual address mode
-     transfers honor DMATCR */
-  int size;
-};
-
-struct sh4_tlb_entry {
-  union pteh hi;
-  union ptel lo;
-};
 
 struct sh4 {
   struct device;
@@ -85,49 +65,6 @@ extern struct sh4_exception_info sh4_exceptions[SH4_NUM_EXCEPTIONS];
 extern struct sh4_interrupt_info sh4_interrupts[SH4_NUM_INTERRUPTS];
 
 AM_DECLARE(sh4_data_map);
-
-/* ccn */
-void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr);
-uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
-void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                         uint32_t data_mask);
-uint32_t sh4_ccn_sq_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
-void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                      uint32_t data_mask);
-uint32_t sh4_ccn_icache_read(struct sh4 *sh4, uint32_t addr,
-                             uint32_t data_mask);
-void sh4_ccn_icache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                          uint32_t data_mask);
-uint32_t sh4_ccn_ocache_read(struct sh4 *sh4, uint32_t addr,
-                             uint32_t data_mask);
-void sh4_ccn_ocache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                          uint32_t data_mask);
-
-/* dbg */
-int sh4_dbg_num_registers(struct device *dev);
-void sh4_dbg_step(struct device *dev);
-void sh4_dbg_add_breakpoint(struct device *dev, int type, uint32_t addr);
-void sh4_dbg_remove_breakpoint(struct device *dev, int type, uint32_t addr);
-void sh4_dbg_read_memory(struct device *dev, uint32_t addr, uint8_t *buffer,
-                         int size);
-void sh4_dbg_read_register(struct device *dev, int n, uint64_t *value,
-                           int *size);
-int sh4_dbg_invalid_instr(struct sh4 *sh4);
-
-void sh4_dmac_ddt(struct sh4 *sh, struct sh4_dtr *dtr);
-
-/* intc */
-void sh4_intc_update_pending(struct sh4 *sh4);
-void sh4_intc_reprioritize(struct sh4 *sh4);
-
-/* mmu */
-void sh4_mmu_ltlb(struct sh4 *sh4);
-uint32_t sh4_mmu_itlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
-uint32_t sh4_mmu_utlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask);
-void sh4_mmu_itlb_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                        uint32_t data_mask);
-void sh4_mmu_utlb_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                        uint32_t data_mask);
 
 struct sh4 *sh4_create(struct dreamcast *dc);
 void sh4_destroy(struct sh4 *sh4);
