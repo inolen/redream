@@ -117,17 +117,6 @@ static void sh4_exception(struct sh4 *sh4, enum sh4_exception exc) {
     return;
   }
 
-  /* let internal systems have a second chance for illegal instructions */
-  if (exc == SH4_EXC_ILLINSTR) {
-    if (bios_invalid_instr(sh4->bios)) {
-      return;
-    }
-
-    if (sh4_dbg_invalid_instr(sh4)) {
-      return;
-    }
-  }
-
   /* ensure sr is up to date */
   sh4_implode_sr(&sh4->ctx);
 
@@ -172,25 +161,40 @@ static void sh4_compile_code(struct sh4 *sh4, uint32_t addr) {
 }
 
 static void sh4_invalid_instr(struct sh4 *sh4) {
+  /* TODO write tests to confirm if any other instructions generate illegal
+     instruction exceptions */
+  const uint16_t SH4_INVALID_INSTR = 0xfffd;
+
+  /* let internal systems have a first chance at illegal instructions. note,
+     they will write out invalid instructions other than SH4_INVALID_INSTR
+     in order to trap */
+  if (bios_invalid_instr(sh4->bios)) {
+    return;
+  }
+
+  if (sh4_dbg_invalid_instr(sh4)) {
+    return;
+  }
+
   uint32_t pc = sh4->ctx.pc;
   uint16_t data = as_read16(sh4->memory_if->space, pc);
   struct jit_opdef *def = sh4_get_opdef(data);
+  enum sh4_exception exc = SH4_EXC_ILLINSTR;
 
   /* op may be valid if the delay slot raised this */
   if (def->op != SH4_OP_INVALID) {
     data = as_read16(sh4->memory_if->space, pc + 2);
     def = sh4_get_opdef(data);
+    exc = SH4_EXC_ILLSLOT;
   }
 
-  /* TODO write tests to confirm if any other instructions generate illegal
-     instruction exceptions */
-  if (data != 0xfffd) {
+  if (data != SH4_INVALID_INSTR) {
     return;
   }
 
   CHECK_EQ(def->op, SH4_OP_INVALID);
 
-  sh4_exception(sh4, SH4_EXC_ILLINSTR);
+  sh4_exception(sh4, exc);
 }
 
 static void sh4_run(struct device *dev, int64_t ns) {
