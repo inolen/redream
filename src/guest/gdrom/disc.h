@@ -8,7 +8,6 @@
 #define DISC_MAX_SESSIONS 2
 #define DISC_MAX_TRACKS 64
 #define DISC_UID_SIZE 256
-#define DISC_STRING_SIZE 129
 
 enum {
   DISC_REGION_JAPAN = 0x1,
@@ -52,11 +51,11 @@ struct disc {
 
   /* meta information extracted from IP.BIN */
   char uid[DISC_UID_SIZE];
-  char product_name[DISC_STRING_SIZE];
-  char product_number[DISC_STRING_SIZE];
-  char product_version[DISC_STRING_SIZE];
-  char media_config[DISC_STRING_SIZE];
-  char bootname[DISC_STRING_SIZE];
+  char product_name[129];
+  char product_number[11];
+  char product_version[7];
+  char media_config[12];
+  char bootname[17];
 
   /* media-specific interface */
   void (*destroy)(struct disc *);
