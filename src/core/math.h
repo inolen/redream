@@ -17,13 +17,20 @@ static inline uint32_t bswap24(uint32_t v) {
   return ((v & 0xff) << 16) | (v & 0x00ff00) | ((v & 0xff0000) >> 16);
 }
 
+static inline int popcnt32(uint32_t v) {
+  /* avoid using popcnt intrinsics to support older processors such as the
+     core 2 duo which are plenty fast enough to support */
+  v = (v & 0x55555555) + ((v >> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+  v = (v & 0x0f0f0f0f) + ((v >> 4) & 0x0f0f0f0f);
+  v = (v & 0x00ff00ff) + ((v >> 8) & 0x00ff00ff);
+  v = (v & 0x0000ffff) + ((v >> 16) & 0x0000ffff);
+  return (int)v;
+}
+
 #if COMPILER_MSVC
 
 #include <intrin.h>
-
-static inline int popcnt32(uint32_t v) {
-  return __popcnt(v);
-}
 
 static inline int clz32(uint32_t v) {
   unsigned long r = 0;
@@ -54,10 +61,6 @@ static inline uint32_t bswap32(uint32_t v) {
 }
 
 #else
-
-static inline int popcnt32(uint32_t v) {
-  return __builtin_popcount(v);
-}
 
 static inline int clz32(uint32_t v) {
   return __builtin_clz(v);
