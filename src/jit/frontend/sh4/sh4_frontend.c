@@ -50,7 +50,7 @@ static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
 
   while (1) {
     uint32_t addr = begin_addr + offset;
-    uint16_t data = guest->r16(guest->space, addr);
+    uint16_t data = guest->r16(guest->mem, addr);
     struct jit_opdef *def = sh4_get_opdef(data);
 
     offset += 2;
@@ -58,7 +58,7 @@ static int sh4_frontend_is_idle_loop(struct sh4_frontend *frontend,
 
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_addr = begin_addr + offset;
-      uint16_t delay_data = guest->r16(guest->space, delay_addr);
+      uint16_t delay_data = guest->r16(guest->mem, delay_addr);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
       offset += 2;
@@ -103,7 +103,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
 
   while (offset < size) {
     uint32_t addr = begin_addr + offset;
-    uint16_t data = guest->r16(guest->space, addr);
+    uint16_t data = guest->r16(guest->mem, addr);
     union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
 
@@ -114,7 +114,7 @@ static void sh4_frontend_dump_code(struct jit_frontend *base,
 
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_addr = begin_addr + offset;
-      uint16_t delay_data = guest->r16(guest->space, delay_addr);
+      uint16_t delay_data = guest->r16(guest->mem, delay_addr);
       union sh4_instr delay_instr = {delay_data};
 
       sh4_format(delay_addr, delay_instr, buffer, sizeof(buffer));
@@ -164,7 +164,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     }
 
     uint32_t addr = begin_addr + offset;
-    uint16_t data = guest->r16(guest->space, addr);
+    uint16_t data = guest->r16(guest->mem, addr);
     union sh4_instr instr = {data};
     struct jit_opdef *def = sh4_get_opdef(data);
 
@@ -194,7 +194,7 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
     /* emit the delay slot's translation */
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_addr = begin_addr + offset;
-      uint32_t delay_data = guest->r16(guest->space, delay_addr);
+      uint32_t delay_data = guest->r16(guest->mem, delay_addr);
       union sh4_instr delay_instr = {delay_data};
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
@@ -279,14 +279,14 @@ static void sh4_frontend_analyze_code(struct jit_frontend *base,
 
   while (1) {
     uint32_t addr = begin_addr + *size;
-    uint16_t data = guest->r16(guest->space, addr);
+    uint16_t data = guest->r16(guest->mem, addr);
     struct jit_opdef *def = sh4_get_opdef(data);
 
     *size += 2;
 
     if (def->flags & SH4_FLAG_DELAYED) {
       uint32_t delay_addr = begin_addr + *size;
-      uint16_t delay_data = guest->r16(guest->space, delay_addr);
+      uint16_t delay_data = guest->r16(guest->mem, delay_addr);
       struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
 
       *size += 2;

@@ -2,6 +2,7 @@
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom.h"
 #include "guest/maple/maple.h"
+#include "guest/memory.h"
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
 #include "imgui.h"
@@ -92,26 +93,25 @@ static void holly_maple_dma(struct holly *hl) {
   }
 
   struct maple *mp = hl->maple;
-  struct address_space *space = hl->sh4->memory_if->space;
   uint32_t addr = *hl->SB_MDSTAR;
 
   while (1) {
     union maple_transfer desc;
-    desc.full = as_read32(space, addr);
+    desc.full = sh4_read32(hl->mem, addr);
     addr += 4;
 
     switch (desc.pattern) {
       case MAPLE_PATTERN_NORMAL: {
-        uint32_t result_addr = as_read32(space, addr);
+        uint32_t result_addr = sh4_read32(hl->mem, addr);
         addr += 4;
 
         /* read message */
         struct maple_frame frame, res;
-        frame.header.full = as_read32(space, addr);
+        frame.header.full = sh4_read32(hl->mem, addr);
         addr += 4;
 
         for (uint32_t i = 0; i < frame.header.num_words; i++) {
-          frame.params[i] = as_read32(space, addr);
+          frame.params[i] = sh4_read32(hl->mem, addr);
           addr += 4;
         }
 
@@ -120,15 +120,15 @@ static void holly_maple_dma(struct holly *hl) {
 
         /* write response */
         if (handled) {
-          as_write32(space, result_addr, res.header.full);
+          sh4_write32(hl->mem, result_addr, res.header.full);
           result_addr += 4;
 
           for (uint32_t i = 0; i < res.header.num_words; i++) {
-            as_write32(space, result_addr, res.params[i]);
+            sh4_write32(hl->mem, result_addr, res.params[i]);
             result_addr += 4;
           }
         } else {
-          as_write32(space, result_addr, 0xffffffff);
+          sh4_write32(hl->mem, result_addr, 0xffffffff);
         }
       } break;
 
@@ -169,10 +169,9 @@ static void (*g2_timers[4])(void *);
   static void holly_g2_dma_timer_channel##ch(void *data) {            \
     struct holly *hl = data;                                          \
     struct holly_g2_dma *dma = &hl->dma[ch];                          \
-    struct address_space *space = hl->sh4->memory_if->space;          \
     int chunk_size = 0x1000;                                          \
     int n = MIN(dma->len, chunk_size);                                \
-    as_memcpy(space, dma->dst, dma->src, n);                          \
+    sh4_memcpy(hl->mem, dma->dst, dma->src, n);                       \
     dma->dst += n;                                                    \
     dma->src += n;                                                    \
     dma->len -= n;                                                    \
@@ -265,42 +264,6 @@ static void holly_update_interrupts(struct holly *hl) {
   }
 }
 
-static void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
-                            uint32_t data_mask) {
-  uint32_t offset = addr >> 2;
-  reg_write_cb write = holly_cb[offset].write;
-
-  if (hl->log_reg_access) {
-    LOG_INFO("holly_reg_write addr=0x%08x data=0x%x", addr, data & data_mask);
-  }
-
-  if (write) {
-    write(hl->dc, data);
-    return;
-  }
-
-  hl->reg[offset] = data;
-}
-
-static uint32_t holly_reg_read(struct holly *hl, uint32_t addr,
-                               uint32_t data_mask) {
-  uint32_t offset = addr >> 2;
-  reg_read_cb read = holly_cb[offset].read;
-
-  uint32_t data;
-  if (read) {
-    data = read(hl->dc);
-  } else {
-    data = hl->reg[offset];
-  }
-
-  if (hl->log_reg_access) {
-    LOG_INFO("holly_reg_read addr=0x%08x data=0x%x", addr, data);
-  }
-
-  return data;
-}
-
 static uint32_t *holly_interrupt_status(struct holly *hl,
                                         enum holly_interrupt_type type) {
   switch (type) {
@@ -343,6 +306,41 @@ void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr) {
   if (intr == HOLLY_INT_PCVOINT && *hl->SB_MDTSEL && *hl->SB_MDEN) {
     holly_maple_dma(hl);
   }
+}
+
+void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
+                     uint32_t mask) {
+  uint32_t offset = addr >> 2;
+  reg_write_cb write = holly_cb[offset].write;
+
+  if (hl->log_reg_access) {
+    LOG_INFO("holly_reg_write addr=0x%08x data=0x%x", addr, data & mask);
+  }
+
+  if (write) {
+    write(hl->dc, data);
+    return;
+  }
+
+  hl->reg[offset] = data;
+}
+
+uint32_t holly_reg_read(struct holly *hl, uint32_t addr, uint32_t mask) {
+  uint32_t offset = addr >> 2;
+  reg_read_cb read = holly_cb[offset].read;
+
+  uint32_t data;
+  if (read) {
+    data = read(hl->dc);
+  } else {
+    data = hl->reg[offset];
+  }
+
+  if (hl->log_reg_access) {
+    LOG_INFO("holly_reg_read addr=0x%08x data=0x%x", addr, data);
+  }
+
+  return data;
 }
 
 #ifdef HAVE_IMGUI
@@ -751,29 +749,3 @@ REG_W32(holly_cb, SB_PDTSEL) {
     LOG_FATAL("hardware DMA trigger not supported");
   }
 }
-
-/* clang-format off */
-AM_BEGIN(struct holly, holly_reg_map);
-  /* over-allocate to align with the host allocation granularity */
-  AM_RANGE(0x00000000, 0x00007fff) AM_HANDLE("holly reg",
-                                             (mmio_read_cb)&holly_reg_read,
-                                             (mmio_write_cb)&holly_reg_write,
-                                             NULL, NULL)
-AM_END();
-
-AM_BEGIN(struct holly, holly_modem_map);
-  AM_RANGE(0x00000000, 0x0007ffff) AM_MOUNT("modem reg")
-AM_END();
-
-AM_BEGIN(struct holly, holly_expansion0_map);
-  AM_RANGE(0x00000000, 0x00ffffff) AM_MOUNT("expansion 0")
-AM_END();
-
-AM_BEGIN(struct holly, holly_expansion1_map);
-  AM_RANGE(0x00000000, 0x008fffff) AM_MOUNT("expansion 1")
-AM_END();
-
-AM_BEGIN(struct holly, holly_expansion2_map);
-  AM_RANGE(0x00000000, 0x03ffffff) AM_MOUNT("expansion 2")
-AM_END();
-/* clang-format on */

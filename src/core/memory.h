@@ -26,11 +26,12 @@ int release_pages(void *ptr, size_t size);
  */
 typedef void *shmem_handle_t;
 #define SHMEM_INVALID NULL
+#define SHMEM_MAP_FAILED (void *)-1
 
 shmem_handle_t create_shared_memory(const char *filename, size_t size,
                                     enum page_access access);
-int map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
-                      size_t size, enum page_access access);
+void *map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
+                        size_t size, enum page_access access);
 int unmap_shared_memory(shmem_handle_t handle, void *start, size_t size);
 int destroy_shared_memory(shmem_handle_t handle);
 

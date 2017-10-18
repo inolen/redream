@@ -421,8 +421,8 @@ static int x64_backend_handle_exception(struct jit_backend *base,
   uint32_t guest_addr = (uint32_t)(fault_addr - protected_start);
 
   /* ensure it was an mmio address that caused the exception */
-  void *ptr;
-  guest->lookup(guest->space, guest_addr, &ptr, NULL, NULL, NULL, NULL);
+  uint8_t *ptr;
+  guest->lookup(guest->mem, guest_addr, NULL, &ptr, NULL, NULL);
 
   if (ptr) {
     return 0;
@@ -449,7 +449,7 @@ static int x64_backend_handle_exception(struct jit_backend *base,
 
   if (mov.is_load) {
     /* prep argument registers (memory object, guest_addr) for read function */
-    ex->thread_state.r[x64_arg0_idx] = (uint64_t)guest->space;
+    ex->thread_state.r[x64_arg0_idx] = (uint64_t)guest->mem;
     ex->thread_state.r[x64_arg1_idx] = (uint64_t)guest_addr;
 
     /* prep function call address for thunk */
@@ -473,7 +473,7 @@ static int x64_backend_handle_exception(struct jit_backend *base,
   } else {
     /* prep argument registers (memory object, guest_addr, value) for write
        function */
-    ex->thread_state.r[x64_arg0_idx] = (uint64_t)guest->space;
+    ex->thread_state.r[x64_arg0_idx] = (uint64_t)guest->mem;
     ex->thread_state.r[x64_arg1_idx] = (uint64_t)guest_addr;
     ex->thread_state.r[x64_arg2_idx] =
         mov.has_imm ? mov.imm : ex->thread_state.r[mov.reg];

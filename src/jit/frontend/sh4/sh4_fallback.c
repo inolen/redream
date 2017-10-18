@@ -60,7 +60,7 @@ typedef int32_t int128_t[4];
 
 #define DELAY_INSTR()                {                                                                   \
                                        uint32_t delay_addr = addr + 2;                                   \
-                                       uint16_t delay_data = guest->r16(guest->space, delay_addr);       \
+                                       uint16_t delay_data = guest->r16(guest->mem, delay_addr);       \
                                        const struct jit_opdef *def = sh4_get_opdef(delay_data);          \
                                        def->fallback((struct jit_guest *)guest, delay_addr, delay_data); \
                                      }
@@ -161,19 +161,19 @@ typedef int32_t int128_t[4];
 #define STORE_SSR_I32(v)             (CTX->ssr = v)
 #define STORE_SSR_IMM_I32(v)         STORE_SSR_I32(v)
 
-#define LOAD_I8(addr)                guest->r8(guest->space, addr)
-#define LOAD_I16(addr)               guest->r16(guest->space, addr)
-#define LOAD_I32(addr)               guest->r32(guest->space, addr)
-#define LOAD_I64(addr)               guest->r64(guest->space, addr)
+#define LOAD_I8(addr)                guest->r8(guest->mem, addr)
+#define LOAD_I16(addr)               guest->r16(guest->mem, addr)
+#define LOAD_I32(addr)               guest->r32(guest->mem, addr)
+#define LOAD_I64(addr)               guest->r64(guest->mem, addr)
 #define LOAD_IMM_I8(addr)            LOAD_I8(addr)
 #define LOAD_IMM_I16(addr)           LOAD_I16(addr)
 #define LOAD_IMM_I32(addr)           LOAD_I32(addr)
 #define LOAD_IMM_I64(addr)           LOAD_I64(addr)
 
-#define STORE_I8(addr, v)            guest->w8(guest->space, addr, v)
-#define STORE_I16(addr, v)           guest->w16(guest->space, addr, v)
-#define STORE_I32(addr, v)           guest->w32(guest->space, addr, v)
-#define STORE_I64(addr, v)           guest->w64(guest->space, addr, v)
+#define STORE_I8(addr, v)            guest->w8(guest->mem, addr, v)
+#define STORE_I16(addr, v)           guest->w16(guest->mem, addr, v)
+#define STORE_I32(addr, v)           guest->w32(guest->mem, addr, v)
+#define STORE_I64(addr, v)           guest->w64(guest->mem, addr, v)
 
 #define LOAD_HOST_F32(addr)          (*(float *)(uintptr_t)addr)
 #define LOAD_HOST_F64(addr)          (*(double *)(uintptr_t)addr)

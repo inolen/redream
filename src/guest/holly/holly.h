@@ -3,7 +3,6 @@
 
 #include "guest/dreamcast.h"
 #include "guest/holly/holly_types.h"
-#include "guest/memory.h"
 
 struct gdrom;
 struct maple;
@@ -33,18 +32,16 @@ struct holly {
   int log_reg_access;
 };
 
-AM_DECLARE(holly_reg_map);
-AM_DECLARE(holly_modem_map);
-AM_DECLARE(holly_expansion0_map);
-AM_DECLARE(holly_expansion1_map);
-AM_DECLARE(holly_expansion2_map);
-
 extern struct reg_cb holly_cb[NUM_HOLLY_REGS];
 
 struct holly *holly_create(struct dreamcast *dc);
 void holly_destroy(struct holly *hl);
 
 void holly_debug_menu(struct holly *hl);
+
+uint32_t holly_reg_read(struct holly *hl, uint32_t addr, uint32_t mask);
+void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
+                     uint32_t mask);
 
 void holly_raise_interrupt(struct holly *hl, holly_interrupt_t intr);
 void holly_clear_interrupt(struct holly *hl, holly_interrupt_t intr);

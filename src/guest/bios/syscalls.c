@@ -3,6 +3,7 @@
 #include "guest/bios/flash.h"
 #include "guest/gdrom/gdrom.h"
 #include "guest/holly/holly.h"
+#include "guest/memory.h"
 #include "guest/rom/flash.h"
 #include "guest/sh4/sh4.h"
 
@@ -94,7 +95,6 @@ static uint32_t bios_gdrom_send_cmd(struct bios *bios, uint32_t cmd_code,
   struct gdrom *gd = dc->gdrom;
   struct holly *hl = dc->holly;
   struct sh4 *sh4 = dc->sh4;
-  struct address_space *space = sh4->memory_if->space;
 
   if (bios->status != GDC_STATUS_NONE) {
     return 0;
@@ -114,7 +114,7 @@ static uint32_t bios_gdrom_send_cmd(struct bios *bios, uint32_t cmd_code,
 
   if (params) {
     /* greedily copy 4 params every time and hope this doesn't blow up */
-    as_memcpy_to_host(space, &bios->params, params, sizeof(bios->params));
+    sh4_memcpy_to_host(dc->mem, &bios->params, params, sizeof(bios->params));
   }
 
   return bios->cmd_id;
@@ -125,7 +125,6 @@ static void bios_gdrom_mainloop(struct bios *bios) {
   struct gdrom *gd = dc->gdrom;
   struct holly *hl = dc->holly;
   struct sh4_context *ctx = &dc->sh4->ctx;
-  struct address_space *space = dc->sh4->memory_if->space;
 
   if (bios->status != GDC_STATUS_ACTIVE) {
     return;
@@ -152,7 +151,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
 
       for (int i = fad; i < fad + num_sectors; i++) {
         int n = gdrom_read_sectors(gd, i, 1, fmt, mask, tmp, sizeof(tmp));
-        as_memcpy_to_guest(space, dst + read, tmp, n);
+        sh4_memcpy_to_guest(dc->mem, dst + read, tmp, n);
         read += n;
       }
 
@@ -177,7 +176,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       gdrom_get_toc(gd, area, &toc);
 
       /* TODO check that this format is correct */
-      as_memcpy_to_guest(space, dst, &toc, sizeof(toc));
+      sh4_memcpy_to_guest(dc->mem, dst, &toc, sizeof(toc));
 
       /* record size transferred */
       bios->result[2] = sizeof(toc);
@@ -226,7 +225,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       mode[2] = info.read_flags;
       mode[3] = info.read_retry;
 
-      as_memcpy_to_guest(space, dst, mode, sizeof(mode));
+      sh4_memcpy_to_guest(dc->mem, dst, mode, sizeof(mode));
 
       /* record size transferred */
       bios->result[2] = sizeof(mode);
@@ -270,7 +269,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
 
       CHECK_EQ(scd[3], size);
 
-      as_memcpy_to_guest(space, dst, scd, size);
+      sh4_memcpy_to_guest(dc->mem, dst, scd, size);
 
       /* record size transferred */
       bios->result[2] = size;
@@ -301,7 +300,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       const char *version = "GDC Version 1.10 1999-03-31";
       const int len = (int)strlen(version);
 
-      as_memcpy_to_guest(space, dst, version, len);
+      sh4_memcpy_to_guest(dc->mem, dst, version, len);
 
       /* record size transferred */
       bios->result[2] = len;
@@ -318,7 +317,6 @@ void bios_gdrom_vector(struct bios *bios) {
   struct gdrom *gd = dc->gdrom;
   struct holly *hl = dc->holly;
   struct sh4_context *ctx = &dc->sh4->ctx;
-  struct address_space *space = dc->sh4->memory_if->space;
 
   uint32_t misc = ctx->r[6];
   uint32_t fn = ctx->r[7];
@@ -403,8 +401,8 @@ void bios_gdrom_vector(struct bios *bios) {
           ctx->r[0] = bios->status;
 
           if (bios->status == GDC_STATUS_DONE) {
-            as_memcpy_to_guest(space, status, &bios->result,
-                               sizeof(bios->result));
+            sh4_memcpy_to_guest(dc->mem, status, &bios->result,
+                                sizeof(bios->result));
             bios->status = GDC_STATUS_NONE;
           }
         } else {
@@ -476,7 +474,7 @@ void bios_gdrom_vector(struct bios *bios) {
         cond[0] = stat.status;
         cond[1] = stat.format << 4;
 
-        as_memcpy_to_guest(space, result, cond, sizeof(cond));
+        sh4_memcpy_to_guest(dc->mem, result, cond, sizeof(cond));
 
         /* success */
         ctx->r[0] = 0;
@@ -588,7 +586,6 @@ void bios_flashrom_vector(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct flash *flash = dc->flash;
   struct sh4_context *ctx = &dc->sh4->ctx;
-  struct address_space *space = dc->sh4->memory_if->space;
 
   int fn = ctx->r[7];
 
@@ -618,7 +615,7 @@ void bios_flashrom_vector(struct bios *bios) {
       uint32_t result[2];
       result[0] = offset;
       result[1] = size;
-      as_memcpy_to_guest(space, dst, result, sizeof(result));
+      sh4_memcpy_to_guest(dc->mem, dst, result, sizeof(result));
 
       ctx->r[0] = 0;
     } break;
@@ -647,7 +644,7 @@ void bios_flashrom_vector(struct bios *bios) {
       while (read < size) {
         int n = MIN(size - read, (int)sizeof(tmp));
         flash_read(flash, offset + read, tmp, n);
-        as_memcpy_to_guest(space, dst + read, tmp, n);
+        sh4_memcpy_to_guest(dc->mem, dst + read, tmp, n);
         read += n;
       }
 
@@ -680,7 +677,7 @@ void bios_flashrom_vector(struct bios *bios) {
 
       while (wrote < size) {
         int n = MIN(size - wrote, (int)sizeof(tmp));
-        as_memcpy_to_host(space, tmp, src + wrote, n);
+        sh4_memcpy_to_host(dc->mem, tmp, src + wrote, n);
         flash_program(flash, offset + wrote, tmp, n);
         wrote += n;
       }
@@ -778,7 +775,6 @@ void bios_sysinfo_vector(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct flash *flash = dc->flash;
   struct sh4_context *ctx = &dc->sh4->ctx;
-  struct address_space *space = dc->sh4->memory_if->space;
   const uint32_t SYSINFO_DST = 0x8c000068;
 
   int fn = ctx->r[7];
@@ -810,7 +806,7 @@ void bios_sysinfo_vector(struct bios *bios) {
       /* system settings seem to always be zeroed out */
       memset(&data[13], 0, 11);
 
-      as_memcpy_to_guest(space, SYSINFO_DST, data, sizeof(data));
+      sh4_memcpy_to_guest(dc->mem, SYSINFO_DST, data, sizeof(data));
     } break;
 
     case SYSINFO_ICON: {

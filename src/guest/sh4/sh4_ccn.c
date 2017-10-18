@@ -1,3 +1,4 @@
+#include "guest/memory.h"
 #include "guest/sh4/sh4.h"
 #include "jit/jit.h"
 
@@ -54,11 +55,10 @@ void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
     dst |= addr & 0x3ffffe0;
   }
 
-  as_memcpy_to_guest(sh4->memory_if->space, dst, sh4->ctx.sq[sqi], 32);
+  sh4_memcpy_to_guest(sh4->mem, dst, sh4->ctx.sq[sqi], 32);
 }
 
-uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr,
-                            uint32_t data_mask) {
+uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   if (!sh4->CCR->ORA) {
     LOG_WARNING("sh4_ccn_cache_read while on-chip RAM is disabled");
     /* need to write a test for this, but I'm guessing garbage is returned in
@@ -71,7 +71,7 @@ uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr,
 }
 
 void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                         uint32_t data_mask) {
+                         uint32_t mask) {
   if (!sh4->CCR->ORA) {
     LOG_WARNING("sh4_ccn_cache_write while on-chip RAM is disabled");
     return;
@@ -82,21 +82,20 @@ void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   WRITE_DATA(&sh4->ctx.cache[addr]);
 }
 
-uint32_t sh4_ccn_sq_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
+uint32_t sh4_ccn_sq_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   uint32_t sqi = (addr & 0x20) >> 5;
   unsigned idx = (addr & 0x1c) >> 2;
   return sh4->ctx.sq[sqi][idx];
 }
 
 void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                      uint32_t data_mask) {
+                      uint32_t mask) {
   uint32_t sqi = (addr & 0x20) >> 5;
   uint32_t idx = (addr & 0x1c) >> 2;
   sh4->ctx.sq[sqi][idx] = data;
 }
 
-uint32_t sh4_ccn_icache_read(struct sh4 *sh4, uint32_t addr,
-                             uint32_t data_mask) {
+uint32_t sh4_ccn_icache_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   LOG_CCN("sh4_ccn_icache_read 0x%08x", addr);
 
   /* return an invalid entry */
@@ -104,14 +103,13 @@ uint32_t sh4_ccn_icache_read(struct sh4 *sh4, uint32_t addr,
 }
 
 void sh4_ccn_icache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                          uint32_t data_mask) {
+                          uint32_t mask) {
   LOG_CCN("sh4_ccn_icache_write 0x%08x", addr);
 
   /* ignore */
 }
 
-uint32_t sh4_ccn_ocache_read(struct sh4 *sh4, uint32_t addr,
-                             uint32_t data_mask) {
+uint32_t sh4_ccn_ocache_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   LOG_CCN("sh4_ccn_ocache_read 0x%08x", addr);
 
   /* return an invalid entry */
@@ -119,7 +117,7 @@ uint32_t sh4_ccn_ocache_read(struct sh4 *sh4, uint32_t addr,
 }
 
 void sh4_ccn_ocache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                          uint32_t data_mask) {
+                          uint32_t mask) {
   LOG_CCN("sh4_ccn_ocache_write 0x%08x", addr);
 
   /* ignore */

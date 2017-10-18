@@ -1,14 +1,11 @@
 #ifndef TA_H
 #define TA_H
 
-#include "guest/memory.h"
 #include "guest/pvr/ta_types.h"
 #include "guest/pvr/tex.h"
 
 struct dreamcast;
 struct ta;
-
-AM_DECLARE(ta_data_map);
 
 struct ta *ta_create(struct dreamcast *dc);
 void ta_destroy(struct ta *ta);
@@ -21,6 +18,11 @@ void ta_yuv_init(struct ta *ta);
 void ta_texture_info(struct ta *ta, union tsp tsp, union tcw tcw,
                      const uint8_t **texture, int *texture_size,
                      const uint8_t **palette, int *palette_size);
+
+void ta_poly_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size);
+void ta_yuv_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size);
+void ta_texture_write(struct ta *ta, uint32_t dst, const uint8_t *src,
+                      int size);
 
 /*
  * parameter stream processing helpers, shared by both the ta and tr

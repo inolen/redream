@@ -1,3 +1,4 @@
+#include "guest/memory.h"
 #include "guest/sh4/sh4.h"
 
 static void sh4_dmac_check(struct sh4 *sh4, int channel) {
@@ -32,10 +33,9 @@ void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
   if (dtr->data) {
     /* single address mode transfer */
     if (dtr->dir == SH4_DMA_FROM_ADDR) {
-      as_memcpy_to_host(sh4->memory_if->space, dtr->data, dtr->addr, dtr->size);
+      sh4_memcpy_to_host(sh4->mem, dtr->data, dtr->addr, dtr->size);
     } else {
-      as_memcpy_to_guest(sh4->memory_if->space, dtr->addr, dtr->data,
-                         dtr->size);
+      sh4_memcpy_to_guest(sh4->mem, dtr->addr, dtr->data, dtr->size);
     }
   } else {
     /* dual address mode transfer */
@@ -82,7 +82,7 @@ void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
     uint32_t src = dtr->dir == SH4_DMA_FROM_ADDR ? dtr->addr : *sar;
     uint32_t dst = dtr->dir == SH4_DMA_FROM_ADDR ? *dar : dtr->addr;
     int size = *dmatcr * 32;
-    as_memcpy(sh4->memory_if->space, dst, src, size);
+    sh4_memcpy(sh4->mem, dst, src, size);
 
     /* update src / addresses as well as remaining count */
     *sar = src + size;

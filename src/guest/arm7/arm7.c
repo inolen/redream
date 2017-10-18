@@ -2,6 +2,7 @@
 #include "core/core.h"
 #include "guest/aica/aica.h"
 #include "guest/dreamcast.h"
+#include "guest/memory.h"
 #include "guest/scheduler.h"
 #include "imgui.h"
 #include "jit/frontend/armv3/armv3_context.h"
@@ -21,7 +22,6 @@
 struct arm7 {
   struct device;
 
-  uint8_t *wave_ram;
   struct armv3_context ctx;
 
   /* jit */
@@ -129,6 +129,27 @@ static void arm7_compile_code(struct arm7 *arm, uint32_t addr) {
   jit_compile_code(arm->jit, addr);
 }
 
+void arm7_mem_write(struct arm7 *arm, uint32_t addr, uint32_t data,
+                    uint32_t mask) {
+  if (/*addr >= ARM7_AICA_MEM_BEGIN &&*/ addr <= ARM7_AICA_MEM_END) {
+    aica_mem_write(arm->aica, addr, data, mask);
+  } else if (addr >= ARM7_AICA_REG_BEGIN && addr <= ARM7_AICA_REG_END) {
+    aica_reg_write(arm->aica, addr - ARM7_AICA_REG_BEGIN, data, mask);
+  } else {
+    LOG_FATAL("arm7_mem_write addr=0x%08x", addr);
+  }
+}
+
+uint32_t arm7_mem_read(struct arm7 *arm, uint32_t addr, uint32_t mask) {
+  if (/*addr >= ARM7_AICA_MEM_BEGIN &&*/ addr <= ARM7_AICA_MEM_END) {
+    return aica_mem_read(arm->aica, addr, mask);
+  } else if (addr >= ARM7_AICA_REG_BEGIN && addr <= ARM7_AICA_REG_END) {
+    return aica_reg_read(arm->aica, addr - ARM7_AICA_REG_BEGIN, mask);
+  } else {
+    LOG_FATAL("arm7_mem_read addr=0x%08x", addr);
+  }
+}
+
 void arm7_raise_interrupt(struct arm7 *arm, enum arm7_interrupt intr) {
   arm->requested_interrupts |= intr;
   arm7_update_pending_interrupts(arm);
@@ -179,15 +200,15 @@ static struct jit_guest *arm7_guest_create(struct arm7 *arm) {
 
   /* memory interface */
   guest->ctx = &arm->ctx;
-  guest->mem = as_translate(arm->memory_if->space, 0x0);
-  guest->space = arm->memory_if->space;
-  guest->lookup = &as_lookup;
-  guest->r8 = &as_read8;
-  guest->r16 = &as_read16;
-  guest->r32 = &as_read32;
-  guest->w8 = &as_write8;
-  guest->w16 = &as_write16;
-  guest->w32 = &as_write32;
+  guest->membase = arm7_base(arm->mem);
+  guest->mem = arm->mem;
+  guest->lookup = &arm7_lookup;
+  guest->r8 = &arm7_read8;
+  guest->r16 = &arm7_read16;
+  guest->r32 = &arm7_read32;
+  guest->w8 = &arm7_write8;
+  guest->w16 = &arm7_write16;
+  guest->w32 = &arm7_write32;
 
   /* runtime interface */
   guest->data = arm;
@@ -220,8 +241,6 @@ static int arm7_init(struct device *dev) {
 #endif
   arm->jit = jit_create("arm7", arm->frontend, arm->backend);
 
-  arm->wave_ram = memory_translate(dc->memory, "aica wave ram", 0x0);
-
   return 1;
 }
 
@@ -247,7 +266,6 @@ void arm7_destroy(struct arm7 *arm) {
   arm->frontend->destroy(arm->frontend);
   arm->backend->destroy(arm->backend);
 
-  dc_destroy_memory_interface(arm->memory_if);
   dc_destroy_execute_interface(arm->execute_if);
   dc_destroy_device((struct device *)arm);
 }
@@ -256,14 +274,6 @@ struct arm7 *arm7_create(struct dreamcast *dc) {
   struct arm7 *arm =
       dc_create_device(dc, sizeof(struct arm7), "arm", &arm7_init, NULL);
   arm->execute_if = dc_create_execute_interface(&arm7_run, 0);
-  arm->memory_if = dc_create_memory_interface(dc, &arm7_data_map);
 
   return arm;
 }
-
-/* clang-format off */
-AM_BEGIN(struct arm7, arm7_data_map);
-  AM_RANGE(0x00000000, 0x001fffff) AM_DEVICE("aica", aica_data_map)
-  AM_RANGE(0x00800000, 0x00810fff) AM_DEVICE("aica", aica_reg_map)
-AM_END();
-/* clang-format on */

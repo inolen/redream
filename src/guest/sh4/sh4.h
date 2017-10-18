@@ -2,11 +2,11 @@
 #define SH4_H
 
 #include "guest/dreamcast.h"
-#include "guest/memory.h"
 #include "guest/sh4/sh4_ccn.h"
 #include "guest/sh4/sh4_dbg.h"
 #include "guest/sh4/sh4_dmac.h"
 #include "guest/sh4/sh4_intc.h"
+#include "guest/sh4/sh4_mem.h"
 #include "guest/sh4/sh4_mmu.h"
 #include "guest/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_guest.h"
@@ -63,8 +63,6 @@ struct sh4 {
 extern struct reg_cb sh4_cb[SH4_NUM_REGS];
 extern struct sh4_exception_info sh4_exceptions[SH4_NUM_EXCEPTIONS];
 extern struct sh4_interrupt_info sh4_interrupts[SH4_NUM_INTERRUPTS];
-
-AM_DECLARE(sh4_data_map);
 
 struct sh4 *sh4_create(struct dreamcast *dc);
 void sh4_destroy(struct sh4 *sh4);

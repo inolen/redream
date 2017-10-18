@@ -49,6 +49,7 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_dbg.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_dmac.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_intc.c \
+	$(CORE_DIR)/src/guest/sh4/sh4_mem.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_mmu.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_tmu.c \
 	$(CORE_DIR)/src/guest/debugger.c \

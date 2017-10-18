@@ -193,16 +193,9 @@ static struct jit_block *jit_alloc_block(struct jit *jit, uint32_t guest_addr,
   block->source_map = calloc(block->guest_size, sizeof(void *));
   block->fastmem = calloc(block->guest_size, sizeof(int8_t));
 
-/* for debug builds, fastmem can be troublesome when running under gdb or
-   lldb. when doing so, SIGSEGV handling can be completely disabled with:
-   handle SIGSEGV nostop noprint pass
-   however, then legitimate SIGSEGV will also not be handled by the debugger.
-   as of this writing, there is no way to configure the debugger to ignore the
-   signal initially, letting us try to handle it, and then handling it in the
-   case that we do not (e.g. because it was not a fastmem-related segfault).
-   because of this, fastmem is default disabled for debug builds to cause less
-   headaches */
-#ifdef NDEBUG
+#ifdef HAVE_FASTMEM
+  /* enable fastmem for all accesses by default, falling back to the slow route
+     only after a segfault occurs. see jit_handle_exception */
   for (int i = 0; i < block->guest_size; i++) {
     block->fastmem[i] = 1;
   }

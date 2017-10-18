@@ -106,12 +106,10 @@ EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
   if (ir_is_constant(addr)) {
     /* peel away one layer of abstraction and directly access the backing
        memory or directly invoke the callback when the address is constant */
-    void *ptr;
     void *userdata;
+    uint8_t *ptr;
     mem_read_cb read;
-    uint32_t offset;
-    guest->lookup(guest->space, addr->i32, &ptr, &userdata, &read, NULL,
-                  &offset);
+    guest->lookup(guest->mem, addr->i32, &userdata, &ptr, &read, NULL);
 
     if (ptr) {
       e.mov(e.rax, (uint64_t)ptr);
@@ -121,7 +119,7 @@ EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
       uint32_t data_mask = (1 << (data_size * 8)) - 1;
 
       e.mov(arg0, (uint64_t)userdata);
-      e.mov(arg1, offset);
+      e.mov(arg1, (uint32_t)addr->i32);
       e.mov(arg2, data_mask);
       e.call((void *)read);
       e.mov(dst, e.rax);
@@ -148,7 +146,7 @@ EMITTER(LOAD_GUEST, CONSTRAINTS(REG_ALL, REG_I64 | IMM_I32)) {
         break;
     }
 
-    e.mov(arg0, (uint64_t)guest->space);
+    e.mov(arg0, (uint64_t)guest->mem);
     e.mov(arg1, ra);
     e.call((void *)fn);
     e.mov(dst, e.rax);
@@ -163,12 +161,10 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
   if (ir_is_constant(addr)) {
     /* peel away one layer of abstraction and directly access the backing
        memory or directly invoke the callback when the address is constant */
-    void *ptr;
     void *userdata;
+    uint8_t *ptr;
     mem_write_cb write;
-    uint32_t offset;
-    guest->lookup(guest->space, addr->i32, &ptr, &userdata, NULL, &write,
-                  &offset);
+    guest->lookup(guest->mem, addr->i32, &userdata, &ptr, NULL, &write);
 
     if (ptr) {
       e.mov(e.rax, (uint64_t)ptr);
@@ -178,7 +174,7 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
       uint32_t data_mask = (1 << (data_size * 8)) - 1;
 
       e.mov(arg0, (uint64_t)userdata);
-      e.mov(arg1, offset);
+      e.mov(arg1, (uint32_t)addr->i32);
       x64_backend_mov_value(backend, arg2, data);
       e.mov(arg3, data_mask);
       e.call((void *)write);
@@ -205,7 +201,7 @@ EMITTER(STORE_GUEST, CONSTRAINTS(NONE, REG_I64 | IMM_I32, VAL_ALL)) {
         break;
     }
 
-    e.mov(arg0, (uint64_t)guest->space);
+    e.mov(arg0, (uint64_t)guest->mem);
     e.mov(arg1, ra);
     x64_backend_mov_value(backend, arg2, data);
     e.call((void *)fn);

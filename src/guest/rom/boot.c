@@ -2,6 +2,7 @@
 #include "core/filesystem.h"
 #include "core/md5.h"
 #include "guest/dreamcast.h"
+#include "guest/memory.h"
 
 struct boot {
   struct device;
@@ -78,11 +79,6 @@ static int boot_load_rom(struct boot *boot) {
   return 1;
 }
 
-static uint32_t boot_rom_read(struct boot *boot, uint32_t addr,
-                              uint32_t data_mask) {
-  return READ_DATA(&boot->rom[addr]);
-}
-
 static int boot_init(struct device *dev) {
   struct boot *boot = (struct boot *)dev;
 
@@ -92,16 +88,8 @@ static int boot_init(struct device *dev) {
   return 1;
 }
 
-void boot_write(struct boot *boot, int offset, const void *data, int n) {
-  CHECK(offset >= 0 && (offset + n) <= (int)sizeof(boot->rom));
-
-  memcpy(&boot->rom[offset], data, n);
-}
-
-void boot_read(struct boot *boot, int offset, void *data, int n) {
-  CHECK(offset >= 0 && (offset + n) <= (int)sizeof(boot->rom));
-
-  memcpy(data, &boot->rom[offset], n);
+uint32_t boot_rom_read(struct boot *boot, uint32_t addr, uint32_t mask) {
+  return READ_DATA(&boot->rom[addr]);
 }
 
 void boot_destroy(struct boot *boot) {
@@ -113,12 +101,3 @@ struct boot *boot_create(struct dreamcast *dc) {
       dc_create_device(dc, sizeof(struct boot), "boot", &boot_init, NULL);
   return boot;
 }
-
-/* clang-format off */
-AM_BEGIN(struct boot, boot_rom_map);
-  AM_RANGE(0x00000000, 0x001fffff) AM_HANDLE("boot rom",
-                                             (mmio_read_cb)&boot_rom_read,
-                                             NULL,
-                                             NULL, NULL)
-AM_END();
-/* clang-format on */

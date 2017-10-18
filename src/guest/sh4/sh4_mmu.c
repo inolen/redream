@@ -46,7 +46,7 @@ void sh4_mmu_ltlb(struct sh4 *sh4) {
   sh4_mmu_utlb_sync(sh4, entry);
 }
 
-uint32_t sh4_mmu_itlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
+uint32_t sh4_mmu_itlb_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   if (addr < 0x01000000) {
     LOG_MMU("sh4_mmu_itlb_read address array %08x", addr);
   } else {
@@ -57,7 +57,7 @@ uint32_t sh4_mmu_itlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
   return 0;
 }
 
-uint32_t sh4_mmu_utlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
+uint32_t sh4_mmu_utlb_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   if (addr < 0x01000000) {
     LOG_MMU("sh4_mmu_utlb_read address array %08x", addr);
 
@@ -80,7 +80,7 @@ uint32_t sh4_mmu_utlb_read(struct sh4 *sh4, uint32_t addr, uint32_t data_mask) {
 }
 
 void sh4_mmu_itlb_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                        uint32_t data_mask) {
+                        uint32_t mask) {
   if (addr < 0x01000000) {
     LOG_MMU("sh4_mmu_itlb_write address array %08x %08x", addr, data);
   } else {
@@ -91,7 +91,7 @@ void sh4_mmu_itlb_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 }
 
 void sh4_mmu_utlb_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
-                        uint32_t data_mask) {
+                        uint32_t mask) {
   if (addr < 0x01000000) {
     if (addr & 0x80) {
       LOG_FATAL("sh4_mmu_utlb_write address array (associative) %08x %08x",

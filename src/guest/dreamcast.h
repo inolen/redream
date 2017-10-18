@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include "core/constructor.h"
 #include "core/list.h"
-#include "guest/memory.h"
 #include "host/keycode.h"
 
 struct aica;
@@ -80,12 +79,6 @@ struct execute_interface {
   int running;
 };
 
-/* memory interface */
-struct memory_interface {
-  address_map_cb mapper;
-  struct address_space *space;
-};
-
 /*
  * device
  */
@@ -108,15 +101,14 @@ struct device {
   /* optional interfaces */
   struct debug_interface *debug_if;
   struct execute_interface *execute_if;
-  struct memory_interface *memory_if;
 
   /* cached references to other devices */
   struct debugger *debugger;
-  struct memory *memory;
+  struct memory *mem;
   struct scheduler *scheduler;
   struct bios *bios;
   struct sh4 *sh4;
-  struct arm7 *arm;
+  struct arm7 *arm7;
   struct aica *aica;
   struct boot *boot;
   struct flash *flash;
@@ -144,13 +136,13 @@ struct dreamcast {
 
   /* systems */
   struct debugger *debugger;
-  struct memory *memory;
+  struct memory *mem;
   struct scheduler *scheduler;
 
   /* devices */
   struct bios *bios;
   struct sh4 *sh4;
-  struct arm7 *arm;
+  struct arm7 *arm7;
   struct aica *aica;
   struct boot *boot;
   struct flash *flash;
@@ -190,10 +182,6 @@ void dc_destroy_debug_interface(struct debug_interface *dbg);
 struct execute_interface *dc_create_execute_interface(device_run_cb run,
                                                       int running);
 void dc_destroy_execute_interface(struct execute_interface *execute);
-
-struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
-                                                    address_map_cb mapper);
-void dc_destroy_memory_interface(struct memory_interface *memory);
 
 int dc_init(struct dreamcast *dc);
 int dc_load(struct dreamcast *dc, const char *path);

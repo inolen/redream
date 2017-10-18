@@ -1,6 +1,7 @@
 #include "guest/rom/flash.h"
 #include "core/filesystem.h"
 #include "guest/dreamcast.h"
+#include "guest/memory.h"
 
 #define FLASH_SECTOR_SIZE 0x4000
 
@@ -71,7 +72,7 @@ static int flash_load_rom(struct flash *flash) {
 }
 
 static uint32_t flash_cmd_read(struct flash *flash, uint32_t addr,
-                               uint32_t data_mask) {
+                               uint32_t mask) {
   int size = DATA_SIZE();
   uint32_t mem;
   flash_read(flash, addr, &mem, size);
@@ -79,7 +80,7 @@ static uint32_t flash_cmd_read(struct flash *flash, uint32_t addr,
 }
 
 static void flash_cmd_program(struct flash *flash, uint32_t addr, uint32_t data,
-                              uint32_t data_mask) {
+                              uint32_t mask) {
   int size = DATA_SIZE();
   flash_program(flash, addr, &data, size);
 }
@@ -94,65 +95,6 @@ static void flash_cmd_erase_sector(struct flash *flash, uint32_t addr) {
   addr &= ~(FLASH_SECTOR_SIZE - 1);
 
   flash_erase(flash, addr, FLASH_SECTOR_SIZE);
-}
-
-static uint32_t flash_rom_read(struct flash *flash, uint32_t addr,
-                               uint32_t data_mask) {
-  CHECK_EQ(flash->cmd_state, 0);
-  return flash_cmd_read(flash, addr, data_mask);
-}
-
-static void flash_rom_write(struct flash *flash, uint32_t addr, uint32_t data,
-                            uint32_t data_mask) {
-  switch (flash->cmd_state) {
-    case 0: {
-      CHECK(addr == 0x5555 && data == 0xaa);
-      flash->cmd_state++;
-    } break;
-
-    case 1: {
-      CHECK(addr == 0x2aaa && data == 0x55);
-      flash->cmd_state++;
-    } break;
-
-    case 2: {
-      CHECK(addr == 0x5555 &&
-            (data == FLASH_CMD_ERASE || data == FLASH_CMD_PROGRAM));
-      flash->cmd = data;
-      flash->cmd_state++;
-    } break;
-
-    case 3: {
-      if (flash->cmd == FLASH_CMD_PROGRAM) {
-        flash_cmd_program(flash, addr, data, data_mask);
-        flash->cmd_state = 0;
-      } else {
-        CHECK_EQ(flash->cmd, FLASH_CMD_ERASE);
-        CHECK(addr == 0x5555 && data == 0xaa);
-        flash->cmd_state++;
-      }
-    } break;
-
-    case 4: {
-      CHECK(addr == 0x2aaa && data == 0x55);
-      flash->cmd_state++;
-    } break;
-
-    case 5: {
-      if (data == FLASH_CMD_ERASE_CHIP) {
-        CHECK(addr == 0x5555);
-        flash_cmd_erase_chip(flash);
-      } else {
-        CHECK_EQ(data, FLASH_CMD_ERASE_SECTOR);
-        flash_cmd_erase_sector(flash, addr);
-      }
-      flash->cmd_state = 0;
-    } break;
-
-    default:
-      LOG_FATAL("unexpected flash command state %d", flash->cmd_state);
-      break;
-  }
 }
 
 static int flash_init(struct device *dev) {
@@ -194,6 +136,64 @@ void flash_read(struct flash *flash, int offset, void *data, int n) {
   memcpy(data, &flash->rom[offset], n);
 }
 
+void flash_rom_write(struct flash *flash, uint32_t addr, uint32_t data,
+                     uint32_t mask) {
+  switch (flash->cmd_state) {
+    case 0: {
+      CHECK(addr == 0x5555 && data == 0xaa);
+      flash->cmd_state++;
+    } break;
+
+    case 1: {
+      CHECK(addr == 0x2aaa && data == 0x55);
+      flash->cmd_state++;
+    } break;
+
+    case 2: {
+      CHECK(addr == 0x5555 &&
+            (data == FLASH_CMD_ERASE || data == FLASH_CMD_PROGRAM));
+      flash->cmd = data;
+      flash->cmd_state++;
+    } break;
+
+    case 3: {
+      if (flash->cmd == FLASH_CMD_PROGRAM) {
+        flash_cmd_program(flash, addr, data, mask);
+        flash->cmd_state = 0;
+      } else {
+        CHECK_EQ(flash->cmd, FLASH_CMD_ERASE);
+        CHECK(addr == 0x5555 && data == 0xaa);
+        flash->cmd_state++;
+      }
+    } break;
+
+    case 4: {
+      CHECK(addr == 0x2aaa && data == 0x55);
+      flash->cmd_state++;
+    } break;
+
+    case 5: {
+      if (data == FLASH_CMD_ERASE_CHIP) {
+        CHECK(addr == 0x5555);
+        flash_cmd_erase_chip(flash);
+      } else {
+        CHECK_EQ(data, FLASH_CMD_ERASE_SECTOR);
+        flash_cmd_erase_sector(flash, addr);
+      }
+      flash->cmd_state = 0;
+    } break;
+
+    default:
+      LOG_FATAL("unexpected flash command state %d", flash->cmd_state);
+      break;
+  }
+}
+
+uint32_t flash_rom_read(struct flash *flash, uint32_t addr, uint32_t mask) {
+  CHECK_EQ(flash->cmd_state, 0);
+  return flash_cmd_read(flash, addr, mask);
+}
+
 void flash_destroy(struct flash *flash) {
   flash_save_rom(flash);
   dc_destroy_device((struct device *)flash);
@@ -205,12 +205,3 @@ struct flash *flash_create(struct dreamcast *dc) {
 
   return flash;
 }
-
-/* clang-format off */
-AM_BEGIN(struct flash, flash_rom_map);
-  AM_RANGE(0x00000000, 0x0001ffff) AM_HANDLE("flash rom",
-                                             (mmio_read_cb)&flash_rom_read,
-                                             (mmio_write_cb)&flash_rom_write,
-                                             NULL, NULL)
-AM_END();
-/* clang-format on */

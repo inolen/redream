@@ -2,6 +2,7 @@
 #include "core/time.h"
 #include "guest/dreamcast.h"
 #include "guest/holly/holly.h"
+#include "guest/memory.h"
 #include "guest/pvr/ta.h"
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
@@ -48,7 +49,7 @@ static uint32_t VRAM64(uint32_t addr32) {
 #define PVR_FB_COOKIE 0xdeadbeef
 
 static int pvr_test_framebuffer(struct pvr *pvr, uint32_t addr) {
-  uint32_t data = *(uint32_t *)&pvr->video_ram[VRAM64(addr)];
+  uint32_t data = *(uint32_t *)&pvr->vram[VRAM64(addr)];
   return data != PVR_FB_COOKIE;
 }
 
@@ -58,7 +59,7 @@ static void pvr_mark_framebuffer(struct pvr *pvr, uint32_t addr) {
     return;
   }
 
-  *(uint32_t *)&pvr->video_ram[VRAM64(addr)] = PVR_FB_COOKIE;
+  *(uint32_t *)&pvr->vram[VRAM64(addr)] = PVR_FB_COOKIE;
 
   /* it's not enough to just mark the starting address of this framebuffer. next
      frame, this framebuffer could be used as field 2, in which case FB_R_SOF2
@@ -71,7 +72,7 @@ static void pvr_mark_framebuffer(struct pvr *pvr, uint32_t addr) {
     for (int j = 0; j < ARRAY_SIZE(line_bpp); j++) {
       for (int k = 0; k < ARRAY_SIZE(line_scale); k++) {
         uint32_t next_line = addr + line_width[i] * line_bpp[j] * line_scale[k];
-        *(uint32_t *)&pvr->video_ram[VRAM64(next_line)] = PVR_FB_COOKIE;
+        *(uint32_t *)&pvr->vram[VRAM64(next_line)] = PVR_FB_COOKIE;
       }
     }
   }
@@ -106,7 +107,7 @@ static int pvr_update_framebuffer(struct pvr *pvr) {
 
   /* convert framebuffer into a 24-bit RGB pixel buffer */
   uint8_t *dst = pvr->framebuffer;
-  uint8_t *src = pvr->video_ram;
+  uint8_t *src = pvr->vram;
 
   switch (pvr->FB_R_CTRL->fb_depth) {
     case 0:
@@ -284,20 +285,50 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
                                           pvr, HZ_TO_NANO(pvr->line_clock));
 }
 
-static uint32_t pvr_reg_read(struct pvr *pvr, uint32_t addr,
-                             uint32_t data_mask) {
-  uint32_t offset = addr >> 2;
-  reg_read_cb read = pvr_cb[offset].read;
+static int pvr_init(struct device *dev) {
+  struct pvr *pvr = (struct pvr *)dev;
+  struct dreamcast *dc = pvr->dc;
 
-  if (read) {
-    return read(pvr->dc);
-  }
+/* init registers */
+#define PVR_REG(offset, name, default, type) \
+  pvr->reg[name] = default;                  \
+  pvr->name = (type *)&pvr->reg[name];
+#include "guest/pvr/pvr_regs.inc"
+#undef PVR_REG
 
-  return pvr->reg[offset];
+  pvr->vram = mem_vram(dc->mem, 0x0);
+
+  /* configure initial vsync interval */
+  pvr_reconfigure_spg(pvr);
+
+  return 1;
 }
 
-static void pvr_reg_write(struct pvr *pvr, uint32_t addr, uint32_t data,
-                          uint32_t data_mask) {
+void pvr_vram32_write(struct pvr *pvr, uint32_t addr, uint32_t data,
+                      uint32_t mask) {
+  addr = VRAM64(addr);
+  WRITE_DATA(&pvr->vram[addr]);
+}
+
+uint32_t pvr_vram32_read(struct pvr *pvr, uint32_t addr, uint32_t mask) {
+  addr = VRAM64(addr);
+  return READ_DATA(&pvr->vram[addr]);
+}
+
+void pvr_vram64_write(struct pvr *pvr, uint32_t addr, uint32_t data,
+                      uint32_t mask) {
+  WRITE_DATA(&pvr->vram[addr]);
+}
+
+uint32_t pvr_vram64_read(struct pvr *pvr, uint32_t addr, uint32_t mask) {
+  /* note, the video ram can't be directly accessed through fastmem, or texture
+     cache invalidations will break. this is because textures cache entries
+     only watch the physical video ram address, not all of its mirrors */
+  return READ_DATA(&pvr->vram[addr]);
+}
+
+void pvr_reg_write(struct pvr *pvr, uint32_t addr, uint32_t data,
+                   uint32_t mask) {
   uint32_t offset = addr >> 2;
   reg_write_cb write = pvr_cb[offset].write;
 
@@ -315,95 +346,15 @@ static void pvr_reg_write(struct pvr *pvr, uint32_t addr, uint32_t data,
   pvr->reg[offset] = data;
 }
 
-static uint32_t pvr_palette_read(struct pvr *pvr, uint32_t addr,
-                                 uint32_t data_mask) {
-  return READ_DATA(&pvr->palette_ram[addr]);
-}
+uint32_t pvr_reg_read(struct pvr *pvr, uint32_t addr, uint32_t mask) {
+  uint32_t offset = addr >> 2;
+  reg_read_cb read = pvr_cb[offset].read;
 
-static void pvr_palette_write(struct pvr *pvr, uint32_t addr, uint32_t data,
-                              uint32_t data_mask) {
-  WRITE_DATA(&pvr->palette_ram[addr]);
-}
-
-static uint32_t pvr_vram64_read(struct pvr *pvr, uint32_t addr,
-                                uint32_t data_mask) {
-  /* note, the video ram can't be directly accessed through fastmem, or texture
-     cache invalidations will break. this is because textures cache entries
-     only watch the physical video ram address, not all of its mirrors */
-  return READ_DATA(&pvr->video_ram[addr]);
-}
-
-static void pvr_vram64_write(struct pvr *pvr, uint32_t addr, uint32_t data,
-                             uint32_t data_mask) {
-  WRITE_DATA(&pvr->video_ram[addr]);
-}
-
-static void pvr_vram64_read_string(struct pvr *pvr, void *ptr, uint32_t src,
-                                   int size) {
-  memcpy(ptr, &pvr->video_ram[src], size);
-}
-
-static void pvr_vram64_write_string(struct pvr *pvr, uint32_t dst, void *ptr,
-                                    int size) {
-  memcpy(&pvr->video_ram[dst], ptr, size);
-}
-
-static uint32_t pvr_vram32_read(struct pvr *pvr, uint32_t addr,
-                                uint32_t data_mask) {
-  addr = VRAM64(addr);
-  return READ_DATA(&pvr->video_ram[addr]);
-}
-
-static void pvr_vram32_write(struct pvr *pvr, uint32_t addr, uint32_t data,
-                             uint32_t data_mask) {
-  addr = VRAM64(addr);
-  WRITE_DATA(&pvr->video_ram[addr]);
-}
-
-static void pvr_vram32_read_string(struct pvr *pvr, void *ptr, uint32_t src,
-                                   int size) {
-  CHECK(size % 4 == 0);
-
-  uint8_t *dst = ptr;
-  uint8_t *end = dst + size;
-  while (dst < end) {
-    *(uint32_t *)dst = *(uint32_t *)&pvr->video_ram[VRAM64(src)];
-    dst += 4;
-    src += 4;
+  if (read) {
+    return read(pvr->dc);
   }
-}
 
-static void pvr_vram32_write_string(struct pvr *pvr, uint32_t dst, void *ptr,
-                                    int size) {
-  CHECK(size % 4 == 0);
-
-  uint8_t *src = ptr;
-  uint8_t *end = src + size;
-  while (src < end) {
-    *(uint32_t *)&pvr->video_ram[VRAM64(dst)] = *(uint32_t *)src;
-    dst += 4;
-    src += 4;
-  }
-}
-
-static int pvr_init(struct device *dev) {
-  struct pvr *pvr = (struct pvr *)dev;
-  struct dreamcast *dc = pvr->dc;
-
-/* init registers */
-#define PVR_REG(offset, name, default, type) \
-  pvr->reg[name] = default;                  \
-  pvr->name = (type *)&pvr->reg[name];
-#include "guest/pvr/pvr_regs.inc"
-#undef PVR_REG
-
-  pvr->palette_ram = (uint8_t *)pvr->PALETTE_RAM000;
-  pvr->video_ram = memory_translate(dc->memory, "video ram", 0x0);
-
-  /* configure initial vsync interval */
-  pvr_reconfigure_spg(pvr);
-
-  return 1;
+  return pvr->reg[offset];
 }
 
 void pvr_video_size(struct pvr *pvr, int *video_width, int *video_height) {
@@ -505,30 +456,3 @@ REG_W32(pvr_cb, FB_R_CTRL) {
   pvr->FB_R_CTRL->full = value;
   pvr_reconfigure_spg(pvr);
 }
-
-/* clang-format off */
-AM_BEGIN(struct pvr, pvr_reg_map);
-  AM_RANGE(0x00000000, 0x00000fff) AM_HANDLE("pvr reg",
-                                             (mmio_read_cb)&pvr_reg_read,
-                                             (mmio_write_cb)&pvr_reg_write,
-                                             NULL, NULL)
-  AM_RANGE(0x00001000, 0x00001fff) AM_HANDLE("pvr palette",
-                                             (mmio_read_cb)&pvr_palette_read,
-                                             (mmio_write_cb)&pvr_palette_write,
-                                             NULL, NULL)
-AM_END();
-
-AM_BEGIN(struct pvr, pvr_vram_map);
-  AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("video ram")
-  AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("video ram 64",
-                                             (mmio_read_cb)&pvr_vram64_read,
-                                             (mmio_write_cb)&pvr_vram64_write,
-                                             (mmio_read_string_cb)&pvr_vram64_read_string,
-                                             (mmio_write_string_cb)&pvr_vram64_write_string)
-  AM_RANGE(0x01000000, 0x017fffff) AM_HANDLE("video ram 32",
-                                             (mmio_read_cb)&pvr_vram32_read,
-                                             (mmio_write_cb)&pvr_vram32_write,
-                                             (mmio_read_string_cb)&pvr_vram32_read_string,
-                                             (mmio_write_string_cb)&pvr_vram32_write_string)
-AM_END();
-/* clang-format on */

@@ -112,12 +112,13 @@ struct ringbuf *ringbuf_create(int size) {
   int res = release_pages(rb->data, rb->size * 2);
   CHECK_EQ(res, 1);
 
-  res = map_shared_memory(rb->shmem, 0, rb->data, rb->size, ACC_READWRITE);
-  CHECK_EQ(res, 1);
+  void *target = rb->data;
+  void *ptr = map_shared_memory(rb->shmem, 0, target, rb->size, ACC_READWRITE);
+  CHECK_EQ(ptr, target);
 
-  res = map_shared_memory(rb->shmem, 0, rb->data + rb->size, rb->size,
-                          ACC_READWRITE);
-  CHECK_EQ(res, 1);
+  target = rb->data + rb->size;
+  ptr = map_shared_memory(rb->shmem, 0, target, rb->size, ACC_READWRITE);
+  CHECK_EQ(ptr, target);
 
   return rb;
 }

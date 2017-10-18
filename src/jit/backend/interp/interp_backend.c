@@ -30,7 +30,7 @@ static void interp_backend_run_code(struct jit_backend *base, int cycles) {
 
     do {
       uint32_t addr = *pc;
-      uint32_t data = guest->r32(guest->space, addr);
+      uint32_t data = guest->r32(guest->mem, addr);
       const struct jit_opdef *def = frontend->lookup_op(frontend, &data);
       def->fallback(guest, addr, data);
       cycles += def->cycles;

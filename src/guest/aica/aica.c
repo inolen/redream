@@ -82,8 +82,9 @@ struct aica_channel {
 
 struct aica {
   struct device;
+  uint8_t *aram;
+
   uint8_t reg[0x11000];
-  uint8_t *wave_ram;
 
   /* reset state */
   int arm_resetting;
@@ -300,7 +301,7 @@ static void aica_update_arm(struct aica *aica) {
 
   if (aica->common_data->L) {
     /* FIQ handler will load L from common data to check interrupt type */
-    arm7_raise_interrupt(aica->arm, ARM7_INT_FIQ);
+    arm7_raise_interrupt(aica->arm7, ARM7_INT_FIQ);
   }
 }
 
@@ -382,7 +383,7 @@ static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
 }
 
 static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
-                                  uint32_t data_mask) {
+                                  uint32_t mask) {
   switch (addr) {
     case 0x0:
       return aica->rtc >> 16;
@@ -397,7 +398,7 @@ static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
 }
 
 static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
-                               uint32_t data_mask) {
+                               uint32_t mask) {
   switch (addr) {
     case 0x0:
       if (aica->rtc_write) {
@@ -459,7 +460,7 @@ static uint32_t aica_channel_phaseinc(struct aica_channel *ch) {
 
 static uint8_t *aica_channel_base(struct aica *aica, struct aica_channel *ch) {
   uint32_t start_addr = (ch->data->SA_hi << 16) | ch->data->SA_lo;
-  return &aica->wave_ram[start_addr];
+  return &aica->aram[start_addr];
 }
 
 static void aica_channel_key_off(struct aica *aica, struct aica_channel *ch) {
@@ -647,7 +648,7 @@ static void aica_generate_frames(struct aica *aica) {
 }
 
 static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
-                                      uint32_t data_mask) {
+                                      uint32_t mask) {
   int n = addr >> 7;
   int offset = addr & ((1 << 7) - 1);
   struct aica_channel *ch = &aica->channels[n];
@@ -658,7 +659,7 @@ static uint32_t aica_channel_reg_read(struct aica *aica, uint32_t addr,
 }
 
 static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
-                                   uint32_t data, uint32_t data_mask) {
+                                   uint32_t data, uint32_t mask) {
   int n = addr >> 7;
   int offset = addr & ((1 << 7) - 1);
   struct aica_channel *ch = &aica->channels[n];
@@ -666,9 +667,9 @@ static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
   /*LOG_AICA("aica_channel_reg_write [%d] 0x%x : 0x%x", ch->id, offset, data);*/
   WRITE_DATA((uint8_t *)ch->data + offset);
 
-  int aligned = AICA_REG_ALIGN(offset, data_mask);
-  int lo = AICA_REG_LO(offset, data_mask);
-  int hi = AICA_REG_HI(offset, data_mask);
+  int aligned = AICA_REG_ALIGN(offset, mask);
+  int lo = AICA_REG_LO(offset, mask);
+  int hi = AICA_REG_HI(offset, mask);
 
   switch (aligned) {
     case 0x0: { /* SA_hi, KYONB, KYONEX */
@@ -691,10 +692,10 @@ static void aica_channel_reg_write(struct aica *aica, uint32_t addr,
 }
 
 static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
-                                     uint32_t data_mask) {
-  int aligned = AICA_REG_ALIGN(addr, data_mask);
-  int lo = AICA_REG_LO(addr, data_mask);
-  int hi = AICA_REG_HI(addr, data_mask);
+                                     uint32_t mask) {
+  int aligned = AICA_REG_ALIGN(addr, mask);
+  int lo = AICA_REG_LO(addr, mask);
+  int hi = AICA_REG_HI(addr, mask);
 
   switch (aligned) {
     case 0x10: { /* EG, SGC, LP */
@@ -748,13 +749,13 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
 }
 
 static void aica_common_reg_write(struct aica *aica, uint32_t addr,
-                                  uint32_t data, uint32_t data_mask) {
+                                  uint32_t data, uint32_t mask) {
   uint32_t old_data = READ_DATA((uint8_t *)aica->common_data + addr);
   WRITE_DATA((uint8_t *)aica->common_data + addr);
 
-  int aligned = AICA_REG_ALIGN(addr, data_mask);
-  int lo = AICA_REG_LO(addr, data_mask);
-  int hi = AICA_REG_HI(addr, data_mask);
+  int aligned = AICA_REG_ALIGN(addr, mask);
+  int lo = AICA_REG_LO(addr, mask);
+  int hi = AICA_REG_HI(addr, mask);
 
   switch (aligned) {
     case 0x90: { /* TIMA, TACTL */
@@ -806,11 +807,11 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
         if (aica->common_data->ARMRST) {
           /* suspend arm when reset is pulled low */
           aica->arm_resetting = 1;
-          arm7_suspend(aica->arm);
+          arm7_suspend(aica->arm7);
         } else if (aica->arm_resetting) {
           /* reset and resume arm when reset is released */
           aica->arm_resetting = 0;
-          arm7_reset(aica->arm);
+          arm7_reset(aica->arm7);
         }
       }
     } break;
@@ -828,33 +829,6 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
       }
     } break;
   }
-}
-
-uint32_t aica_reg_read(struct aica *aica, uint32_t addr, uint32_t data_mask) {
-  if (addr < 0x2000) {
-    return aica_channel_reg_read(aica, addr, data_mask);
-  } else if (addr >= 0x2800 && addr < 0x2d08) {
-    return aica_common_reg_read(aica, addr - 0x2800, data_mask);
-  } else if (addr >= 0x10000 && addr < 0x1000c) {
-    return aica_rtc_reg_read(aica, addr - 0x10000, data_mask);
-  }
-  return READ_DATA(&aica->reg[addr]);
-}
-
-void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
-                    uint32_t data_mask) {
-  if (addr < 0x2000) {
-    aica_channel_reg_write(aica, addr, data, data_mask);
-    return;
-  } else if (addr >= 0x2800 && addr < 0x2d08) {
-    aica_common_reg_write(aica, addr - 0x2800, data, data_mask);
-    return;
-  } else if (addr >= 0x10000 && addr < 0x1000c) {
-    aica_rtc_reg_write(aica, addr - 0x10000, data, data_mask);
-    return;
-  }
-
-  WRITE_DATA(&aica->reg[addr]);
 }
 
 static void aica_next_sample(void *data) {
@@ -891,8 +865,9 @@ static void aica_toggle_recording(struct aica *aica) {
 
 static int aica_init(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
+  struct dreamcast *dc = aica->dc;
 
-  aica->wave_ram = memory_translate(aica->memory, "aica wave ram", 0x0);
+  aica->aram = mem_aram(dc->mem, 0x0);
 
   /* init channels */
   {
@@ -922,6 +897,42 @@ static int aica_init(struct device *dev) {
   }
 
   return 1;
+}
+
+void aica_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
+                    uint32_t mask) {
+  if (addr < 0x2000) {
+    aica_channel_reg_write(aica, addr, data, mask);
+    return;
+  } else if (addr >= 0x2800 && addr < 0x2d08) {
+    aica_common_reg_write(aica, addr - 0x2800, data, mask);
+    return;
+  } else if (addr >= 0x10000 && addr < 0x1000c) {
+    aica_rtc_reg_write(aica, addr - 0x10000, data, mask);
+    return;
+  }
+
+  WRITE_DATA(&aica->reg[addr]);
+}
+
+uint32_t aica_reg_read(struct aica *aica, uint32_t addr, uint32_t mask) {
+  if (addr < 0x2000) {
+    return aica_channel_reg_read(aica, addr, mask);
+  } else if (addr >= 0x2800 && addr < 0x2d08) {
+    return aica_common_reg_read(aica, addr - 0x2800, mask);
+  } else if (addr >= 0x10000 && addr < 0x1000c) {
+    return aica_rtc_reg_read(aica, addr - 0x10000, mask);
+  }
+  return READ_DATA(&aica->reg[addr]);
+}
+
+void aica_mem_write(struct aica *aica, uint32_t addr, uint32_t data,
+                    uint32_t mask) {
+  WRITE_DATA(&aica->aram[addr]);
+}
+
+uint32_t aica_mem_read(struct aica *aica, uint32_t addr, uint32_t mask) {
+  return READ_DATA(&aica->aram[addr]);
 }
 
 void aica_set_clock(struct aica *aica, uint32_t time) {
@@ -1022,17 +1033,3 @@ struct aica *aica_create(struct dreamcast *dc) {
 
   return aica;
 }
-
-/* clang-format off */
-AM_BEGIN(struct aica, aica_reg_map);
-  /* over-allocate to align with the host allocation granularity */
-  AM_RANGE(0x00000000, 0x00010fff) AM_HANDLE("aica reg",
-                                             (mmio_read_cb)&aica_reg_read,
-                                             (mmio_write_cb)&aica_reg_write,
-                                             NULL, NULL)
-AM_END();
-
-AM_BEGIN(struct aica, aica_data_map);
-  AM_RANGE(0x00000000, 0x007fffff) AM_MOUNT("aica wave ram")
-AM_END();
-/* clang-format on */

@@ -12,6 +12,7 @@
  */
 
 #include "emulator.h"
+#include "core/memory.h"
 #include "core/thread.h"
 #include "core/time.h"
 #include "file/trace.h"
@@ -22,7 +23,6 @@
 #include "guest/gdrom/gdrom.h"
 #include "guest/holly/holly.h"
 #include "guest/maple/maple.h"
-#include "guest/memory.h"
 #include "guest/pvr/pvr.h"
 #include "guest/pvr/ta.h"
 #include "guest/pvr/tr.h"
@@ -497,7 +497,7 @@ static void emu_debug_menu(struct emu *emu) {
 
   holly_debug_menu(emu->dc->holly);
   aica_debug_menu(emu->dc->aica);
-  arm7_debug_menu(emu->dc->arm);
+  arm7_debug_menu(emu->dc->arm7);
   sh4_debug_menu(emu->dc->sh4);
 
   /* add status */
@@ -528,6 +528,12 @@ static void emu_debug_menu(struct emu *emu) {
     bool opened = true;
 
     if (igBegin("frame stats", &opened, ImGuiWindowFlags_AlwaysAutoResize)) {
+      /* memory accesses */
+      {
+        igValueInt("mmio reads", (int)prof_counter_load(COUNTER_mmio_read));
+        igValueInt("mmio writes", (int)prof_counter_load(COUNTER_mmio_write));
+      }
+
       /* swap times */
       {
         struct ImVec2 graph_size = {300.0f, 50.0f};

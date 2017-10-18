@@ -31,7 +31,7 @@ static void armv3_frontend_dump_code(struct jit_frontend *base,
 
   while (offset < size) {
     uint32_t addr = begin_addr + offset;
-    uint32_t data = guest->r32(guest->space, addr);
+    uint32_t data = guest->r32(guest->mem, addr);
 
     armv3_format(addr, data, buffer, sizeof(buffer));
     fprintf(output, "# %s\n", buffer);
@@ -50,7 +50,7 @@ static void armv3_frontend_translate_code(struct jit_frontend *base,
 
   while (offset < size) {
     uint32_t addr = begin_addr + offset;
-    uint32_t data = guest->r32(guest->space, addr);
+    uint32_t data = guest->r32(guest->mem, addr);
     struct jit_opdef *def = armv3_get_opdef(data);
 
     ir_source_info(ir, addr, 12);
@@ -69,7 +69,7 @@ static void armv3_frontend_analyze_code(struct jit_frontend *base,
 
   while (1) {
     uint32_t addr = begin_addr + *size;
-    uint32_t data = guest->r32(guest->space, addr);
+    uint32_t data = guest->r32(guest->mem, addr);
     union armv3_instr i = {data};
     struct jit_opdef *def = armv3_get_opdef(i.raw);
 

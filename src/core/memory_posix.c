@@ -137,17 +137,20 @@ int unmap_shared_memory(shmem_handle_t handle, void *start, size_t size) {
   return munmap(start, size) == 0;
 }
 
-int map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
-                      size_t size, enum page_access access) {
+void *map_shared_memory(shmem_handle_t handle, size_t offset, void *start,
+                        size_t size, enum page_access access) {
   init_shared_memory_entries();
 
   struct shmem *shmem = (struct shmem *)handle;
-
   int prot = access_to_protect_flags(access);
-  void *ptr =
-      mmap(start, size, prot, MAP_SHARED | MAP_FIXED, shmem->handle, offset);
+  int flags = start ? MAP_SHARED | MAP_FIXED : MAP_SHARED;
+  void *ptr = mmap(start, size, prot, flags, shmem->handle, offset);
 
-  return ptr != MAP_FAILED;
+  if (ptr == MAP_FAILED) {
+    return SHMEM_MAP_FAILED;
+  }
+
+  return ptr;
 }
 
 shmem_handle_t create_shared_memory(const char *filename, size_t size,

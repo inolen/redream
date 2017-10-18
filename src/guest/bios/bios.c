@@ -7,6 +7,7 @@
 #include "guest/bios/syscalls.h"
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom.h"
+#include "guest/memory.h"
 #include "guest/rom/flash.h"
 #include "guest/sh4/sh4.h"
 #include "options.h"
@@ -212,7 +213,6 @@ static int bios_boot(struct bios *bios) {
   struct gdrom *gd = dc->gdrom;
   struct sh4 *sh4 = dc->sh4;
   struct sh4_context *ctx = &sh4->ctx;
-  struct address_space *space = sh4->memory_if->space;
 
   const uint32_t BOOT1_ADDR = 0x8c008000;
   const uint32_t BOOT2_ADDR = 0x8c010000;
@@ -239,7 +239,7 @@ static int bios_boot(struct bios *bios) {
       return 0;
     }
 
-    as_memcpy_to_guest(space, BOOT1_ADDR, tmp, read);
+    sh4_memcpy_to_guest(dc->mem, BOOT1_ADDR, tmp, read);
   }
 
   /* load 1ST_READ.BIN into ram */
@@ -256,7 +256,7 @@ static int bios_boot(struct bios *bios) {
       return 0;
     }
 
-    as_memcpy_to_guest(space, BOOT2_ADDR, tmp, read);
+    sh4_memcpy_to_guest(dc->mem, BOOT2_ADDR, tmp, read);
     free(tmp);
   }
 
@@ -277,16 +277,16 @@ static int bios_boot(struct bios *bios) {
 
     memcpy(&data[16], &syscfg.time_lo, 8);
 
-    as_memcpy_to_guest(space, SYSINFO_ADDR, data, sizeof(data));
+    sh4_memcpy_to_guest(dc->mem, SYSINFO_ADDR, data, sizeof(data));
   }
 
   /* write out syscall addresses to vectors */
   {
-    as_write32(space, VECTOR_FONTROM, SYSCALL_FONTROM);
-    as_write32(space, VECTOR_SYSINFO, SYSCALL_SYSINFO);
-    as_write32(space, VECTOR_FLASHROM, SYSCALL_FLASHROM);
-    as_write32(space, VECTOR_GDROM, SYSCALL_GDROM);
-    as_write32(space, VECTOR_MENU, SYSCALL_MENU);
+    sh4_write32(dc->mem, VECTOR_FONTROM, SYSCALL_FONTROM);
+    sh4_write32(dc->mem, VECTOR_SYSINFO, SYSCALL_SYSINFO);
+    sh4_write32(dc->mem, VECTOR_FLASHROM, SYSCALL_FLASHROM);
+    sh4_write32(dc->mem, VECTOR_GDROM, SYSCALL_GDROM);
+    sh4_write32(dc->mem, VECTOR_MENU, SYSCALL_MENU);
   }
 
   /* start executing at license screen code inside of ip.bin */

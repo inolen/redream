@@ -24,6 +24,7 @@
 #include "core/filesystem.h"
 #include "core/list.h"
 #include "guest/holly/holly.h"
+#include "guest/memory.h"
 #include "guest/pvr/pvr.h"
 #include "guest/pvr/tr.h"
 #include "guest/scheduler.h"
@@ -32,7 +33,7 @@
 
 struct ta {
   struct device;
-  uint8_t *video_ram;
+  uint8_t *vram;
 
   /* yuv data converter state */
   uint8_t *yuv_data;
@@ -398,8 +399,8 @@ static void ta_init_context(struct ta *ta, struct ta_context *ctx) {
   ctx->vert_type = TA_NUM_VERTS;
 }
 
-static void ta_write_context(struct ta *ta, struct ta_context *ctx, void *ptr,
-                             int size) {
+static void ta_write_context(struct ta *ta, struct ta_context *ctx,
+                             const void *ptr, int size) {
   CHECK_LT(ctx->size + size, (int)sizeof(ctx->params));
   memcpy(&ctx->params[ctx->size], ptr, size);
   ctx->size += size;
@@ -475,12 +476,11 @@ static void ta_write_context(struct ta *ta, struct ta_context *ctx, void *ptr,
  */
 static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
   struct pvr *pvr = ta->pvr;
-  struct address_space *space = ta->sh4->memory_if->space;
 
   /* autosort */
   if (pvr->FPU_PARAM_CFG->region_header_type) {
     /* region array data type 2 */
-    uint32_t region_data = as_read32(space, 0x05000000 + *pvr->REGION_BASE);
+    uint32_t region_data = sh4_read32(ta->mem, 0x05000000 + *pvr->REGION_BASE);
     ctx->autosort = !(region_data & 0x20000000);
   } else {
     /* region array data type 1 */
@@ -507,9 +507,9 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
       ((ctx->addr + pvr->ISP_BACKGND_T->tag_address * 4) & 0x7fffff);
 
   /* get surface parameters */
-  ctx->bg_isp.full = as_read32(space, vram_offset);
-  ctx->bg_tsp.full = as_read32(space, vram_offset + 4);
-  ctx->bg_tcw.full = as_read32(space, vram_offset + 8);
+  ctx->bg_isp.full = sh4_read32(ta->mem, vram_offset);
+  ctx->bg_tsp.full = sh4_read32(ta->mem, vram_offset + 4);
+  ctx->bg_tcw.full = sh4_read32(ta->mem, vram_offset + 8);
   vram_offset += 12;
 
   /* get the background depth */
@@ -536,8 +536,8 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
   for (int i = 0, bg_offset = 0; i < 3; i++) {
     CHECK_LE(bg_offset + vertex_size, (int)sizeof(ctx->bg_vertices));
 
-    as_memcpy_to_host(space, &ctx->bg_vertices[bg_offset], vram_offset,
-                      vertex_size);
+    sh4_memcpy_to_host(ta->mem, &ctx->bg_vertices[bg_offset], vram_offset,
+                       vertex_size);
 
     bg_offset += vertex_size;
     vram_offset += vertex_size;
@@ -601,7 +601,7 @@ static void ta_yuv_reset(struct ta *ta) {
   int v_size = pvr->TA_YUV_TEX_CTRL->v_size + 1;
 
   /* setup internal state for the data conversion */
-  ta->yuv_data = &ta->video_ram[pvr->TA_YUV_TEX_BASE->base_address];
+  ta->yuv_data = &ta->vram[pvr->TA_YUV_TEX_BASE->base_address];
   ta->yuv_width = u_size * 16;
   ta->yuv_height = v_size * 16;
   ta->yuv_macroblock_size = TA_YUV420_MACROBLOCK_SIZE;
@@ -650,9 +650,8 @@ static void ta_yuv_process_block(struct ta *ta, const uint8_t *in_uv,
   }
 }
 
-static void ta_yuv_process_macroblock(struct ta *ta, void *data) {
+static void ta_yuv_process_macroblock(struct ta *ta, const void *data) {
   struct pvr *pvr = ta->pvr;
-  struct address_space *space = ta->sh4->memory_if->space;
 
   /* YUV420 data comes in as a series 16x16 macroblocks that need to be
      converted into a single UYVY422 texture */
@@ -684,52 +683,6 @@ static void ta_yuv_process_macroblock(struct ta *ta, void *data) {
   }
 }
 
-/* ta data handlers
- *
- * three types of data are written to the ta:
- * 1.) polygon data - input parameters for display lists
- * 2.) yuv data - yuv macroblocks that are to be reencoded as yuv422
- * 3.) texture data - data that is written directly to vram
- */
-static void ta_poly_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
-  struct holly *holly = ta->holly;
-
-  CHECK(*holly->SB_LMMODE0 == 0);
-  CHECK(size % 32 == 0);
-
-  uint8_t *src = ptr;
-  uint8_t *end = src + size;
-  while (src < end) {
-    ta_write_context(ta, ta->curr_context, src, 32);
-    src += 32;
-  }
-}
-
-static void ta_yuv_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
-  struct holly *holly = ta->holly;
-  struct pvr *pvr = ta->pvr;
-
-  CHECK(*holly->SB_LMMODE0 == 0);
-  CHECK(size % ta->yuv_macroblock_size == 0);
-
-  uint8_t *src = ptr;
-  uint8_t *end = src + size;
-  while (src < end) {
-    ta_yuv_process_macroblock(ta, src);
-    src += ta->yuv_macroblock_size;
-  }
-}
-
-static void ta_texture_write(struct ta *ta, uint32_t dst, void *ptr, int size) {
-  struct holly *holly = ta->holly;
-
-  CHECK(*holly->SB_LMMODE0 == 0);
-
-  uint8_t *src = ptr;
-  dst &= 0xeeffffff;
-  memcpy(&ta->video_ram[dst], src, size);
-}
-
 /*
  * ta device interface
  */
@@ -737,7 +690,7 @@ static int ta_init(struct device *dev) {
   struct ta *ta = (struct ta *)dev;
   struct dreamcast *dc = ta->dc;
 
-  ta->video_ram = memory_translate(dc->memory, "video ram", 0x0);
+  ta->vram = mem_vram(dc->mem, 0x0);
 
   for (int i = 0; i < ARRAY_SIZE(ta->contexts); i++) {
     struct ta_context *ctx = &ta->contexts[i];
@@ -788,14 +741,59 @@ void ta_init_tables() {
   }
 }
 
+/* ta data handlers
+ *
+ * three types of data are written to the ta:
+ * 1.) polygon data - input parameters for display lists
+ * 2.) yuv data - yuv macroblocks that are to be reencoded as yuv422
+ * 3.) texture data - data that is written directly to vram
+ */
+void ta_texture_write(struct ta *ta, uint32_t dst, const uint8_t *src,
+                      int size) {
+  struct holly *holly = ta->holly;
+
+  CHECK(*holly->SB_LMMODE0 == 0);
+
+  dst &= 0xeeffffff;
+  memcpy(&ta->vram[dst], src, size);
+}
+
+void ta_yuv_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size) {
+  struct holly *holly = ta->holly;
+  struct pvr *pvr = ta->pvr;
+
+  CHECK(*holly->SB_LMMODE0 == 0);
+  CHECK(size % ta->yuv_macroblock_size == 0);
+
+  const uint8_t *end = src + size;
+  while (src < end) {
+    ta_yuv_process_macroblock(ta, src);
+    src += ta->yuv_macroblock_size;
+  }
+}
+
+void ta_poly_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size) {
+  struct holly *holly = ta->holly;
+
+  CHECK(*holly->SB_LMMODE0 == 0);
+  CHECK(size % 32 == 0);
+
+  const uint8_t *end = src + size;
+  while (src < end) {
+    ta_write_context(ta, ta->curr_context, src, 32);
+    src += 32;
+  }
+}
+
 void ta_texture_info(struct ta *ta, union tsp tsp, union tcw tcw,
                      const uint8_t **texture, int *texture_size,
                      const uint8_t **palette, int *palette_size) {
   uint32_t texture_addr = ta_texture_addr(tsp, tcw, texture_size);
-  *texture = &ta->video_ram[texture_addr];
+  *texture = &ta->vram[texture_addr];
 
   uint32_t palette_addr = ta_palette_addr(tcw, palette_size);
-  *palette = *palette_size ? &ta->pvr->palette_ram[palette_addr] : NULL;
+  uint8_t *palette_ram = (uint8_t *)ta->pvr->PALETTE_RAM000 + palette_addr;
+  *palette = *palette_size ? palette_ram : NULL;
 }
 
 void ta_yuv_init(struct ta *ta) {
@@ -839,17 +837,3 @@ struct ta *ta_create(struct dreamcast *dc) {
 
   return ta;
 }
-
-/* clang-format off */
-AM_BEGIN(struct ta, ta_data_map);
-  AM_RANGE(0x00000000, 0x007fffff) AM_HANDLE("ta poly fifo",
-                                             NULL, NULL, NULL,
-                                             (mmio_write_string_cb)&ta_poly_write)
-  AM_RANGE(0x00800000, 0x00ffffff) AM_HANDLE("ta yuv fifo",
-                                             NULL, NULL, NULL,
-                                             (mmio_write_string_cb)&ta_yuv_write)
-  AM_RANGE(0x01000000, 0x01ffffff) AM_HANDLE("ta texture fifo",
-                                            NULL, NULL, NULL,
-                                            (mmio_write_string_cb)&ta_texture_write)
-AM_END();
-/* clang-format on */

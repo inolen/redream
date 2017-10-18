@@ -167,7 +167,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
 
     /* assign fixed registers */
     e.mov(guestctx, (uint64_t)guest->ctx);
-    e.mov(guestmem, (uint64_t)guest->mem);
+    e.mov(guestmem, (uint64_t)guest->membase);
 
     /* reset run state */
     e.mov(e.dword[guestctx + guest->offset_cycles], arg0);

@@ -100,7 +100,7 @@ static int dc_load_bin(struct dreamcast *dc, const char *path) {
   fseek(fp, 0, SEEK_SET);
 
   /* load to 0x0c010000 (area 3) which is where 1ST_READ.BIN is loaded to */
-  uint8_t *data = memory_translate(dc->memory, "system ram", 0x00010000);
+  uint8_t *data = mem_ram(dc->mem, 0x00010000);
   int n = (int)fread(data, sizeof(uint8_t), size, fp);
   fclose(fp);
 
@@ -152,7 +152,7 @@ int dc_init(struct dreamcast *dc) {
     return 0;
   }
 
-  if (!memory_init(dc->memory)) {
+  if (!mem_init(dc->mem)) {
     LOG_WARNING("dc_init failed to initialize shared memory");
     return 0;
   }
@@ -160,11 +160,11 @@ int dc_init(struct dreamcast *dc) {
   /* cache references to other devices */
   list_for_each_entry(dev, &dc->devices, struct device, it) {
     dev->debugger = dc->debugger;
-    dev->memory = dc->memory;
+    dev->mem = dc->mem;
     dev->scheduler = dc->scheduler;
     dev->bios = dc->bios;
     dev->sh4 = dc->sh4;
-    dev->arm = dc->arm;
+    dev->arm7 = dc->arm7;
     dev->aica = dc->aica;
     dev->bios = dc->bios;
     dev->boot = dc->boot;
@@ -192,19 +192,6 @@ int dc_init(struct dreamcast *dc) {
   }
 
   return 1;
-}
-
-void dc_destroy_memory_interface(struct memory_interface *memory) {
-  as_destroy(memory->space);
-  free(memory);
-}
-
-struct memory_interface *dc_create_memory_interface(struct dreamcast *dc,
-                                                    address_map_cb mapper) {
-  struct memory_interface *memory = calloc(1, sizeof(struct memory_interface));
-  memory->mapper = mapper;
-  memory->space = as_create(dc);
-  return memory;
 }
 
 void dc_destroy_execute_interface(struct execute_interface *execute) {
@@ -278,11 +265,11 @@ void dc_destroy(struct dreamcast *dc) {
   flash_destroy(dc->flash);
   boot_destroy(dc->boot);
   aica_destroy(dc->aica);
-  arm7_destroy(dc->arm);
+  arm7_destroy(dc->arm7);
   sh4_destroy(dc->sh4);
   bios_destroy(dc->bios);
   scheduler_destroy(dc->scheduler);
-  memory_destroy(dc->memory);
+  mem_destroy(dc->mem);
   if (dc->debugger) {
     debugger_destroy(dc->debugger);
   }
@@ -296,11 +283,11 @@ struct dreamcast *dc_create() {
 #ifndef NDEBUG
   dc->debugger = debugger_create(dc);
 #endif
-  dc->memory = memory_create(dc);
+  dc->mem = mem_create(dc);
   dc->scheduler = scheduler_create(dc);
   dc->bios = bios_create(dc);
   dc->sh4 = sh4_create(dc);
-  dc->arm = arm7_create(dc);
+  dc->arm7 = arm7_create(dc);
   dc->aica = aica_create(dc);
   dc->boot = boot_create(dc);
   dc->flash = flash_create(dc);

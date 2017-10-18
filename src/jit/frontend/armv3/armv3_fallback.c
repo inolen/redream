@@ -623,9 +623,9 @@ static inline void armv3_fallback_memop(struct armv3_guest *guest,
     /* load data */
     uint32_t data = 0;
     if (i.xfr.b) {
-      data = guest->r8(guest->space, ea);
+      data = guest->r8(guest->mem, ea);
     } else {
-      data = guest->r32(guest->space, ea);
+      data = guest->r32(guest->mem, ea);
     }
 
     REG(15) = addr + 4;
@@ -634,9 +634,9 @@ static inline void armv3_fallback_memop(struct armv3_guest *guest,
     /* store data */
     uint32_t data = LOAD_RD(i.xfr.rd);
     if (i.xfr.b) {
-      guest->w8(guest->space, ea, data);
+      guest->w8(guest->mem, ea, data);
     } else {
-      guest->w32(guest->space, ea, data);
+      guest->w32(guest->mem, ea, data);
     }
 
     REG(15) = addr + 4;
@@ -687,7 +687,7 @@ FALLBACK(LDM) {
         reg = REG_USR(reg);
       }
 
-      REG(reg) = guest->r32(guest->space, ea);
+      REG(reg) = guest->r32(guest->mem, ea);
 
       /* post-increment */
       if (!i.blk.p) {
@@ -729,7 +729,7 @@ FALLBACK(STM) {
       }
 
       uint32_t data = LOAD_RD(reg);
-      guest->w32(guest->space, base, data);
+      guest->w32(guest->mem, base, data);
 
       /* post-increment */
       if (!i.blk.p) {
@@ -765,11 +765,11 @@ FALLBACK(SWP) {
   uint32_t old = 0;
 
   if (i.swp.b) {
-    old = guest->r8(guest->space, ea);
-    guest->w8(guest->space, ea, new);
+    old = guest->r8(guest->mem, ea);
+    guest->w8(guest->mem, ea, new);
   } else {
-    old = guest->r32(guest->space, ea);
-    guest->w32(guest->space, ea, new);
+    old = guest->r32(guest->mem, ea);
+    guest->w32(guest->mem, ea, new);
   }
 
   REG(15) = addr + 4;

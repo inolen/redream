@@ -1,5 +1,6 @@
 #include "core/math.h"
 #include "guest/dreamcast.h"
+#include "guest/memory.h"
 #include "guest/sh4/sh4.h"
 #include "retest.h"
 
@@ -78,8 +79,8 @@ static void run_sh4_test(struct dreamcast *dc, const struct sh4_test *test) {
   LOG_INFO("running %s..", test->name);
 
   /* load binary */
-  as_memcpy_to_guest(dc->sh4->memory_if->space, 0x8c010000, test->buffer,
-                     test->buffer_size);
+  int buffer_size = ALIGN_UP(test->buffer_size, 4);
+  sh4_memcpy_to_guest(dc->mem, 0x8c010000, test->buffer, buffer_size);
 
   /* skip to the test's offset */
   sh4_reset(dc->sh4, 0x8c010000 + test->buffer_offset);
