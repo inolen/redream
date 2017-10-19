@@ -7,9 +7,6 @@ INCFLAGS += \
 	-I$(CORE_DIR)/deps/xbyak \
 	-I$(LIBRETRO_DIR)
 
-SOURCES_CXX := 
-SOURCES_CPP :=
-
 SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/file/trace.c \
 	$(CORE_DIR)/src/core/filesystem.c \
@@ -85,7 +82,11 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/host/retro_host.c \
 	$(CORE_DIR)/src/render/gl_backend.c
 
-SOURCES_CXX += $(CORE_DIR)/src/imgui.cc
+SOURCES_CXX := $(CORE_DIR)/src/imgui.cc
+
+SOURCES_CPP :=
+
+COREFLAGS += -DHAVE_FASTMEM
 
 #==--------------------------------------------------------------------------==#
 # capstone
