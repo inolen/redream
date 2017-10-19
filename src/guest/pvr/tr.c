@@ -21,8 +21,10 @@ struct tr {
   const union vert_param *last_vertex;
   int list_type;
   int vert_type;
-  float face_color[4];
-  float face_offset_color[4];
+  uint8_t face_color[4];
+  uint8_t face_offset_color[4];
+  uint8_t sprite_color[4];
+  uint8_t sprite_offset_color[4];
   int merged_surfs;
 };
 
@@ -107,18 +109,37 @@ static inline enum shade_mode translate_shade_mode(uint32_t shade_mode) {
   return shade_modes[shade_mode];
 }
 
-static inline uint32_t abgr_to_rgba(uint32_t v) {
-  return (v & 0xff000000) | ((v & 0xff) << 16) | (v & 0xff00) |
-         ((v & 0xff0000) >> 16);
+static inline uint8_t ftou8(float x) {
+  /* saturating floating point to uint8_t conversion */
+  return MIN(MAX((int32_t)(x * 255.0f), 0), 255);
 }
 
-static inline uint8_t float_to_u8(float x) {
-  return MIN(MAX((uint32_t)(x * 255.0f), 0u), 255u);
+static inline uint8_t fmulu8(uint8_t a, uint8_t b) {
+  /* fixed point multiply, used for intensity scaling */
+  return (uint8_t)((uint32_t)a * (uint32_t)b / 255);
 }
 
-static inline uint32_t float_to_rgba(float r, float g, float b, float a) {
-  return (float_to_u8(a) << 24) | (float_to_u8(b) << 16) |
-         (float_to_u8(g) << 8) | float_to_u8(r);
+static inline void argb_to_rgba(uint32_t v, uint32_t *out) {
+  ((uint8_t *)out)[0] = (v & 0x00ff0000) >> 16;
+  ((uint8_t *)out)[1] = (v & 0x0000ff00) >> 8;
+  ((uint8_t *)out)[2] = (v & 0x000000ff);
+  ((uint8_t *)out)[3] = (v & 0xff000000) >> 24;
+}
+
+static inline void byte_to_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a,
+                                uint32_t *out) {
+  ((uint8_t *)out)[0] = r;
+  ((uint8_t *)out)[1] = g;
+  ((uint8_t *)out)[2] = b;
+  ((uint8_t *)out)[3] = a;
+}
+
+static inline void float_to_rgba(float r, float g, float b, float a,
+                                 uint32_t *out) {
+  ((uint8_t *)out)[0] = ftou8(r);
+  ((uint8_t *)out)[1] = ftou8(g);
+  ((uint8_t *)out)[2] = ftou8(b);
+  ((uint8_t *)out)[3] = ftou8(a);
 }
 
 static texture_handle_t tr_convert_texture(struct tr *tr,
@@ -298,32 +319,26 @@ static void tr_commit_surf(struct tr *tr, struct tr_context *rc) {
     xyz[2] = (z);               \
   }
 
-#define PARSE_COLOR(base_color, color) \
-  { *color = abgr_to_rgba(base_color); }
+#define PARSE_RGBA(base, out) \
+  { float_to_rgba(base##_r, base##_g, base##_b, base##_a, (uint32_t *)out); }
 
-#define PARSE_COLOR_RGBA(r, g, b, a, color) \
-  { *color = float_to_rgba(r, g, b, a); }
+#define PARSE_PACKED(argb, out) \
+  { argb_to_rgba(argb, (uint32_t *)out); }
 
-#define PARSE_COLOR_INTENSITY(base_intensity, color)                          \
-  {                                                                           \
-    *color =                                                                  \
-        float_to_rgba(tr->face_color[0] * base_intensity,                     \
-                      tr->face_color[1] * base_intensity,                     \
-                      tr->face_color[2] * base_intensity, tr->face_color[3]); \
+#define PARSE_BASE_INTENSITY(base_intensity, out)                            \
+  {                                                                          \
+    uint8_t i = ftou8(base_intensity);                                       \
+    byte_to_rgba(fmulu8(tr->face_color[0], i), fmulu8(tr->face_color[1], i), \
+                 fmulu8(tr->face_color[2], i), tr->face_color[3], out);      \
   }
 
-#define PARSE_OFFSET_COLOR(offset_color, color) \
-  { *color = abgr_to_rgba(offset_color); }
-
-#define PARSE_OFFSET_COLOR_RGBA(r, g, b, a, color) \
-  { *color = float_to_rgba(r, g, b, a); }
-
-#define PARSE_OFFSET_COLOR_INTENSITY(offset_intensity, color)           \
-  {                                                                     \
-    *color = float_to_rgba(tr->face_offset_color[0] * offset_intensity, \
-                           tr->face_offset_color[1] * offset_intensity, \
-                           tr->face_offset_color[2] * offset_intensity, \
-                           tr->face_offset_color[3]);                   \
+#define PARSE_OFFSET_INTENSITY(offset_intensity, out) \
+  {                                                   \
+    uint8_t i = ftou8(offset_intensity);              \
+    byte_to_rgba(fmulu8(tr->face_offset_color[0], i), \
+                 fmulu8(tr->face_offset_color[1], i), \
+                 fmulu8(tr->face_offset_color[2], i), \
+                 tr->face_offset_color[3], out);      \
   }
 
 static int tr_parse_bg_vert(const struct ta_context *ctx, struct tr_context *rc,
@@ -341,7 +356,7 @@ static int tr_parse_bg_vert(const struct ta_context *ctx, struct tr_context *rc,
   }
 
   uint32_t base_color = *(uint32_t *)&ctx->bg_vertices[offset];
-  v->color = abgr_to_rgba(base_color);
+  argb_to_rgba(base_color, &v->color);
   offset += 4;
 
   if (ctx->bg_isp.offset) {
@@ -425,35 +440,17 @@ static void tr_parse_poly_param(struct tr *tr, const struct ta_context *ctx,
     } break;
 
     case 1: {
-      tr->face_color[0] = param->type1.face_color_r;
-      tr->face_color[1] = param->type1.face_color_g;
-      tr->face_color[2] = param->type1.face_color_b;
-      tr->face_color[3] = param->type1.face_color_a;
+      PARSE_RGBA(param->type1.face_color, &tr->face_color);
     } break;
 
     case 2: {
-      tr->face_color[0] = param->type2.face_color_r;
-      tr->face_color[1] = param->type2.face_color_g;
-      tr->face_color[2] = param->type2.face_color_b;
-      tr->face_color[3] = param->type2.face_color_a;
-      tr->face_offset_color[0] = param->type2.face_offset_color_r;
-      tr->face_offset_color[1] = param->type2.face_offset_color_g;
-      tr->face_offset_color[2] = param->type2.face_offset_color_b;
-      tr->face_offset_color[3] = param->type2.face_offset_color_a;
+      PARSE_RGBA(param->type2.face_color, &tr->face_color);
+      PARSE_RGBA(param->type2.face_offset_color, &tr->face_offset_color);
     } break;
 
     case 5: {
-      tr->face_color[0] = ((param->sprite.base_color >> 16) & 0xff) / 255.0f;
-      tr->face_color[1] = ((param->sprite.base_color >> 8) & 0xff) / 255.0f;
-      tr->face_color[2] = (param->sprite.base_color & 0xff) / 255.0f;
-      tr->face_color[3] = ((param->sprite.base_color >> 24) & 0xff) / 255.0f;
-      tr->face_offset_color[0] =
-          ((param->sprite.offset_color >> 16) & 0xff) / 255.0f;
-      tr->face_offset_color[1] =
-          ((param->sprite.offset_color >> 8) & 0xff) / 255.0f;
-      tr->face_offset_color[2] = (param->sprite.offset_color & 0xff) / 255.0f;
-      tr->face_offset_color[3] =
-          ((param->sprite.offset_color >> 24) & 0xff) / 255.0f;
+      PARSE_PACKED(param->sprite.base_color, &tr->sprite_color);
+      PARSE_PACKED(param->sprite.offset_color, &tr->sprite_offset_color);
     } break;
 
     default:
@@ -519,7 +516,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type0.xyz[0], param->type0.xyz[1], param->type0.xyz[2],
                 vert->xyz);
-      PARSE_COLOR(param->type0.base_color, &vert->color);
+      PARSE_PACKED(param->type0.base_color, &vert->color);
       vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
@@ -529,9 +526,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type1.xyz[0], param->type1.xyz[1], param->type1.xyz[2],
                 vert->xyz);
-      PARSE_COLOR_RGBA(param->type1.base_color_r, param->type1.base_color_g,
-                       param->type1.base_color_b, param->type1.base_color_a,
-                       &vert->color);
+      PARSE_RGBA(param->type1.base_color, &vert->color);
       vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
@@ -541,7 +536,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type2.xyz[0], param->type2.xyz[1], param->type2.xyz[2],
                 vert->xyz);
-      PARSE_COLOR_INTENSITY(param->type2.base_intensity, &vert->color);
+      PARSE_BASE_INTENSITY(param->type2.base_intensity, &vert->color);
       vert->offset_color = 0;
       vert->uv[0] = 0.0f;
       vert->uv[1] = 0.0f;
@@ -551,8 +546,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type3.xyz[0], param->type3.xyz[1], param->type3.xyz[2],
                 vert->xyz);
-      PARSE_COLOR(param->type3.base_color, &vert->color);
-      PARSE_OFFSET_COLOR(param->type3.offset_color, &vert->offset_color);
+      PARSE_PACKED(param->type3.base_color, &vert->color);
+      PARSE_PACKED(param->type3.offset_color, &vert->offset_color);
       vert->uv[0] = param->type3.uv[0];
       vert->uv[1] = param->type3.uv[1];
     } break;
@@ -561,8 +556,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type4.xyz[0], param->type4.xyz[1], param->type4.xyz[2],
                 vert->xyz);
-      PARSE_COLOR(param->type4.base_color, &vert->color);
-      PARSE_OFFSET_COLOR(param->type4.offset_color, &vert->offset_color);
+      PARSE_PACKED(param->type4.base_color, &vert->color);
+      PARSE_PACKED(param->type4.offset_color, &vert->offset_color);
       uint32_t u = param->type4.vu[1] << 16;
       uint32_t v = param->type4.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
@@ -573,13 +568,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type5.xyz[0], param->type5.xyz[1], param->type5.xyz[2],
                 vert->xyz);
-      PARSE_COLOR_RGBA(param->type5.base_color_r, param->type5.base_color_g,
-                       param->type5.base_color_b, param->type5.base_color_a,
-                       &vert->color);
-      PARSE_OFFSET_COLOR_RGBA(param->type5.offset_color_r,
-                              param->type5.offset_color_g,
-                              param->type5.offset_color_b,
-                              param->type5.offset_color_a, &vert->offset_color);
+      PARSE_RGBA(param->type5.base_color, &vert->color);
+      PARSE_RGBA(param->type5.offset_color, &vert->offset_color);
       vert->uv[0] = param->type5.uv[0];
       vert->uv[1] = param->type5.uv[1];
     } break;
@@ -588,13 +578,8 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type6.xyz[0], param->type6.xyz[1], param->type6.xyz[2],
                 vert->xyz);
-      PARSE_COLOR_RGBA(param->type6.base_color_r, param->type6.base_color_g,
-                       param->type6.base_color_b, param->type6.base_color_a,
-                       &vert->color);
-      PARSE_OFFSET_COLOR_RGBA(param->type6.offset_color_r,
-                              param->type6.offset_color_g,
-                              param->type6.offset_color_b,
-                              param->type6.offset_color_a, &vert->offset_color);
+      PARSE_RGBA(param->type6.base_color, &vert->color);
+      PARSE_RGBA(param->type6.offset_color, &vert->offset_color);
       uint32_t u = param->type6.vu[1] << 16;
       uint32_t v = param->type6.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
@@ -605,9 +590,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type7.xyz[0], param->type7.xyz[1], param->type7.xyz[2],
                 vert->xyz);
-      PARSE_COLOR_INTENSITY(param->type7.base_intensity, &vert->color);
-      PARSE_OFFSET_COLOR_INTENSITY(param->type7.offset_intensity,
-                                   &vert->offset_color);
+      PARSE_BASE_INTENSITY(param->type7.base_intensity, &vert->color);
+      PARSE_OFFSET_INTENSITY(param->type7.offset_intensity,
+                             &vert->offset_color);
       vert->uv[0] = param->type7.uv[0];
       vert->uv[1] = param->type7.uv[1];
     } break;
@@ -616,9 +601,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type8.xyz[0], param->type8.xyz[1], param->type8.xyz[2],
                 vert->xyz);
-      PARSE_COLOR_INTENSITY(param->type8.base_intensity, &vert->color);
-      PARSE_OFFSET_COLOR_INTENSITY(param->type8.offset_intensity,
-                                   &vert->offset_color);
+      PARSE_BASE_INTENSITY(param->type8.base_intensity, &vert->color);
+      PARSE_OFFSET_INTENSITY(param->type8.offset_intensity,
+                             &vert->offset_color);
       uint32_t u = param->type8.vu[1] << 16;
       uint32_t v = param->type8.vu[0] << 16;
       vert->uv[0] = *(float *)&u;
@@ -637,12 +622,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
         /* FIXME this is assuming all sprites are billboards */
         PARSE_XYZ(param->sprite0.xyz[idx][0], param->sprite0.xyz[idx][1],
                   param->sprite0.xyz[0][2], vert->xyz);
-        PARSE_COLOR_RGBA(tr->face_color[0], tr->face_color[1],
-                         tr->face_color[2], tr->face_color[3], &vert->color);
-        PARSE_OFFSET_COLOR_RGBA(tr->face_offset_color[0],
-                                tr->face_offset_color[1],
-                                tr->face_offset_color[2],
-                                tr->face_offset_color[3], &vert->offset_color);
+        memcpy(&vert->color, tr->sprite_color, sizeof(vert->color));
+        memcpy(&vert->offset_color, tr->sprite_offset_color,
+               sizeof(vert->offset_color));
       }
     } break;
 
@@ -658,12 +640,9 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
         /* FIXME this is assuming all sprites are billboards */
         PARSE_XYZ(param->sprite1.xyz[idx][0], param->sprite1.xyz[idx][1],
                   param->sprite1.xyz[0][2], vert->xyz);
-        PARSE_COLOR_RGBA(tr->face_color[0], tr->face_color[1],
-                         tr->face_color[2], tr->face_color[3], &vert->color);
-        PARSE_OFFSET_COLOR_RGBA(tr->face_offset_color[0],
-                                tr->face_offset_color[1],
-                                tr->face_offset_color[2],
-                                tr->face_offset_color[3], &vert->offset_color);
+        memcpy(&vert->color, tr->sprite_color, sizeof(vert->color));
+        memcpy(&vert->offset_color, tr->sprite_offset_color,
+               sizeof(vert->offset_color));
         uint32_t u, v;
         if (idx == 3) {
           u = (param->sprite1.uv[0] & 0xffff0000);
@@ -741,6 +720,8 @@ static void tr_reset(struct tr *tr, struct tr_context *rc) {
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
   tr->vert_type = TA_NUM_VERTS;
+  memset(tr->face_color, 0, sizeof(tr->face_color));
+  memset(tr->face_offset_color, 0, sizeof(tr->face_offset_color));
   tr->merged_surfs = 0;
 
   /* reset render context state */
@@ -851,7 +832,7 @@ void tr_convert_context(struct render_backend *r, void *userdata,
     struct tr_param *rp = &rc->params[rc->num_params++];
     rp->offset = (int)(data - ctx->params);
     rp->list_type = tr.list_type;
-    rp->vert_type = tr.list_type;
+    rp->vert_type = tr.vert_type;
     rp->last_surf = rc->num_surfs - 1;
     rp->last_vert = rc->num_verts - 1;
 
