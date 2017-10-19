@@ -160,21 +160,27 @@ uint32_t ta_texture_addr(union tsp tsp, union tcw tcw, int *size) {
   uint32_t texture_addr = tcw.texture_addr << 3;
   int texture_size = 0;
 
+  int compressed = ta_texture_compressed(tcw);
+  int mipmaps = ta_texture_mipmaps(tcw);
+  int width = ta_texture_width(tsp, tcw);
+  int height = ta_texture_height(tsp, tcw);
+
   /* compressed textures have the additional fixed-size codebook */
-  if (ta_texture_compressed(tcw)) {
+  if (compressed) {
     texture_size += PVR_CODEBOOK_SIZE;
   }
 
   /* calculate the size of each mipmap level */
-  int width = ta_texture_width(tsp, tcw);
-  int height = ta_texture_height(tsp, tcw);
   int bpp = 16;
   if (tcw.pixel_fmt == PVR_PXL_8BPP) {
     bpp = 8;
   } else if (tcw.pixel_fmt == PVR_PXL_4BPP) {
     bpp = 4;
+  } else if (compressed) {
+    /* each index in a compressed texture is 8 bits and represents 4 pixels */
+    bpp = 2;
   }
-  int mipmaps = ta_texture_mipmaps(tcw);
+
   int levels = mipmaps ? ctz32(width) + 1 : 1;
   while (levels--) {
     int mip_width = width >> levels;
