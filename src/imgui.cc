@@ -20,7 +20,7 @@ struct imgui {
   int alt[2];
   int ctrl[2];
   int shift[2];
-  int16_t keys[K_NUM_KEYS];
+  uint16_t keys[K_NUM_KEYS];
 };
 
 static void imgui_update_font_tex(struct imgui *imgui) {
@@ -125,33 +125,32 @@ void imgui_begin_frame(struct imgui *imgui) {
 #endif
 }
 
-int imgui_keydown(struct imgui *imgui, int key, int16_t value) {
+int imgui_keydown(struct imgui *imgui, int key, uint16_t value) {
 #ifdef HAVE_IMGUI
   ImGuiIO &io = ImGui::GetIO();
-  int down = !!value;
 
   if (key == K_MWHEELUP) {
     io.MouseWheel = 1.0f;
   } else if (key == K_MWHEELDOWN) {
     io.MouseWheel = -1.0f;
   } else if (key == K_MOUSE1) {
-    io.MouseDown[0] = down;
+    io.MouseDown[0] = (bool)value;
   } else if (key == K_MOUSE2) {
-    io.MouseDown[1] = down;
+    io.MouseDown[1] = (bool)value;
   } else if (key == K_MOUSE3) {
-    io.MouseDown[2] = down;
+    io.MouseDown[2] = (bool)value;
   } else if (key == K_LALT || key == K_RALT) {
-    imgui->alt[key == K_LALT ? 0 : 1] = down;
+    imgui->alt[key == K_LALT ? 0 : 1] = value;
     io.KeyAlt = imgui->alt[0] || imgui->alt[1];
   } else if (key == K_LCTRL || key == K_RCTRL) {
-    imgui->ctrl[key == K_LCTRL ? 0 : 1] = down;
+    imgui->ctrl[key == K_LCTRL ? 0 : 1] = value;
     io.KeyCtrl = imgui->ctrl[0] || imgui->ctrl[1];
   } else if (key == K_LSHIFT || key == K_RSHIFT) {
-    imgui->shift[key == K_LSHIFT ? 0 : 1] = down;
+    imgui->shift[key == K_LSHIFT ? 0 : 1] = value;
     io.KeyShift = imgui->shift[0] || imgui->shift[1];
   } else {
     imgui->keys[key] = value;
-    io.KeysDown[key] = down;
+    io.KeysDown[key] = (bool)value;
   }
 #endif
   return 0;

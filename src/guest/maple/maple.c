@@ -111,7 +111,8 @@ int maple_handle_command(struct maple *mp, struct maple_frame *frame,
   return 1;
 }
 
-void maple_handle_input(struct maple *mp, int port, int button, int16_t value) {
+void maple_handle_input(struct maple *mp, int port, int button,
+                        uint16_t value) {
   CHECK_LT(port, MAPLE_NUM_PORTS);
 
   for (int i = 0; i < MAPLE_MAX_UNITS; i++) {

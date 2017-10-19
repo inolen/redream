@@ -63,7 +63,7 @@ void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames) {
   dc->push_audio(dc->userdata, data, frames);
 }
 
-void dc_input(struct dreamcast *dc, int port, int button, int16_t value) {
+void dc_input(struct dreamcast *dc, int port, int button, uint16_t value) {
   maple_handle_input(dc->maple, port, button, value);
 }
 

@@ -30,8 +30,10 @@ DECLARE_OPTION_INT(key_dup);
 DECLARE_OPTION_INT(key_ddown);
 DECLARE_OPTION_INT(key_dleft);
 DECLARE_OPTION_INT(key_dright);
-DECLARE_OPTION_INT(key_joyx);
-DECLARE_OPTION_INT(key_joyy);
+DECLARE_OPTION_INT(key_joyx_neg);
+DECLARE_OPTION_INT(key_joyx_pos);
+DECLARE_OPTION_INT(key_joyy_neg);
+DECLARE_OPTION_INT(key_joyy_pos);
 DECLARE_OPTION_INT(key_ltrig);
 DECLARE_OPTION_INT(key_rtrig);
 

@@ -67,6 +67,8 @@ void fs_set_appdir(const char *path) {
   if (!fs_mkdir(appdir)) {
     LOG_FATAL("fs_set_appdir failed to create %s", appdir);
   }
+
+  LOG_INFO("fs_set_appdir path=%s", path);
 }
 
 const char *fs_appdir() {

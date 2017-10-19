@@ -27,8 +27,10 @@ struct button_map BUTTONS[] = {
     {NULL, NULL, NULL}, /* K_CONT_DPAD2_DOWN */
     {NULL, NULL, NULL}, /* K_CONT_DPAD2_LEFT */
     {NULL, NULL, NULL}, /* K_CONT_DPAD2_RIGHT */
-    {"Joystick X axis", &OPTION_key_joyx, &OPTION_key_joyx_dirty},
-    {"Joystick Y axis", &OPTION_key_joyy, &OPTION_key_joyy_dirty},
+    {"Joystick -X axis", &OPTION_key_joyx_neg, &OPTION_key_joyx_neg_dirty},
+    {"Joystick +X axis", &OPTION_key_joyx_pos, &OPTION_key_joyx_pos_dirty},
+    {"Joystick -Y axis", &OPTION_key_joyy_neg, &OPTION_key_joyy_neg_dirty},
+    {"Joystick +Y axis", &OPTION_key_joyy_pos, &OPTION_key_joyy_pos_dirty},
     {"Left trigger", &OPTION_key_ltrig, &OPTION_key_ltrig_dirty},
     {"Right trigger", &OPTION_key_rtrig, &OPTION_key_rtrig_dirty},
 };
@@ -43,12 +45,14 @@ DEFINE_PERSISTENT_OPTION_INT(key_b, 'l', "B button mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_x, 'j', "X button mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_y, 'i', "Y button mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_start, K_SPACE, "Start button mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_dup, 'w', "DPAD Up mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_ddown, 's', "DPAD Down mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_dleft, 'a', "DPAD Left mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_dright, 'd', "DPAD Right mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_joyx, 0, "Joystick X axis mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_joyy, 0, "Joystick Y axis mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_dup, 0, "DPAD Up mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_ddown, 0, "DPAD Down mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_dleft, 0, "DPAD Left mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_dright, 0, "DPAD Right mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_joyx_neg, 'a', "Joystick -X axis mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_joyx_pos, 'd', "Joystick +X axis mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_joyy_neg, 'w', "Joystick -Y axis mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_joyy_pos, 's', "Joystick +Y axis mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_ltrig, 'o', "Left trigger mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_rtrig, 'p', "Right trigger mapping");
 

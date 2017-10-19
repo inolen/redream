@@ -490,7 +490,8 @@ static void input_mousemove(struct host *host, int port, int x, int y) {
   imgui_mousemove(host->imgui, x, y);
 }
 
-static void input_keydown(struct host *host, int port, int key, int16_t value) {
+static void input_keydown(struct host *host, int port, int key,
+                          uint16_t value) {
   /* send event for both the original key as well as the mapped button, if a
      mapping is available */
   int mapping = host->input.keymap[key];
@@ -629,7 +630,7 @@ static void host_poll_events(struct host *host) {
         }
 
         if (keycode != K_UNKNOWN) {
-          int16_t value = ev.type == SDL_MOUSEBUTTONDOWN ? KEY_DOWN : KEY_UP;
+          uint16_t value = ev.type == SDL_MOUSEBUTTONDOWN ? KEY_DOWN : KEY_UP;
           input_keydown(host, 0, keycode, value);
         }
       } break;
@@ -663,14 +664,18 @@ static void host_poll_events(struct host *host) {
       case SDL_CONTROLLERAXISMOTION: {
         int port = input_find_controller_port(host, ev.caxis.which);
         int key = K_UNKNOWN;
-        int16_t value = ev.caxis.value;
+        uint16_t value = 0;
+
+        /* SDL provides axis input in the range of [INT16_MIN, INT16_MAX],
+           convert to [0, UINT16_MAX] */
+        int dir = axis_s16_to_u16(ev.caxis.value, &value);
 
         switch (ev.caxis.axis) {
           case SDL_CONTROLLER_AXIS_LEFTX:
-            key = K_CONT_JOYX;
+            key = K_CONT_JOYX_NEG + dir;
             break;
           case SDL_CONTROLLER_AXIS_LEFTY:
-            key = K_CONT_JOYY;
+            key = K_CONT_JOYY_NEG + dir;
             break;
           case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
             key = K_CONT_LTRIG;
@@ -689,7 +694,8 @@ static void host_poll_events(struct host *host) {
       case SDL_CONTROLLERBUTTONUP: {
         int port = input_find_controller_port(host, ev.cbutton.which);
         int key = K_UNKNOWN;
-        int16_t value = ev.type == SDL_CONTROLLERBUTTONDOWN ? KEY_DOWN : KEY_UP;
+        uint16_t value =
+            ev.type == SDL_CONTROLLERBUTTONDOWN ? KEY_DOWN : KEY_UP;
 
         switch (ev.cbutton.button) {
           case SDL_CONTROLLER_BUTTON_A:

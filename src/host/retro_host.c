@@ -53,8 +53,8 @@ static retro_input_state_t input_state_cb;
   K_CONT_DPAD_RIGHT,             \
   K_CONT_Y,                      \
   K_CONT_X,                      \
-  K_CONT_JOYX,                   \
-  K_CONT_JOYY,                   \
+  K_CONT_JOYX_NEG,               \
+  K_CONT_JOYY_NEG,               \
   K_CONT_LTRIG,                  \
   K_CONT_RTRIG
 
@@ -104,27 +104,32 @@ static void input_poll(struct host *host) {
   /* send updates for any inputs that've changed */
   for (int i = 0; i < NUM_CONTROLLER_DESC; i++) {
     struct retro_input_descriptor *desc = &controller_desc[i];
-    int16_t value =
+    int16_t state =
         input_state_cb(desc->port, desc->device, desc->index, desc->id);
 
-    /* retroarch's API provides a binary [0, 1] value for the triggers. map from
-       this to [0, INT16_MAX] as our host layer expects */
-    if (desc->id == RETRO_DEVICE_ID_JOYPAD_L2 ||
-        desc->id == RETRO_DEVICE_ID_JOYPAD_R2) {
-      value = value ? INT16_MAX : 0;
-    }
-
-    if (host->input.state[i] == value) {
+    if (host->input.state[i] == state) {
       continue;
     }
 
-    int button = controller_buttons[i];
+    host->input.state[i] = state;
 
-    if (host->emu) {
-      emu_keydown(host->emu, desc->port, button, value);
+    /* retroarch provides a value in the range of [INT16_MIN, INT16_MAX] for
+       axis inputs, and a value between [0, and 1] for button and trigger
+       inputs. convert these values into the ranges our code expects */
+    int key = controller_buttons[i];
+    uint16_t value = 0;
+
+    if (desc->device == RETRO_DEVICE_ANALOG) {
+      int dir = axis_s16_to_u16(state, &value);
+      /* if value is positive, change to positive axis */
+      key += dir;
+    } else {
+      value = state ? KEY_DOWN : KEY_UP;
     }
 
-    host->input.state[i] = value;
+    if (host->emu) {
+      emu_keydown(host->emu, desc->port, key, value);
+    }
   }
 }
 
