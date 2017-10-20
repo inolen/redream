@@ -70,7 +70,7 @@ union isp {
     uint32_t dcalc_ctrl : 1;
     uint32_t cache_bypass : 1;
     uint32_t uv_16bit : 1;
-    uint32_t gouraud_shading : 1;
+    uint32_t gouraud : 1;
     uint32_t offset : 1;
     uint32_t texture : 1;
     uint32_t z_write_disable : 1;
@@ -134,7 +134,7 @@ union tcw {
 union poly_param {
   struct {
     union pcw pcw;
-    union isp isp_tsp;
+    union isp isp;
     union tsp tsp;
     union tcw tcw;
     uint32_t ignore_0;
@@ -145,7 +145,7 @@ union poly_param {
 
   struct {
     union pcw pcw;
-    union isp isp_tsp;
+    union isp isp;
     union tsp tsp;
     union tcw tcw;
     float face_color_a;
@@ -156,7 +156,7 @@ union poly_param {
 
   struct {
     union pcw pcw;
-    union isp isp_tsp;
+    union isp isp;
     union tsp tsp;
     union tcw tcw;
     uint32_t ignore_0;
@@ -175,7 +175,7 @@ union poly_param {
 
   struct {
     union pcw pcw;
-    union isp isp_tsp;
+    union isp isp;
     union tsp tsp0;
     union tcw tcw0;
     union tsp tsp1;
@@ -186,7 +186,7 @@ union poly_param {
 
   struct {
     union pcw pcw;
-    union isp isp_tsp;
+    union isp isp;
     union tsp tsp0;
     union tcw tcw0;
     union tsp tsp1;
@@ -205,7 +205,7 @@ union poly_param {
 
   struct {
     union pcw pcw;
-    union isp isp_tsp;
+    union isp isp;
     union tsp tsp;
     union tcw tcw;
     uint32_t base_color;
@@ -216,7 +216,7 @@ union poly_param {
 
   struct {
     union pcw pcw;
-    union isp isp_tsp;
+    union isp isp;
     uint32_t reserved[6];
   } modvol;
 };

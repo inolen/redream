@@ -21,11 +21,12 @@ struct tr {
   const union vert_param *last_vertex;
   int list_type;
   int vert_type;
+  /* poly params */
   uint8_t face_color[4];
   uint8_t face_offset_color[4];
+  /* sprite params */
   uint8_t sprite_color[4];
   uint8_t sprite_offset_color[4];
-  int merged_surfs;
 };
 
 static int compressed_mipmap_offsets[] = {
@@ -292,8 +293,6 @@ static void tr_commit_surf(struct tr *tr, struct tr_context *rc) {
   if (prev_surf && tr_can_merge_surfs(prev_surf, new_surf)) {
     /* merge the new verts into the prev surface */
     prev_surf->num_verts += new_surf->num_verts;
-
-    tr->merged_surfs++;
   } else {
     /* default sort the new surface */
     struct tr_list *list = &rc->lists[tr->list_type];
@@ -458,18 +457,22 @@ static void tr_parse_poly_param(struct tr *tr, const struct ta_context *ctx,
       break;
   }
 
-  /* setup the new surface */
+  /* setup the new surface
+
+     note, bits 0-3 of the global pcw override the respective bits in the global
+     isp/tsp instruction word, so use the pcw for the uv_16bit, gouraud, offset,
+     and texture settings */
   struct ta_surface *surf = tr_reserve_surf(tr, rc, 0);
-  surf->depth_write = !param->type0.isp_tsp.z_write_disable;
+  surf->depth_write = !param->type0.isp.z_write_disable;
   surf->depth_func =
-      translate_depth_func(param->type0.isp_tsp.depth_compare_mode);
-  surf->cull = translate_cull(param->type0.isp_tsp.culling_mode);
+      translate_depth_func(param->type0.isp.depth_compare_mode);
+  surf->cull = translate_cull(param->type0.isp.culling_mode);
   surf->src_blend = translate_src_blend_func(param->type0.tsp.src_alpha_instr);
   surf->dst_blend = translate_dst_blend_func(param->type0.tsp.dst_alpha_instr);
   surf->shade = translate_shade_mode(param->type0.tsp.texture_shading_instr);
   surf->ignore_alpha = !param->type0.tsp.use_alpha;
   surf->ignore_texture_alpha = param->type0.tsp.ignore_tex_alpha;
-  surf->offset_color = param->type0.isp_tsp.offset;
+  surf->offset_color = param->type0.pcw.offset;
   surf->pt_alpha_test = tr->list_type == TA_LIST_PUNCH_THROUGH;
   surf->pt_alpha_ref = (float)ctx->pt_alpha_ref / 0xff;
 
@@ -722,7 +725,8 @@ static void tr_reset(struct tr *tr, struct tr_context *rc) {
   tr->vert_type = TA_NUM_VERTS;
   memset(tr->face_color, 0, sizeof(tr->face_color));
   memset(tr->face_offset_color, 0, sizeof(tr->face_offset_color));
-  tr->merged_surfs = 0;
+  memset(tr->sprite_color, 0, sizeof(tr->sprite_color));
+  memset(tr->sprite_offset_color, 0, sizeof(tr->sprite_offset_color));
 
   /* reset render context state */
   rc->num_params = 0;

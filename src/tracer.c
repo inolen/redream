@@ -358,7 +358,7 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
     const union poly_param *param =
         (const union poly_param *)(tracer->ctx.params + rp->offset);
 
-    igText("isp_tsp: 0x%x", param->type0.isp_tsp.full);
+    igText("isp: 0x%x", param->type0.isp.full);
     igText("tsp: 0x%x", param->type0.tsp.full);
     igText("tcw: 0x%x", param->type0.tcw.full);
 
