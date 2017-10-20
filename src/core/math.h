@@ -13,6 +13,17 @@
 #define ALIGN_UP(v, alignment) (((v) + (alignment)-1) & ~((alignment)-1))
 #define ALIGN_DOWN(v, alignment) ((v) & ~((alignment)-1))
 
+static inline uint32_t npow2(uint32_t v) {
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+  return v;
+}
+
 static inline uint32_t bswap24(uint32_t v) {
   return ((v & 0xff) << 16) | (v & 0x00ff00) | ((v & 0xff0000) >> 16);
 }

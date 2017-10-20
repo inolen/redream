@@ -2,7 +2,7 @@
 #include "core/core.h"
 #include "host/keycode.h"
 
-const int LATENCY_PRESETS[] = {50, 75, 100, 125, 150};
+const int LATENCY_PRESETS[] = {45, 90, 180};
 const int NUM_LATENCY_PRESETS = ARRAY_SIZE(LATENCY_PRESETS);
 
 const char *ASPECT_RATIOS[] = {

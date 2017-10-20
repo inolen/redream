@@ -151,13 +151,17 @@ static void audio_destroy_device(struct host *host) {
 }
 
 static int audio_create_device(struct host *host) {
+  /* SDL expects the number of buffered frames to be a power of two */
+  int target_frames = MS_TO_AUDIO_FRAMES(OPTION_latency);
+  target_frames = (int)npow2((uint32_t)target_frames);
+
   /* match AICA output format */
   SDL_AudioSpec want;
   SDL_zero(want);
   want.freq = AUDIO_FREQ;
   want.format = AUDIO_S16LSB;
   want.channels = 2;
-  want.samples = MS_TO_AUDIO_FRAMES(OPTION_latency);
+  want.samples = target_frames;
   want.userdata = host;
   want.callback = audio_write_cb;
 
