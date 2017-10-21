@@ -207,7 +207,7 @@ static void bios_validate_flash(struct bios *bios) {
   }
 }
 
-static int bios_boot(struct bios *bios) {
+static void bios_boot(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct flash *flash = dc->flash;
   struct gdrom *gd = dc->gdrom;
@@ -221,8 +221,8 @@ static int bios_boot(struct bios *bios) {
   LOG_INFO("bios_boot using hle bootstrap");
 
   if (!gdrom_has_disc(gd)) {
-    LOG_WARNING("bios_boot failed, no disc is loaded");
-    return 0;
+    LOG_FATAL("bios_boot failed, no disc is loaded");
+    return;
   }
 
   /* load IP.BIN bootstrap */
@@ -235,8 +235,8 @@ static int bios_boot(struct bios *bios) {
     int read = gdrom_read_sectors(gd, data_session.fad, 16, GD_SECTOR_ANY,
                                   GD_MASK_DATA, tmp, sizeof(tmp));
     if (!read) {
-      LOG_WARNING("bios_boot failed to copy IP.BIN");
-      return 0;
+      LOG_FATAL("bios_boot failed to copy IP.BIN");
+      return;
     }
 
     sh4_memcpy_to_guest(dc->mem, BOOT1_ADDR, tmp, read);
@@ -251,9 +251,9 @@ static int bios_boot(struct bios *bios) {
     uint8_t *tmp = malloc(len);
     int read = gdrom_read_bytes(gd, fad, len, tmp, len);
     if (read != len) {
-      LOG_WARNING("bios_boot failed to copy bootfile");
+      LOG_FATAL("bios_boot failed to copy bootfile");
       free(tmp);
-      return 0;
+      return;
     }
 
     sh4_memcpy_to_guest(dc->mem, BOOT2_ADDR, tmp, read);
@@ -291,8 +291,6 @@ static int bios_boot(struct bios *bios) {
 
   /* start executing at license screen code inside of ip.bin */
   ctx->pc = 0xac008300;
-
-  return 1;
 }
 
 static int bios_post_init(struct device *dev) {
@@ -331,7 +329,8 @@ int bios_invalid_instr(struct bios *bios) {
   /* if an actual boot rom wasn't loaded into memory, a valid instruction won't
      exist at 0x0, causing an immediate trap on start */
   if (pc == 0x0) {
-    return bios_boot(bios);
+    bios_boot(bios);
+    return 1;
   }
 
   int handled = 1;

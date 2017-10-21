@@ -173,8 +173,6 @@ enum {
 #define define_memcpy(space)                                                   \
   void space##_memcpy(struct memory *mem, uint32_t dst, uint32_t src,          \
                       int size) {                                              \
-    CHECK(size % 4 == 0);                                                      \
-                                                                               \
     uint8_t *pdst = NULL;                                                      \
     mmio_write_cb write = NULL;                                                \
     mmio_write_string_cb write_string = NULL;                                  \
@@ -195,10 +193,10 @@ enum {
     } else {                                                                   \
       uint32_t end = src + size;                                               \
       while (src < end) {                                                      \
-        uint32_t data = read(mem->dc->space, src, 0xffffffff);                 \
-        write(mem->dc->space, dst, data, 0xffffffff);                          \
-        src += 4;                                                              \
-        dst += 4;                                                              \
+        uint8_t data = read(mem->dc->space, src, 0xff);                        \
+        write(mem->dc->space, dst, data, 0xff);                                \
+        src++;                                                                 \
+        dst++;                                                                 \
       }                                                                        \
     }                                                                          \
   }
@@ -206,8 +204,6 @@ enum {
 #define define_memcpy_to_host(space)                                           \
   void space##_memcpy_to_host(struct memory *mem, void *ptr, uint32_t src,     \
                               int size) {                                      \
-    CHECK(size % 4 == 0);                                                      \
-                                                                               \
     uint8_t *pdst = ptr;                                                       \
     uint8_t *psrc = NULL;                                                      \
     mmio_read_cb read = NULL;                                                  \
@@ -221,37 +217,35 @@ enum {
     } else {                                                                   \
       uint32_t end = src + size;                                               \
       while (src < end) {                                                      \
-        *(uint32_t *)pdst = read(mem->dc->space, src, 0xffffffff);             \
-        pdst += 4;                                                             \
-        src += 4;                                                              \
+        *pdst = read(mem->dc->space, src, 0xff);                               \
+        pdst++;                                                                \
+        src++;                                                                 \
       }                                                                        \
     }                                                                          \
   }
 
-#define define_memcpy_to_guest(space)                              \
-  void space##_memcpy_to_guest(struct memory *mem, uint32_t dst,   \
-                               const void *ptr, int size) {        \
-    CHECK(size % 4 == 0);                                          \
-                                                                   \
-    const uint8_t *psrc = ptr;                                     \
-    uint8_t *pdst = NULL;                                          \
-    mmio_write_cb write = NULL;                                    \
-    mmio_write_string_cb write_string = NULL;                      \
-    space##_lookup_ex(mem, dst, NULL, &pdst, NULL, &write, NULL,   \
-                      &write_string);                              \
-                                                                   \
-    if (pdst) {                                                    \
-      memcpy(pdst, psrc, size);                                    \
-    } else if (write_string) {                                     \
-      write_string(mem->dc->space, dst, psrc, size);               \
-    } else {                                                       \
-      uint32_t end = dst + size;                                   \
-      while (dst < end) {                                          \
-        write(mem->dc->space, dst, *(uint32_t *)psrc, 0xffffffff); \
-        psrc += 4;                                                 \
-        dst += 4;                                                  \
-      }                                                            \
-    }                                                              \
+#define define_memcpy_to_guest(space)                            \
+  void space##_memcpy_to_guest(struct memory *mem, uint32_t dst, \
+                               const void *ptr, int size) {      \
+    const uint8_t *psrc = ptr;                                   \
+    uint8_t *pdst = NULL;                                        \
+    mmio_write_cb write = NULL;                                  \
+    mmio_write_string_cb write_string = NULL;                    \
+    space##_lookup_ex(mem, dst, NULL, &pdst, NULL, &write, NULL, \
+                      &write_string);                            \
+                                                                 \
+    if (pdst) {                                                  \
+      memcpy(pdst, psrc, size);                                  \
+    } else if (write_string) {                                   \
+      write_string(mem->dc->space, dst, psrc, size);             \
+    } else {                                                     \
+      uint32_t end = dst + size;                                 \
+      while (dst < end) {                                        \
+        write(mem->dc->space, dst, *psrc, 0xff);                 \
+        psrc++;                                                  \
+        dst++;                                                   \
+      }                                                          \
+    }                                                            \
   }
 
 #define define_write_bytes(space, name, data_type)                           \
