@@ -28,7 +28,6 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/guest/gdrom/disc.c \
 	$(CORE_DIR)/src/guest/gdrom/gdi.c \
 	$(CORE_DIR)/src/guest/gdrom/gdrom.c \
-	$(CORE_DIR)/src/guest/gdrom/patch.c \
 	$(CORE_DIR)/src/guest/holly/holly.c \
 	$(CORE_DIR)/src/guest/maple/controller.c \
 	$(CORE_DIR)/src/guest/maple/maple.c \
@@ -55,7 +54,6 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/guest/scheduler.c \
 	$(CORE_DIR)/src/core/option.c \
 	$(CORE_DIR)/src/core/memory.c \
-	$(CORE_DIR)/deps/inih/ini.c \
 	$(CORE_DIR)/src/host/keycode.c \
 	$(CORE_DIR)/src/jit/backend/interp/interp_backend.c \
 	$(CORE_DIR)/src/jit/frontend/armv3/armv3_context.c \
@@ -78,15 +76,22 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/jit/passes/register_allocation_pass.c \
 	$(CORE_DIR)/src/jit/jit.c \
 	$(CORE_DIR)/src/jit/pass_stats.c \
-	$(CORE_DIR)/src/emulator.c \
 	$(CORE_DIR)/src/host/retro_host.c \
-	$(CORE_DIR)/src/render/gl_backend.c
+	$(CORE_DIR)/src/render/gl_backend.c \
+	$(CORE_DIR)/src/emulator.c \
+	$(CORE_DIR)/src/options.c \
+	$(CORE_DIR)/src/stats.c
 
 SOURCES_CXX := $(CORE_DIR)/src/imgui.cc
 
 SOURCES_CPP :=
 
 COREFLAGS += -DHAVE_FASTMEM
+
+#==--------------------------------------------------------------------------==#
+# inih
+#==--------------------------------------------------------------------------==#
+SOURCES_C += $(CORE_DIR)/deps/inih/ini.c \
 
 #==--------------------------------------------------------------------------==#
 # capstone
