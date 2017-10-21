@@ -489,24 +489,24 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
 
     igSeparator();
 
-    if (surf->texture) {
+    if (surf->params.texture) {
       struct ImVec2 tex_size = {128.0f, 128.0f};
       struct ImVec2 tex_uv0 = {0.0f, 1.0f};
       struct ImVec2 tex_uv1 = {1.0f, 0.0f};
 
-      ImTextureID handle_id = (ImTextureID)(intptr_t)surf->texture;
+      ImTextureID handle_id = (ImTextureID)(intptr_t)surf->params.texture;
       igImage(handle_id, tex_size, tex_uv0, tex_uv1, one_vec4, zero_vec4);
     }
 
-    igText("depth_write: %d", surf->depth_write);
-    igText("depth_func: %s", depthfunc_names[surf->depth_func]);
-    igText("cull: %s", cullface_names[surf->cull]);
-    igText("src_blend: %s", blendfunc_names[surf->src_blend]);
-    igText("dst_blend: %s", blendfunc_names[surf->dst_blend]);
-    igText("shade: %s", shademode_names[surf->shade]);
-    igText("ignore_alpha: %d", surf->ignore_alpha);
-    igText("ignore_texture_alpha: %d", surf->ignore_texture_alpha);
-    igText("offset_color: %d", surf->offset_color);
+    igText("depth_write: %d", surf->params.depth_write);
+    igText("depth_func: %s", depthfunc_names[surf->params.depth_func]);
+    igText("cull: %s", cullface_names[surf->params.cull]);
+    igText("src_blend: %s", blendfunc_names[surf->params.src_blend]);
+    igText("dst_blend: %s", blendfunc_names[surf->params.dst_blend]);
+    igText("shade: %s", shademode_names[surf->params.shade]);
+    igText("ignore_alpha: %d", surf->params.ignore_alpha);
+    igText("ignore_texture_alpha: %d", surf->params.ignore_texture_alpha);
+    igText("offset_color: %d", surf->params.offset_color);
     igText("first_vert: %d", surf->first_vert);
     igText("num_verts: %d", surf->num_verts);
   }
@@ -661,7 +661,7 @@ void tracer_render_frame(struct tracer *tracer) {
 
   for (int i = 0; i < rc->num_surfs; i++) {
     struct ta_surface *surf = &rc->surfs[i];
-    surf->debug_depth = tracer->debug_depth;
+    surf->params.debug_depth = tracer->debug_depth;
   }
 
   tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,

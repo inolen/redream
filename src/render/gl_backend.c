@@ -3,8 +3,6 @@
 #include "host/host.h"
 #include "render/render_backend.h"
 
-#define MAX_TEXTURES 8192
-
 enum texture_map {
   MAP_DIFFUSE,
 };
@@ -142,7 +140,6 @@ static GLenum prim_types[] = {
 };
 
 static GLuint internal_formats[] = {
-    GL_NONE, /* PXL_INVALID */
     GL_RGB,  /* PXL_RGB */
     GL_RGBA, /* PXL_RGBA */
     GL_RGBA, /* PXL_RGBA5551 */
@@ -151,7 +148,6 @@ static GLuint internal_formats[] = {
 };
 
 static GLuint pixel_formats[] = {
-    GL_NONE,                   /* PXL_INVALID */
     GL_UNSIGNED_BYTE,          /* PXL_RGB */
     GL_UNSIGNED_BYTE,          /* PXL_RGBA */
     GL_UNSIGNED_SHORT_5_5_5_1, /* PXL_RGBA5551 */
@@ -443,23 +439,23 @@ static void r_set_initial_state(struct render_backend *r) {
 
 static struct shader_program *r_get_ta_program(struct render_backend *r,
                                                const struct ta_surface *surf) {
-  int idx = surf->shade;
-  if (surf->texture) {
+  int idx = surf->params.shade;
+  if (surf->params.texture) {
     idx |= ATTR_TEXTURE;
   }
-  if (surf->ignore_alpha) {
+  if (surf->params.ignore_alpha) {
     idx |= ATTR_IGNORE_ALPHA;
   }
-  if (surf->ignore_texture_alpha) {
+  if (surf->params.ignore_texture_alpha) {
     idx |= ATTR_IGNORE_TEXTURE_ALPHA;
   }
-  if (surf->offset_color) {
+  if (surf->params.offset_color) {
     idx |= ATTR_OFFSET_COLOR;
   }
-  if (surf->pt_alpha_test) {
+  if (surf->params.pt_alpha_test) {
     idx |= ATTR_PT_ALPHA_TEST;
   }
-  if (surf->debug_depth) {
+  if (surf->params.debug_depth) {
     idx |= ATTR_DEBUG_DEPTH_BUFFER;
   }
 
@@ -599,27 +595,29 @@ void r_end_ta_surfaces(struct render_backend *r) {}
 
 void r_draw_ta_surface(struct render_backend *r,
                        const struct ta_surface *surf) {
-  glDepthMask(!!surf->depth_write);
+  glDepthMask(!!surf->params.depth_write);
 
-  if (surf->depth_func == DEPTH_NONE) {
+  if (surf->params.depth_func == DEPTH_NONE) {
     glDisable(GL_DEPTH_TEST);
   } else {
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(depth_funcs[surf->depth_func]);
+    glDepthFunc(depth_funcs[surf->params.depth_func]);
   }
 
-  if (surf->cull == CULL_NONE) {
+  if (surf->params.cull == CULL_NONE) {
     glDisable(GL_CULL_FACE);
   } else {
     glEnable(GL_CULL_FACE);
-    glCullFace(cull_face[surf->cull]);
+    glCullFace(cull_face[surf->params.cull]);
   }
 
-  if (surf->src_blend == BLEND_NONE || surf->dst_blend == BLEND_NONE) {
+  if (surf->params.src_blend == BLEND_NONE ||
+      surf->params.dst_blend == BLEND_NONE) {
     glDisable(GL_BLEND);
   } else {
     glEnable(GL_BLEND);
-    glBlendFunc(blend_funcs[surf->src_blend], blend_funcs[surf->dst_blend]);
+    glBlendFunc(blend_funcs[surf->params.src_blend],
+                blend_funcs[surf->params.dst_blend]);
   }
 
   struct shader_program *program = r_get_ta_program(r, surf);
@@ -633,10 +631,11 @@ void r_draw_ta_surface(struct render_backend *r,
   }
 
   /* bind non-global uniforms every time */
-  glUniform1f(program->loc[UNIFORM_PT_ALPHA_REF], surf->pt_alpha_ref);
+  float alpha_ref = surf->params.pt_alpha_ref / 255.0f;
+  glUniform1f(program->loc[UNIFORM_PT_ALPHA_REF], alpha_ref);
 
-  if (surf->texture) {
-    struct texture *tex = &r->textures[surf->texture];
+  if (surf->params.texture) {
+    struct texture *tex = &r->textures[surf->params.texture];
     r_bind_texture(r, MAP_DIFFUSE, tex->texture);
   }
 

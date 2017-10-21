@@ -232,14 +232,7 @@ static struct ta_vertex *tr_reserve_vert(struct tr *tr, struct tr_context *rc) {
 
 static inline int tr_can_merge_surfs(struct ta_surface *a,
                                      struct ta_surface *b) {
-  return a->texture == b->texture && a->depth_write == b->depth_write &&
-         a->depth_func == b->depth_func && a->cull == b->cull &&
-         a->src_blend == b->src_blend && a->dst_blend == b->dst_blend &&
-         a->shade == b->shade && a->ignore_alpha == b->ignore_alpha &&
-         a->ignore_texture_alpha == b->ignore_texture_alpha &&
-         a->offset_color == b->offset_color &&
-         a->pt_alpha_test == b->pt_alpha_test &&
-         a->pt_alpha_ref == b->pt_alpha_ref;
+  return a->params.full == b->params.full;
 }
 
 static void tr_commit_surf(struct tr *tr, struct tr_context *rc) {
@@ -379,12 +372,13 @@ static void tr_parse_bg(struct tr *tr, const struct ta_context *ctx,
 
   /* translate the surface */
   struct ta_surface *surf = tr_reserve_surf(tr, rc, 0);
-  surf->texture = 0;
-  surf->depth_write = !ctx->bg_isp.z_write_disable;
-  surf->depth_func = translate_depth_func(ctx->bg_isp.depth_compare_mode);
-  surf->cull = translate_cull(ctx->bg_isp.culling_mode);
-  surf->src_blend = BLEND_NONE;
-  surf->dst_blend = BLEND_NONE;
+  surf->params.texture = 0;
+  surf->params.depth_write = !ctx->bg_isp.z_write_disable;
+  surf->params.depth_func =
+      translate_depth_func(ctx->bg_isp.depth_compare_mode);
+  surf->params.cull = translate_cull(ctx->bg_isp.culling_mode);
+  surf->params.src_blend = BLEND_NONE;
+  surf->params.dst_blend = BLEND_NONE;
 
   /* translate the first 3 vertices */
   struct ta_vertex *v0 = tr_reserve_vert(tr, rc);
@@ -474,36 +468,40 @@ static void tr_parse_poly_param(struct tr *tr, const struct ta_context *ctx,
      isp/tsp instruction word, so use the pcw for the uv_16bit, gouraud, offset,
      and texture settings */
   struct ta_surface *surf = tr_reserve_surf(tr, rc, 0);
-  surf->depth_write = !param->type0.isp.z_write_disable;
-  surf->depth_func = translate_depth_func(param->type0.isp.depth_compare_mode);
-  surf->cull = translate_cull(param->type0.isp.culling_mode);
-  surf->src_blend = translate_src_blend_func(param->type0.tsp.src_alpha_instr);
-  surf->dst_blend = translate_dst_blend_func(param->type0.tsp.dst_alpha_instr);
-  surf->shade = translate_shade_mode(param->type0.tsp.texture_shading_instr);
-  surf->ignore_alpha = !param->type0.tsp.use_alpha;
-  surf->ignore_texture_alpha = param->type0.tsp.ignore_tex_alpha;
-  surf->offset_color = param->type0.pcw.offset;
-  surf->pt_alpha_test = tr->list_type == TA_LIST_PUNCH_THROUGH;
-  surf->pt_alpha_ref = (float)ctx->pt_alpha_ref / 0xff;
+  surf->params.depth_write = !param->type0.isp.z_write_disable;
+  surf->params.depth_func =
+      translate_depth_func(param->type0.isp.depth_compare_mode);
+  surf->params.cull = translate_cull(param->type0.isp.culling_mode);
+  surf->params.src_blend =
+      translate_src_blend_func(param->type0.tsp.src_alpha_instr);
+  surf->params.dst_blend =
+      translate_dst_blend_func(param->type0.tsp.dst_alpha_instr);
+  surf->params.shade =
+      translate_shade_mode(param->type0.tsp.texture_shading_instr);
+  surf->params.ignore_alpha = !param->type0.tsp.use_alpha;
+  surf->params.ignore_texture_alpha = param->type0.tsp.ignore_tex_alpha;
+  surf->params.offset_color = param->type0.pcw.offset;
+  surf->params.pt_alpha_test = tr->list_type == TA_LIST_PUNCH_THROUGH;
+  surf->params.pt_alpha_ref = ctx->pt_alpha_ref;
 
   /* override a few surface parameters based on the list type */
   if (tr->list_type != TA_LIST_TRANSLUCENT &&
       tr->list_type != TA_LIST_TRANSLUCENT_MODVOL) {
-    surf->src_blend = BLEND_NONE;
-    surf->dst_blend = BLEND_NONE;
+    surf->params.src_blend = BLEND_NONE;
+    surf->params.dst_blend = BLEND_NONE;
   } else if ((tr->list_type == TA_LIST_TRANSLUCENT ||
               tr->list_type == TA_LIST_TRANSLUCENT_MODVOL) &&
              ctx->autosort) {
-    surf->depth_func = DEPTH_LEQUAL;
+    surf->params.depth_func = DEPTH_LEQUAL;
   } else if (tr->list_type == TA_LIST_PUNCH_THROUGH) {
-    surf->depth_func = DEPTH_GEQUAL;
+    surf->params.depth_func = DEPTH_GEQUAL;
   }
 
   if (param->type0.pcw.texture) {
-    surf->texture =
+    surf->params.texture =
         tr_convert_texture(tr, ctx, param->type0.tsp, param->type0.tcw);
   } else {
-    surf->texture = 0;
+    surf->params.texture = 0;
   }
 }
 

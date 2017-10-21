@@ -5,10 +5,12 @@
 
 struct host;
 
-typedef unsigned texture_handle_t;
+/* note, this can't be larger than the width of ta_surface's texture param */
+#define MAX_TEXTURES (1 << 13)
+
+typedef int texture_handle_t;
 
 enum pxl_format {
-  PXL_INVALID,
   PXL_RGB,
   PXL_RGBA,
   PXL_RGBA5551,
@@ -67,11 +69,6 @@ enum shade_mode {
   SHADE_MODULATE_ALPHA,
 };
 
-enum box_type {
-  BOX_BAR,
-  BOX_FLAT,
-};
-
 enum prim_type {
   PRIM_TRIANGLES,
   PRIM_LINES,
@@ -85,19 +82,26 @@ struct ta_vertex {
 };
 
 struct ta_surface {
-  texture_handle_t texture;
-  int depth_write;
-  enum depth_func depth_func;
-  enum cull_face cull;
-  enum blend_func src_blend;
-  enum blend_func dst_blend;
-  enum shade_mode shade;
-  int ignore_alpha;
-  int ignore_texture_alpha;
-  int offset_color;
-  int pt_alpha_test;
-  float pt_alpha_ref;
-  int debug_depth;
+  union {
+    uint64_t full;
+
+    struct {
+      texture_handle_t texture : 13;
+      int depth_write : 1;
+      enum depth_func depth_func : 4;
+      enum cull_face cull : 2;
+      enum blend_func src_blend : 4;
+      enum blend_func dst_blend : 4;
+      enum shade_mode shade : 3;
+      int ignore_alpha : 1;
+      int ignore_texture_alpha : 1;
+      int offset_color : 1;
+      int pt_alpha_test : 1;
+      int pt_alpha_ref : 8;
+      int debug_depth : 1;
+      int : 20;
+    };
+  } params;
 
   int first_vert;
   int num_verts;

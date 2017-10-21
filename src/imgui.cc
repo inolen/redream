@@ -88,7 +88,7 @@ void imgui_end_frame(struct imgui *imgui) {
       surf.texture = (texture_handle_t)(intptr_t)cmd.TextureId;
       surf.src_blend = BLEND_SRC_ALPHA;
       surf.dst_blend = BLEND_ONE_MINUS_SRC_ALPHA;
-      surf.scissor = true;
+      surf.scissor = 1;
       surf.scissor_rect[0] = cmd.ClipRect.x;
       surf.scissor_rect[1] = io.DisplaySize.y - cmd.ClipRect.w;
       surf.scissor_rect[2] = cmd.ClipRect.z - cmd.ClipRect.x;

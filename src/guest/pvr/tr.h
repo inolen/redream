@@ -36,9 +36,11 @@ struct tr_texture {
 struct tr_param {
   /* offset of parameter in ta_context param stream */
   int offset;
+
   /* global list and vertex types at time of parsing */
   int list_type;
   int vert_type;
+
   /* last surf / vert generated for the param */
   int last_surf;
   int last_vert;
