@@ -585,7 +585,7 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
   /* texture window */
   if (igBegin("textures", NULL, 0)) {
-    struct ImVec2 size = {220.0f, io->DisplaySize.y * 0.85f};
+    struct ImVec2 size = {220.0f, io->DisplaySize.y * 0.85f * 0.5f};
     struct ImVec2 pos = {io->DisplaySize.x - 220.0f, io->DisplaySize.y * 0.05f};
     igSetWindowSize(size, ImGuiCond_Once);
     igSetWindowPos(pos, ImGuiCond_Once);
@@ -640,6 +640,34 @@ static void tracer_render_side_menu(struct tracer *tracer) {
 
     igEnd();
   }
+
+  if (igBegin("debug info", NULL, 0)) {
+    struct ImVec2 size = {220.0f, io->DisplaySize.y * 0.85f * 0.5f};
+    struct ImVec2 pos = {io->DisplaySize.x - 220.0f,
+                         io->DisplaySize.y * 0.05f + size.y};
+    igSetWindowSize(size, ImGuiCond_Once);
+    igSetWindowPos(pos, ImGuiCond_Once);
+
+    int total_orig_surfs = 0;
+    int total_surfs = 0;
+
+    for (int i = 0; i < TA_NUM_LISTS; i++) {
+      struct tr_list *list = &tracer->rc.lists[i];
+      igText(list_names[i]);
+      igText("%d original surfaces", list->num_orig_surfs);
+      igText("%d draw surfaces", list->num_surfs);
+      igSeparator();
+
+      total_orig_surfs += list->num_orig_surfs;
+      total_surfs += list->num_surfs;
+    }
+
+    igText("%d total original surfaces", total_orig_surfs);
+    igText("%d total draw surfaces", total_surfs);
+    igText("%.2f kb index buffer", (tracer->rc.num_indices * 2.0f) / 1024.0f);
+
+    igEnd();
+  }
 }
 
 void tracer_render_frame(struct tracer *tracer) {
@@ -659,13 +687,14 @@ void tracer_render_frame(struct tracer *tracer) {
     end_surf = rp->last_surf;
   }
 
+  tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
+                     &tracer->rc);
+
   for (int i = 0; i < rc->num_surfs; i++) {
     struct ta_surface *surf = &rc->surfs[i];
     surf->params.debug_depth = tracer->debug_depth;
   }
 
-  tr_convert_context(tracer->r, tracer, &tracer_find_texture, &tracer->ctx,
-                     &tracer->rc);
   tr_render_context_until(tracer->r, rc, end_surf);
 }
 

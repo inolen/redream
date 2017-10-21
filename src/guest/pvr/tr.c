@@ -17,7 +17,6 @@ struct tr {
   tr_find_texture_cb find_texture;
 
   /* current global state */
-  const union poly_param *last_poly;
   const union vert_param *last_vertex;
   int list_type;
   int vert_type;
@@ -183,7 +182,7 @@ static struct ta_surface *tr_reserve_surf(struct tr *tr, struct tr_context *rc,
     memset(surf, 0, sizeof(*surf));
   }
 
-  surf->first_vert = rc->num_indices;
+  surf->first_vert = rc->num_verts;
   surf->num_verts = 0;
 
   return surf;
@@ -191,81 +190,65 @@ static struct ta_surface *tr_reserve_surf(struct tr *tr, struct tr_context *rc,
 
 static struct ta_vertex *tr_reserve_vert(struct tr *tr, struct tr_context *rc) {
   struct ta_surface *curr_surf = &rc->surfs[rc->num_surfs];
-  int curr_surf_vert = curr_surf->num_verts / 3;
 
-  int vert_index = rc->num_verts + curr_surf_vert;
+  int vert_index = rc->num_verts + curr_surf->num_verts;
   CHECK_LT(vert_index, ARRAY_SIZE(rc->verts));
   struct ta_vertex *vert = &rc->verts[vert_index];
 
-  int index = rc->num_indices + curr_surf->num_verts;
-  CHECK_LT(index + 2, ARRAY_SIZE(rc->indices));
-  uint16_t *indices = &rc->indices[index];
-
   memset(vert, 0, sizeof(*vert));
 
-  /* polygons are fed to the TA as triangle strips, with the vertices being fed
-     in a CW order, so a given quad looks like:
-
-     1----3----5
-     |\   |\   |
-     | \  | \  |
-     |  \ |  \ |
-     |   \|   \|
-     0----2----4
-
-     convert from these triangle strips to triangles to make merging surfaces
-     easy in tr_commit_surf, and convert to CCW to match OpenGL defaults */
-  if (curr_surf_vert & 1) {
-    indices[0] = vert_index;
-    indices[1] = vert_index + 1;
-    indices[2] = vert_index + 2;
-  } else {
-    indices[0] = vert_index;
-    indices[1] = vert_index + 2;
-    indices[2] = vert_index + 1;
-  }
-
-  curr_surf->num_verts += 3;
+  curr_surf->num_verts++;
 
   return vert;
 }
 
-static inline int tr_can_merge_surfs(struct ta_surface *a,
-                                     struct ta_surface *b) {
-  return a->params.full == b->params.full;
-}
-
 static void tr_commit_surf(struct tr *tr, struct tr_context *rc) {
+  struct tr_list *list = &rc->lists[tr->list_type];
   struct ta_surface *new_surf = &rc->surfs[rc->num_surfs];
 
-  /* tr_reserve_vert preemptively adds indices for the next two vertices when
-     converting the incoming triangle strips to triangles. this results in the
-     first 2 vertices adding 6 extra indices that don't exist */
-  new_surf->num_verts -= 6;
+  /* track original number of surfaces, before sorting, merging, etc. */
+  list->num_orig_surfs++;
 
-  /* check to see if this surface can be merged with the previous surface */
-  struct ta_surface *prev_surf = NULL;
+  /* for translucent lists, commit a surf for each tri to make sorting easier */
+  if (tr->list_type == TA_LIST_TRANSLUCENT ||
+      tr->list_type == TA_LIST_PUNCH_THROUGH) {
+    /* ignore the last two verts as polygons are fed to the TA as tristrips */
+    int num_verts = new_surf->num_verts;
 
-  if (rc->num_surfs) {
-    prev_surf = &rc->surfs[rc->num_surfs - 1];
+    for (int i = 0; i < num_verts - 2; i++) {
+      struct ta_surface *surf = NULL;
+      if (i == 0) {
+        surf = new_surf;
+      } else {
+        surf = tr_reserve_surf(tr, rc, 1);
+      }
+
+      /* track triangle strip offset so winding order can be consistent when
+         generating indices */
+      surf->strip_offset = i;
+      surf->first_vert = rc->num_verts;
+      surf->num_verts = 3;
+
+      /* default sort the new surface */
+      list->surfs[list->num_surfs++] = rc->num_surfs;
+
+      /* commit the new surface */
+      rc->num_verts += 1;
+      rc->num_surfs++;
+    }
+
+    /* commit the last two verts */
+    rc->num_verts += 2;
   }
-
-  if (prev_surf && tr_can_merge_surfs(prev_surf, new_surf)) {
-    /* merge the new verts into the prev surface */
-    prev_surf->num_verts += new_surf->num_verts;
-  } else {
+  /* for opaque lists, commit surface as is */
+  else {
     /* default sort the new surface */
-    struct tr_list *list = &rc->lists[tr->list_type];
-    list->surfs[list->num_surfs] = rc->num_surfs;
-    list->num_surfs++;
+    list->surfs[list->num_surfs++] = rc->num_surfs;
 
     /* commit the new surface */
+    rc->num_verts += new_surf->num_verts;
     rc->num_surfs += 1;
   }
-
-  /* commit the new verts and indices */
-  rc->num_verts += (new_surf->num_verts + 6) / 3;
-  rc->num_indices += new_surf->num_verts;
 }
 
 /*
@@ -426,7 +409,6 @@ static void tr_parse_poly_param(struct tr *tr, const struct ta_context *ctx,
   const union poly_param *param = (const union poly_param *)data;
 
   /* reset state */
-  tr->last_poly = param;
   tr->last_vertex = NULL;
   tr->vert_type = ta_vert_type(param->type0.pcw);
 
@@ -652,7 +634,83 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
   }
 }
 
-/* scratch buffers used by surface merge sort */
+static void tr_parse_eol(struct tr *tr, const struct ta_context *ctx,
+                         struct tr_context *rc, const uint8_t *data) {
+  tr->last_vertex = NULL;
+  tr->list_type = TA_NUM_LISTS;
+  tr->vert_type = TA_NUM_VERTS;
+}
+
+static inline int tr_can_merge_surfs(struct ta_surface *a,
+                                     struct ta_surface *b) {
+  return a->params.full == b->params.full;
+}
+
+static void tr_generate_indices(struct tr *tr, struct tr_context *rc,
+                                int list_type) {
+  /* polygons are fed to the TA as triangle strips, with the vertices being fed
+     in a CW order, so a given quad looks like:
+
+     1----3----5
+     |\   |\   |
+     | \  | \  |
+     |  \ |  \ |
+     |   \|   \|
+     0----2----4
+
+     convert from these triangle strips to triangles, and convert to CCW to
+     match OpenGL defaults */
+  struct tr_list *list = &rc->lists[list_type];
+
+  int num_merged = 0;
+
+  for (int i = 0, j = 0; i < list->num_surfs; i = j) {
+    struct ta_surface *root = &rc->surfs[list->surfs[i]];
+    int first_index = rc->num_indices;
+
+    /* merge adjacent surfaces at this time */
+    for (j = i; j < list->num_surfs; j++) {
+      struct ta_surface *surf = &rc->surfs[list->surfs[j]];
+
+      if (surf != root) {
+        if (!tr_can_merge_surfs(root, surf)) {
+          break;
+        }
+
+        num_merged++;
+      }
+
+      int num_indices = (surf->num_verts - 2) * 3;
+      CHECK_LT(rc->num_indices + num_indices, ARRAY_SIZE(rc->indices));
+
+      for (int j = 0; j < surf->num_verts - 2; j++) {
+        int strip_offset = surf->strip_offset + j;
+        int vertex_offset = surf->first_vert + j;
+
+        /* be careful to maintain a CCW winding order */
+        if (strip_offset & 1) {
+          rc->indices[rc->num_indices++] = vertex_offset + 0;
+          rc->indices[rc->num_indices++] = vertex_offset + 1;
+          rc->indices[rc->num_indices++] = vertex_offset + 2;
+        } else {
+          rc->indices[rc->num_indices++] = vertex_offset + 0;
+          rc->indices[rc->num_indices++] = vertex_offset + 2;
+          rc->indices[rc->num_indices++] = vertex_offset + 1;
+        }
+      }
+    }
+
+    /* update to point at triangle indices instead of the raw tristrip verts */
+    root->first_vert = first_index;
+    root->num_verts = rc->num_indices - first_index;
+
+    /* shift the list to account for merges */
+    list->surfs[j - num_merged - 1] = list->surfs[i];
+  }
+
+  list->num_surfs -= num_merged;
+}
+
 static int sort_tmp[TR_MAX_SURFS];
 static float sort_minz[TR_MAX_SURFS];
 
@@ -662,42 +720,29 @@ static int tr_compare_surf(const void *a, const void *b) {
   return sort_minz[i] <= sort_minz[j];
 }
 
-static void tr_sort_render_list(struct tr *tr, struct tr_context *rc,
-                                int list_type) {
-  /* sort each surface from back to front based on its minz */
+static void tr_sort_surfaces(struct tr *tr, struct tr_context *rc,
+                             int list_type) {
   struct tr_list *list = &rc->lists[list_type];
 
+  /* sort each surface from back to front based on its minz */
   for (int i = 0; i < list->num_surfs; i++) {
     int surf_index = list->surfs[i];
     struct ta_surface *surf = &rc->surfs[surf_index];
     float *minz = &sort_minz[surf_index];
 
-    /* the surf coordinates have 1/w for z, so smaller values are
-      further away from the camera */
-    *minz = FLT_MAX;
+    struct ta_vertex *verts = &rc->verts[surf->first_vert];
+    CHECK_EQ(surf->num_verts, 3);
 
-    for (int j = 0; j < surf->num_verts; j++) {
-      int vert_index = rc->indices[surf->first_vert + j];
-      struct ta_vertex *vert = &rc->verts[vert_index];
-      *minz = MIN(*minz, vert->xyz[2]);
-    }
+    *minz = MIN(verts[0].xyz[2], verts[1].xyz[2]);
+    *minz = MIN(*minz, verts[2].xyz[2]);
   }
 
   msort_noalloc(list->surfs, sort_tmp, list->num_surfs, sizeof(int),
                 &tr_compare_surf);
 }
 
-static void tr_parse_eol(struct tr *tr, const struct ta_context *ctx,
-                         struct tr_context *rc, const uint8_t *data) {
-  tr->last_poly = NULL;
-  tr->last_vertex = NULL;
-  tr->list_type = TA_NUM_LISTS;
-  tr->vert_type = TA_NUM_VERTS;
-}
-
 static void tr_reset(struct tr *tr, struct tr_context *rc) {
   /* reset global state */
-  tr->last_poly = NULL;
   tr->last_vertex = NULL;
   tr->list_type = TA_NUM_LISTS;
   tr->vert_type = TA_NUM_VERTS;
@@ -714,6 +759,7 @@ static void tr_reset(struct tr *tr, struct tr_context *rc) {
   for (int i = 0; i < TA_NUM_LISTS; i++) {
     struct tr_list *list = &rc->lists[i];
     list->num_surfs = 0;
+    list->num_orig_surfs = 0;
   }
 }
 
@@ -821,14 +867,13 @@ void tr_convert_context(struct render_backend *r, void *userdata,
     data += ta_param_size(pcw, tr.vert_type);
   }
 
-  /* sort blended surface lists if requested */
+  /* sort surfaces if requested */
   if (ctx->autosort) {
-    tr_sort_render_list(&tr, rc, TA_LIST_TRANSLUCENT);
-    tr_sort_render_list(&tr, rc, TA_LIST_PUNCH_THROUGH);
+    tr_sort_surfaces(&tr, rc, TA_LIST_TRANSLUCENT);
+    tr_sort_surfaces(&tr, rc, TA_LIST_PUNCH_THROUGH);
   }
 
-#if 0
-  LOG_INFO("tr_convert_convext merged %d / %d surfaces", tr.merged_surfs,
-           tr.merged_surfs + rc->num_surfs);
-#endif
+  for (int i = 0; i < TA_NUM_LISTS; i++) {
+    tr_generate_indices(&tr, rc, i);
+  }
 }

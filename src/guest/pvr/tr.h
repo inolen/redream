@@ -6,8 +6,7 @@
 
 struct tr;
 
-#define TR_MAX_SURFS (1024 * 16)
-#define TR_MAX_VERTS (1024 * 64)
+#define TR_MAX_SURFS (1024 * 64)
 
 typedef uint64_t tr_texture_key_t;
 
@@ -49,6 +48,9 @@ struct tr_param {
 struct tr_list {
   int surfs[TR_MAX_SURFS];
   int num_surfs;
+
+  /* debug info */
+  int num_orig_surfs;
 };
 
 struct tr_context {
@@ -60,10 +62,10 @@ struct tr_context {
   struct ta_surface surfs[TR_MAX_SURFS];
   int num_surfs;
 
-  struct ta_vertex verts[TR_MAX_VERTS];
+  struct ta_vertex verts[TR_MAX_SURFS];
   int num_verts;
 
-  uint16_t indices[TR_MAX_VERTS * 3];
+  uint16_t indices[TR_MAX_SURFS * 3];
   int num_indices;
 
   /* sorted list of surfaces corresponding to each of the ta's polygon lists */

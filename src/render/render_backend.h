@@ -105,6 +105,10 @@ struct ta_surface {
 
   int first_vert;
   int num_verts;
+
+  /* first vertex's offset from start of original tristrip, used to control
+     winding order when generating indices */
+  int strip_offset;
 };
 
 struct ui_vertex {
