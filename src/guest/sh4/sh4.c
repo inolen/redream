@@ -118,6 +118,9 @@ static void sh4_compile_code(struct sh4 *sh4, uint32_t addr) {
 }
 
 static void sh4_invalid_instr(struct sh4 *sh4) {
+  struct memory *mem = sh4->dc->mem;
+  struct bios *bios = sh4->dc->bios;
+
   /* TODO write tests to confirm if any other instructions generate illegal
      instruction exceptions */
   const uint16_t SH4_INVALID_INSTR = 0xfffd;
@@ -125,7 +128,7 @@ static void sh4_invalid_instr(struct sh4 *sh4) {
   /* let internal systems have a first chance at illegal instructions. note,
      they will write out invalid instructions other than SH4_INVALID_INSTR
      in order to trap */
-  if (bios_invalid_instr(sh4->bios)) {
+  if (bios_invalid_instr(bios)) {
     return;
   }
 
@@ -134,13 +137,13 @@ static void sh4_invalid_instr(struct sh4 *sh4) {
   }
 
   uint32_t pc = sh4->ctx.pc;
-  uint16_t data = sh4_read16(sh4->mem, pc);
+  uint16_t data = sh4_read16(mem, pc);
   struct jit_opdef *def = sh4_get_opdef(data);
   enum sh4_exception exc = SH4_EXC_ILLINSTR;
 
   /* op may be valid if the delay slot raised this */
   if (def->op != SH4_OP_INVALID) {
-    data = sh4_read16(sh4->mem, pc + 2);
+    data = sh4_read16(mem, pc + 2);
     def = sh4_get_opdef(data);
     exc = SH4_EXC_ILLSLOT;
   }
@@ -179,8 +182,8 @@ static struct jit_guest *sh4_guest_create(struct sh4 *sh4) {
 
   /* memory interface */
   guest->ctx = &sh4->ctx;
-  guest->membase = sh4_base(sh4->mem);
-  guest->mem = sh4->mem;
+  guest->membase = sh4_base(sh4->dc->mem);
+  guest->mem = sh4->dc->mem;
   guest->lookup = &sh4_lookup;
   guest->r8 = &sh4_read8;
   guest->r16 = &sh4_read16;
@@ -268,7 +271,7 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   /* reset interrupts */
   sh4_intc_reprioritize(sh4);
 
-  sh4->execute_if->running = 1;
+  sh4->runif.running = 1;
 }
 
 #ifdef HAVE_IMGUI
@@ -309,19 +312,25 @@ void sh4_destroy(struct sh4 *sh4) {
   sh4_guest_destroy(sh4->guest);
   sh4->frontend->destroy(sh4->frontend);
   sh4->backend->destroy(sh4->backend);
-
-  dc_destroy_execute_interface(sh4->execute_if);
-  dc_destroy_debug_interface(sh4->debug_if);
   dc_destroy_device((struct device *)sh4);
 }
 
 struct sh4 *sh4_create(struct dreamcast *dc) {
   struct sh4 *sh4 =
       dc_create_device(dc, sizeof(struct sh4), "sh", &sh4_init, NULL);
-  sh4->debug_if = dc_create_debug_interface(
-      &sh4_dbg_num_registers, &sh4_dbg_step, &sh4_dbg_add_breakpoint,
-      &sh4_dbg_remove_breakpoint, &sh4_dbg_read_memory, &sh4_dbg_read_register);
-  sh4->execute_if = dc_create_execute_interface(&sh4_run, 0);
+
+  /* setup debug interface */
+  sh4->dbgif.enabled = 1;
+  sh4->dbgif.num_regs = &sh4_dbg_num_registers;
+  sh4->dbgif.step = &sh4_dbg_step;
+  sh4->dbgif.add_bp = &sh4_dbg_add_breakpoint;
+  sh4->dbgif.rem_bp = &sh4_dbg_remove_breakpoint;
+  sh4->dbgif.read_mem = &sh4_dbg_read_memory;
+  sh4->dbgif.read_reg = &sh4_dbg_read_register;
+
+  /* setup run interface */
+  sh4->runif.enabled = 1;
+  sh4->runif.run = &sh4_run;
 
   return sh4;
 }

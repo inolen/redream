@@ -96,20 +96,22 @@ void sh4_dbg_read_register(struct device *dev, int n, uint64_t *value,
 void sh4_dbg_read_memory(struct device *dev, uint32_t addr, uint8_t *buffer,
                          int size) {
   struct sh4 *sh4 = (struct sh4 *)dev;
+  struct memory *mem = sh4->dc->mem;
 
   while (size--) {
-    *(buffer++) = sh4_read8(sh4->mem, addr++);
+    *(buffer++) = sh4_read8(mem, addr++);
   }
 }
 
 void sh4_dbg_remove_breakpoint(struct device *dev, int type, uint32_t addr) {
   struct sh4 *sh4 = (struct sh4 *)dev;
+  struct memory *mem = sh4->dc->mem;
 
   struct breakpoint *bp = lookup_breakpoint(sh4, addr);
   CHECK_NOTNULL(bp);
 
   /* restore the original instruction */
-  sh4_write16(sh4->mem, addr, bp->instr);
+  sh4_write16(mem, addr, bp->instr);
 
   /* free code cache to remove block containing the invalid instruction  */
   jit_free_code(sh4->jit);
@@ -119,12 +121,13 @@ void sh4_dbg_remove_breakpoint(struct device *dev, int type, uint32_t addr) {
 
 void sh4_dbg_add_breakpoint(struct device *dev, int type, uint32_t addr) {
   struct sh4 *sh4 = (struct sh4 *)dev;
+  struct memory *mem = sh4->dc->mem;
 
-  uint16_t instr = sh4_read16(sh4->mem, addr);
+  uint16_t instr = sh4_read16(mem, addr);
   struct breakpoint *bp = create_breakpoint(sh4, addr, instr);
 
   /* write out an invalid instruction */
-  sh4_write16(sh4->mem, addr, 0);
+  sh4_write16(mem, addr, 0);
 
   /* free code cache to remove block containing the original instruction  */
   jit_free_code(sh4->jit);
@@ -132,9 +135,10 @@ void sh4_dbg_add_breakpoint(struct device *dev, int type, uint32_t addr) {
 
 void sh4_dbg_step(struct device *dev) {
   struct sh4 *sh4 = (struct sh4 *)dev;
+  struct memory *mem = sh4->dc->mem;
 
   /* run the fallback handler for the current pc */
-  uint16_t data = sh4_read16(sh4->mem, sh4->ctx.pc);
+  uint16_t data = sh4_read16(mem, sh4->ctx.pc);
   struct jit_opdef *def = sh4_get_opdef(data);
   def->fallback((struct jit_guest *)sh4->guest, sh4->ctx.pc, data);
 

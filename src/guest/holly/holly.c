@@ -23,11 +23,13 @@ static void holly_ch2_dma_stop(struct holly *hl) {
 }
 
 static void holly_ch2_dma(struct holly *hl) {
+  struct sh4 *sh4 = hl->dc->sh4;
+
   struct sh4_dtr dtr = {0};
   dtr.channel = 2;
   dtr.dir = SH4_DMA_TO_ADDR;
   dtr.addr = *hl->SB_C2DSTAT;
-  sh4_dmac_ddt(hl->sh4, &dtr);
+  sh4_dmac_ddt(sh4, &dtr);
 
   *hl->SB_C2DLEN = 0;
   *hl->SB_C2DST = 0;
@@ -43,8 +45,8 @@ static void holly_gdrom_dma(struct holly *hl) {
     return;
   }
 
-  struct gdrom *gd = hl->gdrom;
-  struct sh4 *sh4 = hl->sh4;
+  struct gdrom *gd = hl->dc->gdrom;
+  struct sh4 *sh4 = hl->dc->sh4;
 
   /* only gdrom -> sh4 supported for now */
   CHECK_EQ(*hl->SB_GDDIR, 1);
@@ -92,26 +94,27 @@ static void holly_maple_dma(struct holly *hl) {
     return;
   }
 
-  struct maple *mp = hl->maple;
+  struct memory *mem = hl->dc->mem;
+  struct maple *mp = hl->dc->maple;
   uint32_t addr = *hl->SB_MDSTAR;
 
   while (1) {
     union maple_transfer desc;
-    desc.full = sh4_read32(hl->mem, addr);
+    desc.full = sh4_read32(mem, addr);
     addr += 4;
 
     switch (desc.pattern) {
       case MAPLE_PATTERN_NORMAL: {
-        uint32_t result_addr = sh4_read32(hl->mem, addr);
+        uint32_t result_addr = sh4_read32(mem, addr);
         addr += 4;
 
         /* read message */
         struct maple_frame frame, res;
-        frame.header.full = sh4_read32(hl->mem, addr);
+        frame.header.full = sh4_read32(mem, addr);
         addr += 4;
 
         for (uint32_t i = 0; i < frame.header.num_words; i++) {
-          frame.params[i] = sh4_read32(hl->mem, addr);
+          frame.params[i] = sh4_read32(mem, addr);
           addr += 4;
         }
 
@@ -120,15 +123,15 @@ static void holly_maple_dma(struct holly *hl) {
 
         /* write response */
         if (handled) {
-          sh4_write32(hl->mem, result_addr, res.header.full);
+          sh4_write32(mem, result_addr, res.header.full);
           result_addr += 4;
 
           for (uint32_t i = 0; i < res.header.num_words; i++) {
-            sh4_write32(hl->mem, result_addr, res.params[i]);
+            sh4_write32(mem, result_addr, res.params[i]);
             result_addr += 4;
           }
         } else {
-          sh4_write32(hl->mem, result_addr, 0xffffffff);
+          sh4_write32(mem, result_addr, 0xffffffff);
         }
       } break;
 
@@ -168,10 +171,12 @@ static void (*g2_timers[4])(void *);
 #define DEFINE_G2_DMA_TIMER(ch)                                       \
   static void holly_g2_dma_timer_channel##ch(void *data) {            \
     struct holly *hl = data;                                          \
+    struct memory *mem = hl->dc->mem;                                 \
+    struct scheduler *sched = hl->dc->sched;                          \
     struct holly_g2_dma *dma = &hl->dma[ch];                          \
     int chunk_size = 0x1000;                                          \
     int n = MIN(dma->len, chunk_size);                                \
-    sh4_memcpy(hl->mem, dma->dst, dma->src, n);                       \
+    sh4_memcpy(mem, dma->dst, dma->src, n);                           \
     dma->dst += n;                                                    \
     dma->src += n;                                                    \
     dma->len -= n;                                                    \
@@ -183,7 +188,7 @@ static void (*g2_timers[4])(void *);
     }                                                                 \
     /* g2 bus runs at 16-bits x 25mhz, loosely simulate this */       \
     int64_t end = CYCLES_TO_NANO(chunk_size / 2, UINT64_C(25000000)); \
-    scheduler_start_timer(hl->scheduler, g2_timers[ch], hl, end);     \
+    sched_start_timer(sched, g2_timers[ch], hl, end);                 \
   }
 
 DEFINE_G2_DMA_TIMER(0);
@@ -231,15 +236,17 @@ static void holly_g2_dma(struct holly *hl, int ch) {
 }
 
 static void holly_update_interrupts(struct holly *hl) {
+  struct sh4 *sh4 = hl->dc->sh4;
+
   /* trigger the respective level-encoded interrupt on the sh4 interrupt
      controller */
   {
     if ((*hl->SB_ISTNRM & *hl->SB_IML6NRM) ||
         (*hl->SB_ISTERR & *hl->SB_IML6ERR) ||
         (*hl->SB_ISTEXT & *hl->SB_IML6EXT)) {
-      sh4_raise_interrupt(hl->sh4, SH4_INT_IRL_9);
+      sh4_raise_interrupt(sh4, SH4_INT_IRL_9);
     } else {
-      sh4_clear_interrupt(hl->sh4, SH4_INT_IRL_9);
+      sh4_clear_interrupt(sh4, SH4_INT_IRL_9);
     }
   }
 
@@ -247,9 +254,9 @@ static void holly_update_interrupts(struct holly *hl) {
     if ((*hl->SB_ISTNRM & *hl->SB_IML4NRM) ||
         (*hl->SB_ISTERR & *hl->SB_IML4ERR) ||
         (*hl->SB_ISTEXT & *hl->SB_IML4EXT)) {
-      sh4_raise_interrupt(hl->sh4, SH4_INT_IRL_11);
+      sh4_raise_interrupt(sh4, SH4_INT_IRL_11);
     } else {
-      sh4_clear_interrupt(hl->sh4, SH4_INT_IRL_11);
+      sh4_clear_interrupt(sh4, SH4_INT_IRL_11);
     }
   }
 
@@ -257,9 +264,9 @@ static void holly_update_interrupts(struct holly *hl) {
     if ((*hl->SB_ISTNRM & *hl->SB_IML2NRM) ||
         (*hl->SB_ISTERR & *hl->SB_IML2ERR) ||
         (*hl->SB_ISTEXT & *hl->SB_IML2EXT)) {
-      sh4_raise_interrupt(hl->sh4, SH4_INT_IRL_13);
+      sh4_raise_interrupt(sh4, SH4_INT_IRL_13);
     } else {
-      sh4_clear_interrupt(hl->sh4, SH4_INT_IRL_13);
+      sh4_clear_interrupt(sh4, SH4_INT_IRL_13);
     }
   }
 }

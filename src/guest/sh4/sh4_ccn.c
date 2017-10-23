@@ -30,6 +30,8 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
 }
 
 void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
+  struct memory *mem = sh4->dc->mem;
+
   /* make sure this is a sq related prefetch */
   DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);
 
@@ -55,7 +57,7 @@ void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
     dst |= addr & 0x3ffffe0;
   }
 
-  sh4_memcpy_to_guest(sh4->mem, dst, sh4->ctx.sq[sqi], 32);
+  sh4_memcpy_to_guest(mem, dst, sh4->ctx.sq[sqi], 32);
 }
 
 uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {

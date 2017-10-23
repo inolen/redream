@@ -199,6 +199,8 @@ static void pvr_vblank_in(struct pvr *pvr) {
 
 static void pvr_next_scanline(void *data) {
   struct pvr *pvr = data;
+  struct holly *hl = pvr->dc->holly;
+  struct scheduler *sched = pvr->dc->sched;
 
   uint32_t num_lines = pvr->SPG_LOAD->vcount + 1;
   pvr->current_line = (pvr->current_line + 1) % num_lines;
@@ -207,11 +209,11 @@ static void pvr_next_scanline(void *data) {
   switch (pvr->SPG_HBLANK_INT->hblank_int_mode) {
     case 0x0:
       if (pvr->current_line == pvr->SPG_HBLANK_INT->line_comp_val) {
-        holly_raise_interrupt(pvr->holly, HOLLY_INT_PCHIINT);
+        holly_raise_interrupt(hl, HOLLY_INT_PCHIINT);
       }
       break;
     case 0x2:
-      holly_raise_interrupt(pvr->holly, HOLLY_INT_PCHIINT);
+      holly_raise_interrupt(hl, HOLLY_INT_PCHIINT);
       break;
     default:
       LOG_FATAL("unsupported hblank interrupt mode");
@@ -220,12 +222,12 @@ static void pvr_next_scanline(void *data) {
 
   /* vblank in */
   if (pvr->current_line == pvr->SPG_VBLANK_INT->vblank_in_line_number) {
-    holly_raise_interrupt(pvr->holly, HOLLY_INT_PCVIINT);
+    holly_raise_interrupt(hl, HOLLY_INT_PCVIINT);
   }
 
   /* vblank out */
   if (pvr->current_line == pvr->SPG_VBLANK_INT->vblank_out_line_number) {
-    holly_raise_interrupt(pvr->holly, HOLLY_INT_PCVOINT);
+    holly_raise_interrupt(hl, HOLLY_INT_PCVOINT);
   }
 
   int was_vsync = pvr->SPG_STATUS->vsync;
@@ -245,11 +247,13 @@ static void pvr_next_scanline(void *data) {
   }
 
   /* reschedule */
-  pvr->line_timer = scheduler_start_timer(pvr->scheduler, &pvr_next_scanline,
-                                          pvr, HZ_TO_NANO(pvr->line_clock));
+  pvr->line_timer = sched_start_timer(sched, &pvr_next_scanline, pvr,
+                                      HZ_TO_NANO(pvr->line_clock));
 }
 
 static void pvr_reconfigure_spg(struct pvr *pvr) {
+  struct scheduler *sched = pvr->dc->sched;
+
   /* scale pixel clock frequency */
   int pixel_clock = 13500000;
   if (pvr->FB_R_CTRL->vclk_div) {
@@ -277,12 +281,12 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
       pvr->SPG_VBLANK->vbstart, pvr->SPG_VBLANK->vbend);
 
   if (pvr->line_timer) {
-    scheduler_cancel_timer(pvr->scheduler, pvr->line_timer);
+    sched_cancel_timer(sched, pvr->line_timer);
     pvr->line_timer = NULL;
   }
 
-  pvr->line_timer = scheduler_start_timer(pvr->scheduler, &pvr_next_scanline,
-                                          pvr, HZ_TO_NANO(pvr->line_clock));
+  pvr->line_timer = sched_start_timer(sched, &pvr_next_scanline, pvr,
+                                      HZ_TO_NANO(pvr->line_clock));
 }
 
 static int pvr_init(struct device *dev) {
@@ -404,19 +408,24 @@ struct pvr *pvr_create(struct dreamcast *dc) {
 
 REG_W32(pvr_cb, SOFTRESET) {
   struct pvr *pvr = dc->pvr;
+  struct ta *ta = dc->ta;
+
   if (!(value & 0x1)) {
     return;
   }
-  ta_soft_reset(pvr->ta);
+
+  ta_soft_reset(ta);
 }
 
 REG_W32(pvr_cb, STARTRENDER) {
   struct pvr *pvr = dc->pvr;
+  struct ta *ta = dc->ta;
+
   if (!value) {
     return;
   }
 
-  ta_start_render(pvr->ta);
+  ta_start_render(ta);
 
   pvr_mark_framebuffer(pvr, *pvr->FB_W_SOF1);
   pvr_mark_framebuffer(pvr, *pvr->FB_W_SOF2);
@@ -425,34 +434,47 @@ REG_W32(pvr_cb, STARTRENDER) {
 
 REG_W32(pvr_cb, TA_LIST_INIT) {
   struct pvr *pvr = dc->pvr;
+  struct ta *ta = dc->ta;
+
   if (!(value & 0x80000000)) {
     return;
   }
-  ta_list_init(pvr->ta);
+
+  ta_list_init(ta);
 }
 
 REG_W32(pvr_cb, TA_LIST_CONT) {
   struct pvr *pvr = dc->pvr;
+  struct ta *ta = dc->ta;
+
   if (!(value & 0x80000000)) {
     return;
   }
-  ta_list_cont(pvr->ta);
+
+  ta_list_cont(ta);
 }
 
 REG_W32(pvr_cb, TA_YUV_TEX_BASE) {
   struct pvr *pvr = dc->pvr;
+  struct ta *ta = dc->ta;
+
   pvr->TA_YUV_TEX_BASE->full = value;
-  ta_yuv_init(pvr->ta);
+
+  ta_yuv_init(ta);
 }
 
 REG_W32(pvr_cb, SPG_LOAD) {
   struct pvr *pvr = dc->pvr;
+
   pvr->SPG_LOAD->full = value;
+
   pvr_reconfigure_spg(pvr);
 }
 
 REG_W32(pvr_cb, FB_R_CTRL) {
   struct pvr *pvr = dc->pvr;
+
   pvr->FB_R_CTRL->full = value;
+
   pvr_reconfigure_spg(pvr);
 }

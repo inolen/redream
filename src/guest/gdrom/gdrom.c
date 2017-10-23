@@ -101,18 +101,22 @@ static int gdrom_get_fad(uint8_t a, uint8_t b, uint8_t c, int msf) {
 }
 
 static void gdrom_spi_end(struct gdrom *gd) {
+  struct holly *hl = gd->dc->holly;
+
   gd->ireason.IO = 1;
   gd->ireason.CoD = 1;
   gd->status.DRDY = 1;
   gd->status.BSY = 0;
   gd->status.DRQ = 0;
 
-  holly_raise_interrupt(gd->holly, HOLLY_INT_G1GDINT);
+  holly_raise_interrupt(hl, HOLLY_INT_G1GDINT);
 
   gd->state = STATE_READ_ATA_CMD;
 }
 
 static void gdrom_spi_cdread(struct gdrom *gd) {
+  struct holly *hl = gd->dc->holly;
+
   if (gd->cdr_dma) {
     int max_dma_sectors = sizeof(gd->dma_buffer) / DISC_MAX_SECTOR_SIZE;
 
@@ -150,13 +154,15 @@ static void gdrom_spi_cdread(struct gdrom *gd) {
     gd->status.DRQ = 1;
     gd->status.BSY = 0;
 
-    holly_raise_interrupt(gd->holly, HOLLY_INT_G1GDINT);
+    holly_raise_interrupt(hl, HOLLY_INT_G1GDINT);
 
     gd->state = STATE_WRITE_SPI_DATA;
   }
 }
 
 static void gdrom_spi_read(struct gdrom *gd, int offset, int size) {
+  struct holly *hl = gd->dc->holly;
+
   gd->cdr_num_sectors = 0;
 
   gd->pio_head = 0;
@@ -169,12 +175,14 @@ static void gdrom_spi_read(struct gdrom *gd, int offset, int size) {
   gd->status.DRQ = 1;
   gd->status.BSY = 0;
 
-  holly_raise_interrupt(gd->holly, HOLLY_INT_G1GDINT);
+  holly_raise_interrupt(hl, HOLLY_INT_G1GDINT);
 
   gd->state = STATE_READ_SPI_DATA;
 }
 
 static void gdrom_spi_write(struct gdrom *gd, void *data, int size) {
+  struct holly *hl = gd->dc->holly;
+
   gd->cdr_num_sectors = 0;
 
   CHECK(size < (int)sizeof(gd->pio_buffer));
@@ -188,16 +196,18 @@ static void gdrom_spi_write(struct gdrom *gd, void *data, int size) {
   gd->status.DRQ = 1;
   gd->status.BSY = 0;
 
-  holly_raise_interrupt(gd->holly, HOLLY_INT_G1GDINT);
+  holly_raise_interrupt(hl, HOLLY_INT_G1GDINT);
 
   gd->state = STATE_WRITE_SPI_DATA;
 }
 
 static void gdrom_ata_end(struct gdrom *gd) {
+  struct holly *hl = gd->dc->holly;
+
   gd->status.DRDY = 1;
   gd->status.BSY = 0;
 
-  holly_raise_interrupt(gd->holly, HOLLY_INT_G1GDINT);
+  holly_raise_interrupt(hl, HOLLY_INT_G1GDINT);
 
   gd->state = STATE_READ_ATA_CMD;
 }
@@ -833,9 +843,10 @@ REG_W32(holly_cb, GD_DRVSEL) {
 
 REG_R32(holly_cb, GD_STATUS_COMMAND) {
   struct gdrom *gd = dc->gdrom;
+  struct holly *hl = dc->holly;
   uint16_t value = gd->status.full;
   LOG_GDROM("read GD_STATUS 0x%x", value);
-  holly_clear_interrupt(gd->holly, HOLLY_INT_G1GDINT);
+  holly_clear_interrupt(hl, HOLLY_INT_G1GDINT);
   return value;
 }
 

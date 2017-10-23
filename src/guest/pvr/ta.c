@@ -407,6 +407,8 @@ static void ta_init_context(struct ta *ta, struct ta_context *ctx) {
 
 static void ta_write_context(struct ta *ta, struct ta_context *ctx,
                              const void *ptr, int size) {
+  struct holly *hl = ta->dc->holly;
+
   CHECK_LT(ctx->size + size, (int)sizeof(ctx->params));
   memcpy(&ctx->params[ctx->size], ptr, size);
   ctx->size += size;
@@ -436,7 +438,7 @@ static void ta_write_context(struct ta *ta, struct ta_context *ctx,
         /* it's common that a TA_PARAM_END_OF_LIST is sent before a valid list
            type has been set */
         if (ctx->list_type != TA_NUM_LISTS) {
-          holly_raise_interrupt(ta->holly, list_interrupts[ctx->list_type]);
+          holly_raise_interrupt(hl, list_interrupts[ctx->list_type]);
         }
         ctx->list_type = TA_NUM_LISTS;
         ctx->vert_type = TA_NUM_VERTS;
@@ -481,12 +483,13 @@ static void ta_write_context(struct ta *ta, struct ta_context *ctx,
  * level in order to squeeze out extra free performance
  */
 static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
-  struct pvr *pvr = ta->pvr;
+  struct memory *mem = ta->dc->mem;
+  struct pvr *pvr = ta->dc->pvr;
 
   /* autosort */
   if (pvr->FPU_PARAM_CFG->region_header_type) {
     /* region array data type 2 */
-    uint32_t region_data = sh4_read32(ta->mem, 0x05000000 + *pvr->REGION_BASE);
+    uint32_t region_data = sh4_read32(mem, 0x05000000 + *pvr->REGION_BASE);
     ctx->autosort = !(region_data & 0x20000000);
   } else {
     /* region array data type 1 */
@@ -516,9 +519,9 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
       ((ctx->addr + pvr->ISP_BACKGND_T->tag_address * 4) & 0x7fffff);
 
   /* get surface parameters */
-  ctx->bg_isp.full = sh4_read32(ta->mem, vram_offset);
-  ctx->bg_tsp.full = sh4_read32(ta->mem, vram_offset + 4);
-  ctx->bg_tcw.full = sh4_read32(ta->mem, vram_offset + 8);
+  ctx->bg_isp.full = sh4_read32(mem, vram_offset);
+  ctx->bg_tsp.full = sh4_read32(mem, vram_offset + 4);
+  ctx->bg_tcw.full = sh4_read32(mem, vram_offset + 8);
   vram_offset += 12;
 
   /* get the background depth */
@@ -542,7 +545,7 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
   for (int i = 0, bg_offset = 0; i < 3; i++) {
     CHECK_LE(bg_offset + vertex_size, (int)sizeof(ctx->bg_vertices));
 
-    sh4_memcpy_to_host(ta->mem, &ctx->bg_vertices[bg_offset], vram_offset,
+    sh4_memcpy_to_host(mem, &ctx->bg_vertices[bg_offset], vram_offset,
                        vertex_size);
 
     bg_offset += vertex_size;
@@ -553,6 +556,7 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
 static void ta_render_context_end(void *data) {
   struct ta_context *ctx = data;
   struct ta *ta = ctx->userdata;
+  struct holly *hl = ta->dc->holly;
 
   /* ensure the client has finished rendering */
   dc_finish_render(ta->dc);
@@ -561,12 +565,14 @@ static void ta_render_context_end(void *data) {
   ta_free_context(ta, ctx);
 
   /* let the game know rendering is complete */
-  holly_raise_interrupt(ta->holly, HOLLY_INT_PCEOVINT);
-  holly_raise_interrupt(ta->holly, HOLLY_INT_PCEOIINT);
-  holly_raise_interrupt(ta->holly, HOLLY_INT_PCEOTINT);
+  holly_raise_interrupt(hl, HOLLY_INT_PCEOVINT);
+  holly_raise_interrupt(hl, HOLLY_INT_PCEOIINT);
+  holly_raise_interrupt(hl, HOLLY_INT_PCEOTINT);
 }
 
 static void ta_render_context(struct ta *ta, struct ta_context *ctx) {
+  struct scheduler *sched = ta->dc->sched;
+
   prof_counter_add(COUNTER_ta_renders, 1);
 
   /* remove context from pool */
@@ -583,7 +589,7 @@ static void ta_render_context(struct ta *ta, struct ta_context *ctx) {
      TODO figure out a heuristic involving the number of polygons rendered */
   int64_t end = INT64_C(10000000);
   ctx->userdata = ta;
-  scheduler_start_timer(ta->scheduler, &ta_render_context_end, ctx, end);
+  sched_start_timer(sched, &ta_render_context_end, ctx, end);
 }
 
 /*
@@ -595,7 +601,7 @@ static void ta_render_context(struct ta *ta, struct ta_context *ctx) {
   MAX(TA_YUV420_MACROBLOCK_SIZE, TA_YUV422_MACROBLOCK_SIZE)
 
 static void ta_yuv_reset(struct ta *ta) {
-  struct pvr *pvr = ta->pvr;
+  struct pvr *pvr = ta->dc->pvr;
 
   /* FIXME only YUV420 -> YUV422 supported for now */
   CHECK_EQ(pvr->TA_YUV_TEX_CTRL->format, 0);
@@ -657,7 +663,8 @@ static void ta_yuv_process_block(struct ta *ta, const uint8_t *in_uv,
 }
 
 static void ta_yuv_process_macroblock(struct ta *ta, const void *data) {
-  struct pvr *pvr = ta->pvr;
+  struct pvr *pvr = ta->dc->pvr;
+  struct holly *hl = ta->dc->holly;
 
   /* YUV420 data comes in as a series 16x16 macroblocks that need to be
      converted into a single UYVY422 texture */
@@ -685,7 +692,7 @@ static void ta_yuv_process_macroblock(struct ta *ta, const void *data) {
     ta_yuv_reset(ta);
 
     /* raise DMA end interrupt */
-    holly_raise_interrupt(ta->holly, HOLLY_INT_TAYUVINT);
+    holly_raise_interrupt(hl, HOLLY_INT_TAYUVINT);
   }
 }
 
@@ -756,19 +763,19 @@ void ta_init_tables() {
  */
 void ta_texture_write(struct ta *ta, uint32_t dst, const uint8_t *src,
                       int size) {
-  struct holly *holly = ta->holly;
+  struct holly *hl = ta->dc->holly;
 
-  CHECK(*holly->SB_LMMODE0 == 0);
+  CHECK(*hl->SB_LMMODE0 == 0);
 
   dst &= 0xeeffffff;
   memcpy(&ta->vram[dst], src, size);
 }
 
 void ta_yuv_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size) {
-  struct holly *holly = ta->holly;
-  struct pvr *pvr = ta->pvr;
+  struct holly *hl = ta->dc->holly;
+  struct pvr *pvr = ta->dc->pvr;
 
-  CHECK(*holly->SB_LMMODE0 == 0);
+  CHECK(*hl->SB_LMMODE0 == 0);
   CHECK(size % ta->yuv_macroblock_size == 0);
 
   const uint8_t *end = src + size;
@@ -779,9 +786,9 @@ void ta_yuv_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size) {
 }
 
 void ta_poly_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size) {
-  struct holly *holly = ta->holly;
+  struct holly *hl = ta->dc->holly;
 
-  CHECK(*holly->SB_LMMODE0 == 0);
+  CHECK(*hl->SB_LMMODE0 == 0);
   CHECK(size % 32 == 0);
 
   const uint8_t *end = src + size;
@@ -794,11 +801,13 @@ void ta_poly_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size) {
 void ta_texture_info(struct ta *ta, union tsp tsp, union tcw tcw,
                      const uint8_t **texture, int *texture_size,
                      const uint8_t **palette, int *palette_size) {
+  struct pvr *pvr = ta->dc->pvr;
+
   uint32_t texture_addr = ta_texture_addr(tsp, tcw, texture_size);
   *texture = &ta->vram[texture_addr];
 
   uint32_t palette_addr = ta_palette_addr(tcw, palette_size);
-  uint8_t *palette_ram = (uint8_t *)ta->pvr->PALETTE_RAM000 + palette_addr;
+  uint8_t *palette_ram = (uint8_t *)pvr->PALETTE_RAM000 + palette_addr;
   *palette = *palette_size ? palette_ram : NULL;
 }
 
@@ -807,23 +816,24 @@ void ta_yuv_init(struct ta *ta) {
 }
 
 void ta_list_cont(struct ta *ta) {
-  struct ta_context *ctx =
-      ta_get_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+  struct pvr *pvr = ta->dc->pvr;
+  struct ta_context *ctx = ta_get_context(ta, pvr->TA_ISP_BASE->base_address);
   CHECK_NOTNULL(ctx);
   ta_cont_context(ta, ctx);
   ta->curr_context = ctx;
 }
 
 void ta_list_init(struct ta *ta) {
+  struct pvr *pvr = ta->dc->pvr;
   struct ta_context *ctx =
-      ta_demand_context(ta, ta->pvr->TA_ISP_BASE->base_address);
+      ta_demand_context(ta, pvr->TA_ISP_BASE->base_address);
   ta_init_context(ta, ctx);
   ta->curr_context = ctx;
 }
 
 void ta_start_render(struct ta *ta) {
-  struct ta_context *ctx =
-      ta_get_context(ta, ta->pvr->PARAM_BASE->base_address);
+  struct pvr *pvr = ta->dc->pvr;
+  struct ta_context *ctx = ta_get_context(ta, pvr->PARAM_BASE->base_address);
   CHECK_NOTNULL(ctx);
   ta_render_context(ta, ctx);
 }

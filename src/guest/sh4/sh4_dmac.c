@@ -27,15 +27,17 @@ static void sh4_dmac_check(struct sh4 *sh4, int channel) {
 }
 
 void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
+  struct memory *mem = sh4->dc->mem;
+
   /* FIXME this should be made asynchronous, at which point the significance
      of the registers / interrupts should be more obvious */
 
   if (dtr->data) {
     /* single address mode transfer */
     if (dtr->dir == SH4_DMA_FROM_ADDR) {
-      sh4_memcpy_to_host(sh4->mem, dtr->data, dtr->addr, dtr->size);
+      sh4_memcpy_to_host(mem, dtr->data, dtr->addr, dtr->size);
     } else {
-      sh4_memcpy_to_guest(sh4->mem, dtr->addr, dtr->data, dtr->size);
+      sh4_memcpy_to_guest(mem, dtr->addr, dtr->data, dtr->size);
     }
   } else {
     /* dual address mode transfer */
@@ -82,7 +84,7 @@ void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {
     uint32_t src = dtr->dir == SH4_DMA_FROM_ADDR ? dtr->addr : *sar;
     uint32_t dst = dtr->dir == SH4_DMA_FROM_ADDR ? *dar : dtr->addr;
     int size = *dmatcr * 32;
-    sh4_memcpy(sh4->mem, dst, src, size);
+    sh4_memcpy(mem, dst, src, size);
 
     /* update src / addresses as well as remaining count */
     *sar = src + size;

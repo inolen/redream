@@ -62,7 +62,8 @@ typedef void (*device_rem_bp_cb)(struct device *, int, uint32_t);
 typedef void (*device_read_mem_cb)(struct device *, uint32_t, uint8_t *, int);
 typedef void (*device_read_reg_cb)(struct device *, int, uint64_t *, int *);
 
-struct debug_interface {
+struct dbgif {
+  int enabled;
   device_num_regs_cb num_regs;
   device_step_cb step;
   device_add_bp_cb add_bp;
@@ -71,12 +72,13 @@ struct debug_interface {
   device_read_reg_cb read_reg;
 };
 
-/* execute interface */
+/* run interface */
 typedef void (*device_run_cb)(struct device *, int64_t);
 
-struct execute_interface {
-  device_run_cb run;
+struct runif {
+  int enabled;
   int running;
+  device_run_cb run;
 };
 
 /*
@@ -99,24 +101,8 @@ struct device {
   device_post_init_cb post_init;
 
   /* optional interfaces */
-  struct debug_interface *debug_if;
-  struct execute_interface *execute_if;
-
-  /* cached references to other devices */
-  struct debugger *debugger;
-  struct memory *mem;
-  struct scheduler *scheduler;
-  struct bios *bios;
-  struct sh4 *sh4;
-  struct arm7 *arm7;
-  struct aica *aica;
-  struct boot *boot;
-  struct flash *flash;
-  struct gdrom *gdrom;
-  struct holly *holly;
-  struct maple *maple;
-  struct pvr *pvr;
-  struct ta *ta;
+  struct dbgif dbgif;
+  struct runif runif;
 
   struct list_node it;
 };
@@ -137,7 +123,7 @@ struct dreamcast {
   /* systems */
   struct debugger *debugger;
   struct memory *mem;
-  struct scheduler *scheduler;
+  struct scheduler *sched;
 
   /* devices */
   struct bios *bios;
@@ -166,23 +152,6 @@ struct dreamcast {
 struct dreamcast *dc_create();
 void dc_destroy(struct dreamcast *dc);
 
-void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
-                       device_init_cb init, device_post_init_cb post_init);
-struct device *dc_get_device(struct dreamcast *dc, const char *name);
-void dc_destroy_device(struct device *dev);
-
-struct debug_interface *dc_create_debug_interface(device_num_regs_cb num_regs,
-                                                  device_step_cb step,
-                                                  device_add_bp_cb add_bp,
-                                                  device_rem_bp_cb rem_bp,
-                                                  device_read_mem_cb read_mem,
-                                                  device_read_reg_cb read_reg);
-void dc_destroy_debug_interface(struct debug_interface *dbg);
-
-struct execute_interface *dc_create_execute_interface(device_run_cb run,
-                                                      int running);
-void dc_destroy_execute_interface(struct execute_interface *execute);
-
 int dc_init(struct dreamcast *dc);
 int dc_load(struct dreamcast *dc, const char *path);
 int dc_running(struct dreamcast *dc);
@@ -191,7 +160,13 @@ void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
 void dc_input(struct dreamcast *dc, int port, int button, uint16_t value);
 
-/* client functionality */
+/* device registration */
+void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
+                       device_init_cb init, device_post_init_cb post_init);
+struct device *dc_get_device(struct dreamcast *dc, const char *name);
+void dc_destroy_device(struct device *dev);
+
+/* client interface */
 void dc_push_audio(struct dreamcast *dc, const int16_t *data, int frames);
 void dc_push_pixels(struct dreamcast *dc, const uint8_t *data, int w, int h);
 void dc_start_render(struct dreamcast *dc, struct ta_context *ctx);

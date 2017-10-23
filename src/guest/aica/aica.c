@@ -282,6 +282,7 @@ static uint32_t aica_encode_arm_irq_l(struct aica *aica, uint32_t intr) {
 }
 
 static void aica_update_arm(struct aica *aica) {
+  struct arm7 *arm7 = aica->dc->arm7;
   uint32_t enabled_intr = aica->common_data->SCIEB;
   uint32_t pending_intr = aica->common_data->SCIPD & enabled_intr;
 
@@ -301,18 +302,19 @@ static void aica_update_arm(struct aica *aica) {
 
   if (aica->common_data->L) {
     /* FIQ handler will load L from common data to check interrupt type */
-    arm7_raise_interrupt(aica->arm7, ARM7_INT_FIQ);
+    arm7_raise_interrupt(arm7, ARM7_INT_FIQ);
   }
 }
 
 static void aica_update_sh(struct aica *aica) {
+  struct holly *hl = aica->dc->holly;
   uint32_t enabled_intr = aica->common_data->MCIEB;
   uint32_t pending_intr = aica->common_data->MCIPD & enabled_intr;
 
   if (pending_intr) {
-    holly_raise_interrupt(aica->holly, HOLLY_INT_G2AICINT);
+    holly_raise_interrupt(hl, HOLLY_INT_G2AICINT);
   } else {
-    holly_clear_interrupt(aica->holly, HOLLY_INT_G2AICINT);
+    holly_clear_interrupt(hl, HOLLY_INT_G2AICINT);
   }
 }
 
@@ -349,6 +351,7 @@ static uint32_t aica_timer_tctl(struct aica *aica, int n) {
 }
 
 static uint32_t aica_timer_tcnt(struct aica *aica, int n) {
+  struct scheduler *sched = aica->dc->sched;
   struct timer *timer = aica->timers[n];
   if (!timer) {
     /* if no timer has been created, return the raw value */
@@ -359,12 +362,13 @@ static uint32_t aica_timer_tcnt(struct aica *aica, int n) {
   /* else, dynamically compute the value based on the timer's remaining time */
   int tctl = aica_timer_tctl(aica, n);
   int64_t freq = AICA_SAMPLE_FREQ >> tctl;
-  int64_t remaining = scheduler_remaining_time(aica->scheduler, timer);
+  int64_t remaining = sched_remaining_time(sched, timer);
   int64_t cycles = NANO_TO_CYCLES(remaining, freq);
   return (uint32_t)cycles;
 }
 
 static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
+  struct scheduler *sched = aica->dc->sched;
   struct timer **timer = &aica->timers[n];
 
   int64_t freq = AICA_SAMPLE_FREQ >> aica_timer_tctl(aica, n);
@@ -372,14 +376,13 @@ static void aica_timer_reschedule(struct aica *aica, int n, uint32_t period) {
   int64_t remaining = CYCLES_TO_NANO(cycles, freq);
 
   if (*timer) {
-    scheduler_cancel_timer(aica->scheduler, *timer);
+    sched_cancel_timer(sched, *timer);
     *timer = NULL;
   }
 
   static timer_cb timer_cbs[3] = {&aica_timer_expire_0, &aica_timer_expire_1,
                                   &aica_timer_expire_2};
-  *timer =
-      scheduler_start_timer(aica->scheduler, timer_cbs[n], aica, remaining);
+  *timer = sched_start_timer(sched, timer_cbs[n], aica, remaining);
 }
 
 static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
@@ -422,9 +425,9 @@ static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
 
 static void aica_rtc_timer(void *data) {
   struct aica *aica = data;
+  struct scheduler *sched = aica->dc->sched;
   aica->rtc++;
-  aica->rtc_timer =
-      scheduler_start_timer(aica->scheduler, &aica_rtc_timer, aica, NS_PER_SEC);
+  aica->rtc_timer = sched_start_timer(sched, &aica_rtc_timer, aica, NS_PER_SEC);
 }
 
 static float aica_channel_hz(struct aica_channel *ch) {
@@ -750,6 +753,7 @@ static uint32_t aica_common_reg_read(struct aica *aica, uint32_t addr,
 
 static void aica_common_reg_write(struct aica *aica, uint32_t addr,
                                   uint32_t data, uint32_t mask) {
+  struct arm7 *arm7 = aica->dc->arm7;
   uint32_t old_data = READ_DATA((uint8_t *)aica->common_data + addr);
   WRITE_DATA((uint8_t *)aica->common_data + addr);
 
@@ -807,11 +811,11 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
         if (aica->common_data->ARMRST) {
           /* suspend arm when reset is pulled low */
           aica->arm_resetting = 1;
-          arm7_suspend(aica->arm7);
+          arm7_suspend(arm7);
         } else if (aica->arm_resetting) {
           /* reset and resume arm when reset is released */
           aica->arm_resetting = 0;
-          arm7_reset(aica->arm7);
+          arm7_reset(arm7);
         }
       }
     } break;
@@ -833,6 +837,7 @@ static void aica_common_reg_write(struct aica *aica, uint32_t addr,
 
 static void aica_next_sample(void *data) {
   struct aica *aica = data;
+  struct scheduler *sched = aica->dc->sched;
 
   aica_generate_frames(aica);
   aica_raise_interrupt(aica, AICA_INT_SAMPLE);
@@ -841,8 +846,8 @@ static void aica_next_sample(void *data) {
 
   /* reschedule */
   aica->sample_timer =
-      scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
-                            HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_BATCH_SIZE));
+      sched_start_timer(sched, &aica_next_sample, aica,
+                        HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_BATCH_SIZE));
 }
 
 static void aica_toggle_recording(struct aica *aica) {
@@ -865,9 +870,10 @@ static void aica_toggle_recording(struct aica *aica) {
 
 static int aica_init(struct device *dev) {
   struct aica *aica = (struct aica *)dev;
-  struct dreamcast *dc = aica->dc;
+  struct memory *mem = aica->dc->mem;
+  struct scheduler *sched = aica->dc->sched;
 
-  aica->aram = mem_aram(dc->mem, 0x0);
+  aica->aram = mem_aram(mem, 0x0);
 
   /* init channels */
   {
@@ -878,8 +884,8 @@ static int aica_init(struct device *dev) {
     }
     aica->common_data = (struct common_data *)(aica->reg + 0x2800);
     aica->sample_timer =
-        scheduler_start_timer(aica->scheduler, &aica_next_sample, aica,
-                              HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_BATCH_SIZE));
+        sched_start_timer(sched, &aica_next_sample, aica,
+                          HZ_TO_NANO(AICA_SAMPLE_FREQ / AICA_BATCH_SIZE));
   }
 
   /* init timers */
@@ -892,8 +898,8 @@ static int aica_init(struct device *dev) {
   /* init rtc */
   {
     /* increment clock every second */
-    aica->rtc_timer = scheduler_start_timer(aica->scheduler, &aica_rtc_timer,
-                                            aica, NS_PER_SEC);
+    aica->rtc_timer =
+        sched_start_timer(sched, &aica_rtc_timer, aica, NS_PER_SEC);
   }
 
   return 1;
@@ -993,10 +999,12 @@ void aica_debug_menu(struct aica *aica) {
 #endif
 
 void aica_destroy(struct aica *aica) {
+  struct scheduler *sched = aica->dc->sched;
+
   /* shutdown rtc */
   {
     if (aica->rtc_timer) {
-      scheduler_cancel_timer(aica->scheduler, aica->rtc_timer);
+      sched_cancel_timer(sched, aica->rtc_timer);
     }
   }
 
@@ -1004,7 +1012,7 @@ void aica_destroy(struct aica *aica) {
   {
     for (int i = 0; i < 3; i++) {
       if (aica->timers[i]) {
-        scheduler_cancel_timer(aica->scheduler, aica->timers[i]);
+        sched_cancel_timer(sched, aica->timers[i]);
       }
     }
   }
@@ -1012,7 +1020,7 @@ void aica_destroy(struct aica *aica) {
   /* shutdown channels */
   {
     if (aica->sample_timer) {
-      scheduler_cancel_timer(aica->scheduler, aica->sample_timer);
+      sched_cancel_timer(sched, aica->sample_timer);
     }
   }
 

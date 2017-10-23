@@ -15,6 +15,8 @@ static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
                                uint32_t tcr);
 
 static uint32_t sh4_tmu_tcnt(struct sh4 *sh4, int n) {
+  struct scheduler *sched = sh4->dc->sched;
+
   /* TCNT values aren't updated in real time. if a timer is enabled, query
      the scheduler to figure out how many cycles are remaining for the given
      timer */
@@ -28,7 +30,7 @@ static uint32_t sh4_tmu_tcnt(struct sh4 *sh4, int n) {
      this to change */
   uint32_t tcr = *TCR(n);
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
-  int64_t remaining = scheduler_remaining_time(sh4->scheduler, timer);
+  int64_t remaining = sched_remaining_time(sched, timer);
   int64_t cycles = NANO_TO_CYCLES(remaining, freq);
 
   return (uint32_t)cycles;
@@ -73,6 +75,7 @@ static void sh4_tmu_expire_2(void *data) {
 
 static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
                                uint32_t tcr) {
+  struct scheduler *sched = sh4->dc->sched;
   struct timer **timer = &sh4->tmu_timers[n];
 
   int64_t freq = PERIPHERAL_CLOCK_FREQ >> PERIPHERAL_SCALE[tcr & 7];
@@ -80,16 +83,18 @@ static void sh4_tmu_reschedule(struct sh4 *sh4, int n, uint32_t tcnt,
   int64_t remaining = CYCLES_TO_NANO(cycles, freq);
 
   if (*timer) {
-    scheduler_cancel_timer(sh4->scheduler, *timer);
+    sched_cancel_timer(sched, *timer);
     *timer = NULL;
   }
 
   timer_cb cb = (n == 0 ? &sh4_tmu_expire_0
                         : n == 1 ? &sh4_tmu_expire_1 : &sh4_tmu_expire_2);
-  *timer = scheduler_start_timer(sh4->scheduler, cb, sh4, remaining);
+  *timer = sched_start_timer(sched, cb, sh4, remaining);
 }
 
 static void sh4_tmu_update_tstr(struct sh4 *sh4) {
+  struct scheduler *sched = sh4->dc->sched;
+
   for (int i = 0; i < 3; i++) {
     struct timer **timer = &sh4->tmu_timers[i];
 
@@ -103,7 +108,7 @@ static void sh4_tmu_update_tstr(struct sh4 *sh4) {
       *TCNT(i) = sh4_tmu_tcnt(sh4, i);
 
       /* disable the timer */
-      scheduler_cancel_timer(sh4->scheduler, *timer);
+      sched_cancel_timer(sched, *timer);
       *timer = NULL;
     }
   }

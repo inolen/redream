@@ -131,20 +131,24 @@ static void arm7_compile_code(struct arm7 *arm, uint32_t addr) {
 
 void arm7_mem_write(struct arm7 *arm, uint32_t addr, uint32_t data,
                     uint32_t mask) {
+  struct aica *aica = arm->dc->aica;
+
   if (/*addr >= ARM7_AICA_MEM_BEGIN &&*/ addr <= ARM7_AICA_MEM_END) {
-    aica_mem_write(arm->aica, addr, data, mask);
+    aica_mem_write(aica, addr, data, mask);
   } else if (addr >= ARM7_AICA_REG_BEGIN && addr <= ARM7_AICA_REG_END) {
-    aica_reg_write(arm->aica, addr - ARM7_AICA_REG_BEGIN, data, mask);
+    aica_reg_write(aica, addr - ARM7_AICA_REG_BEGIN, data, mask);
   } else {
     LOG_FATAL("arm7_mem_write addr=0x%08x", addr);
   }
 }
 
 uint32_t arm7_mem_read(struct arm7 *arm, uint32_t addr, uint32_t mask) {
+  struct aica *aica = arm->dc->aica;
+
   if (/*addr >= ARM7_AICA_MEM_BEGIN &&*/ addr <= ARM7_AICA_MEM_END) {
-    return aica_mem_read(arm->aica, addr, mask);
+    return aica_mem_read(aica, addr, mask);
   } else if (addr >= ARM7_AICA_REG_BEGIN && addr <= ARM7_AICA_REG_END) {
-    return aica_reg_read(arm->aica, addr - ARM7_AICA_REG_BEGIN, mask);
+    return aica_reg_read(aica, addr - ARM7_AICA_REG_BEGIN, mask);
   } else {
     LOG_FATAL("arm7_mem_read addr=0x%08x", addr);
   }
@@ -168,11 +172,11 @@ void arm7_reset(struct arm7 *arm) {
   arm->ctx.r[R13_SVC] = 0x03007fe0;
   arm->ctx.r[CPSR] = F_MASK | MODE_SYS;
 
-  arm->execute_if->running = 1;
+  arm->runif.running = 1;
 }
 
 void arm7_suspend(struct arm7 *arm) {
-  arm->execute_if->running = 0;
+  arm->runif.running = 0;
 }
 
 static void arm7_run(struct device *dev, int64_t ns) {
@@ -200,8 +204,8 @@ static struct jit_guest *arm7_guest_create(struct arm7 *arm) {
 
   /* memory interface */
   guest->ctx = &arm->ctx;
-  guest->membase = arm7_base(arm->mem);
-  guest->mem = arm->mem;
+  guest->membase = arm7_base(arm->dc->mem);
+  guest->mem = arm->dc->mem;
   guest->lookup = &arm7_lookup;
   guest->r8 = &arm7_read8;
   guest->r16 = &arm7_read16;
@@ -265,15 +269,16 @@ void arm7_destroy(struct arm7 *arm) {
   arm7_guest_destroy(arm->guest);
   arm->frontend->destroy(arm->frontend);
   arm->backend->destroy(arm->backend);
-
-  dc_destroy_execute_interface(arm->execute_if);
   dc_destroy_device((struct device *)arm);
 }
 
 struct arm7 *arm7_create(struct dreamcast *dc) {
   struct arm7 *arm =
       dc_create_device(dc, sizeof(struct arm7), "arm", &arm7_init, NULL);
-  arm->execute_if = dc_create_execute_interface(&arm7_run, 0);
+
+  /* setup run interface */
+  arm->runif.enabled = 1;
+  arm->runif.run = &arm7_run;
 
   return arm;
 }
