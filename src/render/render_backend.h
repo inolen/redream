@@ -96,10 +96,11 @@ struct ta_surface {
       int ignore_alpha : 1;
       int ignore_texture_alpha : 1;
       int offset_color : 1;
-      int pt_alpha_test : 1;
-      int pt_alpha_ref : 8;
+      int alpha_test : 1;
+      /* give an extra bit to avoid sign extension / unsigned type */
+      int alpha_ref : 9;
       int debug_depth : 1;
-      int : 20;
+      int : 19;
     };
   } params;
 

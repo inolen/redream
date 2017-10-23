@@ -21,6 +21,7 @@ void trace_writer_render_context(struct trace_writer *writer,
   cmd.context.palette_fmt = ctx->palette_fmt;
   cmd.context.video_width = ctx->video_width;
   cmd.context.video_height = ctx->video_height;
+  cmd.context.alpha_ref = ctx->alpha_ref;
   cmd.context.bg_isp = ctx->bg_isp;
   cmd.context.bg_tsp = ctx->bg_tsp;
   cmd.context.bg_tcw = ctx->bg_tcw;
@@ -166,12 +167,13 @@ void trace_copy_context(const struct trace_cmd *cmd, struct ta_context *ctx) {
   ctx->autosort = cmd->context.autosort;
   ctx->stride = cmd->context.stride;
   ctx->palette_fmt = cmd->context.palette_fmt;
+  ctx->video_width = cmd->context.video_width;
+  ctx->video_height = cmd->context.video_height;
+  ctx->alpha_ref = cmd->context.alpha_ref;
   ctx->bg_isp = cmd->context.bg_isp;
   ctx->bg_tsp = cmd->context.bg_tsp;
   ctx->bg_tcw = cmd->context.bg_tcw;
   ctx->bg_depth = cmd->context.bg_depth;
-  ctx->video_width = cmd->context.video_width;
-  ctx->video_height = cmd->context.video_height;
   memcpy(ctx->bg_vertices, cmd->context.bg_vertices,
          cmd->context.bg_vertices_size);
   memcpy(ctx->params, cmd->context.params, cmd->context.params_size);

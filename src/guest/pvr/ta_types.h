@@ -427,11 +427,11 @@ struct ta_context {
   int palette_fmt;
   int video_width;
   int video_height;
+  int alpha_ref;
   union isp bg_isp;
   union tsp bg_tsp;
   union tcw bg_tcw;
   float bg_depth;
-  uint32_t pt_alpha_ref;
   uint8_t bg_vertices[TA_BG_VERTEX_SIZE];
 
   /* parameter buffer */

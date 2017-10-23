@@ -25,9 +25,9 @@ struct trace_cmd {
       union tsp tsp;
       union tcw tcw;
       uint32_t frame;
-      uint32_t palette_size;
+      int32_t palette_size;
       const uint8_t *palette;
-      uint32_t texture_size;
+      int32_t texture_size;
       const uint8_t *texture;
     } texture;
 
@@ -35,18 +35,19 @@ struct trace_cmd {
        sync */
     struct {
       uint32_t frame;
-      int8_t autosort;
-      uint32_t stride;
-      uint32_t palette_fmt;
-      uint32_t video_width;
-      uint32_t video_height;
+      int32_t autosort;
+      int32_t stride;
+      int32_t palette_fmt;
+      int32_t video_width;
+      int32_t video_height;
+      int32_t alpha_ref;
       union isp bg_isp;
       union tsp bg_tsp;
       union tcw bg_tcw;
       float bg_depth;
-      uint32_t bg_vertices_size;
+      int32_t bg_vertices_size;
       const uint8_t *bg_vertices;
-      uint32_t params_size;
+      int32_t params_size;
       const uint8_t *params;
     } context;
   };

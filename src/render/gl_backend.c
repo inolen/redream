@@ -11,12 +11,12 @@ enum uniform_attr {
   UNIFORM_PROJ,
   UNIFORM_DIFFUSE,
   UNIFORM_VIDEO_SCALE,
-  UNIFORM_PT_ALPHA_REF,
+  UNIFORM_ALPHA_REF,
   UNIFORM_NUM_UNIFORMS,
 };
 
 static const char *uniform_names[] = {
-    "u_proj", "u_diffuse", "u_video_scale", "u_pt_alpha_ref",
+    "u_proj", "u_diffuse", "u_video_scale", "u_alpha_ref",
 };
 
 enum shader_attr {
@@ -31,7 +31,7 @@ enum shader_attr {
   ATTR_IGNORE_ALPHA = 0x8,
   ATTR_IGNORE_TEXTURE_ALPHA = 0x10,
   ATTR_OFFSET_COLOR = 0x20,
-  ATTR_PT_ALPHA_TEST = 0x40,
+  ATTR_ALPHA_TEST = 0x40,
   ATTR_DEBUG_DEPTH_BUFFER = 0x80,
   ATTR_COUNT = 0x100
 };
@@ -452,8 +452,8 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
   if (surf->params.offset_color) {
     idx |= ATTR_OFFSET_COLOR;
   }
-  if (surf->params.pt_alpha_test) {
-    idx |= ATTR_PT_ALPHA_TEST;
+  if (surf->params.alpha_test) {
+    idx |= ATTR_ALPHA_TEST;
   }
   if (surf->params.debug_depth) {
     idx |= ATTR_DEBUG_DEPTH_BUFFER;
@@ -489,8 +489,8 @@ static struct shader_program *r_get_ta_program(struct render_backend *r,
     if (idx & ATTR_OFFSET_COLOR) {
       strcat(header, "#define OFFSET_COLOR\n");
     }
-    if (idx & ATTR_PT_ALPHA_TEST) {
-      strcat(header, "#define PT_ALPHA_TEST\n");
+    if (idx & ATTR_ALPHA_TEST) {
+      strcat(header, "#define ALPHA_TEST\n");
     }
     if (idx & ATTR_DEBUG_DEPTH_BUFFER) {
       strcat(header, "#define DEBUG_DEPTH_BUFFER\n");
@@ -631,8 +631,8 @@ void r_draw_ta_surface(struct render_backend *r,
   }
 
   /* bind non-global uniforms every time */
-  float alpha_ref = surf->params.pt_alpha_ref / 255.0f;
-  glUniform1f(program->loc[UNIFORM_PT_ALPHA_REF], alpha_ref);
+  float alpha_ref = surf->params.alpha_ref / 255.0f;
+  glUniform1f(program->loc[UNIFORM_ALPHA_REF], alpha_ref);
 
   if (surf->params.texture) {
     struct texture *tex = &r->textures[surf->params.texture];

@@ -30,7 +30,7 @@ static const char *ta_vp =
 
 static const char *ta_fp =
 "uniform sampler2D u_diffuse;\n"
-"uniform mediump float u_pt_alpha_ref;\n"
+"uniform mediump float u_alpha_ref;\n"
 
 "in mediump vec4 var_color;\n"
 "in mediump vec4 var_offset_color;\n"
@@ -48,10 +48,9 @@ static const char *ta_fp =
 "    #ifdef IGNORE_TEXTURE_ALPHA\n"
 "      tex.a = 1.0;\n"
 "    #endif\n"
-"    #ifdef PT_ALPHA_TEST\n"
-"      if(tex.a < u_pt_alpha_ref)\n"
+"    #ifdef ALPHA_TEST\n"
+"      if (tex.a < u_alpha_ref)\n"
 "        discard;\n"
-"      fragcolor.a = 1.0f;\n"
 "    #endif\n"
 "    #ifdef SHADE_DECAL\n"
 "      fragcolor = tex;\n"
@@ -72,6 +71,11 @@ static const char *ta_fp =
 "  #endif\n"
 "  #ifdef OFFSET_COLOR\n"
 "    fragcolor.rgb += var_offset_color.rgb;\n"
+"  #endif\n"
+
+"  #ifdef ALPHA_TEST\n"
+"    // punch through polys are always drawn with an alpha value of 1.0\n"
+"    fragcolor.a = 1.0f;\n"
 "  #endif\n"
 
 "  // gl_FragCoord.w is 1/clip.w aka the original 1/w passed to the TA,\n"

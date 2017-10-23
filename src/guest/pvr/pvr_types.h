@@ -216,6 +216,14 @@ union spg_status {
   };
 };
 
+union pt_alpha_ref {
+  uint32_t full;
+  struct {
+    uint32_t alpha_ref : 8;
+    uint32_t : 24;
+  };
+};
+
 union ta_isp_base {
   uint32_t full;
   struct {

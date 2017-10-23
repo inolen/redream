@@ -502,6 +502,9 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
   /* save video resolution in order to unproject the screen space coordinates */
   pvr_video_size(pvr, &ctx->video_width, &ctx->video_height);
 
+  /* get the punch through polygon alpha test value */
+  ctx->alpha_ref = pvr->PT_ALPHA_REF->alpha_ref;
+
   /* according to the hardware docs, this is the correct calculation of the
      background ISP address. however, in practice, the second TA buffer's ISP
      address comes out to be 0x800000 when booting the bios and the vram is
@@ -520,9 +523,6 @@ static void ta_save_state(struct ta *ta, struct ta_context *ctx) {
 
   /* get the background depth */
   ctx->bg_depth = *(float *)pvr->ISP_BACKGND_D;
-
-  /* get the punch through polygon alpha test value */
-  ctx->pt_alpha_ref = *pvr->PT_ALPHA_REF;
 
   /* get the byte size for each vertex. normally, the byte size is
      ISP_BACKGND_T.skip + 3, but if parameter selection volume mode is in

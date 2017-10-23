@@ -463,8 +463,8 @@ static void tr_parse_poly_param(struct tr *tr, const struct ta_context *ctx,
   surf->params.ignore_alpha = !param->type0.tsp.use_alpha;
   surf->params.ignore_texture_alpha = param->type0.tsp.ignore_tex_alpha;
   surf->params.offset_color = param->type0.pcw.offset;
-  surf->params.pt_alpha_test = tr->list_type == TA_LIST_PUNCH_THROUGH;
-  surf->params.pt_alpha_ref = ctx->pt_alpha_ref;
+  surf->params.alpha_test = tr->list_type == TA_LIST_PUNCH_THROUGH;
+  surf->params.alpha_ref = ctx->alpha_ref;
 
   /* override a few surface parameters based on the list type */
   if (tr->list_type != TA_LIST_TRANSLUCENT &&
