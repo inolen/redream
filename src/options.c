@@ -40,24 +40,24 @@ const int NUM_BUTTONS = ARRAY_SIZE(BUTTONS);
 DEFINE_OPTION_INT(audio, 1, "Enable audio");
 DEFINE_PERSISTENT_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
-DEFINE_PERSISTENT_OPTION_INT(key_a, 'k', "A button mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_b, 'l', "B button mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_x, 'j', "X button mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_y, 'i', "Y button mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_a, 'l', "A button mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_b, 'p', "B button mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_x, 'k', "X button mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_y, 'o', "Y button mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_start, K_SPACE, "Start button mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_dup, 0, "DPAD Up mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_ddown, 0, "DPAD Down mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_dleft, 0, "DPAD Left mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_dright, 0, "DPAD Right mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_dup, 't', "DPAD Up mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_ddown, 'g', "DPAD Down mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_dleft, 'f', "DPAD Left mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_dright, 'h', "DPAD Right mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_joyx_neg, 'a', "Joystick -X axis mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_joyx_pos, 'd', "Joystick +X axis mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_joyy_neg, 'w', "Joystick -Y axis mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_joyy_pos, 's', "Joystick +Y axis mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_ltrig, 'o', "Left trigger mapping");
-DEFINE_PERSISTENT_OPTION_INT(key_rtrig, 'p', "Right trigger mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_ltrig, '[', "Left trigger mapping");
+DEFINE_PERSISTENT_OPTION_INT(key_rtrig, ']', "Right trigger mapping");
 
 /* emulator */
-DEFINE_PERSISTENT_OPTION_STRING(aspect, "stretch", "Video aspect ratio");
+DEFINE_PERSISTENT_OPTION_STRING(aspect, "4:3", "Video aspect ratio");
 
 /* bios */
 DEFINE_PERSISTENT_OPTION_STRING(region, "usa", "System region");
