@@ -134,45 +134,45 @@ typedef uint16_t UYVY422_type;
 
 static inline uint8_t yuv_to_r(int y, int u, int v) {
   int r = y + (11 * v) / 8;
-  return MAX(0, MIN(255, r));
+  return CLAMP(r, 0, 255);
 }
 
 static inline uint8_t yuv_to_g(int y, int u, int v) {
   int g = y - (11 * u + 22 * v) / 32;
-  return MAX(0, MIN(255, g));
+  return CLAMP(g, 0, 255);
 }
 
 static inline uint8_t yuv_to_b(int y, int u, int v) {
   int b = y + (55 * u) / 32;
-  return MAX(0, MIN(255, b));
+  return CLAMP(b, 0, 255);
 }
 
 static inline void UYVY422_unpack(UYVY422_type src0, UYVY422_type src1,
-                                  uint8_t *rgba) {
+                                  uint8_t *a, uint8_t *b) {
   int u = (int)(src0 & 0xff) - 128;
   int y0 = (int)((src0 >> 8) & 0xff);
   int v = (int)((src1 & 0xff) & 0xff) - 128;
   int y1 = (int)((src1 >> 8) & 0xff);
-  rgba[0] = yuv_to_r(y0, u, v);
-  rgba[1] = yuv_to_g(y0, u, v);
-  rgba[2] = yuv_to_b(y0, u, v);
-  rgba[3] = 0xff;
-  rgba[4] = yuv_to_r(y1, u, v);
-  rgba[5] = yuv_to_g(y1, u, v);
-  rgba[6] = yuv_to_b(y1, u, v);
-  rgba[7] = 0xff;
+  a[0] = yuv_to_r(y0, u, v);
+  a[1] = yuv_to_g(y0, u, v);
+  a[2] = yuv_to_b(y0, u, v);
+  a[3] = 0xff;
+  b[0] = yuv_to_r(y1, u, v);
+  b[1] = yuv_to_g(y1, u, v);
+  b[2] = yuv_to_b(y1, u, v);
+  b[3] = 0xff;
 }
 
 static inline void UYVY422_unpack_bitmap(const UYVY422_type *src,
                                          uint8_t *rgba) {
-  UYVY422_unpack(src[0], src[1], rgba + 0x0);
-  UYVY422_unpack(src[2], src[3], rgba + 0x8);
+  UYVY422_unpack(src[0], src[1], rgba + 0x0, rgba + 0x4);
+  UYVY422_unpack(src[2], src[3], rgba + 0x8, rgba + 0xc);
 }
 
 static inline void UYVY422_unpack_twiddled(const UYVY422_type *src,
                                            uint8_t *rgba) {
-  UYVY422_unpack(src[0], src[2], rgba + 0x0);
-  UYVY422_unpack(src[1], src[3], rgba + 0x8);
+  UYVY422_unpack(src[0], src[2], rgba + 0x0, rgba + 0x8);
+  UYVY422_unpack(src[1], src[3], rgba + 0x4, rgba + 0xc);
 }
 
 /* ARGB4444 */
