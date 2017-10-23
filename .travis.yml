@@ -14,6 +14,9 @@ matrix:
             - cmake-data
             - gcc-6
             - g++-6
+            - libasound2-dev
+            - libpulse-dev
+            - libjack-jackd2-dev
       env:
         - BUILD_ARCH=x86_64
         - BUILD_PLATFORM=linux
