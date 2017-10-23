@@ -91,7 +91,7 @@ void sh4_area7_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   if (addr >= SH4_REG_BEGIN && addr <= SH4_REG_END) {
     sh4_reg_write(sh4, addr - SH4_REG_BEGIN, data, mask);
   } else {
-    LOG_FATAL("sh4_a7_write unexpected addr 0x%08x", addr);
+    LOG_FATAL("sh4_area7_write unexpected addr 0x%08x", addr);
   }
 }
 
@@ -107,7 +107,7 @@ uint32_t sh4_area7_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   if (addr >= SH4_REG_BEGIN && addr <= SH4_REG_END) {
     return sh4_reg_read(sh4, addr - SH4_REG_BEGIN, mask);
   } else {
-    LOG_FATAL("sh4_a7_read unexpected addr 0x%08x", addr);
+    LOG_FATAL("sh4_area7_read unexpected addr 0x%08x", addr);
   }
 }
 
@@ -125,7 +125,7 @@ void sh4_area4_write(struct sh4 *sh4, uint32_t addr, const uint8_t *ptr,
   } else if (addr >= SH4_TA_TEXTURE_BEGIN && addr <= SH4_TA_TEXTURE_END) {
     ta_texture_write(sh4->ta, addr, ptr, size);
   } else {
-    LOG_FATAL("sh4_a4_write unexpected addr 0x%08x", addr);
+    LOG_FATAL("sh4_area4_write unexpected addr 0x%08x", addr);
   }
 }
 
@@ -141,7 +141,7 @@ void sh4_area1_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   } else if (addr >= SH4_PVR_VRAM32_BEGIN && addr <= SH4_PVR_VRAM32_END) {
     pvr_vram32_write(sh4->pvr, addr - SH4_PVR_VRAM32_BEGIN, data, mask);
   } else {
-    LOG_FATAL("sh4_a1_write unexpected addr 0x%08x", addr);
+    LOG_FATAL("sh4_area1_write unexpected addr 0x%08x", addr);
   }
 }
 
@@ -156,7 +156,7 @@ uint32_t sh4_area1_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   } else if (addr >= SH4_PVR_VRAM32_BEGIN && addr <= SH4_PVR_VRAM32_END) {
     return pvr_vram32_read(sh4->pvr, addr - SH4_PVR_VRAM32_BEGIN, mask);
   } else {
-    LOG_FATAL("sh4_a1_read unexpected addr 0x%08x", addr);
+    LOG_FATAL("sh4_area1_read unexpected addr 0x%08x", addr);
   }
 }
 
@@ -185,7 +185,7 @@ void sh4_area0_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
     } else if (addr >= SH4_HOLLY_EXT_BEGIN && addr <= SH4_HOLLY_EXT_END) {
       /* nop */
     } else {
-      LOG_FATAL("sh4_a0_write unexpected addr 0x%08x", addr);
+      LOG_WARNING("sh4_area0_write unexpected addr 0x%08x", addr);
     }
   }
 }
@@ -217,6 +217,6 @@ uint32_t sh4_area0_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   } else if (addr >= SH4_HOLLY_EXT_BEGIN && addr <= SH4_HOLLY_EXT_END) {
     return 0;
   } else {
-    LOG_FATAL("sh4_a0_read unexpected addr 0x%08x", addr);
+    LOG_FATAL("sh4_area0_read unexpected addr 0x%08x", addr);
   }
 }
