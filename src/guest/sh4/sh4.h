@@ -8,6 +8,7 @@
 #include "guest/sh4/sh4_intc.h"
 #include "guest/sh4/sh4_mem.h"
 #include "guest/sh4/sh4_mmu.h"
+#include "guest/sh4/sh4_scif.h"
 #include "guest/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/jit.h"
@@ -55,6 +56,11 @@ struct sh4 {
   /* mmu */
   uint32_t utlb_sq_map[64];
   struct sh4_tlb_entry utlb[64];
+
+  /* scif */
+  uint32_t SCFSR2_last_read;
+  struct sh4_scif_fifo receive_fifo;
+  struct sh4_scif_fifo transmit_fifo;
 
   /* tmu */
   struct timer *tmu_timers[3];

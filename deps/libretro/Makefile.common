@@ -40,6 +40,7 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/guest/arm7/arm7.c \
 	$(CORE_DIR)/src/guest/rom/boot.c \
 	$(CORE_DIR)/src/guest/rom/flash.c \
+	$(CORE_DIR)/src/guest/serial/serial.c \
 	$(CORE_DIR)/src/guest/sh4/sh4.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_ccn.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_dbg.c \
@@ -48,6 +49,7 @@ SOURCES_C := $(CORE_DIR)/src/core/assert.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_mem.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_mmu.c \
 	$(CORE_DIR)/src/guest/sh4/sh4_tmu.c \
+	$(CORE_DIR)/src/guest/sh4/sh4_scif.c \
 	$(CORE_DIR)/src/guest/debugger.c \
 	$(CORE_DIR)/src/guest/dreamcast.c \
 	$(CORE_DIR)/src/guest/memory.c \

@@ -18,12 +18,12 @@ static void sh4_dmac_check(struct sh4 *sh4, int channel) {
       chcr = sh4->CHCR3;
       break;
     default:
-      LOG_FATAL("Unexpected DMA channel");
+      LOG_FATAL("sh4_dmac_check unexpected channel %d", channel);
       break;
   }
 
   CHECK(sh4->DMAOR->DDT || !sh4->DMAOR->DME || !chcr->DE,
-        "Non-DDT DMA not supported");
+        "sh4_dmac_check only DDT DMA unsupported");
 }
 
 void sh4_dmac_ddt(struct sh4 *sh4, struct sh4_dtr *dtr) {

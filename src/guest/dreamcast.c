@@ -92,6 +92,14 @@ void *dc_create_device(struct dreamcast *dc, size_t size, const char *name,
   return dev;
 }
 
+void dc_remove_serial_device(struct dreamcast *dc) {
+  dc->serial = NULL;
+}
+
+void dc_add_serial_device(struct dreamcast *dc, struct serial *serial) {
+  dc->serial = serial;
+}
+
 void dc_input(struct dreamcast *dc, int port, int button, uint16_t value) {
   maple_handle_input(dc->maple, port, button, value);
 }

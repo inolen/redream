@@ -191,14 +191,20 @@ union scfcr2 {
     uint32_t RFRST : 1;
     uint32_t TFRST : 1;
     uint32_t MCE : 1;
-    uint32_t TTRG0 : 1;
-    uint32_t TTRG1 : 1;
-    uint32_t RTRG0 : 1;
-    uint32_t RTRG1 : 1;
-    uint32_t RSTRG0 : 1;
-    uint32_t RSTRG1 : 1;
-    uint32_t RSTRG2 : 1;
+    uint32_t TTRG : 2;
+    uint32_t RTRG : 2;
+    uint32_t RSTRG : 3;
     uint32_t : 21;
+  };
+};
+
+union scfdr2 {
+  uint32_t full;
+  struct {
+    uint32_t R : 5;
+    uint32_t : 3;
+    uint32_t T : 5;
+    uint32_t : 19;
   };
 };
 

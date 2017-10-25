@@ -208,6 +208,7 @@ set(RELIB_SOURCES
   src/guest/pvr/tr.c
   src/guest/rom/boot.c
   src/guest/rom/flash.c
+  src/guest/serial/serial.c
   src/guest/sh4/sh4.c
   src/guest/sh4/sh4_ccn.c
   src/guest/sh4/sh4_dbg.c
@@ -216,6 +217,7 @@ set(RELIB_SOURCES
   src/guest/sh4/sh4_mem.c
   src/guest/sh4/sh4_mmu.c
   src/guest/sh4/sh4_tmu.c
+  src/guest/sh4/sh4_scif.c
   src/guest/debugger.c
   src/guest/dreamcast.c
   src/guest/memory.c
@@ -401,6 +403,19 @@ target_link_libraries(recc ${RELIB_LIBS})
 target_compile_definitions(recc PRIVATE ${RELIB_DEFS})
 target_compile_options(recc PRIVATE ${RELIB_FLAGS})
 endif()
+
+# reload
+set(RELOAD_SOURCES
+  ${RELIB_SOURCES}
+  src/host/null_host.c
+  tools/reload/main.c)
+source_group_by_dir(RELOAD_SOURCES)
+
+add_executable(reload ${RELOAD_SOURCES})
+target_include_directories(reload PUBLIC ${RELIB_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(reload ${RELIB_LIBS})
+target_compile_definitions(reload PRIVATE ${RELIB_DEFS})
+target_compile_options(reload PRIVATE ${RELIB_FLAGS})
 
 # retex
 set(RETEX_SOURCES
