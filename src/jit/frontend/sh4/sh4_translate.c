@@ -10,13 +10,25 @@ static struct ir_value *load_sr(struct ir *ir) {
       ir_load_context(ir, offsetof(struct sh4_context, sr), VALUE_I32);
 
   /* inlined version of sh4_implode_sr */
+  sr = ir_and(ir, sr, ir_alloc_i32(ir, ~(M_MASK | Q_MASK | S_MASK | T_MASK)));
+
   struct ir_value *sr_t =
       ir_load_context(ir, offsetof(struct sh4_context, sr_t), VALUE_I32);
+  sr = ir_or(ir, sr, sr_t);
+
   struct ir_value *sr_s =
       ir_load_context(ir, offsetof(struct sh4_context, sr_s), VALUE_I32);
-  sr = ir_and(ir, sr, ir_alloc_i32(ir, ~(S_MASK | T_MASK)));
-  sr = ir_or(ir, sr, sr_t);
   sr = ir_or(ir, sr, ir_shli(ir, sr_s, S_BIT));
+
+  struct ir_value *sr_m =
+      ir_load_context(ir, offsetof(struct sh4_context, sr_m), VALUE_I32);
+  sr = ir_or(ir, sr, ir_shli(ir, sr_m, M_BIT));
+
+  struct ir_value *sr_qm =
+      ir_load_context(ir, offsetof(struct sh4_context, sr_qm), VALUE_I32);
+  struct ir_value *sr_q =
+      ir_zext(ir, ir_cmp_eq(ir, ir_lshri(ir, sr_qm, 31), sr_m), VALUE_I32);
+  sr = ir_or(ir, sr, ir_shli(ir, sr_q, Q_BIT));
 
   return sr;
 }
@@ -34,10 +46,21 @@ static void store_sr(struct sh4_guest *guest, struct ir *ir,
 
   /* inline version of sh4_explode_sr */
   struct ir_value *sr_t = ir_and(ir, v, ir_alloc_i32(ir, T_MASK));
+  ir_store_context(ir, offsetof(struct sh4_context, sr_t), sr_t);
+
   struct ir_value *sr_s =
       ir_lshri(ir, ir_and(ir, v, ir_alloc_i32(ir, S_MASK)), S_BIT);
-  ir_store_context(ir, offsetof(struct sh4_context, sr_t), sr_t);
   ir_store_context(ir, offsetof(struct sh4_context, sr_s), sr_s);
+
+  struct ir_value *sr_m =
+      ir_lshri(ir, ir_and(ir, v, ir_alloc_i32(ir, M_MASK)), M_BIT);
+  ir_store_context(ir, offsetof(struct sh4_context, sr_m), sr_m);
+
+  struct ir_value *sr_q =
+      ir_lshri(ir, ir_and(ir, v, ir_alloc_i32(ir, Q_MASK)), Q_BIT);
+  struct ir_value *sr_qm =
+      ir_shli(ir, ir_zext(ir, ir_cmp_eq(ir, sr_q, sr_m), VALUE_I32), 31);
+  ir_store_context(ir, offsetof(struct sh4_context, sr_qm), sr_qm);
 
   ir_call_2(ir, sr_updated, data, old_sr);
 }

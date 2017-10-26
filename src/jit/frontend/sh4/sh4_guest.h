@@ -146,18 +146,16 @@ static inline void sh4_swap_fpr_bank(struct sh4_context *ctx) {
 
 static inline void sh4_implode_sr(struct sh4_context *ctx) {
   uint32_t sr_q = (ctx->sr_qm >> 31) == ctx->sr_m;
-
   ctx->sr &= ~(M_MASK | Q_MASK | S_MASK | T_MASK);
   ctx->sr |= (ctx->sr_m << M_BIT) | (sr_q << Q_BIT) | (ctx->sr_s << S_BIT) |
              (ctx->sr_t << T_BIT);
 }
 
 static inline void sh4_explode_sr(struct sh4_context *ctx) {
+  uint32_t sr_q = (ctx->sr & Q_MASK) >> Q_BIT;
   ctx->sr_t = (ctx->sr & T_MASK) >> T_BIT;
   ctx->sr_s = (ctx->sr & S_MASK) >> S_BIT;
   ctx->sr_m = (ctx->sr & M_MASK) >> M_BIT;
-
-  uint32_t sr_q = (ctx->sr & Q_MASK) >> Q_BIT;
   ctx->sr_qm = (sr_q == ctx->sr_m) << 31;
 }
 

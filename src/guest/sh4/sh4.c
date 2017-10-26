@@ -256,6 +256,7 @@ void sh4_reset(struct sh4 *sh4, uint32_t pc) {
   sh4->ctx.pr = 0x0;
   sh4->ctx.sr = 0x700000f0;
   sh4->ctx.fpscr = 0x00040001;
+  sh4_explode_sr(&sh4->ctx);
 
 /* initialize registers */
 #define SH4_REG(addr, name, default, type) \
