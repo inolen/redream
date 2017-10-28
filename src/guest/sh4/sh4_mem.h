@@ -73,10 +73,10 @@
 /* area 7 */
 #define SH4_AREA7_BEGIN      0x1c000000
 #define SH4_AREA7_END        0x1fffffff
-#define SH4_REG_BEGIN    0x1c000000
-#define SH4_REG_END      0x1fffffff
-#define SH4_CACHE_BEGIN  0x7c000000
-#define SH4_CACHE_END    0x7fffffff
+#define SH4_REG_BEGIN        0x1c000000
+#define SH4_REG_END          0x1fffffff
+#define SH4_CACHE_BEGIN      0x7c000000
+#define SH4_CACHE_END        0x7fffffff
 
 /* p0 */
 #define SH4_P0_00_BEGIN      0x00000000
@@ -106,19 +106,18 @@
 /* p4 */
 #define SH4_P4_BEGIN         0xe0000000
 #define SH4_P4_END           0xffffffff
-#define SH4_SQ_BEGIN     0xe0000000
-#define SH4_SQ_END       0xe3ffffff
-#define SH4_ICACHE_BEGIN 0xf0000000
-#define SH4_ICACHE_END   0xf1ffffff
-#define SH4_ITLB_BEGIN   0xf2000000
-#define SH4_ITLB_END     0xf3ffffff
-#define SH4_OCACHE_BEGIN 0xf4000000
-#define SH4_OCACHE_END   0xf5ffffff
-#define SH4_UTLB_BEGIN   0xf6000000
-#define SH4_UTLB_END     0xf7ffffff
-#define SH4_REG2_BEGIN   0xfc000000
-#define SH4_REG2_END     0xffffffff
-
+#define SH4_SQ_BEGIN         0xe0000000
+#define SH4_SQ_END           0xe3ffffff
+#define SH4_ICACHE_BEGIN     0xf0000000
+#define SH4_ICACHE_END       0xf1ffffff
+#define SH4_ITLB_BEGIN       0xf2000000
+#define SH4_ITLB_END         0xf3ffffff
+#define SH4_OCACHE_BEGIN     0xf4000000
+#define SH4_OCACHE_END       0xf5ffffff
+#define SH4_UTLB_BEGIN       0xf6000000
+#define SH4_UTLB_END         0xf7ffffff
+#define SH4_REG2_BEGIN       0xfc000000
+#define SH4_REG2_END         0xffffffff
 /* clang-format on */
 
 uint32_t sh4_area0_read(struct sh4 *sh4, uint32_t addr, uint32_t mask);
