@@ -108,26 +108,20 @@ static void holly_maple_dma(struct holly *hl) {
         uint32_t result_addr = sh4_read32(mem, addr);
         addr += 4;
 
-        /* read message */
-        struct maple_frame frame, res;
-        frame.header.full = sh4_read32(mem, addr);
-        addr += 4;
+        /* read frame */
+        union maple_frame frame, res;
 
-        for (uint32_t i = 0; i < frame.header.num_words; i++) {
-          frame.params[i] = sh4_read32(mem, addr);
+        for (int i = 0; i < (int)desc.length + 1; i++) {
+          frame.data[i] = sh4_read32(mem, addr);
           addr += 4;
         }
 
-        /* process message */
-        int handled = maple_handle_command(mp, &frame, &res);
+        /* process frame and write response */
+        int handled = maple_handle_frame(mp, desc.port, &frame, &res);
 
-        /* write response */
         if (handled) {
-          sh4_write32(mem, result_addr, res.header.full);
-          result_addr += 4;
-
-          for (uint32_t i = 0; i < res.header.num_words; i++) {
-            sh4_write32(mem, result_addr, res.params[i]);
+          for (int i = 0; i < (int)res.num_words + 1; i++) {
+            sh4_write32(mem, result_addr, res.data[i]);
             result_addr += 4;
           }
         } else {
@@ -139,11 +133,11 @@ static void holly_maple_dma(struct holly *hl) {
         break;
 
       default:
-        LOG_FATAL("unhandled maple pattern 0x%x", desc.pattern);
+        LOG_FATAL("holly_maple_dma unhandled pattern 0x%x", desc.pattern);
         break;
     }
 
-    if (desc.last) {
+    if (desc.end) {
       break;
     }
   }

@@ -3,7 +3,10 @@
 
 #include <stdint.h>
 
+/* number of ports on the maple bus */
 #define MAPLE_NUM_PORTS 4
+
+/* number of addressable units on each maple port */
 #define MAPLE_MAX_UNITS 6
 
 /* maple pattern codes. indicate how to process the incoming instruction */
@@ -61,10 +64,10 @@ union maple_transfer {
   struct {
     uint32_t length : 8;
     uint32_t pattern : 3;
-    uint32_t reserved : 5;
+    uint32_t : 5;
     uint32_t port : 2;
-    uint32_t reserved1 : 13;
-    uint32_t last : 1;
+    uint32_t : 13;
+    uint32_t end : 1;
   };
   uint32_t full;
 };
@@ -73,19 +76,25 @@ union maple_transfer {
 union maple_header {
   struct {
     uint32_t command : 8;
-    uint32_t recv_addr : 8;
-    uint32_t send_addr : 8;
+    uint32_t dst_addr : 8;
+    uint32_t src_addr : 8;
     uint32_t num_words : 8;
   };
   uint32_t full;
 };
 
 /* messages sent on the maple bus are sent as a "frame", with each frame
-   consisting of one or more 32-bit words. the first word in each frame
-   is the header */
-struct maple_frame {
-  union maple_header header;
-  uint32_t params[0xff];
+   consisting of 1-256 32-bit words. the first word in each frame is the
+   header */
+union maple_frame {
+  struct {
+    uint32_t command : 8;
+    uint32_t dst_addr : 8;
+    uint32_t src_addr : 8;
+    uint32_t num_words : 8;
+    uint32_t params[];
+  };
+  uint32_t data[0x100];
 };
 
 /* response to MAPLE_REQ_DEVINFO */

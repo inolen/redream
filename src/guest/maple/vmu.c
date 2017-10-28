@@ -53,11 +53,11 @@ static void vmu_parse_block_param(uint32_t data, int *partition, int *block,
   *phase = (data >> 8) & 0xff;
 }
 
-static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
-                     struct maple_frame *res) {
+static void vmu_frame(struct maple_device *dev, const union maple_frame *req,
+                      union maple_frame *res) {
   struct vmu *vmu = (struct vmu *)dev;
 
-  switch (frame->header.command) {
+  switch (req->command) {
     case MAPLE_REQ_DEVINFO: {
       /* based on captured result of real Dreamcast VMU */
       struct maple_device_info info;
@@ -72,13 +72,12 @@ static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
       info.standby_power = 0x007c;
       info.max_power = 0x0082;
 
-      res->header.command = MAPLE_RES_DEVINFO;
-      res->header.recv_addr = frame->header.send_addr;
-      res->header.send_addr = frame->header.recv_addr;
-      res->header.num_words = sizeof(info) >> 2;
+      res->command = MAPLE_RES_DEVINFO;
+      res->dst_addr = req->src_addr;
+      res->src_addr = req->dst_addr;
+      res->num_words = sizeof(info) >> 2;
       memcpy(res->params, &info, sizeof(info));
-      return 1;
-    }
+    } break;
 
     case MAPLE_REQ_GETMEMINFO: {
       static struct maple_meminfo vmu_meminfo = {MAPLE_FUNC_MEMORYCARD,
@@ -94,69 +93,68 @@ static int vmu_frame(struct maple_device *dev, const struct maple_frame *frame,
                                                  0x1f,
                                                  {0x0, 0x0}};
 
-      uint32_t func = frame->params[0];
+      uint32_t func = req->params[0];
       CHECK_EQ(func, MAPLE_FUNC_MEMORYCARD);
-      uint32_t partition = frame->params[1] & 0xff;
+      uint32_t partition = req->params[1] & 0xff;
       CHECK_EQ(partition, 0);
 
-      res->header.command = MAPLE_RES_TRANSFER;
-      res->header.recv_addr = frame->header.send_addr;
-      res->header.send_addr = frame->header.recv_addr;
-      res->header.num_words = sizeof(vmu_meminfo) >> 2;
+      res->command = MAPLE_RES_TRANSFER;
+      res->dst_addr = req->src_addr;
+      res->src_addr = req->dst_addr;
+      res->num_words = sizeof(vmu_meminfo) >> 2;
       memcpy(res->params, &vmu_meminfo, sizeof(vmu_meminfo));
-      return 1;
-    }
+    } break;
 
     case MAPLE_REQ_BLOCKREAD: {
-      uint32_t func = frame->params[0];
+      uint32_t func = req->params[0];
       CHECK_EQ(func, MAPLE_FUNC_MEMORYCARD);
 
       int partition, block, phase;
-      vmu_parse_block_param(frame->params[1], &partition, &block, &phase);
+      vmu_parse_block_param(req->params[1], &partition, &block, &phase);
       CHECK_EQ(partition, 0);
       CHECK_EQ(phase, 0);
 
-      struct maple_blockread vmu_read = {MAPLE_FUNC_MEMORYCARD,
-                                         frame->params[1]};
+      struct maple_blockread vmu_read = {MAPLE_FUNC_MEMORYCARD, req->params[1]};
 
-      res->header.command = MAPLE_RES_TRANSFER;
-      res->header.recv_addr = frame->header.send_addr;
-      res->header.send_addr = frame->header.recv_addr;
-      res->header.num_words = (sizeof(vmu_read) >> 2) + VMU_BLOCK_WORDS;
+      res->command = MAPLE_RES_TRANSFER;
+      res->dst_addr = req->src_addr;
+      res->src_addr = req->dst_addr;
+      res->num_words = (sizeof(vmu_read) >> 2) + VMU_BLOCK_WORDS;
       memcpy(res->params, &vmu_read, sizeof(vmu_read));
       vmu_read_bin(vmu, block, phase, &res->params[sizeof(vmu_read) >> 2],
                    VMU_BLOCK_WORDS);
-      return 1;
-    }
+    } break;
 
     case MAPLE_REQ_BLOCKWRITE: {
-      uint32_t func = frame->params[0];
+      uint32_t func = req->params[0];
       CHECK_EQ(func, MAPLE_FUNC_MEMORYCARD);
 
       int partition, block, phase;
-      vmu_parse_block_param(frame->params[1], &partition, &block, &phase);
+      vmu_parse_block_param(req->params[1], &partition, &block, &phase);
       CHECK_EQ(partition, 0);
 
-      vmu_write_bin(vmu, block, phase, &frame->params[2],
-                    frame->header.num_words - 2);
+      vmu_write_bin(vmu, block, phase, &req->params[2], req->num_words - 2);
 
-      res->header.command = MAPLE_RES_ACK;
-      res->header.recv_addr = frame->header.send_addr;
-      res->header.send_addr = frame->header.recv_addr;
-      res->header.num_words = 0;
-      return 1;
-    }
+      res->command = MAPLE_RES_ACK;
+      res->dst_addr = req->src_addr;
+      res->src_addr = req->dst_addr;
+      res->num_words = 0;
+    } break;
 
     case MAPLE_REQ_BLOCKSYNC: {
-      res->header.command = MAPLE_RES_ACK;
-      res->header.recv_addr = frame->header.send_addr;
-      res->header.send_addr = frame->header.recv_addr;
-      res->header.num_words = 0;
-      return 1;
-    }
-  }
+      res->command = MAPLE_RES_ACK;
+      res->dst_addr = req->src_addr;
+      res->src_addr = req->dst_addr;
+      res->num_words = 0;
+    } break;
 
-  return 0;
+    default: {
+      res->command = MAPLE_RES_BADCMD;
+      res->dst_addr = req->src_addr;
+      res->src_addr = req->dst_addr;
+      res->num_words = 0;
+    } break;
+  }
 }
 
 static void vmu_destroy(struct maple_device *dev) {
@@ -164,22 +162,20 @@ static void vmu_destroy(struct maple_device *dev) {
   free(vmu);
 }
 
-struct maple_device *vmu_create(struct dreamcast *dc, int port, int unit) {
+struct maple_device *vmu_create(struct maple *mp, int port) {
   struct vmu *vmu = calloc(1, sizeof(struct vmu));
 
-  vmu->dc = dc;
-  vmu->port = port;
-  vmu->unit = unit;
+  vmu->mp = mp;
   vmu->destroy = &vmu_destroy;
   vmu->frame = &vmu_frame;
 
+  /* intialize default vmu if one doesn't exist */
   const char *appdir = fs_appdir();
   snprintf(vmu->filename, sizeof(vmu->filename),
-           "%s" PATH_SEPARATOR "vmu_%d_%d.bin", appdir, vmu->port, vmu->unit);
+           "%s" PATH_SEPARATOR "vmu%d.bin", appdir, port);
 
-  /* intialize default vmu if one doesn't already exist */
   if (!fs_exists(vmu->filename)) {
-    LOG_INFO("initializing vmu at %s", vmu->filename);
+    LOG_INFO("vmu_create initializing %s", vmu->filename);
 
     FILE *file = fopen(vmu->filename, "wb");
     CHECK_NOTNULL(file, "failed to open %s", vmu->filename);
