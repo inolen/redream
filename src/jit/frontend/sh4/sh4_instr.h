@@ -1106,7 +1106,7 @@ INSTR(BSRF) {
   BRANCH_I32(dest_addr);
 }
 
-/* JMP     @Rm */
+/* JMP     @Rn */
 INSTR(JMP) {
   I32 dest_addr = LOAD_GPR_I32(i.def.rn);
   DELAY_INSTR();
