@@ -10,7 +10,7 @@ INSTR(MOVI) {
 }
 
 /* MOV.W   @(disp,PC),Rn */
-INSTR(MOVWLPC) {
+INSTR(MOVWL_PCR) {
   uint32_t ea = (i.imm.imm * 2) + addr + 4;
   I32 v = SEXT_I16_I32(LOAD_IMM_I16(ea));
   STORE_GPR_I32(i.imm.rn, v);
@@ -18,7 +18,7 @@ INSTR(MOVWLPC) {
 }
 
 /* MOV.L   @(disp,PC),Rn */
-INSTR(MOVLLPC) {
+INSTR(MOVLL_PCR) {
   uint32_t ea = (i.imm.imm * 4) + (addr & ~3) + 4;
   I32 v = LOAD_IMM_I32(ea);
   STORE_GPR_I32(i.imm.rn, v);
@@ -33,7 +33,7 @@ INSTR(MOV) {
 }
 
 /* MOV.B   Rm,@Rn */
-INSTR(MOVBS) {
+INSTR(MOVBS_IND) {
   I32 ea = LOAD_GPR_I32(i.def.rn);
   I8 v = LOAD_GPR_I8(i.def.rm);
   STORE_I8(ea, v);
@@ -41,7 +41,7 @@ INSTR(MOVBS) {
 }
 
 /* MOV.W   Rm,@Rn */
-INSTR(MOVWS) {
+INSTR(MOVWS_IND) {
   I32 ea = LOAD_GPR_I32(i.def.rn);
   I16 v = LOAD_GPR_I16(i.def.rm);
   STORE_I16(ea, v);
@@ -49,7 +49,7 @@ INSTR(MOVWS) {
 }
 
 /* MOV.L   Rm,@Rn */
-INSTR(MOVLS) {
+INSTR(MOVLS_IND) {
   I32 ea = LOAD_GPR_I32(i.def.rn);
   I32 v = LOAD_GPR_I32(i.def.rm);
   STORE_I32(ea, v);
@@ -57,7 +57,7 @@ INSTR(MOVLS) {
 }
 
 /* MOV.B   @Rm,Rn */
-INSTR(MOVBL) {
+INSTR(MOVBL_IND) {
   I32 ea = LOAD_GPR_I32(i.def.rm);
   I32 v = LOAD_I8(ea);
   v = SEXT_I8_I32(v);
@@ -66,7 +66,7 @@ INSTR(MOVBL) {
 }
 
 /* MOV.W   @Rm,Rn */
-INSTR(MOVWL) {
+INSTR(MOVWL_IND) {
   I32 ea = LOAD_GPR_I32(i.def.rm);
   I32 v = LOAD_I16(ea);
   v = SEXT_I16_I32(v);
@@ -75,7 +75,7 @@ INSTR(MOVWL) {
 }
 
 /* MOV.L   @Rm,Rn */
-INSTR(MOVLL) {
+INSTR(MOVLL_IND) {
   I32 ea = LOAD_GPR_I32(i.def.rm);
   I32 v = LOAD_I32(ea);
   STORE_GPR_I32(i.def.rn, v);
@@ -83,7 +83,7 @@ INSTR(MOVLL) {
 }
 
 /* MOV.B   Rm,@-Rn */
-INSTR(MOVBM) {
+INSTR(MOVBS_DEC) {
   /* load Rm before decrementing Rn in case Rm == Rn */
   I8 v = LOAD_GPR_I8(i.def.rm);
 
@@ -98,7 +98,7 @@ INSTR(MOVBM) {
 }
 
 /* MOV.W   Rm,@-Rn */
-INSTR(MOVWM) {
+INSTR(MOVWS_DEC) {
   /* load Rm before decrementing Rn in case Rm == Rn */
   I16 v = LOAD_GPR_I16(i.def.rm);
 
@@ -113,7 +113,7 @@ INSTR(MOVWM) {
 }
 
 /* MOV.L   Rm,@-Rn */
-INSTR(MOVLM) {
+INSTR(MOVLS_DEC) {
   /* load Rm before decrementing Rn in case Rm == Rn */
   I32 v = LOAD_GPR_I32(i.def.rm);
 
@@ -128,7 +128,7 @@ INSTR(MOVLM) {
 }
 
 /* MOV.B   @Rm+,Rn */
-INSTR(MOVBP) {
+INSTR(MOVBL_INC) {
   /* store (Rm) at Rn */
   I32 ea = LOAD_GPR_I32(i.def.rm);
   I32 v = LOAD_I8(ea);
@@ -145,7 +145,7 @@ INSTR(MOVBP) {
 }
 
 /* MOV.W   @Rm+,Rn */
-INSTR(MOVWP) {
+INSTR(MOVWL_INC) {
   /* store (Rm) at Rn */
   I32 ea = LOAD_GPR_I32(i.def.rm);
   I32 v = LOAD_I16(ea);
@@ -162,7 +162,7 @@ INSTR(MOVWP) {
 }
 
 /* MOV.L   @Rm+,Rn */
-INSTR(MOVLP) {
+INSTR(MOVLL_INC) {
   /* store (Rm) at Rn */
   I32 ea = LOAD_GPR_I32(i.def.rm);
   I32 v = LOAD_I32(ea);
@@ -178,7 +178,7 @@ INSTR(MOVLP) {
 }
 
 /* MOV.B   R0,@(disp,Rn) */
-INSTR(MOVBS0D) {
+INSTR(MOVBS_OFF) {
   I32 ea = LOAD_GPR_I32(i.def.rm);
   ea = ADD_IMM_I32(ea, (int32_t)i.def.disp);
   I8 v = LOAD_GPR_I8(0);
@@ -187,7 +187,7 @@ INSTR(MOVBS0D) {
 }
 
 /* MOV.W   R0,@(disp,Rn) */
-INSTR(MOVWS0D) {
+INSTR(MOVWS_OFF) {
   I32 ea = LOAD_GPR_I32(i.def.rm);
   ea = ADD_IMM_I32(ea, (int32_t)i.def.disp * 2);
   I16 v = LOAD_GPR_I16(0);
@@ -196,7 +196,7 @@ INSTR(MOVWS0D) {
 }
 
 /* MOV.L Rm,@(disp,Rn) */
-INSTR(MOVLSMD) {
+INSTR(MOVLS_OFF) {
   I32 ea = LOAD_GPR_I32(i.def.rn);
   ea = ADD_IMM_I32(ea, (int32_t)i.def.disp * 4);
   I32 v = LOAD_GPR_I32(i.def.rm);
@@ -205,7 +205,7 @@ INSTR(MOVLSMD) {
 }
 
 /* MOV.B   @(disp,Rm),R0 */
-INSTR(MOVBLD0) {
+INSTR(MOVBL_OFF) {
   I32 ea = LOAD_GPR_I32(i.def.rm);
   ea = ADD_IMM_I32(ea, (int32_t)i.def.disp);
   I32 v = LOAD_I8(ea);
@@ -215,7 +215,7 @@ INSTR(MOVBLD0) {
 }
 
 /* MOV.W   @(disp,Rm),R0 */
-INSTR(MOVWLD0) {
+INSTR(MOVWL_OFF) {
   I32 ea = LOAD_GPR_I32(i.def.rm);
   ea = ADD_IMM_I32(ea, (int32_t)i.def.disp * 2);
   I32 v = LOAD_I16(ea);
@@ -225,7 +225,7 @@ INSTR(MOVWLD0) {
 }
 
 /* MOV.L   @(disp,Rm),Rn */
-INSTR(MOVLLDN) {
+INSTR(MOVLL_OFF) {
   I32 ea = LOAD_GPR_I32(i.def.rm);
   ea = ADD_IMM_I32(ea, (int32_t)i.def.disp * 4);
   I32 v = LOAD_I32(ea);
@@ -234,7 +234,7 @@ INSTR(MOVLLDN) {
 }
 
 /* MOV.B   Rm,@(R0,Rn) */
-INSTR(MOVBS0) {
+INSTR(MOVBS_IDX) {
   I32 ea = LOAD_GPR_I32(0);
   ea = ADD_I32(ea, LOAD_GPR_I32(i.def.rn));
   I8 v = LOAD_GPR_I8(i.def.rm);
@@ -243,7 +243,7 @@ INSTR(MOVBS0) {
 }
 
 /* MOV.W   Rm,@(R0,Rn) */
-INSTR(MOVWS0) {
+INSTR(MOVWS_IDX) {
   I32 ea = LOAD_GPR_I32(0);
   ea = ADD_I32(ea, LOAD_GPR_I32(i.def.rn));
   I16 v = LOAD_GPR_I16(i.def.rm);
@@ -252,7 +252,7 @@ INSTR(MOVWS0) {
 }
 
 /* MOV.L   Rm,@(R0,Rn) */
-INSTR(MOVLS0) {
+INSTR(MOVLS_IDX) {
   I32 ea = LOAD_GPR_I32(0);
   ea = ADD_I32(ea, LOAD_GPR_I32(i.def.rn));
   I32 v = LOAD_GPR_I32(i.def.rm);
@@ -261,7 +261,7 @@ INSTR(MOVLS0) {
 }
 
 /* MOV.B   @(R0,Rm),Rn */
-INSTR(MOVBL0) {
+INSTR(MOVBL_IDX) {
   I32 ea = LOAD_GPR_I32(0);
   ea = ADD_I32(ea, LOAD_GPR_I32(i.def.rm));
   I32 v = LOAD_I8(ea);
@@ -271,7 +271,7 @@ INSTR(MOVBL0) {
 }
 
 /* MOV.W   @(R0,Rm),Rn */
-INSTR(MOVWL0) {
+INSTR(MOVWL_IDX) {
   I32 ea = LOAD_GPR_I32(0);
   ea = ADD_I32(ea, LOAD_GPR_I32(i.def.rm));
   I32 v = LOAD_I16(ea);
@@ -281,7 +281,7 @@ INSTR(MOVWL0) {
 }
 
 /* MOV.L   @(R0,Rm),Rn */
-INSTR(MOVLL0) {
+INSTR(MOVLL_IDX) {
   I32 ea = LOAD_GPR_I32(0);
   ea = ADD_I32(ea, LOAD_GPR_I32(i.def.rm));
   I32 v = LOAD_I32(ea);
@@ -290,7 +290,7 @@ INSTR(MOVLL0) {
 }
 
 /* MOV.B   R0,@(disp,GBR) */
-INSTR(MOVBS0G) {
+INSTR(MOVBS_GBR) {
   I32 ea = LOAD_GBR_I32();
   ea = ADD_IMM_I32(ea, (int32_t)i.disp_8.disp);
   I8 v = LOAD_GPR_I8(0);
@@ -299,7 +299,7 @@ INSTR(MOVBS0G) {
 }
 
 /* MOV.W   R0,@(disp,GBR) */
-INSTR(MOVWS0G) {
+INSTR(MOVWS_GBR) {
   I32 ea = LOAD_GBR_I32();
   ea = ADD_IMM_I32(ea, (int32_t)i.disp_8.disp * 2);
   I16 v = LOAD_GPR_I16(0);
@@ -308,7 +308,7 @@ INSTR(MOVWS0G) {
 }
 
 /* MOV.L   R0,@(disp,GBR) */
-INSTR(MOVLS0G) {
+INSTR(MOVLS_GBR) {
   I32 ea = LOAD_GBR_I32();
   ea = ADD_IMM_I32(ea, (int32_t)i.disp_8.disp * 4);
   I32 v = LOAD_GPR_I32(0);
@@ -317,7 +317,7 @@ INSTR(MOVLS0G) {
 }
 
 /* MOV.B   @(disp,GBR),R0 */
-INSTR(MOVBLG0) {
+INSTR(MOVBL_GBR) {
   I32 ea = LOAD_GBR_I32();
   ea = ADD_IMM_I32(ea, (int32_t)i.disp_8.disp);
   I32 v = LOAD_I8(ea);
@@ -327,7 +327,7 @@ INSTR(MOVBLG0) {
 }
 
 /* MOV.W   @(disp,GBR),R0 */
-INSTR(MOVWLG0) {
+INSTR(MOVWL_GBR) {
   I32 ea = LOAD_GBR_I32();
   ea = ADD_IMM_I32(ea, (int32_t)i.disp_8.disp * 2);
   I32 v = LOAD_I16(ea);
@@ -337,7 +337,7 @@ INSTR(MOVWLG0) {
 }
 
 /* MOV.L   @(disp,GBR),R0 */
-INSTR(MOVLLG0) {
+INSTR(MOVLL_GBR) {
   I32 ea = LOAD_GBR_I32();
   ea = ADD_IMM_I32(ea, (int32_t)i.disp_8.disp * 4);
   I32 v = LOAD_I32(ea);
