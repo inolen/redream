@@ -38,25 +38,25 @@ enum maple_fn {
 /* maple command codes. positive codes are commands and success responses,
    negative codes are error responses */
 enum maple_cmd {
-  MAPLE_REQ_DEVINFO = 1,
-  MAPLE_REQ_DEVINFOEX = 2,
-  MAPLE_REQ_DEVRESET = 3,
-  MAPLE_REQ_DEVKILL = 4,
-  MAPLE_RES_DEVINFO = 5,
-  MAPLE_RES_DEVINFOEX = 6,
-  MAPLE_RES_ACK = 7,
-  MAPLE_RES_TRANSFER = 8,
-  MAPLE_REQ_GETCOND = 9,
-  MAPLE_REQ_GETMEMINFO = 10,
-  MAPLE_REQ_BLOCKREAD = 11,
-  MAPLE_REQ_BLOCKWRITE = 12,
-  MAPLE_REQ_BLOCKSYNC = 13,
-  MAPLE_REQ_SETCOND = 14,
-  MAPLE_RES_NONE = -1,
-  MAPLE_RES_BADFUNC = -2,
-  MAPLE_RES_BADCMD = -3,
-  MAPLE_RES_AGAIN = -4,
-  MAPLE_RES_FILEERR = -5,
+  MAPLE_REQ_DEVINFO = (uint8_t)1,
+  MAPLE_REQ_DEVINFOEX = (uint8_t)2,
+  MAPLE_REQ_DEVRESET = (uint8_t)3,
+  MAPLE_REQ_DEVKILL = (uint8_t)4,
+  MAPLE_RES_DEVINFO = (uint8_t)5,
+  MAPLE_RES_DEVINFOEX = (uint8_t)6,
+  MAPLE_RES_ACK = (uint8_t)7,
+  MAPLE_RES_TRANSFER = (uint8_t)8,
+  MAPLE_REQ_GETCOND = (uint8_t)9,
+  MAPLE_REQ_GETMEMINFO = (uint8_t)10,
+  MAPLE_REQ_BLOCKREAD = (uint8_t)11,
+  MAPLE_REQ_BLOCKWRITE = (uint8_t)12,
+  MAPLE_REQ_BLOCKSYNC = (uint8_t)13,
+  MAPLE_REQ_SETCOND = (uint8_t)14,
+  MAPLE_RES_NONE = (uint8_t)-1,
+  MAPLE_RES_BADFUNC = (uint8_t)-2,
+  MAPLE_RES_BADCMD = (uint8_t)-3,
+  MAPLE_RES_AGAIN = (uint8_t)-4,
+  MAPLE_RES_FILEERR = (uint8_t)-5,
 };
 
 /* maple dma transfer descriptor */
@@ -68,17 +68,6 @@ union maple_transfer {
     uint32_t port : 2;
     uint32_t : 13;
     uint32_t end : 1;
-  };
-  uint32_t full;
-};
-
-/* first word in each frame sent on the maple bus */
-union maple_header {
-  struct {
-    uint32_t command : 8;
-    uint32_t dst_addr : 8;
-    uint32_t src_addr : 8;
-    uint32_t num_words : 8;
   };
   uint32_t full;
 };
