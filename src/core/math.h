@@ -13,6 +13,12 @@
 #define ALIGN_UP(v, alignment) (((v) + (alignment)-1) & ~((alignment)-1))
 #define ALIGN_DOWN(v, alignment) ((v) & ~((alignment)-1))
 
+/* max int32_t that can be encoded in a single-precision floating-point value */
+#define FLT_MAX_INT32 (float)INT32_C(0x7fffff80)
+
+/* max int64_t that can be encoded in a double-precision floating-point value */
+#define DBL_MAX_INT64 (double)INT64_C(0x7ffffffffffffdff)
+
 static inline uint32_t npow2(uint32_t v) {
   v--;
   v |= v >> 1;

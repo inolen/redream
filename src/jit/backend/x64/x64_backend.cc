@@ -388,24 +388,38 @@ static void x64_backend_emit_constants(struct x64_backend *backend) {
      buffer and used as memory operands */
 
   e.align(32);
-  e.L(backend->xmm_const[XMM_CONST_ABS_MASK_PS]);
+  e.L(backend->xmm_const[XMM_CONST_PS_ABS_MASK]);
   e.dq(INT64_C(0x7fffffff7fffffff));
   e.dq(INT64_C(0x7fffffff7fffffff));
 
   e.align(32);
-  e.L(backend->xmm_const[XMM_CONST_ABS_MASK_PD]);
+  e.L(backend->xmm_const[XMM_CONST_PD_ABS_MASK]);
   e.dq(INT64_C(0x7fffffffffffffff));
   e.dq(INT64_C(0x7fffffffffffffff));
 
   e.align(32);
-  e.L(backend->xmm_const[XMM_CONST_SIGN_MASK_PS]);
+  e.L(backend->xmm_const[XMM_CONST_PS_SIGN_MASK]);
   e.dq(INT64_C(0x8000000080000000));
   e.dq(INT64_C(0x8000000080000000));
 
   e.align(32);
-  e.L(backend->xmm_const[XMM_CONST_SIGN_MASK_PD]);
+  e.L(backend->xmm_const[XMM_CONST_PD_SIGN_MASK]);
   e.dq(INT64_C(0x8000000000000000));
   e.dq(INT64_C(0x8000000000000000));
+
+  e.align(32);
+  e.L(backend->xmm_const[XMM_CONST_PS_MAX_INT32]);
+  float flt_max_i32 = FLT_MAX_INT32;
+  e.dd(*(uint32_t *)&flt_max_i32);
+  e.dd(*(uint32_t *)&flt_max_i32);
+  e.dd(*(uint32_t *)&flt_max_i32);
+  e.dd(*(uint32_t *)&flt_max_i32);
+
+  e.align(32);
+  e.L(backend->xmm_const[XMM_CONST_PD_MAX_INT64]);
+  double dbl_max_i64 = DBL_MAX_INT64;
+  e.dq(*(uint64_t *)&dbl_max_i64);
+  e.dq(*(uint64_t *)&dbl_max_i64);
 }
 
 static int x64_backend_handle_exception(struct jit_backend *base,

@@ -178,8 +178,8 @@ typedef int32_t int128_t[4];
 #define LOAD_HOST_F32(addr)          (*(float *)(uintptr_t)addr)
 #define LOAD_HOST_F64(addr)          (*(double *)(uintptr_t)addr)
 
-#define FTOI_I32(v)                  ((int32_t)(v))
-#define FTOI_I64(v)                  ((int64_t)(v))
+#define FTOI_I32(v)                  ((v) >= FLT_MAX_INT32 ? INT32_MAX : (v) <= -FLT_MAX_INT32 ? INT32_MIN : (int32_t)(v))
+#define FTOI_I64(v)                  ((v) >= DBL_MAX_INT64 ? INT64_MAX : (v) <= -DBL_MAX_INT64 ? INT64_MIN : (int64_t)(v))
 
 #define ITOF_F32(v)                  ((float)(v))
 #define ITOF_F64(v)                  ((double)(v))
