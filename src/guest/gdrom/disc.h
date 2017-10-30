@@ -6,7 +6,7 @@
 
 #define DISC_MAX_SECTOR_SIZE 2352
 #define DISC_MAX_SESSIONS 2
-#define DISC_MAX_TRACKS 64
+#define DISC_MAX_TRACKS 128
 #define DISC_UID_SIZE 256
 
 enum {
