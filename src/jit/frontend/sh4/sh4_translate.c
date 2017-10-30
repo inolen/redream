@@ -225,8 +225,8 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define LOAD_HOST_F32(ea)            ir_load_host(ir, ea, VALUE_F32)
 #define LOAD_HOST_F64(ea)            ir_load_host(ir, ea, VALUE_F64)
 
-#define FTOI_I32(v)                  ir_ftoi(ir, v, VALUE_I32)
-#define FTOI_I64(v)                  ir_ftoi(ir, v, VALUE_I64)
+#define FTOI_F32_I32(v)              ir_ftoi(ir, v, VALUE_I32)
+#define FTOI_F64_I32(v)              ir_ftoi(ir, v, VALUE_I32)
 
 #define ITOF_F32(v)                  ir_itof(ir, v, VALUE_F32)
 #define ITOF_F64(v)                  ir_itof(ir, v, VALUE_F64)

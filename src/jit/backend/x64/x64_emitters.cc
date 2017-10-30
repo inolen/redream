@@ -255,14 +255,29 @@ EMITTER(FTOI, CONSTRAINTS(REG_I64, REG_F64)) {
   Xbyak::Xmm ra = ARG0_XMM;
 
   switch (RES->type) {
-    case VALUE_I32:
-      CHECK_EQ(ARG0->type, VALUE_F32);
-      e.cvttss2si(rd, ra);
-      break;
-    case VALUE_I64:
-      CHECK_EQ(ARG0->type, VALUE_F64);
-      e.cvttsd2si(rd, ra);
-      break;
+    case VALUE_I32: {
+    /* cvttss2si saturates both underflows and overflows to INT32_MIN, where as
+       FTOI should saturate underflows to INT32_MIN and overflows to INT32_MAX
+
+       due to this difference, the value must be manually clamped beforehand */
+      Xbyak::Address min_int32 =
+          x64_backend_xmm_constant(backend, XMM_CONST_PD_MIN_INT32);
+      Xbyak::Address max_int32 =
+          x64_backend_xmm_constant(backend, XMM_CONST_PD_MAX_INT32);
+
+      /* INT32_MIN and INT32_MAX can't be encoded as floats, but can be encoded
+         as doubles. extend float to double so clamp occurs between doubles */
+      if (ARG0->type == VALUE_F32) {
+        e.cvtss2sd(e.xmm0, ra);
+      } else {
+        e.movsd(e.xmm0, ra);
+      }
+      /* clamp double to [INT32_MIN, INT32_MAX] */
+      e.maxsd(e.xmm0, min_int32);
+      e.minsd(e.xmm0, max_int32);
+      /* now convert double to integer */
+      e.cvttsd2si(rd, e.xmm0);
+    } break;
     default:
       LOG_FATAL("unexpected result type");
       break;
@@ -628,7 +643,7 @@ EMITTER(FNEG, CONSTRAINTS(REG_F64, REG_F64)) {
 
   if (RES->type == VALUE_F32) {
     Xbyak::Address mask =
-        x64_backend_xmm_constant(backend, XMM_CONST_SIGN_MASK_PS);
+        x64_backend_xmm_constant(backend, XMM_CONST_PS_SIGN_MASK);
 
     if (X64_USE_AVX) {
       e.vxorps(rd, ra, mask);
@@ -640,7 +655,7 @@ EMITTER(FNEG, CONSTRAINTS(REG_F64, REG_F64)) {
     }
   } else {
     Xbyak::Address mask =
-        x64_backend_xmm_constant(backend, XMM_CONST_SIGN_MASK_PD);
+        x64_backend_xmm_constant(backend, XMM_CONST_PD_SIGN_MASK);
 
     if (X64_USE_AVX) {
       e.vxorpd(rd, ra, mask);
@@ -659,7 +674,7 @@ EMITTER(FABS, CONSTRAINTS(REG_F64, REG_F64)) {
 
   if (RES->type == VALUE_F32) {
     Xbyak::Address mask =
-        x64_backend_xmm_constant(backend, XMM_CONST_ABS_MASK_PS);
+        x64_backend_xmm_constant(backend, XMM_CONST_PS_ABS_MASK);
 
     if (X64_USE_AVX) {
       e.vandps(rd, ra, mask);
@@ -671,7 +686,7 @@ EMITTER(FABS, CONSTRAINTS(REG_F64, REG_F64)) {
     }
   } else {
     Xbyak::Address mask =
-        x64_backend_xmm_constant(backend, XMM_CONST_ABS_MASK_PD);
+        x64_backend_xmm_constant(backend, XMM_CONST_PD_ABS_MASK);
 
     if (X64_USE_AVX) {
       e.vandpd(rd, ra, mask);

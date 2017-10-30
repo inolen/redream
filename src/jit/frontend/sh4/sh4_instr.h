@@ -1997,12 +1997,12 @@ INSTR(FTRC) {
   if (FPU_DOUBLE_PR) {
     int n = i.def.rn & 0xe;
     F64 drn = LOAD_FPR_F64(n);
-    I32 dpv = TRUNC_I64_I32(FTOI_I64(drn));
+    I32 dpv = FTOI_F32_I32(drn);
     STORE_FPUL_I32(dpv);
   } else {
     int n = i.def.rn;
     F32 frn = LOAD_FPR_F32(n);
-    I32 spv = FTOI_I32(frn);
+    I32 spv = FTOI_F64_I32(frn);
     STORE_FPUL_I32(spv);
   }
   NEXT_INSTR();
