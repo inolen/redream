@@ -15,17 +15,17 @@
 
 /* meta information found in the ip.bin */
 struct disc_meta {
-  char hardware_id[16];
-  char manufacturer_id[16];
-  char device_info[16];
-  char area_symbols[8];
-  char peripherals[8];
-  char product_number[10];
-  char product_version[6];
-  char release_date[16];
-  char bootname[16];
-  char producer_name[16];
-  char product_name[128];
+  char hwareid[DISC_HWAREID_SIZE];
+  char makerid[DISC_MAKERID_SIZE];
+  char devinfo[DISC_DEVINFO_SIZE];
+  char areasym[DISC_AREASYM_SIZE];
+  char periphs[DISC_PERIPHS_SIZE];
+  char prodnum[DISC_PRODNUM_SIZE];
+  char prodver[DISC_PRODVER_SIZE];
+  char reldate[DISC_RELDATE_SIZE];
+  char bootnme[DISC_BOOTNME_SIZE];
+  char company[DISC_COMPANY_SIZE];
+  char prodnme[DISC_PRODNME_SIZE];
 };
 
 static void disc_get_meta(struct disc *disc, struct disc_meta *meta) {
@@ -48,7 +48,7 @@ static void disc_patch_sector(struct disc *disc, int fad, uint8_t *data) {
     /* the area symbols in the meta information contains 8 characters, each of
        which is either a space, or the first letter of the area if supported */
     struct disc_meta *meta = (struct disc_meta *)data;
-    strncpy_pad_spaces(meta->area_symbols, "JUE", sizeof(meta->area_symbols));
+    strncpy_pad_spaces(meta->areasym, "JUE", sizeof(meta->areasym));
   } else if (fad == disc->area_fad) {
     /* the area protection symbols section contains 8 slots, each of which is
        either spaces, or the name of the area if supported. note, each slot
@@ -251,19 +251,15 @@ struct disc *disc_create(const char *filename) {
   struct disc_meta meta;
   disc_get_meta(disc, &meta);
 
-  strncpy_trim_space(disc->product_name, meta.product_name,
-                     sizeof(meta.product_name));
-  strncpy_trim_space(disc->product_number, meta.product_number,
-                     sizeof(meta.product_number));
-  strncpy_trim_space(disc->product_version, meta.product_version,
-                     sizeof(meta.product_version));
-  strncpy_trim_space(disc->media_config, meta.device_info + 5,
-                     sizeof(meta.device_info) - 5);
-  strncpy_trim_space(disc->bootname, meta.bootname, sizeof(meta.bootname));
+  strncpy_trim_space(disc->prodnme, meta.prodnme, sizeof(meta.prodnme));
+  strncpy_trim_space(disc->prodnum, meta.prodnum, sizeof(meta.prodnum));
+  strncpy_trim_space(disc->prodver, meta.prodver, sizeof(meta.prodver));
+  strncpy_trim_space(disc->discnum, meta.devinfo + 5, sizeof(meta.devinfo) - 5);
+  strncpy_trim_space(disc->bootnme, meta.bootnme, sizeof(meta.bootnme));
 
   /* generate unique id for the disc */
-  snprintf(disc->uid, sizeof(disc->uid), "%s %s %s %s", disc->product_name,
-           disc->product_number, disc->product_version, disc->media_config);
+  snprintf(disc->uid, sizeof(disc->uid), "%s %s %s %s", disc->prodnme,
+           disc->prodnum, disc->prodver, disc->discnum);
 
   LOG_INFO("disc_create id=%s", disc->uid);
 

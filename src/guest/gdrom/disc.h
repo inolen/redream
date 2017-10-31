@@ -9,6 +9,18 @@
 #define DISC_MAX_TRACKS 128
 #define DISC_UID_SIZE 256
 
+#define DISC_HWAREID_SIZE 16
+#define DISC_MAKERID_SIZE 16
+#define DISC_DEVINFO_SIZE 16
+#define DISC_AREASYM_SIZE 8
+#define DISC_PERIPHS_SIZE 8
+#define DISC_PRODNUM_SIZE 10
+#define DISC_PRODVER_SIZE 6
+#define DISC_RELDATE_SIZE 16
+#define DISC_BOOTNME_SIZE 16
+#define DISC_COMPANY_SIZE 16
+#define DISC_PRODNME_SIZE 128
+
 enum {
   DISC_REGION_JAPAN = 0x1,
   DISC_REGION_USA = 0x2,
@@ -51,11 +63,11 @@ struct disc {
 
   /* meta information extracted from IP.BIN */
   char uid[DISC_UID_SIZE];
-  char product_name[129];
-  char product_number[11];
-  char product_version[7];
-  char media_config[12];
-  char bootname[17];
+  char prodnme[DISC_PRODNME_SIZE + 1];
+  char prodnum[DISC_PRODNUM_SIZE + 1];
+  char prodver[DISC_PRODVER_SIZE + 1];
+  char discnum[DISC_DEVINFO_SIZE + 1];
+  char bootnme[DISC_BOOTNME_SIZE + 1];
 
   /* media-specific interface */
   void (*destroy)(struct disc *);

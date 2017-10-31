@@ -532,7 +532,7 @@ int gdrom_find_file(struct gdrom *gd, const char *filename, int *fad,
 void gdrom_get_bootfile(struct gdrom *gd, int *fad, int *len) {
   CHECK_NOTNULL(gd->disc);
 
-  int res = disc_find_file(gd->disc, gd->disc->bootname, fad, len);
+  int res = disc_find_file(gd->disc, gd->disc->bootnme, fad, len);
   CHECK(res);
 }
 
