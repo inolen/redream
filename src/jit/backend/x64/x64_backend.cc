@@ -749,8 +749,12 @@ struct jit_backend *x64_backend_create(struct jit_guest *guest, void *code,
   int r = protect_pages(code, code_size, ACC_READWRITEEXEC);
   CHECK(r);
 
+  int have_avx2 = cpu.has(Xbyak::util::Cpu::tAVX2);
+  int have_sse2 = cpu.has(Xbyak::util::Cpu::tSSE2);
+  CHECK(have_avx2 || have_sse2, "CPU must support either AVX2 or SSE2");
+
   backend->codegen = new Xbyak::CodeGenerator(code_size, code);
-  backend->use_avx = cpu.has(Xbyak::util::Cpu::tAVX2);
+  backend->use_avx = have_avx2;
 
   /* create disassembler */
   int res = cs_open(CS_ARCH_X86, CS_MODE_64, &backend->capstone_handle);
