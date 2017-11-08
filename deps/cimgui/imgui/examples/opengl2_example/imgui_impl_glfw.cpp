@@ -1,10 +1,13 @@
 // ImGui GLFW binding with OpenGL
 // In this binding, ImTextureID is used to store an OpenGL 'GLuint' texture identifier. Read the FAQ about ImTextureID in imgui.cpp.
+// (GLFW is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan graphics context creation, etc.)
 
-// If your context or own usage of OpenGL involve anything GL3/GL4, prefer using the code in opengl3_example.
-// If you are not sure what that means, prefer using the code in opengl3_example.
-// You *might* use this code with a GL3/GL4 context but make sure you disable the programmable pipeline by calling "glUseProgram(0)" before ImGui::Render().
-// We cannot do that from GL2 code because the function doesn't exist. Mixing GL2 calls and GL3/GL4 calls is giving trouble to many librairies/drivers.
+// *DO NOT USE THIS CODE IF YOUR CODE/ENGINE IS USING MODERN OPENGL*
+// This is mostly provided as a reference to learn how ImGui integration works, because it is easier to read.
+// If your code is using GL3+ context or any semi modern OpenGL calls, using this is likely to make everything
+// more complicated, will require your code to reset every single OpenGL attributes to their initial state,
+// and might confuse your GPU driver. Prefer using opengl3_example.
+// The GL2 code is unable to reset attributes or even call e.g. "glUseProgram(0)" because they don't exist in that API.
 
 // You can copy and use unmodified imgui_impl_* files in your project. See main.cpp for an example of using this.
 // If you use this binding you'll need to call 4 functions: ImGui_ImplXXXX_Init(), ImGui_ImplXXXX_NewFrame(), ImGui::Render() and ImGui_ImplXXXX_Shutdown().
@@ -26,7 +29,7 @@
 // Data
 static GLFWwindow*  g_Window = NULL;
 static double       g_Time = 0.0f;
-static bool         g_MousePressed[3] = { false, false, false };
+static bool         g_MouseJustPressed[3] = { false, false, false };
 static float        g_MouseWheel = 0.0f;
 static GLuint       g_FontTexture = 0;
 
@@ -129,12 +132,12 @@ static void ImGui_ImplGlfwGL2_SetClipboardText(void* user_data, const char* text
 void ImGui_ImplGlfwGL2_MouseButtonCallback(GLFWwindow*, int button, int action, int /*mods*/)
 {
     if (action == GLFW_PRESS && button >= 0 && button < 3)
-        g_MousePressed[button] = true;
+        g_MouseJustPressed[button] = true;
 }
 
 void ImGui_ImplGlfwGL2_ScrollCallback(GLFWwindow*, double /*xoffset*/, double yoffset)
 {
-    g_MouseWheel += (float)yoffset; // Use fractional mouse wheel, 1.0 unit 5 lines.
+    g_MouseWheel += (float)yoffset; // Use fractional mouse wheel.
 }
 
 void ImGui_ImplGlfwGL2_KeyCallback(GLFWwindow*, int key, int, int action, int mods)
@@ -287,8 +290,9 @@ void ImGui_ImplGlfwGL2_NewFrame()
 
     for (int i = 0; i < 3; i++)
     {
-        io.MouseDown[i] = g_MousePressed[i] || glfwGetMouseButton(g_Window, i) != 0;    // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
-        g_MousePressed[i] = false;
+        // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
+        io.MouseDown[i] = g_MouseJustPressed[i] || glfwGetMouseButton(g_Window, i) != 0;
+        g_MouseJustPressed[i] = false;
     }
 
     io.MouseWheel = g_MouseWheel;
@@ -297,6 +301,6 @@ void ImGui_ImplGlfwGL2_NewFrame()
     // Hide OS mouse cursor if ImGui is drawing it
     glfwSetInputMode(g_Window, GLFW_CURSOR, io.MouseDrawCursor ? GLFW_CURSOR_HIDDEN : GLFW_CURSOR_NORMAL);
 
-    // Start the frame
+    // Start the frame. This call will update the io.WantCaptureMouse, io.WantCaptureKeyboard flag that you can use to dispatch inputs (or not) to your application.
     ImGui::NewFrame();
 }
