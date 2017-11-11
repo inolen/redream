@@ -86,21 +86,20 @@ struct ta_surface {
     uint64_t full;
 
     struct {
-      texture_handle_t texture : 13;
-      int depth_write : 1;
-      enum depth_func depth_func : 4;
-      enum cull_face cull : 2;
-      enum blend_func src_blend : 4;
-      enum blend_func dst_blend : 4;
-      enum shade_mode shade : 3;
-      int ignore_alpha : 1;
-      int ignore_texture_alpha : 1;
-      int offset_color : 1;
-      int alpha_test : 1;
-      /* give an extra bit to avoid sign extension / unsigned type */
-      int alpha_ref : 9;
-      int debug_depth : 1;
-      int : 19;
+      uint64_t texture : 13;
+      uint64_t depth_write : 1;
+      uint64_t depth_func : 4;
+      uint64_t cull : 2;
+      uint64_t src_blend : 4;
+      uint64_t dst_blend : 4;
+      uint64_t shade : 3;
+      uint64_t ignore_alpha : 1;
+      uint64_t ignore_texture_alpha : 1;
+      uint64_t offset_color : 1;
+      uint64_t alpha_test : 1;
+      uint64_t alpha_ref : 8;
+      uint64_t debug_depth : 1;
+      uint64_t : 19;
     };
   } params;
 

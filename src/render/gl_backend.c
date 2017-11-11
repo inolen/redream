@@ -439,7 +439,7 @@ static void r_set_initial_state(struct render_backend *r) {
 
 static struct shader_program *r_get_ta_program(struct render_backend *r,
                                                const struct ta_surface *surf) {
-  int idx = surf->params.shade;
+  int idx = (int)surf->params.shade;
   if (surf->params.texture) {
     idx |= ATTR_TEXTURE;
   }
