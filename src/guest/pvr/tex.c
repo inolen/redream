@@ -462,6 +462,7 @@ define_convert_pal8(ARGB8888, RGBA);
 define_convert_vq(ARGB1555, RGBA);
 define_convert_vq(RGB565, RGBA);
 define_convert_vq(ARGB4444, RGBA);
+define_convert_vq(UYVY422, RGBA);
 
 /*
  * texture loading
@@ -640,10 +641,10 @@ void pvr_tex_decode(const uint8_t *src, int width, int height, int stride,
       break;
 
     case PVR_PXL_YUV422:
-      CHECK(!compressed);
-      if (twiddled) {
+      if (compressed) {
+        convert_vq_UYVY422_RGBA(index, codebook, dst32, width, height);
+      } else if (twiddled) {
         convert_twiddled_UYVY422_RGBA(src16, dst32, width, height);
-
       } else {
         convert_bitmap_UYVY422_RGBA(src16, dst32, width, height, stride);
       }

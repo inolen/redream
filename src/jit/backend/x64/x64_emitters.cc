@@ -256,10 +256,10 @@ EMITTER(FTOI, CONSTRAINTS(REG_I64, REG_F64)) {
 
   switch (RES->type) {
     case VALUE_I32: {
-    /* cvttss2si saturates both underflows and overflows to INT32_MIN, where as
-       FTOI should saturate underflows to INT32_MIN and overflows to INT32_MAX
-
-       due to this difference, the value must be manually clamped beforehand */
+      /* cvttss2si saturates both underflows and overflows to INT32_MIN, while
+         OP_FTOI should saturate underflows to INT32_MIN and overflows to
+         INT32_MAX. due to this difference, the value must be manually clamped
+         beforehand */
       Xbyak::Address min_int32 =
           x64_backend_xmm_constant(backend, XMM_CONST_PD_MIN_INT32);
       Xbyak::Address max_int32 =
