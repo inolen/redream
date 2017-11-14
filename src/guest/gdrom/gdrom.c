@@ -46,7 +46,7 @@ gd_event_cb gd_transitions[MAX_STATES][MAX_EVENTS] = {
   { &gdrom_ata_cmd, &gdrom_pio_write, &gdrom_spi_cmd, NULL,            NULL,            },
   { &gdrom_ata_cmd, &gdrom_pio_write, NULL,           NULL,            &gdrom_spi_data, },
   { &gdrom_ata_cmd, NULL,             NULL,           &gdrom_pio_read, NULL,            },
-  { &gdrom_ata_cmd, NULL,             NULL,           &gdrom_pio_read, NULL,            },
+  { &gdrom_ata_cmd, NULL,             NULL,           NULL,            NULL,            },
 };
 /* clang-format on */
 
@@ -223,7 +223,7 @@ static void gdrom_spi_data(struct gdrom *gd, int arg) {
 }
 
 static void gdrom_pio_read(struct gdrom *gd, int arg) {
-  if (gd->pio_head == gd->pio_size) {
+  if (gd->pio_head >= gd->pio_size) {
     if (gd->cdr_num_sectors) {
       gdrom_spi_cdread(gd);
     } else {
@@ -659,24 +659,22 @@ void gdrom_dma_end(struct gdrom *gd) {
 }
 
 int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int n) {
-  /* try to read more if the current dma buffer has been completely read */
+  /* read more if the current dma buffer has been completely exhausted */
   if (gd->dma_head >= gd->dma_size) {
-    gdrom_spi_cdread(gd);
+    if (gd->cdr_num_sectors) {
+      gdrom_spi_cdread(gd);
+    } else {
+      gdrom_spi_end(gd);
+    }
   }
 
   int remaining = gd->dma_size - gd->dma_head;
   n = MIN(n, remaining);
-  CHECK_GT(n, 0);
 
-  LOG_GDROM("gdrom_dma_read %d / %d bytes", gd->dma_head + n, gd->dma_size);
-  memcpy(data, &gd->dma_buffer[gd->dma_head], n);
-  gd->dma_head += n;
-
-  if (gd->dma_head >= gd->dma_size) {
-    LOG_GDROM("gdrom_dma cd_read complete");
-
-    /* CD_READ command is now done */
-    gdrom_spi_end(gd);
+  if (n) {
+    LOG_GDROM("gdrom_dma_read %d / %d bytes", gd->dma_head + n, gd->dma_size);
+    memcpy(data, &gd->dma_buffer[gd->dma_head], n);
+    gd->dma_head += n;
   }
 
   return n;

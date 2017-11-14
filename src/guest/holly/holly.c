@@ -58,12 +58,15 @@ static void holly_gdrom_dma(struct holly *hl) {
 
   gdrom_dma_begin(gd);
 
-  /* TODO give callback to ddt interface to call instead of data? */
-
-  while (remaining) {
+  while (1) {
     /* read a single sector at a time from the gdrom */
     int n = MIN(remaining, (int)sizeof(sector_data));
     n = gdrom_dma_read(gd, sector_data, n);
+
+    if (!n) {
+      CHECK(!remaining);
+      break;
+    }
 
     struct sh4_dtr dtr = {0};
     dtr.channel = 0;
