@@ -193,7 +193,7 @@ void sh4_area0_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
     } else if (addr >= SH4_HOLLY_EXT_BEGIN && addr <= SH4_HOLLY_EXT_END) {
       /* nop */
     } else {
-      LOG_WARNING("sh4_area0_write unexpected addr 0x%08x", addr);
+      LOG_FATAL("sh4_area0_write unexpected addr 0x%08x", addr);
     }
   }
 }
