@@ -263,7 +263,7 @@ union vert_param {
   struct {
     union pcw pcw;
     float xyz[3];
-    uint16_t vu[2];
+    uint16_t uv[2];
     uint32_t ignore_0;
     uint32_t base_color;
     uint32_t offset_color;
@@ -288,7 +288,7 @@ union vert_param {
   struct {
     union pcw pcw;
     float xyz[3];
-    uint16_t vu[2];
+    uint16_t uv[2];
     uint32_t ignore_0;
     uint32_t ignore_1;
     uint32_t ignore_2;
@@ -313,7 +313,7 @@ union vert_param {
   struct {
     union pcw pcw;
     float xyz[3];
-    uint16_t vu[2];
+    uint16_t uv[2];
     uint32_t ignore_0;
     float base_intensity;
     float offset_intensity;
@@ -412,7 +412,7 @@ union vert_param {
   struct {
     union pcw pcw;
     float xyz[4][3];
-    uint32_t uv[3];
+    uint16_t uv[3][2];
   } sprite1;
 };
 

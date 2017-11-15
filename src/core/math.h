@@ -13,17 +13,9 @@
 #define ALIGN_UP(v, alignment) (((v) + (alignment)-1) & ~((alignment)-1))
 #define ALIGN_DOWN(v, alignment) ((v) & ~((alignment)-1))
 
-static inline uint32_t npow2(uint32_t v) {
-  v--;
-  v |= v >> 1;
-  v |= v >> 2;
-  v |= v >> 4;
-  v |= v >> 8;
-  v |= v >> 16;
-  v++;
-  return v;
-}
-
+/*
+ * bitwise ops
+ */
 static inline uint32_t bswap24(uint32_t v) {
   return ((v & 0xff) << 16) | (v & 0x00ff00) | ((v & 0xff0000) >> 16);
 }
@@ -94,5 +86,67 @@ static inline uint32_t bswap32(uint32_t v) {
 }
 
 #endif
+
+/*
+ * scalar ops
+ */
+static inline uint32_t npow2(uint32_t v) {
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+  return v;
+}
+
+/*
+ * vector ops
+ */
+static inline float vec3_dot(float *a, float *b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+static inline float vec3_len(float *a) {
+  return sqrtf(vec3_dot(a, a));
+}
+
+static inline float vec3_normalize(float *a) {
+  float len = vec3_len(a);
+  if (len) {
+    a[0] /= len;
+    a[1] /= len;
+    a[2] /= len;
+  }
+  return len;
+}
+
+static inline void vec3_add(float *out, float *a, float *b) {
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+  out[2] = a[2] + b[2];
+}
+static inline void vec3_sub(float *out, float *a, float *b) {
+  out[0] = a[0] - b[0];
+  out[1] = a[1] - b[1];
+  out[2] = a[2] - b[2];
+}
+
+static inline void vec3_cross(float *out, float *a, float *b) {
+  out[0] = a[1] * b[2] - a[2] * b[1];
+  out[1] = a[2] * b[0] - a[0] * b[2];
+  out[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+static inline void vec2_add(float *out, float *a, float *b) {
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+}
+
+static inline void vec2_sub(float *out, float *a, float *b) {
+  out[0] = a[0] - b[0];
+  out[1] = a[1] - b[1];
+}
 
 #endif

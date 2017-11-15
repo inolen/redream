@@ -431,7 +431,7 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
                *(uint32_t *)(float *)&param->type4.xyz[0],
                *(uint32_t *)(float *)&param->type4.xyz[1],
                *(uint32_t *)(float *)&param->type4.xyz[2]);
-        igText("uv: {0x%x, 0x%x}", param->type4.vu[1], param->type4.vu[0]);
+        igText("uv: {0x%x, 0x%x}", param->type4.uv[1], param->type4.uv[0]);
         igText("base_color: 0x%x", param->type4.base_color);
         igText("offset_color: 0x%x", param->type4.offset_color);
         break;
@@ -453,7 +453,7 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
       case 6:
         igText("xyz: {%.2f, %.2f, %f}", param->type6.xyz[0],
                param->type6.xyz[1], param->type6.xyz[2]);
-        igText("uv: {0x%x, 0x%x}", param->type6.vu[1], param->type6.vu[0]);
+        igText("uv: {0x%x, 0x%x}", param->type6.uv[1], param->type6.uv[0]);
         igText("base_color_a: %.2f", param->type6.base_color_a);
         igText("base_color_r: %.2f", param->type6.base_color_r);
         igText("base_color_g: %.2f", param->type6.base_color_g);
@@ -475,7 +475,7 @@ static void tracer_param_tooltip(struct tracer *tracer, struct tr_param *rp) {
       case 8:
         igText("xyz: {%.2f, %.2f, %f}", param->type8.xyz[0],
                param->type8.xyz[1], param->type8.xyz[2]);
-        igText("uv: {0x%x, 0x%x}", param->type8.vu[1], param->type8.vu[0]);
+        igText("uv: {0x%x, 0x%x}", param->type8.uv[1], param->type8.uv[0]);
         igText("base_intensity: %.2f", param->type8.base_intensity);
         igText("offset_intensity: %.2f", param->type8.offset_intensity);
         break;

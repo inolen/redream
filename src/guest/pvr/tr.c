@@ -277,10 +277,10 @@ static inline uint8_t fmulu8(uint8_t a, uint8_t b) {
     (out)[1] = (uv)[1];   \
   }
 
-#define PARSE_UV16(vu, out)     \
+#define PARSE_UV16(uv, out)     \
   {                             \
-    uint32_t u = (vu)[1] << 16; \
-    uint32_t v = (vu)[0] << 16; \
+    uint32_t u = (uv)[1] << 16; \
+    uint32_t v = (uv)[0] << 16; \
     (out)[0] = *(float *)&u;    \
     (out)[1] = *(float *)&v;    \
   }
@@ -364,38 +364,38 @@ static void tr_parse_bg(struct tr *tr, const struct ta_context *ctx,
   surf->params.dst_blend = BLEND_NONE;
 
   /* translate the first 3 vertices */
-  struct ta_vertex *v0 = tr_reserve_vert(tr, rc);
-  struct ta_vertex *v1 = tr_reserve_vert(tr, rc);
-  struct ta_vertex *v2 = tr_reserve_vert(tr, rc);
-  struct ta_vertex *v3 = tr_reserve_vert(tr, rc);
+  struct ta_vertex *va = tr_reserve_vert(tr, rc);
+  struct ta_vertex *vb = tr_reserve_vert(tr, rc);
+  struct ta_vertex *vc = tr_reserve_vert(tr, rc);
+  struct ta_vertex *vd = tr_reserve_vert(tr, rc);
 
   int offset = 0;
-  offset = tr_parse_bg_vert(ctx, rc, offset, v0);
-  offset = tr_parse_bg_vert(ctx, rc, offset, v1);
-  offset = tr_parse_bg_vert(ctx, rc, offset, v2);
+  offset = tr_parse_bg_vert(ctx, rc, offset, va);
+  offset = tr_parse_bg_vert(ctx, rc, offset, vb);
+  offset = tr_parse_bg_vert(ctx, rc, offset, vc);
 
   /* override xyz values supplied by ISP_BACKGND_T. while the hardware docs act
      like they should be correct, they're most definitely not in most cases */
-  v0->xyz[0] = 0.0f;
-  v0->xyz[1] = (float)ctx->video_height;
-  v0->xyz[2] = ctx->bg_depth;
+  va->xyz[0] = 0.0f;
+  va->xyz[1] = (float)ctx->video_height;
+  va->xyz[2] = ctx->bg_depth;
 
-  v1->xyz[0] = 0.0f;
-  v1->xyz[1] = 0.0f;
-  v1->xyz[2] = ctx->bg_depth;
+  vb->xyz[0] = 0.0f;
+  vb->xyz[1] = 0.0f;
+  vb->xyz[2] = ctx->bg_depth;
 
-  v2->xyz[0] = (float)ctx->video_width;
-  v2->xyz[1] = (float)ctx->video_height;
-  v2->xyz[2] = ctx->bg_depth;
+  vc->xyz[0] = (float)ctx->video_width;
+  vc->xyz[1] = (float)ctx->video_height;
+  vc->xyz[2] = ctx->bg_depth;
 
   /* 4th vertex isn't supplied, fill it out automatically */
-  v3->xyz[0] = v2->xyz[0];
-  v3->xyz[1] = v1->xyz[1];
-  v3->xyz[2] = ctx->bg_depth;
-  v3->uv[0] = v2->uv[0];
-  v3->uv[1] = v1->uv[1];
-  v3->color = v0->color;
-  v3->offset_color = v0->offset_color;
+  vd->xyz[0] = vc->xyz[0];
+  vd->xyz[1] = vb->xyz[1];
+  vd->xyz[2] = ctx->bg_depth;
+  vd->uv[0] = vc->uv[0];
+  vd->uv[1] = vb->uv[1];
+  vd->color = va->color;
+  vd->offset_color = va->offset_color;
 
   tr_commit_surf(tr, rc);
 
@@ -534,7 +534,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
     case 4: {
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type4.xyz, vert->xyz);
-      PARSE_UV16(param->type4.vu, vert->uv);
+      PARSE_UV16(param->type4.uv, vert->uv);
       PARSE_PACKED_COLOR(param->type4.base_color, &vert->color);
       PARSE_PACKED_COLOR(param->type4.offset_color, &vert->offset_color);
     } break;
@@ -550,7 +550,7 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
     case 6: {
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type6.xyz, vert->xyz);
-      PARSE_UV16(param->type6.vu, vert->uv);
+      PARSE_UV16(param->type6.uv, vert->uv);
       PARSE_FLOAT_COLOR(param->type6.base_color, &vert->color);
       PARSE_FLOAT_COLOR(param->type6.offset_color, &vert->offset_color);
     } break;
@@ -567,56 +567,88 @@ static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,
     case 8: {
       struct ta_vertex *vert = tr_reserve_vert(tr, rc);
       PARSE_XYZ(param->type8.xyz, vert->xyz);
-      PARSE_UV16(param->type8.vu, vert->uv);
+      PARSE_UV16(param->type8.uv, vert->uv);
       PARSE_BASE_INTENSITY(param->type8.base_intensity, &vert->color);
       PARSE_OFFSET_INTENSITY(param->type8.offset_intensity,
                              &vert->offset_color);
     } break;
 
-    case 15: {
-      CHECK(param->type0.pcw.end_of_strip);
-
-      static const int indices[] = {0, 1, 3, 2};
-
-      for (int i = 0, l = ARRAY_SIZE(indices); i < l; i++) {
-        int idx = indices[i];
-        struct ta_vertex *vert = tr_reserve_vert(tr, rc);
-
-        /* FIXME this is assuming all sprites are billboards */
-        vert->xyz[0] = param->sprite0.xyz[idx][0];
-        vert->xyz[1] = param->sprite0.xyz[idx][1];
-        vert->xyz[2] = param->sprite0.xyz[0][2];
-        vert->color = *(uint32_t *)&tr->sprite_color;
-        vert->offset_color = *(uint32_t *)&tr->sprite_offset_color;
-      }
-    } break;
-
+    case 15:
     case 16: {
       CHECK(param->type0.pcw.end_of_strip);
 
-      static const int indices[] = {0, 1, 3, 2};
+      /*
+       * sprites are input as a quad in a clockwise order:
+       *
+       * b (x,y,z,u,v) ---> c (x,y,z,u,v)
+       *       ^                  |
+       *       |                  |
+       *       |                  |
+       *       |                  v
+       * a (x,y,z,u,v) <--- d (x,y,0,0,0)
+       *
+       * note that the z, u, v components aren't specified for the final vertex.
+       * these need to be calculated, and the quad needs to be converted into a
+       * tristrip to match the rest of the ta input
+       */
+      struct ta_vertex *va = tr_reserve_vert(tr, rc); /* bottom left */
+      struct ta_vertex *vb = tr_reserve_vert(tr, rc); /* top left */
+      struct ta_vertex *vd = tr_reserve_vert(tr, rc); /* bottom right */
+      struct ta_vertex *vc = tr_reserve_vert(tr, rc); /* top right */
 
-      for (int i = 0, l = ARRAY_SIZE(indices); i < l; i++) {
-        int idx = indices[i];
-        struct ta_vertex *vert = tr_reserve_vert(tr, rc);
+      PARSE_XYZ(param->sprite1.xyz[0], va->xyz);
+      PARSE_UV16(param->sprite1.uv[0], va->uv);
+      va->color = *(uint32_t *)&tr->sprite_color;
+      va->offset_color = *(uint32_t *)&tr->sprite_offset_color;
 
-        /* FIXME this is assuming all sprites are billboards */
-        vert->xyz[0] = param->sprite1.xyz[idx][0];
-        vert->xyz[1] = param->sprite1.xyz[idx][1];
-        vert->xyz[2] = param->sprite1.xyz[0][2];
-        uint32_t u, v;
-        if (idx == 3) {
-          u = (param->sprite1.uv[0] & 0xffff0000);
-          v = (param->sprite1.uv[2] & 0x0000ffff) << 16;
-        } else {
-          u = (param->sprite1.uv[idx] & 0xffff0000);
-          v = (param->sprite1.uv[idx] & 0x0000ffff) << 16;
-        }
-        vert->uv[0] = *(float *)&u;
-        vert->uv[1] = *(float *)&v;
-        vert->color = *(uint32_t *)&tr->sprite_color;
-        vert->offset_color = *(uint32_t *)&tr->sprite_offset_color;
+      PARSE_XYZ(param->sprite1.xyz[1], vb->xyz);
+      PARSE_UV16(param->sprite1.uv[1], vb->uv);
+      vb->color = *(uint32_t *)&tr->sprite_color;
+      vb->offset_color = *(uint32_t *)&tr->sprite_offset_color;
+
+      PARSE_XYZ(param->sprite1.xyz[2], vc->xyz);
+      PARSE_UV16(param->sprite1.uv[2], vc->uv);
+      vc->color = *(uint32_t *)&tr->sprite_color;
+      vc->offset_color = *(uint32_t *)&tr->sprite_offset_color;
+
+      vd->xyz[0] = param->sprite1.xyz[3][0];
+      vd->xyz[1] = param->sprite1.xyz[3][1];
+      vd->color = *(uint32_t *)&tr->sprite_color;
+      vd->offset_color = *(uint32_t *)&tr->sprite_offset_color;
+
+      /* calculate the sprite's plane from the three complete vertices */
+      float xyz_ba[3], xyz_bc[3];
+      float n[3], len, d;
+      vec3_sub(xyz_ba, va->xyz, vb->xyz);
+      vec3_sub(xyz_bc, vc->xyz, vb->xyz);
+      vec3_cross(n, xyz_ba, xyz_bc);
+      len = vec3_normalize(n);
+      d = vec3_dot(n, vb->xyz);
+
+      /* don't commit surf if quad is degenerate or perpendicular to our view */
+      if (len == 0.0f || n[2] == 0.0f) {
+        return;
       }
+
+      /*
+       * for all points on a plane, the following must hold true:
+       * dot(n, p) - d = 0
+       *
+       * using this, the missing corner's z can be solved with:
+       * n.x * p.x + n.y * p.y + n.z * p.z - d = 0
+       * n.x * p.x + n.y * p.y + n.z * p.z = d
+       * n.z * p.z = d - n.x * p.x - n.y * p.y
+       * p.z = (d - n.x * p.y - n.y * p.y) / n.z
+       */
+      vd->xyz[2] = (d - n[0] * vd->xyz[0] - n[1] * vd->xyz[1]) / n[2];
+
+      /* calculate the missing corner's uv */
+      float uv_ba[2], uv_bc[2];
+      vec2_sub(uv_ba, va->uv, vb->uv);
+      vec2_sub(uv_bc, vc->uv, vb->uv);
+
+      vec2_add(vd->uv, vb->uv, uv_ba);
+      vec2_add(vd->uv, vd->uv, uv_bc);
     } break;
 
     default:
