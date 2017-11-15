@@ -13,15 +13,9 @@ static const char *cdi_version_names[] = {
     "2", "3", "3.5",
 };
 
-static const int cdi_sector_sizes[] = {2048, 2336, 2352};
+static const int cdi_sectors[] = {2048, 2336, 2352};
 
-static const int cdi_sector_formats[] = {
-    GD_SECTOR_CDDA, 0, GD_SECTOR_M2F1,
-};
-
-static const char *cdi_modes[] = {
-    "CDDA", "???", "M2F1",
-};
+static const char *cdi_modes[] = {"CDDA", "MODE1", "MODE2"};
 
 static const uint8_t cdi_start_mark[] = {0, 0, 1, 0, 0, 0, 255, 255, 255, 255};
 
@@ -151,11 +145,11 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
   }
 
   /* parse track info */
-  uint32_t pregap_length, track_length, mode, lba, total_length, sector_type;
+  uint32_t pregap_len, track_len, mode, lba, total_len, sector_type;
   fseek(fp, 2, SEEK_CUR);
-  r = fread(&pregap_length, 4, 1, fp);
+  r = fread(&pregap_len, 4, 1, fp);
   CHECK_EQ(r, 1);
-  r = fread(&track_length, 4, 1, fp);
+  r = fread(&track_len, 4, 1, fp);
   CHECK_EQ(r, 1);
   fseek(fp, 6, SEEK_CUR);
   r = fread(&mode, 4, 1, fp);
@@ -163,58 +157,75 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
   fseek(fp, 12, SEEK_CUR);
   r = fread(&lba, 4, 1, fp);
   CHECK_EQ(r, 1);
-  r = fread(&total_length, 4, 1, fp);
+  r = fread(&total_len, 4, 1, fp);
   CHECK_EQ(r, 1);
   fseek(fp, 16, SEEK_CUR);
   r = fread(&sector_type, 4, 1, fp);
   CHECK_EQ(r, 1);
 
-  if (total_length != (pregap_length + track_length)) {
+  if (total_len != (pregap_len + track_len)) {
     LOG_WARNING("cdi_parse track length is invalid");
     return 0;
   }
 
-  if (mode != 0 && mode != 2) {
-    LOG_WARNING("cdi_parse unsupported track mode %d", mode);
-    return 0;
-  }
-
-  if (sector_type >= ARRAY_SIZE(cdi_sector_sizes)) {
+  if (sector_type >= ARRAY_SIZE(cdi_sectors)) {
     LOG_WARNING("cdi_parse unsupported sector type 0x%x", sector_type);
     return 0;
   }
 
-  int sector_fmt = cdi_sector_formats[mode];
-  int sector_size = cdi_sector_sizes[sector_type];
-  int data_offset = *track_offset + pregap_length * sector_size;
+  int sector_size = cdi_sectors[sector_type];
+  int data_offset = *track_offset + pregap_len * sector_size;
 
-  track->fad = pregap_length + lba;
+  track->fad = pregap_len + lba;
   track->adr = 0;
-  track->ctrl = sector_fmt == GD_SECTOR_CDDA ? 0 : 4;
-  track->sector_fmt = cdi_sector_formats[mode];
-  track->sector_size = sector_size;
-  switch (track->sector_fmt) {
-    case GD_SECTOR_CDDA:
-      track->header_size = 0;
-      track->error_size = 0;
-      track->data_size = 2352;
-      break;
-    case GD_SECTOR_M2F1:
-      track->header_size = 8;
-      track->error_size = 280;
-      track->data_size = 2048;
-      break;
-    default:
-      LOG_WARNING("cdi_parse unexpected sector format %d", track->sector_fmt);
-      return 0;
+  track->ctrl = mode == 0 ? 0 : 4;
+  if (mode == 0 && sector_size == 2352) {
+    track->sector_fmt = GD_SECTOR_CDDA;
+    track->header_size = 0;
+    track->error_size = 0;
+    track->data_size = 2352;
+  } else if (mode == 1 && sector_size == 2352) {
+    track->sector_fmt = GD_SECTOR_M1;
+    /* skip sync, header */
+    track->header_size = 16;
+    track->error_size = 288;
+    track->data_size = 2048;
+  } else if (mode == 1 && sector_size == 2336) {
+    track->sector_fmt = GD_SECTOR_M1;
+    track->header_size = 0;
+    track->error_size = 288;
+    track->data_size = 2048;
+  } else if (mode == 2 && sector_size == 2352) {
+    /* assume form1 */
+    track->sector_fmt = GD_SECTOR_M2F1;
+    /* skip sync, header and subheader */
+    track->header_size = 24;
+    track->error_size = 280;
+    track->data_size = 2048;
+  } else if (mode == 2 && sector_size == 2336) {
+    /* assume form1 */
+    track->sector_fmt = GD_SECTOR_M2F1;
+    /* skip subheader */
+    track->header_size = 8;
+    track->error_size = 280;
+    track->data_size = 2048;
+  } else {
+    LOG_WARNING("cdi_parse unexpected sector format %d / size %d",
+                track->sector_fmt, track->sector_size);
+    return 0;
   }
+  track->sector_size = sector_size;
   track->file_offset = data_offset - track->fad * track->sector_size;
+
+  /* sanity check the track layout */
+  CHECK_EQ(track->header_size + track->error_size + track->data_size,
+           track->sector_size);
 
   LOG_INFO("cdi_parse_track track=%d fad=%d off=%d mode=%s/%d", track->num,
            track->fad, data_offset, cdi_modes[mode], track->sector_size);
 
-  *track_offset += total_length * sector_size;
-  *leadout_fad = track->fad + track_length;
+  *track_offset += total_len * sector_size;
+  *leadout_fad = track->fad + track_len;
 
   return 1;
 }
