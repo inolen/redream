@@ -9,6 +9,7 @@
 #include "guest/sh4/sh4_mem.h"
 #include "guest/sh4/sh4_mmu.h"
 #include "guest/sh4/sh4_scif.h"
+#include "guest/sh4/sh4_tmu.h"
 #include "guest/sh4/sh4_types.h"
 #include "jit/frontend/sh4/sh4_guest.h"
 #include "jit/jit.h"
@@ -43,7 +44,8 @@ struct sh4 {
   struct jit_backend *backend;
 
   /* dbg */
-  int log_reg_access;
+  int log_regs;
+  int tmu_stats;
   struct list breakpoints;
 
   /* intc */

@@ -17,7 +17,7 @@ static uint32_t sh4_reg_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
     data = sh4->reg[offset];
   }
 
-  if (sh4->log_reg_access) {
+  if (sh4->log_regs) {
     LOG_INFO("sh4_reg_read addr=0x%08x data=0x%x", addr, data);
   }
 
@@ -29,7 +29,7 @@ static void sh4_reg_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   uint32_t offset = SH4_REG_OFFSET(addr);
   reg_write_cb write = sh4_cb[offset].write;
 
-  if (sh4->log_reg_access) {
+  if (sh4->log_regs) {
     LOG_INFO("sh4_reg_write addr=0x%08x data=0x%x", addr, data & mask);
   }
 

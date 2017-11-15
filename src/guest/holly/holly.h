@@ -29,7 +29,7 @@ struct holly {
   struct holly_g2_dma dma[HOLLY_G2_NUM_CHAN];
 
   /* debug */
-  int log_reg_access;
+  int log_regs;
 };
 
 extern struct reg_cb holly_cb[NUM_HOLLY_REGS];

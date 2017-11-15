@@ -317,7 +317,7 @@ void holly_reg_write(struct holly *hl, uint32_t addr, uint32_t data,
   uint32_t offset = addr >> 2;
   reg_write_cb write = holly_cb[offset].write;
 
-  if (hl->log_reg_access) {
+  if (hl->log_regs) {
     LOG_INFO("holly_reg_write addr=0x%08x data=0x%x", addr, data & mask);
   }
 
@@ -340,7 +340,7 @@ uint32_t holly_reg_read(struct holly *hl, uint32_t addr, uint32_t mask) {
     data = hl->reg[offset];
   }
 
-  if (hl->log_reg_access) {
+  if (hl->log_regs) {
     LOG_INFO("holly_reg_read addr=0x%08x data=0x%x", addr, data);
   }
 
@@ -351,8 +351,8 @@ uint32_t holly_reg_read(struct holly *hl, uint32_t addr, uint32_t mask) {
 void holly_debug_menu(struct holly *hl) {
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("HOLLY", 1)) {
-      if (igMenuItem("log reg access", NULL, hl->log_reg_access, 1)) {
-        hl->log_reg_access = !hl->log_reg_access;
+      if (igMenuItem("log reg access", NULL, hl->log_regs, 1)) {
+        hl->log_regs = !hl->log_regs;
       }
 
       if (igMenuItem("raise all HOLLY_INT_NRM", NULL, 0, 1)) {

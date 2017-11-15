@@ -296,14 +296,22 @@ void sh4_debug_menu(struct sh4 *sh4) {
         }
       }
 
-      if (igMenuItem("log reg access", NULL, sh4->log_reg_access, 1)) {
-        sh4->log_reg_access = !sh4->log_reg_access;
+      if (igMenuItem("log reg access", NULL, sh4->log_regs, 1)) {
+        sh4->log_regs = !sh4->log_regs;
+      }
+
+      if (igMenuItem("tmu stats", NULL, sh4->tmu_stats, 1)) {
+        sh4->tmu_stats = !sh4->tmu_stats;
       }
 
       igEndMenu();
     }
 
     igEndMainMenuBar();
+  }
+
+  if (sh4->tmu_stats) {
+    sh4_tmu_debug_menu(sh4);
   }
 }
 #endif

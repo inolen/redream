@@ -1,5 +1,7 @@
+#include "guest/sh4/sh4_tmu.h"
 #include "guest/scheduler.h"
 #include "guest/sh4/sh4.h"
+#include "imgui.h"
 
 static const int64_t PERIPHERAL_CLOCK_FREQ = SH4_CLOCK_FREQ >> 2;
 static const int PERIPHERAL_SCALE[] = {2, 4, 6, 8, 10, 0, 0, 0};
@@ -132,6 +134,44 @@ static void sh4_tmu_update_tcnt(struct sh4 *sh4, uint32_t n) {
     sh4_tmu_reschedule(sh4, n, *TCNT(n), *TCR(n));
   }
 }
+
+#ifdef HAVE_IMGUI
+void sh4_tmu_debug_menu(struct sh4 *sh4) {
+  if (igBegin("tmu stats", NULL, 0)) {
+    igColumns(6, NULL, 0);
+
+    igText("#");
+    igNextColumn();
+    igText("started");
+    igNextColumn();
+    igText("count");
+    igNextColumn();
+    igText("control");
+    igNextColumn();
+    igText("reset count");
+    igNextColumn();
+    igText("underflowed");
+    igNextColumn();
+
+    for (int i = 0; i < 3; i++) {
+      igText("%d", i);
+      igNextColumn();
+      igText(TSTR(i) ? "yes" : "no");
+      igNextColumn();
+      igText("0x%08x", sh4_tmu_tcnt(sh4, i));
+      igNextColumn();
+      igText("0x%08x", TCR(i));
+      igNextColumn();
+      igText("0x%08x", TCOR(i));
+      igNextColumn();
+      igText("0x%x", TUNI(i));
+      igNextColumn();
+    }
+
+    igEnd();
+  }
+}
+#endif
 
 REG_W32(sh4_cb, TSTR) {
   struct sh4 *sh4 = dc->sh4;
