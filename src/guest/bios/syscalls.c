@@ -172,7 +172,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
 
       LOG_SYSCALL("GDC_GETTOC2 0=0x%x 1=0x%x", area, dst);
 
-      struct gd_spi_toc toc;
+      struct gd_toc_info toc;
       gdrom_get_toc(gd, area, &toc);
 
       /* TODO check that this format is correct */
@@ -282,7 +282,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     case GDC_REQ_STAT: {
       LOG_SYSCALL("GDC_REQ_STAT");
 
-      struct gd_spi_status stat;
+      struct gd_status_info stat;
       gdrom_get_status(gd, &stat);
 
       /* TODO verify this format */
@@ -467,7 +467,7 @@ void bios_gdrom_vector(struct bios *bios) {
 
         LOG_SYSCALL("GDROM_CHECK_DRIVE 0x%x", result);
 
-        struct gd_spi_status stat;
+        struct gd_status_info stat;
         gdrom_get_status(gd, &stat);
 
         uint32_t cond[2];

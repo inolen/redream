@@ -64,7 +64,6 @@ static void holly_gdrom_dma(struct holly *hl) {
     n = gdrom_dma_read(gd, sector_data, n);
 
     if (!n) {
-      CHECK(!remaining);
       break;
     }
 
@@ -401,6 +400,15 @@ struct holly *holly_create(struct dreamcast *dc) {
 #undef HOLLY_REG
 
   return hl;
+}
+
+REG_W32(holly_cb, SB_SFRES) {
+  /* only reset if the magic value is written */
+  if (value != 0x7611) {
+    return;
+  }
+
+  LOG_FATAL("software reset through SB_SFRES unsupported");
 }
 
 REG_R32(holly_cb, SB_ISTNRM) {

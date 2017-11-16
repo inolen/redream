@@ -395,7 +395,7 @@ static uint32_t aica_rtc_reg_read(struct aica *aica, uint32_t addr,
     case 0x8:
       return 0;
     default:
-      LOG_FATAL("Unexpected rtc address");
+      LOG_FATAL("aica_rtc_reg_read unexpected address 0x%x", addr);
       return 0;
   }
 }
@@ -418,7 +418,7 @@ static void aica_rtc_reg_write(struct aica *aica, uint32_t addr, uint32_t data,
       aica->rtc_write = data & 1;
       break;
     default:
-      LOG_FATAL("Unexpected rtc address");
+      LOG_FATAL("aica_rtc_reg_write unexpected address 0x%x", addr);
       break;
   }
 }

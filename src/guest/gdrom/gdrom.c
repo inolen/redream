@@ -122,9 +122,10 @@ static void gdrom_spi_cdread(struct gdrom *gd) {
 
     /* fill DMA buffer with as many sectors as possible */
     int num_sectors = MIN(gd->cdr_num_sectors, max_dma_sectors);
-    gd->dma_size = gdrom_read_sectors(gd, gd->cdr_first_sector, num_sectors,
-                                      gd->cdr_secfmt, gd->cdr_secmask,
-                                      gd->dma_buffer, sizeof(gd->dma_buffer));
+    int res = gdrom_read_sectors(gd, gd->cdr_first_sector, num_sectors,
+                                 gd->cdr_secfmt, gd->cdr_secmask,
+                                 gd->dma_buffer, sizeof(gd->dma_buffer));
+    gd->dma_size = res;
     gd->dma_head = 0;
 
     /* update sector read state */
@@ -138,9 +139,10 @@ static void gdrom_spi_cdread(struct gdrom *gd) {
 
     /* fill PIO buffer with as many sectors as possible */
     int num_sectors = MIN(gd->cdr_num_sectors, max_pio_sectors);
-    gd->pio_size = gdrom_read_sectors(gd, gd->cdr_first_sector, num_sectors,
-                                      gd->cdr_secfmt, gd->cdr_secmask,
-                                      gd->pio_buffer, sizeof(gd->pio_buffer));
+    int res = gdrom_read_sectors(gd, gd->cdr_first_sector, num_sectors,
+                                 gd->cdr_secfmt, gd->cdr_secmask,
+                                 gd->pio_buffer, sizeof(gd->pio_buffer));
+    gd->pio_size = res;
     gd->pio_head = 0;
 
     /* update sector read state */
@@ -246,62 +248,188 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
      * packet command flow for pio data to host
      */
     case GD_SPI_REQ_STAT: {
-      int offset = data[2];
-      int size = data[4];
+      int off = data[2];
+      int len = data[4];
 
-      struct gd_spi_status stat;
+      struct gd_status_info stat;
       gdrom_get_status(gd, &stat);
 
-      /* bswap multibyte values to BE */
-      stat.fad = bswap24(stat.fad);
+      /* bit  |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte |     |     |     |     |     |     |     |
+         -----------------------------------------------------
+         0    |  0  |  0  |  0  |  0  |  status
+         -----------------------------------------------------
+         1    |  disc format          |  repeat count
+         -----------------------------------------------------
+         2    |  address              |  control
+         -----------------------------------------------------
+         3    |  subcode q track number
+         -----------------------------------------------------
+         4    |  subcode q index number
+         -----------------------------------------------------
+         5    |  fad (msb)
+         -----------------------------------------------------
+         6    |  fad
+         -----------------------------------------------------
+         7    |  fad (lsb)
+         -----------------------------------------------------
+         8    |  max read retry time
+         -----------------------------------------------------
+         9    |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0 */
+      uint8_t out[10];
+      out[0] = stat.status & 0xff;
+      out[1] = ((stat.format & 0xf) << 4) | (stat.repeat & 0xf);
+      out[2] = ((stat.address & 0xf) << 4) | (stat.control & 0xf);
+      out[3] = stat.scd_track & 0xff;
+      out[4] = stat.scd_index & 0xff;
+      out[5] = (stat.fad & 0x00ff0000) >> 16;
+      out[6] = (stat.fad & 0x0000ff00) >> 8;
+      out[7] = (stat.fad & 0x000000ff);
+      out[8] = stat.read_retry & 0xff;
+      out[9] = 0;
 
-      gdrom_spi_write(gd, (uint8_t *)&stat + offset, size);
+      gdrom_spi_write(gd, out + off, len);
     } break;
 
     case GD_SPI_REQ_MODE: {
-      int offset = data[2];
-      int size = data[4];
+      int off = data[2];
+      int len = data[4];
 
-      gdrom_spi_write(gd, (uint8_t *)&gd->hw_info + offset, size);
+      gdrom_spi_write(gd, (uint8_t *)&gd->hw_info + off, len);
     } break;
 
     case GD_SPI_REQ_ERROR: {
-      int size = data[4];
+      int len = data[4];
 
-      struct gd_spi_error err;
+      struct gd_error_info err;
       gdrom_get_error(gd, &err);
 
-      gdrom_spi_write(gd, &err, size);
+      /* bit  |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte |     |     |     |     |     |     |     |
+         -----------------------------------------------------
+         0    |  1  |  1  |  1  |  1  |  0  |  0  |  0  |  0
+         -----------------------------------------------------
+         1    |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         -----------------------------------------------------
+         2    |  0  |  0  |  0  |  0  |  sense key
+         -----------------------------------------------------
+         3    |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         -----------------------------------------------------
+         4-7  |  cmd specific information
+         -----------------------------------------------------
+         8    |  additional sense code
+         -----------------------------------------------------
+         9    |  additional sense code qualifier */
+      uint8_t out[10];
+      data[0] = 0xf0;
+      data[1] = 0;
+      data[2] = err.sense & 0xf;
+      data[3] = 0;
+      data[4] = (err.info & 0x000000ff);
+      data[5] = (err.info & 0x0000ff00) >> 8;
+      data[6] = (err.info & 0x00ff0000) >> 16;
+      data[7] = (err.info & 0xff000000) >> 24;
+      data[8] = err.asc & 0xff;
+      data[9] = err.ascq & 0xff;
+
+      gdrom_spi_write(gd, out, len);
     } break;
 
     case GD_SPI_GET_TOC: {
       int area = (data[1] & 0x1);
-      int size = (data[3] << 8) | data[4];
+      int len = (data[3] << 8) | data[4];
 
-      struct gd_spi_toc toc;
+      struct gd_toc_info toc;
       gdrom_get_toc(gd, area, &toc);
 
-      /* bswap multibyte values to BE */
+      /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte  |     |     |     |     |     |     |     |
+         ------------------------------------------------------
+         n*4+0 | track n control       | track n adr
+         a-----------------------------------------------------
+         n*4*1 | track n fad (msb)
+         ------------------------------------------------------
+         n*4+2 | track n fad
+         ------------------------------------------------------
+         n*4+3 | track n fad (lsb)
+         ------------------------------------------------------
+         396   | start track control   | start track adr
+         ------------------------------------------------------
+         397   | start track number
+         ------------------------------------------------------
+         398   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         ------------------------------------------------------
+         399   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         ------------------------------------------------------
+         400   | end track control     | end track adr
+         ------------------------------------------------------
+         401   | end track number
+         ------------------------------------------------------
+         402   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         ------------------------------------------------------
+         403   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         ------------------------------------------------------
+         404   | lead-out track ctrl   | lead-out track adr
+         ------------------------------------------------------
+         405   | lead-out track fad (msb)
+         ------------------------------------------------------
+         406   | lead-out track fad
+         ------------------------------------------------------
+         407   | lead-out track fad (lsb) */
+      uint8_t out[408];
       for (int i = 0; i < ARRAY_SIZE(toc.entries); i++) {
-        struct gd_spi_toc_entry *entry = &toc.entries[i];
-        entry->fad = bswap24(entry->fad);
+        struct gd_toc_entry *entry = &toc.entries[i];
+        out[i * 4 + 0] = ((entry->ctrl & 0xf) << 4) | (entry->adr & 0xf);
+        out[i * 4 + 1] = (entry->fad & 0x00ff0000) >> 16;
+        out[i * 4 + 2] = (entry->fad & 0x0000ff00) >> 8;
+        out[i * 4 + 3] = (entry->fad & 0x000000ff);
       }
-      toc.leadout.fad = bswap24(toc.leadout.fad);
+      out[396] = ((toc.first.ctrl & 0xf) << 4) | (toc.first.adr & 0xf);
+      out[397] = toc.first.fad & 0xff;
+      out[398] = 0;
+      out[399] = 0;
+      out[400] = ((toc.last.ctrl & 0xf) << 4) | (toc.last.adr & 0xf);
+      out[401] = toc.last.fad & 0xff;
+      out[402] = 0;
+      out[403] = 0;
+      out[404] = ((toc.leadout.ctrl & 0xf) << 4) | (toc.leadout.adr & 0xf);
+      out[405] = (toc.leadout.fad & 0x00ff0000) >> 16;
+      out[406] = (toc.leadout.fad & 0x0000ff00) >> 8;
+      out[407] = (toc.leadout.fad & 0x000000ff);
 
-      gdrom_spi_write(gd, &toc, size);
+      gdrom_spi_write(gd, out, len);
     } break;
 
     case GD_SPI_REQ_SES: {
       int session = data[2];
       int size = data[4];
 
-      struct gd_spi_session ses;
+      struct gd_session_info ses;
       gdrom_get_session(gd, session, &ses);
 
-      /* bswap multibyte values to BE */
-      ses.fad = bswap24(ses.fad);
+      /* bit  |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte |     |     |     |     |     |     |     |
+         -----------------------------------------------------
+         0    |  0  |  0  |  0  |  0  |  status
+         -----------------------------------------------------
+         1    |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         -----------------------------------------------------
+         2    |  number of sessions / starting track
+         -----------------------------------------------------
+         3    |  lead out fad (msb) / starting fad (msb)
+         -----------------------------------------------------
+         4    |  lead out fad / starting fad
+         -----------------------------------------------------
+         5    |  lead out fad (lsb) / starting fad (lsb) */
+      uint8_t out[6];
+      out[0] = ses.status & 0xf;
+      out[1] = 0;
+      out[2] = ses.track & 0xff;
+      out[3] = (ses.fad & 0x00ff0000) >> 16;
+      out[4] = (ses.fad & 0x0000ff00) >> 8;
+      out[5] = (ses.fad & 0x000000ff);
 
-      gdrom_spi_write(gd, &ses, sizeof(ses));
+      gdrom_spi_write(gd, out, sizeof(out));
     } break;
 
     case GD_SPI_GET_SCD: {
@@ -421,7 +549,7 @@ static void gdrom_ata_cmd(struct gdrom *gd, int cmd) {
   gd->status.BSY = 1;
 
   /* error bits represent the status of the most recent command, clear before
-    processing a new command */
+    processing a new one */
   gd->error.full = 0;
   gd->status.CHECK = 0;
 
@@ -559,19 +687,19 @@ void gdrom_get_subcode(struct gdrom *gd, int format, uint8_t *data, int size) {
 }
 
 void gdrom_get_session(struct gdrom *gd, int session_num,
-                       struct gd_spi_session *ses) {
+                       struct gd_session_info *ses) {
   CHECK_NOTNULL(gd->disc);
 
   memset(ses, 0, sizeof(*ses));
 
   ses->status = gd->sectnum.status;
 
-  /* when session is 0 the "track_num" field contains the total number of
-     sessions, while the "fad" field contains the lead-out fad
+  /* when session is 0 the "track" field contains the total number of sessions,
+     while the "fad" field contains the lead-out fad
 
-     when session is non-0, the "track_num" field contains the first track of
-     the session, while the "fad" field contains contains the starting fad of
-     the specified session */
+     when session is non-0, the "track" field contains the first track of the
+     session, while the "fad" field contains contains the starting fad of the
+     specified session */
   if (session_num == 0) {
     int num_sessions = disc_get_num_sessions(gd->disc);
     struct session *last_session = disc_get_session(gd->disc, num_sessions - 1);
@@ -585,7 +713,7 @@ void gdrom_get_session(struct gdrom *gd, int session_num,
   }
 }
 
-void gdrom_get_toc(struct gdrom *gd, int area, struct gd_spi_toc *toc) {
+void gdrom_get_toc(struct gdrom *gd, int area, struct gd_toc_info *toc) {
   CHECK_NOTNULL(gd->disc);
 
   struct track *first_track = NULL;
@@ -601,7 +729,7 @@ void gdrom_get_toc(struct gdrom *gd, int area, struct gd_spi_toc *toc) {
   /* write out entries for each track */
   for (int i = first_track->num; i <= last_track->num; i++) {
     struct track *track = disc_get_track(gd->disc, i - 1);
-    struct gd_spi_toc_entry *entry = &toc->entries[i - 1];
+    struct gd_toc_entry *entry = &toc->entries[i - 1];
 
     entry->adr = track->adr;
     entry->ctrl = track->ctrl;
@@ -610,28 +738,28 @@ void gdrom_get_toc(struct gdrom *gd, int area, struct gd_spi_toc *toc) {
 
   toc->first.adr = first_track->adr;
   toc->first.ctrl = first_track->ctrl;
-  toc->first.track_num = first_track->num;
+  toc->first.fad = first_track->num;
 
   toc->last.adr = last_track->adr;
   toc->last.ctrl = last_track->ctrl;
-  toc->last.track_num = last_track->num;
+  toc->last.fad = last_track->num;
 
   toc->leadout.fad = leadout_fad;
 }
 
-void gdrom_get_error(struct gdrom *gd, struct gd_spi_error *err) {
+void gdrom_get_error(struct gdrom *gd, struct gd_error_info *err) {
   CHECK_NOTNULL(gd->disc);
 
   memset(err, 0, sizeof(*err));
 
-  err->one = 0xf;
-
   /* TODO implement the sense key / code information */
+  err->one = 0xf;
+  err->sense = gd->error.sense_key;
 
   CHECK_EQ(sizeof(*err), 10);
 }
 
-void gdrom_get_status(struct gdrom *gd, struct gd_spi_status *stat) {
+void gdrom_get_status(struct gdrom *gd, struct gd_status_info *stat) {
   CHECK_NOTNULL(gd->disc);
 
   memset(stat, 0, sizeof(*stat));

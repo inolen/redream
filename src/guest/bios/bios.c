@@ -228,12 +228,12 @@ static void bios_boot(struct bios *bios) {
   /* load IP.BIN bootstrap */
   {
     /* bootstrap occupies the first 16 sectors of the data track */
-    struct gd_spi_session data_session;
-    gdrom_get_session(gd, 2, &data_session);
+    struct gd_session_info ses;
+    gdrom_get_session(gd, 2, &ses);
 
     uint8_t tmp[DISC_MAX_SECTOR_SIZE * 16];
-    int read = gdrom_read_sectors(gd, data_session.fad, 16, GD_SECTOR_ANY,
-                                  GD_MASK_DATA, tmp, sizeof(tmp));
+    int read = gdrom_read_sectors(gd, ses.fad, 16, GD_SECTOR_ANY, GD_MASK_DATA,
+                                  tmp, sizeof(tmp));
     if (!read) {
       LOG_FATAL("bios_boot failed to copy IP.BIN");
       return;
