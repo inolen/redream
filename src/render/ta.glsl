@@ -22,12 +22,7 @@ static const char *ta_vp =
 "  // actual z coordinate provided to the ta, just 1/w. due to this, we set\n"
 "  // z = w in the vertex shader such that the clip test always passes, and\n"
 "  // then gl_FragDepth is manually set to w in the fragment shader\n"
-"  gl_Position.z = 1.0 / attr_xyz.z;\n"
-
-"  // take the absolute value of z for w. if w is negative the vertex will\n"
-"  // always fail the clip test which is defined as:\n"
-"  // -w <= x,y,z <= w\n"
-"  gl_Position.w = abs(gl_Position.z);\n"
+"  gl_Position.zw = 1.0f / attr_xyz.zz;\n"
 
 "  // cancel the perspective divide on the xy, they're already in ndc space\n"
 "  gl_Position.xy *= gl_Position.w;\n"
@@ -54,9 +49,8 @@ static const char *ta_fp =
 "      tex.a = 1.0;\n"
 "    #endif\n"
 "    #ifdef ALPHA_TEST\n"
-"      if (tex.a < u_alpha_ref) {\n"
+"      if (tex.a < u_alpha_ref)\n"
 "        discard;\n"
-"      }\n"
 "    #endif\n"
 "    #ifdef SHADE_DECAL\n"
 "      fragcolor = tex;\n"
@@ -81,7 +75,7 @@ static const char *ta_fp =
 
 "  #ifdef ALPHA_TEST\n"
 "    // punch through polys are always drawn with an alpha value of 1.0\n"
-"    fragcolor.a = 1.0;\n"
+"    fragcolor.a = 1.0f;\n"
 "  #endif\n"
 
 "  // gl_FragCoord.w is 1/clip.w aka the original 1/w passed to the TA,\n"
@@ -101,6 +95,7 @@ static const char *ta_fp =
 
 "  // note, 2^17 was chosen as ~100000 was largest value i'd seen passed as\n"
 "  // the w component at the time this was written\n"
+
 "  highp float w = 1.0 / gl_FragCoord.w;\n"
 "  gl_FragDepth = log2(1.0 + w) / 17.0;\n"
 
