@@ -402,6 +402,17 @@ struct holly *holly_create(struct dreamcast *dc) {
   return hl;
 }
 
+REG_R32(holly_cb, SB_FFST) {
+  /* most code i've seen that reads this register seems to block until the bit
+     it's interested in is 0, signalling that the fifo is empty and able to be
+     written to. being that the fifos aren't emulated, always returning zero
+     seems sane */
+  return 0;
+}
+
+REG_W32(holly_cb, SB_FFST) {
+}
+
 REG_W32(holly_cb, SB_SFRES) {
   /* only reset if the magic value is written */
   if (value != 0x7611) {
