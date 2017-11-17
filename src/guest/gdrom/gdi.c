@@ -145,20 +145,22 @@ static int gdi_parse(struct disc *disc, const char *filename) {
     /* add track */
     CHECK_LT(gdi->num_tracks, ARRAY_SIZE(gdi->tracks));
     struct track *track = &gdi->tracks[gdi->num_tracks++];
+
+    /* sanity check */
+    CHECK_EQ(num, gdi->num_tracks);
+
+    if (!track_set_layout(track, 1, sector_size)) {
+      LOG_WARNING("gdi_parse unsupported track layout sector_size=%d",
+                  sector_size);
+      return 0;
+    }
+
     track->num = gdi->num_tracks;
     track->fad = lba + GDROM_PREGAP;
     track->ctrl = ctrl;
-    track->sector_fmt = GD_SECTOR_M1;
-    track->sector_size = sector_size;
-    track->header_size = 16;
-    track->error_size = 288;
-    track->data_size = 2048;
     track->file_offset = file_offset - track->fad * track->sector_size;
     snprintf(track->filename, sizeof(track->filename), "%s" PATH_SEPARATOR "%s",
              dirname, filename);
-
-    /* sanity check */
-    CHECK_EQ(num, track->num);
 
     LOG_INFO("gdi_parse track=%d filename='%s' fad=%d secsz=%d", track->num,
              track->filename, track->fad, track->sector_size);

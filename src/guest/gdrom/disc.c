@@ -63,6 +63,61 @@ static void disc_patch_sector(struct disc *disc, int fad, uint8_t *data) {
   }
 }
 
+int track_set_layout(struct track *track, int sector_mode, int sector_size) {
+  track->sector_size = sector_size;
+
+  if (sector_mode == 0 && sector_size == 2352) {
+    track->sector_fmt = GD_SECTOR_CDDA;
+    track->header_size = 0;
+    track->error_size = 0;
+    track->data_size = 2352;
+  } else if (sector_mode == 1 && sector_size == 2048) {
+    track->sector_fmt = GD_SECTOR_M1;
+    track->header_size = 0;
+    track->error_size = 0;
+    track->data_size = 2048;
+  } else if (sector_mode == 1 && sector_size == 2352) {
+    track->sector_fmt = GD_SECTOR_M1;
+    /* skip sync, header */
+    track->header_size = 16;
+    track->error_size = 288;
+    track->data_size = 2048;
+  } else if (sector_mode == 1 && sector_size == 2336) {
+    track->sector_fmt = GD_SECTOR_M1;
+    track->header_size = 0;
+    track->error_size = 288;
+    track->data_size = 2048;
+  } else if (sector_mode == 2 && sector_size == 2048) {
+    /* assume form1 */
+    track->sector_fmt = GD_SECTOR_M2F1;
+    track->header_size = 0;
+    track->error_size = 0;
+    track->data_size = 2048;
+  } else if (sector_mode == 2 && sector_size == 2352) {
+    /* assume form1 */
+    track->sector_fmt = GD_SECTOR_M2F1;
+    /* skip sync, header and subheader */
+    track->header_size = 24;
+    track->error_size = 280;
+    track->data_size = 2048;
+  } else if (sector_mode == 2 && sector_size == 2336) {
+    /* assume form1 */
+    track->sector_fmt = GD_SECTOR_M2F1;
+    /* skip subheader */
+    track->header_size = 8;
+    track->error_size = 280;
+    track->data_size = 2048;
+  } else {
+    return 0;
+  }
+
+  /* sanity check */
+  CHECK_EQ(track->header_size + track->error_size + track->data_size,
+           track->sector_size);
+
+  return 1;
+}
+
 int disc_read_bytes(struct disc *disc, int fad, int len, uint8_t *dst,
                     int dst_size) {
   CHECK_LE(len, dst_size);

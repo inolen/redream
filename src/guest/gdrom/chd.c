@@ -139,12 +139,6 @@ static int chd_parse(struct disc *disc, const char *filename) {
     /* sanity checks */
     CHECK_EQ(tkid, chd->num_tracks + 1);
 
-    if (strcmp(type, "MODE1") && strcmp(type, "MODE1_RAW") &&
-        strcmp(type, "AUDIO")) {
-      LOG_WARNING("chd_parse track type %s unsupported", type);
-      return 0;
-    }
-
     if (strcmp(subtype, "NONE")) {
       LOG_WARNING("chd_parse track subtype %s unsupported", subtype);
       return 0;
@@ -155,29 +149,37 @@ static int chd_parse(struct disc *disc, const char *filename) {
       return 0;
     }
 
+    /* figure out sector type */
+    int sector_mode = 0;
+    int sector_size = 0;
+
+    if (!strcmp(type, "AUDIO")) {
+      sector_mode = 0;
+      sector_size = 2352;
+    } else if (!strcmp(type, "MODE1")) {
+      sector_mode = 1;
+      sector_size = 2336;
+    } else if (!strcmp(type, "MODE1_RAW")) {
+      sector_mode = 1;
+      sector_size = 2352;
+    } else {
+      LOG_WARNING("chd_parse unexpected mode %s", type);
+      return 0;
+    }
+
     /* add track */
     CHECK_LT(chd->num_tracks, ARRAY_SIZE(chd->tracks));
     struct track *track = &chd->tracks[chd->num_tracks++];
+
+    if (!track_set_layout(track, sector_mode, sector_size)) {
+      LOG_WARNING("chd_parse unsupported track layout mode=%d sector_size=%d",
+                  sector_mode, sector_size);
+      return 0;
+    }
+
     track->num = chd->num_tracks;
     track->fad = fad;
     track->ctrl = strcmp(type, "AUDIO") == 0 ? 0 : 4;
-    track->sector_fmt = !strcmp(type, "AUDIO") ? GD_SECTOR_CDDA : GD_SECTOR_M1;
-    track->sector_size = !strcmp(type, "MODE1") ? 2048 : 2352;
-    switch (track->sector_fmt) {
-      case GD_SECTOR_CDDA:
-        track->header_size = 0;
-        track->error_size = 0;
-        track->data_size = 2352;
-        break;
-      case GD_SECTOR_M1:
-        track->header_size = 16;
-        track->error_size = 280;
-        track->data_size = 2048;
-        break;
-      default:
-        LOG_WARNING("chd_parse unexpected sector format %d", track->sector_fmt);
-        return 0;
-    }
     track->file_offset = fad - cad;
 
     LOG_INFO("chd_parse '%s' track=%d fad=%d secsz=%d", tmp, track->num,
