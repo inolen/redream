@@ -15,14 +15,27 @@ static const char *ta_vp =
 "  var_offset_color = attr_offset_color;\n"
 "  var_texcoord = attr_texcoord;\n"
 
+"  // the z coordinate is actually 1/w, convert to w. note, there is no\n"
+"  // actual z coordinate provided to the ta, just this\n"
+"  highp float w = 1.0 / attr_xyz.z;\n"
+
+"  // if w is negative, this vertex will always fail the clip test which is\n"
+"  // defined as: -w <= z <= w\n"
+"  // however, since OpenGL tries to maintain connectivity when a polygon is\n"
+"  // clipped, a lot of junk vertices are generated in this case due to the z\n"
+"  // component not being valid for our vertices. the best workaround so far\n"
+"  // seems to be clamping w to always be positive, which doesn't explicitly\n"
+"  // clip this vertex, but avoids generating additional junk ones\n"
+"  w = max(w, 0.0);\n"
+
 "  // scale x from [0,640] -> [-1,1] and y from [0,480] to [-1,1]\n"
 "  gl_Position.xy = attr_xyz.xy * u_video_scale.xz + u_video_scale.yw;\n"
 
-"  // the z coordinate is actually 1/w, convert to w. note, there is no\n"
-"  // actual z coordinate provided to the ta, just 1/w. due to this, we set\n"
-"  // z = w in the vertex shader such that the clip test always passes, and\n"
-"  // then gl_FragDepth is manually set to w in the fragment shader\n"
-"  gl_Position.zw = 1.0f / attr_xyz.zz;\n"
+"  // since there isn't an actual z, set z = w to make the clip test always\n"
+"  // pass. because of this, after perspective division the fragment shader\n"
+"  // will always get a constant 1.0 for z, requiring it to explicitly set\n"
+"  // gl_FragDepth using the w component\n"
+"  gl_Position.zw = vec2(w, w);\n"
 
 "  // cancel the perspective divide on the xy, they're already in ndc space\n"
 "  gl_Position.xy *= gl_Position.w;\n"
@@ -95,7 +108,6 @@ static const char *ta_fp =
 
 "  // note, 2^17 was chosen as ~100000 was largest value i'd seen passed as\n"
 "  // the w component at the time this was written\n"
-
 "  highp float w = 1.0 / gl_FragCoord.w;\n"
 "  gl_FragDepth = log2(1.0 + w) / 17.0;\n"
 
