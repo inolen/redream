@@ -36,7 +36,7 @@ struct track {
   int adr;
   /* type of track */
   int ctrl;
-  /* sector info */
+  /* sector layout */
   int sector_fmt;
   int sector_size;
   int header_size;
@@ -103,5 +103,7 @@ int disc_read_sectors(struct disc *disc, int fad, int num_sectors,
                       int dst_size);
 int disc_read_bytes(struct disc *disc, int fad, int len, uint8_t *dst,
                     int dst_size);
+
+int track_set_layout(struct track *track, int sector_mode, int sector_size);
 
 #endif

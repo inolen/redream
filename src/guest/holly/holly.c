@@ -410,8 +410,7 @@ REG_R32(holly_cb, SB_FFST) {
   return 0;
 }
 
-REG_W32(holly_cb, SB_FFST) {
-}
+REG_W32(holly_cb, SB_FFST) {}
 
 REG_W32(holly_cb, SB_SFRES) {
   /* only reset if the magic value is written */
