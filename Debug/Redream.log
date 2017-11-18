@@ -1,0 +1,146 @@
+﻿C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of test.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\capstone\tests\test.c, deps\cimgui\cimgui\test.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of utils.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\capstone\utils.c, deps\chdr\deps\flac-1.3.2\src\flac\utils.c, deps\chdr\deps\flac-1.3.2\src\metaflac\utils.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of aes.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\crypto\aes.c, deps\chdr\deps\lzma-16.04\c\Aes.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of md5.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\crypto\md5.c, deps\chdr\deps\flac-1.3.2\src\libflac\md5.c, deps\chdr\deps\flac-1.3.2\src\test_libflac\md5.c, src\core\md5.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of sha256.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\crypto\sha256.c, deps\chdr\deps\lzma-16.04\c\Sha256.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of main.cpp will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\examples\cpp\decode\file\main.cpp, deps\chdr\deps\flac-1.3.2\examples\cpp\encode\file\main.cpp, deps\chdr\deps\flac-1.3.2\src\test_libflac++\main.cpp, deps\chdr\deps\flac-1.3.2\src\utils\flacdiff\main.cpp, deps\chdr\deps\flac-1.3.2\src\utils\flactimer\main.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\ui\console\Main.cpp, deps\cimgui\imgui\examples\allegro5_example\main.cpp, deps\cimgui\imgui\examples\directx10_example\main.cpp, deps\cimgui\imgui\examples\directx11_example\main.cpp, deps\cimgui\imgui\examples\directx9_example\main.cpp, deps\cimgui\imgui\examples\marmalade_example\main.cpp, deps\cimgui\imgui\examples\opengl2_example\main.cpp, deps\cimgui\imgui\examples\opengl3_example\main.cpp, deps\cimgui\imgui\examples\sdl_opengl2_example\main.cpp, deps\cimgui\imgui\examples\sdl_opengl3_example\main.cpp, deps\cimgui\imgui\examples\vulkan_example\main.cpp.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of main.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\examples\c\decode\file\main.c, deps\chdr\deps\flac-1.3.2\examples\c\encode\file\main.c, deps\chdr\deps\flac-1.3.2\src\flac\main.c, deps\chdr\deps\flac-1.3.2\src\metaflac\main.c, deps\chdr\deps\flac-1.3.2\src\test_grabbag\cuesheet\main.c, deps\chdr\deps\flac-1.3.2\src\test_grabbag\picture\main.c, deps\chdr\deps\flac-1.3.2\src\test_libflac\main.c, deps\chdr\deps\flac-1.3.2\src\test_seeking\main.c, deps\chdr\deps\flac-1.3.2\src\test_streams\main.c, deps\sdl2\xcode-ios\template\sdl ios application\main.c, tools\recc\main.c, tools\reload\main.c, tools\retex\main.c, tools\retrace\main.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of metadata.cpp will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\libflac++\metadata.cpp, deps\chdr\deps\flac-1.3.2\src\test_libflac++\metadata.cpp.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of bitwriter.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\libflac\bitwriter.c, deps\chdr\deps\flac-1.3.2\src\test_libflac\bitwriter.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of format.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\libflac\format.c, deps\chdr\deps\flac-1.3.2\src\test_libflac\format.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of memory.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\libflac\memory.c, src\core\memory.c, src\guest\memory.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of metadata_object.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\libflac\metadata_object.c, deps\chdr\deps\flac-1.3.2\src\test_libflac\metadata_object.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of options.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\metaflac\options.c, src\options.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of charset.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\plugin_common\charset.c, deps\chdr\deps\flac-1.3.2\src\plugin_xmms\charset.c, deps\chdr\deps\flac-1.3.2\src\share\utf8\charset.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of replaygain.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\plugin_common\replaygain.c, deps\chdr\deps\flac-1.3.2\src\share\grabbag\replaygain.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of alloc.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\flac-1.3.2\src\share\grabbag\alloc.c, deps\chdr\deps\lzma-16.04\c\Alloc.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of StdAfx.cpp will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\lzma-16.04\cpp\7zip\archive\7z\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\bundles\alone7z\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\bundles\format7zextractr\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\bundles\format7zr\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\bundles\lzmacon\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\bundles\sfxcon\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\bundles\sfxsetup\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\bundles\sfxwin\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\ui\client7z\StdAfx.cpp, deps\chdr\deps\lzma-16.04\cpp\7zip\ui\console\StdAfx.cpp.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of Sort.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\lzma-16.04\c\Sort.c, src\core\sort.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of Precomp.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\deps\lzma-16.04\c\util\7z\Precomp.c, deps\chdr\deps\lzma-16.04\c\util\sfxsetup\Precomp.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of chd.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\chdr\src\chd.c, src\guest\gdrom\chd.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_sysfilesystem.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\filesystem\android\SDL_sysfilesystem.c, deps\sdl2\src\filesystem\dummy\SDL_sysfilesystem.c, deps\sdl2\src\filesystem\emscripten\SDL_sysfilesystem.c, deps\sdl2\src\filesystem\nacl\SDL_sysfilesystem.c, deps\sdl2\src\filesystem\unix\SDL_sysfilesystem.c, deps\sdl2\src\filesystem\windows\SDL_sysfilesystem.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_syshaptic.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\haptic\darwin\SDL_syshaptic.c, deps\sdl2\src\haptic\dummy\SDL_syshaptic.c, deps\sdl2\src\haptic\linux\SDL_syshaptic.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_sysjoystick.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\joystick\android\SDL_sysjoystick.c, deps\sdl2\src\joystick\bsd\SDL_sysjoystick.c, deps\sdl2\src\joystick\darwin\SDL_sysjoystick.c, deps\sdl2\src\joystick\dummy\SDL_sysjoystick.c, deps\sdl2\src\joystick\emscripten\SDL_sysjoystick.c, deps\sdl2\src\joystick\linux\SDL_sysjoystick.c, deps\sdl2\src\joystick\psp\SDL_sysjoystick.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_sysloadso.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\loadso\dlopen\SDL_sysloadso.c, deps\sdl2\src\loadso\dummy\SDL_sysloadso.c, deps\sdl2\src\loadso\windows\SDL_sysloadso.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_syspower.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\power\android\SDL_syspower.c, deps\sdl2\src\power\emscripten\SDL_syspower.c, deps\sdl2\src\power\haiku\SDL_syspower.c, deps\sdl2\src\power\linux\SDL_syspower.c, deps\sdl2\src\power\macosx\SDL_syspower.c, deps\sdl2\src\power\psp\SDL_syspower.c, deps\sdl2\src\power\windows\SDL_syspower.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_syscond.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\thread\generic\SDL_syscond.c, deps\sdl2\src\thread\psp\SDL_syscond.c, deps\sdl2\src\thread\pthread\SDL_syscond.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_sysmutex.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\thread\generic\SDL_sysmutex.c, deps\sdl2\src\thread\psp\SDL_sysmutex.c, deps\sdl2\src\thread\pthread\SDL_sysmutex.c, deps\sdl2\src\thread\windows\SDL_sysmutex.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_syssem.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\thread\generic\SDL_syssem.c, deps\sdl2\src\thread\psp\SDL_syssem.c, deps\sdl2\src\thread\pthread\SDL_syssem.c, deps\sdl2\src\thread\windows\SDL_syssem.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_systhread.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\thread\generic\SDL_systhread.c, deps\sdl2\src\thread\psp\SDL_systhread.c, deps\sdl2\src\thread\pthread\SDL_systhread.c, deps\sdl2\src\thread\windows\SDL_systhread.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_systls.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\thread\generic\SDL_systls.c, deps\sdl2\src\thread\pthread\SDL_systls.c, deps\sdl2\src\thread\windows\SDL_systls.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of SDL_systimer.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are deps\sdl2\src\timer\dummy\SDL_systimer.c, deps\sdl2\src\timer\haiku\SDL_systimer.c, deps\sdl2\src\timer\psp\SDL_systimer.c, deps\sdl2\src\timer\unix\SDL_systimer.c, deps\sdl2\src\timer\windows\SDL_systimer.c.
+C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(936,5): warning MSB8027: Two or more files with the name of flash.c will produce outputs to the same location. This can lead to an incorrect build result.  The files involved are src\guest\bios\flash.c, src\guest\rom\flash.c.
+  main.c
+tools\retrace\main.c(1): fatal error C1083: Cannot open include file: 'core/core.h': No such file or directory
+  depth.c
+tools\retrace\depth.c(3): fatal error C1083: Cannot open include file: 'core/assert.h': No such file or directory
+  main.c
+tools\retex\main.c(2): fatal error C1083: Cannot open include file: 'core/core.h': No such file or directory
+  main.c
+tools\reload\main.c(1): fatal error C1083: Cannot open include file: 'core/core.h': No such file or directory
+  main.c
+tools\recc\main.c(1): fatal error C1083: Cannot open include file: 'core/core.h': No such file or directory
+  test_sh4.c
+test\test_sh4.c(1): fatal error C1083: Cannot open include file: 'core/math.h': No such file or directory
+  test_load_store_elimination.c
+test\test_load_store_elimination.c(1): fatal error C1083: Cannot open include file: 'jit/ir/ir.h': No such file or directory
+  test_list.c
+test\test_list.c(1): fatal error C1083: Cannot open include file: 'core/list.h': No such file or directory
+  test_interval_tree.c
+d:\sp0k\documents\source\c\redream\test\retest.h(4): fatal error C1083: Cannot open include file: 'core/assert.h': No such file or directory
+  test_dead_code_elimination.c
+test\test_dead_code_elimination.c(1): fatal error C1083: Cannot open include file: 'jit/ir/ir.h': No such file or directory
+  retest.c
+d:\sp0k\documents\source\c\redream\test\retest.h(4): fatal error C1083: Cannot open include file: 'core/assert.h': No such file or directory
+  tracer.c
+d:\sp0k\documents\source\c\redream\src\core/math.h(77): warning C4013: '__builtin_clz' undefined; assuming extern returning int
+d:\sp0k\documents\source\c\redream\src\core/math.h(80): warning C4013: '__builtin_clzll' undefined; assuming extern returning int
+d:\sp0k\documents\source\c\redream\src\core/math.h(83): warning C4013: '__builtin_ctz' undefined; assuming extern returning int
+d:\sp0k\documents\source\c\redream\src\core/math.h(86): warning C4013: '__builtin_ctzll' undefined; assuming extern returning int
+d:\sp0k\documents\source\c\redream\src\core/math.h(90): warning C4013: '__builtin_bswap16' undefined; assuming extern returning int
+d:\sp0k\documents\source\c\redream\src\core/math.h(93): warning C4013: '__builtin_bswap32' undefined; assuming extern returning int
+d:\sp0k\documents\source\c\redream\src\core/string.h(21): warning C4273: 'strnlen': inconsistent dll linkage
+  C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\string.h(357): note: see previous definition of 'strnlen'
+src\tracer.c(85): error C2079: 'zero_vec2' uses undefined struct 'ImVec2'
+src\tracer.c(85): error C2078: too many initializers
+src\tracer.c(85): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
+src\tracer.c(86): error C2079: 'one_vec4' uses undefined struct 'ImVec4'
+src\tracer.c(86): error C2078: too many initializers
+src\tracer.c(86): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
+src\tracer.c(87): error C2079: 'zero_vec4' uses undefined struct 'ImVec4'
+src\tracer.c(87): error C2078: too many initializers
+src\tracer.c(87): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
+src\tracer.c(118): error C2059: syntax error: '{'
+src\tracer.c(118): error C2065: '__mptr': undeclared identifier
+src\tracer.c(118): error C2059: syntax error: ')'
+src\tracer.c(119): error C2065: 'lhs': undeclared identifier
+src\tracer.c(119): error C2223: left of '->tsp' must point to struct/union
+src\tracer.c(119): error C2223: left of '->tcw' must point to struct/union
+src\tracer.c(119): error C2198: 'tr_texture_key': too few arguments for call
+src\tracer.c(119): error C2099: initializer is not a constant
+src\tracer.c(122): error C2059: syntax error: '{'
+src\tracer.c(122): error C2059: syntax error: ')'
+src\tracer.c(123): error C2099: initializer is not a constant
+src\tracer.c(125): error C2059: syntax error: 'if'
+src\tracer.c(127): error C2059: syntax error: 'else'
+src\tracer.c(129): error C2059: syntax error: 'else'
+src\tracer.c(132): error C2059: syntax error: '}'
+src\tracer.c(140): error C2065: 'tracer_texture_cb': undeclared identifier
+src\tracer.c(140): warning C4133: 'function': incompatible types - from 'int *' to 'rb_callbacks *'
+src\tracer.c(151): error C2059: syntax error: '{'
+src\tracer.c(151): error C2065: '__mptr': undeclared identifier
+src\tracer.c(151): error C2059: syntax error: ')'
+src\tracer.c(152): error C2059: syntax error: 'do'
+src\tracer.c(152): error C2059: syntax error: 'while'
+src\tracer.c(153): error C2143: syntax error: missing ')' before '&'
+src\tracer.c(153): error C2143: syntax error: missing '{' before '&'
+src\tracer.c(153): error C2059: syntax error: '&'
+src\tracer.c(153): error C2059: syntax error: ')'
+src\tracer.c(156): error C2059: syntax error: 'constant'
+src\tracer.c(156): error C2059: syntax error: 'sizeof'
+src\tracer.c(156): error C2143: syntax error: missing ')' before '('
+src\tracer.c(156): error C2143: syntax error: missing ')' before '*'
+src\tracer.c(156): error C2091: function returns function
+src\tracer.c(156): error C2143: syntax error: missing '{' before '*'
+src\tracer.c(156): error C2059: syntax error: ')'
+src\tracer.c(157): error C2143: syntax error: missing '{' before '->'
+src\tracer.c(157): error C2059: syntax error: '->'
+src\tracer.c(158): error C2143: syntax error: missing '{' before '->'
+src\tracer.c(158): error C2059: syntax error: '->'
+src\tracer.c(161): error C2143: syntax error: missing ')' before '&'
+src\tracer.c(161): error C2143: syntax error: missing '{' before '&'
+src\tracer.c(161): error C2059: syntax error: '&'
+src\tracer.c(161): error C2059: syntax error: ')'
+src\tracer.c(163): error C2059: syntax error: 'return'
+src\tracer.c(164): error C2059: syntax error: '}'
+src\tracer.c(181): warning C4013: '__builtin_trap' undefined; assuming extern returning int
+src\tracer.c(183): warning C4013: 'tracer_find_texture' undefined; assuming extern returning int
+src\tracer.c(301): warning C4013: 'igBeginMainMenuBar' undefined; assuming extern returning int
+src\tracer.c(302): warning C4013: 'igBeginMenu' undefined; assuming extern returning int
+src\tracer.c(303): warning C4013: 'igMenuItem' undefined; assuming extern returning int
+src\tracer.c(307): warning C4013: 'igEndMenu' undefined; assuming extern returning int
+src\tracer.c(310): warning C4013: 'igEndMainMenuBar' undefined; assuming extern returning int
+src\tracer.c(315): warning C4013: 'igGetIO' undefined; assuming extern returning int
+src\tracer.c(317): warning C4013: 'igPushStyleVar' undefined; assuming extern returning int
+src\tracer.c(317): error C2065: 'ImGuiStyleVar_WindowRounding': undeclared identifier
+src\tracer.c(318): warning C4013: 'igBegin' undefined; assuming extern returning int
+src\tracer.c(319): error C2065: 'ImGuiWindowFlags_NoTitleBar': undeclared identifier
+src\tracer.c(319): error C2065: 'ImGuiWindowFlags_NoResize': undeclared identifier
+src\tracer.c(320): error C2065: 'ImGuiWindowFlags_NoMove': undeclared identifier
+src\tracer.c(320): error C2065: 'ImGuiWindowFlags_NoScrollbar': undeclared identifier
+src\tracer.c(322): error C2079: 'size' uses undefined struct 'ImVec2'
+src\tracer.c(322): error C2037: left of 'DisplaySize' specifies undefined struct/union 'ImGuiIO'
+src\tracer.c(323): error C2079: 'pos' uses undefined struct 'ImVec2'
+src\tracer.c(323): error C2037: left of 'DisplaySize' specifies undefined struct/union 'ImGuiIO'
+src\tracer.c(324): warning C4013: 'igSetWindowSize' undefined; assuming extern returning int
+src\tracer.c(325): warning C4013: 'igSetWindowPos' undefined; assuming extern returning int
+src\tracer.c(326): warning C4013: 'igPushItemWidth' undefined; assuming extern returning int
+src\tracer.c(331): warning C4013: 'igSliderInt' undefined; assuming extern returning int
+src\tracer.c(341): warning C4013: 'igPopItemWidth' undefined; assuming extern returning int
+src\tracer.c(342): warning C4013: 'igEnd' undefined; assuming extern returning int
+src\tracer.c(343): warning C4013: 'igPopStyleVar' undefined; assuming extern returning int
+src\tracer.c(315): warning C4047: 'initializing': 'ImGuiIO *' differs in levels of indirection from 'int'
+src\tracer.c(322): fatal error C1903: unable to recover from previous error(s); stopping compilation
+  INTERNAL COMPILER ERROR in 'C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\CL.exe'
+      Please choose the Technical Support command on the Visual C++
+      Help menu, or open the Technical Support help file for more information
