@@ -49,12 +49,7 @@ int maple_handle_frame(struct maple *mp, int port, union maple_frame *frame,
      frame data bswap'd. for this reason, it's not valid to inspect the frame
      data in order to send the frame directly to the correct sub-device */
   struct maple_device *dev = mp->devs[port][MAPLE_MAX_UNITS - 1];
-  if (!dev) {
-    return 0;
-  }
-
-  dev->frame(dev, frame, res);
-  return 1;
+  return dev && dev->frame(dev, frame, res);
 }
 
 void maple_handle_input(struct maple *mp, int port, int button,

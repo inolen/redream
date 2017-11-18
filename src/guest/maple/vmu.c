@@ -53,8 +53,8 @@ static void vmu_parse_block_param(uint32_t data, int *partition, int *block,
   *phase = (data >> 8) & 0xff;
 }
 
-static void vmu_frame(struct maple_device *dev, const union maple_frame *req,
-                      union maple_frame *res) {
+static int vmu_frame(struct maple_device *dev, const union maple_frame *req,
+                     union maple_frame *res) {
   struct vmu *vmu = (struct vmu *)dev;
 
   switch (req->command) {
@@ -155,6 +155,8 @@ static void vmu_frame(struct maple_device *dev, const union maple_frame *req,
       res->num_words = 0;
     } break;
   }
+
+  return 1;
 }
 
 static void vmu_destroy(struct maple_device *dev) {
