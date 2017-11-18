@@ -417,9 +417,9 @@ union vert_param {
 };
 
 struct ta_context {
-  void *user;
   uint32_t addr;
   void *userdata;
+  int rendering;
 
   /* pvr / ta state */
   int autosort;
