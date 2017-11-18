@@ -58,7 +58,7 @@ int fs_mediadirs(char *dirs, int num, size_t size) {
     }
   }
 
-  return 1;
+  return (int)((ptr - dirs) / size);
 }
 
 int fs_userdir(char *userdir, size_t size) {
