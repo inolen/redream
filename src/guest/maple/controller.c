@@ -34,9 +34,9 @@ struct controller {
   struct maple_cond cnd;
 };
 
-static void controller_frame(struct maple_device *dev,
-                             const union maple_frame *req,
-                             union maple_frame *res) {
+static int controller_frame(struct maple_device *dev,
+                            const union maple_frame *req,
+                            union maple_frame *res) {
   struct controller *ctrl = (struct controller *)dev;
 
   /* forward to sub-device if specified */
@@ -45,8 +45,7 @@ static void controller_frame(struct maple_device *dev,
 
   struct maple_device *sub = maple_get_device(dev->mp, port, unit);
   if (sub != dev) {
-    sub->frame(sub, req, res);
-    return;
+    return sub && sub->frame(sub, req, res);
   }
 
   switch (req->command) {
@@ -98,6 +97,8 @@ static void controller_frame(struct maple_device *dev,
 
     res->src_addr |= 1 << i;
   }
+
+  return 1;
 }
 
 static int controller_input(struct maple_device *dev, int button,

@@ -11,8 +11,8 @@ struct maple_device {
   struct maple *mp;
   void (*destroy)(struct maple_device *);
   int (*input)(struct maple_device *, int, uint16_t);
-  void (*frame)(struct maple_device *, const union maple_frame *,
-                union maple_frame *);
+  int (*frame)(struct maple_device *, const union maple_frame *,
+               union maple_frame *);
 };
 
 uint8_t maple_encode_addr(int port, int unit);
