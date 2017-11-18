@@ -182,42 +182,61 @@ static void sh4_frontend_translate_code(struct jit_frontend *base,
                        ir_alloc_i32(ir, addr));
     }
 
-    /* emit the instruction's translation. note, if the instruction has a delay
-       slot, delay_point is assigned where the slot's translation should be
-       emitted */
-    struct ir_insert_point delay_point;
+    /* emit the instruction's translation if available */
     sh4_translate_cb cb = sh4_get_translator(data);
-    cb(guest, ir, addr, instr, flags, &delay_point);
 
-    offset += 2;
-
-    /* emit the delay slot's translation */
-    if (def->flags & SH4_FLAG_DELAYED) {
-      uint32_t delay_addr = begin_addr + offset;
-      uint32_t delay_data = guest->r16(guest->mem, delay_addr);
-      union sh4_instr delay_instr = {delay_data};
-      struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
-
-      use_fpscr |=
-          (delay_def->flags & SH4_FLAG_USE_FPSCR) == SH4_FLAG_USE_FPSCR;
-
-      /* move insert point back to the middle of the preceding instruction */
-      struct ir_insert_point original = ir_get_insert_point(ir);
-      ir_set_insert_point(ir, &delay_point);
-
-      if (delay_def->flags & SH4_FLAG_LOAD_PC) {
-        ir_store_context(ir, offsetof(struct sh4_context, pc),
-                         ir_alloc_i32(ir, delay_addr));
-      }
-
-      sh4_translate_cb delay_cb = sh4_get_translator(delay_data);
-      delay_cb(guest, ir, delay_addr, delay_instr, flags, NULL);
-
-      /* restore insert point */
-      ir_set_insert_point(ir, &original);
+    if (cb) {
+      /* if the instruction has a delay slot, delay_point is assigned where the
+         slot's translation should be emitted */
+      struct ir_insert_point delay_point;
+      cb(guest, ir, addr, instr, flags, &delay_point);
 
       offset += 2;
-      was_delay = 1;
+
+      if (def->flags & SH4_FLAG_DELAYED) {
+        uint32_t delay_addr = begin_addr + offset;
+        uint32_t delay_data = guest->r16(guest->mem, delay_addr);
+        union sh4_instr delay_instr = {delay_data};
+        struct jit_opdef *delay_def = sh4_get_opdef(delay_data);
+
+        use_fpscr |=
+            (delay_def->flags & SH4_FLAG_USE_FPSCR) == SH4_FLAG_USE_FPSCR;
+
+        /* move insert point back to the middle of the preceding instruction */
+        struct ir_insert_point original = ir_get_insert_point(ir);
+        ir_set_insert_point(ir, &delay_point);
+
+        if (delay_def->flags & SH4_FLAG_LOAD_PC) {
+          ir_store_context(ir, offsetof(struct sh4_context, pc),
+                           ir_alloc_i32(ir, delay_addr));
+        }
+
+        /* emit the delay slot's translation if available */
+        sh4_translate_cb delay_cb = sh4_get_translator(delay_data);
+
+        if (delay_cb) {
+          delay_cb(guest, ir, delay_addr, delay_instr, flags, NULL);
+        } else {
+          ir_fallback(ir, delay_def->fallback, delay_addr, delay_data);
+        }
+
+        /* restore insert point */
+        ir_set_insert_point(ir, &original);
+
+        offset += 2;
+        was_delay = 1;
+      }
+    } else {
+      ir_fallback(ir, def->fallback, addr, data);
+
+      offset += 2;
+
+      /* don't emit a fallback for the delay slot, the original fallback will
+         execute it */
+      if (def->flags & SH4_FLAG_DELAYED) {
+        offset += 2;
+        was_delay = 1;
+      }
     }
 
     /* there are 3 possible block endings:

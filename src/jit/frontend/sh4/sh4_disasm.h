@@ -5,7 +5,7 @@
 #include "jit/jit_frontend.h"
 
 enum {
-  SH4_FLAG_INVALID = 0x1,
+  SH4_FLAG_FALLBACK = 0x1,
   SH4_FLAG_LOAD = 0x2,
   SH4_FLAG_STORE = 0x4,
   SH4_FLAG_COND = 0x8,
