@@ -60,11 +60,6 @@ void sh4_format(uint32_t addr, union sh4_instr i, char *buffer,
                 size_t buffer_size) {
   struct jit_opdef *def = sh4_get_opdef(i.raw);
 
-  if (def->flags & SH4_FLAG_INVALID) {
-    snprintf(buffer, buffer_size, "0x%08x  .word 0x%04x", addr, i.raw);
-    return;
-  }
-
   char value[128];
   size_t value_len;
   uint32_t movsize;

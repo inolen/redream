@@ -454,13 +454,14 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #undef INSTR
 
 sh4_translate_cb sh4_translators[NUM_SH4_OPS] = {
-#define SH4_INSTR(name, desc, sig, cycles, flags) &sh4_translate_##name,
+/* don't fill in an entry for the instruction if it's explicitly flagged to
+   fallback to the interpreter */
+#define SH4_INSTR(name, desc, sig, cycles, flags) \
+  !((flags)&SH4_FLAG_FALLBACK) ? &sh4_translate_##name : NULL,
 #include "jit/frontend/sh4/sh4_instr.inc"
 #undef SH4_INSTR
 };
 
 sh4_translate_cb sh4_get_translator(uint16_t instr) {
-  sh4_translate_cb cb = sh4_translators[sh4_get_op(instr)];
-  CHECK_NOTNULL(cb);
-  return cb;
+  return sh4_translators[sh4_get_op(instr)];
 }
