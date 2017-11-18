@@ -44,9 +44,8 @@ struct ta {
 
   /* tile context pool */
   struct ta_context contexts[8];
-  struct list free_contexts;
-  struct list live_contexts;
   struct ta_context *curr_context;
+  int num_contexts;
 };
 
 /*
@@ -350,7 +349,8 @@ static holly_interrupt_t list_interrupts[] = {
 };
 
 static struct ta_context *ta_get_context(struct ta *ta, uint32_t addr) {
-  list_for_each_entry(ctx, &ta->live_contexts, struct ta_context, it) {
+  for (int i = 0; i < ARRAY_SIZE(ta->contexts); i++) {
+    struct ta_context *ctx = &ta->contexts[i];
     if (ctx->addr == addr) {
       return ctx;
     }
@@ -365,40 +365,25 @@ static struct ta_context *ta_demand_context(struct ta *ta, uint32_t addr) {
     return ctx;
   }
 
-  /* remove from the object pool */
-  ctx = list_first_entry(&ta->free_contexts, struct ta_context, it);
-  CHECK_NOTNULL(ctx);
-  list_remove(&ta->free_contexts, &ctx->it);
-
-  /* reset context */
+  CHECK_LT(ta->num_contexts, ARRAY_SIZE(ta->contexts));
+  ctx = &ta->contexts[ta->num_contexts++];
   ctx->addr = addr;
-  ctx->cursor = 0;
-  ctx->size = 0;
-  ctx->list_type = 0;
-  ctx->vert_type = 0;
-
-  /* add to live list */
-  list_add(&ta->live_contexts, &ctx->it);
 
   return ctx;
 }
 
-static void ta_unlink_context(struct ta *ta, struct ta_context *ctx) {
-  /* remove from live list, but don't add back to object pool */
-  list_remove(&ta->live_contexts, &ctx->it);
-}
-
-static void ta_free_context(struct ta *ta, struct ta_context *ctx) {
-  /* add back to object pool */
-  list_add(&ta->free_contexts, &ctx->it);
-}
-
 static void ta_cont_context(struct ta *ta, struct ta_context *ctx) {
+  /* sanity check */
+  CHECK(!ctx->rendering);
+
   ctx->list_type = TA_NUM_LISTS;
   ctx->vert_type = TA_NUM_VERTS;
 }
 
 static void ta_init_context(struct ta *ta, struct ta_context *ctx) {
+  /* sanity check */
+  CHECK(!ctx->rendering);
+
   ctx->cursor = 0;
   ctx->size = 0;
   ctx->list_type = TA_NUM_LISTS;
@@ -561,8 +546,7 @@ static void ta_render_context_end(void *data) {
   /* ensure the client has finished rendering */
   dc_finish_render(ta->dc);
 
-  /* return context back to pool */
-  ta_free_context(ta, ctx);
+  ctx->rendering = 0;
 
   /* let the game know rendering is complete */
   holly_raise_interrupt(hl, HOLLY_INT_PCEOVINT);
@@ -575,8 +559,7 @@ static void ta_render_context(struct ta *ta, struct ta_context *ctx) {
 
   prof_counter_add(COUNTER_ta_renders, 1);
 
-  /* remove context from pool */
-  ta_unlink_context(ta, ctx);
+  ctx->rendering = 1;
 
   /* save off required state that may be modified by the time the context is
      rendered */
@@ -704,11 +687,6 @@ static int ta_init(struct device *dev) {
   struct dreamcast *dc = ta->dc;
 
   ta->vram = mem_vram(dc->mem, 0x0);
-
-  for (int i = 0; i < ARRAY_SIZE(ta->contexts); i++) {
-    struct ta_context *ctx = &ta->contexts[i];
-    list_add(&ta->free_contexts, &ctx->it);
-  }
 
   return 1;
 }
