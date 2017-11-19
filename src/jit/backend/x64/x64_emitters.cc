@@ -453,18 +453,26 @@ EMITTER(FCMP, CONSTRAINTS(REG_I64, REG_F64, REG_F64, IMM_I32)) {
   Xbyak::Xmm rb = ARG1_XMM;
 
   if (ARG0->type == VALUE_F32) {
-    e.comiss(ra, rb);
+    e.ucomiss(ra, rb);
   } else {
-    e.comisd(ra, rb);
+    e.ucomisd(ra, rb);
   }
 
   enum ir_cmp cmp = (enum ir_cmp)ARG2->i32;
   switch (cmp) {
     case CMP_EQ:
-      e.sete(rd);
+      e.mov(e.eax, 0);
+      /* if NaN set rd to 0, else set rd to 1 */
+      e.setnp(rd);
+      /* if NaN or equal nop, else set rd to 0 */
+      e.cmovne(rd, e.eax);
       break;
     case CMP_NE:
-      e.setne(rd);
+      e.mov(e.eax, 1);
+      /* if NaN set rd to 1, else set rd to 0 */
+      e.setp(rd);
+      /* if NaN or equal nop, else set rd to 1 */
+      e.cmovne(rd, e.eax);
       break;
     case CMP_SGE:
       e.setae(rd);
