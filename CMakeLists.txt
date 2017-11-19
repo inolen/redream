@@ -305,10 +305,21 @@ if(COMPILER_MSVC)
 
   list(APPEND RELIB_FLAGS -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX /GR- /W3 /WX /wd4100 /wd4127 /wd4505 /wd4512 /wd4800 /wd4351)
 elseif(COMPILER_GCC OR COMPILER_CLANG)
-  list(APPEND RELIB_FLAGS -fms-extensions -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing -D_GNU_SOURCE)
+  list(APPEND RELIB_FLAGS
+    # used for unnamed structure fields
+    -fms-extensions
+    # enable most errors
+    -Wall -Wextra -Werror
+    # lax some of these common development warnings
+    -Wno-unused-function -Wno-unused-parameter -Wno-unused-variable -Wno-strict-aliasing
+    -D_GNU_SOURCE)
 
   if(COMPILER_GCC)
     list(APPEND RELIB_DEFS COMPILER_GCC=1)
+
+    # -format-truncation is too aggressive with snprintfs that are purposefully supposed
+    # to truncate on overflow
+    list(APPEND RELIB_FLAGS -Wno-format-truncation)
 
     # some flavors of gcc require this to be defined for the PR* macros in inttypes.h
     list(APPEND RELIB_FLAGS -D__STDC_FORMAT_MACROS)

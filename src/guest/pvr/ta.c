@@ -751,7 +751,6 @@ void ta_texture_write(struct ta *ta, uint32_t dst, const uint8_t *src,
 
 void ta_yuv_write(struct ta *ta, uint32_t dst, const uint8_t *src, int size) {
   struct holly *hl = ta->dc->holly;
-  struct pvr *pvr = ta->dc->pvr;
 
   CHECK(*hl->SB_LMMODE0 == 0);
   CHECK(size % ta->yuv_macroblock_size == 0);

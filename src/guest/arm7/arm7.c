@@ -181,9 +181,6 @@ void arm7_suspend(struct arm7 *arm) {
 
 static void arm7_run(struct device *dev, int64_t ns) {
   struct arm7 *arm = (struct arm7 *)dev;
-  struct armv3_context *ctx = &arm->ctx;
-  struct jit *jit = arm->jit;
-
   static int64_t ARM7_CLOCK_FREQ = INT64_C(20000000);
   int cycles = (int)NANO_TO_CYCLES(ns, ARM7_CLOCK_FREQ);
 
@@ -232,7 +229,6 @@ static struct jit_guest *arm7_guest_create(struct arm7 *arm) {
 
 static int arm7_init(struct device *dev) {
   struct arm7 *arm = (struct arm7 *)dev;
-  struct dreamcast *dc = arm->dc;
 
   /* initialize jit */
   arm->guest = arm7_guest_create(arm);

@@ -429,7 +429,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       out[4] = (ses.fad & 0x0000ff00) >> 8;
       out[5] = (ses.fad & 0x000000ff);
 
-      gdrom_spi_write(gd, out, sizeof(out));
+      gdrom_spi_write(gd, out, size);
     } break;
 
     case GD_SPI_GET_SCD: {
