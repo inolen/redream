@@ -24,8 +24,6 @@ static void maple_unregister_dev(struct maple *mp, int port, int unit) {
 
 static void maple_register_dev(struct maple *mp, const char *device_type,
                                int port, int unit) {
-  struct dreamcast *dc = mp->dc;
-
   CHECK(!mp->devs[port][unit],
         "maple_register_dev already registered for port=%d unit=%d", port,
         unit);

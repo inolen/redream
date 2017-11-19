@@ -92,9 +92,6 @@ enum {
 static uint32_t bios_gdrom_send_cmd(struct bios *bios, uint32_t cmd_code,
                                     uint32_t params) {
   struct dreamcast *dc = bios->dc;
-  struct gdrom *gd = dc->gdrom;
-  struct holly *hl = dc->holly;
-  struct sh4 *sh4 = dc->sh4;
 
   if (bios->status != GDC_STATUS_NONE) {
     return 0;
@@ -123,8 +120,6 @@ static uint32_t bios_gdrom_send_cmd(struct bios *bios, uint32_t cmd_code,
 static void bios_gdrom_mainloop(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct gdrom *gd = dc->gdrom;
-  struct holly *hl = dc->holly;
-  struct sh4_context *ctx = &dc->sh4->ctx;
 
   if (bios->status != GDC_STATUS_ACTIVE) {
     return;

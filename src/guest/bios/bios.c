@@ -67,7 +67,6 @@ static uint32_t bios_local_time() {
 static void bios_override_settings(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct flash *flash = dc->flash;
-  struct gdrom *gd = dc->gdrom;
 
   int region = 0;
   int lang = 0;
