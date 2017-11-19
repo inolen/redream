@@ -159,7 +159,7 @@ static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
   int need_space = 1;
   int need_comma = 0;
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < IR_MAX_ARGS; i++) {
     const struct ir_value *arg = instr->arg[i];
 
     if (!arg) {
