@@ -394,11 +394,11 @@ static void ui_begin_page(struct ui *ui, struct page *page) {
   char title[128];
   int pagenum = (int)(page - pages);
   snprintf(title, sizeof(title), "ui%d", pagenum);
-  igBegin(title, NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                           ImGuiWindowFlags_NoMove |
-                           ImGuiWindowFlags_NoScrollbar |
-                           ImGuiWindowFlags_NoNavFocus |
-                           ImGuiWindowFlags_NoBringToFrontOnFocus);
+  igBegin(title, NULL,
+          ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+              ImGuiWindowFlags_NoNavFocus |
+              ImGuiWindowFlags_NoBringToFrontOnFocus);
 
   /* push back original padding immediately */
   igPushStyleVarVec(ImGuiStyleVar_WindowPadding, original_padding);
@@ -1232,9 +1232,9 @@ static void ui_games_build(struct ui *ui) {
     igSetNextWindowSize(size, 0);
     igSetNextWindowContentSize(content_size);
 
-    igBeginChild("games list", size, false, ImGuiWindowFlags_NoScrollbar |
-                                                ImGuiWindowFlags_NoNavScroll |
-                                                ImGuiWindowFlags_NavFlattened);
+    igBeginChild("games list", size, false,
+                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoNavScroll |
+                     ImGuiWindowFlags_NavFlattened);
 
     struct ImVec2 disc_pos = {list_padding, (size.y - disc_small) / 2.0f};
     igSetCursorPos(disc_pos);

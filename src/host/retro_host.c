@@ -5,11 +5,12 @@
 #include "core/core.h"
 #include "core/filesystem.h"
 #include "emulator.h"
+#include "guest/aica/aica.h"
 #include "host/host.h"
 #include "options.h"
 #include "render/render_backend.h"
 
-#define AUDIO_FREQ 44100
+#define AUDIO_FREQ AICA_SAMPLE_FREQ
 #define VIDEO_WIDTH 640
 #define VIDEO_HEIGHT 480
 

@@ -617,7 +617,14 @@ void emu_render_frame(struct emu *emu) {
   r_clear(emu->r);
 
   if (!dc_running(emu->dc)) {
+    /* since the host times itself based off of our audio output, it's important
+       to pump out silent audio frames even when not running the dreamcast, else
+       the host will render the ui completely unthrottled  */
+    uint32_t silence[AICA_SAMPLE_FREQ / 60] = {0};
+    audio_push(emu->host, (int16_t *)silence, ARRAY_SIZE(silence));
+
     emu_debug_menu(emu);
+
     return;
   }
 

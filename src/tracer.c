@@ -238,7 +238,7 @@ static void tracer_prev_context(struct tracer *tracer) {
 
   while (curr != prev) {
     if (curr->type == TRACE_CMD_TEXTURE) {
-      struct trace_cmd * override = curr->override;
+      struct trace_cmd *override = curr->override;
 
       if (override) {
         tracer_add_texture(tracer, override);
