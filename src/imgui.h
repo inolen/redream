@@ -1,10 +1,13 @@
 #ifndef IMGUI_H
 #define IMGUI_H
 
+#ifdef HAVE_IMGUI
 #ifndef IMGUI_IMPLEMENTATION
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include <cimgui/cimgui.h>
 #endif
+#endif
+
 #include "host/keycode.h"
 
 struct imgui;
@@ -29,6 +32,7 @@ enum {
 #define IMICON_DESKTOP u8"\uf108"
 #define IMICON_GAMEPAD u8"\uf11b"
 
+#ifdef HAVE_IMGUI
 void igPushFontEx(int id, int font_height);
 int igTab(const char *label, struct ImVec2 size, int selected);
 int igOptionInt(const char *label, int value, struct ImVec2 size);
@@ -36,6 +40,7 @@ int igOptionString(const char *label, const char *value, struct ImVec2 size);
 int igDiscButton(ImTextureID user_texture_id, float item_diameter,
                  float draw_diameter, const struct ImVec2 uv0,
                  const struct ImVec2 uv1);
+#endif
 
 /* imgui implementation */
 struct imgui *imgui_create();
