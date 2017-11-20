@@ -19,8 +19,8 @@ CAPSTONE_HAS_ARM64=0
 UNAME=$(shell uname -a)
 
 # Dirs
-ROOT_DIR := .
-CORE_DIR := .
+ROOT_DIR := ../..
+CORE_DIR := ../..
 LIBRETRO_DIR := $(ROOT_DIR)/deps/libretro
 
 ifeq ($(platform),)
