@@ -7,6 +7,7 @@
 #include "core/ringbuf.h"
 #include "core/time.h"
 #include "emulator.h"
+#include "guest/aica/aica.h"
 #include "host/host.h"
 #include "imgui.h"
 #include "options.h"
@@ -17,7 +18,7 @@
 /*
  * sdl host implementation
  */
-#define AUDIO_FREQ 44100
+#define AUDIO_FREQ AICA_SAMPLE_FREQ
 #define VIDEO_DEFAULT_WIDTH 853
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
@@ -40,6 +41,7 @@ struct host {
   struct {
     SDL_AudioDeviceID dev;
     SDL_AudioSpec spec;
+    int playing;
     struct ringbuf *frames;
     volatile int64_t last_cb;
   } audio;
@@ -178,9 +180,6 @@ static int audio_create_device(struct host *host) {
            AUDIO_FRAMES_TO_MS(host->audio.spec.samples),
            host->audio.spec.samples);
 
-  /* resume device */
-  SDL_PauseAudioDevice(host->audio.dev, 0);
-
   return 1;
 }
 
@@ -196,6 +195,12 @@ void audio_push(struct host *host, const int16_t *data, int num_frames) {
   }
 
   audio_write_frames(host, data, num_frames);
+
+  /* start playback once some audio is queued */
+  if (!host->audio.playing) {
+    SDL_PauseAudioDevice(host->audio.dev, 0);
+    host->audio.playing = 1;
+  }
 }
 
 static void audio_shutdown(struct host *host) {

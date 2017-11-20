@@ -1,7 +1,6 @@
 #ifndef IMGUI_H
 #define IMGUI_H
 
-
 /* imgui extensions */
 #if HAVE_IMGUI
 
