@@ -1,16 +1,16 @@
 #ifndef IMGUI_H
 #define IMGUI_H
 
+
+/* imgui extensions */
+#if HAVE_IMGUI
+
 #ifndef IMGUI_IMPLEMENTATION
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include <cimgui/cimgui.h>
 #endif
 #include "host/keycode.h"
 
-struct imgui;
-struct render_backend;
-
-/* imgui extensions */
 enum {
   IMFONT_OSWALD_MEDIUM,
   IMFONT_OPENSANS_REGULAR,
@@ -37,7 +37,12 @@ int igDiscButton(ImTextureID user_texture_id, float item_diameter,
                  float draw_diameter, const struct ImVec2 uv0,
                  const struct ImVec2 uv1);
 
+#endif
+
 /* imgui implementation */
+struct imgui;
+struct render_backend;
+
 struct imgui *imgui_create();
 void imgui_destroy(struct imgui *imgui);
 
