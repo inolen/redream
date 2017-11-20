@@ -2,9 +2,6 @@
 #include "core/core.h"
 #include "host/keycode.h"
 
-const int LATENCY_PRESETS[] = {45, 90, 180};
-const int NUM_LATENCY_PRESETS = ARRAY_SIZE(LATENCY_PRESETS);
-
 const char *ASPECT_RATIOS[] = {
     "stretch", "16:9", "4:3",
 };
@@ -37,9 +34,8 @@ struct button_map BUTTONS[] = {
 const int NUM_BUTTONS = ARRAY_SIZE(BUTTONS);
 
 /* host */
+DEFINE_OPTION_STRING(sync, "av", "Sync control");
 DEFINE_OPTION_INT(bios, 0, "Boot to bios");
-DEFINE_OPTION_INT(audio, 1, "Enable audio");
-DEFINE_PERSISTENT_OPTION_INT(latency, 50, "Preferred audio latency in ms");
 DEFINE_PERSISTENT_OPTION_INT(fullscreen, 0, "Start window fullscreen");
 DEFINE_PERSISTENT_OPTION_INT(key_a, 'l', "A button mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_b, 'p', "B button mapping");
@@ -70,3 +66,23 @@ DEFINE_OPTION_INT(perf, 0, "Create maps for compiled code for use with perf");
 
 /* ui */
 DEFINE_PERSISTENT_OPTION_STRING(gamedir, "", "Directories to scan for games");
+
+int audio_sync_enabled() {
+  const char *ptr = OPTION_sync;
+  while (*ptr) {
+    if (*(ptr++) == 'a') {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int video_sync_enabled() {
+  const char *ptr = OPTION_sync;
+  while (*ptr) {
+    if (*(ptr++) == 'v') {
+      return 1;
+    }
+  }
+  return 0;
+}

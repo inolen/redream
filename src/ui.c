@@ -958,23 +958,7 @@ static void ui_audio_build(struct ui *ui) {
   igSetCursorPos(pos);
   igBeginChild("audio", size, false, ImGuiWindowFlags_NavFlattened);
 
-  igPushStyle_Btn();
-
-  {
-    if (igOptionInt("Latency (ms)", OPTION_latency, btn_size)) {
-      int next = 0;
-      for (int i = 0; i < NUM_LATENCY_PRESETS; i++) {
-        if (LATENCY_PRESETS[i] > OPTION_latency) {
-          next = i;
-          break;
-        }
-      }
-      OPTION_latency = LATENCY_PRESETS[next];
-      OPTION_latency_dirty = 1;
-    }
-  }
-
-  igPopStyle_Btn();
+  igText("Not available yet.");
 
   igEndChild();
 }
