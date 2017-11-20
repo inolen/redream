@@ -2273,7 +2273,7 @@ bool ImGui::ItemAdd(const ImRect& bb, ImGuiID id, const ImRect* nav_bb_arg)
         //      it may not scale very well for windows with ten of thousands of item, but at least NavMoveRequest is only set on user interaction, aka maximum once a frame.
         //      We could early out with "if (is_clipped && !g.NavInitRequest) return false;" but when we wouldn't be able to reach unclipped widgets. This would work if user had explicit scrolling control (e.g. mapped on a stick)
         window->DC.NavLayerActiveMaskNext |= window->DC.NavLayerCurrentMask;
-        if (g.NavWindow->RootNavWindow == window->RootNavWindow)
+        if (g.NavWindow && g.NavWindow->RootNavWindow == window->RootNavWindow)
             if (g.NavId == id || g.NavAnyRequest)
                 NavProcessItem(window, nav_bb_arg ? *nav_bb_arg : bb, id);
     }
