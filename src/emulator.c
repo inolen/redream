@@ -120,13 +120,7 @@ struct emu {
      list which will be processed the next time the threads are synchronized */
   struct list modified_textures;
 
-  /* debug stats */
-  int frame_stats;
-  float swap_times[360];
-  int64_t last_swap;
-
   /* debugging */
-  int debug_menu;
   struct trace_writer *trace_writer;
 };
 
@@ -469,102 +463,6 @@ static void emu_set_aspect_ratio(struct emu *emu, const char *new_ratio) {
   emu->aspect_ratio = i;
 }
 
-static void emu_debug_menu(struct emu *emu) {
-#ifdef HAVE_IMGUI
-  if (!emu->debug_menu) {
-    return;
-  }
-
-  if (igBeginMainMenuBar()) {
-    if (igBeginMenu("EMU", 1)) {
-      if (igMenuItem("frame stats", NULL, emu->frame_stats, 1)) {
-        emu->frame_stats = !emu->frame_stats;
-      }
-      if (!emu->trace_writer && igMenuItem("start trace", NULL, 0, 1)) {
-        emu_start_tracing(emu);
-      }
-      if (emu->trace_writer && igMenuItem("stop trace", NULL, 1, 1)) {
-        emu_stop_tracing(emu);
-      }
-      if (igMenuItem("clear texture cache", NULL, 0, 1)) {
-        emu_dirty_textures(emu);
-      }
-      igEndMenu();
-    }
-
-    igEndMainMenuBar();
-  }
-
-  holly_debug_menu(emu->dc->holly);
-  aica_debug_menu(emu->dc->aica);
-  arm7_debug_menu(emu->dc->arm7);
-  sh4_debug_menu(emu->dc->sh4);
-
-  /* add status */
-  if (igBeginMainMenuBar()) {
-    char status[128];
-    int frames = (int)prof_counter_load(COUNTER_frames);
-    int ta_renders = (int)prof_counter_load(COUNTER_ta_renders);
-    int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
-    int sh4_instrs = (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
-    int arm7_instrs =
-        (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
-
-    snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
-             frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
-
-    /* right align */
-    struct ImVec2 content;
-    struct ImVec2 size;
-    igGetContentRegionMax(&content);
-    igCalcTextSize(&size, status, NULL, 0, 0.0f);
-    igSetCursorPosX(content.x - size.x);
-    igText(status);
-
-    igEndMainMenuBar();
-  }
-
-  if (emu->frame_stats) {
-    bool opened = true;
-
-    if (igBegin("frame stats", &opened, ImGuiWindowFlags_AlwaysAutoResize)) {
-      /* memory accesses */
-      {
-        igValueInt("mmio reads", (int)prof_counter_load(COUNTER_mmio_read));
-        igValueInt("mmio writes", (int)prof_counter_load(COUNTER_mmio_write));
-      }
-
-      /* swap times */
-      {
-        struct ImVec2 graph_size = {300.0f, 50.0f};
-        int num_swap_times = ARRAY_SIZE(emu->swap_times);
-
-        float min_time = FLT_MAX;
-        float max_time = -FLT_MAX;
-        float avg_time = 0.0f;
-        for (int i = 0; i < num_swap_times; i++) {
-          float time = emu->swap_times[i];
-          min_time = MIN(min_time, time);
-          max_time = MAX(max_time, time);
-          avg_time += time;
-        }
-        avg_time /= num_swap_times;
-
-        igValueFloat("min swap time", min_time, "%.2f");
-        igValueFloat("max swap time", max_time, "%.2f");
-        igValueFloat("avg swap time", avg_time, "%.2f");
-        igPlotLines("", emu->swap_times, num_swap_times,
-                    emu->frame % num_swap_times, NULL, 0.0f, 60.0f, graph_size,
-                    sizeof(float));
-      }
-    }
-    igEnd();
-
-    emu->frame_stats = (int)opened;
-  }
-#endif
-}
-
 /*
  * frame running logic
  */
@@ -622,9 +520,6 @@ void emu_render_frame(struct emu *emu) {
        the host will render the ui completely unthrottled  */
     uint32_t silence[AICA_SAMPLE_FREQ / 60] = {0};
     audio_push(emu->host, (int16_t *)silence, ARRAY_SIZE(silence));
-
-    emu_debug_menu(emu);
-
     return;
   }
 
@@ -678,20 +573,11 @@ void emu_render_frame(struct emu *emu) {
      ---------------------------------------------------------------------------
                                         | emu_vblank_out sets EMU_ENDFRAME */
 
-  /* ensure the emulation thread isn't still executing a previous frame */
-  if (emu->multi_threaded) {
-    mutex_lock(emu->req_mutex);
-    mutex_unlock(emu->req_mutex);
-  }
-
-  /* build the debug menus before running the frame, while the two threads
-     are synchronized */
-  emu_debug_menu(emu);
-
   /* request a frame to be ran */
   if (emu->multi_threaded) {
     mutex_lock(emu->req_mutex);
 
+    CHECK_EQ(emu->state, EMU_WAITING);
     emu->state = EMU_RUNFRAME;
     cond_signal(emu->req_cond);
 
@@ -744,33 +630,73 @@ void emu_render_frame(struct emu *emu) {
      and vblank_out at this point, but there's no need to wait for it */
 }
 
+void emu_debug_menu(struct emu *emu) {
+#ifdef HAVE_IMGUI
+  /* ensure the emulation thread isn't still executing a previous frame */
+  if (emu->multi_threaded) {
+    mutex_lock(emu->req_mutex);
+    CHECK_EQ(emu->state, EMU_WAITING);
+    mutex_unlock(emu->req_mutex);
+  }
+
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("EMU", 1)) {
+      if (igMenuItem("clear texture cache", NULL, 0, 1)) {
+        emu_dirty_textures(emu);
+      }
+      if (!emu->trace_writer && igMenuItem("start trace", NULL, 0, 1)) {
+        emu_start_tracing(emu);
+      }
+      if (emu->trace_writer && igMenuItem("stop trace", NULL, 1, 1)) {
+        emu_stop_tracing(emu);
+      }
+      igEndMenu();
+    }
+
+    igEndMainMenuBar();
+  }
+
+  holly_debug_menu(emu->dc->holly);
+  aica_debug_menu(emu->dc->aica);
+  arm7_debug_menu(emu->dc->arm7);
+  sh4_debug_menu(emu->dc->sh4);
+
+  /* add status */
+  if (igBeginMainMenuBar()) {
+    char status[128];
+    int frames = (int)prof_counter_load(COUNTER_frames);
+    int ta_renders = (int)prof_counter_load(COUNTER_ta_renders);
+    int pvr_vblanks = (int)prof_counter_load(COUNTER_pvr_vblanks);
+    int sh4_instrs = (int)(prof_counter_load(COUNTER_sh4_instrs) / 1000000.0f);
+    int arm7_instrs =
+        (int)(prof_counter_load(COUNTER_arm7_instrs) / 1000000.0f);
+
+    snprintf(status, sizeof(status), "FPS %3d RPS %3d VBS %3d SH4 %4d ARM %d",
+             frames, ta_renders, pvr_vblanks, sh4_instrs, arm7_instrs);
+
+    /* right align */
+    struct ImVec2 content;
+    struct ImVec2 size;
+    igGetContentRegionMax(&content);
+    igCalcTextSize(&size, status, NULL, 0, 0.0f);
+    igSetCursorPosX(content.x - size.x);
+    igText(status);
+
+    igEndMainMenuBar();
+  }
+#endif
+}
+
 int emu_load(struct emu *emu, const char *path) {
   return dc_load(emu->dc, path);
 }
 
 int emu_keydown(struct emu *emu, int port, int key, uint16_t value) {
-  if (key == K_F1 && value) {
-    emu->debug_menu = !emu->debug_menu;
-  }
-
   if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
     dc_input(emu->dc, port, key - K_CONT_C, value);
   }
 
   return 0;
-}
-
-void emu_vid_swapped(struct emu *emu) {
-  /* keep track of the time between swaps */
-  int64_t now = time_nanoseconds();
-
-  if (emu->last_swap) {
-    float swap_time_ms = (float)(now - emu->last_swap) / 1000000.0f;
-    int num_swap_times = ARRAY_SIZE(emu->swap_times);
-    emu->swap_times[emu->frame % num_swap_times] = swap_time_ms;
-  }
-
-  emu->last_swap = now;
 }
 
 void emu_vid_destroyed(struct emu *emu) {

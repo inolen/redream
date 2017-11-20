@@ -8,9 +8,6 @@ struct button_map {
   int *dirty;
 };
 
-extern const int LATENCY_PRESETS[];
-extern const int NUM_LATENCY_PRESETS;
-
 extern const char *ASPECT_RATIOS[];
 extern const int NUM_ASPECT_RATIOS;
 
@@ -18,9 +15,8 @@ extern struct button_map BUTTONS[];
 extern const int NUM_BUTTONS;
 
 /* host */
+DECLARE_OPTION_STRING(sync);
 DECLARE_OPTION_INT(bios);
-DECLARE_OPTION_INT(audio);
-DECLARE_OPTION_INT(latency);
 DECLARE_OPTION_INT(fullscreen);
 DECLARE_OPTION_INT(key_a);
 DECLARE_OPTION_INT(key_b);
@@ -51,5 +47,8 @@ DECLARE_OPTION_INT(perf);
 
 /* ui */
 DECLARE_OPTION_STRING(gamedir);
+
+int audio_sync_enabled();
+int video_sync_enabled();
 
 #endif

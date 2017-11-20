@@ -57,6 +57,14 @@ struct host {
     int keymap[K_NUM_KEYS];
     SDL_GameController *controllers[INPUT_MAX_CONTROLLERS];
   } input;
+
+  struct {
+    int show_menu;
+    int show_times;
+    unsigned frame;
+    float swap_times[360];
+    int64_t last_swap;
+  } dbg;
 };
 
 /*
@@ -156,8 +164,7 @@ static void audio_destroy_device(struct host *host) {
 
 static int audio_create_device(struct host *host) {
   /* SDL expects the number of buffered frames to be a power of two */
-  int target_frames = MS_TO_AUDIO_FRAMES(OPTION_latency);
-  target_frames = (int)npow2((uint32_t)target_frames);
+  int target_frames = 1 << 12;
 
   /* match AICA output format */
   SDL_AudioSpec want;
@@ -181,12 +188,6 @@ static int audio_create_device(struct host *host) {
            host->audio.spec.samples);
 
   return 1;
-}
-
-static void audio_set_latency(struct host *host, int latency) {
-  audio_destroy_device(host);
-  int res = audio_create_device(host);
-  CHECK(res);
 }
 
 void audio_push(struct host *host, const int16_t *data, int num_frames) {
@@ -214,7 +215,12 @@ static void audio_shutdown(struct host *host) {
 }
 
 static int audio_init(struct host *host) {
-  if (!OPTION_audio) {
+  /* reset */
+  memset(&host->audio, 0, sizeof(host->audio));
+
+  /* if the audio sync is disabled, don't actually create a device, as audio
+     playback won't be possible without resampling the data */
+  if (!audio_sync_enabled()) {
     return 1;
   }
 
@@ -231,6 +237,11 @@ static int audio_init(struct host *host) {
   }
 
   return 1;
+}
+
+static int audio_restart(struct host *host) {
+  audio_shutdown(host);
+  return audio_init(host);
 }
 
 /*
@@ -263,9 +274,10 @@ static SDL_GLContext video_create_context(struct host *host) {
   SDL_GLContext ctx = SDL_GL_CreateContext(host->win);
   CHECK_NOTNULL(ctx, "video_create_context failed: %s", SDL_GetError());
 
-  /* disable vsync */
-  int res = SDL_GL_SetSwapInterval(0);
-  CHECK_EQ(res, 0, "video_create_context failed to disable vsync");
+  /* force vsync */
+  int vsync = video_sync_enabled();
+  int res = SDL_GL_SetSwapInterval(vsync);
+  CHECK_EQ(res, 0, "video_create_context failed to set swap interval");
 
   /* link in gl functions at runtime */
   res = gladLoadGLLoader((GLADloadproc)&SDL_GL_GetProcAddress);
@@ -296,10 +308,18 @@ static void video_shutdown(struct host *host) {
   }
 
   r_destroy(host->video.r);
+
   video_destroy_context(host, host->video.ctx);
 }
 
 static int video_init(struct host *host) {
+  /* reset */
+  memset(&host->video, 0, sizeof(host->video));
+
+  /* immediately poll window size for platforms like Android where the window
+     starts fullscreen, ignoring the default width and height */
+  SDL_GetWindowSize(host->win, &host->video.width, &host->video.height);
+
   host->video.ctx = video_create_context(host);
   host->video.r = r_create(host->video.width, host->video.height);
 
@@ -515,6 +535,11 @@ static void input_keydown(struct host *host, int port, int key,
      mapping is available */
   int mapping = host->input.keymap[key];
 
+  if (key == K_F1 && value) {
+    host->dbg.show_menu = !host->dbg.show_menu;
+    return;
+  }
+
   for (int i = 0; i < 2; i++) {
     if (key == K_UNKNOWN) {
       break;
@@ -579,6 +604,9 @@ static void input_shutdown(struct host *host) {
 }
 
 static int input_init(struct host *host) {
+  /* reset */
+  memset(&host->input, 0, sizeof(host->input));
+
   /* SDL won't push events for joysticks which are already connected at init */
   int num_joysticks = SDL_NumJoysticks();
 
@@ -623,9 +651,106 @@ int ui_load_game(struct host *host, const char *path) {
 static void host_swap_window(struct host *host) {
   SDL_GL_SwapWindow(host->win);
 
-  if (host->emu) {
-    emu_vid_swapped(host->emu);
+  /* keep track of the time between swaps */
+  int64_t now = time_nanoseconds();
+
+  if (host->dbg.last_swap) {
+    float swap_time_ms = (float)(now - host->dbg.last_swap) / 1000000.0f;
+    int num_times = ARRAY_SIZE(host->dbg.swap_times);
+    host->dbg.swap_times[host->dbg.frame % num_times] = swap_time_ms;
   }
+
+  host->dbg.last_swap = now;
+  host->dbg.frame++;
+}
+
+static void host_debug_menu(struct host *host) {
+#ifdef HAVE_IMGUI
+  if (!host->dbg.show_menu) {
+    return;
+  }
+
+  if (igBeginMainMenuBar()) {
+    if (igBeginMenu("HOST", 1)) {
+      if (igBeginMenu("sync", 1)) {
+        struct {
+          const char *desc;
+          int enabled;
+        } options[] = {
+            {"audio", audio_sync_enabled()}, /* */
+            {"video", video_sync_enabled()}, /* */
+        };
+        int num_options = (int)ARRAY_SIZE(options);
+
+        for (int i = 0; i < num_options; i++) {
+          const char *desc = options[i].desc;
+          int enabled = options[i].enabled;
+
+          if (igMenuItem(desc, NULL, enabled, 1)) {
+            int len = (int)strlen(OPTION_sync);
+
+            if (enabled) {
+              for (int i = 0; i < len; i++) {
+                if (OPTION_sync[i] == desc[0]) {
+                  OPTION_sync[i] = OPTION_sync[len - 1];
+                  OPTION_sync[len - 1] = 0;
+                  break;
+                }
+              }
+            } else {
+              OPTION_sync[len] = desc[0];
+              OPTION_sync[len + 1] = 0;
+            }
+
+            OPTION_sync_dirty = 1;
+          }
+        }
+
+        igEndMenu();
+      }
+
+      if (igMenuItem("frame times", NULL, host->dbg.show_times, 1)) {
+        host->dbg.show_times = !host->dbg.show_times;
+      }
+
+      igEndMenu();
+    }
+
+    igEndMainMenuBar();
+  }
+
+  if (host->dbg.show_times) {
+    bool opened = true;
+
+    if (igBegin("frame times", &opened, ImGuiWindowFlags_AlwaysAutoResize)) {
+      struct ImVec2 graph_size = {300.0f, 50.0f};
+      int num_times = ARRAY_SIZE(host->dbg.swap_times);
+
+      float min_time = FLT_MAX;
+      float max_time = -FLT_MAX;
+      float avg_time = 0.0f;
+      for (int i = 0; i < num_times; i++) {
+        float time = host->dbg.swap_times[i];
+        min_time = MIN(min_time, time);
+        max_time = MAX(max_time, time);
+        avg_time += time;
+      }
+      avg_time /= num_times;
+
+      igValueFloat("min frame time", min_time, "%.2f");
+      igValueFloat("max frame time", max_time, "%.2f");
+      igValueFloat("avg frame time", avg_time, "%.2f");
+      igPlotLines("", host->dbg.swap_times, num_times,
+                  host->dbg.frame % num_times, NULL, 0.0f, 60.0f, graph_size,
+                  sizeof(float));
+    }
+    igEnd();
+
+    host->dbg.show_times = (int)opened;
+  }
+
+  emu_debug_menu(host->emu);
+#endif
 }
 
 static void host_poll_events(struct host *host) {
@@ -794,14 +919,17 @@ static void host_poll_events(struct host *host) {
   }
 
   /* check for option changes at this time as well */
-  if (OPTION_latency_dirty) {
-    audio_set_latency(host, OPTION_latency);
-    OPTION_latency_dirty = 0;
-  }
-
   if (OPTION_fullscreen_dirty) {
     video_set_fullscreen(host, OPTION_fullscreen);
     OPTION_fullscreen_dirty = 0;
+  }
+
+  if (OPTION_sync_dirty) {
+    int res = audio_restart(host);
+    CHECK(res, "audio_restart failed");
+    res = video_restart(host);
+    CHECK(res, "video_restart failed");
+    OPTION_sync_dirty = 0;
   }
 
   /* update reverse button map when optionsc hange */
@@ -848,10 +976,6 @@ static int host_init(struct host *host) {
                                VIDEO_DEFAULT_HEIGHT, win_flags);
   CHECK_NOTNULL(host->win, "host_create window creation failed: %s",
                 SDL_GetError());
-
-  /* immediately poll window size for platforms like Android where the window
-     starts fullscreen, ignoring the default width and height */
-  SDL_GetWindowSize(host->win, &host->video.width, &host->video.height);
 
   if (!audio_init(host)) {
     return 0;
@@ -968,6 +1092,7 @@ int main(int argc, char **argv) {
         imgui_begin_frame(host->imgui);
 
         /* render emulator output and build up imgui buffers */
+        host_debug_menu(host);
         emu_render_frame(host->emu);
         ui_build_menus(host->ui);
 
