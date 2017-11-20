@@ -319,6 +319,9 @@ static void jit_promote_fastmem(struct jit *jit, struct jit_block *block,
   }
 }
 
+int lse_hack_enable;
+int lse_hack_count;
+
 void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
 #if 0
   LOG_INFO("jit_compile_block %s 0x%08x", jit->tag, guest_addr);
@@ -361,7 +364,25 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   /* run optimization passes */
   jit_promote_fastmem(jit, block, &ir);
   cfa_run(jit->cfa, &ir);
-  lse_run(jit->lse, &ir);
+
+  lse_hack_enable = guest_addr == 0x8c0664c6;
+  lse_hack_count = 0;
+
+  static const uint32_t test[] = {
+    0x0,
+  };
+  int i = 0;
+  int len = ARRAY_SIZE(test);
+  while (i < len) {
+    if (guest_addr == test[i]) {
+      break;
+    }
+    i++;
+  }
+  if (i == len) {
+    lse_run(jit->lse, &ir);
+  }
+
   cprop_run(jit->cprop, &ir);
   esimp_run(jit->esimp, &ir);
   dce_run(jit->dce, &ir);

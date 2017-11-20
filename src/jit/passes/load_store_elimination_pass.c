@@ -99,12 +99,20 @@ static int lse_test_available(struct lse *lse, int offset, int size) {
   return 1;
 }
 
+extern int lse_hack_enable;
+extern int lse_hack_count;
+
 static void lse_eliminate_loads(struct lse *lse, struct ir *ir,
                                 struct ir_block *block) {
   lse_clear_available(lse);
 
   list_for_each_entry_safe(instr, &block->instrs, struct ir_instr, it) {
-    if (instr->op == OP_FALLBACK || instr->op == OP_CALL) {
+    if (lse_hack_enable && instr->op == OP_CALL_COND) {
+      if (lse_hack_count < 16) {
+        lse_clear_available(lse);
+      }
+      lse_hack_count++;
+    } else if (instr->op == OP_FALLBACK || instr->op == OP_CALL) {
       lse_clear_available(lse);
     } else if (instr->op == OP_BRANCH || instr->op == OP_BRANCH_COND) {
       lse_clear_available(lse);
