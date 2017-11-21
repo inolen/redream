@@ -489,7 +489,7 @@ int sh4_init(struct memory *mem) {
   /* area 4. this region is only written through sq / dma transfers, so only a
      write_string handler is added */
   sh4_map(mem, SH4_AREA4_BEGIN, SH4_AREA4_END, P0 | P1 | P2 | P3, MAP_MMIO,
-          (mmio_read_cb)&mem_unhandled_read, NULL, NULL,
+          (mmio_read_cb)&sh4_area4_read, NULL, NULL,
           (mmio_write_string_cb)&sh4_area4_write);
 
   /* area 5 */

@@ -122,14 +122,19 @@
 uint32_t sh4_area0_read(struct sh4 *sh4, uint32_t addr, uint32_t mask);
 void sh4_area0_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                      uint32_t mask);
+
 uint32_t sh4_area1_read(struct sh4 *sh4, uint32_t addr, uint32_t mask);
 void sh4_area1_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                      uint32_t mask);
+
+uint32_t sh4_area4_read(struct sh4 *sh4, uint32_t addr, uint32_t mask);
 void sh4_area4_write(struct sh4 *sh4, uint32_t addr, const uint8_t *ptr,
                      int size);
+
 uint32_t sh4_area7_read(struct sh4 *sh4, uint32_t addr, uint32_t mask);
 void sh4_area7_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                      uint32_t mask);
+
 uint32_t sh4_p4_read(struct sh4 *sh4, uint32_t addr, uint32_t mask);
 void sh4_p4_write(struct sh4 *sh4, uint32_t addr, uint32_t data, uint32_t mask);
 

@@ -1,5 +1,6 @@
 #include "guest/aica/aica.h"
 #include "guest/holly/holly.h"
+#include "guest/memory.h"
 #include "guest/pvr/pvr.h"
 #include "guest/pvr/ta.h"
 #include "guest/rom/boot.h"
@@ -57,6 +58,7 @@ void sh4_p4_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
     LOG_FATAL("sh4_p4_write unexpected addr 0x%08x", addr);
   }
 }
+
 uint32_t sh4_p4_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   if (addr >= SH4_SQ_BEGIN && addr <= SH4_SQ_END) {
     return sh4_ccn_sq_read(sh4, addr - SH4_SQ_BEGIN, mask);
@@ -113,7 +115,7 @@ void sh4_area4_write(struct sh4 *sh4, uint32_t addr, const uint8_t *ptr,
 
   addr &= SH4_ADDR_MASK;
 
-  /* create the two area4 mirrors */
+  /* create the mirror */
   addr &= SH4_AREA4_ADDR_MASK;
 
   if (addr >= SH4_TA_POLY_BEGIN && addr <= SH4_TA_POLY_END) {
@@ -123,8 +125,18 @@ void sh4_area4_write(struct sh4 *sh4, uint32_t addr, const uint8_t *ptr,
   } else if (addr >= SH4_TA_TEXTURE_BEGIN && addr <= SH4_TA_TEXTURE_END) {
     ta_texture_write(dc->ta, addr, ptr, size);
   } else {
-    LOG_FATAL("sh4_area4_write unexpected addr 0x%08x", addr);
+    /* nop */
   }
+}
+
+uint32_t sh4_area4_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
+  addr &= SH4_ADDR_MASK;
+
+  /* create the mirror */
+  addr &= SH4_AREA4_ADDR_MASK;
+
+  /* area 4 is read-only, but will return the physical address when accessed */
+  return addr;
 }
 
 void sh4_area1_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
@@ -133,7 +145,7 @@ void sh4_area1_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 
   addr &= SH4_ADDR_MASK;
 
-  /* create the two area1 mirrors */
+  /* create the mirror */
   addr &= SH4_AREA1_ADDR_MASK;
 
   if (addr >= SH4_PVR_VRAM64_BEGIN && addr <= SH4_PVR_VRAM64_END) {
@@ -150,7 +162,7 @@ uint32_t sh4_area1_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
 
   addr &= SH4_ADDR_MASK;
 
-  /* create the two area1 mirrors */
+  /* create the mirror */
   addr &= SH4_AREA1_ADDR_MASK;
 
   if (addr >= SH4_PVR_VRAM64_BEGIN && addr <= SH4_PVR_VRAM64_END) {
@@ -169,28 +181,31 @@ void sh4_area0_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   /* mask off upper bits creating p0-p4 mirrors */
   addr &= SH4_ADDR_MASK;
 
-  /* flash rom is not accessible in the area0 mirror */
+  /* flash rom is not accessible in the area 0 mirror */
   if (addr >= SH4_FLASH_ROM_BEGIN && addr <= SH4_FLASH_ROM_END) {
     flash_rom_write(dc->flash, addr - SH4_FLASH_ROM_BEGIN, data, mask);
-  } else {
-    /* create the two area0 mirrors */
-    addr &= SH4_AREA0_ADDR_MASK;
+    return;
+  }
 
-    if (addr >= SH4_HOLLY_REG_BEGIN && addr <= SH4_HOLLY_REG_END) {
-      holly_reg_write(dc->holly, addr - SH4_HOLLY_REG_BEGIN, data, mask);
-    } else if (addr >= SH4_PVR_REG_BEGIN && addr <= SH4_PVR_REG_END) {
-      pvr_reg_write(dc->pvr, addr - SH4_PVR_REG_BEGIN, data, mask);
-    } else if (addr >= SH4_MODEM_BEGIN && addr <= SH4_MODEM_END) {
-      /* nop */
-    } else if (addr >= SH4_AICA_REG_BEGIN && addr <= SH4_AICA_REG_END) {
-      aica_reg_write(dc->aica, addr - SH4_AICA_REG_BEGIN, data, mask);
-    } else if (addr >= SH4_AICA_MEM_BEGIN && addr <= SH4_AICA_MEM_END) {
-      aica_mem_write(dc->aica, addr - SH4_AICA_MEM_BEGIN, data, mask);
-    } else if (addr >= SH4_HOLLY_EXT_BEGIN && addr <= SH4_HOLLY_EXT_END) {
-      /* nop */
-    } else {
-      LOG_FATAL("sh4_area0_write unexpected addr 0x%08x", addr);
-    }
+  /* create the mirror */
+  addr &= SH4_AREA0_ADDR_MASK;
+
+  if (/*addr >= SH4_BOOT_ROM_BEGIN*/ addr <= SH4_BOOT_ROM_END) {
+    /* read-only */
+  } else if (addr >= SH4_HOLLY_REG_BEGIN && addr <= SH4_HOLLY_REG_END) {
+    holly_reg_write(dc->holly, addr - SH4_HOLLY_REG_BEGIN, data, mask);
+  } else if (addr >= SH4_PVR_REG_BEGIN && addr <= SH4_PVR_REG_END) {
+    pvr_reg_write(dc->pvr, addr - SH4_PVR_REG_BEGIN, data, mask);
+  } else if (addr >= SH4_MODEM_BEGIN && addr <= SH4_MODEM_END) {
+    /* nop */
+  } else if (addr >= SH4_AICA_REG_BEGIN && addr <= SH4_AICA_REG_END) {
+    aica_reg_write(dc->aica, addr - SH4_AICA_REG_BEGIN, data, mask);
+  } else if (addr >= SH4_AICA_MEM_BEGIN && addr <= SH4_AICA_MEM_END) {
+    aica_mem_write(dc->aica, addr - SH4_AICA_MEM_BEGIN, data, mask);
+  } else if (addr >= SH4_HOLLY_EXT_BEGIN && addr <= SH4_HOLLY_EXT_END) {
+    /* nop */
+  } else {
+    LOG_FATAL("sh4_area0_write unexpected addr 0x%08x", addr);
   }
 }
 
@@ -200,17 +215,21 @@ uint32_t sh4_area0_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   /* mask off upper bits creating p0-p4 mirrors */
   addr &= SH4_ADDR_MASK;
 
-  /* boot / flash rom are not accessible in the area0 mirror */
+  /* boot / flash rom are not accessible in the area 0 mirror */
   if (/*addr >= SH4_BOOT_ROM_BEGIN &&*/ addr <= SH4_BOOT_ROM_END) {
     return boot_rom_read(dc->boot, addr - SH4_BOOT_ROM_BEGIN, mask);
   } else if (addr >= SH4_FLASH_ROM_BEGIN && addr <= SH4_FLASH_ROM_END) {
     return flash_rom_read(dc->flash, addr - SH4_FLASH_ROM_BEGIN, mask);
   }
 
-  /* create the two area0 mirrors */
+  /* create the mirror */
   addr &= SH4_AREA0_ADDR_MASK;
 
-  if (addr >= SH4_HOLLY_REG_BEGIN && addr <= SH4_HOLLY_REG_END) {
+  if (/*addr >= SH4_BOOT_ROM_BEGIN*/ addr <= SH4_BOOT_ROM_END) {
+    return 0xffffffff;
+  } else if (addr >= SH4_FLASH_ROM_BEGIN && addr <= SH4_FLASH_ROM_END) {
+    return 0xffffffff;
+  } else if (addr >= SH4_HOLLY_REG_BEGIN && addr <= SH4_HOLLY_REG_END) {
     return holly_reg_read(dc->holly, addr - SH4_HOLLY_REG_BEGIN, mask);
   } else if (addr >= SH4_PVR_REG_BEGIN && addr <= SH4_PVR_REG_END) {
     return pvr_reg_read(dc->pvr, addr - SH4_PVR_REG_BEGIN, mask);
