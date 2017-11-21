@@ -326,10 +326,9 @@ static int tr_parse_bg_vert(const struct ta_context *ctx, struct tr_context *rc,
   offset += 12;
 
   if (ctx->bg_isp.texture) {
-    LOG_FATAL("unsupported bg_isp.texture");
-    /*v->uv[0] = *(float *)(&ctx->bg_vertices[offset]);
-    v->uv[1] = *(float *)(&ctx->bg_vertices[offset + 4]);
-    offset += 8;*/
+    float *uv = (float *)&ctx->bg_vertices[offset];
+    PARSE_UV(uv, v->uv);
+    offset += 8;
   }
 
   uint32_t base_color = *(uint32_t *)&ctx->bg_vertices[offset];
@@ -337,13 +336,9 @@ static int tr_parse_bg_vert(const struct ta_context *ctx, struct tr_context *rc,
   offset += 4;
 
   if (ctx->bg_isp.offset) {
-    LOG_FATAL("unsupported bg_isp.offset");
-    /*uint32_t offset_color = *(uint32_t *)(&ctx->bg_vertices[offset]);
-    v->offset_color[0] = ((offset_color >> 16) & 0xff) / 255.0f;
-    v->offset_color[1] = ((offset_color >> 16) & 0xff) / 255.0f;
-    v->offset_color[2] = ((offset_color >> 16) & 0xff) / 255.0f;
-    v->offset_color[3] = 0.0f;
-    offset += 4;*/
+    uint32_t offset_color = *(uint32_t *)&ctx->bg_vertices[offset];
+    PARSE_PACKED_COLOR(offset_color, &v->offset_color);
+    offset += 4;
   }
 
   return offset;
@@ -355,7 +350,11 @@ static void tr_parse_bg(struct tr *tr, const struct ta_context *ctx,
 
   /* translate the surface */
   struct ta_surface *surf = tr_reserve_surf(tr, rc, 0);
-  surf->params.texture = 0;
+
+  surf->params.texture =
+      ctx->bg_isp.texture
+          ? tr_convert_texture(tr, ctx, ctx->bg_tsp, ctx->bg_tcw)
+          : 0;
   surf->params.depth_write = !ctx->bg_isp.z_write_disable;
   surf->params.depth_func =
       translate_depth_func(ctx->bg_isp.depth_compare_mode);
@@ -366,34 +365,75 @@ static void tr_parse_bg(struct tr *tr, const struct ta_context *ctx,
   /* translate the first 3 vertices */
   struct ta_vertex *va = tr_reserve_vert(tr, rc);
   struct ta_vertex *vb = tr_reserve_vert(tr, rc);
-  struct ta_vertex *vc = tr_reserve_vert(tr, rc);
   struct ta_vertex *vd = tr_reserve_vert(tr, rc);
+  struct ta_vertex *vc = tr_reserve_vert(tr, rc);
 
   int offset = 0;
   offset = tr_parse_bg_vert(ctx, rc, offset, va);
   offset = tr_parse_bg_vert(ctx, rc, offset, vb);
   offset = tr_parse_bg_vert(ctx, rc, offset, vc);
 
-  /* override xyz values supplied by ISP_BACKGND_T. while the hardware docs act
-     like they should be correct, they're most definitely not in most cases */
-  va->xyz[0] = 0.0f;
-  va->xyz[1] = (float)ctx->video_height;
+  /* force z to background clip depth, not sure the purpose of the supplied z */
   va->xyz[2] = ctx->bg_depth;
-
-  vb->xyz[0] = 0.0f;
-  vb->xyz[1] = 0.0f;
   vb->xyz[2] = ctx->bg_depth;
-
-  vc->xyz[0] = (float)ctx->video_width;
-  vc->xyz[1] = (float)ctx->video_height;
   vc->xyz[2] = ctx->bg_depth;
 
+  /*
+   * these vertices don't seem to come in a particular order. i've seen:
+   * b---c       a---b       a---b       a
+   * |  /         \  |       |  /        |\
+   * | /    and    \ |  and  | /    and  | \
+   * |/             \|       |/          |  \
+   * a               c       c           c---b
+   *
+   * in order to simplify calculating d, figure out the corner vertex based on
+   * the distance between its adjacent vertices, and rotate the vertices such
+   * that b is always the corner vertex. this feels pretty brute force, there
+   * must be a more elegant solution
+   */
+  float d1[3], d2[3];
+  float scorea, scoreb, scorec;
+
+  vec3_sub(d1, vb->xyz, va->xyz);
+  vec3_sub(d2, vc->xyz, va->xyz);
+  scorea = vec3_dot(d1, d1) + vec3_dot(d2, d2);
+
+  vec3_sub(d1, va->xyz, vb->xyz);
+  vec3_sub(d2, vc->xyz, vb->xyz);
+  scoreb = vec3_dot(d1, d1) + vec3_dot(d2, d2);
+
+  vec3_sub(d1, va->xyz, vc->xyz);
+  vec3_sub(d2, vb->xyz, vc->xyz);
+  scorec = vec3_dot(d1, d1) + vec3_dot(d2, d2);
+
+  if (scorea < scoreb && scorea < scorec) {
+    /* rotate counterclockwise */
+    struct ta_vertex tmp = *va;
+    *va = *vc;
+    *vc = *vb;
+    *vb = tmp;
+  } else if (scorec < scorea && scorec < scoreb) {
+    /* rotate clockwise */
+    struct ta_vertex tmp = *vc;
+    *vc = *va;
+    *va = *vb;
+    *vb = tmp;
+  }
+
   /* 4th vertex isn't supplied, fill it out automatically */
-  vd->xyz[0] = vc->xyz[0];
-  vd->xyz[1] = vb->xyz[1];
-  vd->xyz[2] = ctx->bg_depth;
-  vd->uv[0] = vc->uv[0];
-  vd->uv[1] = vb->uv[1];
+  float xyz_ba[3], xyz_bc[3];
+  vec3_sub(xyz_ba, va->xyz, vb->xyz);
+  vec3_sub(xyz_bc, vc->xyz, vb->xyz);
+  vec3_add(vd->xyz, vb->xyz, xyz_ba);
+  vec3_add(vd->xyz, vd->xyz, xyz_bc);
+
+  float uv_ba[2], uv_bc[2];
+  vec2_sub(uv_ba, va->uv, vb->uv);
+  vec2_sub(uv_bc, vc->uv, vb->uv);
+  vec2_add(vd->uv, vb->uv, uv_ba);
+  vec2_add(vd->uv, vd->uv, uv_bc);
+
+  /* TODO interpolate this properly when a game is found to test with */
   vd->color = va->color;
   vd->offset_color = va->offset_color;
 
@@ -479,12 +519,10 @@ static void tr_parse_poly_param(struct tr *tr, const struct ta_context *ctx,
     surf->params.depth_func = DEPTH_GEQUAL;
   }
 
-  if (param->type0.pcw.texture) {
-    surf->params.texture =
-        tr_convert_texture(tr, ctx, param->type0.tsp, param->type0.tcw);
-  } else {
-    surf->params.texture = 0;
-  }
+  surf->params.texture =
+      param->type0.pcw.texture
+          ? tr_convert_texture(tr, ctx, param->type0.tsp, param->type0.tcw)
+          : 0;
 }
 
 static void tr_parse_vert_param(struct tr *tr, const struct ta_context *ctx,

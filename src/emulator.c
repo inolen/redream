@@ -284,6 +284,10 @@ static void emu_register_texture_sources(struct emu *emu,
   const uint8_t *end = ctx->params + ctx->size;
   int vert_type = 0;
 
+  if (ctx->bg_isp.texture) {
+    emu_register_texture_source(emu, ctx->bg_tsp, ctx->bg_tcw);
+  }
+
   while (data < end) {
     union pcw pcw = *(union pcw *)data;
 
