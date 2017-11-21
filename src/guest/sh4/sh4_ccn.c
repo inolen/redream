@@ -29,8 +29,14 @@ static void sh4_ccn_reset(struct sh4 *sh4) {
   jit_invalidate_code(sh4->jit);
 }
 
+extern int sh4_ccn_pref_hack;
+
 void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
   struct memory *mem = sh4->dc->mem;
+
+  if (sh4_ccn_pref_hack) {
+    LOG_INFO("sh4_ccn_pref addr=0x%08x", addr);
+  }
 
   /* make sure this is a sq related prefetch */
   DCHECK(addr >= 0xe0000000 && addr <= 0xe3ffffff);

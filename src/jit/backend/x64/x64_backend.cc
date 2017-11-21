@@ -625,6 +625,9 @@ static void x64_backend_emit_prolog(struct x64_backend *backend, struct ir *ir,
   e.add(e.dword[guestctx + guest->offset_instrs], num_instrs);
 }
 
+extern int lse_hack_enable;
+extern int sh4_ccn_pref_hack;
+
 static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
                              jit_emit_cb emit_cb, void *emit_data) {
   auto &e = *backend->codegen;
@@ -632,6 +635,8 @@ static void x64_backend_emit(struct x64_backend *backend, struct ir *ir,
   CHECK_LT(ir->locals_size, X64_STACK_SIZE);
 
   e.inLocalLabel();
+
+  e.mov(e.dword[&sh4_ccn_pref_hack], lse_hack_enable);
 
   list_for_each_entry(block, &ir->blocks, struct ir_block, it) {
     int first = 1;

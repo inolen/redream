@@ -321,6 +321,7 @@ static void jit_promote_fastmem(struct jit *jit, struct jit_block *block,
 
 int lse_hack_enable;
 int lse_hack_count;
+int sh4_ccn_pref_hack;
 
 void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
 #if 0
@@ -350,10 +351,14 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
     jit_free_block(jit, existing);
   }
 
+  lse_hack_enable = guest_addr == 0x8c083726;
+  lse_hack_count = 0;
+
   /* translate guest code into ir */
   struct ir ir = {0};
   ir.buffer = jit->ir_buffer;
   ir.capacity = sizeof(jit->ir_buffer);
+
   jit->frontend->translate_code(jit->frontend, guest_addr, guest_size, &ir);
 
   /* dump raw ir */
@@ -364,9 +369,6 @@ void jit_compile_code(struct jit *jit, uint32_t guest_addr) {
   /* run optimization passes */
   jit_promote_fastmem(jit, block, &ir);
   cfa_run(jit->cfa, &ir);
-
-  lse_hack_enable = guest_addr == 0x8c0664c6;
-  lse_hack_count = 0;
 
   static const uint32_t test[] = {
     0x0,
