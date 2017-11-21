@@ -2,7 +2,8 @@
 #define SH4_MEM_H
 
 /* clang-format off */
-#define SH4_ADDR_MASK 0x1fffffff
+#define SH4_AREA_SIZE        0x20000000
+#define SH4_ADDR_MASK        (SH4_AREA_SIZE-1)
 
 /* area 0 */
 #define SH4_AREA0_BEGIN      0x00000000
@@ -116,8 +117,6 @@
 #define SH4_OCACHE_END       0xf5ffffff
 #define SH4_UTLB_BEGIN       0xf6000000
 #define SH4_UTLB_END         0xf7ffffff
-#define SH4_REG2_BEGIN       0xfc000000
-#define SH4_REG2_END         0xffffffff
 /* clang-format on */
 
 uint32_t sh4_area0_read(struct sh4 *sh4, uint32_t addr, uint32_t mask);

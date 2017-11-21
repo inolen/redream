@@ -329,14 +329,17 @@ static void as_map(struct memory *mem, struct address_space *space,
 
 #ifdef HAVE_FASTMEM
   uint8_t *target = space->base + begin;
+  void *res = NULL;
 
   if (offset >= 0) {
     /* map physical memory into the address space */
-    map_shared_memory(mem->shmem, offset, target, size, ACC_READWRITE);
+    res = map_shared_memory(mem->shmem, offset, target, size, ACC_READWRITE);
   } else {
     /* disable access to mmio areas */
-    map_shared_memory(mem->shmem, 0x0, target, size, ACC_NONE);
+    res = map_shared_memory(mem->shmem, 0x0, target, size, ACC_NONE);
   }
+
+  CHECK_NE(res, SHMEM_MAP_FAILED);
 #else
   (void)(offset);
 #endif
@@ -443,15 +446,23 @@ int sh4_init(struct memory *mem) {
     return 0;
   }
 
+  /* note, p0-p3 map to the entire external address space, while p4 only maps to
+     the external regions in between the gaps in its own internal regions. these
+     gaps map to areas 1-3 (0xe4000000-0xefffffff) and 6-7 (0xf8000000-
+     0xffffffff) */
+
   /* area 0 */
-  sh4_map(mem, SH4_AREA0_BEGIN, SH4_AREA0_END, P0 | P1 | P2 | P3, MAP_MMIO,
-          (mmio_read_cb)&sh4_area0_read, (mmio_write_cb)&sh4_area0_write, NULL,
-          NULL);
+  sh4_map(mem, SH4_AREA0_BEGIN, SH4_AICA_MEM_BEGIN - 1, P0 | P1 | P2 | P3,
+          MAP_MMIO, (mmio_read_cb)&sh4_area0_read,
+          (mmio_write_cb)&sh4_area0_write, NULL, NULL);
   sh4_map(mem, SH4_AICA_MEM_BEGIN, SH4_AICA_MEM_END, P0 | P1 | P2 | P3,
           MAP_ARAM, NULL, NULL, NULL, NULL);
+  sh4_map(mem, SH4_AICA_MEM_END + 1, SH4_AREA0_END, P0 | P1 | P2 | P3, MAP_MMIO,
+          (mmio_read_cb)&sh4_area0_read, (mmio_write_cb)&sh4_area0_write, NULL,
+          NULL);
 
   /* area 1 */
-  sh4_map(mem, SH4_AREA1_BEGIN, SH4_AREA1_END, P0 | P1 | P2 | P3, MAP_MMIO,
+  sh4_map(mem, SH4_AREA1_BEGIN, SH4_AREA1_END, P0 | P1 | P2 | P3 | P4, MAP_MMIO,
           (mmio_read_cb)&sh4_area1_read, (mmio_write_cb)&sh4_area1_write, NULL,
           NULL);
 #if 0
@@ -466,17 +477,16 @@ int sh4_init(struct memory *mem) {
   /* area 2 */
 
   /* area 3 */
-  sh4_map(mem, SH4_AREA3_RAM0_BEGIN, SH4_AREA3_RAM0_END, P0 | P1 | P2 | P3,
+  sh4_map(mem, SH4_AREA3_RAM0_BEGIN, SH4_AREA3_RAM0_END, P0 | P1 | P2 | P3 | P4,
           MAP_RAM, NULL, NULL, NULL, NULL);
-  sh4_map(mem, SH4_AREA3_RAM1_BEGIN, SH4_AREA3_RAM1_END, P0 | P1 | P2 | P3,
+  sh4_map(mem, SH4_AREA3_RAM1_BEGIN, SH4_AREA3_RAM1_END, P0 | P1 | P2 | P3 | P4,
           MAP_RAM, NULL, NULL, NULL, NULL);
-  sh4_map(mem, SH4_AREA3_RAM2_BEGIN, SH4_AREA3_RAM2_END, P0 | P1 | P2 | P3,
+  sh4_map(mem, SH4_AREA3_RAM2_BEGIN, SH4_AREA3_RAM2_END, P0 | P1 | P2 | P3 | P4,
           MAP_RAM, NULL, NULL, NULL, NULL);
-  sh4_map(mem, SH4_AREA3_RAM3_BEGIN, SH4_AREA3_RAM3_END, P0 | P1 | P2 | P3,
+  sh4_map(mem, SH4_AREA3_RAM3_BEGIN, SH4_AREA3_RAM3_END, P0 | P1 | P2 | P3 | P4,
           MAP_RAM, NULL, NULL, NULL, NULL);
 
-  /* area 4 */
-  /* note, this region is only accessed through sq / dma transfers, so only a
+  /* area 4. this region is only written through sq / dma transfers, so only a
      write_string handler is added */
   sh4_map(mem, SH4_AREA4_BEGIN, SH4_AREA4_END, P0 | P1 | P2 | P3, MAP_MMIO,
           (mmio_read_cb)&mem_unhandled_read, NULL, NULL,
@@ -487,12 +497,22 @@ int sh4_init(struct memory *mem) {
   /* area 6 */
 
   /* area 7 */
-  sh4_map(mem, SH4_AREA7_BEGIN, SH4_AREA7_END, P0 | P1 | P2 | P3, MAP_MMIO,
+  sh4_map(mem, SH4_AREA7_BEGIN, SH4_AREA7_END, P0 | P1 | P2 | P3 | P4, MAP_MMIO,
           (mmio_read_cb)&sh4_area7_read, (mmio_write_cb)&sh4_area7_write, NULL,
           NULL);
 
-  /* p4 */
-  sh4_map(mem, SH4_P4_BEGIN, SH4_P4_END, P4, MAP_MMIO,
+  /* p4. the unassigned regions have already been mapped to the external address
+     space. instead of mapping the entire p4 area, selectively map each internal
+     region to avoid overwriting the existing mappings */
+  sh4_map(mem, SH4_SQ_BEGIN, SH4_SQ_END, P4, MAP_MMIO,
+          (mmio_read_cb)&sh4_p4_read, (mmio_write_cb)&sh4_p4_write, NULL, NULL);
+  sh4_map(mem, SH4_ICACHE_BEGIN, SH4_ICACHE_END, P4, MAP_MMIO,
+          (mmio_read_cb)&sh4_p4_read, (mmio_write_cb)&sh4_p4_write, NULL, NULL);
+  sh4_map(mem, SH4_ITLB_BEGIN, SH4_ITLB_END, P4, MAP_MMIO,
+          (mmio_read_cb)&sh4_p4_read, (mmio_write_cb)&sh4_p4_write, NULL, NULL);
+  sh4_map(mem, SH4_OCACHE_BEGIN, SH4_OCACHE_END, P4, MAP_MMIO,
+          (mmio_read_cb)&sh4_p4_read, (mmio_write_cb)&sh4_p4_write, NULL, NULL);
+  sh4_map(mem, SH4_UTLB_BEGIN, SH4_UTLB_END, P4, MAP_MMIO,
           (mmio_read_cb)&sh4_p4_read, (mmio_write_cb)&sh4_p4_write, NULL, NULL);
 
   return 1;
@@ -512,8 +532,11 @@ uint8_t *mem_ram(struct memory *mem, uint32_t offset) {
 
 int mem_init(struct memory *mem) {
 #ifdef HAVE_FASTMEM
-  /* create the shared memory object to back the physical memory */
-  mem->shmem = create_shared_memory("/redream", PHYSICAL_SIZE, ACC_READWRITE);
+  /* create the shared memory object to back the physical memory. note, because
+     mmio regions also map this shared memory object when disabling permissions,
+     the object has to at least be the size of an entire mmio region */
+  size_t shmem_size = MAX(PHYSICAL_SIZE, SH4_AREA_SIZE);
+  mem->shmem = create_shared_memory("/redream", shmem_size, ACC_READWRITE);
 
   if (mem->shmem == SHMEM_INVALID) {
     LOG_WARNING("mem_init failed to create shared memory object");

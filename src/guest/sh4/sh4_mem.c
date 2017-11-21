@@ -53,8 +53,6 @@ void sh4_p4_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
     sh4_ccn_ocache_write(sh4, addr - SH4_OCACHE_BEGIN, data, mask);
   } else if (addr >= SH4_UTLB_BEGIN && addr <= SH4_UTLB_END) {
     sh4_mmu_utlb_write(sh4, addr - SH4_UTLB_BEGIN, data, mask);
-  } else if (addr >= SH4_REG2_BEGIN && addr <= SH4_REG2_END) {
-    sh4_reg_write(sh4, addr - SH4_REG2_BEGIN, data, mask);
   } else {
     LOG_FATAL("sh4_p4_write unexpected addr 0x%08x", addr);
   }
@@ -70,8 +68,6 @@ uint32_t sh4_p4_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
     return sh4_ccn_ocache_read(sh4, addr - SH4_OCACHE_BEGIN, mask);
   } else if (addr >= SH4_UTLB_BEGIN && addr <= SH4_UTLB_END) {
     return sh4_mmu_utlb_read(sh4, addr - SH4_UTLB_BEGIN, mask);
-  } else if (addr >= SH4_REG2_BEGIN && addr <= SH4_REG2_END) {
-    return sh4_reg_read(sh4, addr - SH4_REG2_BEGIN, mask);
   } else {
     LOG_FATAL("sh4_p4_read unexpected addr 0x%08x", addr);
   }
