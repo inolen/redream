@@ -48,6 +48,9 @@ struct sh4 {
   int tmu_stats;
   struct list breakpoints;
 
+  /* ccn */
+  uint32_t sq[2][8];
+
   /* intc */
   enum sh4_interrupt sorted_interrupts[SH4_NUM_INTERRUPTS];
   uint64_t sort_id[SH4_NUM_INTERRUPTS];
