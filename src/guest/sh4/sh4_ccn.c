@@ -57,7 +57,7 @@ void sh4_ccn_pref(struct sh4 *sh4, uint32_t addr) {
     dst |= addr & 0x3ffffe0;
   }
 
-  sh4_memcpy_to_guest(mem, dst, sh4->ctx.sq[sqi], 32);
+  sh4_memcpy_to_guest(mem, dst, sh4->sq[sqi], 32);
 }
 
 uint32_t sh4_ccn_cache_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
@@ -86,15 +86,17 @@ void sh4_ccn_cache_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
 
 uint32_t sh4_ccn_sq_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {
   uint32_t sqi = (addr & 0x20) >> 5;
-  unsigned idx = (addr & 0x1c) >> 2;
-  return sh4->ctx.sq[sqi][idx];
+  uint32_t idx = (addr & 0x1c) >> 2;
+  CHECK_EQ(mask, 0xffffffff);
+  return sh4->sq[sqi][idx];
 }
 
 void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
                       uint32_t mask) {
   uint32_t sqi = (addr & 0x20) >> 5;
   uint32_t idx = (addr & 0x1c) >> 2;
-  sh4->ctx.sq[sqi][idx] = data;
+  CHECK_EQ(mask, 0xffffffff);
+  sh4->sq[sqi][idx] = data;
 }
 
 uint32_t sh4_ccn_icache_read(struct sh4 *sh4, uint32_t addr, uint32_t mask) {

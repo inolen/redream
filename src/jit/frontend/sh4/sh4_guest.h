@@ -114,7 +114,6 @@ struct sh4_context {
   uint32_t fpul, mach, macl;
   uint32_t sgr, spc, ssr;
   uint64_t pending_interrupts;
-  uint32_t sq[2][8];
 
   /* processor sleep state */
   uint32_t sleep_mode;
