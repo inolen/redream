@@ -50,10 +50,15 @@ enum {
 };
 
 enum {
-  EMU_DRAW_INVALID,
-  EMU_DRAW_PIXELS,
-  EMU_DRAW_CONTEXT,
-  EMU_DRAW_DISABLED,
+  EMU_SOURCE_NONE,
+  EMU_SOURCE_CTX,
+  EMU_SOURCE_PXL,
+};
+
+struct emu_framebuffer {
+  uint8_t data[PVR_FRAMEBUFFER_SIZE];
+  int width;
+  int height;
 };
 
 struct emu_texture {
@@ -92,13 +97,10 @@ struct emu {
   cond_t res_cond;
 
   /* latest video state pushed by the dreamcast */
-  volatile int latest;
-  struct {
-    uint8_t pixels[PVR_FRAMEBUFFER_SIZE];
-    int width;
-    int height;
-  } latest_fb;
-  struct tr_context latest_rc;
+  volatile int vid_disabled;
+  volatile int vid_source;
+  struct tr_context vid_rc;
+  struct emu_framebuffer vid_fb;
 
   /* latest context submitted to emu_start_render */
   struct ta_context *pending_ctx;
@@ -350,18 +352,15 @@ static void emu_start_tracing(struct emu *emu) {
 /*
  * dreamcast guest interface
  */
-static void emu_vblank_in(void *userdata, int video_disabled) {
+static void emu_vblank_in(void *userdata, int vid_disabled) {
   struct emu *emu = userdata;
 
   if (emu->multi_threaded) {
     mutex_lock(emu->res_mutex);
   }
 
-  if (video_disabled) {
-    emu->latest = EMU_DRAW_DISABLED;
-  }
-
   emu->state = EMU_DRAWFRAME;
+  emu->vid_disabled = vid_disabled;
 
   if (emu->multi_threaded) {
     cond_signal(emu->res_cond);
@@ -431,11 +430,11 @@ static void emu_start_render(void *userdata, struct ta_context *ctx) {
 static void emu_push_pixels(void *userdata, const uint8_t *data, int w, int h) {
   struct emu *emu = userdata;
 
-  emu->latest = EMU_DRAW_PIXELS;
+  memcpy(emu->vid_fb.data, data, w * h * 4);
+  emu->vid_fb.width = w;
+  emu->vid_fb.height = h;
 
-  memcpy(emu->latest_fb.pixels, data, w * h * 4);
-  emu->latest_fb.width = w;
-  emu->latest_fb.height = h;
+  emu->vid_source = EMU_SOURCE_PXL;
 }
 
 static void emu_push_audio(void *userdata, const int16_t *data, int frames) {
@@ -600,11 +599,11 @@ void emu_render_frame(struct emu *emu) {
   }
 
   if (emu->pending_ctx) {
-    emu->latest = EMU_DRAW_CONTEXT;
-
     tr_convert_context(emu->r, emu, &emu_find_texture, emu->pending_ctx,
-                       &emu->latest_rc);
+                       &emu->vid_rc);
     emu->pending_ctx = NULL;
+
+    emu->vid_source = EMU_SOURCE_CTX;
   }
 
   if (emu->multi_threaded) {
@@ -622,12 +621,14 @@ void emu_render_frame(struct emu *emu) {
     mutex_unlock(emu->res_mutex);
   }
 
-  /* render the latest framebuffer or context */
-  if (emu->latest == EMU_DRAW_PIXELS) {
-    r_draw_pixels(emu->r, emu->latest_fb.pixels, 0, 0, emu->latest_fb.width,
-                  emu->latest_fb.height);
-  } else if (emu->latest == EMU_DRAW_CONTEXT) {
-    tr_render_context(emu->r, &emu->latest_rc);
+  /* render the latest video source */
+  if (!emu->vid_disabled) {
+    if (emu->vid_source == EMU_SOURCE_PXL) {
+      r_draw_pixels(emu->r, emu->vid_fb.data, 0, 0, emu->vid_fb.width,
+                    emu->vid_fb.height);
+    } else if (emu->vid_source == EMU_SOURCE_CTX) {
+      tr_render_context(emu->r, &emu->vid_rc);
+    }
   }
 
   /* note, the emulation thread may still be running the code between vblank_in
