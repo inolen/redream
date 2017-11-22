@@ -102,6 +102,12 @@ void sh4_ccn_sq_write(struct sh4 *sh4, uint32_t addr, uint32_t data,
   uint32_t sqi = (addr & 0x20) >> 5;
   uint32_t idx = (addr & 0x1c) >> 2;
   CHECK_EQ(mask, 0xffffffff);
+
+  if (sh4_ccn_pref_hack) {
+    LOG_INFO("sh4_ccn_sq_write addr=0x%08x sqi=%d idx=%d data=0x%08x", addr, sqi, idx, data);
+  }
+
+
   sh4->sq[sqi][idx] = data;
 }
 
