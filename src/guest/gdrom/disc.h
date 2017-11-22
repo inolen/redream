@@ -85,7 +85,7 @@ struct disc {
   void (*read_sector)(struct disc *, struct track *, int, void *);
 };
 
-struct disc *disc_create(const char *filename);
+struct disc *disc_create(const char *filename, int verbose);
 void disc_destroy(struct disc *disc);
 
 int disc_get_format(struct disc *disc);

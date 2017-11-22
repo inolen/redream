@@ -93,7 +93,7 @@ static void gdi_destroy(struct disc *disc) {
   }
 }
 
-static int gdi_parse(struct disc *disc, const char *filename) {
+static int gdi_parse(struct disc *disc, const char *filename, int verbose) {
   struct gdi *gdi = (struct gdi *)disc;
 
   FILE *fp = fopen(filename, "rb");
@@ -162,8 +162,10 @@ static int gdi_parse(struct disc *disc, const char *filename) {
     snprintf(track->filename, sizeof(track->filename), "%s" PATH_SEPARATOR "%s",
              dirname, filename);
 
-    LOG_INFO("gdi_parse track=%d filename='%s' fad=%d secsz=%d", track->num,
-             track->filename, track->fad, track->sector_size);
+    if (verbose) {
+      LOG_INFO("gdi_parse track=%d filename='%s' fad=%d secsz=%d", track->num,
+               track->filename, track->fad, track->sector_size);
+    }
   }
 
   /* gdroms contains two sessions, one for the single density area (tracks 0-1)
@@ -191,7 +193,7 @@ static int gdi_parse(struct disc *disc, const char *filename) {
   return 1;
 }
 
-struct disc *gdi_create(const char *filename) {
+struct disc *gdi_create(const char *filename, int verbose) {
   struct gdi *gdi = calloc(1, sizeof(struct gdi));
 
   gdi->destroy = &gdi_destroy;
@@ -205,7 +207,7 @@ struct disc *gdi_create(const char *filename) {
 
   struct disc *disc = (struct disc *)gdi;
 
-  if (!gdi_parse(disc, filename)) {
+  if (!gdi_parse(disc, filename, verbose)) {
     gdi_destroy(disc);
     return NULL;
   }

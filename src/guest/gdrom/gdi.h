@@ -3,6 +3,6 @@
 
 struct disc;
 
-struct disc *gdi_create(const char *filename);
+struct disc *gdi_create(const char *filename, int verbose);
 
 #endif

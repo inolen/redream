@@ -154,7 +154,7 @@ static int dc_load_bin(struct dreamcast *dc, const char *path) {
 }
 
 static int dc_load_disc(struct dreamcast *dc, const char *path) {
-  struct disc *disc = disc_create(path);
+  struct disc *disc = disc_create(path, 1);
 
   if (!disc) {
     return 0;

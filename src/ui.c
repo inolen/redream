@@ -518,7 +518,7 @@ static void ui_scan_games_f(struct ui *ui, const char *filename) {
   snprintf(ui->scan_status, sizeof(ui->scan_status), "scanning %s", filename);
 
   if (ui_has_game_ext(filename, game_exts, ARRAY_SIZE(game_exts))) {
-    struct disc *disc = disc_create(filename);
+    struct disc *disc = disc_create(filename, 0);
 
     if (disc) {
       struct game game = {0};
@@ -1099,7 +1099,7 @@ enum {
 };
 
 static texture_handle_t ui_load_disc_texture(struct ui *ui, struct game *game) {
-  struct disc *disc = disc_create(game->filename);
+  struct disc *disc = disc_create(game->filename, 0);
   if (!disc) {
     return ui->disc_tex;
   }
