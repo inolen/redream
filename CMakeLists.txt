@@ -7,6 +7,7 @@ include(CheckIncludeFiles)
 include(CheckFunctionExists)
 include(ExternalProject)
 include(SourceGroupByDir)
+include(GetGitRevisionDescription)
 
 project(redream)
 set(CMAKE_C_STANDARD 11)
@@ -55,6 +56,15 @@ if(BUILD_LIBRETRO)
 endif()
 
 #--------------------------------------------------
+# version file
+#--------------------------------------------------
+
+git_describe(GIT_VERSION --tags)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/core/version.h @ONLY)
+
+
+#--------------------------------------------------
 # config file
 #--------------------------------------------------
 
@@ -62,7 +72,9 @@ check_include_files(strings.h HAVE_STRINGS_H)
 check_function_exists(strcasecmp HAVE_STRCASECMP)
 check_function_exists(strnlen HAVE_STRNLEN)
 check_function_exists(strnstr HAVE_STRNSTR)
+
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/core/config.h)
+
 list(APPEND RELIB_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/src)
 list(APPEND RELIB_DEFS HAVE_CONFIG_H)
 

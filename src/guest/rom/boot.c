@@ -48,9 +48,11 @@ static int boot_validate(struct boot *boot) {
 static int boot_load_rom(struct boot *boot) {
   const char *filename = boot_bin_path();
 
+  LOG_INFO("boot_load_rom path=%s", filename);
+
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
-    LOG_WARNING("failed to load '%s'", filename);
+    LOG_WARNING("boot_load_rom failed to open");
     return 0;
   }
 
@@ -59,7 +61,7 @@ static int boot_load_rom(struct boot *boot) {
   fseek(fp, 0, SEEK_SET);
 
   if (size != (int)sizeof(boot->rom)) {
-    LOG_WARNING("boot rom size mismatch, is %d, expected %d", size,
+    LOG_WARNING("boot_load_rom size mismatch size=%d expected=%d", size,
                 sizeof(boot->rom));
     fclose(fp);
     return 0;
@@ -70,11 +72,9 @@ static int boot_load_rom(struct boot *boot) {
   fclose(fp);
 
   if (!boot_validate(boot)) {
-    LOG_WARNING("failed to validate boot rom");
+    LOG_WARNING("boot_load_rom failed to validate");
     return 0;
   }
-
-  LOG_INFO("boot_load_rom loaded '%s'", filename);
 
   return 1;
 }

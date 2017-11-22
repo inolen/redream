@@ -247,8 +247,6 @@ static void imgui_update_font_tex(struct imgui *imgui) {
     return;
   }
 
-  LOG_INFO("imgui_update_font_tex w=%d h=%d", width, height);
-
   font_tex = r_create_texture(imgui->r, PXL_RGBA, FILTER_BILINEAR, WRAP_REPEAT,
                               WRAP_REPEAT, 0, width, height, pixels);
   io.Fonts->TexID = (void *)(intptr_t)font_tex;

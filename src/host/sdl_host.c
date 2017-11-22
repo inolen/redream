@@ -6,6 +6,7 @@
 #include "core/profiler.h"
 #include "core/ringbuf.h"
 #include "core/time.h"
+#include "core/version.h"
 #include "emulator.h"
 #include "guest/aica/aica.h"
 #include "host/host.h"
@@ -1008,6 +1009,8 @@ struct host *host_create() {
 }
 
 int main(int argc, char **argv) {
+  LOG_INFO("redream " GIT_VERSION);
+
 #if PLATFORM_ANDROID
   const char *appdir = SDL_AndroidGetExternalStoragePath();
   fs_set_appdir(appdir);
