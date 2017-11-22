@@ -1384,9 +1384,9 @@ void ui_set_page(struct ui *ui, int page_index) {
   }
 
   /* trigger global callbacks for when the ui is open / closed */
-  if (top_page == NULL && next_page != NULL) {
+  if (!top_page && next_page) {
     ui_opened(ui->host);
-  } else if (next_page == NULL) {
+  } else if (!next_page) {
     ui_closed(ui->host);
   }
 }
@@ -1432,10 +1432,8 @@ int ui_keydown(struct ui *ui, int key, int16_t value) {
     /* prioritize canceling any open dialog */
     if (ui->dlg) {
       ui_close_dlg(ui, UI_DLG_CANCEL);
-    }
-    /* else, pop the history stack */
-    else {
-      ui->history_pos = MAX(ui->history_pos - 1, 1);
+    } else if (ui->history_pos > 1) {
+      ui->history_pos = ui->history_pos - 1;
     }
   }
 
