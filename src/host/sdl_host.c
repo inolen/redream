@@ -288,9 +288,17 @@ static SDL_GLContext video_create_context(struct host *host) {
 }
 
 static void video_set_fullscreen(struct host *host, int fullscreen) {
-  uint32_t flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
-  int res = SDL_SetWindowFullscreen(host->win, flags);
-  CHECK_EQ(res, 0);
+  if (fullscreen) {
+    int res = SDL_SetWindowFullscreen(host->win, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    CHECK(res >= 0);
+    res = SDL_ShowCursor(SDL_DISABLE);
+    CHECK(res >= 0);
+  } else {
+    int res = SDL_SetWindowFullscreen(host->win, 0);
+    CHECK(res >= 0);
+    res = SDL_ShowCursor(SDL_ENABLE);
+    CHECK(res >= 0);
+  }
 }
 
 static void video_shutdown(struct host *host) {
@@ -968,15 +976,15 @@ static int host_init(struct host *host) {
   CHECK_GE(res, 0, "host_create sdl initialization failed: %s", SDL_GetError());
 
   uint32_t win_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
-  if (OPTION_fullscreen) {
-    win_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-  }
-
   host->win = SDL_CreateWindow("redream", SDL_WINDOWPOS_UNDEFINED,
                                SDL_WINDOWPOS_UNDEFINED, VIDEO_DEFAULT_WIDTH,
                                VIDEO_DEFAULT_HEIGHT, win_flags);
   CHECK_NOTNULL(host->win, "host_create window creation failed: %s",
                 SDL_GetError());
+
+  if (OPTION_fullscreen) {
+    video_set_fullscreen(host, 1);
+  }
 
   if (!audio_init(host)) {
     return 0;
