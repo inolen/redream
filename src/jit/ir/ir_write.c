@@ -183,7 +183,7 @@ static void ir_write_instr(struct ir_writer *w, const struct ir_instr *instr,
 
   ir_write_meta(w, instr, output);
 
-#if 0
+#if 1
   fprintf(output, "\t# tag=%" PRId64 " reg=%d", instr->tag,
           instr->result ? instr->result->reg : -1);
 #endif
