@@ -266,11 +266,11 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
     pvr->line_clock *= 2;
   }
 
-  const char *mode = "VGA";
+  const char *mode = "vga";
   if (pvr->SPG_CONTROL->NTSC == 1) {
-    mode = "NTSC";
+    mode = "ntsc";
   } else if (pvr->SPG_CONTROL->PAL == 1) {
-    mode = "PAL";
+    mode = "pal";
   }
 
   LOG_INFO(

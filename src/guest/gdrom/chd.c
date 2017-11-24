@@ -84,7 +84,7 @@ static void chd_destroy(struct disc *disc) {
   chd_close(chd->chd);
 }
 
-static int chd_parse(struct disc *disc, const char *filename) {
+static int chd_parse(struct disc *disc, const char *filename, int verbose) {
   struct chd *chd = (struct chd *)disc;
 
   chd_error err = chd_open(filename, CHD_OPEN_READ, 0, &chd->chd);
@@ -182,8 +182,10 @@ static int chd_parse(struct disc *disc, const char *filename) {
     track->ctrl = strcmp(type, "AUDIO") == 0 ? 0 : 4;
     track->file_offset = fad - cad;
 
-    LOG_INFO("chd_parse '%s' track=%d fad=%d secsz=%d", tmp, track->num,
-             track->fad, track->sector_size);
+    if (verbose) {
+      LOG_INFO("chd_parse '%s' track=%d fad=%d secsz=%d", tmp, track->num,
+               track->fad, track->sector_size);
+    }
 
     /* chd block addresses are padded to a 4-frame boundary */
     cad += ALIGN_UP(frames, 4);
@@ -213,7 +215,7 @@ static int chd_parse(struct disc *disc, const char *filename) {
   return 1;
 }
 
-struct disc *chd_create(const char *filename) {
+struct disc *chd_create(const char *filename, int verbose) {
   struct chd *chd = calloc(1, sizeof(struct chd));
 
   chd->destroy = &chd_destroy;
@@ -227,7 +229,7 @@ struct disc *chd_create(const char *filename) {
 
   struct disc *disc = (struct disc *)chd;
 
-  if (!chd_parse(disc, filename)) {
+  if (!chd_parse(disc, filename, verbose)) {
     chd_destroy(disc);
     return NULL;
   }

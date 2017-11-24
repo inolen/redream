@@ -51,7 +51,7 @@ struct x64_backend {
 /*
  * backend functionality used by emitters
  */
-#define X64_THUNK_SIZE 1024
+#define X64_THUNK_SIZE 8192
 #define X64_STACK_SIZE 1024
 
 #if PLATFORM_WINDOWS
@@ -79,6 +79,8 @@ Xbyak::Reg x64_backend_reg(struct x64_backend *backend,
                            const struct ir_value *v);
 Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
                            const struct ir_value *v);
+int x64_backend_push_regs(struct x64_backend *backend, int mask);
+void x64_backend_pop_regs(struct x64_backend *backend, int mask);
 void x64_backend_load_mem(struct x64_backend *backend,
                           const struct ir_value *dst,
                           const Xbyak::RegExp &src_exp);

@@ -98,7 +98,7 @@ static void cdi_destroy(struct disc *disc) {
 }
 
 static int cdi_parse_track(struct disc *disc, uint32_t version,
-                           int *track_offset, int *leadout_fad) {
+                           int *track_offset, int *leadout_fad, int verbose) {
   struct cdi *cdi = (struct cdi *)disc;
   FILE *fp = cdi->fp;
 
@@ -187,9 +187,11 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
   track->ctrl = sector_mode == 0 ? 0 : 4;
   track->file_offset = data_offset - track->fad * track->sector_size;
 
-  LOG_INFO("cdi_parse_track track=%d fad=%d off=%d mode=%s/%d", track->num,
-           track->fad, data_offset, cdi_sector_modes[sector_mode],
-           track->sector_size);
+  if (verbose) {
+    LOG_INFO("cdi_parse_track track=%d fad=%d off=%d mode=%s/%d", track->num,
+             track->fad, data_offset, cdi_sector_modes[sector_mode],
+             track->sector_size);
+  }
 
   *track_offset += total_len * sector_size;
   *leadout_fad = track->fad + track_len;
@@ -198,7 +200,7 @@ static int cdi_parse_track(struct disc *disc, uint32_t version,
 }
 
 static int cdi_parse_session(struct disc *disc, uint32_t version,
-                             int *track_offset) {
+                             int *track_offset, int verbose) {
   struct cdi *cdi = (struct cdi *)disc;
   FILE *fp = cdi->fp;
 
@@ -217,7 +219,7 @@ static int cdi_parse_session(struct disc *disc, uint32_t version,
   int leadout_fad = 0;
 
   while (num_tracks--) {
-    if (!cdi_parse_track(disc, version, track_offset, &leadout_fad)) {
+    if (!cdi_parse_track(disc, version, track_offset, &leadout_fad, verbose)) {
       return 0;
     }
 
@@ -252,7 +254,7 @@ static int cdi_parse_session(struct disc *disc, uint32_t version,
   return 1;
 }
 
-static int cdi_parse(struct disc *disc, const char *filename) {
+static int cdi_parse(struct disc *disc, const char *filename, int verbose) {
   struct cdi *cdi = (struct cdi *)disc;
 
   FILE *fp = fopen(filename, "rb");
@@ -281,7 +283,9 @@ static int cdi_parse(struct disc *disc, const char *filename) {
   int found = 0;
   for (int i = 0; i < ARRAY_SIZE(cdi_versions); i++) {
     if (version == cdi_versions[i]) {
-      LOG_INFO("cdi_parse version %s detected", cdi_version_names[i]);
+      if (verbose) {
+        LOG_INFO("cdi_parse version %s detected", cdi_version_names[i]);
+      }
       found = 1;
       break;
     }
@@ -308,13 +312,15 @@ static int cdi_parse(struct disc *disc, const char *filename) {
     return 0;
   }
 
-  LOG_INFO("cdi_parse found %d sessions", num_sessions);
+  if (verbose) {
+    LOG_INFO("cdi_parse found %d sessions", num_sessions);
+  }
 
   /* tracks the current track's data offset from the file start */
   int track_offset = 0;
 
   while (num_sessions--) {
-    if (!cdi_parse_session(disc, version, &track_offset)) {
+    if (!cdi_parse_session(disc, version, &track_offset, verbose)) {
       return 0;
     }
 
@@ -329,7 +335,7 @@ static int cdi_parse(struct disc *disc, const char *filename) {
   return 1;
 }
 
-struct disc *cdi_create(const char *filename) {
+struct disc *cdi_create(const char *filename, int verbose) {
   struct cdi *cdi = calloc(1, sizeof(struct cdi));
 
   cdi->destroy = &cdi_destroy;
@@ -343,7 +349,7 @@ struct disc *cdi_create(const char *filename) {
 
   struct disc *disc = (struct disc *)cdi;
 
-  if (!cdi_parse(disc, filename)) {
+  if (!cdi_parse(disc, filename, verbose)) {
     cdi_destroy(disc);
     return NULL;
   }

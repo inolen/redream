@@ -365,33 +365,73 @@ static void tr_parse_bg(struct tr *tr, const struct ta_context *ctx,
   /* translate the first 3 vertices */
   struct ta_vertex *va = tr_reserve_vert(tr, rc);
   struct ta_vertex *vb = tr_reserve_vert(tr, rc);
-  struct ta_vertex *vc = tr_reserve_vert(tr, rc);
   struct ta_vertex *vd = tr_reserve_vert(tr, rc);
+  struct ta_vertex *vc = tr_reserve_vert(tr, rc);
 
   int offset = 0;
   offset = tr_parse_bg_vert(ctx, rc, offset, va);
   offset = tr_parse_bg_vert(ctx, rc, offset, vb);
   offset = tr_parse_bg_vert(ctx, rc, offset, vc);
 
-  /* not exactly sure how ISP_BACKGND_D is supposed to be honored. would be nice
-     to find a game that actually uses the texture parameter to see how the uv
-     coordinates look */
-  /*va->xyz[2] = ctx->bg_depth;
+  /* force z to background clip depth, not sure the purpose of the supplied z */
+  va->xyz[2] = ctx->bg_depth;
   vb->xyz[2] = ctx->bg_depth;
-  vc->xyz[2] = ctx->bg_depth;*/
+  vc->xyz[2] = ctx->bg_depth;
+
+  /*
+   * these vertices don't seem to come in a particular order. i've seen:
+   * b---c       a---b       a---b       a
+   * |  /         \  |       |  /        |\
+   * | /    and    \ |  and  | /    and  | \
+   * |/             \|       |/          |  \
+   * a               c       c           c---b
+   *
+   * in order to simplify calculating d, figure out the corner vertex based on
+   * the distance between its adjacent vertices, and rotate the vertices such
+   * that b is always the corner vertex. this feels pretty brute force, there
+   * must be a more elegant solution
+   */
+  float d1[3], d2[3];
+  float scorea, scoreb, scorec;
+
+  vec3_sub(d1, vb->xyz, va->xyz);
+  vec3_sub(d2, vc->xyz, va->xyz);
+  scorea = vec3_dot(d1, d1) + vec3_dot(d2, d2);
+
+  vec3_sub(d1, va->xyz, vb->xyz);
+  vec3_sub(d2, vc->xyz, vb->xyz);
+  scoreb = vec3_dot(d1, d1) + vec3_dot(d2, d2);
+
+  vec3_sub(d1, va->xyz, vc->xyz);
+  vec3_sub(d2, vb->xyz, vc->xyz);
+  scorec = vec3_dot(d1, d1) + vec3_dot(d2, d2);
+
+  if (scorea < scoreb && scorea < scorec) {
+    /* rotate counterclockwise */
+    struct ta_vertex tmp = *va;
+    *va = *vc;
+    *vc = *vb;
+    *vb = tmp;
+  } else if (scorec < scorea && scorec < scoreb) {
+    /* rotate clockwise */
+    struct ta_vertex tmp = *vc;
+    *vc = *va;
+    *va = *vb;
+    *vb = tmp;
+  }
 
   /* 4th vertex isn't supplied, fill it out automatically */
-  float xyz_ab[3], xyz_ac[3];
-  vec3_sub(xyz_ab, vb->xyz, va->xyz);
-  vec3_sub(xyz_ac, vc->xyz, va->xyz);
-  vec3_add(vd->xyz, vb->xyz, xyz_ab);
-  vec3_add(vd->xyz, vd->xyz, xyz_ac);
+  float xyz_ba[3], xyz_bc[3];
+  vec3_sub(xyz_ba, va->xyz, vb->xyz);
+  vec3_sub(xyz_bc, vc->xyz, vb->xyz);
+  vec3_add(vd->xyz, vb->xyz, xyz_ba);
+  vec3_add(vd->xyz, vd->xyz, xyz_bc);
 
-  float uv_ab[2], uv_ac[2];
-  vec2_sub(uv_ab, vb->uv, va->uv);
-  vec2_sub(uv_ac, vc->uv, va->uv);
-  vec2_add(vd->uv, vb->uv, uv_ab);
-  vec2_add(vd->uv, vd->uv, uv_ac);
+  float uv_ba[2], uv_bc[2];
+  vec2_sub(uv_ba, va->uv, vb->uv);
+  vec2_sub(uv_bc, vc->uv, vb->uv);
+  vec2_add(vd->uv, vb->uv, uv_ba);
+  vec2_add(vd->uv, vd->uv, uv_bc);
 
   /* TODO interpolate this properly when a game is found to test with */
   vd->color = va->color;

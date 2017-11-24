@@ -3,6 +3,6 @@
 
 struct disc;
 
-struct disc *chd_create(const char *filename);
+struct disc *chd_create(const char *filename, int verbose);
 
 #endif

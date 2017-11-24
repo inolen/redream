@@ -280,15 +280,15 @@ void disc_destroy(struct disc *disc) {
   disc->destroy(disc);
 }
 
-struct disc *disc_create(const char *filename) {
+struct disc *disc_create(const char *filename, int verbose) {
   struct disc *disc = NULL;
 
   if (strstr(filename, ".cdi")) {
-    disc = cdi_create(filename);
+    disc = cdi_create(filename, verbose);
   } else if (strstr(filename, ".chd")) {
-    disc = chd_create(filename);
+    disc = chd_create(filename, verbose);
   } else if (strstr(filename, ".gdi")) {
-    disc = gdi_create(filename);
+    disc = gdi_create(filename, verbose);
   }
 
   if (!disc) {
@@ -316,7 +316,9 @@ struct disc *disc_create(const char *filename) {
   snprintf(disc->uid, sizeof(disc->uid), "%s %s %s %s", disc->prodnme,
            disc->prodnum, disc->prodver, disc->discnum);
 
-  LOG_INFO("disc_create id=%s", disc->uid);
+  if (verbose) {
+    LOG_INFO("disc_create id=%s", disc->uid);
+  }
 
   return disc;
 }

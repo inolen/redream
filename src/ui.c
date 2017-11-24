@@ -518,7 +518,8 @@ static void ui_scan_games_f(struct ui *ui, const char *filename) {
   snprintf(ui->scan_status, sizeof(ui->scan_status), "scanning %s", filename);
 
   if (ui_has_game_ext(filename, game_exts, ARRAY_SIZE(game_exts))) {
-    struct disc *disc = disc_create(filename);
+
+    struct disc *disc = disc_create(filename, 0);
 
     if (disc) {
       struct game game = {0};
@@ -1099,7 +1100,7 @@ enum {
 };
 
 static texture_handle_t ui_load_disc_texture(struct ui *ui, struct game *game) {
-  struct disc *disc = disc_create(game->filename);
+  struct disc *disc = disc_create(game->filename, 0);
   if (!disc) {
     return ui->disc_tex;
   }
@@ -1384,9 +1385,9 @@ void ui_set_page(struct ui *ui, int page_index) {
   }
 
   /* trigger global callbacks for when the ui is open / closed */
-  if (top_page == NULL && next_page != NULL) {
+  if (!top_page && next_page) {
     ui_opened(ui->host);
-  } else if (next_page == NULL) {
+  } else if (!next_page) {
     ui_closed(ui->host);
   }
 }
@@ -1432,10 +1433,8 @@ int ui_keydown(struct ui *ui, int key, int16_t value) {
     /* prioritize canceling any open dialog */
     if (ui->dlg) {
       ui_close_dlg(ui, UI_DLG_CANCEL);
-    }
-    /* else, pop the history stack */
-    else {
-      ui->history_pos = MAX(ui->history_pos - 1, 1);
+    } else if (ui->history_pos > 1) {
+      ui->history_pos = ui->history_pos - 1;
     }
   }
 

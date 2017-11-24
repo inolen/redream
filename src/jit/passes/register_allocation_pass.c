@@ -91,12 +91,14 @@ struct ra {
 
 static int ra_reg_can_store(const struct jit_register *reg,
                             const struct ir_value *v) {
-  if (ir_is_int(v->type) && v->type <= VALUE_I64) {
-    return reg->flags & JIT_REG_I64;
-  } else if (ir_is_float(v->type) && v->type <= VALUE_F64) {
-    return reg->flags & JIT_REG_F64;
-  } else if (ir_is_vector(v->type) && v->type <= VALUE_V128) {
-    return reg->flags & JIT_REG_V128;
+  if (reg->flags & JIT_ALLOCATE) {
+    if (ir_is_int(v->type) && v->type <= VALUE_I64) {
+      return reg->flags & JIT_REG_I64;
+    } else if (ir_is_float(v->type) && v->type <= VALUE_F64) {
+      return reg->flags & JIT_REG_F64;
+    } else if (ir_is_vector(v->type) && v->type <= VALUE_V128) {
+      return reg->flags & JIT_REG_V128;
+    }
   }
   return 0;
 }
@@ -222,7 +224,7 @@ static void ra_validate(struct ra *ra, struct ir *ir, struct ir_block *block) {
         for (int i = 0; i < ra->num_registers; i++) {
           const struct jit_register *reg = &ra->registers[i];
 
-          if (reg->flags & JIT_CALLER_SAVED) {
+          if (reg->flags & JIT_CALLER_SAVE) {
             active[i] = NULL;
           }
         }
@@ -315,7 +317,7 @@ static void ra_spill_tmps(struct ra *ra, struct ir *ir,
     /* only spill caller-saved regs */
     struct ra_bin *bin = ra_get_bin(tmp->value->reg);
 
-    if (!(bin->reg->flags & JIT_CALLER_SAVED)) {
+    if (!(bin->reg->flags & JIT_CALLER_SAVE)) {
       continue;
     }
 

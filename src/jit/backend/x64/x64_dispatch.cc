@@ -75,6 +75,7 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
   struct jit_guest *guest = backend->base.guest;
 
   auto &e = *backend->codegen;
+  int stack_offset = 0;
 
   /* emit dispatch thunks */
   {
@@ -152,18 +153,12 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
 
     backend->dispatch_enter = e.getCurr<void (*)(int)>();
 
-    /* create stack frame */
-    e.push(e.rbx);
-    e.push(e.rbp);
-#if PLATFORM_WINDOWS
-    e.push(e.rdi);
-    e.push(e.rsi);
-#endif
-    e.push(e.r12);
-    e.push(e.r13);
-    e.push(e.r14);
-    e.push(e.r15);
-    e.sub(e.rsp, X64_STACK_SIZE + 8);
+    /* create stack frame and ensure stack is 16-byte aligned. note, the stack
+       is currently unaligned due to the 8-byte return address that was pushed
+       when this thunk was called */
+    stack_offset = x64_backend_push_regs(backend, JIT_CALLEE_SAVE);
+    stack_offset = ALIGN_UP(stack_offset + X64_STACK_SIZE + 8, 16) - 8;
+    e.sub(e.rsp, stack_offset);
 
     /* assign fixed registers */
     e.mov(guestctx, (uint64_t)guest->ctx);
@@ -184,17 +179,9 @@ void x64_dispatch_emit_thunks(struct x64_backend *backend) {
     backend->dispatch_exit = e.getCurr<void *>();
 
     /* destroy stack frame */
-    e.add(e.rsp, X64_STACK_SIZE + 8);
-    e.pop(e.r15);
-    e.pop(e.r14);
-    e.pop(e.r13);
-    e.pop(e.r12);
-#if PLATFORM_WINDOWS
-    e.pop(e.rsi);
-    e.pop(e.rdi);
-#endif
-    e.pop(e.rbp);
-    e.pop(e.rbx);
+    e.add(e.rsp, stack_offset);
+    x64_backend_pop_regs(backend, JIT_CALLEE_SAVE);
+
     e.ret();
   }
 
