@@ -3,10 +3,8 @@ skip_tags: true
 image: Visual Studio 2015
 
 environment:
-  GITHUB_KEY:
-    secure: /DCyflM6kjhQlQU5vryk97H/2/WGoFj8pMrxCrbQeMksunq9jnKaG05pP45WpTCX
-  GIT_TAG: ci-latest
-  BUILD_ARTIFACT: redream.x86_64-windows-HEAD.tar.gz
+  DEPLOY_TOKEN:
+    secure: rrBoB0/Te0kVQR3sv1Xp1OMRxz6lnLzGR1iE/u2qerSFNXYXBdgXr2YASH1UxHXyGjJeb1zXQKsu3OIks6+VnA==
 
 build_script:
   - mkdir build
@@ -14,16 +12,9 @@ build_script:
   - cmake -G "Visual Studio 14 Win64" ..
   - cd ..
   - msbuild.exe build/redream.sln /t:redream /p:Configuration=Release /p:Platform=x64
-  - tar -cvzf %BUILD_ARTIFACT% -C build/Release redream.exe
 
-artifacts:
-  - path: $(BUILD_ARTIFACT)
-    name: archive
-
-deploy:
-  provider: GitHub
-  tag: $(GIT_TAG)
-  auth_token: $(GITHUB_KEY)
-  artifact: archive
-  prerelease: true
-  force_update: true
+after_build:
+- FOR /F %%A in ('git describe --tags') do SET BUILD_VERSION=%%A
+- SET BUILD_ARTIFACT=redream.x86_64-windows-%BUILD_VERSION%.tar.gz
+- tar -cvzf %BUILD_ARTIFACT% -C build/Release redream.exe
+- curl -s -F "token=%DEPLOY_TOKEN%" -F "artifact=@%BUILD_ARTIFACT%" https://redream.io/deploy/%BUILD_ARTIFACT% > nul 2>&1

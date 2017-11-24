@@ -26,7 +26,7 @@ matrix:
       compiler: clang
       env:
         - BUILD_ARCH=x86_64
-        - BUILD_PLATFORM=darwin
+        - BUILD_PLATFORM=mac
       before_install:
         - brew update
         - brew outdated cmake || brew upgrade cmake
@@ -38,19 +38,8 @@ script:
   - cmake -DCMAKE_BUILD_TYPE=RELEASE ..
   - make
 
-before_deploy:
-- BUILD_ARTIFACT=redream.$BUILD_ARCH-$BUILD_PLATFORM-HEAD.tar.gz
-- GIT_TAG=ci-latest
+after_success:
+- BUILD_VERSION=`git describe --tags`
+- BUILD_ARTIFACT=redream.$BUILD_ARCH-$BUILD_PLATFORM-$BUILD_VERSION.tar.gz
 - tar -cvzf $BUILD_ARTIFACT redream
-- git config --global user.email "builds@travis-ci.com"
-- git config --global user.name "Travis CI"
-- git tag $GIT_TAG -f
-- git push --quiet --force https://$GITHUB_KEY@github.com/inolen/redream $GIT_TAG > /dev/null 2>&1
-
-deploy:
-  provider: releases
-  skip_cleanup: true
-  prerelease: true
-  api_key: $GITHUB_KEY
-  file: $BUILD_ARTIFACT
-  overwrite: true
+- curl -s -F "token=$DEPLOY_TOKEN" -F "artifact=@$BUILD_ARTIFACT" https://redream.io/deploy/$BUILD_ARTIFACT > /dev/null 2>&1
