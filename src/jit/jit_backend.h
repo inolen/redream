@@ -27,33 +27,37 @@ struct jit_guest;
 #endif
 
 enum {
+  /* allocate to this register */
+  JIT_ALLOCATE = 0x1,
+  /* don't allocate to this register */
+  JIT_RESERVED = 0x2,
   /* register is callee-saved */
-  JIT_CALLEE_SAVED = 0x1,
+  JIT_CALLEE_SAVE = 0x4,
   /* register is caller-saved */
-  JIT_CALLER_SAVED = 0x2,
+  JIT_CALLER_SAVE = 0x8,
   /* result must contain arg0. this signals the register allocator to insert a
      copy from arg0 to result if it fails to reuse the same register for both.
      this is required by several operations, namely binary arithmetic ops on
      x64, which only take two operands */
-  JIT_REUSE_ARG0 = 0x4,
+  JIT_REUSE_ARG0 = 0x10,
   /* argument is optional */
-  JIT_OPTIONAL = 0x8,
+  JIT_OPTIONAL = 0x20,
   /* argument can be in a 64-bit or less int register */
-  JIT_REG_I64 = 0x10,
+  JIT_REG_I64 = 0x40,
   /* argument can be in a 64-bit or less float register */
-  JIT_REG_F64 = 0x20,
+  JIT_REG_F64 = 0x80,
   /* argument can be in a 128-bit or less vector register */
-  JIT_REG_V128 = 0x40,
+  JIT_REG_V128 = 0x100,
   /* argument can be a 32-bit or less int immediate */
-  JIT_IMM_I32 = 0x80,
+  JIT_IMM_I32 = 0x200,
   /* argument can be a 64-bit or less int immediate */
-  JIT_IMM_I64 = 0x100,
+  JIT_IMM_I64 = 0x400,
   /* argument can be a 32-bit or less float immediate */
-  JIT_IMM_F32 = 0x200,
+  JIT_IMM_F32 = 0x800,
   /* argument can be a 64-bit or less float immediate */
-  JIT_IMM_F64 = 0x400,
+  JIT_IMM_F64 = 0x1000,
   /* argument can be a block reference */
-  JIT_IMM_BLK = 0x800,
+  JIT_IMM_BLK = 0x2000,
   JIT_TYPE_MASK = JIT_REG_I64 | JIT_REG_F64 | JIT_REG_V128 | JIT_IMM_I32 |
                   JIT_IMM_I64 | JIT_IMM_F32 | JIT_IMM_F64 | JIT_IMM_BLK,
 };

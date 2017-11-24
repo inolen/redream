@@ -15,34 +15,6 @@ extern "C" {
  * x64 register layout
  */
 
-/* %rax %eax %ax %al      <-- both: temporary
-   %rcx %ecx %cx %cl      <-- both: argument
-   %rdx %edx %dx %dl      <-- both: argument
-   %rbx %ebx %bx %bl      <-- both: available (callee saved)
-   %rsp %esp %sp %spl     <-- both: reserved
-   %rbp %ebp %bp %bpl     <-- both: available (callee saved)
-   %rsi %esi %si %sil     <-- msvc: available (callee saved), amd64: argument
-   %rdi %edi %di %dil     <-- msvc: available (callee saved), amd64: argument
-   %r8 %r8d %r8w %r8b     <-- both: argument
-   %r9 %r9d %r9w %r9b     <-- both: argument
-   %r10 %r10d %r10w %r10b <-- both: available (not callee saved)
-   %r11 %r11d %r11w %r11b <-- both: available (not callee saved)
-   %r12 %r12d %r12w %r12b <-- both: available (callee saved)
-   %r13 %r13d %r13w %r13b <-- both: available (callee saved)
-   %r14 %r14d %r14w %r14b <-- both: available (callee saved)
-   %r15 %r15d %r15w %r15b <-- both: available (callee saved)
-
-   msvc calling convention uses rcx, rdx, r8, r9 for arguments
-   amd64 calling convention uses rdi, rsi, rdx, rcx, r8, r9 for arguments
-   both use the same xmm registers for floating point arguments
-   our largest function call uses only 3 arguments
-   msvc is left with rax, rsi, rdi, r10 and r11
-   amd64 is left with rax, r8, r9, r10 and r11
-
-   rax is used as a scratch register
-   r10, r11, xmm1 are used for constant not eliminated by const propagation
-   r14, r15 are reserved for the context and memory pointers */
-
 /* clang-format off */
 #if PLATFORM_WINDOWS
 const int x64_arg0_idx = Xbyak::Operand::RCX;
@@ -64,29 +36,64 @@ const Xbyak::Reg64 guestctx(Xbyak::Operand::R14);
 const Xbyak::Reg64 guestmem(Xbyak::Operand::R15);
 
 const struct jit_register x64_registers[] = {
-    {"rbx",   JIT_REG_I64 | JIT_CALLEE_SAVED,                (const void *)&Xbyak::util::rbx},
-    {"rbp",   JIT_REG_I64 | JIT_CALLEE_SAVED,                (const void *)&Xbyak::util::rbp},
+    {"rax",   JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rax},
+    {"rcx",   JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rcx},
+    {"rdx",   JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rdx},
+    {"rbx",   JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rbx},
+    {"rsp",   JIT_RESERVED | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rsp},
+    {"rbp",   JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rbp},
 #if PLATFORM_WINDOWS
-    {"rsi",   JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::rsi},
-    {"rdi",   JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::rdi},
+    {"rsi",   JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rsi},
+    {"rdi",   JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rdi},
+    {"r8",    JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r8},
+    {"r9",    JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r9},
 #else
-    {"r8",    JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::r8},
-    {"r9",    JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::r9},
+    {"rsi",   JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rsi},
+    {"rdi",   JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::rdi},
+    {"r8",    JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r8},
+    {"r9",    JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r9},
 #endif
-    {"r10",   JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::r10},
-    {"r11",   JIT_REG_I64 | JIT_CALLER_SAVED,                (const void *)&Xbyak::util::r11},
-    {"r12",   JIT_REG_I64 | JIT_CALLEE_SAVED,                (const void *)&Xbyak::util::r12},
-    {"r13",   JIT_REG_I64 | JIT_CALLEE_SAVED,                (const void *)&Xbyak::util::r13},
-    {"xmm6",  JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm6},
-    {"xmm7",  JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm7},
-    {"xmm8",  JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm8},
-    {"xmm9",  JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm9},
-    {"xmm10", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm10},
-    {"xmm11", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm11},
-    {"xmm12", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm12},
-    {"xmm13", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm13},
-    {"xmm14", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm14},
-    {"xmm15", JIT_REG_F64 | JIT_REG_V128 | JIT_CALLEE_SAVED, (const void *)&Xbyak::util::xmm15}
+    {"r10",   JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r10},
+    {"r11",   JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r11},
+    {"r12",   JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r12},
+    {"r13",   JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r13},
+    {"r14",   JIT_RESERVED | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r14},
+    {"r15",   JIT_RESERVED | JIT_CALLEE_SAVE | JIT_REG_I64,                (const void *)&Xbyak::util::r15},
+#if PLATFORM_WINDOWS
+    {"xmm0",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm0},
+    {"xmm1",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm1},
+    {"xmm2",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm2},
+    {"xmm3",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm3},
+    {"xmm4",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm4},
+    {"xmm5",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm5},
+    {"xmm6",  JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm6},
+    {"xmm7",  JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm7},
+    {"xmm8",  JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm8},
+    {"xmm9",  JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm9},
+    {"xmm10", JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm10},
+    {"xmm11", JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm11},
+    {"xmm12", JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm12},
+    {"xmm13", JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm13},
+    {"xmm14", JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm14},
+    {"xmm15", JIT_ALLOCATE | JIT_CALLEE_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm15},
+#else
+    {"xmm0",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm0},
+    {"xmm1",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm1},
+    {"xmm2",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm2},
+    {"xmm3",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm3},
+    {"xmm4",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm4},
+    {"xmm5",  JIT_RESERVED | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm5},
+    {"xmm6",  JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm6},
+    {"xmm7",  JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm7},
+    {"xmm8",  JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm8},
+    {"xmm9",  JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm9},
+    {"xmm10", JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm10},
+    {"xmm11", JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm11},
+    {"xmm12", JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm12},
+    {"xmm13", JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm13},
+    {"xmm14", JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm14},
+    {"xmm15", JIT_ALLOCATE | JIT_CALLER_SAVE | JIT_REG_F64 | JIT_REG_V128, (const void *)&Xbyak::util::xmm15},
+#endif
 };
 
 const int x64_num_registers = ARRAY_SIZE(x64_registers);
@@ -125,6 +132,60 @@ Xbyak::Xmm x64_backend_xmm(struct x64_backend *backend,
   Xbyak::Xmm xmm = *(const Xbyak::Xmm *)x64_registers[v->reg].data;
   CHECK(xmm.isXMM());
   return xmm;
+}
+
+int x64_backend_push_regs(struct x64_backend *backend, int mask) {
+  int size = 0;
+
+  auto &e = *backend->codegen;
+
+  for (int i = 0; i < x64_num_registers; i++) {
+    const struct jit_register *r = &x64_registers[i];
+
+    if ((r->flags & mask) != mask) {
+      continue;
+    }
+
+    if (r->flags & JIT_REG_I64) {
+      Xbyak::Reg reg = *(const Xbyak::Reg *)r->data;
+      CHECK(reg.isREG());
+      size += 8;
+      e.mov(e.qword[e.rsp - size], reg);
+    } else if (r->flags & (JIT_REG_F64 | JIT_REG_V128)) {
+      Xbyak::Xmm xmm = *(const Xbyak::Xmm *)r->data;
+      CHECK(xmm.isXMM());
+      size += 16;
+      e.movdqu(e.ptr[e.rsp - size], xmm);
+    }
+  }
+
+  return size;
+}
+
+void x64_backend_pop_regs(struct x64_backend *backend, int mask) {
+  int size = 0;
+
+  auto &e = *backend->codegen;
+
+  for (int i = 0; i < x64_num_registers; i++) {
+    const struct jit_register *r = &x64_registers[i];
+
+    if ((r->flags & mask) != mask) {
+      continue;
+    }
+
+    if ((r->flags & JIT_REG_I64)) {
+      Xbyak::Reg reg = *(const Xbyak::Reg *)r->data;
+      CHECK(reg.isREG());
+      size += 8;
+      e.mov(reg, e.qword[e.rsp - size]);
+    } else if (r->flags & (JIT_REG_F64 | JIT_REG_V128)) {
+      Xbyak::Xmm xmm = *(const Xbyak::Xmm *)r->data;
+      CHECK(xmm.isXMM());
+      size += 16;
+      e.movdqu(xmm, e.ptr[e.rsp - size]);
+    }
+  }
 }
 
 void x64_backend_load_mem(struct x64_backend *backend,
@@ -306,33 +367,19 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
 
       backend->load_thunk[i] = e.getCurr<void (*)()>();
 
-/* save caller-saved registers and offset the stack an extra 8 bytes to
-   align it */
-#if PLATFORM_WINDOWS
-      e.push(e.rsi);
-      e.push(e.rdi);
-#else
-      e.push(e.r8);
-      e.push(e.r9);
-#endif
-      e.push(e.r10);
-      e.push(e.r11);
-      e.sub(e.rsp, X64_STACK_SHADOW_SPACE + 8);
+      /* save caller-saved registers that our code uses and ensure stack is
+         16-byte aligned */
+      int save_mask = JIT_ALLOCATE | JIT_CALLER_SAVE;
+      int offset = x64_backend_push_regs(backend, save_mask);
+      offset = ALIGN_UP(offset + X64_STACK_SHADOW_SPACE + 8, 16) - 8;
+      e.sub(e.rsp, offset);
 
       /* call the mmio handler */
       e.call(e.rax);
 
       /* restore caller-saved registers */
-      e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
-      e.pop(e.r11);
-      e.pop(e.r10);
-#if PLATFORM_WINDOWS
-      e.pop(e.rdi);
-      e.pop(e.rsi);
-#else
-      e.pop(e.r9);
-      e.pop(e.r8);
-#endif
+      e.add(e.rsp, offset);
+      x64_backend_pop_regs(backend, save_mask);
 
       /* save mmio handler result */
       e.mov(dst, e.rax);
@@ -346,34 +393,19 @@ static void x64_backend_emit_thunks(struct x64_backend *backend) {
     e.align(32);
 
     backend->store_thunk = e.getCurr<void (*)()>();
-
-/* save caller-saved registers and offset the stack an extra 8 bytes to
-   align it */
-#if PLATFORM_WINDOWS
-    e.push(e.rsi);
-    e.push(e.rdi);
-#else
-    e.push(e.r8);
-    e.push(e.r9);
-#endif
-    e.push(e.r10);
-    e.push(e.r11);
-    e.sub(e.rsp, X64_STACK_SHADOW_SPACE + 8);
+    /* save caller-saved registers that our code uses and ensure stack is
+       16-byte aligned */
+    int save_mask = JIT_ALLOCATE | JIT_CALLER_SAVE;
+    int offset = x64_backend_push_regs(backend, save_mask);
+    offset = ALIGN_UP(offset + X64_STACK_SHADOW_SPACE + 8, 16) - 8;
+    e.sub(e.rsp, offset);
 
     /* call the mmio handler */
     e.call(e.rax);
 
     /* restore caller-saved registers */
-    e.add(e.rsp, X64_STACK_SHADOW_SPACE + 8);
-    e.pop(e.r11);
-    e.pop(e.r10);
-#if PLATFORM_WINDOWS
-    e.pop(e.rdi);
-    e.pop(e.rsi);
-#else
-    e.pop(e.r9);
-    e.pop(e.r8);
-#endif
+    e.add(e.rsp, offset);
+    x64_backend_pop_regs(backend, save_mask);
 
     /* return to jit code */
     e.ret();
