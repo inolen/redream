@@ -18,10 +18,6 @@ struct reg_cb holly_cb[NUM_HOLLY_REGS];
 /*
  * ch2 dma
  */
-static void holly_ch2_dma_stop(struct holly *hl) {
-  /* nop as DMA is always performed synchronously */
-}
-
 static void holly_ch2_dma(struct holly *hl) {
   struct sh4 *sh4 = hl->dc->sh4;
 
@@ -517,8 +513,6 @@ REG_W32(holly_cb, SB_C2DST) {
 
   if (*hl->SB_C2DST) {
     holly_ch2_dma(hl);
-  } else {
-    holly_ch2_dma_stop(hl);
   }
 }
 
