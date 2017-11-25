@@ -15,13 +15,14 @@ static void gdi_read_sector(struct disc *disc, struct track *track, int fad,
                             void *dst) {
   struct gdi *gdi = (struct gdi *)disc;
 
-  /* open the file backing the track */
   int n = (int)(track - gdi->tracks);
   FILE *fp = gdi->files[n];
 
+  /* lazily open the file backing the track */
   if (!fp) {
-    fp = gdi->files[n] = fopen(track->filename, "rb");
-    CHECK_NOTNULL(fp);
+    fp = fopen(track->filename, "rb");
+    CHECK_NOTNULL(fp, "gdi_read_sector failed to open %s", track->filename);
+    gdi->files[n] = fp;
   }
 
   /* seek the to the starting fad */
