@@ -11,7 +11,7 @@ union param_base {
   uint32_t full;
   struct {
     uint32_t base_address : 24;
-    uint32_t reserved : 8;
+    uint32_t : 8;
   };
 };
 
@@ -58,7 +58,7 @@ union fpu_shad_scale {
   struct {
     uint32_t scale_factor : 8;
     uint32_t intensity_volume_mode : 1;
-    uint32_t reserved : 23;
+    uint32_t : 23;
   };
 };
 
@@ -69,7 +69,7 @@ union fpu_param_cfg {
     uint32_t ptr_burst_size : 4;
     uint32_t isp_burst_threshold : 6;
     uint32_t tsp_burst_threshold : 6;
-    uint32_t reserved : 1;
+    uint32_t : 1;
     uint32_t region_header_type : 1;
     uint32_t reserved1 : 10;
   };
@@ -90,7 +90,7 @@ union isp_feed_cfg {
   uint32_t full;
   struct {
     uint32_t presort : 1;
-    uint32_t reserved : 2;
+    uint32_t : 2;
     uint32_t discard : 1;
     uint32_t punch_size : 10;
     uint32_t cache_size : 10;
@@ -102,9 +102,9 @@ union spg_hblank_int {
   uint32_t full;
   struct {
     uint32_t line_comp_val : 10;
-    uint32_t reserved : 2;
+    uint32_t : 2;
     uint32_t hblank_int_mode : 2;
-    uint32_t reserved2 : 2;
+    uint32_t : 2;
     uint32_t hblank_in_interrupt : 10;
     uint32_t reserved3 : 6;
   };
@@ -114,9 +114,9 @@ union spg_vblank_int {
   uint32_t full;
   struct {
     uint32_t vblank_in_line_number : 10;
-    uint32_t reserved : 6;
+    uint32_t : 6;
     uint32_t vblank_out_line_number : 10;
-    uint32_t reserved2 : 6;
+    uint32_t : 6;
   };
 };
 
@@ -133,7 +133,7 @@ union spg_control {
     uint32_t PAL : 1;
     uint32_t sync_direction : 1;
     uint32_t csync_on_h : 1;
-    uint32_t reserved : 22;
+    uint32_t : 22;
   };
 };
 
@@ -141,9 +141,19 @@ union spg_load {
   uint32_t full;
   struct {
     uint32_t hcount : 10;
-    uint32_t reserved : 6;
+    uint32_t : 6;
     uint32_t vcount : 10;
-    uint32_t reserved2 : 6;
+    uint32_t : 6;
+  };
+};
+
+union spg_hblank {
+  uint32_t full;
+  struct {
+    uint32_t hbstart : 10;
+    uint32_t : 6;
+    uint32_t hbend : 10;
+    uint32_t : 6;
   };
 };
 
@@ -151,9 +161,9 @@ union spg_vblank {
   uint32_t full;
   struct {
     uint32_t vbstart : 10;
-    uint32_t reserved : 6;
+    uint32_t : 6;
     uint32_t vbend : 10;
-    uint32_t reserved2 : 6;
+    uint32_t : 6;
   };
 };
 
@@ -161,9 +171,9 @@ union text_control {
   uint32_t full;
   struct {
     uint32_t stride : 5;
-    uint32_t reserved : 3;
+    uint32_t : 3;
     uint32_t bankbit : 5;
-    uint32_t reserved2 : 3;
+    uint32_t : 3;
     uint32_t index_endian : 1;
     uint32_t codebook_endian : 1;
     uint32_t reserved3 : 14;
@@ -212,7 +222,7 @@ union spg_status {
     uint32_t blank : 1;
     uint32_t hsync : 1;
     uint32_t vsync : 1;
-    uint32_t reserved : 18;
+    uint32_t : 18;
   };
 };
 
@@ -228,7 +238,7 @@ union ta_isp_base {
   uint32_t full;
   struct {
     uint32_t base_address : 24;
-    uint32_t reserved : 8;
+    uint32_t : 8;
   };
 };
 
@@ -236,7 +246,7 @@ union ta_yuv_tex_base {
   uint32_t full;
   struct {
     uint32_t base_address : 24;
-    uint32_t reserved : 8;
+    uint32_t : 8;
   };
 };
 
