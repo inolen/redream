@@ -126,8 +126,25 @@ static int pvr_update_framebuffer(struct pvr *pvr) {
   int x_size = (pvr->FB_R_SIZE->x + 1) << 2;
   int y_size = (pvr->FB_R_SIZE->y + 1);
 
+  /* TODO use fb_concat */
+
   switch (pvr->FB_R_CTRL->fb_depth) {
-    case 0:
+    case 0: {
+      for (int y = 0; y < y_size; y++) {
+        for (int n = 0; n < num_fields; n++) {
+          for (int x = 0; x < x_size; x += 2) {
+            uint16_t rgb = *(uint16_t *)&src[VRAM64(fields[n])];
+            dst[0] = (rgb & 0b0111110000000000) >> 7;
+            dst[1] = (rgb & 0b0000001111100000) >> 2;
+            dst[2] = (rgb & 0b0000000000011111) << 3;
+            fields[n] += 2;
+            dst += 3;
+          }
+          fields[n] += line_mod;
+        }
+      }
+    } break;
+
     case 1: {
       for (int y = 0; y < y_size; y++) {
         for (int n = 0; n < num_fields; n++) {
