@@ -131,7 +131,7 @@ static void holly_maple_dma(struct holly *hl) {
         break;
 
       default:
-        LOG_FATAL("holly_maple_dma unhandled pattern 0x%x", desc.pattern);
+        LOG_FATAL("holly_maple_dma unhandled pattern=0x%x", desc.pattern);
         break;
     }
 
