@@ -53,6 +53,14 @@ DEFINE_PERSISTENT_OPTION_INT(key_joyy_pos, 's', "Joystick +Y axis mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_ltrig, '[', "Left trigger mapping");
 DEFINE_PERSISTENT_OPTION_INT(key_rtrig, ']', "Right trigger mapping");
 
+/* Default value taken from this thread https://forums.libsdl.org/viewtopic.php?p=39985 */
+DEFINE_PERSISTENT_OPTION_INT(deadzone_0, 4096, "The deadzone for the controller on port 0");
+DEFINE_PERSISTENT_OPTION_INT(deadzone_1, 4096, "The deadzone for the controller on port 1");
+DEFINE_PERSISTENT_OPTION_INT(deadzone_2, 4096, "The deadzone for the controller on port 2");
+DEFINE_PERSISTENT_OPTION_INT(deadzone_3, 4096, "The deadzone for the controller on port 3");
+
+int *deadzones[] = { &OPTION_deadzone_0, &OPTION_deadzone_1, &OPTION_deadzone_2, &OPTION_deadzone_3 };
+
 /* emulator */
 DEFINE_PERSISTENT_OPTION_STRING(aspect, "4:3", "Video aspect ratio");
 
