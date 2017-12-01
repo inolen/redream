@@ -8,6 +8,7 @@
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom.h"
 #include "guest/memory.h"
+#include "guest/rom/boot.h"
 #include "guest/rom/flash.h"
 #include "guest/sh4/sh4.h"
 #include "options.h"
@@ -31,6 +32,7 @@ enum {
   VECTOR_FONTROM = 0x0c0000b4,
   VECTOR_FLASHROM = 0x0c0000b8,
   VECTOR_GDROM = 0x0c0000bc,
+  VECTOR_GDROM2 = 0x0c0000c0,
   VECTOR_MENU = 0x0c0000e0,
 };
 
@@ -40,6 +42,7 @@ enum {
   SYSCALL_FONTROM = 0x0c003b80,
   SYSCALL_FLASHROM = 0x0c003d00,
   SYSCALL_GDROM = 0x0c001000,
+  SYSCALL_GDROM2 = 0x0c0010f0,
   SYSCALL_MENU = 0x0c000800,
 };
 
@@ -285,6 +288,7 @@ static void bios_boot(struct bios *bios) {
     sh4_write32(dc->mem, VECTOR_SYSINFO, SYSCALL_SYSINFO);
     sh4_write32(dc->mem, VECTOR_FLASHROM, SYSCALL_FLASHROM);
     sh4_write32(dc->mem, VECTOR_GDROM, SYSCALL_GDROM);
+    sh4_write32(dc->mem, VECTOR_GDROM2, SYSCALL_GDROM2);
     sh4_write32(dc->mem, VECTOR_MENU, SYSCALL_MENU);
   }
 
@@ -299,22 +303,20 @@ static int bios_post_init(struct device *dev) {
 
   bios_override_settings(bios);
 
-/* this code enables a "hybrid" hle mode. in this mode, syscalls are patched
-   to trap into their hle handlers, but the real bios can still be ran to
-   test if bugs exist in the syscall emulation or bootstrap emulation */
 #if 0
-  /* write out invalid instructions at syscall entry points. note, the boot rom
-     does a bootstrap on startup which copies the boot rom into system ram. due
-     to this, the invalid instructions are written to the original rom, not the
-     system ram (or else, they would be overwritten by the bootstrap process) */
+  /* this code enables a "hybrid" hle mode. in this mode, syscalls are patched
+     to trap into their hle handlers, but the real bios can still be ran to
+     test if bugs exist in the syscall emulation or bootstrap emulation. note,
+     the boot rom does a bootstrap on startup which copies the boot rom into
+     system ram. due to this, the invalid instructions are written to the
+     original rom, not the system ram (or else, they would be overwritten by
+     the bootstrap process) */
   struct boot *boot = bios->dc->boot;
-  uint16_t invalid = 0x0;
-
-  boot_write(boot, SYSCALL_FONTROM, &invalid, 2);
-  boot_write(boot, SYSCALL_SYSINFO, &invalid, 2);
-  boot_write(boot, SYSCALL_FLASHROM, &invalid, 2);
-  boot_write(boot, SYSCALL_GDROM, &invalid, 2);
-  /*boot_write(boot, SYSCALL_MENU, &invalid, 2);*/
+  boot_rom_write(boot, SYSCALL_FONTROM - SH4_AREA3_BEGIN, 0x0, 0xffff);
+  boot_rom_write(boot, SYSCALL_SYSINFO - SH4_AREA3_BEGIN, 0x0, 0xffff);
+  boot_rom_write(boot, SYSCALL_FLASHROM - SH4_AREA3_BEGIN, 0x0, 0xffff);
+  boot_rom_write(boot, SYSCALL_GDROM - SH4_AREA3_BEGIN, 0x0, 0xffff);
+  boot_rom_write(boot, SYSCALL_MENU - SH4_AREA3_BEGIN, 0x0, 0xffff);
 #endif
 
   return 1;
@@ -348,6 +350,7 @@ int bios_invalid_instr(struct bios *bios) {
       break;
 
     case SYSCALL_GDROM:
+    case SYSCALL_GDROM2:
       bios_gdrom_vector(bios);
       break;
 

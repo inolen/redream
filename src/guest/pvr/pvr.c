@@ -48,6 +48,29 @@ static uint32_t VRAM64(uint32_t addr32) {
    memory is copied and passed to the client to render */
 #define PVR_FB_COOKIE 0xdeadbeef
 
+static void pvr_framebuffer_size(struct pvr *pvr, int *width, int *height) {
+  *width = pvr->FB_R_SIZE->x + 1;
+  *height = pvr->FB_R_SIZE->y + 1;
+
+  /* FB_R_SIZE specifies x in 32-bit units, scale as necessary if framebuffer
+     depth is less than 32-bit */
+  switch (pvr->FB_R_CTRL->fb_depth) {
+    case 0:
+    case 1:
+      *width *= 2;
+      break;
+    case 2:
+      *width *= 4;
+      *width /= 3;
+      break;
+  }
+
+  /* if interlacing, full framebuffer height is double */
+  if (pvr->SPG_CONTROL->interlace) {
+    *height *= 2;
+  }
+}
+
 static int pvr_test_framebuffer(struct pvr *pvr, uint32_t addr) {
   uint32_t data = *(uint32_t *)&pvr->vram[VRAM64(addr)];
   return data != PVR_FB_COOKIE;
@@ -92,30 +115,37 @@ static int pvr_update_framebuffer(struct pvr *pvr) {
     return 0;
   }
 
-  /* values in FB_R_SIZE are in 32-bit units */
-  int line_mod = (pvr->FB_R_SIZE->mod << 2) - 4;
-  int x_size = (pvr->FB_R_SIZE->x + 1) << 2;
-  int y_size = (pvr->FB_R_SIZE->y + 1);
-
-  pvr->framebuffer_w = pvr->FB_R_SIZE->x + 1;
-  pvr->framebuffer_h = pvr->FB_R_SIZE->y + 1;
-
-  /* final fb will be 2x height when interlacing */
-  if (pvr->SPG_CONTROL->interlace) {
-    pvr->framebuffer_h *= 2;
-  }
+  pvr_framebuffer_size(pvr, &pvr->framebuffer_w, &pvr->framebuffer_h);
 
   /* convert framebuffer into a 24-bit RGB pixel buffer */
   uint8_t *dst = pvr->framebuffer;
   uint8_t *src = pvr->vram;
 
-  switch (pvr->FB_R_CTRL->fb_depth) {
-    case 0:
-    case 1: {
-      /* FB_R_SIZE specifies x in 32-bit units, if the framebuffer is using a
-         16-bit format this needs to be doubled */
-      pvr->framebuffer_w *= 2;
+  /* values in FB_R_SIZE are in 32-bit units */
+  int line_mod = (pvr->FB_R_SIZE->mod << 2) - 4;
+  int x_size = (pvr->FB_R_SIZE->x + 1) << 2;
+  int y_size = (pvr->FB_R_SIZE->y + 1);
 
+  /* TODO use fb_concat */
+
+  switch (pvr->FB_R_CTRL->fb_depth) {
+    case 0: {
+      for (int y = 0; y < y_size; y++) {
+        for (int n = 0; n < num_fields; n++) {
+          for (int x = 0; x < x_size; x += 2) {
+            uint16_t rgb = *(uint16_t *)&src[VRAM64(fields[n])];
+            dst[0] = (rgb & 0b0111110000000000) >> 7;
+            dst[1] = (rgb & 0b0000001111100000) >> 2;
+            dst[2] = (rgb & 0b0000000000011111) << 3;
+            fields[n] += 2;
+            dst += 3;
+          }
+          fields[n] += line_mod;
+        }
+      }
+    } break;
+
+    case 1: {
       for (int y = 0; y < y_size; y++) {
         for (int n = 0; n < num_fields; n++) {
           for (int x = 0; x < x_size; x += 2) {
@@ -274,11 +304,11 @@ static void pvr_reconfigure_spg(struct pvr *pvr) {
   }
 
   LOG_INFO(
-      "pvr_reconfigure_spg mode=%s pixel_clock=%d line_clock=%d vcount=%d "
-      "hcount=%d interlace=%d vbstart=%d vbend=%d",
-      mode, pixel_clock, pvr->line_clock, pvr->SPG_LOAD->vcount,
-      pvr->SPG_LOAD->hcount, pvr->SPG_CONTROL->interlace,
-      pvr->SPG_VBLANK->vbstart, pvr->SPG_VBLANK->vbend);
+      "pvr_reconfigure_spg mode=%s interlace=%d pixel_clock=%d line_clock=%d "
+      "hcount=%d hbstart=%d hbend=%d vcount=%d vbstart=%d vbend=%d",
+      mode, pvr->SPG_CONTROL->interlace, pixel_clock, pvr->line_clock,
+      pvr->SPG_LOAD->hcount, pvr->SPG_HBLANK->hbstart, pvr->SPG_HBLANK->hbend,
+      pvr->SPG_LOAD->vcount, pvr->SPG_VBLANK->vbstart, pvr->SPG_VBLANK->vbend);
 
   if (pvr->line_timer) {
     sched_cancel_timer(sched, pvr->line_timer);
@@ -361,37 +391,31 @@ uint32_t pvr_reg_read(struct pvr *pvr, uint32_t addr, uint32_t mask) {
   return pvr->reg[offset];
 }
 
-void pvr_video_size(struct pvr *pvr, int *video_width, int *video_height) {
-  int vga_mode = !pvr->SPG_CONTROL->NTSC && !pvr->SPG_CONTROL->PAL &&
-                 !pvr->SPG_CONTROL->interlace;
+void pvr_video_size(struct pvr *pvr, int *width, int *height) {
+  /* calculate the original internal resolution used by the game based on the
+     framebuffer size. this is used to scale the screen space x,y coordinates
+     passed to the ta when rendering */
+  pvr_framebuffer_size(pvr, width, height);
 
-  if (vga_mode) {
-    *video_width = 640;
-    *video_height = 480;
-  } else {
-    *video_width = 640;
-    *video_height = 240;
-  }
-
-  if (pvr->VO_CONTROL->pixel_double) {
-    *video_width /= 2;
-  }
-
-  if (pvr->SPG_CONTROL->interlace) {
-    *video_height *= 2;
-  }
-
-  /* scale_x signals to scale the framebuffer down by half. do so by scaling
-     up the width used by the projection matrix */
+  /* scale_x signals to scale down the accumulation buffer by half when copying
+     to the framebuffer (providing horizontal fsaa), meaning the original video
+     width is double the framebufffer width */
   if (pvr->SCALER_CTL->scale_x) {
-    *video_width *= 2;
+    *width *= 2;
   }
 
-  /* scale_y is a fixed-point scaler, with 6-bits in the integer and 10-bits
-     in the decimal. this scale value is ignored when used for interlacing
-     which is not emulated */
-  if (!pvr->SCALER_CTL->interlace) {
-    *video_height = (*video_height * pvr->SCALER_CTL->scale_y) >> 10;
+  /* scale_y is a fixed-point scaler, with 6-bits in the integer and 10-bits in
+     the decimal. the accumulation buffer is scaled by 1/scale_y, for example:
+     0x200: 2.0x scale
+     0x400: 1.0x scale
+     0x800: 0.5x scale
+     reversing this operation should give us the original video height */
+  *height = (*height * pvr->SCALER_CTL->scale_y) >> 10;
+
+  /* if flicker-free type B interlacing is being used, scale the height back
+     down, nullifying the effect of scale_y */
+  if (pvr->SCALER_CTL->interlace) {
+    *height /= 2;
   }
 }
 

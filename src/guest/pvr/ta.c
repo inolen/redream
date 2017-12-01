@@ -349,7 +349,7 @@ static holly_interrupt_t list_interrupts[] = {
 };
 
 static struct ta_context *ta_get_context(struct ta *ta, uint32_t addr) {
-  for (int i = 0; i < ARRAY_SIZE(ta->contexts); i++) {
+  for (int i = 0; i < ta->num_contexts; i++) {
     struct ta_context *ctx = &ta->contexts[i];
     if (ctx->addr == addr) {
       return ctx;

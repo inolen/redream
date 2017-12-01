@@ -50,7 +50,9 @@ static void sh4_sr_updated(struct sh4 *sh4, uint32_t old_sr) {
 static void sh4_fpscr_updated(struct sh4 *sh4, uint32_t old_fpscr) {
   struct sh4_context *ctx = &sh4->ctx;
 
-  CHECK(!(ctx->fpscr & ENABLE_MASK), "FPU exceptions aren't supported");
+  if (!(old_fpscr & ENABLE_MASK) && (ctx->fpscr & ENABLE_MASK)) {
+    LOG_WARNING("sh4_fpscr_updated fpu exceptions aren't supported");
+  }
 
   if ((ctx->fpscr & FR_MASK) != (old_fpscr & FR_MASK)) {
     sh4_swap_fpr_bank(ctx);

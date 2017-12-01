@@ -995,6 +995,17 @@ EMITTER(DEBUG_BREAK, CONSTRAINTS(NONE)) {
   e.db(0xcc);
 }
 
+static void debug_log(uint64_t a, uint64_t b, uint64_t c) {
+  LOG_INFO("DEBUG_LOG a=0x%" PRIx64 " b=0x%" PRIx64 " c=0x%" PRIx64, a, b, c);
+}
+
+EMITTER(DEBUG_LOG, CONSTRAINTS(NONE, VAL_I64, OPT_I64, OPT_I64)) {
+  x64_backend_mov_value(backend, arg0, ARG0);
+  x64_backend_mov_value(backend, arg1, ARG1);
+  x64_backend_mov_value(backend, arg2, ARG2);
+  e.call(debug_log);
+}
+
 EMITTER(ASSERT_EQ, CONSTRAINTS(NONE, REG_I64, REG_I64)) {
   Xbyak::Reg ra = ARG0_REG;
   Xbyak::Reg rb = ARG1_REG;

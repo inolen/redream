@@ -1,6 +1,7 @@
 #ifndef REDREAM_CORE_H
 #define REDREAM_CORE_H
 
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "core/assert.h"

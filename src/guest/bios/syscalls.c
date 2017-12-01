@@ -24,9 +24,6 @@ void bios_menu_vector(struct bios *bios) {
 
   LOG_SYSCALL("MENU 0x%x", fn);
 
-  /* TODO returning 0 is totally broken, some games (e.g. Virtua Fighter 3b)
-     seem to use these functions to soft reset the machine or something */
-
   /* nop, branch to the return address */
   ctx->pc = ctx->pr;
 }
@@ -191,7 +188,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     } break;
 
     case GDC_RELEASE: {
-      LOG_WARNING("GDC_RELEASE");
+      LOG_WARNING("unsupported GDC_RELEASE");
     } break;
 
     case GDC_INIT: {
@@ -199,11 +196,11 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     } break;
 
     case GDC_SEEK: {
-      LOG_FATAL("GDC_SEEK");
+      LOG_WARNING("unsupported GDC_SEEK");
     } break;
 
     case GDC_READ: {
-      LOG_FATAL("GDC_READ");
+      LOG_WARNING("unsupported GDC_READ");
     } break;
 
     case GDC_REQ_MODE: {
@@ -783,14 +780,17 @@ void bios_sysinfo_vector(struct bios *bios) {
        * data from the system flashrom into 0x8c000068-0x8c00007f. always call
        * this function before using the other two calls
        *
-       * 0x8c000068-6f: system_id
-       * 0x8c000070-74: system_props
-       * 0x8c000075-77: padding
-       * 0x8c000078-7f: settings
+       * r0: zero if successful
        */
       LOG_SYSCALL("SYSINFO_INIT");
 
-      uint8_t data[24];
+      /*
+       * 0x00-0x07: system_id
+       * 0x08-0x0c: system_props
+       * 0x0d-0x0f: padding (zeroed out)
+       * 0x10-0x17: settings (zeroed out)
+        */
+      uint8_t data[24] = {0};
 
       /* read system_id from 0x0001a056 */
       flash_read(flash, 0x1a056, &data[0], 8);
@@ -798,10 +798,9 @@ void bios_sysinfo_vector(struct bios *bios) {
       /* read system_props from 0x0001a000 */
       flash_read(flash, 0x1a000, &data[8], 5);
 
-      /* system settings seem to always be zeroed out */
-      memset(&data[13], 0, 11);
-
       sh4_memcpy_to_guest(dc->mem, SYSINFO_DST, data, sizeof(data));
+
+      ctx->r[0] = 0;
     } break;
 
     case SYSINFO_ICON: {

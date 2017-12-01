@@ -384,6 +384,8 @@ typedef int32_t int128_t[4];
 
 #define SLEEP()                      guest->sleep(guest->data)
 
+#define DEBUG_LOG(a, b, c)           LOG_INFO("DEBUG_LOG a=0x%" PRIx64 " b=0x%" PRIx64 " c=0x%" PRIx64, a, b, c)
+
 /* clang-format on */
 
 #define INSTR(name)                                                \

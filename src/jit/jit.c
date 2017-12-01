@@ -1,4 +1,3 @@
-#include <inttypes.h>
 #include "jit/jit.h"
 #include "core/core.h"
 #include "core/exception_handler.h"

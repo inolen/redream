@@ -24,14 +24,14 @@ enum maple_pattern {
    function code */
 enum maple_fn {
   MAPLE_FUNC_CONTROLLER = 0x01000000,
-  MAPLE_FUNC_MEMORYCARD = 0x02000000,
-  MAPLE_FUNC_LCDDISPLAY = 0x04000000,
+  MAPLE_FUNC_MEMCARD = 0x02000000,
+  MAPLE_FUNC_LCD = 0x04000000,
   MAPLE_FUNC_CLOCK = 0x08000000,
   MAPLE_FUNC_MICROPHONE = 0x10000000,
   MAPLE_FUNC_ARGUN = 0x20000000,
   MAPLE_FUNC_KEYBOARD = 0x40000000,
   MAPLE_FUNC_LIGHTGUN = 0x80000000,
-  MAPLE_FUNC_PURUPURUPACK = 0x00010000,
+  MAPLE_FUNC_PURUPURU = 0x00010000,
   MAPLE_FUNC_MOUSE = 0x00020000
 };
 
@@ -48,9 +48,9 @@ enum maple_cmd {
   MAPLE_RES_TRANSFER = (uint8_t)8,
   MAPLE_REQ_GETCOND = (uint8_t)9,
   MAPLE_REQ_GETMEMINFO = (uint8_t)10,
-  MAPLE_REQ_BLOCKREAD = (uint8_t)11,
-  MAPLE_REQ_BLOCKWRITE = (uint8_t)12,
-  MAPLE_REQ_BLOCKSYNC = (uint8_t)13,
+  MAPLE_REQ_BLKREAD = (uint8_t)11,
+  MAPLE_REQ_BLKWRITE = (uint8_t)12,
+  MAPLE_REQ_BLKSYNC = (uint8_t)13,
   MAPLE_REQ_SETCOND = (uint8_t)14,
   MAPLE_RES_NONE = (uint8_t)-1,
   MAPLE_RES_BADFUNC = (uint8_t)-2,
@@ -77,7 +77,7 @@ union maple_transfer {
    header */
 union maple_frame {
   struct {
-    uint32_t command : 8;
+    uint32_t cmd : 8;
     uint32_t dst_addr : 8;
     uint32_t src_addr : 8;
     uint32_t num_words : 8;
@@ -108,7 +108,7 @@ struct maple_device_info {
 
 /* response MAPLE_REQ_GETCOND */
 struct maple_cond {
-  uint32_t function;
+  uint32_t func;
   /* buttons bitfield contains 0s for pressed buttons and 1s for unpressed */
   uint16_t buttons;
   /* opposite of the buttons, 0 is unpressed for the triggers */
@@ -123,9 +123,9 @@ struct maple_cond {
 
 /* response to MAPLE_REQ_GETMEMINFO */
 struct maple_meminfo {
-  uint32_t function;
+  uint32_t func;
   uint16_t num_blocks;
-  uint16_t partiion;
+  uint16_t partition;
   uint16_t root_block;
   uint16_t fat_block;
   uint16_t fat_num_blocks;
@@ -137,9 +137,9 @@ struct maple_meminfo {
   uint16_t reserved[2];
 };
 
-/* response to MAPLE_REQ_BLOCKREAD */
-struct maple_blockread {
-  uint32_t function;
+/* response to MAPLE_REQ_BLKREAD */
+struct maple_blkread {
+  uint32_t func;
   uint32_t block;
   uint32_t data[];
 };

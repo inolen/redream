@@ -418,32 +418,33 @@ static void store_fpscr(struct sh4_guest *guest, struct ir *ir,
 #define BRANCH_IMM_I32(d)            BRANCH_I32(ir_alloc_i32(ir, d))
 #define BRANCH_COND_IMM_I32(c, t, f) ir_branch_cond(ir, c, ir_alloc_i32(ir, t), ir_alloc_i32(ir, f))
 
-#define INVALID_INSTR()              {                                                                                    \
-                                       struct ir_value *invalid_instr = ir_alloc_i64(ir, (uint64_t)guest->invalid_instr); \
-                                       struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);                   \
-                                       ir_call_1(ir, invalid_instr, data);                                                \
+#define INVALID_INSTR()              {                                                                                     \
+                                        struct ir_value *invalid_instr = ir_alloc_i64(ir, (uint64_t)guest->invalid_instr); \
+                                        struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);                   \
+                                        ir_call_1(ir, invalid_instr, data);                                                \
                                      }
 
 
-#define LDTLB()                      {                                                                  \
-                                       struct ir_value *ltlb = ir_alloc_i64(ir, (uint64_t)guest->ltlb); \
-                                       struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data); \
-                                       ir_call_1(ir, ltlb, data);                                       \
+#define LDTLB()                      {                                                                   \
+                                        struct ir_value *ltlb = ir_alloc_i64(ir, (uint64_t)guest->ltlb); \
+                                        struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data); \
+                                        ir_call_1(ir, ltlb, data);                                       \
                                      }
 
 
-#define PREF_COND(c, addr)           {                                                                  \
-                                       struct ir_value *pref = ir_alloc_i64(ir, (uint64_t)guest->pref); \
-                                       struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data); \
-                                       ir_call_cond_2(ir, c, pref, data, addr);                         \
+#define PREF_COND(c, addr)           {                                                                   \
+                                        struct ir_value *pref = ir_alloc_i64(ir, (uint64_t)guest->pref); \
+                                        struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data); \
+                                        ir_call_cond_2(ir, c, pref, data, addr);                         \
                                      }
 
-#define SLEEP()                      {                                                                    \
-                                       struct ir_value *sleep = ir_alloc_i64(ir, (uint64_t)guest->sleep); \
-                                       struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);   \
-                                       ir_call_1(ir, sleep, data);                                        \
+#define SLEEP()                      {                                                                     \
+                                        struct ir_value *sleep = ir_alloc_i64(ir, (uint64_t)guest->sleep); \
+                                        struct ir_value *data = ir_alloc_i64(ir, (uint64_t)guest->data);   \
+                                        ir_call_1(ir, sleep, data);                                        \
                                      }
 
+#define DEBUG_LOG(a, b, c)           ir_debug_log(ir, a, b, c)
 /* clang-format on */
 
 #define INSTR(name)                                                      \
