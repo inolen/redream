@@ -88,6 +88,10 @@ static int boot_init(struct device *dev) {
   return 1;
 }
 
+void boot_rom_write(struct boot *boot, uint32_t addr, uint32_t data, uint32_t mask) {
+  WRITE_DATA(&boot->rom[addr]);
+}
+
 uint32_t boot_rom_read(struct boot *boot, uint32_t addr, uint32_t mask) {
   return READ_DATA(&boot->rom[addr]);
 }

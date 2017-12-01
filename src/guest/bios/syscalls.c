@@ -24,9 +24,6 @@ void bios_menu_vector(struct bios *bios) {
 
   LOG_SYSCALL("MENU 0x%x", fn);
 
-  /* TODO returning 0 is totally broken, some games (e.g. Virtua Fighter 3b)
-     seem to use these functions to soft reset the machine or something */
-
   /* nop, branch to the return address */
   ctx->pc = ctx->pr;
 }
@@ -191,7 +188,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     } break;
 
     case GDC_RELEASE: {
-      LOG_WARNING("GDC_RELEASE");
+      LOG_WARNING("unsupported GDC_RELEASE");
     } break;
 
     case GDC_INIT: {
@@ -199,11 +196,11 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     } break;
 
     case GDC_SEEK: {
-      LOG_FATAL("GDC_SEEK");
+      LOG_WARNING("unsupported GDC_SEEK");
     } break;
 
     case GDC_READ: {
-      LOG_FATAL("GDC_READ");
+      LOG_WARNING("unsupported GDC_READ");
     } break;
 
     case GDC_REQ_MODE: {
