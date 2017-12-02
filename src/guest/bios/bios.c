@@ -316,6 +316,7 @@ static int bios_post_init(struct device *dev) {
   boot_rom_write(boot, SYSCALL_SYSINFO - SH4_AREA3_BEGIN, 0x0, 0xffff);
   boot_rom_write(boot, SYSCALL_FLASHROM - SH4_AREA3_BEGIN, 0x0, 0xffff);
   boot_rom_write(boot, SYSCALL_GDROM - SH4_AREA3_BEGIN, 0x0, 0xffff);
+  boot_rom_write(boot, SYSCALL_GDROM2 - SH4_AREA3_BEGIN, 0x0, 0xffff);
   boot_rom_write(boot, SYSCALL_MENU - SH4_AREA3_BEGIN, 0x0, 0xffff);
 #endif
 

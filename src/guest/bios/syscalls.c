@@ -32,58 +32,58 @@ void bios_menu_vector(struct bios *bios) {
  * gdrom syscalls
  */
 enum {
-  MISC_INIT = 0,
-  MISC_SETVECTOR = 1,
+  MISC_INIT = 0x0,
+  MISC_SETVECTOR = 0x1,
 };
 
 enum {
-  GDROM_SEND_COMMAND = 0,
-  GDROM_CHECK_COMMAND = 1,
-  GDROM_MAINLOOP = 2,
-  GDROM_INIT = 3,
-  GDROM_CHECK_DRIVE = 4,
-  GDROM_G1_DMA_END = 5,
-  GDROM_REQ_DMA = 6,
-  GDROM_CHECK_DMA = 7,
-  GDROM_ABORT_COMMAND = 8,
-  GDROM_RESET = 9,
-  GDROM_SECTOR_MODE = 10,
+  GDROM_SEND_COMMAND = 0x0,
+  GDROM_CHECK_COMMAND = 0x1,
+  GDROM_MAINLOOP = 0x2,
+  GDROM_INIT = 0x3,
+  GDROM_CHECK_DRIVE = 0x4,
+  GDROM_G1_DMA_END = 0x5,
+  GDROM_REQ_DMA = 0x6,
+  GDROM_CHECK_DMA = 0x7,
+  GDROM_ABORT_COMMAND = 0x8,
+  GDROM_RESET = 0x9,
+  GDROM_SECTOR_MODE = 0xa,
 };
 
 enum {
-  GDC_PIOREAD = 16,
-  GDC_DMAREAD = 17,
-  GDC_GETTOC = 18,
-  GDC_GETTOC2 = 19,
-  GDC_PLAY = 20,
-  GDC_PLAY2 = 21,
-  GDC_PAUSE = 22,
-  GDC_RELEASE = 23,
-  GDC_INIT = 24,
-  GDC_SEEK = 27,
-  GDC_READ = 28,
-  GDC_REQ_MODE = 30,
-  GDC_SET_MODE = 31,
-  GDC_STOP = 33,
-  GDC_GET_SCD = 34,
-  GDC_REQ_SES = 35,
-  GDC_REQ_STAT = 36,
-  GDC_GET_VER = 40,
+  GDC_PIOREAD = 0x10,
+  GDC_DMAREAD = 0x11,
+  GDC_GETTOC = 0x12,
+  GDC_GETTOC2 = 0x13,
+  GDC_PLAY = 0x14,
+  GDC_PLAY2 = 0x15,
+  GDC_PAUSE = 0x16,
+  GDC_RELEASE = 0x17,
+  GDC_INIT = 0x18,
+  GDC_SEEK = 0x1b,
+  GDC_READ = 0x1c,
+  GDC_REQ_MODE = 0x1e,
+  GDC_SET_MODE = 0x1f,
+  GDC_STOP = 0x21,
+  GDC_GET_SCD = 0x22,
+  GDC_REQ_SES = 0x23,
+  GDC_REQ_STAT = 0x24,
+  GDC_GET_VER = 0x28,
 };
 
 enum {
-  GDC_STATUS_NONE = 0,
-  GDC_STATUS_ACTIVE = 1,
-  GDC_STATUS_DONE = 2,
-  GDC_STATUS_ABORT = 3,
-  GDC_STATUS_ERROR = 4,
+  GDC_STATUS_NONE = 0x0,
+  GDC_STATUS_ACTIVE = 0x1,
+  GDC_STATUS_DONE = 0x2,
+  GDC_STATUS_ABORT = 0x3,
+  GDC_STATUS_ERROR = 0x4,
 };
 
 enum {
-  GDC_ERROR_OK = 0,
-  GDC_ERROR_NO_DISC = 2,
-  GDC_ERROR_DISC_CHANGE = 6,
-  GDC_ERROR_SYSTEM = 1,
+  GDC_ERROR_OK = 0x0,
+  GDC_ERROR_NO_DISC = 0x2,
+  GDC_ERROR_DISC_CHANGE = 0x6,
+  GDC_ERROR_SYSTEM = 0x1,
 };
 
 static uint32_t bios_gdrom_send_cmd(struct bios *bios, uint32_t cmd_code,
@@ -139,19 +139,18 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       CHECK_EQ(unknown, 0);
 
       int read = 0;
+      int rem = 0;
       uint8_t tmp[DISC_MAX_SECTOR_SIZE];
 
       for (int i = fad; i < fad + num_sectors; i++) {
         int n = gdrom_read_sectors(gd, i, 1, fmt, mask, tmp, sizeof(tmp));
         sh4_memcpy_to_guest(dc->mem, dst + read, tmp, n);
         read += n;
+        rem -= n;
       }
 
       bios->result[2] = read;
-      /* result[3] seems to signals if data is remaining, calculated by:
-         r = (*0xa05f7018 & 0x88) == 0 ? 0 : 2
-         since dmas are performed instantly, this should always be zero */
-      bios->result[3] = 0;
+      bios->result[3] = rem;
     } break;
 
     case GDC_GETTOC: {
@@ -167,11 +166,64 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       struct gd_toc_info toc;
       gdrom_get_toc(gd, area, &toc);
 
-      /* TODO check that this format is correct */
-      sh4_memcpy_to_guest(dc->mem, dst, &toc, sizeof(toc));
+      /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte  |     |     |     |     |     |     |     |
+         ------------------------------------------------------
+         n*4+0 | track n fad (lsb)
+         ------------------------------------------------------
+         n*4+1 | track n fad
+         ------------------------------------------------------
+         n*4*2 | track n fad (msb)
+         ------------------------------------------------------
+         n*4+3 | track n control       | track n adr
+         ------------------------------------------------------
+         396   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         ------------------------------------------------------
+         397   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         ------------------------------------------------------
+         398   | start track number
+         ------------------------------------------------------
+         399   | start track control   | start track adr
+         ------------------------------------------------------
+         400   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         ------------------------------------------------------
+         401   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+         ------------------------------------------------------
+         402   | end track number
+         ------------------------------------------------------
+         403   | end track control     | end track adr
+         ------------------------------------------------------
+         404   | lead-out track fad (lsb)
+         ------------------------------------------------------
+         405   | lead-out track fad
+         ------------------------------------------------------
+         406   | lead-out track fad (msb)
+         ------------------------------------------------------
+         407   | lead-out track ctrl   | lead-out track adr */
+      uint8_t out[408];
+      for (int i = 0; i < ARRAY_SIZE(toc.entries); i++) {
+        struct gd_toc_entry *entry = &toc.entries[i];
+        out[i * 4 + 0] = (entry->fad & 0x000000ff);
+        out[i * 4 + 1] = (entry->fad & 0x0000ff00) >> 8;
+        out[i * 4 + 2] = (entry->fad & 0x00ff0000) >> 16;
+        out[i * 4 + 3] = ((entry->ctrl & 0xf) << 4) | (entry->adr & 0xf);
+      }
+      out[396] = 0;
+      out[397] = 0;
+      out[398] = toc.first.fad & 0xff;
+      out[399] = ((toc.first.ctrl & 0xf) << 4) | (toc.first.adr & 0xf);
+      out[400] = 0;
+      out[401] = 0;
+      out[402] = toc.last.fad & 0xff;
+      out[403] = ((toc.last.ctrl & 0xf) << 4) | (toc.last.adr & 0xf);
+      out[404] = (toc.leadout.fad & 0x000000ff);
+      out[405] = (toc.leadout.fad & 0x0000ff00) >> 8;
+      out[406] = (toc.leadout.fad & 0x00ff0000) >> 16;
+      out[407] = ((toc.leadout.ctrl & 0xf) << 4) | (toc.leadout.adr & 0xf);
+      sh4_memcpy_to_guest(dc->mem, dst, &out, sizeof(out));
 
-      /* record size transferred */
-      bios->result[2] = sizeof(toc);
+      /* the bios doesn't perform a pio transfer to get the toc for this req,
+         it is cached, so there is no transfer size to record */
     } break;
 
     case GDC_PLAY: {
@@ -209,18 +261,27 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       LOG_SYSCALL("GDC_REQ_MODE 0x%x", dst);
 
       struct gd_hw_info info;
-      gdrom_get_drive_mode(gd, &info);
+      gdrom_get_mode(gd, &info);
 
-      uint32_t mode[4];
-      mode[0] = info.speed;
-      mode[1] = (info.standby_hi << 8) | info.standby_lo;
-      mode[2] = info.read_flags;
-      mode[3] = info.read_retry;
+      /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte  |     |     |     |     |     |     |     |
+         ------------------------------------------------------
+         0-3   | CD-ROM speed (little-endian)
+         ------------------------------------------------------
+         4-7   | standby time (little-endian)
+         ------------------------------------------------------
+         8-11  | read flags (little-endian)
+         ------------------------------------------------------
+         12-15 | read retry times (little-endian) */
+      uint32_t out[4];
+      out[0] = info.speed;
+      out[1] = (info.standby_hi << 8) | info.standby_lo;
+      out[2] = info.read_flags;
+      out[3] = info.read_retry;
+      sh4_memcpy_to_guest(dc->mem, dst, out, sizeof(out));
 
-      sh4_memcpy_to_guest(dc->mem, dst, mode, sizeof(mode));
-
-      /* record size transferred */
-      bios->result[2] = sizeof(mode);
+      /* record size of pio transfer to gdrom */
+      bios->result[2] = 0xa;
     } break;
 
     case GDC_SET_MODE: {
@@ -233,15 +294,17 @@ static void bios_gdrom_mainloop(struct bios *bios) {
                   read_flags, read_retry);
 
       struct gd_hw_info info;
-      gdrom_get_drive_mode(gd, &info);
+      gdrom_get_mode(gd, &info);
 
       info.speed = speed;
       info.standby_hi = (standby & 0xff00) >> 8;
       info.standby_lo = standby & 0xff;
       info.read_flags = read_flags;
       info.read_retry = read_retry;
+      gdrom_set_mode(gd, &info);
 
-      gdrom_set_drive_mode(gd, &info);
+      /* record size of pio transfer to gdrom */
+      bios->result[2] = 0xa;
     } break;
 
     case GDC_STOP: {
@@ -254,16 +317,17 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       uint32_t size = bios->params[1];
       uint32_t dst = bios->params[2];
 
-      LOG_SYSCALL("GDC_GET_SCD 0x%x 0x%x 0x%x", format, size, dst);
+      LOG_SYSCALL("GDC_GET_SCD fmt=0x%x size=0x%x dst=0x%x", format, size, dst);
 
       uint8_t scd[GD_SPI_SCD_SIZE];
       gdrom_get_subcode(gd, format, scd, sizeof(scd));
-
       CHECK_EQ(scd[3], size);
 
+      /* TODO this is totally broken, fix once gdrom_get_subcode is actually
+         implemented */
       sh4_memcpy_to_guest(dc->mem, dst, scd, size);
 
-      /* record size transferred */
+      /* record size of pio transfer to gdrom */
       bios->result[2] = size;
     } break;
 
@@ -272,33 +336,83 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     } break;
 
     case GDC_REQ_STAT: {
-      LOG_SYSCALL("GDC_REQ_STAT");
+      /* odd, but this function seems to get passed 4 unique pointers */
+      uint32_t dst0 = bios->params[0];
+      uint32_t dst1 = bios->params[1];
+      uint32_t dst2 = bios->params[2];
+      uint32_t dst3 = bios->params[3];
+
+      LOG_SYSCALL(
+          "GDC_REQ_STAT dst0=0x%08x dst1=0x%08x dst2=0x%08x dst3=0x%08x",
+          bios->params[0], bios->params[1], bios->params[2], bios->params[3]);
 
       struct gd_status_info stat;
       gdrom_get_status(gd, &stat);
 
-      /* TODO verify this format */
-      bios->result[0] = (stat.repeat << 8) | stat.status;
-      bios->result[1] = stat.scd_track;
-      bios->result[2] = stat.fad;
-      bios->result[3] = stat.scd_index;
+      /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte  |     |     |     |     |     |     |     |
+         ------------------------------------------------------
+         0     |  0  |  0  |  0  |  0  | status
+         ------------------------------------------------------
+         1     |  0  |  0  |  0  |  0  | repeat count
+         ------------------------------------------------------
+         2-3   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0 */
+      uint32_t out = ((stat.repeat & 0xf) << 8) | (stat.status & 0xf);
+      sh4_write32(dc->mem, dst0, out);
+
+      /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte  |     |     |     |     |     |     |     |
+         ------------------------------------------------------
+         0     | subcode q track number
+         ------------------------------------------------------
+         1-3   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0 */
+      out = (stat.scd_track & 0xff);
+      sh4_write32(dc->mem, dst1, out);
+
+      /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte  |     |     |     |     |     |     |     |
+         ------------------------------------------------------
+         0-2  | fad (little-endian)
+         ------------------------------------------------------
+         3    | address          | control  */
+      out = ((stat.address & 0xf) << 28) | ((stat.control & 0xf) << 24) |
+            (stat.fad & 0x00ffffff);
+      sh4_write32(dc->mem, dst2, out);
+
+      /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+         byte  |     |     |     |     |     |     |     |
+         ------------------------------------------------------
+         0     | subcode q index number
+         ------------------------------------------------------
+         1-3   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0 */
+      out = (stat.scd_index & 0xff);
+      sh4_write32(dc->mem, dst3, out);
+
+      /* record pio transfer size */
+      bios->result[2] = 0xa;
     } break;
 
     case GDC_GET_VER: {
       uint32_t dst = bios->params[0];
 
-      LOG_SYSCALL("GDC_GET_VER 0x%x", dst);
+      LOG_SYSCALL("GDC_GET_VER dst=0x%x", dst);
 
-      const char *version = "GDC Version 1.10 1999-03-31";
-      const int len = (int)strlen(version);
+      /* copy raw version string */
+      char ver[] = "GDC Version 1.10 1999-03-31 ";
+      int len = (int)strlen(ver);
+      CHECK_EQ(len, 28);
 
-      sh4_memcpy_to_guest(dc->mem, dst, version, len);
+      /* 0x8c0013b8 (offset 0xd0 in the gdrom state struct) is then loaded and
+         overwrites the last byte. no idea what this is, but seems to be hard
+         coded to 0x02 on boot */
+      ver[len-1] = 0x02;
 
-      /* record size transferred */
-      bios->result[2] = len;
+      sh4_memcpy_to_guest(dc->mem, dst, ver, len);
     } break;
 
-    default: { LOG_FATAL("unexpected gdrom cmd 0x%x", bios->cmd_code); } break;
+    default: {
+      LOG_FATAL("bios_gdrom_mainloop unexpected cmd=0x%x", bios->cmd_code);
+    } break;
   }
 
   bios->status = GDC_STATUS_DONE;
@@ -389,17 +503,14 @@ void bios_gdrom_vector(struct bios *bios) {
 
         LOG_SYSCALL("GDROM_CHECK_COMMAND 0x%x 0x%x", cmd_id, status);
 
-        if (cmd_id == bios->cmd_id) {
-          ctx->r[0] = bios->status;
+        ctx->r[0] = bios->status;
 
-          if (bios->status == GDC_STATUS_DONE) {
-            sh4_memcpy_to_guest(dc->mem, status, &bios->result,
-                                sizeof(bios->result));
-            bios->status = GDC_STATUS_NONE;
-          }
-        } else {
-          ctx->r[0] = GDC_STATUS_NONE;
+        if (cmd_id == bios->cmd_id && bios->status != GDC_STATUS_NONE) {
+          sh4_memcpy_to_guest(dc->mem, status, &bios->result,
+                              sizeof(bios->result));
         }
+
+        bios->status = GDC_STATUS_NONE;
       } break;
 
       case GDROM_MAINLOOP: {
