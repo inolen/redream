@@ -14,18 +14,39 @@
 #endif
 
 /*
- * menu syscalls
+ * system syscalls
  */
-void bios_menu_vector(struct bios *bios) {
+enum {
+  SYSTEM_BOOT = -3,
+  SYSTEM_UNKNOWN = -2,
+  SYSTEM_RESET1 = -1,
+  SYSTEM_SECURITY = 0,
+  SYSTEM_RESET2 = 1,
+  SYSTEM_CHKDISC = 2,
+  SYSTEM_RESET3 = 3,
+  SYSTEM_RESET4 = 4,
+};
+
+void bios_system_vector(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct sh4_context *ctx = &dc->sh4->ctx;
 
   uint32_t fn = ctx->r[4];
 
-  LOG_SYSCALL("MENU 0x%x", fn);
+  LOG_SYSCALL("SYSTEM 0x%x", fn);
 
   /* nop, branch to the return address */
   ctx->pc = ctx->pr;
+
+  switch (fn) {
+    case SYSTEM_BOOT:
+      bios_boot(bios);
+      break;
+
+    default:
+      LOG_WARNING("bios_system_vector unhandled fn=0x%x", fn);
+      break;
+  }
 }
 
 /*

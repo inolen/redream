@@ -19,5 +19,6 @@ struct bios *bios_create(struct dreamcast *dc);
 void bios_destroy(struct bios *bios);
 
 int bios_invalid_instr(struct bios *bios);
+void bios_boot(struct bios *bios);
 
 #endif
