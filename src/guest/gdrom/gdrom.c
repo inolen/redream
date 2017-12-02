@@ -298,7 +298,7 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       gdrom_spi_write(gd, (uint8_t *)&gd->hw_info + off, len);
     } break;
 
-    case GD_SPI_REQ_ERROR: {
+    case GD_SPI_REQ_ERR: {
       int len = data[4];
 
       struct gd_error_info err;
@@ -514,15 +514,15 @@ static void gdrom_spi_cmd(struct gdrom *gd, int arg) {
       gdrom_spi_end(gd);
     } break;
 
-    /* GD_SPI_CHK_SECU and GD_SPI_REQ_SECU are part of an undocumented security
+    /* GD_SPI_CHK_SEC and GD_SPI_REQ_SEC are part of an undocumented security
        check that has yet to be fully reverse engineered. the check doesn't seem
        to have any side effects, a canned response is sent when the results are
        requested */
-    case GD_SPI_CHK_SECU: {
+    case GD_SPI_CHK_SEC: {
       gdrom_spi_end(gd);
     } break;
 
-    case GD_SPI_REQ_SECU: {
+    case GD_SPI_REQ_SEC: {
       gdrom_spi_write(gd, (uint8_t *)reply_71, sizeof(reply_71));
     } break;
 
@@ -774,11 +774,11 @@ void gdrom_get_status(struct gdrom *gd, struct gd_status_info *stat) {
   stat->fad = 0x0;
 }
 
-void gdrom_set_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
+void gdrom_set_mode(struct gdrom *gd, struct gd_hw_info *info) {
   gd->hw_info = *info;
 }
 
-void gdrom_get_drive_mode(struct gdrom *gd, struct gd_hw_info *info) {
+void gdrom_get_mode(struct gdrom *gd, struct gd_hw_info *info) {
   *info = gd->hw_info;
 }
 

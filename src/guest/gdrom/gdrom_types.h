@@ -41,7 +41,7 @@ enum {
   GD_SPI_REQ_STAT = 0x10,  /* Get CD status */
   GD_SPI_REQ_MODE = 0x11,  /* Get various settings */
   GD_SPI_SET_MODE = 0x12,  /* Make various settings */
-  GD_SPI_REQ_ERROR = 0x13, /* Get error details */
+  GD_SPI_REQ_ERR = 0x13,   /* Get error details */
   GD_SPI_GET_TOC = 0x14,   /* Get all TOC data */
   GD_SPI_REQ_SES = 0x15,   /* Get specified session data */
   GD_SPI_CD_OPEN = 0x16,   /* Open tray */
@@ -51,16 +51,17 @@ enum {
   GD_SPI_CD_READ = 0x30,   /* Read CD */
   GD_SPI_CD_READ2 = 0x31,  /* CD read (pre-read position) */
   GD_SPI_GET_SCD = 0x40,   /* Get subcode */
-  GD_SPI_CHK_SECU = 0x70,  /* Perform disk security check */
-  GD_SPI_REQ_SECU = 0x71,  /* Get security check result */
+  GD_SPI_CHK_SEC = 0x70,   /* Perform disk security check */
+  GD_SPI_REQ_SEC = 0x71,   /* Get security check result */
 };
 
 enum {
   GD_SPI_CMD_SIZE = 12,
+  GD_SPI_STAT_SIZE = 10,
+  GD_SPI_MODE_SIZE = 32,
   GD_SPI_ERR_SIZE = 10,
   GD_SPI_TOC_SIZE = 408,
   GD_SPI_SES_SIZE = 6,
-  GD_SPI_STAT_SIZE = 10,
   GD_SPI_SCD_SIZE = 100,
 };
 

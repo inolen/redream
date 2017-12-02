@@ -19,8 +19,8 @@ void gdrom_dma_begin(struct gdrom *gd);
 int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int n);
 void gdrom_dma_end(struct gdrom *gd);
 
-void gdrom_get_drive_mode(struct gdrom *gd, struct gd_hw_info *info);
-void gdrom_set_drive_mode(struct gdrom *gd, struct gd_hw_info *info);
+void gdrom_get_mode(struct gdrom *gd, struct gd_hw_info *info);
+void gdrom_set_mode(struct gdrom *gd, struct gd_hw_info *info);
 void gdrom_get_status(struct gdrom *gd, struct gd_status_info *stat);
 void gdrom_get_error(struct gdrom *gd, struct gd_error_info *err);
 void gdrom_get_toc(struct gdrom *gd, int area, struct gd_toc_info *toc);
