@@ -1,6 +1,7 @@
 #include "guest/bios/syscalls.h"
 #include "guest/bios/bios.h"
 #include "guest/bios/flash.h"
+#include "guest/bios/scramble.h"
 #include "guest/gdrom/gdrom.h"
 #include "guest/holly/holly.h"
 #include "guest/memory.h"
@@ -29,6 +30,7 @@ enum {
 
 void bios_system_vector(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
+  struct gdrom *gd = dc->gdrom;
   struct sh4_context *ctx = &dc->sh4->ctx;
 
   uint32_t fn = ctx->r[4];
@@ -138,6 +140,7 @@ static uint32_t bios_gdrom_send_cmd(struct bios *bios, uint32_t cmd_code,
 static void bios_gdrom_mainloop(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
   struct gdrom *gd = dc->gdrom;
+  struct holly *hl = dc->holly;
 
   if (bios->status != GDC_STATUS_ACTIVE) {
     return;
@@ -265,7 +268,8 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     } break;
 
     case GDC_INIT: {
-      /* this seems to always immediately follow GDROM_INIT */
+      /* sanity check in case dma transfers are made async in the future */
+      CHECK_EQ(*hl->SB_GDST, 0);
     } break;
 
     case GDC_SEEK: {

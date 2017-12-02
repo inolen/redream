@@ -4,6 +4,7 @@
 #include "guest/aica/aica.h"
 #include "guest/bios/bios.h"
 #include "guest/bios/flash.h"
+#include "guest/bios/scramble.h"
 #include "guest/bios/syscalls.h"
 #include "guest/dreamcast.h"
 #include "guest/gdrom/gdrom.h"
@@ -285,6 +286,18 @@ void bios_boot(struct bios *bios) {
       return;
     }
 
+    /* CD-ROM XA discs have their binary scrambled. the bios descrambles this
+       later on in the boot, but it should be fine to descramble now */
+    struct gd_status_info stat;
+    gdrom_get_status(gd, &stat);
+
+    if (stat.format == GD_DISC_CDROM_XA) {
+      uint8_t *tmp2 = malloc(len);
+      descramble(tmp2, tmp, len);
+      free(tmp);
+      tmp = tmp2;
+    }
+
     sh4_memcpy_to_guest(dc->mem, BOOT2_ADDR, tmp, read);
     free(tmp);
   }
@@ -319,7 +332,7 @@ void bios_boot(struct bios *bios) {
     sh4_write32(dc->mem, VECTOR_SYSTEM, SYSCALL_SYSTEM);
   }
 
-  /* start executing at license screen code inside of ip.bin */
+  /* start executing at license screen code inside of IP.BIN */
   ctx->pc = 0xac008300;
 }
 

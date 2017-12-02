@@ -207,6 +207,7 @@ set(RELIB_SOURCES
   src/guest/arm7/arm7.c
   src/guest/bios/bios.c
   src/guest/bios/flash.c
+  src/guest/bios/scramble.c
   src/guest/bios/syscalls.c
   src/guest/gdrom/cdi.c
   src/guest/gdrom/chd.c
