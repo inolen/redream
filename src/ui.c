@@ -518,6 +518,7 @@ static void ui_scan_games_f(struct ui *ui, const char *filename) {
   snprintf(ui->scan_status, sizeof(ui->scan_status), "scanning %s", filename);
 
   if (ui_has_game_ext(filename, game_exts, ARRAY_SIZE(game_exts))) {
+
     struct disc *disc = disc_create(filename, 0);
 
     if (disc) {

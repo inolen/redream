@@ -24,6 +24,11 @@
 #define VIDEO_DEFAULT_HEIGHT 480
 #define INPUT_MAX_CONTROLLERS 4
 
+/* Default deadzone size taken from this thread https://forums.libsdl.org/viewtopic.php?p=39985 (specifically talks about xbox 360 controllers. 
+   Other sources also have it around this number. 
+   */
+#define DEFAULT_DEADZONE 4096
+
 #define AUDIO_FRAME_SIZE 4 /* stereo / pcm16 */
 #define AUDIO_FRAMES_TO_MS(frames) \
   (int)(((float)frames * 1000.0f) / (float)AUDIO_FREQ)
@@ -832,11 +837,22 @@ static void host_poll_events(struct host *host) {
       case SDL_CONTROLLERAXISMOTION: {
         int port = input_find_controller_port(host, ev.caxis.which);
         int key = K_UNKNOWN;
-        uint16_t value = 0;
+		uint16_t value = 0;
+
+		int result = 0;
+
+		if (port >= 0) {
+			if (ev.caxis.value < -*(deadzones[port])) {
+				result = ev.caxis.value + *(deadzones[port]);
+			}
+			else if (ev.caxis.value > *(deadzones[port])) {
+				result = ev.caxis.value - *(deadzones[port]);
+			}
+		}
 
         /* SDL provides axis input in the range of [INT16_MIN, INT16_MAX],
            convert to [0, UINT16_MAX] */
-        int dir = axis_s16_to_u16(ev.caxis.value, &value);
+        int dir = axis_s16_to_u16(result, &value);
 
         switch (ev.caxis.axis) {
           case SDL_CONTROLLER_AXIS_LEFTX:
