@@ -616,17 +616,6 @@ static int input_init(struct host *host) {
   /* reset */
   memset(&host->input, 0, sizeof(host->input));
 
-  /* SDL won't push events for joysticks which are already connected at init */
-  int num_joysticks = SDL_NumJoysticks();
-
-  for (int device_id = 0; device_id < num_joysticks; device_id++) {
-    if (!SDL_IsGameController(device_id)) {
-      continue;
-    }
-
-    input_controller_added(host, device_id);
-  }
-
   input_update_keymap(host);
 
   return 1;
