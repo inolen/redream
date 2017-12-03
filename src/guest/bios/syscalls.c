@@ -1,7 +1,6 @@
 #include "guest/bios/syscalls.h"
 #include "guest/bios/bios.h"
 #include "guest/bios/flash.h"
-#include "guest/bios/scramble.h"
 #include "guest/gdrom/gdrom.h"
 #include "guest/holly/holly.h"
 #include "guest/memory.h"
@@ -30,7 +29,6 @@ enum {
 
 void bios_system_vector(struct bios *bios) {
   struct dreamcast *dc = bios->dc;
-  struct gdrom *gd = dc->gdrom;
   struct sh4_context *ctx = &dc->sh4->ctx;
 
   uint32_t fn = ctx->r[4];
@@ -109,6 +107,35 @@ enum {
   GDC_ERROR_SYSTEM = 0x1,
 };
 
+static int bios_gdrom_override_format(struct bios *bios, int format) {
+  struct dreamcast *dc = bios->dc;
+
+  /* the IP.BIN bootstraps of some cdi discs patch the GDROM_CHECK_DRIVE syscall
+     code to always return a disc format of GDROM instead of CDROM. i'm not sure
+     of the exact reason behind this, but it seems that some games explicitly
+     check that this syscall returns a format of GDROM on startup, so these
+     patches are required to make the games boot
+
+     however, since this patched syscall code isn't being ran, the patches need
+     to be detected and their indended effect mimicked. complicating the matter,
+     the patch routines won't apply the patch if they can't find a magic value
+     from the real bios code near the patch site. since no bios is loaded, these
+     values aren't found and the code isn't actually patched in the first place,
+     making it hard to detect the patch by looking for writes to the code
+
+     so far, the best idea i've had to work around this is to check the IP.BIN
+     metadata to see if it calls itself a CD-ROM or GD-ROM. if it says GD-ROM,
+     it's always treated as such */
+  struct disc *disc = gdrom_get_disc(dc->gdrom);
+  CHECK_NOTNULL(disc);
+
+  if (strstr(disc->discnum, "GD-ROM") != NULL) {
+    return GD_DISC_GDROM;
+  }
+
+  return format;
+}
+
 static uint32_t bios_gdrom_send_cmd(struct bios *bios, uint32_t cmd_code,
                                     uint32_t params) {
   struct dreamcast *dc = bios->dc;
@@ -173,6 +200,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
         rem -= n;
       }
 
+      /* record size transferred */
       bios->result[2] = read;
       bios->result[3] = rem;
     } break;
@@ -268,6 +296,8 @@ static void bios_gdrom_mainloop(struct bios *bios) {
     } break;
 
     case GDC_INIT: {
+      LOG_SYSCALL("GDC_INIT");
+
       /* sanity check in case dma transfers are made async in the future */
       CHECK_EQ(*hl->SB_GDST, 0);
     } break;
@@ -430,7 +460,7 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       /* 0x8c0013b8 (offset 0xd0 in the gdrom state struct) is then loaded and
          overwrites the last byte. no idea what this is, but seems to be hard
          coded to 0x02 on boot */
-      ver[len-1] = 0x02;
+      ver[len - 1] = 0x02;
 
       sh4_memcpy_to_guest(dc->mem, dst, ver, len);
     } break;
@@ -591,21 +621,29 @@ void bios_gdrom_vector(struct bios *bios) {
          *
          * r0: zero if successful, nonzero if failure
          */
-        uint32_t result = ctx->r[4];
+        uint32_t dst = ctx->r[4];
 
-        LOG_SYSCALL("GDROM_CHECK_DRIVE 0x%x", result);
+        LOG_SYSCALL("GDROM_CHECK_DRIVE dst=0x%x", dst);
 
-        struct gd_status_info stat;
-        gdrom_get_status(gd, &stat);
+        if (gdrom_is_busy(gd)) {
+          /* shouldn't happen unless syscalls are interlaced with raw accesses
+           */
+          LOG_SYSCALL("GDROM_CHECK_DRIVE drive is busy");
 
-        uint32_t cond[2];
-        cond[0] = stat.status;
-        cond[1] = stat.format << 4;
+          /* error */
+          ctx->r[0] = 1;
+        } else {
+          struct gd_status_info stat;
+          gdrom_get_status(gd, &stat);
 
-        sh4_memcpy_to_guest(dc->mem, result, cond, sizeof(cond));
+          uint32_t cond[2];
+          cond[0] = stat.status;
+          cond[1] = bios_gdrom_override_format(bios, stat.format) << 4;
+          sh4_memcpy_to_guest(dc->mem, dst, cond, sizeof(cond));
 
-        /* success */
-        ctx->r[0] = 0;
+          /* success */
+          ctx->r[0] = 0;
+        }
       } break;
 
       case GDROM_G1_DMA_END: {

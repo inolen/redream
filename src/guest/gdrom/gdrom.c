@@ -782,6 +782,10 @@ void gdrom_get_mode(struct gdrom *gd, struct gd_hw_info *info) {
   *info = gd->hw_info;
 }
 
+int gdrom_is_busy(struct gdrom *gd) {
+  return gd->status.BSY;
+}
+
 void gdrom_dma_end(struct gdrom *gd) {
   LOG_GDROM("gd_dma_end");
 }
@@ -841,8 +845,8 @@ void gdrom_set_disc(struct gdrom *gd, struct disc *disc) {
   /* TODO how do GD_FEATURES, GD_INTREASON, GD_BYCTLLO and GD_BYCTLHI behave */
 }
 
-int gdrom_has_disc(struct gdrom *gd) {
-  return gd->disc != NULL;
+struct disc *gdrom_get_disc(struct gdrom *gd) {
+  return gd->disc;
 }
 
 void gdrom_destroy(struct gdrom *gd) {

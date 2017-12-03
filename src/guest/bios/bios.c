@@ -250,7 +250,7 @@ void bios_boot(struct bios *bios) {
 
   LOG_INFO("bios_boot using hle bootstrap");
 
-  if (!gdrom_has_disc(gd)) {
+  if (!gdrom_get_disc(gd)) {
     LOG_FATAL("bios_boot failed, no disc is loaded");
     return;
   }

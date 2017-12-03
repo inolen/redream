@@ -12,13 +12,14 @@ void gdrom_destroy(struct gdrom *gd);
 
 void gdrom_debug_menu(struct gdrom *gd);
 
-int gdrom_has_disc(struct gdrom *gd);
+struct disc *gdrom_get_disc(struct gdrom *gd);
 void gdrom_set_disc(struct gdrom *gd, struct disc *disc);
 
 void gdrom_dma_begin(struct gdrom *gd);
 int gdrom_dma_read(struct gdrom *gd, uint8_t *data, int n);
 void gdrom_dma_end(struct gdrom *gd);
 
+int gdrom_is_busy(struct gdrom *gd);
 void gdrom_get_mode(struct gdrom *gd, struct gd_hw_info *info);
 void gdrom_set_mode(struct gdrom *gd, struct gd_hw_info *info);
 void gdrom_get_status(struct gdrom *gd, struct gd_status_info *stat);
