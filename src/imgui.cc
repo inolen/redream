@@ -491,6 +491,9 @@ struct imgui *imgui_create() {
   io.SetClipboardTextFn = nullptr;
   io.GetClipboardTextFn = nullptr;
 
+  /* lessen navigation biasing */
+  io.NavScoreScaleX = 0.5f;
+
   g_imgui = imgui;
 
   return imgui;
