@@ -190,6 +190,20 @@ enum {
       read_string(mem->dc->space, pdst, src, size);                            \
     } else if (psrc && write_string) {                                         \
       write_string(mem->dc->space, dst, psrc, size);                           \
+    } else if (pdst) {                                                         \
+      uint32_t end = src + size;                                               \
+      while (src < end) {                                                      \
+        *pdst = read(mem->dc->space, src, 0xff);                               \
+        pdst++;                                                                \
+        src++;                                                                 \
+      }                                                                        \
+    } else if (psrc) {                                                         \
+      uint32_t end = dst + size;                                               \
+      while (dst < end) {                                                      \
+        write(mem->dc->space, dst, *psrc, 0xff);                               \
+        psrc++;                                                                \
+        dst++;                                                                 \
+      }                                                                        \
     } else {                                                                   \
       uint32_t end = src + size;                                               \
       while (src < end) {                                                      \
