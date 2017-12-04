@@ -694,43 +694,6 @@ static void host_debug_menu(struct host *host) {
 
   if (igBeginMainMenuBar()) {
     if (igBeginMenu("HOST", 1)) {
-      if (igBeginMenu("sync", 1)) {
-        struct {
-          const char *desc;
-          int enabled;
-        } options[] = {
-            {"audio", audio_sync_enabled()}, /* */
-            {"video", video_sync_enabled()}, /* */
-        };
-        int num_options = (int)ARRAY_SIZE(options);
-
-        for (int i = 0; i < num_options; i++) {
-          const char *desc = options[i].desc;
-          int enabled = options[i].enabled;
-
-          if (igMenuItem(desc, NULL, enabled, 1)) {
-            int len = (int)strlen(OPTION_sync);
-
-            if (enabled) {
-              for (int i = 0; i < len; i++) {
-                if (OPTION_sync[i] == desc[0]) {
-                  OPTION_sync[i] = OPTION_sync[len - 1];
-                  OPTION_sync[len - 1] = 0;
-                  break;
-                }
-              }
-            } else {
-              OPTION_sync[len] = desc[0];
-              OPTION_sync[len + 1] = 0;
-            }
-
-            OPTION_sync_dirty = 1;
-          }
-        }
-
-        igEndMenu();
-      }
-
       if (igMenuItem("frame times", NULL, host->dbg.show_times, 1)) {
         host->dbg.show_times = !host->dbg.show_times;
       }

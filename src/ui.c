@@ -134,7 +134,7 @@ static struct page pages[UI_NUM_PAGES];
 #define UI_STR_BTN_CANCEL    "Cancel"
 #define UI_STR_BTN_ADD       "Add"
 #define UI_STR_CARD_LIBRARY  "    " IMICON_HDD "\nLibrary"
-#define UI_STR_CARD_AUDIO    "   " IMICON_VOLUME_UP "\nAudio"
+#define UI_STR_CARD_SYSTEM   "    " IMICON_MICROCHIP "\nSystem"
 #define UI_STR_CARD_VIDEO    "  " IMICON_DESKTOP "\nVideo"
 #define UI_STR_CARD_INPUT    "  " IMICON_GAMEPAD "\nInput"
 #define UI_STR_LIBRARY_ADD   "Add Directory"
@@ -945,9 +945,9 @@ static void ui_video_build(struct ui *ui) {
 }
 
 /*
- * audio page
+ * system page
  */
-static void ui_audio_build(struct ui *ui) {
+static void ui_system_build(struct ui *ui) {
   struct ImGuiIO *io = igGetIO();
 
   struct ImVec2 size = {UI_PAGE_MAX_WIDTH, UI_PAGE_MAX_HEIGHT};
@@ -956,9 +956,67 @@ static void ui_audio_build(struct ui *ui) {
   struct ImVec2 btn_size = {-1.0f, VH(8.0f)};
 
   igSetCursorPos(pos);
-  igBeginChild("audio", size, false, ImGuiWindowFlags_NavFlattened);
+  igBeginChild("system", size, false, ImGuiWindowFlags_NavFlattened);
 
-  igText("Not available yet.");
+  igPushStyle_Btn();
+
+  {
+    if (igOptionString("Time sync", OPTION_sync, btn_size)) {
+      int next = 0;
+      for (int i = 0; i < NUM_TIMESYNCS; i++) {
+        if (!strcmp(TIMESYNCS[i], OPTION_sync)) {
+          next = (i + 1) % NUM_TIMESYNCS;
+          break;
+        }
+      }
+      strncpy(OPTION_sync, TIMESYNCS[next], sizeof(OPTION_sync));
+      OPTION_sync_dirty = 1;
+    }
+  }
+
+  {
+    if (igOptionString("Region", OPTION_region, btn_size)) {
+      int next = 0;
+      for (int i = 0; i < NUM_REGIONS; i++) {
+        if (!strcmp(REGIONS[i], OPTION_region)) {
+          next = (i + 1) % NUM_REGIONS;
+          break;
+        }
+      }
+      strncpy(OPTION_region, REGIONS[next], sizeof(OPTION_region));
+      OPTION_region_dirty = 1;
+    }
+  }
+
+  {
+    if (igOptionString("Language", OPTION_language, btn_size)) {
+      int next = 0;
+      for (int i = 0; i < NUM_LANGUAGES; i++) {
+        if (!strcmp(LANGUAGES[i], OPTION_language)) {
+          next = (i + 1) % NUM_LANGUAGES;
+          break;
+        }
+      }
+      strncpy(OPTION_language, LANGUAGES[next], sizeof(OPTION_language));
+      OPTION_language_dirty = 1;
+    }
+  }
+
+  {
+    if (igOptionString("Broadcast", OPTION_broadcast, btn_size)) {
+      int next = 0;
+      for (int i = 0; i < NUM_BROADCASTS; i++) {
+        if (!strcmp(BROADCASTS[i], OPTION_broadcast)) {
+          next = (i + 1) % NUM_BROADCASTS;
+          break;
+        }
+      }
+      strncpy(OPTION_broadcast, BROADCASTS[next], sizeof(OPTION_broadcast));
+      OPTION_broadcast_dirty = 1;
+    }
+  }
+
+  igPopStyle_Btn();
 
   igEndChild();
 }
@@ -1061,8 +1119,8 @@ static void ui_options_build(struct ui *ui) {
 
   igSetCursorPosX(min.x + btn_size.x + btn_padding.x);
   igSetCursorPosY(min.y);
-  if (igButton(UI_STR_CARD_AUDIO, btn_size)) {
-    ui_set_page(ui, UI_PAGE_AUDIO);
+  if (igButton(UI_STR_CARD_SYSTEM, btn_size)) {
+    ui_set_page(ui, UI_PAGE_SYSTEM);
   }
 
   igSetCursorPosX(min.x);
@@ -1512,8 +1570,8 @@ struct ui *ui_create(struct host *host) {
   pages[UI_PAGE_LIBRARY].name = NULL;
   pages[UI_PAGE_LIBRARY].build = ui_library_build;
 
-  pages[UI_PAGE_AUDIO].name = NULL;
-  pages[UI_PAGE_AUDIO].build = ui_audio_build;
+  pages[UI_PAGE_SYSTEM].name = NULL;
+  pages[UI_PAGE_SYSTEM].build = ui_system_build;
 
   pages[UI_PAGE_VIDEO].name = NULL;
   pages[UI_PAGE_VIDEO].build = ui_video_build;

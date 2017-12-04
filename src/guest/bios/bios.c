@@ -14,19 +14,6 @@
 #include "guest/sh4/sh4.h"
 #include "options.h"
 
-/* system settings */
-static const char *regions[] = {
-    "japan", "usa", "europe",
-};
-
-static const char *languages[] = {
-    "japanese", "english", "german", "french", "spanish", "italian",
-};
-
-static const char *broadcasts[] = {
-    "ntsc", "pal", "pal_m", "pal_n",
-};
-
 /* address of syscall vectors */
 enum {
   VECTOR_SYSINFO = 0x0c0000b0,
@@ -77,29 +64,29 @@ static void bios_override_settings(struct bios *bios) {
   int bcast = 0;
   uint32_t time = bios_local_time();
 
-  for (int i = 0; i < ARRAY_SIZE(regions); i++) {
-    if (!strcmp(OPTION_region, regions[i])) {
+  for (int i = 0; i < NUM_REGIONS; i++) {
+    if (!strcmp(OPTION_region, REGIONS[i])) {
       region = i;
       break;
     }
   }
 
-  for (int i = 0; i < ARRAY_SIZE(languages); i++) {
-    if (!strcmp(OPTION_language, languages[i])) {
+  for (int i = 0; i < NUM_LANGUAGES; i++) {
+    if (!strcmp(OPTION_language, LANGUAGES[i])) {
       lang = i;
       break;
     }
   }
 
-  for (int i = 0; i < ARRAY_SIZE(broadcasts); i++) {
-    if (!strcmp(OPTION_broadcast, broadcasts[i])) {
+  for (int i = 0; i < NUM_BROADCASTS; i++) {
+    if (!strcmp(OPTION_broadcast, BROADCASTS[i])) {
       bcast = i;
       break;
     }
   }
 
   LOG_INFO("bios_override_settings region=%s lang=%s bcast=%s time=0x%08x",
-           regions[region], languages[lang], broadcasts[bcast], time);
+           REGIONS[region], LANGUAGES[lang], BROADCASTS[bcast], time);
 
   /* the region, language and broadcast settings exist in two locations:
 

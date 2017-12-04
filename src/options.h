@@ -16,6 +16,18 @@ struct button_map {
   int *dirty;
 };
 
+extern const char *BROADCASTS[];
+extern const int NUM_BROADCASTS;
+
+extern const char *LANGUAGES[];
+extern const int NUM_LANGUAGES;
+
+extern const char *REGIONS[];
+extern const int NUM_REGIONS;
+
+extern const char *TIMESYNCS[];
+extern const int NUM_TIMESYNCS;
+
 extern const char *ASPECT_RATIOS[];
 extern const int NUM_ASPECT_RATIOS;
 
