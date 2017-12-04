@@ -22,7 +22,7 @@ struct imgui {
   int alt[2];
   int ctrl[2];
   int shift[2];
-  int16_t keys[K_NUM_KEYS];
+  int keys[K_NUM_KEYS];
 };
 
 /* maintain global pointer for ig* functions */
@@ -385,23 +385,36 @@ void imgui_begin_frame(struct imgui *imgui) {
   io.DisplaySize = ImVec2((float)width, (float)height);
 
   /* update navigation inputs */
-  io.NavInputs[ImGuiNavInput_PadActivate] = imgui->keys[K_CONT_A];
-  io.NavInputs[ImGuiNavInput_PadCancel] = imgui->keys[K_CONT_B];
+  io.NavInputs[ImGuiNavInput_PadActivate] = (imgui->keys[K_CONT_A] != 0);
+  io.NavInputs[ImGuiNavInput_PadCancel] = (imgui->keys[K_CONT_B] != 0);
   io.NavInputs[ImGuiNavInput_PadUp] =
-      imgui->keys[K_CONT_DPAD_UP] || (imgui->keys[K_CONT_JOYY] < 0);
+      (imgui->keys[K_CONT_DPAD_UP] != 0) || (imgui->keys[K_CONT_JOYY] < 0);
   io.NavInputs[ImGuiNavInput_PadDown] =
-      imgui->keys[K_CONT_DPAD_DOWN] || (imgui->keys[K_CONT_JOYY] > 0);
+      (imgui->keys[K_CONT_DPAD_DOWN] != 0) || (imgui->keys[K_CONT_JOYY] > 0);
   io.NavInputs[ImGuiNavInput_PadLeft] =
-      imgui->keys[K_CONT_DPAD_LEFT] || (imgui->keys[K_CONT_JOYX] < 0);
+      (imgui->keys[K_CONT_DPAD_LEFT] != 0) || (imgui->keys[K_CONT_JOYX] < 0);
   io.NavInputs[ImGuiNavInput_PadRight] =
-      imgui->keys[K_CONT_DPAD_RIGHT] || (imgui->keys[K_CONT_JOYX] > 0);
+      (imgui->keys[K_CONT_DPAD_RIGHT] != 0) || (imgui->keys[K_CONT_JOYX] > 0);
 
   ImGui::NewFrame();
 }
 
 int imgui_keydown(struct imgui *imgui, int key, int16_t value) {
   ImGuiIO &io = ImGui::GetIO();
-  int down = value != 0;
+
+  /* digital inputs will always be either 0 or INT_MAX, but analog inputs will
+     range from INT16_MIN to INT16_MAX. filter small values to require very
+     intentional actions when using these analog inputs for navigation */
+  const int16_t min = 16384;
+  if (value > min) {
+    value = 1;
+  } else if (value < -min) {
+    value = -1;
+  } else {
+    value = 0;
+  }
+
+  bool down = value != 0;
 
   if (key == K_MWHEELUP) {
     io.MouseWheel = 1.0f;
@@ -426,6 +439,7 @@ int imgui_keydown(struct imgui *imgui, int key, int16_t value) {
     imgui->keys[key] = value;
     io.KeysDown[key] = down;
   }
+
   return 0;
 }
 

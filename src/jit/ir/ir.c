@@ -1005,7 +1005,8 @@ void ir_debug_break(struct ir *ir) {
   ir_append_instr(ir, OP_DEBUG_BREAK, VALUE_V);
 }
 
-void ir_debug_log(struct ir *ir, struct ir_value *a, struct ir_value *b, struct ir_value *c) {
+void ir_debug_log(struct ir *ir, struct ir_value *a, struct ir_value *b,
+                  struct ir_value *c) {
   struct ir_instr *instr = ir_append_instr(ir, OP_DEBUG_LOG, VALUE_V);
   ir_set_arg0(ir, instr, a);
   ir_set_arg1(ir, instr, b);
