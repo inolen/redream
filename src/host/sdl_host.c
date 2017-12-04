@@ -509,6 +509,21 @@ static int translate_sdl_key(SDL_Keysym keysym) {
   return out;
 }
 
+static int16_t filter_sdl_motion(int16_t value, int deadzone) {
+  CHECK(deadzone >= 0 && deadzone <= INT16_MAX);
+
+  /* maximum input value after accounting for the deadzone */
+  float deadmax = (float)(INT16_MAX - deadzone);
+
+  if (value < -deadzone) {
+    value = (int16_t)((((float)value + deadzone) / deadmax) * INT16_MAX);
+  } else if (value > deadzone) {
+    value = (int16_t)((((float)value - deadzone) / deadmax) * INT16_MAX);
+  }
+
+  return value;
+}
+
 static int input_find_controller_port(struct host *host, int instance_id) {
   for (int port = 0; port < INPUT_MAX_CONTROLLERS; port++) {
     SDL_GameController *ctrl = host->input.controllers[port];
@@ -841,7 +856,6 @@ static void host_poll_events(struct host *host) {
       case SDL_CONTROLLERAXISMOTION: {
         int port = input_find_controller_port(host, ev.caxis.which);
         int key = K_UNKNOWN;
-        int16_t value = ev.caxis.value;
 
         switch (ev.caxis.axis) {
           case SDL_CONTROLLER_AXIS_LEFTX:
@@ -859,6 +873,7 @@ static void host_poll_events(struct host *host) {
         }
 
         if (port != -1 && key != K_UNKNOWN) {
+          int16_t value = filter_sdl_motion(ev.caxis.value, *DEADZONES[port]);
           input_keydown(host, port, key, value);
         }
       } break;

@@ -22,6 +22,8 @@ extern const int NUM_ASPECT_RATIOS;
 extern struct button_map BUTTONS[];
 extern const int NUM_BUTTONS;
 
+extern int *DEADZONES[];
+
 /* host */
 DECLARE_OPTION_STRING(sync);
 DECLARE_OPTION_INT(bios);
@@ -41,6 +43,10 @@ DECLARE_OPTION_INT(key_joyy_neg);
 DECLARE_OPTION_INT(key_joyy_pos);
 DECLARE_OPTION_INT(key_ltrig);
 DECLARE_OPTION_INT(key_rtrig);
+DECLARE_OPTION_INT(deadzone_0);
+DECLARE_OPTION_INT(deadzone_1);
+DECLARE_OPTION_INT(deadzone_2);
+DECLARE_OPTION_INT(deadzone_3);
 
 /* emulator */
 DECLARE_OPTION_STRING(aspect);
