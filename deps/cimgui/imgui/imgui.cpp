@@ -806,6 +806,7 @@ ImGuiIO::ImGuiIO()
     KeyRepeatDelay = 0.250f;
     KeyRepeatRate = 0.050f;
     NavMovesMouse = false;
+    NavScoreScaleX = 0.1f;
     UserData = NULL;
 
     Fonts = &GImDefaultFontAtlas;
@@ -2121,8 +2122,8 @@ static bool NavScoreItem(ImRect cand)
     // Bias the contribution of each axis to favor horizontal movements
     // TODO perhaps this scale could be dynamic based on the currently
     // selected items size
-    float sy = 5.0f;
-    float sx = 1.0f / sy;
+    float sx = g.IO.NavScoreScaleX;
+    float sy = 1.0f;
 
     // Calculate the distance between the two items on both axes
     float dax = NavScoreItemAxialDist(cand.Min.x, cand.Max.x, curr.Min.x, curr.Max.x) * sx;
