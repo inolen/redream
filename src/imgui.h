@@ -48,7 +48,7 @@ void imgui_destroy(struct imgui *imgui);
 void imgui_vid_created(struct imgui *imgui, struct render_backend *r);
 void imgui_vid_destroyed(struct imgui *imgui);
 void imgui_mousemove(struct imgui *imgui, int x, int y);
-int imgui_keydown(struct imgui *imgui, int key, uint16_t value);
+int imgui_keydown(struct imgui *imgui, int key, int16_t value);
 
 void imgui_begin_frame(struct imgui *imgui);
 void imgui_end_frame(struct imgui *imgui);

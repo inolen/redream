@@ -159,7 +159,7 @@ int dc_running(struct dreamcast *dc);
 void dc_suspend(struct dreamcast *dc);
 void dc_resume(struct dreamcast *dc);
 void dc_tick(struct dreamcast *dc, int64_t ns);
-void dc_input(struct dreamcast *dc, int port, int button, uint16_t value);
+void dc_input(struct dreamcast *dc, int port, int button, int16_t value);
 void dc_add_serial_device(struct dreamcast *dc, struct serial *serial);
 void dc_remove_serial_device(struct dreamcast *dc);
 

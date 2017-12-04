@@ -2,7 +2,6 @@
 #define KEYCODE_H
 
 #include <stdint.h>
-#include "core/math.h"
 
 enum {
   K_UNKNOWN,
@@ -79,49 +78,13 @@ enum {
   K_CONT_DPAD2_DOWN,
   K_CONT_DPAD2_LEFT,
   K_CONT_DPAD2_RIGHT,
-  K_CONT_JOYX_NEG,
-  K_CONT_JOYX_POS,
-  K_CONT_JOYY_NEG,
-  K_CONT_JOYY_POS,
+  K_CONT_JOYX,
+  K_CONT_JOYY,
   K_CONT_LTRIG,
   K_CONT_RTRIG,
 
   K_NUM_KEYS
 };
-
-/* keyboard input callbacks are passed a key and a value which can represent
-   either a digital button press, or an analog key / axis movement. analog
-   sources are split into individual positive / negative keys, with a 16-bit
-   unsigned integer for a value */
-#define KEY_UP 0
-#define KEY_DOWN UINT16_MAX
-
-static inline int axis_s16_to_u16(int16_t value, uint16_t *out) {
-  if (value < 0) {
-    /* scale from [INT16_MIN, 0] to [UINT16_MAX, 0] */
-    *out = (uint16_t)MIN(-(int32_t)value * 2, UINT16_MAX);
-    return 0;
-  }
-
-  /* scale from [0, INT16_MAX] to [0, UINT16_MAX] */
-  *out = (uint16_t)((int32_t)value * 2);
-  return 1;
-}
-
-static inline uint8_t axis_neg_u16_to_u8(uint16_t value) {
-  /* scale from [0, UINT16_MAX] to [127, 0] */
-  return 127 - (value >> 9);
-}
-
-static inline uint8_t axis_pos_u16_to_u8(uint16_t value) {
-  /* scale from [0, UINT16_MAX] to [128, 255] */
-  return 128 + (value >> 9);
-}
-
-static inline uint8_t axis_u16_to_u8(uint16_t value) {
-  /* scale from [0, UINT16_MAX] to [0, 255] */
-  return value >> 7;
-}
 
 int get_key_by_name(const char *keyname);
 const char *get_name_by_key(int key);

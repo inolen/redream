@@ -696,7 +696,7 @@ int emu_load(struct emu *emu, const char *path) {
   return dc_load(emu->dc, path);
 }
 
-int emu_keydown(struct emu *emu, int port, int key, uint16_t value) {
+int emu_keydown(struct emu *emu, int port, int key, int16_t value) {
   if (key >= K_CONT_C && key <= K_CONT_RTRIG) {
     dc_input(emu->dc, port, key - K_CONT_C, value);
   }

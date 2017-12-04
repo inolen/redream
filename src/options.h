@@ -2,8 +2,16 @@
 
 #include "core/option.h"
 
+enum {
+  DIR_NONE,
+  DIR_NEG,
+  DIR_POS,
+};
+
 struct button_map {
   const char *desc;
+  int btn;
+  int dir;
   int *key;
   int *dirty;
 };

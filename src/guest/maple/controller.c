@@ -20,10 +20,8 @@ enum {
   CONT_DPAD2_LEFT,
   CONT_DPAD2_RIGHT,
   /* only used internally, not by the real controller state */
-  CONT_JOYX_NEG,
-  CONT_JOYX_POS,
-  CONT_JOYY_NEG,
-  CONT_JOYY_POS,
+  CONT_JOYX,
+  CONT_JOYY,
   CONT_LTRIG,
   CONT_RTRIG,
   NUM_CONTROLS,
@@ -97,7 +95,7 @@ static int controller_frame(struct maple_device *dev,
 }
 
 static int controller_input(struct maple_device *dev, int button,
-                            uint16_t value) {
+                            int16_t value) {
   struct controller *ctrl = (struct controller *)dev;
 
   if (button <= CONT_DPAD2_RIGHT) {
@@ -106,18 +104,24 @@ static int controller_input(struct maple_device *dev, int button,
     } else {
       ctrl->cnd.buttons |= (1 << button);
     }
-  } else if (button == CONT_JOYX_NEG) {
-    ctrl->cnd.joyx = axis_neg_u16_to_u8(value);
-  } else if (button == CONT_JOYX_POS) {
-    ctrl->cnd.joyx = axis_pos_u16_to_u8(value);
-  } else if (button == CONT_JOYY_NEG) {
-    ctrl->cnd.joyy = axis_neg_u16_to_u8(value);
-  } else if (button == CONT_JOYY_POS) {
-    ctrl->cnd.joyy = axis_pos_u16_to_u8(value);
-  } else if (button == CONT_LTRIG) {
-    ctrl->cnd.ltrig = axis_u16_to_u8(value);
-  } else if (button == CONT_RTRIG) {
-    ctrl->cnd.rtrig = axis_u16_to_u8(value);
+  } else if (button == CONT_JOYX || button == CONT_JOYY) {
+    /* scale value from [INT16_MIN, INT16_MAX] to [0, UINT8_MAX] */
+    uint8_t scaled = ((int32_t)value - INT16_MIN) >> 8;
+
+    if (button == CONT_JOYX) {
+      ctrl->cnd.joyx = scaled;
+    } else {
+      ctrl->cnd.joyy = scaled;
+    }
+  } else if (button == CONT_LTRIG || button == CONT_RTRIG) {
+    /* scale value from [0, INT16_MAX] to [0, UINT8_MAX] */
+    uint8_t scaled = (int32_t)value >> 7;
+
+    if (button == CONT_LTRIG) {
+      ctrl->cnd.ltrig = scaled;
+    } else {
+      ctrl->cnd.rtrig = scaled;
+    }
   }
 
   return 1;

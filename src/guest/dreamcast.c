@@ -100,7 +100,7 @@ void dc_add_serial_device(struct dreamcast *dc, struct serial *serial) {
   dc->serial = serial;
 }
 
-void dc_input(struct dreamcast *dc, int port, int button, uint16_t value) {
+void dc_input(struct dreamcast *dc, int port, int button, int16_t value) {
   maple_handle_input(dc->maple, port, button, value);
 }
 

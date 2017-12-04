@@ -65,8 +65,7 @@ int maple_handle_frame(struct maple *mp, int port, union maple_frame *req,
   return 1;
 }
 
-void maple_handle_input(struct maple *mp, int port, int button,
-                        uint16_t value) {
+void maple_handle_input(struct maple *mp, int port, int button, int16_t value) {
   CHECK(port >= 0 && port < MAPLE_NUM_PORTS);
 
   /* send to primary device */

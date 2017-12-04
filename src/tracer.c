@@ -716,7 +716,7 @@ int tracer_load(struct tracer *tracer, const char *path) {
   return 1;
 }
 
-int tracer_keydown(struct tracer *tracer, int key, uint16_t value) {
+int tracer_keydown(struct tracer *tracer, int key, int16_t value) {
   if (key == K_LEFT && value) {
     tracer_prev_context(tracer);
   } else if (key == K_RIGHT && value) {

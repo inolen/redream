@@ -10,7 +10,7 @@ struct maple_device;
 struct maple_device {
   struct maple *mp;
   void (*destroy)(struct maple_device *);
-  int (*input)(struct maple_device *, int, uint16_t);
+  int (*input)(struct maple_device *, int, int16_t);
   int (*frame)(struct maple_device *, const union maple_frame *,
                union maple_frame *);
 };
@@ -22,7 +22,7 @@ struct maple *maple_create(struct dreamcast *dc);
 void maple_destroy(struct maple *mp);
 
 struct maple_device *maple_get_device(struct maple *mp, int port, int unit);
-void maple_handle_input(struct maple *mp, int port, int button, uint16_t value);
+void maple_handle_input(struct maple *mp, int port, int button, int16_t value);
 int maple_handle_frame(struct maple *mp, int port, union maple_frame *frame,
                        union maple_frame *res);
 
