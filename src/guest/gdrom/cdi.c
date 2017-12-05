@@ -50,8 +50,8 @@ static void cdi_get_toc(struct disc *disc, int area, struct track **first_track,
                         int *leadout_fad) {
   struct cdi *cdi = (struct cdi *)disc;
 
-  /* cdi's have no high-density area */
-  CHECK_EQ(area, GD_AREA_SINGLE);
+  /* cdi's don't have a high-density area */
+  CHECK_NE(area, GD_AREA_HIGH);
 
   /* the toc on cdi's represents all tracks / sessions */
   struct session *first_session = &cdi->sessions[0];

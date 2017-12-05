@@ -93,18 +93,19 @@ enum {
 };
 
 enum {
-  GDC_STATUS_NONE = 0x0,
+  GDC_STATUS_ERROR = -1,
+  GDC_STATUS_INACTIVE = 0x0,
   GDC_STATUS_ACTIVE = 0x1,
-  GDC_STATUS_DONE = 0x2,
+  GDC_STATUS_COMPLETE = 0x2,
   GDC_STATUS_ABORT = 0x3,
-  GDC_STATUS_ERROR = 0x4,
 };
 
 enum {
   GDC_ERROR_OK = 0x0,
-  GDC_ERROR_NO_DISC = 0x2,
-  GDC_ERROR_DISC_CHANGE = 0x6,
   GDC_ERROR_SYSTEM = 0x1,
+  GDC_ERROR_NO_DISC = 0x2,
+  GDC_ERROR_INVALID_CMD = 0x5,
+  GDC_ERROR_DISC_CHANGE = 0x6,
 };
 
 static int bios_gdrom_override_format(struct bios *bios, int format) {
@@ -140,7 +141,7 @@ static uint32_t bios_gdrom_send_cmd(struct bios *bios, uint32_t cmd_code,
                                     uint32_t params) {
   struct dreamcast *dc = bios->dc;
 
-  if (bios->status != GDC_STATUS_NONE) {
+  if (bios->status != GDC_STATUS_INACTIVE) {
     return 0;
   }
 
@@ -172,6 +173,9 @@ static void bios_gdrom_mainloop(struct bios *bios) {
   if (bios->status != GDC_STATUS_ACTIVE) {
     return;
   }
+
+  /* by default, all commands report that they've completed successfully */
+  bios->status = GDC_STATUS_COMPLETE;
 
   switch (bios->cmd_code) {
     case GDC_PIOREAD:
@@ -213,69 +217,78 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       uint32_t area = bios->params[0];
       uint32_t dst = bios->params[1];
 
-      LOG_SYSCALL("GDC_GETTOC2 0=0x%x 1=0x%x", area, dst);
+      LOG_SYSCALL("GDC_GETTOC2 area=0x%x dst=0x%x", area, dst);
 
-      struct gd_toc_info toc;
-      gdrom_get_toc(gd, area, &toc);
+      struct gd_status_info stat;
+      gdrom_get_status(gd, &stat);
 
-      /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
-         byte  |     |     |     |     |     |     |     |
-         ------------------------------------------------------
-         n*4+0 | track n fad (lsb)
-         ------------------------------------------------------
-         n*4+1 | track n fad
-         ------------------------------------------------------
-         n*4*2 | track n fad (msb)
-         ------------------------------------------------------
-         n*4+3 | track n control       | track n adr
-         ------------------------------------------------------
-         396   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
-         ------------------------------------------------------
-         397   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
-         ------------------------------------------------------
-         398   | start track number
-         ------------------------------------------------------
-         399   | start track control   | start track adr
-         ------------------------------------------------------
-         400   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
-         ------------------------------------------------------
-         401   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
-         ------------------------------------------------------
-         402   | end track number
-         ------------------------------------------------------
-         403   | end track control     | end track adr
-         ------------------------------------------------------
-         404   | lead-out track fad (lsb)
-         ------------------------------------------------------
-         405   | lead-out track fad
-         ------------------------------------------------------
-         406   | lead-out track fad (msb)
-         ------------------------------------------------------
-         407   | lead-out track ctrl   | lead-out track adr */
-      uint8_t out[408];
-      for (int i = 0; i < ARRAY_SIZE(toc.entries); i++) {
-        struct gd_toc_entry *entry = &toc.entries[i];
-        out[i * 4 + 0] = (entry->fad & 0x000000ff);
-        out[i * 4 + 1] = (entry->fad & 0x0000ff00) >> 8;
-        out[i * 4 + 2] = (entry->fad & 0x00ff0000) >> 16;
-        out[i * 4 + 3] = ((entry->ctrl & 0xf) << 4) | (entry->adr & 0xf);
+      if (area == GD_AREA_HIGH && stat.format != GD_DISC_GDROM) {
+        /* only GD-ROMs have a high-density area. in this situation, the bios
+           doesn't set a result or error */
+        bios->status = GDC_STATUS_INACTIVE;
+      } else {
+        struct gd_toc_info toc;
+        gdrom_get_toc(gd, area, &toc);
+
+        /* bit   |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0
+           byte  |     |     |     |     |     |     |     |
+           ------------------------------------------------------
+           n*4+0 | track n fad (lsb)
+           ------------------------------------------------------
+           n*4+1 | track n fad
+           ------------------------------------------------------
+           n*4*2 | track n fad (msb)
+           ------------------------------------------------------
+           n*4+3 | track n control       | track n adr
+           ------------------------------------------------------
+           396   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+           ------------------------------------------------------
+           397   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+           ------------------------------------------------------
+           398   | start track number
+           ------------------------------------------------------
+           399   | start track control   | start track adr
+           ------------------------------------------------------
+           400   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+           ------------------------------------------------------
+           401   |  0  |  0  |  0  |  0  |  0  |  0  |  0  |  0
+           ------------------------------------------------------
+           402   | end track number
+           ------------------------------------------------------
+           403   | end track control     | end track adr
+           ------------------------------------------------------
+           404   | lead-out track fad (lsb)
+           ------------------------------------------------------
+           405   | lead-out track fad
+           ------------------------------------------------------
+           406   | lead-out track fad (msb)
+           ------------------------------------------------------
+           407   | lead-out track ctrl   | lead-out track adr */
+        uint8_t out[408];
+        for (int i = 0; i < ARRAY_SIZE(toc.entries); i++) {
+          struct gd_toc_entry *entry = &toc.entries[i];
+          out[i * 4 + 0] = (entry->fad & 0x000000ff);
+          out[i * 4 + 1] = (entry->fad & 0x0000ff00) >> 8;
+          out[i * 4 + 2] = (entry->fad & 0x00ff0000) >> 16;
+          out[i * 4 + 3] = ((entry->ctrl & 0xf) << 4) | (entry->adr & 0xf);
+        }
+        out[396] = 0;
+        out[397] = 0;
+        out[398] = toc.first.fad & 0xff;
+        out[399] = ((toc.first.ctrl & 0xf) << 4) | (toc.first.adr & 0xf);
+        out[400] = 0;
+        out[401] = 0;
+        out[402] = toc.last.fad & 0xff;
+        out[403] = ((toc.last.ctrl & 0xf) << 4) | (toc.last.adr & 0xf);
+        out[404] = (toc.leadout.fad & 0x000000ff);
+        out[405] = (toc.leadout.fad & 0x0000ff00) >> 8;
+        out[406] = (toc.leadout.fad & 0x00ff0000) >> 16;
+        out[407] = ((toc.leadout.ctrl & 0xf) << 4) | (toc.leadout.adr & 0xf);
+        sh4_memcpy_to_guest(dc->mem, dst, &out, sizeof(out));
+
+        /* the bios doesn't perform a pio transfer to get the toc for this req,
+           it is cached, so there is no transfer size to record */
       }
-      out[396] = 0;
-      out[397] = 0;
-      out[398] = toc.first.fad & 0xff;
-      out[399] = ((toc.first.ctrl & 0xf) << 4) | (toc.first.adr & 0xf);
-      out[400] = 0;
-      out[401] = 0;
-      out[402] = toc.last.fad & 0xff;
-      out[403] = ((toc.last.ctrl & 0xf) << 4) | (toc.last.adr & 0xf);
-      out[404] = (toc.leadout.fad & 0x000000ff);
-      out[405] = (toc.leadout.fad & 0x0000ff00) >> 8;
-      out[406] = (toc.leadout.fad & 0x00ff0000) >> 16;
-      out[407] = ((toc.leadout.ctrl & 0xf) << 4) | (toc.leadout.adr & 0xf);
-      sh4_memcpy_to_guest(dc->mem, dst, &out, sizeof(out));
-
-      /* the bios doesn't perform a pio transfer to get the toc for this req,
-         it is cached, so there is no transfer size to record */
     } break;
 
     case GDC_PLAY: {
@@ -469,8 +482,6 @@ static void bios_gdrom_mainloop(struct bios *bios) {
       LOG_FATAL("bios_gdrom_mainloop unexpected cmd=0x%x", bios->cmd_code);
     } break;
   }
-
-  bios->status = GDC_STATUS_DONE;
 }
 
 void bios_gdrom_vector(struct bios *bios) {
@@ -558,14 +569,20 @@ void bios_gdrom_vector(struct bios *bios) {
 
         LOG_SYSCALL("GDROM_CHECK_COMMAND 0x%x 0x%x", cmd_id, status);
 
-        ctx->r[0] = bios->status;
-
-        if (cmd_id == bios->cmd_id && bios->status != GDC_STATUS_NONE) {
-          sh4_memcpy_to_guest(dc->mem, status, &bios->result,
+        if (cmd_id != bios->cmd_id) {
+          /* error if something other than the most recent command is checked */
+          const uint32_t result[] = {GDC_ERROR_INVALID_CMD, 0, 0, 0};
+          sh4_memcpy_to_guest(dc->mem, status, result, sizeof(result));
+          ctx->r[0] = GDC_STATUS_ERROR;
+        } else {
+          sh4_memcpy_to_guest(dc->mem, status, bios->result,
                               sizeof(bios->result));
-        }
+          ctx->r[0] = bios->status;
 
-        bios->status = GDC_STATUS_NONE;
+          /* clear result so nothing is returned if queried a second time */
+          bios->status = GDC_STATUS_INACTIVE;
+          memset(bios->result, 0, sizeof(bios->result));
+        }
       } break;
 
       case GDROM_MAINLOOP: {
@@ -591,7 +608,7 @@ void bios_gdrom_vector(struct bios *bios) {
          */
         LOG_SYSCALL("GDROM_INIT");
 
-        bios->status = GDC_STATUS_NONE;
+        bios->status = GDC_STATUS_INACTIVE;
       } break;
 
       case GDROM_CHECK_DRIVE: {
