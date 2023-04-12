@@ -55,6 +55,10 @@ if(APPLE OR UNIX)
   list(APPEND FLAC_DEFS HAVE_SYS_PARAM_H)
 endif()
 
+if(MINGW)
+  list(APPEND FLAC_DEFS HAVE_FSEEKO)
+endif()
+
 add_library(flac-static STATIC ${FLAC_SOURCES})
 target_include_directories(flac-static PUBLIC deps/flac-1.3.2/include deps/flac-1.3.2/src/libFLAC/include)
 target_compile_definitions(flac-static PRIVATE PACKAGE_VERSION="1.3.2" FLAC__HAS_OGG=0 FLAC__NO_DLL HAVE_LROUND HAVE_STDINT_H HAVE_STDLIB_H ${FLAC_DEFS})
